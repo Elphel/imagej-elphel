@@ -30,6 +30,8 @@ import ij.ImageStack;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
+import javax.swing.SwingUtilities;
+
 
 public class DebayerScissors {
 //	showDoubleFloatArrays SDFA_INSTANCE=   new showDoubleFloatArrays();
@@ -96,93 +98,128 @@ public class DebayerScissors {
   	  final Thread[] threads = newThreadArray(threadsMax);
   	  final AtomicInteger ai = new AtomicInteger(0);
   	  final int numberOfKernels=tilesY*tilesX;
+  	  
+	  int indx,dx,dy,tx,ty,li;
+	  final int [] nonOverlapSeq = new int[numberOfKernels];
+	  int [] nextFirstFindex=new int[4];
+	  indx = 0;
+	  li=0;
+	  
+	  for (dy=0;dy<2;dy++) for (dx=0;dx<2;dx++) {
+		  for (ty=dy; ty < tilesY; ty+=2) for (tx=dx; tx < tilesX; tx+=2){
+			  nonOverlapSeq[indx++] = ty*tilesX + tx;
+		  }
+		  nextFirstFindex[li++] = indx;
+	  }
+	  final AtomicInteger aStopIndex = new AtomicInteger(0);
   	  final long startTime = System.nanoTime();
-  	  for (int ithread = 0; ithread < threads.length; ithread++) {
-  		  threads[ithread] = new Thread() {
-  			  public void run() {
-  				  double [][] tile=        new double[nChn][debayerParameters.size * debayerParameters.size ];
-  				  double [][] both_masks;
-  				  float [][] pixels=       new float[nChn][];
-  				  int chn,tileY,tileX,i;
-  				  for (chn=0;chn<nChn;chn++) pixels[chn]= (float[]) imageStack.getPixels(chn+1);
-  				  DoubleFHT       fht_instance =   new DoubleFHT(); // provide DoubleFHT instance to save on initializations (or null)
-  				  showDoubleFloatArrays SDFA_instance=null; // just for debugging?
+  	  final AtomicInteger tilesFinishedAtomic = new AtomicInteger(1); // first finished will be 1
+  	  for (li = 0; li < nextFirstFindex.length; li++){
+  		  aStopIndex.set(nextFirstFindex[li]);
+  		  if (li>0){
+  			  ai.set(nextFirstFindex[li-1]);
+  		  }
+  		  //		  System.out.println("\n=== nextFirstFindex["+li+"] =" + nextFirstFindex[li]+" === ");
 
-  				  deBayerScissors debayer_instance=new deBayerScissors( debayerParameters.size, // size of the square array, centar is at size/2, size/2, only top half+line will be used
-  						  debayerParameters.polarStep, // maximal step in pixels on the maxRadius for 1 angular step (i.e. 0.5)
-  						  debayerParameters.debayerRelativeWidthGreen, // result green mask mpy by scaled default (diamond)
-  						  debayerParameters.debayerRelativeWidthRedblue, // result red/blue mask mpy by scaled default (square)
-  						  debayerParameters.debayerRelativeWidthRedblueMain, // green mask when applied to red/blue, main (center)
-  						  debayerParameters.debayerRelativeWidthRedblueClones);// green mask when applied to red/blue, clones 
-  				  
-  				  for (int nTile = ai.getAndIncrement(); nTile < numberOfKernels; nTile = ai.getAndIncrement()) {
-  					  tileY = nTile /tilesX;
-  					  tileX = nTile % tilesX;
-  					  if (tileX==0) {
-  						  if (updateStatus) IJ.showStatus("(1)Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY);
-  						  if (globalDebugLevel>2) System.out.println("(1)Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
-  					  }
-  				  
-//  					  if ((tileY==yTileDebug) && (tileX==xTileDebug)) this.debugLevel=4;
-//  					  else this.debugLevel=wasDebugLevel;
-  					  for (chn=0;chn<nChn;chn++){
-  						  extractSquareTile( pixels[chn], // source pixel array,
-  								  tile[chn], // will be filled, should have correct size before call
-  								  slidingWindow, // window (same size as the kernel)
-  								  imgWidth, // width of pixels array
-  								  tileX*step, // left corner X
-  								  tileY*step); // top corner Y
-  					  }
+  		  for (int ithread = 0; ithread < threads.length; ithread++) {
+  			  threads[ithread] = new Thread() {
+  				  public void run() {
+  					  double [][] tile=        new double[nChn][debayerParameters.size * debayerParameters.size ];
+  					  double [][] both_masks;
+  					  float [][] pixels=       new float[nChn][];
+  					  int chn,tileY,tileX,i;
+  					  for (chn=0;chn<nChn;chn++) pixels[chn]= (float[]) imageStack.getPixels(chn+1);
+  					  DoubleFHT       fht_instance =   new DoubleFHT(); // provide DoubleFHT instance to save on initializations (or null)
+  					  showDoubleFloatArrays SDFA_instance=null; // just for debugging?
 
-  					  /* Scale green channel x0.5 as there are twice more pixels there as in red or blue. Or move it somewhere else and multiply to original range ? */
-  					  for (i=0;i<tile[greenChn].length;i++) tile[greenChn][i]*=0.5;
-  					  if ((tileY==yTileDebug) && (tileX==xTileDebug)) {
-  						  if (SDFA_instance==null) SDFA_instance=      new showDoubleFloatArrays();
-  						  SDFA_instance.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "x"+(tileX*step)+"_y"+(tileY*step));
-  					  }
-  					  for (chn=0;chn<nChn;chn++){
-  						  fht_instance.swapQuadrants(tile[chn]);
-  						  fht_instance.transform(tile[chn]);
-  					  }
-  					  if ((tileY==yTileDebug) && (tileX==xTileDebug) && (SDFA_instance!=null)) SDFA_instance.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "tile-fht");
-  					  both_masks= debayer_instance.aliasScissors(tile[greenChn], // fht array for green, will be masked in-place
-  							  debayerParameters.debayerThreshold, // no high frequencies - use default uniform filter
-  							  debayerParameters.debayerGamma, // power function applied to the amplitudes before generating spectral masks
-  							  debayerParameters.debayerBonus, // scale far pixels as (1.0+bonus*r/rmax)
-  							  debayerParameters.mainToAlias,// relative main/alias amplitudes to enable lixels (i.e. 0.5 means that if alias is >0.5*main, the pixel will be masked out)
-  							  debayerParameters.debayerMaskBlur, // for both masks  sigma for gaussian blur of the binary masks (<0 -do not use "scissors")
-  							  debayerParameters.debayerUseScissors, // use "scissors", if false - just apply "diamond" ands "square" with DEBAYER_PARAMETERS.debayerRelativeWidthGreen and DEBAYER_PARAMETERS.debayerRelativeWidthRedblue
-  							  ((tileY==yTileDebug) && (tileX==xTileDebug))?4:1);
-  					  //                                               1); // internal debug level ((this.debugLevel>2) && (yTile==yTile0) && (xTile==xTile0))?3:1;
-  					  if ((tileY==yTileDebug) && (tileX==xTileDebug) && (SDFA_instance!=null)) {
-  						  SDFA_instance.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "A00");
-  						  SDFA_instance.showArrays (both_masks.clone(),debayerParameters.size,debayerParameters.size, "masks");
-  					  }
-  					  if (debayerEnergy!=null) {
-  						  debayerEnergy[tileY*tilesX+tileX]=debayer_instance.getMidEnergy();
-  					  }
-  					  for (chn=0;chn<nChn;chn++) {
-  						  tile[chn]=fht_instance.multiply(tile[chn],both_masks[(chn==greenChn)?0:1],false);
-  						  fht_instance.inverseTransform(tile[chn]);
-  						  fht_instance.swapQuadrants(tile[chn]);
-  						  /* accumulate result */
-  						  /*This is synchronized method. It is possible to make threads to write to non-overlapping regions of the outPixles, but as the accumulation
-  						   * takes just small fraction of severtal FHTs, it should be OK - reasonable number of threads will spread and not "stay in line"
-  						   */
+  					  deBayerScissors debayer_instance=new deBayerScissors( debayerParameters.size, // size of the square array, centar is at size/2, size/2, only top half+line will be used
+  							  debayerParameters.polarStep, // maximal step in pixels on the maxRadius for 1 angular step (i.e. 0.5)
+  							  debayerParameters.debayerRelativeWidthGreen, // result green mask mpy by scaled default (diamond)
+  							  debayerParameters.debayerRelativeWidthRedblue, // result red/blue mask mpy by scaled default (square)
+  							  debayerParameters.debayerRelativeWidthRedblueMain, // green mask when applied to red/blue, main (center)
+  							  debayerParameters.debayerRelativeWidthRedblueClones);// green mask when applied to red/blue, clones 
+  					  //  					  for (int nTile0 = ai.getAndIncrement(); nTile0 < numberOfKernels; nTile0 = ai.getAndIncrement()) {
+  					  for (int nTile0 = ai.getAndIncrement(); nTile0 < aStopIndex.get(); nTile0 = ai.getAndIncrement()) {
+  						  int nTile = nonOverlapSeq[nTile0];
+  						  tileY = nTile /tilesX;
+  						  tileX = nTile % tilesX;
+  						  if (tileX < 2) {
+  							  int trow=(tileY+((tileY & 1)*tilesY))/2;
+  							  if (updateStatus) IJ.showStatus("Reducing sampling aliases, row "+(trow+1)+" of "+tilesY);
+  							  //  						  System.out.println("(1)Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY+" ("+nTile+"/"+nTile0+") col="+(tileX+1));
+  							  if (globalDebugLevel>2) System.out.println("(1)Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+  						  }
 
-  						  accumulateSquareTile(outPixles[chn], //  float pixels array to accumulate tile
-  								  tile[chn], // data to accumulate to the pixels array
-  								  imgWidth, // width of pixels array
-  								  tileX*step, // left corner X
-  								  tileY*step); // top corner Y
+  						  //  					  if ((tileY==yTileDebug) && (tileX==xTileDebug)) this.debugLevel=4;
+  						  //  					  else this.debugLevel=wasDebugLevel;
+  						  for (chn=0;chn<nChn;chn++){
+  							  extractSquareTile( pixels[chn], // source pixel array,
+  									  tile[chn], // will be filled, should have correct size before call
+  									  slidingWindow, // window (same size as the kernel)
+  									  imgWidth, // width of pixels array
+  									  tileX*step, // left corner X
+  									  tileY*step); // top corner Y
+  						  }
+
+  						  /* Scale green channel x0.5 as there are twice more pixels there as in red or blue. Or move it somewhere else and multiply to original range ? */
+  						  for (i=0;i<tile[greenChn].length;i++) tile[greenChn][i]*=0.5;
+  						  if ((tileY==yTileDebug) && (tileX==xTileDebug)) {
+  							  if (SDFA_instance==null) SDFA_instance=      new showDoubleFloatArrays();
+  							  SDFA_instance.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "x"+(tileX*step)+"_y"+(tileY*step));
+  						  }
+  						  for (chn=0;chn<nChn;chn++){
+  							  fht_instance.swapQuadrants(tile[chn]);
+  							  fht_instance.transform(tile[chn]);
+  						  }
+  						  if ((tileY==yTileDebug) && (tileX==xTileDebug) && (SDFA_instance!=null)) SDFA_instance.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "tile-fht");
+  						  both_masks= debayer_instance.aliasScissors(tile[greenChn], // fht array for green, will be masked in-place
+  								  debayerParameters.debayerThreshold, // no high frequencies - use default uniform filter
+  								  debayerParameters.debayerGamma, // power function applied to the amplitudes before generating spectral masks
+  								  debayerParameters.debayerBonus, // scale far pixels as (1.0+bonus*r/rmax)
+  								  debayerParameters.mainToAlias,// relative main/alias amplitudes to enable pixels (i.e. 0.5 means that if alias is >0.5*main, the pixel will be masked out)
+  								  debayerParameters.debayerMaskBlur, // for both masks  sigma for Gaussian blur of the binary masks (<0 -do not use "scissors")
+  								  debayerParameters.debayerUseScissors, // use "scissors", if false - just apply "diamond" ands "square" with DEBAYER_PARAMETERS.debayerRelativeWidthGreen and DEBAYER_PARAMETERS.debayerRelativeWidthRedblue
+  								  ((tileY==yTileDebug) && (tileX==xTileDebug))?4:1);
+  						  //                                               1); // internal debug level ((this.debugLevel>2) && (yTile==yTile0) && (xTile==xTile0))?3:1;
+  						  if ((tileY==yTileDebug) && (tileX==xTileDebug) && (SDFA_instance!=null)) {
+  							  SDFA_instance.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "A00");
+  							  SDFA_instance.showArrays (both_masks.clone(),debayerParameters.size,debayerParameters.size, "masks");
+  						  }
+  						  if (debayerEnergy!=null) {
+  							  debayerEnergy[tileY*tilesX+tileX]=debayer_instance.getMidEnergy();
+  						  }
+  						  for (chn=0;chn<nChn;chn++) {
+  							  tile[chn]=fht_instance.multiply(tile[chn],both_masks[(chn==greenChn)?0:1],false);
+  							  fht_instance.inverseTransform(tile[chn]);
+  							  fht_instance.swapQuadrants(tile[chn]);
+  							  /* accumulate result */
+  							  /*This is synchronized method. It is possible to make threads to write to non-overlapping regions of the outPixles, but as the accumulation
+  							   * takes just small fraction of several FHTs, it should be OK - reasonable number of threads will spread and not "stay in line"
+  							   */
+
+  							  //accumulateSquareTile(
+  							  nonSyncAccumulateSquareTile (
+  									  outPixles[chn], //  float pixels array to accumulate tile
+  									  tile[chn], // data to accumulate to the pixels array
+  									  imgWidth, // width of pixels array
+  									  tileX*step, // left corner X
+  									  tileY*step); // top corner Y
+  						  }
+  						  if ((tileY==yTileDebug) && (tileX==xTileDebug) && (SDFA_instance!=null)) SDFA_instance.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "B00");
+     						final int numFinished=tilesFinishedAtomic.getAndIncrement();
+       						SwingUtilities.invokeLater(new Runnable() {
+       							public void run() {
+       								IJ.showProgress(numFinished,numberOfKernels);
+       							}
+       						});
   					  }
-  					  if ((tileY==yTileDebug) && (tileX==xTileDebug) && (SDFA_instance!=null)) SDFA_instance.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "B00");
-  					  
   				  }
-  			  }
-  		  };
-  	  }		      
-  	  startAndJoin(threads);
+  			  };
+  		  }		      
+  		  startAndJoin(threads);
+  	  }
+  	  if (updateStatus) IJ.showStatus("Reducing sampling aliases DONE");
+  	  IJ.showProgress(1.0);
  // 	  this.debugLevel=wasDebugLevel;
   	  /* prepare result stack to return */
   	  ImageStack outStack=new ImageStack(imgWidth,imgHeight);
@@ -193,7 +230,7 @@ public class DebayerScissors {
 //  	  if (debayerParameters.showEnergy) {
 //  		  SDFA_INSTANCE.showArrays (debayerEnergy,tilesX,tilesY, "Debayer-Energy");
 //  	  }
-
+	  if (globalDebugLevel>0) System.out.println("(1)Reducing sampling aliases done in "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
   	  return outStack;
     }
 
@@ -273,6 +310,31 @@ public class DebayerScissors {
    		  }
    	  }
      }
+
+     void  nonSyncAccumulateSquareTile(
+      		  float [] pixels, //  float pixels array to accumulate tile
+      		  double []  tile, // data to accumulate to the pixels array
+      		  int       width, // width of pixels array
+      		  int          x0, // left corner X
+      		  int          y0) { // top corner Y
+      	  int length=tile.length;
+      	  int size=(int) Math.sqrt(length);
+      	  int i,j,x,y;
+      	  int height=pixels.length/width;
+      	  int index=0;
+      	  for (i=0;i<size;i++) {
+      		  y=y0+i;
+      		  if ((y>=0) && (y<height)) {
+      			  index=i*size;
+      			  for (j=0;j<size;j++) {
+      				  x=x0+j;
+      				  if ((x>=0) && (x<width)) pixels[y*width+x]+=tile [index];
+      				  index++;
+      			  }
+      		  }
+      	  }
+        }
+     
      synchronized void  accumulateSquareTile(
    		  double [] pixels, //  float pixels array to accumulate tile
    		  double []  tile, // data to accumulate to the pixels array

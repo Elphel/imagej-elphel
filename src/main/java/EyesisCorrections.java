@@ -39,6 +39,8 @@ import ij.process.ImageProcessor;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import javax.swing.SwingUtilities;
+
 import loci.common.services.DependencyException;
 import loci.common.services.ServiceException;
 import loci.formats.FormatException;
@@ -473,7 +475,7 @@ public class EyesisCorrections {
 						this.defectsDiff[srcChannel]=this.pixelMapping.getDefectsDiff(srcChannel);
 						if (this.debugLevel>0){
 							if (this.defectsXY[srcChannel]==null){
-								System.out.println("No pixel defects info is availabele for channel "+srcChannel);
+								System.out.println("No pixel defects info is available for channel "+srcChannel);
 							} else {
 								System.out.println("Extracted "+this.defectsXY[srcChannel].length+" pixel outlayers for channel "+srcChannel+
 										" (x:y:difference");
@@ -1712,14 +1714,31 @@ public class EyesisCorrections {
 		  final AtomicInteger ai = new AtomicInteger(0);
 		  final int numberOfKernels=     tilesY*tilesX*nChn;
 		  final int numberOfKernelsInChn=tilesY*tilesX;
-//		  if (globalDebugLevel>1) 
-			  System.out.println("Eyesis_Correction:convolveStackWithKernelStack :\n"+
+		  
+		  int ichn,indx,dx,dy,tx,ty,li;
+		  final int [] nonOverlapSeq = new int[numberOfKernels];
+		  int [] nextFirstFindex=new int[16*nChn];
+		  indx = 0;
+		  li=0;
+		  for (ichn=0;ichn<nChn;ichn++) for (dy=0;dy<4;dy++) for (dx=0;dx<4;dx++) {
+			  for (ty=dy; ty < tilesY; ty+=4) for (tx=dx; tx < tilesX; tx+=4){
+				  nonOverlapSeq[indx++] = ichn*numberOfKernelsInChn+ ty*tilesX + tx;
+			  }
+			  nextFirstFindex[li++] = indx;
+		  }
+		  final AtomicInteger aStopIndex = new AtomicInteger(0);
+		  final AtomicInteger tilesFinishedAtomic = new AtomicInteger(1); // first finished will be 1
+		  
+		  if (globalDebugLevel>1) 
+			  System.out.println("Eyesis_Corrections:convolveStackWithKernelStack :\n"+
 				  "globalDebugLevel="+globalDebugLevel+"\n"+
 				  "imgWidth="+imgWidth+"\n"+
 				  "imgHeight="+imgHeight+"\n"+
 				  "tilesX="+tilesX+"\n"+
 				  "tilesY="+tilesY+"\n"+
+				  "nChn="+nChn+"\n"+
 				  "step="+step+"\n"+
+				  "size="+size+"\n"+
 				  "kernelSize="+kernelSize+"\n"+
 				  "kernelWidth="+kernelWidth+"\n"+
 				  "kernelNumHor="+kernelNumHor+"\n"+
@@ -1727,91 +1746,119 @@ public class EyesisCorrections {
 		  
 		  
 		  final long startTime = System.nanoTime();
-		  for (int ithread = 0; ithread < threads.length; ithread++) {
-			  threads[ithread] = new Thread() {
-				  public void run() {
-					  float [] pixels=null;       // will be initialized at first use
-					  float [] kernelPixels=null; // will be initialized at first use
-					  double [] kernel=       new double[kernelSize*kernelSize];
-					  double [] inTile=       new double[kernelSize*kernelSize];
-					  double [] outTile=      new double[size * size];
-					  double [] doubleKernel= new double[size * size];
-					  int chn,tileY,tileX;
-					  int chn0=-1;
-//					  double debug_sum;
-//					  int i;
-					  DoubleFHT fht_instance =new DoubleFHT(); // provide DoubleFHT instance to save on initializations (or null)
-					  for (int nTile = ai.getAndIncrement(); nTile < numberOfKernels; nTile = ai.getAndIncrement()) {
-						  chn=nTile/numberOfKernelsInChn;
-						  tileY =(nTile % numberOfKernelsInChn)/tilesX;
-						  tileX = nTile % tilesX;
-						  if (tileX==0) {
-							  if (updateStatus) IJ.showStatus("Convolving image with kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+tilesY);
-							  if (globalDebugLevel>2) System.out.println("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+tilesY+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
-						  }
-						  
-						  if (chn!=chn0) {
-							  pixels=      (float[]) imageStack.getPixels(chn+1);
-							  kernelPixels=(float[]) kernelStack.getPixels(chn+1);
-							  chn0=chn;
-						  }
-						  /* Read source image tile */
-						  extractSquareTile( pixels, // source pixel array,
-								  inTile, // will be filled, should have correct size before call
-								  slidingWindow, // window (same size as the kernel)
-								  imgWidth, // width of pixels array
-								  tileX*step, // left corner X
-								  tileY*step); // top corner Y
-						  /* zero pad twice the original size*/
-						  outTile=extendFFTInputTo (inTile, size);
-						  /* FHT transform of the source image data*/
-						  fht_instance.swapQuadrants(outTile);
-						  fht_instance.transform(    outTile);
-						  /* read convolution kernel */
-						  extractOneKernel(kernelPixels, //  array of combined square kernels, each 
-								  kernel, // will be filled, should have correct size before call
-								  kernelNumHor, // number of kernels in a row
-								  //tileX*kernelSize, // horizontal number of kernel to extract
-								  //tileY*kernelSize); // vertical number of kernel to extract
-								  tileX, // horizontal number of kernel to extract
-								  tileY); // vertical number of kernel to extract
-						  /* zero pad twice the original size*/
-						  doubleKernel=extendFFTInputTo (kernel, size);
-//						  debug_sum=0;
-//						  for (i=0;i<doubleKernel.length;i++) debug_sum+=doubleKernel[i];
-//						  if (globalDebugLevel>1) System.out.println("kernel sum="+debug_sum);
-						  
-						  //if ((tileY==tilesY/2) && (tileX==tilesX/2))  SDFA_INSTANCE.showArrays(doubleKernel,size,size, "doubleKernel-"+chn);
-						  /* FHT transform of the kernel */
-						  fht_instance.swapQuadrants(doubleKernel);
-						  fht_instance.transform(    doubleKernel);
-						  /* multiply in frequency domain */
-						  outTile=     fht_instance.multiply(outTile, doubleKernel, false);
-						  /* FHT inverse transform of the product - back to space domain */
-						  fht_instance.inverseTransform(outTile);
-						  fht_instance.swapQuadrants(outTile);
-						  /* accumulate result */
-						  //if ((tileY==tilesY/2) && (tileX==tilesX/2))  SDFA_INSTANCE.showArrays(outTile,size,size, "out-"+chn);
-						  /*This is synchronized method. It is possible to make threads to write to non-overlapping regions of the outPixels, but as the accumulation
-						   * takes just small fraction of severtal FHTs, it should be OK - reasonable number of threads will spread and not "stay in line"
-						   */
-						  accumulateSquareTile(outPixels[chn], //  float pixels array to accumulate tile
-								  outTile, // data to accumulate to the pixels array
-								  imgWidth, // width of pixels array
-								  (tileX-1)*step, // left corner X
-								  (tileY-1)*step); // top corner Y
-					  }
-				  }
-			  };
-		  }		      
-		  startAndJoin(threads);
-		  if (globalDebugLevel > 1) System.out.println("Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+		  for (li = 0; li < nextFirstFindex.length; li++){
+			  aStopIndex.set(nextFirstFindex[li]);
+			  if (li>0){
+				  ai.set(nextFirstFindex[li-1]);
+			  }
+//			  System.out.println("\n=== nextFirstFindex["+li+"] =" + nextFirstFindex[li]+" === ");
+			  for (int ithread = 0; ithread < threads.length; ithread++) {
+				  threads[ithread] = new Thread() {
+					  public void run() {
+						  float [] pixels=null;       // will be initialized at first use
+						  float [] kernelPixels=null; // will be initialized at first use
+						  double [] kernel=       new double[kernelSize*kernelSize];
+						  double [] inTile=       new double[kernelSize*kernelSize];
+						  double [] outTile=      new double[size * size];
+						  double [] doubleKernel= new double[size * size];
+						  int chn,tileY,tileX;
+						  int chn0=-1;
+						  //					  double debug_sum;
+						  //					  int i;
+						  DoubleFHT fht_instance =new DoubleFHT(); // provide DoubleFHT instance to save on initializations (or null)
+						  //					  for (int nTile0 = ai.getAndIncrement(); nTile0 < numberOfKernels; nTile0 = ai.getAndIncrement()) {
+						  for (int nTile0 = ai.getAndIncrement(); nTile0 < aStopIndex.get(); nTile0 = ai.getAndIncrement()) {
+							  //aStopIndex
+							  int nTile = nonOverlapSeq[nTile0];
+							  chn=nTile/numberOfKernelsInChn;
+							  tileY =(nTile % numberOfKernelsInChn)/tilesX;
+							  tileX = nTile % tilesX;
+							  if (tileX < 4) {
+	  							  int trow=(tileY+ ((tileY & 3) * tilesY))/4;
+								  if (updateStatus) IJ.showStatus("Convolving image with kernels, channel "+(chn+1)+" of "+nChn+", row "+(trow+1)+" of "+tilesY);
+								  if (globalDebugLevel>2) System.out.println("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+tilesY+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+							  }
 
+							  if (chn!=chn0) {
+								  pixels=      (float[]) imageStack.getPixels(chn+1);
+								  kernelPixels=(float[]) kernelStack.getPixels(chn+1);
+								  chn0=chn;
+							  }
+							  /* Read source image tile */
+							  extractSquareTile( pixels, // source pixel array,
+									  inTile, // will be filled, should have correct size before call
+									  slidingWindow, // window (same size as the kernel)
+									  imgWidth, // width of pixels array
+									  tileX*step, // left corner X
+									  tileY*step); // top corner Y
+							  /* zero pad twice the original size*/
+							  outTile=extendFFTInputTo (inTile, size);
+							  /* FHT transform of the source image data*/
+							  fht_instance.swapQuadrants(outTile);
+							  fht_instance.transform(    outTile);
+							  /* read convolution kernel */
+							  extractOneKernel(kernelPixels, //  array of combined square kernels, each 
+									  kernel, // will be filled, should have correct size before call
+									  kernelNumHor, // number of kernels in a row
+									  //tileX*kernelSize, // horizontal number of kernel to extract
+									  //tileY*kernelSize); // vertical number of kernel to extract
+									  tileX, // horizontal number of kernel to extract
+									  tileY); // vertical number of kernel to extract
+							  /* zero pad twice the original size*/
+							  doubleKernel=extendFFTInputTo (kernel, size);
+							  //						  debug_sum=0;
+							  //						  for (i=0;i<doubleKernel.length;i++) debug_sum+=doubleKernel[i];
+							  //						  if (globalDebugLevel>1) System.out.println("kernel sum="+debug_sum);
+
+							  //if ((tileY==tilesY/2) && (tileX==tilesX/2))  SDFA_INSTANCE.showArrays(doubleKernel,size,size, "doubleKernel-"+chn);
+							  /* FHT transform of the kernel */
+							  fht_instance.swapQuadrants(doubleKernel);
+							  fht_instance.transform(    doubleKernel);
+							  /* multiply in frequency domain */
+							  outTile=     fht_instance.multiply(outTile, doubleKernel, false);
+							  /* FHT inverse transform of the product - back to space domain */
+							  fht_instance.inverseTransform(outTile);
+							  fht_instance.swapQuadrants(outTile);
+							  /* accumulate result */
+							  //if ((tileY==tilesY/2) && (tileX==tilesX/2))  SDFA_INSTANCE.showArrays(outTile,size,size, "out-"+chn);
+							  /*This is synchronized method. It is possible to make threads to write to non-overlapping regions of the outPixels, but as the accumulation
+							   * takes just small fraction of several FHTs, it should be OK - reasonable number of threads will spread and not "stay in line"
+							   */
+
+							  // Add smart synchronization - wait only if is too far ahead. First test - no synchronization at all
+
+							  //accumulateSquareTile(
+//							  System.out.print(tileY+":"+tileX+"/"+chn+"("+nTile0+"/"+nTile+") ");
+//							  if (tileX < 4)System.out.println();
+							  nonSyncAccumulateSquareTile(
+									  outPixels[chn], //  float pixels array to accumulate tile
+									  outTile, // data to accumulate to the pixels array
+									  imgWidth, // width of pixels array
+									  (tileX-1)*step, // left corner X
+									  (tileY-1)*step); // top corner Y
+							  final int numFinished=tilesFinishedAtomic.getAndIncrement();
+							  SwingUtilities.invokeLater(new Runnable() {
+								  public void run() {
+									  IJ.showProgress(numFinished,numberOfKernels);
+								  }
+							  });
+							  
+							  //numberOfKernels
+						  }
+					  }
+				  };
+			  }		      
+			  startAndJoin(threads);
+		  }
+		  if (updateStatus) IJ.showStatus("Convolution DONE");
+		  if (globalDebugLevel > 1) System.out.println("Threads done in "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+		  IJ.showProgress(1.0);
 		  /* prepare result stack to return */
 		  ImageStack outStack=new ImageStack(imgWidth,imgHeight);
 		  for (i=0;i<nChn;i++) {
 			  outStack.addSlice(imageStack.getSliceLabel(i+1), outPixels[i]);
 		  }
+		  if (globalDebugLevel > 0) System.out.println("Convolution done in "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 		  return outStack;
 	  }
 	  /* Adds zero pixels around the image, "extending canvas" */
@@ -1942,6 +1989,32 @@ public class EyesisCorrections {
 	   		  }
 	   	  }
 	     }
+
+	     void  nonSyncAccumulateSquareTile(
+		   		  float [] pixels, //  float pixels array to accumulate tile
+		   		  double []  tile, // data to accumulate to the pixels array
+		   		  int       width, // width of pixels array
+		   		  int          x0, // left corner X
+		   		  int          y0) { // top corner Y
+		   	  int length=tile.length;
+		   	  int size=(int) Math.sqrt(length);
+		   	  int i,j,x,y;
+		   	  int height=pixels.length/width;
+		   	  int index=0;
+		   	  for (i=0;i<size;i++) {
+		   		  y=y0+i;
+		   		  if ((y>=0) && (y<height)) {
+		   			  index=i*size;
+		   			  for (j=0;j<size;j++) {
+		   				  x=x0+j;
+		   				  if ((x>=0) && (x<width)) pixels[y*width+x]+=tile [index];
+		   				  index++;
+		   			  }
+		   		  }
+		   	  }
+		     }
+	     
+	     
 	     synchronized void  accumulateSquareTile(
 	   		  double [] pixels, //  float pixels array to accumulate tile
 	   		  double []  tile, // data to accumulate to the pixels array

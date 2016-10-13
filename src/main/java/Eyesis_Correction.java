@@ -3967,7 +3967,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 	  final AtomicInteger ai = new AtomicInteger(0);
 	  final int numberOfKernels=     tilesY*tilesX*nChn;
 	  final int numberOfKernelsInChn=tilesY*tilesX;
-//	  if (MASTER_DEBUG_LEVEL>1) 
+	  if (MASTER_DEBUG_LEVEL>1) 
 		  System.out.println("Eyesis_Correction:convolveStackWithKernelStack :\n"+
 			  "MASTER_DEBUG_LEVEL="+MASTER_DEBUG_LEVEL+"\n"+
 			  "imgWidth="+imgWidth+"\n"+
