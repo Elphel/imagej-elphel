@@ -1712,6 +1712,20 @@ public class EyesisCorrections {
 		  final AtomicInteger ai = new AtomicInteger(0);
 		  final int numberOfKernels=     tilesY*tilesX*nChn;
 		  final int numberOfKernelsInChn=tilesY*tilesX;
+//		  if (globalDebugLevel>1) 
+			  System.out.println("Eyesis_Correction:convolveStackWithKernelStack :\n"+
+				  "globalDebugLevel="+globalDebugLevel+"\n"+
+				  "imgWidth="+imgWidth+"\n"+
+				  "imgHeight="+imgHeight+"\n"+
+				  "tilesX="+tilesX+"\n"+
+				  "tilesY="+tilesY+"\n"+
+				  "step="+step+"\n"+
+				  "kernelSize="+kernelSize+"\n"+
+				  "kernelWidth="+kernelWidth+"\n"+
+				  "kernelNumHor="+kernelNumHor+"\n"+
+				  "numberOfKernelsInChn="+numberOfKernelsInChn+"\n");
+		  
+		  
 		  final long startTime = System.nanoTime();
 		  for (int ithread = 0; ithread < threads.length; ithread++) {
 			  threads[ithread] = new Thread() {

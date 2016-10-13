@@ -2514,8 +2514,8 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 					  tileY = nTile /tilesX;
 					  tileX = nTile % tilesX;
 					  if (tileX==0) {
-						  if (updateStatus) IJ.showStatus("Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY);
-						  if (MASTER_DEBUG_LEVEL>2) System.out.println("Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+						  if (updateStatus) IJ.showStatus("(3)Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY);
+						  if (MASTER_DEBUG_LEVEL>2) System.out.println("(3)Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 					  }
 				  
 					  if ((tileY==yTileDebug) && (tileX==xTileDebug)) DEBUG_LEVEL=4;

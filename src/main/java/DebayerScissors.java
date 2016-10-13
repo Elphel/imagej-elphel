@@ -119,8 +119,8 @@ public class DebayerScissors {
   					  tileY = nTile /tilesX;
   					  tileX = nTile % tilesX;
   					  if (tileX==0) {
-  						  if (updateStatus) IJ.showStatus("Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY);
-  						  if (globalDebugLevel>2) System.out.println("Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+  						  if (updateStatus) IJ.showStatus("(1)Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY);
+  						  if (globalDebugLevel>2) System.out.println("(1)Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
   					  }
   				  
 //  					  if ((tileY==yTileDebug) && (tileX==xTileDebug)) this.debugLevel=4;

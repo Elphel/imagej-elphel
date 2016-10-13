@@ -3444,7 +3444,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 						  continue;
 					  }
 					  convolutionKernelStack=imp_kernels.getStack();
-					  if (DEBUG_LEVEL>1) System.out.println("Using kernel stack "+kernelPath+" for convolution with "+result[nFile][nChn][nSubChn].getTitle());
+					  if (DEBUG_LEVEL>1) System.out.println("(1)Using kernel stack "+kernelPath+" for convolution with "+result[nFile][nChn][nSubChn].getTitle());
 					  stack_d= convolveStackWithKernelStack(
 							  stack,  // stack with 3 colors/slices with the image
 							  convolutionKernelStack, // stack with 3 colors/slices convolution kernels
@@ -3472,7 +3472,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 							  continue;
 						  }
 						  convolutionKernelStack=imp_kernels.getStack();
-						  if (DEBUG_LEVEL>1) System.out.println("Using Gaussian stack "+kernelPath+" for convolution with "+result[nFile][nChn][nSubChn].getTitle());
+						  if (DEBUG_LEVEL>1) System.out.println("(2)Using Gaussian stack "+kernelPath+" for convolution with "+result[nFile][nChn][nSubChn].getTitle());
 						  stack_g= convolveStackWithKernelStack(
 								  stack,  // stack with 3 colors/slices with the image
 								  convolutionKernelStack, // stack with 3 colors/slices convolution kernels
@@ -3572,7 +3572,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 						  continue;
 					  }
 					  convolutionKernelStack=imp_kernels.getStack();
-					  if (DEBUG_LEVEL>1) System.out.println("Using Gaussian stack "+kernelPath+" for convolution with "+result[nFile][nChn][nSubChn].getTitle());
+					  if (DEBUG_LEVEL>1) System.out.println("(3)Using Gaussian stack "+kernelPath+" for convolution with "+result[nFile][nChn][nSubChn].getTitle());
 					  stack_g= convolveStackWithKernelStack(
 							  stack,  // stack with 3 colors/slices with the image
 							  convolutionKernelStack, // stack with 3 colors/slices convolution kernels
@@ -3957,7 +3957,6 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 	  final int tilesY=imgHeight/step-1; // vertical number of overlapping tiles in the source image (should be expanded from the registerd one by "step" in each direction)
 	  final int kernelWidth=kernelStack.getWidth();
 	  final int kernelNumHor=kernelWidth/(size/2);
-
 	  final int nChn=imageStack.getSize();
 	  final float [][] outPixels=new float[nChn][length]; // GLOBAL same as input
 	  //	   float [][] outPixels=new float[nChn][length]; // same as input
@@ -3968,6 +3967,21 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 	  final AtomicInteger ai = new AtomicInteger(0);
 	  final int numberOfKernels=     tilesY*tilesX*nChn;
 	  final int numberOfKernelsInChn=tilesY*tilesX;
+//	  if (MASTER_DEBUG_LEVEL>1) 
+		  System.out.println("Eyesis_Correction:convolveStackWithKernelStack :\n"+
+			  "MASTER_DEBUG_LEVEL="+MASTER_DEBUG_LEVEL+"\n"+
+			  "imgWidth="+imgWidth+"\n"+
+			  "imgHeight="+imgHeight+"\n"+
+			  "tilesX="+tilesX+"\n"+
+			  "tilesY="+tilesY+"\n"+
+			  "step="+step+"\n"+
+			  "kernelSize="+kernelSize+"\n"+
+			  "tilesX="+tilesX+"\n"+
+			  "tilesY="+tilesY+"\n"+
+			  "kernelWidth="+kernelWidth+"\n"+
+			  "kernelNumHor="+kernelNumHor+"\n"+
+			  "numberOfKernelsInChn="+numberOfKernelsInChn+"\n");
+	  
 	  final long startTime = System.nanoTime();
 	  for (int ithread = 0; ithread < threads.length; ithread++) {
 		  threads[ithread] = new Thread() {
@@ -4133,8 +4147,8 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 					  tileY = nTile /tilesX;
 					  tileX = nTile % tilesX;
 					  if (tileX==0) {
-						  if (updateStatus) IJ.showStatus("Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY);
-						  if (MASTER_DEBUG_LEVEL>2) System.out.println("Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+						  if (updateStatus) IJ.showStatus("(2)Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY);
+						  if (MASTER_DEBUG_LEVEL>1) System.out.println("(2)Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 					  }
 				  
 					  if ((tileY==yTileDebug) && (tileX==xTileDebug)) DEBUG_LEVEL=4;
