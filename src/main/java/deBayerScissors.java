@@ -35,6 +35,12 @@ public class deBayerScissors {
 	private double                lastMidEnergy; // last midrange spectral energy
 	private showDoubleFloatArrays SDFA_instance; // just for debugging?
 	private DoubleFHT             fht_instance;
+	private int [][] aliasMapRedBlue={
+			{-2,-2},{-2,-1},{-2,0},{-2,1},
+			{-1,-2},{-1,-1},{-1,0},{-1,1},
+			{ 0,-2},{ 0,-1},       { 0,1},
+			{ 1,-2},{ 1,-1},{ 1,0},{ 1,1}};
+    private int [][][][] speedTable = null;
 
 	public double getMidEnergy() {return lastMidEnergy; } // instead of the  DOUBLE_DEBUG_RESULT
 	public deBayerScissors(
@@ -59,6 +65,29 @@ public class deBayerScissors {
 				debayer_width_redblue_clones, // green mask when applied to red/blue, clones 
 				size, // side of the square
 				4); // should be 4 now
+
+		int hsize=size/2;
+		int subpixel=4; // hardwired - when changing it will need to change alias maps
+		int aliasX=size/subpixel;
+	    speedTable = new int [hsize+1][size][aliasMapRedBlue.length][3];
+        int i,j,nAlias,x,y;
+		for (i = 0;i <= hsize;i++) for (j = 0;j < size;j++) {
+			speedTable[i][j][0][0] = i*size+j;
+			speedTable[i][j][0][1] = ((size-i) % size) * size + ((size-j) % size);
+			for(nAlias=0;nAlias<aliasMapRedBlue.length; nAlias++) {
+				y = (i-aliasX*aliasMapRedBlue[nAlias][0]+size) % size;
+				x = (j-aliasX*aliasMapRedBlue[nAlias][1]+size) % size;
+				if (y > hsize) {
+					y = size - y;
+					x = (size - x) % size;
+				}
+				if (y>hsize) {
+					y=size-y;
+					x=(size-x)%size;
+				}
+				speedTable[i][j][nAlias][2]=y*size+x;
+			}
+		}
 	}
 
 	/* returns 2 masks (0:0 in the top left corner, match fht) [0] - for greens, [1] - for red/blue */
@@ -171,9 +200,9 @@ public class deBayerScissors {
 		int length=green_amp.length;
 		int size = (int) Math.sqrt(length);
 		int hsize=size/2;
-		int subpixel=4; // hardwired - when changing it will need to change alias maps
-		int aliasX=size/subpixel;
-		int i,j,index,index_back,x,y;
+//		int subpixel=4; // hardwired - when changing it will need to change alias maps
+//		int aliasX=size/subpixel;
+		int i,j,index,index_back; //,x,y;
 		double [] amp=       green_amp.clone();
 		double [] amp_clones=green_amp.clone();
 		if (green_mask!=null)        for (i=0;i<amp.length;i++)        amp[i]*=green_mask[i];
@@ -183,13 +212,14 @@ public class deBayerScissors {
 		/* Combine into mask by comparing pixels[] from the zero and 7 aliases */
 		double d;
 		int nAlias;
+		/*
 		int [][] aliasMapRedBlue={
 				{-2,-2},{-2,-1},{-2,0},{-2,1},
 				{-1,-2},{-1,-1},{-1,0},{-1,1},
 				{ 0,-2},{ 0,-1},       { 0,1},
 				{ 1,-2},{ 1,-1},{ 1,0},{ 1,1}};
 
-		/* First step - mask out all the pixels where at least one of the alias amplitude is above the main one */
+		// First step - mask out all the pixels where at least one of the alias amplitude is above the main one
 		if (this_debug>2) SDFA_instance.showArrays(amp.clone(),  "amp");
 		if (this_debug>2) SDFA_instance.showArrays(amp_clones,  "amp_clones");
 
@@ -204,13 +234,6 @@ public class deBayerScissors {
 				for(nAlias=0;nAlias<aliasMapRedBlue.length; nAlias++) {
 					y=(i-aliasX*aliasMapRedBlue[nAlias][0]+size) % size;
 					x=(j-aliasX*aliasMapRedBlue[nAlias][1]+size) % size;
-					/*
-					if (amp_clones[(y>hsize)? ((size-y)*size+((size-x)%size)):y*size+x]>d) {
-						mask[index]=-1.0;
-						mask[index_back]=-1.0;
-						break;
-					}
-					*/
 					if (y>hsize) {
 						y=size-y;
 						x=(size-x)%size;
@@ -224,6 +247,52 @@ public class deBayerScissors {
 				}
 			}
 		}
+		*/
+		/*
+	    speedTable = new int [hsize][size][aliasMapRedBlue.length][3];
+        int i,j,nAlias,x,y;
+		for (i=0;i<=hsize;i++) for (j=0;j<size;j++) {
+			speedTable[i][j][0][0] = i*size+j;
+			speedTable[i][j][0][1] = ((size-i) % size) * size + ((size-j) % size);
+			for(nAlias=0;nAlias<aliasMapRedBlue.length; nAlias++) {
+				y = (i-aliasX*aliasMapRedBlue[nAlias][0]+size) % size;
+				x = (j-aliasX*aliasMapRedBlue[nAlias][1]+size) % size;
+				if (y > hsize) {
+					y = size - y;
+					x = (size - x) % size;
+				}
+				if (y>hsize) {
+					y=size-y;
+					x=(size-x)%size;
+				}
+				speedTable[i][j][nAlias][2]=y*size+x;
+			}
+		}
+		*/
+
+		// First step - mask out all the pixels where at least one of the alias amplitude is above the main one
+		if (this_debug>2) SDFA_instance.showArrays(amp.clone(),  "amp");
+		if (this_debug>2) SDFA_instance.showArrays(amp_clones,  "amp_clones");
+
+		for (i=0;i<=hsize;i++) for (j=0;j<size;j++) {
+			index =      speedTable[i][j][0][0]; // i*size+j;
+			index_back = speedTable[i][j][0][1]; //((size-i) % size) * size + ((size-j) % size);
+			d=amp[index]*mainToAlias;
+			if (d>0.0) {
+				mask[index]=1.0;
+				mask[index_back]=1.0;
+				for(nAlias=0;nAlias<aliasMapRedBlue.length; nAlias++) {
+					if (amp_clones[speedTable[i][j][nAlias][2]]>d) {
+						mask[index]=-1.0;
+						mask[index_back]=-1.0;
+						break;
+					}
+				}
+			}
+		}
+		
+// End of replacement code
+		
 		if (this_debug>2)  SDFA_instance.showArrays(mask,  "mask");
 
 		if (pol_instace==null) return mask;
@@ -231,21 +300,23 @@ public class deBayerScissors {
 		for (i=0;i<amp.length;i++) amp[i]*=mask[i];
 		if (this_debug>2) SDFA_instance.showArrays(amp,  "amp-mask");
 		double [] polar_amp=pol_instace.cartesianToPolar(amp);
-		if (this_debug>2)   SDFA_instance.showArrays(polar_amp.clone(),pol_instace.getWidth(),pol_instace.getHeight(),  "RB-polar-amp");
-		double k= bonus/pol_instace.getWidth();
-		for (i=0;i<pol_instace.getHeight();i++) for (j=0;j<pol_instace.getWidth();j++) polar_amp[i*pol_instace.getWidth()+j]*=1.0+k*j;
+		int width = pol_instace.getWidth();
+		int height = pol_instace.getHeight();
+		if (this_debug>2)   SDFA_instance.showArrays(polar_amp.clone(),width, height,  "RB-polar-amp");
+		double k= bonus/width;
+		for (i=0;i<pol_instace.getHeight();i++) for (j = 0; j < width; j++) polar_amp[i * width + j]*=1.0+k*j;
 		double [] polar_mask_pixels=pol_instace.genPolarRedBlueMask(polar_amp,0); // 0 - just 1.0/0.0, 1 - "analog"
 		double [] cart_mask_pixels= pol_instace.polarToCartesian (polar_mask_pixels,size,0.0);
 		if (this_debug>2) {
-			SDFA_instance.showArrays(polar_amp,  pol_instace.getWidth(),pol_instace.getHeight(),     "RB-amp-bonus");
-			SDFA_instance.showArrays(polar_mask_pixels,pol_instace.getWidth(),pol_instace.getHeight(), "pRBm");
-			SDFA_instance.showArrays(cart_mask_pixels,size,size,   "cRBm");
+			SDFA_instance.showArrays(polar_amp,         width, height,     "RB-amp-bonus");
+			SDFA_instance.showArrays(polar_mask_pixels, width, height, "pRBm");
+			SDFA_instance.showArrays(cart_mask_pixels,  size,  size,   "cRBm");
 		}
 		if (this_debug>2) {
 			double [] polar_mask_pixels1=pol_instace.genPolarRedBlueMask(polar_amp,1);
 			double [] cart_mask_pixels1= pol_instace.polarToCartesian (polar_mask_pixels1,size,0.0);
-			SDFA_instance.showArrays(polar_mask_pixels1,pol_instace.getWidth(),pol_instace.getHeight(), "pRBm1");
-			SDFA_instance.showArrays(cart_mask_pixels1,size,size,   "cRBm1");
+			SDFA_instance.showArrays(polar_mask_pixels1, width, height, "pRBm1");
+			SDFA_instance.showArrays(cart_mask_pixels1,  size,  size,   "cRBm1");
 		}
 		return cart_mask_pixels;
 
@@ -418,8 +489,10 @@ public class deBayerScissors {
 			double [] polPixels=new double[iRadiusPlus1*(iAngle+1)];
 			int i;
 			for (i=0;i<polPixels.length;i++) {
-				polPixels[i]=(1-polar2CartesianFractions[i][1])*( (1-polar2CartesianFractions[i][0])*cartPixels[polar2CartesianIndices[i][0]]  + polar2CartesianFractions[i][0]*cartPixels[polar2CartesianIndices[i][1]])+
-						polar2CartesianFractions[i][1] *( (1-polar2CartesianFractions[i][0])*cartPixels[polar2CartesianIndices[i][2]]  + polar2CartesianFractions[i][0]*cartPixels[polar2CartesianIndices[i][3]]) ;
+				polPixels[i]=(1-polar2CartesianFractions[i][1])*( (1-polar2CartesianFractions[i][0])*cartPixels[polar2CartesianIndices[i][0]]  +
+						polar2CartesianFractions[i][0]*cartPixels[polar2CartesianIndices[i][1]])+
+						polar2CartesianFractions[i][1] *( (1-polar2CartesianFractions[i][0])*cartPixels[polar2CartesianIndices[i][2]]  +
+								polar2CartesianFractions[i][0]*cartPixels[polar2CartesianIndices[i][3]]) ;
 			}
 			return polPixels;
 		}
@@ -503,12 +576,14 @@ public class deBayerScissors {
 			return genPolarMask(polarAmps,0,mode);
 		}
 
-		public double [] genPolarRedBlueMask(double [] polarAmps, // polar array of amplitude values, <0 - stop
-				int mode){ // result mode - 0: output mask as 0/1, 1 -output proportional, positive - pass, negative - rejected
-			return genPolarMask(polarAmps,1,mode);
+		public double [] genPolarRedBlueMask(
+				double [] polarAmps, // polar array of amplitude values, <0 - stop
+				int mode)
+		{ // result mode - 0: output mask as 0/1, 1 -output proportional, positive - pass, negative - rejected
+			return genPolarMask(polarAmps, 1, mode);
 		}
 
-
+// **** Seems to be most time-critical ****
 		public double [] genPolarMask(double [] polarAmps, // polar array of amplitude values, <0 - stop
 				int type, // 0 - green, 1 red/blue
 				int mode){ // result mode - 0: output mask as 0/1, 1 -output proportional, positive - pass, negative - rejected
@@ -536,11 +611,14 @@ public class deBayerScissors {
 				step++;
 				/* add polar point index */
 				newVal=good?step:-step;
-				//      index=iMax*iRadiusPlus1+rayLength[iMax]; // rayLength[iMax] should point to a new cell (with intMap[]==0) may ommit - set in the end of the loop and before the loop?
 				intMap[index]=newVal;
-				if (sameCartesian[index]!=null) for (i=0;i<sameCartesian[index].length;i++) intMap[sameCartesian[index][i]]=newVal;
+				if (sameCartesian[index]!=null)
+					for (i=0;i<sameCartesian[index].length;i++)
+						intMap[sameCartesian[index][i]]=newVal;
 				/* add aliases of point index (as negative values) */
-				if ((good) &&(polarMap[index]!=null)) for (i=0;i<polarMap[index].length;i++) intMap[polarMap[index][i]]=-step;
+				if ((good) &&(polarMap[index]!=null))
+					for (i=0;i<polarMap[index].length;i++)
+						intMap[polarMap[index][i]]=-step;
 				/* update ray lengths and status */
 				max=-1.0;
 				iMax=-1;
@@ -550,13 +628,13 @@ public class deBayerScissors {
 					lastIndex=base+iRadiusPlus1; // first in the next row
 					while ((l<lastIndex) && (intMap[l]>0)) l++;
 					rayLength[ia]=l-base; // last "good" ( >0 and in the same row)
-					if ((l==lastIndex) || (intMap[l]<0) || (polarAmps[l]<0.0) ) rayOpen[ia]=false;
-					else {
-						if (polarAmps[l]>max) {
-							max=polarAmps[l];
-							iMax=ia;
-						}
+					if ((l==lastIndex) || (intMap[l]<0) || (polarAmps[l]<0.0) )
+						rayOpen[ia]=false;
+					else if (polarAmps[l]>max) {
+						max=polarAmps[l];
+						iMax=ia;
 					}
+					
 				}
 				if (iMax>=0) {
 					rayLength[iMax]++;
@@ -580,8 +658,9 @@ public class deBayerScissors {
 			}
 			return result;
 		}
+		
 		public PolarSpectrums(
-				int isize, // size of the square array, centar is at size/2, size/2, only top half+line will be used
+				int isize, // size of the square array, center is at size/2, size/2, only top half+line will be used
 				double fullAngle, // i.e. Math.PI, 2*Math.PI
 				int    maxRadius, // width of the polar array - should be <= size/2-2
 				double outerStep, // maximal step in pixels on the maxRadius for 1 angular step (i.e. 0.5)

@@ -1744,7 +1744,7 @@ public class EyesisCorrections {
 				  "kernelNumHor="+kernelNumHor+"\n"+
 				  "numberOfKernelsInChn="+numberOfKernelsInChn+"\n");
 		  
-		  
+		  if (updateStatus) IJ.showStatus("Convolving image with kernels, "+nChn+" channels, "+tilesY+" rows");
 		  final long startTime = System.nanoTime();
 		  for (li = 0; li < nextFirstFindex.length; li++){
 			  aStopIndex.set(nextFirstFindex[li]);
@@ -1776,7 +1776,7 @@ public class EyesisCorrections {
 							  if (tileX < 4) {
 	  							  int trow=(tileY+ ((tileY & 3) * tilesY))/4;
 								  if (updateStatus) IJ.showStatus("Convolving image with kernels, channel "+(chn+1)+" of "+nChn+", row "+(trow+1)+" of "+tilesY);
-								  if (globalDebugLevel>2) System.out.println("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+tilesY+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+								  if (globalDebugLevel>2) System.out.println("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(trow+1)+" of "+tilesY+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 							  }
 
 							  if (chn!=chn0) {
@@ -1837,11 +1837,13 @@ public class EyesisCorrections {
 									  (tileX-1)*step, // left corner X
 									  (tileY-1)*step); // top corner Y
 							  final int numFinished=tilesFinishedAtomic.getAndIncrement();
-							  SwingUtilities.invokeLater(new Runnable() {
-								  public void run() {
-									  IJ.showProgress(numFinished,numberOfKernels);
-								  }
-							  });
+							  if (numFinished % (numberOfKernels/100+1) == 0) {
+								  SwingUtilities.invokeLater(new Runnable() {
+									  public void run() {
+										  IJ.showProgress(numFinished,numberOfKernels);
+									  }
+								  });
+							  }
 							  
 							  //numberOfKernels
 						  }

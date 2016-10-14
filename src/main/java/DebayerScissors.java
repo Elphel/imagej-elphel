@@ -28,6 +28,7 @@
 import ij.IJ;
 import ij.ImageStack;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.SwingUtilities;
@@ -114,13 +115,13 @@ public class DebayerScissors {
 	  final AtomicInteger aStopIndex = new AtomicInteger(0);
   	  final long startTime = System.nanoTime();
   	  final AtomicInteger tilesFinishedAtomic = new AtomicInteger(1); // first finished will be 1
+  	  if (updateStatus) IJ.showStatus("Reducing sampling aliases, "+tilesY+" rows, threadsMax="+threadsMax);
+  	  if (updateStatus) System.out.println("Reducing sampling aliases, "+tilesY+" rows, threadsMax="+threadsMax);
   	  for (li = 0; li < nextFirstFindex.length; li++){
   		  aStopIndex.set(nextFirstFindex[li]);
   		  if (li>0){
   			  ai.set(nextFirstFindex[li-1]);
   		  }
-  		  //		  System.out.println("\n=== nextFirstFindex["+li+"] =" + nextFirstFindex[li]+" === ");
-
   		  for (int ithread = 0; ithread < threads.length; ithread++) {
   			  threads[ithread] = new Thread() {
   				  public void run() {
@@ -140,18 +141,17 @@ public class DebayerScissors {
   							  debayerParameters.debayerRelativeWidthRedblueClones);// green mask when applied to red/blue, clones 
   					  //  					  for (int nTile0 = ai.getAndIncrement(); nTile0 < numberOfKernels; nTile0 = ai.getAndIncrement()) {
   					  for (int nTile0 = ai.getAndIncrement(); nTile0 < aStopIndex.get(); nTile0 = ai.getAndIncrement()) {
+ 						  
   						  int nTile = nonOverlapSeq[nTile0];
   						  tileY = nTile /tilesX;
   						  tileX = nTile % tilesX;
   						  if (tileX < 2) {
-  							  int trow=(tileY+((tileY & 1)*tilesY))/2;
+  							  int trow=(tileY+((2*(tileY & 1) + (tileX & 1))*tilesY))/4;
   							  if (updateStatus) IJ.showStatus("Reducing sampling aliases, row "+(trow+1)+" of "+tilesY);
   							  //  						  System.out.println("(1)Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY+" ("+nTile+"/"+nTile0+") col="+(tileX+1));
-  							  if (globalDebugLevel>2) System.out.println("(1)Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+  							  if (globalDebugLevel>2) System.out.println("Reducing sampling aliases, row "+(trow+1)+" of "+tilesY+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
   						  }
 
-  						  //  					  if ((tileY==yTileDebug) && (tileX==xTileDebug)) this.debugLevel=4;
-  						  //  					  else this.debugLevel=wasDebugLevel;
   						  for (chn=0;chn<nChn;chn++){
   							  extractSquareTile( pixels[chn], // source pixel array,
   									  tile[chn], // will be filled, should have correct size before call
@@ -193,7 +193,7 @@ public class DebayerScissors {
   							  fht_instance.inverseTransform(tile[chn]);
   							  fht_instance.swapQuadrants(tile[chn]);
   							  /* accumulate result */
-  							  /*This is synchronized method. It is possible to make threads to write to non-overlapping regions of the outPixles, but as the accumulation
+  							  /*This is (now was) a synchronized method. It is possible to make threads to write to non-overlapping regions of the outPixles, but as the accumulation
   							   * takes just small fraction of several FHTs, it should be OK - reasonable number of threads will spread and not "stay in line"
   							   */
 
@@ -206,31 +206,35 @@ public class DebayerScissors {
   									  tileY*step); // top corner Y
   						  }
   						  if ((tileY==yTileDebug) && (tileX==xTileDebug) && (SDFA_instance!=null)) SDFA_instance.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "B00");
-     						final int numFinished=tilesFinishedAtomic.getAndIncrement();
-       						SwingUtilities.invokeLater(new Runnable() {
-       							public void run() {
-       								IJ.showProgress(numFinished,numberOfKernels);
-       							}
-       						});
+  						  
+  						  final int numFinished=tilesFinishedAtomic.getAndIncrement();
+//  						  final double dprogr= (1.0+numFinished)/numberOfKernels;
+  						  if (numFinished % (numberOfKernels/50+1) == 0) {
+//  							  System.out.print(numFinished);
+  							  SwingUtilities.invokeLater(new Runnable() {
+  								  public void run() {
+//  									  System.out.println(" --- "+numFinished+"("+numberOfKernels+"): "+dprogr);
+  									  IJ.showProgress(numFinished, numberOfKernels);
+  								  }
+  							  });
+  						  }
   					  }
   				  }
   			  };
   		  }		      
   		  startAndJoin(threads);
+ 	      IJ.showProgress(tilesFinishedAtomic.get(), numberOfKernels);
   	  }
+//  	  System.out.println("tilesFinishedAtomic.get()="+tilesFinishedAtomic.get()+", numberOfKernels="+numberOfKernels);
   	  if (updateStatus) IJ.showStatus("Reducing sampling aliases DONE");
   	  IJ.showProgress(1.0);
- // 	  this.debugLevel=wasDebugLevel;
   	  /* prepare result stack to return */
   	  ImageStack outStack=new ImageStack(imgWidth,imgHeight);
   	  for (chn=0;chn<nChn;chn++) {
   		  outStack.addSlice(imageStack.getSliceLabel(chn+1), outPixles[chn]);
   	  }
   	  debayerEnergyWidth=	 (debayerEnergy!=null)?tilesX:0; // for the image to be displayed externally 
-//  	  if (debayerParameters.showEnergy) {
-//  		  SDFA_INSTANCE.showArrays (debayerEnergy,tilesX,tilesY, "Debayer-Energy");
-//  	  }
-	  if (globalDebugLevel>0) System.out.println("(1)Reducing sampling aliases done in "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+	  if (globalDebugLevel>0) System.out.println("Reducing sampling aliases done in "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
   	  return outStack;
     }
 

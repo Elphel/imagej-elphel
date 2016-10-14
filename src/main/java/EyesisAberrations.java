@@ -2400,7 +2400,7 @@ public class EyesisAberrations {
 			};
 		}
 		startAndJoin(threads);
-		 if (globalDebugLevel>1) System.out.println("Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+		if (globalDebugLevel>1) System.out.println("Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 //		globalDebugLevel=saved_globalDebugLevel;
 		if (debugLateralShifts) {
 		    boolean [] debugUsedColors=new boolean [debugNumColors];
