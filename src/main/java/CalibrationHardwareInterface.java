@@ -99,6 +99,7 @@ public class CalibrationHardwareInterface {
 		private double lastTemperature=Double.NaN;
 		private int     colorMode=5; // JP4
 		private boolean noWait=     true; // when false, IRQ_SMART=3 and the frame is available only 1 frame later, when true IRQ_SMART=6, frame is available after compression end
+		private boolean nc393 =     false;
 		private int     debugSensorNumber=-1; // increase debug level for this particular sensor
 		private int     JPEGquality=99;  // JPEG quality
 		private boolean cameraAutoExposure =    false;
@@ -304,6 +305,7 @@ public class CalibrationHardwareInterface {
     		properties.setProperty(prefix+"cameraIPs.length",this.cameraIPs.length+"");
     		properties.setProperty(prefix+"colorMode",this.colorMode+"");
     		properties.setProperty(prefix+"noWait",this.noWait+"");
+    		properties.setProperty(prefix+"nc393",this.nc393+"");
     		properties.setProperty(prefix+"debugSensorNumber",this.debugSensorNumber+"");
     		properties.setProperty(prefix+"JPEGquality",this.JPEGquality+"");
     		properties.setProperty(prefix+"cameraAutoExposure",this.cameraAutoExposure+"");
@@ -387,6 +389,8 @@ public class CalibrationHardwareInterface {
 				this.JPEGquality=Integer.parseInt(properties.getProperty(prefix+"JPEGquality"));
 			if (properties.getProperty(prefix+"noWait")!=null)
 				this.noWait=Boolean.parseBoolean(properties.getProperty(prefix+"noWait"));
+			if (properties.getProperty(prefix+"nc393")!=null)
+				this.nc393=Boolean.parseBoolean(properties.getProperty(prefix+"nc393"));
 			if (properties.getProperty(prefix+"cameraAutoExposure")!=null)
 				this.cameraAutoExposure=Boolean.parseBoolean(properties.getProperty(prefix+"cameraAutoExposure"));
 			if (properties.getProperty(prefix+"cameraAutoWhiteBalance")!=null)
@@ -718,7 +722,12 @@ public class CalibrationHardwareInterface {
 	               int timeout // ms
 	               ){
 	   		//http://192.168.0.221/parsedit.php?immediate&TRIG&TRIG_PERIOD&FRAME
-	   		String url="http://"+this.cameraIPs[chn]+"/parsedit.php?immediate&TRIG&TRIG_PERIOD&IRQ_SMART&SENS_AVAIL&FRAME";
+	   		String url;
+	   		if (this.nc393){
+	   			url="http://"+this.cameraIPs[chn]+"/parsedit.php?immediate&TRIG&TRIG_PERIOD&SENS_AVAIL&FRAME";
+	   		} else {
+	   			url="http://"+this.cameraIPs[chn]+"/parsedit.php?immediate&TRIG&TRIG_PERIOD&IRQ_SMART&SENS_AVAIL&FRAME";
+	   		}
 	   		if (this.debugLevel>1) System.out.println("url="+url);
 	   		Document dom=null;
 	   		if ((this.cameraFrameNumber==null) || ((this.cameraFrameNumber.length<(chn+1)))) initCameraArrays(chn+1);
@@ -726,7 +735,9 @@ public class CalibrationHardwareInterface {
 	   		if ((this.triggeredMode==null) || ((this.triggeredMode.length<(chn+1)))) initCameraArrays(chn+1);
 	   		if ((this.sensorPresent==null) || ((this.sensorPresent.length<(chn+1)))) initCameraArrays(chn+1);
 	   		if ((this.triggerPeriod==null) || ((this.triggerPeriod.length<(chn+1)))) initCameraArrays(chn+1);
-	   		if ((this.irqSmart==null) || ((this.irqSmart.length<(chn+1)))) initCameraArrays(chn+1);
+	   		if (!this.nc393) {
+	   			if ((this.irqSmart==null) || ((this.irqSmart.length<(chn+1)))) initCameraArrays(chn+1);
+	   		}
 	   		try {
 	   			DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
 	   			DocumentBuilder db = dbf.newDocumentBuilder();
@@ -758,7 +769,9 @@ public class CalibrationHardwareInterface {
 	   			this.sensorPresent[chn]=new boolean[3];
 	   			for (int i=0;i<this.sensorPresent[chn].length;i++) this.sensorPresent[chn][i]=(sensAvail & (1<<i))!=0;
 	   			this.triggerPeriod[chn]=     Integer.parseInt(((Node) (((Node) dom.getDocumentElement().getElementsByTagName("TRIG_PERIOD").item(0)).getChildNodes().item(0))).getNodeValue());
-	   			this.irqSmart[chn]=          Integer.parseInt(((Node) (((Node) dom.getDocumentElement().getElementsByTagName("IRQ_SMART").item(0)).getChildNodes().item(0))).getNodeValue());
+	   			if (!this.nc393) {
+	   				this.irqSmart[chn]=          Integer.parseInt(((Node) (((Node) dom.getDocumentElement().getElementsByTagName("IRQ_SMART").item(0)).getChildNodes().item(0))).getNodeValue());
+	   			}
 	   			this.cameraFrameNumber[chn]= Integer.parseInt(((Node) (((Node) dom.getDocumentElement().getElementsByTagName("FRAME").item(0)).getChildNodes().item(0))).getNodeValue());
 	   		} catch(MalformedURLException e){
 	   			String msg="Please check the URL:" + e.toString();
@@ -812,6 +825,7 @@ public class CalibrationHardwareInterface {
 	   		startAndJoin(threads);
 	   		if (Double.isNaN(exposureScale)){ // full init
 	   			int nRepeat=this.setupTriggerMode?4:1;
+	   			if (this.nc393) nRepeat++; // is it needed?
 	   			for (int i=0;i<nRepeat;i++){
 	   				if (this.debugLevel>0) System.out.println((i+1)+" of "+nRepeat+": Triggering cameras to give parameters a chance to propagate");
 	   				trigger();
@@ -878,15 +892,20 @@ public class CalibrationHardwareInterface {
 	   				"&TRIG_CONDITION="+(this.noCabling?(0):(this.externalTriggerCabling?"0x200000":"0x20000"))+"*0"+
 	   				"&TRIG_OUT="+(this.noCabling?(0):(this.externalTriggerCabling?"0x800000":"0x80000"))+"*0"+
 	   				"&TRIG=4*3"):"";
-	   		if (this.triggerPeriod[chn]>1)triggerMode+="&TRIG_PERIOD=1*0"; // just imgsrv /trig does not set it, only FPGA register
-	   		
+	   		if (this.nc393) {
+	   			if (this.triggerPeriod[chn]>1)triggerMode+="&TRIG_PERIOD=0*1"; // just stop it if it wasn't already, imgsrv /trig does not set it, only FPGA register
+	   		}else {
+		   		if (this.triggerPeriod[chn]>1)triggerMode+="&TRIG_PERIOD=1*0"; // just imgsrv /trig does not set it, only FPGA register
+	   		}
 	   		String url="http://"+this.cameraIPs[chn]+"/parsedit.php?immediate";
 	   		url+="&EXPOS="+exposure+"*0"; // always
 	   		if (!exposureOnly){
-	   			if (this.irqSmart[chn]!=(this.noWait?6:3)){
-	   				url+="&IRQ_SMART="+(this.noWait?6:3)+"*0";
+	   			if (!this.nc393) {
+	   				if (this.irqSmart[chn]!=(this.noWait?6:3)){
+	   					url+="&IRQ_SMART="+(this.noWait?6:3)+"*0";
+	   				}
 	   			}
-	   			url+="&COLOR="+this.colorMode+"*0"+
+	   			url+="&COLOR="+this.colorMode+"*"+(this.nc393?"1":"0")+
 	   			"&QUALITY="+this.JPEGquality+"*0"+
 	   			"&EXPOS="+exposure+"*0"+
 	   			"&AUTOEXP_EXP_MAX="+autoExposureMax+"*0"+
@@ -959,6 +978,7 @@ public class CalibrationHardwareInterface {
 	   	
 	   	public boolean editCameraSettings(String title){
 			GenericDialog gd = new GenericDialog("title");
+			gd.addCheckbox    ("NC393 (unchecked - nc353)", this.nc393);
     		gd.addNumericField("Camera exposure",this.cameraExposure,2,8,"ms");
     		gd.addNumericField("Scale camera exposure for target laser detection (4 lasers)",100*this.scaleExposureForLasers,1,5,"%");
     		gd.addNumericField("Scale camera exposure for optical head laser detection (2 lasers)",100*this.scaleExposureForHeadLasers,1,5,"%");
@@ -1000,6 +1020,7 @@ public class CalibrationHardwareInterface {
     	    WindowTools.addScrollBars(gd);
     	    gd.showDialog();
     	    if (gd.wasCanceled()) return false;
+    	    this.nc393=                          gd.getNextBoolean();
     	    this.cameraExposure=                 gd.getNextNumber();
     	    this.scaleExposureForLasers=    0.01*gd.getNextNumber();
     	    this.scaleExposureForHeadLasers=0.01*gd.getNextNumber();
@@ -1425,6 +1446,9 @@ public class CalibrationHardwareInterface {
 	   					public void run() {
 	   						for (int ipIndex=ipIndexAtomic.getAndIncrement(); ipIndex<lasersIPs.length;ipIndex=ipIndexAtomic.getAndIncrement()){
 	   							long st=System.nanoTime();
+	   							if (debugLevel>1) {
+	   								System.out.println("image url["+ipIndex+"]="+imageURLs[ipIndex]);
+	   							}
 	   							laserImagesIP[fnSeqNum-1][ipIndex]=jp4_Instances[ipIndex].openURL(
 	   									imageURLs[ipIndex],
 	   									"",

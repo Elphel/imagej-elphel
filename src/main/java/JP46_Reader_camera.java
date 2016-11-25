@@ -356,6 +356,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		boolean showDemux=showImage && demux;
 		if (demux) showImage=false;
 		double [] xtraExif=new double[1]; // ExposureTime
+		
 
 //		System.out.println("imp_src is "+((imp_src!=null)?"not ":"")+"null");
 		try {
