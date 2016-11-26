@@ -130,6 +130,7 @@ public class CalibrationHardwareInterface {
 		private boolean [][] sensorPresent=  null;   // probe which sensors (of 3) are detected per system board
 		// TODO - try if skipping setting TRIG_PERIOD=0, IRQ_SMART=6 (when they are already set) will fix hanging
 		private int [] triggerPeriod=        null;
+		private int [] cameraMasterPort=     null;
 		private int [] irqSmart=             null;
 		private int [] motorsPosition=      null; // motors steps when the images were acquired (for null)
 		private long startTime=System.nanoTime();
@@ -786,7 +787,8 @@ public class CalibrationHardwareInterface {
 			   		if (this.debugLevel>1) System.out.println("Frame number: "+this.cameraFrameNumber[chn]+
 			   				", Trigger mode:"+(this.triggeredMode[chn]?"ex":"in")+"ternal, "+
 			   				" sensors attached:"+(this.sensorPresent[chn][0]?"1 ":"")+(this.sensorPresent[chn][1]?"2 ":"")+(this.sensorPresent[chn][2]?"3 ":"")+
-			   				(single_no_mux?"single-sensor, no multiplexer":"")
+			   				(single_no_mux?"single-sensor, no multiplexer":"") +
+			   				(" Master port "+this.cameraMasterPort[chn])
 			   				);
 			   		for (int i=0;i<this.sensorPresent[chn].length;i++) if (this.sensorPresent[chn][i]) numSensors++;
 			   		if (single_no_mux) numSensors++;
@@ -801,11 +803,12 @@ public class CalibrationHardwareInterface {
 	   	public void initCameraArrays(int numChn){
 	   		if (this.debugLevel>1) System.out.println("initCameraArrays("+numChn+")");
 	   		this.cameraFrameNumber=new int[numChn];
-	   		this.triggeredMode=new boolean[numChn];
-	   		this.sensorPresent=new boolean[numChn][];
+	   		this.triggeredMode=    new boolean[numChn];
+	   		this.sensorPresent=    new boolean[numChn][];
 			// TODO - try if skipping setting TRIG_PERIOD=0, IRQ_SMART=6 (when they are already set) will fix hanging
-	   		this.triggerPeriod=new int[numChn];
-	   		this.irqSmart=     new int[numChn];
+	   		this.triggerPeriod=    new int[numChn];
+	   		this.irqSmart=         new int[numChn];
+	   		this.cameraMasterPort= new int[numChn]; // not sure if will use it - master port for each camera:port
 	   	}
 	   	public boolean probeCameraState(
 	               int chn){
@@ -826,20 +829,22 @@ public class CalibrationHardwareInterface {
 	   		
 	   		if (this.nc393){
 //	   			url="http://"+this.cameraIPs[chn]+"/parsedit.php?immediate&TRIG&TRIG_PERIOD&SENS_AVAIL&FRAME";
-	   			url="http://"+ip+"/parsedit.php?sensor_port="+sensor_port+"&immediate&TRIG&TRIG_PERIOD&SENS_AVAIL&FRAME";
+	   			url="http://"+ip+"/parsedit.php?sensor_port="+sensor_port+"&immediate&TRIG&TRIG_PERIOD&SENS_AVAIL&FRAME&TRIG_MASTER";
 	   		} else {
 //	   			url="http://"+this.cameraIPs[chn]+"/parsedit.php?immediate&TRIG&TRIG_PERIOD&IRQ_SMART&SENS_AVAIL&FRAME";
 	   			url="http://"+ip+"/parsedit.php?immediate&TRIG&TRIG_PERIOD&IRQ_SMART&SENS_AVAIL&FRAME";
 	   		}
 	   		if (this.debugLevel>1) System.out.println("url="+url);
 	   		Document dom=null;
-	   		if ((this.cameraFrameNumber==null) || ((this.cameraFrameNumber.length<(chn+1)))) initCameraArrays(chn+1);
+	   		if ((this.cameraFrameNumber==null) ||    ((this.cameraFrameNumber.length<(chn+1)))) initCameraArrays(chn+1);
 	   		// did not find yet - why cameraFrameNumber is not null, but sensorPresent is? Added next lines until find
-	   		if ((this.triggeredMode==null) || ((this.triggeredMode.length<(chn+1)))) initCameraArrays(chn+1);
-	   		if ((this.sensorPresent==null) || ((this.sensorPresent.length<(chn+1)))) initCameraArrays(chn+1);
-	   		if ((this.triggerPeriod==null) || ((this.triggerPeriod.length<(chn+1)))) initCameraArrays(chn+1);
+	   		if ((this.triggeredMode==null) ||        ((this.triggeredMode.length<(chn+1)))) initCameraArrays(chn+1);
+	   		if ((this.sensorPresent==null) ||        ((this.sensorPresent.length<(chn+1)))) initCameraArrays(chn+1);
+	   		if ((this.triggerPeriod==null) ||        ((this.triggerPeriod.length<(chn+1)))) initCameraArrays(chn+1);
 	   		if (!this.nc393) {
-	   			if ((this.irqSmart==null) || ((this.irqSmart.length<(chn+1)))) initCameraArrays(chn+1);
+	   			if ((this.irqSmart==null) ||         ((this.irqSmart.length<(chn+1))))         initCameraArrays(chn+1);
+	   		} else {
+	   			if ((this.cameraMasterPort==null) || ((this.cameraMasterPort.length<(chn+1)))) initCameraArrays(chn+1);
 	   		}
 	   		try {
 	   			DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
@@ -874,6 +879,9 @@ public class CalibrationHardwareInterface {
 	   			this.triggerPeriod[chn]=     Integer.parseInt(((Node) (((Node) dom.getDocumentElement().getElementsByTagName("TRIG_PERIOD").item(0)).getChildNodes().item(0))).getNodeValue());
 	   			if (!this.nc393) {
 	   				this.irqSmart[chn]=          Integer.parseInt(((Node) (((Node) dom.getDocumentElement().getElementsByTagName("IRQ_SMART").item(0)).getChildNodes().item(0))).getNodeValue());
+	   				this.cameraMasterPort[chn]=  sensor_port;
+	   			} else {
+	   				this.cameraMasterPort[chn]=  Integer.parseInt(((Node) (((Node) dom.getDocumentElement().getElementsByTagName("TRIG_MASTER").item(0)).getChildNodes().item(0))).getNodeValue());
 	   			}
 	   			this.cameraFrameNumber[chn]= Integer.parseInt(((Node) (((Node) dom.getDocumentElement().getElementsByTagName("FRAME").item(0)).getChildNodes().item(0))).getNodeValue());
 	   		} catch(MalformedURLException e){
@@ -962,6 +970,16 @@ public class CalibrationHardwareInterface {
 	   	}
 	   	// TODO: issue several TRIG pulses after setting parameters?
 	   	public boolean setupCameraAcquisition(int chn, double exposureScale){
+	   		int colon_index = this.cameraIPs[chn].indexOf(":");
+	   		int sensor_port = Integer.parseInt(this.cameraIPs[chn].substring(colon_index+1)) - this.imgsrvPort;
+	   		String ip=this.cameraIPs[chn].substring(0, colon_index);
+	   		boolean isMasterSubcamera = ip.equals(this.cameraSubnet+(this.iBaseIP+this.masterSubCamera));
+	   		boolean isMasterPort =  (this.cameraMasterPort[chn] == sensor_port); // for 353 should always be master port
+	   		if (isMasterSubcamera && (this.cameraMasterPort[chn] != this.masterPort)){
+	   			System.out.println("Master port mismatch for camera "+ip+" (master) - parameters master port = "+
+	   					this.masterPort+", camera responded with "+this.cameraMasterPort[chn] );
+	   		}
+	   		
 	   		boolean exposureOnly=!Double.isNaN(exposureScale);
 	   		int minExposure=10; // usec
 	   		int maxExposure=1000000; //usec
@@ -977,6 +995,7 @@ public class CalibrationHardwareInterface {
 	   		int gScale=   (int) (Math.round(0x10000*this.cameraGScale*this.cameraGScaleCorr[chn]));
 	   		int autoExp=  this.cameraAutoExposure?1:0;
 	   		int autoWB=   this.cameraAutoWhiteBalance?1:0;
+	   		
 	   		String extraURL="";
 	   		if (this.cameraExtraURLCommon.length()>0){
 	   			extraURL+=(this.cameraExtraURLCommon.substring(0,1).equals("&"))?"":"&"+this.cameraExtraURLCommon;
@@ -991,24 +1010,46 @@ public class CalibrationHardwareInterface {
 	   		if (bScale<minScale) bScale= minScale ; else if (bScale> maxScale) bScale= maxScale;
 	   		if (gScale<minScale) gScale= minScale ; else if (gScale> maxScale) gScale= maxScale;
 	   		
-	   		String triggerMode=this.setupTriggerMode?(
-	   				"&TRIG_CONDITION="+(this.noCabling?(0):(this.externalTriggerCabling?"0x200000":"0x20000"))+"*0"+
-	   				"&TRIG_OUT="+(this.noCabling?(0):(this.externalTriggerCabling?"0x800000":"0x80000"))+"*0"+
-	   				"&TRIG=4*3"):"";
-	   		if (this.nc393) {
-	   			if (this.triggerPeriod[chn]>1)triggerMode+="&TRIG_PERIOD=0*1"; // just stop it if it wasn't already, imgsrv /trig does not set it, only FPGA register
-	   		}else {
-		   		if (this.triggerPeriod[chn]>1)triggerMode+="&TRIG_PERIOD=1*0"; // just imgsrv /trig does not set it, only FPGA register
+	   		String triggerMode="";
+	   		
+	   		
+	   		if (this.setupTriggerMode){
+	   			if (this.nc393) {
+	   				if (isMasterPort) {
+/*
+ * P_TRIG_OUT (outputs):
+ * off:      0x00000
+ * external: 0x02000
+ * internal: 0x20000
+ * both:     0x22000
+ * P_TRIG_IN (inputs):
+ * off:      0x00000
+ * external: 0x80000
+ * internal: 0x08000
+ * both:     0x88000
+ */
+	   					triggerMode+="&TRIG_CONDITION="+(this.noCabling?(0):(this.externalTriggerCabling?"0x80000":"0x08000"))+"*0"+
+	   							"&TRIG_OUT="+(this.noCabling?(0):(this.externalTriggerCabling?"0x02000":"0x20000"))+"*0"+
+	   							"&TRIG=4*3";
+
+	   					if (this.triggerPeriod[chn]>1)triggerMode+="&TRIG_PERIOD=0*1"; // just stop it if it wasn't already, imgsrv /trig does not set it, only FPGA register
+	   				}
+	   			}else {
+	   				triggerMode+="&TRIG_CONDITION="+(this.noCabling?(0):(this.externalTriggerCabling?"0x200000":"0x20000"))+"*0"+
+	   						"&TRIG_OUT="+(this.noCabling?(0):(this.externalTriggerCabling?"0x800000":"0x80000"))+"*0"+
+	   						"&TRIG=4*3";
+	   				if (this.triggerPeriod[chn]>1)triggerMode+="&TRIG_PERIOD=1*0"; // just imgsrv /trig does not set it, only FPGA register
+	   			}
 	   		}
-	   		int colon_index = this.cameraIPs[chn].indexOf(":");
-	   		int sensor_port = Integer.parseInt(this.cameraIPs[chn].substring(colon_index+1)) - this.imgsrvPort;
-	   		String ip=this.cameraIPs[chn].substring(0, colon_index);
 
 	   		String url="http://"+ip+"/parsedit.php?immediate";
 	   		
 	   		if (this.nc393) {
 	   			url += "&sensor_port="+sensor_port;
+	   			
 	   		}
+	   		
+	   		
 	   		
 	   		url+="&EXPOS="+exposure+"*0"; // always
 	   		if (!exposureOnly){
