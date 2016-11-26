@@ -135,6 +135,13 @@ public class PixelMapping {
     	if ((channel<0) || (channel>=this.sensors.length)) return -1;
     	return this.sensors[channel].getSubCamera();
     }
+/*    
+    public int getSensorPort(int channel ){
+    	if ((channel<0) || (channel>=this.sensors.length)) return -1;
+    	return this.sensors[channel].getSensorPort();
+    }
+    */
+    
     
     public boolean isChannelAvailable(int channel){
     	return (this.sensors != null) && (channel>=0)  && (channel<this.sensors.length) && (this.sensors[channel]!=null);
@@ -15527,6 +15534,7 @@ public class PixelMapping {
 		public int    channel=   -1;
 	    public int    subcamera= -1;
 	    public int    subchannel=-1;
+	    public int    sensor_port=-1;
 	    // TODO: add serial# (and temperature?)
     	public double azimuth; // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     	public double radius;  // mm, distance from the rotation axis
@@ -16094,6 +16102,9 @@ public class PixelMapping {
 	    public int getChannel(){return this.channel;}
 	    public int getSubChannel(){return this.subchannel;}
 	    public int getSubCamera(){return this.subcamera;}
+	    public int getSensorPort(){return this.sensor_port;}
+	    
+	    
 	    public void setSensorDataFromImageStack(ImagePlus imp){
 //	    	int corrX=0,corrY=1,corrMask=2;
 	    	if (imp == null){
@@ -16170,6 +16181,9 @@ public class PixelMapping {
 // older files do not have these properties	        
 	        if (imp.getProperty("subcamera")!=null)  this.subcamera= Integer.parseInt((String) imp.getProperty("subcamera"));
 	        if (imp.getProperty("subchannel")!=null) this.subchannel=Integer.parseInt((String) imp.getProperty("subchannel"));
+	        if (imp.getProperty("sensor_port")!=null) this.sensor_port=Integer.parseInt((String) imp.getProperty("sensor_port"));
+	        
+	        
 	        
 	        // now read the calibration data and mask
 	        	this.pixelCorrection=null;
