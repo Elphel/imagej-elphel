@@ -90,6 +90,7 @@ public class CalibrationHardwareInterface {
 		private String cameraSubnet="192.168.0.";
 		private int iBaseIP=236;
         private String [] cameraIPs = null; // since nc393 port is a part of cameraIPs[] 
+        private int [] channelIPPort =    null; // index in camareIPs (each IP/port combination) for each individual sensor
         private int imgsrvPort=8081;
         private String resetURLcmd="towp/save/pointers"; // advance buffer, next time will wait for the next frame acquired
 // will return XML, just "trig" - 1x1 GIF
@@ -127,7 +128,7 @@ public class CalibrationHardwareInterface {
 		// these are initialized after being null, when the cameras are probed
 		private int    []  cameraFrameNumber=null;
 		private boolean [] triggeredMode=    null;   // true - triggered, false - free running
-		private boolean [][] sensorPresent=  null;   // probe which sensors (of 3) are detected per system board
+		private boolean [][] sensorPresent=  null;   // probe which sensors (of 3) are detected per system board (NC393 - per board/port)
 		// TODO - try if skipping setting TRIG_PERIOD=0, IRQ_SMART=6 (when they are already set) will fix hanging
 		private int [] triggerPeriod=        null;
 		private int [] cameraMasterPort=     null;
@@ -281,10 +282,17 @@ public class CalibrationHardwareInterface {
 				if (!ip_ports_list.contains(ip_port)) ip_ports_list.add(ip_port); 
 			}
 			Collections.sort(ip_ports_list);
-			this.cameraIPs=new String [ip_ports_list.size()];
+			this.cameraIPs =   new String [ip_ports_list.size()];
+			this.channelIPPort = new int [this.channelMap.length];
 			for (int i = 0; i<this.cameraIPs.length; i++){
-				this.cameraIPs[i] = this.cameraSubnet+(this.iBaseIP+(ip_ports_list.get(i)>>2))+":"+
-				(this.imgsrvPort+ (ip_ports_list.get(i) & 3));
+				int ip_index= ip_ports_list.get(i)>>2;
+				int sensor_port = ip_ports_list.get(i) & 3;
+				this.cameraIPs[i] = this.cameraSubnet+(this.iBaseIP + ip_index) + ":"+ sensor_port;
+				for (int j = 0; j<this.channelMap.length; j++){
+					if ((this.channelMap[j][0] == ip_index) && (this.channelMap[j][2] == sensor_port)) {
+						this.channelIPPort[j] = i;
+					}
+				}
 			}
 			
 			this.triggerURL="http://"+this.cameraSubnet+(this.iBaseIP+this.masterSubCamera)+":"+
@@ -1469,6 +1477,7 @@ public class CalibrationHardwareInterface {
 			//TODO: Multithread the next cycle (per-sensor)
 			final ImagePlus []	images=this.images;
 			final int [][] channelMap = this.channelMap;
+			final int [] channelIPPort = this.channelIPPort;
 	   		final AtomicInteger imageIndexAtomic = new AtomicInteger(0);
 	   		final int [] motorsPosition=this.motorsPosition;
 	   		for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -1479,7 +1488,8 @@ public class CalibrationHardwareInterface {
 	   					for (int imageIndex=imageIndexAtomic.getAndIncrement(); imageIndex<images.length;imageIndex=imageIndexAtomic.getAndIncrement())
 	   						if ((imageIndex<acquire.length) && acquire[imageIndex]){
 	   							//		   	for (int i=0;i<this.images.length;i++) if ((i<acquire.length) && acquire[i]) {
-	   							int iIP=channelMap[imageIndex][0];
+//	   							int iIP=channelMap[imageIndex][0];
+	   							int iIP=channelIPPort[imageIndex]; // index in composite images (per ip/port)
 	   							if (sensorPresent[iIP]==null) { // system board for this channel did not respond null pointer - check cameras were detected
 	   								images[imageIndex]=null;
 	   								continue;
@@ -1669,6 +1679,7 @@ public class CalibrationHardwareInterface {
 	   		final boolean otherGreen=laserPointers.laserPointer.otherGreen;
 
 	   		final int [][] channelMap=this.channelMap;
+			final int []   channelIPPort = this.channelIPPort;
 	   		final ImagePlus [] images=this.images;
 			final boolean [] flipImages=this.flipImages;
 			final LaserPointers laserPointers=this.laserPointers;
@@ -1687,7 +1698,8 @@ public class CalibrationHardwareInterface {
 						for (int sensorNum=sensorNumAtomic.getAndIncrement(); sensorNum<lasers.length;sensorNum=sensorNumAtomic.getAndIncrement()) // null pointer
 							if (lasers[sensorNum] && (images[sensorNum]!=null)){
 								//	   		for (int sensorNum=0;sensorNum<lasers.length;sensorNum++)  if (lasers[sensorNum] && (this.images[sensorNum]!=null)){ // lasers - here sensors to use lasers for
-								int iIP=channelMap[sensorNum][0];
+//								int iIP=channelMap[sensorNum][0];
+	   							int iIP=channelIPPort[sensorNum]; // index in composite images (per ip/port)
 								double saturationRed=255.0;
 								if (images[sensorNum].getProperty("saturation_0")!=null) saturationRed=Double.parseDouble((String)images[sensorNum].getProperty("saturation_0"));
 								if (scaleExposureForLasers>0) saturationRed*=scaleExposureForLasers; // scaled to reduced exposure time  
@@ -1929,7 +1941,8 @@ public class CalibrationHardwareInterface {
 			if (this.debugLevel>1) {
 				if (this.debugLevel>2) System.out.println("++++++++++++++++++ Image Properies ++++++++++++++++++++++++++++");
 				for (int i=0;i<this.images.length;i++) if (this.images[i]!=null) {
-					int j=this.channelMap[i][0];
+//					int j=this.channelMap[i][0];
+					int j=channelIPPort[i]; // sincer NC393 adder port					
 					if (this.debugLevel>2) {
 						System.out.println("Image #"+i);
 						this.jp4_Instances[j].listImageProperties(this.images[i]);
