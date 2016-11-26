@@ -289,7 +289,7 @@ public class CalibrationHardwareInterface {
 			
 			this.triggerURL="http://"+this.cameraSubnet+(this.iBaseIP+this.masterSubCamera)+":"+
 				(this.imgsrvPort+ (this.masterPort & 3))+"/"+triggerURLcmd;
-	   		System.out.println("DEBUG393: initIPs(): this.triggerURL ="+this.triggerURL);
+			if (this.debugLevel>1) System.out.println("DEBUG393: initIPs(): this.triggerURL ="+this.triggerURL);
 		}
 /*
 //pre nc393		
@@ -987,7 +987,7 @@ public class CalibrationHardwareInterface {
 	   			System.out.println("Master port mismatch for camera "+ip+" (master) - parameters master port = "+
 	   					this.masterPort+", camera responded with "+this.cameraMasterPort[chn] );
 	   		}
-	   		System.out.println("DEBUG393: chn="+chn+" sensor_port="+sensor_port+" ip= "+ip+" isMasterSubcamera="+isMasterSubcamera+ " isMasterPort="+isMasterPort);
+	   		if (this.debugLevel>1) System.out.println("DEBUG393: chn="+chn+" sensor_port="+sensor_port+" ip= "+ip+" isMasterSubcamera="+isMasterSubcamera+ " isMasterPort="+isMasterPort);
 	   		boolean exposureOnly=!Double.isNaN(exposureScale);
 	   		int minExposure=10; // usec
 	   		int maxExposure=1000000; //usec
