@@ -530,6 +530,7 @@ public class CalibrationHardwareInterface {
         		}
         		
     		}
+    		initIPs(); // was missing here?
     		initJP4();
      	}   	
     	
@@ -1039,7 +1040,9 @@ public class CalibrationHardwareInterface {
 	   							"&TRIG=4*3";
 	   				}
 
-	   				if (this.triggerPeriod[chn]>1)triggerMode+="&TRIG_PERIOD=0*1"; // just stop it if it wasn't already, imgsrv /trig does not set it, only FPGA register
+	   				if ((this.triggerPeriod[chn]>1) || this.setupTriggerMode) {
+	   					triggerMode+="&TRIG_PERIOD=0*1"; // just stop it if it wasn't already, imgsrv /trig does not set it, only FPGA register
+	   				}
 	   			}
 	   		}else {
 	   			if (this.setupTriggerMode){
@@ -1047,7 +1050,9 @@ public class CalibrationHardwareInterface {
 	   						"&TRIG_OUT="+(this.noCabling?(0):(this.externalTriggerCabling?"0x800000":"0x80000"))+"*0"+
 	   						"&TRIG=4*3";
 	   			}
-	   			if (this.triggerPeriod[chn]>1)triggerMode+="&TRIG_PERIOD=1*0"; // just imgsrv /trig does not set it, only FPGA register
+	   			if ((this.triggerPeriod[chn]>1) || this.setupTriggerMode){
+	   				triggerMode+="&TRIG_PERIOD=1*0"; // just imgsrv /trig does not set it, only FPGA register
+	   			}
 	   		}
 	   		
 
