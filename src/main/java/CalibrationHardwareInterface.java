@@ -412,6 +412,34 @@ public class CalibrationHardwareInterface {
 			}
     	}
      	public void getProperties(String prefix,Properties properties){
+    		if (properties.getProperty(prefix+"channelMap.length")!=null) {
+    			// next initializes default values, so it should be before reading them from saved properties
+    			initDefaultMap (Integer.parseInt(properties.getProperty(prefix+"channelMap.length")));
+    			this.flipImages=new boolean[this.channelMap.length];
+        		for (int i=0;i<this.channelMap.length;i++) {
+            		if (properties.getProperty(prefix+"channelMap_"+i+"_IPindex")!=null) 
+            			this.channelMap[i][0]=Integer.parseInt(properties.getProperty(prefix+"channelMap_"+i+"_IPindex"));
+            		if (properties.getProperty(prefix+"channelMap_"+i+"_subchannel")!=null) 
+            			this.channelMap[i][1]=Integer.parseInt(properties.getProperty(prefix+"channelMap_"+i+"_subchannel"));
+            		if (properties.getProperty(prefix+"channelMap_"+i+"_port")!=null) 
+            			this.channelMap[i][2]=Integer.parseInt(properties.getProperty(prefix+"channelMap_"+i+"_port"));
+            		if (properties.getProperty(prefix+"flipImages_"+i)!=null) 
+            			this.flipImages[i]=(Integer.parseInt(properties.getProperty(prefix+"flipImages_"+i))>0);
+        		}
+    		}
+    		
+    		int numCams=0;
+    		if (properties.getProperty(prefix+"cameraIPs.length")!=null) {
+    			numCams=Integer.parseInt(properties.getProperty(prefix+"cameraIPs.length"));
+    			this.cameraIPs=new String[numCams];
+        		for (int i=0;i<numCams;i++) {
+            		if (properties.getProperty(prefix+"cameraIPs_"+i)!=null) 
+            			this.cameraIPs[i]=properties.getProperty(prefix+"cameraIPs_"+i);
+        			
+        		}
+    		}
+    		initCamParsDefaultArrays(numCams);
+     		
     		if (properties.getProperty(prefix+"cameraSubnet")!=null)
     			this.cameraSubnet=properties.getProperty(prefix+"cameraSubnet");
     		if (properties.getProperty(prefix+"iBaseIP")!=null)
@@ -435,33 +463,11 @@ public class CalibrationHardwareInterface {
     			this.imageURLcmd=properties.getProperty(prefix+"imageURLcmd");
     		if (properties.getProperty(prefix+"metaURLcmd")!=null)
     			this.metaURLcmd=properties.getProperty(prefix+"metaURLcmd");
-    		if (properties.getProperty(prefix+"channelMap.length")!=null) {
-    			initDefaultMap (Integer.parseInt(properties.getProperty(prefix+"channelMap.length")));
-    			this.flipImages=new boolean[this.channelMap.length];
-        		for (int i=0;i<this.channelMap.length;i++) {
-            		if (properties.getProperty(prefix+"channelMap_"+i+"_IPindex")!=null) 
-            			this.channelMap[i][0]=Integer.parseInt(properties.getProperty(prefix+"channelMap_"+i+"_IPindex"));
-            		if (properties.getProperty(prefix+"channelMap_"+i+"_subchannel")!=null) 
-            			this.channelMap[i][1]=Integer.parseInt(properties.getProperty(prefix+"channelMap_"+i+"_subchannel"));
-            		if (properties.getProperty(prefix+"channelMap_"+i+"_port")!=null) 
-            			this.channelMap[i][2]=Integer.parseInt(properties.getProperty(prefix+"channelMap_"+i+"_port"));
-            		if (properties.getProperty(prefix+"flipImages_"+i)!=null) 
-            			this.flipImages[i]=(Integer.parseInt(properties.getProperty(prefix+"flipImages_"+i))>0);
-        			
-        		}
-   			
-    		}
-    		int numCams=0;
-    		if (properties.getProperty(prefix+"cameraIPs.length")!=null) {
-    			numCams=Integer.parseInt(properties.getProperty(prefix+"cameraIPs.length"));
-    			this.cameraIPs=new String[numCams];
-        		for (int i=0;i<numCams;i++) {
-            		if (properties.getProperty(prefix+"cameraIPs_"+i)!=null) 
-            			this.cameraIPs[i]=properties.getProperty(prefix+"cameraIPs_"+i);
-        			
-        		}
-    		}
-    		initCamParsDefaultArrays(numCams);
+
+    		
+// both defaults were here
+    		
+    		
     		
 			if (properties.getProperty(prefix+"colorMode")!=null)
 				this.colorMode=Integer.parseInt(properties.getProperty(prefix+"colorMode"));
@@ -1013,34 +1019,37 @@ public class CalibrationHardwareInterface {
 	   		String triggerMode="";
 	   		
 	   		
-	   		if (this.setupTriggerMode){
-	   			if (this.nc393) {
-	   				if (isMasterPort) {
-/*
- * P_TRIG_OUT (outputs):
- * off:      0x00000
- * external: 0x02000
- * internal: 0x20000
- * both:     0x22000
- * P_TRIG_IN (inputs):
- * off:      0x00000
- * external: 0x80000
- * internal: 0x08000
- * both:     0x88000
- */
+	   		if (this.nc393) {
+	   			if (isMasterPort) {
+	   				/*
+	   				 * P_TRIG_OUT (outputs):
+	   				 * off:      0x00000
+	   				 * external: 0x02000
+	   				 * internal: 0x20000
+	   				 * both:     0x22000
+	   				 * P_TRIG_IN (inputs):
+	   				 * off:      0x00000
+	   				 * external: 0x80000
+	   				 * internal: 0x08000
+	   				 * both:     0x88000
+	   				 */
+	   				if (this.setupTriggerMode){
 	   					triggerMode+="&TRIG_CONDITION="+(this.noCabling?(0):(this.externalTriggerCabling?"0x80000":"0x08000"))+"*0"+
 	   							"&TRIG_OUT="+(this.noCabling?(0):(this.externalTriggerCabling?"0x02000":"0x20000"))+"*0"+
 	   							"&TRIG=4*3";
-
-	   					if (this.triggerPeriod[chn]>1)triggerMode+="&TRIG_PERIOD=0*1"; // just stop it if it wasn't already, imgsrv /trig does not set it, only FPGA register
 	   				}
-	   			}else {
+
+	   				if (this.triggerPeriod[chn]>1)triggerMode+="&TRIG_PERIOD=0*1"; // just stop it if it wasn't already, imgsrv /trig does not set it, only FPGA register
+	   			}
+	   		}else {
+	   			if (this.setupTriggerMode){
 	   				triggerMode+="&TRIG_CONDITION="+(this.noCabling?(0):(this.externalTriggerCabling?"0x200000":"0x20000"))+"*0"+
 	   						"&TRIG_OUT="+(this.noCabling?(0):(this.externalTriggerCabling?"0x800000":"0x80000"))+"*0"+
 	   						"&TRIG=4*3";
-	   				if (this.triggerPeriod[chn]>1)triggerMode+="&TRIG_PERIOD=1*0"; // just imgsrv /trig does not set it, only FPGA register
 	   			}
+	   			if (this.triggerPeriod[chn]>1)triggerMode+="&TRIG_PERIOD=1*0"; // just imgsrv /trig does not set it, only FPGA register
 	   		}
+	   		
 
 	   		String url="http://"+ip+"/parsedit.php?immediate";
 	   		
