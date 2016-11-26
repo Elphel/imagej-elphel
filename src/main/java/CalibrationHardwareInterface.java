@@ -45,6 +45,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Properties;
 import java.util.Set;
@@ -88,7 +89,7 @@ public class CalibrationHardwareInterface {
 // TODO: when saving/restoring save cameraSubnet, iBaseIP, cameraIPs, so any IPs are OK through config, generate - sequential
 		private String cameraSubnet="192.168.0.";
 		private int iBaseIP=236;
-        private String [] cameraIPs = null;
+        private String [] cameraIPs = null; // since nc393 port is a part of cameraIPs[] 
         private int imgsrvPort=8081;
         private String resetURLcmd="towp/save/pointers"; // advance buffer, next time will wait for the next frame acquired
 // will return XML, just "trig" - 1x1 GIF
@@ -227,21 +228,26 @@ public class CalibrationHardwareInterface {
 			this.resetURLs=new String [this.cameraIPs.length];
 			this.imageURLs=new String [this.cameraIPs.length];
 			this.metaURLs= new String [this.cameraIPs.length];
-			this.triggerURL="http://"+this.cameraIPs[this.masterSubCamera]+":"+(this.imgsrvPort+this.masterPort)+"/"+triggerURLcmd;
+			// this.triggerURL is already defined
+//			this.triggerURL="http://"+this.cameraIPs[this.masterSubCamera]+":"+(this.imgsrvPort+this.masterPort)+"/"+triggerURLcmd;
+			
 			this.images=   new ImagePlus[this.channelMap.length];
 			this.imagesIP= new ImagePlus[this.cameraIPs.length];
 			
 			for (int i=0; i<this.cameraIPs.length;i++){
 				this.jp4_Instances[i]=new JP46_Reader_camera(false);// invisible
-				this.jp4_Instances[i].camera_url="http://"+this.cameraIPs[i]+":"+this.imgsrvPort+"/";
+//				this.jp4_Instances[i].camera_url="http://"+this.cameraIPs[i]+":"+this.imgsrvPort+"/";
+				this.jp4_Instances[i].camera_url="http://"+this.cameraIPs[i]+"/";
 				this.jp4_Instances[i].camera_img=    this.imageURLcmd; // not currently used
 				this.jp4_Instances[i].camera_img_new=this.imageURLcmd; //"torp/wait/" will survive, only "towp/wait/" is removed for Exif re-read
 				this.jp4_Instances[i].ABSOLUTELY_SILENT=true; 
-				this.resetURLs[i]="http://"+this.cameraIPs[i]+":"+this.imgsrvPort+"/"+resetURLcmd;
-				this.imageURLs[i]="http://"+this.cameraIPs[i]+":"+this.imgsrvPort+"/"+this.imageURLcmd;
-				this.metaURLs[i]= "http://"+this.cameraIPs[i]+":"+this.imgsrvPort+"/"+metaURLcmd;
+//				this.resetURLs[i]="http://"+this.cameraIPs[i]+":"+this.imgsrvPort+"/"+resetURLcmd;
+//				this.imageURLs[i]="http://"+this.cameraIPs[i]+":"+this.imgsrvPort+"/"+this.imageURLcmd;
+//				this.metaURLs[i]= "http://"+this.cameraIPs[i]+":"+this.imgsrvPort+"/"+metaURLcmd;
+				this.resetURLs[i]="http://"+this.cameraIPs[i]+"/"+resetURLcmd;
+				this.imageURLs[i]="http://"+this.cameraIPs[i]+"/"+this.imageURLcmd;
+				this.metaURLs[i]= "http://"+this.cameraIPs[i]+"/"+metaURLcmd;
 				this.imagesIP[i]= null;
-
 			}
 			for (int i=0; i<this.images.length;i++) this.images[i]= null;
 		}
@@ -268,6 +274,24 @@ public class CalibrationHardwareInterface {
 		 * Initialize cameraIPs from subNet and baseIP (sequentially)
 		 */
 		private void initIPs(){
+			ArrayList<Integer> ip_ports_list= new ArrayList<Integer>();
+			for (int i=0;i<this.channelMap.length;i++) {
+				Integer ip_port=(this.channelMap[i][0]<<2) + this.channelMap[i][2];
+				if (!ip_ports_list.contains(ip_port)) ip_ports_list.add(ip_port); 
+			}
+			Collections.sort(ip_ports_list);
+			this.cameraIPs=new String [ip_ports_list.size()];
+			for (int i = 0; i<this.cameraIPs.length; i++){
+				this.cameraIPs[i] = this.cameraSubnet+(this.iBaseIP+(ip_ports_list.get(i)>>2))+":"+
+				(this.imgsrvPort+ (ip_ports_list.get(i) & 3));
+			}
+			
+			this.triggerURL="http://"+this.cameraSubnet+(this.iBaseIP+this.masterSubCamera)+":"+
+				(this.imgsrvPort+ (this.masterPort & 3))+"/"+triggerURLcmd;
+		}
+/*
+//pre nc393		
+		private void initIPs(){
 			if (this.debugLevel>2) System.out.println("initIPs(): this.iBaseIP=" + this.iBaseIP );
 			int size=0;
 			for (int i=0;i<this.channelMap.length;i++) if (this.channelMap[i][0]>size) size=this.channelMap[i][0];
@@ -275,8 +299,8 @@ public class CalibrationHardwareInterface {
 			this.cameraIPs=new String [size];
 			for (int i=0;i<size;i++) this.cameraIPs[i]=this.cameraSubnet+(this.iBaseIP+i);
 //			this.masterSubCamera=0;
-			
 		}
+ */
 		/**
 		 * Initialize default subcamera map
 		 * @param size number of subcameras
@@ -624,8 +648,11 @@ public class CalibrationHardwareInterface {
 	   	
 	   	
 	   	public String getSerialNumber(int chn, int EEPROM_chn){
-	   		String url="http://"+this.cameraIPs[chn]+"/i2c.php?cmd=fromEEPROM0&EEPROM_chn="+EEPROM_chn;
-	   			
+	   		int colon_index = this.cameraIPs[chn].indexOf(":");
+	   		int sensor_port = Integer.parseInt(this.cameraIPs[chn].substring(colon_index+1)) - this.imgsrvPort;
+	   		String ip=this.cameraIPs[chn].substring(0, colon_index);
+//	   		String url="http://"+this.cameraIPs[chn]+"/i2c.php?cmd=fromEEPROM0&EEPROM_chn="+EEPROM_chn;
+	   		String url="http://"+ip+"/i2c.php?cmd=fromEEPROM" + sensor_port+ "&EEPROM_chn="+EEPROM_chn;
 	   	    	Document dom=null;
 	   	    	String serial=null;
 	   	    	try {
@@ -677,45 +704,50 @@ public class CalibrationHardwareInterface {
 		   		printTiming("=== setupCameraAcquisition()");
 	   		}
 	   		if (!this.sensorPresent[chn][0] && !this.sensorPresent[chn][1] && !this.sensorPresent[chn][2]) EEPROM_chn=0; // no 10359 - null pointer while "lens center" if first
-	   		String url="http://"+this.cameraIPs[chn]+"/i2c.php?cmd=fromEEPROM0&EEPROM_chn="+EEPROM_chn;
-	   			this.lastTemperature=Double.NaN;
-	   	    	Document dom=null;
-	   	    	try {
-	   	    		DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
-	   	    		DocumentBuilder db = dbf.newDocumentBuilder();
-	   	    		dom = db.parse(url);
-	   	    		if (!dom.getDocumentElement().getNodeName().equals("board")) {
-	   	    			String msg="Root element: expected 'board', got \"" + dom.getDocumentElement().getNodeName()+"\"";
-	   	    			IJ.showMessage("Error",msg); 
-    					throw new IllegalArgumentException (msg);
-	   	    		}
-	   	    		
-	   	    		String sTemperature=((Node) (((Node) dom.getDocumentElement().getElementsByTagName("sensorTemperature").item(0)).getChildNodes().item(0))).getNodeValue();
-    				// remove opening and closing "
-    				if (sTemperature==null){
-    					String msg="Could not read sensor temperature";
-//    					IJ.showMessage("Error",msg); 
-    					System.out.println("Warning: "+msg);
-    					return Double.parseDouble(sTemperature);
-    				}
-    				this.lastTemperature= Double.parseDouble(sTemperature);
-    			} catch(MalformedURLException e){
-    				String msg="Please check the URL:" + e.toString();
-					IJ.showMessage("Error",msg); 
-					throw new IllegalArgumentException (msg);
-    			} catch(IOException  e1){
-    				String msg = e1.getMessage();
-    				if (msg==null || msg.equals(""))  msg = ""+e1;
-					IJ.showMessage("Error",msg); 
-					throw new IllegalArgumentException (msg);
-    			}catch(ParserConfigurationException pce) {
-    				pce.printStackTrace();
-    				throw new IllegalArgumentException ("PCE error");
-    			}catch(SAXException se) {
-    				se.printStackTrace(); 
-    				throw new IllegalArgumentException ("SAX error");
-    			}
-				return this.lastTemperature;
+
+	   		int colon_index = this.cameraIPs[chn].indexOf(":");
+	   		int sensor_port = Integer.parseInt(this.cameraIPs[chn].substring(colon_index+1)) - this.imgsrvPort;
+	   		String ip=this.cameraIPs[chn].substring(0, colon_index);
+//	   		String url="http://"+this.cameraIPs[chn]+"/i2c.php?cmd=fromEEPROM0&EEPROM_chn="+EEPROM_chn;
+	   		String url="http://"+ip+"/i2c.php?cmd=fromEEPROM"+ sensor_port +"&EEPROM_chn="+EEPROM_chn;
+	   		this.lastTemperature=Double.NaN;
+	   		Document dom=null;
+	   		try {
+	   			DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+	   			DocumentBuilder db = dbf.newDocumentBuilder();
+	   			dom = db.parse(url);
+	   			if (!dom.getDocumentElement().getNodeName().equals("board")) {
+	   				String msg="Root element: expected 'board', got \"" + dom.getDocumentElement().getNodeName()+"\"";
+	   				IJ.showMessage("Error",msg); 
+	   				throw new IllegalArgumentException (msg);
+	   			}
+
+	   			String sTemperature=((Node) (((Node) dom.getDocumentElement().getElementsByTagName("sensorTemperature").item(0)).getChildNodes().item(0))).getNodeValue();
+	   			// remove opening and closing "
+	   			if (sTemperature==null){
+	   				String msg="Could not read sensor temperature";
+	   				//    					IJ.showMessage("Error",msg); 
+	   				System.out.println("Warning: "+msg);
+	   				return Double.parseDouble(sTemperature);
+	   			}
+	   			this.lastTemperature= Double.parseDouble(sTemperature);
+	   		} catch(MalformedURLException e){
+	   			String msg="Please check the URL:" + e.toString();
+	   			IJ.showMessage("Error",msg); 
+	   			throw new IllegalArgumentException (msg);
+	   		} catch(IOException  e1){
+	   			String msg = e1.getMessage();
+	   			if (msg==null || msg.equals(""))  msg = ""+e1;
+	   			IJ.showMessage("Error",msg); 
+	   			throw new IllegalArgumentException (msg);
+	   		}catch(ParserConfigurationException pce) {
+	   			pce.printStackTrace();
+	   			throw new IllegalArgumentException ("PCE error");
+	   		}catch(SAXException se) {
+	   			se.printStackTrace(); 
+	   			throw new IllegalArgumentException ("SAX error");
+	   		}
+	   		return this.lastTemperature;
 	   	}
 	   	
 	   	
@@ -786,10 +818,16 @@ public class CalibrationHardwareInterface {
 	               ){
 	   		//http://192.168.0.221/parsedit.php?immediate&TRIG&TRIG_PERIOD&FRAME
 	   		String url;
+	   		int colon_index = this.cameraIPs[chn].indexOf(":");
+	   		int sensor_port = Integer.parseInt(this.cameraIPs[chn].substring(colon_index+1)) - this.imgsrvPort;
+	   		String ip=this.cameraIPs[chn].substring(0, colon_index);
+	   		
 	   		if (this.nc393){
-	   			url="http://"+this.cameraIPs[chn]+"/parsedit.php?immediate&TRIG&TRIG_PERIOD&SENS_AVAIL&FRAME";
+//	   			url="http://"+this.cameraIPs[chn]+"/parsedit.php?immediate&TRIG&TRIG_PERIOD&SENS_AVAIL&FRAME";
+	   			url="http://"+ip+"/parsedit.php?sensor_port="+sensor_port+"&immediate&TRIG&TRIG_PERIOD&SENS_AVAIL&FRAME";
 	   		} else {
-	   			url="http://"+this.cameraIPs[chn]+"/parsedit.php?immediate&TRIG&TRIG_PERIOD&IRQ_SMART&SENS_AVAIL&FRAME";
+//	   			url="http://"+this.cameraIPs[chn]+"/parsedit.php?immediate&TRIG&TRIG_PERIOD&IRQ_SMART&SENS_AVAIL&FRAME";
+	   			url="http://"+ip+"/parsedit.php?immediate&TRIG&TRIG_PERIOD&IRQ_SMART&SENS_AVAIL&FRAME";
 	   		}
 	   		if (this.debugLevel>1) System.out.println("url="+url);
 	   		Document dom=null;
@@ -960,7 +998,16 @@ public class CalibrationHardwareInterface {
 	   		}else {
 		   		if (this.triggerPeriod[chn]>1)triggerMode+="&TRIG_PERIOD=1*0"; // just imgsrv /trig does not set it, only FPGA register
 	   		}
-	   		String url="http://"+this.cameraIPs[chn]+"/parsedit.php?immediate";
+	   		int colon_index = this.cameraIPs[chn].indexOf(":");
+	   		int sensor_port = Integer.parseInt(this.cameraIPs[chn].substring(colon_index+1)) - this.imgsrvPort;
+	   		String ip=this.cameraIPs[chn].substring(0, colon_index);
+
+	   		String url="http://"+ip+"/parsedit.php?immediate";
+	   		
+	   		if (this.nc393) {
+	   			url += "&sensor_port="+sensor_port;
+	   		}
+	   		
 	   		url+="&EXPOS="+exposure+"*0"; // always
 	   		if (!exposureOnly){
 	   			if (!this.nc393) {
@@ -1023,9 +1070,9 @@ public class CalibrationHardwareInterface {
 	   	
 	   	
 	   	private boolean editSubCamerasIPs() {
-			GenericDialog gd = new GenericDialog("Edit IPs/hosts of the sub cameras");
+			GenericDialog gd = new GenericDialog("Edit IPs/hosts and ports of the sub cameras");
 			for (int i=0;i<this.cameraIPs.length;i++){
-	    		gd.addStringField(i+": IP address/host of the subcamera",this.cameraIPs[i],20);
+	    		gd.addStringField(i+": IP address/host:sensor port of the subcamera",this.cameraIPs[i],25);
 			}
     	    WindowTools.addScrollBars(gd);
     	    gd.showDialog();
