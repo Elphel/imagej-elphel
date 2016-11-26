@@ -782,12 +782,14 @@ public class CalibrationHardwareInterface {
 	   			if (probeCameraState(chn)) {
 	   				numOnline++;
 		   			printTiming("===== probing channel "+chn);
+		   			boolean single_no_mux= (!this.sensorPresent[chn][0] && !this.sensorPresent[chn][1] && !this.sensorPresent[chn][2]);
 			   		if (this.debugLevel>1) System.out.println("Frame number: "+this.cameraFrameNumber[chn]+
 			   				", Trigger mode:"+(this.triggeredMode[chn]?"ex":"in")+"ternal, "+
 			   				" sensors attached:"+(this.sensorPresent[chn][0]?"1 ":"")+(this.sensorPresent[chn][1]?"2 ":"")+(this.sensorPresent[chn][2]?"3 ":"")+
-			   				((!this.sensorPresent[chn][0] && !this.sensorPresent[chn][1] && !this.sensorPresent[chn][2])?"single-sensor, no multiplexer":"")
+			   				(single_no_mux?"single-sensor, no multiplexer":"")
 			   				);
 			   		for (int i=0;i<this.sensorPresent[chn].length;i++) if (this.sensorPresent[chn][i]) numSensors++;
+			   		if (single_no_mux) numSensors++;
 	   			} else {
 	   				if (this.debugLevel>1) System.out.println("Camera did not respond");
 	   			}
