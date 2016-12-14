@@ -3120,7 +3120,7 @@ public class CalibrationHardwareInterface {
     	} catch (IOException e) {
     		String msg="Failed to write XML motor state file: "+path;
     		IJ.showMessage("Error",msg);
-    		throw new IOException (msg);
+    		extracted(msg);
     	}
     	try {
     		os.close();
@@ -3146,7 +3146,7 @@ public class CalibrationHardwareInterface {
     	} catch (IOException e) {
     		String msg="Failed to read XML configuration file: "+path;
     		IJ.showMessage("Error",msg);
-    		throw new IOException (msg);
+    		extracted(msg);
     	}
     	try {
     		is.close();
@@ -3164,11 +3164,14 @@ public class CalibrationHardwareInterface {
     		} else {
     			String msg="motor"+(i+1)+" is undefined in "+path+". If the file is corrupted you may delete it.";
     			IJ.showMessage("Error",msg);
-    			throw new IOException (msg);
+    			extracted(msg);
     		}
     	}
     	return savedPosition;
     }
+	private void extracted(String msg) throws IOException {
+		throw new IOException (msg);
+	}
     public void checkEnabled(){
     	if (isEnabled()) return;
     	GenericDialog gd = new GenericDialog("Enable motors");

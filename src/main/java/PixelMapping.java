@@ -9410,7 +9410,8 @@ public class PixelMapping {
         		private BitSet innerMask=null;
         		private int []borderMask=null;
         		public int getNumberOfPlanes(){return this.maximums.length;}
-        		public int getForegroundPlane(){return this.foregroundIndex;}
+        		@SuppressWarnings("unused")
+				public int getForegroundPlane(){return this.foregroundIndex;}
         		public double getPlaneDisparity (int plane){return this.maximums[plane][0];}
         		public void setPlaneDisparity (double disparity, int plane){this.maximums[plane][0]=disparity;}
         		public double getPlaneStrength (int plane){return this.maximums[plane][1];}
@@ -9448,14 +9449,16 @@ public class PixelMapping {
         			this.auxData=new float[n][];
         			for (int i=0;i<n;i++) this.auxData[i]=null;
         		}
-        		public void resetAux(){
+        		@SuppressWarnings("unused")
+				public void resetAux(){
         			this.auxData=null;
         		}
         		public void setAux(int n, float [] data){
         			if (this.auxData==null) initAux(n+1);
         			this.auxData[n]=data;
         		}
-        		public float [][] getAux (){
+        		@SuppressWarnings("unused")
+				public float [][] getAux (){
         			return this.auxData;
         		}
         		public float [] getAux (int n){
@@ -9467,17 +9470,21 @@ public class PixelMapping {
         			this.likely=new float[this.numPlanes][];
         			for (int i=0;i<this.numPlanes;i++) this.likely[i]=null;
         		}
-        		public void resetLikely(){
+        		@SuppressWarnings("unused")
+				public void resetLikely(){
         			this.likely=null;
         		}
-        		public void setLikely(int n, float [] data){
+        		@SuppressWarnings("unused")
+				public void setLikely(int n, float [] data){
         			if (this.likely==null) initLikely();
         			this.likely[n]=data;
         		}
-        		public float [][] getLikely (){
+        		@SuppressWarnings("unused")
+				public float [][] getLikely (){
         			return this.likely;
         		}
-        		public float [] getLikely (int n){
+        		@SuppressWarnings("unused")
+				public float [] getLikely (int n){
         			if ((this.likely==null) || (this.likely.length<=n)) return null;
         			return this.likely[n];
         		}
@@ -9486,17 +9493,21 @@ public class PixelMapping {
         			this.unlikely=new float[this.numPlanes][];
         			for (int i=0;i<this.numPlanes;i++) this.unlikely[i]=null;
         		}
-        		public void resetUnlikely(){
+        		@SuppressWarnings("unused")
+				public void resetUnlikely(){
         			this.unlikely=null;
         		}
-        		public void setUnlikely(int n, float [] data){
+        		@SuppressWarnings("unused")
+				public void setUnlikely(int n, float [] data){
         			if (this.unlikely==null) initUnlikely();
         			this.unlikely[n]=data;
         		}
-        		public float [][] getUnlikely(){
+        		@SuppressWarnings("unused")
+				public float [][] getUnlikely(){
         			return this.unlikely;
         		}
-        		public float [] getUnlikely(int n){
+        		@SuppressWarnings("unused")
+				public float [] getUnlikely(int n){
         			if ((this.unlikely==null) || (this.unlikely.length<=n)) return null;
         			return this.unlikely[n];
         		}
@@ -9584,7 +9595,8 @@ public class PixelMapping {
         		 * @param disparityTolerance - consider "this" as being withing disparityTolerance of disparity. NaN - do not filter by this
         		 * @return
         		 */
-        		public boolean [] getEnabledNonOccluded(
+        		@SuppressWarnings("unused")
+				public boolean [] getEnabledNonOccluded(
         				double disparityFG,
         				double disparity,
         				double disparityTolerance){

@@ -28,7 +28,6 @@
 import ij.IJ;
 import ij.ImageStack;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.SwingUtilities;
