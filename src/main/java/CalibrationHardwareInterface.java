@@ -287,7 +287,7 @@ public class CalibrationHardwareInterface {
 			for (int i = 0; i<this.cameraIPs.length; i++){
 				int ip_index= ip_ports_list.get(i)>>2;
 				int sensor_port = ip_ports_list.get(i) & 3;
-				this.cameraIPs[i] = this.cameraSubnet+(this.iBaseIP + ip_index) + ":"+ sensor_port;
+				this.cameraIPs[i] = this.cameraSubnet+(this.iBaseIP + ip_index) + ":"+ (this.imgsrvPort+sensor_port);
 				for (int j = 0; j<this.channelMap.length; j++){
 					if ((this.channelMap[j][0] == ip_index) && (this.channelMap[j][2] == sensor_port)) {
 						this.channelIPPort[j] = i;
@@ -1258,7 +1258,8 @@ public class CalibrationHardwareInterface {
 	   		boolean [] IPs= new boolean[this.cameraIPs.length];
 	   		for (int i=0;i<IPs.length;i++) IPs[i]=false;
 	   		for (int i=0;i<selectCameras.length;i++) if (i<this.channelMap.length) {
-	   			IPs[this.channelMap[i][0]]=true;
+//	   			IPs[this.channelMap[i][0]]=true;
+	   			IPs[this.channelIPPort[i]] = true;  // since NC393			
 	   		}
 	   		return IPs;
 	   	}
@@ -1439,7 +1440,7 @@ public class CalibrationHardwareInterface {
 					public void run() {
 						for (int ipIndex=ipIndexAtomic.getAndIncrement(); ipIndex<ipLength;ipIndex=ipIndexAtomic.getAndIncrement()){
 							//							for (int i=0;i<this.imagesIP.length;i++){
-							if (debugLevel>2) System.out.println("getImages()3: ipIndex="+ipIndex+" acquireIPs.length=" +acquireIPs.length+
+							if (debugLevel>1/*2*/) System.out.println("getImages()3: ipIndex="+ipIndex+" acquireIPs.length=" +acquireIPs.length+
 									((ipIndex<acquireIPs.length)? (" acquireIPs[ipIndex]="+acquireIPs[ipIndex]):""));
 							if ((ipIndex<acquireIPs.length) && acquireIPs[ipIndex]) {
 								if (debugLevel>2) System.out.println("getImages:" + imageURLs[ipIndex] );
@@ -1480,6 +1481,7 @@ public class CalibrationHardwareInterface {
 			final int [] channelIPPort = this.channelIPPort;
 	   		final AtomicInteger imageIndexAtomic = new AtomicInteger(0);
 	   		final int [] motorsPosition=this.motorsPosition;
+	   		
 	   		for (int ithread = 0; ithread < threads.length; ithread++) {
 	   			threads[ithread] = new Thread() {
 	   				public void run() {
@@ -1497,6 +1499,7 @@ public class CalibrationHardwareInterface {
 	   							boolean singleSensor=true;
 	   							for (int s=0;s<sensorPresent[iIP].length;s++) singleSensor&= !sensorPresent[iIP][s];
 	   							if (singleSensor){ // no 10359 multiplexor
+	   								if (debugLevel>1) System.out.println("DEBUG393: demuxing single sensor imageIndex="+imageIndex+" iIP="+iIP);
 	   								images[imageIndex]=jp4_Instance.demuxClone(imagesIP[iIP]); 
 	   							} else {
 	   								int subCam=channelMap[imageIndex][1];
@@ -1506,6 +1509,7 @@ public class CalibrationHardwareInterface {
 	   								}
 	   								// skip missing channels, then demux
 	   								for (int s=0;s<channelMap[imageIndex][1];s++) if (!sensorPresent[iIP][s]) subCam--;
+	   								if (debugLevel>1) System.out.println("DEBUG393: demuxing imageIndex="+imageIndex+" iIP="+iIP+" subCam="+subCam);
 	   								images[imageIndex]=jp4_Instance.demuxImage(imagesIP[iIP],subCam);
 	   							}
 	   							//		   		this.images[i]=this.jp4_Instances[j].demuxImageOrClone(this.imagesIP[j],this.channelMap[i][1]);
