@@ -413,7 +413,10 @@ public class EyesisCorrections {
 			int [] channels={correctionsParameters.getChannelFromSourceTiff(correctionsParameters.getSourcePaths()[nFile])};
 			if (correctionsParameters.isJP4()){
 				int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
+				System.out.println("++++++++++ Calling this.pixelMapping.channelsForSubCamera("+subCamera+")");
 				channels=this.pixelMapping.channelsForSubCamera(subCamera);
+			} else {
+				System.out.println("++++++++++ Not a JP4 subcamera "+(channels[0]-correctionsParameters.firstSubCamera)+"!");
 			}
 
 			if (channels!=null) {
