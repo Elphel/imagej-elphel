@@ -183,11 +183,10 @@ public class PixelMapping {
 				return (o1.x>o2.x)? 1:((o1.x < o2.x)?-1:(o1.y > o2.y)? 1:((o1.y < o2.y)?-1:0)); 
 			}
 		});
-		for (int i=0; i<cam_port_arr.length;i++){
-			System.out.println("----- physical camera #"+cam_port_arr[i].x+", sensor_port="+cam_port_arr[i].y);
-		}
-		System.out.println("----- This ("+subCamera+") physical camera #"+cam_port_arr[subCamera].x+", sensor_port="+cam_port_arr[subCamera].y);
-		
+//		for (int i=0; i<cam_port_arr.length;i++){
+//			System.out.println("----- physical camera #"+cam_port_arr[i].x+", sensor_port="+cam_port_arr[i].y);
+//		}
+		System.out.println("----- This filename subcamera "+subCamera+": physical camera "+cam_port_arr[subCamera].x+", sensor_port "+cam_port_arr[subCamera].y);
 		if (subCamera >= cam_port_arr.length) {
 			System.out.println("Error: Subcamera "+subCamera+" > that total namera of sensor ports in the system = "+cam_port_arr.length);
 			return null; 
