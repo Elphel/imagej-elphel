@@ -5989,6 +5989,8 @@ List calibration
     	imp.setProperty("channel",  ""+numSensor);
     	imp.setProperty("comment_subcamera", "number of the subcamera with individual IP, starting with 0");
     	imp.setProperty("subcamera",  ""+camerasInterface.getSubCamera(numSensor));
+		imp.setProperty("sensor_port",""+camerasInterface.getSensorPort(numSensor)); 
+    	
     	imp.setProperty("comment_subchannel", "number of the sensor port on a subcamera (0..2)");
     	imp.setProperty("subchannel",  ""+camerasInterface.getSubChannel(numSensor));
     	imp.setProperty("comment_entrancePupilForward",  "entrance pupil distance from the azimuth/radius/height, outwards in mm");

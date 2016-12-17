@@ -25,10 +25,14 @@
 **
 */
 
+import java.awt.Point;
 import java.awt.Rectangle;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -135,10 +139,19 @@ public class PixelMapping {
     	if ((channel<0) || (channel>=this.sensors.length)) return -1;
     	return this.sensors[channel].getSubCamera();
     }
+/*    
+    public int getSensorPort(int channel ){
+    	if ((channel<0) || (channel>=this.sensors.length)) return -1;
+    	return this.sensors[channel].getSensorPort();
+    }
+    */
+    
     
     public boolean isChannelAvailable(int channel){
     	return (this.sensors != null) && (channel>=0)  && (channel<this.sensors.length) && (this.sensors[channel]!=null);
     }
+
+/*
     
     public int [] channelsForSubCamera(int subCamera){
     	if (this.sensors == null) return null;
@@ -149,6 +162,50 @@ public class PixelMapping {
     	for (int i=0;i<this.sensors.length;i++) if ((this.sensors[i]!=null) &&(this.sensors[i].subcamera==subCamera)) result[numChannels++]=i;
     	return result;
     }
+    
+ */
+    // Updating for nc393. subCamera here is 0..9 for Eyesis4pi393 - 0-based index of the file, so it combines physical camera (separate IP)
+    // as stored in "subcamera" field of the calibration file and "sensor_port". sensor_port may start from non-0, so we need to count all combinations
+    
+    public int [] channelsForSubCamera(int subCamera){
+//    	ArrayList<ArrayList<ArrayList<Integer>>> camera_IPs = new ArrayList<ArrayList<ArrayList<Integer>>>(); 
+    	ArrayList<Point> cam_port = new ArrayList<Point>();
+    	for (int i=0;i<this.sensors.length;i++)  if (this.sensors[i]!=null) {
+    		Point cp = new Point(this.sensors[i].subcamera, this.sensors[i].sensor_port);
+    		if (!cam_port.contains(cp)){
+    			cam_port.add(cp);
+    		}
+    	}
+    	Point [] cam_port_arr = cam_port.toArray(new Point[0]);
+		Arrays.sort(cam_port_arr, new Comparator<Point>() {
+			@Override
+			public int compare(Point o1, Point o2) {
+				return (o1.x>o2.x)? 1:((o1.x < o2.x)?-1:(o1.y > o2.y)? 1:((o1.y < o2.y)?-1:0)); 
+			}
+		});
+//		for (int i=0; i<cam_port_arr.length;i++){
+//			System.out.println("----- physical camera #"+cam_port_arr[i].x+", sensor_port="+cam_port_arr[i].y);
+//		}
+		System.out.println("----- This filename subcamera "+subCamera+": physical camera "+cam_port_arr[subCamera].x+", sensor_port "+cam_port_arr[subCamera].y);
+		if (subCamera >= cam_port_arr.length) {
+			System.out.println("Error: Subcamera "+subCamera+" > that total namera of sensor ports in the system = "+cam_port_arr.length);
+			return null; 
+		}
+    	if (this.sensors == null) return null;
+    	int numChannels=0;
+    	for (int i=0;i<this.sensors.length;i++) if (this.sensors[i]!=null) {
+    		if (new Point(this.sensors[i].subcamera, this.sensors[i].sensor_port).equals(cam_port_arr[subCamera])) numChannels++;
+    	}
+    	int [] result=new int [numChannels];
+    	numChannels=0;
+    	for (int i=0;i<this.sensors.length;i++) if (this.sensors[i]!=null){
+    		if (new Point(this.sensors[i].subcamera, this.sensors[i].sensor_port).equals(cam_port_arr[subCamera])) result[numChannels++]=i;
+    	}
+    	return result;
+    }
+    
+    
+    
     public void removeChannel(int channel){
     	if ((this.sensors != null) && (channel>=0)  && (channel<this.sensors.length)) this.sensors[channel]=null;
     }
@@ -9403,7 +9460,8 @@ public class PixelMapping {
         		private BitSet innerMask=null;
         		private int []borderMask=null;
         		public int getNumberOfPlanes(){return this.maximums.length;}
-        		public int getForegroundPlane(){return this.foregroundIndex;}
+        		@SuppressWarnings("unused")
+				public int getForegroundPlane(){return this.foregroundIndex;}
         		public double getPlaneDisparity (int plane){return this.maximums[plane][0];}
         		public void setPlaneDisparity (double disparity, int plane){this.maximums[plane][0]=disparity;}
         		public double getPlaneStrength (int plane){return this.maximums[plane][1];}
@@ -9441,14 +9499,16 @@ public class PixelMapping {
         			this.auxData=new float[n][];
         			for (int i=0;i<n;i++) this.auxData[i]=null;
         		}
-        		public void resetAux(){
+        		@SuppressWarnings("unused")
+				public void resetAux(){
         			this.auxData=null;
         		}
         		public void setAux(int n, float [] data){
         			if (this.auxData==null) initAux(n+1);
         			this.auxData[n]=data;
         		}
-        		public float [][] getAux (){
+        		@SuppressWarnings("unused")
+				public float [][] getAux (){
         			return this.auxData;
         		}
         		public float [] getAux (int n){
@@ -9460,17 +9520,21 @@ public class PixelMapping {
         			this.likely=new float[this.numPlanes][];
         			for (int i=0;i<this.numPlanes;i++) this.likely[i]=null;
         		}
-        		public void resetLikely(){
+        		@SuppressWarnings("unused")
+				public void resetLikely(){
         			this.likely=null;
         		}
-        		public void setLikely(int n, float [] data){
+        		@SuppressWarnings("unused")
+				public void setLikely(int n, float [] data){
         			if (this.likely==null) initLikely();
         			this.likely[n]=data;
         		}
-        		public float [][] getLikely (){
+        		@SuppressWarnings("unused")
+				public float [][] getLikely (){
         			return this.likely;
         		}
-        		public float [] getLikely (int n){
+        		@SuppressWarnings("unused")
+				public float [] getLikely (int n){
         			if ((this.likely==null) || (this.likely.length<=n)) return null;
         			return this.likely[n];
         		}
@@ -9479,17 +9543,21 @@ public class PixelMapping {
         			this.unlikely=new float[this.numPlanes][];
         			for (int i=0;i<this.numPlanes;i++) this.unlikely[i]=null;
         		}
-        		public void resetUnlikely(){
+        		@SuppressWarnings("unused")
+				public void resetUnlikely(){
         			this.unlikely=null;
         		}
-        		public void setUnlikely(int n, float [] data){
+        		@SuppressWarnings("unused")
+				public void setUnlikely(int n, float [] data){
         			if (this.unlikely==null) initUnlikely();
         			this.unlikely[n]=data;
         		}
-        		public float [][] getUnlikely(){
+        		@SuppressWarnings("unused")
+				public float [][] getUnlikely(){
         			return this.unlikely;
         		}
-        		public float [] getUnlikely(int n){
+        		@SuppressWarnings("unused")
+				public float [] getUnlikely(int n){
         			if ((this.unlikely==null) || (this.unlikely.length<=n)) return null;
         			return this.unlikely[n];
         		}
@@ -9577,7 +9645,8 @@ public class PixelMapping {
         		 * @param disparityTolerance - consider "this" as being withing disparityTolerance of disparity. NaN - do not filter by this
         		 * @return
         		 */
-        		public boolean [] getEnabledNonOccluded(
+        		@SuppressWarnings("unused")
+				public boolean [] getEnabledNonOccluded(
         				double disparityFG,
         				double disparity,
         				double disparityTolerance){
@@ -15527,6 +15596,7 @@ public class PixelMapping {
 		public int    channel=   -1;
 	    public int    subcamera= -1;
 	    public int    subchannel=-1;
+	    public int    sensor_port=-1;
 	    // TODO: add serial# (and temperature?)
     	public double azimuth; // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     	public double radius;  // mm, distance from the rotation axis
@@ -16094,6 +16164,9 @@ public class PixelMapping {
 	    public int getChannel(){return this.channel;}
 	    public int getSubChannel(){return this.subchannel;}
 	    public int getSubCamera(){return this.subcamera;}
+	    public int getSensorPort(){return this.sensor_port;}
+	    
+	    
 	    public void setSensorDataFromImageStack(ImagePlus imp){
 //	    	int corrX=0,corrY=1,corrMask=2;
 	    	if (imp == null){
@@ -16170,6 +16243,9 @@ public class PixelMapping {
 // older files do not have these properties	        
 	        if (imp.getProperty("subcamera")!=null)  this.subcamera= Integer.parseInt((String) imp.getProperty("subcamera"));
 	        if (imp.getProperty("subchannel")!=null) this.subchannel=Integer.parseInt((String) imp.getProperty("subchannel"));
+	        if (imp.getProperty("sensor_port")!=null) this.sensor_port=Integer.parseInt((String) imp.getProperty("sensor_port"));
+	        
+	        
 	        
 	        // now read the calibration data and mask
 	        	this.pixelCorrection=null;

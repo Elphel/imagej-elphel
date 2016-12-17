@@ -39,7 +39,7 @@ public class DenseCorrespondence {
 
 
 
-	private void disparitySweepTile (
+	public void disparitySweepTile ( // never used so far
 			int tileX,
 			int tileY,
 			CyclopeanTile [][] allCyclopeanMap,

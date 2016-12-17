@@ -45,6 +45,7 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.Properties;
 import java.util.Set;
@@ -76,6 +77,7 @@ public class CalibrationHardwareInterface {
 //		JP46_Reader_camera JP4_INSTANCE= new JP46_Reader_camera(false);
 		public LaserPointers laserPointers=null;
 		private int masterSubCamera=0; // "master" camera index of IP in the list 
+		private int masterPort=     0; // "master" camera port (0..3) to apply trigger to 
 		private JP46_Reader_camera [] jp4_Instances=null;
 		private String [] resetURLs=null;
 		private String [] imageURLs=null;
@@ -87,7 +89,8 @@ public class CalibrationHardwareInterface {
 // TODO: when saving/restoring save cameraSubnet, iBaseIP, cameraIPs, so any IPs are OK through config, generate - sequential
 		private String cameraSubnet="192.168.0.";
 		private int iBaseIP=236;
-        private String [] cameraIPs = null;
+        private String [] cameraIPs = null; // since nc393 port is a part of cameraIPs[] 
+        private int [] channelIPPort =    null; // index in camareIPs (each IP/port combination) for each individual sensor
         private int imgsrvPort=8081;
         private String resetURLcmd="towp/save/pointers"; // advance buffer, next time will wait for the next frame acquired
 // will return XML, just "trig" - 1x1 GIF
@@ -99,6 +102,7 @@ public class CalibrationHardwareInterface {
 		private double lastTemperature=Double.NaN;
 		private int     colorMode=5; // JP4
 		private boolean noWait=     true; // when false, IRQ_SMART=3 and the frame is available only 1 frame later, when true IRQ_SMART=6, frame is available after compression end
+		private boolean nc393 =     false;
 		private int     debugSensorNumber=-1; // increase debug level for this particular sensor
 		private int     JPEGquality=99;  // JPEG quality
 		private boolean cameraAutoExposure =    false;
@@ -115,7 +119,7 @@ public class CalibrationHardwareInterface {
 		private double  cameraRScale =1.25;
 		private double  cameraBScale =1.5;
 		private double  cameraGScale =1.0;
-		private double [] cameraExposureCorr=null; // per-camera exposure correction
+		private double [] cameraExposureCorr=null; // per-camera exposure correction1
 		private double [] cameraGainCorr   = null;     // per-camera gain correction;
 		private double [] cameraRScaleCorr = null;   // per-camera R/G scale correction;
 		private double [] cameraBScaleCorr = null;   // per-camera B/G scale correction;
@@ -124,9 +128,10 @@ public class CalibrationHardwareInterface {
 		// these are initialized after being null, when the cameras are probed
 		private int    []  cameraFrameNumber=null;
 		private boolean [] triggeredMode=    null;   // true - triggered, false - free running
-		private boolean [][] sensorPresent=  null;   // probe which sensors (of 3) are detected per system board
+		private boolean [][] sensorPresent=  null;   // probe which sensors (of 3) are detected per system board (NC393 - per board/port)
 		// TODO - try if skipping setting TRIG_PERIOD=0, IRQ_SMART=6 (when they are already set) will fix hanging
 		private int [] triggerPeriod=        null;
+		private int [] cameraMasterPort=     null;
 		private int [] irqSmart=             null;
 		private int [] motorsPosition=      null; // motors steps when the images were acquired (for null)
 		private long startTime=System.nanoTime();
@@ -150,22 +155,29 @@ public class CalibrationHardwareInterface {
     		this.thisTime=this.startTime;
     	}
 
+		private int [][] channelMap_23_393={ // ip index, channel number, port
+				{0,0,3},{0,0,2},{0,0,0},{0,0,1},{1,0,3},{1,0,2},{1,0,0},{1,0,1},
+				{0,1,3},{0,1,2},{0,1,0},{0,1,1},{1,1,3},{1,1,2},{1,1,0},{1,1,1},
+				{0,2,3},{0,2,2},{0,2,0},{0,2,1},{1,2,3},{1,2,2},{1,2,0},{1,2,1},
+				{2,0,2},{2,0,3}};
+    	
+    	
 		private int [][] channelMap21={ // ip index, channel number
-				{0,1},{0,0},{0,2},
-				{1,1},{1,0},{1,2},
-				{2,1},{2,0},{2,2},
-				{3,1},{3,0},{3,2},
-				{4,1},{4,0},{4,2},
-				{5,1},{5,0},{5,2},
-				{6,1},{6,0},{6,2}};
+				{0,1,0},{0,0,0},{0,2,0},
+				{1,1,0},{1,0,0},{1,2,0},
+				{2,1,0},{2,0,0},{2,2,0},
+				{3,1,0},{3,0,0},{3,2,0},
+				{4,1,0},{4,0,0},{4,2,0},
+				{5,1,0},{5,0,0},{5,2,0},
+				{6,1,0},{6,0,0},{6,2,0}};
 		private int [][] channelMap1={ // ip index, channel number
 //				{0,-1}}; // negative channel - single camera
-		{0,0}}; // Try with 0
+		{0,0,0}}; // Try with 0
 		private int [][] channelMap2={ // ip index, channel number
-		{0,0},{0,1}};
+		{0,0,0},{0,1,0}};
 		private int [][] channelMap3={ // ip index, channel number
 //				{0,-1}}; // negative channel - single camera
-		{0,0},{1,0},{2,0}};
+		{0,0,0},{1,0,0},{2,0,0}};
 		private int [][] channelMap=null;
 		public int maxNumberOfThreads=100;
 		/**
@@ -194,32 +206,50 @@ public class CalibrationHardwareInterface {
         public int getSubChannel (int channelNumber){
         	return ((channelNumber>=0)&& (channelNumber<this.channelMap.length))?this.channelMap[channelNumber][1]:-1;
         }
+
+        public int getSensorPort (int channelNumber){
+        	return ((channelNumber>=0)&& (channelNumber<this.channelMap.length))?this.channelMap[channelNumber][2]:-1;
+        }
+        
+        // not used anywhere
         public int getChannel (int subCam, int subChn){
+        	return getChannel (subCam, subChn, 0); // for compatibility with 353
+        }
+
+        public int getChannel (int subCam, int subChn, int port){
         	for (int channelNumber=0;channelNumber<this.channelMap.length;channelNumber++)
-        		if ((this.channelMap[channelNumber][0]==subCam) && (this.channelMap[channelNumber][1]==subChn)) return  channelNumber;
+        		if ((this.channelMap[channelNumber][0]==subCam) &&
+        				(this.channelMap[channelNumber][1]==subChn) &&
+        				(this.channelMap[channelNumber][2]==port)) return  channelNumber;
         	return -1;
         }
+        
         
 		private void initJP4(){
 			this.jp4_Instances=new JP46_Reader_camera[this.cameraIPs.length];
 			this.resetURLs=new String [this.cameraIPs.length];
 			this.imageURLs=new String [this.cameraIPs.length];
 			this.metaURLs= new String [this.cameraIPs.length];
-			this.triggerURL="http://"+this.cameraIPs[this.masterSubCamera]+":"+this.imgsrvPort+"/"+triggerURLcmd;
+			// this.triggerURL is already defined
+//			this.triggerURL="http://"+this.cameraIPs[this.masterSubCamera]+":"+(this.imgsrvPort+this.masterPort)+"/"+triggerURLcmd;
+			
 			this.images=   new ImagePlus[this.channelMap.length];
 			this.imagesIP= new ImagePlus[this.cameraIPs.length];
 			
 			for (int i=0; i<this.cameraIPs.length;i++){
 				this.jp4_Instances[i]=new JP46_Reader_camera(false);// invisible
-				this.jp4_Instances[i].camera_url="http://"+this.cameraIPs[i]+":"+this.imgsrvPort+"/";
+//				this.jp4_Instances[i].camera_url="http://"+this.cameraIPs[i]+":"+this.imgsrvPort+"/";
+				this.jp4_Instances[i].camera_url="http://"+this.cameraIPs[i]+"/";
 				this.jp4_Instances[i].camera_img=    this.imageURLcmd; // not currently used
 				this.jp4_Instances[i].camera_img_new=this.imageURLcmd; //"torp/wait/" will survive, only "towp/wait/" is removed for Exif re-read
 				this.jp4_Instances[i].ABSOLUTELY_SILENT=true; 
-				this.resetURLs[i]="http://"+this.cameraIPs[i]+":"+this.imgsrvPort+"/"+resetURLcmd;
-				this.imageURLs[i]="http://"+this.cameraIPs[i]+":"+this.imgsrvPort+"/"+this.imageURLcmd;
-				this.metaURLs[i]= "http://"+this.cameraIPs[i]+":"+this.imgsrvPort+"/"+metaURLcmd;
+//				this.resetURLs[i]="http://"+this.cameraIPs[i]+":"+this.imgsrvPort+"/"+resetURLcmd;
+//				this.imageURLs[i]="http://"+this.cameraIPs[i]+":"+this.imgsrvPort+"/"+this.imageURLcmd;
+//				this.metaURLs[i]= "http://"+this.cameraIPs[i]+":"+this.imgsrvPort+"/"+metaURLcmd;
+				this.resetURLs[i]="http://"+this.cameraIPs[i]+"/"+resetURLcmd;
+				this.imageURLs[i]="http://"+this.cameraIPs[i]+"/"+this.imageURLcmd;
+				this.metaURLs[i]= "http://"+this.cameraIPs[i]+"/"+metaURLcmd;
 				this.imagesIP[i]= null;
-
 			}
 			for (int i=0; i<this.images.length;i++) this.images[i]= null;
 		}
@@ -246,47 +276,104 @@ public class CalibrationHardwareInterface {
 		 * Initialize cameraIPs from subNet and baseIP (sequentially)
 		 */
 		private void initIPs(){
+			ArrayList<Integer> ip_ports_list= new ArrayList<Integer>();
+			for (int i=0;i<this.channelMap.length;i++) {
+				Integer ip_port=(this.channelMap[i][0]<<2) + this.channelMap[i][2];
+				if (!ip_ports_list.contains(ip_port)) ip_ports_list.add(ip_port); 
+			}
+			Collections.sort(ip_ports_list);
+			this.cameraIPs =   new String [ip_ports_list.size()];
+			this.channelIPPort = new int [this.channelMap.length];
+			for (int i = 0; i<this.cameraIPs.length; i++){
+				int ip_index= ip_ports_list.get(i)>>2;
+				int sensor_port = ip_ports_list.get(i) & 3;
+				this.cameraIPs[i] = this.cameraSubnet+(this.iBaseIP + ip_index) + ":"+ (this.imgsrvPort+sensor_port);
+				for (int j = 0; j<this.channelMap.length; j++){
+					if ((this.channelMap[j][0] == ip_index) && (this.channelMap[j][2] == sensor_port)) {
+						this.channelIPPort[j] = i;
+					}
+				}
+			}
+			
+			this.triggerURL="http://"+this.cameraSubnet+(this.iBaseIP+this.masterSubCamera)+":"+
+				(this.imgsrvPort+ (this.masterPort & 3))+"/"+triggerURLcmd;
+			if (this.debugLevel>1) System.out.println("DEBUG393: initIPs(): this.triggerURL ="+this.triggerURL);
+		}
+/*
+//pre nc393		
+		private void initIPs(){
 			if (this.debugLevel>2) System.out.println("initIPs(): this.iBaseIP=" + this.iBaseIP );
 			int size=0;
 			for (int i=0;i<this.channelMap.length;i++) if (this.channelMap[i][0]>size) size=this.channelMap[i][0];
 			size++;
 			this.cameraIPs=new String [size];
 			for (int i=0;i<size;i++) this.cameraIPs[i]=this.cameraSubnet+(this.iBaseIP+i);
-			this.masterSubCamera=0;
-			
+//			this.masterSubCamera=0;
 		}
+ */
 		/**
 		 * Initialize default subcamera map
 		 * @param size number of subcameras
 		 */
 		private void initDefaultMap(int size){
 			this.channelMap=new int [size][];
-			 this.flipImages=new boolean[size];
-			 if (size==1) { // single camera - old lens focusing
-				 this.channelMap[0]=channelMap1[0].clone();
-				 this.flipImages[0]=true;
-			 } else if (size==2){ // New lens focusing machine
-				 this.channelMap[0]=channelMap2[0].clone();
-				 this.flipImages[0]=true;  // main sensor under test
-				 this.channelMap[1]=channelMap2[1].clone();
-				 this.flipImages[1]=false; // extra sensor for location
-		
-			 } else if (size==3){
-				 for (int i=0;i<size;i++){
-					 this.flipImages[i]=false;
-					 int i0=((i>=this.channelMap3.length)?(this.channelMap3.length-1):i);
-					 this.channelMap[i]=this.channelMap21[i0].clone();
-				 }
-			 } else for (int i=0;i<size;i++){
-				 this.flipImages[i]=false;
-				 int i0=((i>=this.channelMap21.length)?(this.channelMap21.length-1):i);
-				 this.channelMap[i]=this.channelMap21[i0].clone();
-			 }
+			this.flipImages=new boolean[size];
+			int []port_seq={1,0,2,3};
+			this.masterSubCamera=0;
+			this.masterPort=0;
+			if (this.nc393){
+				this.imgsrvPort=2323;
+				this.resetURLcmd="towp/save/pointers"; // advance buffer, next time will wait for the next frame acquired
+				this.imageURLcmd="torp/wait/timestamp_name/bimg"; // will wait if needed. If repeated (as when reading Exif)- won't wait
+				this.metaURLcmd="torp/wait/meta";  // will get XML, including timestamp
+				if (size == 26) {
+					for (int i=0;i<size;i++){
+						this.channelMap[i]=channelMap_23_393[i].clone();
+						this.flipImages[i]=false;
+					}
+					this.masterSubCamera = 2;
+					this.masterPort=2;
+				} else for (int i=0;i<size;i++){
+					this.flipImages[i]=false;
+					this.channelMap[i]=new int[3];
+					this.channelMap[i][0]= i >> 2;
+					this.channelMap[i][1]= 0;
+					if (size <4) {
+						this.channelMap[i][2]= i;
+					} else {
+						this.channelMap[i][2]= port_seq[i & 3];
+					}
+				}
+			} else {
+				if (size==1) { // single camera - old lens focusing
+					this.channelMap[0]=channelMap1[0].clone();
+					this.flipImages[0]=true;
+				} else if (size==2){ // New lens focusing machine
+					this.channelMap[0]=channelMap2[0].clone();
+					this.flipImages[0]=true;  // main sensor under test
+					this.channelMap[1]=channelMap2[1].clone();
+					this.flipImages[1]=false; // extra sensor for location
+
+				} else if (size==3){
+					for (int i=0;i<size;i++){
+						this.flipImages[i]=false;
+						int i0=((i>=this.channelMap3.length)?(this.channelMap3.length-1):i);
+						//					 this.channelMap[i]=this.channelMap21[i0].clone();
+						this.channelMap[i]=this.channelMap3[i0].clone();
+					}
+				} else for (int i=0;i<size;i++){
+					this.flipImages[i]=false;
+					int i0=((i>=this.channelMap21.length)?(this.channelMap21.length-1):i);
+					this.channelMap[i]=this.channelMap21[i0].clone();
+				}
+			}
 		}
-    	public void setProperties(String prefix,Properties properties){
+
+		public void setProperties(String prefix,Properties properties){
     		properties.setProperty(prefix+"cameraSubnet",this.cameraSubnet);
     		properties.setProperty(prefix+"iBaseIP",this.iBaseIP+"");
     		properties.setProperty(prefix+"masterSubCamera",this.masterSubCamera+"");
+    		properties.setProperty(prefix+"masterPort",this.masterPort+"");
     		properties.setProperty(prefix+"cameraBootTimeSeconds",this.cameraBootTimeSeconds+"");
     		properties.setProperty(prefix+"connectionTimeoutMilliseconds",this.connectionTimeoutMilliseconds+"");
     		properties.setProperty(prefix+"imgsrvPort",this.imgsrvPort+"");
@@ -298,12 +385,14 @@ public class CalibrationHardwareInterface {
     		for (int i=0;i<this.channelMap.length;i++) {
             		properties.setProperty(prefix+"channelMap_"+i+"_IPindex",   this.channelMap[i][0]+"");
             		properties.setProperty(prefix+"channelMap_"+i+"_subchannel",this.channelMap[i][1]+"");
+            		properties.setProperty(prefix+"channelMap_"+i+"_port",      this.channelMap[i][2]+"");
             		properties.setProperty(prefix+"flipImages_"+i              ,this.flipImages[i]?"1":"0");
     		}
     		
     		properties.setProperty(prefix+"cameraIPs.length",this.cameraIPs.length+"");
     		properties.setProperty(prefix+"colorMode",this.colorMode+"");
     		properties.setProperty(prefix+"noWait",this.noWait+"");
+    		properties.setProperty(prefix+"nc393",this.nc393+"");
     		properties.setProperty(prefix+"debugSensorNumber",this.debugSensorNumber+"");
     		properties.setProperty(prefix+"JPEGquality",this.JPEGquality+"");
     		properties.setProperty(prefix+"cameraAutoExposure",this.cameraAutoExposure+"");
@@ -332,12 +421,42 @@ public class CalibrationHardwareInterface {
 			}
     	}
      	public void getProperties(String prefix,Properties properties){
+    		if (properties.getProperty(prefix+"channelMap.length")!=null) {
+    			// next initializes default values, so it should be before reading them from saved properties
+    			initDefaultMap (Integer.parseInt(properties.getProperty(prefix+"channelMap.length")));
+    			this.flipImages=new boolean[this.channelMap.length];
+        		for (int i=0;i<this.channelMap.length;i++) {
+            		if (properties.getProperty(prefix+"channelMap_"+i+"_IPindex")!=null) 
+            			this.channelMap[i][0]=Integer.parseInt(properties.getProperty(prefix+"channelMap_"+i+"_IPindex"));
+            		if (properties.getProperty(prefix+"channelMap_"+i+"_subchannel")!=null) 
+            			this.channelMap[i][1]=Integer.parseInt(properties.getProperty(prefix+"channelMap_"+i+"_subchannel"));
+            		if (properties.getProperty(prefix+"channelMap_"+i+"_port")!=null) 
+            			this.channelMap[i][2]=Integer.parseInt(properties.getProperty(prefix+"channelMap_"+i+"_port"));
+            		if (properties.getProperty(prefix+"flipImages_"+i)!=null) 
+            			this.flipImages[i]=(Integer.parseInt(properties.getProperty(prefix+"flipImages_"+i))>0);
+        		}
+    		}
+    		
+    		int numCams=0;
+    		if (properties.getProperty(prefix+"cameraIPs.length")!=null) {
+    			numCams=Integer.parseInt(properties.getProperty(prefix+"cameraIPs.length"));
+    			this.cameraIPs=new String[numCams];
+        		for (int i=0;i<numCams;i++) {
+            		if (properties.getProperty(prefix+"cameraIPs_"+i)!=null) 
+            			this.cameraIPs[i]=properties.getProperty(prefix+"cameraIPs_"+i);
+        			
+        		}
+    		}
+    		initCamParsDefaultArrays(numCams);
+     		
     		if (properties.getProperty(prefix+"cameraSubnet")!=null)
     			this.cameraSubnet=properties.getProperty(prefix+"cameraSubnet");
     		if (properties.getProperty(prefix+"iBaseIP")!=null)
     			this.iBaseIP=Integer.parseInt(properties.getProperty(prefix+"iBaseIP"));
     		if (properties.getProperty(prefix+"masterSubCamera")!=null)
     			this.masterSubCamera=Integer.parseInt(properties.getProperty(prefix+"masterSubCamera"));
+    		if (properties.getProperty(prefix+"masterPort")!=null)
+    			this.masterPort=Integer.parseInt(properties.getProperty(prefix+"masterPort"));
     		if (properties.getProperty(prefix+"cameraBootTimeSeconds")!=null)
     			this.cameraBootTimeSeconds=Integer.parseInt(properties.getProperty(prefix+"cameraBootTimeSeconds"));
     		if (properties.getProperty(prefix+"connectionTimeoutMilliseconds")!=null)
@@ -353,31 +472,11 @@ public class CalibrationHardwareInterface {
     			this.imageURLcmd=properties.getProperty(prefix+"imageURLcmd");
     		if (properties.getProperty(prefix+"metaURLcmd")!=null)
     			this.metaURLcmd=properties.getProperty(prefix+"metaURLcmd");
-    		if (properties.getProperty(prefix+"channelMap.length")!=null) {
-    			initDefaultMap (Integer.parseInt(properties.getProperty(prefix+"channelMap.length")));
-    			this.flipImages=new boolean[this.channelMap.length];
-        		for (int i=0;i<this.channelMap.length;i++) {
-            		if (properties.getProperty(prefix+"channelMap_"+i+"_IPindex")!=null) 
-            			this.channelMap[i][0]=Integer.parseInt(properties.getProperty(prefix+"channelMap_"+i+"_IPindex"));
-            		if (properties.getProperty(prefix+"channelMap_"+i+"_subchannel")!=null) 
-            			this.channelMap[i][1]=Integer.parseInt(properties.getProperty(prefix+"channelMap_"+i+"_subchannel"));
-            		if (properties.getProperty(prefix+"flipImages_"+i)!=null) 
-            			this.flipImages[i]=(Integer.parseInt(properties.getProperty(prefix+"flipImages_"+i))>0);
-        			
-        		}
-   			
-    		}
-    		int numCams=0;
-    		if (properties.getProperty(prefix+"cameraIPs.length")!=null) {
-    			numCams=Integer.parseInt(properties.getProperty(prefix+"cameraIPs.length"));
-    			this.cameraIPs=new String[numCams];
-        		for (int i=0;i<numCams;i++) {
-            		if (properties.getProperty(prefix+"cameraIPs_"+i)!=null) 
-            			this.cameraIPs[i]=properties.getProperty(prefix+"cameraIPs_"+i);
-        			
-        		}
-    		}
-    		initCamParsDefaultArrays(numCams);
+
+    		
+// both defaults were here
+    		
+    		
     		
 			if (properties.getProperty(prefix+"colorMode")!=null)
 				this.colorMode=Integer.parseInt(properties.getProperty(prefix+"colorMode"));
@@ -387,6 +486,8 @@ public class CalibrationHardwareInterface {
 				this.JPEGquality=Integer.parseInt(properties.getProperty(prefix+"JPEGquality"));
 			if (properties.getProperty(prefix+"noWait")!=null)
 				this.noWait=Boolean.parseBoolean(properties.getProperty(prefix+"noWait"));
+			if (properties.getProperty(prefix+"nc393")!=null)
+				this.nc393=Boolean.parseBoolean(properties.getProperty(prefix+"nc393"));
 			if (properties.getProperty(prefix+"cameraAutoExposure")!=null)
 				this.cameraAutoExposure=Boolean.parseBoolean(properties.getProperty(prefix+"cameraAutoExposure"));
 			if (properties.getProperty(prefix+"cameraAutoWhiteBalance")!=null)
@@ -438,6 +539,7 @@ public class CalibrationHardwareInterface {
         		}
         		
     		}
+    		initIPs(); // was missing here?
     		initJP4();
      	}   	
     	
@@ -458,23 +560,25 @@ public class CalibrationHardwareInterface {
 //http://192.168.0.221/parsedit.php?title=bright-day&immediate&EXPOS=10000*0&AUTOEXP_ON=0*0&WB_EN=0*0&COLOR=1*0&GAINR=0x270a4*0&GAING=0x20000*0&GAINB=0x2999a*0&GAINGB=0x20000*0	   		
 //http://192.168.0.221/parsedit.php?immediate&TRIG&TRIG_PERIOD	   		
     		GenericDialog gd = new GenericDialog(title);
+    		gd.addCheckbox    ("NC393 (unchecked - nc353)", this.nc393);
     		gd.addStringField ("Subnet of the cameras (3 first of the four IPv4 address ending with '.')",this.cameraSubnet,12);
     		gd.addNumericField("Last byte of the first sub-camera IP address)",this.iBaseIP,0);
     		gd.addNumericField("Camera boot time",this.cameraBootTimeSeconds,0,3,"sec");
     		gd.addNumericField("Network connection timeout",this.connectionTimeoutMilliseconds,0,3,"ms");
     		
     		gd.addNumericField("Index (in IP table) of the master camera (used for triggering)",this.masterSubCamera,0);
-    		
+    		gd.addNumericField("Master (used for triggering), normally lowest connected port (0..3)",this.masterPort,0);
     		gd.addNumericField("Image server port number)",this.imgsrvPort,0);
-    		gd.addStringField ("Image server command to reset image buffer",this.resetURLcmd,15);
-    		gd.addStringField ("Image server command to trigger acquisition",this.triggerURLcmd,15);
-    		gd.addStringField ("Image server command to acquire image (waits for the new one after reset)",this.imageURLcmd,15);
-    		gd.addStringField ("Image server command to receive XML metadata (with timestamp)",this.metaURLcmd,15);
+    		gd.addStringField ("Image server command to reset image buffer",this.resetURLcmd,25);
+    		gd.addStringField ("Image server command to trigger acquisition",this.triggerURLcmd,25);
+    		gd.addStringField ("Image server command to acquire image (waits for the new one after reset)",this.imageURLcmd,25);
+    		gd.addStringField ("Image server command to receive XML metadata (with timestamp)",this.metaURLcmd,25);
     		gd.addMessage("Configure each sub-camera - which IP index and channel does it use.");
     		if (askRegenerate) gd.addMessage("You may change number of subcameras and press REGENERATE below");
     		for (int i=0; i< this.channelMap.length;i++){
     			gd.addMessage("---------------------------------------------------------");
         		gd.addNumericField("Subcamera "+(i+1)+" IP index (starting from 0)", this.channelMap[i][0],0);
+        		gd.addNumericField("Subcamera "+(i+1)+" port (0..3)",                this.channelMap[i][2],0);
         		gd.addNumericField("Subcamera "+(i+1)+" channel (0,1 or 2)",         this.channelMap[i][1],0);
         		gd.addCheckbox("Subcamera "+(i+1)+" - used mirror",                  this.flipImages[i]);
     		}
@@ -487,6 +591,7 @@ public class CalibrationHardwareInterface {
     	    WindowTools.addScrollBars(gd);
     	    gd.showDialog();
     	    if (gd.wasCanceled()) return false;
+    	    this.nc393=                     gd.getNextBoolean();
     	    this.cameraSubnet=              gd.getNextString();
     	    if (!this.cameraSubnet.endsWith(".")) this.cameraSubnet += ".";
     	    int bip=                  (int) gd.getNextNumber(); 
@@ -497,6 +602,8 @@ public class CalibrationHardwareInterface {
     		this.cameraBootTimeSeconds=(int) gd.getNextNumber();
     		this.connectionTimeoutMilliseconds=(int) gd.getNextNumber();
     	    this.masterSubCamera=     (int) gd.getNextNumber(); // should be after initIPs()!
+    	    this.masterPort=          (int) gd.getNextNumber(); // should be after initIPs()!
+    	    
     	    this.imgsrvPort=          (int) gd.getNextNumber();
     	    this.resetURLcmd=            gd.getNextString();
     	    this.triggerURLcmd=          gd.getNextString();
@@ -504,6 +611,7 @@ public class CalibrationHardwareInterface {
     	    this.metaURLcmd=             gd.getNextString();
     		for (int i=0; i< this.channelMap.length;i++){
         		this.channelMap[i][0]=(int) gd.getNextNumber();
+        		this.channelMap[i][2]=(int) gd.getNextNumber();
         		this.channelMap[i][1]=(int) gd.getNextNumber();
         		this.flipImages[i]=         gd.getNextBoolean();
     		}
@@ -557,8 +665,11 @@ public class CalibrationHardwareInterface {
 	   	
 	   	
 	   	public String getSerialNumber(int chn, int EEPROM_chn){
-	   		String url="http://"+this.cameraIPs[chn]+"/i2c.php?cmd=fromEEPROM0&EEPROM_chn="+EEPROM_chn;
-	   			
+	   		int colon_index = this.cameraIPs[chn].indexOf(":");
+	   		int sensor_port = Integer.parseInt(this.cameraIPs[chn].substring(colon_index+1)) - this.imgsrvPort;
+	   		String ip=this.cameraIPs[chn].substring(0, colon_index);
+//	   		String url="http://"+this.cameraIPs[chn]+"/i2c.php?cmd=fromEEPROM0&EEPROM_chn="+EEPROM_chn;
+	   		String url="http://"+ip+"/i2c.php?cmd=fromEEPROM" + sensor_port+ "&EEPROM_chn="+EEPROM_chn;
 	   	    	Document dom=null;
 	   	    	String serial=null;
 	   	    	try {
@@ -610,45 +721,50 @@ public class CalibrationHardwareInterface {
 		   		printTiming("=== setupCameraAcquisition()");
 	   		}
 	   		if (!this.sensorPresent[chn][0] && !this.sensorPresent[chn][1] && !this.sensorPresent[chn][2]) EEPROM_chn=0; // no 10359 - null pointer while "lens center" if first
-	   		String url="http://"+this.cameraIPs[chn]+"/i2c.php?cmd=fromEEPROM0&EEPROM_chn="+EEPROM_chn;
-	   			this.lastTemperature=Double.NaN;
-	   	    	Document dom=null;
-	   	    	try {
-	   	    		DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
-	   	    		DocumentBuilder db = dbf.newDocumentBuilder();
-	   	    		dom = db.parse(url);
-	   	    		if (!dom.getDocumentElement().getNodeName().equals("board")) {
-	   	    			String msg="Root element: expected 'board', got \"" + dom.getDocumentElement().getNodeName()+"\"";
-	   	    			IJ.showMessage("Error",msg); 
-    					throw new IllegalArgumentException (msg);
-	   	    		}
-	   	    		
-	   	    		String sTemperature=((Node) (((Node) dom.getDocumentElement().getElementsByTagName("sensorTemperature").item(0)).getChildNodes().item(0))).getNodeValue();
-    				// remove opening and closing "
-    				if (sTemperature==null){
-    					String msg="Could not read sensor temperature";
-//    					IJ.showMessage("Error",msg); 
-    					System.out.println("Warning: "+msg);
-    					return Double.parseDouble(sTemperature);
-    				}
-    				this.lastTemperature= Double.parseDouble(sTemperature);
-    			} catch(MalformedURLException e){
-    				String msg="Please check the URL:" + e.toString();
-					IJ.showMessage("Error",msg); 
-					throw new IllegalArgumentException (msg);
-    			} catch(IOException  e1){
-    				String msg = e1.getMessage();
-    				if (msg==null || msg.equals(""))  msg = ""+e1;
-					IJ.showMessage("Error",msg); 
-					throw new IllegalArgumentException (msg);
-    			}catch(ParserConfigurationException pce) {
-    				pce.printStackTrace();
-    				throw new IllegalArgumentException ("PCE error");
-    			}catch(SAXException se) {
-    				se.printStackTrace(); 
-    				throw new IllegalArgumentException ("SAX error");
-    			}
-				return this.lastTemperature;
+
+	   		int colon_index = this.cameraIPs[chn].indexOf(":");
+	   		int sensor_port = Integer.parseInt(this.cameraIPs[chn].substring(colon_index+1)) - this.imgsrvPort;
+	   		String ip=this.cameraIPs[chn].substring(0, colon_index);
+//	   		String url="http://"+this.cameraIPs[chn]+"/i2c.php?cmd=fromEEPROM0&EEPROM_chn="+EEPROM_chn;
+	   		String url="http://"+ip+"/i2c.php?cmd=fromEEPROM"+ sensor_port +"&EEPROM_chn="+EEPROM_chn;
+	   		this.lastTemperature=Double.NaN;
+	   		Document dom=null;
+	   		try {
+	   			DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+	   			DocumentBuilder db = dbf.newDocumentBuilder();
+	   			dom = db.parse(url);
+	   			if (!dom.getDocumentElement().getNodeName().equals("board")) {
+	   				String msg="Root element: expected 'board', got \"" + dom.getDocumentElement().getNodeName()+"\"";
+	   				IJ.showMessage("Error",msg); 
+	   				throw new IllegalArgumentException (msg);
+	   			}
+
+	   			String sTemperature=((Node) (((Node) dom.getDocumentElement().getElementsByTagName("sensorTemperature").item(0)).getChildNodes().item(0))).getNodeValue();
+	   			// remove opening and closing "
+	   			if (sTemperature==null){
+	   				String msg="Could not read sensor temperature";
+	   				//    					IJ.showMessage("Error",msg); 
+	   				System.out.println("Warning: "+msg);
+	   				return Double.parseDouble(sTemperature);
+	   			}
+	   			this.lastTemperature= Double.parseDouble(sTemperature);
+	   		} catch(MalformedURLException e){
+	   			String msg="Please check the URL:" + e.toString();
+	   			IJ.showMessage("Error",msg); 
+	   			throw new IllegalArgumentException (msg);
+	   		} catch(IOException  e1){
+	   			String msg = e1.getMessage();
+	   			if (msg==null || msg.equals(""))  msg = ""+e1;
+	   			IJ.showMessage("Error",msg); 
+	   			throw new IllegalArgumentException (msg);
+	   		}catch(ParserConfigurationException pce) {
+	   			pce.printStackTrace();
+	   			throw new IllegalArgumentException ("PCE error");
+	   		}catch(SAXException se) {
+	   			se.printStackTrace(); 
+	   			throw new IllegalArgumentException ("SAX error");
+	   		}
+	   		return this.lastTemperature;
 	   	}
 	   	
 	   	
@@ -683,12 +799,15 @@ public class CalibrationHardwareInterface {
 	   			if (probeCameraState(chn)) {
 	   				numOnline++;
 		   			printTiming("===== probing channel "+chn);
+		   			boolean single_no_mux= (!this.sensorPresent[chn][0] && !this.sensorPresent[chn][1] && !this.sensorPresent[chn][2]);
 			   		if (this.debugLevel>1) System.out.println("Frame number: "+this.cameraFrameNumber[chn]+
 			   				", Trigger mode:"+(this.triggeredMode[chn]?"ex":"in")+"ternal, "+
 			   				" sensors attached:"+(this.sensorPresent[chn][0]?"1 ":"")+(this.sensorPresent[chn][1]?"2 ":"")+(this.sensorPresent[chn][2]?"3 ":"")+
-			   				((!this.sensorPresent[chn][0] && !this.sensorPresent[chn][1] && !this.sensorPresent[chn][2])?"single-sensor, no multiplexer":"")
+			   				(single_no_mux?"single-sensor, no multiplexer":"") +
+			   				(" Master port "+this.cameraMasterPort[chn])
 			   				);
 			   		for (int i=0;i<this.sensorPresent[chn].length;i++) if (this.sensorPresent[chn][i]) numSensors++;
+			   		if (single_no_mux) numSensors++;
 	   			} else {
 	   				if (this.debugLevel>1) System.out.println("Camera did not respond");
 	   			}
@@ -700,11 +819,12 @@ public class CalibrationHardwareInterface {
 	   	public void initCameraArrays(int numChn){
 	   		if (this.debugLevel>1) System.out.println("initCameraArrays("+numChn+")");
 	   		this.cameraFrameNumber=new int[numChn];
-	   		this.triggeredMode=new boolean[numChn];
-	   		this.sensorPresent=new boolean[numChn][];
+	   		this.triggeredMode=    new boolean[numChn];
+	   		this.sensorPresent=    new boolean[numChn][];
 			// TODO - try if skipping setting TRIG_PERIOD=0, IRQ_SMART=6 (when they are already set) will fix hanging
-	   		this.triggerPeriod=new int[numChn];
-	   		this.irqSmart=     new int[numChn];
+	   		this.triggerPeriod=    new int[numChn];
+	   		this.irqSmart=         new int[numChn];
+	   		this.cameraMasterPort= new int[numChn]; // not sure if will use it - master port for each camera:port
 	   	}
 	   	public boolean probeCameraState(
 	               int chn){
@@ -718,15 +838,30 @@ public class CalibrationHardwareInterface {
 	               int timeout // ms
 	               ){
 	   		//http://192.168.0.221/parsedit.php?immediate&TRIG&TRIG_PERIOD&FRAME
-	   		String url="http://"+this.cameraIPs[chn]+"/parsedit.php?immediate&TRIG&TRIG_PERIOD&IRQ_SMART&SENS_AVAIL&FRAME";
+	   		String url;
+	   		int colon_index = this.cameraIPs[chn].indexOf(":");
+	   		int sensor_port = Integer.parseInt(this.cameraIPs[chn].substring(colon_index+1)) - this.imgsrvPort;
+	   		String ip=this.cameraIPs[chn].substring(0, colon_index);
+	   		
+	   		if (this.nc393){
+//	   			url="http://"+this.cameraIPs[chn]+"/parsedit.php?immediate&TRIG&TRIG_PERIOD&SENS_AVAIL&FRAME";
+	   			url="http://"+ip+"/parsedit.php?sensor_port="+sensor_port+"&immediate&TRIG&TRIG_PERIOD&SENS_AVAIL&FRAME&TRIG_MASTER";
+	   		} else {
+//	   			url="http://"+this.cameraIPs[chn]+"/parsedit.php?immediate&TRIG&TRIG_PERIOD&IRQ_SMART&SENS_AVAIL&FRAME";
+	   			url="http://"+ip+"/parsedit.php?immediate&TRIG&TRIG_PERIOD&IRQ_SMART&SENS_AVAIL&FRAME";
+	   		}
 	   		if (this.debugLevel>1) System.out.println("url="+url);
 	   		Document dom=null;
-	   		if ((this.cameraFrameNumber==null) || ((this.cameraFrameNumber.length<(chn+1)))) initCameraArrays(chn+1);
+	   		if ((this.cameraFrameNumber==null) ||    ((this.cameraFrameNumber.length<(chn+1)))) initCameraArrays(chn+1);
 	   		// did not find yet - why cameraFrameNumber is not null, but sensorPresent is? Added next lines until find
-	   		if ((this.triggeredMode==null) || ((this.triggeredMode.length<(chn+1)))) initCameraArrays(chn+1);
-	   		if ((this.sensorPresent==null) || ((this.sensorPresent.length<(chn+1)))) initCameraArrays(chn+1);
-	   		if ((this.triggerPeriod==null) || ((this.triggerPeriod.length<(chn+1)))) initCameraArrays(chn+1);
-	   		if ((this.irqSmart==null) || ((this.irqSmart.length<(chn+1)))) initCameraArrays(chn+1);
+	   		if ((this.triggeredMode==null) ||        ((this.triggeredMode.length<(chn+1)))) initCameraArrays(chn+1);
+	   		if ((this.sensorPresent==null) ||        ((this.sensorPresent.length<(chn+1)))) initCameraArrays(chn+1);
+	   		if ((this.triggerPeriod==null) ||        ((this.triggerPeriod.length<(chn+1)))) initCameraArrays(chn+1);
+	   		if (!this.nc393) {
+	   			if ((this.irqSmart==null) ||         ((this.irqSmart.length<(chn+1))))         initCameraArrays(chn+1);
+	   		} else {
+	   			if ((this.cameraMasterPort==null) || ((this.cameraMasterPort.length<(chn+1)))) initCameraArrays(chn+1);
+	   		}
 	   		try {
 	   			DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
 	   			DocumentBuilder db = dbf.newDocumentBuilder();
@@ -758,7 +893,12 @@ public class CalibrationHardwareInterface {
 	   			this.sensorPresent[chn]=new boolean[3];
 	   			for (int i=0;i<this.sensorPresent[chn].length;i++) this.sensorPresent[chn][i]=(sensAvail & (1<<i))!=0;
 	   			this.triggerPeriod[chn]=     Integer.parseInt(((Node) (((Node) dom.getDocumentElement().getElementsByTagName("TRIG_PERIOD").item(0)).getChildNodes().item(0))).getNodeValue());
-	   			this.irqSmart[chn]=          Integer.parseInt(((Node) (((Node) dom.getDocumentElement().getElementsByTagName("IRQ_SMART").item(0)).getChildNodes().item(0))).getNodeValue());
+	   			if (!this.nc393) {
+	   				this.irqSmart[chn]=          Integer.parseInt(((Node) (((Node) dom.getDocumentElement().getElementsByTagName("IRQ_SMART").item(0)).getChildNodes().item(0))).getNodeValue());
+	   				this.cameraMasterPort[chn]=  sensor_port;
+	   			} else {
+	   				this.cameraMasterPort[chn]=  Integer.parseInt(((Node) (((Node) dom.getDocumentElement().getElementsByTagName("TRIG_MASTER").item(0)).getChildNodes().item(0))).getNodeValue());
+	   			}
 	   			this.cameraFrameNumber[chn]= Integer.parseInt(((Node) (((Node) dom.getDocumentElement().getElementsByTagName("FRAME").item(0)).getChildNodes().item(0))).getNodeValue());
 	   		} catch(MalformedURLException e){
 	   			String msg="Please check the URL:" + e.toString();
@@ -812,6 +952,7 @@ public class CalibrationHardwareInterface {
 	   		startAndJoin(threads);
 	   		if (Double.isNaN(exposureScale)){ // full init
 	   			int nRepeat=this.setupTriggerMode?4:1;
+	   			if (this.nc393) nRepeat++; // is it needed?
 	   			for (int i=0;i<nRepeat;i++){
 	   				if (this.debugLevel>0) System.out.println((i+1)+" of "+nRepeat+": Triggering cameras to give parameters a chance to propagate");
 	   				trigger();
@@ -845,6 +986,16 @@ public class CalibrationHardwareInterface {
 	   	}
 	   	// TODO: issue several TRIG pulses after setting parameters?
 	   	public boolean setupCameraAcquisition(int chn, double exposureScale){
+	   		int colon_index = this.cameraIPs[chn].indexOf(":");
+	   		int sensor_port = Integer.parseInt(this.cameraIPs[chn].substring(colon_index+1)) - this.imgsrvPort;
+	   		String ip=this.cameraIPs[chn].substring(0, colon_index);
+	   		boolean isMasterSubcamera = ip.equals(this.cameraSubnet+(this.iBaseIP+this.masterSubCamera));
+	   		boolean isMasterPort =  (this.cameraMasterPort[chn] == sensor_port); // for 353 should always be master port
+	   		if (isMasterSubcamera && (this.cameraMasterPort[chn] != this.masterPort)){
+	   			System.out.println("Master port mismatch for camera "+ip+" (master) - parameters master port = "+
+	   					this.masterPort+", camera responded with "+this.cameraMasterPort[chn] );
+	   		}
+	   		if (this.debugLevel>1) System.out.println("DEBUG393: chn="+chn+" sensor_port="+sensor_port+" ip= "+ip+" isMasterSubcamera="+isMasterSubcamera+ " isMasterPort="+isMasterPort);
 	   		boolean exposureOnly=!Double.isNaN(exposureScale);
 	   		int minExposure=10; // usec
 	   		int maxExposure=1000000; //usec
@@ -860,6 +1011,7 @@ public class CalibrationHardwareInterface {
 	   		int gScale=   (int) (Math.round(0x10000*this.cameraGScale*this.cameraGScaleCorr[chn]));
 	   		int autoExp=  this.cameraAutoExposure?1:0;
 	   		int autoWB=   this.cameraAutoWhiteBalance?1:0;
+	   		
 	   		String extraURL="";
 	   		if (this.cameraExtraURLCommon.length()>0){
 	   			extraURL+=(this.cameraExtraURLCommon.substring(0,1).equals("&"))?"":"&"+this.cameraExtraURLCommon;
@@ -874,19 +1026,62 @@ public class CalibrationHardwareInterface {
 	   		if (bScale<minScale) bScale= minScale ; else if (bScale> maxScale) bScale= maxScale;
 	   		if (gScale<minScale) gScale= minScale ; else if (gScale> maxScale) gScale= maxScale;
 	   		
-	   		String triggerMode=this.setupTriggerMode?(
-	   				"&TRIG_CONDITION="+(this.noCabling?(0):(this.externalTriggerCabling?"0x200000":"0x20000"))+"*0"+
-	   				"&TRIG_OUT="+(this.noCabling?(0):(this.externalTriggerCabling?"0x800000":"0x80000"))+"*0"+
-	   				"&TRIG=4*3"):"";
-	   		if (this.triggerPeriod[chn]>1)triggerMode+="&TRIG_PERIOD=1*0"; // just imgsrv /trig does not set it, only FPGA register
+	   		String triggerMode="";
 	   		
-	   		String url="http://"+this.cameraIPs[chn]+"/parsedit.php?immediate";
+	   		
+	   		if (this.nc393) {
+	   			if (isMasterPort) {
+	   				/*
+	   				 * P_TRIG_OUT (outputs):
+	   				 * off:      0x00000
+	   				 * external: 0x02000
+	   				 * internal: 0x20000
+	   				 * both:     0x22000
+	   				 * P_TRIG_IN (inputs):
+	   				 * off:      0x00000
+	   				 * external: 0x80000
+	   				 * internal: 0x08000
+	   				 * both:     0x88000
+	   				 */
+	   				if (this.setupTriggerMode){
+	   					triggerMode+="&TRIG_CONDITION="+(this.noCabling?(0):(this.externalTriggerCabling?"0x80000":"0x08000"))+"*0"+
+	   							"&TRIG_OUT="+(this.noCabling?(0):(this.externalTriggerCabling?"0x02000":"0x20000"))+"*0"+
+	   							"&TRIG=4*3";
+	   				}
+
+	   				if ((this.triggerPeriod[chn]>1) || this.setupTriggerMode) {
+	   					triggerMode+="&TRIG_PERIOD=0*1"; // just stop it if it wasn't already, imgsrv /trig does not set it, only FPGA register
+	   				}
+	   			}
+	   		}else {
+	   			if (this.setupTriggerMode){
+	   				triggerMode+="&TRIG_CONDITION="+(this.noCabling?(0):(this.externalTriggerCabling?"0x200000":"0x20000"))+"*0"+
+	   						"&TRIG_OUT="+(this.noCabling?(0):(this.externalTriggerCabling?"0x800000":"0x80000"))+"*0"+
+	   						"&TRIG=4*3";
+	   			}
+	   			if ((this.triggerPeriod[chn]>1) || this.setupTriggerMode){
+	   				triggerMode+="&TRIG_PERIOD=1*0"; // just imgsrv /trig does not set it, only FPGA register
+	   			}
+	   		}
+	   		
+
+	   		String url="http://"+ip+"/parsedit.php?immediate";
+	   		
+	   		if (this.nc393) {
+	   			url += "&sensor_port="+sensor_port;
+	   			
+	   		}
+	   		
+	   		
+	   		
 	   		url+="&EXPOS="+exposure+"*0"; // always
 	   		if (!exposureOnly){
-	   			if (this.irqSmart[chn]!=(this.noWait?6:3)){
-	   				url+="&IRQ_SMART="+(this.noWait?6:3)+"*0";
+	   			if (!this.nc393) {
+	   				if (this.irqSmart[chn]!=(this.noWait?6:3)){
+	   					url+="&IRQ_SMART="+(this.noWait?6:3)+"*0";
+	   				}
 	   			}
-	   			url+="&COLOR="+this.colorMode+"*0"+
+	   			url+="&COLOR="+this.colorMode+"*"+(this.nc393?"1":"0")+
 	   			"&QUALITY="+this.JPEGquality+"*0"+
 	   			"&EXPOS="+exposure+"*0"+
 	   			"&AUTOEXP_EXP_MAX="+autoExposureMax+"*0"+
@@ -941,9 +1136,9 @@ public class CalibrationHardwareInterface {
 	   	
 	   	
 	   	private boolean editSubCamerasIPs() {
-			GenericDialog gd = new GenericDialog("Edit IPs/hosts of the sub cameras");
+			GenericDialog gd = new GenericDialog("Edit IPs/hosts and ports of the sub cameras");
 			for (int i=0;i<this.cameraIPs.length;i++){
-	    		gd.addStringField(i+": IP address/host of the subcamera",this.cameraIPs[i],20);
+	    		gd.addStringField(i+": IP address/host:sensor port of the subcamera",this.cameraIPs[i],25);
 			}
     	    WindowTools.addScrollBars(gd);
     	    gd.showDialog();
@@ -959,6 +1154,7 @@ public class CalibrationHardwareInterface {
 	   	
 	   	public boolean editCameraSettings(String title){
 			GenericDialog gd = new GenericDialog("title");
+			gd.addCheckbox    ("NC393 (unchecked - nc353)", this.nc393);
     		gd.addNumericField("Camera exposure",this.cameraExposure,2,8,"ms");
     		gd.addNumericField("Scale camera exposure for target laser detection (4 lasers)",100*this.scaleExposureForLasers,1,5,"%");
     		gd.addNumericField("Scale camera exposure for optical head laser detection (2 lasers)",100*this.scaleExposureForHeadLasers,1,5,"%");
@@ -1000,6 +1196,7 @@ public class CalibrationHardwareInterface {
     	    WindowTools.addScrollBars(gd);
     	    gd.showDialog();
     	    if (gd.wasCanceled()) return false;
+    	    this.nc393=                          gd.getNextBoolean();
     	    this.cameraExposure=                 gd.getNextNumber();
     	    this.scaleExposureForLasers=    0.01*gd.getNextNumber();
     	    this.scaleExposureForHeadLasers=0.01*gd.getNextNumber();
@@ -1061,7 +1258,8 @@ public class CalibrationHardwareInterface {
 	   		boolean [] IPs= new boolean[this.cameraIPs.length];
 	   		for (int i=0;i<IPs.length;i++) IPs[i]=false;
 	   		for (int i=0;i<selectCameras.length;i++) if (i<this.channelMap.length) {
-	   			IPs[this.channelMap[i][0]]=true;
+//	   			IPs[this.channelMap[i][0]]=true;
+	   			IPs[this.channelIPPort[i]] = true;  // since NC393			
 	   		}
 	   		return IPs;
 	   	}
@@ -1242,7 +1440,7 @@ public class CalibrationHardwareInterface {
 					public void run() {
 						for (int ipIndex=ipIndexAtomic.getAndIncrement(); ipIndex<ipLength;ipIndex=ipIndexAtomic.getAndIncrement()){
 							//							for (int i=0;i<this.imagesIP.length;i++){
-							if (debugLevel>2) System.out.println("getImages()3: ipIndex="+ipIndex+" acquireIPs.length=" +acquireIPs.length+
+							if (debugLevel>1/*2*/) System.out.println("getImages()3: ipIndex="+ipIndex+" acquireIPs.length=" +acquireIPs.length+
 									((ipIndex<acquireIPs.length)? (" acquireIPs[ipIndex]="+acquireIPs[ipIndex]):""));
 							if ((ipIndex<acquireIPs.length) && acquireIPs[ipIndex]) {
 								if (debugLevel>2) System.out.println("getImages:" + imageURLs[ipIndex] );
@@ -1280,8 +1478,10 @@ public class CalibrationHardwareInterface {
 			//TODO: Multithread the next cycle (per-sensor)
 			final ImagePlus []	images=this.images;
 			final int [][] channelMap = this.channelMap;
+			final int [] channelIPPort = this.channelIPPort;
 	   		final AtomicInteger imageIndexAtomic = new AtomicInteger(0);
 	   		final int [] motorsPosition=this.motorsPosition;
+	   		
 	   		for (int ithread = 0; ithread < threads.length; ithread++) {
 	   			threads[ithread] = new Thread() {
 	   				public void run() {
@@ -1290,7 +1490,8 @@ public class CalibrationHardwareInterface {
 	   					for (int imageIndex=imageIndexAtomic.getAndIncrement(); imageIndex<images.length;imageIndex=imageIndexAtomic.getAndIncrement())
 	   						if ((imageIndex<acquire.length) && acquire[imageIndex]){
 	   							//		   	for (int i=0;i<this.images.length;i++) if ((i<acquire.length) && acquire[i]) {
-	   							int iIP=channelMap[imageIndex][0];
+//	   							int iIP=channelMap[imageIndex][0];
+	   							int iIP=channelIPPort[imageIndex]; // index in composite images (per ip/port)
 	   							if (sensorPresent[iIP]==null) { // system board for this channel did not respond null pointer - check cameras were detected
 	   								images[imageIndex]=null;
 	   								continue;
@@ -1298,6 +1499,7 @@ public class CalibrationHardwareInterface {
 	   							boolean singleSensor=true;
 	   							for (int s=0;s<sensorPresent[iIP].length;s++) singleSensor&= !sensorPresent[iIP][s];
 	   							if (singleSensor){ // no 10359 multiplexor
+	   								if (debugLevel>1) System.out.println("DEBUG393: demuxing single sensor imageIndex="+imageIndex+" iIP="+iIP);
 	   								images[imageIndex]=jp4_Instance.demuxClone(imagesIP[iIP]); 
 	   							} else {
 	   								int subCam=channelMap[imageIndex][1];
@@ -1307,6 +1509,7 @@ public class CalibrationHardwareInterface {
 	   								}
 	   								// skip missing channels, then demux
 	   								for (int s=0;s<channelMap[imageIndex][1];s++) if (!sensorPresent[iIP][s]) subCam--;
+	   								if (debugLevel>1) System.out.println("DEBUG393: demuxing imageIndex="+imageIndex+" iIP="+iIP+" subCam="+subCam);
 	   								images[imageIndex]=jp4_Instance.demuxImage(imagesIP[iIP],subCam);
 	   							}
 	   							//		   		this.images[i]=this.jp4_Instances[j].demuxImageOrClone(this.imagesIP[j],this.channelMap[i][1]);
@@ -1331,6 +1534,7 @@ public class CalibrationHardwareInterface {
 	   							}
 	   							images[imageIndex].setProperty("channel", String.format("%02d", imageIndex));
 	   							images[imageIndex].setProperty("subcamera",""+getSubCamera(imageIndex)); 
+	   							images[imageIndex].setProperty("sensor_port",""+getSensorPort(imageIndex)); 
 	   							images[imageIndex].setProperty("subchannel", ""+getSubChannel(imageIndex));
 	   							//		private int [] motorsPosition=      null; // motors steps when the images were acquired (for null)
 	   							if (motorsPosition!=null) for (int m=0;m<motorsPosition.length;m++ ) {
@@ -1425,6 +1629,9 @@ public class CalibrationHardwareInterface {
 	   					public void run() {
 	   						for (int ipIndex=ipIndexAtomic.getAndIncrement(); ipIndex<lasersIPs.length;ipIndex=ipIndexAtomic.getAndIncrement()){
 	   							long st=System.nanoTime();
+	   							if (debugLevel>1) {
+	   								System.out.println("image url["+ipIndex+"]="+imageURLs[ipIndex]);
+	   							}
 	   							laserImagesIP[fnSeqNum-1][ipIndex]=jp4_Instances[ipIndex].openURL(
 	   									imageURLs[ipIndex],
 	   									"",
@@ -1476,6 +1683,7 @@ public class CalibrationHardwareInterface {
 	   		final boolean otherGreen=laserPointers.laserPointer.otherGreen;
 
 	   		final int [][] channelMap=this.channelMap;
+			final int []   channelIPPort = this.channelIPPort;
 	   		final ImagePlus [] images=this.images;
 			final boolean [] flipImages=this.flipImages;
 			final LaserPointers laserPointers=this.laserPointers;
@@ -1494,7 +1702,8 @@ public class CalibrationHardwareInterface {
 						for (int sensorNum=sensorNumAtomic.getAndIncrement(); sensorNum<lasers.length;sensorNum=sensorNumAtomic.getAndIncrement()) // null pointer
 							if (lasers[sensorNum] && (images[sensorNum]!=null)){
 								//	   		for (int sensorNum=0;sensorNum<lasers.length;sensorNum++)  if (lasers[sensorNum] && (this.images[sensorNum]!=null)){ // lasers - here sensors to use lasers for
-								int iIP=channelMap[sensorNum][0];
+//								int iIP=channelMap[sensorNum][0];
+	   							int iIP=channelIPPort[sensorNum]; // index in composite images (per ip/port)
 								double saturationRed=255.0;
 								if (images[sensorNum].getProperty("saturation_0")!=null) saturationRed=Double.parseDouble((String)images[sensorNum].getProperty("saturation_0"));
 								if (scaleExposureForLasers>0) saturationRed*=scaleExposureForLasers; // scaled to reduced exposure time  
@@ -1736,7 +1945,8 @@ public class CalibrationHardwareInterface {
 			if (this.debugLevel>1) {
 				if (this.debugLevel>2) System.out.println("++++++++++++++++++ Image Properies ++++++++++++++++++++++++++++");
 				for (int i=0;i<this.images.length;i++) if (this.images[i]!=null) {
-					int j=this.channelMap[i][0];
+//					int j=this.channelMap[i][0];
+					int j=channelIPPort[i]; // sincer NC393 adder port					
 					if (this.debugLevel>2) {
 						System.out.println("Image #"+i);
 						this.jp4_Instances[j].listImageProperties(this.images[i]);
@@ -2914,7 +3124,7 @@ public class CalibrationHardwareInterface {
     	} catch (IOException e) {
     		String msg="Failed to write XML motor state file: "+path;
     		IJ.showMessage("Error",msg);
-    		throw new IOException (msg);
+    		extracted(msg);
     	}
     	try {
     		os.close();
@@ -2940,7 +3150,7 @@ public class CalibrationHardwareInterface {
     	} catch (IOException e) {
     		String msg="Failed to read XML configuration file: "+path;
     		IJ.showMessage("Error",msg);
-    		throw new IOException (msg);
+    		extracted(msg);
     	}
     	try {
     		is.close();
@@ -2958,11 +3168,14 @@ public class CalibrationHardwareInterface {
     		} else {
     			String msg="motor"+(i+1)+" is undefined in "+path+". If the file is corrupted you may delete it.";
     			IJ.showMessage("Error",msg);
-    			throw new IOException (msg);
+    			extracted(msg);
     		}
     	}
     	return savedPosition;
     }
+	private void extracted(String msg) throws IOException {
+		throw new IOException (msg);
+	}
     public void checkEnabled(){
     	if (isEnabled()) return;
     	GenericDialog gd = new GenericDialog("Enable motors");

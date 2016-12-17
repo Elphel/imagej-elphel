@@ -2213,7 +2213,7 @@ public class EyesisAberrations {
 
 	public double [][][][] createPSFMap(
 			final MatchSimulatedPattern commonMatchSimulatedPattern, // to be cloned in threads, using common data
-			final ImagePlus          imp_sel, // linearized Bayer mosaic image form the camera, GR/BG
+			final ImagePlus          imp_sel, // linearized Bayer mosaic image from the camera, GR/BG
 			final int [][][]        sampleList, // optional (or null) 2-d array: list of coordinate pairs (2d - to match existent  pdfKernelMap structure)  
 			final double  overexposedAllowed, // fraction of pixels OK to be overexposed
 			final SimulationPattern.SimulParameters simulParameters,
@@ -2400,7 +2400,7 @@ public class EyesisAberrations {
 			};
 		}
 		startAndJoin(threads);
-		 if (globalDebugLevel>1) System.out.println("Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+		if (globalDebugLevel>1) System.out.println("Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 //		globalDebugLevel=saved_globalDebugLevel;
 		if (debugLateralShifts) {
 		    boolean [] debugUsedColors=new boolean [debugNumColors];
