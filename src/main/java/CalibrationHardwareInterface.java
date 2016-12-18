@@ -297,7 +297,7 @@ public class CalibrationHardwareInterface {
 			
 			this.triggerURL="http://"+this.cameraSubnet+(this.iBaseIP+this.masterSubCamera)+":"+
 				(this.imgsrvPort+ (this.masterPort & 3))+"/"+triggerURLcmd;
-			if (this.debugLevel>1) System.out.println("DEBUG393: initIPs(): this.triggerURL ="+this.triggerURL);
+			if (this.debugLevel>2) System.out.println("DEBUG393: initIPs(): this.triggerURL ="+this.triggerURL);
 		}
 /*
 //pre nc393		

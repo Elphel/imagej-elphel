@@ -65,7 +65,7 @@ public class Eyesis_Correction extends PlugInFrame implements ActionListener {
 	 * 
 	 */
 	private static final long serialVersionUID = -1507307664341265263L;
-private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPostProcessing1,panelPostProcessing2,panelPostProcessing3;
+private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPostProcessing1,panelPostProcessing2,panelPostProcessing3,panelDct1;
    JP46_Reader_camera JP4_INSTANCE=null;
 
 //   private deBayerScissors debayer_instance;
@@ -301,6 +301,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
    public static ImagePlus imp_gaussian=null;
    public static String DEFAULT_DIRECTORY=null;
    public static boolean ADVANCED_MODE=false; //true; // show all buttons
+   public static boolean DCT_MODE=false; //true; // show all buttons
    public static boolean MODE_3D=false; // 3D-related commands
    public PixelMapping.InterSensor.DisparityTiles DISPARITY_TILES=null;
    
@@ -334,7 +335,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 
 		instance = this;
 		addKeyListener(IJ.getInstance());
-		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0);
+		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0) + (DCT_MODE?1:0);
 		setLayout(new GridLayout(menuRows, 1));
 
 		panel6 = new Panel();
@@ -432,6 +433,13 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 			addButton("Plane Likely", panelPostProcessing3);
 			add(panelPostProcessing3);
 		}
+		if (DCT_MODE) {
+			panelDct1 = new Panel();
+			panelDct1.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
+			addButton("DCT test 1",panelDct1,color_process);
+			addButton("DCT test 2",panelDct1,color_process);
+			add(panelDct1);
+		}
 		pack();
 
 		GUI.center(this);
@@ -507,6 +515,15 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 			String msg="MODE_3D is undefined in "+this.prefsPath;
 			IJ.showMessage("Error",msg);
 			throw new IOException (msg);
+		}
+		sValue=	this.prefsProperties.getProperty("DCT_MODE");
+		if (sValue!=null) {
+			DCT_MODE=Boolean.parseBoolean(sValue);
+			System.out.println("Read DCT_MODE="+DCT_MODE);
+		} else {
+//			String msg="DCT_MODE is undefined in "+this.prefsPath;
+//			IJ.showMessage("Error",msg);
+//			throw new IOException (msg);
 		}
     }
 	
@@ -2480,22 +2497,88 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 
     	return;
 
-    }
-    //"Section correlations"   
-/*
- * "Filter Z-map"
-   		String path=POST_PROCESSING.postProcessingParameters.selectResultsDirectory(
- 
-   		public ImagePlus impDisparity=null;
-    		public int corrFFTSize; // to properties
-    		public int overlapStep; // to properties
-    
- */
-    //"Configure correction"
-    //	   addButton("Select source files", panel7);
-//	   addButton("Process files", panel7);
-
 /* ======================================================================== */
+    } else if (label.equals("DCT test 1")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+//    	IJ.showMessage("DCT test 1");
+    	int n = 32;
+    	DttRad2 dtt =   new DttRad2(n);
+    	double [] x =   new double[n];
+    	double [] y =   new double[n];
+    	double [] xr =  new double[n];
+    	double [] y1 =  new double[n];
+    	double [] xr1 = new double[n];
+    	double [] dindex= new double[n];
+    	for (int ii = 0; ii<n; ii++) {
+    		dindex[ii] = (double) ii;
+    		x[ii] = 0.0;
+    		
+    	}
+    	x[1] = 1.0;
+    	y=   dtt.dctiv_direct(x);
+    	xr=  dtt.dctiv_direct(y);
+    	y1=  dtt.dctiv_recurs(x);
+    	xr1= dtt.dctiv_recurs(y1);
+    	
+    	
+        PlotWindow.noGridLines = false; // draw grid lines
+        Plot plot = new Plot("Example Plot","X Axis","Y Axis",dindex,x);
+        plot.setLimits(0, n-1, -2, 2);
+        plot.setLineWidth(1);
+
+        plot.setColor(Color.red);
+        plot.addPoints(dindex,y,PlotWindow.X);
+        plot.addPoints(dindex,y,PlotWindow.LINE);
+        
+        plot.setColor(Color.green);
+        plot.addPoints(dindex,xr,PlotWindow.X);
+        plot.addPoints(dindex,xr,PlotWindow.LINE);
+        
+        plot.setColor(Color.magenta);
+        plot.addPoints(dindex,y1,PlotWindow.X);
+        plot.addPoints(dindex,y1,PlotWindow.LINE);
+        
+        plot.setColor(Color.cyan);
+        plot.addPoints(dindex,xr1,PlotWindow.X);
+        plot.addPoints(dindex,xr1,PlotWindow.LINE);
+
+        plot.setColor(Color.blue);
+        
+        plot.show();
+    	return;
+ /* ======================================================================== */
+    } else if (label.equals("DCT test 2")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+//    	IJ.showMessage("DCT test 1");
+        float[] x = {0.1f, 0.25f, 0.35f, 0.5f, 0.61f,0.7f,0.85f,0.89f,0.95f}; // x-coordinates
+        float[] y = {2f,5.6f,7.4f,9f,9.4f,8.7f,6.3f,4.5f,1f}; // x-coordinates
+        float[] e = {.8f,.6f,.5f,.4f,.3f,.5f,.6f,.7f,.8f}; // error bars
+
+        PlotWindow.noGridLines = false; // draw grid lines
+        Plot plot = new Plot("Example Plot","X Axis","Y Axis",x,y);
+        plot.setLimits(0, 1, 0, 10);
+        plot.setLineWidth(2);
+        plot.addErrorBars(e);
+
+        // add a second curve
+        float x2[] = {.4f,.5f,.6f,.7f,.8f};
+        float y2[] = {4,3,3,4,5};
+        plot.setColor(Color.red);
+        plot.addPoints(x2,y2,PlotWindow.X);
+        plot.addPoints(x2,y2,PlotWindow.LINE);
+
+        // add label
+        plot.setColor(Color.black);
+        plot.changeFont(new Font("Helvetica", Font.PLAIN, 24));
+        plot.addLabel(0.15, 0.95, "This is a label");
+
+        plot.changeFont(new Font("Helvetica", Font.PLAIN, 16));
+        plot.setColor(Color.blue);
+        plot.show();
+    	
+    	return;
+    	/* ======================================================================== */
+    }
     DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
   }
 
