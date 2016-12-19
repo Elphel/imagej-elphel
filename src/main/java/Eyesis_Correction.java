@@ -2517,8 +2517,8 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
     	x[1] = 1.0;
     	y=   dtt.dctiv_direct(x);
     	xr=  dtt.dctiv_direct(y);
-    	y1=  dtt.dctiv_recurs(x);
-    	xr1= dtt.dctiv_recurs(y1);
+    	y1=  dtt.dct_iv(x);
+    	xr1= dtt.dct_iv(y1);
     	
     	
         PlotWindow.noGridLines = false; // draw grid lines
