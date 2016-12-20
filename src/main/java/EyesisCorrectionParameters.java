@@ -1647,7 +1647,38 @@ public class EyesisCorrectionParameters {
   			this.addBottom=Integer.parseInt(properties.getProperty(prefix+"addBottom"));
   		}
   	}
-  /* ======================================================================== */
+    public static class DCTParameters {
+  		public int dct_size =   32;
+  		public int dct_window =  0; // currently only 2 types of window - 0 and 1
+
+  		public DCTParameters(int dct_size, int dct_window) {
+  			this.dct_size = dct_size;
+  			this.dct_window = dct_window;
+  		}
+  		public void setProperties(String prefix,Properties properties){
+  			properties.setProperty(prefix+"dct_size",this.dct_size+"");
+  			properties.setProperty(prefix+"dct_window",   this.dct_window+"");
+  		}
+  		public void getProperties(String prefix,Properties properties){
+  			this.dct_size=Integer.parseInt(properties.getProperty(prefix+"dct_size"));
+  			this.dct_window=Integer.parseInt(properties.getProperty(prefix+"dct_window"));
+  		}
+  		public boolean showDialog() {
+  			GenericDialog gd = new GenericDialog("Set DCT parameters");
+  			gd.addNumericField("DCT size",                                   this.dct_size,     0); //2
+  			gd.addNumericField("MDCT window type (0,1,2)",                   this.dct_window,   0); //32
+  			//  	    gd.addNumericField("Debug Level:",                          MASTER_DEBUG_LEVEL,      0);
+  			gd.showDialog();
+  			if (gd.wasCanceled()) return false;
+  			this.dct_size=   (int) gd.getNextNumber();
+  			this.dct_window=       (int) gd.getNextNumber();
+  			//  	    MASTER_DEBUG_LEVEL= (int) gd.getNextNumber();
+  			return true;
+  		}  
+  	}
+
+    
+    /* ======================================================================== */
     public static class DebayerParameters {
   		public int size;
   		public double polarStep;

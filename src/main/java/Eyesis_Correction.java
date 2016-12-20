@@ -83,6 +83,13 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 		   32, // addRight
 		   32  // addBottom
    );		   
+
+   public static EyesisCorrectionParameters.DCTParameters DCT_PARAMETERS = new EyesisCorrectionParameters.DCTParameters(
+		   32,  // dct_size
+		   1    // dct_window
+   );		   
+   
+   
    public static EyesisCorrectionParameters.DebayerParameters DEBAYER_PARAMETERS = new EyesisCorrectionParameters.DebayerParameters(
 		   64,    // size //128;
 		   0.5,   // polarStep -  size of largest polar cell to Cartesian one;
@@ -438,6 +445,8 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 			panelDct1.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
 			addButton("DCT test 1",panelDct1,color_process);
 			addButton("DCT test 2",panelDct1,color_process);
+			addButton("DCT test 3",panelDct1,color_process);
+			addButton("DCT test 4",panelDct1,color_process);
 			add(panelDct1);
 		}
 		pack();
@@ -2550,34 +2559,163 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
     } else if (label.equals("DCT test 2")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 //    	IJ.showMessage("DCT test 1");
-        float[] x = {0.1f, 0.25f, 0.35f, 0.5f, 0.61f,0.7f,0.85f,0.89f,0.95f}; // x-coordinates
-        float[] y = {2f,5.6f,7.4f,9f,9.4f,8.7f,6.3f,4.5f,1f}; // x-coordinates
-        float[] e = {.8f,.6f,.5f,.4f,.3f,.5f,.6f,.7f,.8f}; // error bars
-
-        PlotWindow.noGridLines = false; // draw grid lines
-        Plot plot = new Plot("Example Plot","X Axis","Y Axis",x,y);
-        plot.setLimits(0, 1, 0, 10);
-        plot.setLineWidth(2);
-        plot.addErrorBars(e);
-
-        // add a second curve
-        float x2[] = {.4f,.5f,.6f,.7f,.8f};
-        float y2[] = {4,3,3,4,5};
-        plot.setColor(Color.red);
-        plot.addPoints(x2,y2,PlotWindow.X);
-        plot.addPoints(x2,y2,PlotWindow.LINE);
-
-        // add label
-        plot.setColor(Color.black);
-        plot.changeFont(new Font("Helvetica", Font.PLAIN, 24));
-        plot.addLabel(0.15, 0.95, "This is a label");
-
-        plot.changeFont(new Font("Helvetica", Font.PLAIN, 16));
-        plot.setColor(Color.blue);
-        plot.show();
-    	
+        if (!DCT_PARAMETERS.showDialog()) return;
+// process selected image stack        
+        ImagePlus imp_src = WindowManager.getCurrentImage();
+        if (imp_src==null){
+            IJ.showMessage("Error","JP4 image or Bayer image stack required");
+            return;
+        }
+        ImagePlus imp2;
+        if (imp_src.getStackSize()<3){ // convert JP4 to image stack
+        	
+        	   EyesisCorrectionParameters.SplitParameters split_parameters = new EyesisCorrectionParameters.SplitParameters(
+        			   1,  // oversample;
+        			   // Add just for mdct (N/2)
+        			   DCT_PARAMETERS.dct_size/2, // addLeft
+        			   DCT_PARAMETERS.dct_size/2, // addTop
+        			   DCT_PARAMETERS.dct_size/2, // addRight
+        			   DCT_PARAMETERS.dct_size/2  // addBottom
+        	   );		   
+        	
+        	
+        	ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
+        			split_parameters);
+        	imp2 = new ImagePlus(imp_src.getTitle()+"-SPIT", sourceStack);
+        	imp2.getProcessor().resetMinAndMax();
+        	imp2.show();
+        } else {
+        	imp2 = imp_src;
+        }
+        ImageDtt image_dtt = new ImageDtt();
+        double [][] dct_data = image_dtt.mdctStack(imp2.getStack(),
+        		                                   DCT_PARAMETERS,
+        		                                   THREADS_MAX, DEBUG_LEVEL, UPDATE_STATUS);
+        int tilesY = imp2.getHeight()/DCT_PARAMETERS.dct_size - 1;
+        int tilesX = imp2.getWidth()/DCT_PARAMETERS.dct_size - 1;
+        System.out.println("tilesX="+tilesX);
+        System.out.println("tilesY="+tilesY);
+        SDFA_INSTANCE.showArrays(dct_data,
+        		tilesX*DCT_PARAMETERS.dct_size,
+        		tilesY*DCT_PARAMETERS.dct_size,
+        		true,
+        		imp_src.getTitle()+"-DCT");  
+        double [][] idct_data = new double [dct_data.length][];
+        for (int chn=0; chn<idct_data.length;chn++){
+        	idct_data[chn] = image_dtt.lapped_idct(
+        			dct_data[chn],                  // scanline representation of dcd data, organized as dct_size x dct_size tiles  
+        			tilesX*DCT_PARAMETERS.dct_size, //   dct_width,
+        			DCT_PARAMETERS.dct_size,        // final int
+        			DCT_PARAMETERS.dct_window,      //window_type
+        			THREADS_MAX,                    // maximal number of threads to launch                         
+        			DEBUG_LEVEL);                   //        globalDebugLevel)
+        }
+        SDFA_INSTANCE.showArrays(idct_data,
+        		(tilesX + 1) * DCT_PARAMETERS.dct_size,
+        		(tilesY + 1) * DCT_PARAMETERS.dct_size,
+        		true,
+        		imp_src.getTitle()+"-IDCT");  
+        
+       
     	return;
     	/* ======================================================================== */
+    } else if (label.equals("DCT test 3")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	int n = 32;
+    	int n2 = 2*n;
+    	int window_type = 1; // 0;
+    	int tilesY = 4;
+    	int tilesX = 4;
+    	int iw = (tilesX+1) * n;
+    	int ih = (tilesY+1) * n;
+    	DttRad2 dtt4 =   new DttRad2(4);
+		dtt4.set_window(window_type);
+    	DttRad2 dtt8 =   new DttRad2(8);
+		dtt8.set_window(window_type);
+
+		
+    	DttRad2 dtt =   new DttRad2(n);
+		dtt.set_window(window_type);
+    	double [] x = new double[n*n];
+    	for (int ii=0;ii<x.length;ii++) x[ii] = 0;
+//    	x[5*n  + 11] = 1.0; // shifted delta;
+//    	x[17*n + 15] = 1.0; // shifted delta;
+//    	x[10*n +  8] = 1.0; // shifted delta;
+    	for (int ii=0;ii<n;ii++){
+    		for (int jj=0;jj<n;jj++){
+    			x[ii*n+jj] = Math.cos(2*Math.PI/(n*Math.sqrt(n))*(ii*ii+jj*jj));
+    		}
+    	}
+    	
+    	
+    	
+    	
+    	
+        SDFA_INSTANCE.showArrays(x, n, n, "x "+n+"x"+n);
+        double [] y = dtt.dttt_iv(x, 0, n);
+        SDFA_INSTANCE.showArrays(y, n, n, "y "+n+"x"+n);
+        double [] xr = dtt.dttt_iv(y, 0, n);
+        SDFA_INSTANCE.showArrays(xr, n, n, "xr "+n+"x"+n);
+
+    	double [] mx = new double[iw*ih];
+    	double [][] mxt =  new double[tilesY*tilesX][];
+    	double [][] mxtf = new double[tilesY*tilesX][]; // folded
+    	double [][] mxtfu = new double[tilesY*tilesX][]; // folded/unfolded
+        double [][] my =   new double[tilesY*tilesX][];
+        double [][] myt =  new double[tilesY*tilesX][];
+        double [][] imyt = new double[tilesY*tilesX][];
+    	double []   imy =  new double[iw*ih];
+        
+    	for (int ii=0;ii<mx.length;ii++) mx[ii] = 0;
+    	for (int ii=0;ii<imy.length;ii++) imy[ii] = 0;
+    	for (int iy=0;iy<n;iy++) for (int ix=0;ix<n;ix++) mx[iw*(iy +   n)+ (ix +   n)] = x[n*iy+ix];
+    	for (int iy=0;iy<n;iy++) for (int ix=0;ix<n;ix++) mx[iw*(iy + 2*n)+ (ix +   n)] = x[n*(n-1-iy)+ix];
+    	for (int iy=0;iy<n;iy++) for (int ix=0;ix<n;ix++) mx[iw*(iy + 3*n)+ (ix +   n)] = x[n*iy+      (n -1 -ix)];
+    	for (int iy=0;iy<n;iy++) for (int ix=0;ix<n;ix++) mx[iw*(iy +   n)+ (ix + 2*n)] = x[n*(n-1-iy)+(n -1 -ix)];
+    	for (int iy=0;iy<n;iy++) for (int ix=0;ix<n;ix++) mx[iw*(iy + 2*n)+ (ix + 2*n)] = x[n*iy+ix];
+    	for (int iy=0;iy<n;iy++) for (int ix=0;ix<n;ix++) mx[iw*(iy + 3*n)+ (ix + 2*n)] = x[n*(n-1-iy)+ix];
+    	for (int iy=0;iy<n;iy++) for (int ix=0;ix<n;ix++) mx[iw*(iy +   n)+ (ix + 3*n)] = x[n*iy+      (n -1 -ix)];
+    	for (int iy=0;iy<n;iy++) for (int ix=0;ix<n;ix++) mx[iw*(iy + 2*n)+ (ix + 3*n)] = x[n*(n-1-iy)+(n -1 -ix)];
+    	for (int iy=0;iy<n;iy++) for (int ix=0;ix<n;ix++) mx[iw*(iy + 3*n)+ (ix + 3*n)] = x[n*iy+ix];
+    	for (int ii = 0; ii<mx.length; ii++){
+//    		if ((((ii % iw) ^ (ii / iw)) & 1) !=0) mx[ii] = 0;  
+    	}
+        SDFA_INSTANCE.showArrays(mx, iw, ih, "mx "+iw+"x"+ih);
+        for (int tileY = 0; tileY < tilesY; tileY++){
+            for (int tileX = 0; tileX < tilesX; tileX++){
+            	double [] tile = new double [4*n*n];
+            	int tileN = tileY*tilesX+tileX;
+            	for (int iy=0;iy<n2;iy++){
+            		for (int ix=0;ix<n2;ix++){
+            			tile[n2*iy + ix] =  mx[iw*(iy + n * tileY)+ (ix+ n*tileX)];
+            		}
+            	}
+            	mxt[tileN] =   tile.clone();
+            	mxtf[tileN] =  dtt.fold_tile   (tile, n);
+            	mxtfu[tileN] = dtt.unfold_tile (mxtf[tileN], n);
+            	
+            	my [tileN] =   dtt.dttt_iv     (mxtf[tileN], 0, n);
+            	myt[tileN] =   dtt.dttt_iv     (my  [tileN], 0, n);
+            	imyt[tileN] =  dtt.unfold_tile (myt [tileN], n); // each tile - imdct
+            	
+            	for (int iy=0;iy<n2;iy++){
+            		for (int ix=0;ix<n2;ix++){
+            			imy[iw*(iy + n * tileY)+ (ix+ n*tileX)] += imyt[tileN][n2*iy + ix] ;
+//            			imy[iw*(iy + n * tileY)+ (ix+ n*tileX)] += mxtfu[tileN][n2*iy + ix] ;
+            		}
+            	}
+            }
+        }
+        SDFA_INSTANCE.showArrays(mxt,  n2, n2,  true, "mxt "+n2+"x"+n2);
+        SDFA_INSTANCE.showArrays(mxtf, n,  n,   true, "mxtf "+n+"x"+n);
+        SDFA_INSTANCE.showArrays(mxtfu,n2, n2,  true, "mxtfu "+n2+"x"+n2);
+        SDFA_INSTANCE.showArrays(my,   n, n,    true, "my "+n+"x"+n);
+        SDFA_INSTANCE.showArrays(myt,  n, n,    true, "myt "+n+"x"+n);
+        SDFA_INSTANCE.showArrays(imyt, n2, n2,  true, "imyt "+n2+"x"+n2);
+        SDFA_INSTANCE.showArrays(imy,  iw, ih,  "imy "+iw+"x"+ih);
+
+        return;
+        
     }
     DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
   }
@@ -2599,6 +2737,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 		return false;
   }
 /* ======================================================================== */
+  
   public String [] selectSourceFiles(String [] defaultPaths) {
 	  String []patterns={".jp4",".jp46",".tiff",".tif"};
 	  return selectFiles(false, // save  
@@ -5770,7 +5909,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 	 */
 	public static void main(String[] args) {
 		// set the plugins.dir property to make the plugin appear in the Plugins menu
-		Class<?> clazz = Aberration_Calibration.class;
+		Class<?> clazz = Eyesis_Correction.class;
 		String url = clazz.getResource("/" + clazz.getName().replace('.', '/') + ".class").toString();
 		String pluginsDir = url.substring(5, url.length() - clazz.getName().length() - 6);
 		System.setProperty("plugins.dir", pluginsDir);

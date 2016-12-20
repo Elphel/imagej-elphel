@@ -39,6 +39,12 @@ public class DttRad2 {
 	double sqrt2 = Math.sqrt(2.0);
 	double sqrt1_2 = 1/sqrt2;
 	double [] hwindow = null; // half window
+	int    [][] fold_index = null; // index of the source item in 2nx2n array input to mdct_2d.
+	                               // First index (0..n^2-1) index in the folded array (dct-iV input) 
+	                               // Second index(0..3) - item to add (2 vertiacl, 2 - horizontal)  
+	double [][] fold_k = null; // Matching fold_index items. Each is a product of 2 window coefficients and sign  
+	int    [] unfold_index = null;  // index  for each element of idct(2nx2n)
+	double [] unfold_k = null; // Matching unfold_index items. Each is a product of 2 window coefficients and sign  
 	
 	public DttRad2 (int maxN){ // n - maximal
 		setup_arrays(maxN); // always setup arrays for fast calculations
@@ -73,94 +79,126 @@ public class DttRad2 {
 		}
 		return y;
 	}
+
 	
-	public double [] mdct_fold (double [] x ) { // x is 2n long
-		int n = x.length/2;
-		int n1 = n/2;
-		int n3 = n+n1;
-		double [] x1 = new double [n];
-		for (int i=0; i<n1; i++){
-			x1[i]=    -hwindow[n1 + i]* x[n3 -1 -i] - hwindow[n1 - i -1] * x[n3     + i]; 
-			x1[i+n1]=  hwindow[     i]* x[       i] - hwindow[n  - i -1] * x[n  - 1 - i]; 
+	// For index in dct-iv input (0..n-1) get 2 variants of index in mdct input array (0..2*n-1)
+	// second index : 0 - index in X array 2*n long
+	//                1 - window index (0..n-1), [0] - minimal, [n-1] - max
+	//                2 - sign of the term
+	private int [][] get_fold_indices(int x, int n){
+		int n1 = n>>1;
+		int [][] ind = new int[2][3];
+		if (x <n1) {
+			ind[0][0] = n + n1 - x - 1; // -cR
+			ind[0][1] = n1     + x;
+			ind[0][2] = -1;
+			ind[1][0] = n + n1 + x;     // -d
+			ind[1][1] = n1     - x - 1;
+			ind[1][2] = -1;
+		} else {
+			x-=n1;
+			ind[0][0] =          x;     // +a
+			ind[0][1] =          x;
+			ind[0][2] = 1;
+			ind[1][0] = n      - x - 1; // -bR
+			ind[1][1] = n      - x - 1;
+			ind[1][2] = -1;
 		}
-		return x1;
+		
+		return ind;
 	}
-
-	public double [] mdct_unfold (double [] x) { // x is 2n long
-		int n = x.length;
-		int n1 = n/2;
-		int n3 = n+n1;
-		double [] x1 = new double [2*n];
-		for (int i=0; i<n1; i++){
-			x1[i]=           x[n1+i];
-			x1[n - i - 1] =  x1[i]; 
-			x1[n3 + i]=     -x[i];
-			x1[n1 - i - 1] =-x1[i]; 
-		}
-		return x1;
-	}
-	
-	
-	
-	public double [] mdct_2d(double [] x){
-		return mdct_2d(x, 0, 1 << (ilog2(x.length/4)/2)); 
-	}
-
-	public double [] mdct_2d(double [] x, int mode){
-		return mdct_2d(x, mode, 1 << (ilog2(x.length/4)/2)); 
-	}
-
-	public double [] mdct_2d (double [] x, int mode, int n) { // x is 2n*2n long
-//		int n = 1 << (ilog2(x.length/4)/2);
+	// is called when window is set
+	private void set_fold_2d(int n){ // n - DCT and window size
+		if ((fold_index != null) && (fold_index.length == n*n)) return;
+		fold_index = new int[n*n][4];
+		fold_k =     new double[n*n][4];
+		int []    vert_ind = new int[2];
+		double [] vert_k = new double[2];
+		int    [] hor_ind = new int[2];
+		double [] hor_k = new double[2];
+		int [][] fi;
 		int n2 = 2*n;
-		double [] transp = new double [2*n*n];
-		double [] y =      new double [n*n];
-		double [] line2 = new double[n*2];
-		double [] line = new double[n*2];
-		// first (horizontal) pass
-		for (int i = 0; i < n2; i++){
-			System.arraycopy(x, n2*i, line2, 0, n2);
-			line = mdct_fold(line2);
-			line = ((mode & 1)!=0)? dst_iv(line):dct_iv(line);
-			for (int j=0; j < n;j++) transp[j*n2+i] =line[j]; // transpose 
+		for (int i = 0; i < n; i++ ){
+			fi = get_fold_indices(i,n);
+			vert_ind[0] = fi[0][0];
+			vert_ind[1] = fi[1][0];
+			vert_k[0] =   fi[0][2] * hwindow[fi[0][1]];
+			vert_k[1] =   fi[1][2] * hwindow[fi[1][1]];
+			for (int j = 0; j < n; j++ ){
+				fi = get_fold_indices(j,n);
+				hor_ind[0] = fi[0][0];
+				hor_ind[1] = fi[1][0];
+				hor_k[0] =   fi[0][2] * hwindow[fi[0][1]];
+				hor_k[1] =   fi[1][2] * hwindow[fi[1][1]];
+				int indx = n*i + j;
+				for (int k = 0; k<4;k++) {
+					fold_index[indx][k] = n2 * vert_ind[(k>>1) & 1] + hor_ind[k & 1];
+					fold_k[indx][k] =     vert_k[(k>>1) & 1] * hor_k[k & 1]; 
+				}
+			}
 		}
-		// second (vertical) pass
-		for (int i = 0; i < n2; i++){
-			System.arraycopy(transp, n2*i, line2, 0, n2);
-			line = mdct_fold(line2);
-			line = ((mode & 2)!=0)? dst_iv(line):dct_iv(line);
-			System.arraycopy(line, 0, y, n*i, n);
+		if (n < 16) {
+			for (int i = 0; i < n; i++ ){
+				fi = get_fold_indices(i,n);
+				System.out.println(i+"->"+String.format("[%2d % 2d % 2d] [%2d %2d %2d] %f %f",
+						fi[0][0],fi[0][1],fi[0][2],
+						fi[1][0],fi[1][1],fi[1][2], hwindow[fi[0][1]], hwindow[fi[1][1]]));
+			}
 		}
-		return y;
+		
 	}
-
-	public double [] imdct_2d(double [] x){
-		return imdct_2d(x, 1 << (ilog2(x.length)/2)); 
+	// return index+1 and sign for 1-d imdct. x is index (0..2*n-1) of the imdct array, value is sign * (idct_index+1),
+	// where idct_index (0..n-1) is index in the dct-iv array
+	private int get_unfold_index(int x, int n){
+		int n1 = n>>1;
+		int segm = x / n1;
+		x = x % n1;
+		switch (segm){
+		case 0: return 1+ (x + n1);
+		case 1: return -(n - x);
+		case 2: return -(n1 - x);
+		case 3: return -(1 + x);
+		}
+		return 0; //should never happen
 	}
-
-	public double [] imdct_2d (double [] x, int n) { // x is n*n long
+	private void set_unfold_2d(int n){ // n - DCT size
+		if ((unfold_index != null) && (unfold_index.length == 4*n*n)) return;
+		unfold_index = new int[4*n*n];
+		unfold_k = new double[4*n*n];
 		int n2 = 2*n;
-		double [] transp = new double [2*n*n];
-		double [] y =      new double [4*n*n];
-		double [] line2 = new double[n*2];
-		double [] line = new double[n*2];
-		// first (horizontal) pass
-		for (int i = 0; i < n2; i++){
-			System.arraycopy(x, n*i, line, 0, n);
-			line = dct_iv(line);
-			line2 = mdct_unfold(line);
-			for (int j=0; j < n2;j++) transp[j*n+i] =line2[j]; // transpose 
+		for (int i = 0; i < 2*n; i++ ){
+			int index_vert = get_unfold_index(i,n);
+			double k_vert = hwindow[(i < n)?i:n2 -i -1];
+			if (index_vert <0 ){
+				k_vert = -k_vert;
+				index_vert = -index_vert;
+			}
+			index_vert --;
+			index_vert *= n;
+			
+			for (int j = 0; j < 2*n; j++ ){
+				int index_hor = get_unfold_index(j,n);
+				double k_hor = hwindow[(j < n)?j:n2 -j -1];
+				if (index_hor <0 ){
+					k_hor = -k_hor;
+					index_hor = -index_hor;
+				}
+				index_hor --; // pass 1 to next
+//				unfold_index1[n2*i+j]=sgn_vert*sgn_hor*(index_vert+index_hor); // should never be 0
+				unfold_index[n2*i+j]=(index_vert+index_hor);
+				unfold_k[n2*i+j]=k_vert*k_hor;
+				
+				if (n < 16) System.out.print(String.format("%4d", unfold_index[n2*i+j]));
+				
+			}
+			if (n < 16) System.out.println();
 		}
-		// second (vertical) pass
-		for (int i = 0; i < n2; i++){
-			System.arraycopy(transp, n*i, line, 0, n);
-			line = dct_iv(line);
-			line2 = mdct_unfold(line);
-			System.arraycopy(line2, 0, y, n2*i, n2);
+		if (n < 16) {
+			for (int i = 0; i < 2*n; i++ ){
+				System.out.println(i+"->"+get_unfold_index(i,n));
+			}
 		}
-		return y;
-	}
-	
+	}	
 	
 	public double [] dttt_iv(double [] x){
 		return dttt_iv(x, 0, 1 << (ilog2(x.length)/2)); 
@@ -196,8 +234,10 @@ public class DttRad2 {
 	public void set_window(int mode, int len){
 		hwindow = new double[len];
 		double f = Math.PI/(2.0*len);
-
+		double sqrt1_2=Math.sqrt(0.5);
 		if (mode ==0){
+			for (int i = 0; i < len; i++ ) hwindow[i] = sqrt1_2;
+		} else if (mode ==1){
 			for (int i = 0; i < len; i++ ) hwindow[i] = Math.sin(f*(i+0.5));
 		} else { // add more types?
 			double s;
@@ -206,55 +246,34 @@ public class DttRad2 {
 				hwindow[i] = Math.sin(Math.PI*s*s);
 			}
 		}
+		set_fold_2d(len);
+		set_unfold_2d(len);
 	}
+	
 	// Convert 2nx2n overlapping tile to n*n for dct-iv
 	public double [] fold_tile(double [] x) { // x should be 2n*2n
 		return fold_tile(x, 1 << (ilog2(x.length/4)/2));
 	}
 	public double [] fold_tile(double [] x, int n) { // x should be 2n*2n
 		double [] y = new double [n*n];
-		for (int i = 0; i<y.length;i++) y[i] = 0;
-		int n1 = n/2;
-		int n2 = 2*n;
-		for (int tile_y_v=0; tile_y_v<2; tile_y_v++){     // 2 rows of y tiles
-			for (int tile_y_h=0; tile_y_h<2; tile_y_h++){ // 2 columns of y tiles
-				int start_y_addr = n*n1*tile_y_v + n1*tile_y_h; //atart address in the aoutput array
-				int start_x_tl_addr = (2*n*n) * (1 - tile_y_v) + n * (1 - tile_y_h); // address of the top left corner of a group of 4 tiles 
-				for (int tile_x_v=0; tile_x_v<2; tile_x_v++){     // 2 rows of x tiles (contributing to the same y tile)
-					for (int tile_x_h=0; tile_x_h<2; tile_x_h++){ // 2 columns of x tiles (contributing to the same y tile)
-						int dir_x = ((tile_y_h ^ tile_x_h) !=0)? 1 : -1;
-						int dir_y = ((tile_y_v ^ tile_x_v) !=0)? 1 : -1;
-						int start_x_addr =  start_x_tl_addr +
-								            tile_x_v * n *n + // 2n * n/2
-								            tile_x_h * n1 +
-								            ((dir_y < 0)?(n1-1)*2*n : 0)+
-								            ((dir_x < 0)?(n1-1) : 0);
-						int dir_window_vert =  (tile_x_v > 0)? -1 : +1; // same for any tile_y_*
-						int dir_window_hor =   (tile_x_h > 0)? -1 : +1;
-						int start_window_vert =  (tile_y_v > 0)? ((tile_x_v > 0)? n-1: 0 ):((tile_x_v > 0)? n1-1: n1);
-						int start_window_hor =   (tile_y_h > 0)? ((tile_x_h > 0)? n-1: 0 ):((tile_x_h > 0)? n1-1: n1);
-						
-						for (int i = 0; i < n1; i++){             // n1 rows in each y tile
-							for (int j = 0; j < n1; j++){         // n1 columns in each y tile
-								y[start_y_addr+ n*i+j] += hwindow[start_window_vert + dir_window_vert * i] *
-														  hwindow[start_window_hor +  dir_window_hor * j] *
-														  x[start_x_addr + n2 * dir_y * i + dir_x * j];
-							}
-						}
-					}
-				}
+		for (int i = 0; i<y.length;i++) {
+			y[i] = 0;
+			for (int k = 0; k < 4; k++){
+				y[i] += x[fold_index[i][k]] * fold_k[i][k];
 			}
-
 		}
 		return y;
 	}
 
 	public double [] unfold_tile(double [] x) { // x should be n*n
-		return fold_tile(x, 1 << (ilog2(x.length)/2));
+		return unfold_tile(x, 1 << (ilog2(x.length)/2));
 		
 	}
 	public double [] unfold_tile(double [] x, int n) { // x should be 2n*2n
 		double [] y = new double [4*n*n];
+		for (int i = 0; i<y.length;i++) {
+			y[i] = unfold_k[i]* x[unfold_index[i]];
+		}
 		return y;
 	}
 
@@ -398,18 +417,8 @@ public class DttRad2 {
 
 	private double [] _dctii_recurs(double[] x){
 		int n = x.length;
-		System.out.println("_dctii_recurs: n="+n);
 		if (n ==2) {
 			double [] y= {x[0]+x[1],x[0]-x[1]};
-			System.out.println("_dctii_recurs(2): "); 
-			for (int j = 0; j< n; j++){
-				System.out.print("--x["+j+"]="+x[j]+" ");
-			}		
-			System.out.println();
-			for (int j = 0; j< n; j++){
-				System.out.print("--y["+j+"]="+y[j]+" ");
-			}		
-			System.out.println();
 			return y;
 		}
 		int n1 = n >> 1;
@@ -420,29 +429,13 @@ public class DttRad2 {
 			u0[j]=            (x[j] +    x[n-j-1]);
 			u1[j]=            (x[j] -    x[n-j-1]);
 		}
-		
-		for (int j = 0; j< n1; j++){
-			System.out.println("u0["+j+"]="+u0[j]+", u1["+j+"]="+u1[j]);
-		}		
-		
-		
 		double [] v0 = _dctii_recurs(u0);
 		double [] v1 = _dctiv_recurs(u1);
-		for (int j = 0; j< n1; j++){
-			System.out.println("_dctii_recurs(): v0["+j+"]="+v0[j]+", v1["+j+"]="+v1[j]);
-		}		
-		
 		double [] y = new double[n];
 		for (int j = 0; j< n1; j++){
 			y[2*j] =     v0[j];
 			y[2*j+1] =   v1[j];
 		}
-		
-		
-		for (int j = 0; j< n; j++){
-			System.out.println("_dctii_recurs(): y["+j+"]="+y[j]);
-		}		
-		
 		return y;
 	}
 
@@ -486,4 +479,6 @@ public class DttRad2 {
 		}
 		return y;
 	}
+	
+	
 }
