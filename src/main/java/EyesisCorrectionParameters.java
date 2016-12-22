@@ -1648,30 +1648,61 @@ public class EyesisCorrectionParameters {
   		}
   	}
     public static class DCTParameters {
-  		public int dct_size =   32;
-  		public int dct_window =  0; // currently only 2 types of window - 0 and 1
+  		public int dct_size =    32; //
+  		public int asym_size =    6; //
+  		public int dct_window =   1; // currently only 3 types of windows - 0 (none), 1 and 2
+  		public int LMA_steps =  100;
+  		public double compactness = 1.0;
+  		public int dbg_x =0;
+  		public int dbg_y =0;
+  		public int dbg_x1 =0;
+  		public int dbg_y1 =0;
+  		public double dbg_sigma =2.0;
 
-  		public DCTParameters(int dct_size, int dct_window) {
-  			this.dct_size = dct_size;
+  		public DCTParameters(int dct_size, int asym_size, int dct_window, double compactness) {
+  			this.dct_size =   dct_size;
+  			this.asym_size =  asym_size;
   			this.dct_window = dct_window;
+  			this.compactness = compactness;
   		}
   		public void setProperties(String prefix,Properties properties){
   			properties.setProperty(prefix+"dct_size",this.dct_size+"");
+  			properties.setProperty(prefix+"asym_size",this.asym_size+"");
   			properties.setProperty(prefix+"dct_window",   this.dct_window+"");
+  			properties.setProperty(prefix+"compactness",  this.compactness+"");
   		}
   		public void getProperties(String prefix,Properties properties){
   			this.dct_size=Integer.parseInt(properties.getProperty(prefix+"dct_size"));
+  			this.asym_size=Integer.parseInt(properties.getProperty(prefix+"asym_size"));
   			this.dct_window=Integer.parseInt(properties.getProperty(prefix+"dct_window"));
+  			this.compactness=Integer.parseInt(properties.getProperty(prefix+"compactness"));
   		}
   		public boolean showDialog() {
   			GenericDialog gd = new GenericDialog("Set DCT parameters");
-  			gd.addNumericField("DCT size",                                   this.dct_size,     0); //2
-  			gd.addNumericField("MDCT window type (0,1,2)",                   this.dct_window,   0); //32
+  			gd.addNumericField("DCT size",                                   this.dct_size,     0); //32
+  			gd.addNumericField("Size of asymmetrical (non-DCT) kernel",      this.asym_size,    0); //6
+  			gd.addNumericField("MDCT window type (0,1,2)",                   this.dct_window,   0); //0..2
+  			gd.addNumericField("LMA_steps",                                  this.LMA_steps,    0); //0..2
+  			gd.addNumericField("compactness",                                this.compactness,  6); //0..2
+  			
+  			gd.addNumericField("dbg_x",                                      this.dbg_x,   0); //0..2
+  			gd.addNumericField("dbg_y",                                      this.dbg_y,   0); //0..2
+  			gd.addNumericField("dbg_x1",                                     this.dbg_x1,  0); //0..2
+  			gd.addNumericField("dbg_y1",                                     this.dbg_y1,  0); //0..2
+  			gd.addNumericField("dbg_sigma",                                  this.dbg_sigma, 3); //0..2
   			//  	    gd.addNumericField("Debug Level:",                          MASTER_DEBUG_LEVEL,      0);
   			gd.showDialog();
   			if (gd.wasCanceled()) return false;
-  			this.dct_size=   (int) gd.getNextNumber();
-  			this.dct_window=       (int) gd.getNextNumber();
+  			this.dct_size=        (int) gd.getNextNumber();
+  			this.asym_size=       (int) gd.getNextNumber();
+  			this.dct_window=      (int) gd.getNextNumber();
+  			this.LMA_steps =      (int) gd.getNextNumber();
+  			this.compactness =          gd.getNextNumber();
+  			this.dbg_x=           (int) gd.getNextNumber();
+  			this.dbg_y=           (int) gd.getNextNumber();
+  			this.dbg_x1=          (int) gd.getNextNumber();
+  			this.dbg_y1=          (int) gd.getNextNumber();
+  			this.dbg_sigma=             gd.getNextNumber();
   			//  	    MASTER_DEBUG_LEVEL= (int) gd.getNextNumber();
   			return true;
   		}  

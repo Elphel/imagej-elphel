@@ -71,7 +71,7 @@ public class DttRad2 {
 		double [] xr= new double[x.length];
 		int j= x.length-1;
 		for (int i=0; i < x.length;i++) xr[i] = x[j--];		
-		double [] y=  _dctiv_recurs(x);
+		double [] y=  _dctiv_recurs(xr);
 		double scale = 1.0/Math.sqrt(x.length);
 		for (int i = 0; i < y.length ; i++) {
 			y[i] *= scale;
@@ -224,6 +224,30 @@ public class DttRad2 {
 		}
 		return y;
 	}
+	
+	public double [] dttt_ii(double [] x){
+		return dttt_iv(x, 0, 1 << (ilog2(x.length)/2)); 
+	}
+
+	public double [] dttt_ii(double [] x, int n){
+		double [] y = new double [n*n];
+		double [] line = new double[n];
+		// first (horizontal) pass
+		for (int i = 0; i<n; i++){
+			System.arraycopy(x, n*i, line, 0, n);
+			line = dctii_direct(line);
+			for (int j=0; j < n;j++) y[j*n+i] =line[j]; // transpose 
+		}
+		// second (vertical) pass
+		for (int i = 0; i<n; i++){
+			System.arraycopy(y, n*i, line, 0, n);
+			line = dctii_direct(line);
+			System.arraycopy(line, 0, y, n*i, n);
+		}
+		return y;
+	}
+
+	
 	
 	public void set_window(){
 		set_window(0);
@@ -401,7 +425,7 @@ public class DttRad2 {
 					SIV[t][j][k] = SIV[t][k][j];  
 				}
 				for (int k = j; k<n; k++){
-					SIV[t][j][k] = scale *  Math.cos((2*j+1)*(2*k+1)*pi_4n);
+					SIV[t][j][k] = scale *  Math.sin((2*j+1)*(2*k+1)*pi_4n);
 				}
 			}
 		}
