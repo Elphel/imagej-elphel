@@ -2835,8 +2835,8 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         factorConvKernel.setDebugLevel(DEBUG_LEVEL);
         factorConvKernel.numIterations = DCT_PARAMETERS.LMA_steps;
         factorConvKernel.setCompactnessWeight(DCT_PARAMETERS.compactness);
-        
-        int target_kernel_size = 2*DCT_PARAMETERS.dct_size + DCT_PARAMETERS.asym_size -1;
+////        int target_kernel_size = 2*DCT_PARAMETERS.dct_size + DCT_PARAMETERS.asym_size -1;
+        int target_kernel_size = 2*DCT_PARAMETERS.dct_size + DCT_PARAMETERS.asym_size -2;
         double [] target_kernel = new double [target_kernel_size * target_kernel_size];
         for (int ii=0; ii < target_kernel.length; ii++) target_kernel[ii]=0.0;
 //        for (int ii = -2; ii<=2; ii++) {

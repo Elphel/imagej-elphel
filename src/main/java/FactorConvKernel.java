@@ -150,8 +150,8 @@ public class FactorConvKernel {
 	private double [] setInitialVector(
 			double [] target_kernel) // should be (asym_size + 2*sym_radius-1)**2
 	{
-		int conv_size = asym_size + 2*sym_radius-1;
-//		int sym_size = 2*sym_radius - 1;
+//		int conv_size = asym_size + 2*sym_radius-1;
+		int conv_size = asym_size + 2*sym_radius-2;
 		int sym_rad_m1 = sym_radius - 1; // 7
 		// find center of the target kernel squared value
 		double s0=0.0,sx=0.0,sy=0.0;
@@ -170,7 +170,8 @@ public class FactorConvKernel {
 		int j0= (int) Math.round(sx/s0 - sym_rad_m1); // should be ~ async_center 
 		int i0= (int) Math.round(sy/s0 - sym_rad_m1); // should be ~ async_center
 		if (debugLevel>1){
-			System.out.println("setInitialVector(): fi0 = "+(sy/s0 - sym_radius)+" fj0 = "+(sx/s0 - sym_radius));
+			System.out.println("setInitialVector(): conv_size = "+conv_size+" fj0 = "+(sx/s0 - sym_radius));
+			System.out.println("setInitialVector(): fi0 = "+(sy/s0 - sym_radius)+" asym_size = "+asym_size+" sym_radius = "+sym_radius);
 			System.out.println("setInitialVector(): i0 = "+i0+" j0 = "+j0 + " asym_size="+asym_size);
 		}
 		// fit i0,j0 to asym_kernel (it should be larger)
@@ -245,10 +246,12 @@ public class FactorConvKernel {
 	private double [] convKernels(
 		double [] kvect) // first - all elements of sym kernel but [0] (replaced by 1.0), then - asym ones
 		{
-		int conv_size = asym_size + 2*sym_radius-1;
-		double [] conv_data = new double [conv_size*conv_size];
-//		int asym_start= (2 * sym_radius - 1) * (2 * sym_radius - 1)-1;
+////		int conv_size = asym_size + 2*sym_radius-1;
+		int conv_size = asym_size + 2*sym_radius-2;
 		int asym_start=  sym_radius * sym_radius - 1;
+		int sym_radius_m1 = sym_radius -1;
+		double [] conv_data = new double [conv_size*conv_size];
+
 		if (this.debugLevel>2){
 			System.out.println("convKernels(): vector_length=    "+kvect.length);
 			System.out.println("convKernels(): sym_radius=       "+sym_radius);
@@ -258,14 +261,15 @@ public class FactorConvKernel {
 			System.out.println("convKernels(): asym_start=       "+asym_start);
 		}
 		for (int i = 0; i < conv_data.length; i++) conv_data[i] = 0.0;
-		for (int i = -sym_radius+1; i < sym_radius; i++) {
-			for (int j = -sym_radius+1; j < sym_radius; j++) {
+		for (int i = -sym_radius_m1; i <= sym_radius_m1; i++) {
+			for (int j = -sym_radius_m1; j <= sym_radius_m1; j++) {
 				int indx = ((i < 0)? -i : i) * sym_radius + ((j < 0)? -j : j);
 				double sd = (indx >0)? kvect[indx -1] : 1.0;
-				int base_indx = conv_size * (i + sym_radius -1) + (j + sym_radius -1);  
+				int base_indx = conv_size * (i + sym_radius_m1) + (j + sym_radius_m1);  
 				for (int ia=0; ia < asym_size; ia++) {
 					for (int ja=0; ja < asym_size; ja++) {
-						conv_data[base_indx + conv_size * ia + ja] += sd* kvect[asym_size * ia + ja + asym_start];
+						int async_index = asym_size*ia + ja + asym_start;
+						conv_data[base_indx + conv_size * ia + ja] += sd* kvect[async_index];
 					}
 				}
 			}
@@ -316,14 +320,15 @@ public class FactorConvKernel {
 	private double [][] getJacobian(
 			double [] kvect)
 	{
-		int conv_size =       asym_size + 2*sym_radius-1;
-//		int asym_start =     (2 * sym_radius - 1) * (2 * sym_radius - 1)-1;
+		////	int conv_size = asym_size + 2*sym_radius-1;
+		int conv_size = asym_size + 2*sym_radius-2;
 		int asym_start=  sym_radius * sym_radius - 1;
+		int sym_radius_m1 = sym_radius -1;
 		double cw = getCompactWeight();
 		double [][] jacob = new double [kvect.length][conv_size*conv_size + asym_size*asym_size];
 		int asym_terms_start=conv_size*conv_size;
-		for (int i = -sym_radius+1; i < sym_radius; i++) {
-			for (int j = -sym_radius+1; j < sym_radius; j++) {
+		for (int i = -sym_radius_m1; i <= sym_radius_m1; i++) {
+			for (int j = -sym_radius_m1; j <=sym_radius_m1; j++) {
 				int indx = ((i < 0)? -i : i) * sym_radius + ((j < 0)? -j : j);
 				double sd = (indx >0)? kvect[indx -1] : 1.0;
 				int base_indx = conv_size * (i + sym_radius -1) + (j + sym_radius -1);  
@@ -333,8 +338,6 @@ public class FactorConvKernel {
 						int conv_index = base_indx + conv_size * ia + ja;
 						if (indx > 0) jacob[indx-1][conv_index] += kvect[async_index];
 						jacob[async_index][conv_index] += sd;
-//						conv_data[base_indx + conv_size * ia + ja] += sd* kvect[asym_size * ia + ja + asym_start];
-
 					}
 				}
 			}
@@ -382,8 +385,9 @@ public class FactorConvKernel {
 				jTByDiff[i] += jacob[i][k]*(target_kernel[k]-conv_data[k]);
 			}
 		}
+////	int conv_size = asym_size + 2*sym_radius-1;
+		int conv_size = asym_size + 2*sym_radius-2;
 		int asym_start=       sym_radius * sym_radius - 1;
-		int conv_size =       asym_size + 2*sym_radius-1;
 		int asym_terms_start= conv_size*conv_size;
 		double cw = getCompactWeight();
 		for (int ia=0; ia <asym_size;ia++){
