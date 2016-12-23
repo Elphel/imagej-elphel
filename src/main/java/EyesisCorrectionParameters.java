@@ -1652,6 +1652,7 @@ public class EyesisCorrectionParameters {
   		public int asym_size =    6; //
   		public int dct_window =   1; // currently only 3 types of windows - 0 (none), 1 and 2
   		public int LMA_steps =  100;
+  		public double fact_precision=0.003; // stop iterations if error rms less than this part of target kernel rms
   		public double compactness = 1.0;
   		public int asym_tax_free  = 1; // "compactness" does not apply to pixels with |x|<=asym_tax_free  and |y| <= asym_tax_free  
   		public double dbg_x =0;
@@ -1672,6 +1673,7 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"asym_size",this.asym_size+"");
   			properties.setProperty(prefix+"dct_window",   this.dct_window+"");
   			properties.setProperty(prefix+"compactness",  this.compactness+"");
+  			properties.setProperty(prefix+"fact_precision",  this.fact_precision+"");
   			properties.setProperty(prefix+"asym_tax_free",  this.asym_tax_free+"");
 
   			properties.setProperty(prefix+"dbg_x",      this.dbg_x+"");
@@ -1686,6 +1688,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"asym_size")!=null) this.asym_size=Integer.parseInt(properties.getProperty(prefix+"asym_size"));
   			if (properties.getProperty(prefix+"dct_window")!=null) this.dct_window=Integer.parseInt(properties.getProperty(prefix+"dct_window"));
   			if (properties.getProperty(prefix+"compactness")!=null) this.compactness=Double.parseDouble(properties.getProperty(prefix+"compactness"));
+  			if (properties.getProperty(prefix+"fact_precision")!=null) this.fact_precision=Double.parseDouble(properties.getProperty(prefix+"fact_precision"));
   			if (properties.getProperty(prefix+"asym_tax_free")!=null) this.asym_tax_free=Integer.parseInt(properties.getProperty(prefix+"asym_tax_free"));
   			
   			if (properties.getProperty(prefix+"dbg_x")!=null) this.dbg_x=Double.parseDouble(properties.getProperty(prefix+"dbg_x"));
@@ -1701,6 +1704,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("MDCT window type (0,1,2)",                   this.dct_window,   0); //0..2
   			gd.addNumericField("LMA_steps",                                  this.LMA_steps,    0); //0..2
   			gd.addNumericField("Compactness (punish off-center asym_kernel pixels (proportional to r^2)", this.compactness,  2); //0..2
+  			gd.addNumericField("Factorization target precision (stop if achieved)", this.fact_precision,  4); //0..2
   			gd.addNumericField("Do not punish pixels in the square around center", this.asym_tax_free,  0); //0..2
   			
   			gd.addNumericField("dbg_x",                                      this.dbg_x,   2); //0..2
@@ -1716,6 +1720,7 @@ public class EyesisCorrectionParameters {
   			this.dct_window=      (int) gd.getNextNumber();
   			this.LMA_steps =      (int) gd.getNextNumber();
   			this.compactness =          gd.getNextNumber();
+  			this.fact_precision =          gd.getNextNumber();
   			this.asym_tax_free =  (int) gd.getNextNumber();
   			this.dbg_x=                 gd.getNextNumber();
   			this.dbg_y=                 gd.getNextNumber();

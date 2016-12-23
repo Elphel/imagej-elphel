@@ -2877,8 +2877,9 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
     	boolean result = factorConvKernel.calcKernels(
     			target_expanded,
     			DCT_PARAMETERS.asym_size,
-    			DCT_PARAMETERS.dct_size);
-    	System.out.println("factorConvKernel.calcKernels() returned"+result);
+    			DCT_PARAMETERS.dct_size,
+    			DCT_PARAMETERS.fact_precision);
+    	System.out.println("factorConvKernel.calcKernels() returned: >>> "+result+ " <<<");
         double [] sym_kernel =  factorConvKernel.getSymKernel();
         double [] asym_kernel = factorConvKernel.getAsymKernel();
         double [] convolved =   factorConvKernel.getConvolved();

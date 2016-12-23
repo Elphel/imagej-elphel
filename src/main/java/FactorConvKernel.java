@@ -27,12 +27,24 @@ import Jama.LUDecomposition;
 import Jama.Matrix;
 import ij.IJ;
 
+/*
+ * TODO: Add options for rotation-symmetrical (2-fold) kernels (with the same center as the symmetrical one for DCT) and a
+ * sub-pixel shift (4 (2x2) pixel kernel. As the target kernel is rather smooth, half-pixel shift widening can be absorbed
+ * by corresponding "sharpening" of the symmetrical kernel.
+ * 
+ * Try to minimize (or limit) the number of non-zero elements of asymmetrical kernels - they are convolved directly with the
+ * Bayer mosaic data.
+ * 1. Do as now, then select N of the highest absolute value asymmetrical elements, mask out (and zero) all others
+ * 2. Optionally try to improve: Remove some from step 1, then add one-by-one: select from neighbors (or neighbors of neighbors?)
+ * add the one that gets the best improvement 
+ */
+
+
 public class FactorConvKernel {
 	public int asym_size =           6;
 	public int sym_radius =          8; // 2*2^n  - for DCT
-	public double[]  target_kernel = null; // should be expanded to 2*(sym_radius)+asym_size- 1 in each direction 
-//	public double[]  asym_kernel =   null;
-//	public double[]  sym_kernel =    null;
+	public double[]  target_kernel = null; // should be expanded to 2*(sym_radius)+asym_size- 1 in each direction
+	public double    target_rms;   // Target kernel rma (to compare with residual error)
 	public int       debugLevel =    3;
 	public double    init_lambda =   0.001;
 	
@@ -98,11 +110,12 @@ public class FactorConvKernel {
 	public boolean calcKernels(
 			double []target_kernel,
 			int asym_size,
-			int sym_radius){
+			int sym_radius,
+			double fact_precision){
 		this.asym_size = asym_size;
 		this.sym_radius =  sym_radius;
 		this.target_kernel = target_kernel;
-		return levenbergMarquardt();
+		return levenbergMarquardt(fact_precision);
 	}
 	
 	public double [] getSymKernel(){
@@ -114,7 +127,9 @@ public class FactorConvKernel {
 	}
 
 	public double [] getConvolved(){ // check that it matches original
-		return this.currentfX;
+		double [] convolved = new double [target_kernel.length];
+		System.arraycopy(currentfX, 0, convolved, 0, convolved.length);
+		return convolved;
 	}
 	
 	public void setDebugLevel(int debugLevel){
@@ -174,8 +189,6 @@ public class FactorConvKernel {
 				scy += d*(i-sym_rad_m1-asym_size/2);
 			}
 		}
-//		int async_center = asym_size / 2; // will be 2 for 5x5 and 3 for 6x6 - more room in negative
-		
 		
 		int j0= (int) Math.round(sx/s0 - sym_rad_m1); // should be ~ async_center 
 		int i0= (int) Math.round(sy/s0 - sym_rad_m1); // should be ~ async_center
@@ -188,8 +201,6 @@ public class FactorConvKernel {
 			System.out.println("setInitialVector(): fi0 = "+(sy/s0 - sym_rad_m1)+" i0 = "+i0 );
 		}
 		// fit i0,j0 to asym_kernel (it should be larger)
-//		i0 += asym_size/2; 
-//		j0 += asym_size/2;
 		if ((i0<0) || (i0>=asym_size) || (i0<0) || (i0>=asym_size)){
 			System.out.println("Warning: kernel center too far : i="+(i0 - asym_size/2)+", j= "+(j0 - asym_size/2));
 			if (i0 <  0) i0=0;
@@ -210,9 +221,6 @@ public class FactorConvKernel {
 			}
 		}
 		
-		
-		//		i0 -= asym_size/2;  
-//		j0 -= asym_size/2;
 		double [] sym_kernel = new double [sym_radius * sym_radius];
 		int []    sym_kernel_count = new int [sym_radius * sym_radius];
 		for (int i = 0; i < sym_kernel.length; i++){
@@ -256,81 +264,91 @@ public class FactorConvKernel {
 		return kvect;
 	}
 
-	private double [] convKernels(
-		double [] kvect) // first - all elements of sym kernel but [0] (replaced by 1.0), then - asym ones
-		{
-		int conv_size = asym_size + 2*sym_radius-2;
-		int asym_start=  sym_radius * sym_radius - 1;
-		int sym_radius_m1 = sym_radius -1;
-		double [] conv_data = new double [conv_size*conv_size];
-
-		if (this.debugLevel>2){
-			System.out.println("convKernels(): vector_length=    "+kvect.length);
-			System.out.println("convKernels(): sym_radius=       "+sym_radius);
-			System.out.println("convKernels(): asym_size=        "+asym_size);
-			System.out.println("convKernels(): conv_size=        "+conv_size);
-			System.out.println("convKernels(): conv_data.length= "+conv_data.length);
-			System.out.println("convKernels(): asym_start=       "+asym_start);
+	private double [] getDerivDelta( // calcualte approximate partial derivative as delta
+			double [] kvect,      // parameters vector
+			int indx,             // index of parameter to calculate approximate derivative
+			double delta
+			){
+		double [] kvect_inc = kvect.clone(); 
+		double [] fx = getFX( kvect);
+		kvect_inc[indx] += delta;
+		double [] fx1 = getFX( kvect_inc);
+		for (int i = 0; i < fx.length; i++){
+			fx[i] = (fx1[i]-fx[i])/delta;
 		}
-		for (int i = 0; i < conv_data.length; i++) conv_data[i] = 0.0;
-		for (int i = -sym_radius_m1; i <= sym_radius_m1; i++) {
-			for (int j = -sym_radius_m1; j <= sym_radius_m1; j++) {
-				int indx = ((i < 0)? -i : i) * sym_radius + ((j < 0)? -j : j);
-				double sd = (indx >0)? kvect[indx -1] : 1.0;
-				int base_indx = conv_size * (i + sym_radius_m1) + (j + sym_radius_m1);  
-				for (int ia=0; ia < asym_size; ia++) {
-					for (int ja=0; ja < asym_size; ja++) {
-						int async_index = asym_size*ia + ja + asym_start;
-						conv_data[base_indx + conv_size * ia + ja] += sd* kvect[async_index];
+		return fx;
+	}
+	
+	public double [] compareDerivative(
+			int indx,
+			double delta,          // value to increment parameter by for derivative calculation
+			boolean verbose){
+		double [] rslt = {0.0,0.0};
+		double [][] jacob = getJacobian(this.currentVector);
+		double [] deriv = getDerivDelta(this.currentVector, indx, delta);
+		double [] fx = getFX(this.currentVector);
+		for (int i = 0; i< fx.length; i++) {
+			if (verbose) {
+				System.out.println(i+": "+(jacob[indx][i]-deriv[i])+ " jacob["+indx+"]["+i+"] = "+jacob[indx][i]+
+						" deriv["+i+"]="+deriv[i]+" f["+i+"]="+fx[i]);
+			}
+			rslt[0]+=(jacob[indx][i]-deriv[i])*(jacob[indx][i]-deriv[i]);
+			rslt[1]+=jacob[indx][i]*jacob[indx][i];
+		}
+		rslt[0] = Math.sqrt(rslt[0]/fx.length);
+		rslt[1] = Math.sqrt(rslt[1]/fx.length);
+		System.out.println("rms(jacob["+indx+"][]) = "+rslt[1]+", rms(diff) = "+rslt[0]);
+		return rslt;
+	}
+	
+	private double [] getFX(
+			double [] kvect) // first - all elements of sym kernel but [0] (replaced by 1.0), then - asym ones
+			{
+			int conv_size =       asym_size + 2*sym_radius-2;
+			int asym_start=       sym_radius * sym_radius - 1;
+			int sym_radius_m1 =   sym_radius -1;
+			int asym_terms_start= conv_size*conv_size;
+			double cw =           getCompactWeight();
+
+			double [] fx = new double [conv_size*conv_size+asym_size*asym_size];
+
+			if (this.debugLevel>2){
+				System.out.println("fx(): vector_length=    "+kvect.length);
+				System.out.println("fx(): sym_radius=       "+sym_radius);
+				System.out.println("fx(): asym_size=        "+asym_size);
+				System.out.println("fx(): conv_size=        "+conv_size);
+				System.out.println("fx(): fx.length= "+fx.length);
+				System.out.println("fx(): asym_start=       "+asym_start);
+			}
+			for (int i = 0; i < fx.length; i++) fx[i] = 0.0;
+			for (int i = -sym_radius_m1; i <= sym_radius_m1; i++) {
+				for (int j = -sym_radius_m1; j <= sym_radius_m1; j++) {
+					int indx = ((i < 0)? -i : i) * sym_radius + ((j < 0)? -j : j);
+					double sd = (indx >0)? kvect[indx -1] : 1.0;
+					int base_indx = conv_size * (i + sym_radius_m1) + (j + sym_radius_m1);  
+					for (int ia=0; ia < asym_size; ia++) {
+						for (int ja=0; ja < asym_size; ja++) {
+							int async_index = asym_size*ia + ja + asym_start;
+							fx[base_indx + conv_size * ia + ja] += sd* kvect[async_index];
+						}
 					}
 				}
 			}
-		}
-		return conv_data;
-	}
-
-	private double getRms(
-			double [] conv_data,
-			double [] target_kernel){
-		double rms = 0;
-		for (int i=0; i < conv_data.length; i++){
-			double d = target_kernel[i] - conv_data[i]; 
-			rms += d * d;
-		}
-		return Math.sqrt(rms/conv_data.length);
-	}
-
-	private double getCompactRms(double [] kvect){ // uses global compactness_weight, sym_kernel_scale, center_i0, center_j0 and asym_kernel
-		double cw = getCompactWeight();
-		double rms = 0;
-		int indx = sym_radius * sym_radius -1;
-		for (int ia=0; ia <asym_size;ia++){
-			for (int ja=0;ja< asym_size;ja++){
-				int ir2 = (ia-center_i0)*(ia-center_i0)+(ja-center_j0)*(ja-center_j0);
-				if ((ia - center_i0 <= asym_tax_free) &&
-					(center_i0 - ia <= asym_tax_free) &&
-					(ja - center_j0 <= asym_tax_free) &&
-					(center_j0 - ja <= asym_tax_free)) ir2 = 0;
-				double d = kvect[indx++]*ir2; 
-			rms += d * d;
+			for (int ia=0; ia <asym_size;ia++){
+				for (int ja=0;ja< asym_size;ja++){
+					int async_index = asym_size*ia + ja;
+					int ir2 = (ia-center_i0)*(ia-center_i0)+(ja-center_j0)*(ja-center_j0);
+					if ((ia - center_i0 <= asym_tax_free) &&
+							(center_i0 - ia <= asym_tax_free) &&
+							(ja - center_j0 <= asym_tax_free) &&
+							(center_j0 - ja <= asym_tax_free)) ir2 = 0;
+					fx[async_index+asym_terms_start] = ir2 * cw* kvect[asym_start + async_index];
+				}
 			}
-		}
-//		return cw*Math.sqrt(rms)/(asym_size*asym_size); // square for area, another - to normalize by r^2
-		return cw*Math.sqrt(rms)/asym_size; // square for area, another - to normalize by r^2
-	}
-	
-/*
-		int sym_len= sym_radius * sym_radius;
-		double [] asym_kernel = new double [asym_size*asym_size];
-		int indx = sym_radius * sym_radius -1;
-		for (int i =0; i<  asym_kernel.length; i++) asym_kernel[i] = scale * kvect[indx++];
-		if (debugLevel>1){
-			System.out.println("getAsymKernel(): asym_kernel.length="+asym_kernel.length);
+			return fx;
 		}
 	
- */
 	private double getCompactWeight(){
-//		return compactness_weight*sym_kernel_scale/(asym_size*asym_size); // use
 		return compactness_weight*sym_kernel_scale; // (asym_size*asym_size*asym_size*asym_size); // use
 	}
 
@@ -394,34 +412,42 @@ public class FactorConvKernel {
 	private double [] getJTByDiff(
 			double [][] jacob,       // jacobian
 			double [] target_kernel, // target kernel
-			double [] conv_data,     // current convolution result of async_kernel (*) sync_kernel
+			double [] fx,            // current convolution result of async_kernel (*) sync_kernel, extended by asym_kernel components
 			double [] kvect          // parameter vector - used asym values
 			){
 		double [] jTByDiff = new double [jacob.length];
 		for (int i=0; i < jTByDiff.length; i++){
 			jTByDiff[i] = 0;
-			for (int k=0; k< target_kernel.length; k++){
-				jTByDiff[i] += jacob[i][k]*(target_kernel[k]-conv_data[k]);
+			for (int k = 0; k< target_kernel.length; k++){
+				jTByDiff[i] += jacob[i][k]*(target_kernel[k]-fx[k]);
 			}
-		}
-		int conv_size = asym_size + 2*sym_radius-2;
-		int asym_start=       sym_radius * sym_radius - 1;
-		int asym_terms_start= conv_size*conv_size;
-		double cw = getCompactWeight();
-		for (int ia=0; ia <asym_size;ia++){
-			for (int ja=0;ja< asym_size;ja++){
-				int async_index = asym_size*ia + ja;
-				int ir2 = (ia-center_i0)*(ia-center_i0)+(ja-center_j0)*(ja-center_j0);
-				if ((ia - center_i0 <= asym_tax_free) &&
-						(center_i0 - ia <= asym_tax_free) &&
-						(ja - center_j0 <= asym_tax_free) &&
-						(center_j0 - ja <= asym_tax_free)) ir2 = 0;
-				jTByDiff[async_index + asym_start] += jacob[async_index + asym_start][async_index+asym_terms_start]*
-						ir2 * cw* kvect[asym_start + async_index];
+			for (int k = target_kernel.length; k< fx.length; k++){
+				jTByDiff[i] += jacob[i][k]*(-fx[k]);
 			}
+
 		}
-		
+
 		return jTByDiff;
+	}
+	private double[] getDiffByDiff(
+			double [] target_kernel, // target kernel
+			double [] fx,            // current convolution result of async_kernel (*) sync_kernel, extended async kernel components
+			double [] kvect          // parameter vector - used asym values
+			){
+		double [] diffByDiff = {0.0,0.0};
+		for (int k=0; k< target_kernel.length; k++){
+			double d = target_kernel[k]-fx[k];
+			diffByDiff[0] += d*d;
+		}
+		diffByDiff[1] = diffByDiff[0]; // actual squared error, without compactness 
+		for (int k=target_kernel.length; k< fx.length; k++){
+			double d = fx[k];
+			diffByDiff[0] += d*d;
+		}
+		if (this.debugLevel > 2){
+			System.out.println("getDiffByDiff: diffByDiff[0]="+diffByDiff[0]+" diffByDiff[1]="+diffByDiff[1]);
+		}
+		return diffByDiff;
 	}
 
 	private double [] solveLMA(
@@ -463,18 +489,25 @@ public class FactorConvKernel {
 		return Ma.getColumnPackedCopy();
 	}
 
-	private boolean levenbergMarquardt(){
+	private boolean levenbergMarquardt(double fact_precision){
+		double goal_rms_pure; // ext if pure error rms is smaller (or stoped/failed to improve)
+		double s = 0.0;
+		for (int i = 0; i<target_kernel.length; i++){
+			s+= target_kernel[i]*target_kernel[i];
+		}
+		goal_rms_pure = Math.sqrt(s/target_kernel.length)*fact_precision;
+				
     	this.startTime=System.nanoTime();
     	this.firstRMS=-1; //undefined
     	this.currentVector = setInitialVector(target_kernel); // should be (asym_size + 2*sym_radius-1)**2
     	if (this.numIterations < 0){
-    		this.currentfX=convKernels  (this.currentVector); // to be able to read back
+			this.currentfX=getFX  (this.currentVector);			
             return true;    		
     	}
     	
     	
     	while (true) { // loop for the same series
-    		boolean [] state=stepLevenbergMarquardtFirst();
+    		boolean [] state=stepLevenbergMarquardtFirst(goal_rms_pure);
     		if (this.debugLevel>1) System.out.println(this.iterationStepNumber+": stepLevenbergMarquardtFirst()==>"+state[1]+":"+state[0]);
     		//    		boolean cont=true;
     		// Make it success if this.currentRMS<this.firstRMS even if LMA failed to converge
@@ -516,11 +549,30 @@ public class FactorConvKernel {
     	if (this.debugLevel>0) System.out.println("LevenbergMarquardt(): RMS="+this.currentRMS+
     			" ("+this.firstRMS+") "+
     			") at "+ IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3));
+    	if (this.debugLevel>2) {
+    		double worstRatio = 0;
+    		int worstIndex = -1;
+    		for (int i = 0; i<currentVector.length;i++) {
+    			double [] r=compareDerivative(
+    					i,
+    					0.0000001, // delta,          // value to increment parameter by for derivative calculation
+    					false); // verbose)
+    			if (r[1] > 0){
+    				if (r[0]/r[1] > worstRatio){
+    					worstRatio = r[0]/r[1];
+    					worstIndex = i;
+    				}
+    				
+    			}
+    		}
+    		System.out.println("rms(relative diff["+worstIndex+"]) = "+worstRatio);
+    	}
     	return true; // all series done
     }
 	
-	private boolean [] stepLevenbergMarquardtFirst(){
+	private boolean [] stepLevenbergMarquardtFirst(double goal_rms_pure){
 		double [] deltas=null;
+		double [] rmses; // [0]: full rms, [1]:pure rms
 		if (this.currentVector==null) {
 			this.currentRMS=-1;
 			this.currentRMSPure=-1;
@@ -537,9 +589,9 @@ public class FactorConvKernel {
 				System.out.println(i+": "+ this.currentVector[i]);
 			}
 		}
-		//    	if ((this.currentfX==null)|| ((this.jacobian==null) && !this.threadedLMA )) {
 		if ((this.currentfX==null)|| (this.lMAArrays==null)) {
-			this.currentfX=convKernels  (this.currentVector); // first - all elements of sym kernel but [0] (replaced by 1.0), then - asym ones
+			this.currentfX=getFX  (this.currentVector);			
+			
 			this.jacobian = getJacobian (this.currentVector);
 			this.lMAArrays= new LMAArrays();
 			lMAArrays.jTByJ=getJTByJ(
@@ -550,12 +602,18 @@ public class FactorConvKernel {
 					this.currentfX,      // current convolution result of async_kernel (*) sync_kernel
 					this.currentVector); // used to control compactness of asym_kernel
 
-
-			this.currentRMSPure= getRms(this.currentfX,this.target_kernel);
-///			this.currentRMS=     getCompactRms(this.currentVector) + this.currentRMSPure;
-			double compactRMS = getCompactRms(this.currentVector);
-			this.currentRMS= Math.sqrt((compactRMS * asym_size*asym_size + 
-					(currentRMSPure)*(currentRMSPure)*target_kernel.length)/(asym_size*asym_size+target_kernel.length));
+			rmses = getDiffByDiff(
+					this.target_kernel, // target kernel
+					this.currentfX,     // current convolution result of async_kernel (*) sync_kernel
+					this.currentVector);
+			this.currentRMSPure=  Math.sqrt(rmses[1] / target_kernel.length);
+			this.currentRMS =     Math.sqrt(rmses[0] / (asym_size*asym_size+target_kernel.length));
+			if (debugLevel > 1){
+				System.out.println("currentRMSPure= "+ currentRMSPure + " getDiffByDiff[1] = "+Math.sqrt(getDiffByDiff(
+					this.target_kernel, // target kernel
+					this.currentfX,     // current convolution result of async_kernel (*) sync_kernel
+					this.currentVector)[1] / target_kernel.length));
+			}
 			
 			if (this.debugLevel>1) {
 				System.out.println("initial RMS="+IJ.d2s(this.currentRMS,8)+
@@ -563,14 +621,22 @@ public class FactorConvKernel {
 						". Calculating next Jacobian. Points:"+this.target_kernel.length+" Parameters:"+this.currentVector.length);
 			}
 		} else {
-			this.currentRMSPure= getRms(this.currentfX,this.target_kernel); 
-//			this.currentRMS=     getCompactRms(this.currentVector) + this.currentRMSPure;
-			double compactRMS = getCompactRms(this.currentVector);
-			this.currentRMS= Math.sqrt((compactRMS * asym_size*asym_size + 
-					(currentRMSPure)*(currentRMSPure)*target_kernel.length)/(asym_size*asym_size+target_kernel.length));
+			rmses = getDiffByDiff(
+					this.target_kernel, // target kernel
+					this.currentfX,     // current convolution result of async_kernel (*) sync_kernel
+					this.currentVector);
+			this.currentRMSPure=  Math.sqrt(rmses[1] / target_kernel.length);
+			this.currentRMS =     Math.sqrt(rmses[0] / (asym_size*asym_size+target_kernel.length));
+			
+			if (debugLevel > 2){
+				System.out.println("this.currentRMS=" + this.currentRMS+ " getDiffByDiff[1] = "+Math.sqrt(getDiffByDiff(
+					this.target_kernel, // target kernel
+					this.currentfX,     // current convolution result of async_kernel (*) sync_kernel
+					this.currentVector)[1] / target_kernel.length));
+			}
+			
 			
 		}
-		//		this.currentRMS= calcError(calcYminusFx(this.currentfX));
 		if (this.firstRMS<0) {
 			this.firstRMS=this.currentRMS;
     		this.firstRMSPure=this.currentRMSPure;
@@ -603,15 +669,10 @@ public class FactorConvKernel {
 			}
 		}
 
-		//        this.savedJacobian=this.jacobian;
 		this.savedLMAArrays=lMAArrays.clone();
 		this.jacobian=null; // not needed, just to catch bugs
-		// calculate next vector and Jacobian  (this.jacobian)  	
-		//    	this.nextfX=calculateFxAndJacobian(this.nextVector,true); //=========== OLD
-
-		//	    	this.nextfX=calculateFxAndJacobian(this.nextVector,true);
-		//			this.lMAArrays=calculateJacobianArrays(this.nextfX);
-		this.nextfX=convKernels(this.nextVector);
+		this.nextfX=getFX  (this.nextVector);			
+		
 		this.jacobian = getJacobian(this.currentVector);
 
 		this.lMAArrays= new LMAArrays();
@@ -622,15 +683,21 @@ public class FactorConvKernel {
 				this.target_kernel,    // target kernel to factor
 				this.nextfX,           // next convolution result of async_kernel (*) sync_kernel
 				this.nextVector);      // used to control compactness of asym_kernel
-				
 
-		this.nextRMSPure= getRms(this.nextfX,this.target_kernel); 
-//		this.nextRMS=     getCompactRms(this.nextVector) + this.nextRMSPure;
+		rmses = getDiffByDiff(
+				this.target_kernel, // target kernel
+				this.nextfX,     // current convolution result of async_kernel (*) sync_kernel
+				this.nextVector);
+		this.nextRMSPure=  Math.sqrt(rmses[1] / target_kernel.length);
+		this.nextRMS =     Math.sqrt(rmses[0] / (asym_size*asym_size+target_kernel.length));
 
-		double nextCompactRMS = getCompactRms(this.currentVector);
-		this.nextRMS= Math.sqrt((nextCompactRMS * asym_size*asym_size + 
-				(nextRMSPure)*(nextRMSPure)*target_kernel.length)/(asym_size*asym_size+target_kernel.length));
-
+		if (debugLevel > 2){
+			System.out.println("nextRMSPure= "+ nextRMSPure + " target_kernel.length = "+target_kernel.length+" getDiffByDiff[1] = "+Math.sqrt(getDiffByDiff(
+				this.target_kernel, // target kernel
+				this.nextfX,     // current convolution result of async_kernel (*) sync_kernel
+				this.nextVector)[1] / target_kernel.length));
+		}
+		
 		this.lastImprovements[1]=this.lastImprovements[0];
 		this.lastImprovements[0]=this.currentRMS-this.nextRMS;
 		if (this.debugLevel>2) {
@@ -666,6 +733,19 @@ public class FactorConvKernel {
 					(this.lastImprovements[0]<this.thresholdFinish*this.currentRMS) &&
 					(this.lastImprovements[1]>=0.0) &&
 					(this.lastImprovements[1]<this.thresholdFinish*this.currentRMS));
+			if (!status[1] && (this.currentRMSPure < goal_rms_pure)) {
+				status[1] = true;
+				if (this.debugLevel>1) {
+					System.out.println("Improvent is possible, but the factorization precision reached its goal");
+					System.out.println(
+							"stepLMA this.currentRMS="+this.currentRMS+
+							", this.currentRMSPure="+this.currentRMSPure+
+							", this.nextRMS="+this.nextRMS+
+							", this.nextRMSPure="+this.nextRMSPure+
+							", delta="+(this.currentRMS-this.nextRMS)+
+							", deltaPure="+(this.currentRMSPure-this.nextRMSPure));
+				}				
+			}
 		} else if (matrixNonSingular){
 			//    		this.jacobian=this.savedJacobian;// restore saved Jacobian
 			this.lMAArrays=this.savedLMAArrays; // restore Jt*J and Jt*diff
