@@ -88,7 +88,8 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 		   32,  // dct_size
 		   6,   // asym_size
 		   1,    // dct_window
-		   1.0 // double compactness
+		   1.0, // double compactness
+	       1    // asym_tax_free);
    );
 
    public static EyesisDCT EYESIS_DCT = null;
@@ -2834,19 +2835,25 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         FactorConvKernel factorConvKernel = new FactorConvKernel();
         factorConvKernel.setDebugLevel(DEBUG_LEVEL);
         factorConvKernel.numIterations = DCT_PARAMETERS.LMA_steps;
-        factorConvKernel.setCompactnessWeight(DCT_PARAMETERS.compactness);
-////        int target_kernel_size = 2*DCT_PARAMETERS.dct_size + DCT_PARAMETERS.asym_size -1;
-        int target_kernel_size = 2*DCT_PARAMETERS.dct_size + DCT_PARAMETERS.asym_size -2;
+        factorConvKernel.setAsymCompactness(
+        		DCT_PARAMETERS.compactness,
+        		DCT_PARAMETERS.asym_tax_free);
+
+        int target_kernel_size = 2*DCT_PARAMETERS.dct_size - 1;
         double [] target_kernel = new double [target_kernel_size * target_kernel_size];
         for (int ii=0; ii < target_kernel.length; ii++) target_kernel[ii]=0.0;
-//        for (int ii = -2; ii<=2; ii++) {
         double dist = Math.sqrt((DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)*(DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)+
         		(DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y)*(DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y));
         int num_steps = (int) Math.round(dist+0.5);
+        dist = num_steps;
         for (int ii = 0; ii<= num_steps; ii++) {
         	int dbg_x = (int) Math.round((DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)*ii/dist + DCT_PARAMETERS.dbg_x);
         	int dbg_y = (int) Math.round((DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y)*ii/dist + DCT_PARAMETERS.dbg_y);
         	target_kernel[(target_kernel_size/2 + dbg_y)*target_kernel_size+(target_kernel_size/2 + dbg_x)] = 1.0;
+        	if (MASTER_DEBUG_LEVEL >2) {
+        	System.out.println(ii+": "+((DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)*ii/dist + DCT_PARAMETERS.dbg_x)+
+        			" / "+ ((DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y)*ii/dist + DCT_PARAMETERS.dbg_y)+" ("+dbg_x+":"+dbg_y+")");
+        	}
         	
         }
         
@@ -2856,22 +2863,33 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
     	if (blurSigma>0)   gb.blurDouble(target_kernel, target_kernel_size, target_kernel_size, blurSigma, blurSigma, 0.01);
 //        SDFA_INSTANCE.showArrays(target_kernel,  target_kernel_size, target_kernel_size,   "target_kernel");
 
+    	int target_expanded_size = 2*DCT_PARAMETERS.dct_size + DCT_PARAMETERS.asym_size -2;
+        double [] target_expanded = new double [target_expanded_size * target_expanded_size];
+        for (int ii=0; ii < target_expanded.length; ii++) target_expanded[ii]=0.0;
+        int left_top_margin = ((DCT_PARAMETERS.asym_size-1)/2);
+        for (int ii=0;ii < target_kernel_size; ii++){
+            for (int jj=0; jj < target_kernel_size; jj++){
+            	target_expanded[(ii+left_top_margin)*target_expanded_size + (jj+left_top_margin)] = 
+                    	target_kernel[ii*target_kernel_size + jj];
+            }
+        }
+    	
     	boolean result = factorConvKernel.calcKernels(
-    			target_kernel,
+    			target_expanded,
     			DCT_PARAMETERS.asym_size,
     			DCT_PARAMETERS.dct_size);
     	System.out.println("factorConvKernel.calcKernels() returned"+result);
         double [] sym_kernel =  factorConvKernel.getSymKernel();
         double [] asym_kernel = factorConvKernel.getAsymKernel();
         double [] convolved =   factorConvKernel.getConvolved();
-        double [][] compare_kernels = {target_kernel, convolved};
+        double [][] compare_kernels = {target_expanded, convolved};
         System.out.println("DCT_PARAMETERS.dct_size="+DCT_PARAMETERS.dct_size+" DCT_PARAMETERS.asym_size="+DCT_PARAMETERS.asym_size);
         System.out.println("sym_kernel.length="+ sym_kernel.length);
         System.out.println("asym_kernel.length="+asym_kernel.length);
         System.out.println("convolved.length="+convolved.length);
         SDFA_INSTANCE.showArrays(sym_kernel,    DCT_PARAMETERS.dct_size,       DCT_PARAMETERS.dct_size,   "sym_kernel");
         SDFA_INSTANCE.showArrays(asym_kernel,   DCT_PARAMETERS.asym_size,      DCT_PARAMETERS.asym_size,  "asym_kernel");
-        SDFA_INSTANCE.showArrays(compare_kernels,  target_kernel_size, target_kernel_size, true, "compare_kernels");
+        SDFA_INSTANCE.showArrays(compare_kernels,  target_expanded_size, target_expanded_size, true, "compare_kernels");
 //        SDFA_INSTANCE.showArrays(convolved,  target_kernel_size, target_kernel_size,   "convolved");
         return;
     	
@@ -3557,6 +3575,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
     	properties.setProperty("MASTER_DEBUG_LEVEL",MASTER_DEBUG_LEVEL+"");
     	properties.setProperty("UPDATE_STATUS",     UPDATE_STATUS+     "");
     	SPLIT_PARAMETERS.setProperties("SPLIT_PARAMETERS.", properties);
+    	DCT_PARAMETERS.setProperties("DCT_PARAMETERS.", properties);
     	DEBAYER_PARAMETERS.setProperties("DEBAYER_PARAMETERS.", properties);
     	NONLIN_PARAMETERS.setProperties("NONLIN_PARAMETERS.", properties);
     	COLOR_PROC_PARAMETERS.setProperties("COLOR_PROC_PARAMETERS.", properties);
@@ -3578,6 +3597,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
        MASTER_DEBUG_LEVEL = Integer.parseInt(properties.getProperty("MASTER_DEBUG_LEVEL"));
        UPDATE_STATUS= Boolean.parseBoolean(properties.getProperty("UPDATE_STATUS"));
    	   SPLIT_PARAMETERS.getProperties("SPLIT_PARAMETERS.", properties);
+   	   DCT_PARAMETERS.getProperties("DCT_PARAMETERS.", properties);
        DEBAYER_PARAMETERS.getProperties("DEBAYER_PARAMETERS.", properties);
    	   NONLIN_PARAMETERS.getProperties("NONLIN_PARAMETERS.", properties);
        COLOR_PROC_PARAMETERS.getProperties("COLOR_PROC_PARAMETERS.", properties);
