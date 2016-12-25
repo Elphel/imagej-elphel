@@ -1648,75 +1648,91 @@ public class EyesisCorrectionParameters {
   		}
   	}
     public static class DCTParameters {
-  		public int dct_size =    32; //
-  		public int asym_size =    6; //
+  		public int dct_size =     32; //
+  		public int asym_size =     6; //
+  		public int asym_pixels =  10; // maximal number of non-zero pixels in direct convolution kernel
+  		public int asym_distance = 2; // how far to try a new asym kernel pixel from existing ones 
   		public int dct_window =   1; // currently only 3 types of windows - 0 (none), 1 and 2
   		public int LMA_steps =  100;
   		public double fact_precision=0.003; // stop iterations if error rms less than this part of target kernel rms
   		public double compactness = 1.0;
-  		public int asym_tax_free  = 1; // "compactness" does not apply to pixels with |x|<=asym_tax_free  and |y| <= asym_tax_free  
+  		public int asym_tax_free  = 5; // "compactness" does not apply to pixels with |x|<=asym_tax_free  and |y| <= asym_tax_free   
   		public double dbg_x =0;
   		public double dbg_y =0;
   		public double dbg_x1 =0;
   		public double dbg_y1 =0;
   		public double dbg_sigma =2.0;
+  		public String dbg_mask = ".........:::::::::.........:::::::::......*..:::::*:::.........:::::::::.........";
 
-  		public DCTParameters(int dct_size, int asym_size, int dct_window, double compactness, int asym_tax_free) {
-  			this.dct_size =   dct_size;
-  			this.asym_size =  asym_size;
-  			this.dct_window = dct_window;
-  			this.compactness = compactness;
-  			this.asym_tax_free = asym_tax_free;
+  		public DCTParameters(int dct_size, int asym_size, int asym_pixels, int asym_distance, int dct_window, double compactness, int asym_tax_free) {
+  			this.dct_size =       dct_size;
+  			this.asym_size =      asym_size;
+  			this.asym_pixels =    asym_pixels;
+  			this.asym_distance =  asym_distance;
+  			this.dct_window =     dct_window;
+  			this.compactness =    compactness;
+  			this.asym_tax_free =  asym_tax_free;
   		}
   		public void setProperties(String prefix,Properties properties){
   			properties.setProperty(prefix+"dct_size",this.dct_size+"");
   			properties.setProperty(prefix+"asym_size",this.asym_size+"");
+  			properties.setProperty(prefix+"asym_pixels",this.asym_pixels+"");
+  			properties.setProperty(prefix+"asym_distance",this.asym_distance+"");
   			properties.setProperty(prefix+"dct_window",   this.dct_window+"");
   			properties.setProperty(prefix+"compactness",  this.compactness+"");
   			properties.setProperty(prefix+"fact_precision",  this.fact_precision+"");
   			properties.setProperty(prefix+"asym_tax_free",  this.asym_tax_free+"");
-
+  			properties.setProperty(prefix+"LMA_steps",  this.LMA_steps+"");
   			properties.setProperty(prefix+"dbg_x",      this.dbg_x+"");
   			properties.setProperty(prefix+"dbg_y",      this.dbg_y+"");
   			properties.setProperty(prefix+"dbg_x1",     this.dbg_x1+"");
   			properties.setProperty(prefix+"dbg_y1",     this.dbg_y1+"");
   			properties.setProperty(prefix+"dbg_sigma",  this.dbg_sigma+"");
+  			properties.setProperty(prefix+"dbg_mask",   this.dbg_mask+"");
   		
   		}
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"dct_size")!=null) this.dct_size=Integer.parseInt(properties.getProperty(prefix+"dct_size"));
   			if (properties.getProperty(prefix+"asym_size")!=null) this.asym_size=Integer.parseInt(properties.getProperty(prefix+"asym_size"));
+  			if (properties.getProperty(prefix+"asym_pixels")!=null) this.asym_pixels=Integer.parseInt(properties.getProperty(prefix+"asym_pixels"));
+  			if (properties.getProperty(prefix+"asym_distance")!=null) this.asym_distance=Integer.parseInt(properties.getProperty(prefix+"asym_distance"));
   			if (properties.getProperty(prefix+"dct_window")!=null) this.dct_window=Integer.parseInt(properties.getProperty(prefix+"dct_window"));
   			if (properties.getProperty(prefix+"compactness")!=null) this.compactness=Double.parseDouble(properties.getProperty(prefix+"compactness"));
   			if (properties.getProperty(prefix+"fact_precision")!=null) this.fact_precision=Double.parseDouble(properties.getProperty(prefix+"fact_precision"));
   			if (properties.getProperty(prefix+"asym_tax_free")!=null) this.asym_tax_free=Integer.parseInt(properties.getProperty(prefix+"asym_tax_free"));
-  			
+  			if (properties.getProperty(prefix+"LMA_steps")!=null) this.LMA_steps=Integer.parseInt(properties.getProperty(prefix+"LMA_steps"));
   			if (properties.getProperty(prefix+"dbg_x")!=null) this.dbg_x=Double.parseDouble(properties.getProperty(prefix+"dbg_x"));
   			if (properties.getProperty(prefix+"dbg_y")!=null) this.dbg_y=Double.parseDouble(properties.getProperty(prefix+"dbg_y"));
   			if (properties.getProperty(prefix+"dbg_x1")!=null) this.dbg_x1=Double.parseDouble(properties.getProperty(prefix+"dbg_x1"));
   			if (properties.getProperty(prefix+"dbg_y1")!=null) this.dbg_y1=Double.parseDouble(properties.getProperty(prefix+"dbg_y1"));
   			if (properties.getProperty(prefix+"dbg_sigma")!=null) this.dbg_sigma=Double.parseDouble(properties.getProperty(prefix+"dbg_sigma"));
+  			if (properties.getProperty(prefix+"dbg_mask")!=null) this.dbg_mask=properties.getProperty(prefix+"dbg_mask");
   		}
   		public boolean showDialog() {
   			GenericDialog gd = new GenericDialog("Set DCT parameters");
-  			gd.addNumericField("DCT size",                                   this.dct_size,     0); //32
-  			gd.addNumericField("Size of asymmetrical (non-DCT) kernel",      this.asym_size,    0); //6
-  			gd.addNumericField("MDCT window type (0,1,2)",                   this.dct_window,   0); //0..2
-  			gd.addNumericField("LMA_steps",                                  this.LMA_steps,    0); //0..2
+  			gd.addNumericField("DCT size",                                                       this.dct_size,     0); //32
+  			gd.addNumericField("Size of asymmetrical (non-DCT) kernel",                          this.asym_size,    0); //6
+  			gd.addNumericField("Maximal number of non-zero pixels in direct convolution kernel", this.asym_pixels,     0); //6
+  			gd.addNumericField("How far to try a new asym kernel pixel from existing ones",      this.asym_distance,    0); //6
+  			gd.addNumericField("MDCT window type (0,1,2)",                                       this.dct_window,       0); //0..2
+  			gd.addNumericField("LMA_steps",                                                      this.LMA_steps,    0); //0..2
   			gd.addNumericField("Compactness (punish off-center asym_kernel pixels (proportional to r^2)", this.compactness,  2); //0..2
-  			gd.addNumericField("Factorization target precision (stop if achieved)", this.fact_precision,  4); //0..2
-  			gd.addNumericField("Do not punish pixels in the square around center", this.asym_tax_free,  0); //0..2
+  			gd.addNumericField("Factorization target precision (stop if achieved)",              this.fact_precision,  4); //0..2
+  			gd.addNumericField("Do not punish pixels in the square around center",               this.asym_tax_free,  0); //0..2
   			
-  			gd.addNumericField("dbg_x",                                      this.dbg_x,   2); //0..2
-  			gd.addNumericField("dbg_y",                                      this.dbg_y,   2); //0..2
-  			gd.addNumericField("dbg_x1",                                     this.dbg_x1,  2); //0..2
-  			gd.addNumericField("dbg_y1",                                     this.dbg_y1,  2); //0..2
-  			gd.addNumericField("dbg_sigma",                                  this.dbg_sigma, 3); //0..2
+  			gd.addNumericField("dbg_x",                                                          this.dbg_x,   2); //0..2
+  			gd.addNumericField("dbg_y",                                                          this.dbg_y,   2); //0..2
+  			gd.addNumericField("dbg_x1",                                                         this.dbg_x1,  2); //0..2
+  			gd.addNumericField("dbg_y1",                                                         this.dbg_y1,  2); //0..2
+  			gd.addNumericField("dbg_sigma",                                                      this.dbg_sigma, 3); //0..2
+			gd.addStringField ("Debug mask (anything but * is false)",                           this.dbg_mask,100);
   			//  	    gd.addNumericField("Debug Level:",                          MASTER_DEBUG_LEVEL,      0);
   			gd.showDialog();
   			if (gd.wasCanceled()) return false;
   			this.dct_size=        (int) gd.getNextNumber();
   			this.asym_size=       (int) gd.getNextNumber();
+  			this.asym_pixels=       (int) gd.getNextNumber();
+  			this.asym_distance=       (int) gd.getNextNumber();
   			this.dct_window=      (int) gd.getNextNumber();
   			this.LMA_steps =      (int) gd.getNextNumber();
   			this.compactness =          gd.getNextNumber();
@@ -1727,6 +1743,8 @@ public class EyesisCorrectionParameters {
   			this.dbg_x1=                gd.getNextNumber();
   			this.dbg_y1=                gd.getNextNumber();
   			this.dbg_sigma=             gd.getNextNumber();
+			this.dbg_mask=              gd.getNextString();
+
   			//  	    MASTER_DEBUG_LEVEL= (int) gd.getNextNumber();
   			return true;
   		}  
