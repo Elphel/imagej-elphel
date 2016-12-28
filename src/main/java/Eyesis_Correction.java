@@ -2835,7 +2835,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
     } else if (label.equals("Test Kernel Factorization")){
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
         if (!DCT_PARAMETERS.showDialog()) return;
-        FactorConvKernel factorConvKernel = new FactorConvKernel();
+        FactorConvKernel factorConvKernel = new FactorConvKernel(DCT_PARAMETERS.dbg_mode == 1);
         factorConvKernel.setDebugLevel(DEBUG_LEVEL);
         factorConvKernel.numIterations = DCT_PARAMETERS.LMA_steps;
         factorConvKernel.setAsymCompactness(
