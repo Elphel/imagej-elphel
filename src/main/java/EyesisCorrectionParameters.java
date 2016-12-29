@@ -1656,7 +1656,9 @@ public class EyesisCorrectionParameters {
   		public int LMA_steps =  100;
   		public double fact_precision=0.003; // stop iterations if error rms less than this part of target kernel rms
   		public double compactness = 1.0;
-  		public int asym_tax_free  = 5; // "compactness" does not apply to pixels with |x|<=asym_tax_free  and |y| <= asym_tax_free   
+  		public int asym_tax_free  = 5; // "compactness" does not apply to pixels with |x|<=asym_tax_free  and |y| <= asym_tax_free
+  		public int seed_size = 8; // number of initial cells in asym_kernel - should be 4*b + 1 (X around center cell) or 4*n + 0  (X around between cells)
+  		public double asym_random; // initialize asym_kernel with random numbers
   		public double dbg_x =0;
   		public double dbg_y =0;
   		public double dbg_x1 =0;
@@ -1665,7 +1667,15 @@ public class EyesisCorrectionParameters {
   		public String dbg_mask = ".........:::::::::.........:::::::::......*..:::::*:::.........:::::::::.........";
   		public int dbg_mode = 1; // 0 - old LMA, 1 - new LMA
 
-  		public DCTParameters(int dct_size, int asym_size, int asym_pixels, int asym_distance, int dct_window, double compactness, int asym_tax_free) {
+  		public DCTParameters(
+  				int dct_size,
+  				int asym_size,
+  				int asym_pixels,
+  				int asym_distance,
+  				int dct_window,
+  				double compactness,
+  				int asym_tax_free,
+  				int seed_size) {
   			this.dct_size =       dct_size;
   			this.asym_size =      asym_size;
   			this.asym_pixels =    asym_pixels;
@@ -1673,6 +1683,7 @@ public class EyesisCorrectionParameters {
   			this.dct_window =     dct_window;
   			this.compactness =    compactness;
   			this.asym_tax_free =  asym_tax_free;
+  			this.seed_size =      seed_size;
   		}
   		public void setProperties(String prefix,Properties properties){
   			properties.setProperty(prefix+"dct_size",this.dct_size+"");
@@ -1683,6 +1694,9 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"compactness",  this.compactness+"");
   			properties.setProperty(prefix+"fact_precision",  this.fact_precision+"");
   			properties.setProperty(prefix+"asym_tax_free",  this.asym_tax_free+"");
+  			properties.setProperty(prefix+"seed_size",  this.seed_size+"");
+  			properties.setProperty(prefix+"asym_random",  this.asym_random+"");
+  			
   			properties.setProperty(prefix+"LMA_steps",  this.LMA_steps+"");
   			properties.setProperty(prefix+"dbg_x",      this.dbg_x+"");
   			properties.setProperty(prefix+"dbg_y",      this.dbg_y+"");
@@ -1702,6 +1716,8 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"compactness")!=null) this.compactness=Double.parseDouble(properties.getProperty(prefix+"compactness"));
   			if (properties.getProperty(prefix+"fact_precision")!=null) this.fact_precision=Double.parseDouble(properties.getProperty(prefix+"fact_precision"));
   			if (properties.getProperty(prefix+"asym_tax_free")!=null) this.asym_tax_free=Integer.parseInt(properties.getProperty(prefix+"asym_tax_free"));
+  			if (properties.getProperty(prefix+"seed_size")!=null) this.seed_size=Integer.parseInt(properties.getProperty(prefix+"seed_size"));
+  			if (properties.getProperty(prefix+"asym_random")!=null) this.asym_random=Double.parseDouble(properties.getProperty(prefix+"asym_random"));
   			if (properties.getProperty(prefix+"LMA_steps")!=null) this.LMA_steps=Integer.parseInt(properties.getProperty(prefix+"LMA_steps"));
   			if (properties.getProperty(prefix+"dbg_x")!=null) this.dbg_x=Double.parseDouble(properties.getProperty(prefix+"dbg_x"));
   			if (properties.getProperty(prefix+"dbg_y")!=null) this.dbg_y=Double.parseDouble(properties.getProperty(prefix+"dbg_y"));
@@ -1722,7 +1738,8 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Compactness (punish off-center asym_kernel pixels (proportional to r^2)", this.compactness,  2); //0..2
   			gd.addNumericField("Factorization target precision (stop if achieved)",              this.fact_precision,  4); //0..2
   			gd.addNumericField("Do not punish pixels in the square around center",               this.asym_tax_free,  0); //0..2
-  			
+  			gd.addNumericField("Start asym_kernel with this number of pixels (0 - single, 4n+0 (X between cells), 4*n+1 - x around center cell",               this.seed_size,     0); //0..2
+  			gd.addNumericField("Initialize asym_kernel with random numbers (amplitude)",         this.asym_random,   2); //0..2
   			gd.addNumericField("dbg_x",                                                          this.dbg_x,   2); //0..2
   			gd.addNumericField("dbg_y",                                                          this.dbg_y,   2); //0..2
   			gd.addNumericField("dbg_x1",                                                         this.dbg_x1,  2); //0..2
@@ -1743,6 +1760,8 @@ public class EyesisCorrectionParameters {
   			this.compactness =          gd.getNextNumber();
   			this.fact_precision =          gd.getNextNumber();
   			this.asym_tax_free =  (int) gd.getNextNumber();
+  			this.seed_size =      (int) gd.getNextNumber();
+  			this.asym_random=           gd.getNextNumber();
   			this.dbg_x=                 gd.getNextNumber();
   			this.dbg_y=                 gd.getNextNumber();
   			this.dbg_x1=                gd.getNextNumber();

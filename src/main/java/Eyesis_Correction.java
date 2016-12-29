@@ -90,8 +90,9 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 	  	   10,  // asym_pixels =  10; // maximal number of non-zero pixels in direct convolution kernel
 	  		2,  // asym_distance = 2; // how far to try a new asym kernel pixel from existing ones 
 		    1,  // dct_window
-		    1.0,// double compactness
-	        5   // asym_tax_free);
+		    1.0,// compactness
+	        5,  // asym_tax_free,
+	        8   // seed_size
    );
 
    public static EyesisDCT EYESIS_DCT = null;
@@ -2865,6 +2866,20 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 		if (blurSigma>0)   gb=new DoubleGaussianBlur();
     	if (blurSigma>0)   gb.blurDouble(target_kernel, target_kernel_size, target_kernel_size, blurSigma, blurSigma, 0.01);
 //        SDFA_INSTANCE.showArrays(target_kernel,  target_kernel_size, target_kernel_size,   "target_kernel");
+    	
+    	if (
+    			(DCT_PARAMETERS.dbg_x  == 0.0) &&
+    			(DCT_PARAMETERS.dbg_x1 == 0.0) &&
+    			(DCT_PARAMETERS.dbg_y  == 0.0) &&
+    			(DCT_PARAMETERS.dbg_y1 == 0.0)) {
+    		System.out.println ("Making sure target kernel is center symmetrical (copying top-left quater)");
+    		for (int ii = 0; ii<target_kernel_size; ii++) for (int jj = 0; jj<target_kernel_size; jj++){
+    			int ii1 = (ii >=  DCT_PARAMETERS.dct_size)? (2 * DCT_PARAMETERS.dct_size -ii -2):ii;
+    			int jj1 = (jj >=  DCT_PARAMETERS.dct_size)? (2 * DCT_PARAMETERS.dct_size -jj -2):jj;
+    			target_kernel[target_kernel_size*ii+jj] = target_kernel[target_kernel_size*ii1+jj1]; 
+    		}
+    	}
+    	
 
     	int target_expanded_size = 2*DCT_PARAMETERS.dct_size + DCT_PARAMETERS.asym_size -2;
         double [] target_expanded = new double [target_expanded_size * target_expanded_size];
@@ -2901,12 +2916,18 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
     			DCT_PARAMETERS.asym_size,
     			DCT_PARAMETERS.dct_size,
     			DCT_PARAMETERS.fact_precision,
-    			mask);
+    			mask,
+    			DCT_PARAMETERS.seed_size,
+    			DCT_PARAMETERS.asym_random);
     	System.out.println("factorConvKernel.calcKernels() returned: >>> "+result+ " <<<");
         double [] sym_kernel =  factorConvKernel.getSymKernel();
         double [] asym_kernel = factorConvKernel.getAsymKernel();
         double [] convolved =   factorConvKernel.getConvolved();
-        double [][] compare_kernels = {target_expanded, convolved};
+        double [] diff100 = new double [convolved.length];
+        for (int ii=0;ii<convolved.length;ii++) diff100[ii]=100.0*(target_expanded[ii]-convolved[ii]);
+        
+        
+        double [][] compare_kernels = {target_expanded, convolved, diff100};
         System.out.println("DCT_PARAMETERS.dct_size="+DCT_PARAMETERS.dct_size+" DCT_PARAMETERS.asym_size="+DCT_PARAMETERS.asym_size);
         System.out.println("sym_kernel.length="+ sym_kernel.length);
         System.out.println("asym_kernel.length="+asym_kernel.length);
@@ -2919,7 +2940,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
     } else if (label.equals("Min Kernel Factorization")){
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
         if (!DCT_PARAMETERS.showDialog()) return;
-        FactorConvKernel factorConvKernel = new FactorConvKernel();
+        FactorConvKernel factorConvKernel = new FactorConvKernel(DCT_PARAMETERS.dbg_mode == 1);
         factorConvKernel.setDebugLevel(DEBUG_LEVEL);
         factorConvKernel.numIterations = DCT_PARAMETERS.LMA_steps;
         factorConvKernel.setAsymCompactness(
@@ -2967,7 +2988,8 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
     			DCT_PARAMETERS.dct_size,
     			DCT_PARAMETERS.fact_precision,
     			DCT_PARAMETERS.asym_pixels,
-    			DCT_PARAMETERS.asym_distance);
+    			DCT_PARAMETERS.asym_distance,
+    			DCT_PARAMETERS.seed_size);
     	/*
      	public int calcKernels(
     			double []target_kernel,
