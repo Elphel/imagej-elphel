@@ -1666,6 +1666,7 @@ public class EyesisCorrectionParameters {
   		public double dbg_sigma =2.0;
   		public String dbg_mask = ".........:::::::::.........:::::::::......*..:::::*:::.........:::::::::.........";
   		public int dbg_mode = 1; // 0 - old LMA, 1 - new LMA
+  		public int dbg_window_mode = 2; // 0 - none, 1 - square, 2 - sin
 
   		public DCTParameters(
   				int dct_size,
@@ -1705,6 +1706,7 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"dbg_sigma",  this.dbg_sigma+"");
   			properties.setProperty(prefix+"dbg_mask",   this.dbg_mask+"");
   			properties.setProperty(prefix+"dbg_mode",   this.dbg_mode+"");
+  			properties.setProperty(prefix+"dbg_window_mode",   this.dbg_window_mode+"");
   		
   		}
   		public void getProperties(String prefix,Properties properties){
@@ -1726,6 +1728,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"dbg_sigma")!=null) this.dbg_sigma=Double.parseDouble(properties.getProperty(prefix+"dbg_sigma"));
   			if (properties.getProperty(prefix+"dbg_mask")!=null) this.dbg_mask=properties.getProperty(prefix+"dbg_mask");
   			if (properties.getProperty(prefix+"dbg_mode")!=null) this.dbg_mode=Integer.parseInt(properties.getProperty(prefix+"dbg_mode"));
+  			if (properties.getProperty(prefix+"dbg_window_mode")!=null) this.dbg_window_mode=Integer.parseInt(properties.getProperty(prefix+"dbg_window_mode"));
   		}
   		public boolean showDialog() {
   			GenericDialog gd = new GenericDialog("Set DCT parameters");
@@ -1747,6 +1750,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("dbg_sigma",                                                      this.dbg_sigma, 3); //0..2
 			gd.addStringField ("Debug mask (anything but * is false)",                           this.dbg_mask,100);
   			gd.addNumericField("LMA implementation: 0 - old, 1 - new",                           this.dbg_mode,     0); //32
+  			gd.addNumericField("Convolution window: 0 - none, 1 - square, 2 - sin, 3 - sin^2",   this.dbg_window_mode,     0); //32
 			
   			//  	    gd.addNumericField("Debug Level:",                          MASTER_DEBUG_LEVEL,      0);
   			gd.showDialog();
@@ -1769,6 +1773,7 @@ public class EyesisCorrectionParameters {
   			this.dbg_sigma=             gd.getNextNumber();
 			this.dbg_mask=              gd.getNextString();
   			this.dbg_mode=        (int) gd.getNextNumber();
+  			this.dbg_window_mode=        (int) gd.getNextNumber();
 
   			//  	    MASTER_DEBUG_LEVEL= (int) gd.getNextNumber();
   			return true;

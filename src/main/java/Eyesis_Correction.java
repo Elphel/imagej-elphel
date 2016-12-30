@@ -2838,6 +2838,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         if (!DCT_PARAMETERS.showDialog()) return;
         FactorConvKernel factorConvKernel = new FactorConvKernel(DCT_PARAMETERS.dbg_mode == 1);
         factorConvKernel.setDebugLevel(DEBUG_LEVEL);
+        factorConvKernel.setTargetWindowMode(DCT_PARAMETERS.dbg_window_mode);
         factorConvKernel.numIterations = DCT_PARAMETERS.LMA_steps;
         factorConvKernel.setAsymCompactness(
         		DCT_PARAMETERS.compactness,
@@ -2898,16 +2899,6 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         	for (int ii = 0; ii<mask.length; ii++) {
         		mask[ii] = ((ii <= DCT_PARAMETERS.dbg_mask.length()) && (DCT_PARAMETERS.dbg_mask.charAt(ii) == '*')); 
         	}
-/*
-        	System.out.println("asym mask: ");
-        	for (int ii=0;ii<DCT_PARAMETERS.asym_size;ii++){
-        		System.out.print(ii+": ");
-        		for (int jj=0;jj<DCT_PARAMETERS.asym_size;jj++){
-        			System.out.print((mask[ii*DCT_PARAMETERS.asym_size+jj]?" X":" .")+" ");
-        		}
-        		System.out.println();	
-        	}
-*/
 
         }
         
@@ -2923,11 +2914,16 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         double [] sym_kernel =  factorConvKernel.getSymKernel();
         double [] asym_kernel = factorConvKernel.getAsymKernel();
         double [] convolved =   factorConvKernel.getConvolved();
+        double [] target_weights = factorConvKernel.getTargetWeights();
+        
         double [] diff100 = new double [convolved.length];
-        for (int ii=0;ii<convolved.length;ii++) diff100[ii]=100.0*(target_expanded[ii]-convolved[ii]);
-        
-        
-        double [][] compare_kernels = {target_expanded, convolved, diff100};
+        double [] weighted_diff100 = new double [convolved.length];
+        for (int ii=0;ii<convolved.length;ii++) {
+        	diff100[ii]=100.0*(target_expanded[ii]-convolved[ii]);
+        	weighted_diff100[ii] = diff100[ii]* target_weights[ii];
+        }
+        double [][] compare_kernels = {target_expanded, convolved, weighted_diff100,target_weights, diff100};
+
         System.out.println("DCT_PARAMETERS.dct_size="+DCT_PARAMETERS.dct_size+" DCT_PARAMETERS.asym_size="+DCT_PARAMETERS.asym_size);
         System.out.println("sym_kernel.length="+ sym_kernel.length);
         System.out.println("asym_kernel.length="+asym_kernel.length);
@@ -2942,6 +2938,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         if (!DCT_PARAMETERS.showDialog()) return;
         FactorConvKernel factorConvKernel = new FactorConvKernel(DCT_PARAMETERS.dbg_mode == 1);
         factorConvKernel.setDebugLevel(DEBUG_LEVEL);
+        factorConvKernel.setTargetWindowMode(DCT_PARAMETERS.dbg_window_mode);
         factorConvKernel.numIterations = DCT_PARAMETERS.LMA_steps;
         factorConvKernel.setAsymCompactness(
         		DCT_PARAMETERS.compactness,
@@ -3008,7 +3005,15 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         double [] sym_kernel =  factorConvKernel.getSymKernel();
         double [] asym_kernel = factorConvKernel.getAsymKernel();
         double [] convolved =   factorConvKernel.getConvolved();
-        double [][] compare_kernels = {target_expanded, convolved};
+        double [] target_weights = factorConvKernel.getTargetWeights();
+        double [] diff100 = new double [convolved.length];
+        double [] weighted_diff100 = new double [convolved.length];
+        for (int ii=0;ii<convolved.length;ii++) {
+        	diff100[ii]=100.0*(target_expanded[ii]-convolved[ii]);
+        	weighted_diff100[ii] = diff100[ii]* target_weights[ii];
+        }
+        double [][] compare_kernels = {target_expanded, convolved, weighted_diff100,target_weights, diff100};
+        
         System.out.println("DCT_PARAMETERS.dct_size="+DCT_PARAMETERS.dct_size+" DCT_PARAMETERS.asym_size="+DCT_PARAMETERS.asym_size);
         System.out.println("sym_kernel.length="+ sym_kernel.length);
         System.out.println("asym_kernel.length="+asym_kernel.length);
