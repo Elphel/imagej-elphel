@@ -1666,7 +1666,15 @@ public class EyesisCorrectionParameters {
   		public double dbg_sigma =2.0;
   		public String dbg_mask = ".........:::::::::.........:::::::::......*..:::::*:::.........:::::::::.........";
   		public int dbg_mode = 1; // 0 - old LMA, 1 - new LMA
-  		public int dbg_window_mode = 2; // 0 - none, 1 - square, 2 - sin
+  		public int dbg_window_mode = 2; // 0 - none, 1 - square, 2 - sin 3 - sin^2
+  		public boolean centerWindowToTarget = true;
+  		// parameters to extract a kernel from the kernel image file
+  		public int    color_channel =  2; // green (<0 - use simulated kernel, also will use simulated if kernels are not set)
+  		public int    decimation =     2; // decimate original kernel this much in each direction
+  		public double decimateSigma =  0.4; // what is the optimal value for each decimation? 
+  		public int    tileX =          82;  // number of kernel tile (0..163) 
+  		public int    tileY =          62;  // number of kernel tile (0..122) 
+  		
 
   		public DCTParameters(
   				int dct_size,
@@ -1697,7 +1705,6 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"asym_tax_free",  this.asym_tax_free+"");
   			properties.setProperty(prefix+"seed_size",  this.seed_size+"");
   			properties.setProperty(prefix+"asym_random",  this.asym_random+"");
-  			
   			properties.setProperty(prefix+"LMA_steps",  this.LMA_steps+"");
   			properties.setProperty(prefix+"dbg_x",      this.dbg_x+"");
   			properties.setProperty(prefix+"dbg_y",      this.dbg_y+"");
@@ -1707,6 +1714,12 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"dbg_mask",   this.dbg_mask+"");
   			properties.setProperty(prefix+"dbg_mode",   this.dbg_mode+"");
   			properties.setProperty(prefix+"dbg_window_mode",   this.dbg_window_mode+"");
+  			properties.setProperty(prefix+"centerWindowToTarget",   this.centerWindowToTarget+"");
+  			properties.setProperty(prefix+"color_channel",   this.color_channel+"");
+  			properties.setProperty(prefix+"decimation",   this.dbg_window_mode+"");
+  			properties.setProperty(prefix+"decimateSigma",   this.decimateSigma+"");
+  			properties.setProperty(prefix+"tileX",   this.tileX+"");
+  			properties.setProperty(prefix+"tileY",   this.tileY+"");
   		
   		}
   		public void getProperties(String prefix,Properties properties){
@@ -1728,41 +1741,55 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"dbg_sigma")!=null) this.dbg_sigma=Double.parseDouble(properties.getProperty(prefix+"dbg_sigma"));
   			if (properties.getProperty(prefix+"dbg_mask")!=null) this.dbg_mask=properties.getProperty(prefix+"dbg_mask");
   			if (properties.getProperty(prefix+"dbg_mode")!=null) this.dbg_mode=Integer.parseInt(properties.getProperty(prefix+"dbg_mode"));
+  			if (properties.getProperty(prefix+"tileY")!=null) this.tileY=Integer.parseInt(properties.getProperty(prefix+"tileY"));
+
+  			if (properties.getProperty(prefix+"centerWindowToTarget")!=null) this.centerWindowToTarget=Boolean.parseBoolean(properties.getProperty(prefix+"centerWindowToTarget"));
+  			if (properties.getProperty(prefix+"color_channel")!=null) this.color_channel=Integer.parseInt(properties.getProperty(prefix+"color_channel"));
+  			if (properties.getProperty(prefix+"decimation")!=null) this.decimation=Integer.parseInt(properties.getProperty(prefix+"decimation"));
+  			if (properties.getProperty(prefix+"decimateSigma")!=null) this.decimateSigma=Double.parseDouble(properties.getProperty(prefix+"decimateSigma"));
+  			if (properties.getProperty(prefix+"tileX")!=null) this.tileX=Integer.parseInt(properties.getProperty(prefix+"tileX"));
   			if (properties.getProperty(prefix+"dbg_window_mode")!=null) this.dbg_window_mode=Integer.parseInt(properties.getProperty(prefix+"dbg_window_mode"));
+  		
+  		
   		}
   		public boolean showDialog() {
   			GenericDialog gd = new GenericDialog("Set DCT parameters");
-  			gd.addNumericField("DCT size",                                                       this.dct_size,     0); //32
-  			gd.addNumericField("Size of asymmetrical (non-DCT) kernel",                          this.asym_size,    0); //6
-  			gd.addNumericField("Maximal number of non-zero pixels in direct convolution kernel", this.asym_pixels,     0); //6
-  			gd.addNumericField("How far to try a new asym kernel pixel from existing ones",      this.asym_distance,    0); //6
-  			gd.addNumericField("MDCT window type (0,1,2)",                                       this.dct_window,       0); //0..2
-  			gd.addNumericField("LMA_steps",                                                      this.LMA_steps,    0); //0..2
-  			gd.addNumericField("Compactness (punish off-center asym_kernel pixels (proportional to r^2)", this.compactness,  2); //0..2
-  			gd.addNumericField("Factorization target precision (stop if achieved)",              this.fact_precision,  4); //0..2
-  			gd.addNumericField("Do not punish pixels in the square around center",               this.asym_tax_free,  0); //0..2
+  			gd.addNumericField("DCT size",                                                       this.dct_size,            0);
+  			gd.addNumericField("Size of asymmetrical (non-DCT) kernel",                          this.asym_size,           0);
+  			gd.addNumericField("Maximal number of non-zero pixels in direct convolution kernel", this.asym_pixels,         0);
+  			gd.addNumericField("How far to try a new asym kernel pixel from existing ones",      this.asym_distance,       0);
+  			gd.addNumericField("MDCT window type (0,1,2)",                                       this.dct_window,          0);
+  			gd.addNumericField("LMA_steps",                                                      this.LMA_steps,           0);
+  			gd.addNumericField("Compactness (punish off-center asym_kernel pixels (proportional to r^2)", this.compactness,2);
+  			gd.addNumericField("Factorization target precision (stop if achieved)",              this.fact_precision,      4);
+  			gd.addNumericField("Do not punish pixels in the square around center",               this.asym_tax_free,       0);
   			gd.addNumericField("Start asym_kernel with this number of pixels (0 - single, 4n+0 (X between cells), 4*n+1 - x around center cell",               this.seed_size,     0); //0..2
-  			gd.addNumericField("Initialize asym_kernel with random numbers (amplitude)",         this.asym_random,   2); //0..2
-  			gd.addNumericField("dbg_x",                                                          this.dbg_x,   2); //0..2
-  			gd.addNumericField("dbg_y",                                                          this.dbg_y,   2); //0..2
-  			gd.addNumericField("dbg_x1",                                                         this.dbg_x1,  2); //0..2
-  			gd.addNumericField("dbg_y1",                                                         this.dbg_y1,  2); //0..2
-  			gd.addNumericField("dbg_sigma",                                                      this.dbg_sigma, 3); //0..2
-			gd.addStringField ("Debug mask (anything but * is false)",                           this.dbg_mask,100);
-  			gd.addNumericField("LMA implementation: 0 - old, 1 - new",                           this.dbg_mode,     0); //32
-  			gd.addNumericField("Convolution window: 0 - none, 1 - square, 2 - sin, 3 - sin^2",   this.dbg_window_mode,     0); //32
-			
-  			//  	    gd.addNumericField("Debug Level:",                          MASTER_DEBUG_LEVEL,      0);
+  			gd.addNumericField("Initialize asym_kernel with random numbers (amplitude)",         this.asym_random,         2);
+  			gd.addNumericField("dbg_x",                                                          this.dbg_x,               2);
+  			gd.addNumericField("dbg_y",                                                          this.dbg_y,               2);
+  			gd.addNumericField("dbg_x1",                                                         this.dbg_x1,              2);
+  			gd.addNumericField("dbg_y1",                                                         this.dbg_y1,              2);
+  			gd.addNumericField("dbg_sigma",                                                      this.dbg_sigma,           3);
+			gd.addStringField ("Debug mask (anything but * is false)",                           this.dbg_mask,          100);
+  			gd.addNumericField("LMA implementation: 0 - old, 1 - new",                           this.dbg_mode,            0);
+  			gd.addNumericField("Convolution window: 0 - none, 1 - square, 2 - sin, 3 - sin^2",   this.dbg_window_mode,     0);
+  			gd.addCheckbox    ("Center convolution window around target kernel center",          this.centerWindowToTarget);
+  			gd.addNumericField("Color channel to extract kernel (<0 - use synthetic)",           this.color_channel,       0);
+  			gd.addNumericField("Convolution kernel decimation (original is normally 2x)",        this.decimation,          0);
+  			gd.addNumericField("Smooth convolution kernel before decimation",                    this.decimateSigma,       3);
+  			gd.addNumericField("Tile X to extract (0..163)",                                     this.tileX,               0);
+  			gd.addNumericField("Tile Y to extract (0..122)",                                     this.tileY,               0);
   			gd.showDialog();
+  			
   			if (gd.wasCanceled()) return false;
   			this.dct_size=        (int) gd.getNextNumber();
   			this.asym_size=       (int) gd.getNextNumber();
-  			this.asym_pixels=       (int) gd.getNextNumber();
-  			this.asym_distance=       (int) gd.getNextNumber();
+  			this.asym_pixels=     (int) gd.getNextNumber();
+  			this.asym_distance=   (int) gd.getNextNumber();
   			this.dct_window=      (int) gd.getNextNumber();
   			this.LMA_steps =      (int) gd.getNextNumber();
   			this.compactness =          gd.getNextNumber();
-  			this.fact_precision =          gd.getNextNumber();
+  			this.fact_precision =       gd.getNextNumber();
   			this.asym_tax_free =  (int) gd.getNextNumber();
   			this.seed_size =      (int) gd.getNextNumber();
   			this.asym_random=           gd.getNextNumber();
@@ -1773,7 +1800,13 @@ public class EyesisCorrectionParameters {
   			this.dbg_sigma=             gd.getNextNumber();
 			this.dbg_mask=              gd.getNextString();
   			this.dbg_mode=        (int) gd.getNextNumber();
-  			this.dbg_window_mode=        (int) gd.getNextNumber();
+  			this.dbg_window_mode= (int) gd.getNextNumber();
+  			this.centerWindowToTarget=  gd.getNextBoolean();
+  			this.color_channel=   (int) gd.getNextNumber();
+  			this.decimation=      (int) gd.getNextNumber();
+  			this.decimateSigma=         gd.getNextNumber();
+  			this.tileX=           (int) gd.getNextNumber();
+  			this.tileY=           (int) gd.getNextNumber();
 
   			//  	    MASTER_DEBUG_LEVEL= (int) gd.getNextNumber();
   			return true;

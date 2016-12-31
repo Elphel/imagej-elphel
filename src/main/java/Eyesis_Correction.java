@@ -450,13 +450,14 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 		if (DCT_MODE) {
 			panelDct1 = new Panel();
 			panelDct1.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
-			addButton("DCT test 1",panelDct1,color_process);
-			addButton("DCT test 2",panelDct1,color_process);
-			addButton("DCT test 3",panelDct1,color_process);
-			addButton("DCT test 4",panelDct1,color_process);
-			addButton("Test Kernel Factorization",panelDct1,color_process);
-			addButton("Min Kernel Factorization",panelDct1,color_process);
-			addButton("Create DCT kernels",panelDct1,color_process);
+			addButton("DCT test 1",                panelDct1, color_process);
+			addButton("DCT test 2",                panelDct1, color_process);
+			addButton("DCT test 3",                panelDct1, color_process);
+			addButton("DCT test 4",                panelDct1, color_process);
+			addButton("Test Kernel Factorization", panelDct1, color_process);
+			addButton("Min Kernel Factorization",  panelDct1, color_process);
+			addButton("Select kernels image",      panelDct1, color_configure);
+			addButton("Create DCT kernels",        panelDct1, color_process);
 			add(panelDct1);
 		}
 		pack();
@@ -2838,61 +2839,79 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         if (!DCT_PARAMETERS.showDialog()) return;
         FactorConvKernel factorConvKernel = new FactorConvKernel(DCT_PARAMETERS.dbg_mode == 1);
         factorConvKernel.setDebugLevel(DEBUG_LEVEL);
-        factorConvKernel.setTargetWindowMode(DCT_PARAMETERS.dbg_window_mode);
+        factorConvKernel.setTargetWindowMode(DCT_PARAMETERS.dbg_window_mode, DCT_PARAMETERS.centerWindowToTarget);
         factorConvKernel.numIterations = DCT_PARAMETERS.LMA_steps;
         factorConvKernel.setAsymCompactness(
         		DCT_PARAMETERS.compactness,
         		DCT_PARAMETERS.asym_tax_free);
-
+        
         int target_kernel_size = 2*DCT_PARAMETERS.dct_size - 1;
-        double [] target_kernel = new double [target_kernel_size * target_kernel_size];
-        for (int ii=0; ii < target_kernel.length; ii++) target_kernel[ii]=0.0;
-        double dist = Math.sqrt((DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)*(DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)+
-        		(DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y)*(DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y));
-        int num_steps = (int) Math.round(dist+0.5);
-        dist = num_steps;
-        for (int ii = 0; ii<= num_steps; ii++) {
-        	int dbg_x = (int) Math.round((DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)*ii/dist + DCT_PARAMETERS.dbg_x);
-        	int dbg_y = (int) Math.round((DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y)*ii/dist + DCT_PARAMETERS.dbg_y);
-        	target_kernel[(target_kernel_size/2 + dbg_y)*target_kernel_size+(target_kernel_size/2 + dbg_x)] = 1.0;
-        	if (MASTER_DEBUG_LEVEL >2) {
-        	System.out.println(ii+": "+((DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)*ii/dist + DCT_PARAMETERS.dbg_x)+
-        			" / "+ ((DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y)*ii/dist + DCT_PARAMETERS.dbg_y)+" ("+dbg_x+":"+dbg_y+")");
+    	int target_expanded_size = 2*DCT_PARAMETERS.dct_size + DCT_PARAMETERS.asym_size -2;
+        double [] target_expanded = null;
+        if ((EYESIS_DCT != null) && EYESIS_DCT.kernelImageSet() && (DCT_PARAMETERS.color_channel >= 0)){
+        	System.out.println("Using extracted target kernel");
+        	double [] src_kernel = EYESIS_DCT.extractOneKernelFromStack(
+        			CONVOLVE_FFT_SIZE/2	, // 64
+        			DCT_PARAMETERS.color_channel, // 0..2
+        			DCT_PARAMETERS.tileX, // horizontal number of kernel to extract
+        			DCT_PARAMETERS.tileY);  // vertical number of kernel to extract
+        	target_expanded = EYESIS_DCT.reformatKernel(
+        			src_kernel,// will be blured in-place
+        			CONVOLVE_FFT_SIZE/2,  // typical 64
+        			target_expanded_size,  // typical 15
+        			DCT_PARAMETERS.decimation,// typical 2
+        			DCT_PARAMETERS.decimateSigma);
+        } else {
+        	System.out.println("Using synthesized target kernel");
+
+        	double [] target_kernel = new double [target_kernel_size * target_kernel_size];
+
+        	for (int ii=0; ii < target_kernel.length; ii++) target_kernel[ii]=0.0;
+        	double dist = Math.sqrt((DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)*(DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)+
+        			(DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y)*(DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y));
+        	int num_steps = (int) Math.round(dist+0.5);
+        	dist = num_steps;
+        	for (int ii = 0; ii<= num_steps; ii++) {
+        		int dbg_x = (int) Math.round((DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)*ii/dist + DCT_PARAMETERS.dbg_x);
+        		int dbg_y = (int) Math.round((DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y)*ii/dist + DCT_PARAMETERS.dbg_y);
+        		target_kernel[(target_kernel_size/2 + dbg_y)*target_kernel_size+(target_kernel_size/2 + dbg_x)] = 1.0;
+        		if (MASTER_DEBUG_LEVEL >2) {
+        			System.out.println(ii+": "+((DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)*ii/dist + DCT_PARAMETERS.dbg_x)+
+        					" / "+ ((DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y)*ii/dist + DCT_PARAMETERS.dbg_y)+" ("+dbg_x+":"+dbg_y+")");
+        		}
+
         	}
-        	
+
+        	double blurSigma = DCT_PARAMETERS.dbg_sigma;
+        	DoubleGaussianBlur gb=null;
+        	if (blurSigma>0)   gb=new DoubleGaussianBlur();
+        	if (blurSigma>0)   gb.blurDouble(target_kernel, target_kernel_size, target_kernel_size, blurSigma, blurSigma, 0.01);
+        	//        SDFA_INSTANCE.showArrays(target_kernel,  target_kernel_size, target_kernel_size,   "target_kernel");
+
+        	if (
+        			(DCT_PARAMETERS.dbg_x  == 0.0) &&
+        			(DCT_PARAMETERS.dbg_x1 == 0.0) &&
+        			(DCT_PARAMETERS.dbg_y  == 0.0) &&
+        			(DCT_PARAMETERS.dbg_y1 == 0.0)) {
+        		System.out.println ("Making sure target kernel is center symmetrical (copying top-left quater)");
+        		for (int ii = 0; ii<target_kernel_size; ii++) for (int jj = 0; jj<target_kernel_size; jj++){
+        			int ii1 = (ii >=  DCT_PARAMETERS.dct_size)? (2 * DCT_PARAMETERS.dct_size -ii -2):ii;
+        			int jj1 = (jj >=  DCT_PARAMETERS.dct_size)? (2 * DCT_PARAMETERS.dct_size -jj -2):jj;
+        			target_kernel[target_kernel_size*ii+jj] = target_kernel[target_kernel_size*ii1+jj1]; 
+        		}
+        	}
+        	target_expanded = new double [target_expanded_size * target_expanded_size];
+
+        	for (int ii=0; ii < target_expanded.length; ii++) target_expanded[ii]=0.0;
+        	int left_top_margin = ((DCT_PARAMETERS.asym_size-1)/2);
+        	for (int ii=0;ii < target_kernel_size; ii++){
+        		for (int jj=0; jj < target_kernel_size; jj++){
+        			target_expanded[(ii+left_top_margin)*target_expanded_size + (jj+left_top_margin)] = 
+        					target_kernel[ii*target_kernel_size + jj];
+        		}
+        	}
         }
         
-    	double blurSigma = DCT_PARAMETERS.dbg_sigma;
-		DoubleGaussianBlur gb=null;
-		if (blurSigma>0)   gb=new DoubleGaussianBlur();
-    	if (blurSigma>0)   gb.blurDouble(target_kernel, target_kernel_size, target_kernel_size, blurSigma, blurSigma, 0.01);
-//        SDFA_INSTANCE.showArrays(target_kernel,  target_kernel_size, target_kernel_size,   "target_kernel");
-    	
-    	if (
-    			(DCT_PARAMETERS.dbg_x  == 0.0) &&
-    			(DCT_PARAMETERS.dbg_x1 == 0.0) &&
-    			(DCT_PARAMETERS.dbg_y  == 0.0) &&
-    			(DCT_PARAMETERS.dbg_y1 == 0.0)) {
-    		System.out.println ("Making sure target kernel is center symmetrical (copying top-left quater)");
-    		for (int ii = 0; ii<target_kernel_size; ii++) for (int jj = 0; jj<target_kernel_size; jj++){
-    			int ii1 = (ii >=  DCT_PARAMETERS.dct_size)? (2 * DCT_PARAMETERS.dct_size -ii -2):ii;
-    			int jj1 = (jj >=  DCT_PARAMETERS.dct_size)? (2 * DCT_PARAMETERS.dct_size -jj -2):jj;
-    			target_kernel[target_kernel_size*ii+jj] = target_kernel[target_kernel_size*ii1+jj1]; 
-    		}
-    	}
-    	
-
-    	int target_expanded_size = 2*DCT_PARAMETERS.dct_size + DCT_PARAMETERS.asym_size -2;
-        double [] target_expanded = new double [target_expanded_size * target_expanded_size];
-        for (int ii=0; ii < target_expanded.length; ii++) target_expanded[ii]=0.0;
-        int left_top_margin = ((DCT_PARAMETERS.asym_size-1)/2);
-        for (int ii=0;ii < target_kernel_size; ii++){
-            for (int jj=0; jj < target_kernel_size; jj++){
-            	target_expanded[(ii+left_top_margin)*target_expanded_size + (jj+left_top_margin)] = 
-                    	target_kernel[ii*target_kernel_size + jj];
-            }
-        }
-    	
         boolean [] mask = null;
         if (!DCT_PARAMETERS.dbg_mask.equals("")){
         	mask = new boolean [DCT_PARAMETERS.asym_size*DCT_PARAMETERS.asym_size];
@@ -2901,7 +2920,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         	}
 
         }
-        
+        long startTime = System.nanoTime();
     	boolean result = factorConvKernel.calcKernels(
     			target_expanded,
     			DCT_PARAMETERS.asym_size,
@@ -2911,7 +2930,12 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
     			DCT_PARAMETERS.seed_size,
     			DCT_PARAMETERS.asym_random);
     	System.out.println("factorConvKernel.calcKernels() returned: >>> "+result+ " <<<");
-        double [] sym_kernel =  factorConvKernel.getSymKernel();
+		System.out.println(
+				"RMS = "+factorConvKernel.getRMSes()[0]+
+				", RMSPure = "+factorConvKernel.getRMSes()[1]+
+				", relRMSPure = "+(factorConvKernel.getRMSes()[1]/factorConvKernel.getTargetRMS())+
+				", spent "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec");
+		double [] sym_kernel =  factorConvKernel.getSymKernel();
         double [] asym_kernel = factorConvKernel.getAsymKernel();
         double [] convolved =   factorConvKernel.getConvolved();
         double [] target_weights = factorConvKernel.getTargetWeights();
@@ -2923,11 +2947,12 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         	weighted_diff100[ii] = diff100[ii]* target_weights[ii];
         }
         double [][] compare_kernels = {target_expanded, convolved, weighted_diff100,target_weights, diff100};
-
-        System.out.println("DCT_PARAMETERS.dct_size="+DCT_PARAMETERS.dct_size+" DCT_PARAMETERS.asym_size="+DCT_PARAMETERS.asym_size);
-        System.out.println("sym_kernel.length="+ sym_kernel.length);
-        System.out.println("asym_kernel.length="+asym_kernel.length);
-        System.out.println("convolved.length="+convolved.length);
+        if (DEBUG_LEVEL>0) {
+        	System.out.println("DCT_PARAMETERS.dct_size="+DCT_PARAMETERS.dct_size+" DCT_PARAMETERS.asym_size="+DCT_PARAMETERS.asym_size);
+        	System.out.println("sym_kernel.length="+ sym_kernel.length);
+        	System.out.println("asym_kernel.length="+asym_kernel.length);
+        	System.out.println("convolved.length="+convolved.length);
+        }
         SDFA_INSTANCE.showArrays(sym_kernel,    DCT_PARAMETERS.dct_size,       DCT_PARAMETERS.dct_size,   "sym_kernel");
         SDFA_INSTANCE.showArrays(asym_kernel,   DCT_PARAMETERS.asym_size,      DCT_PARAMETERS.asym_size,  "asym_kernel");
         SDFA_INSTANCE.showArrays(compare_kernels,  target_expanded_size, target_expanded_size, true, "compare_kernels");
@@ -2938,47 +2963,60 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         if (!DCT_PARAMETERS.showDialog()) return;
         FactorConvKernel factorConvKernel = new FactorConvKernel(DCT_PARAMETERS.dbg_mode == 1);
         factorConvKernel.setDebugLevel(DEBUG_LEVEL);
-        factorConvKernel.setTargetWindowMode(DCT_PARAMETERS.dbg_window_mode);
+        factorConvKernel.setTargetWindowMode(DCT_PARAMETERS.dbg_window_mode, DCT_PARAMETERS.centerWindowToTarget);
         factorConvKernel.numIterations = DCT_PARAMETERS.LMA_steps;
         factorConvKernel.setAsymCompactness(
         		DCT_PARAMETERS.compactness,
         		DCT_PARAMETERS.asym_tax_free);
-
         int target_kernel_size = 2*DCT_PARAMETERS.dct_size - 1;
-        double [] target_kernel = new double [target_kernel_size * target_kernel_size];
-        for (int ii=0; ii < target_kernel.length; ii++) target_kernel[ii]=0.0;
-        double dist = Math.sqrt((DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)*(DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)+
-        		(DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y)*(DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y));
-        int num_steps = (int) Math.round(dist+0.5);
-        dist = num_steps;
-        for (int ii = 0; ii<= num_steps; ii++) {
-        	int dbg_x = (int) Math.round((DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)*ii/dist + DCT_PARAMETERS.dbg_x);
-        	int dbg_y = (int) Math.round((DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y)*ii/dist + DCT_PARAMETERS.dbg_y);
-        	target_kernel[(target_kernel_size/2 + dbg_y)*target_kernel_size+(target_kernel_size/2 + dbg_x)] = 1.0;
-        	if (MASTER_DEBUG_LEVEL >2) {
-        	System.out.println(ii+": "+((DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)*ii/dist + DCT_PARAMETERS.dbg_x)+
-        			" / "+ ((DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y)*ii/dist + DCT_PARAMETERS.dbg_y)+" ("+dbg_x+":"+dbg_y+")");
-        	}
-        	
-        }
-        
-    	double blurSigma = DCT_PARAMETERS.dbg_sigma;
-		DoubleGaussianBlur gb=null;
-		if (blurSigma>0)   gb=new DoubleGaussianBlur();
-    	if (blurSigma>0)   gb.blurDouble(target_kernel, target_kernel_size, target_kernel_size, blurSigma, blurSigma, 0.01);
-//        SDFA_INSTANCE.showArrays(target_kernel,  target_kernel_size, target_kernel_size,   "target_kernel");
-
     	int target_expanded_size = 2*DCT_PARAMETERS.dct_size + DCT_PARAMETERS.asym_size -2;
-        double [] target_expanded = new double [target_expanded_size * target_expanded_size];
-        for (int ii=0; ii < target_expanded.length; ii++) target_expanded[ii]=0.0;
-        int left_top_margin = ((DCT_PARAMETERS.asym_size-1)/2);
-        for (int ii=0;ii < target_kernel_size; ii++){
-            for (int jj=0; jj < target_kernel_size; jj++){
-            	target_expanded[(ii+left_top_margin)*target_expanded_size + (jj+left_top_margin)] = 
-                    	target_kernel[ii*target_kernel_size + jj];
-            }
+        double [] target_expanded = null;
+        if ((EYESIS_DCT != null) && EYESIS_DCT.kernelImageSet() && (DCT_PARAMETERS.color_channel >= 0)){
+        	System.out.println("Using extracted target kernel");
+        	double [] src_kernel = EYESIS_DCT.extractOneKernelFromStack(
+        			CONVOLVE_FFT_SIZE/2	, // 64
+        			DCT_PARAMETERS.color_channel, // 0..2
+        			DCT_PARAMETERS.tileX, // horizontal number of kernel to extract
+        			DCT_PARAMETERS.tileY);  // vertical number of kernel to extract
+        	target_expanded = EYESIS_DCT.reformatKernel(
+        			src_kernel,// will be blured in-place
+        			CONVOLVE_FFT_SIZE/2,  // typical 64
+        			target_expanded_size,  // typical 15
+        			DCT_PARAMETERS.decimation,// typical 2
+        			DCT_PARAMETERS.decimateSigma);
+        } else {
+        	System.out.println("Using synthesized target kernel");
+        	double [] target_kernel = new double [target_kernel_size * target_kernel_size];
+        	for (int ii=0; ii < target_kernel.length; ii++) target_kernel[ii]=0.0;
+        	double dist = Math.sqrt((DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)*(DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)+
+        			(DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y)*(DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y));
+        	int num_steps = (int) Math.round(dist+0.5);
+        	dist = num_steps;
+        	for (int ii = 0; ii<= num_steps; ii++) {
+        		int dbg_x = (int) Math.round((DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)*ii/dist + DCT_PARAMETERS.dbg_x);
+        		int dbg_y = (int) Math.round((DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y)*ii/dist + DCT_PARAMETERS.dbg_y);
+        		target_kernel[(target_kernel_size/2 + dbg_y)*target_kernel_size+(target_kernel_size/2 + dbg_x)] = 1.0;
+        		if (MASTER_DEBUG_LEVEL >2) {
+        			System.out.println(ii+": "+((DCT_PARAMETERS.dbg_x1-DCT_PARAMETERS.dbg_x)*ii/dist + DCT_PARAMETERS.dbg_x)+
+        					" / "+ ((DCT_PARAMETERS.dbg_y1-DCT_PARAMETERS.dbg_y)*ii/dist + DCT_PARAMETERS.dbg_y)+" ("+dbg_x+":"+dbg_y+")");
+        		}
+        	}
+
+        	double blurSigma = DCT_PARAMETERS.dbg_sigma;
+        	DoubleGaussianBlur gb=null;
+        	if (blurSigma>0)   gb=new DoubleGaussianBlur();
+        	if (blurSigma>0)   gb.blurDouble(target_kernel, target_kernel_size, target_kernel_size, blurSigma, blurSigma, 0.01);
+        	target_expanded = new double [target_expanded_size * target_expanded_size];
+        	for (int ii=0; ii < target_expanded.length; ii++) target_expanded[ii]=0.0;
+        	int left_top_margin = ((DCT_PARAMETERS.asym_size-1)/2);
+        	for (int ii=0;ii < target_kernel_size; ii++){
+        		for (int jj=0; jj < target_kernel_size; jj++){
+        			target_expanded[(ii+left_top_margin)*target_expanded_size + (jj+left_top_margin)] = 
+        					target_kernel[ii*target_kernel_size + jj];
+        		}
+        	}
         }
-    	
+        long startTime = System.nanoTime();
     	int numPixels = factorConvKernel.calcKernels(
     			target_expanded,
     			DCT_PARAMETERS.asym_size,
@@ -2987,22 +3025,15 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
     			DCT_PARAMETERS.asym_pixels,
     			DCT_PARAMETERS.asym_distance,
     			DCT_PARAMETERS.seed_size);
-    	/*
-     	public int calcKernels(
-    			double []target_kernel,
-    			int asym_size,
-    			int sym_radius,
-    			double fact_precision,
-    			int asym_pixels,          // maximal number of non-zero pixels in asymmmetrical kernel
-    			int asym_distance){       // how far to seed a new pixel
-        	
-     */
-    	
-    	
-    	
-    	
-    	System.out.println("factorConvKernel.calcKernels() returned: >>> "+numPixels+ " <<<");
-        double [] sym_kernel =  factorConvKernel.getSymKernel();
+    	System.out.println(
+    			"calcKernels() number of asym pixels = "+numPixels+
+				" RMS = "+factorConvKernel.getRMSes()[0]+
+				", RMSPure = "+factorConvKernel.getRMSes()[1]+
+				", relRMSPure = "+(factorConvKernel.getRMSes()[1]/factorConvKernel.getTargetRMS())+
+				", number of LMA runs = "+factorConvKernel.getLMARuns()+
+				", spent "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec");
+
+    	double [] sym_kernel =  factorConvKernel.getSymKernel();
         double [] asym_kernel = factorConvKernel.getAsymKernel();
         double [] convolved =   factorConvKernel.getConvolved();
         double [] target_weights = factorConvKernel.getTargetWeights();
@@ -3013,11 +3044,12 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         	weighted_diff100[ii] = diff100[ii]* target_weights[ii];
         }
         double [][] compare_kernels = {target_expanded, convolved, weighted_diff100,target_weights, diff100};
-        
-        System.out.println("DCT_PARAMETERS.dct_size="+DCT_PARAMETERS.dct_size+" DCT_PARAMETERS.asym_size="+DCT_PARAMETERS.asym_size);
-        System.out.println("sym_kernel.length="+ sym_kernel.length);
-        System.out.println("asym_kernel.length="+asym_kernel.length);
-        System.out.println("convolved.length="+convolved.length);
+        if (DEBUG_LEVEL>0) {
+        	System.out.println("DCT_PARAMETERS.dct_size="+DCT_PARAMETERS.dct_size+" DCT_PARAMETERS.asym_size="+DCT_PARAMETERS.asym_size);
+        	System.out.println("sym_kernel.length="+ sym_kernel.length);
+        	System.out.println("asym_kernel.length="+asym_kernel.length);
+        	System.out.println("convolved.length="+convolved.length);
+        }
         SDFA_INSTANCE.showArrays(sym_kernel,    DCT_PARAMETERS.dct_size,       DCT_PARAMETERS.dct_size,   "sym_kernel");
         SDFA_INSTANCE.showArrays(asym_kernel,   DCT_PARAMETERS.asym_size,      DCT_PARAMETERS.asym_size,  "asym_kernel");
         SDFA_INSTANCE.showArrays(compare_kernels,  target_expanded_size, target_expanded_size, true, "compare_kernels");
@@ -3067,7 +3099,23 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
         int numChannels=EYESIS_CORRECTIONS.getNumChannels();
-    	
+
+        
+    } else if (label.equals("Select kernels image")) {
+        if (!DCT_PARAMETERS.showDialog()) return;
+        if (EYESIS_DCT == null){
+        	EYESIS_DCT = new  EyesisDCT (
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS,
+        			DCT_PARAMETERS);
+        }
+        ImagePlus imp_src = WindowManager.getCurrentImage();
+        if (imp_src==null){
+            IJ.showMessage("Error","3-layer files of deconvolution kernels is required");
+            return;
+        }
+        EYESIS_DCT.setKernelImageFile( imp_src);
+        
     } else if (label.equals("Create DCT kernels")) {
         if (!DCT_PARAMETERS.showDialog()) return;
         if (EYESIS_DCT == null){
@@ -3105,18 +3153,14 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
         
-        EYESIS_DCT.createDCTKernels();
-
-        
-        /*    	
-        EYESIS_CORRECTIONS.updateImageNoiseGains(
-        		NONLIN_PARAMETERS,     //EyesisCorrectionParameters.NonlinParameters nonlinParameters,
-        		CONVOLVE_FFT_SIZE,     //int          fftSize, // 128 - fft size, kernel size should be size/2
-    			THREADS_MAX,           // int          threadsMax,  // maximal number of threads to launch                         
-    			UPDATE_STATUS,         // boolean    updateStatus,
-    			DEBUG_LEVEL);           //int        globalDebugLevel){
-        
-*/    	
+        EYESIS_DCT.createDCTKernels(
+        		DCT_PARAMETERS,
+        		CONVOLVE_FFT_SIZE/2,
+                THREADS_MAX,
+                UPDATE_STATUS, // update status info
+        		DEBUG_LEVEL);
+//		EyesisCorrectionParameters.DCTParameters dCTParameters,
+//		int srcKernelSize,
     	
     }
     DEBUG_LEVEL=MASTER_DEBUG_LEVEL;

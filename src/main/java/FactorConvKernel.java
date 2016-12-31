@@ -78,7 +78,7 @@ public class FactorConvKernel {
 	public double    currentRMS ;
 	public double    firstRMS;
 	public double    nextRMS ;
-
+	public double [] RMSes = {-1.0,-1.0};
 	public double    currentRMSPure=-1.0; // calculated RMS for the currentVector->currentfX
     public double    nextRMSPure=   -1.0; // calculated RMS for the nextVector->nextfX
     public double    firstRMSPure=  -1.0; // RMS before current series of LMA started
@@ -98,7 +98,8 @@ public class FactorConvKernel {
     public double    goal_rms_pure;	
 	public LMAData   lMAData = null;
 	public int       numLMARuns = 0;
-	public int       target_window_mode = 2; // 0 - none, 1 - square, 2 - sin
+	public int       target_window_mode = 2; // 0 - none, 1 - square, 2 - sin, 3 - sin^2
+	public boolean   centerWindowToTarget = true; // center convolution weights around target kernel center
 	
 	public class LMAArrays {
 		public double [][] jTByJ=  null; // jacobian multiplied by Jacobian transposed
@@ -141,6 +142,7 @@ public class FactorConvKernel {
 		public double   []   saved_rmses =   null;
 		public double   []   first_rmses =   null;
 		public int           target_window_mode = 2; // 0 - none, 1 - square, 2 - sin
+		public boolean       centerWindowToTarget = true; // center convolution weights around target kernel center
 		
 		
 		public LMAData(){
@@ -148,8 +150,9 @@ public class FactorConvKernel {
 		public LMAData( int debugLevel){
 			this.debugLevel = debugLevel;
 		}
-		public void setTargetWindowMode(int mode){
-			target_window_mode = mode;
+		public void setTargetWindowMode(int mode, boolean   centerWindowToTarget){
+			this.target_window_mode =    mode;
+			this.centerWindowToTarget = 	centerWindowToTarget;
 		}
 
 		public void initLMAData(){
@@ -390,20 +393,36 @@ public class FactorConvKernel {
 					System.out.println("getWeight(), delete jacobian");
 				}
 				if ((weights[0] == null) || (weights[0].length != target_kernel.length)){
-					if (debugLevel > 2){
-						System.out.println("Convolution weight is null/outdated, regenerating default (only center part)");
+					int xc = 0;
+					int yc = 0;
+					int conv_size = asym_size + 2*sym_radius-2;
+					int cc = conv_size/2;
+					if (this.centerWindowToTarget) {
+						double s0=0.0,sx=0.0,sy=0.0;
+						for (int i = 0; i < conv_size; i++){
+							for (int j = 0; j < conv_size; j++){
+								double d = target_kernel[conv_size*i+j];
+								d  *= d;
+								s0 += d;
+								sx += d* (j - cc);
+								sy += d* (i - cc);
+							}
+						}
+						xc = (int) Math.round(sx/s0);
+						yc = (int) Math.round(sy/s0);
 					}
 					double [] sins = new double [2*sym_radius-1];
 					for (int i = 1; i< 2*sym_radius; i++) sins[i-1] = Math.sin(Math.PI*i/(2.0 * sym_radius));
 					weights[0] = new double [target_kernel.length];
-					int conv_size = asym_size + 2*sym_radius-2;
-					int left_top_margin = ((asym_size-1)/2); // inclusive
-					int right_bottom_margin = left_top_margin + (2 * sym_radius - 1); // exclusive  
+					int left_margin = ((asym_size-1)/2) +xc; // inclusive
+					int top_margin = ((asym_size-1)/2) + yc; // inclusive
+					int right_margin = left_margin + (2 * sym_radius - 1); // exclusive  
+					int bottom_margin = top_margin + (2 * sym_radius - 1); // exclusive  
 					for (int i = 0; i < conv_size; i++) {
 						for (int j = 0; j < conv_size; j++){
 							int cindx = i * conv_size + j;
-							if ((i >= left_top_margin) &&  (i < right_bottom_margin) && (j >= left_top_margin) &&  (j < right_bottom_margin)) {
-								weights[0][cindx] = (target_window_mode>=2)?(sins[i-left_top_margin]*sins[j-left_top_margin]):1.0;
+							if ((i >= top_margin) &&  (i < bottom_margin) && (j >= left_margin) &&  (j < right_margin)) {
+								weights[0][cindx] = (target_window_mode>=2)?(sins[i-top_margin]*sins[j-left_margin]):1.0;
 								if (target_window_mode == 3) {
 									weights[0][cindx]*=weights[0][cindx];
 								}
@@ -412,7 +431,9 @@ public class FactorConvKernel {
 							}
 						}
 					}
-				}			
+				}
+//	public boolean   centerWindowToTarget = true; // center convolution weights around target kernel center
+				
 			//target_window_mode
 				rebuildMapsPars(false); // only if it does not exist
 				double sw = 0.0;
@@ -749,6 +770,7 @@ public class FactorConvKernel {
 	} // class LMAData
 	
 	public FactorConvKernel(){
+		this.new_mode =true;
 	}
 
 	public FactorConvKernel(boolean new_mode){
@@ -760,10 +782,19 @@ public class FactorConvKernel {
 		this.sym_radius =  sym_radius;
 	}
 
-	public void setTargetWindowMode(int mode){
+	public void setTargetWindowMode(int mode, boolean centerWindowToTarget){
 		target_window_mode = mode;
+		this.centerWindowToTarget = centerWindowToTarget;
 	}
 
+	public double[] getRMSes(){
+		return this.RMSes; // lMAData.getRMSes();
+	}
+	
+	public double getTargetRMS(){
+		return lMAData.getTargetRMSW();
+	}
+	
 	public double [] generateAsymWeights(
 			int asym_size,
 			double scale,
@@ -844,7 +875,9 @@ public class FactorConvKernel {
     		lMAData.setSymKernel(null, sym_mask_frozen);
     		levenbergMarquardt();
     		lMAData.setSymKernel(null, sym_mask);
-    		return levenbergMarquardt();
+    		boolean OK = levenbergMarquardt();
+    		this.RMSes = lMAData.getRMSes().clone();
+    		return OK;
 		} else{
 			initLevenbergMarquardt_old(fact_precision, seed_size, asym_random);
 			if (mask != null){
@@ -1116,6 +1149,7 @@ public class FactorConvKernel {
 				System.out.println();	
 			}
 		}
+		this.RMSes = RMSes.clone();
 		return numAsym;		
 	}
 
@@ -2148,16 +2182,7 @@ public class FactorConvKernel {
 	private void initLevenbergMarquardt(double fact_precision, int seed_size, double asym_random){
 		lMAData = new LMAData(debugLevel);
 		lMAData.setTarget(target_kernel);
-		lMAData.setTargetWindowMode(target_window_mode);		
-		
-/*		double s = 0.0;
-		for (int i = 0; i<target_kernel.length; i++){
-			s+= target_kernel[i]*target_kernel[i];
-		}
-		this.goal_rms_pure = Math.sqrt(s/target_kernel.length)*fact_precision;
-*/
-		
-//    	this.currentVector = setInitialVector(target_kernel, null); // should be (asym_size + 2*sym_radius-1)**2
+		lMAData.setTargetWindowMode(target_window_mode, centerWindowToTarget);		
     	double [][]kernels = setInitialVector(target_kernel, seed_size, asym_random); // should be (asym_size + 2*sym_radius-1)**2
     	sym_kernel_scale = kernels[0][0];
     	for (int i=0;i<kernels[0].length;i++) if (!Double.isNaN(kernels[0][i])) kernels[0][i] /=sym_kernel_scale;
@@ -2166,12 +2191,8 @@ public class FactorConvKernel {
     	lMAData.setAsymKernel(kernels[1]);
 		this.goal_rms_pure = lMAData.getTargetRMSW()*fact_precision;
 		this.target_rms = lMAData.getTargetRMSW(); //Math.sqrt(s/target_kernel.length);
-    	
-//    	lMAData.invalidateLMAArrays(); // should be in each run , not at init
     	resetLMARuns();
-//    	this.currentVector = setVectorFromKernels(kernels[0], kernels[1]);
 	}
-
 	
 	private boolean levenbergMarquardt(){
     	long startTime=System.nanoTime();
