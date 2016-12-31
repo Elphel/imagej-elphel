@@ -5687,7 +5687,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 	 */
 	public static void main(String[] args) {
 		// set the plugins.dir property to make the plugin appear in the Plugins menu
-		Class<?> clazz = Aberration_Calibration.class;
+		Class<?> clazz = Eyesis_Correction.class;
 		String url = clazz.getResource("/" + clazz.getName().replace('.', '/') + ".class").toString();
 		String pluginsDir = url.substring(5, url.length() - clazz.getName().length() - 6);
 		System.setProperty("plugins.dir", pluginsDir);
