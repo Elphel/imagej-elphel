@@ -318,6 +318,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
    public static boolean DCT_MODE=false; //true; // show all buttons
    public static boolean MODE_3D=false; // 3D-related commands
    public PixelMapping.InterSensor.DisparityTiles DISPARITY_TILES=null;
+   public ImagePlus DBG_IMP = null;
    
 	public class SyncCommand{
 	    public boolean isRunning=      false;
@@ -451,13 +452,16 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 			panelDct1 = new Panel();
 			panelDct1.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
 			addButton("DCT test 1",                panelDct1, color_process);
-			addButton("DCT test 2",                panelDct1, color_process);
+			addButton("select MDCT image",         panelDct1, color_configure);
+			addButton("MDCT stack",                panelDct1, color_process);
+			addButton("MDCT DC stack",             panelDct1, color_process);
 			addButton("DCT test 3",                panelDct1, color_process);
 			addButton("DCT test 4",                panelDct1, color_process);
 			addButton("Test Kernel Factorization", panelDct1, color_process);
 			addButton("Min Kernel Factorization",  panelDct1, color_process);
 			addButton("Select kernels image",      panelDct1, color_configure);
 			addButton("Create DCT kernels",        panelDct1, color_process);
+			addButton("Read DCT kernels",          panelDct1, color_process);
 			add(panelDct1);
 		}
 		pack();
@@ -2586,51 +2590,87 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         
         plot.show();
     	return;
+/* ======================================================================== */
+   //   public ImagePlus DBG_IMP = null;
+       } else if (label.equals("select MDCT image")) {
+       	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+//       	IJ.showMessage("DCT test 1");
+           if (!DCT_PARAMETERS.showDialog()) return;
+   // process selected image stack        
+           ImagePlus imp_src = WindowManager.getCurrentImage();
+           if (imp_src==null){
+               IJ.showMessage("Error","JP4 image or Bayer image stack required");
+               return;
+           }
+           if (imp_src.getStackSize()<3){ // convert JP4 to image stack
+           	
+           	   EyesisCorrectionParameters.SplitParameters split_parameters = new EyesisCorrectionParameters.SplitParameters(
+           			   1,  // oversample;
+           			   // Add just for mdct (N/2)
+           			   DCT_PARAMETERS.dct_size/2, // addLeft
+           			   DCT_PARAMETERS.dct_size/2, // addTop
+           			   DCT_PARAMETERS.dct_size/2, // addRight
+           			   DCT_PARAMETERS.dct_size/2  // addBottom
+           	   );		   
+           	
+           	
+           	ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
+           			split_parameters);
+           	DBG_IMP = new ImagePlus(imp_src.getTitle()+"-SPIT", sourceStack);
+           	if (DEBUG_LEVEL > 1) {
+           		DBG_IMP.getProcessor().resetMinAndMax();
+           		DBG_IMP.show();
+           	}
+           } else {
+           	DBG_IMP = imp_src;
+           }
  /* ======================================================================== */
-    } else if (label.equals("DCT test 2")) {
+    } else if (label.equals("MDCT stack")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 //    	IJ.showMessage("DCT test 1");
         if (!DCT_PARAMETERS.showDialog()) return;
-// process selected image stack        
-        ImagePlus imp_src = WindowManager.getCurrentImage();
-        if (imp_src==null){
-            IJ.showMessage("Error","JP4 image or Bayer image stack required");
-            return;
-        }
-        ImagePlus imp2;
-        if (imp_src.getStackSize()<3){ // convert JP4 to image stack
-        	
-        	   EyesisCorrectionParameters.SplitParameters split_parameters = new EyesisCorrectionParameters.SplitParameters(
-        			   1,  // oversample;
-        			   // Add just for mdct (N/2)
-        			   DCT_PARAMETERS.dct_size/2, // addLeft
-        			   DCT_PARAMETERS.dct_size/2, // addTop
-        			   DCT_PARAMETERS.dct_size/2, // addRight
-        			   DCT_PARAMETERS.dct_size/2  // addBottom
-        	   );		   
-        	
-        	
-        	ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
-        			split_parameters);
-        	imp2 = new ImagePlus(imp_src.getTitle()+"-SPIT", sourceStack);
-        	imp2.getProcessor().resetMinAndMax();
-        	imp2.show();
-        } else {
-        	imp2 = imp_src;
+// process selected image stack
+        if (DBG_IMP == null) {
+        	ImagePlus imp_src = WindowManager.getCurrentImage();
+        	if (imp_src==null){
+        		IJ.showMessage("Error","JP4 image or Bayer image stack required");
+        		return;
+        	}
+//        	ImagePlus imp2;
+        	if (imp_src.getStackSize()<3){ // convert JP4 to image stack
+
+        		EyesisCorrectionParameters.SplitParameters split_parameters = new EyesisCorrectionParameters.SplitParameters(
+        				1,  // oversample;
+        				// Add just for mdct (N/2)
+        				DCT_PARAMETERS.dct_size/2, // addLeft
+        				DCT_PARAMETERS.dct_size/2, // addTop
+        				DCT_PARAMETERS.dct_size/2, // addRight
+        				DCT_PARAMETERS.dct_size/2  // addBottom
+        				);		   
+
+
+        		ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
+        				split_parameters);
+        		DBG_IMP = new ImagePlus(imp_src.getTitle()+"-SPIT", sourceStack);
+        		DBG_IMP.getProcessor().resetMinAndMax();
+        		DBG_IMP.show();
+        	} else {
+        		DBG_IMP = imp_src;
+        	}
         }
         ImageDtt image_dtt = new ImageDtt();
-        double [][] dct_data = image_dtt.mdctStack(imp2.getStack(),
+        double [][] dct_data = image_dtt.mdctStack(DBG_IMP.getStack(),
         		                                   DCT_PARAMETERS,
         		                                   THREADS_MAX, DEBUG_LEVEL, UPDATE_STATUS);
-        int tilesY = imp2.getHeight()/DCT_PARAMETERS.dct_size - 1;
-        int tilesX = imp2.getWidth()/DCT_PARAMETERS.dct_size - 1;
+        int tilesY = DBG_IMP.getHeight()/DCT_PARAMETERS.dct_size - 1;
+        int tilesX = DBG_IMP.getWidth()/DCT_PARAMETERS.dct_size - 1;
         System.out.println("tilesX="+tilesX);
         System.out.println("tilesY="+tilesY);
         SDFA_INSTANCE.showArrays(dct_data,
         		tilesX*DCT_PARAMETERS.dct_size,
         		tilesY*DCT_PARAMETERS.dct_size,
         		true,
-        		imp_src.getTitle()+"-DCT");  
+        		DBG_IMP.getTitle()+"-DCT");  
         double [][] idct_data = new double [dct_data.length][];
         for (int chn=0; chn<idct_data.length;chn++){
         	idct_data[chn] = image_dtt.lapped_idct(
@@ -2645,11 +2685,104 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         		(tilesX + 1) * DCT_PARAMETERS.dct_size,
         		(tilesY + 1) * DCT_PARAMETERS.dct_size,
         		true,
-        		imp_src.getTitle()+"-IDCT");  
-        
-       
+        		DBG_IMP.getTitle()+"-IDCT");  
     	return;
-    	/* ======================================================================== */
+/* ======================================================================== */
+    } else if (label.equals("MDCT DC stack")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+//    	IJ.showMessage("DCT test 1");
+        if (!DCT_PARAMETERS.showDialog()) return;
+// process selected image stack
+        if (DBG_IMP == null) {
+        	ImagePlus imp_src = WindowManager.getCurrentImage();
+        	if (imp_src==null){
+        		IJ.showMessage("Error","JP4 image or Bayer image stack required");
+        		return;
+        	}
+        	//        ImagePlus imp2;
+        	if (imp_src.getStackSize()<3){ // convert JP4 to image stack
+
+        		EyesisCorrectionParameters.SplitParameters split_parameters = new EyesisCorrectionParameters.SplitParameters(
+        				1,  // oversample;
+        				// Add just for mdct (N/2)
+        				DCT_PARAMETERS.dct_size/2, // addLeft
+        				DCT_PARAMETERS.dct_size/2, // addTop
+        				DCT_PARAMETERS.dct_size/2, // addRight
+        				DCT_PARAMETERS.dct_size/2  // addBottom
+        				);		   
+
+
+        		ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
+        				split_parameters);
+        		DBG_IMP = new ImagePlus(imp_src.getTitle()+"-SPIT", sourceStack);
+        		DBG_IMP.getProcessor().resetMinAndMax();
+        		DBG_IMP.show();
+        	} else {
+        		DBG_IMP = imp_src;
+        	}
+
+        }
+        ImageDtt image_dtt = new ImageDtt();
+        double [][][][] dctdc_data = image_dtt.mdctDcStack(
+        		DBG_IMP.getStack(),
+        		DCT_PARAMETERS,
+        		EYESIS_DCT,
+        		THREADS_MAX, DEBUG_LEVEL, UPDATE_STATUS);
+        
+        for (int chn = 0; chn < dctdc_data.length; chn++) {
+        image_dtt.dct_lpf(
+        		DCT_PARAMETERS.dbg_sigma,
+    			dctdc_data[chn],
+    			THREADS_MAX, DEBUG_LEVEL);
+        }
+        
+        
+        int tilesY = DBG_IMP.getHeight()/DCT_PARAMETERS.dct_size - 1;
+        int tilesX = DBG_IMP.getWidth()/DCT_PARAMETERS.dct_size - 1;
+        System.out.println("tilesX="+tilesX);
+        System.out.println("tilesY="+tilesY);
+        double [][] dct_dc = new double [dctdc_data.length][];
+        double [][] dct_ac = new double [dctdc_data.length][];
+        for (int chn = 0; chn < dct_dc.length; chn++) {
+        	dct_dc[chn] = image_dtt.lapped_dct_dcac(
+        			false, //       out_ac, // false - output DC, true - output AC
+        			dctdc_data [chn],
+        			THREADS_MAX,
+        			DEBUG_LEVEL);
+        	dct_ac[chn] = image_dtt.lapped_dct_dcac(
+        			true, //       out_ac, // false - output DC, true - output AC
+        			dctdc_data [chn],
+        			THREADS_MAX,
+        			DEBUG_LEVEL);
+        }
+//        System.out.println("dct_dc.length="+dct_dc.length+" dct_ac.length="+dct_ac.length);
+        SDFA_INSTANCE.showArrays(dct_ac,
+        		tilesX*DCT_PARAMETERS.dct_size,
+        		tilesY*DCT_PARAMETERS.dct_size,
+        		true,
+        		DBG_IMP.getTitle()+"-DCT_AC");  
+        SDFA_INSTANCE.showArrays(dct_dc,
+        		tilesX,
+        		tilesY,
+        		true,
+        		DBG_IMP.getTitle()+"-DCT_DC");  
+        double [][] idct_data = new double [dctdc_data.length][];
+        for (int chn=0; chn<idct_data.length;chn++){
+        	idct_data[chn] = image_dtt.lapped_idctdc(
+        			dctdc_data[chn],                  // scanline representation of dcd data, organized as dct_size x dct_size tiles  
+        			DCT_PARAMETERS.dct_size,        // final int
+        			DCT_PARAMETERS.dct_window,      //window_type
+        			THREADS_MAX,                    // maximal number of threads to launch                         
+        			DEBUG_LEVEL);                   //        globalDebugLevel)
+        }
+        SDFA_INSTANCE.showArrays(idct_data,
+        		(tilesX + 1) * DCT_PARAMETERS.dct_size,
+        		(tilesY + 1) * DCT_PARAMETERS.dct_size,
+        		true,
+        		DBG_IMP.getTitle()+"-IDCTDC");  
+    	return;
+    	
+/* ======================================================================== */
     } else if (label.equals("DCT test 3")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	int n = 32;
@@ -2978,12 +3111,20 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         			DCT_PARAMETERS.color_channel, // 0..2
         			DCT_PARAMETERS.tileX, // horizontal number of kernel to extract
         			DCT_PARAMETERS.tileY);  // vertical number of kernel to extract
+        	if ((DCT_PARAMETERS.decimation==2)&& (DCT_PARAMETERS.decimateSigma < 0)){
+            	target_expanded = EYESIS_DCT.reformatKernel2(
+            			src_kernel,// will be blured in-place
+            			CONVOLVE_FFT_SIZE/2,  // typical 64
+            			target_expanded_size);  // typical 15
+        		
+        	} else {
         	target_expanded = EYESIS_DCT.reformatKernel(
         			src_kernel,// will be blured in-place
         			CONVOLVE_FFT_SIZE/2,  // typical 64
         			target_expanded_size,  // typical 15
         			DCT_PARAMETERS.decimation,// typical 2
         			DCT_PARAMETERS.decimateSigma);
+        	}
         } else {
         	System.out.println("Using synthesized target kernel");
         	double [] target_kernel = new double [target_kernel_size * target_kernel_size];
@@ -3058,16 +3199,6 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
     	
     	
     } else if (label.equals("DCT test 4")) {
-/*
- 	public int calcKernels(
-			double []target_kernel,
-			int asym_size,
-			int sym_radius,
-			double fact_precision,
-			int asym_pixels,          // maximal number of non-zero pixels in asymmmetrical kernel
-			int asym_distance){       // how far to seed a new pixel
-    	
- */
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
     	String configPath=null;
@@ -3159,9 +3290,53 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
                 THREADS_MAX,
                 UPDATE_STATUS, // update status info
         		DEBUG_LEVEL);
+
+    } else if (label.equals("Read DCT kernels")) {
+        if (!DCT_PARAMETERS.showDialog()) return;
+        if (EYESIS_DCT == null){
+        	EYESIS_DCT = new  EyesisDCT (
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS,
+        			DCT_PARAMETERS);
+        }
+    	String configPath=null;
+    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
+    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
+    				true,
+    				true);
+    		if (configPath==null){
+    			String msg="No results directory selected, command aborted";
+    			System.out.println("Warning: "+msg);
+    			IJ.showMessage("Warning",msg);
+    			return;
+    		}
+    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		try {
+    			saveTimestampedProperties(
+    					configPath,      // full path or null
+    					null, // use as default directory if path==null 
+    					true,
+    					PROPERTIES);
+
+    		} catch (Exception e){
+    			String msg="Failed to save configuration to "+configPath+", command aborted";
+    			System.out.println("Error: "+msg);
+    			IJ.showMessage("Error",msg);
+    			return;
+    		}
+    	}      
+        
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+        
+        EYESIS_DCT.readDCTKernels(
+        		DCT_PARAMETERS,
+        		CONVOLVE_FFT_SIZE/2,
+                THREADS_MAX,
+                UPDATE_STATUS, // update status info
+        		DEBUG_LEVEL);
 //		EyesisCorrectionParameters.DCTParameters dCTParameters,
 //		int srcKernelSize,
-    	
+        EYESIS_DCT.showKernels(); // show restored kernels
     }
     DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     

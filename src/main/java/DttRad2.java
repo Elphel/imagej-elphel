@@ -29,9 +29,9 @@
 
 public class DttRad2 {
 	int N = 0;
-	double [][][] CII=null;
-	double [][][] CIV=null;
-	double [][][] SIV=null;
+	double [][][] CII=  null;
+	double [][][] CIV=  null;
+	double [][][] SIV=  null;
 	double [][] CN1=null; 
 	double [][] SN1=null; 
 	double      COSPI_1_8_SQRT2 = Math.cos(Math.PI/8)*Math.sqrt(2.0);
@@ -137,7 +137,7 @@ public class DttRad2 {
 				}
 			}
 		}
-		if (n < 16) {
+		if (n < 8) {
 			for (int i = 0; i < n; i++ ){
 				fi = get_fold_indices(i,n);
 				System.out.println(i+"->"+String.format("[%2d % 2d % 2d] [%2d %2d %2d] %f %f",
@@ -188,12 +188,12 @@ public class DttRad2 {
 				unfold_index[n2*i+j]=(index_vert+index_hor);
 				unfold_k[n2*i+j]=k_vert*k_hor;
 				
-				if (n < 16) System.out.print(String.format("%4d", unfold_index[n2*i+j]));
+				if (n < 8) System.out.print(String.format("%4d", unfold_index[n2*i+j]));
 				
 			}
-			if (n < 16) System.out.println();
+			if (n < 8) System.out.println();
 		}
-		if (n < 16) {
+		if (n < 8) {
 			for (int i = 0; i < 2*n; i++ ){
 				System.out.println(i+"->"+get_unfold_index(i,n));
 			}
@@ -226,7 +226,7 @@ public class DttRad2 {
 	}
 	
 	public double [] dttt_ii(double [] x){
-		return dttt_iv(x, 0, 1 << (ilog2(x.length)/2)); 
+		return dttt_ii(x, 1 << (ilog2(x.length)/2)); 
 	}
 
 	public double [] dttt_ii(double [] x, int n){
@@ -247,6 +247,29 @@ public class DttRad2 {
 		return y;
 	}
 
+	public double [] dttt_iii(double [] x){
+		return dttt_iii(x, 1 << (ilog2(x.length)/2)); 
+	}
+
+	public double [] dttt_iii(double [] x, int n){
+		double [] y = new double [n*n];
+		double [] line = new double[n];
+		// first (horizontal) pass
+		for (int i = 0; i<n; i++){
+			System.arraycopy(x, n*i, line, 0, n);
+			line = dctiii_direct(line);
+			for (int j=0; j < n;j++) y[j*n+i] =line[j]; // transpose 
+		}
+		// second (vertical) pass
+		for (int i = 0; i<n; i++){
+			System.arraycopy(y, n*i, line, 0, n);
+			line = dctiii_direct(line);
+			System.arraycopy(line, 0, y, n*i, n);
+		}
+		return y;
+	}
+
+	
 	
 	
 	public void set_window(){
@@ -259,15 +282,17 @@ public class DttRad2 {
 		hwindow = new double[len];
 		double f = Math.PI/(2.0*len);
 		double sqrt1_2=Math.sqrt(0.5);
+		if      (mode < 0) mode =0;
+		else if (mode > 2) mode = 2;
 		if (mode ==0){
 			for (int i = 0; i < len; i++ ) hwindow[i] = sqrt1_2;
 		} else if (mode ==1){
 			for (int i = 0; i < len; i++ ) hwindow[i] = Math.sin(f*(i+0.5));
-		} else { // add more types?
+		} else if (mode ==2){
 			double s;
 			for (int i = 0; i < len; i++ ) {
 				s = Math.sin(f*(i+0.5));
-				hwindow[i] = Math.sin(Math.PI*s*s);
+				hwindow[i] = Math.sin(Math.PI*s*s/2);
 			}
 		}
 		set_fold_2d(len);
@@ -317,6 +342,24 @@ public class DttRad2 {
 		}
 		return y;
 	}
+
+	public double [] dctiii_direct(double[] x){
+		// CIII=transp(CII)
+		int n = x.length;
+		int t = ilog2(n)-1;
+		if (CII==null){
+			setup_CII(N); // just full size
+		}
+		double [] y = new double[n];
+		for (int i = 0; i<n; i++) {
+			y[i] = 0.0;
+			for (int j = 0; j< n; j++){
+				y[i]+= CII[t][j][i]*x[j]; 
+			}
+		}
+		return y;
+	}
+	
 	
 	public double [] dctiv_direct(double[] x){
 		int n = x.length;
@@ -388,7 +431,7 @@ public class DttRad2 {
 			}
 		}
 	}
-
+	
 	private void setup_CIV(int maxN){
 		if (maxN > N) setup_arrays(maxN);		
 		int l = ilog2(N);

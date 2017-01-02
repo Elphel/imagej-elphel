@@ -80,12 +80,17 @@ public class EyesisCorrectionParameters {
     	public String sensorDirectory="";
     	public String sensorPrefix="sensor-";
     	public String sensorSuffix=".calib-tiff"; // fixed in PixelMapping
+    	
     	public String sharpKernelDirectory="";
     	public String sharpKernelPrefix="sharpKernel-";
     	public String sharpKernelSuffix=".kernel-tiff";
     	public String smoothKernelDirectory="";
     	public String smoothKernelPrefix="smoothKernel-";
     	public String smoothKernelSuffix=".kernel-tiff";
+    	public String dctKernelDirectory="";
+    	public String dctKernelPrefix="dct-";
+    	public String dctSymSuffix=".sym-tiff";
+    	public String dctAsymSuffix=".asym-tiff";
     	public String equirectangularDirectory="";
     	public String equirectangularPrefix="";
     	public String equirectangularSuffix=".eqr-tiff";
@@ -146,12 +151,20 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"sensorDirectory",this.sensorDirectory);
     		properties.setProperty(prefix+"sensorPrefix",this.sensorPrefix);
     		properties.setProperty(prefix+"sensorSuffix",this.sensorSuffix);
+    		
+    		
     		properties.setProperty(prefix+"sharpKernelDirectory",this.sharpKernelDirectory);
     		properties.setProperty(prefix+"sharpKernelPrefix",this.sharpKernelPrefix);
     		properties.setProperty(prefix+"sharpKernelSuffix",this.sharpKernelSuffix);
     		properties.setProperty(prefix+"smoothKernelDirectory",this.smoothKernelDirectory);
     		properties.setProperty(prefix+"smoothKernelPrefix",this.smoothKernelPrefix);
     		properties.setProperty(prefix+"smoothKernelSuffix",this.smoothKernelSuffix);
+    		
+    		properties.setProperty(prefix+"dctKernelDirectory",this.dctKernelDirectory);
+    		properties.setProperty(prefix+"dctKernelPrefix",this.dctKernelPrefix);
+    		properties.setProperty(prefix+"dctSymSuffix",this.dctSymSuffix);
+    		properties.setProperty(prefix+"dctAsymSuffix",this.dctAsymSuffix);
+
     		properties.setProperty(prefix+"equirectangularDirectory",this.equirectangularDirectory);
     		properties.setProperty(prefix+"equirectangularPrefix",this.equirectangularPrefix);
     		properties.setProperty(prefix+"equirectangularSuffix",this.equirectangularSuffix);
@@ -219,6 +232,7 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"sensorDirectory")!=      null) this.sensorDirectory=properties.getProperty(prefix+"sensorDirectory");
 			if (properties.getProperty(prefix+"sensorPrefix")!=         null) this.sensorPrefix=properties.getProperty(prefix+"sensorPrefix");
 			if (properties.getProperty(prefix+"sensorSuffix")!=         null) this.sensorSuffix=properties.getProperty(prefix+"sensorSuffix");
+			
 			if (properties.getProperty(prefix+"sharpKernelDirectory")!= null) this.sharpKernelDirectory=properties.getProperty(prefix+"sharpKernelDirectory");
 			if (properties.getProperty(prefix+"sharpKernelPrefix")!=    null) this.sharpKernelPrefix=properties.getProperty(prefix+"sharpKernelPrefix");
 			if (properties.getProperty(prefix+"sharpKernelSuffix")!=    null) this.sharpKernelSuffix=properties.getProperty(prefix+"sharpKernelSuffix");
@@ -226,6 +240,11 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"smoothKernelPrefix")!=   null) this.smoothKernelPrefix=properties.getProperty(prefix+"smoothKernelPrefix");
 			if (properties.getProperty(prefix+"smoothKernelSuffix")!=   null) this.smoothKernelSuffix=properties.getProperty(prefix+"smoothKernelSuffix");
 
+			if (properties.getProperty(prefix+"dctKernelDirectory")!=   null) this.dctKernelDirectory=properties.getProperty(prefix+"dctKernelDirectory");
+			if (properties.getProperty(prefix+"dctKernelPrefix")!=      null) this.dctKernelPrefix=properties.getProperty(prefix+"dctKernelPrefix");
+			if (properties.getProperty(prefix+"dctSymSuffix")!=         null) this.dctSymSuffix=properties.getProperty(prefix+"dctSymSuffix");
+			if (properties.getProperty(prefix+"dctAsymSuffix")!=        null) this.dctAsymSuffix=properties.getProperty(prefix+"dctAsymSuffix");
+			
 			if (properties.getProperty(prefix+"equirectangularDirectory")!=null) this.equirectangularDirectory=properties.getProperty(prefix+"equirectangularDirectory");
 			if (properties.getProperty(prefix+"equirectangularPrefix")!=null) this.equirectangularPrefix=properties.getProperty(prefix+"equirectangularPrefix");
 			if (properties.getProperty(prefix+"equirectangularSuffix")!=null) this.equirectangularSuffix=properties.getProperty(prefix+"equirectangularSuffix");
@@ -299,36 +318,45 @@ public class EyesisCorrectionParameters {
     		gd.addCheckbox ("Convert to 8 bit RGB (and save JPEG if save is enabled)", this.jpeg);
     		gd.addCheckbox ("Save the result to file system",                   this.save);
     		gd.addCheckbox ("Save 16-bit tiff if the result is 8 bit",          this.save16);
-    		gd.addCheckbox ("Save 32-bit tiff if the result is 8 or 16 bit",    this.save32);
-    		gd.addCheckbox ("Show the result image",                            this.show);
-    		gd.addNumericField("JPEG quality (%)",                              this.JPEG_quality,0);
-    		gd.addNumericField("JPEG scale   (%)",                         100* this.JPEG_scale,0);
-    		gd.addCheckbox ("Warp results to equirectangular",                  this.equirectangular);
-    		gd.addCheckbox ("Calculate distances in overlapping areas",         this.zcorrect);
-    		gd.addCheckbox ("Save current settings with results",               this.saveSettings);
+    		gd.addCheckbox    ("Save 32-bit tiff if the result is 8 or 16 bit",    this.save32);
+    		gd.addCheckbox    ("Show the result image",                            this.show);
+    		gd.addNumericField("JPEG quality (%)",                                 this.JPEG_quality,0);
+    		gd.addNumericField("JPEG scale   (%)",                            100* this.JPEG_scale,0);
+    		gd.addCheckbox    ("Warp results to equirectangular",                  this.equirectangular);
+    		gd.addCheckbox    ("Calculate distances in overlapping areas",         this.zcorrect);
+    		gd.addCheckbox    ("Save current settings with results",               this.saveSettings);
+    		gd.addStringField ("Source files directory",                           this.sourceDirectory, 60);
+    		gd.addCheckbox    ("Select source directory",                          false);
+    		gd.addStringField ("Sensor calibration directory",                     this.sensorDirectory, 60);
+    		gd.addCheckbox    ("Select sensor calibration directory",              false);
 
-    		gd.addStringField("Source files directory", this.sourceDirectory, 60);
-    		gd.addCheckbox("Select source directory", false);
-    		gd.addStringField("Sensor calibration directory", this.sensorDirectory, 60);
-    		gd.addCheckbox("Select sensor calibration directory", false);
-    		gd.addStringField("Aberration kernels (sharp) directory", this.sharpKernelDirectory, 60);
-    		gd.addCheckbox("Select aberration kernels (sharp) directory", false);
-    		gd.addStringField("Aberration kernels (smooth) directory", this.smoothKernelDirectory, 60);
-    		gd.addCheckbox("Select aberration kernels (smooth) directory", false);
-    		gd.addStringField("Equirectangular maps directory (may be empty)", this.equirectangularDirectory, 60);
-    		gd.addCheckbox("Select equirectangular maps directory", false);
-    		gd.addStringField("Results directory",               this.resultsDirectory, 40);
-    		gd.addCheckbox("Select results directory",           false);
-    		gd.addStringField("Source files prefix",             this.sourcePrefix, 40);
-    		gd.addStringField("Source files suffix",             this.sourceSuffix, 40);
-    		gd.addNumericField("First subcamera (in the source filename)", this.firstSubCamera, 0);
+    		gd.addStringField ("Aberration kernels (sharp) directory",             this.sharpKernelDirectory, 60);
+    		gd.addCheckbox    ("Select aberration kernels (sharp) directory",      false);
+    		gd.addStringField ("Aberration kernels (smooth) directory",            this.smoothKernelDirectory, 60);
+    		gd.addCheckbox    ("Select aberration kernels (smooth) directory",     false);
     		
-    		gd.addStringField("Sensor files prefix",             this.sensorPrefix, 40);
-    		gd.addStringField("Sensor files suffix",             this.sensorSuffix, 40);
-    		gd.addStringField("Kernel files (sharp) prefix",     this.sharpKernelPrefix, 40);
-    		gd.addStringField("Kernel files (sharp) suffix",     this.sharpKernelSuffix, 40);
-    		gd.addStringField("Kernel files (smooth) prefix",    this.smoothKernelPrefix, 40);
-    		gd.addStringField("Kernel files (smooth) suffix",    this.smoothKernelSuffix, 40);
+    		gd.addStringField ("Aberration kernels for DCT directory",             this.dctKernelDirectory, 60);
+    		gd.addCheckbox    ("Select aberration kernels for DCT directory",      false);
+
+    		gd.addStringField("Equirectangular maps directory (may be empty)",     this.equirectangularDirectory, 60);
+    		gd.addCheckbox("Select equirectangular maps directory",                false);
+    		gd.addStringField("Results directory",                                 this.resultsDirectory, 40);
+    		gd.addCheckbox("Select results directory",                             false);
+    		gd.addStringField("Source files prefix",                               this.sourcePrefix, 40);
+    		gd.addStringField("Source files suffix",                               this.sourceSuffix, 40);
+    		gd.addNumericField("First subcamera (in the source filename)",         this.firstSubCamera, 0);
+    		
+    		gd.addStringField("Sensor files prefix",                               this.sensorPrefix, 40);
+    		gd.addStringField("Sensor files suffix",                               this.sensorSuffix, 40);
+    		gd.addStringField("Kernel files (sharp) prefix",                       this.sharpKernelPrefix, 40);
+    		gd.addStringField("Kernel files (sharp) suffix",                       this.sharpKernelSuffix, 40);
+    		gd.addStringField("Kernel files (smooth) prefix",                      this.smoothKernelPrefix, 40);
+    		gd.addStringField("Kernel files (smooth) suffix",                      this.smoothKernelSuffix, 40);
+
+    		gd.addStringField("DCT kernel files  prefix",                          this.dctKernelPrefix, 40);
+    		gd.addStringField("DCT symmetical kernel files",                       this.dctSymSuffix, 40);
+    		gd.addStringField("DCT asymmetrical kernel files suffix",              this.dctAsymSuffix, 40);
+    		
     		gd.addStringField("Equirectangular maps prefix",     this.equirectangularPrefix, 40);
     		gd.addStringField("Equirectangular maps suffix",     this.equirectangularSuffix, 40);
     		gd.addCheckbox("Cut rolling-over equirectangular images in two", this.equirectangularCut);
@@ -387,7 +415,8 @@ public class EyesisCorrectionParameters {
     		this.sourceDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSourceDirectory(false, false); 
     		this.sensorDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSensorDirectory(false, false); 
     		this.sharpKernelDirectory=   gd.getNextString(); if (gd.getNextBoolean()) selectSharpKernelDirectory(false, false); 
-    		this.smoothKernelDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectSmoothKernelDirectory(false, true); 
+    		this.smoothKernelDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectSmoothKernelDirectory(false, true);
+    		this.dctKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectDCTKernelDirectory(false, true);
     		this.equirectangularDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectEquirectangularDirectory(false, false); 
     		this.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) selectResultsDirectory(false, true); 
     		this.sourcePrefix=           gd.getNextString();
@@ -399,6 +428,9 @@ public class EyesisCorrectionParameters {
     		this.sharpKernelSuffix=      gd.getNextString();
     		this.smoothKernelPrefix=     gd.getNextString();
     		this.smoothKernelSuffix=     gd.getNextString();
+    		this.dctKernelPrefix=        gd.getNextString();
+    		this.dctSymSuffix=           gd.getNextString();
+    		this.dctAsymSuffix=          gd.getNextString();
     		this.equirectangularPrefix=  gd.getNextString();
     		this.equirectangularSuffix=  gd.getNextString();
     		this.equirectangularCut=     gd.getNextBoolean();
@@ -406,10 +438,7 @@ public class EyesisCorrectionParameters {
     		this.planeMapSuffix=         gd.getNextString();
     		this.usePlaneProjection=     gd.getNextBoolean();
     		this.planeAsJPEG=            gd.getNextBoolean();
-
-
 //    		this.equirectangularSuffixA= gd.getNextString();
-    		
     		this.removeUnusedSensorData= gd.getNextBoolean();
     		this.swapSubchannels01= gd.getNextBoolean();
     		return true;
@@ -447,9 +476,12 @@ public class EyesisCorrectionParameters {
     	}
     	public int getChannelFromSourceTiff(String path){ return getChannelFromTiff(path, this.sourceSuffix);	}
     	public String getNameFromSourceTiff(String path){ return getNameFromTiff(path, this.sourceSuffix);	}
+    	
     	public int getChannelFromKernelTiff(String path, int type){return getChannelFromTiff(path, (type==0)?this.sharpKernelSuffix:this.smoothKernelSuffix);}
     	public String getNameFromKernelTiff(String path, int type){return getNameFromTiff(path, (type==0)?this.sharpKernelSuffix:this.smoothKernelSuffix);}
     	
+    	public int getChannelFromDCTTiff(String path, int type){return getChannelFromTiff(path, (type==0)?this.dctSymSuffix:this.dctAsymSuffix);}
+    	public String getNameFromDCTTiff(String path, int type){return getNameFromTiff(path, (type==0)?this.dctSymSuffix:this.dctAsymSuffix);}
     	
     	
     	public boolean selectSourceFiles(boolean allFiles) {
@@ -661,7 +693,7 @@ public class EyesisCorrectionParameters {
     					channelPaths[chn]=kernelFiles[fileNum];
     				} else {
     					if (debugLevel>0) System.out.println("Multiple kernel files for channel "+
-    							chn+": "+channelPaths[chn]+" and "+kernelFiles[fileNum]+". Usimg "+channelPaths[chn]);
+    							chn+": "+channelPaths[chn]+" and "+kernelFiles[fileNum]+". Using "+channelPaths[chn]);
     				}
     			}
     		}
@@ -695,7 +727,7 @@ public class EyesisCorrectionParameters {
 			}
 			if ((fileList==null) || (fileList.length==0)){
 				kernelFiles=CalibrationFileManagement.selectFiles(false,
-    					"Select"+((type==0)?"sharp":"smooth")+" kernel files files",
+    					"Select"+((type==0)?"sharp":"smooth")+" kernel files",
     					"Select",
     					kernelFilter,
     					defaultPaths); // String [] defaultPaths); //this.sourceDirectory // null
@@ -721,7 +753,80 @@ public class EyesisCorrectionParameters {
 			return kernelFiles;
     	}
     	
+    	public String [] selectDCTChannelFiles(
+    			int numChannels, // number of channels
+    			int debugLevel) { // will only open dialog if directory or files are not found
+    		String [] kernelFiles= selectDCTFiles(
+        			debugLevel);
+    		if (kernelFiles==null) return null;
+    		String [] channelPaths=new String[numChannels];
+    		for (int i=0;i<channelPaths.length;i++)channelPaths[i]=null;
+    		for (int fileNum=0;fileNum<kernelFiles.length;fileNum++){
+    			int chn=getChannelFromDCTTiff(kernelFiles[fileNum], 0); // 1 for asym files
+    			if ((chn>=0) && (chn<numChannels)){
+    				if (channelPaths[chn]==null){ // use first file for channel if there are multiple
+    					channelPaths[chn]=kernelFiles[fileNum];
+    				} else {
+    					if (debugLevel>0) System.out.println("Multiple kernel files for channel "+
+    							chn+": "+channelPaths[chn]+" and "+kernelFiles[fileNum]+". Using "+channelPaths[chn]);
+    				}
+    			}
+    		}
+    		return channelPaths;
+    	}
+    	
+    	public String [] selectDCTFiles(
+    			int debugLevel) { // will only open dialog if directory or files are not found
+    		String []defaultPaths = new String[1];
+    		String kernelDirectory=this.dctKernelDirectory;
+    		if ((kernelDirectory==null) || (kernelDirectory.length()<=1)){ // empty or "/"
+    			defaultPaths[0]="";
+    		} else {
+    			defaultPaths[0]=kernelDirectory+Prefs.getFileSeparator();
+    		}
+    		String [] extensions={this.dctSymSuffix};
+    		String  kernelPrefix= this.dctKernelPrefix;
+			CalibrationFileManagement.MultipleExtensionsFileFilter kernelFilter =
+				new CalibrationFileManagement.MultipleExtensionsFileFilter(kernelPrefix,extensions,kernelPrefix+
+						"*"+extensions[0]+" DCT symmetrical kernel files");
+			if (debugLevel>1) System.out.println("selectKernelFiles("+debugLevel+"): defaultPaths[0]="+defaultPaths[0]+" "+kernelPrefix+"*"+extensions[0]);
 
+			String [] kernelFiles=null;
+// try reading all matching files
+			File dir= new File (kernelDirectory);
+//			if (debugLevel>1) System.out.println("selectSensorFiles, dir="+this.sensorDirectory);
+			File [] fileList=null;
+			if (dir.exists()) {
+				fileList=dir.listFiles(kernelFilter);
+			}
+			if ((fileList==null) || (fileList.length==0)){
+				kernelFiles=CalibrationFileManagement.selectFiles(false,
+    					"Select DCT symmetrical kernel files",
+    					"Select",
+    					kernelFilter,
+    					defaultPaths); // String [] defaultPaths); //this.sourceDirectory // null
+    			if ((kernelFiles!=null) && (kernelFiles.length>0)){
+    				kernelDirectory=kernelFiles[0].substring(0, kernelFiles[0].lastIndexOf(Prefs.getFileSeparator()));
+    				dir= new File (kernelDirectory);
+//    				if (debugLevel>1) System.out.println("selectSensorFiles, dir="+this.sensorDirectory);
+    				fileList=dir.listFiles(kernelFilter);
+    				this.dctKernelDirectory= kernelDirectory;
+    			}
+			}
+			if ((fileList==null) || (fileList.length==0)) return null;
+			if (debugLevel>1) System.out.println("DCT kernel directory "+kernelDirectory+" has "+fileList.length+" matching files.");
+			kernelFiles = new String[fileList.length];
+			for (int i=0;i<kernelFiles.length;i++) kernelFiles[i]=fileList[i].getPath();
+			String directory=kernelFiles[0].substring(0, kernelFiles[0].lastIndexOf(Prefs.getFileSeparator()));
+			String prefix=kernelFiles[0].substring(directory.length()+1, kernelFiles[0].length()-extensions[0].length()-2); // all but NN
+			this.dctKernelDirectory=directory;
+			this.dctKernelPrefix=prefix;
+			return kernelFiles;
+    	}
+    	
+
+    	
+    	
     	
     	
     	public String selectSourceDirectory(boolean smart, boolean newAllowed) { // normally newAllowed=false
@@ -757,6 +862,7 @@ public class EyesisCorrectionParameters {
     		if (dir!=null) this.sharpKernelDirectory=dir;
     		return dir;
     	}
+    	
     	public String selectSmoothKernelDirectory(boolean smart, boolean newAllowed) {
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
@@ -768,6 +874,19 @@ public class EyesisCorrectionParameters {
     		if (dir!=null) this.smoothKernelDirectory=dir;
     		return dir;
     	}
+    	
+    	public String selectDCTKernelDirectory(boolean smart, boolean newAllowed) {
+    		String dir= CalibrationFileManagement.selectDirectory(
+    				smart,
+    				newAllowed, // save  
+    				"DCT aberration kernels directory (sym and asym files)", // title
+    				"Select DCT aberration kernelsdirectory", // button
+    				null, // filter
+    				this.dctKernelDirectory); //this.sourceDirectory);
+    		if (dir!=null) this.dctKernelDirectory=dir;
+    		return dir;
+    	}
+    	
     	public String selectEquirectangularDirectory(boolean smart, boolean newAllowed) {
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
@@ -1674,7 +1793,10 @@ public class EyesisCorrectionParameters {
   		public double decimateSigma =  0.4; // what is the optimal value for each decimation? 
   		public int    tileX =          82;  // number of kernel tile (0..163) 
   		public int    tileY =          62;  // number of kernel tile (0..122) 
-  		
+  		public boolean subtract_dc =   false;//subtract/restore dc
+  		public int    kernel_chn =    -1; //camera channel calibration to use for aberration correction ( < 0 - no correction)
+  		public boolean normalize =     true; //normalize both sym and asym kernels (asym to have sum==1, sym to have sum = dct_size
+  		public boolean skip_sym =      false; // do not apply symmetrical correction
 
   		public DCTParameters(
   				int dct_size,
@@ -1716,11 +1838,15 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"dbg_window_mode",   this.dbg_window_mode+"");
   			properties.setProperty(prefix+"centerWindowToTarget",   this.centerWindowToTarget+"");
   			properties.setProperty(prefix+"color_channel",   this.color_channel+"");
-  			properties.setProperty(prefix+"decimation",   this.dbg_window_mode+"");
+  			properties.setProperty(prefix+"decimation",   this.decimation+"");
   			properties.setProperty(prefix+"decimateSigma",   this.decimateSigma+"");
   			properties.setProperty(prefix+"tileX",   this.tileX+"");
   			properties.setProperty(prefix+"tileY",   this.tileY+"");
-  		
+  			properties.setProperty(prefix+"subtract_dc",   this.subtract_dc+"");
+  			properties.setProperty(prefix+"kernel_chn",   this.kernel_chn+"");
+  			properties.setProperty(prefix+"normalize",    this.normalize+"");
+  			properties.setProperty(prefix+"skip_sym",    this.skip_sym+"");
+  			
   		}
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"dct_size")!=null) this.dct_size=Integer.parseInt(properties.getProperty(prefix+"dct_size"));
@@ -1741,15 +1867,17 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"dbg_sigma")!=null) this.dbg_sigma=Double.parseDouble(properties.getProperty(prefix+"dbg_sigma"));
   			if (properties.getProperty(prefix+"dbg_mask")!=null) this.dbg_mask=properties.getProperty(prefix+"dbg_mask");
   			if (properties.getProperty(prefix+"dbg_mode")!=null) this.dbg_mode=Integer.parseInt(properties.getProperty(prefix+"dbg_mode"));
-  			if (properties.getProperty(prefix+"tileY")!=null) this.tileY=Integer.parseInt(properties.getProperty(prefix+"tileY"));
-
   			if (properties.getProperty(prefix+"centerWindowToTarget")!=null) this.centerWindowToTarget=Boolean.parseBoolean(properties.getProperty(prefix+"centerWindowToTarget"));
   			if (properties.getProperty(prefix+"color_channel")!=null) this.color_channel=Integer.parseInt(properties.getProperty(prefix+"color_channel"));
   			if (properties.getProperty(prefix+"decimation")!=null) this.decimation=Integer.parseInt(properties.getProperty(prefix+"decimation"));
   			if (properties.getProperty(prefix+"decimateSigma")!=null) this.decimateSigma=Double.parseDouble(properties.getProperty(prefix+"decimateSigma"));
   			if (properties.getProperty(prefix+"tileX")!=null) this.tileX=Integer.parseInt(properties.getProperty(prefix+"tileX"));
+  			if (properties.getProperty(prefix+"tileY")!=null) this.tileY=Integer.parseInt(properties.getProperty(prefix+"tileY"));
   			if (properties.getProperty(prefix+"dbg_window_mode")!=null) this.dbg_window_mode=Integer.parseInt(properties.getProperty(prefix+"dbg_window_mode"));
-  		
+  			if (properties.getProperty(prefix+"subtract_dc")!=null) this.subtract_dc=Boolean.parseBoolean(properties.getProperty(prefix+"subtract_dc"));
+  			if (properties.getProperty(prefix+"kernel_chn")!=null) this.kernel_chn=Integer.parseInt(properties.getProperty(prefix+"kernel_chn"));
+  			if (properties.getProperty(prefix+"normalize")!=null) this.normalize=Boolean.parseBoolean(properties.getProperty(prefix+"normalize"));
+  			if (properties.getProperty(prefix+"skip_sym")!=null) this.skip_sym=Boolean.parseBoolean(properties.getProperty(prefix+"skip_sym"));
   		
   		}
   		public boolean showDialog() {
@@ -1779,6 +1907,11 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Smooth convolution kernel before decimation",                    this.decimateSigma,       3);
   			gd.addNumericField("Tile X to extract (0..163)",                                     this.tileX,               0);
   			gd.addNumericField("Tile Y to extract (0..122)",                                     this.tileY,               0);
+  			gd.addCheckbox    ("Subtract avarege before dct, restore after idct",                this.subtract_dc);
+  			gd.addNumericField("Calibration channel to use for aberration ( <0 - no correction)",this.kernel_chn,          0);
+  			gd.addCheckbox    ("Normalize both sym and asym kernels ",                           this.normalize);
+  			gd.addCheckbox    ("Do not apply symmetrical (DCT) correction ",                     this.skip_sym);
+  			
   			gd.showDialog();
   			
   			if (gd.wasCanceled()) return false;
@@ -1807,7 +1940,10 @@ public class EyesisCorrectionParameters {
   			this.decimateSigma=         gd.getNextNumber();
   			this.tileX=           (int) gd.getNextNumber();
   			this.tileY=           (int) gd.getNextNumber();
-
+  			this.subtract_dc=           gd.getNextBoolean();
+  			this.kernel_chn=      (int) gd.getNextNumber();
+  			this.normalize=             gd.getNextBoolean();
+  			this.skip_sym=              gd.getNextBoolean();
   			//  	    MASTER_DEBUG_LEVEL= (int) gd.getNextNumber();
   			return true;
   		}  
