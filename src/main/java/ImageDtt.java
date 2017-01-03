@@ -235,6 +235,9 @@ public class ImageDtt {
 						chn,
 						dct_kernels,
 						dctParameters.skip_sym,
+						dctParameters.convolve_direct,
+						dctParameters.tileX,
+						dctParameters.tileY,
 						threadsMax,  // maximal number of threads to launch                         
 						debugLevel);
 		  }
@@ -252,6 +255,9 @@ public class ImageDtt {
 			final int       color,
 			final EyesisDCT.DCTKernels dct_kernels,
 			final boolean   skip_sym,
+			final boolean   convolve_direct, // test feature - convolve directly with the symmetrical kernel
+			final int       debug_tileX,
+			final int       debug_tileY,
 			final int       threadsMax,  // maximal number of threads to launch                         
 			final int       globalDebugLevel)
 	{
@@ -276,11 +282,18 @@ public class ImageDtt {
 					DttRad2 dtt = new DttRad2(dct_size);
 					dtt.set_window(window_type);
 					double [] tile_in = new double[4*dct_size * dct_size];
+					double [] sym_conv= null;
+					if ((dct_kernels != null) && convolve_direct){ // debug feature - directly convolve with symmetrical kernel
+						sym_conv = new double[4*dct_size * dct_size];
+					}
 					double [] tile_folded;
 					double [] tile_out; // = new double[dct_size * dct_size];
 					int tileY,tileX;
 					int n2 = dct_size * 2;
 					double dc;
+
+					showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+					
 					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
 						tileY = nTile/tilesX;
 						tileX = nTile - tileY * tilesX;
@@ -291,7 +304,7 @@ public class ImageDtt {
 							int asym_center = dct_kernels.asym_size/2; // 7 for 15
 							kernelTileY = kernel_margin + (tileY * dct_size) / dct_kernels.img_step;
 							kernelTileX = kernel_margin + (tileX * dct_size) / dct_kernels.img_step;
-							if ((tileY <2) && (tileX <2) && (color ==0)) {
+							if ((tileY == debug_tileY) && (tileX == debug_tileX) && (color == 2)) {
 								System.out.println("kernelTileY="+kernelTileY+" kernelTileX="+kernelTileX+" width="+width);
 							}
 							for (int i = 0; i < n2; i++){
@@ -302,7 +315,7 @@ public class ImageDtt {
 									double [] asym_val = dct_kernels.asym_val[color][kernelTileY][kernelTileX];
 									for (int indx = 0; indx < asym_indx.length; indx++){
 										int xy = asym_indx[indx];
-										if ((tileY <2) && (tileX <2) && (color ==0)) {
+										if ((tileY == debug_tileY) && (tileX == debug_tileX) && (color == 2)) {
 											System.out.println("i="+i+" j="+j+" indx="+indx+" xy="+xy);
 										}
 										if (xy >= 0) {
@@ -315,7 +328,7 @@ public class ImageDtt {
 											if (y >= height) y = (height - 2) + (y & 1);
 											if (x >= width)  x = (width - 2) +  (x & 1);
 											tile_in[i*n2 + j] += asym_val[indx] * dpixels[ y * width + x]; 
-											if ((tileY <2) && (tileX <2) && (color ==0)) {
+											if ((tileY == debug_tileY) && (tileX == debug_tileX) && (color == 2)) {
 												System.out.println("dy= "+dy+" dx="+dx+" x = "+x+" y="+y+" y*width + x="+(y*width + x));
 												System.out.println("asym_val["+indx+"]="+asym_val[indx]+
 														"  dpixels["+(y * width + x)+"]="+ dpixels[ y * width + x]+
@@ -324,6 +337,95 @@ public class ImageDtt {
 										}
 									}
 								}
+							}
+							// directly convolve with symmetrical kernel (debug feature
+							if ((dct_kernels != null) && convolve_direct){
+								double [] dir_sym = dct_kernels.st_direct[color][kernelTileY][kernelTileX];
+								double s0 = 0;
+								for (int i = 0; i < n2; i++){
+									for (int j = 0; j < n2; j++){
+										int indx = i*n2+j;
+										sym_conv[indx] = 0.0; // dir_sym[0]* tile_in[indx];
+										for (int dy = -dct_size +1; dy < dct_size; dy++){
+											int ady = (dy>=0)?dy:-dy;
+											int sgny = 1;
+											int y = i - dy;
+											if (y < 0){
+												y = -1 -y;
+												sgny = -sgny;
+												if (y < 0) {
+													y = 0;
+													sgny = 0;
+												}
+											}
+											if (y >= n2){
+												y = 2*n2 - y;
+												sgny = -sgny;
+												if (y >= n2) {
+													y = n2-1;
+													sgny = 0;
+												}
+											}
+											for (int dx = -dct_size +1; dx < dct_size; dx++){
+												int adx = (dx >= 0)? dx:-dx;
+												int sgn = sgny;
+												int x = j - dx;
+												if (x < 0){
+													x = -1 -x;
+													sgn = -sgn;
+													if (x <0) {
+														x = 0;
+														sgn = 0;
+													}
+												}
+												if (x >= n2){
+													x = 2*n2 - x;
+													sgn = -sgn;
+													if (x >= n2) {
+														x = n2-1;
+														sgn = 0;
+													}
+												}
+												sym_conv[indx] += sgn*dir_sym[ady * dct_size + adx] * tile_in[y * n2 + x];
+												s0+=dir_sym[ady * dct_size + adx];
+												if ((tileY == debug_tileY) && (tileX == debug_tileX) && (color == 2) &&
+														(i == dct_size) && (j== dct_size)) {
+													System.out.println("i="+i+" j="+j+" dy="+dy+" dx="+dx+" ady="+ady+" adx="+adx+
+															" y="+y+" x="+x+" sgny="+sgny+" sgn="+sgn+
+															"sym_conv["+indx+"] += "+sgn+"* dir_sym["+(ady * dct_size + adx)+"] * tile_in["+(y * n2 + x)+"] +="+
+															sgn+"* "+ dir_sym[ady * dct_size + adx]+" * "+tile_in[y * n2 + x]+" +="+
+															(sgn*dir_sym[ady * dct_size + adx] * tile_in[y * n2 + x])+" ="+sym_conv[indx]);
+												}
+
+											}
+										}
+									}
+								}
+
+
+								if ((tileY == debug_tileY) && (tileX == debug_tileX) && (color == 2)) {
+									//								if ((tileY == debug_tileY) && (tileX == debug_tileX)) {
+									double [][] pair = {tile_in, sym_conv};
+									sdfa_instance.showArrays(pair,  n2, n2, true, "dconv-X"+tileX+"Y"+tileY+"C"+color);
+									sdfa_instance.showArrays(dir_sym,  dct_size, dct_size, "dk-X"+tileX+"Y"+tileY+"C"+color);
+									double s1=0,s2=0;
+									for (int i = 0; i<tile_in.length; i++){
+										s1 +=tile_in[i];
+										s2 +=sym_conv[i];
+									}
+									double s3 = 0.0;
+									for (int i=0; i<dct_size;i++){
+										for (int j=0; j<dct_size;j++){
+											double d = dir_sym[i*dct_size+j];
+											if (i > 0) d*=2;
+											if (j > 0) d*=2;
+											s3+=d;
+										}
+									}
+									System.out.println("s1="+s1+" s2="+s2+" s1/s2="+(s1/s2)+" s0="+s0+" s3="+s3);
+								}								
+//								tile_in = sym_conv.clone(); 
+								System.arraycopy(sym_conv, 0, tile_in, 0, n2*n2);
 							}
 						} else { // no aberration correction, just copy data
 							for (int i = 0; i < n2;i++){

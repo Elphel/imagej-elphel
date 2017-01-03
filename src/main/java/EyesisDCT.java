@@ -56,8 +56,10 @@ public class EyesisDCT {
 		public int           asym_size =      15; // asymmetrical convolution limits, odd
 		public int           asym_nonzero =   4; // maximal number of non-zero elements in the asymmetrical kernels 
 		public double [][]   sym_kernels =  null; // per-color channel, DCT kernels in linescan order
+		public double [][]   sym_direct =   null; // per-color channel, DCT kernels in linescan order (direct, not dct-iii transformed) - debug feature
 		public double [][]   asym_kernels = null; // per-color channel, asymmetrical kernels (all but asym_nonzero elements are strictly 0)
 		public double [][][][] st_kernels = null; // [color][tileY][tileX][pixel]
+		public double [][][][] st_direct =  null; // [color][tileY][tileX][pixel] - direct, not converted with DCT-III - debug feature
 		public double [][][][] asym_val =   null; // [color][tileY][tileX][index] // value - asym kernel for elements
 		public int    [][][][] asym_indx =  null; // [color][tileY][tileX][index] // value - index of non-zero elements in the list 
 	}
@@ -203,6 +205,18 @@ public class EyesisDCT {
 									  dct_parameters.decimation,
 									  dct_parameters.decimateSigma,
 									  gb);
+						  }
+						  if (dct_parameters.normalize) {
+							  double s =0.0;
+							  for (int i = 0; i <target_kernel.length; i++){
+								  s+=target_kernel[i];
+							  }
+							  for (int i = 0; i <target_kernel.length; i++){
+								  target_kernel[i]/=s;
+							  }
+							  if (globalDebugLevel>0){
+								  System.out.println(tileX+"/"+tileY+ " s="+s);
+							  }
 						  }
 						  // int numAsym = 
 						  factorConvKernel.calcKernels(
@@ -603,10 +617,8 @@ public class EyesisDCT {
 //					sdfa_instance.showArrays(kernels[chn].asym_kernels,  asym_width, asym_height, true, asymKernelPaths[chn]);
 					int numHor =   kernels[chn].numHor;
 					int numVert =  kernels[chn].sym_kernels[0].length / (dct_size * dct_size * numHor);
-//				    public double [][][][] st_kernels = null; // [color][tileY][tileX][pixel]
-//				    public double [][][][] asym_val =   null; // [color][tileY][tileX][index] // value - asym kernel for elements
-//				    public int    [][][][] asym_indx =  null; // [color][tileY][tileX][index] // value - index of non-zero elements in the list
 					kernels[chn].st_kernels = new double [nColors][numVert][numHor][dct_size * dct_size];
+					kernels[chn].st_direct =  new double [nColors][numVert][numHor][dct_size * dct_size];
 					kernels[chn].asym_val =   new double [nColors][numVert][numHor][asym_nonzero];
 					kernels[chn].asym_indx =  new int [nColors][numVert][numHor][asym_nonzero];
 					int sym_kernel_inc_index =   numHor * dct_size;
@@ -637,19 +649,37 @@ public class EyesisDCT {
 									double sum = 0.0;
 									for (int i=0; i < dct_size;i++) {
 										for (int j=0; j < dct_size;j++) {
-											double d = kernels[chn].st_kernels[nc][tileY][tileX][i];
+											double d = kernels[chn].st_kernels[nc][tileY][tileX][i*dct_size+j];
 											if (i > 0) d *= 2.0;
 											if (j > 0) d *= 2.0;
 											sum += d;
 										}
 									}
+									
 									scale /= sum;
+									if ((tileY == ((dct_parameters.tileY+1)/2)) && (tileX ==((dct_parameters.tileX+1)/2)) && (nc == 2)) {
+										System.out.println("(kernel) tileY="+tileY+"(kernel) tileX="+tileX+" sum="+sum + " scale="+scale);
+									}
+									
 								}
-								
-								kernels[chn].st_kernels[nc][tileY][tileX]= dtt.dttt_iii(kernels[chn].st_kernels[nc][tileY][tileX]);
 								for (int i=0; i < kernels[chn].st_kernels[nc][tileY][tileX].length;i++) {
 									kernels[chn].st_kernels[nc][tileY][tileX][i] *= scale;  
 								}
+								// Make a copy of direct kernels (debug feature, may be removed later)
+								for (int i = 0; i < dct_size;i++){
+									System.arraycopy( // copy one kernel line
+											kernels[chn].st_kernels[nc][tileY][tileX],
+											i * dct_size,
+											kernels[chn].st_direct[nc][tileY][tileX],
+											i * dct_size,
+											dct_size);
+								}
+								// scale st_direct back to ~original
+								for (int i=0; i < kernels[chn].st_kernels[nc][tileY][tileX].length;i++) {
+									kernels[chn].st_direct[nc][tileY][tileX][i] /= dct_size;  
+								}
+								
+								kernels[chn].st_kernels[nc][tileY][tileX]= dtt.dttt_iii(kernels[chn].st_kernels[nc][tileY][tileX]);
 								
 								// extract asymmetrical kernel and convert it to list of values and indices (as arrays as the length is known)
 								int asym_kernel_start_index = (asym_kernel_inc_index * tileY + tileX)* asym_size;
@@ -731,6 +761,9 @@ public class EyesisDCT {
 			int asym_width =  numHor * kernels[chn].asym_size;
 			int asym_height = numVert * kernels[chn].asym_size;
 			kernels[chn].sym_kernels =  new double [nColors][sym_width*sym_height];
+			if (kernels[chn].st_direct != null) {
+				kernels[chn].sym_direct =   new double [nColors][sym_width*sym_height];
+			}
 			kernels[chn].asym_kernels = new double [nColors][asym_width*asym_height];
 			int sym_kernel_inc_index =   numHor * dct_size;
 			int asym_kernel_inc_index =   numHor * asym_size;
@@ -747,6 +780,16 @@ public class EyesisDCT {
 									kernels[chn].sym_kernels[nc],
 									sym_kernel_start_index + i * sym_kernel_inc_index,
 									dct_size);
+						}
+						if (kernels[chn].st_direct != null){
+							for (int i = 0; i < dct_size;i++){
+								System.arraycopy( // copy one kernel line
+										kernels[chn].st_direct[nc][tileY][tileX],
+										i * dct_size,
+										kernels[chn].sym_direct[nc],
+										sym_kernel_start_index + i * sym_kernel_inc_index,
+										dct_size);
+							}
 						}
 						
 						// set asymmetrical kernel from the list of values and indices
@@ -780,7 +823,11 @@ public class EyesisDCT {
 			System.out.println("kernels["+chn+"][0].asym_kernels.length="+kernels[chn].asym_kernels[0].length);
 			sdfa_instance.showArrays(kernels[chn].sym_kernels,  sym_width, sym_height, true, "restored-sym-"+chn);
 			sdfa_instance.showArrays(kernels[chn].asym_kernels,  asym_width, asym_height, true, "restored-asym-"+chn);
+			if (kernels[chn].st_direct != null){
+				sdfa_instance.showArrays(kernels[chn].sym_direct,  sym_width, sym_height, true, "restored-direct-"+chn);
+			}
 			kernels[chn].sym_kernels = null;  // not needed anymore
 			kernels[chn].asym_kernels = null; // not needed anymore
+			kernels[chn].sym_direct = null;  // not needed anymore
 		}
 }

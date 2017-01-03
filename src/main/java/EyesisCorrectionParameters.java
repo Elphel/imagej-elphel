@@ -1788,15 +1788,16 @@ public class EyesisCorrectionParameters {
   		public int dbg_window_mode = 2; // 0 - none, 1 - square, 2 - sin 3 - sin^2
   		public boolean centerWindowToTarget = true;
   		// parameters to extract a kernel from the kernel image file
-  		public int    color_channel =  2; // green (<0 - use simulated kernel, also will use simulated if kernels are not set)
-  		public int    decimation =     2; // decimate original kernel this much in each direction
-  		public double decimateSigma =  0.4; // what is the optimal value for each decimation? 
-  		public int    tileX =          82;  // number of kernel tile (0..163) 
-  		public int    tileY =          62;  // number of kernel tile (0..122) 
-  		public boolean subtract_dc =   false;//subtract/restore dc
-  		public int    kernel_chn =    -1; //camera channel calibration to use for aberration correction ( < 0 - no correction)
-  		public boolean normalize =     true; //normalize both sym and asym kernels (asym to have sum==1, sym to have sum = dct_size
-  		public boolean skip_sym =      false; // do not apply symmetrical correction
+  		public int    color_channel =    2; // green (<0 - use simulated kernel, also will use simulated if kernels are not set)
+  		public int    decimation =       2; // decimate original kernel this much in each direction
+  		public double decimateSigma =    0.4; // what is the optimal value for each decimation? 
+  		public int    tileX =            82;  // number of kernel tile (0..163) 
+  		public int    tileY =            62;  // number of kernel tile (0..122) 
+  		public boolean subtract_dc =     false;//subtract/restore dc
+  		public int    kernel_chn =      -1; //camera channel calibration to use for aberration correction ( < 0 - no correction)
+  		public boolean normalize =       true; //normalize both sym and asym kernels (asym to have sum==1, sym to have sum = dct_size
+  		public boolean skip_sym =        false; // do not apply symmetrical correction
+  		public boolean convolve_direct = false; // do not apply symmetrical correction
 
   		public DCTParameters(
   				int dct_size,
@@ -1846,6 +1847,7 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"kernel_chn",   this.kernel_chn+"");
   			properties.setProperty(prefix+"normalize",    this.normalize+"");
   			properties.setProperty(prefix+"skip_sym",    this.skip_sym+"");
+  			properties.setProperty(prefix+"convolve_direct",    this.convolve_direct+"");
   			
   		}
   		public void getProperties(String prefix,Properties properties){
@@ -1878,6 +1880,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"kernel_chn")!=null) this.kernel_chn=Integer.parseInt(properties.getProperty(prefix+"kernel_chn"));
   			if (properties.getProperty(prefix+"normalize")!=null) this.normalize=Boolean.parseBoolean(properties.getProperty(prefix+"normalize"));
   			if (properties.getProperty(prefix+"skip_sym")!=null) this.skip_sym=Boolean.parseBoolean(properties.getProperty(prefix+"skip_sym"));
+  			if (properties.getProperty(prefix+"convolve_direct")!=null) this.convolve_direct=Boolean.parseBoolean(properties.getProperty(prefix+"convolve_direct"));
   		
   		}
   		public boolean showDialog() {
@@ -1911,6 +1914,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Calibration channel to use for aberration ( <0 - no correction)",this.kernel_chn,          0);
   			gd.addCheckbox    ("Normalize both sym and asym kernels ",                           this.normalize);
   			gd.addCheckbox    ("Do not apply symmetrical (DCT) correction ",                     this.skip_sym);
+  			gd.addCheckbox    ("Convolve directly with symmetrical kernel (debug feature) ",     this.convolve_direct);
   			
   			gd.showDialog();
   			
@@ -1944,6 +1948,7 @@ public class EyesisCorrectionParameters {
   			this.kernel_chn=      (int) gd.getNextNumber();
   			this.normalize=             gd.getNextBoolean();
   			this.skip_sym=              gd.getNextBoolean();
+  			this.convolve_direct=              gd.getNextBoolean();
   			//  	    MASTER_DEBUG_LEVEL= (int) gd.getNextNumber();
   			return true;
   		}  
