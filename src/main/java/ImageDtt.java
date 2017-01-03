@@ -350,6 +350,8 @@ public class ImageDtt {
 											int ady = (dy>=0)?dy:-dy;
 											int sgny = 1;
 											int y = i - dy;
+/*
+											
 											if (y < 0){
 												y = -1 -y;
 												sgny = -sgny;
@@ -366,10 +368,21 @@ public class ImageDtt {
 													sgny = 0;
 												}
 											}
+											
+ */
+											if (y < 0){
+												y = -1 -y;
+												sgny = -sgny;
+											}
+											if (y >= n2){
+												y = 2*n2 - y -1;
+												sgny = -sgny;
+											}
 											for (int dx = -dct_size +1; dx < dct_size; dx++){
 												int adx = (dx >= 0)? dx:-dx;
 												int sgn = sgny;
 												int x = j - dx;
+/*
 												if (x < 0){
 													x = -1 -x;
 													sgn = -sgn;
@@ -385,6 +398,16 @@ public class ImageDtt {
 														x = n2-1;
 														sgn = 0;
 													}
+												}
+												
+ */
+												if (x < 0){
+													x = -1 -x;
+													sgn = -sgn;
+												}
+												if (x >= n2){
+													x = 2*n2 - x -1;
+													sgn = -sgn;
 												}
 												sym_conv[indx] += sgn*dir_sym[ady * dct_size + adx] * tile_in[y * n2 + x];
 												s0+=dir_sym[ady * dct_size + adx];

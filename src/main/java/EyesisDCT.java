@@ -214,7 +214,7 @@ public class EyesisDCT {
 							  for (int i = 0; i <target_kernel.length; i++){
 								  target_kernel[i]/=s;
 							  }
-							  if (globalDebugLevel>0){
+							  if (globalDebugLevel > 1){ // was already close to 1.0
 								  System.out.println(tileX+"/"+tileY+ " s="+s);
 							  }
 						  }
@@ -634,53 +634,6 @@ public class EyesisDCT {
 					for (int nc = 0; nc < nColors; nc++){
 						for (int tileY = 0; tileY < numVert; tileY++){
 							for (int tileX = 0; tileX < numHor; tileX++){
-								// extract DCT (symmetrical) kernels
-								int sym_kernel_start_index = (sym_kernel_inc_index * tileY + tileX) * dct_size;
-								for (int i = 0; i < dct_size;i++){
-									System.arraycopy( // copy one kernel line
-											kernels[chn].sym_kernels[nc],
-											sym_kernel_start_index + i * sym_kernel_inc_index,
-											kernels[chn].st_kernels[nc][tileY][tileX],
-											i * dct_size,
-											dct_size);
-								}
-								double scale = dct_size;
-								if (dct_parameters.normalize) {
-									double sum = 0.0;
-									for (int i=0; i < dct_size;i++) {
-										for (int j=0; j < dct_size;j++) {
-											double d = kernels[chn].st_kernels[nc][tileY][tileX][i*dct_size+j];
-											if (i > 0) d *= 2.0;
-											if (j > 0) d *= 2.0;
-											sum += d;
-										}
-									}
-									
-									scale /= sum;
-									if ((tileY == ((dct_parameters.tileY+1)/2)) && (tileX ==((dct_parameters.tileX+1)/2)) && (nc == 2)) {
-										System.out.println("(kernel) tileY="+tileY+"(kernel) tileX="+tileX+" sum="+sum + " scale="+scale);
-									}
-									
-								}
-								for (int i=0; i < kernels[chn].st_kernels[nc][tileY][tileX].length;i++) {
-									kernels[chn].st_kernels[nc][tileY][tileX][i] *= scale;  
-								}
-								// Make a copy of direct kernels (debug feature, may be removed later)
-								for (int i = 0; i < dct_size;i++){
-									System.arraycopy( // copy one kernel line
-											kernels[chn].st_kernels[nc][tileY][tileX],
-											i * dct_size,
-											kernels[chn].st_direct[nc][tileY][tileX],
-											i * dct_size,
-											dct_size);
-								}
-								// scale st_direct back to ~original
-								for (int i=0; i < kernels[chn].st_kernels[nc][tileY][tileX].length;i++) {
-									kernels[chn].st_direct[nc][tileY][tileX][i] /= dct_size;  
-								}
-								
-								kernels[chn].st_kernels[nc][tileY][tileX]= dtt.dttt_iii(kernels[chn].st_kernels[nc][tileY][tileX]);
-								
 								// extract asymmetrical kernel and convert it to list of values and indices (as arrays as the length is known)
 								int asym_kernel_start_index = (asym_kernel_inc_index * tileY + tileX)* asym_size;
 								int indx = 0;
@@ -705,26 +658,59 @@ public class EyesisDCT {
 									}
 								}
 								
+								double scale_asym = 0.0;
 								if (dct_parameters.normalize) {
-									double sum = 0.0;
 									for (int i = 0; i < kernels[chn].asym_val[nc][tileY][tileX].length;i++){
-										sum += kernels[chn].asym_val[nc][tileY][tileX][i];
+										scale_asym += kernels[chn].asym_val[nc][tileY][tileX][i];
 										if ((tileY==67) && (tileX==125)) {
-											System.out.println("i="+i+", sum="+sum);
+											System.out.println("i="+i+", sum="+scale_asym);
 										}
 									}
 									for (int i = 0; i < kernels[chn].asym_val[nc][tileY][tileX].length;i++){
-										kernels[chn].asym_val[nc][tileY][tileX][i] /= sum;
+										kernels[chn].asym_val[nc][tileY][tileX][i] /= scale_asym;
 									}
 									if ((tileY==67) && (tileX==125)) {
-										System.out.println("sum="+sum+", normalized:");
+										System.out.println("sum="+scale_asym+", normalized:");
 
 										for (int i=0; i<kernels[chn].asym_indx[nc][tileY][tileX].length; i++){
 											System.out.println("kernels["+chn+"].asym_val["+nc+"]["+tileY+"]["+tileX+"]["+i+"]="+kernels[chn].asym_val[nc][tileY][tileX][i]);
 											System.out.println("kernels["+chn+"].asym_indx["+nc+"]["+tileY+"]["+tileX+"]["+i+"]="+kernels[chn].asym_indx[nc][tileY][tileX][i]);
 										}
 									}
-								}								
+								} else {
+									scale_asym = 1.0;
+								}
+
+								// extract DCT (symmetrical) kernels
+								int sym_kernel_start_index = (sym_kernel_inc_index * tileY + tileX) * dct_size;
+								for (int i = 0; i < dct_size;i++){
+									System.arraycopy( // copy one kernel line
+											kernels[chn].sym_kernels[nc],
+											sym_kernel_start_index + i * sym_kernel_inc_index,
+											kernels[chn].st_kernels[nc][tileY][tileX],
+											i * dct_size,
+											dct_size);
+								}
+								if (scale_asym != 1.0){
+									for (int i=0; i < kernels[chn].st_kernels[nc][tileY][tileX].length;i++) {
+										kernels[chn].st_kernels[nc][tileY][tileX][i] *= scale_asym;  
+									}
+								}
+								// Make a copy of direct kernels (debug feature, may be removed later)
+								for (int i = 0; i < dct_size;i++){
+									System.arraycopy( // copy one kernel line
+											kernels[chn].st_kernels[nc][tileY][tileX],
+											i * dct_size,
+											kernels[chn].st_direct[nc][tileY][tileX],
+											i * dct_size,
+											dct_size);
+								}
+								// scale so multiplication will not change normalization
+								for (int i=0; i < kernels[chn].st_kernels[nc][tileY][tileX].length;i++) {
+									kernels[chn].st_kernels[nc][tileY][tileX][i] *= dct_size;  
+								}
+
+								kernels[chn].st_kernels[nc][tileY][tileX]= dtt.dttt_iii(kernels[chn].st_kernels[nc][tileY][tileX]);
 							}
 //							System.out.println("tileY="+tileY);
 						}

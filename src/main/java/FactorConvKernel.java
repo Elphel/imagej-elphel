@@ -487,6 +487,7 @@ public class FactorConvKernel {
 				int conv_size = asym_size + 2*sym_radius-2;
 				int conv_len = conv_size * conv_size;
 				int sym_rad_m1 = sym_radius - 1; // 7
+				int sym_rad2 = 2*sym_radius; // 16
 				double [] fX = new double [justConvolved? conv_len:  this.weight.length];
 				// calculate convolution, for kernels - regardless of kernels enabled/disabled
 				// calculate convolution part
@@ -500,15 +501,25 @@ public class FactorConvKernel {
 						for (int ai = 0; ai < asym_size; ai ++){
 							int si = (ci - ai) - sym_rad_m1;
 							if (si < 0) si = -si;
-							if (si < sym_radius) {
+							int sgni = 1;
+							if (si > sym_radius) {
+								sgni = -1;
+								si = sym_rad2 - si;
+							}
+							if (si < sym_radius) { // skip si == sym_radius, coefficient is 0 (WA)
 								for (int aj = 0; aj < asym_size; aj ++){
 									int aindx = ai*asym_size + aj;
 									if (!skip_disabled_asym || kernel_masks[1][aindx]){
 										int sj = (cj - aj) - sym_rad_m1;
 										if (sj < 0) sj = -sj;
-										if (sj < sym_radius) {
+										int sgn = sgni;
+										if (sj > sym_radius) {
+											sgn = -sgn;
+											sj = sym_rad2 - sj;
+										}
+										if (sj < sym_radius) { // skip sj == sym_radius, coefficient is 0 (WA)
 											int sindx = si * sym_radius + sj;
-											fX[cindx] += kernels[0][sindx] * kernels[1][aindx];
+											fX[cindx] += sgn*kernels[0][sindx] * kernels[1][aindx];
 										}
 									}
 								}	
@@ -551,6 +562,8 @@ public class FactorConvKernel {
 				int conv_size = asym_size + 2*sym_radius-2;
 				int conv_len = conv_size * conv_size;
 				int sym_rad_m1 = sym_radius - 1; // 7
+				int sym_rad2 = 2*sym_radius; // 16
+				int sym_rad4 = 4*sym_radius; // 32
 				// calculate convolution part
 				for (int ci =0; ci < conv_size; ci++) for (int cj =0; cj < conv_size; cj++){
 					int cindx = ci*conv_size + cj;
@@ -559,20 +572,37 @@ public class FactorConvKernel {
 						for (int ai = 0; ai < asym_size; ai ++){
 							int si = (ci - ai) - sym_rad_m1;
 							if (si < 0) si = -si;
-							if (si < sym_radius) {
+							int sgni = 1;
+							if (si > sym_rad2) si = sym_rad4 - si;
+							if (si > sym_radius) {
+								sgni = -1;
+								si = sym_rad2 - si;
+							}
+							if (si < sym_radius) {  // skip si == sym_radius, coefficient is 0 (WA)
 								for (int aj = 0; aj < asym_size; aj ++){
 									int aindx = ai*asym_size + aj;
 									int apar_indx = map_to_pars[1][aindx];
 									int sj = (cj - aj) - sym_rad_m1;
 									if (sj < 0) sj = -sj;
-									if (sj < sym_radius) {
+									int sgn = sgni;
+									if (sj > sym_rad2) sj = sym_rad4 - sj;
+									if (sj > sym_radius) {
+										sgn = -sgn;
+										sj = sym_rad2 - sj;
+									}
+									if (sj < sym_radius) { // skip sj == sym_radius, coefficient is 0 (WA)
 										int sindx = si * sym_radius + sj;
+//										if (sindx <0){
+//											System.out.println(
+//													"ci="+ci+" cj="+cj+" si="+si+" sj="+sj+" ai="+ai+" aj="+aj+
+//													" sgni="+sgni+" sgn="+sgn+" sym_rad2="+sym_rad2);
+//										}
 										if (apar_indx >= 0){
-											jacobian[apar_indx][cindx] += kernels[0][sindx];
+											jacobian[apar_indx][cindx] += sgn*kernels[0][sindx];
 										}
 										int spar_indx = map_to_pars[0][sindx];
 										if ((spar_indx>=0) && (!skip_disabled_asym || kernel_masks[1][aindx])){
-											jacobian[spar_indx][cindx] += kernels[1][aindx];
+											jacobian[spar_indx][cindx] += sgn*kernels[1][aindx];
 										}
 									}	
 								}
@@ -937,17 +967,8 @@ public class FactorConvKernel {
 		this.target_kernel = target_kernel;
 		this.asym_pixels =   asym_pixels;
 		this.asym_distance = asym_distance;
-		/*
-		double s = 0.0;
-		for (int i = 0; i<target_kernel.length; i++){
-			s+= target_kernel[i]*target_kernel[i];
-		}
-		this.goal_rms_pure = Math.sqrt(s/target_kernel.length)*fact_precision;
-		*/
 		
 		double [] RMSes = null;
-//		double [] bestRms =  new double [asym_pixels];
-//		int    [] enPixels = new int    [asym_pixels];
     	this.startTime=System.nanoTime(); // need local?
 		int numWeakest = 0;
 		int numAny=0;
