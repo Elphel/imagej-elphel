@@ -488,6 +488,7 @@ public class FactorConvKernel {
 				int conv_len = conv_size * conv_size;
 				int sym_rad_m1 = sym_radius - 1; // 7
 				int sym_rad2 = 2*sym_radius; // 16
+				int sym_rad4 = 4*sym_radius; // 32
 				double [] fX = new double [justConvolved? conv_len:  this.weight.length];
 				// calculate convolution, for kernels - regardless of kernels enabled/disabled
 				// calculate convolution part
@@ -502,6 +503,7 @@ public class FactorConvKernel {
 							int si = (ci - ai) - sym_rad_m1;
 							if (si < 0) si = -si;
 							int sgni = 1;
+							if (si > sym_rad2) si = sym_rad4 - si;
 							if (si > sym_radius) {
 								sgni = -1;
 								si = sym_rad2 - si;
@@ -513,6 +515,7 @@ public class FactorConvKernel {
 										int sj = (cj - aj) - sym_rad_m1;
 										if (sj < 0) sj = -sj;
 										int sgn = sgni;
+										if (sj > sym_rad2) sj = sym_rad4 - sj;
 										if (sj > sym_radius) {
 											sgn = -sgn;
 											sj = sym_rad2 - sj;
