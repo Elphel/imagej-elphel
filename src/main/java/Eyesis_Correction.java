@@ -3133,6 +3133,15 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         			DCT_PARAMETERS.decimation,// typical 2
         			DCT_PARAMETERS.decimateSigma);
         	}
+        	if (DCT_PARAMETERS.normalize) {
+				  double s =0.0;
+				  for (int ii = 0; ii <target_expanded.length; ii++){
+					  s+=target_expanded[ii];
+				  }
+				  for (int ii = 0; ii <target_expanded.length; ii++){
+					  target_expanded[ii]/=s;
+				  }
+        	}
         } else {
         	System.out.println("Using synthesized target kernel");
         	double [] target_kernel = new double [target_kernel_size * target_kernel_size];
@@ -3191,17 +3200,32 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         double [] target_weights = factorConvKernel.getTargetWeights();
         double [] diff100 = new double [convolved.length];
         double [] weighted_diff100 = new double [convolved.length];
-        double s0=0,s1 = 0, s2 = 0.0;
+        double s0=0,s1 = 0, s2 = 0.0 , s3=0.0;
         for (int ii=0;ii<convolved.length;ii++) {
         	diff100[ii]=100.0*(target_expanded[ii]-convolved[ii]);
         	weighted_diff100[ii] = diff100[ii]* target_weights[ii];
         	s0+=target_weights[ii];
         	s1+=target_expanded[ii]*target_weights[ii];
         	s2+=convolved[ii]*target_weights[ii];
+        	s3+=target_expanded[ii];
             if (DEBUG_LEVEL>3) {
             	System.out.println(ii+": t="+target_expanded[ii]+" c="+convolved[ii]+" s0="+s0+" s1="+s1+" s2="+s2);
             }        	
         }
+        double sum_asym = 0.0, sum_sym = 0.0;
+        for (int ii = 0; ii < asym_kernel.length; ii++){
+        	sum_asym += asym_kernel[ii];
+        }
+        for (int ii = 0; ii < DCT_PARAMETERS.dct_size; ii++){
+            for (int jj = 0; jj < DCT_PARAMETERS.dct_size; jj++){
+            	double d = sym_kernel[ii * DCT_PARAMETERS.dct_size + jj];
+            	if (ii > 0) d *=2;
+            	if (jj > 0) d *=2;
+            	sum_sym += d;
+            }
+        }
+        
+        
         double [][] compare_kernels = {target_expanded, convolved, weighted_diff100,target_weights, diff100};
         if (DEBUG_LEVEL>0) {
         	System.out.println("DCT_PARAMETERS.dct_size="+DCT_PARAMETERS.dct_size+" DCT_PARAMETERS.asym_size="+DCT_PARAMETERS.asym_size);
@@ -3209,6 +3233,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         	System.out.println("asym_kernel.length="+asym_kernel.length);
         	System.out.println("convolved.length="+convolved.length);
         	System.out.println("weights s0="+s0+" target s1/s0="+(s1/s0)+ "convolved s2/s0="+(s2/s0)+ " s2/s1="+(s2/s1));
+        	System.out.println("sum_asym = "+ sum_asym+ " sum_sym="+sum_sym+" sum_asym*sum_sym=" + (sum_asym*sum_sym)+" sum(target) = "+s3);
         }
 
         DttRad2 dtt =   new DttRad2(DCT_PARAMETERS.dct_size);
