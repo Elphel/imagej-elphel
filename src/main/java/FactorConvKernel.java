@@ -106,7 +106,13 @@ public class FactorConvKernel {
 		public  double  []   weight =         null; // same length as fX - combineds weights (used while calculating JTByJ, JTByDiff, DiffByDiff
 		                                            // when calculating weight2 - use kernel_masks[1] (zero if false), weights[1] contains full
 													// normalized so that sum == 1.0
-		public  double       target_dc =         0; // weigted (with traget weight)  average value of the target kernel
+		public  double       target_dc =      0.0; // weighted (with target weight)  average value of the target kernel
+		
+		// enforcing sum_target = sum_asym*sum_sym for DCT-IV (sum_sym for full (2*sym_radius-1)*(2*sym_radius-1)
+		public  double       sum_target =     0.0; // sum of all target kernel pixels 
+		public  double       sum_sym =        0.0; // sum of all sym_kernel pixels, extended to (2*sym_radius-1)*(2*sym_radius-1), updated when fX is calculated
+		public  double       sum_asym =       0.0; // sum of all asym_kernel pixels (updated when fX is calculated) 
+		
 		public  double  [][] weights =        {null, null, null, {0.0}}; // [0] - weighs for the convolution array, [1] - for asym_kernel, [2] - for sym_kernel
 		                                                    // [3] (single element) - for DC (average}
 /*?*/   public  double       weight_pure =    0.0;  // 0.. 1.0 - fraction of weights for the convolution part

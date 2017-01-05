@@ -698,6 +698,20 @@ public class EyesisDCT {
 										kernels[chn].st_kernels[nc][tileY][tileX][i] *= scale_asym;  
 									}
 								}
+								if (dct_parameters.dbg_mode == 0){ // normalize sym kernel regardless of asym:
+									double scale_sym = 0.0;
+									for (int i = 0; i< dct_size; i++){
+										for (int j = 0; j< dct_size; j++){
+											double d = kernels[chn].st_kernels[nc][tileY][tileX][i*dct_size+j];
+											if (i > 0) d*=2;
+											if (j > 0) d*=2;
+											scale_sym +=d;
+										}
+									}
+									for (int i=0; i < kernels[chn].st_kernels[nc][tileY][tileX].length;i++) {
+										kernels[chn].st_kernels[nc][tileY][tileX][i] /= scale_sym;  
+									}
+								}
 								// Make a copy of direct kernels (debug feature, may be removed later)
 								for (int i = 0; i < dct_size;i++){
 									System.arraycopy( // copy one kernel line
@@ -712,7 +726,8 @@ public class EyesisDCT {
 									kernels[chn].st_kernels[nc][tileY][tileX][i] *= dct_size;  
 								}
 
-								kernels[chn].st_kernels[nc][tileY][tileX]= dtt.dttt_iii(kernels[chn].st_kernels[nc][tileY][tileX]);
+//								kernels[chn].st_kernels[nc][tileY][tileX]= dtt.dttt_iii(kernels[chn].st_kernels[nc][tileY][tileX]);
+								kernels[chn].st_kernels[nc][tileY][tileX]= dtt.dttt_iiie(kernels[chn].st_kernels[nc][tileY][tileX]);
 							}
 //							System.out.println("tileY="+tileY);
 						}

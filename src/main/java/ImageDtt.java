@@ -238,6 +238,7 @@ public class ImageDtt {
 						dctParameters.convolve_direct,
 						dctParameters.tileX,
 						dctParameters.tileY,
+						dctParameters.dbg_mode,
 						threadsMax,  // maximal number of threads to launch                         
 						debugLevel);
 		  }
@@ -258,6 +259,7 @@ public class ImageDtt {
 			final boolean   convolve_direct, // test feature - convolve directly with the symmetrical kernel
 			final int       debug_tileX,
 			final int       debug_tileY,
+			final int       debug_mode,
 			final int       threadsMax,  // maximal number of threads to launch                         
 			final int       globalDebugLevel)
 	{
@@ -274,6 +276,25 @@ public class ImageDtt {
 				for (int i=0; i<dctdc_data[tileY][tileX].length;i++) dctdc_data[tileY][tileX][i]= 0.0; // actually not needed, Java initializes arrays
 			}
 		}
+		double [] dc = new double [dct_size*dct_size];
+		for (int i = 0; i<dc.length; i++) dc[i] = 1.0;
+		DttRad2 dtt0 = new DttRad2(dct_size);
+		dtt0.set_window(window_type);
+		final double [] dciii = dtt0.dttt_iii  (dc, dct_size);
+		final double [] dciiie = dtt0.dttt_iiie  (dc, dct_size);
+		if (color ==2) {
+			double [][]dcx = {dc,dciii,dciiie, dtt0.dttt_ii(dc, dct_size),dtt0.dttt_iie(dc, dct_size)}; 
+			showDoubleFloatArrays sdfa_instance0 = new showDoubleFloatArrays(); // just for debugging?
+			sdfa_instance0.showArrays(dcx,  dct_size, dct_size, true, "dcx");
+		}
+
+		
+/*
+						tile_out=dtt.dttt_iv  (tile_folded, dct_mode, dct_size);
+		
+ */
+		
+		
 		System.out.println("lapped_dctdc(): width="+width+" height="+height);
 
 		for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -291,7 +312,7 @@ public class ImageDtt {
 					int tileY,tileX;
 					int n2 = dct_size * 2;
 					double dc;
-
+					double [] tile_out_copy = null;
 					showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 					
 					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
@@ -463,12 +484,74 @@ public class ImageDtt {
 							for (int i = 0; i < tile_folded.length; i++) tile_folded[i] -= dc;
 						}
 						tile_out=dtt.dttt_iv  (tile_folded, dct_mode, dct_size);
+						 
+						
+						if ((dct_kernels != null) && !skip_sym){ // convolve in frequency domain with sym_kernel
+							double s0 =0;
+
+							if (debug_mode == 2){
+								for (int i=0;i<dct_kernels.st_kernels[color][kernelTileY][kernelTileX].length; i++){
+									s0+=dct_kernels.st_kernels[color][kernelTileY][kernelTileX][i];
+								}
+								s0 = dct_size*dct_size/s0;
+							} else if (debug_mode == 3){
+								for (int i=0;i<dct_size;i++){
+									double scale0 = (i>0)?2.0:1.0; 
+									for (int j=0;j<dct_size;j++){
+										double scale = scale0*((j>0)?2.0:1.0);
+										int indx = i*dct_size+j;
+										s0+=scale*dct_kernels.st_kernels[color][kernelTileY][kernelTileX][indx];
+									}
+								}
+								s0 = (2*dct_size-1)*(2*dct_size-1)/s0;
+							}else if (debug_mode == 4){
+								//dciii								
+								for (int i=0;i<dct_kernels.st_kernels[color][kernelTileY][kernelTileX].length; i++){
+									s0+=dciii[i]* dct_kernels.st_kernels[color][kernelTileY][kernelTileX][i];
+								}
+								s0 = dct_size*dct_size/s0;
+							} else s0 = 1.0;
+							
+							for (int i = 0; i < tile_out.length; i++){
+								tile_out[i] *= s0;
+							}
+						}
+						
+						if ((tileY == debug_tileY) && (tileX == debug_tileX) && (color == 2)) {
+							tile_out_copy = tile_out.clone();
+						}
+						
+						
 						if ((dct_kernels != null) && !skip_sym){ // convolve in frequency domain with sym_kernel
 							for (int i = 0; i < tile_out.length; i++){
 								tile_out[i] *=dct_kernels.st_kernels[color][kernelTileY][kernelTileX][i];
 							}
 						}						
 
+						
+						if ((tileY == debug_tileY) && (tileX == debug_tileX) && (color == 2)) {
+							double [][] dbg_tile = {
+									dct_kernels.st_direct[color][kernelTileY][kernelTileX],
+									dct_kernels.st_kernels[color][kernelTileY][kernelTileX],
+									tile_out_copy,
+									tile_out}; 
+							sdfa_instance.showArrays(tile_in,  n2, n2, "tile_in-X"+tileX+"Y"+tileY+"C"+color);
+							sdfa_instance.showArrays(dbg_tile,  dct_size, dct_size, true, "dbg-X"+tileX+"Y"+tileY+"C"+color);
+							System.out.println("tileY="+tileY+" tileX="+tileX+" kernelTileY="+kernelTileY+" kernelTileX="+kernelTileX);
+							double s0=0.0, s1=0.0, s2=0.0, s3=0.0;
+							for (int i=0;i<dct_size;i++){
+								double scale0 = (i>0)?2.0:1.0; 
+								for (int j=0;j<dct_size;j++){
+									double scale = scale0*((j>0)?2.0:1.0);
+									int indx = i*dct_size+j;
+									s0+=scale*dct_kernels.st_direct[color][kernelTileY][kernelTileX][indx];
+									s1+=scale*dct_kernels.st_kernels[color][kernelTileY][kernelTileX][indx];
+									s2+=      dct_kernels.st_kernels[color][kernelTileY][kernelTileX][indx];
+									s3+=dciii[indx]*dct_kernels.st_kernels[color][kernelTileY][kernelTileX][indx];
+								}
+							}
+							System.out.println("s0="+s0+" s1="+s1+" s2="+s2+" s3="+s3);
+						}
 						System.arraycopy(tile_out, 0, dctdc_data[tileY][tileX], 0, tile_out.length);
 						dctdc_data[tileY][tileX][tile_out.length] = dc;
 					}
@@ -546,7 +629,8 @@ public class ImageDtt {
 			}
 		}
 		DttRad2 dtt = new DttRad2(dct_size);
-		final double [] filter= dtt.dttt_iii(filter_direct);
+//		final double [] filter= dtt.dttt_iii(filter_direct);
+		final double [] filter= dtt.dttt_iiie(filter_direct);
 		for (int i=0; i < filter.length;i++) filter[i] *= dct_size;  
 		
 		if (globalDebugLevel>2) {

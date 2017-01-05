@@ -29,7 +29,10 @@
 
 public class DttRad2 {
 	int N = 0;
-	double [][][] CII=  null;
+	double [][][] CII=    null;
+	double [][][] CIIe=   null; // alternative matrix with all coefficients the same (non-orthogonal, but matching DFT)
+	double [][][] CIIIe=  null; // alternative matrix with k0=1/2, k(n-1) = 1/2 (non-orthogonal, but matching DFT)
+	
 	double [][][] CIV=  null;
 	double [][][] SIV=  null;
 	double [][] CN1=null; 
@@ -247,6 +250,31 @@ public class DttRad2 {
 		return y;
 	}
 
+	public double [] dttt_iie(double [] x){
+		return dttt_iie(x, 1 << (ilog2(x.length)/2)); 
+	}
+
+	public double [] dttt_iie(double [] x, int n){
+		double [] y = new double [n*n];
+		double [] line = new double[n];
+		// first (horizontal) pass
+		for (int i = 0; i<n; i++){
+			System.arraycopy(x, n*i, line, 0, n);
+			line = dctiie_direct(line);
+			for (int j=0; j < n;j++) y[j*n+i] =line[j]; // transpose 
+		}
+		// second (vertical) pass
+		for (int i = 0; i<n; i++){
+			System.arraycopy(y, n*i, line, 0, n);
+			line = dctiie_direct(line);
+			System.arraycopy(line, 0, y, n*i, n);
+		}
+		return y;
+	}
+	
+	
+	
+	
 	public double [] dttt_iii(double [] x){
 		return dttt_iii(x, 1 << (ilog2(x.length)/2)); 
 	}
@@ -269,8 +297,27 @@ public class DttRad2 {
 		return y;
 	}
 
-	
-	
+	public double [] dttt_iiie(double [] x){
+		return dttt_iiie(x, 1 << (ilog2(x.length)/2)); 
+	}
+
+	public double [] dttt_iiie(double [] x, int n){
+		double [] y = new double [n*n];
+		double [] line = new double[n];
+		// first (horizontal) pass
+		for (int i = 0; i<n; i++){
+			System.arraycopy(x, n*i, line, 0, n);
+			line = dctiiie_direct(line);
+			for (int j=0; j < n;j++) y[j*n+i] =line[j]; // transpose 
+		}
+		// second (vertical) pass
+		for (int i = 0; i<n; i++){
+			System.arraycopy(y, n*i, line, 0, n);
+			line = dctiiie_direct(line);
+			System.arraycopy(line, 0, y, n*i, n);
+		}
+		return y;
+	}
 	
 	public void set_window(){
 		set_window(0);
@@ -343,6 +390,23 @@ public class DttRad2 {
 		return y;
 	}
 
+	public double [] dctiie_direct(double[] x){
+		int n = x.length;
+		int t = ilog2(n)-1;
+		if (CIIe==null){
+			setup_CIIe(N); // just full size
+		}
+		double [] y = new double[n];
+		for (int i = 0; i<n; i++) {
+			y[i] = 0.0;
+			for (int j = 0; j< n; j++){
+				y[i]+= CIIe[t][i][j]*x[j]; 
+			}
+		}
+		return y;
+	}
+
+	
 	public double [] dctiii_direct(double[] x){
 		// CIII=transp(CII)
 		int n = x.length;
@@ -360,6 +424,21 @@ public class DttRad2 {
 		return y;
 	}
 	
+	public double [] dctiiie_direct(double[] x){
+		int n = x.length;
+		int t = ilog2(n)-1;
+		if (CIIIe==null){
+			setup_CIIIe(N); // just full size
+		}
+		double [] y = new double[n];
+		for (int i = 0; i<n; i++) {
+			y[i] = 0.0;
+			for (int j = 0; j< n; j++){
+				y[i]+= CIIIe[t][i][j]*x[j]; 
+			}
+		}
+		return y;
+	}
 	
 	public double [] dctiv_direct(double[] x){
 		int n = x.length;
@@ -431,6 +510,51 @@ public class DttRad2 {
 			}
 		}
 	}
+	
+	private void setup_CIIe(int maxN){
+		if (maxN > N) setup_arrays(maxN);		
+		int l = ilog2(N);
+		if (!(CIIe==null) && (CIIe.length >= l)) return;
+		CIIe = new double[l][][]; // only needed for direct? Assign only when needed?
+		for (int t = 0; t<CIIe.length; t++) {
+			int n = 2 << t; // for N==3: 2, 4, 8
+			CIIe[t] = new double[n][n];
+			double scale = Math.sqrt(2.0/n);
+//			double ej;
+			double pi_2n=Math.PI/(2*n);
+			for (int j=0;j<n; j++){
+//				if (j==0) ej= Math.sqrt(0.5);
+//				else ej = 1.0;
+				for (int k = 0; k<n; k++){
+					CIIe[t][j][k] = scale * Math.cos(j*(2*k+1)*pi_2n);  
+				}
+			}
+		}
+	}
+
+	private void setup_CIIIe(int maxN){
+		if (maxN > N) setup_arrays(maxN);		
+		int l = ilog2(N);
+		if (!(CIIIe==null) && (CIIIe.length >= l)) return;
+		CIIIe = new double[l][][]; // only needed for direct? Assign only when needed?
+		for (int t = 0; t<CIIIe.length; t++) {
+			int n = 2 << t; // for N==3: 2, 4, 8
+			CIIIe[t] = new double[n][n];
+			double scale = Math.sqrt(2.0/n);
+			double ej;
+			double pi_2n=Math.PI/(2*n);
+			for (int j=0;j < n; j++){
+//				if ((j==0) || (j == (n-1))) ej= 0.5; // Math.sqrt(0.5);
+				if (j==0) ej= 0.5; // Math.sqrt(0.5);
+				else ej = 1.0;
+				for (int k = 0; k<n; k++){
+//					CIIIe[t][j][k] = scale * ej * Math.cos(j*(2*k+1)*pi_2n);  
+					CIIIe[t][k][j] = scale * ej * Math.cos(j*(2*k+1)*pi_2n);  
+				}
+			}
+		}
+	}
+	
 	
 	private void setup_CIV(int maxN){
 		if (maxN > N) setup_arrays(maxN);		
