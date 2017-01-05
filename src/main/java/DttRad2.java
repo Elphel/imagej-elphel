@@ -544,8 +544,8 @@ public class DttRad2 {
 			double ej;
 			double pi_2n=Math.PI/(2*n);
 			for (int j=0;j < n; j++){
-//				if ((j==0) || (j == (n-1))) ej= 0.5; // Math.sqrt(0.5);
-				if (j==0) ej= 0.5; // Math.sqrt(0.5);
+				if ((j==0) || (j == (n-1))) ej= 0.5; // Math.sqrt(0.5);
+//				if (j==0) ej= 0.5; // Math.sqrt(0.5);
 				else ej = 1.0;
 				for (int k = 0; k<n; k++){
 //					CIIIe[t][j][k] = scale * ej * Math.cos(j*(2*k+1)*pi_2n);  
