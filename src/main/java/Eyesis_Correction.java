@@ -2970,7 +2970,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
     } else if (label.equals("Test Kernel Factorization")){
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
         if (!DCT_PARAMETERS.showDialog()) return;
-        FactorConvKernel factorConvKernel = new FactorConvKernel(DCT_PARAMETERS.dbg_mode == 1);
+        FactorConvKernel factorConvKernel = new FactorConvKernel();
         factorConvKernel.setDebugLevel(DEBUG_LEVEL);
         factorConvKernel.setTargetWindowMode(DCT_PARAMETERS.dbg_window_mode, DCT_PARAMETERS.centerWindowToTarget);
         factorConvKernel.numIterations = DCT_PARAMETERS.LMA_steps;
@@ -3098,7 +3098,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
     } else if (label.equals("Min Kernel Factorization")){
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
         if (!DCT_PARAMETERS.showDialog()) return;
-        FactorConvKernel factorConvKernel = new FactorConvKernel(DCT_PARAMETERS.dbg_mode == 1);
+        FactorConvKernel factorConvKernel = new FactorConvKernel();
         factorConvKernel.setDebugLevel(DEBUG_LEVEL);
         factorConvKernel.setTargetWindowMode(DCT_PARAMETERS.dbg_window_mode, DCT_PARAMETERS.centerWindowToTarget);
         factorConvKernel.numIterations = DCT_PARAMETERS.LMA_steps;

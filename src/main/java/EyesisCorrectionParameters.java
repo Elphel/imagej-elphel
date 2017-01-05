@@ -1786,7 +1786,7 @@ public class EyesisCorrectionParameters {
   		public double dbg_y1 =0;
   		public double dbg_sigma =2.0;
   		public String dbg_mask = ".........:::::::::.........:::::::::......*..:::::*:::.........:::::::::.........";
-  		public int dbg_mode = 1; // 0 - old LMA, 1 - new LMA
+  		public int dbg_mode = 1; // 0 - old LMA, 1 - new LMA - *** not used anymore ***
   		public int dbg_window_mode = 2; // 0 - none, 1 - square, 2 - sin 3 - sin^2
   		public boolean centerWindowToTarget = true;
   		// parameters to extract a kernel from the kernel image file
