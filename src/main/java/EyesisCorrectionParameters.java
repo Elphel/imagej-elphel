@@ -1774,7 +1774,9 @@ public class EyesisCorrectionParameters {
   		public int dct_window =   1; // currently only 3 types of windows - 0 (none), 1 and 2
   		public int LMA_steps =  100;
   		public double fact_precision=0.003; // stop iterations if error rms less than this part of target kernel rms
-  		public double compactness = 1.0;
+  		public double compactness =  0.02;
+  		public double sym_compactness = 0.01;
+  		public double dc_weight = 10; // importance of dc realtive to rms_pure
   		public int asym_tax_free  = 5; // "compactness" does not apply to pixels with |x|<=asym_tax_free  and |y| <= asym_tax_free
   		public int seed_size = 8; // number of initial cells in asym_kernel - should be 4*b + 1 (X around center cell) or 4*n + 0  (X around between cells)
   		public double asym_random; // initialize asym_kernel with random numbers
@@ -1824,6 +1826,8 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"asym_distance",this.asym_distance+"");
   			properties.setProperty(prefix+"dct_window",   this.dct_window+"");
   			properties.setProperty(prefix+"compactness",  this.compactness+"");
+  			properties.setProperty(prefix+"sym_compactness",  this.sym_compactness+"");
+  			properties.setProperty(prefix+"dc_weight",  this.dc_weight+"");
   			properties.setProperty(prefix+"fact_precision",  this.fact_precision+"");
   			properties.setProperty(prefix+"asym_tax_free",  this.asym_tax_free+"");
   			properties.setProperty(prefix+"seed_size",  this.seed_size+"");
@@ -1857,6 +1861,8 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"asym_distance")!=null) this.asym_distance=Integer.parseInt(properties.getProperty(prefix+"asym_distance"));
   			if (properties.getProperty(prefix+"dct_window")!=null) this.dct_window=Integer.parseInt(properties.getProperty(prefix+"dct_window"));
   			if (properties.getProperty(prefix+"compactness")!=null) this.compactness=Double.parseDouble(properties.getProperty(prefix+"compactness"));
+  			if (properties.getProperty(prefix+"sym_compactness")!=null) this.sym_compactness=Double.parseDouble(properties.getProperty(prefix+"sym_compactness"));
+  			if (properties.getProperty(prefix+"dc_weight")!=null) this.dc_weight=Double.parseDouble(properties.getProperty(prefix+"dc_weight"));
   			if (properties.getProperty(prefix+"fact_precision")!=null) this.fact_precision=Double.parseDouble(properties.getProperty(prefix+"fact_precision"));
   			if (properties.getProperty(prefix+"asym_tax_free")!=null) this.asym_tax_free=Integer.parseInt(properties.getProperty(prefix+"asym_tax_free"));
   			if (properties.getProperty(prefix+"seed_size")!=null) this.seed_size=Integer.parseInt(properties.getProperty(prefix+"seed_size"));
@@ -1892,6 +1898,8 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("MDCT window type (0,1,2)",                                       this.dct_window,          0);
   			gd.addNumericField("LMA_steps",                                                      this.LMA_steps,           0);
   			gd.addNumericField("Compactness (punish off-center asym_kernel pixels (proportional to r^2)", this.compactness,2);
+  			gd.addNumericField("Symmetrical kernel compactness (proportional to r^2)",           this.sym_compactness,     2);
+  			gd.addNumericField("Relative importance of DC error to RMS",                         this.dc_weight,           2);
   			gd.addNumericField("Factorization target precision (stop if achieved)",              this.fact_precision,      4);
   			gd.addNumericField("Do not punish pixels in the square around center",               this.asym_tax_free,       0);
   			gd.addNumericField("Start asym_kernel with this number of pixels (0 - single, 4n+0 (X between cells), 4*n+1 - x around center cell",               this.seed_size,     0); //0..2
@@ -1926,6 +1934,8 @@ public class EyesisCorrectionParameters {
   			this.dct_window=      (int) gd.getNextNumber();
   			this.LMA_steps =      (int) gd.getNextNumber();
   			this.compactness =          gd.getNextNumber();
+  			this.sym_compactness =      gd.getNextNumber();
+  			this.dc_weight =            gd.getNextNumber();
   			this.fact_precision =       gd.getNextNumber();
   			this.asym_tax_free =  (int) gd.getNextNumber();
   			this.seed_size =      (int) gd.getNextNumber();

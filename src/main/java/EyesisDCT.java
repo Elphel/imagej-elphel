@@ -167,6 +167,8 @@ public class EyesisDCT {
 					  factorConvKernel.setTargetWindowMode (dct_parameters.dbg_window_mode, dct_parameters.centerWindowToTarget);
 					  factorConvKernel.numIterations =     dct_parameters.LMA_steps;
 					  factorConvKernel.setAsymCompactness  (dct_parameters.compactness,	dct_parameters.asym_tax_free);
+					  factorConvKernel.setSymCompactness   (dct_parameters.sym_compactness);
+					  factorConvKernel.setDCWeight         (dct_parameters.dc_weight);
 					  
 					  int chn,tileY,tileX;
 //					  int chn0=-1;

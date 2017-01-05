@@ -2977,6 +2977,10 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         factorConvKernel.setAsymCompactness(
         		DCT_PARAMETERS.compactness,
         		DCT_PARAMETERS.asym_tax_free);
+        factorConvKernel.setSymCompactness(
+        		DCT_PARAMETERS.sym_compactness);
+        factorConvKernel.setDCWeight(
+        		DCT_PARAMETERS.dc_weight);
         
         int target_kernel_size = 2*DCT_PARAMETERS.dct_size - 1;
     	int target_expanded_size = 2*DCT_PARAMETERS.dct_size + DCT_PARAMETERS.asym_size -2;
@@ -3101,6 +3105,10 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         factorConvKernel.setAsymCompactness(
         		DCT_PARAMETERS.compactness,
         		DCT_PARAMETERS.asym_tax_free);
+        factorConvKernel.setSymCompactness(
+        		DCT_PARAMETERS.sym_compactness);
+        factorConvKernel.setDCWeight(
+        		DCT_PARAMETERS.dc_weight);
         int target_kernel_size = 2*DCT_PARAMETERS.dct_size - 1;
     	int target_expanded_size = 2*DCT_PARAMETERS.dct_size + DCT_PARAMETERS.asym_size -2;
         double [] target_expanded = null;
@@ -3166,11 +3174,14 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
     			DCT_PARAMETERS.asym_pixels,
     			DCT_PARAMETERS.asym_distance,
     			DCT_PARAMETERS.seed_size);
+    	System.out.println("factorConvKernel.getRMSes().length="+factorConvKernel.getRMSes().length);
     	System.out.println(
     			"calcKernels() number of asym pixels = "+numPixels+
 				" RMS = "+factorConvKernel.getRMSes()[0]+
 				", RMSPure = "+factorConvKernel.getRMSes()[1]+
+				", RMSP_DC = "+factorConvKernel.getRMSes()[2]+
 				", relRMSPure = "+(factorConvKernel.getRMSes()[1]/factorConvKernel.getTargetRMS())+
+				", relRMS_DC = "+(factorConvKernel.getRMSes()[2]/factorConvKernel.getTargetRMS())+
 				", number of LMA runs = "+factorConvKernel.getLMARuns()+
 				", spent "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec");
 
@@ -3180,9 +3191,16 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         double [] target_weights = factorConvKernel.getTargetWeights();
         double [] diff100 = new double [convolved.length];
         double [] weighted_diff100 = new double [convolved.length];
+        double s0=0,s1 = 0, s2 = 0.0;
         for (int ii=0;ii<convolved.length;ii++) {
         	diff100[ii]=100.0*(target_expanded[ii]-convolved[ii]);
         	weighted_diff100[ii] = diff100[ii]* target_weights[ii];
+        	s0+=target_weights[ii];
+        	s1+=target_expanded[ii]*target_weights[ii];
+        	s2+=convolved[ii]*target_weights[ii];
+            if (DEBUG_LEVEL>3) {
+            	System.out.println(ii+": t="+target_expanded[ii]+" c="+convolved[ii]+" s0="+s0+" s1="+s1+" s2="+s2);
+            }        	
         }
         double [][] compare_kernels = {target_expanded, convolved, weighted_diff100,target_weights, diff100};
         if (DEBUG_LEVEL>0) {
@@ -3190,8 +3208,17 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         	System.out.println("sym_kernel.length="+ sym_kernel.length);
         	System.out.println("asym_kernel.length="+asym_kernel.length);
         	System.out.println("convolved.length="+convolved.length);
+        	System.out.println("weights s0="+s0+" target s1/s0="+(s1/s0)+ "convolved s2/s0="+(s2/s0)+ " s2/s1="+(s2/s1));
         }
-        SDFA_INSTANCE.showArrays(sym_kernel,    DCT_PARAMETERS.dct_size,       DCT_PARAMETERS.dct_size,   "sym_kernel");
+
+        DttRad2 dtt =   new DttRad2(DCT_PARAMETERS.dct_size);
+    	double [] sym_dct_iii =   dtt.dttt_iii(sym_kernel);
+    	double [] sym_dct_iii_ii = dtt.dttt_ii(sym_dct_iii);
+    	double [][] sym_kernels = {sym_kernel,sym_dct_iii,sym_dct_iii_ii};
+
+        SDFA_INSTANCE.showArrays(sym_kernels,    DCT_PARAMETERS.dct_size,       DCT_PARAMETERS.dct_size, true,  "sym_kernel_iii_ii");
+        
+////        SDFA_INSTANCE.showArrays(sym_kernel,    DCT_PARAMETERS.dct_size,       DCT_PARAMETERS.dct_size,   "sym_kernel");
         SDFA_INSTANCE.showArrays(asym_kernel,   DCT_PARAMETERS.asym_size,      DCT_PARAMETERS.asym_size,  "asym_kernel");
         SDFA_INSTANCE.showArrays(compare_kernels,  target_expanded_size, target_expanded_size, true, "compare_kernels");
 //        SDFA_INSTANCE.showArrays(convolved,  target_kernel_size, target_kernel_size,   "convolved");

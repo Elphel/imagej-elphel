@@ -55,7 +55,9 @@ public class FactorConvKernel {
 	public int       asym_pixels =  10;      // maximal number of non-zero pixels in asymmmetrical kernel
 	public int       asym_distance = 2;      // how far to seed a new pixel
 	
-	public double    compactness_weight = 1.0; // relative "importance of asymmetrical kernel being compact"
+	public double    compactness_weight = 0.01; // relative "importance of asymmetrical kernel being compact"
+	public double    sym_compactness =    0.01; // relative "importance of symmetrical kernel being compact"
+	public double    dc_weight =    10.0; // importance of dc realtive to rms_pure
 	public int       asym_tax_free = 1; // do not apply compactness_weight for pixels close to the center
 	
 	
@@ -120,12 +122,15 @@ public class FactorConvKernel {
 		private boolean [][] kernel_masks =   {null,null};
 		private int     [][] map_from_pars =  null; // first index - number in (compressed) parameter vector,  value - a pair of {kernel_type, index}  
 		private int     [][] map_to_pars =    null; // first index - kernel type, second - index in kernel, value index in parameter vector
-		public  double  []   fX =             null; // make always fixed length (convolution plus asym), get rid of map_*_fX
+		public  double  []   fX =             null; // make always fixed length (convolution plus asym, plus sym and DC)
 		public  double  []   weight =         null; // same length as fX - combineds weights (used while calculating JTByJ, JTByDiff, DiffByDiff
 		                                            // when calculating weight2 - use kernel_masks[1] (zero if false), weights[1] contains full
 													// normalized so that sum == 1.0
-		public  double  [][] weights =        {null, null}; // same length as fX [0] - weighs for the convolution array, [1] - for asym_kernel
+		public  double       target_dc =         0; // weigted (with traget weight)  average value of the target kernel
+		public  double  [][] weights =        {null, null, null, {0.0}}; // [0] - weighs for the convolution array, [1] - for asym_kernel, [2] - for sym_kernel
+		                                                    // [3] (single element) - for DC (average}
 /*?*/   public  double       weight_pure =    0.0;  // 0.. 1.0 - fraction of weights for the convolution part
+        public  double       weight_dc =      0.0;  // 0.. 1.0 - fraction of weights for DC error
 		
 		public  double  []   saved_fX =       null;
 		public  double  [][] jacobian =       null;
@@ -138,11 +143,11 @@ public class FactorConvKernel {
 		private double  []   par_vector =     null;
 		private LMAArrays    lMAArrays =      null;
 		public  int          debugLevel =        1;
-		public double   []   rmses =         {-1.0, -1.0}; // [0] - composite, [1] - "pure" (without extra "punishment")
+		public double   []   rmses =         {-1.0, -1.0, -1.0}; // [0] - composite, [1] - "pure" (without extra "punishment"), [2] - DC error
 		public double   []   saved_rmses =   null;
 		public double   []   first_rmses =   null;
 		public int           target_window_mode = 2; // 0 - none, 1 - square, 2 - sin
-		public boolean       centerWindowToTarget = true; // center convolution weights around target kernel center
+		public boolean       centerWindowToTarget = true; // center asym kernel weights around target kernel center
 		
 		
 		public LMAData(){
@@ -188,7 +193,12 @@ public class FactorConvKernel {
             if (hasNaN){
 				for (int i=0; i< kernels[0].length; i++) if (Double.isNaN(kernels[0][i])) kernels[0][i] = 0.0;
             }
-            
+            if ((weights[2] == null) || (weights[2].length != kernels[0].length)){
+            	weights[2] = new double[kernels[0].length];
+            	for (int i=0; i<weights[2].length; i++){
+            		weights[2][i] = 0.0; // disable
+            	}
+            }
 		}
 		public void updateSymKernel (double [] sym_kernel){ // just change values (and reset fX)
 			kernels[0] = sym_kernel.clone();
@@ -258,7 +268,6 @@ public class FactorConvKernel {
             		weights[1][i] = 0.0; // disable
             	}
             }
-            
 		}
 
 		public void setAsymKernel (double [] asym_kernel, // if null - set mask only
@@ -316,6 +325,18 @@ public class FactorConvKernel {
 		}
 		public void setAsymWeights(double [] weights){
 			this.weights[1] = weights.clone(); // should have the same dimensions
+			invalidate_weight();			
+		}
+		public void setSymWeights(double [] weights){
+			this.weights[2] = weights.clone(); // should have the same dimensions
+			invalidate_weight();
+		}
+		public void setDCWeight(double dc_weight){ // should be set after setTargetWeights
+			double sum = 0;
+			for (int i = 0; i<this.weights[0].length; i++) sum += this.weights[0][i];
+			this.weights[3] = new double [1];
+			this.weights[3][0] = dc_weight * sum;
+			invalidate_weight();
 		}
 
 		public void setTargetWeights(double [] weights){
@@ -437,15 +458,30 @@ public class FactorConvKernel {
 			//target_window_mode
 				rebuildMapsPars(false); // only if it does not exist
 				double sw = 0.0;
-				for (int i=0; i< weights[0].length; i++) sw+= weights[0][i];
+				target_dc = 0.0;				
+				for (int i=0; i< weights[0].length; i++) {
+					sw+= weights[0][i];
+					target_dc += weights[0][i]*target_kernel[i];
+				}
+				target_dc /= sw;
 				weight_pure = sw;
 				for (int i=0; i< weights[1].length; i++) sw+= weights[1][i];
+				for (int i=0; i< weights[2].length; i++) sw+= weights[2][i];
+				weight_dc = sw;
+				for (int i=0; i< weights[3].length; i++) sw+= weights[3][i];
 				weight_pure /= sw;
-				this.weight = new double[weights[0].length+weights[1].length];
-				for (int i=0; i< weights[0].length; i++) weight[i] = weights[0][i]/sw;
-				for (int i=0; i< weights[1].length; i++) weight[i + weights[0].length] = weights[1][i]/sw;
+				weight_dc = (sw - weight_dc)/sw;
+//				System.out.println("getWeight(): weight_pure="+weight_pure+" weight_dc="+weight_dc+" sw="+sw+weights[3][0]) ;
+				this.weight = new double[weights[0].length+weights[1].length+weights[2].length+weights[3].length];
+				int indx = 0;
+				for (int i=0; i< weights[0].length; i++) weight[indx++] = weights[0][i]/sw;
+				for (int i=0; i< weights[1].length; i++) weight[indx++] = weights[1][i]/sw;
+				for (int i=0; i< weights[2].length; i++) weight[indx++] = weights[2][i]/sw;
+				for (int i=0; i< weights[3].length; i++) weight[indx++] = weights[3][i]/sw;
 				fX =       null; // invalidate
 				jacobian = null;
+				
+				
 			}
 			return this.weight;
 		}
@@ -454,7 +490,7 @@ public class FactorConvKernel {
 		public int [][] getMapToPars()     { return map_to_pars;	}
 		public int [][] getMapFromPars()   { return map_from_pars;}
 		public int      getNumPars()       { return map_from_pars.length;}
-		public int      getNumPoints()     { return weights[0].length+weights[1].length;}
+		public int      getNumPoints()     { return weights[0].length + weights[1].length + weights[2].length + weights[3].length;}
 		public int      getNumPurePoints() { return weights[0].length;}
 		
 
@@ -469,6 +505,77 @@ public class FactorConvKernel {
 			return par_vector;
 		}
 
+		
+		public double [] getDerivativeDelta(
+				boolean skip_disabled_asym,
+				int par_grp,
+				int indx, // parameter index -starting with sym, then asym, including disabled
+				double delta
+				){
+//			int par_grp = (indx >= (sym_radius * sym_radius))?1:0;
+//			if (par_grp > 0) indx -= (sym_radius * sym_radius);
+			int findx = map_to_pars[par_grp][indx];
+			if (findx <0) return null;
+			double [] kernels0 = kernels[par_grp].clone();
+			fX = null;
+			double [] fX0 = getFX(skip_disabled_asym).clone();
+			fX = null;
+			kernels[par_grp][indx]+=delta;
+			double [] fX1 = getFX(skip_disabled_asym).clone();
+			fX = null;
+			kernels[par_grp] = kernels0.clone(); // restore
+			for (int i=0; i<fX1.length; i++){
+				fX1[i] = (fX1[i]-fX0[i])/delta;
+				
+			}
+			return fX1;
+		}
+		public double [] compareDerivative(
+				boolean skip_disabled_asym,				
+				int indx,
+				double delta,          // value to increment parameter by for derivative calculation
+				boolean verbose){
+//			System.out.print(" cd"+indx);
+			int par_grp = (indx >= (sym_radius * sym_radius))?1:0;
+//			System.out.print(" cd"+indx+":"+par_grp);
+			if (par_grp > 0) indx -= (sym_radius * sym_radius);
+			int findx = map_to_pars[par_grp][indx];
+//			System.out.print("|"+indx+"@"+findx);
+			if (findx <0 ) {
+				return null;
+			}
+			
+			double [] rslt = {0.0,0.0};
+			double [] deriv = getDerivativeDelta(
+					skip_disabled_asym,
+					par_grp,
+					indx,
+					delta);
+            if (deriv == null){
+            	return null;
+            }
+			double [][] jacob = getJacobian(
+					false,  // do not recalculate if available
+					skip_disabled_asym);
+			
+			double [] fX = getFX(skip_disabled_asym).clone();
+			for (int i = 0; i< fX.length; i++) {
+				rslt[0]+=(jacob[findx][i]-deriv[i])*(jacob[findx][i]-deriv[i]);
+				rslt[1]+=jacob[findx][i]*jacob[findx][i];
+				if (verbose || (i == (fX.length-1) || (indx==7))) { // always print last (dc) for 7-th - print all
+					System.out.println(i+": indx="+indx+" d/d="+ (jacob[findx][i]/deriv[i])+" d-d="+(jacob[findx][i]-deriv[i])+ " jacob["+findx+"]["+i+"] = "+jacob[findx][i]+
+							" deriv["+i+"]="+deriv[i]+ "f["+i+"]="+fX[i]+" rslt[0]="+rslt[0]+" rslt[1]="+rslt[1]);
+				}
+				
+			}
+			rslt[0] = Math.sqrt(rslt[0]/fX.length);
+			rslt[1] = Math.sqrt(rslt[1]/fX.length);
+			if (debugLevel>2) { ////// was 3
+				System.out.println("rms(jacob["+findx+"][]) = "+rslt[1]+", rms(diff) = "+rslt[0]);
+			}
+			return rslt;
+		}
+		
 		public double [] getConvolved(boolean skip_disabled_asym) // consider all masked out asym_kernel elements to be 0
 		{
 			return getFX(skip_disabled_asym, true);
@@ -533,23 +640,40 @@ public class FactorConvKernel {
 				if (justConvolved) {
 					return fX; // do not copy to this.fX
 				}
-				// calculate asym kernel elements "handicaps"
-				if (!justConvolved) {
-					for (int ai = 0; ai < asym_size; ai ++){
-						for (int aj = 0; aj < asym_size; aj ++){
-							int aindx = ai*asym_size + aj;
-							int fx_indx = conv_len + aindx; // from index in the asym_kernel to fX vector
-							if ((this.weight[fx_indx] != 0.0)) {
-								fX[fx_indx] += kernels[1][aindx]; 
-							}
-						}
-					}
+				// calculate asym kernel elements "handicaps" for spreading wide
+				int start_indx = conv_len;
+				for (int aindx = 0; aindx < kernels[1].length; aindx ++){
+					int fx_indx = start_indx + aindx; // from index in the asym_kernel to fX vector
+//					if ((this.weight[fx_indx] != 0.0)) {
+						fX[fx_indx] += kernels[1][aindx]; 
+//					}
 				}
+				start_indx += kernels[1].length;
+
+				// calculate sym kernel elements "handicaps" for spreading wide
+
+				for (int sindx = 0; sindx < kernels[0].length; sindx ++){
+					int fx_indx = start_indx + sindx; // from index in the sym_kernel to fX vector
+//					if ((this.weight[fx_indx] != 0.0)) {
+						fX[fx_indx] += kernels[0][sindx]; 
+//					}
+				}
+				start_indx += kernels[0].length;
+				fX[start_indx] = 0.0;
+				double wdc =0.0;
+				for (int i = 0; i< conv_len; i++){
+					fX[start_indx]+=fX[i]*weight[i];
+					wdc +=weight[i];
+				}
+				fX[start_indx] /= wdc; // weighted average of the convolved data
+				// calculate DC components
+
 				this.fX = fX;
 				double [] diffs = getDiffByDiffW();
-				this.rmses = new double[2]; 
+				this.rmses = new double[3]; 
 				this.rmses[0] = Math.sqrt(diffs[0]);
 				this.rmses[1] = Math.sqrt(diffs[1]/this.weight_pure);
+				this.rmses[2] = Math.sqrt(diffs[2]/this.weight_dc);
 				if (first_rmses == null) first_rmses = rmses.clone();
 			}
 			return fX;
@@ -614,6 +738,7 @@ public class FactorConvKernel {
 					}
 				}
 				// calculate asym kernel elements "handicaps"
+				/*				
 				for (int ai = 0; ai < asym_size; ai ++){
 					for (int aj = 0; aj < asym_size; aj ++){
 						int aindx = ai*asym_size + aj;
@@ -623,8 +748,38 @@ public class FactorConvKernel {
 						}
 					}
 				}
+				 */				
+				int start_indx = conv_len;
+				for (int aindx = 0; aindx < kernels[1].length; aindx ++){
+					int par_indx = map_to_pars[1][aindx];
+					if (par_indx >=0) { 
+						jacobian[par_indx][start_indx + aindx] = 1.0; // asym_weights[aindx];
+					}
+				}
+				start_indx += kernels[1].length;
+				for (int sindx = 0; sindx < kernels[0].length; sindx ++){
+					int par_indx = map_to_pars[0][sindx];
+					if (par_indx >=0) { 
+						jacobian[par_indx][start_indx + sindx] = 1.0; // asym_weights[aindx];
+					}
+				}
+				start_indx += kernels[0].length;
+				for (int ci = 0; ci<conv_len; ci++){
+					double w = weight[ci]/weight_pure;
+					for (int aindx = 0; aindx < kernels[1].length; aindx ++){
+						int par_indx = map_to_pars[1][aindx];
+						if (par_indx >=0) { 
+							jacobian[par_indx][start_indx] +=jacobian[par_indx][ci]*w;
+						}
+					}
+					for (int sindx = 0; sindx < kernels[0].length; sindx ++){
+						int par_indx = map_to_pars[0][sindx];
+						if (par_indx >=0) { 
+							jacobian[par_indx][start_indx] +=jacobian[par_indx][ci]*w;
+						}
+					}
+				}
 			}
-
 			return jacobian;
 		}
 		
@@ -658,14 +813,14 @@ public class FactorConvKernel {
 
 		public double [] getSavedRMSes(){
 			if (saved_rmses == null) {
-				double [] m1 = {-1.0,-1.0};
+				double [] m1 = {-1.0,-1.0,-1.0};
 				return m1;
 			}
 			return saved_rmses;
 		}
 		public double [] getFirstRMSes(){
 			if (first_rmses == null) {
-				double [] m1 = {-1.0,-1.0};
+				double [] m1 = {-1.0,-1.0,-1.0};
 				return m1;
 			}
 			return first_rmses;
@@ -710,7 +865,8 @@ public class FactorConvKernel {
 			if (recalculate) {
 				int conv_size = asym_size + 2*sym_radius-2;
 				int conv_len = conv_size * conv_size;
-				
+				int len2 = conv_len + this.weights[1].length;
+				int len3 = len2 +     this.weights[2].length;
 				if (lMAArrays==null) lMAArrays = new LMAArrays();
 				lMAArrays.jTByDiff = new double [jacobian.length];
 				for (int i=0; i < lMAArrays.jTByDiff.length; i++){
@@ -718,27 +874,49 @@ public class FactorConvKernel {
 					for (int k = 0; k< jacobian[i].length; k++){
 						if (k<conv_len) {
 							lMAArrays.jTByDiff[i] += jacobian[i][k]*(target_kernel[k]-fX[k])*weight[k];
-						} else {
+						} else if ( k < len2){
 							lMAArrays.jTByDiff[i] += jacobian[i][k]*(-fX[k])*weight[k];
+						} else if ( k < len3){
+							lMAArrays.jTByDiff[i] += jacobian[i][k]*(-fX[k])*weight[k];
+						} else {
+							lMAArrays.jTByDiff[i] += jacobian[i][k] * (target_dc-fX[k]) * weight[k];
+//							System.out.println("lMAArrays.jTByDiff["+i+"]="+lMAArrays.jTByDiff[i] +
+//									" (target_dc-fX[k])="+target_dc+"-"+fX[k]+"="+(target_dc-fX[k]));
 						}
 					}
 				}
 			}
 			return lMAArrays.jTByDiff;
 		}
-
+		
 		private double[] getDiffByDiffW()
 		{
-			double [] diffByDiff = {0.0,0.0};
+			// sum(weights) = 1.0;
+			//sum(weights[0:weights[0].length]) = weight_pure
+			double [] diffByDiff = {0.0,0.0,0.0};
 			for (int i = 0; i< this.weights[0].length; i++){
 				double d = target_kernel[i]-fX[i];
 				diffByDiff[0] += d*d*weight[i];
 			}
 			diffByDiff[1] = diffByDiff[0];
+			int start = this.weights[0].length;
 			for (int i = 0; i < this.weights[1].length; i++){
-				double d =                 -fX[i];
-				diffByDiff[0] += d*d*weight[i];
+				double d =                 -fX[start + i];
+				diffByDiff[0] += d*d*weight[start + i];
 			}
+			start += this.weights[1].length;
+			for (int i = 0; i < this.weights[2].length; i++){
+				double d =                 -fX[start + i];
+				diffByDiff[0] += d*d*weight[start + i];
+			}
+			start += this.weights[2].length;
+			diffByDiff[2] = diffByDiff[0];
+			for (int i = 0; i < this.weights[3].length; i++){ // just single element
+				double d =       target_dc-fX[start + i];
+				diffByDiff[0] += d*d*weight[start + i];
+			}
+			diffByDiff[2] = diffByDiff[0] - diffByDiff[2];
+//			System.out.println("getDiffByDiffW(): target_dc="+target_dc+" fX["+start+"]="+fX[start]+" diffByDiff[2]="+diffByDiff[2]+" this.weight_dc="+this.weight_dc); 
 			return diffByDiff;
 		}
 		
@@ -821,6 +999,8 @@ public class FactorConvKernel {
 	}
 
 	public double[] getRMSes(){
+		if (new_mode) return lMAData.getRMSes();
+		System.out.println("getRMSes() (old): rmses.length="+this.RMSes);
 		return this.RMSes; // lMAData.getRMSes();
 	}
 	
@@ -849,7 +1029,7 @@ public class FactorConvKernel {
 		}
 		return weight;
 	}
-	
+
 	
 	public boolean calcKernels(
 			double []target_kernel,
@@ -887,6 +1067,7 @@ public class FactorConvKernel {
     				System.out.println();	
     			}
     		}
+
     		double [] asym_weights = generateAsymWeights(
     				asym_size,
     				this.compactness_weight * this.sym_kernel_scale, // double scale,
@@ -894,6 +1075,17 @@ public class FactorConvKernel {
     				this.center_i0, // double yc,
     				this.asym_tax_free); // int taxfree);
     		lMAData.setAsymWeights (asym_weights);
+
+    		double [] sym_weights = generateAsymWeights(
+    				sym_radius,
+    				this.sym_compactness * this.sym_compactness, // double scale,
+    				0.0, //double xc,
+    				0.0, // double yc,
+    				this.asym_tax_free); // int taxfree);
+    		lMAData.setSymWeights (sym_weights);
+    		
+    		lMAData.setDCWeight (this.dc_weight);
+    		
     		if (this.debugLevel > 3) {
     			double [][] kernels = {lMAData.getSymKernel(),lMAData.getAsymKernel()};
     			System.out.println("calcKernels(): kernels data:");
@@ -999,12 +1191,23 @@ public class FactorConvKernel {
 				this.center_i0, // double yc,
 				this.asym_tax_free); // int taxfree);
 		lMAData.setAsymWeights (asym_weights);
+		
+		double [] sym_weights = generateAsymWeights(
+				sym_radius,
+				this.sym_compactness * this.sym_compactness, // double scale,
+				0.0, //double xc,
+				0.0, // double yc,
+				this.asym_tax_free); // int taxfree);
+		lMAData.setSymWeights (sym_weights);
+
+		lMAData.setDCWeight (this.dc_weight);
+		
 		if (!levenbergMarquardt()){
 			boolean [] asym_mask = lMAData.getAsymKernelMask();
 			int numAsym = 0;
 			for (int i = 0; i < asym_mask.length; i++) if (asym_mask[i]) numAsym++;
-			System.out.println("===== calcKernels(): failed to run first LMA ======");
-			return numAsym; 
+			System.out.println("===== calcKernels(): failed to run first LMA , numAsym= " +numAsym+ ", continue anyway ======");
+//			return numAsym; 
 		}
 		RMSes = lMAData.getRMSes();
 		// Add points until reached asym_pixels
@@ -1036,7 +1239,9 @@ public class FactorConvKernel {
 					"Finished adding cells, number of LMA runs = "+getLMARuns()+
 					", RMS = "+RMSes[0]+
 					", RMSPure = "+RMSes[1]+
+					", RMS_DC = "+RMSes[2]+
 					", relRMSPure = "+(RMSes[1]/this.target_rms)+
+					", relRMS_DC = "+(RMSes[2]/this.target_rms)+
 					", spent "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec");
 		}
 		if (debugLevel > 0){
@@ -1070,7 +1275,9 @@ public class FactorConvKernel {
 							"Replaced weakiest cell ("+numWeakest+"), number of LMA runs = "+getLMARuns()+
 							", RMS = "+RMSes[0]+
 							", RMSPure = "+RMSes[1]+
+							", RMS_DC = "+RMSes[2]+
 							", relRMSPure = "+(RMSes[1]/this.target_rms)+
+							", relRMS_DC = "+(RMSes[2]/this.target_rms)+
 							", spent "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec");
 				}
 				if (debugLevel>0){
@@ -1098,7 +1305,9 @@ public class FactorConvKernel {
 						"Finished replacing weakiest cells, number of LMA runs = "+getLMARuns()+ ", number of weakest replaced = "+numWeakest+
 						", RMS = "+RMSes[0]+
 						", RMSPure = "+RMSes[1]+
+						", RMS_DC = "+RMSes[2]+
 						", relRMSPure = "+(RMSes[1]/this.target_rms)+
+						", relRMS_DC = "+(RMSes[2]/this.target_rms)+
 						", spent "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec");
 			}
 			if (debugLevel > 0){
@@ -1111,6 +1320,23 @@ public class FactorConvKernel {
 					System.out.println();	
 				}
 			}
+			
+			// re-run LMA with the final masks?
+			if (debugLevel > 1) System.out.println("Running asym-only LMA");
+			boolean [] sym_mask_saved = lMAData.getSymKernelMask().clone();
+			boolean [] sym_mask_frozen =new boolean[sym_mask_saved.length];
+			for (int i = 0; i<sym_mask_frozen.length; i++) sym_mask_frozen[i] = false;
+    		lMAData.setSymKernel(null, sym_mask_frozen);
+    		levenbergMarquardt();
+    		if (debugLevel > 1) System.out.println("Running full LMA");
+    		lMAData.setSymKernel(null, sym_mask_saved);
+			if ( !levenbergMarquardt()) {
+				System.out.println("Final LMA failed");
+			}
+			RMSes = lMAData.getRMSes().clone();
+			
+			
+			
 			/*
 			if ((RMSes!=null) && (RMSes[1] < this.goal_rms_pure)){
 				if (debugLevel > 0){
@@ -1160,7 +1386,9 @@ public class FactorConvKernel {
 					"Finished replacing (any) cells, number of LMA runs = "+getLMARuns()+", number of cells replaced - "+numAny+
 					", RMS = "+RMSes[0]+
 					", RMSPure = "+RMSes[1]+
+					", RMS_DC = "+RMSes[2]+
 					", relRMSPure = "+(RMSes[1]/this.target_rms)+
+					", relRMS_DC = "+(RMSes[2]/this.target_rms)+
 					", spent "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec");
 		}
 		if (debugLevel > 0){
@@ -1640,6 +1868,18 @@ public class FactorConvKernel {
 		this.compactness_weight = compactness_weight;
 		this.asym_tax_free =      asym_tax_free;
 	}
+	
+	public void setSymCompactness(
+			double compactness_weight){
+		this.sym_compactness = compactness_weight;
+	}
+	
+	public void setDCWeight(
+			double weight){
+		this.dc_weight = weight;
+	}
+
+	
 	
 	private double [] getSymKernel(
 			double [] kvect,
@@ -2277,8 +2517,10 @@ public class FactorConvKernel {
     					"stepLevenbergMarquardtAction() step="+this.iterationStepNumber+
     					", this.currentRMS="+lMAData.getSavedRMSes()[0]+
     					", this.currentRMSPure="+lMAData.getSavedRMSes()[1]+
+    					", this.currentRMSDC="+lMAData.getSavedRMSes()[2]+
     					", this.nextRMS="+lMAData.getRMSes()[0]+
     					", this.nextRMSPure="+lMAData.getRMSes()[1]+
+    					", this.nextRMSDC="+lMAData.getRMSes()[2]+
     					" lambda="+this.lambda+" at "+IJ.d2s(0.000000001*(System.nanoTime()- startTime),3)+" sec");
     		}
 //    		if (this.nextRMS   <  this.currentRMS) { //improved
@@ -2309,8 +2551,44 @@ public class FactorConvKernel {
     			" ("+lMAData.getFirstRMSes()[0]+") "+
     			", RMSpure="+lMAData.getRMSes()[1]+
     			" ("+lMAData.getFirstRMSes()[1]+") "+
+    			", RMS_DC="+lMAData.getRMSes()[2]+
+    			" ("+lMAData.getFirstRMSes()[2]+") "+
     			", Relative RMS="+ (lMAData.getRMSes()[1]/this.target_rms)+
+    			", Relative RMS_DC="+ (lMAData.getRMSes()[2]/this.target_rms)+
     			" at "+ IJ.d2s(0.000000001*(System.nanoTime()- startTime),3));
+    	if (this.debugLevel > 2) {
+    		double worstRatio = 0;
+    		int worstIndex = -1;
+    		int param_index=0;
+    		for (int i = 0; i< (sym_radius* sym_radius + asym_size*asym_size);i++) {
+    			double [] r=lMAData.compareDerivative(
+    					true,
+    					param_index++,
+    					0.0000001, // delta,          // value to increment parameter by for derivative calculation
+    					false); // param_index>61); //false); // verbose)
+    			if (r != null){
+    				if (r[1] > 0){
+    					if (r[0]/r[1] > worstRatio){
+    						worstRatio = r[0]/r[1];
+    						worstIndex = i;
+    					}
+
+    				}
+    			}
+    		}
+    		System.out.println(" rms(relative diff["+worstIndex+"]) = >>>>> "+worstRatio+" <<<<<");
+    		for (int n = 0; n< lMAData.map_to_pars.length; n++) {
+    			System.out.print("\nmap_to_pars["+n+"]=");
+    			for (int i=0; i<lMAData.map_to_pars[n].length; i++){
+        			System.out.print(" "+i+":"+lMAData.map_to_pars[n][i]);
+    			}
+    			System.out.println();
+    		}
+    		
+    	}
+    	numLMARuns++;
+    	
+    	
     	numLMARuns++;
     	return true; // all series done
 	}
@@ -2411,8 +2689,10 @@ public class FactorConvKernel {
 							", this.currentRMSPure="+lMAData.getSavedRMSes()[1]+
 							", this.nextRMS="+lMAData.getRMSes()[0]+
 							", this.nextRMSPure="+lMAData.getRMSes()[1]+
+							", this.nextRMSDC="+lMAData.getRMSes()[2]+
 							", delta="+(lMAData.getSavedRMSes()[0] - lMAData.getRMSes()[0])+
-							", deltaPure="+(lMAData.getSavedRMSes()[1] - lMAData.getRMSes()[1]));
+							", deltaPure="+(lMAData.getSavedRMSes()[1] - lMAData.getRMSes()[1])+
+							", deltaDC="+(lMAData.getSavedRMSes()[2] - lMAData.getRMSes()[2]));
 				}
 			}
 		}
@@ -2431,8 +2711,10 @@ public class FactorConvKernel {
 							", this.currentRMSPure="+lMAData.getSavedRMSes()[1]+
 							", this.nextRMS="+lMAData.getRMSes()[0]+
 							", this.nextRMSPure="+lMAData.getRMSes()[1]+
+							", this.nextRMSDC="+lMAData.getRMSes()[2]+
 							", delta="+(lMAData.getSavedRMSes()[0]-lMAData.getRMSes()[0])+
-							", deltaPure="+(lMAData.getSavedRMSes()[1]-lMAData.getRMSes()[1]));
+							", deltaPure="+(lMAData.getSavedRMSes()[1] - lMAData.getRMSes()[1])+
+							", deltaDC="+(lMAData.getSavedRMSes()[2] - lMAData.getRMSes()[2]));
 				}				
 			}
 			lMAData.invalidateLMAArrays();
