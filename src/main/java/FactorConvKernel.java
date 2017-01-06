@@ -80,7 +80,7 @@ public class FactorConvKernel {
     public double    goal_rms_pure;	
 	public LMAData   lMAData = null;
 	public int       numLMARuns = 0;
-	public int       target_window_mode = 2; // 0 - none, 1 - square, 2 - sin, 3 - sin^2
+//	public int       target_window_mode = 2; // 0 - none, 1 - square, 2 - sin, 3 - sin^2
 	public boolean   centerWindowToTarget = true; // center convolution weights around target kernel center
 	
 	public class LMAArrays {
@@ -133,7 +133,7 @@ public class FactorConvKernel {
 		public double   []   rmses =         {-1.0, -1.0, -1.0}; // [0] - composite, [1] - "pure" (without extra "punishment"), [2] - DC error
 		public double   []   saved_rmses =   null;
 		public double   []   first_rmses =   null;
-		public int           target_window_mode = 2; // 0 - none, 1 - square, 2 - sin
+//		public int           target_window_mode = 2; // 0 - none, 1 - square, 2 - sin
 		public boolean       centerWindowToTarget = true; // center asym kernel weights around target kernel center
 		
 		
@@ -142,8 +142,9 @@ public class FactorConvKernel {
 		public LMAData( int debugLevel){
 			this.debugLevel = debugLevel;
 		}
-		public void setTargetWindowMode(int mode, boolean   centerWindowToTarget){
-			this.target_window_mode =    mode;
+//		public void setTargetWindowMode(int mode, boolean   centerWindowToTarget){
+		public void setTargetWindowMode(boolean   centerWindowToTarget){
+//			this.target_window_mode =    mode;
 			this.centerWindowToTarget = 	centerWindowToTarget;
 		}
 
@@ -401,9 +402,12 @@ public class FactorConvKernel {
 					System.out.println("getWeight(), delete jacobian");
 				}
 				if ((weights[0] == null) || (weights[0].length != target_kernel.length)){
+					/*
 					int xc = 0;
 					int yc = 0;
-					int conv_size = asym_size + 2*sym_radius-2;
+//					int conv_size = asym_size + 2*sym_radius-2;
+//					int cc = conv_size/2;
+					int conv_size = 2*sym_radius;
 					int cc = conv_size/2;
 					if (this.centerWindowToTarget) {
 						double s0=0.0,sx=0.0,sy=0.0;
@@ -419,9 +423,14 @@ public class FactorConvKernel {
 						xc = (int) Math.round(sx/s0);
 						yc = (int) Math.round(sy/s0);
 					}
-					double [] sins = new double [2*sym_radius-1];
-					for (int i = 1; i< 2*sym_radius; i++) sins[i-1] = Math.sin(Math.PI*i/(2.0 * sym_radius));
+//					double [] sins = new double [2*sym_radius-1];
+//					for (int i = 1; i< 2*sym_radius; i++) sins[i-1] = Math.sin(Math.PI*i/(2.0 * sym_radius));
+*/
 					weights[0] = new double [target_kernel.length];
+					for (int i=0; i < weights[0].length; i++) {
+						weights[0][i] = 1.0;
+					}
+/*					
 					int left_margin = ((asym_size-1)/2) +xc; // inclusive
 					int top_margin = ((asym_size-1)/2) + yc; // inclusive
 					int right_margin = left_margin + (2 * sym_radius - 1); // exclusive  
@@ -439,6 +448,7 @@ public class FactorConvKernel {
 							}
 						}
 					}
+*/					
 				}
 //	public boolean   centerWindowToTarget = true; // center convolution weights around target kernel center
 				
@@ -578,9 +588,12 @@ public class FactorConvKernel {
 		{
 			getWeight(false); // will invalidate (make null) fX if data is not current, otherwise just return last calculated value.
 			if ((fX == null) || justConvolved) {
-				int conv_size = asym_size + 2*sym_radius-2;
+//				int conv_size = asym_size + 2*sym_radius-2;
+				int conv_size = 2*sym_radius;
+				
 				int conv_len = conv_size * conv_size;
-				int sym_rad_m1 = sym_radius - 1; // 7
+//				int sym_rad_m1 = sym_radius - 1; // 7
+				int shft = sym_radius - (asym_size/2);
 				int sym_rad2 = 2*sym_radius; // 16
 				int sym_rad4 = 4*sym_radius; // 32
 				double [] fX = new double [justConvolved? conv_len:  this.weight.length];
@@ -594,7 +607,8 @@ public class FactorConvKernel {
 					} else { // calculate convolution for ci, cj
 						fX[cindx] = 0;
 						for (int ai = 0; ai < asym_size; ai ++){
-							int si = (ci - ai) - sym_rad_m1;
+//							int si = (ci - ai) - sym_rad_m1;
+							int si = (ci - ai) - shft;
 							if (si < 0) si = -si;
 							int sgni = 1;
 							if (si > sym_rad2) si = sym_rad4 - si;
@@ -606,7 +620,8 @@ public class FactorConvKernel {
 								for (int aj = 0; aj < asym_size; aj ++){
 									int aindx = ai*asym_size + aj;
 									if (!skip_disabled_asym || kernel_masks[1][aindx]){
-										int sj = (cj - aj) - sym_rad_m1;
+//										int sj = (cj - aj) - sym_rad_m1;
+										int sj = (cj - aj) - shft;
 										if (sj < 0) sj = -sj;
 										int sgn = sgni;
 										if (sj > sym_rad2) sj = sym_rad4 - sj;
@@ -673,9 +688,12 @@ public class FactorConvKernel {
 				jacobian = new double [map_from_pars.length][this.weight.length];
 				// zero elements?
 				// calculate convolution parts, for kernels - regardless of kernels enabled/disabled
-				int conv_size = asym_size + 2*sym_radius-2;
+//				int conv_size = asym_size + 2*sym_radius-2;
+				int conv_size = 2*sym_radius;
 				int conv_len = conv_size * conv_size;
-				int sym_rad_m1 = sym_radius - 1; // 7
+//				int sym_rad_m1 = sym_radius - 1; // 7
+				int shft = sym_radius - (asym_size/2);
+				
 				int sym_rad2 = 2*sym_radius; // 16
 				int sym_rad4 = 4*sym_radius; // 32
 				// calculate convolution part
@@ -684,7 +702,8 @@ public class FactorConvKernel {
 					
 					if (this.weight[cindx] != 0.0){ // calculate convolution for ci, cj (skip masked out for speed)
 						for (int ai = 0; ai < asym_size; ai ++){
-							int si = (ci - ai) - sym_rad_m1;
+//							int si = (ci - ai) - sym_rad_m1;
+							int si = (ci - ai) - shft;
 							if (si < 0) si = -si;
 							int sgni = 1;
 							if (si > sym_rad2) si = sym_rad4 - si;
@@ -696,7 +715,8 @@ public class FactorConvKernel {
 								for (int aj = 0; aj < asym_size; aj ++){
 									int aindx = ai*asym_size + aj;
 									int apar_indx = map_to_pars[1][aindx];
-									int sj = (cj - aj) - sym_rad_m1;
+//									int sj = (cj - aj) - sym_rad_m1;
+									int sj = (cj - aj) - shft;
 									if (sj < 0) sj = -sj;
 									int sgn = sgni;
 									if (sj > sym_rad2) sj = sym_rad4 - sj;
@@ -850,7 +870,8 @@ public class FactorConvKernel {
 		public double [] getJTByDiffW(boolean recalculate) // current convolution result of async_kernel (*) sync_kernel, extended by asym_kernel components
 		{
 			if (recalculate) {
-				int conv_size = asym_size + 2*sym_radius-2;
+//				int conv_size = asym_size + 2*sym_radius-2;
+				int conv_size = 2*sym_radius;
 				int conv_len = conv_size * conv_size;
 				int len2 = conv_len + this.weights[1].length;
 				int len3 = len2 +     this.weights[2].length;
@@ -975,8 +996,9 @@ public class FactorConvKernel {
 		this.sym_radius =  sym_radius;
 	}
 
-	public void setTargetWindowMode(int mode, boolean centerWindowToTarget){
-		target_window_mode = mode;
+//	public void setTargetWindowMode(int mode, boolean centerWindowToTarget){
+	public void setTargetWindowMode(boolean centerWindowToTarget){
+//		target_window_mode = mode;
 		this.centerWindowToTarget = centerWindowToTarget;
 	}
 
@@ -1597,11 +1619,14 @@ public class FactorConvKernel {
 			int seed_size,    // 4*n +1 - center and 45-degree, 4*n - 4 center and 45-degree cross
 			double asym_random)
 	{
-		int conv_size = asym_size + 2*sym_radius-2;
+//		int conv_size = asym_size + 2*sym_radius-2;
+		int conv_size = 2*sym_radius;
 		int sym_rad_m1 = sym_radius - 1; // 7
+		int shft = sym_radius - (asym_size/2);
+		
 		// find center of the target kernel squared value
 		double s0=0.0,sx=0.0,sy=0.0;
-		double scx=0.0,scy=0.0;
+//		double scx=0.0,scy=0.0;
 		boolean [] asym_mask = null;
 		if (asym_mask == null) {
 			asym_mask = new boolean[asym_size*asym_size];
@@ -1614,21 +1639,23 @@ public class FactorConvKernel {
 				s0 += d;
 				sx += d*j;
 				sy += d*i;
-				scx += d*(j-sym_rad_m1-asym_size/2);
-				scy += d*(i-sym_rad_m1-asym_size/2);
+//				scx += d*(j-sym_rad_m1-asym_size/2);
+//				scy += d*(i-sym_rad_m1-asym_size/2);
 			}
 		}
-		double xc = sx/s0 - sym_rad_m1;
-		double yc = sy/s0 - sym_rad_m1;
+		double xc = sx/s0 - shft;// sym_rad_m1; center in asym_kernel
+		double yc = sy/s0 - shft; // sym_rad_m1;
 		int j0= (int) Math.round(xc); // should be ~ async_center 
 		int i0= (int) Math.round(yc); // should be ~ async_center
 		if (debugLevel>0){
-			System.out.println("setInitialVector(): scx="+(scx/s0) + " scy="+(scy/s0));
+//			System.out.println("setInitialVector(): scx="+(scx/s0) + " scy="+(scy/s0));
 			System.out.println("setInitialVector(): x="+(sx/s0) + " y="+(sy/s0));
 
 			System.out.println("setInitialVector(): conv_size = "+conv_size + " asym_size="+asym_size);
-			System.out.println("setInitialVector(): fj0 = "+(sx/s0 - sym_rad_m1)+" j0 = "+j0 );
-			System.out.println("setInitialVector(): fi0 = "+(sy/s0 - sym_rad_m1)+" i0 = "+i0 );
+//			System.out.println("setInitialVector(): fj0 = "+(sx/s0 - sym_rad_m1)+" j0 = "+j0 );
+//			System.out.println("setInitialVector(): fi0 = "+(sy/s0 - sym_rad_m1)+" i0 = "+i0 );
+			System.out.println("setInitialVector(): fj0 = "+(sx/s0 - sym_radius)+" j0 = "+j0 );
+			System.out.println("setInitialVector(): fi0 = "+(sy/s0 - sym_radius)+" i0 = "+i0 );
 		}
 		// fit i0,j0 to asym_kernel (it should be larger)
 		if ((i0<0) || (i0>=asym_size) || (i0<0) || (i0>=asym_size)){
@@ -1688,10 +1715,8 @@ public class FactorConvKernel {
 		
 		center_x = xc; // not limited by asym_size
 		center_y = yc; // not limited by asym_size
-		center_j0 = j0; // center to calcualte compatess odf asymmetrical kernel
-		center_i0 = i0; // center to calcualte compatess odf asymmetrical kernel
-		center_j0 = j0; // center to calcualte compatess odf asymmetrical kernel
-
+		center_j0 = j0; // center to calculate compactness of the asymmetrical kernel (relative to asym_kernel top left)
+		center_i0 = i0; // center to calculate compactness of the asymmetrical kernel
 		if (debugLevel>2){
 			for (int i = 0; i < asym_kernel.length; i++) {
 				System.out.println("asym_kernel["+i+"] = "+asym_kernel[i]);
@@ -1699,6 +1724,11 @@ public class FactorConvKernel {
 		}
 		for (int i = 0; i < asym_kernel.length; i++) {
 			if (!asym_mask[i]) asym_kernel[i] = Double.NaN;
+		}
+		if (debugLevel>2){
+			for (int i = 0; i < asym_kernel.length; i++) {
+				System.out.println("- asym_kernel["+i+"] = "+asym_kernel[i]);
+			}
 		}
 		
 		
@@ -1708,18 +1738,52 @@ public class FactorConvKernel {
 			sym_kernel[i] = 0.0;
 			sym_kernel_count[i] = 0;
 		}
+//		int target_x_shft = j0+(conv_size-asym_size)/2 - sym_rad_m1;
+//		int target_y_shft = i0+(conv_size-asym_size)/2 - sym_rad_m1;
+//		int target_x_shft = j0+ sym_radius -asym_size/2 - sym_rad_m1;
+		int target_x_shft = j0 -asym_size/2 +1; 
+		int target_y_shft = i0 -asym_size/2 +1;
+		
+//		int sym_rad_m1 = sym_radius - 1; // 7
+//		int shft = sym_radius - (asym_size/2);
+		
+		if (debugLevel > 2) {
+			System.out.println(" target_x_shft = "+target_x_shft+" target_y_shft = "+target_y_shft +" i0="+i0 +" j0="+j0+" asym_size="+asym_size);
+		
+		}
 		for (int i=0; i< (2*sym_radius -1); i++ ){
 			for (int j=0; j< (2*sym_radius -1); j++ ){
-				int indx =((i >= sym_rad_m1)? (i-sym_rad_m1): (sym_rad_m1 -i)) * sym_radius +
-						  ((j >= sym_rad_m1)? (j-sym_rad_m1): (sym_rad_m1 -j));
-				sym_kernel[indx] += target_kernel[conv_size*(i+i0) + (j+j0)];
+//				int si = (i >= sym_rad_m1)? (i - sym_rad_m1): (sym_rad_m1 - i);
+//				int sj = (j >= sym_rad_m1)? (j - sym_rad_m1): (sym_rad_m1 - j);
+				int si = (i >= sym_rad_m1)? (i - sym_rad_m1): (sym_rad_m1 - i);
+				int sj = (j >= sym_rad_m1)? (j - sym_rad_m1): (sym_rad_m1 - j);
+				
+				int indx =si * sym_radius +sj;
+				int target_i = i+target_y_shft;
+				int target_j = j+target_x_shft;
+				int sgn = 1;
+				if ((target_i <0) || (target_i >=conv_size)) {
+					target_i = (target_i+conv_size)%conv_size;
+					sgn =-sgn;
+				}
+				if ((target_j <0) || (target_j >=conv_size)) {
+					target_j = (target_j+conv_size)%conv_size;
+					sgn =-sgn;
+				}
+				sym_kernel[indx] += sgn*target_kernel[conv_size*target_i + target_j];
+				sym_kernel_count[indx]++;
 				if ((debugLevel > 2) && (indx == 0)) {
 					if (debugLevel>0)System.out.println("1.sym_kernel[0] = "+sym_kernel[0]+" i="+i+" j="+j+" i0="+i0+" j0="+j0+" conv_size="+conv_size+
-				" target_kernel["+(conv_size*(i+i0) + (j+j0))+"] = " + target_kernel[(conv_size*(i+i0) + (j+j0))]);
+				" target_kernel["+(conv_size*target_i + target_j)+"] = " + target_kernel[conv_size*target_i + target_j]);
 				}
-				sym_kernel_count[indx]++;
+				if (debugLevel > 2) {
+					System.out.println("2.sgn="+sgn+" sym_kernel[0] = "+sym_kernel[0]+" i="+i+" j="+j+" si="+si+" sj="+sj+" indx="+indx+
+							" target_i="+target_i+" target_j="+target_j+
+				" target_kernel["+(conv_size*target_i + target_j)+"] = " + target_kernel[conv_size*target_i + target_j]+
+				" sym_kernel_count["+indx+"]="+sym_kernel_count[indx]+  " sym_kernel["+indx+"]="+sym_kernel[indx]);
+				
+				}
 			}
-			
 		}
 		if (debugLevel > 2)System.out.println("sym_kernel[0] = "+sym_kernel[0]+" sym_kernel_count[0] = " +sym_kernel_count[0]);
 		for (int i = 0; i < sym_kernel.length; i++){
@@ -1728,6 +1792,21 @@ public class FactorConvKernel {
 		}
 		if (debugLevel > 2)System.out.println("sym_kernel[0] = "+sym_kernel[0]);
 		double [][] kernels = {sym_kernel, asym_kernel};
+		if (debugLevel>2){
+			for (int i = 0; i < sym_kernel.length; i++) {
+				System.out.println("sym_kernel["+i+"] = "+sym_kernel[i]);
+			}
+			System.out.println("sym_kernel.length="+sym_kernel.length);
+			System.out.println("asym_kernel.length="+asym_kernel.length);
+			System.out.println("target_kernel.length="+target_kernel.length);
+		    showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			sdfa_instance.showArrays(sym_kernel,  sym_radius, sym_radius, "init-sym_kernel");
+			sdfa_instance.showArrays(asym_kernel, asym_size, asym_size, "init-asym_kernel");
+			sdfa_instance.showArrays(target_kernel, conv_size, conv_size, "target_kernel");
+			
+		    
+		}
+		
 		return kernels;
 	}
 	
@@ -1751,8 +1830,9 @@ public class FactorConvKernel {
 	private void initLevenbergMarquardt(double fact_precision, int seed_size, double asym_random){
 		lMAData = new LMAData(debugLevel);
 		lMAData.setTarget(target_kernel);
-		lMAData.setTargetWindowMode(target_window_mode, centerWindowToTarget);		
-    	double [][]kernels = setInitialVector(target_kernel, seed_size, asym_random); // should be (asym_size + 2*sym_radius-1)**2
+//		lMAData.setTargetWindowMode(target_window_mode, centerWindowToTarget);		
+		lMAData.setTargetWindowMode(centerWindowToTarget);		
+    	double [][]kernels = setInitialVector(target_kernel, seed_size, asym_random); // should be (asym_size + 2*sym_radius-1)**2 - not anymore
     	sym_kernel_scale = kernels[0][0];
     	for (int i=0;i<kernels[0].length;i++) if (!Double.isNaN(kernels[0][i])) kernels[0][i] /=sym_kernel_scale;
     	for (int i=0;i<kernels[1].length;i++) if (!Double.isNaN(kernels[1][i])) kernels[1][i] *=sym_kernel_scale;

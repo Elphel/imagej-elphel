@@ -151,7 +151,13 @@ public class EyesisDCT {
 		  final AtomicInteger ai = new AtomicInteger(0);
 		  final int numberOfKernels=     kernelNumHor*kernelNumVert*nChn;
 		  final int numberOfKernelsInChn=kernelNumHor*kernelNumVert;
+		  final int dct_size =      dct_parameters.dct_size; 
+		  final int preTargetSize = 4 * dct_size; 
+		  final int targetSize =    2 * dct_size; // normally 16
+		  final double [] anitperiodic_window = createAntiperiodicWindow(dct_size);
+		  
 		  final long startTime = System.nanoTime();
+		  
 		  System.out.println("calculateDCTKernel():numberOfKernels="+numberOfKernels);
 		  for (int ithread = 0; ithread < threads.length; ithread++) {
 			  threads[ithread] = new Thread() {
@@ -160,11 +166,16 @@ public class EyesisDCT {
 					  if (dct_parameters.decimateSigma > 0)	 gb=new DoubleGaussianBlur();
 					  float [] kernelPixels= null; // will be initialized at first use NOT yet?
 					  double [] kernel=      new double[kernelSize*kernelSize];
-					  int targetSize = dct_parameters.asym_size + 2 * dct_parameters.dct_size - 2;
-					  double [] target_kernel = new double [targetSize * targetSize];
+					  
+//					  int targetSize = dct_parameters.asym_size + 2 * dct_parameters.dct_size - 2;
+					  
+					  double [] pre_target_kernel= new double [preTargetSize * preTargetSize]; // before made antiperiodic 
+					  double [] target_kernel = new double [targetSize * targetSize]; // strictly antiperiodic in both x and y directions
+					  
 					  FactorConvKernel factorConvKernel = new FactorConvKernel();
 					  factorConvKernel.setDebugLevel       (0); // globalDebugLevel);
-					  factorConvKernel.setTargetWindowMode (dct_parameters.dbg_window_mode, dct_parameters.centerWindowToTarget);
+//					  factorConvKernel.setTargetWindowMode (dct_parameters.dbg_window_mode, dct_parameters.centerWindowToTarget);
+					  factorConvKernel.setTargetWindowMode (dct_parameters.centerWindowToTarget);
 					  factorConvKernel.numIterations =     dct_parameters.LMA_steps;
 					  factorConvKernel.setAsymCompactness  (dct_parameters.compactness,	dct_parameters.asym_tax_free);
 					  factorConvKernel.setSymCompactness   (dct_parameters.sym_compactness);
@@ -194,33 +205,40 @@ public class EyesisDCT {
 						  
 						  if ((dct_parameters.decimation == 2) && (dct_parameters.decimateSigma<0)) {
 							  reformatKernel2( // averages by exactly 2 (decimate==2)
-									  kernel,        // will be blured in-place
-									  target_kernel, // expand/crop, blur/decimate result
+									  kernel,
+									  pre_target_kernel, // expand/crop, blur/decimate result (32x32)
 									  kernelSize,
-									  targetSize);
+									  preTargetSize); // 32
 						  } else {
 							  reformatKernel(
-									  kernel,        // will be blured in-place
-									  target_kernel, // expand/crop, blur/decimate result
+									  kernel,        // will be blurred in-place
+									  pre_target_kernel, // expand/crop, blur/decimate result (32x32)
 									  kernelSize,
-									  targetSize,
+									  preTargetSize, // 32
 									  dct_parameters.decimation,
 									  dct_parameters.decimateSigma,
 									  gb);
 						  }
-						  if (dct_parameters.normalize) {
+						  if (dct_parameters.normalize) { // or should it be normalized after antiperiodic?
 							  double s =0.0;
-							  for (int i = 0; i <target_kernel.length; i++){
-								  s+=target_kernel[i];
+							  for (int i = 0; i < pre_target_kernel.length; i++){
+								  s+=pre_target_kernel[i];
 							  }
-							  for (int i = 0; i <target_kernel.length; i++){
-								  target_kernel[i]/=s;
+							  for (int i = 0; i < pre_target_kernel.length; i++){
+								  pre_target_kernel[i]/=s;
 							  }
 							  if (globalDebugLevel > 1){ // was already close to 1.0
 								  System.out.println(tileX+"/"+tileY+ " s="+s);
 							  }
 						  }
-						  // int numAsym = 
+						  // make exactly anitperiodic
+						  makeAntiperiodic(
+								  dct_size,
+								  pre_target_kernel,   // 16*dct_zize*dct_zize
+								  anitperiodic_window, // 16*dct_zize*dct_zize
+								  target_kernel);      //  4*dct_zize*dct_zize
+						  
+						  
 						  factorConvKernel.calcKernels(
 								  target_kernel,
 								  dct_parameters.asym_size,
@@ -439,7 +457,7 @@ public class EyesisDCT {
 	  public double [] reformatKernel(
 			  double [] src_kernel,// will be blured in-place
 			  int       src_size,  // typical 64
-			  int       dst_size,  // typical 15
+			  int       dst_size,  // typical 15 // destination size
 			  int       decimation,// typical 2
 			  double    sigma)
 	  {
@@ -534,6 +552,70 @@ public class EyesisDCT {
 		  }
 	  }
 	  
+	  private double [] createAntiperiodicWindow(
+			  int dct_size)
+	  {
+		  double [] wnd = new double[4*dct_size];
+		  for (int i =0; i<dct_size; i++){
+			  wnd[i]=                 0.5 * (1.0-Math.cos(Math.PI*i/dct_size));
+			  wnd[i + 1 * dct_size] = 1.0;
+			  wnd[i + 2 * dct_size] = 1.0;
+			  wnd[i + 3 * dct_size] = 1.0 - wnd[i];
+		  }
+		  int n4 = dct_size*4;
+		  double [] window = new double [n4 * n4];
+		  for (int i =0; i < n4; i++){
+			  for (int j =0; j < n4; j++){
+				  window[i * n4 + j] = wnd[i]*wnd[j]; 
+			  }
+		  }
+		  return window;
+	  }
+	  
+	  public double []makeAntiperiodic(
+			  int       dct_size,
+			  double [] src_kernel) // 16*dct_zize*dct_zize
+	  {
+		 double [] window =  createAntiperiodicWindow(dct_size);
+		 double [] antiperiodic_kernel = new double [4*dct_size*dct_size];
+		 makeAntiperiodic(
+				  dct_size,
+				  src_kernel, // 16*dct_zize*dct_zize
+				  window,     // 16*dct_zize*dct_zize
+				  antiperiodic_kernel); //  4*dct_zize*dct_zize
+		 
+		 return antiperiodic_kernel;
+	  }
+
+	  
+	  private void makeAntiperiodic(
+			  int       dct_size,
+			  double [] src_kernel,          // 16*dct_zize*dct_zize
+			  double [] window,              // 16*dct_zize*dct_zize
+			  double [] antiperiodic_kernel) //  4*dct_zize*dct_zize
+	  {
+		  int n2 = dct_size * 2;
+		  int n4 = dct_size * 4;
+		  for (int i = 0; i < n2; i++){
+			  for (int j = 0; j < n2; j++){
+				  int dst_index = i*n2+j;
+				  int isrc = i+dct_size;
+				  int jsrc =  j+dct_size;
+				  int isrcp = (isrc + n2) % n4;
+				  int jsrcp = (jsrc + n2) % n4;
+				  int src_index0= (isrc)  * n4 + jsrc;
+				  int src_index1= (isrcp) * n4 + jsrc;
+				  int src_index2= (isrc) *  n4 + jsrcp;
+				  int src_index3= (isrcp) * n4 + jsrcp;
+				  
+				  antiperiodic_kernel[dst_index] =
+						    src_kernel[src_index0] * window[src_index0]
+						  - src_kernel[src_index1] * window[src_index1]
+						  - src_kernel[src_index2] * window[src_index2]
+						  + src_kernel[src_index3] * window[src_index3];				  
+			  }
+		  }
+	  }
 	  
 		public boolean readDCTKernels(
 				EyesisCorrectionParameters.DCTParameters dct_parameters,

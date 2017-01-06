@@ -2972,7 +2972,8 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         if (!DCT_PARAMETERS.showDialog()) return;
         FactorConvKernel factorConvKernel = new FactorConvKernel();
         factorConvKernel.setDebugLevel(DEBUG_LEVEL);
-        factorConvKernel.setTargetWindowMode(DCT_PARAMETERS.dbg_window_mode, DCT_PARAMETERS.centerWindowToTarget);
+//        factorConvKernel.setTargetWindowMode(DCT_PARAMETERS.dbg_window_mode, DCT_PARAMETERS.centerWindowToTarget);
+        factorConvKernel.setTargetWindowMode(DCT_PARAMETERS.centerWindowToTarget);
         factorConvKernel.numIterations = DCT_PARAMETERS.LMA_steps;
         factorConvKernel.setAsymCompactness(
         		DCT_PARAMETERS.compactness,
@@ -2983,8 +2984,13 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         		DCT_PARAMETERS.dc_weight);
         
         int target_kernel_size = 2*DCT_PARAMETERS.dct_size - 1;
-    	int target_expanded_size = 2*DCT_PARAMETERS.dct_size + DCT_PARAMETERS.asym_size -2;
-        double [] target_expanded = null;
+//    	int target_expanded_size = 2*DCT_PARAMETERS.dct_size + DCT_PARAMETERS.asym_size -2;
+    	
+    	int target_expanded_size =     4*DCT_PARAMETERS.dct_size;
+    	int target_antiperiodic_size = 2*DCT_PARAMETERS.dct_size;
+    	
+        double [] target_expanded =     null;
+        double [] target_antiperiodic = null;
         if ((EYESIS_DCT != null) && EYESIS_DCT.kernelImageSet() && (DCT_PARAMETERS.color_channel >= 0)){
         	System.out.println("Using extracted target kernel");
         	double [] src_kernel = EYESIS_DCT.extractOneKernelFromStack(
@@ -2992,12 +2998,33 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         			DCT_PARAMETERS.color_channel, // 0..2
         			DCT_PARAMETERS.tileX, // horizontal number of kernel to extract
         			DCT_PARAMETERS.tileY);  // vertical number of kernel to extract
+        	
+        	if ((DCT_PARAMETERS.decimation==2)&& (DCT_PARAMETERS.decimateSigma < 0)){
+            	target_expanded = EYESIS_DCT.reformatKernel2(
+            			src_kernel,// will be blured in-place
+            			CONVOLVE_FFT_SIZE/2,  // typical 64
+            			target_expanded_size);  // typical 15
+        		
+        	} else {
         	target_expanded = EYESIS_DCT.reformatKernel(
         			src_kernel,// will be blured in-place
         			CONVOLVE_FFT_SIZE/2,  // typical 64
         			target_expanded_size,  // typical 15
         			DCT_PARAMETERS.decimation,// typical 2
         			DCT_PARAMETERS.decimateSigma);
+        	}
+        	if (DCT_PARAMETERS.normalize) {
+				  double s =0.0;
+				  for (int ii = 0; ii <target_expanded.length; ii++){
+					  s+=target_expanded[ii];
+				  }
+				  for (int ii = 0; ii <target_expanded.length; ii++){
+					  target_expanded[ii]/=s;
+				  }
+        	}
+//        	target_antiperiodic
+
+        
         } else {
         	System.out.println("Using synthesized target kernel");
 
@@ -3040,14 +3067,27 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         	target_expanded = new double [target_expanded_size * target_expanded_size];
 
         	for (int ii=0; ii < target_expanded.length; ii++) target_expanded[ii]=0.0;
-        	int left_top_margin = ((DCT_PARAMETERS.asym_size-1)/2);
+        	int left_top_margin = (target_expanded_size - target_kernel_size) / 2; // ((DCT_PARAMETERS.asym_size-1)/2);
         	for (int ii=0;ii < target_kernel_size; ii++){
         		for (int jj=0; jj < target_kernel_size; jj++){
         			target_expanded[(ii+left_top_margin)*target_expanded_size + (jj+left_top_margin)] = 
         					target_kernel[ii*target_kernel_size + jj];
         		}
         	}
+            SDFA_INSTANCE.showArrays(target_kernel,   target_kernel_size,      target_kernel_size,   "target_kernel");
+            SDFA_INSTANCE.showArrays(target_expanded,   target_expanded_size,      target_expanded_size,   "target_expanded");
+        	
         }
+        if (EYESIS_DCT == null){
+        	EYESIS_DCT = new  EyesisDCT (
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS,
+        			DCT_PARAMETERS);
+        }
+    	target_antiperiodic = EYESIS_DCT.makeAntiperiodic(
+    			DCT_PARAMETERS.dct_size,
+    			target_expanded);
+        SDFA_INSTANCE.showArrays(target_antiperiodic,   target_antiperiodic_size,      target_antiperiodic_size,   "target_antiperiodic");
         
         boolean [] mask = null;
         if (!DCT_PARAMETERS.dbg_mask.equals("")){
@@ -3059,7 +3099,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         }
         long startTime = System.nanoTime();
     	boolean result = factorConvKernel.calcKernels(
-    			target_expanded,
+    			target_antiperiodic,
     			DCT_PARAMETERS.asym_size,
     			DCT_PARAMETERS.dct_size,
     			DCT_PARAMETERS.fact_precision,
@@ -3075,15 +3115,16 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 		double [] sym_kernel =  factorConvKernel.getSymKernel();
         double [] asym_kernel = factorConvKernel.getAsymKernel();
         double [] convolved =   factorConvKernel.getConvolved();
-        double [] target_weights = factorConvKernel.getTargetWeights();
+//        double [] target_weights = factorConvKernel.getTargetWeights();
         
         double [] diff100 = new double [convolved.length];
-        double [] weighted_diff100 = new double [convolved.length];
+//        double [] weighted_diff100 = new double [convolved.length];
         for (int ii=0;ii<convolved.length;ii++) {
-        	diff100[ii]=100.0*(target_expanded[ii]-convolved[ii]);
-        	weighted_diff100[ii] = diff100[ii]* target_weights[ii];
+        	diff100[ii]=100.0*(target_antiperiodic[ii]-convolved[ii]);
+//        	weighted_diff100[ii] = diff100[ii]* target_weights[ii];
         }
-        double [][] compare_kernels = {target_expanded, convolved, weighted_diff100,target_weights, diff100};
+//        double [][] compare_kernels = {target_expanded, convolved, weighted_diff100,target_weights, diff100};
+        double [][] compare_kernels = {target_antiperiodic, convolved, diff100};
         if (DEBUG_LEVEL>0) {
         	System.out.println("DCT_PARAMETERS.dct_size="+DCT_PARAMETERS.dct_size+" DCT_PARAMETERS.asym_size="+DCT_PARAMETERS.asym_size);
         	System.out.println("sym_kernel.length="+ sym_kernel.length);
@@ -3092,7 +3133,9 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         }
         SDFA_INSTANCE.showArrays(sym_kernel,    DCT_PARAMETERS.dct_size,       DCT_PARAMETERS.dct_size,   "sym_kernel");
         SDFA_INSTANCE.showArrays(asym_kernel,   DCT_PARAMETERS.asym_size,      DCT_PARAMETERS.asym_size,  "asym_kernel");
-        SDFA_INSTANCE.showArrays(compare_kernels,  target_expanded_size, target_expanded_size, true, "compare_kernels");
+//        SDFA_INSTANCE.showArrays(compare_kernels,  target_expanded_size, target_expanded_size, true, "compare_kernels");
+        SDFA_INSTANCE.showArrays(compare_kernels,  target_antiperiodic_size, target_antiperiodic_size, true, "compare_kernels");
+//        
 //        SDFA_INSTANCE.showArrays(convolved,  target_kernel_size, target_kernel_size,   "convolved");
         return;
     } else if (label.equals("Min Kernel Factorization")){
@@ -3100,7 +3143,8 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         if (!DCT_PARAMETERS.showDialog()) return;
         FactorConvKernel factorConvKernel = new FactorConvKernel();
         factorConvKernel.setDebugLevel(DEBUG_LEVEL);
-        factorConvKernel.setTargetWindowMode(DCT_PARAMETERS.dbg_window_mode, DCT_PARAMETERS.centerWindowToTarget);
+//        factorConvKernel.setTargetWindowMode(DCT_PARAMETERS.dbg_window_mode, DCT_PARAMETERS.centerWindowToTarget);
+        factorConvKernel.setTargetWindowMode(DCT_PARAMETERS.centerWindowToTarget);
         factorConvKernel.numIterations = DCT_PARAMETERS.LMA_steps;
         factorConvKernel.setAsymCompactness(
         		DCT_PARAMETERS.compactness,
@@ -3110,8 +3154,13 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         factorConvKernel.setDCWeight(
         		DCT_PARAMETERS.dc_weight);
         int target_kernel_size = 2*DCT_PARAMETERS.dct_size - 1;
-    	int target_expanded_size = 2*DCT_PARAMETERS.dct_size + DCT_PARAMETERS.asym_size -2;
-        double [] target_expanded = null;
+//    	int target_expanded_size = 2*DCT_PARAMETERS.dct_size + DCT_PARAMETERS.asym_size -2;
+    	
+    	int target_expanded_size =     4*DCT_PARAMETERS.dct_size;
+    	int target_antiperiodic_size = 2*DCT_PARAMETERS.dct_size;
+        double [] target_expanded =     null;
+        double [] target_antiperiodic = null;
+
         if ((EYESIS_DCT != null) && EYESIS_DCT.kernelImageSet() && (DCT_PARAMETERS.color_channel >= 0)){
         	System.out.println("Using extracted target kernel");
         	double [] src_kernel = EYESIS_DCT.extractOneKernelFromStack(
@@ -3174,9 +3223,18 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         		}
         	}
         }
+        if (EYESIS_DCT == null){
+        	EYESIS_DCT = new  EyesisDCT (
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS,
+        			DCT_PARAMETERS);
+        }
+    	target_antiperiodic = EYESIS_DCT.makeAntiperiodic(
+    			DCT_PARAMETERS.dct_size,
+    			target_expanded);
         long startTime = System.nanoTime();
     	int numPixels = factorConvKernel.calcKernels(
-    			target_expanded,
+    			target_antiperiodic,
     			DCT_PARAMETERS.asym_size,
     			DCT_PARAMETERS.dct_size,
     			DCT_PARAMETERS.fact_precision,
@@ -3197,19 +3255,19 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
     	double [] sym_kernel =  factorConvKernel.getSymKernel();
         double [] asym_kernel = factorConvKernel.getAsymKernel();
         double [] convolved =   factorConvKernel.getConvolved();
-        double [] target_weights = factorConvKernel.getTargetWeights();
+//        double [] target_weights = factorConvKernel.getTargetWeights();
         double [] diff100 = new double [convolved.length];
-        double [] weighted_diff100 = new double [convolved.length];
-        double s0=0,s1 = 0, s2 = 0.0 , s3=0.0;
+//        double [] weighted_diff100 = new double [convolved.length];
+        double /* s0=0,s1 = 0,*/ s2 = 0.0 , s3=0.0;
         for (int ii=0;ii<convolved.length;ii++) {
-        	diff100[ii]=100.0*(target_expanded[ii]-convolved[ii]);
-        	weighted_diff100[ii] = diff100[ii]* target_weights[ii];
-        	s0+=target_weights[ii];
-        	s1+=target_expanded[ii]*target_weights[ii];
-        	s2+=convolved[ii]*target_weights[ii];
-        	s3+=target_expanded[ii];
+        	diff100[ii]=100.0*(target_antiperiodic[ii]-convolved[ii]);
+//        	weighted_diff100[ii] = diff100[ii]* target_weights[ii];
+//        	s0+=target_weights[ii];
+//        	s1+=target_expanded[ii]*target_weights[ii];
+        	s2+=convolved[ii];
+        	s3+=target_antiperiodic[ii];
             if (DEBUG_LEVEL>3) {
-            	System.out.println(ii+": t="+target_expanded[ii]+" c="+convolved[ii]+" s0="+s0+" s1="+s1+" s2="+s2);
+            	System.out.println(ii+": t="+target_antiperiodic[ii]+" c="+convolved[ii]+" s2="+s2+" s3="+s3);
             }        	
         }
         double sum_asym = 0.0, sum_sym = 0.0;
@@ -3225,14 +3283,15 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
             }
         }
         
-        
-        double [][] compare_kernels = {target_expanded, convolved, weighted_diff100,target_weights, diff100};
+//        double [][] compare_kernels = {target_expanded, convolved, weighted_diff100,target_weights, diff100};
+        double [][] compare_kernels = {target_antiperiodic, convolved, diff100};
         if (DEBUG_LEVEL>0) {
         	System.out.println("DCT_PARAMETERS.dct_size="+DCT_PARAMETERS.dct_size+" DCT_PARAMETERS.asym_size="+DCT_PARAMETERS.asym_size);
         	System.out.println("sym_kernel.length="+ sym_kernel.length);
         	System.out.println("asym_kernel.length="+asym_kernel.length);
         	System.out.println("convolved.length="+convolved.length);
-        	System.out.println("weights s0="+s0+" target s1/s0="+(s1/s0)+ "convolved s2/s0="+(s2/s0)+ " s2/s1="+(s2/s1));
+//        	System.out.println("weights s0="+s0+" target s1/s0="+(s1/s0)+ "convolved s2/s0="+(s2/s0)+ " s2/s1="+(s2/s1));
+        	System.out.println("convolved s2="+s2+ "target s3="+s3);
         	System.out.println("sum_asym = "+ sum_asym+ " sum_sym="+sum_sym+" sum_asym*sum_sym=" + (sum_asym*sum_sym)+" sum(target) = "+s3);
         }
 
@@ -3245,7 +3304,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         
 ////        SDFA_INSTANCE.showArrays(sym_kernel,    DCT_PARAMETERS.dct_size,       DCT_PARAMETERS.dct_size,   "sym_kernel");
         SDFA_INSTANCE.showArrays(asym_kernel,   DCT_PARAMETERS.asym_size,      DCT_PARAMETERS.asym_size,  "asym_kernel");
-        SDFA_INSTANCE.showArrays(compare_kernels,  target_expanded_size, target_expanded_size, true, "compare_kernels");
+        SDFA_INSTANCE.showArrays(compare_kernels,  target_antiperiodic_size, target_antiperiodic_size, true, "compare_kernels");
 //        SDFA_INSTANCE.showArrays(convolved,  target_kernel_size, target_kernel_size,   "convolved");
         return;
     	
