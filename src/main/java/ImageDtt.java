@@ -529,7 +529,7 @@ public class ImageDtt {
 						}						
 
 						
-						if ((tileY == debug_tileY) && (tileX == debug_tileX) && (color == 2)) {
+						if ((dct_kernels!=null) && (tileY == debug_tileY) && (tileX == debug_tileX) && (color == 2)) {
 							double [][] dbg_tile = {
 									dct_kernels.st_direct[color][kernelTileY][kernelTileX],
 									dct_kernels.st_kernels[color][kernelTileY][kernelTileX],

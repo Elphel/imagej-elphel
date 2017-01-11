@@ -2234,7 +2234,8 @@ public class EyesisCorrections {
 	 	  return mask;
 	   }
 	   /* ======================================================================== */
-	   private void saveAndShow(
+//	   private void saveAndShow(
+	   public void saveAndShow(
 	 		  ImagePlus             imp,
 			   EyesisCorrectionParameters.CorrectionParameters  correctionsParameters){
 	 	  saveAndShowEnable( imp,    correctionsParameters , true, true);
@@ -2254,6 +2255,7 @@ public class EyesisCorrections {
 	   }
 
 	   private void saveAndShow(
+//	   public void saveAndShow(
 			   ImagePlus             imp,
 			   EyesisCorrectionParameters.CorrectionParameters  correctionsParameters,
 			   boolean               save,

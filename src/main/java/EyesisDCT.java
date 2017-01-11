@@ -35,6 +35,8 @@ public class EyesisDCT {
 	public EyesisCorrectionParameters.DCTParameters dctParameters = null;
 	public DCTKernels [] kernels = null;
 	public ImagePlus eyesisKernelImage = null;
+	public long startTime;
+	
 	public EyesisDCT(
 			EyesisCorrections eyesisCorrections,
 			EyesisCorrectionParameters.CorrectionParameters correctionsParameters,
@@ -72,8 +74,15 @@ public class EyesisDCT {
 		return eyesisKernelImage != null;
 	}
 	
+	public boolean DCTKernelsAvailable(){
+		return kernels != null;
+	}
+	
 	public boolean createDCTKernels(
 			EyesisCorrectionParameters.DCTParameters dct_parameters,
+/*			
+			PixelMapping pixelMapping,
+*/			
 			int          srcKernelSize,
 			int          threadsMax,  // maximal number of threads to launch                         
 			boolean      updateStatus,
@@ -94,9 +103,31 @@ public class EyesisDCT {
 			}
 		}
 	    showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+//	    String [] sensor_files = correctionsParameters.selectSensorFiles(eyesisCorrections.debugLevel);
+	    
 
 		for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
 			if (eyesisCorrections.usedChannels[chn] && (sharpKernelPaths[chn]!=null) && (kernels[chn]==null)){
+//				if ((sensor_files!= null) && (sensor_files.length > chn) && (sensor_files[chn]!=null)){
+				/*				
+				double [][] vignetting = null;
+				int vign_width =       0;
+				int vign_height =      0;
+				int vign_decimation =  1;
+				if ((pixelMapping != null) &&
+						(pixelMapping.sensors != null) &&
+						(pixelMapping.sensors[chn] != null) &&
+						(pixelMapping.sensors[chn].pixelCorrection != null) &&
+						(pixelMapping.sensors[chn].pixelCorrection.length >=6)){
+					vignetting = new double[3][];
+					vignetting[0] = pixelMapping.sensors[chn].pixelCorrection[3]; // red
+					vignetting[2] = pixelMapping.sensors[chn].pixelCorrection[4]; // green
+					vignetting[1] = pixelMapping.sensors[chn].pixelCorrection[5]; // blue
+					vign_width =      pixelMapping.sensors[chn].pixelCorrectionWidth;
+					vign_height =     pixelMapping.sensors[chn].pixelCorrectionHeight;
+					vign_decimation = pixelMapping.sensors[chn].pixelCorrectionDecimation;
+				}
+*/				
 				ImagePlus imp_kernel_sharp=new ImagePlus(sharpKernelPaths[chn]);
 				if (imp_kernel_sharp.getStackSize()<3) {
 					System.out.println("Need a 3-layer stack with kernels");
@@ -110,6 +141,12 @@ public class EyesisDCT {
 						kernel_sharp_stack,            // final ImageStack kernelStack,  // first stack with 3 colors/slices convolution kernels
 						srcKernelSize,                 // final int          kernelSize, // 64
 						dct_parameters,                // final double       blurSigma,
+/*						
+						vignetting,
+						vign_width,
+						vign_height,
+						vign_decimation,
+*/						
 						threadsMax,  // maximal number of threads to launch                         
 						updateStatus,
 						debugLevel); // update status info
@@ -129,7 +166,13 @@ public class EyesisDCT {
 	  public DCTKernels calculateDCTKernel (
 			  final ImageStack kernelStack,  // first stack with 3 colors/slices convolution kernels
 			  final int          kernelSize, // 64
-			  final EyesisCorrectionParameters.DCTParameters dct_parameters,			  
+			  final EyesisCorrectionParameters.DCTParameters dct_parameters,
+/*			  
+			  final double [][]  vignetting,
+			  int                vign_width,
+			  int                vign_height,
+			  int                vign_decimation,
+*/			  
 			  final int          threadsMax,  // maximal number of threads to launch                         
 			  final boolean      updateStatus,
 			  final int          globalDebugLevel) // update status info
@@ -155,9 +198,17 @@ public class EyesisDCT {
 		  final int preTargetSize = 4 * dct_size; 
 		  final int targetSize =    2 * dct_size; // normally 16
 		  final double [] anitperiodic_window = createAntiperiodicWindow(dct_size);
-		  
+/*		  
+		  final int vgn_step =   dct_kernel.img_step/vign_decimation;
+		  final int vgn_width =  vign_width/vign_decimation;
+		  final int vgn_height = vign_height/vign_decimation;
+		  final int vgn_left =   (vign_width  - (dct_kernel.img_step * (kernelNumHor-1)))/(2* vign_decimation); // in decimated pixels
+		  final int vgn_top =    (vign_height  -(dct_kernel.img_step * (kernelNumVert-1)))/(2* vign_decimation); // in decimated pixels
+		  final double vgn_max = dct_parameters.vignetting_max;
+		  final double vgn_min = vgn_max/dct_parameters.vignetting_range;
+*/		  
+		  final int chn_green = 2; // all others multiply by 4 as there 1 in 4 Bayer for those, green - by 2
 		  final long startTime = System.nanoTime();
-		  
 		  System.out.println("calculateDCTKernel():numberOfKernels="+numberOfKernels);
 		  for (int ithread = 0; ithread < threads.length; ithread++) {
 			  threads[ithread] = new Thread() {
@@ -182,6 +233,7 @@ public class EyesisDCT {
 					  factorConvKernel.setDCWeight         (dct_parameters.dc_weight);
 					  
 					  int chn,tileY,tileX;
+					  double kscale;
 //					  int chn0=-1;
 //					  int i;
 //					  double sum;
@@ -189,6 +241,21 @@ public class EyesisDCT {
 						  chn=nTile/numberOfKernelsInChn;
 						  tileY =(nTile % numberOfKernelsInChn)/kernelNumHor;
 						  tileX = nTile % kernelNumHor;
+						  kscale = 1.0;
+/*						  
+						  if (vignetting != null){
+							  int vh = vgn_left + vgn_step * tileX;
+							  if (vh < 0)           vh = 0;
+							  if (vh >= vgn_width)  vh = vgn_width -1;
+							  int vv = vgn_top + vgn_step * tileY;
+							  if (vv < 0)           vv = 0;
+							  if (vv >= vgn_height) vh = vgn_height -1;
+							  kscale = vignetting[chn][vv*vgn_width+vh];
+							  if (kscale < vgn_min) kscale = vgn_min; 
+						  }
+						  kscale = vgn_max/kscale * ((chn == chn_green)? 2:4);
+*/						  
+						  kscale = (chn == chn_green)? 2:4;
 						  if (tileX==0) {
 							  if (updateStatus) IJ.showStatus("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+kernelNumVert);
 							  if (globalDebugLevel>2) System.out.println("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+kernelNumVert+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
@@ -224,8 +291,9 @@ public class EyesisDCT {
 							  for (int i = 0; i < pre_target_kernel.length; i++){
 								  s+=pre_target_kernel[i];
 							  }
+							  s =  kscale/s;
 							  for (int i = 0; i < pre_target_kernel.length; i++){
-								  pre_target_kernel[i]/=s;
+								  pre_target_kernel[i] *= s;
 							  }
 							  if (globalDebugLevel > 1){ // was already close to 1.0
 								  System.out.println(tileX+"/"+tileY+ " s="+s);
@@ -289,111 +357,9 @@ public class EyesisDCT {
 //		  ImageStack outStack=new ImageStack(kernelNumHor,kernelNumVert);
 		  return dct_kernel;
 	  }
-/*
- * 		  final int kernelNumHor=kernelWidth/kernelSize;
-		  final int kernelNumVert=kernelStack.getHeight()/kernelSize;
-		  final int nChn=kernelStack.getSize();
-
-		  dct_kernel.sym_kernels =  new double [nChn][kernelNumHor*kernelNumVert*dct_parameters.dct_size * dct_parameters.dct_size];
-		  dct_kernel.asym_kernels = new double [nChn][kernelNumHor*kernelNumVert*dct_parameters.asym_size * dct_parameters.asym_size];
- * 
-		System.arraycopy(currentfX, 0, convolved, 0, convolved.length);
-
-    			DCT_PARAMETERS.fact_precision,
-    			DCT_PARAMETERS.asym_pixels,
-    			DCT_PARAMETERS.asym_distance,
-    			DCT_PARAMETERS.seed_size);
-	
- */
 //processChannelImage	
 //convolveStackWithKernelStack	
-	  // Remove later, copied here as a reference
-	  public ImageStack calculateKernelsNoiseGains (
-			  final ImageStack kernelStack1, // first stack with 3 colors/slices convolution kernels
-			  final ImageStack kernelStack2, // second stack with 3 colors/slices convolution kernels (or null)
-			  final int               size, // 128 - fft size, kernel size should be size/2
-			  final double       blurSigma,
-			  final int          threadsMax,  // maximal number of threads to launch                         
-			  final boolean    updateStatus,
-			  final int        globalDebugLevel) // update status info
-	  {
-		  if (kernelStack1==null) return null;
-		  final boolean useDiff= (kernelStack2 != null);
-		  final int kernelSize=size/2;
-		  final int kernelWidth=kernelStack1.getWidth();
-		  final int kernelNumHor=kernelWidth/(size/2);
-		  final int kernelNumVert=kernelStack1.getHeight()/(size/2);
-		  final int length=kernelNumHor*kernelNumVert;
-		  final int nChn=kernelStack1.getSize();
-		  final float [][] outPixles=new float[nChn][length]; // GLOBAL same as input
-		  int i,j;
-		  for (i=0;i<nChn;i++) for (j=0;j<length;j++) outPixles[i][j]=0.0f;
-		  final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
-		  final AtomicInteger ai = new AtomicInteger(0);
-		  final int numberOfKernels=     kernelNumHor*kernelNumVert*nChn;
-		  final int numberOfKernelsInChn=kernelNumHor*kernelNumVert;
-		  final long startTime = System.nanoTime();
-		  for (int ithread = 0; ithread < threads.length; ithread++) {
-			  threads[ithread] = new Thread() {
-				  public void run() {
-					  DoubleGaussianBlur gb=null;
-					  if (blurSigma>0)	 gb=new DoubleGaussianBlur();
-					  float [] kernelPixels1= null; // will be initialized at first use
-					  float [] kernelPixels2= null; // will be initialized at first use
-					  double [] kernel1=      new double[kernelSize*kernelSize];
-					  double [] kernel2=      new double[kernelSize*kernelSize];
-					  int chn,tileY,tileX;
-					  int chn0=-1;
-					  int i;
-					  double sum;
-					  for (int nTile = ai.getAndIncrement(); nTile < numberOfKernels; nTile = ai.getAndIncrement()) {
-						  chn=nTile/numberOfKernelsInChn;
-						  tileY =(nTile % numberOfKernelsInChn)/kernelNumHor;
-						  tileX = nTile % kernelNumHor;
-						  if (tileX==0) {
-							  if (updateStatus) IJ.showStatus("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+kernelNumVert);
-							  if (globalDebugLevel>2) System.out.println("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+kernelNumVert+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
-						  }
-						  
-						  if (chn!=chn0) {
-							  kernelPixels1=(float[]) kernelStack1.getPixels(chn+1);
-							  if (useDiff) kernelPixels2=(float[]) kernelStack2.getPixels(chn+1);
-							  chn0=chn;
-						  }
-						  /* read convolution kernel */
-						  extractOneKernel(kernelPixels1, //  array of combined square kernels, each 
-								  kernel1, // will be filled, should have correct size before call
-								  kernelNumHor, // number of kernels in a row
-								  tileX, // horizontal number of kernel to extract
-								  tileY); // vertical number of kernel to extract
-						  /* optionally read the second convolution kernel */
-						  if (useDiff) {extractOneKernel(kernelPixels2, //  array of combined square kernels, each 
-								  kernel2, // will be filled, should have correct size before call
-								  kernelNumHor, // number of kernels in a row
-								  tileX, // horizontal number of kernel to extract
-								  tileY); // vertical number of kernel to extract
-						     for (i=0; i<kernel1.length;i++) kernel1[i]-=kernel2[i];
-						  }
-						  if (blurSigma>0) gb.blurDouble(kernel1, kernelSize, kernelSize, blurSigma, blurSigma, 0.01);
-						  /* Calculate sum of squared kernel1  elements */
-						  sum=0.0;
-						  for (i=0; i<kernel1.length;i++) sum+=kernel1[i]*kernel1[i];
-						  outPixles[chn][tileY*kernelNumHor+tileX]= (float) (Math.sqrt(sum));
-//						  System.out.println("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+kernelNumVert+" sum="+sum);
-					  }
-				  }
-			  };
-		  }		      
-		  ImageDtt.startAndJoin(threads);
-		  if (globalDebugLevel > 1) System.out.println("Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
-		  /* prepare result stack to return */
-		  ImageStack outStack=new ImageStack(kernelNumHor,kernelNumVert);
-		  for (i=0;i<nChn;i++) {
-			  outStack.addSlice(kernelStack1.getSliceLabel(i+1), outPixles[i]);
-		  }
-		  return outStack;
-	  }
-	  
+
 	  // mostly for testing
 //eyesisKernelImage	  
 	  public double [] extractOneKernelFromStack(
@@ -915,4 +881,290 @@ public class EyesisDCT {
 			kernels[chn].asym_kernels = null; // not needed anymore
 			kernels[chn].sym_direct = null;  // not needed anymore
 		}
+
+//		public boolean isChannelEnabled(int channel){
+//			return ((channel>=0) && (channel<this.usedChannels.length) && this.usedChannels[channel]);  
+//		}
+		
+		
+		public void processDCTChannelImages(
+//				EyesisCorrectionParameters.SplitParameters         splitParameters,
+				EyesisCorrectionParameters.DCTParameters           dct_parameters,
+				EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+				EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+				EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+				CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+				EyesisCorrectionParameters.RGBParameters             rgbParameters,
+				EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+				int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+				final int          threadsMax,  // maximal number of threads to launch                         
+				final boolean    updateStatus,
+				final int        debugLevel)
+		{
+			  this.startTime=System.nanoTime();
+			  String [] sourceFiles=correctionsParameters.getSourcePaths();
+			  boolean [] enabledFiles=new boolean[sourceFiles.length];
+			  for (int i=0;i<enabledFiles.length;i++) enabledFiles[i]=false;
+			  int numFilesToProcess=0;
+			  int numImagesToProcess=0;
+			  for (int nFile=0;nFile<enabledFiles.length;nFile++){
+				  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
+					  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
+					  if (correctionsParameters.isJP4()){
+							int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
+							channels=this.eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
+					  }
+					  if (channels!=null){
+						  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
+							  if (!enabledFiles[nFile]) numFilesToProcess++;
+							  enabledFiles[nFile]=true;
+							  numImagesToProcess++;
+						  }
+					  }
+				  }
+			  }
+			  if (numFilesToProcess==0){
+				  System.out.println("No files to process (of "+sourceFiles.length+")");
+				  return;
+			  } else {
+				  if (debugLevel>0) System.out.println(numFilesToProcess+ " files to process (of "+sourceFiles.length+"), "+numImagesToProcess+" images to process");
+			  }
+			  double [] referenceExposures=eyesisCorrections.calcReferenceExposures(debugLevel); // multiply each image by this and divide by individual (if not NaN)
+			  int [][] fileIndices=new int [numImagesToProcess][2]; // file index, channel number
+			  int index=0;
+			  for (int nFile=0;nFile<enabledFiles.length;nFile++){
+				  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
+					  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
+					  if (correctionsParameters.isJP4()){
+							int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
+							channels=eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
+					  }
+					  if (channels!=null){
+						  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
+							  fileIndices[index  ][0]=nFile;
+							  fileIndices[index++][1]=channels[i];
+						  }
+					  }
+				  }
+			  }
+			  for (int iImage=0;iImage<fileIndices.length;iImage++){
+				  int nFile=fileIndices[iImage][0];
+				  ImagePlus imp_src=null;
+//				  int srcChannel=correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile]);
+				  int srcChannel=fileIndices[iImage][1];
+				  if (correctionsParameters.isJP4()){
+					  int subchannel=eyesisCorrections.pixelMapping.getSubChannel(srcChannel);
+					  if (this.correctionsParameters.swapSubchannels01) {
+						  switch (subchannel){
+						  case 0: subchannel=1; break;
+						  case 1: subchannel=0; break;
+						  }
+					  }
+					  if (debugLevel>0) System.out.println("Processing channel "+fileIndices[iImage][1]+" - subchannel "+subchannel+" of "+sourceFiles[nFile]);
+					  ImagePlus imp_composite=eyesisCorrections.JP4_INSTANCE.open(
+									  "", // path,
+									  sourceFiles[nFile],
+									  "",  //arg - not used in JP46 reader
+									  true, // un-apply camera color gains
+									  null, // new window
+									  false); // do not show
+					  imp_src=eyesisCorrections.JP4_INSTANCE.demuxImage(imp_composite, subchannel);
+					  if (imp_src==null) imp_src=imp_composite; // not a composite image
+					  
+	// do we need to add any properties?				  
+				  } else { 
+					  imp_src=new ImagePlus(sourceFiles[nFile]);
+//					  (new JP46_Reader_camera(false)).decodeProperiesFromInfo(imp_src); // decode existent properties from info
+					  eyesisCorrections.JP4_INSTANCE.decodeProperiesFromInfo(imp_src); // decode existent properties from info
+					  if (debugLevel>0) System.out.println("Processing "+sourceFiles[nFile]);
+				  }
+				  double scaleExposure=1.0;
+				  if (!Double.isNaN(referenceExposures[nFile]) && (imp_src.getProperty("EXPOSURE")!=null)){
+					  scaleExposure=referenceExposures[nFile]/Double.parseDouble((String) imp_src.getProperty("EXPOSURE"));
+//					  imp_src.setProperty("scaleExposure", scaleExposure); // it may already have channel
+					  if (debugLevel>0) System.out.println("Will scale intensity (to compensate for exposure) by  "+scaleExposure);
+				  }
+				  imp_src.setProperty("name",    correctionsParameters.getNameFromSourceTiff(sourceFiles[nFile]));
+				  imp_src.setProperty("channel", srcChannel); // it may already have channel
+				  imp_src.setProperty("path",    sourceFiles[nFile]); // it may already have channel
+//				  ImagePlus result=processChannelImage( // returns ImagePlus, but it already should be saved/shown
+				  processDCTChannelImage( // returns ImagePlus, but it already should be saved/shown
+						  imp_src, // should have properties "name"(base for saving results), "channel","path"
+//						  splitParameters,
+						  dct_parameters,
+						  debayerParameters,
+						  nonlinParameters,
+						  colorProcParameters,
+						  channelGainParameters,
+						  rgbParameters,
+						  convolveFFTSize, // 128 - fft size, kernel size should be size/2
+						  scaleExposure,
+						  threadsMax,  // maximal number of threads to launch                         
+						  updateStatus,
+						  debugLevel);
+	// warp result (add support for different color modes)
+				  if (this.correctionsParameters.equirectangular){
+					   if (equirectangularParameters.clearFullMap) eyesisCorrections.pixelMapping.deleteEquirectangularMapFull(srcChannel); // save memory? //removeUnusedSensorData - no, use equirectangular specific settings
+					   if (equirectangularParameters.clearAllMaps) eyesisCorrections.pixelMapping.deleteEquirectangularMapAll(srcChannel); // save memory? //removeUnusedSensorData - no, use equirectangular specific settings
+				  }
+				  //pixelMapping
+				  Runtime.getRuntime().gc();
+				  if (debugLevel>0) System.out.println("Processing image "+(iImage+1)+" (of "+fileIndices.length+") finished at "+
+						  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				  if (eyesisCorrections.stopRequested.get()>0) {
+					  System.out.println("User requested stop");
+					  return;
+				  }
+			  }
+			
+		}		
+
+		public ImagePlus processDCTChannelImage(
+				ImagePlus imp_src, // should have properties "name"(base for saving results), "channel","path"
+//				EyesisCorrectionParameters.SplitParameters         splitParameters, // will not be used !
+				EyesisCorrectionParameters.DCTParameters           dct_parameters,
+				EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+				EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+				EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+				CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+				EyesisCorrectionParameters.RGBParameters             rgbParameters,
+				int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+				double 		     scaleExposure,
+				final int        threadsMax,  // maximal number of threads to launch                         
+				final boolean    updateStatus,
+				final int        debugLevel){
+			boolean advanced=this.correctionsParameters.zcorrect || this.correctionsParameters.equirectangular;
+			boolean crop=      advanced? true: this.correctionsParameters.crop; 
+			boolean rotate=    advanced? false: this.correctionsParameters.rotate; 
+			double JPEG_scale= advanced? 1.0: this.correctionsParameters.JPEG_scale;
+			boolean toRGB=     advanced? true: this.correctionsParameters.toRGB; 
+
+			// may use this.StartTime to report intermediate steps execution times
+			String name=(String) imp_src.getProperty("name");
+			//		int channel= Integer.parseInt((String) imp_src.getProperty("channel"));
+			int channel= (Integer) imp_src.getProperty("channel");
+			String path= (String) imp_src.getProperty("path");
+			if (this.correctionsParameters.pixelDefects && (eyesisCorrections.defectsXY!=null)&& (eyesisCorrections.defectsXY[channel]!=null)){
+				// apply pixel correction
+				int numApplied=	eyesisCorrections.correctDefects(
+						imp_src,
+						channel,
+						debugLevel);
+				if ((debugLevel>0) && (numApplied>0)) { // reduce verbosity after verified defect correction works
+					System.out.println("Corrected "+numApplied+" pixels in "+path);
+				}
+			}
+			if (this.correctionsParameters.vignetting){
+				if ((eyesisCorrections.channelVignettingCorrection==null) || (channel<0) || (channel>=eyesisCorrections.channelVignettingCorrection.length) || (eyesisCorrections.channelVignettingCorrection[channel]==null)){
+					System.out.println("No vignetting data for channel "+channel);
+					return null;
+				}
+				float [] pixels=(float []) imp_src.getProcessor().getPixels();
+				if (pixels.length!=eyesisCorrections.channelVignettingCorrection[channel].length){
+					System.out.println("Vignetting data for channel "+channel+" has "+eyesisCorrections.channelVignettingCorrection[channel].length+" pixels, image "+path+" has "+pixels.length);
+					return null;
+				}
+				for (int i=0;i<pixels.length;i++){
+					pixels[i]*=eyesisCorrections.channelVignettingCorrection[channel][i];
+				}
+			}
+			String title=name+"-"+String.format("%02d", channel);
+			ImagePlus result=imp_src;
+			if (debugLevel>1) System.out.println("processing: "+path);
+			result.setTitle(title+"RAW");
+			if (!this.correctionsParameters.split){
+				eyesisCorrections.saveAndShow(result, this.correctionsParameters);
+				return result;
+			}
+			// Generate split parameters for DCT processing mode
+    		EyesisCorrectionParameters.SplitParameters splitParameters = new EyesisCorrectionParameters.SplitParameters(
+    				(dct_parameters.decimation == 2)?1:2,  // oversample; // currently source kernels are oversampled
+    				dct_parameters.dct_size/2, // addLeft
+    				dct_parameters.dct_size/2, // addTop
+    				dct_parameters.dct_size/2, // addRight
+    				dct_parameters.dct_size/2  // addBottom
+    				);		   
+			
+			// Split into Bayer components, oversample, increase canvas    		  
+			ImageStack stack= eyesisCorrections.bayerToStack(
+					result, // source Bayer image, linearized, 32-bit (float))
+					splitParameters);
+			String titleFull=title+"-SPLIT";
+			if (!this.correctionsParameters.debayer) {
+				result= new ImagePlus(titleFull, stack);    			  
+				eyesisCorrections.saveAndShow(result, this.correctionsParameters);
+				return result;
+			}
+// =================
+			
+	        ImageDtt image_dtt = new ImageDtt();
+		    showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+	        double [][][][] dctdc_data = image_dtt.mdctDcStack(
+	        		stack,
+	        		dct_parameters,
+	        		this,
+	        		threadsMax,
+	        		debugLevel,
+	        		updateStatus);
+	        
+	        for (int chn = 0; chn < dctdc_data.length; chn++) {
+	        	image_dtt.dct_lpf(
+	        			dct_parameters.dbg_sigma,
+	        			dctdc_data[chn],
+	        			threadsMax,
+	        			debugLevel);
+	        }
+	        
+	        
+	        int tilesY = stack.getHeight()/dct_parameters.dct_size - 1;
+	        int tilesX = stack.getWidth()/dct_parameters.dct_size - 1;
+	        if (debugLevel>0){
+	        System.out.println("--tilesX="+tilesX);
+	        System.out.println("--tilesY="+tilesY);
+	        }
+	        double [][] dct_dc = new double [dctdc_data.length][];
+	        double [][] dct_ac = new double [dctdc_data.length][];
+	        for (int chn = 0; chn < dct_dc.length; chn++) {
+	        	dct_dc[chn] = image_dtt.lapped_dct_dcac(
+	        			false, //       out_ac, // false - output DC, true - output AC
+	        			dctdc_data [chn],
+	        			threadsMax,
+	        			debugLevel);
+	        	dct_ac[chn] = image_dtt.lapped_dct_dcac(
+	        			true, //       out_ac, // false - output DC, true - output AC
+	        			dctdc_data [chn],
+	        			threadsMax,
+	        			debugLevel);
+	        }
+//	        System.out.println("dct_dc.length="+dct_dc.length+" dct_ac.length="+dct_ac.length);
+	        sdfa_instance.showArrays(dct_ac,
+	        		tilesX*dct_parameters.dct_size,
+	        		tilesY*dct_parameters.dct_size,
+	        		true,
+	        		result.getTitle()+"-DCT_AC");  
+	        sdfa_instance.showArrays(dct_dc,
+	        		tilesX,
+	        		tilesY,
+	        		true,
+	        		result.getTitle()+"-DCT_DC");  
+	        double [][] idct_data = new double [dctdc_data.length][];
+	        for (int chn=0; chn<idct_data.length;chn++){
+	        	idct_data[chn] = image_dtt.lapped_idctdc(
+	        			dctdc_data[chn],                  // scanline representation of dcd data, organized as dct_size x dct_size tiles  
+	        			dct_parameters.dct_size,        // final int
+	        			dct_parameters.dct_window,      //window_type
+	        			threadsMax,
+	        			debugLevel);
+	        }
+	        sdfa_instance.showArrays(idct_data,
+	        		(tilesX + 1) * dct_parameters.dct_size,
+	        		(tilesY + 1) * dct_parameters.dct_size,
+	        		true,
+	        		result.getTitle()+"-IDCTDC");  
+			return result;
+		}
+		
+		
+		
+		
 }

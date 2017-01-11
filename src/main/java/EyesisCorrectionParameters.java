@@ -1800,6 +1800,9 @@ public class EyesisCorrectionParameters {
   		public boolean normalize =       true; //normalize both sym and asym kernels (asym to have sum==1, sym to have sum = dct_size
   		public boolean skip_sym =        false; // do not apply symmetrical correction
   		public boolean convolve_direct = false; // do not apply symmetrical correction
+  		
+  		public double vignetting_max    = 0.4; // value in vignetting data to correspond to 1x in the kernel
+  		public double vignetting_range  = 3.0; // do not try to correct vignetting less than vignetting_max/vignetting_range
 
   		public DCTParameters(
   				int dct_size,
@@ -1852,6 +1855,8 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"normalize",    this.normalize+"");
   			properties.setProperty(prefix+"skip_sym",    this.skip_sym+"");
   			properties.setProperty(prefix+"convolve_direct",    this.convolve_direct+"");
+  			properties.setProperty(prefix+"vignetting_max",   this.vignetting_max+"");
+  			properties.setProperty(prefix+"vignetting_range",   this.vignetting_range+"");
   			
   		}
   		public void getProperties(String prefix,Properties properties){
@@ -1887,6 +1892,8 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"normalize")!=null) this.normalize=Boolean.parseBoolean(properties.getProperty(prefix+"normalize"));
   			if (properties.getProperty(prefix+"skip_sym")!=null) this.skip_sym=Boolean.parseBoolean(properties.getProperty(prefix+"skip_sym"));
   			if (properties.getProperty(prefix+"convolve_direct")!=null) this.convolve_direct=Boolean.parseBoolean(properties.getProperty(prefix+"convolve_direct"));
+  			if (properties.getProperty(prefix+"vignetting_max")!=null) this.vignetting_max=Double.parseDouble(properties.getProperty(prefix+"vignetting_max"));
+  			if (properties.getProperty(prefix+"vignetting_range")!=null) this.vignetting_range=Double.parseDouble(properties.getProperty(prefix+"vignetting_range"));
   		
   		}
   		public boolean showDialog() {
@@ -1923,7 +1930,10 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Normalize both sym and asym kernels ",                           this.normalize);
   			gd.addCheckbox    ("Do not apply symmetrical (DCT) correction ",                     this.skip_sym);
   			gd.addCheckbox    ("Convolve directly with symmetrical kernel (debug feature) ",     this.convolve_direct);
+  			gd.addNumericField("Value (max) in vignetting data to correspond to 1x in the kernel",this.vignetting_max,      3);
+  			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",this.vignetting_range,    3);
   			
+    		WindowTools.addScrollBars(gd);
   			gd.showDialog();
   			
   			if (gd.wasCanceled()) return false;
@@ -1958,7 +1968,9 @@ public class EyesisCorrectionParameters {
   			this.kernel_chn=      (int) gd.getNextNumber();
   			this.normalize=             gd.getNextBoolean();
   			this.skip_sym=              gd.getNextBoolean();
-  			this.convolve_direct=              gd.getNextBoolean();
+  			this.convolve_direct=       gd.getNextBoolean();
+  			this.vignetting_max=        gd.getNextNumber();
+  			this.vignetting_range=      gd.getNextNumber();
   			//  	    MASTER_DEBUG_LEVEL= (int) gd.getNextNumber();
   			return true;
   		}  
