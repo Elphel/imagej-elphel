@@ -55,228 +55,228 @@ public class CorrectionColorProc {
   		  double [] denoiseMask,
   		  boolean blueProc,
   		  int debugLevel
-    ) {
-  	  double thisGain=       colorProcParameters.gain;
-  	  double thisBalanceRed= colorProcParameters.balanceRed;
-  	  double thisBalanceBlue=colorProcParameters.balanceBlue;
-  	  if (channelGainParameters!=null) {
-  		  thisGain*=       channelGainParameters.gain[channel];
-  		  thisBalanceRed*= channelGainParameters.balanceRed[channel];
-  		  thisBalanceBlue*=channelGainParameters.balanceBlue[channel];
-  	  }
-        float [] fpixels_r= (float[]) stack.getPixels(1);
-        float [] fpixels_g= (float[]) stack.getPixels(2);
-        float [] fpixels_b= (float[]) stack.getPixels(3);
-        boolean useWeights=(stack.getSize()>=5);
-        if (!useWeights) {
-          stack.addSlice("dummy1",  fpixels_r);
-          stack.addSlice("dummy2",  fpixels_g);
-        }
-        float [] fpixels_wr=(float[]) stack.getPixels(4);
-        float [] fpixels_wb=(float[]) stack.getPixels(5);
-        int length=fpixels_r.length;
-        int width= stack.getWidth();
-        int height=stack.getHeight();
-  /* Scale colors, gamma-convert */
-        int i;
-        double gain_red= thisBalanceRed* thisGain/scale;
-        double gain_blue=thisBalanceBlue*thisGain/scale;
-        double gain_green=thisGain/scale;
-        double gamma_a=Math.pow(colorProcParameters.minLin,colorProcParameters.gamma)*(1.0-colorProcParameters.gamma);
-        gamma_a=gamma_a/(1.0-gamma_a);
-        double gamma_linK=(1.0+gamma_a)*colorProcParameters.gamma*Math.pow(colorProcParameters.minLin,colorProcParameters.gamma)/colorProcParameters.minLin;
+    		) {
+    	double thisGain=       colorProcParameters.gain;
+    	double thisBalanceRed= colorProcParameters.balanceRed;
+    	double thisBalanceBlue=colorProcParameters.balanceBlue;
+    	if (channelGainParameters!=null) {
+    		thisGain*=       channelGainParameters.gain[channel];
+    		thisBalanceRed*= channelGainParameters.balanceRed[channel];
+    		thisBalanceBlue*=channelGainParameters.balanceBlue[channel];
+    	}
+    	float [] fpixels_r= (float[]) stack.getPixels(1);
+    	float [] fpixels_g= (float[]) stack.getPixels(2);
+    	float [] fpixels_b= (float[]) stack.getPixels(3);
+    	boolean useWeights=(stack.getSize()>=5);
+    	if (!useWeights) {
+    		stack.addSlice("dummy1",  fpixels_r);
+    		stack.addSlice("dummy2",  fpixels_g);
+    	}
+    	float [] fpixels_wr=(float[]) stack.getPixels(4);
+    	float [] fpixels_wb=(float[]) stack.getPixels(5);
+    	int length=fpixels_r.length;
+    	int width= stack.getWidth();
+    	int height=stack.getHeight();
+    	/* Scale colors, gamma-convert */
+    	int i;
+    	double gain_red= thisBalanceRed* thisGain/scale;
+    	double gain_blue=thisBalanceBlue*thisGain/scale;
+    	double gain_green=thisGain/scale;
+    	double gamma_a=Math.pow(colorProcParameters.minLin,colorProcParameters.gamma)*(1.0-colorProcParameters.gamma);
+    	gamma_a=gamma_a/(1.0-gamma_a);
+    	double gamma_linK=(1.0+gamma_a)*colorProcParameters.gamma*Math.pow(colorProcParameters.minLin,colorProcParameters.gamma)/colorProcParameters.minLin;
 
 
-        double Kg=1.0-colorProcParameters.kr-colorProcParameters.kb;
+    	double Kg=1.0-colorProcParameters.kr-colorProcParameters.kb;
 
-        // Correct color saturation for gamma
-        double Ar=colorProcParameters.kr*gain_red;
-        double Ag=Kg*gain_green;
-        double Ab=colorProcParameters.kb*gain_blue;
-        if (debugLevel>1) {
-            System.out.println ( " processColorsWeights() Ar="+Ar+" Ag="+Ag+" Ab="+Ab);
-            System.out.println ( " processColorsWeights() colorProcParameters.saturationBlue="+colorProcParameters.saturationBlue+
-            		" colorProcParameters.saturationRed="+colorProcParameters.saturationRed);
-        }
-        
+    	// Correct color saturation for gamma
+    	double Ar=colorProcParameters.kr*gain_red;
+    	double Ag=Kg*gain_green;
+    	double Ab=colorProcParameters.kb*gain_blue;
+    	if (debugLevel>1) {
+    		System.out.println ( " processColorsWeights() Ar="+Ar+" Ag="+Ag+" Ab="+Ab);
+    		System.out.println ( " processColorsWeights() colorProcParameters.saturationBlue="+colorProcParameters.saturationBlue+
+    				" colorProcParameters.saturationRed="+colorProcParameters.saturationRed);
+    	}
 
-//public void showArrays(double[][] pixels, int width, int height,  boolean asStack, String title) {
-        
-        
-        
-        
-        for (i=0;i<length;i++) {
-        	double Y=Ar*fpixels_r[i]+Ag*fpixels_g[i]+Ab*fpixels_b[i];
-        	Y=linGamma(colorProcParameters.gamma, gamma_a, gamma_linK, colorProcParameters.minLin, Y)/Y;
-        	fpixels_r[i]*=Y*gain_red; 
-        	fpixels_g[i]*=Y*gain_green; 
-        	fpixels_b[i]*=Y*gain_blue; 
-        }
-        
-        if (colorProcParameters.corrBlueLeak && blueProc) {
-        	double [][] blueLeakRgb =new double[3][length];
-        	for (int px=0;px<length;px++){
-        		blueLeakRgb[0][px]=fpixels_r[px];
-        		blueLeakRgb[1][px]=fpixels_g[px];
-        		blueLeakRgb[2][px]=fpixels_b[px];
-        	}
-        	BlueLeak blueLeak = new BlueLeak(
-        			colorProcParameters,
-        			blueLeakRgb,
-        			width,
-        			SDFA_INSTANCE,
-        			null, // "blue_corr", //TODO: add normal generation/saving of the intermediate images
-        			debugLevel); // debug level
-        	double [][] blueRemovedRGB= blueLeak.process(); // will later return corrected RGB to use
 
-        	for (int px=0;px<length;px++){
-        		fpixels_r[px]=(float) blueRemovedRGB[0][px];
-        		fpixels_g[px]=(float) blueRemovedRGB[1][px];
-        		fpixels_b[px]=(float) blueRemovedRGB[2][px];
-        	}
-        }
-        
-  /* Convert to YPbPr */
-        double Y,Pb,Pr;
-//        double Kg=1.0-colorProcParameters.kr-colorProcParameters.kb;
-        double Sb=0.5/(1.0-colorProcParameters.kb)*colorProcParameters.saturationBlue;
-        double Sr=0.5/(1.0-colorProcParameters.kr)*colorProcParameters.saturationRed;
-        double Yr,Yg,Yb,Wr,Wg,Wb,S;
-  /* coefficients to find Y from Pb, Pr and a color (R,G or B)
+    	//public void showArrays(double[][] pixels, int width, int height,  boolean asStack, String title) {
+
+
+
+
+    	for (i=0;i<length;i++) {
+    		double Y=Ar*fpixels_r[i]+Ag*fpixels_g[i]+Ab*fpixels_b[i];
+    		Y=linGamma(colorProcParameters.gamma, gamma_a, gamma_linK, colorProcParameters.minLin, Y)/Y;
+    		fpixels_r[i]*=Y*gain_red; 
+    		fpixels_g[i]*=Y*gain_green; 
+    		fpixels_b[i]*=Y*gain_blue; 
+    	}
+
+    	if (colorProcParameters.corrBlueLeak && blueProc) {
+    		double [][] blueLeakRgb =new double[3][length];
+    		for (int px=0;px<length;px++){
+    			blueLeakRgb[0][px]=fpixels_r[px];
+    			blueLeakRgb[1][px]=fpixels_g[px];
+    			blueLeakRgb[2][px]=fpixels_b[px];
+    		}
+    		BlueLeak blueLeak = new BlueLeak(
+    				colorProcParameters,
+    				blueLeakRgb,
+    				width,
+    				SDFA_INSTANCE,
+    				null, // "blue_corr", //TODO: add normal generation/saving of the intermediate images
+    				debugLevel); // debug level
+    		double [][] blueRemovedRGB= blueLeak.process(); // will later return corrected RGB to use
+
+    		for (int px=0;px<length;px++){
+    			fpixels_r[px]=(float) blueRemovedRGB[0][px];
+    			fpixels_g[px]=(float) blueRemovedRGB[1][px];
+    			fpixels_b[px]=(float) blueRemovedRGB[2][px];
+    		}
+    	}
+
+    	/* Convert to YPbPr */
+    	double Y,Pb,Pr;
+    	//        double Kg=1.0-colorProcParameters.kr-colorProcParameters.kb;
+    	double Sb=0.5/(1.0-colorProcParameters.kb)*colorProcParameters.saturationBlue;
+    	double Sr=0.5/(1.0-colorProcParameters.kr)*colorProcParameters.saturationRed;
+    	double Yr,Yg,Yb,Wr,Wg,Wb,S;
+    	/* coefficients to find Y from Pb, Pr and a color (R,G or B)
    Yr = R- Pr*KPrR
    Yb = B- Pb*KPbB
    Yg = G+ Pr*KPrG  + Pb*KPbG
-   */
-        double KPrR= -(2.0*(1-colorProcParameters.kr))/colorProcParameters.saturationRed;
-        double KPbB= -(2.0*(1-colorProcParameters.kb))/colorProcParameters.saturationBlue;
-        double KPrG=  2.0*colorProcParameters.kr*(1-colorProcParameters.kr)/Kg/colorProcParameters.saturationRed;
-        double KPbG=  2.0*colorProcParameters.kb*(1-colorProcParameters.kb)/Kg/colorProcParameters.saturationBlue;
-        if (debugLevel>1) {
-            System.out.println ( " processColorsWeights() gain_red="+gain_red+" gain_green="+gain_green+" gain_blue="+gain_blue);
-            System.out.println ( " processColorsWeights() gamma="+colorProcParameters.gamma+      " minLin="+colorProcParameters.minLin+" gamma_a="+gamma_a+" gamma_linK="+gamma_linK);
-            System.out.println ( " processColorsWeights() Kr="+colorProcParameters.kr+" Kg="+Kg+" Kb="+colorProcParameters.kb+" Sr="+Sr+" Sb="+Sb);
-            System.out.println ( " processColorsWeights() KPrR="+KPrR+" KPbB="+KPbB+" KPrG="+KPrG+" KPbG="+KPbG);
-        }
+    	 */
+    	double KPrR= -(2.0*(1-colorProcParameters.kr))/colorProcParameters.saturationRed;
+    	double KPbB= -(2.0*(1-colorProcParameters.kb))/colorProcParameters.saturationBlue;
+    	double KPrG=  2.0*colorProcParameters.kr*(1-colorProcParameters.kr)/Kg/colorProcParameters.saturationRed;
+    	double KPbG=  2.0*colorProcParameters.kb*(1-colorProcParameters.kb)/Kg/colorProcParameters.saturationBlue;
+    	if (debugLevel>1) {
+    		System.out.println ( " processColorsWeights() gain_red="+gain_red+" gain_green="+gain_green+" gain_blue="+gain_blue);
+    		System.out.println ( " processColorsWeights() gamma="+colorProcParameters.gamma+      " minLin="+colorProcParameters.minLin+" gamma_a="+gamma_a+" gamma_linK="+gamma_linK);
+    		System.out.println ( " processColorsWeights() Kr="+colorProcParameters.kr+" Kg="+Kg+" Kb="+colorProcParameters.kb+" Sr="+Sr+" Sb="+Sb);
+    		System.out.println ( " processColorsWeights() KPrR="+KPrR+" KPbB="+KPbB+" KPrG="+KPrG+" KPbG="+KPbG);
+    	}
 
-        float [] fpixels_pb= new float [length];
-        float [] fpixels_pr= new float [length];
-        float [] fpixels_y0= new float [length];
-        float [] fpixels_y= fpixels_y0;
+    	float [] fpixels_pb= new float [length];
+    	float [] fpixels_pr= new float [length];
+    	float [] fpixels_y0= new float [length];
+    	float [] fpixels_y= fpixels_y0;
 
-        float [] fpixels_yR=null;
-        float [] fpixels_yG=null;
-        float [] fpixels_yB=null;
+    	float [] fpixels_yR=null;
+    	float [] fpixels_yG=null;
+    	float [] fpixels_yB=null;
 
-        if (debugLevel>2) {
-          fpixels_yR= new float [length];
-          fpixels_yG= new float [length];
-          fpixels_yB= new float [length];
-        }
-        for (i=0;i<length;i++) {
-          Y=colorProcParameters.kr*fpixels_r[i]+Kg*fpixels_g[i]+colorProcParameters.kb*fpixels_b[i];
-          fpixels_pb[i] = (float) (Sb*(fpixels_b[i]-Y));
-          fpixels_pr[i] = (float) (Sr*(fpixels_r[i]-Y));
-          fpixels_y0[i]=(float) Y;
-        }
-  /* calculate Y from weighted colors, weights derived from how good each color component predicts signal in each subpixel of Bayer pattern */
-        if (useWeights) {
-          fpixels_y=  new float [length];
-          for (i=0;i<length;i++) {
-            Pb=fpixels_pb[i];
-            Pr=fpixels_pr[i];
-            Yr = fpixels_r[i]- Pr*KPrR;
-            Yb = fpixels_b[i]- Pb*KPbB;
-            Yg = fpixels_g[i]+ Pr*KPrG  + Pb*KPbG;
-            Wr=fpixels_wr[i];
-            Wb=fpixels_wb[i];
-            Wg=1.0-Wr-Wb;
-            S=1.0/(Wr*(colorProcParameters.weightScaleR-1.0)+Wb*(colorProcParameters.weightScaleB-1.0)+1.0);
-            Wr*=S*colorProcParameters.weightScaleR;
-            Wb*=S*colorProcParameters.weightScaleB;
-            Wg*=S;
-            Y=Yr*Wr+Yg*Wg+Yb*Wb;
-            fpixels_y[i]=(float) Y;
-            if (debugLevel>2) {
-              fpixels_yR[i]= (float) Yr;
-              fpixels_yG[i]= (float) Yg;
-              fpixels_yB[i]= (float) Yb;
-            }
-          }
-        }
-  /* Low-pass filter Pb and Pr */
-  	  DoubleGaussianBlur gb=new DoubleGaussianBlur();
-        double [] dpixels_pr=new double[fpixels_pr.length];
-        double [] dpixels_pb=new double[fpixels_pb.length];
-        for (i=0;i<dpixels_pr.length;i++) {
-      	  dpixels_pr[i]=fpixels_pr[i];
-      	  dpixels_pb[i]=fpixels_pb[i];
-        }
-        if (colorProcParameters.maskMax>0.0) {
-            double [] dmask=new double[fpixels_y0.length];
-            for (i=0;i<dpixels_pr.length;i++)  dmask[i]=fpixels_y0[i];
-            double [] dpixels_pr_dark=dpixels_pr.clone();
-            double [] dpixels_pb_dark=dpixels_pb.clone();
-      	  gb.blurDouble(dmask, width, height, colorProcParameters.maskSigma, colorProcParameters.maskSigma, 0.01);
-      	  gb.blurDouble(dpixels_pr, width, height, colorProcParameters.chromaBrightSigma, colorProcParameters.chromaBrightSigma, 0.01);
-      	  gb.blurDouble(dpixels_pb, width, height, colorProcParameters.chromaBrightSigma, colorProcParameters.chromaBrightSigma, 0.01);
-      	  gb.blurDouble(dpixels_pr_dark, width, height, colorProcParameters.chromaDarkSigma, colorProcParameters.chromaDarkSigma, 0.01);
-      	  gb.blurDouble(dpixels_pb_dark, width, height, colorProcParameters.chromaDarkSigma, colorProcParameters.chromaDarkSigma, 0.01);
-            if (debugLevel>2) {
-          	  SDFA_INSTANCE.showArrays(dmask, width, height,"dmask");          
-          	  SDFA_INSTANCE.showArrays(dpixels_pr, width, height,"dpixels_pr");          
-          	  SDFA_INSTANCE.showArrays(dpixels_pb, width, height,"dpixels_pb");          
-          	  SDFA_INSTANCE.showArrays(dpixels_pr_dark, width, height,"dpixels_pr_dark");          
-          	  SDFA_INSTANCE.showArrays(dpixels_pb_dark, width, height,"dpixels_pb_dark");          
-            }
-            double mp;
-            double k =1.0/(colorProcParameters.maskMax-colorProcParameters.maskMin);
-            for (i=0;i<dmask.length;i++) {
-          	  mp=dmask[i];
-          	  if (mp < colorProcParameters.maskMin) {
-          		  dmask[i]=0.0;
-          	  } else if (mp< colorProcParameters.maskMax) {
-          		  dmask[i]= k*(mp-colorProcParameters.maskMin);
-          	  } else dmask[i]=1.0;
-            }
-  //TODO: null DENOISE_MASK if it is not calculated
-            if (colorProcParameters.combineWithSharpnessMask) {
-          	  if (denoiseMask==null) {
-                    System.out.println ( "Can not combine masks as denoiseMask is null (i.e. no denoise was performed)");
-          	  } else if (denoiseMask.length!=dmask.length) {
-                    System.out.println ( "Can not combine masks as denoiseMask length is different from that of dmask");
-          	  } else {
-                    for (i=0;i<dmask.length;i++) {
-                  	  dmask[i]+=denoiseMask[i];
-                  	  if (dmask[i]>1.0) dmask[i]=1.0;
-                    }
-          	  }
-          	  
-            }
-            for (i=0;i<dmask.length;i++) {
-          	  mp=dmask[i];
-        		  dpixels_pb[i]= (1.0-mp)*dpixels_pb_dark[i]+ mp* dpixels_pb[i];
-        		  dpixels_pr[i]= (1.0-mp)*dpixels_pr_dark[i]+ mp* dpixels_pr[i];
-            }
-            this.denoiseMaskChroma=dmask; // (global, used to return denoise mask to save/show
-            this.denoiseMaskChromaWidth=width; // width of the this.denoiseMaskChroma image
-        } else {
-      	  gb.blurDouble(dpixels_pr, width, height, colorProcParameters.chromaBrightSigma, colorProcParameters.chromaBrightSigma, 0.01);
-      	  gb.blurDouble(dpixels_pb, width, height, colorProcParameters.chromaBrightSigma, colorProcParameters.chromaBrightSigma, 0.01);
-     	      this.denoiseMaskChroma=null; // (global, used to return denoise mask to save/show
-        }
-        for (i=0;i<dpixels_pr.length;i++) {
-      	  fpixels_pr[i]=(float) dpixels_pr[i];
-      	  fpixels_pb[i]=(float) dpixels_pb[i];
-        }
-        stack.addSlice("Pr", fpixels_pr);
-        stack.addSlice("Pb", fpixels_pb);
-        stack.addSlice("Y",  fpixels_y);
-        stack.addSlice("Y0", fpixels_y0); // not filtered by low-pass, preliminary (for comaprison only)
-        if (debugLevel>2) {
-          stack.addSlice("Yr",fpixels_yR);
-          stack.addSlice("Yg",fpixels_yG);
-          stack.addSlice("Yb",fpixels_yB);
-        }
+    	if (debugLevel>2) {
+    		fpixels_yR= new float [length];
+    		fpixels_yG= new float [length];
+    		fpixels_yB= new float [length];
+    	}
+    	for (i=0;i<length;i++) {
+    		Y=colorProcParameters.kr*fpixels_r[i]+Kg*fpixels_g[i]+colorProcParameters.kb*fpixels_b[i];
+    		fpixels_pb[i] = (float) (Sb*(fpixels_b[i]-Y));
+    		fpixels_pr[i] = (float) (Sr*(fpixels_r[i]-Y));
+    		fpixels_y0[i]=(float) Y;
+    	}
+    	/* calculate Y from weighted colors, weights derived from how good each color component predicts signal in each subpixel of Bayer pattern */
+    	if (useWeights) {
+    		fpixels_y=  new float [length];
+    		for (i=0;i<length;i++) {
+    			Pb=fpixels_pb[i];
+    			Pr=fpixels_pr[i];
+    			Yr = fpixels_r[i]- Pr*KPrR;
+    			Yb = fpixels_b[i]- Pb*KPbB;
+    			Yg = fpixels_g[i]+ Pr*KPrG  + Pb*KPbG;
+    			Wr=fpixels_wr[i];
+    			Wb=fpixels_wb[i];
+    			Wg=1.0-Wr-Wb;
+    			S=1.0/(Wr*(colorProcParameters.weightScaleR-1.0)+Wb*(colorProcParameters.weightScaleB-1.0)+1.0);
+    			Wr*=S*colorProcParameters.weightScaleR;
+    			Wb*=S*colorProcParameters.weightScaleB;
+    			Wg*=S;
+    			Y=Yr*Wr+Yg*Wg+Yb*Wb;
+    			fpixels_y[i]=(float) Y;
+    			if (debugLevel>2) {
+    				fpixels_yR[i]= (float) Yr;
+    				fpixels_yG[i]= (float) Yg;
+    				fpixels_yB[i]= (float) Yb;
+    			}
+    		}
+    	}
+    	/* Low-pass filter Pb and Pr */
+    	DoubleGaussianBlur gb=new DoubleGaussianBlur();
+    	double [] dpixels_pr=new double[fpixels_pr.length];
+    	double [] dpixels_pb=new double[fpixels_pb.length];
+    	for (i=0;i<dpixels_pr.length;i++) {
+    		dpixels_pr[i]=fpixels_pr[i];
+    		dpixels_pb[i]=fpixels_pb[i];
+    	}
+    	if (colorProcParameters.maskMax>0.0) {
+    		double [] dmask=new double[fpixels_y0.length];
+    		for (i=0;i<dpixels_pr.length;i++)  dmask[i]=fpixels_y0[i];
+    		double [] dpixels_pr_dark=dpixels_pr.clone();
+    		double [] dpixels_pb_dark=dpixels_pb.clone();
+    		gb.blurDouble(dmask, width, height, colorProcParameters.maskSigma, colorProcParameters.maskSigma, 0.01);
+    		gb.blurDouble(dpixels_pr, width, height, colorProcParameters.chromaBrightSigma, colorProcParameters.chromaBrightSigma, 0.01);
+    		gb.blurDouble(dpixels_pb, width, height, colorProcParameters.chromaBrightSigma, colorProcParameters.chromaBrightSigma, 0.01);
+    		gb.blurDouble(dpixels_pr_dark, width, height, colorProcParameters.chromaDarkSigma, colorProcParameters.chromaDarkSigma, 0.01);
+    		gb.blurDouble(dpixels_pb_dark, width, height, colorProcParameters.chromaDarkSigma, colorProcParameters.chromaDarkSigma, 0.01);
+    		if (debugLevel>2) {
+    			SDFA_INSTANCE.showArrays(dmask, width, height,"dmask");          
+    			SDFA_INSTANCE.showArrays(dpixels_pr, width, height,"dpixels_pr");          
+    			SDFA_INSTANCE.showArrays(dpixels_pb, width, height,"dpixels_pb");          
+    			SDFA_INSTANCE.showArrays(dpixels_pr_dark, width, height,"dpixels_pr_dark");          
+    			SDFA_INSTANCE.showArrays(dpixels_pb_dark, width, height,"dpixels_pb_dark");          
+    		}
+    		double mp;
+    		double k =1.0/(colorProcParameters.maskMax-colorProcParameters.maskMin);
+    		for (i=0;i<dmask.length;i++) {
+    			mp=dmask[i];
+    			if (mp < colorProcParameters.maskMin) {
+    				dmask[i]=0.0;
+    			} else if (mp< colorProcParameters.maskMax) {
+    				dmask[i]= k*(mp-colorProcParameters.maskMin);
+    			} else dmask[i]=1.0;
+    		}
+    		//TODO: null DENOISE_MASK if it is not calculated
+    		if (colorProcParameters.combineWithSharpnessMask) {
+    			if (denoiseMask==null) {
+    				System.out.println ( "Can not combine masks as denoiseMask is null (i.e. no denoise was performed)");
+    			} else if (denoiseMask.length!=dmask.length) {
+    				System.out.println ( "Can not combine masks as denoiseMask length is different from that of dmask");
+    			} else {
+    				for (i=0;i<dmask.length;i++) {
+    					dmask[i]+=denoiseMask[i];
+    					if (dmask[i]>1.0) dmask[i]=1.0;
+    				}
+    			}
+
+    		}
+    		for (i=0;i<dmask.length;i++) {
+    			mp=dmask[i];
+    			dpixels_pb[i]= (1.0-mp)*dpixels_pb_dark[i]+ mp* dpixels_pb[i];
+    			dpixels_pr[i]= (1.0-mp)*dpixels_pr_dark[i]+ mp* dpixels_pr[i];
+    		}
+    		this.denoiseMaskChroma=dmask; // (global, used to return denoise mask to save/show
+    		this.denoiseMaskChromaWidth=width; // width of the this.denoiseMaskChroma image
+    	} else {
+    		gb.blurDouble(dpixels_pr, width, height, colorProcParameters.chromaBrightSigma, colorProcParameters.chromaBrightSigma, 0.01);
+    		gb.blurDouble(dpixels_pb, width, height, colorProcParameters.chromaBrightSigma, colorProcParameters.chromaBrightSigma, 0.01);
+    		this.denoiseMaskChroma=null; // (global, used to return denoise mask to save/show
+    	}
+    	for (i=0;i<dpixels_pr.length;i++) {
+    		fpixels_pr[i]=(float) dpixels_pr[i];
+    		fpixels_pb[i]=(float) dpixels_pb[i];
+    	}
+    	stack.addSlice("Pr", fpixels_pr);
+    	stack.addSlice("Pb", fpixels_pb);
+    	stack.addSlice("Y",  fpixels_y);
+    	stack.addSlice("Y0", fpixels_y0); // not filtered by low-pass, preliminary (for comparison only)
+    	if (debugLevel>2) {
+    		stack.addSlice("Yr",fpixels_yR);
+    		stack.addSlice("Yg",fpixels_yG);
+    		stack.addSlice("Yb",fpixels_yB);
+    	}
 
     }
 

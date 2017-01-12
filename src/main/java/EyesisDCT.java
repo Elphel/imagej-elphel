@@ -23,10 +23,14 @@
  */
 
 import java.util.concurrent.atomic.AtomicInteger;
+
+import ij.CompositeImage;
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.Prefs;
+import ij.process.FloatProcessor;
+import ij.process.ImageProcessor;
 
 
 public class EyesisDCT {
@@ -233,7 +237,6 @@ public class EyesisDCT {
 					  factorConvKernel.setDCWeight         (dct_parameters.dc_weight);
 					  
 					  int chn,tileY,tileX;
-					  double kscale;
 //					  int chn0=-1;
 //					  int i;
 //					  double sum;
@@ -241,7 +244,6 @@ public class EyesisDCT {
 						  chn=nTile/numberOfKernelsInChn;
 						  tileY =(nTile % numberOfKernelsInChn)/kernelNumHor;
 						  tileX = nTile % kernelNumHor;
-						  kscale = 1.0;
 /*						  
 						  if (vignetting != null){
 							  int vh = vgn_left + vgn_step * tileX;
@@ -255,7 +257,7 @@ public class EyesisDCT {
 						  }
 						  kscale = vgn_max/kscale * ((chn == chn_green)? 2:4);
 */						  
-						  kscale = (chn == chn_green)? 2:4;
+////						  kscale = (chn == chn_green)? 2:4;
 						  if (tileX==0) {
 							  if (updateStatus) IJ.showStatus("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+kernelNumVert);
 							  if (globalDebugLevel>2) System.out.println("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+kernelNumVert+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
@@ -291,7 +293,7 @@ public class EyesisDCT {
 							  for (int i = 0; i < pre_target_kernel.length; i++){
 								  s+=pre_target_kernel[i];
 							  }
-							  s =  kscale/s;
+							  s =  1.0 / s;
 							  for (int i = 0; i < pre_target_kernel.length; i++){
 								  pre_target_kernel[i] *= s;
 							  }
@@ -632,8 +634,10 @@ public class EyesisDCT {
 					
 					ImageStack kernel_sym_stack=  imp_kernel_sym.getStack();
 					ImageStack kernel_asym_stack= imp_kernel_asym.getStack();
-					System.out.println(                           " kernel_asym_stack.getWidth() = "+kernel_asym_stack.getWidth()+
-							" kernel_asym_stack.getHeight() = "+kernel_asym_stack.getHeight());
+					if (debugLevel>0){
+						System.out.println(" kernel_asym_stack.getWidth() = "+kernel_asym_stack.getWidth()+
+								" kernel_asym_stack.getHeight() = "+kernel_asym_stack.getHeight());
+					}
 					int nColors = kernel_sym_stack.getSize();
 					kernels[chn]=  new DCTKernels();
 					kernels[chn].size = dct_parameters.dct_size;
@@ -673,14 +677,15 @@ public class EyesisDCT {
 					kernels[chn].asym_indx =  new int [nColors][numVert][numHor][asym_nonzero];
 					int sym_kernel_inc_index =   numHor * dct_size;
 					int asym_kernel_inc_index =   numHor * asym_size;
-					System.out.println("readDCTKernels() debugLevel = "+debugLevel+
-							" kernels["+chn+"].size = "+kernels[chn].size+
-							" kernels["+chn+"].img_step = "+kernels[chn].img_step+
-							" kernels["+chn+"].asym_nonzero = "+kernels[chn].asym_nonzero+
-							" nColors = "+ nColors+
-							" numVert = "+ numVert+
-							" numHor =  "+ numHor);
-
+					if (debugLevel>0) {
+						System.out.println("readDCTKernels() debugLevel = "+debugLevel+
+								" kernels["+chn+"].size = "+kernels[chn].size+
+								" kernels["+chn+"].img_step = "+kernels[chn].img_step+
+								" kernels["+chn+"].asym_nonzero = "+kernels[chn].asym_nonzero+
+								" nColors = "+ nColors+
+								" numVert = "+ numVert+
+								" numHor =  "+ numHor);
+					}
 					for (int nc = 0; nc < nColors; nc++){
 						for (int tileY = 0; tileY < numVert; tileY++){
 							for (int tileX = 0; tileX < numHor; tileX++){
@@ -691,7 +696,7 @@ public class EyesisDCT {
 									for (int j = 0; (j < dct_parameters.asym_size) && (indx < asym_nonzero); j++){
 										double v = kernels[chn].asym_kernels[nc][asym_kernel_start_index + i * asym_kernel_inc_index +j];
 										if (v!=0.0){
-											if ((tileY==67) && (tileX==125)) {
+											if ((debugLevel>0) && (tileY==67) && (tileX==125)) {
 												System.out.println("i="+i+" j="+j+" v="+v+" indx="+indx+" i * asym_size + j="+(i * asym_size + j));
 												System.out.println("asym_kernel_start_index + i * asym_kernel_inc_index +j="+(asym_kernel_start_index + i * asym_kernel_inc_index +j));
 											}
@@ -701,7 +706,7 @@ public class EyesisDCT {
 										}
 									}
 								}
-								if ((tileY==67) && (tileX==125)) {
+								if ((debugLevel>0) && (tileY==67) && (tileX==125)) {
 									for (int i=0; i<kernels[chn].asym_indx[nc][tileY][tileX].length; i++){
 										System.out.println("kernels["+chn+"].asym_val["+nc+"]["+tileY+"]["+tileX+"]["+i+"]="+kernels[chn].asym_val[nc][tileY][tileX][i]);
 										System.out.println("kernels["+chn+"].asym_indx["+nc+"]["+tileY+"]["+tileX+"]["+i+"]="+kernels[chn].asym_indx[nc][tileY][tileX][i]);
@@ -712,15 +717,17 @@ public class EyesisDCT {
 								if (dct_parameters.normalize) {
 									for (int i = 0; i < kernels[chn].asym_val[nc][tileY][tileX].length;i++){
 										scale_asym += kernels[chn].asym_val[nc][tileY][tileX][i];
-										if ((tileY==67) && (tileX==125)) {
+										if ((debugLevel>0) && (tileY==67) && (tileX==125)) {
 											System.out.println("i="+i+", sum="+scale_asym);
 										}
 									}
+									double k = ((nc == 2)? 1.0:2.0) / scale_asym;
 									for (int i = 0; i < kernels[chn].asym_val[nc][tileY][tileX].length;i++){
-										kernels[chn].asym_val[nc][tileY][tileX][i] /= scale_asym;
+//										kernels[chn].asym_val[nc][tileY][tileX][i] /= scale_asym;
+										kernels[chn].asym_val[nc][tileY][tileX][i] *= k; // includes correction for different number of pixels in r,b(1/4) and G (2/4)
 									}
-									if ((tileY==67) && (tileX==125)) {
-										System.out.println("sum="+scale_asym+", normalized:");
+									if ((debugLevel>0) && (tileY==67) && (tileX==125)) {
+										System.out.println("nc="+nc+" sum="+scale_asym+", normalized:");
 
 										for (int i=0; i<kernels[chn].asym_indx[nc][tileY][tileX].length; i++){
 											System.out.println("kernels["+chn+"].asym_val["+nc+"]["+tileY+"]["+tileX+"]["+i+"]="+kernels[chn].asym_val[nc][tileY][tileX][i]);
@@ -780,9 +787,11 @@ public class EyesisDCT {
 //							System.out.println("tileY="+tileY);
 						}
 					}
-					// Debug will be removed later, the 
-					sdfa_instance.showArrays(kernels[chn].sym_kernels,  sym_width, sym_height, true, symKernelPaths[chn]);
-					sdfa_instance.showArrays(kernels[chn].asym_kernels,  asym_width, asym_height, true, asymKernelPaths[chn]);
+					// Debug will be removed later, the
+					if (debugLevel > 0) {
+						sdfa_instance.showArrays(kernels[chn].sym_kernels,  sym_width, sym_height, true, symKernelPaths[chn]);
+						sdfa_instance.showArrays(kernels[chn].asym_kernels,  asym_width, asym_height, true, asymKernelPaths[chn]);
+					}
 					kernels[chn].sym_kernels = null;  // not needed anymore
 					kernels[chn].asym_kernels = null; // not needed anymore
 				}
@@ -847,12 +856,14 @@ public class EyesisDCT {
 						double [] asym_kernel = new double[asym_size*asym_size];
 						for (int i=0;i<asym_kernel.length; i++) asym_kernel[i] = 0.0;
 						for (int i = 0; i<kernels[chn].asym_indx[nc][tileY][tileX].length; i++){
-							asym_kernel[kernels[chn].asym_indx[nc][tileY][tileX][i]] = kernels[chn].asym_val[nc][tileY][tileX][i]; 
+							asym_kernel[kernels[chn].asym_indx[nc][tileY][tileX][i]] = kernels[chn].asym_val[nc][tileY][tileX][i];
+							/*
 							if ((tileY==67) && (tileX==125)) {
 								System.out.println("kernels["+chn+"].asym_val["+nc+"]["+tileY+"]["+tileX+"]["+i+"]="+kernels[chn].asym_val[nc][tileY][tileX][i]);
 								System.out.println("kernels["+chn+"].asym_indx["+nc+"]["+tileY+"]["+tileX+"]["+i+"]="+kernels[chn].asym_indx[nc][tileY][tileX][i]);
 								System.out.println("asym_kernel["+(kernels[chn].asym_indx[nc][tileY][tileX][i])+"]="+asym_kernel[kernels[chn].asym_indx[nc][tileY][tileX][i]]);
 							}
+							*/
 						}
 						int asym_kernel_start_index = (asym_kernel_inc_index * tileY + tileX)* asym_size;
 						for (int i = 0; i < asym_size;i++){
@@ -1064,9 +1075,23 @@ public class EyesisDCT {
 					System.out.println("Vignetting data for channel "+channel+" has "+eyesisCorrections.channelVignettingCorrection[channel].length+" pixels, image "+path+" has "+pixels.length);
 					return null;
 				}
+				// TODO: Move to do it once:
+				double min_non_zero = 0.0;
 				for (int i=0;i<pixels.length;i++){
-					pixels[i]*=eyesisCorrections.channelVignettingCorrection[channel][i];
+					double d = eyesisCorrections.channelVignettingCorrection[channel][i];
+					if ((d > 0.0) && ((min_non_zero == 0) || (min_non_zero > d))){
+						min_non_zero = d;
+					}
 				}
+				double max_vign_corr = dct_parameters.vignetting_range*min_non_zero;
+				
+				System.out.println("Vignetting data: channel="+channel+", min = "+min_non_zero);
+				for (int i=0;i<pixels.length;i++){
+					double d = eyesisCorrections.channelVignettingCorrection[channel][i];
+					if (d > max_vign_corr) d = max_vign_corr;
+					pixels[i]*=d;
+				}
+
 			}
 			String title=name+"-"+String.format("%02d", channel);
 			ImagePlus result=imp_src;
@@ -1106,15 +1131,27 @@ public class EyesisDCT {
 	        		threadsMax,
 	        		debugLevel,
 	        		updateStatus);
-	        
-	        for (int chn = 0; chn < dctdc_data.length; chn++) {
-	        	image_dtt.dct_lpf(
-	        			dct_parameters.dbg_sigma,
-	        			dctdc_data[chn],
-	        			threadsMax,
-	        			debugLevel);
-	        }
-	        
+	        System.out.println("dctdc_data.length="+dctdc_data.length+" dctdc_data[0].length="+dctdc_data[0].length
+	        		+" dctdc_data[0][0].length="+dctdc_data[0][0].length+" dctdc_data[0][0][0].length="+dctdc_data[0][0][0].length);
+			if (dct_parameters.color_DCT){ // convert RBG -> YPrPb
+				dctdc_data = image_dtt.dct_color_convert(
+						dctdc_data,
+						colorProcParameters.kr,
+						colorProcParameters.kb,
+						dct_parameters.sigma_rb,        // blur of channels 0,1 (r,b) in addition to 2 (g)
+						dct_parameters.sigma_y,         // blur of Y from G
+						dct_parameters.sigma_color,     // blur of Pr, Pb in addition to Y
+						threadsMax,
+						debugLevel);
+			} else { // just LPF RGB
+				for (int chn = 0; chn < dctdc_data.length; chn++) {
+					image_dtt.dct_lpf(
+							dct_parameters.dbg_sigma,
+							dctdc_data[chn],
+							threadsMax,
+							debugLevel);
+				}
+			}
 	        
 	        int tilesY = stack.getHeight()/dct_parameters.dct_size - 1;
 	        int tilesX = stack.getWidth()/dct_parameters.dct_size - 1;
@@ -1125,11 +1162,13 @@ public class EyesisDCT {
 	        double [][] dct_dc = new double [dctdc_data.length][];
 	        double [][] dct_ac = new double [dctdc_data.length][];
 	        for (int chn = 0; chn < dct_dc.length; chn++) {
-	        	dct_dc[chn] = image_dtt.lapped_dct_dcac(
-	        			false, //       out_ac, // false - output DC, true - output AC
-	        			dctdc_data [chn],
-	        			threadsMax,
-	        			debugLevel);
+	        	if (!dct_parameters.color_DCT){ // convert RBG -> YPrPb
+	        		dct_dc[chn] = image_dtt.lapped_dct_dcac(
+	        				false, //       out_ac, // false - output DC, true - output AC
+	        				dctdc_data [chn],
+	        				threadsMax,
+	        				debugLevel);
+	        	}
 	        	dct_ac[chn] = image_dtt.lapped_dct_dcac(
 	        			true, //       out_ac, // false - output DC, true - output AC
 	        			dctdc_data [chn],
@@ -1137,16 +1176,20 @@ public class EyesisDCT {
 	        			debugLevel);
 	        }
 //	        System.out.println("dct_dc.length="+dct_dc.length+" dct_ac.length="+dct_ac.length);
-	        sdfa_instance.showArrays(dct_ac,
-	        		tilesX*dct_parameters.dct_size,
-	        		tilesY*dct_parameters.dct_size,
-	        		true,
-	        		result.getTitle()+"-DCT_AC");  
-	        sdfa_instance.showArrays(dct_dc,
-	        		tilesX,
-	        		tilesY,
-	        		true,
-	        		result.getTitle()+"-DCT_DC");  
+	        if (debugLevel > 0){
+	        	sdfa_instance.showArrays(dct_ac,
+	        			tilesX*dct_parameters.dct_size,
+	        			tilesY*dct_parameters.dct_size,
+	        			true,
+	        			result.getTitle()+"-DCT_AC");
+	        	if (!dct_parameters.color_DCT){ // convert RBG -> YPrPb
+	        		sdfa_instance.showArrays(dct_dc,
+	        				tilesX,
+	        				tilesY,
+	        				true,
+	        				result.getTitle()+"-DCT_DC");
+	        	}
+	        }
 	        double [][] idct_data = new double [dctdc_data.length][];
 	        for (int chn=0; chn<idct_data.length;chn++){
 	        	idct_data[chn] = image_dtt.lapped_idctdc(
@@ -1156,15 +1199,272 @@ public class EyesisDCT {
 	        			threadsMax,
 	        			debugLevel);
 	        }
-	        sdfa_instance.showArrays(idct_data,
+			if (dct_parameters.color_DCT){ // convert RBG -> YPrPb
+				sdfa_instance.showArrays(idct_data,
+						(tilesX + 1) * dct_parameters.dct_size,
+						(tilesY + 1) * dct_parameters.dct_size,
+						true,
+						result.getTitle()+"-IDCTDC-YPrPb");
+				// temporary convert back to RGB
+				idct_data = YPrPbToRBG(idct_data,
+						colorProcParameters.kr,        // 0.299;
+						colorProcParameters.kb,        // 0.114;
+						(tilesX + 1) * dct_parameters.dct_size);
+				
+			}
+			sdfa_instance.showArrays(idct_data,
+					(tilesX + 1) * dct_parameters.dct_size,
+					(tilesY + 1) * dct_parameters.dct_size,
+					true,
+					result.getTitle()+"-IDCTDC-RGB");
+			
+	        // convert to ImageStack of 3 slices
+	        String [] sliceNames = {"red", "blue", "green"};
+	        stack = sdfa_instance.makeStack(
+	        		idct_data,
 	        		(tilesX + 1) * dct_parameters.dct_size,
 	        		(tilesY + 1) * dct_parameters.dct_size,
+	        		sliceNames); // or use null to get chn-nn slice names
+	        if (!this.correctionsParameters.colorProc){
+	        	result= new ImagePlus(titleFull, stack);    			  
+	        	eyesisCorrections.saveAndShow(
+	        			result,
+	        			this.correctionsParameters);
+	        	return result;
+	        }
+	        System.out.println("before colors.1");
+	        //Processing colors - changing stack sequence to r-g-b (was r-b-g)
+	        if (!eyesisCorrections.fixSliceSequence(
+	        		stack,
+	        		debugLevel)){
+	        	if (debugLevel > -1) System.out.println("fixSliceSequence() returned false");
+	        	return null;
+	        }
+	        System.out.println("before colors.2");
+	        if (debugLevel > -1){
+	        	ImagePlus imp_dbg=new ImagePlus(imp_src.getTitle()+"-"+channel+"-preColors",stack);
+	        	eyesisCorrections.saveAndShow(
+	        			imp_dbg,
+	        			this.correctionsParameters);
+	        }
+	        System.out.println("before colors.3, scaleExposure="+scaleExposure+" scale = "+(255.0/eyesisCorrections.psfSubpixelShouldBe4/eyesisCorrections.psfSubpixelShouldBe4/scaleExposure));
+			CorrectionColorProc correctionColorProc=new CorrectionColorProc(eyesisCorrections.stopRequested);
+			double [][] yPrPb=new double [3][];
+//			if (dct_parameters.color_DCT){
+// need to get YPbPr - not RGB here				
+//			} else {
+				correctionColorProc.processColorsWeights(stack, // just gamma convert? TODO: Cleanup? Convert directly form the linear YPrPb
+						//					  255.0/this.psfSubpixelShouldBe4/this.psfSubpixelShouldBe4, //  double scale,     // initial maximal pixel value (16))
+						//					  255.0/eyesisCorrections.psfSubpixelShouldBe4/eyesisCorrections.psfSubpixelShouldBe4/scaleExposure, //  double scale,     // initial maximal pixel value (16))
+						//					  255.0/2/2/scaleExposure, //  double scale,     // initial maximal pixel value (16))
+						255.0/scaleExposure, //  double scale,     // initial maximal pixel value (16))
+						colorProcParameters,
+						channelGainParameters,
+						channel,
+						null, //correctionDenoise.getDenoiseMask(),
+						this.correctionsParameters.blueProc,
+						debugLevel);
+				if (debugLevel > -1) System.out.println("Processed colors to YPbPr, total number of slices="+stack.getSize());
+				if (debugLevel > 0){
+					ImagePlus imp_dbg=new ImagePlus("procColors",stack);
+					eyesisCorrections.saveAndShow(
+							imp_dbg,
+							this.correctionsParameters);
+				}
+				float [] fpixels;
+				int [] slices_YPrPb = {8,6,7};
+				yPrPb=new double [3][];
+				for (int n = 0; n < slices_YPrPb.length; n++){
+					fpixels = (float[]) stack.getPixels(slices_YPrPb[n]);
+					yPrPb[n] = new double [fpixels.length];
+					for (int i = 0; i < fpixels.length; i++) yPrPb[n][i] = fpixels[i];
+				}
+//			}
+			String [] slice_names_YPrPb={"Y","Pr","Pb"};
+	        sdfa_instance.showArrays(idct_data,
+	        		stack.getWidth(), // (tilesX + 1) * dct_parameters.dct_size,
+	        		stack.getHeight(), // (tilesY + 1) * dct_parameters.dct_size,
 	        		true,
-	        		result.getTitle()+"-IDCTDC");  
+	        		result.getTitle()+"-YPrPb",
+	        		slice_names_YPrPb);
+
+
+			if (toRGB) {
+				System.out.println("correctionColorProc.YPrPbToRGB");
+				stack =  YPrPbToRGB(yPrPb,
+						colorProcParameters.kr,        // 0.299;
+						colorProcParameters.kb,        // 0.114;
+			    		stack.getWidth());
+				
+				/*
+				correctionColorProc.YPrPbToRGB(stack,
+						colorProcParameters.kr,        // 0.299;
+						colorProcParameters.kb,        // 0.114;
+						colorProcParameters.useFirstY?9:8,        //  int sliceY,
+								6, // int slicePr,
+								7// int slicePb
+						);
+				
+				*/
+				
+				title=titleFull; // including "-DECONV" or "-COMBO"
+				titleFull=title+"-RGB-float";
+				//Trim stack to just first 3 slices
+				if (debugLevel > 0){ // 2){
+					ImagePlus imp_dbg=new ImagePlus("YPrPbToRGB",stack);
+					eyesisCorrections.saveAndShow(
+							imp_dbg,
+							this.correctionsParameters);
+				}
+				while (stack.getSize() > 3) stack.deleteLastSlice();
+				if (debugLevel > -1) System.out.println("Trimming color stack");
+			} else {
+				title=titleFull; // including "-DECONV" or "-COMBO"
+				titleFull=title+"-YPrPb"; // including "-DECONV" or "-COMBO"
+				if (debugLevel > -1) System.out.println("Using full stack, including YPbPr");
+			}
+
+			result= new ImagePlus(titleFull, stack);    			  
+			// Crop image to match original one (scaled to oversampling)
+			if (crop){ // always crop if equirectangular
+				System.out.println("cropping");
+				stack = eyesisCorrections.cropStack32(stack,splitParameters);
+				if (debugLevel > -1) { // 2){
+					ImagePlus imp_dbg=new ImagePlus("cropped",stack);
+					eyesisCorrections.saveAndShow(
+							imp_dbg,
+							this.correctionsParameters);
+				}
+			}
+			// rotate the result			  
+			if (rotate){ // never rotate for equirectangular
+				stack=eyesisCorrections.rotateStack32CW(stack);
+			}
+			if (!toRGB && !this.correctionsParameters.jpeg){ // toRGB set for equirectangular
+				System.out.println("!toRGB && !this.correctionsParameters.jpeg");
+				eyesisCorrections.saveAndShow(result, this.correctionsParameters);
+				return result;
+			} else { // that's not the end result, save if required
+				System.out.println("!toRGB && !this.correctionsParameters.jpeg - else");
+				eyesisCorrections.saveAndShow(result,
+						eyesisCorrections.correctionsParameters,
+						eyesisCorrections.correctionsParameters.save32,
+						false,
+						eyesisCorrections.correctionsParameters.JPEG_quality); // save, no show
+			}
+			// convert to RGB48 (16 bits per color component)
+			ImagePlus imp_RGB;
+			stack=eyesisCorrections.convertRGB32toRGB16Stack(
+					stack,
+					rgbParameters); 
+
+			titleFull=title+"-RGB48";
+			result= new ImagePlus(titleFull, stack);
+			//			  ImagePlus imp_RGB24;
+			result.updateAndDraw();
+			System.out.println("result.updateAndDraw(), "+titleFull+"-RGB48");
+
+			CompositeImage compositeImage=eyesisCorrections.convertToComposite(result);
+
+			if (!this.correctionsParameters.jpeg && !advanced){ // RGB48 was the end result
+				System.out.println("if (!this.correctionsParameters.jpeg && !advanced)");
+				eyesisCorrections.saveAndShow(compositeImage, this.correctionsParameters);
+				return result;
+			} else { // that's not the end result, save if required
+				System.out.println("if (!this.correctionsParameters.jpeg && !advanced) - else");
+				eyesisCorrections.saveAndShow(compositeImage, this.correctionsParameters, this.correctionsParameters.save16, false); // save, no show
+				//				  eyesisCorrections.saveAndShow(compositeImage, this.correctionsParameters, this.correctionsParameters.save16, true); // save, no show
+			}
+
+			imp_RGB=eyesisCorrections.convertRGB48toRGB24(
+					stack,
+					title+"-RGB24",
+					0, 65536, // r range 0->0, 65536->256
+					0, 65536, // g range
+					0, 65536);// b range
+			if (JPEG_scale!=1.0){
+				ImageProcessor ip=imp_RGB.getProcessor();
+				ip.setInterpolationMethod(ImageProcessor.BICUBIC);
+				ip=ip.resize((int)(ip.getWidth()*JPEG_scale),(int) (ip.getHeight()*JPEG_scale));
+				imp_RGB= new ImagePlus(imp_RGB.getTitle(),ip);
+				imp_RGB.updateAndDraw();
+			}
+			eyesisCorrections.saveAndShow(imp_RGB, this.correctionsParameters);
+
 			return result;
 		}
-		
-		
-		
-		
+
+		public ImageStack  YPrPbToRGB(double [][] yPrPb,
+				double Kr,        // 0.299;
+				double Kb,        // 0.114;
+				int width
+				) {
+			int length = yPrPb[0].length;
+			int height = length/width;
+
+			float [] fpixels_r= new float [length];
+			float [] fpixels_g= new float [length];
+			float [] fpixels_b= new float [length];
+			double Kg=1.0-Kr-Kb;
+			int i;
+			/**
+	R= Y+ Pr*2.0*(1-Kr)
+	B= Y+ Pb*2.0*(1-Kb)
+	G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
+
+			 */
+			double KPrR=  2.0*(1-Kr);
+			double KPbB=  2.0*(1-Kb);
+			double KPrG= -2.0*Kr*(1-Kr)/Kg;
+			double KPbG= -2.0*Kb*(1-Kb)/Kg;
+			double Y,Pr,Pb;
+			for (i=0;i<length;i++) {
+				Pb=yPrPb[2][i];
+				Pr=yPrPb[1][i];
+				Y =yPrPb[0][i];
+				fpixels_r[i]=(float) (Y+ Pr*KPrR);
+				fpixels_b[i]=(float) (Y+ Pb*KPbB);
+				fpixels_g[i]=(float) (Y+ Pr*KPrG + Pb*KPbG);
+			}
+			ImageStack stack=new ImageStack(width,height);
+			stack.addSlice("red",   fpixels_r);
+			stack.addSlice("green", fpixels_g);
+			stack.addSlice("blue",  fpixels_b);
+			return stack;
+
+		}
+
+		public double [][]  YPrPbToRBG(double [][] yPrPb,
+				double Kr,        // 0.299;
+				double Kb,        // 0.114;
+				int width
+				) {
+			int length = yPrPb[0].length;
+			int height = length/width;
+			
+			double [][]rbg = new double[3][length];
+			double Kg=1.0-Kr-Kb;
+			int i;
+			/**
+	R= Y+ Pr*2.0*(1-Kr)
+	B= Y+ Pb*2.0*(1-Kb)
+	G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
+
+			 */
+			double KPrR=  2.0*(1-Kr);
+			double KPbB=  2.0*(1-Kb);
+			double KPrG= -2.0*Kr*(1-Kr)/Kg;
+			double KPbG= -2.0*Kb*(1-Kb)/Kg;
+			double Y,Pr,Pb;
+			for (i=0;i<length;i++) {
+				Pb=yPrPb[2][i];
+				Pr=yPrPb[1][i];
+				Y =yPrPb[0][i];
+				rbg[0][i]=(float) (Y+ Pr*KPrR);
+				rbg[1][i]=(float) (Y+ Pb*KPbB);
+				rbg[2][i]=(float) (Y+ Pr*KPrG + Pb*KPbG);
+			}
+			return rbg;
+		}
+
 }

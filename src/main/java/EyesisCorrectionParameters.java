@@ -1802,7 +1802,13 @@ public class EyesisCorrectionParameters {
   		public boolean convolve_direct = false; // do not apply symmetrical correction
   		
   		public double vignetting_max    = 0.4; // value in vignetting data to correspond to 1x in the kernel
-  		public double vignetting_range  = 3.0; // do not try to correct vignetting less than vignetting_max/vignetting_range
+  		public double vignetting_range  = 5.0; // do not try to correct vignetting less than vignetting_max/vignetting_range
+  		
+  		public boolean color_DCT        = true; // false - use old color processing mode
+  		public double  sigma_rb =         0.5; // additional (to G) blur for R and B
+  		public double  sigma_y =          0.5; // blur for G contribution to Y
+  		public double  sigma_color =      1.0; // blur for Pb and Pr in addition to that of Y
+  		public double  line_thershold =   1.0; // line detection amplitude to apply line enhancement
 
   		public DCTParameters(
   				int dct_size,
@@ -1857,6 +1863,12 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"convolve_direct",    this.convolve_direct+"");
   			properties.setProperty(prefix+"vignetting_max",   this.vignetting_max+"");
   			properties.setProperty(prefix+"vignetting_range",   this.vignetting_range+"");
+
+  			properties.setProperty(prefix+"color_DCT",          this.color_DCT+"");
+  			properties.setProperty(prefix+"sigma_rb",           this.sigma_rb+"");
+  			properties.setProperty(prefix+"sigma_y",            this.sigma_y+"");
+  			properties.setProperty(prefix+"sigma_color",        this.sigma_color+"");
+  			properties.setProperty(prefix+"line_thershold",     this.line_thershold+"");
   			
   		}
   		public void getProperties(String prefix,Properties properties){
@@ -1894,7 +1906,12 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"convolve_direct")!=null) this.convolve_direct=Boolean.parseBoolean(properties.getProperty(prefix+"convolve_direct"));
   			if (properties.getProperty(prefix+"vignetting_max")!=null) this.vignetting_max=Double.parseDouble(properties.getProperty(prefix+"vignetting_max"));
   			if (properties.getProperty(prefix+"vignetting_range")!=null) this.vignetting_range=Double.parseDouble(properties.getProperty(prefix+"vignetting_range"));
-  		
+  			if (properties.getProperty(prefix+"color_DCT")!=null)      this.color_DCT=Boolean.parseBoolean(properties.getProperty(prefix+"color_DCT"));
+  			if (properties.getProperty(prefix+"sigma_rb")!=null)       this.sigma_rb=Double.parseDouble(properties.getProperty(prefix+"sigma_rb"));
+  			if (properties.getProperty(prefix+"sigma_y")!=null)        this.sigma_y=Double.parseDouble(properties.getProperty(prefix+"sigma_y"));
+  			if (properties.getProperty(prefix+"sigma_color")!=null)    this.sigma_color=Double.parseDouble(properties.getProperty(prefix+"sigma_color"));
+  			if (properties.getProperty(prefix+"line_thershold")!=null) this.line_thershold=Double.parseDouble(properties.getProperty(prefix+"line_thershold"));
+
   		}
   		public boolean showDialog() {
   			GenericDialog gd = new GenericDialog("Set DCT parameters");
@@ -1931,9 +1948,15 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Do not apply symmetrical (DCT) correction ",                     this.skip_sym);
   			gd.addCheckbox    ("Convolve directly with symmetrical kernel (debug feature) ",     this.convolve_direct);
   			gd.addNumericField("Value (max) in vignetting data to correspond to 1x in the kernel",this.vignetting_max,      3);
-  			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",this.vignetting_range,    3);
+  			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",this.vignetting_range,  3);
   			
-    		WindowTools.addScrollBars(gd);
+  			gd.addCheckbox    ("Use DCT-base color conversion",                                   this.color_DCT             );
+  			gd.addNumericField("Gaussian sigma to apply to R and B (in addition to G), pix",      this.sigma_rb,            3);
+  			gd.addNumericField("Gaussian sigma to apply to Y in the MDCT domain, pix",            this.sigma_y,             3);
+  			gd.addNumericField("Gaussian sigma to apply to Pr and Pb in the MDCT domain, pix",    this.sigma_color,         3);
+  			gd.addNumericField("Threshold for line detection",                                    this.line_thershold,      3);
+
+  			WindowTools.addScrollBars(gd);
   			gd.showDialog();
   			
   			if (gd.wasCanceled()) return false;
@@ -1971,6 +1994,13 @@ public class EyesisCorrectionParameters {
   			this.convolve_direct=       gd.getNextBoolean();
   			this.vignetting_max=        gd.getNextNumber();
   			this.vignetting_range=      gd.getNextNumber();
+
+  			this.color_DCT=             gd.getNextBoolean();
+  			this.sigma_rb=              gd.getNextNumber();
+  			this.sigma_y=               gd.getNextNumber();
+  			this.sigma_color=           gd.getNextNumber();
+  			this.line_thershold=        gd.getNextNumber();
+  			
   			//  	    MASTER_DEBUG_LEVEL= (int) gd.getNextNumber();
   			return true;
   		}  

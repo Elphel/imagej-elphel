@@ -1390,7 +1390,8 @@ public class EyesisCorrections {
 	 /* ======================================================================== */
 	  
 	  
-	  private boolean fixSliceSequence (
+//	  private boolean fixSliceSequence (
+	public boolean fixSliceSequence ( // for EyesisDCT
 			  ImageStack stack,
 			  int debugLevel){
 		  int i,j;
@@ -2254,7 +2255,7 @@ public class EyesisCorrections {
 	 			correctionsParameters.JPEG_quality);
 	   }
 
-	   private void saveAndShow(
+	   void saveAndShow(
 //	   public void saveAndShow(
 			   ImagePlus             imp,
 			   EyesisCorrectionParameters.CorrectionParameters  correctionsParameters,
@@ -2263,7 +2264,7 @@ public class EyesisCorrections {
 		   saveAndShow(imp, correctionsParameters,  save,  show, -1);
 	   } 
 	   
-	   private void saveAndShow(
+	   void saveAndShow(
 	 		  ImagePlus             imp,
 	 		 EyesisCorrectionParameters.CorrectionParameters  correctionsParameters,
 	 		  boolean               save,

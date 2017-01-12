@@ -2758,16 +2758,18 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         			DEBUG_LEVEL);
         }
 //        System.out.println("dct_dc.length="+dct_dc.length+" dct_ac.length="+dct_ac.length);
-        SDFA_INSTANCE.showArrays(dct_ac,
-        		tilesX*DCT_PARAMETERS.dct_size,
-        		tilesY*DCT_PARAMETERS.dct_size,
-        		true,
-        		DBG_IMP.getTitle()+"-DCT_AC");  
-        SDFA_INSTANCE.showArrays(dct_dc,
-        		tilesX,
-        		tilesY,
-        		true,
-        		DBG_IMP.getTitle()+"-DCT_DC");  
+        if (DEBUG_LEVEL > 0){
+        	SDFA_INSTANCE.showArrays(dct_ac,
+        			tilesX*DCT_PARAMETERS.dct_size,
+        			tilesY*DCT_PARAMETERS.dct_size,
+        			true,
+        			DBG_IMP.getTitle()+"-DCT_AC");  
+        	SDFA_INSTANCE.showArrays(dct_dc,
+        			tilesX,
+        			tilesY,
+        			true,
+        			DBG_IMP.getTitle()+"-DCT_DC");
+        }
         double [][] idct_data = new double [dctdc_data.length][];
         for (int chn=0; chn<idct_data.length;chn++){
         	idct_data[chn] = image_dtt.lapped_idctdc(
