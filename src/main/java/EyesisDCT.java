@@ -29,6 +29,7 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.Prefs;
+import ij.io.FileSaver;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 
@@ -107,31 +108,10 @@ public class EyesisDCT {
 			}
 		}
 	    showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
-//	    String [] sensor_files = correctionsParameters.selectSensorFiles(eyesisCorrections.debugLevel);
 	    
 
 		for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
 			if (eyesisCorrections.usedChannels[chn] && (sharpKernelPaths[chn]!=null) && (kernels[chn]==null)){
-//				if ((sensor_files!= null) && (sensor_files.length > chn) && (sensor_files[chn]!=null)){
-				/*				
-				double [][] vignetting = null;
-				int vign_width =       0;
-				int vign_height =      0;
-				int vign_decimation =  1;
-				if ((pixelMapping != null) &&
-						(pixelMapping.sensors != null) &&
-						(pixelMapping.sensors[chn] != null) &&
-						(pixelMapping.sensors[chn].pixelCorrection != null) &&
-						(pixelMapping.sensors[chn].pixelCorrection.length >=6)){
-					vignetting = new double[3][];
-					vignetting[0] = pixelMapping.sensors[chn].pixelCorrection[3]; // red
-					vignetting[2] = pixelMapping.sensors[chn].pixelCorrection[4]; // green
-					vignetting[1] = pixelMapping.sensors[chn].pixelCorrection[5]; // blue
-					vign_width =      pixelMapping.sensors[chn].pixelCorrectionWidth;
-					vign_height =     pixelMapping.sensors[chn].pixelCorrectionHeight;
-					vign_decimation = pixelMapping.sensors[chn].pixelCorrectionDecimation;
-				}
-*/				
 				ImagePlus imp_kernel_sharp=new ImagePlus(sharpKernelPaths[chn]);
 				if (imp_kernel_sharp.getStackSize()<3) {
 					System.out.println("Need a 3-layer stack with kernels");
@@ -145,22 +125,60 @@ public class EyesisDCT {
 						kernel_sharp_stack,            // final ImageStack kernelStack,  // first stack with 3 colors/slices convolution kernels
 						srcKernelSize,                 // final int          kernelSize, // 64
 						dct_parameters,                // final double       blurSigma,
-/*						
-						vignetting,
-						vign_width,
-						vign_height,
-						vign_decimation,
-*/						
 						threadsMax,  // maximal number of threads to launch                         
 						updateStatus,
 						debugLevel); // update status info
 				int sym_width =  kernels.numHor * kernels.dct_size;
 				int sym_height = kernels.sym_kernels[0].length /sym_width;
-				sdfa_instance.showArrays(kernels.sym_kernels,  sym_width, sym_height, true, imp_kernel_sharp.getTitle()+"-sym");
+// save files
+				String [] symNames = {"red_sym","blue_sym","green_sym"};
+				String [] asymNames = {"red_asym","blue_asym","green_asym"};
+				ImageStack symStack = sdfa_instance.makeStack(
+						kernels.sym_kernels,
+						sym_width,
+						sym_height,
+						symNames);
+	    		String symPath=correctionsParameters.dctKernelDirectory+
+	    				           Prefs.getFileSeparator()+
+	    				           correctionsParameters.dctKernelPrefix+
+	    				           String.format("%02d",chn)+
+	    				           correctionsParameters.dctSymSuffix;
+	    		String msg="Saving symmetrical convolution kernels to "+symPath;
+	    		IJ.showStatus(msg);
+	    		if (debugLevel>0) System.out.println(msg);
+				ImagePlus imp_sym=new ImagePlus(imp_kernel_sharp.getTitle()+"-sym",symStack);
+	    		if (debugLevel > 1) {
+	    			imp_sym.getProcessor().resetMinAndMax();
+	    			imp_sym.show();
+	    		}
+        		FileSaver fs=new FileSaver(imp_sym);
+        		fs.saveAsTiffStack(symPath);
+				
+//				sdfa_instance.showArrays(kernels.sym_kernels,  sym_width, sym_height, true, imp_kernel_sharp.getTitle()+"-sym");
 
 				int asym_width =  kernels.numHor * kernels.asym_size;
 				int asym_height = kernels.asym_kernels[0].length /asym_width;
-				sdfa_instance.showArrays(kernels.asym_kernels,  asym_width, asym_height, true, imp_kernel_sharp.getTitle()+"-asym");
+				ImageStack asymStack = sdfa_instance.makeStack(
+						kernels.asym_kernels,
+						asym_width,
+						asym_height,
+						asymNames);
+	    		String asymPath=correctionsParameters.dctKernelDirectory+
+	    				           Prefs.getFileSeparator()+
+	    				           correctionsParameters.dctKernelPrefix+
+	    				           String.format("%02d",chn)+
+	    				           correctionsParameters.dctAsymSuffix;
+	    		msg="Saving asymmetrical convolution kernels "+asymPath;
+	    		IJ.showStatus(msg);
+	    		if (debugLevel>0) System.out.println(msg);
+				ImagePlus imp_asym=new ImagePlus(imp_kernel_sharp.getTitle()+"-asym",asymStack);
+	    		if (debugLevel > 1) {
+	    			imp_asym.getProcessor().resetMinAndMax();
+	    			imp_asym.show();
+	    		}
+        		fs=new FileSaver(imp_asym);
+        		fs.saveAsTiffStack(asymPath);
+//				sdfa_instance.showArrays(kernels.asym_kernels,  asym_width, asym_height, true, imp_kernel_sharp.getTitle()+"-asym");
 			}
 		}
 		return true;

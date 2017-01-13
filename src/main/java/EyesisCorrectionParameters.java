@@ -1767,36 +1767,36 @@ public class EyesisCorrectionParameters {
   		}
   	}
     public static class DCTParameters {
-  		public int dct_size =     32; //
-  		public int asym_size =     6; //
-  		public int asym_pixels =  10; // maximal number of non-zero pixels in direct convolution kernel
-  		public int asym_distance = 2; // how far to try a new asym kernel pixel from existing ones 
-  		public int dct_window =   1; // currently only 3 types of windows - 0 (none), 1 and 2
-  		public int LMA_steps =  100;
-  		public double fact_precision=0.003; // stop iterations if error rms less than this part of target kernel rms
-  		public double compactness =  0.02;
-  		public double sym_compactness = 0.01;
-  		public double dc_weight = 10; // importance of dc realtive to rms_pure
-  		public int asym_tax_free  = 5; // "compactness" does not apply to pixels with |x|<=asym_tax_free  and |y| <= asym_tax_free
-  		public int seed_size = 8; // number of initial cells in asym_kernel - should be 4*b + 1 (X around center cell) or 4*n + 0  (X around between cells)
-  		public double asym_random; // initialize asym_kernel with random numbers
-  		public double dbg_x =0;
-  		public double dbg_y =0;
-  		public double dbg_x1 =0;
-  		public double dbg_y1 =0;
-  		public double dbg_sigma =2.0;
+  		public int dct_size =            8; //
+  		public int asym_size =          15; //
+  		public int asym_pixels =         4; // maximal number of non-zero pixels in direct convolution kernel
+  		public int asym_distance =       1; // how far to try a new asym kernel pixel from existing ones 
+  		public int dct_window =          1; // currently only 3 types of windows - 0 (none), 1 and 2
+  		public int LMA_steps =         100;
+  		public double fact_precision=    0.003; // stop iterations if error rms less than this part of target kernel rms
+  		public double compactness =      0.0;
+  		public double sym_compactness =  0.5;
+  		public double dc_weight =        1.0;  // importance of dc realtive to rms_pure
+  		public int    asym_tax_free  =   0;    // "compactness" does not apply to pixels with |x|<=asym_tax_free  and |y| <= asym_tax_free
+  		public int    seed_size =        1;    // number of initial cells in asym_kernel - should be 4*b + 1 (X around center cell) or 4*n + 0  (X around between cells)
+  		public double asym_random  =    -1; // initialize asym_kernel with random numbers
+  		public double dbg_x =            2.7;
+  		public double dbg_y =            0.0;
+  		public double dbg_x1 =          -1.3;
+  		public double dbg_y1 =           2.0;
+  		public double dbg_sigma =        0.8;
   		public String dbg_mask = ".........:::::::::.........:::::::::......*..:::::*:::.........:::::::::.........";
-  		public int dbg_mode = 1; // 0 - old LMA, 1 - new LMA - *** not used anymore ***
-  		public int dbg_window_mode = 2; // 0 - none, 1 - square, 2 - sin 3 - sin^2
+  		public int dbg_mode =            1; // 0 - old LMA, 1 - new LMA - *** not used anymore ***
+  		public int dbg_window_mode =     1; // 0 - none, 1 - square, 2 - sin 3 - sin^2 Now _should_ be square !!!
   		public boolean centerWindowToTarget = true;
   		// parameters to extract a kernel from the kernel image file
   		public int    color_channel =    2; // green (<0 - use simulated kernel, also will use simulated if kernels are not set)
   		public int    decimation =       2; // decimate original kernel this much in each direction
-  		public double decimateSigma =    0.4; // what is the optimal value for each decimation? 
+  		public double decimateSigma =   -1.0; // special mode for 2:1 deciamtion 
   		public int    tileX =            82;  // number of kernel tile (0..163) 
   		public int    tileY =            62;  // number of kernel tile (0..122) 
   		public boolean subtract_dc =     false;//subtract/restore dc
-  		public int    kernel_chn =      -1; //camera channel calibration to use for aberration correction ( < 0 - no correction)
+  		public int    kernel_chn =      -1; // camera channel calibration to use for aberration correction ( < 0 - no correction)
   		public boolean normalize =       true; //normalize both sym and asym kernels (asym to have sum==1, sym to have sum = dct_size
   		public boolean skip_sym =        false; // do not apply symmetrical correction
   		public boolean convolve_direct = false; // do not apply symmetrical correction
