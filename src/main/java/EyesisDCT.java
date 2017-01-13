@@ -1200,11 +1200,34 @@ public class EyesisDCT {
 	        			debugLevel);
 	        }
 			if (dct_parameters.color_DCT){ // convert RBG -> YPrPb
-				sdfa_instance.showArrays(idct_data,
+				sdfa_instance.showArrays(
+						idct_data,
 						(tilesX + 1) * dct_parameters.dct_size,
 						(tilesY + 1) * dct_parameters.dct_size,
 						true,
 						result.getTitle()+"-IDCTDC-YPrPb");
+				if ((dct_parameters.nonlin_y != 0.0) || (dct_parameters.nonlin_c != 0.0)) {
+			        System.out.println("Applying edge emphasis, nonlin_y="+dct_parameters.nonlin_y+
+			        		", nonlin_c="+dct_parameters.nonlin_c+", nonlin_corn="+dct_parameters.nonlin_corn);
+			        idct_data = edge_emphasis(
+			        		idct_data,                              // final double [][] yPrPb,
+			        		(tilesX + 1) * dct_parameters.dct_size, // final int         width,
+			        		dct_parameters.dct_size,                // final int         step,  //(does not need to be this)            // just for multi-threading efficiency?
+			        		dct_parameters.nonlin_max_y,            // final double      nonlin_max_y =     1.0; // maximal amount of nonlinear line/edge emphasis for Y component
+			        		dct_parameters.nonlin_max_c,            // final double      nonlin_max_c =     1.0; // maximal amount of nonlinear line/edge emphasis for C component
+			        		dct_parameters.nonlin_y,                // final double      nonlin_y,         //  =        0.01; // amount of nonlinear line/edge emphasis for Y component
+			        		dct_parameters.nonlin_c,                // final double      nonlin_c,         //  =        0.01; // amount of nonlinear line/edge emphasis for C component
+			        		dct_parameters.nonlin_corn,             // final double      nonlin_corn,      // =     0.5;  // relative weight for nonlinear corner elements
+			        		threadsMax,                             // final int         threadsMax,       // maximal number of threads to launch                         
+							debugLevel);                            // final int         globalDebugLevel)
+					sdfa_instance.showArrays(
+							idct_data,
+							(tilesX + 1) * dct_parameters.dct_size,
+							(tilesY + 1) * dct_parameters.dct_size,
+							true,
+							result.getTitle()+"-EMPH-"+dct_parameters.nonlin_y+"_"+dct_parameters.nonlin_c+"_"+dct_parameters.nonlin_corn);
+				}
+				
 				// temporary convert back to RGB
 				idct_data = YPrPbToRBG(idct_data,
 						colorProcParameters.kr,        // 0.299;
@@ -1467,4 +1490,162 @@ public class EyesisDCT {
 			return rbg;
 		}
 
+		
+		public double [][] edge_emphasis(
+				final double [][] yPrPb,
+				final int         width,
+				final int         step,             // just for multi-threading efficiency?
+				final double      nonlin_max_y, // =     1.0; // maximal amount of nonlinear line/edge emphasis for Y component
+				final double      nonlin_max_c, // =     1.0; // maximal amount of nonlinear line/edge emphasis for C component
+				final double      nonlin_y,         //  =        0.01; // amount of nonlinear line/edge emphasis for Y component
+				final double      nonlin_c,         //  =        0.01; // amount of nonlinear line/edge emphasis for C component
+				final double      nonlin_corn,      // =     0.5;  // relative weight for nonlinear corner elements
+				final int         threadsMax,       // maximal number of threads to launch                         
+				final int         globalDebugLevel)
+		{
+			final double [][] yPrPb_new = new double [yPrPb.length][yPrPb[0].length];
+			final int         height = yPrPb[0].length/width;
+			final int tilesY = (height + step - 1) / step;
+			final int tilesX = (width +  step - 1) / step;
+			final int nTiles=tilesX*tilesY;
+			final int    [][] probes =  {{1,7},{3,5},{2,6},{0,8}}; // indices in [012/345/678] 3x3 square to calculate squared sums of differences
+			final int    [][] kerns =   {{ 1,  3,  5,   7},  {1,   3,   5,  7},  {0,   2,   6,  8},  {0,   2,  6,   8}};  // indices in [012/345/678] 3x3 square to convolve data
+			final double [][] kernsw =  {{-1.0,1.0,1.0,-1.0},{1.0,-1.0,-1.0,1.0},{1.0,-1.0,-1.0,1.0},{-1.0,1.0,1.0,-1.0}}; // weights of kern elements
+			final int    []   neib_indices = {-width-1,-width,-width+1,-1,0,1,width-1,width,width+1};       
+			final double [][] kernsw_y = new double [kernsw.length][];
+			final double [][] kernsw_c = new double [kernsw.length][];
+			for (int n = 0; n < kernsw.length; n++){
+				kernsw_y[n] = new double [kernsw[n].length];
+				kernsw_c[n] = new double [kernsw[n].length];
+				for (int i = 0; i < kernsw[n].length; i++){
+					double dy = nonlin_y * ((n>=2)? nonlin_corn: 1.0); 
+					double dc = nonlin_c * ((n>=2)? nonlin_corn: 1.0); 
+					kernsw_y[n][i] = kernsw[n][i] * dy* dy; 
+					kernsw_c[n][i] = kernsw[n][i] * dc* dc; 
+				}
+			}
+			if (globalDebugLevel > 0){
+		        System.out.println("edge_emphasis(): nonlin_y="+nonlin_y+
+		        		", nonlin_c="+nonlin_c+", nonlin_corn="+nonlin_corn);
+		        for (int n=0; n<kernsw_y.length; n++){
+		        	System.out.print("kernsw_y["+n+"={");
+		        	for (int i = 0; i < kernsw_y[n].length; i++){
+			        	System.out.print(kernsw_y[n][i]);
+			        	if (i == (kernsw_y[n].length - 1)){
+			        		System.out.println("}");
+			        	} else {
+			        		System.out.print(", ");
+			        	}
+		        		
+		        	}
+		        }
+		        for (int n=0; n<kernsw_c.length; n++){
+		        	System.out.print("kernsw_c["+n+"={");
+		        	for (int i = 0; i < kernsw_c[n].length; i++){
+			        	System.out.print(kernsw_c[n][i]);
+			        	if (i == (kernsw_c[n].length - 1)){
+			        		System.out.println("}");
+			        	} else {
+			        		System.out.print(", ");
+			        	}
+		        	}
+		        }
+			}
+			
+			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+			final AtomicInteger ai = new AtomicInteger(0);
+
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						int tileY,tileX;
+						double [] neibs =   new double[9]; // pixels around current, first Y, then each color diff
+						double [] kern_y =  new double[9]; // weights of neighbors to add to the current for Y
+						double [] kern_c =  new double[9]; // weights of neighbors to add to the current for colors diffs
+						int center_index = 4;
+						for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
+							tileY = nTile/tilesX;
+							tileX = nTile - tileY * tilesX;
+							int y1 = (tileY +1) * step;
+							if (y1 > height) y1 = height;
+							int x1 = (tileX +1) * step;
+							if (x1 > width) x1 = width;
+							for (int y = tileY * step; y < y1; y++) {
+								for (int x = tileX * step; x < x1; x++) {
+									int indx = y*width + x;
+									for (int n  = 0; n < yPrPb.length; n++) {
+										yPrPb_new[n][indx] = yPrPb[n][indx]; // default - just copy old value
+									}
+									if ((y > 0) && (y < (height - 1)) && (x > 0) && (x < (width - 1))) { // only correct those not on the edge
+										// read Y pixels around current
+										for (int i = 0; i < neibs.length; i++){
+											neibs[i] = yPrPb[0][indx+neib_indices[i]];
+										}
+										for (int i = 0; i < kern_y.length; i++){
+											kern_y[i] = 0.0;
+											kern_c[i] = 0.0;
+										}
+										// calculate amount of each pattern
+										for (int n = 0; n < probes.length; n++){
+											double squared=0.0;
+											for (int i = 0; i < probes[n].length; i++){
+												squared += neibs[probes[n][i]];
+											}
+											squared -= probes[n].length * neibs[center_index];
+											squared *= squared; // Now it a square of the sum of differences from the center
+											for (int i = 0; i < kernsw[n].length; i++){
+												int ni = kerns[n][i];
+												kern_y[ni]+= squared*kernsw_y[n][i];
+												kern_c[ni]+= squared*kernsw_c[n][i];
+											}
+										}
+
+										if (nonlin_max_y != 0){
+											double sum = 0;
+											for (int i = 0; i < kern_y.length; i++){
+												sum += Math.abs(kern_y[i]);
+											}
+											if (sum > nonlin_max_y){
+												sum = nonlin_max_y/sum;
+												for (int i = 0; i < kern_y.length; i++){
+													kern_y[i] *= sum;
+												}
+											}
+										}
+										
+										if (nonlin_max_c != 0){
+											double sum = 0;
+											for (int i = 0; i < kern_c.length; i++){
+												sum += Math.abs(kern_c[i]);
+											}
+											if (sum > nonlin_max_c){
+												sum = nonlin_max_c/sum;
+												for (int i = 0; i < kern_c.length; i++){
+													kern_c[i] *= sum;
+												}
+											}
+										}
+										
+										for (int i = 0; i<kern_y.length; i++){
+											yPrPb_new[0][indx] += neibs[i]*kern_y[i]; 
+										}
+										for (int n = 1;n < 3; n++){ //color components
+											for (int i = 0; i < neibs.length; i++){
+												yPrPb_new[n][indx] += yPrPb[0][indx+neib_indices[i]]*kern_c[i]; 
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			return yPrPb_new;
+		}
+		
+		
+		
+		
 }

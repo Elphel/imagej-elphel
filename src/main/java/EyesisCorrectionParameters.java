@@ -1805,11 +1805,19 @@ public class EyesisCorrectionParameters {
   		public double vignetting_range  = 5.0; // do not try to correct vignetting less than vignetting_max/vignetting_range
   		
   		public boolean color_DCT        = true; // false - use old color processing mode
-  		public double  sigma_rb =         0.5; // additional (to G) blur for R and B
-  		public double  sigma_y =          0.5; // blur for G contribution to Y
-  		public double  sigma_color =      1.0; // blur for Pb and Pr in addition to that of Y
-  		public double  line_thershold =   1.0; // line detection amplitude to apply line enhancement
+  		public double  sigma_rb =         0.9; // additional (to G) blur for R and B
+  		public double  sigma_y =          0.7; // blur for G contribution to Y
+  		public double  sigma_color =      0.7; // blur for Pb and Pr in addition to that of Y
+  		public double  line_thershold =   1.0; // line detection amplitude to apply line enhancement - not used?
+  		public double  nonlin_max_y =     1.0; // maximal amount of nonlinear line/edge emphasis for Y component
+  		public double  nonlin_max_c =     1.0; // maximal amount of nonlinear line/edge emphasis for C component
+  		public double  nonlin_y =         0.1; // amount of nonlinear line/edge emphasis for Y component
+  		public double  nonlin_c =         0.01; // amount of nonlinear line/edge emphasis for C component
+  		public double  nonlin_corn =      0.5;  // relative weight for nonlinear corner elements
+  		
 
+  		public DCTParameters(){}
+  		
   		public DCTParameters(
   				int dct_size,
   				int asym_size,
@@ -1863,13 +1871,17 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"convolve_direct",    this.convolve_direct+"");
   			properties.setProperty(prefix+"vignetting_max",   this.vignetting_max+"");
   			properties.setProperty(prefix+"vignetting_range",   this.vignetting_range+"");
-
   			properties.setProperty(prefix+"color_DCT",          this.color_DCT+"");
   			properties.setProperty(prefix+"sigma_rb",           this.sigma_rb+"");
   			properties.setProperty(prefix+"sigma_y",            this.sigma_y+"");
   			properties.setProperty(prefix+"sigma_color",        this.sigma_color+"");
   			properties.setProperty(prefix+"line_thershold",     this.line_thershold+"");
   			
+  			properties.setProperty(prefix+"nonlin_max_y",           this.nonlin_max_y+"");
+  			properties.setProperty(prefix+"nonlin_max_c",           this.nonlin_max_c+"");
+  			properties.setProperty(prefix+"nonlin_y",           this.nonlin_y+"");
+  			properties.setProperty(prefix+"nonlin_c",           this.nonlin_c+"");
+  			properties.setProperty(prefix+"nonlin_corn",        this.nonlin_corn+"");
   		}
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"dct_size")!=null) this.dct_size=Integer.parseInt(properties.getProperty(prefix+"dct_size"));
@@ -1912,6 +1924,11 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"sigma_color")!=null)    this.sigma_color=Double.parseDouble(properties.getProperty(prefix+"sigma_color"));
   			if (properties.getProperty(prefix+"line_thershold")!=null) this.line_thershold=Double.parseDouble(properties.getProperty(prefix+"line_thershold"));
 
+  			if (properties.getProperty(prefix+"nonlin_max_y")!=null)       this.nonlin_max_y=Double.parseDouble(properties.getProperty(prefix+"nonlin_max_y"));
+  			if (properties.getProperty(prefix+"nonlin_max_c")!=null)       this.nonlin_max_c=Double.parseDouble(properties.getProperty(prefix+"nonlin_max_c"));
+  			if (properties.getProperty(prefix+"nonlin_y")!=null)       this.nonlin_y=Double.parseDouble(properties.getProperty(prefix+"nonlin_y"));
+  			if (properties.getProperty(prefix+"nonlin_c")!=null)       this.nonlin_c=Double.parseDouble(properties.getProperty(prefix+"nonlin_c"));
+  			if (properties.getProperty(prefix+"nonlin_corn")!=null)    this.nonlin_corn=Double.parseDouble(properties.getProperty(prefix+"nonlin_corn"));
   		}
   		public boolean showDialog() {
   			GenericDialog gd = new GenericDialog("Set DCT parameters");
@@ -1949,13 +1966,18 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Convolve directly with symmetrical kernel (debug feature) ",     this.convolve_direct);
   			gd.addNumericField("Value (max) in vignetting data to correspond to 1x in the kernel",this.vignetting_max,      3);
   			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",this.vignetting_range,  3);
-  			
   			gd.addCheckbox    ("Use DCT-base color conversion",                                   this.color_DCT             );
   			gd.addNumericField("Gaussian sigma to apply to R and B (in addition to G), pix",      this.sigma_rb,            3);
   			gd.addNumericField("Gaussian sigma to apply to Y in the MDCT domain, pix",            this.sigma_y,             3);
   			gd.addNumericField("Gaussian sigma to apply to Pr and Pb in the MDCT domain, pix",    this.sigma_color,         3);
-  			gd.addNumericField("Threshold for line detection",                                    this.line_thershold,      3);
+  			gd.addNumericField("Threshold for line detection (not yet used)",                     this.line_thershold,      3);
 
+  			gd.addNumericField("Maximal amount of non-linear emphasis for linear edges for Y component",  this.nonlin_max_y,3);
+  			gd.addNumericField("Maximal amount of non-linear emphasis for linear edges for color diffs.", this.nonlin_max_c,3);
+  			gd.addNumericField("Sensitivity of non-linear emphasis for linear edges for Y component",  this.nonlin_y,       3);
+  			gd.addNumericField("Sensitivity of non-linear emphasis for linear edges for color diffs.", this.nonlin_c,       3);
+  			gd.addNumericField("Corretion for diagonal/corner emphasis elements",                 this.nonlin_corn,         3);
+  			
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
   			
@@ -1994,13 +2016,17 @@ public class EyesisCorrectionParameters {
   			this.convolve_direct=       gd.getNextBoolean();
   			this.vignetting_max=        gd.getNextNumber();
   			this.vignetting_range=      gd.getNextNumber();
-
   			this.color_DCT=             gd.getNextBoolean();
   			this.sigma_rb=              gd.getNextNumber();
   			this.sigma_y=               gd.getNextNumber();
   			this.sigma_color=           gd.getNextNumber();
   			this.line_thershold=        gd.getNextNumber();
   			
+  			this.nonlin_max_y=          gd.getNextNumber();
+  			this.nonlin_max_c=          gd.getNextNumber();
+  			this.nonlin_y=              gd.getNextNumber();
+  			this.nonlin_c=              gd.getNextNumber();
+  			this.nonlin_corn=           gd.getNextNumber();
   			//  	    MASTER_DEBUG_LEVEL= (int) gd.getNextNumber();
   			return true;
   		}  
