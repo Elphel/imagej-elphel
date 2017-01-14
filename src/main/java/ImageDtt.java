@@ -583,6 +583,21 @@ public class ImageDtt {
 				}
 			}
 		}
+		// normalize
+		double sum = 0;
+		for (int i = 0; i < dct_size; i++){
+			for (int j = 0; j < dct_size; j++){
+				double d = 	filter_direct[i*dct_size+j];
+				d*=Math.cos(Math.PI*i/(2*dct_size))*Math.cos(Math.PI*j/(2*dct_size));
+				if (i > 0) d*= 2.0;
+				if (j > 0) d*= 2.0;
+				sum +=d;
+			}
+		}
+		for (int i = 0; i<filter_direct.length; i++){
+			filter_direct[i] /= sum;
+		}
+		
 		if (globalDebugLevel > -1) {
 			for (int i=0; i<filter_direct.length;i++){
 				System.out.println("dct_lpf_psf() "+i+": "+filter_direct[i]); 
@@ -591,6 +606,8 @@ public class ImageDtt {
 		DttRad2 dtt = new DttRad2(dct_size);
 //		final double [] filter= dtt.dttt_iii(filter_direct);
 		final double [] filter= dtt.dttt_iiie(filter_direct);
+		final double [] dbg_filter= dtt.dttt_ii(filter);
+		
 		for (int i=0; i < filter.length;i++) filter[i] *= dct_size;  
 		
 		if (globalDebugLevel > -1) {
@@ -598,7 +615,7 @@ public class ImageDtt {
 				System.out.println("dct_lpf_psf() "+i+": "+filter[i]); 
 			}
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
-			double [][] ff = {filter_direct,filter};
+			double [][] ff = {filter_direct,filter,dbg_filter};
 			sdfa_instance.showArrays(ff,  dct_size,dct_size, true, "filter_lpf");
 		}
 		
@@ -671,7 +688,7 @@ public class ImageDtt {
 			for (int j=0; j < dct_len; j++) filters_proto[i][j] *= 2*dct_size;  
 
 		}
-		if (globalDebugLevel > -1) {
+		if (globalDebugLevel > 0) {
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 			double [][] ff = {filters_proto_direct[0],filters_proto_direct[1],filters_proto_direct[2],filters_proto[0],filters_proto[1],filters_proto[2]};
 			sdfa_instance.showArrays(ff,  dct_size,dct_size, true, "filters_proto");
@@ -695,7 +712,7 @@ public class ImageDtt {
 				}
 			}
 		}
-		if (globalDebugLevel > -1) {
+		if (globalDebugLevel > 0) {
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 			double [][] ff = {
 					filters[0][0], filters[0][1], filters[0][2],

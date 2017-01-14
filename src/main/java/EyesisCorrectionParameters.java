@@ -1809,11 +1809,17 @@ public class EyesisCorrectionParameters {
   		public double  sigma_y =          0.7; // blur for G contribution to Y
   		public double  sigma_color =      0.7; // blur for Pb and Pr in addition to that of Y
   		public double  line_thershold =   1.0; // line detection amplitude to apply line enhancement - not used?
+  		public boolean nonlin =           true; // enable nonlinear processing (including denoise
   		public double  nonlin_max_y =     1.0; // maximal amount of nonlinear line/edge emphasis for Y component
   		public double  nonlin_max_c =     1.0; // maximal amount of nonlinear line/edge emphasis for C component
   		public double  nonlin_y =         0.1; // amount of nonlinear line/edge emphasis for Y component
   		public double  nonlin_c =         0.01; // amount of nonlinear line/edge emphasis for C component
   		public double  nonlin_corn =      0.5;  // relative weight for nonlinear corner elements
+  		public boolean denoise =          true; // suppress noise during nonlinear processing
+  		public double  denoise_y =        1.0;  // maximal total smoothing of the Y post-kernel (will compete with edge emphasis)
+  		public double  denoise_c =        1.0;  // maximal total smoothing of the color differences post-kernel (will compete with edge emphasis)
+  		public double  denoise_y_corn =   0.3;  // weight of the 4 corner pixels during denoise y (straight - 1-denoise_y_corn)
+  		public double  denoise_c_corn =   0.3;  // weight of the 4 corner pixels during denoise y (straight - 1-denoise_c_corn)
   		
 
   		public DCTParameters(){}
@@ -1877,11 +1883,21 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"sigma_color",        this.sigma_color+"");
   			properties.setProperty(prefix+"line_thershold",     this.line_thershold+"");
   			
-  			properties.setProperty(prefix+"nonlin_max_y",           this.nonlin_max_y+"");
-  			properties.setProperty(prefix+"nonlin_max_c",           this.nonlin_max_c+"");
+  			properties.setProperty(prefix+"nonlin",             this.nonlin+"");
+  			properties.setProperty(prefix+"nonlin_max_y",       this.nonlin_max_y+"");
+  			properties.setProperty(prefix+"nonlin_max_c",       this.nonlin_max_c+"");
   			properties.setProperty(prefix+"nonlin_y",           this.nonlin_y+"");
   			properties.setProperty(prefix+"nonlin_c",           this.nonlin_c+"");
   			properties.setProperty(prefix+"nonlin_corn",        this.nonlin_corn+"");
+
+  			properties.setProperty(prefix+"denoise",            this.denoise+"");
+  			properties.setProperty(prefix+"denoise_y",          this.denoise_y+"");
+  			properties.setProperty(prefix+"denoise_c",          this.denoise_c+"");
+  			properties.setProperty(prefix+"denoise_y_corn",     this.denoise_y_corn+"");
+  			properties.setProperty(prefix+"denoise_c_corn",     this.denoise_c_corn+"");
+  			
+  			
+  			
   		}
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"dct_size")!=null) this.dct_size=Integer.parseInt(properties.getProperty(prefix+"dct_size"));
@@ -1924,11 +1940,19 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"sigma_color")!=null)    this.sigma_color=Double.parseDouble(properties.getProperty(prefix+"sigma_color"));
   			if (properties.getProperty(prefix+"line_thershold")!=null) this.line_thershold=Double.parseDouble(properties.getProperty(prefix+"line_thershold"));
 
-  			if (properties.getProperty(prefix+"nonlin_max_y")!=null)       this.nonlin_max_y=Double.parseDouble(properties.getProperty(prefix+"nonlin_max_y"));
-  			if (properties.getProperty(prefix+"nonlin_max_c")!=null)       this.nonlin_max_c=Double.parseDouble(properties.getProperty(prefix+"nonlin_max_c"));
+  			if (properties.getProperty(prefix+"nonlin")!=null)         this.nonlin=Boolean.parseBoolean(properties.getProperty(prefix+"nonlin"));
+  			if (properties.getProperty(prefix+"nonlin_max_y")!=null)   this.nonlin_max_y=Double.parseDouble(properties.getProperty(prefix+"nonlin_max_y"));
+  			if (properties.getProperty(prefix+"nonlin_max_c")!=null)   this.nonlin_max_c=Double.parseDouble(properties.getProperty(prefix+"nonlin_max_c"));
   			if (properties.getProperty(prefix+"nonlin_y")!=null)       this.nonlin_y=Double.parseDouble(properties.getProperty(prefix+"nonlin_y"));
   			if (properties.getProperty(prefix+"nonlin_c")!=null)       this.nonlin_c=Double.parseDouble(properties.getProperty(prefix+"nonlin_c"));
   			if (properties.getProperty(prefix+"nonlin_corn")!=null)    this.nonlin_corn=Double.parseDouble(properties.getProperty(prefix+"nonlin_corn"));
+  			
+  			if (properties.getProperty(prefix+"denoise")!=null)        this.denoise=Boolean.parseBoolean(properties.getProperty(prefix+"denoise"));
+  			if (properties.getProperty(prefix+"denoise_y")!=null)      this.denoise_y=Double.parseDouble(properties.getProperty(prefix+"denoise_y"));
+  			if (properties.getProperty(prefix+"denoise_c")!=null)      this.denoise_c=Double.parseDouble(properties.getProperty(prefix+"denoise_c"));
+  			if (properties.getProperty(prefix+"denoise_y_corn")!=null) this.denoise_y_corn=Double.parseDouble(properties.getProperty(prefix+"denoise_y_corn"));
+  			if (properties.getProperty(prefix+"denoise_c_corn")!=null) this.denoise_c_corn=Double.parseDouble(properties.getProperty(prefix+"denoise_c_corn"));
+  			
   		}
   		public boolean showDialog() {
   			GenericDialog gd = new GenericDialog("Set DCT parameters");
@@ -1972,11 +1996,17 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Gaussian sigma to apply to Pr and Pb in the MDCT domain, pix",    this.sigma_color,         3);
   			gd.addNumericField("Threshold for line detection (not yet used)",                     this.line_thershold,      3);
 
+  			gd.addCheckbox    ("Use non-linear line emphasis and denoise",                        this.nonlin             );
   			gd.addNumericField("Maximal amount of non-linear emphasis for linear edges for Y component",  this.nonlin_max_y,3);
   			gd.addNumericField("Maximal amount of non-linear emphasis for linear edges for color diffs.", this.nonlin_max_c,3);
   			gd.addNumericField("Sensitivity of non-linear emphasis for linear edges for Y component",  this.nonlin_y,       3);
   			gd.addNumericField("Sensitivity of non-linear emphasis for linear edges for color diffs.", this.nonlin_c,       3);
   			gd.addNumericField("Corretion for diagonal/corner emphasis elements",                 this.nonlin_corn,         3);
+  			gd.addCheckbox    ("Suppress noise during nonlinear processing",                      this.denoise             );
+  			gd.addNumericField("Maximal total smoothing of the Y post-kernel (will compete with edge emphasis)",  this.denoise_y,3);
+  			gd.addNumericField("Maximal total smoothing of the color differences post-kernel (will compete with edge emphasis)",  this.denoise_c,3);
+  			gd.addNumericField("Weight of the 4 corner pixels during denoising y (straight - 1.0-denoise_y_corn)",  this.denoise_y_corn,3);
+  			gd.addNumericField("Weight of the 4 corner pixels during denoising color ((straight - 1.0-denoise_c_corn))",  this.denoise_c_corn,3);
   			
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
@@ -2022,11 +2052,19 @@ public class EyesisCorrectionParameters {
   			this.sigma_color=           gd.getNextNumber();
   			this.line_thershold=        gd.getNextNumber();
   			
+  			this.nonlin=             gd.getNextBoolean();
   			this.nonlin_max_y=          gd.getNextNumber();
   			this.nonlin_max_c=          gd.getNextNumber();
   			this.nonlin_y=              gd.getNextNumber();
   			this.nonlin_c=              gd.getNextNumber();
   			this.nonlin_corn=           gd.getNextNumber();
+  			
+  			this.denoise=             gd.getNextBoolean();
+  			this.denoise_y=          gd.getNextNumber();
+  			this.denoise_c=          gd.getNextNumber();
+  			this.denoise_y_corn=          gd.getNextNumber();
+  			this.denoise_c_corn=          gd.getNextNumber();
+  			
   			//  	    MASTER_DEBUG_LEVEL= (int) gd.getNextNumber();
   			return true;
   		}  
