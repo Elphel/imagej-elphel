@@ -1773,40 +1773,64 @@ public class EyesisCorrectionParameters {
   		}
   	}
     public static class DCTParameters {
-  		public int dct_size =     32; //
-  		public int asym_size =     6; //
-  		public int asym_pixels =  10; // maximal number of non-zero pixels in direct convolution kernel
-  		public int asym_distance = 2; // how far to try a new asym kernel pixel from existing ones 
-  		public int dct_window =   1; // currently only 3 types of windows - 0 (none), 1 and 2
-  		public int LMA_steps =  100;
-  		public double fact_precision=0.003; // stop iterations if error rms less than this part of target kernel rms
-  		public double compactness =  0.02;
-  		public double sym_compactness = 0.01;
-  		public double dc_weight = 10; // importance of dc realtive to rms_pure
-  		public int asym_tax_free  = 5; // "compactness" does not apply to pixels with |x|<=asym_tax_free  and |y| <= asym_tax_free
-  		public int seed_size = 8; // number of initial cells in asym_kernel - should be 4*b + 1 (X around center cell) or 4*n + 0  (X around between cells)
-  		public double asym_random; // initialize asym_kernel with random numbers
-  		public double dbg_x =0;
-  		public double dbg_y =0;
-  		public double dbg_x1 =0;
-  		public double dbg_y1 =0;
-  		public double dbg_sigma =2.0;
+  		public int dct_size =            8; //
+  		public int asym_size =          15; //
+  		public int asym_pixels =         4; // maximal number of non-zero pixels in direct convolution kernel
+  		public int asym_distance =       1; // how far to try a new asym kernel pixel from existing ones 
+  		public int dct_window =          1; // currently only 3 types of windows - 0 (none), 1 and 2
+  		public int LMA_steps =         100;
+  		public double fact_precision=    0.003; // stop iterations if error rms less than this part of target kernel rms
+  		public double compactness =      0.0;
+  		public double sym_compactness =  0.5;
+  		public double dc_weight =        1.0;  // importance of dc realtive to rms_pure
+  		public int    asym_tax_free  =   0;    // "compactness" does not apply to pixels with |x|<=asym_tax_free  and |y| <= asym_tax_free
+  		public int    seed_size =        1;    // number of initial cells in asym_kernel - should be 4*b + 1 (X around center cell) or 4*n + 0  (X around between cells)
+  		public double asym_random  =    -1; // initialize asym_kernel with random numbers
+  		public double dbg_x =            2.7;
+  		public double dbg_y =            0.0;
+  		public double dbg_x1 =          -1.3;
+  		public double dbg_y1 =           2.0;
+  		public double dbg_sigma =        0.8;
   		public String dbg_mask = ".........:::::::::.........:::::::::......*..:::::*:::.........:::::::::.........";
-  		public int dbg_mode = 1; // 0 - old LMA, 1 - new LMA - *** not used anymore ***
-  		public int dbg_window_mode = 2; // 0 - none, 1 - square, 2 - sin 3 - sin^2
+  		public int dbg_mode =            1; // 0 - old LMA, 1 - new LMA - *** not used anymore ***
+  		public int dbg_window_mode =     1; // 0 - none, 1 - square, 2 - sin 3 - sin^2 Now _should_ be square !!!
   		public boolean centerWindowToTarget = true;
   		// parameters to extract a kernel from the kernel image file
   		public int    color_channel =    2; // green (<0 - use simulated kernel, also will use simulated if kernels are not set)
   		public int    decimation =       2; // decimate original kernel this much in each direction
-  		public double decimateSigma =    0.4; // what is the optimal value for each decimation? 
+  		public double decimateSigma =   -1.0; // special mode for 2:1 deciamtion 
   		public int    tileX =            82;  // number of kernel tile (0..163) 
   		public int    tileY =            62;  // number of kernel tile (0..122) 
   		public boolean subtract_dc =     false;//subtract/restore dc
-  		public int    kernel_chn =      -1; //camera channel calibration to use for aberration correction ( < 0 - no correction)
+  		public int    kernel_chn =      -1; // camera channel calibration to use for aberration correction ( < 0 - no correction)
   		public boolean normalize =       true; //normalize both sym and asym kernels (asym to have sum==1, sym to have sum = dct_size
+  		public boolean normalize_sym =   true; //normalize sym kernels separately
   		public boolean skip_sym =        false; // do not apply symmetrical correction
   		public boolean convolve_direct = false; // do not apply symmetrical correction
+  		
+  		public double vignetting_max    = 0.4; // value in vignetting data to correspond to 1x in the kernel
+  		public double vignetting_range  = 5.0; // do not try to correct vignetting less than vignetting_max/vignetting_range
+  		
+  		public boolean color_DCT        = true; // false - use old color processing mode
+  		public double  sigma_rb =         0.9; // additional (to G) blur for R and B
+  		public double  sigma_y =          0.7; // blur for G contribution to Y
+  		public double  sigma_color =      0.7; // blur for Pb and Pr in addition to that of Y
+  		public double  line_thershold =   1.0; // line detection amplitude to apply line enhancement - not used?
+  		public boolean nonlin =           true; // enable nonlinear processing (including denoise
+  		public double  nonlin_max_y =     1.0; // maximal amount of nonlinear line/edge emphasis for Y component
+  		public double  nonlin_max_c =     1.0; // maximal amount of nonlinear line/edge emphasis for C component
+  		public double  nonlin_y =         0.1; // amount of nonlinear line/edge emphasis for Y component
+  		public double  nonlin_c =         0.01; // amount of nonlinear line/edge emphasis for C component
+  		public double  nonlin_corn =      0.5;  // relative weight for nonlinear corner elements
+  		public boolean denoise =          true; // suppress noise during nonlinear processing
+  		public double  denoise_y =        1.0;  // maximal total smoothing of the Y post-kernel (will compete with edge emphasis)
+  		public double  denoise_c =        1.0;  // maximal total smoothing of the color differences post-kernel (will compete with edge emphasis)
+  		public double  denoise_y_corn =   0.3;  // weight of the 4 corner pixels during denoise y (straight - 1-denoise_y_corn)
+  		public double  denoise_c_corn =   0.3;  // weight of the 4 corner pixels during denoise y (straight - 1-denoise_c_corn)
+  		
 
+  		public DCTParameters(){}
+  		
   		public DCTParameters(
   				int dct_size,
   				int asym_size,
@@ -1856,8 +1880,31 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"subtract_dc",   this.subtract_dc+"");
   			properties.setProperty(prefix+"kernel_chn",   this.kernel_chn+"");
   			properties.setProperty(prefix+"normalize",    this.normalize+"");
+  			properties.setProperty(prefix+"normalize_sym",    this.normalize_sym+"");
   			properties.setProperty(prefix+"skip_sym",    this.skip_sym+"");
   			properties.setProperty(prefix+"convolve_direct",    this.convolve_direct+"");
+  			properties.setProperty(prefix+"vignetting_max",   this.vignetting_max+"");
+  			properties.setProperty(prefix+"vignetting_range",   this.vignetting_range+"");
+  			properties.setProperty(prefix+"color_DCT",          this.color_DCT+"");
+  			properties.setProperty(prefix+"sigma_rb",           this.sigma_rb+"");
+  			properties.setProperty(prefix+"sigma_y",            this.sigma_y+"");
+  			properties.setProperty(prefix+"sigma_color",        this.sigma_color+"");
+  			properties.setProperty(prefix+"line_thershold",     this.line_thershold+"");
+  			
+  			properties.setProperty(prefix+"nonlin",             this.nonlin+"");
+  			properties.setProperty(prefix+"nonlin_max_y",       this.nonlin_max_y+"");
+  			properties.setProperty(prefix+"nonlin_max_c",       this.nonlin_max_c+"");
+  			properties.setProperty(prefix+"nonlin_y",           this.nonlin_y+"");
+  			properties.setProperty(prefix+"nonlin_c",           this.nonlin_c+"");
+  			properties.setProperty(prefix+"nonlin_corn",        this.nonlin_corn+"");
+
+  			properties.setProperty(prefix+"denoise",            this.denoise+"");
+  			properties.setProperty(prefix+"denoise_y",          this.denoise_y+"");
+  			properties.setProperty(prefix+"denoise_c",          this.denoise_c+"");
+  			properties.setProperty(prefix+"denoise_y_corn",     this.denoise_y_corn+"");
+  			properties.setProperty(prefix+"denoise_c_corn",     this.denoise_c_corn+"");
+  			
+  			
   			
   		}
   		public void getProperties(String prefix,Properties properties){
@@ -1891,9 +1938,30 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"subtract_dc")!=null) this.subtract_dc=Boolean.parseBoolean(properties.getProperty(prefix+"subtract_dc"));
   			if (properties.getProperty(prefix+"kernel_chn")!=null) this.kernel_chn=Integer.parseInt(properties.getProperty(prefix+"kernel_chn"));
   			if (properties.getProperty(prefix+"normalize")!=null) this.normalize=Boolean.parseBoolean(properties.getProperty(prefix+"normalize"));
+  			if (properties.getProperty(prefix+"normalize_sym")!=null) this.normalize_sym=Boolean.parseBoolean(properties.getProperty(prefix+"normalize_sym"));
   			if (properties.getProperty(prefix+"skip_sym")!=null) this.skip_sym=Boolean.parseBoolean(properties.getProperty(prefix+"skip_sym"));
   			if (properties.getProperty(prefix+"convolve_direct")!=null) this.convolve_direct=Boolean.parseBoolean(properties.getProperty(prefix+"convolve_direct"));
-  		
+  			if (properties.getProperty(prefix+"vignetting_max")!=null) this.vignetting_max=Double.parseDouble(properties.getProperty(prefix+"vignetting_max"));
+  			if (properties.getProperty(prefix+"vignetting_range")!=null) this.vignetting_range=Double.parseDouble(properties.getProperty(prefix+"vignetting_range"));
+  			if (properties.getProperty(prefix+"color_DCT")!=null)      this.color_DCT=Boolean.parseBoolean(properties.getProperty(prefix+"color_DCT"));
+  			if (properties.getProperty(prefix+"sigma_rb")!=null)       this.sigma_rb=Double.parseDouble(properties.getProperty(prefix+"sigma_rb"));
+  			if (properties.getProperty(prefix+"sigma_y")!=null)        this.sigma_y=Double.parseDouble(properties.getProperty(prefix+"sigma_y"));
+  			if (properties.getProperty(prefix+"sigma_color")!=null)    this.sigma_color=Double.parseDouble(properties.getProperty(prefix+"sigma_color"));
+  			if (properties.getProperty(prefix+"line_thershold")!=null) this.line_thershold=Double.parseDouble(properties.getProperty(prefix+"line_thershold"));
+
+  			if (properties.getProperty(prefix+"nonlin")!=null)         this.nonlin=Boolean.parseBoolean(properties.getProperty(prefix+"nonlin"));
+  			if (properties.getProperty(prefix+"nonlin_max_y")!=null)   this.nonlin_max_y=Double.parseDouble(properties.getProperty(prefix+"nonlin_max_y"));
+  			if (properties.getProperty(prefix+"nonlin_max_c")!=null)   this.nonlin_max_c=Double.parseDouble(properties.getProperty(prefix+"nonlin_max_c"));
+  			if (properties.getProperty(prefix+"nonlin_y")!=null)       this.nonlin_y=Double.parseDouble(properties.getProperty(prefix+"nonlin_y"));
+  			if (properties.getProperty(prefix+"nonlin_c")!=null)       this.nonlin_c=Double.parseDouble(properties.getProperty(prefix+"nonlin_c"));
+  			if (properties.getProperty(prefix+"nonlin_corn")!=null)    this.nonlin_corn=Double.parseDouble(properties.getProperty(prefix+"nonlin_corn"));
+  			
+  			if (properties.getProperty(prefix+"denoise")!=null)        this.denoise=Boolean.parseBoolean(properties.getProperty(prefix+"denoise"));
+  			if (properties.getProperty(prefix+"denoise_y")!=null)      this.denoise_y=Double.parseDouble(properties.getProperty(prefix+"denoise_y"));
+  			if (properties.getProperty(prefix+"denoise_c")!=null)      this.denoise_c=Double.parseDouble(properties.getProperty(prefix+"denoise_c"));
+  			if (properties.getProperty(prefix+"denoise_y_corn")!=null) this.denoise_y_corn=Double.parseDouble(properties.getProperty(prefix+"denoise_y_corn"));
+  			if (properties.getProperty(prefix+"denoise_c_corn")!=null) this.denoise_c_corn=Double.parseDouble(properties.getProperty(prefix+"denoise_c_corn"));
+  			
   		}
   		public boolean showDialog() {
   			GenericDialog gd = new GenericDialog("Set DCT parameters");
@@ -1927,9 +1995,30 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Subtract avarege before dct, restore after idct",                this.subtract_dc);
   			gd.addNumericField("Calibration channel to use for aberration ( <0 - no correction)",this.kernel_chn,          0);
   			gd.addCheckbox    ("Normalize both sym and asym kernels ",                           this.normalize);
+  			gd.addCheckbox    ("Normalize sym kernels separately",                               this.normalize_sym);
   			gd.addCheckbox    ("Do not apply symmetrical (DCT) correction ",                     this.skip_sym);
   			gd.addCheckbox    ("Convolve directly with symmetrical kernel (debug feature) ",     this.convolve_direct);
+  			gd.addNumericField("Value (max) in vignetting data to correspond to 1x in the kernel",this.vignetting_max,      3);
+  			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",this.vignetting_range,  3);
+  			gd.addCheckbox    ("Use DCT-base color conversion",                                   this.color_DCT             );
+  			gd.addNumericField("Gaussian sigma to apply to R and B (in addition to G), pix",      this.sigma_rb,            3);
+  			gd.addNumericField("Gaussian sigma to apply to Y in the MDCT domain, pix",            this.sigma_y,             3);
+  			gd.addNumericField("Gaussian sigma to apply to Pr and Pb in the MDCT domain, pix",    this.sigma_color,         3);
+  			gd.addNumericField("Threshold for line detection (not yet used)",                     this.line_thershold,      3);
+
+  			gd.addCheckbox    ("Use non-linear line emphasis and denoise",                        this.nonlin             );
+  			gd.addNumericField("Maximal amount of non-linear emphasis for linear edges for Y component",  this.nonlin_max_y,3);
+  			gd.addNumericField("Maximal amount of non-linear emphasis for linear edges for color diffs.", this.nonlin_max_c,3);
+  			gd.addNumericField("Sensitivity of non-linear emphasis for linear edges for Y component",  this.nonlin_y,       3);
+  			gd.addNumericField("Sensitivity of non-linear emphasis for linear edges for color diffs.", this.nonlin_c,       3);
+  			gd.addNumericField("Corretion for diagonal/corner emphasis elements",                 this.nonlin_corn,         3);
+  			gd.addCheckbox    ("Suppress noise during nonlinear processing",                      this.denoise             );
+  			gd.addNumericField("Maximal total smoothing of the Y post-kernel (will compete with edge emphasis)",  this.denoise_y,3);
+  			gd.addNumericField("Maximal total smoothing of the color differences post-kernel (will compete with edge emphasis)",  this.denoise_c,3);
+  			gd.addNumericField("Weight of the 4 corner pixels during denoising y (straight - 1.0-denoise_y_corn)",  this.denoise_y_corn,3);
+  			gd.addNumericField("Weight of the 4 corner pixels during denoising color ((straight - 1.0-denoise_c_corn))",  this.denoise_c_corn,3);
   			
+  			WindowTools.addScrollBars(gd);
   			gd.showDialog();
   			
   			if (gd.wasCanceled()) return false;
@@ -1963,8 +2052,30 @@ public class EyesisCorrectionParameters {
   			this.subtract_dc=           gd.getNextBoolean();
   			this.kernel_chn=      (int) gd.getNextNumber();
   			this.normalize=             gd.getNextBoolean();
+  			this.normalize_sym=         gd.getNextBoolean();
   			this.skip_sym=              gd.getNextBoolean();
-  			this.convolve_direct=              gd.getNextBoolean();
+  			this.convolve_direct=       gd.getNextBoolean();
+  			this.vignetting_max=        gd.getNextNumber();
+  			this.vignetting_range=      gd.getNextNumber();
+  			this.color_DCT=             gd.getNextBoolean();
+  			this.sigma_rb=              gd.getNextNumber();
+  			this.sigma_y=               gd.getNextNumber();
+  			this.sigma_color=           gd.getNextNumber();
+  			this.line_thershold=        gd.getNextNumber();
+  			
+  			this.nonlin=             gd.getNextBoolean();
+  			this.nonlin_max_y=          gd.getNextNumber();
+  			this.nonlin_max_c=          gd.getNextNumber();
+  			this.nonlin_y=              gd.getNextNumber();
+  			this.nonlin_c=              gd.getNextNumber();
+  			this.nonlin_corn=           gd.getNextNumber();
+  			
+  			this.denoise=             gd.getNextBoolean();
+  			this.denoise_y=          gd.getNextNumber();
+  			this.denoise_c=          gd.getNextNumber();
+  			this.denoise_y_corn=          gd.getNextNumber();
+  			this.denoise_c_corn=          gd.getNextNumber();
+  			
   			//  	    MASTER_DEBUG_LEVEL= (int) gd.getNextNumber();
   			return true;
   		}  

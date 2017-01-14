@@ -499,6 +499,8 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
 			addButton("Select kernels image",      panelDct1, color_configure);
 			addButton("Create DCT kernels",        panelDct1, color_process);
 			addButton("Read DCT kernels",          panelDct1, color_process);
+			addButton("Setup DCT parameters",      panelDct1, color_configure);
+			addButton("DCT process files",         panelDct1, color_process);
 			add(panelDct1);
 		}
 		pack();
@@ -2790,16 +2792,18 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         			DEBUG_LEVEL);
         }
 //        System.out.println("dct_dc.length="+dct_dc.length+" dct_ac.length="+dct_ac.length);
-        SDFA_INSTANCE.showArrays(dct_ac,
-        		tilesX*DCT_PARAMETERS.dct_size,
-        		tilesY*DCT_PARAMETERS.dct_size,
-        		true,
-        		DBG_IMP.getTitle()+"-DCT_AC");  
-        SDFA_INSTANCE.showArrays(dct_dc,
-        		tilesX,
-        		tilesY,
-        		true,
-        		DBG_IMP.getTitle()+"-DCT_DC");  
+        if (DEBUG_LEVEL > 0){
+        	SDFA_INSTANCE.showArrays(dct_ac,
+        			tilesX*DCT_PARAMETERS.dct_size,
+        			tilesY*DCT_PARAMETERS.dct_size,
+        			true,
+        			DBG_IMP.getTitle()+"-DCT_AC");  
+        	SDFA_INSTANCE.showArrays(dct_dc,
+        			tilesX,
+        			tilesY,
+        			true,
+        			DBG_IMP.getTitle()+"-DCT_DC");
+        }
         double [][] idct_data = new double [dctdc_data.length][];
         for (int chn=0; chn<idct_data.length;chn++){
         	idct_data[chn] = image_dtt.lapped_idctdc(
@@ -2815,8 +2819,110 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         		true,
         		DBG_IMP.getTitle()+"-IDCTDC");  
     	return;
-    	
 /* ======================================================================== */
+    	
+    } else if (label.equals("Setup DCT parameters")) {
+        DCT_PARAMETERS.showDialog();
+        return;
+
+/* ======================================================================== */
+    	
+    } else if (label.equals("DCT process files")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        if (EYESIS_DCT == null){
+        	EYESIS_DCT = new  EyesisDCT (
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS,
+        			DCT_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new EyesisDCT instance, will need to read DCT kernels");
+        	}
+        }
+    	String configPath=null;
+    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
+    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
+    				true,
+    				true);
+    		if (configPath==null){
+    			String msg="No results directory selected, command aborted";
+    			System.out.println("Warning: "+msg);
+    			IJ.showMessage("Warning",msg);
+    			return;
+    		}
+    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		try {
+    			saveTimestampedProperties(
+    					configPath,      // full path or null
+    					null, // use as default directory if path==null 
+    					true,
+    					PROPERTIES);
+
+    		} catch (Exception e){
+    			String msg="Failed to save configuration to "+configPath+", command aborted";
+    			System.out.println("Error: "+msg);
+    			IJ.showMessage("Error",msg);
+    			return;
+    		}
+    	}      
+        
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
+        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
+        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
+/*        
+        if (CORRECTION_PARAMETERS.deconvolve && (NONLIN_PARAMETERS.noiseGainPower!=0)) {
+        EYESIS_CORRECTIONS.updateImageNoiseGains(
+        		NONLIN_PARAMETERS,     //EyesisCorrectionParameters.NonlinParameters nonlinParameters,
+        		CONVOLVE_FFT_SIZE,     //int          fftSize, // 128 - fft size, kernel size should be size/2
+    			THREADS_MAX,           // int          threadsMax,  // maximal number of threads to launch                         
+    			UPDATE_STATUS,         // boolean    updateStatus,
+    			DEBUG_LEVEL);           //int        globalDebugLevel){
+        }
+*/
+        if (!EYESIS_DCT.DCTKernelsAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Reading/converting DCT kernels");
+        	}
+            EYESIS_DCT.readDCTKernels(
+            		DCT_PARAMETERS,
+            		CONVOLVE_FFT_SIZE/2,
+                    THREADS_MAX,
+                    UPDATE_STATUS, // update status info
+            		DEBUG_LEVEL);
+        	if (DEBUG_LEVEL > 1){
+        		EYESIS_DCT.showKernels(); // show restored kernels
+        	}
+        }
+        
+        
+//        EYESIS_CORRECTIONS.processChannelImages(
+        EYESIS_DCT.processDCTChannelImages(
+//        		SPLIT_PARAMETERS, // EyesisCorrectionParameters.SplitParameters         splitParameters,
+        		DCT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+        
+        if (configPath!=null) {
+        	saveTimestampedProperties( // save config again
+        			configPath,      // full path or null
+        			null, // use as default directory if path==null 
+        			true,
+        			PROPERTIES);
+        }
+
+        return;
+
+/* ======================================================================== */
+
     } else if (label.equals("DCT test 3")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	int n = 32;
@@ -3431,6 +3537,9 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6,panel7,panelPos
         
         EYESIS_DCT.createDCTKernels(
         		DCT_PARAMETERS,
+/*        		
+        		EYESIS_CORRECTIONS.pixelMapping,
+*/        		
         		CONVOLVE_FFT_SIZE/2,
                 THREADS_MAX,
                 UPDATE_STATUS, // update status info

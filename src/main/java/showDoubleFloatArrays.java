@@ -175,7 +175,28 @@ import ij.process.*;
 		  }
 	  }
   }
+  public ImageStack makeStack(double[][] pixels, int width, int height) {
+	  return makeStack(pixels, width,height, null);
+  }
 
+  public ImageStack makeStack(double[][] pixels, int width, int height, String [] titles) {
+      float [] fpixels;
+      ImageStack array_stack=new ImageStack(width,height);
+      for (int i=0;i<pixels.length;i++) if (pixels[i]!=null) {
+          if (pixels[i].length!=(width*height)){
+        	  System.out.println("showArrays(): pixels["+i+"].length="+pixels[i].length+" != width (+"+width+") * height("+height+")="+(width*height));
+        	  return null;
+          }
+        fpixels=new float[pixels[i].length];
+        for (int j=0;j<fpixels.length;j++) fpixels[j]=(float)pixels[i][j];
+        if (titles!=null){
+            array_stack.addSlice(titles[i],    fpixels);
+        } else {
+        	array_stack.addSlice("chn-"+i,    fpixels);
+        }
+      }
+      return array_stack;
+  }
 
   public ImagePlus [] makeArrays(double[][] pixels, int width, int height, String title) {
 	  int i,j;
