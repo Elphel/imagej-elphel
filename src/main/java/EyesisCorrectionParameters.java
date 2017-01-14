@@ -1798,6 +1798,7 @@ public class EyesisCorrectionParameters {
   		public boolean subtract_dc =     false;//subtract/restore dc
   		public int    kernel_chn =      -1; // camera channel calibration to use for aberration correction ( < 0 - no correction)
   		public boolean normalize =       true; //normalize both sym and asym kernels (asym to have sum==1, sym to have sum = dct_size
+  		public boolean normalize_sym =   true; //normalize sym kernels separately
   		public boolean skip_sym =        false; // do not apply symmetrical correction
   		public boolean convolve_direct = false; // do not apply symmetrical correction
   		
@@ -1873,6 +1874,7 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"subtract_dc",   this.subtract_dc+"");
   			properties.setProperty(prefix+"kernel_chn",   this.kernel_chn+"");
   			properties.setProperty(prefix+"normalize",    this.normalize+"");
+  			properties.setProperty(prefix+"normalize_sym",    this.normalize_sym+"");
   			properties.setProperty(prefix+"skip_sym",    this.skip_sym+"");
   			properties.setProperty(prefix+"convolve_direct",    this.convolve_direct+"");
   			properties.setProperty(prefix+"vignetting_max",   this.vignetting_max+"");
@@ -1930,6 +1932,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"subtract_dc")!=null) this.subtract_dc=Boolean.parseBoolean(properties.getProperty(prefix+"subtract_dc"));
   			if (properties.getProperty(prefix+"kernel_chn")!=null) this.kernel_chn=Integer.parseInt(properties.getProperty(prefix+"kernel_chn"));
   			if (properties.getProperty(prefix+"normalize")!=null) this.normalize=Boolean.parseBoolean(properties.getProperty(prefix+"normalize"));
+  			if (properties.getProperty(prefix+"normalize_sym")!=null) this.normalize_sym=Boolean.parseBoolean(properties.getProperty(prefix+"normalize_sym"));
   			if (properties.getProperty(prefix+"skip_sym")!=null) this.skip_sym=Boolean.parseBoolean(properties.getProperty(prefix+"skip_sym"));
   			if (properties.getProperty(prefix+"convolve_direct")!=null) this.convolve_direct=Boolean.parseBoolean(properties.getProperty(prefix+"convolve_direct"));
   			if (properties.getProperty(prefix+"vignetting_max")!=null) this.vignetting_max=Double.parseDouble(properties.getProperty(prefix+"vignetting_max"));
@@ -1986,6 +1989,7 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Subtract avarege before dct, restore after idct",                this.subtract_dc);
   			gd.addNumericField("Calibration channel to use for aberration ( <0 - no correction)",this.kernel_chn,          0);
   			gd.addCheckbox    ("Normalize both sym and asym kernels ",                           this.normalize);
+  			gd.addCheckbox    ("Normalize sym kernels separately",                               this.normalize_sym);
   			gd.addCheckbox    ("Do not apply symmetrical (DCT) correction ",                     this.skip_sym);
   			gd.addCheckbox    ("Convolve directly with symmetrical kernel (debug feature) ",     this.convolve_direct);
   			gd.addNumericField("Value (max) in vignetting data to correspond to 1x in the kernel",this.vignetting_max,      3);
@@ -2042,6 +2046,7 @@ public class EyesisCorrectionParameters {
   			this.subtract_dc=           gd.getNextBoolean();
   			this.kernel_chn=      (int) gd.getNextNumber();
   			this.normalize=             gd.getNextBoolean();
+  			this.normalize_sym=         gd.getNextBoolean();
   			this.skip_sym=              gd.getNextBoolean();
   			this.convolve_direct=       gd.getNextBoolean();
   			this.vignetting_max=        gd.getNextNumber();

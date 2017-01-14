@@ -631,6 +631,8 @@ public class EyesisDCT {
 					kernels[chn] = null;
 				}
 			}
+			
+			
 		    showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 			DttRad2 dtt = new DttRad2(dct_parameters.dct_size);
 
@@ -695,6 +697,16 @@ public class EyesisDCT {
 					kernels[chn].asym_indx =  new int [nColors][numVert][numHor][asym_nonzero];
 					int sym_kernel_inc_index =   numHor * dct_size;
 					int asym_kernel_inc_index =   numHor * asym_size;
+					double [] norm_sym_weights = new double [dct_size*dct_size];
+					for (int i = 0; i < dct_size; i++){
+						for (int j = 0; j < dct_size; j++){
+							double d = 	Math.cos(Math.PI*i/(2*dct_size))*Math.cos(Math.PI*j/(2*dct_size));
+							if (i > 0) d*= 2.0;
+							if (j > 0) d*= 2.0;
+							norm_sym_weights[i*dct_size+j] = d;
+						}
+					}
+					
 					if (debugLevel>0) {
 						System.out.println("readDCTKernels() debugLevel = "+debugLevel+
 								" kernels["+chn+"].size = "+kernels[chn].size+
@@ -771,8 +783,16 @@ public class EyesisDCT {
 										kernels[chn].st_kernels[nc][tileY][tileX][i] *= scale_asym;  
 									}
 								}
-								if (dct_parameters.dbg_mode == 0){ // normalize sym kernel regardless of asym:
+								
+								// +++++++++++++++++++++++++++++++++++++++++
+								
+								
+								if (dct_parameters.normalize_sym){ // normalize sym kernel regardless of asym:
 									double scale_sym = 0.0;
+									for (int i = 0; i< norm_sym_weights.length; i++){
+										scale_sym += norm_sym_weights[i]*kernels[chn].st_kernels[nc][tileY][tileX][i];
+									}
+									/*
 									for (int i = 0; i< dct_size; i++){
 										for (int j = 0; j< dct_size; j++){
 											double d = kernels[chn].st_kernels[nc][tileY][tileX][i*dct_size+j];
@@ -781,9 +801,14 @@ public class EyesisDCT {
 											scale_sym +=d;
 										}
 									}
+									*/
 									for (int i=0; i < kernels[chn].st_kernels[nc][tileY][tileX].length;i++) {
 										kernels[chn].st_kernels[nc][tileY][tileX][i] /= scale_sym;  
 									}
+									if ((debugLevel > 0) && (tileY== dct_parameters.tileY) && (tileX==dct_parameters.tileX)) {
+										System.out.println("chn="+chn+" tileY="+tileY+", tileX"+tileY+" scale_sym="+scale_sym);
+									}
+									
 								}
 								// Make a copy of direct kernels (debug feature, may be removed later)
 								for (int i = 0; i < dct_size;i++){
@@ -1660,7 +1685,8 @@ public class EyesisDCT {
 										if (nonlin_max_y != 0){
 											double sum = 0;
 											for (int i = 0; i < kern_y.length; i++){
-												sum += Math.abs(kern_y[i]);
+												// (i != 4) just increases denoise maximal value
+												if (i != 4) sum += Math.abs(kern_y[i]);
 											}
 											if (sum > nonlin_max_y){
 												sum = nonlin_max_y/sum;
