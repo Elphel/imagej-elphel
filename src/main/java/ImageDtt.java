@@ -661,7 +661,18 @@ public class ImageDtt {
 		final double [][] filters_proto = new double[3][];
 		System.out.println("dct_color_convert(): kr="+kr+" kg="+kg+" kb="+kb);
 		final double [] sigmas = {sigma_rb,sigma_y,sigma_color};
+		double [] norm_sym_weights = new double [dct_size*dct_size];
+		for (int i = 0; i < dct_size; i++){
+			for (int j = 0; j < dct_size; j++){
+				double d = 	Math.cos(Math.PI*i/(2*dct_size))*Math.cos(Math.PI*j/(2*dct_size));
+				if (i > 0) d*= 2.0;
+				if (j > 0) d*= 2.0;
+				norm_sym_weights[i*dct_size+j] = d;
+			}
+		}
+		
 		for (int n = 0; n<3; n++) {
+			
 			double s = 0.0;
 			for (int i = 0; i < dct_size; i++){
 				for (int j = 0; j < dct_size; j++){
@@ -669,12 +680,16 @@ public class ImageDtt {
 					if (sigmas[n] == 0.0)   d = ((i == 0) && (j==0))? 1.0:0.0;
 					else                    d = Math.exp(-(i*i+j*j)/(2*sigmas[n]));
 					filters_proto_direct[n][i*dct_size+j] = d;
-					if (i > 0) d*=2;
-					if (j > 0) d*=2;
-					s += d;
+//					if (i > 0) d*=2;
+//					if (j > 0) d*=2;
+//					s += d;
 				}
 				
 			}
+			for (int i = 0; i< dct_len; i++){
+				s += norm_sym_weights[i]*filters_proto_direct[n][i];
+			}
+			
 			System.out.println("dct_color_convert(): sigmas["+n+"]="+sigmas[n]+", sum="+s);
 			for (int i = 0; i < dct_len; i++){
 				filters_proto_direct[n][i] /=s;

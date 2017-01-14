@@ -792,23 +792,12 @@ public class EyesisDCT {
 									for (int i = 0; i< norm_sym_weights.length; i++){
 										scale_sym += norm_sym_weights[i]*kernels[chn].st_kernels[nc][tileY][tileX][i];
 									}
-									/*
-									for (int i = 0; i< dct_size; i++){
-										for (int j = 0; j< dct_size; j++){
-											double d = kernels[chn].st_kernels[nc][tileY][tileX][i*dct_size+j];
-											if (i > 0) d*=2;
-											if (j > 0) d*=2;
-											scale_sym +=d;
-										}
-									}
-									*/
 									for (int i=0; i < kernels[chn].st_kernels[nc][tileY][tileX].length;i++) {
 										kernels[chn].st_kernels[nc][tileY][tileX][i] /= scale_sym;  
 									}
 									if ((debugLevel > 0) && (tileY== dct_parameters.tileY) && (tileX==dct_parameters.tileX)) {
 										System.out.println("chn="+chn+" tileY="+tileY+", tileX"+tileY+" scale_sym="+scale_sym);
 									}
-									
 								}
 								// Make a copy of direct kernels (debug feature, may be removed later)
 								for (int i = 0; i < dct_size;i++){
