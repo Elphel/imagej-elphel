@@ -608,9 +608,10 @@ public class ImageDtt {
 		final double [] filter= dtt.dttt_iiie(filter_direct);
 		final double [] dbg_filter= dtt.dttt_ii(filter);
 		
-		for (int i=0; i < filter.length;i++) filter[i] *= dct_size;  
+//		for (int i=0; i < filter.length;i++) filter[i] *= dct_size;  
+		for (int i=0; i < filter.length;i++) filter[i] *= 2*dct_size;  
 		
-		if (globalDebugLevel > -1) {
+		if (globalDebugLevel > 0) {
 			for (int i=0; i<filter.length;i++){
 				System.out.println("dct_lpf_psf() "+i+": "+filter[i]); 
 			}
