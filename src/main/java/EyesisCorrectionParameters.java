@@ -1795,12 +1795,18 @@ public class EyesisCorrectionParameters {
   		public double decimateSigma =   -1.0; // special mode for 2:1 deciamtion 
   		public int    tileX =            82;  // number of kernel tile (0..163) 
   		public int    tileY =            62;  // number of kernel tile (0..122) 
-  		public boolean subtract_dc =     false;//subtract/restore dc
+  		public boolean subtract_dc =     false;// subtract/restore dc
   		public int    kernel_chn =      -1; // camera channel calibration to use for aberration correction ( < 0 - no correction)
-  		public boolean normalize =       true; //normalize both sym and asym kernels (asym to have sum==1, sym to have sum = dct_size
-  		public boolean normalize_sym =   true; //normalize sym kernels separately
+  		public boolean normalize =       true; // normalize both sym and asym kernels (asym to have sum==1, sym to have sum = dct_size
+  		public boolean normalize_sym =   true; // normalize sym kernels separately
+  		public boolean antiwindow =      false; // divide symmetrical kernel by a window function
   		public boolean skip_sym =        false; // do not apply symmetrical correction
   		public boolean convolve_direct = false; // do not apply symmetrical correction
+  		
+  		// colors should be balanced before DCT color conversion!
+  		public double novignetting_r    = 0.2644; // reg gain in the center of sensor calibration R (instead of vignetting)
+  		public double novignetting_g    = 0.3733; // green gain in the center of sensor calibration G
+  		public double novignetting_b    = 0.2034; // blue gain in the center of sensor calibration B
   		
   		public double vignetting_max    = 0.4; // value in vignetting data to correspond to 1x in the kernel
   		public double vignetting_range  = 5.0; // do not try to correct vignetting less than vignetting_max/vignetting_range
@@ -1875,8 +1881,14 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"kernel_chn",   this.kernel_chn+"");
   			properties.setProperty(prefix+"normalize",    this.normalize+"");
   			properties.setProperty(prefix+"normalize_sym",    this.normalize_sym+"");
+  			properties.setProperty(prefix+"antiwindow",       this.antiwindow+"");
   			properties.setProperty(prefix+"skip_sym",    this.skip_sym+"");
   			properties.setProperty(prefix+"convolve_direct",    this.convolve_direct+"");
+
+  			properties.setProperty(prefix+"novignetting_r",   this.novignetting_r+"");
+  			properties.setProperty(prefix+"novignetting_g",   this.novignetting_g+"");
+  			properties.setProperty(prefix+"novignetting_b",   this.novignetting_b+"");
+  			
   			properties.setProperty(prefix+"vignetting_max",   this.vignetting_max+"");
   			properties.setProperty(prefix+"vignetting_range",   this.vignetting_range+"");
   			properties.setProperty(prefix+"color_DCT",          this.color_DCT+"");
@@ -1933,8 +1945,14 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"kernel_chn")!=null) this.kernel_chn=Integer.parseInt(properties.getProperty(prefix+"kernel_chn"));
   			if (properties.getProperty(prefix+"normalize")!=null) this.normalize=Boolean.parseBoolean(properties.getProperty(prefix+"normalize"));
   			if (properties.getProperty(prefix+"normalize_sym")!=null) this.normalize_sym=Boolean.parseBoolean(properties.getProperty(prefix+"normalize_sym"));
+  			if (properties.getProperty(prefix+"antiwindow")!=null) this.antiwindow=Boolean.parseBoolean(properties.getProperty(prefix+"antiwindow"));
   			if (properties.getProperty(prefix+"skip_sym")!=null) this.skip_sym=Boolean.parseBoolean(properties.getProperty(prefix+"skip_sym"));
   			if (properties.getProperty(prefix+"convolve_direct")!=null) this.convolve_direct=Boolean.parseBoolean(properties.getProperty(prefix+"convolve_direct"));
+
+  			if (properties.getProperty(prefix+"novignetting_r")!=null) this.novignetting_r=Double.parseDouble(properties.getProperty(prefix+"novignetting_r"));
+  			if (properties.getProperty(prefix+"novignetting_g")!=null) this.novignetting_g=Double.parseDouble(properties.getProperty(prefix+"novignetting_g"));
+  			if (properties.getProperty(prefix+"novignetting_b")!=null) this.novignetting_b=Double.parseDouble(properties.getProperty(prefix+"novignetting_b"));
+  			
   			if (properties.getProperty(prefix+"vignetting_max")!=null) this.vignetting_max=Double.parseDouble(properties.getProperty(prefix+"vignetting_max"));
   			if (properties.getProperty(prefix+"vignetting_range")!=null) this.vignetting_range=Double.parseDouble(properties.getProperty(prefix+"vignetting_range"));
   			if (properties.getProperty(prefix+"color_DCT")!=null)      this.color_DCT=Boolean.parseBoolean(properties.getProperty(prefix+"color_DCT"));
@@ -1990,8 +2008,14 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Calibration channel to use for aberration ( <0 - no correction)",this.kernel_chn,          0);
   			gd.addCheckbox    ("Normalize both sym and asym kernels ",                           this.normalize);
   			gd.addCheckbox    ("Normalize sym kernels separately",                               this.normalize_sym);
+  			gd.addCheckbox    ("Divide symmetrical kernel by a window function",                 this.antiwindow);
   			gd.addCheckbox    ("Do not apply symmetrical (DCT) correction ",                     this.skip_sym);
   			gd.addCheckbox    ("Convolve directly with symmetrical kernel (debug feature) ",     this.convolve_direct);
+
+  			gd.addNumericField("Reg gain in the center of sensor calibration R (instead of vignetting)",this.novignetting_r,   4);
+  			gd.addNumericField("Green gain in the center of sensor calibration G (instead of vignetting)",this.novignetting_g, 4);
+  			gd.addNumericField("Blue gain in the center of sensor calibration B (instead of vignetting)",this.novignetting_b,  4);
+
   			gd.addNumericField("Value (max) in vignetting data to correspond to 1x in the kernel",this.vignetting_max,      3);
   			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",this.vignetting_range,  3);
   			gd.addCheckbox    ("Use DCT-base color conversion",                                   this.color_DCT             );
@@ -2047,8 +2071,12 @@ public class EyesisCorrectionParameters {
   			this.kernel_chn=      (int) gd.getNextNumber();
   			this.normalize=             gd.getNextBoolean();
   			this.normalize_sym=         gd.getNextBoolean();
+  			this.antiwindow=            gd.getNextBoolean();
   			this.skip_sym=              gd.getNextBoolean();
   			this.convolve_direct=       gd.getNextBoolean();
+  			this.novignetting_r=        gd.getNextNumber();
+  			this.novignetting_g=        gd.getNextNumber();
+  			this.novignetting_b=        gd.getNextNumber();
   			this.vignetting_max=        gd.getNextNumber();
   			this.vignetting_range=      gd.getNextNumber();
   			this.color_DCT=             gd.getNextBoolean();

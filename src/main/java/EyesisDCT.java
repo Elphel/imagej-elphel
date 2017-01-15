@@ -706,6 +706,13 @@ public class EyesisDCT {
 							norm_sym_weights[i*dct_size+j] = d;
 						}
 					}
+					double [] inv_window = new double [dct_size*dct_size];
+					for (int i = 0; i < dct_size; i++){
+						for (int j = 0; j < dct_size; j++){
+							double d = 	1.0 / (Math.cos(Math.PI*i/(2*dct_size))*Math.cos(Math.PI*j/(2*dct_size)));
+							inv_window[i*dct_size+j] = d;
+						}
+					}
 					
 					if (debugLevel>0) {
 						System.out.println("readDCTKernels() debugLevel = "+debugLevel+
@@ -778,6 +785,15 @@ public class EyesisDCT {
 											i * dct_size,
 											dct_size);
 								}
+								
+								
+								// sym_kernel pre-compensation for window function
+								if (dct_parameters.antiwindow) {
+									for (int i=0; i < kernels[chn].st_kernels[nc][tileY][tileX].length;i++) {
+										kernels[chn].st_kernels[nc][tileY][tileX][i] *= inv_window[i];  
+									}
+								}
+								
 								if (scale_asym != 1.0){
 									for (int i=0; i < kernels[chn].st_kernels[nc][tileY][tileX].length;i++) {
 										kernels[chn].st_kernels[nc][tileY][tileX][i] *= scale_asym;  
@@ -1123,7 +1139,23 @@ public class EyesisDCT {
 					if (d > max_vign_corr) d = max_vign_corr;
 					pixels[i]*=d;
 				}
-
+			} else { // assuming GR/BG pattern
+				System.out.println("Applying fixed color gain correction parameters: Gr="+
+						dct_parameters.novignetting_r+", Gg="+dct_parameters.novignetting_g+", Gb="+dct_parameters.novignetting_b);
+				float [] pixels=(float []) imp_src.getProcessor().getPixels();
+				int width =  imp_src.getWidth();
+				int height = imp_src.getHeight();
+				double kr = 1.0/dct_parameters.novignetting_r;
+				double kg = 1.0/dct_parameters.novignetting_g;
+				double kb = 1.0/dct_parameters.novignetting_b;
+				for (int y = 0; y < height-1; y+=2){
+					for (int x = 0; x < width-1; x+=2){
+						pixels[y*width+x        ] *= kg;
+						pixels[y*width+x+width+1] *= kg;
+						pixels[y*width+x      +1] *= kr;
+						pixels[y*width+x+width  ] *= kb;
+					}
+				}
 			}
 			String title=name+"-"+String.format("%02d", channel);
 			ImagePlus result=imp_src;
@@ -1183,6 +1215,9 @@ public class EyesisDCT {
 								threadsMax,
 								debugLevel);
 					}
+					
+					//TODO: Scale up 2x to match color processed (or scale up lpf?)
+					
 				}
 
 				int tilesY = stack.getHeight()/dct_parameters.dct_size - 1;
