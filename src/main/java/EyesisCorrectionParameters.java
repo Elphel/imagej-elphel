@@ -2009,7 +2009,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("dbg_sigma",                                                      this.dbg_sigma,           3);
 			gd.addStringField ("Debug mask (anything but * is false)",                           this.dbg_mask,          100);
   			gd.addNumericField("LMA implementation: 0 - old, 1 - new",                           this.dbg_mode,            0);
-  			gd.addNumericField("Convolution window: 0 - none, 1 - square, 2 - sin, 3 - sin^2",   this.dbg_window_mode,     0);
+  			gd.addNumericField("Convolution window: 0 - none, [1 - square], 2 - sin, 3 - sin^2", this.dbg_window_mode,     0);
   			gd.addCheckbox    ("Center convolution window around target kernel center",          this.centerWindowToTarget);
   			gd.addNumericField("Color channel to extract kernel (<0 - use synthetic)",           this.color_channel,       0);
   			gd.addNumericField("Convolution kernel decimation (original is normally 2x)",        this.decimation,          0);

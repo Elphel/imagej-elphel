@@ -163,7 +163,7 @@ public class PixelMapping {
     		if (!cam_port.contains(cp)){
     			cam_port.add(cp);
     		}
-    		System.out.println("this.sensors["+i+"]!=null, this.sensors[i].subcamera="+this.sensors[i].subcamera+", this.sensors[i].sensor_port="+this.sensors[i].sensor_port);
+//    		System.out.println("this.sensors["+i+"]!=null, this.sensors[i].subcamera="+this.sensors[i].subcamera+", this.sensors[i].sensor_port="+this.sensors[i].sensor_port);
     	}
     	Point [] cam_port_arr = cam_port.toArray(new Point[0]);
 		Arrays.sort(cam_port_arr, new Comparator<Point>() {

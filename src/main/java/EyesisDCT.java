@@ -1029,13 +1029,16 @@ public class EyesisDCT {
 			  }
 			  //pixelMapping
 			  Runtime.getRuntime().gc();
-			  if (debugLevel>0) System.out.println("Processing image "+(iImage+1)+" (of "+fileIndices.length+") finished at "+
+			  if (debugLevel >-1) System.out.println("Processing image "+(iImage+1)+" (of "+fileIndices.length+") finished at "+
 					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
 				  System.out.println("User requested stop");
 				  return;
 			  }
 		  }
+		  System.out.println("Processing "+fileIndices.length+" files finished at "+
+				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+
 
 	  }		
 
