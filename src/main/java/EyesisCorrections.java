@@ -107,16 +107,6 @@ public class EyesisCorrections {
 		//if ((this.debugLevel>1) && (correctionsParameters.sourcePaths!=null) && (correctionsParameters.sourcePaths.length>0)) {
 		if ((this.debugLevel>101) && (correctionsParameters.sourcePaths!=null) && (correctionsParameters.sourcePaths.length>0)) {
 			testFF(correctionsParameters.sourcePaths[0]);
-//			this.channelVignettingCorrection[srcChannel]=this.pixelMapping.getBayerFlatFieldFloat(
-/*			
-			SDFA_INSTANCE.showArrays(
-					this.channelVignettingCorrection,
-					this.channelWidthHeight[srcChannel][0],
-					this.channelWidthHeight[srcChannel][1],
-					true,
-					"Flat-Field");
-					//LENS_DISTORTIONS.displayGridTitles());
-*/
 		}
 		
 	}

@@ -101,7 +101,7 @@ public class EyesisCorrectionParameters {
     	public boolean planeAsJPEG=       true;   // save de-warped image as JPEG (only if equirectangularFormat==0)
 //    	public String equirectangularSuffixA="A.eqr-tiff"; // or the roll-over part
     	public String resultsDirectory="";
-    	public boolean removeUnusedSensorData=true;
+    	public boolean removeUnusedSensorData=false;
     	public int exposureCorrectionMode=2; // - 0 - none, 1 - absolute, 2 - relative
     	public double referenceExposure=0.0003; // 3/10000 sec, used in absolute mode only
     	public double relativeExposure=0.5; // 0.0 - use shortest (darken), 1.0 - use longest (brighten)
@@ -1795,7 +1795,6 @@ public class EyesisCorrectionParameters {
   		public double decimateSigma =   -1.0; // special mode for 2:1 deciamtion 
   		public int    tileX =            82;  // number of kernel tile (0..163) 
   		public int    tileY =            62;  // number of kernel tile (0..122) 
-  		public boolean subtract_dc =     false;// subtract/restore dc
   		public int    kernel_chn =      -1; // camera channel calibration to use for aberration correction ( < 0 - no correction)
   		public boolean normalize =       true; // normalize both sym and asym kernels (asym to have sum==1, sym to have sum = dct_size
   		public boolean normalize_sym =   true; // normalize sym kernels separately
@@ -1807,6 +1806,10 @@ public class EyesisCorrectionParameters {
   		public double novignetting_r    = 0.2644; // reg gain in the center of sensor calibration R (instead of vignetting)
   		public double novignetting_g    = 0.3733; // green gain in the center of sensor calibration G
   		public double novignetting_b    = 0.2034; // blue gain in the center of sensor calibration B
+  		
+  		public double scale_r =           1.0; // extra gain correction after vignetting or nonvignetting, before other processing
+  		public double scale_g =           1.0;
+  		public double scale_b =           1.0;
   		
   		public double vignetting_max    = 0.4; // value in vignetting data to correspond to 1x in the kernel
   		public double vignetting_range  = 5.0; // do not try to correct vignetting less than vignetting_max/vignetting_range
@@ -1870,26 +1873,31 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"dbg_sigma",  this.dbg_sigma+"");
   			properties.setProperty(prefix+"dbg_mask",   this.dbg_mask+"");
   			properties.setProperty(prefix+"dbg_mode",   this.dbg_mode+"");
-  			properties.setProperty(prefix+"dbg_window_mode",   this.dbg_window_mode+"");
+  			properties.setProperty(prefix+"dbg_window_mode",    this.dbg_window_mode+"");
   			properties.setProperty(prefix+"centerWindowToTarget",   this.centerWindowToTarget+"");
-  			properties.setProperty(prefix+"color_channel",   this.color_channel+"");
-  			properties.setProperty(prefix+"decimation",   this.decimation+"");
-  			properties.setProperty(prefix+"decimateSigma",   this.decimateSigma+"");
-  			properties.setProperty(prefix+"tileX",   this.tileX+"");
-  			properties.setProperty(prefix+"tileY",   this.tileY+"");
-  			properties.setProperty(prefix+"subtract_dc",   this.subtract_dc+"");
-  			properties.setProperty(prefix+"kernel_chn",   this.kernel_chn+"");
-  			properties.setProperty(prefix+"normalize",    this.normalize+"");
-  			properties.setProperty(prefix+"normalize_sym",    this.normalize_sym+"");
-  			properties.setProperty(prefix+"antiwindow",       this.antiwindow+"");
-  			properties.setProperty(prefix+"skip_sym",    this.skip_sym+"");
+  			properties.setProperty(prefix+"color_channel",      this.color_channel+"");
+  			properties.setProperty(prefix+"decimation",         this.decimation+"");
+  			properties.setProperty(prefix+"decimateSigma",      this.decimateSigma+"");
+  			properties.setProperty(prefix+"tileX",              this.tileX+"");
+  			properties.setProperty(prefix+"tileY",              this.tileY+"");
+  			properties.setProperty(prefix+"kernel_chn",         this.kernel_chn+"");
+  			properties.setProperty(prefix+"normalize",          this.normalize+"");
+  			properties.setProperty(prefix+"normalize_sym",      this.normalize_sym+"");
+  			properties.setProperty(prefix+"antiwindow",         this.antiwindow+"");
+  			properties.setProperty(prefix+"skip_sym",           this.skip_sym+"");
   			properties.setProperty(prefix+"convolve_direct",    this.convolve_direct+"");
 
-  			properties.setProperty(prefix+"novignetting_r",   this.novignetting_r+"");
-  			properties.setProperty(prefix+"novignetting_g",   this.novignetting_g+"");
-  			properties.setProperty(prefix+"novignetting_b",   this.novignetting_b+"");
+  			properties.setProperty(prefix+"novignetting_r",     this.novignetting_r+"");
+  			properties.setProperty(prefix+"novignetting_g",     this.novignetting_g+"");
+  			properties.setProperty(prefix+"novignetting_b",     this.novignetting_b+"");
   			
-  			properties.setProperty(prefix+"vignetting_max",   this.vignetting_max+"");
+  			
+  			properties.setProperty(prefix+"scale_r",            this.scale_r+"");
+  			properties.setProperty(prefix+"scale_g",            this.scale_g+"");
+  			properties.setProperty(prefix+"scale_b",            this.scale_b+"");
+  			
+  			
+  			properties.setProperty(prefix+"vignetting_max",     this.vignetting_max+"");
   			properties.setProperty(prefix+"vignetting_range",   this.vignetting_range+"");
   			properties.setProperty(prefix+"color_DCT",          this.color_DCT+"");
   			properties.setProperty(prefix+"sigma_rb",           this.sigma_rb+"");
@@ -1941,7 +1949,6 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"tileX")!=null) this.tileX=Integer.parseInt(properties.getProperty(prefix+"tileX"));
   			if (properties.getProperty(prefix+"tileY")!=null) this.tileY=Integer.parseInt(properties.getProperty(prefix+"tileY"));
   			if (properties.getProperty(prefix+"dbg_window_mode")!=null) this.dbg_window_mode=Integer.parseInt(properties.getProperty(prefix+"dbg_window_mode"));
-  			if (properties.getProperty(prefix+"subtract_dc")!=null) this.subtract_dc=Boolean.parseBoolean(properties.getProperty(prefix+"subtract_dc"));
   			if (properties.getProperty(prefix+"kernel_chn")!=null) this.kernel_chn=Integer.parseInt(properties.getProperty(prefix+"kernel_chn"));
   			if (properties.getProperty(prefix+"normalize")!=null) this.normalize=Boolean.parseBoolean(properties.getProperty(prefix+"normalize"));
   			if (properties.getProperty(prefix+"normalize_sym")!=null) this.normalize_sym=Boolean.parseBoolean(properties.getProperty(prefix+"normalize_sym"));
@@ -1952,6 +1959,11 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"novignetting_r")!=null) this.novignetting_r=Double.parseDouble(properties.getProperty(prefix+"novignetting_r"));
   			if (properties.getProperty(prefix+"novignetting_g")!=null) this.novignetting_g=Double.parseDouble(properties.getProperty(prefix+"novignetting_g"));
   			if (properties.getProperty(prefix+"novignetting_b")!=null) this.novignetting_b=Double.parseDouble(properties.getProperty(prefix+"novignetting_b"));
+  			
+  			if (properties.getProperty(prefix+"scale_r")!=null)        this.scale_r=Double.parseDouble(properties.getProperty(prefix+"scale_r"));
+  			if (properties.getProperty(prefix+"scale_g")!=null)        this.scale_g=Double.parseDouble(properties.getProperty(prefix+"scale_g"));
+  			if (properties.getProperty(prefix+"scale_b")!=null)        this.scale_b=Double.parseDouble(properties.getProperty(prefix+"scale_b"));
+
   			
   			if (properties.getProperty(prefix+"vignetting_max")!=null) this.vignetting_max=Double.parseDouble(properties.getProperty(prefix+"vignetting_max"));
   			if (properties.getProperty(prefix+"vignetting_range")!=null) this.vignetting_range=Double.parseDouble(properties.getProperty(prefix+"vignetting_range"));
@@ -2004,7 +2016,6 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Smooth convolution kernel before decimation",                    this.decimateSigma,       3);
   			gd.addNumericField("Tile X to extract (0..163)",                                     this.tileX,               0);
   			gd.addNumericField("Tile Y to extract (0..122)",                                     this.tileY,               0);
-  			gd.addCheckbox    ("Subtract avarege before dct, restore after idct",                this.subtract_dc);
   			gd.addNumericField("Calibration channel to use for aberration ( <0 - no correction)",this.kernel_chn,          0);
   			gd.addCheckbox    ("Normalize both sym and asym kernels ",                           this.normalize);
   			gd.addCheckbox    ("Normalize sym kernels separately",                               this.normalize_sym);
@@ -2016,9 +2027,13 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Green gain in the center of sensor calibration G (instead of vignetting)",this.novignetting_g, 4);
   			gd.addNumericField("Blue gain in the center of sensor calibration B (instead of vignetting)",this.novignetting_b,  4);
 
-  			gd.addNumericField("Value (max) in vignetting data to correspond to 1x in the kernel",this.vignetting_max,      3);
-  			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",this.vignetting_range,  3);
-  			gd.addCheckbox    ("Use DCT-base color conversion",                                   this.color_DCT             );
+  			gd.addNumericField("Extra red correction to compensate for light temperature",               this.scale_r,  4);
+  			gd.addNumericField("Extra green correction to compensate for light temperature",             this.scale_g,  4);
+  			gd.addNumericField("Extra blue correction to compensate for light temperature",              this.scale_b,  4);
+  			
+  			gd.addNumericField("Value (max) in vignetting data to correspond to 1x in the kernel",    this.vignetting_max,      3);
+  			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",  this.vignetting_range,  3);
+  			gd.addCheckbox    ("Use DCT-based color conversion (false - just LPF RGB with dbg_sigma)",this.color_DCT             );
   			gd.addNumericField("Gaussian sigma to apply to R and B (in addition to G), pix",      this.sigma_rb,            3);
   			gd.addNumericField("Gaussian sigma to apply to Y in the MDCT domain, pix",            this.sigma_y,             3);
   			gd.addNumericField("Gaussian sigma to apply to Pr and Pb in the MDCT domain, pix",    this.sigma_color,         3);
@@ -2067,7 +2082,6 @@ public class EyesisCorrectionParameters {
   			this.decimateSigma=         gd.getNextNumber();
   			this.tileX=           (int) gd.getNextNumber();
   			this.tileY=           (int) gd.getNextNumber();
-  			this.subtract_dc=           gd.getNextBoolean();
   			this.kernel_chn=      (int) gd.getNextNumber();
   			this.normalize=             gd.getNextBoolean();
   			this.normalize_sym=         gd.getNextBoolean();
@@ -2077,6 +2091,12 @@ public class EyesisCorrectionParameters {
   			this.novignetting_r=        gd.getNextNumber();
   			this.novignetting_g=        gd.getNextNumber();
   			this.novignetting_b=        gd.getNextNumber();
+
+  			this.scale_r=               gd.getNextNumber();
+  			this.scale_g=               gd.getNextNumber();
+  			this.scale_b=               gd.getNextNumber();
+  			
+  			
   			this.vignetting_max=        gd.getNextNumber();
   			this.vignetting_range=      gd.getNextNumber();
   			this.color_DCT=             gd.getNextBoolean();
