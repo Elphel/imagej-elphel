@@ -658,6 +658,254 @@ public class ImageDtt {
 		return dpixels;
 	}
 
+	public double [][][][] mdctScale(
+			final ImageStack                                 imageStack,
+			final int                                        subcamera, // 
+			final EyesisCorrectionParameters.DCTParameters   dctParameters, //
+			final int                                        threadsMax, // maximal step in pixels on the maxRadius for 1 angular step (i.e. 0.5)
+			final int                                        debugLevel,
+			final boolean                                    updateStatus) // update status info
+
+	{
+	  	  if (imageStack==null) return null;
+		  final int imgWidth=imageStack.getWidth();
+		  final int nChn=imageStack.getSize();
+		  double [][][][] dct_data = new double [nChn][][][];
+		  float [] fpixels;
+		  int i,chn; //tileX,tileY;
+		  /* find number of the green channel - should be called "green", if none - use last */
+		  // Extract float pixels from inage stack, convert each to double
+
+		  
+		  for (chn=0;chn<nChn;chn++) {
+			  fpixels= (float[]) imageStack.getPixels(chn+1);
+			  double[] dpixels = new double[fpixels.length];
+			  for (i = 0; i <fpixels.length;i++) dpixels[i] = fpixels[i];
+			  // convert each to DCT tiles
+			  dct_data[chn] =lapped_dct_scale(
+						dpixels,
+						imgWidth,
+						dctParameters.dct_size,
+						(int) Math.round(dctParameters.dbg_src_size),
+						dctParameters.dbg_fold_scale,
+						dctParameters.dbg_fold_scale,
+						0, //     dct_mode,    // 0: dct/dct, 1: dct/dst, 2: dst/dct, 3: dst/dst
+						dctParameters.dct_window, // final int       window_type,
+						chn,
+						dctParameters.tileX,
+						dctParameters.tileY,
+						dctParameters.dbg_mode,
+						threadsMax,  // maximal number of threads to launch                         
+						debugLevel);
+		  }
+		return dct_data;
+	}
+	
+	
+	
+	public double [][][] lapped_dct_scale( // scale image to 8/9 size in each direction
+			final double [] dpixels,
+			final int       width,
+			final int       dct_size,
+			final int       src_size,    // source step (== dct_size - no scale, == 9 - shrink, ==7 - expand
+			final double    scale_hor,
+			final double    scale_vert,
+			final int       dct_mode,    // 0: dct/dct, 1: dct/dst, 2: dst/dct, 3: dst/dst
+			final int       window_type,
+			final int       color,
+			final int       debug_tileX,
+			final int       debug_tileY,
+			final int       debug_mode,
+			final int       threadsMax,  // maximal number of threads to launch                         
+			final int       globalDebugLevel)
+	{
+		final int height=dpixels.length/width;
+		final int n2 = dct_size * 2;
+
+		final int tilesX = (width - n2) / src_size + 1;
+		final int tilesY = (height - n2) / src_size + 1;
+
+		final int nTiles=tilesX*tilesY; 
+		final double [][][] dct_data = new double[tilesY][tilesX][dct_size*dct_size];
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int tileY = 0; tileY < tilesY; tileY++){
+			for (int tileX = 0; tileX < tilesX; tileX++){
+				for (int i=0; i<dct_data[tileY][tileX].length;i++) dct_data[tileY][tileX][i]= 0.0; // actually not needed, Java initializes arrays
+			}
+		}
+		double [] dc = new double [dct_size*dct_size];
+		for (int i = 0; i<dc.length; i++) dc[i] = 1.0;
+//		DttRad2 dtt0 = new DttRad2(dct_size);
+//		dtt0.set_window(window_type);
+//		final double [] dciii = dtt0.dttt_iii  (dc, dct_size);
+//		final double [] dciiie = dtt0.dttt_iiie  (dc, dct_size);
+
+		
+		if (globalDebugLevel > 0) {
+			System.out.println("lapped_dctdc(): width="+width+" height="+height);
+		}
+
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					DttRad2 dtt = new DttRad2(dct_size);
+					dtt.set_window(window_type);
+					double [] tile_in = new double[4*dct_size * dct_size];
+					double [] tile_folded;
+					double [] tile_out; // = new double[dct_size * dct_size];
+					int tileY,tileX;
+					double [][] fold_k =  dtt.get_fold_2d(
+//							int n,
+							scale_hor,
+							scale_vert
+							);
+//					double [] tile_out_copy = null;
+//					showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
+						tileY = nTile/tilesX;
+						tileX = nTile - tileY * tilesX;
+						//readDCTKernels() debugLevel = 1 kernels[0].size = 8 kernels[0].img_step = 16 kernels[0].asym_nonzero = 4 nColors = 3 numVert = 123 numHor =  164
+						// no aberration correction, just copy data
+						for (int i = 0; i < n2;i++){
+							System.arraycopy(dpixels, (tileY*width+tileX)*src_size + i*width, tile_in, i*n2, n2);
+						}
+						tile_folded=dtt.fold_tile(tile_in, dct_size, fold_k);
+						tile_out=dtt.dttt_iv  (tile_folded, dct_mode, dct_size);
+
+//						if ((tileY == debug_tileY) && (tileX == debug_tileX) && (color == 2)) {
+//							tile_out_copy = tile_out.clone();
+//						}
+						
+						System.arraycopy(tile_out, 0, dct_data[tileY][tileX], 0, tile_out.length);
+					}
+				}
+			};
+		}		      
+		startAndJoin(threads);
+		return dct_data;
+	}
+	
+	public void dct_scale(
+			final double  scale_hor,  // < 1.0 - enlarge in dct domain (shrink in time/space)
+			final double  scale_vert, // < 1.0 - enlarge in dct domain (shrink in time/space)
+			final boolean normalize, // preserve weighted dct values
+			final double [][][] dct_data,
+			final int       debug_tileX,
+			final int       debug_tileY,
+			final int       threadsMax,     // maximal number of threads to launch                         
+			final int       globalDebugLevel)
+	{
+		final int tilesY=dct_data.length;
+		final int tilesX=dct_data[0].length;
+		final int nTiles=tilesX*tilesY;
+		final int dct_size = (int) Math.round(Math.sqrt(dct_data[0][0].length));
+		final int dct_len = dct_size*dct_size;
+		final double [] norm_sym_weights = new double [dct_size*dct_size];
+		for (int i = 0; i < dct_size; i++){
+			for (int j = 0; j < dct_size; j++){
+				double d = 	Math.cos(Math.PI*i/(2*dct_size))*Math.cos(Math.PI*j/(2*dct_size));
+				if (i > 0) d*= 2.0;
+				if (j > 0) d*= 2.0;
+				norm_sym_weights[i*dct_size+j] = d;
+			}
+		}
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					int tileY,tileX;
+					double [] dct1 = new double [dct_size*dct_size];
+					double [] dct;
+					double [][] bidata = new double [2][2];
+					int dct_m1 = dct_size - 1;
+					int dct_m2 = dct_size - 2;
+					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
+						tileY = nTile/tilesX;
+						tileX = nTile - tileY * tilesX;
+						dct = dct_data[tileY][tileX];
+						double sum_orig=0;
+						if (normalize) {
+							for (int i = 0; i < dct_len; i++){
+								sum_orig += dct[i] *norm_sym_weights[i];
+							}
+						}
+						for (int i = 0; i < dct_size; i++){
+							double fi = i * scale_vert;
+							int i0 = (int) fi;
+							fi -= i0;
+							for (int j = 0; j < dct_size; j++){
+								double fj = j * scale_hor;
+								int j0 = (int) fj;
+								fj -= j0;
+								int indx = i0*dct_size+j0;
+								if ((i0 > dct_m1) || (j0 > dct_m1)){
+									bidata[0][0] = 0.0;
+									bidata[0][1] = 0.0;
+									bidata[1][0] = 0.0;
+									bidata[1][1] = 0.0;
+								} else {
+									bidata[0][0] = dct[indx];
+									if (i0 > dct_m2) {
+										bidata[1][0] = 0.0;
+										bidata[1][1] = 0.0;
+										if (j0 > dct_m2) {
+											bidata[0][1] = 0.0;
+										} else {
+											bidata[0][1] = dct[indx + 1];
+										}
+									} else {
+										bidata[1][0] = dct[indx+dct_size];
+										if (j0 > dct_m2) {
+											bidata[0][1] = 0.0;
+											bidata[1][1] = 0.0;
+										} else {
+											bidata[0][1] = dct[indx + 1];
+											bidata[1][1] = dct[indx + dct_size + 1];
+										}
+									}
+									
+								}
+								// bilinear interpolation 
+								dct1[i*dct_size+j] =
+										bidata[0][0] * (1.0-fi) * (1.0-fj) +
+										bidata[0][1] * (1.0-fi) *      fj  +
+										bidata[1][0] *      fi  * (1.0-fj) +
+										bidata[1][1] *      fi *       fj;
+								if ((globalDebugLevel > 0) && (tileY == debug_tileY) && (tileX == debug_tileX)) {
+									System.out.println(i+":"+j+" {"+bidata[0][0]+","+bidata[0][1]+","+bidata[1][0]+","+bidata[1][1]+"}, ["+fi+","+fj+"] "+bidata[1][1]);
+								}
+							}
+						}
+						if (normalize) {
+							double sum=0;
+							for (int i = 0; i < dct_len; i++){
+								sum += dct1[i] *norm_sym_weights[i];
+							}
+							if (sum >0.0) {
+								double k = sum_orig/sum;
+								for (int i = 0; i < dct_len; i++){
+									dct1[i] *= k;
+								}
+							}
+						}
+//						if ((tileY == debug_tileY) && (tileX == debug_tileX) && (color == 2)) {
+						if ((globalDebugLevel > 0) && (tileY == debug_tileY) && (tileX == debug_tileX)) {
+							double [][] scaled_tiles = {dct, dct1};
+							showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+							String [] titles = {"orig","scaled"};
+							sdfa_instance.showArrays(scaled_tiles,  dct_size, dct_size, true, "scaled_tile", titles);
+						}
+						
+						System.arraycopy(dct1, 0, dct, 0, dct_len); // replace original data
+					}
+				}
+			};
+		}		      
+		startAndJoin(threads);
+	}
 	
 	
 	

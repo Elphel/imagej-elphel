@@ -148,8 +148,59 @@ public class DttRad2 {
 						fi[1][0],fi[1][1],fi[1][2], hwindow[fi[0][1]], hwindow[fi[1][1]]));
 			}
 		}
-		
 	}
+	
+	public double [][] get_fold_2d(
+			double scale_hor,
+			double scale_vert)
+	{
+		return get_fold_2d( this.N, scale_hor, scale_vert);
+	}
+	public double [][] get_fold_2d(
+			int n,
+			double scale_hor,
+			double scale_vert
+			){ // n - DCT and window size
+//		if ((fold_index != null) && (fold_index.length == n*n)) return;
+//		fold_index = new int[n*n][4];
+		
+			double [] hwindow_h = new double[n];
+			double [] hwindow_v = new double[n];
+			double f = Math.PI/(2.0*n);
+			for (int i = 0; i < n; i++ ) {
+				double ah = f*scale_hor * (n-i-0.5);
+				double av = f*scale_vert * (n-i-0.5);
+				hwindow_h[i] = (ah > (Math.PI/2))? 0.0: Math.cos(ah);
+				hwindow_v[i] = (av > (Math.PI/2))? 0.0: Math.cos(av);
+			}
+		double [][] fold_sk =     new double[n*n][4];
+		int []    vert_ind = new int[2];
+		double [] vert_k = new double[2];
+		int    [] hor_ind = new int[2];
+		double [] hor_k = new double[2];
+		int [][] fi;
+		for (int i = 0; i < n; i++ ){
+			fi = get_fold_indices(i,n);
+			vert_ind[0] = fi[0][0];
+			vert_ind[1] = fi[1][0];
+			vert_k[0] =   fi[0][2] * hwindow_v[fi[0][1]];
+			vert_k[1] =   fi[1][2] * hwindow_v[fi[1][1]];
+			for (int j = 0; j < n; j++ ){
+				fi = get_fold_indices(j,n);
+				hor_ind[0] = fi[0][0];
+				hor_ind[1] = fi[1][0];
+				hor_k[0] =   fi[0][2] * hwindow_h[fi[0][1]];
+				hor_k[1] =   fi[1][2] * hwindow_h[fi[1][1]];
+				int indx = n*i + j;
+				for (int k = 0; k<4;k++) {
+					fold_sk[indx][k] =     vert_k[(k>>1) & 1] * hor_k[k & 1]; 
+				}
+			}
+		}
+		return fold_sk;
+	}
+	
+	
 	// return index+1 and sign for 1-d imdct. x is index (0..2*n-1) of the imdct array, value is sign * (idct_index+1),
 	// where idct_index (0..n-1) is index in the dct-iv array
 	private int get_unfold_index(int x, int n){
@@ -351,6 +402,22 @@ public class DttRad2 {
 		return fold_tile(x, 1 << (ilog2(x.length/4)/2));
 	}
 	public double [] fold_tile(double [] x, int n) { // x should be 2n*2n
+		return fold_tile(x,n,this.fold_k);
+//		double [] y = new double [n*n];
+//		for (int i = 0; i<y.length;i++) {
+//			y[i] = 0;
+//			for (int k = 0; k < 4; k++){
+//				y[i] += x[fold_index[i][k]] * fold_k[i][k];
+//			}
+//		}
+//		return y;
+	}
+
+	public double [] fold_tile(
+			double [] x,
+			int n,
+			double [][] fold_k
+			) { // x should be 2n*2n
 		double [] y = new double [n*n];
 		for (int i = 0; i<y.length;i++) {
 			y[i] = 0;
@@ -360,7 +427,8 @@ public class DttRad2 {
 		}
 		return y;
 	}
-
+	
+	
 	public double [] unfold_tile(double [] x) { // x should be n*n
 		return unfold_tile(x, 1 << (ilog2(x.length)/2));
 		

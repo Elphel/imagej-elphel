@@ -1785,6 +1785,9 @@ public class EyesisCorrectionParameters {
   		public double dbg_x1 =          -1.3;
   		public double dbg_y1 =           2.0;
   		public double dbg_sigma =        0.8;
+  		public double dbg_src_size =     8.0; // trying to slightly scale in dct space. == dct = 1:1, dct+1.0 - shrink dct(dct+1.0)
+  		public double dbg_scale =        1.0; // Should ==DCT_PARAMETERS.dct_size / DCT_PARAMETERS.dbg_src_size
+  		public double dbg_fold_scale =   1.0; // Modifies window during MDCT->DCT-IV folding
   		public String dbg_mask = ".........:::::::::.........:::::::::......*..:::::*:::.........:::::::::.........";
   		public int dbg_mode =            1; // 0 - old LMA, 1 - new LMA - *** not used anymore ***
   		public int dbg_window_mode =     1; // 0 - none, 1 - square, 2 - sin 3 - sin^2 Now _should_ be square !!!
@@ -1814,6 +1817,7 @@ public class EyesisCorrectionParameters {
   		public double vignetting_max    = 0.4; // value in vignetting data to correspond to 1x in the kernel
   		public double vignetting_range  = 5.0; // do not try to correct vignetting less than vignetting_max/vignetting_range
   		
+  		public boolean post_debayer     = false; // perform de-bayer after aberrations in pixel domain
   		public boolean color_DCT        = true; // false - use old color processing mode
   		public double  sigma_rb =         0.9; // additional (to G) blur for R and B
   		public double  sigma_y =          0.7; // blur for G contribution to Y
@@ -1871,6 +1875,9 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"dbg_x1",     this.dbg_x1+"");
   			properties.setProperty(prefix+"dbg_y1",     this.dbg_y1+"");
   			properties.setProperty(prefix+"dbg_sigma",  this.dbg_sigma+"");
+  			properties.setProperty(prefix+"dbg_src_size",this.dbg_src_size+"");
+  			properties.setProperty(prefix+"dbg_scale",  this.dbg_scale+"");
+  			properties.setProperty(prefix+"dbg_fold_scale",  this.dbg_fold_scale+"");
   			properties.setProperty(prefix+"dbg_mask",   this.dbg_mask+"");
   			properties.setProperty(prefix+"dbg_mode",   this.dbg_mode+"");
   			properties.setProperty(prefix+"dbg_window_mode",    this.dbg_window_mode+"");
@@ -1886,32 +1893,26 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"antiwindow",         this.antiwindow+"");
   			properties.setProperty(prefix+"skip_sym",           this.skip_sym+"");
   			properties.setProperty(prefix+"convolve_direct",    this.convolve_direct+"");
-
   			properties.setProperty(prefix+"novignetting_r",     this.novignetting_r+"");
   			properties.setProperty(prefix+"novignetting_g",     this.novignetting_g+"");
   			properties.setProperty(prefix+"novignetting_b",     this.novignetting_b+"");
-  			
-  			
   			properties.setProperty(prefix+"scale_r",            this.scale_r+"");
   			properties.setProperty(prefix+"scale_g",            this.scale_g+"");
   			properties.setProperty(prefix+"scale_b",            this.scale_b+"");
-  			
-  			
   			properties.setProperty(prefix+"vignetting_max",     this.vignetting_max+"");
   			properties.setProperty(prefix+"vignetting_range",   this.vignetting_range+"");
+  			properties.setProperty(prefix+"post_debayer",       this.post_debayer+"");
   			properties.setProperty(prefix+"color_DCT",          this.color_DCT+"");
   			properties.setProperty(prefix+"sigma_rb",           this.sigma_rb+"");
   			properties.setProperty(prefix+"sigma_y",            this.sigma_y+"");
   			properties.setProperty(prefix+"sigma_color",        this.sigma_color+"");
   			properties.setProperty(prefix+"line_thershold",     this.line_thershold+"");
-  			
   			properties.setProperty(prefix+"nonlin",             this.nonlin+"");
   			properties.setProperty(prefix+"nonlin_max_y",       this.nonlin_max_y+"");
   			properties.setProperty(prefix+"nonlin_max_c",       this.nonlin_max_c+"");
   			properties.setProperty(prefix+"nonlin_y",           this.nonlin_y+"");
   			properties.setProperty(prefix+"nonlin_c",           this.nonlin_c+"");
   			properties.setProperty(prefix+"nonlin_corn",        this.nonlin_corn+"");
-
   			properties.setProperty(prefix+"denoise",            this.denoise+"");
   			properties.setProperty(prefix+"denoise_y",          this.denoise_y+"");
   			properties.setProperty(prefix+"denoise_c",          this.denoise_c+"");
@@ -1940,6 +1941,9 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"dbg_x1")!=null) this.dbg_x1=Double.parseDouble(properties.getProperty(prefix+"dbg_x1"));
   			if (properties.getProperty(prefix+"dbg_y1")!=null) this.dbg_y1=Double.parseDouble(properties.getProperty(prefix+"dbg_y1"));
   			if (properties.getProperty(prefix+"dbg_sigma")!=null) this.dbg_sigma=Double.parseDouble(properties.getProperty(prefix+"dbg_sigma"));
+  			if (properties.getProperty(prefix+"dbg_src_size")!=null) this.dbg_src_size=Double.parseDouble(properties.getProperty(prefix+"dbg_src_size"));
+  			if (properties.getProperty(prefix+"dbg_scale")!=null) this.dbg_scale=Double.parseDouble(properties.getProperty(prefix+"dbg_scale"));
+  			if (properties.getProperty(prefix+"dbg_fold_scale")!=null) this.dbg_fold_scale=Double.parseDouble(properties.getProperty(prefix+"dbg_fold_scale"));
   			if (properties.getProperty(prefix+"dbg_mask")!=null) this.dbg_mask=properties.getProperty(prefix+"dbg_mask");
   			if (properties.getProperty(prefix+"dbg_mode")!=null) this.dbg_mode=Integer.parseInt(properties.getProperty(prefix+"dbg_mode"));
   			if (properties.getProperty(prefix+"centerWindowToTarget")!=null) this.centerWindowToTarget=Boolean.parseBoolean(properties.getProperty(prefix+"centerWindowToTarget"));
@@ -1955,31 +1959,26 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"antiwindow")!=null) this.antiwindow=Boolean.parseBoolean(properties.getProperty(prefix+"antiwindow"));
   			if (properties.getProperty(prefix+"skip_sym")!=null) this.skip_sym=Boolean.parseBoolean(properties.getProperty(prefix+"skip_sym"));
   			if (properties.getProperty(prefix+"convolve_direct")!=null) this.convolve_direct=Boolean.parseBoolean(properties.getProperty(prefix+"convolve_direct"));
-
   			if (properties.getProperty(prefix+"novignetting_r")!=null) this.novignetting_r=Double.parseDouble(properties.getProperty(prefix+"novignetting_r"));
   			if (properties.getProperty(prefix+"novignetting_g")!=null) this.novignetting_g=Double.parseDouble(properties.getProperty(prefix+"novignetting_g"));
   			if (properties.getProperty(prefix+"novignetting_b")!=null) this.novignetting_b=Double.parseDouble(properties.getProperty(prefix+"novignetting_b"));
-  			
   			if (properties.getProperty(prefix+"scale_r")!=null)        this.scale_r=Double.parseDouble(properties.getProperty(prefix+"scale_r"));
   			if (properties.getProperty(prefix+"scale_g")!=null)        this.scale_g=Double.parseDouble(properties.getProperty(prefix+"scale_g"));
   			if (properties.getProperty(prefix+"scale_b")!=null)        this.scale_b=Double.parseDouble(properties.getProperty(prefix+"scale_b"));
-
-  			
   			if (properties.getProperty(prefix+"vignetting_max")!=null) this.vignetting_max=Double.parseDouble(properties.getProperty(prefix+"vignetting_max"));
   			if (properties.getProperty(prefix+"vignetting_range")!=null) this.vignetting_range=Double.parseDouble(properties.getProperty(prefix+"vignetting_range"));
+  			if (properties.getProperty(prefix+"post_debayer")!=null)   this.post_debayer=Boolean.parseBoolean(properties.getProperty(prefix+"post_debayer"));
   			if (properties.getProperty(prefix+"color_DCT")!=null)      this.color_DCT=Boolean.parseBoolean(properties.getProperty(prefix+"color_DCT"));
   			if (properties.getProperty(prefix+"sigma_rb")!=null)       this.sigma_rb=Double.parseDouble(properties.getProperty(prefix+"sigma_rb"));
   			if (properties.getProperty(prefix+"sigma_y")!=null)        this.sigma_y=Double.parseDouble(properties.getProperty(prefix+"sigma_y"));
   			if (properties.getProperty(prefix+"sigma_color")!=null)    this.sigma_color=Double.parseDouble(properties.getProperty(prefix+"sigma_color"));
   			if (properties.getProperty(prefix+"line_thershold")!=null) this.line_thershold=Double.parseDouble(properties.getProperty(prefix+"line_thershold"));
-
   			if (properties.getProperty(prefix+"nonlin")!=null)         this.nonlin=Boolean.parseBoolean(properties.getProperty(prefix+"nonlin"));
   			if (properties.getProperty(prefix+"nonlin_max_y")!=null)   this.nonlin_max_y=Double.parseDouble(properties.getProperty(prefix+"nonlin_max_y"));
   			if (properties.getProperty(prefix+"nonlin_max_c")!=null)   this.nonlin_max_c=Double.parseDouble(properties.getProperty(prefix+"nonlin_max_c"));
   			if (properties.getProperty(prefix+"nonlin_y")!=null)       this.nonlin_y=Double.parseDouble(properties.getProperty(prefix+"nonlin_y"));
   			if (properties.getProperty(prefix+"nonlin_c")!=null)       this.nonlin_c=Double.parseDouble(properties.getProperty(prefix+"nonlin_c"));
   			if (properties.getProperty(prefix+"nonlin_corn")!=null)    this.nonlin_corn=Double.parseDouble(properties.getProperty(prefix+"nonlin_corn"));
-  			
   			if (properties.getProperty(prefix+"denoise")!=null)        this.denoise=Boolean.parseBoolean(properties.getProperty(prefix+"denoise"));
   			if (properties.getProperty(prefix+"denoise_y")!=null)      this.denoise_y=Double.parseDouble(properties.getProperty(prefix+"denoise_y"));
   			if (properties.getProperty(prefix+"denoise_c")!=null)      this.denoise_c=Double.parseDouble(properties.getProperty(prefix+"denoise_c"));
@@ -2007,7 +2006,10 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("dbg_x1",                                                         this.dbg_x1,              2);
   			gd.addNumericField("dbg_y1",                                                         this.dbg_y1,              2);
   			gd.addNumericField("dbg_sigma",                                                      this.dbg_sigma,           3);
-			gd.addStringField ("Debug mask (anything but * is false)",                           this.dbg_mask,          100);
+  			gd.addNumericField("== dct_size = 1:1, dct+1.0 - shrink dct(dct+1.0)",               this.dbg_src_size,        3);
+  			gd.addNumericField("Should ==DCT_PARAMETERS.dct_size / DCT_PARAMETERS.dbg_src_size", this.dbg_scale,           3);
+  			gd.addNumericField("Modifies window during MDCT->DCT-IV folding",                    this.dbg_fold_scale,      3);
+  			gd.addStringField ("Debug mask (anything but * is false)",                           this.dbg_mask,          100);
   			gd.addNumericField("LMA implementation: 0 - old, 1 - new",                           this.dbg_mode,            0);
   			gd.addNumericField("Convolution window: 0 - none, [1 - square], 2 - sin, 3 - sin^2", this.dbg_window_mode,     0);
   			gd.addCheckbox    ("Center convolution window around target kernel center",          this.centerWindowToTarget);
@@ -2022,17 +2024,15 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Divide symmetrical kernel by a window function",                 this.antiwindow);
   			gd.addCheckbox    ("Do not apply symmetrical (DCT) correction ",                     this.skip_sym);
   			gd.addCheckbox    ("Convolve directly with symmetrical kernel (debug feature) ",     this.convolve_direct);
-
   			gd.addNumericField("Reg gain in the center of sensor calibration R (instead of vignetting)",this.novignetting_r,   4);
   			gd.addNumericField("Green gain in the center of sensor calibration G (instead of vignetting)",this.novignetting_g, 4);
   			gd.addNumericField("Blue gain in the center of sensor calibration B (instead of vignetting)",this.novignetting_b,  4);
-
   			gd.addNumericField("Extra red correction to compensate for light temperature",               this.scale_r,  4);
   			gd.addNumericField("Extra green correction to compensate for light temperature",             this.scale_g,  4);
   			gd.addNumericField("Extra blue correction to compensate for light temperature",              this.scale_b,  4);
-  			
   			gd.addNumericField("Value (max) in vignetting data to correspond to 1x in the kernel",    this.vignetting_max,      3);
   			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",  this.vignetting_range,  3);
+  			gd.addCheckbox    ("Perform de-bayer after aberrations in pixel domain",              this.post_debayer             );
   			gd.addCheckbox    ("Use DCT-based color conversion (false - just LPF RGB with dbg_sigma)",this.color_DCT             );
   			gd.addNumericField("Gaussian sigma to apply to R and B (in addition to G), pix",      this.sigma_rb,            3);
   			gd.addNumericField("Gaussian sigma to apply to Y in the MDCT domain, pix",            this.sigma_y,             3);
@@ -2073,7 +2073,10 @@ public class EyesisCorrectionParameters {
   			this.dbg_x1=                gd.getNextNumber();
   			this.dbg_y1=                gd.getNextNumber();
   			this.dbg_sigma=             gd.getNextNumber();
-			this.dbg_mask=              gd.getNextString();
+  			this.dbg_src_size=          gd.getNextNumber();
+  			this.dbg_scale=             gd.getNextNumber();
+  			this.dbg_fold_scale=        gd.getNextNumber();
+  			this.dbg_mask=              gd.getNextString();
   			this.dbg_mode=        (int) gd.getNextNumber();
   			this.dbg_window_mode= (int) gd.getNextNumber();
   			this.centerWindowToTarget=  gd.getNextBoolean();
@@ -2099,6 +2102,7 @@ public class EyesisCorrectionParameters {
   			
   			this.vignetting_max=        gd.getNextNumber();
   			this.vignetting_range=      gd.getNextNumber();
+  			this.post_debayer=          gd.getNextBoolean();
   			this.color_DCT=             gd.getNextBoolean();
   			this.sigma_rb=              gd.getNextNumber();
   			this.sigma_y=               gd.getNextNumber();

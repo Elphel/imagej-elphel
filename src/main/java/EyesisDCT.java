@@ -1211,12 +1211,14 @@ public class EyesisDCT {
 						  threadsMax,
 						  debugLevel);
 			  } else { // just LPF RGB
-				  for (int chn = 0; chn < dct_data.length; chn++) {
-					  image_dtt.dct_lpf(
-							  dct_parameters.dbg_sigma,
-							  dct_data[chn],
-							  threadsMax,
-							  debugLevel);
+				  if (dct_parameters.dbg_sigma > 0){ // no filter at all
+					  for (int chn = 0; chn < dct_data.length; chn++) {
+						  image_dtt.dct_lpf(
+								  dct_parameters.dbg_sigma,
+								  dct_data[chn],
+								  threadsMax,
+								  debugLevel);
+					  }
 				  }
 
 			  }
@@ -1274,7 +1276,7 @@ public class EyesisDCT {
 							  (dct_parameters.denoise? dct_parameters.denoise_c:0.0), // final double      denoise_c,        //  =        1.0;  // maximal total smoothing of the color differences post-kernel (will compete with edge emphasis)
 							  dct_parameters.denoise_y_corn,          // final double      denoise_y_corn,   // =   0.5;  // weight of the 4 corner pixels during denoise y (relative to 4 straight)
 							  dct_parameters.denoise_c_corn,          // final double      denoise_c_corn,   // =   0.5;  // weight of the 4 corner pixels during denoise y (relative to 4 straight)
-							  threadsMax,                             // final int         threadsMax,       // maximal number of threads to launch                         
+							  dct_parameters.dct_size,                //,                             // final int         threadsMax,       // maximal number of threads to launch                         
 							  debugLevel);                            // final int         globalDebugLevel)
 					  if (debugLevel > 0) sdfa_instance.showArrays(
 							  idct_data,
@@ -1291,7 +1293,37 @@ public class EyesisDCT {
 						  (tilesX + 1) * dct_parameters.dct_size);
 
 			  } else {
-				  if (debugLevel > 0) System.out.println("Bypassing nonlinear correction");
+				  if (dct_parameters.post_debayer){ // post_debayer
+					  if (debugLevel > -1) System.out.println("Applying post-debayer");
+					  if (debugLevel > -1) sdfa_instance.showArrays(
+							  idct_data,
+							  (tilesX + 1) * dct_parameters.dct_size,
+							  (tilesY + 1) * dct_parameters.dct_size,
+							  true,
+							  result.getTitle()+"-rbg_before");
+					  
+					  idct_data = post_debayer( // debayer in pixel domain after aberration correction
+							  idct_data, // final double [][] rbg,    // yPrPb,
+							  (tilesX + 1) * dct_parameters.dct_size, // final int         width,
+							  dct_parameters.dct_size,                // final int         step,             // just for multi-threading efficiency?
+							  dct_parameters.dct_size,                // final int         threadsMax,       // maximal number of threads to launch                         
+							  debugLevel);                            // final int         globalDebugLevel)
+					  // add here YPrPb conversion, then edge_emphasis
+					  if (debugLevel > -1) sdfa_instance.showArrays(
+							  idct_data,
+							  (tilesX + 1) * dct_parameters.dct_size,
+							  (tilesY + 1) * dct_parameters.dct_size,
+							  true,
+							  result.getTitle()+"-rbg_after");
+				  } else {
+					  if (debugLevel > -1) System.out.println("Applyed LPF, sigma = "+dct_parameters.dbg_sigma);
+					  if (debugLevel > -1) sdfa_instance.showArrays(
+							  idct_data,
+							  (tilesX + 1) * dct_parameters.dct_size,
+							  (tilesY + 1) * dct_parameters.dct_size,
+							  true,
+							  result.getTitle()+"-rbg_sigma");
+				  }
 			  }
 
 			  if (debugLevel > 0) sdfa_instance.showArrays(idct_data,
@@ -1554,6 +1586,69 @@ public class EyesisDCT {
 	  }
 
 
+	  public double [][] post_debayer( // debayer in pixel domain after aberration correction
+			  final double [][] rbg, // yPrPb,
+			  final int         width,
+			  final int         step,             // just for multi-threading efficiency?
+			  final int         threadsMax,       // maximal number of threads to launch                         
+			  final int         globalDebugLevel)
+	  {
+		  final double [][] rbg_new = new double [rbg.length][rbg[0].length];
+		  final int         height = rbg[0].length/width;
+		  final int tilesY = (height + step - 1) / step;
+		  final int tilesX = (width +  step - 1) / step;
+		  final int nTiles=tilesX*tilesY;
+		  final double [] kern_g={
+				  0.0,   0.125,  0.0  ,
+				  0.125, 0.5,    0.125,
+				  0.0,   0.125,  0.0  };
+		  final double [] kern_rb={
+				  0.0625,  0.125, 0.0625,
+				  0.125,   0.25,  0.125,
+				  0.0625,  0.125, 0.0625};
+		  final double [][] kerns = {kern_rb,kern_rb,kern_g};
+		  
+		  final int    []   neib_indices = {-width-1,-width,-width+1,-1,0,1,width-1,width,width+1};       
+
+		  final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		  final AtomicInteger ai = new AtomicInteger(0);
+
+		  for (int ithread = 0; ithread < threads.length; ithread++) {
+			  threads[ithread] = new Thread() {
+				  public void run() {
+					  int tileY,tileX;
+					  double [] neibs =   new double[9]; // pixels around current, first Y, then each color diff
+					  for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
+						  tileY = nTile/tilesX;
+						  tileX = nTile - tileY * tilesX;
+						  int y1 = (tileY +1) * step;
+						  if (y1 > height) y1 = height;
+						  int x1 = (tileX +1) * step;
+						  if (x1 > width) x1 = width;
+						  for (int y = tileY * step; y < y1; y++) {
+							  for (int x = tileX * step; x < x1; x++) {
+								  int indx = y*width + x;
+								  for (int n  = 0; n < rbg.length; n++) {
+									  rbg_new[n][indx] = rbg[n][indx]; // default - just copy old value
+								  }
+								  if ((y > 0) && (y < (height - 1)) && (x > 0) && (x < (width - 1))) { // only correct those not on the edge
+									  for (int n  = 0; n < rbg.length; n++) {
+										  rbg_new[n][indx] = 0.0;
+										  for (int i = 0; i < neibs.length; i++){
+											  rbg_new[n][indx] += kerns[n][i]*rbg[n][indx+neib_indices[i]];
+										  }
+									  }
+								  }
+							  }
+						  }
+					  }
+				  }
+			  };
+		  }		      
+		  ImageDtt.startAndJoin(threads);
+		  return rbg_new;
+	  }
+
 	  public double [][] edge_emphasis(
 			  final double [][] yPrPb,
 			  final int         width,
@@ -1731,6 +1826,9 @@ public class EyesisDCT {
 		  ImageDtt.startAndJoin(threads);
 		  return yPrPb_new;
 	  }
+	  
+	  
+	  
 	  public void debayer_rbg(
 			  ImageStack stack_rbg){
 		  debayer_rbg(stack_rbg, 1.0);
