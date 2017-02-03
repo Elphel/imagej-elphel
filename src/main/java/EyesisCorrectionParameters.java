@@ -1766,6 +1766,64 @@ public class EyesisCorrectionParameters {
   			this.addBottom=Integer.parseInt(properties.getProperty(prefix+"addBottom"));
   		}
   	}
+    public static class CLTParameters {
+  		public int transform_size =    8; //
+  		public int clt_window =        1; // currently only 3 types of windows - 0 (none), 1 and 2
+  		public double     shift_x =  0.0;
+  		public double     shift_y =  0.0;
+  		public int        iclt_mask = 15; // which transforms to combine
+  		public int        tileX =    258; // number of kernel tile (0..163) 
+  		public int        tileY =    133; // number of kernel tile (0..122)
+  		public int        dbg_mode =   0;  // 0 - normal, +1 - no DCT/IDCT
+  		
+  		public CLTParameters(){}
+  		public void setProperties(String prefix,Properties properties){
+  			properties.setProperty(prefix+"transform_size",this.transform_size+"");
+  			properties.setProperty(prefix+"clt_window",    this.clt_window+"");
+  			properties.setProperty(prefix+"shift_x",       this.shift_x+"");
+  			properties.setProperty(prefix+"shift_y",       this.shift_y+"");
+  			properties.setProperty(prefix+"iclt_mask",     this.iclt_mask+"");
+  			properties.setProperty(prefix+"tileX",         this.tileX+"");
+  			properties.setProperty(prefix+"tileY",         this.tileY+"");
+  			properties.setProperty(prefix+"dbg_mode",      this.dbg_mode+"");
+  		}
+  		public void getProperties(String prefix,Properties properties){
+  			if (properties.getProperty(prefix+"transform_size")!=null) this.transform_size=Integer.parseInt(properties.getProperty(prefix+"transform_size"));
+  			if (properties.getProperty(prefix+"clt_window")!=null)     this.clt_window=Integer.parseInt(properties.getProperty(prefix+"clt_window"));
+  			if (properties.getProperty(prefix+"shift_x")!=null)        this.shift_x=Double.parseDouble(properties.getProperty(prefix+"shift_x"));
+  			if (properties.getProperty(prefix+"shift_y")!=null)        this.shift_y=Double.parseDouble(properties.getProperty(prefix+"shift_y"));
+  			if (properties.getProperty(prefix+"iclt_mask")!=null)      this.iclt_mask=Integer.parseInt(properties.getProperty(prefix+"iclt_mask"));
+  			if (properties.getProperty(prefix+"tileX")!=null)          this.tileX=Integer.parseInt(properties.getProperty(prefix+"tileX"));
+  			if (properties.getProperty(prefix+"tileY")!=null)          this.tileY=Integer.parseInt(properties.getProperty(prefix+"tileY"));
+  			if (properties.getProperty(prefix+"dbg_mode")!=null)       this.dbg_mode=Integer.parseInt(properties.getProperty(prefix+"dbg_mode"));
+  		}
+  		public boolean showDialog() {
+  			GenericDialog gd = new GenericDialog("Set DCT parameters");
+  			gd.addNumericField("DCT size",                                                       this.transform_size,            0);
+  			gd.addNumericField("Lapped transform window type (0- rectangular, 1 - sinus)",       this.clt_window,                0);
+   			gd.addNumericField("shift_x",                                                        this.shift_x,                   4);
+   			gd.addNumericField("shift_y",                                                        this.shift_y,                   4);
+  			gd.addNumericField("Bit mask - which of 4 transforms to combine after iclt",         this.iclt_mask,                 0);
+  			gd.addNumericField("Tile X to extract (0..163)",                                     this.tileX,                     0);
+  			gd.addNumericField("Tile Y to extract (0..122)",                                     this.tileY,                     0);
+  			gd.addNumericField("dbg_mode: 0 - normal, +1 - no DCT/IDCT, just fold",              this.dbg_mode,                  0);
+
+  			WindowTools.addScrollBars(gd);
+  			gd.showDialog();
+  			
+  			if (gd.wasCanceled()) return false;
+  			this.transform_size=        (int) gd.getNextNumber();
+  			this.clt_window=            (int) gd.getNextNumber();
+  			this.shift_x =                    gd.getNextNumber();
+  			this.shift_y =                    gd.getNextNumber();
+  			this.iclt_mask=             (int) gd.getNextNumber();
+  			this.tileX=                 (int) gd.getNextNumber();
+  			this.tileY=                 (int) gd.getNextNumber();
+  			this.dbg_mode=                 (int) gd.getNextNumber();
+  			return true;
+  		}
+    }
+
     public static class DCTParameters {
   		public int dct_size =            8; //
   		public int asym_size =          15; //

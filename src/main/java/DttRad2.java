@@ -44,10 +44,10 @@ public class DttRad2 {
 	double [] hwindow = null; // half window
 	int    [][] fold_index = null; // index of the source item in 2nx2n array input to mdct_2d.
 	                               // First index (0..n^2-1) index in the folded array (dct-iV input) 
-	                               // Second index(0..3) - item to add (2 vertiacl, 2 - horizontal)  
-	double [][] fold_k = null; // Matching fold_index items. Each is a product of 2 window coefficients and sign  
+	                               // Second index(0..3) - item to add (2 vertical, 2 - horizontal)  
+	double [][][] fold_k = null; // First index - mode: 0 - CC 1: SC, 2: CS, 3: SS. Other indices matching fold_index items. Each is a product of 2 window coefficients and sign  
 	int    [] unfold_index = null;  // index  for each element of idct(2nx2n)
-	double [] unfold_k = null; // Matching unfold_index items. Each is a product of 2 window coefficients and sign  
+	double [][] unfold_k = null; // First index - mode: 0 - CC 1: SC, 2: CS, 3: SS. Other indices matching unfold_index items. Each is a product of 2 window coefficients and sign  
 	
 	public DttRad2 (int maxN){ // n - maximal
 		setup_arrays(maxN); // always setup arrays for fast calculations
@@ -87,25 +87,31 @@ public class DttRad2 {
 	// For index in dct-iv input (0..n-1) get 2 variants of index in mdct input array (0..2*n-1)
 	// second index : 0 - index in X array 2*n long
 	//                1 - window index (0..n-1), [0] - minimal, [n-1] - max
-	//                2 - sign of the term
+	//                2 - sign of the C term  (-~c - d, +a -~b)
+	//                3 - sign of the S term  (+~c - d, +a +~b)
 	private int [][] get_fold_indices(int x, int n){
 		int n1 = n>>1;
-		int [][] ind = new int[2][3];
+		int [][] ind = new int[2][4];
 		if (x <n1) {
-			ind[0][0] = n + n1 - x - 1; // -cR
+			ind[0][0] = n + n1 - x - 1; // C: -cR, S: +cR
 			ind[0][1] = n1     + x;
 			ind[0][2] = -1;
-			ind[1][0] = n + n1 + x;     // -d
+			ind[0][3] =  1;
+			ind[1][0] = n + n1 + x;     // C: -d,  S: -d
 			ind[1][1] = n1     - x - 1;
 			ind[1][2] = -1;
+			ind[1][3] = -1;
 		} else {
 			x-=n1;
-			ind[0][0] =          x;     // +a
+			ind[0][0] =          x;     // C: +a, S: +a
 			ind[0][1] =          x;
 			ind[0][2] = 1;
-			ind[1][0] = n      - x - 1; // -bR
+			ind[0][3] = 1;
+			
+			ind[1][0] = n      - x - 1; // C: -bR, S: +bR
 			ind[1][1] = n      - x - 1;
 			ind[1][2] = -1;
+			ind[1][3] =  1;
 		}
 		
 		return ind;
@@ -114,49 +120,57 @@ public class DttRad2 {
 	private void set_fold_2d(int n){ // n - DCT and window size
 		if ((fold_index != null) && (fold_index.length == n*n)) return;
 		fold_index = new int[n*n][4];
-		fold_k =     new double[n*n][4];
+		fold_k =     new double[4][n*n][4];
 		int []    vert_ind = new int[2];
-		double [] vert_k = new double[2];
+		double [][] vert_k = new double[2][2];
 		int    [] hor_ind = new int[2];
-		double [] hor_k = new double[2];
+		double [][] hor_k = new double[2][2];
 		int [][] fi;
 		int n2 = 2*n;
 		for (int i = 0; i < n; i++ ){
 			fi = get_fold_indices(i,n);
 			vert_ind[0] = fi[0][0];
 			vert_ind[1] = fi[1][0];
-			vert_k[0] =   fi[0][2] * hwindow[fi[0][1]];
-			vert_k[1] =   fi[1][2] * hwindow[fi[1][1]];
+			vert_k[0][0] =   fi[0][2] * hwindow[fi[0][1]]; // use cosine sign
+			vert_k[0][1] =   fi[1][2] * hwindow[fi[1][1]]; // use cosine sign
+			vert_k[1][0] =   fi[0][3] * hwindow[fi[0][1]]; // use sine sign
+			vert_k[1][1] =   fi[1][3] * hwindow[fi[1][1]]; // use sine sign
 			for (int j = 0; j < n; j++ ){
 				fi = get_fold_indices(j,n);
 				hor_ind[0] = fi[0][0];
 				hor_ind[1] = fi[1][0];
-				hor_k[0] =   fi[0][2] * hwindow[fi[0][1]];
-				hor_k[1] =   fi[1][2] * hwindow[fi[1][1]];
+				hor_k[0][0] =   fi[0][2] * hwindow[fi[0][1]]; // use cosine sign
+				hor_k[0][1] =   fi[1][2] * hwindow[fi[1][1]]; // use cosine sign
+				hor_k[1][0] =   fi[0][3] * hwindow[fi[0][1]]; // use sine sign
+				hor_k[1][1] =   fi[1][3] * hwindow[fi[1][1]]; // use sine sign
 				int indx = n*i + j;
 				for (int k = 0; k<4;k++) {
 					fold_index[indx][k] = n2 * vert_ind[(k>>1) & 1] + hor_ind[k & 1];
-					fold_k[indx][k] =     vert_k[(k>>1) & 1] * hor_k[k & 1]; 
+				}
+				for (int mode = 0; mode<4; mode++){
+					for (int k = 0; k<4;k++) {
+						fold_k[mode][indx][k] =     vert_k[(mode>>1) &1][(k>>1) & 1] * hor_k[mode &1][k & 1]; 
+					}
 				}
 			}
 		}
 		if (n < 8) {
 			for (int i = 0; i < n; i++ ){
 				fi = get_fold_indices(i,n);
-				System.out.println(i+"->"+String.format("[%2d % 2d % 2d] [%2d %2d %2d] %f %f",
-						fi[0][0],fi[0][1],fi[0][2],
-						fi[1][0],fi[1][1],fi[1][2], hwindow[fi[0][1]], hwindow[fi[1][1]]));
+				System.out.println(i+"->"+String.format("?[%2d %2d %2d %2d] [%2d %2d %2d %2d] %f %f",
+						fi[0][0],fi[0][1],fi[0][2],fi[0][3],
+						fi[1][0],fi[1][1],fi[1][2],fi[1][3], hwindow[fi[0][1]], hwindow[fi[1][1]]));
 			}
 		}
 	}
 	
-	public double [][] get_fold_2d(
+	public double [][][] get_fold_2d(
 			double scale_hor,
 			double scale_vert)
 	{
 		return get_fold_2d( this.N, scale_hor, scale_vert);
 	}
-	public double [][] get_fold_2d(
+	public double [][][] get_fold_2d(
 			int n,
 			double scale_hor,
 			double scale_vert
@@ -173,37 +187,53 @@ public class DttRad2 {
 				hwindow_h[i] = (ah > (Math.PI/2))? 0.0: Math.cos(ah);
 				hwindow_v[i] = (av > (Math.PI/2))? 0.0: Math.cos(av);
 			}
-		double [][] fold_sk =     new double[n*n][4];
-		int []    vert_ind = new int[2];
-		double [] vert_k = new double[2];
-		int    [] hor_ind = new int[2];
-		double [] hor_k = new double[2];
+		double [][][] fold_sk = new double[2][n*n][4];
+		int []    vert_ind =    new int[2];
+		double [][] vert_k =    new double[2][2];
+		int    [] hor_ind =     new int[2];
+		double [][] hor_k =     new double[2][2];
 		int [][] fi;
 		for (int i = 0; i < n; i++ ){
 			fi = get_fold_indices(i,n);
 			vert_ind[0] = fi[0][0];
 			vert_ind[1] = fi[1][0];
-			vert_k[0] =   fi[0][2] * hwindow_v[fi[0][1]];
-			vert_k[1] =   fi[1][2] * hwindow_v[fi[1][1]];
+//			vert_k[0] =   fi[0][2] * hwindow_v[fi[0][1]];
+//			vert_k[1] =   fi[1][2] * hwindow_v[fi[1][1]];
+			vert_k[0][0] =   fi[0][2] * hwindow_v[fi[0][1]]; // use cosine sign
+			vert_k[0][1] =   fi[1][2] * hwindow_v[fi[1][1]]; // use cosine sign
+			vert_k[1][0] =   fi[0][3] * hwindow_v[fi[0][1]]; // use sine sign
+			vert_k[1][1] =   fi[1][3] * hwindow_v[fi[1][1]]; // use sine sign
+			
 			for (int j = 0; j < n; j++ ){
 				fi = get_fold_indices(j,n);
 				hor_ind[0] = fi[0][0];
 				hor_ind[1] = fi[1][0];
-				hor_k[0] =   fi[0][2] * hwindow_h[fi[0][1]];
-				hor_k[1] =   fi[1][2] * hwindow_h[fi[1][1]];
+//				hor_k[0] =   fi[0][2] * hwindow_h[fi[0][1]];
+//				hor_k[1] =   fi[1][2] * hwindow_h[fi[1][1]];
+				hor_k[0][0] =   fi[0][2] * hwindow_h[fi[0][1]]; // use cosine sign
+				hor_k[0][1] =   fi[1][2] * hwindow_h[fi[1][1]]; // use cosine sign
+				hor_k[1][0] =   fi[0][3] * hwindow_h[fi[0][1]]; // use sine sign
+				hor_k[1][1] =   fi[1][3] * hwindow_h[fi[1][1]]; // use sine sign
+				
 				int indx = n*i + j;
-				for (int k = 0; k<4;k++) {
-					fold_sk[indx][k] =     vert_k[(k>>1) & 1] * hor_k[k & 1]; 
+//				for (int k = 0; k<4;k++) {
+//					fold_sk[indx][k] =     vert_k[(k>>1) & 1] * hor_k[k & 1]; 
+//				}
+				
+				for (int mode = 0; mode<4; mode++){
+					for (int k = 0; k<4;k++) {
+						fold_sk[mode][indx][k] =     vert_k[(mode>>1) &1][(k>>1) & 1] * hor_k[mode &1][k & 1]; 
+					}
 				}
 			}
 		}
 		return fold_sk;
 	}
 	
-	
+/*	
 	// return index+1 and sign for 1-d imdct. x is index (0..2*n-1) of the imdct array, value is sign * (idct_index+1),
 	// where idct_index (0..n-1) is index in the dct-iv array
-	private int get_unfold_index(int x, int n){
+	private int get_unfold_index_signes(int x, int n){
 		int n1 = n>>1;
 		int segm = x / n1;
 		x = x % n1;
@@ -218,7 +248,7 @@ public class DttRad2 {
 	private void set_unfold_2d(int n){ // n - DCT size
 		if ((unfold_index != null) && (unfold_index.length == 4*n*n)) return;
 		unfold_index = new int[4*n*n];
-		unfold_k = new double[4*n*n];
+		unfold_k = new double[4][4*n*n];
 		int n2 = 2*n;
 		for (int i = 0; i < 2*n; i++ ){
 			int index_vert = get_unfold_index(i,n);
@@ -250,6 +280,52 @@ public class DttRad2 {
 		if (n < 8) {
 			for (int i = 0; i < 2*n; i++ ){
 				System.out.println(i+"->"+get_unfold_index(i,n));
+			}
+		}
+	}	
+*/
+	// return index and two signs (c,s) for 1-d imdct. x is index (0..2*n-1) of the imdct array, value is sign * (idct_index+1),
+	// where idct_index (0..n-1) is index in the dct-iv array
+	private int [] get_unfold_index_signs(int x, int n){
+		int n1 = n>>1;
+		int segm = x / n1;
+		x = x % n1;
+		int [] is2  = new int[3]; 
+		switch (segm){
+		case 0: is2[0] =  x + n1;     is2[1]=  1; is2[2] =  1; return is2; // return 1+ (x + n1);
+		case 1: is2[0] =  n -  x - 1; is2[1]= -1; is2[2] =  1; return is2; // return -(n - x);
+		case 2: is2[0] =  n1 - x - 1; is2[1]= -1; is2[2] =  1; return is2; // return -(n1 - x);
+		case 3: is2[0] =  x;          is2[1]= -1; is2[2] = -1; return is2; // return -(1 + x);
+		}
+		return null; //should never happen
+	}
+	private void set_unfold_2d(int n){ // n - DCT size
+		if ((unfold_index != null) && (unfold_index.length == 4*n*n)) return;
+		unfold_index = new int[4*n*n];
+		unfold_k = new double[4][4*n*n];
+		int n2 = 2*n;
+		for (int i = 0; i < 2*n; i++ ){
+			int [] is2_vert = get_unfold_index_signs(i,n);
+			double [] k_vert = {is2_vert[1]*hwindow[(i < n)?i:n2 -i -1], is2_vert[2]*hwindow[(i < n)?i:n2 -i -1]};
+			int index_vert = is2_vert[0] * n;
+			
+			for (int j = 0; j < 2*n; j++ ){
+				int [] is2_hor = get_unfold_index_signs(j,n);
+				int index_hor = is2_hor[0];
+				double [] k_hor = {is2_hor[1] * hwindow[(j < n)?j:n2 -j -1], is2_hor[2] * hwindow[(j < n)?j:n2 -j -1]};
+				unfold_index[n2*i+j]=(index_vert+index_hor);
+				for (int mode = 0; mode < 4; mode++){
+					unfold_k[mode][n2*i+j] = k_vert[(mode>>1) &1]*k_hor[mode &1]; 
+				}
+				
+				if (n < 8) System.out.print(String.format("%4d", unfold_index[n2*i+j]));
+				
+			}
+			if (n < 8) System.out.println();
+		}
+		if (n < 8) {
+			for (int i = 0; i < 2*n; i++ ){
+				System.out.println(i+"=>"+get_unfold_index_signs(i,n)[0]+", "+get_unfold_index_signs(i,n)[1]+", "+get_unfold_index_signs(i,n)[2]);
 			}
 		}
 	}	
@@ -398,11 +474,11 @@ public class DttRad2 {
 	}
 	
 	// Convert 2nx2n overlapping tile to n*n for dct-iv
-	public double [] fold_tile(double [] x) { // x should be 2n*2n
+	public double [] fold_tile(double [] x, int mode) { // x should be 2n*2n
 		return fold_tile(x, 1 << (ilog2(x.length/4)/2));
 	}
-	public double [] fold_tile(double [] x, int n) { // x should be 2n*2n
-		return fold_tile(x,n,this.fold_k);
+	public double [] fold_tile(double [] x, int n, int mode) { // x should be 2n*2n
+		return fold_tile(x,n, mode,this.fold_k);
 //		double [] y = new double [n*n];
 //		for (int i = 0; i<y.length;i++) {
 //			y[i] = 0;
@@ -416,27 +492,35 @@ public class DttRad2 {
 	public double [] fold_tile(
 			double [] x,
 			int n,
-			double [][] fold_k
+			int mode, //////
+			double [][][] fold_k
 			) { // x should be 2n*2n
 		double [] y = new double [n*n];
 		for (int i = 0; i<y.length;i++) {
 			y[i] = 0;
 			for (int k = 0; k < 4; k++){
-				y[i] += x[fold_index[i][k]] * fold_k[i][k];
+				y[i] += x[fold_index[i][k]] * fold_k[mode][i][k];
 			}
 		}
 		return y;
 	}
 	
 	
-	public double [] unfold_tile(double [] x) { // x should be n*n
-		return unfold_tile(x, 1 << (ilog2(x.length)/2));
+	public double [] unfold_tile(
+			double [] x,  // x should be n*n
+			int mode)
+	{
+		return unfold_tile(x, 1 << (ilog2(x.length)/2), mode);
 		
 	}
-	public double [] unfold_tile(double [] x, int n) { // x should be 2n*2n
+	public double [] unfold_tile(
+			double [] x,  // x should be 2n*2n
+			int n,
+			int mode) 
+	{
 		double [] y = new double [4*n*n];
 		for (int i = 0; i<y.length;i++) {
-			y[i] = unfold_k[i]* x[unfold_index[i]];
+			y[i] = unfold_k[mode][i]* x[unfold_index[i]];
 		}
 		return y;
 	}
