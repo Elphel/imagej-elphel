@@ -3792,6 +3792,9 @@ private Panel panel1,
 /* ======================================================================== */
     } else if (label.equals("CLT correlate")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+	    runtime.gc();
+		System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
+
 //    	IJ.showMessage("DCT test 1");
         if (!CLT_PARAMETERS.showDialog()) return;
 // process selected image stack
@@ -3997,6 +4000,7 @@ private Panel panel1,
     	for (int chn = 0; chn < clt_corr.length; chn++) {
     		image_dtt.clt_dtt2( // DCCT2, DSCT2, DCST2, DSST2 - in-place
     				clt_corr[chn],                        // final double [][][][] clt_data,
+    				true,                                 // final boolean transpose, // when doing inverse transform, the data comes in transposed form, so CS <->SC
     				THREADS_MAX,                          // maximal number of threads to launch                         
     				DEBUG_LEVEL);                        // globalDebugLevel)
     	}        	
