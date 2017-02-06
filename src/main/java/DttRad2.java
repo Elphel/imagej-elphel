@@ -31,7 +31,9 @@ public class DttRad2 {
 	int N = 0;
 	double [][][] CII=    null;
 	double [][][] CIIe=   null; // alternative matrix with all coefficients the same (non-orthogonal, but matching DFT)
-	double [][][] CIIIe=  null; // alternative matrix with k0=1/2, k(n-1) = 1/2 (non-orthogonal, but matching DFT)
+	double [][][] CIIIe=  null; // alternative matrix with k0=1/2, k(n-1) = 1/2 (non-orthogonal, but matching DFT) 
+	double [][][] SIIe=   null; // alternative matrix with all coefficients the same (non-orthogonal, but matching DFT)
+	double [][][] SIIIe=  null; // alternative matrix with k0=1/2, k(n-1) = 1/2 (non-orthogonal, but matching DFT)
 	
 	double [][][] CIV=  null;
 	double [][][] SIV=  null;
@@ -378,22 +380,28 @@ public class DttRad2 {
 	}
 
 	public double [] dttt_iie(double [] x){
-		return dttt_iie(x, 1 << (ilog2(x.length)/2)); 
+		return dttt_iie(x,0, 1 << (ilog2(x.length)/2)); 
+	}
+	public double [] dttt_iie(double [] x, int mode){
+		return dttt_iie(x, mode, 1 << (ilog2(x.length)/2)); 
 	}
 
-	public double [] dttt_iie(double [] x, int n){
+	public double [] dttt_iie(double [] x, int mode, int n){
+		
 		double [] y = new double [n*n];
 		double [] line = new double[n];
 		// first (horizontal) pass
 		for (int i = 0; i<n; i++){
 			System.arraycopy(x, n*i, line, 0, n);
-			line = dctiie_direct(line);
+//			line = dctiie_direct(line);
+			line = ((mode & 1)!=0)? dstiie_direct(line):dctiie_direct(line);
 			for (int j=0; j < n;j++) y[j*n+i] =line[j]; // transpose 
 		}
 		// second (vertical) pass
 		for (int i = 0; i<n; i++){
 			System.arraycopy(y, n*i, line, 0, n);
-			line = dctiie_direct(line);
+//			line = dctiie_direct(line);
+			line = ((mode & 2)!=0)? dstiie_direct(line):dctiie_direct(line);
 			System.arraycopy(line, 0, y, n*i, n);
 		}
 		return y;
@@ -425,22 +433,27 @@ public class DttRad2 {
 	}
 
 	public double [] dttt_iiie(double [] x){
-		return dttt_iiie(x, 1 << (ilog2(x.length)/2)); 
+		return dttt_iiie(x,0, 1 << (ilog2(x.length)/2)); 
+	}
+	public double [] dttt_iiie(double [] x, int mode){
+		return dttt_iiie(x, mode, 1 << (ilog2(x.length)/2)); 
 	}
 
-	public double [] dttt_iiie(double [] x, int n){
+	public double [] dttt_iiie(double [] x, int mode, int n){
 		double [] y = new double [n*n];
 		double [] line = new double[n];
 		// first (horizontal) pass
 		for (int i = 0; i<n; i++){
 			System.arraycopy(x, n*i, line, 0, n);
-			line = dctiiie_direct(line);
+//			line = dctiiie_direct(line);
+			line = ((mode & 1)!=0)? dstiiie_direct(line):dctiiie_direct(line);
 			for (int j=0; j < n;j++) y[j*n+i] =line[j]; // transpose 
 		}
 		// second (vertical) pass
 		for (int i = 0; i<n; i++){
 			System.arraycopy(y, n*i, line, 0, n);
-			line = dctiiie_direct(line);
+//			line = dctiiie_direct(line);
+			line = ((mode & 2)!=0)? dstiiie_direct(line):dctiiie_direct(line);
 			System.arraycopy(line, 0, y, n*i, n);
 		}
 		return y;
@@ -608,6 +621,38 @@ public class DttRad2 {
 		return y;
 	}
 
+	public double [] dstiie_direct(double[] x){
+		int n = x.length;
+		int t = ilog2(n)-1;
+		if (SIIe==null){
+			setup_SIIe(N); // just full size
+		}
+		double [] y = new double[n];
+		for (int i = 0; i<n; i++) {
+			y[i] = 0.0;
+			for (int j = 0; j< n; j++){
+				y[i]+= SIIe[t][i][j]*x[j]; 
+			}
+		}
+		return y;
+	}
+
+	public double [] dstiiie_direct(double[] x){
+		int n = x.length;
+		int t = ilog2(n)-1;
+		if (SIIIe==null){
+			setup_SIIIe(N); // just full size
+		}
+		double [] y = new double[n];
+		for (int i = 0; i<n; i++) {
+			y[i] = 0.0;
+			for (int j = 0; j< n; j++){
+				y[i]+= SIIIe[t][i][j]*x[j]; 
+			}
+		}
+		return y;
+	}
+	
 	public double [] dstiv_direct(double[] x){
 		int n = x.length;
 		int t = ilog2(n)-1;
@@ -672,11 +717,8 @@ public class DttRad2 {
 			int n = 2 << t; // for N==3: 2, 4, 8
 			CIIe[t] = new double[n][n];
 			double scale = Math.sqrt(2.0/n);
-//			double ej;
 			double pi_2n=Math.PI/(2*n);
 			for (int j=0;j<n; j++){
-//				if (j==0) ej= Math.sqrt(0.5);
-//				else ej = 1.0;
 				for (int k = 0; k<n; k++){
 					CIIe[t][j][k] = scale * Math.cos(j*(2*k+1)*pi_2n);  
 				}
@@ -697,10 +739,9 @@ public class DttRad2 {
 			double pi_2n=Math.PI/(2*n);
 			for (int j=0;j < n; j++){
 				if ((j==0) || (j == (n-1))) ej= 0.5; // Math.sqrt(0.5);
-//				if (j==0) ej= 0.5; // Math.sqrt(0.5);
+//				if (j==0) ej= 0.5; // Math.sqrt(0.5); Should it be this? https://en.wikipedia.org/wiki/Discrete_cosine_transform#DCT-III
 				else ej = 1.0;
 				for (int k = 0; k<n; k++){
-//					CIIIe[t][j][k] = scale * ej * Math.cos(j*(2*k+1)*pi_2n);  
 					CIIIe[t][k][j] = scale * ej * Math.cos(j*(2*k+1)*pi_2n);  
 				}
 			}
@@ -729,6 +770,46 @@ public class DttRad2 {
 		}
 	}	
 
+	private void setup_SIIe(int maxN){
+		if (maxN > N) setup_arrays(maxN);		
+		int l = ilog2(N);
+		if (!(SIIe==null) && (SIIe.length >= l)) return;
+		SIIe = new double[l][][]; // only needed for direct? Assign only when needed?
+		for (int t = 0; t<SIIe.length; t++) {
+			int n = 2 << t; // for N==3: 2, 4, 8
+			SIIe[t] = new double[n][n];
+			double scale = Math.sqrt(2.0/n);
+			double pi_2n=Math.PI/(2*n);
+			for (int j=0;j<n; j++){
+				for (int k = 0; k<n; k++){
+					SIIe[t][j][k] = scale * Math.sin((j+1)*(2*k+1)*pi_2n);  
+				}
+			}
+		}
+	}
+
+	private void setup_SIIIe(int maxN){
+		if (maxN > N) setup_arrays(maxN);		
+		int l = ilog2(N);
+		if (!(SIIIe==null) && (SIIIe.length >= l)) return;
+		SIIIe = new double[l][][]; // only needed for direct? Assign only when needed?
+		for (int t = 0; t<SIIIe.length; t++) {
+			int n = 2 << t; // for N==3: 2, 4, 8
+			SIIIe[t] = new double[n][n];
+			double scale = Math.sqrt(2.0/n);
+			double ej;
+			double pi_2n=Math.PI/(2*n);
+			for (int j=0;j < n; j++){
+//				if ((j==0) || (j == (n-1))) ej= 0.5; // Math.sqrt(0.5);
+				if (j == (n-1)) ej= 0.5; // Math.sqrt(0.5);
+				else ej = 1.0;
+				for (int k = 0; k<n; k++){
+					SIIIe[t][k][j] = scale * ej * Math.sin((j+1)*(2*k+1)*pi_2n);  
+				}
+			}
+		}
+	}
+	
 	private void setup_SIV(int maxN){
 		if (maxN > N) setup_arrays(maxN);		
 		int l = ilog2(N);

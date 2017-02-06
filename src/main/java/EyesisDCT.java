@@ -790,7 +790,7 @@ public class EyesisDCT {
 							  }
 
 							  //								kernels[chn].st_kernels[nc][tileY][tileX]= dtt.dttt_iii(kernels[chn].st_kernels[nc][tileY][tileX]);
-							  kernels[chn].st_kernels[nc][tileY][tileX]= dtt.dttt_iiie(kernels[chn].st_kernels[nc][tileY][tileX]);
+							  kernels[chn].st_kernels[nc][tileY][tileX]= dtt.dttt_iiie(kernels[chn].st_kernels[nc][tileY][tileX]); //, 0, dct_size)
 						  }
 						  //							System.out.println("tileY="+tileY);
 					  }

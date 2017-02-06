@@ -333,6 +333,7 @@ private Panel panel1,
    public static boolean MODE_3D=false; // 3D-related commands
    public PixelMapping.InterSensor.DisparityTiles DISPARITY_TILES=null;
    public ImagePlus DBG_IMP = null;
+   public ImagePlus CORRELATE_IMP = null;
    
 	public class SyncCommand{
 	    public boolean isRunning=      false;
@@ -487,7 +488,8 @@ private Panel panel1,
 			addButton("Setup CLT parameters",      panelClt1, color_configure);
 			addButton("Select CLT image",          panelClt1, color_configure);
 			addButton("CLT stack",                 panelClt1, color_process);
-			addButton("CLT test 1",                panelClt1, color_process);
+			addButton("Select second CLT image",   panelClt1, color_configure);
+			addButton("CLT correlate",             panelClt1, color_process);
 			addButton("CLT test 2",                panelClt1, color_process);
 			addButton("CLT test 3",                panelClt1, color_process);
 			addButton("CLT test 4",                panelClt1, color_process);
@@ -3648,6 +3650,40 @@ private Panel panel1,
     		DBG_IMP = imp_src;
     	}
 
+    } else if (label.equals("Select second CLT image")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	//            	IJ.showMessage("DCT test 1");
+    	if (!CLT_PARAMETERS.showDialog()) return;
+    	// process selected image stack        
+    	ImagePlus imp_src = WindowManager.getCurrentImage();
+    	if (imp_src==null){
+    		IJ.showMessage("Error","JP4 image or Bayer image stack required");
+    		return;
+    	}
+    	if (imp_src.getStackSize()<3){ // convert JP4 to image stack
+
+    		EyesisCorrectionParameters.SplitParameters split_parameters = new EyesisCorrectionParameters.SplitParameters(
+    				1,  // oversample;
+    				// Add just for mdct (N/2)
+    				CLT_PARAMETERS.transform_size/2, // addLeft
+    				CLT_PARAMETERS.transform_size/2, // addTop
+    				CLT_PARAMETERS.transform_size/2, // addRight
+    				CLT_PARAMETERS.transform_size/2  // addBottom
+    				);		   
+
+
+    		ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
+    				split_parameters);
+    		CORRELATE_IMP = new ImagePlus(imp_src.getTitle()+"-SPIT_CORRELATE"
+    				+ "", sourceStack);
+    		if (DEBUG_LEVEL > 1) {
+    			CORRELATE_IMP.getProcessor().resetMinAndMax();
+    			CORRELATE_IMP.show();
+    		}
+    	} else {
+    		CORRELATE_IMP = imp_src;
+    	}
+    	
 /* ======================================================================== */
     } else if (label.equals("CLT stack")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
@@ -3687,6 +3723,8 @@ private Panel panel1,
         		DBG_IMP.getStack(),
         		0, // CLT_PARAMETERS.kernel_chn,
         		CLT_PARAMETERS,
+        		CLT_PARAMETERS.ishift_x, //final int shiftX, // shift image horizontally (positive - right)
+        		CLT_PARAMETERS.ishift_y, //final int shiftY, // shift image vertically (positive - down)
         		THREADS_MAX, DEBUG_LEVEL, UPDATE_STATUS);
 /*        
         for (int chn = 0; chn < clt_data.length; chn++) {
@@ -3740,7 +3778,7 @@ private Panel panel1,
         			CLT_PARAMETERS.transform_size,  // final int
         			CLT_PARAMETERS.clt_window,      //window_type
         			CLT_PARAMETERS.iclt_mask,       //which of 4 to transform back
-        			CLT_PARAMETERS.dbg_mode,       //which of 4 to transform back
+        			CLT_PARAMETERS.dbg_mode,        //which of 4 to transform back
         			THREADS_MAX,                    // maximal number of threads to launch                         
         			DEBUG_LEVEL);                   //        globalDebugLevel)
         }
@@ -3750,6 +3788,280 @@ private Panel panel1,
         		(tilesY + 1) * CLT_PARAMETERS.transform_size,
         		true,
         		DBG_IMP.getTitle()+"-ICLT-"+CLT_PARAMETERS.iclt_mask);  
+    	return;
+/* ======================================================================== */
+    } else if (label.equals("CLT correlate")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+//    	IJ.showMessage("DCT test 1");
+        if (!CLT_PARAMETERS.showDialog()) return;
+// process selected image stack
+        if (DBG_IMP == null) {
+        	ImagePlus imp_src = WindowManager.getCurrentImage();
+        	if (imp_src==null){
+        		IJ.showMessage("Error","JP4 image or Bayer image stack required");
+        		return;
+        	}
+        	//        ImagePlus imp2;
+        	if (imp_src.getStackSize()<3){ // convert JP4 to image stack
+
+        		EyesisCorrectionParameters.SplitParameters split_parameters = new EyesisCorrectionParameters.SplitParameters(
+        				1,  // oversample;
+        				CLT_PARAMETERS.transform_size/2, // addLeft
+        				CLT_PARAMETERS.transform_size/2, // addTop
+        				CLT_PARAMETERS.transform_size/2, // addRight
+        				CLT_PARAMETERS.transform_size/2  // addBottom
+        				);		   
+
+
+        		ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
+        				split_parameters);
+        		DBG_IMP = new ImagePlus(imp_src.getTitle()+"-SPIT", sourceStack);
+        		DBG_IMP.getProcessor().resetMinAndMax();
+        		DBG_IMP.show();
+        	} else {
+        		DBG_IMP = imp_src;
+        	}
+        }
+        
+        if (CORRELATE_IMP == null) {
+        	ImagePlus imp_src = WindowManager.getCurrentImage();
+        	if (imp_src==null){
+        		IJ.showMessage("Error","JP4 image or Bayer image stack required");
+        		return;
+        	}
+        	if (imp_src.getStackSize()<3){ // convert JP4 to image stack
+
+        		EyesisCorrectionParameters.SplitParameters split_parameters = new EyesisCorrectionParameters.SplitParameters(
+        				1,  // oversample;
+        				// Add just for mdct (N/2)
+        				CLT_PARAMETERS.transform_size/2, // addLeft
+        				CLT_PARAMETERS.transform_size/2, // addTop
+        				CLT_PARAMETERS.transform_size/2, // addRight
+        				CLT_PARAMETERS.transform_size/2  // addBottom
+        				);		   
+
+
+        		ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
+        				split_parameters);
+        		CORRELATE_IMP = new ImagePlus(imp_src.getTitle()+"-SPIT_CORRELATE"
+        				+ "", sourceStack);
+        		if (DEBUG_LEVEL > 1) {
+        			CORRELATE_IMP.getProcessor().resetMinAndMax();
+        			CORRELATE_IMP.show();
+        		}
+        	} else {
+        		CORRELATE_IMP = imp_src;
+        	}
+        	
+        }        
+        String suffix = "-dx_"+(CLT_PARAMETERS.ishift_x+CLT_PARAMETERS.shift_x)+"_dy_"+(CLT_PARAMETERS.ishift_y+CLT_PARAMETERS.shift_y);
+        ImageDtt image_dtt = new ImageDtt();
+        String [] titles = {
+        		"redCC",  "redSC",  "redCS",  "redSS",
+        		"blueCC", "blueSC", "blueCS", "blueSS",
+        		"greenCC","greenSC","greenCS","greenSS"};
+        double [][][][][] clt_data = image_dtt.cltStack(
+        		DBG_IMP.getStack(),
+        		0, // CLT_PARAMETERS.kernel_chn,
+        		CLT_PARAMETERS,
+        		0, //final int shiftX, // shift image horizontally (positive - right)
+        		0, //final int shiftY, // shift image vertically (positive - down)
+        		THREADS_MAX, DEBUG_LEVEL, UPDATE_STATUS);
+        
+        int tilesY = DBG_IMP.getHeight()/CLT_PARAMETERS.transform_size - 1;
+        int tilesX = DBG_IMP.getWidth()/CLT_PARAMETERS.transform_size - 1;
+        System.out.println("'CLT stack': tilesX="+tilesX);
+        System.out.println("'CLT stack': tilesY="+tilesY);
+        double [][] clt = new double [clt_data.length*4][];
+        for (int chn = 0; chn < clt_data.length; chn++) {
+        	double [][] clt_set = image_dtt.clt_dbg(
+        			clt_data [chn],
+        			THREADS_MAX,
+        			DEBUG_LEVEL);
+        	for (int ii = 0; ii < clt_set.length; ii++) clt[chn*4+ii] = clt_set[ii];
+        }
+//        System.out.println("dct_dc.length="+dct_dc.length+" dct_ac.length="+dct_ac.length);
+        if (DEBUG_LEVEL > 0){
+        	SDFA_INSTANCE.showArrays(clt,
+        			tilesX*CLT_PARAMETERS.transform_size,
+        			tilesY*CLT_PARAMETERS.transform_size,
+        			true,
+        			DBG_IMP.getTitle()+"-CLT+"+suffix, titles);  
+        }
+        // convert second image (should be the same size)
+// apply integer shift to the second image        
+        double [][][][][] clt_data2 = image_dtt.cltStack(
+        		CORRELATE_IMP.getStack(),
+        		0, // CLT_PARAMETERS.kernel_chn,
+        		CLT_PARAMETERS,
+        		CLT_PARAMETERS.ishift_x, //final int shiftX, // shift image horizontally (positive - right)
+        		CLT_PARAMETERS.ishift_y, //final int shiftY, // shift image vertically (positive - down)
+        		THREADS_MAX, DEBUG_LEVEL, UPDATE_STATUS);
+        int tilesY2 = DBG_IMP.getHeight()/CLT_PARAMETERS.transform_size - 1;
+        int tilesX2 = DBG_IMP.getWidth()/CLT_PARAMETERS.transform_size - 1;
+        System.out.println("'CLT stack 2': tilesX="+tilesX2);
+        System.out.println("'CLT stack 2': tilesY="+tilesY2);
+        
+        if ((tilesX2 != tilesX) || (tilesY2 != tilesY)) {
+            System.out.println("Imges for correlation mismatch: "+tilesX+"x"+tilesY+" != "+tilesX2+"x"+tilesY2);
+            return;
+        }
+
+// optionally apply fractional shift to the second image        
+        if ((CLT_PARAMETERS.shift_x != 0) || (CLT_PARAMETERS.shift_y !=0)){
+            for (int chn = 0; chn < clt_data.length; chn++) {
+        	clt_data2[chn] = image_dtt.clt_shiftXY(
+        			clt_data2[chn],                 // final double [][][][] dct_data,  // array [tilesY][tilesX][4][dct_size*dct_size]  
+        			CLT_PARAMETERS.transform_size,  // final int             dct_size,
+        			CLT_PARAMETERS.shift_x,         // final double          shiftX,
+        			CLT_PARAMETERS.shift_y,         // final double          shiftY,
+        			(CLT_PARAMETERS.dbg_mode >> 2) & 3, // swap order hor/vert
+        			THREADS_MAX,                    // maximal number of threads to launch                         
+        			DEBUG_LEVEL);                   // globalDebugLevel)
+            }
+        }
+        
+        clt = new double [clt_data2.length*4][];
+        for (int chn = 0; chn < clt_data.length; chn++) {
+        	double [][] clt_set = image_dtt.clt_dbg(
+        			clt_data2 [chn],
+        			THREADS_MAX,
+        			DEBUG_LEVEL);
+        	for (int ii = 0; ii < clt_set.length; ii++) clt[chn*4+ii] = clt_set[ii];
+        }
+//        System.out.println("dct_dc.length="+dct_dc.length+" dct_ac.length="+dct_ac.length);
+        if (DEBUG_LEVEL > 0){
+        	SDFA_INSTANCE.showArrays(clt,
+        			tilesX*CLT_PARAMETERS.transform_size,
+        			tilesY*CLT_PARAMETERS.transform_size,
+        			true,
+        			DBG_IMP.getTitle()+"-CLT2+"+suffix, titles);  
+        }
+
+        double [][][][][] clt_corr = new double [clt_data.length][][][][];
+        for (int chn = 0; chn < clt_data.length; chn++) {
+        	clt_corr[chn] = image_dtt.clt_correlate(
+        			clt_data[chn],                  // final double [][][][] data1,  // array [tilesY][tilesX][4][dct_size*dct_size]  
+        			clt_data2[chn],                 // final double [][][][] data2,  // array [tilesY][tilesX][4][dct_size*dct_size]  
+        			CLT_PARAMETERS.transform_size,  // final int             dct_size,
+        			CLT_PARAMETERS.fat_zero,  // final double          fat_zero,    // add to denominator to modify phase correlation (same units as data1, data2)
+            		CLT_PARAMETERS.tileX, //final int debug_tileX
+            		CLT_PARAMETERS.tileY, //final int debug_tileY
+
+        			THREADS_MAX,                    // maximal number of threads to launch                         
+        			DEBUG_LEVEL);                   // globalDebugLevel)
+        }
+
+        
+        clt = new double [clt_data.length*4][];
+        for (int chn = 0; chn < clt_data.length; chn++) {
+        	double [][] clt_set = image_dtt.clt_dbg(
+        			clt_corr [chn],
+        			THREADS_MAX,
+        			DEBUG_LEVEL);
+        	for (int ii = 0; ii < clt_set.length; ii++) clt[chn*4+ii] = clt_set[ii];
+        }
+        if (DEBUG_LEVEL > 0){
+        	SDFA_INSTANCE.showArrays(clt,
+        			tilesX*CLT_PARAMETERS.transform_size,
+        			tilesY*CLT_PARAMETERS.transform_size,
+        			true,
+        			DBG_IMP.getTitle()+"-CORR+"+suffix, titles);  
+        }
+        
+        if (CLT_PARAMETERS.corr_sigma > 0.0){
+        	for (int chn = 0; chn < clt_data.length; chn++) {
+        		image_dtt.clt_lpf( // filter in-place
+        				CLT_PARAMETERS.corr_sigma,            // final double          sigma,
+        				clt_corr[chn],                        // final double [][][][] clt_data,
+        				THREADS_MAX,                          // maximal number of threads to launch                         
+        				DEBUG_LEVEL);                        // globalDebugLevel)
+        	}
+            clt = new double [clt_data.length*4][];
+            for (int chn = 0; chn < clt_corr.length; chn++) {
+            	double [][] clt_set = image_dtt.clt_dbg(
+            			clt_corr [chn],
+            			THREADS_MAX,
+            			DEBUG_LEVEL);
+            	for (int ii = 0; ii < clt_set.length; ii++) clt[chn*4+ii] = clt_set[ii];
+            }
+            if (DEBUG_LEVEL > 0){
+            	SDFA_INSTANCE.showArrays(clt,
+            			tilesX*CLT_PARAMETERS.transform_size,
+            			tilesY*CLT_PARAMETERS.transform_size,
+            			true,
+            			DBG_IMP.getTitle()+"-LPF_CORR+"+suffix, titles);  
+            }
+        	
+        }
+    	for (int chn = 0; chn < clt_corr.length; chn++) {
+    		image_dtt.clt_dtt2( // DCCT2, DSCT2, DCST2, DSST2 - in-place
+    				clt_corr[chn],                        // final double [][][][] clt_data,
+    				THREADS_MAX,                          // maximal number of threads to launch                         
+    				DEBUG_LEVEL);                        // globalDebugLevel)
+    	}        	
+        clt = new double [clt_corr.length*4][];
+        for (int chn = 0; chn < clt_data.length; chn++) {
+        	double [][] clt_set = image_dtt.clt_dbg(
+        			clt_corr [chn],
+        			THREADS_MAX,
+        			DEBUG_LEVEL);
+        	for (int ii = 0; ii < clt_set.length; ii++) clt[chn*4+ii] = clt_set[ii];
+        }
+        if (DEBUG_LEVEL > -1){
+        	SDFA_INSTANCE.showArrays(clt,
+        			tilesX*CLT_PARAMETERS.transform_size,
+        			tilesY*CLT_PARAMETERS.transform_size,
+        			true,
+        			DBG_IMP.getTitle()+"-ICORR+"+suffix, titles);  
+        }
+        
+        double [][][][] corr_tiles = new double [clt_corr.length][][][];
+        for (int chn = 0; chn < clt_corr.length; chn++) {
+        	corr_tiles[chn] = image_dtt.clt_corr_quad(
+        			clt_corr[chn],
+        			THREADS_MAX,
+        			DEBUG_LEVEL);
+        }
+        if (DEBUG_LEVEL > -1){
+            double [][] corr_rslt = new double [clt_corr.length][];
+            for (int chn = 0; chn < clt_corr.length; chn++) {
+            	corr_rslt[chn] = image_dtt.corr_dbg(
+            			corr_tiles[chn],
+            			THREADS_MAX,
+            			DEBUG_LEVEL);
+            	
+            }
+        	String [] titles_rbg = {"red","blue","green"};
+        	SDFA_INSTANCE.showArrays(corr_rslt,
+        			tilesX*(2*CLT_PARAMETERS.transform_size),
+        			tilesY*(2*CLT_PARAMETERS.transform_size),
+        			true,
+        			DBG_IMP.getTitle()+"-C"+suffix, titles_rbg);  
+        }
+        
+        
+        
+        
+/*        
+        double [][] iclt_data = new double [clt_data.length][];
+        for (int chn=0; chn<iclt_data.length;chn++){
+        	iclt_data[chn] = image_dtt.iclt_2d(
+        			clt_data[chn],                  // scanline representation of dcd data, organized as dct_size x dct_size tiles  
+        			CLT_PARAMETERS.transform_size,  // final int
+        			CLT_PARAMETERS.clt_window,      //window_type
+        			CLT_PARAMETERS.iclt_mask,       //which of 4 to transform back
+        			CLT_PARAMETERS.dbg_mode,       //which of 4 to transform back
+        			THREADS_MAX,                    // maximal number of threads to launch                         
+        			DEBUG_LEVEL);                   //        globalDebugLevel)
+        }
+        SDFA_INSTANCE.showArrays(
+        		iclt_data,
+        		(tilesX + 1) * CLT_PARAMETERS.transform_size,
+        		(tilesY + 1) * CLT_PARAMETERS.transform_size,
+        		true,
+        		DBG_IMP.getTitle()+"-ICLT-"+CLT_PARAMETERS.iclt_mask);
+*/
     	return;
     	
 // End of buttons code    	
