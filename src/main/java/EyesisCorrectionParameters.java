@@ -1773,14 +1773,18 @@ public class EyesisCorrectionParameters {
   		}
   	}
     public static class CLTParameters {
-  		public int transform_size =    8; //
-  		public int clt_window =        1; // currently only 3 types of windows - 0 (none), 1 and 2
-  		public double     shift_x =  0.0;
-  		public double     shift_y =  0.0;
-  		public int        iclt_mask = 15; // which transforms to combine
-  		public int        tileX =    258; // number of kernel tile (0..163) 
-  		public int        tileY =    133; // number of kernel tile (0..122)
-  		public int        dbg_mode =   0;  // 0 - normal, +1 - no DCT/IDCT
+  		public int transform_size =     8; //
+  		public int clt_window =         1; // currently only 3 types of windows - 0 (none), 1 and 2
+  		public double     shift_x =   0.0;
+  		public double     shift_y =   0.0;
+  		public int        iclt_mask =  15; // which transforms to combine
+  		public int        tileX =     258; // number of kernel tile (0..163) 
+  		public int        tileY =     133; // number of kernel tile (0..122)
+  		public int        dbg_mode =    0; // 0 - normal, +1 - no DCT/IDCT
+  		public int        ishift_x =    0; // debug feature - shift source image by this pixels left
+  		public int        ishift_y =    0; // debug feature - shift source image by this pixels down
+  		public double     fat_zero =  0.0; // modify phase correlation to prevent division by very small numbers
+  		public double     corr_sigma =0.8; // LPF correlarion sigma 
   		
   		public CLTParameters(){}
   		public void setProperties(String prefix,Properties properties){
@@ -1792,6 +1796,10 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"tileX",         this.tileX+"");
   			properties.setProperty(prefix+"tileY",         this.tileY+"");
   			properties.setProperty(prefix+"dbg_mode",      this.dbg_mode+"");
+  			properties.setProperty(prefix+"ishift_x",      this.ishift_x+"");
+  			properties.setProperty(prefix+"ishift_y",      this.ishift_y+"");
+  			properties.setProperty(prefix+"fat_zero",      this.fat_zero+"");
+  			properties.setProperty(prefix+"corr_sigma",    this.corr_sigma+"");
   		}
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"transform_size")!=null) this.transform_size=Integer.parseInt(properties.getProperty(prefix+"transform_size"));
@@ -1802,6 +1810,10 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"tileX")!=null)          this.tileX=Integer.parseInt(properties.getProperty(prefix+"tileX"));
   			if (properties.getProperty(prefix+"tileY")!=null)          this.tileY=Integer.parseInt(properties.getProperty(prefix+"tileY"));
   			if (properties.getProperty(prefix+"dbg_mode")!=null)       this.dbg_mode=Integer.parseInt(properties.getProperty(prefix+"dbg_mode"));
+  			if (properties.getProperty(prefix+"ishift_x")!=null)       this.ishift_x=Integer.parseInt(properties.getProperty(prefix+"ishift_x"));
+  			if (properties.getProperty(prefix+"ishift_y")!=null)       this.ishift_y=Integer.parseInt(properties.getProperty(prefix+"ishift_y"));
+  			if (properties.getProperty(prefix+"fat_zero")!=null)       this.fat_zero=Double.parseDouble(properties.getProperty(prefix+"fat_zero"));
+  			if (properties.getProperty(prefix+"corr_sigma")!=null)     this.corr_sigma=Double.parseDouble(properties.getProperty(prefix+"corr_sigma"));
   		}
   		public boolean showDialog() {
   			GenericDialog gd = new GenericDialog("Set DCT parameters");
@@ -1813,7 +1825,10 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Tile X to extract (0..163)",                                     this.tileX,                     0);
   			gd.addNumericField("Tile Y to extract (0..122)",                                     this.tileY,                     0);
   			gd.addNumericField("dbg_mode: 0 - normal, +1 - no DCT/IDCT, just fold",              this.dbg_mode,                  0);
-
+  			gd.addNumericField("ishift_x: shift source image by this pixels left",               this.ishift_x,                  0);
+  			gd.addNumericField("ishift_x: shift source image by this pixels down",               this.ishift_y,                  0);
+   			gd.addNumericField("Modify phase correlation to prevent division by very small numbers", this.fat_zero,              4);
+   			gd.addNumericField("LPF correlarion sigma ",                                         this.corr_sigma,                3);
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
   			
@@ -1825,7 +1840,11 @@ public class EyesisCorrectionParameters {
   			this.iclt_mask=             (int) gd.getNextNumber();
   			this.tileX=                 (int) gd.getNextNumber();
   			this.tileY=                 (int) gd.getNextNumber();
-  			this.dbg_mode=                 (int) gd.getNextNumber();
+  			this.dbg_mode=              (int) gd.getNextNumber();
+  			this.ishift_x=              (int) gd.getNextNumber();
+  			this.ishift_y=              (int) gd.getNextNumber();
+  			this.fat_zero =                   gd.getNextNumber();
+  			this.corr_sigma =                 gd.getNextNumber();
   			return true;
   		}
     }
