@@ -151,23 +151,11 @@ public class PixelMapping {
     	return (this.sensors != null) && (channel>=0)  && (channel<this.sensors.length) && (this.sensors[channel]!=null);
     }
 
-/*
-    
-    public int [] channelsForSubCamera(int subCamera){
-    	if (this.sensors == null) return null;
-    	int numChannels=0;
-    	for (int i=0;i<this.sensors.length;i++) if ((this.sensors[i]!=null) &&(this.sensors[i].subcamera==subCamera)) numChannels++;
-    	int [] result=new int [numChannels];
-    	numChannels=0;
-    	for (int i=0;i<this.sensors.length;i++) if ((this.sensors[i]!=null) &&(this.sensors[i].subcamera==subCamera)) result[numChannels++]=i;
-    	return result;
-    }
-    
- */
     // Updating for nc393. subCamera here is 0..9 for Eyesis4pi393 - 0-based index of the file, so it combines physical camera (separate IP)
     // as stored in "subcamera" field of the calibration file and "sensor_port". sensor_port may start from non-0, so we need to count all combinations
-    
+    //removeUnusedSensorData xshould be off!
     public int [] channelsForSubCamera(int subCamera){
+		System.out.println("channelsForSubCamera("+subCamera+"),this.sensors.length="+this.sensors.length);
 //    	ArrayList<ArrayList<ArrayList<Integer>>> camera_IPs = new ArrayList<ArrayList<ArrayList<Integer>>>(); 
     	ArrayList<Point> cam_port = new ArrayList<Point>();
     	for (int i=0;i<this.sensors.length;i++)  if (this.sensors[i]!=null) {
@@ -175,6 +163,7 @@ public class PixelMapping {
     		if (!cam_port.contains(cp)){
     			cam_port.add(cp);
     		}
+//    		System.out.println("this.sensors["+i+"]!=null, this.sensors[i].subcamera="+this.sensors[i].subcamera+", this.sensors[i].sensor_port="+this.sensors[i].sensor_port);
     	}
     	Point [] cam_port_arr = cam_port.toArray(new Point[0]);
 		Arrays.sort(cam_port_arr, new Comparator<Point>() {
@@ -183,9 +172,7 @@ public class PixelMapping {
 				return (o1.x>o2.x)? 1:((o1.x < o2.x)?-1:(o1.y > o2.y)? 1:((o1.y < o2.y)?-1:0)); 
 			}
 		});
-//		for (int i=0; i<cam_port_arr.length;i++){
-//			System.out.println("----- physical camera #"+cam_port_arr[i].x+", sensor_port="+cam_port_arr[i].y);
-//		}
+		// debugging:
 		System.out.println("----- This filename subcamera "+subCamera+": physical camera "+cam_port_arr[subCamera].x+", sensor_port "+cam_port_arr[subCamera].y);
 		if (subCamera >= cam_port_arr.length) {
 			System.out.println("Error: Subcamera "+subCamera+" > that total namera of sensor ports in the system = "+cam_port_arr.length);

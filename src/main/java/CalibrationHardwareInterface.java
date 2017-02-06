@@ -2671,7 +2671,7 @@ public class CalibrationHardwareInterface {
     		}
     		
     		boolean result=commandToDevice(command);
-    		updateCurrents();
+    		if (result)	updateCurrents();
     		return result;
 
     	}
@@ -2718,7 +2718,8 @@ public class CalibrationHardwareInterface {
     				String msg = e1.getMessage();
     				if (msg==null || msg.equals(""))  msg = ""+e1;
 					IJ.showMessage("Error",msg); 
-					throw new IllegalArgumentException (msg);
+					return false;
+//					throw new IllegalArgumentException (msg);
     			}catch(ParserConfigurationException pce) {
     				pce.printStackTrace();
     				return false;
@@ -3471,7 +3472,9 @@ public class CalibrationHardwareInterface {
     		IJ.showStatus("");
     		String error = e1.getMessage();
     		if (error==null || error.equals(""))  error = ""+e1;
-    		IJ.showMessage("commandElphel10364Motors ERRROR", ""+error);
+    		System.out.println("commandElphel10364Motors ERRROR: "+error);
+    		// *********** Temporary removed message box (usually "HOST UNREACHABLE") *************
+//    		IJ.showMessage("commandElphel10364Motors ERRROR", ""+error);
     		return null;
     	}catch(ParserConfigurationException pce) {
     		pce.printStackTrace();
@@ -6529,7 +6532,9 @@ if (debugLevel>=debugThreshold) System.out.println(i+" "+diff[0]+" "+diff[1]+" "
     	}
     	public double distFromProbed(int [] position){
     		double minDist=Double.NaN;
+    		if (this.history.size() <1) return Double.NaN;
     		if (position==null) position= this.history.get(this.history.size()-1).motorsPos;
+    		
     		if (this.history.size()>0){
     			for (int i=0;i<this.history.size();i++) if (this.history.get(i).isProbed) {
     				int [] probedPosition=this.history.get(i).motorsPos;

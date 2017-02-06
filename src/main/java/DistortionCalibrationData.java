@@ -1691,15 +1691,25 @@ import org.apache.commons.configuration.XMLConfiguration;
 			if (gridImages!=null) {
 //				this.pathName="";  // modified, keep the path anyway
 // overwrite saved paths with the provided images, number of images{ should match
-				if (this.gIP.length!=gridImages.length){
+				if (this.gIP.length == gridImages.length){
+					for (int i=0;i<this.gIP.length;i++){
+						this.gIP[i].gridImage=gridImages[i];
+						this.gIP[i].path=null; // not needed, just in case
+						this.gIP[i].enabled=true;// enable all (actually just one) acquired images
+					}
+				} else {
 					String msg="Number of provided images ("+gridImages.length+") does not match parameters restored from the "+pathname+" ("+this.gIP.length+")";
 		    		IJ.showMessage("Error",msg);
-		    		throw new IllegalArgumentException (msg);
-				}
-				for (int i=0;i<this.gIP.length;i++){
-					this.gIP[i].gridImage=gridImages[i];
-					this.gIP[i].path=null; // not needed, just in case
-					this.gIP[i].enabled=true;// enable all (actually just one) acquired images
+//		    		throw new IllegalArgumentException (msg);
+					for (int i=0; i<this.gIP.length ; i++){
+						this.gIP[i].path=null; // not needed, just in case
+						this.gIP[i].enabled=true;// enable all (actually just one) acquired images
+						if (i < gridImages.length) {
+							this.gIP[i].gridImage=gridImages[i];
+						} else {
+							this.gIP[i].gridImage=null;
+						}
+					}
 				}
 //				setGridImages(gridImages);
 			}
@@ -2080,7 +2090,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         			imp_grid=this.gIP[numGridImg].gridImage;
         		} else {
         			if (this.updateStatus) IJ.showStatus("Reading grid file "+(fileNumber+1)+" (of "+(numImages)+"): "+this.gIP[fileNumber].path);
-        			if (this.debugLevel>1) System.out.print(fileNumber+" ("+this.gIP[fileNumber].getStationNumber()+"): "+this.gIP[fileNumber].path);
+        			if (this.debugLevel>-1) System.out.print(fileNumber+" ("+this.gIP[fileNumber].getStationNumber()+"): "+this.gIP[fileNumber].path);
         			imp_grid=opener.openImage("", this.gIP[fileNumber].path);  // or (path+filenames[nFile])
         			if (imp_grid==null) {
         				String msg="Failed to read grid file "+this.gIP[fileNumber].path;

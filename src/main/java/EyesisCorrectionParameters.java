@@ -102,7 +102,7 @@ public class EyesisCorrectionParameters {
     	public boolean planeAsJPEG=       true;   // save de-warped image as JPEG (only if equirectangularFormat==0)
 //    	public String equirectangularSuffixA="A.eqr-tiff"; // or the roll-over part
     	public String resultsDirectory="";
-    	public boolean removeUnusedSensorData=true;
+    	public boolean removeUnusedSensorData=false;
     	public int exposureCorrectionMode=2; // - 0 - none, 1 - absolute, 2 - relative
     	public double referenceExposure=0.0003; // 3/10000 sec, used in absolute mode only
     	public double relativeExposure=0.5; // 0.0 - use shortest (darken), 1.0 - use longest (brighten)
@@ -1772,6 +1772,64 @@ public class EyesisCorrectionParameters {
   			this.addBottom=Integer.parseInt(properties.getProperty(prefix+"addBottom"));
   		}
   	}
+    public static class CLTParameters {
+  		public int transform_size =    8; //
+  		public int clt_window =        1; // currently only 3 types of windows - 0 (none), 1 and 2
+  		public double     shift_x =  0.0;
+  		public double     shift_y =  0.0;
+  		public int        iclt_mask = 15; // which transforms to combine
+  		public int        tileX =    258; // number of kernel tile (0..163) 
+  		public int        tileY =    133; // number of kernel tile (0..122)
+  		public int        dbg_mode =   0;  // 0 - normal, +1 - no DCT/IDCT
+  		
+  		public CLTParameters(){}
+  		public void setProperties(String prefix,Properties properties){
+  			properties.setProperty(prefix+"transform_size",this.transform_size+"");
+  			properties.setProperty(prefix+"clt_window",    this.clt_window+"");
+  			properties.setProperty(prefix+"shift_x",       this.shift_x+"");
+  			properties.setProperty(prefix+"shift_y",       this.shift_y+"");
+  			properties.setProperty(prefix+"iclt_mask",     this.iclt_mask+"");
+  			properties.setProperty(prefix+"tileX",         this.tileX+"");
+  			properties.setProperty(prefix+"tileY",         this.tileY+"");
+  			properties.setProperty(prefix+"dbg_mode",      this.dbg_mode+"");
+  		}
+  		public void getProperties(String prefix,Properties properties){
+  			if (properties.getProperty(prefix+"transform_size")!=null) this.transform_size=Integer.parseInt(properties.getProperty(prefix+"transform_size"));
+  			if (properties.getProperty(prefix+"clt_window")!=null)     this.clt_window=Integer.parseInt(properties.getProperty(prefix+"clt_window"));
+  			if (properties.getProperty(prefix+"shift_x")!=null)        this.shift_x=Double.parseDouble(properties.getProperty(prefix+"shift_x"));
+  			if (properties.getProperty(prefix+"shift_y")!=null)        this.shift_y=Double.parseDouble(properties.getProperty(prefix+"shift_y"));
+  			if (properties.getProperty(prefix+"iclt_mask")!=null)      this.iclt_mask=Integer.parseInt(properties.getProperty(prefix+"iclt_mask"));
+  			if (properties.getProperty(prefix+"tileX")!=null)          this.tileX=Integer.parseInt(properties.getProperty(prefix+"tileX"));
+  			if (properties.getProperty(prefix+"tileY")!=null)          this.tileY=Integer.parseInt(properties.getProperty(prefix+"tileY"));
+  			if (properties.getProperty(prefix+"dbg_mode")!=null)       this.dbg_mode=Integer.parseInt(properties.getProperty(prefix+"dbg_mode"));
+  		}
+  		public boolean showDialog() {
+  			GenericDialog gd = new GenericDialog("Set DCT parameters");
+  			gd.addNumericField("DCT size",                                                       this.transform_size,            0);
+  			gd.addNumericField("Lapped transform window type (0- rectangular, 1 - sinus)",       this.clt_window,                0);
+   			gd.addNumericField("shift_x",                                                        this.shift_x,                   4);
+   			gd.addNumericField("shift_y",                                                        this.shift_y,                   4);
+  			gd.addNumericField("Bit mask - which of 4 transforms to combine after iclt",         this.iclt_mask,                 0);
+  			gd.addNumericField("Tile X to extract (0..163)",                                     this.tileX,                     0);
+  			gd.addNumericField("Tile Y to extract (0..122)",                                     this.tileY,                     0);
+  			gd.addNumericField("dbg_mode: 0 - normal, +1 - no DCT/IDCT, just fold",              this.dbg_mode,                  0);
+
+  			WindowTools.addScrollBars(gd);
+  			gd.showDialog();
+  			
+  			if (gd.wasCanceled()) return false;
+  			this.transform_size=        (int) gd.getNextNumber();
+  			this.clt_window=            (int) gd.getNextNumber();
+  			this.shift_x =                    gd.getNextNumber();
+  			this.shift_y =                    gd.getNextNumber();
+  			this.iclt_mask=             (int) gd.getNextNumber();
+  			this.tileX=                 (int) gd.getNextNumber();
+  			this.tileY=                 (int) gd.getNextNumber();
+  			this.dbg_mode=                 (int) gd.getNextNumber();
+  			return true;
+  		}
+    }
+
     public static class DCTParameters {
   		public int dct_size =            8; //
   		public int asym_size =          15; //
@@ -1791,6 +1849,9 @@ public class EyesisCorrectionParameters {
   		public double dbg_x1 =          -1.3;
   		public double dbg_y1 =           2.0;
   		public double dbg_sigma =        0.8;
+  		public double dbg_src_size =     8.0; // trying to slightly scale in dct space. == dct = 1:1, dct+1.0 - shrink dct(dct+1.0)
+  		public double dbg_scale =        1.0; // Should ==DCT_PARAMETERS.dct_size / DCT_PARAMETERS.dbg_src_size
+  		public double dbg_fold_scale =   1.0; // Modifies window during MDCT->DCT-IV folding
   		public String dbg_mask = ".........:::::::::.........:::::::::......*..:::::*:::.........:::::::::.........";
   		public int dbg_mode =            1; // 0 - old LMA, 1 - new LMA - *** not used anymore ***
   		public int dbg_window_mode =     1; // 0 - none, 1 - square, 2 - sin 3 - sin^2 Now _should_ be square !!!
@@ -1801,16 +1862,26 @@ public class EyesisCorrectionParameters {
   		public double decimateSigma =   -1.0; // special mode for 2:1 deciamtion 
   		public int    tileX =            82;  // number of kernel tile (0..163) 
   		public int    tileY =            62;  // number of kernel tile (0..122) 
-  		public boolean subtract_dc =     false;//subtract/restore dc
   		public int    kernel_chn =      -1; // camera channel calibration to use for aberration correction ( < 0 - no correction)
-  		public boolean normalize =       true; //normalize both sym and asym kernels (asym to have sum==1, sym to have sum = dct_size
-  		public boolean normalize_sym =   true; //normalize sym kernels separately
+  		public boolean normalize =       true; // normalize both sym and asym kernels (asym to have sum==1, sym to have sum = dct_size
+  		public boolean normalize_sym =   true; // normalize sym kernels separately
+  		public boolean antiwindow =      false; // divide symmetrical kernel by a window function
   		public boolean skip_sym =        false; // do not apply symmetrical correction
   		public boolean convolve_direct = false; // do not apply symmetrical correction
+  		
+  		// colors should be balanced before DCT color conversion!
+  		public double novignetting_r    = 0.2644; // reg gain in the center of sensor calibration R (instead of vignetting)
+  		public double novignetting_g    = 0.3733; // green gain in the center of sensor calibration G
+  		public double novignetting_b    = 0.2034; // blue gain in the center of sensor calibration B
+  		
+  		public double scale_r =           1.0; // extra gain correction after vignetting or nonvignetting, before other processing
+  		public double scale_g =           1.0;
+  		public double scale_b =           1.0;
   		
   		public double vignetting_max    = 0.4; // value in vignetting data to correspond to 1x in the kernel
   		public double vignetting_range  = 5.0; // do not try to correct vignetting less than vignetting_max/vignetting_range
   		
+  		public boolean post_debayer     = false; // perform de-bayer after aberrations in pixel domain
   		public boolean color_DCT        = true; // false - use old color processing mode
   		public double  sigma_rb =         0.9; // additional (to G) blur for R and B
   		public double  sigma_y =          0.7; // blur for G contribution to Y
@@ -1868,36 +1939,44 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"dbg_x1",     this.dbg_x1+"");
   			properties.setProperty(prefix+"dbg_y1",     this.dbg_y1+"");
   			properties.setProperty(prefix+"dbg_sigma",  this.dbg_sigma+"");
+  			properties.setProperty(prefix+"dbg_src_size",this.dbg_src_size+"");
+  			properties.setProperty(prefix+"dbg_scale",  this.dbg_scale+"");
+  			properties.setProperty(prefix+"dbg_fold_scale",  this.dbg_fold_scale+"");
   			properties.setProperty(prefix+"dbg_mask",   this.dbg_mask+"");
   			properties.setProperty(prefix+"dbg_mode",   this.dbg_mode+"");
-  			properties.setProperty(prefix+"dbg_window_mode",   this.dbg_window_mode+"");
+  			properties.setProperty(prefix+"dbg_window_mode",    this.dbg_window_mode+"");
   			properties.setProperty(prefix+"centerWindowToTarget",   this.centerWindowToTarget+"");
-  			properties.setProperty(prefix+"color_channel",   this.color_channel+"");
-  			properties.setProperty(prefix+"decimation",   this.decimation+"");
-  			properties.setProperty(prefix+"decimateSigma",   this.decimateSigma+"");
-  			properties.setProperty(prefix+"tileX",   this.tileX+"");
-  			properties.setProperty(prefix+"tileY",   this.tileY+"");
-  			properties.setProperty(prefix+"subtract_dc",   this.subtract_dc+"");
-  			properties.setProperty(prefix+"kernel_chn",   this.kernel_chn+"");
-  			properties.setProperty(prefix+"normalize",    this.normalize+"");
-  			properties.setProperty(prefix+"normalize_sym",    this.normalize_sym+"");
-  			properties.setProperty(prefix+"skip_sym",    this.skip_sym+"");
+  			properties.setProperty(prefix+"color_channel",      this.color_channel+"");
+  			properties.setProperty(prefix+"decimation",         this.decimation+"");
+  			properties.setProperty(prefix+"decimateSigma",      this.decimateSigma+"");
+  			properties.setProperty(prefix+"tileX",              this.tileX+"");
+  			properties.setProperty(prefix+"tileY",              this.tileY+"");
+  			properties.setProperty(prefix+"kernel_chn",         this.kernel_chn+"");
+  			properties.setProperty(prefix+"normalize",          this.normalize+"");
+  			properties.setProperty(prefix+"normalize_sym",      this.normalize_sym+"");
+  			properties.setProperty(prefix+"antiwindow",         this.antiwindow+"");
+  			properties.setProperty(prefix+"skip_sym",           this.skip_sym+"");
   			properties.setProperty(prefix+"convolve_direct",    this.convolve_direct+"");
-  			properties.setProperty(prefix+"vignetting_max",   this.vignetting_max+"");
+  			properties.setProperty(prefix+"novignetting_r",     this.novignetting_r+"");
+  			properties.setProperty(prefix+"novignetting_g",     this.novignetting_g+"");
+  			properties.setProperty(prefix+"novignetting_b",     this.novignetting_b+"");
+  			properties.setProperty(prefix+"scale_r",            this.scale_r+"");
+  			properties.setProperty(prefix+"scale_g",            this.scale_g+"");
+  			properties.setProperty(prefix+"scale_b",            this.scale_b+"");
+  			properties.setProperty(prefix+"vignetting_max",     this.vignetting_max+"");
   			properties.setProperty(prefix+"vignetting_range",   this.vignetting_range+"");
+  			properties.setProperty(prefix+"post_debayer",       this.post_debayer+"");
   			properties.setProperty(prefix+"color_DCT",          this.color_DCT+"");
   			properties.setProperty(prefix+"sigma_rb",           this.sigma_rb+"");
   			properties.setProperty(prefix+"sigma_y",            this.sigma_y+"");
   			properties.setProperty(prefix+"sigma_color",        this.sigma_color+"");
   			properties.setProperty(prefix+"line_thershold",     this.line_thershold+"");
-  			
   			properties.setProperty(prefix+"nonlin",             this.nonlin+"");
   			properties.setProperty(prefix+"nonlin_max_y",       this.nonlin_max_y+"");
   			properties.setProperty(prefix+"nonlin_max_c",       this.nonlin_max_c+"");
   			properties.setProperty(prefix+"nonlin_y",           this.nonlin_y+"");
   			properties.setProperty(prefix+"nonlin_c",           this.nonlin_c+"");
   			properties.setProperty(prefix+"nonlin_corn",        this.nonlin_corn+"");
-
   			properties.setProperty(prefix+"denoise",            this.denoise+"");
   			properties.setProperty(prefix+"denoise_y",          this.denoise_y+"");
   			properties.setProperty(prefix+"denoise_c",          this.denoise_c+"");
@@ -1926,6 +2005,9 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"dbg_x1")!=null) this.dbg_x1=Double.parseDouble(properties.getProperty(prefix+"dbg_x1"));
   			if (properties.getProperty(prefix+"dbg_y1")!=null) this.dbg_y1=Double.parseDouble(properties.getProperty(prefix+"dbg_y1"));
   			if (properties.getProperty(prefix+"dbg_sigma")!=null) this.dbg_sigma=Double.parseDouble(properties.getProperty(prefix+"dbg_sigma"));
+  			if (properties.getProperty(prefix+"dbg_src_size")!=null) this.dbg_src_size=Double.parseDouble(properties.getProperty(prefix+"dbg_src_size"));
+  			if (properties.getProperty(prefix+"dbg_scale")!=null) this.dbg_scale=Double.parseDouble(properties.getProperty(prefix+"dbg_scale"));
+  			if (properties.getProperty(prefix+"dbg_fold_scale")!=null) this.dbg_fold_scale=Double.parseDouble(properties.getProperty(prefix+"dbg_fold_scale"));
   			if (properties.getProperty(prefix+"dbg_mask")!=null) this.dbg_mask=properties.getProperty(prefix+"dbg_mask");
   			if (properties.getProperty(prefix+"dbg_mode")!=null) this.dbg_mode=Integer.parseInt(properties.getProperty(prefix+"dbg_mode"));
   			if (properties.getProperty(prefix+"centerWindowToTarget")!=null) this.centerWindowToTarget=Boolean.parseBoolean(properties.getProperty(prefix+"centerWindowToTarget"));
@@ -1935,27 +2017,32 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"tileX")!=null) this.tileX=Integer.parseInt(properties.getProperty(prefix+"tileX"));
   			if (properties.getProperty(prefix+"tileY")!=null) this.tileY=Integer.parseInt(properties.getProperty(prefix+"tileY"));
   			if (properties.getProperty(prefix+"dbg_window_mode")!=null) this.dbg_window_mode=Integer.parseInt(properties.getProperty(prefix+"dbg_window_mode"));
-  			if (properties.getProperty(prefix+"subtract_dc")!=null) this.subtract_dc=Boolean.parseBoolean(properties.getProperty(prefix+"subtract_dc"));
   			if (properties.getProperty(prefix+"kernel_chn")!=null) this.kernel_chn=Integer.parseInt(properties.getProperty(prefix+"kernel_chn"));
   			if (properties.getProperty(prefix+"normalize")!=null) this.normalize=Boolean.parseBoolean(properties.getProperty(prefix+"normalize"));
   			if (properties.getProperty(prefix+"normalize_sym")!=null) this.normalize_sym=Boolean.parseBoolean(properties.getProperty(prefix+"normalize_sym"));
+  			if (properties.getProperty(prefix+"antiwindow")!=null) this.antiwindow=Boolean.parseBoolean(properties.getProperty(prefix+"antiwindow"));
   			if (properties.getProperty(prefix+"skip_sym")!=null) this.skip_sym=Boolean.parseBoolean(properties.getProperty(prefix+"skip_sym"));
   			if (properties.getProperty(prefix+"convolve_direct")!=null) this.convolve_direct=Boolean.parseBoolean(properties.getProperty(prefix+"convolve_direct"));
+  			if (properties.getProperty(prefix+"novignetting_r")!=null) this.novignetting_r=Double.parseDouble(properties.getProperty(prefix+"novignetting_r"));
+  			if (properties.getProperty(prefix+"novignetting_g")!=null) this.novignetting_g=Double.parseDouble(properties.getProperty(prefix+"novignetting_g"));
+  			if (properties.getProperty(prefix+"novignetting_b")!=null) this.novignetting_b=Double.parseDouble(properties.getProperty(prefix+"novignetting_b"));
+  			if (properties.getProperty(prefix+"scale_r")!=null)        this.scale_r=Double.parseDouble(properties.getProperty(prefix+"scale_r"));
+  			if (properties.getProperty(prefix+"scale_g")!=null)        this.scale_g=Double.parseDouble(properties.getProperty(prefix+"scale_g"));
+  			if (properties.getProperty(prefix+"scale_b")!=null)        this.scale_b=Double.parseDouble(properties.getProperty(prefix+"scale_b"));
   			if (properties.getProperty(prefix+"vignetting_max")!=null) this.vignetting_max=Double.parseDouble(properties.getProperty(prefix+"vignetting_max"));
   			if (properties.getProperty(prefix+"vignetting_range")!=null) this.vignetting_range=Double.parseDouble(properties.getProperty(prefix+"vignetting_range"));
+  			if (properties.getProperty(prefix+"post_debayer")!=null)   this.post_debayer=Boolean.parseBoolean(properties.getProperty(prefix+"post_debayer"));
   			if (properties.getProperty(prefix+"color_DCT")!=null)      this.color_DCT=Boolean.parseBoolean(properties.getProperty(prefix+"color_DCT"));
   			if (properties.getProperty(prefix+"sigma_rb")!=null)       this.sigma_rb=Double.parseDouble(properties.getProperty(prefix+"sigma_rb"));
   			if (properties.getProperty(prefix+"sigma_y")!=null)        this.sigma_y=Double.parseDouble(properties.getProperty(prefix+"sigma_y"));
   			if (properties.getProperty(prefix+"sigma_color")!=null)    this.sigma_color=Double.parseDouble(properties.getProperty(prefix+"sigma_color"));
   			if (properties.getProperty(prefix+"line_thershold")!=null) this.line_thershold=Double.parseDouble(properties.getProperty(prefix+"line_thershold"));
-
   			if (properties.getProperty(prefix+"nonlin")!=null)         this.nonlin=Boolean.parseBoolean(properties.getProperty(prefix+"nonlin"));
   			if (properties.getProperty(prefix+"nonlin_max_y")!=null)   this.nonlin_max_y=Double.parseDouble(properties.getProperty(prefix+"nonlin_max_y"));
   			if (properties.getProperty(prefix+"nonlin_max_c")!=null)   this.nonlin_max_c=Double.parseDouble(properties.getProperty(prefix+"nonlin_max_c"));
   			if (properties.getProperty(prefix+"nonlin_y")!=null)       this.nonlin_y=Double.parseDouble(properties.getProperty(prefix+"nonlin_y"));
   			if (properties.getProperty(prefix+"nonlin_c")!=null)       this.nonlin_c=Double.parseDouble(properties.getProperty(prefix+"nonlin_c"));
   			if (properties.getProperty(prefix+"nonlin_corn")!=null)    this.nonlin_corn=Double.parseDouble(properties.getProperty(prefix+"nonlin_corn"));
-  			
   			if (properties.getProperty(prefix+"denoise")!=null)        this.denoise=Boolean.parseBoolean(properties.getProperty(prefix+"denoise"));
   			if (properties.getProperty(prefix+"denoise_y")!=null)      this.denoise_y=Double.parseDouble(properties.getProperty(prefix+"denoise_y"));
   			if (properties.getProperty(prefix+"denoise_c")!=null)      this.denoise_c=Double.parseDouble(properties.getProperty(prefix+"denoise_c"));
@@ -1983,24 +2070,34 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("dbg_x1",                                                         this.dbg_x1,              2);
   			gd.addNumericField("dbg_y1",                                                         this.dbg_y1,              2);
   			gd.addNumericField("dbg_sigma",                                                      this.dbg_sigma,           3);
-			gd.addStringField ("Debug mask (anything but * is false)",                           this.dbg_mask,          100);
+  			gd.addNumericField("== dct_size = 1:1, dct+1.0 - shrink dct(dct+1.0)",               this.dbg_src_size,        3);
+  			gd.addNumericField("Should ==DCT_PARAMETERS.dct_size / DCT_PARAMETERS.dbg_src_size", this.dbg_scale,           3);
+  			gd.addNumericField("Modifies window during MDCT->DCT-IV folding",                    this.dbg_fold_scale,      3);
+  			gd.addStringField ("Debug mask (anything but * is false)",                           this.dbg_mask,          100);
   			gd.addNumericField("LMA implementation: 0 - old, 1 - new",                           this.dbg_mode,            0);
-  			gd.addNumericField("Convolution window: 0 - none, 1 - square, 2 - sin, 3 - sin^2",   this.dbg_window_mode,     0);
+  			gd.addNumericField("Convolution window: 0 - none, [1 - square], 2 - sin, 3 - sin^2", this.dbg_window_mode,     0);
   			gd.addCheckbox    ("Center convolution window around target kernel center",          this.centerWindowToTarget);
   			gd.addNumericField("Color channel to extract kernel (<0 - use synthetic)",           this.color_channel,       0);
   			gd.addNumericField("Convolution kernel decimation (original is normally 2x)",        this.decimation,          0);
   			gd.addNumericField("Smooth convolution kernel before decimation",                    this.decimateSigma,       3);
   			gd.addNumericField("Tile X to extract (0..163)",                                     this.tileX,               0);
   			gd.addNumericField("Tile Y to extract (0..122)",                                     this.tileY,               0);
-  			gd.addCheckbox    ("Subtract avarege before dct, restore after idct",                this.subtract_dc);
   			gd.addNumericField("Calibration channel to use for aberration ( <0 - no correction)",this.kernel_chn,          0);
   			gd.addCheckbox    ("Normalize both sym and asym kernels ",                           this.normalize);
   			gd.addCheckbox    ("Normalize sym kernels separately",                               this.normalize_sym);
+  			gd.addCheckbox    ("Divide symmetrical kernel by a window function",                 this.antiwindow);
   			gd.addCheckbox    ("Do not apply symmetrical (DCT) correction ",                     this.skip_sym);
   			gd.addCheckbox    ("Convolve directly with symmetrical kernel (debug feature) ",     this.convolve_direct);
-  			gd.addNumericField("Value (max) in vignetting data to correspond to 1x in the kernel",this.vignetting_max,      3);
-  			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",this.vignetting_range,  3);
-  			gd.addCheckbox    ("Use DCT-base color conversion",                                   this.color_DCT             );
+  			gd.addNumericField("Reg gain in the center of sensor calibration R (instead of vignetting)",this.novignetting_r,   4);
+  			gd.addNumericField("Green gain in the center of sensor calibration G (instead of vignetting)",this.novignetting_g, 4);
+  			gd.addNumericField("Blue gain in the center of sensor calibration B (instead of vignetting)",this.novignetting_b,  4);
+  			gd.addNumericField("Extra red correction to compensate for light temperature",               this.scale_r,  4);
+  			gd.addNumericField("Extra green correction to compensate for light temperature",             this.scale_g,  4);
+  			gd.addNumericField("Extra blue correction to compensate for light temperature",              this.scale_b,  4);
+  			gd.addNumericField("Value (max) in vignetting data to correspond to 1x in the kernel",    this.vignetting_max,      3);
+  			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",  this.vignetting_range,  3);
+  			gd.addCheckbox    ("Perform de-bayer after aberrations in pixel domain",              this.post_debayer             );
+  			gd.addCheckbox    ("Use DCT-based color conversion (false - just LPF RGB with dbg_sigma)",this.color_DCT             );
   			gd.addNumericField("Gaussian sigma to apply to R and B (in addition to G), pix",      this.sigma_rb,            3);
   			gd.addNumericField("Gaussian sigma to apply to Y in the MDCT domain, pix",            this.sigma_y,             3);
   			gd.addNumericField("Gaussian sigma to apply to Pr and Pb in the MDCT domain, pix",    this.sigma_color,         3);
@@ -2040,7 +2137,10 @@ public class EyesisCorrectionParameters {
   			this.dbg_x1=                gd.getNextNumber();
   			this.dbg_y1=                gd.getNextNumber();
   			this.dbg_sigma=             gd.getNextNumber();
-			this.dbg_mask=              gd.getNextString();
+  			this.dbg_src_size=          gd.getNextNumber();
+  			this.dbg_scale=             gd.getNextNumber();
+  			this.dbg_fold_scale=        gd.getNextNumber();
+  			this.dbg_mask=              gd.getNextString();
   			this.dbg_mode=        (int) gd.getNextNumber();
   			this.dbg_window_mode= (int) gd.getNextNumber();
   			this.centerWindowToTarget=  gd.getNextBoolean();
@@ -2049,14 +2149,24 @@ public class EyesisCorrectionParameters {
   			this.decimateSigma=         gd.getNextNumber();
   			this.tileX=           (int) gd.getNextNumber();
   			this.tileY=           (int) gd.getNextNumber();
-  			this.subtract_dc=           gd.getNextBoolean();
   			this.kernel_chn=      (int) gd.getNextNumber();
   			this.normalize=             gd.getNextBoolean();
   			this.normalize_sym=         gd.getNextBoolean();
+  			this.antiwindow=            gd.getNextBoolean();
   			this.skip_sym=              gd.getNextBoolean();
   			this.convolve_direct=       gd.getNextBoolean();
+  			this.novignetting_r=        gd.getNextNumber();
+  			this.novignetting_g=        gd.getNextNumber();
+  			this.novignetting_b=        gd.getNextNumber();
+
+  			this.scale_r=               gd.getNextNumber();
+  			this.scale_g=               gd.getNextNumber();
+  			this.scale_b=               gd.getNextNumber();
+  			
+  			
   			this.vignetting_max=        gd.getNextNumber();
   			this.vignetting_range=      gd.getNextNumber();
+  			this.post_debayer=          gd.getNextBoolean();
   			this.color_DCT=             gd.getNextBoolean();
   			this.sigma_rb=              gd.getNextNumber();
   			this.sigma_y=               gd.getNextNumber();

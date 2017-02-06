@@ -12003,7 +12003,11 @@ if (MORE_BUTTONS) {
 			int       loopDebugLevel){
 		boolean noMove=false;
 		if (newMotorPos==null) {
-			newMotorPos=focusingMotors.readElphel10364Motors().clone();
+			try {
+				newMotorPos=focusingMotors.readElphel10364Motors().clone();
+			} catch (Exception e){
+				System.out.println("moveAndMaybeProbe(): Failed to read motors");
+			}
 			justMove=true;
 			noMove=true;
 		}
@@ -12098,7 +12102,11 @@ if (MORE_BUTTONS) {
 //		System.out.println(">"+focusingMotors.historySize()+": "+focusingMotors.curpos[0]+", "+focusingMotors.curpos[1]+", "+focusingMotors.curpos[2]);
 		boolean noMove=false;
 		if (newMotorPos==null) {
-			newMotorPos=focusingMotors.readElphel10364Motors().clone();
+			try {
+				newMotorPos=focusingMotors.readElphel10364Motors().clone();
+			} catch (Exception e){
+				System.out.println("moveMeasureAndSave(): motors unreachable.");
+			}
 			noMove=true;
 		}
 		if (!noMove)focusingMotors.moveElphel10364Motors(
