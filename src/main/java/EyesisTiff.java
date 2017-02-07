@@ -32,6 +32,11 @@ import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Array;
 import java.util.Arrays;
 
+import org.slf4j.LoggerFactory;
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+
+
 //import org.apache.log4j.Logger;
 
 
@@ -76,6 +81,10 @@ public EyesisTiff(String codec){
 			boolean imageJTags,
 			int debugLevel
 	) throws IOException, FormatException, ServiceException, DependencyException{
+		Level [] loggerLevel={Level.OFF,Level.ERROR,Level.WARN,Level.INFO,Level.DEBUG,Level.TRACE};
+		Logger TiffSaverLogger = (Logger)LoggerFactory.getLogger(TiffSaver.class);
+		TiffSaverLogger.setLevel(debugLevel>5?Level.ALL:loggerLevel[debugLevel]);
+
 		if (imp.getType()==ImagePlus.COLOR_RGB) {
 			if (debugLevel>1) System.out.println("Saving 8-bit TIFF with alpha-channel: "+path);
 			saveTiffARGB32(imp, path, imageJTags, debugLevel);
