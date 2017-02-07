@@ -378,7 +378,6 @@ private Panel panel1,
 		Color color_conf_process=  new Color(180, 240, 240);
 		Color color_restore=       new Color(180, 240, 180);
 		Color color_stop=          new Color(255, 160, 160);
-<<<<<<< HEAD
 		plugInFrame=new PlugInFrame("Eyesis_Correction") {
 			private static final long serialVersionUID = -4138832568507690332L;
 			@Override
@@ -393,15 +392,7 @@ private Panel panel1,
 		plugInFrame.addKeyListener(IJ.getInstance());
 		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0);
 		plugInFrame.setLayout(new GridLayout(menuRows, 1));
-=======
 		
-
-		instance = this;
-		addKeyListener(IJ.getInstance());
-		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0) + (DCT_MODE?2:0);
-		setLayout(new GridLayout(menuRows, 1));
-
->>>>>>> origin/dct
 		panel6 = new Panel();
 		panel6.setLayout(new GridLayout(1, 0, 5, 5));
 		addButton("Save",panel6);
@@ -497,9 +488,7 @@ private Panel panel1,
 			addButton("Plane Likely", panelPostProcessing3);
 			plugInFrame.add(panelPostProcessing3);
 		}
-<<<<<<< HEAD
-		plugInFrame.pack();
-=======
+
 		if (DCT_MODE) {
 			panelDct1 = new Panel();
 			panelDct1.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
@@ -517,7 +506,7 @@ private Panel panel1,
 			addButton("Reset DCT kernels",         panelDct1, color_stop);
 			addButton("Setup DCT parameters",      panelDct1, color_configure);
 			addButton("DCT process files",         panelDct1, color_process);
-			add(panelDct1);
+			plugInFrame.add(panelDct1);
 		}
 		if (DCT_MODE) {
 			panelClt1 = new Panel();
@@ -530,10 +519,9 @@ private Panel panel1,
 			addButton("CLT test 2",                panelClt1, color_process);
 			addButton("CLT test 3",                panelClt1, color_process);
 			addButton("CLT test 4",                panelClt1, color_process);
-			add(panelClt1);
+			plugInFrame.add(panelClt1);
 		}
-		pack();
->>>>>>> origin/dct
+		plugInFrame.pack();
 
 		GUI.center(plugInFrame);
 		plugInFrame.setVisible(true);
