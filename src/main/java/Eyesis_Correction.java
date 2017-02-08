@@ -490,9 +490,10 @@ private Panel panel1,
 			addButton("CLT stack",                 panelClt1, color_process);
 			addButton("Select second CLT image",   panelClt1, color_configure);
 			addButton("CLT correlate",             panelClt1, color_process);
-			addButton("CLT test 2",                panelClt1, color_process);
-			addButton("CLT test 3",                panelClt1, color_process);
-			addButton("CLT test 4",                panelClt1, color_process);
+			addButton("Create CLT kernels",        panelClt1, color_process);
+			addButton("Read CLT kernels",          panelClt1, color_process);
+			addButton("Reset CLT kernels",         panelClt1, color_stop);
+			addButton("CLT process files",         panelClt1, color_process);
 			add(panelClt1);
 		}
 		pack();
@@ -4044,29 +4045,107 @@ private Panel panel1,
         			DBG_IMP.getTitle()+"-C"+suffix, titles_rbg);  
         }
         
+//==============================================================================
         
-        
-        
-/*        
-        double [][] iclt_data = new double [clt_data.length][];
-        for (int chn=0; chn<iclt_data.length;chn++){
-        	iclt_data[chn] = image_dtt.iclt_2d(
-        			clt_data[chn],                  // scanline representation of dcd data, organized as dct_size x dct_size tiles  
-        			CLT_PARAMETERS.transform_size,  // final int
-        			CLT_PARAMETERS.clt_window,      //window_type
-        			CLT_PARAMETERS.iclt_mask,       //which of 4 to transform back
-        			CLT_PARAMETERS.dbg_mode,       //which of 4 to transform back
-        			THREADS_MAX,                    // maximal number of threads to launch                         
-        			DEBUG_LEVEL);                   //        globalDebugLevel)
+    } else if (label.equals("Create CLT kernels")) {
+        if (!CLT_PARAMETERS.showDialog()) return;
+        if (EYESIS_DCT == null){
+        	EYESIS_DCT = new  EyesisDCT (
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS,
+        			DCT_PARAMETERS);
         }
-        SDFA_INSTANCE.showArrays(
-        		iclt_data,
-        		(tilesX + 1) * CLT_PARAMETERS.transform_size,
-        		(tilesY + 1) * CLT_PARAMETERS.transform_size,
-        		true,
-        		DBG_IMP.getTitle()+"-ICLT-"+CLT_PARAMETERS.iclt_mask);
-*/
-    	return;
+    	String configPath=null;
+    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
+    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
+    				true,
+    				true);
+    		if (configPath==null){
+    			String msg="No results directory selected, command aborted";
+    			System.out.println("Warning: "+msg);
+    			IJ.showMessage("Warning",msg);
+    			return;
+    		}
+    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		try {
+    			saveTimestampedProperties(
+    					configPath,      // full path or null
+    					null, // use as default directory if path==null 
+    					true,
+    					PROPERTIES);
+
+    		} catch (Exception e){
+    			String msg="Failed to save configuration to "+configPath+", command aborted";
+    			System.out.println("Error: "+msg);
+    			IJ.showMessage("Error",msg);
+    			return;
+    		}
+    	}      
+        
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+
+        EYESIS_DCT.createCLTKernels(
+        		CLT_PARAMETERS,
+        		CONVOLVE_FFT_SIZE/2,
+                THREADS_MAX,
+                UPDATE_STATUS, // update status info
+        		DEBUG_LEVEL);
+        
+        //"Reset DCT kernels"
+    } else if (label.equals("Reset CLT kernels")) {
+        if (EYESIS_DCT != null){
+        	EYESIS_DCT.resetCLTKernels();
+        }
+    } else if (label.equals("Read CLT kernels")) {
+        if (!CLT_PARAMETERS.showDialog()) return;
+        if (EYESIS_DCT == null){
+        	EYESIS_DCT = new  EyesisDCT (
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS,
+        			DCT_PARAMETERS);
+        }
+    	String configPath=null;
+    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
+    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
+    				true,
+    				true);
+    		if (configPath==null){
+    			String msg="No results directory selected, command aborted";
+    			System.out.println("Warning: "+msg);
+    			IJ.showMessage("Warning",msg);
+    			return;
+    		}
+    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		try {
+    			saveTimestampedProperties(
+    					configPath,      // full path or null
+    					null, // use as default directory if path==null 
+    					true,
+    					PROPERTIES);
+
+    		} catch (Exception e){
+    			String msg="Failed to save configuration to "+configPath+", command aborted";
+    			System.out.println("Error: "+msg);
+    			IJ.showMessage("Error",msg);
+    			return;
+    		}
+    	}      
+        
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+        
+        EYESIS_DCT.readCLTKernels(
+        		CLT_PARAMETERS,
+                THREADS_MAX,
+                UPDATE_STATUS, // update status info
+        		DEBUG_LEVEL);
+        if (DEBUG_LEVEL > -1){
+        	EYESIS_DCT.showCLTKernels(
+        			THREADS_MAX,
+        			UPDATE_STATUS, // update status info
+        			DEBUG_LEVEL);
+        }
+
+        return;
     	
 // End of buttons code    	
     }

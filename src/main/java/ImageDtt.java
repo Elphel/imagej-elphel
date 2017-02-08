@@ -929,7 +929,7 @@ public class ImageDtt {
 			System.out.println("clt_shift():tilesX= "+tilesX);
 			System.out.println("clt_shift():tilesY= "+tilesY);
 		}
-		/*
+		/* Direct matrix Z1: X2 ~= Z1 * Shift   
 		 * {{+cc  -sc  -cs  +ss},
 		 *  {+sc  +cc  -ss  -cs},
 		 *  {+cs  -ss  +cc  -sc},
@@ -1328,6 +1328,113 @@ public class ImageDtt {
 		startAndJoin(threads);
 		return dct_data_out;
 	}
+
+	void clt_convert_double_kernel( // converts double resolution kernel
+			double []   src_kernel, //
+			double []   dst_kernel, // should be (2*dtt_size-1) * (2*dtt_size-1) +2 size - kernel and dx, dy to the nearest 1/2 pixels
+			int src_size, // 64
+			int dtt_size) // 8
+	{
+		
+		int [] indices = {0,-src_size,-1,1,src_size,-src_size-1,-src_size+1,src_size-1,src_size+1};
+		double [] weights = {0.25,0.125,0.125,0.125,0.125,0.0625,0.0625,0.0625,0.0625};
+		int src_center = src_size / 2; // 32
+		// Find center
+		double sx=0.0, sy = 0.0, s = 0.0;
+		int indx = 0;
+		for (int i= -src_center; i < src_center; i++){
+			for (int j = -src_center; j < src_center; j++){
+				double d = src_kernel[indx++];
+				sx+= j*d;
+				sy+= i*d;
+				s += d;
+			}
+		}
+		int src_x = (int) Math.round(sx / s) + src_center;
+		int src_y = (int) Math.round(sy / s) + src_center;
+		// make sure selected area (2*dst_size-1) * (2*dst_size-1) fits into src_kernel, move center if not
+		if      (src_x < 2 * dtt_size)             src_x = 2 * dtt_size - 1; // 15
+		else if (src_x > (src_size - 2* dtt_size)) src_x = src_size - 2* dtt_size;
+		
+		if      (src_y < 2 * dtt_size)             src_y = 2 * dtt_size - 1; // 15
+		else if (src_y > (src_size - 2* dtt_size)) src_y = src_size - 2* dtt_size;
+		indx = 0;
+		// downscale, copy
+		for (int i = -dtt_size + 1; i < dtt_size; i++){
+			int src_i = (src_y + 2 * i) * src_size  + src_x; 
+			for (int j = -dtt_size + 1; j < dtt_size; j++){
+				double d = 0.0;
+				for (int k = 0; k < indices.length; k++){
+					d += weights[k]*src_kernel[src_i + 2 * j + indices[k]];
+				}
+				dst_kernel[indx++] = d;
+			}			
+		}
+		dst_kernel[indx++] = 0.5*(src_x - src_center);
+		dst_kernel[indx++] = 0.5*(src_y - src_center);
+	}
+
+	void clt_normalize_kernel( // 
+			double []   kernel, // should be (2*dtt_size-1) * (2*dtt_size-1) +2 size (last 2 are not modified)
+			double []   window, // normalizes result kernel * window to have sum of elements == 1.0 
+			final int dtt_size) // 8
+	{
+		double s = 0.0;
+		int indx = 0;
+		for (int i = -dtt_size + 1; i < dtt_size; i++){
+			int ai = (i < 0)? -i: i;
+			for (int j = -dtt_size + 1; j < dtt_size; j++){
+				int aj = (j < 0)? -j: j;
+				s += kernel[indx++] * window[ai*dtt_size+aj];
+			}
+		}
+		s = 1.0/s;
+		indx = 0;
+		for (int i = 0; i < (dtt_size * dtt_size); i++) {
+			kernel[indx++] *= s;
+		}
+ 	}
+
+	void clt_symmetrize_kernel( // 
+			double []     kernel,      // should be (2*dtt_size-1) * (2*dtt_size-1) +2 size (last 2 are not modified)
+			double [][]   sym_kernels, // set of 4 SS, AS, SA, AA kdernels, each dtt_size * dtt_size (may have 5-th with center shift  
+			final int     dtt_size) // 8
+	{
+		int in_size = 2*dtt_size-1;
+		int dtt_size_m1 = dtt_size - 1;
+		int center = dtt_size_m1 * in_size + dtt_size_m1;
+		
+		for (int i = 0; i < dtt_size; i++){
+			for (int j = 0; j < dtt_size; j++){
+				int indx0 = center - i * in_size - j;  
+				int indx1 = center - i * in_size + j;  
+				int indx2 = center + i * in_size - j;  
+				int indx3 = center + i * in_size + j;  
+				sym_kernels[0][i*dtt_size+j] =                             0.25*( kernel[indx0] + kernel[indx1] + kernel[indx2] + kernel[indx3]);
+				if (j > 0)              sym_kernels[1][i*dtt_size+j-1] =   0.25*(-kernel[indx0] + kernel[indx1] - kernel[indx2] + kernel[indx3]);
+				if (i > 0)              sym_kernels[2][(i-1)*dtt_size+j] = 0.25*(-kernel[indx0] - kernel[indx1] + kernel[indx2] + kernel[indx3]);
+				if ((i > 0) && (j > 0)) sym_kernels[3][i*dtt_size+j] =     0.25*(-kernel[indx0] + kernel[indx1] - kernel[indx2] + kernel[indx3]);
+			}
+			sym_kernels[1][i*dtt_size + dtt_size_m1] = 0.0;   
+			sym_kernels[2][dtt_size_m1*dtt_size + i] = 0.0;   
+			sym_kernels[3][i*dtt_size + dtt_size_m1] = 0.0;   
+			sym_kernels[3][dtt_size_m1*dtt_size + i] = 0.0;   
+		}
+ 	}
+
+	void clt_dtt3_kernel( // 
+			double [][]   kernels, // set of 4 SS, AS, SA, AA kdernels, each dtt_size * dtt_size (may have 5-th with center shift  
+			final int     dtt_size, // 8
+			DttRad2       dtt)
+	{
+		if (dtt == null) dtt = new DttRad2(dtt_size);
+		for (int quad = 0; quad < 4; quad ++){
+			kernels[quad] = dtt.dttt_iiie(kernels[quad], quad, dtt_size);
+		}
+ 	}
+	
+	
+	
 	
 	public double [][][][] mdctScale(
 			final ImageStack                                 imageStack,

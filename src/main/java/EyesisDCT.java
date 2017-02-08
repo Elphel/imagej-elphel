@@ -38,6 +38,7 @@ public class EyesisDCT {
 	public EyesisCorrectionParameters.CorrectionParameters correctionsParameters=null;
 	public EyesisCorrectionParameters.DCTParameters dctParameters = null;
 	public DCTKernels [] kernels = null;
+	double [][][][][][] clt_kernels = null; 
 	public ImagePlus eyesisKernelImage = null;
 	public long startTime;
 	
@@ -82,108 +83,6 @@ public class EyesisDCT {
 		return kernels != null;
 	}
 	
-	public boolean createDCTKernels(
-			EyesisCorrectionParameters.DCTParameters dct_parameters,
-/*			
-			PixelMapping pixelMapping,
-*/			
-			int          srcKernelSize,
-			int          threadsMax,  // maximal number of threads to launch                         
-			boolean      updateStatus,
-			int          debugLevel
-			){
-		String [] sharpKernelPaths= correctionsParameters.selectKernelChannelFiles(
-				0,  // 0 - sharp, 1 - smooth
-				eyesisCorrections.usedChannels.length, // numChannels, // number of channels
-				eyesisCorrections.debugLevel);
-		if (sharpKernelPaths==null) return false;
-		for (int i=0;i<sharpKernelPaths.length;i++){
-			System.out.println(i+":"+sharpKernelPaths[i]);
-		}
-		if (kernels == null){
-			kernels = new DCTKernels[eyesisCorrections.usedChannels.length];
-			for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
-				kernels[chn] = null;
-			}
-		}
-	    showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
-	    
-
-		for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
-			if (eyesisCorrections.usedChannels[chn] && (sharpKernelPaths[chn]!=null) && (kernels[chn]==null)){
-				ImagePlus imp_kernel_sharp=new ImagePlus(sharpKernelPaths[chn]);
-				if (imp_kernel_sharp.getStackSize()<3) {
-					System.out.println("Need a 3-layer stack with kernels");
-					sharpKernelPaths[chn]=null;
-					continue;
-				}
-				ImageStack kernel_sharp_stack= imp_kernel_sharp.getStack();
-				System.out.println("debugLevel = "+debugLevel+" kernel_sharp_stack.getWidth() = "+kernel_sharp_stack.getWidth()+
-						" kernel_sharp_stack.getHeight() = "+kernel_sharp_stack.getHeight());
-				DCTKernels kernels = calculateDCTKernel (
-						kernel_sharp_stack,            // final ImageStack kernelStack,  // first stack with 3 colors/slices convolution kernels
-						srcKernelSize,                 // final int          kernelSize, // 64
-						dct_parameters,                // final double       blurSigma,
-						threadsMax,  // maximal number of threads to launch                         
-						updateStatus,
-						debugLevel); // update status info
-				int sym_width =  kernels.numHor * kernels.dct_size;
-				int sym_height = kernels.sym_kernels[0].length /sym_width;
-// save files
-				String [] symNames = {"red_sym","blue_sym","green_sym"};
-				String [] asymNames = {"red_asym","blue_asym","green_asym"};
-				ImageStack symStack = sdfa_instance.makeStack(
-						kernels.sym_kernels,
-						sym_width,
-						sym_height,
-						symNames);
-	    		String symPath=correctionsParameters.dctKernelDirectory+
-	    				           Prefs.getFileSeparator()+
-	    				           correctionsParameters.dctKernelPrefix+
-	    				           String.format("%02d",chn)+
-	    				           correctionsParameters.dctSymSuffix;
-	    		String msg="Saving symmetrical convolution kernels to "+symPath;
-	    		IJ.showStatus(msg);
-	    		if (debugLevel>0) System.out.println(msg);
-				ImagePlus imp_sym=new ImagePlus(imp_kernel_sharp.getTitle()+"-sym",symStack);
-	    		if (debugLevel > 1) {
-	    			imp_sym.getProcessor().resetMinAndMax();
-	    			imp_sym.show();
-	    		}
-        		FileSaver fs=new FileSaver(imp_sym);
-        		fs.saveAsTiffStack(symPath);
-				
-//				sdfa_instance.showArrays(kernels.sym_kernels,  sym_width, sym_height, true, imp_kernel_sharp.getTitle()+"-sym");
-
-				int asym_width =  kernels.numHor * kernels.asym_size;
-				int asym_height = kernels.asym_kernels[0].length /asym_width;
-				ImageStack asymStack = sdfa_instance.makeStack(
-						kernels.asym_kernels,
-						asym_width,
-						asym_height,
-						asymNames);
-	    		String asymPath=correctionsParameters.dctKernelDirectory+
-	    				           Prefs.getFileSeparator()+
-	    				           correctionsParameters.dctKernelPrefix+
-	    				           String.format("%02d",chn)+
-	    				           correctionsParameters.dctAsymSuffix;
-	    		msg="Saving asymmetrical convolution kernels "+asymPath;
-	    		IJ.showStatus(msg);
-	    		if (debugLevel>0) System.out.println(msg);
-				ImagePlus imp_asym=new ImagePlus(imp_kernel_sharp.getTitle()+"-asym",asymStack);
-	    		if (debugLevel > 1) {
-	    			imp_asym.getProcessor().resetMinAndMax();
-	    			imp_asym.show();
-	    		}
-        		fs=new FileSaver(imp_asym);
-        		fs.saveAsTiffStack(asymPath);
-//				sdfa_instance.showArrays(kernels.asym_kernels,  asym_width, asym_height, true, imp_kernel_sharp.getTitle()+"-asym");
-			}
-		}
-		return true;
-	}
-	
-
 	  public DCTKernels calculateDCTKernel (
 			  final ImageStack kernelStack,  // first stack with 3 colors/slices convolution kernels
 			  final int          kernelSize, // 64
@@ -336,10 +235,649 @@ public class EyesisDCT {
 		  /* prepare result stack to return */
 		  return dct_kernel;
 	  }
-//processChannelImage	
-//convolveStackWithKernelStack	
 
-	  // mostly for testing
+	
+	public boolean createDCTKernels(
+			EyesisCorrectionParameters.DCTParameters dct_parameters,
+			int          srcKernelSize,
+			int          threadsMax,  // maximal number of threads to launch                         
+			boolean      updateStatus,
+			int          debugLevel
+			){
+		String [] sharpKernelPaths= correctionsParameters.selectKernelChannelFiles(
+				0,  // 0 - sharp, 1 - smooth
+				eyesisCorrections.usedChannels.length, // numChannels, // number of channels
+				eyesisCorrections.debugLevel);
+		if (sharpKernelPaths==null) return false;
+		for (int i=0;i<sharpKernelPaths.length;i++){
+			System.out.println(i+":"+sharpKernelPaths[i]);
+		}
+		if (kernels == null){
+			kernels = new DCTKernels[eyesisCorrections.usedChannels.length];
+			for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
+				kernels[chn] = null;
+			}
+		}
+	    showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+	    
+
+		for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
+			if (eyesisCorrections.usedChannels[chn] && (sharpKernelPaths[chn]!=null) && (kernels[chn]==null)){
+				ImagePlus imp_kernel_sharp=new ImagePlus(sharpKernelPaths[chn]);
+				if (imp_kernel_sharp.getStackSize()<3) {
+					System.out.println("Need a 3-layer stack with kernels");
+					sharpKernelPaths[chn]=null;
+					continue;
+				}
+				ImageStack kernel_sharp_stack= imp_kernel_sharp.getStack();
+				System.out.println("debugLevel = "+debugLevel+" kernel_sharp_stack.getWidth() = "+kernel_sharp_stack.getWidth()+
+						" kernel_sharp_stack.getHeight() = "+kernel_sharp_stack.getHeight());
+				DCTKernels kernels = calculateDCTKernel (
+						kernel_sharp_stack,            // final ImageStack kernelStack,  // first stack with 3 colors/slices convolution kernels
+						srcKernelSize,                 // final int          kernelSize, // 64
+						dct_parameters,                // final double       blurSigma,
+						threadsMax,  // maximal number of threads to launch                         
+						updateStatus,
+						debugLevel); // update status info
+				int sym_width =  kernels.numHor * kernels.dct_size;
+				int sym_height = kernels.sym_kernels[0].length /sym_width;
+// save files
+				String [] symNames = {"red_sym","blue_sym","green_sym"};
+				String [] asymNames = {"red_asym","blue_asym","green_asym"};
+				ImageStack symStack = sdfa_instance.makeStack(
+						kernels.sym_kernels,
+						sym_width,
+						sym_height,
+						symNames);
+	    		String symPath=correctionsParameters.dctKernelDirectory+
+	    				           Prefs.getFileSeparator()+
+	    				           correctionsParameters.dctKernelPrefix+
+	    				           String.format("%02d",chn)+
+	    				           correctionsParameters.dctSymSuffix;
+	    		String msg="Saving symmetrical convolution kernels to "+symPath;
+	    		IJ.showStatus(msg);
+	    		if (debugLevel>0) System.out.println(msg);
+				ImagePlus imp_sym=new ImagePlus(imp_kernel_sharp.getTitle()+"-sym",symStack);
+	    		if (debugLevel > 1) {
+	    			imp_sym.getProcessor().resetMinAndMax();
+	    			imp_sym.show();
+	    		}
+        		FileSaver fs=new FileSaver(imp_sym);
+        		fs.saveAsTiffStack(symPath);
+				
+//				sdfa_instance.showArrays(kernels.sym_kernels,  sym_width, sym_height, true, imp_kernel_sharp.getTitle()+"-sym");
+
+				int asym_width =  kernels.numHor * kernels.asym_size;
+				int asym_height = kernels.asym_kernels[0].length /asym_width;
+				ImageStack asymStack = sdfa_instance.makeStack(
+						kernels.asym_kernels,
+						asym_width,
+						asym_height,
+						asymNames);
+	    		String asymPath=correctionsParameters.dctKernelDirectory+
+	    				           Prefs.getFileSeparator()+
+	    				           correctionsParameters.dctKernelPrefix+
+	    				           String.format("%02d",chn)+
+	    				           correctionsParameters.dctAsymSuffix;
+	    		msg="Saving asymmetrical convolution kernels "+asymPath;
+	    		IJ.showStatus(msg);
+	    		if (debugLevel>0) System.out.println(msg);
+				ImagePlus imp_asym=new ImagePlus(imp_kernel_sharp.getTitle()+"-asym",asymStack);
+	    		if (debugLevel > 1) {
+	    			imp_asym.getProcessor().resetMinAndMax();
+	    			imp_asym.show();
+	    		}
+        		fs=new FileSaver(imp_asym);
+        		fs.saveAsTiffStack(asymPath);
+//				sdfa_instance.showArrays(kernels.asym_kernels,  asym_width, asym_height, true, imp_kernel_sharp.getTitle()+"-asym");
+			}
+		}
+		return true;
+	}
+	
+
+	  public double [][][][][] calculateCLTKernel ( // per color/per tileY/ per tileX/per quadrant (plus offset as 5-th)/per pixel
+			  final ImageStack kernelStack,  // first stack with 3 colors/slices convolution kernels
+			  final int          kernelSize, // 64
+			  final EyesisCorrectionParameters.CLTParameters clt_parameters,
+
+			  final int          threadsMax,  // maximal number of threads to launch                         
+			  final boolean      updateStatus,
+			  final int          globalDebugLevel) // update status info
+	  {
+		  if (kernelStack==null) return null;
+		  final int kernelWidth=kernelStack.getWidth();
+		  final int kernelNumHor=kernelWidth/kernelSize;
+		  final int kernelNumVert=kernelStack.getHeight()/kernelSize;
+		  final int nChn=kernelStack.getSize();
+		  final int dtt_size =      clt_parameters.transform_size; 
+		  final int dtt_len = dtt_size* dtt_size;  
+		  final double [][][][][] clt_kernels = new double [nChn][kernelNumVert][kernelNumHor][5][];
+		  for (int chn = 0; chn < nChn; chn++){
+			  for (int tileY = 0; tileY < kernelNumVert ; tileY++){
+				  for (int tileX = 0; tileX < kernelNumHor ; tileX++){
+					  for (int n = 0; n<4; n++){
+						  clt_kernels[chn][tileY][tileX][n] = new double [dtt_len];
+					  }
+					  clt_kernels[chn][tileY][tileX][4] = new double [2];
+				  }
+			  }
+		  }
+		  // currently each 64x64 kernel corresponds to 16x16 original pixels tile, 2 tiles margin each side
+		  final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		  final AtomicInteger ai = new AtomicInteger(0);
+		  final int numberOfKernels=     kernelNumHor*kernelNumVert*nChn;
+		  final int numberOfKernelsInChn=kernelNumHor*kernelNumVert;
+		  final double [] norm_sym_weights = clt_parameters.norm_kern ? new double [dtt_size*dtt_size]:null;
+		  if (norm_sym_weights != null) {
+			  for (int i = 0; i < dtt_size; i++){
+				  for (int j = 0; j < dtt_size; j++){
+					  norm_sym_weights[i*dtt_size+j] = Math.cos(Math.PI*i/(2*dtt_size))*Math.cos(Math.PI*j/(2*dtt_size));
+				  }
+			  }
+		  }
+		  
+		  final long startTime = System.nanoTime();
+		  System.out.println("calculateDCTKernel():numberOfKernels="+numberOfKernels);
+		  for (int ithread = 0; ithread < threads.length; ithread++) {
+			  threads[ithread] = new Thread() {
+				  public void run() {
+					  float [] kernelPixels= null; // will be initialized at first use NOT yet?
+					  double [] kernel=      new double[kernelSize*kernelSize];
+					  int centered_len = (2*dtt_size-1) * (2*dtt_size-1);
+					  double [] kernel_centered = new double [centered_len +2];
+					  ImageDtt image_dtt = new ImageDtt();
+					  int chn,tileY,tileX;
+					  DttRad2 dtt = new DttRad2(dtt_size);
+					  showDoubleFloatArrays sdfa_instance = null;
+					  if (globalDebugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+
+					  for (int nTile = ai.getAndIncrement(); nTile < numberOfKernels; nTile = ai.getAndIncrement()) {
+						  chn=nTile/numberOfKernelsInChn;
+						  tileY =(nTile % numberOfKernelsInChn)/kernelNumHor;
+						  tileX = nTile % kernelNumHor;
+						  if (tileX==0) {
+							  if (updateStatus) IJ.showStatus("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+kernelNumVert);
+							  if (globalDebugLevel>2) System.out.println("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+kernelNumVert+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+						  }
+						  kernelPixels=(float[]) kernelStack.getPixels(chn+1);
+						  
+						  /* read convolution kernel */
+						  extractOneKernel(
+								  kernelPixels, //  array of combined square kernels, each 
+								  kernel, // will be filled, should have correct size before call
+								  kernelNumHor, // number of kernels in a row
+								  tileX, // horizontal number of kernel to extract
+								  tileY); // vertical number of kernel to extract
+						  if ((globalDebugLevel > 0) && (tileY == clt_parameters.tileY/2)  && (tileX == clt_parameters.tileX/2)) {
+							  int length=kernel.length;
+							  int size=(int) Math.sqrt(length);
+							  sdfa_instance.showArrays(
+									  kernel,
+									  size,
+									  size,
+									  "raw_kernel-"+chn+"-X"+(clt_parameters.tileX/2)+"-Y"+(clt_parameters.tileY/2));
+						  }
+						  
+						  // now has 64x64
+						  image_dtt.clt_convert_double_kernel( // converts double resolution kernel
+								  kernel,          // double []   src_kernel, //
+								  kernel_centered, // double []   dst_kernel, // should be (2*dtt_size-1) * (2*dtt_size-1) +2 size - kernel and dx, dy to the nearest 1/2 pixels
+								  kernelSize,      // int src_size, // 64
+								  dtt_size);       // 8
+						  if ((globalDebugLevel > 0) && (tileY == clt_parameters.tileY/2)  && (tileX == clt_parameters.tileX/2)) {
+							  int length=kernel_centered.length;
+							  int size=(int) Math.sqrt(length);
+							  sdfa_instance.showArrays(
+									  kernel_centered,
+									  size,
+									  size,
+									  "kernel_centered-"+chn+"-X"+(clt_parameters.tileX/2)+"-Y"+(clt_parameters.tileY/2));
+						  }
+						  
+						  if (norm_sym_weights != null) {
+							  image_dtt.clt_normalize_kernel( // 
+									  kernel_centered, // double []   kernel, // should be (2*dtt_size-1) * (2*dtt_size-1) +2 size (last 2 are not modified)
+									  norm_sym_weights, // double []   window, // normalizes result kernel * window to have sum of elements == 1.0 
+									  dtt_size); // 8
+							  if ((globalDebugLevel > 0) && (tileY == clt_parameters.tileY/2)  && (tileX == clt_parameters.tileX/2)) {
+								  int length=kernel_centered.length;
+								  int size=(int) Math.sqrt(length);
+								  sdfa_instance.showArrays(
+										  kernel_centered,
+										  size,
+										  size,
+										  "kernel_normalized-"+chn+"-X"+(clt_parameters.tileX/2)+"-Y"+(clt_parameters.tileY/2));
+							  }
+						  }
+						  image_dtt.clt_symmetrize_kernel( // 
+								  kernel_centered, // double []     kernel,      // should be (2*dtt_size-1) * (2*dtt_size-1) +2 size (last 2 are not modified)
+								  clt_kernels[chn][tileY][tileX], // 	double [][]   sym_kernels, // set of 4 SS, AS, SA, AA kdernels, each dtt_size * dtt_size (may have 5-th with center shift  
+								  dtt_size); // 8
+						  clt_kernels[chn][tileY][tileX][4][0] = kernel_centered [centered_len + 0];
+						  clt_kernels[chn][tileY][tileX][4][1] = kernel_centered [centered_len + 1];
+						  if ((globalDebugLevel > 0) && (tileY == clt_parameters.tileY/2)  && (tileX == clt_parameters.tileX/2)) {
+							  double [][] dbg_clt = {
+									  clt_kernels[chn][tileY][tileX][0],
+									  clt_kernels[chn][tileY][tileX][1],
+									  clt_kernels[chn][tileY][tileX][2],
+									  clt_kernels[chn][tileY][tileX][3]};
+							  String [] titles = {"CC", "SC", "CS", "SS"};
+							  int length=dbg_clt[0].length;
+							  int size=(int) Math.sqrt(length);
+							  sdfa_instance.showArrays(
+									  dbg_clt,
+									  size,
+									  size,
+									  true,
+									  "pre_clt_kernels-"+chn,
+									  titles);
+						  }						  
+						  image_dtt.clt_dtt3_kernel( // 
+								  clt_kernels[chn][tileY][tileX], // double [][]   kernels, // set of 4 SS, AS, SA, AA kdernels, each dtt_size * dtt_size (may have 5-th with center shift  
+								  dtt_size, // 8
+								  dtt);
+						  if ((globalDebugLevel > 0) && (tileY == clt_parameters.tileY/2)  && (tileX == clt_parameters.tileX/2)) {
+							  double [][] dbg_clt = {
+									  clt_kernels[chn][tileY][tileX][0],
+									  clt_kernels[chn][tileY][tileX][1],
+									  clt_kernels[chn][tileY][tileX][2],
+									  clt_kernels[chn][tileY][tileX][3]};
+							  String [] titles = {"CC", "SC", "CS", "SS"};
+							  int length=dbg_clt[0].length;
+							  int size=(int) Math.sqrt(length);
+							  sdfa_instance.showArrays(
+									  dbg_clt,
+									  size,
+									  size,
+									  true,
+									  "dbg_clt_kernels-"+chn,
+									  titles);
+							  System.out.println("calculateCLTKernel() chn="+chn+" "+
+									  "tileX = "+clt_parameters.tileX+" ("+(clt_parameters.tileX/2)+") "+
+									  "tileY = "+clt_parameters.tileY+" ("+(clt_parameters.tileY/2)+") "+
+									  "center_x = "+clt_kernels[chn][tileY][tileX][4][0]+", "+
+									  "center_y = "+clt_kernels[chn][tileY][tileX][4][1]);
+						  }						  
+					  }
+				  }
+			  };
+		  }		      
+		  ImageDtt.startAndJoin(threads);
+		  if (globalDebugLevel > 1) System.out.println("Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+		  System.out.println("1.Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+		  /* prepare result stack to return */
+		  return clt_kernels;
+	  }
+
+	  public double [][] flattenCLTKernels (      // per color, save 4 kernelas and displacement as (2*dtt_size+1)*(2*dtt_size) tiles in an image (last row - shift x,y)
+			  final double [][][][][] kernels,    // per color/per tileY/ per tileX/per quadrant (plus offset as 5-th)/per pixel
+			  final int          threadsMax,      // maximal number of threads to launch                         
+			  final boolean      updateStatus,
+			  final int          globalDebugLevel) // update status info
+	  {
+		  if (kernels==null) return null;
+		  final int nChn = kernels.length;
+		  final int kernelNumVert=kernels[0].length;
+		  final int kernelNumHor=kernels[0][0].length;
+		  final int dtt_len = kernels[0][0][0][0].length;  
+		  final int dtt_size =      (int) Math.sqrt(dtt_len);
+		  final int tileWidth =  2 * dtt_size;
+		  final int tileHeight = 2 * dtt_size + 1; // last row - shift with 0.5 pix steps
+		  final int width =  tileWidth *  kernelNumHor;
+		  final int height = tileHeight * kernelNumVert;
+		  final double [][] clt_flat = new double [nChn][width * height];
+		  // currently each 64x64 kernel corresponds to 16x16 original pixels tile, 2 tiles margin each side
+		  final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		  final AtomicInteger ai = new AtomicInteger(0);
+		  final int numberOfKernels=     kernelNumHor*kernelNumVert*nChn;
+		  final int numberOfKernelsInChn=kernelNumHor*kernelNumVert;
+		  
+		  final long startTime = System.nanoTime();
+		  System.out.println("flattenCLTKernels():numberOfKernels="+numberOfKernels);
+		  for (int ithread = 0; ithread < threads.length; ithread++) {
+			  threads[ithread] = new Thread() {
+				  public void run() {
+					  int chn,tileY,tileX;
+					  for (int nTile = ai.getAndIncrement(); nTile < numberOfKernels; nTile = ai.getAndIncrement()) {
+						  chn=nTile/numberOfKernelsInChn;
+						  tileY =(nTile % numberOfKernelsInChn)/kernelNumHor;
+						  tileX = nTile % kernelNumHor;
+						  for (int i = 0; i < dtt_size; i++){
+							System.arraycopy(
+									kernels[chn][tileY][tileX][0],
+									i * dtt_size,
+									clt_flat[chn],
+									(tileY*tileHeight + i)            * width + (tileX * tileWidth),
+									dtt_size);
+							System.arraycopy(
+									kernels[chn][tileY][tileX][1],
+									i * dtt_size,
+									clt_flat[chn],
+									(tileY*tileHeight + i)            * width + (tileX * tileWidth) + dtt_size,
+									dtt_size);
+
+							System.arraycopy(
+									kernels[chn][tileY][tileX][2],
+									i * dtt_size,
+									clt_flat[chn],
+									(tileY*tileHeight + i + dtt_size) * width + (tileX * tileWidth),
+									dtt_size);
+							System.arraycopy(
+									kernels[chn][tileY][tileX][3],
+									i * dtt_size,
+									clt_flat[chn],
+									(tileY*tileHeight + i + dtt_size) * width + (tileX * tileWidth) + 1 * dtt_size,
+									dtt_size);
+						  }
+						  System.arraycopy(
+								  kernels[chn][tileY][tileX][4], // just 2 values
+								  0,
+								  clt_flat[chn],
+								  (tileY*tileHeight + 2 * dtt_size) * width + (tileX * tileWidth),
+								  2);
+					  }
+				  }
+			  };
+		  }		      
+		  ImageDtt.startAndJoin(threads);
+		  if (globalDebugLevel > 1) System.out.println("Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+		  System.out.println("1.Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+		  /* prepare result stack to return */
+		  return clt_flat;
+	  }
+
+	  public void showCLTKernels(
+			  final int          threadsMax,      // maximal number of threads to launch                         
+			  final boolean      updateStatus,
+			  final int          globalDebugLevel) // update status info
+	  {
+		  for (int chn=0;chn < clt_kernels.length; chn++){
+			  if (clt_kernels[chn]!=null){
+				  //					System.out.println("showKernels("+chn+")");
+				  showCLTKernels(
+						  chn,
+						  threadsMax,
+						  updateStatus,
+						  globalDebugLevel);
+			  }
+		  }
+	  }
+
+	  public void showCLTKernels(
+			  int chn,
+			  final int          threadsMax,      // maximal number of threads to launch                         
+			  final boolean      updateStatus,
+			  final int          globalDebugLevel) // update status info
+	  {
+		  double [][] flat_kernels = flattenCLTKernels (      // per color, save 4 kernelas and displacement as (2*dtt_size+1)*(2*dtt_size) tiles in an image (last row - shift x,y)
+				  clt_kernels[chn],     // per color/per tileY/ per tileX/per quadrant (plus offset as 5-th)/per pixel
+				  threadsMax,      // maximal number of threads to launch                         
+				  updateStatus,
+				  globalDebugLevel); // update status info
+		  int dtt_len = clt_kernels[chn][0][0][0][0].length;
+		  int dtt_size= (int)Math.sqrt(dtt_len);
+		  String [] titles = {"red", "blue", "green"}; 
+		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+		  sdfa_instance.showArrays(
+				  flat_kernels,
+				  clt_kernels[chn][0][0].length*(2*dtt_size),
+				  clt_kernels[chn][0].length*(2*dtt_size+1),
+				  true,
+				  "clt_kernels-"+chn,
+				  titles);
+	  }
+	  
+	  
+	  
+	  
+	  public double [][][][][] extractCLTKernels (      // per color, save 4 kernelas and displacement as (2*dtt_size+1)*(2*dtt_size) tiles in an image (last row - shift x,y)
+			  final float [][]   flat_kernels,    // per color/per tileY/ per tileX/per quadrant (plus offset as 5-th)/per pixel
+			  final int          width,
+			  final int          dtt_size,
+			  final int          threadsMax,      // maximal number of threads to launch                         
+			  final boolean      updateStatus,
+			  final int          globalDebugLevel) // update status info
+	  {
+		  if (flat_kernels==null) return null;
+		  final int nChn =       flat_kernels.length;
+		  final int height =     flat_kernels[0].length/width;
+		  final int tileWidth =  2 * dtt_size;
+		  final int tileHeight = 2 * dtt_size + 1; // last row - shift with 0.5 pix steps
+		  final int kernelNumHor =  width / tileWidth;
+		  final int kernelNumVert = height / tileHeight;
+		  final int dtt_len = dtt_size*dtt_size;  
+		  final double [][][][][] clt_kernels = new double [nChn][kernelNumVert][kernelNumHor][5][];
+		  for (int chn = 0; chn < nChn; chn++){
+			  for (int tileY = 0; tileY < kernelNumVert ; tileY++){
+				  for (int tileX = 0; tileX < kernelNumHor ; tileX++){
+					  for (int n = 0; n<4; n++){
+						  clt_kernels[chn][tileY][tileX][n] = new double [dtt_len];
+					  }
+					  clt_kernels[chn][tileY][tileX][4] = new double [2];
+				  }
+			  }
+		  }
+		  
+		  // currently each 64x64 kernel corresponds to 16x16 original pixels tile, 2 tiles margin each side
+		  final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		  final AtomicInteger ai = new AtomicInteger(0);
+		  final int numberOfKernels=     kernelNumHor*kernelNumVert*nChn;
+		  final int numberOfKernelsInChn=kernelNumHor*kernelNumVert;
+		  
+		  final long startTime = System.nanoTime();
+		  System.out.println("flattenCLTKernels():numberOfKernels="+numberOfKernels);
+		  for (int ithread = 0; ithread < threads.length; ithread++) {
+			  threads[ithread] = new Thread() {
+				  public void run() {
+					  int chn,tileY,tileX;
+					  for (int nTile = ai.getAndIncrement(); nTile < numberOfKernels; nTile = ai.getAndIncrement()) {
+						  chn=nTile/numberOfKernelsInChn;
+						  tileY =(nTile % numberOfKernelsInChn)/kernelNumHor;
+						  tileX = nTile % kernelNumHor;
+						  for (int i = 0; i < dtt_size; i++){
+							  for (int j = 0; j<dtt_size; j++){
+								  int indx = i*dtt_size+j;
+								  int baddr = (tileY*tileHeight + i) * width + (tileX * tileWidth) + j;
+								  clt_kernels[chn][tileY][tileX][0][indx] = flat_kernels[chn][baddr];
+								  clt_kernels[chn][tileY][tileX][1][indx] = flat_kernels[chn][baddr + dtt_size];
+								  clt_kernels[chn][tileY][tileX][2][indx] = flat_kernels[chn][baddr + dtt_size * width];
+								  clt_kernels[chn][tileY][tileX][3][indx] = flat_kernels[chn][baddr + dtt_size * width + dtt_size];
+							  }
+						  }
+						  clt_kernels[chn][tileY][tileX][4][0] = flat_kernels[chn][(tileY*tileHeight + 2 * dtt_size) * width + (tileX * tileWidth)];
+						  clt_kernels[chn][tileY][tileX][4][1] = flat_kernels[chn][(tileY*tileHeight + 2 * dtt_size) * width + (tileX * tileWidth) + 1];
+					  }
+				  }
+			  };
+		  }		      
+		  ImageDtt.startAndJoin(threads);
+		  if (globalDebugLevel > 1) System.out.println("Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+		  System.out.println("1.Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+		  /* prepare result stack to return */
+		  return clt_kernels;
+	  }
+/*
+							  System.out.println("calculateCLTKernel() chn="+chn+" "+
+									  "tileX = "+clt_parameters.tileX+" ("+(clt_parameters.tileX/2)+") "+
+									  "tileY = "+clt_parameters.tileY+" ("+(clt_parameters.tileY/2)+") "+
+									  "center_x = "+clt_kernels[chn][tileY][tileX][4][0]+", "+
+									  "center_y = "+clt_kernels[chn][tileY][tileX][4][1]);
+	  
+ */
+	  
+	  
+	  
+	  public boolean createCLTKernels(
+			  EyesisCorrectionParameters.CLTParameters clt_parameters,				
+			  int          srcKernelSize,
+			  int          threadsMax,  // maximal number of threads to launch                         
+			  boolean      updateStatus,
+			  int          debugLevel
+			  ){
+		  String [] sharpKernelPaths= correctionsParameters.selectKernelChannelFiles(
+				  0,  // 0 - sharp, 1 - smooth
+				  eyesisCorrections.usedChannels.length, // numChannels, // number of channels
+				  eyesisCorrections.debugLevel);
+		  if (sharpKernelPaths==null) return false;
+		  for (int i=0;i<sharpKernelPaths.length;i++){
+			  System.out.println(i+":"+sharpKernelPaths[i]);
+		  }
+			if (clt_kernels == null){
+				clt_kernels = new double[eyesisCorrections.usedChannels.length][][][][][];
+				for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
+					clt_kernels[chn] = null;
+				}
+			}
+		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+
+		  for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
+			  if (eyesisCorrections.usedChannels[chn] && (sharpKernelPaths[chn]!=null) && (clt_kernels[chn]==null)){
+				  ImagePlus imp_kernel_sharp=new ImagePlus(sharpKernelPaths[chn]);
+				  if (imp_kernel_sharp.getStackSize()<3) {
+					  System.out.println("Need a 3-layer stack with kernels");
+					  sharpKernelPaths[chn]=null;
+					  continue;
+				  }
+				  ImageStack kernel_sharp_stack= imp_kernel_sharp.getStack();
+				  System.out.println("debugLevel = "+debugLevel+" kernel_sharp_stack.getWidth() = "+kernel_sharp_stack.getWidth()+
+						  " kernel_sharp_stack.getHeight() = "+kernel_sharp_stack.getHeight());
+
+				  double [][][][][] kernels = calculateCLTKernel ( // per color/per tileY/ per tileX/per quadrant (plus offset as 5-th)/per pixel
+						  kernel_sharp_stack,                      // final ImageStack kernelStack,  // first stack with 3 colors/slices convolution kernels
+						  srcKernelSize,                           // final int          kernelSize, // 64
+						  clt_parameters,                          // final EyesisCorrectionParameters.CLTParameters clt_parameters,
+						  threadsMax,  // maximal number of threads to launch                         
+						  updateStatus,
+						  debugLevel); // update status info
+				  double [][] flat_kernels = flattenCLTKernels (      // per color, save 4 kernelas and displacement as (2*dtt_size+1)*(2*dtt_size) tiles in an image (last row - shift x,y)
+						  kernels,    // per color/per tileY/ per tileX/per quadrant (plus offset as 5-th)/per pixel
+						  threadsMax,  // maximal number of threads to launch                         
+						  updateStatus,
+						  debugLevel); // update status info
+				  int kernelNumHor=kernels[0][0].length;
+				  int dtt_len = kernels[0][0][0][0].length;  
+				  int dtt_size =      (int) Math.sqrt(dtt_len);
+				  int tileWidth =  2 * dtt_size;
+				  int width =  tileWidth *  kernelNumHor;
+				  int height = flat_kernels[0].length/width;
+
+				  String [] layerNames = {"red_clt_kernels","blue_clt_kernels","green_clt_kernels"};
+				  ImageStack cltStack = sdfa_instance.makeStack(
+						  flat_kernels,
+						  width,
+						  height,
+						  layerNames);
+
+				  String cltPath=correctionsParameters.cltKernelDirectory+
+						  Prefs.getFileSeparator()+
+						  correctionsParameters.cltKernelPrefix+
+						  String.format("%02d",chn)+
+						  correctionsParameters.cltSuffix;
+				  String msg="Saving CLT convolution kernels to "+cltPath;
+				  IJ.showStatus(msg);
+				  if (debugLevel>0) System.out.println(msg);
+				  ImagePlus imp_clt=new ImagePlus(imp_kernel_sharp.getTitle()+"-clt",cltStack);
+				  if (debugLevel > 0) {
+					  imp_clt.getProcessor().resetMinAndMax();
+					  imp_clt.show();
+				  }
+				  FileSaver fs=new FileSaver(imp_clt);
+				  fs.saveAsTiffStack(cltPath);
+			  }
+		  }
+		  return true;
+	  }
+
+
+	  
+	  public boolean readCLTKernels(
+			  EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  int          threadsMax,  // maximal number of threads to launch                         
+			  boolean      updateStatus,
+			  int          debugLevel
+			  ){
+		  int dtt_size = clt_parameters.transform_size;
+		  String [] cltKernelPaths = correctionsParameters.selectCLTChannelFiles(
+				  //					0,  // 0 - sharp, 1 - smooth
+				  eyesisCorrections.usedChannels.length, // numChannels, // number of channels
+				  eyesisCorrections.debugLevel);
+		  if (cltKernelPaths==null) return false;
+
+		  for (int i=0;i<cltKernelPaths.length;i++){
+			  System.out.println(i+":"+cltKernelPaths[i]); // some may be null!
+		  }
+		  
+		  if (clt_kernels == null){
+			  clt_kernels = new double[eyesisCorrections.usedChannels.length][][][][][];
+			  for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
+				  clt_kernels[chn] = null;
+			  }
+		  }
+		  showDoubleFloatArrays sdfa_instance = null;
+		  if (debugLevel>0){
+			  sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		  }
+
+		  for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
+			  if (eyesisCorrections.usedChannels[chn] && (cltKernelPaths[chn]!=null)){
+				  ImagePlus imp_kernel_clt=new ImagePlus(cltKernelPaths[chn]);
+				  if (imp_kernel_clt.getStackSize()<3) {
+					  System.out.println("Need a 3-layer stack with symmetrical DCT kernels");
+					  cltKernelPaths[chn]=null;
+					  continue;
+				  }
+
+				  ImageStack kernel_clt_stack=  imp_kernel_clt.getStack();
+				  if (debugLevel>0){
+					  System.out.println(" kernel_clt_stack.getWidth() = "+kernel_clt_stack.getWidth()+
+							  " kernel_clt_stack.getHeight() = "+kernel_clt_stack.getHeight());
+				  }
+				  int nColors = kernel_clt_stack.getSize();
+				  float [][] flat_kernels = new float [nColors][];
+				  for (int nc = 0; nc < nColors; nc++){
+					  flat_kernels[nc]= (float[]) kernel_clt_stack.getPixels(nc + 1);
+				  }
+				  clt_kernels[chn] =  extractCLTKernels ( // per color, save 4 kernelas and displacement as (2*dtt_size+1)*(2*dtt_size) tiles in an image (last row - shift x,y)
+						  flat_kernels,                   // per color/per tileY/ per tileX/per quadrant (plus offset as 5-th)/per pixel
+						  kernel_clt_stack.getWidth(),    // final int          width,
+						  dtt_size,
+						  threadsMax,                     // maximal number of threads to launch                         
+						  updateStatus,
+						  debugLevel);                    // update status info
+				  
+				  
+				  if (sdfa_instance != null){
+					  for (int nc = 0; nc < clt_kernels[chn].length; nc++){
+					  double [][] dbg_clt = {
+							  clt_kernels[chn][nc][clt_parameters.tileY/2][clt_parameters.tileX/2][0],
+							  clt_kernels[chn][nc][clt_parameters.tileY/2][clt_parameters.tileX/2][1],
+							  clt_kernels[chn][nc][clt_parameters.tileY/2][clt_parameters.tileX/2][2],
+							  clt_kernels[chn][nc][clt_parameters.tileY/2][clt_parameters.tileX/2][3]};
+					  String [] titles = {"CC", "SC", "CS", "SS"};
+					  int length=dbg_clt[0].length;
+					  int size=(int) Math.sqrt(length);
+					  sdfa_instance.showArrays(
+							  dbg_clt,
+							  size,
+							  size,
+							  true,
+							  "dbg_clt-"+nc,
+							  titles);
+					  System.out.println("readCLTKernels() chn="+chn+", color="+nc+" "+
+							  "tileX = "+clt_parameters.tileX+" ("+(clt_parameters.tileX/2)+") "+
+							  "tileY = "+clt_parameters.tileY+" ("+(clt_parameters.tileY/2)+") "+
+							  "center_x = "+clt_kernels[chn][nc][clt_parameters.tileY/2][clt_parameters.tileX/2][4][0]+", "+
+							  "center_y = "+clt_kernels[chn][nc][clt_parameters.tileY/2][clt_parameters.tileX/2][4][1]);
+					  }
+				  }						  
+			  }
+		  }
+		  return true;
+	  }
+
+
+// mostly for testing
 //eyesisKernelImage	  
 	  public double [] extractOneKernelFromStack(
 			  final int          kernelSize, // 64
@@ -561,6 +1099,10 @@ public class EyesisDCT {
 	  public void resetDCTKernels()
 	  {
 		  kernels = null;
+	  }
+	  public void resetCLTKernels()
+	  {
+		  clt_kernels = null;
 	  }
 
 	  public boolean readDCTKernels(

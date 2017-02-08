@@ -106,6 +106,10 @@ public class EyesisCorrectionParameters {
     	public double referenceExposure=0.0003; // 3/10000 sec, used in absolute mode only
     	public double relativeExposure=0.5; // 0.0 - use shortest (darken), 1.0 - use longest (brighten)
     	
+    	public String cltKernelDirectory="";
+    	public String cltKernelPrefix="clt-";
+    	public String cltSuffix=".clt-tiff";
+
     	
     	public void setProperties(String prefix,Properties properties){
   			properties.setProperty(prefix+"split",this.split+"");
@@ -186,8 +190,12 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"exposureCorrectionMode",this.exposureCorrectionMode+"");
     		properties.setProperty(prefix+"referenceExposure",     this.referenceExposure+"");
     		properties.setProperty(prefix+"relativeExposure",      this.relativeExposure+"");
-    		properties.setProperty(prefix+"swapSubchannels01",      this.swapSubchannels01+"");
+    		properties.setProperty(prefix+"swapSubchannels01",     this.swapSubchannels01+"");
     		
+    		properties.setProperty(prefix+"cltKernelDirectory",    this.cltKernelDirectory);
+    		properties.setProperty(prefix+"cltKernelPrefix",       this.cltKernelPrefix);
+    		properties.setProperty(prefix+"cltSuffix",             this.cltSuffix);
+
     	}
 
     	public void getProperties(String prefix,Properties properties){
@@ -273,6 +281,12 @@ public class EyesisCorrectionParameters {
   		    if (properties.getProperty(prefix+"referenceExposure")     !=null) this.referenceExposure=   Double.parseDouble(properties.getProperty(prefix+"referenceExposure"));
   		    if (properties.getProperty(prefix+"relativeExposure")      !=null) this.relativeExposure=    Double.parseDouble(properties.getProperty(prefix+"relativeExposure"));
   		    if (properties.getProperty(prefix+"swapSubchannels01")!=null) this.swapSubchannels01=Boolean.parseBoolean(properties.getProperty(prefix+"swapSubchannels01"));
+  		    
+			if (properties.getProperty(prefix+"cltKernelDirectory")!=   null) this.cltKernelDirectory=properties.getProperty(prefix+"cltKernelDirectory");
+			if (properties.getProperty(prefix+"cltKernelPrefix")!=      null) this.cltKernelPrefix=properties.getProperty(prefix+"cltKernelPrefix");
+			if (properties.getProperty(prefix+"cltSuffix")!=            null) this.cltSuffix=properties.getProperty(prefix+"cltSuffix");
+  		    
+  		    
     	}
 
     	public boolean showDialog(String title) { 
@@ -338,6 +352,9 @@ public class EyesisCorrectionParameters {
     		gd.addStringField ("Aberration kernels for DCT directory",             this.dctKernelDirectory, 60);
     		gd.addCheckbox    ("Select aberration kernels for DCT directory",      false);
 
+    		gd.addStringField ("Aberration kernels for CLT directory",             this.cltKernelDirectory, 60);
+    		gd.addCheckbox    ("Select aberration kernels for CLT directory",      false);
+    		
     		gd.addStringField("Equirectangular maps directory (may be empty)",     this.equirectangularDirectory, 60);
     		gd.addCheckbox("Select equirectangular maps directory",                false);
     		gd.addStringField("Results directory",                                 this.resultsDirectory, 40);
@@ -356,6 +373,8 @@ public class EyesisCorrectionParameters {
     		gd.addStringField("DCT kernel files  prefix",                          this.dctKernelPrefix, 40);
     		gd.addStringField("DCT symmetical kernel files",                       this.dctSymSuffix, 40);
     		gd.addStringField("DCT asymmetrical kernel files suffix",              this.dctAsymSuffix, 40);
+    		gd.addStringField("CLT kernel files  prefix",                          this.cltKernelPrefix, 40);
+    		gd.addStringField("CLT symmetical kernel files",                       this.cltSuffix, 40);
     		
     		gd.addStringField("Equirectangular maps prefix",     this.equirectangularPrefix, 40);
     		gd.addStringField("Equirectangular maps suffix",     this.equirectangularSuffix, 40);
@@ -417,6 +436,7 @@ public class EyesisCorrectionParameters {
     		this.sharpKernelDirectory=   gd.getNextString(); if (gd.getNextBoolean()) selectSharpKernelDirectory(false, false); 
     		this.smoothKernelDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectSmoothKernelDirectory(false, true);
     		this.dctKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectDCTKernelDirectory(false, true);
+    		this.cltKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectCLTKernelDirectory(false, true);
     		this.equirectangularDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectEquirectangularDirectory(false, false); 
     		this.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) selectResultsDirectory(false, true); 
     		this.sourcePrefix=           gd.getNextString();
@@ -431,6 +451,8 @@ public class EyesisCorrectionParameters {
     		this.dctKernelPrefix=        gd.getNextString();
     		this.dctSymSuffix=           gd.getNextString();
     		this.dctAsymSuffix=          gd.getNextString();
+    		this.cltKernelPrefix=        gd.getNextString();
+    		this.cltSuffix=              gd.getNextString();
     		this.equirectangularPrefix=  gd.getNextString();
     		this.equirectangularSuffix=  gd.getNextString();
     		this.equirectangularCut=     gd.getNextBoolean();
@@ -483,6 +505,8 @@ public class EyesisCorrectionParameters {
     	public int getChannelFromDCTTiff(String path, int type){return getChannelFromTiff(path, (type==0)?this.dctSymSuffix:this.dctAsymSuffix);}
     	public String getNameFromDCTTiff(String path, int type){return getNameFromTiff(path, (type==0)?this.dctSymSuffix:this.dctAsymSuffix);}
     	
+    	public int getChannelFromCLTTiff(String path){return getChannelFromTiff(path, this.cltSuffix);}
+    	public String getNameFromCLTTiff(String path){return getNameFromTiff(path, this.cltSuffix);}
     	
     	public boolean selectSourceFiles(boolean allFiles) {
     		return selectSourceFiles(allFiles, 1); // debug level 1 - modify here
@@ -826,8 +850,74 @@ public class EyesisCorrectionParameters {
     	
 
     	
+    	public String [] selectCLTChannelFiles(
+    			int numChannels, // number of channels
+    			int debugLevel) { // will only open dialog if directory or files are not found
+    		String [] kernelFiles= selectCLTFiles(
+        			debugLevel);
+    		if (kernelFiles==null) return null;
+    		String [] channelPaths=new String[numChannels];
+    		for (int i=0;i<channelPaths.length;i++)channelPaths[i]=null;
+    		for (int fileNum=0;fileNum<kernelFiles.length;fileNum++){
+    			int chn=getChannelFromCLTTiff(kernelFiles[fileNum]);
+    			if ((chn>=0) && (chn<numChannels)){
+    				if (channelPaths[chn]==null){ // use first file for channel if there are multiple
+    					channelPaths[chn]=kernelFiles[fileNum];
+    				} else {
+    					if (debugLevel>0) System.out.println("Multiple kernel files for channel "+
+    							chn+": "+channelPaths[chn]+" and "+kernelFiles[fileNum]+". Using "+channelPaths[chn]);
+    				}
+    			}
+    		}
+    		return channelPaths;
+    	}
     	
-    	
+    	public String [] selectCLTFiles(
+    			int debugLevel) { // will only open dialog if directory or files are not found
+    		String []defaultPaths = new String[1];
+    		String kernelDirectory=this.cltKernelDirectory;
+    		if ((kernelDirectory==null) || (kernelDirectory.length()<=1)){ // empty or "/"
+    			defaultPaths[0]="";
+    		} else {
+    			defaultPaths[0]=kernelDirectory+Prefs.getFileSeparator();
+    		}
+    		String [] extensions={this.cltSuffix};
+    		String  kernelPrefix= this.cltKernelPrefix;
+			CalibrationFileManagement.MultipleExtensionsFileFilter kernelFilter =
+				new CalibrationFileManagement.MultipleExtensionsFileFilter(kernelPrefix,extensions,kernelPrefix+
+						"*"+extensions[0]+" CLT symmetrical kernel files");
+			if (debugLevel>1) System.out.println("selectKernelFiles("+debugLevel+"): defaultPaths[0]="+defaultPaths[0]+" "+kernelPrefix+"*"+extensions[0]);
+
+			String [] kernelFiles=null;
+// try reading all matching files
+			File dir= new File (kernelDirectory);
+			File [] fileList=null;
+			if (dir.exists()) {
+				fileList=dir.listFiles(kernelFilter);
+			}
+			if ((fileList==null) || (fileList.length==0)){
+				kernelFiles=CalibrationFileManagement.selectFiles(false,
+    					"Select CLT kernel files",
+    					"Select",
+    					kernelFilter,
+    					defaultPaths); // String [] defaultPaths); //this.sourceDirectory // null
+    			if ((kernelFiles!=null) && (kernelFiles.length>0)){
+    				kernelDirectory=kernelFiles[0].substring(0, kernelFiles[0].lastIndexOf(Prefs.getFileSeparator()));
+    				dir= new File (kernelDirectory);
+    				fileList=dir.listFiles(kernelFilter);
+    				this.cltKernelDirectory= kernelDirectory;
+    			}
+			}
+			if ((fileList==null) || (fileList.length==0)) return null;
+			if (debugLevel>1) System.out.println("CLT kernel directory "+kernelDirectory+" has "+fileList.length+" matching files.");
+			kernelFiles = new String[fileList.length];
+			for (int i=0;i<kernelFiles.length;i++) kernelFiles[i]=fileList[i].getPath();
+			String directory=kernelFiles[0].substring(0, kernelFiles[0].lastIndexOf(Prefs.getFileSeparator()));
+			String prefix=kernelFiles[0].substring(directory.length()+1, kernelFiles[0].length()-extensions[0].length()-2); // all but NN
+			this.cltKernelDirectory=directory;
+			this.cltKernelPrefix=prefix;
+			return kernelFiles;
+    	}
     	
     	public String selectSourceDirectory(boolean smart, boolean newAllowed) { // normally newAllowed=false
     		String dir= CalibrationFileManagement.selectDirectory(
@@ -880,13 +970,25 @@ public class EyesisCorrectionParameters {
     				smart,
     				newAllowed, // save  
     				"DCT aberration kernels directory (sym and asym files)", // title
-    				"Select DCT aberration kernelsdirectory", // button
+    				"Select DCT aberration kernel sdirectory", // button
     				null, // filter
     				this.dctKernelDirectory); //this.sourceDirectory);
     		if (dir!=null) this.dctKernelDirectory=dir;
     		return dir;
     	}
     	
+    	public String selectCLTKernelDirectory(boolean smart, boolean newAllowed) {
+    		String dir= CalibrationFileManagement.selectDirectory(
+    				smart,
+    				newAllowed, // save  
+    				"CLT aberration kernels directory", // title
+    				"Select CLT aberration kernels directory", // button
+    				null, // filter
+    				this.cltKernelDirectory); //this.sourceDirectory);
+    		if (dir!=null) this.cltKernelDirectory=dir;
+    		return dir;
+    	}
+
     	public String selectEquirectangularDirectory(boolean smart, boolean newAllowed) {
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
@@ -1778,7 +1880,9 @@ public class EyesisCorrectionParameters {
   		public int        ishift_x =    0; // debug feature - shift source image by this pixels left
   		public int        ishift_y =    0; // debug feature - shift source image by this pixels down
   		public double     fat_zero =  0.0; // modify phase correlation to prevent division by very small numbers
-  		public double     corr_sigma =0.8; // LPF correlarion sigma 
+  		public double     corr_sigma =0.8; // LPF correlarion sigma
+  		
+  		public boolean    norm_kern = true; // normalize kernels
   		
   		public CLTParameters(){}
   		public void setProperties(String prefix,Properties properties){
@@ -1820,7 +1924,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Tile Y to extract (0..122)",                                     this.tileY,                     0);
   			gd.addNumericField("dbg_mode: 0 - normal, +1 - no DCT/IDCT, just fold",              this.dbg_mode,                  0);
   			gd.addNumericField("ishift_x: shift source image by this pixels left",               this.ishift_x,                  0);
-  			gd.addNumericField("ishift_x: shift source image by this pixels down",               this.ishift_y,                  0);
+  			gd.addNumericField("ishift_y: shift source image by this pixels down",               this.ishift_y,                  0);
    			gd.addNumericField("Modify phase correlation to prevent division by very small numbers", this.fat_zero,              4);
    			gd.addNumericField("LPF correlarion sigma ",                                         this.corr_sigma,                3);
   			WindowTools.addScrollBars(gd);
