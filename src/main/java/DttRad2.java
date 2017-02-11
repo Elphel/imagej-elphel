@@ -247,13 +247,18 @@ public class DttRad2 {
 		double [][] vert_k =    new double[2][2];
 		int    [] hor_ind =     new int[2];
 		double [][] hor_k =     new double[2][2];
+		double ahc = Math.cos(Math.PI/16*shift_hor);
+		double ahs = Math.sin(Math.PI/16*shift_hor);
+		double avc = Math.cos(Math.PI/16*shift_vert);
+		double avs = Math.sin(Math.PI/16*shift_vert);
+		
 		int [][] fi;
 		for (int i = 0; i < n; i++ ){
 			fi = get_fold_indices(i,n);
 			vert_ind[0] = fi[0][0];
 			vert_ind[1] = fi[1][0];
-			double vw0 = hwindow[fi[0][1]] + hwindow[fi[0][4]]*fi[0][5]* shift_vert;
-			double vw1 = hwindow[fi[1][1]] + hwindow[fi[1][4]]*fi[1][5]* shift_vert;
+			double vw0 = avc*hwindow[fi[0][1]] + avs*hwindow[fi[0][4]]*fi[0][5];
+			double vw1 = avc*hwindow[fi[1][1]] + avs*hwindow[fi[1][4]]*fi[1][5];
 			vert_k[0][0] =   fi[0][2] * vw0; // use cosine sign
 			vert_k[0][1] =   fi[1][2] * vw1; // use cosine sign
 			vert_k[1][0] =   fi[0][3] * vw0; // use sine sign
@@ -263,8 +268,8 @@ public class DttRad2 {
 				fi = get_fold_indices(j,n);
 				hor_ind[0] = fi[0][0];
 				hor_ind[1] = fi[1][0];
-				double hw0 = hwindow[fi[0][1]] + hwindow[fi[0][4]]*fi[0][5]* shift_hor;
-				double hw1 = hwindow[fi[1][1]] + hwindow[fi[1][4]]*fi[1][5]* shift_hor;
+				double hw0 = ahc*hwindow[fi[0][1]] + ahs*hwindow[fi[0][4]]*fi[0][5];
+				double hw1 = ahc*hwindow[fi[1][1]] + ahs*hwindow[fi[1][4]]*fi[1][5];
 				
 				hor_k[0][0] =   fi[0][2] * hw0; // use cosine sign
 				hor_k[0][1] =   fi[1][2] * hw1; // use cosine sign
@@ -282,10 +287,8 @@ public class DttRad2 {
 		}
 		return fold_sk;
 	}
-	
-	
-	
-	
+
+ 	
 	// return index and two signs (c,s) for 1-d imdct. x is index (0..2*n-1) of the imdct array, value is sign * (idct_index+1),
 	// where idct_index (0..n-1) is index in the dct-iv array
 	private int [] get_unfold_index_signs(int x, int n){

@@ -1712,8 +1712,8 @@ public class ImageDtt {
 		if (!dbg_transpose){
 			fold_coeff = dtt.get_shifted_fold_2d(
 					transform_size,
-					residual_shift[0]*Math.PI/16,
-					residual_shift[1]*Math.PI/16);
+					residual_shift[0],
+					residual_shift[1]);
 		}
 		
 		for (int dct_mode = 0; dct_mode <4; dct_mode++) {
