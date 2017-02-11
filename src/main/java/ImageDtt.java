@@ -723,6 +723,13 @@ public class ImageDtt {
 							String [] titles = {"CC","SC","CS","SS"};
 							sdfa_instance.showArrays(clt_data[chn][tileY][tileX],  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
 						}
+						
+						if ((globalDebugLevel > -1) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
+								(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)) {
+							System.out.println("clt_aberrations(): color="+chn+", tileX="+tileX+", tileY="+tileY+
+									" fract_shiftXY[0]="+fract_shiftXY[0]+" fract_shiftXY[1]="+fract_shiftXY[1]);
+						}
+						
 						if (!no_fract_shift) {
 							// apply residual shift
 							fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
@@ -730,7 +737,9 @@ public class ImageDtt {
 									transform_size,
 									fract_shiftXY[0],            // double        shiftX,
 									fract_shiftXY[1],            // double        shiftY,
-									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
+//									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
+									((globalDebugLevel > 0) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
+											(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));									
 							if ((globalDebugLevel > -1) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
 								showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"CC","SC","CS","SS"};
@@ -1699,8 +1708,20 @@ public class ImageDtt {
 			}			
 		}
 		// Fold and transform
+		double [][][] fold_coeff = null;
+		if (!dbg_transpose){
+			fold_coeff = dtt.get_shifted_fold_2d(
+					transform_size,
+					residual_shift[0]*Math.PI/16,
+					residual_shift[1]*Math.PI/16);
+		}
+		
 		for (int dct_mode = 0; dct_mode <4; dct_mode++) {
-			clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode); // DCCT, DSCT, DCST, DSST
+			if (fold_coeff != null){
+				clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode, fold_coeff); // DCCT, DSCT, DCST, DSST
+			} else {
+				clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode); // DCCT, DSCT, DCST, DSST
+			}
 			clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size);
 		}
 		if (bdebug) {
