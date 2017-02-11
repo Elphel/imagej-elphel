@@ -2076,8 +2076,53 @@ public class EyesisCorrections {
 	      outStack.addSlice(chnNames[chn], outPixels[chn]);
 	    }
 	    return outStack;
-	}
+	  }
 
+	  // return 2-d double array instead of the stack
+	  public double [][]bayerToDoubleStack(ImagePlus imp, // source bayer image, linearized, 32-bit (float))
+			  EyesisCorrectionParameters.SplitParameters splitParameters){ // if null - no margins, no oversample
+		  if (imp==null) return null;
+		  boolean adv = splitParameters != null;
+		  int oversample = adv? splitParameters.oversample : 1;
+		  int addTop=      adv?splitParameters.addTop:       0;  
+		  int addLeft=     adv?splitParameters.addLeft:      0;  
+		  int addBottom=   adv?splitParameters.addBottom:    0;  
+		  int addRight=    adv?splitParameters.addRight:     0;  
+		  String [] chnNames={"Red","Blue","Green"}; //Different sequence than RGB!!
+		  int nChn=chnNames.length;
+		  ImageProcessor ip=imp.getProcessor();
+		  int inWidth=imp.getWidth();
+		  int inHeight=imp.getHeight();
+		  int outHeight=inHeight*oversample + addTop +  addBottom;
+		  int outWidth= inWidth* oversample + addLeft + addRight;
+		  int outLength=outWidth*outHeight;
+
+		  double [][] outPixels=new double[nChn][outLength];
+		  float [] pixels = (float[]) ip.getPixels();
+		  int chn,y,x,i,index;
+		  int bayerPeriod=2*oversample;
+		  int ovrWidth=   inWidth * oversample;
+		  int ovrHeight= inHeight *  oversample;
+		  for (chn=0;chn<nChn;chn++) for (i=0;i<outPixels[chn].length;i++) outPixels[chn][i]=0.0f;
+		  /* Can be optimized - now it calculate input address for all those 0-es */
+		  for (index=0; index<outLength; index++) {
+			  y=(index / outWidth) - addTop;
+			  x=(index % outWidth) - addLeft;
+			  if (y<0) y= (bayerPeriod-((-y) % bayerPeriod))%bayerPeriod;
+			  else if (y>=ovrHeight) y= ovrHeight-bayerPeriod +((y-ovrHeight) % bayerPeriod);
+			  if (x<0) x= (bayerPeriod-((-x) % bayerPeriod))%bayerPeriod;
+			  else  if (x>=ovrWidth) x= ovrWidth-bayerPeriod +((x-ovrWidth) % bayerPeriod);
+			  if (((y% oversample)==0) && ((x% oversample)==0)) {
+				  x/=oversample;
+				  y/=oversample;
+				  chn=((x&1)==(y&1))?2:(((x&1)!=0)?0:1);
+				  outPixels[chn][index]=pixels[y*inWidth+x];
+			  }
+		  }
+		  return outPixels;
+	  }
+	  
+	  
 	
 //double []  DENOISE_MASK=null; 	
 	

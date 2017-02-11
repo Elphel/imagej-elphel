@@ -1869,35 +1869,55 @@ public class EyesisCorrectionParameters {
   		}
   	}
     public static class CLTParameters {
-  		public int transform_size =     8; //
-  		public int clt_window =         1; // currently only 3 types of windows - 0 (none), 1 and 2
-  		public double     shift_x =   0.0;
-  		public double     shift_y =   0.0;
-  		public int        iclt_mask =  15; // which transforms to combine
-  		public int        tileX =     258; // number of kernel tile (0..163) 
-  		public int        tileY =     133; // number of kernel tile (0..122)
-  		public int        dbg_mode =    0; // 0 - normal, +1 - no DCT/IDCT
-  		public int        ishift_x =    0; // debug feature - shift source image by this pixels left
-  		public int        ishift_y =    0; // debug feature - shift source image by this pixels down
-  		public double     fat_zero =  0.0; // modify phase correlation to prevent division by very small numbers
-  		public double     corr_sigma =0.8; // LPF correlarion sigma
+  		public int        transform_size =      8; //
+  		public int        clt_window =          1; // currently only 3 types of windows - 0 (none), 1 and 2
+  		public double     shift_x =           0.0;
+  		public double     shift_y =           0.0;
+  		public int        iclt_mask =          15; // which transforms to combine
+  		public int        tileX =             258; // number of kernel tile (0..163) 
+  		public int        tileY =             133; // number of kernel tile (0..122)
+  		public int        dbg_mode =            0; // 0 - normal, +1 - no DCT/IDCT
+  		public int        ishift_x =            0; // debug feature - shift source image by this pixels left
+  		public int        ishift_y =            0; // debug feature - shift source image by this pixels down
+  		public double     fat_zero =          0.0; // modify phase correlation to prevent division by very small numbers
+  		public double     corr_sigma =        0.8; // LPF correlarion sigma
+  		public boolean    norm_kern =         true; // normalize kernels
   		
-  		public boolean    norm_kern = true; // normalize kernels
+  		public double     novignetting_r    = 0.2644; // reg gain in the center of sensor calibration R (instead of vignetting)
+  		public double     novignetting_g    = 0.3733; // green gain in the center of sensor calibration G
+  		public double     novignetting_b    = 0.2034; // blue gain in the center of sensor calibration B
+  		public double     scale_r =           1.0; // extra gain correction after vignetting or nonvignetting, before other processing
+  		public double     scale_g =           1.0;
+  		public double     scale_b =           1.0;
+  		public double     vignetting_max    = 0.4; // value in vignetting data to correspond to 1x in the kernel
+  		public double     vignetting_range  = 5.0; // do not try to correct vignetting less than vignetting_max/vignetting_range
+  		public int        kernel_step =       16;  // source kernels step in pixels (have 1 kernel margin on each side)  
   		
   		public CLTParameters(){}
   		public void setProperties(String prefix,Properties properties){
-  			properties.setProperty(prefix+"transform_size",this.transform_size+"");
-  			properties.setProperty(prefix+"clt_window",    this.clt_window+"");
-  			properties.setProperty(prefix+"shift_x",       this.shift_x+"");
-  			properties.setProperty(prefix+"shift_y",       this.shift_y+"");
-  			properties.setProperty(prefix+"iclt_mask",     this.iclt_mask+"");
-  			properties.setProperty(prefix+"tileX",         this.tileX+"");
-  			properties.setProperty(prefix+"tileY",         this.tileY+"");
-  			properties.setProperty(prefix+"dbg_mode",      this.dbg_mode+"");
-  			properties.setProperty(prefix+"ishift_x",      this.ishift_x+"");
-  			properties.setProperty(prefix+"ishift_y",      this.ishift_y+"");
-  			properties.setProperty(prefix+"fat_zero",      this.fat_zero+"");
-  			properties.setProperty(prefix+"corr_sigma",    this.corr_sigma+"");
+  			properties.setProperty(prefix+"transform_size",   this.transform_size+"");
+  			properties.setProperty(prefix+"clt_window",       this.clt_window+"");
+  			properties.setProperty(prefix+"shift_x",          this.shift_x+"");
+  			properties.setProperty(prefix+"shift_y",          this.shift_y+"");
+  			properties.setProperty(prefix+"iclt_mask",        this.iclt_mask+"");
+  			properties.setProperty(prefix+"tileX",            this.tileX+"");
+  			properties.setProperty(prefix+"tileY",            this.tileY+"");
+  			properties.setProperty(prefix+"dbg_mode",         this.dbg_mode+"");
+  			properties.setProperty(prefix+"ishift_x",         this.ishift_x+"");
+  			properties.setProperty(prefix+"ishift_y",         this.ishift_y+"");
+  			properties.setProperty(prefix+"fat_zero",         this.fat_zero+"");
+  			properties.setProperty(prefix+"corr_sigma",       this.corr_sigma+"");
+			properties.setProperty(prefix+"norm_kern",        this.norm_kern+"");
+  			properties.setProperty(prefix+"novignetting_r",   this.novignetting_r+"");
+  			properties.setProperty(prefix+"novignetting_g",   this.novignetting_g+"");
+  			properties.setProperty(prefix+"novignetting_b",   this.novignetting_b+"");
+  			properties.setProperty(prefix+"scale_r",          this.scale_r+"");
+  			properties.setProperty(prefix+"scale_g",          this.scale_g+"");
+  			properties.setProperty(prefix+"scale_b",          this.scale_b+"");
+  			properties.setProperty(prefix+"vignetting_max",   this.vignetting_max+"");
+  			properties.setProperty(prefix+"vignetting_range", this.vignetting_range+"");
+  			properties.setProperty(prefix+"kernel_step",      this.kernel_step+"");
+  			
   		}
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"transform_size")!=null) this.transform_size=Integer.parseInt(properties.getProperty(prefix+"transform_size"));
@@ -1912,37 +1932,70 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"ishift_y")!=null)       this.ishift_y=Integer.parseInt(properties.getProperty(prefix+"ishift_y"));
   			if (properties.getProperty(prefix+"fat_zero")!=null)       this.fat_zero=Double.parseDouble(properties.getProperty(prefix+"fat_zero"));
   			if (properties.getProperty(prefix+"corr_sigma")!=null)     this.corr_sigma=Double.parseDouble(properties.getProperty(prefix+"corr_sigma"));
+  			if (properties.getProperty(prefix+"norm_kern")!=null)      this.norm_kern=Boolean.parseBoolean(properties.getProperty(prefix+"norm_kern"));
+  			if (properties.getProperty(prefix+"novignetting_r")!=null) this.novignetting_r=Double.parseDouble(properties.getProperty(prefix+"novignetting_r"));
+  			if (properties.getProperty(prefix+"novignetting_g")!=null) this.novignetting_g=Double.parseDouble(properties.getProperty(prefix+"novignetting_g"));
+  			if (properties.getProperty(prefix+"novignetting_b")!=null) this.novignetting_b=Double.parseDouble(properties.getProperty(prefix+"novignetting_b"));
+  			if (properties.getProperty(prefix+"scale_r")!=null)        this.scale_r=Double.parseDouble(properties.getProperty(prefix+"scale_r"));
+  			if (properties.getProperty(prefix+"scale_g")!=null)        this.scale_g=Double.parseDouble(properties.getProperty(prefix+"scale_g"));
+  			if (properties.getProperty(prefix+"scale_b")!=null)        this.scale_b=Double.parseDouble(properties.getProperty(prefix+"scale_b"));
+  			if (properties.getProperty(prefix+"vignetting_max")!=null) this.vignetting_max=Double.parseDouble(properties.getProperty(prefix+"vignetting_max"));
+  			if (properties.getProperty(prefix+"vignetting_range")!=null) this.vignetting_range=Double.parseDouble(properties.getProperty(prefix+"vignetting_range"));
+  			if (properties.getProperty(prefix+"kernel_step")!=null)    this.kernel_step=Integer.parseInt(properties.getProperty(prefix+"kernel_step"));
   		}
+  		
   		public boolean showDialog() {
   			GenericDialog gd = new GenericDialog("Set DCT parameters");
-  			gd.addNumericField("DCT size",                                                       this.transform_size,            0);
-  			gd.addNumericField("Lapped transform window type (0- rectangular, 1 - sinus)",       this.clt_window,                0);
-   			gd.addNumericField("shift_x",                                                        this.shift_x,                   4);
-   			gd.addNumericField("shift_y",                                                        this.shift_y,                   4);
-  			gd.addNumericField("Bit mask - which of 4 transforms to combine after iclt",         this.iclt_mask,                 0);
-  			gd.addNumericField("Tile X to extract (0..163)",                                     this.tileX,                     0);
-  			gd.addNumericField("Tile Y to extract (0..122)",                                     this.tileY,                     0);
-  			gd.addNumericField("dbg_mode: 0 - normal, +1 - no DCT/IDCT, just fold",              this.dbg_mode,                  0);
-  			gd.addNumericField("ishift_x: shift source image by this pixels left",               this.ishift_x,                  0);
-  			gd.addNumericField("ishift_y: shift source image by this pixels down",               this.ishift_y,                  0);
-   			gd.addNumericField("Modify phase correlation to prevent division by very small numbers", this.fat_zero,              4);
-   			gd.addNumericField("LPF correlarion sigma ",                                         this.corr_sigma,                3);
+  			gd.addNumericField("Transform size (default 8)",                                              this.transform_size,            0);
+  			gd.addNumericField("Lapped transform window type (0- rectangular, 1 - sinus)",                this.clt_window,                0);
+   			gd.addNumericField("shift_x",                                                                 this.shift_x,                   4);
+   			gd.addNumericField("shift_y",                                                                 this.shift_y,                   4);
+  			gd.addNumericField("Bit mask - which of 4 transforms to combine after iclt",                  this.iclt_mask,                 0);
+  			gd.addNumericField("Tile X to extract (0..163)",                                              this.tileX,                     0);
+  			gd.addNumericField("Tile Y to extract (0..122)",                                              this.tileY,                     0);
+  			gd.addNumericField("dbg_mode: 0 - normal, +1 - no DCT/IDCT, just fold",                       this.dbg_mode,                  0);
+  			gd.addNumericField("ishift_x: shift source image by this pixels left",                        this.ishift_x,                  0);
+  			gd.addNumericField("ishift_y: shift source image by this pixels down",                        this.ishift_y,                  0);
+   			gd.addNumericField("Modify phase correlation to prevent division by very small numbers",      this.fat_zero,                  4);
+   			gd.addNumericField("LPF correlarion sigma ",                                                  this.corr_sigma,                3);
+  			gd.addCheckbox    ("Normalize kernels ",                                                      this.norm_kern);
+  			gd.addNumericField("Reg gain in the center of sensor calibration R (instead of vignetting)",  this.novignetting_r,   4);
+  			gd.addNumericField("Green gain in the center of sensor calibration G (instead of vignetting)",this.novignetting_g, 4);
+  			gd.addNumericField("Blue gain in the center of sensor calibration B (instead of vignetting)", this.novignetting_b,  4);
+  			gd.addNumericField("Extra red correction to compensate for light temperature",                this.scale_r,  4);
+  			gd.addNumericField("Extra green correction to compensate for light temperature",              this.scale_g,  4);
+  			gd.addNumericField("Extra blue correction to compensate for light temperature",               this.scale_b,  4);
+  			gd.addNumericField("Value (max) in vignetting data to correspond to 1x in the kernel",        this.vignetting_max,      3);
+  			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",      this.vignetting_range,  3);
+  			gd.addNumericField("Kernel step in pixels (has 1 kernel margin on each side)",                this.kernel_step,            0);
+   			
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
   			
   			if (gd.wasCanceled()) return false;
-  			this.transform_size=        (int) gd.getNextNumber();
-  			this.clt_window=            (int) gd.getNextNumber();
-  			this.shift_x =                    gd.getNextNumber();
-  			this.shift_y =                    gd.getNextNumber();
-  			this.iclt_mask=             (int) gd.getNextNumber();
-  			this.tileX=                 (int) gd.getNextNumber();
-  			this.tileY=                 (int) gd.getNextNumber();
-  			this.dbg_mode=              (int) gd.getNextNumber();
-  			this.ishift_x=              (int) gd.getNextNumber();
-  			this.ishift_y=              (int) gd.getNextNumber();
-  			this.fat_zero =                   gd.getNextNumber();
-  			this.corr_sigma =                 gd.getNextNumber();
+  			this.transform_size=  (int) gd.getNextNumber();
+  			this.clt_window=      (int) gd.getNextNumber();
+  			this.shift_x =              gd.getNextNumber();
+  			this.shift_y =              gd.getNextNumber();
+  			this.iclt_mask=       (int) gd.getNextNumber();
+  			this.tileX=           (int) gd.getNextNumber();
+  			this.tileY=           (int) gd.getNextNumber();
+  			this.dbg_mode=        (int) gd.getNextNumber();
+  			this.ishift_x=        (int) gd.getNextNumber();
+  			this.ishift_y=        (int) gd.getNextNumber();
+  			this.fat_zero =             gd.getNextNumber();
+  			this.corr_sigma =           gd.getNextNumber();
+  			this.norm_kern=             gd.getNextBoolean();
+  			this.novignetting_r=        gd.getNextNumber();
+  			this.novignetting_g=        gd.getNextNumber();
+  			this.novignetting_b=        gd.getNextNumber();
+  			this.scale_r=               gd.getNextNumber();
+  			this.scale_g=               gd.getNextNumber();
+  			this.scale_b=               gd.getNextNumber();
+  			this.vignetting_max=        gd.getNextNumber();
+  			this.vignetting_range=      gd.getNextNumber();
+  			this.kernel_step=     (int) gd.getNextNumber();
+  			
   			return true;
   		}
     }
@@ -2272,17 +2325,16 @@ public class EyesisCorrectionParameters {
   			this.antiwindow=            gd.getNextBoolean();
   			this.skip_sym=              gd.getNextBoolean();
   			this.convolve_direct=       gd.getNextBoolean();
+
   			this.novignetting_r=        gd.getNextNumber();
   			this.novignetting_g=        gd.getNextNumber();
   			this.novignetting_b=        gd.getNextNumber();
-
   			this.scale_r=               gd.getNextNumber();
   			this.scale_g=               gd.getNextNumber();
   			this.scale_b=               gd.getNextNumber();
-  			
-  			
   			this.vignetting_max=        gd.getNextNumber();
   			this.vignetting_range=      gd.getNextNumber();
+
   			this.post_debayer=          gd.getNextBoolean();
   			this.color_DCT=             gd.getNextBoolean();
   			this.sigma_rb=              gd.getNextNumber();
