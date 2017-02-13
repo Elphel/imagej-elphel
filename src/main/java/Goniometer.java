@@ -900,10 +900,11 @@ horizontal axis:
 		distortionCalibrationData.initImageSet(eyesisCameraParameters);
 		
 		// Set initial azimuth and elevation
-		double [] initialAzEl=distortionCalibrationData.getAzEl(imgWithMaxPointers);
+		// Set initial heading and elevation
+		double [] initialHeadEl=distortionCalibrationData.getHeadEl(imgWithMaxPointers);
         // set goniometer horizontal axis angle and goniometer axial angles in all images 
-		distortionCalibrationData.setGHGA(-initialAzEl[1], -initialAzEl[0]);
-		if (debug_level > 1) System.out.println("Initial Azimuth and Elevation are set to az="+IJ.d2s(-initialAzEl[0],2)+", elvation="+IJ.d2s(-initialAzEl[1],2)); 
+		distortionCalibrationData.setGHGA(-initialHeadEl[1], -initialHeadEl[0]);
+		if (debug_level > 1) System.out.println("Initial Heading and Elevation are set to heading="+IJ.d2s(-initialHeadEl[0],2)+", elvation="+IJ.d2s(-initialHeadEl[1],2)); 
 		
 		lensDistortions.copySensorConstants(eyesisCameraParameters); // copy from the first channel
 		// lensDistortions.fittingStrategy will be defined later, no need to

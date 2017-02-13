@@ -25,12 +25,17 @@ import java.util.Properties;
 
     public class EyesisSubCameraParameters{
     	// origin is on the rotation axis of the tube body closest to the goniometer horizontal axis
+    	public boolean cartesian = false; // cartesian coordinates mode (false - cylindrical)
     	public int    lensDistortionModel=0;
     	public boolean enableNoLaser=true; // enable images for this channel w/o matched laser pointer
+    	public double right;   // distance to the right (radius*sin(azimuth))
+    	public double forward; // distance forward (radius*cos(azimuth))
+    	public double heading;   // absolute heading in degrees (used in cartesian mode)
+
     	public double azimuth; // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     	public double radius;  // mm, distance from the rotation axis
     	public double height;       // mm, up - from the origin point
-    	public double phi;     // degrees, optical axis from azimuth/r vector, clockwise
+    	public double phi;     // degrees, optical axis from azimuth/r vector, clockwise (absolute if cylindrical = false)
     	public double theta;   // degrees, optical axis from the eyesis horizon, positive - up
     	public double psi;     // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
 		public double focalLength=4.5;
@@ -68,8 +73,12 @@ import java.util.Properties;
 		*/		
 		
     	public EyesisSubCameraParameters(
+    			boolean cartesian,
     			int lensDistortionModel,
     			boolean enableNoLaser,
+    	    	double right,   // distance to the right (radius*sin(azimuth))
+    	    	double forward, // distance forward (radius*cos(azimuth))
+    	    	double heading, // used in cartesian mode
     			double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     			double radius,  // mm, distance from the rotation axis
     			double height,  // mm, up from the origin point
@@ -92,8 +101,13 @@ import java.util.Properties;
 				double [][] r_od,     // elongation for c,b,a,a5,a6,a7,a8
     			double channelWeightDefault
     	){
+    		this.cartesian = cartesian;
     		this.lensDistortionModel=lensDistortionModel;
     		this.enableNoLaser=enableNoLaser;
+    		this.right =   right;
+    		this.forward = forward;
+    		this.heading = heading;
+    		
     		this.azimuth=azimuth;
     		this.radius=radius;
     		this.height=height;
@@ -123,12 +137,17 @@ import java.util.Properties;
     		this.defectsXY=null; // pixel defects coordinates list (starting with worst)
     		this.defectsDiff=null; // pixel defects value (diff from average of neighbors), matching defectsXY
 
+    		updateCartesian(); // set alternative
     	}
     	// defects are not cloned!
     	public EyesisSubCameraParameters clone() {
     		return new EyesisSubCameraParameters(
+    	    		this.cartesian,
     				this.lensDistortionModel,
     				this.enableNoLaser,
+    	    		this.right,
+    	    		this.forward,
+    	    		this.heading,
     				this.azimuth,
     				this.radius,
     				this.height,
@@ -160,8 +179,12 @@ import java.util.Properties;
     	}
 // TODO: add/restore new properties
     	public void setProperties(String prefix,Properties properties){
+    		properties.setProperty(prefix+"cartesian",this.cartesian+"");
     		properties.setProperty(prefix+"lensDistortionModel",this.lensDistortionModel+"");
     		properties.setProperty(prefix+"enableNoLaser",this.enableNoLaser+"");
+    		properties.setProperty(prefix+"right",this.right+"");
+    		properties.setProperty(prefix+"heading",this.heading+"");
+    		properties.setProperty(prefix+"forward",this.forward+"");
     		properties.setProperty(prefix+"azimuth",this.azimuth+"");
     		properties.setProperty(prefix+"radius",this.radius+"");
     		properties.setProperty(prefix+"height",this.height+"");
@@ -194,8 +217,17 @@ import java.util.Properties;
     		getProperties(prefix,properties, -1);
     	}
     	public void getProperties(String prefix,Properties properties, int channel){
+    		if (properties.getProperty(prefix+"cartesian")!=null)
+    			this.cartesian=Boolean.parseBoolean(properties.getProperty(prefix+"cartesian"));
     		if (properties.getProperty(prefix+"lensDistortionModel")!=null)
     			this.lensDistortionModel=Integer.parseInt(properties.getProperty(prefix+"lensDistortionModel"));
+    		if (properties.getProperty(prefix+"right")!=null)
+    			this.right=Double.parseDouble(properties.getProperty(prefix+"right"));
+    		if (properties.getProperty(prefix+"forward")!=null)
+    			this.forward=Double.parseDouble(properties.getProperty(prefix+"forward"));
+    		if (properties.getProperty(prefix+"heading")!=null)
+    			this.heading=Double.parseDouble(properties.getProperty(prefix+"heading"));
+
     		if (properties.getProperty(prefix+"azimuth")!=null)
     			this.azimuth=Double.parseDouble(properties.getProperty(prefix+"azimuth"));
     		if (properties.getProperty(prefix+"radius")!=null)
@@ -263,5 +295,22 @@ import java.util.Properties;
     	}
     	public double getChannelWeightDefault(){
     		return this.channelWeightDefault;
+    	}
+    	
+    	public void updateCartesian(){ // set alternative parameters
+    		if (cartesian) {
+    			this.azimuth = Math.atan2(this.right, this.forward)*180.0/Math.PI;
+    			this.radius = Math.sqrt(this.forward*this.forward + this.right*this.right);
+    			this.phi = this.heading - this.azimuth; 
+    		} else {
+    			this.forward = this.radius * Math.cos(Math.PI*this.azimuth/180.0); 
+    			this.right =   this.radius * Math.sin(Math.PI*this.azimuth/180.0); 
+    			this.heading = this.phi +  this.azimuth;
+    		}
+    	}
+    	public void setCartesian(boolean cartesian){
+    		if (this.cartesian == cartesian) return; // already in this mode
+    		updateCartesian();
+    		this.cartesian = cartesian;
     	}
     }

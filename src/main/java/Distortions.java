@@ -2975,8 +2975,10 @@ For each point in the image
 //		double [] parVector=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getParametersVector(stationNumber,subCamera);
 //		System.out.println("setupLensDistortionParameters(): subCamera="+subCamera+", goniometerHorizontal="+goniometerHorizontal+", goniometerAxial="+goniometerAxial);
     	boolean isTripod=this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod;
+    	boolean cartesian=this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian;
 		LensDistortionParameters lensDistortionParameters = new LensDistortionParameters (
 	    		isTripod,
+	    		cartesian,
 	            null, //double [][] interParameterDerivatives, //partial derivative matrix from subcamera-camera-goniometer to single camera (12x21) if null - just values, no derivatives
 //	            this.fittingStrategy.distortionCalibrationData.pars[numImg], //parVector,
 	            this.fittingStrategy.distortionCalibrationData.getParameters(numImg), //parVector,
@@ -3001,8 +3003,10 @@ For each point in the image
 		if (!Double.isNaN(goniometerAxial))parVector[goniometerAxialIndex]=goniometerAxial;
 //		System.out.println("setupLensDistortionParameters(): subCamera="+subCamera+", goniometerHorizontal="+goniometerHorizontal+", goniometerAxial="+goniometerAxial);
     	boolean isTripod=this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod;
+    	boolean cartesian=this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian;
 		LensDistortionParameters lensDistortionParameters = new LensDistortionParameters (
 	    		isTripod,
+	    		cartesian,
 	            null, //double [][] interParameterDerivatives, //partial derivative matrix from subcamera-camera-goniometer to single camera (12x21) if null - just values, no derivatives
 	    		parVector,
 	    		null, //boolean [] mask, // calculate only selected derivatives (all parVect values are still
@@ -3152,6 +3156,7 @@ For each point in the image
 		this.lensDistortionParameters.lensCalcInterParamers(
 				this.lensDistortionParameters, // 22-long parameter vector for the image
 				this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
+				this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian,
 				null, // this.interParameterDerivatives, // [22][]
 				parVector,
 				null); // if no derivatives, null is OK
@@ -3276,6 +3281,7 @@ For each point in the image
 		this.lensDistortionParameters.lensCalcInterParamers(
 				this.lensDistortionParameters,
 				this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
+				this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian,
 				this.interParameterDerivatives, // [22][]
 				imgVector,
 				imgMask); // calculate only selected derivatives (all parVect values are still
@@ -3299,6 +3305,7 @@ For each point in the image
 			this.lensDistortionParameters.lensCalcInterParamers(
 					this.lensDistortionParameters,
 					this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
+					this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian,
 					null, // this.interParameterDerivatives, // just values, no derivatives
 					vector_delta, 
 					imgMask);
@@ -3386,6 +3393,7 @@ For each point in the image
 			this.lensDistortionParameters.lensCalcInterParamers(
 					this.lensDistortionParameters,
 					this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
+					this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian,
 					calcJacobian?this.interParameterDerivatives:null, // [22][]
 					imgVector,
 					imgMask); // imgMask may be null if no derivativescalculate only selected derivatives (all parVect values are still
@@ -3399,7 +3407,7 @@ For each point in the image
 				if (fullIndex>=this.targetXYZ.length){
 					System.out.println("BUG: calculateFxAndJacobian() imgNum="+imgNum+" pointNum="+pointNum+" fullIndex="+fullIndex+" this.targetXYZ.length="+this.targetXYZ.length);
 				}
-				double [][]derivatives15=  lensDistortionParameters.calcPartialDerivatives(
+				double [][]derivatives15=  lensDistortionParameters.calcPartialDerivatives( // [NaN, NaN]
 						this.targetXYZ[fullIndex][0], // target point horizontal, positive - right,  mm
 						this.targetXYZ[fullIndex][1], // target point vertical,   positive - down,  mm
 						this.targetXYZ[fullIndex][2], // target point horizontal, positive - away from camera,  mm
@@ -3503,6 +3511,7 @@ For each point in the image
 		lensDistortionParameters.lensCalcInterParamers(
 				lensDistortionParameters,
 				this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
+				this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian,
 				calcJacobian?interParameterDerivatives:null, // [22][]
 						imgVector,
 						imgMask); // calculate only selected derivatives (all parVect values are still
@@ -3586,6 +3595,7 @@ For each point in the image
 				this.lensDistortionParameters.lensCalcInterParamers(
 						this.lensDistortionParameters,
 						this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
+						this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian,
 						null, //this.interParameterDerivatives, // [22][]
 						imgVector,
 						imgMask); // calculate only selected derivatives (all parVect values are still
@@ -3681,7 +3691,7 @@ List calibration
 
     		gd.addCheckbox("Show physical camera parameters",                      this.showEyesisParameters);
     		gd.addCheckbox("Show intrinsic lens/sensor parameters ",               this.showIntrinsicParameters);
-    		gd.addCheckbox("Show intrinsic lens/sensor parameters",                this.showExtrinsicParameters);
+    		gd.addCheckbox("Show extrinsic lens/sensor parameters",                this.showExtrinsicParameters);
     		gd.addNumericField("Extra decimal places (precision) in the list",     this.extraDecimals, 0);
     		gd.showDialog();
     		if (gd.wasCanceled()) return false;
@@ -4132,6 +4142,7 @@ List calibration
 			this.lensDistortionParameters.lensCalcInterParamers(
 					this.lensDistortionParameters,
 					this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
+					this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian,
 					null, //this.interParameterDerivatives, // [22][]
 //					fittingStrategy.distortionCalibrationData.pars[imgNum], // 22-long parameter vector for the image
 					fittingStrategy.distortionCalibrationData.getParameters(imgNum), // 22-long parameter vector for the image
@@ -7628,6 +7639,7 @@ D2=
 			final boolean updateStatus
 			){
 		final boolean isTripod=this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod;
+		final boolean cartesian=this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian;
 		final int [][] dirs=            {{0,0},{-1,0},{1,0},{0,-1},{0,1}}; // possible to make 8 directions
 		final double [][][] derivatives={ // for of /du, /dv 3 variants, depending on which neighbors are available
 				{
@@ -7680,6 +7692,7 @@ D2=
 						lensDistortionParameters.lensCalcInterParamers(
 								lensDistortionParameters,
 								isTripod,
+								cartesian,
 								null, //this.interParameterDerivatives, // [22][]
 //								fittingStrategy.distortionCalibrationData.pars[imgNum], // 22-long parameter vector for the image
 								fittingStrategy.distortionCalibrationData.getParameters(imgNum), // 22-long parameter vector for the image
@@ -7876,6 +7889,7 @@ D2=
 			this.lensDistortionParameters.lensCalcInterParamers(
 					this.lensDistortionParameters,
 					this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
+					this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian,
 					null, //this.interParameterDerivatives, // [22][]
 //					fittingStrategy.distortionCalibrationData.pars[imgNum], // 22-long parameter vector for the image
 					fittingStrategy.distortionCalibrationData.getParameters(imgNum), // 22-long parameter vector for the image

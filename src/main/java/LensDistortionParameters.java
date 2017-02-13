@@ -95,6 +95,7 @@ import Jama.Matrix;
 	    public LensDistortionParameters(
 //	    		LensDistortionParameters lensDistortionParameters,
 	    		boolean isTripod,
+	    		boolean cartesian,
 	            double [][] interParameterDerivatives, //partial derivative matrix from subcamera-camera-goniometer to single camera (12x21) if null - just values, no derivatives
 	    		double [] parVect,
 	    		boolean [] mask, // calculate only selected derivatives (all parVect values are still
@@ -105,6 +106,7 @@ import Jama.Matrix;
 	    	lensCalcInterParamers( // changed name to move calcInterParamers method from enclosing class
 	    			this,
 		    		isTripod,
+		    		cartesian,
 		            interParameterDerivatives, //partial derivative matrix from subcamera-camera-goniometer to single camera (12x21) if null - just values, no derivatives
 		    		parVect,
 		    		mask // calculate only selected derivatives (all parVect values are still
@@ -1854,19 +1856,22 @@ dPXmmc/dphi=
 	    public void lensCalcInterParamers(
 	    		LensDistortionParameters lensDistortionParameters,
 	    		boolean isTripod,
+	    		boolean cartesian,
 	            double [][] interParameterDerivatives, //partial derivative matrix from subcamera-camera-goniometer to single camera (12x21) if null - just values, no derivatives
 	    		double [] parVect,
 	    		boolean [] mask // calculate only selected derivatives (all parVect values are still
-//	    		boolean calculateDerivatives // calculate this.interParameterDerivatives -derivatives array (false - just this.values)
 	    		){
-//	    	LensDistortionParameters lensDistortionParameters=this;
 	    	boolean calculateDerivatives=(interParameterDerivatives!=null);  // calculate this.interParameterDerivatives -derivatives array (false - just this.values) 
-	    	 // change meaning of goniometerHorizontal (tripod vertical) and goniometerAxial (tripod horizontal) 
-//	    	boolean isTripod=this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod;
-	    	double azimuth=parVect[0];
-	    	double radius= parVect[1];
-	    	double height= parVect[2];
-	    	double phi=    parVect[3];
+	    	 // change meaning of goniometerHorizontal (tripod vertical) and goniometerAxial (tripod horizontal)
+	    	
+	    	// Alternative variables for cartesian/cylindrical modes
+	    	double azimuth_cyl=  cartesian? Double.NaN:  parVect[0];
+	    	double right_cart=   cartesian? parVect[0] : Double.NaN;
+	    	double radius_cyl=   cartesian? Double.NaN:  parVect[1];
+	    	double forward_cart= cartesian? parVect[1]:  Double.NaN;
+	    	double height=       parVect[2];
+	    	double phi_cyl=      cartesian? Double.NaN:  parVect[3];
+	    	double heading_cart= cartesian? parVect[3]:  Double.NaN;
 	    	double theta=  parVect[4];
 	    	double psi=    parVect[5];
 	    	double goniometerHorizontal=parVect[6];
@@ -1885,10 +1890,14 @@ dPXmmc/dphi=
 	    	double sPS=   Math.sin(psi*Math.PI/180); // subCam.psi
 	    	double cTH=   Math.cos(theta*Math.PI/180); // subCam.theta
 	    	double sTH=   Math.sin(theta*Math.PI/180); // subCam.theta
-	    	double cAZP=  Math.cos((azimuth+phi)*Math.PI/180); //subCam.azimuth+subCam.phi
-	    	double sAZP=  Math.sin((azimuth+phi)*Math.PI/180); //subCam.azimuth+subCam.phi
-	    	double cAZ=   Math.cos(azimuth*Math.PI/180); //subCam.azimuth
-	    	double sAZ=   Math.sin(azimuth*Math.PI/180); //subCam.azimuth
+	    	
+	    	double cAZP=  Math.cos((cartesian?heading_cart:(azimuth_cyl+phi_cyl))*Math.PI/180); //subCam.azimuth+subCam.phi
+	    	double sAZP=  Math.sin((cartesian?heading_cart:(azimuth_cyl+phi_cyl))*Math.PI/180); //subCam.azimuth+subCam.phi
+
+	    	// renaming the following 2 to be replaced for cartesian coordinates
+	    	double cAZ_cyl=   Math.cos(azimuth_cyl*Math.PI/180); //subCam.azimuth
+	    	double sAZ_cyl=   Math.sin(azimuth_cyl*Math.PI/180); //subCam.azimuth
+	    	
 	    	double cGA=   Math.cos(goniometerAxial*Math.PI/180); //eyesisCameraParameters.goniometerAxial
 	    	double sGA=   Math.sin(goniometerAxial*Math.PI/180); //eyesisCameraParameters.goniometerAxial
 	    	double cGH=   Math.cos(goniometerHorizontal*Math.PI/180); //eyesisCameraParameters.goniometerHorizontal
@@ -1940,7 +1949,10 @@ dPXmmc/dphi=
 	| Yey | = | height+centerAboveHorizontal | + |Yc3|
 	| Zey |   |      r * cos (azimuth)       |   |Zc3|
 	*/
-	    	double [][] aT1={{radius*sAZ},{(height+centerAboveHorizontal)},{radius*cAZ}}; // {{subCam.radius*sAZ},{subCam.height},{subCam.radius*cAZ}};
+	    	double [][] aT1_cyl= {{radius_cyl*sAZ_cyl},{(height+centerAboveHorizontal)},{radius_cyl*cAZ_cyl}}; // {{subCam.radius*sAZ},{subCam.height},{subCam.radius*cAZ}};
+	    	double [][] aT1_cart={{right_cart},        {(height+centerAboveHorizontal)},{forward_cart}}; // {{subCam.radius*sAZ},{subCam.height},{subCam.radius*cAZ}};
+	    	
+	    	double [][] aT1= cartesian ? aT1_cart : aT1_cyl; 
 	    	Matrix T1=new Matrix(aT1);
 	    	
 	/**
@@ -2047,13 +2059,6 @@ dPXmmc/dphi=
 	        lensDistortionParameters.pitch=extrinsicParams[4];
 	        lensDistortionParameters.yaw=  extrinsicParams[3];
 	        lensDistortionParameters.roll= extrinsicParams[5];
-//			lensDistortionParameters.focalLength=parVect[15]; //subCam.focalLength;
-//			lensDistortionParameters.px0=parVect[16]; //subCam.px0;
-//			lensDistortionParameters.py0=parVect[17]; //subCam.py0;
-//			lensDistortionParameters.distortionA5=parVect[18]; //subCam.distortion5;
-//			lensDistortionParameters.distortionA=parVect[19]; //subCam.distortionA;
-//			lensDistortionParameters.distortionB=parVect[20]; //subCam.distortionB;
-//			lensDistortionParameters.distortionC=parVect[21]; //subCam.distortionC;
 
 			lensDistortionParameters.focalLength=parVect[17]; //subCam.focalLength;
 			lensDistortionParameters.px0=parVect[18]; //subCam.px0;
@@ -2068,8 +2073,6 @@ dPXmmc/dphi=
 			
 			lensDistortionParameters.r_xy=new double [6][2];
 			lensDistortionParameters.r_od=new double [7][2];
-// parVect here is o[0],d[0],{x[0],y[0],o[1],d[1]}, {} = same term 			
-			
 			
 			int index=27;
 			for (int i=0;i<lensDistortionParameters.r_od.length;i++){
@@ -2268,10 +2271,13 @@ dPXmmc/dphi=
 
 	Which parameters affect which matrices
 	                                               R1 | R2 | R3 | R4 | R5 | R6 | R7 | R8 || T0 | T1 | T2 | T3 |
-	0    	public double azimuth;              //    |    | +  |    |    |    |    |    ||    | +  |    |    |
-	1    	public double radius;               //    |    |    |    |    |    |    |    ||    | +  |    |    |
+	0    	public double azimuth_cyl;          //    |    | +  |    |    |    |    |    ||    | +  |    |    |
+	1    	public double radius_cyl;           //    |    |    |    |    |    |    |    ||    | +  |    |    |
+	0    	public double right_cart;           //    |    |    |    |    |    |    |    ||    | +  |    |    |
+	1    	public double forward_cart;         //    |    |    |    |    |    |    |    ||    | +  |    |    |
 	2   	public double height;               //    |    |    |    |    |    |    |    ||    | +  |    |    |
-	3   	public double phi;                  //    |    | +  |    |    |    |    |    ||    |    |    |    |
+	3   	public double phi_cyl;              //    |    | +  |    |    |    |    |    ||    |    |    |    |
+	3   	public double head_cart;            //    |    | +  |    |    |    |    |    ||    |    |    |    |
 	4   	public double theta;                //    | +  |    |    |    |    |    |    ||    |    |    |    |
 	5   	public double psi;                  // +  |    |    |    |    |    |    |    ||    |    |    |    |
 	6   	public double goniometerHorizontal; //    |    |    |    |    | +  |    |    ||    |    |    |    |
@@ -2293,41 +2299,70 @@ dPXmmc/dphi=
 	   				System.out.println("calcInterParamers(): parVect["+i+"]="+parVect[i]);
 	   			}
 	   		}
-	//0    	public double azimuth; // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
+	//0    	public double right_cart; // right displacement of the lens entrance pupil center, mm
 	        if (mask[0]) {
-	        	double [][] adR3_azimuth={{-sAZP,0.0,cAZP},{0.0,0.0,0.0},{-cAZP,0.0,-sAZP}};
-	        	Matrix dR3_azimuth=new Matrix(adR3_azimuth);
-//	        	double [][] adT1_azimuth={{radius*cAZ},{height},{-radius*sAZ}}; //{{subCam.radius*cAZ},{subCam.height},{-subCam.radius*sAZ}}
-	        	double [][] adT1_azimuth={{radius*cAZ},{0.0},{-radius*sAZ}}; //{{subCam.radius*cAZ},{subCam.height},{-subCam.radius*sAZ}}
-	        	Matrix dT1_azimuth=new Matrix(adT1_azimuth);
-	        	
-	        	Matrix dMA_azimuth=R8.times(R7.times(R6.times(R5.times(R4.times(dR3_azimuth.times(R2.times(R1)))))));
-	        	Matrix dMB0_azimuth=R8.times(R7.times(R6.times(R5.times(R4.times(dT1_azimuth)))));
-	        	Matrix dMB_azimuth=dMB0_azimuth.plus(dMA_azimuth.times(T0)); // new term
-	        	interParameterDerivatives[0]=d_parametersFromMAMB(dMA_azimuth,dMB_azimuth,MA,MB,true); // all after 6 are 0;
-	    		if (this.debugLevel>2) {
-	    			System.out.println("dMA_azimuth:");
-	    			dMA_azimuth.print(10, 5);
-	    			System.out.println("dMB_azimuth:");
-	    			dMB_azimuth.print(10, 5);
-	    			System.out.println("interParameterDerivatives[0]="+sprintfArray(interParameterDerivatives[0]));
-	    		}
-	        	
+	        	if (cartesian) {
+	        		double [][] adT1_right_cart={{1.0},{0.0},{0.0}};
+	        		Matrix dT1_right_cart=new Matrix(adT1_right_cart);
+		        	Matrix dMA_right_cart=new Matrix(3,3,0.0); // zero
+	        		Matrix dMB_right_cart=R8.times(R7.times(R6.times(R5.times(R4.times(dT1_right_cart)))));
+		        	interParameterDerivatives[0]=d_parametersFromMAMB(dMA_right_cart,dMB_right_cart,MA,MB,false);
+		    		if (this.debugLevel>2) {
+		    			System.out.println("dMA_right_cart:");
+		    			dMA_right_cart.print(10, 5);
+		    			System.out.println("dMB_right_cart:");
+		    			dMB_right_cart.print(10, 5);
+		    			System.out.println("interParameterDerivatives[0]="+sprintfArray(interParameterDerivatives[0]));
+		    		}
+	        	} else {
+    //0    	public double azimuth; // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
+	        		double [][] adR3_azimuth_cyl={{-sAZP,0.0,cAZP},{0.0,0.0,0.0},{-cAZP,0.0,-sAZP}};
+	        		Matrix dR3_azimuth_cyl=new Matrix(adR3_azimuth_cyl);
+	        		double [][] adT1_azimuth_cyl={{radius_cyl*cAZ_cyl},{0.0},{-radius_cyl*sAZ_cyl}}; //{{subCam.radius*cAZ},{subCam.height},{-subCam.radius*sAZ}}
+	        		Matrix dT1_azimuth_cyl=new Matrix(adT1_azimuth_cyl);
+
+	        		Matrix dMA_azimuth_cyl=R8.times(R7.times(R6.times(R5.times(R4.times(dR3_azimuth_cyl.times(R2.times(R1)))))));
+	        		Matrix dMB0_azimuth_cyl=R8.times(R7.times(R6.times(R5.times(R4.times(dT1_azimuth_cyl)))));
+	        		Matrix dMB_azimuth_cyl=dMB0_azimuth_cyl.plus(dMA_azimuth_cyl.times(T0)); // new term
+	        		interParameterDerivatives[0]=d_parametersFromMAMB(dMA_azimuth_cyl,dMB_azimuth_cyl,MA,MB,true); // all after 6 are 0;
+	        		if (this.debugLevel>2) {
+	        			System.out.println("dMA_azimuth_cyl:");
+	        			dMA_azimuth_cyl.print(10, 5);
+	        			System.out.println("dMB_azimuth_cyl:");
+	        			dMB_azimuth_cyl.print(10, 5);
+	        			System.out.println("interParameterDerivatives[0]="+sprintfArray(interParameterDerivatives[0]));
+	        		}
+	        	}
 	        } else interParameterDerivatives[0]=null;
 	//1    	public double radius;  // mm, distance from the rotation axis
 	        if (mask[1]) {
-	        	double [][] adT1_radius={{sAZ},{0.0},{cAZ}}; //{{subCam.radius*sAZ},{0.0},{subCam.radius*cAZ}}
-	        	Matrix dT1_radius=new Matrix(adT1_radius);
-	        	Matrix dMA_radius=new Matrix(3,3,0.0);
-	        	Matrix dMB_radius=R8.times(R7.times(R6.times(R5.times(R4.times(dT1_radius)))));
-	        	interParameterDerivatives[1]=d_parametersFromMAMB(dMA_radius,dMB_radius,MA,MB,false); // all after 6 are 0;
-	    		if (this.debugLevel>2) {
-	    			System.out.println("dMA_radius:");
-	    			dMA_radius.print(10, 5);
-	    			System.out.println("dMB_radius:");
-	    			dMB_radius.print(10, 5);
-	    			System.out.println("interParameterDerivatives[1]="+sprintfArray(interParameterDerivatives[1]));
-	    		}
+	        	if (cartesian) {
+	        		double [][] adT1_forward_cart={{0.0},{0.0},{1.0}}; //{{subCam.radius*sAZ},{0.0},{subCam.radius*cAZ}}
+	        		Matrix dT1_forward_cart=new Matrix(adT1_forward_cart);
+	        		Matrix dMA_forward_cart=new Matrix(3,3,0.0);
+	        		Matrix dMB_forward_cart=R8.times(R7.times(R6.times(R5.times(R4.times(dT1_forward_cart)))));
+	        		interParameterDerivatives[1]=d_parametersFromMAMB(dMA_forward_cart,dMB_forward_cart,MA,MB,false); // all after 6 are 0;
+	        		if (this.debugLevel>2) {
+	        			System.out.println("dMA_forward_cart:");
+	        			dMA_forward_cart.print(10, 5);
+	        			System.out.println("dMB_forward_cart:");
+	        			dMB_forward_cart.print(10, 5);
+	        			System.out.println("interParameterDerivatives[1]="+sprintfArray(interParameterDerivatives[1]));
+	        		}
+	        	} else {
+	        		double [][] adT1_radius_cyl={{sAZ_cyl},{0.0},{cAZ_cyl}}; //{{subCam.radius*sAZ},{0.0},{subCam.radius*cAZ}}
+	        		Matrix dT1_radius_cyl=new Matrix(adT1_radius_cyl);
+	        		Matrix dMA_radius_cyl=new Matrix(3,3,0.0);
+	        		Matrix dMB_radius_cyl=R8.times(R7.times(R6.times(R5.times(R4.times(dT1_radius_cyl)))));
+	        		interParameterDerivatives[1]=d_parametersFromMAMB(dMA_radius_cyl,dMB_radius_cyl,MA,MB,false); // all after 6 are 0;
+	        		if (this.debugLevel>2) {
+	        			System.out.println("dMA_radius_cyl:");
+	        			dMA_radius_cyl.print(10, 5);
+	        			System.out.println("dMB_radius_cyl:");
+	        			dMB_radius_cyl.print(10, 5);
+	        			System.out.println("interParameterDerivatives[1]="+sprintfArray(interParameterDerivatives[1]));
+	        		}
+	        	}
 	        } else interParameterDerivatives[1]=null; 
 	//2   	public double height;       // mm, downwards - from the origin point
 	        if (mask[2]) {
@@ -2345,7 +2380,7 @@ dPXmmc/dphi=
 	    		}
 	        } else interParameterDerivatives[2]=null; 
 	//3   	public double phi;     // degrees, optical axis from azimuth/r vector, clockwise
-	        if (mask[3]) {
+	        if (mask[3]) { // here the same for cartesian
 	        	double [][] adR3_phi={{-sAZP,0.0,cAZP},{0.0,0.0,0.0},{-cAZP,0.0,-sAZP}}; // same as adR3_azimuth
 	        	Matrix dR3_phi=new Matrix(adR3_phi); // same as dR3_azimuth
 	        	Matrix dMA_phi=R8.times(R7.times(R6.times(R5.times(R4.times(dR3_phi.times(R2.times(R1))))))); //same as dMA_azimuth

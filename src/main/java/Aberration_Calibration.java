@@ -411,7 +411,8 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 //    public static double [] defaultGoniometerPosition={0.0, 0.0, 2360};
     public static EyesisCameraParameters EYESIS_CAMERA_PARAMETERS=new EyesisCameraParameters(
     		1,    //int numStations,
-    		true, //false, // boolean isTripod=false; // when true - make goniometerHorizontal rotation around "vertical" axis and "goniometerAxial" - around 
+    		true, //false, // boolean isTripod=false; // when true - make goniometerHorizontal rotation around "vertical" axis and "goniometerAxial" - around
+    		false, //	boolean cartesian,
 	    	0.0, // double goniometerHorizontal, // goniometer rotation around "horizontal" axis (tilting from the target - positive)
 	    	0.0, // double goniometerAxial, // goniometer rotation around Eyesis axis (clockwise in plan - positive 
 			1, // 26, // 1,   // int numSubCameras,
