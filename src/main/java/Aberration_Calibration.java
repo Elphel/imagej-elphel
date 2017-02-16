@@ -3322,7 +3322,7 @@ if (MORE_BUTTONS) {
 		    GenericDialog gd = new GenericDialog("Select sensor number");
 		    gd.addCheckbox("Save all sensors", true);
 			gd.addNumericField("Number of sensor/channel to save calibration (if \"all\" is not selected)", 0,0);
-			gd.addCheckbox("Save non-calibared sensors", false);
+			gd.addCheckbox("Save non-calibrated sensors", false);
 		    gd.showDialog();
 		    if (gd.wasCanceled()) return;
 		    boolean allFiles=gd.getNextBoolean();

@@ -262,7 +262,8 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
         			int nPar=this.parameterList[j][1];
         			int nSub=this.parameterList[j][0];
         			String hconfigName=sSeries+".parameterMode."+
-    				this.distortionCalibrationData.parameterDescriptions[nPar][0]+
+    				this.distortionCalibrationData.parameterDescriptions[nPar][0]+ // here intentionally left parameterDescriptions[][], not descrField
+    				// so switching Cartesian on/off will not make make strategy invalid
     				(this.distortionCalibrationData.isSubcameraParameter(nPar)?("_sub"+nSub):"");
 //        			System.out.println("Setting this.parameterMode["+i+"]["+j+"] from " +hconfigName);
         			if (hConfig.getString(hconfigName)!=null)  this.parameterMode[i][j]=Integer.parseInt(hConfig.getString(hconfigName));

@@ -568,6 +568,10 @@ import org.apache.commons.configuration.XMLConfiguration;
         	}
         	return -1;
         }
+        
+        public int getNumDescriptions(){
+        	return this.parameterDescriptions.length;
+        }
 
 /**
  * Initialize data from scratch using filenames "grid-<timestamp-seconds>_<timestamp-microseconds>-<channel-number>.tiff        

@@ -3318,7 +3318,7 @@ For each point in the image
 	    for (int i=0;i<lensParNames.length;i++)header+="\t"+lensParNames[i];
 	    StringBuffer sb = new StringBuffer();
 	    for (int parNum=0;parNum<this.lensDistortionParameters.getNumInputs();parNum++){
-	    	sb.append(parNum+"\t"+fittingStrategy.distortionCalibrationData.parameterDescriptions[parNum][0]+"\tderivative");
+	    	sb.append(parNum+"\t"+fittingStrategy.distortionCalibrationData.descrField(parNum,0)+"\tderivative");
 	    	for (int i=0;i<lensParNames.length;i++) sb.append("\t"+derivatives_true[parNum][i]);
 	    	sb.append("\n");
 	    	sb.append("\t \tdelta");
@@ -4225,10 +4225,10 @@ List calibration
 			}
 			sb.append("\n");
 			
-			for (int parNumber=0;parNumber<fittingStrategy.distortionCalibrationData.parameterDescriptions.length;parNumber++){
+			for (int parNumber=0;parNumber<fittingStrategy.distortionCalibrationData.getNumDescriptions();parNumber++){
 				sb.append(
-						fittingStrategy.distortionCalibrationData.parameterDescriptions[parNumber][0]+"\t"+
-						fittingStrategy.distortionCalibrationData.parameterDescriptions[parNumber][2]);
+						fittingStrategy.distortionCalibrationData.descrField(parNumber,0)+"\t"+
+						fittingStrategy.distortionCalibrationData.descrField(parNumber,2));
 				for (int imgIndex=0;imgIndex<numImages;imgIndex++){
 					int imgNum=imgIndices[imgIndex]; // image number
 //					sb.append("\t"+IJ.d2s(fittingStrategy.distortionCalibrationData.pars[imgNum][parNumber],3+extraDecimals)); // TODO: make an array of decimals per parameter
@@ -5334,7 +5334,7 @@ List calibration
     	int iState=(state[0]?1:0)+(state[1]?2:0);
     
 	    GenericDialog gd = new GenericDialog("Levenberg-Marquardt algorithm step");
-    	String [][] parameterDescriptions=fittingStrategy.distortionCalibrationData.parameterDescriptions;
+//    	String [][] parameterDescriptions=fittingStrategy.distortionCalibrationData.parameterDescriptions;
     	gd.addMessage("Current state="+states[iState]);
     	gd.addMessage("Iteration step="+this.iterationStepNumber);
     	
@@ -5345,8 +5345,11 @@ List calibration
     			int parNum=fittingStrategy.parameterMap[i][1];
     			int imgNum=fittingStrategy.parameterMap[i][0];
     			double delta= this.nextVector[i] - this.currentVector[i];
-    			gd.addMessage(i+": "+parameterDescriptions[parNum][0]+
-    					"["+imgNum+"]("+parameterDescriptions[parNum][2]+") "+IJ.d2s(this.currentVector[i],3)+
+//    			gd.addMessage(i+": "+parameterDescriptions[parNum][0]+
+//    					"["+imgNum+"]("+parameterDescriptions[parNum][2]+") "+IJ.d2s(this.currentVector[i],3)+
+//    					" + "+IJ.d2s(delta,3)+" = "+IJ.d2s(this.nextVector[i],3));
+    			gd.addMessage(i+": "+fittingStrategy.distortionCalibrationData.descrField(parNum,0)+
+    					"["+imgNum+"]("+fittingStrategy.distortionCalibrationData.descrField(parNum,2)+") "+IJ.d2s(this.currentVector[i],3)+
     					" + "+IJ.d2s(delta,3)+" = "+IJ.d2s(this.nextVector[i],3));
     		}
     	}
@@ -5957,6 +5960,7 @@ List calibration
         // set properties sufficient to un-apply distortions to the image
    		// First - corrections
     	EyesisSubCameraParameters subCam=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[stationNumber][numSensor];
+    	subCam.updateCartesian(); // recalculate other parameters
     	double entrancePupilForward=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.entrancePupilForward[stationNumber];
     	imp.setProperty("VERSION",  "1.0");
     	imp.setProperty("comment_arrays",  "Array corrections from acquired image to radially distorted, in pixels");
@@ -5984,17 +5988,28 @@ List calibration
     	imp.setProperty("px0", ""+subCam.px0);
     	imp.setProperty("py0", ""+subCam.py0);
     	imp.setProperty("comment_azimuth", "lens center azimuth, CW from top, degrees");
-    	imp.setProperty("azimuth", ""+subCam.azimuth);
-    	imp.setProperty("comment_radius", "lens center distance from the camera vertical axis, mm");
-    	imp.setProperty("radius",  ""+subCam.radius);
-    	imp.setProperty("comment_height", "lens center vertical position from the head center, mm");
     	imp.setProperty("height",  ""+subCam.height);
-    	imp.setProperty("comment_heading", "lens heading - added to azimuth");
-    	imp.setProperty("heading",  ""+subCam.phi);
     	imp.setProperty("comment_elevation", "lens elevation from horizontal, positive - above horizon, degrees");
     	imp.setProperty("elevation",  ""+subCam.theta);
     	imp.setProperty("comment_roll", "lens rotation around the lens axis. Positive - CW looking to the target, degrees");
     	imp.setProperty("roll",  ""+subCam.psi);
+
+    	imp.setProperty("comment_cartesian", "Use cartesian coordinates for the sensor in the camera CS (forward, right,aheading), instead of (radius, azimuth, heading)");
+    	imp.setProperty("cartesian",  ""+subCam.cartesian);
+// cartesian parameters
+    	imp.setProperty("comment_forward", "lens forward (towards target) displacement in the camera CS");
+    	imp.setProperty("forward",  ""+subCam.forward);
+    	imp.setProperty("comment_right", "lens right (looking towards target) displacement in the camera CS");
+    	imp.setProperty("right",  ""+subCam.right);
+    	imp.setProperty("comment_aheading", "lens axis horizontal direction, degrees. Positive - CW from the target (looking from top)");
+    	imp.setProperty("aheading",  ""+subCam.heading);
+// cylindrical parameters
+    	imp.setProperty("azimuth", ""+subCam.azimuth);
+    	imp.setProperty("comment_radius", "lens center distance from the camera vertical axis, mm");
+    	imp.setProperty("radius",  ""+subCam.radius);
+    	imp.setProperty("comment_height", "lens center vertical position from the head center, mm");
+    	imp.setProperty("comment_heading", "lens heading - added to azimuth");
+    	imp.setProperty("heading",  ""+subCam.phi);
 
     	imp.setProperty("comment_channel", "number of the sensor (channel) in the camera");
     	imp.setProperty("channel",  ""+numSensor);
@@ -6173,6 +6188,18 @@ List calibration
         	if (imp.getProperty("heading")  !=null) subCam.phi=     Double.parseDouble((String) imp.getProperty("heading"));
         	if (imp.getProperty("elevation")!=null) subCam.theta=   Double.parseDouble((String) imp.getProperty("elevation"));
         	if (imp.getProperty("roll")!=null) subCam.psi=          Double.parseDouble((String) imp.getProperty("roll"));
+        	
+        	if (imp.getProperty("forward")  !=null) subCam.forward=  Double.parseDouble((String) imp.getProperty("forward"));
+        	if (imp.getProperty("right")    !=null) subCam.right=    Double.parseDouble((String) imp.getProperty("right"));
+        	if (imp.getProperty("aheading") !=null) subCam.heading= Double.parseDouble((String) imp.getProperty("aheading"));
+        	
+        	if (imp.getProperty("cartesian") !=null) {
+        		subCam.cartesian= Boolean.parseBoolean((String) imp.getProperty("cartesian"));
+        		subCam.updateCartesian(); // recalculate other parameters (they may or may nort be provided
+        	} else {
+        		subCam.cartesian = false;
+        	}
+       	
         	// Update intrinsic image parameters        
         	this.lensDistortionParameters.pixelSize=subCam.pixelSize;
         	this.lensDistortionParameters.distortionRadius=subCam.distortionRadius;
@@ -9406,12 +9433,12 @@ M * V = B
     	String [] parameterUnits;
     	
     	if (useActualParameters) {
-    		parameterNames=new String[fittingStrategy.distortionCalibrationData.parameterDescriptions.length];
-    		parameterUnits=new String[fittingStrategy.distortionCalibrationData.parameterDescriptions.length];
+    		parameterNames=new String[fittingStrategy.distortionCalibrationData.getNumDescriptions()];
+    		parameterUnits=new String[fittingStrategy.distortionCalibrationData.getNumDescriptions()];
     		for (int i=0;i<parameterNames.length;i++){
     			// TODO: move to DdistortionCalibrationData methods()
-    			parameterNames[i]=fittingStrategy.distortionCalibrationData.parameterDescriptions[i][0];
-    			parameterUnits[i]=fittingStrategy.distortionCalibrationData.parameterDescriptions[i][2];
+    			parameterNames[i]=fittingStrategy.distortionCalibrationData.descrField(i,0);
+    			parameterUnits[i]=fittingStrategy.distortionCalibrationData.descrField(i,2);
     		}
     	} else {
     		parameterNames=lensDistortionParameters.getAllNames();
