@@ -701,8 +701,10 @@ public class ImageDtt {
 						chn=nTile/nTilesInChn;
 						tileY =(nTile % nTilesInChn)/tilesX;
 						tileX = nTile % tilesX;
-						centerX = tileX * transform_size - transform_size/2 - shiftX;
-						centerY = tileY * transform_size - transform_size/2 - shiftY;
+//						centerX = tileX * transform_size - transform_size/2 - shiftX;
+//						centerY = tileY * transform_size - transform_size/2 - shiftY;
+						centerX = tileX * transform_size + transform_size/2 - shiftX;
+						centerY = tileY * transform_size + transform_size/2 - shiftY;
 
 						double [] fract_shiftXY = extract_correct_tile( // return a pair of resudual offsets
 								imade_data,
@@ -715,10 +717,10 @@ public class ImageDtt {
 								chn,                              
 								centerX, // center of aberration-corrected (common model) tile, X
 								centerY, //
-								(globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2), // external tile compare
+								(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2), // external tile compare
 								no_deconvolution,
 								transpose);
-						if ((globalDebugLevel > -1) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (chn == 2)) {
+						if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (chn == 2)) {
 							showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 							String [] titles = {"CC","SC","CS","SS"};
 							sdfa_instance.showArrays(clt_data[chn][tileY][tileX],  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
@@ -740,7 +742,7 @@ public class ImageDtt {
 //									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
 									((globalDebugLevel > 0) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
 											(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));									
-							if ((globalDebugLevel > -1) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
+							if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
 								showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"CC","SC","CS","SS"};
 								sdfa_instance.showArrays(clt_data[chn][tileY][tileX],  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY, titles);
@@ -863,10 +865,12 @@ public class ImageDtt {
 		final int tilesY=dct_data.length;
 		final int tilesX=dct_data[0].length;
 
-		final int width=  (tilesX+1)*dct_size;
-		final int height= (tilesY+1)*dct_size;
+//		final int width=  (tilesX+1)*dct_size;
+//		final int height= (tilesY+1)*dct_size;
+		final int width=  tilesX * dct_size;
+		final int height= tilesY * dct_size;
 		final double debug_scale = 1.0 /((debug_mask & 1) + ((debug_mask >> 1) & 1) + ((debug_mask >> 2) & 1) + ((debug_mask >> 3) & 1));
-		if (globalDebugLevel > 0) {
+		if (globalDebugLevel > -1) {
 			System.out.println("iclt_2d():tilesX=        "+tilesX);
 			System.out.println("iclt_2d():tilesY=        "+tilesY);
 			System.out.println("iclt_2d():width=         "+width);
@@ -903,6 +907,10 @@ public class ImageDtt {
 						double [] tile_mdct;
 						int tileY,tileX;
 						int n2 = dct_size * 2;
+						int n_half = dct_size / 2;
+						int lastY = tilesY-1;
+						int lastX = tilesX-1;
+						int offset = n_half * (dct_size * tilesX) + n_half; 
 						for (int nTile = ai.getAndIncrement(); nTile < tiles_list[nser.get()].length; nTile = ai.getAndIncrement()) {
 							tileX = tiles_list[nser.get()][nTile][0];
 							tileY = tiles_list[nser.get()][nTile][1];
@@ -916,11 +924,30 @@ public class ImageDtt {
 									tile_dct = dtt.dttt_iv  (tile_in, idct_mode, dct_size);
 								}
 								tile_mdct = dtt.unfold_tile(tile_dct, dct_size, dct_mode); // mode=0 - DCCT
-								for (int i = 0; i < n2;i++){
-									int start_line = ((tileY*dct_size + i) *(tilesX+1) + tileX)*dct_size; 
-									for (int j = 0; j<n2;j++) {
-										dpixels[start_line + j] += debug_scale * tile_mdct[n2 * i + j]; // add (cc+sc+cs+ss)/4 
+								if ((tileY >0) && (tileX > 0) && (tileY < lastY) && (tileX < lastX)) { // fast, no extra checks
+									for (int i = 0; i < n2;i++){
+										//									int start_line = ((tileY*dct_size + i) *(tilesX+1) + tileX)*dct_size; 
+										int start_line = ((tileY*dct_size + i) * tilesX + tileX)*dct_size - offset; 
+										for (int j = 0; j<n2;j++) {
+											dpixels[start_line + j] += debug_scale * tile_mdct[n2 * i + j]; // add (cc+sc+cs+ss)/4 
+										}
 									}
+								} else { // be careful with margins
+									for (int i = 0; i < n2;i++){
+										if (	((tileY > 0) && (tileY < lastY)) ||
+												((tileY == 0) && (i >= n_half)) ||
+												((tileY == lastY) && (i < (n2 - n_half)))) {
+											int start_line = ((tileY*dct_size + i) * tilesX + tileX)*dct_size  - offset; 
+											for (int j = 0; j<n2;j++) {
+												if (	((tileX > 0) && (tileX < lastX)) ||
+														((tileX == 0) && (j >= n_half)) ||
+														((tileX == lastX) && (j < (n2 - n_half)))) {
+													dpixels[start_line + j] += debug_scale * tile_mdct[n2 * i + j]; // add (cc+sc+cs+ss)/4
+												}
+											}
+										}
+									}
+
 								}
 							}
 						}

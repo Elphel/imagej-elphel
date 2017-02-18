@@ -1873,16 +1873,16 @@ public class EyesisCorrectionParameters {
   		public int        clt_window =          1; // currently only 3 types of windows - 0 (none), 1 and 2
   		public double     shift_x =           0.0;
   		public double     shift_y =           0.0;
-  		public int        iclt_mask =          15; // which transforms to combine
-  		public int        tileX =             258; // number of kernel tile (0..163) 
-  		public int        tileY =             133; // number of kernel tile (0..122)
-  		public int        dbg_mode =            0; // 0 - normal, +1 - no DCT/IDCT
-  		public int        ishift_x =            0; // debug feature - shift source image by this pixels left
-  		public int        ishift_y =            0; // debug feature - shift source image by this pixels down
-  		public double     fat_zero =          0.0; // modify phase correlation to prevent division by very small numbers
-  		public double     corr_sigma =        0.8; // LPF correlarion sigma
+  		public int        iclt_mask =          15;  // which transforms to combine
+  		public int        tileX =             258;  // number of kernel tile (0..163) 
+  		public int        tileY =             133;  // number of kernel tile (0..122)
+  		public int        dbg_mode =            0;  // 0 - normal, +1 - no DCT/IDCT
+  		public int        ishift_x =            0;  // debug feature - shift source image by this pixels left
+  		public int        ishift_y =            0;  // debug feature - shift source image by this pixels down
+  		public double     fat_zero =          0.0;  // modify phase correlation to prevent division by very small numbers
+  		public double     corr_sigma =        0.8;  // LPF correlarion sigma
   		public boolean    norm_kern =         true; // normalize kernels
-  		
+  		public boolean    gains_equalize =    true; // equalize channel color gains among all cameras
   		public double     novignetting_r    = 0.2644; // reg gain in the center of sensor calibration R (instead of vignetting)
   		public double     novignetting_g    = 0.3733; // green gain in the center of sensor calibration G
   		public double     novignetting_b    = 0.2034; // blue gain in the center of sensor calibration B
@@ -1908,9 +1908,11 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"fat_zero",         this.fat_zero+"");
   			properties.setProperty(prefix+"corr_sigma",       this.corr_sigma+"");
 			properties.setProperty(prefix+"norm_kern",        this.norm_kern+"");
+			properties.setProperty(prefix+"gains_equalize",   this.gains_equalize+"");
   			properties.setProperty(prefix+"novignetting_r",   this.novignetting_r+"");
   			properties.setProperty(prefix+"novignetting_g",   this.novignetting_g+"");
   			properties.setProperty(prefix+"novignetting_b",   this.novignetting_b+"");
+  			
   			properties.setProperty(prefix+"scale_r",          this.scale_r+"");
   			properties.setProperty(prefix+"scale_g",          this.scale_g+"");
   			properties.setProperty(prefix+"scale_b",          this.scale_b+"");
@@ -1933,6 +1935,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"fat_zero")!=null)       this.fat_zero=Double.parseDouble(properties.getProperty(prefix+"fat_zero"));
   			if (properties.getProperty(prefix+"corr_sigma")!=null)     this.corr_sigma=Double.parseDouble(properties.getProperty(prefix+"corr_sigma"));
   			if (properties.getProperty(prefix+"norm_kern")!=null)      this.norm_kern=Boolean.parseBoolean(properties.getProperty(prefix+"norm_kern"));
+  			if (properties.getProperty(prefix+"gains_equalize")!=null) this.gains_equalize=Boolean.parseBoolean(properties.getProperty(prefix+"gains_equalize"));
   			if (properties.getProperty(prefix+"novignetting_r")!=null) this.novignetting_r=Double.parseDouble(properties.getProperty(prefix+"novignetting_r"));
   			if (properties.getProperty(prefix+"novignetting_g")!=null) this.novignetting_g=Double.parseDouble(properties.getProperty(prefix+"novignetting_g"));
   			if (properties.getProperty(prefix+"novignetting_b")!=null) this.novignetting_b=Double.parseDouble(properties.getProperty(prefix+"novignetting_b"));
@@ -1959,6 +1962,7 @@ public class EyesisCorrectionParameters {
    			gd.addNumericField("Modify phase correlation to prevent division by very small numbers",      this.fat_zero,                  4);
    			gd.addNumericField("LPF correlarion sigma ",                                                  this.corr_sigma,                3);
   			gd.addCheckbox    ("Normalize kernels ",                                                      this.norm_kern);
+  			gd.addCheckbox    ("Equalize gains between channels",                                         this.gains_equalize);
   			gd.addNumericField("Reg gain in the center of sensor calibration R (instead of vignetting)",  this.novignetting_r,   4);
   			gd.addNumericField("Green gain in the center of sensor calibration G (instead of vignetting)",this.novignetting_g, 4);
   			gd.addNumericField("Blue gain in the center of sensor calibration B (instead of vignetting)", this.novignetting_b,  4);
@@ -1986,6 +1990,7 @@ public class EyesisCorrectionParameters {
   			this.fat_zero =             gd.getNextNumber();
   			this.corr_sigma =           gd.getNextNumber();
   			this.norm_kern=             gd.getNextBoolean();
+  			this.gains_equalize=        gd.getNextBoolean();
   			this.novignetting_r=        gd.getNextNumber();
   			this.novignetting_g=        gd.getNextNumber();
   			this.novignetting_b=        gd.getNextNumber();
