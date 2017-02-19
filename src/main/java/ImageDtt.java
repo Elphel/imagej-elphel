@@ -757,6 +757,141 @@ public class ImageDtt {
 	}
 
 
+	public double [][][][][][] clt_aberrations_quad(
+			final double              disparity,
+			final double [][][]       imade_data, // first index - number of image in a quad
+			final int                 width,
+			final GeometryCorrection  geometryCorrection,
+			final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+			final int                 kernel_step,
+			final int                 transform_size,
+			final int                 window_type,
+			final double              shiftX, // shift image horizontally (positive - right) - just for testing
+			final double              shiftY, // shift image vertically (positive - down)
+			final int                 debug_tileX,
+			final int                 debug_tileY,
+			final boolean             no_fract_shift,
+			final boolean             no_deconvolution,
+			final boolean             transpose,
+			final int                 threadsMax,  // maximal number of threads to launch                         
+			final int                 globalDebugLevel)
+	{
+		final int quad = 4;
+		final int nChn = imade_data[0].length;
+		final int height=imade_data[0][0].length/width;
+		final int tilesX=width/transform_size;
+		final int tilesY=height/transform_size;
+		final int nTilesInChn=tilesX*tilesY; 
+		final int nTiles=tilesX*tilesY*nChn; 
+		final double [][][][][][] clt_data = new double[quad][nChn][tilesY][tilesX][4][];
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		
+		double [][] centersXY_dbg = geometryCorrection.getPortsCoordinates(
+				0.0, // centerX,
+				0.0, // centerY,
+				disparity);
+		
+		
+		
+		
+		if (globalDebugLevel > 0) {
+			System.out.println("clt_aberrations(): width="+width+" height="+height+" transform_size="+transform_size+
+					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
+		}
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					DttRad2 dtt = new DttRad2(transform_size);
+					dtt.set_window(window_type);
+					int tileY,tileX, chn;
+					//						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+					double centerX; // center of aberration-corrected (common model) tile, X
+					double centerY; //
+					double [][] fract_shiftsXY = new double[quad][];
+
+					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
+						// TODO: make all color channels to be processed here (atomically)
+						chn=nTile/nTilesInChn;
+						tileY =(nTile % nTilesInChn)/tilesX;
+						tileX = nTile % tilesX;
+						centerX = tileX * transform_size + transform_size/2 - shiftX;
+						centerY = tileY * transform_size + transform_size/2 - shiftY;
+						double [][] centersXY = geometryCorrection.getPortsCoordinates(
+								centerX,
+								centerY,
+								disparity);
+						if ((globalDebugLevel > -1) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
+								(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)) {
+							for (int i = 0; i < quad; i++) {
+							System.out.println("clt_aberrations_quad(): color="+chn+", tileX="+tileX+", tileY="+tileY+
+									" centerX="+centerX+" centerY="+centerY+" disparity="+disparity+
+									" centersXY["+i+"][0]="+centersXY[i][0]+" centersXY["+i+"][1]="+centersXY[i][1]);
+							}
+						}
+						
+						for (int i = 0; i < quad; i++) {
+							fract_shiftsXY[i] = extract_correct_tile( // return a pair of resudual offsets
+									imade_data[i],
+									width,       // image width
+									clt_kernels[i], // [color][tileY][tileX][band][pixel]
+									clt_data[i][chn][tileY][tileX], //double  [][]        clt_tile,    // should be double [4][];
+									kernel_step,
+									transform_size,
+									dtt, 
+									chn,                              
+									centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
+									centersXY[i][1], // centerY, //
+									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2), // external tile compare
+									no_deconvolution,
+									transpose);
+						}
+						if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (chn == 2)) {
+							showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+							String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
+							double [][] dbg_tile = new double [16][];
+							for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][chn][tileY][tileX][i & 3];   
+							sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
+						}
+						
+						if ((globalDebugLevel > -1) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
+								(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)) {
+							for (int i = 0; i < quad; i++) {
+							System.out.println("clt_aberrations_quad(): color="+chn+", tileX="+tileX+", tileY="+tileY+
+									" fract_shiftsXY["+i+"][0]="+fract_shiftsXY[i][0]+" fract_shiftsXY["+i+"][1]="+fract_shiftsXY[i][1]);
+							}
+						}
+						
+						if (!no_fract_shift) {
+							// apply residual shift
+							for (int i = 0; i < quad; i++) {
+								fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
+										clt_data[i][chn][tileY][tileX], // double  [][]  clt_tile,
+										transform_size,
+										fract_shiftsXY[i][0],            // double        shiftX,
+										fract_shiftsXY[i][1],            // double        shiftY,
+										//									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
+										((globalDebugLevel > 0) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
+												(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));									
+							}
+							if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
+								showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+								String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
+								double [][] dbg_tile = new double [16][];
+								for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][chn][tileY][tileX][i & 3];   
+								sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY, titles);
+							}
+						}
+					}
+				}
+			};
+		}		      
+		startAndJoin(threads);
+		return clt_data;
+	}
+
+	
+	
 	
 	
 	

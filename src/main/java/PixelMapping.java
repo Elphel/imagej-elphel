@@ -15584,7 +15584,13 @@ public class PixelMapping {
 	    public int    subcamera= -1;
 	    public int    subchannel=-1;
 	    public int    sensor_port=-1;
-	    // TODO: add serial# (and temperature?)
+
+// Following 4 parameters are not included in the vector, names, descriptions
+	    public boolean cartesian = false; // cartesian coordinates mode (false - cylindrical)
+    	public double right;   // distance to the right (radius*sin(azimuth))
+    	public double forward; // distance forward (radius*cos(azimuth))
+    	public double heading;   // absolute heading in degrees (used in cartesian mode)
+	    
     	public double azimuth; // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     	public double radius;  // mm, distance from the rotation axis
     	public double height;       // mm, up - from the origin point
@@ -16266,8 +16272,33 @@ public class PixelMapping {
 				if (imp.getProperty("r_od_"+i+"_o")  !=null) this.r_od[i][0]= Double.parseDouble((String) imp.getProperty("r_od_"+i+"_o"));
 				if (imp.getProperty("r_od_"+i+"_d")  !=null) this.r_od[i][1]= Double.parseDouble((String) imp.getProperty("r_od_"+i+"_d"));
 			}
-
+			
+        	if (imp.getProperty("forward")  !=null) this.forward=  Double.parseDouble((String) imp.getProperty("forward"));
+        	if (imp.getProperty("right")    !=null) this.right=    Double.parseDouble((String) imp.getProperty("right"));
+        	if (imp.getProperty("aheading") !=null) this.heading=  Double.parseDouble((String) imp.getProperty("aheading"));
+			
+        	if (imp.getProperty("cartesian") !=null) {
+        		this.cartesian= Boolean.parseBoolean((String) imp.getProperty("cartesian"));
+        		updateCartesian(); // recalculate other parameters (they may or may nort be provided
+        	} else {
+        		this.cartesian = false;
+        	}
 	    }
+	    
+    	public void updateCartesian(){ // set alternative parameters
+    		if (cartesian) {
+    			this.azimuth = Math.atan2(this.right, this.forward)*180.0/Math.PI;
+    			this.radius = Math.sqrt(this.forward*this.forward + this.right*this.right);
+    			this.phi = this.heading - this.azimuth; 
+    		} else {
+    			this.forward = this.radius * Math.cos(Math.PI*this.azimuth/180.0); 
+    			this.right =   this.radius * Math.sin(Math.PI*this.azimuth/180.0); 
+    			this.heading = this.phi +  this.azimuth;
+    		}
+    	}
+	    
+	    
+	    
 	    /**
 	     * Calculate rotation matrix that converts sensor coordinates to world coordinates 
 	     * @return 3x3 rotation matrix

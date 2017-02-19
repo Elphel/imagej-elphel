@@ -1892,6 +1892,7 @@ public class EyesisCorrectionParameters {
   		public double     vignetting_max    = 0.4; // value in vignetting data to correspond to 1x in the kernel
   		public double     vignetting_range  = 5.0; // do not try to correct vignetting less than vignetting_max/vignetting_range
   		public int        kernel_step =       16;  // source kernels step in pixels (have 1 kernel margin on each side)  
+  		public double     disparity  =        0.0; // nominal disparity between side of square cameras (pix) 
   		
   		public CLTParameters(){}
   		public void setProperties(String prefix,Properties properties){
@@ -1919,6 +1920,7 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"vignetting_max",   this.vignetting_max+"");
   			properties.setProperty(prefix+"vignetting_range", this.vignetting_range+"");
   			properties.setProperty(prefix+"kernel_step",      this.kernel_step+"");
+  			properties.setProperty(prefix+"disparity",        this.disparity +"");
   			
   		}
   		public void getProperties(String prefix,Properties properties){
@@ -1945,6 +1947,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"vignetting_max")!=null) this.vignetting_max=Double.parseDouble(properties.getProperty(prefix+"vignetting_max"));
   			if (properties.getProperty(prefix+"vignetting_range")!=null) this.vignetting_range=Double.parseDouble(properties.getProperty(prefix+"vignetting_range"));
   			if (properties.getProperty(prefix+"kernel_step")!=null)    this.kernel_step=Integer.parseInt(properties.getProperty(prefix+"kernel_step"));
+  			if (properties.getProperty(prefix+"disparity")!=null)      this.disparity=Double.parseDouble(properties.getProperty(prefix+"disparity"));
   		}
   		
   		public boolean showDialog() {
@@ -1972,6 +1975,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Value (max) in vignetting data to correspond to 1x in the kernel",        this.vignetting_max,      3);
   			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",      this.vignetting_range,  3);
   			gd.addNumericField("Kernel step in pixels (has 1 kernel margin on each side)",                this.kernel_step,            0);
+  			gd.addNumericField("Nominal (rectilinear) disparity between side of square cameras (pix)",    this.disparity,  3);
    			
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
@@ -2000,6 +2004,7 @@ public class EyesisCorrectionParameters {
   			this.vignetting_max=        gd.getNextNumber();
   			this.vignetting_range=      gd.getNextNumber();
   			this.kernel_step=     (int) gd.getNextNumber();
+  			this.disparity=             gd.getNextNumber();
   			
   			return true;
   		}

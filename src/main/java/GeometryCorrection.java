@@ -114,6 +114,7 @@ public class GeometryCorrection {
 			double      heading,    // NaN - keep
 			double []   forward,    // null - keep all, NaN - keep individual
 			double []   right,      // null - keep all, NaN - keep individual
+			double []   height,      // null - keep all, NaN - keep individual
 			double []   roll,       // null - keep all, NaN - keep individual
 			double [][] pXY0){      // null - keep all, [] null - keep individual
 
@@ -134,6 +135,14 @@ public class GeometryCorrection {
 			}
 			if ((this.right == null) || (this.right.length != numSensors)) this.right = new double [numSensors];
 			for (int i = 0; i < numSensors; i++) if (!Double.isNaN(right[i]))      this.right[i] = right[i];
+		}
+
+		if (height != null){
+			if (height.length != numSensors){
+				throw new IllegalArgumentException ("height.length ("+height.length+") != numSensors ("+numSensors+")");
+			}
+			if ((this.height == null) || (this.height.length != numSensors)) this.height = new double [numSensors];
+			for (int i = 0; i < numSensors; i++) if (!Double.isNaN(height[i]))      this.height[i] = height[i];
 		}
 
 		if (roll != null){
@@ -244,10 +253,61 @@ public class GeometryCorrection {
 			for (int j = 0; j<2;j++) this.rXY[i][j] = this.XYZ_her[i][j]/this.disparityRadius; 
 		}
 	}
+	
+	public void listGeometryCorrection(boolean showAll){
+		System.out.println("'=== Constant parameters ===");
+		System.out.println("pixelCorrectionWidth =\t"+  pixelCorrectionWidth+"\tpix");
+		System.out.println("pixelCorrectionHeight =\t"+ pixelCorrectionHeight+"\tpix");
+		System.out.println("pixelSize =\t"+             pixelSize+"\tum");
+		System.out.println("distortionRadius =\t"+      distortionRadius+"\tmm");
+		System.out.println("'=== Common input parameters ===");
+		System.out.println("focalLength =\t"+  focalLength + " mm");
+		System.out.println("distortionA8 =\t"+ distortionA8);
+		System.out.println("distortionA7 =\t"+ distortionA7);
+		System.out.println("distortionA6 =\t"+ distortionA6);
+		System.out.println("distortionA5 =\t"+ distortionA5);
+		System.out.println("distortionA =\t"+  distortionA);
+		System.out.println("distortionB =\t"+  distortionB);
+		System.out.println("distortionC =\t"+  distortionC);
+		System.out.println("elevation =\t"+    elevation+"\tdegrees");
+		System.out.println("heading =\t"+      heading+"\tdegrees");
+		System.out.println("numSensors =\t"+   numSensors);
+		System.out.println("'=== Individual input parameters ===");
+		System.out.print  ("forward = ");for (int i = 0; i < numSensors;i++) System.out.print("\t"+forward[i]); System.out.println("\tmm");
+		System.out.print  ("right = ");  for (int i = 0; i < numSensors;i++) System.out.print("\t"+right[i]);   System.out.println("\tmm");
+		System.out.print  ("height = "); for (int i = 0; i < numSensors;i++) System.out.print("\t"+height[i]);  System.out.println("\tmm");
+		System.out.print  ("roll = ");   for (int i = 0; i < numSensors;i++) System.out.print("\t"+roll[i]);      System.out.println("\tdegrees");
+		System.out.print  ("px0 = ");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+pXY0[i][0]);  System.out.println("\tpix");
+		System.out.print  ("py0 = ");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+pXY0[i][1]);  System.out.println("\tpix");
+		
+		System.out.println("'=== Common calculated parameters ===");
+		System.out.println("common_right =\t"+common_right + "\tmm");
+		System.out.println("common_forward =\t"+common_forward + "\tmm");
+		System.out.println("common_height =\t"+common_height + "\tmm");
+		System.out.println("common_roll =\t"+common_roll + "\tdegrees");
+		System.out.println("cameraRadius =\t"+cameraRadius + "\tmm");
+		System.out.println("disparityRadius =\t"+disparityRadius + "\tmm");
+
+		if (showAll){
+			System.out.println("'=== Intermediate data: coordinates corrected for common elevation and heading ===");
+			System.out.print  ("X_he =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_he[i][0]);  System.out.println("\tmm");
+			System.out.print  ("Y_he =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_he[i][1]);  System.out.println("\tmm");
+			System.out.print  ("Z_he =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_he[i][2]);  System.out.println("\tmm");
+			System.out.println("'=== Intermediate data: coordinates corrected for common elevation, heading and roll ===");
+			System.out.print  ("X_her =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_her[i][0]);  System.out.println("\tmm");
+			System.out.print  ("Y_her =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_her[i][1]);  System.out.println("\tmm");
+			System.out.print  ("Z_her =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_her[i][2]);  System.out.println("\tmm");
+		}
+		
+		System.out.println("'=== Individual calculated parameters ===");
+		System.out.print  ("residual_roll = ");   for (int i = 0; i < numSensors;i++) System.out.print("\t"+(roll[i]-common_roll));System.out.println("\tdegrees");
+		System.out.print  ("X_rel =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+rXY[i][0]);  System.out.println("\trelative to disparityRadius");
+		System.out.print  ("Y_rel =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+rXY[i][1]);  System.out.println("\trelative to disparityRadius");
+	}
 
 	// return distance from disparity (in pixel units) for the current camera geometry
 	public double getZFromDisparity(double disparity){
-		return disparity * this.focalLength * this.pixelSize / this.disparityRadius;
+		return disparity * this.focalLength * 0.001*this.pixelSize / this.disparityRadius;
 	}
 
 	/*
@@ -263,8 +323,8 @@ public class GeometryCorrection {
 		double [][] pXY = new double [numSensors][2];
 		double pXcd = px - 0.5 * this.pixelCorrectionWidth;
 		double pYcd = py - 0.5 * this.pixelCorrectionHeight;
-		double rD = Math.sqrt(pXcd*pXcd + pYcd*pYcd); // distorted radius in a virtual center camera
-		double rND2R=getRByRDist(rD/this.distortionRadius, (debugLevel > 1));
+		double rD = Math.sqrt(pXcd*pXcd + pYcd*pYcd)*0.001*this.pixelSize; // distorted radius in a virtual center camera
+		double rND2R=getRByRDist(rD/this.distortionRadius, (debugLevel > -1));
 		double pXc = pXcd * rND2R; // non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
 		double pYc = pYcd * rND2R; // in pixels
 		double [] a={this.distortionC,this.distortionB,this.distortionA,this.distortionA5,this.distortionA6,this.distortionA7,this.distortionA8};
@@ -275,7 +335,7 @@ public class GeometryCorrection {
 			// calculate back to distorted
 			double rNDi = Math.sqrt(pXci*pXci + pYci*pYci); // in pixels
 			//		Rdist/R=A8*R^7+A7*R^6+A6*R^5+A5*R^4+A*R^3+B*R^2+C*R+(1-A6-A7-A6-A5-A-B-C)");
-			double ri = rNDi* this.pixelSize / this.distortionRadius; // relative to distortion radius
+			double ri = rNDi* 0.001 * this.pixelSize / this.distortionRadius; // relative to distortion radius
 			//    		double rD2rND = (1.0 - distortionA8 - distortionA7 - distortionA6 - distortionA5 - distortionA - distortionB - distortionC);
 			double rD2rND = 1.0;
 			double rri = 1.0;
@@ -286,8 +346,8 @@ public class GeometryCorrection {
 			double pXid = pXci * rD2rND;  
 			double pYid = pYci * rD2rND;
 			// individual rotate (check sign)
-			double c_roll = Math.cos(this.roll[i] * Math.PI/180.0);
-			double s_roll = Math.sin(this.roll[i] * Math.PI/180.0);
+			double c_roll = Math.cos((this.roll[i] - this.common_roll) * Math.PI/180.0);
+			double s_roll = Math.sin((this.roll[i] - this.common_roll) * Math.PI/180.0);
 			pXY[i][0] =  c_roll *  pXid + s_roll* pYid + this.pXY0[i][0];
 			pXY[i][1] = -s_roll *  pXid + c_roll* pYid + this.pXY0[i][1];
 		}
