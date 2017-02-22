@@ -163,11 +163,17 @@ public class PolynomialApproximation {
 
 		
 	}
+
 	  public double[] quadraticMax2d (double [][][] data){
 		  return quadraticMax2d (data,1.0E-15);
 	  }
-	  public double[] quadraticMax2d (double [][][] data,double thresholdQuad){
-		  double [][] coeff=quadraticApproximation(data, false);
+
+	  public double[] quadraticMax2d (double [][][] data, double thresholdQuad){
+		  return quadraticMax2d (data,thresholdQuad, debugLevel);
+	  }
+
+	  public double[] quadraticMax2d (double [][][] data,double thresholdQuad, int debugLevel){
+		  double [][] coeff=quadraticApproximation(data, false, 1.0E-20,  thresholdQuad,debugLevel);
 		  if (coeff==null) return null;
 		  if (coeff[0].length<6) return null;
 		  double [][] aM={
@@ -203,28 +209,55 @@ public class PolynomialApproximation {
 	 * returns null if not enough data even for the linear approximation
 	 
 	 */
-	
 	   public double [][] quadraticApproximation(
 			   double [][][] data,
-			   boolean forceLinear  // use linear approximation
+			   boolean forceLinear)  // use linear approximation
+			   {
+		   return  quadraticApproximation(
+				   data,
+				   forceLinear,  // use linear approximation
+				   1.0E-10,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail) 11.0E-10 failed where it shouldn't?
+				   1.0E-15,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+				   this.debugLevel);
+			   }
+	   public double [][] quadraticApproximation(
+			   double [][][] data,
+			   boolean forceLinear,  // use linear approximation
+			   int debugLevel
 			   ){
 		   return  quadraticApproximation(
 				   data,
 				   forceLinear,  // use linear approximation
 				   1.0E-10,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail) 11.0E-10 failed where it shouldn't?
-				   1.0E-15);  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+				   1.0E-15,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+				   debugLevel);
 /*				   
 				   1.0E-12,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail) 11.0E-10 failed where it shouldn't?
 				   1.0E-20);  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
 */				   
 	   }
-		   public double [][] quadraticApproximation(
+	   public double [][] quadraticApproximation(
+			   double [][][] data,
+			   boolean forceLinear,  // use linear approximation
+			   double thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
+			   double thresholdQuad)  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+			   {
+		   return  quadraticApproximation(
+				   data,
+				   forceLinear,  // use linear approximation
+				   1.0E-10,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail) 11.0E-10 failed where it shouldn't?
+				   1.0E-15,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+				   this.debugLevel);
+	   }
+	   
+	   public double [][] quadraticApproximation(
 				   double [][][] data,
 				   boolean forceLinear,  // use linear approximation
 				   double thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
-				   double thresholdQuad  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+				   double thresholdQuad,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+				   int debugLevel
 				   ){
-			   if (this.debugLevel>3) System.out.println("quadraticApproximation(...), debugLevel="+this.debugLevel+":");
+			   if (debugLevel>3) System.out.println("quadraticApproximation(...), debugLevel="+debugLevel+":");
 	/* ix, iy - the location of the point with maximal value. We'll approximate the vicinity of that maximum using a
 	 * second degree polynomial:
 	   Z(x,y)~=A*x^2+B*y^2+C*x*y+D*x+E*y+F
@@ -365,7 +398,7 @@ public class PolynomialApproximation {
 					   {S10,S01,S00}};
 			   Matrix M=new Matrix (mAarrayL);
 			   Matrix Z;
-	 	   	   if (this.debugLevel>3) System.out.println(">>> n="+n+" det_lin="+M.det()+" norm_lin="+normMatix(mAarrayL));
+	 	   	   if (debugLevel>3) System.out.println(">>> n="+n+" det_lin="+M.det()+" norm_lin="+normMatix(mAarrayL));
 	 	   	   double nmL=normMatix(mAarrayL);
 			   if ((nmL==0.0) || (Math.abs(M.det())/nmL<thresholdLin)){
 // return average value for each channel
@@ -398,10 +431,17 @@ public class PolynomialApproximation {
 					   {S21,S03,S12,S11,S02,S01},
 					   {S20,S02,S11,S10,S01,S00}};
 			   M=new Matrix (mAarrayQ);
-	 	   	   if (debugLevel>3) System.out.println("    n="+n+" det_quad="+M.det()+" norm_quad="+normMatix(mAarrayQ)+" data.length="+data.length);
+	 	   	   if (debugLevel>3) {
+	 	   		   System.out.println("    n="+n+" det_quad="+M.det()+" norm_quad="+normMatix(mAarrayQ)+" data.length="+data.length);
+	 	   		   M.print(10,5);
+	 	   	   }
 	 	   	   double nmQ=normMatix(mAarrayQ);
 			   if ((nmQ==0.0) || (Math.abs(M.det())/normMatix(mAarrayQ)<thresholdQuad)) {
-				   if (debugLevel>0) System.out.println("Using linear approximation, M.det()="+M.det()+" normMatix(mAarrayQ)="+normMatix(mAarrayQ)); //did not happen
+				   if (debugLevel>0) System.out.println("Using linear approximation, M.det()="+M.det()+
+						   " normMatix(mAarrayQ)="+normMatix(mAarrayQ)+
+						   ", thresholdQuad="+thresholdQuad+
+						   ", nmQ="+nmQ+
+						   ", Math.abs(M.det())/normMatix(mAarrayQ)="+(Math.abs(M.det())/normMatix(mAarrayQ))); //did not happen
 				   return ABCDEF; // not enough data for the quadratic approximation, return linear
 			   }
 //			   double [] zAarrayQ={SZ20,SZ02,SZ11,SZ10,SZ01,SZ00};

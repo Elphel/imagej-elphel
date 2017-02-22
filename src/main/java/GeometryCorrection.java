@@ -330,8 +330,10 @@ public class GeometryCorrection {
 		double [] a={this.distortionC,this.distortionB,this.distortionA,this.distortionA5,this.distortionA6,this.distortionA7,this.distortionA8};
 		for (int i = 0; i < numSensors; i++){
 			// non-distorted XY of the shifted location of the individual sensor
-			double pXci = pXc + disparity *  this.rXY[i][0]; // in pixels
-			double pYci = pYc + disparity *  this.rXY[i][1];
+//			double pXci = pXc + disparity *  this.rXY[i][0]; // in pixels
+//			double pYci = pYc + disparity *  this.rXY[i][1];
+			double pXci = pXc - disparity *  this.rXY[i][0]; // in pixels
+			double pYci = pYc - disparity *  this.rXY[i][1];
 			// calculate back to distorted
 			double rNDi = Math.sqrt(pXci*pXci + pYci*pYci); // in pixels
 			//		Rdist/R=A8*R^7+A7*R^6+A6*R^5+A5*R^4+A*R^3+B*R^2+C*R+(1-A6-A7-A6-A5-A-B-C)");

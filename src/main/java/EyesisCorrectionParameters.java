@@ -1882,7 +1882,8 @@ public class EyesisCorrectionParameters {
   		public double     fat_zero =          0.0;  // modify phase correlation to prevent division by very small numbers
   		public double     corr_sigma =        0.8;  // LPF correlarion sigma
   		public boolean    norm_kern =         true; // normalize kernels
-  		public boolean    gains_equalize =    true; // equalize channel color gains among all cameras
+  		public boolean    gain_equalize =     false;// equalize green channel gain
+  		public boolean    colors_equalize =   true; // equalize R/G, B/G of the individual channels
   		public double     novignetting_r    = 0.2644; // reg gain in the center of sensor calibration R (instead of vignetting)
   		public double     novignetting_g    = 0.3733; // green gain in the center of sensor calibration G
   		public double     novignetting_b    = 0.2034; // blue gain in the center of sensor calibration B
@@ -1892,7 +1893,35 @@ public class EyesisCorrectionParameters {
   		public double     vignetting_max    = 0.4; // value in vignetting data to correspond to 1x in the kernel
   		public double     vignetting_range  = 5.0; // do not try to correct vignetting less than vignetting_max/vignetting_range
   		public int        kernel_step =       16;  // source kernels step in pixels (have 1 kernel margin on each side)  
-  		public double     disparity  =        0.0; // nominal disparity between side of square cameras (pix) 
+  		public double     disparity  =        0.0; // nominal disparity between side of square cameras (pix)
+  		public boolean    correlate =         true; // calculate correlation
+  		public int        corr_mask =         15;  // bitmask of pairs to combine in the composite
+  		public boolean    corr_sym =          false; // combine correlation with mirrored around disparity direction
+  		public boolean    corr_keep =         true; // keep all partial correlations (otherwise - only combined one)
+// TODO: what to do if some occlusion is present (only some channels correlate)  		
+  		public double     corr_offset =       -1.0; //0.1;  // add to pair correlation before multiplying by other pairs (between sum and product)
+  		                                            // negative - add, not mpy
+  		public double     corr_red =          0.5;  // Red to green correlation weight 
+  		public double     corr_blue =         0.2;  // Blue to green correlation weight
+  		public boolean    corr_normalize =    false; // normalize each correlation tile by rms
+  		public double     min_corr =          0.001; // minimal correlation value to consider valid 
+  		public double     min_corr_normalized =  2.0; // minimal correlation value to consider valid when normalizing correlation results 
+  		public double     max_corr_sigma =    1.5;  // weights of points around global max to find fractional
+  		                                            // pixel location by quadratic approximation
+  		public double     max_corr_radius =   2.5;  // maximal distance from int max to consider
+          // pixel location by quadratic approximation
+  		public double     corr_border_contrast = 0.01; // contrast of dotted border on correlation results
+  		
+  		public int        tile_task_op =      0xff;   // bitmask of operation modes applied to tiles (0 - nothing), bits TBD later
+  		                                           // +(0..f) - images, +(00.f0) - process pairs +256 - force disparity when combining images
+  		// window to process tiles;
+  		public int        tile_task_wl =      0;   // 
+  		public int        tile_task_wt =      0;   // 
+  		public int        tile_task_ww =      324; // 
+  		public int        tile_task_wh =      242; // 
+  		
+  		
+
   		
   		public CLTParameters(){}
   		public void setProperties(String prefix,Properties properties){
@@ -1909,7 +1938,8 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"fat_zero",         this.fat_zero+"");
   			properties.setProperty(prefix+"corr_sigma",       this.corr_sigma+"");
 			properties.setProperty(prefix+"norm_kern",        this.norm_kern+"");
-			properties.setProperty(prefix+"gains_equalize",   this.gains_equalize+"");
+			properties.setProperty(prefix+"gain_equalize",    this.gain_equalize+"");
+			properties.setProperty(prefix+"colors_equalize",  this.colors_equalize+"");
   			properties.setProperty(prefix+"novignetting_r",   this.novignetting_r+"");
   			properties.setProperty(prefix+"novignetting_g",   this.novignetting_g+"");
   			properties.setProperty(prefix+"novignetting_b",   this.novignetting_b+"");
@@ -1921,6 +1951,19 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"vignetting_range", this.vignetting_range+"");
   			properties.setProperty(prefix+"kernel_step",      this.kernel_step+"");
   			properties.setProperty(prefix+"disparity",        this.disparity +"");
+			properties.setProperty(prefix+"correlate",        this.correlate+"");
+  			properties.setProperty(prefix+"corr_mask",        this.corr_mask+"");
+			properties.setProperty(prefix+"corr_sym",         this.corr_sym+"");
+			properties.setProperty(prefix+"corr_keep",        this.corr_keep+"");
+  			properties.setProperty(prefix+"corr_offset",      this.corr_offset +"");
+  			properties.setProperty(prefix+"corr_red",         this.corr_red +"");
+  			properties.setProperty(prefix+"corr_blue",        this.corr_blue +"");
+			properties.setProperty(prefix+"corr_normalize",   this.corr_normalize+"");
+  			properties.setProperty(prefix+"min_corr",         this.min_corr +"");
+  			properties.setProperty(prefix+"min_corr_normalized",this.min_corr_normalized +"");
+  			properties.setProperty(prefix+"max_corr_sigma",   this.max_corr_sigma +"");
+  			properties.setProperty(prefix+"max_corr_radius",  this.max_corr_radius +"");
+  			properties.setProperty(prefix+"corr_border_contrast", this.corr_border_contrast +"");
   			
   		}
   		public void getProperties(String prefix,Properties properties){
@@ -1937,7 +1980,8 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"fat_zero")!=null)       this.fat_zero=Double.parseDouble(properties.getProperty(prefix+"fat_zero"));
   			if (properties.getProperty(prefix+"corr_sigma")!=null)     this.corr_sigma=Double.parseDouble(properties.getProperty(prefix+"corr_sigma"));
   			if (properties.getProperty(prefix+"norm_kern")!=null)      this.norm_kern=Boolean.parseBoolean(properties.getProperty(prefix+"norm_kern"));
-  			if (properties.getProperty(prefix+"gains_equalize")!=null) this.gains_equalize=Boolean.parseBoolean(properties.getProperty(prefix+"gains_equalize"));
+  			if (properties.getProperty(prefix+"gain_equalize")!=null)  this.gain_equalize=Boolean.parseBoolean(properties.getProperty(prefix+"gain_equalize"));
+  			if (properties.getProperty(prefix+"colors_equalize")!=null)this.colors_equalize=Boolean.parseBoolean(properties.getProperty(prefix+"colors_equalize"));
   			if (properties.getProperty(prefix+"novignetting_r")!=null) this.novignetting_r=Double.parseDouble(properties.getProperty(prefix+"novignetting_r"));
   			if (properties.getProperty(prefix+"novignetting_g")!=null) this.novignetting_g=Double.parseDouble(properties.getProperty(prefix+"novignetting_g"));
   			if (properties.getProperty(prefix+"novignetting_b")!=null) this.novignetting_b=Double.parseDouble(properties.getProperty(prefix+"novignetting_b"));
@@ -1948,6 +1992,19 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"vignetting_range")!=null) this.vignetting_range=Double.parseDouble(properties.getProperty(prefix+"vignetting_range"));
   			if (properties.getProperty(prefix+"kernel_step")!=null)    this.kernel_step=Integer.parseInt(properties.getProperty(prefix+"kernel_step"));
   			if (properties.getProperty(prefix+"disparity")!=null)      this.disparity=Double.parseDouble(properties.getProperty(prefix+"disparity"));
+  			if (properties.getProperty(prefix+"correlate")!=null)      this.correlate=Boolean.parseBoolean(properties.getProperty(prefix+"correlate"));
+  			if (properties.getProperty(prefix+"corr_mask")!=null)      this.corr_mask=Integer.parseInt(properties.getProperty(prefix+"corr_mask"));
+  			if (properties.getProperty(prefix+"corr_sym")!=null)       this.corr_sym=Boolean.parseBoolean(properties.getProperty(prefix+"corr_sym"));
+  			if (properties.getProperty(prefix+"corr_keep")!=null)      this.corr_keep=Boolean.parseBoolean(properties.getProperty(prefix+"corr_keep"));
+  			if (properties.getProperty(prefix+"corr_offset")!=null)    this.corr_offset=Double.parseDouble(properties.getProperty(prefix+"corr_offset"));
+  			if (properties.getProperty(prefix+"corr_red")!=null)       this.corr_red=Double.parseDouble(properties.getProperty(prefix+"corr_red"));
+  			if (properties.getProperty(prefix+"corr_blue")!=null)      this.corr_blue=Double.parseDouble(properties.getProperty(prefix+"corr_blue"));
+  			if (properties.getProperty(prefix+"corr_normalize")!=null) this.corr_normalize=Boolean.parseBoolean(properties.getProperty(prefix+"corr_normalize"));
+  			if (properties.getProperty(prefix+"min_corr")!=null)       this.min_corr=Double.parseDouble(properties.getProperty(prefix+"min_corr"));
+  			if (properties.getProperty(prefix+"min_corr_normalized")!=null)this.min_corr_normalized=Double.parseDouble(properties.getProperty(prefix+"min_corr_normalized"));
+  			if (properties.getProperty(prefix+"max_corr_sigma")!=null) this.max_corr_sigma=Double.parseDouble(properties.getProperty(prefix+"max_corr_sigma"));
+  			if (properties.getProperty(prefix+"max_corr_radius")!=null) this.max_corr_radius=Double.parseDouble(properties.getProperty(prefix+"max_corr_radius"));
+  			if (properties.getProperty(prefix+"corr_border_contrast")!=null) this.corr_border_contrast=Double.parseDouble(properties.getProperty(prefix+"corr_border_contrast"));
   		}
   		
   		public boolean showDialog() {
@@ -1965,7 +2022,8 @@ public class EyesisCorrectionParameters {
    			gd.addNumericField("Modify phase correlation to prevent division by very small numbers",      this.fat_zero,                  4);
    			gd.addNumericField("LPF correlarion sigma ",                                                  this.corr_sigma,                3);
   			gd.addCheckbox    ("Normalize kernels ",                                                      this.norm_kern);
-  			gd.addCheckbox    ("Equalize gains between channels",                                         this.gains_equalize);
+  			gd.addCheckbox    ("Equalize green channel gain of the individual cnannels",                  this.gain_equalize);
+  			gd.addCheckbox    ("Equalize R/G, B/G balance of the individual channels",                    this.colors_equalize);
   			gd.addNumericField("Reg gain in the center of sensor calibration R (instead of vignetting)",  this.novignetting_r,   4);
   			gd.addNumericField("Green gain in the center of sensor calibration G (instead of vignetting)",this.novignetting_g, 4);
   			gd.addNumericField("Blue gain in the center of sensor calibration B (instead of vignetting)", this.novignetting_b,  4);
@@ -1976,7 +2034,20 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",      this.vignetting_range,  3);
   			gd.addNumericField("Kernel step in pixels (has 1 kernel margin on each side)",                this.kernel_step,            0);
   			gd.addNumericField("Nominal (rectilinear) disparity between side of square cameras (pix)",    this.disparity,  3);
-   			
+  			gd.addCheckbox    ("Perfcorm coorrelation",                                                   this.correlate);
+  			gd.addNumericField("itmask of pairs to combine in the composite (top, bottom, left,righth)",  this.corr_mask,            0);
+  			gd.addCheckbox    ("Combine correlation with mirrored around disparity direction",            this.corr_sym);
+  			gd.addCheckbox    ("Keep all partial correlations (otherwise - only combined one)",           this.corr_keep);
+  			gd.addNumericField("Add to pair correlation before multiplying by other pairs (between sum and product)",    this.corr_offset,  6);
+  			gd.addNumericField("Red to green correlation weight",                                         this.corr_red,  4);
+  			gd.addNumericField("Blue to green correlation weight",                                        this.corr_blue,  4);
+  			gd.addCheckbox    ("Normalize each correlation tile by rms",                                  this.corr_normalize);
+  			gd.addNumericField("Minimal correlation value to consider valid",                             this.min_corr,  6);
+  			gd.addNumericField("Minimal correlation value to consider valid when normalizing results",    this.min_corr_normalized,  6);
+  			gd.addNumericField("Sigma for weights of points around global max to find fractional",        this.max_corr_sigma,  3);
+  			gd.addNumericField("Maximal distance from int max to consider",                               this.max_corr_radius,  3);
+  			gd.addNumericField("Contrast of dotted border on correlation results",                        this.corr_border_contrast,  6);
+
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
   			
@@ -1994,7 +2065,8 @@ public class EyesisCorrectionParameters {
   			this.fat_zero =             gd.getNextNumber();
   			this.corr_sigma =           gd.getNextNumber();
   			this.norm_kern=             gd.getNextBoolean();
-  			this.gains_equalize=        gd.getNextBoolean();
+  			this.gain_equalize=         gd.getNextBoolean();
+  			this.colors_equalize=       gd.getNextBoolean();
   			this.novignetting_r=        gd.getNextNumber();
   			this.novignetting_g=        gd.getNextNumber();
   			this.novignetting_b=        gd.getNextNumber();
@@ -2005,6 +2077,19 @@ public class EyesisCorrectionParameters {
   			this.vignetting_range=      gd.getNextNumber();
   			this.kernel_step=     (int) gd.getNextNumber();
   			this.disparity=             gd.getNextNumber();
+  			this.correlate=             gd.getNextBoolean();
+  			this.corr_mask=       (int) gd.getNextNumber();
+  			this.corr_sym=              gd.getNextBoolean();
+  			this.corr_keep=             gd.getNextBoolean();
+  			this.corr_offset=           gd.getNextNumber();
+  			this.corr_red=              gd.getNextNumber();
+  			this.corr_blue=             gd.getNextNumber();
+  			this.corr_normalize=        gd.getNextBoolean();
+  			this.min_corr=              gd.getNextNumber();
+  			this.min_corr_normalized=   gd.getNextNumber();
+  			this.max_corr_sigma=        gd.getNextNumber();
+  			this.max_corr_radius=       gd.getNextNumber();
+  			this.corr_border_contrast=  gd.getNextNumber();
   			
   			return true;
   		}
