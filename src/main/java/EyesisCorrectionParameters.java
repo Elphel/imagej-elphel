@@ -1914,11 +1914,19 @@ public class EyesisCorrectionParameters {
   		
   		public int        tile_task_op =      0xff;   // bitmask of operation modes applied to tiles (0 - nothing), bits TBD later
   		                                           // +(0..f) - images, +(00.f0) - process pairs +256 - force disparity when combining images
-  		// window to process tiles;
+  		// window to process tiles (later arbitrary masks will be generated to follow particular stages);
   		public int        tile_task_wl =      0;   // 
   		public int        tile_task_wt =      0;   // 
   		public int        tile_task_ww =      324; // 
-  		public int        tile_task_wh =      242; // 
+  		public int        tile_task_wh =      242; //
+  		
+  		public double     diff_thershold =    5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
+  		public boolean    diff_gauss =        true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
+  		
+  		public boolean    sharp_alpha =       false; // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
+  		public boolean    gen_chn_img =       false; // generate shifted channel images
+  		public boolean    show_nonoverlap =   true;  // show result RGBA before overlap combined (first channels, then RGBA combined?)
+  		public boolean    show_overlap =      true;  // show result RGBA (first channels, then RGBA combined?)
   		
   		
 
@@ -1943,7 +1951,6 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"novignetting_r",   this.novignetting_r+"");
   			properties.setProperty(prefix+"novignetting_g",   this.novignetting_g+"");
   			properties.setProperty(prefix+"novignetting_b",   this.novignetting_b+"");
-  			
   			properties.setProperty(prefix+"scale_r",          this.scale_r+"");
   			properties.setProperty(prefix+"scale_g",          this.scale_g+"");
   			properties.setProperty(prefix+"scale_b",          this.scale_b+"");
@@ -1964,6 +1971,17 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"max_corr_sigma",   this.max_corr_sigma +"");
   			properties.setProperty(prefix+"max_corr_radius",  this.max_corr_radius +"");
   			properties.setProperty(prefix+"corr_border_contrast", this.corr_border_contrast +"");
+  			properties.setProperty(prefix+"tile_task_op",     this.tile_task_op+"");
+  			properties.setProperty(prefix+"tile_task_wl",     this.tile_task_wl+"");
+  			properties.setProperty(prefix+"tile_task_wt",     this.tile_task_wt+"");
+  			properties.setProperty(prefix+"tile_task_ww",     this.tile_task_ww+"");
+  			properties.setProperty(prefix+"tile_task_wh",     this.tile_task_wh+"");
+  			properties.setProperty(prefix+"diff_thershold",   this.diff_thershold +"");
+			properties.setProperty(prefix+"diff_gauss",       this.diff_gauss+"");
+			properties.setProperty(prefix+"sharp_alpha",      this.sharp_alpha+"");
+			properties.setProperty(prefix+"gen_chn_img",      this.gen_chn_img+"");
+			properties.setProperty(prefix+"show_nonoverlap",  this.show_nonoverlap+"");
+			properties.setProperty(prefix+"show_overlap",     this.show_overlap+"");
   			
   		}
   		public void getProperties(String prefix,Properties properties){
@@ -2005,6 +2023,18 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"max_corr_sigma")!=null) this.max_corr_sigma=Double.parseDouble(properties.getProperty(prefix+"max_corr_sigma"));
   			if (properties.getProperty(prefix+"max_corr_radius")!=null) this.max_corr_radius=Double.parseDouble(properties.getProperty(prefix+"max_corr_radius"));
   			if (properties.getProperty(prefix+"corr_border_contrast")!=null) this.corr_border_contrast=Double.parseDouble(properties.getProperty(prefix+"corr_border_contrast"));
+  			if (properties.getProperty(prefix+"tile_task_op")!=null)   this.tile_task_op=Integer.parseInt(properties.getProperty(prefix+"tile_task_op"));
+  			if (properties.getProperty(prefix+"tile_task_wl")!=null)   this.tile_task_wl=Integer.parseInt(properties.getProperty(prefix+"tile_task_wl"));
+  			if (properties.getProperty(prefix+"tile_task_wt")!=null)   this.tile_task_wt=Integer.parseInt(properties.getProperty(prefix+"tile_task_wt"));
+  			if (properties.getProperty(prefix+"tile_task_ww")!=null)   this.tile_task_ww=Integer.parseInt(properties.getProperty(prefix+"tile_task_ww"));
+  			if (properties.getProperty(prefix+"tile_task_wh")!=null)   this.tile_task_wh=Integer.parseInt(properties.getProperty(prefix+"tile_task_wh"));
+  			if (properties.getProperty(prefix+"diff_thershold")!=null) this.diff_thershold=Double.parseDouble(properties.getProperty(prefix+"diff_thershold"));
+  			if (properties.getProperty(prefix+"diff_gauss")!=null)     this.diff_gauss=Boolean.parseBoolean(properties.getProperty(prefix+"v"));
+  			if (properties.getProperty(prefix+"sharp_alpha")!=null)    this.sharp_alpha=Boolean.parseBoolean(properties.getProperty(prefix+"sharp_alpha"));
+  			if (properties.getProperty(prefix+"gen_chn_img")!=null)    this.gen_chn_img=Boolean.parseBoolean(properties.getProperty(prefix+"gen_chn_img"));
+  			if (properties.getProperty(prefix+"show_nonoverlap")!=null)this.show_nonoverlap=Boolean.parseBoolean(properties.getProperty(prefix+"show_nonoverlap"));
+  			if (properties.getProperty(prefix+"show_overlap")!=null)   this.show_overlap=Boolean.parseBoolean(properties.getProperty(prefix+"show_overlap"));
+  			
   		}
   		
   		public boolean showDialog() {
@@ -2047,6 +2077,18 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Sigma for weights of points around global max to find fractional",        this.max_corr_sigma,  3);
   			gd.addNumericField("Maximal distance from int max to consider",                               this.max_corr_radius,  3);
   			gd.addNumericField("Contrast of dotted border on correlation results",                        this.corr_border_contrast,  6);
+  			gd.addMessage("--- tiles tasks ---");
+  			gd.addNumericField("Tile operations bits: +(0..f) - images, +(00.f0) - process pairs +256, ... ",  this.tile_task_op,            0);
+  			gd.addNumericField("Tile operations window left (in 8x8 tiles)",                              this.tile_task_wl,            0);
+  			gd.addNumericField("Tile operations window top",                                              this.tile_task_wt,            0);
+  			gd.addNumericField("Tile operations window width",                                            this.tile_task_ww,            0);
+  			gd.addNumericField("Tile operations window height",                                           this.tile_task_wh,            0);
+  			gd.addNumericField("RMS difference from average to discard channel (255 full scale image)",   this.diff_thershold,  4);
+  			gd.addCheckbox    ("Gaussian as weight when averaging images (false - sharp all/nothing)",    this.diff_gauss);
+  			gd.addCheckbox    ("Alpha channel: use center 8x8 (unchecked - treat same as RGB)",           this.sharp_alpha);
+  			gd.addCheckbox    ("Generate shifted channel images",                                         this.gen_chn_img);
+  			gd.addCheckbox    ("Show result RGBA before overlap combined",                                this.show_nonoverlap);
+  			gd.addCheckbox    ("Show result RGBA ",                                                       this.show_overlap);
 
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
@@ -2090,7 +2132,17 @@ public class EyesisCorrectionParameters {
   			this.max_corr_sigma=        gd.getNextNumber();
   			this.max_corr_radius=       gd.getNextNumber();
   			this.corr_border_contrast=  gd.getNextNumber();
-  			
+  			this.tile_task_op=    (int) gd.getNextNumber();
+  			this.tile_task_wl=    (int) gd.getNextNumber();
+  			this.tile_task_wt=    (int) gd.getNextNumber();
+  			this.tile_task_ww=    (int) gd.getNextNumber();
+  			this.tile_task_wh=    (int) gd.getNextNumber();
+  			this.diff_thershold=        gd.getNextNumber();
+  			this.diff_gauss=            gd.getNextBoolean();
+  			this.sharp_alpha=           gd.getNextBoolean();
+  			this.gen_chn_img=           gd.getNextBoolean();
+  			this.show_nonoverlap=       gd.getNextBoolean();
+  			this.show_overlap=          gd.getNextBoolean();
   			return true;
   		}
     }

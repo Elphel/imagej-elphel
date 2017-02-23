@@ -3968,6 +3968,7 @@ private Panel panel1,
         		image_dtt.clt_lpf( // filter in-place
         				CLT_PARAMETERS.corr_sigma,            // final double          sigma,
         				clt_corr[chn],                        // final double [][][][] clt_data,
+        				CLT_PARAMETERS.transform_size,
         				THREADS_MAX,                          // maximal number of threads to launch                         
         				DEBUG_LEVEL);                        // globalDebugLevel)
         	}
@@ -4018,11 +4019,12 @@ private Panel panel1,
         			THREADS_MAX,
         			DEBUG_LEVEL);
         }
-        if (DEBUG_LEVEL > -1){
+        if (DEBUG_LEVEL > 0){ //==============   -1 =================
             double [][] corr_rslt = new double [clt_corr.length][];
             for (int chn = 0; chn < clt_corr.length; chn++) {
             	corr_rslt[chn] = image_dtt.corr_dbg(
             			corr_tiles[chn],
+            			2*CLT_PARAMETERS.transform_size - 1,
             			CLT_PARAMETERS.corr_border_contrast,
             			THREADS_MAX,
             			DEBUG_LEVEL);
