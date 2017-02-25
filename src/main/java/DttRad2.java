@@ -489,6 +489,26 @@ public class DttRad2 {
 		set_unfold_2d(len);
 	}
 	
+	// get current LT window as a 2d tile (2*size * 2*size)
+	public double [] getWin2d(){
+		int size = this.hwindow.length;
+		int size2 = 2*size;
+		double [] rslt = new double [4*size*size];
+		for (int i=0; i< size; i++){
+			int ia0 = i * size2;
+			int ia1 = (size2 - i -1) * size2;
+			for (int j=0; j< size; j++){
+				double d = this.hwindow[i] * this.hwindow[j];
+				rslt [ia0 + j] = d; 
+				rslt [ia1 + j] = d;
+				rslt [ia0 + size2 - j -1] = d; 
+				rslt [ia1 + size2 - j -1] = d; 
+			}
+		}
+		return rslt;
+	}
+	
+	
 	// Convert 2nx2n overlapping tile to n*n for dct-iv
 	public double [] fold_tile(double [] x, int mode) { // x should be 2n*2n
 		return fold_tile(x, 1 << (ilog2(x.length/4)/2));

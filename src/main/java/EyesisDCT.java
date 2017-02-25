@@ -4821,8 +4821,9 @@ public class EyesisDCT {
 		  // for testing defined for a window, later the tiles to process will be calculated based on previous passes results
 		  int [][] tile_op = new int [tilesY][tilesX]; // all zero
 		  int txl =  clt_parameters.tile_task_wl;
-		  int txr =  txl + clt_parameters.tile_task_wl;
-		  int tyt =  clt_parameters.tile_task_wl;
+		  int txr =  txl + clt_parameters.tile_task_ww;
+		  
+		  int tyt =  clt_parameters.tile_task_wt;
 		  int tyb =  tyt + clt_parameters.tile_task_wh;
 		  if      (txl < 0)       txl = 0;
 		  else if (txl >= tilesX) txl = tilesX - 1;
@@ -4841,6 +4842,14 @@ public class EyesisDCT {
 				  tile_op[i][j] = clt_parameters.tile_task_op;
 			  }
 		  }
+		  if (debugLevel > -1){
+			  System.out.println("clt_parameters.tile_task_wl="+clt_parameters.tile_task_wl );
+			  System.out.println("clt_parameters.tile_task_wt="+clt_parameters.tile_task_wt );
+			  System.out.println("clt_parameters.tile_task_ww="+clt_parameters.tile_task_ww );
+			  System.out.println("clt_parameters.tile_task_wh="+clt_parameters.tile_task_wh );
+			  System.out.println("tyt="+tyt+" tyb="+tyb+" txl="+txl+" txr="+txr );
+		  }
+		  
 		  //TODO: Add array of default disparity - use for combining images in force disparity mode (no correlation), when disparity is predicted from other tiles
 
 		  double [][][][]     clt_corr_combo =   null;
@@ -4849,7 +4858,7 @@ public class EyesisDCT {
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
 		  if (clt_parameters.correlate){
 			  clt_corr_combo =    new double [2][tilesY][tilesX][];
-			  texture_tiles =     new double [tilesY][tilesX]["RGBA".length()][];
+			  texture_tiles =     new double [tilesY][tilesX][][]; // ["RGBA".length()][];
 			  for (int i = 0; i < tilesY; i++){
 				  for (int j = 0; j < tilesX; j++){
 					  clt_corr_combo[0][i][j] = null;
@@ -4866,7 +4875,8 @@ public class EyesisDCT {
 				  }
 			  }
 		  }
-		  double [][] disparity_map = new double [8][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)  
+		  double [][] disparity_map = new double [8][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+		  double min_corr_selected = clt_parameters.corr_normalize? clt_parameters.min_corr_normalized: clt_parameters.min_corr;
 		  double [][][][][][] clt_data = image_dtt.clt_aberrations_quad_corr(
 				  tile_op,                      // per-tile operation bit codes
 				  clt_parameters.disparity,     // final double            disparity,
@@ -4883,35 +4893,45 @@ public class EyesisDCT {
 				  clt_parameters.corr_red,
 				  clt_parameters.corr_blue,
 				  clt_parameters.corr_sigma,
-				  clt_parameters.corr_mask,
+//				  clt_parameters.corr_mask,
 				  clt_parameters.corr_normalize, // normalize correlation results by rms 
-				  clt_parameters.corr_normalize? clt_parameters.min_corr_normalized: clt_parameters.min_corr, // 0.0001; // minimal correlation value to consider valid 
-						  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
-						  clt_parameters.max_corr_radius,
-						  geometryCorrection,           // final GeometryCorrection  geometryCorrection,
-						  clt_kernels,                  // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-						  clt_parameters.kernel_step,
-						  clt_parameters.transform_size,
-						  clt_parameters.clt_window,
-						  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
-						  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
-						  clt_parameters.tileX,         // final int               debug_tileX,
-						  clt_parameters.tileY,         // final int               debug_tileY,
-						  (clt_parameters.dbg_mode & 64) != 0, // no fract shift
-						  (clt_parameters.dbg_mode & 128) != 0, // no convolve
-						  //				  (clt_parameters.dbg_mode & 256) != 0, // transpose convolve
-						  threadsMax,
-						  debugLevel);
-
-		  System.out.println("clt_data.length="+clt_data.length+" clt_data[0].length="+clt_data[0].length
-				  +" clt_data[0][0].length="+clt_data[0][0].length+" clt_data[0][0][0].length="+
-				  clt_data[0][0][0].length); 
+				  min_corr_selected, // 0.0001; // minimal correlation value to consider valid 
+				  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
+				  clt_parameters.max_corr_radius,
+				  clt_parameters.corr_mode,     // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
+				  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
+				  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
+				  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
+				  clt_parameters.diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
+				  clt_parameters.diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
+				  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				  clt_parameters.keep_weights,   // Add port weights to RGBA stack (debug feature)
+				  geometryCorrection,           // final GeometryCorrection  geometryCorrection,
+				  clt_kernels,                  // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+				  clt_parameters.kernel_step,
+				  clt_parameters.transform_size,
+				  clt_parameters.clt_window,
+				  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
+				  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
+				  clt_parameters.tileX,         // final int               debug_tileX,
+				  clt_parameters.tileY,         // final int               debug_tileY,
+				  (clt_parameters.dbg_mode & 64) != 0, // no fract shift
+				  (clt_parameters.dbg_mode & 128) != 0, // no convolve
+				  //				  (clt_parameters.dbg_mode & 256) != 0, // transpose convolve
+				  threadsMax,
+				  debugLevel);
+		  if (debugLevel > -1){
+			  System.out.println("clt_data.length="+clt_data.length+" clt_data[0].length="+clt_data[0].length
+					  +" clt_data[0][0].length="+clt_data[0][0].length+" clt_data[0][0][0].length="+
+					  clt_data[0][0][0].length);
+		  }
 //		  +" clt_data[0][0][0][0].length="+clt_data[0][0][0][0].length+
 //				  " clt_data[0][0][0][0][0].length="+clt_data[0][0][0][0][0].length);
 		  // visualize texture tiles as RGBA slices
 		  double [][] texture_nonoverlap = null;
 		  double [][] texture_overlap = null;
-		  String [] rgba_titles = {"red","green","blue","alpha"};
+		  String [] rgba_titles = {"red","blue","green","alpha"};
+		  String [] rgba_weights_titles = {"red","blue","green","alpha","port0","port1","port2","port3","r-rms","b-rms","g-rms","w-rms"};
 		  if (texture_tiles != null){
 			  if (clt_parameters.show_nonoverlap){
 				  texture_nonoverlap = image_dtt.combineRGBATiles(
@@ -4927,7 +4947,7 @@ public class EyesisDCT {
 						  tilesY * (2 * clt_parameters.transform_size),
 						  true,
 						  name + "-TXTNOL-D"+clt_parameters.disparity,
-						  rgba_titles );
+						  (clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
 
 			  }
 			  if (clt_parameters.show_overlap){
@@ -4944,8 +4964,7 @@ public class EyesisDCT {
 						  tilesY * clt_parameters.transform_size,
 						  true,
 						  name + "-TXTOL-D"+clt_parameters.disparity,
-						  rgba_titles );
-
+						  (clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
 			  }
 
 		  }
@@ -5037,7 +5056,7 @@ public class EyesisDCT {
 					  System.out.println("--tilesX="+tilesX);
 					  System.out.println("--tilesY="+tilesY);
 				  }
-				  if (debugLevel > 1){
+				  if (debugLevel > 0){
 					  double [][] clt = new double [clt_data[iQuad].length*4][];
 					  for (int chn = 0; chn < clt_data[iQuad].length; chn++) {
 						  double [][] clt_set = image_dtt.clt_dbg(
@@ -5067,13 +5086,7 @@ public class EyesisDCT {
 							  debugLevel);
 
 				  }
-				  if (debugLevel > 0) sdfa_instance.showArrays( // -1
-						  iclt_data,
-						  (tilesX + 0) * clt_parameters.transform_size,
-						  (tilesY + 0) * clt_parameters.transform_size,
-						  true,
-						  results[iQuad].getTitle()+"-rbg_sigma");
-				  if (debugLevel > 0) sdfa_instance.showArrays(iclt_data,
+				  if (debugLevel > -1) sdfa_instance.showArrays(iclt_data, 
 						  (tilesX + 0) * clt_parameters.transform_size,
 						  (tilesY + 0) * clt_parameters.transform_size,
 						  true,
