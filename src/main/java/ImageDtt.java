@@ -929,9 +929,11 @@ public class ImageDtt {
 			
 			final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
                                                        // [tilesY][tilesX] should be set by caller
+			final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // transpose unapplied. null - do not calculate
+
 			final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do nat calculate
 			                                           // last 2 - contrast, avg/ "geometric average)
-			final double [][][][]     texture_tiles,   // [tilesY][tilesX]["RGBA".length()][]; 
+			final double [][][][]     texture_tiles,   // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 
 			final int                 width,
 			final double              corr_fat_zero,    // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
@@ -958,6 +960,7 @@ public class ImageDtt {
 			final int                 kernel_step,
 			final int                 transform_size,
 			final int                 window_type,
+			final double [][]         shiftXY, // [port]{shiftX,shiftY}
 			final double              shiftX, // shift image horizontally (positive - right) - just for testing
 			final double              shiftY, // shift image vertically (positive - down)
 			final int                 debug_tileX,
@@ -994,8 +997,8 @@ public class ImageDtt {
 			}
 		}
 		
-		if (globalDebugLevel > -1) {
-			System.out.println("clt_aberrations(): width="+width+" height="+height+" transform_size="+transform_size+
+		if (globalDebugLevel > 0) {
+			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
 		final int [][] zi = 
@@ -1051,16 +1054,23 @@ public class ImageDtt {
 		// prepare disparity maps and weights
 		final int max_search_radius = (int) Math.abs(max_corr_radius); // use negative max_corr_radius for squares instead of circles?
 		final int max_search_radius_poly = 1;
-		if (globalDebugLevel > -1){
-			System.out.println("max_corr_radius=  "+max_corr_radius);
-			System.out.println("max_search_radius="+max_search_radius);
+		if (globalDebugLevel > 0){
+			System.out.println("max_corr_radius=       "+max_corr_radius);
+			System.out.println("max_search_radius=     "+max_search_radius);
 			System.out.println("max_search_radius_poly="+max_search_radius_poly);
-			System.out.println("corr_fat_zero=    "+corr_fat_zero);
+			System.out.println("corr_fat_zero=         "+corr_fat_zero);
+			System.out.println("disparity=             "+    disparity);
+			
 			
 		}
 		if (disparity_map != null){
 			for (int i = 0; i<disparity_map.length;i++){
 				disparity_map[i] = new double [tilesY*tilesX];
+			}
+		}
+		if (clt_mismatch != null){
+			for (int i = 0; i<clt_mismatch.length;i++){
+				clt_mismatch[i] = new double [tilesY*tilesX]; // will use only "center of mass" centers
 			}
 		}
 //		final double [] corr_max_weights =(((max_corr_sigma > 0) && (disparity_map != null))?
@@ -1117,13 +1127,35 @@ public class ImageDtt {
 									centerX,
 									centerY,
 									disparity);
-							if ((globalDebugLevel > 0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
-									(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)) {
+//							if ((globalDebugLevel > 0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
+//									(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)) {
+							if ((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
 								for (int i = 0; i < quad; i++) {
-									System.out.println("clt_aberrations_quad(): color="+chn+", tileX="+tileX+", tileY="+tileY+
+									System.out.println("clt_aberrations_quad_corr(): color="+chn+", tileX="+tileX+", tileY="+tileY+
 											" centerX="+centerX+" centerY="+centerY+" disparity="+disparity+
 											" centersXY["+i+"][0]="+centersXY[i][0]+" centersXY["+i+"][1]="+centersXY[i][1]);
 								}
+							}
+
+							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) { // before correction
+								System.out.print(disparity+"\t"+
+							    centersXY[0][0]+"\t"+centersXY[0][1]+"\t"+
+							    centersXY[1][0]+"\t"+centersXY[1][1]+"\t"+
+							    centersXY[2][0]+"\t"+centersXY[2][1]+"\t"+
+							    centersXY[3][0]+"\t"+centersXY[3][1]+"\t");
+							}
+
+							for (int ip = 0; ip < centersXY.length; ip++){
+								centersXY[ip][0] -= shiftXY[ip][0];
+								centersXY[ip][1] -= shiftXY[ip][1];
+							}
+
+							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) {
+								System.out.print(disparity+"\t"+
+							    centersXY[0][0]+"\t"+centersXY[0][1]+"\t"+
+							    centersXY[1][0]+"\t"+centersXY[1][1]+"\t"+
+							    centersXY[2][0]+"\t"+centersXY[2][1]+"\t"+
+							    centersXY[3][0]+"\t"+centersXY[3][1]+"\t");
 							}
 
 							for (int i = 0; i < quad; i++) {
@@ -1139,10 +1171,14 @@ public class ImageDtt {
 										chn,                              
 										centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
 										centersXY[i][1], // centerY, //
-										(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2), // external tile compare
+										((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)),
+//										(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2), // external tile compare
 										no_deconvolution,
 										false); // transpose);
 							}
+							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) {
+								System.out.println();
+							}							
 							if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (chn == 2)) {
 								showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
@@ -1260,7 +1296,7 @@ public class ImageDtt {
 									}									
 								}
 								// make symmetrical around the disparity direction (horizontal) (here using just average, not mul/sum mixture)
-								if (corr_sym){
+								if (corr_sym && (clt_mismatch == null)){ // when measuring clt_mismatch symmetry should be off ! 
 									for (int chn = firstColor; chn <= numcol; chn++){
 										for (int i = 1 ; i < transform_size; i++){
 											int indx1 = (transform_size - 1 - i) * corr_size;
@@ -1284,7 +1320,7 @@ public class ImageDtt {
 							}
 							double avScale = 0.0;
 							if (numPairs > 0) {
-								boolean debugMax = (globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY);
+								boolean debugMax = (globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY);
 								avScale = 1.0/numPairs;
 								if (debugMax) {
 									System.out.println("avScale="+avScale+", corr_offset="+corr_offset);
@@ -1352,15 +1388,13 @@ public class ImageDtt {
 								if (clt_corr_partial != null){
 									clt_corr_partial[tileY][tileX] = tcorr_partial;
 								}
-								
-//								calculate disparity map
 								if (disparity_map != null) {
 									int [] icorr_max =getMaxXYInt( // find integer pair or null if below threshold
 											tcorr_combo[0],      // [data_size * data_size]
 											corr_size,      
 											min_corr,    // minimal value to consider (at integer location, not interpolated)
 											debugMax);
-									
+									int max_index = -1;
 									if (icorr_max == null){
 										disparity_map[0][tileY*tilesX + tileX] = Double.NaN;
 										disparity_map[1][tileY*tilesX + tileX] = Double.NaN;
@@ -1368,12 +1402,19 @@ public class ImageDtt {
 										disparity_map[3][tileY*tilesX + tileX] = Double.NaN;
 										disparity_map[4][tileY*tilesX + tileX] = Double.NaN;
 										disparity_map[5][tileY*tilesX + tileX] = Double.NaN;
+										if (clt_mismatch != null){
+											for (int pair = 0; pair < corr_pairs.length; pair++) if (((corr_mask >> pair) & 1) != 0){
+												clt_mismatch[3*pair + 0 ][tileY*tilesX + tileX] = Double.NaN;
+												clt_mismatch[3*pair + 1 ][tileY*tilesX + tileX] = Double.NaN;
+												clt_mismatch[3*pair + 2 ][tileY*tilesX + tileX] = Double.NaN;
+											}
+										}
 									} else {	
 										double [] corr_max_XYi = {icorr_max[0],icorr_max[1]};
 										disparity_map[0][tileY*tilesX + tileX] = transform_size - 1 -corr_max_XYi[0];
 										disparity_map[1][tileY*tilesX + tileX] = transform_size - 1 -corr_max_XYi[1];
 										// for the integer maximum provide contrast and variety
-										int max_index = icorr_max[1]*corr_size + icorr_max[0];
+										max_index = icorr_max[1]*corr_size + icorr_max[0];
 										disparity_map[6][tileY*tilesX + tileX] = tcorr_combo[0][max_index]; // correlation combo value at the integer maximum
 										// undo scaling caused by optional normalization
 										disparity_map[7][tileY*tilesX + tileX] = (rms[1]*tcorr_combo[1][max_index])/(rms[0]*tcorr_combo[0][max_index]); // correlation combo value at the integer maximum
@@ -1414,127 +1455,167 @@ public class ImageDtt {
 										else if (corr_mode == 1) extra_disparity = disparity_map[2][tileY*tilesX + tileX];
 										else if (corr_mode == 2) extra_disparity = disparity_map[4][tileY*tilesX + tileX];
 										if (Double.isNaN(extra_disparity)) extra_disparity = 0;
+										
+										if (clt_mismatch != null){
+											for (int pair = 0; pair < corr_pairs.length; pair++) if (((corr_mask >> pair) & 1) != 0){
+												icorr_max =getMaxXYInt( // find integer pair or null if below threshold
+														tcorr_partial[pair][numcol],      // [data_size * data_size]
+														corr_size,      
+														min_corr,    // minimal value to consider (at integer location, not interpolated)
+														debugMax);
+												if (icorr_max == null){
+													clt_mismatch[3*pair + 0 ][tileY*tilesX + tileX] = Double.NaN;
+													clt_mismatch[3*pair + 1 ][tileY*tilesX + tileX] = Double.NaN;
+													clt_mismatch[3*pair + 2 ][tileY*tilesX + tileX] = Double.NaN;
+												} else {
+													double [] corr_max_XYmp = getMaxXYCm( // get fractiona center as a "center of mass" inside circle/square from the integer max
+															tcorr_partial[pair][numcol],      // [data_size * data_size]
+															corr_size,      
+															icorr_max, // integer center coordinates (relative to top left)
+															max_corr_radius,  // positive - within that distance, negative - within 2*(-radius)+1 square
+															debugMax); // should never return null
+													// Only use Y components for pairs 0,1 and X components - for pairs 2,3
+													double yp,xp;
+													if (corr_pairs[pair][2] > 0){ // transpose - switch x <-> y
+														yp = transform_size - 1 -corr_max_XYmp[0] - disparity_map[2][tileY*tilesX + tileX];
+														xp = transform_size - 1 -corr_max_XYmp[1]; // do not campare to average - it should be 0 anyway
+														
+													} else {
+														xp = transform_size - 1 -corr_max_XYmp[0] - disparity_map[2][tileY*tilesX + tileX];
+														yp = transform_size - 1 -corr_max_XYmp[1]; // do not campare to average - it should be 0 anyway
+													}
+													double strength = tcorr_partial[pair][numcol][max_index]; // using the new location than for combined
+													clt_mismatch[3*pair + 0 ][tileY*tilesX + tileX] = xp;
+													clt_mismatch[3*pair + 1 ][tileY*tilesX + tileX] = yp;
+													clt_mismatch[3*pair + 2 ][tileY*tilesX + tileX] = strength;
+												}
+											}											
+										}
 									}
 								}
 								
 							}
 						} // end of if (clt_corr_combo != null)
-						if ((extra_disparity != 0) && (((1 << force_disparity_bit) & tile_op[tileY][tileX]) == 0)){ // 0 - adjust disparity, 1 - uase provided
-							// shift images by 0.5 * extra disparity in the diagonal direction 
-							for (int chn = 0; chn <numcol; chn++) { // color
-								for (int i = 0; i < quad; i++) {
-									fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
-											clt_data[i][chn][tileY][tileX], // double  [][]  clt_tile,
-											transform_size,
-											extra_disparity * port_offsets[i][0],            // double        shiftX,
-											extra_disparity * port_offsets[i][1],            // double        shiftY,
-											//									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
-											((globalDebugLevel > 0) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
-													(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));									
+						
+						if (texture_tiles !=null) {
+
+							if ((extra_disparity != 0) && (((1 << force_disparity_bit) & tile_op[tileY][tileX]) == 0)){ // 0 - adjust disparity, 1 - uase provided
+								// shift images by 0.5 * extra disparity in the diagonal direction 
+								for (int chn = 0; chn <numcol; chn++) { // color
+									for (int i = 0; i < quad; i++) {
+										fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
+												clt_data[i][chn][tileY][tileX], // double  [][]  clt_tile,
+												transform_size,
+												extra_disparity * port_offsets[i][0],            // double        shiftX,
+												extra_disparity * port_offsets[i][1],            // double        shiftY,
+												//									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
+												((globalDebugLevel > 0) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
+														(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));									
+									}
 								}
 							}
-						}
-						// lpf tiles (same as images before)
-						// iclt tiles
-						double [][][] iclt_tile = new double [quad][numcol][];
-						double [] clt_tile;
-						double scale = 0.25;  // matching iclt_2d
-						for (int i = 0; i < quad; i++) {
-							for (int chn = 0; chn <numcol; chn++) { // color
-								// double [] clt_tile = new double [transform_size*transform_size];
-								for (int dct_mode = 0; dct_mode < 4; dct_mode++){
-									clt_tile = clt_data[i][chn][tileY][tileX][dct_mode].clone();
-									// lpf each of the 4 quadrants before idct
-									for (int j = 0; j < filter.length; j++){
-										clt_tile[j] *= scale*filter[j];
-									}
-									// IDCT-IV should be in reversed order: CC->CC, SC->CS, CS->SC, SS->SS 
-									int idct_mode = ((dct_mode << 1) & 2) | ((dct_mode >> 1) & 1);
-									clt_tile = dtt.dttt_iv  (clt_tile, idct_mode, transform_size);
-									// iclt_tile[i][chn] = dtt.dttt_iv  (clt_data[i][chn][tileY][tileX][dct_mode], idct_mode, transform_size);
-									double [] tile_mdct = dtt.unfold_tile(clt_tile, transform_size, dct_mode); // mode=0 - DCCT 16x16
-									// accumulate partial mdct results
-									if (dct_mode == 0){
-										iclt_tile[i][chn] = tile_mdct;
-									} else{
-										for (int j = 0; j<tile_mdct.length; j++){
-											iclt_tile[i][chn][j] += tile_mdct[j]; // matching iclt_2d
+							// lpf tiles (same as images before)
+							// iclt tiles
+							double [][][] iclt_tile = new double [quad][numcol][];
+							double [] clt_tile;
+							double scale = 0.25;  // matching iclt_2d
+							for (int i = 0; i < quad; i++) {
+								for (int chn = 0; chn <numcol; chn++) { // color
+									// double [] clt_tile = new double [transform_size*transform_size];
+									for (int dct_mode = 0; dct_mode < 4; dct_mode++){
+										clt_tile = clt_data[i][chn][tileY][tileX][dct_mode].clone();
+										// lpf each of the 4 quadrants before idct
+										for (int j = 0; j < filter.length; j++){
+											clt_tile[j] *= scale*filter[j];
+										}
+										// IDCT-IV should be in reversed order: CC->CC, SC->CS, CS->SC, SS->SS 
+										int idct_mode = ((dct_mode << 1) & 2) | ((dct_mode >> 1) & 1);
+										clt_tile = dtt.dttt_iv  (clt_tile, idct_mode, transform_size);
+										// iclt_tile[i][chn] = dtt.dttt_iv  (clt_data[i][chn][tileY][tileX][dct_mode], idct_mode, transform_size);
+										double [] tile_mdct = dtt.unfold_tile(clt_tile, transform_size, dct_mode); // mode=0 - DCCT 16x16
+										// accumulate partial mdct results
+										if (dct_mode == 0){
+											iclt_tile[i][chn] = tile_mdct;
+										} else{
+											for (int j = 0; j<tile_mdct.length; j++){
+												iclt_tile[i][chn][j] += tile_mdct[j]; // matching iclt_2d
+											}
 										}
 									}
 								}
 							}
-						}
-						if ((globalDebugLevel > 0) && debugTile) {
-							showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
-							String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
-							double [][] dbg_tile = new double [quad*numcol][];
-							for (int i = 0; i < quad; i++) {
-								for (int chn = 0; chn <numcol; chn++) { // color
-									dbg_tile[i * numcol + chn] = iclt_tile[i][chn];
+							if ((globalDebugLevel > 0) && debugTile) {
+								showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+								String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
+								double [][] dbg_tile = new double [quad*numcol][];
+								for (int i = 0; i < quad; i++) {
+									for (int chn = 0; chn <numcol; chn++) { // color
+										dbg_tile[i * numcol + chn] = iclt_tile[i][chn];
+									}
+								}
+								sdfa_instance.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "iclt_x"+tileX+"_y"+tileY, titles);
+							}
+
+
+							// "de-bayer" tiles for matching, use original data for output
+							double [][][] tiles_debayered = new double [quad][numcol][];
+							for (int i =0; i<quad; i++){
+								for (int chn = 0; chn < numcol; chn++){
+									//								tiles_debayered[i][chn] =  tile_debayer(
+									//										(chn != 2), // red or blue (flase - green)
+									//										iclt_tile[i][chn],
+									//										2 * transform_size);
+
+									tiles_debayered[i][chn] =  tile_debayer_shot_corr(
+											(chn != 2), // red or blue (flase - green)
+											iclt_tile[i][chn],
+											2 * transform_size,
+											lt_window2, // squared lapping window
+											min_shot,   // 10.0;  // Do not adjust for shot noise if lower than
+											scale_shot,  //3.0;   // scale when dividing by sqrt
+											lt_window2); // re-apply window to the result
 								}
 							}
-							sdfa_instance.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "iclt_x"+tileX+"_y"+tileY, titles);
-						}
-						
-						
-						// "de-bayer" tiles for matching, use original data for output
-						double [][][] tiles_debayered = new double [quad][numcol][];
-						for (int i =0; i<quad; i++){
-							for (int chn = 0; chn < numcol; chn++){
-//								tiles_debayered[i][chn] =  tile_debayer(
-//										(chn != 2), // red or blue (flase - green)
-//										iclt_tile[i][chn],
-//										2 * transform_size);
-								
-								tiles_debayered[i][chn] =  tile_debayer_shot_corr(
-										(chn != 2), // red or blue (flase - green)
-										iclt_tile[i][chn],
-										2 * transform_size,
-										lt_window2, // squared lapping window
-										min_shot,   // 10.0;  // Do not adjust for shot noise if lower than
-										scale_shot,  //3.0;   // scale when dividing by sqrt
-										lt_window2); // re-apply window to the result
-							}
-						}
-						if ((globalDebugLevel > 0) && debugTile) {
-							showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
-							String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
-							double [][] dbg_tile = new double [quad*numcol][];
-							for (int i = 0; i < quad; i++) {
-								for (int chn = 0; chn <numcol; chn++) { // color
-									dbg_tile[i * numcol + chn] = tiles_debayered[i][chn];
+							if ((globalDebugLevel > 0) && debugTile) {
+								showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+								String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
+								double [][] dbg_tile = new double [quad*numcol][];
+								for (int i = 0; i < quad; i++) {
+									for (int chn = 0; chn <numcol; chn++) { // color
+										dbg_tile[i * numcol + chn] = tiles_debayered[i][chn];
+									}
 								}
+								sdfa_instance.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "tiles_debayered_x"+tileX+"_y"+tileY, titles);
 							}
-							sdfa_instance.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "tiles_debayered_x"+tileX+"_y"+tileY, titles);
-						}
-						
-						
-						
-						
-						texture_tiles[tileY][tileX] =  tile_combine_rgba(
-								tiles_debayered, // iclt_tile,      // [port][numcol][256]
-								lt_window2,      // [256]
-								port_offsets,   // [port]{x_off, y_off}
-								img_mask,       // which port to use, 0xf - all 4 (will modify as local variable)
-								diff_sigma,     // pixel value/pixel change
-								diff_threshold, // pixel value/pixel change
-								diff_gauss,     // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
-								min_agree,      // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-								col_weights,    // color channel weights, sum == 1.0
-								keep_weights,  // keep_weights);   // return channel weights after A in RGBA
-								(globalDebugLevel > 0) && debugTile);
-						
-						// mix RGB from iclt_tile, mix alpha with - what? correlation strength or 'don't care'? good correlation or all > min?
-						for (int i = 0; i < iclt_tile[0][0].length; i++ ) {
-							double sw = 0.0;
-							for (int ip = 0; ip < quad; ip++) {
-								sw += texture_tiles[tileY][tileX][numcol+1+ip][i];
-							}
-							if (sw != 0 ) sw = 1.0/sw;
-							for (int chn = 0; chn <numcol; chn++) { // color
-								texture_tiles[tileY][tileX][chn][i] = 0.0; //iclt[tileY][tileX][chn]
+
+
+
+
+							texture_tiles[tileY][tileX] =  tile_combine_rgba(
+									tiles_debayered, // iclt_tile,      // [port][numcol][256]
+									lt_window2,      // [256]
+									port_offsets,   // [port]{x_off, y_off}
+									img_mask,       // which port to use, 0xf - all 4 (will modify as local variable)
+									diff_sigma,     // pixel value/pixel change
+									diff_threshold, // pixel value/pixel change
+									diff_gauss,     // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
+									min_agree,      // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+									col_weights,    // color channel weights, sum == 1.0
+									keep_weights,  // keep_weights);   // return channel weights after A in RGBA
+									(globalDebugLevel > 0) && debugTile);
+
+							// mix RGB from iclt_tile, mix alpha with - what? correlation strength or 'don't care'? good correlation or all > min?
+							for (int i = 0; i < iclt_tile[0][0].length; i++ ) {
+								double sw = 0.0;
 								for (int ip = 0; ip < quad; ip++) {
-									texture_tiles[tileY][tileX][chn][i] += sw * texture_tiles[tileY][tileX][numcol+1+ip][i] * iclt_tile[ip][chn][i];
+									sw += texture_tiles[tileY][tileX][numcol+1+ip][i];
+								}
+								if (sw != 0 ) sw = 1.0/sw;
+								for (int chn = 0; chn <numcol; chn++) { // color
+									texture_tiles[tileY][tileX][chn][i] = 0.0; //iclt[tileY][tileX][chn]
+									for (int ip = 0; ip < quad; ip++) {
+										texture_tiles[tileY][tileX][chn][i] += sw * texture_tiles[tileY][tileX][numcol+1+ip][i] * iclt_tile[ip][chn][i];
+									}
 								}
 							}
 						}
@@ -3183,10 +3264,11 @@ public class ImageDtt {
 			int                 chn,                              
 			double              centerX, // center of aberration-corrected (common model) tile, X
 			double              centerY, // 
-			boolean             bdebug, // external tile compare
+			boolean             bdebug0, // external tile compare
 			boolean             dbg_no_deconvolution,
 			boolean             dbg_transpose)
 	{
+		boolean bdebug = false;
 		double [] residual_shift = new double[2];
 		int height = image_data[0].length/width;
 		int transform_size2 = 2* transform_size;
@@ -3208,6 +3290,11 @@ public class ImageDtt {
 		// same with extra shift
 		double px = centerX - transform_size - (ce.data_x + ce.dxc_dx * kdx + ce.dxc_dy * kdy) ; // fractional left corner
 		double py = centerY - transform_size - (ce.data_y + ce.dyc_dx * kdx + ce.dyc_dy * kdy) ; // fractional top corner
+		
+		if (bdebug0){
+			System.out.print(px+"\t"+py+"\t");
+		}
+		
 		int ctile_left = (int) Math.round(px);
 		int ctile_top =  (int) Math.round(py);
 		residual_shift[0] = -(px - ctile_left);

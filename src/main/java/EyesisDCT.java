@@ -4763,9 +4763,7 @@ public class EyesisDCT {
 			  }
 		  }
 	  }
-
-
-
+	  
 	  public ImagePlus [] processCLTQuadCorr(
 			  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
@@ -4853,7 +4851,8 @@ public class EyesisDCT {
 		  //TODO: Add array of default disparity - use for combining images in force disparity mode (no correlation), when disparity is predicted from other tiles
 
 		  double [][][][]     clt_corr_combo =   null;
-		  double [][][][][]   clt_corr_partial = null;
+		  double [][][][][]   clt_corr_partial = null; // [tilesY][tilesX][pair][color][(2*transform_size-1)*(2*transform_size-1)]
+		  double [][]         clt_mismatch =     null; // [3*4][tilesY * tilesX] // transpose unapplied
 		  double [][][][]     texture_tiles =    null; // [tilesY][tilesX]["RGBA".length()][]; // tiles will be 16x16, 2 visualizaion mode full 16 or overlapped
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
 		  if (clt_parameters.correlate){
@@ -4874,16 +4873,26 @@ public class EyesisDCT {
 					  }
 				  }
 			  }
+			  if (clt_parameters.corr_mismatch){
+				  clt_mismatch = new double [12][];
+			  }
 		  }
 		  double [][] disparity_map = new double [8][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+		  
 		  double min_corr_selected = clt_parameters.corr_normalize? clt_parameters.min_corr_normalized: clt_parameters.min_corr;
+		  double [][] shiftXY = {
+				  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
+				  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
+				  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
+				  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
 		  double [][][][][][] clt_data = image_dtt.clt_aberrations_quad_corr(
 				  tile_op,                      // per-tile operation bit codes
 				  clt_parameters.disparity,     // final double            disparity,
 				  double_stacks,                // final double [][][]      imade_data, // first index - number of image in a quad
 				  // correlation results - final and partial          
 				  clt_corr_combo,               // [tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-				  clt_corr_partial,             // [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+				  clt_corr_partial,             // [tilesY][tilesX][pair][color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+				  clt_mismatch,                 // [12][tilesY * tilesX] // transpose unapplied. null - do not calculate
 				  disparity_map,                // [2][tilesY * tilesX]
 				  texture_tiles,                // [tilesY][tilesX]["RGBA".length()][]; 			  
 				  imp_quad[0].getWidth(),       // final int width,
@@ -4911,6 +4920,7 @@ public class EyesisDCT {
 				  clt_parameters.kernel_step,
 				  clt_parameters.transform_size,
 				  clt_parameters.clt_window,
+				  shiftXY, // 
 				  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
 				  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
 				  clt_parameters.tileX,         // final int               debug_tileX,
@@ -4984,6 +4994,19 @@ public class EyesisDCT {
 				  }			  
 			  }
 
+			  if (clt_mismatch != null){
+				  if (debugLevel > -1){
+					  String [] disparity_titles = {"dx0", "dy0","strength0","dx1", "dy1","strength1","dx2", "dy2","strength2","dx3", "dy3","strength3"};
+					  sdfa_instance.showArrays(
+							  clt_mismatch,
+							  tilesX,
+							  tilesY,
+							  true,
+							  name+"-MISMATCH_XYW-D"+clt_parameters.disparity,
+							  disparity_titles);
+				  }			  
+			  }
+
 
 			  if (debugLevel > -1){
 				  double [][] corr_rslt = new double [clt_corr_combo.length][];
@@ -5006,7 +5029,7 @@ public class EyesisDCT {
 						  titles );
 			  }
 
-			  if (debugLevel > 0){ // -1
+			  if (debugLevel > -1){ // -1
 				  if (clt_corr_partial!=null){
 					  String [] allColorNames = {"red","blue","green","combo"};
 					  String [] titles = new String[clt_corr_partial.length];
@@ -5275,4 +5298,508 @@ public class EyesisDCT {
 		  }
 		  return results;
 	  }
+	  
+
+	  public void cltDisparityScans(
+			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
+			  EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+			  final int          threadsMax,  // maximal number of threads to launch                         
+			  final boolean    updateStatus,
+			  final int        debugLevel)
+	  {
+		  this.startTime=System.nanoTime();
+		  String [] sourceFiles=correctionsParameters.getSourcePaths();
+		  boolean [] enabledFiles=new boolean[sourceFiles.length];
+		  for (int i=0;i<enabledFiles.length;i++) enabledFiles[i]=false;
+		  int numFilesToProcess=0;
+		  int numImagesToProcess=0;
+		  for (int nFile=0;nFile<enabledFiles.length;nFile++){
+			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
+				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
+				  if (correctionsParameters.isJP4()){
+					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
+					  // removeUnusedSensorData should be off!?
+					  channels=this.eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
+				  }
+				  if (channels!=null){
+					  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
+						  if (!enabledFiles[nFile]) numFilesToProcess++;
+						  enabledFiles[nFile]=true;
+						  numImagesToProcess++;
+					  }
+				  }
+			  }
+		  }
+		  if (numFilesToProcess==0){
+			  System.out.println("No files to process (of "+sourceFiles.length+")");
+			  return;
+		  } else {
+			  if (debugLevel>0) System.out.println(numFilesToProcess+ " files to process (of "+sourceFiles.length+"), "+numImagesToProcess+" images to process");
+		  }
+		  double [] referenceExposures=eyesisCorrections.calcReferenceExposures(debugLevel); // multiply each image by this and divide by individual (if not NaN)
+		  int [][] fileIndices=new int [numImagesToProcess][2]; // file index, channel number
+		  int index=0;
+		  for (int nFile=0;nFile<enabledFiles.length;nFile++){
+			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
+				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
+				  if (correctionsParameters.isJP4()){
+					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
+					  channels=eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
+				  }
+				  if (channels!=null){
+					  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
+						  fileIndices[index  ][0]=nFile;
+						  fileIndices[index++][1]=channels[i];
+					  }
+				  }
+			  }
+		  }
+		  ArrayList<String> setNames = new ArrayList<String>();
+		  ArrayList<ArrayList<Integer>> setFiles = new ArrayList<ArrayList<Integer>>();
+
+		  for (int iImage=0;iImage<fileIndices.length;iImage++){
+			  int nFile=fileIndices[iImage][0];
+			  String setName = correctionsParameters.getNameFromSourceTiff(sourceFiles[nFile]);
+			  if (!setNames.contains(setName)) {
+				  setNames.add(setName);
+				  setFiles.add(new ArrayList<Integer>());
+			  }
+			  setFiles.get(setNames.indexOf(setName)).add(new Integer(nFile));
+		  }		  
+		  for (int nSet = 0; nSet < setNames.size(); nSet++){
+			  int maxChn = 0;
+			  for (int i = 0; i < setFiles.get(nSet).size(); i++){
+				  int chn = fileIndices[setFiles.get(nSet).get(i)][1];
+				  if (chn > maxChn) maxChn = chn;
+			  }
+			  int [] channelFiles = new int[maxChn+1];
+			  for (int i =0; i < channelFiles.length; i++) channelFiles[i] = -1;
+			  for (int i = 0; i < setFiles.get(nSet).size(); i++){
+				  channelFiles[fileIndices[setFiles.get(nSet).get(i)][1]] = setFiles.get(nSet).get(i);
+			  }
+
+			  ImagePlus [] imp_srcs = new ImagePlus[channelFiles.length];
+			  double [] scaleExposures = new double[channelFiles.length];
+			  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
+				  int nFile=channelFiles[srcChannel];
+				  imp_srcs[srcChannel]=null;
+				  if (nFile >=0){
+					  if (correctionsParameters.isJP4()){
+						  int subchannel=eyesisCorrections.pixelMapping.getSubChannel(srcChannel);
+						  if (this.correctionsParameters.swapSubchannels01) {
+							  switch (subchannel){
+							  case 0: subchannel=1; break;
+							  case 1: subchannel=0; break;
+							  }
+						  }
+						  if (debugLevel>0) System.out.println("Processing set " + setNames.get(nSet)+" channel "+srcChannel+" - subchannel "+subchannel+" of "+sourceFiles[nFile]);
+						  ImagePlus imp_composite=eyesisCorrections.JP4_INSTANCE.open(
+								  "", // path,
+								  sourceFiles[nFile],
+								  "",  //arg - not used in JP46 reader
+								  true, // un-apply camera color gains
+								  null, // new window
+								  false); // do not show
+						  imp_srcs[srcChannel]=eyesisCorrections.JP4_INSTANCE.demuxImage(imp_composite, subchannel);
+						  if (imp_srcs[srcChannel] == null) imp_srcs[srcChannel] = imp_composite; // not a composite image
+						  // do we need to add any properties?				  
+					  } else { 
+						  imp_srcs[srcChannel]=new ImagePlus(sourceFiles[nFile]);
+						  //					  (new JP46_Reader_camera(false)).decodeProperiesFromInfo(imp_src); // decode existent properties from info
+						  eyesisCorrections.JP4_INSTANCE.decodeProperiesFromInfo(imp_srcs[srcChannel]); // decode existent properties from info
+						  if (debugLevel>0) System.out.println("Processing "+sourceFiles[nFile]);
+					  }
+					  scaleExposures[srcChannel] = 1.0;
+					  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
+						  scaleExposures[srcChannel] = referenceExposures[nFile]/Double.parseDouble((String) imp_srcs[srcChannel].getProperty("EXPOSURE"));
+						  if (debugLevel>0) System.out.println("Will scale intensity (to compensate for exposure) by  "+scaleExposures[srcChannel]);
+					  }
+					  imp_srcs[srcChannel].setProperty("name",    correctionsParameters.getNameFromSourceTiff(sourceFiles[nFile]));
+					  imp_srcs[srcChannel].setProperty("channel", srcChannel); // it may already have channel
+					  imp_srcs[srcChannel].setProperty("path",    sourceFiles[nFile]); // it may already have channel
+
+					  if (this.correctionsParameters.pixelDefects && (eyesisCorrections.defectsXY!=null)&& (eyesisCorrections.defectsXY[srcChannel]!=null)){
+						  // apply pixel correction
+						  int numApplied=	eyesisCorrections.correctDefects(
+								  imp_srcs[srcChannel],
+								  srcChannel,
+								  debugLevel);
+						  if ((debugLevel>0) && (numApplied>0)) { // reduce verbosity after verified defect correction works
+							  System.out.println("Corrected "+numApplied+" pixels in "+sourceFiles[nFile]);
+						  }
+					  }
+
+					  if (this.correctionsParameters.vignetting){
+						  if ((eyesisCorrections.channelVignettingCorrection==null) || (srcChannel<0) || (srcChannel>=eyesisCorrections.channelVignettingCorrection.length) || (eyesisCorrections.channelVignettingCorrection[srcChannel]==null)){
+							  System.out.println("No vignetting data for channel "+srcChannel);
+							  return;
+						  }
+						  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
+						  if (pixels.length!=eyesisCorrections.channelVignettingCorrection[srcChannel].length){
+							  System.out.println("Vignetting data for channel "+srcChannel+" has "+eyesisCorrections.channelVignettingCorrection[srcChannel].length+" pixels, image "+sourceFiles[nFile]+" has "+pixels.length);
+							  return;
+						  }
+						  // TODO: Move to do it once:
+						  double min_non_zero = 0.0;
+						  for (int i=0;i<pixels.length;i++){
+							  double d = eyesisCorrections.channelVignettingCorrection[srcChannel][i];
+							  if ((d > 0.0) && ((min_non_zero == 0) || (min_non_zero > d))){
+								  min_non_zero = d;
+							  }
+						  }
+						  double max_vign_corr = clt_parameters.vignetting_range*min_non_zero;
+
+						  System.out.println("Vignetting data: channel="+srcChannel+", min = "+min_non_zero);
+						  for (int i=0;i<pixels.length;i++){
+							  double d = eyesisCorrections.channelVignettingCorrection[srcChannel][i];
+							  if (d > max_vign_corr) d = max_vign_corr;
+							  pixels[i]*=d;
+						  }
+						  // Scale here, combine with vignetting later?
+						  int width =  imp_srcs[srcChannel].getWidth();
+						  int height = imp_srcs[srcChannel].getHeight();
+						  for (int y = 0; y < height-1; y+=2){
+							  for (int x = 0; x < width-1; x+=2){
+								  pixels[y*width+x        ] *= clt_parameters.scale_g;
+								  pixels[y*width+x+width+1] *= clt_parameters.scale_g;
+								  pixels[y*width+x      +1] *= clt_parameters.scale_r;
+								  pixels[y*width+x+width  ] *= clt_parameters.scale_b;
+							  }
+						  }
+
+					  } else { // assuming GR/BG pattern
+						  System.out.println("Applying fixed color gain correction parameters: Gr="+
+								  clt_parameters.novignetting_r+", Gg="+clt_parameters.novignetting_g+", Gb="+clt_parameters.novignetting_b);
+						  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
+						  int width =  imp_srcs[srcChannel].getWidth();
+						  int height = imp_srcs[srcChannel].getHeight();
+						  double kr = clt_parameters.scale_r/clt_parameters.novignetting_r;
+						  double kg = clt_parameters.scale_g/clt_parameters.novignetting_g;
+						  double kb = clt_parameters.scale_b/clt_parameters.novignetting_b;
+						  for (int y = 0; y < height-1; y+=2){
+							  for (int x = 0; x < width-1; x+=2){
+								  pixels[y*width+x        ] *= kg;
+								  pixels[y*width+x+width+1] *= kg;
+								  pixels[y*width+x      +1] *= kr;
+								  pixels[y*width+x+width  ] *= kb;
+							  }
+						  }
+					  }
+				  }
+			  }
+			  // once per quad here
+			  // may need to equalize gains between channels
+			  if (clt_parameters.gain_equalize || clt_parameters.colors_equalize){
+				  channelGainsEqualize(
+						  clt_parameters.gain_equalize,
+						  clt_parameters.colors_equalize,
+						  channelFiles,
+						  imp_srcs,
+						  setNames.get(nSet), // just for debug messeges == setNames.get(nSet)
+						  debugLevel);
+			  }
+			  // once per quad here
+			  cltDisparityScan( // returns ImagePlus, but it already should be saved/shown
+					  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+					  clt_parameters,
+					  debayerParameters,
+					  nonlinParameters,
+					  colorProcParameters,
+					  channelGainParameters,
+					  rgbParameters,
+					  convolveFFTSize, // 128 - fft size, kernel size should be size/2
+					  scaleExposures,
+					  threadsMax,  // maximal number of threads to launch                         
+					  updateStatus,
+					  debugLevel);
+			  Runtime.getRuntime().gc();
+			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+fileIndices.length+") finished at "+
+					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+			  if (eyesisCorrections.stopRequested.get()>0) {
+				  System.out.println("User requested stop");
+				  return;
+			  }
+		  }
+		  System.out.println("Processing "+fileIndices.length+" files finished at "+
+				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+	  }		
+
+
+	  public ImagePlus [] cltDisparityScan(
+			  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
+			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
+			  int              convolveFFTSize, // 128 - fft size, kernel size should be size/2
+			  double []	       scaleExposures, // probably not needed here
+			  final int        threadsMax,  // maximal number of threads to launch                         
+			  final boolean    updateStatus,
+			  final int        debugLevel){
+		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+
+		  // may use this.StartTime to report intermediate steps execution times
+		  String name=(String) imp_quad[0].getProperty("name");
+		  //		int channel= Integer.parseInt((String) imp_src.getProperty("channel"));
+		  String path= (String) imp_quad[0].getProperty("path");
+
+		  ImagePlus [] results = new ImagePlus[imp_quad.length];
+		  for (int i = 0; i < results.length; i++) {
+			  results[i] = imp_quad[i];
+			  results[i].setTitle(results[i].getTitle()+"RAW");			  
+		  }
+		  if (debugLevel>1) System.out.println("processing: "+path);
+		  double [][][] double_stacks = new double [imp_quad.length][][];
+		  for (int i = 0; i < double_stacks.length; i++){
+			  double_stacks[i] = eyesisCorrections.bayerToDoubleStack(
+					  imp_quad[i], // source Bayer image, linearized, 32-bit (float))
+					  null); // no margins, no oversample
+		  }
+		  // =================
+		  ImageDtt image_dtt = new ImageDtt();
+		  for (int i = 0; i < double_stacks.length; i++){
+			  for (int j =0 ; j < double_stacks[i][0].length; j++){
+				  double_stacks[i][2][j]*=0.5; // Scale green 0.5 to compensate more pixels than R,B
+			  }
+		  }
+
+		  int tilesY = imp_quad[0].getHeight()/clt_parameters.transform_size;
+		  int tilesX = imp_quad[0].getWidth()/clt_parameters.transform_size;
+		  // temporary setting up tile task file (one integer per tile, bitmask
+		  // for testing defined for a window, later the tiles to process will be calculated based on previous passes results
+		  int [][] tile_op = new int [tilesY][tilesX]; // all zero
+		  int txl =  clt_parameters.tile_task_wl;
+		  int txr =  txl + clt_parameters.tile_task_ww;
+		  
+		  int tyt =  clt_parameters.tile_task_wt;
+		  int tyb =  tyt + clt_parameters.tile_task_wh;
+		  if      (txl < 0)       txl = 0;
+		  else if (txl >= tilesX) txl = tilesX - 1;
+
+		  if      (txr <= txl)    txr = txl + 1;
+		  else if (txr >  tilesX) txr = tilesX;
+
+		  if      (tyt < 0)       tyt = 0;
+		  else if (tyt >= tilesY) tyt = tilesY - 1;
+
+		  if      (tyb <= tyt)    tyb = tyt + 1;
+		  else if (tyb >  tilesY) tyb = tilesY;
+
+		  for (int i = tyt; i < tyb; i++) {
+			  for (int j = txl; j < txr; j++) {
+				  tile_op[i][j] = clt_parameters.tile_task_op;
+			  }
+		  }
+		  if (debugLevel > -1){
+			  System.out.println("clt_parameters.tile_task_wl="+clt_parameters.tile_task_wl );
+			  System.out.println("clt_parameters.tile_task_wt="+clt_parameters.tile_task_wt );
+			  System.out.println("clt_parameters.tile_task_ww="+clt_parameters.tile_task_ww );
+			  System.out.println("clt_parameters.tile_task_wh="+clt_parameters.tile_task_wh );
+			  System.out.println("tyt="+tyt+" tyb="+tyb+" txl="+txl+" txr="+txr );
+		  }
+		  
+		  //TODO: Add array of default disparity - use for combining images in force disparity mode (no correlation), when disparity is predicted from other tiles
+
+		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
+		  double [][][][]     clt_corr_combo =    new double [2][tilesY][tilesX][]; // will only be used inside?
+		  double min_corr_selected = clt_parameters.corr_normalize? clt_parameters.min_corr_normalized: clt_parameters.min_corr;
+		  
+		  double [][][] disparity_maps = new double [clt_parameters.disp_scan_count][8][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+
+		  for (int scan_step = 0; scan_step < clt_parameters.disp_scan_count; scan_step++) {
+			  double disparity = clt_parameters.disp_scan_start + scan_step * clt_parameters.disp_scan_step;
+			  double [][] shiftXY = {
+					  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
+					  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
+					  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
+					  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
+
+			  image_dtt.clt_aberrations_quad_corr(
+					  tile_op,                      // per-tile operation bit codes
+					  disparity,                    // clt_parameters.disparity,     // final double            disparity,
+					  double_stacks,                // final double [][][]      imade_data, // first index - number of image in a quad
+					  // correlation results - final and partial          
+					  clt_corr_combo,               // [tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  null, // clt_corr_partial,    // [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+					  null,    // [tilesY][tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
+//	Use it with disparity_maps[scan_step]?		  clt_mismatch,    // [tilesY][tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
+					  disparity_maps[scan_step],    // [2][tilesY * tilesX]
+					  null, //texture_tiles,        // [tilesY][tilesX]["RGBA".length()][]; 			  
+					  imp_quad[0].getWidth(),       // final int width,
+					  clt_parameters.fat_zero,      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
+					  clt_parameters.corr_sym,
+					  clt_parameters.corr_offset,
+					  clt_parameters.corr_red,
+					  clt_parameters.corr_blue,
+					  clt_parameters.corr_sigma,
+					  clt_parameters.corr_normalize, // normalize correlation results by rms 
+					  min_corr_selected, // 0.0001; // minimal correlation value to consider valid 
+					  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
+					  clt_parameters.max_corr_radius,
+					  clt_parameters.corr_mode,     // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
+					  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
+					  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
+					  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
+					  clt_parameters.diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
+					  clt_parameters.diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
+					  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+					  clt_parameters.keep_weights,   // Add port weights to RGBA stack (debug feature)
+					  geometryCorrection,           // final GeometryCorrection  geometryCorrection,
+					  clt_kernels,                  // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+					  clt_parameters.kernel_step,
+					  clt_parameters.transform_size,
+					  clt_parameters.clt_window,
+					  shiftXY, // 
+					  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
+					  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
+					  clt_parameters.tileX,         // final int               debug_tileX,
+					  clt_parameters.tileY,         // final int               debug_tileY,
+					  (clt_parameters.dbg_mode & 64) != 0, // no fract shift
+					  (clt_parameters.dbg_mode & 128) != 0, // no convolve
+					  //				  (clt_parameters.dbg_mode & 256) != 0, // transpose convolve
+					  threadsMax,
+					  debugLevel);
+		  }
+//		  String [] disparity_titles = {"int_disparity", "int_disp_ortho","cm_disparity", "cm_disp_ortho","poly_disparity", "poly_disp_ortho",
+//				  "strength", "variety"};
+		  String [] disparity_titles = {"int_disparity","cm_disparity", "poly_disparity", "strength", "variety"};
+		  int [] disp_indices = {0,2,4,6,7};
+		  String [] disparities_titles = new String [disparity_titles.length * clt_parameters.disp_scan_count];
+		  double [][] disparities_maps = new double [disparity_titles.length * clt_parameters.disp_scan_count][];
+		  int indx = 0;
+
+		  for (int scan_step = 0; scan_step < clt_parameters.disp_scan_count; scan_step++) {
+			  double disparity = clt_parameters.disp_scan_start + scan_step * clt_parameters.disp_scan_step;
+			  for (int i = 0; i < disparity_titles.length; i++){
+				  disparities_titles[indx] = disparity_titles[i]+"_"+disparity;
+				  disparities_maps[indx++] = disparity_maps[scan_step][disp_indices[i]]; 
+			  }
+		  }
+		  
+		  ImageStack array_stack = sdfa_instance.makeStack(
+				  disparities_maps,
+				  tilesX,
+				  tilesY,
+				  disparities_titles);
+			  		  
+		  ImagePlus imp_stack = new ImagePlus( name+"-DISP_MAPS", array_stack);
+		  imp_stack.getProcessor().resetMinAndMax();
+		  imp_stack.updateAndDraw();
+		  //imp_stack.getProcessor().resetMinAndMax();
+		  //imp_stack.show();
+		  eyesisCorrections.saveAndShow(imp_stack, this.correctionsParameters);
+// process scan results
+		  double [][] scan_trends = process_disparity_scan(
+				  disparities_maps,
+				  clt_parameters.disp_scan_step,
+				  clt_parameters.disp_scan_start,
+				  0.0); // min_corr_selected); // all what is remaining 
+		  String [] trend_titles={"b_cm","b_poly","a_cm","a_poly","rms_cm","rms_poly","strength","samples"};
+
+		  ImageStack trends_stack = sdfa_instance.makeStack(
+				  scan_trends,
+				  tilesX,
+				  tilesY,
+				  trend_titles);
+		  ImagePlus imp_stack_trends = new ImagePlus( name+"-DISP_TRENDS", trends_stack);
+		  imp_stack_trends.getProcessor().resetMinAndMax();
+		  imp_stack_trends.updateAndDraw();
+		  eyesisCorrections.saveAndShow(imp_stack_trends, this.correctionsParameters);
+		  
+		  return results;
+	  }
+	  
+	  public double [][] process_disparity_scan(
+			  double [][] disparities_maps,
+			  double disp_step,
+			  double disp_start,
+			  double min_strength)
+	  {
+		  final int num_items = 5;
+		  final int index_strength = 3;
+		  final int index_cm = 1;
+		  final int index_poly = 1;
+		  
+		  final int ind_b_cm =   0;
+		  final int ind_b_poly = 1;
+		  final int ind_a_cm =   2;
+		  final int ind_a_poly = 3;
+		  final int ind_rms_cm =   4;
+		  final int ind_rms_poly = 5;
+		  final int ind_strength =   6;
+		  final int ind_samples = 7;
+		  
+		  final int num_steps = disparities_maps.length / num_items; // int, cm, poly, strength, variety
+		  final int disp_len =  disparities_maps[0].length;
+		  double [][] rslt = new double [8][disp_len];
+		  for (int i = 0; i < disp_len; i++){
+			  double s0 = 0.0, sx = 0.0, sx2 = 0.0, sy_cm = 0.0, sxy_cm = 0.0, sy_poly = 0.0, sxy_poly = 0.0;
+			  int samples = 0;
+			  for (int step = 0; step < num_steps; step++ ){
+				  double wi = disparities_maps[num_items*step + index_strength][i];
+				  if (wi > min_strength) {
+					  double xi =      disp_start + step * disp_step;
+					  double yi_cm =   disparities_maps[num_items*step + index_cm][i];
+					  double yi_poly = disparities_maps[num_items*step + index_poly][i];
+					  if (Double.isNaN(yi_cm) || Double.isNaN(yi_poly)) continue;
+					  s0 +=     wi;
+					  sx +=     wi*xi;
+					  sx2 +=    wi*xi*xi;
+					  sy_cm +=  wi*yi_cm;
+					  sxy_cm += wi*xi*yi_cm;
+					  sy_poly +=  wi*yi_poly;
+					  sxy_poly += wi*xi*yi_poly;
+					  samples++;
+				  }
+			  }
+			  double denom = (s0*sx2 - sx*sx);
+			  rslt[ind_strength][i] = s0; 
+			  rslt[ind_samples][i] =  samples;
+			  if (denom != 0.0) {
+				  rslt[ind_a_cm][i] =     (s0*sxy_cm - sx*sy_cm) /  denom;
+				  rslt[ind_b_cm][i] =     (sy_cm*sx2 - sx*sxy_cm) / denom;
+				  rslt[ind_a_poly][i] =   (s0*sxy_poly - sx*sy_poly) /  denom;
+				  rslt[ind_b_poly][i] =   (sy_poly*sx2 - sx*sxy_poly) / denom;
+				  rslt[ind_rms_cm][i] =   0.0;
+				  rslt[ind_rms_poly][i] = 0.0;
+				  for (int step = 0; step < num_steps; step++ ){
+					  double wi = disparities_maps[num_items*step + index_strength][i];
+					  if (wi > min_strength) {
+						  double xi =      disp_start + step * disp_step;
+						  double yi_cm =   disparities_maps[num_items*step + index_cm][i];
+						  double yi_poly = disparities_maps[num_items*step + index_poly][i];
+						  if (Double.isNaN(yi_cm) || Double.isNaN(yi_poly)) continue;
+						  double d_cm =   yi_cm -   (rslt[ind_a_cm][i]*xi +rslt[ind_b_cm][i]); 
+						  double d_poly = yi_poly - (rslt[ind_a_poly][i]*xi +rslt[ind_b_poly][i]);
+						  rslt[ind_rms_cm][i] +=   wi*d_cm*d_cm;
+						  rslt[ind_rms_poly][i] += wi*d_poly*d_poly;
+					  }
+				  }
+				  rslt[ind_rms_cm][i] =   Math.sqrt(rslt[ind_rms_cm][i]/s0);
+				  rslt[ind_rms_poly][i] = Math.sqrt(rslt[ind_rms_cm][i]/s0);
+			  } else {
+				  rslt[ind_a_cm][i] =     Double.NaN;
+				  rslt[ind_b_cm][i] =     Double.NaN;
+				  rslt[ind_a_poly][i] =   Double.NaN;
+				  rslt[ind_b_poly][i] =   Double.NaN;
+				  rslt[ind_rms_cm][i] =   Double.NaN;
+				  rslt[ind_rms_poly][i] = Double.NaN;
+			  }
+			  
+		  }
+		  return rslt;
+	  }
+	  
+	  
+
+
+
 }

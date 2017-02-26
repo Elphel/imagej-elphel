@@ -311,7 +311,7 @@ public class GeometryCorrection {
 	}
 
 	/*
-	 * Calculate pixel coordinates for each of numSensors images, for a given (px,py) of the idelaized "center" (still distorted) image
+	 * Calculate pixel coordinates for each of numSensors images, for a given (px,py) of the idealized "center" (still distorted) image
 	 * and generic diparity, measured in pixels 
 	 */
 
