@@ -190,7 +190,9 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6;
 		0.075, //  b_min;
 		1.0, //  r_max;
 		1.0, //  g_max;
-		1.0  //  b_max;
+		1.0,  //  b_max;
+		0.0, //  alpha_min;
+		1.0 //  alpha_max;
    );
    
    public static FilesParameters FILE_PARAMETERS= new FilesParameters (
@@ -802,7 +804,8 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
    	    		  imp_colorStack.getTitle()+"-RGB24",
 	    		  0, 65536, // r range 0->0, 65536->256
 	    		  0, 65536, // g range
-	    		  0, 65536);// b range
+	    		  0, 65536, // b range
+	    		  0, 65536);// alpha range
 	    imp_RGB24.setTitle(imp_colorStack.getTitle()+"rgb24");
 	    imp_RGB24.show();
         return;
@@ -1177,26 +1180,30 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 		  int g_min,
 		  int g_max,
 		  int b_min,
-		  int b_max){
-	  int [] mins= {r_min,g_min,b_min};
-	  int [] maxs= {r_max,g_max,b_max};
+		  int b_max,
+		  int alpha_min,
+		  int alpha_max){
+	  int [] mins= {r_min,g_min,b_min,alpha_min};
+	  int [] maxs= {r_max,g_max,b_max,alpha_max};
       int i;
 	  int length=stack16.getWidth()*stack16.getHeight();
-	  short [][] spixels=new short[3][];
+	  int numSlices  = stack16.getSize();
+	  if (numSlices > 4) numSlices = 4;
+	  short [][] spixels=new short[numSlices][];
 	  int [] pixels=new int[length];
 	  int c,d;
-	  double [] scale=new double[3];
-	  for (c=0;c<3;c++) {
+	  double [] scale=new double[numSlices];
+	  for (c = 0; c < numSlices; c++) {
 		  scale[c]=256.0/(maxs[c]-mins[c]);
 	  }
-	  for (i=0;i<3;i++) spixels[i]= (short[])stack16.getPixels(i+1);
-	  for (i=0;i<length;i++) {
+	  for (i = 0; i < numSlices; i++) spixels[i]= (short[])stack16.getPixels(i+1);
+	  for (i = 0; i < length; i++) {
 		  pixels[i]=0;
-		  for (c=0;c<3;c++) {
+		  for (c=0;c < numSlices;c++) {
 			  d=(int)(((spixels[c][i]& 0xffff)-mins[c])*scale[c]);
-			  if (d>255) d=255;
-			  else if (d<0) d=0;
-			  pixels[i]= d | (pixels[i]<<8);
+			  if (d > 255) d=255;
+			  else if (d < 0) d=0;
+			  pixels[i]= d | (pixels[i] << 8);
 		  }
 	  }
 	  ColorProcessor cp=new ColorProcessor(stack16.getWidth(),stack16.getHeight());
@@ -1976,7 +1983,8 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 						  title+"-RGB24",
 						  0, 65536, // r range 0->0, 65536->256
 						  0, 65536, // g range
-						  0, 65536);// b range
+			    		  0, 65536, // b range
+			    		  0, 65536);// alpha range
 				  if (processParameters.JPEG_scale!=1.0){
 					  ImageProcessor ip=imp_RGB24.getProcessor();
 					  ip.setInterpolationMethod(ImageProcessor.BICUBIC);
@@ -3504,6 +3512,9 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     gd.addNumericField("Red   color white level",             rgbParameters.r_max,     3);
     gd.addNumericField("Green color white level",             rgbParameters.g_max,     3);
     gd.addNumericField("Blue  color white level",             rgbParameters.b_max,     3);
+    gd.addNumericField("Alpha channel min",                   rgbParameters.alpha_min, 3);
+    gd.addNumericField("Alpha channel max",                   rgbParameters.alpha_max, 3);
+    
     gd.showDialog();
     if (gd.wasCanceled()) return false;
     rgbParameters.r_min=                gd.getNextNumber();
@@ -3512,6 +3523,8 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     rgbParameters.r_max=                gd.getNextNumber();
     rgbParameters.g_max=                gd.getNextNumber();
     rgbParameters.b_max=                gd.getNextNumber();
+    rgbParameters.alpha_min=            gd.getNextNumber();
+    rgbParameters.alpha_max=            gd.getNextNumber();
     return true;
   }
 
@@ -4233,13 +4246,15 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 
 /* ======================================================================== */
   public static class RGBParameters {
-		public double r_min;
-		public double g_min;
-		public double b_min;
-		public double r_max;
-		public double g_max;
-		public double b_max;
-
+		public double r_min = 0.075;
+		public double g_min = 0.075;
+		public double b_min = 0.075;
+		public double r_max = 1.0;
+		public double g_max = 1.0;
+		public double b_max = 1.0;
+		public double alpha_min = 0.0;
+		public double alpha_max = 1.0;
+/*
 		public RGBParameters(double r_min, double g_min, double b_min, double r_max, double g_max, double b_max) {
 			this.r_min = r_min;
 			this.g_min = g_min;
@@ -4248,6 +4263,18 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 			this.g_max = g_max;
 			this.b_max = b_max;
 		}
+*/		
+  		public RGBParameters(double r_min, double g_min, double b_min, double r_max, double g_max, double b_max, double alpha_min, double alpha_max) {
+  			this.r_min = r_min;
+  			this.g_min = g_min;
+  			this.b_min = b_min;
+  			this.r_max = r_max;
+  			this.g_max = g_max;
+  			this.b_max = b_max;
+  			this.alpha_min = alpha_min;
+  			this.alpha_max = alpha_max;
+  		}
+		
 		public void setProperties(String prefix,Properties properties){
 			properties.setProperty(prefix+"r_min",this.r_min+"");
 			properties.setProperty(prefix+"g_min",this.g_min+"");
@@ -4255,6 +4282,9 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 			properties.setProperty(prefix+"r_max",this.r_max+"");
 			properties.setProperty(prefix+"g_max",this.g_max+"");
 			properties.setProperty(prefix+"b_max",this.b_max+"");
+  			properties.setProperty(prefix+"alpha_min",this.alpha_min+"");
+  			properties.setProperty(prefix+"alpha_max",this.alpha_max+"");
+			
 		}
 		public void getProperties(String prefix,Properties properties){
 			this.r_min=Double.parseDouble(properties.getProperty(prefix+"r_min"));
@@ -4263,6 +4293,8 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 			this.r_max=Double.parseDouble(properties.getProperty(prefix+"r_max"));
 			this.g_max=Double.parseDouble(properties.getProperty(prefix+"g_max"));
 			this.b_max=Double.parseDouble(properties.getProperty(prefix+"b_max"));
+  			if (properties.getProperty(prefix+"alpha_min")!=null)  this.alpha_min=Double.parseDouble(properties.getProperty(prefix+"alpha_min"));
+  			if (properties.getProperty(prefix+"alpha_max")!=null)  this.alpha_max=Double.parseDouble(properties.getProperty(prefix+"alpha_max"));
 		}
 		
 	}

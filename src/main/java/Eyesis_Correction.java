@@ -256,7 +256,9 @@ private Panel panel1,
 		0.075, //  b_min;
 		1.0, //  r_max;
 		1.0, //  g_max;
-		1.0  //  b_max;
+		1.0, //  b_max;
+		0.0, //  alpha_min;
+		1.0  //  alpha_max;
    );
    public static EyesisCorrectionParameters.ProcessParameters PROCESS_PARAMETERS= new EyesisCorrectionParameters.ProcessParameters (
 		   true, //eyesisMode
@@ -498,6 +500,11 @@ private Panel panel1,
 			addButton("CLT process quads",         panelClt1, color_process);
 			addButton("CLT process corr",          panelClt1, color_process);
 			addButton("CLT disparity scan",        panelClt1, color_conf_process);
+			addButton("CLT reset fine corr",       panelClt1, color_stop);
+			addButton("CLT show fine corr",        panelClt1, color_configure);
+			addButton("CLT apply fine corr",       panelClt1, color_process);
+			addButton("CLT reset 3D",              panelClt1, color_stop);
+			addButton("CLT 3D",                    panelClt1, color_conf_process);
 						
 			add(panelClt1);
 		}
@@ -1021,7 +1028,8 @@ private Panel panel1,
    	    		  imp_colorStack.getTitle()+"-RGB24",
 	    		  0, 65536, // r range 0->0, 65536->256
 	    		  0, 65536, // g range
-	    		  0, 65536);// b range
+				  0, 65536,// b range
+				  0, 65536);// alpha range
 	    imp_RGB24.setTitle(imp_colorStack.getTitle()+"rgb24");
 	    imp_RGB24.show();
         return;
@@ -2857,6 +2865,7 @@ private Panel panel1,
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
         if (EYESIS_DCT == null){
         	EYESIS_DCT = new  EyesisDCT (
+        			PROPERTIES,
         			EYESIS_CORRECTIONS,
         			CORRECTION_PARAMETERS,
         			DCT_PARAMETERS);
@@ -3232,6 +3241,7 @@ private Panel panel1,
         }
         if (EYESIS_DCT == null){
         	EYESIS_DCT = new  EyesisDCT (
+        			PROPERTIES,
         			EYESIS_CORRECTIONS,
         			CORRECTION_PARAMETERS,
         			DCT_PARAMETERS);
@@ -3377,6 +3387,7 @@ private Panel panel1,
         }
         if (EYESIS_DCT == null){
         	EYESIS_DCT = new  EyesisDCT (
+        			PROPERTIES,
         			EYESIS_CORRECTIONS,
         			CORRECTION_PARAMETERS,
         			DCT_PARAMETERS);
@@ -3499,6 +3510,7 @@ private Panel panel1,
         if (!DCT_PARAMETERS.showDialog()) return;
         if (EYESIS_DCT == null){
         	EYESIS_DCT = new  EyesisDCT (
+        			PROPERTIES,
         			EYESIS_CORRECTIONS,
         			CORRECTION_PARAMETERS,
         			DCT_PARAMETERS);
@@ -3514,6 +3526,7 @@ private Panel panel1,
         if (!DCT_PARAMETERS.showDialog()) return;
         if (EYESIS_DCT == null){
         	EYESIS_DCT = new  EyesisDCT (
+        			PROPERTIES,
         			EYESIS_CORRECTIONS,
         			CORRECTION_PARAMETERS,
         			DCT_PARAMETERS);
@@ -3562,6 +3575,7 @@ private Panel panel1,
         if (!DCT_PARAMETERS.showDialog()) return;
         if (EYESIS_DCT == null){
         	EYESIS_DCT = new  EyesisDCT (
+        			PROPERTIES,
         			EYESIS_CORRECTIONS,
         			CORRECTION_PARAMETERS,
         			DCT_PARAMETERS);
@@ -4046,6 +4060,7 @@ private Panel panel1,
         if (!CLT_PARAMETERS.showDialog()) return;
         if (EYESIS_DCT == null){
         	EYESIS_DCT = new  EyesisDCT (
+        			PROPERTIES,
         			EYESIS_CORRECTIONS,
         			CORRECTION_PARAMETERS,
         			DCT_PARAMETERS);
@@ -4096,6 +4111,7 @@ private Panel panel1,
         if (!CLT_PARAMETERS.showDialog()) return;
         if (EYESIS_DCT == null){
         	EYESIS_DCT = new  EyesisDCT (
+        			PROPERTIES,
         			EYESIS_CORRECTIONS,
         			CORRECTION_PARAMETERS,
         			DCT_PARAMETERS);
@@ -4147,6 +4163,7 @@ private Panel panel1,
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
         if (EYESIS_DCT == null){
         	EYESIS_DCT = new  EyesisDCT (
+        			PROPERTIES,
         			EYESIS_CORRECTIONS,
         			CORRECTION_PARAMETERS,
         			DCT_PARAMETERS);
@@ -4233,6 +4250,7 @@ private Panel panel1,
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
         if (EYESIS_DCT == null){
         	EYESIS_DCT = new  EyesisDCT (
+        			PROPERTIES,
         			EYESIS_CORRECTIONS,
         			CORRECTION_PARAMETERS,
         			DCT_PARAMETERS);
@@ -4328,6 +4346,7 @@ private Panel panel1,
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
         if (EYESIS_DCT == null){
         	EYESIS_DCT = new  EyesisDCT (
+        			PROPERTIES,
         			EYESIS_CORRECTIONS,
         			CORRECTION_PARAMETERS,
         			DCT_PARAMETERS);
@@ -4419,11 +4438,13 @@ private Panel panel1,
         return;
         
 
-    } else if (label.equals("CLT process corr")) {
+    } else if (label.equals("CLT process corr") || label.equals("CLT apply fine corr")) {
+    	boolean apply_corr = label.equals("CLT apply fine corr"); 
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
         if (EYESIS_DCT == null){
         	EYESIS_DCT = new  EyesisDCT (
+        			PROPERTIES,
         			EYESIS_CORRECTIONS,
         			CORRECTION_PARAMETERS,
         			DCT_PARAMETERS);
@@ -4501,6 +4522,7 @@ private Panel panel1,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
         		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
         		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+        		apply_corr,
         		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
@@ -4513,13 +4535,39 @@ private Panel panel1,
         			PROPERTIES);
         }
         return;
-        
+    } else if (label.equals("CLT reset fine corr")) {
+        if (EYESIS_DCT == null){
+        	EYESIS_DCT = new  EyesisDCT (
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS,
+        			DCT_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new EyesisDCT instance, will need to read CLT kernels");
+        	}
+        }
+    	EYESIS_DCT.reset_fine_corr();
+        return;
+    } else if (label.equals("CLT show fine corr")) {
+        if (EYESIS_DCT == null){
+        	EYESIS_DCT = new  EyesisDCT (
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS,
+        			DCT_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new EyesisDCT instance, will need to read CLT kernels");
+        	}
+        }
+    	EYESIS_DCT.show_fine_corr();
+        return;
 
     } else if (label.equals("CLT disparity scan")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
         if (EYESIS_DCT == null){
         	EYESIS_DCT = new  EyesisDCT (
+        			PROPERTIES,
         			EYESIS_CORRECTIONS,
         			CORRECTION_PARAMETERS,
         			DCT_PARAMETERS);
@@ -4610,7 +4658,117 @@ private Panel panel1,
         }
         return;
         
+    } else if (label.equals("CLT reset 3D")) {
+        if (EYESIS_DCT == null){
+        	EYESIS_DCT = new  EyesisDCT (
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS,
+        			DCT_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new EyesisDCT instance, will need to read CLT kernels");
+        	}
+        }
+    	EYESIS_DCT.resetCLTPasses();
+        return;
         
+/// ============================================
+        
+    } else if (label.equals("CLT 3D")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        if (EYESIS_DCT == null){
+        	EYESIS_DCT = new  EyesisDCT (
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS,
+        			DCT_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new EyesisDCT instance, will need to read CLT kernels");
+        	}
+        }
+    	String configPath=null;
+    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
+    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
+    				true,
+    				true);
+    		if (configPath==null){
+    			String msg="No results directory selected, command aborted";
+    			System.out.println("Warning: "+msg);
+    			IJ.showMessage("Warning",msg);
+    			return;
+    		}
+    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		try {
+    			saveTimestampedProperties(
+    					configPath,      // full path or null
+    					null, // use as default directory if path==null 
+    					true,
+    					PROPERTIES);
+
+    		} catch (Exception e){
+    			String msg="Failed to save configuration to "+configPath+", command aborted";
+    			System.out.println("Error: "+msg);
+    			IJ.showMessage("Error",msg);
+    			return;
+    		}
+    	}      
+        
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
+        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
+        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
+
+        if (!EYESIS_DCT.CLTKernelsAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Reading CLT kernels");
+        	}
+            EYESIS_DCT.readCLTKernels(
+            		CLT_PARAMETERS,
+                    THREADS_MAX,
+                    UPDATE_STATUS, // update status info
+            		DEBUG_LEVEL);
+
+            if (DEBUG_LEVEL > 1){
+            	EYESIS_DCT.showCLTKernels(
+            			THREADS_MAX,
+            			UPDATE_STATUS, // update status info
+            			DEBUG_LEVEL);
+        	}
+        }
+
+        if (!EYESIS_DCT.geometryCorrectionAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Calculating geometryCorrection");
+        	}
+        	if (!EYESIS_DCT.initGeometryCorrection(DEBUG_LEVEL+2)){
+        		return;
+        	}
+        }
+        
+        EYESIS_DCT.processCLTQuads3d(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+//        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+        
+        if (configPath!=null) {
+        	saveTimestampedProperties( // save config again
+        			configPath,      // full path or null
+        			null, // use as default directory if path==null 
+        			true,
+        			PROPERTIES);
+        }
+        return;
+        
+         
         
         
         
@@ -5003,19 +5161,21 @@ private Panel panel1,
 	  int i,j;
 	  float [] fpixels;
 	  short [] spixels;
-	  double [] mins= {rgbParameters.r_min,rgbParameters.g_min,rgbParameters.b_min};
-	  double [] maxs= {rgbParameters.r_max,rgbParameters.g_max,rgbParameters.b_max};
-	  if (stack32.getSize()<3) return null;
+	  int numSlices  = stack32.getSize();
+	  if (numSlices > 4) numSlices = 4;
+	  if (numSlices < 3) return null;
+	  double [] mins= {rgbParameters.r_min, rgbParameters.g_min, rgbParameters.b_min, rgbParameters.alpha_min};
+	  double [] maxs= {rgbParameters.r_max, rgbParameters.g_max, rgbParameters.b_max, rgbParameters.alpha_max};
 	  double value;
 	  double scale;
-	  for (i=0;i<3;i++) {
-		 fpixels= (float[])stack32.getPixels(i+1);
-		 scale=65535.0/(maxs[i]-mins[i]);
+	  for (i = 0; i < numSlices; i++) {
+		 fpixels= (float[])stack32.getPixels(i + 1);
+		 scale=65535.0 / (maxs[i] - mins[i]);
 		 spixels=new short [length];
-		 for (j=0;j<length;j++) {
+		 for (j = 0; j < length; j++) {
 			 value=(fpixels[j]-mins[i])*scale;
-			 if      (value<0.0) value=0.0;
-			 else if (value>65535.0) value=65535.0;
+			 if      (value<0.0)     value = 0.0;
+			 else if (value>65535.0) value = 65535.0;
 			 spixels[j]=(short)(value+0.5);
 		 }
 		 stack16.addSlice(stack32.getSliceLabel(i+1), spixels);
@@ -5032,26 +5192,30 @@ private Panel panel1,
 		  int g_min,
 		  int g_max,
 		  int b_min,
-		  int b_max){
-	  int [] mins= {r_min,g_min,b_min};
-	  int [] maxs= {r_max,g_max,b_max};
+		  int b_max,
+		  int alpha_min,
+		  int alpha_max){
+	  int [] mins= {r_min,g_min,b_min,alpha_min};
+	  int [] maxs= {r_max,g_max,b_max,alpha_max};
       int i;
 	  int length=stack16.getWidth()*stack16.getHeight();
-	  short [][] spixels=new short[3][];
+	  int numSlices  = stack16.getSize();
+	  if (numSlices > 4) numSlices = 4;
+	  short [][] spixels=new short[numSlices][];
 	  int [] pixels=new int[length];
 	  int c,d;
-	  double [] scale=new double[3];
-	  for (c=0;c<3;c++) {
+	  double [] scale=new double[numSlices];
+	  for (c = 0; c < numSlices; c++) {
 		  scale[c]=256.0/(maxs[c]-mins[c]);
 	  }
-	  for (i=0;i<3;i++) spixels[i]= (short[])stack16.getPixels(i+1);
-	  for (i=0;i<length;i++) {
+	  for (i = 0; i < numSlices; i++) spixels[i]= (short[])stack16.getPixels(i+1);
+	  for (i = 0; i < length; i++) {
 		  pixels[i]=0;
-		  for (c=0;c<3;c++) {
+		  for (c=0;c < numSlices;c++) {
 			  d=(int)(((spixels[c][i]& 0xffff)-mins[c])*scale[c]);
-			  if (d>255) d=255;
-			  else if (d<0) d=0;
-			  pixels[i]= d | (pixels[i]<<8);
+			  if (d > 255) d=255;
+			  else if (d < 0) d=0;
+			  pixels[i]= d | (pixels[i] << 8);
 		  }
 	  }
 	  ColorProcessor cp=new ColorProcessor(stack16.getWidth(),stack16.getHeight());
@@ -5233,7 +5397,8 @@ private Panel panel1,
     	properties.setProperty("CONVOLVE_FFT_SIZE",CONVOLVE_FFT_SIZE+""); //128,  FFT size for sliding convolution with kernel
     	properties.setProperty("THREADS_MAX",THREADS_MAX+""); // 100, testing multi-threading, limit maximal number of threads
     	properties.setProperty("GAUSS_WIDTH",GAUSS_WIDTH+""); // 0.4 (0 - use Hamming window)
-    	properties.setProperty("PSF_SUBPIXEL_SHOULD_BE_4",PSF_SUBPIXEL_SHOULD_BE_4+""); // 4, sub-pixel decimation 
+    	properties.setProperty("PSF_SUBPIXEL_SHOULD_BE_4",PSF_SUBPIXEL_SHOULD_BE_4+""); // 4, sub-pixel decimation
+    	if (EYESIS_DCT != null) EYESIS_DCT.setProperties();
     }
 /* ======================================================================== */
     public void getAllProperties(Properties properties){
@@ -5256,7 +5421,9 @@ private Panel panel1,
    	   CONVOLVE_FFT_SIZE=Integer.parseInt(properties.getProperty("CONVOLVE_FFT_SIZE"));
 	   THREADS_MAX=Integer.parseInt(properties.getProperty("THREADS_MAX"));
 	   GAUSS_WIDTH=Double.parseDouble(properties.getProperty("GAUSS_WIDTH"));
-	   PSF_SUBPIXEL_SHOULD_BE_4=Integer.parseInt(properties.getProperty("PSF_SUBPIXEL_SHOULD_BE_4")); 
+	   PSF_SUBPIXEL_SHOULD_BE_4=Integer.parseInt(properties.getProperty("PSF_SUBPIXEL_SHOULD_BE_4"));
+   	if (EYESIS_DCT != null) EYESIS_DCT.getProperties();
+
     }
 
 /* ======================================================================== */
@@ -5860,7 +6027,8 @@ private Panel panel1,
 						  title+"-RGB24",
 						  0, 65536, // r range 0->0, 65536->256
 						  0, 65536, // g range
-						  0, 65536);// b range
+						  0, 65536,// b range
+						  0, 65536);// alpha range
 				  if (processParameters.JPEG_scale!=1.0){
 					  ImageProcessor ip=imp_RGB24.getProcessor();
 					  ip.setInterpolationMethod(ImageProcessor.BICUBIC);
@@ -7267,6 +7435,8 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     gd.addNumericField("Red   color white level",             rgbParameters.r_max,     3);
     gd.addNumericField("Green color white level",             rgbParameters.g_max,     3);
     gd.addNumericField("Blue  color white level",             rgbParameters.b_max,     3);
+    gd.addNumericField("Alpha channel min",                   rgbParameters.alpha_min, 3);
+    gd.addNumericField("Alpha channel max",                   rgbParameters.alpha_max, 3);
     gd.showDialog();
     if (gd.wasCanceled()) return false;
     rgbParameters.r_min=                gd.getNextNumber();
@@ -7275,6 +7445,8 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     rgbParameters.r_max=                gd.getNextNumber();
     rgbParameters.g_max=                gd.getNextNumber();
     rgbParameters.b_max=                gd.getNextNumber();
+    rgbParameters.alpha_min=            gd.getNextNumber();
+    rgbParameters.alpha_max=            gd.getNextNumber();
     return true;
   }
 

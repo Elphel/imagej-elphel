@@ -1285,7 +1285,8 @@ public class EyesisCorrections {
 					  title+"-RGB24",
 					  0, 65536, // r range 0->0, 65536->256
 					  0, 65536, // g range
-					  0, 65536);// b range
+					  0, 65536,// b range
+					  0, 65536);// alpha range
 			  if (JPEG_scale!=1.0){
 				  ImageProcessor ip=imp_RGB.getProcessor();
 				  ip.setInterpolationMethod(ImageProcessor.BICUBIC);
@@ -1524,7 +1525,6 @@ public class EyesisCorrections {
 
 	/* ======================================================================== */
 	  public CompositeImage convertToComposite( ImagePlus imp) {
-//		  if (imp.isComposite()) return imp;
 		  if (imp.isComposite()) return null;
 		  if (imp.getNChannels()>1) {
 			  return null; // number of channels should be just 1
@@ -1532,8 +1532,6 @@ public class EyesisCorrections {
 		  int c = imp.getStackSize();
 		  imp.setDimensions(c, 1, 1);
 		  CompositeImage ci = new CompositeImage(imp, CompositeImage.COMPOSITE);
-//		  ci.show();
-//		  imp.hide();
 		  return ci;
 	  }
 
@@ -1546,19 +1544,21 @@ public class EyesisCorrections {
 		  int i,j;
 		  float [] fpixels;
 		  short [] spixels;
-		  double [] mins= {rgbParameters.r_min,rgbParameters.g_min,rgbParameters.b_min};
-		  double [] maxs= {rgbParameters.r_max,rgbParameters.g_max,rgbParameters.b_max};
-		  if (stack32.getSize()<3) return null;
+		  int numSlices  = stack32.getSize();
+		  if (numSlices > 4) numSlices = 4;
+		  if (numSlices < 3) return null;
+		  double [] mins= {rgbParameters.r_min, rgbParameters.g_min, rgbParameters.b_min, rgbParameters.alpha_min};
+		  double [] maxs= {rgbParameters.r_max, rgbParameters.g_max, rgbParameters.b_max, rgbParameters.alpha_max};
 		  double value;
 		  double scale;
-		  for (i=0;i<3;i++) {
-			 fpixels= (float[])stack32.getPixels(i+1);
-			 scale=65535.0/(maxs[i]-mins[i]);
+		  for (i = 0; i < numSlices; i++) {
+			 fpixels= (float[])stack32.getPixels(i + 1);
+			 scale=65535.0 / (maxs[i] - mins[i]);
 			 spixels=new short [length];
-			 for (j=0;j<length;j++) {
+			 for (j = 0; j < length; j++) {
 				 value=(fpixels[j]-mins[i])*scale;
-				 if      (value<0.0) value=0.0;
-				 else if (value>65535.0) value=65535.0;
+				 if      (value<0.0)     value = 0.0;
+				 else if (value>65535.0) value = 65535.0;
 				 spixels[j]=(short)(value+0.5);
 			 }
 			 stack16.addSlice(stack32.getSliceLabel(i+1), spixels);
@@ -1575,26 +1575,35 @@ public class EyesisCorrections {
 			  int g_min,
 			  int g_max,
 			  int b_min,
-			  int b_max){
-		  int [] mins= {r_min,g_min,b_min};
-		  int [] maxs= {r_max,g_max,b_max};
+			  int b_max,
+			  int alpha_min,
+			  int alpha_max){
+		  int [] mins= {r_min,g_min,b_min,alpha_min};
+		  int [] maxs= {r_max,g_max,b_max,alpha_max};
 	      int i;
 		  int length=stack16.getWidth()*stack16.getHeight();
-		  short [][] spixels=new short[3][];
+		  int numSlices  = stack16.getSize();
+		  if (numSlices > 4) numSlices = 4;
+		  short [][] spixels=new short[numSlices][];
+		  int [] sliceSeq = new int [numSlices];
+		  for (int j = 0; j < numSlices; j++) sliceSeq[j] = (j + ((numSlices > 3)? 3:0)) % 4; 
+		  
 		  int [] pixels=new int[length];
 		  int c,d;
-		  double [] scale=new double[3];
-		  for (c=0;c<3;c++) {
+		  
+		  double [] scale=new double[numSlices];
+		  for (c = 0; c < numSlices; c++) {
 			  scale[c]=256.0/(maxs[c]-mins[c]);
 		  }
-		  for (i=0;i<3;i++) spixels[i]= (short[])stack16.getPixels(i+1);
-		  for (i=0;i<length;i++) {
+		  for (i = 0; i < numSlices; i++) spixels[i]= (short[])stack16.getPixels(i+1);
+		  for (i = 0; i < length; i++) {
 			  pixels[i]=0;
-			  for (c=0;c<3;c++) {
+			  for (int j=0; j < numSlices; j++) {
+				  c = sliceSeq[j];
 				  d=(int)(((spixels[c][i]& 0xffff)-mins[c])*scale[c]);
-				  if (d>255) d=255;
-				  else if (d<0) d=0;
-				  pixels[i]= d | (pixels[i]<<8);
+				  if (d > 255) d=255;
+				  else if (d < 0) d=0;
+				  pixels[i]= d | (pixels[i] << 8);
 			  }
 		  }
 		  ColorProcessor cp=new ColorProcessor(stack16.getWidth(),stack16.getHeight());
@@ -1602,7 +1611,48 @@ public class EyesisCorrections {
 		  ImagePlus imp=new ImagePlus(title,cp);
 		  return imp;
 	  }
-	
+
+	  public ImageStack convertRGB48toRGBA24Stack(
+			  ImageStack stack16,
+			  double [] dalpha, // alpha pixel array 0..1.0 or null 
+//			  String title,
+			  int r_min,
+			  int r_max,
+			  int g_min,
+			  int g_max,
+			  int b_min,
+			  int b_max){
+		  ImageStack stack8 = new ImageStack(stack16.getWidth(), stack16.getHeight());
+		  int [] mins= {r_min,g_min,b_min};
+		  int [] maxs= {r_max,g_max,b_max};
+	      int i;
+		  int length=stack16.getWidth()*stack16.getHeight();
+		  short [][] spixels=new short[3][];
+		  byte [][] bpixels=new byte [(dalpha != null)? 4: 3][length];
+		  int c,d;
+		  double [] scale=new double[3];
+		  for (c=0;c<3;c++) {
+			  scale[c]=256.0/(maxs[c]-mins[c]);
+		  }
+		  for (i = 0; i <3; i++) spixels[i]= (short[])stack16.getPixels(i+1);
+		  for (c = 0; c <3; c++) {
+			  for (i = 0; i < length; i++){
+				  d=(int)(((spixels[c][i]& 0xffff)-mins[c])*scale[c]);
+				  if (d>255) d=255;
+				  else if (d<0) d=0;
+				  bpixels[c][i]= (byte) d;
+			  }
+			  stack8.addSlice(stack16.getSliceLabel(c+1), bpixels[c]);
+		  }
+		  if (dalpha != null) {
+			  for (i = 0; i < length; i++){
+				  bpixels[3][i] = (byte) (255*dalpha[i]);
+			  }
+			  stack8.addSlice("alpha", bpixels[3]);
+		  }
+		  return stack8;
+	  }
+	  
 	/* ======================================================================== */
 	  public ImagePlus Image32toGreyRGB24(
 			  ImagePlus imp){
@@ -2272,22 +2322,22 @@ public class EyesisCorrections {
 	   /* ======================================================================== */
 //	   private void saveAndShow(
 	   public void saveAndShow(
-	 		  ImagePlus             imp,
+			   ImagePlus             imp,
 			   EyesisCorrectionParameters.CorrectionParameters  correctionsParameters){
-	 	  saveAndShowEnable( imp,    correctionsParameters , true, true);
+		   saveAndShowEnable( imp,    correctionsParameters , true, true);
 	   }
 
 	   private void saveAndShowEnable(
-	 		  ImagePlus             imp,
-	 		 EyesisCorrectionParameters.CorrectionParameters  correctionsParameters,
-	 		  boolean               enableSave,
-	 		  boolean               enableShow){
-	 	  saveAndShow(
-	 			  imp,
-	 			 correctionsParameters,
-	 			correctionsParameters.save && enableSave,
-	 			correctionsParameters.show && enableShow,
-	 			correctionsParameters.JPEG_quality);
+			   ImagePlus             imp,
+			   EyesisCorrectionParameters.CorrectionParameters  correctionsParameters,
+			   boolean               enableSave,
+			   boolean               enableShow){
+		   saveAndShow(
+				   imp,
+				   correctionsParameters,
+				   correctionsParameters.save && enableSave,
+				   correctionsParameters.show && enableShow,
+				   correctionsParameters.JPEG_quality);
 	   }
 
 	   void saveAndShow(
@@ -2300,35 +2350,96 @@ public class EyesisCorrections {
 	   } 
 	   
 	   void saveAndShow(
-	 		  ImagePlus             imp,
-	 		 EyesisCorrectionParameters.CorrectionParameters  correctionsParameters,
-	 		  boolean               save,
-	 		  boolean               show,
-	 		  int                   jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
-		 	  String path=null;
-		 	  if (save)  path= correctionsParameters.selectResultsDirectory(
-		 		    				true,  // smart,
-		 		    				true);  //newAllowed, // save  
-		 	 
-		 	  if (path!=null) {
-		 		  path+=Prefs.getFileSeparator()+imp.getTitle();
-	 		  if (((imp.getStackSize()==1)) && (jpegQuality!=0) && ((imp.getFileInfo().fileType== FileInfo.RGB) || (jpegQuality>0))) {
-	 			  if (this.debugLevel>0) System.out.println("Saving result to "+path+".jpeg");
-	 			  FileSaver fs=new FileSaver(imp);
-	 			  if (jpegQuality>0) FileSaver.setJpegQuality(jpegQuality);
-	 			  fs.saveAsJpeg(path+".jpeg");
-	 		  }
-	 		  else {
-	 			  if (this.debugLevel>0) System.out.println("Saving result to "+path+".tiff");
-	 			  FileSaver fs=new FileSaver(imp);
-	 			  if (imp.getStackSize()>1)  fs.saveAsTiffStack(path+".tiff");
-	 			  else fs.saveAsTiff(path+".tiff");
-	 		  }
-	 	  }
-	 	  if (show) {
-	 		  imp.getProcessor().resetMinAndMax(); // probably not needed
-	 		  imp.show();
-	 	  }
+			   ImagePlus             imp,
+			   EyesisCorrectionParameters.CorrectionParameters  correctionsParameters,
+			   boolean               save,
+			   boolean               show,
+			   int                   jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+		   String path=null;
+		   if (save) path= correctionsParameters.selectResultsDirectory(
+				   true,  // smart,
+				   true);  //newAllowed, // save  
+
+		   if (path!=null) {
+			   path+=Prefs.getFileSeparator()+imp.getTitle();
+			   boolean hasAlphaHighByte = false;
+			   if ((imp.getStackSize()==1) && (imp.getFileInfo().fileType== FileInfo.RGB)) {
+				   int [] pixels = (int []) imp.getProcessor().getPixels();
+				   for (int i = 0; i < pixels.length; i++){
+					   if ((pixels[i] & 0xff000000) != 0){
+						   hasAlphaHighByte = true;
+						   break;
+					   }
+				   }
+			   }
+			   
+			   if (hasAlphaHighByte){
+				   if (correctionsParameters.png){
+					   if (this.debugLevel > 0) System.out.println("Saving RGBA result to "+path+".png");
+					   (new EyesisTiff()).savePNG_ARGB32(
+							   imp,
+							   path+".png"
+							   );
+
+				   } else {
+					   if (this.debugLevel > 0) System.out.println("Saving RGBA result to "+path+".tiff");
+					   try {
+						   (new EyesisTiff()).saveTiffARGB32(
+								   imp,
+								   path+".tiff",
+								   false, // correctionsParameters.imageJTags,	
+								   debugLevel);
+					   } catch (IOException e) {
+						   e.printStackTrace();
+					   } catch (FormatException e) {
+						   e.printStackTrace();
+					   } catch (ServiceException e) {
+						   e.printStackTrace();
+					   } catch (DependencyException e) {
+						   e.printStackTrace();
+					   }
+				   }
+				   
+			   } else if (((imp.getStackSize()==1)) && (jpegQuality!=0) && ((imp.getFileInfo().fileType== FileInfo.RGB) || (jpegQuality>0))) {
+				   if (this.debugLevel>0) System.out.println("Saving result to "+path+".jpeg");
+				   FileSaver fs=new FileSaver(imp);
+				   if (jpegQuality>0) FileSaver.setJpegQuality(jpegQuality);
+				   fs.saveAsJpeg(path+".jpeg");
+			   } else {
+				   if (this.debugLevel>0) System.out.println("Saving result to "+path+".tiff");
+				   FileSaver fs=new FileSaver(imp);
+				   // Save as RGBA if it is RGBA
+				   int bytesPerPixel = imp.getBytesPerPixel();
+				   int mode = 0;
+				   if (bytesPerPixel > 1) mode = 1;
+				   if (bytesPerPixel > 3) mode = 3;// float, mode 2 not supported
+
+				   if ((imp.getStackSize() == 4) && imp.getStack().getSliceLabel(4).equals("alpha")){
+					   try {
+						   (new EyesisTiff()).saveTiff(
+								   imp,
+								   path+".tiff",
+								   mode, //
+								   1.0, // full scale, absolute
+								   false, // correctionsParameters.imageJTags,	
+								   debugLevel);
+					   } catch (IOException e) {
+						   e.printStackTrace();
+					   } catch (FormatException e) {
+						   e.printStackTrace();
+					   } catch (ServiceException e) {
+						   e.printStackTrace();
+					   } catch (DependencyException e) {
+						   e.printStackTrace();
+					   }
+				   } else if (imp.getStackSize()>1)  fs.saveAsTiffStack(path+".tiff");
+				   else fs.saveAsTiff(path+".tiff");
+			   }
+		   }
+		   if (show) {
+			   imp.getProcessor().resetMinAndMax(); // probably not needed
+			   imp.show();
+		   }
 	   }
 /*	  
 	   private void saveAndShow(

@@ -47,6 +47,8 @@ public class ImageDtt {
 			  {1,2,4,5},           // bottom left
 			  {0,1,2,3,4,5},       // mottom middle
 			  {0,1,3,4}};          // bottom right
+	 public static int FORCE_DISPARITY_BIT = 8; // move to parameters?
+
 	
 	public ImageDtt(){
 
@@ -920,7 +922,8 @@ public class ImageDtt {
 	
 	public double [][][][][][] clt_aberrations_quad_corr(
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
-			final double              disparity,
+//			final double              disparity,
+			final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 			final double [][][]       image_data, // first index - number of image in a quad
 			 // correlation results - final and partial          
 			final double [][][][]     clt_corr_combo,  // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
@@ -931,7 +934,7 @@ public class ImageDtt {
                                                        // [tilesY][tilesX] should be set by caller
 			final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // transpose unapplied. null - do not calculate
 
-			final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do nat calculate
+			final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
 			                                           // last 2 - contrast, avg/ "geometric average)
 			final double [][][][]     texture_tiles,   // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 
@@ -954,6 +957,7 @@ public class ImageDtt {
 			final double              diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
 			final boolean             diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
 			final double              min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+			final boolean             dust_remove,    // Do not reduce average weight when only one image differes much from the average
 			final boolean             keep_weights,   // Add port weights to RGBA stack (debug feature)
 			final GeometryCorrection  geometryCorrection,
 			final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
@@ -961,6 +965,8 @@ public class ImageDtt {
 			final int                 transform_size,
 			final int                 window_type,
 			final double [][]         shiftXY, // [port]{shiftX,shiftY}
+			final double [][][]       fine_corr, // quadratic cofficients for fine correction (or null)
+			final double              corr_magic_scale, // stil not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
 			final double              shiftX, // shift image horizontally (positive - right) - just for testing
 			final double              shiftY, // shift image vertically (positive - down)
 			final int                 debug_tileX,
@@ -973,7 +979,8 @@ public class ImageDtt {
 	{
 		final int quad = 4;   // number of subcameras
 		final int numcol = 3; // number of colors
-		final int force_disparity_bit = 8; // move to parameters?
+		final int FORCE_DISPARITY_BIT = 8; // move to parameters?
+		final int disparity_maxdiff_index = 8;
 		final int nChn = image_data[0].length;
 		final int height=image_data[0][0].length/width;
 		final int tilesX=width/transform_size;
@@ -1059,7 +1066,7 @@ public class ImageDtt {
 			System.out.println("max_search_radius=     "+max_search_radius);
 			System.out.println("max_search_radius_poly="+max_search_radius_poly);
 			System.out.println("corr_fat_zero=         "+corr_fat_zero);
-			System.out.println("disparity=             "+    disparity);
+			System.out.println("disparity_array[0][0]= "+disparity_array[0][0]);
 			
 			
 		}
@@ -1126,19 +1133,19 @@ public class ImageDtt {
 							double [][] centersXY = geometryCorrection.getPortsCoordinates(
 									centerX,
 									centerY,
-									disparity);
+									disparity_array[tileY][tileX]);
 //							if ((globalDebugLevel > 0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
 //									(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)) {
 							if ((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
 								for (int i = 0; i < quad; i++) {
 									System.out.println("clt_aberrations_quad_corr(): color="+chn+", tileX="+tileX+", tileY="+tileY+
-											" centerX="+centerX+" centerY="+centerY+" disparity="+disparity+
+											" centerX="+centerX+" centerY="+centerY+" disparity="+disparity_array[tileY][tileX]+
 											" centersXY["+i+"][0]="+centersXY[i][0]+" centersXY["+i+"][1]="+centersXY[i][1]);
 								}
 							}
 
 							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) { // before correction
-								System.out.print(disparity+"\t"+
+								System.out.print(disparity_array[tileY][tileX]+"\t"+
 							    centersXY[0][0]+"\t"+centersXY[0][1]+"\t"+
 							    centersXY[1][0]+"\t"+centersXY[1][1]+"\t"+
 							    centersXY[2][0]+"\t"+centersXY[2][1]+"\t"+
@@ -1149,9 +1156,25 @@ public class ImageDtt {
 								centersXY[ip][0] -= shiftXY[ip][0];
 								centersXY[ip][1] -= shiftXY[ip][1];
 							}
+							
+							if (fine_corr != null){
+								double tX = (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0
+								double tY = (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
+								for (int ip = 0; ip < centersXY.length; ip++){
+									//f(x,y)=A*x^2+B*y^2+C*x*y+D*x+E*y+F
+									for (int d = 0; d <2; d++)
+									centersXY[ip][d] -= (
+											fine_corr[ip][d][0]*tX*tX+
+											fine_corr[ip][d][1]*tY*tY+
+											fine_corr[ip][d][2]*tX*tY+
+											fine_corr[ip][d][3]*tX+
+											fine_corr[ip][d][4]*tY+
+											fine_corr[ip][d][5]);
+								}
+							}
 
 							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) {
-								System.out.print(disparity+"\t"+
+								System.out.print(disparity_array[tileY][tileX]+"\t"+
 							    centersXY[0][0]+"\t"+centersXY[0][1]+"\t"+
 							    centersXY[1][0]+"\t"+centersXY[1][1]+"\t"+
 							    centersXY[2][0]+"\t"+centersXY[2][1]+"\t"+
@@ -1499,15 +1522,15 @@ public class ImageDtt {
 						
 						if (texture_tiles !=null) {
 
-							if ((extra_disparity != 0) && (((1 << force_disparity_bit) & tile_op[tileY][tileX]) == 0)){ // 0 - adjust disparity, 1 - uase provided
+							if ((extra_disparity != 0) && (((1 << FORCE_DISPARITY_BIT) & tile_op[tileY][tileX]) == 0)){ // 0 - adjust disparity, 1 - use provided
 								// shift images by 0.5 * extra disparity in the diagonal direction 
 								for (int chn = 0; chn <numcol; chn++) { // color
 									for (int i = 0; i < quad; i++) {
 										fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 												clt_data[i][chn][tileY][tileX], // double  [][]  clt_tile,
 												transform_size,
-												extra_disparity * port_offsets[i][0],            // double        shiftX,
-												extra_disparity * port_offsets[i][1],            // double        shiftY,
+												extra_disparity * port_offsets[i][0] / corr_magic_scale,     // double        shiftX,
+												extra_disparity * port_offsets[i][1] / corr_magic_scale,     // double        shiftY,
 												//									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
 												((globalDebugLevel > 0) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
 														(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));									
@@ -1587,21 +1610,24 @@ public class ImageDtt {
 								}
 								sdfa_instance.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "tiles_debayered_x"+tileX+"_y"+tileY, titles);
 							}
-
-
-
-
+							
+							double []     max_diff = null;
+							if ((disparity_map != null) && (disparity_map.length >= (disparity_maxdiff_index + quad))){
+								max_diff = new double[quad];
+							}
 							texture_tiles[tileY][tileX] =  tile_combine_rgba(
 									tiles_debayered, // iclt_tile,      // [port][numcol][256]
+									max_diff,        // maximal (weighted) deviation of each channel from the average
 									lt_window2,      // [256]
-									port_offsets,   // [port]{x_off, y_off}
-									img_mask,       // which port to use, 0xf - all 4 (will modify as local variable)
-									diff_sigma,     // pixel value/pixel change
-									diff_threshold, // pixel value/pixel change
-									diff_gauss,     // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
-									min_agree,      // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-									col_weights,    // color channel weights, sum == 1.0
-									keep_weights,  // keep_weights);   // return channel weights after A in RGBA
+									port_offsets,    // [port]{x_off, y_off}
+									img_mask,        // which port to use, 0xf - all 4 (will modify as local variable)
+									diff_sigma,      // pixel value/pixel change
+									diff_threshold,  // pixel value/pixel change
+									diff_gauss,      // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
+									min_agree,       // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+									col_weights,     // color channel weights, sum == 1.0
+									dust_remove,     // boolean dust_remove,    // Do not reduce average weight when only one image differes much from the average
+									keep_weights,    // keep_weights);   // return channel weights after A in RGBA
 									(globalDebugLevel > 0) && debugTile);
 
 							// mix RGB from iclt_tile, mix alpha with - what? correlation strength or 'don't care'? good correlation or all > min?
@@ -1618,6 +1644,11 @@ public class ImageDtt {
 									}
 								}
 							}
+							if ((disparity_map != null) && (disparity_map.length >= (disparity_maxdiff_index + quad))){
+								for (int i = 0; i < max_diff.length; i++){
+									disparity_map[disparity_maxdiff_index + i][tileY*tilesX + tileX] = max_diff[i]; 
+								}
+							}
 						}
 					}
 				}
@@ -1630,14 +1661,16 @@ public class ImageDtt {
 	
 	public double [][] tile_combine_rgba(
 			double [][][] iclt_tile,    // [port][numcol][256]
+			double []     max_diff,       // maximal (weighted) deviation of each channel from the average
 			double []     lt_window,    // [256]
-			double [][]   port_offsets, // [port]{x_off, y_off}
+			double [][]   port_offsets, // [port]{x_off, y_off} - just to scale pixel value differences
 			int           port_mask,      // which port to use, 0xf - all 4 (will modify as local variable)
 			double        diff_sigma,     // pixel value/pixel change
 			double        diff_threshold, // pixel value/pixel change
 			boolean       diff_gauss,     // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
 			double        min_agree,      // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-			double []     chn_weights,    // color channel weights, sum == 1.0
+			double []     chn_weights,     // color channel weights, sum == 1.0
+			boolean       dust_remove,    // Do not reduce average weight when only one image differes much from the average
 			boolean       keep_weights,   // return channel weights after A in RGBA
 			boolean       debug)
 	{
@@ -1793,21 +1826,62 @@ public class ImageDtt {
 				}
 			}
 		}
+		if (dust_remove && (usedPorts == 4)) {
+			dust_remove(port_weights);
+		}
 		// calculate alpha from channel weights. Start with just a sum of weights?
 		for (int i = 0; i < tile_len; i++){
 			alpha[i] = 0.0;
 			for (int ip = 0; ip < ports; ip++) if ((port_mask & ( 1 << ip)) != 0){
 				alpha[i]+=	port_weights[ip][i];
 			}
-			alpha[i] *= lt_window[i]; // make it configurable?
+			alpha[i] *= lt_window[i]/usedPorts; // make it configurable?
 		}
 	
 		for (int i = 0; i < numcol; i++) rgba[i] = color_avg[i]; 
 		rgba[numcol] = alpha;
-		for (int i = 0; i < ports; i++)  rgba[numcol + 1 + i] = port_weights[i]; 
+		for (int i = 0; i < ports; i++)  rgba[numcol + 1 + i] = port_weights[i];
+		if (max_diff != null){
+			for (int ip = 0; ip < ports; ip++){
+				max_diff[ip] = 0;
+				if ((port_mask & ( 1 << ip)) != 0) {
+					for (int i = 0; i < tile_len; i++){
+						double d2 = 0.0;
+						for (int chn = 0; chn < numcol; chn++){
+							double dc = (iclt_tile[ip][chn][i]-color_avg[chn][i]);
+							d2+=dc*dc*chn_weights[chn];
+						}
+						d2 *=lt_window[i];
+						if (d2 > max_diff[ip]) max_diff[ip]  = d2;
+					}
+				}
+				max_diff[ip] = Math.sqrt(max_diff[ip]);
+			}
+		}
+		
 		return rgba;
 	}
 
+	public void dust_remove( // redistribute weight between 3 best ports (use only when all 3 are enabled)
+			double [][]  port_weights)
+	{
+		int np = port_weights.length;
+		for (int i = 0; i < port_weights[0].length; i++){
+			
+			int wi = 0;
+			for (int ip = 1; ip < np; ip++) if (port_weights[ip][i] < port_weights[wi][i]) wi = ip;
+			double avg = 0;
+			for (int ip = 1; ip < np; ip++) if (ip != wi) avg += port_weights[ip][i];
+			avg /= (np -1);
+			double scale = 1.0 + (avg - port_weights[wi][i])/(avg * (np -1));
+			for (int ip = 1; ip < np; ip++) {
+				if (ip != wi) port_weights[ip][i] *= scale; // increase weight of non-worst, so if worst == 0.0 sum of 3 (all) ports will be scaled by 4/3, keeping average
+			}
+			port_weights[wi][i] *= port_weights[wi][i]/avg;
+		}
+	}
+	
+	
 	public double [] tile_debayer_shot_corr(
 			boolean   rb,
 			double [] tile,

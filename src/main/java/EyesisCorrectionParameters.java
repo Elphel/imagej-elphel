@@ -62,6 +62,7 @@ public class EyesisCorrectionParameters {
   		public boolean imageJTags=             false; // encode ImageJ info data to the TIFF output header 
   		
   		public boolean jpeg =                  true;  // convert to RGB and save JPEG (if save is true)
+  		public boolean png =                   true;  // use PNG instead of TIFF for 32-bit ARGB
   		public boolean save =                  true;
   		public boolean save16 =                false; // save 16-bit tiff also if the end result is 8 bit 
   		public boolean save32 =                false; // save 32-bit tiff also if the end result is 8 or 16 bit
@@ -137,6 +138,7 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"outputRangeFP",this.outputRangeFP+"");
   			properties.setProperty(prefix+"imageJTags",this.imageJTags+"");
   			properties.setProperty(prefix+"jpeg",this.jpeg+"");
+  			properties.setProperty(prefix+"png",this.png+"");
   			properties.setProperty(prefix+"save",this.save+"");
   			properties.setProperty(prefix+"save16",this.save16+"");
   			properties.setProperty(prefix+"save32",this.save32+"");
@@ -224,6 +226,7 @@ public class EyesisCorrectionParameters {
   		    if (properties.getProperty(prefix+"outputRangeFP")!=null) this.outputRangeFP=Double.parseDouble(properties.getProperty(prefix+"outputRangeFP"));
   		    if (properties.getProperty(prefix+"imageJTags")!=null) this.imageJTags=Boolean.parseBoolean(properties.getProperty(prefix+"imageJTags"));
   		    if (properties.getProperty(prefix+"jpeg")!=null) this.jpeg=Boolean.parseBoolean(properties.getProperty(prefix+"jpeg"));   // convert to RGB and save jpeg (if save is true)
+  		    if (properties.getProperty(prefix+"png")!=null) this.png=Boolean.parseBoolean(properties.getProperty(prefix+"png"));   // convert to RGB and save jpeg (if save is true)
   		    if (properties.getProperty(prefix+"save")!=null) this.save=Boolean.parseBoolean(properties.getProperty(prefix+"save"));
   		    if (properties.getProperty(prefix+"save16")!=null) this.save16=Boolean.parseBoolean(properties.getProperty(prefix+"save16")); // save 16-bit tiff also if the end result is 8 bit 
   		    if (properties.getProperty(prefix+"save32")!=null) this.save32=Boolean.parseBoolean(properties.getProperty(prefix+"save32")); // save 32-bit tiff also if the end result is 8 or 16 bit
@@ -330,6 +333,7 @@ public class EyesisCorrectionParameters {
    		
 			gd.addCheckbox ("Convert to RGB48",                                 this.toRGB);
     		gd.addCheckbox ("Convert to 8 bit RGB (and save JPEG if save is enabled)", this.jpeg);
+    		gd.addCheckbox ("Use PNG instead of TIFF for 32 bit (8 per color) RGBA", this.png);
     		gd.addCheckbox ("Save the result to file system",                   this.save);
     		gd.addCheckbox ("Save 16-bit tiff if the result is 8 bit",          this.save16);
     		gd.addCheckbox    ("Save 32-bit tiff if the result is 8 or 16 bit",    this.save32);
@@ -421,6 +425,7 @@ public class EyesisCorrectionParameters {
     		this.imageJTags=        gd.getNextBoolean();
     		this.toRGB=             gd.getNextBoolean();
     		this.jpeg=              gd.getNextBoolean();
+    		this.png=               gd.getNextBoolean();
     		this.save=              gd.getNextBoolean();
     		this.save16=            gd.getNextBoolean();
     		this.save32=            gd.getNextBoolean();
@@ -1288,20 +1293,32 @@ public class EyesisCorrectionParameters {
 
   /* ======================================================================== */
     public static class RGBParameters {
-  		public double r_min;
-  		public double g_min;
-  		public double b_min;
-  		public double r_max;
-  		public double g_max;
-  		public double b_max;
+  		public double r_min = 0.075;
+  		public double g_min = 0.075;
+  		public double b_min = 0.075;
+  		public double r_max = 1.0;
+  		public double g_max = 1.0;
+  		public double b_max = 1.0;
+  		public double alpha_min = 0.0;
+  		public double alpha_max = 1.0;
 
-  		public RGBParameters(double r_min, double g_min, double b_min, double r_max, double g_max, double b_max) {
+/*  		public RGBParameters(double r_min, double g_min, double b_min, double r_max, double g_max, double b_max) {
   			this.r_min = r_min;
   			this.g_min = g_min;
   			this.b_min = b_min;
   			this.r_max = r_max;
   			this.g_max = g_max;
   			this.b_max = b_max;
+  		} */
+  		public RGBParameters(double r_min, double g_min, double b_min, double r_max, double g_max, double b_max, double alpha_min, double alpha_max) {
+  			this.r_min = r_min;
+  			this.g_min = g_min;
+  			this.b_min = b_min;
+  			this.r_max = r_max;
+  			this.g_max = g_max;
+  			this.b_max = b_max;
+  			this.alpha_min = alpha_min;
+  			this.alpha_max = alpha_max;
   		}
   		public void setProperties(String prefix,Properties properties){
   			properties.setProperty(prefix+"r_min",this.r_min+"");
@@ -1310,6 +1327,8 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"r_max",this.r_max+"");
   			properties.setProperty(prefix+"g_max",this.g_max+"");
   			properties.setProperty(prefix+"b_max",this.b_max+"");
+  			properties.setProperty(prefix+"alpha_min",this.alpha_min+"");
+  			properties.setProperty(prefix+"alpha_max",this.alpha_max+"");
   		}
   		public void getProperties(String prefix,Properties properties){
   			this.r_min=Double.parseDouble(properties.getProperty(prefix+"r_min"));
@@ -1318,6 +1337,8 @@ public class EyesisCorrectionParameters {
   			this.r_max=Double.parseDouble(properties.getProperty(prefix+"r_max"));
   			this.g_max=Double.parseDouble(properties.getProperty(prefix+"g_max"));
   			this.b_max=Double.parseDouble(properties.getProperty(prefix+"b_max"));
+  			if (properties.getProperty(prefix+"alpha_min")!=null)  this.alpha_min=Double.parseDouble(properties.getProperty(prefix+"alpha_min"));
+  			if (properties.getProperty(prefix+"alpha_max")!=null)  this.alpha_max=Double.parseDouble(properties.getProperty(prefix+"alpha_max"));
   		}
   		
   	}
@@ -1898,6 +1919,7 @@ public class EyesisCorrectionParameters {
   		public int        corr_mask =         15;  // bitmask of pairs to combine in the composite
   		public boolean    corr_sym =          false; // combine correlation with mirrored around disparity direction
   		public boolean    corr_keep =         true;  // keep all partial correlations (otherwise - only combined one)
+  		public boolean    corr_show =         false; // Show combined correlations
   		public boolean    corr_mismatch=      false; // calculate per-pair X/Y variations of measured correlations 
 // TODO: what to do if some occlusion is present (only some channels correlate)  		
   		public double     corr_offset =       -1.0; //0.1;  // add to pair correlation before multiplying by other pairs (between sum and product)
@@ -1929,12 +1951,19 @@ public class EyesisCorrectionParameters {
   		public double     diff_threshold =    1.5;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
   		public boolean    diff_gauss =        true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
   		public double     min_agree =         3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+  		public boolean    dust_remove =       true;  // Do not reduce average weight when only one image differes much from the average
   		
   		public boolean    keep_weights =      true;  // add port weights to RGBA stack (debug feature)
   		public boolean    sharp_alpha =       false; // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
-  		public boolean    gen_chn_img =       false; // generate shifted channel images
+  		public double     alpha0 = 	          0.6; // > .525 Alpha channel 0.0 thereshold (lower - transparent) (watch for far objects)
+  		public double     alpha1 = 	          0.8; // Alpha channel 1.0 threshold (higher - opaque) (watch for window dust)
+  		
+  		public boolean    gen_chn_stacks =    false; // generate shifted channel rgb stacks
+  		public boolean    gen_chn_img =       true;  // generate shifted channel images
   		public boolean    show_nonoverlap =   true;  // show result RGBA before overlap combined (first channels, then RGBA combined?)
   		public boolean    show_overlap =      true;  // show result RGBA (first channels, then RGBA combined?)
+  		public boolean    show_rgba_color =   true;  // show combined color image
+  		public boolean    show_map =          true;  // show disparity maps
   		
   		public double     disp_scan_start =   0.0;   // disparity scan start value
   		public double     disp_scan_step =    1.0;   // disparity scan step
@@ -1952,7 +1981,20 @@ public class EyesisCorrectionParameters {
   		public double     fcorr_min_stength = 0.005; // minimal correlation strength to apply fine correction
   		public double     fcorr_disp_diff =   3.0;   // consider only tiles with absolute residual disparity lower than
   		public boolean    fcorr_quadratic =   true;  // Use quadratic polynomial for fine correction (false - only linear)
+  		public boolean    fcorr_ignore =      false; // Ignore currently calculated fine correction
   		
+  		public double     corr_magic_scale =  0.85;  // reported correlation offset vs. actual one (not yet understood)
+  		
+  		// 3d reconstruction
+  		public double     min_smth         = 0.25;  // minimal noise-normalized pixel difference in a channel to suspect something    
+  		public double     sure_smth        = 2.0;   // reliable noise-normalized pixel difference in a channel to have something    
+  		public double     bgnd_range       = 0.3;   // disparity range to be considered background
+  		public double     bgnd_sure        = 0.02;  // minimal strength to be considered definitely background
+  		public double     bgnd_maybe       = 0.005; // maximal strength to ignore as non-background
+  		public double     bgnd_2diff       = 0.005; // maximal strength to ignore as non-background
+  		public int        min_clstr_seed   = 3;     // number of tiles in a cluster to seed (just background?)
+  		public int        min_clstr_block  = 3;     // number of tiles in a cluster to block (just non-background?)
+  		public int        bgnd_grow        = 2;     // number of tiles to grow (1 - hor/vert, 2 - hor/vert/diagonal)
   		
   		
   		
@@ -1989,6 +2031,7 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"corr_mask",        this.corr_mask+"");
 			properties.setProperty(prefix+"corr_sym",         this.corr_sym+"");
 			properties.setProperty(prefix+"corr_keep",        this.corr_keep+"");
+			properties.setProperty(prefix+"corr_show",        this.corr_show+"");
 			properties.setProperty(prefix+"corr_mismatch",    this.corr_mismatch+"");
   			properties.setProperty(prefix+"corr_offset",      this.corr_offset +"");
   			properties.setProperty(prefix+"corr_red",         this.corr_red +"");
@@ -2011,11 +2054,19 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"diff_threshold",   this.diff_threshold +"");
 			properties.setProperty(prefix+"diff_gauss",       this.diff_gauss+"");
   			properties.setProperty(prefix+"min_agree",        this.min_agree +"");
+			properties.setProperty(prefix+"dust_remove",      this.dust_remove+"");
 			properties.setProperty(prefix+"keep_weights",     this.keep_weights+"");
 			properties.setProperty(prefix+"sharp_alpha",      this.sharp_alpha+"");
+
+			properties.setProperty(prefix+"alpha0",           this.alpha0 +"");
+  			properties.setProperty(prefix+"alpha1",           this.alpha1 +"");
+
+  			properties.setProperty(prefix+"gen_chn_stacks",   this.gen_chn_stacks+"");
 			properties.setProperty(prefix+"gen_chn_img",      this.gen_chn_img+"");
 			properties.setProperty(prefix+"show_nonoverlap",  this.show_nonoverlap+"");
 			properties.setProperty(prefix+"show_overlap",     this.show_overlap+"");
+			properties.setProperty(prefix+"show_rgba_color",  this.show_rgba_color+"");
+			properties.setProperty(prefix+"show_map",         this.show_map+"");
   			properties.setProperty(prefix+"disp_scan_start",  this.disp_scan_start +"");
   			properties.setProperty(prefix+"disp_scan_step",   this.disp_scan_step +"");
   			properties.setProperty(prefix+"disp_scan_count",  this.disp_scan_count+"");
@@ -2032,7 +2083,20 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"fcorr_min_stength",this.fcorr_min_stength +"");
   			properties.setProperty(prefix+"fcorr_disp_diff",  this.fcorr_disp_diff +"");
 			properties.setProperty(prefix+"fcorr_quadratic",  this.fcorr_quadratic+"");
+			properties.setProperty(prefix+"fcorr_ignore",     this.fcorr_ignore+"");
+
+			properties.setProperty(prefix+"corr_magic_scale", this.corr_magic_scale +"");
   			
+
+			properties.setProperty(prefix+"min_smth",         this.min_smth +"");
+			properties.setProperty(prefix+"sure_smth",        this.sure_smth +"");
+			properties.setProperty(prefix+"bgnd_range",       this.bgnd_range +"");
+			properties.setProperty(prefix+"bgnd_sure",        this.bgnd_sure +"");
+			properties.setProperty(prefix+"bgnd_maybe",       this.bgnd_maybe +"");
+
+  			properties.setProperty(prefix+"min_clstr_seed",   this.min_clstr_seed+"");
+  			properties.setProperty(prefix+"min_clstr_block",  this.min_clstr_block+"");
+  			properties.setProperty(prefix+"bgnd_grow",        this.bgnd_grow+"");
   		}
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"transform_size")!=null) this.transform_size=Integer.parseInt(properties.getProperty(prefix+"transform_size"));
@@ -2064,6 +2128,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"corr_mask")!=null)      this.corr_mask=Integer.parseInt(properties.getProperty(prefix+"corr_mask"));
   			if (properties.getProperty(prefix+"corr_sym")!=null)       this.corr_sym=Boolean.parseBoolean(properties.getProperty(prefix+"corr_sym"));
   			if (properties.getProperty(prefix+"corr_keep")!=null)      this.corr_keep=Boolean.parseBoolean(properties.getProperty(prefix+"corr_keep"));
+  			if (properties.getProperty(prefix+"corr_show")!=null)      this.corr_show=Boolean.parseBoolean(properties.getProperty(prefix+"corr_show"));
   			if (properties.getProperty(prefix+"corr_mismatch")!=null)  this.corr_mismatch=Boolean.parseBoolean(properties.getProperty(prefix+"corr_mismatch"));
   			if (properties.getProperty(prefix+"corr_offset")!=null)    this.corr_offset=Double.parseDouble(properties.getProperty(prefix+"corr_offset"));
   			if (properties.getProperty(prefix+"corr_red")!=null)       this.corr_red=Double.parseDouble(properties.getProperty(prefix+"corr_red"));
@@ -2080,17 +2145,23 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"tile_task_wt")!=null)   this.tile_task_wt=Integer.parseInt(properties.getProperty(prefix+"tile_task_wt"));
   			if (properties.getProperty(prefix+"tile_task_ww")!=null)   this.tile_task_ww=Integer.parseInt(properties.getProperty(prefix+"tile_task_ww"));
   			if (properties.getProperty(prefix+"tile_task_wh")!=null)   this.tile_task_wh=Integer.parseInt(properties.getProperty(prefix+"tile_task_wh"));
-  			if (properties.getProperty(prefix+"min_shot")!=null)     this.min_shot=Double.parseDouble(properties.getProperty(prefix+"min_shot"));
+  			if (properties.getProperty(prefix+"min_shot")!=null)       this.min_shot=Double.parseDouble(properties.getProperty(prefix+"min_shot"));
   			if (properties.getProperty(prefix+"scale_shot")!=null)     this.scale_shot=Double.parseDouble(properties.getProperty(prefix+"scale_shot"));
   			if (properties.getProperty(prefix+"diff_sigma")!=null)     this.diff_sigma=Double.parseDouble(properties.getProperty(prefix+"diff_sigma"));
   			if (properties.getProperty(prefix+"diff_threshold")!=null) this.diff_threshold=Double.parseDouble(properties.getProperty(prefix+"diff_threshold"));
   			if (properties.getProperty(prefix+"diff_gauss")!=null)     this.diff_gauss=Boolean.parseBoolean(properties.getProperty(prefix+"diff_gauss"));
   			if (properties.getProperty(prefix+"min_agree")!=null)      this.min_agree=Double.parseDouble(properties.getProperty(prefix+"min_agree"));
+  			if (properties.getProperty(prefix+"dust_remove")!=null)    this.dust_remove=Boolean.parseBoolean(properties.getProperty(prefix+"dust_remove"));
   			if (properties.getProperty(prefix+"keep_weights")!=null)   this.keep_weights=Boolean.parseBoolean(properties.getProperty(prefix+"keep_weights"));
   			if (properties.getProperty(prefix+"sharp_alpha")!=null)    this.sharp_alpha=Boolean.parseBoolean(properties.getProperty(prefix+"sharp_alpha"));
+  			if (properties.getProperty(prefix+"alpha0")!=null)         this.alpha0=Double.parseDouble(properties.getProperty(prefix+"alpha0"));
+  			if (properties.getProperty(prefix+"alpha1")!=null)         this.alpha1=Double.parseDouble(properties.getProperty(prefix+"alpha1"));
+  			if (properties.getProperty(prefix+"gen_chn_stacks")!=null) this.gen_chn_stacks=Boolean.parseBoolean(properties.getProperty(prefix+"gen_chn_stacks"));
   			if (properties.getProperty(prefix+"gen_chn_img")!=null)    this.gen_chn_img=Boolean.parseBoolean(properties.getProperty(prefix+"gen_chn_img"));
   			if (properties.getProperty(prefix+"show_nonoverlap")!=null)this.show_nonoverlap=Boolean.parseBoolean(properties.getProperty(prefix+"show_nonoverlap"));
   			if (properties.getProperty(prefix+"show_overlap")!=null)   this.show_overlap=Boolean.parseBoolean(properties.getProperty(prefix+"show_overlap"));
+  			if (properties.getProperty(prefix+"show_rgba_color")!=null)this.show_rgba_color=Boolean.parseBoolean(properties.getProperty(prefix+"show_rgba_color"));
+  			if (properties.getProperty(prefix+"show_map")!=null)       this.show_map=Boolean.parseBoolean(properties.getProperty(prefix+"show_map"));
   			if (properties.getProperty(prefix+"disp_scan_start")!=null)this.disp_scan_start=Double.parseDouble(properties.getProperty(prefix+"disp_scan_start"));
   			if (properties.getProperty(prefix+"disp_scan_step")!=null) this.disp_scan_step=Double.parseDouble(properties.getProperty(prefix+"disp_scan_step"));
   			if (properties.getProperty(prefix+"disp_scan_count")!=null)this.disp_scan_count=Integer.parseInt(properties.getProperty(prefix+"disp_scan_count"));
@@ -2107,7 +2178,19 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"fcorr_min_stength")!=null) this.fcorr_min_stength=Double.parseDouble(properties.getProperty(prefix+"fcorr_min_stength"));
   			if (properties.getProperty(prefix+"fcorr_disp_diff")!=null)   this.fcorr_disp_diff=Double.parseDouble(properties.getProperty(prefix+"fcorr_disp_diff"));
   			if (properties.getProperty(prefix+"fcorr_quadratic")!=null)   this.fcorr_quadratic=Boolean.parseBoolean(properties.getProperty(prefix+"fcorr_quadratic"));
-  			
+  			if (properties.getProperty(prefix+"fcorr_ignore")!=null)      this.fcorr_ignore=Boolean.parseBoolean(properties.getProperty(prefix+"fcorr_ignore"));
+  			if (properties.getProperty(prefix+"corr_magic_scale")!=null)  this.corr_magic_scale=Double.parseDouble(properties.getProperty(prefix+"corr_magic_scale"));
+
+  			if (properties.getProperty(prefix+"min_smth")!=null)          this.min_smth=Double.parseDouble(properties.getProperty(prefix+"min_smth"));
+  			if (properties.getProperty(prefix+"sure_smth")!=null)         this.sure_smth=Double.parseDouble(properties.getProperty(prefix+"sure_smth"));
+  			if (properties.getProperty(prefix+"bgnd_range")!=null)        this.bgnd_range=Double.parseDouble(properties.getProperty(prefix+"bgnd_range"));
+  			if (properties.getProperty(prefix+"bgnd_sure")!=null)         this.bgnd_sure=Double.parseDouble(properties.getProperty(prefix+"bgnd_sure"));
+  			if (properties.getProperty(prefix+"bgnd_maybe")!=null)        this.bgnd_maybe=Double.parseDouble(properties.getProperty(prefix+"bgnd_maybe"));
+  		
+  			if (properties.getProperty(prefix+"min_clstr_seed")!=null)    this.min_clstr_seed=Integer.parseInt(properties.getProperty(prefix+"min_clstr_seed"));
+  			if (properties.getProperty(prefix+"min_clstr_block")!=null)   this.min_clstr_block=Integer.parseInt(properties.getProperty(prefix+"min_clstr_block"));
+  			if (properties.getProperty(prefix+"bgnd_grow")!=null)         this.bgnd_grow=Integer.parseInt(properties.getProperty(prefix+"bgnd_grow"));
+  		
   		}
   		
   		public boolean showDialog() {
@@ -2141,6 +2224,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("itmask of pairs to combine in the composite (top, bottom, left,righth)",  this.corr_mask,            0);
   			gd.addCheckbox    ("Combine correlation with mirrored around disparity direction",            this.corr_sym);
   			gd.addCheckbox    ("Keep all partial correlations (otherwise - only combined one)",           this.corr_keep);
+  			gd.addCheckbox    ("Show combined correlations",                                              this.corr_show);
   			gd.addCheckbox    ("Calculate per-pair X/Y variations of measured correlations ",             this.corr_mismatch);
   			gd.addNumericField("Add to pair correlation before multiplying by other pairs (between sum and product)",    this.corr_offset,  6);
   			gd.addNumericField("Red to green correlation weight",                                         this.corr_red,  4);
@@ -2166,11 +2250,17 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("RMS difference from average in sigmas to discard channel",                this.diff_threshold,  4);
   			gd.addCheckbox    ("Gaussian as weight when averaging images (false - sharp all/nothing)",    this.diff_gauss);
   			gd.addNumericField("Minimal number of channels to agree on a point (real number to work with fuzzy averages)",   this.min_agree,  2);
+  			gd.addCheckbox    ("Do not reduce average weight when only one image differes much from the average", this.dust_remove);
   			gd.addCheckbox    ("Add port weights to RGBA stack (debug feature)",                          this.keep_weights);
   			gd.addCheckbox    ("Alpha channel: use center 8x8 (unchecked - treat same as RGB)",           this.sharp_alpha);
-  			gd.addCheckbox    ("Generate shifted channel images",                                         this.gen_chn_img);
+  			gd.addNumericField("Alpha channel 0.0 thereshold (lower - transparent)",                      this.alpha0,   3);
+  			gd.addNumericField("Alpha channel 1.0 threshold (higher - opaque)",                           this.alpha1,   3);
+  			gd.addCheckbox    ("Generate shifted channel linear RGB stacks",                              this.gen_chn_stacks);
+  			gd.addCheckbox    ("Generate shifted channel color image stack",                              this.gen_chn_img);
   			gd.addCheckbox    ("Show result RGBA before overlap combined",                                this.show_nonoverlap);
-  			gd.addCheckbox    ("Show result RGBA ",                                                       this.show_overlap);
+  			gd.addCheckbox    ("Show result RGBA",                                                        this.show_overlap);
+  			gd.addCheckbox    ("Show result color",                                                       this.show_rgba_color);
+  			gd.addCheckbox    ("Show disparity maps",                                                     this.show_map);
   			gd.addNumericField("Disparity scan start value",                                              this.disp_scan_start,  2);
   			gd.addNumericField("Disparity scan step",                                                     this.disp_scan_step,  2);
   			gd.addNumericField("Disparity scan number of disparity values to scan",                       this.disp_scan_count,            0);
@@ -2188,7 +2278,19 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Minimal correlation strength to apply fine correction",                   this.fcorr_min_stength,  3);
   			gd.addNumericField("Consider only tiles with absolute residual disparity lower than",         this.fcorr_disp_diff,  3);
   			gd.addCheckbox    ("Use quadratic polynomial for fine correction (false - only linear)",      this.fcorr_quadratic);
+  			gd.addCheckbox    ("Ignore current calculated fine correction (use manual only)",             this.fcorr_ignore);
+  			gd.addNumericField("Calculated from correlation offset vs. actual one (not yet understood)",  this.corr_magic_scale,  3);
   			
+  			gd.addNumericField("Minimal noise-normalized pixel difference in a channel to suspect something",  this.min_smth,  3);
+  			gd.addNumericField("Reliable noise-normalized pixel difference in a channel to have something ",   this.sure_smth,  3);
+  			gd.addNumericField("Disparity range to be considered background",                                  this.bgnd_range,  3);
+  			gd.addNumericField("Minimal strength to be considered definitely background",                      this.bgnd_sure,  3);
+  			gd.addNumericField("Maximal strength to ignore as non-background",                                 this.bgnd_maybe,  3);
+
+  			gd.addNumericField("Number of tiles in a cluster to seed (just background?)",                      this.min_clstr_seed,   0);
+  			gd.addNumericField("Number of tiles in a cluster to block (just non-background?)",                 this.min_clstr_block,   0);
+  			gd.addNumericField("Number of tiles to grow tile selection (1 - hor/vert, 2 - hor/vert/diagonal)", this.bgnd_grow,   0);
+
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
   			
@@ -2222,6 +2324,7 @@ public class EyesisCorrectionParameters {
   			this.corr_mask=       (int) gd.getNextNumber();
   			this.corr_sym=              gd.getNextBoolean();
   			this.corr_keep=             gd.getNextBoolean();
+  			this.corr_show=             gd.getNextBoolean();
   			this.corr_mismatch=         gd.getNextBoolean();
   			this.corr_offset=           gd.getNextNumber();
   			this.corr_red=              gd.getNextNumber();
@@ -2244,11 +2347,17 @@ public class EyesisCorrectionParameters {
   			this.diff_threshold=        gd.getNextNumber();
   			this.diff_gauss=            gd.getNextBoolean();
   			this.min_agree=             gd.getNextNumber();
+  			this.dust_remove=           gd.getNextBoolean();
   			this.keep_weights=          gd.getNextBoolean();
   			this.sharp_alpha=           gd.getNextBoolean();
+  			this.alpha0=                gd.getNextNumber();
+  			this.alpha1=                gd.getNextNumber();
+  			this.gen_chn_stacks=        gd.getNextBoolean();
   			this.gen_chn_img=           gd.getNextBoolean();
   			this.show_nonoverlap=       gd.getNextBoolean();
   			this.show_overlap=          gd.getNextBoolean();
+  			this.show_rgba_color=       gd.getNextBoolean();
+  			this.show_map=              gd.getNextBoolean();
   			this.disp_scan_start=       gd.getNextNumber();
   			this.disp_scan_step=        gd.getNextNumber();
   			this.disp_scan_count= (int) gd.getNextNumber();
@@ -2265,6 +2374,17 @@ public class EyesisCorrectionParameters {
   			this.fcorr_min_stength=     gd.getNextNumber();
   			this.fcorr_disp_diff=       gd.getNextNumber();
   			this.fcorr_quadratic=       gd.getNextBoolean();
+  			this.fcorr_ignore=          gd.getNextBoolean();
+  			this.corr_magic_scale=      gd.getNextNumber();
+
+  			this.min_smth=              gd.getNextNumber();
+  			this.sure_smth=              gd.getNextNumber();
+  			this.bgnd_range=            gd.getNextNumber();
+  			this.bgnd_sure=             gd.getNextNumber();
+  			this.bgnd_maybe=            gd.getNextNumber();
+  			this.min_clstr_seed=  (int) gd.getNextNumber();
+  			this.min_clstr_block= (int) gd.getNextNumber();
+  			this.bgnd_grow=       (int) gd.getNextNumber();
   			
   			return true;
   		}
