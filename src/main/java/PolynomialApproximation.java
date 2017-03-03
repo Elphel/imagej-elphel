@@ -29,7 +29,10 @@ public class PolynomialApproximation {
 				}
 				S[2*N]+=wxn;
 				if (this.debugLevel>1){
-					System.out.println("polynomialApproximation1d() |"+i+"|: x=|"+data[i][0]+"| f(x)=|"+data[i][1]+"| (w=\t|"+data[i][2]+"|\t)");
+					if (data[i].length > 2)
+						System.out.println("polynomialApproximation1d() |"+i+"|: x=|"+data[i][0]+"| f(x)=|"+data[i][1]+"| (w=\t|"+data[i][2]+"|\t)");
+					else
+						System.out.println("polynomialApproximation1d() |"+i+"|: x=|"+data[i][0]+"| f(x)=|"+data[i][1]+"|\t)");
 				}
 			}
 		}

@@ -111,6 +111,7 @@ public class EyesisCorrectionParameters {
     	public String cltKernelPrefix="clt-";
     	public String cltSuffix=".clt-tiff";
 
+    	public String x3dDirectory="";   	
     	
     	public void setProperties(String prefix,Properties properties){
   			properties.setProperty(prefix+"split",this.split+"");
@@ -197,6 +198,8 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"cltKernelDirectory",    this.cltKernelDirectory);
     		properties.setProperty(prefix+"cltKernelPrefix",       this.cltKernelPrefix);
     		properties.setProperty(prefix+"cltSuffix",             this.cltSuffix);
+
+    		properties.setProperty(prefix+"x3dDirectory",          this.x3dDirectory);
 
     	}
 
@@ -289,6 +292,7 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"cltKernelPrefix")!=      null) this.cltKernelPrefix=properties.getProperty(prefix+"cltKernelPrefix");
 			if (properties.getProperty(prefix+"cltSuffix")!=            null) this.cltSuffix=properties.getProperty(prefix+"cltSuffix");
   		    
+			if (properties.getProperty(prefix+"x3dDirectory")!=         null) this.x3dDirectory=properties.getProperty(prefix+"x3dDirectory");
   		    
     	}
 
@@ -359,6 +363,9 @@ public class EyesisCorrectionParameters {
     		gd.addStringField ("Aberration kernels for CLT directory",             this.cltKernelDirectory, 60);
     		gd.addCheckbox    ("Select aberration kernels for CLT directory",      false);
     		
+    		gd.addStringField ("x3d output directory",                             this.x3dDirectory, 60);
+    		gd.addCheckbox    ("Select x3d output directory",                      false);
+
     		gd.addStringField("Equirectangular maps directory (may be empty)",     this.equirectangularDirectory, 60);
     		gd.addCheckbox("Select equirectangular maps directory",                false);
     		gd.addStringField("Results directory",                                 this.resultsDirectory, 40);
@@ -442,6 +449,7 @@ public class EyesisCorrectionParameters {
     		this.smoothKernelDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectSmoothKernelDirectory(false, true);
     		this.dctKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectDCTKernelDirectory(false, true);
     		this.cltKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectCLTKernelDirectory(false, true);
+    		this.x3dDirectory=           gd.getNextString(); if (gd.getNextBoolean()) selectX3dDirectory(false, true);
     		this.equirectangularDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectEquirectangularDirectory(false, false); 
     		this.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) selectResultsDirectory(false, true); 
     		this.sourcePrefix=           gd.getNextString();
@@ -994,6 +1002,18 @@ public class EyesisCorrectionParameters {
     		return dir;
     	}
 
+    	public String selectX3dDirectory(boolean smart, boolean newAllowed) {
+    		String dir= CalibrationFileManagement.selectDirectory(
+    				smart,
+    				newAllowed, // save  
+    				"x3d output directory", // title
+    				"Select x3d output directory", // button
+    				null, // filter
+    				this.x3dDirectory); //this.sourceDirectory);
+    		if (dir!=null) this.x3dDirectory=dir;
+    		return dir;
+    	}
+    	
     	public String selectEquirectangularDirectory(boolean smart, boolean newAllowed) {
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
@@ -1931,7 +1951,12 @@ public class EyesisCorrectionParameters {
   		public double     min_corr_normalized =  2.0; // minimal correlation value to consider valid when normalizing correlation results 
   		public double     max_corr_sigma =    1.5;  // weights of points around global max to find fractional
   		                                            // pixel location by quadratic approximation
-  		public double     max_corr_radius =   2.5;  // maximal distance from int max to consider
+  		public double     max_corr_radius =   3.5;  // maximal distance from int max to consider
+  		
+  		public int        enhortho_width =    2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
+  		public double     enhortho_scale =    0.2;  // multiply center correlation pixels (inside enhortho_width)
+  		
+  		public boolean    max_corr_double =   false; // NOT USED double pass when masking center of mass to reduce preference for integer values
   		public int        corr_mode =         2;    // which correlation mode to use: 0 - integer max, 1 - center of mass, 2 - polynomial
   		
           // pixel location by quadratic approximation
@@ -1986,12 +2011,16 @@ public class EyesisCorrectionParameters {
   		public double     corr_magic_scale =  0.85;  // reported correlation offset vs. actual one (not yet understood)
   		
   		// 3d reconstruction
-  		public double     min_smth         = 0.25;  // minimal noise-normalized pixel difference in a channel to suspect something    
+  		public boolean    show_textures    = true;  // show generated textures
+  		public boolean    debug_filters     = false;// show intermediate results of filtering
+  		public double     min_smth         = 0.5;  // 0.25 minimal noise-normalized pixel difference in a channel to suspect something    
   		public double     sure_smth        = 2.0;   // reliable noise-normalized pixel difference in a channel to have something    
   		public double     bgnd_range       = 0.3;   // disparity range to be considered background
+  		public double     other_range      = 2.0;   // disparity difference from center (provided) disparity to trust
+  		
   		public double     bgnd_sure        = 0.02;  // minimal strength to be considered definitely background
-  		public double     bgnd_maybe       = 0.005; // maximal strength to ignore as non-background
-  		public double     bgnd_2diff       = 0.005; // maximal strength to ignore as non-background
+  		public double     bgnd_maybe       = 0.004; // maximal strength to ignore as non-background
+//  		public double     bgnd_2diff       = 0.005; // maximal strength to ignore as non-background
   		public int        min_clstr_seed   = 3;     // number of tiles in a cluster to seed (just background?)
   		public int        min_clstr_block  = 3;     // number of tiles in a cluster to block (just non-background?)
   		public int        bgnd_grow        = 2;     // number of tiles to grow (1 - hor/vert, 2 - hor/vert/diagonal)
@@ -2041,6 +2070,12 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"min_corr_normalized",this.min_corr_normalized +"");
   			properties.setProperty(prefix+"max_corr_sigma",   this.max_corr_sigma +"");
   			properties.setProperty(prefix+"max_corr_radius",  this.max_corr_radius +"");
+  			
+  			properties.setProperty(prefix+"enhortho_width",   this.enhortho_width +"");
+  			properties.setProperty(prefix+"enhortho_scale",   this.enhortho_scale +"");
+
+  			
+  			properties.setProperty(prefix+"max_corr_double",  this.max_corr_double+"");
   			properties.setProperty(prefix+"corr_mode",        this.corr_mode+"");
   			properties.setProperty(prefix+"corr_border_contrast", this.corr_border_contrast +"");
   			properties.setProperty(prefix+"tile_task_op",     this.tile_task_op+"");
@@ -2087,10 +2122,13 @@ public class EyesisCorrectionParameters {
 
 			properties.setProperty(prefix+"corr_magic_scale", this.corr_magic_scale +"");
   			
+			properties.setProperty(prefix+"show_textures",    this.show_textures+"");
+			properties.setProperty(prefix+"debug_filters",    this.debug_filters+"");
 
 			properties.setProperty(prefix+"min_smth",         this.min_smth +"");
 			properties.setProperty(prefix+"sure_smth",        this.sure_smth +"");
 			properties.setProperty(prefix+"bgnd_range",       this.bgnd_range +"");
+			properties.setProperty(prefix+"other_range",      this.other_range +"");
 			properties.setProperty(prefix+"bgnd_sure",        this.bgnd_sure +"");
 			properties.setProperty(prefix+"bgnd_maybe",       this.bgnd_maybe +"");
 
@@ -2137,7 +2175,12 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"min_corr")!=null)       this.min_corr=Double.parseDouble(properties.getProperty(prefix+"min_corr"));
   			if (properties.getProperty(prefix+"min_corr_normalized")!=null)this.min_corr_normalized=Double.parseDouble(properties.getProperty(prefix+"min_corr_normalized"));
   			if (properties.getProperty(prefix+"max_corr_sigma")!=null) this.max_corr_sigma=Double.parseDouble(properties.getProperty(prefix+"max_corr_sigma"));
-  			if (properties.getProperty(prefix+"max_corr_radius")!=null) this.max_corr_radius=Double.parseDouble(properties.getProperty(prefix+"max_corr_radius"));
+  			if (properties.getProperty(prefix+"max_corr_radius")!=null)this.max_corr_radius=Double.parseDouble(properties.getProperty(prefix+"max_corr_radius"));
+
+  			if (properties.getProperty(prefix+"enhortho_width")!=null) this.enhortho_width=Integer.parseInt(properties.getProperty(prefix+"enhortho_width"));
+  			if (properties.getProperty(prefix+"enhortho_scale")!=null) this.enhortho_scale=Double.parseDouble(properties.getProperty(prefix+"enhortho_scale"));
+  			
+  			if (properties.getProperty(prefix+"max_corr_double")!=null)this.max_corr_double=Boolean.parseBoolean(properties.getProperty(prefix+"max_corr_double"));
   			if (properties.getProperty(prefix+"corr_mode")!=null)      this.corr_mode=Integer.parseInt(properties.getProperty(prefix+"corr_mode"));
   			if (properties.getProperty(prefix+"corr_border_contrast")!=null) this.corr_border_contrast=Double.parseDouble(properties.getProperty(prefix+"corr_border_contrast"));
   			if (properties.getProperty(prefix+"tile_task_op")!=null)   this.tile_task_op=Integer.parseInt(properties.getProperty(prefix+"tile_task_op"));
@@ -2181,9 +2224,13 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"fcorr_ignore")!=null)      this.fcorr_ignore=Boolean.parseBoolean(properties.getProperty(prefix+"fcorr_ignore"));
   			if (properties.getProperty(prefix+"corr_magic_scale")!=null)  this.corr_magic_scale=Double.parseDouble(properties.getProperty(prefix+"corr_magic_scale"));
 
+  			if (properties.getProperty(prefix+"show_textures")!=null)      this.show_textures=Boolean.parseBoolean(properties.getProperty(prefix+"show_textures"));
+  			if (properties.getProperty(prefix+"debug_filters")!=null)      this.debug_filters=Boolean.parseBoolean(properties.getProperty(prefix+"debug_filters"));
+
   			if (properties.getProperty(prefix+"min_smth")!=null)          this.min_smth=Double.parseDouble(properties.getProperty(prefix+"min_smth"));
   			if (properties.getProperty(prefix+"sure_smth")!=null)         this.sure_smth=Double.parseDouble(properties.getProperty(prefix+"sure_smth"));
   			if (properties.getProperty(prefix+"bgnd_range")!=null)        this.bgnd_range=Double.parseDouble(properties.getProperty(prefix+"bgnd_range"));
+  			if (properties.getProperty(prefix+"other_range")!=null)       this.other_range=Double.parseDouble(properties.getProperty(prefix+"other_range"));
   			if (properties.getProperty(prefix+"bgnd_sure")!=null)         this.bgnd_sure=Double.parseDouble(properties.getProperty(prefix+"bgnd_sure"));
   			if (properties.getProperty(prefix+"bgnd_maybe")!=null)        this.bgnd_maybe=Double.parseDouble(properties.getProperty(prefix+"bgnd_maybe"));
   		
@@ -2194,7 +2241,7 @@ public class EyesisCorrectionParameters {
   		}
   		
   		public boolean showDialog() {
-  			GenericDialog gd = new GenericDialog("Set DCT parameters");
+  			GenericDialog gd = new GenericDialog("Set CLT parameters");
   			gd.addNumericField("Transform size (default 8)",                                              this.transform_size,            0);
   			gd.addNumericField("Lapped transform window type (0- rectangular, 1 - sinus)",                this.clt_window,                0);
    			gd.addNumericField("shift_x",                                                                 this.shift_x,                   4);
@@ -2234,10 +2281,22 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Minimal correlation value to consider valid when normalizing results",    this.min_corr_normalized,  6);
   			gd.addNumericField("Sigma for weights of points around global max to find fractional",        this.max_corr_sigma,  3);
   			gd.addNumericField("Maximal distance from int max to consider",                               this.max_corr_radius,  3);
+  			
+  			
+  			gd.addMessage("--- Enhance detection of horizontal/vertical features (when enh_ortho is enabled for tile ---");
+  			gd.addNumericField("Reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)",  this.enhortho_width,            0);
+  			gd.addNumericField("Multiply center correlation pixels (inside enhortho_width) (1.0 - disables enh_orttho)",  this.enhortho_scale,  3);
+  			
+  			
+  			gd.addCheckbox    ("Double pass when masking center of mass to reduce preference for integer values", this.max_corr_double);
   			gd.addNumericField("Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial",   this.corr_mode,            0);
   			gd.addNumericField("Contrast of dotted border on correlation results",                        this.corr_border_contrast,  6);
-  			gd.addMessage("--- tiles tasks ---");
-  			gd.addNumericField("Tile operations bits: +(0..f) - images, +(00.f0) - process pairs +256, ... ",  this.tile_task_op,            0);
+  			gd.addMessage("--- tiles tasks (current tile_task_op = "+this.tile_task_op+") ---");
+  			gd.addCheckbox    ("Enhace ortho lines detection (enh_ortho)",                                               ImageDtt.getOrthoLines(this.tile_task_op));
+  			gd.addCheckbox    ("Force disparity for image rendering (false - use folund by tile correlation)",           ImageDtt.getForcedDisparity(this.tile_task_op));
+  			gd.addNumericField("Bitmask of used images (1 - top left, 2 - top right, 4 - bottom left, 8 bottom right)",  ImageDtt.getImgMask(this.tile_task_op),            0);
+  			gd.addNumericField("Bitmask of used pairs  (1 - top, 2 - bottom, 4 - left, 8 - right)",                      ImageDtt.getPairMask(this.tile_task_op),            0);
+//  			gd.addNumericField("Tile operations bits: +(0..f) - images, +(00.f0) - process pairs +256, ... ",  this.tile_task_op,            0);
   			gd.addNumericField("Tile operations window left (in 8x8 tiles)",                              this.tile_task_wl,            0);
   			gd.addNumericField("Tile operations window top",                                              this.tile_task_wt,            0);
   			gd.addNumericField("Tile operations window width",                                            this.tile_task_ww,            0);
@@ -2281,9 +2340,14 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Ignore current calculated fine correction (use manual only)",             this.fcorr_ignore);
   			gd.addNumericField("Calculated from correlation offset vs. actual one (not yet understood)",  this.corr_magic_scale,  3);
   			
+  			gd.addMessage     ("--- 3D reconstruction ---");
+  			gd.addCheckbox    ("Show generated textures",                                                      this.show_textures);
+  			gd.addCheckbox    ("show intermediate results of filtering",                                       this.debug_filters);
+
   			gd.addNumericField("Minimal noise-normalized pixel difference in a channel to suspect something",  this.min_smth,  3);
   			gd.addNumericField("Reliable noise-normalized pixel difference in a channel to have something ",   this.sure_smth,  3);
   			gd.addNumericField("Disparity range to be considered background",                                  this.bgnd_range,  3);
+  			gd.addNumericField("Disparity difference from the center (provided) disparity to trust",           this.other_range,  3);
   			gd.addNumericField("Minimal strength to be considered definitely background",                      this.bgnd_sure,  3);
   			gd.addNumericField("Maximal strength to ignore as non-background",                                 this.bgnd_maybe,  3);
 
@@ -2334,9 +2398,20 @@ public class EyesisCorrectionParameters {
   			this.min_corr_normalized=   gd.getNextNumber();
   			this.max_corr_sigma=        gd.getNextNumber();
   			this.max_corr_radius=       gd.getNextNumber();
+  			
+  			this.enhortho_width= (int) gd.getNextNumber();
+  			this.enhortho_scale=        gd.getNextNumber();
+
+  			this.max_corr_double=       gd.getNextBoolean();
   			this.corr_mode=       (int) gd.getNextNumber();
   			this.corr_border_contrast=  gd.getNextNumber();
-  			this.tile_task_op=    (int) gd.getNextNumber();
+  			
+//  			this.tile_task_op=    (int) gd.getNextNumber();
+  			this.tile_task_op = ImageDtt.setOrthoLines      (this.tile_task_op, gd.getNextBoolean());
+  			this.tile_task_op = ImageDtt.setForcedDisparity (this.tile_task_op, gd.getNextBoolean());
+  			this.tile_task_op = ImageDtt.setImgMask         (this.tile_task_op, (int) gd.getNextNumber());
+  			this.tile_task_op = ImageDtt.setPairMask        (this.tile_task_op, (int) gd.getNextNumber());
+  			
   			this.tile_task_wl=    (int) gd.getNextNumber();
   			this.tile_task_wt=    (int) gd.getNextNumber();
   			this.tile_task_ww=    (int) gd.getNextNumber();
@@ -2377,9 +2452,12 @@ public class EyesisCorrectionParameters {
   			this.fcorr_ignore=          gd.getNextBoolean();
   			this.corr_magic_scale=      gd.getNextNumber();
 
+  			this.show_textures=         gd.getNextBoolean();
+  			this.debug_filters=         gd.getNextBoolean();
   			this.min_smth=              gd.getNextNumber();
-  			this.sure_smth=              gd.getNextNumber();
+  			this.sure_smth=             gd.getNextNumber();
   			this.bgnd_range=            gd.getNextNumber();
+  			this.other_range=           gd.getNextNumber();
   			this.bgnd_sure=             gd.getNextNumber();
   			this.bgnd_maybe=            gd.getNextNumber();
   			this.min_clstr_seed=  (int) gd.getNextNumber();

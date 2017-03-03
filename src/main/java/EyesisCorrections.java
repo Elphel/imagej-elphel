@@ -2358,8 +2358,22 @@ public class EyesisCorrections {
 		   String path=null;
 		   if (save) path= correctionsParameters.selectResultsDirectory(
 				   true,  // smart,
-				   true);  //newAllowed, // save  
+				   true);  //newAllowed, // save
+		   
+		   saveAndShow(
+				   imp,
+				   path,
+				   correctionsParameters.png,
+				   show,
+				   jpegQuality);
+	   }
 
+	   void saveAndShow(
+			   ImagePlus             imp,
+			   String                path,
+			   boolean               png,
+			   boolean               show,
+			   int                   jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
 		   if (path!=null) {
 			   path+=Prefs.getFileSeparator()+imp.getTitle();
 			   boolean hasAlphaHighByte = false;
@@ -2374,7 +2388,7 @@ public class EyesisCorrections {
 			   }
 			   
 			   if (hasAlphaHighByte){
-				   if (correctionsParameters.png){
+				   if (png){
 					   if (this.debugLevel > 0) System.out.println("Saving RGBA result to "+path+".png");
 					   (new EyesisTiff()).savePNG_ARGB32(
 							   imp,
@@ -2441,27 +2455,7 @@ public class EyesisCorrections {
 			   imp.show();
 		   }
 	   }
-/*	  
-	   private void saveAndShow(
-	 		  CompositeImage        compositeImage,
-	 		  EyesisCorrectionParameters.ProcessParameters     processParameters,
-			   EyesisCorrectionParameters.CorrectionParameters  correctionsParameters){
-	 	  saveAndShow(compositeImage,    processParameters, correctionsParameters , true, true);
-	   }
-
-	   private void saveAndShow(
-			   CompositeImage        compositeImage,
-			   EyesisCorrectionParameters.ProcessParameters     processParameters,
-			   EyesisCorrectionParameters.CorrectionParameters  correctionsParameters,
-			   boolean               enableSave,
-			   boolean               enableShow){
-		   saveAndShow(
-				   compositeImage,
-				   correctionsParameters,
-				   processParameters.save && enableSave,
-				   processParameters.show && enableShow);
-	   }
-*/
+	   
 	   private void saveAndShow(
 	 		  CompositeImage        compositeImage,
 	 		  EyesisCorrectionParameters.CorrectionParameters correctionsParameters,

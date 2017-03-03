@@ -33,7 +33,6 @@ import ij.ImagePlus;
 import ij.ImageStack;
 import ij.Prefs;
 import ij.io.FileSaver;
-import ij.process.ByteProcessor;
 import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
 
@@ -56,13 +55,6 @@ public class EyesisDCT {
 	public ArrayList <CLTPass3d> clt_3d_passes = null;
 	public int tilesX;
 	public int tilesY;
-	
-	static int  DISPARITY_INDEX_CM =   2; // index of disparity value in disparity_map == 2 (0,2 or 4)
-	static int  DISPARITY_INDEX_POLY = 4; // index of disparity value in disparity_map == 2 (0,2 or 4)
-	static int  STRENGTH_INDEX =       6; // index of strength data in disparity map ==6
-	static int  IMG_DIFF0_INDEX =      8; // index of noise- normalized image difference for port 0 in disparity map
-	
-	
 	
 	
 	public EyesisDCT(
@@ -4884,12 +4876,15 @@ public class EyesisDCT {
 		  double [][][][]     texture_tiles =    null; // [tilesY][tilesX]["RGBA".length()][]; // tiles will be 16x16, 2 visualizaion mode full 16 or overlapped
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
 		  if (clt_parameters.correlate){
-			  clt_corr_combo =    new double [2][tilesY][tilesX][];
+			  //			  clt_corr_combo =    new double [2][tilesY][tilesX][];
+			  clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][];
 			  texture_tiles =     new double [tilesY][tilesX][][]; // ["RGBA".length()][];
 			  for (int i = 0; i < tilesY; i++){
 				  for (int j = 0; j < tilesX; j++){
-					  clt_corr_combo[0][i][j] = null;
-					  clt_corr_combo[1][i][j] = null;
+					  for (int k = 0; k<clt_corr_combo.length; k++){
+						  clt_corr_combo[k][i][j] = null;
+					  }
+					  //					  clt_corr_combo[1][i][j] = null;
 					  texture_tiles[i][j] = null;
 				  }
 			  }
@@ -4905,8 +4900,7 @@ public class EyesisDCT {
 				  clt_mismatch = new double [12][];
 			  }
 		  }
-//		  double [][] disparity_map = new double [8][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
-		  double [][] disparity_map = new double [12][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
+		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 		  
 		  double min_corr_selected = clt_parameters.corr_normalize? clt_parameters.min_corr_normalized: clt_parameters.min_corr;
 		  double [][] shiftXY = {
@@ -4937,6 +4931,9 @@ public class EyesisDCT {
 				  min_corr_selected, // 0.0001; // minimal correlation value to consider valid 
 				  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
 				  clt_parameters.max_corr_radius,
+				  clt_parameters.enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
+				  clt_parameters.enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
+				  clt_parameters.max_corr_double, // Double pass when masking center of mass to reduce preference for integer values
 				  clt_parameters.corr_mode,     // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
 				  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
 				  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
@@ -5050,15 +5047,13 @@ public class EyesisDCT {
 		  if (clt_corr_combo!=null){
 			  if (disparity_map != null){
 				  if (clt_parameters.show_map){
-					  String [] disparity_titles = {"int_disparity", "int_disp_ortho","cm_disparity", "cm_disp_ortho","poly_disparity", "poly_disp_ortho",
-							  "strength", "variety","maxdiff0","maxdiff1","maxdiff2","maxdiff3"};
 					  sdfa_instance.showArrays(
 							  disparity_map,
 							  tilesX,
 							  tilesY,
 							  true,
 							  name+"-DISP_MAP-D"+clt_parameters.disparity,
-							  disparity_titles);
+							  ImageDtt.DISPARITY_TITLES);
 				  }			  
 			  }
 
@@ -5091,7 +5086,8 @@ public class EyesisDCT {
 
 			  if (clt_parameters.corr_show){
 				  double [][] corr_rslt = new double [clt_corr_combo.length][];
-				  String [] titles = {"combo","sum"};
+				  String [] titles = new String[clt_corr_combo.length]; // {"combo","sum"};
+				  for (int i = 0; i< titles.length; i++) titles[i] = ImageDtt.TCORR_TITLES[i];
 				  for (int i = 0; i<corr_rslt.length; i++) {
 					  corr_rslt[i] = image_dtt.corr_dbg(
 							  clt_corr_combo[i],
@@ -5364,11 +5360,11 @@ public class EyesisDCT {
 		  ImagePlus result= new ImagePlus(titleFull, stack);    			  
 
 		  if (!toRGB && !this.correctionsParameters.jpeg){ // toRGB set for equirectangular
-			  if (debugLevel > -1) System.out.println("!toRGB && !this.correctionsParameters.jpeg");
+			  if (debugLevel > 1) System.out.println("!toRGB && !this.correctionsParameters.jpeg");
 			  if (saveShowIntermediate) eyesisCorrections.saveAndShow(result, this.correctionsParameters);
 			  return result;
 		  } else { // that's not the end result, save if required
-			  if (debugLevel > -1) System.out.println("!toRGB && !this.correctionsParameters.jpeg - else");
+			  if (debugLevel > 1) System.out.println("!toRGB && !this.correctionsParameters.jpeg - else");
 			  
 			  
 			  if (saveShowIntermediate) eyesisCorrections.saveAndShow(result, // saves OK with alpha - 32-bit float
@@ -5398,7 +5394,8 @@ public class EyesisDCT {
 		  }
 		  result = eyesisCorrections.convertRGB48toRGB24(
 				  stack,
-				  name+"-RGB24"+suffix,
+//				  name+"-RGB24"+suffix,
+				  name+suffix,
 				  0, 65536, // r range 0->0, 65536->256
 				  0, 65536, // g range
 				  0, 65536,// b range
@@ -5419,8 +5416,8 @@ public class EyesisDCT {
 			  int debugLevel)
 	  {
 		  // TODO: update the following indices when format of the arrays will change (removed unneeded data)
-		  final int index_disparity =     2; // "cm_disparity" 
-		  final int index_strength =      6; // "strength"
+		  final int index_disparity =     ImageDtt.DISPARITY_INDEX_CM; // 2; // "cm_disparity" 
+		  final int index_strength =      ImageDtt.DISPARITY_STRENGTH_INDEX; //6; // "strength"
 		  final int [] indices_mismatch = {1,4,6,9}; //   "dy0", "dy1", "dx2", "dx3"
 		  final int numTiles =            disparity_map[0].length;
 		  final int tilesY =              numTiles/tilesX;
@@ -5892,10 +5889,11 @@ public class EyesisDCT {
 		  //TODO: Add array of default disparity - use for combining images in force disparity mode (no correlation), when disparity is predicted from other tiles
 
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
-		  double [][][][]     clt_corr_combo =    new double [2][tilesY][tilesX][]; // will only be used inside?
+//		  double [][][][]     clt_corr_combo =    new double [2][tilesY][tilesX][]; // will only be used inside?
+		  double [][][][]     clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][]; // will only be used inside?
 		  double min_corr_selected = clt_parameters.corr_normalize? clt_parameters.min_corr_normalized: clt_parameters.min_corr;
 		  
-		  double [][][] disparity_maps = new double [clt_parameters.disp_scan_count][8][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+		  double [][][] disparity_maps = new double [clt_parameters.disp_scan_count][ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 
 		  for (int scan_step = 0; scan_step < clt_parameters.disp_scan_count; scan_step++) {
 			  double disparity = clt_parameters.disp_scan_start + scan_step * clt_parameters.disp_scan_step;
@@ -5929,6 +5927,9 @@ public class EyesisDCT {
 					  min_corr_selected, // 0.0001; // minimal correlation value to consider valid 
 					  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
 					  clt_parameters.max_corr_radius,
+					  clt_parameters.enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
+					  clt_parameters.enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
+					  clt_parameters.max_corr_double, // Double pass when masking center of mass to reduce preference for integer values
 					  clt_parameters.corr_mode,     // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
 					  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
 					  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
@@ -5956,10 +5957,16 @@ public class EyesisDCT {
 					  threadsMax,
 					  debugLevel);
 		  }
-//		  String [] disparity_titles = {"int_disparity", "int_disp_ortho","cm_disparity", "cm_disp_ortho","poly_disparity", "poly_disp_ortho",
-//				  "strength", "variety"};
-		  String [] disparity_titles = {"int_disparity","cm_disparity", "poly_disparity", "strength", "variety"};
-		  int [] disp_indices = {0,2,4,6,7};
+		  int [] disp_indices = {
+				  ImageDtt.DISPARITY_INDEX_INT,
+				  ImageDtt.DISPARITY_INDEX_CM,
+				  ImageDtt.DISPARITY_INDEX_POLY,
+				  ImageDtt.DISPARITY_STRENGTH_INDEX,
+				  ImageDtt.DISPARITY_VARIATIONS_INDEX};
+		  String [] disparity_titles = new String [disp_indices.length];
+		  for (int i = 0; i < disparity_titles.length; i++ ) disparity_titles[i] = ImageDtt.DISPARITY_TITLES[i];
+		  
+//				  2,4,6,7};
 		  String [] disparities_titles = new String [disparity_titles.length * clt_parameters.disp_scan_count];
 		  double [][] disparities_maps = new double [disparity_titles.length * clt_parameters.disp_scan_count][];
 		  int indx = 0;
@@ -6318,7 +6325,9 @@ public class EyesisDCT {
 		  public double [][]     disparity; // per-tile disparity set for the pass[tileY][tileX] 
 		  public int    [][]     tile_op;   // what was done in the current pass
 		  public double [][]     disparity_map; // add 4 layers - worst difference for the port
+		  public boolean []      selected; // which tiles are selected for this layer
 		  public double [][][][] texture_tiles;
+		  public String          texture = null; // relative (to x3d) path
 	  }
 	 
 	  public void resetCLTPasses(){
@@ -6336,7 +6345,7 @@ public class EyesisDCT {
 			  final int        threadsMax,  // maximal number of threads to launch                         
 			  final boolean    updateStatus,
 			  final int        debugLevel){
-		  
+		  String name = (String) imp_quad[0].getProperty("name");
 		  double [][][] image_data = new double [imp_quad.length][][];
 		  for (int i = 0; i < image_data.length; i++){
 			  image_data[i] = eyesisCorrections.bayerToDoubleStack(
@@ -6365,14 +6374,29 @@ public class EyesisDCT {
 				  clt_parameters,
 				  colorProcParameters,
 				  rgbParameters,
-				  (String) imp_quad[0].getProperty("name"), // .getTitle(), //String name=(String) imp_src.getProperty("name");
-				  DISPARITY_INDEX_CM, // index of disparity value in disparity_map == 2 (0,2 or 4)
+				  name,               // .getTitle(), //String name=(String) imp_src.getProperty("name");
+				  ImageDtt.DISPARITY_INDEX_CM, // index of disparity value in disparity_map == 2 (0,2 or 4)
 				  threadsMax,  // maximal number of threads to launch                         
 				  updateStatus,
 				  debugLevel);
-
+		  bgnd_data.texture = imp_bgnd.getTitle()+".png";
 		  
-		  return imp_bgnd;
+// create x3d file
+		  X3dOutput x3dOutput = new X3dOutput(
+					clt_parameters,
+					correctionsParameters,
+					geometryCorrection,
+					clt_3d_passes);
+		  
+		  x3dOutput.generateBackground();
+ 		  String path= correctionsParameters.selectX3dDirectory(
+				  true,  // smart,
+				  true);  //newAllowed, // save
+ 		  if (path != null){
+ 			  path+=Prefs.getFileSeparator()+name+".x3d";
+ 			  x3dOutput.generateX3D(path);
+ 		  }
+		  return imp_bgnd; // relative (to x3d directory) path - (String) imp_bgnd.getProperty("name");
 	  }
 	  
 	  public ImagePlus getBackgroundImage(
@@ -6388,7 +6412,8 @@ public class EyesisDCT {
 			  )
 	  {
 		  showDoubleFloatArrays sdfa_instance = null;
-		  if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		  
+		  if (clt_parameters.debug_filters && (debugLevel > -1)) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 		  
 		  CLTPass3d bgnd_data = clt_3d_passes.get(0); 
 		  double [][][][] texture_tiles = bgnd_data.texture_tiles;
@@ -6401,7 +6426,7 @@ public class EyesisDCT {
 				  clt_parameters.min_clstr_seed, // number of tiles in a cluster to seed (just background?)
 				  clt_parameters.min_clstr_block,// number of tiles in a cluster to block (just non-background?)
 				  disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
-				  debugLevel);
+				  (clt_parameters.debug_filters ? debugLevel : -1));
 		  boolean [] bgnd_strict = bgnd_tiles.clone(); // only these have non 0 alpha
 		  growTiles(
 				  clt_parameters.bgnd_grow,      // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
@@ -6410,7 +6435,7 @@ public class EyesisDCT {
 		  growTiles(
 				  2,      // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 				  bgnd_tiles);
-
+		  bgnd_data.selected = bgnd_tiles_grown; // selected for background w/o extra transparent layer
 		  
 		  if (sdfa_instance!=null){
 			  double [][] dbg_img = new double[3][tilesY * tilesX];
@@ -6467,23 +6492,98 @@ public class EyesisDCT {
 		  // for now - use just RGB. Later add oprion for RGBA
 		  double [][] texture_rgb = {texture_overlap[0],texture_overlap[1],texture_overlap[2]};
 		  double [][] texture_rgba = {texture_overlap[0],texture_overlap[1],texture_overlap[2],texture_overlap[3]};
+		  
 		  //			  ImagePlus img_texture = 
-		  ImagePlus result = linearStackToColor(
+		  ImagePlus imp_texture_bgnd = linearStackToColor(
 				  clt_parameters,
 				  colorProcParameters,
 				  rgbParameters,
-				  name+"-bgnd-texture", // String name,
+				  name+"-texture-bgnd", // String name,
 				  "", //String suffix, // such as disparity=...
 				  true, // toRGB,
 				  !this.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
 				  true, // boolean saveShowIntermediate, // save/show if set globally
-				  true, // boolean saveShowFinal,        // save/show result (color image?)
+				  false, //true, // boolean saveShowFinal,        // save/show result (color image?)
 				  ((clt_parameters.alpha1 > 0)? texture_rgba: texture_rgb),
 				  tilesX,
 				  tilesY,
 				  1.0,         // double scaleExposure, // is it needed?
-				  debugLevel );
-		  return result;
+				  debugLevel);
+		  // resize for backdrop here!
+//	public double getFOVPix(){ // get ratio of 1 pixel X/Y to Z (distance to object)
+		  ImagePlus imp_texture_bgnd_ext = resizeForBackdrop(
+				  imp_texture_bgnd,
+				  debugLevel); 
+		  
+		  
+		  String path= correctionsParameters.selectX3dDirectory(
+				  true,  // smart,
+				  true);  //newAllowed, // save
+		  // only show/save original size if debug or debug_filters)  
+		  if (clt_parameters.debug_filters || (debugLevel > 0)) {
+			  eyesisCorrections.saveAndShow(
+					  imp_texture_bgnd,
+					  path,
+					  correctionsParameters.png,
+					  clt_parameters.show_textures,
+					  -1); // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+		  }
+		  eyesisCorrections.saveAndShow(
+				  imp_texture_bgnd_ext,
+				  path,
+				  correctionsParameters.png,
+				  clt_parameters.show_textures,
+				  -1); // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+		  
+		  // testing 2-nd pass
+		  secondPassSetup( // prepare tile tasks for the second pass based on the previous one(s)
+//				  final double [][][]       image_data, // first index - number of image in a quad
+				  clt_parameters,
+				  // disparity range - differences from 
+				  clt_parameters.bgnd_range, // double            disparity_far,  
+				  clt_parameters.other_range, //double            disparity_near,   //
+				  clt_parameters.bgnd_sure, // double            this_sure,        // minimal strength to be considered definitely background
+				  clt_parameters.bgnd_maybe, // double            this_maybe,       // maximal strength to ignore as non-background
+				  clt_parameters.sure_smth, // sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
+				  disparity_index,  // index of disparity value in disparity_map == 2 (0,2 or 4)
+				  threadsMax,  // maximal number of threads to launch                         
+				  updateStatus,
+				  debugLevel);
+		  
+		  
+		  
+		  
+		  return imp_texture_bgnd_ext;
+	  }
+
+	  public ImagePlus resizeForBackdrop(ImagePlus imp, int debugLevel){
+		  double backdropPixels = 2.0/geometryCorrection.getFOVPix();
+		  if (debugLevel > -1) {
+			  System.out.println("backdropPixels = "+backdropPixels);
+		  }
+		  // TODO: currently - just adding pixels, no rescaling (add later). Alternatively - just modify geometry earlier
+		  int width = imp.getWidth();
+		  int height = imp.getHeight(); 
+		  int h_margin = (int) Math.round((backdropPixels - width)/2);
+		  int v_margin = (int) Math.round((backdropPixels - height)/2);
+		  int width2 =  width +  2 * h_margin;
+		  int height2 = height + 2 * v_margin;
+		  if (debugLevel > -1) {
+			  System.out.println("backdropPixels = "+backdropPixels+" h_margin = "+h_margin+" v_margin = "+v_margin);
+		  }
+		  int [] src_pixels = (int []) imp.getProcessor().getPixels();
+		  int [] pixels = new int [width2* height2];
+		  int indx = 0;
+		  int offset = v_margin *  width2 + h_margin;
+		  for (int i = 0; i < height; i++){
+			  for (int j = 0; j < width; j++){
+				  pixels[offset+ i * width2 + j] = src_pixels[indx++]; 
+			  }
+		  }
+		  ColorProcessor cp=new ColorProcessor(width2,height2);
+		  cp.setPixels(pixels);
+		  ImagePlus imp_ext=new ImagePlus(imp.getTitle()+"-ext",cp);
+		  return imp_ext;
 	  }
 	  
 //[tilesY][tilesX]["RGBA".length()][]	  
@@ -6515,11 +6615,11 @@ public class EyesisDCT {
 				  int tindx = tileY * tilesX + tileX;
 
 				  if (Math.abs(disparity_map[disparity_index][tindx]) < bgnd_range){
-					  if (disparity_map[STRENGTH_INDEX][tindx] >= bgnd_sure){
+					  if (disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][tindx] >= bgnd_sure){
 						  bgnd_tiles[tindx] = true;  
 					  }
 				  } else {
-					  if (disparity_map[STRENGTH_INDEX][tindx] > bgnd_maybe){ // maybe non-bkgnd
+					  if (disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][tindx] > bgnd_maybe){ // maybe non-bkgnd
 						  if (disparity_map[disparity_index][tindx] > 0.0) { // disregard negative disparity points
 						  nonbgnd_tiles[tindx] = true;  
 						  }
@@ -6528,13 +6628,13 @@ public class EyesisDCT {
 				  // see if the second worst variatoin exceeds sure_smth (like a window), really close object
 				  int imax1 = 0;
 				  for (int i = 1; i< quad; i++){
-					  if (disparity_map[IMG_DIFF0_INDEX+i][tindx] > disparity_map[IMG_DIFF0_INDEX + imax1][tindx]) imax1 = i;
+					  if (disparity_map[ImageDtt.IMG_DIFF0_INDEX+i][tindx] > disparity_map[ImageDtt.IMG_DIFF0_INDEX + imax1][tindx]) imax1 = i;
 				  }
 				  int imax2 = (imax1 == 0)? 1 : 0;
 				  for (int i = 0; i< quad; i++) if (i != imax1) {
-					  if (disparity_map[IMG_DIFF0_INDEX+i][tindx] > disparity_map[IMG_DIFF0_INDEX + imax2][tindx]) imax2 = i;
+					  if (disparity_map[ImageDtt.IMG_DIFF0_INDEX+i][tindx] > disparity_map[ImageDtt.IMG_DIFF0_INDEX + imax2][tindx]) imax2 = i;
 				  }
-				  block_propagate[tindx] = (disparity_map[IMG_DIFF0_INDEX + imax2][tindx] > sure_smth);
+				  block_propagate[tindx] = (disparity_map[ImageDtt.IMG_DIFF0_INDEX + imax2][tindx] > sure_smth);
 			  }
 		  }
 		  if (min_clstr_seed > 1){
@@ -6562,7 +6662,7 @@ public class EyesisDCT {
 				  dbg_img[0][i] =    bgnd_tiles  [i] ? 1 : 0;
 				  dbg_img[1][i] = nonbgnd_tiles  [i] ? 1 : 0;
 				  dbg_img[2][i] = block_propagate[i] ? 1 : 0;
-				  dbg_img[3][i] = disparity_map[STRENGTH_INDEX][i];
+				  dbg_img[3][i] = disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][i];
 				  dbg_img[4][i] = disparity_map[disparity_index][i];
 			  }
 			sdfa_instance.showArrays(dbg_img,  tilesX, tilesY, true, "bgnd_nonbgnd",titles);
@@ -6673,7 +6773,7 @@ public class EyesisDCT {
 			  int        min_area,  // minimal number of pixels
 			  double     min_weight // minimal total weight of the cluster
 			  ){
-		  // adding 1-tile frame around to avoid checking fro the borders
+		  // adding 1-tile frame around to avoid checking for the borders
 		  int tilesX2 = tilesX+2;
 		  int tilesY2 = tilesY+2;
 		  boolean [] tiles = new boolean [tilesX2*tilesY2];
@@ -6795,6 +6895,10 @@ public class EyesisDCT {
 			  System.out.println("clt_parameters.tile_task_wt="+clt_parameters.tile_task_wt );
 			  System.out.println("clt_parameters.tile_task_ww="+clt_parameters.tile_task_ww );
 			  System.out.println("clt_parameters.tile_task_wh="+clt_parameters.tile_task_wh );
+			  System.out.println("getImgMask("+op+")="+ImageDtt.getImgMask(op) );
+			  System.out.println("getPairMask("+op+")="+ImageDtt.getPairMask(op) );
+			  System.out.println("getForcedDisparity("+op+")="+ImageDtt.getForcedDisparity(op) );
+			  System.out.println("getOrthoLines("+op+")="+ImageDtt.getOrthoLines(op) );
 			  System.out.println("tyt="+tyt+" tyb="+tyb+" txl="+txl+" txr="+txr );
 		  }
 		  return tile_op;
@@ -6812,9 +6916,104 @@ public class EyesisDCT {
 		  return disp_array;
 	  }
 	  
-	  
+	  public CLTPass3d secondPassSetup( // prepare tile tasks for the second pass based on the previous one(s)
+//			  final double [][][]       image_data, // first index - number of image in a quad
+			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  // disparity range - differences from 
+			  double            disparity_far,    //
+			  double            disparity_near,   // 
+			  double            this_sure,        // minimal strength to be considered definitely background
+			  double            this_maybe,       // maximal strength to ignore as non-background
+			  double            sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
+			  int               disparity_index,  // index of disparity value in disparity_map == 2 (0,2 or 4)
+			  final int         threadsMax,  // maximal number of threads to launch                         
+			  final boolean     updateStatus,
+			  final int         debugLevel)
+	  {
+		  CLTPass3d scan_prev = clt_3d_passes.get(clt_3d_passes.size() -1);
+		  CLTPass3d scan_next = new CLTPass3d();
+		  showDoubleFloatArrays sdfa_instance = null;
+		  if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		  int quad = 4;
+		  int tlen = tilesY * tilesX;
+		  //TODO: for next passes - combine all selected for previous passes (all passes with smaller disparity)
+		  boolean [] bg_tiles = 		clt_3d_passes.get(0).selected; // selected for background w/o extra transparent layer
+
+		  double  [] this_map =         scan_prev.disparity_map[disparity_index].clone();
+		  double  [] this_strength =    scan_prev.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX];
+		  double  [][] these_diffs =      new double[quad][];
+		  for (int i = 0; i< quad; i++) these_diffs[i] = scan_prev.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i];
+		  boolean [] these_tiles =      new boolean [tlen];
+		  boolean [] near_tiles =       new boolean [tlen];
+		  boolean [] far_tiles =        new boolean [tlen];
+		  boolean [] block_propagate =  new boolean [tlen];
+		  for (int i = 0; i < tilesY; i++){
+			  for (int j = 0; j < tilesX; j++){
+				  int indx = i * tilesX + j;
+				  if (!Double.isNaN(this_map[i])){
+					  this_map[indx] /= clt_parameters.corr_magic_scale;
+					  this_map[indx] += scan_prev.disparity[i][j];
+				  }
+			  }
+		  }
+		  for (int i = 0; i <tlen; i++) if (!Double.isNaN(this_map[i])){
+			  if (this_map[i] < disparity_far) {
+				  if (this_strength[i] > this_maybe){
+					  far_tiles[i] = true;
+				  }
+			  } else if (this_map[i] > disparity_near){
+				  if ((this_strength[i] > this_maybe) && ! bg_tiles[i]){ // can not be farther if selected for near?
+					  near_tiles[i] = true;
+				  }
+			  } else { // in range
+				  if (this_strength[i] > this_sure)
+				  these_tiles[i] = true;
+			  }
+			  // see if the second worst variatoin exceeds sure_smth (like a window), really close object
+			  int imax1 = 0;
+			  for (int ip = 1; ip< quad; ip++){
+				  if (these_diffs[ip][i] > these_diffs[imax1][i]) imax1 = ip;
+			  }
+			  int imax2 = (imax1 == 0)? 1 : 0;
+			  for (int ip = 0; ip< quad; ip++) if (ip != imax1) {
+				  if (these_diffs[ip][i] > these_diffs[imax2][i]) imax2 = ip;
+			  }
+			  block_propagate[i] = (these_diffs[imax2][i] > sure_smth);
+		  }
+		  if (sdfa_instance!=null){
+			  String [] titles = {"map","bg_sel","far","these","near","block","strength","diff0","diff1","diff2","diff3"};
+			  double [][] dbg_img = new double[titles.length][tilesY * tilesX];
+			  for (int i = 0; i<dbg_img[0].length;i++){
+				  dbg_img[ 0][i] =   this_map[i];
+				  dbg_img[ 1][i] =    bg_tiles    [i] ? 1 : 0;
+				  dbg_img[ 2][i] =     far_tiles  [i] ? 1 : 0;
+				  dbg_img[ 3][i] =   these_tiles  [i] ? 1 : 0;
+				  dbg_img[ 4][i] =    near_tiles  [i] ? 1 : 0;
+				  dbg_img[ 5][i] = block_propagate[i] ? 1 : 0;
+				  dbg_img[ 6][i] =   this_strength[i];
+				  dbg_img[ 7][i] =  these_diffs[0][i];
+				  dbg_img[ 8][i] =  these_diffs[1][i];
+				  dbg_img[ 9][i] =  these_diffs[2][i];
+				  dbg_img[10][i] =  these_diffs[3][i];
+			  }
+			sdfa_instance.showArrays(dbg_img,  tilesX, tilesY, true, "bgnd_nonbgnd",titles);
+		  }
+		  
+		  return scan_next;
+	  }
+	  /*
+	  public class CLTPass3d{
+		  public double [][]     disparity; // per-tile disparity set for the pass[tileY][tileX] 
+		  public int    [][]     tile_op;   // what was done in the current pass
+		  public double [][]     disparity_map; // add 4 layers - worst difference for the port
+		  public double [][][][] texture_tiles;
+		  public String          texture = null; // relative (to x3d) path
+	  }
+	static int  STRENGTH_INDEX =       6; // index of strength data in disparity map ==6
+	static int  IMG_DIFF0_INDEX =      8; // index of noise- normalized image difference for port 0 in disparity map
+
+	   */
 	  public CLTPass3d CLTBackgroundMeas( // measure background
-//			  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
 			  final double [][][]       image_data, // first index - number of image in a quad
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  final int         threadsMax,  // maximal number of threads to launch                         
@@ -6823,14 +7022,18 @@ public class EyesisDCT {
 	  {
 
 		  CLTPass3d scan_rslt = new CLTPass3d();
-
-		  int [][]     tile_op = setSameTileOp(clt_parameters,  0xff | (1 << ImageDtt.FORCE_DISPARITY_BIT), debugLevel);
+		  int d = ImageDtt.setImgMask(0, 0xf);
+		  d =     ImageDtt.setPairMask(d,0xf);
+		  d =     ImageDtt.setForcedDisparity(d,true);
+		  int [][]     tile_op = setSameTileOp(clt_parameters,  d, debugLevel);
 		  double [][]  disparity_array =setSameDisparity(0.0); // [tilesY][tilesX] - individual per-tile expected disparity
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
-		  double [][][][]     clt_corr_combo =    new double [2][tilesY][tilesX][]; // will only be used inside?
+//		  double [][][][]     clt_corr_combo =    new double [2][tilesY][tilesX][]; // will only be used inside?
+		  double [][][][]     clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][]; // will only be used inside?
+		  
 		  double min_corr_selected = clt_parameters.corr_normalize? clt_parameters.min_corr_normalized: clt_parameters.min_corr;
 		  
-		  double [][] disparity_map = new double [12][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 
 		  double [][] shiftXY = {
 				  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
@@ -6862,6 +7065,9 @@ public class EyesisDCT {
 				  min_corr_selected, // 0.0001; // minimal correlation value to consider valid 
 				  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
 				  clt_parameters.max_corr_radius,
+				  clt_parameters.enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
+				  clt_parameters.enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
+				  clt_parameters.max_corr_double, // Double pass when masking center of mass to reduce preference for integer values
 				  clt_parameters.corr_mode,     // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
 				  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
 				  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)

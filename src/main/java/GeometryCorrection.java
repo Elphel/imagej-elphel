@@ -27,6 +27,8 @@ import ij.IJ;
  */
 
 public class GeometryCorrection {
+	static double SCENE_UNITS_SCALE = 0.001;
+	static String SCENE_UNITS_NAME = "m";
 	public int    debugLevel = 0;
 	//	public double azimuth; // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
 	//	public double radius;  // mm, distance from the rotation axis
@@ -70,8 +72,8 @@ public class GeometryCorrection {
 	public double [][] XYZ_he;     // all cameras coordinates transformed to eliminate heading and elevation (rolls preserved) 
 	public double [][] XYZ_her = null; // XYZ of the lenses in a corrected CCS (adjusted for to elevation, heading,  common_roll)
 	public double [][] rXY =     null; // XY pairs of the in a normal plane, relative to disparityRadius
-	public double cameraRadius=0; // average distance from the "mass center" of the sencors to the sensors
-	public double disparityRadius=0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad camera 
+	public double cameraRadius=0; // average distance from the "mass center" of the sensors to the sensors
+	public double disparityRadius=0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad camera (~=150mm)?
 
 	private double [] rByRDist=null;
 	private double    stepR=0.001;
@@ -307,7 +309,18 @@ public class GeometryCorrection {
 
 	// return distance from disparity (in pixel units) for the current camera geometry
 	public double getZFromDisparity(double disparity){
-		return disparity * this.focalLength * 0.001*this.pixelSize / this.disparityRadius;
+		return SCENE_UNITS_SCALE * this.focalLength * this.disparityRadius / (disparity * 0.001*this.pixelSize);
+	}
+	
+	public double getFOVPix(){ // get ratio of 1 pixel X/Y to Z (distance to object)
+		return 0.001 * this.pixelSize / this.focalLength;
+	}
+	
+	public double getFOVWidth(){ // get FOV ratio: width to distance
+		return this.pixelCorrectionWidth * 0.001 * this.pixelSize / this.focalLength;
+	}
+	public double getFOVHeight(){ // get FOV ratio: width to distance
+		return this.pixelCorrectionHeight * 0.001 * this.pixelSize / this.focalLength;
 	}
 
 	/*
