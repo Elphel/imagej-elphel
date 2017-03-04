@@ -42,7 +42,7 @@ import org.w3c.dom.Element;
 
 public class X3dOutput {
 	GeometryCorrection                                     geometry_correction;
-	public ArrayList <EyesisDCT.CLTPass3d>                 clt_3d_passes;
+	public ArrayList <TileProcessor.CLTPass3d>             clt_3d_passes;
 	public  EyesisCorrectionParameters.CLTParameters       clt_parameters;
 	public EyesisCorrectionParameters.CorrectionParameters correctionsParameters;
 	public int debugLevel = 1;
@@ -55,7 +55,7 @@ public class X3dOutput {
 			EyesisCorrectionParameters.CLTParameters        clt_parameters,
 			EyesisCorrectionParameters.CorrectionParameters correctionsParameters,
 			GeometryCorrection                              geometry_correction,
-			ArrayList <EyesisDCT.CLTPass3d>                 clt_3d_passes){
+			ArrayList <TileProcessor.CLTPass3d>             clt_3d_passes){
 		this.clt_parameters =        clt_parameters;
 		this.correctionsParameters = correctionsParameters;
 		this.geometry_correction =    geometry_correction;
@@ -91,7 +91,7 @@ public class X3dOutput {
 		
 		el_Scene.appendChild(el_TopGroup);
 
-        EyesisDCT.CLTPass3d bgnd_pass = clt_3d_passes.get(0);
+		TileProcessor.CLTPass3d bgnd_pass = clt_3d_passes.get(0);
 
         Element el_Bgnd = x3dDoc.createElement("Background");
         el_Bgnd.setAttribute("class","Background");
