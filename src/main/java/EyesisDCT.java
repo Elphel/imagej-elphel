@@ -4902,7 +4902,8 @@ public class EyesisDCT {
 		  }
 		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 		  
-		  double min_corr_selected = clt_parameters.corr_normalize? clt_parameters.min_corr_normalized: clt_parameters.min_corr;
+//		  double min_corr_selected = clt_parameters.corr_normalize? clt_parameters.min_corr_normalized: clt_parameters.min_corr;
+		  double min_corr_selected = clt_parameters.min_corr;
 		  double [][] shiftXY = {
 				  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
 				  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
@@ -5891,7 +5892,8 @@ public class EyesisDCT {
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
 //		  double [][][][]     clt_corr_combo =    new double [2][tilesY][tilesX][]; // will only be used inside?
 		  double [][][][]     clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][]; // will only be used inside?
-		  double min_corr_selected = clt_parameters.corr_normalize? clt_parameters.min_corr_normalized: clt_parameters.min_corr;
+//		  double min_corr_selected = clt_parameters.corr_normalize? clt_parameters.min_corr_normalized: clt_parameters.min_corr;
+		  double min_corr_selected = clt_parameters.min_corr;
 		  
 		  double [][][] disparity_maps = new double [clt_parameters.disp_scan_count][ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 
@@ -6939,34 +6941,166 @@ public class EyesisDCT {
 		  //TODO: for next passes - combine all selected for previous passes (all passes with smaller disparity)
 		  boolean [] bg_tiles = 		clt_3d_passes.get(0).selected; // selected for background w/o extra transparent layer
 
-		  double  [] this_map =         scan_prev.disparity_map[disparity_index].clone();
-		  double  [] this_strength =    scan_prev.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX];
-		  double  [][] these_diffs =      new double[quad][];
+		  double  [] disparity =        scan_prev.disparity_map[disparity_index];
+		  double  [] strength =         scan_prev.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX];
+		  double  [] hor_disparity =    scan_prev.disparity_map[ImageDtt.DISPARITY_INDEX_HOR];
+		  double  [] hor_strength =     scan_prev.disparity_map[ImageDtt.DISPARITY_INDEX_HOR_STRENGTH];
+		  double  [] vert_disparity =   scan_prev.disparity_map[ImageDtt.DISPARITY_INDEX_VERT];
+		  double  [] vert_strength =    scan_prev.disparity_map[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH];
+		  
+		  double  [] this_disparity =      new double[tlen];
+		  double  [] this_hor_disparity =  new double[tlen];
+		  double  [] this_vert_disparity = new double[tlen];
+		  double  [][] these_diffs =    new double[quad][];
 		  for (int i = 0; i< quad; i++) these_diffs[i] = scan_prev.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i];
 		  boolean [] these_tiles =      new boolean [tlen];
 		  boolean [] near_tiles =       new boolean [tlen];
 		  boolean [] far_tiles =        new boolean [tlen];
 		  boolean [] block_propagate =  new boolean [tlen];
+		  boolean [] used_hor =         new boolean [tlen];
+		  boolean [] used_vert =        new boolean [tlen];
+		  double  [] this_strength = strength.clone();    
+		  boolean [] dbg_used_hor; // original, before bridging 
+		  boolean [] dbg_used_vert;
+		  // scale and shift all 3 disparities - combo, vert and hor
 		  for (int i = 0; i < tilesY; i++){
 			  for (int j = 0; j < tilesX; j++){
 				  int indx = i * tilesX + j;
-				  if (!Double.isNaN(this_map[i])){
-					  this_map[indx] /= clt_parameters.corr_magic_scale;
-					  this_map[indx] += scan_prev.disparity[i][j];
+				  this_disparity[indx] =      disparity[indx]/clt_parameters.corr_magic_scale +      scan_prev.disparity[i][j];
+				  this_hor_disparity[indx] =  hor_disparity[indx]/clt_parameters.corr_magic_scale +  scan_prev.disparity[i][j];
+				  this_vert_disparity[indx] = vert_disparity[indx]/clt_parameters.corr_magic_scale + scan_prev.disparity[i][j];
+			  }
+		  }
+
+		  // convolve hor/vert strengths to emphasize multi-tile features
+		  double []  hor_strength_conv = detectOrtho(
+				  hor_strength, // double [] tiles,
+				  false, // boolean vert,    // true for vertical correlation and _horizontal features
+				  clt_parameters.ortho_half_length, // int radius,      // one dimension - [-radius, +radius], other dimension -1,0, 1
+				  debugLevel);
+		  double []  vert_strength_conv = detectOrtho(
+				  vert_strength, // double [] tiles,
+				  true, // boolean vert,    // true for vertical correlation and _horizontal features
+				  clt_parameters.ortho_half_length, // int radius,      // one dimension - [-radius, +radius], other dimension -1,0, 1
+				  debugLevel);
+		  
+		  // now mix raw with convolved, but keep raw - it will be needed for weighted average
+		  for (int i = 0; i< tlen; i++){
+			  hor_strength_conv[i] =  (clt_parameters.ortho_mix * hor_strength_conv[i] + (1.0 - clt_parameters.ortho_mix ) * hor_strength[i]);
+			  vert_strength_conv[i] = (clt_parameters.ortho_mix * vert_strength_conv[i] + (1.0 - clt_parameters.ortho_mix ) * vert_strength[i]);
+		  }
+		  
+		  
+		  double [] dbg_orig_disparity = this_disparity.clone();
+
+		  /*
+		  if (sdfa_instance != null){
+			  String [] titles = {"hor_strength","hor_strength_conv", "this_hor_disparity"};
+			  double [][] ddd = {hor_strength, hor_strength_conv, this_hor_disparity};
+				sdfa_instance.showArrays(ddd,  tilesX, tilesY, true, "ddd",titles);
+			  
+		  }
+		   */
+
+		  for (int i = 0; i < tilesY; i++){
+			  for (int j = 0; j < tilesX; j++){
+				  int indx = i * tilesX + j;
+				  if (!Double.isNaN(this_disparity[i])){
+					  double disp = this_disparity[indx];
+					  // Enhance foreground detection: compare horizontal-only (for vertical features) and vertical (for horizontal) and replace 4-pair disparity
+					  // with that value
+					  /*
+					  if ((i ==119) && (j==45)){
+						  System.out.println("hor_strength_conv["+indx+"]= "+ hor_strength_conv[indx]);
+						  System.out.println("vert_strength_conv["+indx+"]= "+ vert_strength_conv[indx]);
+						  System.out.println("this_hor_disparity["+indx+"]= "+ this_hor_disparity[indx]);
+						  System.out.println("clt_parameters.ortho_min_hor="+clt_parameters.ortho_min_hor+", clt_parameters.ortho_asym= "+ clt_parameters.ortho_asym);
+						  System.out.println("disp= "+ disp);
+						  
+					  }
+					  */
+					  if ((hor_strength_conv[indx] >= clt_parameters.ortho_min_hor) &&
+							  (hor_strength_conv[indx] / vert_strength_conv[indx]>= clt_parameters.ortho_asym) &&
+							  (this_hor_disparity[indx] > disp)) {
+						  disp = this_hor_disparity[indx];
+						  used_hor[indx] = true;
+					  }
+					  if ((vert_strength_conv[indx] >= clt_parameters.ortho_min_vert) &&
+							  (vert_strength_conv[indx] / hor_strength_conv[indx]>= clt_parameters.ortho_asym) &&
+							  (this_vert_disparity[indx] > disp)) {
+						  disp = this_vert_disparity[indx];
+						  used_vert[indx] = true;
+					  }
+//					  this_disparity[indx] = disp; // /clt_parameters.corr_magic_scale + scan_prev.disparity[i][j];
 				  }
 			  }
 		  }
-		  for (int i = 0; i <tlen; i++) if (!Double.isNaN(this_map[i])){
-			  if (this_map[i] < disparity_far) {
+		  dbg_used_hor =  used_hor.clone();
+		  dbg_used_vert = used_vert.clone();
+		  if (clt_parameters.min_clstr_seed > 1){
+			  removeSmallClusters(
+					  false, //true,            // boolean    diag_en,   // enable diagonal directions, false only up, dowm, right,left
+					  used_hor,      // boolean [] tiles_src,    // selected tiles, will modified
+					  null,            // double []   weights_src,   // or null
+					  clt_parameters.min_clstr_seed,  // int        min_area,  // minimal number of pixels
+					  0.0);            // double     min_weight // minimal total weight of the cluster
+			  removeSmallClusters(
+					  false, // true,            // boolean    diag_en,   // enable diagonal directions, false only up, dowm, right,left
+					  used_vert,      // boolean [] tiles_src,    // selected tiles, will modified
+					  null,            // double []   weights_src,   // or null
+					  clt_parameters.min_clstr_seed,  // int        min_area,  // minimal number of pixels
+					  0.0);            // double     min_weight // minimal total weight of the cluster
+		  }		  
+		  
+		  
+		  
+//		  if (clt_parameters.ortho_bridge > 0) {
+			  // bridge over small gaps in horizontal/vertical features
+			  int numHorBridged = bridgeFgndOrthoGap(
+					  clt_parameters,
+					  false, // vert, // verical pairs, horizontal features
+					  true,  // boolean disp_interpolate, // fill interpolated disparity for bridged over tiles, false - copy from  ortho_disparity (if not null)
+					  true,  // boolean closer_only, // only update disparity if laregr than was 
+					  used_hor, // boolean [] used_ortho,
+					  strength,
+					  hor_strength_conv, //  for comparing
+					  hor_strength, //  for weighted average
+					  this_disparity, // will be modified
+					  this_hor_disparity // may be null
+					  );
+			  if (debugLevel > -1) System.out.println("Bridged over "+numHorBridged+" tiles along vertical features");
+
+			  // bridge over small gaps in horizontal/vertical features
+			  int numVertBridged = bridgeFgndOrthoGap(
+					  clt_parameters,
+					  true, // vert, // verical pairs, horizontal features
+					  true,  // boolean disp_interpolate, // fill interpolated disparity for bridged over tiles, false - copy from  ortho_disparity (if not null)
+					  true,  // boolean closer_only, // only update disparity if laregr than was 
+					  used_vert, // boolean [] used_ortho,
+					  strength,
+					  vert_strength_conv, //  double [] ortho_strength,
+					  vert_strength, //  double [] ortho_strength,
+					  this_disparity, // will be modified
+					  this_vert_disparity // may be null
+					  );
+			  if (debugLevel > -1) System.out.println("Bridged over "+numVertBridged+" tiles along horizontal features");
+	//	  }
+		  
+		  for (int i = 0; i <tlen; i++) if (!Double.isNaN(this_disparity[i])){
+			  if (this_disparity[i] < disparity_far) {
 				  if (this_strength[i] > this_maybe){
-					  far_tiles[i] = true;
+					  if (bg_tiles[i]) { // far can only be among previously selected for bgnd?
+						  far_tiles[i] = true;
+					  }
 				  }
-			  } else if (this_map[i] > disparity_near){
-				  if ((this_strength[i] > this_maybe) && ! bg_tiles[i]){ // can not be farther if selected for near?
+			  } else if (this_disparity[i] > disparity_near){
+//				  if ((this_strength[i] > this_maybe) && ! bg_tiles[i]){ // can not be farther if selected for near?
+//				  if ((this_strength[i] > this_maybe) || used_hor[i] || used_vert[i] ){ // can not be farther if selected for near?
+			  if ((this_strength[i] > this_maybe)){ // can not be farther if selected for near?
 					  near_tiles[i] = true;
 				  }
 			  } else { // in range
-				  if (this_strength[i] > this_sure)
+				  if ((this_strength[i] > this_sure) || used_hor[i] || used_vert[i])
 				  these_tiles[i] = true;
 			  }
 			  // see if the second worst variatoin exceeds sure_smth (like a window), really close object
@@ -6980,27 +7114,331 @@ public class EyesisDCT {
 			  }
 			  block_propagate[i] = (these_diffs[imax2][i] > sure_smth);
 		  }
+		  
+		  if (clt_parameters.min_clstr_seed > 1){
+			  removeSmallClusters(
+					  false, //true,            // boolean    diag_en,   // enable diagonal directions, false only up, dowm, right,left
+					  far_tiles,      // boolean [] tiles_src,    // selected tiles, will modified
+					  null,            // double []   weights_src,   // or null
+					  clt_parameters.min_clstr_seed,  // int        min_area,  // minimal number of pixels
+					  0.0);            // double     min_weight // minimal total weight of the cluster
+			  removeSmallClusters(
+					  false, // true,            // boolean    diag_en,   // enable diagonal directions, false only up, dowm, right,left
+					  near_tiles,      // boolean [] tiles_src,    // selected tiles, will modified
+					  null,            // double []   weights_src,   // or null
+					  clt_parameters.min_clstr_seed,  // int        min_area,  // minimal number of pixels
+					  0.0);            // double     min_weight // minimal total weight of the cluster
+			  removeSmallClusters(
+					  false, // true,            // boolean    diag_en,   // enable diagonal directions, false only up, dowm, right,left
+					  these_tiles,      // boolean [] tiles_src,    // selected tiles, will modified
+					  null,            // double []   weights_src,   // or null
+					  clt_parameters.min_clstr_seed,  // int        min_area,  // minimal number of pixels
+					  0.0);            // double     min_weight // minimal total weight of the cluster
+		  }		  
+		  
+		  double [] this_disparity_masked = this_disparity.clone();
+		  for (int i = 0; i < this_disparity.length; i++){
+			  if (!these_tiles[i])this_disparity_masked[i] = Double.NaN;
+		  }
+		  /*
+		  double []  hor_strength_conv = detectOrtho(
+				  hor_strength, // double [] tiles,
+				  false, // boolean vert,    // true for vertical correlation and _horizontal features
+				  clt_parameters.ortho_half_length, // int radius,      // one dimension - [-radius, +radius], other dimension -1,0, 1
+				  debugLevel);
+		  double []  vert_strength_conv = detectOrtho(
+				  vert_strength, // double [] tiles,
+				  true, // boolean vert,    // true for vertical correlation and _horizontal features
+				  clt_parameters.ortho_half_length, // int radius,      // one dimension - [-radius, +radius], other dimension -1,0, 1
+				  debugLevel);
+		  */
+		  
 		  if (sdfa_instance!=null){
-			  String [] titles = {"map","bg_sel","far","these","near","block","strength","diff0","diff1","diff2","diff3"};
+			  String [] titles = {"masked","map","orig_map","hor_map","vert_map","bg_sel","far","these","near","block",
+					  "strength","hor-strength","hor-conv-strength","vert-strength","vert-conv-strength",
+					  "hor","hor-bridged","vert","vert-bridged","diff0","diff1","diff2","diff3"};
 			  double [][] dbg_img = new double[titles.length][tilesY * tilesX];
 			  for (int i = 0; i<dbg_img[0].length;i++){
-				  dbg_img[ 0][i] =   this_map[i];
-				  dbg_img[ 1][i] =    bg_tiles    [i] ? 1 : 0;
-				  dbg_img[ 2][i] =     far_tiles  [i] ? 1 : 0;
-				  dbg_img[ 3][i] =   these_tiles  [i] ? 1 : 0;
-				  dbg_img[ 4][i] =    near_tiles  [i] ? 1 : 0;
-				  dbg_img[ 5][i] = block_propagate[i] ? 1 : 0;
-				  dbg_img[ 6][i] =   this_strength[i];
-				  dbg_img[ 7][i] =  these_diffs[0][i];
-				  dbg_img[ 8][i] =  these_diffs[1][i];
-				  dbg_img[ 9][i] =  these_diffs[2][i];
-				  dbg_img[10][i] =  these_diffs[3][i];
+				  dbg_img[ 0][i] =   this_disparity_masked[i];
+				  dbg_img[ 1][i] =   this_disparity[i];
+				  dbg_img[ 2][i] =   dbg_orig_disparity[i];
+				  dbg_img[ 3][i] =   this_hor_disparity[i];
+				  dbg_img[ 4][i] =   this_vert_disparity[i];
+				  dbg_img[ 5][i] =    bg_tiles    [i] ? 1 : -1;
+				  dbg_img[ 6][i] =     far_tiles  [i] ? 1 : -1;
+				  dbg_img[ 7][i] =   these_tiles  [i] ? 1 : -1;
+				  dbg_img[ 8][i] =    near_tiles  [i] ? 1 : -1;
+				  dbg_img[ 9][i] = block_propagate[i] ? 1 : -1;
+				  dbg_img[10][i] =   this_strength[i];
+				  dbg_img[11][i] =   hor_strength[i];
+				  dbg_img[12][i] =   hor_strength_conv[i];
+				  dbg_img[13][i] =   vert_strength[i];
+				  dbg_img[14][i] =   vert_strength_conv[i];
+				  dbg_img[15][i] =   dbg_used_hor[i]?  1 : -1;
+				  dbg_img[16][i] =   used_hor[i]?      1 : -1;
+				  dbg_img[17][i] =   dbg_used_vert[i]? 1 : -1;
+				  dbg_img[18][i] =   used_vert[i]?     1 : -1;
+				  
+				  dbg_img[19][i] =  these_diffs[0][i];
+				  dbg_img[20][i] =  these_diffs[1][i];
+				  dbg_img[21][i] =  these_diffs[2][i];
+				  dbg_img[22][i] =  these_diffs[3][i];
 			  }
 			sdfa_instance.showArrays(dbg_img,  tilesX, tilesY, true, "bgnd_nonbgnd",titles);
 		  }
 		  
 		  return scan_next;
 	  }
+	  public int bridgeFgndOrthoGap(
+			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  boolean vert, // verical pairs, horizontal features
+			  boolean disp_interpolate, // fill interpolated disparity for bridged over tiles, false - copy from  ortho_disparity (if not null)
+			  boolean closer_only, // only update disparity if laregr than was 
+			  boolean [] used_ortho,
+			  double [] this_strength,
+			  double [] ortho_strength_conv,
+			  double [] ortho_strength_raw,
+			  double [] this_disparity, // may be null - will not be updated
+			  double [] ortho_disparity // may be null
+			  ){
+		  int numNew = 0;
+		  int nxt = vert? 1: tilesX; 
+		  int rm = tilesX - (vert? 1:0);
+		  int bm = tilesY - (vert? 0:1);
+		  int gap_2 = clt_parameters.ortho_bridge + 2;
+//		  boolean [] used_ortho_original = used_ortho.clone();
+		  if (clt_parameters.ortho_bridge > 0) {
+			  for (int ty = 0; ty < bm; ty++){
+				  for (int tx = 0; tx < rm; tx++){
+					  int indx = ty*tilesX + tx;
+					  if (used_ortho[indx] && !used_ortho[indx+nxt]){ // last before gap
+						  // look for end of gap
+						  int bridge_other = 0;
+						  for (int i = 1; i < gap_2; i++){
+							  if ( vert && (i+tx >= tilesX)) break;
+							  if (!vert && (i+ty >= tilesY)) break;
+							  int indx1 = indx + i*nxt;
+							  if (used_ortho[indx1]) {
+								  bridge_other = i;
+								  break;
+							  }
+							  // bridge over sufficient ortho strength or too uniform areas 
+							  if ((this_strength[indx1] > 0.0) && (ortho_strength_conv[indx1] < clt_parameters.ortho_sustain)) break;
+						  }
+						  if (bridge_other > 0){ // bridge the gap
+							  // verify bridge has sufficient support on at least one side
+							  boolean good_support = false;
+							  label_start_run:{
+								  for (int i = 1; i < clt_parameters.ortho_run; i++){
+									  if ( vert && (tx - i < 0))     break label_start_run;
+									  if (!vert && (ty - i < 0))     break label_start_run;
+									  if (!used_ortho[indx - i*nxt]) break label_start_run;
+								  }
+								  good_support = true;
+							  }
+							  if (!good_support){
+								  label_end_run:{
+								  for (int i = 1; i < clt_parameters.ortho_run; i++){
+									  if ( vert && (i+tx >= tilesX)) break label_end_run;
+									  if (!vert && (i+ty >= tilesY)) break label_end_run;
+									  if (!used_ortho[indx + i*nxt]) break label_end_run;
+								  }
+								  good_support = true;
+							  }
+							  }
+							  if (!good_support) continue; 
+
+							  double disp_start = 0, disp_end = 0;
+							  if ((ortho_disparity !=null) && disp_interpolate) { // interpolate ortho disparity, not yet the result one
+								  disp_start = ortho_disparity[indx];
+								  disp_end =   ortho_disparity[indx + bridge_other * nxt];
+							  }
+							  for (int i = 1; i < bridge_other; i++){
+								  int indx1 = indx + i*nxt;
+								  used_ortho[indx1] = true;
+								  numNew++;
+								  if ((ortho_disparity !=null) && disp_interpolate) { // interpolate ortho disparity, not yet the result one
+									  ortho_disparity[indx1]= disp_start + i* (disp_end - disp_start)/ bridge_other;
+								  }
+							  }
+						  }
+					  }
+				  }
+			  }
+		  }
+		  // now remove remaining short runs
+		  if (vert){
+			  for (int ty = 0; ty < tilesY; ty++){
+				  for (int tx = 0; tx < tilesX; tx++){
+					  for (; (tx < tilesX) && !used_ortho[ty*tilesX + tx]; tx++); // skip to first selected
+					  if (tx < tilesX) {
+						  double mx = ortho_strength_conv[ty*tilesX + tx];
+						  int tx1 = tx+1;
+						  for (; (tx1 < tilesX) && used_ortho[ty*tilesX + tx1];tx1++){
+							  if (ortho_strength_conv[ty*tilesX + tx1] > mx) mx = ortho_strength_conv[ty*tilesX + tx1];
+						  }
+						  if ((tx1 <= tx + clt_parameters.ortho_run) || (mx < clt_parameters.ortho_minmax)) {
+							  for (; tx <tx1; tx++){
+								  used_ortho[ty*tilesX + tx] = false; // remove short run
+							  }
+						  } else {
+							  tx = tx1;
+						  }
+					  }
+ 				  }
+			  }
+		  } else {
+			  for (int tx = 0; tx < tilesX; tx++){
+				  for (int ty = 0; ty < tilesY; ty++){
+					  for (; (ty < tilesY) && !used_ortho[ty*tilesX + tx]; ty++); // skip to first selected
+					  if (ty <tilesY) {
+						  double mx = ortho_strength_conv[ty*tilesX + tx];
+						  int ty1 = ty+1;
+						  for (; (ty1 < tilesY) && used_ortho[ty1*tilesX + tx]; ty1++){
+							  if (ortho_strength_conv[ty1*tilesX + tx] > mx) mx = ortho_strength_conv[ty1*tilesX + tx];
+						  }
+						  if ((ty1 <= ty + clt_parameters.ortho_run) || (mx < clt_parameters.ortho_minmax)) {
+							  for (; ty < ty1; ty++){
+								  used_ortho[ty*tilesX + tx] = false; // remove short run
+							  }
+						  } else {
+							  ty = ty1;
+						  }
+					  }
+ 				  }
+			  }
+			  
+		  }
+		  // update disparity from ortho when appropriate
+		  if ((this_disparity != null) && (ortho_disparity != null)) {
+			  for (int i = 0; i < ortho_disparity.length; i++) if (used_ortho[i] && (!closer_only || (ortho_disparity[i] > this_disparity[i]))){
+				  this_disparity[i] = ortho_disparity[i];
+			  }
+
+			  // average disparity along the runs, if they are close enough (remove outlayers?)
+			  if (clt_parameters.ortho_rms > 0){
+				  double ortho_rms2 = clt_parameters.ortho_rms * clt_parameters.ortho_rms; 
+
+				  if (vert){
+					  for (int ty = 0; ty < tilesY; ty++){
+						  for (int tx = 0; tx < tilesX; tx++){
+							  for (; (tx < tilesX) && !used_ortho[ty*tilesX + tx]; tx++); // skip to first selected
+							  if (tx < tilesX) {
+								  int tx1; // +1;
+								  double s0=0.0, s1=0.0, s2 = 0.0; 
+								  for (tx1 = tx; (tx1 < tilesX) && used_ortho[ty*tilesX + tx1];tx1++){
+									  int indx = ty*tilesX + tx1;
+									  double w = ortho_strength_raw[indx];
+									  if (w > 0) { // Double.NaN is not > 0.0
+										  s0 += w; 
+										  s1 += w * this_disparity[indx]; 
+										  s2 += w * this_disparity[indx] * this_disparity[indx];
+									  }
+								  }
+								  System.out.println ("vert: tx="+tx+" ty="+ty+" disp avg="+(s1/s0)+" rms = "+Math.sqrt((s2*s0 - s1*s1)/(s0*s0)));
+								  if ((s0 > 0) && ((s2*s0 - s1*s1)/(s0*s0) < ortho_rms2)) {
+									  s1 /= s0;
+									  for (tx1 = tx; (tx1 < tilesX) && used_ortho[ty*tilesX + tx1];tx1++){
+										  this_disparity[ty*tilesX + tx1] = s1;
+									  }									  
+								  }
+								  tx = tx1;
+							  }
+						  }
+					  }
+				  } else {
+					  for (int tx = 0; tx < tilesX; tx++){
+						  for (int ty = 0; ty < tilesY; ty++){
+							  for (; (ty < tilesY) && !used_ortho[ty*tilesX + tx]; ty++); // skip to first selected
+							  if (ty <tilesY) {
+								  double mx = ortho_strength_raw[ty*tilesX + tx];
+								  int ty1;
+								  double s0=0.0, s1=0.0, s2 = 0.0; 
+								  for (ty1 = ty; (ty1 < tilesY) && used_ortho[ty1*tilesX + tx]; ty1++){
+									  int indx = ty1*tilesX + tx;
+									  double w = ortho_strength_raw[indx];
+									  if (w > 0) { // Double.NaN is not > 0.0
+										  s0 += w; 
+										  s1 += w * this_disparity[indx]; 
+										  s2 += w * this_disparity[indx] * this_disparity[indx];
+									  }
+								  }
+								  System.out.println ("hor: tx="+tx+" ty="+ty+" disp avg="+(s1/s0)+" rms = "+Math.sqrt((s2*s0 - s1*s1)/(s0*s0)));
+								  if ((s0 > 0) && ((s2*s0 - s1*s1)/(s0*s0) < ortho_rms2)) {
+									  s1 /= s0;
+									  for (ty1 = ty; (ty1 < tilesY) && used_ortho[ty1*tilesX + tx]; ty1++){
+										  this_disparity[ty1*tilesX + tx] = s1;
+									  }									  
+								  }
+								  ty = ty1;
+							  }
+						  }
+					  }
+				  }
+			  }
+		  }		  
+		  return numNew;  
+	  }
+	  
+	  // detect multi-tile vertical/horizontal features by convolving with averaging in one direction, sharpening in the other
+	  
+	  public double [] detectOrtho(
+			  double [] tiles,
+			  boolean vert,    // true for vertical correlation and _horizontal features
+			  int radius,      // one dimension - [-radius, +radius], other dimension -1,0, 1
+			  int debug)
+	  {
+		  double [][] kernel = null;
+		  if (vert) kernel = new double[3][2*radius+1];
+		  else      kernel = new double[2*radius+1][3];
+		  for (int i = 0; i < 2 * radius+1; i++){
+			  double w = Math.sin(Math.PI*(i+1)/2/(radius+1));
+			  for (int j = 0; j < 3; j++){
+				  double d = ((j == 1) ? 2.0: -0.5)* w;
+				  if (vert) kernel[j][i] = d;
+				  else      kernel[i][j] = d;
+			  }
+		  }
+		  if (debug > -1){
+			  System.out.println("detectOrtho("+vert+","+radius+")");
+			  for (int i = 0; i< kernel.length; i++){
+				  System.out.print(i+": ");
+				  for (int j = 0; j < kernel[i].length; j++){
+					  System.out.print(kernel[i][j]+" ");
+				  }
+				  System.out.println();
+			  }
+		  }
+		  return convolveTiles( tiles, kernel);
+	  }
+	  
+	  public double [] convolveTiles(
+			  double [] tiles,
+			  double [][] kernel_in) // should be odd * odd, with non-zero sum (result will be normalized 
+	  {
+		  double [] rslt = tiles.clone(); // will just skip margins
+		  int half_height = (kernel_in.length - 1) / 2; 
+		  int half_width = (kernel_in[0].length - 1) / 2;
+		  
+		  System.out.println("convolveTiles(), half_height = "+half_height+", half_width = "+half_width);
+		  
+		  double [][] kernel = new double [2* half_height + 1] [2* half_width + 1];
+		  double s = 0;
+		  for (int i = 0; i < kernel.length; i++) for (int j = 0; j < kernel[0].length; j++) s+=kernel_in[i][j];
+		  s = 1.0/s;
+		  for (int i = 0; i < kernel.length; i++) for (int j = 0; j < kernel[0].length; j++) kernel[i][j] = s* kernel_in[i][j];
+		  
+		  for (int i = half_height; i < (tilesY - half_height); i++) for (int j = half_width; j < (tilesX - half_width); j++){
+			  double d = 0;
+			  for (int y = -half_height; y <= half_height; y++) for (int x = -half_width; x <= half_width; x++){
+				  d+= kernel[half_height-y][half_width-x] * tiles[tilesX *(i+y) + (j+x)];
+			  }
+			  rslt[tilesX *i + j] = d;
+		  }
+		  return rslt;
+	  }
+	  
+	  
 	  /*
 	  public class CLTPass3d{
 		  public double [][]     disparity; // per-tile disparity set for the pass[tileY][tileX] 
@@ -7031,7 +7469,8 @@ public class EyesisDCT {
 //		  double [][][][]     clt_corr_combo =    new double [2][tilesY][tilesX][]; // will only be used inside?
 		  double [][][][]     clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][]; // will only be used inside?
 		  
-		  double min_corr_selected = clt_parameters.corr_normalize? clt_parameters.min_corr_normalized: clt_parameters.min_corr;
+//		  double min_corr_selected = clt_parameters.corr_normalize? clt_parameters.min_corr_normalized: clt_parameters.min_corr;
+		  double min_corr_selected = clt_parameters.min_corr;
 		  
 		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 

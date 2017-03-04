@@ -1942,7 +1942,7 @@ public class EyesisCorrectionParameters {
   		public boolean    corr_show =         false; // Show combined correlations
   		public boolean    corr_mismatch=      false; // calculate per-pair X/Y variations of measured correlations 
 // TODO: what to do if some occlusion is present (only some channels correlate)  		
-  		public double     corr_offset =       -1.0; //0.1;  // add to pair correlation before multiplying by other pairs (between sum and product)
+  		public double     corr_offset =       0.1; //0.1;  // add to pair correlation before multiplying by other pairs (between sum and product)
   		                                            // negative - add, not mpy
   		public double     corr_red =          0.5;  // Red to green correlation weight 
   		public double     corr_blue =         0.2;  // Blue to green correlation weight
@@ -2013,18 +2013,29 @@ public class EyesisCorrectionParameters {
   		// 3d reconstruction
   		public boolean    show_textures    = true;  // show generated textures
   		public boolean    debug_filters     = false;// show intermediate results of filtering
-  		public double     min_smth         = 0.5;  // 0.25 minimal noise-normalized pixel difference in a channel to suspect something    
+  		public double     min_smth         = 0.25;  // 0.25 minimal noise-normalized pixel difference in a channel to suspect something    
   		public double     sure_smth        = 2.0;   // reliable noise-normalized pixel difference in a channel to have something    
   		public double     bgnd_range       = 0.3;   // disparity range to be considered background
   		public double     other_range      = 2.0;   // disparity difference from center (provided) disparity to trust
   		
-  		public double     bgnd_sure        = 0.02;  // minimal strength to be considered definitely background
-  		public double     bgnd_maybe       = 0.004; // maximal strength to ignore as non-background
+  		public double     bgnd_sure        = 0.18;  // minimal strength to be considered definitely background
+  		public double     bgnd_maybe       = 0.1; // maximal strength to ignore as non-background
 //  		public double     bgnd_2diff       = 0.005; // maximal strength to ignore as non-background
-  		public int        min_clstr_seed   = 3;     // number of tiles in a cluster to seed (just background?)
+  		public int        min_clstr_seed   = 2;     // number of tiles in a cluster to seed (just background?)
   		public int        min_clstr_block  = 3;     // number of tiles in a cluster to block (just non-background?)
   		public int        bgnd_grow        = 2;     // number of tiles to grow (1 - hor/vert, 2 - hor/vert/diagonal)
   		
+//  		public double     ortho_min        = 0.09;  // minimal strength of hor/vert correlation to be used instead of full 4-pair correlation
+  		public double     ortho_min_hor    = 0.07;  // minimal strength of hor correlation to be used instead of full 4-pair correlation - 
+  		public double     ortho_min_vert   = 0.15;  // minimal strength of vert correlation to be used instead of full 4-pair correlation
+  		public double     ortho_asym       = 1.2;   // vert/hor (or hor/vert) strength to be used instead of the full correlation
+  		public double     ortho_sustain    = 0.05;  // minimal strength of hor/vert to bridge over 
+  		public int        ortho_run        = 3;     // minimal run of hor/vert tiles to be considered (at least from one side)
+  		public double     ortho_minmax     = 0.09;  // minimal maximal strength in an ortho run 
+  		public int        ortho_bridge     = 10;    // number of tiles to bridge over hor/vert gaps
+  		public double     ortho_rms        = 0.3;   // maximal disparity RMS in a run to replace by average
+  		public int        ortho_half_length = 4;    // convolve hor/vert strength by 3*(2*l+1) kernels to detect multi-tile features 
+  		public double     ortho_mix        = 0.5;   // Fraction ovf convolved ortho in a mix with raw 
   		
   		
 
@@ -2131,10 +2142,20 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"other_range",      this.other_range +"");
 			properties.setProperty(prefix+"bgnd_sure",        this.bgnd_sure +"");
 			properties.setProperty(prefix+"bgnd_maybe",       this.bgnd_maybe +"");
-
   			properties.setProperty(prefix+"min_clstr_seed",   this.min_clstr_seed+"");
   			properties.setProperty(prefix+"min_clstr_block",  this.min_clstr_block+"");
   			properties.setProperty(prefix+"bgnd_grow",        this.bgnd_grow+"");
+  			properties.setProperty(prefix+"ortho_min_hor",    this.ortho_min_hor +"");
+  			properties.setProperty(prefix+"ortho_min_vert",   this.ortho_min_vert +"");
+			properties.setProperty(prefix+"ortho_asym",       this.ortho_asym +"");
+
+			properties.setProperty(prefix+"ortho_sustain",    this.ortho_sustain +"");
+  			properties.setProperty(prefix+"ortho_run",        this.ortho_run+"");
+			properties.setProperty(prefix+"ortho_minmax",     this.ortho_minmax +"");
+  			properties.setProperty(prefix+"ortho_bridge",     this.ortho_bridge+"");
+			properties.setProperty(prefix+"ortho_rms",        this.ortho_rms +"");
+  			properties.setProperty(prefix+"ortho_half_length",this.ortho_half_length+"");
+			properties.setProperty(prefix+"ortho_mix",        this.ortho_mix +"");
   		}
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"transform_size")!=null) this.transform_size=Integer.parseInt(properties.getProperty(prefix+"transform_size"));
@@ -2233,11 +2254,20 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"other_range")!=null)       this.other_range=Double.parseDouble(properties.getProperty(prefix+"other_range"));
   			if (properties.getProperty(prefix+"bgnd_sure")!=null)         this.bgnd_sure=Double.parseDouble(properties.getProperty(prefix+"bgnd_sure"));
   			if (properties.getProperty(prefix+"bgnd_maybe")!=null)        this.bgnd_maybe=Double.parseDouble(properties.getProperty(prefix+"bgnd_maybe"));
-  		
   			if (properties.getProperty(prefix+"min_clstr_seed")!=null)    this.min_clstr_seed=Integer.parseInt(properties.getProperty(prefix+"min_clstr_seed"));
   			if (properties.getProperty(prefix+"min_clstr_block")!=null)   this.min_clstr_block=Integer.parseInt(properties.getProperty(prefix+"min_clstr_block"));
   			if (properties.getProperty(prefix+"bgnd_grow")!=null)         this.bgnd_grow=Integer.parseInt(properties.getProperty(prefix+"bgnd_grow"));
-  		
+  			if (properties.getProperty(prefix+"ortho_min_hor")!=null)     this.ortho_min_hor=Double.parseDouble(properties.getProperty(prefix+"ortho_min_hor"));
+  			if (properties.getProperty(prefix+"ortho_min_vert")!=null)    this.ortho_min_vert=Double.parseDouble(properties.getProperty(prefix+"ortho_min_vert"));
+  			if (properties.getProperty(prefix+"ortho_asym")!=null)        this.ortho_asym=Double.parseDouble(properties.getProperty(prefix+"ortho_asym"));
+
+  			if (properties.getProperty(prefix+"ortho_sustain")!=null)     this.ortho_sustain=Double.parseDouble(properties.getProperty(prefix+"ortho_sustain"));
+  			if (properties.getProperty(prefix+"ortho_run")!=null)         this.ortho_run=Integer.parseInt(properties.getProperty(prefix+"ortho_run"));
+  			if (properties.getProperty(prefix+"ortho_minmax")!=null)      this.ortho_minmax=Double.parseDouble(properties.getProperty(prefix+"ortho_minmax"));
+  			if (properties.getProperty(prefix+"ortho_bridge")!=null)      this.ortho_bridge=Integer.parseInt(properties.getProperty(prefix+"ortho_bridge"));
+  			if (properties.getProperty(prefix+"ortho_rms")!=null)         this.ortho_rms=Double.parseDouble(properties.getProperty(prefix+"ortho_rms"));
+  			if (properties.getProperty(prefix+"ortho_half_length")!=null) this.ortho_half_length=Integer.parseInt(properties.getProperty(prefix+"ortho_half_length"));
+  			if (properties.getProperty(prefix+"ortho_mix")!=null)         this.ortho_mix=Double.parseDouble(properties.getProperty(prefix+"ortho_mix"));
   		}
   		
   		public boolean showDialog() {
@@ -2355,6 +2385,18 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Number of tiles in a cluster to block (just non-background?)",                 this.min_clstr_block,   0);
   			gd.addNumericField("Number of tiles to grow tile selection (1 - hor/vert, 2 - hor/vert/diagonal)", this.bgnd_grow,   0);
 
+  			gd.addNumericField("Minimal strength of hor correlation to be used instead of full 4-pair correlation", this.ortho_min_hor,  3);
+  			gd.addNumericField("Minimal strength of vert correlation to be used instead of full 4-pair correlation", this.ortho_min_vert,  3);
+  			gd.addNumericField("Vert/hor (or hor/vert) strength to be used instead of the full correlation",   this.ortho_asym,  3);
+
+  			gd.addNumericField("Minimal strength of hor/vert to bridge over",                                  this.ortho_sustain,  3);
+  			gd.addNumericField("minimal run of hor/vert tiles to be considered (at least from one side)",      this.ortho_run,      0);
+  			gd.addNumericField("Minimal maximal strength in an ortho run (max. in run >=...)",                 this.ortho_minmax,  3);
+  			gd.addNumericField("Number of tiles to bridge over hor/vert gaps",                                 this.ortho_bridge,   0);
+  			gd.addNumericField("Maximal disparity RMS in a run to replace by average)",                        this.ortho_rms,  3);
+  			gd.addNumericField("convolve hor/vert strength by 3*(2*l+1) kernels to detect multi-tile features",this.ortho_half_length,   0);
+  			gd.addNumericField("Fraction ovf convolved ortho in a mix with raw",                              this.ortho_mix,  3);
+
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
   			
@@ -2463,7 +2505,17 @@ public class EyesisCorrectionParameters {
   			this.min_clstr_seed=  (int) gd.getNextNumber();
   			this.min_clstr_block= (int) gd.getNextNumber();
   			this.bgnd_grow=       (int) gd.getNextNumber();
+  			this.ortho_min_hor=         gd.getNextNumber();
+  			this.ortho_min_vert=        gd.getNextNumber();
+  			this.ortho_asym=            gd.getNextNumber();
   			
+  			this.ortho_sustain=         gd.getNextNumber();
+  			this.ortho_run=       (int) gd.getNextNumber();
+  			this.ortho_minmax=          gd.getNextNumber();
+  			this.ortho_bridge=    (int) gd.getNextNumber();
+  			this.ortho_rms=             gd.getNextNumber();
+  			this.ortho_half_length=(int)gd.getNextNumber();
+  			this.ortho_mix=             gd.getNextNumber();
   			return true;
   		}
     }

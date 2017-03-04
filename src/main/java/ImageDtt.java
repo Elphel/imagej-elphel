@@ -1041,8 +1041,10 @@ public class ImageDtt {
 		for (int i = 0; i < corr_size; i++){
 			if ((i < (transform_size - enhortho_width)) || (i > (transform_size - 2 + enhortho_width))) enh_ortho_scale[i] = 1.0;
 			else enh_ortho_scale[i] = enhortho_scale;
+			if (i == (transform_size-1)) enh_ortho_scale[i] = 0.0 ; // hardwired 0 in the center
+			enh_ortho_scale[i] *= Math.sin(Math.PI*(i+1.0)/(2*transform_size));
 		}
-		if (globalDebugLevel > 0){
+		if (globalDebugLevel > -1){
 			System.out.println("enhortho_width="+ enhortho_width+" enhortho_scale="+ enhortho_scale);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" enh_ortho_scale["+i+"]="+ enh_ortho_scale[i]);
@@ -1380,16 +1382,23 @@ public class ImageDtt {
 							} // all pairs calculated
 							tcorr_combo = new double [TCORR_TITLES.length][corr_size * corr_size];
 							
-							int numPairs = 	0;
+							int numPairs = 	0, numPairsHor = 0, numPairsVert = 0;
 							for (int pair = 0; pair < corr_pairs.length; pair++) if (((corr_mask >> pair) & 1) != 0){
 								numPairs++;
+								if (corr_pairs[pair][2] == 0) { // horizontal pair)
+									numPairsHor++;
+								} else {
+									numPairsVert++;
+								}
 							}
-							double avScale = 0.0;
+							double avScale = 0.0, avScaleHor = 0.0, avScaleVert = 0.0;
 							if (numPairs > 0) {
 								boolean debugMax = (globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY);
 								avScale = 1.0/numPairs;
+								if (numPairsHor > 0)  avScaleHor = 1.0/numPairsHor;
+								if (numPairsVert > 0) avScaleVert = 1.0/numPairsVert;
 								if (debugMax) {
-									System.out.println("avScale="+avScale+", corr_offset="+corr_offset);
+									System.out.println("avScale = "+avScale+", avScaleHor = "+avScaleHor+", avScaleVert = "+avScaleVert+", corr_offset = "+corr_offset);
 								}
 								if (corr_offset < 0) { // just add all partial correlations for composite color
 									for (int i = 0; i < tcorr_combo[TCORR_COMBO_RSLT].length; i++){
@@ -1399,9 +1408,9 @@ public class ImageDtt {
 										for (int pair = 0; pair < corr_pairs.length; pair++) if (((corr_mask >> pair) & 1) != 0){
 											tcorr_combo[TCORR_COMBO_RSLT][i] += avScale*tcorr_partial[pair][numcol][i]; // only composite color channel
 											if (corr_pairs[pair][2] == 0) { // horizontal pair
-												tcorr_combo[TCORR_COMBO_HOR][i] +=  avScale*tcorr_partial[pair][numcol][i]; // only composite color channel
+												tcorr_combo[TCORR_COMBO_HOR][i] +=  avScaleHor*tcorr_partial[pair][numcol][i]; // only composite color channel
 											} else { //vertical pair
-												tcorr_combo[TCORR_COMBO_VERT][i] += avScale*tcorr_partial[pair][numcol][i]; // only composite color channel
+												tcorr_combo[TCORR_COMBO_VERT][i] += avScaleVert*tcorr_partial[pair][numcol][i]; // only composite color channel
 											}
 											if (debugMax) {
 												System.out.println("tcorr_combo[TCORR_COMBO_RSLT]["+i+"]="+tcorr_combo[TCORR_COMBO_RSLT][i]+" tcorr_partial["+pair+"]["+numcol+"]["+i+"]="+tcorr_partial[pair][numcol][i]);
@@ -1428,7 +1437,25 @@ public class ImageDtt {
 										}
 //										tcorr_combo[TCORR_COMBO_HOR][i] *= tcorr_combo[TCORR_COMBO_HOR][i];   // no have the same scale as tcorr_combo[TCORR_COMBO_RSLT]
 //										tcorr_combo[TCORR_COMBO_VERT][i] *= tcorr_combo[TCORR_COMBO_VERT][i];
+										if (corr_normalize) {
+											if (tcorr_combo[TCORR_COMBO_RSLT][i] > 0.0){
+												tcorr_combo[TCORR_COMBO_RSLT][i] = Math.pow(tcorr_combo[TCORR_COMBO_RSLT][i],avScale) - corr_offset;
+											} else {
+												tcorr_combo[TCORR_COMBO_RSLT][i] =  -corr_offset;
+											}
+											
+											if (tcorr_combo[TCORR_COMBO_HOR][i] > 0.0){
+												tcorr_combo[TCORR_COMBO_HOR][i] = Math.pow(tcorr_combo[TCORR_COMBO_HOR][i],avScaleHor) - corr_offset;
+											} else {
+												tcorr_combo[TCORR_COMBO_HOR][i] =  -corr_offset;
+											}
 
+											if (tcorr_combo[TCORR_COMBO_VERT][i] > 0.0){
+												tcorr_combo[TCORR_COMBO_VERT][i] = Math.pow(tcorr_combo[TCORR_COMBO_VERT][i],avScaleVert) - corr_offset;
+											} else {
+												tcorr_combo[TCORR_COMBO_VERT][i] =  -corr_offset;
+											}
+										}
 									}
 								}
 								// calculate sum also
