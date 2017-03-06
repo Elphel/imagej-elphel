@@ -2022,6 +2022,8 @@ public class EyesisCorrectionParameters {
   		public double     bgnd_maybe       = 0.1; // maximal strength to ignore as non-background
 //  		public double     bgnd_2diff       = 0.005; // maximal strength to ignore as non-background
   		public int        min_clstr_seed   = 2;     // number of tiles in a cluster to seed (just background?)
+  		public int        min_clstr_lone   = 4;     // number of tiles in a cluster not close to other clusters (more than 2 tiles apart)
+  		public int        fill_gaps        = 4;     // same as in grow - 1:  4 directions by 1 step, 2: 8 directions by 1 step. +2*n - alternating hor/vert
   		public int        min_clstr_block  = 3;     // number of tiles in a cluster to block (just non-background?)
   		public int        bgnd_grow        = 2;     // number of tiles to grow (1 - hor/vert, 2 - hor/vert/diagonal)
   		
@@ -2143,6 +2145,8 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"bgnd_sure",        this.bgnd_sure +"");
 			properties.setProperty(prefix+"bgnd_maybe",       this.bgnd_maybe +"");
   			properties.setProperty(prefix+"min_clstr_seed",   this.min_clstr_seed+"");
+  			properties.setProperty(prefix+"min_clstr_lone",   this.min_clstr_lone+"");
+  			properties.setProperty(prefix+"fill_gaps",        this.fill_gaps+"");
   			properties.setProperty(prefix+"min_clstr_block",  this.min_clstr_block+"");
   			properties.setProperty(prefix+"bgnd_grow",        this.bgnd_grow+"");
   			properties.setProperty(prefix+"ortho_min_hor",    this.ortho_min_hor +"");
@@ -2255,6 +2259,8 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"bgnd_sure")!=null)         this.bgnd_sure=Double.parseDouble(properties.getProperty(prefix+"bgnd_sure"));
   			if (properties.getProperty(prefix+"bgnd_maybe")!=null)        this.bgnd_maybe=Double.parseDouble(properties.getProperty(prefix+"bgnd_maybe"));
   			if (properties.getProperty(prefix+"min_clstr_seed")!=null)    this.min_clstr_seed=Integer.parseInt(properties.getProperty(prefix+"min_clstr_seed"));
+  			if (properties.getProperty(prefix+"min_clstr_lone")!=null)    this.min_clstr_lone=Integer.parseInt(properties.getProperty(prefix+"min_clstr_lone"));
+  			if (properties.getProperty(prefix+"fill_gaps")!=null)          this.fill_gaps=Integer.parseInt(properties.getProperty(prefix+"fill_gaps"));
   			if (properties.getProperty(prefix+"min_clstr_block")!=null)   this.min_clstr_block=Integer.parseInt(properties.getProperty(prefix+"min_clstr_block"));
   			if (properties.getProperty(prefix+"bgnd_grow")!=null)         this.bgnd_grow=Integer.parseInt(properties.getProperty(prefix+"bgnd_grow"));
   			if (properties.getProperty(prefix+"ortho_min_hor")!=null)     this.ortho_min_hor=Double.parseDouble(properties.getProperty(prefix+"ortho_min_hor"));
@@ -2382,6 +2388,8 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal strength to ignore as non-background",                                 this.bgnd_maybe,  3);
 
   			gd.addNumericField("Number of tiles in a cluster to seed (just background?)",                      this.min_clstr_seed,   0);
+  			gd.addNumericField("Number of tiles in a cluster not close to other clusters (more than 2 tiles apart)", this.min_clstr_lone,   0);
+  			gd.addNumericField("Fill gaps betsween clusters, see comments for 'grow'",                         this.fill_gaps,   0);
   			gd.addNumericField("Number of tiles in a cluster to block (just non-background?)",                 this.min_clstr_block,   0);
   			gd.addNumericField("Number of tiles to grow tile selection (1 - hor/vert, 2 - hor/vert/diagonal)", this.bgnd_grow,   0);
 
@@ -2503,6 +2511,8 @@ public class EyesisCorrectionParameters {
   			this.bgnd_sure=             gd.getNextNumber();
   			this.bgnd_maybe=            gd.getNextNumber();
   			this.min_clstr_seed=  (int) gd.getNextNumber();
+  			this.min_clstr_lone=  (int) gd.getNextNumber();
+  			this.fill_gaps=       (int) gd.getNextNumber();
   			this.min_clstr_block= (int) gd.getNextNumber();
   			this.bgnd_grow=       (int) gd.getNextNumber();
   			this.ortho_min_hor=         gd.getNextNumber();

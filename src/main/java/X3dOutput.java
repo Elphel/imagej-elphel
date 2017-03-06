@@ -137,3 +137,24 @@ public class X3dOutput {
 		return bbox;
 	}
 }
+/*
+An IndexedFaceSet geometry node creates geometry out of faces
+
+    texCoord and texCoordIndex - specify texture pieces 
+
+Shape {
+    appearance Appearance { . . . }
+    geometry IndexedFaceSet {
+        coord Coordinate { . . . }
+        coordIndex [ . . . ]
+        texCoord TextureCoordinate { . . . }
+        texCoordIndex [ . . . ]
+    }
+}
+<IndexedFaceSet coordIndex="0 1 2 -1 0 2 3 -1 ..." texCoordIndex="0 1 2 -1 0 2 3 -1 ...">
+ <Coordinate point="-37.500000 4.000000 -46.450000 .../>
+ <TextureCoordinate point="-37.500000 4.000000 -46.450000 .../>
+ </IndexedFaceSet>
+ 
+ */
+*/

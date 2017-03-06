@@ -1044,7 +1044,7 @@ public class ImageDtt {
 			if (i == (transform_size-1)) enh_ortho_scale[i] = 0.0 ; // hardwired 0 in the center
 			enh_ortho_scale[i] *= Math.sin(Math.PI*(i+1.0)/(2*transform_size));
 		}
-		if (globalDebugLevel > -1){
+		if (globalDebugLevel > 0){
 			System.out.println("enhortho_width="+ enhortho_width+" enhortho_scale="+ enhortho_scale);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" enh_ortho_scale["+i+"]="+ enh_ortho_scale[i]);

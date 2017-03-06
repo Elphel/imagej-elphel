@@ -70,7 +70,7 @@ public class EyesisTiff {
 		int width = imp.getWidth();
 		int height = imp.getHeight();
 		int [] pixels = (int []) imp.getProcessor().getPixels();
-		System.out.println("width="+width+", height="+height+" length="+pixels.length);
+		System.out.println("savePNG_ARGB32("+path+"): width="+width+", height="+height+" length="+pixels.length);
 		
 		DataBufferInt buffer = new DataBufferInt(pixels, pixels.length);
 

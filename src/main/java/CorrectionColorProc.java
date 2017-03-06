@@ -47,7 +47,7 @@ public class CorrectionColorProc {
     void setDebug(int debugLevel){this.debugLevel=debugLevel;}
 
     
-    public void  processColorsWeights(ImageStack stack,
+    public void  processColorsWeights(ImageStack stack, // does not like NaN (in GaussianBlur
   		  double scale,     // initial maximal pixel value (16))
   		  EyesisCorrectionParameters.ColorProcParameters  colorProcParameters,
   		  CorrectionColorProc.ColorGainsParameters channelGainParameters,
@@ -107,7 +107,7 @@ public class CorrectionColorProc {
 
     	for (i=0;i<length;i++) {
     		double Y=Ar*fpixels_r[i]+Ag*fpixels_g[i]+Ab*fpixels_b[i];
-    		Y=linGamma(colorProcParameters.gamma, gamma_a, gamma_linK, colorProcParameters.minLin, Y)/Y;
+    		Y= (Y !=0.0) ? (linGamma(colorProcParameters.gamma, gamma_a, gamma_linK, colorProcParameters.minLin, Y)/Y): 0.0;
     		fpixels_r[i]*=Y*gain_red; 
     		fpixels_g[i]*=Y*gain_green; 
     		fpixels_b[i]*=Y*gain_blue; 
@@ -151,7 +151,7 @@ public class CorrectionColorProc {
     	double KPbB= -(2.0*(1-colorProcParameters.kb))/colorProcParameters.saturationBlue;
     	double KPrG=  2.0*colorProcParameters.kr*(1-colorProcParameters.kr)/Kg/colorProcParameters.saturationRed;
     	double KPbG=  2.0*colorProcParameters.kb*(1-colorProcParameters.kb)/Kg/colorProcParameters.saturationBlue;
-    	if (debugLevel>1) {
+    	if (debugLevel> 1) {
     		System.out.println ( " processColorsWeights() gain_red="+gain_red+" gain_green="+gain_green+" gain_blue="+gain_blue);
     		System.out.println ( " processColorsWeights() gamma="+colorProcParameters.gamma+      " minLin="+colorProcParameters.minLin+" gamma_a="+gamma_a+" gamma_linK="+gamma_linK);
     		System.out.println ( " processColorsWeights() Kr="+colorProcParameters.kr+" Kg="+Kg+" Kb="+colorProcParameters.kb+" Sr="+Sr+" Sb="+Sb);
@@ -221,7 +221,7 @@ public class CorrectionColorProc {
     		gb.blurDouble(dpixels_pb, width, height, colorProcParameters.chromaBrightSigma, colorProcParameters.chromaBrightSigma, 0.01);
     		gb.blurDouble(dpixels_pr_dark, width, height, colorProcParameters.chromaDarkSigma, colorProcParameters.chromaDarkSigma, 0.01);
     		gb.blurDouble(dpixels_pb_dark, width, height, colorProcParameters.chromaDarkSigma, colorProcParameters.chromaDarkSigma, 0.01);
-    		if (debugLevel>2) {
+    		if (debugLevel> 2) {
     			SDFA_INSTANCE.showArrays(dmask, width, height,"dmask");          
     			SDFA_INSTANCE.showArrays(dpixels_pr, width, height,"dpixels_pr");          
     			SDFA_INSTANCE.showArrays(dpixels_pb, width, height,"dpixels_pb");          
@@ -340,7 +340,7 @@ public class CorrectionColorProc {
           double KPbB= -(2.0*(1-colorProcParameters.kb))/colorProcParameters.saturationBlue;
           double KPrG=  2.0*colorProcParameters.kr*(1-colorProcParameters.kr)/Kg/colorProcParameters.saturationRed;
           double KPbG=  2.0*colorProcParameters.kb*(1-colorProcParameters.kb)/Kg/colorProcParameters.saturationBlue;
-          if (debugLevel>1) {
+          if (debugLevel > 1) {
               System.out.println ( " processColorsWeights() gain_red="+gain_red+" gain_green="+gain_green+" gain_blue="+gain_blue);
               System.out.println ( " processColorsWeights() gamma="+colorProcParameters.gamma+      " minLin="+colorProcParameters.minLin+" gamma_a="+gamma_a+" gamma_linK="+gamma_linK);
               System.out.println ( " processColorsWeights() Kr="+colorProcParameters.kr+" Kg="+Kg+" Kb="+colorProcParameters.kb+" Sr="+Sr+" Sb="+Sb);

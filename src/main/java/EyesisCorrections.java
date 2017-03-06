@@ -1398,7 +1398,7 @@ public class EyesisCorrections {
 				  break;
 			  }
 		  }
-		  if (debugLevel>2) {
+		  if (debugLevel > 2) {
 			  System.out.println ( "Input file color slice numbers:");
 			  System.out.println ( "  Red -   slice "+((rgbNumbers[0]>0)?rgbNumbers[0]:"missing"));
 			  System.out.println ( "  Green - slice "+((rgbNumbers[1]>0)?rgbNumbers[1]:"missing"));

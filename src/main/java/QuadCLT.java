@@ -21,6 +21,7 @@
  ** -----------------------------------------------------------------------------**
  **
  */
+import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -3352,8 +3353,8 @@ public class QuadCLT {
 							  true, // boolean saveShowIntermediate, // save/show if set globally
 							  true, // boolean saveShowFinal,        // save/show result (color image?)
 							  ((clt_parameters.alpha1 > 0)? texture_rgba: texture_rgb),
-							  tp.tilesX,
-							  tp.tilesY,
+							  tp.tilesX *  clt_parameters.transform_size,
+							  tp.tilesY *  clt_parameters.transform_size,
 							  1.0,         // double scaleExposure, // is it needed?
 							  debugLevel );
 				  }
@@ -3521,8 +3522,8 @@ public class QuadCLT {
 						  true, // boolean saveShowIntermediate, // save/show if set globally
 						  false, // boolean saveShowFinal,        // save/show result (color image?)
 						  iclt_data,
-						  tp.tilesX,
-						  tp.tilesY,
+						  tp.tilesX *  clt_parameters.transform_size,
+						  tp.tilesY *  clt_parameters.transform_size,
 						  scaleExposures[iQuad], // double scaleExposure, // is it needed?
 						  debugLevel );
 				  
@@ -3551,6 +3552,39 @@ public class QuadCLT {
 		  return results;
 	  }
 
+	  double [][] resizeGridTexture(
+			  double [][] imgData,
+			  int tileSize,
+			  int tilesX,
+			  int tilesY,
+			  Rectangle bounds){
+		  int width =   tileSize*bounds.width + 1; 
+		  int height =  tileSize*bounds.height + 1;
+		  // Adding row/column of all 0, assuming java zeroes arrays
+		  int numSlices = imgData.length;
+		  double [][] rslt = new double [numSlices][width*height];
+		  int offset = (tileSize*bounds.y)*tileSize*tilesX + (tileSize*bounds.x); 
+//		  System.out.println("bounds = {.x:"+bounds.x + ", .y=" + bounds.y + ", .width=" + bounds.width + ", .height=" + bounds.height+ ", numSlices="+numSlices);
+//		  System.out.println("offset = " + offset+ " tileSize = "+tileSize);
+		  for (int y = 0; y < (height - 1); y ++){
+			  for (int x = 0; x < width-1; x ++){
+				  int indx = width * y + x; 
+				  int indx_in = indx + offset;
+				  for (int i = 0; i < numSlices; i++) {
+					  rslt[i][indx] = Double.isNaN(imgData[i][indx_in])? 0.0:imgData[i][indx_in];
+//					  if ((imgData[i][indx_in] !=0.0) && (i ==3))
+//					  {
+//						  int a = 0;
+//						  int b = a;
+//					  }
+				  }
+			  }
+			  offset += tilesX * tileSize - width;
+			  
+		  }
+		  return rslt;
+	  }
+	  
 	  public ImagePlus linearStackToColor(
 			  EyesisCorrectionParameters.CLTParameters         clt_parameters,
 			  EyesisCorrectionParameters.ColorProcParameters   colorProcParameters,
@@ -3562,8 +3596,8 @@ public class QuadCLT {
 			  boolean saveShowIntermediate, // save/show if set globally
 			  boolean saveShowFinal,        // save/show result (color image?)
 			  double [][] iclt_data,
-			  int tilesX,
-			  int tilesY,
+			  int width, // int tilesX,
+			  int height, // int tilesY,
 			  double scaleExposure,
 			  int debugLevel
 			  )
@@ -3576,14 +3610,15 @@ public class QuadCLT {
 		  if (iclt_data.length > 3) alpha = iclt_data[3]; 
 		  ImageStack stack = sdfa_instance.makeStack(
 				  rgb_in, // iclt_data,
-				  (tilesX + 0) * clt_parameters.transform_size,
-				  (tilesY + 0) * clt_parameters.transform_size,
-				  sliceNames); // or use null to get chn-nn slice names
-		  if (debugLevel > -1){
+				  width,  // (tilesX + 0) * clt_parameters.transform_size,
+				  height, // (tilesY + 0) * clt_parameters.transform_size,
+				  sliceNames,  // or use null to get chn-nn slice names
+				  true); // replace NaN with 0.0
+		  if (debugLevel > 0){
 			  double [] chn_avg = {0.0,0.0,0.0};
 			  float [] pixels;
-			  int width =  stack.getWidth();
-			  int height = stack.getHeight();
+//			  int width =  stack.getWidth();
+//			  int height = stack.getHeight();
 
 			  for (int c = 0; c <3; c++){
 				  pixels = (float[]) stack.getPixels(c+1);
@@ -4704,9 +4739,60 @@ public class QuadCLT {
  			  path+=Prefs.getFileSeparator()+name+".x3d";
  			  x3dOutput.generateX3D(path);
  		  }
+ 		  
+		  // testing 2-nd pass
+		  tp.secondPassSetup( // prepare tile tasks for the second pass based on the previous one(s)
+//				  final double [][][]       image_data, // first index - number of image in a quad
+				  clt_parameters,
+				  // disparity range - differences from 
+				  clt_parameters.bgnd_range, // double            disparity_far,  
+				  clt_parameters.other_range, //double            disparity_near,   //
+				  clt_parameters.bgnd_sure, // double            this_sure,        // minimal strength to be considered definitely background
+				  clt_parameters.bgnd_maybe, // double            this_maybe,       // maximal strength to ignore as non-background
+				  clt_parameters.sure_smth, // sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
+				  ImageDtt.DISPARITY_INDEX_CM,  // index of disparity value in disparity_map == 2 (0,2 or 4)
+				  threadsMax,  // maximal number of threads to launch                         
+				  updateStatus,
+				  debugLevel);
+		  
+		  // get images for predefined regions and dispariteies. First - with just fixed scans 1 .. list.size()
+		  for (int scanIndex = 1; scanIndex < tp.clt_3d_passes.size(); scanIndex++){
+			  if (debugLevel > 0){
+				  System.out.println("FPGA processing scan #"+scanIndex);
+			  }
+				  TileProcessor.CLTPass3d scan = CLTMeasure( // perform single pass according to prepared tiles operations and disparity
+						  image_data, // first index - number of image in a quad
+						  clt_parameters,
+						  scanIndex,
+						  threadsMax,  // maximal number of threads to launch                         
+						  updateStatus,
+						  debugLevel);
+
+			  
+		  }
+		  int scan_limit = 10; 
+		  for (int scanIndex = 1; (scanIndex < tp.clt_3d_passes.size()) && (scanIndex < scan_limit); scanIndex++){ // just temporary limiting
+			  if (debugLevel > -1){
+				  System.out.println("Generating cluster images, hardwired limit of "+scan_limit+" largest, scan #"+scanIndex);
+			  }
+			  ImagePlus cluster_image = getPassImage( // get image form a single pass
+					  clt_parameters,
+					  colorProcParameters,
+					  rgbParameters,
+					  name+"-img"+scanIndex,
+					  scanIndex, 
+					  threadsMax,  // maximal number of threads to launch                         
+					  updateStatus,
+					  debugLevel);
+		  }
+
+		  // now generate and save texture files (start with full, later use bounding rectangle?)
+		  
+		  
+ 		  
 		  return imp_bgnd; // relative (to x3d directory) path - (String) imp_bgnd.getProperty("name");
 	  }
-	  
+
 	  public ImagePlus getBackgroundImage(
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
@@ -4738,11 +4824,14 @@ public class QuadCLT {
 		  boolean [] bgnd_strict = bgnd_tiles.clone(); // only these have non 0 alpha
 		  tp.growTiles(
 				  clt_parameters.bgnd_grow,      // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
-				  bgnd_tiles);
+				  bgnd_tiles,
+				  null); // prohibit
 		  boolean [] bgnd_tiles_grown = bgnd_tiles.clone(); // only these have non 0 alpha
 		  tp.growTiles(
 				  2,      // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
-				  bgnd_tiles);
+				  bgnd_tiles,
+				  null); // prohibit
+
 		  bgnd_data.selected = bgnd_tiles_grown; // selected for background w/o extra transparent layer
 		  
 		  if (sdfa_instance!=null){
@@ -4813,8 +4902,8 @@ public class QuadCLT {
 				  true, // boolean saveShowIntermediate, // save/show if set globally
 				  false, //true, // boolean saveShowFinal,        // save/show result (color image?)
 				  ((clt_parameters.alpha1 > 0)? texture_rgba: texture_rgb),
-				  tp.tilesX,
-				  tp.tilesY,
+				  tp.tilesX *  clt_parameters.transform_size,
+				  tp.tilesY *  clt_parameters.transform_size,
 				  1.0,         // double scaleExposure, // is it needed?
 				  debugLevel);
 		  // resize for backdrop here!
@@ -4842,28 +4931,124 @@ public class QuadCLT {
 				  correctionsParameters.png,
 				  clt_parameters.show_textures,
 				  -1); // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+		  return imp_texture_bgnd_ext;
+	  }
+	  
+	  
+	  
+	  public ImagePlus getPassImage( // get image form a single pass
+			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
+			  String     name,
+			  int        scanIndex, 
+			  int        threadsMax,  // maximal number of threads to launch                         
+			  boolean    updateStatus,
+			  int        debugLevel)
+	  {
+//		  showDoubleFloatArrays sdfa_instance = null;
+//    	  if (clt_parameters.debug_filters && (debugLevel > -1)) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?		  
+		  TileProcessor.CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
+		  boolean [] borderTiles = scan.border_tiles;
+		  double [][][][] texture_tiles = scan.texture_tiles;
+//		  boolean [] selected = scan.getAllSelected(); // all selected, including border
+		  scan.updateSelection(); // update .selected field (all selected, including border) and Rectangle bounds
+//		  scan.selected = selected; // selected for background w/o extra transparent layer
 		  
-		  // testing 2-nd pass
-		  tp.secondPassSetup( // prepare tile tasks for the second pass based on the previous one(s)
-//				  final double [][][]       image_data, // first index - number of image in a quad
+		  double [][][][] texture_tiles_cluster = new double[tp.tilesY][tp.tilesX][][];
+		  double [] alpha_zero = new double [4*clt_parameters.transform_size*clt_parameters.transform_size];
+		  int alpha_index = 3;
+		  for (int i = 0; i < alpha_zero.length; i++) alpha_zero[i]=0.0;
+		  for (int tileY = 0; tileY < tp.tilesY; tileY++){
+			  for (int tileX = 0; tileX < tp.tilesX; tileX++){
+				  texture_tiles_cluster[tileY][tileX]= null;
+				  if (texture_tiles[tileY][tileX] != null) {
+					  if (borderTiles[tileY * tp.tilesX + tileX]) {
+						  texture_tiles_cluster[tileY][tileX]= texture_tiles[tileY][tileX].clone();
+						  texture_tiles_cluster[tileY][tileX][alpha_index] = alpha_zero;
+					  }else{
+						  texture_tiles_cluster[tileY][tileX]= texture_tiles[tileY][tileX];
+					  }
+				  }
+			  }
+		  }
+		  
+		  ImageDtt image_dtt = new ImageDtt();
+		  double [][] texture_overlap = image_dtt.combineRGBATiles(
+				  texture_tiles_cluster, // texture_tiles,               // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}   
+				  clt_parameters.transform_size,
+				  true,                         // when false - output each tile as 16x16, true - overlap to make 8x8
+				  clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only 
+				  threadsMax,                    // maximal number of threads to launch                         
+				  debugLevel);
+		  if (clt_parameters.alpha1 > 0){ // negative or 0 - keep alpha as it was
+			  double scale = (clt_parameters.alpha1 > clt_parameters.alpha0) ? (1.0/(clt_parameters.alpha1 - clt_parameters.alpha0)) : 0.0; 
+			  for (int i = 0; i < texture_overlap[alpha_index].length; i++){
+				  double d = texture_overlap[alpha_index][i];
+				  if      (d >=clt_parameters.alpha1) d = 1.0;
+				  else if (d <=clt_parameters.alpha0) d = 0.0;
+				  else d = scale * (d- clt_parameters.alpha0);
+				  texture_overlap[alpha_index][i] = d;
+			  }
+		  }
+		  // for now - use just RGB. Later add oprion for RGBA
+		  double [][] texture_rgb = {texture_overlap[0],texture_overlap[1],texture_overlap[2]};
+		  double [][] texture_rgba = {texture_overlap[0],texture_overlap[1],texture_overlap[2],texture_overlap[3]};
+		  double [][] texture_rgbx = ((clt_parameters.alpha1 > 0)? texture_rgba: texture_rgb);
+
+//    	  sdfa_instance = new showDoubleFloatArrays(); // just for debugging?		  
+//     	  sdfa_instance.showArrays(texture_rgbx, clt_parameters.transform_size * tp.tilesX, clt_parameters.transform_size * tp.tilesY, true, "texture_rgbx_full");
+		  
+		  boolean resize = true;
+		  if (resize) {
+		  texture_rgbx = resizeGridTexture(
+				  texture_rgbx,
+				  clt_parameters.transform_size,
+				  tp.tilesX,
+				  tp.tilesY,
+				  scan.bounds);
+		  }
+		  
+		  
+		  
+		  int width = resize ? (clt_parameters.transform_size * scan.bounds.width + 1): (clt_parameters.transform_size * tp.tilesX);
+		  int height = resize ? (clt_parameters.transform_size * scan.bounds.height + 1): (clt_parameters.transform_size * tp.tilesY);
+
+//    	  sdfa_instance = new showDoubleFloatArrays(); // just for debugging?		  
+//     	  sdfa_instance.showArrays(texture_rgbx, width, height, true, "texture_rgbx");
+		  
+		  ImagePlus imp_texture_cluster = linearStackToColor(
 				  clt_parameters,
-				  // disparity range - differences from 
-				  clt_parameters.bgnd_range, // double            disparity_far,  
-				  clt_parameters.other_range, //double            disparity_near,   //
-				  clt_parameters.bgnd_sure, // double            this_sure,        // minimal strength to be considered definitely background
-				  clt_parameters.bgnd_maybe, // double            this_maybe,       // maximal strength to ignore as non-background
-				  clt_parameters.sure_smth, // sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
-				  disparity_index,  // index of disparity value in disparity_map == 2 (0,2 or 4)
-				  threadsMax,  // maximal number of threads to launch                         
-				  updateStatus,
+				  colorProcParameters,
+				  rgbParameters,
+				  name+"-texture", // String name,
+				  "", //String suffix, // such as disparity=...
+				  true, // toRGB,
+				  !this.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
+				  true, // boolean saveShowIntermediate, // save/show if set globally
+				  false, //true, // boolean saveShowFinal,        // save/show result (color image?)
+				  texture_rgbx, 
+				  width, //tp.tilesX *  clt_parameters.transform_size,
+				  height, //tp.tilesY *  clt_parameters.transform_size,
+				  1.0,         // double scaleExposure, // is it needed?
 				  debugLevel);
 		  
 		  
-		  
-		  
-		  return imp_texture_bgnd_ext;
+		  String path= correctionsParameters.selectX3dDirectory(
+				  true,  // smart,
+				  true);  //newAllowed, // save
+		  // only show/save original size if debug or debug_filters)  
+			  eyesisCorrections.saveAndShow(
+					  imp_texture_cluster,
+					  path,
+					  correctionsParameters.png,
+					  clt_parameters.show_textures,
+					  -1); // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+		  return imp_texture_cluster;
 	  }
 
+	  
+	  
 	  public ImagePlus resizeForBackdrop(ImagePlus imp, int debugLevel){
 		  double backdropPixels = 2.0/geometryCorrection.getFOVPix();
 		  if (debugLevel > -1) {
@@ -4986,5 +5171,91 @@ public class QuadCLT {
 		  scan_rslt.texture_tiles = texture_tiles;
 		  return scan_rslt;
 	  }
+
+	  public TileProcessor.CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
+			  final double [][][]       image_data, // first index - number of image in a quad
+			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  final int         scanIndex,
+			  final int         threadsMax,  // maximal number of threads to launch                         
+			  final boolean     updateStatus,
+			  final int         debugLevel)
+	  {
+
+		  TileProcessor.CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
+		  int [][]     tile_op =         scan.tile_op;
+		  double [][]  disparity_array = scan.disparity;
+		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
+		  double [][][][]     clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tp.tilesY][tp.tilesX][]; // will only be used inside?
+		  
+		  double min_corr_selected = clt_parameters.min_corr;
+		  
+		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
+
+		  double [][] shiftXY = {
+				  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
+				  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
+				  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
+				  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
+		  
+		  double [][][][] texture_tiles =     new double [tp.tilesY][tp.tilesX][][]; // ["RGBA".length()][];
+		  ImageDtt image_dtt = new ImageDtt();
+		  image_dtt.clt_aberrations_quad_corr(
+				  tile_op,                      // per-tile operation bit codes
+				  disparity_array,              // clt_parameters.disparity,     // final double            disparity,
+				  image_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
+				  // correlation results - final and partial          
+				  clt_corr_combo,               // [tp.tilesY][tp.tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+				  null, // clt_corr_partial,    // [tp.tilesY][tp.tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+				  null,    // [tp.tilesY][tp.tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
+				  //	Use it with disparity_maps[scan_step]?		  clt_mismatch,    // [tp.tilesY][tp.tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
+				  disparity_map,    // [12][tp.tilesY * tp.tilesX]
+				  texture_tiles,        // [tp.tilesY][tp.tilesX]["RGBA".length()][]; 			  
+				  tp.tilesX * clt_parameters.transform_size, // imp_quad[0].getWidth(),       // final int width,
+				  clt_parameters.fat_zero,      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
+				  clt_parameters.corr_sym,
+				  clt_parameters.corr_offset,
+				  clt_parameters.corr_red,
+				  clt_parameters.corr_blue,
+				  clt_parameters.corr_sigma,
+				  clt_parameters.corr_normalize, // normalize correlation results by rms 
+				  min_corr_selected, // 0.0001; // minimal correlation value to consider valid 
+				  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
+				  clt_parameters.max_corr_radius,
+				  clt_parameters.enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
+				  clt_parameters.enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
+				  clt_parameters.max_corr_double, // Double pass when masking center of mass to reduce preference for integer values
+				  clt_parameters.corr_mode,     // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
+				  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
+				  clt_parameters.scale_shot,     // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
+				  clt_parameters.diff_sigma,     // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
+				  clt_parameters.diff_threshold, // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
+				  clt_parameters.diff_gauss,     // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
+				  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
+				  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
+				  clt_parameters.keep_weights,   // Add port weights to RGBA stack (debug feature)
+				  geometryCorrection,           // final GeometryCorrection  geometryCorrection,
+				  clt_kernels,                  // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+				  clt_parameters.kernel_step,
+				  clt_parameters.transform_size,
+				  clt_parameters.clt_window,
+				  shiftXY, // 
+				  (clt_parameters.fcorr_ignore? null: this.fine_corr),
+				  clt_parameters.corr_magic_scale, // stil not understood coefficent that reduces reported disparity value.  Seems to be around 8.5 
+				  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
+				  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
+				  clt_parameters.tileX,         // final int               debug_tileX,
+				  clt_parameters.tileY,         // final int               debug_tileY,
+				  (clt_parameters.dbg_mode & 64) != 0, // no fract shift
+				  (clt_parameters.dbg_mode & 128) != 0, // no convolve
+				  //				  (clt_parameters.dbg_mode & 256) != 0, // transpose convolve
+				  threadsMax,
+				  debugLevel);
+		  
+		  scan.disparity_map = disparity_map;
+		  scan.texture_tiles = texture_tiles;
+		  return scan;
+	  }
+	  
+	  
 	  
 }

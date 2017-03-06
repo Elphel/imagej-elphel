@@ -180,6 +180,9 @@ import ij.process.*;
   }
 
   public ImageStack makeStack(double[][] pixels, int width, int height, String [] titles) {
+	  return makeStack( pixels, width, height, titles, false);
+  }
+  public ImageStack makeStack(double[][] pixels, int width, int height, String [] titles, boolean noNaN) {
       float [] fpixels;
       ImageStack array_stack=new ImageStack(width,height);
       for (int i=0;i<pixels.length;i++) if (pixels[i]!=null) {
@@ -188,7 +191,11 @@ import ij.process.*;
         	  return null;
           }
         fpixels=new float[pixels[i].length];
-        for (int j=0;j<fpixels.length;j++) fpixels[j]=(float)pixels[i][j];
+        if (noNaN){
+        	for (int j=0;j<fpixels.length;j++) fpixels[j]= Double.isNaN(pixels[i][j])? 0.0F: ((float)pixels[i][j]);
+        } else {
+        	for (int j=0;j<fpixels.length;j++) fpixels[j]=(float)pixels[i][j];
+        }
         if (titles!=null){
             array_stack.addSlice(titles[i],    fpixels);
         } else {
