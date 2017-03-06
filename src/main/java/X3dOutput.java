@@ -156,5 +156,20 @@ Shape {
  <TextureCoordinate point="-37.500000 4.000000 -46.450000 .../>
  </IndexedFaceSet>
  
- */
+ 
+ <Shape DEF='Back'>
+<IndexedFaceSet coordIndex='7 6 5 4' texCoordIndex='0 1 2 3'>
+<Coordinate USE='Points'/>
+<TextureCoordinate USE='DefaultTextureCoordinate'/>
+</IndexedFaceSet>
+<Appearance>
+<ImageTexture
+  url=' "images/back.png" "http://x3dGraphics.com/examples/X3dForAdvancedModeling/GeometricShapes/images/back.png" "http://www.web3d.org/x3d/content/examples/Basic/DistributedInteractiveSimulation/images/back.png" '/>
+<TextureTransform USE='RotateRight'/>
+</Appearance>
+</Shape>
+
+ 
+ 
+
 */
