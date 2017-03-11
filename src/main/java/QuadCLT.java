@@ -3558,16 +3558,20 @@ public class QuadCLT {
 			  int tilesX,
 			  int tilesY,
 			  Rectangle bounds){
-		  int width =   tileSize*bounds.width + 1; 
-		  int height =  tileSize*bounds.height + 1;
+//		  int width =   tileSize*bounds.width + 1; 
+//		  int height =  tileSize*bounds.height + 1;
+		  int width =   tileSize*bounds.width; 
+		  int height =  tileSize*bounds.height;
 		  // Adding row/column of all 0, assuming java zeroes arrays
 		  int numSlices = imgData.length;
 		  double [][] rslt = new double [numSlices][width*height];
 		  int offset = (tileSize*bounds.y)*tileSize*tilesX + (tileSize*bounds.x); 
 //		  System.out.println("bounds = {.x:"+bounds.x + ", .y=" + bounds.y + ", .width=" + bounds.width + ", .height=" + bounds.height+ ", numSlices="+numSlices);
 //		  System.out.println("offset = " + offset+ " tileSize = "+tileSize);
-		  for (int y = 0; y < (height - 1); y ++){
-			  for (int x = 0; x < width-1; x ++){
+//		  for (int y = 0; y < (height - 1); y ++){
+//			  for (int x = 0; x < width-1; x ++){
+		  for (int y = 0; y < height; y ++){
+			  for (int x = 0; x < width; x ++){
 				  int indx = width * y + x; 
 				  int indx_in = indx + offset;
 				  for (int i = 0; i < numSlices; i++) {
@@ -4732,13 +4736,9 @@ public class QuadCLT {
 					tp.clt_3d_passes);
 		  
 		  x3dOutput.generateBackground();
- 		  String path= correctionsParameters.selectX3dDirectory(
+ 		  String x3d_path= correctionsParameters.selectX3dDirectory(
 				  true,  // smart,
 				  true);  //newAllowed, // save
- 		  if (path != null){
- 			  path+=Prefs.getFileSeparator()+name+".x3d";
- 			  x3dOutput.generateX3D(path);
- 		  }
  		  
 		  // testing 2-nd pass
 		  tp.secondPassSetup( // prepare tile tasks for the second pass based on the previous one(s)
@@ -4751,6 +4751,7 @@ public class QuadCLT {
 				  clt_parameters.bgnd_maybe, // double            this_maybe,       // maximal strength to ignore as non-background
 				  clt_parameters.sure_smth, // sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
 				  ImageDtt.DISPARITY_INDEX_CM,  // index of disparity value in disparity_map == 2 (0,2 or 4)
+				  geometryCorrection,
 				  threadsMax,  // maximal number of threads to launch                         
 				  updateStatus,
 				  debugLevel);
@@ -4770,12 +4771,13 @@ public class QuadCLT {
 
 			  
 		  }
-		  int scan_limit = 10; 
-		  for (int scanIndex = 1; (scanIndex < tp.clt_3d_passes.size()) && (scanIndex < scan_limit); scanIndex++){ // just temporary limiting
+//		  int scan_limit = 10; 
+		  for (int scanIndex = 1; (scanIndex < tp.clt_3d_passes.size()) && (scanIndex < clt_parameters.max_clusters); scanIndex++){ // just temporary limiting
 			  if (debugLevel > -1){
-				  System.out.println("Generating cluster images, hardwired limit of "+scan_limit+" largest, scan #"+scanIndex);
+				  System.out.println("Generating cluster images (limit is set to "+clt_parameters.max_clusters+") largest, scan #"+scanIndex);
 			  }
-			  ImagePlus cluster_image = getPassImage( // get image form a single pass
+//			  ImagePlus cluster_image = getPassImage( // get image form a single pass
+			  String texturePath = getPassImage( // get image form a single pass
 					  clt_parameters,
 					  colorProcParameters,
 					  rgbParameters,
@@ -4784,15 +4786,126 @@ public class QuadCLT {
 					  threadsMax,  // maximal number of threads to launch                         
 					  updateStatus,
 					  debugLevel);
+			  
+			  TileProcessor.CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
+			  
+			  // TODO: use new updated disparity, for now just what was forced for the picture
+			  double [] scan_disparity = new double [tp.tilesX * tp.tilesY];
+			  int indx = 0;
+			  for (int ty = 0; ty < tp.tilesY; ty ++) for (int tx = 0; tx < tp.tilesX; tx ++){
+				  scan_disparity[indx++] = scan.disparity[ty][tx];
+			  }
+			  if (clt_parameters.avg_cluster_disp){
+				  double sw = 0.0, sdw = 0.0;
+				  for (int i = 0; i< scan_disparity.length; i++){
+					  if (scan.selected[i] && !scan.border_tiles[i]){
+						  double w = scan.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][i];
+						  sw +=w;
+						  sdw += scan_disparity[i]*w;
+					  }
+				  }
+				  sdw/=sw;
+				  for (int i = 0; i< scan_disparity.length; i++){
+					  scan_disparity[i] = sdw;
+				  }
+				  
+				  
+			  }
+			  generateClusterX3d(
+					  x3dOutput,
+					  texturePath,
+					  scan.bounds,
+					  scan.selected,
+					  scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
+					  clt_parameters.transform_size,
+					  clt_parameters.correct_distortions, // requires backdrop image to be corrected also
+					  (scanIndex <2) && clt_parameters.show_triangles,
+					  clt_parameters.bgnd_range,
+					  clt_parameters.other_range,
+					  clt_parameters.maxDispTriangle); 
+			  
 		  }
 
 		  // now generate and save texture files (start with full, later use bounding rectangle?)
 		  
 		  
+		  
+		  
+		  
+ 		  if (x3d_path != null){
+ 			 x3d_path+=Prefs.getFileSeparator()+name+".x3d";
+ 			  x3dOutput.generateX3D(x3d_path);
+ 		  }
  		  
 		  return imp_bgnd; // relative (to x3d directory) path - (String) imp_bgnd.getProperty("name");
 	  }
 
+	  public void generateClusterX3d(
+			  X3dOutput  x3dOutput,
+			  String     texturePath,
+			  Rectangle  bounds,
+			  boolean [] selected,
+			  double []  disparity,
+			  int        tile_size,
+			  boolean    correctDistortions, // requires backdrop image to be corrected also
+			  boolean    show_triangles,
+			  double     min_disparity,
+			  double     max_disparity,
+			  double     maxDispTriangle
+			  ) 
+	  {
+		  int [][] indices =  tp.getCoordIndices( // starting with 0, -1 - not selected
+				  bounds,
+				  selected);
+		  double [][] texCoord = tp.getTexCoords( // get texture coordinates for indices
+				  indices);
+		  double [][] worldXYZ = tp.getCoords( // get world XYZ in meters for indices
+				  disparity,
+				  min_disparity,
+				  max_disparity,
+				  bounds,
+				  indices,
+				  tile_size,
+				  correctDistortions, // requires backdrop image to be corrected also
+				  this.geometryCorrection);
+				  
+          double [] indexedDisparity = tp.getIndexedDisparities( // get disparity for each index
+							disparity,
+							min_disparity,
+							max_disparity,
+							bounds,
+							indices,
+							tile_size);
+
+		  int [][] triangles = 	tp.triangulateCluster(
+				  indices);
+		  
+		  
+		  triangles = 	tp.filterTriangles(
+					triangles,
+					indexedDisparity, // disparities per vertex index
+					maxDispTriangle); // maximal disparity difference in a triangle
+		  
+		  
+		  if (show_triangles) {
+			  tp.testTriangles(
+					  texturePath,
+					  bounds,
+					  selected,
+					  disparity,
+					  tile_size,
+					  indices,
+					  triangles);
+		  }
+
+		  x3dOutput.addCluster(
+				  texturePath,
+				  texCoord,
+				  worldXYZ,
+				  triangles);
+	  }
+	  
+	  
 	  public ImagePlus getBackgroundImage(
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
@@ -4936,7 +5049,8 @@ public class QuadCLT {
 	  
 	  
 	  
-	  public ImagePlus getPassImage( // get image form a single pass
+//	  public ImagePlus getPassImage( // get image form a single pass
+	 public String getPassImage( // get image form a single pass, return relative path for x3d
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
@@ -5011,8 +5125,10 @@ public class QuadCLT {
 		  
 		  
 		  
-		  int width = resize ? (clt_parameters.transform_size * scan.bounds.width + 1): (clt_parameters.transform_size * tp.tilesX);
-		  int height = resize ? (clt_parameters.transform_size * scan.bounds.height + 1): (clt_parameters.transform_size * tp.tilesY);
+//		  int width = resize ? (clt_parameters.transform_size * scan.bounds.width + 1): (clt_parameters.transform_size * tp.tilesX);
+//		  int height = resize ? (clt_parameters.transform_size * scan.bounds.height + 1): (clt_parameters.transform_size * tp.tilesY);
+		  int width = resize ? (clt_parameters.transform_size * scan.bounds.width): (clt_parameters.transform_size * tp.tilesX);
+		  int height = resize ? (clt_parameters.transform_size * scan.bounds.height): (clt_parameters.transform_size * tp.tilesY);
 
 //    	  sdfa_instance = new showDoubleFloatArrays(); // just for debugging?		  
 //     	  sdfa_instance.showArrays(texture_rgbx, width, height, true, "texture_rgbx");
@@ -5044,7 +5160,7 @@ public class QuadCLT {
 					  correctionsParameters.png,
 					  clt_parameters.show_textures,
 					  -1); // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
-		  return imp_texture_cluster;
+		  return imp_texture_cluster.getTitle()+".png"; // imp_texture_cluster;
 	  }
 
 	  

@@ -1,19 +1,3 @@
-import java.util.ArrayList;
-
-import java.io.File;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
-import javax.xml.transform.OutputKeys;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerException;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
-
-import org.w3c.dom.Attr;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
 
 /**
  **
@@ -38,6 +22,23 @@ import org.w3c.dom.Element;
  ** -----------------------------------------------------------------------------**
  **
  */
+import java.util.ArrayList;
+
+import java.io.File;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+import org.w3c.dom.Attr;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+
 // Will use 1m units
 
 public class X3dOutput {
@@ -50,6 +51,7 @@ public class X3dOutput {
 	Element     el_X3d;
 	Element     el_Scene;
 	Element     el_TopGroup;
+	public int  max_line_length = 0; // 100; // 0 - no limit
 
 	public X3dOutput(
 			EyesisCorrectionParameters.CLTParameters        clt_parameters,
@@ -106,6 +108,87 @@ public class X3dOutput {
         el_Bgnd.setAttribute("bottomUrl",   bgnd_pass.texture);
 		el_Scene.appendChild(el_Bgnd);
 	}
+	
+	public void addCluster(
+			String url,
+			double [][] texCoord,
+			double [][] coordinate,
+			int [][] triangles)
+	{
+		//	public int  max_line_length = 100; // 0 - no limit
+		int linepos = 0;
+		StringBuffer sb_coord_index = new StringBuffer();
+		for (int i = 0; i < triangles.length; i++){
+			if ((max_line_length > 0) && ((sb_coord_index.length()-linepos) >= max_line_length)){
+				sb_coord_index.append("\n");
+				linepos = 0;
+			} else if ((linepos > 0) || ((max_line_length == 0) && (sb_coord_index.length() > 0))){
+				sb_coord_index.append(" ");
+			}
+//			sb_coord_index.append(triangles[i][0]+" "+triangles[i][1]+" "+triangles[i][2]+" -1");
+			sb_coord_index.append(triangles[i][2]+" "+triangles[i][1]+" "+triangles[i][0]+" -1");
+		}
+		StringBuffer sb_coords = new StringBuffer();
+		linepos = 0;
+		for (int i = 0; i < coordinate.length; i++){
+			if ((max_line_length >0) && ((sb_coords.length()-linepos) >= max_line_length)){
+				sb_coords.append("\n");
+				linepos = 0;
+			} else if ((linepos > 0) || ((max_line_length == 0) && (sb_coords.length() > 0))){
+				sb_coords.append(" ");
+			}
+			sb_coords.append(String.format("%.3f %.3f %.3f", coordinate[i][0], coordinate[i][1], coordinate[i][2]));
+		}
+		StringBuffer sb_tex_coords = new StringBuffer();
+		linepos = 0;
+		for (int i = 0; i < texCoord.length; i++){
+			if ((max_line_length >0) && ((sb_tex_coords.length()-linepos) >= max_line_length)){
+				sb_tex_coords.append("\n");
+				linepos = 0;
+			} else if ((linepos > 0) || ((max_line_length == 0) && (sb_tex_coords.length() > 0))){
+				sb_tex_coords.append(" ");
+			}
+			sb_tex_coords.append(String.format("%.4f %.4f", texCoord[i][0], texCoord[i][1]));
+		}
+		String sindex =  sb_coord_index.toString(); // for both coordIndex and texCoordIndex
+		String scoord =  sb_coords.toString();
+		String stcoord = sb_tex_coords.toString();
+		
+        Element el_shape =        x3dDoc.createElement("Shape");
+		el_Scene.appendChild(el_shape);
+		
+        Element el_appearance =   x3dDoc.createElement("Appearance");
+		el_shape.appendChild(el_appearance);
+
+        Element el_material =   x3dDoc.createElement("Material");
+		el_appearance.appendChild(el_material);
+		el_material.setAttribute("diffuseColor",    "0.376471 0.5 0.376471");
+		
+		
+        Element el_imageTexture = x3dDoc.createElement("ImageTexture");
+        el_imageTexture.setAttribute("url",url);
+        el_appearance.appendChild(el_imageTexture);
+        
+        Element el_IFC =          x3dDoc.createElement("IndexedFaceSet");
+        el_IFC.setAttribute("coordIndex",    sindex); // can it be reused?
+        el_IFC.setAttribute("texCoordIndex", sindex);
+        el_shape.appendChild(el_IFC);
+        
+        Element el_coordinate =   x3dDoc.createElement("Coordinate");
+        el_coordinate.setAttribute("point",    scoord);
+        el_IFC.appendChild(el_coordinate);
+
+        Element el_texCoordinate =   x3dDoc.createElement("TextureCoordinate");
+        el_texCoordinate.setAttribute("point",    stcoord);
+        el_IFC.appendChild(el_texCoordinate);
+        
+        
+        
+}
+	
+	
+	
+	
 	// close document, generate x3d file
 	public void generateX3D(String path)
 	{
@@ -130,46 +213,10 @@ public class X3dOutput {
 
 	public double [][] getBBox() // center: x,y,z, size:x,y,z
 	{
-		double depth =  geometry_correction.getZFromDisparity(clt_parameters.bgnd_range);
+		double depth =  geometry_correction.getZFromDisparity(clt_parameters.bgnd_range); 
 		double width  = depth * geometry_correction.getFOVWidth();
 		double height = depth * geometry_correction.getFOVHeight();
-		double [][] bbox = {{0, 0, depth/2},{width,height,depth}};
+		double [][] bbox = {{0, 0, -depth/2},{width,height,depth}};
 		return bbox;
 	}
 }
-/*
-An IndexedFaceSet geometry node creates geometry out of faces
-
-    texCoord and texCoordIndex - specify texture pieces 
-
-Shape {
-    appearance Appearance { . . . }
-    geometry IndexedFaceSet {
-        coord Coordinate { . . . }
-        coordIndex [ . . . ]
-        texCoord TextureCoordinate { . . . }
-        texCoordIndex [ . . . ]
-    }
-}
-<IndexedFaceSet coordIndex="0 1 2 -1 0 2 3 -1 ..." texCoordIndex="0 1 2 -1 0 2 3 -1 ...">
- <Coordinate point="-37.500000 4.000000 -46.450000 .../>
- <TextureCoordinate point="-37.500000 4.000000 -46.450000 .../>
- </IndexedFaceSet>
- 
- 
- <Shape DEF='Back'>
-<IndexedFaceSet coordIndex='7 6 5 4' texCoordIndex='0 1 2 3'>
-<Coordinate USE='Points'/>
-<TextureCoordinate USE='DefaultTextureCoordinate'/>
-</IndexedFaceSet>
-<Appearance>
-<ImageTexture
-  url=' "images/back.png" "http://x3dGraphics.com/examples/X3dForAdvancedModeling/GeometricShapes/images/back.png" "http://www.web3d.org/x3d/content/examples/Basic/DistributedInteractiveSimulation/images/back.png" '/>
-<TextureTransform USE='RotateRight'/>
-</Appearance>
-</Shape>
-
- 
- 
-
-*/

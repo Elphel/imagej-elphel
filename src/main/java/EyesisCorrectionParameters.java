@@ -2012,7 +2012,7 @@ public class EyesisCorrectionParameters {
   		
   		// 3d reconstruction
   		public boolean    show_textures    = true;  // show generated textures
-  		public boolean    debug_filters     = false;// show intermediate results of filtering
+  		public boolean    debug_filters    = false;// show intermediate results of filtering
   		public double     min_smth         = 0.25;  // 0.25 minimal noise-normalized pixel difference in a channel to suspect something    
   		public double     sure_smth        = 2.0;   // reliable noise-normalized pixel difference in a channel to have something    
   		public double     bgnd_range       = 0.3;   // disparity range to be considered background
@@ -2037,10 +2037,33 @@ public class EyesisCorrectionParameters {
   		public int        ortho_bridge     = 10;    // number of tiles to bridge over hor/vert gaps
   		public double     ortho_rms        = 0.3;   // maximal disparity RMS in a run to replace by average
   		public int        ortho_half_length = 4;    // convolve hor/vert strength by 3*(2*l+1) kernels to detect multi-tile features 
-  		public double     ortho_mix        = 0.5;   // Fraction ovf convolved ortho in a mix with raw 
+  		public double     ortho_mix        = 0.5;   // Fraction ovf convolved ortho in a mix with raw
   		
+  		public int        max_clusters     = 10;    // Maximal number of clusters to generate for one run
+  		public boolean    correct_distortions = false; // Correct lens geometric distortions in a model (will need backdrop to be corrected too)
+  		public boolean    show_triangles =    true;  // Show generated triangles
+  		public boolean    avg_cluster_disp =  false;  // Weight-average disparity for the whole cluster 
+  		public double     maxDispTriangle   = 0.2;    // Maximal disparity difference in a triangle face to show
   		
-
+  		// Thin ice parameters
+  		public double     tiRigidVertical   = 3.0;   // relative disparity rigidity in vertical direction
+  		public double     tiRigidHorizontal = 1.0;   // relative disparity rigidity in horizontal direction
+  		public double     tiRigidDiagonal   = 0.5;   // relative disparity rigidity in diagonal direction
+  		public double     tiStrengthOffset  = 0.1;   // strength "floor" - subtract (limit 0) before applying
+  		public double     tiDispScale       = 0.5;   // divide actual (disparity*eff_Strength) by this  before Math.pow and applying to T.I.
+  		public double     tiDispPow         = 0.0;   // apply pow to disparity (restore sign) for disparity difference pressure on ice
+  		public double     tiDispPull        =  .1;   // tiDispPull: multiply strength*disparity difference to pull force
+  		public double     tiDispPullPreFinal=  .1;   // Scale tiDispPull for pre-final pass
+  		public double     tiDispPullFinal   =  .01;  // Scale tiDispPull for final pass
+  		public double     tiBreak3          = 0.6;   // TI break value of abs(d0-3d1+3d2-d3)
+  		public double     tiBreak31         = 0.1;   // TI break value of (d0-3d1+3d2-d3) * (d1 - d2)
+  		public double     tiBreak21         = 0.1;   // TI break value of (-d0+d1+d2-d3) * abs(d1 - d2)
+  		public int        tiBreakMode       = 0;     // TI break mode: 0: abs(3-rd derivative), 1: -(3-rd * 1-st), 2: -(2-nd * abs(1-st))  
+  		public double     tiBreakSame       = 0.5;   // Amplify colinear breaks in neighbor tiles
+  		public double     tiBreakTurn       = 0.125; // Amplify 90-degree turnintg breaks in neighbor tiles
+  		public int        tiIterations      = 1000;  // maximal number of TI iterations for each step
+  		public int        tiPrecision       = 6;     // iteration maximal error (1/power of 10) 
+  		public int        tiNumCycles       = 5;     // Number of cycles break-smooth (after the first smooth)  
   		
   		public CLTParameters(){}
   		public void setProperties(String prefix,Properties properties){
@@ -2152,7 +2175,6 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"ortho_min_hor",    this.ortho_min_hor +"");
   			properties.setProperty(prefix+"ortho_min_vert",   this.ortho_min_vert +"");
 			properties.setProperty(prefix+"ortho_asym",       this.ortho_asym +"");
-
 			properties.setProperty(prefix+"ortho_sustain",    this.ortho_sustain +"");
   			properties.setProperty(prefix+"ortho_run",        this.ortho_run+"");
 			properties.setProperty(prefix+"ortho_minmax",     this.ortho_minmax +"");
@@ -2160,6 +2182,32 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"ortho_rms",        this.ortho_rms +"");
   			properties.setProperty(prefix+"ortho_half_length",this.ortho_half_length+"");
 			properties.setProperty(prefix+"ortho_mix",        this.ortho_mix +"");
+			
+  			properties.setProperty(prefix+"max_clusters",     this.max_clusters+"");
+			properties.setProperty(prefix+"correct_distortions",this.correct_distortions+"");
+			properties.setProperty(prefix+"show_triangles",   this.show_triangles+"");
+			properties.setProperty(prefix+"avg_cluster_disp", this.avg_cluster_disp+"");
+			properties.setProperty(prefix+"maxDispTriangle",  this.maxDispTriangle +"");
+			
+			properties.setProperty(prefix+"tiRigidVertical",  this.tiRigidVertical +"");
+			properties.setProperty(prefix+"tiRigidHorizontal",this.tiRigidHorizontal +"");
+			properties.setProperty(prefix+"tiRigidDiagonal",  this.tiRigidDiagonal +"");
+			properties.setProperty(prefix+"tiStrengthOffset", this.tiStrengthOffset +"");
+			properties.setProperty(prefix+"tiDispScale",      this.tiDispScale +"");
+			properties.setProperty(prefix+"tiDispPow",        this.tiDispPow +"");
+			properties.setProperty(prefix+"tiDispPull",       this.tiDispPull +"");
+			properties.setProperty(prefix+"tiDispPullPreFinal",this.tiDispPullPreFinal +"");
+			properties.setProperty(prefix+"tiDispPullFinal",   this.tiDispPullFinal +"");
+			properties.setProperty(prefix+"tiBreak3",         this.tiBreak3 +"");
+			properties.setProperty(prefix+"tiBreak31",        this.tiBreak31 +"");
+			properties.setProperty(prefix+"tiBreak21",        this.tiBreak21 +"");
+			properties.setProperty(prefix+"tiBreakMode",      this.tiBreakMode +"");
+			properties.setProperty(prefix+"tiBreakSame",      this.tiBreakSame +"");
+			properties.setProperty(prefix+"tiBreakTurn",      this.tiBreakTurn +"");
+  			properties.setProperty(prefix+"tiIterations",     this.tiIterations+"");
+  			properties.setProperty(prefix+"tiPrecision",      this.tiPrecision+"");
+  			properties.setProperty(prefix+"tiNumCycles",      this.tiNumCycles+"");
+			
   		}
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"transform_size")!=null) this.transform_size=Integer.parseInt(properties.getProperty(prefix+"transform_size"));
@@ -2260,13 +2308,12 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"bgnd_maybe")!=null)        this.bgnd_maybe=Double.parseDouble(properties.getProperty(prefix+"bgnd_maybe"));
   			if (properties.getProperty(prefix+"min_clstr_seed")!=null)    this.min_clstr_seed=Integer.parseInt(properties.getProperty(prefix+"min_clstr_seed"));
   			if (properties.getProperty(prefix+"min_clstr_lone")!=null)    this.min_clstr_lone=Integer.parseInt(properties.getProperty(prefix+"min_clstr_lone"));
-  			if (properties.getProperty(prefix+"fill_gaps")!=null)          this.fill_gaps=Integer.parseInt(properties.getProperty(prefix+"fill_gaps"));
+  			if (properties.getProperty(prefix+"fill_gaps")!=null)         this.fill_gaps=Integer.parseInt(properties.getProperty(prefix+"fill_gaps"));
   			if (properties.getProperty(prefix+"min_clstr_block")!=null)   this.min_clstr_block=Integer.parseInt(properties.getProperty(prefix+"min_clstr_block"));
   			if (properties.getProperty(prefix+"bgnd_grow")!=null)         this.bgnd_grow=Integer.parseInt(properties.getProperty(prefix+"bgnd_grow"));
   			if (properties.getProperty(prefix+"ortho_min_hor")!=null)     this.ortho_min_hor=Double.parseDouble(properties.getProperty(prefix+"ortho_min_hor"));
   			if (properties.getProperty(prefix+"ortho_min_vert")!=null)    this.ortho_min_vert=Double.parseDouble(properties.getProperty(prefix+"ortho_min_vert"));
   			if (properties.getProperty(prefix+"ortho_asym")!=null)        this.ortho_asym=Double.parseDouble(properties.getProperty(prefix+"ortho_asym"));
-
   			if (properties.getProperty(prefix+"ortho_sustain")!=null)     this.ortho_sustain=Double.parseDouble(properties.getProperty(prefix+"ortho_sustain"));
   			if (properties.getProperty(prefix+"ortho_run")!=null)         this.ortho_run=Integer.parseInt(properties.getProperty(prefix+"ortho_run"));
   			if (properties.getProperty(prefix+"ortho_minmax")!=null)      this.ortho_minmax=Double.parseDouble(properties.getProperty(prefix+"ortho_minmax"));
@@ -2274,6 +2321,32 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"ortho_rms")!=null)         this.ortho_rms=Double.parseDouble(properties.getProperty(prefix+"ortho_rms"));
   			if (properties.getProperty(prefix+"ortho_half_length")!=null) this.ortho_half_length=Integer.parseInt(properties.getProperty(prefix+"ortho_half_length"));
   			if (properties.getProperty(prefix+"ortho_mix")!=null)         this.ortho_mix=Double.parseDouble(properties.getProperty(prefix+"ortho_mix"));
+  			
+  			if (properties.getProperty(prefix+"max_clusters")!=null)      this.max_clusters=Integer.parseInt(properties.getProperty(prefix+"max_clusters"));
+  			if (properties.getProperty(prefix+"correct_distortions")!=null) this.correct_distortions=Boolean.parseBoolean(properties.getProperty(prefix+"correct_distortions"));
+  			if (properties.getProperty(prefix+"show_triangles")!=null)    this.show_triangles=Boolean.parseBoolean(properties.getProperty(prefix+"show_triangles"));
+  			if (properties.getProperty(prefix+"avg_cluster_disp")!=null)  this.avg_cluster_disp=Boolean.parseBoolean(properties.getProperty(prefix+"avg_cluster_disp"));
+  			if (properties.getProperty(prefix+"maxDispTriangle")!=null)   this.maxDispTriangle=Double.parseDouble(properties.getProperty(prefix+"maxDispTriangle"));
+  			
+  			if (properties.getProperty(prefix+"tiRigidVertical")!=null)   this.tiRigidVertical=Double.parseDouble(properties.getProperty(prefix+"tiRigidVertical"));
+  			if (properties.getProperty(prefix+"tiRigidHorizontal")!=null) this.tiRigidHorizontal=Double.parseDouble(properties.getProperty(prefix+"tiRigidHorizontal"));
+  			if (properties.getProperty(prefix+"tiRigidDiagonal")!=null)   this.tiRigidDiagonal=Double.parseDouble(properties.getProperty(prefix+"tiRigidDiagonal"));
+  			if (properties.getProperty(prefix+"tiStrengthOffset")!=null)  this.tiStrengthOffset=Double.parseDouble(properties.getProperty(prefix+"tiStrengthOffset"));
+  			if (properties.getProperty(prefix+"tiDispScale")!=null)       this.tiDispScale=Double.parseDouble(properties.getProperty(prefix+"tiDispScale"));
+  			if (properties.getProperty(prefix+"tiDispPow")!=null)         this.tiDispPow=Double.parseDouble(properties.getProperty(prefix+"tiDispPow"));
+  			if (properties.getProperty(prefix+"tiDispPull")!=null)        this.tiDispPull=Double.parseDouble(properties.getProperty(prefix+"tiDispPull"));
+  			if (properties.getProperty(prefix+"tiDispPullPreFinal")!=null)this.tiDispPullPreFinal=Double.parseDouble(properties.getProperty(prefix+"tiDispPullPreFinal"));
+  			if (properties.getProperty(prefix+"tiDispPullFinal")!=null)   this.tiDispPullFinal=Double.parseDouble(properties.getProperty(prefix+"tiDispPullFinal"));
+  			if (properties.getProperty(prefix+"tiBreak3")!=null)          this.tiBreak3=Double.parseDouble(properties.getProperty(prefix+"tiBreak3"));
+  			if (properties.getProperty(prefix+"tiBreak31")!=null)         this.tiBreak31=Double.parseDouble(properties.getProperty(prefix+"tiBreak31"));
+  			if (properties.getProperty(prefix+"tiBreak21")!=null)         this.tiBreak21=Double.parseDouble(properties.getProperty(prefix+"tiBreak21"));
+  			if (properties.getProperty(prefix+"tiBreakMode")!=null)       this.tiBreakMode=Integer.parseInt(properties.getProperty(prefix+"tiBreakMode"));
+  			if (properties.getProperty(prefix+"tiBreakSame")!=null)       this.tiBreakSame=Double.parseDouble(properties.getProperty(prefix+"tiBreakSame"));
+  			if (properties.getProperty(prefix+"tiBreakTurn")!=null)       this.tiBreakTurn=Double.parseDouble(properties.getProperty(prefix+"tiBreakTurn"));
+  			if (properties.getProperty(prefix+"tiIterations")!=null)      this.tiIterations=Integer.parseInt(properties.getProperty(prefix+"tiIterations"));
+  			if (properties.getProperty(prefix+"tiPrecision")!=null)       this.tiPrecision=Integer.parseInt(properties.getProperty(prefix+"tiPrecision"));
+  			if (properties.getProperty(prefix+"tiNumCycles")!=null)       this.tiNumCycles=Integer.parseInt(properties.getProperty(prefix+"tiNumCycles"));
+  			
   		}
   		
   		public boolean showDialog() {
@@ -2402,9 +2475,33 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Minimal maximal strength in an ortho run (max. in run >=...)",                 this.ortho_minmax,  3);
   			gd.addNumericField("Number of tiles to bridge over hor/vert gaps",                                 this.ortho_bridge,   0);
   			gd.addNumericField("Maximal disparity RMS in a run to replace by average)",                        this.ortho_rms,  3);
-  			gd.addNumericField("convolve hor/vert strength by 3*(2*l+1) kernels to detect multi-tile features",this.ortho_half_length,   0);
-  			gd.addNumericField("Fraction ovf convolved ortho in a mix with raw",                              this.ortho_mix,  3);
+  			gd.addNumericField("Convolve hor/vert strength by 3*(2*l+1) kernels to detect multi-tile features",this.ortho_half_length,   0);
+  			gd.addNumericField("Fraction of convolved ortho in a mix with raw",                                this.ortho_mix,  3);
+  			gd.addNumericField("Maximal number of clusters to generate for one run",                           this.max_clusters,   0);
+  			gd.addCheckbox    ("Correct lens geometric distortions in a model (will need backdrop to be corrected too)", this.correct_distortions);
+  			gd.addCheckbox    ("Show generated triangles",                                                     this.show_triangles);
+  			gd.addCheckbox    ("Weight-average disparity for the whole cluster ",                              this.avg_cluster_disp);
+  			gd.addNumericField("Maximal disparity difference in a triangle face to show",                      this.maxDispTriangle,  6);
 
+  			gd.addMessage     ("--- Thin ice parameters ---");
+  			gd.addNumericField("Relative disparity rigidity in vertical direction",                            this.tiRigidVertical,  6);
+  			gd.addNumericField("Relative disparity rigidity in horizontal direction",                          this.tiRigidHorizontal,  6);
+  			gd.addNumericField("Relative disparity rigidity in diagonal   direction",                          this.tiRigidDiagonal,  6);
+  			gd.addNumericField("Strength floor - subtract (limit with 0) before applying",                     this.tiStrengthOffset,  6);
+  			gd.addNumericField("Divide actual disparity by this  before Math.pow and applying to TI",          this.tiDispScale,  6);
+  			gd.addNumericField("Apply pow to disparity (restore sign) for disparity difference pressure on TI",this.tiDispPow,  6);
+  			gd.addNumericField("tiDispPull: multiply strength*disparity difference to pull force",             this.tiDispPull,  6);
+  			gd.addNumericField("Scale tiDispPull for pre-final pass",                                          this.tiDispPullPreFinal,  6);
+  			gd.addNumericField("Scale tiDispPull for final pass",                                              this.tiDispPullFinal,  6);
+  			gd.addNumericField("TI break value of abs(d0-3d1+3d2-d3)",                                         this.tiBreak3,  6);
+  			gd.addNumericField("TI break value of (d0-3d1+3d2-d3) * (d1 - d2)",                                this.tiBreak31,  6);
+  			gd.addNumericField("TI break value of (-d0+d1+d2-d3) * abs(d1 - d2)",                              this.tiBreak21,  6);
+  			gd.addNumericField("TI break mode: +1: abs(3-rd derivative), +2: -(3-rd * 1-st), +4: -(2-nd * abs(1-st))", this.tiBreakMode,  0);
+  			gd.addNumericField("Amplify colinear breaks in neighbor tiles",                                    this.tiBreakSame,  6);
+  			gd.addNumericField("Amplify 90-degree turnintg breaks in neighbor tiles",                          this.tiBreakTurn,  6);
+  			gd.addNumericField("Maximal number of TI iterations for each step",                                this.tiIterations, 0);
+  			gd.addNumericField("Iteration maximal error (1/power of 10)",                                      this.tiPrecision,  0);
+  			gd.addNumericField("Number of cycles break-smooth (after the first smooth)",                       this.tiNumCycles,  0);
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
   			
@@ -2526,6 +2623,33 @@ public class EyesisCorrectionParameters {
   			this.ortho_rms=             gd.getNextNumber();
   			this.ortho_half_length=(int)gd.getNextNumber();
   			this.ortho_mix=             gd.getNextNumber();
+
+  			this.max_clusters=    (int) gd.getNextNumber();
+  			this.correct_distortions=   gd.getNextBoolean();
+  			this.show_triangles=        gd.getNextBoolean();
+  			this.avg_cluster_disp=      gd.getNextBoolean();
+  			this.maxDispTriangle=       gd.getNextNumber();
+
+  			this.tiRigidVertical=       gd.getNextNumber();
+  			this.tiRigidHorizontal=     gd.getNextNumber();
+  			this.tiRigidDiagonal=       gd.getNextNumber();
+  			this.tiStrengthOffset=      gd.getNextNumber();
+  			this.tiDispScale=           gd.getNextNumber();
+  			this.tiDispPow=             gd.getNextNumber();
+  			this.tiDispPull=            gd.getNextNumber();
+  			this.tiDispPullPreFinal=    gd.getNextNumber();
+  			this.tiDispPullFinal=       gd.getNextNumber();
+  			this.tiBreak3=              gd.getNextNumber();
+  			this.tiBreak31=             gd.getNextNumber();
+  			this.tiBreak21=             gd.getNextNumber();
+  			this.tiBreakMode=     (int) gd.getNextNumber();
+  			this.tiBreakSame=           gd.getNextNumber();
+  			this.tiBreakTurn=           gd.getNextNumber();
+  			this.tiIterations=    (int) gd.getNextNumber();
+  			this.tiPrecision=     (int) gd.getNextNumber();
+  			this.tiNumCycles=     (int) gd.getNextNumber();
+  			
+  			
   			return true;
   		}
     }

@@ -6,7 +6,7 @@ import ij.IJ;
  ** GeometryCorrection - geometry correction for multiple sensors sharing the same
  ** lens radial distortion model
  **
- ** Copyright (C) 2016 Elphel, Inc.
+ ** Copyright (C) 2017 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
  **  
@@ -323,6 +323,33 @@ public class GeometryCorrection {
 		return this.pixelCorrectionHeight * 0.001 * this.pixelSize / this.focalLength;
 	}
 
+	public double getScaleDzDx()
+	{
+		return ( 0.001 * this.pixelSize) / this.focalLength;
+	}
+	
+	
+	/*
+	 * Get real world coordinates from pixel coordinates and nominal disparity 
+	 */
+	public double [] getWorldCoordinates(
+			double px,
+			double py,
+			double disparity,
+			boolean correctDistortions) // correct distortion (will need corrected background too !)
+	{
+		double pXcd = px - 0.5 * this.pixelCorrectionWidth;
+		double pYcd = py - 0.5 * this.pixelCorrectionHeight;
+		double rD = Math.sqrt(pXcd*pXcd + pYcd*pYcd)*0.001*this.pixelSize; // distorted radius in a virtual center camera
+		double rND2R = correctDistortions?(getRByRDist(rD/this.distortionRadius, false)): 1.0;
+		double pXc = pXcd * rND2R; // non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
+		double pYc = pYcd * rND2R; // in pixels
+		double z = -SCENE_UNITS_SCALE * this.focalLength * this.disparityRadius / (disparity * 0.001*this.pixelSize); // "+" - near, "-" far
+		double x =  SCENE_UNITS_SCALE * pXc * this.disparityRadius / disparity;
+		double y = -SCENE_UNITS_SCALE * pYc * this.disparityRadius / disparity;
+		double [] xyz = {x,y,z};
+		return xyz;
+	}
 	/*
 	 * Calculate pixel coordinates for each of numSensors images, for a given (px,py) of the idealized "center" (still distorted) image
 	 * and generic diparity, measured in pixels 
@@ -343,8 +370,6 @@ public class GeometryCorrection {
 		double [] a={this.distortionC,this.distortionB,this.distortionA,this.distortionA5,this.distortionA6,this.distortionA7,this.distortionA8};
 		for (int i = 0; i < numSensors; i++){
 			// non-distorted XY of the shifted location of the individual sensor
-//			double pXci = pXc + disparity *  this.rXY[i][0]; // in pixels
-//			double pYci = pYc + disparity *  this.rXY[i][1];
 			double pXci = pXc - disparity *  this.rXY[i][0]; // in pixels
 			double pYci = pYc - disparity *  this.rXY[i][1];
 			// calculate back to distorted
