@@ -2402,7 +2402,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Contrast of dotted border on correlation results",                        this.corr_border_contrast,  6);
   			gd.addMessage("--- tiles tasks (current tile_task_op = "+this.tile_task_op+") ---");
   			gd.addCheckbox    ("Enhace ortho lines detection (enh_ortho)",                                               ImageDtt.getOrthoLines(this.tile_task_op));
-  			gd.addCheckbox    ("Force disparity for image rendering (false - use folund by tile correlation)",           ImageDtt.getForcedDisparity(this.tile_task_op));
+  			gd.addCheckbox    ("Force disparity for image rendering (false - use found from tile correlation)",          ImageDtt.getForcedDisparity(this.tile_task_op));
   			gd.addNumericField("Bitmask of used images (1 - top left, 2 - top right, 4 - bottom left, 8 bottom right)",  ImageDtt.getImgMask(this.tile_task_op),            0);
   			gd.addNumericField("Bitmask of used pairs  (1 - top, 2 - bottom, 4 - left, 8 - right)",                      ImageDtt.getPairMask(this.tile_task_op),            0);
 //  			gd.addNumericField("Tile operations bits: +(0..f) - images, +(00.f0) - process pairs +256, ... ",  this.tile_task_op,            0);

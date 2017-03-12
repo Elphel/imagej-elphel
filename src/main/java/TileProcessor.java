@@ -1193,6 +1193,9 @@ public class TileProcessor {
 
 		}
 		
+		
+		
+		
 		// Just calculate stress, do not actually break (after last smoothing)
 		dp.breakDisparity(
 				0.0,                        // final double      break4, // clt_parameters.tiBreak/0 allow disconnecting from neighbors (fg/bg)
@@ -1239,7 +1242,32 @@ public class TileProcessor {
 		sdfa_instance.showArrays(dbg_img, tilesX*clt_parameters.transform_size, tilesY*clt_parameters.transform_size,
 				true, "neighbors", titles_all);
 		
-//************************************************		
+//************************************************
+		int [][] flaps = dp.createOverlapGeometry(
+				neighbors,       // +1 - up (N), +2 - up-right - NE, ... +0x80 - NW
+				these_tiles,     // final boolean []  selected, // only inner?
+				border, // final boolean []  border,
+				threadsMax,      // maximal number of threads to launch                         
+				debugLevel);
+		double [][] dbg_flaps =  dp.dbgShowOverlaps(
+//				boolean [] selected,
+				flaps, // int [][] flaps,
+				clt_parameters.transform_size, // int    tile_size,
+				-1.0, // double bgnd,
+				1.0); // double fgnd)
+		double [] dbg_neibs = dp.dbgShowNeighbors(
+					these_tiles, // grown, // these_tiles,
+					neighbors, // _orig, // int [] neighbors,
+					clt_parameters.transform_size, // int    tile_size,
+					-1.0, // double bgnd,
+					1.0); // double fgnd)
+		String [] titleFlaps = {"neib","N","NE","E","SE","S","SW","W","NW"};
+		double [][] dbg_flaps_all = {dbg_neibs,dbg_flaps[0],dbg_flaps[1],dbg_flaps[2],dbg_flaps[3],dbg_flaps[4],dbg_flaps[5],dbg_flaps[6],dbg_flaps[7]};
+		sdfa_instance.showArrays(dbg_flaps_all, tilesX*clt_parameters.transform_size, tilesY*clt_parameters.transform_size,
+				true, "flaps-dirs", titleFlaps);
+		
+		
+		
 		
 		int numScans =  createTileTasks(
 				50, // int       maxClusters,
@@ -1801,4 +1829,35 @@ public class TileProcessor {
 				"triangles-"+texturePath,
 				titles);
 	}
+	/* Create a Thread[] array as large as the number of processors available.
+	 * From Stephan Preibisch's Multithreading.java class. See:
+	 * http://repo.or.cz/w/trakem2.git?a=blob;f=mpi/fruitfly/general/MultiThreading.java;hb=HEAD
+	 */
+	static Thread[] newThreadArray(int maxCPUs) {
+		int n_cpus = Runtime.getRuntime().availableProcessors();
+		if (n_cpus>maxCPUs)n_cpus=maxCPUs;
+		return new Thread[n_cpus];
+	}
+	/* Start all given threads and wait on each of them until all are done.
+	 * From Stephan Preibisch's Multithreading.java class. See:
+	 * http://repo.or.cz/w/trakem2.git?a=blob;f=mpi/fruitfly/general/MultiThreading.java;hb=HEAD
+	 */
+	public static void startAndJoin(Thread[] threads)
+	{
+		for (int ithread = 0; ithread < threads.length; ++ithread)
+		{
+			threads[ithread].setPriority(Thread.NORM_PRIORITY);
+			threads[ithread].start();
+		}
+
+		try
+		{   
+			for (int ithread = 0; ithread < threads.length; ++ithread)
+				threads[ithread].join();
+		} catch (InterruptedException ie)
+		{
+			throw new RuntimeException(ie);
+		}
+	}
+	
 }
