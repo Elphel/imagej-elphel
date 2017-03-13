@@ -202,10 +202,193 @@ public class TileProcessor {
 			}
 
 		}
-
-
 		return bgnd_tiles;
 	}
+	
+	public int extendIndex(int indx){
+		int tileY = indx / tilesX;
+		int tileX = indx % tilesX;
+		return (tilesX + 2) * (tileY + 1) + (tileX + 1);
+		
+	}
+	
+/**
+ * Create tasks for individual clusters (with flaps). Border_fixed will have alpha = 0 and provided disparity, border float - adjusted disparity from neighbors
+ * No ordering here, just filtering
+ * @param maxClusters
+ * @param minClusterArea
+ * @param disparity
+ * @param strength
+ * @param minStrength
+ * @param overlap_clusters
+ * @param minDisparity
+ * @param maxDisparity
+ * @param debugLevel
+ * @return
+ */
+	public int createTileOverlapTasks(
+			int         maxClusters,
+			int         minClusterArea,
+			double []   disparity_in, 
+			double []   strength_in,
+			double      maxChange,   // adjust border disparity until change is below this.
+			double      minStrength,
+			int [][][]  overlap_clusters, // [cluster] {cd.internal, cd.border_fixed, cd.border_float}
+			double    minDisparity,
+			double    maxDisparity,
+			int       debugLevel)
+	{
+		final int maxrep=1000;
+//		showDoubleFloatArrays sdfa_instance = null;
+//		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		int tilesX2 = tilesX + 2;
+		int tilesY2 = tilesY + 2;
+		int tlen2 = tilesX2*tilesY2;
+		double [] disparity0 = new double [tlen2];
+		double [] strength0 = new double [tlen2];
+
+		for (int i = 0; i < tilesY; i++) {
+			for (int j = 0; j < tilesX; j++) {
+				strength0[(i + 1) * tilesX2 + j + 1] =  strength_in[i * tilesX + j];
+				disparity0[(i + 1) * tilesX2 + j + 1] = disparity_in[i * tilesX + j];
+			}
+		}
+
+		int [] dirs8 = {-tilesX2,  -tilesX2 + 1, 1, tilesX2 +1, tilesX2, tilesX2 - 1, -1, -tilesX2 - 1};
+		int [] dirs = dirs8;
+
+		int op = ImageDtt.setImgMask(0, 0xf);
+		op =     ImageDtt.setPairMask(op,0xf);
+		op =     ImageDtt.setForcedDisparity(op,true);
+
+//		int tlen = clusters.length;
+		int numClusters = 0;
+//		int leng = disparity_in.length;
+		double  [] disparity = new double  [tlen2];
+		boolean [] selected =  new boolean [tlen2]; 
+		boolean [] border =    new boolean [tlen2]; 
+		boolean [] fixed =     new boolean [tlen2];
+		boolean [] none4 =     new boolean [tlen2];
+		for (int ncl = 0; (maxClusters == 0) || (numClusters < maxClusters); ncl++){ // need to break;
+			if (overlap_clusters[ncl][0].length < minClusterArea) {
+				if (debugLevel > -1) {
+					System.out.println("createTileOverlapTasks(): skipping small cluster "+ncl+", internal area "+(overlap_clusters[ncl][0].length)+" < "+minClusterArea);
+				}
+				continue; // skip this cluster
+			}
+
+			System.arraycopy(disparity0, 0, disparity, 0, tlen2);
+			System.arraycopy(none4,      0, selected,  0, tlen2);
+			System.arraycopy(none4,      0, border,    0, tlen2);
+			System.arraycopy(none4,      0, fixed,     0, tlen2);
+			double clusterMaxStrength = 0.0;
+			for (int i = 0; i < overlap_clusters[ncl][0].length; i++) {
+				int indx = extendIndex(overlap_clusters[ncl][0][i]);
+				selected [indx] = true;
+				fixed [ indx] = true;
+				if (strength0[indx] > clusterMaxStrength) clusterMaxStrength = strength0[indx];
+			}
+			if (clusterMaxStrength < minStrength) {
+				if (debugLevel > -1) {
+					System.out.println("createTileOverlapTasks(): skipping weak cluster "+ncl+", strength "+clusterMaxStrength+" < "+minStrength);
+				}
+				continue; // skip this cluster
+			}
+			
+			for (int i = 0; i < overlap_clusters[ncl][1].length; i++) {
+				int indx = extendIndex(overlap_clusters[ncl][1][i]);
+				border [indx] = true;
+				fixed [ indx] = true;
+			}
+			
+			if (overlap_clusters[ncl][2].length > 0) {
+				int [] indx2 = new int [overlap_clusters[ncl][2].length];
+				for (int i = 0; i< indx2.length; i++) indx2[i] = extendIndex(overlap_clusters[ncl][2][i]);
+				
+			
+				for (int i = 0; i < indx2.length; i++) {
+					int indx = indx2[i];
+					border [indx] = true;
+					double sw = 0.0, sd = 0.0;
+					for (int dir = 0; dir < dirs.length; dir++){
+						if (fixed[indx + dirs[dir]]){
+							sw += 1.0;
+							sd += disparity[indx + dirs[dir]];
+						}
+					}
+					if (sw >0) sd/= sw;
+					disparity[indx] = sw;
+				}
+				double [] new_disparity = new double [indx2.length];
+				for (int nrep = 0; nrep < maxrep; nrep++){
+					for (int i = 0; i < indx2.length; i++) {
+						int indx =indx2[i];
+						double sw = 0.0, sd = 0.0;
+						for (int dir = 0; dir < dirs.length; dir++){
+							if ((fixed[indx + dirs[dir]]) || (border[indx + dirs[dir]])) {
+								sw += 1.0;
+								sd += disparity[indx + dirs[dir]];
+							}
+						}
+						if (sw > 0) sd/= sw;
+						new_disparity[i] = sd;
+					}
+					double adiff = 0.0;
+					for (int i = 0; i < indx2.length; i++) {
+						int indx =indx2[i];
+						double ad = Math.abs(new_disparity[i] - disparity[indx]);
+						if (ad > adiff) adiff = ad;
+						disparity[indx] = new_disparity[i];
+					}
+					if (adiff < maxChange) break;
+				}
+			}
+			
+			// now fill the task
+			// return to original dimensions
+			double [][] disparityTask = new double [tilesY][tilesX];
+			int [][]    tile_op =       new int [tilesY][tilesX];
+			boolean [] borderTiles =    new boolean[tilesY*tilesX]; // to zero alpha in the images
+			for (int ty = 0; ty < tilesY; ty++) for (int tx = 0; tx <tilesX; tx++){
+				int indx =  tilesX * ty + tx;
+				int indx4 = tilesX2 * (ty + 1) + (tx + 1);
+				if (selected[indx4] || border[indx4]){
+					if      (disparity[indx4] < minDisparity) disparity[indx4] = minDisparity;
+					else if (disparity[indx4] > maxDisparity) disparity[indx4] = maxDisparity;
+					
+					disparityTask[ty][tx] = disparity[indx4];
+					tile_op[ty][tx] = op;
+					borderTiles[indx] = border[indx4];
+				} else {
+					disparityTask[ty][tx] = 0.0;
+					tile_op[ty][tx] =       0;
+					borderTiles[indx] =     false;
+				}
+			}
+			
+			// Create FPGA task for this cluster
+
+			CLTPass3d scan_next = new CLTPass3d();
+			scan_next.disparity =     disparityTask;
+			scan_next.tile_op =       tile_op;
+			scan_next.border_tiles =  borderTiles;
+			clt_3d_passes.add(scan_next);
+
+			if (debugLevel > -1) {
+				System.out.println("createTileOverlapTasks(): Added cluster "+ncl+", internal area = "+(overlap_clusters[ncl][0].length)+ ", max strength=clusterMaxStrength"+
+			", fixed border: "+(overlap_clusters[ncl][1].length)+ ", float border: "+(overlap_clusters[ncl][2].length));
+			}
+			
+			numClusters++;
+			
+		}
+		if (debugLevel > -1) {
+			System.out.println("createTileOverlapTasks(): prepared "+numClusters+" clusters");
+		}
+		return numClusters;  
+	}
+
+	
 
 	public int createTileTasks(
 			int       maxClusters,
@@ -376,14 +559,11 @@ public class TileProcessor {
 		}
 		return numClusters;  
 	}
-	/*
-	  public void growTiles(
-			  int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
-			  boolean [] tiles,
-			  boolean [] prohibit)
 
-	 */
-
+	
+	
+	
+	
 	// temporary  - simple separation until continuous tile areas are split along disparity steps
 	public int [] enumerateClusters(
 			boolean diag_en,
@@ -1037,7 +1217,8 @@ public class TileProcessor {
 		boolean [] grown = these_tiles.clone();
 		
 		growTiles(
-				1,          // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+//				1,          // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				2,          // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 				grown,      // boolean [] tiles,
 				null);     // boolean [] prohibit)
 		
@@ -1087,7 +1268,9 @@ public class TileProcessor {
 		smooth_disparities[0] = dp.dbgRescaleToPixels(
 				new_disparity,
 				clt_parameters.transform_size);
-		double break012 = (clt_parameters.tiBreakMode ==0)? clt_parameters.tiBreak3 : ((clt_parameters.tiBreakMode == 1)? clt_parameters.tiBreak31 : clt_parameters.tiBreak21);
+		boolean [] too_far =  new boolean [this_strength.length];
+		boolean [] too_near = new boolean [this_strength.length];
+		double [] true_strength = this_strength.clone(); // this strength will be modified to remove too near tiles (too far - TBD)
 
 		for (int numCycle = 0; numCycle <  clt_parameters.tiNumCycles; numCycle++) { //        = 5;     // Number of cycles break-smooth (after the first smooth)
 			
@@ -1149,11 +1332,81 @@ public class TileProcessor {
 						debugLevel);
 			}
 
+			if ((clt_parameters.tiBreakMode & 8) != 0) { // remove too far
+				boolean [] found = dp.findNearFar(
+						true, // boolean findFar,
+						clt_parameters.tiBreakFar, //  double  threshold, // select tiles with non-zero strength that are far/near
+						new_disparity,          // current (approximated) disparity value
+						this_disparity, // measured disparity
+						this_strength, // final double  []  strength,           // masked by previously removed tiles as far/near
+						these_tiles); // final boolean []  selected);
+				if (found != null){
+					for (int i=0;i < too_far.length; i++){
+						too_far[i] |=found[i];
+						if (too_far[i]) this_strength[i] =0.0;
+					}
+				}
+			}
 			
-			stresses[numCycle] = dp.dbgShowStress(
-					dbgDeriv, // double [][] stress,
-					clt_parameters.transform_size); // int    tile_size)
+			
+			if ((clt_parameters.tiBreakMode & 16) != 0) { // remove too near
+				boolean [] found = dp.findNearFar(
+						false, // boolean findFar,
+						clt_parameters.tiBreakNear, //  double  threshold, // select tiles with non-zero strength that are far/near
+						new_disparity,          // current (approximated) disparity value
+						this_disparity, // measured disparity
+						this_strength, // final double  []  strength,           // masked by previously removed tiles as far/near
+						these_tiles); // final boolean []  selected);
+				if (found != null){
+					for (int i=0;i < too_near.length; i++){
+						too_near[i] |=found[i];
+						if (too_near[i]) this_strength[i] =0.0;
+					}
+				}
+			}
+			
+			if ((dbgDeriv != null) && (dbgDeriv[0] != null)) {
+				stresses[numCycle] = dp.dbgShowStress(
+						dbgDeriv, // double [][] stress,
+						clt_parameters.transform_size); // int    tile_size)
+			} else {
+				stresses[numCycle] = null;
+			}
 
+			// Now heal some broken gaps back
+			
+			double healOrtho = 0.0;
+			if (numCycle >= (clt_parameters.tiNumCycles -2)) {
+				healOrtho = clt_parameters.tiHealPreLast;
+					if (numCycle >= (clt_parameters.tiNumCycles -1)) {
+						healOrtho =clt_parameters.tiHealLast;
+					}
+			}
+			if (healOrtho > 0.0){
+				dp.reconnectDisparity( // connect disconnected tiles if they have close approximated disparity
+						healOrtho, // final double      maxDiffOrto,
+						0, // healOrtho*1.5, // final double      maxDiffDiagonal,
+						neighbors, // final int     []  neighbors, // +1 - up (N), +2 - up-right - NE, ... +0x80 - NW
+						new_disparity, // final double  []  disparity,          // current disparity value
+						these_tiles, // final boolean []  selected,
+						threadsMax,      // maximal number of threads to launch                         
+						debugLevel);
+
+			}
+			if (numCycle >= (clt_parameters.tiNumCycles -2)) { // only heal during last 2 passes?
+				if (clt_parameters.tiHealSame > 0){
+					int numHealed = dp. healSame( // returns number of new ortho connections
+							neighbors,
+							clt_parameters.tiHealSame , // int maxlen,
+							// just to fill in diagonals
+							these_tiles, // final boolean []  selected,        
+							threadsMax,                         
+							debugLevel);
+					if (debugLevel > -1){
+						System.out.println("Healed "+numHealed+" connections");
+					}
+				}
+			}			
 
 			neibs_broken[numCycle] = dp.dbgShowNeighbors(
 					these_tiles, // grown, // these_tiles,
@@ -1215,7 +1468,25 @@ public class TileProcessor {
 				clt_parameters.transform_size); // int    tile_size)
 		
 //		String [] titles0 = {"neib", "neib_broken", "stress", "stress1", "disp-measured", "disp-result","disp-result1"};
-		int numImages = 2 + 3*clt_parameters.tiNumCycles+2;
+		double [] dbg_far_near=new double[too_far.length];
+		for (int i = 0; i < dbg_far_near.length; i++){
+			if (!these_tiles[i])  dbg_far_near[i]= Double.NaN;
+			else if (too_far[i])  dbg_far_near[i]= -1.0;
+			else if (too_near[i]) dbg_far_near[i]= 1.0;
+			else                  dbg_far_near[i]= 0.0;
+		}
+		double [][] disp_diff = new double [3][disparity.length];
+		for (int i = 0; i< disparity.length; i++) {
+			if (this_strength[i] > 0.0) disp_diff[0][i] = this_disparity[i]-new_disparity[i];
+			else  disp_diff[0][i] = Double.NaN;
+			if (too_far[i])             disp_diff[1][i] = this_disparity[i]-new_disparity[i];
+			else  disp_diff[1][i] = Double.NaN;
+			if (too_near[i])            disp_diff[2][i] = this_disparity[i]-new_disparity[i];
+			else  disp_diff[2][i] = Double.NaN;
+		}
+		
+		
+		int numImages = 2 + 3*clt_parameters.tiNumCycles+2+3 + 3;
 		String [] titles_all = new String[numImages];
 		double [][] dbg_img = new double[numImages][];
 		int indx = 0;
@@ -1236,13 +1507,86 @@ public class TileProcessor {
 			titles_all[indx] = "disp_"+i;
 			dbg_img[indx++]= smooth_disparities[i];
 		}
+		titles_all[indx] = "far-/near+";
+		dbg_img[indx++] =  dp.dbgRescaleToPixels(
+				dbg_far_near,
+				clt_parameters.transform_size);
 //		double [][] dbg_img = {dbg_neib, dbg_neib_broken, stress, stress1, measured_disparity, smooth_disparity,smooth_disparity1};
 		
 //		sdfa_instance.showArrays(dbg_neib,tilesX*clt_parameters.transform_size, tilesY*clt_parameters.transform_size,"neighbors");
+		titles_all[indx] = "strength_orig";
+		dbg_img[indx++] =  dp.dbgRescaleToPixels(
+				true_strength,
+				clt_parameters.transform_size);
+		titles_all[indx] = "strength_mod";
+		dbg_img[indx++] =   dp.dbgRescaleToPixels(
+				this_strength,
+				clt_parameters.transform_size);
+		titles_all[indx] = "diff_this";
+		dbg_img[indx++] =   dp.dbgRescaleToPixels(
+				disp_diff[0],
+				clt_parameters.transform_size);
+		titles_all[indx] = "diff_far";
+		dbg_img[indx++] =   dp.dbgRescaleToPixels(
+				disp_diff[1],
+				clt_parameters.transform_size);
+		titles_all[indx] = "diff_near";
+		dbg_img[indx++] =   dp.dbgRescaleToPixels(
+				disp_diff[2],
+				clt_parameters.transform_size);
 		sdfa_instance.showArrays(dbg_img, tilesX*clt_parameters.transform_size, tilesY*clt_parameters.transform_size,
 				true, "neighbors", titles_all);
-		
+//disp_diff
 //************************************************
+// Show supertiles histograms
+		
+		if (clt_parameters.stShow){
+
+			double [][] disp_hist = dp.disparityHistograms(
+					this_disparity, // final double  [] disparity, // may have Double.NaN 
+					this_strength, // final double  [] strength,
+					null, // these_tiles,   // final boolean [] selected, // or null
+					clt_parameters.stSize,           // final int        supertile_size, // linear size of a super tile in tiles
+					clt_parameters.stStepDisparity,  // final double     step_disparity,
+					clt_parameters.stMinDisparity,   // final double     min_disparity,
+					clt_parameters.stMaxDisparity,   // final double     max_disparity,
+					clt_parameters.stFloor,          // final double     strength_floor,
+					clt_parameters.stPow,            // final double     strength_pow,
+					threadsMax,                      // maximal number of threads to launch                         
+					debugLevel);
+
+			double [][] blured_disp_hist = dp.blurDisparityHistogram(
+					disp_hist,              // final double [][] dispHist,
+					clt_parameters.stSigma, // final double      sigma,
+					threadsMax,      // maximal number of threads to launch                         
+					debugLevel);
+
+
+			final int stilesX = (tilesX + clt_parameters.stSize -1)/clt_parameters.stSize;
+			String [] dhist_titles = {"raw", "blurred"+clt_parameters.stSigma}; 
+
+			double [][] dbg_disp_hist = new double[dhist_titles.length][];
+
+			dbg_disp_hist[0] = dp.showDisparityHistogram(
+					disp_hist, // final double [][] dispHist,
+					stilesX,   // final int         sTilesX,    // number of supertiles in a row
+					0          // final int         sTileHeight0 // vertical pixels for each  histogram (excluding borders). if <= 0 make square cells
+					);
+			dbg_disp_hist[1] = dp.showDisparityHistogram(
+					blured_disp_hist, // final double [][] dispHist,
+					stilesX,   // final int         sTilesX,    // number of supertiles in a row
+					0          // final int         sTileHeight0 // vertical pixels for each  histogram (excluding borders). if <= 0 make square cells
+					);
+
+
+
+
+			final int hist_width =  stilesX * ((disp_hist[0].length - 1) + 1) + 1;
+			final int hist_height = dbg_disp_hist[0].length/hist_width;
+
+			sdfa_instance.showArrays(dbg_disp_hist, hist_width, hist_height, true, "disparity_histograms",dhist_titles);
+
+		}
 		int [][] flaps = dp.createOverlapGeometry(
 				neighbors,       // +1 - up (N), +2 - up-right - NE, ... +0x80 - NW
 				these_tiles,     // final boolean []  selected, // only inner?
@@ -1266,10 +1610,66 @@ public class TileProcessor {
 		sdfa_instance.showArrays(dbg_flaps_all, tilesX*clt_parameters.transform_size, tilesY*clt_parameters.transform_size,
 				true, "flaps-dirs", titleFlaps);
 		
+		int [][][] clustersNO= dp.extractNonOlerlap(
+				true, // diag_en,
+				neighbors, // +1 - up (N), +2 - up-right - NE, ... +0x80 - NW
+				these_tiles, // final boolean []  selected, // only inner?
+				border,          // border should be diagonal!
+				threadsMax,      // maximal number of threads to launch                         
+				debugLevel);
 		
+		int dbg_max_cluster_show = 50;
+		if (dbg_max_cluster_show > clustersNO.length) dbg_max_cluster_show = clustersNO.length;
+
+		double [][] dbg_clusters_show = new double [titleFlaps.length+dbg_max_cluster_show][neighbors.length];
+		for (int i = 0; i < neighbors.length; i++){
+			dbg_clusters_show[0][i] = neighbors[i];
+			for (int j = 0; j < 8; j++){
+				if (flaps[i] != null) dbg_clusters_show[1+j][i] = flaps[i][j];
+			}
+		}
 		
+//		String [] titleFlaps = {"neib","N","NE","E","SE","S","SW","W","NW"};
+		String [] titleClusters = new String [titleFlaps.length+dbg_max_cluster_show];
+//		int indxClust = 0;
+		for (int i = 0; i < titleFlaps.length; i++){
+			titleClusters[i] = titleFlaps[i];
+		}
 		
-		int numScans =  createTileTasks(
+		for (int i = 0; i < dbg_max_cluster_show; i++){
+			titleClusters[titleFlaps.length+i] = "C"+i;
+		}
+		for (int nClust = 0; nClust <dbg_max_cluster_show; nClust++){
+			for (int i = 0; i < clustersNO[nClust][0].length; i++){
+				dbg_clusters_show[nClust + 9][clustersNO[nClust][0][i]] += 32.0; // 1.0;
+			}
+			for (int i = 0; i < clustersNO[nClust][1].length; i++){
+				dbg_clusters_show[nClust + 9][clustersNO[nClust][1][i]] += 64.0; // 2.0;
+			}
+			for (int i = 0; i < clustersNO[nClust][2].length; i++){
+				dbg_clusters_show[nClust + 9][clustersNO[nClust][2][i]] += 128.0;// 4.0;
+			}
+		}
+		sdfa_instance.showArrays(dbg_clusters_show, tilesX, tilesY, true, "first "+dbg_max_cluster_show+" clusters",titleClusters);
+		
+		int numScans= 0;
+		
+		if (clt_parameters.shUseFlaps) {
+			numScans =  createTileOverlapTasks(
+					50,                                           // int       maxClusters,
+					clt_parameters.shMinArea,                     // int       minClusterArea,
+					new_disparity,                                // [] disparity_in, masked ok too
+					this_strength,  // double [] strength_in,
+					Math.pow(10.0,  -clt_parameters.tiPrecision), // double      maxChange,   // adjust border disparity until change is below this.
+					clt_parameters.shMinStrength,                 // double    minStrength,
+					clustersNO,                                   // int []    clusters_in,
+					disparity_far,
+					disparity_near,
+					debugLevel);
+			
+		} else {
+		
+		numScans =  createTileTasks(
 				50, // int       maxClusters,
 				0,  // int       minClusterArea,
 				new_disparity, // this_disparity, //  [] disparity_in, masked ok too
@@ -1279,6 +1679,8 @@ public class TileProcessor {
 				disparity_far,
 				disparity_near,
 				debugLevel);
+		}
+		
 		if (debugLevel > -1){
 			System.out.println("secondPassSetup(): created "+ numScans+ " FPGA passes.");
 		}
