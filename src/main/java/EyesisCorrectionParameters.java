@@ -2046,6 +2046,7 @@ public class EyesisCorrectionParameters {
   		public double     maxDispTriangle   = 0.2;    // Maximal disparity difference in a triangle face to show
   		
   		public boolean    shUseFlaps        = true;  // Split into shells with flaps
+  		public boolean    shAggrFade        = true;  // Aggressive fade alpha (whole boundary)
   		public int        shMinArea         = 1;     // Minimal shell area (not counting flaps
   		public double     shMinStrength    = 0.2;   // Minimal value of the shell maximum strength
 
@@ -2212,6 +2213,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"maxDispTriangle",  this.maxDispTriangle +"");
 			
 			properties.setProperty(prefix+"shUseFlaps",       this.shUseFlaps+"");
+			properties.setProperty(prefix+"shAggrFade",       this.shAggrFade+"");
   			properties.setProperty(prefix+"shMinArea",        this.shMinArea+"");
 			properties.setProperty(prefix+"shMinStrength",   this.shMinStrength +"");
 
@@ -2371,6 +2373,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"maxDispTriangle")!=null)   this.maxDispTriangle=Double.parseDouble(properties.getProperty(prefix+"maxDispTriangle"));
   			
   			if (properties.getProperty(prefix+"shUseFlaps")!=null)        this.shUseFlaps=Boolean.parseBoolean(properties.getProperty(prefix+"shUseFlaps"));
+  			if (properties.getProperty(prefix+"shAggrFade")!=null)        this.shAggrFade=Boolean.parseBoolean(properties.getProperty(prefix+"shAggrFade"));
   			if (properties.getProperty(prefix+"shMinArea")!=null)         this.shMinArea=Integer.parseInt(properties.getProperty(prefix+"shMinArea"));
   			if (properties.getProperty(prefix+"shMinStrength")!=null)    this.shMinStrength=Double.parseDouble(properties.getProperty(prefix+"shMinStrength"));
 
@@ -2545,6 +2548,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal disparity difference in a triangle face to show",                      this.maxDispTriangle,  6);
 
   			gd.addCheckbox    ("Split into shells with flaps",                                                 this.shUseFlaps);
+  			gd.addCheckbox    ("Aggressive fade alpha (whole boundary)",                                       this.shAggrFade);
   			gd.addNumericField("Minimal shell area (not counting flaps",                                       this.shMinArea,   0);
   			gd.addNumericField("Minimal value of the shell maximum strength",                                  this.shMinStrength,  6);
 
@@ -2713,6 +2717,7 @@ public class EyesisCorrectionParameters {
   			this.maxDispTriangle=       gd.getNextNumber();
 
   			this.shUseFlaps=            gd.getNextBoolean();
+  			this.shAggrFade=            gd.getNextBoolean();
   			this.shMinArea=       (int) gd.getNextNumber();
   			this.shMinStrength=        gd.getNextNumber();
 

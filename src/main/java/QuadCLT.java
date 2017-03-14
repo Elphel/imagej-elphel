@@ -5060,15 +5060,21 @@ public class QuadCLT {
 			  boolean    updateStatus,
 			  int        debugLevel)
 	  {
-//		  showDoubleFloatArrays sdfa_instance = null;
+		  showDoubleFloatArrays sdfa_instance = null;
 //    	  if (clt_parameters.debug_filters && (debugLevel > -1)) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?		  
+    	  if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?		  
 		  TileProcessor.CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
 		  boolean [] borderTiles = scan.border_tiles;
 		  double [][][][] texture_tiles = scan.texture_tiles;
 //		  boolean [] selected = scan.getAllSelected(); // all selected, including border
 		  scan.updateSelection(); // update .selected field (all selected, including border) and Rectangle bounds
 //		  scan.selected = selected; // selected for background w/o extra transparent layer
-		  
+		  double [][]alphaFade = tp.getAlphaFade(clt_parameters.transform_size);
+		  if ((debugLevel > 0) && (scanIndex == 1)) {
+			  String [] titles = new String[16];
+			  for (int i = 0; i<titles.length;i++)  titles[i]=""+i;
+			  sdfa_instance.showArrays(alphaFade, 2*clt_parameters.transform_size,2*clt_parameters.transform_size,true,"alphaFade",titles);
+		  }
 		  double [][][][] texture_tiles_cluster = new double[tp.tilesY][tp.tilesX][][];
 		  double [] alpha_zero = new double [4*clt_parameters.transform_size*clt_parameters.transform_size];
 		  int alpha_index = 3;
@@ -5079,7 +5085,19 @@ public class QuadCLT {
 				  if (texture_tiles[tileY][tileX] != null) {
 					  if (borderTiles[tileY * tp.tilesX + tileX]) {
 						  texture_tiles_cluster[tileY][tileX]= texture_tiles[tileY][tileX].clone();
-						  texture_tiles_cluster[tileY][tileX][alpha_index] = alpha_zero;
+						  if (clt_parameters.shAggrFade) {
+							  texture_tiles_cluster[tileY][tileX][alpha_index] = alpha_zero;
+						  } else {
+							  if ((debugLevel > -1) && (scanIndex == 1)) {
+								  System.out.println("getPassImage(): tileY="+tileY+", tileX = "+tileX+", tileY="+tileY);
+							  }
+							  int fade_mode=0;
+							  if ((tileY > 0) &&              (texture_tiles[tileY - 1][tileX] != null) && !borderTiles[(tileY - 1) * tp.tilesX + tileX]) fade_mode |= 1;
+							  if ((tileX < (tp.tilesX -1)) && (texture_tiles[tileY][tileX + 1] != null) && !borderTiles[tileY * tp.tilesX + tileX + 1])   fade_mode |= 2;
+							  if ((tileY < (tp.tilesY -1)) && (texture_tiles[tileY + 1][tileX] != null) && !borderTiles[(tileY + 1) * tp.tilesX + tileX]) fade_mode |= 4;
+							  if ((tileX > 0) &&              (texture_tiles[tileY][tileX - 1] != null) && !borderTiles[tileY * tp.tilesX + tileX - 1])   fade_mode |= 8;
+							  texture_tiles_cluster[tileY][tileX][alpha_index] = alphaFade[fade_mode]; // alpha_zero;
+						  }
 					  }else{
 						  texture_tiles_cluster[tileY][tileX]= texture_tiles[tileY][tileX];
 					  }

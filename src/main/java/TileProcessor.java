@@ -46,6 +46,7 @@ public class TileProcessor {
 		public double [][][][] texture_tiles;
 		public String          texture = null; // relative (to x3d) path
 		public Rectangle       bounds;
+		public int             dbg_index;
 		public void            updateSelection(){ // add updating border tiles?
 			selected = new boolean[tilesY*tilesX];
 			int minX = tilesX, minY = tilesY, maxX = -1, maxY = -1;
@@ -239,8 +240,8 @@ public class TileProcessor {
 			int       debugLevel)
 	{
 		final int maxrep=1000;
-//		showDoubleFloatArrays sdfa_instance = null;
-//		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		showDoubleFloatArrays sdfa_instance = null;
+		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 		int tilesX2 = tilesX + 2;
 		int tilesY2 = tilesY + 2;
 		int tlen2 = tilesX2*tilesY2;
@@ -269,7 +270,8 @@ public class TileProcessor {
 		boolean [] border =    new boolean [tlen2]; 
 		boolean [] fixed =     new boolean [tlen2];
 		boolean [] none4 =     new boolean [tlen2];
-		for (int ncl = 0; (maxClusters == 0) || (numClusters < maxClusters); ncl++){ // need to break;
+		int startPass = clt_3d_passes.size();
+		for (int ncl = 0; (ncl < overlap_clusters.length) && ((maxClusters == 0) || (numClusters < maxClusters)); ncl++){ // need to break;
 			if (overlap_clusters[ncl][0].length < minClusterArea) {
 				if (debugLevel > -1) {
 					System.out.println("createTileOverlapTasks(): skipping small cluster "+ncl+", internal area "+(overlap_clusters[ncl][0].length)+" < "+minClusterArea);
@@ -367,11 +369,13 @@ public class TileProcessor {
 			}
 			
 			// Create FPGA task for this cluster
+//		public int             dbg_index;
 
 			CLTPass3d scan_next = new CLTPass3d();
 			scan_next.disparity =     disparityTask;
 			scan_next.tile_op =       tile_op;
 			scan_next.border_tiles =  borderTiles;
+			scan_next.dbg_index =     ncl; // matching overlapClusters[] 
 			clt_3d_passes.add(scan_next);
 
 			if (debugLevel > -1) {
@@ -385,9 +389,99 @@ public class TileProcessor {
 		if (debugLevel > -1) {
 			System.out.println("createTileOverlapTasks(): prepared "+numClusters+" clusters");
 		}
+		if (debugLevel > -1) {
+			double [][] dbg_shells = new double [clt_3d_passes.size() - startPass][tilesY*tilesX+1];
+			double ampl = dbg_shells.length;
+			for (int ns = 1; ns < dbg_shells.length; ns++) {
+				CLTPass3d dbg_scan = clt_3d_passes.get(ns -1 + startPass);
+				for (int ty = 0; ty < tilesY; ty++){
+					for (int tx = 0; tx < tilesX; tx++){
+						int indx = ty*tilesX + tx;
+						if (dbg_scan.tile_op[ty][tx] !=0){
+							if (dbg_scan.border_tiles[indx]) {
+								dbg_shells[ns][indx] = 0.5*ampl;
+							} else {
+								dbg_shells[ns][indx] = 1.0*ampl;
+								dbg_shells[ 0][indx] = ns;
+							}
+						}
+					}
+				}
+			}
+			String [] titles = new String[dbg_shells.length];
+			titles[0] = "index";
+			for (int i = 1; i <titles.length; i++) titles[i] = "shell "+i;
+			sdfa_instance.showArrays(dbg_shells, tilesX, tilesY, true, "shells",titles);
+		}
+
 		return numClusters;  
 	}
-
+/**
+ * Return fade alpha for the border. First index of the array (0..15) is a bitmask (1 - N, 2 - E, 4 - S, 8 - W) of a solid
+ * (non-border) tiles around this border ones
+ * Solid tiles on 2 opposite sides return alpha = 1.0;
+ * Solid on 2 corner ones - a "roof" - use maximum of 2
+ * Solid on 1 side - 0.5 * (cosine + 1.0)
+ * @param transform_size
+ * @return
+ */
+	public double [][] getAlphaFade(
+			int transform_size)
+	{
+		int ts2 = 2 * transform_size;
+		int ts2m1 = ts2-1;
+		double [][] alphaFade = new double[16][ts2*ts2];
+		double [] fade1d = new double [ts2];
+		for (int i = 0; i <  ts2; i++){
+			fade1d[i] = 0.5 * (1.0 - Math.cos(Math.PI * (i +0.5) /ts2));
+		}
+		for (int i = 0; i < ts2; i++){
+			for (int j = 0; j < ts2; j++){
+				int indx = i * ts2 + j;
+				for (int m = 0; m < 16; m++){
+					switch (m){
+					case  1:
+						alphaFade[m][indx] = fade1d[ts2m1 - i];
+						break;
+					case  2:
+						alphaFade[m][indx] = fade1d[j];
+						break;
+					case  4:
+						alphaFade[m][indx] = fade1d[i];
+						break;
+					case  8:
+						alphaFade[m][indx] = fade1d[ts2m1 - j];
+						break;
+					case  3:
+						alphaFade[m][indx] = (j > ts2m1 - i) ? fade1d[j]: fade1d[ts2m1 - i];
+						break;
+					case  6:
+						alphaFade[m][indx] = (j > i) ?         fade1d[j]: fade1d[i];
+						break;
+					case  9:
+						alphaFade[m][indx] = (j > i) ?         fade1d[ts2m1 - i]: fade1d[ts2m1 - j];
+						break;
+					case  12:
+						alphaFade[m][indx] = (i > ts2m1 - j) ? fade1d[i]: fade1d[ts2m1 - j];
+						break;
+					case  5:
+					case  7:
+					case 10:
+					case 11:
+					case 13:
+					case 14:
+					case 15:
+						alphaFade[m][indx] = 1.0;
+						break;
+// 0 is impossible, let alpha b0 0 then						
+					}
+				}
+				
+			}
+		}
+		return alphaFade;
+	}
+	
 	
 
 	public int createTileTasks(
@@ -1656,7 +1750,7 @@ public class TileProcessor {
 		
 		if (clt_parameters.shUseFlaps) {
 			numScans =  createTileOverlapTasks(
-					50,                                           // int       maxClusters,
+					clt_parameters.max_clusters, // 50,                                           // int       maxClusters,
 					clt_parameters.shMinArea,                     // int       minClusterArea,
 					new_disparity,                                // [] disparity_in, masked ok too
 					this_strength,  // double [] strength_in,
