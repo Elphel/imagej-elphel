@@ -52,15 +52,20 @@ public class QuadCLT {
 	
 	TileProcessor                                          tp = null;
 	
-	public void setTilesXY(int tilesX, int tilesY){
-		if (tp == null){
-			tp = new TileProcessor(tilesX, tilesY);
-		}
-	}
+// magic scale should be set before using  TileProcessor (calculated disparities depend on it)
+
 	public void setTiles (ImagePlus imp, // set tp.tilesX, tp.tilesY
-			EyesisCorrectionParameters.CLTParameters    clt_parameters
+			EyesisCorrectionParameters.CLTParameters    clt_parameters,
+			int threadsMax
 			){
-		setTilesXY(imp.getWidth()/clt_parameters.transform_size, imp.getHeight()/clt_parameters.transform_size);
+		if (tp == null){
+			tp = new TileProcessor(imp.getWidth()/clt_parameters.transform_size,
+					imp.getHeight()/clt_parameters.transform_size,
+					clt_parameters.transform_size,
+					clt_parameters.stSize,
+					clt_parameters.corr_magic_scale,
+					threadsMax);
+		}  
 	}
 	
 	public QuadCLT(
@@ -3171,11 +3176,9 @@ public class QuadCLT {
 			  }
 		  }
 
-//		  tp.tilesY = imp_quad[0].getHeight()/clt_parameters.transform_size;
-//		  tp.tilesX = imp_quad[0].getWidth()/clt_parameters.transform_size;
-//		  setTilesXY(imp_quad[0].getWidth()/clt_parameters.transform_size, imp_quad[0].getHeight()/clt_parameters.transform_size);
 		  setTiles (imp_quad[0], // set global tp.tilesX, tp.tilesY
-				  clt_parameters );
+				  clt_parameters,
+				  threadsMax);
 		  
 		  
 		  // temporary setting up tile task file (one integer per tile, bitmask
@@ -3191,12 +3194,15 @@ public class QuadCLT {
 		  double [][]         clt_mismatch =     null; // [3*4][tp.tilesY * tp.tilesX] // transpose unapplied
 		  double [][][][]     texture_tiles =    null; // [tp.tilesY][tp.tilesX]["RGBA".length()][]; // tiles will be 16x16, 2 visualizaion mode full 16 or overlapped
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
+		  
 		  if (clt_parameters.correlate){
 			  //			  clt_corr_combo =    new double [2][tp.tilesY][tp.tilesX][];
-			  clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tp.tilesY][tp.tilesX][];
-			  texture_tiles =     new double [tp.tilesY][tp.tilesX][][]; // ["RGBA".length()][];
-			  for (int i = 0; i < tp.tilesY; i++){
-				  for (int j = 0; j < tp.tilesX; j++){
+			  clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][];
+			  texture_tiles =     new double [tilesY][tilesX][][]; // ["RGBA".length()][];
+			  for (int i = 0; i < tilesY; i++){
+				  for (int j = 0; j < tilesX; j++){
 					  for (int k = 0; k<clt_corr_combo.length; k++){
 						  clt_corr_combo[k][i][j] = null;
 					  }
@@ -3205,9 +3211,9 @@ public class QuadCLT {
 				  }
 			  }
 			  if (clt_parameters.corr_keep){
-				  clt_corr_partial = new double [tp.tilesY][tp.tilesX][][][];
-				  for (int i = 0; i < tp.tilesY; i++){
-					  for (int j = 0; j < tp.tilesX; j++){
+				  clt_corr_partial = new double [tilesY][tilesX][][][];
+				  for (int i = 0; i < tilesY; i++){
+					  for (int j = 0; j < tilesX; j++){
 						  clt_corr_partial[i][j] = null;
 					  }
 				  }
@@ -3301,8 +3307,8 @@ public class QuadCLT {
 						  debugLevel);
 				  sdfa_instance.showArrays(
 						  texture_nonoverlap,
-						  tp.tilesX * (2 * clt_parameters.transform_size),
-						  tp.tilesY * (2 * clt_parameters.transform_size),
+						  tilesX * (2 * clt_parameters.transform_size),
+						  tilesY * (2 * clt_parameters.transform_size),
 						  true,
 						  name + "-TXTNOL-D"+clt_parameters.disparity,
 						  (clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
@@ -3331,8 +3337,8 @@ public class QuadCLT {
 				  if (clt_parameters.show_overlap) {
 					  sdfa_instance.showArrays(
 							  texture_overlap,
-							  tp.tilesX * clt_parameters.transform_size,
-							  tp.tilesY * clt_parameters.transform_size,
+							  tilesX * clt_parameters.transform_size,
+							  tilesY * clt_parameters.transform_size,
 							  true,
 							  name + "-TXTOL-D"+clt_parameters.disparity,
 							  (clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
@@ -3353,8 +3359,8 @@ public class QuadCLT {
 							  true, // boolean saveShowIntermediate, // save/show if set globally
 							  true, // boolean saveShowFinal,        // save/show result (color image?)
 							  ((clt_parameters.alpha1 > 0)? texture_rgba: texture_rgb),
-							  tp.tilesX *  clt_parameters.transform_size,
-							  tp.tilesY *  clt_parameters.transform_size,
+							  tilesX *  clt_parameters.transform_size,
+							  tilesY *  clt_parameters.transform_size,
 							  1.0,         // double scaleExposure, // is it needed?
 							  debugLevel );
 				  }
@@ -3366,8 +3372,8 @@ public class QuadCLT {
 				  if (clt_parameters.show_map){
 					  sdfa_instance.showArrays(
 							  disparity_map,
-							  tp.tilesX,
-							  tp.tilesY,
+							  tilesX,
+							  tilesY,
 							  true,
 							  name+"-DISP_MAP-D"+clt_parameters.disparity,
 							  ImageDtt.DISPARITY_TITLES);
@@ -3379,8 +3385,8 @@ public class QuadCLT {
 					  String [] disparity_titles = {"dx0", "dy0","strength0","dx1", "dy1","strength1","dx2", "dy2","strength2","dx3", "dy3","strength3"};
 					  sdfa_instance.showArrays(
 							  clt_mismatch,
-							  tp.tilesX,
-							  tp.tilesY,
+							  tilesX,
+							  tilesY,
 							  true,
 							  name+"-MISMATCH_XYW-D"+clt_parameters.disparity,
 							  disparity_titles);
@@ -3391,7 +3397,7 @@ public class QuadCLT {
 							  clt_parameters,
 							  disparity_map,
 							  clt_mismatch,
-							  tp.tilesX,
+							  tilesX,
 							  clt_parameters.corr_magic_scale, // stil not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
 							  debugLevel); // int debugLevel)
 					  apply_fine_corr(
@@ -3416,8 +3422,8 @@ public class QuadCLT {
 
 				  sdfa_instance.showArrays(
 						  corr_rslt,
-						  tp.tilesX*(2*clt_parameters.transform_size),
-						  tp.tilesY*(2*clt_parameters.transform_size),
+						  tilesX*(2*clt_parameters.transform_size),
+						  tilesY*(2*clt_parameters.transform_size),
 						  true,
 						  name + "-CORR-D"+clt_parameters.disparity,
 						  titles );
@@ -3440,8 +3446,8 @@ public class QuadCLT {
 							  debugLevel);
 					  sdfa_instance.showArrays(
 							  corr_rslt_partial,
-							  tp.tilesX*(2*clt_parameters.transform_size),
-							  tp.tilesY*(2*clt_parameters.transform_size),
+							  tilesX*(2*clt_parameters.transform_size),
+							  tilesY*(2*clt_parameters.transform_size),
 							  true,
 							  name+"-PART_CORR-D"+clt_parameters.disparity,
 							  titles);
@@ -3470,8 +3476,8 @@ public class QuadCLT {
 				  //			  int tp.tilesY = imp_quad[iQuad].getHeight()/clt_parameters.transform_size;
 				  //			  int tp.tilesX = imp_quad[iQuad].getWidth()/clt_parameters.transform_size;
 				  if (debugLevel > 0){
-					  System.out.println("--tp.tilesX="+tp.tilesX);
-					  System.out.println("--tp.tilesY="+tp.tilesY);
+					  System.out.println("--tilesX="+tilesX);
+					  System.out.println("--tilesY="+tilesY);
 				  }
 				  if (debugLevel > 0){
 					  double [][] clt = new double [clt_data[iQuad].length*4][];
@@ -3485,8 +3491,8 @@ public class QuadCLT {
 
 					  if (debugLevel > 0){
 						  sdfa_instance.showArrays(clt,
-								  tp.tilesX*clt_parameters.transform_size,
-								  tp.tilesY*clt_parameters.transform_size,
+								  tilesX*clt_parameters.transform_size,
+								  tilesY*clt_parameters.transform_size,
 								  true,
 								  results[iQuad].getTitle()+"-CLT-D"+clt_parameters.disparity);  
 					  }
@@ -3505,8 +3511,8 @@ public class QuadCLT {
 				  }
 
 				  if (clt_parameters.gen_chn_stacks) sdfa_instance.showArrays(iclt_data, 
-						  (tp.tilesX + 0) * clt_parameters.transform_size,
-						  (tp.tilesY + 0) * clt_parameters.transform_size,
+						  (tilesX + 0) * clt_parameters.transform_size,
+						  (tilesY + 0) * clt_parameters.transform_size,
 						  true,
 						  results[iQuad].getTitle()+"-ICLT-RGB-D"+clt_parameters.disparity);
 				  if (!clt_parameters.gen_chn_img) continue;
@@ -3522,8 +3528,8 @@ public class QuadCLT {
 						  true, // boolean saveShowIntermediate, // save/show if set globally
 						  false, // boolean saveShowFinal,        // save/show result (color image?)
 						  iclt_data,
-						  tp.tilesX *  clt_parameters.transform_size,
-						  tp.tilesY *  clt_parameters.transform_size,
+						  tilesX *  clt_parameters.transform_size,
+						  tilesY *  clt_parameters.transform_size,
 						  scaleExposures[iQuad], // double scaleExposure, // is it needed?
 						  debugLevel );
 				  
@@ -4235,12 +4241,12 @@ public class QuadCLT {
 			  }
 		  }
 		  
-//		  setTilesXY(imp_quad[0].getWidth()/clt_parameters.transform_size, imp_quad[0].getHeight()/clt_parameters.transform_size);
 		  setTiles (imp_quad[0], // set global tp.tilesX, tp.tilesY
-				  clt_parameters );
+				  clt_parameters,
+				  threadsMax);
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
 		  
-//		  tp.tilesY = imp_quad[0].getHeight()/clt_parameters.transform_size;
-//		  tp.tilesX = imp_quad[0].getWidth()/clt_parameters.transform_size;
 		  // temporary setting up tile task file (one integer per tile, bitmask
 		  // for testing defined for a window, later the tiles to process will be calculated based on previous passes results
 		  int [][]    tile_op = tp.setSameTileOp(clt_parameters,  clt_parameters.tile_task_op, debugLevel);
@@ -4248,9 +4254,7 @@ public class QuadCLT {
 		  //TODO: Add array of default disparity - use for combining images in force disparity mode (no correlation), when disparity is predicted from other tiles
 
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
-//		  double [][][][]     clt_corr_combo =    new double [2][tp.tilesY][tp.tilesX][]; // will only be used inside?
-		  double [][][][]     clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tp.tilesY][tp.tilesX][]; // will only be used inside?
-//		  double min_corr_selected = clt_parameters.corr_normalize? clt_parameters.min_corr_normalized: clt_parameters.min_corr;
+		  double [][][][]     clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][]; // will only be used inside?
 		  double min_corr_selected = clt_parameters.min_corr;
 		  
 		  double [][][] disparity_maps = new double [clt_parameters.disp_scan_count][ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
@@ -4341,8 +4345,8 @@ public class QuadCLT {
 		  
 		  ImageStack array_stack = sdfa_instance.makeStack(
 				  disparities_maps,
-				  tp.tilesX,
-				  tp.tilesY,
+				  tilesX,
+				  tilesY,
 				  disparities_titles);
 			  		  
 		  ImagePlus imp_stack = new ImagePlus( name+"-DISP_MAPS", array_stack);
@@ -4361,8 +4365,8 @@ public class QuadCLT {
 
 		  ImageStack trends_stack = sdfa_instance.makeStack(
 				  scan_trends,
-				  tp.tilesX,
-				  tp.tilesY,
+				  tilesX,
+				  tilesY,
 				  trend_titles);
 		  ImagePlus imp_stack_trends = new ImagePlus( name+"-DISP_TRENDS", trends_stack);
 		  imp_stack_trends.getProcessor().resetMinAndMax();
@@ -4691,7 +4695,9 @@ public class QuadCLT {
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  final int        threadsMax,  // maximal number of threads to launch                         
 			  final boolean    updateStatus,
-			  final int        debugLevel){
+			  final int        debugLevel)
+	  {
+		  
 		  String name = (String) imp_quad[0].getProperty("name");
 		  double [][][] image_data = new double [imp_quad.length][][];
 		  for (int i = 0; i < image_data.length; i++){
@@ -4705,8 +4711,11 @@ public class QuadCLT {
 			  }
 		  }
 		  setTiles (imp_quad[0], // set global tp.tilesX, tp.tilesY
-				  clt_parameters );
+				  clt_parameters,
+				  threadsMax);
 		  tp.resetCLTPasses();
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
 		  
 		  
 		  TileProcessor.CLTPass3d bgnd_data = CLTBackgroundMeas( // measure background
@@ -4790,9 +4799,9 @@ public class QuadCLT {
 			  TileProcessor.CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
 			  
 			  // TODO: use new updated disparity, for now just what was forced for the picture
-			  double [] scan_disparity = new double [tp.tilesX * tp.tilesY];
+			  double [] scan_disparity = new double [tilesX * tilesY];
 			  int indx = 0;
-			  for (int ty = 0; ty < tp.tilesY; ty ++) for (int tx = 0; tx < tp.tilesX; tx ++){
+			  for (int ty = 0; ty < tilesY; ty ++) for (int tx = 0; tx < tilesX; tx ++){
 				  scan_disparity[indx++] = scan.disparity[ty][tx];
 			  }
 			  if (clt_parameters.avg_cluster_disp){
@@ -4918,6 +4927,8 @@ public class QuadCLT {
 			  int        debugLevel
 			  )
 	  {
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
 		  showDoubleFloatArrays sdfa_instance = null;
 		  
 		  if (clt_parameters.debug_filters && (debugLevel > -1)) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
@@ -4948,28 +4959,28 @@ public class QuadCLT {
 		  bgnd_data.selected = bgnd_tiles_grown; // selected for background w/o extra transparent layer
 		  
 		  if (sdfa_instance!=null){
-			  double [][] dbg_img = new double[3][tp.tilesY * tp.tilesX];
+			  double [][] dbg_img = new double[3][tilesY * tilesX];
 			  String [] titles = {"strict","grown","more_grown"};
 			  for (int i = 0; i<dbg_img[0].length;i++){
 				  dbg_img[0][i] = bgnd_strict[i]?1:0;
 				  dbg_img[1][i] =  bgnd_tiles_grown[i]?1:0;
 				  dbg_img[2][i] =  bgnd_tiles[i]?1:0;
 			  }
-			sdfa_instance.showArrays(dbg_img,  tp.tilesX, tp.tilesY, true, "strict_grown",titles);
+			sdfa_instance.showArrays(dbg_img,  tilesX, tilesY, true, "strict_grown",titles);
 		  }
 		  
 		  
 		  
-		  double [][][][] texture_tiles_bgnd = new double[tp.tilesY][tp.tilesX][][];
+		  double [][][][] texture_tiles_bgnd = new double[tilesY][tilesX][][];
 		  double [] alpha_zero = new double [4*clt_parameters.transform_size*clt_parameters.transform_size];
 		  int alpha_index = 3;
 		  for (int i = 0; i < alpha_zero.length; i++) alpha_zero[i]=0.0;
-		  for (int tileY = 0; tileY < tp.tilesY; tileY++){
-			  for (int tileX = 0; tileX < tp.tilesX; tileX++){
+		  for (int tileY = 0; tileY < tilesY; tileY++){
+			  for (int tileX = 0; tileX < tilesX; tileX++){
 				  texture_tiles_bgnd[tileY][tileX]= null;
 				  if ((texture_tiles[tileY][tileX] != null) &&
-						  bgnd_tiles[tileY * tp.tilesX + tileX]) {
-					  if (bgnd_tiles_grown[tileY * tp.tilesX + tileX]) {
+						  bgnd_tiles[tileY * tilesX + tileX]) {
+					  if (bgnd_tiles_grown[tileY * tilesX + tileX]) {
 						  texture_tiles_bgnd[tileY][tileX]= texture_tiles[tileY][tileX];
 					  }else{
 						  texture_tiles_bgnd[tileY][tileX]= texture_tiles[tileY][tileX].clone();
@@ -5015,8 +5026,8 @@ public class QuadCLT {
 				  true, // boolean saveShowIntermediate, // save/show if set globally
 				  false, //true, // boolean saveShowFinal,        // save/show result (color image?)
 				  ((clt_parameters.alpha1 > 0)? texture_rgba: texture_rgb),
-				  tp.tilesX *  clt_parameters.transform_size,
-				  tp.tilesY *  clt_parameters.transform_size,
+				  tilesX *  clt_parameters.transform_size,
+				  tilesY *  clt_parameters.transform_size,
 				  1.0,         // double scaleExposure, // is it needed?
 				  debugLevel);
 		  // resize for backdrop here!
@@ -5060,30 +5071,31 @@ public class QuadCLT {
 			  boolean    updateStatus,
 			  int        debugLevel)
 	  {
+		 final int tilesX = tp.getTilesX();
+		 final int tilesY = tp.getTilesY();
+		 
 		  showDoubleFloatArrays sdfa_instance = null;
 //    	  if (clt_parameters.debug_filters && (debugLevel > -1)) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?		  
     	  if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?		  
 		  TileProcessor.CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
 		  boolean [] borderTiles = scan.border_tiles;
 		  double [][][][] texture_tiles = scan.texture_tiles;
-//		  boolean [] selected = scan.getAllSelected(); // all selected, including border
 		  scan.updateSelection(); // update .selected field (all selected, including border) and Rectangle bounds
-//		  scan.selected = selected; // selected for background w/o extra transparent layer
 		  double [][]alphaFade = tp.getAlphaFade(clt_parameters.transform_size);
 		  if ((debugLevel > 0) && (scanIndex == 1)) {
 			  String [] titles = new String[16];
 			  for (int i = 0; i<titles.length;i++)  titles[i]=""+i;
 			  sdfa_instance.showArrays(alphaFade, 2*clt_parameters.transform_size,2*clt_parameters.transform_size,true,"alphaFade",titles);
 		  }
-		  double [][][][] texture_tiles_cluster = new double[tp.tilesY][tp.tilesX][][];
+		  double [][][][] texture_tiles_cluster = new double[tilesY][tilesX][][];
 		  double [] alpha_zero = new double [4*clt_parameters.transform_size*clt_parameters.transform_size];
 		  int alpha_index = 3;
 		  for (int i = 0; i < alpha_zero.length; i++) alpha_zero[i]=0.0;
-		  for (int tileY = 0; tileY < tp.tilesY; tileY++){
-			  for (int tileX = 0; tileX < tp.tilesX; tileX++){
+		  for (int tileY = 0; tileY < tilesY; tileY++){
+			  for (int tileX = 0; tileX < tilesX; tileX++){
 				  texture_tiles_cluster[tileY][tileX]= null;
 				  if (texture_tiles[tileY][tileX] != null) {
-					  if (borderTiles[tileY * tp.tilesX + tileX]) {
+					  if (borderTiles[tileY * tilesX + tileX]) {
 						  texture_tiles_cluster[tileY][tileX]= texture_tiles[tileY][tileX].clone();
 						  if (clt_parameters.shAggrFade) {
 							  texture_tiles_cluster[tileY][tileX][alpha_index] = alpha_zero;
@@ -5092,10 +5104,10 @@ public class QuadCLT {
 								  System.out.println("getPassImage(): tileY="+tileY+", tileX = "+tileX+", tileY="+tileY);
 							  }
 							  int fade_mode=0;
-							  if ((tileY > 0) &&              (texture_tiles[tileY - 1][tileX] != null) && !borderTiles[(tileY - 1) * tp.tilesX + tileX]) fade_mode |= 1;
-							  if ((tileX < (tp.tilesX -1)) && (texture_tiles[tileY][tileX + 1] != null) && !borderTiles[tileY * tp.tilesX + tileX + 1])   fade_mode |= 2;
-							  if ((tileY < (tp.tilesY -1)) && (texture_tiles[tileY + 1][tileX] != null) && !borderTiles[(tileY + 1) * tp.tilesX + tileX]) fade_mode |= 4;
-							  if ((tileX > 0) &&              (texture_tiles[tileY][tileX - 1] != null) && !borderTiles[tileY * tp.tilesX + tileX - 1])   fade_mode |= 8;
+							  if ((tileY > 0) &&              (texture_tiles[tileY - 1][tileX] != null) && !borderTiles[(tileY - 1) * tilesX + tileX]) fade_mode |= 1;
+							  if ((tileX < (tilesX -1)) && (texture_tiles[tileY][tileX + 1] != null) && !borderTiles[tileY * tilesX + tileX + 1])   fade_mode |= 2;
+							  if ((tileY < (tilesY -1)) && (texture_tiles[tileY + 1][tileX] != null) && !borderTiles[(tileY + 1) * tilesX + tileX]) fade_mode |= 4;
+							  if ((tileX > 0) &&              (texture_tiles[tileY][tileX - 1] != null) && !borderTiles[tileY * tilesX + tileX - 1])   fade_mode |= 8;
 							  texture_tiles_cluster[tileY][tileX][alpha_index] = alphaFade[fade_mode]; // alpha_zero;
 						  }
 					  }else{
@@ -5136,8 +5148,8 @@ public class QuadCLT {
 		  texture_rgbx = resizeGridTexture(
 				  texture_rgbx,
 				  clt_parameters.transform_size,
-				  tp.tilesX,
-				  tp.tilesY,
+				  tilesX,
+				  tilesY,
 				  scan.bounds);
 		  }
 		  
@@ -5145,8 +5157,8 @@ public class QuadCLT {
 		  
 //		  int width = resize ? (clt_parameters.transform_size * scan.bounds.width + 1): (clt_parameters.transform_size * tp.tilesX);
 //		  int height = resize ? (clt_parameters.transform_size * scan.bounds.height + 1): (clt_parameters.transform_size * tp.tilesY);
-		  int width = resize ? (clt_parameters.transform_size * scan.bounds.width): (clt_parameters.transform_size * tp.tilesX);
-		  int height = resize ? (clt_parameters.transform_size * scan.bounds.height): (clt_parameters.transform_size * tp.tilesY);
+		  int width = resize ? (clt_parameters.transform_size * scan.bounds.width): (clt_parameters.transform_size * tilesX);
+		  int height = resize ? (clt_parameters.transform_size * scan.bounds.height): (clt_parameters.transform_size * tilesY);
 
 //    	  sdfa_instance = new showDoubleFloatArrays(); // just for debugging?		  
 //     	  sdfa_instance.showArrays(texture_rgbx, width, height, true, "texture_rgbx");
@@ -5223,7 +5235,8 @@ public class QuadCLT {
 			  final boolean     updateStatus,
 			  final int         debugLevel)
 	  {
-
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
 		  TileProcessor.CLTPass3d scan_rslt = tp.new CLTPass3d();
 		  int d = ImageDtt.setImgMask(0, 0xf);
 		  d =     ImageDtt.setPairMask(d,0xf);
@@ -5231,8 +5244,7 @@ public class QuadCLT {
 		  int [][]     tile_op =         tp.setSameTileOp(clt_parameters,  d, debugLevel);
 		  double [][]  disparity_array = tp.setSameDisparity(0.0); // [tp.tilesY][tp.tilesX] - individual per-tile expected disparity
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
-//		  double [][][][]     clt_corr_combo =    new double [2][tp.tilesY][tp.tilesX][]; // will only be used inside?
-		  double [][][][]     clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tp.tilesY][tp.tilesX][]; // will only be used inside?
+		  double [][][][]     clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][]; // will only be used inside?
 		  
 //		  double min_corr_selected = clt_parameters.corr_normalize? clt_parameters.min_corr_normalized: clt_parameters.min_corr;
 		  double min_corr_selected = clt_parameters.min_corr;
@@ -5245,7 +5257,7 @@ public class QuadCLT {
 				  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
 				  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
 		  
-		  double [][][][] texture_tiles =     new double [tp.tilesY][tp.tilesX][][]; // ["RGBA".length()][];
+		  double [][][][] texture_tiles =     new double [tilesY][tilesX][][]; // ["RGBA".length()][];
 		  ImageDtt image_dtt = new ImageDtt();
 		  image_dtt.clt_aberrations_quad_corr(
 				  tile_op,                      // per-tile operation bit codes
@@ -5258,7 +5270,7 @@ public class QuadCLT {
 				  //	Use it with disparity_maps[scan_step]?		  clt_mismatch,    // [tp.tilesY][tp.tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
 				  disparity_map,    // [12][tp.tilesY * tp.tilesX]
 				  texture_tiles,        // [tp.tilesY][tp.tilesX]["RGBA".length()][]; 			  
-				  tp.tilesX * clt_parameters.transform_size, // imp_quad[0].getWidth(),       // final int width,
+				  tilesX * clt_parameters.transform_size, // imp_quad[0].getWidth(),       // final int width,
 				  clt_parameters.fat_zero,      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
 				  clt_parameters.corr_sym,
 				  clt_parameters.corr_offset,
@@ -5314,12 +5326,13 @@ public class QuadCLT {
 			  final boolean     updateStatus,
 			  final int         debugLevel)
 	  {
-
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
 		  TileProcessor.CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
 		  int [][]     tile_op =         scan.tile_op;
 		  double [][]  disparity_array = scan.disparity;
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
-		  double [][][][]     clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tp.tilesY][tp.tilesX][]; // will only be used inside?
+		  double [][][][]     clt_corr_combo =    new double [ImageDtt.TCORR_TITLES.length][tilesY][tilesX][]; // will only be used inside?
 		  
 		  double min_corr_selected = clt_parameters.min_corr;
 		  
@@ -5331,7 +5344,7 @@ public class QuadCLT {
 				  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
 				  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
 		  
-		  double [][][][] texture_tiles =     new double [tp.tilesY][tp.tilesX][][]; // ["RGBA".length()][];
+		  double [][][][] texture_tiles =     new double [tilesY][tilesX][][]; // ["RGBA".length()][];
 		  ImageDtt image_dtt = new ImageDtt();
 		  image_dtt.clt_aberrations_quad_corr(
 				  tile_op,                      // per-tile operation bit codes
@@ -5344,7 +5357,7 @@ public class QuadCLT {
 				  //	Use it with disparity_maps[scan_step]?		  clt_mismatch,    // [tp.tilesY][tp.tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
 				  disparity_map,    // [12][tp.tilesY * tp.tilesX]
 				  texture_tiles,        // [tp.tilesY][tp.tilesX]["RGBA".length()][]; 			  
-				  tp.tilesX * clt_parameters.transform_size, // imp_quad[0].getWidth(),       // final int width,
+				  tilesX * clt_parameters.transform_size, // imp_quad[0].getWidth(),       // final int width,
 				  clt_parameters.fat_zero,      // add to denominator to modify phase correlation (same units as data1, data2). <0 - pure sum
 				  clt_parameters.corr_sym,
 				  clt_parameters.corr_offset,

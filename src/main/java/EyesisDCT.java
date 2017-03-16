@@ -48,15 +48,6 @@ public class EyesisDCT {
 ///	public int extra_items = 8; // number of extra items saved with kernels (center offset (partial, full, derivatives)
 	public ImagePlus eyesisKernelImage = null;
 	public long startTime;
-///	public double [][][] fine_corr  = new double [4][2][6]; // per port, per x/y, set of 6 coefficient for fine geometric corrections 
-	
-///	TileProcessor tp = null;
-	
-///	public void setTilesXY(int tilesX, int tilesY){
-///		if (tp == null){
-///			tp = new TileProcessor(tp.tilesX,tp.tilesY);
-///		}
-///	}
 	
 	public EyesisDCT(
 			Properties                                      properties,

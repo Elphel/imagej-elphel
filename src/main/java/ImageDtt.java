@@ -48,6 +48,8 @@ public class ImageDtt {
 			  {0,1,2,3,4,5},       // mottom middle
 			  {0,1,3,4}};          // bottom right
 //	 public static int FORCE_DISPARITY_BIT = 8; // move to parameters?
+	  
+	  static int  QUAD =                           4; // number of cameras in camera
 	  static int  DISPARITY_INDEX_INT =            0; // 0 - disparity from correlation integer pixels, 1 - ortho
 	  static int  DISPARITY_INDEX_CM =             2; // 2 - disparity from correlation "center mass", 3 - ortho (only used for fine correction)
 	  static int  DISPARITY_INDEX_HOR =            4; // disparity from correlation of the horizontal pairs with center suppressed
