@@ -222,9 +222,48 @@ public class TileProcessor {
 			}
 			return this.superTiles.showDisparityHistogram();
 		}
+		
+		public double [] showDisparityHistogram(double [][] dispHist)
+		{
+			if (this.superTiles == null){
+				return null;
+			}
+			return this.superTiles.showDisparityHistogram(dispHist);
+		}
+		
+		
 		public int showDisparityHistogramWidth()
 		{
 			return this.superTiles.showDisparityHistogramWidth();
+		}
+		
+		public double [][][] getMaxMinMax(){
+			if (this.superTiles == null){
+				return null;
+			}
+			return superTiles.getMaxMinMax();
+		}
+		
+		
+		public double [] showMaxMinMax(){
+			if (this.superTiles == null){
+				return null;
+			}
+			return this.superTiles.showMaxMinMax();
+		}
+		public int getNumBins(){
+			if (this.superTiles == null){
+				return 0;
+			}
+			return superTiles.numBins;
+		}
+		
+		public double[] getSuperTileStrength()
+		{
+			if (this.superTiles == null){
+				return null;
+			}
+			return superTiles.stStrength;
 		}
 		
 		class SuperTiles{
@@ -234,7 +273,10 @@ public class TileProcessor {
 			double      strength_floor;
 			double      strength_pow;
 			double      stBlurSigma;
+			int         numBins;
 			double [][] disparityHistograms = null;
+			double []   stStrength =          null; // per super-tile correlation strength
+			double [][][] maxMinMax = null;
 			public SuperTiles(
 					double     step_disparity,
 					double     min_disparity,
@@ -249,6 +291,7 @@ public class TileProcessor {
 				this.strength_floor = strength_floor;
 				this.strength_pow =   strength_pow;
 				this.stBlurSigma =    stBlurSigma;
+				this.numBins = (int) ((max_disparity - min_disparity)/step_disparity) + 1;
 				getDisparityHistograms(); // claculate and blur supertileas
 				
 			}
@@ -271,10 +314,12 @@ public class TileProcessor {
 				final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
 				final int stilesY = (tilesY + superTileSize -1)/superTileSize;
 				final int nStiles = stilesX * stilesY; 
-				final int numBins = (int) ((max_disparity - min_disparity)/step_disparity) + 1;
+//				final int numBins = (int) ((max_disparity - min_disparity)/step_disparity) + 1;
 				final double dMin = min_disparity - step_disparity/2; 
 				final double dMax = dMin + numBins * step_disparity;
-				final double [][] dispHist = new double [nStiles][numBins+1];
+//				final double [][] dispHist =     new double [nStiles][numBins];
+				final double [][] dispHist =     new double [nStiles][]; // now it will be sparse 
+				final double []   strengthHist = new double [nStiles];
 				final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 				final AtomicInteger ai = new AtomicInteger(0);
 				final int st_start = - superTileSize/2;
@@ -289,6 +334,7 @@ public class TileProcessor {
 								int styleY = nsTile / stilesX;  
 								int styleX = nsTile % stilesX;  
 								double sw = 0.0; // sum weights
+								double [] hist = new double [numBins];
 								for (int tileY = styleY * superTileSize + st_start; tileY < styleY * superTileSize + st_end; tileY++){
 									if ((tileY >= 0) && (tileY < tilesY)) {
 										for (int tileX = styleX * superTileSize + st_start; tileX < styleX * superTileSize + st_end; tileX++){
@@ -301,7 +347,7 @@ public class TileProcessor {
 														if (strength_pow != 1.0) w = Math.pow(w, strength_pow);
 														int bin = (int) ((d-dMin)/step_disparity);
 														if ((bin >= 0) && (bin < numBins)){ // maybe collect below min and above max somewhere?
-															dispHist[nsTile][bin+1] += w;
+															hist[bin] += w; // +1]
 															sw +=w;
 														}
 													}
@@ -310,11 +356,14 @@ public class TileProcessor {
 										}
 									}
 								}
-								dispHist[nsTile][0] = sw;
+								strengthHist[nsTile] = sw / superTileSize / superTileSize; // average strength per tile in the super-tile
 								if (sw > 0){
 									for (int i = 0; i<numBins; i++){
-										dispHist[nsTile][i+1]/=sw;
+										hist[i] /= sw; 
 									}
+									dispHist[nsTile] = hist;
+								} else {
+									dispHist[nsTile] = null;
 								}
 							}
 						}
@@ -322,46 +371,165 @@ public class TileProcessor {
 				}		      
 				ImageDtt.startAndJoin(threads);
 				this.disparityHistograms = dispHist;
+				this.stStrength =          strengthHist;
 				if (this.stBlurSigma > 0.0) {
-					this.disparityHistograms = blurDisparityHistogram(debugLevel);
+					blurDisparityHistogram(debugLevel);
 				}
 				return this.disparityHistograms; // dispHist;
 			}
 			
-			public double [][] blurDisparityHistogram(
+			public void blurDisparityHistogram( // in-place
 					final int  debugLevel)
-					
 			{
 				
 				final double [][] dispHist = this.disparityHistograms;
 				final double      sigma =    this.stBlurSigma;
 				final int sTiles = dispHist.length;
-//				final int sTilesY = sTiles / sTilesX;
-				final int numBins = dispHist[0].length - 1; // [0] - weight
-				final double [][] bluredHistogram = new double [dispHist.length][dispHist[0].length];
+//				final int numBins = dispHist[0].length;
 				final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 				final AtomicInteger ai = new AtomicInteger(0);
 				for (int ithread = 0; ithread < threads.length; ithread++) {
 					threads[ithread] = new Thread() {
 						public void run() {
-							double [] data = new double [numBins];
 							DoubleGaussianBlur gb=new DoubleGaussianBlur();
 							for (int nsTile = ai.getAndIncrement(); nsTile < sTiles; nsTile = ai.getAndIncrement()) {
-								System.arraycopy(dispHist[nsTile], 1, data, 0, numBins);
-								gb.blur1Direction(data, numBins, 1, sigma, 0.01,true);
-								System.arraycopy(data, 0, bluredHistogram[nsTile], 1, numBins);
-								bluredHistogram[nsTile][0] = dispHist[nsTile][0]; // strength
+								if (dispHist[nsTile] != null) {
+									gb.blur1Direction(dispHist[nsTile], numBins, 1, sigma, 0.01,true);
+								}
 							}
 						}
 					};
 				}		      
 				ImageDtt.startAndJoin(threads);
-				return bluredHistogram;
 			}
+			// returns odd-length array of max/min (x, strength) pairs
+			public double [][][] getMaxMinMax(){
+				// first find all integer maximums, and if the top is flat - use the middle. If not flat - use 2-nd degree polynomial
+				if (disparityHistograms == null) getDisparityHistograms();
+//				final double [][][] 
+				maxMinMax = new double [disparityHistograms.length][][];
+				final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+				final AtomicInteger ai = new AtomicInteger(0);
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							DoubleGaussianBlur gb=new DoubleGaussianBlur();
+							for (int nsTile = ai.getAndIncrement(); nsTile < maxMinMax.length; nsTile = ai.getAndIncrement()) {
+								if (disparityHistograms[nsTile] != null) {
+									double [] dh = disparityHistograms[nsTile];
+									double [][] mmm = new double [numBins][2]; // will definitely be shorter
+									int numMax = 0;
+									int lo = 0; 
+									int hi = 1;
+									if ((globalDebugLevel > -1 ) && (nsTile == 359)) {
+										System.out.println(nsTile);
+									}
+									while (hi < numBins) {
+										// looking for next max
+										while ((hi < numBins) && (dh[hi] >= dh[hi - 1])) hi++; // flat or higher - continue
+										if (hi == numBins){ // last
+											if (dh[hi - 1] == dh[lo]) break; // no maximums till the very end
+											if (dh[hi - 1] > dh[hi-2]) {//  and is higher than previus 
+												mmm[numMax * 2][0] = hi - 1;  
+											} else { // flat top, but higher than [lo]
+												int i = hi - 3;
+												while (dh[i] == dh[hi - 1]) i --;
+												mmm[numMax * 2][0] = 0.5 * (hi + i); // middle  
+											}
+											mmm[numMax * 2][1] = dh[hi - 1];
+											numMax++;
+											break;
+										} else { // d[hi] < d[hi-1] // can be 2-nd after higher first, has sharp max at hi-1, have flat max (including from start)
+											if ((dh[hi - 1] == dh[lo]) || (dh[hi - 1] == dh[hi-2])){ // just a second with higher 1-st, or a flat initial top
+												// flat top
+												while (dh[lo] < dh[hi - 1]) lo++;
+												mmm[numMax * 2][0] = 0.5 *(hi - 1 + lo);
+												mmm[numMax * 2][1] = dh[hi - 1];
+											} else { // normal max, use parabola for approximation and max
+												double a = 0.5*(dh[hi] -2*dh[hi-1] + dh[hi-2]); 
+												double b = 0.5*(dh[hi] - dh[hi-2]);
+												double dx =  - b/(2*a);
+												// protect agains very low a,b
+												if (dx > 1.0){
+													dx = 1.0;
+													mmm[numMax * 2][1] = dh[hi];
+													System.out.println("Max: insufficient precision, dx = "+dx+" > 1.0");
+												} else if (dx < -1.0){
+													dx = -1.0;
+													mmm[numMax * 2][1] = dh[hi - 2];
+													System.out.println("Max: insufficient precision, dx = "+dx+" < -1.0");
+												} else {
+													mmm[numMax * 2][1] = dh[hi-1] - b*b / (4*a);
+												}
+												mmm[numMax * 2][0] = (hi -1) + dx;
+											}
+											lo = hi-1;
+											numMax++;
+										}
+										// look for next minimum after maximum
+										while ((hi < numBins) && (dh[hi] <= dh[hi - 1])) hi++; // flat or lower - continue
+										if (hi == numBins){ // last
+											break;// do not need to register minimum after maximum
+										} else if (dh[hi - 1] == dh[hi-2]) { // flat top
+											while (dh[lo] > dh[hi - 1]) lo++;
+											mmm[numMax * 2 - 1][0] = 0.5 *(hi - 1 + lo);
+											mmm[numMax * 2 - 1][1] = dh[hi - 1];
+										} else { // normal min - use parabola
+											double a = 0.5*(dh[hi] -2*dh[hi-1] + dh[hi-2]); 
+											double b = 0.5*(dh[hi] - dh[hi-2]); 
+											double dx =  - b/(2*a);
+											// protect agains very low a,b
+											if (dx > 1.0){
+												dx = 1.0;
+												mmm[numMax * 2 - 1][1] = dh[hi];
+												System.out.println("Min: insufficient precision, dx = "+dx+" > 1.0");
+											} else if (dx < -1.0){
+												dx = -1.0;
+												mmm[numMax * 2 - 1][1] = dh[hi - 2];
+												System.out.println("Min: insufficient precision, dx = "+dx+" < -1.0");
+											} else {
+												mmm[numMax * 2 -1][1] = dh[hi-1] - b*b / (4*a);
+											}
+											mmm[numMax * 2 - 1][0] = (hi -1) + dx;
+											lo = hi -1;
+										}
+									}
+									if (numMax > 0) {
+									maxMinMax[nsTile] = new double[numMax * 2 - 1][2];
+									for (int i = 0; i < maxMinMax[nsTile].length; i++){
+										maxMinMax[nsTile][i][0] = mmm[i][0];
+										maxMinMax[nsTile][i][1] = mmm[i][1] * stStrength[nsTile];
+									}
+									if (globalDebugLevel > -1 ) {
+										System.out.println(nsTile+": "+dh[0]+" "+dh[1]+" "+dh[2]+" "+dh[3]+" "+dh[4]+" "+
+												dh[5]+" "+dh[6]+" "+dh[7]+" "+dh[8]+" "+dh[9]+ " "+dh[10]+" "+dh[11]+" "+dh[12]+" "+dh[13]+" "+dh[14]+" "+
+												dh[15]+" "+dh[16]+" "+dh[17]+" "+dh[18]+" "+dh[19]+ " "+dh[20]);
+										String dbg_str = ""+nsTile+": ";
+										for (int i = 0; i < maxMinMax[nsTile].length; i++){
+											dbg_str += " "+maxMinMax[nsTile][i][0]+":"+maxMinMax[nsTile][i][1];
+										}
+										System.out.println(dbg_str);
+									}
+									} else {
+										maxMinMax[nsTile] = null;
+									}
+
+								} else {
+									maxMinMax[nsTile] = null;
+								}
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+				return maxMinMax;
+			}
+			
+			
 			public int showDisparityHistogramWidth()
 			{
 				int sTilesX = (getTilesX() + superTileSize -1)/superTileSize;  
-				return sTilesX * ((disparityHistograms[0].length - 1) + 1) + 1;
+				return sTilesX * (numBins + 1) + 1;
 			}
 
 			public double [] showDisparityHistogram()
@@ -369,13 +537,18 @@ public class TileProcessor {
 				if (disparityHistograms == null){
 					getDisparityHistograms(); // calculate and blur with the current settings, specified at instantiation
 				}
+				return showDisparityHistogram(disparityHistograms);
+			}
+				
+			public double [] showDisparityHistogram(final double [][] dispHist){
+				
 				int         sTileHeight0 = 0; // vertical pixels for each  histogram (excluding borders). if <= 0 make square cells
-				final double [][] dispHist = disparityHistograms;
+				final double [] strengthHist = stStrength;
 				final int sTilesX = (getTilesX() + superTileSize -1)/superTileSize;  
 				
 				final int sTiles = dispHist.length;
 				final int sTilesY = sTiles / sTilesX;
-				final int numBins = dispHist[0].length - 1; // [0] - weight
+//				final int numBins = dispHist[0].length; // [0] - weight
 				final int sTileHeight = (sTileHeight0 > 0)? sTileHeight0 : numBins; 
 
 				final double [] maxHist = new double [sTiles];
@@ -384,9 +557,11 @@ public class TileProcessor {
 				double [] rslt = new double [width*height];
 				double maxW = 0.0; // use for borders between cells
 				for (int i = 0; i < sTiles; i++){
-					if (maxW < dispHist[i][0]) maxW = dispHist[i][0];
-					for (int j = 1; j< (numBins + 1); j++){
-						if (maxHist[i] < dispHist[i][j]) maxHist[i] = dispHist[i][j];
+					if (maxW < strengthHist[i]) maxW = strengthHist[i];
+					if (dispHist[i] != null) {
+						for (int j = 0; j< numBins; j++){
+							if (!Double.isNaN( dispHist[i][j]) && (maxHist[i] < dispHist[i][j])) maxHist[i] = dispHist[i][j];
+						}
 					}
 				}
 				for (int nsTile = 0; nsTile < sTiles; nsTile++){
@@ -407,18 +582,101 @@ public class TileProcessor {
 						rslt [indx0 + (numBins + 1)+  j * width] =    maxW;
 					}
 					// draw normalized histograms, using overall weight as intensity
-					for (int bin = 0; bin <numBins; bin ++){
-						int h = (int) (sTileHeight * dispHist[nsTile][bin+1] / maxHist[nsTile]);
-						int x = bin + 1;
-						for (int j = 0; j <= h;  j++) {
-							int y =  sTileHeight + 1 - j;
-							rslt [indx0 + y * width + x] =           dispHist[nsTile][0];
+					if (dispHist[nsTile] != null) {
+						for (int bin = 0; bin <numBins; bin ++){
+							int h = (int) (sTileHeight * dispHist[nsTile][bin] / maxHist[nsTile]);
+							int x = bin + 1;
+							for (int j = 0; j <= h;  j++) {
+								int y =  sTileHeight + 1 - j;
+								rslt [indx0 + y * width + x] =           strengthHist[nsTile];
+							}
 						}
 					}
 				}
 				return rslt;
 			}
+			public double [] showMaxMinMax(){
+				if (maxMinMax == null){
+					getMaxMinMax(); // calculate and blur with the current settings, specified at instantiation
+				}
+				
+				
+				int         sTileHeight0 = 0; // vertical pixels for each  histogram (excluding borders). if <= 0 make square cells
+				final double [] strengthHist = stStrength;
+				final int sTilesX = (getTilesX() + superTileSize -1)/superTileSize;  
+				
+//				final int sTiles = disparityHistograms.length;
+				final int sTiles = maxMinMax.length;
+				final int sTilesY = sTiles / sTilesX;
+//				final int numBins = dispHist[0].length; // [0] - weight
+				final int sTileHeight = (sTileHeight0 > 0)? sTileHeight0 : numBins; 
 
+				final double [] maxHist = new double [sTiles];
+				final int width = sTilesX * (numBins + 1) + 1;
+				final int height = sTilesY * (sTileHeight + 1) +1;
+				final boolean [] isMax = new boolean [numBins];
+				final boolean [] isMin = new boolean [numBins];
+
+				double [] rslt = new double [width*height];
+				double maxW = 0.0; // use for borders between cells
+				for (int i = 0; i < sTiles; i++){
+					if (maxW < strengthHist[i]) maxW = strengthHist[i];
+					if (disparityHistograms[i] != null) {
+						for (int j = 0; j< numBins; j++){
+							if (!Double.isNaN( disparityHistograms[i][j]) && (maxHist[i] < disparityHistograms[i][j])) maxHist[i] = disparityHistograms[i][j];
+						}
+					}
+				}
+				for (int nsTile = 0; nsTile < sTiles; nsTile++){
+					int styleY = nsTile / sTilesX;  
+					int styleX = nsTile % sTilesX;  
+					int x0 = styleX * (numBins + 1);
+					int y0 = styleY * (numBins + 1);
+					int indx0 = x0 + y0*width; 
+					
+					// draw rectangular frame - horisontal dotted lines
+					for (int j = 0; j < numBins + 2; j+=2) {
+						rslt [indx0 + j] =                            maxW;
+						rslt [indx0 + (sTileHeight + 1) * width+ j] = maxW;
+					}
+					// vertical dotted lines
+					for (int j = 0; j < sTileHeight + 2; j+=2) {
+						rslt [indx0 + j * width] =                    maxW;
+						rslt [indx0 + (numBins + 1)+  j * width] =    maxW;
+					}
+					// draw normalized histograms, using overall weight as intensity
+					if ((disparityHistograms[nsTile] != null) && (maxMinMax[nsTile] != null)) {
+						for (int bin = 0; bin <numBins; bin ++){
+							isMax[bin] = false;
+							isMin[bin] = false;
+						}
+						for (int i = 0; i <maxMinMax[nsTile].length; i++){
+							int imm = (int) Math.round(maxMinMax[nsTile][i][0]);
+							if      (imm <0 )        imm = 0;
+							else if (imm >= numBins) imm = numBins - 1;
+							if ((i & 1) == 0) isMax[imm] = true;
+							else              isMin[imm] = true;
+						}
+						
+						for (int bin = 0; bin <numBins; bin ++){
+							int h = (int) (sTileHeight * disparityHistograms[nsTile][bin] / maxHist[nsTile]);
+							int x = bin + 1;
+							int jMin = isMin[bin] ? h : 0;
+							int jMax = isMax[bin] ? h : sTileHeight;
+							
+							if (isMax[bin] || isMin[bin]) {
+								for (int j = jMin; j <= jMax;  j++) {
+									int y =  sTileHeight + 1 - j;
+									rslt [indx0 + y * width + x] = strengthHist[nsTile];
+								}
+							}
+						}
+					}
+				}
+				return rslt;
+			}
+			
+			
 		}
 
 	} // end of class CLTPass3d
@@ -1673,7 +1931,7 @@ public class TileProcessor {
 		if (clt_parameters.stShow){
 
 			// try renovated supertiles. Do twice to show both original and blured histograms
-			String [] dbg_st_titles = {"raw", "blurred"+clt_parameters.stSigma}; 
+			String [] dbg_st_titles = {"raw", "blurred"+clt_parameters.stSigma,"max-min-max"}; 
 			double [][] dbg_hist = new double[dbg_st_titles.length][];
 
 			scan_prev.setSuperTiles(
@@ -1693,10 +1951,12 @@ public class TileProcessor {
 					clt_parameters.stPow,            // double     strength_pow,
 					clt_parameters.stSigma); // with blur double     stBlurSigma)
 			dbg_hist[1] = scan_prev.showDisparityHistogram();
+			
+			dbg_hist[2] = scan_prev.showMaxMinMax();
+
 			int hist_width0 =  scan_prev.showDisparityHistogramWidth();
 			int hist_height0 = dbg_hist[0].length/hist_width0;
 			sdfa_instance.showArrays(dbg_hist, hist_width0, hist_height0, true, "disparity_supertiles_histograms",dbg_st_titles);
-			
 		}
 		
 		
