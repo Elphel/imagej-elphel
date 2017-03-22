@@ -4749,10 +4749,44 @@ public class QuadCLT {
 				  true,  // smart,
 				  true);  //newAllowed, // save
  		  
+ 		  // refine first measurement
+          int bg_pass = tp.clt_3d_passes.size() - 1; // 0
+          int refine_pass = tp.clt_3d_passes.size(); // 1
+          for (int nnn = 0; nnn<3; nnn ++){
+              refine_pass = tp.clt_3d_passes.size(); // 1
+        	  tp.refinePassSetup( // prepare tile tasks for the refine pass (re-measure disparities)
+        			  //				  final double [][][]       image_data, // first index - number of image in a quad
+        			  clt_parameters,
+        			  bg_pass, 
+        			  // disparity range - differences from 
+        			  clt_parameters.bgnd_range, // double            disparity_far,  
+        			  clt_parameters.other_range, //double            disparity_near,   //
+        			  clt_parameters.bgnd_sure, // double            this_sure,        // minimal strength to be considered definitely background
+        			  clt_parameters.bgnd_maybe, // double            this_maybe,       // maximal strength to ignore as non-background
+        			  clt_parameters.sure_smth, // sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
+        			  ImageDtt.DISPARITY_INDEX_CM,  // index of disparity value in disparity_map == 2 (0,2 or 4)
+        			  geometryCorrection,
+        			  threadsMax,  // maximal number of threads to launch                         
+        			  updateStatus,
+        			  debugLevel);
+        	  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
+        			  image_data, // first index - number of image in a quad
+        			  clt_parameters,
+        			  refine_pass,
+        			  threadsMax,  // maximal number of threads to launch                         
+        			  updateStatus,
+        			  debugLevel); 		  
+          }
+		  
+		  
+		  
+ 		  
 		  // testing 2-nd pass
+          int next_pass = tp.clt_3d_passes.size(); // 2
 		  tp.secondPassSetup( // prepare tile tasks for the second pass based on the previous one(s)
 //				  final double [][][]       image_data, // first index - number of image in a quad
 				  clt_parameters,
+				  bg_pass, 
 				  // disparity range - differences from 
 				  clt_parameters.bgnd_range, // double            disparity_far,  
 				  clt_parameters.other_range, //double            disparity_near,   //
@@ -4764,9 +4798,8 @@ public class QuadCLT {
 				  threadsMax,  // maximal number of threads to launch                         
 				  updateStatus,
 				  debugLevel);
-		  
 		  // get images for predefined regions and dispariteies. First - with just fixed scans 1 .. list.size()
-		  for (int scanIndex = 1; scanIndex < tp.clt_3d_passes.size(); scanIndex++){
+		  for (int scanIndex = next_pass; scanIndex < tp.clt_3d_passes.size(); scanIndex++){
 			  if (debugLevel > 0){
 				  System.out.println("FPGA processing scan #"+scanIndex);
 			  }
@@ -4781,7 +4814,7 @@ public class QuadCLT {
 			  
 		  }
 //		  int scan_limit = 10; 
-		  for (int scanIndex = 1; (scanIndex < tp.clt_3d_passes.size()) && (scanIndex < clt_parameters.max_clusters); scanIndex++){ // just temporary limiting
+		  for (int scanIndex = next_pass; (scanIndex < tp.clt_3d_passes.size()) && (scanIndex < clt_parameters.max_clusters); scanIndex++){ // just temporary limiting
 			  if (debugLevel > -1){
 				  System.out.println("Generating cluster images (limit is set to "+clt_parameters.max_clusters+") largest, scan #"+scanIndex);
 			  }
@@ -4828,7 +4861,7 @@ public class QuadCLT {
 					  scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
 					  clt_parameters.transform_size,
 					  clt_parameters.correct_distortions, // requires backdrop image to be corrected also
-					  (scanIndex <2) && clt_parameters.show_triangles,
+					  (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
 					  clt_parameters.bgnd_range,
 					  clt_parameters.other_range,
 					  clt_parameters.maxDispTriangle); 

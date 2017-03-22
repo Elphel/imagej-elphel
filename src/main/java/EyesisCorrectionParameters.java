@@ -1954,7 +1954,7 @@ public class EyesisCorrectionParameters {
   		public double     max_corr_radius =   3.5;  // maximal distance from int max to consider
   		
   		public int        enhortho_width =    2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
-  		public double     enhortho_scale =    0.2;  // multiply center correlation pixels (inside enhortho_width)
+  		public double     enhortho_scale =    0.0; // 0.2;  // multiply center correlation pixels (inside enhortho_width)
   		
   		public boolean    max_corr_double =   false; // NOT USED double pass when masking center of mass to reduce preference for integer values
   		public int        corr_mode =         2;    // which correlation mode to use: 0 - integer max, 1 - center of mass, 2 - polynomial
@@ -2023,6 +2023,9 @@ public class EyesisCorrectionParameters {
 //  		public double     bgnd_2diff       = 0.005; // maximal strength to ignore as non-background
   		public int        min_clstr_seed   = 2;     // number of tiles in a cluster to seed (just background?)
   		public int        min_clstr_lone   = 4;     // number of tiles in a cluster not close to other clusters (more than 2 tiles apart)
+  		public double     min_clstr_weight = 0.0;   // Minimal total strength of the cluster 
+  		public double     min_clstr_max    = 0.25;  // Minimal maximal strength of the cluster 
+  		
   		public int        fill_gaps        = 4;     // same as in grow - 1:  4 directions by 1 step, 2: 8 directions by 1 step. +2*n - alternating hor/vert
   		public int        min_clstr_block  = 3;     // number of tiles in a cluster to block (just non-background?)
   		public int        bgnd_grow        = 2;     // number of tiles to grow (1 - hor/vert, 2 - hor/vert/diagonal)
@@ -2039,7 +2042,24 @@ public class EyesisCorrectionParameters {
   		public int        ortho_half_length = 4;    // convolve hor/vert strength by 3*(2*l+1) kernels to detect multi-tile features 
   		public double     ortho_mix        = 0.5;   // Fraction ovf convolved ortho in a mix with raw
   		
-  		public int        max_clusters     = 10;    // Maximal number of clusters to generate for one run
+// Alternative mixing of ortho disparity/strength
+  		public boolean    or_hor           = true;  // Apply ortho correction to horizontal correlation (vertical features)
+  		public boolean    or_vert          = true;  // Apply ortho correction to vertical correlation (horizontal features)
+  		public double     or_sigma         = 2.0;   // Blur sigma: verically for horizontal correlation, horizontally - for vertically
+  		public double     or_sharp         = 0.0; // 0.5;   // 3-point sharpening (-k, +2k+1, -k)
+  		public double     or_scale         = 2.5;   // Scale ortho correletion strength relative to 4-directional one
+  		public double     or_offset        = 0.1;   // Subtract from scaled correlation strength, limit by 0
+  		public double     or_asym          = 1.5;   // Minimal ratio of orthogonal strengths required for dis[parity replacement
+  		public double     or_threshold     = 0.3; // 1.5;   // Minimal scaled offset ortho strength to normal strength needed for replacement
+  		public double     or_absHor        = 0.15;  // Minimal horizontal absolute scaled offset ortho strength needed for replacement
+  		public double     or_absVert       = 0.19;  // Minimal vertical absolute scaled offset ortho strength needed for replacement
+  		
+  		public boolean    poles_fix        = true;  // Continue vertical structures to the ground
+  		public int        poles_len        = 50;    // Number of tiles to extend over the poles bottoms
+  		public double     poles_min_strength = 0.1; // Set new pole segment strength to max of horizontal correlation and this value
+  		public boolean    poles_force_disp = true;  // Set disparity to that of the bottom of existing segment (false - use hor. disparity)
+  		
+  		public int        max_clusters     = 300;    // Maximal number of clusters to generate for one run
   		public boolean    correct_distortions = false; // Correct lens geometric distortions in a model (will need backdrop to be corrected too)
   		public boolean    show_triangles =    true;  // Show generated triangles
   		public boolean    avg_cluster_disp =  false;  // Weight-average disparity for the whole cluster 
@@ -2083,9 +2103,16 @@ public class EyesisCorrectionParameters {
   		public double     stStepDisparity   = 0.1;   // Disaprity histogram step
   		public double     stMinDisparity    = 0.0;   // Minimal disparity (center of a bin)
   		public double     stMaxDisparity    = 10.0;  // Maximal disparity (center of a bin)
-  		public double     stFloor           = 0.25;  // Subtract from strength, discard negative  
+  		public double     stFloor           = 0.15;  // Subtract from strength, discard negative  
   		public double     stPow             = 1.0;   // raise strength to this power 
   		public double     stSigma           = 1.5;   // Blur disparity histogram (sigma in bins) 
+  		public double     stMinBgDisparity  = 0.0;   // Minimal backgroubnd disparity to extract as a maximum from the supertiles 
+  		public double     stMinBgFract      = 0.1;   // Minimal fraction of the disparity histogram to use as background 
+  		public double     stUseDisp         = 0.15;  // Use background disparity from supertiles if tile strength is less 
+  		
+  		public double     outlayerStrength  = 0.3;   // Outlayer tiles weaker than this may be replaced from neighbors
+  		public double     outlayerDiff      = 0.4;   // Replace weak outlayer tiles that do not have neighbors within this disparity difference 
+  		
   		
   		
   		public CLTParameters(){}
@@ -2192,6 +2219,9 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"bgnd_maybe",       this.bgnd_maybe +"");
   			properties.setProperty(prefix+"min_clstr_seed",   this.min_clstr_seed+"");
   			properties.setProperty(prefix+"min_clstr_lone",   this.min_clstr_lone+"");
+			properties.setProperty(prefix+"min_clstr_weight", this.min_clstr_weight +"");
+			properties.setProperty(prefix+"min_clstr_max",    this.min_clstr_max +"");
+  			
   			properties.setProperty(prefix+"fill_gaps",        this.fill_gaps+"");
   			properties.setProperty(prefix+"min_clstr_block",  this.min_clstr_block+"");
   			properties.setProperty(prefix+"bgnd_grow",        this.bgnd_grow+"");
@@ -2206,18 +2236,34 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"ortho_half_length",this.ortho_half_length+"");
 			properties.setProperty(prefix+"ortho_mix",        this.ortho_mix +"");
 			
-  			properties.setProperty(prefix+"max_clusters",     this.max_clusters+"");
+
+			properties.setProperty(prefix+"or_hor",           this.or_hor+"");
+			properties.setProperty(prefix+"or_vert",          this.or_vert+"");
+			properties.setProperty(prefix+"or_sigma",         this.or_sigma +"");
+			properties.setProperty(prefix+"or_sharp",         this.or_sharp +"");
+			properties.setProperty(prefix+"or_scale",         this.or_scale +"");
+			properties.setProperty(prefix+"or_offset",        this.or_offset +"");
+			properties.setProperty(prefix+"or_asym",          this.or_asym +"");
+			properties.setProperty(prefix+"or_threshold",     this.or_threshold +"");
+			properties.setProperty(prefix+"or_absHor",        this.or_absHor +"");
+			properties.setProperty(prefix+"or_absVert",       this.or_absVert +"");
+			
+			properties.setProperty(prefix+"poles_fix",        this.poles_fix+"");
+  			properties.setProperty(prefix+"poles_len",        this.poles_len+"");
+			properties.setProperty(prefix+"poles_min_strength",this.poles_min_strength +"");
+			properties.setProperty(prefix+"poles_force_disp", this.poles_force_disp+"");
+			
+			
+			
+			properties.setProperty(prefix+"max_clusters",     this.max_clusters+"");
 			properties.setProperty(prefix+"correct_distortions",this.correct_distortions+"");
 			properties.setProperty(prefix+"show_triangles",   this.show_triangles+"");
 			properties.setProperty(prefix+"avg_cluster_disp", this.avg_cluster_disp+"");
 			properties.setProperty(prefix+"maxDispTriangle",  this.maxDispTriangle +"");
-			
 			properties.setProperty(prefix+"shUseFlaps",       this.shUseFlaps+"");
 			properties.setProperty(prefix+"shAggrFade",       this.shAggrFade+"");
   			properties.setProperty(prefix+"shMinArea",        this.shMinArea+"");
 			properties.setProperty(prefix+"shMinStrength",   this.shMinStrength +"");
-
-			
 			properties.setProperty(prefix+"tiRigidVertical",  this.tiRigidVertical +"");
 			properties.setProperty(prefix+"tiRigidHorizontal",this.tiRigidHorizontal +"");
 			properties.setProperty(prefix+"tiRigidDiagonal",  this.tiRigidDiagonal +"");
@@ -2252,6 +2298,11 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"stFloor",          this.stFloor +"");
 			properties.setProperty(prefix+"stPow",            this.stPow +"");
 			properties.setProperty(prefix+"stSigma",          this.stSigma +"");
+			properties.setProperty(prefix+"stMinBgDisparity", this.stMinBgDisparity +"");
+			properties.setProperty(prefix+"stMinBgFract",     this.stMinBgFract +"");
+			properties.setProperty(prefix+"stUseDisp",        this.stUseDisp +"");
+			properties.setProperty(prefix+"outlayerStrength", this.outlayerStrength +"");
+			properties.setProperty(prefix+"outlayerDiff",     this.outlayerDiff +"");
   		}
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"transform_size")!=null) this.transform_size=Integer.parseInt(properties.getProperty(prefix+"transform_size"));
@@ -2352,6 +2403,10 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"bgnd_maybe")!=null)        this.bgnd_maybe=Double.parseDouble(properties.getProperty(prefix+"bgnd_maybe"));
   			if (properties.getProperty(prefix+"min_clstr_seed")!=null)    this.min_clstr_seed=Integer.parseInt(properties.getProperty(prefix+"min_clstr_seed"));
   			if (properties.getProperty(prefix+"min_clstr_lone")!=null)    this.min_clstr_lone=Integer.parseInt(properties.getProperty(prefix+"min_clstr_lone"));
+  			if (properties.getProperty(prefix+"min_clstr_weight")!=null)  this.min_clstr_weight=Double.parseDouble(properties.getProperty(prefix+"min_clstr_weight"));
+  			if (properties.getProperty(prefix+"min_clstr_max")!=null)     this.min_clstr_max=Double.parseDouble(properties.getProperty(prefix+"min_clstr_max"));
+
+  			
   			if (properties.getProperty(prefix+"fill_gaps")!=null)         this.fill_gaps=Integer.parseInt(properties.getProperty(prefix+"fill_gaps"));
   			if (properties.getProperty(prefix+"min_clstr_block")!=null)   this.min_clstr_block=Integer.parseInt(properties.getProperty(prefix+"min_clstr_block"));
   			if (properties.getProperty(prefix+"bgnd_grow")!=null)         this.bgnd_grow=Integer.parseInt(properties.getProperty(prefix+"bgnd_grow"));
@@ -2366,17 +2421,31 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"ortho_half_length")!=null) this.ortho_half_length=Integer.parseInt(properties.getProperty(prefix+"ortho_half_length"));
   			if (properties.getProperty(prefix+"ortho_mix")!=null)         this.ortho_mix=Double.parseDouble(properties.getProperty(prefix+"ortho_mix"));
   			
+  			if (properties.getProperty(prefix+"or_hor")!=null)            this.or_hor=Boolean.parseBoolean(properties.getProperty(prefix+"or_hor"));
+  			if (properties.getProperty(prefix+"or_vert")!=null)           this.or_vert=Boolean.parseBoolean(properties.getProperty(prefix+"or_vert"));
+  			if (properties.getProperty(prefix+"or_sigma")!=null)          this.or_sigma=Double.parseDouble(properties.getProperty(prefix+"or_sigma"));
+  			if (properties.getProperty(prefix+"or_sharp")!=null)          this.or_sharp=Double.parseDouble(properties.getProperty(prefix+"or_sharp"));
+  			if (properties.getProperty(prefix+"or_scale")!=null)          this.or_scale=Double.parseDouble(properties.getProperty(prefix+"or_scale"));
+  			if (properties.getProperty(prefix+"or_offset")!=null)         this.or_offset=Double.parseDouble(properties.getProperty(prefix+"or_offset"));
+  			if (properties.getProperty(prefix+"or_asym")!=null)           this.or_asym=Double.parseDouble(properties.getProperty(prefix+"or_asym"));
+  			if (properties.getProperty(prefix+"or_threshold")!=null)      this.or_threshold=Double.parseDouble(properties.getProperty(prefix+"or_threshold"));
+  			if (properties.getProperty(prefix+"or_absHor")!=null)         this.or_absHor=Double.parseDouble(properties.getProperty(prefix+"or_absHor"));
+  			if (properties.getProperty(prefix+"or_absVert")!=null)        this.or_absVert=Double.parseDouble(properties.getProperty(prefix+"or_absVert"));
+
+  			if (properties.getProperty(prefix+"poles_fix")!=null)         this.poles_fix=Boolean.parseBoolean(properties.getProperty(prefix+"poles_fix"));
+  			if (properties.getProperty(prefix+"poles_len")!=null)         this.poles_len=Integer.parseInt(properties.getProperty(prefix+"poles_len"));
+  			if (properties.getProperty(prefix+"poles_min_strength")!=null)this.poles_min_strength=Double.parseDouble(properties.getProperty(prefix+"poles_min_strength"));
+  			if (properties.getProperty(prefix+"poles_force_disp")!=null)  this.poles_force_disp=Boolean.parseBoolean(properties.getProperty(prefix+"poles_force_disp"));
+  			
   			if (properties.getProperty(prefix+"max_clusters")!=null)      this.max_clusters=Integer.parseInt(properties.getProperty(prefix+"max_clusters"));
   			if (properties.getProperty(prefix+"correct_distortions")!=null) this.correct_distortions=Boolean.parseBoolean(properties.getProperty(prefix+"correct_distortions"));
   			if (properties.getProperty(prefix+"show_triangles")!=null)    this.show_triangles=Boolean.parseBoolean(properties.getProperty(prefix+"show_triangles"));
   			if (properties.getProperty(prefix+"avg_cluster_disp")!=null)  this.avg_cluster_disp=Boolean.parseBoolean(properties.getProperty(prefix+"avg_cluster_disp"));
   			if (properties.getProperty(prefix+"maxDispTriangle")!=null)   this.maxDispTriangle=Double.parseDouble(properties.getProperty(prefix+"maxDispTriangle"));
-  			
   			if (properties.getProperty(prefix+"shUseFlaps")!=null)        this.shUseFlaps=Boolean.parseBoolean(properties.getProperty(prefix+"shUseFlaps"));
   			if (properties.getProperty(prefix+"shAggrFade")!=null)        this.shAggrFade=Boolean.parseBoolean(properties.getProperty(prefix+"shAggrFade"));
   			if (properties.getProperty(prefix+"shMinArea")!=null)         this.shMinArea=Integer.parseInt(properties.getProperty(prefix+"shMinArea"));
   			if (properties.getProperty(prefix+"shMinStrength")!=null)    this.shMinStrength=Double.parseDouble(properties.getProperty(prefix+"shMinStrength"));
-
   			if (properties.getProperty(prefix+"tiRigidVertical")!=null)   this.tiRigidVertical=Double.parseDouble(properties.getProperty(prefix+"tiRigidVertical"));
   			if (properties.getProperty(prefix+"tiRigidHorizontal")!=null) this.tiRigidHorizontal=Double.parseDouble(properties.getProperty(prefix+"tiRigidHorizontal"));
   			if (properties.getProperty(prefix+"tiRigidDiagonal")!=null)   this.tiRigidDiagonal=Double.parseDouble(properties.getProperty(prefix+"tiRigidDiagonal"));
@@ -2411,6 +2480,11 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"stFloor")!=null)           this.stFloor=Double.parseDouble(properties.getProperty(prefix+"stFloor"));
   			if (properties.getProperty(prefix+"stPow")!=null)             this.stPow=Double.parseDouble(properties.getProperty(prefix+"stPow"));
   			if (properties.getProperty(prefix+"stSigma")!=null)           this.stSigma=Double.parseDouble(properties.getProperty(prefix+"stSigma"));
+  			if (properties.getProperty(prefix+"stMinBgDisparity")!=null)  this.stMinBgDisparity=Double.parseDouble(properties.getProperty(prefix+"stMinBgDisparity"));
+  			if (properties.getProperty(prefix+"stMinBgFract")!=null)      this.stMinBgFract=Double.parseDouble(properties.getProperty(prefix+"stMinBgFract"));
+  			if (properties.getProperty(prefix+"stUseDisp")!=null)         this.stUseDisp=Double.parseDouble(properties.getProperty(prefix+"stUseDisp"));
+  			if (properties.getProperty(prefix+"outlayerStrength")!=null)  this.outlayerStrength=Double.parseDouble(properties.getProperty(prefix+"outlayerStrength"));
+  			if (properties.getProperty(prefix+"outlayerDiff")!=null)      this.outlayerDiff=Double.parseDouble(properties.getProperty(prefix+"outlayerDiff"));
   		}
   		
   		public boolean showDialog() {
@@ -2526,6 +2600,9 @@ public class EyesisCorrectionParameters {
 
   			gd.addNumericField("Number of tiles in a cluster to seed (just background?)",                      this.min_clstr_seed,   0);
   			gd.addNumericField("Number of tiles in a cluster not close to other clusters (more than 2 tiles apart)", this.min_clstr_lone,   0);
+  			gd.addNumericField("Minimal total strength of the cluster",                                        this.min_clstr_weight,  3);
+  			gd.addNumericField("Minimal maximal strength of the cluster",                                      this.min_clstr_max,  3);
+  			
   			gd.addNumericField("Fill gaps betsween clusters, see comments for 'grow'",                         this.fill_gaps,   0);
   			gd.addNumericField("Number of tiles in a cluster to block (just non-background?)",                 this.min_clstr_block,   0);
   			gd.addNumericField("Number of tiles to grow tile selection (1 - hor/vert, 2 - hor/vert/diagonal)", this.bgnd_grow,   0);
@@ -2541,6 +2618,25 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal disparity RMS in a run to replace by average)",                        this.ortho_rms,  3);
   			gd.addNumericField("Convolve hor/vert strength by 3*(2*l+1) kernels to detect multi-tile features",this.ortho_half_length,   0);
   			gd.addNumericField("Fraction of convolved ortho in a mix with raw",                                this.ortho_mix,  3);
+  			
+  			gd.addMessage     ("--- Combination of ortho and 4-pair correlations ---");
+  			gd.addCheckbox    ("Apply ortho correction to horizontal correlation (vertical features)",            this.or_hor);
+  			gd.addCheckbox    ("Apply ortho correction to vertical correlation (horizontal features)",            this.or_vert);
+  			gd.addNumericField("Blur sigma: verically for horizontal correlation, horizontally - for vertically", this.or_sigma,  3);
+  			gd.addNumericField("3-point sharpening (-k, +2k+1, -k)",                                              this.or_sharp,  3);
+  			gd.addNumericField("Scale ortho correletion strength relative to 4-directional one",                  this.or_scale,  3);
+  			gd.addNumericField("Subtract from scaled correlation strength, limit by 0",                           this.or_offset,  3);
+  			gd.addNumericField("Minimal ratio of orthogonal strengths required for dis[parity replacement",       this.or_asym,  3);
+  			gd.addNumericField("Minimal scaled offset ortho strength to normal strength needed for replacement",  this.or_threshold,  3);
+  			gd.addNumericField("Minimal horizontal absolute scaled offset ortho strength needed for replacement", this.or_absHor,  3);
+  			gd.addNumericField("Minimal vertical absolute scaled offset ortho strength needed for replacement",   this.or_absVert,  3);
+
+  			gd.addMessage     ("--- Fix vertical structures, such as street poles ---");
+  			gd.addCheckbox    ("Continue vertical structures to the ground",                                      this.poles_fix);
+  			gd.addNumericField("Number of tiles to extend over the poles bottoms",                                this.poles_len,   0);
+  			gd.addNumericField("Set new pole segment strength to max of horizontal correlation and this value",   this.poles_min_strength,  3);
+  			gd.addCheckbox    ("Set disparity to that of the bottom of existing segment (false - use hor. disparity)",this.poles_force_disp);
+  			
   			gd.addNumericField("Maximal number of clusters to generate for one run",                           this.max_clusters,   0);
   			gd.addCheckbox    ("Correct lens geometric distortions in a model (will need backdrop to be corrected too)", this.correct_distortions);
   			gd.addCheckbox    ("Show generated triangles",                                                     this.show_triangles);
@@ -2587,6 +2683,11 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Subtract from strength, discard negative",                                     this.stFloor,  6);
   			gd.addNumericField("Raise strength to this power ",                                                this.stPow,  6);
   			gd.addNumericField("Blur disparity histogram (sigma in bins)",                                     this.stSigma,  6);
+  			gd.addNumericField("Minimal backgroubnd disparity to extract as a maximum from the supertiles",    this.stMinBgDisparity,  6);
+  			gd.addNumericField("Minimal fraction of the disparity histogram to use as background",             this.stMinBgFract,  6);
+  			gd.addNumericField("Use background disparity from supertiles if tile strength is less",            this.stUseDisp,  6);
+  			gd.addNumericField("Outlayer tiles weaker than this may be replaced from neighbors",               this.outlayerStrength,  6);
+  			gd.addNumericField("Replace weak outlayer tiles that do not have neighbors within this disparity difference ", this.outlayerDiff,  6);
   			
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
@@ -2695,6 +2796,9 @@ public class EyesisCorrectionParameters {
   			this.bgnd_maybe=            gd.getNextNumber();
   			this.min_clstr_seed=  (int) gd.getNextNumber();
   			this.min_clstr_lone=  (int) gd.getNextNumber();
+  			this.min_clstr_weight=      gd.getNextNumber();
+  			this.min_clstr_max=         gd.getNextNumber();
+  			
   			this.fill_gaps=       (int) gd.getNextNumber();
   			this.min_clstr_block= (int) gd.getNextNumber();
   			this.bgnd_grow=       (int) gd.getNextNumber();
@@ -2710,17 +2814,31 @@ public class EyesisCorrectionParameters {
   			this.ortho_half_length=(int)gd.getNextNumber();
   			this.ortho_mix=             gd.getNextNumber();
 
+  			this.or_hor=                gd.getNextBoolean();
+  			this.or_vert=               gd.getNextBoolean();
+  			this.or_sigma=              gd.getNextNumber();
+  			this.or_sharp=              gd.getNextNumber();
+  			this.or_scale=              gd.getNextNumber();
+  			this.or_offset=             gd.getNextNumber();
+  			this.or_asym=               gd.getNextNumber();
+  			this.or_threshold=          gd.getNextNumber();
+  			this.or_absHor=             gd.getNextNumber();
+  			this.or_absVert=            gd.getNextNumber();
+
+  			this.poles_fix=             gd.getNextBoolean();
+  			this.poles_len=        (int)gd.getNextNumber();
+  			this.poles_min_strength=    gd.getNextNumber();
+  			this.poles_force_disp=      gd.getNextBoolean();
+
   			this.max_clusters=    (int) gd.getNextNumber();
   			this.correct_distortions=   gd.getNextBoolean();
   			this.show_triangles=        gd.getNextBoolean();
   			this.avg_cluster_disp=      gd.getNextBoolean();
   			this.maxDispTriangle=       gd.getNextNumber();
-
   			this.shUseFlaps=            gd.getNextBoolean();
   			this.shAggrFade=            gd.getNextBoolean();
   			this.shMinArea=       (int) gd.getNextNumber();
   			this.shMinStrength=        gd.getNextNumber();
-
   			this.tiRigidVertical=       gd.getNextNumber();
   			this.tiRigidHorizontal=     gd.getNextNumber();
   			this.tiRigidDiagonal=       gd.getNextNumber();
@@ -2755,7 +2873,11 @@ public class EyesisCorrectionParameters {
   			this.stFloor=               gd.getNextNumber();
   			this.stPow=                 gd.getNextNumber();
   			this.stSigma=               gd.getNextNumber();
-  			
+  			this.stMinBgDisparity=      gd.getNextNumber();
+  			this.stMinBgFract=          gd.getNextNumber();
+  			this.stUseDisp=             gd.getNextNumber();
+  			this.outlayerStrength=      gd.getNextNumber();
+  			this.outlayerDiff=          gd.getNextNumber();
   			return true;
   		}
     }
