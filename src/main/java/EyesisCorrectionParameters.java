@@ -2055,7 +2055,8 @@ public class EyesisCorrectionParameters {
   		public double     or_absVert       = 0.19;  // Minimal vertical absolute scaled offset ortho strength needed for replacement
   		
   		public boolean    poles_fix        = true;  // Continue vertical structures to the ground
-  		public int        poles_len        = 50;    // Number of tiles to extend over the poles bottoms
+  		public int        poles_len        = 25;    // Number of tiles to extend over the poles bottoms
+  		public double     poles_ratio      = 1.0;   // Maximal ratio of invisible to visible pole length
   		public double     poles_min_strength = 0.1; // Set new pole segment strength to max of horizontal correlation and this value
   		public boolean    poles_force_disp = true;  // Set disparity to that of the bottom of existing segment (false - use hor. disparity)
   		
@@ -2098,6 +2099,10 @@ public class EyesisCorrectionParameters {
   		public int        tiNumCycles       = 5;     // Number of cycles break-smooth (after the first smooth)
   		
   		// FG/BG separation
+  		public boolean    stUseRefine =       false; // Apply super-tiles during refine passes 
+  		public boolean    stUsePass2 =        true;  // Apply super-tiles during pass2 
+  		public boolean    stUseRender =       true;  // Apply super-tiles during render
+  		
   		public boolean    stShow =            false; // Calculate and show supertiles histograms 
   		public int        stSize            = 8;     // Super tile size (square, in tiles)
   		public double     stStepDisparity   = 0.1;   // Disaprity histogram step
@@ -2111,8 +2116,34 @@ public class EyesisCorrectionParameters {
   		public double     stUseDisp         = 0.15;  // Use background disparity from supertiles if tile strength is less 
   		
   		public double     outlayerStrength  = 0.3;   // Outlayer tiles weaker than this may be replaced from neighbors
-  		public double     outlayerDiff      = 0.4;   // Replace weak outlayer tiles that do not have neighbors within this disparity difference 
+  		public double     outlayerDiff      = 0.4;   // Replace weak outlayer tiles that do not have neighbors within this disparity difference
+  		public double     outlayerDiffPos   = 1.0;   // Replace weak outlayer tiles that have higher disparity than weighted average
+  		public double     outlayerDiffNeg   = 0.4;   // Replace weak outlayer tiles that have lower disparity than weighted average
   		
+  		// TODO: Make refine skip if already good?
+  		public boolean    combine_refine    = true; // combine with all previous after refine pass
+  		public double     combine_min_strength = 0.12; // Disregard weaker tiles when combining scans
+  		public double     unique_tolerance = 0.1; // Do not re-measure correlation if target disparity differs from some previous by this
+  		
+  		// Multi-pass growing disparity
+  		public int        grow_sweep         = 8; // Try these number of tiles around known ones 
+  		public double     grow_disp_max =   50.0; // Maximal disparity to try
+  		public double     grow_disp_trust =  4.0; // Trust measured disparity within +/- this value 
+  		public double     grow_disp_step =   6.0; // Increase disparity (from maximal tried) if nothing found in that tile // TODO: handle enclosed dips?  
+  		public double     grow_min_diff =    0.5; // Grow more only if at least one channel has higher variance from others for the tile  
+  		
+  		// other debug images
+  		public boolean    show_ortho_combine =     false; // Show 'ortho_combine' 
+  		public boolean    show_refine_supertiles = false; // show 'refine_disparity_supertiles' 
+  		public boolean    show_bgnd_nonbgnd =      false; // show 'bgnd_nonbgnd' 
+  		public boolean    show_filter_scan =       false; // show 'FilterScan'
+  		public boolean    show_combined =          false; // show 'combo_scan' (combined multiple scans)
+  		public boolean    show_unique =            false; // show 'unique_scan' (removed already measured tiles with the same disparity)
+  		
+  		public boolean    show_shells =            false; // show 'shells' 
+  		public boolean    show_neighbors =         false; // show 'neighbors' 
+  		public boolean    show_flaps_dirs =        false; // show 'flaps-dirs' 
+  		public boolean    show_first_clusters =    false; // show 'first_N_clusters' 
   		
   		
   		public CLTParameters(){}
@@ -2250,6 +2281,7 @@ public class EyesisCorrectionParameters {
 			
 			properties.setProperty(prefix+"poles_fix",        this.poles_fix+"");
   			properties.setProperty(prefix+"poles_len",        this.poles_len+"");
+			properties.setProperty(prefix+"poles_ratio",      this.poles_ratio +"");
 			properties.setProperty(prefix+"poles_min_strength",this.poles_min_strength +"");
 			properties.setProperty(prefix+"poles_force_disp", this.poles_force_disp+"");
 			
@@ -2290,6 +2322,10 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"tiPrecision",      this.tiPrecision+"");
   			properties.setProperty(prefix+"tiNumCycles",      this.tiNumCycles+"");
 			
+			properties.setProperty(prefix+"stUseRefine",      this.stUseRefine+"");
+			properties.setProperty(prefix+"stUsePass2",       this.stUsePass2+"");
+			properties.setProperty(prefix+"stUseRender",      this.stUseRender+"");
+
 			properties.setProperty(prefix+"stShow",           this.stShow+"");
   			properties.setProperty(prefix+"stSize",           this.stSize+"");
 			properties.setProperty(prefix+"stStepDisparity",  this.stStepDisparity +"");
@@ -2303,6 +2339,29 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"stUseDisp",        this.stUseDisp +"");
 			properties.setProperty(prefix+"outlayerStrength", this.outlayerStrength +"");
 			properties.setProperty(prefix+"outlayerDiff",     this.outlayerDiff +"");
+			properties.setProperty(prefix+"outlayerDiffPos",  this.outlayerDiffPos +"");
+			properties.setProperty(prefix+"outlayerDiffNeg",  this.outlayerDiffNeg +"");
+
+			properties.setProperty(prefix+"combine_refine",   this.combine_refine+"");
+
+			properties.setProperty(prefix+"combine_min_strength", this.combine_min_strength +"");
+			properties.setProperty(prefix+"unique_tolerance", this.unique_tolerance +"");
+  			properties.setProperty(prefix+"grow_sweep",       this.grow_sweep+"");
+			properties.setProperty(prefix+"grow_disp_max",    this.grow_disp_max +"");
+			properties.setProperty(prefix+"grow_disp_trust",  this.grow_disp_trust +"");
+			properties.setProperty(prefix+"grow_disp_step",   this.grow_disp_step +"");
+			properties.setProperty(prefix+"grow_min_diff",    this.grow_min_diff +"");
+
+			properties.setProperty(prefix+"show_ortho_combine",     this.show_ortho_combine+"");
+			properties.setProperty(prefix+"show_refine_supertiles", this.show_refine_supertiles+"");
+			properties.setProperty(prefix+"show_bgnd_nonbgnd",      this.show_bgnd_nonbgnd+"");
+			properties.setProperty(prefix+"show_filter_scan",       this.show_filter_scan+"");
+			properties.setProperty(prefix+"show_combined",          this.show_combined+"");
+			properties.setProperty(prefix+"show_unique",            this.show_unique+"");
+			properties.setProperty(prefix+"show_shells",            this.show_shells+"");
+			properties.setProperty(prefix+"show_neighbors",         this.show_neighbors+"");
+			properties.setProperty(prefix+"show_flaps_dirs",        this.show_flaps_dirs+"");
+			properties.setProperty(prefix+"show_first_clusters",    this.show_first_clusters+"");
   		}
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"transform_size")!=null) this.transform_size=Integer.parseInt(properties.getProperty(prefix+"transform_size"));
@@ -2434,6 +2493,7 @@ public class EyesisCorrectionParameters {
 
   			if (properties.getProperty(prefix+"poles_fix")!=null)         this.poles_fix=Boolean.parseBoolean(properties.getProperty(prefix+"poles_fix"));
   			if (properties.getProperty(prefix+"poles_len")!=null)         this.poles_len=Integer.parseInt(properties.getProperty(prefix+"poles_len"));
+  			if (properties.getProperty(prefix+"poles_ratio")!=null)       this.poles_ratio=Double.parseDouble(properties.getProperty(prefix+"poles_ratio"));
   			if (properties.getProperty(prefix+"poles_min_strength")!=null)this.poles_min_strength=Double.parseDouble(properties.getProperty(prefix+"poles_min_strength"));
   			if (properties.getProperty(prefix+"poles_force_disp")!=null)  this.poles_force_disp=Boolean.parseBoolean(properties.getProperty(prefix+"poles_force_disp"));
   			
@@ -2471,6 +2531,10 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"tiIterations")!=null)      this.tiIterations=Integer.parseInt(properties.getProperty(prefix+"tiIterations"));
   			if (properties.getProperty(prefix+"tiPrecision")!=null)       this.tiPrecision=Integer.parseInt(properties.getProperty(prefix+"tiPrecision"));
   			if (properties.getProperty(prefix+"tiNumCycles")!=null)       this.tiNumCycles=Integer.parseInt(properties.getProperty(prefix+"tiNumCycles"));
+
+  			if (properties.getProperty(prefix+"stUseRefine")!=null)       this.stUseRefine=Boolean.parseBoolean(properties.getProperty(prefix+"stUseRefine"));
+  			if (properties.getProperty(prefix+"stUsePass2")!=null)        this.stUsePass2=Boolean.parseBoolean(properties.getProperty(prefix+"stUsePass2"));
+  			if (properties.getProperty(prefix+"stUseRender")!=null)       this.stUseRender=Boolean.parseBoolean(properties.getProperty(prefix+"stUseRender"));
   			
   			if (properties.getProperty(prefix+"stShow")!=null)            this.stShow=Boolean.parseBoolean(properties.getProperty(prefix+"stShow"));
   			if (properties.getProperty(prefix+"stSize")!=null)            this.stSize=Integer.parseInt(properties.getProperty(prefix+"stSize"));
@@ -2485,6 +2549,30 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"stUseDisp")!=null)         this.stUseDisp=Double.parseDouble(properties.getProperty(prefix+"stUseDisp"));
   			if (properties.getProperty(prefix+"outlayerStrength")!=null)  this.outlayerStrength=Double.parseDouble(properties.getProperty(prefix+"outlayerStrength"));
   			if (properties.getProperty(prefix+"outlayerDiff")!=null)      this.outlayerDiff=Double.parseDouble(properties.getProperty(prefix+"outlayerDiff"));
+  			if (properties.getProperty(prefix+"outlayerDiffPos")!=null)   this.outlayerDiffPos=Double.parseDouble(properties.getProperty(prefix+"outlayerDiffPos"));
+  			if (properties.getProperty(prefix+"outlayerDiffNeg")!=null)   this.outlayerDiffNeg=Double.parseDouble(properties.getProperty(prefix+"outlayerDiffNeg"));
+
+  			if (properties.getProperty(prefix+"combine_refine")!=null)    this.combine_refine=Boolean.parseBoolean(properties.getProperty(prefix+"combine_refine"));
+
+  			if (properties.getProperty(prefix+"combine_min_strength")!=null) this.combine_min_strength=Double.parseDouble(properties.getProperty(prefix+"combine_min_strength"));
+  			if (properties.getProperty(prefix+"unique_tolerance")!=null)  this.unique_tolerance=Double.parseDouble(properties.getProperty(prefix+"unique_tolerance"));
+  			if (properties.getProperty(prefix+"grow_sweep")!=null)        this.grow_sweep=Integer.parseInt(properties.getProperty(prefix+"grow_sweep"));
+  			if (properties.getProperty(prefix+"grow_disp_max")!=null)     this.grow_disp_max=Double.parseDouble(properties.getProperty(prefix+"grow_disp_max"));
+  			if (properties.getProperty(prefix+"grow_disp_trust")!=null)   this.grow_disp_trust=Double.parseDouble(properties.getProperty(prefix+"grow_disp_trust"));
+  			if (properties.getProperty(prefix+"grow_disp_step")!=null)    this.grow_disp_step=Double.parseDouble(properties.getProperty(prefix+"grow_disp_step"));
+  			if (properties.getProperty(prefix+"grow_min_diff")!=null)     this.grow_min_diff=Double.parseDouble(properties.getProperty(prefix+"grow_min_diff"));
+
+  			if (properties.getProperty(prefix+"show_ortho_combine")!=null)     this.show_ortho_combine=Boolean.parseBoolean(properties.getProperty(prefix+"show_ortho_combine"));
+  			if (properties.getProperty(prefix+"show_refine_supertiles")!=null) this.show_refine_supertiles=Boolean.parseBoolean(properties.getProperty(prefix+"show_refine_supertiles"));
+  			if (properties.getProperty(prefix+"show_bgnd_nonbgnd")!=null)      this.show_bgnd_nonbgnd=Boolean.parseBoolean(properties.getProperty(prefix+"show_bgnd_nonbgnd"));
+  			if (properties.getProperty(prefix+"show_filter_scan")!=null)       this.show_filter_scan=Boolean.parseBoolean(properties.getProperty(prefix+"show_filter_scan"));
+  			if (properties.getProperty(prefix+"show_combined")!=null)          this.show_combined=Boolean.parseBoolean(properties.getProperty(prefix+"show_combined"));
+  			if (properties.getProperty(prefix+"show_unique")!=null)            this.show_unique=Boolean.parseBoolean(properties.getProperty(prefix+"show_unique"));
+  			if (properties.getProperty(prefix+"show_shells")!=null)            this.show_shells=Boolean.parseBoolean(properties.getProperty(prefix+"show_shells"));
+  			if (properties.getProperty(prefix+"show_neighbors")!=null)         this.show_neighbors=Boolean.parseBoolean(properties.getProperty(prefix+"show_neighbors"));
+  			if (properties.getProperty(prefix+"show_flaps_dirs")!=null)        this.show_flaps_dirs=Boolean.parseBoolean(properties.getProperty(prefix+"show_flaps_dirs"));
+  			if (properties.getProperty(prefix+"show_first_clusters")!=null)    this.show_first_clusters=Boolean.parseBoolean(properties.getProperty(prefix+"show_first_clusters"));
+  		
   		}
   		
   		public boolean showDialog() {
@@ -2634,6 +2722,7 @@ public class EyesisCorrectionParameters {
   			gd.addMessage     ("--- Fix vertical structures, such as street poles ---");
   			gd.addCheckbox    ("Continue vertical structures to the ground",                                      this.poles_fix);
   			gd.addNumericField("Number of tiles to extend over the poles bottoms",                                this.poles_len,   0);
+  			gd.addNumericField("Maximal ratio of invisible to visible pole length",                               this.poles_ratio,  3);
   			gd.addNumericField("Set new pole segment strength to max of horizontal correlation and this value",   this.poles_min_strength,  3);
   			gd.addCheckbox    ("Set disparity to that of the bottom of existing segment (false - use hor. disparity)",this.poles_force_disp);
   			
@@ -2675,7 +2764,11 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Iteration maximal error (1/power of 10)",                                      this.tiPrecision,  0);
   			gd.addNumericField("Number of cycles break-smooth (after the first smooth)",                       this.tiNumCycles,  0);
   			gd.addMessage     ("--- Fg/Bg separation ---");
-  			gd.addCheckbox    ("Calculate and show supertiles histograms",                                     this.stShow);
+  			gd.addCheckbox    ("Apply super-tiles during refine passes",                                       this.stUseRefine);
+  			gd.addCheckbox    ("Apply super-tiles during pass2 ",                                              this.stUsePass2);
+  			gd.addCheckbox    ("Apply super-tiles during render",                                              this.stUseRender);
+  			
+  			gd.addCheckbox    ("Show supertiles histograms",                                                   this.stShow);
   			gd.addNumericField("Super tile size (square, in tiles)",                                           this.stSize,  0);
   			gd.addNumericField("Disaprity histogram step",                                                     this.stStepDisparity,  6);
   			gd.addNumericField("Minimal disparity (center of a bin)",                                          this.stMinDisparity,  6);
@@ -2687,8 +2780,31 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Minimal fraction of the disparity histogram to use as background",             this.stMinBgFract,  6);
   			gd.addNumericField("Use background disparity from supertiles if tile strength is less",            this.stUseDisp,  6);
   			gd.addNumericField("Outlayer tiles weaker than this may be replaced from neighbors",               this.outlayerStrength,  6);
-  			gd.addNumericField("Replace weak outlayer tiles that do not have neighbors within this disparity difference ", this.outlayerDiff,  6);
+  			gd.addNumericField("Replace weak outlayer tiles that do not have neighbors within this disparity difference", this.outlayerDiff,  6);
+  			gd.addNumericField("Replace weak outlayer tiles that have higher disparity than weighted average", this.outlayerDiffPos,  6);
+  			gd.addNumericField("Replace weak outlayer tiles that have lower disparity than weighted average",  this.outlayerDiffNeg,  6);
+
+  			gd.addCheckbox    ("Combine with all previous after refine pass",                                  this.combine_refine);
+  			gd.addNumericField("Disregard weaker tiles when combining scans",                                  this.combine_min_strength,  6);
+  			gd.addNumericField("Do not re-measure correlation if target disparity differs from some previous by this",this.unique_tolerance,  6);
   			
+  			gd.addMessage     ("--- Growing disparity range to scan ---");
+  			gd.addNumericField("Try these number of tiles around known ones",                                  this.grow_sweep,  0);
+  			gd.addNumericField("Maximal disparity to try",                                                     this.grow_disp_max,  6);
+  			gd.addNumericField("Trust measured disparity within +/- this value",                               this.grow_disp_trust,  6);
+  			gd.addNumericField("Increase disparity (from maximal tried) if nothing found in that tile",        this.grow_disp_step,  6);
+  			gd.addNumericField("Grow more only if at least one channel has higher variance from others for the tile", this.grow_min_diff,  6);
+  			gd.addMessage     ("--- Other debug images ---");
+  			gd.addCheckbox    ("Show 'ortho_combine'",                                                         this.show_ortho_combine);
+  			gd.addCheckbox    ("Show 'refine_disparity_supertiles'",                                           this.show_refine_supertiles);
+  			gd.addCheckbox    ("Show 'bgnd_nonbgnd'",                                                          this.show_bgnd_nonbgnd);
+  			gd.addCheckbox    ("Show 'FilterScan'",                                                            this.show_filter_scan);
+  			gd.addCheckbox    ("Show 'combo_scan' (combined multiple scans)",                                  this.show_combined);
+  			gd.addCheckbox    ("Show 'unique_scan' (removed already measured tiles with the same disparity)",  this.show_unique);
+  			gd.addCheckbox    ("Show 'shells'",                                                                this.show_shells);
+  			gd.addCheckbox    ("show 'neighbors'",                                                             this.show_neighbors);
+  			gd.addCheckbox    ("Show 'flaps-dirs'",                                                            this.show_flaps_dirs);
+  			gd.addCheckbox    ("Show 'first_N_clusters'",                                                      this.show_first_clusters);
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
   			
@@ -2827,6 +2943,7 @@ public class EyesisCorrectionParameters {
 
   			this.poles_fix=             gd.getNextBoolean();
   			this.poles_len=        (int)gd.getNextNumber();
+  			this.poles_ratio=           gd.getNextNumber();
   			this.poles_min_strength=    gd.getNextNumber();
   			this.poles_force_disp=      gd.getNextBoolean();
 
@@ -2865,6 +2982,10 @@ public class EyesisCorrectionParameters {
   			this.tiPrecision=     (int) gd.getNextNumber();
   			this.tiNumCycles=     (int) gd.getNextNumber();
   			
+  			this.stUseRefine=           gd.getNextBoolean();
+  			this.stUsePass2=            gd.getNextBoolean();
+  			this.stUseRender=           gd.getNextBoolean();
+
   			this.stShow=                gd.getNextBoolean();
   			this.stSize=          (int) gd.getNextNumber();
   			this.stStepDisparity=       gd.getNextNumber();
@@ -2878,6 +2999,30 @@ public class EyesisCorrectionParameters {
   			this.stUseDisp=             gd.getNextNumber();
   			this.outlayerStrength=      gd.getNextNumber();
   			this.outlayerDiff=          gd.getNextNumber();
+  			this.outlayerDiffPos=       gd.getNextNumber();
+  			this.outlayerDiffNeg=       gd.getNextNumber();
+
+  			this.combine_refine=        gd.getNextBoolean();
+
+  			this.combine_min_strength=  gd.getNextNumber();
+  			this.unique_tolerance=      gd.getNextNumber();
+
+  			this.grow_sweep=      (int) gd.getNextNumber();
+  			this.grow_disp_max=         gd.getNextNumber();
+  			this.grow_disp_trust=       gd.getNextNumber();
+  			this.grow_disp_step=        gd.getNextNumber();
+  			this.grow_min_diff=         gd.getNextNumber();
+
+  			this.show_ortho_combine=     gd.getNextBoolean();
+  			this.show_refine_supertiles= gd.getNextBoolean();
+  			this.show_bgnd_nonbgnd=      gd.getNextBoolean(); // first on second pass
+  			this.show_filter_scan=       gd.getNextBoolean(); // first on refine
+  			this.show_combined=          gd.getNextBoolean();
+  			this.show_unique=            gd.getNextBoolean();
+  			this.show_shells=            gd.getNextBoolean();
+  			this.show_neighbors=         gd.getNextBoolean();
+  			this.show_flaps_dirs=        gd.getNextBoolean();
+  			this.show_first_clusters=    gd.getNextBoolean();
   			return true;
   		}
     }

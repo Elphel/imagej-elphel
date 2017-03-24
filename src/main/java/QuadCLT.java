@@ -4752,15 +4752,16 @@ public class QuadCLT {
  		  // refine first measurement
           int bg_pass = tp.clt_3d_passes.size() - 1; // 0
           int refine_pass = tp.clt_3d_passes.size(); // 1
-          for (int nnn = 0; nnn<3; nnn ++){
+          for (int nnn = 0; nnn < 4; nnn ++){
               refine_pass = tp.clt_3d_passes.size(); // 1
         	  tp.refinePassSetup( // prepare tile tasks for the refine pass (re-measure disparities)
         			  //				  final double [][][]       image_data, // first index - number of image in a quad
         			  clt_parameters,
+        			  clt_parameters.stUseRefine, // use supertiles
         			  bg_pass, 
         			  // disparity range - differences from 
         			  clt_parameters.bgnd_range, // double            disparity_far,  
-        			  clt_parameters.other_range, //double            disparity_near,   //
+        			  clt_parameters.grow_disp_max, // other_range, //double            disparity_near,   //
         			  clt_parameters.bgnd_sure, // double            this_sure,        // minimal strength to be considered definitely background
         			  clt_parameters.bgnd_maybe, // double            this_maybe,       // maximal strength to ignore as non-background
         			  clt_parameters.sure_smth, // sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
@@ -4769,16 +4770,170 @@ public class QuadCLT {
         			  threadsMax,  // maximal number of threads to launch                         
         			  updateStatus,
         			  debugLevel);
+        	  int [] numLeftRemoved = tp.makeUnique(
+        				tp.clt_3d_passes,                  // final ArrayList <CLTPass3d> passes,
+        				0,                                 //  final int                   firstPass,
+        				refine_pass - 1,                   //  final int                   lastPassPlus1,
+        				tp.clt_3d_passes.get(refine_pass), //  final CLTPass3d             new_scan,
+        				clt_parameters.unique_tolerance,   //  final double                unique_tolerance,
+        				clt_parameters.show_unique);      // final boolean               show_unique)
+        	  if (debugLevel > -1){
+        		  System.out.println("cycle makeUnique("+refine_pass+") -> left: "+numLeftRemoved[0]+", removed:" + numLeftRemoved[1]);
+        	  }
+        	  
+        	  
         	  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
         			  image_data, // first index - number of image in a quad
         			  clt_parameters,
         			  refine_pass,
         			  threadsMax,  // maximal number of threads to launch                         
         			  updateStatus,
-        			  debugLevel); 		  
+        			  debugLevel); 
+              if (debugLevel > -1){
+            	  System.out.println("CLTMeasure("+refine_pass+")");
+              }
+        	  
+        	  if (clt_parameters.combine_refine){
+//        		  TileProcessor.CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
+        		  TileProcessor.CLTPass3d combo_pass = tp.combinePasses(
+        				  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
+        				  bg_pass, //  final int                   firstPass,
+        				  tp.clt_3d_passes.size(), //  final int                   lastPassPlus1,
+        				  true,  // skip_combo, // do not process other combo scans
+        				  true, //  final boolean               use_last,   // use last scan data if nothing better 
+        				  false, // not calculated yet! true,  // 	 final boolean               useCombo, // use combined disparity/strength (false - use measured full correlation
+        				  false, // final boolean               usePoly,  // use polynomial method to find max), valid if useCombo == false
+        				  clt_parameters.combine_min_strength, // 	 final double                minStrength, // ignore too weak tiles
+            			  clt_parameters.show_combined);
+        		  tp.clt_3d_passes.add(combo_pass);
+//        		  refine_pass = tp.clt_3d_passes.size();
+        	  }
           }
+// process once more to try combining of processed          
+          refine_pass = tp.clt_3d_passes.size(); // 1
+          tp.refinePassSetup( // prepare tile tasks for the refine pass (re-measure disparities)
+        		  //				  final double [][][]       image_data, // first index - number of image in a quad
+        		  clt_parameters,
+        		  clt_parameters.stUseRefine, // use supertiles
+        		  bg_pass, 
+        		  // disparity range - differences from 
+        		  clt_parameters.bgnd_range, // double            disparity_far,  
+        		  clt_parameters.grow_disp_max, // other_range, //double            disparity_near,   //
+        		  clt_parameters.bgnd_sure, // double            this_sure,        // minimal strength to be considered definitely background
+        		  clt_parameters.bgnd_maybe, // double            this_maybe,       // maximal strength to ignore as non-background
+        		  clt_parameters.sure_smth, // sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
+        		  ImageDtt.DISPARITY_INDEX_CM,  // index of disparity value in disparity_map == 2 (0,2 or 4)
+        		  geometryCorrection,
+        		  threadsMax,  // maximal number of threads to launch                         
+        		  updateStatus,
+        		  debugLevel);
+
+          TileProcessor.CLTPass3d extended_pass = tp.combinePasses(
+        		  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
+        		  bg_pass, //  final int                   firstPass,
+        		  tp.clt_3d_passes.size(), //  final int                   lastPassPlus1,
+        		  false, // skip_combo, // do not process other combo scans
+        		  true,  //  final boolean               use_last,   // use last scan data if nothing better 
+        		  true,  // not calculated yet! true,  // 	 final boolean               useCombo, // use combined disparity/strength (false - use measured full correlation
+        		  false, // final boolean               usePoly,  // use polynomial method to find max), valid if useCombo == false
+        		  clt_parameters.combine_min_strength, // 	 final double                minStrength, // ignore too weak tiles
+        		  true); //  clt_parameters.show_combined);
+
+          tp.setupExtendDisparity(
+        		  extended_pass,                              // final CLTPass3d   scan,            // combined scan with max_tried_disparity, will be modified to re-scan
+        		  tp.clt_3d_passes.get(refine_pass), // final CLTPass3d   last_scan,       // last prepared tile - can use last_scan.disparity, .border_tiles and .selected
+        		  tp.clt_3d_passes.get(bg_pass), // final CLTPass3d   bg_scan,         // background scan data
+        		  clt_parameters.grow_sweep,      // 8; // Try these number of tiles around known ones 
+        		  clt_parameters.grow_disp_max,   //  =   50.0; // Maximal disparity to try
+        		  clt_parameters.grow_disp_trust, //  =  4.0; // Trust measured disparity within +/- this value 
+        		  clt_parameters.grow_disp_step,  //  =   6.0; // Increase disparity (from maximal tried) if nothing found in that tile // TODO: handle enclosed dips?  
+        		  clt_parameters.grow_min_diff,    // =    0.5; // Grow more only if at least one channel has higher variance from others for the tile
+        		  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+        		  geometryCorrection, // GeometryCorrection geometryCorrection,
+        		  true, // final boolean     show_debug,
+        		  threadsMax,  // maximal number of threads to launch                         
+        		  updateStatus,
+        		  debugLevel);
+          refine_pass = tp.clt_3d_passes.size(); // 1
+
+          tp.clt_3d_passes.add(extended_pass);
+
+          int [] numLeftRemoved = tp.makeUnique(
+        		  tp.clt_3d_passes,                  // final ArrayList <CLTPass3d> passes,
+        		  0,                                 //  final int                   firstPass,
+        		  refine_pass - 1,                   //  final int                   lastPassPlus1,
+        		  tp.clt_3d_passes.get(refine_pass), //  final CLTPass3d             new_scan,
+        		  clt_parameters.unique_tolerance,   //  final double                unique_tolerance,
+        		  clt_parameters.show_unique);      // final boolean               show_unique)
+          if (debugLevel > -1){
+        	  System.out.println("last makeUnique("+refine_pass+") -> left: "+numLeftRemoved[0]+", removed:" + numLeftRemoved[1]);
+          }
+
+
+//          refine_pass = tp.clt_3d_passes.size(); // 
+          CLTMeasure( // perform single pass according to prepared tiles operations and disparity
+        		  image_data, // first index - number of image in a quad
+        		  clt_parameters,
+        		  refine_pass,
+        		  threadsMax,  // maximal number of threads to launch                         
+        		  updateStatus,
+        		  debugLevel); 
+          if (debugLevel > -1){
+        	  System.out.println("extending: CLTMeasure("+refine_pass+")");
+          }
+
+          if (clt_parameters.combine_refine){
+        	  //  		  TileProcessor.CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
+        	  TileProcessor.CLTPass3d combo_pass = tp.combinePasses(
+        			  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
+        			  bg_pass, //  final int                   firstPass,
+        			  tp.clt_3d_passes.size(), //  final int                   lastPassPlus1,
+        			  true,  // skip_combo, // do not process other combo scans
+        			  true, //  final boolean               use_last,   // use last scan data if nothing better 
+        			  false, // not calculated yet! true,  // 	 final boolean               useCombo, // use combined disparity/strength (false - use measured full correlation
+        			  false, // final boolean               usePoly,  // use polynomial method to find max), valid if useCombo == false
+        			  clt_parameters.combine_min_strength, // 	 final double                minStrength, // ignore too weak tiles
+        			  clt_parameters.show_combined);
+        	  tp.clt_3d_passes.add(combo_pass);
+        	  //  		  refine_pass = tp.clt_3d_passes.size();
+          }
+          refine_pass = tp.clt_3d_passes.size(); // 1
+          
+          // Refine after extension
+    	  tp.refinePassSetup( // prepare tile tasks for the refine pass (re-measure disparities)
+    			  //				  final double [][][]       image_data, // first index - number of image in a quad
+    			  clt_parameters,
+    			  clt_parameters.stUseRefine, // use supertiles
+    			  bg_pass, 
+    			  // disparity range - differences from 
+    			  clt_parameters.bgnd_range, // double            disparity_far,  
+    			  clt_parameters.grow_disp_max, // other_range, //double            disparity_near,   //
+    			  clt_parameters.bgnd_sure, // double            this_sure,        // minimal strength to be considered definitely background
+    			  clt_parameters.bgnd_maybe, // double            this_maybe,       // maximal strength to ignore as non-background
+    			  clt_parameters.sure_smth, // sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
+    			  ImageDtt.DISPARITY_INDEX_CM,  // index of disparity value in disparity_map == 2 (0,2 or 4)
+    			  geometryCorrection,
+    			  threadsMax,  // maximal number of threads to launch                         
+    			  updateStatus,
+    			  2); // debugLevel);
+    	  numLeftRemoved = tp.makeUnique(
+    				tp.clt_3d_passes,                  // final ArrayList <CLTPass3d> passes,
+    				0,                                 //  final int                   firstPass,
+    				refine_pass - 1,                   //  final int                   lastPassPlus1,
+    				tp.clt_3d_passes.get(refine_pass), //  final CLTPass3d             new_scan,
+    				clt_parameters.unique_tolerance,   //  final double                unique_tolerance,
+    				clt_parameters.show_unique);      // final boolean               show_unique)
+    	  if (debugLevel > -1){
+    		  System.out.println("makeUnique("+refine_pass+")   -> left: "+numLeftRemoved[0]+", removed:" + numLeftRemoved[1]);
+    	  }
+          
+
+
+
+
+		  // TEMPORARY EXIT
 		  
-		  
+		  if (tp.clt_3d_passes.size() > 0) return null; // just to fool compiler 
 		  
  		  
 		  // testing 2-nd pass
@@ -4786,10 +4941,11 @@ public class QuadCLT {
 		  tp.secondPassSetup( // prepare tile tasks for the second pass based on the previous one(s)
 //				  final double [][][]       image_data, // first index - number of image in a quad
 				  clt_parameters,
+    			  clt_parameters.stUsePass2, // use supertiles
 				  bg_pass, 
 				  // disparity range - differences from 
 				  clt_parameters.bgnd_range, // double            disparity_far,  
-				  clt_parameters.other_range, //double            disparity_near,   //
+				  clt_parameters.grow_disp_max, // other_range, //double            disparity_near,   //
 				  clt_parameters.bgnd_sure, // double            this_sure,        // minimal strength to be considered definitely background
 				  clt_parameters.bgnd_maybe, // double            this_maybe,       // maximal strength to ignore as non-background
 				  clt_parameters.sure_smth, // sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
@@ -4977,6 +5133,7 @@ public class QuadCLT {
 				  clt_parameters.min_clstr_seed, // number of tiles in a cluster to seed (just background?)
 				  clt_parameters.min_clstr_block,// number of tiles in a cluster to block (just non-background?)
 				  disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
+				  clt_parameters.show_bgnd_nonbgnd,
 				  (clt_parameters.debug_filters ? debugLevel : -1));
 		  boolean [] bgnd_strict = bgnd_tiles.clone(); // only these have non 0 alpha
 		  tp.growTiles(
