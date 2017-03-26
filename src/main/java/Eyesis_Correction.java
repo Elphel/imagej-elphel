@@ -4665,6 +4665,8 @@ private Panel panel1,
         	}
         }
         QUAD_CLT.tp.resetCLTPasses();
+        QUAD_CLT.tp.setTrustedCorrelation(CLT_PARAMETERS.grow_disp_trust);
+
         return;
         
 /// ============================================

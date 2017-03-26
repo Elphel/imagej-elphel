@@ -2114,6 +2114,7 @@ public class EyesisCorrectionParameters {
   		public double     stMinBgDisparity  = 0.0;   // Minimal backgroubnd disparity to extract as a maximum from the supertiles 
   		public double     stMinBgFract      = 0.1;   // Minimal fraction of the disparity histogram to use as background 
   		public double     stUseDisp         = 0.15;  // Use background disparity from supertiles if tile strength is less 
+  		public double     stStrengthScale   = 50.0;  // Multiply st strength if used instead of regular strength 
   		
   		public double     outlayerStrength  = 0.3;   // Outlayer tiles weaker than this may be replaced from neighbors
   		public double     outlayerDiff      = 0.4;   // Replace weak outlayer tiles that do not have neighbors within this disparity difference
@@ -2123,6 +2124,8 @@ public class EyesisCorrectionParameters {
   		// TODO: Make refine skip if already good?
   		public boolean    combine_refine    = true; // combine with all previous after refine pass
   		public double     combine_min_strength = 0.12; // Disregard weaker tiles when combining scans
+  		public double     combine_min_hor =      0.12; // Disregard weaker tiles when combining scans for horizontal correlation
+  		public double     combine_min_vert =     0.12; // Disregard weaker tiles when combining scans for vertical correlation
   		public double     unique_tolerance = 0.1; // Do not re-measure correlation if target disparity differs from some previous by this
   		
   		// Multi-pass growing disparity
@@ -2337,6 +2340,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"stMinBgDisparity", this.stMinBgDisparity +"");
 			properties.setProperty(prefix+"stMinBgFract",     this.stMinBgFract +"");
 			properties.setProperty(prefix+"stUseDisp",        this.stUseDisp +"");
+			properties.setProperty(prefix+"stStrengthScale",  this.stStrengthScale +"");
 			properties.setProperty(prefix+"outlayerStrength", this.outlayerStrength +"");
 			properties.setProperty(prefix+"outlayerDiff",     this.outlayerDiff +"");
 			properties.setProperty(prefix+"outlayerDiffPos",  this.outlayerDiffPos +"");
@@ -2345,6 +2349,8 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"combine_refine",   this.combine_refine+"");
 
 			properties.setProperty(prefix+"combine_min_strength", this.combine_min_strength +"");
+			properties.setProperty(prefix+"combine_min_hor",  this.combine_min_hor +"");
+			properties.setProperty(prefix+"combine_min_vert", this.combine_min_vert +"");
 			properties.setProperty(prefix+"unique_tolerance", this.unique_tolerance +"");
   			properties.setProperty(prefix+"grow_sweep",       this.grow_sweep+"");
 			properties.setProperty(prefix+"grow_disp_max",    this.grow_disp_max +"");
@@ -2547,6 +2553,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"stMinBgDisparity")!=null)  this.stMinBgDisparity=Double.parseDouble(properties.getProperty(prefix+"stMinBgDisparity"));
   			if (properties.getProperty(prefix+"stMinBgFract")!=null)      this.stMinBgFract=Double.parseDouble(properties.getProperty(prefix+"stMinBgFract"));
   			if (properties.getProperty(prefix+"stUseDisp")!=null)         this.stUseDisp=Double.parseDouble(properties.getProperty(prefix+"stUseDisp"));
+  			if (properties.getProperty(prefix+"stStrengthScale")!=null)   this.stStrengthScale=Double.parseDouble(properties.getProperty(prefix+"stStrengthScale"));
   			if (properties.getProperty(prefix+"outlayerStrength")!=null)  this.outlayerStrength=Double.parseDouble(properties.getProperty(prefix+"outlayerStrength"));
   			if (properties.getProperty(prefix+"outlayerDiff")!=null)      this.outlayerDiff=Double.parseDouble(properties.getProperty(prefix+"outlayerDiff"));
   			if (properties.getProperty(prefix+"outlayerDiffPos")!=null)   this.outlayerDiffPos=Double.parseDouble(properties.getProperty(prefix+"outlayerDiffPos"));
@@ -2555,6 +2562,8 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"combine_refine")!=null)    this.combine_refine=Boolean.parseBoolean(properties.getProperty(prefix+"combine_refine"));
 
   			if (properties.getProperty(prefix+"combine_min_strength")!=null) this.combine_min_strength=Double.parseDouble(properties.getProperty(prefix+"combine_min_strength"));
+  			if (properties.getProperty(prefix+"combine_min_hor")!=null)   this.combine_min_hor=Double.parseDouble(properties.getProperty(prefix+"combine_min_hor"));
+  			if (properties.getProperty(prefix+"combine_min_vert")!=null)  this.combine_min_vert=Double.parseDouble(properties.getProperty(prefix+"combine_min_vert"));
   			if (properties.getProperty(prefix+"unique_tolerance")!=null)  this.unique_tolerance=Double.parseDouble(properties.getProperty(prefix+"unique_tolerance"));
   			if (properties.getProperty(prefix+"grow_sweep")!=null)        this.grow_sweep=Integer.parseInt(properties.getProperty(prefix+"grow_sweep"));
   			if (properties.getProperty(prefix+"grow_disp_max")!=null)     this.grow_disp_max=Double.parseDouble(properties.getProperty(prefix+"grow_disp_max"));
@@ -2779,6 +2788,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Minimal backgroubnd disparity to extract as a maximum from the supertiles",    this.stMinBgDisparity,  6);
   			gd.addNumericField("Minimal fraction of the disparity histogram to use as background",             this.stMinBgFract,  6);
   			gd.addNumericField("Use background disparity from supertiles if tile strength is less",            this.stUseDisp,  6);
+  			gd.addNumericField("Multiply st strength if used instead of regular strength ",                    this.stStrengthScale,  6);
   			gd.addNumericField("Outlayer tiles weaker than this may be replaced from neighbors",               this.outlayerStrength,  6);
   			gd.addNumericField("Replace weak outlayer tiles that do not have neighbors within this disparity difference", this.outlayerDiff,  6);
   			gd.addNumericField("Replace weak outlayer tiles that have higher disparity than weighted average", this.outlayerDiffPos,  6);
@@ -2786,6 +2796,8 @@ public class EyesisCorrectionParameters {
 
   			gd.addCheckbox    ("Combine with all previous after refine pass",                                  this.combine_refine);
   			gd.addNumericField("Disregard weaker tiles when combining scans",                                  this.combine_min_strength,  6);
+  			gd.addNumericField("Disregard weaker tiles when combining scans  for horizontal correlation",      this.combine_min_hor,  6);
+  			gd.addNumericField("Disregard weaker tiles when combining scans  for vertical correlation",        this.combine_min_vert,  6);
   			gd.addNumericField("Do not re-measure correlation if target disparity differs from some previous by this",this.unique_tolerance,  6);
   			
   			gd.addMessage     ("--- Growing disparity range to scan ---");
@@ -2997,6 +3009,7 @@ public class EyesisCorrectionParameters {
   			this.stMinBgDisparity=      gd.getNextNumber();
   			this.stMinBgFract=          gd.getNextNumber();
   			this.stUseDisp=             gd.getNextNumber();
+  			this.stStrengthScale=       gd.getNextNumber();
   			this.outlayerStrength=      gd.getNextNumber();
   			this.outlayerDiff=          gd.getNextNumber();
   			this.outlayerDiffPos=       gd.getNextNumber();
@@ -3005,6 +3018,8 @@ public class EyesisCorrectionParameters {
   			this.combine_refine=        gd.getNextBoolean();
 
   			this.combine_min_strength=  gd.getNextNumber();
+  			this.combine_min_hor=       gd.getNextNumber();
+  			this.combine_min_vert=      gd.getNextNumber();
   			this.unique_tolerance=      gd.getNextNumber();
 
   			this.grow_sweep=      (int) gd.getNextNumber();
