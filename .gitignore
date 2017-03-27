@@ -2,3 +2,6 @@
 /.project
 /.settings/
 /target/
+*.backup
+NC393I
+attic
