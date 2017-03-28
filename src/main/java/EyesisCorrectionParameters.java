@@ -1978,6 +1978,7 @@ public class EyesisCorrectionParameters {
   		public double     min_agree =         3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
   		public boolean    dust_remove =       true;  // Do not reduce average weight when only one image differes much from the average
   		
+  		public boolean    black_back =        true;  // use Black for backdrop outside of the FOV
   		public boolean    keep_weights =      true;  // add port weights to RGBA stack (debug feature)
   		public boolean    sharp_alpha =       false; // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
   		public double     alpha0 = 	          0.6; // > .525 Alpha channel 0.0 thereshold (lower - transparent) (watch for far objects)
@@ -2031,6 +2032,7 @@ public class EyesisCorrectionParameters {
   		public int        bgnd_grow        = 2;     // number of tiles to grow (1 - hor/vert, 2 - hor/vert/diagonal)
   		
 //  		public double     ortho_min        = 0.09;  // minimal strength of hor/vert correlation to be used instead of full 4-pair correlation
+  		public boolean    ortho_old        = false; // use old ortho features processing (orth0_* parameters, false - use or_*)
   		public double     ortho_min_hor    = 0.07;  // minimal strength of hor correlation to be used instead of full 4-pair correlation - 
   		public double     ortho_min_vert   = 0.15;  // minimal strength of vert correlation to be used instead of full 4-pair correlation
   		public double     ortho_asym       = 1.2;   // vert/hor (or hor/vert) strength to be used instead of the full correlation
@@ -2072,31 +2074,33 @@ public class EyesisCorrectionParameters {
   		public double     shMinStrength    = 0.2;   // Minimal value of the shell maximum strength
 
   		// Thin ice parameters
-  		public double     tiRigidVertical   = 3.0;   // relative disparity rigidity in vertical direction
-  		public double     tiRigidHorizontal = 1.0;   // relative disparity rigidity in horizontal direction
-  		public double     tiRigidDiagonal   = 0.5;   // relative disparity rigidity in diagonal direction
-  		public double     tiStrengthOffset  = 0.1;   // strength "floor" - subtract (limit 0) before applying
-  		public double     tiDispScale       = 0.5;   // divide actual (disparity*eff_Strength) by this  before Math.pow and applying to T.I.
-  		public double     tiDispPow         = 0.0;   // apply pow to disparity (restore sign) for disparity difference pressure on ice
-  		public double     tiDispPull        =  .1;   // tiDispPull: multiply strength*disparity difference to pull force
-  		public double     tiDispPullPreFinal=  .1;   // Scale tiDispPull for pre-final pass
-  		public double     tiDispPullFinal   =  .01;  // Scale tiDispPull for final pass
-  		public double     tiBreak3          = 0.6;   // TI break value of abs(d0-3d1+3d2-d3)
-  		public double     tiBreak31         = 0.1;   // TI break value of (d0-3d1+3d2-d3) * (d1 - d2)
-  		public double     tiBreak21         = 0.1;   // TI break value of (-d0+d1+d2-d3) * abs(d1 - d2)
-  		public double     tiBreakFar        = 0.3;   // TI disparity threshold to remove as too far tiles
-  		public double     tiBreakNear       = 0.3;   // TI disparity threshold to remove as too near tiles
-  		public int        tiBreakMode       = 0;     // TI break mode: +1: abs(3-rd derivative), +2: -(3-rd * 1-st), +4: -(2-nd * abs(1-st)) , +8 - remove far, +16 - remove near 
-  		public double     tiBreakSame       = 0.5;   // Amplify colinear breaks in neighbor tiles
-  		public double     tiBreakTurn       = 0.125; // Amplify 90-degree turnintg breaks in neighbor tiles
+  		public double     tiRigidVertical   = 3.0;   // 2.0 relative disparity rigidity in vertical direction
+  		public double     tiRigidHorizontal = 1.0;   // 2.0 relative disparity rigidity in horizontal direction
+  		public double     tiRigidDiagonal   = 0.5;   // 0.5 relative disparity rigidity in diagonal direction
+  		public double     tiStrengthOffset  = 0.1;   // 0.1 strength "floor" - subtract (limit 0) before applying
+  		public double     tiDispScale       = 0.5;   // 0.5 divide actual (disparity*eff_Strength) by this  before Math.pow and applying to T.I.
+  		public double     tiDispPow         = 0.0;   // 0.0 apply pow to disparity (restore sign) for disparity difference pressure on ice
+  		public double     tiDispPull        =  .1;   // 10.0 tiDispPull: multiply strength*disparity difference to pull force
+  		public double     tiDispPullPreFinal=  .1;   // 5.0 Scale tiDispPull for pre-final pass
+  		public double     tiDispPullFinal   =  .01;  // 2.0 Scale tiDispPull for final pass
   		
-  		public double     tiHealPreLast     = 0.1;    // Heal disparity gap before pre-last smooth
-  		public double     tiHealLast        = 0.05;   // Heal disparity gap before last smooth
-  		public int        tiHealSame        = 5;      // Maximal length of an internal break in the cluster to heal 
+  		public double     tiBreakNorm       =   .5;  // Normalize stresses to average disparity if it is above threshold
+  		public double     tiBreak3          = 0.6;   // 0.5 TI break value of abs(d0-3d1+3d2-d3)
+  		public double     tiBreak31         = 0.1;   // 0.04 TI break value of (d0-3d1+3d2-d3) * (d1 - d2)
+  		public double     tiBreak21         = 0.1;   // 0.1 TI break value of (-d0+d1+d2-d3) * abs(d1 - d2)
+  		public double     tiBreakFar        = 0.3;   // 0.3  TI disparity threshold to remove as too far tiles
+  		public double     tiBreakNear       = 0.3;   // 0.3 TI disparity threshold to remove as too near tiles
+  		public int        tiBreakMode       = 0;     // 1 TI break mode: +1: abs(3-rd derivative), +2: -(3-rd * 1-st), +4: -(2-nd * abs(1-st)) , +8 - remove far, +16 - remove near 
+  		public double     tiBreakSame       = 0.5;   // 0.75 Amplify colinear breaks in neighbor tiles
+  		public double     tiBreakTurn       = 0.125; // 0.125 Amplify 90-degree turnintg breaks in neighbor tiles
   		
-  		public int        tiIterations      = 1000;  // maximal number of TI iterations for each step
-  		public int        tiPrecision       = 6;     // iteration maximal error (1/power of 10) 
-  		public int        tiNumCycles       = 5;     // Number of cycles break-smooth (after the first smooth)
+  		public double     tiHealPreLast     = 0.1;    // 0.1 Heal disparity gap before pre-last smooth
+  		public double     tiHealLast        = 0.05;   // 0.05 Heal disparity gap before last smooth
+  		public int        tiHealSame        = 5;      // 10 Maximal length of an internal break in the cluster to heal 
+  		
+  		public int        tiIterations      = 1000;  // 300 maximal number of TI iterations for each step
+  		public int        tiPrecision       = 6;     // 6 iteration maximal error (1/power of 10) 
+  		public int        tiNumCycles       = 5;     // 5 Number of cycles break-smooth (after the first smooth)
   		
   		// FG/BG separation
   		public boolean    stUseRefine =       false; // Apply super-tiles during refine passes 
@@ -2105,9 +2109,11 @@ public class EyesisCorrectionParameters {
   		
   		public boolean    stShow =            false; // Calculate and show supertiles histograms 
   		public int        stSize            = 8;     // Super tile size (square, in tiles)
-  		public double     stStepDisparity   = 0.1;   // Disaprity histogram step
+  		public double     stStepFar         = 0.1;   // Disaprity histogram step for far objects 
+  		public double     stStepNear        = 0.5;   // Disaprity histogram step for near objects
+  		public double     stStepThreshold   = 1.0;   // Disaprity threshold to switch cfrom linear to logarithmic steps
   		public double     stMinDisparity    = 0.0;   // Minimal disparity (center of a bin)
-  		public double     stMaxDisparity    = 10.0;  // Maximal disparity (center of a bin)
+  		public double     stMaxDisparity    = 50.0;  // Maximal disparity (center of a bin)
   		public double     stFloor           = 0.15;  // Subtract from strength, discard negative  
   		public double     stPow             = 1.0;   // raise strength to this power 
   		public double     stSigma           = 1.5;   // Blur disparity histogram (sigma in bins) 
@@ -2142,6 +2148,8 @@ public class EyesisCorrectionParameters {
   		public boolean    show_filter_scan =       false; // show 'FilterScan'
   		public boolean    show_combined =          false; // show 'combo_scan' (combined multiple scans)
   		public boolean    show_unique =            false; // show 'unique_scan' (removed already measured tiles with the same disparity)
+  		public boolean    show_init_refine =       false; // show debug images during initial refinement 
+  		public boolean    show_expand =            false; // show debug images during disparity expansion
   		
   		public boolean    show_shells =            false; // show 'shells' 
   		public boolean    show_neighbors =         false; // show 'neighbors' 
@@ -2210,6 +2218,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"diff_gauss",       this.diff_gauss+"");
   			properties.setProperty(prefix+"min_agree",        this.min_agree +"");
 			properties.setProperty(prefix+"dust_remove",      this.dust_remove+"");
+			properties.setProperty(prefix+"black_back",       this.black_back+"");
 			properties.setProperty(prefix+"keep_weights",     this.keep_weights+"");
 			properties.setProperty(prefix+"sharp_alpha",      this.sharp_alpha+"");
 
@@ -2259,6 +2268,8 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"fill_gaps",        this.fill_gaps+"");
   			properties.setProperty(prefix+"min_clstr_block",  this.min_clstr_block+"");
   			properties.setProperty(prefix+"bgnd_grow",        this.bgnd_grow+"");
+
+			properties.setProperty(prefix+"ortho_old",        this.ortho_old+"");
   			properties.setProperty(prefix+"ortho_min_hor",    this.ortho_min_hor +"");
   			properties.setProperty(prefix+"ortho_min_vert",   this.ortho_min_vert +"");
 			properties.setProperty(prefix+"ortho_asym",       this.ortho_asym +"");
@@ -2307,7 +2318,8 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"tiDispPow",        this.tiDispPow +"");
 			properties.setProperty(prefix+"tiDispPull",       this.tiDispPull +"");
 			properties.setProperty(prefix+"tiDispPullPreFinal",this.tiDispPullPreFinal +"");
-			properties.setProperty(prefix+"tiDispPullFinal",   this.tiDispPullFinal +"");
+			properties.setProperty(prefix+"tiDispPullFinal",  this.tiDispPullFinal +"");
+			properties.setProperty(prefix+"tiBreakNorm",      this.tiBreakNorm +"");
 			properties.setProperty(prefix+"tiBreak3",         this.tiBreak3 +"");
 			properties.setProperty(prefix+"tiBreak31",        this.tiBreak31 +"");
 			properties.setProperty(prefix+"tiBreak21",        this.tiBreak21 +"");
@@ -2331,7 +2343,9 @@ public class EyesisCorrectionParameters {
 
 			properties.setProperty(prefix+"stShow",           this.stShow+"");
   			properties.setProperty(prefix+"stSize",           this.stSize+"");
-			properties.setProperty(prefix+"stStepDisparity",  this.stStepDisparity +"");
+			properties.setProperty(prefix+"stStepFar",        this.stStepFar +"");
+			properties.setProperty(prefix+"stStepNear",       this.stStepNear +"");
+			properties.setProperty(prefix+"stStepThreshold",  this.stStepThreshold +"");
 			properties.setProperty(prefix+"stMinDisparity",   this.stMinDisparity +"");
 			properties.setProperty(prefix+"stMaxDisparity",   this.stMaxDisparity +"");
 			properties.setProperty(prefix+"stFloor",          this.stFloor +"");
@@ -2364,6 +2378,8 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"show_filter_scan",       this.show_filter_scan+"");
 			properties.setProperty(prefix+"show_combined",          this.show_combined+"");
 			properties.setProperty(prefix+"show_unique",            this.show_unique+"");
+			properties.setProperty(prefix+"show_init_refine",       this.show_init_refine+"");
+			properties.setProperty(prefix+"show_expand",            this.show_expand+"");
 			properties.setProperty(prefix+"show_shells",            this.show_shells+"");
 			properties.setProperty(prefix+"show_neighbors",         this.show_neighbors+"");
 			properties.setProperty(prefix+"show_flaps_dirs",        this.show_flaps_dirs+"");
@@ -2428,6 +2444,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"diff_gauss")!=null)     this.diff_gauss=Boolean.parseBoolean(properties.getProperty(prefix+"diff_gauss"));
   			if (properties.getProperty(prefix+"min_agree")!=null)      this.min_agree=Double.parseDouble(properties.getProperty(prefix+"min_agree"));
   			if (properties.getProperty(prefix+"dust_remove")!=null)    this.dust_remove=Boolean.parseBoolean(properties.getProperty(prefix+"dust_remove"));
+  			if (properties.getProperty(prefix+"black_back")!=null)     this.black_back=Boolean.parseBoolean(properties.getProperty(prefix+"black_back"));
   			if (properties.getProperty(prefix+"keep_weights")!=null)   this.keep_weights=Boolean.parseBoolean(properties.getProperty(prefix+"keep_weights"));
   			if (properties.getProperty(prefix+"sharp_alpha")!=null)    this.sharp_alpha=Boolean.parseBoolean(properties.getProperty(prefix+"sharp_alpha"));
   			if (properties.getProperty(prefix+"alpha0")!=null)         this.alpha0=Double.parseDouble(properties.getProperty(prefix+"alpha0"));
@@ -2475,6 +2492,8 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"fill_gaps")!=null)         this.fill_gaps=Integer.parseInt(properties.getProperty(prefix+"fill_gaps"));
   			if (properties.getProperty(prefix+"min_clstr_block")!=null)   this.min_clstr_block=Integer.parseInt(properties.getProperty(prefix+"min_clstr_block"));
   			if (properties.getProperty(prefix+"bgnd_grow")!=null)         this.bgnd_grow=Integer.parseInt(properties.getProperty(prefix+"bgnd_grow"));
+
+  			if (properties.getProperty(prefix+"ortho_old")!=null)         this.ortho_old=Boolean.parseBoolean(properties.getProperty(prefix+"ortho_old"));
   			if (properties.getProperty(prefix+"ortho_min_hor")!=null)     this.ortho_min_hor=Double.parseDouble(properties.getProperty(prefix+"ortho_min_hor"));
   			if (properties.getProperty(prefix+"ortho_min_vert")!=null)    this.ortho_min_vert=Double.parseDouble(properties.getProperty(prefix+"ortho_min_vert"));
   			if (properties.getProperty(prefix+"ortho_asym")!=null)        this.ortho_asym=Double.parseDouble(properties.getProperty(prefix+"ortho_asym"));
@@ -2521,6 +2540,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"tiDispPull")!=null)        this.tiDispPull=Double.parseDouble(properties.getProperty(prefix+"tiDispPull"));
   			if (properties.getProperty(prefix+"tiDispPullPreFinal")!=null)this.tiDispPullPreFinal=Double.parseDouble(properties.getProperty(prefix+"tiDispPullPreFinal"));
   			if (properties.getProperty(prefix+"tiDispPullFinal")!=null)   this.tiDispPullFinal=Double.parseDouble(properties.getProperty(prefix+"tiDispPullFinal"));
+  			if (properties.getProperty(prefix+"tiBreakNorm")!=null)       this.tiBreakNorm=Double.parseDouble(properties.getProperty(prefix+"tiBreakNorm"));
   			if (properties.getProperty(prefix+"tiBreak3")!=null)          this.tiBreak3=Double.parseDouble(properties.getProperty(prefix+"tiBreak3"));
   			if (properties.getProperty(prefix+"tiBreak31")!=null)         this.tiBreak31=Double.parseDouble(properties.getProperty(prefix+"tiBreak31"));
   			if (properties.getProperty(prefix+"tiBreak21")!=null)         this.tiBreak21=Double.parseDouble(properties.getProperty(prefix+"tiBreak21"));
@@ -2544,7 +2564,9 @@ public class EyesisCorrectionParameters {
   			
   			if (properties.getProperty(prefix+"stShow")!=null)            this.stShow=Boolean.parseBoolean(properties.getProperty(prefix+"stShow"));
   			if (properties.getProperty(prefix+"stSize")!=null)            this.stSize=Integer.parseInt(properties.getProperty(prefix+"stSize"));
-  			if (properties.getProperty(prefix+"stStepDisparity")!=null)   this.stStepDisparity=Double.parseDouble(properties.getProperty(prefix+"stStepDisparity"));
+  			if (properties.getProperty(prefix+"stStepFar")!=null)         this.stStepFar=Double.parseDouble(properties.getProperty(prefix+"stStepFar"));
+  			if (properties.getProperty(prefix+"stStepNear")!=null)        this.stStepNear=Double.parseDouble(properties.getProperty(prefix+"stStepNear"));
+  			if (properties.getProperty(prefix+"stStepThreshold")!=null)   this.stStepThreshold=Double.parseDouble(properties.getProperty(prefix+"stStepThreshold"));
   			if (properties.getProperty(prefix+"stMinDisparity")!=null)    this.stMinDisparity=Double.parseDouble(properties.getProperty(prefix+"stMinDisparity"));
   			if (properties.getProperty(prefix+"stMaxDisparity")!=null)    this.stMaxDisparity=Double.parseDouble(properties.getProperty(prefix+"stMaxDisparity"));
   			if (properties.getProperty(prefix+"stFloor")!=null)           this.stFloor=Double.parseDouble(properties.getProperty(prefix+"stFloor"));
@@ -2577,11 +2599,12 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"show_filter_scan")!=null)       this.show_filter_scan=Boolean.parseBoolean(properties.getProperty(prefix+"show_filter_scan"));
   			if (properties.getProperty(prefix+"show_combined")!=null)          this.show_combined=Boolean.parseBoolean(properties.getProperty(prefix+"show_combined"));
   			if (properties.getProperty(prefix+"show_unique")!=null)            this.show_unique=Boolean.parseBoolean(properties.getProperty(prefix+"show_unique"));
+  			if (properties.getProperty(prefix+"show_init_refine")!=null)       this.show_init_refine=Boolean.parseBoolean(properties.getProperty(prefix+"show_init_refine"));
+  			if (properties.getProperty(prefix+"show_expand")!=null)            this.show_expand=Boolean.parseBoolean(properties.getProperty(prefix+"show_expand"));
   			if (properties.getProperty(prefix+"show_shells")!=null)            this.show_shells=Boolean.parseBoolean(properties.getProperty(prefix+"show_shells"));
   			if (properties.getProperty(prefix+"show_neighbors")!=null)         this.show_neighbors=Boolean.parseBoolean(properties.getProperty(prefix+"show_neighbors"));
   			if (properties.getProperty(prefix+"show_flaps_dirs")!=null)        this.show_flaps_dirs=Boolean.parseBoolean(properties.getProperty(prefix+"show_flaps_dirs"));
   			if (properties.getProperty(prefix+"show_first_clusters")!=null)    this.show_first_clusters=Boolean.parseBoolean(properties.getProperty(prefix+"show_first_clusters"));
-  		
   		}
   		
   		public boolean showDialog() {
@@ -2654,6 +2677,7 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Gaussian as weight when averaging images (false - sharp all/nothing)",    this.diff_gauss);
   			gd.addNumericField("Minimal number of channels to agree on a point (real number to work with fuzzy averages)",   this.min_agree,  2);
   			gd.addCheckbox    ("Do not reduce average weight when only one image differes much from the average", this.dust_remove);
+  			gd.addCheckbox    ("Use black for backdrop outside of the FOV",                               this.black_back);
   			gd.addCheckbox    ("Add port weights to RGBA stack (debug feature)",                          this.keep_weights);
   			gd.addCheckbox    ("Alpha channel: use center 8x8 (unchecked - treat same as RGB)",           this.sharp_alpha);
   			gd.addNumericField("Alpha channel 0.0 thereshold (lower - transparent)",                      this.alpha0,   3);
@@ -2703,6 +2727,8 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Fill gaps betsween clusters, see comments for 'grow'",                         this.fill_gaps,   0);
   			gd.addNumericField("Number of tiles in a cluster to block (just non-background?)",                 this.min_clstr_block,   0);
   			gd.addNumericField("Number of tiles to grow tile selection (1 - hor/vert, 2 - hor/vert/diagonal)", this.bgnd_grow,   0);
+
+  			gd.addCheckbox    ("Use old ortho features processing (orth0_* parameters, false - use or_*)",     this.ortho_old);
 
   			gd.addNumericField("Minimal strength of hor correlation to be used instead of full 4-pair correlation", this.ortho_min_hor,  3);
   			gd.addNumericField("Minimal strength of vert correlation to be used instead of full 4-pair correlation", this.ortho_min_vert,  3);
@@ -2756,6 +2782,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("tiDispPull: multiply strength*disparity difference to pull force",             this.tiDispPull,  6);
   			gd.addNumericField("Scale tiDispPull for pre-final pass",                                          this.tiDispPullPreFinal,  6);
   			gd.addNumericField("Scale tiDispPull for final pass",                                              this.tiDispPullFinal,  6);
+  			gd.addNumericField("Normalize stresses to average disparity if it is above threshold",             this.tiBreakNorm,  6);
   			gd.addNumericField("TI break value of abs(d0-3d1+3d2-d3)",                                         this.tiBreak3,  6);
   			gd.addNumericField("TI break value of (d0-3d1+3d2-d3) * (d1 - d2)",                                this.tiBreak31,  6);
   			gd.addNumericField("TI break value of (-d0+d1+d2-d3) * abs(d1 - d2)",                              this.tiBreak21,  6);
@@ -2779,7 +2806,9 @@ public class EyesisCorrectionParameters {
   			
   			gd.addCheckbox    ("Show supertiles histograms",                                                   this.stShow);
   			gd.addNumericField("Super tile size (square, in tiles)",                                           this.stSize,  0);
-  			gd.addNumericField("Disaprity histogram step",                                                     this.stStepDisparity,  6);
+  			gd.addNumericField("Disaprity histogram step for far objects",                                     this.stStepFar,  6);
+  			gd.addNumericField("Disaprity histogram step for near objects",                                    this.stStepNear,  6);
+  			gd.addNumericField("Disaprity threshold to switch cfrom linear to logarithmic steps",              this.stStepThreshold,  6);
   			gd.addNumericField("Minimal disparity (center of a bin)",                                          this.stMinDisparity,  6);
   			gd.addNumericField("Maximal disparity (center of a bin)",                                          this.stMaxDisparity,  6);
   			gd.addNumericField("Subtract from strength, discard negative",                                     this.stFloor,  6);
@@ -2813,6 +2842,8 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Show 'FilterScan'",                                                            this.show_filter_scan);
   			gd.addCheckbox    ("Show 'combo_scan' (combined multiple scans)",                                  this.show_combined);
   			gd.addCheckbox    ("Show 'unique_scan' (removed already measured tiles with the same disparity)",  this.show_unique);
+  			gd.addCheckbox    ("Show debug images during initial refinement",                                  this.show_init_refine);
+  			gd.addCheckbox    ("Show debug images during disparity expansion",                                 this.show_expand);
   			gd.addCheckbox    ("Show 'shells'",                                                                this.show_shells);
   			gd.addCheckbox    ("show 'neighbors'",                                                             this.show_neighbors);
   			gd.addCheckbox    ("Show 'flaps-dirs'",                                                            this.show_flaps_dirs);
@@ -2885,6 +2916,7 @@ public class EyesisCorrectionParameters {
   			this.diff_gauss=            gd.getNextBoolean();
   			this.min_agree=             gd.getNextNumber();
   			this.dust_remove=           gd.getNextBoolean();
+  			this.black_back=          gd.getNextBoolean();
   			this.keep_weights=          gd.getNextBoolean();
   			this.sharp_alpha=           gd.getNextBoolean();
   			this.alpha0=                gd.getNextNumber();
@@ -2930,6 +2962,8 @@ public class EyesisCorrectionParameters {
   			this.fill_gaps=       (int) gd.getNextNumber();
   			this.min_clstr_block= (int) gd.getNextNumber();
   			this.bgnd_grow=       (int) gd.getNextNumber();
+
+  			this.ortho_old=             gd.getNextBoolean();
   			this.ortho_min_hor=         gd.getNextNumber();
   			this.ortho_min_vert=        gd.getNextNumber();
   			this.ortho_asym=            gd.getNextNumber();
@@ -2977,6 +3011,7 @@ public class EyesisCorrectionParameters {
   			this.tiDispPull=            gd.getNextNumber();
   			this.tiDispPullPreFinal=    gd.getNextNumber();
   			this.tiDispPullFinal=       gd.getNextNumber();
+  			this.tiBreakNorm=           gd.getNextNumber();
   			this.tiBreak3=              gd.getNextNumber();
   			this.tiBreak31=             gd.getNextNumber();
   			this.tiBreak21=             gd.getNextNumber();
@@ -3000,7 +3035,9 @@ public class EyesisCorrectionParameters {
 
   			this.stShow=                gd.getNextBoolean();
   			this.stSize=          (int) gd.getNextNumber();
-  			this.stStepDisparity=       gd.getNextNumber();
+  			this.stStepFar=             gd.getNextNumber();
+  			this.stStepNear=            gd.getNextNumber();
+  			this.stStepThreshold=       gd.getNextNumber();
   			this.stMinDisparity=        gd.getNextNumber();
   			this.stMaxDisparity=        gd.getNextNumber();
   			this.stFloor=               gd.getNextNumber();
@@ -3034,6 +3071,8 @@ public class EyesisCorrectionParameters {
   			this.show_filter_scan=       gd.getNextBoolean(); // first on refine
   			this.show_combined=          gd.getNextBoolean();
   			this.show_unique=            gd.getNextBoolean();
+  			this.show_init_refine=       gd.getNextBoolean();
+  			this.show_expand=            gd.getNextBoolean();
   			this.show_shells=            gd.getNextBoolean();
   			this.show_neighbors=         gd.getNextBoolean();
   			this.show_flaps_dirs=        gd.getNextBoolean();

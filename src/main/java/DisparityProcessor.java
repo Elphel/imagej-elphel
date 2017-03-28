@@ -257,6 +257,7 @@ public class DisparityProcessor {
 			final int         threadsMax,      // maximal number of threads to launch                         
 			final int         debugLevel)
 	{
+		final int dbg_tile = -1; // 28643; // x=131, y=88
 		showDoubleFloatArrays sdfa_instance = null;
 		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
@@ -299,11 +300,16 @@ public class DisparityProcessor {
 		final double [][] disp_data = {disparity, disparity.clone()};
 		// neighbors
 		final double [][] dbg_pull = new double [3][len];
+		if (debugLevel > 0) {
+			System.out.println("smoothDisparity()");
+		}
 
 		for (int pass = 0; (pass < num_passes) || (num_passes ==0); pass++) {
+			final int dbg_pass = pass;
 			System.arraycopy(zero_diffs, 0, rslt_diffs, 0, numThreads); // set all to 0
 			ai.set(0);
 			ai_numThread.set(0);
+			final int dbg_fpass = pass;
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
 					public void run() {
@@ -318,21 +324,38 @@ public class DisparityProcessor {
 							double [] dbg_disp_data = disp_data[0];
 							boolean [] dbg_selected = selected;
 							boolean [] dbg_border = border;
+							int [] dbg_neighbors = neighbors; 
 							double neib_avg = 0.0, neib_weight = 0.0;
-//							if (tileY == 89){
-//								System.out.println("smoothDisparity() c: tileY="+tileY+", tileX="+tileX+" nTile="+nTile);
-//							}
+							if ((debugLevel > 0) &&(nTile == dbg_tile)) {
+								System.out.println("smoothDisparity() nTile = "+nTile+" tileX="+tileX+" tileY="+tileY);
+							}
 							for (int i = 0; i < dirs8.length; i++) if ((neighbors[nTile] & (1 << i)) !=0) {
 								double w = rigid8[i]; // no strength here  strength[nTile + dirs8[i]]
 								int dbg_dirs8 = nTile + dirs8[i];
 								double dbg_d = disp_data[0][nTile + dirs8[i]];
+								if ((debugLevel > 0) &&(nTile == dbg_tile)) {
+									System.out.println("smoothDisparity(), neib_avg = "+neib_avg+", neib_weight="+neib_weight);
+								}
 								neib_weight += w;
 								neib_avg += w * disp_data[0][nTile + dirs8[i]];
+								int dbg_pass = dbg_fpass;
+//								if (((debugLevel > 0) &&(nTile == dbg_tile)) ||Double.isNaN(disp_data[0][nTile + dirs8[i]])) {
+								if (Double.isNaN(disp_data[0][nTile + dirs8[i]])) {
+									System.out.println("nTile="+nTile+": smoothDisparity(),dirs8["+i+"]="+ dirs8[i]+", disp_data[0]["+(nTile + dirs8[i])+"]="+disp_data[0][nTile + dirs8[i]]+", pass="+dbg_pass);
+								}
+								
 //								if (nTile == 28967){//  (tileY == 89) { // (nTile == 28964){
 //									System.out.println("smoothDisparity() c1: i = "+i+" w="+w+" dbg_dirs8="+dbg_dirs8+" dbg_d="+dbg_d);
 //								}
 							}
 							double new_disp = disp_data[0][nTile];
+							
+							if ((debugLevel > 0) &&(nTile == dbg_tile)) {
+								System.out.println("smoothDisparity(), neib_avg = "+neib_avg+", neib_weight="+neib_weight);
+							}
+							
+							
+							
 							if (neib_weight > 0.0){
 								neib_avg/= neib_weight;
 //								if (nTile == 28967){//  (tileY == 89) { // (nTile == 28964){
@@ -382,6 +405,9 @@ public class DisparityProcessor {
 			double [] tmp= disp_data[0]; // swap, new data will be in disp_data[0], disp_data[1] to be written to by threads in next run 
 			disp_data[0] = disp_data[1];
 			disp_data[1] = tmp;
+//			if ((debugLevel > 0) && (dbg_tile >= 0)) {
+//				System.out.println("smoothDisparity() pass="+pass+", disp_data[0]["+dbg_tile+"] = "+disp_data[0][dbg_tile]+" disp_data[1]["+dbg_tile+"] = "+disp_data[1][dbg_tile]);
+//			}
 
 			if (maxDiff > 0){
 				double diff = 0.0;
@@ -442,6 +468,7 @@ public class DisparityProcessor {
 	{
 //		showDoubleFloatArrays sdfa_instance = null;
 //		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		final int dbg_tile = (debugLevel > -1)  ? 27991 : -1; // x = 127, y = 86
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final int numThreads = threads.length;
 		if (debugLevel > -1) System.out.println("breakDisparity3(): using "+numThreads+" threads");
@@ -480,6 +507,9 @@ public class DisparityProcessor {
 						// try break horizontally (always - to the right)
 						int b = (1 << 2); // "E" (right)
 						int rb = (1 << 6); // "W" (left)
+						if (nTile == dbg_tile) {
+							System.out.println("breakDisparity{}: nTile = "+nTile);
+						}
 						if ((neib & b) != 0){
 							hor_label:
 							{
@@ -498,6 +528,10 @@ public class DisparityProcessor {
 							case 2:
 								deriv *= Math.abs(disparity[nTile + 1]- disparity[nTile]); // 2-nd derivative * abs(1-st derivative)
 							default: // do nothing
+							}
+							double disp_avg = 0.5*(disparity[nTile + 1] + disparity[nTile]);
+							if ((clt_parameters.tiBreakNorm > 0.0) && (disp_avg > clt_parameters.tiBreakNorm )){
+								deriv *= clt_parameters.tiBreakNorm / disp_avg;
 							}
 							deriv3HV[0][nTile] = deriv;
 							}
@@ -524,6 +558,11 @@ public class DisparityProcessor {
 								deriv *= Math.abs(disparity[nTile + tilesX]- disparity[nTile]); // 2-nd derivative * abs(1-st derivative)
 							default: // do nothing
 							}
+							double disp_avg = 0.5*(disparity[nTile + tilesX] + disparity[nTile]);
+							if ((clt_parameters.tiBreakNorm > 0.0) && (disp_avg > clt_parameters.tiBreakNorm )){
+								deriv *= clt_parameters.tiBreakNorm / disp_avg;
+							}
+							
 							deriv3HV[1][nTile] = deriv; // vertical 4-th derivative
 							}
 						}
@@ -543,6 +582,9 @@ public class DisparityProcessor {
 							int nTile = indices[iTile];
 							int tileY = nTile/tilesX; 
 							int tileX = nTile - (tileY * tilesX);
+							if (nTile == dbg_tile) {
+								System.out.println("breakDisparity{}: nTile = "+nTile);
+							}
 							if (k_same !=0 ) {
 								// vertical "gradient" in the same horizontal row
 								if ((tileX > 0) &&           selected[nTile - 1])      deriv3HV[1][nTile] += k_same * deriv3HVCopy[1][nTile - 1];
