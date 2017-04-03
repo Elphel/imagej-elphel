@@ -398,7 +398,7 @@ public class DisparityProcessor {
 			ImageDtt.startAndJoin(threads);
 			double [][] dbg_data = {measured_disparity,disp_data[0],disp_data[1],dbg_pull[0],dbg_pull[1],dbg_pull[2],strength};
 			String [] titles = {"measured","[0]","[1]","avg","meas","pull","strength"};
-			if ((debugLevel>0) && ((pass ==0) || (pass >= (num_passes-2)))){
+			if ((debugLevel> 2) && ((pass ==0) || (pass >= (num_passes-2)))){
 				sdfa_instance.showArrays(dbg_data,tilesX, tilesY, true, "disp_smoothed",titles);
 			}
 
@@ -978,7 +978,9 @@ public class DisparityProcessor {
 									int ty1 = ty + TRANSITIONS[tDir][dirChoice][1];
 									int tDir1 =    TRANSITIONS[tDir][dirChoice][2];
 									// Was already here (in the same direction?
-									if (field[ty1][tx1][tDir1] == FLD_WALKED) {
+									if ((tx1 < 0) || (ty1 < 0) || (tx1 > tilesX) || (ty1 > tilesY)){
+										prohib = true;	
+									} else if (field[ty1][tx1][tDir1] == FLD_WALKED) { // 325
 										break walking;
 									} else if (field[ty1][tx1][tDir1] == FLD_EMPTY) {
 										tx = tx1;
@@ -1103,7 +1105,7 @@ public class DisparityProcessor {
 	
 						geom[nTile] = new int [8];
 						int [] dbg_geom = geom[nTile];
-						int [] dbg_neib = {neighbors[nTile - tilesX],neighbors[nTile + 1] , neighbors[nTile + tilesX],neighbors[nTile - 1]};
+//						int [] dbg_neib = {neighbors[nTile - tilesX],neighbors[nTile + 1] , neighbors[nTile + tilesX],neighbors[nTile - 1]}; // out of bounds
 						int neib = neighbors[nTile];
 						if (neib != 0b11111111){ // do nothing for internal tiles
 							int tileY = nTile/tilesX; 

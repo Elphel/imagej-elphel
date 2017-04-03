@@ -329,8 +329,13 @@ public class GeometryCorrection {
 	}
 	
 	
-	/*
-	 * Get real world coordinates from pixel coordinates and nominal disparity 
+	/**
+	 * Get real world coordinates from pixel coordinates and nominal disparity
+	 * @param px horizontal pixel coordinate (right)
+	 * @param py vertical pixel coordinate (down)
+	 * @param disparity nominal disparity (pixels)
+	 * @param correctDistortions true: correct lens distortions, false - no lens distortions
+	 * @return {x, y, z} in meters
 	 */
 	public double [] getWorldCoordinates(
 			double px,
@@ -350,9 +355,224 @@ public class GeometryCorrection {
 		double [] xyz = {x,y,z};
 		return xyz;
 	}
+	
+	/* Just for testing using delta instead of d */
+	public double [][] getWorldJacobian(
+			double px,
+			double py,
+			double disparity,
+			boolean correctDistortions, // correct distortion (will need corrected background too !)
+			double delta)
+	{
+		double [] dpxpy0 = {disparity,px,py};
+		double [][] jacobian = new double [3][3];
+		double [] xyz0 = getWorldCoordinates(dpxpy0[1],dpxpy0[2],dpxpy0[0],correctDistortions);
+		for (int i = 0; i< 3; i++){
+			double [] dpxpy = dpxpy0.clone();
+			dpxpy[i] += delta;
+			double [] xyz = getWorldCoordinates(dpxpy[1],dpxpy[2],dpxpy[0],correctDistortions);
+			for (int j = 0; j<3; j++){
+				jacobian[j][i] = (xyz[j] - xyz0[j])/delta; 
+			}
+		}
+		return jacobian;
+	}
+	
+	
+	/**
+	 * Get jacobian matrix - derivatives of real world [x,y,z] (in meters, right, up, to camera) by [disparity, px,py] (in pixels disparity, right, down) 
+	 * @param px horizontal pixel coordinate (right)
+	 * @param py vertical pixel coordinate (down)
+	 * @param disparity nominal disparity (pixels)
+	 * @param correctDistortions true: correct lens distortions, false - no lens distortions
+	 * @return {{dx/ddisparity, dx/dpx, dx/dpy},{dy/ddisparity, dy/dpx, dy/dpy},{dz/ddisparity, dz/dpx, dz/dpy}}
+	 */
+	public double [][] getWorldJacobian(
+			double px,
+			double py,
+			double disparity,
+			boolean correctDistortions, // correct distortion (will need corrected background too !)
+			boolean debug)
+	{
+		double pXcd = px - 0.5 * this.pixelCorrectionWidth;
+		double pYcd = py - 0.5 * this.pixelCorrectionHeight;
+		
+		double d_pXcd_d_px = 1.0; 
+		double d_pYcd_d_py = 1.0; 
+		
+		double pXcd2_pYcd2 = pXcd*pXcd + pYcd*pYcd;
+		double rD = Math.sqrt(pXcd2_pYcd2)*0.001*this.pixelSize; // distorted radius in a virtual center camera
+		
+		double rrD = rD / this.distortionRadius;
+		double d_rRD_d_px = pXcd * rD / pXcd2_pYcd2  / this.distortionRadius;   
+		double d_rRD_d_py = pYcd * rD / pXcd2_pYcd2  / this.distortionRadius;
+		
+
+		
+		double rND2R = correctDistortions?(getRByRDist(rrD, false)): 1.0;
+	
+		
+		
+		double rrND = rND2R * rrD; // relative to distortion radius non-distorted radius
+		
+		
+		// k = rD/r
+		double d_k_d_rrND = correctDistortions?getDerivRDistFromR(rrND):0.0;
+		double d_rND2R_d_rrD = - rND2R * rND2R * d_k_d_rrND / ( d_k_d_rrND * rrND + 1.0/ rND2R); // rrND);
+/*		
+
+		double d_rND2R_d_rrD0 = correctDistortions?(getDerivRByRDist(rrD, false)): 0.0;
+		
+		double d_rND2R_d_rrD1 = correctDistortions?(getDerivRByRDist(rrD, false, 0.00001)): 0.0;
+		if (debug) {
+			System.out.println("getWorldJacobian(): d_rND2R_d_rrD="+d_rND2R_d_rrD+", d_rND2R_d_rrD0="+d_rND2R_d_rrD0+", d_rND2R_d_rrD1="+d_rND2R_d_rrD1 ); 
+		}
+*/		
+		
+		double d_rND2R_d_px = d_rND2R_d_rrD * d_rRD_d_px;   
+		double d_rND2R_d_py = d_rND2R_d_rrD * d_rRD_d_py;   
+		
+		double pXc = pXcd * rND2R; // non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
+		double pYc = pYcd * rND2R; // in pixels
+		
+		double d_pXc_d_px = pXcd * d_rND2R_d_px + d_pXcd_d_px * rND2R; // incorrect
+		double d_pYc_d_py = pYcd * d_rND2R_d_py + d_pYcd_d_py * rND2R; // incorrect
+		
+		double d_pXc_d_py = pXcd * d_rND2R_d_py; // incorrect (too small)? 
+		double d_pYc_d_px = pYcd * d_rND2R_d_px; // incorrect (too small)?
+		
+		double z =  -SCENE_UNITS_SCALE * this.focalLength * this.disparityRadius / (disparity * 0.001*this.pixelSize); // "+" - near, "-" far
+		double kx =  SCENE_UNITS_SCALE * this.disparityRadius / disparity;
+		double ky = -SCENE_UNITS_SCALE * this.disparityRadius / disparity;
+		double x =  kx * pXc;
+		double y =  ky * pYc;
+		
+		double d_z_d_disparity = -z / disparity;
+		double d_x_d_disparity = -x / disparity;
+		double d_y_d_disparity = -y / disparity;
+		// d_z_d_px == d_z_d_py ==0
+		double [][] jacobian = 
+			{		{d_x_d_disparity, kx * d_pXc_d_px, kx * d_pXc_d_py},
+					{d_y_d_disparity, ky * d_pYc_d_px, ky * d_pYc_d_py},
+					{d_z_d_disparity, 0.0,             0.0}};
+		return jacobian; // xyz;
+	}
+	
+	/**
+	 * Get pixel disparity and coordinates from the real world coordinates (in meters)
+	 * @param xyz real world coordinates {x, y, z} in meters (right up, towards camera)
+	 * @param correctDistortions true: correct lens distortions, false - no lens distortions
+	 * @return {disparity, px, py} (right, down)
+	 */
+	public double [] getImageCoordinates(
+			double [] xyz,
+			boolean correctDistortions) // correct distortion (will need corrected background too !)
+	{
+		double x = xyz[0];
+		double y = xyz[1];
+		double z = xyz[2];
+		double disparity = -SCENE_UNITS_SCALE * this.focalLength * this.disparityRadius / (z * 0.001*this.pixelSize);
+		// non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)in mm	
+		double pXc = x * disparity / (SCENE_UNITS_SCALE * this.disparityRadius); // pixels 
+		double pYc =-y * disparity / (SCENE_UNITS_SCALE * this.disparityRadius); // pixels
+		double rND = Math.sqrt(pXc*pXc + pYc*pYc)*0.001*this.pixelSize; // mm
+		double rD2RND = correctDistortions?getRDistByR(rND/this.distortionRadius):1.0;
+		double px = pXc * rD2RND + 0.5 * this.pixelCorrectionWidth;  // distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
+		double py = pYc * rD2RND + 0.5 * this.pixelCorrectionHeight; // in pixels
+		double [] dxy = {disparity, px, py};
+		return dxy;
+	}
+	
+	/* Just for testing using delta instead of d */
+	public double [][] getImageJacobian(
+			double [] xyz0,
+			boolean correctDistortions, // correct distortion (will need corrected background too !)
+			double delta)
+	{
+		double [][] jacobian = new double [3][3];
+		double [] dpxpy0 = getImageCoordinates(xyz0,correctDistortions);
+		for (int i = 0; i< 3; i++){
+			double [] xyz = xyz0.clone();
+			xyz[i] += delta;
+			double [] dpxpy = getImageCoordinates(xyz,correctDistortions);
+			for (int j = 0; j<3; j++){
+				jacobian[j][i] = (dpxpy[j] - dpxpy0[j])/delta; 
+			}
+		}
+		return jacobian;
+	}
+	
+
+	/**
+	 * Get jacobian matrix - derivatives of [disparity, px,py] (in pixels disparity, right, down) by real world [x,y,z] (in meters, right, up, to camera) 
+	 * @param xyz real world coordinates {x, y, z} in meters (right up, towards camera)
+	 * @param correctDistortions true: correct lens distortions, false - no lens distortions
+	 * @return {{dx/ddisparity, dx/dpx, dx/dpy},{dy/ddisparity, dy/dpx, dy/dpy},{dz/ddisparity, dz/dpx, dz/dpy}}
+	 */
+	public double [][] getImageJacobian(
+			double [] xyz,
+			boolean correctDistortions,
+			int debugLevel)
+	{
+		if (debugLevel > 0){
+			System.out.println("getImageJacobian():");
+		}
+		double x = xyz[0];
+		double y = xyz[1];
+		double z = xyz[2];
+		double disparity = -SCENE_UNITS_SCALE * this.focalLength * this.disparityRadius / (z * 0.001*this.pixelSize);
+
+		double d_disparity_d_z = -disparity / z; // no dependence on x,y 
+		// non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)in mm	
+		double pXc = x * disparity / (SCENE_UNITS_SCALE * this.disparityRadius); 
+		double pYc =-y * disparity / (SCENE_UNITS_SCALE * this.disparityRadius);
+
+		double d_pXc_d_z = -pXc / z; // pXc/disparity * d_disparity_d_z = pXc/disparity * (-disparity / z);
+		double d_pYc_d_z = -pYc / z; // pYc/disparity * d_disparity_d_z = pYc/disparity * (-disparity / z);
+
+		double d_pXc_d_x =  disparity / (SCENE_UNITS_SCALE * this.disparityRadius);
+		double d_pYc_d_y = -disparity / (SCENE_UNITS_SCALE * this.disparityRadius);
+		
+
+		double rND2 = pXc*pXc + pYc*pYc;
+		double rrND = Math.sqrt(rND2)*0.001*this.pixelSize/this.distortionRadius; // relative to distortion radius;
+
+
+		double d_rrND_d_pXc =  pXc*rrND/rND2;
+		double d_rrND_d_pYc =  pYc*rrND/rND2;
+		
+		
+		double rD2RND = correctDistortions?getRDistByR(rrND):1.0;
+		double d_rD2RND_d_rrND = correctDistortions?getDerivRDistFromR(rrND) : 0.0;
+/*		
+		double d_rD2RND_d_rrND0 = correctDistortions?getDerivRDistFromR(rrND,0.000001) : 0.0;		
+		if (debugLevel > 0){
+			System.out.println("getImageJacobian():, d_rD2RND_d_rrND0 = "+d_rD2RND_d_rrND0+" ("+0.000001+"), d_rD2RND_d_rrND="+d_rD2RND_d_rrND);
+		}
+*/
+		double p_px_d_x = d_pXc_d_x * (pXc * (d_rD2RND_d_rrND * d_rrND_d_pXc) + rD2RND); // / (0.001 * this.pixelSize);
+		double p_py_d_y = d_pYc_d_y * (pYc * (d_rD2RND_d_rrND * d_rrND_d_pYc) + rD2RND); // / (0.001 * this.pixelSize);
+		
+		
+		double p_px_d_y = pXc * (d_rD2RND_d_rrND * d_rrND_d_pYc * d_pYc_d_y); // / (0.001 * this.pixelSize);
+		double p_py_d_x = pYc * (d_rD2RND_d_rrND * d_rrND_d_pXc * d_pXc_d_x); // / (0.001 * this.pixelSize);
+
+		double d_rrND_d_z = d_rrND_d_pXc * d_pXc_d_z  + d_rrND_d_pYc * d_pYc_d_z;
+
+		double p_px_d_z = (pXc * (d_rD2RND_d_rrND * d_rrND_d_z) + (d_pXc_d_z * rD2RND)); // / (0.001 * this.pixelSize);
+		double p_py_d_z = (pYc * (d_rD2RND_d_rrND * d_rrND_d_z) + (d_pYc_d_z * rD2RND)); // / (0.001 * this.pixelSize);
+
+		double [][] jacobian = {
+				{     0.0,     0.0, d_disparity_d_z},
+				{p_px_d_x,p_px_d_y, p_px_d_z},
+				{p_py_d_x,p_py_d_y, p_py_d_z}};
+
+		return jacobian;		
+	}
+	
 	/*
 	 * Calculate pixel coordinates for each of numSensors images, for a given (px,py) of the idealized "center" (still distorted) image
-	 * and generic diparity, measured in pixels 
+	 * and generic disparity, measured in pixels 
 	 */
 
 	public double [][] getPortsCoordinates(
@@ -451,6 +671,51 @@ public class GeometryCorrection {
 		}
 		return true;
 	}
+	
+	/**
+	 * Get relative (to distortion radius) distorted radius ratio to non-distorted from non-distorted
+	 * @param r non-distorted radius (1.0 is 2.8512mm)
+	 * @return ratio of distorted to non-distorted radius
+	 */
+	public double getRDistByR(double r) // relative to distortion radius
+	{
+		boolean use8=(this.distortionA8!=0.0) || (this.distortionA7!=0.0) || (this.distortionA6!=0.0);
+		double d=1.0-this.distortionA8-this.distortionA7-this.distortionA6-this.distortionA5-this.distortionA-this.distortionB-this.distortionC;
+		
+		double k;
+		if (use8){
+			k=(((((((this.distortionA8)*r+this.distortionA7)*r+this.distortionA6)*r+this.distortionA5)*r + this.distortionA)*r+this.distortionB)*r+this.distortionC)*r+d;
+		} else {
+			k=(((this.distortionA5*r + this.distortionA)*r+this.distortionB)*r+this.distortionC)*r+d;
+		}
+		return k;
+	}
+
+	/**
+	 * Get derivative of relative (to distortion radius) d_Rdist/d_R from relative (to distortion radius) non-distorted radius  
+	 * @param r non-distorted relative radius
+	 * @return derivative d_Rdist/d_R from (relative to relative)
+	 */
+	public double getDerivRDistFromR(double r) // relative to distortion radius
+	{
+		boolean use8=(this.distortionA8!=0.0) || (this.distortionA7!=0.0) || (this.distortionA6!=0.0);
+//		double d=1.0-this.distortionA8-this.distortionA7-this.distortionA6-this.distortionA5-this.distortionA-this.distortionB-this.distortionC;
+		double drDistDr;
+		if (use8){
+			drDistDr=(((((((7*this.distortionA8)*r + 6*this.distortionA7)*r + 5*this.distortionA6)*r + 4*this.distortionA5)*r + 3*this.distortionA)*r+2*this.distortionB)*r+1*this.distortionC); // +d;
+		} else {
+//			drDistDr=(((4*this.distortionA5*r + 3*this.distortionA)*r+2*this.distortionB)*r+1*this.distortionC)*r;
+			drDistDr=((4*this.distortionA5*r + 3*this.distortionA)*r+2*this.distortionB)*r+1*this.distortionC;
+		}
+		return drDistDr;
+	}
+	
+	public double getDerivRDistFromR(double r, double delta) // relative to distortion radius
+	{
+		return (getRDistByR(r+delta) -getRDistByR(r))/delta;
+		
+	}	
+
 
 	public double getRByRDist(double rDist, boolean debug){
 		// add exceptions;
@@ -478,7 +743,51 @@ public class GeometryCorrection {
 		}
 		return result;
 	}
+	
+	/*
+	public double getDerivRByRDist(double rDist, boolean debug, double delta){
+		return (getRByRDist(rDist+delta, false) - getRByRDist(rDist, false))/delta;
+	}
 
+	public double getDerivRByRDist(double rDist, boolean debug){
+		// add exceptions;
+		if (this.rByRDist==null) {
+			calcReverseDistortionTable();
+			if (debug)System.out.println("getDerivRByRDist("+IJ.d2s(rDist,3)+"): this.rByRDist==null");
+			//		return Double.NaN;
+		}
+		if (rDist<0) {
+			if (debug)System.out.println("getDerivRByRDist("+IJ.d2s(rDist,3)+"): rDist<0");
+			return Double.NaN;
+		}
+		int index=(int) Math.floor(rDist/this.stepR);
+		if (index>=(this.rByRDist.length-1)) {
+			if (debug) System.out.println("getDerivRByRDist("+IJ.d2s(rDist,3)+"): index="+index+">="+(this.rByRDist.length-1));
+			return Double.NaN;
+		}
+		double result=this.rByRDist[index+1]-this.rByRDist[index];
+		if ((index > 0) || (index < (this.rByRDist.length-2))){ // interpolate
+			double a = rDist/this.stepR-index; // fractional part, 0..1.0
+			if ( a <= 0.5){
+				result= 2  * (0.5 - a) * (this.rByRDist[index+1] - this.rByRDist[index]) +
+					                a *  (this.rByRDist[index+1] - this.rByRDist[index-1]);
+			} else {
+				result= 2  * (1.0 - a) * (this.rByRDist[index+1] - this.rByRDist[index]) +
+						     (a - 0.5) * (this.rByRDist[index+2] - this.rByRDist[index]);
+				
+			}
+			
+		}
+		if (Double.isNaN(result)){
+			if (debug) System.out.println("this.rByRDist["+index+"]="+this.rByRDist[index]);
+			if (debug) System.out.println("this.rByRDist["+(index+1)+"]="+this.rByRDist[index+1]);
+			if (debug) System.out.println("rDist="+rDist);
+			if (debug) System.out.println("(rDist/this.stepR="+(rDist/this.stepR));
+
+		}
+		return result/this.stepR;
+	}
+	*/
 
 
 }

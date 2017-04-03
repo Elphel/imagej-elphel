@@ -5059,7 +5059,7 @@ public class QuadCLT {
 				  geometryCorrection,
 				  threadsMax,  // maximal number of threads to launch                         
 				  updateStatus,
-				  debugLevel);
+				  2); // debugLevel);
 		  // get images for predefined regions and disparities. First - with just fixed scans 1 .. list.size()
 
           tp.showScan(

@@ -2028,6 +2028,7 @@ public class EyesisCorrectionParameters {
   		public double     min_clstr_max    = 0.25;  // Minimal maximal strength of the cluster 
   		
   		public int        fill_gaps        = 4;     // same as in grow - 1:  4 directions by 1 step, 2: 8 directions by 1 step. +2*n - alternating hor/vert
+  		public int        fill_final       = 50;    // same as fill_gaps, on the final pass
   		public int        min_clstr_block  = 3;     // number of tiles in a cluster to block (just non-background?)
   		public int        bgnd_grow        = 2;     // number of tiles to grow (1 - hor/vert, 2 - hor/vert/diagonal)
   		
@@ -2113,7 +2114,7 @@ public class EyesisCorrectionParameters {
   		public double     stStepNear        = 0.5;   // Disaprity histogram step for near objects
   		public double     stStepThreshold   = 1.0;   // Disaprity threshold to switch cfrom linear to logarithmic steps
   		public double     stMinDisparity    = 0.0;   // Minimal disparity (center of a bin)
-  		public double     stMaxDisparity    = 50.0;  // Maximal disparity (center of a bin)
+  		public double     stMaxDisparity    = 15.0;  // Maximal disparity (center of a bin)
   		public double     stFloor           = 0.15;  // Subtract from strength, discard negative  
   		public double     stPow             = 1.0;   // raise strength to this power 
   		public double     stSigma           = 1.5;   // Blur disparity histogram (sigma in bins) 
@@ -2140,6 +2141,13 @@ public class EyesisCorrectionParameters {
   		public double     grow_disp_trust =  4.0; // Trust measured disparity within +/- this value 
   		public double     grow_disp_step =   6.0; // Increase disparity (from maximal tried) if nothing found in that tile // TODO: handle enclosed dips?  
   		public double     grow_min_diff =    0.5; // Grow more only if at least one channel has higher variance from others for the tile  
+  		
+  		public double     plDispNorm           =   3.0;  // Normalize disparities to the average if above (now only for eigenvalue comparison)
+  		public int        plMinPoints          =     5;  // Minimal number of points for plane detection
+  		public double     plTargetEigen        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+  		public double     plFractOutliers      =   0.3;  // Maximal fraction of outliers to remove
+  		public int        plMaxOutliers        =    20;  // Maximal number of outliers to remove
+  		
   		
   		// other debug images
   		public boolean    show_ortho_combine =     false; // Show 'ortho_combine' 
@@ -2266,6 +2274,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"min_clstr_max",    this.min_clstr_max +"");
   			
   			properties.setProperty(prefix+"fill_gaps",        this.fill_gaps+"");
+  			properties.setProperty(prefix+"fill_final",       this.fill_final+"");
   			properties.setProperty(prefix+"min_clstr_block",  this.min_clstr_block+"");
   			properties.setProperty(prefix+"bgnd_grow",        this.bgnd_grow+"");
 
@@ -2371,6 +2380,12 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"grow_disp_trust",  this.grow_disp_trust +"");
 			properties.setProperty(prefix+"grow_disp_step",   this.grow_disp_step +"");
 			properties.setProperty(prefix+"grow_min_diff",    this.grow_min_diff +"");
+
+			properties.setProperty(prefix+"plDispNorm",       this.plDispNorm +"");
+  			properties.setProperty(prefix+"plMinPoints",      this.plMinPoints+"");
+			properties.setProperty(prefix+"plTargetEigen",    this.plTargetEigen +"");
+			properties.setProperty(prefix+"plFractOutliers",  this.plFractOutliers +"");
+  			properties.setProperty(prefix+"plMaxOutliers",    this.plMaxOutliers+"");
 
 			properties.setProperty(prefix+"show_ortho_combine",     this.show_ortho_combine+"");
 			properties.setProperty(prefix+"show_refine_supertiles", this.show_refine_supertiles+"");
@@ -2490,6 +2505,7 @@ public class EyesisCorrectionParameters {
 
   			
   			if (properties.getProperty(prefix+"fill_gaps")!=null)         this.fill_gaps=Integer.parseInt(properties.getProperty(prefix+"fill_gaps"));
+  			if (properties.getProperty(prefix+"fill_final")!=null)        this.fill_final=Integer.parseInt(properties.getProperty(prefix+"fill_final"));
   			if (properties.getProperty(prefix+"min_clstr_block")!=null)   this.min_clstr_block=Integer.parseInt(properties.getProperty(prefix+"min_clstr_block"));
   			if (properties.getProperty(prefix+"bgnd_grow")!=null)         this.bgnd_grow=Integer.parseInt(properties.getProperty(prefix+"bgnd_grow"));
 
@@ -2592,6 +2608,12 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"grow_disp_trust")!=null)   this.grow_disp_trust=Double.parseDouble(properties.getProperty(prefix+"grow_disp_trust"));
   			if (properties.getProperty(prefix+"grow_disp_step")!=null)    this.grow_disp_step=Double.parseDouble(properties.getProperty(prefix+"grow_disp_step"));
   			if (properties.getProperty(prefix+"grow_min_diff")!=null)     this.grow_min_diff=Double.parseDouble(properties.getProperty(prefix+"grow_min_diff"));
+
+  			if (properties.getProperty(prefix+"plDispNorm")!=null)        this.plDispNorm=Double.parseDouble(properties.getProperty(prefix+"plDispNorm"));
+  			if (properties.getProperty(prefix+"plMinPoints")!=null)       this.plMinPoints=Integer.parseInt(properties.getProperty(prefix+"plMinPoints"));
+  			if (properties.getProperty(prefix+"plTargetEigen")!=null)     this.plTargetEigen=Double.parseDouble(properties.getProperty(prefix+"plTargetEigen"));
+  			if (properties.getProperty(prefix+"plFractOutliers")!=null)   this.plFractOutliers=Double.parseDouble(properties.getProperty(prefix+"plFractOutliers"));
+  			if (properties.getProperty(prefix+"plMaxOutliers")!=null)     this.plMaxOutliers=Integer.parseInt(properties.getProperty(prefix+"plMaxOutliers"));
 
   			if (properties.getProperty(prefix+"show_ortho_combine")!=null)     this.show_ortho_combine=Boolean.parseBoolean(properties.getProperty(prefix+"show_ortho_combine"));
   			if (properties.getProperty(prefix+"show_refine_supertiles")!=null) this.show_refine_supertiles=Boolean.parseBoolean(properties.getProperty(prefix+"show_refine_supertiles"));
@@ -2725,6 +2747,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Minimal maximal strength of the cluster",                                      this.min_clstr_max,  3);
   			
   			gd.addNumericField("Fill gaps betsween clusters, see comments for 'grow'",                         this.fill_gaps,   0);
+  			gd.addNumericField("Same as fill_gaps above, on the final pass",                                   this.fill_final,   0);
   			gd.addNumericField("Number of tiles in a cluster to block (just non-background?)",                 this.min_clstr_block,   0);
   			gd.addNumericField("Number of tiles to grow tile selection (1 - hor/vert, 2 - hor/vert/diagonal)", this.bgnd_grow,   0);
 
@@ -2835,6 +2858,13 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Trust measured disparity within +/- this value",                               this.grow_disp_trust,  6);
   			gd.addNumericField("Increase disparity (from maximal tried) if nothing found in that tile",        this.grow_disp_step,  6);
   			gd.addNumericField("Grow more only if at least one channel has higher variance from others for the tile", this.grow_min_diff,  6);
+  			gd.addMessage     ("--- Planes detection ---");
+  			gd.addNumericField("Normalize disparities to the average if above",                                this.plDispNorm,  6);
+  			gd.addNumericField("Minimal number of points for plane detection",                                  this.plMinPoints,  0);
+  			gd.addNumericField("Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below", this.plTargetEigen,  6);
+  			gd.addNumericField("Maximal fraction of outliers to remove",                                       this.plFractOutliers,  6);
+  			gd.addNumericField("Maximal number of outliers to remove",                                         this.plMaxOutliers,  0);
+
   			gd.addMessage     ("--- Other debug images ---");
   			gd.addCheckbox    ("Show 'ortho_combine'",                                                         this.show_ortho_combine);
   			gd.addCheckbox    ("Show 'refine_disparity_supertiles'",                                           this.show_refine_supertiles);
@@ -2960,6 +2990,7 @@ public class EyesisCorrectionParameters {
   			this.min_clstr_max=         gd.getNextNumber();
   			
   			this.fill_gaps=       (int) gd.getNextNumber();
+  			this.fill_final=      (int) gd.getNextNumber();
   			this.min_clstr_block= (int) gd.getNextNumber();
   			this.bgnd_grow=       (int) gd.getNextNumber();
 
@@ -3064,6 +3095,12 @@ public class EyesisCorrectionParameters {
   			this.grow_disp_trust=       gd.getNextNumber();
   			this.grow_disp_step=        gd.getNextNumber();
   			this.grow_min_diff=         gd.getNextNumber();
+
+  			this.plDispNorm=            gd.getNextNumber();
+  			this.plMinPoints=     (int) gd.getNextNumber();
+  			this.plTargetEigen=         gd.getNextNumber();
+  			this.plFractOutliers=       gd.getNextNumber();
+  			this.plMaxOutliers=   (int) gd.getNextNumber();
 
   			this.show_ortho_combine=     gd.getNextBoolean();
   			this.show_refine_supertiles= gd.getNextBoolean();

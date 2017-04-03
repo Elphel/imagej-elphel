@@ -516,7 +516,7 @@ public class CLTPass3d{
 		}
 		
 		
-		public void setSuperTiles(
+		public SuperTiles setSuperTiles(
 				double     step_near,
 				double     step_far,
 				double     step_threshold,
@@ -536,6 +536,7 @@ public class CLTPass3d{
 					strength_floor,
 					strength_pow,
 					stBlurSigma);
+			return this.superTiles;
 		}
 		public double [] showDisparityHistogram()
 		{
