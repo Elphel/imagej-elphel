@@ -21,7 +21,12 @@
  ** -----------------------------------------------------------------------------**
  **
  */
+import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
+
+//import TilePlanes.PlaneData;
+
+//import TilePlanes.PlaneData;
 
 public class SuperTiles{
 	        TileProcessor tileProcessor;
@@ -45,6 +50,8 @@ public class SuperTiles{
 			double []   bgStrength = null;
 //			TileProcessor.CLTPass3d cltPass3d;
 			CLTPass3d cltPass3d;
+//			ArrayList<TilePlanes.PlaneData>[] planes = null;
+			TilePlanes.PlaneData [][] planes = null;
 			public SuperTiles(
 					CLTPass3d cltPass3d,
 					double                  step_near,
@@ -118,7 +125,10 @@ public class SuperTiles{
 				return min_disparity + d;  
 			}
 			
-			
+			public TilePlanes.PlaneData [][] getPlanes()
+			{
+				return planes;			
+			}
 			private double [][] getLapWeights(){
 				final int superTileSize = tileProcessor.superTileSize;
 				final double [][] lapWeight = new double [2 * superTileSize][2 * superTileSize];
@@ -1023,8 +1033,8 @@ public class SuperTiles{
 					final double     min_disp,
 					final boolean    invert_disp, // use 1/disparity
 					final double     plDispNorm,
-					final int        plMinPoints, //           =     5;  // Minimal number of points for plane detection
-					final double     plTargetEigen, //         =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+					final int        plMinPoints, //          =     5;  // Minimal number of points for plane detection
+					final double     plTargetEigen, //        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
 					final double     plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
 					final int        plMaxOutliers, //        =    20;  // Maximal number of outliers to remove
 					final GeometryCorrection geometryCorrection,
@@ -1051,7 +1061,10 @@ public class SuperTiles{
 				final int len2 = superTileSize2*superTileSize2;
 				final double []  double_zero =  new double  [len2];
 				final boolean [] boolean_zero = new boolean [len2];
-
+//ArrayList<Individual>[] group = (ArrayList<Individual>[])new ArrayList[4];
+//				this.planes = (ArrayList<TilePlanes.PlaneData>[]) new ArrayList[nStiles];
+				this.planes = new TilePlanes.PlaneData[nStiles][];
+				
 //				final int debug_stile = 18 * stilesX + 25; 
 //				final int debug_stile = 20 * stilesX + 24; 
 				final int debug_stile = 17 * stilesX + 10; 
@@ -1102,8 +1115,9 @@ public class SuperTiles{
 										}
 									}
 								}
+								planes[nsTile] = null;
 								if (sw >0){
-
+									ArrayList<TilePlanes.PlaneData> st_planes = new ArrayList<TilePlanes.PlaneData>();
 //									int dl = ((nsTile >= debug_stile-1) && (nsTile <= debug_stile+1) ) ? 1 : 0;
 //									int dl = ((stileY == 17) && (stileX > 4)) ? 1 : 0;
 //									int dl = (stileY >= 0) ? 1 : 0;
@@ -1124,7 +1138,7 @@ public class SuperTiles{
 										//correct_distortions
 										double swc_common = pd.getWeight();
 										if (dl > 0) {
-											if (swc_common > 1.0) {
+											if (swc_common > 0.3) { // 1.0) {
 												System.out.println("Processing planes["+nsTile+"]"+
 														", stileX="+stileX+
 														", stileY="+stileY+
@@ -1157,7 +1171,7 @@ public class SuperTiles{
 													plMinPoints,  // int        minLeft,     // minimal number of tiles to keep
 													dl1); // 0); // debugLevel);
 											if (dl > 0) {
-												if (swc_common > 1.0) {
+												if (swc_common > 0.3) { // 1.0) {
 													System.out.println("Removed outliers["+nsTile+"]"+
 															", stileX="+stileX+
 															", stileY="+stileY+
@@ -1182,7 +1196,8 @@ public class SuperTiles{
 													norm_xyz[0]+", "+norm_xyz[1]+", "+norm_xyz[2]+"}");
 
 										}
-
+										st_planes.add(pd);
+										
 										// now try for each of the disparity-separated clusters
 										
 										double [][] mm = maxMinMax[nsTile];
@@ -1274,6 +1289,7 @@ public class SuperTiles{
 													}
 													norm_xyz = pd.getWorldXYZ(
 															correct_distortions);
+													st_planes.add(pd);
 													if (dl > 0) {
 														System.out.println("World normal["+nsTile+"]["+m+"] = {"+
 																norm_xyz[0]+", "+norm_xyz[1]+", "+norm_xyz[2]+"}");
@@ -1283,7 +1299,11 @@ public class SuperTiles{
 											}
 										}
 									}
-								}
+									if (st_planes.size() > 0){
+										planes[nsTile] = st_planes.toArray(new TilePlanes.PlaneData[0] );
+									}
+								} // if sw >0
+								
 							}
 						}
 					};
@@ -1291,5 +1311,170 @@ public class SuperTiles{
 				ImageDtt.startAndJoin(threads);
 			}
 
+			public int [] getShowPlanesWidthHeight()
+			{
+				final int tilesX =        tileProcessor.getTilesX();
+				final int tilesY =        tileProcessor.getTilesY();
+				final int superTileSize = tileProcessor.getSuperTileSize();
+//				final int tileSize =      tileProcessor.getTileSize();
+				final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
+				final int stilesY = (tilesY + superTileSize -1)/superTileSize;
+				int [] wh = {
+						stilesX * superTileSize,// * tileSize,
+						stilesY * superTileSize};// * tileSize};
+				return wh;
+			}
+
+//			public double [][] 
+			TilePlanes.PlaneData [][] getNeibPlanes(
+					final int     dir     // 0: get from up (N), 1:from NE, ... 7 - from NW
+//					final double  minWeight,
+//					final double  maxEigen,
+//					final double  dispNorm,
+//					final boolean use_NaN
+					)
+			{
+				final int tilesX =        tileProcessor.getTilesX();
+				final int tilesY =        tileProcessor.getTilesY();
+				final int superTileSize = tileProcessor.getSuperTileSize();
+				final int tileSize =      tileProcessor.getTileSize();
+				final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
+				final int stilesY = (tilesY + superTileSize -1)/superTileSize;
+//				final int width =  stilesX * superTileSize; // * tileSize;
+//				final int height = stilesY * superTileSize; // * tileSize;
+				final double [] nan_plane = new double [superTileSize*superTileSize];
+				for (int i = 0; i < nan_plane.length; i++) nan_plane[i] = Double.NaN;
+//				final int centerIndex = (superTileSize+1) * superTileSize / 2;
+				final int [][] dirsYX = {{-1, 0},{-1,1},{0,1},{1,1},{1,0},{1,-1},{0,-1},{-1,-1}};
+				TilePlanes.PlaneData [][] neib_planes = new TilePlanes.PlaneData[stilesY * stilesX][];
+				TilePlanes tpl = null; // new TilePlanes(tileSize,superTileSize, geometryCorrection);
+//				final int debug_stile = 17 * stilesX + 27;
+				final int debug_stile = 20 * stilesX + 27;
+
+				for (int sty0 = 0; sty0 < stilesY; sty0++){
+					int sty = sty0 + dirsYX[dir][0];
+					for (int stx0 = 0; stx0 < stilesX; stx0++){
+						int nsTile0 = sty0 * stilesX + stx0; // result tile
+						int stx = stx0 + dirsYX[dir][1];
+						int nsTile = sty * stilesX + stx; // from where to get
+						if ((sty >= 0) && (sty < stilesY) && (stx >= 0) && (stx < stilesX) && (planes[nsTile] != null)) {
+							neib_planes[nsTile0] = new TilePlanes.PlaneData[planes[nsTile].length];
+							for (int np = 0; np < planes[nsTile].length; np++){
+								GeometryCorrection geometryCorrection = planes[nsTile][np].getGeometryCorrection();
+								int [] sTileXY0 = {stx0,sty0}; 
+								if (tpl == null) {
+									tpl = new TilePlanes(tileSize,superTileSize, geometryCorrection);
+								}
+								TilePlanes.PlaneData pd = tpl.new PlaneData(
+										sTileXY0,
+										tileSize,
+										superTileSize,
+										geometryCorrection);
+								/*
+								TilePlanes.PlaneData pd = planes[nsTile0][np].clone();
+								pd.setS
+								*/
+								if (nsTile0 == debug_stile) {
+									System.out.println("getNeibPlanes(): nsTile0="+nsTile0+", nsTile="+nsTile+", np = "+np+" dir = "+ dir ); 
+								}
+								neib_planes[nsTile0][np] = pd.getPlaneToThis(
+										planes[nsTile][np], // PlaneData otherPd,
+										(nsTile0 == debug_stile)? 1:0); // int       debugLevel)
+							}
+						} else {
+							neib_planes[nsTile0] = null;
+						}
+					}
+				}
+				return neib_planes;
+			}
+			
+			public double [][] getShowPlanes(
+					TilePlanes.PlaneData [][] planes,
+					double minWeight,
+					double maxEigen,
+					double dispNorm,
+					boolean use_NaN)
+			{
+				final int tilesX =        tileProcessor.getTilesX();
+				final int tilesY =        tileProcessor.getTilesY();
+				final int superTileSize = tileProcessor.getSuperTileSize();
+//				final int tileSize =      tileProcessor.getTileSize();
+				final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
+				final int stilesY = (tilesY + superTileSize -1)/superTileSize;
+				final int width =  stilesX * superTileSize; // * tileSize;
+				final int height = stilesY * superTileSize; // * tileSize;
+				final double [] nan_plane = new double [superTileSize*superTileSize];
+				for (int i = 0; i < nan_plane.length; i++) nan_plane[i] = Double.NaN;
+				final int centerIndex = (superTileSize+1) * superTileSize / 2;
+
+//				final int debug_stile = 17 * stilesX + 27;
+				final int debug_stile = 20 * stilesX + 27;
+//				final int debug_stile = 19 * stilesX + 27;
+				// scan all get maximal number of satisfying planes
+				int num_planes = 0;
+				for (int i = 0; i < planes.length; i++) {
+					if (i == debug_stile) {
+						System.out.println("getShowPlanes():1, tile = "+i);
+					}
+					if ((planes[i] != null) && (planes[i].length > num_planes)){
+						int num_sat = 0;
+						for (int j = 0; j < planes[i].length; j++){
+							if (planes[i][j].getWeight() >= minWeight){
+								double eigVal = planes[i][j].getValue(); // ************** generated does not have value ????????????
+								double disp = planes[i][j].getPlaneDisparity(false)[centerIndex];
+								if (disp > dispNorm) {
+									eigVal *= dispNorm / disp;
+								}
+								if (eigVal < maxEigen) num_sat ++;
+							}
+						}
+						if (num_sat > num_planes) num_planes = num_sat;
+					}
+				}
+				double [][] data = new double[num_planes][width*height];
+				for (int sty = 0; sty < stilesY; sty++){
+					for (int stx = 0; stx < stilesX; stx++){
+						int nsTile = sty * stilesX + stx;
+						if (nsTile == debug_stile) {
+							System.out.println("getShowPlanes():2, tile = "+nsTile);
+						}
+						int ns = 0;
+						double [] plane = nan_plane;
+						int indx = (sty * superTileSize) * width + (stx * superTileSize);
+						boolean debug = (nsTile == debug_stile) ; // (sty == 18) && (stx == 28);
+						if (debug) {
+							System.out.println("getShowPlanes():"+((planes[nsTile] != null)? planes[nsTile].length : "null"));
+						}
+						if (planes[nsTile] != null) {
+							for (int np = 0; np < planes[nsTile].length; np++){
+								if (planes[nsTile][np].getWeight() >= minWeight){
+									//&& (planes[nsTile][np].getValue() < maxEigen)){
+									double eigVal = planes[nsTile][np].getValue();
+//									double disp = planes[nsTile][np].getPlaneDisparity(false)[centerIndex];
+									double disp = planes[nsTile][np].getZxy()[0];
+									if (disp > dispNorm) {
+										eigVal *= dispNorm / disp;
+									}
+									if (eigVal < maxEigen) {
+										plane = planes[nsTile][np].getPlaneDisparity(use_NaN);
+										for (int y = 0; y < superTileSize; y++) {
+											System.arraycopy(plane, superTileSize * y, data[ns], indx + width * y, superTileSize);
+										}
+										ns ++;
+									}
+								}
+							}
+						}
+						// fill same (nearest) plane or NaN if none was available
+						for (; ns < num_planes; ns++){
+							for (int y = 0; y < superTileSize; y++) {
+								System.arraycopy(plane, superTileSize * y, data[ns], indx + width * y, superTileSize);
+							}
+						}
+					}
+				}
+				return data;
+			}
 
 		} // end of class SuperTiles

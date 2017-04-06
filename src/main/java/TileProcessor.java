@@ -2973,6 +2973,58 @@ public class TileProcessor {
 					geometryCorrection,
 					clt_parameters.correct_distortions,
 					debugLevel); // final int        debugLevel)
+			if (clt_parameters.show_planes){
+				int [] wh = st.getShowPlanesWidthHeight();
+				double [][] plane_data_nonan = st.getShowPlanes(
+						st.getPlanes(),
+						clt_parameters.plMinStrength, //  minWeight,
+						clt_parameters.plMaxEigen, //  maxEigen,
+						clt_parameters.plDispNorm,
+						false); //boolean use_NaN)
+				double [][] plane_data_nan = st.getShowPlanes(
+						st.getPlanes(),
+						clt_parameters.plMinStrength, //  minWeight,
+						clt_parameters.plMaxEigen, //  maxEigen,
+						clt_parameters.plDispNorm,
+						true); //boolean use_NaN)
+				double [][] plane_data = new double [plane_data_nonan.length + plane_data_nan.length][];
+				int indx = 0;
+				for (int i = 0; i < plane_data_nonan.length; i++){
+					plane_data[indx++] = plane_data_nonan[i];
+				}
+				for (int i = 0; i < plane_data_nan.length; i++){
+					plane_data[indx++] = plane_data_nan[i];
+				}
+//				sdfa_instance.showArrays(plane_data_nonan, wh[0], wh[1], true, "plane_data_noNaN");
+//				sdfa_instance.showArrays(plane_data_nan, wh[0], wh[1], true, "plane_data_NaN");
+				sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "plane_data");
+				// show plane data
+				for (int dr = 0; dr < 8; dr++){
+					TilePlanes.PlaneData [][] planes = st.getNeibPlanes(dr);
+					plane_data_nonan = st.getShowPlanes(
+							planes,
+							clt_parameters.plMinStrength, //  minWeight,
+							clt_parameters.plMaxEigen, //  maxEigen,
+							clt_parameters.plDispNorm,
+							false); //boolean use_NaN)
+					plane_data_nan = st.getShowPlanes(
+							planes,
+							clt_parameters.plMinStrength, //  minWeight,
+							clt_parameters.plMaxEigen, //  maxEigen,
+							clt_parameters.plDispNorm,
+							true); //boolean use_NaN)
+					plane_data = new double [plane_data_nonan.length + plane_data_nan.length][];
+					indx = 0;
+					for (int i = 0; i < plane_data_nonan.length; i++){
+						plane_data[indx++] = plane_data_nonan[i];
+					}
+					for (int i = 0; i < plane_data_nan.length; i++){
+						plane_data[indx++] = plane_data_nan[i];
+					}
+					sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "plane_data_"+dr);
+				}
+			}
+			
 			/*			
 			st.processPlanes1(
 					null, // final boolean [] selected, // or null
@@ -3001,7 +3053,7 @@ public class TileProcessor {
 				dbg_with_super_disp = scan_prev.combineSuper(
 						true, //boolean updateStrength, // use ST strength if true, keep original (update disparity only) if false
 						clt_parameters.stStrengthScale, // Multiply st strength if used instead of regular strength (only if updateStrength)
-						clt_parameters.stUseDisp); //.15;  // Use background disparity from supertiles if tile strength is less 
+						clt_parameters.stUseDisp); //.15;  // Use background disparity from supertiles if tile strength is less
 
 
 				if (dbg_with_super_disp != null) dbg_with_super_disp = dbg_with_super_disp.clone(); // else no super disparity available

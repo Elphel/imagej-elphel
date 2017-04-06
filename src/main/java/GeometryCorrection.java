@@ -356,6 +356,36 @@ public class GeometryCorrection {
 		return xyz;
 	}
 	
+	/**
+	 * Find disparity for the intersection of the view ray (px, py) and a real-world plane orthogonal through the end of the
+	 * vector norm_xyz
+	 * @param norm_xyz vector from the origin (camera) orthogonal to the plane, length is a distance to the plane 
+	 * @param px pixel coordinate horizontal
+	 * @param py pixel coordinate vertical
+	 * @param correctDistortions true for lens distortion correction, false otherwise
+	 * @return disparity for the point on the plane specified by norm_xyz and known view coordinates px, py
+	 */
+	public double getPlaneDisparity(
+			double [] norm_xyz,
+			double px,
+			double py,
+			boolean correctDistortions) // correct distortion (will need corrected background too !)
+	{
+		double pXcd = px - 0.5 * this.pixelCorrectionWidth;
+		double pYcd = py - 0.5 * this.pixelCorrectionHeight;
+		double rD = Math.sqrt(pXcd*pXcd + pYcd*pYcd)*0.001*this.pixelSize; // distorted radius in a virtual center camera
+		double rND2R = correctDistortions?(getRByRDist(rD/this.distortionRadius, false)): 1.0;
+		double pXc = pXcd * rND2R; // non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
+		double pYc = pYcd * rND2R; // in pixels
+		// point for the unity disparity
+		double x =  SCENE_UNITS_SCALE * pXc * this.disparityRadius;
+		double y = -SCENE_UNITS_SCALE * pYc * this.disparityRadius;
+		double z = -SCENE_UNITS_SCALE * this.focalLength * this.disparityRadius / (0.001*this.pixelSize); // "+" - near, "-" far
+		double vect_dot_norm = (x * norm_xyz[0]) +           (y * norm_xyz[1]) +           (z * norm_xyz[2]);
+		double norm_dot_norm = (norm_xyz[0] * norm_xyz[0]) + (norm_xyz[1] * norm_xyz[1]) + (norm_xyz[2] * norm_xyz[2]);
+		return vect_dot_norm / norm_dot_norm; 
+	}
+	
 	/* Just for testing using delta instead of d */
 	public double [][] getWorldJacobian(
 			double px,
@@ -419,15 +449,6 @@ public class GeometryCorrection {
 		// k = rD/r
 		double d_k_d_rrND = correctDistortions?getDerivRDistFromR(rrND):0.0;
 		double d_rND2R_d_rrD = - rND2R * rND2R * d_k_d_rrND / ( d_k_d_rrND * rrND + 1.0/ rND2R); // rrND);
-/*		
-
-		double d_rND2R_d_rrD0 = correctDistortions?(getDerivRByRDist(rrD, false)): 0.0;
-		
-		double d_rND2R_d_rrD1 = correctDistortions?(getDerivRByRDist(rrD, false, 0.00001)): 0.0;
-		if (debug) {
-			System.out.println("getWorldJacobian(): d_rND2R_d_rrD="+d_rND2R_d_rrD+", d_rND2R_d_rrD0="+d_rND2R_d_rrD0+", d_rND2R_d_rrD1="+d_rND2R_d_rrD1 ); 
-		}
-*/		
 		
 		double d_rND2R_d_px = d_rND2R_d_rrD * d_rRD_d_px;   
 		double d_rND2R_d_py = d_rND2R_d_rrD * d_rRD_d_py;   
@@ -514,7 +535,7 @@ public class GeometryCorrection {
 			boolean correctDistortions,
 			int debugLevel)
 	{
-		if (debugLevel > 0){
+		if (debugLevel > 1){
 			System.out.println("getImageJacobian():");
 		}
 		double x = xyz[0];

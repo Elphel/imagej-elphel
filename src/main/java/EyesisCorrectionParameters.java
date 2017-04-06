@@ -2147,7 +2147,8 @@ public class EyesisCorrectionParameters {
   		public double     plTargetEigen        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
   		public double     plFractOutliers      =   0.3;  // Maximal fraction of outliers to remove
   		public int        plMaxOutliers        =    20;  // Maximal number of outliers to remove
-  		
+  		public double     plMinStrength        =   0.1;  // Minimal total strength of a plane 
+  		public double     plMaxEigen           =   0.3;  // Maximal eigenvalue of a plane 
   		
   		// other debug images
   		public boolean    show_ortho_combine =     false; // Show 'ortho_combine' 
@@ -2163,7 +2164,7 @@ public class EyesisCorrectionParameters {
   		public boolean    show_neighbors =         false; // show 'neighbors' 
   		public boolean    show_flaps_dirs =        false; // show 'flaps-dirs' 
   		public boolean    show_first_clusters =    false; // show 'first_N_clusters' 
-  		
+  		public boolean    show_planes =            false; // show planes 
   		
   		public CLTParameters(){}
   		public void setProperties(String prefix,Properties properties){
@@ -2386,6 +2387,8 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plTargetEigen",    this.plTargetEigen +"");
 			properties.setProperty(prefix+"plFractOutliers",  this.plFractOutliers +"");
   			properties.setProperty(prefix+"plMaxOutliers",    this.plMaxOutliers+"");
+			properties.setProperty(prefix+"plMinStrength",    this.plMinStrength +"");
+			properties.setProperty(prefix+"plMaxEigen",       this.plMaxEigen +"");
 
 			properties.setProperty(prefix+"show_ortho_combine",     this.show_ortho_combine+"");
 			properties.setProperty(prefix+"show_refine_supertiles", this.show_refine_supertiles+"");
@@ -2399,6 +2402,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"show_neighbors",         this.show_neighbors+"");
 			properties.setProperty(prefix+"show_flaps_dirs",        this.show_flaps_dirs+"");
 			properties.setProperty(prefix+"show_first_clusters",    this.show_first_clusters+"");
+			properties.setProperty(prefix+"show_planes",            this.show_planes+"");
   		}
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"transform_size")!=null) this.transform_size=Integer.parseInt(properties.getProperty(prefix+"transform_size"));
@@ -2614,6 +2618,8 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plTargetEigen")!=null)     this.plTargetEigen=Double.parseDouble(properties.getProperty(prefix+"plTargetEigen"));
   			if (properties.getProperty(prefix+"plFractOutliers")!=null)   this.plFractOutliers=Double.parseDouble(properties.getProperty(prefix+"plFractOutliers"));
   			if (properties.getProperty(prefix+"plMaxOutliers")!=null)     this.plMaxOutliers=Integer.parseInt(properties.getProperty(prefix+"plMaxOutliers"));
+  			if (properties.getProperty(prefix+"plMinStrength")!=null)     this.plMinStrength=Double.parseDouble(properties.getProperty(prefix+"plMinStrength"));
+  			if (properties.getProperty(prefix+"plMaxEigen")!=null)        this.plMaxEigen=Double.parseDouble(properties.getProperty(prefix+"plMaxEigen"));
 
   			if (properties.getProperty(prefix+"show_ortho_combine")!=null)     this.show_ortho_combine=Boolean.parseBoolean(properties.getProperty(prefix+"show_ortho_combine"));
   			if (properties.getProperty(prefix+"show_refine_supertiles")!=null) this.show_refine_supertiles=Boolean.parseBoolean(properties.getProperty(prefix+"show_refine_supertiles"));
@@ -2627,6 +2633,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"show_neighbors")!=null)         this.show_neighbors=Boolean.parseBoolean(properties.getProperty(prefix+"show_neighbors"));
   			if (properties.getProperty(prefix+"show_flaps_dirs")!=null)        this.show_flaps_dirs=Boolean.parseBoolean(properties.getProperty(prefix+"show_flaps_dirs"));
   			if (properties.getProperty(prefix+"show_first_clusters")!=null)    this.show_first_clusters=Boolean.parseBoolean(properties.getProperty(prefix+"show_first_clusters"));
+  			if (properties.getProperty(prefix+"show_planes")!=null)            this.show_planes=Boolean.parseBoolean(properties.getProperty(prefix+"show_planes"));
   		}
   		
   		public boolean showDialog() {
@@ -2864,6 +2871,8 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below", this.plTargetEigen,  6);
   			gd.addNumericField("Maximal fraction of outliers to remove",                                       this.plFractOutliers,  6);
   			gd.addNumericField("Maximal number of outliers to remove",                                         this.plMaxOutliers,  0);
+  			gd.addNumericField("Minimal total strength of a plane",                                            this.plMinStrength,  6);
+  			gd.addNumericField("Maximal eigenvalue of a plane",                                                this.plMaxEigen,  6);
 
   			gd.addMessage     ("--- Other debug images ---");
   			gd.addCheckbox    ("Show 'ortho_combine'",                                                         this.show_ortho_combine);
@@ -2878,6 +2887,7 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("show 'neighbors'",                                                             this.show_neighbors);
   			gd.addCheckbox    ("Show 'flaps-dirs'",                                                            this.show_flaps_dirs);
   			gd.addCheckbox    ("Show 'first_N_clusters'",                                                      this.show_first_clusters);
+  			gd.addCheckbox    ("Show planes",                                                                  this.show_planes);
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
   			
@@ -3101,6 +3111,8 @@ public class EyesisCorrectionParameters {
   			this.plTargetEigen=         gd.getNextNumber();
   			this.plFractOutliers=       gd.getNextNumber();
   			this.plMaxOutliers=   (int) gd.getNextNumber();
+  			this.plMinStrength=         gd.getNextNumber();
+  			this.plMaxEigen=            gd.getNextNumber();
 
   			this.show_ortho_combine=     gd.getNextBoolean();
   			this.show_refine_supertiles= gd.getNextBoolean();
@@ -3114,6 +3126,7 @@ public class EyesisCorrectionParameters {
   			this.show_neighbors=         gd.getNextBoolean();
   			this.show_flaps_dirs=        gd.getNextBoolean();
   			this.show_first_clusters=    gd.getNextBoolean();
+  			this.show_planes=            gd.getNextBoolean();
   			return true;
   		}
     }
