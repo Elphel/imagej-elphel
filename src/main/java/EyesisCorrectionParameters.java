@@ -2149,6 +2149,7 @@ public class EyesisCorrectionParameters {
   		public int        plMaxOutliers        =    20;  // Maximal number of outliers to remove
   		public double     plMinStrength        =   0.1;  // Minimal total strength of a plane 
   		public double     plMaxEigen           =   0.3;  // Maximal eigenvalue of a plane 
+  		public boolean    plDbgMerge           =   true; // Combine 'other' plane with current  
   		
   		// other debug images
   		public boolean    show_ortho_combine =     false; // Show 'ortho_combine' 
@@ -2389,6 +2390,7 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"plMaxOutliers",    this.plMaxOutliers+"");
 			properties.setProperty(prefix+"plMinStrength",    this.plMinStrength +"");
 			properties.setProperty(prefix+"plMaxEigen",       this.plMaxEigen +"");
+			properties.setProperty(prefix+"plDbgMerge",       this.plDbgMerge+"");
 
 			properties.setProperty(prefix+"show_ortho_combine",     this.show_ortho_combine+"");
 			properties.setProperty(prefix+"show_refine_supertiles", this.show_refine_supertiles+"");
@@ -2620,6 +2622,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plMaxOutliers")!=null)     this.plMaxOutliers=Integer.parseInt(properties.getProperty(prefix+"plMaxOutliers"));
   			if (properties.getProperty(prefix+"plMinStrength")!=null)     this.plMinStrength=Double.parseDouble(properties.getProperty(prefix+"plMinStrength"));
   			if (properties.getProperty(prefix+"plMaxEigen")!=null)        this.plMaxEigen=Double.parseDouble(properties.getProperty(prefix+"plMaxEigen"));
+  			if (properties.getProperty(prefix+"plDbgMerge")!=null)        this.plDbgMerge=Boolean.parseBoolean(properties.getProperty(prefix+"plDbgMerge"));
 
   			if (properties.getProperty(prefix+"show_ortho_combine")!=null)     this.show_ortho_combine=Boolean.parseBoolean(properties.getProperty(prefix+"show_ortho_combine"));
   			if (properties.getProperty(prefix+"show_refine_supertiles")!=null) this.show_refine_supertiles=Boolean.parseBoolean(properties.getProperty(prefix+"show_refine_supertiles"));
@@ -2873,6 +2876,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal number of outliers to remove",                                         this.plMaxOutliers,  0);
   			gd.addNumericField("Minimal total strength of a plane",                                            this.plMinStrength,  6);
   			gd.addNumericField("Maximal eigenvalue of a plane",                                                this.plMaxEigen,  6);
+  			gd.addCheckbox    ("Combine 'other' plane with the current",                                       this.plDbgMerge);
 
   			gd.addMessage     ("--- Other debug images ---");
   			gd.addCheckbox    ("Show 'ortho_combine'",                                                         this.show_ortho_combine);
@@ -3113,6 +3117,7 @@ public class EyesisCorrectionParameters {
   			this.plMaxOutliers=   (int) gd.getNextNumber();
   			this.plMinStrength=         gd.getNextNumber();
   			this.plMaxEigen=            gd.getNextNumber();
+  			this.plDbgMerge=            gd.getNextBoolean();
 
   			this.show_ortho_combine=     gd.getNextBoolean();
   			this.show_refine_supertiles= gd.getNextBoolean();

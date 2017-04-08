@@ -3000,7 +3000,9 @@ public class TileProcessor {
 				sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "plane_data");
 				// show plane data
 				for (int dr = 0; dr < 8; dr++){
-					TilePlanes.PlaneData [][] planes = st.getNeibPlanes(dr);
+					TilePlanes.PlaneData [][] planes = st.getNeibPlanes(
+							dr,
+							clt_parameters.plDbgMerge);
 					plane_data_nonan = st.getShowPlanes(
 							planes,
 							clt_parameters.plMinStrength, //  minWeight,

@@ -56,7 +56,8 @@ public class TilePlanes {
 		double []   world_xyz =  null; // world coordinates of the nearest point of the plane, in meters
 		double []   world_v1 =   null; // world in-plane vector, corresponding to vectors[1] 
 		double []   world_v2 =   null; // world in-plane vector, corresponding to vectors[1]
-		double []   daxy      =  null; // disparity and 2 relative angles (ax and ay) corresponding to fisheye view, near (0,0) scale is pixel size
+//		double []   daxy      =  null; // disparity and 2 relative angles (ax and ay) corresponding to fisheye view, near (0,0) scale is pixel size
+		double [][] neib_match = null; // for each of the directions (N, NE, .. NW) quality match for each layer 
 		int         tileSize;
 		int         superTileSize;
 		int []      sTileXY =    null; // X and Y indices of this superTile in the image 
@@ -76,7 +77,7 @@ public class TilePlanes {
 			if (this.world_xyz != null)  pd.world_xyz =  this.world_xyz.clone(); 
 			if (this.world_v1 != null)   pd.world_v1 =   this.world_v1.clone(); 
 			if (this.world_v2 != null)   pd.world_v2 =   this.world_v2.clone(); 
-			if (this.daxy != null)       pd.daxy =       this.daxy.clone(); 
+//			if (this.daxy != null)       pd.daxy =       this.daxy.clone(); 
 			if (this.vectors != null) {
 				pd.vectors = new double[3][];
 				pd.vectors[0] = this.vectors[0].clone();
@@ -233,6 +234,153 @@ public class TilePlanes {
 			return new Matrix (ar);
 		}
 		
+		
+		/**
+		 * Combine 2 Plane instances using centers, eigenvalues eihenvectors and total weights of this and other PlaneData objects
+		 * other plane should already be transformed to the same supertile coordinate system (with getPlaneToThis() method)
+		 * @param otherPd PlaneData object to merge with. Should be transformed to the same supertile ( same sTileXY values)
+		 * @param scale_other scale total weight of the other PlaneData object
+		 * @param ignore_weights assume original weights of the planes where equal, only use scale_other
+		 * @param debugLevel debug level
+		 * @return PlaneData object representing merged planes with combined weight (scale_other*otherPd.weight + this.weight),
+		 * recalculated center, eigenvalues and eigenvectors
+		 */
+		public PlaneData mergePlaneToThis(
+				PlaneData otherPd,
+				double    scale_other,
+				boolean   ignore_weights,
+				int       debugLevel)
+		{
+			if (debugLevel > 0) {
+				System.out.println("mergePlaneToThis()");
+			}
+			double [][] this_eig_avals = {
+					{values[0], 0.0,       0.0},
+					{0.0,       values[1], 0.0},
+					{0.0,       0.0,       values[2]}};
+			double [][] other_eig_avals = {
+					{otherPd.values[0], 0.0,               0.0},
+					{0.0,               otherPd.values[1], 0.0},
+					{0.0,               0.0,               otherPd.values[2]}};
+			Matrix this_eig_vals =     new Matrix(this_eig_avals);
+			Matrix other_eig_vals =    new Matrix(other_eig_avals);
+			Matrix other_eig_vectors = new Matrix(otherPd.vectors).transpose(); // vectors are saved as rows
+			Matrix this_eig_vectors =  new Matrix(this.vectors).transpose();    // vectors are saved as rows 
+			Matrix this_center    =    new Matrix(this.getZxy(),3);
+			Matrix other_center    =   new Matrix(otherPd.getZxy(),3); // should already be relative to this supertile center
+			double sum_weight =      scale_other *  otherPd.weight + this.weight;
+			double other_fraction = ignore_weights? (scale_other/(scale_other + 1.0)): ((scale_other *  otherPd.weight) / sum_weight); 
+			Matrix common_center =  this_center.times(1.0 - other_fraction).plus(other_center.times(other_fraction));
+			Matrix other_offset =   other_center.minus(this_center); // other center from this center 
+			if (debugLevel > 0) {
+				System.out.println("other_eig_vals");
+				other_eig_vals.print(8, 6);
+				System.out.println("this_eig_vals");
+				this_eig_vals.print(8, 6);
+				System.out.println("other_eig_vectors");
+				other_eig_vectors.print(8, 6);
+				System.out.println("this_eig_vectors");
+				this_eig_vectors.print(8, 6);
+				System.out.println("other_center");
+				other_center.print(8, 6);
+				System.out.println("this_center");
+				this_center.print(8, 6);
+				System.out.println("common_center");
+				common_center.print(8, 6);
+				System.out.println("other_offset");
+				other_offset.print(8, 6);
+				System.out.println("other_fraction="+other_fraction);
+			}
+			
+			
+			
+			
+			double [][] acovar = { // covariance matrix of center masses (not yet scaled by weight)
+					{other_offset.get(0,0)*other_offset.get(0,0), other_offset.get(0,0)*other_offset.get(1,0), other_offset.get(0,0)*other_offset.get(2,0)},
+					{other_offset.get(1,0)*other_offset.get(0,0), other_offset.get(1,0)*other_offset.get(1,0), other_offset.get(1,0)*other_offset.get(2,0)},
+					{other_offset.get(2,0)*other_offset.get(0,0), other_offset.get(2,0)*other_offset.get(1,0), other_offset.get(2,0)*other_offset.get(2,0)}};
+
+			Matrix other_covar = other_eig_vectors.times(other_eig_vals.times(other_eig_vectors.transpose())); 
+			Matrix this_covar =  this_eig_vectors.times(this_eig_vals.times(this_eig_vectors.transpose()));
+			Matrix covar = (new Matrix(acovar)).times(other_fraction*(1.0-other_fraction)); // only centers with all masses
+			if (debugLevel > 0) {
+				System.out.println("other_covar");
+				other_covar.print(8, 6);
+				System.out.println("this_covar");
+				this_covar.print(8, 6);
+				System.out.println("covar");
+				covar.print(8, 6);
+			}			
+			
+			covar.plusEquals(other_covar.times(other_fraction));
+			if (debugLevel > 0) {
+				System.out.println("covar with other_covar");
+				covar.print(8, 6);
+			}
+			covar.plusEquals(this_covar.times(1.0 - other_fraction));
+			if (debugLevel > 0) {
+				System.out.println("covar with other_covar and this_covar");
+				covar.print(8, 6);
+			}
+			
+			// extract new eigenvalues, eigenvectors
+			EigenvalueDecomposition eig = covar.eig();
+//			eig.getD().getArray(),
+//			eig.getV().getArray(),
+			if (debugLevel > 0) {
+				System.out.println("eig.getV()");
+				eig.getV().print(8, 6);
+				System.out.println("eig.getD()");
+				eig.getD().print(8, 6);
+			}
+
+			
+			
+			double [][] eig_vect = eig.getV().getArray();
+			double [][] eig_val = eig.getD().getArray();
+			// make towards camera, left coordinate system
+			int oindx = 0;
+			for (int i = 1; i <3; i++){
+				if (Math.abs(eig_vect[0][i]) > Math.abs(eig_vect[0][oindx])){
+					oindx = i;
+				}
+			}
+			// select 2 other axes for increasing eigenvalues (so v is short axis, h  is the long one)
+			int vindx = (oindx == 0)? 1 : 0;
+			int hindx = (oindx == 0)? 2 : ((oindx == 1) ? 2 : 1);
+			if (eig_val[vindx][vindx] > eig_val[hindx][hindx]){
+				int tmp = vindx;
+				vindx = hindx;
+				hindx = tmp;
+			}
+
+			double [][] plane = {
+					{eig_vect[0][oindx],eig_vect[1][oindx],eig_vect[2][oindx]},  // plane normal to camera
+					{eig_vect[0][vindx],eig_vect[1][vindx],eig_vect[2][vindx]},  // "horizontal" axis // to detect skinny planes and poles
+					{eig_vect[0][hindx],eig_vect[1][hindx],eig_vect[2][hindx]}}; //  "vertical"   axis  // to detect skinny planes and poles
+			// Make normal be towards camera (positive disparity), next vector - positive in X direction (right)
+			for (int v = 0; v < 2; v++) {
+				if (plane[v][v] < 0.0) for (int i = 0; i < 3; i ++) plane[v][i] = -plane[v][i];
+			}
+			
+			// make  direction last vector so px (x) py (.) disp < 0 (left-hand coordinate system) 
+			if (new Matrix(plane).det() > 0){
+				for (int i = 0; i < 3; i ++) plane[2][i] = -plane[2][i];
+			}
+			
+			
+			PlaneData pd = this.clone(); // will copy selections too
+			pd.setValues(eig_val[oindx][oindx],eig_val[vindx][vindx],eig_val[hindx][hindx]); // eigenvalues [0] - thickness, 2 other to detect skinny (poles)
+			pd.setVectors(plane);
+			
+			pd.setZxy(common_center.getColumnPackedCopy()); // set new center
+			// what weight to use? cloned is original weight for this supertile
+			// or use weighted average like below?
+			pd.setWeight(other_fraction * otherPd.weight + (1.0 - other_fraction) * this.weight);
+			return pd;
+		}
+		
+		
 		/**
 		 * Convert plane data from other supertile to this one (disparity, px, py) for the center of this supertile
 		 * through the plane in world coordinates. orientation of the "main" eigenvector (most disparity-like) is
@@ -299,8 +447,11 @@ public class TilePlanes {
 			// now get both in-plane vectors transformed to this supertile disparity, px, py
 			Matrix v1 = img_jacobian.times(new Matrix(wv1,3)); // 3 rows, 1 column
 			Matrix v2 = img_jacobian.times(new Matrix(wv2,3)); // 3 rows, 1 column
-			Matrix v0 = cross3d(v1,v2); // orthogonal to both - this is a plane normal vector in local supertile disparity, px. py
+//			Matrix v0 = cross3d(v1,v2); // orthogonal to both - this is a plane normal vector in local supertile disparity, px. py
+			Matrix v0 = cross3d(v2,v1); // orthogonal to both - this is a plane normal vector in local supertile disparity, px. py
 
+			
+			
 			if (debugLevel > 0) {
 				System.out.println("getPlaneToThis(), Matrix v0 =");
 				v0.print(10,6);
@@ -356,6 +507,13 @@ public class TilePlanes {
 				System.out.println("getPlaneToThis(), dxy(modified) = {"+ dxy[0]+", "+ dxy[1]+", "+ dxy[2]+"}");
 			}
 			pd.sTileXY = this.sTileXY; 
+			if (pd.vectors[0][0] > 0) {
+//				System.out.println("getPlaneToThis(): "+pd.sTileXY[0]+":"+pd.sTileXY[1]+" -> "+pd.vectors[0][0]+", disp = "+disp+
+//						", other_det = "+((new Matrix(otherPd.vectors).det()) +", pdr_det = "+((new Matrix(pd.vectors).det()))));
+			} else {
+//				System.out.println("getPlaneToThis(): "+pd.sTileXY[0]+":"+pd.sTileXY[1]+" -> "+pd.vectors[0][0]+", disp = "+disp+
+//						", other_det = "+((new Matrix(otherPd.vectors).det()) +", pdr_det = "+((new Matrix(pd.vectors).det()))));
+			}
 			return pd; // make sure pd are updated // "this" is not used. Should it be used instead of pd?  
 		}
 		
@@ -598,12 +756,17 @@ public class TilePlanes {
 			select = new boolean [4*stSize];
 			for (int i = 0; i < select.length; i++) select[i] = true;
 		}
+//		int debugLevel1 = ((sTileXY[0] == 27) && (sTileXY[1] == 20))? 1: 0; 
+//		int debugLevel1 = ((sTileXY[0] == 27) && (sTileXY[1] == 17))? 1: 0; 
+		int debugLevel1 = ((sTileXY[0] == 27) && (sTileXY[1] == 16))? 1: 0; // check why v[0][0] <0  
+		
+		
 		double [][][] rslt = getCovar(
 				data,
 				weight,
 				select,
 				0.0,
-				0); // debugLevel);
+				debugLevel1); //0); // debugLevel);
 		if (rslt == null) return null;
 		int       numPoints =  (int) rslt[2][0][2];
 //		double    kz =   rslt[2][0][1]; // == 1.0
@@ -645,7 +808,8 @@ public class TilePlanes {
 				this.geometryCorrection);
 		pd.setZxy(szxy);
 		
-		pd.setValues(eig_val[oindx][oindx],eig_val[hindx][hindx],eig_val[vindx][vindx]); // eigenvalues [0] - thickness, 2 other to detect skinny (poles)
+//		pd.setValues(eig_val[oindx][oindx],eig_val[hindx][hindx],eig_val[vindx][vindx]); // eigenvalues [0] - thickness, 2 other to detect skinny (poles)
+		pd.setValues(eig_val[oindx][oindx],eig_val[vindx][vindx],eig_val[hindx][hindx]); // eigenvalues [0] - thickness, 2 other to detect skinny (poles)
 
 		double [][] plane = {
 				{eig_vect[0][oindx],eig_vect[1][oindx],eig_vect[2][oindx]},  // plane normal to camera

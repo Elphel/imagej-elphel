@@ -1067,7 +1067,7 @@ public class SuperTiles{
 				
 //				final int debug_stile = 18 * stilesX + 25; 
 //				final int debug_stile = 20 * stilesX + 24; 
-				final int debug_stile = 17 * stilesX + 10; 
+				final int debug_stile = 16 * stilesX + 27; // 10; 
 				
 				
 				for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -1121,10 +1121,11 @@ public class SuperTiles{
 //									int dl = ((nsTile >= debug_stile-1) && (nsTile <= debug_stile+1) ) ? 1 : 0;
 //									int dl = ((stileY == 17) && (stileX > 4)) ? 1 : 0;
 //									int dl = (stileY >= 0) ? 1 : 0;
-									int dl1 =  (nsTile == debug_stile-1) ? 3 : 0;
+									int dl1 =  (nsTile == debug_stile) ? 3 : 0;
 //									int dl =  (nsTile == debug_stile) ? 3 : 0;
-									int dl = ((stileY >= 15) && (stileY <= 18) && (stileX >= 5) && (stileX <= 31)) ? 1 : 0;
-//									int dl = ((stileY == 17) && (stileX == 27) ) ? 3 : 0;
+//									int dl = ((stileY >= 15) && (stileY <= 18) && (stileX >= 5) && (stileX <= 31)) ? 1 : 0;
+									int dl = ((stileY == 16) && (stileX == 27) ) ? 3 : 0;
+//		int debugLevel1 = ((sTileXY[0] == 27) && (sTileXY[1] == 16))? 1: 0; // check why v[0][0] <0  
 									
 									
 									boolean [] sel_all = stSel.clone();
@@ -1301,6 +1302,9 @@ public class SuperTiles{
 									}
 									if (st_planes.size() > 0){
 										planes[nsTile] = st_planes.toArray(new TilePlanes.PlaneData[0] );
+										if (dl >0){
+											System.out.println("processPlanes2(): nsTile="+nsTile);
+										}
 									}
 								} // if sw >0
 								
@@ -1325,13 +1329,9 @@ public class SuperTiles{
 				return wh;
 			}
 
-//			public double [][] 
 			TilePlanes.PlaneData [][] getNeibPlanes(
-					final int     dir     // 0: get from up (N), 1:from NE, ... 7 - from NW
-//					final double  minWeight,
-//					final double  maxEigen,
-//					final double  dispNorm,
-//					final boolean use_NaN
+					final int     dir,     // 0: get from up (N), 1:from NE, ... 7 - from NW
+					final boolean dbgMerge // Combine 'other' plane with current
 					)
 			{
 				final int tilesX =        tileProcessor.getTilesX();
@@ -1340,16 +1340,13 @@ public class SuperTiles{
 				final int tileSize =      tileProcessor.getTileSize();
 				final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
 				final int stilesY = (tilesY + superTileSize -1)/superTileSize;
-//				final int width =  stilesX * superTileSize; // * tileSize;
-//				final int height = stilesY * superTileSize; // * tileSize;
 				final double [] nan_plane = new double [superTileSize*superTileSize];
 				for (int i = 0; i < nan_plane.length; i++) nan_plane[i] = Double.NaN;
-//				final int centerIndex = (superTileSize+1) * superTileSize / 2;
 				final int [][] dirsYX = {{-1, 0},{-1,1},{0,1},{1,1},{1,0},{1,-1},{0,-1},{-1,-1}};
 				TilePlanes.PlaneData [][] neib_planes = new TilePlanes.PlaneData[stilesY * stilesX][];
 				TilePlanes tpl = null; // new TilePlanes(tileSize,superTileSize, geometryCorrection);
-//				final int debug_stile = 17 * stilesX + 27;
-				final int debug_stile = 20 * stilesX + 27;
+//				final int debug_stile = 20 * stilesX + 27;
+				final int debug_stile = 17 * stilesX + 27;
 
 				for (int sty0 = 0; sty0 < stilesY; sty0++){
 					int sty = sty0 + dirsYX[dir][0];
@@ -1377,9 +1374,55 @@ public class SuperTiles{
 								if (nsTile0 == debug_stile) {
 									System.out.println("getNeibPlanes(): nsTile0="+nsTile0+", nsTile="+nsTile+", np = "+np+" dir = "+ dir ); 
 								}
-								neib_planes[nsTile0][np] = pd.getPlaneToThis(
+								TilePlanes.PlaneData other_pd = pd.getPlaneToThis(
 										planes[nsTile][np], // PlaneData otherPd,
 										(nsTile0 == debug_stile)? 1:0); // int       debugLevel)
+								int num_this = (planes[nsTile0] == null)? 0:(planes[nsTile0].length); 
+								int best_index = 0;
+								if (dbgMerge && (num_this > 0)) {
+									double best_value = Double.NaN;
+									if (num_this > 1){
+										// find the best candidate for merge
+										for (int indx = 1; indx < planes[nsTile0].length; indx++){
+											if (nsTile0 == debug_stile) {
+												System.out.println("this with this, same weight:");
+												TilePlanes.PlaneData this_this_pd = planes[nsTile0][indx].mergePlaneToThis(
+														planes[nsTile0][indx], // PlaneData otherPd,
+														1.0,      // double    scale_other,
+														true,     // boolean   ignore_weights,
+														(nsTile0 == debug_stile)? 1:0); // int       debugLevel)
+												System.out.println("other with other, same weight:");
+												TilePlanes.PlaneData other_other_pd = other_pd.mergePlaneToThis(
+														other_pd, // PlaneData otherPd,
+														1.0,      // double    scale_other,
+														true,     // boolean   ignore_weights,
+														(nsTile0 == debug_stile)? 1:0); // int       debugLevel)
+												System.out.println("other with this, same weight:");
+											}
+											TilePlanes.PlaneData merged_pd = planes[nsTile0][indx].mergePlaneToThis(
+													other_pd, // PlaneData otherPd,
+													1.0,      // double    scale_other,
+													true,     // boolean   ignore_weights,
+													(nsTile0 == debug_stile)? 1:0); // int       debugLevel)
+											if (!(merged_pd.getValue() > best_value)) { // Double.isNaN(best_value) will work too
+												best_value = merged_pd.getValue();
+												best_index = indx;
+											}
+										}
+									}
+									// now merge with weights with the best plane of this supertile
+									if (nsTile0 == debug_stile) {
+										System.out.println("this with this, proportional weight, np(other):"+np+" best fit(this):"+best_index);
+									}									
+									TilePlanes.PlaneData merged_pd = planes[nsTile0][best_index].mergePlaneToThis(
+											other_pd, // PlaneData otherPd,
+											1.0,      // double    scale_other,
+											false,    // boolean   ignore_weights,
+											(nsTile0 == debug_stile)? 1:0); // int       debugLevel)
+									neib_planes[nsTile0][np] = merged_pd;
+								} else  {
+									neib_planes[nsTile0][np] = other_pd;
+								}
 							}
 						} else {
 							neib_planes[nsTile0] = null;
