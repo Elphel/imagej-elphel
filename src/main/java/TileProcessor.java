@@ -2823,27 +2823,37 @@ public class TileProcessor {
 				clt_parameters.tileX,
 				clt_parameters.tileY); 
 
-		if (clt_parameters.plMutualOnly) {
-			st.selectNeighborPlanesMutual(
-					clt_parameters.plWorstWorsening, // final double worst_worsening,
-					clt_parameters.plMaxEigen,
-					clt_parameters.plMinStrength,
+		st.selectNeighborPlanesMutual(
+				clt_parameters.plWorstWorsening, // final double worst_worsening,
+				clt_parameters.plMaxEigen,
+				clt_parameters.plMinStrength,
+				0, // final int debugLevel)
+				clt_parameters.tileX,
+				clt_parameters.tileY); 
+		TilePlanes.PlaneData [][] planes_mod = null;
+		if (clt_parameters.plMutualOnly) { // temporarily re-use obsolete parameter to test smoothing
+			
+			planes_mod = st.planesSmooth(
+					clt_parameters.plPull,                        // final double      meas_pull,//  relative pull of the original (measured) plane with respect to the average of the neighbors
+					clt_parameters.plIterations,                  // final int         num_passes,
+					Math.pow(10.0,  -clt_parameters.plPrecision), // final double      maxDiff, // maximal change in any of the disparity values
 					0, // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY); 
-					
 
-		} else {
-			st.selectNeighborPlanes(
-					clt_parameters.plWorstWorsening, // final double worst_worsening,
-					clt_parameters.plMutualOnly, // final boolean mutual_only,
-					0); // final int debugLevel)
+//		} else {
+//			st.selectNeighborPlanes(
+//					clt_parameters.plWorstWorsening, // final double worst_worsening,
+//					clt_parameters.plMutualOnly, // final boolean mutual_only,
+//					0); // final int debugLevel)
 		}
 		
 		if (clt_parameters.show_planes){
+			
+			
 			int [] wh = st.getShowPlanesWidthHeight();
 			double [][] plane_data_nonan = st.getShowPlanes(
-					st.getPlanes(),
+					(planes_mod != null) ? st.getPlanesMod():st.getPlanes(),
 					clt_parameters.plMinStrength, //  minWeight,
 					clt_parameters.plMaxEigen, //  maxEigen,
 					clt_parameters.plDispNorm,
@@ -2851,7 +2861,7 @@ public class TileProcessor {
 					0.0,
 					10.0);
 			double [][] plane_data_nan = st.getShowPlanes(
-					st.getPlanes(),
+					(planes_mod != null) ? st.getPlanesMod():st.getPlanes(),
 					clt_parameters.plMinStrength, //  minWeight,
 					clt_parameters.plMaxEigen, //  maxEigen,
 					clt_parameters.plDispNorm,
@@ -2870,6 +2880,12 @@ public class TileProcessor {
 //			sdfa_instance.showArrays(plane_data_nonan, wh[0], wh[1], true, "plane_data_noNaN");
 //			sdfa_instance.showArrays(plane_data_nan, wh[0], wh[1], true, "plane_data_NaN");
 			sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "plane_data");
+			
+			
+			
+			
+			
+			
 			// show plane data
 
 /*			

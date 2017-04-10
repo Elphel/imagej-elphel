@@ -2150,8 +2150,12 @@ public class EyesisCorrectionParameters {
   		public double     plMinStrength        =   0.1;  // Minimal total strength of a plane 
   		public double     plMaxEigen           =   0.3;  // Maximal eigenvalue of a plane 
   		public boolean    plDbgMerge           =   true; // Combine 'other' plane with current
-  		public double     plWorstWorsening     =   2.0;  // Worst case worsening after merge 
+  		public double     plWorstWorsening     =   1.0;  // Worst case worsening after merge 
   		public boolean    plMutualOnly         =   true; // keep only mutual links, remove weakest if conflict
+
+  		public double     plPull            =  .1;   // Relative weight of original (measured) plane when combing with neighbors
+  		public int        plIterations      =  10;   // Maximal number of smoothing iterations for each step
+  		public int        plPrecision       =  6;    // Maximal step difference (1/power of 10) 
   		
   		
   		// other debug images
@@ -2397,6 +2401,10 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plWorstWorsening", this.plWorstWorsening +"");
 			properties.setProperty(prefix+"plMutualOnly",     this.plMutualOnly+"");
 
+			properties.setProperty(prefix+"plPull",           this.plPull +"");
+  			properties.setProperty(prefix+"plIterations",     this.plIterations+"");
+  			properties.setProperty(prefix+"plPrecision",      this.plPrecision+"");
+
 			properties.setProperty(prefix+"show_ortho_combine",     this.show_ortho_combine+"");
 			properties.setProperty(prefix+"show_refine_supertiles", this.show_refine_supertiles+"");
 			properties.setProperty(prefix+"show_bgnd_nonbgnd",      this.show_bgnd_nonbgnd+"");
@@ -2630,6 +2638,10 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plDbgMerge")!=null)        this.plDbgMerge=Boolean.parseBoolean(properties.getProperty(prefix+"plDbgMerge"));
   			if (properties.getProperty(prefix+"plWorstWorsening")!=null)  this.plWorstWorsening=Double.parseDouble(properties.getProperty(prefix+"plWorstWorsening"));
   			if (properties.getProperty(prefix+"plMutualOnly")!=null)      this.plMutualOnly=Boolean.parseBoolean(properties.getProperty(prefix+"plMutualOnly"));
+
+  			if (properties.getProperty(prefix+"plPull")!=null)            this.plPull=Double.parseDouble(properties.getProperty(prefix+"plPull"));
+  			if (properties.getProperty(prefix+"plIterations")!=null)      this.plIterations=Integer.parseInt(properties.getProperty(prefix+"plIterations"));
+  			if (properties.getProperty(prefix+"plPrecision")!=null)       this.plPrecision=Integer.parseInt(properties.getProperty(prefix+"plPrecision"));
 
   			if (properties.getProperty(prefix+"show_ortho_combine")!=null)     this.show_ortho_combine=Boolean.parseBoolean(properties.getProperty(prefix+"show_ortho_combine"));
   			if (properties.getProperty(prefix+"show_refine_supertiles")!=null) this.show_refine_supertiles=Boolean.parseBoolean(properties.getProperty(prefix+"show_refine_supertiles"));
@@ -2887,6 +2899,10 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Worst case worsening after merge",                                             this.plWorstWorsening,  6);
   			gd.addCheckbox    ("Keep only mutual links, remove weakest if conflict",                           this.plMutualOnly);
 
+  			gd.addNumericField("Relative weight of original (measured) plane when combing with neighbors",     this.plPull,  6);
+  			gd.addNumericField("Maximal number of smoothing iterations for each step",                         this.plIterations,  0);
+  			gd.addNumericField("Maximal step difference (1/power of 10) ",                                     this.plPrecision,  0);
+
   			gd.addMessage     ("--- Other debug images ---");
   			gd.addCheckbox    ("Show 'ortho_combine'",                                                         this.show_ortho_combine);
   			gd.addCheckbox    ("Show 'refine_disparity_supertiles'",                                           this.show_refine_supertiles);
@@ -3130,19 +3146,23 @@ public class EyesisCorrectionParameters {
   			this.plWorstWorsening=      gd.getNextNumber();
   			this.plMutualOnly=          gd.getNextBoolean();
 
-  			this.show_ortho_combine=     gd.getNextBoolean();
-  			this.show_refine_supertiles= gd.getNextBoolean();
-  			this.show_bgnd_nonbgnd=      gd.getNextBoolean(); // first on second pass
-  			this.show_filter_scan=       gd.getNextBoolean(); // first on refine
-  			this.show_combined=          gd.getNextBoolean();
-  			this.show_unique=            gd.getNextBoolean();
-  			this.show_init_refine=       gd.getNextBoolean();
-  			this.show_expand=            gd.getNextBoolean();
-  			this.show_shells=            gd.getNextBoolean();
-  			this.show_neighbors=         gd.getNextBoolean();
-  			this.show_flaps_dirs=        gd.getNextBoolean();
-  			this.show_first_clusters=    gd.getNextBoolean();
-  			this.show_planes=            gd.getNextBoolean();
+  			this.plPull=                gd.getNextNumber();
+  			this.plIterations=    (int) gd.getNextNumber();
+  			this.plPrecision=     (int) gd.getNextNumber();
+
+  			this.show_ortho_combine=    gd.getNextBoolean();
+  			this.show_refine_supertiles=gd.getNextBoolean();
+  			this.show_bgnd_nonbgnd=     gd.getNextBoolean(); // first on second pass
+  			this.show_filter_scan=      gd.getNextBoolean(); // first on refine
+  			this.show_combined=         gd.getNextBoolean();
+  			this.show_unique=           gd.getNextBoolean();
+  			this.show_init_refine=      gd.getNextBoolean();
+  			this.show_expand=           gd.getNextBoolean();
+  			this.show_shells=           gd.getNextBoolean();
+  			this.show_neighbors=        gd.getNextBoolean();
+  			this.show_flaps_dirs=       gd.getNextBoolean();
+  			this.show_first_clusters=   gd.getNextBoolean();
+  			this.show_planes=           gd.getNextBoolean();
   			return true;
   		}
     }

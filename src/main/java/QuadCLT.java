@@ -5126,7 +5126,7 @@ public class QuadCLT {
 				  System.out.println("Generating cluster images (limit is set to "+clt_parameters.max_clusters+") largest, scan #"+scanIndex);
 			  }
 //			  ImagePlus cluster_image = getPassImage( // get image form a single pass
-			  String texturePath = getPassImage( // get image form a single pass
+			  String texturePath = getPassImage( // get image from a single pass
 					  clt_parameters,
 					  colorProcParameters,
 					  rgbParameters,

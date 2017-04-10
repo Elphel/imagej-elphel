@@ -51,7 +51,9 @@ public class SuperTiles{
 //			TileProcessor.CLTPass3d cltPass3d;
 			CLTPass3d cltPass3d;
 //			ArrayList<TilePlanes.PlaneData>[] planes = null;
-			TilePlanes.PlaneData [][] planes = null;
+			TilePlanes.PlaneData [][] planes =  null;
+			// 
+			TilePlanes.PlaneData [][] planes_mod = null;
 			public SuperTiles(
 					CLTPass3d cltPass3d,
 					double                  step_near,
@@ -129,6 +131,11 @@ public class SuperTiles{
 			{
 				return planes;			
 			}
+			public TilePlanes.PlaneData [][] getPlanesMod()
+			{
+				return planes_mod;			
+			}
+
 			private double [][] getLapWeights(){
 				final int superTileSize = tileProcessor.superTileSize;
 				final double [][] lapWeight = new double [2 * superTileSize][2 * superTileSize];
@@ -1433,6 +1440,18 @@ public class SuperTiles{
 				return neib_planes;
 			}
 			
+/**
+ * Measure how merging of two plains degrades individual flatness (smaller - better). For comparing divide by (w1+w2) to make strong
+ * planes score better  			
+ * @param L1 smallest eigenvalue of the first plane
+ * @param L2 smallest eigenvalue of the second plane
+ * @param L  smallest eigenvalue of the merged plane
+ * @param w1 weight of the first plane
+ * @param w2 weight of the second plane
+ * @return degrading by merging measure. 0 if both are co-planar, is supposed to be positive. very "bad" planes do produce negative results - 
+ * not yet clear why (related to non-linear coordinate transformation?) 
+ */
+			
 			public double mergeRQuality(
 					double L1,
 					double L2,
@@ -1443,7 +1462,8 @@ public class SuperTiles{
 //				double Lav = Math.sqrt((L1*L1*w1 + L2*L2*w2)/(w1+w2));
 				double Lav = (L1*w1 + L2*w2)/(w1+w2);
 ///				double wors = (L - Lav)*(w1+w2)*(w1+w2) /(Lav*w1*w2);
-				double rquality = (L - Lav)*(w1+w2) /(Lav*w1*w2); // ==wors/(w1+w2) to amplify stronger planes
+///				double rquality = (L - Lav)*(w1+w2) /(Lav*w1*w2); // ==wors/(w1+w2) to amplify stronger planes
+				double rquality =  (L - Lav)*(w1+w2)*(w1+w2) /(Lav*w1*w2); 
 				return rquality;
 			}
 			
@@ -1480,7 +1500,7 @@ public class SuperTiles{
 									for (int np0 = 0; np0 < planes[nsTile0].length; np0++){ // nu
 //										planes[nsTile0][np0].initNeibBest(); // 
 										TilePlanes.PlaneData this_plane = planes[nsTile0][np0];
-										this_plane.initNeibMatch();
+										this_plane.initMergedValue();
 										for (int dir = 0; dir < 4; dir++){ // just half directions - relations are symmetrical
 											int stx = stx0 + dirsYX[dir][1];
 											int sty = sty0 + dirsYX[dir][0];
@@ -1493,7 +1513,7 @@ public class SuperTiles{
 													TilePlanes.PlaneData [] other_planes = planes[nsTile];
 													if (other_planes != null) {
 														
-														this_plane.initNeibMatch(dir,other_planes.length); // filled with NaN
+														this_plane.initMergedValue(dir,other_planes.length); // filled with NaN
 														for (int np = 0; np < other_planes.length; np ++){
 															TilePlanes.PlaneData other_plane = this_plane.getPlaneToThis(
 																	other_planes[np],
@@ -1505,26 +1525,7 @@ public class SuperTiles{
 																		false,       // boolean   ignore_weights,
 																		dl); // int       debugLevel)
 																if (merged_pd !=null) { // now always, but may add later
-																	// calculate worsening of the merge (the lower - the better)
-																	double rquality = mergeRQuality(
-																			this_plane.getValue(), // double L1,
-																			other_plane.getValue(), // double L2,
-																			merged_pd.getValue(), // double L,
-																			this_plane.getWeight(), // double w1,
-																			other_plane.getWeight()); // double w2)
-																	this_plane.setNeibMatch(dir, np, rquality);
-																	
-																	// still happens negative but only for very bad planes - investigate?
-																	if ((rquality < 0) && (this_plane.getWeight() > 0.0)  && (other_plane.getWeight() > 0.0)  && (merged_pd.getValue() < 1.0) ){ // 
-																		System.out.println("nsTile0="+nsTile0+":"+np0+", nsTile="+nsTile+":"+np+", rquality="+rquality+
-																				" w1="+this_plane.getWeight()+" w2="+other_plane.getWeight()+
-																				" L1="+this_plane.getValue()+" L2="+other_plane.getValue()+" L="+merged_pd.getValue());
-																	}
-																	if ((merged_pd.getValue() < 0.1) && (this_plane.getWeight() > 1.0)  && (other_plane.getWeight() > 1.0) ){ // fixed
-																	System.out.println("nsTile0="+nsTile0+":"+np0+", nsTile="+nsTile+":"+np+", rquality="+rquality+
-																			" w1="+this_plane.getWeight()+" w2="+other_plane.getWeight()+
-																			" L1="+this_plane.getValue()+" L2="+other_plane.getValue()+" L="+merged_pd.getValue());
-																	}
+																	this_plane.setNeibMatch(dir, np, merged_pd.getValue()); // smallest eigenValue
 																}
 															}
 														}
@@ -1555,7 +1556,7 @@ public class SuperTiles{
 								if ( planes[nsTile0] != null) {
 									for (int np0 = 0; np0 < planes[nsTile0].length; np0++){ // nu
 										TilePlanes.PlaneData this_plane = planes[nsTile0][np0];
-//										this_plane.initNeibMatch();
+//										this_plane.initMergedValue();
 										for (int dir = 4; dir < 8; dir++){ // other half - copy from opposite
 											int stx = stx0 + dirsYX[dir][1];
 											int sty = sty0 + dirsYX[dir][0];
@@ -1565,18 +1566,18 @@ public class SuperTiles{
 												int nsTile = sty * stilesX + stx; // from where to get
 												TilePlanes.PlaneData [] other_planes = planes[nsTile];
 												if (other_planes !=null) {
-													this_plane.initNeibMatch(dir,other_planes.length); // filled with NaN
+													this_plane.initMergedValue(dir,other_planes.length); // filled with NaN
 													for (int np = 0; np < other_planes.length; np ++){
 														/*
-														if ((other_planes[np] != null) && (other_planes[np].getNeibMatch(dir-4) != null)) {
-															double [] dbg_nm = other_planes[np].getNeibMatch(dir-4);
-															this_plane.setNeibMatch(dir,np, other_planes[np].getNeibMatch(dir-4, np0)); // 
+														if ((other_planes[np] != null) && (other_planes[np].getMergedValue(dir-4) != null)) {
+															double [] dbg_nm = other_planes[np].getMergedValue(dir-4);
+															this_plane.setNeibMatch(dir,np, other_planes[np].getMergedValue(dir-4, np0)); // 
 														}
 														*/
-														if (other_planes[np] != null) { // && (other_planes[np].getNeibMatch(dir-4) != null)) {
-															double [] nm = other_planes[np].getNeibMatch(dir-4);
+														if (other_planes[np] != null) { // && (other_planes[np].getMergedValue(dir-4) != null)) {
+															double [] nm = other_planes[np].getMergedValue(dir-4);
 															if (nm != null) {
-//																this_plane.setNeibMatch(dir,np, other_planes[np].getNeibMatch(dir-4, np0)); //
+//																this_plane.setNeibMatch(dir,np, other_planes[np].getMergedValue(dir-4, np0)); //
 																this_plane.setNeibMatch(dir,np, nm[np0]); //
 															}
 														}
@@ -1594,7 +1595,7 @@ public class SuperTiles{
 				ImageDtt.startAndJoin(threads);
 			}
 
-			
+// Oscolete?			
 			public void selectNeighborPlanes(
 					final double worst_worsening,
 					final boolean mutual_only,
@@ -1627,9 +1628,9 @@ public class SuperTiles{
 									for (int np0 = np0_min; np0 < planes[nsTile0].length; np0++){ // nu
 										TilePlanes.PlaneData this_plane = planes[nsTile0][np0];
 										this_plane.initNeibBest();
-										if (this_plane.getNeibMatch() != null) {
+										if (this_plane.getMergedValue() != null) {
 											for (int dir = 0; dir < 8; dir++){ //
-												double [] neib_worse = this_plane.getNeibMatch(dir);
+												double [] neib_worse = this_plane.getMergedValue(dir);
 												if (neib_worse != null) {
 													int best_index = -1;  
 													int np_min = (neib_worse.length > 1) ? 1:0; // Modify if overall plane will be removed
@@ -1709,10 +1710,18 @@ public class SuperTiles{
 				}
 			}
 
-			
+/**
+ * Find mutual links between multi-layer planes for supertiles. requires that for each plane there are calculated smalles eigenvalues
+ * for merging with each plane for each of 8 neighbors 
+ * @param rquality maximal degradation by merging (does not depend on the total weight)
+ * @param maxEigen maximal eigenvalue of each of the merged planes
+ * @param minWeight minimal weight of each of the planes
+ * @param debugLevel debug level
+ * @param dbg_X debug supertile X coordinate
+ * @param dbg_Y debug supertile Y coordinate
+ */
 			public void selectNeighborPlanesMutual(
 					final double rquality,
-//					final boolean mutual_only,
 					final double maxEigen, // maximal eigenvalue of planes to consider
 					final double minWeight, // minimal pain weight to consider
 					final int debugLevel,
@@ -1739,6 +1748,23 @@ public class SuperTiles{
 				for (int ithread = 0; ithread < threads.length; ithread++) {
 					threads[ithread] = new Thread() {
 						public void run() {
+							for (int nsTile0 = ai.getAndIncrement(); nsTile0 < nStiles; nsTile0 = ai.getAndIncrement()) {
+								if ( planes[nsTile0] != null) {
+									for (int np0 = 0; np0 < planes[nsTile0].length; np0++){ // nu
+										TilePlanes.PlaneData this_plane = planes[nsTile0][np0];
+										this_plane.initNeibBest();
+									}
+								}
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+				
+				ai.set(0);				
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
 							TilePlanes.PlaneData [][] dbg_planes = planes;
 							for (int nsTile0 = ai.getAndIncrement(); nsTile0 < nStiles; nsTile0 = ai.getAndIncrement()) {
 								int sty0 = nsTile0 / stilesX;  
@@ -1756,8 +1782,8 @@ public class SuperTiles{
 										
 										int num_other_planes = 0;
 										for (int np0 = np0_min; np0 < planes[nsTile0].length; np0++){
-											if (planes[nsTile0][np0].getNeibMatch(dir) != null){
-												int l = planes[nsTile0][np0].getNeibMatch(dir).length;
+											if (planes[nsTile0][np0].getMergedValue(dir) != null){
+												int l = planes[nsTile0][np0].getMergedValue(dir).length;
 												if (l > num_other_planes)num_other_planes = l;
 											}
 										}
@@ -1772,20 +1798,37 @@ public class SuperTiles{
 												int [] best_pair = {-1,-1};
 												double best_rqual = Double.NaN;
 												for (int np0 = np0_min; np0 < this_matched.length; np0++){
-													double [] this_rq = planes[nsTile0][np0].getNeibMatch(dir);
+													double [] merge_ev = planes[nsTile0][np0].getMergedValue(dir);
 													if (!this_matched[np0] &&
-															(this_rq != null) &&
+															(merge_ev != null) &&
 															((maxEigen == 0.0) || (planes[nsTile0][np0].getValue() < maxEigen)) &&
 															(planes[nsTile0][np0].getWeight() > minWeight)) {
-														for (int np = np_min; np < this_rq.length; np++){
+														for (int np = np_min; np < merge_ev.length; np++){
 															if (!other_matched[np] &&
-																	!Double.isNaN(this_rq[np]) &&
+																	!Double.isNaN(merge_ev[np]) &&
 																	((maxEigen == 0.0) || (planes[nsTile][np].getValue() < maxEigen)) &&
 																	(planes[nsTile][np].getWeight() > minWeight)) {
-																if (Double.isNaN(best_rqual) || (this_rq[np] < best_rqual)){ // OK if Double.isNaN(this_rq[np])
-																	best_rqual = this_rq[np];
-																	best_pair[0]= np0;
-																	best_pair[1]= np;
+																double w1 = planes[nsTile0][np0].getWeight();
+																double w2 = planes[nsTile][np].getWeight();
+																double this_rq = mergeRQuality(
+																		planes[nsTile0][np0].getValue(), // double L1,
+																		planes[nsTile][np].getValue(), // double L2,
+																		merge_ev[np], // double L,
+																		w1, // double w1,
+																		w2); // double w2)
+//																if (this_rq <= rquality) { // compare with the threshold before applying strengths  
+																if ((w1 + w2) * this_rq <= rquality) { // forgive more for weak planes  
+																	this_rq /= (w1 + w2); // for comparision reduce this value for stronger planes 
+																	if (Double.isNaN(best_rqual) || (this_rq < best_rqual)){ // OK if Double.isNaN(this_rq[np])
+																		best_rqual = this_rq;
+																		best_pair[0]= np0;
+																		best_pair[1]= np;
+																	}
+																}
+																if ((merge_ev[np] < 0.4) && (w1 > 1.0)  && (w2 > 1.0) ){
+																	System.out.println("nsTile0="+nsTile0+":"+np0+", nsTile="+nsTile+":"+np+", this_rq="+this_rq+
+																			" w1="+w1+" w2="+w2+
+																			" L1="+planes[nsTile0][np0].getValue()+" L2="+planes[nsTile][np].getValue()+" L="+merge_ev[np]);
 																}
 															}															
 														}														
@@ -1933,4 +1976,212 @@ public class SuperTiles{
 				return data;
 			}
 
+
+			public TilePlanes.PlaneData[][] copyPlanes(
+					TilePlanes.PlaneData[][] src_planes)
+			{
+				TilePlanes.PlaneData[][] dst_planes = new TilePlanes.PlaneData[src_planes.length][];
+				return copyPlanes(src_planes, dst_planes);
+			}
+
+			public TilePlanes.PlaneData[][] copyPlanes(
+					final TilePlanes.PlaneData[][] src_planes,
+					final TilePlanes.PlaneData[][] dst_planes)
+			{
+				final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+				final AtomicInteger ai = new AtomicInteger(0);
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							for (int nsTile = ai.getAndIncrement(); nsTile < src_planes.length; nsTile = ai.getAndIncrement()) {
+								if (src_planes[nsTile] != null){
+									dst_planes[nsTile] = new TilePlanes.PlaneData[src_planes[nsTile].length];
+									for (int np = 0; np < src_planes[nsTile].length; np++){
+										if (src_planes[nsTile][np] != null){
+											dst_planes[nsTile][np] = src_planes[nsTile][np].clone(); 
+										} else {
+											dst_planes[nsTile][np] = null;
+										}
+									}
+								} else {
+									dst_planes[nsTile] = null;
+								}
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+				return dst_planes;
+			}
+
+			public TilePlanes.PlaneData[][] planesSmooth(
+					final double      meas_pull,//  relative pull of the original (measured) plane with respect to the average of the neighbors
+					final int         num_passes,
+					final double      maxDiff, // maximal change in any of the disparity values
+					final int         debugLevel,
+					final int         dbg_X,
+					final int         dbg_Y)
+			{
+//				if (this.planes_mod == null){
+					this.planes_mod =copyPlanes(this.planes); // make always (for now) *********************
+//				}
+				for (int pass = 0; pass < num_passes; pass++){
+					double diff = planesSmoothStep(
+							meas_pull,       //  relative pull of the original (measured) plane with respect to the average of the neighbors
+							this.planes,     // final TilePlanes.PlaneData[][] measured_planes,
+							this.planes_mod, // final TilePlanes.PlaneData[][] mod_planes,
+							true,            // final boolean calc_diff,
+							(pass < 10)? debugLevel: 0,
+							dbg_X,
+							dbg_Y);
+					if (diff < maxDiff){
+						if (debugLevel > -1){
+							System.out.println("planesSmooth(): pass:"+pass+" (of "+num_passes+"), rms = "+diff+" < "+maxDiff);
+							break;
+						}
+					}
+					if (debugLevel > -1){
+						System.out.println("planesSmooth() -  pass:"+pass+" (of "+num_passes+"), rms = "+diff);
+					}
+					
+				}
+				return this.planes_mod;
+			}			
+			
+			public double planesSmoothStep(
+					final double meas_pull,//  relative pull of the original (measured) plane with respect to the average of the neighbors
+					final TilePlanes.PlaneData[][] measured_planes,
+					final TilePlanes.PlaneData[][] mod_planes,
+					final boolean calc_diff,
+					final int debugLevel,
+					final int dbg_X,
+					final int dbg_Y)
+			{
+				final int [][] dirsYX = {{-1, 0},{-1,1},{0,1},{1,1},{1,0},{1,-1},{0,-1},{-1,-1}};
+				final int tilesX =        tileProcessor.getTilesX();
+				final int tilesY =        tileProcessor.getTilesY();
+				final int superTileSize = tileProcessor.getSuperTileSize();
+				final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
+				final int stilesY = (tilesY + superTileSize -1)/superTileSize;
+				final int debug_stile = dbg_Y * stilesX + dbg_X;
+				final TilePlanes.PlaneData[][] new_planes = copyPlanes(mod_planes);
+				final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+				final int numThreads = threads.length;
+				final double [] rslt_diffs = calc_diff ? new double [numThreads] : null; // all 0;
+				final AtomicInteger ai_numThread = new AtomicInteger(0);
+				final AtomicInteger ai = new AtomicInteger(0);
+				final String [] titles= {
+						"orig",     // 0
+						"measured", // 1
+						"n0","n1","n2","n3","n4","n5","n6","n7", // 2 .. 9
+						"m0","m1","m2","m3","m4","m5","m6","m7","mm", // 10..18
+				"diff"}; // 19
+				
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							double [][] dbg_img=null;
+							int numThread = ai_numThread.getAndIncrement(); // unique number of thread to write to rslt_diffs[numThread]
+							for (int nsTile0 = ai.getAndIncrement(); nsTile0 < mod_planes.length; nsTile0 = ai.getAndIncrement()) {
+								int sty0 = nsTile0 / stilesX;  
+								int stx0 = nsTile0 % stilesX;
+								int dl = ((debugLevel > -1) && (nsTile0 == debug_stile)) ? 1:0;
+								if ( new_planes[nsTile0] != null) {
+									if (dl > 0){
+										System.out.println("planesSmoothStep nsTile0="+nsTile0);
+										dbg_img = new double [titles.length][];
+									}
+									int np0_min = (new_planes[nsTile0].length > 1) ? 1:0; // Modify if overall plane will be removed
+									for (int np0 = np0_min; np0 < new_planes[nsTile0].length; np0 ++){
+										TilePlanes.PlaneData this_new_plane = new_planes[nsTile0][np0];
+										if (dl > 0) dbg_img[ 0] = this_new_plane.getPlaneDisparity(false);
+										if (dl > 0) dbg_img[ 1] = measured_planes[nsTile0][np0].getPlaneDisparity(false);
+																				
+										int [] neibs = this_new_plane.getNeibBest();
+										this_new_plane.setWeight(0.0);
+										for (int dir = 0; dir < neibs.length; dir++){
+											if (neibs[dir] >= 0) {
+												int stx = stx0 + dirsYX[dir][1];
+												int sty = sty0 + dirsYX[dir][0];
+												int nsTile = sty * stilesX + stx; // from where to get
+												TilePlanes.PlaneData other_plane = this_new_plane.getPlaneToThis(
+														mod_planes[nsTile][neibs[dir]], // neighbor, previous value
+														dl); // debugLevel);
+												if (dl > 0) dbg_img[ 2 + dir] = other_plane.getPlaneDisparity(false);
+												if (other_plane != null){
+													if (this_new_plane.getWeight() > 0.0){
+														this_new_plane = this_new_plane.mergePlaneToThis(
+																other_plane, // PlaneData otherPd,
+																1.0,         // double    scale_other,
+																false,       // boolean   ignore_weights,
+																dl); // int       debugLevel)
+													} else {
+														this_new_plane = other_plane; 
+													}
+													new_planes[nsTile0][np0] = this_new_plane;
+													if (dl > 0) dbg_img[10 + dir] = this_new_plane.getPlaneDisparity(false);
+												}
+												
+											}
+										}
+										if (    (meas_pull > 0.0) &&
+												(measured_planes != null) &&
+												(measured_planes[nsTile0] != null) &&
+												(measured_planes[nsTile0][np0] != null)){ // merge with "measured"
+											if (this_new_plane.getWeight() > 0.0){
+												this_new_plane = this_new_plane.mergePlaneToThis(
+														measured_planes[nsTile0][np0], // PlaneData otherPd,
+														meas_pull,                     // double    scale_other,
+														false,                         // boolean   ignore_weights,
+														dl);                           // int       debugLevel)
+											} else {
+												this_new_plane = measured_planes[nsTile0][np0].clone();
+											}
+											new_planes[nsTile0][np0] = this_new_plane;
+											if (dl > 0) dbg_img[18] =  this_new_plane.getPlaneDisparity(false);
+										}
+										// calculate largest disparity difference between old and new plane
+										if (rslt_diffs != null){
+											// get plane for both old and new, calc rms of diff
+											double [] oldPlane = mod_planes[nsTile0][np0].getPlaneDisparity(
+													false); // use_NaN)
+											double [] newPlane = new_planes[nsTile0][np0].getPlaneDisparity(
+													false); // use_NaN)
+											double s = 0.0;
+											for (int i = 0; i < oldPlane.length; i++){
+												double d = newPlane[i] - oldPlane[i];
+												s+= d*d;
+											}
+											s= Math.sqrt(s/oldPlane.length);
+											if (s > rslt_diffs[numThread]){
+												rslt_diffs[numThread] = s;
+											}
+											if (dl > 0) {
+												dbg_img[19] =  new double[oldPlane.length];
+												for (int i = 0; i < oldPlane.length; i++){
+													dbg_img[19][i] = newPlane[i] - oldPlane[i];
+												}
+											}
+										}
+										if (dl > 0){
+											showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+											sdfa_instance.showArrays(dbg_img, superTileSize, superTileSize, true, "smooth_step_x"+stx0+"_y"+sty0, titles);
+										}
+									}
+								}								
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+				copyPlanes (new_planes, mod_planes); // copy back
+				if (rslt_diffs == null){
+					return Double.NaN;
+				}
+				double diff = 0.0;
+				for (int i = 0; (i < numThreads) ; i++) if (diff < rslt_diffs[i]) diff = rslt_diffs[i];
+				return diff; // return maximal difference
+			}
+			
+			
 		} // end of class SuperTiles

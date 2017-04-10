@@ -57,8 +57,8 @@ public class TilePlanes {
 		double []   world_v1 =   null; // world in-plane vector, corresponding to vectors[1] 
 		double []   world_v2 =   null; // world in-plane vector, corresponding to vectors[1]
 //		double []   daxy      =  null; // disparity and 2 relative angles (ax and ay) corresponding to fisheye view, near (0,0) scale is pixel size
-		double [][] neib_match = null; // for each of the directions (N, NE, .. NW) quality match for each layer 
-		int    []   neib_best =  new int [8]; // for each of the directions (N, NE, .. NW) index of best match, -1 if none 
+		double [][] merged_eig_val = null; // for each of the directions (N, NE, .. NW) quality match for each layer 
+		int    []   neib_best =  null; // new int [8]; // for each of the directions (N, NE, .. NW) index of best match, -1 if none 
 // stores "worsening" of merging 2 	planes. if L1,L2,L = values[0] of plane1, plane2 plane composite: w1, w2 - weights for plane1, plane2
 //		Lav = Math.sqrt((L1 * L1 * w1 + L2 * L2 * w2)/(w1 + w2))
 // worsening_12 = (L - Lav) * (w1 + w2) * (w1 + w2) / (Lav * x1 * w2)		
@@ -92,16 +92,42 @@ public class TilePlanes {
 				pd.vectors[1] = this.vectors[1].clone();
 				pd.vectors[2] = this.vectors[2].clone();
 			}
-			if (this.neib_match != null){
-				pd.neib_match = this.neib_match.clone();
-				for (int i = 0; i<this.neib_match.length; i++){
-					if (this.neib_match[i] != null){
-						pd.neib_match[i] = this.neib_match[i].clone();
+			copyNeib(this,pd);
+			/*
+			if (this.merged_eig_val != null){
+				pd.merged_eig_val = this.merged_eig_val.clone();
+				for (int i = 0; i<this.merged_eig_val.length; i++){
+					if (this.merged_eig_val[i] != null){
+						pd.merged_eig_val[i] = this.merged_eig_val[i].clone();
 					}
 				}
 			}
 			if (this.neib_best != null) pd.neib_best = this.neib_best.clone();
+			*/
 			return pd;
+		}
+		
+		public void copyNeib(
+				PlaneData src,
+				PlaneData dst)
+		{
+			if (src.merged_eig_val != null){
+				dst.merged_eig_val = src.merged_eig_val.clone();
+				for (int i = 0; i < src.merged_eig_val.length; i++){
+					if (src.merged_eig_val[i] != null){
+						dst.merged_eig_val[i] = src.merged_eig_val[i].clone();
+					}
+				}
+			}
+			if (src.neib_best != null) dst.neib_best = src.neib_best.clone();
+		}
+		
+		public void invalidateCalculated()
+		{
+			this.center_xyz = null; // center of this supertile this plane center in world coordinates
+			this.world_xyz =  null; // world coordinates of the nearest point of the plane, in meters
+			this.world_v1 =   null; // world in-plane vector, corresponding to vectors[1] 
+			this.world_v2 =   null; // world in-plane vector, corresponding to vectors[1]
 		}
 		
 		
@@ -117,40 +143,40 @@ public class TilePlanes {
 			this.sTileXY = sTileXY.clone();
 		}
 		
-		public double [][] initNeibMatch()
+		public double [][] initMergedValue()
 		{
-			this.neib_match = new double[8][];
-			return this.neib_match;
+			this.merged_eig_val = new double[8][];
+			return this.merged_eig_val;
 		}
-		public double [][] getNeibMatch()
+		public double [][] getMergedValue()
 		{
-			return this.neib_match;
+			return this.merged_eig_val;
 		}
-		public double [] initNeibMatch(int dir, int leng)
+		public double [] initMergedValue(int dir, int leng)
 		{
-			this.neib_match[dir] = new double[leng];
-			for (int i = 0; i < leng; i++) this.neib_match[dir][i] = Double.NaN;
-			return getNeibMatch(dir);
+			this.merged_eig_val[dir] = new double[leng];
+			for (int i = 0; i < leng; i++) this.merged_eig_val[dir][i] = Double.NaN;
+			return getMergedValue(dir);
 		}
 
-		public double [] getNeibMatch(int dir)
+		public double [] getMergedValue(int dir)
 		{
-			if (this.neib_match == null) {
+			if (this.merged_eig_val == null) {
 				return null;
 			}
-			return this.neib_match[dir];
+			return this.merged_eig_val[dir];
 		}
 
-		public double getNeibMatch(int dir, int plane)
+		public double getMergedValue(int dir, int plane)
 		{
-			if ((this.neib_match == null) ||(this.neib_match[dir] == null)){
+			if ((this.merged_eig_val == null) ||(this.merged_eig_val[dir] == null)){
 				return Double.NaN;
 			}
-			return this.neib_match[dir][plane];
+			return this.merged_eig_val[dir][plane];
 		}
 		public void setNeibMatch(int dir, int plane, double value)
 		{
-			this.neib_match[dir][plane] = value;
+			this.merged_eig_val[dir][plane] = value;
 		}
 
 		public int [] initNeibBest()
@@ -452,6 +478,7 @@ public class TilePlanes {
 			
 			
 			PlaneData pd = this.clone(); // will copy selections too
+			pd.invalidateCalculated();   // real world vectors
 			pd.setValues(eig_val[oindx][oindx],eig_val[vindx][vindx],eig_val[hindx][hindx]); // eigenvalues [0] - thickness, 2 other to detect skinny (poles)
 			pd.setVectors(plane);
 			
@@ -477,7 +504,8 @@ public class TilePlanes {
 				PlaneData otherPd,
 				int       debugLevel)
 		{
-			PlaneData pd = otherPd.clone();
+			PlaneData pd = otherPd.clone(); // TODO: use clone of this, copy only needed info from otherPD
+			// keep world vectors from otherPd
 			if (debugLevel > 0) {
 				System.out.println("getPlaneToThis()");
 			}
@@ -596,6 +624,7 @@ public class TilePlanes {
 //				System.out.println("getPlaneToThis(): "+pd.sTileXY[0]+":"+pd.sTileXY[1]+" -> "+pd.vectors[0][0]+", disp = "+disp+
 //						", other_det = "+((new Matrix(otherPd.vectors).det()) +", pdr_det = "+((new Matrix(pd.vectors).det()))));
 			}
+			copyNeib(this, pd);
 			return pd; // make sure pd are updated // "this" is not used. Should it be used instead of pd?  
 		}
 		
