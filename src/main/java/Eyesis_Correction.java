@@ -506,6 +506,7 @@ private Panel panel1,
 			addButton("CLT apply fine corr",       panelClt1, color_process);
 			addButton("CLT reset 3D",              panelClt1, color_stop);
 			addButton("CLT 3D",                    panelClt1, color_conf_process);
+			addButton("CLT planes",                panelClt1, color_conf_process);
 						
 			add(panelClt1);
 		}
@@ -4764,13 +4765,22 @@ private Panel panel1,
         }
         return;
         
+    } else if (label.equals("CLT planes")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        if (QUAD_CLT == null){
+       		System.out.println("QUAD_CLT is null, nothing to show");
+       		return;
+        }
          
-        
-        
-        
+//"CLT planes"        
+        QUAD_CLT.showCLTPlanes(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+        return;
 //        
-        
-    	
 // End of buttons code    	
     }
     DEBUG_LEVEL=MASTER_DEBUG_LEVEL;

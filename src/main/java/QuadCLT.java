@@ -4458,6 +4458,30 @@ public class QuadCLT {
 		  return rslt;
 	  }
 //	  public ImagePlus [] cltDisparityScan(
+	  public void showCLTPlanes(
+			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  final int          threadsMax,  // maximal number of threads to launch                         
+			  final boolean    updateStatus,
+			  final int        debugLevel)
+	  {
+		  	if (tp == null){
+		  		System.out.println("showCLTPlanes(): tp is null");
+		  		return;
+		  	}
+		  	if (tp.clt_3d_passes == null){
+		  		System.out.println("showCLTPlanes(): tp.clt_3d_passes is null");
+		  		return;
+		  	}
+		  	tp.showPlanes(
+		  			clt_parameters,
+		  			threadsMax,
+		  			updateStatus,
+		  			debugLevel);
+//		  	CLTPass3d last_scan = tp.clt_3d_passes.get(tp.clt_3d_passes.size() -1); // get last one
+		  	
+	  }
+	  
+	  
 	  
 	  public void processCLTQuads3d(
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
@@ -5062,6 +5086,14 @@ public class QuadCLT {
 				  2); // debugLevel);
 		  // get images for predefined regions and disparities. First - with just fixed scans 1 .. list.size()
 
+          // TEMPORARY EXIT
+
+        if (tp.clt_3d_passes.size() > 0) {
+        	System.out.println("-------- temporary exit after secondPassSetup() ------- ");
+        	return null; // just to fool compiler 
+        }
+          
+          
           tp.showScan(
 		  tp.clt_3d_passes.get(next_pass-1),   // CLTPass3d   scan,
 		  "after_pass2-"+(next_pass-1)); //String title)

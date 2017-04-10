@@ -1921,7 +1921,7 @@ public class EyesisCorrectionParameters {
   		public int        ishift_x =            0;  // debug feature - shift source image by this pixels left
   		public int        ishift_y =            0;  // debug feature - shift source image by this pixels down
   		public double     fat_zero =          0.0;  // modify phase correlation to prevent division by very small numbers
-  		public double     corr_sigma =        0.8;  // LPF correlarion sigma
+  		public double     corr_sigma =        0.8;  // LPF correlation sigma
   		public boolean    norm_kern =         true; // normalize kernels
   		public boolean    gain_equalize =     false;// equalize green channel gain
   		public boolean    colors_equalize =   true; // equalize R/G, B/G of the individual channels
@@ -2149,7 +2149,10 @@ public class EyesisCorrectionParameters {
   		public int        plMaxOutliers        =    20;  // Maximal number of outliers to remove
   		public double     plMinStrength        =   0.1;  // Minimal total strength of a plane 
   		public double     plMaxEigen           =   0.3;  // Maximal eigenvalue of a plane 
-  		public boolean    plDbgMerge           =   true; // Combine 'other' plane with current  
+  		public boolean    plDbgMerge           =   true; // Combine 'other' plane with current
+  		public double     plWorstWorsening     =   2.0;  // Worst case worsening after merge 
+  		public boolean    plMutualOnly         =   true; // keep only mutual links, remove weakest if conflict
+  		
   		
   		// other debug images
   		public boolean    show_ortho_combine =     false; // Show 'ortho_combine' 
@@ -2391,6 +2394,8 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plMinStrength",    this.plMinStrength +"");
 			properties.setProperty(prefix+"plMaxEigen",       this.plMaxEigen +"");
 			properties.setProperty(prefix+"plDbgMerge",       this.plDbgMerge+"");
+			properties.setProperty(prefix+"plWorstWorsening", this.plWorstWorsening +"");
+			properties.setProperty(prefix+"plMutualOnly",     this.plMutualOnly+"");
 
 			properties.setProperty(prefix+"show_ortho_combine",     this.show_ortho_combine+"");
 			properties.setProperty(prefix+"show_refine_supertiles", this.show_refine_supertiles+"");
@@ -2623,6 +2628,8 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plMinStrength")!=null)     this.plMinStrength=Double.parseDouble(properties.getProperty(prefix+"plMinStrength"));
   			if (properties.getProperty(prefix+"plMaxEigen")!=null)        this.plMaxEigen=Double.parseDouble(properties.getProperty(prefix+"plMaxEigen"));
   			if (properties.getProperty(prefix+"plDbgMerge")!=null)        this.plDbgMerge=Boolean.parseBoolean(properties.getProperty(prefix+"plDbgMerge"));
+  			if (properties.getProperty(prefix+"plWorstWorsening")!=null)  this.plWorstWorsening=Double.parseDouble(properties.getProperty(prefix+"plWorstWorsening"));
+  			if (properties.getProperty(prefix+"plMutualOnly")!=null)      this.plMutualOnly=Boolean.parseBoolean(properties.getProperty(prefix+"plMutualOnly"));
 
   			if (properties.getProperty(prefix+"show_ortho_combine")!=null)     this.show_ortho_combine=Boolean.parseBoolean(properties.getProperty(prefix+"show_ortho_combine"));
   			if (properties.getProperty(prefix+"show_refine_supertiles")!=null) this.show_refine_supertiles=Boolean.parseBoolean(properties.getProperty(prefix+"show_refine_supertiles"));
@@ -2877,6 +2884,8 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Minimal total strength of a plane",                                            this.plMinStrength,  6);
   			gd.addNumericField("Maximal eigenvalue of a plane",                                                this.plMaxEigen,  6);
   			gd.addCheckbox    ("Combine 'other' plane with the current",                                       this.plDbgMerge);
+  			gd.addNumericField("Worst case worsening after merge",                                             this.plWorstWorsening,  6);
+  			gd.addCheckbox    ("Keep only mutual links, remove weakest if conflict",                           this.plMutualOnly);
 
   			gd.addMessage     ("--- Other debug images ---");
   			gd.addCheckbox    ("Show 'ortho_combine'",                                                         this.show_ortho_combine);
@@ -3118,6 +3127,8 @@ public class EyesisCorrectionParameters {
   			this.plMinStrength=         gd.getNextNumber();
   			this.plMaxEigen=            gd.getNextNumber();
   			this.plDbgMerge=            gd.getNextBoolean();
+  			this.plWorstWorsening=      gd.getNextNumber();
+  			this.plMutualOnly=          gd.getNextBoolean();
 
   			this.show_ortho_combine=     gd.getNextBoolean();
   			this.show_refine_supertiles= gd.getNextBoolean();

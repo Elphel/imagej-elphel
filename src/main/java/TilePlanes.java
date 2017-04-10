@@ -58,6 +58,14 @@ public class TilePlanes {
 		double []   world_v2 =   null; // world in-plane vector, corresponding to vectors[1]
 //		double []   daxy      =  null; // disparity and 2 relative angles (ax and ay) corresponding to fisheye view, near (0,0) scale is pixel size
 		double [][] neib_match = null; // for each of the directions (N, NE, .. NW) quality match for each layer 
+		int    []   neib_best =  new int [8]; // for each of the directions (N, NE, .. NW) index of best match, -1 if none 
+// stores "worsening" of merging 2 	planes. if L1,L2,L = values[0] of plane1, plane2 plane composite: w1, w2 - weights for plane1, plane2
+//		Lav = Math.sqrt((L1 * L1 * w1 + L2 * L2 * w2)/(w1 + w2))
+// worsening_12 = (L - Lav) * (w1 + w2) * (w1 + w2) / (Lav * x1 * w2)		
+		
+		
+		
+		
 		int         tileSize;
 		int         superTileSize;
 		int []      sTileXY =    null; // X and Y indices of this superTile in the image 
@@ -84,6 +92,15 @@ public class TilePlanes {
 				pd.vectors[1] = this.vectors[1].clone();
 				pd.vectors[2] = this.vectors[2].clone();
 			}
+			if (this.neib_match != null){
+				pd.neib_match = this.neib_match.clone();
+				for (int i = 0; i<this.neib_match.length; i++){
+					if (this.neib_match[i] != null){
+						pd.neib_match[i] = this.neib_match[i].clone();
+					}
+				}
+			}
+			if (this.neib_best != null) pd.neib_best = this.neib_best.clone();
 			return pd;
 		}
 		
@@ -99,6 +116,71 @@ public class TilePlanes {
 			this.superTileSize = superTileSize;
 			this.sTileXY = sTileXY.clone();
 		}
+		
+		public double [][] initNeibMatch()
+		{
+			this.neib_match = new double[8][];
+			return this.neib_match;
+		}
+		public double [][] getNeibMatch()
+		{
+			return this.neib_match;
+		}
+		public double [] initNeibMatch(int dir, int leng)
+		{
+			this.neib_match[dir] = new double[leng];
+			for (int i = 0; i < leng; i++) this.neib_match[dir][i] = Double.NaN;
+			return getNeibMatch(dir);
+		}
+
+		public double [] getNeibMatch(int dir)
+		{
+			if (this.neib_match == null) {
+				return null;
+			}
+			return this.neib_match[dir];
+		}
+
+		public double getNeibMatch(int dir, int plane)
+		{
+			if ((this.neib_match == null) ||(this.neib_match[dir] == null)){
+				return Double.NaN;
+			}
+			return this.neib_match[dir][plane];
+		}
+		public void setNeibMatch(int dir, int plane, double value)
+		{
+			this.neib_match[dir][plane] = value;
+		}
+
+		public int [] initNeibBest()
+		{
+			this.neib_best = new int[8];
+			for (int i = 0; i < 8; i++) this.neib_best[i] = -1; 
+			return this.neib_best;
+		}
+
+		public int [] getNeibBest()
+		{
+			return this.neib_best;
+		}
+
+		public int getNeibBest(int dir)
+		{
+			if (this.neib_best == null) {
+				return -1;
+			}
+			return this.neib_best[dir];
+		}
+
+		public void setNeibBest(int dir, int val)
+		{
+			this.neib_best[dir] = val;
+		}
+
+		
+		
+		
 		public void setCorrectDistortions(
 				boolean correctDistortions)
 		{

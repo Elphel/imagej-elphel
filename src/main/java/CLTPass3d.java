@@ -515,6 +515,10 @@ public class CLTPass3d{
 			return weakOutlayers;
 		}
 		
+		public SuperTiles getSuperTiles()
+		{
+			return this.superTiles;
+		}
 		
 		public SuperTiles setSuperTiles(
 				double     step_near,
