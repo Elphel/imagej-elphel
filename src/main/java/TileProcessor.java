@@ -2825,14 +2825,17 @@ public class TileProcessor {
 
 		st.selectNeighborPlanesMutual(
 				clt_parameters.plWorstWorsening, // final double worst_worsening,
+				clt_parameters.plDispNorm,
 				clt_parameters.plMaxEigen,
 				clt_parameters.plMinStrength,
 				0, // final int debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY); 
 		TilePlanes.PlaneData [][] planes_mod = null;
-		if (clt_parameters.plMutualOnly) { // temporarily re-use obsolete parameter to test smoothing
-			
+
+		// smooth planes (by averaging with neighbors and the "measured" one with variable "pull")  
+		if (clt_parameters.plIterations > 0) {
+			st.resetPlanesMod(); // clean start
 			planes_mod = st.planesSmooth(
 					clt_parameters.plPull,                        // final double      meas_pull,//  relative pull of the original (measured) plane with respect to the average of the neighbors
 					clt_parameters.plIterations,                  // final int         num_passes,
@@ -2840,17 +2843,38 @@ public class TileProcessor {
 					0, // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY); 
-
-//		} else {
-//			st.selectNeighborPlanes(
-//					clt_parameters.plWorstWorsening, // final double worst_worsening,
-//					clt_parameters.plMutualOnly, // final boolean mutual_only,
-//					0); // final int debugLevel)
 		}
+		// filter out weak planes, create boolean array [per-supertile][per disparity plane]
+		boolean [][] selected_planes =	st.selectPlanes(
+				clt_parameters.plDispNorm,
+				clt_parameters.plMaxEigen, //  maxEigen,
+				clt_parameters.plMinStrength, //  minWeight,
+				st.getPlanesMod());
+        // detect connected "shells" by running wave algorithm over multi-plane supertiles, create integer array (same structure as planes and selected_planes
+		// Each element [per supertile][per disparity plane] is either 0 (not used) or unique shell index (started from 1)
+		int [][] shells = st.createSupertileShells(
+				selected_planes, // boolean[][]               selection, // may be null
+				false,             // boolean                   use_all, // use plane 0 even if there are more than 1
+				clt_parameters.plKeepOrphans,             // true, // boolean                   keep_orphans, // single-cell shells
+				clt_parameters.plMinOrphan, // orphan_strength // add separate parameter
+				st.getPlanesMod(), // TilePlanes.PlaneData [][] planes,
+				1); // int                       debugLevel)
+		// save shell indices with SuperTiles instance
+		st.setShellMap(shells); // persistent
+		// Create array [per shell][per tile] of shell disparities. tiles of unused supertiles are Double.NaN
+		double [][] surfaces = st.getShowShells(
+				st.getPlanesMod(),   // TilePlanes.PlaneData [][] planes,
+				st.getShellMap(), // shells,              // int [][] shells,
+				1000,                 // int max_shells,
+				clt_parameters.plFuse,// boolean fuse,
+				false,               // boolean show_connections,
+				false,               // boolean use_NaN,
+				10.0,                 // double arrow_dark,
+				10.0);               // double arrow_white)
+		// save surfaces with SuperTiles instance. They can be used to snap to for the per-tile disparity maps.
+		st.setSurfaces(surfaces);
 		
 		if (clt_parameters.show_planes){
-			
-			
 			int [] wh = st.getShowPlanesWidthHeight();
 			double [][] plane_data_nonan = st.getShowPlanes(
 					(planes_mod != null) ? st.getPlanesMod():st.getPlanes(),
@@ -2868,7 +2892,6 @@ public class TileProcessor {
 					true, //boolean use_NaN)
 					0.0,
 					10.0);
-					
 			double [][] plane_data = new double [plane_data_nonan.length + plane_data_nan.length][];
 			int indx = 0;
 			for (int i = 0; i < plane_data_nonan.length; i++){
@@ -2877,54 +2900,44 @@ public class TileProcessor {
 			for (int i = 0; i < plane_data_nan.length; i++){
 				plane_data[indx++] = plane_data_nan[i];
 			}
-//			sdfa_instance.showArrays(plane_data_nonan, wh[0], wh[1], true, "plane_data_noNaN");
-//			sdfa_instance.showArrays(plane_data_nan, wh[0], wh[1], true, "plane_data_NaN");
 			sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "plane_data");
 			
+			plane_data = st.getShowShells(
+					st.getPlanesMod(),   // TilePlanes.PlaneData [][] planes,
+					st.getShellMap(), // shells,              // int [][] shells,
+					100,                 // int max_shells,
+					clt_parameters.plFuse,// boolean fuse,
+					false,               // boolean show_connections,
+					false,               // boolean use_NaN,
+					10.0,                 // double arrow_dark,
+					10.0);               // double arrow_white)
 			
+			sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "shells_all");
 			
-			
-			
-			
-			// show plane data
+			plane_data = st.getShowShells(
+					st.getPlanesMod(),   // TilePlanes.PlaneData [][] planes,
+					st.getShellMap(), // shells,              // int [][] shells,
+					100,                 // int max_shells,
+					clt_parameters.plFuse,// boolean fuse,
+					true,                // boolean show_connections,
+					false,               // boolean use_NaN,
+					10.0,                 // double arrow_dark,
+					10.0);               // double arrow_white)
+			sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "shells_all_arrows");
 
-/*			
-			for (int dr = 0; dr < 8; dr++){
-				TilePlanes.PlaneData [][] planes = st.getNeibPlanes(
-						dr,
-						clt_parameters.plDbgMerge);
-				plane_data_nonan = st.getShowPlanes(
-						planes,
-						clt_parameters.plMinStrength, //  minWeight,
-						clt_parameters.plMaxEigen, //  maxEigen,
-						clt_parameters.plDispNorm,
-						false, //boolean use_NaN)
-						0.0,
-						10.0);
-				plane_data_nan = st.getShowPlanes(
-						planes,
-						clt_parameters.plMinStrength, //  minWeight,
-						clt_parameters.plMaxEigen, //  maxEigen,
-						clt_parameters.plDispNorm,
-						true, //boolean use_NaN)
-						0.0,
-						10.0);
-				plane_data = new double [plane_data_nonan.length + plane_data_nan.length][];
-				indx = 0;
-				for (int i = 0; i < plane_data_nonan.length; i++){
-					plane_data[indx++] = plane_data_nonan[i];
-				}
-				for (int i = 0; i < plane_data_nan.length; i++){
-					plane_data[indx++] = plane_data_nan[i];
-				}
-				sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "plane_data_"+dr);
-			}
-*/			
+			
+			plane_data = st.getShowShells(
+					st.getPlanesMod(),   // TilePlanes.PlaneData [][] planes,
+					st.getShellMap(), // shells,              // int [][] shells,
+					100,                 // int max_shells,
+					clt_parameters.plFuse,// boolean fuse,
+					false,               // boolean show_connections,
+					true,               // boolean use_NaN,
+					10.0,                 // double arrow_dark,
+					10.0);               // double arrow_white)
+			sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "shells");
 		}
-		
 	}
-//
-	
 	
 	public void secondPassSetup( // prepare tile tasks for the second pass based on the previous one(s)
 			//			  final double [][][]       image_data, // first index - number of image in a quad
@@ -3089,86 +3102,10 @@ public class TileProcessor {
 					clt_parameters.plMaxOutliers, //        =    20;  // Maximal number of outliers to remove
 					geometryCorrection,
 					clt_parameters.correct_distortions,
-					-1, // debugLevel,                  // final int        debugLevel)
+					0, // -1, // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY); 
 
-			
-/*			
-			
-			if (clt_parameters.show_planes){
-				int [] wh = st.getShowPlanesWidthHeight();
-				double [][] plane_data_nonan = st.getShowPlanes(
-						st.getPlanes(),
-						clt_parameters.plMinStrength, //  minWeight,
-						clt_parameters.plMaxEigen, //  maxEigen,
-						clt_parameters.plDispNorm,
-						false); //boolean use_NaN)
-				double [][] plane_data_nan = st.getShowPlanes(
-						st.getPlanes(),
-						clt_parameters.plMinStrength, //  minWeight,
-						clt_parameters.plMaxEigen, //  maxEigen,
-						clt_parameters.plDispNorm,
-						true); //boolean use_NaN)
-				double [][] plane_data = new double [plane_data_nonan.length + plane_data_nan.length][];
-				int indx = 0;
-				for (int i = 0; i < plane_data_nonan.length; i++){
-					plane_data[indx++] = plane_data_nonan[i];
-				}
-				for (int i = 0; i < plane_data_nan.length; i++){
-					plane_data[indx++] = plane_data_nan[i];
-				}
-//				sdfa_instance.showArrays(plane_data_nonan, wh[0], wh[1], true, "plane_data_noNaN");
-//				sdfa_instance.showArrays(plane_data_nan, wh[0], wh[1], true, "plane_data_NaN");
-				sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "plane_data");
-				// show plane data
-				for (int dr = 0; dr < 8; dr++){
-					TilePlanes.PlaneData [][] planes = st.getNeibPlanes(
-							dr,
-							clt_parameters.plDbgMerge);
-					plane_data_nonan = st.getShowPlanes(
-							planes,
-							clt_parameters.plMinStrength, //  minWeight,
-							clt_parameters.plMaxEigen, //  maxEigen,
-							clt_parameters.plDispNorm,
-							false); //boolean use_NaN)
-					plane_data_nan = st.getShowPlanes(
-							planes,
-							clt_parameters.plMinStrength, //  minWeight,
-							clt_parameters.plMaxEigen, //  maxEigen,
-							clt_parameters.plDispNorm,
-							true); //boolean use_NaN)
-					plane_data = new double [plane_data_nonan.length + plane_data_nan.length][];
-					indx = 0;
-					for (int i = 0; i < plane_data_nonan.length; i++){
-						plane_data[indx++] = plane_data_nonan[i];
-					}
-					for (int i = 0; i < plane_data_nan.length; i++){
-						plane_data[indx++] = plane_data_nan[i];
-					}
-					sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "plane_data_"+dr);
-				}
-			}
-*/	
-			
-			
-			
-			
-			/*			
-			st.processPlanes1(
-					null, // final boolean [] selected, // or null
-					0.3, // final double     min_disp,
-					false, // final boolean    invert_disp, // use 1/disparity
-					clt_parameters.plDispNorm, //            =   2.0;  // Normalize disparities to the average if above
-					debugLevel); // final int        debugLevel)
-			st.processPlanes(
-					null, // final boolean [] selected, // or null
-					0.3, // final double     min_disp,
-					true, // final boolean    invert_disp, // use 1/disparity
-					clt_parameters.plDispNorm, //            =   2.0;  // Normalize disparities to the average if above - here wrong
-					debugLevel); // final int        debugLevel)
-*/
-			
 			
 			
 			if (debugLevel < 100) {

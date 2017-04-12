@@ -1,6 +1,3 @@
-import Jama.EigenvalueDecomposition;
-import Jama.Matrix;
-
 /**
  **
  ** TilePlanes - detect planes in tile clusters
@@ -24,6 +21,9 @@ import Jama.Matrix;
  ** -----------------------------------------------------------------------------**
  **
  */
+import Jama.EigenvalueDecomposition;
+import Jama.Matrix;
+
 
 public class TilePlanes {
 	private int tileSize = 0; // 8;
@@ -120,6 +120,11 @@ public class TilePlanes {
 				}
 			}
 			if (src.neib_best != null) dst.neib_best = src.neib_best.clone();
+			
+			// also copy original plane parameters - tile selection and number of points
+			
+			dst.num_points = src.num_points; 
+			if (src.plane_sel != null)  dst.plane_sel =  src.plane_sel.clone(); 
 		}
 		
 		public void invalidateCalculated()
@@ -303,9 +308,11 @@ public class TilePlanes {
 			double [] zxy =    getZxy(); // {disparity, x center in pixels, y center in pixels (relative to a supertile center)
 			for (int sy = -superTileSize/2; sy < superTileSize/2; sy++){
 				int indx_sel = (2*sy + superTileSize) * superTileSize + superTileSize/2;
-				double y = tileSize * sy  - zxy[2];
+				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
+				// pixel 31 and pixel 32 (counting from 0) in both directions
+				double y = tileSize * (sy + 0.5) + 0.5  - zxy[2];
 				for (int sx = -superTileSize/2; sx < superTileSize/2; sx++){
-					double x = tileSize * sx - zxy[1];
+					double x = tileSize * (sx + 0.5) + 0.5 - zxy[1];
 					if (plane_sel[indx_sel] || !useNaN ||  (plane_sel==null)){
 						disparities[indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
 					} else {
@@ -317,7 +324,95 @@ public class TilePlanes {
 			}
 			return disparities;
 		}
+
+		/**
+		 * Get disparity values for the tiles of this overlapping supertile as [2*superTileSize * 2*superTileSize] array
+		 * @param useNaN replace unselected tiles with Double.NaN
+		 * @return array of disparity values for the plane (not including overlapped areas)
+		 */
+		public double[] getDoublePlaneDisparity(
+				boolean useNaN)
+		{
+			double [] disparities = new double[4*superTileSize*superTileSize];
+			int indx = 0;
+			double [] normal = getVector();
+			double [] zxy =    getZxy(); // {disparity, x center in pixels, y center in pixels (relative to a supertile center)
+			for (int sy = -superTileSize; sy < superTileSize; sy++){
+				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
+				// pixel 31 and pixel 32 (counting from 0) in both directions
+				double y = tileSize * (sy + 0.5) + 0.5  - zxy[2];
+				for (int sx = -superTileSize; sx < superTileSize; sx++){
+					double x = tileSize * (sx + 0.5) + 0.5 - zxy[1];
+					if (plane_sel[indx] || !useNaN ||  (plane_sel==null)){
+						disparities[indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
+					} else {
+						disparities[indx] = Double.NaN;
+					}
+					indx++;
+				}
+			}
+			return disparities;
+		}
 		
+		public double[] getDoublePlaneDisparity(
+				int     dir,
+				boolean useNaN)
+		{
+			double [] plane_all = getDoublePlaneDisparity(useNaN);
+			double [] plane = new double [superTileSize * superTileSize];
+			int [] start_index = {
+					superTileSize/2,                            // N    4
+					superTileSize,                              // NE   8
+					(superTileSize + 1) * superTileSize,        // E   72
+					(2* superTileSize + 1) * superTileSize,     // SE 136
+					(4* superTileSize + 1) * superTileSize / 2, // S  132
+					2* superTileSize * superTileSize,           // SW 128
+					superTileSize * superTileSize,              // W   64
+					0};                                         // NW   0
+			for (int y = 0; y < superTileSize; y++) {
+				System.arraycopy(plane_all, start_index[dir] + 2 * superTileSize * y, plane,  superTileSize * y, superTileSize);
+			}
+			return plane;
+		}
+
+		public double[] getTriplePlaneDisparity()
+		{
+			double [] disparities = new double[9*superTileSize*superTileSize];
+			int indx = 0;
+			double [] normal = getVector();
+			double [] zxy =    getZxy(); // {disparity, x center in pixels, y center in pixels (relative to a supertile center)
+			for (int sy = -3 * superTileSize / 2; sy < 3* superTileSize / 2; sy++){
+				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
+				// pixel 31 and pixel 32 (counting from 0) in both directions
+				double y = tileSize * (sy + 0.5) + 0.5  - zxy[2];
+				for (int sx = -3 * superTileSize/2; sx < 3 * superTileSize / 2; sx++){
+					double x = tileSize * (sx + 0.5) + 0.5 - zxy[1];
+						disparities[indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
+					indx++;
+				}
+			}
+			return disparities;
+		}
+		
+		public double[] getTriplePlaneDisparity(
+				int     dir)
+		{
+			double [] plane_all = getTriplePlaneDisparity();
+			double [] plane = new double [superTileSize * superTileSize];
+			int [] start_index = {
+					superTileSize,                               // N    8
+					2 * superTileSize,                           // NE  16
+					(3 * superTileSize + 2) * superTileSize,     // E  208
+					(3 * superTileSize + 1) * superTileSize * 2, // SE 400
+					(6 * superTileSize + 1) * superTileSize ,    // S  392
+					6 * superTileSize * superTileSize,           // SW 384
+					3 * superTileSize * superTileSize,           // W  192
+					0};                                          // NW   0
+			for (int y = 0; y < superTileSize; y++) {
+				System.arraycopy(plane_all, start_index[dir] + 3 * superTileSize * y, plane,  superTileSize * y, superTileSize);
+			}
+			return plane;
+		}
 		
 		
 //		double px = tileSize*(superTileSize * sTileXY[0] + superTileSize/2) + zxy[1];  // [3] - plane point {disparity, x, y), x=0, y=0 is a 4,4 point of an 8x8 supertile
@@ -798,8 +893,9 @@ public class TilePlanes {
 				numPoints++;
 				double w = weight[indx];
 				double d = data[indx];
-				int x = ((indx % stSize2) - stSize) * tileSize; // in pixels, not in tiles
-				int y = ((indx / stSize2) - stSize) * tileSize;
+				// referencing samples to centers of pixels
+				double x = ((indx % stSize2) - stSize + 0.5) * tileSize + 0.5; // in pixels, not in tiles
+				double y = ((indx / stSize2) - stSize + 0.5) * tileSize + 0.5;
 				sw  += w;
 				swz += w * d;
 				swx += w * x;
@@ -825,8 +921,8 @@ public class TilePlanes {
 				double w = weight[indx] / sw;
 				double d = kz * (data[indx] - swz);
 				double wd = w*d;
-				double x = ((indx % stSize2) - stSize) * tileSize - swx;
-				double y = ((indx / stSize2) - stSize) * tileSize - swy;
+				double x = ((indx % stSize2) - stSize + 0.5) * tileSize + 0.5 - swx;
+				double y = ((indx / stSize2) - stSize + 0.5) * tileSize + 0.5 - swy;
 				acovar [0][0] += wd * d;
 				acovar [0][1] += wd * x;
 				acovar [0][2] += wd * y;
