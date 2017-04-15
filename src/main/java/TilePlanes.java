@@ -452,6 +452,7 @@ public class TilePlanes {
 				PlaneData otherPd,
 				double    scale_other,
 				boolean   ignore_weights,
+				boolean   preferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
 				int       debugLevel)
 		{
 			if (debugLevel > 0) {
@@ -474,7 +475,11 @@ public class TilePlanes {
 			double sum_weight =      scale_other *  otherPd.weight + this.weight;
 			double other_fraction = ignore_weights? (scale_other/(scale_other + 1.0)): ((scale_other *  otherPd.weight) / sum_weight); 
 			Matrix common_center =  this_center.times(1.0 - other_fraction).plus(other_center.times(other_fraction));
-			Matrix other_offset =   other_center.minus(this_center); // other center from this center 
+			Matrix other_offset =   other_center.minus(this_center); // other center from this center
+			if ((this.values[0] == 0.0) || (otherPd.values[0] == 0.0)) {
+				System.out.println("Zero eigenvalue");
+				debugLevel = 10;
+			}
 			if (debugLevel > 0) {
 				System.out.println("other_eig_vals");
 				other_eig_vals.print(8, 6);
@@ -494,9 +499,6 @@ public class TilePlanes {
 				other_offset.print(8, 6);
 				System.out.println("other_fraction="+other_fraction);
 			}
-			
-			
-			
 			
 			double [][] acovar = { // covariance matrix of center masses (not yet scaled by weight)
 					{other_offset.get(0,0)*other_offset.get(0,0), other_offset.get(0,0)*other_offset.get(1,0), other_offset.get(0,0)*other_offset.get(2,0)},
@@ -525,9 +527,12 @@ public class TilePlanes {
 				System.out.println("covar with other_covar and this_covar");
 				covar.print(8, 6);
 			}
-			
+			if (Double.isNaN(covar.get(0, 0))){
+				System.out.println("covar is NaN !");
+				covar.print(8, 6);
+			}
 			// extract new eigenvalues, eigenvectors
-			EigenvalueDecomposition eig = covar.eig();
+			EigenvalueDecomposition eig = covar.eig(); // verify NaN - it gets stuck
 //			eig.getD().getArray(),
 //			eig.getV().getArray(),
 			if (debugLevel > 0) {
@@ -542,12 +547,30 @@ public class TilePlanes {
 			double [][] eig_vect = eig.getV().getArray();
 			double [][] eig_val = eig.getD().getArray();
 			// make towards camera, left coordinate system
+/*			
 			int oindx = 0;
 			for (int i = 1; i <3; i++){
 				if (Math.abs(eig_vect[0][i]) > Math.abs(eig_vect[0][oindx])){
 					oindx = i;
 				}
 			}
+*/			
+			int oindx = 0;
+			if (preferDisparity) {
+				for (int i = 1; i <3; i++){
+					if (Math.abs(eig_vect[0][i]) > Math.abs(eig_vect[0][oindx])){
+						oindx = i;
+					}
+				}
+			} else {
+				for (int i = 1; i <3; i++){
+					if (eig_val[i][i] < eig_val[oindx][oindx]){
+						oindx = i;
+					}
+				}
+
+			}
+			
 			// select 2 other axes for increasing eigenvalues (so v is short axis, h  is the long one)
 			int vindx = (oindx == 0)? 1 : 0;
 			int hindx = (oindx == 0)? 2 : ((oindx == 1) ? 2 : 1);
@@ -886,6 +909,7 @@ public class TilePlanes {
 			boolean [] select,
 			double     plDispNorm, //  Normalize disparities to the average if above
 			int        debugLevel){
+		double mindet = 1E-15;
 		int stSize2 = 2 * stSize;
 //		Matrix covar = new Matrix(3,3);
 		double [][] acovar = new double [3][3];
@@ -939,14 +963,31 @@ public class TilePlanes {
 		acovar [2][0] = acovar [0][2]; 
 		acovar [2][1] = acovar [1][2];
 		Matrix covar = new Matrix(acovar);
+		if (Math.abs(covar.det()) < mindet){
+			debugLevel = 5;
+		}
+
 		EigenvalueDecomposition eig = covar.eig();
+		if (Double.isNaN(eig.getV().get(0, 0))){
+			System.out.println("getCovar(): Double.isNaN(eig.getV().get(0, 0))");
+			debugLevel = 20;
+		}
+		
+		if (eig.getD().get(0, 0) == 0.0){
+			debugLevel = 10;
+		}
 		if (debugLevel > 0){
+			System.out.println("getCovar(): sw = "+sw +", swz = "+swz +", swx = "+swx +", swy = "+swy +", covar.det() = "+covar.det());
 			System.out.println("getCovar(): covarianvce matrix, number of used points:"+numPoints);
 			covar.print(10, 6); // w,d
 			System.out.println("getCovar(): eigenvalues");
 			eig.getD().print(10, 6); // w,d
 			System.out.println("getCovar(): eigenvectors");
 			eig.getV().print(10, 6); // w,d
+		}
+		if ((eig.getD().get(0, 0) == 0.0) || (Math.abs(covar.det()) < mindet)) {
+			return null; // testing with zero eigenvalue
+			// Problem with zero eigenvalue is with derivatives and coordinate conversion
 		}
 		double [][][] rslt = {
 				eig.getD().getArray(),
@@ -962,13 +1003,12 @@ public class TilePlanes {
 			double []  data,
 			double []  weight,
 			boolean [] select, // null OK, will enable all tiles
+			boolean    preferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
 			int        debugLevel){
 		if (select == null) {
 			select = new boolean [4*stSize];
 			for (int i = 0; i < select.length; i++) select[i] = true;
 		}
-//		int debugLevel1 = ((sTileXY[0] == 27) && (sTileXY[1] == 20))? 1: 0; 
-//		int debugLevel1 = ((sTileXY[0] == 27) && (sTileXY[1] == 17))? 1: 0; 
 		int debugLevel1 = ((sTileXY[0] == 27) && (sTileXY[1] == 16))? 1: 0; // check why v[0][0] <0  
 		
 		
@@ -980,7 +1020,6 @@ public class TilePlanes {
 				debugLevel1); //0); // debugLevel);
 		if (rslt == null) return null;
 		int       numPoints =  (int) rslt[2][0][2];
-//		double    kz =   rslt[2][0][1]; // == 1.0
 		double    swc =  rslt[2][0][0];
 		double [] szxy = rslt[2][1];
 		double [][] eig_val =  rslt[0];
@@ -988,11 +1027,23 @@ public class TilePlanes {
 		// find vector most orthogonal to view // (anyway it all works with that assumption), make it first
 		// TODO normalize to local linear scales
 		int oindx = 0;
-		for (int i = 1; i <3; i++){
-			if (Math.abs(eig_vect[0][i]) > Math.abs(eig_vect[0][oindx])){
-				oindx = i;
+		if (preferDisparity) {
+			for (int i = 1; i <3; i++){
+				if (Math.abs(eig_vect[0][i]) > Math.abs(eig_vect[0][oindx])){
+					oindx = i;
+				}
+			}
+		} else {
+			for (int i = 1; i < 3 ; i++){
+				if (eig_val[i][i] < eig_val[oindx][oindx]){
+					oindx = i;
+				}
 			}
 		}
+		if (eig_val[oindx][oindx] == 0.0){
+			System.out.println("getPlane(): zero eigenvalue!!");
+		}
+		
 		/*
 		// Find two other axis - "mostly X" (horizontal) and "mostly Y" (vertical) 
 		int vindx = (oindx == 0)? 1 : 0;
@@ -1058,6 +1109,7 @@ public class TilePlanes {
 			double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
 			int        maxRemoved,  // maximal number of tiles to remove (not a constant)
 			int        minLeft,     // minimal number of tiles to keep
+			boolean    preferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
 			int        debugLevel){
 		int stSize2 = 2 * stSize;
 		if (pd == null) {
@@ -1066,9 +1118,13 @@ public class TilePlanes {
 					data,
 					weight,
 					select, // null OK
+					preferDisparity,
 					debugLevel);
 		} else if (select != null){
 			pd.setPlaneSelection(select);
+		}
+		if (pd == null){
+			return null; // zero eigenvalues
 		}
 		if (maxRemoved > (pd.getNumPoints() - minLeft)) maxRemoved = pd.getNumPoints() - minLeft;
 		int numRemoved = 0;
@@ -1107,7 +1163,11 @@ public class TilePlanes {
 					data,
 					weight,
 					select,
+					preferDisparity,
 					debugLevel);
+			if (pd == null) {
+				return null;
+			}
 		}
 		return pd;
 	}

@@ -1168,7 +1168,6 @@ public class SuperTiles{
 
 
 	public void processPlanes2(
-
 			final boolean [] selected, // or null
 			final double     min_disp,
 			final boolean    invert_disp, // use 1/disparity
@@ -1177,8 +1176,9 @@ public class SuperTiles{
 			final double     plTargetEigen, //        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
 			final double     plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
 			final int        plMaxOutliers, //        =    20;  // Maximal number of outliers to remove
+			final boolean    plPreferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
 			final GeometryCorrection geometryCorrection,
-			final boolean    correct_distortions, 
+			final boolean    correct_distortions,
 			final int        debugLevel,
 			final int        dbg_X,
 			final int        dbg_Y)
@@ -1262,27 +1262,19 @@ public class SuperTiles{
 							}
 						}
 						planes[nsTile] = null;
-						if (sw >0){
+						if (sw >0){ // there are some non-zero tiles, process them (all points, not clustered by disparity value)
 							ArrayList<TilePlanes.PlaneData> st_planes = new ArrayList<TilePlanes.PlaneData>();
-							//									int dl = ((nsTile >= debug_stile-1) && (nsTile <= debug_stile+1) ) ? 1 : 0;
-							//									int dl = ((stileY == 17) && (stileX > 4)) ? 1 : 0;
-							//									int dl = (stileY >= 0) ? 1 : 0;
 							int dl1 =  (nsTile == debug_stile) ? 3 : 0;
-							//									int dl =  (nsTile == debug_stile) ? 3 : 0;
-							//									int dl = ((stileY >= 15) && (stileY <= 18) && (stileX >= 5) && (stileX <= 31)) ? 1 : 0;
-							//									int dl = ((stileY == 16) && (stileX == 27) ) ? 3 : 0;
 							int dl =  (nsTile == debug_stile) ? 3 : 0;
-							//		int debugLevel1 = ((sTileXY[0] == 27) && (sTileXY[1] == 16))? 1: 0; // check why v[0][0] <0  
-
-
 							boolean [] sel_all = stSel.clone();
 							TilePlanes.PlaneData pd = tpl.getPlane(
 									sTiles,
 									stDisparity,
 									stStrength,
 									sel_all,
+									plPreferDisparity,									
 									0); // debugLevel);
-							if (pd != null) {
+							if (pd != null) { // not too few points, probably
 								//correct_distortions
 								double swc_common = pd.getWeight();
 								if (dl > 0) {
@@ -1301,19 +1293,11 @@ public class SuperTiles{
 								// now try to remove outliers
 								int max_outliers = (int) Math.round(pd.getNumPoints() * plFractOutliers);
 								if (max_outliers > plMaxOutliers) max_outliers = plMaxOutliers;
-								/*
-										double targetV = plTargetEigen;
-										double z0 = pd.getZxy()[0];
-										if ((plTargetEigen > 0.0) && (z0 > plDispNorm)) {
-											double dd = (plDispNorm + z0)/ plDispNorm; // > 1
-											targetV *= dd * dd; // > original
-										}
-								 */
 								double targetV = corrMaxEigen(
 										plTargetEigen,
 										plDispNorm,
 										pd);
-								if (pd.getValues()[0] > targetV) {
+								if (pd.getValue() > targetV) {
 									pd = tpl.removePlaneOutliers(
 											pd,
 											sTiles,
@@ -1323,7 +1307,9 @@ public class SuperTiles{
 											targetV, // double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
 											max_outliers, // int        maxRemoved,  // maximal number of tiles to remove (not a constant)
 											plMinPoints,  // int        minLeft,     // minimal number of tiles to keep
+											plPreferDisparity,
 											dl1); // 0); // debugLevel);
+									if (pd == null) continue;
 									if (dl > 0) {
 										if (swc_common > 0.3) { // 1.0) {
 											System.out.println("Removed outliers["+nsTile+"]"+
@@ -1350,9 +1336,9 @@ public class SuperTiles{
 											norm_xyz[0]+", "+norm_xyz[1]+", "+norm_xyz[2]+"}");
 
 								}
-								st_planes.add(pd);
+								st_planes.add(pd);  // adding [0] - all supertile tiles, not clustered by disparity value
 
-								// now try for each of the disparity-separated clusters
+								// now try for each of the disparity-separated clusters (only for multi-peak histograms)
 
 								double [][] mm = maxMinMax[nsTile];
 
@@ -1392,6 +1378,7 @@ public class SuperTiles{
 												stDisparity,
 												stStrength,
 												stSels[m],
+												plPreferDisparity,												
 												0); // debugLevel);
 										if (pd != null) {
 											if (dl > 0) {
@@ -1426,7 +1413,11 @@ public class SuperTiles{
 														targetV, // double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
 														max_outliers, // int        maxRemoved,  // maximal number of tiles to remove (not a constant)
 														plMinPoints,  // int        minLeft,     // minimal number of tiles to keep
+														plPreferDisparity,
 														dl1); // 0); // debugLevel);
+												if (pd == null) {
+													continue;
+												}
 												if (dl > 0) {
 													if (swc_common > 1.0) {
 														System.out.println("Removed outliers["+nsTile+"]["+m+"]"+
@@ -1485,6 +1476,7 @@ public class SuperTiles{
 
 	TilePlanes.PlaneData [][] getNeibPlanes(
 			final int     dir,     // 0: get from up (N), 1:from NE, ... 7 - from NW
+			final boolean preferDisparity,
 			final boolean dbgMerge, // Combine 'other' plane with current
 			final int     dbg_X,
 			final int     dbg_Y
@@ -1548,12 +1540,14 @@ public class SuperTiles{
 												planes[nsTile0][indx], // PlaneData otherPd,
 												1.0,      // double    scale_other,
 												true,     // boolean   ignore_weights,
+												preferDisparity,
 												(nsTile0 == debug_stile)? 1:0); // int       debugLevel)
 										System.out.println("other with other, same weight:");
 										TilePlanes.PlaneData other_other_pd = other_pd.mergePlaneToThis(
 												other_pd, // PlaneData otherPd,
 												1.0,      // double    scale_other,
 												true,     // boolean   ignore_weights,
+												preferDisparity,
 												(nsTile0 == debug_stile)? 1:0); // int       debugLevel)
 										System.out.println("other with this, same weight:");
 									}
@@ -1561,6 +1555,7 @@ public class SuperTiles{
 											other_pd, // PlaneData otherPd,
 											1.0,      // double    scale_other,
 											true,     // boolean   ignore_weights,
+											preferDisparity,
 											(nsTile0 == debug_stile)? 1:0); // int       debugLevel)
 									if (!(merged_pd.getValue() > best_value)) { // Double.isNaN(best_value) will work too
 										best_value = merged_pd.getValue();
@@ -1576,6 +1571,7 @@ public class SuperTiles{
 									other_pd, // PlaneData otherPd,
 									1.0,      // double    scale_other,
 									false,    // boolean   ignore_weights,
+									preferDisparity,
 									(nsTile0 == debug_stile)? 1:0); // int       debugLevel)
 							neib_planes[nsTile0][np] = merged_pd;
 						} else  {
@@ -1618,6 +1614,7 @@ public class SuperTiles{
 	}
 
 	public void matchPlanes(
+			final boolean    preferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
 			final int dbg_X,
 			final int dbg_Y)
 	{
@@ -1636,6 +1633,7 @@ public class SuperTiles{
 
 		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
+		// Select best symmetrical match, consider only N, NE, E, SE - later opposite ones will be copied
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				public void run() {
@@ -1673,6 +1671,7 @@ public class SuperTiles{
 																other_plane, // PlaneData otherPd,
 																1.0,         // double    scale_other,
 																false,       // boolean   ignore_weights,
+																preferDisparity, 
 																dl); // int       debugLevel)
 														if (merged_pd !=null) { // now always, but may add later
 															this_plane.setNeibMatch(dir, np, merged_pd.getValue()); // smallest eigenValue
@@ -1706,28 +1705,18 @@ public class SuperTiles{
 						if ( planes[nsTile0] != null) {
 							for (int np0 = 0; np0 < planes[nsTile0].length; np0++){ // nu
 								TilePlanes.PlaneData this_plane = planes[nsTile0][np0];
-								//										this_plane.initMergedValue();
 								for (int dir = 4; dir < 8; dir++){ // other half - copy from opposite
 									int stx = stx0 + dirsYX[dir][1];
 									int sty = sty0 + dirsYX[dir][0];
-									//											if ((stx < stilesX) && (sty < stilesY) && (sty > 0)) {
 									if ((sty < stilesY) && (sty > 0) && (stx > 0)) {
-
 										int nsTile = sty * stilesX + stx; // from where to get
 										TilePlanes.PlaneData [] other_planes = planes[nsTile];
 										if (other_planes !=null) {
 											this_plane.initMergedValue(dir,other_planes.length); // filled with NaN
 											for (int np = 0; np < other_planes.length; np ++){
-												/*
-														if ((other_planes[np] != null) && (other_planes[np].getMergedValue(dir-4) != null)) {
-															double [] dbg_nm = other_planes[np].getMergedValue(dir-4);
-															this_plane.setNeibMatch(dir,np, other_planes[np].getMergedValue(dir-4, np0)); // 
-														}
-												 */
 												if (other_planes[np] != null) { // && (other_planes[np].getMergedValue(dir-4) != null)) {
 													double [] nm = other_planes[np].getMergedValue(dir-4);
 													if (nm != null) {
-														//																this_plane.setNeibMatch(dir,np, other_planes[np].getMergedValue(dir-4, np0)); //
 														this_plane.setNeibMatch(dir,np, nm[np0]); //
 													}
 												}
@@ -1859,7 +1848,7 @@ public class SuperTiles{
 			ImageDtt.startAndJoin(threads);
 		}
 	}
-	public void fillSquares()
+	public int fillSquares()
 	{
 		final int tilesX =        tileProcessor.getTilesX();
 		final int tilesY =        tileProcessor.getTilesY();
@@ -1868,6 +1857,7 @@ public class SuperTiles{
 		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;  
 		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
 		final int nStiles =       stilesX * stilesY;
+		int num_added = 0;
 		for (int stY = 0; stY < (stilesY - 1); stY++ ) {
 			for (int stX = 0; stX < (stilesX - 1); stX++ ) {
 				int nsTile = stY * stilesX + stX;
@@ -1891,18 +1881,21 @@ public class SuperTiles{
 						if (neibs0[3] < 0) {
 							neibs0[3] = neibs1[4];
 							neibs3[7] = np;
+							num_added++;
 						}
 						if (neibs1[5] < 0){
 							neibs1[5] = neibs0[4];
 							neibs2[1] = neibs0[2];
+							num_added++;
 						}
 					}
 				}
 			}
 		}
+		return num_added;
 	}
 
-	public void cutCorners()
+	public int cutCorners()
 	{
 		final int tilesX =        tileProcessor.getTilesX();
 		final int tilesY =        tileProcessor.getTilesY();
@@ -1910,7 +1903,8 @@ public class SuperTiles{
 		//				final int tileSize =      tileProcessor.getTileSize();
 		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;  
 		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
-		final int nStiles =       stilesX * stilesY;
+//		final int nStiles =       stilesX * stilesY;
+		int num_added = 0;
 		for (int stY = 0; stY < (stilesY - 1); stY++ ) {
 			for (int stX = 0; stX < (stilesX - 1); stX++ ) {
 				int nsTile = stY * stilesX + stX;
@@ -1931,6 +1925,7 @@ public class SuperTiles{
 										neibs0[4] = neibs1[5];
 										int [] neibs2 = planes4[2][neibs1[5]].getNeibBest();
 										neibs2[0] = np;  //?
+										num_added++;
 									}
 								}
 							}
@@ -1942,6 +1937,7 @@ public class SuperTiles{
 										neibs0[2] = neibs2[1];
 										int [] neibs1 = planes4[1][neibs2[1]].getNeibBest();
 										neibs1[6] = np;
+										num_added++;
 									}
 								}
 							}
@@ -1951,6 +1947,7 @@ public class SuperTiles{
 								if (neibs1[4] < 0) {
 									neibs1[4] = neibs0[3];
 									neibs3[0] = neibs0[2];  //?
+									num_added++;
 								}
 							}
 							if ((neibs0[3] >= 0) && (neibs0[4] >= 0)){
@@ -1959,6 +1956,7 @@ public class SuperTiles{
 								if (neibs2[2] < 0) {
 									neibs2[2] = neibs0[3];
 									neibs3[6] = neibs0[4];
+									num_added++;
 								}
 							}							
 						}
@@ -1975,6 +1973,7 @@ public class SuperTiles{
 								if (neibs0[2] < 0) {
 									neibs0[2] = neibs3[0];
 									neibs1[6] = neibs3[7];
+									num_added++;
 								}
 							}
 							
@@ -1985,6 +1984,7 @@ public class SuperTiles{
 								if (neibs0[4] < 0) {
 									neibs0[4] = neibs3[6];
 									neibs2[0] = neibs3[7];  //?
+									num_added++;
 								}
 							}
 							
@@ -1996,6 +1996,7 @@ public class SuperTiles{
 									int [] neibs2 = planes4[2][neibs0[4]].getNeibBest();
 									neibs3[6] = neibs0[4];
 									neibs2[2] = np;  //?
+									num_added++;
 								}
 							}
 							
@@ -2006,6 +2007,7 @@ public class SuperTiles{
 									int [] neibs1 = planes4[1][neibs2[1]].getNeibBest();
 									neibs3[0] = neibs2[1]; //?
 									neibs1[4] = np;
+									num_added++;
 								}
 							}
 						}
@@ -2013,6 +2015,8 @@ public class SuperTiles{
 				}
 			}
 		}
+		return num_added;
+
 	}
 	
 	/**
@@ -2027,6 +2031,7 @@ public class SuperTiles{
 	 */
 	public void selectNeighborPlanesMutual(
 			final double rquality,
+			final double weakWorsening,
 			final double dispNorm,
 			final double maxEigen, // maximal eigenvalue of planes to consider
 			final double minWeight, // minimal pain weight to consider
@@ -2130,8 +2135,9 @@ public class SuperTiles{
 																merge_ev[np], // double L,
 																w1, // double w1,
 																w2); // double w2)
-														//																if (this_rq <= rquality) { // compare with the threshold before applying strengths  
-														if ((w1 + w2) * this_rq <= rquality) { // forgive more for weak planes  
+														double this_rq_norm = this_rq;
+														if ((w1 + w2) < weakWorsening) this_rq_norm *= (w1 + w2) / weakWorsening; // forgive more for weak planes 
+														if (this_rq_norm <= rquality) {   
 															this_rq /= (w1 + w2); // for comparision reduce this value for stronger planes 
 															if (Double.isNaN(best_rqual) || (this_rq < best_rqual)){ // OK if Double.isNaN(this_rq[np])
 																best_rqual = this_rq;
@@ -2504,6 +2510,7 @@ public class SuperTiles{
 			final double      meas_pull,//  relative pull of the original (measured) plane with respect to the average of the neighbors
 			final int         num_passes,
 			final double      maxDiff, // maximal change in any of the disparity values
+			final boolean     preferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
 			final int         debugLevel,
 			final int         dbg_X,
 			final int         dbg_Y)
@@ -2517,6 +2524,7 @@ public class SuperTiles{
 					this.planes,     // final TilePlanes.PlaneData[][] measured_planes,
 					this.planes_mod, // final TilePlanes.PlaneData[][] mod_planes,
 					true,            // final boolean calc_diff,
+					preferDisparity, 
 					(pass < 10)? debugLevel: 0,
 							dbg_X,
 							dbg_Y);
@@ -2539,6 +2547,7 @@ public class SuperTiles{
 			final TilePlanes.PlaneData[][] measured_planes,
 			final TilePlanes.PlaneData[][] mod_planes,
 			final boolean calc_diff,
+			final boolean preferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
 			final int debugLevel,
 			final int dbg_X,
 			final int dbg_Y)
@@ -2600,6 +2609,7 @@ public class SuperTiles{
 														other_plane, // PlaneData otherPd,
 														1.0,         // double    scale_other,
 														false,       // boolean   ignore_weights,
+														preferDisparity,
 														dl); // int       debugLevel)
 											} else {
 												this_new_plane = other_plane; 
@@ -2619,6 +2629,7 @@ public class SuperTiles{
 												measured_planes[nsTile0][np0], // PlaneData otherPd,
 												meas_pull,                     // double    scale_other,
 												false,                         // boolean   ignore_weights,
+												preferDisparity,
 												dl);                           // int       debugLevel)
 									} else {
 										this_new_plane = measured_planes[nsTile0][np0].clone();

@@ -2952,7 +2952,8 @@ public class TileProcessor {
 				clt_parameters.plMinPoints, //           =     5;  // Minimal number of points for plane detection
 				clt_parameters.plTargetEigen, //         =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
 				clt_parameters.plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
-				clt_parameters.plMaxOutliers, //        =    20;  // Maximal number of outliers to remove
+				clt_parameters.plMaxOutliers, //        =    20;  // Maximal number of outliers to remove\
+				clt_parameters.plPreferDisparity,
 				geometryCorrection,
 				clt_parameters.correct_distortions,
 				0, // -1, // debugLevel,                  // final int        debugLevel)
@@ -2964,25 +2965,35 @@ public class TileProcessor {
 		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 
 		st.matchPlanes(
+				clt_parameters.plPreferDisparity,
 				clt_parameters.tileX,
 				clt_parameters.tileY); 
 
 		st.selectNeighborPlanesMutual(
 				clt_parameters.plWorstWorsening, // final double worst_worsening,
+				clt_parameters.plWeakWorsening, // final double worst_worsening,
 				clt_parameters.plDispNorm,
 				clt_parameters.plMaxEigen,
 				clt_parameters.plMinStrength,
 				0, // final int debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
-		
-		if (clt_parameters.plFillSquares){
-			st.fillSquares();
+		while (true) {
+			int num_added = 0;
+			if (clt_parameters.plFillSquares){
+				num_added += st.fillSquares();
+			}
+			if (debugLevel > -1) {
+				System.out.println("after fillSquares() added "+num_added);
+			}
+			if (clt_parameters.plCutCorners){
+				num_added += st.cutCorners();
+			}
+			if (debugLevel > -1) {
+				System.out.println("after plCutCorners() added (cumulative) "+num_added);
+			}
+			if (num_added == 0) break;
 		}
-		if (clt_parameters.plCutCorners){
-			st.cutCorners();
-		}
-		
 		
 		TilePlanes.PlaneData [][] planes_mod = null;
 
@@ -2993,6 +3004,7 @@ public class TileProcessor {
 					clt_parameters.plPull,                        // final double      meas_pull,//  relative pull of the original (measured) plane with respect to the average of the neighbors
 					clt_parameters.plIterations,                  // final int         num_passes,
 					Math.pow(10.0,  -clt_parameters.plPrecision), // final double      maxDiff, // maximal change in any of the disparity values
+					clt_parameters.plPreferDisparity,
 					0, // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY); 

@@ -2142,6 +2142,7 @@ public class EyesisCorrectionParameters {
   		public double     grow_disp_step =   6.0; // Increase disparity (from maximal tried) if nothing found in that tile // TODO: handle enclosed dips?  
   		public double     grow_min_diff =    0.5; // Grow more only if at least one channel has higher variance from others for the tile  
   		
+  		public boolean    plPreferDisparity    =   false;// Always start with disparity-most axis (false - lowest eigenvalue)
   		public double     plDispNorm           =   3.0;  // Normalize disparities to the average if above (now only for eigenvalue comparison)
   		public int        plMinPoints          =     5;  // Minimal number of points for plane detection
   		public double     plTargetEigen        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
@@ -2150,7 +2151,8 @@ public class EyesisCorrectionParameters {
   		public double     plMinStrength        =   0.1;  // Minimal total strength of a plane 
   		public double     plMaxEigen           =   0.3;  // Maximal eigenvalue of a plane 
   		public boolean    plDbgMerge           =   true; // Combine 'other' plane with current
-  		public double     plWorstWorsening     =   1.0;  // Worst case worsening after merge 
+  		public double     plWorstWorsening     =   3.0;  // Worst case worsening after merge
+  		public double     plWeakWorsening      =   1.0;  // Relax merge requirements for weaker planes
   		public boolean    plMutualOnly         =   true; // keep only mutual links, remove weakest if conflict
   		public boolean    plFillSquares        =   true; // Add diagonals to full squares
   		public boolean    plCutCorners         =   true; // Add ortho to 45-degree corners
@@ -2406,6 +2408,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"grow_disp_step",   this.grow_disp_step +"");
 			properties.setProperty(prefix+"grow_min_diff",    this.grow_min_diff +"");
 
+			properties.setProperty(prefix+"plPreferDisparity",this.plPreferDisparity+"");
 			properties.setProperty(prefix+"plDispNorm",       this.plDispNorm +"");
   			properties.setProperty(prefix+"plMinPoints",      this.plMinPoints+"");
 			properties.setProperty(prefix+"plTargetEigen",    this.plTargetEigen +"");
@@ -2415,6 +2418,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plMaxEigen",       this.plMaxEigen +"");
 			properties.setProperty(prefix+"plDbgMerge",       this.plDbgMerge+"");
 			properties.setProperty(prefix+"plWorstWorsening", this.plWorstWorsening +"");
+			properties.setProperty(prefix+"plWeakWorsening",  this.plWeakWorsening +"");
 			properties.setProperty(prefix+"plMutualOnly",     this.plMutualOnly+"");
 
 			properties.setProperty(prefix+"plFillSquares",    this.plFillSquares+"");
@@ -2657,6 +2661,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"grow_disp_step")!=null)    this.grow_disp_step=Double.parseDouble(properties.getProperty(prefix+"grow_disp_step"));
   			if (properties.getProperty(prefix+"grow_min_diff")!=null)     this.grow_min_diff=Double.parseDouble(properties.getProperty(prefix+"grow_min_diff"));
 
+  			if (properties.getProperty(prefix+"plPreferDisparity")!=null) this.plPreferDisparity=Boolean.parseBoolean(properties.getProperty(prefix+"plPreferDisparity"));
   			if (properties.getProperty(prefix+"plDispNorm")!=null)        this.plDispNorm=Double.parseDouble(properties.getProperty(prefix+"plDispNorm"));
   			if (properties.getProperty(prefix+"plMinPoints")!=null)       this.plMinPoints=Integer.parseInt(properties.getProperty(prefix+"plMinPoints"));
   			if (properties.getProperty(prefix+"plTargetEigen")!=null)     this.plTargetEigen=Double.parseDouble(properties.getProperty(prefix+"plTargetEigen"));
@@ -2666,6 +2671,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plMaxEigen")!=null)        this.plMaxEigen=Double.parseDouble(properties.getProperty(prefix+"plMaxEigen"));
   			if (properties.getProperty(prefix+"plDbgMerge")!=null)        this.plDbgMerge=Boolean.parseBoolean(properties.getProperty(prefix+"plDbgMerge"));
   			if (properties.getProperty(prefix+"plWorstWorsening")!=null)  this.plWorstWorsening=Double.parseDouble(properties.getProperty(prefix+"plWorstWorsening"));
+  			if (properties.getProperty(prefix+"plWeakWorsening")!=null)  this.plWeakWorsening=Double.parseDouble(properties.getProperty(prefix+"plWeakWorsening"));
   			if (properties.getProperty(prefix+"plMutualOnly")!=null)      this.plMutualOnly=Boolean.parseBoolean(properties.getProperty(prefix+"plMutualOnly"));
 
   			if (properties.getProperty(prefix+"plFillSquares")!=null)     this.plFillSquares=Boolean.parseBoolean(properties.getProperty(prefix+"plFillSquares"));
@@ -2930,6 +2936,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Increase disparity (from maximal tried) if nothing found in that tile",        this.grow_disp_step,  6);
   			gd.addNumericField("Grow more only if at least one channel has higher variance from others for the tile", this.grow_min_diff,  6);
   			gd.addMessage     ("--- Planes detection ---");
+  			gd.addCheckbox    ("Always start with disparity-most axis (false - lowest eigenvalue)",            this.plPreferDisparity);
   			gd.addNumericField("Normalize disparities to the average if above",                                this.plDispNorm,  6);
   			gd.addNumericField("Minimal number of points for plane detection",                                  this.plMinPoints,  0);
   			gd.addNumericField("Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below", this.plTargetEigen,  6);
@@ -2937,8 +2944,9 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal number of outliers to remove",                                         this.plMaxOutliers,  0);
   			gd.addNumericField("Minimal total strength of a plane",                                            this.plMinStrength,  6);
   			gd.addNumericField("Maximal eigenvalue of a plane",                                                this.plMaxEigen,  6);
-  			gd.addCheckbox    ("Combine 'other' plane with the current",                                       this.plDbgMerge);
+  			gd.addCheckbox    ("Combine 'other' plane with the current (unused)",                              this.plDbgMerge);
   			gd.addNumericField("Worst case worsening after merge",                                             this.plWorstWorsening,  6);
+  			gd.addNumericField("Relax merge requirements for weaker planes",                                   this.plWeakWorsening,  6);
   			gd.addCheckbox    ("Keep only mutual links, remove weakest if conflict",                           this.plMutualOnly);
 
   			gd.addCheckbox    ("Add diagonals to full squares",                                                this.plFillSquares);
@@ -3191,6 +3199,7 @@ public class EyesisCorrectionParameters {
   			this.grow_disp_step=        gd.getNextNumber();
   			this.grow_min_diff=         gd.getNextNumber();
 
+  			this.plPreferDisparity=     gd.getNextBoolean();
   			this.plDispNorm=            gd.getNextNumber();
   			this.plMinPoints=     (int) gd.getNextNumber();
   			this.plTargetEigen=         gd.getNextNumber();
@@ -3200,6 +3209,7 @@ public class EyesisCorrectionParameters {
   			this.plMaxEigen=            gd.getNextNumber();
   			this.plDbgMerge=            gd.getNextBoolean();
   			this.plWorstWorsening=      gd.getNextNumber();
+  			this.plWeakWorsening=       gd.getNextNumber();
   			this.plMutualOnly=          gd.getNextBoolean();
 
   			this.plFillSquares=         gd.getNextBoolean();
