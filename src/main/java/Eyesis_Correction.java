@@ -507,6 +507,7 @@ private Panel panel1,
 			addButton("CLT reset 3D",              panelClt1, color_stop);
 			addButton("CLT 3D",                    panelClt1, color_conf_process);
 			addButton("CLT planes",                panelClt1, color_conf_process);
+			addButton("CLT OUT 3D",                panelClt1, color_process);
 						
 			add(panelClt1);
 		}
@@ -4756,6 +4757,9 @@ private Panel panel1,
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
         
+
+        
+        
         if (configPath!=null) {
         	saveTimestampedProperties( // save config again
         			configPath,      // full path or null
@@ -4772,14 +4776,88 @@ private Panel panel1,
        		System.out.println("QUAD_CLT is null, nothing to show");
        		return;
         }
-         
-//"CLT planes"        
         QUAD_CLT.showCLTPlanes(
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
         return;
+        
+    } else if (label.equals("CLT OUT 3D")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        if (QUAD_CLT == null){
+       		System.out.println("QUAD_CLT is null, nothing to show (will add previous steps)");
+       		return;
+        }
+
+        
+    	String configPath=null;
+    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
+    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
+    				true,
+    				true);
+    		if (configPath==null){
+    			String msg="No results directory selected, command aborted";
+    			System.out.println("Warning: "+msg);
+    			IJ.showMessage("Warning",msg);
+    			return;
+    		}
+    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		try {
+    			saveTimestampedProperties(
+    					configPath,      // full path or null
+    					null, // use as default directory if path==null 
+    					true,
+    					PROPERTIES);
+
+    		} catch (Exception e){
+    			String msg="Failed to save configuration to "+configPath+", command aborted";
+    			System.out.println("Error: "+msg);
+    			IJ.showMessage("Error",msg);
+    			return;
+    		}
+    	}      
+/*
+	  public boolean output3d(
+			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
+			  final int        threadsMax,  // maximal number of threads to launch                         
+			  final boolean    updateStatus,
+			  final int        debugLevel)
+
+ */
+        boolean OK = QUAD_CLT.output3d(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+        if (!OK) {
+        	String msg="Image data not initialized, run 'CLT 3D' command first";
+        	System.out.println("Error: "+msg);
+        	IJ.showMessage("Error",msg);
+        }
+        
+/*        
+        if (configPath!=null) {
+        	saveTimestampedProperties( // save config again
+        			configPath,      // full path or null
+        			null, // use as default directory if path==null 
+        			true,
+        			PROPERTIES);
+        }
+        
+*/
+        
+        return;
+        
+        
+        
+        
+        
 //        
 // End of buttons code    	
     }

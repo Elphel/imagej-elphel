@@ -143,8 +143,13 @@ public class CLTPass3d{
 			superTiles =     null;
 			
 		}
+
 		public boolean [] getSelected(){
 			return selected;
+		}
+		
+		public void setSelected (boolean [] selected) {
+			this.selected = selected;
 		}
 
 		public void fixNaNDisparity()

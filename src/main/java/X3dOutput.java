@@ -160,10 +160,11 @@ public class X3dOutput {
         Element el_appearance =   x3dDoc.createElement("Appearance");
 		el_shape.appendChild(el_appearance);
 
+/*
         Element el_material =   x3dDoc.createElement("Material");
 		el_appearance.appendChild(el_material);
 		el_material.setAttribute("diffuseColor",    "0.376471 0.5 0.376471");
-		
+*/		
 		
         Element el_imageTexture = x3dDoc.createElement("ImageTexture");
         el_imageTexture.setAttribute("url",url);
@@ -181,8 +182,6 @@ public class X3dOutput {
         Element el_texCoordinate =   x3dDoc.createElement("TextureCoordinate");
         el_texCoordinate.setAttribute("point",    stcoord);
         el_IFC.appendChild(el_texCoordinate);
-        
-        
         
 }
 	

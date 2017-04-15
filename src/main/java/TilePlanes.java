@@ -764,10 +764,10 @@ public class TilePlanes {
 //			double px = tileSize*(superTileSize * sTileXY[0] + superTileSize/2) + zxy[1];  // [3] - plane point {disparity, x, y), x=0, y=0 is a 4,4 point of an 8x8 supertile
 //			double py = tileSize*(superTileSize * sTileXY[1] + superTileSize/2) + zxy[2];
 			double [] px_py = getCenterPxPy();
-			if ((px_py[0] == 1760) && (px_py[1] == 1056)){ // 27, 15
-				System.out.println("getWorldXYZ, px_py = {"+px_py[0]+","+px_py[1]+"}");
-				debugLevel = 2;
-			}
+//			if ((px_py[0] == 1760) && (px_py[1] == 1056)){ // 27, 15
+//				System.out.println("getWorldXYZ, px_py = {"+px_py[0]+","+px_py[1]+"}");
+//				debugLevel = 2;
+//			}
 			
 			double px = px_py[0] + zxy[1];
 			double py = px_py[1] + zxy[2];
@@ -780,6 +780,10 @@ public class TilePlanes {
 			Matrix xyz = new Matrix(center_xyz, 3); // column matrix
 			Matrix dpxpy = new Matrix(vectors[0],3); // 3 rows, 1 column
 			if (debugLevel > 0){
+//				if (sTileXY[0] == 27 ){
+//					System.out.println("STOP");
+//					
+//				}
 				System.out.println("getWorldXYZ("+sTileXY[0]+","+sTileXY[1]+"), correctDistortions="+correctDistortions+", xyz= {"+
 						xyz.get(0, 0)+","+xyz.get(1, 0)+","+xyz.get(2, 0)+"}, weight = "+getWeight());
 //				xyz.print(10, 6); // w,d
@@ -842,7 +846,7 @@ public class TilePlanes {
 			}
 			
 			norm_xyz.timesEquals(1.0/norm_xyz.normF()); // unity normal vector;
-			if (debugLevel > 0){
+			if (debugLevel > 1){
 				System.out.println("+getWorldXYZ("+sTileXY[0]+","+sTileXY[1]+"): unit plane normal={"+
 						norm_xyz.get(0, 0)+", "+norm_xyz.get(1, 0)+", "+norm_xyz.get(2, 0)+"})");
 				double dotprod = xyz.transpose().times(norm_xyz).get(0,0);
@@ -1070,7 +1074,7 @@ public class TilePlanes {
 		int numRemoved = 0;
 		for (; (pd.getValue() > targetEigen) && (numRemoved < maxRemoved); numRemoved++){
 			if (debugLevel > 2){
-				System.out.println("removePlaneOutliers(): numRemoved = "+numRemoved+" eigenValue = "+pd.getValue()+" target = "+targetEigen);
+				System.out.println("removePlaneOutliers("+sTileXY[0]+":"+sTileXY[1]+"): numRemoved = "+numRemoved+" eigenValue = "+pd.getValue()+" target = "+targetEigen);
 			}
 			// make a plane and find the worst (largest disparity difference) tile
 			// z = -(x*Vx + y*Vy)/Vz

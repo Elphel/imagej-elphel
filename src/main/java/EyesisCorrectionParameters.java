@@ -2152,16 +2152,26 @@ public class EyesisCorrectionParameters {
   		public boolean    plDbgMerge           =   true; // Combine 'other' plane with current
   		public double     plWorstWorsening     =   1.0;  // Worst case worsening after merge 
   		public boolean    plMutualOnly         =   true; // keep only mutual links, remove weakest if conflict
+  		public boolean    plFillSquares        =   true; // Add diagonals to full squares
+  		public boolean    plCutCorners         =   true; // Add ortho to 45-degree corners
+  		
 
   		public double     plPull               =  .1;   // Relative weight of original (measured) plane when combing with neighbors
   		public int        plIterations         =  10;   // Maximal number of smoothing iterations for each step
-  		public int        plPrecision          =  6;    // Maximal step difference (1/power of 10) 
+  		public int        plPrecision          =  6;    // Maximal step difference (1/power of 10)
+  		
   		public boolean    plFuse               =  true; // Fuse planes together (off for debug only)
   		public boolean    plKeepOrphans        =  true; // Keep unconnected supertiles
   		public double     plMinOrphan          =  2.0;  // Minimal strength unconnected supertiles to keep
-  		public double     plSnapDisp           =  .2;   // Maximal (scaled by plDispNorm) disparity difference to snap to plane at any strength
+  		
+  		public double     plSnapDispAny        =  .2;   // Maximal (scaled by plDispNorm) disparity difference to snap to plane at any strength
+  		public double     plSnapStrengthAny    =  .2;   // Maximal strength to fit any distance (if does not fit otherwise - treat as zero str4ength
+  		public double     plSnapNegAny         =  .5;   // Maximal negative disparity difference from the best match
   		public double     plSnapDispMax        =  .5;   // Maximal (scaled by plDispNorm) disparity difference to snap to plane at low strength
   		public double     plSnapDispWeight     =  .5;   // Maximal disparity diff. by weight product to snap to plane
+  		public int        plSnapZeroMode       =  1;    // Zero strength snap mode: 0: no special treatment, 1 - strongest, 2 - farthest
+  		
+  		public boolean    replaceWeakOutlayers =   true; // false; 
   		
   		
   		// other debug images
@@ -2407,16 +2417,22 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plWorstWorsening", this.plWorstWorsening +"");
 			properties.setProperty(prefix+"plMutualOnly",     this.plMutualOnly+"");
 
+			properties.setProperty(prefix+"plFillSquares",    this.plFillSquares+"");
+			properties.setProperty(prefix+"plCutCorners",     this.plCutCorners+"");
+
 			properties.setProperty(prefix+"plPull",           this.plPull +"");
   			properties.setProperty(prefix+"plIterations",     this.plIterations+"");
   			properties.setProperty(prefix+"plPrecision",      this.plPrecision+"");
 			properties.setProperty(prefix+"plFuse",           this.plFuse+"");
-
 			properties.setProperty(prefix+"plKeepOrphans",    this.plKeepOrphans+"");
 			properties.setProperty(prefix+"plMinOrphan",      this.plMinOrphan +"");
-			properties.setProperty(prefix+"plSnapDisp",       this.plSnapDisp +"");
+			
+			properties.setProperty(prefix+"plSnapDispAny",    this.plSnapDispAny +"");
+			properties.setProperty(prefix+"plSnapStrengthAny",this.plSnapStrengthAny +"");
+			properties.setProperty(prefix+"plSnapNegAny",     this.plSnapNegAny +"");
 			properties.setProperty(prefix+"plSnapDispMax",    this.plSnapDispMax +"");
 			properties.setProperty(prefix+"plSnapDispWeight", this.plSnapDispWeight +"");
+  			properties.setProperty(prefix+"plSnapZeroMode",   this.plSnapZeroMode+"");
 			
 			properties.setProperty(prefix+"show_ortho_combine",     this.show_ortho_combine+"");
 			properties.setProperty(prefix+"show_refine_supertiles", this.show_refine_supertiles+"");
@@ -2652,16 +2668,22 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plWorstWorsening")!=null)  this.plWorstWorsening=Double.parseDouble(properties.getProperty(prefix+"plWorstWorsening"));
   			if (properties.getProperty(prefix+"plMutualOnly")!=null)      this.plMutualOnly=Boolean.parseBoolean(properties.getProperty(prefix+"plMutualOnly"));
 
+  			if (properties.getProperty(prefix+"plFillSquares")!=null)     this.plFillSquares=Boolean.parseBoolean(properties.getProperty(prefix+"plFillSquares"));
+  			if (properties.getProperty(prefix+"plCutCorners")!=null)      this.plCutCorners=Boolean.parseBoolean(properties.getProperty(prefix+"plCutCorners"));
+
   			if (properties.getProperty(prefix+"plPull")!=null)            this.plPull=Double.parseDouble(properties.getProperty(prefix+"plPull"));
   			if (properties.getProperty(prefix+"plIterations")!=null)      this.plIterations=Integer.parseInt(properties.getProperty(prefix+"plIterations"));
   			if (properties.getProperty(prefix+"plPrecision")!=null)       this.plPrecision=Integer.parseInt(properties.getProperty(prefix+"plPrecision"));
   			if (properties.getProperty(prefix+"plFuse")!=null)            this.plFuse=Boolean.parseBoolean(properties.getProperty(prefix+"plFuse"));
-
   			if (properties.getProperty(prefix+"plKeepOrphans")!=null)     this.plKeepOrphans=Boolean.parseBoolean(properties.getProperty(prefix+"plKeepOrphans"));
   			if (properties.getProperty(prefix+"plMinOrphan")!=null)       this.plMinOrphan=Double.parseDouble(properties.getProperty(prefix+"plMinOrphan"));
-  			if (properties.getProperty(prefix+"plSnapDisp")!=null)        this.plSnapDisp=Double.parseDouble(properties.getProperty(prefix+"plSnapDisp"));
+
+  			if (properties.getProperty(prefix+"plSnapDispAny")!=null)     this.plSnapDispAny=Double.parseDouble(properties.getProperty(prefix+"plSnapDispAny"));
+  			if (properties.getProperty(prefix+"plSnapStrengthAny")!=null) this.plSnapStrengthAny=Double.parseDouble(properties.getProperty(prefix+"plSnapStrengthAny"));
+  			if (properties.getProperty(prefix+"plSnapNegAny")!=null)      this.plSnapNegAny=Double.parseDouble(properties.getProperty(prefix+"plSnapNegAny"));
   			if (properties.getProperty(prefix+"plSnapDispMax")!=null)     this.plSnapDispMax=Double.parseDouble(properties.getProperty(prefix+"plSnapDispMax"));
   			if (properties.getProperty(prefix+"plSnapDispWeight")!=null)  this.plSnapDispWeight=Double.parseDouble(properties.getProperty(prefix+"plSnapDispWeight"));
+  			if (properties.getProperty(prefix+"plSnapZeroMode")!=null)       this.plPrecision=Integer.parseInt(properties.getProperty(prefix+"plSnapZeroMode"));
 
   			if (properties.getProperty(prefix+"show_ortho_combine")!=null)     this.show_ortho_combine=Boolean.parseBoolean(properties.getProperty(prefix+"show_ortho_combine"));
   			if (properties.getProperty(prefix+"show_refine_supertiles")!=null) this.show_refine_supertiles=Boolean.parseBoolean(properties.getProperty(prefix+"show_refine_supertiles"));
@@ -2919,17 +2941,23 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Worst case worsening after merge",                                             this.plWorstWorsening,  6);
   			gd.addCheckbox    ("Keep only mutual links, remove weakest if conflict",                           this.plMutualOnly);
 
+  			gd.addCheckbox    ("Add diagonals to full squares",                                                this.plFillSquares);
+  			gd.addCheckbox    ("Add ortho to 45-degree corners",                                               this.plCutCorners);
+
   			gd.addNumericField("Relative weight of original (measured) plane when combing with neighbors",     this.plPull,  6);
   			gd.addNumericField("Maximal number of smoothing iterations for each step",                         this.plIterations,  0);
-  			gd.addNumericField("Maximal step difference (1/power of 10) ",                                     this.plPrecision,  0);
+  			gd.addNumericField("Maximal step difference (1/power of 10)",                                      this.plPrecision,  0);
   			gd.addCheckbox    ("Fuse planes together (off for debug only)",                                    this.plFuse);
   			gd.addCheckbox    ("Keep unconnected supertiles",                                                  this.plKeepOrphans);
   			gd.addNumericField("Minimal strength unconnected supertiles to keep",                              this.plMinOrphan,  6);
 
   			gd.addMessage     ("--- Snap to planes ---");
-  			gd.addNumericField("Maximal (scaled by plDispNorm) disparity difference to snap to plane at any strength",     this.plSnapDisp,  6);
+  			gd.addNumericField("Maximal (scaled by plDispNorm) disparity difference to snap to plane at any strength",     this.plSnapDispAny,  6);
+  			gd.addNumericField("Maximal strength to fit any distance (if does not fit otherwise - treat as zero strength", this.plSnapStrengthAny,  6);
+  			gd.addNumericField("Maximal negative disparity difference from the best match",                    this.plSnapNegAny,  6);
   			gd.addNumericField("Maximal (scaled by plDispNorm) disparity difference to snap to plane at low strength",     this.plSnapDispMax,  6);
   			gd.addNumericField("Maximal disparity diff. by weight product to snap to plane",                   this.plSnapDispWeight,  6);
+  			gd.addNumericField("Zero strength snap mode: 0: no special treatment, 1 - strongest, 2 - farthest",this.plSnapZeroMode,  0);
   			
   			gd.addMessage     ("--- Other debug images ---");
   			gd.addCheckbox    ("Show 'ortho_combine'",                                                         this.show_ortho_combine);
@@ -3174,16 +3202,22 @@ public class EyesisCorrectionParameters {
   			this.plWorstWorsening=      gd.getNextNumber();
   			this.plMutualOnly=          gd.getNextBoolean();
 
+  			this.plFillSquares=         gd.getNextBoolean();
+  			this.plCutCorners=          gd.getNextBoolean();
+
   			this.plPull=                gd.getNextNumber();
   			this.plIterations=    (int) gd.getNextNumber();
   			this.plPrecision=     (int) gd.getNextNumber();
   			this.plFuse=                gd.getNextBoolean();
-
   			this.plKeepOrphans=         gd.getNextBoolean();
   			this.plMinOrphan=           gd.getNextNumber();
-  			this.plSnapDisp=            gd.getNextNumber();
+
+  			this.plSnapDispAny=         gd.getNextNumber();
+  			this.plSnapStrengthAny=     gd.getNextNumber();
+  			this.plSnapNegAny=          gd.getNextNumber();
   			this.plSnapDispMax=         gd.getNextNumber();
   			this.plSnapDispWeight=      gd.getNextNumber();
+  			this.plSnapZeroMode=  (int) gd.getNextNumber();
 
   			this.show_ortho_combine=    gd.getNextBoolean();
   			this.show_refine_supertiles=gd.getNextBoolean();

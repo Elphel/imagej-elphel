@@ -51,6 +51,9 @@ public class QuadCLT {
 	public double [][][]                                   fine_corr  = new double [4][2][6]; // per port, per x/y, set of 6 coefficient for fine geometric corrections 
 	
 	TileProcessor                                          tp = null;
+
+	String                                                 image_name = null;
+	double [][][]                                          image_data = null;
 	
 // magic scale should be set before using  TileProcessor (calculated disparities depend on it)
 
@@ -4474,6 +4477,30 @@ public class QuadCLT {
 		  	}
 		  	tp.showPlanes(
 		  			clt_parameters,
+		  			geometryCorrection,		  			
+		  			threadsMax,
+		  			updateStatus,
+		  			debugLevel);
+//		  	CLTPass3d last_scan = tp.clt_3d_passes.get(tp.clt_3d_passes.size() -1); // get last one
+		  	
+	  }
+	  public void out3d(
+			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  final int          threadsMax,  // maximal number of threads to launch                         
+			  final boolean    updateStatus,
+			  final int        debugLevel)
+	  {
+		  	if (tp == null){
+		  		System.out.println("showCLTPlanes(): tp is null");
+		  		return;
+		  	}
+		  	if (tp.clt_3d_passes == null){
+		  		System.out.println("showCLTPlanes(): tp.clt_3d_passes is null");
+		  		return;
+		  	}
+		  	tp.showPlanes(
+		  			clt_parameters,
+		  			geometryCorrection,
 		  			threadsMax,
 		  			updateStatus,
 		  			debugLevel);
@@ -4683,7 +4710,7 @@ public class QuadCLT {
 						  clt_parameters.colors_equalize,
 						  channelFiles,
 						  imp_srcs,
-						  setNames.get(nSet), // just for debug messeges == setNames.get(nSet)
+						  setNames.get(nSet), // just for debug messages == setNames.get(nSet)
 						  debugLevel);
 			  }
 			  // once per quad here
@@ -4740,6 +4767,11 @@ public class QuadCLT {
 		  setTiles (imp_quad[0], // set global tp.tilesX, tp.tilesY
 				  clt_parameters,
 				  threadsMax);
+		  
+		  this.image_name = name;
+		  this.image_data = image_data;
+		  
+		  
 		  tp.resetCLTPasses();
 		  tp.setTrustedCorrelation(clt_parameters.grow_disp_trust);		  
 		  final int tilesX = tp.getTilesX();
@@ -5083,16 +5115,20 @@ public class QuadCLT {
 				  geometryCorrection,
 				  threadsMax,  // maximal number of threads to launch                         
 				  updateStatus,
-				  2); // debugLevel);
+				  0); // 2); // debugLevel);
 		  // get images for predefined regions and disparities. First - with just fixed scans 1 .. list.size()
 
           // TEMPORARY EXIT
 
-        if (tp.clt_3d_passes.size() > 0) {
-        	System.out.println("-------- temporary exit after secondPassSetup() ------- ");
-        	return null; // just to fool compiler 
-        }
+// Save tp.clt_3d_passes.size() to roll back without restarting the program          
+          tp.saveCLTPasses();
           
+          
+          if (tp.clt_3d_passes.size() > 0) {
+        	  System.out.println("-------- temporary exit after secondPassSetup() ------- ");
+        	  return null; // just to fool compiler 
+          }
+
           
           tp.showScan(
 		  tp.clt_3d_passes.get(next_pass-1),   // CLTPass3d   scan,
@@ -5206,6 +5242,167 @@ public class QuadCLT {
 		  return imp_bgnd; // relative (to x3d directory) path - (String) imp_bgnd.getProperty("name");
 	  }
 
+//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++	  
+//	  public ImagePlus output3d(
+	  public boolean output3d(
+			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
+			  final int        threadsMax,  // maximal number of threads to launch                         
+			  final boolean    updateStatus,
+			  final int        debugLevel)
+	  {
+		  final int tilesX = tp.getTilesX();
+		  final int tilesY = tp.getTilesY();
+		  if (this.image_data == null){
+			  return false;
+		  }
+		  tp.trimCLTPasses(); // make possible to run this method multiple time - remove extra passes added by it last time
+		  int next_pass = tp.clt_3d_passes.size(); // 
+
+		  tp.showScan(
+				  tp.clt_3d_passes.get(next_pass-1),   // CLTPass3d   scan,
+				  "after_pass2-"+(next_pass-1)); //String title)
+		  tp.thirdPassSetup( // prepare tile tasks for the second pass based on the previous one(s)
+				  clt_parameters,
+				  clt_parameters.bgnd_range, // double            disparity_far, 
+				  clt_parameters.grow_disp_max, // other_range, //double            disparity_near,   //
+				  geometryCorrection,
+				  threadsMax,  // maximal number of threads to launch                         
+				  updateStatus,
+				  0); // final int         debugLevel)
+		  tp.showScan(
+				  tp.clt_3d_passes.get(next_pass-1),   // CLTPass3d   scan,
+				  "after_pass3-"+(next_pass-1)); //String title)
+		// create x3d file
+		  X3dOutput x3dOutput = new X3dOutput(
+					clt_parameters,
+					correctionsParameters,
+					geometryCorrection,
+					tp.clt_3d_passes);
+		  
+		  x3dOutput.generateBackground();
+ 		  String x3d_path= correctionsParameters.selectX3dDirectory(
+				  true,  // smart,
+				  true);  //newAllowed, // save
+		  
+		  
+		  
+
+		  for (int scanIndex = next_pass; scanIndex < tp.clt_3d_passes.size(); scanIndex++){
+			  if (debugLevel > 0){
+				  System.out.println("FPGA processing scan #"+scanIndex);
+			  }
+			  CLTPass3d scan = CLTMeasure( // perform single pass according to prepared tiles operations and disparity
+					  image_data, // first index - number of image in a quad
+					  clt_parameters,
+					  scanIndex,
+					  threadsMax,  // maximal number of threads to launch                         
+					  updateStatus,
+					  debugLevel);
+/**			  
+			  if ((scanIndex == 49) || (scanIndex == 54) ) tp.showScan(
+					  scan, // tp.clt_3d_passes.get(scanIndex), // CLTPass3d   scan,
+					  "MEASURED-"+scanIndex);
+*/					  
+		  }
+
+		  // TEMPORARY EXIT
+
+		  //      if (tp.clt_3d_passes.size() > 0) return null; // just to fool compiler 
+
+
+		  //	  int scan_limit = 10; 
+		  for (int scanIndex = next_pass; (scanIndex < tp.clt_3d_passes.size()) && (scanIndex < clt_parameters.max_clusters); scanIndex++){ // just temporary limiting
+			  if (debugLevel > -1){
+				  System.out.println("Generating cluster images (limit is set to "+clt_parameters.max_clusters+") largest, scan #"+scanIndex);
+			  }
+			  //		  ImagePlus cluster_image = getPassImage( // get image form a single pass
+			  String texturePath = getPassImage( // get image from a single pass
+					  clt_parameters,
+					  colorProcParameters,
+					  rgbParameters,
+					  this.image_name+"-img"+scanIndex,
+					  scanIndex, 
+					  threadsMax,  // maximal number of threads to launch                         
+					  updateStatus,
+					  debugLevel);
+
+			  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
+
+			  if ((scanIndex == 73) ) {
+				  tp.showScan(
+						  tp.clt_3d_passes.get(scanIndex), // CLTPass3d   scan,
+						  "SELECTED-"+scanIndex);
+			  }
+
+
+
+			  // TODO: use new updated disparity, for now just what was forced for the picture
+			  double [] scan_disparity = new double [tilesX * tilesY];
+			  int indx = 0;
+			  //		  boolean [] scan_selected = scan.getSelected();
+			  for (int ty = 0; ty < tilesY; ty ++) for (int tx = 0; tx < tilesX; tx ++){
+				  //			  scan_selected[indx] = scan.tile_op[ty][tx] != 0;
+				  scan_disparity[indx++] = scan.disparity[ty][tx];
+			  }
+			  if (clt_parameters.avg_cluster_disp){
+				  double sw = 0.0, sdw = 0.0;
+				  for (int i = 0; i< scan_disparity.length; i++){
+					  if (scan.selected[i] && !scan.border_tiles[i]){
+						  double w = scan.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][i];
+						  sw +=w;
+						  sdw += scan_disparity[i]*w;
+					  }
+				  }
+				  sdw/=sw;
+				  for (int i = 0; i< scan_disparity.length; i++){
+					  scan_disparity[i] = sdw;
+				  }
+			  }
+
+			  if ((scanIndex == 73)) {
+				  tp.showScan(
+						  tp.clt_3d_passes.get(scanIndex), // CLTPass3d   scan,
+						  "X3D-"+scanIndex);
+			  }
+			  boolean showTri = ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||(scanIndex == 73);
+//			  boolean showTri = ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||(scanIndex == 49) || (scanIndex == 54);
+			  generateClusterX3d(
+					  x3dOutput,
+					  texturePath,
+					  scan.bounds,
+					  scan.selected,
+					  scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
+					  clt_parameters.transform_size,
+					  clt_parameters.correct_distortions, // requires backdrop image to be corrected also
+					  showTri, // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
+					  clt_parameters.bgnd_range,  // 0.3
+					  clt_parameters.grow_disp_max, // other_range, // 2.0 'other_range - difference from the specified (*_CM)
+					  clt_parameters.maxDispTriangle);
+
+
+
+		  }
+
+		  // now generate and save texture files (start with full, later use bounding rectangle?)
+
+
+		  if (x3d_path != null){
+			  x3d_path+=Prefs.getFileSeparator()+this.image_name+".x3d";
+			  x3dOutput.generateX3D(x3d_path);
+		  }
+		  return true;
+//		  return imp_bgnd; // relative (to x3d directory) path - (String) imp_bgnd.getProperty("name");
+	  }
+
+	  
+	  
+//*****************************************************************	  
+	  
+	  
+	  
+	  
 	  public void generateClusterX3d(
 			  X3dOutput  x3dOutput,
 			  String     texturePath,

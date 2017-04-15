@@ -34,7 +34,7 @@ public class DisparityProcessor {
 			0b11111111,    // middle
 			0b11110001,    // middle right
 			0b00000111,    // bottom left
-			0b11000111,    // mottom middle
+			0b11000111,    // bottom middle
 			0b11000001};   // bottom right
 
 	TileProcessor tp;
@@ -49,11 +49,25 @@ public class DisparityProcessor {
 	}
 
 	public int [] getNeighbors( // creates neighbors mask from bitmask
+			int [] surf_indices,
+			int    indx,
+			int tilesX)
+	{
+		boolean [] selected = new boolean [surf_indices.length];
+		for (int i = 0; i < surf_indices.length; i++){
+			selected[i] = surf_indices[i] == indx;
+		}
+		return getNeighbors(selected, tilesX);
+	}
+	
+	
+	public int [] getNeighbors( // creates neighbors mask from bitmask
 			boolean [] selected,
 			int tilesX
 			)
 	{
 		int [] neibs = new int [selected.length];
+		int tilesY = selected.length/tilesX;
 		final int [] dirs8 = {-tilesX,  -tilesX + 1, 1, tilesX +1, tilesX, tilesX - 1, -1, -tilesX - 1};
 
 		for (int nTile = 0; nTile < selected.length; nTile++) {
@@ -68,7 +82,7 @@ public class DisparityProcessor {
 				} else {
 					tileType = 1;  
 				}
-			} else if (tileX == (tilesX - 1)) {
+			} else if (tileY == (tilesY - 1)) {
 				if (tileX == 0){
 					tileType = 6;  
 				} else if (tileX == (tilesX - 1)) {
@@ -93,11 +107,10 @@ public class DisparityProcessor {
 				}
 			}
 			else {
-				neibs[nTile] = 0;
+				neibs[nTile] = 0; // change to  -1?
 			}
 		}
 		return neibs;
-
 	}
 
 	public double [] dbgShowNeighbors(
@@ -114,19 +127,21 @@ public class DisparityProcessor {
 		int height = tilesY * tile_size;
 		double [] rslt = new double [width*height];
 		for (int i = 0; i < rslt.length; i++) rslt[i] = bgnd;
-		for (int nTile = 0; nTile < neighbors.length; nTile++)if (selected[nTile]) { //  if (neighbors[nTile] != 0) {
-			int tileY = nTile / tilesX;
-			int tileX = nTile % tilesX;
-			for (int i = -1; i<= 1; i++){
-				for (int j = -1; j<= 1; j++){
-					rslt[(tileY*tile_size + tile_size/2 + i) * width + (tileX*tile_size + tile_size/2 + j)] = fgnd;
+		for (int nTile = 0; nTile < neighbors.length; nTile++) {
+			if ((neighbors [nTile] >=0) && ((selected == null) || selected[nTile])) { //  if (neighbors[nTile] != 0) {
+				int tileY = nTile / tilesX;
+				int tileX = nTile % tilesX;
+				for (int i = -1; i<= 1; i++){
+					for (int j = -1; j<= 1; j++){
+						rslt[(tileY*tile_size + tile_size/2 + i) * width + (tileX*tile_size + tile_size/2 + j)] = fgnd;
+					}
 				}
-			}
-			for (int ib = 0; ib < dirXY8.length; ib++) if ((neighbors[nTile] & (1 << ib)) != 0){
-				for (int i = 0; i <= tile_size/2; i++){
-					int x = tileX*tile_size + tile_size/2 + i * dirXY8[ib][0];
-					int y = tileY*tile_size + tile_size/2 + i * dirXY8[ib][1];
-					rslt[y*width+x] = fgnd;
+				for (int ib = 0; ib < dirXY8.length; ib++) if ((neighbors[nTile] & (1 << ib)) != 0){
+					for (int i = 0; i <= tile_size/2; i++){
+						int x = tileX*tile_size + tile_size/2 + i * dirXY8[ib][0];
+						int y = tileY*tile_size + tile_size/2 + i * dirXY8[ib][1];
+						rslt[y*width+x] = fgnd;
+					}
 				}
 			}
 		}
@@ -267,7 +282,7 @@ public class DisparityProcessor {
 		int numBorder = 0, numInternal = 0;
 		for (int i = 0; i < len; i++){
 			if ((border != null) && border[i]) numBorder++;
-			else if (selected[i])              numInternal++; // only if not border
+			else if (selected[i]  && (neighbors[i] >= 0)) numInternal++; // only if not border
 		}
 		final int numTiles = (((mask & 1) != 0)? numInternal : 0) + (((mask & 2) != 0)? numBorder : 0); 
 		final int [] indices =   new int [numBorder + numInternal]; // internal excludes border
@@ -275,7 +290,7 @@ public class DisparityProcessor {
 		for (int i = 0; i < len; i++){
 			if ((border != null) && border[i]){
 				if ((mask & 2) != 0) indices[indx++] = i;
-			} else if (selected[i]) {
+			} else if (selected[i]  && (neighbors[i] >= 0)) {
 				if ((mask & 1) != 0) indices[indx++] = i;
 			}
 		}
@@ -329,7 +344,7 @@ public class DisparityProcessor {
 							if ((debugLevel > 0) &&(nTile == dbg_tile)) {
 								System.out.println("smoothDisparity() nTile = "+nTile+" tileX="+tileX+" tileY="+tileY);
 							}
-							for (int i = 0; i < dirs8.length; i++) if ((neighbors[nTile] & (1 << i)) !=0) {
+							for (int i = 0; i < dirs8.length; i++) if ((neighbors[nTile] >= 0) && ((neighbors[nTile] & (1 << i)) != 0)) {
 								double w = rigid8[i]; // no strength here  strength[nTile + dirs8[i]]
 								int dbg_dirs8 = nTile + dirs8[i];
 								double dbg_d = disp_data[0][nTile + dirs8[i]];
@@ -475,12 +490,12 @@ public class DisparityProcessor {
 		final int len = disparity.length;
 		int numTiles = 0;
 		for (int i = 0; i < len; i++){
-			if (selected[i]) numTiles++; // only if not border
+			if (selected[i] && (neighbors[i] >= 0)) numTiles++; // only if not border
 		}
 		final int [] indices =   new int [numTiles]; // internal excludes border
 		int indx = 0;
 		for (int i = 0; i < len; i++){
-			if (selected[i]) {
+			if (selected[i] && (neighbors[i] >= 0)) {
 				indices[indx++] = i;
 			}
 		}
@@ -488,9 +503,6 @@ public class DisparityProcessor {
 		final int tilesX = tp.getTilesX();
 		final int tilesY = tp.getTilesY();
 		final double [][] deriv3HV = new double [2][len]; // 4-th derivative [0] - horizontal, 1 - vertical 
-		// neighbors
-//		final int    [][] neib_data =    {neighbors, new int [len]};
-//		final double [] k4_3 =  { 1.0, -3.0,  3.0, -1.0}; // 3-rd
 		final double [] k4_3 =  {-1.0,  3.0, -3.0,  1.0}; // 3-rd
 		final double [] k4_2 =  {-1.0,  1.0, 1.0, -1.0};  // - 2-nd (average for 2 sides)
 		final double [] k4 = (mode == 2)? k4_2 : k4_3;
@@ -503,7 +515,8 @@ public class DisparityProcessor {
 //						int tileY = nTile/tilesX; 
 //						int tileX = nTile - (tileY * tilesX);
 //						double deriv4;
-						int neib = neighbors[nTile]; 
+						int neib = neighbors[nTile];
+						if (neib < 0) neib = 0; // should not get here 
 						// try break horizontally (always - to the right)
 						int b = (1 << 2); // "E" (right)
 						int rb = (1 << 6); // "W" (left)
@@ -518,8 +531,8 @@ public class DisparityProcessor {
 							if ((neib & rb) != 0) deriv += k4[0]*disparity[nTile - 1];
 							else if (extend_flat) deriv += k4[0]*disparity[nTile];
 							else break hor_label;
-							if ((neighbors[nTile + 1] & b) != 0) deriv += k4[3]* disparity[nTile + 2];
-							else if (extend_flat)                deriv += k4[3]* disparity[nTile + 1];
+							if ((neighbors[nTile + 1] >=0) && ((neighbors[nTile + 1] & b) != 0)) deriv += k4[3]* disparity[nTile + 2];
+							else if (extend_flat)                                                deriv += k4[3]* disparity[nTile + 1];
 							else break hor_label;
 							switch (mode){
 							case 1:
@@ -547,8 +560,8 @@ public class DisparityProcessor {
 							if ((neib & rb) != 0) deriv += k4[0]*disparity[nTile - tilesX];
 							else if (extend_flat) deriv += k4[0]*disparity[nTile];
 							else break vert_label;
-							if ((neighbors[nTile + tilesX] & b) != 0) deriv += k4[3]*disparity[nTile + 2 * tilesX];
-							else if (extend_flat)                     deriv += k4[3]*disparity[nTile + tilesX];
+							if ((neighbors[nTile +  + tilesX] >=0) && ((neighbors[nTile + tilesX] & b) != 0)) deriv += k4[3] * disparity[nTile + 2 * tilesX];
+							else if (extend_flat)                                                             deriv += k4[3] * disparity[nTile + tilesX];
 							else break vert_label;
 							switch (mode){
 							case 1:
@@ -624,6 +637,7 @@ public class DisparityProcessor {
 								int tileY = nTile/tilesX; 
 								int tileX = nTile - (tileY * tilesX);
 								int neib = neighbors_in[nTile];
+								if (neib < 0) neib = 0;
 								if (Math.abs(deriv3HV[0][nTile]) >= break3) neib &= ~0b00001110; // break all right side
 								if (Math.abs(deriv3HV[1][nTile]) >= break3) neib &= ~0b00111000; // break all down  side
 								if ((tileX > 0) && selected[nTile - 1] &&      (Math.abs(deriv3HV[0][nTile - 1]) >= break3))      neib &= ~0b11100000; // break all left side
@@ -655,6 +669,7 @@ public class DisparityProcessor {
 								int tileY = nTile/tilesX; 
 								int tileX = nTile - (tileY * tilesX);
 								int neib = neighbors_in[nTile];
+								if (neib < 0) neib = 0;
 								if (deriv3HV[0][nTile] >= break3) neib &= ~0b00001110; // break all right side
 								if (deriv3HV[1][nTile] >= break3) neib &= ~0b00111000; // break all down  side
 								if ((tileX > 0) && selected[nTile - 1] &&      (deriv3HV[0][nTile - 1] >= break3))      neib &= ~0b11100000; // break all left side
@@ -709,12 +724,12 @@ public class DisparityProcessor {
 		final int len = disparity.length;
 		int numTiles = 0;
 		for (int i = 0; i < len; i++){
-			if (selected[i]) numTiles++; // only if not border
+			if (selected[i] && (neighbors[i] >= 0)) numTiles++; // only if not border
 		}
 		final int [] indices =   new int [numTiles]; // internal excludes border
 		int indx = 0;
 		for (int i = 0; i < len; i++){
-			if (selected[i]) {
+			if (selected[i] && (neighbors[i] >= 0)) {
 				indices[indx++] = i;
 			}
 		}
@@ -730,7 +745,7 @@ public class DisparityProcessor {
 						int tileY = nTile/tilesX; 
 						int tileX = nTile - (tileY * tilesX);
 						int neib = neighbors[nTile]; 
-
+						if (neib < 0) neib = 0;
 						int b = (1 << 2); // "E" (right)
 						if (((neib & b) == 0) && (tileX < (tilesX - 1) && selected[nTile + 1])) {
 							if (Math.abs(disparity[nTile] - disparity[nTile + 1]) < maxDiffOrto){
@@ -806,12 +821,12 @@ public class DisparityProcessor {
 		final int len = neighbors.length;
 		int numTiles = 0;
 		for (int i = 0; i < len; i++){
-			if (selected[i]) numTiles++; // only if not border
+			if (selected[i] && (neighbors[i] >= 0)) numTiles++; // only if not border
 		}
 		final int [] indices =   new int [numTiles]; // internal excludes border
 		int indx = 0;
 		for (int i = 0; i < len; i++){
-			if (selected[i]) {
+			if (selected[i] && (neighbors[i] >= 0)) {
 				indices[indx++] = i;
 			}
 		}
@@ -823,7 +838,7 @@ public class DisparityProcessor {
 					for (int iTile = ai.getAndIncrement(); iTile < indices.length; iTile = ai.getAndIncrement()) {
 						int nTile = indices[iTile];
 						int neib = neighbors[nTile];
-						
+						if (neib < 0) neib = 0;
 						if (
 								((neib & (1 << 0)) != 0) &&
 								((neighbors[nTile - tilesX] & (1 << 2)) != 0)){
@@ -943,6 +958,7 @@ public class DisparityProcessor {
 		for (int ty = 0; ty < tilesY; ty++){
 			for (int tx = 0; tx < tilesX; tx++){
 				int neib = neighbors[ty * tilesX + tx];
+				if (neib < 0) neib = 0;
 				int []cell = field[ty + 1][tx + 1];
 				if ( neib!= 0) {
 					cell[0] = ((neib & NEIB_RIGHT) == 0)? FLD_EMPTY:FLD_CONN;
@@ -1070,7 +1086,7 @@ public class DisparityProcessor {
 		int numTilesAll = 0;
 //		final boolean [] selectedAll = new boolean[len];
 		for (int i = 0; i < len; i++){
-			if (selected[i] || border[i]) {
+			if ((selected[i] && (neighbors[i] >= 0)) || border[i]) {
 //				selectedAll[i] = true;
 				numTilesAll++;
 				if (!border[i])	numTiles++;
@@ -1081,7 +1097,7 @@ public class DisparityProcessor {
 		int indx = 0;
 		int indxAll = 0;
 		for (int i = 0; i < len; i++){
-			if (selected[i] || border[i]) {
+			if ((selected[i] && (neighbors[i] >= 0)) || border[i]) {
 				indicesAll[indxAll++] = i;
 				if (!border[i])	indices[indx++] = i;
 			}
@@ -1204,7 +1220,7 @@ public class DisparityProcessor {
 	 *  For each cluster returns 3 arrays: indiced of internal cells, indices of fixed border cells (alpha = 0, disparity fixed)
 	 *  and floating border cells (alpha = 0, disparity - from neighbors)
 	 * @param diag_en true - 8 directions, false - only 4 orthogonal
-	 * @param neighbors array of per-cell bitmaps - which neighbors curtrent cell is connected to (+1 - to N, +2 - to NE,...+128 = to NW)
+	 * @param neighbors array of per-cell bitmaps - which neighbors current cell is connected to (+1 - to N, +2 - to NE,...+128 = to NW)
 	 * @param selected boolean array of celected (internal) cells
 	 * @param border boolean array of border cells (added for alpha)
 	 * @param threadsMax maximal number of threads for multi-threaded application
