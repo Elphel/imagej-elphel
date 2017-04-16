@@ -2162,6 +2162,10 @@ public class EyesisCorrectionParameters {
   		public int        plIterations         =  10;   // Maximal number of smoothing iterations for each step
   		public int        plPrecision          =  6;    // Maximal step difference (1/power of 10)
   		
+  		public double     plSplitPull          =  .5;   // Relative weight of center plane when splitting into pairs
+  		public int        plSplitMinNeib       =  2;    // Minimal number of neighbors to split plane in pairs
+  		
+  		
   		public boolean    plFuse               =  true; // Fuse planes together (off for debug only)
   		public boolean    plKeepOrphans        =  true; // Keep unconnected supertiles
   		public double     plMinOrphan          =  2.0;  // Minimal strength unconnected supertiles to keep
@@ -2427,7 +2431,11 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plPull",           this.plPull +"");
   			properties.setProperty(prefix+"plIterations",     this.plIterations+"");
   			properties.setProperty(prefix+"plPrecision",      this.plPrecision+"");
-			properties.setProperty(prefix+"plFuse",           this.plFuse+"");
+
+			properties.setProperty(prefix+"plSplitPull",      this.plSplitPull +"");
+  			properties.setProperty(prefix+"plSplitMinNeib",   this.plSplitMinNeib+"");
+
+  			properties.setProperty(prefix+"plFuse",           this.plFuse+"");
 			properties.setProperty(prefix+"plKeepOrphans",    this.plKeepOrphans+"");
 			properties.setProperty(prefix+"plMinOrphan",      this.plMinOrphan +"");
 			
@@ -2680,6 +2688,10 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plPull")!=null)            this.plPull=Double.parseDouble(properties.getProperty(prefix+"plPull"));
   			if (properties.getProperty(prefix+"plIterations")!=null)      this.plIterations=Integer.parseInt(properties.getProperty(prefix+"plIterations"));
   			if (properties.getProperty(prefix+"plPrecision")!=null)       this.plPrecision=Integer.parseInt(properties.getProperty(prefix+"plPrecision"));
+
+  			if (properties.getProperty(prefix+"plSplitPull")!=null)       this.plSplitPull=Double.parseDouble(properties.getProperty(prefix+"plSplitPull"));
+  			if (properties.getProperty(prefix+"plSplitMinNeib")!=null)    this.plSplitMinNeib=Integer.parseInt(properties.getProperty(prefix+"plSplitMinNeib"));
+
   			if (properties.getProperty(prefix+"plFuse")!=null)            this.plFuse=Boolean.parseBoolean(properties.getProperty(prefix+"plFuse"));
   			if (properties.getProperty(prefix+"plKeepOrphans")!=null)     this.plKeepOrphans=Boolean.parseBoolean(properties.getProperty(prefix+"plKeepOrphans"));
   			if (properties.getProperty(prefix+"plMinOrphan")!=null)       this.plMinOrphan=Double.parseDouble(properties.getProperty(prefix+"plMinOrphan"));
@@ -2689,7 +2701,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plSnapNegAny")!=null)      this.plSnapNegAny=Double.parseDouble(properties.getProperty(prefix+"plSnapNegAny"));
   			if (properties.getProperty(prefix+"plSnapDispMax")!=null)     this.plSnapDispMax=Double.parseDouble(properties.getProperty(prefix+"plSnapDispMax"));
   			if (properties.getProperty(prefix+"plSnapDispWeight")!=null)  this.plSnapDispWeight=Double.parseDouble(properties.getProperty(prefix+"plSnapDispWeight"));
-  			if (properties.getProperty(prefix+"plSnapZeroMode")!=null)       this.plPrecision=Integer.parseInt(properties.getProperty(prefix+"plSnapZeroMode"));
+  			if (properties.getProperty(prefix+"plSnapZeroMode")!=null)    this.plPrecision=Integer.parseInt(properties.getProperty(prefix+"plSnapZeroMode"));
 
   			if (properties.getProperty(prefix+"show_ortho_combine")!=null)     this.show_ortho_combine=Boolean.parseBoolean(properties.getProperty(prefix+"show_ortho_combine"));
   			if (properties.getProperty(prefix+"show_refine_supertiles")!=null) this.show_refine_supertiles=Boolean.parseBoolean(properties.getProperty(prefix+"show_refine_supertiles"));
@@ -2955,6 +2967,10 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Relative weight of original (measured) plane when combing with neighbors",     this.plPull,  6);
   			gd.addNumericField("Maximal number of smoothing iterations for each step",                         this.plIterations,  0);
   			gd.addNumericField("Maximal step difference (1/power of 10)",                                      this.plPrecision,  0);
+
+  			gd.addNumericField("Relative weight of center plane when splitting into pairs",                    this.plSplitPull,  6);
+  			gd.addNumericField("Minimal number of neighbors to split plane in pairs",                          this.plSplitMinNeib,  0);
+  			
   			gd.addCheckbox    ("Fuse planes together (off for debug only)",                                    this.plFuse);
   			gd.addCheckbox    ("Keep unconnected supertiles",                                                  this.plKeepOrphans);
   			gd.addNumericField("Minimal strength unconnected supertiles to keep",                              this.plMinOrphan,  6);
@@ -3218,6 +3234,10 @@ public class EyesisCorrectionParameters {
   			this.plPull=                gd.getNextNumber();
   			this.plIterations=    (int) gd.getNextNumber();
   			this.plPrecision=     (int) gd.getNextNumber();
+
+  			this.plSplitPull=           gd.getNextNumber();
+  			this.plSplitMinNeib=  (int) gd.getNextNumber();
+
   			this.plFuse=                gd.getNextBoolean();
   			this.plKeepOrphans=         gd.getNextBoolean();
   			this.plMinOrphan=           gd.getNextNumber();

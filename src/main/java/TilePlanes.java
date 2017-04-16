@@ -204,6 +204,11 @@ public class TilePlanes {
 			return this.neib_best[dir];
 		}
 
+		public void setNeibBest(int [] vals)
+		{
+			this.neib_best = vals;
+		}
+
 		public void setNeibBest(int dir, int val)
 		{
 			this.neib_best[dir] = val;

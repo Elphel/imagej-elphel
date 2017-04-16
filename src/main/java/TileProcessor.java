@@ -3038,6 +3038,17 @@ public class TileProcessor {
 				10.0);               // double arrow_white)
 		// save surfaces with SuperTiles instance. They can be used to snap to for the per-tile disparity maps.
 		st.setSurfaces(surfaces);
+
+		TilePlanes.PlaneData[][][]       split_planes =  
+				st.breakPlanesToPairs(
+				st.getPlanes(), // Mod(),             // final TilePlanes.PlaneData[][] center_planes, // measured_planes,
+				st.getPlanes(), // Mod(),              // final TilePlanes.PlaneData[][] neib_planes,   //mod_planes,
+				clt_parameters.plSplitPull ,    // final double                   center_pull,
+				clt_parameters.plSplitMinNeib , // min_neibs, // 2
+				clt_parameters.plPreferDisparity,
+				1,                              // final int debugLevel)
+				clt_parameters.tileX,
+				clt_parameters.tileY); 
 		
 		if (clt_parameters.show_planes){
 			int [] wh = st.getShowPlanesWidthHeight();

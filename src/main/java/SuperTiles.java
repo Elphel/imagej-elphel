@@ -2680,6 +2680,205 @@ public class SuperTiles{
 		return diff; // return maximal difference
 	}
 
+	public double [][] planesGetDiff(
+			final TilePlanes.PlaneData[][] measured_planes,
+			final TilePlanes.PlaneData[][] mod_planes,
+			final int debugLevel,
+			final int dbg_X,
+			final int dbg_Y)
+	{
+		final int tilesX =        tileProcessor.getTilesX();
+		final int tilesY =        tileProcessor.getTilesY();
+		final int superTileSize = tileProcessor.getSuperTileSize();
+		final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
+		final int stilesY = (tilesY + superTileSize -1)/superTileSize;
+		final int debug_stile = dbg_Y * stilesX + dbg_X;
+		final TilePlanes.PlaneData[][] new_planes = copyPlanes(mod_planes);
+		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+		final double [][] diffs = null;
+
+		return diffs;
+	}
+	
+	/**
+	 * Create candidate planes to break a single plane in 2 by splitting consecutive connected
+	 * neighbors in 2 groups that make the smallest weighted sum of the eigenvalues
+	 * Groups may be optionally supplemented by the center supertile 
+	 * @param center_planes [per supertile][per plane] array of plane objects to use as
+	 *        the source of connections and optionally other data for the center tiles
+	 * @param neib_planes  [per supertile][per plane] array of plane objects to use for
+	 *        neighbor data. May be the same as center_planes or different
+	 * @param center_pull - merge with center plane when calculating half-planes with this
+	 *  relative weight: 0.0 - only neighbors, 1.0 - same weight of the center as each neighbor.
+	 * @param min_neibs - minimal number of connected neighbors to work with (>=2)       
+	 * @param preferDisparity - the first eigenvalue/vector is the most disparity-like
+	 *                          (false - smallest eigenvalue)
+	 * @param debugLevel debug level
+	 * @param dbg_X supertile horizontal index to show debug information
+	 * @param dbg_Y supertile vertical index to show debug information
+	 * @return a pair of plane objects for each [supertile][plane][3] and a combination of both
+	 *         (to compare eigenvalues)
+	 */
+	public TilePlanes.PlaneData[][][] breakPlanesToPairs(
+			final TilePlanes.PlaneData[][] center_planes, // measured_planes,
+			final TilePlanes.PlaneData[][] neib_planes,   //mod_planes,
+			final double                   center_pull,
+			final int                      min_neibs, // 2
+			final boolean                  preferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
+			final int                      debugLevel,
+			final int                      dbg_X,
+			final int                      dbg_Y)
+	{
+		final int [][] dirsYX = {{-1, 0},{-1,1},{0,1},{1,1},{1,0},{1,-1},{0,-1},{-1,-1}};
+		final int tilesX =        tileProcessor.getTilesX();
+//		final int tilesY =        tileProcessor.getTilesY();
+		final int superTileSize = tileProcessor.getSuperTileSize();
+		final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
+//		final int stilesY = (tilesY + superTileSize -1)/superTileSize;
+		final int debug_stile = dbg_Y * stilesX + dbg_X;
+		final TilePlanes.PlaneData[][][] rslt_planes = new TilePlanes.PlaneData[center_planes.length][][];
+		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final String [] titles= {"center", "first", "second", "all"};
+
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					double [][] dbg_img=null;
+					for (int nsTile0 = ai.getAndIncrement(); nsTile0 < center_planes.length; nsTile0 = ai.getAndIncrement()) {
+						int sty0 = nsTile0 / stilesX;  
+						int stx0 = nsTile0 % stilesX;
+						int dl = ((debugLevel > -1) && (nsTile0 == debug_stile)) ? 1:0;
+						if ( center_planes[nsTile0] != null) {
+							rslt_planes[nsTile0] = new TilePlanes.PlaneData[center_planes[nsTile0].length][];
+							if (dl > 0){
+								System.out.println("breakPlanesToPairs nsTile0="+nsTile0);
+								dbg_img = new double [titles.length][];
+							}
+							int np0_min = (center_planes[nsTile0].length > 1) ? 1:0; // Modify if overall plane will be removed
+							for (int np0 = np0_min; np0 < center_planes[nsTile0].length; np0 ++){
+								TilePlanes.PlaneData center_plane = center_planes[nsTile0][np0];
+								if (dl > 0) dbg_img[ 0] = center_plane.getPlaneDisparity(false);
+								int [] neibs = center_plane.getNeibBest();
+								int num_neibs = 0;
+								for (int i = 0; i < neibs.length; i++) if (neibs[i] >= 0) num_neibs++;
+								if (num_neibs >= min_neibs) {
+									// create all pairs to test
+									int num_splits = num_neibs * (num_neibs - 1) / 2;
+									double [] split_quality = new double [num_splits]; // weighted sum of eigenvalues of merged
+									int [][][] neibs12 = new int [2][num_splits][];
+									TilePlanes.PlaneData[][] plane_triads = new TilePlanes.PlaneData[num_splits][3]; 
+									int [] neib_index = new int [num_neibs];
+									int nn = 0;
+									for (int i = 0; i < neibs.length; i++) if (neibs[i] >= 0) neib_index[nn++] = i;
+									nn = 0;
+									for (int nStart = 1; nStart < num_neibs; nStart++) {
+										for (int nEnd = nStart+1; nEnd <= num_neibs; nEnd++){
+											neibs12[0][nn] = neibs.clone();
+											neibs12[1][nn] = neibs.clone();
+											for (int i = 0; i < neib_index.length; i++) {
+												if ((i < nStart) || (i >= nEnd)){
+													neibs12[0][nn][neib_index[i]] = -1;
+												} else {
+													neibs12[1][nn][neib_index[i]] = -1;
+												}
+											}
+											nn++;
+										}
+									}
+									
+									for (int nSplit = 0; nSplit < num_splits; nSplit++) {
+										// Calculate merged plane for each selection (and other), weighted average and store to split_quality
+										for (int nis = 0; nis < 2; nis++) {
+											plane_triads[nSplit][nis] = center_planes[nsTile0][np0].clone();
+											plane_triads[nSplit][nis].setWeight(center_pull * plane_triads[nSplit][nis].getWeight());
+											for (int dir = 0; dir <8; dir++){
+												int np = neibs12[nis][nSplit][dir];
+												if (np >= 0){
+													int stx = stx0 + dirsYX[dir][1];
+													int sty = sty0 + dirsYX[dir][0];
+													int nsTile = sty * stilesX + stx; // from where to get
+													TilePlanes.PlaneData other_plane = plane_triads[nSplit][nis].getPlaneToThis(
+															neib_planes[nsTile][np],
+															dl); // debugLevel);
+													// if (dl > 0) dbg_img[ 2 + dir] = other_plane.getPlaneDisparity(false);
+													if (other_plane != null){
+														if (plane_triads[nSplit][nis].getWeight() > 0.0){
+															plane_triads[nSplit][nis] = plane_triads[nSplit][nis].mergePlaneToThis(
+																	other_plane, // PlaneData otherPd,
+																	1.0,         // double    scale_other,
+																	false,       // boolean   ignore_weights,
+																	preferDisparity,
+																	dl); // int       debugLevel)
+														} else {
+															plane_triads[nSplit][nis] = other_plane; 
+														}
+														//if (dl > 0) dbg_img[10 + dir] = this_new_plane.getPlaneDisparity(false);
+													} else {
+														plane_triads[nSplit][nis] = null;
+														break;
+													}
+												}
+											}
+										} // for (int nis = 0; nis < 2; nis++) {
+										if ((plane_triads[nSplit][0] != null) && (plane_triads[nSplit][1] != null)){
+											double w1 = plane_triads[nSplit][0].getWeight();
+											double w2 = plane_triads[nSplit][1].getWeight();
+											split_quality[nSplit] = (w1 * plane_triads[nSplit][0].getValue() + w2 * plane_triads[nSplit][1].getValue())/
+													(w1 + w2);
+										} else {
+											split_quality[nSplit] = Double.NaN;
+										}
+									}
+									// find minimum in split_quality and generate a pair of plane objects, setting neighbors for each
+									// later use these plane pairs to assign tiles to each and generate a new eigenvalues/vectors
+									// TODO: How to handle a pair? Any special treatment (like fusing?), 
+									// if the plane intersection line is inside supertile - use min/max for snapping
+									int best_index = -1;
+									for (int nSplit = 0; nSplit < num_splits; nSplit++) {
+										if (!Double.isNaN(split_quality[nSplit]) && ((best_index < 0) || (split_quality[nSplit] < split_quality[best_index]))){
+											best_index = nSplit;
+										}
+									}
+									if (best_index >= 0) {
+										plane_triads[best_index][2] = plane_triads[best_index][0].clone().mergePlaneToThis(
+												plane_triads[best_index][1], // PlaneData otherPd,
+													1.0,                    // double    scale_other,
+													false,                  // boolean   ignore_weights,
+													preferDisparity,
+													dl);										
+										for (int nis = 0; nis < 2; nis++) {
+											plane_triads[best_index][nis].setNeibBest(neibs12[nis][best_index]);
+										}
+										rslt_planes[nsTile0][np0] = plane_triads[best_index];
+										if (dl > 0) dbg_img[ 1] = plane_triads[best_index][0].getPlaneDisparity(false);
+										if (dl > 0) dbg_img[ 2] = plane_triads[best_index][1].getPlaneDisparity(false);
+										if (dl > 0) dbg_img[ 3] = plane_triads[best_index][2].getPlaneDisparity(false);
+										
+										// merged_eig_val are not set - will have to be recalculated when updating after changing tile selections
+										// to make each plane
+										// TODO save gain from splitting to planes 
+										
+									}
+									
+									if ((dl > 0) && (debugLevel > -1)){
+										showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+										sdfa_instance.showArrays(dbg_img, superTileSize, superTileSize, true, "breakPlanesToPairs"+stx0+"_y"+sty0+"_p"+np0, titles);
+									}
+								}
+							}
+						}								
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return rslt_planes;
+	}
+
+
+
+
 	public boolean [][] selectPlanes(
 			final double dispNorm,
 			final double maxEigen, // maximal eigenvalue of planes to consider
