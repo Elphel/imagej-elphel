@@ -281,6 +281,10 @@ public class TilePlanes {
 		public void setWeight(double weight) {
 			this.weight = weight;
 		}
+		public void scaleWeight(double scale) {
+			this.weight *= scale;
+		}
+		
 		public double [] getWorldXYZ(boolean correct_distortions)
 		{
 			return getWorldXYZ(correct_distortions,0);
@@ -457,6 +461,7 @@ public class TilePlanes {
 				PlaneData otherPd,
 				double    scale_other,
 				boolean   ignore_weights,
+				boolean   sum_weights,
 				boolean   preferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
 				int       debugLevel)
 		{
@@ -608,7 +613,12 @@ public class TilePlanes {
 			pd.setZxy(common_center.getColumnPackedCopy()); // set new center
 			// what weight to use? cloned is original weight for this supertile
 			// or use weighted average like below?
-			pd.setWeight(other_fraction * otherPd.weight + (1.0 - other_fraction) * this.weight);
+			if (sum_weights) {
+				pd.setWeight(sum_weight); // normalize while averaging by the caller	
+			} else { // how it was before
+				pd.setWeight(other_fraction * otherPd.weight + (1.0 - other_fraction) * this.weight);
+			}
+
 			return pd;
 		}
 		
@@ -968,9 +978,9 @@ public class TilePlanes {
 		acovar [2][0] = acovar [0][2]; 
 		acovar [2][1] = acovar [1][2];
 		Matrix covar = new Matrix(acovar);
-		if (Math.abs(covar.det()) < mindet){
-			debugLevel = 5;
-		}
+//		if (Math.abs(covar.det()) < mindet){
+//			debugLevel = 5;
+//		}
 
 		EigenvalueDecomposition eig = covar.eig();
 		if (Double.isNaN(eig.getV().get(0, 0))){
@@ -978,9 +988,9 @@ public class TilePlanes {
 			debugLevel = 20;
 		}
 		
-		if (eig.getD().get(0, 0) == 0.0){
-			debugLevel = 10;
-		}
+//		if (eig.getD().get(0, 0) == 0.0){
+//			debugLevel = 10;
+//		}
 		if (debugLevel > 0){
 			System.out.println("getCovar(): sw = "+sw +", swz = "+swz +", swx = "+swx +", swy = "+swy +", covar.det() = "+covar.det());
 			System.out.println("getCovar(): covarianvce matrix, number of used points:"+numPoints);
@@ -1014,7 +1024,7 @@ public class TilePlanes {
 			select = new boolean [4*stSize];
 			for (int i = 0; i < select.length; i++) select[i] = true;
 		}
-		int debugLevel1 = ((sTileXY[0] == 27) && (sTileXY[1] == 16))? 1: 0; // check why v[0][0] <0  
+//		int debugLevel1 = ((sTileXY[0] == 27) && (sTileXY[1] == 16))? 1: 0; // check why v[0][0] <0  
 		
 		
 		double [][][] rslt = getCovar(
@@ -1022,7 +1032,7 @@ public class TilePlanes {
 				weight,
 				select,
 				0.0,
-				debugLevel1); //0); // debugLevel);
+				0); // debugLevel1); //0); // debugLevel);
 		if (rslt == null) return null;
 		int       numPoints =  (int) rslt[2][0][2];
 		double    swc =  rslt[2][0][0];

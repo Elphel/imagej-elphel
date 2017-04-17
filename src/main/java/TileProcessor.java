@@ -2940,6 +2940,7 @@ public class TileProcessor {
 			final boolean     updateStatus,
 			final int         debugLevel)
 	{
+		trimCLTPasses(); // make possible to run this method multiple time - remove extra passes added by it last time		
 		CLTPass3d scan_prev = clt_3d_passes.get(clt_3d_passes.size() -1); // get last one
 		SuperTiles st = scan_prev.getSuperTiles();
 		
@@ -3002,7 +3003,9 @@ public class TileProcessor {
 			st.resetPlanesMod(); // clean start
 			planes_mod = st.planesSmooth(
 					clt_parameters.plPull,                        // final double      meas_pull,//  relative pull of the original (measured) plane with respect to the average of the neighbors
+					clt_parameters.plMaxEigen,                    // final double      maxValue, // do not combine with too bad planes
 					clt_parameters.plIterations,                  // final int         num_passes,
+					clt_parameters.plStopBad,                     //Do not update supertile if any of connected neighbors is not good (false: just skip that neighbor)
 					Math.pow(10.0,  -clt_parameters.plPrecision), // final double      maxDiff, // maximal change in any of the disparity values
 					clt_parameters.plPreferDisparity,
 					0, // final int debugLevel)
@@ -3042,15 +3045,25 @@ public class TileProcessor {
 		TilePlanes.PlaneData[][][]       split_planes =  
 				st.breakPlanesToPairs(
 				st.getPlanes(), // Mod(),             // final TilePlanes.PlaneData[][] center_planes, // measured_planes,
-				st.getPlanes(), // Mod(),              // final TilePlanes.PlaneData[][] neib_planes,   //mod_planes,
-				clt_parameters.plSplitPull ,    // final double                   center_pull,
-				clt_parameters.plSplitMinNeib , // min_neibs, // 2
+				st.getPlanes(), // Mod(),             // final TilePlanes.PlaneData[][] neib_planes,   //mod_planes,
+				clt_parameters.plSplitPull ,          // final double                   center_pull,
+				clt_parameters.plSplitMinNeib ,       // min_neibs, // 2
+				clt_parameters.plSplitMinWeight,      // final double splitMinWeight,  //     =  2.0;  // Minimal weight of split plains to show
+				clt_parameters.plSplitMinQuality,     // final double splitMinQuality, //    =  1.1;  // Minimal split quality to show
+
 				clt_parameters.plPreferDisparity,
 				1,                              // final int debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY); 
 		
+		
 		if (clt_parameters.show_planes){
+			double [] split_lines = st.showSplitLines(
+					split_planes,
+					1,                              // final int debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY); 
+
 			int [] wh = st.getShowPlanesWidthHeight();
 			double [][] plane_data_nonan = st.getShowPlanes(
 					(planes_mod != null) ? st.getPlanesMod():st.getPlanes(),
@@ -3068,7 +3081,7 @@ public class TileProcessor {
 					true, //boolean use_NaN)
 					0.0,
 					10.0);
-			double [][] plane_data = new double [plane_data_nonan.length + plane_data_nan.length][];
+			double [][] plane_data = new double [plane_data_nonan.length + plane_data_nan.length + 2][];
 			int indx = 0;
 			for (int i = 0; i < plane_data_nonan.length; i++){
 				plane_data[indx++] = plane_data_nonan[i];
@@ -3076,6 +3089,13 @@ public class TileProcessor {
 			for (int i = 0; i < plane_data_nan.length; i++){
 				plane_data[indx++] = plane_data_nan[i];
 			}
+			plane_data[indx++] = split_lines;
+			plane_data[indx] = plane_data[indx-2].clone();
+			for (int i = 0; i < plane_data[indx].length;i++){
+				if (Double.isNaN(plane_data[indx][i])) plane_data[indx][i] = 0.0; 
+				if (plane_data[indx-1][i] > 0) plane_data[indx][i] = Double.NaN; 
+			}
+			
 			sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "plane_data");
 			
 			plane_data = st.getShowShells(
