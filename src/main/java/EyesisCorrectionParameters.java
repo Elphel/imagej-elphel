@@ -2182,6 +2182,7 @@ public class EyesisCorrectionParameters {
   		
   		public boolean    replaceWeakOutlayers =   true; // false; 
   		
+  		public boolean    dbg_migrate =            true; 
   		
   		// other debug images
   		public boolean    show_ortho_combine =     false; // Show 'ortho_combine' 
@@ -2451,7 +2452,9 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plSnapDispMax",    this.plSnapDispMax +"");
 			properties.setProperty(prefix+"plSnapDispWeight", this.plSnapDispWeight +"");
   			properties.setProperty(prefix+"plSnapZeroMode",   this.plSnapZeroMode+"");
-			
+
+			properties.setProperty(prefix+"dbg_migrate",            this.dbg_migrate+"");
+  			
 			properties.setProperty(prefix+"show_ortho_combine",     this.show_ortho_combine+"");
 			properties.setProperty(prefix+"show_refine_supertiles", this.show_refine_supertiles+"");
 			properties.setProperty(prefix+"show_bgnd_nonbgnd",      this.show_bgnd_nonbgnd+"");
@@ -2711,6 +2714,8 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plSnapDispMax")!=null)     this.plSnapDispMax=Double.parseDouble(properties.getProperty(prefix+"plSnapDispMax"));
   			if (properties.getProperty(prefix+"plSnapDispWeight")!=null)  this.plSnapDispWeight=Double.parseDouble(properties.getProperty(prefix+"plSnapDispWeight"));
   			if (properties.getProperty(prefix+"plSnapZeroMode")!=null)    this.plPrecision=Integer.parseInt(properties.getProperty(prefix+"plSnapZeroMode"));
+ 
+  			if (properties.getProperty(prefix+"dbg_migrate")!=null)       this.dbg_migrate=Boolean.parseBoolean(properties.getProperty(prefix+"dbg_migrate"));
 
   			if (properties.getProperty(prefix+"show_ortho_combine")!=null)     this.show_ortho_combine=Boolean.parseBoolean(properties.getProperty(prefix+"show_ortho_combine"));
   			if (properties.getProperty(prefix+"show_refine_supertiles")!=null) this.show_refine_supertiles=Boolean.parseBoolean(properties.getProperty(prefix+"show_refine_supertiles"));
@@ -2995,6 +3000,8 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal disparity diff. by weight product to snap to plane",                   this.plSnapDispWeight,  6);
   			gd.addNumericField("Zero strength snap mode: 0: no special treatment, 1 - strongest, 2 - farthest",this.plSnapZeroMode,  0);
   			
+  			gd.addCheckbox    ("Test new mode after migration",                                                this.dbg_migrate);
+
   			gd.addMessage     ("--- Other debug images ---");
   			gd.addCheckbox    ("Show 'ortho_combine'",                                                         this.show_ortho_combine);
   			gd.addCheckbox    ("Show 'refine_disparity_supertiles'",                                           this.show_refine_supertiles);
@@ -3263,6 +3270,8 @@ public class EyesisCorrectionParameters {
   			this.plSnapDispMax=         gd.getNextNumber();
   			this.plSnapDispWeight=      gd.getNextNumber();
   			this.plSnapZeroMode=  (int) gd.getNextNumber();
+
+  			this.dbg_migrate=           gd.getNextBoolean();
 
   			this.show_ortho_combine=    gd.getNextBoolean();
   			this.show_refine_supertiles=gd.getNextBoolean();

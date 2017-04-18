@@ -2945,7 +2945,8 @@ public class TileProcessor {
 		SuperTiles st = scan_prev.getSuperTiles();
 		
 // moved here
-		st.processPlanes2(
+		if (clt_parameters.dbg_migrate) {
+		st.processPlanes3(
 				null, // final boolean [] selected, // or null
 				0.3, // final double     min_disp,
 				false, // final boolean    invert_disp, // use 1/disparity
@@ -2960,7 +2961,23 @@ public class TileProcessor {
 				0, // -1, // debugLevel,                  // final int        debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
-		
+		} else {
+			st.processPlanes2(
+					null, // final boolean [] selected, // or null
+					0.3, // final double     min_disp,
+					false, // final boolean    invert_disp, // use 1/disparity
+					clt_parameters.plDispNorm, //            =   2.0;  // Normalize disparities to the average if above
+					clt_parameters.plMinPoints, //           =     5;  // Minimal number of points for plane detection
+					clt_parameters.plTargetEigen, //         =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+					clt_parameters.plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
+					clt_parameters.plMaxOutliers, //        =    20;  // Maximal number of outliers to remove\
+					clt_parameters.plPreferDisparity,
+					geometryCorrection,
+					clt_parameters.correct_distortions,
+					0, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+		}
 		
 		showDoubleFloatArrays sdfa_instance = null;
 		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?

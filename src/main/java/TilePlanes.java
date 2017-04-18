@@ -46,6 +46,7 @@ public class TilePlanes {
 	public class PlaneData{
 		GeometryCorrection   geometryCorrection = null;
 		boolean     correctDistortions = false;
+		// just for visualization - no there can be several measured layers and same tile can be used multiple times. Will just logical or 
 		boolean []  plane_sel =  null; // tile selection - has twice supertile size in each direction
 		double []   zxy =        null; // [3] - plane center point {disparity, x, y), x=0, y=0 is a 4,4 point of an 8x8 supertile (in pixels, relative to this supertile center)
 		double [][] vectors =    null; // [3][3] - re-ordered/re-directed eigenvectors(transposed): [0] - plane normal, most Z-like, towards camera, [1] - X-like, [2] - Y-like
@@ -68,7 +69,17 @@ public class TilePlanes {
 		
 		int         tileSize;
 		int         superTileSize;
-		int []      sTileXY =    null; // X and Y indices of this superTile in the image 
+		int []      sTileXY =    null; // X and Y indices of this superTile in the image
+		
+		MeasuredLayers measuredLayers = null;
+		boolean [][] measuredSelection = null; // [number of layers in measuredLayers][2*superTileSize * 2*superTileSize]
+		double       measured_strength_pow = 1.0;
+		double       strength_floor =        0.0;
+		double       min_weight =            0.0;  // minimal weight of the ellipsoid
+		int          min_tiles =             10;
+		double       dispNorm =              5.0;  //  Normalize disparities to the average if above
+		
+		boolean      preferDisparity = false;
 		
 		public PlaneData clone(){
 			PlaneData pd = new PlaneData(
@@ -92,18 +103,25 @@ public class TilePlanes {
 				pd.vectors[1] = this.vectors[1].clone();
 				pd.vectors[2] = this.vectors[2].clone();
 			}
-			copyNeib(this,pd);
-			/*
-			if (this.merged_eig_val != null){
-				pd.merged_eig_val = this.merged_eig_val.clone();
-				for (int i = 0; i<this.merged_eig_val.length; i++){
-					if (this.merged_eig_val[i] != null){
-						pd.merged_eig_val[i] = this.merged_eig_val[i].clone();
+			if (this.measuredLayers != null) pd.measuredLayers = this.measuredLayers;
+			if (this.measuredSelection != null) {
+				pd.measuredSelection = this.measuredSelection.clone();
+				for (int i = 0; i < this.measuredSelection.length; i++){
+					if (this.measuredSelection[i] != null) {
+						pd.measuredSelection[i] = this.measuredSelection[i].clone();
 					}
 				}
 			}
-			if (this.neib_best != null) pd.neib_best = this.neib_best.clone();
-			*/
+			pd.measured_strength_pow = this.measured_strength_pow;
+			pd.strength_floor =        this.strength_floor;
+
+			pd.min_weight =            this.min_weight;
+			pd.min_tiles =             this.min_tiles;
+			pd.dispNorm =              this.dispNorm;
+			
+			pd.preferDisparity = this.preferDisparity;
+			
+			copyNeib(this,pd);
 			return pd;
 		}
 		
@@ -146,6 +164,391 @@ public class TilePlanes {
 			this.tileSize = tileSize;
 			this.superTileSize = superTileSize;
 			this.sTileXY = sTileXY.clone();
+		}
+
+		public PlaneData (
+				int [] sTileXY, 
+				int tileSize,
+				GeometryCorrection   geometryCorrection,
+				MeasuredLayers measuredLayers,
+				boolean preferDisparity)
+		{
+			this.geometryCorrection = geometryCorrection;
+			this.tileSize = tileSize;
+			this.superTileSize = measuredLayers.getSuperTileSize();
+			this.sTileXY = sTileXY.clone();
+			this.measuredLayers = measuredLayers;
+			this.preferDisparity = preferDisparity;
+		}
+		/**
+		 * Remove outliers from the set of tiles contributing to a single plane ellipsoid
+		 * Should run after getPlaneFromMeas as some parameter4s will be copied from that run
+		 * @param targetEigen Target value for the lowest eigenvalue (thickness of the ellipsoid)
+		 * @param maxRemoved maximal number of tiles to be removed
+		 * @param debugLevel debug level
+		 * @return true if OK (currently false is when a program bug happens), TODO: change to "goal reached" 
+		 */
+		
+		public boolean removeOutliers( // getPlaneFromMeas should already have run
+				double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
+				int        maxRemoved,  // maximal number of tiles to remove (not a constant)
+				int        debugLevel)
+		{
+			int stSize2 = 2 * stSize;
+			if (maxRemoved > (getNumPoints() - this.min_tiles)) maxRemoved = getNumPoints() - this.min_tiles;
+			int numRemoved = 0;
+			boolean no_bugs = true;
+			for (; (getValue() > targetEigen) && (numRemoved < maxRemoved); numRemoved++){
+				if (debugLevel > 2){
+					System.out.println("removePlaneOutliers("+sTileXY[0]+":"+sTileXY[1]+"): numRemoved = "+numRemoved+" eigenValue = " + getValue()+" target = "+targetEigen);
+				}
+				// make a plane and find the worst (largest disparity difference) tile
+				// z = -(x*Vx + y*Vy)/Vz
+				double [][][] disp_str = new double [measuredSelection.length][][];
+
+				double worst_d2 = 0.0;
+				int [] worst_layer_index = {-1,-1};
+				double [] v = getVector();
+				double [] zxy0 = getZxy();
+				for (int nl = 0; nl < measuredSelection.length; nl++){
+					if (measuredSelection[nl] != null){
+						disp_str[nl] = measuredLayers.getDisparityStrength(
+								nl, // int num_layer,
+								sTileXY[0], // int stX,
+								sTileXY[1], // int stY,
+								measuredSelection[nl], // boolean [] sel_in,
+								strength_floor, // 
+								measured_strength_pow, //
+								true); // boolean null_if_none)
+						if (disp_str[nl] != null) {
+							for (int indx = 0; indx < disp_str[nl][0].length; indx++){
+								double w = disp_str[nl][1][indx];
+								if (w > 0.0){
+									double x = ((indx % stSize2) - stSize) - zxy0[1];
+									double y = ((indx / stSize2) - stSize) - zxy0[2];
+									double d = disp_str[nl][0][indx];
+									d -= zxy0[0];
+									d += (x * v[1]+y*v[2])/v[0];
+									double d2 = d*d;
+									if (d2 > worst_d2){
+										worst_d2 = d2;
+										worst_layer_index[0] = nl;
+										worst_layer_index[1] = indx;
+									}
+								}
+							}
+						}
+					}
+				}
+				if (worst_layer_index[0] < 0) {
+					System.out.println("This is a BUG in removePlaneOutliers()");
+					no_bugs = false;
+					break;
+				}
+				measuredSelection[worst_layer_index[0]][worst_layer_index[1]] = false;
+				if (debugLevel > 2){
+					System.out.println("removePlaneOutliers() worst_layer="+worst_layer_index[0]+", worst_index="+worst_layer_index[1]);
+				}
+				
+				boolean OK = getPlaneFromMeas(
+						null,            // boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
+						Double.NaN,      // double       disp_far, // minimal disparity to select (or NaN)
+						Double.NaN,      // double       disp_near, // maximal disparity to select (or NaN)
+						this.dispNorm,   // double       dispNorm,   //  Normalize disparities to the average if above
+						this.min_weight, // double       min_weight,
+						this.min_tiles, // int          min_tiles,
+						strength_floor,
+						measured_strength_pow, // double       strength_pow,
+						debugLevel);
+				
+				if (!OK){ // restore last selection, re-run getPlaneFromMeas
+					measuredSelection[worst_layer_index[0]][worst_layer_index[1]] = true;
+					OK = getPlaneFromMeas(
+							null,            // boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
+							Double.NaN,      // double       disp_far, // minimal disparity to select (or NaN)
+							Double.NaN,      // double       disp_near, // maximal disparity to select (or NaN)
+							this.dispNorm,   // double       dispNorm,   //  Normalize disparities to the average if above
+							this.min_weight, // double       min_weight,
+							this.min_tiles, // int          min_tiles,
+							strength_floor,
+							measured_strength_pow, // double       strength_pow,
+							debugLevel);
+					if (!OK) {
+						System.out.println("This is a BUG in removePlaneOutliers() - run with previous selection and failed");
+						no_bugs = false;
+					}
+					break;
+				}
+			}			
+			return no_bugs;
+		}
+		
+		/**
+		 * Get "plane" - ellipsoid from covariance matrix of measured data
+		 * @param tile_sel multi-layer selection of the tiles to use (first dimension should
+		 *                 match number of measurement layers. each element can be either:
+		 *                 a) boolean array 4* superTileSize * superTileSize length
+		 *                 b) zero-length array - it will be calculated from all measurement
+		 *                    data on that layer matching optional diaparity limits
+		 *                 c) null - this measuremen5t layer will not be used   
+		 * @param disp_far optional low limit for tile disparity (NaN - do not check)
+		 * @param disp_near optional high limit for tile disparity (NaN - do not check)
+		 * @param dispNorm reduce scale of the disparity differences for ellipsoids with 
+		 *                 disparity center above that value
+		 * @param min_weight minimal total weight of the ellipsoid do process
+		 * @param min_tiles minimal number of tiles used for calculation
+		 * @param strength_pow raise correlation strength to this power
+		 * @param debugLevel debug level
+		 * @return true if OK, false if failed
+		 */
+		public boolean getPlaneFromMeas(
+				boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
+				double       disp_far, // minimal disparity to select (or NaN)
+				double       disp_near, // maximal disparity to select (or NaN)
+				double       dispNorm,   //  Normalize disparities to the average if above
+				double       min_weight,
+				int          min_tiles,
+				double       strength_floor,
+				double       strength_pow,
+				int          debugLevel)
+		{
+			double mindet = 1E-15;
+			int stSize2 = 2 * stSize;
+			int num_tiles = 0;
+			double sw = 0.0;
+			if (tile_sel != null) {
+				this.measuredSelection =      tile_sel;
+			} else {
+				tile_sel = this.measuredSelection;
+			}
+			double [][][] disp_str =      new double [tile_sel.length][][];
+			this.strength_floor =         strength_floor;
+			this.measured_strength_pow =  strength_pow;
+			this.min_weight =             min_weight;
+			this.min_tiles =              min_tiles;
+			this.dispNorm =               dispNorm;
+			if (debugLevel > 1){
+				System.out.println("getPlaneFromMeas()");
+			}
+
+			for (int nl = 0; nl < tile_sel.length; nl++){
+				if (tile_sel[nl] != null){
+					if (Double.isNaN(disp_far) && Double.isNaN(disp_near)){
+						tile_sel[nl] =  measuredLayers.getSupertileSelection(
+								nl, // int num_layer,
+								sTileXY[0], // int stX,
+								sTileXY[1], // int stY,
+								((tile_sel[nl].length == 0)? null:tile_sel[nl]), // boolean [] sel_in,
+								strength_floor,
+								true); // boolean null_if_none)
+					} else {
+						tile_sel[nl] =  measuredLayers.getSupertileSelection(
+								nl,            // int num_layer,
+								sTileXY[0],    // int stX,
+								sTileXY[1],    // int stY,
+								((tile_sel[nl].length == 0)? null:tile_sel[nl]), // boolean [] sel_in,
+								disp_far,      // 		double     disp_far,
+								disp_near,     // double     disp_near,
+								strength_floor,
+								true);         // boolean null_if_none)
+
+					}
+					num_tiles += MeasuredLayers.getNumSelected(tile_sel[nl]);
+					if (tile_sel[nl] != null){
+						disp_str[nl] = measuredLayers.getDisparityStrength(
+								nl, // int num_layer,
+								sTileXY[0], // int stX,
+								sTileXY[1], // int stY,
+								tile_sel[nl], // boolean [] sel_in,
+								strength_floor,
+								strength_pow, //
+								true); // boolean null_if_none)
+						sw += MeasuredLayers.getSumStrength(disp_str[nl]);
+					}
+					if ((debugLevel > 3) && (disp_str[nl] != null)){
+						  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+						  double [][] dbg_img = new double [3][];
+						  dbg_img[0] = disp_str[nl][0];
+						  dbg_img[1] = disp_str[nl][1];
+						  dbg_img[2] = new double [stSize2*stSize2];
+						  for (int i = 0; i < dbg_img[2].length; i++){
+							  dbg_img[2][i] = tile_sel[nl][i]?1.0:0.0;
+						  }
+						  sdfa_instance.showArrays(dbg_img,  stSize2, stSize2, true, "disp_str_"+nl);
+						  
+					}
+				}
+			}
+			if ((sw < min_weight) || (num_tiles < min_tiles)) {
+				if (debugLevel > 1){
+					System.out.println("getPlaneFromMeas():return false");
+				}
+				return false; // too weak plane or too few tiles selected
+			}
+			
+			
+			double [][] acovar = new double [3][3];
+			double swz = 0.0, swx = 0.0, swy = 0.0;
+			sw =0.0;
+			for (int nl = 0; nl < tile_sel.length; nl++){
+				if (disp_str[nl] != null) {
+					for (int indx = 0; indx < disp_str[nl][0].length; indx++){
+						double w = disp_str[nl][1][indx];
+						if (w > 0.0){
+							double d = disp_str[nl][0][indx];
+							// referencing samples to centers of pixels
+							double x = ((indx % stSize2) - stSize + 0.5) * tileSize + 0.5; // in pixels, not in tiles
+							double y = ((indx / stSize2) - stSize + 0.5) * tileSize + 0.5;
+							sw  += w;
+							swz += w * d;
+							swx += w * x;
+							swy += w * y;
+						}
+					}
+				}
+			}
+			if (sw == 0.0) {
+				return false; //
+			}
+			swz /= sw;
+			swx /= sw;
+			swy /= sw;
+
+			double kz = ((dispNorm > 0.0) && (swz > dispNorm)) ? (dispNorm / swz) : 1.0; 
+			
+			if (debugLevel > 0){
+				System.out.println("getPlaneFromMeas(): num_tiles="+num_tiles+", sw = "+sw +", swz = "+swz +", swx = "+swx +", swy = "+swy+", kz="+kz);
+			}
+
+			// TODO: scale disparity to make same scale for 3 axes?
+			
+			for (int nl = 0; nl < tile_sel.length; nl++){
+				if (disp_str[nl] != null) {
+					for (int indx = 0; indx < disp_str[nl][0].length; indx++){
+						double w = disp_str[nl][1][indx] / sw;
+						if (w > 0.0){
+							double d =  kz * (disp_str[nl][0][indx] - swz);
+							double wd = w*d;
+							double x = ((indx % stSize2) - stSize + 0.5) * tileSize + 0.5 - swx;
+							double y = ((indx / stSize2) - stSize + 0.5) * tileSize + 0.5 - swy;
+							acovar [0][0] += wd * d;
+							acovar [0][1] += wd * x;
+							acovar [0][2] += wd * y;
+							acovar [1][1] += w * x * x;
+							acovar [1][2] += w * x * y;
+							acovar [2][2] += w * y * y;
+						}
+					}
+				}
+			}
+			acovar [1][0] = acovar [0][1]; 
+			acovar [2][0] = acovar [0][2]; 
+			acovar [2][1] = acovar [1][2];
+			Matrix covar = new Matrix(acovar);
+
+			EigenvalueDecomposition eig = covar.eig();
+			if (Double.isNaN(eig.getV().get(0, 0))){
+				System.out.println("getCovar(): Double.isNaN(eig.getV().get(0, 0))");
+				debugLevel = 20;
+			}
+			
+//			if (eig.getD().get(0, 0) == 0.0){
+//				debugLevel = 10;
+//			}
+			if (debugLevel > 0){
+				System.out.println("getCovar(): sw = "+sw +", swz = "+swz +", swx = "+swx +", swy = "+swy +", covar.det() = "+covar.det());
+				System.out.println("getCovar(): covarianvce matrix, number of used points:"+num_tiles);
+				covar.print(10, 6); // w,d
+				System.out.println("getCovar(): eigenvalues");
+				eig.getD().print(10, 6); // w,d
+				System.out.println("getCovar(): eigenvectors");
+				eig.getV().print(10, 6); // w,d
+			}
+			if ((eig.getD().get(0, 0) == 0.0) || (Math.abs(covar.det()) < mindet)) {
+				return false; // testing with zero eigenvalue
+				// Problem with zero eigenvalue is with derivatives and coordinate conversion
+			}
+/*			
+			double [][][] rslt = {
+					eig.getD().getArray(),
+					eig.getV().getArray(),
+					{
+						{sw,kz,numPoints},
+						{swz, swx, swy}}};
+			return rslt;
+*/
+
+			double [][] eig_val =  eig.getD().getArray(); // rslt[0];
+			double [][] eig_vect = eig.getV().getArray(); // rslt[1];
+			// find vector most orthogonal to view // (anyway it all works with that assumption), make it first
+			// TODO normalize to local linear scales
+			int oindx = 0;
+			if (preferDisparity) {
+				for (int i = 1; i <3; i++){
+					if (Math.abs(eig_vect[0][i]) > Math.abs(eig_vect[0][oindx])){
+						oindx = i;
+					}
+				}
+			} else {
+				for (int i = 1; i < 3 ; i++){
+					if (eig_val[i][i] < eig_val[oindx][oindx]){
+						oindx = i;
+					}
+				}
+			}
+			if (eig_val[oindx][oindx] == 0.0){
+				System.out.println("getPlane(): zero eigenvalue!!");
+			}
+			
+			// select 2 other axes for increasing eigenvalues (so v is short axis, h  is the long one)
+			int vindx = (oindx == 0)? 1 : 0;
+			int hindx = (oindx == 0)? 2 : ((oindx == 1) ? 2 : 1);
+			if (eig_val[vindx][vindx] > eig_val[hindx][hindx]){
+				int tmp = vindx;
+				vindx = hindx;
+				hindx = tmp;
+			}
+
+			double [][] plane = {
+					{eig_vect[0][oindx],eig_vect[1][oindx],eig_vect[2][oindx]},  // plane normal to camera
+					{eig_vect[0][vindx],eig_vect[1][vindx],eig_vect[2][vindx]},  // "horizontal" axis // to detect skinny planes and poles
+					{eig_vect[0][hindx],eig_vect[1][hindx],eig_vect[2][hindx]}}; //  "vertical"   axis  // to detect skinny planes and poles
+
+			// Make normal be towards camera (positive disparity), next vector - positive in X direction (right)
+			for (int v = 0; v < 2; v++) {
+				if (plane[v][v] < 0.0) for (int i = 0; i < 3; i ++) plane[v][i] = -plane[v][i];
+			}
+			
+			// make  direction last vector so px (x) py (.) disp < 0 (left-hand coordinate system) 
+			if (new Matrix(plane).det() > 0){
+				for (int i = 0; i < 3; i ++) plane[2][i] = -plane[2][i];
+			}
+			
+			setZxy(swz, swx, swy);
+			setWeight(sw);
+			setValues(eig_val[oindx][oindx],eig_val[vindx][vindx],eig_val[hindx][hindx]); // eigenvalues [0] - thickness, 2 other to detect skinny (poles)
+			setVectors   (plane);
+			setNumPoints (num_tiles);
+			boolean [] plane_sel = null;
+			boolean need_clone = true;
+			for (int nl = 0; nl < tile_sel.length; nl++){
+				if (tile_sel[nl] != null) {
+					if (plane_sel == null) {
+						plane_sel = tile_sel[nl];
+					} else {
+						if (need_clone) {
+							plane_sel = plane_sel.clone();
+							need_clone = false;
+						}
+						for (int i = 0; i < plane_sel.length; i++){
+							plane_sel[i] |=  tile_sel[nl][i];
+						}
+					} 
+				}
+			}
+			
+			setPlaneSelection(plane_sel);
+			return true;
 		}
 		
 		public double [][] initMergedValue()
@@ -243,6 +646,16 @@ public class TilePlanes {
 		
 		public void setZxy(double[] zxy) {
 			this.zxy = zxy;
+		}
+		public void setZxy(
+				double z,
+				double x,
+				double y) {
+			this.zxy = new double [3];
+			this.zxy[0] = z;
+			this.zxy[1] = x;
+			this.zxy[2] = y;
+			
 		}
 		
 		public double[][] getVectors() {
@@ -910,6 +1323,8 @@ public class TilePlanes {
 		}
 	}
 	
+	//TODO: Remove below methods and promote PlaneData (no TilePlanes) after tested
+	
 	/**
 	 * Calculate covariance matrix for a subset of tile data (disparities)
 	 * Subtract weight floor from weight
@@ -952,13 +1367,13 @@ public class TilePlanes {
 		swx /= sw;
 		swy /= sw;
 		
-		if (debugLevel > 0){
-			System.out.println("getCovar(): sw = "+sw +", swz = "+swz +", swx = "+swx +", swy = "+swy);
-		}
 		
 		// TODO: scale disparity to make same scale for 3 axes?
 		
 		double kz = ((plDispNorm > 0.0) && (swz > plDispNorm)) ? (plDispNorm / swz) : 1.0; 
+		if (debugLevel > 0){
+			System.out.println("getCovar(): sw = "+sw +", swz = "+swz +", swx = "+swx +", swy = "+swy+" kz = "+kz);
+		}
 		for (int indx = 0; indx < data.length; indx++){
 			if (select[indx] && (weight[indx] > 0)){
 				double w = weight[indx] / sw;
@@ -1024,15 +1439,15 @@ public class TilePlanes {
 			select = new boolean [4*stSize];
 			for (int i = 0; i < select.length; i++) select[i] = true;
 		}
-//		int debugLevel1 = ((sTileXY[0] == 27) && (sTileXY[1] == 16))? 1: 0; // check why v[0][0] <0  
-		
-		
+		if (debugLevel > 0){
+			System.out.println("getPlane()");
+		}
 		double [][][] rslt = getCovar(
 				data,
 				weight,
 				select,
 				0.0,
-				0); // debugLevel1); //0); // debugLevel);
+				debugLevel); // debugLevel1); //0); // debugLevel);
 		if (rslt == null) return null;
 		int       numPoints =  (int) rslt[2][0][2];
 		double    swc =  rslt[2][0][0];
@@ -1173,6 +1588,10 @@ public class TilePlanes {
 				break;
 			}
 			select[worst_index] = false;
+			if (debugLevel > 2){
+				System.out.println("removePlaneOutliers() worst_index = " + worst_index);
+			}
+			
 			pd = getPlane(    // re-calculate with point removed
 					pd.getSTileXY(),
 					data,

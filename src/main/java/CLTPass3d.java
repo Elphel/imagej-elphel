@@ -36,7 +36,7 @@ public class CLTPass3d{
 		double []               calc_disparity_hor =   null; // composite disparity, calculated from "disparity", and "disparity_map" fields
 		double []               calc_disparity_vert =  null; // composite disparity, calculated from "disparity", and "disparity_map" fields
 		double []               calc_disparity_combo = null; // composite disparity, calculated from "disparity", and "disparity_map" fields
-		double []               strength =             null; // composite strength, initially uses a copy of raw 4-sensor correleation strength
+		double []               strength =             null; // composite strength, initially uses a copy of raw 4-sensor correlation strength
 		double []               strength_hor =         null; // updated hor strength, initially uses a copy of raw measured
 		double []               strength_vert =        null; // updated hor strength, initially uses a copy of raw measured
 		// Bg disparity & strength is calculated from the supertiles and used instead of the tile disparity if it is too weak. Assuming, that
@@ -333,7 +333,7 @@ public class CLTPass3d{
 		}
 		/**
 		 * Get one of the line-scan per-tile correlation data.
-		 * @param mode 0 - final data (initially copy FPGA generated 4-pair correation)
+		 * @param mode 0 - final data (initially copy FPGA generated 4-pair correlation)
 		 *             1 - original FPGA generated 4-sensor correlation
 		 *             2 - 2 - horizontal pairs correlation, detecting vertical features
 		 *             3 - 2 - vertical pairs correlation, detecting horizontal features
