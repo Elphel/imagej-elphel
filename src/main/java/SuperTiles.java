@@ -1679,7 +1679,7 @@ public class SuperTiles{
 
 									TilePlanes.PlaneData pd = pd0_full.clone(); 
 									OK = pd.getPlaneFromMeas(
-											tile_sel,       // boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
+											null, // tile_sel,       // boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
 											far_near[0],    // double       disp_far, // minimal disparity to select (or NaN)
 											far_near[1],    // double       disp_near, // maximal disparity to select (or NaN)
 											0.0,            // plDispNorm,  // double       dispNorm,   //  Normalize disparities to the average if above
