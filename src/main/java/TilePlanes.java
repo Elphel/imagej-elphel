@@ -64,15 +64,13 @@ public class TilePlanes {
 //		Lav = Math.sqrt((L1 * L1 * w1 + L2 * L2 * w2)/(w1 + w2))
 // worsening_12 = (L - Lav) * (w1 + w2) * (w1 + w2) / (Lav * x1 * w2)		
 		
-		
-		
-		
 		int         tileSize;
 		int         superTileSize;
 		int []      sTileXY =    null; // X and Y indices of this superTile in the image
 		
-		MeasuredLayers measuredLayers = null;
-		boolean [][] measuredSelection = null; // [number of layers in measuredLayers][2*superTileSize * 2*superTileSize]
+		MeasuredLayers measuredLayers     =  null;
+		boolean [][] measuredSelection =     null; // [number of layers in measuredLayers][2*superTileSize * 2*superTileSize]
+		boolean   [] sel_mask          =     null; // selection mask - may be used for splitting plane along a line - each half can have mask
 		double       measured_strength_pow = 1.0;
 		double       strength_floor =        0.0;
 		double       min_weight =            0.0;  // minimal weight of the ellipsoid
@@ -87,6 +85,7 @@ public class TilePlanes {
 					this.tileSize,
 					this.superTileSize,
 					this.geometryCorrection);
+			pd.correctDistortions = this.correctDistortions;
 			pd.num_points = this.num_points; 
 			pd.weight =     this.weight; 
 			if (this.plane_sel != null)  pd.plane_sel =  this.plane_sel.clone(); 
@@ -104,14 +103,11 @@ public class TilePlanes {
 				pd.vectors[2] = this.vectors[2].clone();
 			}
 			if (this.measuredLayers != null) pd.measuredLayers = this.measuredLayers;
-			if (this.measuredSelection != null) {
-				pd.measuredSelection = this.measuredSelection.clone();
-				for (int i = 0; i < this.measuredSelection.length; i++){
-					if (this.measuredSelection[i] != null) {
-						pd.measuredSelection[i] = this.measuredSelection[i].clone();
-					}
-				}
-			}
+			
+			pd.setMeasSelection(this.measuredSelection);
+			
+			if (this.sel_mask != null) pd.sel_mask = this.sel_mask.clone();
+			
 			pd.measured_strength_pow = this.measured_strength_pow;
 			pd.strength_floor =        this.strength_floor;
 
@@ -123,6 +119,42 @@ public class TilePlanes {
 			
 			copyNeib(this,pd);
 			return pd;
+		}
+		
+		public void setSelMask (boolean []sel_mask)
+		{
+			this.sel_mask = sel_mask;
+		}
+		public boolean [] getSelMask ()
+		{
+			return this.sel_mask;
+		}
+		
+		public void setMeasSelection(boolean [][] meas_sel)
+		{
+			if (meas_sel == null) 
+				this.measuredSelection = null;
+			else {
+				this.measuredSelection = meas_sel.clone();
+				for (int i = 0; i < meas_sel.length; i++){
+					if (meas_sel[i] != null) {
+						this.measuredSelection[i] = meas_sel[i].clone();
+					}
+				}
+			}
+		}
+		
+		public boolean [] getMeasSelection(int nl){
+			if (this.measuredSelection == null) {
+				return null;
+			}
+			return 	this.measuredSelection[nl];
+		}
+		
+		
+		public MeasuredLayers getMeasuredLayers()
+		{
+			return this.measuredLayers;
 		}
 		
 		public void copyNeib(
@@ -180,6 +212,290 @@ public class TilePlanes {
 			this.measuredLayers = measuredLayers;
 			this.preferDisparity = preferDisparity;
 		}
+
+		/**
+		 * Create separation masks for two crossing planes. Uses neighbors connections to distinguish between concave and convex 
+		 * @param pd1 first plane data instance to create sel_mak
+		 * @param pd2 second plane data instance to create sel_mak
+		 * @param tolerance disparity tolerance for separation (will be normalized by dispNorm for large disparities)
+		 * @param min_tiles minimal number of tiles in each half
+		 * @param debugLevel debug level
+		 * @return true if OK, false if the planes are not crossing (masks not created)
+		 */
+		public boolean calcSelMasks(
+				PlaneData pd1,
+				PlaneData pd2,
+				double    tolerance,
+				int       min_tiles,
+				int       debugLevel
+				)
+		{
+			int st2 = 2 * superTileSize;
+			int [] dirs = {-st2, -st2 + 1, 1, st2 + 1, st2, st2 - 1, -1, -st2 - 1};
+			double [][] planes = {
+					pd1.getDoublePlaneDisparity(false),
+					pd2.getDoublePlaneDisparity(false)};
+			PlaneData [] pair = {pd1,pd2};
+			int len2 = planes[0].length;
+			boolean [][] sel_masks = new boolean [2][len2];
+			double concave = 0; // positive - concave, negative - convex
+			int cent_indx = (st2/2 -1) * (st2+1);
+			for (int np = 0; np < 2; np++){
+				int [] neibs = pair[np].getNeibBest();
+				for (int dir = 0; dir < dirs.length; dir++) {
+					if (neibs[dir] >= 0) { // neighbor connected
+						int indx = cent_indx + dirs[dir];
+						concave += (planes[np][indx] - planes[np][cent_indx]) - (planes[1 - np][indx] - planes[1 - np][cent_indx]);
+					}
+				}
+			}
+			// swap plane selections for convex plane intersection (edge is the closest)
+			int first = (concave < 0) ? 1 : 0;
+			int [] nums = {0, 0};
+			
+			for (int i = 0; i <len2; i++){
+				double d_av = 0.5 * (planes[0][i] + planes[1][i]);
+				double diff = planes[0][i] - planes[1][i];
+				if ((dispNorm > 0.0) && (d_av > dispNorm)){
+					diff *= dispNorm/d_av;
+				}
+				if (diff > -tolerance) {
+					sel_masks[first][i] = true;
+					nums[first] ++;
+				}
+				if (-diff > -tolerance) {
+					sel_masks[1-first][i] = true;
+					nums[1-first] ++;
+				}
+			}
+			if ((nums[0] < min_tiles) || (nums[1] < min_tiles)){
+				return false;
+			}
+			// apply selections
+			pd1.setSelMask(sel_masks[0]);
+			pd2.setSelMask(sel_masks[1]);
+			return true;
+		}
+		
+		/**
+		 * Spit tiles belonging to this between multiple PlaneData instances
+		 * @param pd_set array of plane data instances
+		 * @param single_plane it is a single plane to split - use all tiles, not just previously
+		 *  selected
+		 * @param max_diff maximal normalized disparity difference from the plane to consider
+		 * @param other_diff maximal difference of the added tile ratio to the average
+		 *  disparity difference of the exclusively selected tiles
+		 * 
+		 * @param non_exclusive allow the same tile data to belong to multiple PD instances
+		 * @param use_other_planes allow the same tile not included in this PD to be used
+		 * @param measSel (with use_other_planes) select measurements for supertiles :
+		 *  +1 - combo, +2 - quad +4 - hor +8 - vert
+		 * @param allow_parallel allow parallel shift of each plane before adding more data
+		 * @param debugLevel debug level
+		 * @return true if OK
+		 */
+		
+		public boolean splitPlaneTiles (
+				PlaneData [] pd_set,
+				boolean      single_plane,
+				double       max_diff, // maximal disparity difference (0 - any), will be normalized by dispNorm
+				double       other_diff, 
+				boolean      non_exclusive,
+				boolean      use_other_planes,
+				int          measSel, // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+				boolean      allow_parallel,
+				int          debugLevel)
+		{
+			if (debugLevel>0){
+				System.out.println("splitPlaneTiles");
+			}
+			
+			double [][] planes = new double [pd_set.length][];
+			boolean [][][] tsel = new boolean [pd_set.length][measuredLayers.getNumLayers()][];
+			boolean [][] sel_masks = new boolean [pd_set.length][];
+			for (int np = 0; np < pd_set.length; np ++) if (pd_set[np] != null){
+				planes[np] = pd_set[np].getDoublePlaneDisparity(false);
+				sel_masks[np] = pd_set[np].getSelMask();
+				for (int nl = 0; nl < measuredLayers.getNumLayers(); nl++){
+					if (measuredSelection[nl] != null){
+						tsel[np][nl] = new boolean [measuredSelection[nl].length];
+					}
+				}
+//				pd_set[np].setMeasSelection(measuredSelection); // copy same selection to all planes
+			}
+			double max_diff2 = max_diff * max_diff;
+			double other_diff2 =other_diff * other_diff; 
+			double [] sd2 = new double[pd_set.length];
+			double [] sd2_av = new double[pd_set.length];
+			double [] sw =  new double[pd_set.length];
+			double [][][] disp_strength = new double[measuredLayers.getNumLayers()][][];
+			// split exclusively, calculate rms for each, then add others if RMS is not increased
+			for (int nl = 0; nl < measuredLayers.getNumLayers(); nl ++){
+				if ((measuredSelection[nl] != null) &&  ((measSel & (1 << nl)) !=0)) {
+					disp_strength[nl] = measuredLayers.getDisparityStrength(
+							nl,                     // int num_layer,
+							getSTileXY()[0],        // int stX,
+							getSTileXY()[1],        // int stY,
+							(single_plane ? null : measuredSelection[nl]),  // boolean [] sel_in,
+							strength_floor,         //  double strength_floor,
+							measured_strength_pow,  // double strength_pow,
+							true);                  // boolean null_if_none);
+					if (disp_strength[nl] != null) {
+						for (int indx = 0; indx < disp_strength[nl][1].length; indx++){
+							double w = disp_strength[nl][1][indx];
+							if (w > 0.0){
+								double d = disp_strength[nl][0][indx];
+								double d2_best = Double.NaN;
+								int np_best = 0;
+								for (int np = 0; np < planes.length; np++) if (planes[np] != null){
+									if ((sel_masks[np] == null) || sel_masks[np][indx]) {
+										double d_av = 0.5 * (d + planes[np][indx]);
+										double d2 = (d - planes[np][indx]);
+										if ((dispNorm > 0.0) && (d_av > dispNorm)){
+											d2 *= dispNorm/d_av;
+										}
+										d2 *= d2;
+										if (!(d2 >= d2_best)){ // so d2_best NaN is OK
+											d2_best = d2;
+											np_best = np;
+										}
+									}
+								}
+								if ((max_diff2 == 0.0) || (d2_best < max_diff2)) {
+									tsel[np_best][nl][indx] = true;
+									sd2[np_best] += w * d2_best;
+									sw[np_best] += w;
+								}
+							}
+						}
+					}
+				}
+			}
+			for (int np = 0; np < planes.length; np++) if (planes[np] != null){
+				if (sw[np] > 0.0){
+					sd2_av[np] = sd2[np] / sw[np];
+				}
+			}
+			double [] sd = new double[pd_set.length]; // will be all 0.0;
+
+			if (allow_parallel && (non_exclusive || use_other_planes)){
+				for (int nl = 0; nl < measuredLayers.getNumLayers(); nl ++){
+					if (disp_strength[nl] != null) {
+						//disp_strength[nl] = measuredLayers.getDisparityStrength(
+						for (int indx = 0; indx < disp_strength[nl][1].length; indx++){
+							double w = disp_strength[nl][1][indx];
+							if (w > 0.0){
+								double d = disp_strength[nl][0][indx];
+								for (int np = 0; np < planes.length; np++) if (planes[np] != null){
+									if (!tsel[np][nl][indx]) { // not already in that plane
+										sd[np] += w * d;
+									}
+								}
+							}
+						}
+					}
+				}
+				for (int np = 0; np < planes.length; np++) if (planes[np] != null){
+					if (sw[np] > 0.0){
+						sd[np] /= sw[np];
+						sd2_av[np] -= sd[np] * sd[np];
+						sd2[np] = sd2_av[np] * sw[np]; // to add more 
+					}
+				}
+				
+			}
+			
+			
+			if (non_exclusive) {
+				for (int nl = 0; nl < measuredLayers.getNumLayers(); nl ++){
+					if ((measuredSelection[nl] != null) &&  ((measSel & (1 << nl)) !=0)) {
+						if (disp_strength[nl] != null) {
+							//disp_strength[nl] = measuredLayers.getDisparityStrength(
+							for (int indx = 0; indx < disp_strength[nl][1].length; indx++){
+								double w = disp_strength[nl][1][indx];
+								if (w > 0.0){
+									double d = disp_strength[nl][0][indx];
+									for (int np = 0; np < planes.length; np++) if (planes[np] != null){
+										if ((sel_masks[np] == null) || sel_masks[np][indx]) {
+											if (!tsel[np][nl][indx]) { // not already in that plane
+												double d_av = 0.5 * (d - planes[np][indx]);
+												double d2 = (d - planes[np][indx]);
+												d2 -= sd[np]; // subtract parallel shift
+												if ((dispNorm > 0.0) && (d_av > dispNorm)){
+													d2 *= dispNorm/d_av;
+												}
+												d2 *= d2;
+												if (d2 <= sd2_av[np] * other_diff2) { // not more than exclusive tile variance 
+													tsel[np][nl][indx] = true;
+													sd2[np] += w * d2;
+													sw[np] += w;
+												}
+											}
+										}
+									}
+								}
+							}					
+						}
+					}
+				}
+			}
+			
+			if (use_other_planes && !single_plane) { // no need if single_plane - it already got all planes it could
+				for (int nl = 0; nl < measuredLayers.getNumLayers(); nl ++){
+					if ((measuredSelection[nl] != null) &&  ((measSel & (1 << nl)) !=0)) {
+						// recalculate for all measure tiles, not just selected in the original PD
+						disp_strength[nl] = measuredLayers.getDisparityStrength(
+								nl,                     // int num_layer,
+								getSTileXY()[0],        // int stX,
+								getSTileXY()[1],        // int stY,
+								null,                   // boolean [] sel_in, null here - all measured data
+								strength_floor,         //  double strength_floor,
+								measured_strength_pow,  // double strength_pow,
+								true);                  // boolean null_if_none);
+						//disp_strength[nl] = measuredLayers.getDisparityStrength(
+						for (int indx = 0; indx < disp_strength[nl][1].length; indx++){
+							double w = disp_strength[nl][1][indx];
+							if (w > 0.0){
+								double d = disp_strength[nl][0][indx];
+								for (int np = 0; np < planes.length; np++) if (planes[np] != null){
+									if ((sel_masks[np] == null) || sel_masks[np][indx]) {
+										if (!tsel[np][nl][indx]) { // not already in that plane
+											double d_av = 0.5 * (d - planes[np][indx]);
+											double d2 = (d - planes[np][indx]);
+											d2 -= sd[np]; // subtract parallel shift
+											if ((dispNorm >0.0) && (d_av > dispNorm)){
+												d2 *= dispNorm/d_av;
+											}
+											d2 *= d2;
+											if (d2 <= sd2_av[np]  * other_diff2) { // not more than exclusive tile variance 
+												tsel[np][nl][indx] = true;
+												sd2[np] += w * d2;
+												sw[np] += w;
+											}
+										}
+									}
+								}
+							}
+						}					
+					}
+				}
+			}
+			
+			// re-calculate variance (just for debug, not needed
+			for (int np = 0; np < planes.length; np++)  if (planes[np] != null){
+				if (sw[np] > 0.0){
+					sd2_av[np] = sd2[np] / sw[np];
+				}
+			}
+			// apply selections to each PD
+			for (int np = 0; np < planes.length; np++)  if (planes[np] != null){
+				pd_set[np].setMeasSelection(tsel[np]);
+			}
+			// need to re-calculate new planes, remove outliers
+			return true;
+		}
+		
+		
 		/**
 		 * Remove outliers from the set of tiles contributing to a single plane ellipsoid
 		 * Should run after getPlaneFromMeas as some parameter4s will be copied from that run
@@ -327,7 +643,7 @@ public class TilePlanes {
 			this.min_weight =             min_weight;
 			this.min_tiles =              min_tiles;
 			this.dispNorm =               dispNorm;
-			if (debugLevel > 1){
+			if (debugLevel > 3){
 				System.out.println("getPlaneFromMeas()");
 			}
 

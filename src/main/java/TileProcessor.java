@@ -2753,7 +2753,8 @@ public class TileProcessor {
 					clt_parameters.stMaxDisparity,   // double     max_disparity,
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
-					0.0); // NO BLUR double     stBlurSigma)
+					0.0,// NO BLUR double     stBlurSigma)
+					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[0] = scan_prev.showDisparityHistogram();
 
 			scan_prev.setSuperTiles(
@@ -2764,7 +2765,8 @@ public class TileProcessor {
 					clt_parameters.stMaxDisparity,   // double     max_disparity,
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
-					clt_parameters.stSigma); // with blur double     stBlurSigma)
+					clt_parameters.stSigma, // with blur double     stBlurSigma)
+					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[1] = scan_prev.showDisparityHistogram();
 
 			dbg_hist[2] = scan_prev.showMaxMinMax();
@@ -2942,6 +2944,50 @@ public class TileProcessor {
 	{
 		trimCLTPasses(); // make possible to run this method multiple time - remove extra passes added by it last time		
 		CLTPass3d scan_prev = clt_3d_passes.get(clt_3d_passes.size() -1); // get last one
+
+		boolean show_st =    clt_parameters.stShow || (debugLevel > 1);
+		// recalculate supertiles (may be removed later)
+		//		if (use_supertiles || show_st) {	
+		String [] dbg_st_titles = {"raw", "blurred"+clt_parameters.stSigma,"max-min-max"}; 
+		double [][] dbg_hist = new double[dbg_st_titles.length][];
+		if (show_st) { // otherwise only blured version is needed 
+			scan_prev.setSuperTiles(
+					clt_parameters.stStepNear,       // double     step_disparity,
+					clt_parameters.stStepFar,        // double     step_near,
+					clt_parameters.stStepThreshold,  // double     step_threshold,
+					clt_parameters.stMinDisparity,   // double     min_disparity,
+					clt_parameters.stMaxDisparity,   // double     max_disparity,
+					clt_parameters.stFloor,          // double     strength_floor,
+					clt_parameters.stPow,            // double     strength_pow,
+					0.0, // NO BLUR double     stBlurSigma)
+					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+			dbg_hist[0] = scan_prev.showDisparityHistogram();
+		}
+
+//		SuperTiles st = 
+				scan_prev.setSuperTiles(
+				clt_parameters.stStepNear,       // double     step_disparity,
+				clt_parameters.stStepFar,        // double     step_near,
+				clt_parameters.stStepThreshold,  // double     step_threshold,
+				clt_parameters.stMinDisparity,   // double     min_disparity,
+				clt_parameters.stMaxDisparity,   // double     max_disparity,
+				clt_parameters.stFloor,          // double     strength_floor,
+				clt_parameters.stPow,            // double     strength_pow,
+				clt_parameters.stSigma,          // with blur double     stBlurSigma)
+				clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+		if (show_st) { // otherwise only blured version is needed 
+			dbg_hist[1] = scan_prev.showDisparityHistogram();
+			dbg_hist[2] = scan_prev.showMaxMinMax();
+		}
+
+
+		if (show_st){
+			int hist_width0 =  scan_prev.showDisparityHistogramWidth();
+			int hist_height0 = dbg_hist[0].length/hist_width0;
+			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			sdfa_instance.showArrays(dbg_hist, hist_width0, hist_height0, true, "disparity_supertiles_histograms",dbg_st_titles);
+		}
+		
 		SuperTiles st = scan_prev.getSuperTiles();
 		
 // moved here
@@ -2949,10 +2995,10 @@ public class TileProcessor {
 		st.processPlanes3(
 				null, // final boolean [] selected, // or null
 				0.3, // final double     min_disp,
-				false, // final boolean    invert_disp, // use 1/disparity
-				clt_parameters.plDispNorm, //            =   2.0;  // Normalize disparities to the average if above
-				clt_parameters.plMinPoints, //           =     5;  // Minimal number of points for plane detection
-				clt_parameters.plTargetEigen, //         =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+				clt_parameters.stMeasSel, //            =     1   //Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+				clt_parameters.plDispNorm, //           =   2.0;  // Normalize disparities to the average if above
+				clt_parameters.plMinPoints, //          =     5;  // Minimal number of points for plane detection
+				clt_parameters.plTargetEigen, //        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
 				clt_parameters.plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
 				clt_parameters.plMaxOutliers, //        =    20;  // Maximal number of outliers to remove\
 				clt_parameters.plPreferDisparity,
@@ -3013,6 +3059,84 @@ public class TileProcessor {
 			if (num_added == 0) break;
 		}
 		
+		TilePlanes.PlaneData[][][]       split_planes =   // use original (measured planes. See if smoothed are needed here)
+				st.breakPlanesToPairs(
+				st.getPlanes(), // Mod(),             // final TilePlanes.PlaneData[][] center_planes, // measured_planes,
+				st.getPlanes(), // Mod(),             // final TilePlanes.PlaneData[][] neib_planes,   //mod_planes,
+				clt_parameters.plSplitPull ,          // final double                   center_pull,
+				clt_parameters.plSplitMinNeib ,       // min_neibs, // 2
+				clt_parameters.plSplitMinWeight,      // final double splitMinWeight,  //     =  2.0;  // Minimal weight of split plains to show
+				clt_parameters.plSplitMinQuality,     // final double splitMinQuality, //    =  1.1;  // Minimal split quality to show
+
+				clt_parameters.plPreferDisparity,
+				1,                                   // final int debugLevel)
+				clt_parameters.tileX,
+				clt_parameters.tileY); 
+		
+		if (clt_parameters.plSplitApply) {
+			int numSplitPlanes = st.replaceBrokenPlanes(
+					st.getPlanes(),                 // final TilePlanes.PlaneData[][]   planes,
+					split_planes,                    // final TilePlanes.PlaneData[][][] brokenPd,
+					clt_parameters.plMaxDiff,        //  final double                     max_diff, // maximal disparity difference (0 - any), will be normalized by dispNorm
+					clt_parameters.plOtherDiff,      //  final double                     other_diff, // other_diff maximal difference of the added tile ratio to the average disparity difference
+					clt_parameters.plNonExclusive,   // final boolean                    non_exclusive,
+					clt_parameters.plUseOtherPlanes, // final boolean                    use_other_planes, // TODO:
+					clt_parameters.stMeasSel,        // final int                        measSel, // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+					clt_parameters.plAllowParallel,  // final boolean                    allow_parallel,
+					clt_parameters.plSplitXY,        // final boolean                    splitXY,
+					clt_parameters.plSplitXYTolerance, // final double                   splitXYTolerance,
+					// parameters to generate ellipsoids			
+					0.0, // 3,                             // final double                     disp_far, // minimal disparity to select (or NaN)
+					Double.NaN,                      // final double                     disp_near, // maximal disparity to select (or NaN)
+					clt_parameters.plDispNorm,       // final double                     dispNorm,   //  Normalize disparities to the average if above
+					0.0,                             // final double                     min_weight,
+					clt_parameters.plMinPoints,      // final int                        min_tiles,
+					// parameters to reduce outliers			
+					clt_parameters.plTargetEigen,    // final double                     targetEigen,   //     =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+					clt_parameters.plFractOutliers,  // final double                     fractOutliers, //     =   0.3;  // Maximal fraction of outliers to remove
+					clt_parameters.plMaxOutliers,    // final int                        maxOutliers,   //     =   20;  // Maximal number of outliers to remove
+					clt_parameters.stFloor,          // final double                     strength_floor,
+					clt_parameters.stPow,            // final double                     strength_pow,
+					1,                               // final int debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+			if (debugLevel > -1){
+				System.out.println("replaceBrokenPlanes(): Replaced " + numSplitPlanes + " planes by pairs.");
+			}
+			// now re-create connections and best neighbors
+			st.matchPlanes(
+					clt_parameters.plPreferDisparity,
+					clt_parameters.tileX,
+					clt_parameters.tileY); 
+
+			st.selectNeighborPlanesMutual(
+					clt_parameters.plWorstWorsening, // final double worst_worsening,
+					clt_parameters.plWeakWorsening, // final double worst_worsening,
+					clt_parameters.plDispNorm,
+					clt_parameters.plMaxEigen,
+					clt_parameters.plMinStrength,
+					0, // final int debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+			while (true) {
+				int num_added = 0;
+				if (clt_parameters.plFillSquares){
+					num_added += st.fillSquares();
+				}
+				if (debugLevel > -1) {
+					System.out.println("after fillSquares() added "+num_added);
+				}
+				if (clt_parameters.plCutCorners){
+					num_added += st.cutCorners();
+				}
+				if (debugLevel > -1) {
+					System.out.println("after plCutCorners() added (cumulative) "+num_added);
+				}
+				if (num_added == 0) break;
+			}
+		}
+		
+		
 		TilePlanes.PlaneData [][] planes_mod = null;
 
 		// smooth planes (by averaging with neighbors and the "measured" one with variable "pull")  
@@ -3022,7 +3146,8 @@ public class TileProcessor {
 					clt_parameters.plPull,                        // final double      meas_pull,//  relative pull of the original (measured) plane with respect to the average of the neighbors
 					clt_parameters.plMaxEigen,                    // final double      maxValue, // do not combine with too bad planes
 					clt_parameters.plIterations,                  // final int         num_passes,
-					clt_parameters.plStopBad,                     //Do not update supertile if any of connected neighbors is not good (false: just skip that neighbor)
+					clt_parameters.plStopBad,                     // Do not update supertile if any of connected neighbors is not good (false: just skip that neighbor)
+					clt_parameters.plNormPow,                     // 0.0: 8 neighbors pull 8 times as 1, 1.0 - same as 1
 					Math.pow(10.0,  -clt_parameters.plPrecision), // final double      maxDiff, // maximal change in any of the disparity values
 					clt_parameters.plPreferDisparity,
 					0, // final int debugLevel)
@@ -3059,7 +3184,8 @@ public class TileProcessor {
 		// save surfaces with SuperTiles instance. They can be used to snap to for the per-tile disparity maps.
 		st.setSurfaces(surfaces);
 
-		TilePlanes.PlaneData[][][]       split_planes =  
+/*
+  		TilePlanes.PlaneData[][][]       split_planes =  
 				st.breakPlanesToPairs(
 				st.getPlanes(), // Mod(),             // final TilePlanes.PlaneData[][] center_planes, // measured_planes,
 				st.getPlanes(), // Mod(),             // final TilePlanes.PlaneData[][] neib_planes,   //mod_planes,
@@ -3069,10 +3195,10 @@ public class TileProcessor {
 				clt_parameters.plSplitMinQuality,     // final double splitMinQuality, //    =  1.1;  // Minimal split quality to show
 
 				clt_parameters.plPreferDisparity,
-				1,                              // final int debugLevel)
+				1,                                   // final int debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY); 
-		
+*/		
 		
 		if (clt_parameters.show_planes){
 			double [] split_lines = st.showSplitLines(
@@ -3398,7 +3524,8 @@ public class TileProcessor {
 					clt_parameters.stMaxDisparity,   // double     max_disparity,
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
-					0.0); // NO BLUR double     stBlurSigma)
+					0.0, // NO BLUR double     stBlurSigma)
+					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[0] = scan_prev.showDisparityHistogram();
 
 			SuperTiles st = scan_prev.setSuperTiles(
@@ -3409,7 +3536,8 @@ public class TileProcessor {
 					clt_parameters.stMaxDisparity,   // double     max_disparity,
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
-					clt_parameters.stSigma); // with blur double     stBlurSigma)
+					clt_parameters.stSigma, // with blur double     stBlurSigma)
+					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[1] = scan_prev.showDisparityHistogram();
 
 			dbg_hist[2] = scan_prev.showMaxMinMax();
@@ -3612,84 +3740,6 @@ public class TileProcessor {
 			
 		}		
 		
-/**		
-		int [] neighbors = dp.getNeighbors( // creates neighbors mask from bitmask
-				grown, // these_tiles, // grown, // these_tiles, // boolean [] selected,
-				tilesX);
-		//	int [] neighbors_orig = neighbors.clone();
-		double [] dbg_neib = dp.dbgShowNeighbors(
-				grown, // these_tiles, // grown, // these_tiles,
-				neighbors, // _orig, // int [] neighbors,
-				clt_parameters.transform_size, // int    tile_size,
-				-1.0, // double bgnd,
-				1.0); // double fgnd)
-
-		double [] new_disparity = this_disparity.clone();
-		double [][]dbgDeriv = new double [2][]; // [these_tiles.length];
-		//	sdfa_instance.showArrays(dbg_neib,tilesX*clt_parameters.transform_size, tilesY*clt_parameters.transform_size,"neighbors");
-		dp.smoothDisparity(
-				clt_parameters.tiDispPull,   // final double     dispPull, // clt_parameters.tiDispPull or 0.0
-				3,                           // final int        mask,     // 1 - work on internal elements, 2 - on border elements, 3 - both (internal first);
-				clt_parameters.tiIterations, //  final int        num_passes,
-				Math.pow(10.0,  -clt_parameters.tiPrecision), // final double     maxDiff, // maximal change in any of the disparity values
-				neighbors,                   // final int     [] neighbors, // +1 - up (N), +2 - up-right - NE, ... +0x80 - NW
-				new_disparity,               // final double  [] disparity,          // current disparity value
-				this_disparity,              // final double  [] measured_disparity, // measured disparity
-				this_strength,               // final double  [] strength,
-				null, // this_hor_disparity,          // final double     hor_disparity, // not yet used
-				null, // hor_strength_conv,           // final double     hor_strength, // not yet used
-				these_tiles,                 // grown, // these_tiles,                 // final boolean [] selected,
-				border, // final boolean [] border,
-				clt_parameters,
-				//			dbgDeriv,                    // final double [][] dbgDeriv, //double [2][len] or null;
-				threadsMax,                  // maximal number of threads to launch                         
-				debugLevel);
-		int [][][] clustersNO= dp.extractNonOlerlap(
-				true, // diag_en,
-				neighbors, // +1 - up (N), +2 - up-right - NE, ... +0x80 - NW
-				grown, // these_tiles, // final boolean []  selected, // only inner?
-				border,          // border should be diagonal!
-				threadsMax,      // maximal number of threads to launch                         
-				debugLevel);
-
-		
-		int numScans= 0;
-
-		if (clt_parameters.shUseFlaps) {
-			numScans =  createTileOverlapTasks(
-					clt_parameters.max_clusters, // 50,                                           // int       maxClusters,
-					clt_parameters.shMinArea,                     // int       minClusterArea,
-					new_disparity,                                // [] disparity_in, masked ok too
-					this_strength,  // double [] strength_in,
-					Math.pow(10.0,  -clt_parameters.tiPrecision), // double      maxChange,   // adjust border disparity until change is below this.
-					clt_parameters.shMinStrength,                 // double    minStrength,
-					clustersNO,                                   // int []    clusters_in,
-					disparity_far,
-					disparity_near,
-					clt_parameters.show_shells,
-					debugLevel);
-
-		} else {
-			int [] enum_clusters = enumerateClusters(
-					true, // boolean diag_en,
-					grown); // these_tiles); // boolean [] tiles_src)
-
-			numScans =  createTileTasks(
-					50, // int       maxClusters,
-					0,  // int       minClusterArea,
-					new_disparity, // this_disparity, //  [] disparity_in, masked ok too
-					this_strength,  // double [] strength_in,
-					0.0,            // double    minStrength,
-					enum_clusters, // int []    clusters_in,
-					disparity_far,
-					disparity_near,
-					debugLevel);
-		}
-
-		if (debugLevel > -1){
-			System.out.println("thirdPassSetup(): created "+ numScans+ " FPGA passes.");
-		}
-*/		
 	}
 	
 	
@@ -4281,7 +4331,8 @@ public class TileProcessor {
 					clt_parameters.stMaxDisparity,   // double     max_disparity,
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
-					0.0); // NO BLUR double     stBlurSigma)
+					0.0,// NO BLUR double     stBlurSigma)
+					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[0] = scan_prev.showDisparityHistogram();
 
 			scan_prev.setSuperTiles(
@@ -4292,7 +4343,8 @@ public class TileProcessor {
 					clt_parameters.stMaxDisparity,   // double     max_disparity,
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
-					clt_parameters.stSigma); // with blur double     stBlurSigma)
+					clt_parameters.stSigma, // with blur double     stBlurSigma)
+					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[1] = scan_prev.showDisparityHistogram();
 
 			dbg_hist[2] = scan_prev.showMaxMinMax();

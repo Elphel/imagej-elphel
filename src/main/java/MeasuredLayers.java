@@ -224,7 +224,7 @@ public class MeasuredLayers {
 	 * @return number of layers (some may be uninitialized
 	 */
 	
-	public int getnumLayers()
+	public int getNumLayers()
 	{
 		if (layers == null){
 			return 0;

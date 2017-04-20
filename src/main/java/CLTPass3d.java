@@ -533,7 +533,8 @@ public class CLTPass3d{
 				double     max_disparity,
 				double     strength_floor,
 				double     strength_pow,
-				double     stBlurSigma)
+				double     stBlurSigma,
+				int        measSel)
 		{
 			this.superTiles = new SuperTiles(
 					this,
@@ -544,9 +545,18 @@ public class CLTPass3d{
 					max_disparity,
 					strength_floor,
 					strength_pow,
-					stBlurSigma);
+					stBlurSigma,
+					measSel);
 			return this.superTiles;
 		}
+		public double [] showDisparityHistogram(int measSel)
+		{
+			if (this.superTiles == null){
+				return null;
+			}
+			return this.superTiles.showDisparityHistogram(measSel);
+		}
+
 		public double [] showDisparityHistogram()
 		{
 			if (this.superTiles == null){

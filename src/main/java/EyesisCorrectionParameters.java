@@ -2121,7 +2121,10 @@ public class EyesisCorrectionParameters {
   		public double     stMinBgDisparity  = 0.0;   // Minimal backgroubnd disparity to extract as a maximum from the supertiles 
   		public double     stMinBgFract      = 0.1;   // Minimal fraction of the disparity histogram to use as background 
   		public double     stUseDisp         = 0.15;  // Use background disparity from supertiles if tile strength is less 
-  		public double     stStrengthScale   = 50.0;  // Multiply st strength if used instead of regular strength 
+  		public double     stStrengthScale   = 50.0;  // Multiply st strength if used instead of regular strength
+  		
+  		public int        stMeasSel         = 1;     // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+  		
   		
   		public double     outlayerStrength  = 0.3;   // Outlayer tiles weaker than this may be replaced from neighbors
   		public double     outlayerDiff      = 0.4;   // Replace weak outlayer tiles that do not have neighbors within this disparity difference
@@ -2156,17 +2159,29 @@ public class EyesisCorrectionParameters {
   		public boolean    plMutualOnly         =   true; // keep only mutual links, remove weakest if conflict
   		public boolean    plFillSquares        =   true; // Add diagonals to full squares
   		public boolean    plCutCorners         =   true; // Add ortho to 45-degree corners
-  		
 
-  		public double     plPull               =  .1;   // Relative weight of original (measured) plane when combing with neighbors
+  		public double     plPull               =  .3;   // Relative weight of original (measured) plane compared to average neighbor pull
+  		                                                // when combing with neighbors
   		public int        plIterations         =  10;   // Maximal number of smoothing iterations for each step
   		public boolean    plStopBad            =  true; // Do not update supertile if any of connected neighbors is not good (false: just skip that neighbor)
   		public int        plPrecision          =  6;    // Maximal step difference (1/power of 10)
   		
   		public double     plSplitPull          =  .5;   // Relative weight of center plane when splitting into pairs
+  		public double     plNormPow            =  .5;   // 0.0: 8 neighbors pull 8 times as 1, 1.0 - same as 1
   		public int        plSplitMinNeib       =  2;    // Minimal number of neighbors to split plane in pairs
   		public double     plSplitMinWeight     =  2.0;  // Minimal weight of split plains to show
-  		public double     plSplitMinQuality    =  1.1;  // Minimal split quality to show
+  		public double     plSplitMinQuality    =  1.1;  // Maximal normalized disparity difference from the plane to consider
+  		
+  		public boolean    plSplitApply         = true;  // Apply plane split to pairs
+  		public boolean    plNonExclusive       = true;  // Allow tiles to belong to both planes of the pair
+  		public boolean    plUseOtherPlanes     = false; // Allow other tiles from the same supertile
+  		public boolean    plAllowParallel      = true;  // Allow parallel shift of the specified planes before adding
+  		public double     plMaxDiff            = 0.3;   // Maximal normalized tile disparity difference from the plane to consider
+  		public double     plOtherDiff          = 1.4;   // Maximal difference of the added tile ratio to the average  disparity difference
+  		
+  		
+  		public boolean    plSplitXY            = true;  // Separate tiles for split planes by X, Y 
+  		public double     plSplitXYTolerance   = 0.2;   // Disparity tolerance when separating by X, Y 
   		
   		
   		public boolean    plFuse               =  true; // Fuse planes together (off for debug only)
@@ -2399,6 +2414,8 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"stMinBgFract",     this.stMinBgFract +"");
 			properties.setProperty(prefix+"stUseDisp",        this.stUseDisp +"");
 			properties.setProperty(prefix+"stStrengthScale",  this.stStrengthScale +"");
+  			properties.setProperty(prefix+"stMeasSel",        this.stMeasSel+"");
+			
 			properties.setProperty(prefix+"outlayerStrength", this.outlayerStrength +"");
 			properties.setProperty(prefix+"outlayerDiff",     this.outlayerDiff +"");
 			properties.setProperty(prefix+"outlayerDiffPos",  this.outlayerDiffPos +"");
@@ -2433,6 +2450,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plCutCorners",     this.plCutCorners+"");
 
 			properties.setProperty(prefix+"plPull",           this.plPull +"");
+			properties.setProperty(prefix+"plNormPow",        this.plNormPow +"");
   			properties.setProperty(prefix+"plIterations",     this.plIterations+"");
 			properties.setProperty(prefix+"plStopBad",        this.plStopBad+"");
   			properties.setProperty(prefix+"plPrecision",      this.plPrecision+"");
@@ -2441,6 +2459,14 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"plSplitMinNeib",   this.plSplitMinNeib+"");
 			properties.setProperty(prefix+"plSplitMinWeight", this.plSplitMinWeight +"");
 			properties.setProperty(prefix+"plSplitMinQuality",this.plSplitMinQuality +"");
+			properties.setProperty(prefix+"plSplitApply",     this.plSplitApply+"");
+			properties.setProperty(prefix+"plNonExclusive",   this.plNonExclusive+"");
+			properties.setProperty(prefix+"plUseOtherPlanes", this.plUseOtherPlanes+"");
+			properties.setProperty(prefix+"plAllowParallel",  this.plAllowParallel+"");
+			properties.setProperty(prefix+"plMaxDiff",        this.plMaxDiff +"");
+			properties.setProperty(prefix+"plOtherDiff",      this.plOtherDiff +"");
+			properties.setProperty(prefix+"plSplitXY",        this.plSplitXY+"");
+			properties.setProperty(prefix+"plSplitXYTolerance",this.plSplitXYTolerance +"");
 
   			properties.setProperty(prefix+"plFuse",           this.plFuse+"");
 			properties.setProperty(prefix+"plKeepOrphans",    this.plKeepOrphans+"");
@@ -2661,6 +2687,8 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"stMinBgFract")!=null)      this.stMinBgFract=Double.parseDouble(properties.getProperty(prefix+"stMinBgFract"));
   			if (properties.getProperty(prefix+"stUseDisp")!=null)         this.stUseDisp=Double.parseDouble(properties.getProperty(prefix+"stUseDisp"));
   			if (properties.getProperty(prefix+"stStrengthScale")!=null)   this.stStrengthScale=Double.parseDouble(properties.getProperty(prefix+"stStrengthScale"));
+  			if (properties.getProperty(prefix+"stMeasSel")!=null)         this.stMeasSel=Integer.parseInt(properties.getProperty(prefix+"stMeasSel"));
+
   			if (properties.getProperty(prefix+"outlayerStrength")!=null)  this.outlayerStrength=Double.parseDouble(properties.getProperty(prefix+"outlayerStrength"));
   			if (properties.getProperty(prefix+"outlayerDiff")!=null)      this.outlayerDiff=Double.parseDouble(properties.getProperty(prefix+"outlayerDiff"));
   			if (properties.getProperty(prefix+"outlayerDiffPos")!=null)   this.outlayerDiffPos=Double.parseDouble(properties.getProperty(prefix+"outlayerDiffPos"));
@@ -2695,6 +2723,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plCutCorners")!=null)      this.plCutCorners=Boolean.parseBoolean(properties.getProperty(prefix+"plCutCorners"));
 
   			if (properties.getProperty(prefix+"plPull")!=null)            this.plPull=Double.parseDouble(properties.getProperty(prefix+"plPull"));
+  			if (properties.getProperty(prefix+"plNormPow")!=null)         this.plNormPow=Double.parseDouble(properties.getProperty(prefix+"plNormPow"));
   			if (properties.getProperty(prefix+"plIterations")!=null)      this.plIterations=Integer.parseInt(properties.getProperty(prefix+"plIterations"));
   			if (properties.getProperty(prefix+"plStopBad")!=null)         this.plStopBad=Boolean.parseBoolean(properties.getProperty(prefix+"plStopBad"));
   			if (properties.getProperty(prefix+"plPrecision")!=null)       this.plPrecision=Integer.parseInt(properties.getProperty(prefix+"plPrecision"));
@@ -2703,6 +2732,14 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plSplitMinNeib")!=null)    this.plSplitMinNeib=Integer.parseInt(properties.getProperty(prefix+"plSplitMinNeib"));
   			if (properties.getProperty(prefix+"plSplitMinWeight")!=null)  this.plSplitMinWeight=Double.parseDouble(properties.getProperty(prefix+"plSplitMinWeight"));
   			if (properties.getProperty(prefix+"plSplitMinQuality")!=null) this.plSplitMinQuality=Double.parseDouble(properties.getProperty(prefix+"plSplitMinQuality"));
+  			if (properties.getProperty(prefix+"plSplitApply")!=null)      this.plSplitApply=Boolean.parseBoolean(properties.getProperty(prefix+"plSplitApply"));
+  			if (properties.getProperty(prefix+"plNonExclusive")!=null)    this.plNonExclusive=Boolean.parseBoolean(properties.getProperty(prefix+"plNonExclusive"));
+  			if (properties.getProperty(prefix+"plUseOtherPlanes")!=null)  this.plUseOtherPlanes=Boolean.parseBoolean(properties.getProperty(prefix+"plUseOtherPlanes"));
+  			if (properties.getProperty(prefix+"plAllowParallel")!=null)   this.plAllowParallel=Boolean.parseBoolean(properties.getProperty(prefix+"plAllowParallel"));
+  			if (properties.getProperty(prefix+"plMaxDiff")!=null)         this.plMaxDiff=Double.parseDouble(properties.getProperty(prefix+"plMaxDiff"));
+  			if (properties.getProperty(prefix+"plOtherDiff")!=null)       this.plOtherDiff=Double.parseDouble(properties.getProperty(prefix+"plOtherDiff"));
+  			if (properties.getProperty(prefix+"plSplitXY")!=null)         this.plSplitXY=Boolean.parseBoolean(properties.getProperty(prefix+"plSplitXY"));
+  			if (properties.getProperty(prefix+"plSplitXYTolerance")!=null)this.plSplitXYTolerance=Double.parseDouble(properties.getProperty(prefix+"plSplitXYTolerance"));
 
   			if (properties.getProperty(prefix+"plFuse")!=null)            this.plFuse=Boolean.parseBoolean(properties.getProperty(prefix+"plFuse"));
   			if (properties.getProperty(prefix+"plKeepOrphans")!=null)     this.plKeepOrphans=Boolean.parseBoolean(properties.getProperty(prefix+"plKeepOrphans"));
@@ -2944,6 +2981,8 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Minimal fraction of the disparity histogram to use as background",             this.stMinBgFract,  6);
   			gd.addNumericField("Use background disparity from supertiles if tile strength is less",            this.stUseDisp,  6);
   			gd.addNumericField("Multiply st strength if used instead of regular strength ",                    this.stStrengthScale,  6);
+  			gd.addNumericField("Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert",this.stMeasSel,  0);
+
   			gd.addNumericField("Outlayer tiles weaker than this may be replaced from neighbors",               this.outlayerStrength,  6);
   			gd.addNumericField("Replace weak outlayer tiles that do not have neighbors within this disparity difference", this.outlayerDiff,  6);
   			gd.addNumericField("Replace weak outlayer tiles that have higher disparity than weighted average", this.outlayerDiffPos,  6);
@@ -2978,15 +3017,24 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Add diagonals to full squares",                                                this.plFillSquares);
   			gd.addCheckbox    ("Add ortho to 45-degree corners",                                               this.plCutCorners);
 
-  			gd.addNumericField("Relative weight of original (measured) plane when combing with neighbors",     this.plPull,  6);
+  			gd.addNumericField("Relative (to average neighbor) weight of the measured plane when combing with neighbors",     this.plPull,  6);
+  			gd.addNumericField("0.0: 8 neighbors pull 8 times as 1, 1.0 - same as 1",                          this.plNormPow,  6);
   			gd.addNumericField("Maximal number of smoothing iterations for each step",                         this.plIterations,  0);
   			gd.addCheckbox    ("Do not update supertile if any of connected is not good (false: just skip that neighbor)", this.plStopBad);
   			gd.addNumericField("Maximal step difference (1/power of 10)",                                      this.plPrecision,  0);
 
   			gd.addNumericField("Relative weight of center plane when splitting into pairs",                    this.plSplitPull,  6);
   			gd.addNumericField("Minimal number of neighbors to split plane in pairs",                          this.plSplitMinNeib,  0);
-  			gd.addNumericField(" Minimal weight of split plains to show",                                      this.plSplitMinWeight,  6);
+  			gd.addNumericField("Minimal weight of split plains to show",                                       this.plSplitMinWeight,  6);
   			gd.addNumericField("Minimal split quality to show",                                                this.plSplitMinQuality,  6);
+  			gd.addCheckbox    ("Apply plane split to pairs",                                                   this.plSplitApply);
+  			gd.addCheckbox    ("Allow tiles to belong to both planes of the pair",                             this.plNonExclusive);
+  			gd.addCheckbox    ("Allow other tiles from the same supertile",                                    this.plUseOtherPlanes);
+  			gd.addCheckbox    ("Allow parallel shift of the specified planes before adding",                   this.plAllowParallel);
+  			gd.addNumericField("Maximal normalized tile disparity difference from the plane to consider",      this.plMaxDiff,  6);
+  			gd.addNumericField("Maximal difference of the added tile ratio to the average  disparity difference",this.plOtherDiff,  6);
+  			gd.addCheckbox    ("Separate tiles for split planes by X, Y",                                      this.plSplitXY);
+  			gd.addNumericField("Disparity tolerance when separating by X, Y",                                  this.plSplitXYTolerance,  6);
   			
   			gd.addCheckbox    ("Fuse planes together (off for debug only)",                                    this.plFuse);
   			gd.addCheckbox    ("Keep unconnected supertiles",                                                  this.plKeepOrphans);
@@ -3216,6 +3264,7 @@ public class EyesisCorrectionParameters {
   			this.stMinBgFract=          gd.getNextNumber();
   			this.stUseDisp=             gd.getNextNumber();
   			this.stStrengthScale=       gd.getNextNumber();
+  			this.stMeasSel=       (int) gd.getNextNumber();
   			this.outlayerStrength=      gd.getNextNumber();
   			this.outlayerDiff=          gd.getNextNumber();
   			this.outlayerDiffPos=       gd.getNextNumber();
@@ -3251,14 +3300,23 @@ public class EyesisCorrectionParameters {
   			this.plCutCorners=          gd.getNextBoolean();
 
   			this.plPull=                gd.getNextNumber();
+  			this.plNormPow=             gd.getNextNumber();
   			this.plIterations=    (int) gd.getNextNumber();
-  			this.plStopBad=            gd.getNextBoolean();
+  			this.plStopBad=             gd.getNextBoolean();
   			this.plPrecision=     (int) gd.getNextNumber();
 
   			this.plSplitPull=           gd.getNextNumber();
   			this.plSplitMinNeib=  (int) gd.getNextNumber();
   			this.plSplitMinWeight=      gd.getNextNumber();
   			this.plSplitMinQuality=     gd.getNextNumber();
+  			this.plSplitApply=          gd.getNextBoolean();
+  			this.plNonExclusive=        gd.getNextBoolean();
+  			this.plUseOtherPlanes=      gd.getNextBoolean();
+  			this.plAllowParallel=       gd.getNextBoolean();
+  			this.plMaxDiff=             gd.getNextNumber();
+  			this.plOtherDiff=           gd.getNextNumber();
+  			this.plSplitXY=             gd.getNextBoolean();
+  			this.plSplitXYTolerance=    gd.getNextNumber();
 
   			this.plFuse=                gd.getNextBoolean();
   			this.plKeepOrphans=         gd.getNextBoolean();
