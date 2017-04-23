@@ -368,6 +368,7 @@ public class MeasuredLayers {
 		if (null_if_none && (num_selected == 0)) return null;
 		return selection;
 	}
+	
 
 	/**
 	 * Get selection for the specific measurement layer and supertile X,Y coordinates
@@ -425,7 +426,80 @@ public class MeasuredLayers {
 		if (null_if_none && (num_selected == 0)) return null;
 		return selection;
 	}
+	
+	/**
+	 * Get selection when disparity/strength is already calculated. Useful when
+	 * disparity/strength are not just measured values, by sampled over an area
+	 * @param disparityStrength array of {disparity, strength} where each is
+	 *  a linescan data of the (2 * superTileSize) * (2 * superTileSize)   
+	 * @param sel_in optional input selection array or null - use all
+	 * @param null_if_none return null if selection has no tiles enabled
+	 * @return boolean array of per-tile enabled/disabled values in linescan
+	 *  order, (2 * superTileSize) * (2 * superTileSize)
+	 */
 
+	public boolean [] getSupertileSelection(
+			double [][] disparityStrength,
+			boolean [] sel_in,
+			boolean null_if_none)
+	{
+		int st2 = 2 * superTileSize;
+		boolean [] selection = new boolean [st2 * st2];
+		int num_selected = 0;
+		for (int i = 0; i < disparityStrength[1].length; i++){
+			if (	(disparityStrength[1][i] > 0.0) &&
+					((sel_in == null) || (sel_in[i]))){
+				selection[i] = true;
+				num_selected ++;
+			}
+		}
+		
+		if (null_if_none && (num_selected == 0)) return null;
+		return selection;
+	}
+	
+	/**
+	 * Get selection when disparity/strength is already calculated. Useful when
+	 * disparity/strength are not just measured values, by sampled over an area
+	 * Includes low/high limits for disparity values
+	 * @param disparityStrength array of {disparity, strength} where each is
+	 *  a linescan data of the (2 * superTileSize) * (2 * superTileSize)   
+	 * @param sel_in optional input selection array or null - use all
+	 * @param disp_far low limit for disparity, Double.NaN - do not check
+	 * @param disp_near high limit for disparity, Double.NaN - do not check
+	 * @param null_if_none return null if selection has no tiles enabled
+	 * @return boolean array of per-tile enabled/disabled values in linescan
+	 *  order, (2 * superTileSize) * (2 * superTileSize)
+	 * @return
+	 */
+	public boolean [] getSupertileSelection(
+			double [][] disparityStrength,
+			boolean [] sel_in,
+			double     disp_far,
+			double     disp_near,
+			boolean null_if_none)
+	{
+		int st2 = 2 * superTileSize;
+		boolean [] selection = new boolean [st2 * st2];
+		int num_selected = 0;
+		for (int i = 0; i < disparityStrength[1].length; i++){
+			if (	(disparityStrength[1][i] > 0.0) &&
+					((sel_in == null) || (sel_in[i]))){
+				if (    (Double.isNaN(disp_far)  || (disparityStrength[0][i] >= disp_far)) &&
+						(Double.isNaN(disp_near) || (disparityStrength[0][i] <= disp_near))) {
+					
+				}
+				selection[i] = true;
+				num_selected ++;
+			}
+		}
+		
+		if (null_if_none && (num_selected == 0)) return null;
+		return selection;
+	}
+	
+	
+	
 	
 	/**
 	 * Get number of "true" elements in a boolean array. Null is OK, it results in 0
@@ -450,6 +524,19 @@ public class MeasuredLayers {
 		double sw = 0.0;
 		for (int i = 0; i < disp_strength[1].length; i++){
 			sw += disp_strength[1][i];
+		}
+		return sw;
+	}
+	public static double getSumStrength(
+			double [][] disp_strength,
+			boolean [] selected)
+	{
+		if (disp_strength == null) return 0.0;
+		double sw = 0.0;
+		for (int i = 0; i < disp_strength[1].length; i++){
+			if ((selected == null) || selected[i]) {
+				sw += disp_strength[1][i];
+			}
 		}
 		return sw;
 	}
@@ -508,6 +595,155 @@ public class MeasuredLayers {
 			}
 		}
 		if (null_if_none && (num_selected == 0)) return null;
+		return ds;
+	}
+
+	/**
+	 * Get double-size  (for overlapping) array of disparities and strengths for the supertile
+	 * Using best (producing lowest disparity variance) subset of neighbor tiles
+	 * @param num_layer number of measurement layer (currently 0 - composite, 1 - quad, 2 - horizontal
+	 * and 3 - vertical piars correlation
+	 * @param stX supertile horizontal index
+	 * @param stY supertile vertical index
+	 * @param sel_in input selection of the output data samples (or null)
+	 * @param strength_floor subtract from the correlation strength (limit by 0) before using as a
+	 *  sample weight
+	 * @param strength_pow raise correlation strength (after subtracting strength_floor) to this power
+	 *  to use as a sample weight
+	 * @param smplSide size of the square sample side 
+	 * @param smplNum number of averaged samples (should be <= smplSide * smplSide and > 1) 
+	 * @param smplRms maximal square root of variance (in disparity pixels) to accept the result
+	 * @param null_if_none return null if there are no usable tiles in the result
+	 * @return a pair of arrays (disparity and strengths) in line-scan order each
+	 */
+	public double[][] getDisparityStrength (
+			int num_layer,
+			int stX,
+			int stY,
+			boolean [] sel_in,
+			double     strength_floor,
+			double     strength_pow,
+			int        smplSide, //        = 2;      // Sample size (side of a square)
+			int        smplNum, //         = 3;      // Number after removing worst (should be >1)
+			double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+			boolean null_if_none)
+	{
+		if ((layers[num_layer] == null) && null_if_none){
+			return null;
+		}
+		int st2 = 2 * superTileSize;
+		int st_half = superTileSize/2;
+		double [][] ds = new double [2][st2*st2];
+		int num_selected = 0;
+		int smpl_center = smplSide /2;
+		int st2e = st2 + smplSide;
+		int smplLen = smplSide*smplSide;
+		double [] disp =     new double [st2e * st2e]; 
+		double [] weight = new double [st2e * st2e]; 
+		int st_halfe = st_half + smpl_center;
+		double smlVar = smplRms * smplRms; // maximal variance (weighted average of the squared difference from the mean)
+		
+		if (layers[num_layer] != null) {
+			for (int dy = 0; dy < st2e; dy ++){
+				int y = superTileSize * stY -st_halfe + dy;
+				if ((y >= 0) && (y < tilesY)) {
+					for (int dx = 0; dx < st2e; dx ++){
+						int x = superTileSize * stX -st_halfe + dx;
+						if ((x >= 0) && (x < tilesX)) {
+							int indx = y * tilesX + x;
+							int indx_ste = dy * st2e + dx;
+							if (layers[num_layer][indx] != null){ // apply sel_in later
+								disp[indx_ste] = layers[num_layer][indx].getDisparity();
+								double w = layers[num_layer][indx].getStrength() - strength_floor;
+								if (w > 0) {
+									if (strength_pow != 1.0) w = Math.pow(w, strength_pow);
+//									w *= lapWeight[dy][dx];
+									disp[indx_ste] = layers[num_layer][indx].getDisparity();
+									weight[indx_ste] = w;
+									num_selected ++;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		if (null_if_none && (num_selected == 0)) return null;
+		// now work with disp, strength [st2e*st2de] and filter results to ds[2][st2*st2], applying sel_in
+		num_selected = 0;
+		for (int dy = 0; dy < st2; dy ++){
+			for (int dx = 0; dx < st2; dx ++){
+				int indx = dy * st2 + dx;
+				if (((sel_in == null) || sel_in[indx])){
+					int num_in_sample = 0;
+					boolean [] smpl_sel = new boolean [smplLen];
+					double [] smpl_d =  new double [smplLen];
+					double [] smpl_w =  new double [smplLen];
+					for (int sy = 0; sy < smplSide; sy++){
+						int y = dy + sy; //  - smpl_center;
+						for (int sx = 0; sx < smplSide; sx++){
+							int x = dx + sx; // - smpl_center;
+							int indxe = y * st2e + x;
+							if (weight[indxe] > 0.0){
+								int indxs = sy * smplSide + sx;
+								smpl_sel[indxs] = true;
+								smpl_d[indxs] = disp[indxe]; 
+								smpl_w[indxs] = weight[indxe]; 
+								num_in_sample ++;
+							}
+						}
+					}
+					if (num_in_sample >= smplNum){ // try, remove worst
+						// calculate 
+						double sd=0.0, sd2 = 0.0, sw = 0.0;
+						for (int i = 0; i < smplLen; i++) if (smpl_sel[i]) {
+							double dw = smpl_d[i] * smpl_w[i];
+							sd += dw;
+							sd2 += dw * smpl_d[i];
+							sw +=       smpl_w[i];
+						}
+						// remove worst, update sd2, sd and sw
+						while ((num_in_sample > smplNum) && (sw > 0)){ // try, remove worst
+							double d_mean = sd/sw;
+							int iworst = -1;
+							double dworst2 = 0.0;
+							for (int i = 0; i < smplLen; i++) if (smpl_sel[i]) {
+								double d2 = (smpl_d[i] - d_mean);
+								d2 *=d2;
+								if (d2 > dworst2) {
+									iworst = i;
+									dworst2 = d2;
+								}
+							}
+							if (iworst < 0){
+								System.out.println("**** this is a BUG in getDisparityStrength() ****");
+								break;
+							}
+							// remove worst sample
+							smpl_sel[iworst] = false;
+							double dw = smpl_d[iworst] * smpl_w[iworst];
+							sd -= dw; 
+							sd2 -= dw * smpl_d[iworst];
+							sw -=       smpl_w[iworst];
+							num_in_sample --;
+						}
+						// calculate variance of the remaining set
+						if (sw > 0.0) {
+							sd /= sw;
+							sd2 /= sw;
+							double var = sd2 - sd * sd;
+							if (var < smlVar) { // good, save in the result array
+								ds[0][indx] = sd;
+								ds[1][indx] = sw * lapWeight[dy][dx] /num_in_sample; // average weights, multiply by window
+							}
+						} else {
+							num_in_sample = 0;
+							System.out.println("**** this is a BUG in getDisparityStrength(), shoud not happen ? ****");
+						}
+					}
+				}				
+			}
+		}
 		return ds;
 	}
 }

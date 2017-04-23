@@ -311,6 +311,11 @@ public class GeometryCorrection {
 	public double getZFromDisparity(double disparity){
 		return SCENE_UNITS_SCALE * this.focalLength * this.disparityRadius / (disparity * 0.001*this.pixelSize);
 	}
+
+	public double getDisparityFromZ(double z){
+		return (1000.0 * SCENE_UNITS_SCALE * this.focalLength * this.disparityRadius / this.pixelSize) / z;
+	}
+	
 	
 	public double getFOVPix(){ // get ratio of 1 pixel X/Y to Z (distance to object)
 		return 0.001 * this.pixelSize / this.focalLength;

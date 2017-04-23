@@ -534,6 +534,10 @@ public class CLTPass3d{
 				double     strength_floor,
 				double     strength_pow,
 				double     stBlurSigma,
+				boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+				int        smplSide, //        = 2;      // Sample size (side of a square)
+				int        smplNum, //         = 3;      // Number after removing worst
+				double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 				int        measSel)
 		{
 			this.superTiles = new SuperTiles(
@@ -546,15 +550,29 @@ public class CLTPass3d{
 					strength_floor,
 					strength_pow,
 					stBlurSigma,
+					smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+					smplSide, //        = 2;      // Sample size (side of a square)
+					smplNum, //         = 3;      // Number after removing worst
+					smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 					measSel);
 			return this.superTiles;
 		}
-		public double [] showDisparityHistogram(int measSel)
+		public double [] showDisparityHistogram(
+				boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+				int        smplSide, //        = 2;      // Sample size (side of a square)
+				int        smplNum,  //         = 3;      // Number after removing worst
+				double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				int        measSel)
 		{
 			if (this.superTiles == null){
 				return null;
 			}
-			return this.superTiles.showDisparityHistogram(measSel);
+			return this.superTiles.showDisparityHistogram(
+					smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+					smplSide, //        = 2;      // Sample size (side of a square)
+					smplNum,  //         = 3;      // Number after removing worst
+					smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+					measSel);
 		}
 
 		public double [] showDisparityHistogram()

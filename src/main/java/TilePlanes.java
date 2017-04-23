@@ -77,6 +77,12 @@ public class TilePlanes {
 		int          min_tiles =             10;
 		double       dispNorm =              5.0;  //  Normalize disparities to the average if above
 		
+		boolean      smplMode = true;   // Use sample mode (false - regular tile mode)
+		int          smplSide = 2;      // Sample size (side of a square)
+		int          smplNum  = 3;      // Number after removing worst
+		double       smplRms  = 0.1;    // Maximal RMS of the remaining tiles in a sample
+		
+		
 		boolean      preferDisparity = false;
 		
 		public PlaneData clone(){
@@ -88,14 +94,17 @@ public class TilePlanes {
 			pd.correctDistortions = this.correctDistortions;
 			pd.num_points = this.num_points; 
 			pd.weight =     this.weight; 
-			if (this.plane_sel != null)  pd.plane_sel =  this.plane_sel.clone(); 
-			if (this.zxy != null)        pd.zxy =        this.zxy.clone(); 
-			if (this.values != null)     pd.values =     this.values.clone(); 
+			if (this.plane_sel != null)  pd.plane_sel =  this.plane_sel.clone();
+			if (this.values != null)     pd.values =     this.values.clone();
+			
+			if (this.zxy != null)        pd.zxy =        this.zxy.clone();
+			// World calculations should be invalidated during cloning?
+/*			
 			if (this.center_xyz != null) pd.center_xyz = this.center_xyz.clone(); 
 			if (this.world_xyz != null)  pd.world_xyz =  this.world_xyz.clone(); 
 			if (this.world_v1 != null)   pd.world_v1 =   this.world_v1.clone(); 
-			if (this.world_v2 != null)   pd.world_v2 =   this.world_v2.clone(); 
-//			if (this.daxy != null)       pd.daxy =       this.daxy.clone(); 
+			if (this.world_v2 != null)   pd.world_v2 =   this.world_v2.clone();
+*/
 			if (this.vectors != null) {
 				pd.vectors = new double[3][];
 				pd.vectors[0] = this.vectors[0].clone();
@@ -115,7 +124,12 @@ public class TilePlanes {
 			pd.min_tiles =             this.min_tiles;
 			pd.dispNorm =              this.dispNorm;
 			
-			pd.preferDisparity = this.preferDisparity;
+			pd.smplMode =              this.smplMode;
+			pd.smplSide =              this.smplSide;
+			pd.smplNum =               this.smplNum;
+			pd.smplRms =               this.smplRms;
+			
+			pd.preferDisparity =       this.preferDisparity;
 			
 			copyNeib(this,pd);
 			return pd;
@@ -288,6 +302,10 @@ public class TilePlanes {
 		 * 
 		 * @param non_exclusive allow the same tile data to belong to multiple PD instances
 		 * @param use_other_planes allow the same tile not included in this PD to be used
+		 * @param smplMode use square sample mode, false - single-tile samples 
+		 * @param smplSide size of the square sample side 
+		 * @param smplNum number of averaged samples (should be <= smplSide * smplSide and > 1) 
+		 * @param smplRms maximal square root of variance (in disparity pixels) to accept the result
 		 * @param measSel (with use_other_planes) select measurements for supertiles :
 		 *  +1 - combo, +2 - quad +4 - hor +8 - vert
 		 * @param allow_parallel allow parallel shift of each plane before adding more data
@@ -302,6 +320,10 @@ public class TilePlanes {
 				double       other_diff, 
 				boolean      non_exclusive,
 				boolean      use_other_planes,
+				boolean      smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+				int          smplSide, //        = 2;      // Sample size (side of a square)
+				int          smplNum, //         = 3;      // Number after removing worst
+				double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 				int          measSel, // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 				boolean      allow_parallel,
 				int          debugLevel)
@@ -332,14 +354,28 @@ public class TilePlanes {
 			// split exclusively, calculate rms for each, then add others if RMS is not increased
 			for (int nl = 0; nl < measuredLayers.getNumLayers(); nl ++){
 				if ((measuredSelection[nl] != null) &&  ((measSel & (1 << nl)) !=0)) {
-					disp_strength[nl] = measuredLayers.getDisparityStrength(
-							nl,                     // int num_layer,
-							getSTileXY()[0],        // int stX,
-							getSTileXY()[1],        // int stY,
-							(single_plane ? null : measuredSelection[nl]),  // boolean [] sel_in,
-							strength_floor,         //  double strength_floor,
-							measured_strength_pow,  // double strength_pow,
-							true);                  // boolean null_if_none);
+					if (smplMode) {
+						disp_strength[nl] = measuredLayers.getDisparityStrength( // expensive to calculate (improve removing outlayers
+								nl, // int num_layer,
+								getSTileXY()[0],        // int stX,
+								getSTileXY()[1],        // int stY,
+								(single_plane ? null : measuredSelection[nl]),  // boolean [] sel_in,
+								strength_floor,
+								measured_strength_pow, //
+								smplSide, //        = 2;      // Sample size (side of a square)
+								smplNum, //         = 3;      // Number after removing worst
+								smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+								true); // boolean null_if_none)
+					} else {
+						disp_strength[nl] = measuredLayers.getDisparityStrength(
+								nl,                     // int num_layer,
+								getSTileXY()[0],        // int stX,
+								getSTileXY()[1],        // int stY,
+								(single_plane ? null : measuredSelection[nl]),  // boolean [] sel_in,
+								strength_floor,         //  double strength_floor,
+								measured_strength_pow,  // double strength_pow,
+								true);                  // boolean null_if_none);
+					}
 					if (disp_strength[nl] != null) {
 						for (int indx = 0; indx < disp_strength[nl][1].length; indx++){
 							double w = disp_strength[nl][1][indx];
@@ -381,7 +417,6 @@ public class TilePlanes {
 			if (allow_parallel && (non_exclusive || use_other_planes)){
 				for (int nl = 0; nl < measuredLayers.getNumLayers(); nl ++){
 					if (disp_strength[nl] != null) {
-						//disp_strength[nl] = measuredLayers.getDisparityStrength(
 						for (int indx = 0; indx < disp_strength[nl][1].length; indx++){
 							double w = disp_strength[nl][1][indx];
 							if (w > 0.0){
@@ -410,7 +445,6 @@ public class TilePlanes {
 				for (int nl = 0; nl < measuredLayers.getNumLayers(); nl ++){
 					if ((measuredSelection[nl] != null) &&  ((measSel & (1 << nl)) !=0)) {
 						if (disp_strength[nl] != null) {
-							//disp_strength[nl] = measuredLayers.getDisparityStrength(
 							for (int indx = 0; indx < disp_strength[nl][1].length; indx++){
 								double w = disp_strength[nl][1][indx];
 								if (w > 0.0){
@@ -444,6 +478,29 @@ public class TilePlanes {
 				for (int nl = 0; nl < measuredLayers.getNumLayers(); nl ++){
 					if ((measuredSelection[nl] != null) &&  ((measSel & (1 << nl)) !=0)) {
 						// recalculate for all measure tiles, not just selected in the original PD
+						if (smplMode) {
+							disp_strength[nl] = measuredLayers.getDisparityStrength( // expensive to calculate (improve removing outlayers
+									nl, // int num_layer,
+									getSTileXY()[0],        // int stX,
+									getSTileXY()[1],        // int stY,
+									null,  // boolean [] sel_in,
+									strength_floor,
+									measured_strength_pow, //
+									smplSide, //        = 2;      // Sample size (side of a square)
+									smplNum, //         = 3;      // Number after removing worst
+									smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+									true); // boolean null_if_none)
+						} else {
+							disp_strength[nl] = measuredLayers.getDisparityStrength(
+									nl,                     // int num_layer,
+									getSTileXY()[0],        // int stX,
+									getSTileXY()[1],        // int stY,
+									null,  // boolean [] sel_in,
+									strength_floor,         //  double strength_floor,
+									measured_strength_pow,  // double strength_pow,
+									true);                  // boolean null_if_none);
+						}
+/*						
 						disp_strength[nl] = measuredLayers.getDisparityStrength(
 								nl,                     // int num_layer,
 								getSTileXY()[0],        // int stX,
@@ -452,6 +509,7 @@ public class TilePlanes {
 								strength_floor,         //  double strength_floor,
 								measured_strength_pow,  // double strength_pow,
 								true);                  // boolean null_if_none);
+*/								
 						//disp_strength[nl] = measuredLayers.getDisparityStrength(
 						for (int indx = 0; indx < disp_strength[nl][1].length; indx++){
 							double w = disp_strength[nl][1][indx];
@@ -495,10 +553,82 @@ public class TilePlanes {
 			return true;
 		}
 		
+		/**
+		 * Tilt disparity values around the supertile center (this.zxy) so constant disparity in the output
+		 * corresponds to the real world plane parallel to the provided one. Used to discriminate tiles by
+		 * the effective disparity value (disparity in the center of the supertile of the parallel plane)
+		 * @param world_normal_xyz real world 3d vector of the plane normal (0.0, 1.0, 0.0 - horizontal)
+		 * @param disp_center dispariy in at the center of the supertile (to rotate around)
+		 * @param tile_sel multi-layer tile selection (or null to use all available tiles)
+		 * @param disp_str multi-layer disparity/strength array
+		 * @param debugLevel
+		 * @return same
+		 */
+		
+		public double [][][] getDisparityToPlane(
+				double []     world_normal_xyz,
+				double        disp_center,
+				boolean [][]  tile_sel, // null - do not use, {} use all (will be modified)
+				double [][][] disp_str, // calculate just once if null 
+				int           debugLevel)
+		{
+			final int stSize2 = 2* stSize;
+			invalidateCalculated();			
+			double [] px_py = getCenterPxPy();
+			// find world coordinates of the center of tile intersection with the plane
+			Matrix st_xyz = new Matrix(geometryCorrection.getWorldCoordinates(
+						px_py[0],
+						px_py[1],
+						disp_center,
+						this.correctDistortions),3);
+			Matrix normal_row = new Matrix(world_normal_xyz,1); // 1x3
+			double [][][] eff_disp_str = disp_str.clone();
+			for (int ml = 0; ml < disp_str.length; ml++) {
+				if (disp_str[ml] != null){
+					eff_disp_str[ml] =    new double [2][];
+					eff_disp_str[ml][0] = new double [disp_str[ml][0].length];
+					eff_disp_str[ml][1] = disp_str[ml][1]; // keep same strengths
+				}
+			}
+			double n_by_w =  normal_row.times(st_xyz).get(0, 0);
+			System.out.println("st_xyz = {"+st_xyz.get(0, 0)+","+st_xyz.get(1, 0)+","+st_xyz.get(2, 0)+"}"+" ="+n_by_w);
+			for (int ml = 0; ml < disp_str.length; ml++) if (disp_str[ml] != null){
+				for (int dy = 0; dy < stSize2; dy ++ ){
+					double y = (dy -  stSize + 0.5) * tileSize;
+					for (int dx = 0; dx < stSize2; dx ++ ){
+						double x = (dx -  stSize + 0.5) * tileSize;
+						int indx = dy * stSize2 + dx;
+						if ((disp_str[ml][1][indx] > 0) && ((tile_sel == null) || ((tile_sel[ml] != null) && tile_sel[ml][indx]))){ // do not bother with zero-strength
+							// Find world coordinates of a measured tile
+							Matrix w_xyz = new Matrix(geometryCorrection.getWorldCoordinates(
+									px_py[0] + x,
+									px_py[1] + y,
+									disp_str[ml][0][indx],
+									this.correctDistortions),3);
+							// now find intersection of the view line (0,0,0) to world_xyz with a plane through wxyz perpendicular to world_normal_xyz
+							// then calculate disparity from z of that point
+							// inner product of transposed
+							double n_by_p = normal_row.times(w_xyz).get(0, 0);
+							double z = st_xyz.get(2, 0)*n_by_p / n_by_w;
+							if (disp_str[ml][1][indx] > 0){ // do not bother with zero-strength
+								System.out.println("dy = "+dy+", dx=" + dx+ " {"+w_xyz.get(0, 0)+","+w_xyz.get(1, 0)+","+w_xyz.get(2, 0)+"}"+" z="+z+" n_by_p = "+n_by_p
+										+" disp = "+disp_str[ml][0][indx]+" px = "+(px_py[0] + x)+" py = "+(px_py[1] + y));
+							}
+							// convert z to disparity
+							eff_disp_str[ml][0][indx] = geometryCorrection.getDisparityFromZ (-z);
+						}
+					}
+				}
+			}
+			return eff_disp_str;
+		}
 		
 		/**
 		 * Remove outliers from the set of tiles contributing to a single plane ellipsoid
 		 * Should run after getPlaneFromMeas as some parameter4s will be copied from that run
+		 * @param disp_str - pre-calculated array or null (will be calculated). disp_str
+		 * has the same format as the output of getPlaneFromMeas - [measurement layer][2][tile index],
+		 * so it can be used for input.
 		 * @param targetEigen Target value for the lowest eigenvalue (thickness of the ellipsoid)
 		 * @param maxRemoved maximal number of tiles to be removed
 		 * @param debugLevel debug level
@@ -506,12 +636,45 @@ public class TilePlanes {
 		 */
 		
 		public boolean removeOutliers( // getPlaneFromMeas should already have run
+				double [][][] disp_str, // calculate just once when removing outliers (null - OK, will generate it) 
 				double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
 				int        maxRemoved,  // maximal number of tiles to remove (not a constant)
 				int        debugLevel)
 		{
 			int stSize2 = 2 * stSize;
 			if (maxRemoved > (getNumPoints() - this.min_tiles)) maxRemoved = getNumPoints() - this.min_tiles;
+			boolean need_disp_str = false;
+			if (disp_str == null) {
+				disp_str =      new double [measuredSelection.length][][];
+				for (int nl = 0; nl < measuredSelection.length; nl++){
+					if (measuredSelection[nl] != null){
+						if (smplMode) {
+							if (need_disp_str) {
+								disp_str[nl] = measuredLayers.getDisparityStrength( // expensive to calculate (improve removing outlayers
+										nl, // int num_layer,
+										sTileXY[0], // int stX,
+										sTileXY[1], // int stY,
+										null, // measuredSelection[nl], // boolean [] sel_in,
+										strength_floor,
+										measured_strength_pow, //
+										smplSide, //        = 2;      // Sample size (side of a square)
+										smplNum, //         = 3;      // Number after removing worst
+										smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+										true); // boolean null_if_none)
+							}
+						} else {						
+							disp_str[nl] = measuredLayers.getDisparityStrength(
+									nl, // int num_layer,
+									sTileXY[0], // int stX,
+									sTileXY[1], // int stY,
+									null, // measuredSelection[nl], // boolean [] sel_in,
+									strength_floor, // 
+									measured_strength_pow, //
+									true); // boolean null_if_none)
+						}
+					}
+				}
+			}
 			int numRemoved = 0;
 			boolean no_bugs = true;
 			for (; (getValue() > targetEigen) && (numRemoved < maxRemoved); numRemoved++){
@@ -520,14 +683,16 @@ public class TilePlanes {
 				}
 				// make a plane and find the worst (largest disparity difference) tile
 				// z = -(x*Vx + y*Vy)/Vz
-				double [][][] disp_str = new double [measuredSelection.length][][];
-
+				
+//				double [][][] disp_str = new double [measuredSelection.length][][];
 				double worst_d2 = 0.0;
 				int [] worst_layer_index = {-1,-1};
 				double [] v = getVector();
 				double [] zxy0 = getZxy();
 				for (int nl = 0; nl < measuredSelection.length; nl++){
 					if (measuredSelection[nl] != null){
+						// already calculated, but not masked by selection!
+						/*
 						disp_str[nl] = measuredLayers.getDisparityStrength(
 								nl, // int num_layer,
 								sTileXY[0], // int stX,
@@ -536,10 +701,11 @@ public class TilePlanes {
 								strength_floor, // 
 								measured_strength_pow, //
 								true); // boolean null_if_none)
+						*/
 						if (disp_str[nl] != null) {
 							for (int indx = 0; indx < disp_str[nl][0].length; indx++){
 								double w = disp_str[nl][1][indx];
-								if (w > 0.0){
+								if (measuredSelection[nl][indx] && (w > 0.0)){
 									double x = ((indx % stSize2) - stSize) - zxy0[1];
 									double y = ((indx / stSize2) - stSize) - zxy0[2];
 									double d = disp_str[nl][0][indx];
@@ -566,29 +732,39 @@ public class TilePlanes {
 					System.out.println("removePlaneOutliers() worst_layer="+worst_layer_index[0]+", worst_index="+worst_layer_index[1]);
 				}
 				
-				boolean OK = getPlaneFromMeas(
-						null,            // boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
+				boolean OK = (getPlaneFromMeas(
+						measuredSelection, // null,            // boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
+						disp_str,						
 						Double.NaN,      // double       disp_far, // minimal disparity to select (or NaN)
 						Double.NaN,      // double       disp_near, // maximal disparity to select (or NaN)
 						this.dispNorm,   // double       dispNorm,   //  Normalize disparities to the average if above
 						this.min_weight, // double       min_weight,
-						this.min_tiles, // int          min_tiles,
+						this.min_tiles,  // int          min_tiles,
 						strength_floor,
 						measured_strength_pow, // double       strength_pow,
-						debugLevel);
+						smplMode,
+						smplSide,
+						smplNum,
+						smplRms,
+						debugLevel-1) != null);
 				
 				if (!OK){ // restore last selection, re-run getPlaneFromMeas
 					measuredSelection[worst_layer_index[0]][worst_layer_index[1]] = true;
-					OK = getPlaneFromMeas(
-							null,            // boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
+					OK = (getPlaneFromMeas(
+							measuredSelection, // null,            // boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
+							disp_str,						
 							Double.NaN,      // double       disp_far, // minimal disparity to select (or NaN)
 							Double.NaN,      // double       disp_near, // maximal disparity to select (or NaN)
 							this.dispNorm,   // double       dispNorm,   //  Normalize disparities to the average if above
 							this.min_weight, // double       min_weight,
-							this.min_tiles, // int          min_tiles,
+							this.min_tiles,  // int          min_tiles,
 							strength_floor,
 							measured_strength_pow, // double       strength_pow,
-							debugLevel);
+							smplMode,
+							smplSide,
+							smplNum,
+							smplRms,
+							debugLevel-1) != null);
 					if (!OK) {
 						System.out.println("This is a BUG in removePlaneOutliers() - run with previous selection and failed");
 						no_bugs = false;
@@ -605,8 +781,10 @@ public class TilePlanes {
 		 *                 match number of measurement layers. each element can be either:
 		 *                 a) boolean array 4* superTileSize * superTileSize length
 		 *                 b) zero-length array - it will be calculated from all measurement
-		 *                    data on that layer matching optional diaparity limits
+		 *                    data on that layer matching optional disparity limits
 		 *                 c) null - this measuremen5t layer will not be used   
+		 * @param disp_str - pre-calculated array or null (will be calculated). disp_str
+		 * has the same format as the output [measurement layer][2][tile index]
 		 * @param disp_far optional low limit for tile disparity (NaN - do not check)
 		 * @param disp_near optional high limit for tile disparity (NaN - do not check)
 		 * @param dispNorm reduce scale of the disparity differences for ellipsoids with 
@@ -614,11 +792,17 @@ public class TilePlanes {
 		 * @param min_weight minimal total weight of the ellipsoid do process
 		 * @param min_tiles minimal number of tiles used for calculation
 		 * @param strength_pow raise correlation strength to this power
+		 * @param smplMode use square sample mode, false - single-tile samples 
+		 * @param smplSide size of the square sample side 
+		 * @param smplNum number of averaged samples (should be <= smplSide * smplSide and > 1) 
+		 * @param smplRms maximal square root of variance (in disparity pixels) to accept the result
+		 * 
 		 * @param debugLevel debug level
-		 * @return true if OK, false if failed
+		 * @return per measurement layer disparity/strengths, or null if failed
 		 */
-		public boolean getPlaneFromMeas(
+		public double [][][] getPlaneFromMeas(
 				boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
+				double [][][] disp_str, // calculate just once when removing outlayers 
 				double       disp_far, // minimal disparity to select (or NaN)
 				double       disp_near, // maximal disparity to select (or NaN)
 				double       dispNorm,   //  Normalize disparities to the average if above
@@ -626,6 +810,11 @@ public class TilePlanes {
 				int          min_tiles,
 				double       strength_floor,
 				double       strength_pow,
+
+				boolean      smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+				int          smplSide, //        = 2;      // Sample size (side of a square)
+				int          smplNum, //         = 3;      // Number after removing worst
+				double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 				int          debugLevel)
 		{
 			double mindet = 1E-15;
@@ -637,51 +826,97 @@ public class TilePlanes {
 			} else {
 				tile_sel = this.measuredSelection;
 			}
-			double [][][] disp_str =      new double [tile_sel.length][][];
+			
 			this.strength_floor =         strength_floor;
 			this.measured_strength_pow =  strength_pow;
 			this.min_weight =             min_weight;
 			this.min_tiles =              min_tiles;
 			this.dispNorm =               dispNorm;
-			if (debugLevel > 3){
+			this.smplMode =               smplMode; //        = true;   // Use sample mode (false - regular tile mode)
+			this.smplSide =               smplSide; //        = 2;      // Sample size (side of a square)
+			this.smplNum =                smplNum;    //         = 3;      // Number after removing worst
+			this.smplRms =                smplRms;    //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+			
+			if (debugLevel > 2){
 				System.out.println("getPlaneFromMeas()");
 			}
-
+			boolean need_disp_str = false;
+			if (disp_str == null) {
+				disp_str =      new double [tile_sel.length][][];
+				need_disp_str = true;
+			}
 			for (int nl = 0; nl < tile_sel.length; nl++){
 				if (tile_sel[nl] != null){
-					if (Double.isNaN(disp_far) && Double.isNaN(disp_near)){
-						tile_sel[nl] =  measuredLayers.getSupertileSelection(
-								nl, // int num_layer,
-								sTileXY[0], // int stX,
-								sTileXY[1], // int stY,
-								((tile_sel[nl].length == 0)? null:tile_sel[nl]), // boolean [] sel_in,
-								strength_floor,
-								true); // boolean null_if_none)
+					if (smplMode) {
+						if (need_disp_str) {
+							disp_str[nl] = measuredLayers.getDisparityStrength( // expensive to calculate (improve removing outlayers
+									nl, // int num_layer,
+									sTileXY[0], // int stX,
+									sTileXY[1], // int stY,
+									((tile_sel[nl].length == 0)? null:tile_sel[nl]), // boolean [] sel_in,
+									//tile_sel[nl], // boolean [] sel_in,
+									strength_floor,
+									strength_pow, //
+									smplSide, //        = 2;      // Sample size (side of a square)
+									smplNum, //         = 3;      // Number after removing worst
+									smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+									true); // boolean null_if_none)
+						}
+						if (disp_str[nl] == null)	continue;
+						if (Double.isNaN(disp_far) && Double.isNaN(disp_near)){
+							tile_sel[nl] =  measuredLayers.getSupertileSelection(
+									disp_str[nl],
+									((tile_sel[nl].length == 0)? null:tile_sel[nl]), // boolean [] sel_in,
+									true); // boolean null_if_none)
+						} else {
+							tile_sel[nl] =  measuredLayers.getSupertileSelection(
+									disp_str[nl],
+									((tile_sel[nl].length == 0)? null:tile_sel[nl]), // boolean [] sel_in,
+									disp_far,      // 		double     disp_far,
+									disp_near,     // double     disp_near,
+									true);         // boolean null_if_none)
+						}
+						sw += MeasuredLayers.getSumStrength(disp_str[nl],tile_sel[nl]);
+						num_tiles += MeasuredLayers.getNumSelected(tile_sel[nl]);
+						
 					} else {
-						tile_sel[nl] =  measuredLayers.getSupertileSelection(
-								nl,            // int num_layer,
-								sTileXY[0],    // int stX,
-								sTileXY[1],    // int stY,
-								((tile_sel[nl].length == 0)? null:tile_sel[nl]), // boolean [] sel_in,
-								disp_far,      // 		double     disp_far,
-								disp_near,     // double     disp_near,
-								strength_floor,
-								true);         // boolean null_if_none)
+						if (Double.isNaN(disp_far) && Double.isNaN(disp_near)){
+							tile_sel[nl] =  measuredLayers.getSupertileSelection(
+									nl, // int num_layer,
+									sTileXY[0], // int stX,
+									sTileXY[1], // int stY,
+									((tile_sel[nl].length == 0)? null:tile_sel[nl]), // boolean [] sel_in,
+									strength_floor,
+									true); // boolean null_if_none)
+						} else {
+							tile_sel[nl] =  measuredLayers.getSupertileSelection(
+									nl,            // int num_layer,
+									sTileXY[0],    // int stX,
+									sTileXY[1],    // int stY,
+									((tile_sel[nl].length == 0)? null:tile_sel[nl]), // boolean [] sel_in,
+									disp_far,      // 		double     disp_far,
+									disp_near,     // double     disp_near,
+									strength_floor,
+									true);         // boolean null_if_none)
 
+						}
+						num_tiles += MeasuredLayers.getNumSelected(tile_sel[nl]);
+						if (tile_sel[nl] != null){
+							disp_str[nl] = measuredLayers.getDisparityStrength(
+									nl, // int num_layer,
+									sTileXY[0], // int stX,
+									sTileXY[1], // int stY,
+									tile_sel[nl], // boolean [] sel_in,
+									strength_floor,
+									strength_pow, //
+									true); // boolean null_if_none)
+							sw += MeasuredLayers.getSumStrength(disp_str[nl]);
+						}
 					}
-					num_tiles += MeasuredLayers.getNumSelected(tile_sel[nl]);
-					if (tile_sel[nl] != null){
-						disp_str[nl] = measuredLayers.getDisparityStrength(
-								nl, // int num_layer,
-								sTileXY[0], // int stX,
-								sTileXY[1], // int stY,
-								tile_sel[nl], // boolean [] sel_in,
-								strength_floor,
-								strength_pow, //
-								true); // boolean null_if_none)
-						sw += MeasuredLayers.getSumStrength(disp_str[nl]);
-					}
+					
+					
 					if ((debugLevel > 3) && (disp_str[nl] != null)){
+//					if ((debugLevel > 1) && (disp_str[nl] != null)){
 						  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
 						  double [][] dbg_img = new double [3][];
 						  dbg_img[0] = disp_str[nl][0];
@@ -690,16 +925,17 @@ public class TilePlanes {
 						  for (int i = 0; i < dbg_img[2].length; i++){
 							  dbg_img[2][i] = tile_sel[nl][i]?1.0:0.0;
 						  }
-						  sdfa_instance.showArrays(dbg_img,  stSize2, stSize2, true, "disp_str_"+nl);
-						  
+						  sdfa_instance.showArrays(dbg_img,  stSize2, stSize2, true, "disp_str_x"+sTileXY[0]+"_y"+sTileXY[1]+"_"+nl);
 					}
 				}
 			}
+			this.measuredSelection =      tile_sel; // it may be modified			
+			
 			if ((sw < min_weight) || (num_tiles < min_tiles)) {
 				if (debugLevel > 1){
 					System.out.println("getPlaneFromMeas():return false");
 				}
-				return false; // too weak plane or too few tiles selected
+				return null; // too weak plane or too few tiles selected
 			}
 			
 			
@@ -709,22 +945,24 @@ public class TilePlanes {
 			for (int nl = 0; nl < tile_sel.length; nl++){
 				if (disp_str[nl] != null) {
 					for (int indx = 0; indx < disp_str[nl][0].length; indx++){
-						double w = disp_str[nl][1][indx];
-						if (w > 0.0){
-							double d = disp_str[nl][0][indx];
-							// referencing samples to centers of pixels
-							double x = ((indx % stSize2) - stSize + 0.5) * tileSize + 0.5; // in pixels, not in tiles
-							double y = ((indx / stSize2) - stSize + 0.5) * tileSize + 0.5;
-							sw  += w;
-							swz += w * d;
-							swx += w * x;
-							swy += w * y;
+						if (tile_sel[nl][indx]) {
+							double w = disp_str[nl][1][indx];
+							if (w > 0.0){
+								double d = disp_str[nl][0][indx];
+								// referencing samples to centers of pixels
+								double x = ((indx % stSize2) - stSize + 0.5) * tileSize + 0.5; // in pixels, not in tiles
+								double y = ((indx / stSize2) - stSize + 0.5) * tileSize + 0.5;
+								sw  += w;
+								swz += w * d;
+								swx += w * x;
+								swy += w * y;
+							}
 						}
 					}
 				}
 			}
 			if (sw == 0.0) {
-				return false; //
+				return null; //
 			}
 			swz /= sw;
 			swx /= sw;
@@ -741,18 +979,20 @@ public class TilePlanes {
 			for (int nl = 0; nl < tile_sel.length; nl++){
 				if (disp_str[nl] != null) {
 					for (int indx = 0; indx < disp_str[nl][0].length; indx++){
-						double w = disp_str[nl][1][indx] / sw;
-						if (w > 0.0){
-							double d =  kz * (disp_str[nl][0][indx] - swz);
-							double wd = w*d;
-							double x = ((indx % stSize2) - stSize + 0.5) * tileSize + 0.5 - swx;
-							double y = ((indx / stSize2) - stSize + 0.5) * tileSize + 0.5 - swy;
-							acovar [0][0] += wd * d;
-							acovar [0][1] += wd * x;
-							acovar [0][2] += wd * y;
-							acovar [1][1] += w * x * x;
-							acovar [1][2] += w * x * y;
-							acovar [2][2] += w * y * y;
+						if (tile_sel[nl][indx]) {
+							double w = disp_str[nl][1][indx] / sw;
+							if (w > 0.0){
+								double d =  kz * (disp_str[nl][0][indx] - swz);
+								double wd = w*d;
+								double x = ((indx % stSize2) - stSize + 0.5) * tileSize + 0.5 - swx;
+								double y = ((indx / stSize2) - stSize + 0.5) * tileSize + 0.5 - swy;
+								acovar [0][0] += wd * d;
+								acovar [0][1] += wd * x;
+								acovar [0][2] += wd * y;
+								acovar [1][1] += w * x * x;
+								acovar [1][2] += w * x * y;
+								acovar [2][2] += w * y * y;
+							}
 						}
 					}
 				}
@@ -781,7 +1021,7 @@ public class TilePlanes {
 				eig.getV().print(10, 6); // w,d
 			}
 			if ((eig.getD().get(0, 0) == 0.0) || (Math.abs(covar.det()) < mindet)) {
-				return false; // testing with zero eigenvalue
+				return null; // testing with zero eigenvalue
 				// Problem with zero eigenvalue is with derivatives and coordinate conversion
 			}
 /*			
@@ -864,7 +1104,7 @@ public class TilePlanes {
 			}
 			
 			setPlaneSelection(plane_sel);
-			return true;
+			return disp_str;
 		}
 		
 		public double [][] initMergedValue()

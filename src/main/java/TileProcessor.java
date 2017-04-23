@@ -2754,6 +2754,10 @@ public class TileProcessor {
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
 					0.0,// NO BLUR double     stBlurSigma)
+					false, //clt_parameters.stSmplMode,  // Use sample mode (false - regular tile mode)
+					clt_parameters.stSmplSide,  // Sample size (side of a square)
+					clt_parameters.stSmplNum,   // Number after removing worst
+					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[0] = scan_prev.showDisparityHistogram();
 
@@ -2766,6 +2770,10 @@ public class TileProcessor {
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
 					clt_parameters.stSigma, // with blur double     stBlurSigma)
+					false, //clt_parameters.stSmplMode,  // Use sample mode (false - regular tile mode)
+					clt_parameters.stSmplSide,  // Sample size (side of a square)
+					clt_parameters.stSmplNum,   // Number after removing worst
+					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[1] = scan_prev.showDisparityHistogram();
 
@@ -2948,7 +2956,7 @@ public class TileProcessor {
 		boolean show_st =    clt_parameters.stShow || (debugLevel > 1);
 		// recalculate supertiles (may be removed later)
 		//		if (use_supertiles || show_st) {	
-		String [] dbg_st_titles = {"raw", "blurred"+clt_parameters.stSigma,"max-min-max"}; 
+		String [] dbg_st_titles = {"raw", "sampled", "blurred"+clt_parameters.stSigma,"max-min-max"}; 
 		double [][] dbg_hist = new double[dbg_st_titles.length][];
 		if (show_st) { // otherwise only blured version is needed 
 			scan_prev.setSuperTiles(
@@ -2960,8 +2968,27 @@ public class TileProcessor {
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
 					0.0, // NO BLUR double     stBlurSigma)
+					false, //clt_parameters.stSmplMode,  // Use sample mode (false - regular tile mode)
+					clt_parameters.stSmplSide,  // Sample size (side of a square)
+					clt_parameters.stSmplNum,   // Number after removing worst
+					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[0] = scan_prev.showDisparityHistogram();
+			scan_prev.setSuperTiles(
+					clt_parameters.stStepNear,       // double     step_disparity,
+					clt_parameters.stStepFar,        // double     step_near,
+					clt_parameters.stStepThreshold,  // double     step_threshold,
+					clt_parameters.stMinDisparity,   // double     min_disparity,
+					clt_parameters.stMaxDisparity,   // double     max_disparity,
+					clt_parameters.stFloor,          // double     strength_floor,
+					clt_parameters.stPow,            // double     strength_pow,
+					0.0, // NO BLUR double     stBlurSigma)
+					clt_parameters.stSmplMode,  // Use sample mode (false - regular tile mode)
+					clt_parameters.stSmplSide,  // Sample size (side of a square)
+					clt_parameters.stSmplNum,   // Number after removing worst
+					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
+					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+			dbg_hist[1] = scan_prev.showDisparityHistogram();
 		}
 
 //		SuperTiles st = 
@@ -2974,10 +3001,14 @@ public class TileProcessor {
 				clt_parameters.stFloor,          // double     strength_floor,
 				clt_parameters.stPow,            // double     strength_pow,
 				clt_parameters.stSigma,          // with blur double     stBlurSigma)
+				false, //clt_parameters.stSmplMode,  // Use sample mode (false - regular tile mode)
+				clt_parameters.stSmplSide,  // Sample size (side of a square)
+				clt_parameters.stSmplNum,   // Number after removing worst
+				clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 				clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 		if (show_st) { // otherwise only blured version is needed 
-			dbg_hist[1] = scan_prev.showDisparityHistogram();
-			dbg_hist[2] = scan_prev.showMaxMinMax();
+			dbg_hist[2] = scan_prev.showDisparityHistogram();
+			dbg_hist[3] = scan_prev.showMaxMinMax();
 		}
 
 
@@ -2988,11 +3019,30 @@ public class TileProcessor {
 			sdfa_instance.showArrays(dbg_hist, hist_width0, hist_height0, true, "disparity_supertiles_histograms",dbg_st_titles);
 		}
 		
+		if (clt_parameters.stSmplMode){ // just temporary making it last
+			scan_prev.setSuperTiles(
+					clt_parameters.stStepNear,       // double     step_disparity,
+					clt_parameters.stStepFar,        // double     step_near,
+					clt_parameters.stStepThreshold,  // double     step_threshold,
+					clt_parameters.stMinDisparity,   // double     min_disparity,
+					clt_parameters.stMaxDisparity,   // double     max_disparity,
+					clt_parameters.stFloor,          // double     strength_floor,
+					clt_parameters.stPow,            // double     strength_pow,
+					0.0, // NO BLUR double     stBlurSigma)
+					clt_parameters.stSmplMode,  // Use sample mode (false - regular tile mode)
+					clt_parameters.stSmplSide,  // Sample size (side of a square)
+					clt_parameters.stSmplNum,   // Number after removing worst
+					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
+					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+		}
+		
+		
+		
 		SuperTiles st = scan_prev.getSuperTiles();
 		
 // moved here
 		if (clt_parameters.dbg_migrate) {
-		st.processPlanes3(
+		st.processPlanes4(
 				null, // final boolean [] selected, // or null
 				0.3, // final double     min_disp,
 				clt_parameters.stMeasSel, //            =     1   //Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
@@ -3004,10 +3054,39 @@ public class TileProcessor {
 				clt_parameters.plPreferDisparity,
 				geometryCorrection,
 				clt_parameters.correct_distortions,
+				clt_parameters.stSmplMode , // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+				clt_parameters.stSmplSide , // final int                        smplSide, //        = 2;      // Sample size (side of a square)
+				clt_parameters.stSmplNum ,  // final int                        smplNum, //         = 3;      // Number after removing worst
+				clt_parameters.stSmplRms ,  // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				clt_parameters.stSmallDiff, //       = 0.4;   // Consider merging initial planes if disparity difference below
+				clt_parameters.stHighMix, //stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
+				clt_parameters.vertical_xyz,
 				0, // -1, // debugLevel,                  // final int        debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 		} else {
+			st.processPlanes3(
+					null, // final boolean [] selected, // or null
+					0.3, // final double     min_disp,
+					clt_parameters.stMeasSel, //            =     1   //Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+					clt_parameters.plDispNorm, //           =   2.0;  // Normalize disparities to the average if above
+					clt_parameters.plMinPoints, //          =     5;  // Minimal number of points for plane detection
+					clt_parameters.plTargetEigen, //        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+					clt_parameters.plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
+					clt_parameters.plMaxOutliers, //        =    20;  // Maximal number of outliers to remove\
+					clt_parameters.plPreferDisparity,
+					geometryCorrection,
+					clt_parameters.correct_distortions,
+//					false, // clt_parameters.dbg_migrate && clt_parameters.stSmplMode , // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+					clt_parameters.stSmplMode , // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+					clt_parameters.stSmplSide , // final int                        smplSide, //        = 2;      // Sample size (side of a square)
+					clt_parameters.stSmplNum , // final int                        smplNum, //         = 3;      // Number after removing worst
+					clt_parameters.stSmplRms , // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+					
+					0, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+			/*
 			st.processPlanes2(
 					null, // final boolean [] selected, // or null
 					0.3, // final double     min_disp,
@@ -3023,6 +3102,7 @@ public class TileProcessor {
 					0, // -1, // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
+					*/
 		}
 		
 		showDoubleFloatArrays sdfa_instance = null;
@@ -3042,22 +3122,21 @@ public class TileProcessor {
 				0, // final int debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
-		while (true) {
-			int num_added = 0;
-			if (clt_parameters.plFillSquares){
+		
+		if (clt_parameters.plSplitApply) {
+			while (true) {
+				int num_added = 0;
 				num_added += st.fillSquares();
-			}
-			if (debugLevel > -1) {
-				System.out.println("after fillSquares() added "+num_added);
-			}
-			if (clt_parameters.plCutCorners){
+				if (debugLevel > -1) {
+					System.out.println("after fillSquares() added "+num_added);
+				}
 				num_added += st.cutCorners();
+				if (debugLevel > -1) {
+					System.out.println("after plCutCorners() added (cumulative) "+num_added);
+				}
+				if (num_added == 0) break;
 			}
-			if (debugLevel > -1) {
-				System.out.println("after plCutCorners() added (cumulative) "+num_added);
-			}
-			if (num_added == 0) break;
-		}
+		}		
 		
 		TilePlanes.PlaneData[][][]       split_planes =   // use original (measured planes. See if smoothed are needed here)
 				st.breakPlanesToPairs(
@@ -3097,6 +3176,10 @@ public class TileProcessor {
 					clt_parameters.plMaxOutliers,    // final int                        maxOutliers,   //     =   20;  // Maximal number of outliers to remove
 					clt_parameters.stFloor,          // final double                     strength_floor,
 					clt_parameters.stPow,            // final double                     strength_pow,
+					clt_parameters.dbg_migrate && clt_parameters.stSmplMode , // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+					clt_parameters.stSmplSide , // final int                        smplSide, //        = 2;      // Sample size (side of a square)
+					clt_parameters.stSmplNum , // final int                        smplNum, //         = 3;      // Number after removing worst
+					clt_parameters.stSmplRms , // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 					1,                               // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
@@ -3118,22 +3201,23 @@ public class TileProcessor {
 					0, // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
-			while (true) {
-				int num_added = 0;
-				if (clt_parameters.plFillSquares){
-					num_added += st.fillSquares();
-				}
-				if (debugLevel > -1) {
-					System.out.println("after fillSquares() added "+num_added);
-				}
-				if (clt_parameters.plCutCorners){
-					num_added += st.cutCorners();
-				}
-				if (debugLevel > -1) {
-					System.out.println("after plCutCorners() added (cumulative) "+num_added);
-				}
-				if (num_added == 0) break;
+		}
+
+		while (true) {
+			int num_added = 0;
+			if (clt_parameters.plFillSquares){
+				num_added += st.fillSquares();
 			}
+			if (debugLevel > -1) {
+				System.out.println("after fillSquares() added "+num_added);
+			}
+			if (clt_parameters.plCutCorners){
+				num_added += st.cutCorners();
+			}
+			if (debugLevel > -1) {
+				System.out.println("after plCutCorners() added (cumulative) "+num_added);
+			}
+			if (num_added == 0) break;
 		}
 		
 		
@@ -3233,7 +3317,7 @@ public class TileProcessor {
 				plane_data[indx++] = plane_data_nan[i];
 			}
 			plane_data[indx++] = split_lines;
-			plane_data[indx] = plane_data[indx-2].clone();
+			plane_data[indx] = plane_data[indx-2].clone(); // java.lang.ArrayIndexOutOfBoundsException: -1
 			for (int i = 0; i < plane_data[indx].length;i++){
 				if (Double.isNaN(plane_data[indx][i])) plane_data[indx][i] = 0.0; 
 				if (plane_data[indx-1][i] > 0) plane_data[indx][i] = Double.NaN; 
@@ -3525,6 +3609,10 @@ public class TileProcessor {
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
 					0.0, // NO BLUR double     stBlurSigma)
+					false, //clt_parameters.stSmplMode,  // Use sample mode (false - regular tile mode)
+					clt_parameters.stSmplSide,  // Sample size (side of a square)
+					clt_parameters.stSmplNum,   // Number after removing worst
+					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[0] = scan_prev.showDisparityHistogram();
 
@@ -3537,6 +3625,10 @@ public class TileProcessor {
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
 					clt_parameters.stSigma, // with blur double     stBlurSigma)
+					false, //clt_parameters.stSmplMode,  // Use sample mode (false - regular tile mode)
+					clt_parameters.stSmplSide,  // Sample size (side of a square)
+					clt_parameters.stSmplNum,   // Number after removing worst
+					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[1] = scan_prev.showDisparityHistogram();
 
@@ -3605,13 +3697,15 @@ public class TileProcessor {
 		showDoubleFloatArrays sdfa_instance = null;
 		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 		boolean [] these_tiles = scan_prev.getSelected();
-		double [] this_disparity     = scan_prev.getDisparity(); // returns a copy of the FPGA-generated disparity combined with the target one
-		double [] this_strength =      scan_prev.getStrength(); // cloned, can be modified/ read back
+//		double [] this_disparity     = scan_prev.getDisparity(); // returns a copy of the FPGA-generated disparity combined with the target one
+//		double [] this_strength =      scan_prev.getStrength(); // cloned, can be modified/ read back
+		double [] this_disparity     = scan_prev.getDisparity().clone(); // returns a copy of the FPGA-generated disparity combined with the target one
+		double [] this_strength =      scan_prev.getStrength().clone(); // cloned, can be modified/ read back
 		
 		scan_prev.fixNaNDisparity(
 				null, // border, // boolean [] select,   // which tiles to correct (null - all)
-				scan_prev.getDisparity(), // double [] disparity,
-				scan_prev.getStrength()); // double [] strength)
+				this_disparity, // scan_prev.getDisparity(), // double [] disparity,
+				this_strength); // scan_prev.getStrength()); // double [] strength)
 		
 ///		dbg_orig_disparity = this_disparity.clone();
 		
@@ -4332,6 +4426,10 @@ public class TileProcessor {
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
 					0.0,// NO BLUR double     stBlurSigma)
+					false, //clt_parameters.stSmplMode,  // Use sample mode (false - regular tile mode)
+					clt_parameters.stSmplSide,  // Sample size (side of a square)
+					clt_parameters.stSmplNum,   // Number after removing worst
+					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[0] = scan_prev.showDisparityHistogram();
 
@@ -4344,6 +4442,10 @@ public class TileProcessor {
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
 					clt_parameters.stSigma, // with blur double     stBlurSigma)
+					false, //clt_parameters.stSmplMode,  // Use sample mode (false - regular tile mode)
+					clt_parameters.stSmplSide,  // Sample size (side of a square)
+					clt_parameters.stSmplNum,   // Number after removing worst
+					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[1] = scan_prev.showDisparityHistogram();
 

@@ -2122,8 +2122,16 @@ public class EyesisCorrectionParameters {
   		public double     stMinBgFract      = 0.1;   // Minimal fraction of the disparity histogram to use as background 
   		public double     stUseDisp         = 0.15;  // Use background disparity from supertiles if tile strength is less 
   		public double     stStrengthScale   = 50.0;  // Multiply st strength if used instead of regular strength
+
+  		public boolean    stSmplMode        = true;   // Use sample mode (false - regular tile mode)
+  		public int        stSmplSide        = 2;      // Sample size (side of a square)
+  		public int        stSmplNum         = 3;      // Number after removing worst
+  		public double     stSmplRms         = 0.1;    // Maximal RMS of the remaining tiles in a sample
   		
   		public int        stMeasSel         = 1;     // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+  		
+  		public double     stSmallDiff       = 0.4;   // Consider merging initial planes if disparity difference below
+  		public double     stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
   		
   		
   		public double     outlayerStrength  = 0.3;   // Outlayer tiles weaker than this may be replaced from neighbors
@@ -2213,7 +2221,8 @@ public class EyesisCorrectionParameters {
   		public boolean    show_neighbors =         false; // show 'neighbors' 
   		public boolean    show_flaps_dirs =        false; // show 'flaps-dirs' 
   		public boolean    show_first_clusters =    false; // show 'first_N_clusters' 
-  		public boolean    show_planes =            false; // show planes 
+  		public boolean    show_planes =            false; // show planes
+  		public double []  vertical_xyz =           {0.0,1.0,0.0}; // real world up unit vector in camera CS (x - right, y - up, z - to camera};
   		
   		public CLTParameters(){}
   		public void setProperties(String prefix,Properties properties){
@@ -2414,7 +2423,16 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"stMinBgFract",     this.stMinBgFract +"");
 			properties.setProperty(prefix+"stUseDisp",        this.stUseDisp +"");
 			properties.setProperty(prefix+"stStrengthScale",  this.stStrengthScale +"");
-  			properties.setProperty(prefix+"stMeasSel",        this.stMeasSel+"");
+
+			properties.setProperty(prefix+"stSmplMode",       this.stSmplMode+"");
+  			properties.setProperty(prefix+"stSmplSide",       this.stSmplSide+"");
+  			properties.setProperty(prefix+"stSmplNum",        this.stSmplNum+"");
+			properties.setProperty(prefix+"stSmplRms",        this.stSmplRms +"");
+
+			properties.setProperty(prefix+"stMeasSel",        this.stMeasSel+"");
+			properties.setProperty(prefix+"stSmallDiff",      this.stSmallDiff +"");
+			properties.setProperty(prefix+"stHighMix",        this.stHighMix +"");
+  			
 			
 			properties.setProperty(prefix+"outlayerStrength", this.outlayerStrength +"");
 			properties.setProperty(prefix+"outlayerDiff",     this.outlayerDiff +"");
@@ -2494,7 +2512,11 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"show_flaps_dirs",        this.show_flaps_dirs+"");
 			properties.setProperty(prefix+"show_first_clusters",    this.show_first_clusters+"");
 			properties.setProperty(prefix+"show_planes",            this.show_planes+"");
-  		}
+
+			properties.setProperty(prefix+"vertical_xyz.x",         this.vertical_xyz[0]+"");
+			properties.setProperty(prefix+"vertical_xyz.y",         this.vertical_xyz[1]+"");
+			properties.setProperty(prefix+"vertical_xyz.z",         this.vertical_xyz[2]+"");
+}
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"transform_size")!=null) this.transform_size=Integer.parseInt(properties.getProperty(prefix+"transform_size"));
   			if (properties.getProperty(prefix+"clt_window")!=null)     this.clt_window=Integer.parseInt(properties.getProperty(prefix+"clt_window"));
@@ -2687,7 +2709,15 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"stMinBgFract")!=null)      this.stMinBgFract=Double.parseDouble(properties.getProperty(prefix+"stMinBgFract"));
   			if (properties.getProperty(prefix+"stUseDisp")!=null)         this.stUseDisp=Double.parseDouble(properties.getProperty(prefix+"stUseDisp"));
   			if (properties.getProperty(prefix+"stStrengthScale")!=null)   this.stStrengthScale=Double.parseDouble(properties.getProperty(prefix+"stStrengthScale"));
+
+  			if (properties.getProperty(prefix+"stSmplMode")!=null)        this.stSmplMode=Boolean.parseBoolean(properties.getProperty(prefix+"stSmplMode"));
+  			if (properties.getProperty(prefix+"stSmplSide")!=null)        this.stSmplSide=Integer.parseInt(properties.getProperty(prefix+"stSmplSide"));
+  			if (properties.getProperty(prefix+"stSmplNum")!=null)         this.stSmplNum=Integer.parseInt(properties.getProperty(prefix+"stSmplNum"));
+  			if (properties.getProperty(prefix+"stSmplRms")!=null)         this.stSmplRms=Double.parseDouble(properties.getProperty(prefix+"stSmplRms"));
+
   			if (properties.getProperty(prefix+"stMeasSel")!=null)         this.stMeasSel=Integer.parseInt(properties.getProperty(prefix+"stMeasSel"));
+  			if (properties.getProperty(prefix+"stSmallDiff")!=null)       this.stSmallDiff=Double.parseDouble(properties.getProperty(prefix+"stSmallDiff"));
+  			if (properties.getProperty(prefix+"stHighMix")!=null)         this.stHighMix=Double.parseDouble(properties.getProperty(prefix+"stHighMix"));
 
   			if (properties.getProperty(prefix+"outlayerStrength")!=null)  this.outlayerStrength=Double.parseDouble(properties.getProperty(prefix+"outlayerStrength"));
   			if (properties.getProperty(prefix+"outlayerDiff")!=null)      this.outlayerDiff=Double.parseDouble(properties.getProperty(prefix+"outlayerDiff"));
@@ -2767,6 +2797,12 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"show_flaps_dirs")!=null)        this.show_flaps_dirs=Boolean.parseBoolean(properties.getProperty(prefix+"show_flaps_dirs"));
   			if (properties.getProperty(prefix+"show_first_clusters")!=null)    this.show_first_clusters=Boolean.parseBoolean(properties.getProperty(prefix+"show_first_clusters"));
   			if (properties.getProperty(prefix+"show_planes")!=null)            this.show_planes=Boolean.parseBoolean(properties.getProperty(prefix+"show_planes"));
+  			
+  			
+  			if (properties.getProperty(prefix+"vertical_xyz.x")!=null)     this.vertical_xyz[0]=Double.parseDouble(properties.getProperty(prefix+"vertical_xyz.x"));
+  			if (properties.getProperty(prefix+"vertical_xyz.y")!=null)     this.vertical_xyz[1]=Double.parseDouble(properties.getProperty(prefix+"vertical_xyz.y"));
+  			if (properties.getProperty(prefix+"vertical_xyz.z")!=null)     this.vertical_xyz[2]=Double.parseDouble(properties.getProperty(prefix+"vertical_xyz.z"));
+  			
   		}
   		
   		public boolean showDialog() {
@@ -2981,7 +3017,15 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Minimal fraction of the disparity histogram to use as background",             this.stMinBgFract,  6);
   			gd.addNumericField("Use background disparity from supertiles if tile strength is less",            this.stUseDisp,  6);
   			gd.addNumericField("Multiply st strength if used instead of regular strength ",                    this.stStrengthScale,  6);
+
+  			gd.addCheckbox    ("Use sample mode (false - regular tile mode)",                                  this.stSmplMode);
+  			gd.addNumericField("Sample size (side of a square)",                                               this.stSmplSide,  0);
+  			gd.addNumericField("Number after removing worst",                                                  this.stSmplNum,  0);
+  			gd.addNumericField("Maximal RMS of the remaining tiles in a sample",                               this.stSmplRms,  6);
+  			
   			gd.addNumericField("Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert",this.stMeasSel,  0);
+  			gd.addNumericField("Consider merging initial planes if disparity difference below",                this.stSmallDiff,  6);
+  			gd.addNumericField("Consider merging initial planes if jumps between ratio above",                 this.stHighMix,  6);
 
   			gd.addNumericField("Outlayer tiles weaker than this may be replaced from neighbors",               this.outlayerStrength,  6);
   			gd.addNumericField("Replace weak outlayer tiles that do not have neighbors within this disparity difference", this.outlayerDiff,  6);
@@ -3064,6 +3108,8 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Show 'flaps-dirs'",                                                            this.show_flaps_dirs);
   			gd.addCheckbox    ("Show 'first_N_clusters'",                                                      this.show_first_clusters);
   			gd.addCheckbox    ("Show planes",                                                                  this.show_planes);
+  			gd.addMessage     ("Unity up vector in camera coordinate system (x - right, y - up, z - to camera): {"+
+  			this.vertical_xyz[0]+","+this.vertical_xyz[1]+","+this.vertical_xyz[2]+"}");
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
   			
@@ -3264,7 +3310,16 @@ public class EyesisCorrectionParameters {
   			this.stMinBgFract=          gd.getNextNumber();
   			this.stUseDisp=             gd.getNextNumber();
   			this.stStrengthScale=       gd.getNextNumber();
+
+  			this.stSmplMode=            gd.getNextBoolean();
+  			this.stSmplSide=      (int) gd.getNextNumber();
+  			this.stSmplNum=       (int) gd.getNextNumber();
+  			this.stSmplRms=             gd.getNextNumber();
+  			
   			this.stMeasSel=       (int) gd.getNextNumber();
+  			this.stSmallDiff=           gd.getNextNumber();
+  			this.stHighMix=             gd.getNextNumber();
+
   			this.outlayerStrength=      gd.getNextNumber();
   			this.outlayerDiff=          gd.getNextNumber();
   			this.outlayerDiffPos=       gd.getNextNumber();
