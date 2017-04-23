@@ -90,8 +90,9 @@ public class TilePlanes {
 					this.sTileXY,
 					this.tileSize,
 					this.superTileSize,
-					this.geometryCorrection);
-			pd.correctDistortions = this.correctDistortions;
+					this.geometryCorrection,
+					this.correctDistortions);
+//			pd.correctDistortions = this.correctDistortions;
 			pd.num_points = this.num_points; 
 			pd.weight =     this.weight; 
 			if (this.plane_sel != null)  pd.plane_sel =  this.plane_sel.clone();
@@ -204,9 +205,11 @@ public class TilePlanes {
 				int [] sTileXY, 
 				int tileSize,
 				int superTileSize,
-				GeometryCorrection   geometryCorrection)
+				GeometryCorrection   geometryCorrection,
+				boolean              correctDistortions)
 		{
 			this.geometryCorrection = geometryCorrection;
+			this.correctDistortions = correctDistortions;
 			this.tileSize = tileSize;
 			this.superTileSize = superTileSize;
 			this.sTileXY = sTileXY.clone();
@@ -216,10 +219,12 @@ public class TilePlanes {
 				int [] sTileXY, 
 				int tileSize,
 				GeometryCorrection   geometryCorrection,
+				boolean              correctDistortions,
 				MeasuredLayers measuredLayers,
 				boolean preferDisparity)
 		{
 			this.geometryCorrection = geometryCorrection;
+			this.correctDistortions = correctDistortions;
 			this.tileSize = tileSize;
 			this.superTileSize = measuredLayers.getSuperTileSize();
 			this.sTileXY = sTileXY.clone();
@@ -591,7 +596,9 @@ public class TilePlanes {
 				}
 			}
 			double n_by_w =  normal_row.times(st_xyz).get(0, 0);
-			System.out.println("st_xyz = {"+st_xyz.get(0, 0)+","+st_xyz.get(1, 0)+","+st_xyz.get(2, 0)+"}"+" ="+n_by_w);
+			if (debugLevel > 1) {
+				System.out.println("st_xyz = {"+st_xyz.get(0, 0)+","+st_xyz.get(1, 0)+","+st_xyz.get(2, 0)+"}"+" ="+n_by_w);
+			}
 			for (int ml = 0; ml < disp_str.length; ml++) if (disp_str[ml] != null){
 				for (int dy = 0; dy < stSize2; dy ++ ){
 					double y = (dy -  stSize + 0.5) * tileSize;
@@ -611,8 +618,10 @@ public class TilePlanes {
 							double n_by_p = normal_row.times(w_xyz).get(0, 0);
 							double z = st_xyz.get(2, 0)*n_by_p / n_by_w;
 							if (disp_str[ml][1][indx] > 0){ // do not bother with zero-strength
-								System.out.println("dy = "+dy+", dx=" + dx+ " {"+w_xyz.get(0, 0)+","+w_xyz.get(1, 0)+","+w_xyz.get(2, 0)+"}"+" z="+z+" n_by_p = "+n_by_p
-										+" disp = "+disp_str[ml][0][indx]+" px = "+(px_py[0] + x)+" py = "+(px_py[1] + y));
+								if (debugLevel > 1) {
+									System.out.println("dy = "+dy+", dx=" + dx+ " {"+w_xyz.get(0, 0)+","+w_xyz.get(1, 0)+","+w_xyz.get(2, 0)+"}"+" z="+z+" n_by_p = "+n_by_p
+											+" disp = "+disp_str[ml][0][indx]+" px = "+(px_py[0] + x)+" py = "+(px_py[1] + y));
+								}
 							}
 							// convert z to disparity
 							eff_disp_str[ml][0][indx] = geometryCorrection.getDisparityFromZ (-z);
@@ -1972,12 +1981,13 @@ public class TilePlanes {
 					{swz, swx, swy}}};
 		return rslt;
 	}
-	
+	// TODO: obsolete - remove
 	public PlaneData getPlane(
 			int [] sTileXY,
 			double []  data,
 			double []  weight,
 			boolean [] select, // null OK, will enable all tiles
+			boolean    correctDistortions,
 			boolean    preferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
 			int        debugLevel){
 		if (select == null) {
@@ -2042,7 +2052,8 @@ public class TilePlanes {
 				sTileXY,
 				this.tileSize,
 				this.stSize,
-				this.geometryCorrection);
+				this.geometryCorrection,
+				correctDistortions);
 		pd.setZxy(szxy);
 		
 //		pd.setValues(eig_val[oindx][oindx],eig_val[hindx][hindx],eig_val[vindx][vindx]); // eigenvalues [0] - thickness, 2 other to detect skinny (poles)
@@ -2081,6 +2092,7 @@ public class TilePlanes {
 			double []  data,
 			double []  weight,
 			boolean [] select, // will be modified
+			boolean    correctDistortions,
 			double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
 			int        maxRemoved,  // maximal number of tiles to remove (not a constant)
 			int        minLeft,     // minimal number of tiles to keep
@@ -2093,6 +2105,7 @@ public class TilePlanes {
 					data,
 					weight,
 					select, // null OK
+					correctDistortions,
 					preferDisparity,
 					debugLevel);
 		} else if (select != null){
@@ -2142,6 +2155,7 @@ public class TilePlanes {
 					data,
 					weight,
 					select,
+					correctDistortions,
 					preferDisparity,
 					debugLevel);
 			if (pd == null) {

@@ -3043,8 +3043,8 @@ public class TileProcessor {
 // moved here
 		if (clt_parameters.dbg_migrate) {
 		st.processPlanes4(
-				null, // final boolean [] selected, // or null
-				0.3, // final double     min_disp,
+//				null, // final boolean [] selected, // or null
+//				0.3, // final double     min_disp,
 				clt_parameters.stMeasSel, //            =     1   //Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 				clt_parameters.plDispNorm, //           =   2.0;  // Normalize disparities to the average if above
 				clt_parameters.plMinPoints, //          =     5;  // Minimal number of points for plane detection
@@ -3086,23 +3086,6 @@ public class TileProcessor {
 					0, // -1, // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
-			/*
-			st.processPlanes2(
-					null, // final boolean [] selected, // or null
-					0.3, // final double     min_disp,
-					false, // final boolean    invert_disp, // use 1/disparity
-					clt_parameters.plDispNorm, //            =   2.0;  // Normalize disparities to the average if above
-					clt_parameters.plMinPoints, //           =     5;  // Minimal number of points for plane detection
-					clt_parameters.plTargetEigen, //         =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
-					clt_parameters.plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
-					clt_parameters.plMaxOutliers, //        =    20;  // Maximal number of outliers to remove\
-					clt_parameters.plPreferDisparity,
-					geometryCorrection,
-					clt_parameters.correct_distortions,
-					0, // -1, // debugLevel,                  // final int        debugLevel)
-					clt_parameters.tileX,
-					clt_parameters.tileY);
-					*/
 		}
 		
 		showDoubleFloatArrays sdfa_instance = null;
@@ -3317,6 +3300,10 @@ public class TileProcessor {
 				plane_data[indx++] = plane_data_nan[i];
 			}
 			plane_data[indx++] = split_lines;
+			if (indx <2) { // out of bound
+				System.out.println("BUG: insufficient data");
+				return;
+			}
 			plane_data[indx] = plane_data[indx-2].clone(); // java.lang.ArrayIndexOutOfBoundsException: -1
 			for (int i = 0; i < plane_data[indx].length;i++){
 				if (Double.isNaN(plane_data[indx][i])) plane_data[indx][i] = 0.0; 
