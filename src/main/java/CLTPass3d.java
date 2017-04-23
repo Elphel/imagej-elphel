@@ -69,7 +69,6 @@ public class CLTPass3d{
 		{
 			return this.tileProcessor;
 		}
-		
 		public  void            updateSelection(){ // add updating border tiles?
 			int tilesX = tileProcessor.getTilesX();
 			int tilesY = tileProcessor.getTilesY();
@@ -558,6 +557,9 @@ public class CLTPass3d{
 			return this.superTiles;
 		}
 		public double [] showDisparityHistogram(
+				double [][][][] disparity_strength, // pre-calculated disparity/strength [per super-tile][per-measurement layer][2][tiles] or null
+				boolean [][]    tile_sel, // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
+				
 				boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				int        smplSide, //        = 2;      // Sample size (side of a square)
 				int        smplNum,  //         = 3;      // Number after removing worst
@@ -568,6 +570,9 @@ public class CLTPass3d{
 				return null;
 			}
 			return this.superTiles.showDisparityHistogram(
+					disparity_strength, // pre-calculated disparity/strength [per super-tile][per-measurement layer][2][tiles] or null
+					tile_sel, // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
+
 					smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 					smplSide, //        = 2;      // Sample size (side of a square)
 					smplNum,  //         = 3;      // Number after removing worst
@@ -575,49 +580,6 @@ public class CLTPass3d{
 					measSel);
 		}
 
-		public double [] showDisparityHistogram()
-		{
-			if (this.superTiles == null){
-				return null;
-			}
-			return this.superTiles.showDisparityHistogram();
-		}
-		
-		public double [] showDisparityHistogram(double [][] dispHist)
-		{
-			if (this.superTiles == null){
-				return null;
-			}
-			return this.superTiles.showDisparityHistogram(dispHist);
-		}
-		
-		
-		public int showDisparityHistogramWidth()
-		{
-			return this.superTiles.showDisparityHistogramWidth();
-		}
-		
-		public double [][][] getMaxMinMax(){
-			if (this.superTiles == null){
-				return null;
-			}
-			return superTiles.getMaxMinMax();
-		}
-		
-		
-		public double [] showMaxMinMax(){
-			if (this.superTiles == null){
-				return null;
-			}
-			return this.superTiles.showMaxMinMax();
-		}
-		public int getNumBins(){
-			if (this.superTiles == null){
-				return 0;
-			}
-			return superTiles.numBins;
-		}
-		
 		public double[] getSuperTileStrength()
 		{
 			if (this.superTiles == null){

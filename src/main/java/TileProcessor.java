@@ -2759,7 +2759,7 @@ public class TileProcessor {
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
-			dbg_hist[0] = scan_prev.showDisparityHistogram();
+			dbg_hist[0] = scan_prev.getSuperTiles().showDisparityHistogram();
 
 			scan_prev.setSuperTiles(
 					clt_parameters.stStepNear,       // double     step_disparity,
@@ -2775,11 +2775,11 @@ public class TileProcessor {
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
-			dbg_hist[1] = scan_prev.showDisparityHistogram();
+			dbg_hist[1] = scan_prev.getSuperTiles().showDisparityHistogram();
 
-			dbg_hist[2] = scan_prev.showMaxMinMax();
+			dbg_hist[2] = scan_prev.getSuperTiles().showMaxMinMax();
 
-			int hist_width0 =  scan_prev.showDisparityHistogramWidth();
+			int hist_width0 =  scan_prev.getSuperTiles().showDisparityHistogramWidth();
 			int hist_height0 = dbg_hist[0].length/hist_width0;
 			if (show_st){
 				sdfa_instance.showArrays(dbg_hist, hist_width0, hist_height0, true, "disparity_supertiles_histograms",dbg_st_titles);
@@ -2973,7 +2973,7 @@ public class TileProcessor {
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
-			dbg_hist[0] = scan_prev.showDisparityHistogram();
+			dbg_hist[0] = scan_prev.getSuperTiles().showDisparityHistogram();
 			scan_prev.setSuperTiles(
 					clt_parameters.stStepNear,       // double     step_disparity,
 					clt_parameters.stStepFar,        // double     step_near,
@@ -2988,7 +2988,7 @@ public class TileProcessor {
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
-			dbg_hist[1] = scan_prev.showDisparityHistogram();
+			dbg_hist[1] = scan_prev.getSuperTiles().showDisparityHistogram();
 		}
 
 //		SuperTiles st = 
@@ -3007,13 +3007,13 @@ public class TileProcessor {
 				clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 				clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 		if (show_st) { // otherwise only blured version is needed 
-			dbg_hist[2] = scan_prev.showDisparityHistogram();
-			dbg_hist[3] = scan_prev.showMaxMinMax();
+			dbg_hist[2] = scan_prev.getSuperTiles().showDisparityHistogram();
+			dbg_hist[3] = scan_prev.getSuperTiles().showMaxMinMax();
 		}
 
 
 		if (show_st){
-			int hist_width0 =  scan_prev.showDisparityHistogramWidth();
+			int hist_width0 =  scan_prev.getSuperTiles().showDisparityHistogramWidth();
 			int hist_height0 = dbg_hist[0].length/hist_width0;
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 			sdfa_instance.showArrays(dbg_hist, hist_width0, hist_height0, true, "disparity_supertiles_histograms",dbg_st_titles);
@@ -3614,7 +3614,7 @@ public class TileProcessor {
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
-			dbg_hist[0] = scan_prev.showDisparityHistogram();
+			dbg_hist[0] = scan_prev.getSuperTiles().showDisparityHistogram();
 
 			SuperTiles st = scan_prev.setSuperTiles(
 					clt_parameters.stStepNear,       // double     step_disparity,
@@ -3630,11 +3630,11 @@ public class TileProcessor {
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
-			dbg_hist[1] = scan_prev.showDisparityHistogram();
+			dbg_hist[1] = scan_prev.getSuperTiles().showDisparityHistogram();
 
-			dbg_hist[2] = scan_prev.showMaxMinMax();
+			dbg_hist[2] = scan_prev.getSuperTiles().showMaxMinMax();
 
-			int hist_width0 =  scan_prev.showDisparityHistogramWidth();
+			int hist_width0 =  scan_prev.getSuperTiles().showDisparityHistogramWidth();
 			int hist_height0 = dbg_hist[0].length/hist_width0;
 
 			if (show_st){
@@ -4431,7 +4431,7 @@ public class TileProcessor {
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
-			dbg_hist[0] = scan_prev.showDisparityHistogram();
+			dbg_hist[0] = scan_prev.getSuperTiles().showDisparityHistogram();
 
 			scan_prev.setSuperTiles(
 					clt_parameters.stStepNear,       // double     step_disparity,
@@ -4447,12 +4447,12 @@ public class TileProcessor {
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
-			dbg_hist[1] = scan_prev.showDisparityHistogram();
+			dbg_hist[1] = scan_prev.getSuperTiles().showDisparityHistogram();
 
-			dbg_hist[2] = scan_prev.showMaxMinMax();
+			dbg_hist[2] = scan_prev.getSuperTiles().showMaxMinMax();
 
 			if (clt_parameters.stShow){		
-				int hist_width0 =  scan_prev.showDisparityHistogramWidth();
+				int hist_width0 =  scan_prev.getSuperTiles().showDisparityHistogramWidth();
 				int hist_height0 = dbg_hist[0].length/hist_width0;
 				sdfa_instance.showArrays(dbg_hist, hist_width0, hist_height0, true, "disparity_supertiles_histograms",dbg_st_titles);
 			}

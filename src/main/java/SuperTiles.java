@@ -154,6 +154,8 @@ public class SuperTiles{
 				cltPass3d.getSelected());         // boolean [] selection) // may be null
 
 		getDisparityHistograms(
+				null,       // double  []   world_plane, // tilt equi-disparity planes to match real world planes (usually horizontal (or null)
+				null,       // boolean [][] tile_sel, // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
 				smplMode,   // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				smplSide,   // final int        smplSide, //        = 2;      // Sample size (side of a square)
 				smplNum,    // final int        smplNum,  //         = 3;      // Number after removing worst
@@ -345,83 +347,15 @@ public class SuperTiles{
 		System.out.println("getLapWeights: sum = "+s);
 		return lapWeight;
 	}
-/*
+
 	public double [][] getDisparityHistograms(
-			final int        measSel) // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
-	{
-		if (this.disparityHistograms != null) return this.disparityHistograms;
-//		final double step_disparity = step_near; // TODO: implement
-		final int tilesX =        tileProcessor.getTilesX();
-		final int tilesY =        tileProcessor.getTilesY();
-		final int superTileSize = tileProcessor.superTileSize;
-		final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
-		final int stilesY = (tilesY + superTileSize -1)/superTileSize;
-		final int nStiles = stilesX * stilesY; 
-		final double [][] dispHist =     new double [nStiles][]; // now it will be sparse 
-		final double []   strengthHist = new double [nStiles];
-		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
-		final AtomicInteger ai = new AtomicInteger(0);
-		for (int ithread = 0; ithread < threads.length; ithread++) {
-			threads[ithread] = new Thread() {
-				public void run() {
-					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
-						int stileY = nsTile / stilesX;  
-						int stileX = nsTile % stilesX;  
-						double sw = 0.0; // sum weights
-						double [] hist = new double [numBins];
-						for (int nl = 0; nl < measuredLayers.getNumLayers(); nl ++) {
-							if ((measSel & (1 << nl)) != 0) {
-								double [][] disp_strength =  measuredLayers.getDisparityStrength(
-										nl,             // int num_layer,
-										stileX,         // int stX,
-										stileY,         // int stY,
-										null,           // boolean [] sel_in,
-										strength_floor, // double strength_floor,
-										strength_pow,   // double strength_pow,
-										true);          // boolean null_if_none);
-								if (disp_strength != null) {
-									for (int indx = 0; indx < disp_strength[1].length; indx++) {
-										double w = disp_strength[1][indx]; 
-										if ( w > 0.0){
-											double d = disp_strength[0][indx]; 
-											int bin = disparityToBin(d);
-											if ((bin >= 0) && (bin < numBins)){ // maybe collect below min and above max somewhere?
-												hist[bin] += w; // +1]
-												sw +=w;
-											}
-										}
-									}
-								}
-							}
-						}
-						strengthHist[nsTile] = sw / superTileSize / superTileSize; // average strength per tile in the super-tile
-						if (sw > 0){
-							for (int i = 0; i<numBins; i++){
-								hist[i] /= sw; 
-							}
-							dispHist[nsTile] = hist;
-						} else {
-							dispHist[nsTile] = null;
-						}
-					}
-				}
-			};
-		}		      
-		ImageDtt.startAndJoin(threads);
-		this.disparityHistograms = dispHist;
-		this.stStrength =          strengthHist;
-		if (this.stBlurSigma > 0.0) {
-			blurDisparityHistogram(0); // debugLevel);
-		}
-		return this.disparityHistograms; // dispHist;
-	}
-*/
-	public double [][] getDisparityHistograms(
-			final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-			final int        smplSide, //        = 2;      // Sample size (side of a square)
-			final int        smplNum,  //         = 3;      // Number after removing worst
-			final double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-			final int        measSel)  //
+			final double [][][][] disparity_strength, // pre-calculated disparity/strength [per super-tile][per-measurement layer][2][tiles] or null
+			final boolean [][]    tile_sel, // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
+			final boolean         smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+			final int             smplSide, //        = 2;      // Sample size (side of a square)
+			final int             smplNum,  //         = 3;      // Number after removing worst
+			final double          smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+			final int             measSel)  //
 	{
 		if ((this.disparityHistograms != null) &&
 				(smplMode == this.smplMode) &&
@@ -439,7 +373,7 @@ public class SuperTiles{
 		
 		final int tilesX =        tileProcessor.getTilesX();
 		final int tilesY =        tileProcessor.getTilesY();
-		final int superTileSize = tileProcessor.superTileSize;
+		final int superTileSize = tileProcessor.getSuperTileSize();
 		final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
 		final int stilesY = (tilesY + superTileSize -1)/superTileSize;
 		final int nStiles = stilesX * stilesY; 
@@ -447,38 +381,48 @@ public class SuperTiles{
 		final double []   strengthHist = new double [nStiles];
 		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
+		final TilePlanes tpl = new TilePlanes(tileProcessor.getTileSize(),superTileSize);
+
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				public void run() {
+					
 					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
 						int stileY = nsTile / stilesX;  
-						int stileX = nsTile % stilesX;  
+						int stileX = nsTile % stilesX;
 						double sw = 0.0; // sum weights
 						double [] hist = new double [numBins];
+						//						double [][][] disp_strength = new double [measuredLayers.getNumLayers()][][] ;
 						for (int nl = 0; nl < measuredLayers.getNumLayers(); nl ++) {
-							if ((measSel & (1 << nl)) != 0) {
+							if (((measSel & (1 << nl)) != 0) && ((tile_sel == null) || ((tile_sel[nl] != null)))) {
 								double [][] disp_strength;
-								if (smplMode) {
-									disp_strength =  measuredLayers.getDisparityStrength(
-											nl,             // int num_layer,
-											stileX,         // int stX,
-											stileY,         // int stY,
-											null,           // boolean [] sel_in,
-											strength_floor, // double strength_floor,
-											strength_pow,   // double strength_pow,
-											smplSide,       // int        smplSide, // = 2;   // Sample size (side of a square)
-											smplNum,        //int        smplNum,   // = 3;   // Number after removing worst (should be >1)
-											smplRms,        //double     smplRms,   // = 0.1; // Maximal RMS of the remaining tiles in a sample
-											true);          // boolean null_if_none);
+								if (disparity_strength == null) {
+									if (smplMode) {
+										disp_strength =  measuredLayers.getDisparityStrength(
+												nl,             // int num_layer,
+												stileX,         // int stX,
+												stileY,         // int stY,
+												(((tile_sel == null) || (tile_sel[nl].length == 0))? null:tile_sel[nl]), // boolean [] sel_in,
+												//											null,           // boolean [] sel_in,
+												strength_floor, // double strength_floor,
+												strength_pow,   // double strength_pow,
+												smplSide,       // int        smplSide, // = 2;   // Sample size (side of a square)
+												smplNum,        //int        smplNum,   // = 3;   // Number after removing worst (should be >1)
+												smplRms,        //double     smplRms,   // = 0.1; // Maximal RMS of the remaining tiles in a sample
+												true);          // boolean null_if_none);
+									} else {
+										disp_strength =  measuredLayers.getDisparityStrength(
+												nl,             // int num_layer,
+												stileX,         // int stX,
+												stileY,         // int stY,
+												(((tile_sel == null) || (tile_sel[nl].length == 0))? null:tile_sel[nl]), // boolean [] sel_in,
+												//											null,           // boolean [] sel_in,
+												strength_floor, // double strength_floor,
+												strength_pow,   // double strength_pow,
+												true);          // boolean null_if_none);
+									}
 								} else {
-									disp_strength =  measuredLayers.getDisparityStrength(
-											nl,             // int num_layer,
-											stileX,         // int stX,
-											stileY,         // int stY,
-											null,           // boolean [] sel_in,
-											strength_floor, // double strength_floor,
-											strength_pow,   // double strength_pow,
-											true);          // boolean null_if_none);
+									disp_strength =  disparity_strength[nsTile][nl];
 								}
 								if (disp_strength != null) {
 									for (int indx = 0; indx < disp_strength[1].length; indx++) {
@@ -547,9 +491,16 @@ public class SuperTiles{
 	}
 	// returns odd-length array of max/min (x, strength) pairs
 
-	public double [][][] getMaxMinMax(){
+	public double [][][] getMaxMinMax(
+//			final double  []   world_plane, // tilt equi-disparity planes to match real world planes (usually horizontal (or null)
+			final double [][][][] disparity_strength, // pre-calculated disparity/strength [per super-tile][per-measurement layer][2][tiles] or null
+			final boolean [][] tile_sel // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
+			){
 		// first find all integer maximums, and if the top is flat - use the middle. If not flat - use 2-nd degree polynomial
 		if (disparityHistograms == null) getDisparityHistograms(
+//				world_plane, // double  []   world_plane, // tilt equi-disparity planes to match real world planes (usually horizontal (or null)
+				disparity_strength, // pre-calculated disparity/strength [per super-tile][per-measurement layer][2][tiles] or null				
+				tile_sel,   // boolean [][] tile_sel, // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
 				this.smplMode,   // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				this.smplSide,   // final int        smplSide, //        = 2;      // Sample size (side of a square)
 				this.smplNum,    // final int        smplNum,  //         = 3;      // Number after removing worst
@@ -685,6 +636,8 @@ public class SuperTiles{
 	{
 		if (disparityHistograms == null){
 			getDisparityHistograms(
+					null, // double  []   world_plane, // tilt equi-disparity planes to match real world planes (usually horizontal (or null)
+					null,   // boolean [][] tile_sel, // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
 					this.smplMode,   // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 					this.smplSide,   // final int        smplSide, //        = 2;      // Sample size (side of a square)
 					this.smplNum,    // final int        smplNum,  //         = 3;      // Number after removing worst
@@ -696,6 +649,9 @@ public class SuperTiles{
 
 	
 	public double [] showDisparityHistogram(
+//			double  []   world_plane, // tilt equi-disparity planes to match real world planes (usually horizontal (or null)
+			final double [][][][] disparity_strength, // pre-calculated disparity/strength [per super-tile][per-measurement layer][2][tiles] or null
+			boolean [][] tile_sel, // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
 			boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 			int        smplSide, //        = 2;      // Sample size (side of a square)
 			int        smplNum,  //         = 3;      // Number after removing worst
@@ -703,6 +659,9 @@ public class SuperTiles{
 			int        measSel) // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 	{
 		getDisparityHistograms( // will recalculate if does not exist or some parameters changed
+//				world_plane, // double  []   world_plane, // tilt equi-disparity planes to match real world planes (usually horizo				
+				disparity_strength, // pre-calculated disparity/strength [per super-tile][per-measurement layer][2][tiles] or nullntal (or null)
+				tile_sel,   // boolean [][] tile_sel, // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
 				smplMode,   // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				smplSide,   // final int        smplSide, //        = 2;      // Sample size (side of a square)
 				smplNum,    // final int        smplNum,  //         = 3;      // Number after removing worst
@@ -766,9 +725,24 @@ public class SuperTiles{
 		}
 		return rslt;
 	}
+
 	public double [] showMaxMinMax(){
-		if (maxMinMax == null){
-			getMaxMinMax(); // calculate and blur with the current settings, specified at instantiation
+			return showMaxMinMax( // calculate and blur with the current settings, specified at instantiation
+					null,
+					null);
+	}
+	public double [] showMaxMinMax(
+//			double  []   world_plane, // tilt equi-disparity planes to match real world planes (usually horizontal (or null)
+			double [][][][] disparity_strength, // pre-calculated disparity/strength [per super-tile][per-measurement layer][2][tiles] or null
+			
+			boolean [][] tile_sel // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
+		){
+		if (maxMinMax == null){ 
+			getMaxMinMax( // calculate and blur with the current settings, specified at instantiation
+//					world_plane, // tilt equi-disparity planes to match real world planes (usually horizontal (or null)
+					disparity_strength, // pre-calculated disparity/strength [per super-tile][per-measurement layer][2][tiles] or null
+					tile_sel); // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
+					
 		}
 		final int superTileSize = tileProcessor.superTileSize;
 
@@ -1154,7 +1128,7 @@ public class SuperTiles{
 			final double     plDispNorm,
 			final int        debugLevel)
 	{
-		if (maxMinMax == null) getMaxMinMax();
+		if (maxMinMax == null) getMaxMinMax(null, null);
 		final int np_min = 5; // minimal number of points to consider
 		final int tilesX =        tileProcessor.getTilesX();
 		final int tilesY =        tileProcessor.getTilesY();
@@ -1364,7 +1338,7 @@ public class SuperTiles{
 			final int        dbg_X,
 			final int        dbg_Y)
 	{
-		if (maxMinMax == null) getMaxMinMax();
+		if (maxMinMax == null) getMaxMinMax(null, null);
 		//				final int np_min = 5; // minimal number of points to consider
 		final int tilesX =        tileProcessor.getTilesX();
 		final int tilesY =        tileProcessor.getTilesY();
@@ -1689,7 +1663,7 @@ public class SuperTiles{
 			final int        dbg_X,
 			final int        dbg_Y)
 	{
-		if (maxMinMax == null) getMaxMinMax();
+		if (maxMinMax == null) getMaxMinMax(null, null);
 		final int tilesX =        tileProcessor.getTilesX();
 		final int tilesY =        tileProcessor.getTilesY();
 		final int superTileSize = tileProcessor.getSuperTileSize();
@@ -1739,7 +1713,7 @@ public class SuperTiles{
 			
 		}
 //		if (maxMinMax == null) 
-			getMaxMinMax();
+			getMaxMinMax(null, null);
 
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
@@ -2082,7 +2056,7 @@ public class SuperTiles{
 			final int        dbg_X,
 			final int        dbg_Y)
 	{
-		if (maxMinMax == null) getMaxMinMax();
+		if (maxMinMax == null) getMaxMinMax(null, null); // so far - no planes, no selection
 		final int tilesX =        tileProcessor.getTilesX();
 		final int tilesY =        tileProcessor.getTilesY();
 		final int superTileSize = tileProcessor.getSuperTileSize();
@@ -2129,8 +2103,7 @@ public class SuperTiles{
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
 			sdfa_instance.showArrays(dbg_img,  tileProcessor.getTilesX(), tileProcessor.getTilesY(), true, "measuredLayers",titles);
 		}
-//		if (maxMinMax == null) 
-			getMaxMinMax();
+		getMaxMinMax(null, null);
 
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {

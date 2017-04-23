@@ -684,7 +684,6 @@ public class TilePlanes {
 				// make a plane and find the worst (largest disparity difference) tile
 				// z = -(x*Vx + y*Vy)/Vz
 				
-//				double [][][] disp_str = new double [measuredSelection.length][][];
 				double worst_d2 = 0.0;
 				int [] worst_layer_index = {-1,-1};
 				double [] v = getVector();
@@ -692,16 +691,6 @@ public class TilePlanes {
 				for (int nl = 0; nl < measuredSelection.length; nl++){
 					if (measuredSelection[nl] != null){
 						// already calculated, but not masked by selection!
-						/*
-						disp_str[nl] = measuredLayers.getDisparityStrength(
-								nl, // int num_layer,
-								sTileXY[0], // int stX,
-								sTileXY[1], // int stY,
-								measuredSelection[nl], // boolean [] sel_in,
-								strength_floor, // 
-								measured_strength_pow, //
-								true); // boolean null_if_none)
-						*/
 						if (disp_str[nl] != null) {
 							for (int indx = 0; indx < disp_str[nl][0].length; indx++){
 								double w = disp_str[nl][1][indx];
