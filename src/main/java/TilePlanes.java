@@ -165,6 +165,10 @@ public class TilePlanes {
 			}
 			return 	this.measuredSelection[nl];
 		}
+
+		public boolean [][] getMeasSelection(){
+			return 	this.measuredSelection;
+		}
 		
 		
 		public MeasuredLayers getMeasuredLayers()
@@ -1006,10 +1010,8 @@ public class TilePlanes {
 				debugLevel = 20;
 			}
 			
-//			if (eig.getD().get(0, 0) == 0.0){
-//				debugLevel = 10;
-//			}
-			if (debugLevel > 0){
+			if (debugLevel > 3){
+//				if (debugLevel > 0){
 				System.out.println("getCovar(): sw = "+sw +", swz = "+swz +", swx = "+swx +", swy = "+swy +", covar.det() = "+covar.det());
 				System.out.println("getCovar(): covarianvce matrix, number of used points:"+num_tiles);
 				covar.print(10, 6); // w,d
@@ -1022,15 +1024,6 @@ public class TilePlanes {
 				return null; // testing with zero eigenvalue
 				// Problem with zero eigenvalue is with derivatives and coordinate conversion
 			}
-/*			
-			double [][][] rslt = {
-					eig.getD().getArray(),
-					eig.getV().getArray(),
-					{
-						{sw,kz,numPoints},
-						{swz, swx, swy}}};
-			return rslt;
-*/
 
 			double [][] eig_val =  eig.getD().getArray(); // rslt[0];
 			double [][] eig_vect = eig.getV().getArray(); // rslt[1];
@@ -1363,13 +1356,13 @@ public class TilePlanes {
 				double y = tileSize * (sy + 0.5) + 0.5  - zxy[2];
 				for (int sx = -3 * superTileSize/2; sx < 3 * superTileSize / 2; sx++){
 					double x = tileSize * (sx + 0.5) + 0.5 - zxy[1];
-						disparities[indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
+					disparities[indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
 					indx++;
 				}
 			}
 			return disparities;
 		}
-		
+
 		public double[] getTriplePlaneDisparity(
 				int     dir)
 		{
@@ -1389,13 +1382,79 @@ public class TilePlanes {
 			}
 			return plane;
 		}
-		
-		
-//		double px = tileSize*(superTileSize * sTileXY[0] + superTileSize/2) + zxy[1];  // [3] - plane point {disparity, x, y), x=0, y=0 is a 4,4 point of an 8x8 supertile
-//		double py = tileSize*(superTileSize * sTileXY[1] + superTileSize/2) + zxy[2];
-		
-		
-		
+
+		/**
+		 * Get disparity values for the tiles of this overlapping supertile as [2*superTileSize * 2*superTileSize] array
+		 * and weights combined from provided window function, optional selection and using ellipsoid projection on the
+		 * px, py plane (constant disparity
+		 * @param window null or window function as [2*superTileSize * 2*superTileSize] array
+		 * @param use_sel use plane selection (this.sel_mask) to select only some part of the plane
+		 * @param scale_projection use plane ellipsoid projection for weight: 0 - do not use, > 0 linearly scale ellipsoid 
+		 * @return a pair of ar5rays {disparity, strength}, each [2*superTileSize * 2*superTileSize]
+		 */
+		public double[][] getDoublePlaneDisparityStrength(
+				double [] window,
+				boolean   use_sel,
+				double    scale_projection,
+				int       debugLevel)
+		{
+			double [][] disp_strength = new double[2][4*superTileSize*superTileSize];
+			int indx = 0;
+			double [] normal = getVector();
+			double [] zxy =    getZxy(); // {disparity, x center in pixels, y center in pixels (relative to a supertile center)
+			double    weight = getWeight();
+			double k_gauss = 0;
+			Matrix val2d = null, vect2d = null;
+			if (scale_projection > 0.0){
+				double [] vals3d =      getValues();
+				double [][] vectors3d = getVectors();
+				double [][] acovar = new double [2][2];
+				for (int i = 0; i < 2; i++){
+					for (int j = i; j < 2; j++){
+						acovar[i][j] = 0.0;
+						for (int k = 0; k < 3; k++){
+							acovar[i][j] += vals3d[k] * vectors3d[k][i+1] * vectors3d[k][j+1]; // 0 - z, disparity == 0
+						}
+						if (i != j) {
+							acovar[j][i] =acovar[i][j];
+						}
+					}
+				}
+				Matrix covar = new Matrix(acovar); // 2d, x y only
+				EigenvalueDecomposition eig = covar.eig();
+				val2d = eig.getD();
+				vect2d = eig.getV().transpose();
+				k_gauss = 0.5/(scale_projection*scale_projection);
+			}
+
+			for (int sy = -superTileSize; sy < superTileSize; sy++){
+				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
+				// pixel 31 and pixel 32 (counting from 0) in both directions
+				double y = tileSize * (sy + 0.5) + 0.5  - zxy[2];
+				for (int sx = -superTileSize; sx < superTileSize; sx++){
+					double x = tileSize * (sx + 0.5) + 0.5 - zxy[1];
+					disp_strength[0][indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
+					double w = weight;
+					if (window != null) w *= window[indx];
+					if (use_sel && (sel_mask != null) && !(sel_mask[indx])) w = 0.0;
+					if ((w > 0.0) && (scale_projection > 0.0)){
+						double [] xy = {x,y};
+						Matrix vxy = vect2d.times(new Matrix(xy,2)); // verify if it is correct
+						double r2 = 0; 
+						for (int i = 0; i <2; i++){
+							double d = vxy.get(i,0);
+							r2 += d * d / val2d.get(i, i);
+						}
+						w *= Math.exp(-k_gauss*r2); // verify it is correct size - maybe it should be -0.5*r2 ?
+					}					
+					disp_strength[1][indx] = w;
+					indx++;
+				}
+			}
+			return disp_strength;
+		}
+
+
 		/**
 		 * Cross product of 2 3-d vectors as column matrices
 		 * @param v1
@@ -1412,8 +1471,8 @@ public class TilePlanes {
 					{av1[0][0]*av2[1][0] - av1[1][0]*av2[0][0]}};
 			return new Matrix (ar);
 		}
-		
-		
+
+
 		/**
 		 * Combine 2 Plane instances using centers, eigenvalues eihenvectors and total weights of this and other PlaneData objects
 		 * other plane should already be transformed to the same supertile coordinate system (with getPlaneToThis() method)
@@ -1476,7 +1535,7 @@ public class TilePlanes {
 				other_offset.print(8, 6);
 				System.out.println("other_fraction="+other_fraction);
 			}
-			
+
 			double [][] acovar = { // covariance matrix of center masses (not yet scaled by weight)
 					{other_offset.get(0,0)*other_offset.get(0,0), other_offset.get(0,0)*other_offset.get(1,0), other_offset.get(0,0)*other_offset.get(2,0)},
 					{other_offset.get(1,0)*other_offset.get(0,0), other_offset.get(1,0)*other_offset.get(1,0), other_offset.get(1,0)*other_offset.get(2,0)},
@@ -1493,7 +1552,7 @@ public class TilePlanes {
 				System.out.println("covar");
 				covar.print(8, 6);
 			}			
-			
+
 			covar.plusEquals(other_covar.times(other_fraction));
 			if (debugLevel > 0) {
 				System.out.println("covar with other_covar");
@@ -1510,8 +1569,8 @@ public class TilePlanes {
 			}
 			// extract new eigenvalues, eigenvectors
 			EigenvalueDecomposition eig = covar.eig(); // verify NaN - it gets stuck
-//			eig.getD().getArray(),
-//			eig.getV().getArray(),
+			//			eig.getD().getArray(),
+			//			eig.getV().getArray(),
 			if (debugLevel > 0) {
 				System.out.println("eig.getV()");
 				eig.getV().print(8, 6);
@@ -1519,19 +1578,19 @@ public class TilePlanes {
 				eig.getD().print(8, 6);
 			}
 
-			
-			
+
+
 			double [][] eig_vect = eig.getV().getArray();
 			double [][] eig_val = eig.getD().getArray();
 			// make towards camera, left coordinate system
-/*			
+			/*			
 			int oindx = 0;
 			for (int i = 1; i <3; i++){
 				if (Math.abs(eig_vect[0][i]) > Math.abs(eig_vect[0][oindx])){
 					oindx = i;
 				}
 			}
-*/			
+			 */			
 			int oindx = 0;
 			if (preferDisparity) {
 				for (int i = 1; i <3; i++){
@@ -1547,7 +1606,7 @@ public class TilePlanes {
 				}
 
 			}
-			
+
 			// select 2 other axes for increasing eigenvalues (so v is short axis, h  is the long one)
 			int vindx = (oindx == 0)? 1 : 0;
 			int hindx = (oindx == 0)? 2 : ((oindx == 1) ? 2 : 1);
@@ -1565,18 +1624,18 @@ public class TilePlanes {
 			for (int v = 0; v < 2; v++) {
 				if (plane[v][v] < 0.0) for (int i = 0; i < 3; i ++) plane[v][i] = -plane[v][i];
 			}
-			
+
 			// make  direction last vector so px (x) py (.) disp < 0 (left-hand coordinate system) 
 			if (new Matrix(plane).det() > 0){
 				for (int i = 0; i < 3; i ++) plane[2][i] = -plane[2][i];
 			}
-			
-			
+
+
 			PlaneData pd = this.clone(); // will copy selections too
 			pd.invalidateCalculated();   // real world vectors
 			pd.setValues(eig_val[oindx][oindx],eig_val[vindx][vindx],eig_val[hindx][hindx]); // eigenvalues [0] - thickness, 2 other to detect skinny (poles)
 			pd.setVectors(plane);
-			
+
 			pd.setZxy(common_center.getColumnPackedCopy()); // set new center
 			// what weight to use? cloned is original weight for this supertile
 			// or use weighted average like below?
@@ -1588,7 +1647,7 @@ public class TilePlanes {
 
 			return pd;
 		}
-		
+
 		
 		/**
 		 * Convert plane data from other supertile to this one (disparity, px, py) for the center of this supertile
@@ -1956,11 +2015,7 @@ public class TilePlanes {
 			System.out.println("getCovar(): Double.isNaN(eig.getV().get(0, 0))");
 			debugLevel = 20;
 		}
-		
-//		if (eig.getD().get(0, 0) == 0.0){
-//			debugLevel = 10;
-//		}
-		if (debugLevel > 0){
+		if (debugLevel > 3){
 			System.out.println("getCovar(): sw = "+sw +", swz = "+swz +", swx = "+swx +", swy = "+swy +", covar.det() = "+covar.det());
 			System.out.println("getCovar(): covarianvce matrix, number of used points:"+numPoints);
 			covar.print(10, 6); // w,d

@@ -2155,6 +2155,13 @@ public class EyesisCorrectionParameters {
   		
   		public boolean    plPreferDisparity    =   false;// Always start with disparity-most axis (false - lowest eigenvalue)
   		public double     plDispNorm           =   3.0;  // Normalize disparities to the average if above (now only for eigenvalue comparison)
+  		
+  		public double     plBlurBinVert        =   1.2;  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
+  		public double     plBlurBinHor         =   0.8;  // Blur disparity histograms for horizontal clusters by this sigma (in bins)
+  		public double     plMaxDiffVert        =   0.4;  // Maximal normalized disparity difference when initially assigning to vertical plane
+  		public double     plMaxDiffHor         =   0.2;  // Maximal normalized disparity difference when initially assigning to horizontal plane
+  		public int        plInitPasses         =     3;  // Number of initial passes to assign tiles to vert (const disparity) and hor planes
+  		
   		public int        plMinPoints          =     5;  // Minimal number of points for plane detection
   		public double     plTargetEigen        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
   		public double     plFractOutliers      =   0.3;  // Maximal fraction of outliers to remove
@@ -2453,7 +2460,14 @@ public class EyesisCorrectionParameters {
 
 			properties.setProperty(prefix+"plPreferDisparity",this.plPreferDisparity+"");
 			properties.setProperty(prefix+"plDispNorm",       this.plDispNorm +"");
-  			properties.setProperty(prefix+"plMinPoints",      this.plMinPoints+"");
+
+			properties.setProperty(prefix+"plBlurBinVert",    this.plBlurBinVert +"");
+			properties.setProperty(prefix+"plBlurBinHor",     this.plBlurBinHor +"");
+			properties.setProperty(prefix+"plMaxDiffVert",    this.plMaxDiffVert +"");
+			properties.setProperty(prefix+"plMaxDiffHor",     this.plMaxDiffHor +"");
+  			properties.setProperty(prefix+"plInitPasses",     this.plInitPasses+"");
+			
+			properties.setProperty(prefix+"plMinPoints",      this.plMinPoints+"");
 			properties.setProperty(prefix+"plTargetEigen",    this.plTargetEigen +"");
 			properties.setProperty(prefix+"plFractOutliers",  this.plFractOutliers +"");
   			properties.setProperty(prefix+"plMaxOutliers",    this.plMaxOutliers+"");
@@ -2463,10 +2477,8 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plWorstWorsening", this.plWorstWorsening +"");
 			properties.setProperty(prefix+"plWeakWorsening",  this.plWeakWorsening +"");
 			properties.setProperty(prefix+"plMutualOnly",     this.plMutualOnly+"");
-
 			properties.setProperty(prefix+"plFillSquares",    this.plFillSquares+"");
 			properties.setProperty(prefix+"plCutCorners",     this.plCutCorners+"");
-
 			properties.setProperty(prefix+"plPull",           this.plPull +"");
 			properties.setProperty(prefix+"plNormPow",        this.plNormPow +"");
   			properties.setProperty(prefix+"plIterations",     this.plIterations+"");
@@ -2738,6 +2750,13 @@ public class EyesisCorrectionParameters {
 
   			if (properties.getProperty(prefix+"plPreferDisparity")!=null) this.plPreferDisparity=Boolean.parseBoolean(properties.getProperty(prefix+"plPreferDisparity"));
   			if (properties.getProperty(prefix+"plDispNorm")!=null)        this.plDispNorm=Double.parseDouble(properties.getProperty(prefix+"plDispNorm"));
+
+  			if (properties.getProperty(prefix+"plBlurBinVert")!=null)     this.plBlurBinVert=Double.parseDouble(properties.getProperty(prefix+"plBlurBinVert"));
+  			if (properties.getProperty(prefix+"plBlurBinHor")!=null)      this.plBlurBinHor=Double.parseDouble(properties.getProperty(prefix+"plBlurBinHor"));
+  			if (properties.getProperty(prefix+"plMaxDiffVert")!=null)     this.plMaxDiffVert=Double.parseDouble(properties.getProperty(prefix+"plMaxDiffVert"));
+  			if (properties.getProperty(prefix+"plMaxDiffHor")!=null)      this.plMaxDiffHor=Double.parseDouble(properties.getProperty(prefix+"plMaxDiffHor"));
+  			if (properties.getProperty(prefix+"plInitPasses")!=null)      this.plInitPasses=Integer.parseInt(properties.getProperty(prefix+"plInitPasses"));
+  			
   			if (properties.getProperty(prefix+"plMinPoints")!=null)       this.plMinPoints=Integer.parseInt(properties.getProperty(prefix+"plMinPoints"));
   			if (properties.getProperty(prefix+"plTargetEigen")!=null)     this.plTargetEigen=Double.parseDouble(properties.getProperty(prefix+"plTargetEigen"));
   			if (properties.getProperty(prefix+"plFractOutliers")!=null)   this.plFractOutliers=Double.parseDouble(properties.getProperty(prefix+"plFractOutliers"));
@@ -2746,7 +2765,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plMaxEigen")!=null)        this.plMaxEigen=Double.parseDouble(properties.getProperty(prefix+"plMaxEigen"));
   			if (properties.getProperty(prefix+"plDbgMerge")!=null)        this.plDbgMerge=Boolean.parseBoolean(properties.getProperty(prefix+"plDbgMerge"));
   			if (properties.getProperty(prefix+"plWorstWorsening")!=null)  this.plWorstWorsening=Double.parseDouble(properties.getProperty(prefix+"plWorstWorsening"));
-  			if (properties.getProperty(prefix+"plWeakWorsening")!=null)  this.plWeakWorsening=Double.parseDouble(properties.getProperty(prefix+"plWeakWorsening"));
+  			if (properties.getProperty(prefix+"plWeakWorsening")!=null)   this.plWeakWorsening=Double.parseDouble(properties.getProperty(prefix+"plWeakWorsening"));
   			if (properties.getProperty(prefix+"plMutualOnly")!=null)      this.plMutualOnly=Boolean.parseBoolean(properties.getProperty(prefix+"plMutualOnly"));
 
   			if (properties.getProperty(prefix+"plFillSquares")!=null)     this.plFillSquares=Boolean.parseBoolean(properties.getProperty(prefix+"plFillSquares"));
@@ -3047,7 +3066,14 @@ public class EyesisCorrectionParameters {
   			gd.addMessage     ("--- Planes detection ---");
   			gd.addCheckbox    ("Always start with disparity-most axis (false - lowest eigenvalue)",            this.plPreferDisparity);
   			gd.addNumericField("Normalize disparities to the average if above",                                this.plDispNorm,  6);
-  			gd.addNumericField("Minimal number of points for plane detection",                                  this.plMinPoints,  0);
+
+  			gd.addNumericField("Blur disparity histograms for constant disparity clusters by this sigma (in bins)",   this.plBlurBinVert,  6);
+  			gd.addNumericField("Blur disparity histograms for horizontal clusters by this sigma (in bins)",           this.plBlurBinHor,  6);
+  			gd.addNumericField("Maximal normalized disparity difference when initially assigning to vertical plane",  this.plMaxDiffVert,  6);
+  			gd.addNumericField("Maximal normalized disparity difference when initially assigning to horizontal plane",this.plMaxDiffHor,  6);
+  			gd.addNumericField("Number of initial passes to assign tiles to vert (const disparity) and hor planes",   this.plInitPasses,  0);
+  			
+  			gd.addNumericField("Minimal number of points for plane detection",                                 this.plMinPoints,  0);
   			gd.addNumericField("Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below", this.plTargetEigen,  6);
   			gd.addNumericField("Maximal fraction of outliers to remove",                                       this.plFractOutliers,  6);
   			gd.addNumericField("Maximal number of outliers to remove",                                         this.plMaxOutliers,  0);
@@ -3340,6 +3366,13 @@ public class EyesisCorrectionParameters {
 
   			this.plPreferDisparity=     gd.getNextBoolean();
   			this.plDispNorm=            gd.getNextNumber();
+
+  			this.plBlurBinVert=         gd.getNextNumber();
+  			this.plBlurBinHor=          gd.getNextNumber();
+  			this.plMaxDiffVert=         gd.getNextNumber();
+  			this.plMaxDiffHor=          gd.getNextNumber();
+  			this.plInitPasses=    (int) gd.getNextNumber();
+  			
   			this.plMinPoints=     (int) gd.getNextNumber();
   			this.plTargetEigen=         gd.getNextNumber();
   			this.plFractOutliers=       gd.getNextNumber();

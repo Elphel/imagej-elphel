@@ -3042,29 +3042,62 @@ public class TileProcessor {
 		
 // moved here
 		if (clt_parameters.dbg_migrate) {
-		st.processPlanes4(
-//				null, // final boolean [] selected, // or null
-//				0.3, // final double     min_disp,
-				clt_parameters.stMeasSel, //            =     1   //Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
-				clt_parameters.plDispNorm, //           =   2.0;  // Normalize disparities to the average if above
-				clt_parameters.plMinPoints, //          =     5;  // Minimal number of points for plane detection
-				clt_parameters.plTargetEigen, //        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
-				clt_parameters.plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
-				clt_parameters.plMaxOutliers, //        =    20;  // Maximal number of outliers to remove\
-				clt_parameters.plPreferDisparity,
-				geometryCorrection,
-				clt_parameters.correct_distortions,
-				clt_parameters.stSmplMode , // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-				clt_parameters.stSmplSide , // final int                        smplSide, //        = 2;      // Sample size (side of a square)
-				clt_parameters.stSmplNum ,  // final int                        smplNum, //         = 3;      // Number after removing worst
-				clt_parameters.stSmplRms ,  // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-				clt_parameters.stSmallDiff, //       = 0.4;   // Consider merging initial planes if disparity difference below
-				clt_parameters.stHighMix, //stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
-				clt_parameters.vertical_xyz,
-				0, // -1, // debugLevel,                  // final int        debugLevel)
-				clt_parameters.tileX,
-				clt_parameters.tileY);
+			// separate each supertile data into clusters, trying both horizontal and perpendicular to view planes
+			double []  world_hor = {0.0, 1.0, 0.0};
+			st.processPlanes5(
+					clt_parameters.stMeasSel,       //      =     1   //Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+					clt_parameters.plDispNorm,      //      =   2.0;  // Normalize disparities to the average if above
+					clt_parameters.plMinPoints,     //      =     5;  // Minimal number of points for plane detection
+					clt_parameters.plTargetEigen,   //      =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+					clt_parameters.plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
+					clt_parameters.plMaxOutliers,   //      =    20;  // Maximal number of outliers to remove\
+					clt_parameters.plPreferDisparity,
+					geometryCorrection,
+					clt_parameters.correct_distortions,
+
+					clt_parameters.stSmplMode ,     // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+					clt_parameters.stSmplSide ,     // final int                        smplSide, //        = 2;      // Sample size (side of a square)
+					clt_parameters.stSmplNum ,      // final int                        smplNum, //         = 3;      // Number after removing worst
+					clt_parameters.stSmplRms ,      // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+
+					clt_parameters.plBlurBinHor,    // final double     bin_blur_hor,   // Blur disparity histograms for horizontal clusters by this sigma (in bins)
+					clt_parameters.plBlurBinVert,   // final double     bin_blur_vert,  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
+					clt_parameters.plMaxDiffHor,    // final double     max_diff_hor,   // maximal disparity difference (to assign to a cluster (of Double.NaN) at first run for horizontal planes
+					clt_parameters.plMaxDiffVert,   // final double     max_diff_vert,  // maximal disparity difference (to assign to a cluster (of Double.NaN) at first run for vertical plane
+					clt_parameters.plInitPasses,    // final int        max_tries,       // on last run - assign all rfemaining pixels to some cluster (disregard max_diff)
+
+					clt_parameters.stSmallDiff,     //       = 0.4;   // Consider merging initial planes if disparity difference below
+					clt_parameters.stHighMix,       // stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
+					world_hor,                      // final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
+					0, // -1,                       // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
 		} else {
+			st.processPlanes4(
+					clt_parameters.stMeasSel, //            =     1   //Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+					clt_parameters.plDispNorm, //           =   2.0;  // Normalize disparities to the average if above
+					clt_parameters.plMinPoints, //          =     5;  // Minimal number of points for plane detection
+					clt_parameters.plTargetEigen, //        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+					clt_parameters.plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
+					clt_parameters.plMaxOutliers, //        =    20;  // Maximal number of outliers to remove\
+					clt_parameters.plPreferDisparity,
+					geometryCorrection,
+					clt_parameters.correct_distortions,
+					clt_parameters.stSmplMode , // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+					clt_parameters.stSmplSide , // final int                        smplSide, //        = 2;      // Sample size (side of a square)
+					clt_parameters.stSmplNum ,  // final int                        smplNum, //         = 3;      // Number after removing worst
+					clt_parameters.stSmplRms ,  // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+
+					clt_parameters.plBlurBinHor,    // final double     bin_blur_hor,   // Blur disparity histograms for horizontal clusters by this sigma (in bins)
+					clt_parameters.plBlurBinVert,   // final double     bin_blur_vert,  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
+
+					clt_parameters.stSmallDiff, //       = 0.4;   // Consider merging initial planes if disparity difference below
+					clt_parameters.stHighMix, //stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
+					//					clt_parameters.vertical_xyz,
+					0, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+/*			
 			st.processPlanes3(
 					null, // final boolean [] selected, // or null
 					0.3, // final double     min_disp,
@@ -3086,6 +3119,7 @@ public class TileProcessor {
 					0, // -1, // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
+*/					
 		}
 		
 		showDoubleFloatArrays sdfa_instance = null;
@@ -3093,6 +3127,7 @@ public class TileProcessor {
 
 		st.matchPlanes(
 				clt_parameters.plPreferDisparity,
+				0, // debugLevel
 				clt_parameters.tileX,
 				clt_parameters.tileY); 
 
@@ -3172,6 +3207,7 @@ public class TileProcessor {
 			// now re-create connections and best neighbors
 			st.matchPlanes(
 					clt_parameters.plPreferDisparity,
+					0, // debugLevel
 					clt_parameters.tileX,
 					clt_parameters.tileY); 
 
@@ -3220,6 +3256,8 @@ public class TileProcessor {
 					0, // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY); 
+		} else {
+			st.planes_mod = st.planes; // just use the measured ones
 		}
 		// filter out weak planes, create boolean array [per-supertile][per disparity plane]
 		boolean [][] selected_planes =	st.selectPlanes(
@@ -3235,11 +3273,14 @@ public class TileProcessor {
 				clt_parameters.plKeepOrphans,             // true, // boolean                   keep_orphans, // single-cell shells
 				clt_parameters.plMinOrphan, // orphan_strength // add separate parameter
 				st.getPlanesMod(), // TilePlanes.PlaneData [][] planes,
-				1); // int                       debugLevel)
+				1, // final int debugLevel)
+				clt_parameters.tileX,
+				clt_parameters.tileY); 
 		// save shell indices with SuperTiles instance
 		st.setShellMap(shells); // persistent
 		// Create array [per shell][per tile] of shell disparities. tiles of unused supertiles are Double.NaN
 		double [][] surfaces = st.getShowShells(
+				0, // int  nlayer, // over multi-layer - do not render more than nlayer on top of each other
 				st.getPlanesMod(),   // TilePlanes.PlaneData [][] planes,
 				st.getShellMap(), // shells,              // int [][] shells,
 				1000,                 // int max_shells,
@@ -3313,6 +3354,7 @@ public class TileProcessor {
 			sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "plane_data");
 			
 			plane_data = st.getShowShells(
+					0, // int  nlayer, // over multi-layer - do not render more than nlayer on top of each other
 					st.getPlanesMod(),   // TilePlanes.PlaneData [][] planes,
 					st.getShellMap(), // shells,              // int [][] shells,
 					100,                 // int max_shells,
@@ -3323,8 +3365,22 @@ public class TileProcessor {
 					10.0);               // double arrow_white)
 			
 			sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "shells_all");
+
+			plane_data = st.getShowShells(
+					1, // int  nlayer, // over multi-layer - do not render more than nlayer on top of each other
+					st.getPlanesMod(),   // TilePlanes.PlaneData [][] planes,
+					st.getShellMap(), // shells,              // int [][] shells,
+					100,                 // int max_shells,
+					clt_parameters.plFuse,// boolean fuse,
+					false,               // boolean show_connections,
+					false,               // boolean use_NaN,
+					10.0,                 // double arrow_dark,
+					10.0);               // double arrow_white)
+			
+			sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "shells2_all");
 			
 			plane_data = st.getShowShells(
+					0, // int  nlayer, // over multi-layer - do not render more than nlayer on top of each other
 					st.getPlanesMod(),   // TilePlanes.PlaneData [][] planes,
 					st.getShellMap(), // shells,              // int [][] shells,
 					100,                 // int max_shells,
@@ -3335,8 +3391,21 @@ public class TileProcessor {
 					10.0);               // double arrow_white)
 			sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "shells_all_arrows");
 
+			plane_data = st.getShowShells(
+					1, // int  nlayer, // over multi-layer - do not render more than nlayer on top of each other
+					st.getPlanesMod(),   // TilePlanes.PlaneData [][] planes,
+					st.getShellMap(), // shells,              // int [][] shells,
+					100,                 // int max_shells,
+					clt_parameters.plFuse,// boolean fuse,
+					true,                // boolean show_connections,
+					false,               // boolean use_NaN,
+					10.0,                 // double arrow_dark,
+					10.0);               // double arrow_white)
+			sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "shells2_all_arrows");
+
 			
 			plane_data = st.getShowShells(
+					0, // int  nlayer, // over multi-layer - do not render more than nlayer on top of each other
 					st.getPlanesMod(),   // TilePlanes.PlaneData [][] planes,
 					st.getShellMap(), // shells,              // int [][] shells,
 					100,                 // int max_shells,
@@ -3346,6 +3415,18 @@ public class TileProcessor {
 					10.0,                 // double arrow_dark,
 					10.0);               // double arrow_white)
 			sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "shells");
+
+			plane_data = st.getShowShells(
+					1, // int  nlayer, // over multi-layer - do not render more than nlayer on top of each other
+					st.getPlanesMod(),   // TilePlanes.PlaneData [][] planes,
+					st.getShellMap(), // shells,              // int [][] shells,
+					100,                 // int max_shells,
+					clt_parameters.plFuse,// boolean fuse,
+					false,               // boolean show_connections,
+					true,               // boolean use_NaN,
+					10.0,                 // double arrow_dark,
+					10.0);               // double arrow_white)
+			sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "shells2");
 // also test snap here			
 			int [] snap_surf =  st.snapSort(
 					st.cltPass3d.getDisparity(),                  // final double []  disparity,
