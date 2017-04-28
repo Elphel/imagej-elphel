@@ -397,7 +397,7 @@ public class SuperTiles{
 		final double []   strengthHist = new double [nStiles];
 		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
-		final TilePlanes tpl = new TilePlanes(tileProcessor.getTileSize(),superTileSize);
+//		final TilePlanes tpl = new TilePlanes(tileProcessor.getTileSize(),superTileSize);
 
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
@@ -1578,6 +1578,7 @@ public class SuperTiles{
 			double [][] ellipsoids = planes[npd +LOWEST_PLANE(planes.length)].getDoublePlaneDisparityStrength(
 					null, // double [] window,
 					true, // boolean   use_sel,
+					true, // boolean   divide_by_area,
 					1.5, // double   scale_projection,
 					1); // int       debugLevel)
 			

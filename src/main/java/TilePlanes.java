@@ -1387,19 +1387,22 @@ public class TilePlanes {
 		 * Get disparity values for the tiles of this overlapping supertile as [2*superTileSize * 2*superTileSize] array
 		 * and weights combined from provided window function, optional selection and using ellipsoid projection on the
 		 * px, py plane (constant disparity
+		 * Sharp weights - when selecting the best match - use exponent of (delta_disp) ^2 ?
+		 * Or divide weight by ellipse arae?
 		 * @param window null or window function as [2*superTileSize * 2*superTileSize] array
 		 * @param use_sel use plane selection (this.sel_mask) to select only some part of the plane
+		 * @param divide_by_area divide weights by ellipsoid area
 		 * @param scale_projection use plane ellipsoid projection for weight: 0 - do not use, > 0 linearly scale ellipsoid 
-		 * @return a pair of ar5rays {disparity, strength}, each [2*superTileSize * 2*superTileSize]
+		 * @return a pair of arrays {disparity, strength}, each [2*superTileSize * 2*superTileSize]
 		 */
 		public double[][] getDoublePlaneDisparityStrength(
 				double [] window,
 				boolean   use_sel,
+				boolean   divide_by_area,
 				double    scale_projection,
 				int       debugLevel)
 		{
 			double [][] disp_strength = new double[2][4*superTileSize*superTileSize];
-			int indx = 0;
 			double [] normal = getVector();
 			double [] zxy =    getZxy(); // {disparity, x center in pixels, y center in pixels (relative to a supertile center)
 			double    weight = getWeight();
@@ -1425,8 +1428,15 @@ public class TilePlanes {
 				val2d = eig.getD();
 				vect2d = eig.getV().transpose();
 				k_gauss = 0.5/(scale_projection*scale_projection);
+				if (divide_by_area) {
+					double area = Math.sqrt(val2d.get(0, 0)*val2d.get(1, 1));
+					if (area > 0){
+						weight /= area;
+					}
+				}
 			}
 
+			int indx = 0;
 			for (int sy = -superTileSize; sy < superTileSize; sy++){
 				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
 				// pixel 31 and pixel 32 (counting from 0) in both directions
@@ -1445,7 +1455,7 @@ public class TilePlanes {
 							double d = vxy.get(i,0);
 							r2 += d * d / val2d.get(i, i);
 						}
-						w *= Math.exp(-k_gauss*r2); // verify it is correct size - maybe it should be -0.5*r2 ?
+						w *= Math.exp(-k_gauss*r2);
 					}					
 					disp_strength[1][indx] = w;
 					indx++;
@@ -1454,7 +1464,223 @@ public class TilePlanes {
 			return disp_strength;
 		}
 
+		/**
+		 * Get disparity values for the tiles of this overlapping supertile as [2*superTileSize * 2*superTileSize] array
+		 * and weights combined from provided window function, optional selection and using ellipsoid projection on the
+		 * px, py plane (constant disparity
+		 * Sharp weights - when selecting the best match - use exponent of (delta_disp) ^2 ?
+		 * Or divide weight by ellipse area?
+		 * @param window null or window function as [2*superTileSize * 2*superTileSize] array
+		 * @param dir - source tile shift from the target: -1 center, 0 - N, 1 - NE
+		 * @param use_sel use plane selection (this.sel_mask) to select only some part of the plane
+		 * @param divide_by_area divide weights by ellipsoid area
+		 * @param scale_projection use plane ellipsoid projection for weight: 0 - do not use, > 0 linearly scale ellipsoid 
+		 * @return a pair of arrays {disparity, strength}, each [2 * superTileSize * 2 * superTileSize], only 1/2 or 1/4 used for offset tiles\
+		 * TODO: add a combination of the ellipses and infinite planes?
+		 * 
+		 */
+		public double[][] getDoublePlaneDisparityStrength(
+				double [] window,
+				int       dir,
+				boolean   use_sel,
+				boolean   divide_by_area,
+				double    scale_projection,
+				int       debugLevel)
+		{
+			double [][] disp_strength = new double[2][superTileSize*superTileSize];
+			double [] normal = getVector();
+			double [] zxy =    getZxy(); // {disparity, x center in pixels, y center in pixels (relative to a supertile center)
+			double    weight = getWeight();
+			double k_gauss = 0;
+			Matrix val2d = null, vect2d = null;
+			if (scale_projection > 0.0){
+				double [] vals3d =      getValues();
+				double [][] vectors3d = getVectors();
+				double [][] acovar = new double [2][2];
+				for (int i = 0; i < 2; i++){
+					for (int j = i; j < 2; j++){
+						acovar[i][j] = 0.0;
+						for (int k = 0; k < 3; k++){
+							acovar[i][j] += vals3d[k] * vectors3d[k][i+1] * vectors3d[k][j+1]; // 0 - z, disparity == 0
+						}
+						if (i != j) {
+							acovar[j][i] =acovar[i][j];
+						}
+					}
+				}
+				Matrix covar = new Matrix(acovar); // 2d, x y only
+				EigenvalueDecomposition eig = covar.eig();
+				val2d = eig.getD();
+				vect2d = eig.getV().transpose();
+				k_gauss = 0.5/(scale_projection*scale_projection);
+				if (divide_by_area) {
+					double area = Math.sqrt(val2d.get(0, 0)*val2d.get(1, 1));
+					if (area > 0){
+						weight /= area;
+					}
+				}
+			}
+//			int ss1 = superTileSize / 2;
+			int ss2 = superTileSize;
+//			int ss3 = 3 *ss1;
+			int ss4 = 2 * superTileSize;
+			
+			
+			int [][] offsets = {
+					// ymin, ymax, xmin,xmax, offsy, offsx
+					{  0, ss4,   0, ss4,    0,    0 },  // center	
+					{ss2, ss4,   0, ss4, -ss2,    0 },  // N	
+					{ss2, ss4,   0, ss2, -ss2,  ss2 },  // NE	
+					{  0, ss4,   0, ss2,    0,  ss2 },  // E	
+					{  0, ss2,   0, ss2,  ss2,  ss2 },  // SE	
+					{  0, ss2,   0, ss2,  ss2,    0 },  // S	
+					{  0, ss2, ss2, ss4,  ss2, -ss2 },  // SW	
+					{  0, ss4, ss2, ss4,    0, -ss2 },  // W	
+					{ss2, ss4,   0, ss4, -ss2, -ss2 }}; // NW
+			int dir1 = dir + 1;
 
+//			for (int sy = -superTileSize; sy < superTileSize; sy++){
+			for (int iy = offsets[dir1][0]; iy < offsets[dir1][1]; iy++){
+				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
+				// pixel 31 and pixel 32 (counting from 0) in both directions
+				double y = tileSize * (iy - ss2 + 0.5) + 0.5  - zxy[2];
+				int oy = iy + offsets[dir1][4]; //vert index in the result tile
+//				for (int sx = -superTileSize; sx < superTileSize; sx++){
+				for (int ix = offsets[dir1][2]; ix < offsets[dir1][3]; ix++){
+					double x = tileSize * (ix - ss2 + 0.5) + 0.5 - zxy[1];
+//					int indx = ss2 * oy + ix + offsets[dir1][5];
+					int indx = ss4 * oy + ix + offsets[dir1][5];
+					int indx_i = iy * ss4 + ix; // input index
+					disp_strength[0][indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
+					double w = weight;
+					if (window != null) w *= window[indx_i];
+					if (use_sel && (sel_mask != null) && !(sel_mask[indx_i])) w = 0.0;
+					if ((w > 0.0) && (scale_projection > 0.0)){
+						double [] xy = {x,y};
+						Matrix vxy = vect2d.times(new Matrix(xy,2)); // verify if it is correct
+						double r2 = 0; 
+						for (int i = 0; i <2; i++){
+							double d = vxy.get(i,0);
+							r2 += d * d / val2d.get(i, i);
+						}
+						w *= Math.exp(-k_gauss*r2);
+					}					
+					disp_strength[1][indx] = w;
+				}
+			}
+			return disp_strength;
+		}
+
+
+		/**
+		 * Get disparity values for the tiles of this overlapping supertile as [superTileSize * superTileSize] array
+		 * and weights combined from provided window function, optional selection and using ellipsoid projection on the
+		 * px, py plane (constant disparity
+		 * Sharp weights - when selecting the best match - use exponent of (delta_disp) ^2 ?
+		 * Or divide weight by ellipse arae?
+		 * @param window null or window function as [2*superTileSize * 2*superTileSize] array
+		 * @param dir - source tile shift from the targer: -1 center, 0 - N, 1 - NE
+		 * @param use_sel use plane selection (this.sel_mask) to select only some part of the plane
+		 * @param divide_by_area divide weights by ellipsoid area
+		 * @param scale_projection use plane ellipsoid projection for weight: 0 - do not use, > 0 linearly scale ellipsoid 
+		 * @return a pair of arrays {disparity, strength}, each [superTileSize * superTileSize], only 1/2 or 1/4 used for offset tiles\
+		 * TODO: add a combination of the ellipses and infinite planes?
+		 * 
+		 */
+		public double[][] getSinglePlaneDisparityStrength(
+				double [] window,
+				int       dir,
+				boolean   use_sel,
+				boolean   divide_by_area,
+				double    scale_projection,
+				int       debugLevel)
+		{
+			double [][] disp_strength = new double[2][superTileSize*superTileSize];
+			double [] normal = getVector();
+			double [] zxy =    getZxy(); // {disparity, x center in pixels, y center in pixels (relative to a supertile center)
+			double    weight = getWeight();
+			double k_gauss = 0;
+			Matrix val2d = null, vect2d = null;
+			if (scale_projection > 0.0){
+				double [] vals3d =      getValues();
+				double [][] vectors3d = getVectors();
+				double [][] acovar = new double [2][2];
+				for (int i = 0; i < 2; i++){
+					for (int j = i; j < 2; j++){
+						acovar[i][j] = 0.0;
+						for (int k = 0; k < 3; k++){
+							acovar[i][j] += vals3d[k] * vectors3d[k][i+1] * vectors3d[k][j+1]; // 0 - z, disparity == 0
+						}
+						if (i != j) {
+							acovar[j][i] =acovar[i][j];
+						}
+					}
+				}
+				Matrix covar = new Matrix(acovar); // 2d, x y only
+				EigenvalueDecomposition eig = covar.eig();
+				val2d = eig.getD();
+				vect2d = eig.getV().transpose();
+				k_gauss = 0.5/(scale_projection*scale_projection);
+				if (divide_by_area) {
+					double area = Math.sqrt(val2d.get(0, 0)*val2d.get(1, 1));
+					if (area > 0){
+						weight /= area;
+					}
+				}
+			}
+			int ss1 = superTileSize / 2;
+			int ss2 = superTileSize;
+			int ss3 = 3 *ss1;
+			int ss4 = 2 * superTileSize;
+			
+			
+			int [][] offsets = {
+					// ymin, ymax, xmin,xmax, offsy, offsx
+					{ss1, ss3, ss1, ss3, -ss1, -ss1 },  // center	
+					{ss3, ss4, ss1, ss3, -ss3, -ss1 },  // N	
+					{ss3, ss4,   0, ss1, -ss3,  ss1 },  // NE	
+					{ss1, ss3,   0, ss1, -ss1,  ss1 },  // E	
+					{  0, ss1,   0, ss1,  ss1,  ss1 },  // SE	
+					{  0, ss1, ss1, ss3,  ss1, -ss1 },  // S	
+					{  0, ss1, ss3, ss4,  ss1, -ss3 },  // SW	
+					{ss1, ss3, ss3, ss4, -ss1, -ss3 },  // W	
+					{ss3, ss4, ss3, ss4, -ss3, -ss3 }}; // NW
+			int dir1 = dir + 1;
+
+//			for (int sy = -superTileSize; sy < superTileSize; sy++){
+			for (int iy = offsets[dir1][0]; iy < offsets[dir1][1]; iy++){
+				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
+				// pixel 31 and pixel 32 (counting from 0) in both directions
+				double y = tileSize * (iy - ss2 + 0.5) + 0.5  - zxy[2];
+				int oy = iy + offsets[dir1][4]; //vert index in the result tile
+//				for (int sx = -superTileSize; sx < superTileSize; sx++){
+				for (int ix = offsets[dir1][2]; ix < offsets[dir1][3]; ix++){
+					double x = tileSize * (ix - ss2 + 0.5) + 0.5 - zxy[1];
+					int indx = ss2 * oy + ix + offsets[dir1][5];
+					int indx_i = iy * ss4 + ix; // ss2;
+					disp_strength[0][indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
+					double w = weight;
+					if (window != null) w *= window[indx_i];
+					if (use_sel && (sel_mask != null) && !(sel_mask[indx_i])) w = 0.0;
+					if ((w > 0.0) && (scale_projection > 0.0)){
+						double [] xy = {x,y};
+						Matrix vxy = vect2d.times(new Matrix(xy,2)); // verify if it is correct
+						double r2 = 0; 
+						for (int i = 0; i <2; i++){
+							double d = vxy.get(i,0);
+							r2 += d * d / val2d.get(i, i);
+						}
+						w *= Math.exp(-k_gauss*r2);
+					}					
+					disp_strength[1][indx] = w;
+				}
+			}
+			return disp_strength;
+		}
+
+		
+		
+		
 		/**
 		 * Cross product of 2 3-d vectors as column matrices
 		 * @param v1
