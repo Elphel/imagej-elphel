@@ -1487,7 +1487,7 @@ public class TilePlanes {
 				double    scale_projection,
 				int       debugLevel)
 		{
-			double [][] disp_strength = new double[2][superTileSize*superTileSize];
+			double [][] disp_strength = new double[2][4*superTileSize*superTileSize];
 			double [] normal = getVector();
 			double [] zxy =    getZxy(); // {disparity, x center in pixels, y center in pixels (relative to a supertile center)
 			double    weight = getWeight();
@@ -1533,10 +1533,12 @@ public class TilePlanes {
 					{ss2, ss4,   0, ss2, -ss2,  ss2 },  // NE	
 					{  0, ss4,   0, ss2,    0,  ss2 },  // E	
 					{  0, ss2,   0, ss2,  ss2,  ss2 },  // SE	
-					{  0, ss2,   0, ss2,  ss2,    0 },  // S	
+//					{  0, ss2,   0, ss2,  ss2,    0 },  // S	
+					{  0, ss2,   0, ss4,  ss2,    0 },  // S	
 					{  0, ss2, ss2, ss4,  ss2, -ss2 },  // SW	
 					{  0, ss4, ss2, ss4,    0, -ss2 },  // W	
-					{ss2, ss4,   0, ss4, -ss2, -ss2 }}; // NW
+//					{ss2, ss4,   0, ss4, -ss2, -ss2 }}; // NW
+					{ss2, ss4, ss2, ss4, -ss2, -ss2 }}; // NW
 			int dir1 = dir + 1;
 
 //			for (int sy = -superTileSize; sy < superTileSize; sy++){

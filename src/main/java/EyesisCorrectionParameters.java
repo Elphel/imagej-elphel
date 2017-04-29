@@ -2210,6 +2210,10 @@ public class EyesisCorrectionParameters {
   		public double     plSnapDispWeight     =  .5;   // Maximal disparity diff. by weight product to snap to plane
   		public int        plSnapZeroMode       =  1;    // Zero strength snap mode: 0: no special treatment, 1 - strongest, 2 - farthest
   		
+  		public boolean    msUseSel             =   true; // Use planes selection masks (generated when splitting to intersecting pairs  
+  		public boolean    msDivideByArea       =   true; // Divide plane strengths by ellipsoid area
+  		public double     msScaleProj          =   1.5;  // Scale projection of the plane ellkipsoid 
+  		
   		public boolean    replaceWeakOutlayers =   true; // false; 
   		
   		public boolean    dbg_migrate =            true; 
@@ -2509,6 +2513,10 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plSnapDispWeight", this.plSnapDispWeight +"");
   			properties.setProperty(prefix+"plSnapZeroMode",   this.plSnapZeroMode+"");
 
+			properties.setProperty(prefix+"msUseSel",         this.msUseSel+"");
+			properties.setProperty(prefix+"msDivideByArea",   this.msDivideByArea+"");
+			properties.setProperty(prefix+"msScaleProj",      this.msScaleProj +"");
+  			
 			properties.setProperty(prefix+"dbg_migrate",            this.dbg_migrate+"");
   			
 			properties.setProperty(prefix+"show_ortho_combine",     this.show_ortho_combine+"");
@@ -2800,7 +2808,12 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plSnapDispMax")!=null)     this.plSnapDispMax=Double.parseDouble(properties.getProperty(prefix+"plSnapDispMax"));
   			if (properties.getProperty(prefix+"plSnapDispWeight")!=null)  this.plSnapDispWeight=Double.parseDouble(properties.getProperty(prefix+"plSnapDispWeight"));
   			if (properties.getProperty(prefix+"plSnapZeroMode")!=null)    this.plPrecision=Integer.parseInt(properties.getProperty(prefix+"plSnapZeroMode"));
- 
+
+  			if (properties.getProperty(prefix+"msUseSel")!=null)          this.msUseSel=Boolean.parseBoolean(properties.getProperty(prefix+"msUseSel"));
+  			if (properties.getProperty(prefix+"msDivideByArea")!=null)    this.msDivideByArea=Boolean.parseBoolean(properties.getProperty(prefix+"msDivideByArea"));
+  			if (properties.getProperty(prefix+"msScaleProj")!=null)       this.msScaleProj=Double.parseDouble(properties.getProperty(prefix+"msScaleProj"));
+
+  			
   			if (properties.getProperty(prefix+"dbg_migrate")!=null)       this.dbg_migrate=Boolean.parseBoolean(properties.getProperty(prefix+"dbg_migrate"));
 
   			if (properties.getProperty(prefix+"show_ortho_combine")!=null)     this.show_ortho_combine=Boolean.parseBoolean(properties.getProperty(prefix+"show_ortho_combine"));
@@ -3117,6 +3130,10 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal (scaled by plDispNorm) disparity difference to snap to plane at low strength",     this.plSnapDispMax,  6);
   			gd.addNumericField("Maximal disparity diff. by weight product to snap to plane",                   this.plSnapDispWeight,  6);
   			gd.addNumericField("Zero strength snap mode: 0: no special treatment, 1 - strongest, 2 - farthest",this.plSnapZeroMode,  0);
+
+  			gd.addCheckbox    ("Use planes selection masks (generated when splitting to intersecting pairs",   this.msUseSel);
+  			gd.addCheckbox    ("Divide plane strengths by ellipsoid area",                                     this.msDivideByArea);
+  			gd.addNumericField("Scale projection of the plane ellipsoid",                                      this.msScaleProj,  6);
   			
   			gd.addCheckbox    ("Test new mode after migration",                                                this.dbg_migrate);
 
@@ -3417,6 +3434,10 @@ public class EyesisCorrectionParameters {
   			this.plSnapDispWeight=      gd.getNextNumber();
   			this.plSnapZeroMode=  (int) gd.getNextNumber();
 
+  			this.msUseSel=              gd.getNextBoolean();
+  			this.msDivideByArea=        gd.getNextBoolean();
+  			this.msScaleProj=           gd.getNextNumber();
+  			
   			this.dbg_migrate=           gd.getNextBoolean();
 
   			this.show_ortho_combine=    gd.getNextBoolean();

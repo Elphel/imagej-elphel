@@ -3066,6 +3066,11 @@ public class TileProcessor {
 					clt_parameters.plMaxDiffVert,   // final double     max_diff_vert,  // maximal disparity difference (to assign to a cluster (of Double.NaN) at first run for vertical plane
 					clt_parameters.plInitPasses,    // final int        max_tries,       // on last run - assign all rfemaining pixels to some cluster (disregard max_diff)
 
+					clt_parameters.msUseSel,        // final boolean    msUseSel,        // final boolean                   use_sel,
+					clt_parameters.msDivideByArea,  // final boolean    msDivideByArea,  // final boolean                   divide_by_area,
+					clt_parameters.msScaleProj,     //final double     msScaleProj,     // final double                    scale_projection,
+					
+					
 					clt_parameters.stSmallDiff,     //       = 0.4;   // Consider merging initial planes if disparity difference below
 					clt_parameters.stHighMix,       // stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
 					world_hor,                      // final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
@@ -3154,7 +3159,38 @@ public class TileProcessor {
 				}
 				if (num_added == 0) break;
 			}
-		}		
+		}
+		
+
+		
+		TileSurface tileSurface = new TileSurface(
+				st.tileProcessor.getTileSize(),      // int tileSize,
+				st.tileProcessor.getSuperTileSize(), // int superTileSize,
+				st.tileProcessor.getTilesX(),        // int tilesX,
+				st.tileProcessor.getTilesY(),        // int tilesY,
+				geometryCorrection,               // GeometryCorrection geometryCorrection,
+				st.tileProcessor.threadsMax);        // int threadsMax); 
+
+		
+		TileSurface.TileData [][] tileData = tileSurface.createTileShells (
+				clt_parameters.msUseSel,            // final boolean                   use_sel,
+				clt_parameters.msDivideByArea,      // final boolean                   divide_by_area,
+				clt_parameters.msScaleProj,         // final double                    scale_projection,
+				st.planes,         // final TilePlanes.PlaneData [][] planes,
+				0, // -1, // debugLevel,                  // final int        debugLevel)
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+		
+		/*
+		
+					clt_parameters.msUseSel,        // final boolean    msUseSel,        // final boolean                   use_sel,
+					clt_parameters.msDivideByArea,  // final boolean    msDivideByArea,  // final boolean                   divide_by_area,
+					clt_parameters.msScaleProj,     //final double     msScaleProj,     // final double                    scale_projection,
+		
+ */
+		
+		
+		
 		
 		TilePlanes.PlaneData[][][]       split_planes =   // use original (measured planes. See if smoothed are needed here)
 				st.breakPlanesToPairs(

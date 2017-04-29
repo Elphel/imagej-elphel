@@ -21,11 +21,11 @@
  ** -----------------------------------------------------------------------------**
  **
  */
-import java.awt.Point;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicInteger;
+
 
 //import java.awt.Point;
 //import java.util.ArrayList;
@@ -124,8 +124,8 @@ public class SuperTiles{
 		for (bin = 0; bin < numBins; bin ++){
 			bin_centers[bin] = binToDisparity(bin);  
 		}
-		initFuseCoeff(0.5, true); // true);
-//		initFuseCoeff(0.5, false); // true);
+//		initFuseCoeff(0.5, true); // true);
+		initFuseCoeff(0.5, false); // true);
 		
 // Set up MeasuredLayers		
 		measuredLayers = new MeasuredLayers(
@@ -1566,7 +1566,7 @@ public class SuperTiles{
 			data [nd] = new double [4* superTileSize*superTileSize];
 			for (int i = 0; i < data[nd].length; i++){
 				data [nd][i] = Double.NaN; 		
-				for (int np = 0; np < num_p; np++) if ((selections [np] != null) && selections [np][ml][i]){
+				for (int np = 0; np < num_p; np++) if ((selections [np] != null) && (selections [np][ml] != null) && selections [np][ml][i]){
 					data [nd][i] = np + 1; 		
 					break;
 				}
@@ -1972,7 +1972,7 @@ public class SuperTiles{
 								}
 							}
 
-							if (dl > 2) {
+							if (dl > 3) {
 								String [] dbg_titles = showSupertileSeparationTitles( disp_strength, plane_sels);
 								double [][] dbg_img = showSupertileSeparation(disp_strength, plane_sels);
 								showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
@@ -2451,6 +2451,10 @@ public class SuperTiles{
 			final double     max_diff_vert,  // maximal disparity difference (to assign to a cluster (of Double.NaN) at first run for vertical plane
 			final int        max_tries,       // on last run - assign all rfemaining pixels to some cluster (disregard max_diff)
 
+			final boolean    msUseSel,        // final boolean                   use_sel,
+			final boolean    msDivideByArea,  // final boolean                   divide_by_area,
+			final double     msScaleProj,     // final double                    scale_projection,
+			
 			final double     smallDiff,  //       = 0.4;   // Consider merging initial planes if disparity difference below
 			final double     highMix,    //stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
 			final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
@@ -2531,7 +2535,27 @@ public class SuperTiles{
 				debugLevel,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
 				dbg_Y);              // final int        dbg_Y)
-		this.planes = new_planes; // save as "measured" (as opposed to "smoothed" by neighbors) planes 
+		this.planes = new_planes; // save as "measured" (as opposed to "smoothed" by neighbors) planes
+/*		
+		TileSurface tileSurface = new TileSurface(
+				tileProcessor.getTileSize(),      // int tileSize,
+				tileProcessor.getSuperTileSize(), // int superTileSize,
+				tileProcessor.getTilesX(),        // int tilesX,
+				tileProcessor.getTilesY(),        // int tilesY,
+				geometryCorrection,               // GeometryCorrection geometryCorrection,
+				tileProcessor.threadsMax);        // int threadsMax); 
+
+		
+		TileSurface.TileData [][] tileData = tileSurface.createTileShells (
+				msUseSel,            // final boolean                   use_sel,
+				msDivideByArea,      // final boolean                   divide_by_area,
+				msScaleProj,         // final double                    scale_projection,
+				this.planes,         // final TilePlanes.PlaneData [][] planes,
+				debugLevel,          // final int        debugLevel,
+				dbg_X,               // final int        dbg_X,
+				dbg_Y);              // final int        dbg_Y)
+*/		
+		
 	}
 	
 	
