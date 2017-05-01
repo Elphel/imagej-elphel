@@ -29,10 +29,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class TileSurface {
 //	public 
-		private int tileSize;
+//		private int tileSize;
 		private int superTileSize;
-		private int tilesX;
-		private int tilesY;
+//		private int tilesX;
+//		private int tilesY;
 		private int stilesX;
 		private int stilesY;
 		private int [] st_dirs8;
@@ -50,11 +50,11 @@ public class TileSurface {
 				int tilesY,
 				GeometryCorrection geometryCorrection,
 				int threadsMax){
-			this.tileSize = tileSize;
+//			this.tileSize = tileSize;
 			this.superTileSize = superTileSize;
 			this.geometryCorrection =geometryCorrection;
-			this.tilesX =  tilesX;
-			this.tilesY =  tilesY;
+//			this.tilesX =  tilesX;
+//			this.tilesY =  tilesY;
 			this.window = getWindow(2*superTileSize);
 			this.threadsMax = threadsMax;
 			stilesX = (tilesX + superTileSize -1)/superTileSize;
@@ -80,11 +80,22 @@ public class TileSurface {
 			int new_index =    0;
 			boolean enable =   true;
 			int [] neighbors = {-1,-1,-1,-1,-1,-1,-1,-1};
+			int dbg_nsTile;
 			public TileData (
 					double disparity,
 					double strength)
 			{
 				setDisparityStrength(disparity,strength);
+			}
+			
+			public void setDbgNsTile(int dbg_nsTile)
+			{
+				this.dbg_nsTile = dbg_nsTile;
+			}
+
+			public int getDbgNsTile()
+			{
+				return this.dbg_nsTile;
 			}
 
 			public void setIndex(int indx)
@@ -334,9 +345,9 @@ public class TileSurface {
 			int stx1 = nsTile1 % stilesX;
 			int dx = stx1 - stx; 
 			int dy = sty1 - sty;
-			int sdx = (dx > 0) ? 1: ( (dx < 0) ? -1 : 0);
-			int sdy = (dy > 0) ? 1: ( (dy < 0) ? -1 : 0);
-			if ((dy ==0 ) && (dx == 0)) return -1; // same tile
+//			int sdx = (dx > 0) ? 1: ( (dx < 0) ? -1 : 0);
+//			int sdy = (dy > 0) ? 1: ( (dy < 0) ? -1 : 0);
+			if ((dy == 0 ) && (dx == 0)) return -1; // same tile
 			if (dy < 0) {
 				if (dx < 0) return 7;
 				if (dx > 0) return 1;
@@ -347,8 +358,8 @@ public class TileSurface {
 				if (dx > 0) return 3;
 				return 4;
 			}
-			if (dx < 0) return 2;
-			if (dx > 0) return 6;
+			if (dx < 0) return 6;
+			if (dx > 0) return 2;
 			return -1;
 		}
 
@@ -718,7 +729,7 @@ public class TileSurface {
 												}
 											}
 											// depending on match values, cut and join mesh with the neighbor
-											// change diagonal first
+											// change diagonal first (add corner square later again
 											if (neib_id[2] != null){
 												switch (quadrant){
 												case 0: // top left 
@@ -760,7 +771,39 @@ public class TileSurface {
 													}
 												}
 											}
-											
+											// add corner square corner on top of possible ortho
+											if (neib_id[2] != null){
+												switch (quadrant){
+												case 0: // top left 
+													for (int j = 0; j < sh; j++){
+														for (int i =  0 ; i < sh; i++){
+															pre_mesh[i * ss2 + j] = neib_id[2];
+														}
+													}
+													break;
+												case 1: // top right
+													for (int j = ss1 + sh; j < ss2; j++){
+														for (int i = 0; i < sh; i++){
+															pre_mesh[i * ss2 + j] = neib_id[2];
+														}
+													}
+													break;
+												case 2: // bottom left
+													for (int j = 0; j < sh; j++){
+														for (int i = ss1 + sh; i < ss2; i++){
+															pre_mesh[i * ss2 + j] = neib_id[2];
+														}
+													}
+													break;
+												case 3: // bottom right
+													for (int j = ss1 + sh; j < ss2; j++){
+														for (int i = ss1 + sh; i < ss2; i++){
+															pre_mesh[i * ss2 + j] = neib_id[2];
+														}
+													}
+													break;
+												}
+											}
 										}
 										// build mesh , then add cuts if needed
 										meshes[nsTile][np] = new int [len_st2][][];
@@ -852,6 +895,7 @@ public class TileSurface {
 		{
 			final int nStiles = stilesX * stilesY; 
 			final int tilesX = stilesX * superTileSize;
+			final int tilesY = stilesY * superTileSize;
 			final int nTiles =  nStiles * superTileSize * superTileSize;
 			final TileData [][] tile_data = new TileData [nTiles][];
 			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
@@ -860,6 +904,7 @@ public class TileSurface {
 			final int sh =  superTileSize/2;
 			final int len2 = ss2  * ss2 ;
 			final TileNeibs tileNeibs = new TileNeibs(2 * superTileSize);
+			
 			final int dbg_tile = dbg_Y * stilesX + dbg_X;
 			
 			// initialize result structure
@@ -908,13 +953,13 @@ public class TileSurface {
 								int stileY = nsTile / stilesX;  
 								int stileX = nsTile % stilesX;
 								for (int np = 0; np < planes[nsTile].length; np++) if (planes[nsTile][np] != null){
-									
+/*									
 									int surf_number =  getTileSurfaceNumber ( // maximal number of surfaces in this supertile
 											nsTile, // int nsTile,
 											-1, // int dir,              // direction, or -1 (same)
 											np, // 0, // int np,
 											planes); // TilePlanes.PlaneData [][] planes)
-
+*/
 									int [][][] src_mesh = lappingMeshes[nsTile][np];
 									double [][] disp_strength = fusedSupertilePlanes[nsTile][np];
 									TileData [] dual_mesh = new TileData [len2]; // full overlapping dual-sized mesh
@@ -922,6 +967,7 @@ public class TileSurface {
 										System.out.println("createTileShells():2, *** NULL here***  nsTile = "+nsTile+" np="+np);
 										continue;
 									}
+/*									
 									int [] sNeibs = planes[nsTile][np].getNeibBest();
 									int [] surface_numbers = new int [8];
 									for (int dir = 0; dir < 8; dir++){
@@ -942,7 +988,11 @@ public class TileSurface {
 											surface_numbers[dir] = -1; // out of the picture
 										}
 									}
+*/									
 									for (int indx = 0 ; indx < len2; indx++){
+										 // src_mesh non-null elements can only be generated by this supertile, while
+										 // neighbor links can point to others (connected).
+										 // others (connected) should have unique surface index based on their own planes ?
 										if (src_mesh[indx] != null){
 											if ((dl > 0) && ((indx & 15) == 0)){
 												System.out.println("createTileShells():3, nsTile = "+nsTile+", indx="+indx);
@@ -950,18 +1000,41 @@ public class TileSurface {
 											int [][] src_neibs = src_mesh[indx];
 											if (src_neibs != null){
 												int tsegm = tileNeibs.getSegment(indx);
-												if ((tsegm < 0) || // own tile (center square)
-														(surface_numbers[tsegm] >= 0)) { // <0 - out of picture area
+												int nsTile0 = getNStileDir(nsTile, tsegm);  // supertile over which this tile is
+//												if (    (tsegm < 0)                    || // own tile (center square)
+//														(surface_numbers[tsegm] >= 0)) { // <0 - out of picture area
+												if (    (tsegm < 0)    || // own tile (center square)
+														(nsTile0 >= 0)) { // <0 - out of picture area
 													dual_mesh[indx] = new TileData( // now sets neighbors to -1
 															disp_strength[0][indx],  // disparity
 															disp_strength[1][indx]); // strength
-
+													dual_mesh[indx].setDbgNsTile(nsTile);
+/*													
 													if (tsegm < 0) { // own (center)
 														dual_mesh[indx].setIndex(surf_number);
 													} else {
-														dual_mesh[indx].setIndex(surface_numbers[tsegm]);
+//														dual_mesh[indx].setIndex(surface_numbers[tsegm]);
+														// the cell is generated byh this supertile, so if the segment is outside 
+														// of the home area (tsegm >= 0), surface will be numbered as destinatination
+														// supertile coming from this
+//														int nsTile2 = getNStileDir(nsTile, tsegm);  // negative segm 1 is OK ?
+														int dir1from2 = getDirToStile(nsTile0, nsTile); // can be -1;
+														int surf = getTileSurfaceNumber ( // maximal number of surfaces in this supertile
+																nsTile0,  // int nsTile,
+																dir1from2, // int dir,              // direction, or -1 (same)
+																np, // int np,
+																planes); 
+														dual_mesh[indx].setIndex(surf);
 													}
-
+*/
+													int dirThisfrom0 = getDirToStile(nsTile0, nsTile); // can be -1;
+													int surf0 = getTileSurfaceNumber ( // Number of the surface for the tile itself
+															nsTile0,      // int nsTile,
+															dirThisfrom0, // int dir,              // direction, or -1 (same)
+															np,           // int np,
+															planes); 
+													dual_mesh[indx].setIndex(surf0);
+													
 													for (int dir = 0; dir < 8; dir++) {
 														if (src_neibs[dir] != null){
 															int nsTile1 = src_neibs[dir][0];
@@ -976,7 +1049,7 @@ public class TileSurface {
 															// Unique surface number should be determined for nsTile2, generated by nsTile1,
 															// for direction how nsTile1 is visible from the nsTile2
 //															int dir1from2 = getDirToStile(nsTile2, nsTile1); // can be -1;
-															int dir1from2 = getDirToStile(nsTile1, nsTile2); // can be -1;
+															int dir1from2 = getDirToStile(nsTile2, nsTile1); // can be -1;
 															int surf = getTileSurfaceNumber ( // maximal number of surfaces in this supertile
 																	nsTile2,  // int nsTile,
 																	dir1from2, // int dir,              // direction, or -1 (same)
@@ -1014,10 +1087,13 @@ public class TileSurface {
 													ix = tx -sh; iy = ty -sh;
 												}
 												*/
-												ix = tx -sh; iy = ty -sh;
+												ix = (stileX * superTileSize) + tx -sh; iy = (stileY * superTileSize) + ty -sh;
 
-												if ((ix >= 0) && (ix < superTileSize) && (iy >= 0) && (iy < superTileSize)) {
-													int tindx = ((stileY * superTileSize) + iy) * tilesX + ((stileX * superTileSize) + ix); 
+//												if ((ix >= 0) && (ix < superTileSize) && (iy >= 0) && (iy < superTileSize)) {
+//												int tindx = ((stileY * superTileSize) + iy) * tilesX + ((stileX * superTileSize) + ix); 
+												if ((ix >= 0) && (ix < tilesX) && (iy >= 0) && (iy < tilesX)) {
+													int tindx = iy * tilesX + ix;
+//													if ()
 													tile_data[tindx][dual_mesh[indx].getIndex()] = dual_mesh[indx]; //oob
 													//	tile_data[nsTile1][iy * superTileSize + ix][dual_mesh[indx].getIndex()] = dual_mesh[indx]; 
 												}
@@ -1112,12 +1188,25 @@ public class TileSurface {
 									for (int dir = 0; dir < neibs.length; dir++){
 										if (neibs[dir] >= 0){
 											int nTile1 = getNtileDir(nTile, dir);
-											if (nTile1 >= 0){
-												if (tile_data[nTile1] == null){
+											if (nTile1 >= 0) {
+												if ((tile_data[nTile1] == null) || (tileData_src[nTile1][neibs[dir]] == null)){
+													int dbg_sstile = tile_data[nTile][i].getDbgNsTile();
+													int dbg_stileX = dbg_sstile % stilesX; 
+													int dbg_stileY = dbg_sstile / stilesX;
+													int dbg_tx = nTile % dbg_tilesX;
+													int dbg_ty = nTile / dbg_tilesX;
+													int dbg_dx = dbg_tx - (superTileSize * dbg_stileX + superTileSize/2); 
+													int dbg_dy = dbg_ty - (superTileSize * dbg_stileY + superTileSize/2); 
+													
 													System.out.println("Null tile: "+nTile1+ " from "+nTile+", i="+i+", dir = "+dir+
-															", dbg_stX="+dbg_stX+", dbg_stY="+dbg_stY+", dbg_st="+dbg_st);
+															", dbg_stX="+dbg_stX+", dbg_stY="+dbg_stY+", dbg_st="+dbg_st+", neibs[dir]="+neibs[dir]+
+															" dbg_nsTile = "+dbg_sstile +" ("+dbg_stileX+":"+dbg_stileY+")"+
+															" nTile="+nTile+" ("+dbg_tx+":"+dbg_ty+")"+
+															", deltas from src center: "+dbg_dx+":"+dbg_dy);
+													neibs[dir] = -1;
 												} else {
-													neibs[dir] = tile_data[nTile1][neibs[dir]].getNewIndex();
+//													neibs[dir] = tile_data[nTile1][neibs[dir]].getNewIndex();
+													neibs[dir] = tileData_src[nTile1][neibs[dir]].getNewIndex();
 												}
 												
 											}
