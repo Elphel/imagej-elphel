@@ -2212,7 +2212,8 @@ public class EyesisCorrectionParameters {
   		
   		public boolean    msUseSel             =   true; // Use planes selection masks (generated when splitting to intersecting pairs  
   		public boolean    msDivideByArea       =   true; // Divide plane strengths by ellipsoid area
-  		public double     msScaleProj          =   1.5;  // Scale projection of the plane ellkipsoid 
+  		public double     msScaleProj          =   1.5;  // Scale projection of the plane ellipsoid 
+  		public double     msFractUni           =   0.3;  // Spread this fraction of the ellipsoid weight among extended (double) supertile  
   		
   		public boolean    replaceWeakOutlayers =   true; // false; 
   		
@@ -2516,6 +2517,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"msUseSel",         this.msUseSel+"");
 			properties.setProperty(prefix+"msDivideByArea",   this.msDivideByArea+"");
 			properties.setProperty(prefix+"msScaleProj",      this.msScaleProj +"");
+			properties.setProperty(prefix+"msFractUni",       this.msFractUni +"");
   			
 			properties.setProperty(prefix+"dbg_migrate",            this.dbg_migrate+"");
   			
@@ -2812,6 +2814,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"msUseSel")!=null)          this.msUseSel=Boolean.parseBoolean(properties.getProperty(prefix+"msUseSel"));
   			if (properties.getProperty(prefix+"msDivideByArea")!=null)    this.msDivideByArea=Boolean.parseBoolean(properties.getProperty(prefix+"msDivideByArea"));
   			if (properties.getProperty(prefix+"msScaleProj")!=null)       this.msScaleProj=Double.parseDouble(properties.getProperty(prefix+"msScaleProj"));
+  			if (properties.getProperty(prefix+"msFractUni")!=null)        this.msFractUni=Double.parseDouble(properties.getProperty(prefix+"msFractUni"));
 
   			
   			if (properties.getProperty(prefix+"dbg_migrate")!=null)       this.dbg_migrate=Boolean.parseBoolean(properties.getProperty(prefix+"dbg_migrate"));
@@ -3134,6 +3137,7 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Use planes selection masks (generated when splitting to intersecting pairs",   this.msUseSel);
   			gd.addCheckbox    ("Divide plane strengths by ellipsoid area",                                     this.msDivideByArea);
   			gd.addNumericField("Scale projection of the plane ellipsoid",                                      this.msScaleProj,  6);
+  			gd.addNumericField("Spread this fraction of the ellipsoid weight among extended (double) supertile",this.msFractUni,  6);
   			
   			gd.addCheckbox    ("Test new mode after migration",                                                this.dbg_migrate);
 
@@ -3437,6 +3441,7 @@ public class EyesisCorrectionParameters {
   			this.msUseSel=              gd.getNextBoolean();
   			this.msDivideByArea=        gd.getNextBoolean();
   			this.msScaleProj=           gd.getNextNumber();
+  			this.msFractUni=            gd.getNextNumber();
   			
   			this.dbg_migrate=           gd.getNextBoolean();
 

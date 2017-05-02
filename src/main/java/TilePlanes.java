@@ -1475,6 +1475,7 @@ public class TilePlanes {
 		 * @param use_sel use plane selection (this.sel_mask) to select only some part of the plane
 		 * @param divide_by_area divide weights by ellipsoid area
 		 * @param scale_projection use plane ellipsoid projection for weight: 0 - do not use, > 0 linearly scale ellipsoid 
+		 * @param fraction_uni add fraction of the total weight to each tile
 		 * @return a pair of arrays {disparity, strength}, each [2 * superTileSize * 2 * superTileSize], only 1/2 or 1/4 used for offset tiles\
 		 * TODO: add a combination of the ellipses and infinite planes?
 		 * 
@@ -1485,6 +1486,7 @@ public class TilePlanes {
 				boolean   use_sel,
 				boolean   divide_by_area,
 				double    scale_projection,
+				double    fraction_uni,
 				int       debugLevel)
 		{
 			double [][] disp_strength = new double[2][4*superTileSize*superTileSize];
@@ -1555,8 +1557,6 @@ public class TilePlanes {
 					int indx_i = iy * ss4 + ix; // input index
 					disp_strength[0][indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
 					double w = weight;
-					if (window != null) w *= window[indx_i];
-					if (use_sel && (sel_mask != null) && !(sel_mask[indx_i])) w = 0.0;
 					if ((w > 0.0) && (scale_projection > 0.0)){
 						double [] xy = {x,y};
 						Matrix vxy = vect2d.times(new Matrix(xy,2)); // verify if it is correct
@@ -1565,7 +1565,10 @@ public class TilePlanes {
 							double d = vxy.get(i,0);
 							r2 += d * d / val2d.get(i, i);
 						}
-						w *= Math.exp(-k_gauss*r2);
+						w *= ((1.0 - fraction_uni) * Math.exp(-k_gauss*r2) + fraction_uni);
+						
+						if (window != null) w *= window[indx_i];
+						if (use_sel && (sel_mask != null) && !(sel_mask[indx_i])) w = 0.0;
 					}					
 					disp_strength[1][indx] = w;
 				}

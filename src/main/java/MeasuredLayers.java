@@ -380,7 +380,7 @@ public class MeasuredLayers {
 	 * @param sel_in optional selection for this supertile (linescan, 4 * supetile size)
 	 * @param disp_far lowest acceptable disparity value. Double.NaN - do not check.
 	 * @param disp_near highest acceptable disparity value. Double.NaN - do not check.
-	 * @param null_if_none return null if there are no selected tiles in teh result selection
+	 * @param null_if_none return null if there are no selected tiles in the result selection
 	 * @return boolean array [4*superTileSize] of the selected tiles on the specified
 	 * measurement layer
 	 */
@@ -548,8 +548,9 @@ public class MeasuredLayers {
 	 * @param stX supertile horizontal position in the image
 	 * @param stY supertile vertical position in the image
 	 * @param sel_in optional selection for this supertile (linescan, 4 * supetile size)
-	 * @param null_if_none return null if there are no selected tiles in the result selection
+	 * @param strength_floor subtract from the correlation strength, limit by 0
 	 * @param strength_pow Non-linear treatment of correlation strength. Raise data to the strength_pow power
+	 * @param null_if_none return null if there are no selected tiles in the result selection
 	 * @return double [2][4*superTileSize] {disparity[4*superTileSize], strength [4*superTileSize]}
 	 */
 
@@ -598,6 +599,40 @@ public class MeasuredLayers {
 		return ds;
 	}
 
+	/**
+	 * Get disparity and correlation strength for the specific measurement layer.
+	 * Combined with input selection
+	 * @param num_layer number of the measurement layer to process
+	 * @param strength_floor subtract from the correlation strength, limit by 0
+	 * @param strength_pow Non-linear treatment of correlation strength. Raise data to the strength_pow power
+	 * @return double {disparity[tilesX * tilesY], strength[tilesX * tilesY]}
+	 */
+
+	public double[][] getDisparityStrength (
+			int num_layer,
+			double strength_floor,
+			double strength_pow)
+	{
+		if (layers[num_layer] == null){
+			return null;
+		}
+		double [][] ds = {getDisparity(num_layer),getStrength(num_layer)};
+		for (int i = 0; i < ds[1].length; i++){
+			double w = ds[1][i] - strength_floor;
+			if (w > 0) {
+				if (strength_pow != 1.0) w = Math.pow(w, strength_pow);
+				ds[1][i] = w;
+			} else {
+				ds[1][i] = 0.0;
+			}
+		}
+
+		return ds;
+	}
+	
+	
+	
+	
 	/**
 	 * Get double-size  (for overlapping) array of disparities and strengths for the supertile
 	 * Using best (producing lowest disparity variance) subset of neighbor tiles

@@ -5981,5 +5981,29 @@ public class SuperTiles{
 		return snap_sort;
 	}
 
+	public double [][][] getDisparityStrengths(
+			int        stMeasSel) //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert)
+	{
+		int numMeasLayers = measuredLayers.getNumLayers();
+		double [][][] ds = new double[numMeasLayers][][];
+		for (int ml = 0; ml <  numMeasLayers; ml++) if ((stMeasSel & ( 1 << ml)) != 0) {
+			ds[ml] = 	measuredLayers.getDisparityStrength (
+					ml, // int num_layer,
+					this.strength_floor, // double strength_floor,
+					this.strength_pow); //  double strength_pow)
+		}
+		return ds;
+	}
 
+	public boolean [][] getMeasurementSelections(
+			int        stMeasSel) //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert)
+	{
+		int numMeasLayers = measuredLayers.getNumLayers();
+		boolean [][] sels = new boolean[numMeasLayers][];
+		for (int ml = 0; ml <  numMeasLayers; ml++) if ((stMeasSel & ( 1 << ml)) != 0) {
+			sels[ml] = 	measuredLayers.getSelection (ml);
+		}
+		return sels;
+	}
+	
 } // end of class SuperTiles
