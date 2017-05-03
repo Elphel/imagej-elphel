@@ -2213,7 +2213,19 @@ public class EyesisCorrectionParameters {
   		public boolean    msUseSel             =   true; // Use planes selection masks (generated when splitting to intersecting pairs  
   		public boolean    msDivideByArea       =   true; // Divide plane strengths by ellipsoid area
   		public double     msScaleProj          =   1.5;  // Scale projection of the plane ellipsoid 
-  		public double     msFractUni           =   0.3;  // Spread this fraction of the ellipsoid weight among extended (double) supertile  
+  		public double     msFractUni           =   0.3;  // Spread this fraction of the ellipsoid weight among extended (double) supertile
+  		
+  		public double     tsMaxDiff            = 0.3;    // Maximal disparity difference when assigning tiles
+		public double     tsMinDiffOther       = 0.35;   // Minimal disparity difference to be considered as a competitor surface
+		public double     tsMinStrength        = 0.05;   // Minimal tile correlation strength to be assigned
+		public double     tsMaxStrength        = 10.0;   // Maximal tile correlation strength to be assigned
+		public int        tsMoveDirs           = 3;      // Allowed tile disparity correction: 1 increase, 2 - decrease, 3 - both directions
+		public boolean    tsEnMulti            = false;  // Allow assignment when several surfaces fit
+		public double     tsSurfStrPow         = 0.0;    // Raise surface strengths ratio to this power when comparing candidates
+		public double     tsSigma              = 2.0;    // Radius of influence (in tiles) of the previously assigned tiles
+		public double     tsNSigma             = 2.0;    // Maximal relative to radius distance to calculate influence
+		public double     tsMinAdvantage       = 3.0;    // Minimal ratio of the best surface candidate to the next one to make selection
+		public boolean    tsReset              = false;  // Reset tiles to surfaces assignment
   		
   		public boolean    replaceWeakOutlayers =   true; // false; 
   		
@@ -2518,7 +2530,18 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"msDivideByArea",   this.msDivideByArea+"");
 			properties.setProperty(prefix+"msScaleProj",      this.msScaleProj +"");
 			properties.setProperty(prefix+"msFractUni",       this.msFractUni +"");
-  			
+
+			properties.setProperty(prefix+"tsMaxDiff",        this.tsMaxDiff +"");
+			properties.setProperty(prefix+"tsMinDiffOther",   this.tsMinDiffOther +"");
+			properties.setProperty(prefix+"tsMinStrength",    this.tsMinStrength +"");
+			properties.setProperty(prefix+"tsMaxStrength",    this.tsMaxStrength +"");
+  			properties.setProperty(prefix+"tsMoveDirs",       this.tsMoveDirs+"");
+			properties.setProperty(prefix+"tsEnMulti",        this.tsEnMulti+"");
+			properties.setProperty(prefix+"tsSurfStrPow",    this.tsSurfStrPow +"");
+			properties.setProperty(prefix+"tsSigma",         this.tsSigma +"");
+			properties.setProperty(prefix+"tsNSigma",         this.tsNSigma +"");
+			properties.setProperty(prefix+"tsMinAdvantage",  this.tsMinAdvantage +"");
+			
 			properties.setProperty(prefix+"dbg_migrate",            this.dbg_migrate+"");
   			
 			properties.setProperty(prefix+"show_ortho_combine",     this.show_ortho_combine+"");
@@ -2816,6 +2839,18 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"msScaleProj")!=null)       this.msScaleProj=Double.parseDouble(properties.getProperty(prefix+"msScaleProj"));
   			if (properties.getProperty(prefix+"msFractUni")!=null)        this.msFractUni=Double.parseDouble(properties.getProperty(prefix+"msFractUni"));
 
+
+  			if (properties.getProperty(prefix+"tsMaxDiff")!=null)         this.tsMaxDiff=Double.parseDouble(properties.getProperty(prefix+"tsMaxDiff"));
+  			if (properties.getProperty(prefix+"tsMinDiffOther")!=null)    this.tsMinDiffOther=Double.parseDouble(properties.getProperty(prefix+"tsMinDiffOther"));
+  			if (properties.getProperty(prefix+"tsMinStrength")!=null)     this.tsMinStrength=Double.parseDouble(properties.getProperty(prefix+"tsMinStrength"));
+  			if (properties.getProperty(prefix+"tsMaxStrength")!=null)     this.tsMaxStrength=Double.parseDouble(properties.getProperty(prefix+"tsMaxStrength"));
+  			if (properties.getProperty(prefix+"tsMoveDirs")!=null)        this.tsMoveDirs=Integer.parseInt(properties.getProperty(prefix+"tsMoveDirs"));
+  			if (properties.getProperty(prefix+"tsEnMulti")!=null)         this.tsEnMulti=Boolean.parseBoolean(properties.getProperty(prefix+"tsEnMulti"));
+  			if (properties.getProperty(prefix+"tsSurfStrPow")!=null)     this.tsSurfStrPow=Double.parseDouble(properties.getProperty(prefix+"tsSurfStrPow"));
+  			if (properties.getProperty(prefix+"tsSigma")!=null)          this.tsSigma=Double.parseDouble(properties.getProperty(prefix+"tsSigma"));
+  			if (properties.getProperty(prefix+"tsNSigma")!=null)          this.tsNSigma=Double.parseDouble(properties.getProperty(prefix+"tsNSigma"));
+  			if (properties.getProperty(prefix+"tsMinAdvantage")!=null)   this.tsMinAdvantage=Double.parseDouble(properties.getProperty(prefix+"tsMinAdvantage"));
+  			
   			
   			if (properties.getProperty(prefix+"dbg_migrate")!=null)       this.dbg_migrate=Boolean.parseBoolean(properties.getProperty(prefix+"dbg_migrate"));
 
@@ -3139,6 +3174,17 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Scale projection of the plane ellipsoid",                                      this.msScaleProj,  6);
   			gd.addNumericField("Spread this fraction of the ellipsoid weight among extended (double) supertile",this.msFractUni,  6);
   			
+  			gd.addNumericField("Maximal disparity difference when assigning tiles",                               this.tsMaxDiff,  6);
+  			gd.addNumericField("Minimal disparity difference to be considered as a competitor surface",           this.tsMinDiffOther,  6);
+  			gd.addNumericField("Minimal tile correlation strength to be assigned",                                this.tsMinStrength,  6);
+  			gd.addNumericField("Maximal tile correlation strength to be assigned",                                this.tsMaxStrength,  6);
+  			gd.addNumericField("Allowed tile disparity correction: 1 increase, 2 - decrease, 3 - both directions",this.tsMoveDirs,  0);
+  			gd.addCheckbox    ("Allow assignment when several surfaces fit",                                      this.tsEnMulti);
+  			gd.addNumericField("Raise surface strengths ratio to this power when comparing candidates",           this.tsSurfStrPow,  6);
+  			gd.addNumericField("Radius of influence (in tiles) of the previously assigned tiles",                 this.tsSigma,  6);
+  			gd.addNumericField("Maximal relative to radius distance to calculate influence",                      this.tsNSigma,  6);
+  			gd.addNumericField("Minimal ratio of the best surface candidate to the next one to make selection",   this.tsMinAdvantage,  6);
+  			
   			gd.addCheckbox    ("Test new mode after migration",                                                this.dbg_migrate);
 
   			gd.addMessage     ("--- Other debug images ---");
@@ -3442,6 +3488,18 @@ public class EyesisCorrectionParameters {
   			this.msDivideByArea=        gd.getNextBoolean();
   			this.msScaleProj=           gd.getNextNumber();
   			this.msFractUni=            gd.getNextNumber();
+
+  			this.tsMaxDiff=             gd.getNextNumber();
+  			this.tsMinDiffOther=        gd.getNextNumber();
+  			this.tsMinStrength=         gd.getNextNumber();
+  			this.tsMaxStrength=         gd.getNextNumber();
+  			this.tsMoveDirs=      (int) gd.getNextNumber();
+  			this.tsEnMulti=             gd.getNextBoolean();
+  			this.tsSurfStrPow=          gd.getNextNumber();
+  			this.tsSigma=               gd.getNextNumber();
+  			this.tsNSigma=              gd.getNextNumber();
+  			this.tsMinAdvantage=        gd.getNextNumber();
+  			this.tsReset              = false;  // Reset tiles to surfaces assignment
   			
   			this.dbg_migrate=           gd.getNextBoolean();
 
@@ -3458,8 +3516,40 @@ public class EyesisCorrectionParameters {
   			this.show_flaps_dirs=       gd.getNextBoolean();
   			this.show_first_clusters=   gd.getNextBoolean();
   			this.show_planes=           gd.getNextBoolean();
+  			
   			return true;
   		}
+  		
+  		public boolean showTsDialog() {
+  			GenericDialog gd = new GenericDialog("Set CLT parameters");
+  			gd.addNumericField("Maximal disparity difference when assigning tiles",                               this.tsMaxDiff,  6);
+  			gd.addNumericField("Minimal disparity difference to be considered as a competitor surface",           this.tsMinDiffOther,  6);
+  			gd.addNumericField("Minimal tile correlation strength to be assigned",                                this.tsMinStrength,  6);
+  			gd.addNumericField("Maximal tile correlation strength to be assigned",                                this.tsMaxStrength,  6);
+  			gd.addNumericField("Allowed tile disparity correction: 1 increase, 2 - decrease, 3 - both directions",this.tsMoveDirs,  0);
+  			gd.addCheckbox    ("Allow assignment when several surfaces fit",                                      this.tsEnMulti);
+  			gd.addNumericField("Raise surface strengths ratio to this power when comparing candidates",           this.tsSurfStrPow,  6);
+  			gd.addNumericField("Radius of influence (in tiles) of the previously assigned tiles",                 this.tsSigma,  6);
+  			gd.addNumericField("Maximal relative to radius distance to calculate influence",                      this.tsNSigma,  6);
+  			gd.addNumericField("Minimal ratio of the best surface candidate to the next one to make selection",   this.tsMinAdvantage,  6);
+  			gd.addCheckbox    ("Reset tiles to surfaces assignment",                                              false);
+  			WindowTools.addScrollBars(gd);
+  			gd.showDialog();
+  			if (gd.wasCanceled()) return false;
+  			this.tsMaxDiff=             gd.getNextNumber();
+  			this.tsMinDiffOther=        gd.getNextNumber();
+  			this.tsMinStrength=         gd.getNextNumber();
+  			this.tsMaxStrength=         gd.getNextNumber();
+  			this.tsMoveDirs=      (int) gd.getNextNumber();
+  			this.tsEnMulti=             gd.getNextBoolean();
+  			this.tsSurfStrPow=          gd.getNextNumber();
+  			this.tsSigma=               gd.getNextNumber();
+  			this.tsNSigma=              gd.getNextNumber();
+  			this.tsMinAdvantage=        gd.getNextNumber();
+  			this.tsReset=               gd.getNextBoolean();
+  			return true;
+  		}
+  		
     }
 
     public static class DCTParameters {

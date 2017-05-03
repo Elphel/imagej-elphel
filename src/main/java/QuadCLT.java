@@ -4460,7 +4460,6 @@ public class QuadCLT {
 		  }
 		  return rslt;
 	  }
-//	  public ImagePlus [] cltDisparityScan(
 	  public void showCLTPlanes(
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  final int          threadsMax,  // maximal number of threads to launch                         
@@ -4481,9 +4480,33 @@ public class QuadCLT {
 		  			threadsMax,
 		  			updateStatus,
 		  			debugLevel);
-//		  	CLTPass3d last_scan = tp.clt_3d_passes.get(tp.clt_3d_passes.size() -1); // get last one
 		  	
 	  }
+	  
+	  public boolean assignCLTPlanes(
+			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  final int          threadsMax,  // maximal number of threads to launch                         
+			  final boolean    updateStatus,
+			  final int        debugLevel)
+	  {
+		  	if (tp == null){
+		  		System.out.println("showCLTPlanes(): tp is null");
+		  		return false;
+		  	}
+		  	if (tp.clt_3d_passes == null){
+		  		System.out.println("showCLTPlanes(): tp.clt_3d_passes is null");
+		  		return false;
+		  	}
+		  	return tp.assignTilesToSurfaces(
+		  			clt_parameters,
+		  			geometryCorrection,		  			
+		  			threadsMax,
+		  			updateStatus,
+		  			debugLevel);
+		  	
+	  }
+	  
+	  
 	  public void out3d(
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  final int          threadsMax,  // maximal number of threads to launch                         

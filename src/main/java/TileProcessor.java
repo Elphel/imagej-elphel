@@ -2942,6 +2942,53 @@ public class TileProcessor {
 	}
 
 
+	public boolean assignTilesToSurfaces(
+			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			GeometryCorrection geometryCorrection,
+			final int         threadsMax,  // maximal number of threads to launch                         
+			final boolean     updateStatus,
+			final int         debugLevel)
+	{
+		CLTPass3d scan_prev = clt_3d_passes.get(clt_3d_passes.size() -1); // get last one
+//		boolean show_st =    clt_parameters.stShow || (debugLevel > 1);
+		SuperTiles st = scan_prev.getSuperTiles();
+		TileSurface tileSurface = st.getTileSurface();
+		if (tileSurface == null){
+			return false;
+		}
+
+		double [][][]  dispStrength = st.getDisparityStrengths(
+				clt_parameters.stMeasSel); // int        stMeasSel) //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert)
+
+		boolean [][] tileSel =  st.getMeasurementSelections(
+				clt_parameters.stMeasSel); // int        stMeasSel) //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert)
+
+		tileSurface.InitTilesAssignment(
+				clt_parameters.tsReset,
+				dispStrength, // final double [][][]                            dispStrength,
+				tileSel,      // final boolean [][]                             tileSel,
+                debugLevel);    // final int                                    debugLevel,
+
+		 int [] stats=  tileSurface.assignTilesToSurfaces(
+				clt_parameters.tsMaxDiff,       //final double        maxDiff,
+				clt_parameters.tsMinDiffOther,  //final double        minDiffOther, // should be >= maxDiff
+				clt_parameters.tsMinStrength,   //final double        minStrength,
+				clt_parameters.tsMaxStrength,   //final double        maxStrength,
+				clt_parameters.tsMoveDirs,      //final int           moveDirs, // 1 increase disparity, 2 - decrease disparity, 3 - both directions
+				clt_parameters.tsEnMulti,       //final boolean       enMulti,
+				clt_parameters.tsSurfStrPow,    //final double        surfStrPow, // surface strength power
+				clt_parameters.tsSigma,         //final double        sigma,
+				clt_parameters.tsNSigma,        //final double        nSigma,
+				clt_parameters.tsMinAdvantage,  //final double        minAdvantage,
+				clt_parameters.plDispNorm,      // final double        dispNorm, // disparity normalize (proportionally scale down disparity difference if above
+				dispStrength,                   // final double [][][] dispStrength,
+				0, // -1,                       // debugLevel,                  // final int        debugLevel)
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+		 tileSurface.printStats(stats);
+		return true;
+	}	
+	
 //======================
 	public void showPlanes(
 			EyesisCorrectionParameters.CLTParameters           clt_parameters,
@@ -3174,9 +3221,11 @@ public class TileProcessor {
 				st.tileProcessor.getTilesY(),        // int tilesY,
 				geometryCorrection,               // GeometryCorrection geometryCorrection,
 				st.tileProcessor.threadsMax);        // int threadsMax); 
-
+		st.setTileSurface(tileSurface);
 		
-		TileSurface.TileData [][] tileData = tileSurface.createTileShells (
+		
+//		TileSurface.TileData [][] tileData = 
+				tileSurface.createTileShells (
 				clt_parameters.msUseSel,            // final boolean                   use_sel,
 				clt_parameters.msDivideByArea,      // final boolean                   divide_by_area,
 				clt_parameters.msScaleProj,         // final double                    scale_projection,
@@ -3185,19 +3234,17 @@ public class TileProcessor {
 				0, // -1, // debugLevel,                  // final int        debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
-		
-		int [][] tiles_layers = tileSurface.sortTilesToSurfaces(
+
+		tileSurface.InitTilesAssignment(
+				true,
 				dispStrength, // final double [][][]                            dispStrength,
 				tileSel,      // final boolean [][]                             tileSel,
-				tileData,     // final TileData [][]                            tileData_src,
-				// parameters
-				clt_parameters, // final EyesisCorrectionParameters.CLTParameters clt_parameters,
-                debugLevel,    // final int                                      debugLevel,
-				clt_parameters.tileX,
-				clt_parameters.tileY);
+                debugLevel);    // final int                                      debugLevel,
+		if (debugLevel > -10){
+			return; // just cut off the rest
+		}
 		
-		
-		
+
 		
 		
 		TilePlanes.PlaneData[][][]       split_planes =   // use original (measured planes. See if smoothed are needed here)
@@ -3571,6 +3618,10 @@ public class TileProcessor {
 			
 		}
 	}
+
+	
+	
+	
 	
 	public void secondPassSetup( // prepare tile tasks for the second pass based on the previous one(s)
 			//			  final double [][][]       image_data, // first index - number of image in a quad

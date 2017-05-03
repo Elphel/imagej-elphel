@@ -1,3 +1,4 @@
+import java.awt.Point;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -40,6 +41,8 @@ public class TileSurface {
 		private int [] ss_dirs8;
 		private double [] window;
 		private int threadsMax = 100;
+		private int [][] tileLayers = null;
+		private TileData [][] tileData = null;
 		
 		static int STAT_UNASSIGNED = 0; // index of number of unassigned tiles
 		static int STAT_ASSIGNED =   1; // index of number of assigned tiles
@@ -1649,7 +1652,7 @@ public class TileSurface {
 					dbg_Y);            // final int                       dbg_Y);
 			
 			showSurfaceDS (tileData, "tileData");			
-			
+			this.tileData = tileData;
 			return tileData;
 		}
 		
@@ -1712,7 +1715,8 @@ public class TileSurface {
 		}
 		
 		/**
-		 * Convert from image tile index to surface tile index (surface tiles are all full superTileSize
+		 * Convert from image tile index to the surface tile index (surface tiles are all
+		 * full superTileSize),
 		 * TODO: update/remove if surface grid will be trimmed to fit image
 		 * Currently there are 324 tiles horizontally in the image and 328 in the surfaces
 		 * @param nTile image tile index in scan order
@@ -1722,9 +1726,31 @@ public class TileSurface {
 				int nTile)
 		{
 			// calculate index in tileData (has different dimensions - TODO: trim?
-			return stilesX * superTileSize * (nTile /  imageTilesX) + (nTile %  imageTilesX);
-			
+			int surfaceTilesX = stilesX * superTileSize;
+			return surfaceTilesX * (nTile /  imageTilesX) + (nTile %  imageTilesX);
 		}
+
+		/**
+		 * Convert from  surface tile index (surface tiles are all full superTileSize) to
+		 * the image tile index
+		 * TODO: update/remove if surface grid will be trimmed to fit image
+		 * Currently there are 324 tiles horizontally in the image and 328 in the surfaces
+		 * @param nSurfTile surface tile index in scan order
+		 * @return image tile index in scan order or -1 if outside of the image tiles
+		 */
+		public int getImageTileIndex(
+				int nSurfTile)
+		{
+			// calculate index in tileData (has different dimensions - TODO: trim?
+			int surfaceTilesX = stilesX * superTileSize;
+			int tx = nSurfTile %  surfaceTilesX;
+			int ty = nSurfTile /  surfaceTilesX;
+			if ((tx > imageTilesX) || (ty > imageTilesY)){
+				return -1; // out of image
+			}
+			return imageTilesX * ty + tx;
+		}
+		
 		
 		/**
 		 * Assign tiles to a certain disparity surface if there is only one surface candidate
@@ -1743,15 +1769,15 @@ public class TileSurface {
 		 * @param dbg_Y debug tile Y coordinate
 		 * @return 
 		 */
-		public int [] assignSingleCandidate(
+		public int [] assignTilesToSingleCandidate(
 				final double        maxDiff,
 				final double        minDiffOther,
 				final double        minStrength,
 				final double        maxStrength,
 				final int           moveDirs, // 1 increase disparity, 2 - decrease disparity, 3 - both directions
 				final double        dispNorm, // disparity normalize (proportionally scale down disparity difference if above
-				final int [][]      tileLayers,
-				final TileData [][] tileData,
+//				final int [][]      tileLayers,
+//				final TileData [][] tileData,
 				final double [][][] dispStrength,
                 final int           debugLevel,
 				final int           dbg_X,
@@ -1831,7 +1857,19 @@ public class TileSurface {
 			return stats_new;
 		}
 		
+		public void printStats(int []stats)
+		{
+			System.out.println("printStats(x):"+
+					" NEW_ASSIGNED = " + stats[NEW_ASSIGNED] +
+					" NO_SURF=" + stats[NO_SURF] +
+					" TOO_WEAK=" + stats[TOO_WEAK] +
+					" TOO_STRONG=" + stats[TOO_STRONG] +
+					" TOO_FAR=" + stats[TOO_FAR] +
+					" NOT_UNIQUE=" + stats[NOT_UNIQUE]);
 
+		}
+		
+		
 		/**
 		 * Assign tiles to a certain disparity surface if there is only one surface candidate
 		 * @param maxDiff maximal (normalized) disparity difference
@@ -1855,20 +1893,20 @@ public class TileSurface {
 		 * @return 
 		 */
 		
-		public int [] assignSingleCandidate(
+		public int [] assignTilesToSurfaces(
 				final double        maxDiff,
 				final double        minDiffOther, // should be >= maxDiff
 				final double        minStrength,
 				final double        maxStrength,
 				final int           moveDirs, // 1 increase disparity, 2 - decrease disparity, 3 - both directions
 				final boolean       enMulti,
-				final double        surfStrPow, // surface string power
+				final double        surfStrPow, // surface strength power
 				final double        sigma,
 				final double        nSigma,
 				final double        minAdvantage,
 				final double        dispNorm, // disparity normalize (proportionally scale down disparity difference if above
-				final int [][]      tileLayers,
-				final TileData [][] tileData,
+//				final int [][]      tileLayers, // use this.
+//				final TileData [][] tileData,// use this.
 				final double [][][] dispStrength,
                 final int           debugLevel,
 				final int           dbg_X,
@@ -1889,6 +1927,25 @@ public class TileSurface {
 			final AtomicInteger ai = new AtomicInteger(0);
 			final boolean en_lower =  (moveDirs & 1) != 0;
 			final boolean en_higher = (moveDirs & 2) != 0;
+			final double radius = sigma * nSigma;
+			final double rsigma2 = 1.0 / ( 2.0 * sigma * sigma);
+			final int iradius = (int) Math.round(radius + 0.001);  
+			final int field_size = 2 * iradius + 1;
+			final int center_index = iradius * (field_size + 1);
+			final double cost_start = 1.0;
+			final double cost_ortho = 1.0;
+			final double cost_diag  = Math.sqrt(2.0);
+			final int surfTilesX = stilesX * superTileSize;
+			final int [] ldirs8 = {
+					-field_size,
+					-field_size + 1,
+					1,
+					field_size + 1,
+					field_size,
+					field_size - 1,
+					-1,
+					-field_size - 1}; 
+			
 			for (int ml = 0; ml < tileLayers.length; ml++) if (tileLayers[ml] != null){
 				final int fml = ml;
 				ai_numThread.set(0);
@@ -1938,6 +1995,9 @@ public class TileSurface {
 												stats_all[numThread][NOT_UNIQUE] ++;
 											} else { // multi, enabled
 												int [] candidates =       new int     [num_fit_other];
+												// reversed mapping - from layer to candidate (-1 = not a candidate)
+//												int [] rcandidates =      new int     [tileData[nSurfTile].length];
+//												for (int i = 0; i < rcandidates.length; i++) rcandidates[i] = -1;
 												boolean [] close_enough = new boolean [num_fit_other];
 												num_fit_other = 0;
 												for (int ns = 0; ns < tileData[nSurfTile].length; ns++){
@@ -1948,21 +2008,167 @@ public class TileSurface {
 													if (((surf_disp_diff >= 0) && en_higher) || ((surf_disp_diff <= 0) && en_lower)){
 														if (Math.abs(surf_disp_diff) <= minDiffOther){
 															close_enough[num_fit_other] = (Math.abs(surf_disp_diff) <= maxDiff);
+//															rcandidates[ns] = num_fit_other;
 															candidates[num_fit_other++] = ns;
 														}
 													}
 												}
-												double [][] advantages = new double [num_fit_other][num_fit_other];
-												// now calculate advantage of each one surface (close_enough) to each other (as a ratio)
-												// and then see if it is above minAdvantage
-												for (int ns1 = 0; ns1 < num_fit_other; ns1++){
-													for (int ns2 = ns1 + 1; ns2 < num_fit_other; ns2++){
-														if (close_enough[ns1] || close_enough[ns2]){
-															
-															
-															
+												double [][][] distances = new double [num_fit_other][field_size  * field_size ][];
+												// for each local index get surface tile index
+												int [] surfIndices =  new int [field_size  * field_size];
+												int [] imageIndices = new int [field_size  * field_size];
+												int stx0 = (nTile % surfTilesX) - iradius;
+												int sty0 = (nTile / surfTilesX) - iradius;
+												for (int iy = 0; iy < field_size; iy++){
+													for (int ix = 0; ix < field_size; ix++){
+														int indx = iy * field_size + ix;
+														surfIndices[indx] = (sty0 + iy)*  surfTilesX + (stx0 + ix);
+														imageIndices[indx] = getImageTileIndex(surfIndices[indx]);
+													}
+												}
+												// calculate distances from the center point for each surface with wave
+												// algorithm, first regardless of who is closer.
+												// later, when comparing pairs only use the same side
+												for (int isurf = 0; isurf < num_fit_other; isurf++){
+													ArrayList<Point> lwave = new ArrayList<Point>();
+													Point p0 = new Point(center_index, candidates[isurf]);
+													distances[isurf][p0.x] = new double [tileData[nSurfTile].length];
+													distances[isurf][p0.x][p0.y] = cost_start;
+													lwave.add(p0);
+													// run wave build radius (plus 1.0) along each surface connections,
+													// until next radius >= radius
+													while (!lwave.isEmpty()){
+														p0 = lwave.remove(0);
+														int [] neibs = tileData[surfIndices[p0.x]][p0.y].getNeighbors();
+														// try ortho directions first
+														double new_dist =  distances[isurf][p0.x][p0.y] + cost_ortho;
+														if (new_dist <= (radius + cost_start)) {
+															for (int dir = 0; dir < 8; dir +=2) if ( neibs[dir] >= 0){
+																Point pn = new Point (p0.x + ldirs8[dir], neibs[dir]);
+																if (distances[isurf][pn.x] == null){
+																	distances[isurf][pn.x] = new double [tileData[surfIndices[pn.x]].length];
+																}
+																if ((distances[isurf][pn.x][pn.y] == 0) || (distances[isurf][pn.x][pn.y] > new_dist)){
+																	distances[isurf][pn.x][pn.y] = new_dist;
+																	lwave.add(pn);
+																}
+															}
+														}
+														// try diagonal directions second
+														new_dist =  distances[isurf][p0.x][p0.y] + cost_diag;
+														if (new_dist <= (radius + cost_start)) {
+															for (int dir = 1; dir < 8; dir +=2) if ( neibs[dir] >= 0){
+																Point pn = new Point (p0.x + ldirs8[dir], neibs[dir]);
+																if (distances[isurf][pn.x] == null){
+																	distances[isurf][pn.x] = new double [tileData[surfIndices[pn.x]].length];
+																}
+																if ((distances[isurf][pn.x][pn.y] == 0) || (distances[isurf][pn.x][pn.y] > new_dist)){
+																	distances[isurf][pn.x][pn.y] = new_dist;
+																	lwave.add(pn);
+																}
+															}
 														}
 													}
+												}											
+												
+												// pulls belong to pairs, not individual surfaces (difference when they cross)
+												double [][] surface_pulls = new double [num_fit_other][num_fit_other];
+												// now calculate advantage of each one surface (close_enough) to each other (as a ratio)
+												// and then see if it is above minAdvantage
+												for (int other_ml = 0; other_ml < tileLayers.length; other_ml++) if (tileLayers[other_ml] != null){
+													for (int lindx = 0; lindx < imageIndices.length; lindx ++){
+														if (imageIndices[lindx] >= 0) {
+															int nsurf = tileLayers_src[other_ml][imageIndices[lindx]] - 1; // assigned surface number (>=0)
+															if ( nsurf >= 0){
+																double strength = dispStrength[other_ml][1][imageIndices[lindx]];
+																// see if this tile belongs to any of the considered surfaces
+																int num_found = 0;
+																boolean [] on_surface = new boolean [num_fit_other];
+																for (int i = 0; i < num_fit_other; i++) {
+																	if ((distances[i][lindx] != null) && (distances[i][lindx][nsurf] > 0.0)){
+																		num_found++;
+																		on_surface[i] = true;
+																	}
+																}
+																if (num_found > 0) { // tile lies on at least one of the considered surfaces
+																	for (int is1 = 0; is1 < num_fit_other; is1++) if (on_surface[is1]) {
+																		// is2 can be any other candidate, just check it is on the same side
+																		// of is1 as in the center (new tile)
+																		for (int is2 = 0; is2 < num_fit_other; is2++) if (is2 != is1) {
+																			boolean good_pair = true;
+																			if (distances[is2][lindx] != null) { // otherwise OK
+																				for (int i = 0; i < distances[is2][lindx].length; i++){
+																					if (distances[is2][lindx][i] >= 0){
+																						if (	((is2 > is1) && (i < nsurf)) ||
+																								((is2 > is1) && (i < nsurf))) {
+																							good_pair = false; // surfaces cross between
+																							break;
+																						}
+																					}
+																				}
+																			}
+																			if (good_pair){
+																				double r = distances[is1][lindx][nsurf] - cost_start;
+																				// pull to is1 when in pair with is2
+																				surface_pulls[is1][is2] = Math.exp(- r * r * rsigma2) * strength ; 
+																			}
+																		}
+																	}
+																	
+																}
+															}
+														}
+													}
+												}
+												
+												double [][] advantages = new double [num_fit_other][num_fit_other];
+												for (int is1 = 0; is1 < num_fit_other; is1++){
+													for (int is2 = is1 + 1; is2 < num_fit_other; is2++){
+														advantages[is1][is2] = surface_pulls[is1][is2]/surface_pulls[is2][is1];
+														advantages[is2][is1] = 1.0/advantages[is1][is2];
+														if (surfStrPow != 0.0){ // consider surface strength also 
+															double str1 = tileData[nSurfTile][candidates[is1]].getStrength();
+															double str2 = tileData[nSurfTile][candidates[is1]].getStrength();
+															if ((str1 > 0.0) && (str2 > 0.0)){
+																advantages[is1][is2] *= Math.pow(str1/str2, surfStrPow);
+																advantages[is2][is1] = 1.0/advantages[is1][is2];
+															} else if (str1 > 0.0) {
+																advantages[is1][is2] = 2.0 * minAdvantage; // sure will win
+																advantages[is2][is1] = (minAdvantage > 0.0) ? (1.0/advantages[is1][is2]) : 0.0; 
+																//minAdvantage
+															} else if (str2 > 0.0) {
+																advantages[is2][is1] = 2.0 * minAdvantage; // sure will win
+																advantages[is1][is2] = (minAdvantage > 0.0) ? (1.0/advantages[is2][is1]) : 0.0; 
+															} else { // both zero - do nothing about surface strengths
+																
+															}
+														}
+													}
+												}
+												// Now see if we have a winner that is (2 could not satisfy, look for the first:
+												// a) close enough, and
+												// b) sufficient advantage over all other candidates
+												fit = -1;
+												for (int is1 = 0; is1 < num_fit_other; is1++){
+													if (close_enough[is1]){ //
+														boolean is_a_winner = true; 
+														for (int is2 = is1 + 1; is2 < num_fit_other; is2++){
+															if (advantages[is1][is2] < minAdvantage){
+																is_a_winner = false;
+																break;
+															}
+														}														
+														if (is_a_winner){
+															fit = is1;
+															break;
+														}
+													}
+												}
+												if (fit >= 0) {
+													tileLayers[fml][nTile] = fit + 1;
+													stats_all[numThread][NEW_ASSIGNED] ++;
+												} else {
+													stats_all[numThread][NOT_UNIQUE] ++;
 												}
 											}
 										}
@@ -1981,7 +2187,36 @@ public class TileSurface {
 			}
 			return stats_new;
 		}
+
 		
+		public int [] InitTilesAssignment(
+				final boolean            force,
+				final double [][][]      dispStrength,
+				final boolean [][]       tileSel,
+                final int                debugLevel)
+		{
+			if (force || (this.tileLayers == null)) {
+				int [][] tileLayers = new int [tileSel.length][];
+				for (int ml = 0; ml < tileSel.length; ml++){
+					if (tileSel[ml] != null){
+						tileLayers[ml] = new int [tileSel[ml].length];
+						for (int i = 0; i < tileSel[ml].length; i++){
+							tileLayers[ml][i] = tileSel[ml][i] ? 0: -1; // 0 - unassigned, -1 - prohibited	
+						}
+					}
+				}
+				this.tileLayers = tileLayers;
+			}
+			int []stats = getTilesAssignStats(tileLayers);
+			if (debugLevel >= -1) {
+				System.out.println("sortTilesToSurfaces(): using "+stats[STAT_NUM_ML] +" measurement layers"+
+						", number of assigned tiles: "+stats[STAT_ASSIGNED]+
+						", number of unassigned tiles: "+stats[STAT_UNASSIGNED]+
+						", number of prohibited tiles: "+stats[STAT_PROHIBITED]+
+						", number of impossible tiles: "+stats[STAT_IMPOSSIBLE]);
+			}
+			return stats;
+		}
 		
 		
 		

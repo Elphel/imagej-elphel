@@ -72,6 +72,9 @@ public class SuperTiles{
 
 	int [][]    shell_map = null;   // per supertile, per disparity plane - shell index + 1 (0 - none)
 	double [][] surfaces;  // per shell, per tile (linescan order) disparity value or NaN in missing supertiles
+	
+	TileSurface tileSurface = null;	
+	
 
 	/**
 	 * currently lowest plane for each includes all tiles, so do not use it. May change in the future
@@ -183,6 +186,15 @@ public class SuperTiles{
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
 			sdfa_instance.showArrays(dbg_img,  tileProcessor.getTilesX(), tileProcessor.getTilesY(), true, "measuredLayers",titles);
 		}
+	}
+	
+	public void setTileSurface( TileSurface tileSurface)
+	{
+		this.tileSurface = tileSurface;
+	}
+	public TileSurface getTileSurface()
+	{
+		return tileSurface;
 	}
 	
 	public void initFuseCoeff(
