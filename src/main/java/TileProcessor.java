@@ -2969,23 +2969,36 @@ public class TileProcessor {
 				tileSel,      // final boolean [][]                             tileSel,
                 debugLevel);    // final int                                    debugLevel,
 
-		 int [] stats=  tileSurface.assignTilesToSurfaces(
-				clt_parameters.tsMaxDiff,       //final double        maxDiff,
-				clt_parameters.tsMinDiffOther,  //final double        minDiffOther, // should be >= maxDiff
-				clt_parameters.tsMinStrength,   //final double        minStrength,
-				clt_parameters.tsMaxStrength,   //final double        maxStrength,
-				clt_parameters.tsMoveDirs,      //final int           moveDirs, // 1 increase disparity, 2 - decrease disparity, 3 - both directions
-				clt_parameters.tsEnMulti,       //final boolean       enMulti,
-				clt_parameters.tsSurfStrPow,    //final double        surfStrPow, // surface strength power
-				clt_parameters.tsSigma,         //final double        sigma,
-				clt_parameters.tsNSigma,        //final double        nSigma,
-				clt_parameters.tsMinAdvantage,  //final double        minAdvantage,
-				clt_parameters.plDispNorm,      // final double        dispNorm, // disparity normalize (proportionally scale down disparity difference if above
-				dispStrength,                   // final double [][][] dispStrength,
-				0, // -1,                       // debugLevel,                  // final int        debugLevel)
-				clt_parameters.tileX,
-				clt_parameters.tileY);
-		 tileSurface.printStats(stats);
+		for (int nTry = 0; nTry < 100; nTry++) {
+			int [] stats=  tileSurface.assignTilesToSurfaces(
+					clt_parameters.tsMaxDiff,       //final double        maxDiff,
+					clt_parameters.tsMinDiffOther,  //final double        minDiffOther, // should be >= maxDiff
+					clt_parameters.tsMinStrength,   //final double        minStrength,
+					clt_parameters.tsMaxStrength,   //final double        maxStrength,
+					clt_parameters.tsMinSurface,    //final double        minSurfStrength, // minimal surface strength at the tile location
+					clt_parameters.tsMoveDirs,      //final int           moveDirs, // 1 increase disparity, 2 - decrease disparity, 3 - both directions
+					clt_parameters.tsEnMulti,       //final boolean       enMulti,
+					clt_parameters.tsSurfStrPow,    //final double        surfStrPow, // surface strength power
+					clt_parameters.tsAddStrength,   //final double        addStrength,
+					clt_parameters.tsSigma,         //final double        sigma,
+					clt_parameters.tsNSigma,        //final double        nSigma,
+					clt_parameters.tsMinPull,       //final double        minPull,
+					clt_parameters.tsMinAdvantage,  //final double        minAdvantage,
+					clt_parameters.plDispNorm,      // final double        dispNorm, // disparity normalize (proportionally scale down disparity difference if above
+					dispStrength,                   // final double [][][] dispStrength,
+					0, // -1,                       // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+			tileSurface.printStats(stats);
+			if (!clt_parameters.tsEnMulti || !clt_parameters.tsLoopMulti || !tileSurface.makesSensToTry(stats)){
+				break;
+			}
+		}
+		if (clt_parameters.tsShow){
+			tileSurface.showAssignment(
+					"assignments", // String title,
+					dispStrength); // final double [][][] dispStrength)
+		}
 		return true;
 	}	
 	
