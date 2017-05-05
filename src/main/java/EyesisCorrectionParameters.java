@@ -2170,6 +2170,7 @@ public class EyesisCorrectionParameters {
   		public double     plMaxEigen           =   0.3;  // Maximal eigenvalue of a plane 
   		public boolean    plDbgMerge           =   true; // Combine 'other' plane with current
   		public double     plWorstWorsening     =   3.0;  // Worst case worsening after merge
+  		public double     plOKMergeEigen       =   0.01; // If result of the merged planes is below, OK to bypass worst worsening
   		public double     plWeakWorsening      =   1.0;  // Relax merge requirements for weaker planes
   		public boolean    plMutualOnly         =   true; // keep only mutual links, remove weakest if conflict
   		public boolean    plFillSquares        =   true; // Add diagonals to full squares
@@ -2221,14 +2222,28 @@ public class EyesisCorrectionParameters {
 		public double     tsMaxStrength        = 10.0;   // Maximal tile correlation strength to be assigned
 		public double     tsMinSurface         = 0.0001; // Minimal surface strength at the tile location
 		public int        tsMoveDirs           = 3;      // Allowed tile disparity correction: 1 increase, 2 - decrease, 3 - both directions
-		public boolean    tsEnMulti            = false;  // Allow assignment when several surfaces fit
-		public boolean    tsLoopMulti          = true;   // Repeat multi-choice assignment while succeeding 
 		public double     tsSurfStrPow         = 0.0;    // Raise surface strengths ratio to this power when comparing candidates
 		public double     tsAddStrength        = 0.01;   // Add to strengths when calculating pull of assigned tiles
 		public double     tsSigma              = 2.0;    // Radius of influence (in tiles) of the previously assigned tiles
 		public double     tsNSigma             = 2.0;    // Maximal relative to radius distance to calculate influence
 		public double     tsMinPull            = 0.001;  // Additional pull of each surface 
 		public double     tsMinAdvantage       = 3.0;    // Minimal ratio of the best surface candidate to the next one to make selection
+		
+		public int        tsClustSize          = 1;      // Minimal size of a cluster to keep
+		public double     tsClustWeight        = 0.2;    // Minimal total weight of a cluster to keep
+		
+		public int        tsMinNeib            = 6;      // Minimal number of neighbors of unassigned tile to join (the farthest)
+		public double     tsMaxSurStrength     = 0.05;   // Maximal strength of the surrounded unassigned tile to join
+		public boolean    tsCountDis           = true;   // Include disabled tiles/borders when counting assigned neighbors
+		
+		public boolean    tsEnSingle           = true;   // Allow assignment to the nearest surface with no competitors
+		public boolean    tsEnMulti            = true;   // Allow assignment when several surfaces fit
+
+		public boolean    tsRemoveWeak1        = false;  // Remove weak clusters before growing
+		public boolean    tsGrowSurround       = true;   // Assign tiles that have neighbors to the lowest disparity
+		public boolean    tsRemoveWeak2        = true;   // Remove weak clusters after growing
+		
+		public boolean    tsLoopMulti          = true;   // Repeat multi-choice assignment while succeeding 
 		public boolean    tsReset              = false;  // Reset tiles to surfaces assignment
 		public boolean    tsShow               = false;  // Show results of tiles to surfaces assignment
   		
@@ -2497,6 +2512,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plMaxEigen",       this.plMaxEigen +"");
 			properties.setProperty(prefix+"plDbgMerge",       this.plDbgMerge+"");
 			properties.setProperty(prefix+"plWorstWorsening", this.plWorstWorsening +"");
+			properties.setProperty(prefix+"plOKMergeEigen",   this.plOKMergeEigen +"");
 			properties.setProperty(prefix+"plWeakWorsening",  this.plWeakWorsening +"");
 			properties.setProperty(prefix+"plMutualOnly",     this.plMutualOnly+"");
 			properties.setProperty(prefix+"plFillSquares",    this.plFillSquares+"");
@@ -2542,14 +2558,24 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"tsMaxStrength",    this.tsMaxStrength +"");
 			properties.setProperty(prefix+"tsMinSurface",     this.tsMinSurface +"");
   			properties.setProperty(prefix+"tsMoveDirs",       this.tsMoveDirs+"");
-			properties.setProperty(prefix+"tsEnMulti",        this.tsEnMulti+"");
-			properties.setProperty(prefix+"tsLoopMulti",      this.tsLoopMulti+"");
 			properties.setProperty(prefix+"tsSurfStrPow",     this.tsSurfStrPow +"");
 			properties.setProperty(prefix+"tsAddStrength",    this.tsAddStrength +"");
 			properties.setProperty(prefix+"tsSigma",          this.tsSigma +"");
 			properties.setProperty(prefix+"tsNSigma",         this.tsNSigma +"");
 			properties.setProperty(prefix+"tsMinPull",        this.tsMinPull +"");
 			properties.setProperty(prefix+"tsMinAdvantage",   this.tsMinAdvantage +"");
+			
+			properties.setProperty(prefix+"tsClustSize",      this.tsClustSize +"");
+			properties.setProperty(prefix+"tsClustWeight",    this.tsClustWeight +"");
+			properties.setProperty(prefix+"tsMinNeib",        this.tsMinNeib +"");
+			properties.setProperty(prefix+"tsMaxSurStrength", this.tsMaxSurStrength +"");
+			properties.setProperty(prefix+"tsCountDis",       this.tsCountDis +"");
+			properties.setProperty(prefix+"tsEnSingle",       this.tsEnSingle+"");
+			properties.setProperty(prefix+"tsEnMulti",        this.tsEnMulti+"");
+			properties.setProperty(prefix+"tsRemoveWeak1",    this.tsRemoveWeak1+"");
+			properties.setProperty(prefix+"tsGrowSurround",   this.tsGrowSurround+"");
+			properties.setProperty(prefix+"tsRemoveWeak2",    this.tsRemoveWeak2+"");
+			properties.setProperty(prefix+"tsLoopMulti",      this.tsLoopMulti+"");
 			properties.setProperty(prefix+"tsShow",           this.tsShow+"");
 			
 			properties.setProperty(prefix+"dbg_migrate",            this.dbg_migrate+"");
@@ -2808,6 +2834,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plMaxEigen")!=null)        this.plMaxEigen=Double.parseDouble(properties.getProperty(prefix+"plMaxEigen"));
   			if (properties.getProperty(prefix+"plDbgMerge")!=null)        this.plDbgMerge=Boolean.parseBoolean(properties.getProperty(prefix+"plDbgMerge"));
   			if (properties.getProperty(prefix+"plWorstWorsening")!=null)  this.plWorstWorsening=Double.parseDouble(properties.getProperty(prefix+"plWorstWorsening"));
+  			if (properties.getProperty(prefix+"plOKMergeEigen")!=null)    this.plOKMergeEigen=Double.parseDouble(properties.getProperty(prefix+"plOKMergeEigen"));
   			if (properties.getProperty(prefix+"plWeakWorsening")!=null)   this.plWeakWorsening=Double.parseDouble(properties.getProperty(prefix+"plWeakWorsening"));
   			if (properties.getProperty(prefix+"plMutualOnly")!=null)      this.plMutualOnly=Boolean.parseBoolean(properties.getProperty(prefix+"plMutualOnly"));
 
@@ -2856,17 +2883,26 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"tsMaxStrength")!=null)     this.tsMaxStrength=Double.parseDouble(properties.getProperty(prefix+"tsMaxStrength"));
   			if (properties.getProperty(prefix+"tsMinSurface")!=null)      this.tsMinSurface=Double.parseDouble(properties.getProperty(prefix+"tsMinSurface"));
   			if (properties.getProperty(prefix+"tsMoveDirs")!=null)        this.tsMoveDirs=Integer.parseInt(properties.getProperty(prefix+"tsMoveDirs"));
-  			if (properties.getProperty(prefix+"tsEnMulti")!=null)         this.tsEnMulti=Boolean.parseBoolean(properties.getProperty(prefix+"tsEnMulti"));
-  			if (properties.getProperty(prefix+"tsLoopMulti")!=null)       this.tsLoopMulti=Boolean.parseBoolean(properties.getProperty(prefix+"tsLoopMulti"));
   			if (properties.getProperty(prefix+"tsSurfStrPow")!=null)      this.tsSurfStrPow=Double.parseDouble(properties.getProperty(prefix+"tsSurfStrPow"));
   			if (properties.getProperty(prefix+"tsAddStrength")!=null)     this.tsAddStrength=Double.parseDouble(properties.getProperty(prefix+"tsAddStrength"));
   			if (properties.getProperty(prefix+"tsSigma")!=null)           this.tsSigma=Double.parseDouble(properties.getProperty(prefix+"tsSigma"));
   			if (properties.getProperty(prefix+"tsNSigma")!=null)          this.tsNSigma=Double.parseDouble(properties.getProperty(prefix+"tsNSigma"));
   			if (properties.getProperty(prefix+"tsMinPull")!=null)         this.tsMinPull=Double.parseDouble(properties.getProperty(prefix+"tsMinPull"));
   			if (properties.getProperty(prefix+"tsMinAdvantage")!=null)    this.tsMinAdvantage=Double.parseDouble(properties.getProperty(prefix+"tsMinAdvantage"));
+  			
+  			if (properties.getProperty(prefix+"tsClustSize")!=null)       this.tsClustSize=Integer.parseInt(properties.getProperty(prefix+"tsClustSize"));
+  			if (properties.getProperty(prefix+"tsClustWeight")!=null)     this.tsClustWeight=Double.parseDouble(properties.getProperty(prefix+"tsClustWeight"));
+  			if (properties.getProperty(prefix+"tsMinNeib")!=null)         this.tsMinNeib=Integer.parseInt(properties.getProperty(prefix+"tsMinNeib"));
+  			if (properties.getProperty(prefix+"tsMaxSurStrength")!=null)  this.tsMaxSurStrength=Double.parseDouble(properties.getProperty(prefix+"tsMaxSurStrength"));
+  			if (properties.getProperty(prefix+"tsCountDis")!=null)        this.tsCountDis=Boolean.parseBoolean(properties.getProperty(prefix+"tsCountDis"));
+  			if (properties.getProperty(prefix+"tsEnSingle")!=null)        this.tsEnSingle=Boolean.parseBoolean(properties.getProperty(prefix+"tsEnSingle"));
+  			if (properties.getProperty(prefix+"tsEnMulti")!=null)         this.tsEnMulti=Boolean.parseBoolean(properties.getProperty(prefix+"tsEnMulti"));
+  			if (properties.getProperty(prefix+"tsRemoveWeak1")!=null)     this.tsRemoveWeak1=Boolean.parseBoolean(properties.getProperty(prefix+"tsRemoveWeak1"));
+  			if (properties.getProperty(prefix+"tsGrowSurround")!=null)    this.tsGrowSurround=Boolean.parseBoolean(properties.getProperty(prefix+"tsGrowSurround"));
+  			if (properties.getProperty(prefix+"tsRemoveWeak2")!=null)     this.tsRemoveWeak2=Boolean.parseBoolean(properties.getProperty(prefix+"tsRemoveWeak2"));
+
+  			if (properties.getProperty(prefix+"tsLoopMulti")!=null)       this.tsLoopMulti=Boolean.parseBoolean(properties.getProperty(prefix+"tsLoopMulti"));
   			if (properties.getProperty(prefix+"tsShow")!=null)            this.tsShow=Boolean.parseBoolean(properties.getProperty(prefix+"tsShow"));
-  			
-  			
   			if (properties.getProperty(prefix+"dbg_migrate")!=null)       this.dbg_migrate=Boolean.parseBoolean(properties.getProperty(prefix+"dbg_migrate"));
 
   			if (properties.getProperty(prefix+"show_ortho_combine")!=null)     this.show_ortho_combine=Boolean.parseBoolean(properties.getProperty(prefix+"show_ortho_combine"));
@@ -3147,6 +3183,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal eigenvalue of a plane",                                                this.plMaxEigen,  6);
   			gd.addCheckbox    ("Combine 'other' plane with the current (unused)",                              this.plDbgMerge);
   			gd.addNumericField("Worst case worsening after merge",                                             this.plWorstWorsening,  6);
+  			gd.addNumericField("If result of the merged planes is below, OK to bypass worst worsening",        this.plOKMergeEigen,  6);
   			gd.addNumericField("Relax merge requirements for weaker planes",                                   this.plWeakWorsening,  6);
   			gd.addCheckbox    ("Keep only mutual links, remove weakest if conflict",                           this.plMutualOnly);
 
@@ -3188,6 +3225,8 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Divide plane strengths by ellipsoid area",                                     this.msDivideByArea);
   			gd.addNumericField("Scale projection of the plane ellipsoid",                                      this.msScaleProj,  6);
   			gd.addNumericField("Spread this fraction of the ellipsoid weight among extended (double) supertile",this.msFractUni,  6);
+
+  			gd.addMessage     ("--- Tiles assignment ---");
   			
   			gd.addNumericField("Maximal disparity difference when assigning tiles",                               this.tsMaxDiff,  6);
   			gd.addNumericField("Minimal disparity difference to be considered as a competitor surface",           this.tsMinDiffOther,  6);
@@ -3195,14 +3234,25 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal tile correlation strength to be assigned",                                this.tsMaxStrength,  6);
   			gd.addNumericField("Minimal surface strength at the tile location",                                   this.tsMinSurface,  6);
   			gd.addNumericField("Allowed tile disparity correction: 1 increase, 2 - decrease, 3 - both directions",this.tsMoveDirs,  0);
-  			gd.addCheckbox    ("Allow assignment when several surfaces fit",                                      this.tsEnMulti);
-  			gd.addCheckbox    ("Repeat multi-choice assignment while succeeding",                                 this.tsLoopMulti);
   			gd.addNumericField("Raise surface strengths ratio to this power when comparing candidates",           this.tsSurfStrPow,  6);
   			gd.addNumericField("Add to strengths when calculating pull of assigned tiles",                        this.tsAddStrength,  6);
   			gd.addNumericField("Radius of influence (in tiles) of the previously assigned tiles",                 this.tsSigma,  6);
   			gd.addNumericField("Maximal relative to radius distance to calculate influence",                      this.tsNSigma,  6);
   			gd.addNumericField(" Additional pull of each surface ",                                               this.tsMinPull,  6);
   			gd.addNumericField("Minimal ratio of the best surface candidate to the next one to make selection",   this.tsMinAdvantage,  6);
+  			
+  			gd.addNumericField("Minimal size of a cluster to keep",                                               this.tsClustSize,  0);
+  			gd.addNumericField("Minimal total weight of a cluster to keep",                                       this.tsClustWeight,  6);
+  			gd.addNumericField("Minimal number of neighbors of unassigned tile to join (the farthest)",           this.tsMinNeib,  0);
+  			gd.addNumericField("Maximal strength of the surrounded unassigned tile to join",                      this.tsMaxSurStrength,  6);
+  			gd.addCheckbox    ("Include disabled tiles/borders when counting assigned neighbors",                 this.tsCountDis);
+  			gd.addCheckbox    ("Allow assignment to the nearest surface with no competitors",                     this.tsEnSingle);
+  			gd.addCheckbox    ("Allow assignment when several surfaces fit",                                      this.tsEnMulti);
+  			gd.addCheckbox    ("Remove weak clusters before growing",                                             this.tsRemoveWeak1);
+  			gd.addCheckbox    ("Assign tiles that have neighbors to the lowest disparity",                        this.tsGrowSurround);
+  			gd.addCheckbox    ("Remove weak clusters after growing",                                              this.tsRemoveWeak2);
+  			
+  			gd.addCheckbox    ("Repeat multi-choice assignment while succeeding",                                 this.tsLoopMulti);
   			gd.addCheckbox    ("Show results of tiles to surfaces assignment",                                    this.tsShow);
   			
   			gd.addCheckbox    ("Test new mode after migration",                                                this.dbg_migrate);
@@ -3468,6 +3518,7 @@ public class EyesisCorrectionParameters {
   			this.plMaxEigen=            gd.getNextNumber();
   			this.plDbgMerge=            gd.getNextBoolean();
   			this.plWorstWorsening=      gd.getNextNumber();
+  			this.plOKMergeEigen=        gd.getNextNumber();
   			this.plWeakWorsening=       gd.getNextNumber();
   			this.plMutualOnly=          gd.getNextBoolean();
 
@@ -3515,15 +3566,26 @@ public class EyesisCorrectionParameters {
   			this.tsMaxStrength=         gd.getNextNumber();
   			this.tsMinSurface=          gd.getNextNumber();
   			this.tsMoveDirs=      (int) gd.getNextNumber();
-  			this.tsEnMulti=             gd.getNextBoolean();
-  			this.tsLoopMulti=           gd.getNextBoolean();
   			this.tsSurfStrPow=          gd.getNextNumber();
   			this.tsAddStrength=         gd.getNextNumber();
   			this.tsSigma=               gd.getNextNumber();
   			this.tsNSigma=              gd.getNextNumber();
   			this.tsMinPull=             gd.getNextNumber();
   			this.tsMinAdvantage=        gd.getNextNumber();
+  			
+  			this.tsClustSize=     (int) gd.getNextNumber();
+  			this.tsClustWeight=         gd.getNextNumber();
+  			this.tsMinNeib=       (int) gd.getNextNumber();
+  			this.tsMaxSurStrength=      gd.getNextNumber();
+  			this.tsCountDis=            gd.getNextBoolean();
   			this.tsReset              = false;  // Reset tiles to surfaces assignment
+  			this.tsEnSingle=            gd.getNextBoolean();
+  			this.tsEnMulti=             gd.getNextBoolean();
+  			this.tsRemoveWeak1=         gd.getNextBoolean();
+  			this.tsGrowSurround=        gd.getNextBoolean();
+  			this.tsRemoveWeak2=         gd.getNextBoolean();
+  			
+  			this.tsLoopMulti=           gd.getNextBoolean();
   			this.tsShow               = gd.getNextBoolean();
   			
   			this.dbg_migrate=           gd.getNextBoolean();
@@ -3553,15 +3615,25 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal tile correlation strength to be assigned",                                this.tsMaxStrength,  6);
   			gd.addNumericField("Minimal surface strength at the tile location",                                   this.tsMinSurface,  6);
   			gd.addNumericField("Allowed tile disparity correction: 1 increase, 2 - decrease, 3 - both directions",this.tsMoveDirs,  0);
-  			gd.addCheckbox    ("Allow assignment when several surfaces fit",                                      this.tsEnMulti);
-  			gd.addCheckbox    ("Repeat multi-choice assignment while succeeding",                                 this.tsLoopMulti);
   			gd.addNumericField("Raise surface strengths ratio to this power when comparing candidates",           this.tsSurfStrPow,  6);
   			gd.addNumericField("Add to strengths when calculating pull of assigned tiles",                        this.tsAddStrength,  6);
   			gd.addNumericField("Radius of influence (in tiles) of the previously assigned tiles",                 this.tsSigma,  6);
   			gd.addNumericField("Maximal relative to radius distance to calculate influence",                      this.tsNSigma,  6);
   			gd.addNumericField(" Additional pull of each surface ",                                               this.tsMinPull,  6);
   			gd.addNumericField("Minimal ratio of the best surface candidate to the next one to make selection",   this.tsMinAdvantage,  6);
+  			gd.addNumericField("Minimal size of a cluster to keep",                                               this.tsClustSize,  0);
+  			gd.addNumericField("Minimal total weight of a cluster to keep",                                       this.tsClustWeight,  6);
+  			gd.addNumericField("Minimal number of neighbors of unassigned tile to join (the farthest)",           this.tsMinNeib,  0);
+  			gd.addNumericField("Maximal strength of the surrounded unassigned tile to join",                      this.tsMaxSurStrength,  6);
+  			gd.addCheckbox    ("Include disabled tiles/borders when counting assigned neighbors",                 this.tsCountDis);
   			gd.addCheckbox    ("Reset tiles to surfaces assignment",                                              false);
+  			gd.addCheckbox    ("Allow assignment to the nearest surface with no competitors",                     this.tsEnSingle);
+  			gd.addCheckbox    ("Allow assignment when several surfaces fit",                                      this.tsEnMulti);
+  			gd.addCheckbox    ("Remove weak clusters before growing",                                             this.tsRemoveWeak1);
+  			gd.addCheckbox    ("Assign tiles that have neighbors to the lowest disparity",                        this.tsGrowSurround);
+  			gd.addCheckbox    ("Remove weak clusters after growing",                                              this.tsRemoveWeak2);
+  			
+  			gd.addCheckbox    ("Repeat multi-choice assignment while succeeding",                                 this.tsLoopMulti);
   			gd.addCheckbox    ("Show results of tiles to surfaces assignment",                                    this.tsShow);
   			
   			WindowTools.addScrollBars(gd);
@@ -3573,15 +3645,26 @@ public class EyesisCorrectionParameters {
   			this.tsMaxStrength=         gd.getNextNumber();
   			this.tsMinSurface=          gd.getNextNumber();
   			this.tsMoveDirs=      (int) gd.getNextNumber();
-  			this.tsEnMulti=             gd.getNextBoolean();
-  			this.tsLoopMulti=           gd.getNextBoolean();
   			this.tsSurfStrPow=          gd.getNextNumber();
   			this.tsAddStrength=         gd.getNextNumber();
   			this.tsSigma=               gd.getNextNumber();
   			this.tsNSigma=              gd.getNextNumber();
   			this.tsMinPull=             gd.getNextNumber();
   			this.tsMinAdvantage=        gd.getNextNumber();
+
+  			this.tsClustSize=     (int) gd.getNextNumber();
+  			this.tsClustWeight=         gd.getNextNumber();
+  			this.tsMinNeib=       (int) gd.getNextNumber();
+  			this.tsMaxSurStrength=      gd.getNextNumber();
+  			this.tsCountDis=            gd.getNextBoolean();
   			this.tsReset=               gd.getNextBoolean();
+  			this.tsEnSingle=            gd.getNextBoolean();
+  			this.tsEnMulti=             gd.getNextBoolean();
+  			this.tsRemoveWeak1=         gd.getNextBoolean();
+  			this.tsGrowSurround=        gd.getNextBoolean();
+  			this.tsRemoveWeak2=         gd.getNextBoolean();
+  			
+  			this.tsLoopMulti=           gd.getNextBoolean();
   			this.tsShow               = gd.getNextBoolean();
   			return true;
   		}

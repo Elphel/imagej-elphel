@@ -38,7 +38,6 @@ public class TileSurface {
 		private int stilesY;
 		private int [] st_dirs8;
 		private int [] t_dirs8;
-		private int [] ss_dirs8;
 		private double [] window;
 		private int threadsMax = 100;
 		private int [][] tileLayers = null;
@@ -55,13 +54,15 @@ public class TileSurface {
 		static int PROHOBITED =  -1; //tile marked as invalid
 		static int IMPOSSIBLE =  -2; // give up on this tile (as no surface for it) 
 		
-		static int NEW_ASSIGNED = 0; // succesfully assigned to a surface
-		static int NO_SURF =      1; // no surfaces for this tile cell
-		static int TOO_WEAK =     2; // tile strength is too low
-		static int TOO_STRONG =   3; // tile strength is too high ( for that disparity difference)
-		static int TOO_FAR =      4; // no surface candidates within the allowed disparity range 
-		static int NOT_UNIQUE =   5; // multiple surfaces are within range
-		static int NUM_STATS =    6;
+		static int NEW_ASSIGNED =     0; // successfully assigned to a surface
+		static int NO_SURF =          1; // no surfaces for this tile cell
+		static int TOO_WEAK =         2; // tile strength is too low
+		static int TOO_STRONG =       3; // tile strength is too high ( for that disparity difference)
+		static int TOO_FAR =          4; // no surface candidates within the allowed disparity range 
+		static int NOT_UNIQUE =       5; // multiple surfaces are within range
+		static int REMOVED_TILES =    6; // number of removed tiles in weak clusters
+		static int REMOVED_CLUSTERS = 7; // number of removed weak clusters
+		static int NUM_STATS =        8;
 		
 //		private int nsTilesstSize =   0; // 8;
 		GeometryCorrection   geometryCorrection = null;
@@ -88,11 +89,6 @@ public class TileSurface {
 			int tx = superTileSize * stilesX; 
 			int [] tdirs =  {-tx, -tx + 1, 1, tx + 1, tx, tx - 1, -1, -tx - 1};
 			this.t_dirs8 = tdirs;
-			
-			
-			int [] dirs_ss =  {-superTileSize, -superTileSize + 1, 1, superTileSize + 1, superTileSize, superTileSize - 1, -1, -superTileSize - 1};
-			this.ss_dirs8 = dirs_ss;
-
 			
 		}
 
@@ -226,9 +222,23 @@ public class TileSurface {
 		}
 
 		public class TileNeibs{
-			int size;
-			TileNeibs(int size){
-				this.size = size;
+			int sizeX;
+			int sizeY;
+			public int dirs = 8;
+			public TileNeibs(int size){
+				this.sizeX = size;
+				this.sizeY = size;
+			}
+			public TileNeibs(int sizeX, int sizeY){
+				this.sizeX = sizeX;
+				this.sizeY = sizeY;
+			}
+			public int numNeibs() // TODO: make configurable to 
+			{
+				return dirs;
+			}
+			public int opposite(int dir){
+				return (dir + dirs / 2) % dirs;
 			}
 			/**
 			 * Get 2d element index after step N, NE, ... NW. Returns -1 if leaving array   
@@ -238,21 +248,22 @@ public class TileSurface {
 			 */
 			int getNeibIndex(int indx, int dir)
 			{
-				int y = indx / size;
-				int x = indx % size;
+				int y = indx / sizeX;
+				int x = indx % sizeX;
 				if (dir < 0) return indx;
-				switch (dir % 8){
-				case 0: return (y == 0) ?                               -1 : (indx - size); 
-				case 1: return ((y == 0)         || ( x == (size-1))) ? -1 : (indx - size + 1); 
-				case 2: return (                    ( x == (size-1))) ? -1 : (indx        + 1); 
-				case 3: return ((y == (size -1)) || ( x == (size-1))) ? -1 : (indx + size + 1); 
-				case 4: return ((y == (size -1))                    ) ? -1 : (indx + size); 
-				case 5: return ((y == (size -1)) || ( x == 0))        ? -1 : (indx + size - 1); 
-				case 6: return (                    ( x == 0))        ? -1 : (indx        - 1); 
-				case 7: return ((y == 0)         || ( x == 0))        ? -1 : (indx - size - 1); 
+				switch (dir % dirs){
+				case 0: return (y == 0) ?                                    -1 : (indx - sizeX); 
+				case 1: return ((y == 0)           || ( x == (sizeX - 1))) ? -1 : (indx - sizeX + 1); 
+				case 2: return (                      ( x == (sizeX - 1))) ? -1 : (indx        + 1); 
+				case 3: return ((y == (sizeY - 1)) || ( x == (sizeX - 1))) ? -1 : (indx + sizeX + 1); 
+				case 4: return ((y == (sizeY - 1))                       ) ? -1 : (indx + sizeX); 
+				case 5: return ((y == (sizeY - 1)) || ( x == 0))           ? -1 : (indx + sizeX - 1); 
+				case 6: return (                      ( x == 0))           ? -1 : (indx        - 1); 
+				case 7: return ((y == 0)           || ( x == 0))           ? -1 : (indx - sizeX - 1); 
 				default: return indx;
 				}
 			}
+			
 			/**
 			 * Return tile segment for 50% overlap. -1 - center, 0 N, 1 - NE,... 7 - NW
 			 * @param indx element index
@@ -260,15 +271,16 @@ public class TileSurface {
 			 */
 			int getSegment(int indx)
 			{
-				int s1 = size / 4;
-//				int s2 = size /2;
-				int s3 = 3 * size / 4;
-				int x = indx % size;
-				int y = indx / size;
-				boolean up = y < s1;
-				boolean down = y >= s3;
-				boolean left = x < s1;
-				boolean right = x >= s3;
+				int s1x = sizeX / 4;
+				int s3x = 3 * sizeX / 4;
+				int s1y = sizeY / 4;
+				int s3y = 3 * sizeY / 4;
+				int x = indx % sizeX;
+				int y = indx / sizeX;
+				boolean up = y < s1y;
+				boolean down = y >= s3y;
+				boolean left = x < s1x;
+				boolean right = x >= s3x;
 				if (up){
 					if (left) return 7;
 					if (right) return 1;
@@ -1745,7 +1757,7 @@ public class TileSurface {
 			int surfaceTilesX = stilesX * superTileSize;
 			int tx = nSurfTile %  surfaceTilesX;
 			int ty = nSurfTile /  surfaceTilesX;
-			if ((tx > imageTilesX) || (ty > imageTilesY)){
+			if ((tx >= imageTilesX) || (ty >= imageTilesY)){
 				return -1; // out of image
 			}
 			return imageTilesX * ty + tx;
@@ -1859,19 +1871,32 @@ public class TileSurface {
 		
 		public void printStats(int []stats)
 		{
-			System.out.println("printStats(x):"+
-					" NEW_ASSIGNED = " + stats[NEW_ASSIGNED] +
-					" NO_SURF=" + stats[NO_SURF] +
-					" TOO_WEAK=" + stats[TOO_WEAK] +
-					" TOO_STRONG=" + stats[TOO_STRONG] +
-					" TOO_FAR=" + stats[TOO_FAR] +
-					" NOT_UNIQUE=" + stats[NOT_UNIQUE]);
-
+			boolean nothing = true;
+			for (int i = 0; nothing && (i < stats.length); i++){
+				nothing &= stats[i] == 0;
+			}
+			if (nothing) {
+				System.out.println(" -- no changes --");
+			} else {
+				if (stats[NEW_ASSIGNED]     > 0) System.out.print(" NEW_ASSIGNED = " +     stats[NEW_ASSIGNED]);
+				if (stats[NO_SURF]          > 0) System.out.print(" NO_SURF = " +          stats[NO_SURF]);
+				if (stats[TOO_WEAK]         > 0) System.out.print(" TOO_WEAK = " +         stats[TOO_WEAK]);
+				if (stats[TOO_STRONG]       > 0) System.out.print(" TOO_STRONG = " +       stats[TOO_STRONG]);
+				if (stats[TOO_FAR]          > 0) System.out.print(" TOO_FAR = " +          stats[TOO_FAR]);
+				if (stats[NOT_UNIQUE]       > 0) System.out.print(" NOT_UNIQUE = " +       stats[NOT_UNIQUE]);
+				if (stats[REMOVED_TILES]    > 0) System.out.print(" REMOVED_TILES = " +    stats[REMOVED_TILES]);
+				if (stats[REMOVED_CLUSTERS] > 0) System.out.print(" REMOVED_CLUSTERS = " + stats[REMOVED_CLUSTERS]);
+			}
+			System.out.println();
 		}
 		
 		public boolean makesSensToTry(int [] stats)
 		{
 			return ((stats[NEW_ASSIGNED] > 0) && (stats[NOT_UNIQUE] > 0));
+		}
+		public int newAssigned(int [] stats)
+		{
+			return stats[NEW_ASSIGNED];
 		}
 		
 		public void showAssignment(
@@ -1917,6 +1942,191 @@ public class TileSurface {
 			sdfa_instance.showArrays(img_data,  imageTilesX, imageTilesY, true, title, titles);
 		}
 		
+		/**
+		 * Unassign tiles that have too few connected other tiles (or total weight of the cluster is too small)
+		 * This is a single-threaded method
+		 * @param minSize minimal tiles in the cluster
+		 * @param minStrength minimal total strength of the cluster 
+		 * @param dispStrength per measurement layer, combined disparity and strength array ([num_ml][2][])
+		 * @param debugLevel debug level
+		 * @param dbg_X debug tile X coordinate
+		 * @param dbg_Y debug tile Y coordinate
+		 * @return {number of tiles, number of clusters} removed  
+		 */
+		public int [] removeSmallClusters(
+				final int           minSize,
+				final double        minStrength,
+				final double [][][] dispStrength,
+                final int           debugLevel,
+				final int           dbg_X,
+				final int           dbg_Y)
+		{
+			boolean [][] wave_conf = new boolean [tileLayers.length][]; // true when wave or if confirmed
+			int [] stats_new = new int [NUM_STATS];
+			for (int ml = 0; ml < tileLayers.length; ml ++) if (tileLayers[ml] != null){
+				wave_conf[ml] = new boolean[tileLayers[ml].length];
+			}
+			TileNeibs tnImage =   new TileNeibs(imageTilesX, imageTilesY);
+//			TileNeibs tnSurface = new TileNeibs(stilesX * superTileSize, stilesY * superTileSize);
+
+			for (int ml = 0; ml < tileLayers.length; ml ++) if (tileLayers[ml] != null){
+				for (int nTile0 = 0; nTile0 < tileLayers[ml].length; nTile0++) if ((tileLayers[ml][nTile0] > 0) && !wave_conf[ml][nTile0]){
+					ArrayList<Point> wave_list = new ArrayList<Point>();
+					double sum_weight = 0.0;
+					int tailp = 0; // do not remove elements from the list while building the cluster, just advance tail pointer 
+					Point p = new Point(nTile0, ml);
+					sum_weight += dispStrength[p.y][1][p.x];
+					wave_conf[p.y][p.x] = true;
+					wave_list.add(p);
+					while (tailp < wave_list.size()){
+						Point pt = wave_list.get(tailp++);
+						int nSurfTile1 = getSurfaceTileIndex(pt.x);
+						int nl1 = tileLayers[pt.y][pt.x] - 1; // zero-based from 1-based
+						int [] neibs = tileData[nSurfTile1][nl1].getNeighbors();
+						for (int dir  = 0; dir < tnImage.dirs; dir++) if (neibs[dir] >= 0){
+							int nTile1 = tnImage.getNeibIndex(pt.x, dir);
+							if (nTile1 >= 0) {
+								for (int ml1 = 0; ml1 < tileLayers.length; ml1++) {
+									// may be several ml tiles on the same surface - count them all
+									if ((tileLayers[ml1] != null) && (tileLayers[ml1][nTile1] == (neibs[dir] +1)) && !wave_conf[ml1][nTile1]){
+										Point p1 = new Point(nTile1, ml1);
+										sum_weight += dispStrength[p1.y][1][p1.x];
+										wave_conf[p1.y][p1.x] = true;
+										wave_list.add(p1);
+									}
+								}
+							}
+						}
+					}
+					// See if it is a good cluster
+					if ((wave_list.size() < minSize) || (sum_weight < minStrength)){
+						while (wave_list.size() > 0){
+							Point pt = wave_list.remove(0);
+							tileLayers[pt.y][pt.x] = 0;
+							wave_conf [pt.y][pt.x] = false; // not necessary
+							
+							stats_new[REMOVED_TILES]++;
+						}
+						stats_new[REMOVED_CLUSTERS]++;
+					} else { // it is a strong cluster, nothing to do here (it is already marked in wave_conf[][]
+						
+					}
+				}
+			}			
+			return stats_new;
+		}
+
+		/**
+		 * Assign (weak) tile surrounded by assigned one to the disparity of the farthest tile (lowest disparity).
+		 * This is a single-threaded method
+		 * @param minNeib minimal number of occupied directions (of 8), several occupied levels count as one
+		 * @param maxStrength maximal strength of the tile to assign (strong one may make trust its disparity after all)
+		 * @param includeImpossible count impossible (blocked, on the image edge,...) tiles as if assigned towards
+		 * the number of occupied directions
+		 * @param dispStrength per measurement layer, combined disparity and strength array ([num_ml][2][])
+		 * @param debugLevel debug level
+		 * @param dbg_X debug tile X coordinate
+		 * @param dbg_Y debug tile Y coordinate
+		 * @return {number of tiles, number of clusters} removed  
+		 */
+		
+		public int [] assignFromFarthest(
+				final int           minNeib,
+				final double        maxStrength,
+				final boolean       includeImpossible, // count prohibited neighbors as assigned
+				final double [][][] dispStrength,
+                final int           debugLevel,
+				final int           dbg_X,
+				final int           dbg_Y)
+		{
+			
+			final int [][] tileLayers_src = tileLayers.clone();
+			for (int i = 0; i < tileLayers_src.length; i++){
+				if (tileLayers_src[i] != null){
+					tileLayers_src[i] = tileLayers[i].clone();
+				}
+			}
+			int [] stats_new = new int [NUM_STATS];
+			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+			final int numThreads = threads.length;
+			final int [][] stats_all = new int [numThreads][stats_new.length];
+			final AtomicInteger ai_numThread = new AtomicInteger(0);
+			final AtomicInteger ai = new AtomicInteger(0);
+			final TileNeibs tnImage =   new TileNeibs(imageTilesX, imageTilesY);
+			final TileNeibs tnSurface = new TileNeibs(stilesX * superTileSize, stilesY * superTileSize);
+			
+			for (int ml = 0; ml < tileLayers.length; ml++) if (tileLayers[ml] != null){
+				final int fml = ml;
+				ai_numThread.set(0);
+				ai.set(0);
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							int numThread = ai_numThread.getAndIncrement(); // unique number of thread to write to rslt_diffs[numThread]
+							for (int nTile = ai.getAndIncrement(); nTile < tileLayers_src[fml].length; nTile = ai.getAndIncrement()) {
+								//nTile is in image, not surface coordinates 
+								int dbg_tileX = nTile % imageTilesX;
+								int dbg_tileY = nTile / imageTilesX;
+								int dl = ((debugLevel > -1) && (dbg_tileX == dbg_X ) && (dbg_tileY == dbg_Y ))?3:0;
+								if (dl > 0){
+									System.out.println("assignFromFarthest, nTile = " + nTile);
+								}
+								if (tileLayers_src[fml][nTile] == 0){ // unassigned only
+									if (dispStrength[fml][1][nTile] > maxStrength){
+										stats_all[numThread][TOO_STRONG] ++;
+									} else {
+										// find number of tiles around (x,y) that have surface connection to this one
+										// (multiple ml count as one), and which one has the lowest disparity
+										int nSurfTile = getSurfaceTileIndex(nTile);
+										double min_disp = Double.NaN;
+										int best_nSurf = -1;
+										int numNeibs = 0;
+										for (int dir  = 0; dir < tnImage.dirs; dir++) {
+											int nTile1 = tnImage.getNeibIndex(nTile,dir);
+											boolean neib_exists = false;
+											if (nTile1 >= 0){
+												for (int ml_other = 0; ml_other < tileLayers_src.length; ml_other++) if (tileLayers_src[ml_other] != null){
+													if (tileLayers_src[ml_other][nTile1] < 0 ) { //
+														neib_exists |= includeImpossible;
+													} else if (tileLayers_src[ml_other][nTile1] > 0 ){
+														int nSurfTile1 = tnSurface.getNeibIndex(nSurfTile,dir);
+														int nSurf = tileData[nSurfTile1][tileLayers_src[ml_other][nTile1] - 1].getNeighbor(tnSurface.opposite(dir));
+														if (nSurf >= 0){
+															neib_exists = true;
+															double disp = tileData[nSurfTile][nSurf].getDisparity();
+															if (!(disp >= min_disp)) {
+																best_nSurf = nSurf;
+																min_disp = disp;
+															}
+														}
+													}
+												}
+											} else {
+												neib_exists = includeImpossible; 
+											}
+											if (neib_exists){
+												numNeibs++;
+											}
+										}
+										if ((numNeibs >= minNeib) && (best_nSurf >= 0)){
+											tileLayers[fml][nTile] = best_nSurf + 1;
+											stats_all[numThread][NEW_ASSIGNED] ++;
+										}
+									}
+								}
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+			}
+			for (int nt = 0; nt < numThreads; nt ++){
+				for (int i = 0 ; i < stats_new.length; i++ ){
+					stats_new[i] += stats_all[nt][i];
+				}
+			}
+			return stats_new;
+		}
 		
 		
 		/**
@@ -1938,11 +2148,11 @@ public class TileSurface {
 		 * @param tileLayers measured tiles assignment (will be modified): -1 - prohibited, 0 - unassigned,
 		 * >0 - number of surface where this tile is assigned plus 1.
 		 * @param tileData per-tile, per layer array of TileData objects specifying surfaces to snap to
-		 * @param dispStrength per measurement layer, combined disparity and strength array ([num_ml [2][])
+		 * @param dispStrength per measurement layer, combined disparity and strength array ([num_ml][2][])
 		 * @param debugLevel debug level
 		 * @param dbg_X debug tile X coordinate
 		 * @param dbg_Y debug tile Y coordinate
-		 * @return 
+		 * @return statistics array
 		 */
 		
 		public int [] assignTilesToSurfaces(
@@ -2362,7 +2572,7 @@ public class TileSurface {
 		}
 		
 		
-		
+/*		
 		public int [][] sortTilesToSurfaces(
 				final double [][][]                            dispStrength,
 				final boolean [][]                             tileSel,
@@ -2392,6 +2602,7 @@ public class TileSurface {
 			}
 			return tileLayers;
 		}
+*/		
 //getNtileDir
 /*
  * 					clt_parameters.plDispNorm, //           =   2.0;  // Normalize disparities to the average if above

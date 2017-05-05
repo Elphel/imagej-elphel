@@ -3641,6 +3641,7 @@ public class SuperTiles{
 	 * Find mutual links between multi-layer planes for supertiles. requires that for each plane there are calculated smalles eigenvalues
 	 * for merging with each plane for each of 8 neighbors 
 	 * @param rquality maximal degradation by merging (does not depend on the total weight)
+	 * @param okMergeEigen if result eigenvalue of the merged planes is below, OK to bypass worst worsening
 	 * @param maxEigen maximal eigenvalue of each of the merged planes
 	 * @param minWeight minimal weight of each of the planes
 	 * @param debugLevel debug level
@@ -3650,6 +3651,7 @@ public class SuperTiles{
 	public void selectNeighborPlanesMutual(
 			final double rquality,
 			final double weakWorsening,
+			final double okMergeEigen,
 			final double dispNorm,
 			final double maxEigen, // maximal eigenvalue of planes to consider
 			final double minWeight, // minimal pain weight to consider
@@ -3759,7 +3761,7 @@ public class SuperTiles{
 																w2); // double w2)
 														double this_rq_norm = this_rq;
 														if ((w1 + w2) < weakWorsening) this_rq_norm *= (w1 + w2) / weakWorsening; // forgive more for weak planes 
-														if (this_rq_norm <= rquality) {   
+														if ((this_rq_norm <= rquality) ||(merge_ev[np] <= okMergeEigen)) {   
 															this_rq /= (w1 + w2); // for comparision reduce this value for stronger planes 
 															if (Double.isNaN(best_rqual) || (this_rq < best_rqual)){ // OK if Double.isNaN(this_rq[np])
 																best_rqual = this_rq;
