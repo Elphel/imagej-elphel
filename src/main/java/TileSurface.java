@@ -1,7 +1,9 @@
 import java.awt.Point;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -2865,6 +2867,58 @@ public class TileSurface {
 			sdfa_instance.showArrays(img_clust,  imageTilesX, imageTilesY, true, title, titles);
 		}
 
+		public int [][] matchPureGrown (
+				final int [][] clusters_grown,
+				final int [][] clusters_pure,
+				final int      debugLevel,
+				final int      dbg_X,
+				final int      dbg_Y)
+		{
+			final int num_grown = getNumClusters(clusters_grown);
+			final int [][] grown_subs = new int [num_grown][];
+			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+			final AtomicInteger ai = new AtomicInteger(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int iparent = ai.getAndIncrement(); iparent < num_grown; iparent = ai.getAndIncrement()) {
+							int num_parent = iparent + 1; // 1-based
+							HashSet<Integer> subs_set = new HashSet<Integer>();
+							for (int nTile = 0; nTile < clusters_grown.length; nTile++) if (clusters_grown[nTile] != null) {
+								for (int nl = 0; nl < clusters_grown[nTile].length; nl++) if (clusters_grown[nTile][nl] == num_parent){
+									if (clusters_pure[nTile] != null){
+										int iclust = clusters_pure[nTile][nl];
+										if (iclust > 0){
+											subs_set.add(new Integer(iclust));
+										}
+									}
+								}
+							}
+							grown_subs[iparent] = new int [subs_set.size()];
+							int indx = 0;
+							for (Integer s:subs_set){
+								grown_subs[iparent][indx++] = s;
+							}
+							Arrays.sort(grown_subs[iparent]);
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			if (debugLevel > -1) {
+				for (int i = 0; i < num_grown; i++){
+					System.out.print("matchPureGrown(): "+ (i+1)+" [");
+					for (int j = 0; j < grown_subs[i].length; j++) {
+						if (j > 0) System.out.print(", ");
+						System.out.print(grown_subs[i][j]);
+					}
+					System.out.println(" ]");
+				}
+			}
+			return null;
+		}
+		
+		
 		public int [] getClusterBBox(
 				final int      numToSplit, // 1-based
 				final int      border,
@@ -3165,7 +3219,9 @@ public class TileSurface {
 							}
 							if (tileEmpty) {
 								if (neibs[dir] < 0){ // should not happen
-									System.out.println("splitCluster(): existing nSurfTile="+nSurfTile+" surface is not connected in direction "+dir);
+									if (debugLevel > 0) {
+										System.out.println("splitCluster(): existing nSurfTile="+nSurfTile+" surface is not connected in direction "+dir);
+									}
 								} else {
 									int nl1 = neibs[dir];
 									if (extracted_cluster[neTile1][nl1]) {
@@ -3315,6 +3371,52 @@ public class TileSurface {
 				}
 			}
 			return selection;
+		}
+		
+		public void mergeAndGrow( // TODO: add result
+				final boolean [][] sel_in,
+				final int          debugLevel,
+				final int          dbg_X,
+				final int          dbg_Y)
+		{
+			System.out.println("mergeAndGrow() start");
+			boolean [][] assigned_sel = extractSelection(
+					debugLevel,
+					dbg_X,
+					dbg_Y);
+			
+			int [][] clusters_pure = enumerateClusters(
+					assigned_sel, //final boolean [][] selection,
+					debugLevel,
+					dbg_X,
+					dbg_Y);
+			clusters_pure = spitConflictClusters(
+					clusters_pure, // final int [][] clusters,
+					debugLevel,
+					dbg_X,
+					dbg_Y);
+
+			boolean [][] grown_sel = growSelection(
+					2,              // int grow,
+					assigned_sel,   // final boolean [][] sel_in,
+					debugLevel,
+					dbg_X,
+					dbg_Y);
+			int [][] clusters_grown = enumerateClusters(
+					grown_sel, //final boolean [][] selection,
+					debugLevel,
+					dbg_X,
+					dbg_Y);
+			int [][] grown_sub_clusters = matchPureGrown (
+					clusters_grown,
+					clusters_pure,
+					debugLevel,
+					dbg_X,
+					dbg_Y);
+					
+			System.out.println("mergeAndGrow() done");
+			
+
 		}
 		
 		

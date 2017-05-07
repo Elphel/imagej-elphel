@@ -3194,6 +3194,13 @@ public class TileProcessor {
 					clusters2a); // int [][] clusters); // final double [][][] dispStrength)
 		}
 		
+		tileSurface.mergeAndGrow( // TODO: add result
+				assigned_sel, // final boolean [][] sel_in,
+				0, // final int           debugLevel,
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+		
+		
 		return true;
 	}	
 	
