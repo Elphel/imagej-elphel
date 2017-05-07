@@ -2867,6 +2867,357 @@ public class TileSurface {
 			sdfa_instance.showArrays(img_clust,  imageTilesX, imageTilesY, true, title, titles);
 		}
 
+		public boolean [][] growClusterOnce( // used from inside threads
+				final boolean [][] cluster_local_pure,
+				final int []       window,
+				final int []       img_indices,				
+				final int []       surf_indices,				
+				final int          debugLevel,
+				final int          dbg_X,
+				final int          dbg_Y)
+				
+		{
+			int num_tiles = img_indices.length;
+			int width =  window[2];
+			int height = window[3];
+			boolean [][] grown_cluster = new boolean [num_tiles][];
+			for (int neTile = 0; neTile < num_tiles; neTile++){
+				if (cluster_local_pure[neTile] != null){
+					grown_cluster[neTile] = cluster_local_pure[neTile].clone();
+				}
+			}
+			int dbg_ntiles1 = 0;
+
+			if (debugLevel > 0) {
+				for (int neTile = 0; neTile < num_tiles; neTile++){
+					if (grown_cluster[neTile] != null){
+						for (int nl = 0; nl < grown_cluster[neTile].length; nl++){
+							if (grown_cluster[neTile][nl]) dbg_ntiles1 ++;
+						}
+					}
+				}
+				System.out.println("growClusterOnce(): number of tiles = "+dbg_ntiles1);
+			}
+			final TileNeibs tnWindow =   new TileNeibs(width,height);
+
+			for (int neTile0 = 0; neTile0 < num_tiles; neTile0++) if (cluster_local_pure[neTile0] != null){
+				for (int nl0 = 0; nl0 < cluster_local_pure[neTile0].length; nl0++){
+					if (cluster_local_pure[neTile0][nl0]){ // source should be single-layer, but ...
+						int nSurfTile0 = surf_indices[neTile0];
+						int [] neibs = tileData[nSurfTile0][nl0].getNeighbors(); 
+
+						for (int dir = 0; dir <  tnWindow.dirs; dir++) {
+							int nl1 = neibs[dir]; 
+							if (nl1 < 0){
+								if (debugLevel >-1) {
+									System.out.println("growClusterOnce(): Expected 8 neighbors for tile nSurfTile0="+
+											nSurfTile0+" neibs["+dir+"] = "+nl1);
+								}
+							} else {
+								int neTile1 = tnWindow.getNeibIndex(neTile0, dir);
+								if (neTile1 >= 0) {
+									if (	((cluster_local_pure[neTile1] == null) || !cluster_local_pure[neTile1][nl1]) &&
+											((grown_cluster[neTile1] == null) || !grown_cluster[neTile1][nl1])) {
+										if (grown_cluster[neTile1] == null) {
+											int nSurfTile1 = surf_indices[neTile1];
+											// should never be null as it is connected from nSurfTile0
+											grown_cluster[neTile1] = new boolean [tileData[nSurfTile1].length];
+										}
+										grown_cluster[neTile1][nl1] = true;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			if (debugLevel > 0) {
+				int dbg_ntiles2 = 0;
+				for (int neTile = 0; neTile < num_tiles; neTile++){
+					if (grown_cluster[neTile] != null){
+						for (int nl = 0; nl < grown_cluster[neTile].length; nl++){
+							if (grown_cluster[neTile][nl]) dbg_ntiles2 ++;
+						}
+					}
+				}
+				System.out.println("growClusterOnce(): new number of tiles = "+dbg_ntiles2+" (was "+dbg_ntiles1+")");
+			}
+			
+			return grown_cluster;
+		}
+		
+		
+		public int [][] mergeNoConflict(
+				final int [][] matchedGrown,
+				final int [][] clusters_grown,
+				final int [][] clusters_pure,
+				final int      debugLevel,
+				final int      dbg_X,
+				final int      dbg_Y)
+		{
+			if (debugLevel >-1){
+				System.out.println("mergeNoConflict(): groups: "+matchedGrown.length);
+			}
+			final int num_grown = matchedGrown.length;
+			final int [][][] pre_merged_subs = new int [num_grown][][];
+			
+			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+			final AtomicInteger ai = new AtomicInteger(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int iGClust = ai.getAndIncrement(); iGClust < num_grown; iGClust = ai.getAndIncrement()) {
+							int num_subs = matchedGrown[iGClust].length;
+							if (num_subs < 2){ // nothing to split
+								pre_merged_subs[iGClust] = new int [num_subs][];
+								if (num_subs > 0) { // should always be so?
+									pre_merged_subs[iGClust][0] = matchedGrown[iGClust].clone();
+								}
+							} else { //>= 2 clusters
+								int nGClust = iGClust + 1;
+								int dl = ((debugLevel > -1) && (num_subs > 3)) ? 3: 0;
+								if (dl > 0){
+									System.out.println("mergeNoConflict(): nGClust: "+nGClust+" num_subs= "+num_subs);
+								}
+								
+								// create window for the grown cluster, it will include all subs
+								int [] window = getClusterBBox(
+										nGClust, // 1-based
+										0, // border,
+										clusters_grown);
+
+								int [][] tile_indices =  getClusterBBoxIndices(
+										window,  // final int [] window,
+										0);      // border); // final int    border) // maybe 0, actual value just saves time
+								int [] img_tile_indices = tile_indices[0]; 
+								int [] surf_tile_indices = tile_indices[1];
+								int num_tiles = img_tile_indices.length;
+								int [] clust_sizes = new int [num_subs];
+								boolean [][][] subs_pure =  new boolean [num_subs][][];
+								boolean [][][] subs_grown = new boolean [num_subs][][];
+								for (int nSub = 0; nSub < num_subs; nSub++){
+									subs_pure[nSub] = extractCluster(
+											matchedGrown[iGClust][nSub],   // final int      numToSplit, // 1-based
+											0, // border,     // final int      border,
+											clusters_pure,    // final int [][] clusters,
+											window,           // final int []   window,
+											img_tile_indices, // final int []   bbox_indices,				
+											debugLevel,       // final int      debugLevel,
+											dbg_X,            // final int      dbg_X,
+											dbg_Y);           // final int      dbg_Y)
+									
+									subs_grown[nSub] = growClusterOnce( // used from inside threads
+											subs_pure[nSub],   // final boolean [][] cluster_local_pure,
+											window,            // final int []   window,
+											img_tile_indices,  // final int []   bbox_indices,				
+											surf_tile_indices, // final int []       surf_indices,				
+											0, // dl, // debugLevel,       // final int      debugLevel,
+											dbg_X,            // final int      dbg_X,
+											dbg_Y);           // final int      dbg_Y)
+								}
+								// now build sets of clusters
+								// a) connected to current (and having higher number)
+								// b) conflicting with current (and having higher number)
+								ArrayList<HashSet<Integer>> touching_list = new ArrayList<HashSet<Integer>>(); 
+								ArrayList<HashSet<Integer>> conflict_list = new ArrayList<HashSet<Integer>>();
+								for (int nSub = 0; nSub < num_subs; nSub++){
+									touching_list.add(new HashSet<Integer>());
+									conflict_list.add(new HashSet<Integer>());
+								}
+								for (int neTile = 0; neTile < num_tiles; neTile++){
+									for (int nSub = 0; nSub < num_subs; nSub++){
+										if (subs_grown[nSub][neTile] != null){
+											for (int nl1 = 0; nl1 < subs_grown[nSub][neTile].length; nl1++){
+												if (subs_grown[nSub][neTile][nl1]){
+													clust_sizes[nSub] ++;
+													for (int nSub2 = nSub+1; nSub2 < num_subs; nSub2++) if (subs_grown[nSub2][neTile] != null){
+														for (int nl2 = 0; nl2 < subs_grown[nSub2][neTile].length; nl2++){ //*
+															if (subs_grown[nSub2][neTile][nl2]){
+																if (nl1 == nl2) {
+																	touching_list.get(nSub).add(new Integer(nSub2));
+																	touching_list.get(nSub2).add(new Integer(nSub)); // both ways
+																} else {
+																	conflict_list.get(nSub).add(new Integer(nSub2));
+																	conflict_list.get(nSub2).add(new Integer(nSub)); // both ways
+																}
+															}
+														}
+													}
+												}
+											}
+										}
+									}
+								}
+								
+								ArrayList<HashSet<Integer>> groups_list = new ArrayList<HashSet<Integer>>();
+								HashSet<Integer> clusters_left = new HashSet<Integer>();
+								for (int nSub = 0; nSub < num_subs; nSub++){
+									clusters_left.add(new Integer(nSub));
+								}
+								while (!clusters_left.isEmpty()){
+									HashSet<Integer> new_group = new HashSet<Integer>();
+									HashSet<Integer> candidates = new HashSet<Integer>();
+									HashSet<Integer> conflicts = new HashSet<Integer>();
+//									HashSet<Integer> touching = new HashSet<Integer>();
+									
+									// start with the largest of the remaining clusters
+									Integer best_sub = -1;
+									for (Integer sc:clusters_left){
+										if ((best_sub < 0) || (clust_sizes[best_sub] < clust_sizes[sc])){
+											best_sub = sc;
+										}
+									}
+									if ( !clusters_left.remove(best_sub)) {
+										System.out.println("mergeNoConflict() bug: can not remove"+best_sub);
+									}
+									new_group.add(best_sub);
+									conflicts.addAll(conflict_list.get(best_sub));    // keep track of all accumulated conflicts
+									candidates.addAll(touching_list.get(best_sub));   // add all clusters that are touching the current selection
+									candidates.removeAll(conflicts);                  // remove all conflicts
+									
+									while (!candidates.isEmpty()) { // add more clusters if possible
+										// Find the largest one
+										best_sub = -1;
+										for (Integer sc:candidates){
+											if ((best_sub < 0) || (clust_sizes[best_sub] < clust_sizes[sc])){
+												best_sub = sc;
+											}
+										}
+										// add that new cluster
+										clusters_left.remove(best_sub);
+										new_group.add(best_sub);
+										conflicts.addAll(conflict_list.get(best_sub));    // keep track of all accumulated conflicts
+										candidates.addAll(touching_list.get(best_sub));   // add all clusters that are touching the current selection
+										candidates.removeAll(conflicts);                  // remove all conflicts
+										candidates.removeAll(new_group);                  // remove all what is already included
+									}
+									groups_list.add(new_group);
+								}
+								pre_merged_subs[iGClust] = new int [groups_list.size()][];
+								for (int ng = 0; ng < groups_list.size(); ng++) {
+									pre_merged_subs[iGClust][ng] = new int [groups_list.get(ng).size()];
+									int nc = 0;
+									for (Integer cl: groups_list.get(ng)){
+										pre_merged_subs[iGClust][ng][nc++] = cl;
+									}
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			// "flatten" pre_merged_subs
+			int num_new_groups = 0;
+			for (int ng = 0; ng < pre_merged_subs.length; ng ++) {
+				num_new_groups += pre_merged_subs[ng].length;
+			}
+			if (debugLevel >-1){
+				System.out.println("mergeNoConflict(): groups: " + num_new_groups + " (was : "+matchedGrown.length+")");
+			}
+			final int [][] merged_subs = new int [num_new_groups][];
+			int indx = 0;
+			for (int ng = 0; ng < pre_merged_subs.length; ng ++) {
+				for (int nc = 0; nc < pre_merged_subs[ng].length; nc ++){
+					merged_subs[indx++] = pre_merged_subs[ng][nc];
+				}
+			}
+			
+			if (debugLevel > -1) {
+				for (int i = 0; i < num_new_groups; i++){
+					System.out.print("mergeNoConflict(): "+ (i+1)+" [");
+					for (int j = 0; j < merged_subs[i].length; j++) {
+						if (j > 0) System.out.print(", ");
+						System.out.print(merged_subs[i][j]);
+					}
+					System.out.println(" ]");
+				}
+			}
+			
+			return merged_subs;
+			
+		}
+		
+		
+		/**
+		 * Grow each of the clusters (encoded as positive cluster numbers per tile per layer) by 1 in each
+		 * of 8 directions. As they now may overlap they are encoded in boolean array [cluster][tile][layer]
+		 * @param clusters_pure cluster numbers (>0) for each tile, each layer
+		 * @param debugLevel
+		 * @param dbg_X
+		 * @param dbg_Y
+		 * @return boolean array [cluster-1][tile][layer]
+		 */
+		public boolean [][][] growEachCluster (
+				final int [][] clusters_pure,
+				final int      debugLevel,
+				final int      dbg_X,
+				final int      dbg_Y)
+		{
+			final int num_clusters = getNumClusters(clusters_pure);
+			final boolean [][][] clusters = new boolean [num_clusters][clusters_pure.length][];
+			final TileNeibs tnImage =   new TileNeibs(imageTilesX, imageTilesY);
+
+			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+			final AtomicInteger ai = new AtomicInteger(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int iClust = ai.getAndIncrement(); iClust < num_clusters; iClust = ai.getAndIncrement()) {
+							int nClust = iClust + 1; // 1-based
+							for (int nTile0 = 0; nTile0 < clusters_pure.length; nTile0++) if (clusters_pure[nTile0] != null){
+								for (int nl0 = 0; nl0 < clusters_pure[nTile0].length; nl0++){
+									if (clusters_pure[nTile0][nl0] == nClust){ // source should be single-layer, but ...
+										if (clusters[iClust][nTile0]==null) {
+											clusters[iClust][nTile0] = new boolean [clusters_pure[nTile0].length];
+										}
+										clusters[iClust][nTile0][nl0] = true;
+										int nSurfTile0 = getSurfaceTileIndex(nTile0);
+										int [] neibs = tileData[nSurfTile0][nl0].getNeighbors(); 
+
+										for (int dir = 0; dir <  tnImage.dirs; dir++) {
+											int nl1 = neibs[dir]; 
+											if (nl1 < 0){
+												if (debugLevel >-1) {
+													System.out.println("growEachCluster(): Expected 8 neighbors for tile nSurfTile0="+
+															nSurfTile0+" neibs["+dir+"] = "+nl1);
+												}
+												int nTile1 = tnImage.getNeibIndex(nTile0, dir);
+												if (nTile1 >= 0) {
+													if (	((clusters_pure[nTile1] == null) || (clusters_pure[nTile1][nl1] != nClust)) &&
+															((clusters[iClust][nTile1] == null) || !clusters[iClust][nTile1][nl1])) {
+														if (clusters[iClust][nTile1] == null) {
+															int nSurfTile1 = getSurfaceTileIndex(nTile1);
+															clusters[iClust][nTile1] =  new boolean [tileData[nSurfTile1].length];
+														}
+														clusters[iClust][nTile1][nl1] = true;
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			
+			
+			return clusters;
+		}
+		
+		
+		/**
+		 * Match grown/merged clusters to the ones they were made of
+		 * @param clusters_grown per-tile, per layer array of positive merged cluster numbers (0 - empty)
+		 * @param clusters_pure per-tile, per layer array of positive pure cluster numbers (0 - empty)
+		 * @param debugLevel
+		 * @param dbg_X
+		 * @param dbg_Y
+		 * @return array for each of the merged clusters array of pure cluster numbers it is made of
+		 */
 		public int [][] matchPureGrown (
 				final int [][] clusters_grown,
 				final int [][] clusters_pure,
@@ -2915,7 +3266,7 @@ public class TileSurface {
 					System.out.println(" ]");
 				}
 			}
-			return null;
+			return grown_subs;
 		}
 		
 		
@@ -3413,7 +3764,15 @@ public class TileSurface {
 					debugLevel,
 					dbg_X,
 					dbg_Y);
-					
+			
+			int [][] merged_no_conflict = mergeNoConflict(
+					grown_sub_clusters,
+					clusters_grown,
+					clusters_pure,
+					debugLevel,
+					dbg_X,
+					dbg_Y);
+ 					
 			System.out.println("mergeAndGrow() done");
 			
 
