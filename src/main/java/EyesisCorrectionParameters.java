@@ -2128,6 +2128,7 @@ public class EyesisCorrectionParameters {
   		public int        stSmplNum         = 3;      // Number after removing worst
   		public double     stSmplRms         = 0.1;    // Maximal RMS of the remaining tiles in a sample
   		
+  		public int        stGrowSel         = 2;     // Grow initial selection before processing supertiles, odd - ortho. <0 - use all tiles
   		public int        stMeasSel         = 1;     // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
   		
   		public double     stSmallDiff       = 0.4;   // Consider merging initial planes if disparity difference below
@@ -2216,6 +2217,7 @@ public class EyesisCorrectionParameters {
   		public double     msScaleProj          =   1.5;  // Scale projection of the plane ellipsoid 
   		public double     msFractUni           =   0.3;  // Spread this fraction of the ellipsoid weight among extended (double) supertile
   		
+		public boolean    tsNoEdge             = true;   // Do not assigned tiles to thesurface edges (not having all 8 neighbors)
   		public double     tsMaxDiff            = 0.3;    // Maximal disparity difference when assigning tiles
 		public double     tsMinDiffOther       = 0.35;   // Minimal disparity difference to be considered as a competitor surface
 		public double     tsMinStrength        = 0.05;   // Minimal tile correlation strength to be assigned
@@ -2246,6 +2248,7 @@ public class EyesisCorrectionParameters {
 		public boolean    tsLoopMulti          = true;   // Repeat multi-choice assignment while succeeding 
 		public boolean    tsReset              = false;  // Reset tiles to surfaces assignment
 		public boolean    tsShow               = false;  // Show results of tiles to surfaces assignment
+		public int        tsNumClust           = 50;     // Number of clusters to keep 
   		
   		public boolean    replaceWeakOutlayers =   true; // false; 
   		
@@ -2473,6 +2476,7 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"stSmplNum",        this.stSmplNum+"");
 			properties.setProperty(prefix+"stSmplRms",        this.stSmplRms +"");
 
+			properties.setProperty(prefix+"stGrowSel",        this.stGrowSel+"");
 			properties.setProperty(prefix+"stMeasSel",        this.stMeasSel+"");
 			properties.setProperty(prefix+"stSmallDiff",      this.stSmallDiff +"");
 			properties.setProperty(prefix+"stHighMix",        this.stHighMix +"");
@@ -2552,6 +2556,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"msScaleProj",      this.msScaleProj +"");
 			properties.setProperty(prefix+"msFractUni",       this.msFractUni +"");
 
+			properties.setProperty(prefix+"tsNoEdge",         this.tsNoEdge+"");
 			properties.setProperty(prefix+"tsMaxDiff",        this.tsMaxDiff +"");
 			properties.setProperty(prefix+"tsMinDiffOther",   this.tsMinDiffOther +"");
 			properties.setProperty(prefix+"tsMinStrength",    this.tsMinStrength +"");
@@ -2577,6 +2582,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"tsRemoveWeak2",    this.tsRemoveWeak2+"");
 			properties.setProperty(prefix+"tsLoopMulti",      this.tsLoopMulti+"");
 			properties.setProperty(prefix+"tsShow",           this.tsShow+"");
+			properties.setProperty(prefix+"tsNumClust",       this.tsNumClust +"");
 			
 			properties.setProperty(prefix+"dbg_migrate",            this.dbg_migrate+"");
   			
@@ -2796,6 +2802,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"stSmplNum")!=null)         this.stSmplNum=Integer.parseInt(properties.getProperty(prefix+"stSmplNum"));
   			if (properties.getProperty(prefix+"stSmplRms")!=null)         this.stSmplRms=Double.parseDouble(properties.getProperty(prefix+"stSmplRms"));
 
+  			if (properties.getProperty(prefix+"stGrowSel")!=null)         this.stGrowSel=Integer.parseInt(properties.getProperty(prefix+"stGrowSel"));
   			if (properties.getProperty(prefix+"stMeasSel")!=null)         this.stMeasSel=Integer.parseInt(properties.getProperty(prefix+"stMeasSel"));
   			if (properties.getProperty(prefix+"stSmallDiff")!=null)       this.stSmallDiff=Double.parseDouble(properties.getProperty(prefix+"stSmallDiff"));
   			if (properties.getProperty(prefix+"stHighMix")!=null)         this.stHighMix=Double.parseDouble(properties.getProperty(prefix+"stHighMix"));
@@ -2877,6 +2884,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"msFractUni")!=null)        this.msFractUni=Double.parseDouble(properties.getProperty(prefix+"msFractUni"));
 
 
+  			if (properties.getProperty(prefix+"tsNoEdge")!=null)          this.tsNoEdge=Boolean.parseBoolean(properties.getProperty(prefix+"tsNoEdge"));
   			if (properties.getProperty(prefix+"tsMaxDiff")!=null)         this.tsMaxDiff=Double.parseDouble(properties.getProperty(prefix+"tsMaxDiff"));
   			if (properties.getProperty(prefix+"tsMinDiffOther")!=null)    this.tsMinDiffOther=Double.parseDouble(properties.getProperty(prefix+"tsMinDiffOther"));
   			if (properties.getProperty(prefix+"tsMinStrength")!=null)     this.tsMinStrength=Double.parseDouble(properties.getProperty(prefix+"tsMinStrength"));
@@ -2903,6 +2911,9 @@ public class EyesisCorrectionParameters {
 
   			if (properties.getProperty(prefix+"tsLoopMulti")!=null)       this.tsLoopMulti=Boolean.parseBoolean(properties.getProperty(prefix+"tsLoopMulti"));
   			if (properties.getProperty(prefix+"tsShow")!=null)            this.tsShow=Boolean.parseBoolean(properties.getProperty(prefix+"tsShow"));
+  			if (properties.getProperty(prefix+"tsNumClust")!=null)        this.tsNumClust=Integer.parseInt(properties.getProperty(prefix+"tsNumClust"));
+
+  			
   			if (properties.getProperty(prefix+"dbg_migrate")!=null)       this.dbg_migrate=Boolean.parseBoolean(properties.getProperty(prefix+"dbg_migrate"));
 
   			if (properties.getProperty(prefix+"show_ortho_combine")!=null)     this.show_ortho_combine=Boolean.parseBoolean(properties.getProperty(prefix+"show_ortho_combine"));
@@ -3144,6 +3155,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Number after removing worst",                                                  this.stSmplNum,  0);
   			gd.addNumericField("Maximal RMS of the remaining tiles in a sample",                               this.stSmplRms,  6);
   			
+  			gd.addNumericField("Grow initial selection before processing supertiles, odd - ortho. <0 - use all tiles",this.stGrowSel,  0);
   			gd.addNumericField("Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert",this.stMeasSel,  0);
   			gd.addNumericField("Consider merging initial planes if disparity difference below",                this.stSmallDiff,  6);
   			gd.addNumericField("Consider merging initial planes if jumps between ratio above",                 this.stHighMix,  6);
@@ -3228,6 +3240,7 @@ public class EyesisCorrectionParameters {
 
   			gd.addMessage     ("--- Tiles assignment ---");
   			
+  			gd.addCheckbox    ("Do not assigned tiles to the surface edges (not having all 8 neighbors)",         this.tsNoEdge);
   			gd.addNumericField("Maximal disparity difference when assigning tiles",                               this.tsMaxDiff,  6);
   			gd.addNumericField("Minimal disparity difference to be considered as a competitor surface",           this.tsMinDiffOther,  6);
   			gd.addNumericField("Minimal tile correlation strength to be assigned",                                this.tsMinStrength,  6);
@@ -3254,6 +3267,7 @@ public class EyesisCorrectionParameters {
   			
   			gd.addCheckbox    ("Repeat multi-choice assignment while succeeding",                                 this.tsLoopMulti);
   			gd.addCheckbox    ("Show results of tiles to surfaces assignment",                                    this.tsShow);
+  			gd.addNumericField("Number of clusters to keep",                                                      this.tsNumClust,  0);
   			
   			gd.addCheckbox    ("Test new mode after migration",                                                this.dbg_migrate);
 
@@ -3479,6 +3493,7 @@ public class EyesisCorrectionParameters {
   			this.stSmplNum=       (int) gd.getNextNumber();
   			this.stSmplRms=             gd.getNextNumber();
   			
+  			this.stGrowSel=       (int) gd.getNextNumber();
   			this.stMeasSel=       (int) gd.getNextNumber();
   			this.stSmallDiff=           gd.getNextNumber();
   			this.stHighMix=             gd.getNextNumber();
@@ -3560,6 +3575,7 @@ public class EyesisCorrectionParameters {
   			this.msScaleProj=           gd.getNextNumber();
   			this.msFractUni=            gd.getNextNumber();
 
+  			this.tsNoEdge=              gd.getNextBoolean();
   			this.tsMaxDiff=             gd.getNextNumber();
   			this.tsMinDiffOther=        gd.getNextNumber();
   			this.tsMinStrength=         gd.getNextNumber();
@@ -3587,6 +3603,7 @@ public class EyesisCorrectionParameters {
   			
   			this.tsLoopMulti=           gd.getNextBoolean();
   			this.tsShow               = gd.getNextBoolean();
+  			this.tsNumClust =     (int) gd.getNextNumber();
   			
   			this.dbg_migrate=           gd.getNextBoolean();
 
@@ -3609,6 +3626,7 @@ public class EyesisCorrectionParameters {
   		
   		public boolean showTsDialog() {
   			GenericDialog gd = new GenericDialog("Set CLT tiles to surfaces assignment parameters");
+  			gd.addCheckbox    ("Do not assigned tiles to the surface edges (not having all 8 neighbors)",         this.tsNoEdge);
   			gd.addNumericField("Maximal disparity difference when assigning tiles",                               this.tsMaxDiff,  6);
   			gd.addNumericField("Minimal disparity difference to be considered as a competitor surface",           this.tsMinDiffOther,  6);
   			gd.addNumericField("Minimal tile correlation strength to be assigned",                                this.tsMinStrength,  6);
@@ -3635,10 +3653,12 @@ public class EyesisCorrectionParameters {
   			
   			gd.addCheckbox    ("Repeat multi-choice assignment while succeeding",                                 this.tsLoopMulti);
   			gd.addCheckbox    ("Show results of tiles to surfaces assignment",                                    this.tsShow);
+  			gd.addNumericField("Number of clusters to keep",                                                      this.tsNumClust,  0);
   			
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
   			if (gd.wasCanceled()) return false;
+  			this.tsNoEdge=              gd.getNextBoolean();
   			this.tsMaxDiff=             gd.getNextNumber();
   			this.tsMinDiffOther=        gd.getNextNumber();
   			this.tsMinStrength=         gd.getNextNumber();
@@ -3666,6 +3686,7 @@ public class EyesisCorrectionParameters {
   			
   			this.tsLoopMulti=           gd.getNextBoolean();
   			this.tsShow               = gd.getNextBoolean();
+  			this.tsNumClust=      (int) gd.getNextNumber();
   			return true;
   		}
   		

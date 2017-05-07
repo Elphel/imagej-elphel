@@ -781,4 +781,55 @@ public class MeasuredLayers {
 		}
 		return ds;
 	}
+	
+
+	public void growSelection(
+			int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+			boolean [] tiles,
+			boolean [] prohibit)
+	{
+		boolean [] src_tiles = tiles.clone(); // just in case
+		// grow
+		boolean hor = true;
+		for (; grow > 0; grow--){
+			boolean single = (grow ==1) && hor;
+			src_tiles = tiles.clone();
+			if (hor){
+				for (int tileY = 0; tileY < tilesY; tileY++){
+					for (int tileX = 0; tileX < (tilesX - 1); tileX++){
+						int tindx = tileY * tilesX + tileX;
+						if ((prohibit == null) || (!prohibit[tindx] && !prohibit[tindx + 1])) {
+							tiles[tindx + 1] |= src_tiles[tindx];  
+						}
+
+					}
+					for (int tileX = 1; tileX < tilesX; tileX++){
+						int tindx = tileY * tilesX + tileX;
+						if ((prohibit == null) || (!prohibit[tindx] && !prohibit[tindx - 1])) {
+							tiles[tindx - 1] |= src_tiles[tindx];
+						}
+					}
+				}
+			}
+			if (!hor || single){ // do vertically, but from previous state
+				for (int tileX = 0; tileX < tilesX; tileX++){
+					for (int tileY = 0; tileY < (tilesY - 1); tileY++){
+						int tindx = tileY * tilesX + tileX;
+						if ((prohibit == null) || (!prohibit[tindx] && !prohibit[tindx + tilesX])) {
+							tiles[tindx + tilesX] |= src_tiles[tindx];
+						}
+
+					}
+					for (int tileY = 1; tileY < tilesY; tileY++){
+						int tindx = tileY * tilesX + tileX;
+						if ((prohibit == null) || (!prohibit[tindx] && !prohibit[tindx - tilesX])) {
+							tiles[tindx - tilesX] |= src_tiles[tindx];
+						}
+					}
+				}
+			}
+			hor = !hor;
+		}
+	}
+	
 }

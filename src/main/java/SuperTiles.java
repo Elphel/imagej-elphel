@@ -1699,11 +1699,13 @@ public class SuperTiles{
 							// find average disparity for the supertile (improve?)
 							double sd = 0.0, sw = 0.0;
 							for (int ml = 0; ml < plane_disp_strength[nsTile].length; ml++) if ((stMeasSel & ( 1 << ml)) != 0){
-								for (int i = 0; i < plane_disp_strength[nsTile][ml][1].length; i++){
-									double w = plane_disp_strength[nsTile][ml][1][i];
-									double d = plane_disp_strength[nsTile][ml][0][i];
-									sd += w * d;
-									sw += w;
+								if ((plane_disp_strength[nsTile] !=null) && (plane_disp_strength[nsTile][ml] !=null)  && (plane_disp_strength[nsTile][ml][1] !=null)) {
+									for (int i = 0; i < plane_disp_strength[nsTile][ml][1].length; i++){
+										double w = plane_disp_strength[nsTile][ml][1][i];
+										double d = plane_disp_strength[nsTile][ml][0][i];
+										sd += w * d;
+										sw += w;
+									}
 								}
 							}
 							if (sw > 0) {
@@ -2008,6 +2010,7 @@ public class SuperTiles{
 	// Sort plane data by center (plane or supertile) disparity
 	
 	public boolean [][][][]  initialDiscriminateTiles(
+			final int        growSelection,                     // grow initial selection before processing 
 			final int        stMeasSel,       //      = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			final double     plDispNorm,
 			final int        plMinPoints, //          =     5;  // Minimal number of points for plane detection
@@ -2049,14 +2052,25 @@ public class SuperTiles{
 //		final TilePlanes tpl = new TilePlanes(tileSize,superTileSize, geometryCorrection);
 		final int num_layers = measuredLayers.getNumLayers();
 		final int num_tiles = 4 * superTileSize * superTileSize;
-		
-		measuredLayers.setLayer (
+		boolean [] grown_selection = null;
+		if (growSelection >= 0) {
+			grown_selection = cltPass3d.getSelected();
+			if (growSelection > 0) {
+				grown_selection = grown_selection.clone();
+				measuredLayers.growSelection(
+						growSelection, // grow,
+						grown_selection, // tiles,
+						null); // prohibit);
+			}
+		}
+		measuredLayers.setLayer ( // overwrite?
 				0, // int       num_layer,
 				cltPass3d.getDisparity(), // double [] disparity,
 				cltPass3d.getStrength(), // double [] strength,
-				null); // boolean [] selection) // may be null
+				grown_selection); // null); // boolean [] selection) // may be null
 		if (debugLevel > -1) {
-			String [] titles = {"d0","s0","d1","s1","d2","s2","d3","s3","s","d"};
+			String [] titles = {"d0","s0","d1","s1","d2","s2","d3","s3","s","d","selection"};
+			boolean [] dbg_sel= grown_selection; // cltPass3d.getSelected(); 
 			double [][] dbg_img = new double [titles.length][];
 			for (int i = 0; i < measuredLayers.getNumLayers(); i++){
 				dbg_img[2 * i] =     measuredLayers.getDisparity(i);
@@ -2064,6 +2078,10 @@ public class SuperTiles{
 			}
 			dbg_img[8] = cltPass3d.getDisparity();
 			dbg_img[9] = cltPass3d.getStrength();
+			dbg_img[10]= new double [dbg_sel.length];
+			for (int i = 0; i < dbg_sel.length; i++){
+				dbg_img[10][i] = ((dbg_sel == null) || dbg_sel[i])? 1.0:0.0;
+			}
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
 			sdfa_instance.showArrays(dbg_img,  tileProcessor.getTilesX(), tileProcessor.getTilesY(), true, "measuredLayers",titles);
 		}
@@ -2442,6 +2460,7 @@ public class SuperTiles{
 
 	
 	public void processPlanes5(
+			final int        growSelection,                     // grow initial selection before processing 
 			final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			final double     plDispNorm,
 			final int        plMinPoints, //          =     5;  // Minimal number of points for plane detection
@@ -2461,7 +2480,7 @@ public class SuperTiles{
 			final double     bin_blur_vert,  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
 			final double     max_diff_hor,   // maximal disparity difference (to assign to a cluster (of Double.NaN) at first run for horizontal planes
 			final double     max_diff_vert,  // maximal disparity difference (to assign to a cluster (of Double.NaN) at first run for vertical plane
-			final int        max_tries,       // on last run - assign all rfemaining pixels to some cluster (disregard max_diff)
+			final int        max_tries,       // on last run - assign all remaining pixels to some cluster (disregard max_diff)
 
 			final boolean    msUseSel,        // final boolean                   use_sel,
 			final boolean    msDivideByArea,  // final boolean                   divide_by_area,
@@ -2482,6 +2501,7 @@ public class SuperTiles{
 		// Sort plane data by center (plane or supertile) disparity
 		
 		boolean [][][][]  plane_selections = initialDiscriminateTiles(
+				growSelection,        // final int        growSelection,                     // grow initial selection before processing 
 				stMeasSel,            // final int        stMeasSel,       //      = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 				plDispNorm,           // final double     plDispNorm,
 				plMinPoints,          // final int        plMinPoints, //          =     5;  // Minimal number of points for plane detection

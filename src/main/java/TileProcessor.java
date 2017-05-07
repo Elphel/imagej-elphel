@@ -2972,6 +2972,7 @@ public class TileProcessor {
         // assign tiles that do not depend on other assigned tiles - single pass
 		if (clt_parameters.tsEnSingle) {
 			int [] stats=  tileSurface.assignTilesToSurfaces(
+					clt_parameters.tsNoEdge ,         // final boolean       noEdge,
 					clt_parameters.tsMaxDiff,       //final double        maxDiff,
 					clt_parameters.tsMinDiffOther,  //final double        minDiffOther, // should be >= maxDiff
 					clt_parameters.tsMinStrength,   //final double        minStrength,
@@ -2999,6 +3000,7 @@ public class TileProcessor {
 		if (clt_parameters.tsEnMulti) {
 			for (int nTry = 0; nTry < 100; nTry++) {
 				int [] stats=  tileSurface.assignTilesToSurfaces(
+						clt_parameters.tsNoEdge ,         // final boolean       noEdge,
 						clt_parameters.tsMaxDiff,       //final double        maxDiff,
 						clt_parameters.tsMinDiffOther,  //final double        minDiffOther, // should be >= maxDiff
 						clt_parameters.tsMinStrength,   //final double        minStrength,
@@ -3044,6 +3046,7 @@ public class TileProcessor {
 		if (clt_parameters.tsGrowSurround) {
 			for (int nTry = 0; nTry < 100; nTry++) {
 				int [] stats=  tileSurface.assignFromFarthest(
+						clt_parameters.tsNoEdge ,         // final boolean       noEdge,
 						clt_parameters.tsMinNeib ,        // final int           minNeib,           // **
 						clt_parameters.tsMaxSurStrength , // final double        maxStrength,       // **
 						clt_parameters.tsCountDis,        // final boolean       includeImpossible, // ** // count prohibited neighbors as assigned
@@ -3086,6 +3089,111 @@ public class TileProcessor {
 					"assignments", // String title,
 					dispStrength); // final double [][][] dispStrength)
 		}
+		boolean [][] assigned_sel = tileSurface.extractSelection(
+				0, // final int           debugLevel,
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+
+		
+		int [][] clusters1 = tileSurface.enumerateClusters(
+				assigned_sel, //final boolean [][] selection,
+				0, // final int           debugLevel,
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+		
+		int [][] cluster_stats1 = tileSurface.clusterStats(
+				clusters1, // int [][] clusters,
+				0, // final int           debugLevel,
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+
+		tileSurface.showClusterStats(
+				cluster_stats1, // int [][] cluster_stats,
+				clt_parameters.tsNumClust); // int max_clusters){
+		
+		if (clt_parameters.tsShow){
+			tileSurface.showClusters(
+					"clusters_individual", // String title,
+					cluster_stats1, // int [][] cluster_stats,
+					clt_parameters.tsNumClust, // int max_clusters
+					clusters1); // int [][] clusters); // final double [][][] dispStrength)
+		}
+		
+		// Try splitting (currently no initial conflicts):
+		int [][] clusters1a = tileSurface.spitConflictClusters(
+				clusters1, // final int [][] clusters,
+				0, // final int           debugLevel,
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+		int [][] cluster_stats1a = tileSurface.clusterStats(
+				clusters1a, // int [][] clusters,
+				0, // final int           debugLevel,
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+
+		tileSurface.showClusterStats(
+				cluster_stats1a, // int [][] cluster_stats,
+				clt_parameters.tsNumClust); // int max_clusters){
+
+		
+		
+		
+		boolean [][] grown_sel = tileSurface.growSelection(
+				2,              // int grow,
+				assigned_sel,   // final boolean [][] sel_in,
+				0,              // final int debugLevel,
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+
+		int [][] clusters2 = tileSurface.enumerateClusters(
+				grown_sel,      // final boolean [][] selection,
+				0,              // final int           debugLevel,
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+
+		int [][] cluster_stats2 = tileSurface.clusterStats(
+				clusters2, // int [][] clusters,
+				0, // final int           debugLevel,
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+
+		tileSurface.showClusterStats(
+				cluster_stats2, // int [][] cluster_stats,
+				clt_parameters.tsNumClust); // int max_clusters){
+		
+		if (clt_parameters.tsShow){
+			tileSurface.showClusters(
+					"clusters_merged", // String title,
+					cluster_stats2, // int [][] cluster_stats,
+					clt_parameters.tsNumClust, // int max_clusters
+					clusters2); // int [][] clusters); // final double [][][] dispStrength)
+		}
+		
+		// Just for testing: splitting combined clusters
+		int [][] clusters2a = tileSurface.spitConflictClusters(
+				clusters2, // final int [][] clusters,
+				0, // final int           debugLevel,
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+		
+		int [][] cluster_stats2a = tileSurface.clusterStats(
+				clusters2a, // int [][] clusters,
+				0, // final int           debugLevel,
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+
+		tileSurface.showClusterStats(
+				cluster_stats2a, // int [][] cluster_stats,
+				clt_parameters.tsNumClust); // int max_clusters){
+
+		if (clt_parameters.tsShow){
+			tileSurface.showClusters(
+					"clusters_merged_split", // String title,
+					cluster_stats2a, // int [][] cluster_stats,
+					clt_parameters.tsNumClust, // int max_clusters
+					clusters2a); // int [][] clusters); // final double [][][] dispStrength)
+		}
+		
 		return true;
 	}	
 	
@@ -3192,6 +3300,7 @@ public class TileProcessor {
 			// separate each supertile data into clusters, trying both horizontal and perpendicular to view planes
 			double []  world_hor = {0.0, 1.0, 0.0};
 			st.processPlanes5(
+					clt_parameters.stGrowSel,       // = 2; // = -1;  //Grow initial selection before processing supertiles, odd - ortho. <0 - use all tiles
 					clt_parameters.stMeasSel,       //      =     1   //Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 					clt_parameters.plDispNorm,      //      =   2.0;  // Normalize disparities to the average if above
 					clt_parameters.plMinPoints,     //      =     5;  // Minimal number of points for plane detection

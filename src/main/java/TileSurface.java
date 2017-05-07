@@ -63,6 +63,17 @@ public class TileSurface {
 		static int REMOVED_TILES =    6; // number of removed tiles in weak clusters
 		static int REMOVED_CLUSTERS = 7; // number of removed weak clusters
 		static int NUM_STATS =        8;
+
+		static int CLUST_NUM_INDEX =       0;
+		static int CLUST_NUM_TILES =       1;
+		static int CLUST_NUM_LAYERS =      2;
+		static int CLUST_NUM_OVERLAPS =    3;
+		static int CLUST_NUM_MULTI =       4;
+		static int CLUST_NUM_CONFLICTS_A = 5;
+		static int CLUST_NUM_CONFLICTS_B = 6;
+		static int CLUST_NUM_STATS =       7;
+		
+		
 		
 //		private int nsTilesstSize =   0; // 8;
 		GeometryCorrection   geometryCorrection = null;
@@ -1766,6 +1777,7 @@ public class TileSurface {
 		
 		/**
 		 * Assign tiles to a certain disparity surface if there is only one surface candidate
+		 * @param noEdge do not assign tiles to the surface edges (can not add border later)
 		 * @param maxDiff maximal (normalized) disparity difference
 		 * @param minDiffOther minimal disparity difference to closest 2-nd place candidate
 		 * @param minStrength minimal processed (floor subtracted) correlation strength of the candidate 
@@ -1782,6 +1794,7 @@ public class TileSurface {
 		 * @return 
 		 */
 		public int [] assignTilesToSingleCandidate(
+				final boolean       noEdge,
 				final double        maxDiff,
 				final double        minDiffOther,
 				final double        minStrength,
@@ -1829,18 +1842,31 @@ public class TileSurface {
 											int num_fit = 0;
 											int num_fit_other = 0;
 											int fit = -1;
+											// Eliminate surface edges if prohibited
+											boolean [] bad_surface = new boolean [tileData[nSurfTile].length]; // has less than 8 neighbors if controlled
 											for (int ns = 0; ns < tileData[nSurfTile].length; ns++){
 												double surf_disp_diff = getNormDispFromSurface (
 														dispStrength[fml][0][nTile], // double disp_tile,
 														tileData[nSurfTile][ns].getDisparity(), // double disp_surf,
 														dispNorm); //double disp_norm)
 												if (((surf_disp_diff >= 0) && en_higher) || ((surf_disp_diff <= 0) && en_lower)){
-													if (Math.abs(surf_disp_diff) <= maxDiff){
-														fit = ns;   // no rating for fit "quality" here
-														num_fit ++;
+													// Eliminate surface edges if prohibited
+													if (noEdge){
+														int []neibs = tileData[nSurfTile][ns].getNeighbors();
+														for (int i = 0; i < neibs.length; i++){
+															if (neibs[i] < 0){
+																bad_surface[ns] = true;
+															}
+														}
 													}
-													if (Math.abs(surf_disp_diff) <= minDiffOther){
-														num_fit_other ++;
+													if (!bad_surface[ns]) {
+														if (Math.abs(surf_disp_diff) <= maxDiff){
+															fit = ns;   // no rating for fit "quality" here
+															num_fit ++;
+														}
+														if (Math.abs(surf_disp_diff) <= minDiffOther){
+															num_fit_other ++;
+														}
 													}
 												}
 											}
@@ -2019,6 +2045,7 @@ public class TileSurface {
 		/**
 		 * Assign (weak) tile surrounded by assigned one to the disparity of the farthest tile (lowest disparity).
 		 * This is a single-threaded method
+		 * @param noEdge do not assign tiles to the surface edges (can not add border later)
 		 * @param minNeib minimal number of occupied directions (of 8), several occupied levels count as one
 		 * @param maxStrength maximal strength of the tile to assign (strong one may make trust its disparity after all)
 		 * @param includeImpossible count impossible (blocked, on the image edge,...) tiles as if assigned towards
@@ -2031,6 +2058,7 @@ public class TileSurface {
 		 */
 		
 		public int [] assignFromFarthest(
+				final boolean       noEdge,
 				final int           minNeib,
 				final double        maxStrength,
 				final boolean       includeImpossible, // count prohibited neighbors as assigned
@@ -2094,7 +2122,16 @@ public class TileSurface {
 														if (nSurf >= 0){
 															neib_exists = true;
 															double disp = tileData[nSurfTile][nSurf].getDisparity();
-															if (!(disp >= min_disp)) {
+															boolean bad_surface = false;
+															if (noEdge) {
+																int [] neibs =  tileData[nSurfTile][nSurf].getNeighbors();
+																for (int i = 0; i < neibs.length; i++) if (neibs[i] <0) {
+																	bad_surface = true;
+																	break;
+																}
+															}
+															
+															if (!(disp >= min_disp) && !bad_surface) {
 																best_nSurf = nSurf;
 																min_disp = disp;
 															}
@@ -2131,6 +2168,7 @@ public class TileSurface {
 		
 		/**
 		 * Assign tiles to a certain disparity surface if there is only one surface candidate
+		 * @param noEdge do not assign tiles to the surface edges (can not add border later)
 		 * @param maxDiff maximal (normalized) disparity difference
 		 * @param minDiffOther minimal disparity difference to closest 2-nd place candidate
 		 * @param minStrength minimal processed (floor subtracted) correlation strength of the candidate 
@@ -2156,6 +2194,7 @@ public class TileSurface {
 		 */
 		
 		public int [] assignTilesToSurfaces(
+				final boolean       noEdge,
 				final double        maxDiff,
 				final double        minDiffOther, // should be >= maxDiff
 				final double        minStrength,
@@ -2239,18 +2278,29 @@ public class TileSurface {
 											int num_fit = 0;
 											int num_fit_other = 0;
 											int fit = -1;
+											boolean [] bad_surface = new boolean [tileData[nSurfTile].length]; // has less than 8 neighbors if controlled
 											for (int ns = 0; ns < tileData[nSurfTile].length; ns++){
 												double surf_disp_diff = getNormDispFromSurface (
 														dispStrength[fml][0][nTile], // double disp_tile,
 														tileData[nSurfTile][ns].getDisparity(), // double disp_surf,
 														dispNorm); //double disp_norm)
 												if (((surf_disp_diff >= 0) && en_higher) || ((surf_disp_diff <= 0) && en_lower)){
-													if (Math.abs(surf_disp_diff) <= maxDiff){
-														fit = ns;   // no rating for fit "quality" here
-														num_fit ++;
+													// Eliminate surface edges if prohibited
+													if (noEdge){
+														int []neibs = tileData[nSurfTile][ns].getNeighbors();
+														for (int i = 0; i < neibs.length; i++) if (neibs[i] < 0) {
+															bad_surface[ns] = true;
+															break;
+														}
 													}
-													if (Math.abs(surf_disp_diff) <= minDiffOther){
-														num_fit_other ++;
+													if (!bad_surface[ns]) {
+														if (Math.abs(surf_disp_diff) <= maxDiff){
+															fit = ns;   // no rating for fit "quality" here
+															num_fit ++;
+														}
+														if (Math.abs(surf_disp_diff) <= minDiffOther){
+															num_fit_other ++;
+														}
 													}
 												}
 											}
@@ -2263,12 +2313,9 @@ public class TileSurface {
 												stats_all[numThread][NOT_UNIQUE] ++;
 											} else { // multi, enabled
 												int [] candidates =       new int     [num_fit_other];
-												// reversed mapping - from layer to candidate (-1 = not a candidate)
-//												int [] rcandidates =      new int     [tileData[nSurfTile].length];
-//												for (int i = 0; i < rcandidates.length; i++) rcandidates[i] = -1;
 												boolean [] close_enough = new boolean [num_fit_other];
 												num_fit_other = 0;
-												for (int ns = 0; ns < tileData[nSurfTile].length; ns++){
+												for (int ns = 0; ns < tileData[nSurfTile].length; ns++) if (!bad_surface[ns]){ // not all 8 neighbors
 													double surf_disp_diff = getNormDispFromSurface (
 															dispStrength[fml][0][nTile], // double disp_tile,
 															tileData[nSurfTile][ns].getDisparity(), // double disp_surf,
@@ -2276,7 +2323,6 @@ public class TileSurface {
 													if (((surf_disp_diff >= 0) && en_higher) || ((surf_disp_diff <= 0) && en_lower)){
 														if (Math.abs(surf_disp_diff) <= minDiffOther){
 															close_enough[num_fit_other] = (Math.abs(surf_disp_diff) <= maxDiff);
-//															rcandidates[ns] = num_fit_other;
 															candidates[num_fit_other++] = ns;
 														}
 													}
@@ -2292,8 +2338,6 @@ public class TileSurface {
 												// for each local index get surface tile index
 												int [] surfIndices =  new int [field_size  * field_size];
 												int [] imageIndices = new int [field_size  * field_size];
-//												int stx0 = (nTile % surfTilesX) - iradius; // imageTilesX
-	//											int sty0 = (nTile / surfTilesX) - iradius;
 												int stx0 = (nTile % imageTilesX) - iradius; // 
 												int sty0 = (nTile / imageTilesX) - iradius;
 												for (int iy = 0; iy < field_size; iy++){
@@ -2570,47 +2614,708 @@ public class TileSurface {
 			}
 			return stats;
 		}
+
 		
-		
-/*		
-		public int [][] sortTilesToSurfaces(
-				final double [][][]                            dispStrength,
-				final boolean [][]                             tileSel,
-				final TileData [][]                            tileData_src,
-				// parameters
-				final EyesisCorrectionParameters.CLTParameters clt_parameters,
-                final int                                      debugLevel,
-				final int                                      dbg_X,
-				final int                                      dbg_Y)
+		public boolean [][] extractSelection(
+				final int         debugLevel,
+				final int         dbg_X,
+				final int         dbg_Y)
 		{
-			int [][] tileLayers = new int [tileSel.length][];
-			for (int ml = 0; ml < tileSel.length; ml++){
-				if (tileSel[ml] != null){
-					tileLayers[ml] = new int [tileSel[ml].length];
-					for (int i = 0; i < tileSel[ml].length; i++){
-						tileLayers[ml][i] = tileSel[ml][i] ? 0: -1; // 0 - unassigned, -1 - prohibited	
+			//			boolean [][] wave_conf = new boolean [tileLayers.length][]; // true when wave or if confirmed
+			int num_tiles = 0;
+			for (int ml = 0; ml < tileLayers.length; ml++) if ((tileLayers[ml] != null) && (tileLayers[ml].length > 0)){
+				num_tiles = tileLayers[ml].length;
+				break;
+			}
+			boolean [][] assigned_tiles = new boolean [num_tiles][];
+			for (int ml = 0; ml < tileLayers.length; ml ++) if (tileLayers[ml] != null){
+				for (int nTile0 = 0; nTile0 < tileLayers[ml].length; nTile0++) if (tileLayers[ml][nTile0] > 0) {
+					int nSurfTile = getSurfaceTileIndex(nTile0);
+					if (tileData[nSurfTile] != null) {
+						int l = tileData[nSurfTile].length;
+						assigned_tiles[nTile0] = new boolean [l];
+					}
+					assigned_tiles[nTile0][tileLayers[ml][nTile0]-1] = true;
+				}
+			}
+			return assigned_tiles;
+		}		
+		
+		
+		public int [][] enumerateClusters(
+				final boolean [][] selection,
+				final int          debugLevel,
+				final int          dbg_X,
+				final int          dbg_Y)
+		{
+			int [][] enum_clust = new int [selection.length][];
+			for (int i = 0; i < enum_clust.length; i++){
+				if (selection[i] != null) enum_clust[i] = new int [selection[i].length];
+			}
+			TileNeibs tnImage =   new TileNeibs(imageTilesX, imageTilesY);
+			//			TileNeibs tnSurface = new TileNeibs(stilesX * superTileSize, stilesY * superTileSize);
+			int num_cluster = 1;
+			for (int nTile0 = 0; nTile0 <selection.length; nTile0++) if (selection[nTile0] != null) {
+				for (int nl0 = 0; nl0 < selection[nTile0].length; nl0++) if (selection[nTile0][nl0] && ((enum_clust[nTile0][nl0] == 0))) {
+					ArrayList<Point> wave_list = new ArrayList<Point>();
+					Point p = new Point(nTile0, nl0); // image tile number, surface index (0-based)
+					enum_clust[p.x][p.y] = num_cluster;
+					wave_list.add(p);
+					while (wave_list.size() > 0){
+						Point pt = wave_list.remove(0);
+						int [] neibs = tileData[getSurfaceTileIndex(pt.x)][pt.y].getNeighbors();
+						for (int dir  = 0; dir < tnImage.dirs; dir++) if (neibs[dir] >= 0){
+							int nTile1 = tnImage.getNeibIndex(pt.x, dir);
+							if (nTile1 >= 0) {
+								int nl1 = neibs[dir];
+								if ((selection[nTile1] != null) && selection[nTile1][nl1] && (enum_clust[nTile1][nl1] == 0) ){ // exists and not yet counted
+									Point p1 = new Point(nTile1, nl1);
+									enum_clust[nTile1][nl1] = num_cluster;
+									wave_list.add(p1);
+								}
+							}
+						}
+					}
+					num_cluster ++; 
+				}
+			}
+			num_cluster --;
+			if (debugLevel > -1 ) {
+				System.out.println("enumerateClusters(): found " + num_cluster + " clusters");
+			}
+			return enum_clust;
+		}
+		
+		public int getNumClusters(
+				int [][] clusters)
+		{
+			int max_number = 0;
+			for (int nTile = 0; nTile <clusters.length; nTile++) if (clusters[nTile] != null) {
+				for (int nl = 0; nl < clusters[nTile].length; nl ++){
+					if (clusters[nTile][nl] > max_number){
+						max_number = clusters[nTile][nl];
 					}
 				}
 			}
-			if (debugLevel >= -1) {
-				int []stats = getTilesAssignStats(tileLayers);
-				System.out.println("sortTilesToSurfaces(): using "+stats[STAT_NUM_ML] +" measurement layers"+
-								", number of assigned tiles: "+stats[STAT_ASSIGNED]+
-								", number of unassigned tiles: "+stats[STAT_UNASSIGNED]+
-								", number of prohibited tiles: "+stats[STAT_PROHIBITED]+
-								", number of impossible tiles: "+stats[STAT_IMPOSSIBLE]);
-			}
-			return tileLayers;
+			return max_number;
+			
 		}
-*/		
-//getNtileDir
-/*
- * 					clt_parameters.plDispNorm, //           =   2.0;  // Normalize disparities to the average if above
-
-		double [][][]  dispStrength = st.getDisparityStrengths(
-				clt_parameters.stMeasSel); // int        stMeasSel) //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert)
-		boolean [][] tileSel =  st.getMeasurementSelections(
-				clt_parameters.stMeasSel); // int        stMeasSel) //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert)
 		
- */
+		public int [][] clusterStats(
+				int [][]           clusters,
+				final int          debugLevel,
+				final int          dbg_X,
+				final int          dbg_Y)
+		{
+			TileNeibs tnImage =   new TileNeibs(imageTilesX, imageTilesY);
+			int max_number = getNumClusters(clusters);
+			if (debugLevel > -1){
+				System.out.println("clusterStats(): number of clusters: "+max_number);
+			}
+			int [][] stats0 = new int[max_number][CLUST_NUM_STATS]; // number of tiles, overlaps (each pair), conflicts-a (in dir, but connected to dif.), conflicts-b (no link)
+			for (int nTile = 0; nTile <clusters.length; nTile++) if (clusters[nTile] != null) {
+				for (int nl = 0; nl < clusters[nTile].length; nl ++){
+					int nclust = clusters[nTile][nl];
+					if (nclust > 0) {
+						stats0[nclust - 1][CLUST_NUM_TILES]++;
+						int num_same = 0;
+						for (int nl1 = 0; nl1 < clusters[nTile].length; nl1 ++){
+							if ((nl1 != nl) && (clusters[nTile][nl1] == nclust)){
+								num_same ++;
+							}
+						}
+						if (stats0[nclust - 1][CLUST_NUM_LAYERS] < (num_same + 1)){
+							stats0[nclust - 1][CLUST_NUM_LAYERS] = (num_same + 1);
+						}
+						if (num_same > 0) {
+							stats0[nclust - 1][CLUST_NUM_OVERLAPS]++;
+							if (num_same > 1) {
+								stats0[nclust - 1][CLUST_NUM_MULTI]++;
+							}
+						}
+						if (num_same == 0) { // do not bother with overlapping tiles
+							if (stats0[nclust - 1][CLUST_NUM_LAYERS] == 0){
+								stats0[nclust - 1][CLUST_NUM_LAYERS] = 1;
+							}
+							int [] neibs = tileData[getSurfaceTileIndex(nTile)][nl].getNeighbors();
+							for (int dir  = 0; dir < tnImage.dirs; dir++) if (neibs[dir] >= 0){
+								int nTile1 = tnImage.getNeibIndex(nTile, dir);
+								if ((nTile1 >= 0) && (clusters[nTile1] != null)) {
+									int num_same1 = 0;
+									for (int nl1 = 0; nl1 < clusters[nTile1].length; nl1 ++){
+										if (clusters[nTile1][nl1] == nclust){
+											num_same1 ++;
+										}
+									}
+									if (num_same1 > 0){
+										if (neibs[dir] <0 ){
+											stats0[nclust - 1][CLUST_NUM_CONFLICTS_B]++;
+										} else if (clusters[nTile1][neibs[dir]] != nclust){
+											stats0[nclust - 1][CLUST_NUM_CONFLICTS_A]++;
+										}
+									}
+								}
+							}
+						}
+					}
+				}			
+			}
+			// now sort tiles by the number of tiles in it
+			ArrayList<Point> sort_list = new ArrayList<Point>(max_number);
+			for (int nclust = 0 ; nclust < max_number; nclust++) {
+				sort_list.add(new Point(stats0[nclust][CLUST_NUM_TILES], nclust));
+			}
+			Collections.sort(sort_list, new Comparator<Point>() {
+				@Override
+				public int compare(Point lhs, Point rhs) {
+					// -1 - less than, 1 - greater than, 0 - equal, all inverted for descending
+					return (lhs.x > rhs.x) ? -1 : (lhs.x < rhs.x) ? 1 : 0;
+				}
+			});
+			int [][] stats = new int[max_number][CLUST_NUM_STATS]; // number of tiles, overlaps (each pair), conflicts-a (in dir, but connected to dif.), conflicts-b (no link)
+			for (int i = 0; i < max_number; i++){
+				stats[i] = stats0[sort_list.get(i).y];
+				stats[i][CLUST_NUM_INDEX] = sort_list.get(i).y + 1; // zero-based -> 1-based
+			}
+			return stats;
+		}
+
+		public void showClusterStats(
+				int [][] cluster_stats,
+				int max_clusters){
+			System.out.println("Detected "+cluster_stats.length+" clusters");
+			if (max_clusters == 0){
+				max_clusters = cluster_stats.length;
+			}
+			for (int i = 0; (i < cluster_stats.length) && (i < max_clusters); i++){
+				System.out.print(i+": #"+ cluster_stats[i][CLUST_NUM_INDEX]);
+				System.out.print(  " tiles: "+          cluster_stats[i][CLUST_NUM_TILES]);
+				System.out.print(  " layers: "+         cluster_stats[i][CLUST_NUM_LAYERS]);
+				
+				System.out.print(  " overlaps: "+       cluster_stats[i][CLUST_NUM_OVERLAPS]);
+				System.out.print(  " multi-overlaps: "+ cluster_stats[i][CLUST_NUM_MULTI]);
+				System.out.print(  " coflicts A: "+ cluster_stats[i][CLUST_NUM_CONFLICTS_A]);
+				System.out.print(  " coflicts B: "+ cluster_stats[i][CLUST_NUM_CONFLICTS_B]);
+				System.out.println();
+			}
+		}
+
+		public void showClusters(
+				String title,
+				int [][] cluster_stats,
+				int max_clusters,
+				int [][] clusters)
+		{
+			System.out.println("showClusters("+title+"," +max_clusters+"), numClusters = "+cluster_stats.length);
+
+//			TileNeibs tnImage =   new TileNeibs(imageTilesX, imageTilesY);
+			int num_slices = 0;
+			int num_tiles = clusters.length;
+			if (max_clusters == 0){
+				max_clusters = cluster_stats.length;
+			}
+			if (max_clusters > cluster_stats.length){
+				max_clusters = cluster_stats.length;
+			}
+			for (int i = 0; i < max_clusters; i++){
+				num_slices += cluster_stats[i][CLUST_NUM_LAYERS];
+			}
+			double [][] img_clust = new double [num_slices][num_tiles];
+			for (int i = 0; i < num_slices; i ++){
+				for (int j = 0; j < num_tiles; j ++){
+					img_clust[i][j] = Double.NaN;
+				}
+			}
+			int [] rev_clust = new int [cluster_stats.length];
+			for (int i = 0; i < cluster_stats.length; i ++){
+				rev_clust[cluster_stats[i][CLUST_NUM_INDEX] - 1] = i;
+			}
+			
+			String [] titles = new String [num_slices];
+			int [] slice_first = new int [num_slices];
+			int nslice = 0;
+			for (int i = 0; i < max_clusters; i++){
+				slice_first[i]=nslice;
+				for (int j = 0; j < cluster_stats[i][CLUST_NUM_LAYERS]; j++){
+					titles[nslice++] = "cluster-"+i+((cluster_stats[i][CLUST_NUM_LAYERS]>1)?("_"+j):"");
+				}
+			}
+			
+			for (int nTile = 0; nTile < num_tiles; nTile++) if (clusters[nTile] != null){
+				int nSurfTile = getSurfaceTileIndex(nTile);
+				boolean [] rend = new boolean [clusters[nTile].length];
+				for (int i = 0; i < rend.length; i++) if (!rend[i] && (clusters[nTile][ i] > 0)) { // if (!rend[i] && (rev_clust[clusters[nTile][ i]] < max_clusters)){
+					if (((clusters[nTile][ i] -1) >= rev_clust.length) || ((clusters[nTile][ i] -1) < 0)){
+						System.out.println("showClusters() BUG:, clusters["+nTile+"]["+ i+"]-1 ("+(clusters[nTile][ i] -1)+") >= "+rev_clust.length);
+
+					} else {
+						if (rev_clust[clusters[nTile][ i] - 1] < max_clusters){
+							int clust_index = clusters[nTile][ i] -1;
+							int clust_layer = 0;
+							for (int j = i; j < rend.length; j++) if ((clusters[nTile][ j] -1) == clust_index) {
+								rend[j] = true;
+								img_clust[slice_first[rev_clust[clust_index]] + clust_layer][nTile] = tileData[nSurfTile][j].getDisparity();
+								clust_layer++;
+							}
+						}
+					}
+				}
+			}
+			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+			sdfa_instance.showArrays(img_clust,  imageTilesX, imageTilesY, true, title, titles);
+		}
+
+		public int [] getClusterBBox(
+				final int      numToSplit, // 1-based
+				final int      border,
+				final int [][] clusters)
+		{
+			if (numToSplit == 74) { //177){
+				System.out.println("getClusterBBox() numToSplit="+numToSplit);
+			}
+			int x_max = -1, y_max = -1, x_min = imageTilesX, y_min = imageTilesY;
+			for (int nTile = 0; nTile < clusters.length; nTile++) if (clusters[nTile] != null){
+				for (int nl = 0; nl < clusters[nTile].length; nl++){
+					if (clusters[nTile][nl] == numToSplit){
+						int tX = nTile % imageTilesX;
+						
+						int tY = nTile / imageTilesX;
+						if (tX < x_min) x_min = tX;
+						if (tX > x_max) x_max = tX;
+						if (tY < y_min) y_min = tY;
+						if (tY > y_max) y_max = tY;
+					}
+				}
+			}
+			int x0 = x_min - border; // may be negative
+			int y0 = y_min - border; // may be negative
+			int width = x_max +1 + border - x0; 
+			int height = y_max +1 + border - y0;
+			int [] bbox = {x0, y0, width, height};
+			return bbox;
+		}		
+		
+		public int [][] getClusterBBoxIndices(
+				final int [] window,
+				final int    border) // maybe 0, actual value just saves time
+		{
+			int x0 =     window[0];
+			int y0 =     window[1];
+			int width =  window[2];
+			int height = window[3];
+			int [][] bbox_indices = new int [2][width*height]; // [0] - image index, [1] - surface index
+			int wb = width - border;
+			int hb = height - border;
+			
+			
+			for (int neTile = 0; neTile < bbox_indices[0].length; neTile++){
+				bbox_indices[0][neTile] = -1;
+				bbox_indices[1][neTile] = -1;
+				int bx = neTile % width;
+				int by = neTile / width;
+				if ((by >= border) && (bx >= border) && (by < hb) && (bx < wb)){
+					int tx = bx + x0;
+					int ty = by + y0;
+					if ((tx >= 0) && (ty >= 0) && (tx < imageTilesX) && (ty < imageTilesY)){
+						bbox_indices[0][neTile] = ty * imageTilesX + tx;
+						bbox_indices[1][neTile] = ty * stilesX *superTileSize + tx;
+					}				
+				}
+			}
+			return bbox_indices;
+		}
+		
+		
+		
+		public boolean [][] extractCluster(
+				final int      numToSplit, // 1-based
+				final int      border,
+				final int [][] clusters,
+				final int []   window,
+				final int []   bbox_indices,				
+				final int      debugLevel,
+				final int      dbg_X,
+				final int      dbg_Y)
+		{
+			boolean [][] extracted_cluster = new boolean [bbox_indices.length][];
+			if (numToSplit == 74) { //177){
+				System.out.println("extractCluster() numToSplit="+numToSplit);
+			}
+			
+			for (int neTile = 0; neTile < extracted_cluster.length; neTile++){
+				int nTile = bbox_indices[neTile];
+				if (nTile >= 0){
+					if (clusters[nTile] != null) {
+						boolean has_cluster = false;
+						for (int nl = 0; nl< clusters[nTile].length; nl++){
+							if (clusters[nTile][nl] == numToSplit){
+								has_cluster =true;
+								break;
+							}
+						}
+						if (has_cluster){
+							extracted_cluster[neTile] = new boolean[clusters[nTile].length];
+							for (int nl = 0; nl< clusters[nTile].length; nl++){
+								extracted_cluster[neTile][nl] = (clusters[nTile][nl] == numToSplit); 
+							}
+						}
+					}
+					
+				}
+			}
+			return extracted_cluster;
+		}
+		
+
+		public int [][] spitConflictClusters(
+				final int [][] clusters,
+				final int      debugLevel,
+				final int      dbg_X,
+				final int      dbg_Y)
+		{
+			final int num_clusters = getNumClusters(clusters);
+			if (debugLevel > -1){
+				System.out.println("spitConflictClusters(): number of original clusters = " + num_clusters);
+			}
+//			final int [][]   split_windows =  new int [num_clusters][];   // x,y,w,h for the cluster that is split 
+			final int [][][]   split_indices =  new int [num_clusters][2][];   // for each tile in the window - number of the corresponding image tile or -1
+			final int [][][] split_clusters = new int [num_clusters][][]; // for each tile in the window, a stack of layers, each number of a subcluster or 0
+			final int []     split_number =   new int [num_clusters];     // number of sublusters the parent was split to
+			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+			final AtomicInteger ai = new AtomicInteger(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int numToSplit = ai.getAndIncrement(); numToSplit < num_clusters; numToSplit = ai.getAndIncrement()) {
+							if ((numToSplit + 1) == 74) { //177){
+								System.out.println("extractCluster() numToSplit="+numToSplit);
+							}
+
+							int [] window = getClusterBBox(
+									numToSplit + 1, // 1-based
+									0, // border,
+									clusters);
+
+							split_indices[numToSplit] =  getClusterBBoxIndices(
+									window,  // final int [] window,
+									0);      // border); // final int    border) // maybe 0, actual value just saves time
+
+							boolean [][] extracted_cluster = extractCluster(
+									numToSplit + 1,   // final int      numToSplit, // 1-based
+									0, // border,       // final int      border,
+									clusters,     // final int [][] clusters,
+									window,       // final int []   window,
+									split_indices[numToSplit][0], // final int []   bbox_indices,				
+									debugLevel,   // final int      debugLevel,
+									dbg_X,        // final int      dbg_X,
+									dbg_Y);       // final int      dbg_Y)
+
+							split_clusters[numToSplit] =  splitCluster(
+									numToSplit + 1,        // final int      numToSplit, // 1-based
+									clusters,          // final int [][] clusters,
+									window,            // final int []   window,
+									split_indices[numToSplit][0],      // final int []   bbox_indices,				
+									split_indices[numToSplit][1],      // final int []   bbox_surf_indices,		
+									extracted_cluster, // final boolean [][] extracted_cluster,
+									debugLevel,        // final int      debugLevel,
+									dbg_X,             // final int      dbg_X,
+									dbg_Y);            // final int      dbg_Y)
+							
+							split_number[numToSplit] = 	getNumClusters(split_clusters[numToSplit]);
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			final int [] new_cluster_index = new int [num_clusters];
+			for (int i = 0; i < num_clusters; i++) {
+				if (i == 0) new_cluster_index[i] = 0;
+				else new_cluster_index[i] = new_cluster_index[i-1] + split_number[i-1];
+			}
+			int num_new = new_cluster_index[num_clusters - 1] + split_number[num_clusters - 1];
+			if (debugLevel > -1){
+				System.out.println("spitConflictClusters(): number of new clusters = " + num_new + " ( was " + num_clusters + ")");
+			}
+			final int [][] new_clusters = new int [clusters.length][];
+			for (int i = 0; i < new_clusters.length; i++) if (clusters[i] != null) new_clusters[i] = new int [clusters[i].length];
+			
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int numToSplit = ai.getAndIncrement(); numToSplit < num_clusters; numToSplit = ai.getAndIncrement()) {
+							int numToSplit1 = numToSplit+1;
+							if (numToSplit1 == 74) { //177){
+								System.out.println("extractCluster() numToSplit1="+numToSplit1);
+							}
+							
+							for (int neTile = 0; neTile < split_indices[numToSplit][0].length; neTile++) {
+								int nTile = split_indices[numToSplit][0][neTile] ;
+								if ((nTile >= 0) && (clusters[nTile] != null)){
+									for (int nl = 0; nl < clusters[nTile].length; nl++){
+										if (clusters[nTile][nl] == numToSplit1) {
+											new_clusters[nTile][nl] = new_cluster_index[numToSplit] + split_clusters[numToSplit][neTile][nl];
+										}
+									}
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			if (debugLevel > -1){
+				System.out.println("spitConflictClusters(): DONE");
+			}
+			return new_clusters;
+		}
+		
+		/**
+		 * 
+		 * @param numToSplit
+		 * @param clusters
+		 * @param window
+		 * @param bbox_indices
+		 * @param bbox_surf_indices
+		 * @param extracted_cluster
+		 * @param debugLevel
+		 * @param dbg_X
+		 * @param dbg_Y
+		 * @return for each tile in the window,for each layer in that location number of a subcluster (1-based) or 0
+		 */
+		public int [][] splitCluster(
+				final int      numToSplit, // 1-based
+				final int [][] clusters,
+				final int []   window,
+				final int []   bbox_indices,
+				final int []   bbox_surf_indices,
+				final boolean [][] extracted_cluster,
+				final int      debugLevel,
+				final int      dbg_X,
+				final int      dbg_Y)
+		{
+
+			int width =  window[2];
+			int height = window[3];
+			int [][] split_cluster = new int [extracted_cluster.length][];
+			for (int neTile = 0; neTile < extracted_cluster.length; neTile++){
+				if (extracted_cluster[neTile] != null){
+					split_cluster[neTile] = new int [extracted_cluster[neTile].length];
+				}
+			}
+			final TileNeibs tnCluster =   new TileNeibs(width, height);
+			if (numToSplit == 74) { //177){
+				int num_tiles = 0;
+				for (int neTile = 0; neTile < extracted_cluster.length; neTile++){
+					if (extracted_cluster[neTile] != null){
+						for (int i = 0; i < extracted_cluster[neTile].length; i++) {
+							if (extracted_cluster[neTile][i]) num_tiles++;
+						}
+					}
+				}
+				
+				System.out.println("splitCluster() numToSplit="+numToSplit+" num tiles = "+ num_tiles);
+				
+			}
+			
+			int num_cluster = 1;
+			while (true) {
+				
+				int neTile0 = 0;
+				int nl0 = 0;
+				label_loop : {
+					for (; neTile0 < extracted_cluster.length; neTile0++){
+						if (extracted_cluster[neTile0] != null){
+							for (nl0 = 0; nl0 < extracted_cluster[neTile0].length; nl0++) if (extracted_cluster[neTile0][nl0]){
+								break label_loop;
+							}
+						}
+					}
+				}
+				if (neTile0 >= extracted_cluster.length){
+					break; // nothing left
+				}
+				// run wave from neTile0, nl0 checking for conflicts, filling
+				ArrayList<Point> clust_list = new ArrayList<Point>();
+				{
+					Point p = new Point(neTile0, nl0);
+					split_cluster[p.x][p.y] = num_cluster;
+					extracted_cluster[p.x][p.y] = false;
+					clust_list.add(p);
+				}
+				int dbg_size = 1;
+				while (!clust_list.isEmpty()){
+					Point p = clust_list.remove(0);
+					int neTile = p.x;
+					int nl = p.y;
+					int nSurfTile = bbox_surf_indices[neTile]; // WRONG - fixed
+					int [] neibs = tileData[nSurfTile][nl].getNeighbors(); 
+					for (int dir = 0; dir < tnCluster.numNeibs(); dir++) {
+						int neTile1 = tnCluster.getNeibIndex(neTile,dir);
+						if ((neTile1 >= 0) && (extracted_cluster[neTile1] != null)) { // it should have original tile there, not yet assigned to a new
+							// check it is empty on all levels
+							boolean tileEmpty = true;
+							if (split_cluster[neTile1] != null) {
+								for (int i = 0; i < split_cluster[neTile1].length; i++ ){
+									if (split_cluster[neTile1][i] == num_cluster){
+										tileEmpty = false;
+										break;
+									}
+								}
+							}
+							if (tileEmpty) {
+								if (neibs[dir] < 0){ // should not happen
+									System.out.println("splitCluster(): existing nSurfTile="+nSurfTile+" surface is not connected in direction "+dir);
+								} else {
+									int nl1 = neibs[dir];
+									if (extracted_cluster[neTile1][nl1]) {
+										// verify it does not have connections from assigned tiles to different levels
+										label_no_conflict: {
+											for (int dir1 = 0; dir1 < tnCluster.numNeibs(); dir1++) {
+												int neTile2 = tnCluster.getNeibIndex(neTile1,dir1);
+												if ((neTile2 >= 0) && (split_cluster[neTile2] != null)) {
+													for (int nl2 = 0; nl2 < split_cluster[neTile2].length; nl2++){
+														if (split_cluster[neTile2][nl2] == num_cluster){
+															int nl_this = tileData[bbox_surf_indices[neTile2]][nl2].getNeighbor(tnCluster.opposite(dir1));
+															if ((nl_this >= 0) && (nl_this != nl1)){
+																break label_no_conflict;
+															}
+														}
+													}
+												}
+											}
+											// no conflicts found, add this tile
+											extracted_cluster[neTile1][nl1] = false;
+											split_cluster[neTile1][nl1] = num_cluster;
+											clust_list.add(new Point(neTile1, nl1));
+											dbg_size ++;
+										}
+									}
+								}
+							}
+						}
+					}
+					
+				}
+				if (numToSplit == 74) { //177){
+					System.out.println("splitCluster() numToSplit="+numToSplit+" num_cluster="+num_cluster+" num tiles="+dbg_size);
+				}
+
+				num_cluster++;
+			}
+			if (numToSplit == 74) { //177){
+				int num_tiles = 0, num_tiles1= 0;
+				for (int neTile = 0; neTile < extracted_cluster.length; neTile++){
+					if (extracted_cluster[neTile] != null){
+						for (int i = 0; i < extracted_cluster[neTile].length; i++) {
+							if (extracted_cluster[neTile][i]) num_tiles++;
+							if (split_cluster[neTile][i] > 0) num_tiles1++;
+							if (extracted_cluster[neTile][i]) {
+								System.out.println("neTile="+neTile+", nl = "+i);
+							}
+						}
+					}
+				}
+				
+				System.out.println("splitCluster() return  numToSplit="+numToSplit + " num tiles = "+ num_tiles+ " num tiles1 = "+ num_tiles1);
+			}
+			return split_cluster;
+		}
+		
+		
+		public boolean [][] growSelection(
+				int grow,
+				final boolean [][] sel_in,
+				final int          debugLevel,
+				final int          dbg_X,
+				final int          dbg_Y)
+		{
+			final int DIR_RIGHT = 2;
+			final int DIR_LEFT =  6;
+			final int DIR_UP =    0;
+			final int DIR_DOWN =  4;
+			final int [] DIRS = {DIR_LEFT, DIR_RIGHT, DIR_UP, DIR_DOWN};  
+			final boolean [][] selection =   sel_in.clone();
+			final boolean [][] selection_tmp = sel_in.clone();
+			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+			final AtomicInteger ai = new AtomicInteger(0);
+			final TileNeibs tnImage =   new TileNeibs(imageTilesX, imageTilesY);
+			//			final TileNeibs tnSurface = new TileNeibs(stilesX * superTileSize, stilesY * superTileSize);
+			ai.set(0);
+			// make sure even empty tiles have surface selection arrays defined
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int nTile = ai.getAndIncrement(); nTile < sel_in.length; nTile = ai.getAndIncrement()) {
+							int nSurfTile = getSurfaceTileIndex(nTile);
+							if (tileData[nSurfTile] != null) {
+								if (sel_in[nTile] != null){
+									selection[nTile] = sel_in[nTile].clone();
+								} else {
+									selection[nTile] = new boolean[tileData[nSurfTile].length];
+								}
+								//								selection_tmp[nTile] = new boolean[tileData[nSurfTile].length];
+							}								
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			for (; grow > 0; grow -=2){
+				for (int dri = 0; dri < DIRS.length; dri++ ){
+					final int fdri = dri;
+					ai.set(0);
+					// extend to the right
+					for (int ithread = 0; ithread < threads.length; ithread++) {
+						threads[ithread] = new Thread() {
+							public void run() {
+								for (int nTile = ai.getAndIncrement(); nTile < sel_in.length; nTile = ai.getAndIncrement()) {
+									if (selection[nTile] != null) {
+										if (fdri == 0) selection_tmp[nTile] = new boolean[selection[nTile].length]; // new, empty
+										int nTile1 = tnImage.getNeibIndex(nTile, DIRS[fdri]);
+										if (nTile1 >= 0){
+											int nSurfTile = getSurfaceTileIndex(nTile);
+											for (int nl = 0; nl < selection_tmp[nTile].length; nl ++) {
+												if (tileData[nSurfTile][nl] != null){
+													int nl1 = tileData[nSurfTile][nl].getNeighbor(DIRS[fdri]);
+													if ((nl1 >=0 ) && selection[nTile1][nl1]){
+														selection_tmp[nTile][nl] = true;
+													}
+												}
+											}
+										}
+									}
+								}
+							}
+						};
+					}
+					ImageDtt.startAndJoin(threads);
+
+					if (((dri == 1) &&  (grow > 1)) || (dri == 3)){ // always after both directions, after horizontal if diagonal is enabled
+						// copy results back
+						ai.set(0);
+						// extend to the left
+						for (int ithread = 0; ithread < threads.length; ithread++) {
+							threads[ithread] = new Thread() {
+								public void run() {
+									for (int nTile = ai.getAndIncrement(); nTile < sel_in.length; nTile = ai.getAndIncrement()) {
+										if (selection_tmp[nTile] != null){
+											for (int nl = 0; nl < selection_tmp[nTile].length; nl ++) {
+												if (selection_tmp[nTile][nl]) {
+													selection[nTile][nl] = true;
+												}
+											}
+										}
+									}
+								}
+							};
+						}
+						ImageDtt.startAndJoin(threads);
+					}
+				}
+			}
+			return selection;
+		}
+		
+		
 }
