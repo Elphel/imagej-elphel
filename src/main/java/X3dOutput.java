@@ -110,7 +110,8 @@ public class X3dOutput {
 	}
 	
 	public void addCluster(
-			String url,
+			String      url,
+			String      id,
 			double [][] texCoord,
 			double [][] coordinate,
 			int [][] triangles)
@@ -156,6 +157,7 @@ public class X3dOutput {
 		
         Element el_shape =        x3dDoc.createElement("Shape");
 		el_Scene.appendChild(el_shape);
+		el_shape.setAttribute("id",id);
 		
         Element el_appearance =   x3dDoc.createElement("Appearance");
 		el_shape.appendChild(el_appearance);

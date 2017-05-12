@@ -2171,7 +2171,8 @@ public class EyesisCorrectionParameters {
   		public double     plMaxEigen           =   0.3;  // Maximal eigenvalue of a plane 
   		public boolean    plDbgMerge           =   true; // Combine 'other' plane with current
   		public double     plWorstWorsening     =   3.0;  // Worst case worsening after merge
-  		public double     plOKMergeEigen       =   0.01; // If result of the merged planes is below, OK to bypass worst worsening
+  		public double     plOKMergeEigen       =   0.03; // If result of the merged planes is below, OK to bypass worst worsening
+  		public double     plMaxWorldSin2       =   0.1;  // Maximal sine squared of the world angle between planes to merge. Set to >= 1.0 to disable
   		public double     plWeakWorsening      =   1.0;  // Relax merge requirements for weaker planes
   		public boolean    plMutualOnly         =   true; // keep only mutual links, remove weakest if conflict
   		public boolean    plFillSquares        =   true; // Add diagonals to full squares
@@ -2217,12 +2218,13 @@ public class EyesisCorrectionParameters {
   		public double     msScaleProj          =   1.5;  // Scale projection of the plane ellipsoid 
   		public double     msFractUni           =   0.3;  // Spread this fraction of the ellipsoid weight among extended (double) supertile
   		
-		public boolean    tsNoEdge             = true;   // Do not assigned tiles to thesurface edges (not having all 8 neighbors)
+		public boolean    tsNoEdge             = true;   // Do not assign tiles to the surface edges (not having all 8 neighbors)
+		public boolean    tsUseCenter          = true;   // Only assign outside of 8x8 center if no suitable alternative
   		public double     tsMaxDiff            = 0.3;    // Maximal disparity difference when assigning tiles
 		public double     tsMinDiffOther       = 0.35;   // Minimal disparity difference to be considered as a competitor surface
 		public double     tsMinStrength        = 0.05;   // Minimal tile correlation strength to be assigned
 		public double     tsMaxStrength        = 10.0;   // Maximal tile correlation strength to be assigned
-		public double     tsMinSurface         = 0.0001; // Minimal surface strength at the tile location
+		public double     tsMinSurface         = 0.001;  // Minimal surface strength at the tile location
 		public int        tsMoveDirs           = 3;      // Allowed tile disparity correction: 1 increase, 2 - decrease, 3 - both directions
 		public double     tsSurfStrPow         = 0.0;    // Raise surface strengths ratio to this power when comparing candidates
 		public double     tsAddStrength        = 0.01;   // Add to strengths when calculating pull of assigned tiles
@@ -2517,6 +2519,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plDbgMerge",       this.plDbgMerge+"");
 			properties.setProperty(prefix+"plWorstWorsening", this.plWorstWorsening +"");
 			properties.setProperty(prefix+"plOKMergeEigen",   this.plOKMergeEigen +"");
+			properties.setProperty(prefix+"plMaxWorldSin2",   this.plMaxWorldSin2 +"");
 			properties.setProperty(prefix+"plWeakWorsening",  this.plWeakWorsening +"");
 			properties.setProperty(prefix+"plMutualOnly",     this.plMutualOnly+"");
 			properties.setProperty(prefix+"plFillSquares",    this.plFillSquares+"");
@@ -2557,6 +2560,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"msFractUni",       this.msFractUni +"");
 
 			properties.setProperty(prefix+"tsNoEdge",         this.tsNoEdge+"");
+			properties.setProperty(prefix+"tsUseCenter",      this.tsUseCenter+"");
 			properties.setProperty(prefix+"tsMaxDiff",        this.tsMaxDiff +"");
 			properties.setProperty(prefix+"tsMinDiffOther",   this.tsMinDiffOther +"");
 			properties.setProperty(prefix+"tsMinStrength",    this.tsMinStrength +"");
@@ -2842,6 +2846,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plDbgMerge")!=null)        this.plDbgMerge=Boolean.parseBoolean(properties.getProperty(prefix+"plDbgMerge"));
   			if (properties.getProperty(prefix+"plWorstWorsening")!=null)  this.plWorstWorsening=Double.parseDouble(properties.getProperty(prefix+"plWorstWorsening"));
   			if (properties.getProperty(prefix+"plOKMergeEigen")!=null)    this.plOKMergeEigen=Double.parseDouble(properties.getProperty(prefix+"plOKMergeEigen"));
+  			if (properties.getProperty(prefix+"plMaxWorldSin2")!=null)    this.plMaxWorldSin2=Double.parseDouble(properties.getProperty(prefix+"plMaxWorldSin2"));
   			if (properties.getProperty(prefix+"plWeakWorsening")!=null)   this.plWeakWorsening=Double.parseDouble(properties.getProperty(prefix+"plWeakWorsening"));
   			if (properties.getProperty(prefix+"plMutualOnly")!=null)      this.plMutualOnly=Boolean.parseBoolean(properties.getProperty(prefix+"plMutualOnly"));
 
@@ -2885,6 +2890,7 @@ public class EyesisCorrectionParameters {
 
 
   			if (properties.getProperty(prefix+"tsNoEdge")!=null)          this.tsNoEdge=Boolean.parseBoolean(properties.getProperty(prefix+"tsNoEdge"));
+  			if (properties.getProperty(prefix+"tsUseCenter")!=null)       this.tsUseCenter=Boolean.parseBoolean(properties.getProperty(prefix+"tsUseCenter"));
   			if (properties.getProperty(prefix+"tsMaxDiff")!=null)         this.tsMaxDiff=Double.parseDouble(properties.getProperty(prefix+"tsMaxDiff"));
   			if (properties.getProperty(prefix+"tsMinDiffOther")!=null)    this.tsMinDiffOther=Double.parseDouble(properties.getProperty(prefix+"tsMinDiffOther"));
   			if (properties.getProperty(prefix+"tsMinStrength")!=null)     this.tsMinStrength=Double.parseDouble(properties.getProperty(prefix+"tsMinStrength"));
@@ -3196,6 +3202,7 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Combine 'other' plane with the current (unused)",                              this.plDbgMerge);
   			gd.addNumericField("Worst case worsening after merge",                                             this.plWorstWorsening,  6);
   			gd.addNumericField("If result of the merged planes is below, OK to bypass worst worsening",        this.plOKMergeEigen,  6);
+  			gd.addNumericField("Maximal sine squared of the world angle between planes to merge. Set to >= 1.0 to disable", this.plMaxWorldSin2,  6);
   			gd.addNumericField("Relax merge requirements for weaker planes",                                   this.plWeakWorsening,  6);
   			gd.addCheckbox    ("Keep only mutual links, remove weakest if conflict",                           this.plMutualOnly);
 
@@ -3239,8 +3246,9 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Spread this fraction of the ellipsoid weight among extended (double) supertile",this.msFractUni,  6);
 
   			gd.addMessage     ("--- Tiles assignment ---");
-  			
-  			gd.addCheckbox    ("Do not assigned tiles to the surface edges (not having all 8 neighbors)",         this.tsNoEdge);
+  			 
+  			gd.addCheckbox    ("Do not assign tiles to the surface edges (not having all 8 neighbors)",           this.tsNoEdge);
+  			gd.addCheckbox    ("Only assign outside of 8x8 center if no suitable alternative",                    this.tsUseCenter);
   			gd.addNumericField("Maximal disparity difference when assigning tiles",                               this.tsMaxDiff,  6);
   			gd.addNumericField("Minimal disparity difference to be considered as a competitor surface",           this.tsMinDiffOther,  6);
   			gd.addNumericField("Minimal tile correlation strength to be assigned",                                this.tsMinStrength,  6);
@@ -3534,6 +3542,7 @@ public class EyesisCorrectionParameters {
   			this.plDbgMerge=            gd.getNextBoolean();
   			this.plWorstWorsening=      gd.getNextNumber();
   			this.plOKMergeEigen=        gd.getNextNumber();
+  			this.plMaxWorldSin2=        gd.getNextNumber();
   			this.plWeakWorsening=       gd.getNextNumber();
   			this.plMutualOnly=          gd.getNextBoolean();
 
@@ -3576,6 +3585,7 @@ public class EyesisCorrectionParameters {
   			this.msFractUni=            gd.getNextNumber();
 
   			this.tsNoEdge=              gd.getNextBoolean();
+  			this.tsUseCenter=           gd.getNextBoolean();
   			this.tsMaxDiff=             gd.getNextNumber();
   			this.tsMinDiffOther=        gd.getNextNumber();
   			this.tsMinStrength=         gd.getNextNumber();
@@ -3626,7 +3636,8 @@ public class EyesisCorrectionParameters {
   		
   		public boolean showTsDialog() {
   			GenericDialog gd = new GenericDialog("Set CLT tiles to surfaces assignment parameters");
-  			gd.addCheckbox    ("Do not assigned tiles to the surface edges (not having all 8 neighbors)",         this.tsNoEdge);
+  			gd.addCheckbox    ("Do not assign tiles to the surface edges (not having all 8 neighbors)",           this.tsNoEdge);
+  			gd.addCheckbox    ("Only assign outside of 8x8 center if no suitable alternative",                    this.tsUseCenter);
   			gd.addNumericField("Maximal disparity difference when assigning tiles",                               this.tsMaxDiff,  6);
   			gd.addNumericField("Minimal disparity difference to be considered as a competitor surface",           this.tsMinDiffOther,  6);
   			gd.addNumericField("Minimal tile correlation strength to be assigned",                                this.tsMinStrength,  6);
@@ -3659,6 +3670,7 @@ public class EyesisCorrectionParameters {
   			gd.showDialog();
   			if (gd.wasCanceled()) return false;
   			this.tsNoEdge=              gd.getNextBoolean();
+  			this.tsUseCenter=           gd.getNextBoolean();
   			this.tsMaxDiff=             gd.getNextNumber();
   			this.tsMinDiffOther=        gd.getNextNumber();
   			this.tsMinStrength=         gd.getNextNumber();

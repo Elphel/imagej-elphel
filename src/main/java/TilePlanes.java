@@ -53,7 +53,7 @@ public class TilePlanes {
 		double []   values =     null; // [3] -eigenvalues
 		int         num_points = 0;
 		double      weight =     0.0;
-		double []   center_xyz = null; // center of this supertile this plane center in world coordinates
+		double []   center_xyz = null; // center of this this "plane" (ellipsoid) center in world coordinates
 		double []   world_xyz =  null; // world coordinates of the nearest point of the plane, in meters
 		double []   world_v1 =   null; // world in-plane vector, corresponding to vectors[1] 
 		double []   world_v2 =   null; // world in-plane vector, corresponding to vectors[1]
@@ -566,6 +566,8 @@ public class TilePlanes {
 		 * Tilt disparity values around the supertile center (this.zxy) so constant disparity in the output
 		 * corresponds to the real world plane parallel to the provided one. Used to discriminate tiles by
 		 * the effective disparity value (disparity in the center of the supertile of the parallel plane)
+		 * Adding protection from behind the horizon - areas where disparity is negative zero the
+		 * result strengths
 		 * @param world_normal_xyz real world 3d vector of the plane normal (0.0, 1.0, 0.0 - horizontal)
 		 * @param disp_center dispariy in at the center of the supertile (to rotate around)
 		 * @param tile_sel multi-layer tile selection (or null to use all available tiles)
@@ -620,15 +622,21 @@ public class TilePlanes {
 							// then calculate disparity from z of that point
 							// inner product of transposed
 							double n_by_p = normal_row.times(w_xyz).get(0, 0);
-							double z = st_xyz.get(2, 0)*n_by_p / n_by_w;
 							if (disp_str[ml][1][indx] > 0){ // do not bother with zero-strength
+								double z;
+								if ((n_by_p * n_by_w) > 0.0) { 
+									z = st_xyz.get(2, 0)*n_by_p / n_by_w;
+									// convert z to disparity
+									eff_disp_str[ml][0][indx] = geometryCorrection.getDisparityFromZ (-z);
+								} else {
+									z = 0.0;
+									eff_disp_str[ml][1][indx] = 0.0; // behind the horizon
+								}
 								if (debugLevel > 1) {
 									System.out.println("dy = "+dy+", dx=" + dx+ " {"+w_xyz.get(0, 0)+","+w_xyz.get(1, 0)+","+w_xyz.get(2, 0)+"}"+" z="+z+" n_by_p = "+n_by_p
 											+" disp = "+disp_str[ml][0][indx]+" px = "+(px_py[0] + x)+" py = "+(px_py[1] + y));
 								}
 							}
-							// convert z to disparity
-							eff_disp_str[ml][0][indx] = geometryCorrection.getDisparityFromZ (-z);
 						}
 					}
 				}
@@ -1268,7 +1276,7 @@ public class TilePlanes {
 		 * @param useNaN replace unselected tiles with Double.NaN
 		 * @return array of disparity values for the plane (not including overlapped areas)
 		 */
-		public double[] getPlaneDisparity(
+		public double[] getSinglePlaneDisparity( // getPlaneDisparity(
 				boolean useNaN)
 		{
 			double [] disparities = new double[superTileSize*superTileSize];
@@ -1294,18 +1302,29 @@ public class TilePlanes {
 			return disparities;
 		}
 
+		public double[] getDoublePlaneDisparity(
+				boolean useNaN)
+		{
+			return getDoublePlaneDisparity(
+					true,
+					useNaN);
+		}
+		
 		/**
 		 * Get disparity values for the tiles of this overlapping supertile as [2*superTileSize * 2*superTileSize] array
+		 * @param useWorld calculate disparity in the real world (false - just px, py, disparity plane)
 		 * @param useNaN replace unselected tiles with Double.NaN
 		 * @return array of disparity values for the plane (not including overlapped areas)
 		 */
 		public double[] getDoublePlaneDisparity(
+				boolean useWorld,
 				boolean useNaN)
 		{
 			double [] disparities = new double[4*superTileSize*superTileSize];
 			int indx = 0;
 			double [] normal = getVector();
 			double [] zxy =    getZxy(); // {disparity, x center in pixels, y center in pixels (relative to a supertile center)
+			double [] pxyc = getCenterPxPy(); // center of this supertile, not plane center 
 			for (int sy = -superTileSize; sy < superTileSize; sy++){
 				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
 				// pixel 31 and pixel 32 (counting from 0) in both directions
@@ -1313,7 +1332,16 @@ public class TilePlanes {
 				for (int sx = -superTileSize; sx < superTileSize; sx++){
 					double x = tileSize * (sx + 0.5) + 0.5 - zxy[1];
 					if (plane_sel[indx] || !useNaN ||  (plane_sel==null)){
-						disparities[indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
+						if (useWorld) {
+							disparities[indx] = geometryCorrection.getPlaneDisparity( // disparity (at this center) for crossing other supertile plane
+									getWorldXYZ(this.correctDistortions), // will calculate if not yet done so. Should it use otherPd, not pd? and then clone later?
+									x + pxyc[0] + zxy[1],
+									y + pxyc[1] + zxy[2],
+									this.correctDistortions);
+						} else {
+							disparities[indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
+						}
+						
 					} else {
 						disparities[indx] = Double.NaN;
 					}
@@ -1327,7 +1355,18 @@ public class TilePlanes {
 				int     dir,
 				boolean useNaN)
 		{
-			double [] plane_all = getDoublePlaneDisparity(useNaN);
+			return getDoublePlaneDisparity(
+					true,
+					dir,
+					useNaN);
+		}
+
+		public double[] getDoublePlaneDisparity(
+				boolean useWorld,
+				int     dir,
+				boolean useNaN)
+		{
+			double [] plane_all = getDoublePlaneDisparity(useWorld,useNaN);
 			double [] plane = new double [superTileSize * superTileSize];
 			int [] start_index = {
 					superTileSize/2,                            // N    4
@@ -1346,17 +1385,32 @@ public class TilePlanes {
 
 		public double[] getTriplePlaneDisparity()
 		{
+			return getTriplePlaneDisparity(true);
+		}
+
+		public double[] getTriplePlaneDisparity(
+				boolean   useWorld)
+		{
 			double [] disparities = new double[9*superTileSize*superTileSize];
 			int indx = 0;
 			double [] normal = getVector();
 			double [] zxy =    getZxy(); // {disparity, x center in pixels, y center in pixels (relative to a supertile center)
+			double [] pxyc = getCenterPxPy(); // center of this supertile, not plane center 
 			for (int sy = -3 * superTileSize / 2; sy < 3* superTileSize / 2; sy++){
 				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
 				// pixel 31 and pixel 32 (counting from 0) in both directions
 				double y = tileSize * (sy + 0.5) + 0.5  - zxy[2];
 				for (int sx = -3 * superTileSize/2; sx < 3 * superTileSize / 2; sx++){
 					double x = tileSize * (sx + 0.5) + 0.5 - zxy[1];
-					disparities[indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
+					if (useWorld) {
+						disparities[indx] = geometryCorrection.getPlaneDisparity( // disparity (at this center) for crossing other supertile plane
+								getWorldXYZ(this.correctDistortions), // will calculate if not yet done so. Should it use otherPd, not pd? and then clone later?
+								x + pxyc[0] + zxy[1],
+								y + pxyc[1] + zxy[2],
+								this.correctDistortions);
+					} else {
+						disparities[indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
+					}
 					indx++;
 				}
 			}
@@ -1366,7 +1420,14 @@ public class TilePlanes {
 		public double[] getTriplePlaneDisparity(
 				int     dir)
 		{
-			double [] plane_all = getTriplePlaneDisparity();
+			return getTriplePlaneDisparity(true, dir);
+		}
+
+		public double[] getTriplePlaneDisparity(
+				boolean   useWorld,
+				int     dir)
+		{
+			double [] plane_all = getTriplePlaneDisparity(useWorld);
 			double [] plane = new double [superTileSize * superTileSize];
 			int [] start_index = {
 					superTileSize,                               // N    8
@@ -1383,19 +1444,36 @@ public class TilePlanes {
 			return plane;
 		}
 
+		public double[][] getDoublePlaneDisparityStrength(
+				double [] window,
+				boolean   use_sel,
+				boolean   divide_by_area,
+				double    scale_projection,
+				int       debugLevel)
+		{		return getDoublePlaneDisparityStrength(
+				true,
+				window,
+				use_sel,
+				divide_by_area,
+				scale_projection,
+				debugLevel);
+		}		
 		/**
 		 * Get disparity values for the tiles of this overlapping supertile as [2*superTileSize * 2*superTileSize] array
 		 * and weights combined from provided window function, optional selection and using ellipsoid projection on the
 		 * px, py plane (constant disparity
 		 * Sharp weights - when selecting the best match - use exponent of (delta_disp) ^2 ?
-		 * Or divide weight by ellipse arae?
+		 * Or divide weight by ellipse area?
+		 * @param useWorld calculate disparity in the real world (false - just px, py, disparity plane)
 		 * @param window null or window function as [2*superTileSize * 2*superTileSize] array
 		 * @param use_sel use plane selection (this.sel_mask) to select only some part of the plane
 		 * @param divide_by_area divide weights by ellipsoid area
 		 * @param scale_projection use plane ellipsoid projection for weight: 0 - do not use, > 0 linearly scale ellipsoid 
 		 * @return a pair of arrays {disparity, strength}, each [2*superTileSize * 2*superTileSize]
 		 */
+		// obsolete, convert to another version ?
 		public double[][] getDoublePlaneDisparityStrength(
+				boolean   useWorld,
 				double [] window,
 				boolean   use_sel,
 				boolean   divide_by_area,
@@ -1435,15 +1513,32 @@ public class TilePlanes {
 					}
 				}
 			}
-
+			double [] pxyc = getCenterPxPy(); // center of this supertile, not plane center
+			if (debugLevel > 0) {
+				double world_disp = geometryCorrection.getPlaneDisparity( // disparity (at this center) for crossing other supertile plane
+						getWorldXYZ(this.correctDistortions), // will calculate if not yet done so. Should it use otherPd, not pd? and then clone later?
+						zxy[1] + pxyc[0],
+						zxy[2] + pxyc[1],
+						this.correctDistortions);
+				System.out.println("getDoublePlaneDisparityStrength(): zxy = ["+zxy[0]+", "+zxy[1]+", "+zxy[2]+"], disp = "+world_disp);
+			}
 			int indx = 0;
 			for (int sy = -superTileSize; sy < superTileSize; sy++){
 				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
 				// pixel 31 and pixel 32 (counting from 0) in both directions
-				double y = tileSize * (sy + 0.5) + 0.5  - zxy[2];
+				double y = tileSize * (sy + 0.5) + 0.5 - zxy[2];
 				for (int sx = -superTileSize; sx < superTileSize; sx++){
 					double x = tileSize * (sx + 0.5) + 0.5 - zxy[1];
-					disp_strength[0][indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
+					if (useWorld) {
+						disp_strength[0][indx] = geometryCorrection.getPlaneDisparity( // disparity (at this center) for crossing other supertile plane
+								getWorldXYZ(this.correctDistortions), // will calculate if not yet done so. Should it use otherPd, not pd? and then clone later?
+								x + pxyc[0] + zxy[1],
+								y + pxyc[1] + zxy[2],
+								this.correctDistortions);
+					} else {
+						disp_strength[0][indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
+					}
+					
 					double w = weight;
 					if (window != null) w *= window[indx];
 					if (use_sel && (sel_mask != null) && !(sel_mask[indx])) w = 0.0;
@@ -1464,12 +1559,33 @@ public class TilePlanes {
 			return disp_strength;
 		}
 
+		public double[][] getDoublePlaneDisparityStrength(
+				double [] window,
+				int       dir,
+				boolean   use_sel,
+				boolean   divide_by_area,
+				double    scale_projection,
+				double    fraction_uni,
+				int       debugLevel)
+		{		
+			return getDoublePlaneDisparityStrength(
+					true,
+					window,
+					dir,
+					use_sel,
+					divide_by_area,
+					scale_projection,
+					fraction_uni,
+					debugLevel);
+		}
+		
 		/**
 		 * Get disparity values for the tiles of this overlapping supertile as [2*superTileSize * 2*superTileSize] array
 		 * and weights combined from provided window function, optional selection and using ellipsoid projection on the
 		 * px, py plane (constant disparity
 		 * Sharp weights - when selecting the best match - use exponent of (delta_disp) ^2 ?
 		 * Or divide weight by ellipse area?
+		 * @param useWorld calculate disparity in the real world (false - just px, py, disparity plane)
 		 * @param window null or window function as [2*superTileSize * 2*superTileSize] array
 		 * @param dir - source tile shift from the target: -1 center, 0 - N, 1 - NE
 		 * @param use_sel use plane selection (this.sel_mask) to select only some part of the plane
@@ -1481,6 +1597,7 @@ public class TilePlanes {
 		 * 
 		 */
 		public double[][] getDoublePlaneDisparityStrength(
+				boolean   useWorld,
 				double [] window,
 				int       dir,
 				boolean   use_sel,
@@ -1522,9 +1639,7 @@ public class TilePlanes {
 					}
 				}
 			}
-//			int ss1 = superTileSize / 2;
 			int ss2 = superTileSize;
-//			int ss3 = 3 *ss1;
 			int ss4 = 2 * superTileSize;
 			
 			
@@ -1535,27 +1650,30 @@ public class TilePlanes {
 					{ss2, ss4,   0, ss2, -ss2,  ss2 },  // NE	
 					{  0, ss4,   0, ss2,    0,  ss2 },  // E	
 					{  0, ss2,   0, ss2,  ss2,  ss2 },  // SE	
-//					{  0, ss2,   0, ss2,  ss2,    0 },  // S	
 					{  0, ss2,   0, ss4,  ss2,    0 },  // S	
 					{  0, ss2, ss2, ss4,  ss2, -ss2 },  // SW	
 					{  0, ss4, ss2, ss4,    0, -ss2 },  // W	
-//					{ss2, ss4,   0, ss4, -ss2, -ss2 }}; // NW
 					{ss2, ss4, ss2, ss4, -ss2, -ss2 }}; // NW
 			int dir1 = dir + 1;
-
-//			for (int sy = -superTileSize; sy < superTileSize; sy++){
+			double [] pxyc = getCenterPxPy(); // center of this supertile, not plane center 
 			for (int iy = offsets[dir1][0]; iy < offsets[dir1][1]; iy++){
 				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
 				// pixel 31 and pixel 32 (counting from 0) in both directions
 				double y = tileSize * (iy - ss2 + 0.5) + 0.5  - zxy[2];
 				int oy = iy + offsets[dir1][4]; //vert index in the result tile
-//				for (int sx = -superTileSize; sx < superTileSize; sx++){
 				for (int ix = offsets[dir1][2]; ix < offsets[dir1][3]; ix++){
 					double x = tileSize * (ix - ss2 + 0.5) + 0.5 - zxy[1];
-//					int indx = ss2 * oy + ix + offsets[dir1][5];
 					int indx = ss4 * oy + ix + offsets[dir1][5];
 					int indx_i = iy * ss4 + ix; // input index
-					disp_strength[0][indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
+					if (useWorld) {
+						disp_strength[0][indx] = geometryCorrection.getPlaneDisparity( // disparity (at this center) for crossing other supertile plane
+								getWorldXYZ(this.correctDistortions), // will calculate if not yet done so. Should it use otherPd, not pd? and then clone later?
+								x + pxyc[0] + zxy[1],
+								y + pxyc[1] + zxy[2],
+								this.correctDistortions);
+					} else {
+						disp_strength[0][indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
+					}
 					double w = weight;
 					if ((w > 0.0) && (scale_projection > 0.0)){
 						double [] xy = {x,y};
@@ -1576,13 +1694,30 @@ public class TilePlanes {
 			return disp_strength;
 		}
 
-
+		public double[][] getSinglePlaneDisparityStrength(
+				double [] window,
+				int       dir,
+				boolean   use_sel,
+				boolean   divide_by_area,
+				double    scale_projection,
+				int       debugLevel)
+		{
+			return getSinglePlaneDisparityStrength(
+					true,
+					window,
+					dir,
+					use_sel,
+					divide_by_area,
+					scale_projection,
+					debugLevel);
+		}
 		/**
 		 * Get disparity values for the tiles of this overlapping supertile as [superTileSize * superTileSize] array
 		 * and weights combined from provided window function, optional selection and using ellipsoid projection on the
 		 * px, py plane (constant disparity
 		 * Sharp weights - when selecting the best match - use exponent of (delta_disp) ^2 ?
 		 * Or divide weight by ellipse arae?
+		 * @param useWorld calculate disparity in the real world (false - just px, py, disparity plane)
 		 * @param window null or window function as [2*superTileSize * 2*superTileSize] array
 		 * @param dir - source tile shift from the targer: -1 center, 0 - N, 1 - NE
 		 * @param use_sel use plane selection (this.sel_mask) to select only some part of the plane
@@ -1593,6 +1728,7 @@ public class TilePlanes {
 		 * 
 		 */
 		public double[][] getSinglePlaneDisparityStrength(
+				boolean   useWorld,
 				double [] window,
 				int       dir,
 				boolean   use_sel,
@@ -1651,19 +1787,26 @@ public class TilePlanes {
 					{ss1, ss3, ss3, ss4, -ss1, -ss3 },  // W	
 					{ss3, ss4, ss3, ss4, -ss3, -ss3 }}; // NW
 			int dir1 = dir + 1;
-
-//			for (int sy = -superTileSize; sy < superTileSize; sy++){
+			double [] pxyc = getCenterPxPy(); // center of this supertile, not plane center 
 			for (int iy = offsets[dir1][0]; iy < offsets[dir1][1]; iy++){
 				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
 				// pixel 31 and pixel 32 (counting from 0) in both directions
 				double y = tileSize * (iy - ss2 + 0.5) + 0.5  - zxy[2];
 				int oy = iy + offsets[dir1][4]; //vert index in the result tile
-//				for (int sx = -superTileSize; sx < superTileSize; sx++){
 				for (int ix = offsets[dir1][2]; ix < offsets[dir1][3]; ix++){
 					double x = tileSize * (ix - ss2 + 0.5) + 0.5 - zxy[1];
 					int indx = ss2 * oy + ix + offsets[dir1][5];
 					int indx_i = iy * ss4 + ix; // ss2;
-					disp_strength[0][indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
+					if (useWorld) {
+						disp_strength[0][indx] = geometryCorrection.getPlaneDisparity( // disparity (at this center) for crossing other supertile plane
+								getWorldXYZ(this.correctDistortions), // will calculate if not yet done so. Should it use otherPd, not pd? and then clone later?
+								x + pxyc[0] + zxy[1],
+								y + pxyc[1] + zxy[2],
+								this.correctDistortions);
+					} else {
+						disp_strength[0][indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
+					}
+					
 					double w = weight;
 					if (window != null) w *= window[indx_i];
 					if (use_sel && (sel_mask != null) && !(sel_mask[indx_i])) w = 0.0;
@@ -1703,7 +1846,54 @@ public class TilePlanes {
 			return new Matrix (ar);
 		}
 
+		/** 
+		 * Get sin squared of the angle between planes in the real world
+		 * @param otherPd other plane data
+		 * @param correct_distortions true if the lens distortions should be corrected 
+		 * @return sine squared of the angle between normals to the planes
+		 */
+		public double getWorldSin2(
+				PlaneData otherPd,
+				boolean correct_distortions)
+		{
+			Matrix this_wv =  new Matrix(this.getWorldXYZ(correct_distortions, 0),3);
+			Matrix other_wv = new Matrix(otherPd.getWorldXYZ(correct_distortions, 0),3);
+			Matrix cp = cross3d(this_wv, other_wv);
+			double cp2 = cp.transpose().times(cp).get(0, 0);
+			double this_wv2 = this_wv.transpose().times(this_wv).get(0, 0);
+			double other_wv2 = other_wv.transpose().times(other_wv).get(0, 0);
+			return cp2/(this_wv2 * other_wv2);
+		}
+		public double getWorldSin2(
+				PlaneData otherPd)
+		{
+			return getWorldSin2(otherPd, this.correctDistortions);
+		}
 
+		/**
+		 * Get distance squared from the other plane and the center of the current "plane" (ellipsoid) 
+		 * @param otherPd other plane data
+		 * @param correct_distortions true if the lens distortions should be corrected 
+		 * @return distance squared from other plane to the (ellipsoid) center of this one (in meters)
+		 */
+		public double getWorldPlaneDist2(
+				PlaneData otherPd,
+				boolean correct_distortions)
+		{
+			Matrix this_center =  new Matrix(this.getCenterXYZ(correct_distortions, 0),3);
+			Matrix other_wv =     new Matrix(otherPd.getWorldXYZ(correct_distortions, 0),3);
+			double w_dot_w = other_wv.transpose().times(other_wv).get(0, 0);
+			double w_dot_p = other_wv.transpose().times(this_center).get(0, 0);
+			return (w_dot_w - w_dot_p)*(w_dot_w - w_dot_p)/w_dot_w;
+		}
+
+		public double getWorldPlaneDist2(
+				PlaneData otherPd)
+		{
+			return getWorldPlaneDist2(otherPd, this.correctDistortions);
+		}
+		
+		
 		/**
 		 * Combine 2 Plane instances using centers, eigenvalues eihenvectors and total weights of this and other PlaneData objects
 		 * other plane should already be transformed to the same supertile coordinate system (with getPlaneToThis() method)
@@ -2047,6 +2237,26 @@ public class TilePlanes {
 				return world_v1;
 			}
 		}
+		public double [] getCenterXYZ(
+				boolean correct_distortions,
+				int debugLevel)
+		{
+			double delta = 0.0001;
+			if (center_xyz != null) return center_xyz;
+			setCorrectDistortions(correct_distortions);
+			// get pixel coordinates of the plane origin point
+			double [] px_py = getCenterPxPy();
+			
+			double px = px_py[0] + zxy[1];
+			double py = px_py[1] + zxy[2];
+			double disp =  zxy[0];
+			center_xyz = geometryCorrection.getWorldCoordinates(
+					px,
+					py,
+					disp,
+					this.correctDistortions);
+			return center_xyz;
+		}
 
 		public double [] getWorldXYZ(
 				boolean correct_distortions,
@@ -2056,14 +2266,7 @@ public class TilePlanes {
 			if (world_xyz != null) return world_xyz;
 			setCorrectDistortions(correct_distortions);
 			// get pixel coordinates of the plane origin point
-//			double px = tileSize*(superTileSize * sTileXY[0] + superTileSize/2) + zxy[1];  // [3] - plane point {disparity, x, y), x=0, y=0 is a 4,4 point of an 8x8 supertile
-//			double py = tileSize*(superTileSize * sTileXY[1] + superTileSize/2) + zxy[2];
 			double [] px_py = getCenterPxPy();
-//			if ((px_py[0] == 1760) && (px_py[1] == 1056)){ // 27, 15
-//				System.out.println("getWorldXYZ, px_py = {"+px_py[0]+","+px_py[1]+"}");
-//				debugLevel = 2;
-//			}
-			
 			double px = px_py[0] + zxy[1];
 			double py = px_py[1] + zxy[2];
 			double disp =  zxy[0];
@@ -2075,15 +2278,9 @@ public class TilePlanes {
 			Matrix xyz = new Matrix(center_xyz, 3); // column matrix
 			Matrix dpxpy = new Matrix(vectors[0],3); // 3 rows, 1 column
 			if (debugLevel > 0){
-//				if (sTileXY[0] == 27 ){
-//					System.out.println("STOP");
-//					
-//				}
 				System.out.println("getWorldXYZ("+sTileXY[0]+","+sTileXY[1]+"), correctDistortions="+correctDistortions+", xyz= {"+
 						xyz.get(0, 0)+","+xyz.get(1, 0)+","+xyz.get(2, 0)+"}, weight = "+getWeight());
-//				xyz.print(10, 6); // w,d
 				
-//				double [] dpxpy = geometryCorrection.getImageCoordinates(xyz.getColumnPackedCopy(),this.correctDistortions);
 				System.out.println("getWorldXYZ("+sTileXY[0]+","+sTileXY[1]+"): disp, px, py="+disp+","+px+","+py); // + ", reversed:"+dpxpy[0]+","+dpxpy[1]+","+dpxpy[2]);
 				
 				Matrix xyz1 = new Matrix(geometryCorrection.getWorldCoordinates(
@@ -2112,8 +2309,6 @@ public class TilePlanes {
 			world_v2 = v2.getColumnPackedCopy();
 			
 			Matrix norm_xyz =  cross3d(v1,v2);
-//			norm_xyz = norm_xyz.times(1.0/norm_xyz.normF()); // unity normal vector;
-//			norm_xyz = jacobian.times(dpxpy); // plane normal vector in world xyz
 			if (debugLevel > 0){
 				System.out.println("getWorldXYZ("+sTileXY[0]+","+sTileXY[1]+"): norm_xyz={"+
 						norm_xyz.get(0, 0)+", "+norm_xyz.get(1, 0)+", "+norm_xyz.get(2, 0)+"}, (dpxpy={"+
@@ -2145,7 +2340,6 @@ public class TilePlanes {
 				System.out.println("+getWorldXYZ("+sTileXY[0]+","+sTileXY[1]+"): unit plane normal={"+
 						norm_xyz.get(0, 0)+", "+norm_xyz.get(1, 0)+", "+norm_xyz.get(2, 0)+"})");
 				double dotprod = xyz.transpose().times(norm_xyz).get(0,0);
-//				Matrix wn = norm_xyz.times(-dotprod);
 				Matrix wn = norm_xyz.times(dotprod);
 				System.out.println(":getWorldXYZ("+sTileXY[0]+","+sTileXY[1]+"): xyz.transpose().times(norm_xyz).get(0,0) ="+dotprod);
 				System.out.println("?getWorldXYZ("+sTileXY[0]+","+sTileXY[1]+"):  plane normal={"+
@@ -2161,7 +2355,6 @@ public class TilePlanes {
 			
 			// convert plane normal vector to world coordinates
 			//world_xyz
-//			world_xyz = norm_xyz.times(-(xyz.transpose().times(norm_xyz).get(0,0))).getColumnPackedCopy();
 			world_xyz = norm_xyz.times((xyz.transpose().times(norm_xyz).get(0,0))).getColumnPackedCopy();
 			return world_xyz;
 		}

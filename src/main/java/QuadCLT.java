@@ -5233,10 +5233,11 @@ public class QuadCLT {
         			  tp.clt_3d_passes.get(scanIndex), // CLTPass3d   scan,
         			  "X3D-"+scanIndex);
 			  }
-			  boolean showTri = ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||(scanIndex == 49) || (scanIndex == 54);
+			  boolean showTri = ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||((scanIndex - next_pass) == 73);
 			  generateClusterX3d(
 					  x3dOutput,
 					  texturePath,
+					  "shape_id-"+(scanIndex - next_pass), // id
 					  scan.bounds,
 					  scan.selected,
 					  scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
@@ -5286,7 +5287,8 @@ public class QuadCLT {
 		  tp.showScan(
 				  tp.clt_3d_passes.get(next_pass-1),   // CLTPass3d   scan,
 				  "after_pass2-"+(next_pass-1)); //String title)
-		  tp.thirdPassSetup( // prepare tile tasks for the second pass based on the previous one(s)
+//		  tp.thirdPassSetup( // prepare tile tasks for the second pass based on the previous one(s)
+		  tp.thirdPassSetupSurf( // prepare tile tasks for the second pass based on the previous one(s)
 				  clt_parameters,
 				  clt_parameters.bgnd_range, // double            disparity_far, 
 				  clt_parameters.grow_disp_max, // other_range, //double            disparity_near,   //
@@ -5323,11 +5325,6 @@ public class QuadCLT {
 					  threadsMax,  // maximal number of threads to launch                         
 					  updateStatus,
 					  debugLevel);
-/**			  
-			  if ((scanIndex == 49) || (scanIndex == 54) ) tp.showScan(
-					  scan, // tp.clt_3d_passes.get(scanIndex), // CLTPass3d   scan,
-					  "MEASURED-"+scanIndex);
-*/					  
 		  }
 
 		  // TEMPORARY EXIT
@@ -5353,13 +5350,14 @@ public class QuadCLT {
 
 			  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
 
+/*			  
 			  if ((scanIndex == 73) ) {
 				  tp.showScan(
 						  tp.clt_3d_passes.get(scanIndex), // CLTPass3d   scan,
 						  "SELECTED-"+scanIndex);
 			  }
 
-
+*/
 
 			  // TODO: use new updated disparity, for now just what was forced for the picture
 			  double [] scan_disparity = new double [tilesX * tilesY];
@@ -5383,17 +5381,21 @@ public class QuadCLT {
 					  scan_disparity[i] = sdw;
 				  }
 			  }
-
+/*
 			  if ((scanIndex == 73)) {
 				  tp.showScan(
 						  tp.clt_3d_passes.get(scanIndex), // CLTPass3d   scan,
 						  "X3D-"+scanIndex);
 			  }
-			  boolean showTri = ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||(scanIndex == 73);
+*/			  
+//			  boolean showTri = ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||(scanIndex < 3);
+			  boolean showTri = ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||((scanIndex - next_pass) == 73);
+			  
 //			  boolean showTri = ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||(scanIndex == 49) || (scanIndex == 54);
 			  generateClusterX3d(
 					  x3dOutput,
 					  texturePath,
+					  "shape_id-"+(scanIndex - next_pass), // id
 					  scan.bounds,
 					  scan.selected,
 					  scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
@@ -5429,6 +5431,7 @@ public class QuadCLT {
 	  public void generateClusterX3d(
 			  X3dOutput  x3dOutput,
 			  String     texturePath,
+			  String     id,
 			  Rectangle  bounds,
 			  boolean [] selected,
 			  double []  disparity,
@@ -5486,6 +5489,7 @@ public class QuadCLT {
 
 		  x3dOutput.addCluster(
 				  texturePath,
+				  id,
 				  texCoord,
 				  worldXYZ,
 				  triangles);
