@@ -254,6 +254,30 @@ public class TileSurface {
 			public int opposite(int dir){
 				return (dir + dirs / 2) % dirs;
 			}
+
+			/**
+			 * Get x,y pair from index
+			 * @param indx element index
+			 * @return array of {x,y}
+			 */
+			
+			int [] getXY(int indx)
+			{
+				int [] xy = {indx % sizeX ,indx / sizeX};
+				return xy;
+			}
+			
+			/**
+			 * Get element index from x and y
+			 * @param x horizontal position
+			 * @param y vertical position
+			 * @return element linescan index
+			 */
+			
+			int getIndex(int x, int y){
+				return y * sizeX + x;
+			}
+			
 			/**
 			 * Get 2d element index after step N, NE, ... NW. Returns -1 if leaving array   
 			 * @param indx start index

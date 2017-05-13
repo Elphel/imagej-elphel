@@ -3428,8 +3428,33 @@ public class TileProcessor {
 				0, // final int debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
-		st.detectTriangularConflicts(
+		int [][][] conflicts0 = st.detectTriangularConflicts(
 				1); // final int debugLevel)
+		// just testing
+		int [] dual_tri_results = st. resolveDualTriangularConflicts(
+				conflicts0, // int [][][] conflicts,
+				clt_parameters.plMaxEigen,
+				0.5, // double     orthoWeight,
+				0.25, // double     diagonalWeight,
+				clt_parameters.plPreferDisparity,
+				1, // final int debugLevel)
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+		System.out.println("dual_tri_results (success/failures) = "+dual_tri_results[0]+" / "+dual_tri_results[1]); 
+		st.testResoveTriangle(
+				clt_parameters.plWorstWorsening, // final double worst_worsening,
+				clt_parameters.plWeakWorsening,  // final double worst_worsening,
+				clt_parameters.plOKMergeEigen,   // final double okMergeEigen,
+				clt_parameters.plMaxWorldSin2,   // final double maxWorldSin2,
+				clt_parameters.plDispNorm,
+				clt_parameters.plMaxEigen,
+				clt_parameters.plPreferDisparity,
+				conflicts0, // int [][][] conflicts,
+				1, // final int debugLevel)
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+		
+		
 
 		if (clt_parameters.plSplitApply) {
 			while (true) {

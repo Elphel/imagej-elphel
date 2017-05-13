@@ -25,6 +25,8 @@ import java.awt.Point;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
 
@@ -3800,32 +3802,594 @@ public class SuperTiles{
 		}
 		ImageDtt.startAndJoin(threads);
 		if (debugLevel > -1){
-			int [] num_conflicts = new int [8];
-			for (int nsTile = 0; nsTile < conflicts.length; nsTile++) if (conflicts[nsTile] != null){
-				for (int nc = 0; nc < conflicts[nsTile].length; nc++){
-					int np = 0;
-					for (int i = 0; i < 8; i++){
-						if ((conflicts[nsTile][nc][2] & (1 << i)) != 0) {
-							np ++;
-						}
-					}
-					num_conflicts[np]++;
-					if (debugLevel > 0) {
-						System.out.println("detectTriangularConflicts() nsTile ="+nsTile+
-								" nl1 = "+ conflicts[nsTile][nc][0]+
-								" nl2 = "+ conflicts[nsTile][nc][1]+
-								" bits = "+ conflicts[nsTile][nc][2]);
-					}
-				}
-			}
+
+			int [] num_conflicts = 	getNumConflicts(
+					conflicts,
+					debugLevel);
 			System.out.print("detectTriangularConflicts() detected conflicts:");
 			for (int i = 0; i < 8; i++){
 				if (num_conflicts[i] >0) System.out.print(" type "+i+": "+num_conflicts[i]);
 			}
-			System.out.println();
+			System.out.println(" number of incompatible triangles = " + num_conflicts[8]+
+					" number of dual triangles = " + num_conflicts[9]);
 		}
 		return conflicts;
 	}
+	
+	public int [] getNumConflicts(
+			int [][][] conflicts,
+			int        debugLevel)
+	{
+		int [] num_conflicts = new int [10];
+		for (int nsTile = 0; nsTile < conflicts.length; nsTile++) if (conflicts[nsTile] != null){
+			for (int nc = 0; nc < conflicts[nsTile].length; nc++){
+				int np = 0;
+				for (int i = 0; i < 8; i++){
+					if ((conflicts[nsTile][nc][2] & (1 << i)) != 0) {
+						np ++;
+					}
+				}
+				num_conflicts[np]++;
+				if (debugLevel > 0) {
+					int bits =conflicts[nsTile][nc][2];
+					System.out.println("detectTriangularConflicts() nsTile = "+nsTile+
+							" nl1 = "+ conflicts[nsTile][nc][0]+
+							" nl2 = "+ conflicts[nsTile][nc][1]+
+							" bits = "+ getNumPairsTriangularConflict(bits) + " ("+bits+")"+
+							" number of incompatible triangles = "+getIncompatiblePairsTriangularConflict(bits)+
+							" number of dual triangles = "+numDualTri(bits));
+				}
+				num_conflicts[8] += getIncompatiblePairsTriangularConflict(conflicts[nsTile][nc][2]);
+				num_conflicts[9] += numDualTri(conflicts[nsTile][nc][2]);
+			}
+		}
+		return num_conflicts;
+	}
+	
+	public void testResoveTriangle(
+			double     rquality,
+			double     weakWorsening,
+			double     okMergeEigen,
+			double     maxWorldSin2,
+			double     dispNorm,
+			double     maxEigen, // maximal eigenvalue of planes to consider
+			boolean    preferDisparity,
+			int [][][] conflicts,
+			int        debugLevel,
+			int        dbg_X,
+			int        dbg_Y)
+	{
+		final int tilesX =        tileProcessor.getTilesX();
+		final int tilesY =        tileProcessor.getTilesY();
+		final int superTileSize = tileProcessor.getSuperTileSize();
+		//				final int tileSize =      tileProcessor.getTileSize();
+		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;
+		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
+		final int nsTile = dbg_Y * stilesX + dbg_X;
+		final TileSurface.TileNeibs tnSurface = tileSurface.new TileNeibs(stilesX, stilesY);
+		if (conflicts[nsTile] == null){
+			System.out.println("There are no conflicts for nsTile = "+nsTile);
+			return;
+		}
+		System.out.println("There are "+ conflicts[nsTile].length+" conflicts for nsTile = "+nsTile);
+		for (int nConfl = 0; nConfl < conflicts[nsTile].length; nConfl++){
+			String sdir_mask = "";
+			for (int i = 7; i >=0; i--) sdir_mask +=((conflicts[nsTile][nConfl][2] & (1 << i)) != 0) ? i:"."; 
+			System.out.println("Resolving conflict "+ nConfl+":"+
+					" nl1 = "+conflicts[nsTile][nConfl][0]+
+					" nl2 = "+conflicts[nsTile][nConfl][1]+
+					" dir_mask = "+ sdir_mask+" ("+conflicts[nsTile][nConfl][2]+")");
+			int win_layer = resolveTriangularConflict(
+					nsTile,
+					conflicts[nsTile][nConfl][0], // int nl1,
+					conflicts[nsTile][nConfl][1], // int nl2,
+					conflicts[nsTile][nConfl][2], // int dir_mask,
+					rquality,
+					weakWorsening,
+					okMergeEigen,
+					maxWorldSin2,
+					dispNorm,
+					maxEigen, // maximal eigenvalue of planes to consider
+					tnSurface,
+					preferDisparity,
+					debugLevel);
+			if (win_layer <0) {
+				System.out.println("Conflict "+ nConfl+":"+
+						" nl1 = "+conflicts[nsTile][nConfl][0]+
+						" nl2 = "+conflicts[nsTile][nConfl][1]+
+						" dir_mask = "+ sdir_mask+" ("+conflicts[nsTile][nConfl][2]+") is NOT RESOLVED");
+			} else {
+				System.out.println("Conflict "+ nConfl+":"+
+						" nl1 = "+conflicts[nsTile][nConfl][0]+
+						" nl2 = "+conflicts[nsTile][nConfl][1]+
+						" dir_mask = "+ sdir_mask+" ("+conflicts[nsTile][nConfl][2]+") is RESOLVED - use layer "+win_layer);
+				
+			}
+		}
+	}
+	
+	int getNumPairsTriangularConflict(int mask){
+		int numbits = 0;
+		for (int i = 0; i < 8; i++){
+			if ((mask & (1 << i)) > 0) numbits++;
+		}
+		return numbits;
+	}
+	int getIncompatiblePairsTriangularConflict(int mask){
+		int num_incompat = 0;
+		for (int i = 0; i < 8; i++){
+			if ((mask & (1 << i)) > 0) {
+				int [] incomp_bits= {
+						i ^ 4,
+						(i & 4) | ((i + 1) & 3),
+						(i & 4) | ((i - 1) & 3)};
+				for (int j = 1; j < 3; j++){ // skip dual triangles
+					int i1 = incomp_bits[j];
+					if ((mask & (1 << i1)) > 0){
+						num_incompat ++;
+					}
+				}
+			}
+		}
+		return num_incompat / 2;
+	}
+	
+	public int numDualTri(int mask)
+	{
+		int num_dual = 0;
+		int mask2 = mask & (mask >> 4);
+		for (int i = 0; i < 4; i++) if ((mask2 & (1 <<i)) != 0) num_dual++;
+		return num_dual;
+	}
+	
+	
+	public void applyTriangularConflictResolution(
+			int nsTile,
+			int nl1,
+			int nl2,
+			int nl_winner,
+			int dir_mask,
+			int debugLevel)
+	{
+
+	}
+	
+	public int [] resolveDualTriangularConflicts(
+			int [][][] conflicts,
+			double     maxEigen, // maximal eigenvalue of planes to consider
+			double     orthoWeight,
+			double     diagonalWeight,
+			boolean    preferDisparity,
+			int        debugLevel,
+			int        dbg_X,
+			int        dbg_Y)
+	{
+		final int tilesX =        tileProcessor.getTilesX();
+		final int tilesY =        tileProcessor.getTilesY();
+		final int superTileSize = tileProcessor.getSuperTileSize();
+		//				final int tileSize =      tileProcessor.getTileSize();
+		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;
+		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
+		final int dbgTile = dbg_Y * stilesX + dbg_X;
+		final TileSurface.TileNeibs tnSurface = tileSurface.new TileNeibs(stilesX, stilesY);
+		int [] rslt = {0,0};
+		for (int nsTile = 0; nsTile < conflicts.length; nsTile++) if (conflicts[nsTile] != null) {
+			for (int nConfl = 0; nConfl < conflicts[nsTile].length; nConfl++){
+				if (numDualTri(conflicts[nsTile][nConfl][2]) > 0) {
+					for (int dir4 = 0; dir4 < 4; dir4 ++ ){
+						if (((conflicts[nsTile][nConfl][2] & (1 << dir4)) > 0) && ((conflicts[nsTile][nConfl][2] & (16 << dir4)) > 0)) {
+							if (debugLevel > -1){
+								System.out.println("resolveDualTriangularConflicts(): resolving dual triangular conflict for tile "+nsTile+
+										", nl1 = "+conflicts[nsTile][nConfl][0]+
+										", nl2 = "+conflicts[nsTile][nConfl][1]+
+										", dir4 = "+dir4);
+							}
+							boolean [] dual_resol = resolveDualTriangularConflict(
+									nsTile,
+									conflicts[nsTile][nConfl][0],
+									conflicts[nsTile][nConfl][1],
+									dir4,
+									maxEigen, // maximal eigenvalue of planes to consider
+									tnSurface,
+									preferDisparity,
+									debugLevel + ((nsTile == dbgTile)? 1 : 0));
+							if (dual_resol == null){
+								if (debugLevel > -1) {
+									System.out.println("resolveDualTriangularConflicts(): resolving dual triangular conflict for tile "+nsTile+
+											", nl1 = "+conflicts[nsTile][nConfl][0]+
+											", nl2 = "+conflicts[nsTile][nConfl][1]+
+											", dir4 = "+dir4+"FAILED");
+									rslt[1]++;
+								}
+							} else {
+								if (debugLevel > -1) {
+									System.out.println("resolveDualTriangularConflicts(): resolving dual triangular conflict for tile "+nsTile+
+											", nl1 = "+conflicts[nsTile][nConfl][0]+
+											", nl2 = "+conflicts[nsTile][nConfl][1]+
+											", dir4 = "+dir4+" RESOLVED:");
+									if (dual_resol[0])	System.out.println("swap links in dir4 = "+dir4);
+									if (dual_resol[1])	System.out.println("swap links in dir4 = "+((dir4 + 1) % 4));
+									if (dual_resol[2])	System.out.println("swap links in a digonal between dir4 = "+dir4+" and "+((dir4 + 1) % 4));
+								}
+								// calculate cost of swap
+								int [] mod_supertiles = {
+										nsTile,
+										tnSurface.getNeibIndex(nsTile, 2 * dir4),
+										tnSurface.getNeibIndex(nsTile, 2 * ((dir4 + 1) % 4))};
+								// Actually here no other supertiles will be influenced, so no need for 
+								/*
+								int [] nsTiles = getInvolvedSupertiles( // first 3 entries will be mod_supertiles[]
+										mod_supertiles,
+										tnSurface);
+										*/
+								int nl1 = conflicts[nsTile][nConfl][0];
+								int nl2 = conflicts[nsTile][nConfl][1];
+
+								int [] nsTiles = mod_supertiles;
+								int [][][] neibs_prev = new int [nsTiles.length][][];
+								double [][][]  val_weights = new double [nsTiles.length][][];
+								updateConnectionsCost (
+										nsTiles,      // int []         nsTiles,
+										null,         // int [][][]     neibs_prev,
+										neibs_prev,   // int [][][]     neibs,		// should be initialized at top dimension if neibs_prev==null	
+										val_weights,  // double [][][]  val_weights, // should be initialized at top dimension if neibs_prev==null
+										orthoWeight,
+										diagonalWeight,
+										tnSurface,
+										preferDisparity,
+										debugLevel);
+								int [][][] neibs = neibs_prev.clone();
+								for (int i = 0; i < neibs.length; i++) if (neibs_prev[i] != null){
+									neibs[i] = neibs_prev[i].clone();
+									for (int j = 0; j < neibs[i].length; j++) if (neibs_prev[i][j] != null){
+										neibs[i][j] = neibs_prev[i][j].clone();
+									}
+								}
+								//apply swaps:
+//								int [] indices = {tile_index.get
+								int dir1f = 2 * dir4; 
+								int dir1r = (2 * dir4 + 4) % 8;
+								int dir2f = (2 * dir4 + 3) % 8; 
+								int dir2r = (2 * dir4 + 7) % 8;
+								int dir3f = (2 * dir4 + 6) % 8; 
+								int dir3r = (2 * dir4 + 2) % 8;
+								int nl1_1 = neibs_prev[0][nl1][dir1f]; // layer on the first that was connected from nl1->N
+								int nl2_1 = neibs_prev[0][nl2][dir1f]; // layer on the first that was connected from nl2->N
+								int nl1_2 = neibs_prev[1][nl1_1][dir2f]; // layer on second that was connected from nl1->N->SE
+								int nl2_2 = neibs_prev[1][nl2_1][dir2f]; // layer on second that was connected from nl2->N->SE
+								//  2->0 was already swapped
+
+								if (dual_resol[0])	{
+									if (debugLevel > -1) System.out.println("swapping links in dir4 = "+dir4);
+									neibs[0][nl1][dir1f] = neibs_prev[0][nl2][dir1f]; 
+									neibs[0][nl2][dir1f] = neibs_prev[0][nl1][dir1f];
+									neibs[1][nl1_1][dir1r] = neibs_prev[1][nl2_1][dir1r]; 
+									neibs[1][nl2_1][dir1r] = neibs_prev[1][nl1_1][dir1r]; 
+									
+								}
+								if (dual_resol[1])	{
+									if (debugLevel > -1) System.out.println("swapping links in dir4 = "+((dir4 + 1) % 4));
+									neibs[0][nl1][dir3r] = neibs_prev[0][nl2][dir3r]; 
+									neibs[0][nl2][dir3r] = neibs_prev[0][nl1][dir3r];
+									neibs[2][nl1_2][dir3f] = neibs_prev[2][nl2_2][dir3f]; 
+									neibs[2][nl2_2][dir3f] = neibs_prev[2][nl1_2][dir3f]; 
+								}
+								if (dual_resol[2]){
+									if (debugLevel > -1) System.out.println("swapping links in a digonal between dir4 = "+dir4+" and "+((dir4 + 1) % 4));
+									neibs[1][nl1_1][dir2f] = neibs_prev[1][nl2_1][dir2f]; 
+									neibs[1][nl2_1][dir2f] = neibs_prev[1][nl1_1][dir2f];
+									
+									neibs[2][nl1_2][dir2r] = neibs_prev[2][nl2_2][dir2r]; 
+									neibs[2][nl2_2][dir2r] = neibs_prev[2][nl1_2][dir2r]; 
+								}
+								double cost_diff = 	updateConnectionsCost (
+										nsTiles,      // int []         nsTiles,
+										neibs_prev,   // int [][][]     neibs_prev,
+										neibs,        // int [][][]     neibs,		// should be initialized at top dimension if neibs_prev==null	
+										val_weights,  // double [][][]  val_weights, // should be initialized at top dimension if neibs_prev==null
+										orthoWeight,
+										diagonalWeight,
+										tnSurface,
+										preferDisparity,
+										debugLevel);
+								if (debugLevel > -1) {
+									System.out.println("resolveDualTriangularConflicts(): resolving dual triangular conflict for tile "+nsTile+
+											", nl1 = "+conflicts[nsTile][nConfl][0]+
+											", nl2 = "+conflicts[nsTile][nConfl][1]+
+											", dir4 = "+dir4+" improvement = "+cost_diff);
+								}
+								if (cost_diff < 0) {
+									if (debugLevel > -1) {
+										System.out.println("resolveDualTriangularConflicts(): SUCCESS");
+									}
+									rslt[0]++;
+								} else {
+									if (debugLevel > -1) {
+										System.out.println("resolveDualTriangularConflicts(): FAILURE");
+									}
+									rslt[1]++;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		return rslt;
+	}
+	
+	/**
+	 *  Resolve dual triangle, where NL1 -> N -> SE -> W -> NL2 -> N -> SE -> W -> NL1 (or similar)
+	 * @param nsTile supertile index
+	 * @param nl1 first conflicting layer (lower of the too
+	 * @param nl2 second conflicting layer
+	 * @param dir4 start direction to (turn right)  0 - N, 1 - E, 2 - S, 3 - W
+	 * @param maxEigen maximal sum of 2 eigenvalues of the tri-plane combinations
+	 * @param tnSurface TileNeibs instance to navigate tile index and control array borders
+	 * @param preferDisparity - the first eigenvalue/vector is the most disparity-like
+	 *                          (false - smallest eigenvalue)
+	 * @param debugLevel
+	 * @return links to swap : [0] first in dir, [1] - first in dir + 1, [2] - other diagonal. Or null if failed
+	 * total number of bits set is odd  
+	 */
+	public boolean [] resolveDualTriangularConflict(
+			int nsTile,
+			int nl1,
+			int nl2,
+			int dir4,
+			double maxEigen, // maximal eigenvalue of planes to consider
+			TileSurface.TileNeibs tnSurface,
+			boolean preferDisparity,
+			int debugLevel)
+	{
+		int [] neibs1 = planes[nsTile][nl1].getNeibBest();
+		int [] neibs2 = planes[nsTile][nl2].getNeibBest();
+		int dir1 = 2 * dir4;
+		int dir2 = (2 * dir4 + 2) % 8;
+		int nsTile1 = tnSurface.getNeibIndex(nsTile, dir1);
+		int nsTile2 = tnSurface.getNeibIndex(nsTile, dir2);
+		
+		TilePlanes.PlaneData [][] tri_pd = {
+				{planes[nsTile][nl1], planes[nsTile][nl2]},
+				{planes[nsTile1][neibs1[dir1]], planes[nsTile1][neibs2[dir1]]},
+				{planes[nsTile2][neibs1[dir2]], planes[nsTile2][neibs2[dir2]]}};
+		TilePlanes.PlaneData [][] tri_merged = new TilePlanes.PlaneData [4][2]; // keep to the very end for debugging
+		// initial connections: [0][0] -> [1][0] -> [2][1] -> [0][1] -> [1][1]-> [2][0] -> [0][0]
+		// 4 variants for 3-supertile sets. get with smallest sum of the 2 main eigenvalues, as long as each
+		// is below maxEigen
+		if (debugLevel > 1) {
+			System.out.println ("resolveDualTriangularConflict() + nsTile = "+nsTile+", nl1 = "+nl1+", nl2 = "+nl2+" dir4="+dir4);
+		}
+		double [][] ev_variants = new double [4][2];
+		int best_pair = -1;
+		double best_value = Double.NaN; 
+		for (int variant = 0; variant < 4; variant++){
+			TilePlanes.PlaneData [][] tri_sets = {
+					{tri_pd[0][0], tri_pd[1][    (variant & 1)], tri_pd[2][    ((variant >> 1) & 1)]},
+					{tri_pd[0][1], tri_pd[1][1 - (variant & 1)], tri_pd[2][1 - ((variant >> 1) & 1)]}};
+			for (int nt = 0; nt < tri_sets.length; nt++){
+				TilePlanes.PlaneData tri_plane = tri_sets[nt][0];
+				for (int indx = 1; indx <  tri_sets[nt].length; indx++){
+					TilePlanes.PlaneData other_plane = tri_sets[nt][0].getPlaneToThis(  // layer here does not matter
+							tri_sets[nt][indx],
+							debugLevel - 2); // debugLevel);
+					tri_plane = tri_plane.mergePlaneToThis(
+							other_plane,     // PlaneData otherPd,
+							1.0,             // double    scale_other,
+							false,           // boolean   ignore_weights,
+							true,            // boolean   sum_weights,
+							preferDisparity, 
+							debugLevel - 2); // int       debugLevel)
+				}
+				ev_variants[variant][nt] = tri_plane.getValue();
+				tri_merged[variant][nt] = tri_plane;
+			}
+			if ((best_pair < 0) || ((ev_variants[variant][0] + ev_variants[variant][1]) < best_value)){
+				best_value = ev_variants[variant][0] + ev_variants[variant][1];
+				best_pair = variant;
+			}
+			if (debugLevel > 1) {
+				System.out.println ("variant="+variant+" value1="+ev_variants[variant][0]+
+						" value2="+ev_variants[variant][1]+" sum value = "+(ev_variants[variant][0]+ev_variants[variant][1]));
+			}
+		}
+		if (debugLevel > 1) {
+			System.out.println ("resolveDualTriangularConflict() + nsTile = "+nsTile+", nl1 = "+nl1+", nl2 = "+nl2+" dir4="+dir4+" best variant ="+ best_pair);
+		}
+		if (best_value < maxEigen) {
+			boolean [] rslt = {
+					((best_pair & 1) != 0),
+					((best_pair & 2) != 0),
+					false};
+			rslt[2] = !rslt[0] ^ rslt[1];
+			return rslt;
+		}
+		return null;
+	}	
+	
+	/**
+	 * Calculate main eigenvalue of the current plane and all connected ones - used to estimate advantage of connection swap
+	 * @param nsTile supertile index
+	 * @param nl surface layer
+	 * @param neibs array of 8 neighbors layers (N,NE,...NW), -1 - not connected
+	 * @param orthoWeight multiply contribution of ortho neighbors
+	 * @param diagonalWeight  multiply contribution of diagonal neighbors
+	 * @param tnSurface TileNeibs instance to navigate tile index and control array borders
+	 * @param preferDisparity - the first eigenvalue/vector is the most disparity-like
+	 *                          (false - smallest eigenvalue)
+	 * @param debugLevel
+	 * @return a pair of eigenvalue of the combine plane and its weight
+	 */
+	public double [] getStarValueWeight(
+			int    nsTile,
+			int    nl,
+			int [] neibs,
+			double orthoWeight,
+			double diagonalWeight,
+			TileSurface.TileNeibs tnSurface,
+			boolean preferDisparity,
+			int    debugLevel)
+	{
+		TilePlanes.PlaneData merged_plane = planes[nsTile][nl];
+		for (int dir = 0; dir < 8; dir++){
+			if (neibs[dir] >= 0){
+				double other_weight = ((dir & 1) != 0) ? diagonalWeight : orthoWeight;
+				TilePlanes.PlaneData other_plane = merged_plane.getPlaneToThis(  // layer here does not matter
+						planes[tnSurface.getNeibIndex(nsTile, dir)][neibs[dir]],
+						debugLevel - 1); // debugLevel);
+				merged_plane = merged_plane.mergePlaneToThis(
+						other_plane,     // PlaneData otherPd,
+						other_weight,    // double    scale_other,
+						false,           // boolean   ignore_weights,
+						true,            // boolean   sum_weights,
+						preferDisparity, 
+						debugLevel - 1); // int       debugLevel)
+			}
+		}
+		double [] value_weight = {merged_plane.getValue(),merged_plane.getWeight()};
+		return value_weight;
+	}
+	
+	/**
+	 * Calculate array of supertile indices that need to have connection cost recalculated when they are updated
+	 * first entries of the result will be the same in input array
+	 * @param mod_supertiles array of supertile indices that will be modified
+	 * @param tnSurface TileNeibs instance to navigate tile index and control array borders
+	 * @return array of supertile indices to watch connection cost
+	 */
+	public int [] getInvolvedSupertiles(
+			int [] mod_supertiles,
+			TileSurface.TileNeibs tnSurface)
+	{
+		HashSet<Integer> stiles_set = new HashSet<Integer>();
+		for (int i = 0; i < mod_supertiles.length; i++){
+			stiles_set.add(new Integer(mod_supertiles[i]));
+			for (int dir = 0; dir < 8; dir++){
+				Integer nsTile = tnSurface.getNeibIndex(mod_supertiles[i], dir);
+				if (nsTile >= 0) stiles_set.add (nsTile);
+			}
+		}
+		int [] stiles = new int [stiles_set.size()];
+		int indx = 0;
+		for (; indx < mod_supertiles.length; indx++){
+			stiles_set.remove(new Integer(mod_supertiles[indx]));
+			stiles[indx] = mod_supertiles[indx];
+		}
+		for (Integer nsTile: stiles_set){
+			stiles[indx++] = nsTile;
+		}
+		return stiles;
+	}
+	
+	/**
+	 * Update cost of involved connections after swapping some of them. Total number of links should probably stay
+	 *  the same.
+	 * @param nsTiles array of indices of the supertiles to watch
+	 * @param neibs_prev 3-d array [per supertile index][per layer][per direction] of previuos connections for which
+	 * the cost was already calculated. Or null - in that case established connections will be used and returned in
+	 * neibs array
+	 * @param neibs new connections to calculate cost for. If neibs_prev == null, this array should be initialized
+	 * by the caller as new int [nsTiles.length][][]
+	 * @param val_weights array of values*weights and weights per supertile index, per layer of {val*weight, weight}
+	 * @param orthoWeight multiply contribution of ortho neighbors
+	 * @param diagonalWeight  multiply contribution of diagonal neighbors
+	 * @param tnSurface TileNeibs instance to navigate tile index and control array borders
+	 * @param preferDisparity - the first eigenvalue/vector is the most disparity-like
+	 *                          (false - smallest eigenvalue)
+	 * @param debugLevel
+	 * @return difference between new cost and old cost, negative means improvement
+	 */
+	
+	
+	public double updateConnectionsCost (
+			int []         nsTiles,
+			int [][][]     neibs_prev,
+			int [][][]     neibs,		// should be initialized at top dimension if neibs_prev==null	
+			double [][][]  val_weights, // should be initialized at top dimension if neibs_prev==null
+			double orthoWeight,
+			double diagonalWeight,
+			TileSurface.TileNeibs tnSurface,
+			boolean preferDisparity,
+			int    debugLevel)
+	{
+		if (neibs_prev == null){
+//			neibs_prev = new int [nsTiles.length][][];
+			for (int isTile = 0; isTile < nsTiles.length; isTile++){
+				int nsTile = nsTiles[isTile];
+				if (planes[nsTile] != null){
+					neibs[isTile] = new int [planes[nsTile].length][];
+					val_weights[isTile] = new double [planes[nsTile].length][];
+					for (int nl = 0; nl < planes[nsTile].length; nl++) if ( planes[nsTile][nl] != null){
+						neibs[isTile][nl] =  planes[nsTile][nl].getNeibBest();
+						val_weights[isTile][nl] = new double[2];
+					}
+				}
+			}
+		}
+		// calculate old cost
+		double old_value = 0.0;
+		double old_weight = 0.0; // should not change during update
+		for (int isTile = 0; isTile < nsTiles.length; isTile++){
+			if (val_weights[isTile] != null){
+				for (int nl = 0; nl < val_weights[isTile].length; nl++) if ( val_weights[isTile][nl] != null){
+					old_value += val_weights[isTile][nl][0] * val_weights[isTile][nl][1];
+					old_weight += val_weights[isTile][nl][1];
+				}
+			}
+		}
+		// now re-calculate val_weights where neibs are different from neibs_prev
+		for (int isTile = 0; isTile < nsTiles.length; isTile++){
+			int nsTile = nsTiles[isTile];
+			if (planes[nsTile] != null) {
+				if (neibs[isTile] != null){
+					for (int nl = 0; nl < planes[nsTile].length; nl++) if (planes[nsTile][nl] != null){
+						if  (neibs[isTile][nl] != null) {
+							boolean neibs_changed = false;
+							if ((neibs_prev == null) || (neibs_prev[isTile] == null)  || (neibs_prev[isTile][nl] == null)){
+								neibs_changed = true;
+							} else {
+								for (int dir = 0; dir < 8; dir++) if (neibs_prev[isTile][nl][dir] != neibs_prev[isTile][nl][dir]){
+									neibs_changed = true;
+									break;
+								}
+							}
+							if (neibs_changed){
+								val_weights[isTile][nl] = getStarValueWeight(
+										nsTile,
+										nl,
+										neibs[isTile][nl],
+										orthoWeight,
+										diagonalWeight,
+										tnSurface,
+										preferDisparity,
+										debugLevel);
+							}
+						} else {
+							val_weights[isTile][nl] = null;
+						}
+					}				
+				} else {
+					val_weights[isTile] = null;
+				}
+			}
+		}
+		// calculate new cost
+		double new_value = 0.0;
+		double new_weight = 0.0; // should not change during update
+		for (int isTile = 0; isTile < nsTiles.length; isTile++){
+			if (val_weights[isTile] != null){
+				for (int nl = 0; nl < val_weights[isTile].length; nl++) if ( val_weights[isTile][nl] != null){
+					new_value += val_weights[isTile][nl][0] * val_weights[isTile][nl][1];
+					new_weight += val_weights[isTile][nl][1];
+				}
+			}
+		}
+		// Likely weight will never change except first run, but we will still normalize by weight
+		if (old_weight != 0.0) old_value /= old_weight;
+		if (new_weight != 0.0) new_value /= new_weight;
+		return new_value - old_value; // negative - improvement
+	}
+	
 	
 	/**
 	 * Find out which of the layers to use to resolve the conflict. Multiple conflict may need to
@@ -3863,20 +4427,23 @@ public class SuperTiles{
 			int debugLevel)
 	{
 		ArrayList<Point> surf_list = new ArrayList<Point>();
+		int [] neibs1 = planes[nsTile][nl1].getNeibBest();
+		int [] neibs2 = planes[nsTile][nl2].getNeibBest();
 		for (int dir = 0; dir < 8; dir +=2){
 			if ((dir_mask & (1 << (dir / 2))) != 0){
 				int nsTile1 = tnSurface.getNeibIndex(nsTile, dir);
 				int nsTile2 = tnSurface.getNeibIndex(nsTile, (dir + 2) % 8);
-				surf_list.add(new Point(nsTile1,nl1));
-				surf_list.add(new Point(nsTile2,nl2));
+				
+				surf_list.add(new Point(nsTile1,neibs1[dir]));
+				surf_list.add(new Point(nsTile2,neibs2[(dir + 2) % 8]));
 			}
 			if ((dir_mask & (1 << ((dir / 2) + 4))) != 0){
 				int nsTile1 = tnSurface.getNeibIndex(nsTile, dir);
 				int nsTile2 = tnSurface.getNeibIndex(nsTile, (dir + 2) % 8);
-				surf_list.add(new Point(nsTile1,nl2));
-				surf_list.add(new Point(nsTile2,nl1));
+				surf_list.add(new Point(nsTile1,neibs2[dir]));
+				surf_list.add(new Point(nsTile2,neibs1[(dir + 2) % 8]));
 			}
-		}
+		} // TODO: do not use duplicates? Or keep to increase weight?
 		TilePlanes.PlaneData merged_plane = null;
 		TilePlanes.PlaneData this_plane1 = planes[nsTile][nl1];
 		TilePlanes.PlaneData this_plane2 = planes[nsTile][nl2];
@@ -3900,7 +4467,6 @@ public class SuperTiles{
 		TilePlanes.PlaneData [] merged = new TilePlanes.PlaneData [2];
 
 		// now find which is better and if any of them fits at all. Print other criteria also - maybe use them later
-		double [] merge_ev = new double[2];
 		boolean [] fit = {true,true}; // initially both fit
 		double [] this_rq = new double[2];
 		for (int np = 0; np < 2; np++){
@@ -3939,7 +4505,7 @@ public class SuperTiles{
 				continue;
 			}
 			// verify
-			if ((maxWorldSin2 < 1.0) && (merged_plane.getWorldSin2(merged[np]) <=maxWorldSin2)) {
+			if ((maxWorldSin2 < 1.0) && (merged_plane.getWorldSin2(these[np]) > maxWorldSin2)) { // use these[np], no merged[np], invert comparison
 				fit[np] = false;
 				continue;
 			}
