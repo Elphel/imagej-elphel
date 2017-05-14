@@ -2174,6 +2174,10 @@ public class EyesisCorrectionParameters {
   		public double     plOKMergeEigen       =   0.03; // If result of the merged planes is below, OK to bypass worst worsening
   		public double     plMaxWorldSin2       =   0.1;  // Maximal sine squared of the world angle between planes to merge. Set to >= 1.0 to disable
   		public double     plWeakWorsening      =   1.0;  // Relax merge requirements for weaker planes
+  		public double     plStarOrtho          =   0.5;  // When calculating cost for the connections scale 4 ortho neighbors
+  		public double     plStarDiag           =   0.25; // When calculating cost for the connections scale 4 diagonal neighbors
+  		public double     plDblTriLoss         =   0.0001; // When resolving double triangles allow minor degradation (0.0 - strict)
+  		
   		public boolean    plMutualOnly         =   true; // keep only mutual links, remove weakest if conflict
   		public boolean    plFillSquares        =   true; // Add diagonals to full squares
   		public boolean    plCutCorners         =   true; // Add ortho to 45-degree corners
@@ -2521,6 +2525,11 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plOKMergeEigen",   this.plOKMergeEigen +"");
 			properties.setProperty(prefix+"plMaxWorldSin2",   this.plMaxWorldSin2 +"");
 			properties.setProperty(prefix+"plWeakWorsening",  this.plWeakWorsening +"");
+
+			properties.setProperty(prefix+"plStarOrtho",      this.plStarOrtho +"");
+			properties.setProperty(prefix+"plStarDiag",       this.plStarDiag +"");
+			properties.setProperty(prefix+"plDblTriLoss",     this.plDblTriLoss +"");
+
 			properties.setProperty(prefix+"plMutualOnly",     this.plMutualOnly+"");
 			properties.setProperty(prefix+"plFillSquares",    this.plFillSquares+"");
 			properties.setProperty(prefix+"plCutCorners",     this.plCutCorners+"");
@@ -2848,8 +2857,12 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plOKMergeEigen")!=null)    this.plOKMergeEigen=Double.parseDouble(properties.getProperty(prefix+"plOKMergeEigen"));
   			if (properties.getProperty(prefix+"plMaxWorldSin2")!=null)    this.plMaxWorldSin2=Double.parseDouble(properties.getProperty(prefix+"plMaxWorldSin2"));
   			if (properties.getProperty(prefix+"plWeakWorsening")!=null)   this.plWeakWorsening=Double.parseDouble(properties.getProperty(prefix+"plWeakWorsening"));
-  			if (properties.getProperty(prefix+"plMutualOnly")!=null)      this.plMutualOnly=Boolean.parseBoolean(properties.getProperty(prefix+"plMutualOnly"));
 
+  			if (properties.getProperty(prefix+"plStarOrtho")!=null)       this.plStarOrtho=Double.parseDouble(properties.getProperty(prefix+"plStarOrtho"));
+  			if (properties.getProperty(prefix+"plStarDiag")!=null)        this.plStarDiag=Double.parseDouble(properties.getProperty(prefix+"plStarDiag"));
+  			if (properties.getProperty(prefix+"plDblTriLoss")!=null)      this.plDblTriLoss=Double.parseDouble(properties.getProperty(prefix+"plDblTriLoss"));
+  			
+  			if (properties.getProperty(prefix+"plMutualOnly")!=null)      this.plMutualOnly=Boolean.parseBoolean(properties.getProperty(prefix+"plMutualOnly"));
   			if (properties.getProperty(prefix+"plFillSquares")!=null)     this.plFillSquares=Boolean.parseBoolean(properties.getProperty(prefix+"plFillSquares"));
   			if (properties.getProperty(prefix+"plCutCorners")!=null)      this.plCutCorners=Boolean.parseBoolean(properties.getProperty(prefix+"plCutCorners"));
 
@@ -3204,6 +3217,11 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("If result of the merged planes is below, OK to bypass worst worsening",        this.plOKMergeEigen,  6);
   			gd.addNumericField("Maximal sine squared of the world angle between planes to merge. Set to >= 1.0 to disable", this.plMaxWorldSin2,  6);
   			gd.addNumericField("Relax merge requirements for weaker planes",                                   this.plWeakWorsening,  6);
+
+  			gd.addNumericField("When calculating cost for the connections scale 4 ortho neighbors",            this.plStarOrtho,  6);
+  			gd.addNumericField("When calculating cost for the connections scale 4 diagonal neighbors",         this.plStarDiag,  6);
+  			gd.addNumericField("When resolving double triangles allow minor degradation (0.0 - strict)",       this.plDblTriLoss,  6);
+
   			gd.addCheckbox    ("Keep only mutual links, remove weakest if conflict",                           this.plMutualOnly);
 
   			gd.addCheckbox    ("Add diagonals to full squares",                                                this.plFillSquares);
@@ -3544,6 +3562,11 @@ public class EyesisCorrectionParameters {
   			this.plOKMergeEigen=        gd.getNextNumber();
   			this.plMaxWorldSin2=        gd.getNextNumber();
   			this.plWeakWorsening=       gd.getNextNumber();
+
+  			this.plStarOrtho=           gd.getNextNumber();
+  			this.plStarDiag=            gd.getNextNumber();
+  			this.plDblTriLoss=          gd.getNextNumber();
+
   			this.plMutualOnly=          gd.getNextBoolean();
 
   			this.plFillSquares=         gd.getNextBoolean();

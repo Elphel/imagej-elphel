@@ -3430,17 +3430,41 @@ public class TileProcessor {
 				clt_parameters.tileY);
 		int [][][] conflicts0 = st.detectTriangularConflicts(
 				1); // final int debugLevel)
+		int [] conflicts0_stats = 	st.getNumConflicts(
+				conflicts0,
+				-1); // debugLevel);
+
 		// just testing
-		int [] dual_tri_results = st. resolveDualTriangularConflicts(
-				conflicts0, // int [][][] conflicts,
-				clt_parameters.plMaxEigen,
-				0.5, // double     orthoWeight,
-				0.25, // double     diagonalWeight,
-				clt_parameters.plPreferDisparity,
-				1, // final int debugLevel)
-				clt_parameters.tileX,
-				clt_parameters.tileY);
-		System.out.println("dual_tri_results (success/failures) = "+dual_tri_results[0]+" / "+dual_tri_results[1]); 
+		for (int pass = 0; pass < 10; pass ++) {
+			int [] dual_tri_results = st. resolveDualTriangularConflicts(
+					conflicts0, // int [][][] conflicts,
+					conflicts0_stats,
+					clt_parameters.plMaxEigen,
+					clt_parameters.plStarOrtho, // double     orthoWeight,
+					clt_parameters.plStarDiag, // double     diagonalWeight,
+					clt_parameters.plDblTriLoss, // double     diagonalWeight,
+					clt_parameters.plPreferDisparity,
+					1, // final int debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+			System.out.println("Pass "+(pass+1)+": dual_tri_results (success/failures) = "+dual_tri_results[0]+" / "+dual_tri_results[1]);
+			if (dual_tri_results[0] == 0) break;
+		}
+		int [] conflicts1_stats = 	st.getNumConflicts(
+				conflicts0,
+				-1); // debugLevel);
+		st.printConflictSummary(conflicts1_stats);
+		/*
+		// re-checking conflicts (make sure update is correct)
+		int [][][] conflicts1r = st.detectTriangularConflicts(
+				1); // final int debugLevel)
+		
+		int [] conflicts1r_stats = 	st.getNumConflicts(
+				conflicts1r,
+				-1); // debugLevel);
+		st.printConflictSummary(conflicts1r_stats);
+*/		
+		
 		st.testResoveTriangle(
 				clt_parameters.plWorstWorsening, // final double worst_worsening,
 				clt_parameters.plWeakWorsening,  // final double worst_worsening,
