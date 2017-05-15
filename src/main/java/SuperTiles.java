@@ -3966,6 +3966,56 @@ public class SuperTiles{
 		return num_dual;
 	}
 	
+	
+	public int [] resolveMultiTriangularConflicts(
+			int [][][] conflicts,
+			int     [] conflict_stats, // to be updated after applying resolution
+			double     maxEigen, // maximal eigenvalue of planes to consider
+			double     orthoWeight,
+			double     diagonalWeight,
+			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
+			boolean    preferDisparity,
+			int        debugLevel,
+			int        dbg_X,
+			int        dbg_Y)
+	{
+		final int tilesX =        tileProcessor.getTilesX();
+		final int tilesY =        tileProcessor.getTilesY();
+		final int superTileSize = tileProcessor.getSuperTileSize();
+		//				final int tileSize =      tileProcessor.getTileSize();
+		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;
+		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
+		final int dbgTile = dbg_Y * stilesX + dbg_X;
+		final TileSurface.TileNeibs tnSurface = tileSurface.new TileNeibs(stilesX, stilesY);
+		int [] rslt = {0,0};
+		for (int nsTile = 0; nsTile < conflicts.length; nsTile++) if (conflicts[nsTile] != null) {
+			// conflicts may disappear after being fixed, recheck for null
+			for (int nConfl = 0; (conflicts[nsTile] != null) && (nConfl < conflicts[nsTile].length); nConfl++){
+				int dl = ((debugLevel > 0) && (nsTile == dbgTile)) ? 3 : 0;
+				boolean OK = resolveMultiTriangularConflict(
+						nsTile,
+						conflicts[nsTile][nConfl][0], // int nl1,
+						conflicts[nsTile][nConfl][1], // int nl2,
+						conflicts[nsTile][nConfl][2], // int dir_mask,
+						tnSurface,
+						conflicts,
+						conflict_stats, // to be updated after applying resolution
+						maxEigen, // maximal eigenvalue of planes to consider
+						orthoWeight,
+						diagonalWeight,
+						dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
+						preferDisparity,
+						dl, // debugLevel,
+						dbg_X,
+						dbg_Y) ;
+				if (OK) rslt[0]++;
+				else    rslt[1]++;
+			}
+		}
+		return rslt;
+	}
+	
+	
 	public boolean resolveMultiTriangularConflict(
 			int nsTile,
 			int nl1,
@@ -4004,15 +4054,15 @@ public class SuperTiles{
 		int [] indices = new int[num_tiles];
 		int indx = 0;
 		indices[indx++] = 4;
-		for (int i = 0; i < neibs_raw[0].length; i++){
+		for (int i = 0; (i < neibs_raw[0].length) && (indx < indices.length); i++){
 			if (neibs_raw[0][i] != null) indices[indx++] = i;
  		}
 		for (int i = 0; i < indices.length; i++){
 			int dir4 = indices[i];
 			if (dir4 > 3) {
-				mod_supertiles[dir4] = nsTile;
+				mod_supertiles[i] = nsTile;
 			} else {
-				mod_supertiles[dir4] = tnSurface.getNeibIndex(nsTile, 2 * dir4);
+				mod_supertiles[i] = tnSurface.getNeibIndex(nsTile, 2 * dir4);
 			}
 		}
 		int [][][][] neibs_vars = new int [neibs_raw.length][mod_supertiles.length][][];
@@ -4033,12 +4083,12 @@ public class SuperTiles{
 		}
 //		int [] nsTiles = mod_supertiles;
 		int [][][] neibs_prev = new int [mod_supertiles.length][][];
-		double [][][]  val_weights = new double [mod_supertiles.length][][];
+		double [][][]  val_weights_original = new double [mod_supertiles.length][][];
 		updateConnectionsCost (
 				mod_supertiles,      // int []         nsTiles,
 				null,         // int [][][]     neibs_prev,
 				neibs_prev,   // int [][][]     neibs,		// should be initialized at top dimension if neibs_prev==null	
-				val_weights,  // double [][][]  val_weights, // should be initialized at top dimension if neibs_prev==null
+				val_weights_original,  // double [][][]  val_weights, // should be initialized at top dimension if neibs_prev==null
 				orthoWeight,
 				diagonalWeight,
 				tnSurface,
@@ -4053,7 +4103,7 @@ public class SuperTiles{
 		}
 		
 		int [][][] conflicts_old = new int [nsTiles.length][][];
-		int [][][] conflicts_new = new int [nsTiles.length][][];
+//		int [][][] conflicts_new = new int [nsTiles.length][][];
 		for (int isTile = 0; isTile < nsTiles.length; isTile++){
 			conflicts_old[isTile] = detectTriangularTileConflicts(
 					nsTiles[isTile],   // int nsTile0,
@@ -4083,13 +4133,100 @@ public class SuperTiles{
 				conflicts_old,
 				debugLevel - 1); // debugLevel);
 
-// After getting old (referfence data) iterate through all variants, for each calculate cost and number of conflicts.
-//		First - just collect data - cost and full statistics of the conflicts, print them
-//		Then select the best one (noit incrementing number of conflicts? and reducing cost)
-		
-		
-		
-		return false;
+		// After getting old (referfence data) iterate through all variants, for each calculate cost and number of conflicts.
+		// First - just collect data - cost and full statistics of the conflicts, print them
+		// Then select the best one (not incrementing number of conflicts? and reducing cost)
+		int [][][][] variant_conflicts = new int [neibs_vars.length][nsTiles.length][][];		
+		int [][] variant_conflicts_stats = new int [neibs_vars.length][];
+		double [] variant_costs_diff = new double [neibs_vars.length];
+		for (int variant = 0; variant < neibs_vars.length; variant ++){
+			double [][][]  val_weights = val_weights_original.clone();
+			for (int nt = 0; nt < val_weights_original.length; nt++) if (val_weights_original[nt] != null){
+				val_weights[nt] = val_weights_original[nt].clone();
+				for (int nl = 0; nl < val_weights_original[nt].length; nl++) if (val_weights_original[nt][nl] != null){
+					val_weights[nt][nl] = val_weights_original[nt][nl].clone();
+				}
+			}
+			variant_costs_diff[variant] = 	updateConnectionsCost (
+					mod_supertiles,      // int []         nsTiles,
+					neibs_prev,          // int [][][]     neibs_prev,
+					neibs_vars[variant], // int [][][]     neibs,		// should be initialized at top dimension if neibs_prev==null	
+					val_weights,         // double [][][]  val_weights, // should be initialized at top dimension if neibs_prev==null
+					orthoWeight,
+					diagonalWeight,
+					tnSurface,
+					preferDisparity,
+					debugLevel);
+			
+			for (int isTile = 0; isTile < nsTiles.length; isTile++){
+				variant_conflicts[variant][isTile] = detectTriangularTileConflicts(
+						nsTiles[isTile],   // int nsTile0,
+						replacement_tiles, //HashMap<Integer,Integer> replacement_tiles, //
+						neibs, // int [][][] replacement_neibs,
+						tnSurface); // TileSurface.TileNeibs tnSurface)
+			}
+			int [] conflict_stats_new = 	getNumConflicts(
+					variant_conflicts[variant],
+					debugLevel - 1); // debugLevel);
+			
+			variant_conflicts_stats[variant] = new int [conflict_stats_new.length];
+			for (int i = 0; i < conflict_stats_new.length; i++){
+				variant_conflicts_stats[variant][i] = conflict_stats_new[i]- conflict_stats_old[i];
+			}
+			
+			if (debugLevel > 0) {
+				System.out.println("resolveMultiTriangularConflict(): resolving conflict for tile "+nsTile+
+						", nl1 = "+nl1+
+						", nl2 = "+nl2 +
+						", dir_mask = "+dir_mask+" variant = "+variant+" improvement (negative diff) = "+variant_costs_diff[variant]);
+				
+			}
+			if (debugLevel > 0) {
+				System.out.print("Conflicts difference after resolution:");
+				printConflictSummary(variant_conflicts_stats[variant]);			
+			}
+		}
+		// How to compare? 1 attempt: none of the conflicts get worse, some get better or cost goes down
+		int best_variant = -1;
+		int [][] num_better_worse = new int [neibs_vars.length][2];
+		for (int variant = 0; variant < neibs_vars.length; variant ++){
+			int num_worse = 0;
+			int num_better = 0;
+			for (int i = 0; i < variant_conflicts_stats[variant].length; i++){
+				if (variant_conflicts_stats[variant][i] < 0) {
+					num_better += 1;
+				} else if (variant_conflicts_stats[variant][i] < 0) {
+					num_worse += 1;
+				}
+			}
+			num_better_worse[variant][0] = num_better;
+			num_better_worse[variant][1] = num_worse;
+			if ((num_worse == 0) && ((best_variant < 0) || (variant_costs_diff[variant] < variant_costs_diff[variant]))){
+				best_variant = variant;
+			}
+		}
+		if (best_variant < 0){
+			if (debugLevel > -1) {
+				System.out.println("resolveMultiTriangularConflict(): FAILED find a sutable solution for tile "+nsTile+
+						", nl1 = "+nl1+
+						", nl2 = "+nl2 +
+						", dir_mask = "+dir_mask+" of "+ neibs_vars.length+" variants");
+				return false;
+			}
+		} else {
+			if (debugLevel > -1) {
+				System.out.println("resolveMultiTriangularConflict(): SUCCESS to find a sutable solution for tile "+nsTile+
+						", nl1 = "+nl1+
+						", nl2 = "+nl2 +
+						", dir_mask = "+dir_mask+" of "+ neibs_vars.length+" variants - use variant # " + best_variant+
+						" cost difference (negative) = "+variant_costs_diff[best_variant]+" num conflict reductions = "+num_better_worse[best_variant][0]);
+				System.out.print("Conflicts number change per type: ");
+				printConflictSummary(variant_conflicts_stats[best_variant]);
+				System.out.print("Conflicts before resolution: ");
+				printConflictSummary(conflict_stats_old);
+			}
+		}
+		return true;
 	}
 	
 	
@@ -4128,10 +4265,10 @@ public class SuperTiles{
 		for (int dir4 = 0; dir4 < 4; dir4++){
 			if ((dir_mask & (1 << dir4)) != 0) {
 				layers0[dir4][0] = neibs1[2 * dir4];
-				layers0[dir4][1] = neibs2[(2 * (dir4 + 1)) % 8];
+				layers0[(dir4 + 1) % 4][1] = neibs2[(2 * (dir4 + 1)) % 8];
 			}
 			if ((dir_mask & (16 << dir4)) != 0) {
-				layers0[dir4][0] = neibs1[(2 * (dir4 + 1)) % 8];
+				layers0[(dir4 + 1) % 4][0] = neibs1[(2 * (dir4 + 1)) % 8];
 				layers0[dir4][1] = neibs2[2 * dir4];
 			}
 		}
@@ -4174,7 +4311,7 @@ public class SuperTiles{
 			if ((layers[dir4].length == 2) && (layers[(dir4 + 1) % 4].length == 2) && (diag_connections[dir4] == 1)) num_vars *= 2;
 		}
 		if (debugLevel > -1){
-			System.out.println("getTriangularResolutionVariants() nsTile = "+nsTile+" - "+num_vars+" (may be actually less)");
+			System.out.println("getTriangularResolutionVariants() nsTile = "+nsTile+" variants: "+num_vars+" (may be actually less)");
 		}
 		int [][][][] neib_vars = new int [num_vars][][][]; // [5][][];
 		int [][][] neib_var_zero = new int [nsTiles.length][][];
@@ -4312,11 +4449,12 @@ public class SuperTiles{
 			}
 			// calculate next selection
 			next_sel:{
-				for (int dir4 = 3; dir4 <= 0; dir4--){
+				for (int dir4 = 3; dir4 >= 0; dir4--){
 					if (!selection[dir4][1] && (layers[dir4].length == 2) && (layers[(dir4 + 1) % 4].length == 2) && (diag_connections[dir4] == 1)){
 						selection[dir4][1] = true;
 						break next_sel;
-					} else if (!selection[dir4][0] && (layers[dir4].length > 1)){
+//					} else if (!selection[dir4][0] && (layers[dir4].length > 1)){
+					} else if (!selection[dir4][0] && (layers[dir4].length > 0)){
 						selection[dir4][0] = true;
 						selection[dir4][1] = false;
 						break next_sel;
