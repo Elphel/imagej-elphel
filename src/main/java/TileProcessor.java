@@ -3452,7 +3452,19 @@ public class TileProcessor {
 			if (dual_tri_results[0] == 0) break;
 		}
 */		
-		for (int pass = 0; pass < 1; pass ++) {
+		for (int pass = 0; pass < 10; pass ++) {
+			int [] dual_tri_results = st. resolveDualTriangularConflicts(
+					conflicts0, // int [][][] conflicts,
+					conflicts0_stats,
+					clt_parameters.plMaxEigen,
+					clt_parameters.plStarOrtho, // double     orthoWeight,
+					clt_parameters.plStarDiag, // double     diagonalWeight,
+					clt_parameters.plDblTriLoss, // double     diagonalWeight,
+					clt_parameters.plPreferDisparity,
+					1, // final int debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+			System.out.println("Pass "+(pass+1)+": dual_tri_results (success/failures) = "+dual_tri_results[0]+" / "+dual_tri_results[1]);
 			int [] conflict_resoultion_results = st.resolveMultiTriangularConflicts(
 					conflicts0, // int [][][] conflicts,
 					conflicts0_stats,
@@ -3464,15 +3476,38 @@ public class TileProcessor {
 					1, // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
-			System.out.println("Pass "+(pass+1)+": dual_tri_results (success/failures) = "+conflict_resoultion_results[0]+" / "+conflict_resoultion_results[1]);
-			if (conflict_resoultion_results[0] == 0) break;
+			System.out.println("Pass "+(pass+1)+": multi_tri_results (success/failures) = "+conflict_resoultion_results[0]+" / "+conflict_resoultion_results[1]);
+			if ((dual_tri_results[0] == 0) &&(conflict_resoultion_results[0] == 0)) break;
 		}
-		
 		
 		int [] conflicts1_stats = 	st.getNumConflicts(
 				conflicts0,
-				-1); // debugLevel);
+				1); // -1); // debugLevel);
 		st.printConflictSummary(conflicts1_stats);
+/*
+		for (int pass = 0; pass < 10; pass ++) {
+			int [] dual_tri_results = st. resolveDualTriangularConflicts(
+					conflicts0, // int [][][] conflicts,
+					conflicts0_stats,
+					clt_parameters.plMaxEigen,
+					clt_parameters.plStarOrtho, // double     orthoWeight,
+					clt_parameters.plStarDiag, // double     diagonalWeight,
+					clt_parameters.plDblTriLoss, // double     diagonalWeight,
+					clt_parameters.plPreferDisparity,
+					1, // final int debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+			System.out.println("Pass "+(pass+1)+": dual_tri_results (success/failures) = "+dual_tri_results[0]+" / "+dual_tri_results[1]);
+			if (dual_tri_results[0] == 0) break;
+		}
+		
+		conflicts1_stats = 	st.getNumConflicts(
+				conflicts0,
+				1); // -1); // debugLevel);
+		st.printConflictSummary(conflicts1_stats);
+*/
+		
+		
 		/*
 		// re-checking conflicts (make sure update is correct)
 		int [][][] conflicts1r = st.detectTriangularConflicts(
