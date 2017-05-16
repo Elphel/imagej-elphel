@@ -3428,12 +3428,21 @@ public class TileProcessor {
 				0, // final int debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
+		Conflicts iconflicts0 = new Conflicts(st); 
+/*
 		int [][][] conflicts0 = st.detectTriangularConflicts(
 				1); // final int debugLevel)
 		int [] conflicts0_stats = 	st.getNumConflicts(
 				conflicts0,
-				-1); // debugLevel);
+ */
 
+		int [][][] conflicts0 = iconflicts0.detectTriangularConflicts(
+				1); // final int debugLevel)
+		Conflicts conflicts0_stats =  new Conflicts(
+				conflicts0,
+				st,
+				-1); // debugLevel); 	
+		
 		// just testing
 /*		
 		for (int pass = 0; pass < 10; pass ++) {
@@ -3479,11 +3488,20 @@ public class TileProcessor {
 			System.out.println("Pass "+(pass+1)+": multi_tri_results (success/failures) = "+conflict_resoultion_results[0]+" / "+conflict_resoultion_results[1]);
 			if ((dual_tri_results[0] == 0) &&(conflict_resoultion_results[0] == 0)) break;
 		}
-		
+/*		
 		int [] conflicts1_stats = 	st.getNumConflicts(
 				conflicts0,
 				1); // -1); // debugLevel);
 		st.printConflictSummary(conflicts1_stats);
+*/		
+		Conflicts conflicts1_stats =  new Conflicts(
+				conflicts0,
+				st,
+				-1); // debugLevel); 	
+		conflicts1_stats.printConflictSummary("Detected conflicts (all):", true,false,false);
+		conflicts1_stats.printConflictSummary("Detected conflicts (ortho-diag-ortho):", false, true,false);
+		conflicts1_stats.printConflictSummary("Detected conflicts(ortho-ortho-diag):", false, false, true);
+		
 /*
 		for (int pass = 0; pass < 10; pass ++) {
 			int [] dual_tri_results = st. resolveDualTriangularConflicts(
@@ -3623,8 +3641,11 @@ public class TileProcessor {
 					0, // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
-			st.detectTriangularConflicts(
-					1); // final int debugLevel)
+
+			System.out.println("********* Put here conflict resolution again ! *********");
+			
+//			st.detectTriangularConflicts(
+//					1); // final int debugLevel)
 			
 		}
 

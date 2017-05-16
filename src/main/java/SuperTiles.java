@@ -190,6 +190,9 @@ public class SuperTiles{
 			sdfa_instance.showArrays(dbg_img,  tileProcessor.getTilesX(), tileProcessor.getTilesY(), true, "measuredLayers",titles);
 		}
 	}
+	public TileProcessor getTileProcessor(){
+		return  tileProcessor;
+	}
 	
 	public void setTileSurface( TileSurface tileSurface)
 	{
@@ -3681,6 +3684,7 @@ public class SuperTiles{
 		return num_added;
 
 	}
+	/*
 	class Conflict{
 		int start_layer;
 		int end_layer;
@@ -3716,8 +3720,8 @@ public class SuperTiles{
 			return rslt;
 		}
 	}
-	
-	
+	*/
+/**	
 	public int [][] detectTriangularTileConflicts(
 			int nsTile0,
 			HashMap<Integer,Integer> replacement_tiles, //
@@ -3783,7 +3787,8 @@ public class SuperTiles{
 		}
 		return conflicts;
 	}
-	
+*/	
+/*	
 	public void printConflictSummary(int [] conflict_stats)
 	{
 		System.out.print("Detected conflicts:");
@@ -3798,7 +3803,7 @@ public class SuperTiles{
 		}
 		System.out.println();		
 	}
-	
+*/	
 	/**
 	 * Find "triangular" conflicts after running selectNeighborPlanesMutual.
 	 * Such conflicts happen is when starting N (or other ortho direction) from some node,
@@ -3808,7 +3813,7 @@ public class SuperTiles{
 	 * @return 3-d array, first index - tile number, 2-nd - tile conflict number. Each conflict
 	 * is stored as {start layer, end layer, bitmask of start directions} (+1 - N, +2 - E, +4 - S, +8 - W)
 	 */
-
+/*
 	
 	public int [][][] detectTriangularConflicts(
 			final int debugLevel)
@@ -3848,7 +3853,8 @@ public class SuperTiles{
 		}
 		return conflicts;
 	}
-	
+*/	
+/**	
 	public int [] getNumConflicts(
 			int [][][] conflicts,
 			int        debugLevel)
@@ -3878,7 +3884,7 @@ public class SuperTiles{
 		}
 		return num_conflicts;
 	}
-	
+*/	
 	public void testResoveTriangle(
 			double     rquality,
 			double     weakWorsening,
@@ -3940,7 +3946,7 @@ public class SuperTiles{
 			}
 		}
 	}
-	
+/**	
 	int getNumPairsTriangularConflict(int mask){
 		int numbits = 0;
 		for (int i = 0; i < 8; i++){
@@ -3974,11 +3980,12 @@ public class SuperTiles{
 		for (int i = 0; i < 4; i++) if ((mask2 & (1 <<i)) != 0) num_dual++;
 		return num_dual;
 	}
-	
+*/	
 	
 	public int [] resolveMultiTriangularConflicts(
 			int [][][] conflicts,
-			int     [] conflict_stats, // to be updated after applying resolution
+//			int     [] conflict_stats, // to be updated after applying resolution
+			Conflicts conflict_stats, // to be updated after applying resolution
 			double     maxEigen, // maximal eigenvalue of planes to consider
 			double     orthoWeight,
 			double     diagonalWeight,
@@ -4032,7 +4039,8 @@ public class SuperTiles{
 			int dir_mask,
 			TileSurface.TileNeibs tnSurface,
 			int [][][] conflicts,
-			int     [] conflict_stats, // to be updated after applying resolution
+//			int     [] conflict_stats, // to be updated after applying resolution
+			Conflicts conflict_stats, // to be updated after applying resolution
 			double     maxEigen, // maximal eigenvalue of planes to consider
 			double     orthoWeight,
 			double     diagonalWeight,
@@ -4042,6 +4050,7 @@ public class SuperTiles{
 			int        dbg_X,
 			int        dbg_Y)
 	{
+		Conflicts iconflicts = new Conflicts(this); 
 		// neibs_raw may have unused directions
 		int [][][][] neibs_raw = getTriangularResolutionVariants(
 				nsTile,
@@ -4106,7 +4115,7 @@ public class SuperTiles{
 		
 		int [][][] conflicts_old = new int [nsTiles.length][][];
 		for (int isTile = 0; isTile < nsTiles.length; isTile++){
-			conflicts_old[isTile] = detectTriangularTileConflicts(
+			conflicts_old[isTile] = iconflicts.detectTriangularTileConflicts(
 					nsTiles[isTile],   // int nsTile0,
 					replacement_tiles, //HashMap<Integer,Integer> replacement_tiles, //
 					neibs_prev, // int [][][] replacement_neibs,
@@ -4123,15 +4132,22 @@ public class SuperTiles{
 			System.out.println("Calculating original conflicts");
 		}
 
+		iconflicts.addConflicts(conflicts_old,
+				debugLevel - 1); // debugLevel);
+/*		
 		int [] conflict_stats_old = 	getNumConflicts(
 				conflicts_old,
 				debugLevel - 1); // debugLevel);
-
+*/
 		// After getting old (referfence data) iterate through all variants, for each calculate cost and number of conflicts.
 		// First - just collect data - cost and full statistics of the conflicts, print them
 		// Then select the best one (not incrementing number of conflicts? and reducing cost)
-		int [][][][] variant_conflicts = new int [neibs_vars.length][nsTiles.length][][];		
-		int [][] variant_conflicts_stats = new int [neibs_vars.length][];
+		int [][][][] variant_conflicts = new int [neibs_vars.length][nsTiles.length][][];
+		
+//		int [][] variant_conflicts_stats = new int [neibs_vars.length][];
+		Conflicts [] variant_conflicts_stats = new Conflicts [neibs_vars.length];
+
+		
 		double [] variant_costs_diff = new double [neibs_vars.length];
 		for (int variant = 0; variant < neibs_vars.length; variant ++){
 			double [][][]  val_weights = val_weights_original.clone();
@@ -4153,20 +4169,27 @@ public class SuperTiles{
 					debugLevel);
 			
 			for (int isTile = 0; isTile < nsTiles.length; isTile++){
-				variant_conflicts[variant][isTile] = detectTriangularTileConflicts(
+				variant_conflicts[variant][isTile] = iconflicts.detectTriangularTileConflicts(
 						nsTiles[isTile],   // int nsTile0,
 						replacement_tiles, //HashMap<Integer,Integer> replacement_tiles, //
 						neibs_vars[variant], // neibs, // int [][][] replacement_neibs,
 						tnSurface); // TileSurface.TileNeibs tnSurface)
 			}
+			variant_conflicts_stats[variant] = new Conflicts(
+					variant_conflicts[variant],
+					this,
+					debugLevel - 1); // debugLevel);
+/*			
 			int [] conflict_stats_new = 	getNumConflicts(
 					variant_conflicts[variant],
 					debugLevel - 1); // debugLevel);
-			
+*/			
+/*			
 			variant_conflicts_stats[variant] = new int [conflict_stats_new.length];
 			for (int i = 0; i < conflict_stats_new.length; i++){
 				variant_conflicts_stats[variant][i] = conflict_stats_new[i]- conflict_stats_old[i];
 			}
+*/			variant_conflicts_stats[variant].subConflicts(iconflicts); // subtract old number of different types of conflicts
 			
 			if (debugLevel > -1) {
 				System.out.println("resolveMultiTriangularConflict(): resolving conflict for tile "+nsTile+
@@ -4176,16 +4199,26 @@ public class SuperTiles{
 				
 			}
 			if (debugLevel > -1) {
-				System.out.print("Conflicts difference after resolution:");
-				printConflictSummary(variant_conflicts_stats[variant]);			
+				variant_conflicts_stats[variant].printConflictSummary(
+						"Conflicts difference after resolution:", true, true, false);
 			}
 		}
 		// How to compare? 1 attempt: none of the conflicts get worse, some get better or cost goes down
 		int best_variant = -1;
 		int [][] num_better_worse = new int [neibs_vars.length][2];
 		for (int variant = 0; variant < neibs_vars.length; variant ++){
-			int num_worse = 0;
-			int num_better = 0;
+			int num_worse = variant_conflicts_stats[variant].numBetterWorse(
+					false, // boolean better,
+					false, // boolean use_all,
+					true, // boolean use_odo,
+					false); // ); // boolean use_ood)
+
+			int num_better = variant_conflicts_stats[variant].numBetterWorse(
+					true, // boolean better,
+					false, // boolean use_all,
+					true, // boolean use_odo,
+					false); // ); // boolean use_ood)
+/*
 			for (int i = 0; i < variant_conflicts_stats[variant].length; i++){
 				if        (variant_conflicts_stats[variant][i] < 0) {
 					num_better += 1;
@@ -4193,6 +4226,7 @@ public class SuperTiles{
 					num_worse += 1;
 				}
 			}
+*/			
 			num_better_worse[variant][0] = num_better;
 			num_better_worse[variant][1] = num_worse;
 			if ((num_worse == 0) &&
@@ -4225,19 +4259,37 @@ public class SuperTiles{
 						", nl2 = "+nl2 +
 						", dir_mask = "+dir_mask+". Of "+ neibs_vars.length+" variants - use variant # " + best_variant+
 						" cost difference (negative) = "+variant_costs_diff[best_variant]+" num conflict reductions = "+num_better_worse[best_variant][0]);
+				/*
 				System.out.print("Conflicts number change per type: ");
 				printConflictSummary(variant_conflicts_stats[best_variant]);
 				System.out.print("Conflicts before resolution: ");
 				printConflictSummary(conflict_stats_old);
-				
+				*/
+				variant_conflicts_stats[best_variant].printConflictSummary(
+						"Conflicts number change per type: ",
+						true, // use_all,
+						true, //use_odo,
+						true); // use_ood);
+				iconflicts.printConflictSummary(
+						"Conflicts before resolution: ",
+						true, // use_all,
+						true, //use_odo,
+						true); // use_ood);
 				// update statistics
+				/*
 				for (int i = 0; i < conflict_stats.length; i++){
 					conflict_stats[i] += variant_conflicts_stats[best_variant][i];
 				}
+				*/
+				conflict_stats.addConflicts(variant_conflicts_stats[best_variant]);
+
+				
 				// update conflict
 				for (int i = 0; i < nsTiles.length; i++){
 					conflicts[nsTiles[i]]=  variant_conflicts[best_variant][i];
 				}
+				
+				
 				// apply resolution
 				for (int i = 0; i < mod_supertiles.length; i++){
 					for (int nl = 0; nl < neibs_vars[best_variant][i].length; nl ++) if (neibs_vars[best_variant][i][nl] != null){
@@ -4500,7 +4552,8 @@ public class SuperTiles{
 	
 	public int [] resolveDualTriangularConflicts(
 			int [][][] conflicts,
-			int     [] conflict_stats, // to be updated after applying resolution
+//			int     [] conflict_stats, // to be updated after applying resolution
+			Conflicts conflict_stats, // to be updated after applying resolution
 			double     maxEigen, // maximal eigenvalue of planes to consider
 			double     orthoWeight,
 			double     diagonalWeight,
@@ -4518,11 +4571,15 @@ public class SuperTiles{
 		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
 		final int dbgTile = dbg_Y * stilesX + dbg_X;
 		final TileSurface.TileNeibs tnSurface = tileSurface.new TileNeibs(stilesX, stilesY);
+		final Conflicts iconflicts = new Conflicts(this); 
+
 		int [] rslt = {0,0};
 		for (int nsTile = 0; nsTile < conflicts.length; nsTile++) if (conflicts[nsTile] != null) {
 			// conflicts may disappear after being fixed, recheck for null
 			for (int nConfl = 0; (conflicts[nsTile] != null) && (nConfl < conflicts[nsTile].length); nConfl++){
-				if (numDualTri(conflicts[nsTile][nConfl][2]) > 0) {
+				Conflict confl = new Conflict(conflicts[nsTile][nConfl]); // getDualTriOrthoDiagOrthoConflicts
+//				if (numDualTri(conflicts[nsTile][nConfl][2]) > 0) {
+				if (confl.getDualTriOrthoDiagOrthoConflicts() > 0) {
 					for (int dir4 = 0; dir4 < 4; dir4 ++ ){
 						// conflicts may disappear after being fixed, recheck for null
 						if ((conflicts[nsTile] != null) && (conflicts[nsTile][nConfl] != null) && ((conflicts[nsTile][nConfl][2] & (1 << dir4)) > 0) && ((conflicts[nsTile][nConfl][2] & (16 << dir4)) > 0)) {
@@ -4664,12 +4721,12 @@ public class SuperTiles{
 									int [][][] conflicts_old = new int [nsTiles.length][][];
 									int [][][] conflicts_new = new int [nsTiles.length][][];
 									for (int isTile = 0; isTile < nsTiles.length; isTile++){
-										conflicts_old[isTile] = detectTriangularTileConflicts(
+										conflicts_old[isTile] = iconflicts.detectTriangularTileConflicts(
 												nsTiles[isTile],   // int nsTile0,
 												replacement_tiles, //HashMap<Integer,Integer> replacement_tiles, //
 												neibs_prev, // int [][][] replacement_neibs,
 												tnSurface); // TileSurface.TileNeibs tnSurface)
-										conflicts_new[isTile] = detectTriangularTileConflicts(
+										conflicts_new[isTile] = iconflicts.detectTriangularTileConflicts(
 												nsTiles[isTile],   // int nsTile0,
 												replacement_tiles, //HashMap<Integer,Integer> replacement_tiles, //
 												neibs, // int [][][] replacement_neibs,
@@ -4686,41 +4743,67 @@ public class SuperTiles{
 										System.out.println("Calculating original conflicts");
 									}
 
+									iconflicts.addConflicts(conflicts_old,
+											debugLevel - 1); // debugLevel);
+/*
 									int [] conflict_stats_old = 	getNumConflicts(
 											conflicts_old,
 											debugLevel - 1); // debugLevel);
-									
+*/									
 									if (debugLevel > 1) {
 										System.out.println("Calculating resolved conflicts");
 									}
+/*									
 									int [] conflict_stats_new = 	getNumConflicts(
 											conflicts_new,
 											debugLevel - 1); // debugLevel);
+*/									
+									Conflicts conflict_stats_new = new Conflicts(
+											conflicts_new,
+											this,
+											debugLevel - 1); // debugLevel);
+
+/*									
 									int [] conflict_stats_diff = new int [conflict_stats_new.length];
 									for (int i = 0; i < conflict_stats_new.length; i++){
 										conflict_stats_diff[i] = conflict_stats_new[i]- conflict_stats_old[i];
 									}
+*/									
+									conflict_stats_new.subConflicts(iconflicts);
+									
 									if (debugLevel > 0) {
+										/*
 										System.out.print("Conflicts difference after resolution:");
-										printConflictSummary(conflict_stats_diff);			
+										printConflictSummary(conflict_stats_diff);
+										*/
+										conflict_stats_new.printConflictSummary(
+												"Conflicts difference after resolution:", true, true, false);
+										
 									}
-									if ((conflict_stats_diff[9] >= 0) && (cost_diff > -dblTriLoss)){
+//									if ((conflict_stats_diff[9] >= 0) && (cost_diff > -dblTriLoss)){
+									if ((conflict_stats_new.getNumOrthoIncompat() >= 0) && (cost_diff > -dblTriLoss)){
+										//getNumOrthoIncompat
 										if (debugLevel > 1) {
 											System.out.println("Number of incompatible triangles is not reduced and no significant cost reduction, resolution WILL NOT BE APPLIED");
 										}
 										rslt[1]++;
 									} else {
 										if (debugLevel > 0) {
-											if (conflict_stats_diff[9] < 0) {
+//											if (conflict_stats_diff[9] < 0) {
+											if (conflict_stats_new.getNumOrthoIncompat() < 0) {
 												System.out.println("Number of incompatible triangles is reduced, resolution WILL BE APPLIED");
 											} else {
 												System.out.println("Number of incompatible triangles is not reduced but a good cost reduction, resolution WILL BE APPLIED");
 											}
 										}
 										// update statistics
+/*										
 										for (int i = 0; i < conflict_stats.length; i++){
 											conflict_stats[i] += conflict_stats_diff[i];
 										}
+*/										
+										conflict_stats.addConflicts(conflict_stats_new);
+
 										// update conflict
 										for (int i = 0; i < nsTiles.length; i++){
 											conflicts[nsTiles[i]]=  conflicts_new[i];
@@ -4747,8 +4830,6 @@ public class SuperTiles{
 		}
 		return rslt;
 	}
-	
-	
 	
 	
 	/**
