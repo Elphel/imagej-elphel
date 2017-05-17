@@ -3477,7 +3477,6 @@ public class TileProcessor {
 			int [] conflict_resoultion_results = st.resolveMultiTriangularConflicts(
 					conflicts0, // int [][][] conflicts,
 					conflicts0_stats,
-					clt_parameters.plMaxEigen,
 					clt_parameters.plStarOrtho, // double     orthoWeight,
 					clt_parameters.plStarDiag, // double     diagonalWeight,
 					clt_parameters.plDblTriLoss, // double     diagonalWeight,
@@ -3486,56 +3485,30 @@ public class TileProcessor {
 					clt_parameters.tileX,
 					clt_parameters.tileY);
 			System.out.println("Pass "+(pass+1)+": multi_tri_results (success/failures) = "+conflict_resoultion_results[0]+" / "+conflict_resoultion_results[1]);
-			if ((dual_tri_results[0] == 0) &&(conflict_resoultion_results[0] == 0)) break;
-		}
-/*		
-		int [] conflicts1_stats = 	st.getNumConflicts(
-				conflicts0,
-				1); // -1); // debugLevel);
-		st.printConflictSummary(conflicts1_stats);
-*/		
-		Conflicts conflicts1_stats =  new Conflicts(
-				conflicts0,
-				st,
-				-1); // debugLevel); 	
-		conflicts1_stats.printConflictSummary("Detected conflicts (all):", true,false,false);
-		conflicts1_stats.printConflictSummary("Detected conflicts (ortho-diag-ortho):", false, true,false);
-		conflicts1_stats.printConflictSummary("Detected conflicts(ortho-ortho-diag):", false, false, true);
-		
-/*
-		for (int pass = 0; pass < 10; pass ++) {
-			int [] dual_tri_results = st. resolveDualTriangularConflicts(
+
+			int [] diagonal_resoultion_results = st.resolveDiagonalTriangularConflicts(
 					conflicts0, // int [][][] conflicts,
 					conflicts0_stats,
-					clt_parameters.plMaxEigen,
-					clt_parameters.plStarOrtho, // double     orthoWeight,
-					clt_parameters.plStarDiag, // double     diagonalWeight,
+					clt_parameters.plStarOrtho,  // double     orthoWeight,
+					clt_parameters.plStarDiag,   // double     diagonalWeight,
 					clt_parameters.plDblTriLoss, // double     diagonalWeight,
 					clt_parameters.plPreferDisparity,
 					1, // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
-			System.out.println("Pass "+(pass+1)+": dual_tri_results (success/failures) = "+dual_tri_results[0]+" / "+dual_tri_results[1]);
-			if (dual_tri_results[0] == 0) break;
+			System.out.println("Pass "+(pass+1)+": resolveDiagonalTriangularConflicts (success/failures) = "+diagonal_resoultion_results[0]+" / "+diagonal_resoultion_results[1]);
+			if (    (dual_tri_results[0] == 0) && 
+					(conflict_resoultion_results[0] == 0) &&
+					(diagonal_resoultion_results[0] == 0)) break;
 		}
-		
-		conflicts1_stats = 	st.getNumConflicts(
+		Conflicts conflicts1_stats =  new Conflicts(
 				conflicts0,
-				1); // -1); // debugLevel);
-		st.printConflictSummary(conflicts1_stats);
-*/
-		
-		
-		/*
-		// re-checking conflicts (make sure update is correct)
-		int [][][] conflicts1r = st.detectTriangularConflicts(
-				1); // final int debugLevel)
-		
-		int [] conflicts1r_stats = 	st.getNumConflicts(
-				conflicts1r,
-				-1); // debugLevel);
-		st.printConflictSummary(conflicts1r_stats);
-*/		
+				st,
+				1); // -1); // debugLevel); 	
+
+		conflicts1_stats.printConflictSummary("Detected conflicts (all):", true,false,false);
+		conflicts1_stats.printConflictSummary("Detected conflicts (ortho-diag-ortho):", false, true,false);
+		conflicts1_stats.printConflictSummary("Detected conflicts(ortho-ortho-diag):", false, false, true);
 		
 		st.testResoveTriangle(
 				clt_parameters.plWorstWorsening, // final double worst_worsening,
@@ -3549,8 +3522,6 @@ public class TileProcessor {
 				1, // final int debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
-		
-		
 
 		if (clt_parameters.plSplitApply) {
 			while (true) {

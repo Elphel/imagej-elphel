@@ -96,7 +96,7 @@ public class Conflicts {
 	{
 		for (int nsTile = 0; nsTile < conflicts.length; nsTile++) if (conflicts[nsTile] != null){
 			for (int nc = 0; nc < conflicts[nsTile].length; nc++){
-				Conflict conf = new Conflict(conflicts[nsTile][nc]);
+				Conflict conf = new Conflict(nsTile, conflicts[nsTile][nc]);
 				if (conf.getNumOrthoDiagOrthoConflicts() > 0)  num_ortho_diag_ortho[conf.getNumOrthoDiagOrthoConflicts() - 1]++;
 				if (conf.getNumOrthoOrthoDiagConflicts() > 0)  num_ortho_ortho_diag[conf.getNumOrthoOrthoDiagConflicts() - 1]++;
 				if (conf.getNumConflicts() > 0)                num_all_conflicts[conf.getNumConflicts() - 1]++;
@@ -153,14 +153,7 @@ public class Conflicts {
 	
 	public void printConflict(String prefix, Conflict conf)
 	{
-		System.out.println(prefix+
-				" nl1 = "+ conf.getStartLayer()+
-				" nl2 = "+ conf.getEndLayer()+
-				" all = "+ conf.getNumConflicts() + " ("+String.format("%06x", conf.getDirBits())+")" +
-				" odo = "+ conf.getNumOrthoDiagOrthoConflicts() + 
-				" ood = "+ conf.getNumOrthoOrthoDiagConflicts() + 
-				" number of odo incompatible triangles = "+ conf.getIncompatibleOrthoDiagOrthoConflicts() +
-				" number of odo dual triangles = "+conf.getDualTriOrthoDiagOrthoConflicts());
+		System.out.println(prefix+conf.toString());
 	}
 	
 	public int numBetterWorse(
@@ -309,7 +302,7 @@ public class Conflicts {
 										int dir2 = (dir1 + 3) % 8;
 										int np3 = neibs2[dir2]; // planes[nsTile2][np2].getNeibBest(dir2);
 										if ((np3 >= 0) && (np3 != np0)){
-											Conflict conflict = new Conflict(np0, np3, dir/2);
+											Conflict conflict = new Conflict(nsTile0, np0, np3, dir/2);
 											label_apply:
 											{
 												for (Conflict conf_old:conflicts_list){
@@ -335,7 +328,7 @@ public class Conflicts {
 										int dir2 = (dir1 + 3) % 8;
 										int np3 = neibs2[dir2]; // planes[nsTile2][np2].getNeibBest(dir2);
 										if ((np3 >= 0) && (np3 != np0)){
-											Conflict conflict = new Conflict(np0, np3, dir/2, true); // ood, right
+											Conflict conflict = new Conflict(nsTile0, np0, np3, dir/2, true); // ood, right
 											label_apply:
 											{
 												for (Conflict conf_old:conflicts_list){
@@ -361,7 +354,7 @@ public class Conflicts {
 										int dir2 = (dir1 + 5) % 8;
 										int np3 = neibs2[dir2]; // planes[nsTile2][np2].getNeibBest(dir2);
 										if ((np3 >= 0) && (np3 != np0)){
-											Conflict conflict = new Conflict(np0, np3, dir/2, true); // ood, right
+											Conflict conflict = new Conflict(nsTile0, np0, np3, dir/2, false); // ood, left
 											label_apply:
 											{
 												for (Conflict conf_old:conflicts_list){
