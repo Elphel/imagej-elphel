@@ -1154,6 +1154,16 @@ public class TilePlanes {
 			return this.neib_best;
 		}
 
+		public int getNumNeibBest()
+		{
+			if (this.neib_best == null) {
+				return 0;
+			}
+			int num = 0;
+			for (int i = 0; i < this.neib_best.length; i++) if (this.neib_best[i] >= 0) num++;
+			return num;
+		}
+		
 		public int getNeibBest(int dir)
 		{
 			if (this.neib_best == null) {

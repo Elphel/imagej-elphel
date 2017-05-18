@@ -3750,8 +3750,10 @@ public class SuperTiles{
 	public int [] resolveDiagonalTriangularConflicts(
 			int [][][] conflicts,
 			Conflicts conflict_stats, // to be updated after applying resolution
+			int        starSteps, // How far to look around when calculationg connection cost
 			double     orthoWeight,
 			double     diagonalWeight,
+			double     starPwr, // Divide cost by number of connections to this power
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    preferDisparity,
 			int        debugLevel,
@@ -3769,7 +3771,7 @@ public class SuperTiles{
 		for (int nsTile = 0; nsTile < conflicts.length; nsTile++) if (conflicts[nsTile] != null) {
 			// conflicts may disappear after being fixed, recheck for null
 			for (int nConfl = 0; (conflicts[nsTile] != null) && (nConfl < conflicts[nsTile].length); nConfl++){
-				int dl = ((debugLevel > 0) && (nsTile == dbgTile)) ? 3 : 0;
+				int dl = ((debugLevel > -1) && (nsTile == dbgTile)) ? 3 : 0;
 				Conflict confl = new Conflict(nsTile, conflicts[nsTile][nConfl]);
 				for (int dir_orient = 0; dir_orient < 16; dir_orient++){
 					boolean right = (dir_orient & 8) != 0;
@@ -3787,8 +3789,10 @@ public class SuperTiles{
 								tnSurface,       // TileSurface.TileNeibs tnSurface,
 								conflicts,       // int [][][] conflicts,
 								conflict_stats,  // Conflicts conflict_stats, // to be updated after applying resolution
+								starSteps, // How far to look around when calculationg connection cost
 								orthoWeight,     // double     orthoWeight,
 								diagonalWeight,  // double     diagonalWeight,
+								starPwr,         // double     starPwr, // Divide cost by number of connections to this power
 								dblTriLoss,      //  double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 								preferDisparity, // boolean    preferDisparity,
 								dl);             // int        debugLevel)
@@ -3809,18 +3813,19 @@ public class SuperTiles{
 			int start_dir4,
 			boolean right,
 			boolean reverse,
-
 			TileSurface.TileNeibs tnSurface,
 			int [][][] conflicts,
 			Conflicts conflict_stats, // to be updated after applying resolution
+			int        starSteps, // How far to look around when calculationg connection cost
 			double     orthoWeight,
 			double     diagonalWeight,
+			double     starPwr, // Divide cost by number of connections to this power
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    preferDisparity,
 			int        debugLevel)
 	{
 		if (debugLevel > 1) {
-			System.out.println("*******  resolveDiagonalTriangularConflict(): "+conflict.toString()+": start_dir4 = "+ start_dir4 + ", right = "+right+", reverse = "+reverse);
+			System.out.println("resolveDiagonalTriangularConflict(): "+conflict.toString()+": start_dir4 = "+ start_dir4 + ", right = "+right+", reverse = "+reverse);
 		}
 		
 		if (!conflict.conflictExists(
@@ -3848,6 +3853,12 @@ public class SuperTiles{
 			return false;
 		}
 		
+		if (debugLevel > 1) {
+			if (debugLevel > 1) {
+				System.out.println("resolveDiagonalTriangularConflict(): nsTile = "+nsTile+" nsTile1 = "+nsTile1+" nsTile2="+nsTile2);
+			}
+		}
+		
 		int nl2 = planes[nsTile1][nl1].getNeibBest(dir12);
 		// now nsTile2:nl2 is supposed to be connected to nsTile:nl_end != nl
 
@@ -3865,19 +3876,33 @@ public class SuperTiles{
 		for (int i = 0; i < mod_supertiles.length; i++){
 			replacement_tiles.put(mod_supertiles[i], new Integer(i));
 		}
-		int [][][] neibs_prev = new int [mod_supertiles.length][][];
+		ConnectionCosts connectionCosts = new ConnectionCosts(
+				orthoWeight,
+				diagonalWeight,
+				starPwr,    // Divide cost by number of connections to this power
+				starSteps,
+				this.planes,
+				tnSurface,
+				preferDisparity);
+		
+		int [][][] neibs_prev = connectionCosts.initConnectionCosts(mod_supertiles);
+		
+		int [][][] neibs_prev_old = new int [mod_supertiles.length][][];
 		double [][][]  val_weights = new double [mod_supertiles.length][][];
+		
 		// Calculate original costs and neighhbors
 		updateConnectionsCost (
 				mod_supertiles,      // int []         nsTiles,
 				null,         // int [][][]     neibs_prev,
-				neibs_prev,   // int [][][]     neibs,		// should be initialized at top dimension if neibs_prev==null	
+				neibs_prev_old,   // int [][][]     neibs,		// should be initialized at top dimension if neibs_prev==null	
 				val_weights,  // double [][][]  val_weights, // should be initialized at top dimension if neibs_prev==null
 				orthoWeight,
 				diagonalWeight,
+				starPwr,        // double     starPwr, // Divide cost by number of connections to this power
 				tnSurface,
 				preferDisparity,
 				debugLevel);
+
 		if ((neibs_prev == null) || (neibs_prev[0] == null) || (neibs_prev[1] == null)){
 			System.out.println("resolveDiagonalTriangularConflict(): BUG");
 			System.out.println("neibs_prev="+neibs_prev);
@@ -3889,6 +3914,12 @@ public class SuperTiles{
 		for (int nt = 0; nt < neibs.length; nt++){
 			for (int l = 0; l < neibs_prev[nt].length; l++) if (neibs_prev[nt][l]!= null){
 				neibs[nt][l] = neibs_prev[nt][l].clone();
+			}
+		}
+		int [][][] neibs_old = {neibs_prev[0].clone(),neibs_prev[1].clone()}; // both non-null
+		for (int nt = 0; nt < neibs.length; nt++){
+			for (int l = 0; l < neibs_prev[nt].length; l++) if (neibs_prev[nt][l]!= null){
+				neibs_old[nt][l] = neibs_prev_old[nt][l].clone();
 			}
 		}
 		int [][][] conflicts_old = new int [nsTiles.length][][];
@@ -3917,18 +3948,41 @@ public class SuperTiles{
 		if (neibs_prev[0][nl][dir02] >= 0) {
 			neibs[1][neibs_prev[0][nl][dir02]][dir20] = nl_end;
 		}
+
+		neibs_old[0][nl][dir02] = nl2;
+		neibs_old[1][nl2][dir20] = nl;
+		neibs_old[0][nl_end][dir02] = neibs_prev_old[0][nl][dir02];
+		if (neibs_prev_old[0][nl][dir02] >= 0) {
+			neibs_old[1][neibs_prev_old[0][nl][dir02]][dir20] = nl_end;
+		}
+		
+		
 		
 		int [][][] new_conflicts = new int [nsTiles.length][][];
-		double new_costs_diff = 	updateConnectionsCost (
+		
+		double new_costs_diff = 	connectionCosts.getConnectionsCostDiff(
+				neibs,
+				debugLevel);
+		
+		if (debugLevel > -1) {
+			System.out.println("resolveDiagonalTriangularConflict(): resolving conflict "+conflict.toString()+
+					", start dir4 = "+start_dir4+
+					", orientation = "+(right?"right":"left") +
+					", improvement (negative diff) = "+new_costs_diff);
+			
+		}
+		double new_costs_diff_old = 	updateConnectionsCost (
 				mod_supertiles,      // int []         nsTiles,
-				neibs_prev,          // int [][][]     neibs_prev,
-				neibs,               // int [][][]     neibs,		// should be initialized at top dimension if neibs_prev==null	
+				neibs_prev_old,          // int [][][]     neibs_prev,
+				neibs_old,               // int [][][]     neibs,		// should be initialized at top dimension if neibs_prev==null	
 				val_weights,         // double [][][]  val_weights, // should be initialized at top dimension if neibs_prev==null
 				orthoWeight,
 				diagonalWeight,
+				starPwr,        // double     starPwr, // Divide cost by number of connections to this power
 				tnSurface,
 				preferDisparity,
 				debugLevel);
+				
 		for (int isTile = 0; isTile < nsTiles.length; isTile++){
 			new_conflicts[isTile] = iconflicts.detectTriangularTileConflicts(
 					nsTiles[isTile],   // int nsTile0,
@@ -3943,10 +3997,10 @@ public class SuperTiles{
 		new_conflicts_stats.subConflicts(iconflicts); // subtract old number of different types of conflicts
 	
 		if (debugLevel > -1) {
-			System.out.println("resolveDiagonalTriangularConflict(): resolving conflict "+conflict.toString()+
+			System.out.println("resolveDiagonalTriangularConflict() OLD: resolving conflict "+conflict.toString()+
 					", start dir4 = "+start_dir4+
 					", orientation = "+(right?"right":"left") +
-					", improvement (negative diff) = "+new_costs_diff);
+					", improvement (negative diff) = "+new_costs_diff_old);
 			
 		}
 		if (debugLevel > -1) {
@@ -4011,8 +4065,10 @@ public class SuperTiles{
 	public int [] resolveMultiTriangularConflicts(
 			int [][][] conflicts,
 			Conflicts conflict_stats, // to be updated after applying resolution
+			int        starSteps, // How far to look around when calculationg connection cost
 			double     orthoWeight,
 			double     diagonalWeight,
+			double     starPwr, // Divide cost by number of connections to this power
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    preferDisparity,
 			int        debugLevel,
@@ -4041,8 +4097,10 @@ public class SuperTiles{
 						conflicts,
 						conflict_stats, // to be updated after applying resolution
 //						maxEigen, // maximal eigenvalue of planes to consider
+						starSteps, // How far to look around when calculationg connection cost
 						orthoWeight,
 						diagonalWeight,
+						starPwr,        // double     starPwr, // Divide cost by number of connections to this power
 						dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 						preferDisparity,
 						dl); // debugLevel,
@@ -4063,8 +4121,10 @@ public class SuperTiles{
 			TileSurface.TileNeibs tnSurface,
 			int [][][] conflicts,
 			Conflicts conflict_stats, // to be updated after applying resolution
+			int        starSteps, // How far to look around when calculationg connection cost
 			double     orthoWeight,
 			double     diagonalWeight,
+			double     starPwr, // Divide cost by number of connections to this power
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    preferDisparity,
 			int        debugLevel)
@@ -4108,6 +4168,8 @@ public class SuperTiles{
 				neibs_vars[ivar][i] = neibs_raw[ivar][indices[i]];
 			}
 		}
+
+		
 		
 		// See how this application will influence number of conflicts
 		// All supertiles that may have different conflicts 
@@ -4118,19 +4180,33 @@ public class SuperTiles{
 		for (int i = 0; i < mod_supertiles.length; i++){
 			replacement_tiles.put(mod_supertiles[i], new Integer(i));
 		}
-		int [][][] neibs_prev = new int [mod_supertiles.length][][];
+		
+		ConnectionCosts connectionCosts = new ConnectionCosts(
+				orthoWeight,
+				diagonalWeight,
+				starPwr,    // Divide cost by number of connections to this power
+				starSteps,
+				this.planes,
+				tnSurface,
+				preferDisparity);
+		
+		int [][][] neibs_prev = connectionCosts.initConnectionCosts(mod_supertiles);
+		
+/** */		
+		int [][][] neibs_prev_old = new int [mod_supertiles.length][][];
 		double [][][]  val_weights_original = new double [mod_supertiles.length][][];
 		updateConnectionsCost (
 				mod_supertiles,      // int []         nsTiles,
 				null,         // int [][][]     neibs_prev,
-				neibs_prev,   // int [][][]     neibs,		// should be initialized at top dimension if neibs_prev==null	
+				neibs_prev_old,   // int [][][]     neibs,		// should be initialized at top dimension if neibs_prev==null	
 				val_weights_original,  // double [][][]  val_weights, // should be initialized at top dimension if neibs_prev==null
 				orthoWeight,
 				diagonalWeight,
+				starPwr,        // double     starPwr, // Divide cost by number of connections to this power
 				tnSurface,
 				preferDisparity,
 				debugLevel);
-		
+/** */
 		int [][][] conflicts_old = new int [nsTiles.length][][];
 		for (int isTile = 0; isTile < nsTiles.length; isTile++){
 			conflicts_old[isTile] = iconflicts.detectTriangularTileConflicts(
@@ -4162,6 +4238,19 @@ public class SuperTiles{
 		
 		double [] variant_costs_diff = new double [neibs_vars.length];
 		for (int variant = 0; variant < neibs_vars.length; variant ++){
+			variant_costs_diff[variant] = 	connectionCosts.getConnectionsCostDiff(
+					neibs_vars[variant],
+					debugLevel);
+			
+			if (debugLevel > -1) {
+				System.out.println("resolveMultiTriangularConflict(): resolving conflict for tile "+nsTile+
+						", nl1 = "+nl1+
+						", nl2 = "+nl2 +
+						", dir_mask = "+dir_mask+" variant = "+variant+" improvement (negative diff) = "+variant_costs_diff[variant]);
+				
+			}
+			
+			double [] variant_costs_diff_old = new double [neibs_vars.length];
 			double [][][]  val_weights = val_weights_original.clone();
 			for (int nt = 0; nt < val_weights_original.length; nt++) if (val_weights_original[nt] != null){
 				val_weights[nt] = val_weights_original[nt].clone();
@@ -4169,16 +4258,19 @@ public class SuperTiles{
 					val_weights[nt][nl] = val_weights_original[nt][nl].clone();
 				}
 			}
-			variant_costs_diff[variant] = 	updateConnectionsCost (
+			variant_costs_diff_old[variant] = 	updateConnectionsCost (
 					mod_supertiles,      // int []         nsTiles,
-					neibs_prev,          // int [][][]     neibs_prev,
+					neibs_prev_old,          // int [][][]     neibs_prev,
 					neibs_vars[variant], // int [][][]     neibs,		// should be initialized at top dimension if neibs_prev==null	
 					val_weights,         // double [][][]  val_weights, // should be initialized at top dimension if neibs_prev==null
 					orthoWeight,
 					diagonalWeight,
+					starPwr,        // double     starPwr, // Divide cost by number of connections to this power
 					tnSurface,
 					preferDisparity,
 					debugLevel);
+		
+			
 			
 			for (int isTile = 0; isTile < nsTiles.length; isTile++){
 				variant_conflicts[variant][isTile] = iconflicts.detectTriangularTileConflicts(
@@ -4194,7 +4286,7 @@ public class SuperTiles{
 			variant_conflicts_stats[variant].subConflicts(iconflicts); // subtract old number of different types of conflicts
 			
 			if (debugLevel > -1) {
-				System.out.println("resolveMultiTriangularConflict(): resolving conflict for tile "+nsTile+
+				System.out.println("resolveMultiTriangularConflict() OLD: resolving conflict for tile "+nsTile+
 						", nl1 = "+nl1+
 						", nl2 = "+nl2 +
 						", dir_mask = "+dir_mask+" variant = "+variant+" improvement (negative diff) = "+variant_costs_diff[variant]);
@@ -4531,14 +4623,128 @@ public class SuperTiles{
 		return neib_vars_trimmed; 
 	}
 
+	public void resolveConflicts(
+			double     maxEigen, // maximal eigenvalue of planes to consider
+			int        starSteps, // How far to look around when calculationg connection cost
+			double     orthoWeight,
+			double     diagonalWeight,
+			double     starPwr, // Divide cost by number of connections to this power
+			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
+			boolean    preferDisparity,
+			int        debugLevel,
+			int        dbg_X,
+			int        dbg_Y)
+			
+	{
+		
+		Conflicts iconflicts0 = new Conflicts(this); 
+		int [][][] conflicts0 = iconflicts0.detectTriangularConflicts(
+				1); // final int debugLevel)
+		Conflicts conflicts0_stats =  new Conflicts(
+				conflicts0,
+				this,
+				-1); // debugLevel); 	
+		
+		for (int pass = 0; pass < 10; pass ++) {
+			int [] dual_tri_results = resolveDualTriangularConflicts(
+					conflicts0, // int [][][] conflicts,
+					conflicts0_stats,
+					maxEigen,
+					starSteps, // How far to look around when calculationg connection cost
+					orthoWeight, // double     orthoWeight,
+					diagonalWeight, // double     diagonalWeight,
+					starPwr,        // double     starPwr, // Divide cost by number of connections to this power
+					dblTriLoss, // double     diagonalWeight,
+					preferDisparity,
+					debugLevel, // 1, //  final int debugLevel)
+					dbg_X,
+					dbg_Y);
+			System.out.println("Pass "+(pass+1)+": dual_tri_results (success/failures) = "+dual_tri_results[0]+" / "+dual_tri_results[1]);
+			
+			
+			int [] conflict_resoultion_results = resolveMultiTriangularConflicts(
+					conflicts0, // int [][][] conflicts,
+					conflicts0_stats,
+					starSteps, // How far to look around when calculationg connection cost
+					orthoWeight, // double     orthoWeight,
+					diagonalWeight, // double     diagonalWeight,
+					starPwr,        // double     starPwr, // Divide cost by number of connections to this power
+					dblTriLoss, // double     diagonalWeight,
+					preferDisparity,
+					debugLevel, // 1, //  final int debugLevel)
+					dbg_X,
+					dbg_Y);
+			System.out.println("Pass "+(pass+1)+": multi_tri_results (success/failures) = "+conflict_resoultion_results[0]+" / "+conflict_resoultion_results[1]);
+
+			int [] diagonal_resoultion_results = resolveDiagonalTriangularConflicts(
+					conflicts0, // int [][][] conflicts,
+					conflicts0_stats,
+					starSteps, // How far to look around when calculationg connection cost
+					orthoWeight, // double     orthoWeight,
+					diagonalWeight, // double     diagonalWeight,
+					starPwr,        // double     starPwr, // Divide cost by number of connections to this power
+					dblTriLoss, // double     diagonalWeight,
+					preferDisparity,
+					((pass == 3)? 1: 0), // debugLevel, // 1, //  final int debugLevel)
+					dbg_X,
+					dbg_Y);
+			System.out.println("Pass "+(pass+1)+": resolveDiagonalTriangularConflicts (success/failures) = "+diagonal_resoultion_results[0]+" / "+diagonal_resoultion_results[1]);
+			if (    (dual_tri_results[0] == 0) && 
+					(conflict_resoultion_results[0] == 0) &&
+					(diagonal_resoultion_results[0] == 0)) {
+				System.out.println("No more improvements");
+				break;
+			}
+		}
+		Conflicts conflicts1_stats =  new Conflicts(
+				conflicts0,
+				this,
+				1); // -1); // debugLevel); 	
+
+		conflicts1_stats.printConflictSummary("Detected conflicts (all):", true,false,false);
+		conflicts1_stats.printConflictSummary("Detected conflicts (ortho-diag-ortho):", false, true,false);
+		conflicts1_stats.printConflictSummary("Detected conflicts(ortho-ortho-diag):", false, false, true);
+		
+		iconflicts0.resetConflicts();
+		conflicts0 = iconflicts0.detectTriangularConflicts(
+				1); // final int debugLevel)
+		conflicts1_stats.printConflictSummary("Recounted conflicts (all):", true,false,false);
+		conflicts1_stats.printConflictSummary("Recounted conflicts (ortho-diag-ortho):", false, true,false);
+		conflicts1_stats.printConflictSummary("Recounted conflicts(ortho-ortho-diag):", false, false, true);
+		
+		
+		/*
+		testResoveTriangle(
+				clt_parameters.plWorstWorsening, // final double worst_worsening,
+				clt_parameters.plWeakWorsening,  // final double worst_worsening,
+				maxEigen,   // final double okMergeEigen,
+				clt_parameters.plMaxWorldSin2,   // final double maxWorldSin2,
+				clt_parameters.plDispNorm,
+				clt_parameters.plMaxEigen,
+				clt_parameters.plPreferDisparity,
+				conflicts0, // int [][][] conflicts,
+				1, // final int debugLevel)
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+      */				
+		
+	}
+	
+	
+	
+	
+	
+	
+	
 	
 	public int [] resolveDualTriangularConflicts(
 			int [][][] conflicts,
-//			int     [] conflict_stats, // to be updated after applying resolution
 			Conflicts conflict_stats, // to be updated after applying resolution
 			double     maxEigen, // maximal eigenvalue of planes to consider
+			int        starSteps, // How far to look around when calculationg connection cost
 			double     orthoWeight,
 			double     diagonalWeight,
+			double     starPwr, // Divide cost by number of connections to this power
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    preferDisparity,
 			int        debugLevel,
@@ -4609,19 +4815,30 @@ public class SuperTiles{
 								int nl1 = conflicts[nsTile][nConfl][0];
 								int nl2 = conflicts[nsTile][nConfl][1];
 
-//								int [] nsTiles = mod_supertiles;
-								int [][][] neibs_prev = new int [mod_supertiles.length][][];
+								ConnectionCosts connectionCosts = new ConnectionCosts(
+										orthoWeight,
+										diagonalWeight,
+										starPwr,    // Divide cost by number of connections to this power
+										starSteps,
+										this.planes,
+										tnSurface,
+										preferDisparity);
+								int [][][] neibs_prev = connectionCosts.initConnectionCosts(mod_supertiles);
+
+								int [][][] neibs_prev_old = new int [mod_supertiles.length][][];
 								double [][][]  val_weights = new double [mod_supertiles.length][][];
 								updateConnectionsCost (
 										mod_supertiles,      // int []         nsTiles,
 										null,         // int [][][]     neibs_prev,
-										neibs_prev,   // int [][][]     neibs,		// should be initialized at top dimension if neibs_prev==null	
+										neibs_prev_old,   // int [][][]     neibs,		// should be initialized at top dimension if neibs_prev==null	
 										val_weights,  // double [][][]  val_weights, // should be initialized at top dimension if neibs_prev==null
 										orthoWeight,
 										diagonalWeight,
+										starPwr,        // double     starPwr, // Divide cost by number of connections to this power
 										tnSurface,
 										preferDisparity,
 										debugLevel);
+										
 								int [][][] neibs = neibs_prev.clone();
 								for (int i = 0; i < neibs.length; i++) if (neibs_prev[i] != null){
 									neibs[i] = neibs_prev[i].clone();
@@ -4666,21 +4883,35 @@ public class SuperTiles{
 									neibs[2][nl1_2][dir2r] = neibs_prev[2][nl2_2][dir2r]; 
 									neibs[2][nl2_2][dir2r] = neibs_prev[2][nl1_2][dir2r]; 
 								}
-								double cost_diff = 	updateConnectionsCost (
+								
+								double cost_diff = 	connectionCosts.getConnectionsCostDiff(
+										neibs,
+										debugLevel);
+								
+								if (debugLevel > 0) {
+									System.out.println("resolveDualTriangularConflicts(): resolving dual triangular conflict for tile "+nsTile+
+											", nl1 = "+conflicts[nsTile][nConfl][0]+
+											", nl2 = "+conflicts[nsTile][nConfl][1]+
+											", dir4 = "+dir4+" improvement (negative diff) = "+cost_diff);
+								}
+								
+								double cost_diff_old = 	updateConnectionsCost (
 										mod_supertiles, // int []         nsTiles,
 										neibs_prev,     // int [][][]     neibs_prev,
 										neibs,          // int [][][]     neibs,		// should be initialized at top dimension if neibs_prev==null	
 										val_weights,    // double [][][]  val_weights, // should be initialized at top dimension if neibs_prev==null
 										orthoWeight,
 										diagonalWeight,
+										starPwr,        // double     starPwr, // Divide cost by number of connections to this power
 										tnSurface,
 										preferDisparity,
 										debugLevel);
+										
 								if (debugLevel > 0) {
-									System.out.println("resolveDualTriangularConflicts(): resolving dual triangular conflict for tile "+nsTile+
+									System.out.println("resolveDualTriangularConflicts()_OLD: resolving dual triangular conflict for tile "+nsTile+
 											", nl1 = "+conflicts[nsTile][nConfl][0]+
 											", nl2 = "+conflicts[nsTile][nConfl][1]+
-											", dir4 = "+dir4+" improvement (negative diff) = "+cost_diff);
+											", dir4 = "+dir4+" improvement (negative diff) = "+cost_diff_old);
 								}
 								if (cost_diff < dblTriLoss) {
 									if (debugLevel > 1) {
@@ -4727,30 +4958,13 @@ public class SuperTiles{
 
 									iconflicts.addConflicts(conflicts_old,
 											debugLevel - 1); // debugLevel);
-/*
-									int [] conflict_stats_old = 	getNumConflicts(
-											conflicts_old,
-											debugLevel - 1); // debugLevel);
-*/									
 									if (debugLevel > 1) {
 										System.out.println("Calculating resolved conflicts");
 									}
-/*									
-									int [] conflict_stats_new = 	getNumConflicts(
-											conflicts_new,
-											debugLevel - 1); // debugLevel);
-*/									
 									Conflicts conflict_stats_new = new Conflicts(
 											conflicts_new,
 											this,
 											debugLevel - 1); // debugLevel);
-
-/*									
-									int [] conflict_stats_diff = new int [conflict_stats_new.length];
-									for (int i = 0; i < conflict_stats_new.length; i++){
-										conflict_stats_diff[i] = conflict_stats_new[i]- conflict_stats_old[i];
-									}
-*/									
 									conflict_stats_new.subConflicts(iconflicts);
 									
 									if (debugLevel > 0) {
@@ -4762,7 +4976,6 @@ public class SuperTiles{
 												"Conflicts difference after resolution:", true, true, false);
 										
 									}
-//									if ((conflict_stats_diff[9] >= 0) && (cost_diff > -dblTriLoss)){
 									if ((conflict_stats_new.getNumOrthoIncompat() >= 0) && (cost_diff > -dblTriLoss)){
 										//getNumOrthoIncompat
 										if (debugLevel > 1) {
@@ -4771,7 +4984,6 @@ public class SuperTiles{
 										rslt[1]++;
 									} else {
 										if (debugLevel > 0) {
-//											if (conflict_stats_diff[9] < 0) {
 											if (conflict_stats_new.getNumOrthoIncompat() < 0) {
 												System.out.println("Number of incompatible triangles is reduced, resolution WILL BE APPLIED");
 											} else {
@@ -4779,11 +4991,6 @@ public class SuperTiles{
 											}
 										}
 										// update statistics
-/*										
-										for (int i = 0; i < conflict_stats.length; i++){
-											conflict_stats[i] += conflict_stats_diff[i];
-										}
-*/										
 										conflict_stats.addConflicts(conflict_stats_new);
 
 										// update conflict
@@ -4910,18 +5117,21 @@ public class SuperTiles{
 	 * @param neibs array of 8 neighbors layers (N,NE,...NW), -1 - not connected
 	 * @param orthoWeight multiply contribution of ortho neighbors
 	 * @param diagonalWeight  multiply contribution of diagonal neighbors
+	 * @param diagonalWeight  divide value by number of connections to this power (if !=0)
 	 * @param tnSurface TileNeibs instance to navigate tile index and control array borders
 	 * @param preferDisparity - the first eigenvalue/vector is the most disparity-like
 	 *                          (false - smallest eigenvalue)
 	 * @param debugLevel
 	 * @return a pair of eigenvalue of the combine plane and its weight
 	 */
+	
 	public double [] getStarValueWeight(
 			int    nsTile,
 			int    nl,
 			int [] neibs,
 			double orthoWeight,
 			double diagonalWeight,
+			double starPwr,    // Divide cost by number of connections to this power
 			TileSurface.TileNeibs tnSurface,
 			boolean preferDisparity,
 			int    debugLevel)
@@ -4943,9 +5153,86 @@ public class SuperTiles{
 			}
 		}
 		double [] value_weight = {merged_plane.getValue(),merged_plane.getWeight()};
+		if (starPwr != 0){
+			value_weight[0] /= (Math.pow((planes[nsTile][nl].getNumNeibBest() + 1.0), starPwr));
+		}
+		return value_weight;
+	}
+
+	/**
+	 * Calculate main eigenvalue of the current plane and all connected ones - used to estimate advantage of connection swap
+	 * This version uses two steps - not only directly connected, but neighbors' neighbors also, multiple paths to the same
+	 * tile add together.
+	 * @param nsTile supertile index
+	 * @param nl surface layer
+	 * @param neibs array of 8 neighbors layers (N,NE,...NW), -1 - not connected
+	 * @param neibs2 2-d array of 8 neighbors' neighbors layers (N,NE,...NW), -1 - not connected
+	 * @param orthoWeight multiply contribution of ortho neighbors
+	 * @param diagonalWeight  multiply contribution of diagonal neighbors
+	 * @param diagonalWeight  divide value by number of connections to this power (if !=0)
+	 * @param tnSurface TileNeibs instance to navigate tile index and control array borders
+	 * @param preferDisparity - the first eigenvalue/vector is the most disparity-like
+	 *                          (false - smallest eigenvalue)
+	 * @param debugLevel
+	 * @return a pair of eigenvalue of the combine plane and its weight
+	 */
+	
+/*	
+	public double [] getStarValueWeight(
+			int    nsTile,
+			int    nl,
+			int [] neibs,
+			int [][] neibs2, // neighbors' neighbors
+			double orthoWeight,
+			double diagonalWeight,
+			double starPwr,    // Divide cost by number of connections to this power
+			TileSurface.TileNeibs tnSurface,
+			boolean preferDisparity,
+			int    debugLevel)
+	{
+		double [] dir_weight = {orthoWeight,  diagonalWeight, orthoWeight,  diagonalWeight, orthoWeight,  diagonalWeight, orthoWeight,  diagonalWeight};
+		HashMap<Point, Double> tile_weights = new HashMap<Point, Double>();
+		for (int dir = 0; dir < 8; dir++){
+			int nl1 =  neibs[dir];
+			if (nl1 >= 0){
+				int nsTile1 = tnSurface.getNeibIndex(nsTile, dir);
+				double weight1 = dir_weight[dir];
+				tile_weights.put(new Point(nsTile1, nl1), new Double(weight1)); // no need to check for existence here
+				for (int dir1 = 0; dir1 < 8; dir1++){
+					if ((dir1 != dir) && (neibs2[dir]!= null)){
+						 int nl2 =neibs2[dir][dir1];
+						 if (nl2 >= 0){
+							 Point p = new Point (tnSurface.getNeibIndex(nsTile1, dir1), nl2);
+							 Double w0 = tile_weights.get(p);
+							 double weight2 = dir_weight[dir1]*weight1;
+							 if (w0 != null) weight2 += w0;
+							 tile_weights.put(p, new Double(weight2));
+						 }
+					}
+				}
+			}
+		}
+		TilePlanes.PlaneData merged_plane =  planes[nsTile][nl]; // center point
+		for (HashMap.Entry<Point, Double> entry : tile_weights.entrySet()){
+			TilePlanes.PlaneData other_plane = merged_plane.getPlaneToThis(  // layer here does not matter
+					planes[entry.getKey().x][entry.getKey().y],
+					debugLevel - 1); // debugLevel);
+			merged_plane = merged_plane.mergePlaneToThis(
+					other_plane,      // PlaneData otherPd,
+					entry.getValue(), // double    scale_other,
+					false,           // boolean   ignore_weights,
+					true,            // boolean   sum_weights,
+					preferDisparity, 
+					debugLevel - 1); // int       debugLevel)
+		}
+		double [] value_weight = {merged_plane.getValue(),merged_plane.getWeight()};
+		if (starPwr != 0){
+			value_weight[0] /= (Math.pow(tile_weights.size() + 1.0, starPwr));
+		}
 		return value_weight;
 	}
 	
+*/	
 	/**
 	 * Calculate array of supertile indices that need to have connection cost recalculated when they are updated
 	 * first entries of the result will be the same in input array
@@ -4953,6 +5240,8 @@ public class SuperTiles{
 	 * @param tnSurface TileNeibs instance to navigate tile index and control array borders
 	 * @return array of supertile indices to watch connection cost
 	 */
+	
+	
 	public int [] getInvolvedSupertiles(
 			int [] mod_supertiles,
 			TileSurface.TileNeibs tnSurface)
@@ -4981,7 +5270,7 @@ public class SuperTiles{
 	 * Update cost of involved connections after swapping some of them. Total number of links should probably stay
 	 *  the same.
 	 * @param nsTiles array of indices of the supertiles to watch
-	 * @param neibs_prev 3-d array [per supertile index][per layer][per direction] of previuos connections for which
+	 * @param neibs_prev 3-d array [per supertile index][per layer][per direction] of previous connections for which
 	 * the cost was already calculated. Or null - in that case established connections will be used and returned in
 	 * neibs array
 	 * @param neibs new connections to calculate cost for. If neibs_prev == null, this array should be initialized
@@ -5002,8 +5291,9 @@ public class SuperTiles{
 			int [][][]     neibs_prev,
 			int [][][]     neibs,		// should be initialized at top dimension if neibs_prev==null	
 			double [][][]  val_weights, // should be initialized at top dimension if neibs_prev==null
-			double orthoWeight,
-			double diagonalWeight,
+			double         orthoWeight,
+			double         diagonalWeight,
+			double         starPwr,    // Divide cost by number of connections to this power
 			TileSurface.TileNeibs tnSurface,
 			boolean preferDisparity,
 			int    debugLevel)
@@ -5017,6 +5307,7 @@ public class SuperTiles{
 					val_weights[isTile] = new double [planes[nsTile].length][];
 					for (int nl = 0; nl < planes[nsTile].length; nl++) if ( planes[nsTile][nl] != null){
 						neibs[isTile][nl] =  planes[nsTile][nl].getNeibBest();
+						//getNumNeibBest()
 						val_weights[isTile][nl] = new double[2];
 					}
 				}
@@ -5056,6 +5347,7 @@ public class SuperTiles{
 										neibs[isTile][nl],
 										orthoWeight,
 										diagonalWeight,
+										starPwr, // double         starPwr,    // Divide cost by number of connections to this power
 										tnSurface,
 										preferDisparity,
 										-1); // debugLevel);
@@ -5085,6 +5377,7 @@ public class SuperTiles{
 		if (new_weight != 0.0) new_value /= new_weight;
 		return new_value - old_value; // negative - improvement
 	}
+	
 	
 	
 	/**

@@ -32,7 +32,7 @@ public class Conflicts {
 	private  int [] num_all_conflicts =        new int [24];
 	private  int    num_ortho_incompat = 0;
 	private  int    num_ortho_dual = 0;
-	private  int    num_conflicts;
+	private  int    num_conflicts = 0;
 	private  SuperTiles st = null;
 	
 	public Conflicts(
@@ -89,6 +89,18 @@ public class Conflicts {
 		num_conflicts      += s * conflicts.num_conflicts;
 		
 	}
+
+	public void resetConflicts()
+	{
+		num_ortho_diag_ortho = new int [8];
+		num_ortho_ortho_diag = new int [16];
+		num_all_conflicts =    new int [24];
+		num_ortho_incompat =   0;
+		num_ortho_dual =       0;
+		num_conflicts =        0;
+	}
+	
+	
 	
 	public int addConflicts(
 			int [][][] conflicts,
@@ -104,7 +116,7 @@ public class Conflicts {
 				num_ortho_dual += conf.getDualTriOrthoDiagOrthoConflicts();
 				num_conflicts += conf.getNumConflicts();
 				if (debugLevel > 0){
-					printConflict("addConflicts() nsTile = "+nsTile, conf);
+					printConflict("addConflicts() nsTile = "+nsTile+" ", conf);
 				}
 			}
 		}
@@ -125,7 +137,7 @@ public class Conflicts {
 				num_ortho_dual += conf.getDualTriOrthoDiagOrthoConflicts();
 				num_conflicts += conf.getNumConflicts();
 				if (debugLevel > 0){
-					printConflict("addConflicts() nsTile = "+nsTile, conf);
+					printConflict("addConflicts() nsTile = "+nsTile+" ", conf);
 				}
 			}
 		}
