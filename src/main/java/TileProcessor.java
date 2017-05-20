@@ -3431,11 +3431,15 @@ public class TileProcessor {
 		
 		st.resolveConflicts(
 				clt_parameters.plMaxEigen,
-				clt_parameters.plStarSteps, // int starSteps, // How far to look around when calculationg connection cost
-				clt_parameters.plStarOrtho, // double     orthoWeight,
-				clt_parameters.plStarDiag, // double     diagonalWeight,
-				clt_parameters.plStarPwr, // double     starPwr, // Divide cost by number of connections to this power
-				clt_parameters.plDblTriLoss, // double     diagonalWeight,
+				clt_parameters.plConflDualTri, // boolean    conflDualTri,  // Resolve dual triangles conflict (odoodo)
+				clt_parameters.plConflMulti,   // boolean    conflMulti,    // Resolve multiple odo triangles conflicts
+				clt_parameters.plConflDiag,	   // boolean    conflDiag,     // Resolve diagonal (ood) conflicts
+				clt_parameters.plConflStar,    // boolean    conflStar,     // Resolve all conflicts around a supertile 
+				clt_parameters.plStarSteps,    // int starSteps, // How far to look around when calculationg connection cost
+				clt_parameters.plStarOrtho,    // double     orthoWeight,
+				clt_parameters.plStarDiag,     // double     diagonalWeight,
+				clt_parameters.plStarPwr,      // double     starPwr, // Divide cost by number of connections to this power
+				clt_parameters.plDblTriLoss,   // double     diagonalWeight,
 				clt_parameters.plPreferDisparity,
 				1, // final int debugLevel)
 				clt_parameters.tileX,
@@ -3533,6 +3537,10 @@ public class TileProcessor {
 
 			st.resolveConflicts(
 					clt_parameters.plMaxEigen,
+					clt_parameters.plConflDualTri, // boolean    conflDualTri,  // Resolve dual triangles conflict (odoodo)
+					clt_parameters.plConflMulti,   // boolean    conflMulti,    // Resolve multiple odo triangles conflicts
+					clt_parameters.plConflDiag,	   // boolean    conflDiag,     // Resolve diagonal (ood) conflicts
+					clt_parameters.plConflStar,    // boolean    conflStar,     // Resolve all conflicts around a supertile 
 					clt_parameters.plStarSteps, // int starSteps, // How far to look around when calculationg connection cost
 					clt_parameters.plStarOrtho, // double     orthoWeight,
 					clt_parameters.plStarDiag, // double     diagonalWeight,

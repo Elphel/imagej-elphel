@@ -1,7 +1,3 @@
-import java.awt.Point;
-import java.util.HashMap;
-import java.util.HashSet;
-
 /**
  **
  ** ConnectionCosts - calculate and incrementally update cost of supertile connections
@@ -25,6 +21,9 @@ import java.util.HashSet;
  ** -----------------------------------------------------------------------------**
  **
  */
+import java.awt.Point;
+import java.util.HashMap;
+import java.util.HashSet;
 
 public class ConnectionCosts {
 	TilePlanes.PlaneData [][] planes =  null;

@@ -2175,7 +2175,12 @@ public class EyesisCorrectionParameters {
   		public double     plMaxWorldSin2       =   0.1;  // Maximal sine squared of the world angle between planes to merge. Set to >= 1.0 to disable
   		public double     plWeakWorsening      =   1.0;  // Relax merge requirements for weaker planes
   		
-  		public int        plStarSteps          =   1;    // How far to look around when calculationg connection cost
+  		public boolean    plConflDualTri       =   false; // Resolve dual triangles conflict (odoodo)
+  		public boolean    plConflMulti         =   false; // Resolve multiple odo triangles conflicts
+  		public boolean    plConflDiag          =   false; // Resolve diagonal (ood) conflicts
+  		public boolean    plConflStar          =   true;  // Resolve all conflicts around a supertile 
+
+  		public int        plStarSteps          =   2;    // How far to look around when calculationg connection cost
   		public double     plStarOrtho          =   0.5;  // When calculating cost for the connections scale 4 ortho neighbors
   		public double     plStarDiag           =   0.25; // When calculating cost for the connections scale 4 diagonal neighbors
   		public double     plStarPwr            =   0.5;  // Divide cost by number of connections to this power
@@ -2529,6 +2534,10 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plMaxWorldSin2",   this.plMaxWorldSin2 +"");
 			properties.setProperty(prefix+"plWeakWorsening",  this.plWeakWorsening +"");
 
+			properties.setProperty(prefix+"plConflDualTri",   this.plConflDualTri+"");
+			properties.setProperty(prefix+"plConflMulti",     this.plConflMulti+"");
+			properties.setProperty(prefix+"plConflDiag",      this.plConflDiag+"");
+			properties.setProperty(prefix+"plConflStar",      this.plConflStar+"");
   			properties.setProperty(prefix+"plStarSteps",      this.plStarSteps+"");
 			properties.setProperty(prefix+"plStarOrtho",      this.plStarOrtho +"");
 			properties.setProperty(prefix+"plStarDiag",       this.plStarDiag +"");
@@ -2863,6 +2872,10 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plMaxWorldSin2")!=null)    this.plMaxWorldSin2=Double.parseDouble(properties.getProperty(prefix+"plMaxWorldSin2"));
   			if (properties.getProperty(prefix+"plWeakWorsening")!=null)   this.plWeakWorsening=Double.parseDouble(properties.getProperty(prefix+"plWeakWorsening"));
 
+  			if (properties.getProperty(prefix+"plConflDualTri")!=null)    this.plConflDualTri=Boolean.parseBoolean(properties.getProperty(prefix+"plConflDualTri"));
+  			if (properties.getProperty(prefix+"plConflMulti")!=null)      this.plConflMulti=Boolean.parseBoolean(properties.getProperty(prefix+"plConflMulti"));
+  			if (properties.getProperty(prefix+"plConflDiag")!=null)       this.plConflDiag=Boolean.parseBoolean(properties.getProperty(prefix+"plConflDiag"));
+  			if (properties.getProperty(prefix+"plConflStar")!=null)       this.plConflStar=Boolean.parseBoolean(properties.getProperty(prefix+"plConflStar"));
   			if (properties.getProperty(prefix+"plStarSteps")!=null)       this.plStarSteps=Integer.parseInt(properties.getProperty(prefix+"plStarSteps"));
   			if (properties.getProperty(prefix+"plStarOrtho")!=null)       this.plStarOrtho=Double.parseDouble(properties.getProperty(prefix+"plStarOrtho"));
   			if (properties.getProperty(prefix+"plStarDiag")!=null)        this.plStarDiag=Double.parseDouble(properties.getProperty(prefix+"plStarDiag"));
@@ -3225,6 +3238,10 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal sine squared of the world angle between planes to merge. Set to >= 1.0 to disable", this.plMaxWorldSin2,  6);
   			gd.addNumericField("Relax merge requirements for weaker planes",                                   this.plWeakWorsening,  6);
 
+  			gd.addCheckbox    ("Resolve dual triangles conflict (odoodo)",                                     this.plConflDualTri);
+  			gd.addCheckbox    ("Resolve multiple odo triangles conflicts",                                     this.plConflMulti);
+  			gd.addCheckbox    ("Resolve diagonal (ood) conflicts",                                             this.plConflDiag);
+  			gd.addCheckbox    ("Resolve all conflicts around a supertile",                                     this.plConflStar);
   			gd.addNumericField("How far to look around when calculationg connection cost",                     this.plStarSteps,  0);
   			gd.addNumericField("When calculating cost for the connections scale 4 ortho neighbors",            this.plStarOrtho,  6);
   			gd.addNumericField("When calculating cost for the connections scale 4 diagonal neighbors",         this.plStarDiag,  6);
@@ -3572,6 +3589,10 @@ public class EyesisCorrectionParameters {
   			this.plMaxWorldSin2=        gd.getNextNumber();
   			this.plWeakWorsening=       gd.getNextNumber();
 
+  			this.plConflDualTri=        gd.getNextBoolean();
+  			this.plConflMulti=          gd.getNextBoolean();
+  			this.plConflDiag=           gd.getNextBoolean();
+  			this.plConflStar=           gd.getNextBoolean();
   			this.plStarSteps=     (int) gd.getNextNumber();
   			this.plStarOrtho=           gd.getNextNumber();
   			this.plStarDiag=            gd.getNextNumber();
