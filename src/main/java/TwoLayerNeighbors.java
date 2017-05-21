@@ -63,7 +63,7 @@ public class TwoLayerNeighbors {
 	int nl2;
 	NeibVariant neibs_init = new NeibVariant();
 	int [][] layers_around = new int [8][];
-	int []   options_around = new int [8];
+	int []   options_around = new int [8]; // how many tiles are connected to the center at this direction, from one of nl1, nl2
 	int [][] num_se = new int [PAIRS.length][];
 	int [][][] conns = new int [PAIRS.length][][];
 	int [] selection_star = null;
@@ -124,10 +124,14 @@ public class TwoLayerNeighbors {
 				int dir1,
 				int nl1,
 				int dir2,
-				int nl2){
+				int nl2,
+				int debugLevel){
 			int dir12 = getDir2From1(dir1, dir2);
 			if (dir12 <0){
 				throw new IllegalArgumentException ("Invalid connection from "+dir1+" to "+dir2+": resulted in direction 1->2 = "+dir12);
+			}
+			if (debugLevel > 1){
+				System.out.print(" "+dir1+":"+nl1+"<->"+dir2+":"+nl2);
 			}
 			int dir21 = (dir12 + 4) % 8;
 			int [][] neibs_start = getNeighbors(dir1);
@@ -153,6 +157,34 @@ public class TwoLayerNeighbors {
 			
 		}
 		
+		public void diffToOther(NeibVariant other_variant)
+		{
+			for (int dir0 = 0; dir0 <  neighbors.length; dir0++){
+				if ((neighbors[dir0] != null) || (other_variant.neighbors[dir0] != null)){
+					if ((neighbors[dir0] == null) || (other_variant.neighbors[dir0] == null)){
+						System.out.print(" ["+dir0+"]");
+					} else {
+						for (int nl = 0; nl < neighbors[dir0].length; nl++){
+							if ((neighbors[dir0][nl] != null) || (other_variant.neighbors[dir0][nl] != null)){
+								if ((neighbors[dir0][nl] == null) || (other_variant.neighbors[dir0][nl] == null)){
+									System.out.print(" ["+dir0+":"+nl+"]");
+								} else {
+									for (int dir = 0; dir < 8; dir++){
+										if (neighbors[dir0][nl][dir] != other_variant.neighbors[dir0][nl][dir]){
+											System.out.print(" "+dir0+":"+nl+":"+dir+":("+neighbors[dir0][nl][dir]+"/"+
+													other_variant.neighbors[dir0][nl][dir]+")");
+										}
+
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+			System.out.println();
+		}
+		
 	}
 	
 	/**
@@ -167,12 +199,6 @@ public class TwoLayerNeighbors {
 		} else {
 			// increment connection variant if possible
 			for (int np = 0; np < PAIRS.length; np++){
-//				if (
-//						(num_se[np] == null) || 
-//						(conns[np] == null)) {
-//					System.out.println("nextSelection BUG");
-//					return false;
-//				}
 				if ((num_se[np] != null) && (num_se[np][0] == 2) && (num_se[np][1] == 2) && (conns[np] != null) && (conns[np].length == 1)){
 					if (selection_conns[np] == 0){
 						selection_conns[np] = 1;
@@ -188,7 +214,7 @@ public class TwoLayerNeighbors {
 				selection_conns[i] = 0;
 			}
 			for (int dir = 0; dir < options_around.length; dir++){
-				if ((options_around[dir]>1) && (selection_star[dir] == 0)){
+				if ((options_around[dir] > 0) && (selection_star[dir] == 0)){ // either 1 or two layers connected - still 2 variants
 					selection_star[dir] = 1;
 					for (int dir1 = 0; dir1 < dir; dir1++){
 						selection_star[dir1] = 0;
@@ -205,9 +231,9 @@ public class TwoLayerNeighbors {
 	 * @return neibVariant instance fro the current selection or null if the
 	 * selection leads to conflicts  
 	 */
-	public NeibVariant generateVariant()
+	public NeibVariant generateVariant(int debugLevel)
 	{
-		// verify all connetions are possible
+		// verify all connections are possible
 		for (int np = 0; np < PAIRS.length; np++) if (conns[np] != null){
 			// single connection for a single variant for start and end - either match or not
 			if ((num_se[np] != null) && (conns[np].length == 1) && (num_se[np][0] == 1) && (num_se[np][1] == 1)){
@@ -222,17 +248,31 @@ public class TwoLayerNeighbors {
 		NeibVariant variant = neibs_init.clone();
 		
 		// set connections for the center
+		if (debugLevel > 1){
+			System.out.print("center connections:");
+		}
 		for (int dir = 0; dir < 8; dir++) if (options_around[dir] > 0){
 			// make a first connection, if there are two - other will be created simultaneously
 			variant.connect(
 					-1, // 	int dir1,
 					((selection_star[dir] > 0) ? nl2 : nl1), // int nl1,
 					dir, // int dir2,
-					layers_around[dir][0]); // int nl2);
+					layers_around[dir][0], // int nl2);
+					debugLevel);
+		}
+		if (debugLevel > 1){
+			System.out.println();
 		}
 		
+		if (debugLevel > 1){
+			System.out.print("other connections:");
+		}
 		// set all other connections
 		for (int np = 0; np < PAIRS.length; np++) if (conns[np] != null){
+			if (debugLevel > 1){
+				System.out.print(" {"+np+"}");
+			}
+
 			int start_dir = PAIRS[np][0];
 			int end_dir =   PAIRS[np][1];
 			boolean swap = (selection_star[start_dir] != selection_star[end_dir]) ^ (selection_conns[np] > 0);
@@ -248,21 +288,39 @@ public class TwoLayerNeighbors {
 					start_dir, // 	int dir1,
 					layers_around[start_dir][opts[0]], // int nl1,
 					end_dir, // int dir2,
-					layers_around[end_dir][opts[1]]); // int nl2);
-			return variant;
+					layers_around[end_dir][opts[1]], // int nl2);
+					debugLevel);
 		}
-		return null;
+		if (debugLevel > 1){
+			System.out.println();
+		}
+		return variant;
+	}
+	public int [][][][] getNeighborVariants()
+	{
+		return getNeighborVariants(0);
 	}
 	
-	public int [][][][] getNeighborVariants()
+	public int [][][][] getNeighborVariants(int debugLevel)
 	{
 		ArrayList<NeibVariant> variant_list = new ArrayList<NeibVariant>();
 		while (nextSelection()){
-			NeibVariant variant = generateVariant();
+			NeibVariant variant = generateVariant(debugLevel);
 			if (variant != null){
 				variant_list.add(variant);
+				if (debugLevel > 0){
+					System.out.print("getNeighborVariants() "+(variant_list.size()-1)+": [");
+					for (int i = 0; i < selection_star.length; i++){
+						System.out.print(selection_star[i]);
+					}
+					System.out.print("] [");
+					for (int i = 0; i < selection_conns.length; i++){
+						System.out.print(selection_conns[i]);
+					}
+					System.out.print("]: ");
+					variant.diffToOther(neibs_init);
+				}
 			}
-			
 		}
 		int [][][][] variants = new int [variant_list.size()][][][];
 		int indx = 0;
@@ -327,7 +385,7 @@ public class TwoLayerNeighbors {
 	public void setLayers(int nl1, int nl2)
 	{
 		this.nl1 = nl1;
-		this.nl2 = nl1;
+		this.nl2 = nl2;
 		layers_around = new int [8][];
 		options_around = new int [8];
 		int [][] neighbors_center = neibs_init.getNeighbors(-1);

@@ -116,7 +116,12 @@ public class Conflicts {
 				num_ortho_dual += conf.getDualTriOrthoDiagOrthoConflicts();
 				num_conflicts += conf.getNumConflicts();
 				if (debugLevel > 0){
-					printConflict("addConflicts() nsTile = "+nsTile+" ", conf);
+					int tilesX =        st.tileProcessor.getTilesX();
+					int superTileSize = st.tileProcessor.getSuperTileSize();
+					int stilesX = (tilesX + superTileSize -1)/superTileSize;  
+					int ty = nsTile / stilesX;
+					int tx = nsTile % stilesX;
+					printConflict("addConflicts() nsTile = "+nsTile+" ["+tx+":"+ty+"] ", conf);
 				}
 			}
 		}
@@ -137,7 +142,12 @@ public class Conflicts {
 				num_ortho_dual += conf.getDualTriOrthoDiagOrthoConflicts();
 				num_conflicts += conf.getNumConflicts();
 				if (debugLevel > 0){
-					printConflict("addConflicts() nsTile = "+nsTile+" ", conf);
+					int tilesX =        st.tileProcessor.getTilesX();
+					int superTileSize = st.tileProcessor.getSuperTileSize();
+					int stilesX = (tilesX + superTileSize -1)/superTileSize;  
+					int ty = nsTile / stilesX;
+					int tx = nsTile % stilesX;
+					printConflict("addConflicts() nsTile = "+nsTile+" ["+tx+":"+ty+"] ", conf);
 				}
 			}
 		}

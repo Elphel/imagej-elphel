@@ -3440,6 +3440,7 @@ public class TileProcessor {
 				clt_parameters.plStarDiag,     // double     diagonalWeight,
 				clt_parameters.plStarPwr,      // double     starPwr, // Divide cost by number of connections to this power
 				clt_parameters.plDblTriLoss,   // double     diagonalWeight,
+				clt_parameters.plNewConfl,     // boolean    preferDisparity, // Allow more conflicts if overall cost is reduced
 				clt_parameters.plPreferDisparity,
 				1, // final int debugLevel)
 				clt_parameters.tileX,
@@ -3546,6 +3547,7 @@ public class TileProcessor {
 					clt_parameters.plStarDiag, // double     diagonalWeight,
 					clt_parameters.plStarPwr, // double     starPwr, // Divide cost by number of connections to this power
 					clt_parameters.plDblTriLoss, // double     diagonalWeight,
+					clt_parameters.plNewConfl,     // boolean    preferDisparity, // Allow more conflicts if overall cost is reduced
 					clt_parameters.plPreferDisparity,
 					1, // final int debugLevel)
 					clt_parameters.tileX,

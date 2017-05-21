@@ -4003,12 +4003,12 @@ public class SuperTiles{
 					", improvement (negative diff) = "+new_costs_diff_old);
 			
 		}
-		if (debugLevel > -1) {
+		if (debugLevel > 0) { // -1) {
 			new_conflicts_stats.printConflictSummary(
 					"Conflicts difference after resolution:", true, true, true);
 		}
 		// See if it is good
-		if (debugLevel > -1) {
+		if (debugLevel > 0) { // -1) {
 			if (new_conflicts_stats.getNumConflicts() > 0) {
 				if (debugLevel > -1) System.out.println("FAILURE: number of conflicts increased");
 			} else if (new_costs_diff > dblTriLoss){
@@ -4389,6 +4389,7 @@ public class SuperTiles{
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
+			boolean    newConfl, // Allow more conflicts if overall cost is reduced
 			boolean    preferDisparity,
 			int        debugLevel,
 			int        dbg_X,
@@ -4416,11 +4417,12 @@ public class SuperTiles{
 						conflicts,
 						conflict_stats, // to be updated after applying resolution
 //						maxEigen, // maximal eigenvalue of planes to consider
-						starSteps, // How far to look around when calculationg connection cost
+						starSteps, // How far to look around when calculating connection cost
 						orthoWeight,
 						diagonalWeight,
 						starPwr,        // double     starPwr, // Divide cost by number of connections to this power
 						dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
+						newConfl, // boolean    newConfl, // Allow more conflicts if overall cost is reduced
 						preferDisparity,
 						dl); // debugLevel,
 				if (OK) rslt[0]++;
@@ -4444,9 +4446,14 @@ public class SuperTiles{
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
+			boolean    newConfl, // Allow more conflicts if overall cost is reduced
 			boolean    preferDisparity,
 			int        debugLevel)
 	{
+		
+		if (newConfl && (dblTriLoss > 0.0)){
+			dblTriLoss = 0.0; // require strict reducing of the cost if conflict increase is allowed
+		}
 		Conflicts iconflicts = new Conflicts(this); 
 
 		TwoLayerNeighbors twoLayerNeighbors = new TwoLayerNeighbors();
@@ -4462,8 +4469,11 @@ public class SuperTiles{
 			}
 		}
 		twoLayerNeighbors.setLayers(nl1, nl2);
+		if (debugLevel > 1) {
+			System.out.println("resolveStarConflict(): nsTile ="+nsTile+" nl1="+nl1+" nl2="+nl2);
+		}
 
-		int [][][][] neibs_vars_dir = twoLayerNeighbors.getNeighborVariants();		
+		int [][][][] neibs_vars_dir = twoLayerNeighbors.getNeighborVariants(debugLevel);		
 
 		int [] mod_supertiles = {nsTile};
 		mod_supertiles = getInvolvedSupertiles( // first mod_supertiles.length entries will be mod_supertiles[]
@@ -4481,7 +4491,13 @@ public class SuperTiles{
 		for (int dir = -1; dir < 8; dir++){
 			int nindx = (dir < 0) ? 8 : dir; 
 			int nt = tnSurface.getNeibIndex(nsTile, dir);
-			int indx = replacement_tiles.get(nt);
+			int indx = -1;
+			Integer Indx = replacement_tiles.get(nt);
+			if (Indx == null){
+				System.out.println("resolveStarConflict(): nsTile = "+nsTile+" nindx="+nindx+" Indx == null ");
+			} else {
+				indx = Indx;
+			}
 			if (indx >= 0) {
 				indexToDir[indx] = nindx;
 			}
@@ -4546,7 +4562,7 @@ public class SuperTiles{
 		
 		double [] variant_costs_diff = new double [neibs_vars.length];
 		for (int variant = 0; variant < neibs_vars.length; variant ++){
-			if (debugLevel > 0) {
+			if (debugLevel > 1) {
 				System.out.println("resolveStarConflict(): resolving conflict for tile "+nsTile+
 						", nl1 = "+nl1+
 						", nl2 = "+nl2 +
@@ -4557,12 +4573,11 @@ public class SuperTiles{
 					neibs_vars[variant],
 					debugLevel);
 			
-			if (debugLevel > -1) {
+			if (debugLevel > 0) {
 				System.out.println("resolveStarConflict(): resolving conflict for tile "+nsTile+
 						", nl1 = "+nl1+
 						", nl2 = "+nl2 +
 						", variant = "+variant+" improvement (negative diff) = "+variant_costs_diff[variant]);
-				
 			}
 			
 			
@@ -4579,13 +4594,14 @@ public class SuperTiles{
 					debugLevel - 1); // debugLevel);
 			variant_conflicts_stats[variant].subConflicts(iconflicts); // subtract old number of different types of conflicts
 			
-			if (debugLevel > -1) {
+			if (debugLevel > 0) { // -1) {
 				variant_conflicts_stats[variant].printConflictSummary(
 						"Conflicts difference after resolution:", true, true, false);
 			}
 		}
 		// How to compare? 1 attempt: none of the conflicts get worse, some get better or cost goes down
 		int best_variant = -1;
+		int best_ignore_conflicts = -1;
 		int [][] num_better_worse = new int [neibs_vars.length][2];
 		for (int variant = 0; variant < neibs_vars.length; variant ++){
 			int num_worse = variant_conflicts_stats[variant].numBetterWorse(
@@ -4610,12 +4626,23 @@ public class SuperTiles{
 									(variant_costs_diff[variant] < variant_costs_diff[best_variant])))){
 				best_variant = variant;
 			}
+			if ((best_ignore_conflicts <0) || (variant_costs_diff[variant] < variant_costs_diff[best_ignore_conflicts])){
+				best_ignore_conflicts = variant;
+			}
 		}
 
 		if (debugLevel > 1){
 			System.out.println("resolveStarConflict(): for tile "+nsTile);
 		}
 		
+		if ((best_variant < 0) && newConfl && (variant_costs_diff[best_ignore_conflicts] < 0)){ // should be cost improvement
+			best_variant = best_ignore_conflicts;
+			if (debugLevel > -1) {
+				System.out.println("resolveMultiTriangularConflict(): conflicts increase but cost decreases "+nsTile+
+						", nl1 = "+nl1+
+						", nl2 = "+nl2 +" of "+ neibs_vars.length+" variants");
+			}
+		}
 		if ((best_variant < 0) || (variant_costs_diff[best_variant] > dblTriLoss)){
 			if (debugLevel > -1) {
 				System.out.println("resolveMultiTriangularConflict(): FAILED find a sutable solution for tile "+nsTile+
@@ -4651,8 +4678,18 @@ public class SuperTiles{
 				
 				// apply resolution
 				for (int i = 0; i < mod_supertiles.length; i++){
-					for (int nl = 0; nl < neibs_vars[best_variant][i].length; nl ++) if (neibs_vars[best_variant][i][nl] != null){
-						planes[mod_supertiles[i]][nl].setNeibBest(neibs_vars[best_variant][i][nl]);
+					if (debugLevel > 1){
+						System.out.println("resolveStarConflict(): nsTile = "+nsTile+ "mod_supertiles["+i+"]="+mod_supertiles[i]);
+					}
+					if (neibs_vars[best_variant][i] != null) {
+						for (int nl = 0; nl < neibs_vars[best_variant][i].length; nl ++){
+							if (debugLevel > 1){
+								System.out.println("resolveStarConflict(): nl= = "+nl);
+							}
+							if (neibs_vars[best_variant][i][nl] != null){
+								planes[mod_supertiles[i]][nl].setNeibBest(neibs_vars[best_variant][i][nl]);
+							}
+						}
 					}
 				}
 			}
@@ -4919,7 +4956,8 @@ public class SuperTiles{
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
-			boolean    preferDisparity,
+			boolean    newConfl, // Allow more conflicts if overall cost is reduced
+			boolean    preferDisparity, 
 			int        debugLevel,
 			int        dbg_X,
 			int        dbg_Y)
@@ -4994,6 +5032,7 @@ public class SuperTiles{
 						diagonalWeight, // double     diagonalWeight,
 						starPwr,        // double     starPwr, // Divide cost by number of connections to this power
 						dblTriLoss, // double     diagonalWeight,
+						newConfl, // Allow more conflicts if overall cost is reduced
 						preferDisparity,
 						debugLevel, // 1, //  final int debugLevel)
 						dbg_X,

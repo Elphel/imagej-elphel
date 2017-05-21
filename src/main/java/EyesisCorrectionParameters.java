@@ -2185,6 +2185,7 @@ public class EyesisCorrectionParameters {
   		public double     plStarDiag           =   0.25; // When calculating cost for the connections scale 4 diagonal neighbors
   		public double     plStarPwr            =   0.5;  // Divide cost by number of connections to this power
   		public double     plDblTriLoss         =   0.0001; // When resolving double triangles allow minor degradation (0.0 - strict)
+  		public boolean    plNewConfl           =   false; // Allow more conflicts if overall cost is reduced
   		
   		public boolean    plMutualOnly         =   true; // keep only mutual links, remove weakest if conflict
   		public boolean    plFillSquares        =   true; // Add diagonals to full squares
@@ -2543,6 +2544,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plStarDiag",       this.plStarDiag +"");
 			properties.setProperty(prefix+"plStarPwr",        this.plStarPwr +"");
 			properties.setProperty(prefix+"plDblTriLoss",     this.plDblTriLoss +"");
+			properties.setProperty(prefix+"plNewConfl",       this.plNewConfl+"");
 
 			properties.setProperty(prefix+"plMutualOnly",     this.plMutualOnly+"");
 			properties.setProperty(prefix+"plFillSquares",    this.plFillSquares+"");
@@ -2881,6 +2883,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plStarDiag")!=null)        this.plStarDiag=Double.parseDouble(properties.getProperty(prefix+"plStarDiag"));
   			if (properties.getProperty(prefix+"plStarPwr")!=null)         this.plStarPwr=Double.parseDouble(properties.getProperty(prefix+"plStarPwr"));
   			if (properties.getProperty(prefix+"plDblTriLoss")!=null)      this.plDblTriLoss=Double.parseDouble(properties.getProperty(prefix+"plDblTriLoss"));
+  			if (properties.getProperty(prefix+"plNewConfl")!=null)        this.plNewConfl=Boolean.parseBoolean(properties.getProperty(prefix+"plNewConfl"));
   			
   			if (properties.getProperty(prefix+"plMutualOnly")!=null)      this.plMutualOnly=Boolean.parseBoolean(properties.getProperty(prefix+"plMutualOnly"));
   			if (properties.getProperty(prefix+"plFillSquares")!=null)     this.plFillSquares=Boolean.parseBoolean(properties.getProperty(prefix+"plFillSquares"));
@@ -3247,6 +3250,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("When calculating cost for the connections scale 4 diagonal neighbors",         this.plStarDiag,  6);
   			gd.addNumericField("Divide cost by number of connections to this power",                           this.plStarPwr,  6);
   			gd.addNumericField("When resolving double triangles allow minor degradation (0.0 - strict)",       this.plDblTriLoss,  6);
+  			gd.addCheckbox    ("Allow more conflicts if overall cost is reduced",                              this.plNewConfl);
 
   			gd.addCheckbox    ("Keep only mutual links, remove weakest if conflict",                           this.plMutualOnly);
 
@@ -3598,6 +3602,7 @@ public class EyesisCorrectionParameters {
   			this.plStarDiag=            gd.getNextNumber();
   			this.plStarPwr=             gd.getNextNumber();
   			this.plDblTriLoss=          gd.getNextNumber();
+  			this.plNewConfl=            gd.getNextBoolean();
 
   			this.plMutualOnly=          gd.getNextBoolean();
 
