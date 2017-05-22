@@ -198,6 +198,34 @@ public class Conflicts {
 			if (better? (num_ortho_dual < 0) : (num_ortho_dual > 0)) num++;
 
 		}
+		if (use_ood) {
+			for (int i = 0; i < num_ortho_ortho_diag.length; i++){
+				if (better?(num_ortho_ortho_diag[i] < 0):(num_ortho_ortho_diag[i] > 0)) num++;
+			}
+		}
+		return num;
+	}
+	public int sumConflicts(
+			boolean use_all,
+			boolean use_odo,
+			boolean use_ood)
+	{
+		int num = 0;
+		if (use_all) {
+			for (int i = 0; i < num_all_conflicts.length; i++){
+				num += num_all_conflicts[i];
+			}
+		}
+		if (use_odo) {
+			for (int i = 0; i < num_ortho_diag_ortho.length; i++){
+				num +=num_ortho_diag_ortho[i];
+			}
+		}
+		if (use_ood) {
+			for (int i = 0; i < num_ortho_ortho_diag.length; i++){
+				num +=num_ortho_ortho_diag[i];
+			}
+		}
 		return num;
 	}
 	
@@ -286,11 +314,157 @@ public class Conflicts {
 		return conflicts;
 	}
 	
+	/**
+	 * Calculate cost of all conflicts around supertile nsTile0 by adding "star" weight of each tile involved.
+	 * Tile weight can be either from the planes[][] array or from the replacement values in replacement_val_weights
+	 * (when the tiles configuration is not yet committed)
+	 * @param nsTile0 supertile index to process
+	 * @param scaleStartEnd for each conflict triangle add start and end tiles (at the center nsTile0) scaled by this value
+	 * @param conflicts array of calculated conflicts (each is {start_layer, end_layer, direction/type bitmask} or null,
+	 * in that case it will be calculated
+	 * @param replacement_tiles a map of supertile indices to replacement indices (for replacement_neibs and
+	 *        replacement_val_weights) or null. If not null, and entry for the supertile full index exists, 
+	 *        replacement_neibs and replacement_val_weights will be used, otherwise planes[][] data.
+	 *        replacement_tiles may be null, in that case planes[][] data will be used unconditionally.
+	 * @param replacement_neibs array of neighbors to use instead of the planes data. First index is an index
+	 *        of the replacement supertile (values in the  replacement_tiles map), second - layer number and
+	 *        the 3-rd one - direction index for 8 connections: N, NE, E...NW. Value is the destination layer
+	 *        number. Can be null if not used (when replacement_tiles is null)
+	 * @param replacement_val_weights similar array for tile value/weight data (per-tile index, per layer).
+	 *  The innermost data is a tuple {value, weight}
+	 * @param tnSurface TileNeibs instance to navigate through the 2-d array encoded in linescan order
+	 * @return sum ao the weights of all conflicts fro this tile
+	 */
+	
+	public double getConflictsCost(
+			int           nsTile0,
+			double        scaleStartEnd, // include start and and layer tiles in the center in overall cost for each triangle (1.0)
+			int [][]      conflicts, //
+			HashMap<Integer,Integer> replacement_tiles, // null is OK
+			int [][][]    replacement_neibs,               // null OK if  replacement_tiles == null
+			double [][][] replacement_val_weights,
+			TileSurface.TileNeibs tnSurface)
+	{
+		TilePlanes.PlaneData [][] planes = st.getPlanes();
+		// generate conflicts if not provided
+		if (conflicts == null) {
+			conflicts = detectTriangularTileConflicts(
+					nsTile0,
+					replacement_tiles, //
+					replacement_neibs,
+					tnSurface);
+		}
+		double cost = 0.0;
+		if (conflicts != null){
+			Integer isTile = (replacement_tiles != null) ? replacement_tiles.get(nsTile0) : null;
+			for (int nConfl = 0; nConfl < conflicts.length; nConfl++){
+				Conflict conflict = new Conflict(nsTile0, conflicts[nConfl]);
+				int start_layer = conflict.getStartLayer();
+				int end_layer =   conflict.getEndLayer();
+				int [] neibs1 = ((isTile == null) ?
+						planes[nsTile0][start_layer].getNeibBest() :
+							replacement_neibs[isTile][start_layer]);
+				int [] neibs2 = ((isTile == null) ?
+						planes[nsTile0][end_layer].getNeibBest() :
+							replacement_neibs[isTile][end_layer]);
+
+				int [][] involved = conflict.getInvolvedTiles();
+				for (int nTri = 0; nTri < involved.length; nTri++){
+					int [] nsTiles = {
+							tnSurface.getNeibIndex(nsTile0, involved[nTri][0]),
+							tnSurface.getNeibIndex(nsTile0, involved[nTri][1])};
+					int [] layers = {neibs1[involved[nTri][0]], neibs2[involved[nTri][1]]};
+					for (int it = 0; it < nsTiles.length; it++){
+						Integer isTile1 = (replacement_tiles != null) ? replacement_tiles.get(nsTiles[it]) : null;
+						if (isTile1 != null){
+							cost += replacement_val_weights[isTile1][layers[it]][1];
+						} else {
+							cost += planes[nsTiles[it]][layers[it]].getStarValueWeight()[1];
+						}
+					}
+				}
+				if (scaleStartEnd != 0.0) {
+					if (isTile != null){
+						cost += scaleStartEnd * (replacement_val_weights[isTile][start_layer][1]+
+								replacement_val_weights[isTile][end_layer][1]);
+					} else {
+						cost += scaleStartEnd * (planes[nsTile0][start_layer].getStarValueWeight()[1]+
+								planes[nsTile0][end_layer].getStarValueWeight()[1]);
+					}
+				}
+			}
+		}
+		return cost;
+	}
+
+
+	public double getConflictsCost(
+			int           nsTile0,
+			double        scaleStartEnd, // include start and and layer tiles in the center in overall cost for each triangle (1.0)
+			int [][]      conflicts, //
+			HashMap<Integer,Integer> replacement_tiles, // null is OK
+			int [][][]    replacement_neibs,               // null OK if  replacement_tiles == null
+			ConnectionCosts connectionCosts,
+			TileSurface.TileNeibs tnSurface)
+	{
+		TilePlanes.PlaneData [][] planes = st.getPlanes();
+		// generate conflicts if not provided
+		if (conflicts == null) {
+			conflicts = detectTriangularTileConflicts(
+					nsTile0,
+					replacement_tiles, //
+					replacement_neibs,
+					tnSurface);
+		}
+		double cost = 0.0;
+		if (conflicts != null){
+			Integer isTile = (replacement_tiles != null) ? replacement_tiles.get(nsTile0) : null;
+			for (int nConfl = 0; nConfl < conflicts.length; nConfl++){
+				Conflict conflict = new Conflict(nsTile0, conflicts[nConfl]);
+				int start_layer = conflict.getStartLayer();
+				int end_layer =   conflict.getEndLayer();
+				int [] neibs1 = ((isTile == null) ?
+						planes[nsTile0][start_layer].getNeibBest() :
+							replacement_neibs[isTile][start_layer]);
+				int [] neibs2 = ((isTile == null) ?
+						planes[nsTile0][end_layer].getNeibBest() :
+							replacement_neibs[isTile][end_layer]);
+
+				int [][] involved = conflict.getInvolvedTiles();
+				for (int nTri = 0; nTri < involved.length; nTri++){
+					int [] nsTiles = {
+							tnSurface.getNeibIndex(nsTile0, involved[nTri][0]),
+							tnSurface.getNeibIndex(nsTile0, involved[nTri][1])};
+					int [] layers = {neibs1[involved[nTri][0]], neibs2[involved[nTri][1]]};
+					for (int it = 0; it < nsTiles.length; it++){
+						cost += connectionCosts. getValWeightLast(
+								nsTiles[it], // int nsTile,
+								layers[it], // int nl,
+								false)[1]; // boolean initialValue)
+					}
+				}
+				if (scaleStartEnd != 0.0) {
+					cost += scaleStartEnd * connectionCosts. getValWeightLast(
+							nsTile0,     // int nsTile,
+							start_layer, // int nl,
+							false)[1];   // boolean initialValue)
+					cost += scaleStartEnd * connectionCosts. getValWeightLast(
+							nsTile0,     // int nsTile,
+							end_layer, // int nl,
+							false)[1];   // boolean initialValue)
+				}
+			}
+		}
+		return cost;
+	}
+
+
+	
 	
 	public int [][] detectTriangularTileConflicts(
 			int nsTile0,
-			HashMap<Integer,Integer> replacement_tiles, //
-			int [][][] replacement_neibs,
+			HashMap<Integer,Integer> replacement_tiles, // null is OK - will use only planes data
+			int [][][] replacement_neibs,               // null OK if  replacement_tiles == null
 			TileSurface.TileNeibs tnSurface)
 	{
 		TilePlanes.PlaneData [][] planes = st.getPlanes();

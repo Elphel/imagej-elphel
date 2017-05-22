@@ -36,10 +36,12 @@ public class ConnectionCosts {
 	int [][][]     neibs_init;
 	int []         mod_tiles;
 	int []         all_tiles;
-	double [][][]  val_weights;
+	double [][][]  val_weights; // initial values/weights
 	double         init_val;
 	double         init_weight;
+	double [][][]  last_val_weights; // last calculated
 	HashMap<Integer,Integer> tile_map; // map from tile full index to index in neibs[] and 
+	HashMap<Integer,Integer> all_tile_map; // map from tile full index to index in val_weights[] and 
 
 	public ConnectionCosts(
 			double         orthoWeight,
@@ -93,6 +95,11 @@ public class ConnectionCosts {
 			tile_map.put(mod_tiles[i], i);
 		}
 		
+		all_tile_map = new HashMap<Integer,Integer>();
+		for (int i = 0; i < all_tiles.length; i++){
+			all_tile_map.put(all_tiles[i], i);
+		}
+		
 		switch (steps){
 		case 1:
 			val_weights = getConnectionsCostSingleStep (
@@ -110,6 +117,8 @@ public class ConnectionCosts {
 					-1); // int        debugLevel)			
 		}
 		
+		last_val_weights = val_weights;
+
 		init_val = 0.0;
 		init_weight = 0.0; // should not change during update
 		for (int isTile = 0; isTile < all_tiles.length; isTile++){
@@ -124,6 +133,35 @@ public class ConnectionCosts {
 		if (init_weight != 0.0) init_val /= init_weight;
 		
 		return neibs_init; // neighbors to clone
+	}
+	public double [] getValWeightLast(
+			int nsTile,
+			int nl,
+			boolean initialValue)
+	{
+		Integer isTile = all_tile_map.get(nsTile);
+		if ((isTile != null) && (isTile < 0)){
+			System.out.println("isTile < 0");
+		}
+		if (nl < 0){
+			System.out.println(" nl < 0");
+		}
+		if ((isTile != null) && (isTile >= 0)){
+			return initialValue? val_weights[isTile][nl] : last_val_weights[isTile][nl];
+		} else {
+			return planes[nsTile][nl].getStarValueWeight();
+		}
+	}
+	
+	
+	public double [] getValWeight()
+	{
+		double [] val_weight = {init_val,init_weight};
+		return val_weight;
+	}
+	public double [][][] getValWeights()
+	{
+		return val_weights;
 	}
 	
 	public double [][][] getConnectionsCostSingleStep (
@@ -272,7 +310,7 @@ public class ConnectionCosts {
 					neibs,	
 					-1); // int        debugLevel)			
 		}
-
+		last_val_weights = vw;
 		// calculate new cost
 		double new_value = 0.0;
 		double new_weight = 0.0; // should not change during update
@@ -288,6 +326,9 @@ public class ConnectionCosts {
 		return new_value - init_val; // negative - improvement
 	}
 	
+	double [][][] getLastValueWeight(){
+		return last_val_weights;
+	}
 	/**
 	 * Calculate main eigenvalue of the current plane and all connected ones - used to estimate advantage of connection swap
 	 * @param nsTile supertile index

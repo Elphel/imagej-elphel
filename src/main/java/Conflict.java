@@ -248,5 +248,42 @@ public class Conflict{
 		return num_dual;
 	}
 
+	/**
+	 * Get directions from center and layers of the 2 non-center tiles involved in each triangular conflict
+	 * Full triangle is center:nl1 -> dir1 -> dir2 -> center:nl2
+	 * @return array of 2-tuples:{dir1, dir2}
+	 */
+	public int [][] getInvolvedTiles(){
+		int [][] involved = new int [getNumConflicts()][2];
+		int nt = 0;
+		for (int i = 0; i < 4; i++){
+			if (start_dirs[i + 0]) {
+				involved[nt][0] =   i * 2;
+				involved[nt++][1] = ((i * 2) + 2) % 8;
+			}
+			if (start_dirs[i + 4]) {
+				involved[nt][0] =   ((i * 2) + 2) % 8;
+				involved[nt++][1] = i * 2;
+			}
+			if (start_dirs[i + 8]) {
+				involved[nt][0] =   i * 2;
+				involved[nt++][1] = ((i * 2) + 1) % 8;
+			}
+			if (start_dirs[i + 12]) {
+				involved[nt][0] =   ((i * 2) + 1) % 8;
+				involved[nt++][1] = i * 2;
+			}
+
+			if (start_dirs[i + 16]) {
+				involved[nt][0] =   i * 2;
+				involved[nt++][1] = ((i * 2) + 7) % 8;
+			}
+			if (start_dirs[i + 20]) {
+				involved[nt][0] =   ((i * 2) + 7) % 8;
+				involved[nt++][1] = i * 2;
+			}
+		}
+		return involved;
+	}
 
 }

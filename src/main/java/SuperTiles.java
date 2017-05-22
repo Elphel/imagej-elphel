@@ -4412,11 +4412,9 @@ public class SuperTiles{
 						nsTile,
 						conflicts[nsTile][nConfl][0], // int nl1,
 						conflicts[nsTile][nConfl][1], // int nl2,
-//						conflicts[nsTile][nConfl][2], // int dir_mask,
 						tnSurface,
 						conflicts,
 						conflict_stats, // to be updated after applying resolution
-//						maxEigen, // maximal eigenvalue of planes to consider
 						starSteps, // How far to look around when calculating connection cost
 						orthoWeight,
 						diagonalWeight,
@@ -4433,11 +4431,10 @@ public class SuperTiles{
 	}
 
 	
-	public boolean resolveStarConflict(
+	public boolean resolveStarConflict0(
 			int nsTile,
 			int nl1,
 			int nl2,
-//			int dir_mask,
 			TileSurface.TileNeibs tnSurface,
 			int [][][] conflicts,
 			Conflicts conflict_stats, // to be updated after applying resolution
@@ -4562,25 +4559,6 @@ public class SuperTiles{
 		
 		double [] variant_costs_diff = new double [neibs_vars.length];
 		for (int variant = 0; variant < neibs_vars.length; variant ++){
-			if (debugLevel > 1) {
-				System.out.println("resolveStarConflict(): resolving conflict for tile "+nsTile+
-						", nl1 = "+nl1+
-						", nl2 = "+nl2 +
-						", variant = "+variant);
-				
-			}
-			variant_costs_diff[variant] = 	connectionCosts.getConnectionsCostDiff(
-					neibs_vars[variant],
-					debugLevel);
-			
-			if (debugLevel > 0) {
-				System.out.println("resolveStarConflict(): resolving conflict for tile "+nsTile+
-						", nl1 = "+nl1+
-						", nl2 = "+nl2 +
-						", variant = "+variant+" improvement (negative diff) = "+variant_costs_diff[variant]);
-			}
-			
-			
 			for (int isTile = 0; isTile < nsTiles.length; isTile++){
 				variant_conflicts[variant][isTile] = iconflicts.detectTriangularTileConflicts(
 						nsTiles[isTile],   // int nsTile0,
@@ -4593,6 +4571,30 @@ public class SuperTiles{
 					this,
 					debugLevel - 1); // debugLevel);
 			variant_conflicts_stats[variant].subConflicts(iconflicts); // subtract old number of different types of conflicts
+			if (debugLevel > 1) {
+				System.out.println("resolveStarConflict(): resolving conflict for tile "+nsTile+
+						", nl1 = "+nl1+
+						", nl2 = "+nl2 +
+						", variant = "+variant+
+						", num_conflicts diff = "+variant_conflicts_stats[variant].getNumConflicts()
+						);
+				
+			}
+			if (!newConfl && (variant_conflicts_stats[variant].getNumConflicts() > 0)){
+				continue;
+			}
+			variant_costs_diff[variant] = 	connectionCosts.getConnectionsCostDiff(
+					neibs_vars[variant],
+					debugLevel);
+			
+			if (debugLevel > 0) {
+				System.out.println("resolveStarConflict(): resolving conflict for tile "+nsTile+
+						", nl1 = "+nl1+
+						", nl2 = "+nl2 +
+						", variant = "+variant+" improvement (negative diff) = "+variant_costs_diff[variant]+
+						", num_conflicts diff = "+variant_conflicts_stats[variant].getNumConflicts());
+			}
+			
 			
 			if (debugLevel > 0) { // -1) {
 				variant_conflicts_stats[variant].printConflictSummary(
@@ -4603,6 +4605,7 @@ public class SuperTiles{
 		int best_variant = -1;
 		int best_ignore_conflicts = -1;
 		int [][] num_better_worse = new int [neibs_vars.length][2];
+		/*
 		for (int variant = 0; variant < neibs_vars.length; variant ++){
 			int num_worse = variant_conflicts_stats[variant].numBetterWorse(
 					false, // boolean better,
@@ -4623,6 +4626,24 @@ public class SuperTiles{
 					((best_variant < 0) ||
 							( num_better_worse[variant][0] > num_better_worse[best_variant][0]) ||
 							(( num_better_worse[variant][0] == num_better_worse[best_variant][0]) && 
+									(variant_costs_diff[variant] < variant_costs_diff[best_variant])))){
+				best_variant = variant;
+			}
+			if ((best_ignore_conflicts <0) || (variant_costs_diff[variant] < variant_costs_diff[best_ignore_conflicts])){
+				best_ignore_conflicts = variant;
+			}
+		}
+*/
+		int [] num_var_conflicts = new int [neibs_vars.length];
+		for (int variant = 0; variant < neibs_vars.length; variant ++){
+//			int num_conflicts = variant_conflicts_stats[variant].getNumConflicts();
+			num_var_conflicts[variant] = variant_conflicts_stats[variant].getNumConflicts();
+			if ((num_var_conflicts[variant] <= 0) &&
+					(variant_costs_diff[variant] <= dblTriLoss) && // not too worse
+					((variant_costs_diff[variant] < 0) || (num_var_conflicts[variant] < 0)) && // either 
+					((best_variant < 0) ||
+							(num_var_conflicts[variant] < num_var_conflicts[best_variant]) ||
+							((num_var_conflicts[variant] == num_var_conflicts[best_variant]) && 
 									(variant_costs_diff[variant] < variant_costs_diff[best_variant])))){
 				best_variant = variant;
 			}
@@ -4655,7 +4676,8 @@ public class SuperTiles{
 				System.out.println("resolveStarConflict(): SUCCESS to find a sutable solution for tile "+nsTile+
 						", nl1 = "+nl1+
 						", nl2 = "+nl2 +". Of "+ neibs_vars.length+" variants - use variant # " + best_variant+
-						" cost difference (negative) = "+variant_costs_diff[best_variant]+" num conflict reductions = "+num_better_worse[best_variant][0]);
+						" cost difference (negative) = "+variant_costs_diff[best_variant]+
+						" num conflict reductions = "+(-num_var_conflicts[best_variant])+" (old "+num_better_worse[best_variant][0]+")");
 				variant_conflicts_stats[best_variant].printConflictSummary(
 						"Conflicts number change per type: ",
 						true, // use_all,
@@ -4696,8 +4718,405 @@ public class SuperTiles{
 		}
 		return true;
 	}
+
+	public boolean resolveStarConflict(
+			int nsTile,
+			int nl1,
+			int nl2,
+			TileSurface.TileNeibs tnSurface,
+			int [][][] conflicts,
+			Conflicts conflict_stats, // to be updated after applying resolution
+			int        starSteps, // How far to look around when calculationg connection cost
+			double     orthoWeight,
+			double     diagonalWeight,
+			double     starPwr, // Divide cost by number of connections to this power
+			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
+			boolean    newConfl, // Allow more conflicts if overall cost is reduced
+			boolean    preferDisparity,
+			int        debugLevel)
+	{
+		
+		if (newConfl && (dblTriLoss > 0.0)){
+			dblTriLoss = 0.0; // require strict reducing of the cost if conflict increase is allowed
+		}
+		Conflicts iconflicts = new Conflicts(this); 
+
+		TwoLayerNeighbors twoLayerNeighbors = new TwoLayerNeighbors();
+		
+		for (int dir = -1; dir < 8; dir++){
+			int nt = tnSurface.getNeibIndex(nsTile, dir);
+			if ((nt >= 0) && (planes[nt] != null)) {
+				int [][] neibs =  new int [planes[nt].length][];
+				for (int nl = 0; nl < planes[nt].length; nl++) if ( planes[nt][nl] != null){
+					neibs[nl] =  planes[nt][nl].getNeibBest();
+				}
+				twoLayerNeighbors.setNeighbors(neibs,dir);
+			}
+		}
+		twoLayerNeighbors.setLayers(nl1, nl2);
+		if (debugLevel > 1) {
+			System.out.println("resolveStarConflict(): nsTile ="+nsTile+" nl1="+nl1+" nl2="+nl2);
+		}
+
+		int [][][][] neibs_vars_dir = twoLayerNeighbors.getNeighborVariants(debugLevel);		
+
+		int [] mod_supertiles = {nsTile};
+		mod_supertiles = getInvolvedSupertiles( // first mod_supertiles.length entries will be mod_supertiles[]
+				mod_supertiles,
+				tnSurface);
+
+		HashMap<Integer,Integer> replacement_tiles = new HashMap<Integer,Integer>();
+		for (int i = 0; i < mod_supertiles.length; i++){
+			replacement_tiles.put(mod_supertiles[i], new Integer(i));
+		}
+		
+		// up to 9 tiles
+		int [] indexToDir = new int[mod_supertiles.length];
+		for (int i = 0; i < indexToDir.length; i++) indexToDir[i] = -1;
+		for (int dir = -1; dir < 8; dir++){
+			int nindx = (dir < 0) ? 8 : dir; 
+			int nt = tnSurface.getNeibIndex(nsTile, dir);
+			int indx = -1;
+			Integer Indx = replacement_tiles.get(nt);
+			if (Indx == null){
+				System.out.println("resolveStarConflict(): nsTile = "+nsTile+" nindx="+nindx+" Indx == null ");
+			} else {
+				indx = Indx;
+			}
+			if (indx >= 0) {
+				indexToDir[indx] = nindx;
+			}
+		}
+		int [][][][] neibs_vars = new int [neibs_vars_dir.length][][][];
+		for (int variant = 0; variant < neibs_vars_dir.length; variant ++){
+			neibs_vars[variant] = new int [indexToDir.length][][];
+			for (int i = 0; i <indexToDir.length; i++){
+				if (indexToDir[i] >=0){
+					neibs_vars[variant][i] = neibs_vars_dir[variant][indexToDir[i]];
+				} else {
+					System.out.println("resolveStarConflict(): a BUG:  indexToDir["+i+"] = "+indexToDir[i]);
+				}
+			}
+		}
+		
+		// See how this application will influence number of conflicts
+		// All supertiles that may have different conflicts 
+		int [] nsTiles = getInvolvedSupertiles( // first mod_supertiles.length entries will be mod_supertiles[]
+				mod_supertiles,
+				tnSurface);
+
+		ConnectionCosts connectionCosts = new ConnectionCosts(
+				orthoWeight,
+				diagonalWeight,
+				starPwr,    // Divide cost by number of connections to this power
+				starSteps,
+				this.planes,
+				tnSurface,
+				preferDisparity);
+		
+		int [][][] neibs_prev = connectionCosts.initConnectionCosts(mod_supertiles);
+// connectionCosts now contains last calculated	val/weight pairs for broader array of tile data	
+		
+		int [][][] conflicts_old = new int [nsTiles.length][][];
+		double conflicts_old_cost = 0.0;
+		for (int isTile = 0; isTile < nsTiles.length; isTile++){
+			conflicts_old[isTile] = iconflicts.detectTriangularTileConflicts(
+					nsTiles[isTile],   // int nsTile0,
+					replacement_tiles, // HashMap<Integer,Integer> replacement_tiles, //
+					neibs_prev, // int [][][] replacement_neibs,
+					tnSurface); // TileSurface.TileNeibs tnSurface)
+// calculate cost of conflicts			
+			
+			conflicts_old_cost += iconflicts.getConflictsCost(
+					nsTiles[isTile],       // int           nsTile0,
+					1.0,                   // double        scaleStartEnd, // include start and and layer tiles in the center in overall cost for each triangle (1.0)
+					conflicts_old[isTile], // int [][]      conflicts, //
+					replacement_tiles,     // HashMap<Integer,Integer> replacement_tiles, // null is OK
+					neibs_prev,            // int [][][]    replacement_neibs,               // null OK if  replacement_tiles == null
+					connectionCosts,       // ConnectionCosts connectionCosts,
+					tnSurface); // TileSurface.TileNeibs tnSurface)
+
+			
+		}
+		if (debugLevel > 1) {
+			System.out.println("Sum of old conflict costs around " + nsTile + " is "+conflicts_old_cost);
+			System.out.println("Involved supertiles:");
+			for (int i = 0; i < nsTiles.length; i++){
+				System.out.println(i+":"+nsTiles[i]);
+			}
+		}
+
+		if (debugLevel > 1) {
+			System.out.println("Calculating original conflicts");
+		}
+
+		iconflicts.addConflicts(conflicts_old,
+				debugLevel - 1); // debugLevel);
+		// After getting old (referfence data) iterate through all variants, for each calculate cost and number of conflicts.
+		// First - just collect data - cost and full statistics of the conflicts, print them
+		// Then select the best one (not incrementing number of conflicts? and reducing cost)
+		int [][][][] variant_conflicts = new int [neibs_vars.length][nsTiles.length][][];
+		
+		Conflicts [] variant_conflicts_stats = new Conflicts [neibs_vars.length];
+
+		
+		double [] variant_costs_diff = new double [neibs_vars.length];
+		double [] conflicts_var_cost = new double [neibs_vars.length];
+		for (int variant = 0; variant < neibs_vars.length; variant ++){
+			// connections costs are needed before conflicts 
+			variant_costs_diff[variant] = 	connectionCosts.getConnectionsCostDiff(
+					neibs_vars[variant],
+					debugLevel);
+			conflicts_var_cost[variant] = 0.0; 
+			for (int isTile = 0; isTile < nsTiles.length; isTile++){
+				variant_conflicts[variant][isTile] = iconflicts.detectTriangularTileConflicts(
+						nsTiles[isTile],   // int nsTile0,
+						replacement_tiles, //HashMap<Integer,Integer> replacement_tiles, //
+						neibs_vars[variant], // neibs, // int [][][] replacement_neibs,
+						tnSurface); // TileSurface.TileNeibs tnSurface)
+				// connectionCosts now contains last calculated	val/weight pairs for broader array of tile data
+				conflicts_var_cost[variant] += iconflicts.getConflictsCost(
+						nsTiles[isTile],                    // int           nsTile0,
+						1.0,                                // double        scaleStartEnd, // include start and and layer tiles in the center in overall cost for each triangle (1.0)
+						variant_conflicts[variant][isTile], // int [][]      conflicts, //
+						replacement_tiles,                  // HashMap<Integer,Integer> replacement_tiles, // null is OK
+						neibs_vars[variant],                // int [][][]    replacement_neibs,               // null OK if  replacement_tiles == null
+						connectionCosts,                    // ConnectionCosts connectionCosts,
+						tnSurface);                         // TileSurface.TileNeibs tnSurface)
+			}
+			variant_conflicts_stats[variant] = new Conflicts(
+					variant_conflicts[variant],
+					this,
+					debugLevel - 1); // debugLevel);
+			variant_conflicts_stats[variant].subConflicts(iconflicts); // subtract old number of different types of conflicts
+			if (debugLevel > 1) {
+				System.out.println("resolveStarConflict(): resolving conflict for tile "+nsTile+
+						", nl1 = "+nl1+
+						", nl2 = "+nl2 +
+						", variant = "+variant+
+						"  conflit cost change = "+ (conflicts_var_cost[variant] - conflicts_old_cost)+
+						", num_conflicts diff = "+variant_conflicts_stats[variant].getNumConflicts()
+						);
+				
+// Initially do not process conflicts cost difference, just view it				
+			}
+/*			
+			if (!newConfl && (variant_conflicts_stats[variant].getNumConflicts() > 0)){
+				continue;
+			}
+*/			
+			
+			if (debugLevel > 0) {
+				System.out.println("resolveStarConflict(): resolving conflict for tile "+nsTile+
+						", nl1 = "+nl1+
+						", nl2 = "+nl2 +
+						", variant = "+variant+" improvement (negative diff) = "+variant_costs_diff[variant]+
+						"  conflit cost change = "+ (conflicts_var_cost[variant] - conflicts_old_cost)+
+						", num_conflicts diff = "+variant_conflicts_stats[variant].getNumConflicts());
+			}
+			
+			
+			if (debugLevel > 0) { // -1) {
+				variant_conflicts_stats[variant].printConflictSummary(
+						"Conflicts difference after resolution:", true, true, false);
+			}
+		}
+		// How to compare? 1 attempt: none of the conflicts get worse, some get better or cost goes down
+		int best_variant = -1;
+		int best_ignore_conflicts = -1;
+//		int [][] num_better_worse = new int [neibs_vars.length][2];
+		int [] num_var_conflicts = new int [neibs_vars.length];
+		
+		
+		for (int variant = 0; variant < neibs_vars.length; variant ++){
+			if (variant_costs_diff[variant] <= dblTriLoss) {
+				if  (conflicts_var_cost[variant] < conflicts_old_cost) {
+					if ((best_variant < 0) || (conflicts_var_cost[variant] < conflicts_var_cost[best_variant])) {
+						best_variant = variant;
+					}
+				}
+				if ((best_ignore_conflicts < 0) || (variant_costs_diff[variant] < variant_costs_diff[best_ignore_conflicts])){
+					best_ignore_conflicts = variant;
+				}
+			}
+		}
+
+		if (debugLevel > 1){
+			System.out.println("resolveStarConflict(): for tile "+nsTile);
+		}
+		
+		if ((best_variant < 0) && newConfl && (variant_costs_diff[best_ignore_conflicts] < 0)){ // should be cost improvement
+			best_variant = best_ignore_conflicts;
+			if (debugLevel > -1) {
+				System.out.println("resolveMultiTriangularConflict(): conflicts increase but cost decreases "+nsTile+
+						", nl1 = "+nl1+
+						", nl2 = "+nl2 +" of "+ neibs_vars.length+" variants");
+			}
+		}
+		if ((best_variant < 0) || (variant_costs_diff[best_variant] > dblTriLoss)){
+			if (debugLevel > -1) {
+				System.out.println("resolveMultiTriangularConflict(): FAILED find a sutable solution for tile "+nsTile+
+						", nl1 = "+nl1+
+						", nl2 = "+nl2 +" of "+ neibs_vars.length+" variants");
+				return false;
+			}
+		} else {
+			if (debugLevel > -1) {
+				System.out.println("resolveStarConflict(): SUCCESS to find a sutable solution for tile "+nsTile+
+						", nl1 = "+nl1+
+						", nl2 = "+nl2 +". Of "+ neibs_vars.length+" variants - use variant # " + best_variant+
+						"  conflit cost change = "+ (conflicts_var_cost[best_variant] - conflicts_old_cost)+
+						" cost difference (negative) = "+variant_costs_diff[best_variant]+
+						" num conflict reductions = "+(-num_var_conflicts[best_variant]));
+				variant_conflicts_stats[best_variant].printConflictSummary(
+						"Conflicts number change per type: ",
+						true, // use_all,
+						true, //use_odo,
+						true); // use_ood);
+				iconflicts.printConflictSummary(
+						"Conflicts before resolution: ",
+						true, // use_all,
+						true, //use_odo,
+						true); // use_ood);
+				// update statistics
+				conflict_stats.addConflicts(variant_conflicts_stats[best_variant]);
+
+				
+				// update conflict
+				for (int i = 0; i < nsTiles.length; i++){
+					conflicts[nsTiles[i]]=  variant_conflicts[best_variant][i];
+				}
+				
+				
+				// apply resolution
+				for (int i = 0; i < mod_supertiles.length; i++){
+					if (debugLevel > 1){
+						System.out.println("resolveStarConflict(): nsTile = "+nsTile+ "mod_supertiles["+i+"]="+mod_supertiles[i]);
+					}
+					if (neibs_vars[best_variant][i] != null) {
+						for (int nl = 0; nl < neibs_vars[best_variant][i].length; nl ++){
+							if (debugLevel > 1){
+								System.out.println("resolveStarConflict(): nl= = "+nl);
+							}
+							if (neibs_vars[best_variant][i][nl] != null){
+								planes[mod_supertiles[i]][nl].setNeibBest(neibs_vars[best_variant][i][nl]);
+							}
+						}
+					}
+				}
+				// recalculate starValueWeights for and around tiles with modified  neighbors (no outside connections changed )nsTiles
+				updateStarValueStrength(
+						nsTiles,          // final int []         mod_supertiles,
+						orthoWeight,      // final double         orthoWeight,
+						diagonalWeight,   // final double         diagonalWeight,
+						starPwr,          // final double         starPwr,    // Divide cost by number of connections to this power
+						starSteps,        // final int            steps,
+						planes,           // final TilePlanes.PlaneData [][] planes,
+						preferDisparity); // final boolean        preferDisparity)
+			}
+		}
+		return true;
+	}
 	
-//	
+	public void calcStarValueStrength(
+			final double         orthoWeight,
+			final double         diagonalWeight,
+			final double         starPwr,    // Divide cost by number of connections to this power
+			final int            steps,
+			final TilePlanes.PlaneData [][] planes,
+			final boolean        preferDisparity)
+	{
+		final int tilesX =        tileProcessor.getTilesX();
+		final int tilesY =        tileProcessor.getTilesY();
+		final int superTileSize = tileProcessor.getSuperTileSize();
+		//				final int tileSize =      tileProcessor.getTileSize();
+		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;  
+		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
+		final int nStiles =       stilesX * stilesY; 
+		final TileSurface.TileNeibs tnSurface = tileSurface.new TileNeibs(stilesX, stilesY);
+		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					ConnectionCosts connectionCosts = new ConnectionCosts(
+							orthoWeight,    // double         orthoWeight,
+							diagonalWeight, // double         diagonalWeight,
+							starPwr,        // double         starPwr,    // Divide cost by number of connections to this power
+							steps,          // int            steps,
+							planes,         // TilePlanes.PlaneData [][] planes,
+							tnSurface,      // TileSurface.TileNeibs tnSurface,
+							preferDisparity); // boolean preferDisparity)
+					int [] mod_supertiles = new int[1];
+					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
+						if ( planes[nsTile] != null) {
+							mod_supertiles[0] = nsTile;
+							connectionCosts.initConnectionCosts(mod_supertiles);
+							double [][][] val_weights = connectionCosts.getValWeights();
+							for (int np = 0; np < planes[nsTile].length; np++){ // nu
+								if (planes[nsTile][np] != null) {
+									planes[nsTile][np].setStarValueWeight(val_weights[0][np]);
+								}
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+	}
+
+	public void updateStarValueStrength(
+			final int []         mod_supertiles,
+			final double         orthoWeight,
+			final double         diagonalWeight,
+			final double         starPwr,    // Divide cost by number of connections to this power
+			final int            steps,
+			final TilePlanes.PlaneData [][] planes,
+			final boolean        preferDisparity)
+	{
+		final int tilesX =        tileProcessor.getTilesX();
+		final int tilesY =        tileProcessor.getTilesY();
+		final int superTileSize = tileProcessor.getSuperTileSize();
+		//				final int tileSize =      tileProcessor.getTileSize();
+		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;  
+		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
+		final TileSurface.TileNeibs tnSurface = tileSurface.new TileNeibs(stilesX, stilesY);
+		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					ConnectionCosts connectionCosts = new ConnectionCosts(
+							orthoWeight,    // double         orthoWeight,
+							diagonalWeight, // double         diagonalWeight,
+							starPwr,        // double         starPwr,    // Divide cost by number of connections to this power
+							steps,          // int            steps,
+							planes,         // TilePlanes.PlaneData [][] planes,
+							tnSurface,      // TileSurface.TileNeibs tnSurface,
+							preferDisparity); // boolean preferDisparity)
+					int [] mod_supertile = new int[1];
+					for (int isTile = ai.getAndIncrement(); isTile < mod_supertiles.length; isTile = ai.getAndIncrement()) {
+						int nsTile = mod_supertiles[isTile];
+						if ((nsTile >= 0) && ( planes[nsTile] != null)) {
+							mod_supertile[0] = nsTile;
+							connectionCosts.initConnectionCosts(mod_supertile);
+							double [][][] val_weights = connectionCosts.getValWeights();
+							for (int np = 0; np < planes[nsTile].length; np++){ // nu
+								if (planes[nsTile][np] != null) {
+									planes[nsTile][np].setStarValueWeight(val_weights[0][np]);
+								}
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+	}
+	
+	
+	//	
 	/**
 	 * Generate variants for changing connections while preserving number of connections between each pair of tiles
 	 * each variant is free of own conflicts, but may lead to conflicts on other layers or tiles
@@ -4963,6 +5382,13 @@ public class SuperTiles{
 			int        dbg_Y)
 			
 	{
+		calcStarValueStrength(
+				orthoWeight,      // final double         orthoWeight,
+				diagonalWeight,   // final double         diagonalWeight,
+				starPwr,          // final double         starPwr,    // Divide cost by number of connections to this power
+				starSteps,        // final int            steps,
+				this.planes,      // final TilePlanes.PlaneData [][] planes,
+				preferDisparity); // final boolean        preferDisparity)
 		
 		Conflicts iconflicts0 = new Conflicts(this); 
 		int [][][] conflicts0 = iconflicts0.detectTriangularConflicts(
@@ -5511,80 +5937,6 @@ public class SuperTiles{
 		return value_weight;
 	}
 
-	/**
-	 * Calculate main eigenvalue of the current plane and all connected ones - used to estimate advantage of connection swap
-	 * This version uses two steps - not only directly connected, but neighbors' neighbors also, multiple paths to the same
-	 * tile add together.
-	 * @param nsTile supertile index
-	 * @param nl surface layer
-	 * @param neibs array of 8 neighbors layers (N,NE,...NW), -1 - not connected
-	 * @param neibs2 2-d array of 8 neighbors' neighbors layers (N,NE,...NW), -1 - not connected
-	 * @param orthoWeight multiply contribution of ortho neighbors
-	 * @param diagonalWeight  multiply contribution of diagonal neighbors
-	 * @param diagonalWeight  divide value by number of connections to this power (if !=0)
-	 * @param tnSurface TileNeibs instance to navigate tile index and control array borders
-	 * @param preferDisparity - the first eigenvalue/vector is the most disparity-like
-	 *                          (false - smallest eigenvalue)
-	 * @param debugLevel
-	 * @return a pair of eigenvalue of the combine plane and its weight
-	 */
-	
-/*	
-	public double [] getStarValueWeight(
-			int    nsTile,
-			int    nl,
-			int [] neibs,
-			int [][] neibs2, // neighbors' neighbors
-			double orthoWeight,
-			double diagonalWeight,
-			double starPwr,    // Divide cost by number of connections to this power
-			TileSurface.TileNeibs tnSurface,
-			boolean preferDisparity,
-			int    debugLevel)
-	{
-		double [] dir_weight = {orthoWeight,  diagonalWeight, orthoWeight,  diagonalWeight, orthoWeight,  diagonalWeight, orthoWeight,  diagonalWeight};
-		HashMap<Point, Double> tile_weights = new HashMap<Point, Double>();
-		for (int dir = 0; dir < 8; dir++){
-			int nl1 =  neibs[dir];
-			if (nl1 >= 0){
-				int nsTile1 = tnSurface.getNeibIndex(nsTile, dir);
-				double weight1 = dir_weight[dir];
-				tile_weights.put(new Point(nsTile1, nl1), new Double(weight1)); // no need to check for existence here
-				for (int dir1 = 0; dir1 < 8; dir1++){
-					if ((dir1 != dir) && (neibs2[dir]!= null)){
-						 int nl2 =neibs2[dir][dir1];
-						 if (nl2 >= 0){
-							 Point p = new Point (tnSurface.getNeibIndex(nsTile1, dir1), nl2);
-							 Double w0 = tile_weights.get(p);
-							 double weight2 = dir_weight[dir1]*weight1;
-							 if (w0 != null) weight2 += w0;
-							 tile_weights.put(p, new Double(weight2));
-						 }
-					}
-				}
-			}
-		}
-		TilePlanes.PlaneData merged_plane =  planes[nsTile][nl]; // center point
-		for (HashMap.Entry<Point, Double> entry : tile_weights.entrySet()){
-			TilePlanes.PlaneData other_plane = merged_plane.getPlaneToThis(  // layer here does not matter
-					planes[entry.getKey().x][entry.getKey().y],
-					debugLevel - 1); // debugLevel);
-			merged_plane = merged_plane.mergePlaneToThis(
-					other_plane,      // PlaneData otherPd,
-					entry.getValue(), // double    scale_other,
-					false,           // boolean   ignore_weights,
-					true,            // boolean   sum_weights,
-					preferDisparity, 
-					debugLevel - 1); // int       debugLevel)
-		}
-		double [] value_weight = {merged_plane.getValue(),merged_plane.getWeight()};
-		if (starPwr != 0){
-			value_weight[0] /= (Math.pow(tile_weights.size() + 1.0, starPwr));
-		}
-		return value_weight;
-	}
-	
-*/	
 	/**
 	 * Calculate array of supertile indices that need to have connection cost recalculated when they are updated
 	 * first entries of the result will be the same in input array

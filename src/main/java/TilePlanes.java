@@ -82,6 +82,7 @@ public class TilePlanes {
 		int          smplNum  = 3;      // Number after removing worst
 		double       smplRms  = 0.1;    // Maximal RMS of the remaining tiles in a sample
 		
+		double [] starValueWeight = null; 
 		
 		boolean      preferDisparity = false;
 		
@@ -133,8 +134,28 @@ public class TilePlanes {
 			pd.preferDisparity =       this.preferDisparity;
 			
 			copyNeib(this,pd);
+			
+			if (starValueWeight != null){
+				pd.starValueWeight = starValueWeight.clone();
+			}
 			return pd;
 		}
+		
+		public void setStarValueWeight(double value, double weight){
+			this.starValueWeight = new double[2];
+			this.starValueWeight[0] = value;
+			this.starValueWeight[1] = weight;
+		}
+
+		public void setStarValueWeight(double[] val_weight){
+			this.starValueWeight = val_weight;
+		}
+
+		public double [] getStarValueWeight()
+		{
+			return starValueWeight;
+		}
+		
 		
 		public void setSelMask (boolean []sel_mask)
 		{

@@ -154,8 +154,28 @@ public class TwoLayerNeighbors {
 			if (old_nl1 >= 0){
 				neibs_start[old_nl1][dir12] = old_nl2; // (old_nl2 may be -1 here)
 			}
-			
 		}
+		
+		public int getConnection(
+				int dir,
+				int nl,
+				int dir2)
+		{
+			int [][] neibs_start = getNeighbors(dir);
+			int dir12 = getDir2From1(dir, dir2);
+			if (dir12 <0){
+				throw new IllegalArgumentException ("Invalid connection from "+dir+" to "+dir2+": resulted in direction 1->2 = "+dir12);
+			}
+			if (neibs_start.length <= nl){
+				System.out.println("BUG");
+				return -1;
+			}
+			return neibs_start[nl][dir12];
+
+		}
+
+		
+		
 		
 		public void diffToOther(NeibVariant other_variant)
 		{
@@ -200,8 +220,8 @@ public class TwoLayerNeighbors {
 			// increment connection variant if possible
 			for (int np = 0; np < PAIRS.length; np++){
 				if ((num_se[np] != null) && (num_se[np][0] == 2) && (num_se[np][1] == 2) && (conns[np] != null) && (conns[np].length == 1)){
-					if (selection_conns[np] == 0){
-						selection_conns[np] = 1;
+					if (selection_conns[np] < 2){
+						selection_conns[np]++; //  = 1;
 						for (int i = 0; i < np; i ++){
 							selection_conns[i] = 0;
 						}
@@ -275,7 +295,9 @@ public class TwoLayerNeighbors {
 
 			int start_dir = PAIRS[np][0];
 			int end_dir =   PAIRS[np][1];
-			boolean swap = (selection_star[start_dir] != selection_star[end_dir]) ^ (selection_conns[np] > 0);
+			
+			
+			boolean swap = (selection_star[start_dir] != selection_star[end_dir]) ^ (selection_conns[np] == 1);
 			int [] opts = {0,0};
 			if (swap){
 				if (num_se[np][0] > 1){
@@ -290,6 +312,23 @@ public class TwoLayerNeighbors {
 					end_dir, // int dir2,
 					layers_around[end_dir][opts[1]], // int nl2);
 					debugLevel);
+			if (selection_conns[np] > 1){
+				// add 3-rd variant if possible, if not - return null
+				// if at least one of the unused ends has a pair - connect other ends
+				int nl_start_other = layers_around[start_dir][1-opts[0]];
+				int nl_end_other =   layers_around[end_dir][1-opts[1]];
+				if (    (variant.getConnection(start_dir,nl_start_other,end_dir) >= 0) ||
+						(variant.getConnection(end_dir,nl_end_other,start_dir) >= 0)) {
+					variant.connect(
+							start_dir, // 	int dir1,
+							nl_start_other, // int nl1,
+							end_dir, // int dir2,
+							nl_end_other, // int nl2);
+							debugLevel);
+				} else {
+					return null; // failed to swap connection - other ends are both not connected
+				}
+			}
 		}
 		if (debugLevel > 1){
 			System.out.println();
