@@ -68,6 +68,7 @@ public class TwoLayerNeighbors {
 	int [][][] conns = new int [PAIRS.length][][];
 	int [] selection_star = null;
 	int [] selection_conns = null;
+	boolean [][][][] merge_valid = new boolean[9][][][];
 	
 	class NeibVariant {
 		
@@ -119,15 +120,16 @@ public class TwoLayerNeighbors {
 		 * @param nl1 start layer to connect (-1 - just disconnect the end)
 		 * @param dir2 direction from the center to the end of the connection (-1 - center)
 		 * @param nl2 end layer to connect (-1 - just disconnect the start)
+		 * @return true if connection is possible (looking at merge_valid)
 		 */
-		public void connect(
+		public boolean connect(
 				int dir1,
 				int nl1,
 				int dir2,
 				int nl2,
 				int debugLevel){
 			int dir12 = getDir2From1(dir1, dir2);
-			if (dir12 <0){
+			if (dir12 < 0){
 				throw new IllegalArgumentException ("Invalid connection from "+dir1+" to "+dir2+": resulted in direction 1->2 = "+dir12);
 			}
 			if (debugLevel > 1){
@@ -140,20 +142,55 @@ public class TwoLayerNeighbors {
 			if (nl1 >= 0){
 				old_nl2 = neibs_start[nl1][dir12]; // where it was connected before, may be -1
 				if (old_nl2 != nl2) {
+					if (!isValidConn(dir1, dir12, nl1, nl2, debugLevel)) {
+						return false;
+					}
 					neibs_start[nl1][dir12] = nl2;
 				}
 			}
 			if (nl2 >= 0){
+				if (!isValidConn(dir2, dir21, nl2, nl1, debugLevel)) {
+					return false;
+				}
 				old_nl1 = neibs_end[nl2][dir21];
 				neibs_end[nl2][dir21] = nl1;
 			}
 			// reconnect or plug broken links
 			if (old_nl2 >= 0){
+				if (!isValidConn(dir2, dir21, old_nl2, old_nl1, debugLevel)) {
+					return false;
+				}
 				neibs_end[old_nl2][dir21] = old_nl1; // (old_nl1 may be -1 here)
 			}
 			if (old_nl1 >= 0){
+				if (!isValidConn(dir1, dir12, old_nl1, old_nl2, debugLevel)) {
+					return false;
+				}
 				neibs_start[old_nl1][dir12] = old_nl2; // (old_nl2 may be -1 here)
 			}
+			return true;
+		}
+		
+		boolean isValidConn(
+				int dir1,
+				int dir12,
+				int nl1,
+				int nl2,
+				int debugLevel)
+		{
+			if (nl2 < 0) return true; // connection nowhere is always valid;
+			int dir8 = (dir1 < 0) ? 8: dir1;
+			if ((dir8 >= merge_valid.length) || (nl1 >= merge_valid[dir8].length) || (dir12 >= merge_valid[dir8][nl1].length) || (nl2 >= merge_valid[dir8][nl1][dir12].length)) {
+				System.out.println("BUG in isValidConn("+dir1+","+dir12+","+nl1+","+nl2+")");
+				return true;
+			}
+			
+			
+			if (merge_valid[dir8][nl1][dir12][nl2]) return true;
+			if (debugLevel > 0){
+					System.out.println(" -- Fileterd out connection "+dir1+":"+nl1+" in direction "+dir12+" to layer "+nl2);
+			}
+			return false;
 		}
 		
 		public int getConnection(
@@ -177,8 +214,11 @@ public class TwoLayerNeighbors {
 		
 		
 		
-		public void diffToOther(NeibVariant other_variant)
+		public int diffToOther(
+				NeibVariant other_variant,
+				int debugLevel)
 		{
+			int numChanges = 0;
 			for (int dir0 = 0; dir0 <  neighbors.length; dir0++){
 				if ((neighbors[dir0] != null) || (other_variant.neighbors[dir0] != null)){
 					if ((neighbors[dir0] == null) || (other_variant.neighbors[dir0] == null)){
@@ -191,8 +231,11 @@ public class TwoLayerNeighbors {
 								} else {
 									for (int dir = 0; dir < 8; dir++){
 										if (neighbors[dir0][nl][dir] != other_variant.neighbors[dir0][nl][dir]){
+											numChanges++;
+											if (debugLevel > 0) {
 											System.out.print(" "+dir0+":"+nl+":"+dir+":("+neighbors[dir0][nl][dir]+"/"+
 													other_variant.neighbors[dir0][nl][dir]+")");
+											}
 										}
 
 									}
@@ -202,9 +245,11 @@ public class TwoLayerNeighbors {
 					}
 				}
 			}
-			System.out.println();
+			if (debugLevel > 0) {
+				System.out.println();
+			}
+			return numChanges;
 		}
-		
 	}
 	
 	/**
@@ -273,12 +318,15 @@ public class TwoLayerNeighbors {
 		}
 		for (int dir = 0; dir < 8; dir++) if (options_around[dir] > 0){
 			// make a first connection, if there are two - other will be created simultaneously
-			variant.connect(
+			if (!variant.connect( // will println when return false
 					-1, // 	int dir1,
 					((selection_star[dir] > 0) ? nl2 : nl1), // int nl1,
 					dir, // int dir2,
 					layers_around[dir][0], // int nl2);
-					debugLevel);
+					debugLevel)) { 
+				return null; // such connection was filtered out by  filterNeighborPlanes()
+			
+			}
 		}
 		if (debugLevel > 1){
 			System.out.println();
@@ -306,12 +354,14 @@ public class TwoLayerNeighbors {
 					opts[1] = 1; // assuming there are two variants for the connection end as it should be
 				}
 			}
-			variant.connect(
+			if (!variant.connect( // will println when return false
 					start_dir, // 	int dir1,
 					layers_around[start_dir][opts[0]], // int nl1,
 					end_dir, // int dir2,
 					layers_around[end_dir][opts[1]], // int nl2);
-					debugLevel);
+					debugLevel)) {
+				return null;
+			};
 			if (selection_conns[np] > 1){
 				// add 3-rd variant if possible, if not - return null
 				// if at least one of the unused ends has a pair - connect other ends
@@ -319,12 +369,14 @@ public class TwoLayerNeighbors {
 				int nl_end_other =   layers_around[end_dir][1-opts[1]];
 				if (    (variant.getConnection(start_dir,nl_start_other,end_dir) >= 0) ||
 						(variant.getConnection(end_dir,nl_end_other,start_dir) >= 0)) {
-					variant.connect(
+					if (!variant.connect(
 							start_dir, // 	int dir1,
 							nl_start_other, // int nl1,
 							end_dir, // int dir2,
 							nl_end_other, // int nl2);
-							debugLevel);
+							debugLevel)) {
+						return null;
+					}
 				} else {
 					return null; // failed to swap connection - other ends are both not connected
 				}
@@ -335,20 +387,30 @@ public class TwoLayerNeighbors {
 		}
 		return variant;
 	}
-	public int [][][][] getNeighborVariants()
+	public int [][][][] getNeighborVariants(
+			int max_changes)
 	{
-		return getNeighborVariants(0);
+		return getNeighborVariants(max_changes,0);
 	}
 	
-	public int [][][][] getNeighborVariants(int debugLevel)
+	public int [][][][] getNeighborVariants(
+			int max_changes,
+			int debugLevel)
 	{
 		ArrayList<NeibVariant> variant_list = new ArrayList<NeibVariant>();
 		while (nextSelection()){
 			NeibVariant variant = generateVariant(debugLevel);
 			if (variant != null){
-				variant_list.add(variant);
+				int num_changes = variant.diffToOther(neibs_init, 0);
+				if ((max_changes == 0) || (num_changes <= max_changes)) {
+					variant_list.add(variant);
+				}
 				if (debugLevel > 0){
-					System.out.print("getNeighborVariants() "+(variant_list.size()-1)+": [");
+					System.out.print("getNeighborVariants() "+(variant_list.size()-1));
+					if ((max_changes != 0) && (num_changes > max_changes)){
+						System.out.print(" -IGNORED (as changes = "+num_changes+" > "+max_changes+")");
+					}
+					System.out.print(": [");
 					for (int i = 0; i < selection_star.length; i++){
 						System.out.print(selection_star[i]);
 					}
@@ -357,7 +419,8 @@ public class TwoLayerNeighbors {
 						System.out.print(selection_conns[i]);
 					}
 					System.out.print("]: ");
-					variant.diffToOther(neibs_init);
+					System.out.print("CHANGES: "+num_changes+" ");
+					variant.diffToOther(neibs_init, debugLevel);
 				}
 			}
 		}
@@ -374,7 +437,17 @@ public class TwoLayerNeighbors {
 	{
 		neibs_init.setNeighbors(neibs, dir);
 	}
+	public void setMergeValid (boolean [][][] valid, int dir)
+	{
+		if (dir < 0){
+			merge_valid[8] = valid;
+		} else {
+			merge_valid[dir] = valid;
+		}
+	}
 
+	
+	
 	public int [][] getInitNeighbors (int dir)
 	{
 		return neibs_init.getNeighbors(dir);

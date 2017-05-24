@@ -58,7 +58,11 @@ public class TilePlanes {
 		double []   world_v1 =   null; // world in-plane vector, corresponding to vectors[1] 
 		double []   world_v2 =   null; // world in-plane vector, corresponding to vectors[1]
 //		double []   daxy      =  null; // disparity and 2 relative angles (ax and ay) corresponding to fisheye view, near (0,0) scale is pixel size
+		// for now keeping both weighted and equal weight merged value - later remove less useful
 		double [][] merged_eig_val = null; // for each of the directions (N, NE, .. NW) quality match for each layer 
+		double [][] merged_eig_eq =  null; // for each of the directions (N, NE, .. NW) quality match for each layer - ignoring weights 
+		boolean [][] merged_valid = null; // for each of the directions (N, NE, .. NW) if it is possible to connect with link swaps
+		
 		int    []   neib_best =  null; // new int [8]; // for each of the directions (N, NE, .. NW) index of best match, -1 if none 
 // stores "worsening" of merging 2 	planes. if L1,L2,L = values[0] of plane1, plane2 plane composite: w1, w2 - weights for plane1, plane2
 //		Lav = Math.sqrt((L1 * L1 * w1 + L2 * L2 * w2)/(w1 + w2))
@@ -209,6 +213,26 @@ public class TilePlanes {
 					}
 				}
 			}
+			
+			if (src.merged_eig_eq != null){
+				dst.merged_eig_eq = src.merged_eig_eq.clone();
+				for (int i = 0; i < src.merged_eig_eq.length; i++){
+					if (src.merged_eig_eq[i] != null){
+						dst.merged_eig_eq[i] = src.merged_eig_eq[i].clone();
+					}
+				}
+			}
+			
+			
+			if (src.merged_valid != null){
+				dst.merged_valid = src.merged_valid.clone();
+				for (int i = 0; i < src.merged_valid.length; i++){
+					if (src.merged_valid[i] != null){
+						dst.merged_valid[i] = src.merged_valid[i].clone();
+					}
+				}
+			}
+			
 			if (src.neib_best != null) dst.neib_best = src.neib_best.clone();
 			
 			// also copy original plane parameters - tile selection and number of points
@@ -1130,16 +1154,29 @@ public class TilePlanes {
 		public double [][] initMergedValue()
 		{
 			this.merged_eig_val = new double[8][];
+			this.merged_eig_eq = new double[8][];
+			this.merged_valid = new boolean[8][];
 			return this.merged_eig_val;
 		}
 		public double [][] getMergedValue()
 		{
 			return this.merged_eig_val;
 		}
+
+		public double [][] getMergedValueEq()
+		{
+			return this.merged_eig_eq;
+		}
+
 		public double [] initMergedValue(int dir, int leng)
 		{
 			this.merged_eig_val[dir] = new double[leng];
-			for (int i = 0; i < leng; i++) this.merged_eig_val[dir][i] = Double.NaN;
+			this.merged_eig_eq[dir] =  new double[leng];
+			this.merged_valid[dir] =   new boolean[leng];
+			for (int i = 0; i < leng; i++) {
+				this.merged_eig_val[dir][i] = Double.NaN;
+				this.merged_eig_eq[dir][i] = Double.NaN;
+			}
 			return getMergedValue(dir);
 		}
 
@@ -1151,6 +1188,14 @@ public class TilePlanes {
 			return this.merged_eig_val[dir];
 		}
 
+		public double [] getMergedValueEq(int dir)
+		{
+			if (this.merged_eig_eq == null) {
+				return null;
+			}
+			return this.merged_eig_eq[dir];
+		}
+		
 		public double getMergedValue(int dir, int plane)
 		{
 			if ((this.merged_eig_val == null) ||(this.merged_eig_val[dir] == null)){
@@ -1158,10 +1203,63 @@ public class TilePlanes {
 			}
 			return this.merged_eig_val[dir][plane];
 		}
+
+		public double getMergedValueEq(int dir, int plane)
+		{
+			if ((this.merged_eig_eq == null) ||(this.merged_eig_eq[dir] == null)){
+				return Double.NaN;
+			}
+			return this.merged_eig_eq[dir][plane];
+		}
+		
 		public void setNeibMatch(int dir, int plane, double value)
 		{
 			this.merged_eig_val[dir][plane] = value;
 		}
+		public void setNeibMatchEq(int dir, int plane, double value)
+		{
+			this.merged_eig_eq[dir][plane] = value;
+		}
+		
+		
+		public boolean [][] getMergedValid()
+		{
+			return this.merged_valid;
+		}
+		
+		public boolean [] getMergedValid(int dir)
+		{
+			if (this.merged_valid == null) {
+				return null;
+			}
+			return this.merged_valid[dir];
+		}
+		
+		public boolean isMergedValid(int dir, int plane)
+		{
+			if ((this.merged_valid == null) || (this.merged_valid[dir] == null)){
+				return false;
+			}
+			return this.merged_valid[dir][plane];
+		}
+
+		public void setMergedValid(int dir, int plane, boolean valid)
+		{
+			this.merged_valid[dir][plane] = valid;
+		}
+
+		public void setMergedValid(int dir, int plane, boolean valid, int leng)
+		{
+			if (this.merged_valid == null){
+				this.merged_valid = new boolean[8][];
+			}
+			if (this.merged_valid[dir] == null){
+				this.merged_valid[dir] = new boolean[leng];
+			}
+			this.merged_valid[dir][plane] = valid;
+		}
+		
+		
 
 		public int [] initNeibBest()
 		{

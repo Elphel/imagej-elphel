@@ -32,6 +32,7 @@ public class ConnectionCosts {
 	double         orthoWeight;
 	double         diagonalWeight;
 	double         starPwr;    // Divide cost by number of connections to this power
+	double         starValPwr; //  Raise value of each tile before averaging
 	int            steps;
 	int [][][]     neibs_init;
 	int []         mod_tiles;
@@ -47,6 +48,7 @@ public class ConnectionCosts {
 			double         orthoWeight,
 			double         diagonalWeight,
 			double         starPwr,    // Divide cost by number of connections to this power
+			double         starValPwr, //  Raise value of each tile before averaging
 			int            steps,
 			TilePlanes.PlaneData [][] planes,
 			TileSurface.TileNeibs tnSurface,
@@ -58,6 +60,7 @@ public class ConnectionCosts {
 		this.orthoWeight =     orthoWeight;
 		this.diagonalWeight =  diagonalWeight;
 		this.starPwr =         starPwr;         // Divide cost by number of connections to this power
+		this.starValPwr =      starValPwr; //  Raise value of each tile before averaging
 		this.steps =           steps;
 	}
 	
@@ -124,13 +127,16 @@ public class ConnectionCosts {
 		for (int isTile = 0; isTile < all_tiles.length; isTile++){
 			if (val_weights[isTile] != null){
 				for (int nl = 0; nl < val_weights[isTile].length; nl++) if ( val_weights[isTile][nl] != null){
-					init_val +=    val_weights[isTile][nl][0] * val_weights[isTile][nl][1];
+					double val = val_weights[isTile][nl][0];
+					if (starValPwr != 1.0) val = Math.pow(val, starValPwr);
+					init_val +=    val * val_weights[isTile][nl][1];
 					init_weight += val_weights[isTile][nl][1];
 				}
 			}
 		}
 		// Likely weight will never change except first run, but we will still normalize by weight
-		if (init_weight != 0.0) init_val /= init_weight;
+//		if (starValPwr != 1.0) init_val = Math.pow(init_val, 1.0/starValPwr);
+//		if (init_weight != 0.0) init_val /= init_weight;
 		
 		return neibs_init; // neighbors to clone
 	}
@@ -197,6 +203,7 @@ public class ConnectionCosts {
 										orthoWeight,
 										diagonalWeight,
 										starPwr, // double         starPwr,    // Divide cost by number of connections to this power
+//										starValPwr, //double     starValPwr, //  Raise value of each tile before averaging
 										tnSurface,
 										preferDisparity,
 										-1); // debugLevel);
@@ -269,6 +276,7 @@ public class ConnectionCosts {
 										orthoWeight,
 										diagonalWeight,
 										starPwr, // double         starPwr,    // Divide cost by number of connections to this power
+//										starValPwr, //double     starValPwr, //  Raise value of each tile before averaging
 										tnSurface,
 										preferDisparity,
 										-1); // debugLevel);
@@ -317,12 +325,16 @@ public class ConnectionCosts {
 		for (int isTile = 0; isTile < all_tiles.length; isTile++){
 			if (vw[isTile] != null){
 				for (int nl = 0; nl < vw[isTile].length; nl++) if ( vw[isTile][nl] != null){
-					new_value +=   vw[isTile][nl][0] * vw[isTile][nl][1];
-					new_weight +=  vw[isTile][nl][1];
+
+					double val = vw[isTile][nl][0];
+					if (starValPwr != 1.0) val = Math.pow(val, starValPwr);
+					new_value +=          val * vw[isTile][nl][1];
+					new_weight +=         vw[isTile][nl][1];
 				}
 			}
 		}
-		if (new_weight != 0.0) new_value /= new_weight;
+//		if (starValPwr != 1.0) new_value = Math.pow(new_value, 1.0/starValPwr);
+//		if (new_weight != 0.0) new_value /= new_weight;
 		return new_value - init_val; // negative - improvement
 	}
 	
@@ -350,11 +362,12 @@ public class ConnectionCosts {
 			double orthoWeight,
 			double diagonalWeight,
 			double starPwr,    // Divide cost by number of connections to this power
+//			double     starValPwr, //  Raise value of each tile before averaging
 			TileSurface.TileNeibs tnSurface,
 			boolean preferDisparity,
 			int    debugLevel)
 	{
-		TilePlanes.PlaneData merged_plane = planes[nsTile][nl];
+		TilePlanes.PlaneData merged_plane = planes[nsTile][nl]; // add weight
 		for (int dir = 0; dir < 8; dir++){
 			if (neibs[dir] >= 0){
 				double other_weight = ((dir & 1) != 0) ? diagonalWeight : orthoWeight;
@@ -397,16 +410,17 @@ public class ConnectionCosts {
 	
 	
 	public double [] getStarValueWeight(
-			int    nsTile,
-			int    nl,
-			int [] neibs,
+			int      nsTile,
+			int      nl,
+			int []   neibs,
 			int [][] neibs2, // neighbors' neighbors
-			double orthoWeight,
-			double diagonalWeight,
-			double starPwr,    // Divide cost by number of connections to this power
+			double   orthoWeight,
+			double   diagonalWeight,
+			double   starPwr,    // Divide cost by number of connections to this power
+//			double   starValPwr, //  Raise value of each tile before averaging
 			TileSurface.TileNeibs tnSurface,
 			boolean preferDisparity,
-			int    debugLevel)
+			int     debugLevel)
 	{
 		double [] dir_weight = {orthoWeight,  diagonalWeight, orthoWeight,  diagonalWeight, orthoWeight,  diagonalWeight, orthoWeight,  diagonalWeight};
 		HashMap<Point, Double> tile_weights = new HashMap<Point, Double>();
@@ -417,7 +431,8 @@ public class ConnectionCosts {
 				double weight1 = dir_weight[dir];
 				tile_weights.put(new Point(nsTile1, nl1), new Double(weight1)); // no need to check for existence here
 				for (int dir1 = 0; dir1 < 8; dir1++){
-					if ((dir1 != dir) && (neibs2[dir]!= null)){
+//					if ((dir1 != dir) && (neibs2[dir]!= null)){
+					if ((dir1 != ((dir + 4) %8)) && (neibs2[dir1]!= null)){ // not backwards to the center and exists
 						 int nl2 =neibs2[dir][dir1];
 						 if (nl2 >= 0){
 							 Point p = new Point (tnSurface.getNeibIndex(nsTile1, dir1), nl2);
