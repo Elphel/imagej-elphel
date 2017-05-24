@@ -32,7 +32,9 @@ public class ConnectionCosts {
 	double         orthoWeight;
 	double         diagonalWeight;
 	double         starPwr;    // Divide cost by number of connections to this power
+	double         starWeightPwr; // Use this power of tile weight when calculating connection cost
 	double         starValPwr; //  Raise value of each tile before averaging
+	
 	int            steps;
 	int [][][]     neibs_init;
 	int []         mod_tiles;
@@ -48,6 +50,7 @@ public class ConnectionCosts {
 			double         orthoWeight,
 			double         diagonalWeight,
 			double         starPwr,    // Divide cost by number of connections to this power
+			double         starWeightPwr,    // Use this power of tile weight when calculating connection cost
 			double         starValPwr, //  Raise value of each tile before averaging
 			int            steps,
 			TilePlanes.PlaneData [][] planes,
@@ -60,6 +63,7 @@ public class ConnectionCosts {
 		this.orthoWeight =     orthoWeight;
 		this.diagonalWeight =  diagonalWeight;
 		this.starPwr =         starPwr;         // Divide cost by number of connections to this power
+		this.starWeightPwr =   starWeightPwr;
 		this.starValPwr =      starValPwr; //  Raise value of each tile before averaging
 		this.steps =           steps;
 	}
@@ -203,7 +207,7 @@ public class ConnectionCosts {
 										orthoWeight,
 										diagonalWeight,
 										starPwr, // double         starPwr,    // Divide cost by number of connections to this power
-//										starValPwr, //double     starValPwr, //  Raise value of each tile before averaging
+										starWeightPwr, 
 										tnSurface,
 										preferDisparity,
 										-1); // debugLevel);
@@ -268,7 +272,7 @@ public class ConnectionCosts {
 							}
 							
 							if (neibs_changed){
-								vw[isTile][nl] = getStarValueWeight(
+								vw[isTile][nl] = getStarValueWeight2(
 										nsTile,
 										nl,
 										neibs0,
@@ -276,7 +280,7 @@ public class ConnectionCosts {
 										orthoWeight,
 										diagonalWeight,
 										starPwr, // double         starPwr,    // Divide cost by number of connections to this power
-//										starValPwr, //double     starValPwr, //  Raise value of each tile before averaging
+										starWeightPwr, //
 										tnSurface,
 										preferDisparity,
 										-1); // debugLevel);
@@ -348,7 +352,7 @@ public class ConnectionCosts {
 	 * @param neibs array of 8 neighbors layers (N,NE,...NW), -1 - not connected
 	 * @param orthoWeight multiply contribution of ortho neighbors
 	 * @param diagonalWeight  multiply contribution of diagonal neighbors
-	 * @param diagonalWeight  divide value by number of connections to this power (if !=0)
+	 * @param starPwr,    // Divide cost by number of connections to this power
 	 * @param tnSurface TileNeibs instance to navigate tile index and control array borders
 	 * @param preferDisparity - the first eigenvalue/vector is the most disparity-like
 	 *                          (false - smallest eigenvalue)
@@ -362,7 +366,7 @@ public class ConnectionCosts {
 			double orthoWeight,
 			double diagonalWeight,
 			double starPwr,    // Divide cost by number of connections to this power
-//			double     starValPwr, //  Raise value of each tile before averaging
+			double   starWeightPwr,    // Use this power of tile weight when calculating connection cost
 			TileSurface.TileNeibs tnSurface,
 			boolean preferDisparity,
 			int    debugLevel)
@@ -377,6 +381,7 @@ public class ConnectionCosts {
 				merged_plane = merged_plane.mergePlaneToThis(
 						other_plane,     // PlaneData otherPd,
 						other_weight,    // double    scale_other,
+						starWeightPwr, //
 						false,           // boolean   ignore_weights,
 						true,            // boolean   sum_weights,
 						preferDisparity, 
@@ -409,7 +414,7 @@ public class ConnectionCosts {
 	 */
 	
 	
-	public double [] getStarValueWeight(
+	public double [] getStarValueWeight2(
 			int      nsTile,
 			int      nl,
 			int []   neibs,
@@ -417,7 +422,7 @@ public class ConnectionCosts {
 			double   orthoWeight,
 			double   diagonalWeight,
 			double   starPwr,    // Divide cost by number of connections to this power
-//			double   starValPwr, //  Raise value of each tile before averaging
+			double   starWeightPwr,    // Use this power of tile weight when calculating connection cost
 			TileSurface.TileNeibs tnSurface,
 			boolean preferDisparity,
 			int     debugLevel)
@@ -453,6 +458,7 @@ public class ConnectionCosts {
 			merged_plane = merged_plane.mergePlaneToThis(
 					other_plane,      // PlaneData otherPd,
 					entry.getValue(), // double    scale_other,
+					starPwr,    // Divide cost by number of connections to this power
 					false,           // boolean   ignore_weights,
 					true,            // boolean   sum_weights,
 					preferDisparity, 

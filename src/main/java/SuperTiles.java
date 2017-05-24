@@ -3178,6 +3178,7 @@ public class SuperTiles{
 										TilePlanes.PlaneData this_this_pd = planes[nsTile0][indx].mergePlaneToThis(
 												planes[nsTile0][indx], // PlaneData otherPd,
 												1.0,      // double    scale_other,
+												1.0, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
 												true,     // boolean   ignore_weights,
 												true, // boolean   sum_weights,
 												preferDisparity,
@@ -3186,6 +3187,7 @@ public class SuperTiles{
 										TilePlanes.PlaneData other_other_pd = other_pd.mergePlaneToThis(
 												other_pd, // PlaneData otherPd,
 												1.0,      // double    scale_other,
+												1.0, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
 												true,     // boolean   ignore_weights,
 												true, // boolean   sum_weights,
 												preferDisparity,
@@ -3195,6 +3197,7 @@ public class SuperTiles{
 									TilePlanes.PlaneData merged_pd = planes[nsTile0][indx].mergePlaneToThis(
 											other_pd, // PlaneData otherPd,
 											1.0,      // double    scale_other,
+											1.0, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
 											true,     // boolean   ignore_weights,
 											true, // boolean   sum_weights,
 											preferDisparity,
@@ -3212,6 +3215,7 @@ public class SuperTiles{
 							TilePlanes.PlaneData merged_pd = planes[nsTile0][best_index].mergePlaneToThis(
 									other_pd, // PlaneData otherPd,
 									1.0,      // double    scale_other,
+									1.0, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
 									false,    // boolean   ignore_weights,
 									true, // boolean   sum_weights,
 									preferDisparity,
@@ -3321,6 +3325,7 @@ public class SuperTiles{
 																TilePlanes.PlaneData merged_pd = this_plane.mergePlaneToThis(
 																		other_plane, // PlaneData otherPd,
 																		1.0,         // double    scale_other,
+																		1.0, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost																		
 																		false,       // boolean   ignore_weights,
 																		true, // boolean   sum_weights,
 																		preferDisparity, 
@@ -3330,6 +3335,22 @@ public class SuperTiles{
 																	///															merged_pd.scaleWeight(0.5);
 																	this_plane.setNeibMatch(dir, np, merged_pd.getValue()); // smallest eigenValue
 																}
+																
+																merged_pd = this_plane.mergePlaneToThis(
+																		other_plane, // PlaneData otherPd,
+																		1.0,         // double    scale_other,
+																		1.0, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost																		
+																		true, // false,       // boolean   ignore_weights,
+																		true, // boolean   sum_weights,
+																		preferDisparity, 
+																		dl-1); // int       debugLevel)
+
+																if (merged_pd !=null) { // now always, but may add later
+																	///															merged_pd.scaleWeight(0.5);
+																	this_plane.setNeibMatchEq(dir, np, merged_pd.getValue()); // smallest eigenValue
+																}
+																
+																
 															}
 														}
 													}
@@ -3379,6 +3400,10 @@ public class SuperTiles{
 														double [] nm = other_planes[np].getMergedValue(dir-4);
 														if (nm != null) {
 															this_plane.setNeibMatch(dir,np, nm[np0]); //
+														}
+														nm = other_planes[np].getMergedValueEq(dir-4);
+														if (nm != null) {
+															this_plane.setNeibMatchEq(dir,np, nm[np0]); //
 														}
 													}
 
@@ -3691,6 +3716,7 @@ public class SuperTiles{
 			double     weakWorsening,
 			double     okMergeEigen,
 			double     maxWorldSin2,
+			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
 			double     dispNorm,
 			double     maxEigen, // maximal eigenvalue of planes to consider
 			boolean    preferDisparity,
@@ -3728,6 +3754,7 @@ public class SuperTiles{
 					weakWorsening,
 					okMergeEigen,
 					maxWorldSin2,
+					starWeightPwr,    // Use this power of tile weight when calculating connection cost					
 					dispNorm,
 					maxEigen, // maximal eigenvalue of planes to consider
 					tnSurface,
@@ -3755,6 +3782,7 @@ public class SuperTiles{
 			double     orthoWeight,
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
+			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
 			double     starValPwr, //  Raise value of each tile before averaging
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    preferDisparity,
@@ -3795,6 +3823,7 @@ public class SuperTiles{
 								orthoWeight,     // double     orthoWeight,
 								diagonalWeight,  // double     diagonalWeight,
 								starPwr,         // double     starPwr, // Divide cost by number of connections to this power
+								starWeightPwr,    // Use this power of tile weight when calculating connection cost
 								starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 								dblTriLoss,      //  double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 								preferDisparity, // boolean    preferDisparity,
@@ -3823,6 +3852,7 @@ public class SuperTiles{
 			double     orthoWeight,
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
+			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
 			double     starValPwr, //  Raise value of each tile before averaging
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    preferDisparity,
@@ -3884,6 +3914,7 @@ public class SuperTiles{
 				orthoWeight,
 				diagonalWeight,
 				starPwr,    // Divide cost by number of connections to this power
+				starWeightPwr,    // Use this power of tile weight when calculating connection cost				
 				starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 				starSteps,
 				this.planes,
@@ -3904,6 +3935,7 @@ public class SuperTiles{
 				orthoWeight,
 				diagonalWeight,
 				starPwr,        // double     starPwr, // Divide cost by number of connections to this power
+				starWeightPwr,    // Use this power of tile weight when calculating connection cost
 				tnSurface,
 				preferDisparity,
 				debugLevel);
@@ -3984,6 +4016,7 @@ public class SuperTiles{
 				orthoWeight,
 				diagonalWeight,
 				starPwr,        // double     starPwr, // Divide cost by number of connections to this power
+				starWeightPwr,    // Use this power of tile weight when calculating connection cost				
 				tnSurface,
 				preferDisparity,
 				debugLevel);
@@ -4078,6 +4111,7 @@ public class SuperTiles{
 			double     orthoWeight,
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
+			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
 			double     starValPwr, //  Raise value of each tile before averaging
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    preferDisparity,
@@ -4139,6 +4173,7 @@ public class SuperTiles{
 				orthoWeight,
 				diagonalWeight,
 				starPwr,    // Divide cost by number of connections to this power
+				starWeightPwr,    // Use this power of tile weight when calculating connection cost				
 				starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 				starSteps,
 				this.planes,
@@ -4158,6 +4193,7 @@ public class SuperTiles{
 				orthoWeight,
 				diagonalWeight,
 				starPwr,        // double     starPwr, // Divide cost by number of connections to this power
+				starWeightPwr,    // Use this power of tile weight when calculating connection cost				
 				tnSurface,
 				preferDisparity,
 				debugLevel);
@@ -4228,6 +4264,7 @@ public class SuperTiles{
 					orthoWeight,
 					diagonalWeight,
 					starPwr,        // double     starPwr, // Divide cost by number of connections to this power
+					starWeightPwr,    // Use this power of tile weight when calculating connection cost
 					tnSurface,
 					preferDisparity,
 					debugLevel);
@@ -4345,6 +4382,7 @@ public class SuperTiles{
 			double     orthoWeight,
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
+			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
 			double     starValPwr, //  Raise value of each tile before averaging
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    preferDisparity,
@@ -4378,6 +4416,7 @@ public class SuperTiles{
 						orthoWeight,
 						diagonalWeight,
 						starPwr,        // double     starPwr, // Divide cost by number of connections to this power
+						starWeightPwr,    // Use this power of tile weight when calculating connection cost						
 						starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 						dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 						preferDisparity,
@@ -4398,6 +4437,7 @@ public class SuperTiles{
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
 			double     starValPwr, //  Raise value of each tile before averaging
+			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    newConfl, // Allow more conflicts if overall cost is reduced
 			int        maxChanges,  // Maximal number of simultaneous connection changes around one tile (0 - any)
@@ -4430,6 +4470,7 @@ public class SuperTiles{
 						orthoWeight,
 						diagonalWeight,
 						starPwr,        // double     starPwr, // Divide cost by number of connections to this power
+						starWeightPwr,    // Use this power of tile weight when calculating connection cost						
 						starValPwr,     //double     starValPwr, //  Raise value of each tile before averaging
 						dblTriLoss,     //  When resolving double triangles allow minor degradation (0.0 - strict)
 						newConfl,       // boolean    newConfl, // Allow more conflicts if overall cost is reduced
@@ -4455,6 +4496,7 @@ public class SuperTiles{
 			double     orthoWeight,
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
+			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
 			double     starValPwr, //  Raise value of each tile before averaging
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    newConfl, // Allow more conflicts if overall cost is reduced
@@ -4538,6 +4580,7 @@ public class SuperTiles{
 				orthoWeight,
 				diagonalWeight,
 				starPwr,    // Divide cost by number of connections to this power
+				starWeightPwr,    // Use this power of tile weight when calculating connection cost				
 				starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 				starSteps,
 				this.planes,
@@ -4748,6 +4791,7 @@ public class SuperTiles{
 			double     orthoWeight,
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
+			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
 			double     starValPwr, //  Raise value of each tile before averaging
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    newConfl, // Allow more conflicts if overall cost is reduced
@@ -4834,6 +4878,7 @@ public class SuperTiles{
 				orthoWeight,
 				diagonalWeight,
 				starPwr,    // Divide cost by number of connections to this power
+				starWeightPwr,    // Use this power of tile weight when calculating connection cost
 				starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 				starSteps,
 				this.planes,
@@ -5049,6 +5094,7 @@ public class SuperTiles{
 						orthoWeight,      // final double         orthoWeight,
 						diagonalWeight,   // final double         diagonalWeight,
 						starPwr,          // final double         starPwr,    // Divide cost by number of connections to this power
+						starWeightPwr,    // Use this power of tile weight when calculating connection cost						
 						starValPwr,       //double     starValPwr, //  Raise value of each tile before averaging
 						starSteps,        // final int            steps,
 						planes,           // final TilePlanes.PlaneData [][] planes,
@@ -5062,6 +5108,7 @@ public class SuperTiles{
 			final double         orthoWeight,
 			final double         diagonalWeight,
 			final double         starPwr,    // Divide cost by number of connections to this power
+			final double         starWeightPwr,    // Use this power of tile weight when calculating connection cost
 			final double         starValPwr, //  Raise value of each tile before averaging
 			final int            steps,
 			final TilePlanes.PlaneData [][] planes,
@@ -5084,7 +5131,8 @@ public class SuperTiles{
 							orthoWeight,    // double         orthoWeight,
 							diagonalWeight, // double         diagonalWeight,
 							starPwr,        // double         starPwr,    // Divide cost by number of connections to this power
-							starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
+							starWeightPwr,  // double         starWeightPwr,    // Use this power of tile weight when calculating connection cost
+							starValPwr,     //double          starValPwr, //  Raise value of each tile before averaging
 							steps,          // int            steps,
 							planes,         // TilePlanes.PlaneData [][] planes,
 							tnSurface,      // TileSurface.TileNeibs tnSurface,
@@ -5113,6 +5161,7 @@ public class SuperTiles{
 			final double         orthoWeight,
 			final double         diagonalWeight,
 			final double         starPwr,    // Divide cost by number of connections to this power
+			final double         starWeightPwr,    // Use this power of tile weight when calculating connection cost			
 			final double         starValPwr, //  Raise value of each tile before averaging
 			final int            steps,
 			final TilePlanes.PlaneData [][] planes,
@@ -5134,6 +5183,7 @@ public class SuperTiles{
 							orthoWeight,    // double         orthoWeight,
 							diagonalWeight, // double         diagonalWeight,
 							starPwr,        // double         starPwr,    // Divide cost by number of connections to this power
+							starWeightPwr,    // Use this power of tile weight when calculating connection cost							
 							starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 							steps,          // int            steps,
 							planes,         // TilePlanes.PlaneData [][] planes,
@@ -5418,6 +5468,7 @@ public class SuperTiles{
 			double     orthoWeight,
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
+			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
 			double     starValPwr, //  Raise value of each tile before averaging
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    newConfl, // Allow more conflicts if overall cost is reduced
@@ -5432,6 +5483,7 @@ public class SuperTiles{
 				orthoWeight,      // final double         orthoWeight,
 				diagonalWeight,   // final double         diagonalWeight,
 				starPwr,          // final double         starPwr,    // Divide cost by number of connections to this power
+				starWeightPwr,    // final double         starWeightPwr,    // Use this power of tile weight when calculating connection cost
 				starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 				starSteps,        // final int            steps,
 				this.planes,      // final TilePlanes.PlaneData [][] planes,
@@ -5459,6 +5511,7 @@ public class SuperTiles{
 						orthoWeight, // double     orthoWeight,
 						diagonalWeight, // double     diagonalWeight,
 						starPwr,        // double     starPwr, // Divide cost by number of connections to this power
+						starWeightPwr,    // Use this power of tile weight when calculating connection cost						
 						starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 						dblTriLoss, // double     diagonalWeight,
 						preferDisparity,
@@ -5475,6 +5528,7 @@ public class SuperTiles{
 						orthoWeight, // double     orthoWeight,
 						diagonalWeight, // double     diagonalWeight,
 						starPwr,        // double     starPwr, // Divide cost by number of connections to this power
+						starWeightPwr,    // Use this power of tile weight when calculating connection cost						
 						starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 						dblTriLoss, // double     diagonalWeight,
 						preferDisparity,
@@ -5491,6 +5545,7 @@ public class SuperTiles{
 						orthoWeight, // double     orthoWeight,
 						diagonalWeight, // double     diagonalWeight,
 						starPwr,        // double     starPwr, // Divide cost by number of connections to this power
+						starWeightPwr,    // Use this power of tile weight when calculating connection cost						
 						starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 						dblTriLoss, // double     diagonalWeight,
 						preferDisparity,
@@ -5507,6 +5562,7 @@ public class SuperTiles{
 						orthoWeight, // double     orthoWeight,
 						diagonalWeight, // double     diagonalWeight,
 						starPwr,        // double     starPwr, // Divide cost by number of connections to this power
+						starWeightPwr,    // Use this power of tile weight when calculating connection cost					
 						starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 						dblTriLoss, // double     diagonalWeight,
 						newConfl, // Allow more conflicts if overall cost is reduced
@@ -5575,6 +5631,7 @@ public class SuperTiles{
 			double     orthoWeight,
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
+			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
 			double     starValPwr, //  Raise value of each tile before averaging
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    preferDisparity,
@@ -5617,6 +5674,7 @@ public class SuperTiles{
 									conflicts[nsTile][nConfl][1],
 									dir4,
 									maxEigen, // maximal eigenvalue of planes to consider
+									starWeightPwr,    // Use this power of tile weight when calculating connection cost									
 									tnSurface,
 									preferDisparity,
 									debugLevel + ((nsTile == dbgTile)? 1 : 0));
@@ -5650,6 +5708,7 @@ public class SuperTiles{
 										orthoWeight,
 										diagonalWeight,
 										starPwr,    // Divide cost by number of connections to this power
+										starWeightPwr,    // Use this power of tile weight when calculating connection cost										
 										starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 										starSteps,
 										this.planes,
@@ -5667,6 +5726,7 @@ public class SuperTiles{
 										orthoWeight,
 										diagonalWeight,
 										starPwr,        // double     starPwr, // Divide cost by number of connections to this power
+										starWeightPwr,    // Use this power of tile weight when calculating connection cost										
 										tnSurface,
 										preferDisparity,
 										debugLevel);
@@ -5735,6 +5795,7 @@ public class SuperTiles{
 										orthoWeight,
 										diagonalWeight,
 										starPwr,        // double     starPwr, // Divide cost by number of connections to this power
+										starWeightPwr,    // Use this power of tile weight when calculating connection cost										
 										tnSurface,
 										preferDisparity,
 										debugLevel);
@@ -5873,6 +5934,7 @@ public class SuperTiles{
 			int nl2,
 			int dir4,
 			double maxEigen, // maximal eigenvalue of planes to consider
+			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
 			TileSurface.TileNeibs tnSurface,
 			boolean preferDisparity,
 			int debugLevel)
@@ -5911,6 +5973,7 @@ public class SuperTiles{
 					tri_plane = tri_plane.mergePlaneToThis(
 							other_plane,     // PlaneData otherPd,
 							1.0,             // double    scale_other,
+							starWeightPwr,    // Use this power of tile weight when calculating connection cost
 							false,           // boolean   ignore_weights,
 							true,            // boolean   sum_weights,
 							preferDisparity, 
@@ -5964,6 +6027,7 @@ public class SuperTiles{
 			double orthoWeight,
 			double diagonalWeight,
 			double starPwr,    // Divide cost by number of connections to this power
+			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
 			TileSurface.TileNeibs tnSurface,
 			boolean preferDisparity,
 			int    debugLevel)
@@ -5978,6 +6042,7 @@ public class SuperTiles{
 				merged_plane = merged_plane.mergePlaneToThis(
 						other_plane,     // PlaneData otherPd,
 						other_weight,    // double    scale_other,
+						starWeightPwr,   // Use this power of tile weight when calculating connection cost						
 						false,           // boolean   ignore_weights,
 						true,            // boolean   sum_weights,
 						preferDisparity, 
@@ -6052,6 +6117,7 @@ public class SuperTiles{
 			double         orthoWeight,
 			double         diagonalWeight,
 			double         starPwr,    // Divide cost by number of connections to this power
+			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
 			TileSurface.TileNeibs tnSurface,
 			boolean preferDisparity,
 			int    debugLevel)
@@ -6106,6 +6172,7 @@ public class SuperTiles{
 										orthoWeight,
 										diagonalWeight,
 										starPwr, // double         starPwr,    // Divide cost by number of connections to this power
+										starWeightPwr,    // Use this power of tile weight when calculating connection cost										
 										tnSurface,
 										preferDisparity,
 										-1); // debugLevel);
@@ -6167,6 +6234,7 @@ public class SuperTiles{
 			double weakWorsening,
 			double okMergeEigen,
 			double maxWorldSin2,
+			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
 			double dispNorm,
 			double maxEigen, // maximal eigenvalue of planes to consider
 			TileSurface.TileNeibs tnSurface,
@@ -6204,6 +6272,7 @@ public class SuperTiles{
 				merged_plane = merged_plane.mergePlaneToThis(
 						other_plane, // PlaneData otherPd,
 						1.0,         // double    scale_other,
+						starWeightPwr,    // Use this power of tile weight when calculating connection cost						
 						false,       // boolean   ignore_weights,
 						true, // boolean   sum_weights,
 						preferDisparity, 
@@ -6220,6 +6289,7 @@ public class SuperTiles{
 			merged[np] = these[np].mergePlaneToThis(
 					merged_plane, // PlaneData otherPd,
 					1.0,          // double    scale_other,
+					starWeightPwr,    // Use this power of tile weight when calculating connection cost					
 					false,        // boolean   ignore_weights,
 					true,         // boolean   sum_weights,
 					preferDisparity, 
@@ -6297,7 +6367,9 @@ public class SuperTiles{
 	 */
 	public void filterNeighborPlanes(
 			final double rquality,
-			final double worstWorsening2,// final double worst_worsening2  Worst case worsening for thin planes,
+			final double worstWorsening2,// Worst case worsening for thin planes,
+			final double worstEq,        // Worst case worsening after merge with equal weights
+			final double worstEq2,       // Worst case worsening for thin planes with equal weights
 			final double weakWorsening,
 			final double okMergeEigen,
 			final double maxWorldSin2,
@@ -6347,7 +6419,9 @@ public class SuperTiles{
 								for (int np0 = np0_min; np0 < planes[nsTile0].length; np0++){
 									if ((planes[nsTile0][np0] != null) && (planes[nsTile0][np0].getMergedValue(dir) != null)){
 										double [] merge_ev = planes[nsTile0][np0].getMergedValue(dir);
+										double [] merge_ev_eq = planes[nsTile0][np0].getMergedValueEq(dir);
 										if (	(merge_ev != null) &&
+												(merge_ev_eq != null) &&
 												((maxEigen == 0.0) ||
 														(planes[nsTile0][np0].getValue() < corrMaxEigen(
 																maxEigen,
@@ -6373,13 +6447,33 @@ public class SuperTiles{
 															w1, // double w1,
 															w2); // double w2)
 													double this_rq_norm = this_rq;
-													if ((w1 + w2) < weakWorsening) this_rq_norm *= (w1 + w2) / weakWorsening; // forgive more for weak planes 
+													if ((w1 + w2) < weakWorsening) this_rq_norm *= (w1 + w2) / weakWorsening; // forgive more for weak planes
+													double this_rq_eq = mergeRQuality(
+															planes[nsTile0][np0].getValue(), // double L1,
+															planes[nsTile][np].getValue(), // double L2,
+															merge_ev[np], // double L,
+															1.0, // double w1,
+															1.0); // double w2)
+													
+													double this_rq_eq_norm = this_rq_eq;
+													if ((w1 + w2) < weakWorsening) this_rq_eq_norm *= (w1 + w2) / weakWorsening; // forgive more for weak planes 
 													if ((this_rq_norm <= rquality) ||
-															((merge_ev[np] <= okMergeEigen) && (this_rq_norm <= worstWorsening2)) // use higher threshold
+															((merge_ev[np] <= okMergeEigen) && (this_rq_norm <= worstWorsening2)) || // use higher threshold
+															(this_rq_eq_norm <= worstEq) ||
+															((merge_ev_eq[np] <= okMergeEigen) && (this_rq_eq_norm <= worstEq2)) // use higher threshold
 															) {
 														if ((maxWorldSin2 >= 1.0) || (planes[nsTile0][np0].getWorldSin2(planes[nsTile][np]) <=maxWorldSin2)) {
 															if (dl > 0){
-																System.out.println("filterNeighborPlanes : nsTile0="+nsTile0+":"+np0+", nsTile="+nsTile+":"+np+" dir="+dir+" is VALID");
+																System.out.print("filterNeighborPlanes : nsTile0="+nsTile0+":"+np0+", nsTile="+nsTile+":"+np+" dir="+dir+" is VALID, because ");
+																if (this_rq_norm <= rquality)
+																	System.out.print(" (this_rq_norm="+this_rq_norm+"  <= rquality)");
+																if ((merge_ev[np] <= okMergeEigen) && (this_rq_norm <= worstWorsening2))
+																	System.out.print(" merge_ev[np]="+merge_ev[np]+" <= okMergeEigen) && (this_rq_norm="+this_rq_norm+" <= worstWorsening2)");
+																if (this_rq_eq_norm <= worstEq)
+																	System.out.print(" this_rq_eq_norm="+this_rq_eq_norm+" <= worstEq");
+																if ((merge_ev_eq[np] <= okMergeEigen) && (this_rq_eq_norm <= worstEq2))
+																	System.out.print(" ((merge_ev_eq[np]="+merge_ev_eq[np]+" <= okMergeEigen) && (this_rq_eq_norm="+this_rq_eq_norm+" <= worstEq2)");
+																System.out.println();
 															}
 															planes[nsTile0][np0].setMergedValid(dir, np, true, planes[nsTile].length);
 															planes[nsTile][np].setMergedValid((dir + 4) %8, np0, true, planes[nsTile0].length);
@@ -6393,10 +6487,12 @@ public class SuperTiles{
 																	" L1="+planes[nsTile0][np0].getValue()+" L2="+planes[nsTile][np].getValue()+" L="+merge_ev[np]);
 														}
 													}
-													if (dl >0) {
+													if (dl > 3) {
 														System.out.println("nsTile0="+nsTile0+":"+np0+", nsTile="+nsTile+":"+np+", this_rq="+this_rq+
+																", this_rq_eq="+this_rq_eq+
 																" w1="+w1+" w2="+w2+
-																" L1="+planes[nsTile0][np0].getValue()+" L2="+planes[nsTile][np].getValue()+" L="+merge_ev[np]);
+																" L1="+planes[nsTile0][np0].getValue()+" L2="+planes[nsTile][np].getValue()+
+																" L="+merge_ev[np]+" L_eq="+merge_ev_eq[np]);
 														System.out.println("nsTile0="+nsTile0+":"+np0+", nsTile="+nsTile+":"+np+", world sin2 ="+
 																planes[nsTile0][np0].getWorldSin2(planes[nsTile][np]));
 														System.out.println("nsTile0="+nsTile0+":"+np0+", nsTile="+nsTile+":"+np+
@@ -7482,6 +7578,8 @@ public class SuperTiles{
 												this_new_plane = this_new_plane.mergePlaneToThis(
 														other_plane, // PlaneData otherPd,
 														1.0,         // double    scale_other,
+														// here it should be no power function for the weights
+														1.0,         // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
 														false,       // boolean   ignore_weights,
 														true,        // boolean   sum_weights,
 														preferDisparity,
@@ -7523,6 +7621,7 @@ public class SuperTiles{
 											this_new_plane = this_new_plane.mergePlaneToThis(
 													measured_planes[nsTile0][np0], // PlaneData otherPd,
 													meas_pull,                     // double    scale_other,
+													1.0, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost													
 													false,                         // boolean   ignore_weights,
 													true, // boolean   sum_weights,
 													preferDisparity,
@@ -8195,6 +8294,7 @@ public class SuperTiles{
 																plane_triads[nSplit][nis] = plane_triads[nSplit][nis].mergePlaneToThis(
 																		other_plane, // PlaneData otherPd,
 																		1.0,         // double    scale_other,
+																		1.0,         // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost																		
 																		false,       // boolean   ignore_weights,
 																		true, // boolean   sum_weights,
 																		preferDisparity,
@@ -8218,6 +8318,7 @@ public class SuperTiles{
 													plane_triads[nSplit][2] = plane_triads[nSplit][0].clone().mergePlaneToThis(
 															plane_triads[nSplit][1], // PlaneData otherPd,
 															1.0,                    // double    scale_other,
+															1.0,                    // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost															
 															false,                  // boolean   ignore_weights,
 															true, // boolean   sum_weights,
 															preferDisparity,
@@ -8244,6 +8345,7 @@ public class SuperTiles{
 											plane_triads[best_index][2] = plane_triads[best_index][0].clone().mergePlaneToThis(
 													plane_triads[best_index][1], // PlaneData otherPd,
 													1.0,                     // double    scale_other,
+													1.0, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
 													false,                   // boolean   ignore_weights,
 													true,                    // boolean   sum_weights,
 													preferDisparity,

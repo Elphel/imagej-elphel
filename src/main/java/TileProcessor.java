@@ -3419,6 +3419,8 @@ public class TileProcessor {
 		st.filterNeighborPlanes(
 				clt_parameters.plWorstWorsening, // final double worst_worsening,
 				clt_parameters.plWorstWorsening2,// final double worst_worsening2  Worst case worsening for thin planes,
+				clt_parameters.plWorstEq,        // final double worstEq,        // Worst case worsening after merge with equal weights
+				clt_parameters.plWorstEq2,       // final double worstEq2,       // Worst case worsening for thin planes with equal weights
 				clt_parameters.plWeakWorsening,  // final double worst_worsening,
 				clt_parameters.plOKMergeEigen,   // final double okMergeEigen, f result of the merged planes is below, OK to use thin planes (higher) threshold
 				clt_parameters.plMaxWorldSin2,   // final double maxWorldSin2,
@@ -3458,6 +3460,7 @@ public class TileProcessor {
 				clt_parameters.plStarOrtho,    // double     orthoWeight,
 				clt_parameters.plStarDiag,     // double     diagonalWeight,
 				clt_parameters.plStarPwr,      // double     starPwr,    // Divide cost by number of connections to this power
+				clt_parameters.plStarWeightPwr,// double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
 				clt_parameters.plStarValPwr,   // double     starValPwr, //  Raise value of each tile before averaging
 				clt_parameters.plDblTriLoss,   // double     diagonalWeight,
 				clt_parameters.plNewConfl,     // boolean    preferDisparity, // Allow more conflicts if overall cost is reduced
@@ -3568,6 +3571,8 @@ public class TileProcessor {
 			st.filterNeighborPlanes(
 					clt_parameters.plWorstWorsening, // final double worst_worsening,
 					clt_parameters.plWorstWorsening2,// final double worst_worsening2  Worst case worsening for thin planes,
+					clt_parameters.plWorstEq,        // ffinal double worstEq,        // Worst case worsening after merge with equal weights
+					clt_parameters.plWorstEq2,       // ffinal double worstEq2,       // Worst case worsening for thin planes with equal weights
 					clt_parameters.plWeakWorsening,  // final double worst_worsening,
 					clt_parameters.plOKMergeEigen,   // final double okMergeEigen,
 					clt_parameters.plMaxWorldSin2,   // final double maxWorldSin2,
@@ -3586,23 +3591,23 @@ public class TileProcessor {
 
 			st.resolveConflicts(
 					clt_parameters.plMaxEigen,
-					clt_parameters.plConflDualTri, // boolean    conflDualTri,  // Resolve dual triangles conflict (odoodo)
-					clt_parameters.plConflMulti,   // boolean    conflMulti,    // Resolve multiple odo triangles conflicts
-					clt_parameters.plConflDiag,	   // boolean    conflDiag,     // Resolve diagonal (ood) conflicts
-					clt_parameters.plConflStar,    // boolean    conflStar,     // Resolve all conflicts around a supertile 
-					clt_parameters.plStarSteps, // int starSteps, // How far to look around when calculationg connection cost
-					clt_parameters.plStarOrtho, // double     orthoWeight,
-					clt_parameters.plStarDiag, // double     diagonalWeight,
-					clt_parameters.plStarPwr, // double     starPwr, // Divide cost by number of connections to this power
-					clt_parameters.plStarValPwr,   // double     starValPwr, //  Raise value of each tile before averaging
-					clt_parameters.plDblTriLoss, // double     diagonalWeight,
-					clt_parameters.plNewConfl,     // boolean    preferDisparity, // Allow more conflicts if overall cost is reduced
-					clt_parameters.plMaxChanges,   // int        maxChanges,  // Maximal number of simultaneous connection changes around one tile (0 - any)
+					clt_parameters.plConflDualTri,  // boolean    conflDualTri,  // Resolve dual triangles conflict (odoodo)
+					clt_parameters.plConflMulti,    // boolean    conflMulti,    // Resolve multiple odo triangles conflicts
+					clt_parameters.plConflDiag,	    // boolean    conflDiag,     // Resolve diagonal (ood) conflicts
+					clt_parameters.plConflStar,     // boolean    conflStar,     // Resolve all conflicts around a supertile 
+					clt_parameters.plStarSteps,     // int starSteps, // How far to look around when calculationg connection cost
+					clt_parameters.plStarOrtho,     // double     orthoWeight,
+					clt_parameters.plStarDiag,      // double     diagonalWeight,
+					clt_parameters.plStarPwr,       // double     starPwr, // Divide cost by number of connections to this power
+					clt_parameters.plStarWeightPwr, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
+					clt_parameters.plStarValPwr,    // double     starValPwr, //  Raise value of each tile before averaging
+					clt_parameters.plDblTriLoss,    // double     diagonalWeight,
+					clt_parameters.plNewConfl,      // boolean    preferDisparity, // Allow more conflicts if overall cost is reduced
+					clt_parameters.plMaxChanges,    // int        maxChanges,  // Maximal number of simultaneous connection changes around one tile (0 - any)
 					clt_parameters.plPreferDisparity,
 					1, // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
-			
 		}
 
 		while (true) {

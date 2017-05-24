@@ -399,6 +399,17 @@ public class TwoLayerNeighbors {
 	{
 		ArrayList<NeibVariant> variant_list = new ArrayList<NeibVariant>();
 		while (nextSelection()){
+			if (debugLevel > 0) {
+				System.out.print("trying variant: [");
+				for (int i = 0; i < selection_star.length; i++){
+					System.out.print(selection_star[i]);
+				}
+				System.out.print("] [");
+				for (int i = 0; i < selection_conns.length; i++){
+					System.out.print(selection_conns[i]);
+				}
+				System.out.print("]: ");
+			}
 			NeibVariant variant = generateVariant(debugLevel);
 			if (variant != null){
 				int num_changes = variant.diffToOther(neibs_init, 0);

@@ -2033,9 +2033,27 @@ public class TilePlanes {
 		 * @return PlaneData object representing merged planes with combined weight (scale_other*otherPd.weight + this.weight),
 		 * recalculated center, eigenvalues and eigenvectors
 		 */
+		public PlaneData mergePlaneToThis1(
+				PlaneData otherPd,
+				double    scale_other,
+				boolean   ignore_weights,
+				boolean   sum_weights,
+				boolean   preferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
+				int       debugLevel)
+		{
+			return mergePlaneToThis(
+					otherPd,
+					scale_other,
+					1.0, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
+					ignore_weights,
+					sum_weights,
+					preferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
+					debugLevel);
+		}
 		public PlaneData mergePlaneToThis(
 				PlaneData otherPd,
 				double    scale_other,
+				double    starWeightPwr,    // Use this power of tile weight when calculating connection cost
 				boolean   ignore_weights,
 				boolean   sum_weights,
 				boolean   preferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
@@ -2058,8 +2076,17 @@ public class TilePlanes {
 			Matrix this_eig_vectors =  new Matrix(this.vectors).transpose();    // vectors are saved as rows 
 			Matrix this_center    =    new Matrix(this.getZxy(),3);
 			Matrix other_center    =   new Matrix(otherPd.getZxy(),3); // should already be relative to this supertile center
-			double sum_weight =      scale_other *  otherPd.weight + this.weight;
-			double other_fraction = ignore_weights? (scale_other/(scale_other + 1.0)): ((scale_other *  otherPd.weight) / sum_weight); 
+			double this_weight = this.weight;
+			double other_weight = otherPd.weight;
+			if (starWeightPwr == 0){
+				ignore_weights = true;
+			} else if (starWeightPwr != 1.0){
+				this_weight =  Math.pow(this_weight, starWeightPwr);
+				other_weight = Math.pow(other_weight,starWeightPwr);
+			}
+			
+			double sum_weight =      scale_other *  other_weight + this_weight;// should be the same for
+			double other_fraction = ignore_weights? (scale_other/(scale_other + 1.0)): ((scale_other *  other_weight) / sum_weight); 
 			Matrix common_center =  this_center.times(1.0 - other_fraction).plus(other_center.times(other_fraction));
 			Matrix other_offset =   other_center.minus(this_center); // other center from this center
 			if ((this.values[0] == 0.0) || (otherPd.values[0] == 0.0)) {
@@ -2189,12 +2216,23 @@ public class TilePlanes {
 			pd.setZxy(common_center.getColumnPackedCopy()); // set new center
 			// what weight to use? cloned is original weight for this supertile
 			// or use weighted average like below?
+			double new_weight;
+			if (sum_weights) {
+				new_weight = sum_weight; // normalize while averaging by the caller	
+			} else { // how it was before
+				new_weight = other_fraction * other_weight + (1.0 - other_fraction) * this_weight;
+			}
+			if (!ignore_weights && ((starWeightPwr != 1.0))){
+				new_weight = Math.pow(new_weight,1.0/starWeightPwr);
+			}
+			pd.setWeight(new_weight);
+			/*
 			if (sum_weights) {
 				pd.setWeight(sum_weight); // normalize while averaging by the caller	
 			} else { // how it was before
-				pd.setWeight(other_fraction * otherPd.weight + (1.0 - other_fraction) * this.weight);
+				pd.setWeight(other_fraction * other_weight + (1.0 - other_fraction) * this_weight);
 			}
-
+			*/
 			return pd;
 		}
 
