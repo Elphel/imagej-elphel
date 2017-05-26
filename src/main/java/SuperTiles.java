@@ -6498,9 +6498,9 @@ public class SuperTiles{
 													double this_rq_norm = this_rq;
 													if ((w1 + w2) < weakWorsening) this_rq_norm *= (w1 + w2) / weakWorsening; // forgive more for weak planes
 													double this_rq_eq = mergeRQuality(
-															planes[nsTile0][np0].getValue() + eigenFloor, // double L1,
-															planes[nsTile][np].getValue() + eigenFloor, // double L2,
-															merge_ev[np], // double L,
+															planes[nsTile0][np0].getValue(), // double L1,
+															planes[nsTile][np].getValue(), // double L2,
+															merge_ev_eq[np], // double L,
 															1.0, // double w1,
 															1.0, // double w2)
 															eigenFloor);//			double eigen_floor)
@@ -6763,8 +6763,8 @@ public class SuperTiles{
 								double this_rq_norm = this_rq;
 								if ((w1 + w2) < weakWorsening) this_rq_norm *= (w1 + w2) / weakWorsening; // forgive more for weak planes
 								double this_rq_eq = mergeRQuality(
-										planes[nsTile][np1].getValue() + eigenFloor, // double L1,
-										planes[nsTile][np2].getValue() + eigenFloor, // double L2,
+										planes[nsTile][np1].getValue(), // double L1,
+										planes[nsTile][np2].getValue(), // double L2,
 										merged_pd_eq.getValue(), // double L,
 										1.0, // double w1,
 										1.0, // double w2)

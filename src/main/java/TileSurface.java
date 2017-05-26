@@ -1,14 +1,6 @@
-import java.awt.Point;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
-import java.util.concurrent.atomic.AtomicInteger;
-
 /**
  **
- ** TileSurface - hadle tile surfaces
+ ** TileSurface - handle tile surfaces
  **
  ** Copyright (C) 2017 Elphel, Inc.
  **
@@ -29,6 +21,14 @@ import java.util.concurrent.atomic.AtomicInteger;
  ** -----------------------------------------------------------------------------**
  **
  */
+import java.awt.Point;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.concurrent.atomic.AtomicInteger;
+
 
 public class TileSurface {
 //	public 
