@@ -2168,7 +2168,8 @@ public class EyesisCorrectionParameters {
   		public double     plFractOutliers      =   0.3;  // Maximal fraction of outliers to remove
   		public int        plMaxOutliers        =    20;  // Maximal number of outliers to remove
   		public double     plMinStrength        =   0.1;  // Minimal total strength of a plane 
-  		public double     plMaxEigen           =   0.3;  // Maximal eigenvalue of a plane 
+  		public double     plMaxEigen           =   0.05; // Maximal eigenvalue of a plane 
+  		public double     plEigenFloor         =   0.01; // Add to eigenvalues of each participating plane and result to validate connections 
   		public boolean    plDbgMerge           =   true; // Combine 'other' plane with current
   		public double     plWorstWorsening     =   2.0;  // Worst case worsening after merge
   		public double     plWorstWorsening2    =   5.0;  // Worst case worsening for thin planes
@@ -2183,11 +2184,12 @@ public class EyesisCorrectionParameters {
   		public boolean    plConflDiag          =   false; // Resolve diagonal (ood) conflicts
   		public boolean    plConflStar          =   true;  // Resolve all conflicts around a supertile 
 
-  		public int        plStarSteps          =   2;    // How far to look around when calculationg connection cost
+  		public int        plStarSteps          =   2;    // How far to look around when calculating connection cost
   		public double     plStarOrtho          =   0.5;  // When calculating cost for the connections scale 4 ortho neighbors
   		public double     plStarDiag           =   0.25; // When calculating cost for the connections scale 4 diagonal neighbors
   		public double     plStarPwr            =   0.5;  // Divide cost by number of connections to this power
   		public double     plStarWeightPwr      =   0.5;  // use this power of tile weight when calculating connection cost
+  		public double     plWeightToDens       =   0.3;  // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
   		public double     plStarValPwr         =   1.0;  // Raise value of each tile before averaging
   		public double     plDblTriLoss         =   0.0001; // When resolving double triangles allow minor degradation (0.0 - strict)
   		public boolean    plNewConfl           =   false; // Allow more conflicts if overall cost is reduced
@@ -2535,6 +2537,7 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"plMaxOutliers",    this.plMaxOutliers+"");
 			properties.setProperty(prefix+"plMinStrength",    this.plMinStrength +"");
 			properties.setProperty(prefix+"plMaxEigen",       this.plMaxEigen +"");
+			properties.setProperty(prefix+"plEigenFloor",     this.plEigenFloor +"");
 			properties.setProperty(prefix+"plDbgMerge",       this.plDbgMerge+"");
 			properties.setProperty(prefix+"plWorstWorsening", this.plWorstWorsening +"");
 			properties.setProperty(prefix+"plWorstWorsening2",this.plWorstWorsening2 +"");
@@ -2553,6 +2556,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plStarDiag",       this.plStarDiag +"");
 			properties.setProperty(prefix+"plStarPwr",        this.plStarPwr +"");
 			properties.setProperty(prefix+"plStarWeightPwr",  this.plStarWeightPwr +"");
+			properties.setProperty(prefix+"plWeightToDens",   this.plWeightToDens +"");
 			properties.setProperty(prefix+"plStarValPwr",     this.plStarValPwr +"");
 			properties.setProperty(prefix+"plDblTriLoss",     this.plDblTriLoss +"");
 			properties.setProperty(prefix+"plNewConfl",       this.plNewConfl+"");
@@ -2880,6 +2884,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plMaxOutliers")!=null)     this.plMaxOutliers=Integer.parseInt(properties.getProperty(prefix+"plMaxOutliers"));
   			if (properties.getProperty(prefix+"plMinStrength")!=null)     this.plMinStrength=Double.parseDouble(properties.getProperty(prefix+"plMinStrength"));
   			if (properties.getProperty(prefix+"plMaxEigen")!=null)        this.plMaxEigen=Double.parseDouble(properties.getProperty(prefix+"plMaxEigen"));
+  			if (properties.getProperty(prefix+"plEigenFloor")!=null)      this.plEigenFloor=Double.parseDouble(properties.getProperty(prefix+"plEigenFloor"));
   			if (properties.getProperty(prefix+"plDbgMerge")!=null)        this.plDbgMerge=Boolean.parseBoolean(properties.getProperty(prefix+"plDbgMerge"));
   			if (properties.getProperty(prefix+"plWorstWorsening")!=null)  this.plWorstWorsening=Double.parseDouble(properties.getProperty(prefix+"plWorstWorsening"));
   			if (properties.getProperty(prefix+"plWorstWorsening2")!=null) this.plWorstWorsening2=Double.parseDouble(properties.getProperty(prefix+"plWorstWorsening2"));
@@ -2898,6 +2903,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plStarDiag")!=null)        this.plStarDiag=Double.parseDouble(properties.getProperty(prefix+"plStarDiag"));
   			if (properties.getProperty(prefix+"plStarPwr")!=null)         this.plStarPwr=Double.parseDouble(properties.getProperty(prefix+"plStarPwr"));
   			if (properties.getProperty(prefix+"plStarWeightPwr")!=null)   this.plStarWeightPwr=Double.parseDouble(properties.getProperty(prefix+"plStarWeightPwr"));
+  			if (properties.getProperty(prefix+"plWeightToDens")!=null)    this.plWeightToDens=Double.parseDouble(properties.getProperty(prefix+"plWeightToDens"));
   			if (properties.getProperty(prefix+"plStarValPwr")!=null)      this.plStarValPwr=Double.parseDouble(properties.getProperty(prefix+"plStarValPwr"));
   			if (properties.getProperty(prefix+"plDblTriLoss")!=null)      this.plDblTriLoss=Double.parseDouble(properties.getProperty(prefix+"plDblTriLoss"));
   			if (properties.getProperty(prefix+"plNewConfl")!=null)        this.plNewConfl=Boolean.parseBoolean(properties.getProperty(prefix+"plNewConfl"));
@@ -3253,6 +3259,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal number of outliers to remove",                                         this.plMaxOutliers,  0);
   			gd.addNumericField("Minimal total strength of a plane",                                            this.plMinStrength,  6);
   			gd.addNumericField("Maximal eigenvalue of a plane",                                                this.plMaxEigen,  6);
+  			gd.addNumericField("Add to eigenvalues of each participating plane and result to validate connections",this.plEigenFloor,  6);
   			gd.addCheckbox    ("Combine 'other' plane with the current (unused)",                              this.plDbgMerge);
   			gd.addNumericField("Worst case worsening after merge",                                             this.plWorstWorsening,  6);
   			gd.addNumericField("Worst case worsening for thin planes",                                         this.plWorstWorsening2,  6);
@@ -3271,6 +3278,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("When calculating cost for the connections scale 4 diagonal neighbors",         this.plStarDiag,  6);
   			gd.addNumericField("Divide cost by number of connections to this power",                           this.plStarPwr,  6);
   			gd.addNumericField("Use this power of tile weight when calculating connection cost",               this.plStarWeightPwr,  6);
+  			gd.addNumericField("Balance weighted density against density. 0.0 - density, 1.0 - weighted density", this.plWeightToDens,  6);
   			gd.addNumericField("Raise value of each tile before averaging",                                    this.plStarValPwr,  6);
   			gd.addNumericField("When resolving double triangles allow minor degradation (0.0 - strict)",       this.plDblTriLoss,  6);
   			gd.addCheckbox    ("Allow more conflicts if overall cost is reduced",                              this.plNewConfl);
@@ -3611,6 +3619,7 @@ public class EyesisCorrectionParameters {
   			this.plMaxOutliers=   (int) gd.getNextNumber();
   			this.plMinStrength=         gd.getNextNumber();
   			this.plMaxEigen=            gd.getNextNumber();
+  			this.plEigenFloor=          gd.getNextNumber();
   			this.plDbgMerge=            gd.getNextBoolean();
   			this.plWorstWorsening=      gd.getNextNumber();
   			this.plWorstWorsening2=     gd.getNextNumber();
@@ -3629,6 +3638,7 @@ public class EyesisCorrectionParameters {
   			this.plStarDiag=            gd.getNextNumber();
   			this.plStarPwr=             gd.getNextNumber();
   			this.plStarWeightPwr=       gd.getNextNumber();
+  			this.plWeightToDens=        gd.getNextNumber();
   			this.plStarValPwr=          gd.getNextNumber();
   			this.plDblTriLoss=          gd.getNextNumber();
   			this.plNewConfl=            gd.getNextBoolean();

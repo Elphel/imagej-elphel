@@ -33,6 +33,8 @@ public class ConnectionCosts {
 	double         diagonalWeight;
 	double         starPwr;    // Divide cost by number of connections to this power
 	double         starWeightPwr; // Use this power of tile weight when calculating connection cost
+	double         weightToDens;    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
+	
 	double         starValPwr; //  Raise value of each tile before averaging
 	
 	int            steps;
@@ -51,6 +53,7 @@ public class ConnectionCosts {
 			double         diagonalWeight,
 			double         starPwr,    // Divide cost by number of connections to this power
 			double         starWeightPwr,    // Use this power of tile weight when calculating connection cost
+			double         weightToDens,    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 			double         starValPwr, //  Raise value of each tile before averaging
 			int            steps,
 			TilePlanes.PlaneData [][] planes,
@@ -64,12 +67,14 @@ public class ConnectionCosts {
 		this.diagonalWeight =  diagonalWeight;
 		this.starPwr =         starPwr;         // Divide cost by number of connections to this power
 		this.starWeightPwr =   starWeightPwr;
+		this.weightToDens =    weightToDens;    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 		this.starValPwr =      starValPwr; //  Raise value of each tile before averaging
 		this.steps =           steps;
 	}
 	
 	public int [][][] initConnectionCosts(
-			int []         nsTiles)
+			int []    nsTiles,
+			int       debugLevel)
 	{
 		int [] exp_tiles = nsTiles;
 		for (int i = 1; i < steps; i++) exp_tiles = getInvolvedSupertiles(exp_tiles);
@@ -92,7 +97,7 @@ public class ConnectionCosts {
 			if (planes[nsTile] != null){
 				val_weights[isTile] = new double [planes[nsTile].length][];
 				for (int nl = 0; nl < planes[nsTile].length; nl++) if ( planes[nsTile][nl] != null){
-					val_weights[isTile][nl] = new double[2];
+					val_weights[isTile][nl] = new double[3];
 				}
 			}
 		}
@@ -111,17 +116,17 @@ public class ConnectionCosts {
 		case 1:
 			val_weights = getConnectionsCostSingleStep (
 					null,	
-					-1); // int        debugLevel)
+					debugLevel - 1); // int        debugLevel)
 			break;
 		case 2:
 			val_weights = getConnectionsCostDualStep (
 					null,	
-					-1); // int        debugLevel)
+					debugLevel - 1); // int        debugLevel)
 			break;
 		default:
 			val_weights = getConnectionsCostSingleStep (
 					null,	
-					-1); // int        debugLevel)			
+					debugLevel - 1); // int        debugLevel)			
 		}
 		
 		last_val_weights = val_weights;
@@ -131,10 +136,16 @@ public class ConnectionCosts {
 		for (int isTile = 0; isTile < all_tiles.length; isTile++){
 			if (val_weights[isTile] != null){
 				for (int nl = 0; nl < val_weights[isTile].length; nl++) if ( val_weights[isTile][nl] != null){
+					double weighted = val_weights[isTile][nl][1];
+					double density = val_weights[isTile][nl][2];
+					
+					double weight = (weightToDens >= 1.0) ? weighted :
+						((weightToDens <= 0.0) ? density : 
+							(Math.pow(weighted, weightToDens) * Math.pow(density, 1.0 - weightToDens)));
 					double val = val_weights[isTile][nl][0];
 					if (starValPwr != 1.0) val = Math.pow(val, starValPwr);
-					init_val +=    val * val_weights[isTile][nl][1];
-					init_weight += val_weights[isTile][nl][1];
+					init_val +=    val * weight;
+					init_weight += weight;
 				}
 			}
 		}
@@ -259,7 +270,18 @@ public class ConnectionCosts {
 									int ineib1 = (tile_map.containsKey(nsTile1))? tile_map.get(nsTile1) : -1;
 									neibs2[dir] = (ineib1 >=0) ? neibs[tile_map.get(nsTile1)][nl1] : planes[nsTile1][nl1].getNeibBest();
 									if (!neibs_changed && (ineib1 >= 0)) {
+										/*
 										if ((neibs_init[ineib1] == null) || (neibs_init[ineib1][nl1] == null)) {
+											neibs_changed = true;
+										} else {
+											for (int dir1 = 0; dir1 < 8; dir1++) if (neibs[ineib1][nl1][dir1] != neibs_init[ineib1][nl1][dir1]){
+												neibs_changed = true;
+												break;
+											}
+										}
+
+										 */
+										if ((neibs_init[ineib1] == null) || (neibs[ineib1][nl1] == null)) {
 											neibs_changed = true;
 										} else {
 											for (int dir1 = 0; dir1 < 8; dir1++) if (neibs[ineib1][nl1][dir1] != neibs_init[ineib1][nl1][dir1]){
@@ -296,6 +318,35 @@ public class ConnectionCosts {
 				}
 			}
 		}
+		if (debugLevel > 0) {
+			for (int isTile = 0; isTile < all_tiles.length; isTile++){
+				int nsTile = all_tiles[isTile];
+				System.out.print("getConnectionsCostDualStep(): "+isTile+" ("+nsTile+"): ");
+				if (vw[isTile] != null) {
+					for (int nl = 0; nl < vw[isTile].length; nl++){
+//						System.out.print(" "+nl+":[");
+						System.out.print("     "+nl+":[");
+						if (vw[isTile][nl] != null ) {
+							for (int i = 0; i < vw[isTile][nl].length;i++){
+								System.out.print(vw[isTile][nl][i]);
+//								if (i < (vw[isTile][nl].length -1)){
+									System.out.print(", ");
+//								}
+							}
+							double weighted = vw[isTile][nl][1];
+							double density = vw[isTile][nl][2];
+							double weight = (weightToDens >= 1.0) ? weighted :
+								((weightToDens <= 0.0) ? density : 
+									(Math.pow(weighted, weightToDens) * Math.pow(density, 1.0 - weightToDens)));
+							System.out.print(weight);
+						}
+//						System.out.print("]");
+						System.out.println("]");
+					}
+				}
+				System.out.println();
+			}			
+		}
 		return vw; // negative - improvement
 	}
 	
@@ -310,17 +361,17 @@ public class ConnectionCosts {
 		case 1:
 			vw = getConnectionsCostSingleStep (
 					neibs,	
-					-1); // int        debugLevel)
+					debugLevel-1); // int        debugLevel)
 			break;
 		case 2:
 			vw = getConnectionsCostDualStep (
 					neibs,	
-					-1); // int        debugLevel)
+					debugLevel-1); // int        debugLevel)
 			break;
 		default:
 			vw = getConnectionsCostSingleStep (
 					neibs,	
-					-1); // int        debugLevel)			
+					debugLevel-1); // int        debugLevel)			
 		}
 		last_val_weights = vw;
 		// calculate new cost
@@ -329,11 +380,16 @@ public class ConnectionCosts {
 		for (int isTile = 0; isTile < all_tiles.length; isTile++){
 			if (vw[isTile] != null){
 				for (int nl = 0; nl < vw[isTile].length; nl++) if ( vw[isTile][nl] != null){
+					double weighted = vw[isTile][nl][1];
+					double density = vw[isTile][nl][2];
+					double weight = (weightToDens >= 1.0) ? weighted :
+						((weightToDens <= 0.0) ? density : 
+							(Math.pow(weighted, weightToDens) * Math.pow(density, 1.0 - weightToDens)));
 
 					double val = vw[isTile][nl][0];
 					if (starValPwr != 1.0) val = Math.pow(val, starValPwr);
-					new_value +=          val * vw[isTile][nl][1];
-					new_weight +=         vw[isTile][nl][1];
+					new_value +=          val * weight;
+					new_weight +=         weight;
 				}
 			}
 		}
@@ -372,6 +428,7 @@ public class ConnectionCosts {
 			int    debugLevel)
 	{
 		TilePlanes.PlaneData merged_plane = planes[nsTile][nl]; // add weight
+		double conn_weight = 1.0; // center weight
 		for (int dir = 0; dir < 8; dir++){
 			if (neibs[dir] >= 0){
 				double other_weight = ((dir & 1) != 0) ? diagonalWeight : orthoWeight;
@@ -386,9 +443,10 @@ public class ConnectionCosts {
 						true,            // boolean   sum_weights,
 						preferDisparity, 
 						debugLevel - 1); // int       debugLevel)
+				conn_weight += 1.0;
 			}
 		}
-		double [] value_weight = {merged_plane.getValue(),merged_plane.getWeight()};
+		double [] value_weight = {merged_plane.getValue(),merged_plane.getWeight(),conn_weight};
 		if (starPwr != 0){
 			value_weight[0] /= (Math.pow((planes[nsTile][nl].getNumNeibBest() + 1.0), starPwr));
 		}
@@ -451,6 +509,7 @@ public class ConnectionCosts {
 			}
 		}
 		TilePlanes.PlaneData merged_plane =  planes[nsTile][nl]; // center point
+		double conn_weight = 1.0; // center weight
 		for (HashMap.Entry<Point, Double> entry : tile_weights.entrySet()){
 			TilePlanes.PlaneData other_plane = merged_plane.getPlaneToThis(  // layer here does not matter
 					planes[entry.getKey().x][entry.getKey().y],
@@ -458,13 +517,15 @@ public class ConnectionCosts {
 			merged_plane = merged_plane.mergePlaneToThis(
 					other_plane,      // PlaneData otherPd,
 					entry.getValue(), // double    scale_other,
-					starPwr,    // Divide cost by number of connections to this power
-					false,           // boolean   ignore_weights,
-					true,            // boolean   sum_weights,
+					starPwr,          // Divide cost by number of connections to this power
+					false,            // boolean   ignore_weights,
+					true,             // boolean   sum_weights,
 					preferDisparity, 
-					debugLevel - 1); // int       debugLevel)
+					debugLevel - 1);  // int       debugLevel)
+			
+			conn_weight += entry.getValue();
 		}
-		double [] value_weight = {merged_plane.getValue(),merged_plane.getWeight()};
+		double [] value_weight = {merged_plane.getValue(),merged_plane.getWeight(),conn_weight};
 		if (starPwr != 0){
 			value_weight[0] /= (Math.pow(tile_weights.size() + 1.0, starPwr));
 		}

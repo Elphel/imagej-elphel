@@ -505,7 +505,7 @@ private Panel panel1,
 			addButton("CLT show fine corr",        panelClt1, color_configure);
 			addButton("CLT apply fine corr",       panelClt1, color_process);
 			addButton("CLT reset 3D",              panelClt1, color_stop);
-			addButton("CLT 3D",                    panelClt1, color_conf_process);
+			addButton("CLT 3D",                    panelClt1, color_process);
 			addButton("CLT planes",                panelClt1, color_conf_process);
 			addButton("CLT ASSIGN",                panelClt1, color_process);
 			addButton("CLT OUT 3D",                panelClt1, color_process);

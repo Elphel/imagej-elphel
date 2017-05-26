@@ -180,15 +180,23 @@ public class TwoLayerNeighbors {
 		{
 			if (nl2 < 0) return true; // connection nowhere is always valid;
 			int dir8 = (dir1 < 0) ? 8: dir1;
-			if ((dir8 >= merge_valid.length) || (nl1 >= merge_valid[dir8].length) || (dir12 >= merge_valid[dir8][nl1].length) || (nl2 >= merge_valid[dir8][nl1][dir12].length)) {
+			/*// uncomment to debug
+			if (	(dir8 >= merge_valid.length) ||
+					(merge_valid[dir8] == null) ||
+					(nl1 >= merge_valid[dir8].length) ||
+					(merge_valid[dir8][nl1] == null) ||
+					(dir12 >= merge_valid[dir8][nl1].length) ||
+					(merge_valid[dir8][nl1][dir12] == null) ||
+					(nl2 >= merge_valid[dir8][nl1][dir12].length)) {
 				System.out.println("BUG in isValidConn("+dir1+","+dir12+","+nl1+","+nl2+")");
-				return true;
+				return false;
 			}
-			
-			
-			if (merge_valid[dir8][nl1][dir12][nl2]) return true;
+			*/
+			if (    (merge_valid[dir8][nl1] != null ) &&          // should not happen
+					(merge_valid[dir8][nl1][dir12] != null ) &&   // can happen
+					(merge_valid[dir8][nl1][dir12][nl2])) return true;
 			if (debugLevel > 0){
-					System.out.println(" -- Fileterd out connection "+dir1+":"+nl1+" in direction "+dir12+" to layer "+nl2);
+					System.out.println(" -- Filterd out connection "+dir1+":"+nl1+" in direction "+dir12+" to layer "+nl2);
 			}
 			return false;
 		}

@@ -87,6 +87,7 @@ public class TilePlanes {
 		double       smplRms  = 0.1;    // Maximal RMS of the remaining tiles in a sample
 		
 		double [] starValueWeight = null; 
+		double    conn_density = Double.NaN; // 
 		
 		boolean      preferDisparity = false;
 		
@@ -142,17 +143,32 @@ public class TilePlanes {
 			if (starValueWeight != null){
 				pd.starValueWeight = starValueWeight.clone();
 			}
+			pd.conn_density =      this.conn_density;
 			return pd;
 		}
+//		public void setConnectionDensity(double density){
+//			conn_density = density;
+//		}
 		
-		public void setStarValueWeight(double value, double weight){
-			this.starValueWeight = new double[2];
-			this.starValueWeight[0] = value;
-			this.starValueWeight[1] = weight;
+		public double getConnectionDensity(){
+			return conn_density;
 		}
+		
+//		public void setStarValueWeight(double value, double weight){
+//			this.starValueWeight = new double[2];
+//			this.starValueWeight[0] = value;
+//			this.starValueWeight[1] = weight;
+//			System.out.println("setStarValueWeight(): conn_density is not set");
+//		}
 
 		public void setStarValueWeight(double[] val_weight){
-			this.starValueWeight = val_weight;
+			this.starValueWeight = new double[2];
+			this.starValueWeight[0] = val_weight[0];
+			this.starValueWeight[1] = val_weight[1];
+			this.conn_density = 0.0;
+//			if (val_weight.length > 2){
+			this.conn_density = val_weight[2];
+//			}
 		}
 
 		public double [] getStarValueWeight()

@@ -3244,17 +3244,22 @@ public class SuperTiles{
 	 * @param L  smallest eigenvalue of the merged plane
 	 * @param w1 weight of the first plane
 	 * @param w2 weight of the second plane
+	 * @param eigen_floor add to each L
 	 * @return degrading by merging measure. 0 if both are co-planar, is supposed to be positive. very "bad" planes do produce negative results - 
 	 * not yet clear why (related to non-linear coordinate transformation?) 
 	 */
 
 	public double mergeRQuality(
-			double L1,
-			double L2,
-			double L,
+			double L1_in,
+			double L2_in,
+			double L_in,
 			double w1,
-			double w2)
+			double w2,
+			double eigen_floor)
 	{
+		double L1 = L1_in + eigen_floor;
+		double L2 = L2_in + eigen_floor;
+		double L =  L_in + eigen_floor;
 		//				double Lav = Math.sqrt((L1*L1*w1 + L2*L2*w2)/(w1+w2));
 		double Lav = (L1*w1 + L2*w2)/(w1+w2);
 		///				double wors = (L - Lav)*(w1+w2)*(w1+w2) /(Lav*w1*w2);
@@ -3719,6 +3724,7 @@ public class SuperTiles{
 			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
 			double     dispNorm,
 			double     maxEigen, // maximal eigenvalue of planes to consider
+	  		double     eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
 			boolean    preferDisparity,
 			int [][][] conflicts,
 			int        debugLevel,
@@ -3757,6 +3763,7 @@ public class SuperTiles{
 					starWeightPwr,    // Use this power of tile weight when calculating connection cost					
 					dispNorm,
 					maxEigen, // maximal eigenvalue of planes to consider
+			  		eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
 					tnSurface,
 					preferDisparity,
 					debugLevel);
@@ -3783,6 +3790,7 @@ public class SuperTiles{
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
 			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
+			double     weightToDens,    // // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 			double     starValPwr, //  Raise value of each tile before averaging
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    preferDisparity,
@@ -3824,6 +3832,7 @@ public class SuperTiles{
 								diagonalWeight,  // double     diagonalWeight,
 								starPwr,         // double     starPwr, // Divide cost by number of connections to this power
 								starWeightPwr,    // Use this power of tile weight when calculating connection cost
+								weightToDens,    // // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 								starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 								dblTriLoss,      //  double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 								preferDisparity, // boolean    preferDisparity,
@@ -3852,7 +3861,8 @@ public class SuperTiles{
 			double     orthoWeight,
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
-			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
+			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
+			double     weightToDens,    // // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 			double     starValPwr, //  Raise value of each tile before averaging
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    preferDisparity,
@@ -3915,13 +3925,14 @@ public class SuperTiles{
 				diagonalWeight,
 				starPwr,    // Divide cost by number of connections to this power
 				starWeightPwr,    // Use this power of tile weight when calculating connection cost				
+				weightToDens,    // // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 				starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 				starSteps,
 				this.planes,
 				tnSurface,
 				preferDisparity);
 		
-		int [][][] neibs_prev = connectionCosts.initConnectionCosts(mod_supertiles);
+		int [][][] neibs_prev = connectionCosts.initConnectionCosts(mod_supertiles, debugLevel);
 		
 		int [][][] neibs_prev_old = new int [mod_supertiles.length][][];
 		double [][][]  val_weights = new double [mod_supertiles.length][][];
@@ -4112,6 +4123,7 @@ public class SuperTiles{
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
 			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
+			double     weightToDens,    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 			double     starValPwr, //  Raise value of each tile before averaging
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    preferDisparity,
@@ -4174,13 +4186,14 @@ public class SuperTiles{
 				diagonalWeight,
 				starPwr,    // Divide cost by number of connections to this power
 				starWeightPwr,    // Use this power of tile weight when calculating connection cost				
+				weightToDens,    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 				starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 				starSteps,
 				this.planes,
 				tnSurface,
 				preferDisparity);
 		
-		int [][][] neibs_prev = connectionCosts.initConnectionCosts(mod_supertiles);
+		int [][][] neibs_prev = connectionCosts.initConnectionCosts(mod_supertiles, debugLevel);
 		
 /** */		
 		int [][][] neibs_prev_old = new int [mod_supertiles.length][][];
@@ -4383,6 +4396,7 @@ public class SuperTiles{
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
 			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
+			double     weightToDens,    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 			double     starValPwr, //  Raise value of each tile before averaging
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    preferDisparity,
@@ -4417,6 +4431,7 @@ public class SuperTiles{
 						diagonalWeight,
 						starPwr,        // double     starPwr, // Divide cost by number of connections to this power
 						starWeightPwr,    // Use this power of tile weight when calculating connection cost						
+						weightToDens,    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 						starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 						dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 						preferDisparity,
@@ -4436,8 +4451,9 @@ public class SuperTiles{
 			double     orthoWeight,
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
-			double     starValPwr, //  Raise value of each tile before averaging
 			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
+			double     weightToDens,    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
+			double     starValPwr, //  Raise value of each tile before averaging
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    newConfl, // Allow more conflicts if overall cost is reduced
 			int        maxChanges,  // Maximal number of simultaneous connection changes around one tile (0 - any)
@@ -4471,6 +4487,7 @@ public class SuperTiles{
 						diagonalWeight,
 						starPwr,        // double     starPwr, // Divide cost by number of connections to this power
 						starWeightPwr,    // Use this power of tile weight when calculating connection cost						
+						weightToDens,    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 						starValPwr,     //double     starValPwr, //  Raise value of each tile before averaging
 						dblTriLoss,     //  When resolving double triangles allow minor degradation (0.0 - strict)
 						newConfl,       // boolean    newConfl, // Allow more conflicts if overall cost is reduced
@@ -4497,6 +4514,7 @@ public class SuperTiles{
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
 			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
+			double     weightToDens,    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 			double     starValPwr, //  Raise value of each tile before averaging
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    newConfl, // Allow more conflicts if overall cost is reduced
@@ -4581,13 +4599,14 @@ public class SuperTiles{
 				diagonalWeight,
 				starPwr,    // Divide cost by number of connections to this power
 				starWeightPwr,    // Use this power of tile weight when calculating connection cost				
+				weightToDens,    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 				starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 				starSteps,
 				this.planes,
 				tnSurface,
 				preferDisparity);
 		
-		int [][][] neibs_prev = connectionCosts.initConnectionCosts(mod_supertiles);
+		int [][][] neibs_prev = connectionCosts.initConnectionCosts(mod_supertiles, debugLevel);
 		
 		int [][][] conflicts_old = new int [nsTiles.length][][];
 		for (int isTile = 0; isTile < nsTiles.length; isTile++){
@@ -4792,6 +4811,7 @@ public class SuperTiles{
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
 			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
+			double     weightToDens,    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 			double     starValPwr, //  Raise value of each tile before averaging
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    newConfl, // Allow more conflicts if overall cost is reduced
@@ -4879,13 +4899,14 @@ public class SuperTiles{
 				diagonalWeight,
 				starPwr,    // Divide cost by number of connections to this power
 				starWeightPwr,    // Use this power of tile weight when calculating connection cost
+				weightToDens,    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 				starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 				starSteps,
 				this.planes,
 				tnSurface,
 				preferDisparity);
 		
-		int [][][] neibs_prev = connectionCosts.initConnectionCosts(mod_supertiles);
+		int [][][] neibs_prev = connectionCosts.initConnectionCosts(mod_supertiles, debugLevel);
 // connectionCosts now contains last calculated	val/weight pairs for broader array of tile data	
 		
 		int [][][] conflicts_old = new int [nsTiles.length][][];
@@ -5036,12 +5057,16 @@ public class SuperTiles{
 		
 		
 		if ((best_variant < 0) || (variant_costs_diff[best_variant] > dblTriLoss) ||
-				((variant_costs_diff[best_variant] >= 0.0) && (conflicts_var_cost[best_variant] >= conflicts_old_cost) &&
+//				((variant_costs_diff[best_variant] >= 0.0) && (conflicts_var_cost[best_variant] >= conflicts_old_cost) &&
+				((conflicts_var_cost[best_variant] >= conflicts_old_cost) && // try always prohibit worse conflicts
 						(num_var_conflicts[best_variant] >= 0))){
 			if (debugLevel > -1) {
 				System.out.println("resolveStarConflict(): FAILED find a sutable solution for tile "+nsTile+
 						", nl1 = "+nl1+
 						", nl2 = "+nl2 +" of "+ neibs_vars.length+" variants");
+				if (debugLevel > 1){
+					System.out.println("resolveStarConflict(): for tile "+nsTile+" FAILURE");
+				}
 				return false;
 			}
 		} else {
@@ -5062,45 +5087,50 @@ public class SuperTiles{
 						true, // use_all,
 						true, //use_odo,
 						true); // use_ood);
-				// update statistics
-				conflict_stats.addConflicts(variant_conflicts_stats[best_variant]);
+			}
+			// update statistics
+			conflict_stats.addConflicts(variant_conflicts_stats[best_variant]);
 
-				
-				// update conflict
-				for (int i = 0; i < nsTiles.length; i++){
-					conflicts[nsTiles[i]]=  variant_conflicts[best_variant][i];
+			// update conflict
+			for (int i = 0; i < nsTiles.length; i++){
+				conflicts[nsTiles[i]]=  variant_conflicts[best_variant][i];
+			}
+
+
+			// apply resolution
+			for (int i = 0; i < mod_supertiles.length; i++){
+				if (debugLevel > 1){
+					System.out.println("resolveStarConflict(): nsTile = "+nsTile+ "mod_supertiles["+i+"]="+mod_supertiles[i]);
 				}
-				
-				
-				// apply resolution
-				for (int i = 0; i < mod_supertiles.length; i++){
-					if (debugLevel > 1){
-						System.out.println("resolveStarConflict(): nsTile = "+nsTile+ "mod_supertiles["+i+"]="+mod_supertiles[i]);
-					}
-					if (neibs_vars[best_variant][i] != null) {
-						for (int nl = 0; nl < neibs_vars[best_variant][i].length; nl ++){
-							if (debugLevel > 1){
-								System.out.println("resolveStarConflict(): nl= = "+nl);
-							}
-							if (neibs_vars[best_variant][i][nl] != null){
-								planes[mod_supertiles[i]][nl].setNeibBest(neibs_vars[best_variant][i][nl]);
-							}
+				if (neibs_vars[best_variant][i] != null) {
+					for (int nl = 0; nl < neibs_vars[best_variant][i].length; nl ++){
+						if (debugLevel > 1){
+							System.out.println("resolveStarConflict(): nl= = "+nl);
+						}
+						if (neibs_vars[best_variant][i][nl] != null){
+							planes[mod_supertiles[i]][nl].setNeibBest(neibs_vars[best_variant][i][nl]);
 						}
 					}
 				}
-				// recalculate starValueWeights for and around tiles with modified  neighbors (no outside connections changed )nsTiles
-				updateStarValueStrength(
-						nsTiles,          // final int []         mod_supertiles,
-						orthoWeight,      // final double         orthoWeight,
-						diagonalWeight,   // final double         diagonalWeight,
-						starPwr,          // final double         starPwr,    // Divide cost by number of connections to this power
-						starWeightPwr,    // Use this power of tile weight when calculating connection cost						
-						starValPwr,       //double     starValPwr, //  Raise value of each tile before averaging
-						starSteps,        // final int            steps,
-						planes,           // final TilePlanes.PlaneData [][] planes,
-						preferDisparity); // final boolean        preferDisparity)
 			}
+			// recalculate starValueWeights for and around tiles with modified  neighbors (no outside connections changed )nsTiles
+			updateStarValueStrength(
+					nsTiles,          // final int []         mod_supertiles,
+					orthoWeight,      // final double         orthoWeight,
+					diagonalWeight,   // final double         diagonalWeight,
+					starPwr,          // final double         starPwr,    // Divide cost by number of connections to this power
+					starWeightPwr,    // Use this power of tile weight when calculating connection cost						
+					weightToDens,    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
+					starValPwr,       //double     starValPwr, //  Raise value of each tile before averaging
+					starSteps,        // final int            steps,
+					planes,           // final TilePlanes.PlaneData [][] planes,
+					preferDisparity, // final boolean        preferDisparity)
+					debugLevel);
 		}
+		if (debugLevel > 1){
+			System.out.println("resolveStarConflict(): for tile "+nsTile+" OK");
+		}
+
 		return true;
 	}
 	
@@ -5109,10 +5139,12 @@ public class SuperTiles{
 			final double         diagonalWeight,
 			final double         starPwr,    // Divide cost by number of connections to this power
 			final double         starWeightPwr,    // Use this power of tile weight when calculating connection cost
+			final double         weightToDens,    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 			final double         starValPwr, //  Raise value of each tile before averaging
 			final int            steps,
 			final TilePlanes.PlaneData [][] planes,
-			final boolean        preferDisparity)
+			final boolean        preferDisparity,
+			final int            debugLevel)
 	{
 		final int tilesX =        tileProcessor.getTilesX();
 		final int tilesY =        tileProcessor.getTilesY();
@@ -5132,6 +5164,7 @@ public class SuperTiles{
 							diagonalWeight, // double         diagonalWeight,
 							starPwr,        // double         starPwr,    // Divide cost by number of connections to this power
 							starWeightPwr,  // double         starWeightPwr,    // Use this power of tile weight when calculating connection cost
+							weightToDens,    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 							starValPwr,     //double          starValPwr, //  Raise value of each tile before averaging
 							steps,          // int            steps,
 							planes,         // TilePlanes.PlaneData [][] planes,
@@ -5141,7 +5174,7 @@ public class SuperTiles{
 					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
 						if ( planes[nsTile] != null) {
 							mod_supertiles[0] = nsTile;
-							connectionCosts.initConnectionCosts(mod_supertiles);
+							connectionCosts.initConnectionCosts(mod_supertiles, debugLevel);
 							double [][][] val_weights = connectionCosts.getValWeights();
 							for (int np = 0; np < planes[nsTile].length; np++){ // nu
 								if (planes[nsTile][np] != null) {
@@ -5162,10 +5195,12 @@ public class SuperTiles{
 			final double         diagonalWeight,
 			final double         starPwr,    // Divide cost by number of connections to this power
 			final double         starWeightPwr,    // Use this power of tile weight when calculating connection cost			
+			final double         weightToDens,    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 			final double         starValPwr, //  Raise value of each tile before averaging
 			final int            steps,
 			final TilePlanes.PlaneData [][] planes,
-			final boolean        preferDisparity)
+			final boolean        preferDisparity,
+			final int            debugLevel)
 	{
 		final int tilesX =        tileProcessor.getTilesX();
 		final int tilesY =        tileProcessor.getTilesY();
@@ -5184,17 +5219,18 @@ public class SuperTiles{
 							diagonalWeight, // double         diagonalWeight,
 							starPwr,        // double         starPwr,    // Divide cost by number of connections to this power
 							starWeightPwr,    // Use this power of tile weight when calculating connection cost							
+							weightToDens,    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 							starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 							steps,          // int            steps,
 							planes,         // TilePlanes.PlaneData [][] planes,
 							tnSurface,      // TileSurface.TileNeibs tnSurface,
 							preferDisparity); // boolean preferDisparity)
-					int [] mod_supertile = new int[1];
+					int [] supertiles = new int[1];
 					for (int isTile = ai.getAndIncrement(); isTile < mod_supertiles.length; isTile = ai.getAndIncrement()) {
 						int nsTile = mod_supertiles[isTile];
 						if ((nsTile >= 0) && ( planes[nsTile] != null)) {
-							mod_supertile[0] = nsTile;
-							connectionCosts.initConnectionCosts(mod_supertile);
+							supertiles[0] = nsTile;
+							connectionCosts.initConnectionCosts(supertiles, debugLevel - 2);
 							double [][][] val_weights = connectionCosts.getValWeights();
 							for (int np = 0; np < planes[nsTile].length; np++){ // nu
 								if (planes[nsTile][np] != null) {
@@ -5467,8 +5503,9 @@ public class SuperTiles{
 			int        starSteps, // How far to look around when calculationg connection cost
 			double     orthoWeight,
 			double     diagonalWeight,
-			double     starPwr, // Divide cost by number of connections to this power
-			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
+			double     starPwr,         // Divide cost by number of connections to this power
+			double     starWeightPwr,   // Use this power of tile weight when calculating connection cost
+			double     weightToDens,    // // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 			double     starValPwr, //  Raise value of each tile before averaging
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    newConfl, // Allow more conflicts if overall cost is reduced
@@ -5484,10 +5521,12 @@ public class SuperTiles{
 				diagonalWeight,   // final double         diagonalWeight,
 				starPwr,          // final double         starPwr,    // Divide cost by number of connections to this power
 				starWeightPwr,    // final double         starWeightPwr,    // Use this power of tile weight when calculating connection cost
+				weightToDens,     // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 				starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 				starSteps,        // final int            steps,
 				this.planes,      // final TilePlanes.PlaneData [][] planes,
-				preferDisparity); // final boolean        preferDisparity)
+				preferDisparity,  // final boolean        preferDisparity)
+				debugLevel);
 		
 		Conflicts iconflicts0 = new Conflicts(this); 
 		int [][][] conflicts0 = iconflicts0.detectTriangularConflicts(
@@ -5511,7 +5550,8 @@ public class SuperTiles{
 						orthoWeight, // double     orthoWeight,
 						diagonalWeight, // double     diagonalWeight,
 						starPwr,        // double     starPwr, // Divide cost by number of connections to this power
-						starWeightPwr,    // Use this power of tile weight when calculating connection cost						
+						starWeightPwr,    // Use this power of tile weight when calculating connection cost
+						weightToDens,    // // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 						starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 						dblTriLoss, // double     diagonalWeight,
 						preferDisparity,
@@ -5529,6 +5569,7 @@ public class SuperTiles{
 						diagonalWeight, // double     diagonalWeight,
 						starPwr,        // double     starPwr, // Divide cost by number of connections to this power
 						starWeightPwr,    // Use this power of tile weight when calculating connection cost						
+						weightToDens,    // // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 						starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 						dblTriLoss, // double     diagonalWeight,
 						preferDisparity,
@@ -5546,6 +5587,7 @@ public class SuperTiles{
 						diagonalWeight, // double     diagonalWeight,
 						starPwr,        // double     starPwr, // Divide cost by number of connections to this power
 						starWeightPwr,    // Use this power of tile weight when calculating connection cost						
+						weightToDens,    // // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 						starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 						dblTriLoss, // double     diagonalWeight,
 						preferDisparity,
@@ -5563,6 +5605,7 @@ public class SuperTiles{
 						diagonalWeight, // double     diagonalWeight,
 						starPwr,        // double     starPwr, // Divide cost by number of connections to this power
 						starWeightPwr,    // Use this power of tile weight when calculating connection cost					
+						weightToDens,    // // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 						starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 						dblTriLoss, // double     diagonalWeight,
 						newConfl, // Allow more conflicts if overall cost is reduced
@@ -5631,7 +5674,8 @@ public class SuperTiles{
 			double     orthoWeight,
 			double     diagonalWeight,
 			double     starPwr, // Divide cost by number of connections to this power
-			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
+			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
+			double     weightToDens,    // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 			double     starValPwr, //  Raise value of each tile before averaging
 			double     dblTriLoss, //  When resolving double triangles allow minor degradation (0.0 - strict)
 			boolean    preferDisparity,
@@ -5709,12 +5753,13 @@ public class SuperTiles{
 										diagonalWeight,
 										starPwr,    // Divide cost by number of connections to this power
 										starWeightPwr,    // Use this power of tile weight when calculating connection cost										
+										weightToDens,    // // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 										starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 										starSteps,
 										this.planes,
 										tnSurface,
 										preferDisparity);
-								int [][][] neibs_prev = connectionCosts.initConnectionCosts(mod_supertiles);
+								int [][][] neibs_prev = connectionCosts.initConnectionCosts(mod_supertiles, debugLevel);
 
 								int [][][] neibs_prev_old = new int [mod_supertiles.length][][];
 								double [][][]  val_weights = new double [mod_supertiles.length][][];
@@ -6237,6 +6282,7 @@ public class SuperTiles{
 			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
 			double dispNorm,
 			double maxEigen, // maximal eigenvalue of planes to consider
+	  		double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
 			TileSurface.TileNeibs tnSurface,
 			boolean preferDisparity,
 			int debugLevel)
@@ -6311,7 +6357,8 @@ public class SuperTiles{
 					merged[np].getValue(), // double L2,
 					merged[np].getValue(), // double L,
 					w1, // double w1,
-					w2); // double w2)
+					w2, // double w2)
+					eigenFloor);//			double eigen_floor)
 			double this_rq_norm = this_rq[np];
 			if ((w1 + w2) < weakWorsening) this_rq_norm *= (w1 + w2) / weakWorsening; // forgive more for weak planes
 
@@ -6375,6 +6422,7 @@ public class SuperTiles{
 			final double maxWorldSin2,
 			final double dispNorm,
 			final double maxEigen, // maximal eigenvalue of planes to consider
+	  		final double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
 			final double minWeight, // minimal pain weight to consider
 			final int debugLevel,
 			final int dbg_X,
@@ -6442,18 +6490,20 @@ public class SuperTiles{
 													double w2 = planes[nsTile][np].getWeight();
 													double this_rq = mergeRQuality(
 															planes[nsTile0][np0].getValue(), // double L1,
-															planes[nsTile][np].getValue(), // double L2,
+															planes[nsTile][np].getValue() , // double L2,
 															merge_ev[np], // double L,
 															w1, // double w1,
-															w2); // double w2)
+															w2, // double w2)
+															eigenFloor);//			double eigen_floor)
 													double this_rq_norm = this_rq;
 													if ((w1 + w2) < weakWorsening) this_rq_norm *= (w1 + w2) / weakWorsening; // forgive more for weak planes
 													double this_rq_eq = mergeRQuality(
-															planes[nsTile0][np0].getValue(), // double L1,
-															planes[nsTile][np].getValue(), // double L2,
+															planes[nsTile0][np0].getValue() + eigenFloor, // double L1,
+															planes[nsTile][np].getValue() + eigenFloor, // double L2,
 															merge_ev[np], // double L,
 															1.0, // double w1,
-															1.0); // double w2)
+															1.0, // double w2)
+															eigenFloor);//			double eigen_floor)
 													
 													double this_rq_eq_norm = this_rq_eq;
 													if ((w1 + w2) < weakWorsening) this_rq_eq_norm *= (w1 + w2) / weakWorsening; // forgive more for weak planes 
@@ -6487,7 +6537,7 @@ public class SuperTiles{
 																	" L1="+planes[nsTile0][np0].getValue()+" L2="+planes[nsTile][np].getValue()+" L="+merge_ev[np]);
 														}
 													}
-													if (dl > 3) {
+													if (dl > 0) {
 														System.out.println("nsTile0="+nsTile0+":"+np0+", nsTile="+nsTile+":"+np+", this_rq="+this_rq+
 																", this_rq_eq="+this_rq_eq+
 																" w1="+w1+" w2="+w2+
@@ -6515,10 +6565,273 @@ public class SuperTiles{
 		ImageDtt.startAndJoin(threads);
 	}
 	
+	public int [][][] getMergeSameTileCandidates(
+			final int debugLevel,
+			final int dbg_X,
+			final int dbg_Y)
+	{
+		final int tilesX =        tileProcessor.getTilesX();
+		final int tilesY =        tileProcessor.getTilesY();
+		final int superTileSize = tileProcessor.getSuperTileSize();
+		//				final int tileSize =      tileProcessor.getTileSize();
+		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;  
+		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
+		final int nStiles =       stilesX * stilesY;
+		final int [][][] merge_candidates = new int [nStiles][][];
+		final int debug_stile = dbg_Y * stilesX + dbg_X;
+		class LayersLinks{
+			int nl1, nl2, links1,  links2, shared;
+			LayersLinks (int nl1, int nl2, int links1, int links2, int shared){
+				this.nl1 =    nl1;
+				this.nl2 =    nl2;
+				this.links1 = links1;
+				this.links2 = links2;
+				this.shared = shared;
+			}
+			int [] toArray()
+			{
+				int [] data = {nl1, nl2, links1,  links2, shared};
+				return data;
+			}
+		}
+		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) if ( planes[nsTile] != null) {
+						ArrayList<LayersLinks> links_list = new ArrayList<LayersLinks>();
+						int dl = ((debugLevel > 0) && (nsTile == debug_stile)) ? 1:0;
+						if (dl > 0){
+							System.out.println("getMergeCandidates(): nsTile="+nsTile);
+						}
+						for (int np1 = 0; np1 < planes[nsTile].length; np1++) if (planes[nsTile][np1] != null){ // nu
+							boolean [][] merged_valid1 = planes[nsTile][np1].getMergedValid();
+							if (merged_valid1 != null){
+								for (int np2 = np1 + 1; np2 < planes[nsTile].length; np2++) if (planes[nsTile][np2] != null){ // nu
+									boolean [][] merged_valid2 = planes[nsTile][np2].getMergedValid();
+									if (merged_valid2 != null){
+										int num_links1 = 0;
+										int num_links2 = 0;
+										int num_shared = 0;
+										for (int dir = 0; dir < 8; dir++){
+											if (merged_valid1[dir] != null){
+												for (int nl = 0; nl < merged_valid1[dir].length; nl++){
+													if (merged_valid1[dir][nl]) num_links1++;
+												}
+											}
+											if (merged_valid2[dir] != null){
+												for (int nl = 0; nl < merged_valid2[dir].length; nl++){
+													if (merged_valid2[dir][nl]) num_links2++;
+												}
+											}
+											if ((merged_valid1[dir] != null) && (merged_valid2[dir] != null)) { // should be the same length
+												for (int nl = 0; nl < merged_valid2[dir].length; nl++){
+													if (merged_valid1[dir][nl] && merged_valid2[dir][nl]) num_shared++;
+												}
+											}
+										}
+										if (num_shared > 0) links_list.add(new LayersLinks(np1, np2, num_links1, num_links2, num_shared));
+									}
+								}
+							}
+						}
+						if (!links_list.isEmpty()){
+							merge_candidates[nsTile] = new int [links_list.size()][];
+							int indx = 0;
+							for (LayersLinks ll : links_list){
+								merge_candidates[nsTile][indx++] = ll.toArray();
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		if (debugLevel > 1){
+			System.out.println("Supertile planes that are candidates for merging:");
+			for (int nsTile = 0; nsTile < nStiles; nsTile++){
+				int stx = nsTile % stilesX;
+				int sty = nsTile / stilesX;
+				if (merge_candidates[nsTile] != null){
+					for (int i = 0 ; i < merge_candidates[nsTile].length; i++){
+						double sharedRatio = 2.0 * merge_candidates[nsTile][i][4] / (merge_candidates[nsTile][i][2] + merge_candidates[nsTile][i][3]);
+						System.out.println(nsTile+" ["+stx+":"+sty+"] ("+merge_candidates[nsTile][i][0]+", "+merge_candidates[nsTile][i][1]+")"+
+						" shared "+(((int) (sharedRatio * 1000)) / 10) + "%" + 
+						" links1 = "+merge_candidates[nsTile][i][2]+
+						" links2 = "+merge_candidates[nsTile][i][3]+
+						" shared links = "+merge_candidates[nsTile][i][4]);
+					}
+				}
+			}
+		}
+		return merge_candidates;
+	}
 	
-	
-	
-	
+	public boolean [][] mergeSameTileEvaluate(
+			final int [][][] merge_candidates,
+			final double rquality,
+			final double worstWorsening2,// Worst case worsening for thin planes,
+			final double worstEq,        // Worst case worsening after merge with equal weights
+			final double worstEq2,       // Worst case worsening for thin planes with equal weights
+			final double weakWorsening,
+			final double okMergeEigen,
+			final double maxWorldSin2,
+			final double dispNorm,
+			final double maxEigen, // maximal eigenvalue of planes to consider
+	  		final double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
+			final double minWeight, // minimal pain weight to consider
+			final boolean    preferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
+			final int debugLevel,
+			final int dbg_X,
+			final int dbg_Y)
+	{
+		final int tilesX =        tileProcessor.getTilesX();
+		final int tilesY =        tileProcessor.getTilesY();
+		final int superTileSize = tileProcessor.getSuperTileSize();
+		//				final int tileSize =      tileProcessor.getTileSize();
+		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;  
+		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
+		final int nStiles =       stilesX * stilesY;
+		final boolean [][] merge_pairs = new boolean [nStiles][];
+		final int debug_stile = dbg_Y * stilesX + dbg_X;
+		final Thread[] threads = ImageDtt.newThreadArray((debugLevel > 1)? 1 : tileProcessor.threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) if ( merge_candidates[nsTile] != null) {
+						merge_pairs[nsTile] = new boolean [merge_candidates[nsTile].length];
+						int dl = ((debugLevel > 0) && (nsTile == debug_stile)) ? 1: ((debugLevel > 1) ? 1:0);
+						if (dl > 0){
+							System.out.println("mergeSameTileEvaluate(): nsTile="+nsTile);
+						}
+
+						for (int pair = 0; pair < merge_candidates[nsTile].length; pair ++){
+							int np1 =  merge_candidates[nsTile][pair][0];
+							int np2 =  merge_candidates[nsTile][pair][1];
+							// check planes are plane, both eigenvalues below threshold and strengths above threshold (may be set t0 0)							
+							if (	((maxEigen == 0.0) || (
+									(planes[nsTile][np1].getValue() < corrMaxEigen(
+											maxEigen,
+											dispNorm,
+											planes[nsTile][np1])) &&
+									(planes[nsTile][np2].getValue() < corrMaxEigen(
+											maxEigen,
+											dispNorm,
+											planes[nsTile][np2]))													
+									)) &&
+									(planes[nsTile][np1].getWeight() > minWeight) &&
+									(planes[nsTile][np2].getWeight() > minWeight)
+									) {
+								TilePlanes.PlaneData merged_pd = planes[nsTile][np1].mergePlaneToThis(
+										planes[nsTile][np2], // PlaneData otherPd,
+										1.0,         // double    scale_other,
+										1.0, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost																		
+										false,       // boolean   ignore_weights,
+										true, // boolean   sum_weights,
+										preferDisparity, 
+										dl-1); // int       debugLevel)
+
+								if (merged_pd !=null) { // now always, but may add later
+									///															merged_pd.scaleWeight(0.5);
+									//									this_plane.setNeibMatch(dir, np, merged_pd.getValue()); // smallest eigenValue
+								}
+
+								TilePlanes.PlaneData merged_pd_eq = planes[nsTile][np1].mergePlaneToThis(
+										planes[nsTile][np2], // PlaneData otherPd,
+										1.0,         // double    scale_other,
+										1.0, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost																		
+										true, // false,       // boolean   ignore_weights,
+										true, // boolean   sum_weights,
+										preferDisparity, 
+										dl-1); // int       debugLevel)
+
+								if (merged_pd_eq !=null) { // now always, but may add later
+									///															merged_pd.scaleWeight(0.5);
+									//									this_plane.setNeibMatchEq(dir, np, merged_pd.getValue()); // smallest eigenValue
+								}
+								double w1 = planes[nsTile][np1].getWeight();
+								double w2 = planes[nsTile][np2].getWeight();
+								double this_rq = mergeRQuality(
+										planes[nsTile][np1].getValue(), // double L1,
+										planes[nsTile][np2].getValue() , // double L2,
+										merged_pd.getValue(), // double L,
+										w1, // double w1,
+										w2, // double w2)
+										eigenFloor);//			double eigen_floor)
+								double this_rq_norm = this_rq;
+								if ((w1 + w2) < weakWorsening) this_rq_norm *= (w1 + w2) / weakWorsening; // forgive more for weak planes
+								double this_rq_eq = mergeRQuality(
+										planes[nsTile][np1].getValue() + eigenFloor, // double L1,
+										planes[nsTile][np2].getValue() + eigenFloor, // double L2,
+										merged_pd_eq.getValue(), // double L,
+										1.0, // double w1,
+										1.0, // double w2)
+										eigenFloor);//			double eigen_floor)
+								
+								double this_rq_eq_norm = this_rq_eq;
+								if ((w1 + w2) < weakWorsening) this_rq_eq_norm *= (w1 + w2) / weakWorsening; // forgive more for weak planes 
+								if ((this_rq_norm <= rquality) ||
+										((merged_pd.getValue() <= okMergeEigen) && (this_rq_norm <= worstWorsening2)) || // use higher threshold
+										(this_rq_eq_norm <= worstEq) ||
+										((merged_pd_eq.getValue() <= okMergeEigen) && (this_rq_eq_norm <= worstEq2)) // use higher threshold
+										) {
+									if ((maxWorldSin2 >= 1.0) || (planes[nsTile][np1].getWorldSin2(planes[nsTile][np2]) <=maxWorldSin2)) {
+										if (dl > 0){
+											System.out.print("mergeSameTileEvaluate() : nsTile="+nsTile+":"+np1+":"+np2+" merging is VALID, because ");
+											if (this_rq_norm <= rquality)
+												System.out.print(" (this_rq_norm="+this_rq_norm+"  <= rquality)");
+											if ((merged_pd.getValue() <= okMergeEigen) && (this_rq_norm <= worstWorsening2))
+												System.out.print(" merge_ev[np]="+merged_pd.getValue()+" <= okMergeEigen) && (this_rq_norm="+this_rq_norm+" <= worstWorsening2)");
+											if (this_rq_eq_norm <= worstEq)
+												System.out.print(" this_rq_eq_norm="+this_rq_eq_norm+" <= worstEq");
+											if ((merged_pd_eq.getValue() <= okMergeEigen) && (this_rq_eq_norm <= worstEq2))
+												System.out.print(" ((merge_ev_eq[np]="+merged_pd_eq.getValue()+" <= okMergeEigen) && (this_rq_eq_norm="+this_rq_eq_norm+" <= worstEq2)");
+											System.out.println();
+											System.out.println("nsTile="+nsTile+":"+np1+":"+np2+", this_rq="+this_rq+
+													", this_rq_eq="+this_rq_eq+
+													" w1="+w1+" w2="+w2+
+													" L1="+planes[nsTile][np1].getValue()+" L2="+planes[nsTile][np2].getValue()+
+													" L="+merged_pd.getValue()+" L_eq="+merged_pd_eq.getValue());
+											System.out.println("nsTile="+nsTile+":"+np1+":"+np2+", world sin2 ="+
+													planes[nsTile][np1].getWorldSin2(planes[nsTile][np2]));
+											System.out.println("nsTile="+nsTile+":"+np1+":"+np2+
+													", world dist this="+ Math.sqrt(planes[nsTile][np1].getWorldPlaneDist2(planes[nsTile][np2]))+
+													", world dist other="+Math.sqrt(planes[nsTile][np2].getWorldPlaneDist2(planes[nsTile][np1]))+
+													", world dist sum="+Math.sqrt(planes[nsTile][np1].getWorldPlaneDist2(planes[nsTile][np2])+
+															planes[nsTile][np2].getWorldPlaneDist2(planes[nsTile][np1])));
+										}
+										merge_pairs[nsTile][pair] = true;
+									}
+								}
+								if (dl > 0)  {
+									if (!merge_pairs[nsTile][pair]){
+										System.out.print("mergeSameTileEvaluate() : nsTile="+nsTile+":"+np1+":"+np2+" merging is INVALID");
+										System.out.println("nsTile="+nsTile+":"+np1+":"+np2+", this_rq="+this_rq+
+												", this_rq_eq="+this_rq_eq+
+												" w1="+w1+" w2="+w2+
+												" L1="+planes[nsTile][np1].getValue()+" L2="+planes[nsTile][np2].getValue()+
+												" L="+merged_pd.getValue()+" L_eq="+merged_pd_eq.getValue());
+										System.out.println("nsTile="+nsTile+":"+np1+":"+np2+", world sin2 ="+
+												planes[nsTile][np1].getWorldSin2(planes[nsTile][np2]));
+										System.out.println("nsTile="+nsTile+":"+np1+":"+np2+
+												", world dist this="+ Math.sqrt(planes[nsTile][np1].getWorldPlaneDist2(planes[nsTile][np2]))+
+												", world dist other="+Math.sqrt(planes[nsTile][np2].getWorldPlaneDist2(planes[nsTile][np1]))+
+												", world dist sum="+Math.sqrt(planes[nsTile][np1].getWorldPlaneDist2(planes[nsTile][np2])+
+														planes[nsTile][np2].getWorldPlaneDist2(planes[nsTile][np1])));
+									}
+								}
+							}							
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return merge_pairs;
+	}
+
 	/**
 	 * Find mutual links between multi-layer planes for supertiles. requires that for each plane there are calculated smalles eigenvalues
 	 * for merging with each plane for each of 8 neighbors 
@@ -6539,6 +6852,7 @@ public class SuperTiles{
 //			final double dispNorm,
 //			final double maxEigen, // maximal eigenvalue of planes to consider
 //			final double minWeight, // minimal pain weight to consider
+	  		final double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
 			final int debugLevel,
 			final int dbg_X,
 			final int dbg_Y)
@@ -6618,7 +6932,8 @@ public class SuperTiles{
 										int [] best_pair = {-1,-1};
 										double best_rqual = Double.NaN;
 										for (int np0 = np0_min; np0 < this_matched.length; np0++) if (planes[nsTile0][np0] != null){
-											double [] merge_ev = planes[nsTile0][np0].getMergedValue(dir);
+											double [] merge_ev =    planes[nsTile0][np0].getMergedValue(dir);
+											double [] merge_ev_eq = planes[nsTile0][np0].getMergedValueEq(dir);
 //											if (dl > 0){
 //												System.out.println(" np0 = "+np0+" (of ("+np0_min+"..."+this_matched.length+"), ");
 //											}
@@ -6636,7 +6951,22 @@ public class SuperTiles{
 																planes[nsTile][np].getValue(), // double L2,
 																merge_ev[np], // double L,
 																w1, // double w1,
-																w2); // double w2)
+																w2, // double w2)
+																eigenFloor);//			double eigen_floor)
+														double this_rq_nofloor = mergeRQuality(
+																planes[nsTile0][np0].getValue(), // double L1,
+																planes[nsTile][np].getValue(), // double L2,
+																merge_ev[np], // double L,
+																w1, // double w1,
+																w2, // double w2)
+																0); // eigenFloor);//			double eigen_floor)
+														double this_rq_eq = mergeRQuality(
+																planes[nsTile0][np0].getValue(), // double L1,
+																planes[nsTile][np].getValue(), // double L2,
+																merge_ev_eq[np], // double L,
+																1.0, // double w1,
+																1.0, // double w2)
+																eigenFloor);//			double eigen_floor)
 														this_rq /= (w1 + w2); // for comparison reduce this value for stronger planes 
 														if (Double.isNaN(best_rqual) || (this_rq < best_rqual)){ // OK if Double.isNaN(this_rq[np])
 															if (dl > 0){
@@ -6651,13 +6981,18 @@ public class SuperTiles{
 																System.out.println("nsTile0="+nsTile0+":"+np0+", nsTile="+nsTile+":"+np+", this_rq="+this_rq+
 																		", this_rq*(w1+w2)="+(this_rq * (w1 + w2))+
 																		" w1="+w1+" w2="+w2+
-																		" L1="+planes[nsTile0][np0].getValue()+" L2="+planes[nsTile][np].getValue()+" L="+merge_ev[np]);
+																		" L1="+planes[nsTile0][np0].getValue()+" L2="+planes[nsTile][np].getValue()+" L="+merge_ev[np]+
+																		" L_eq="+merge_ev_eq[np]);
 															}
 														}
 														if (dl > 0) {
 															System.out.println("nsTile0="+nsTile0+":"+np0+", nsTile="+nsTile+":"+np+", this_rq="+this_rq+
+																	" this_rq_raw="+(this_rq * (w1+w2)) +
+																	" this_rq_eq="+(this_rq_eq) +
+																	" this_rq_nofloor="+(this_rq_nofloor) +
 																	" w1="+w1+" w2="+w2+
-																	" L1="+planes[nsTile0][np0].getValue()+" L2="+planes[nsTile][np].getValue()+" L="+merge_ev[np]);
+																	" L1="+planes[nsTile0][np0].getValue()+" L2="+planes[nsTile][np].getValue()+" L="+merge_ev[np]+
+																	" L_eq="+merge_ev_eq[np]);
 															System.out.println("nsTile0="+nsTile0+":"+np0+", nsTile="+nsTile+":"+np+", world sin2 ="+
 																	planes[nsTile0][np0].getWorldSin2(planes[nsTile][np]));
 															System.out.println("nsTile0="+nsTile0+":"+np0+", nsTile="+nsTile+":"+np+
@@ -6672,7 +7007,7 @@ public class SuperTiles{
 										}
 										if (Double.isNaN(best_rqual)){
 											if (dl >0) {
-												System.out.println("selectNeighborPlanesMutual - nothing found");
+												System.out.println("selectNeighborPlanesMutual - nothing found for dir = " + dir);
 											}
 											break; // nothing found
 										}
@@ -6751,6 +7086,7 @@ public class SuperTiles{
 			final double maxWorldSin2,
 			final double dispNorm,
 			final double maxEigen, // maximal eigenvalue of planes to consider
+	  		final double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
 			final double minWeight, // minimal pain weight to consider
 			final int debugLevel,
 			final int dbg_X,
@@ -6865,7 +7201,8 @@ public class SuperTiles{
 																planes[nsTile][np].getValue(), // double L2,
 																merge_ev[np], // double L,
 																w1, // double w1,
-																w2); // double w2)
+																w2, // double w2)
+																eigenFloor);//			double eigen_floor)
 														double this_rq_norm = this_rq;
 														if ((w1 + w2) < weakWorsening) this_rq_norm *= (w1 + w2) / weakWorsening; // forgive more for weak planes 
 														if ((this_rq_norm <= rquality) ||(merge_ev[np] <= okMergeEigen)) {

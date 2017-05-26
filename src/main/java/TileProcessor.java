@@ -3424,15 +3424,42 @@ public class TileProcessor {
 				clt_parameters.plWeakWorsening,  // final double worst_worsening,
 				clt_parameters.plOKMergeEigen,   // final double okMergeEigen, f result of the merged planes is below, OK to use thin planes (higher) threshold
 				clt_parameters.plMaxWorldSin2,   // final double maxWorldSin2,
-
 				clt_parameters.plDispNorm,
 				clt_parameters.plMaxEigen,
+				clt_parameters.plEigenFloor,    // final double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
 				clt_parameters.plMinStrength,
 				0, // final int debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 /*	*/	
+		
+		int [][][] merge_candidates =  st.getMergeSameTileCandidates(
+				2, // final int debugLevel,
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+		
+		boolean [][] pairs_to_merge = st.mergeSameTileEvaluate(
+				merge_candidates, // final int [][][] merge_candidates,
+				clt_parameters.plWorstWorsening, // final double worst_worsening,
+				clt_parameters.plWorstWorsening2,// final double worst_worsening2  Worst case worsening for thin planes,
+				clt_parameters.plWorstEq,        // final double worstEq,        // Worst case worsening after merge with equal weights
+				clt_parameters.plWorstEq2,       // final double worstEq2,       // Worst case worsening for thin planes with equal weights
+				clt_parameters.plWeakWorsening,  // final double worst_worsening,
+				clt_parameters.plOKMergeEigen,   // final double okMergeEigen, f result of the merged planes is below, OK to use thin planes (higher) threshold
+				clt_parameters.plMaxWorldSin2,   // final double maxWorldSin2,
+				clt_parameters.plDispNorm,
+				clt_parameters.plMaxEigen,
+				clt_parameters.plEigenFloor,    // final double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
+				0.0, // clt_parameters.plMinStrength,
+				clt_parameters.plPreferDisparity,
+				2, // final int debugLevel)
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+		
+		
+		
 		st.selectNeighborPlanesMutual(
+				clt_parameters.plEigenFloor,    // final double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
 				0, // final int debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
@@ -3445,6 +3472,7 @@ public class TileProcessor {
 
 				clt_parameters.plDispNorm,
 				clt_parameters.plMaxEigen,
+				clt_parameters.plEigenFloor,    // final double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
 				clt_parameters.plMinStrength,
 				0, // final int debugLevel)
 				clt_parameters.tileX,
@@ -3461,6 +3489,7 @@ public class TileProcessor {
 				clt_parameters.plStarDiag,     // double     diagonalWeight,
 				clt_parameters.plStarPwr,      // double     starPwr,    // Divide cost by number of connections to this power
 				clt_parameters.plStarWeightPwr,// double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
+				clt_parameters.plWeightToDens, // double     weightToDens,    // // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 				clt_parameters.plStarValPwr,   // double     starValPwr, //  Raise value of each tile before averaging
 				clt_parameters.plDblTriLoss,   // double     diagonalWeight,
 				clt_parameters.plNewConfl,     // boolean    preferDisparity, // Allow more conflicts if overall cost is reduced
@@ -3476,7 +3505,7 @@ public class TileProcessor {
 				clt_parameters.plConflMulti,   // boolean    conflMulti,    // Resolve multiple odo triangles conflicts
 				clt_parameters.plConflDiag,	   // boolean    conflDiag,     // Resolve diagonal (ood) conflicts
 				clt_parameters.plConflStar,    // boolean    conflStar,     // Resolve all conflicts around a supertile 
-				clt_parameters.plStarSteps,    // int starSteps, // How far to look around when calculationg connection cost
+				clt_parameters.plStarSteps,    // int starSteps, // How far to look around when calculating connection cost
 				clt_parameters.plStarOrtho,    // double     orthoWeight,
 				clt_parameters.plStarDiag,     // double     diagonalWeight,
 				clt_parameters.plStarPwr,      // double     starPwr, // Divide cost by number of connections to this power
@@ -3579,12 +3608,14 @@ public class TileProcessor {
 
 					clt_parameters.plDispNorm,
 					clt_parameters.plMaxEigen,
+					clt_parameters.plEigenFloor,    // final double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
 					clt_parameters.plMinStrength,
 					0, // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
 
 			st.selectNeighborPlanesMutual(
+					clt_parameters.plEigenFloor,    // final double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
 					0, // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
@@ -3600,6 +3631,7 @@ public class TileProcessor {
 					clt_parameters.plStarDiag,      // double     diagonalWeight,
 					clt_parameters.plStarPwr,       // double     starPwr, // Divide cost by number of connections to this power
 					clt_parameters.plStarWeightPwr, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
+					clt_parameters.plWeightToDens,  // double     weightToDens,    // // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
 					clt_parameters.plStarValPwr,    // double     starValPwr, //  Raise value of each tile before averaging
 					clt_parameters.plDblTriLoss,    // double     diagonalWeight,
 					clt_parameters.plNewConfl,      // boolean    preferDisparity, // Allow more conflicts if overall cost is reduced
