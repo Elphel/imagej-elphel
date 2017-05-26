@@ -3343,7 +3343,7 @@ public class TileProcessor {
 		
 
 		// moved here
-		if (clt_parameters.dbg_migrate) {
+//		if (clt_parameters.dbg_migrate) {
 			// separate each supertile data into clusters, trying both horizontal and perpendicular to view planes
 			double []  world_hor = {0.0, 1.0, 0.0};
 			st.processPlanes5(
@@ -3380,7 +3380,7 @@ public class TileProcessor {
 					0, // -1,                       // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
-		} else {
+/*		} else {
 			st.processPlanes4(
 					clt_parameters.stMeasSel, //            =     1   //Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 					clt_parameters.plDispNorm, //           =   2.0;  // Normalize disparities to the average if above
@@ -3406,78 +3406,95 @@ public class TileProcessor {
 					clt_parameters.tileX,
 					clt_parameters.tileY);
 		}
-
+*/
 		showDoubleFloatArrays sdfa_instance = null;
 		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		if (clt_parameters.dbg_migrate) {
+			// Trying new class
+			LinkPlanes lp = new LinkPlanes (clt_parameters, st);
+			lp.matchPlanes(
+					st.planes, // final TilePlanes.PlaneData [][] planes,			
+					2, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
 
-		st.matchPlanes(
-				clt_parameters.plPreferDisparity,
-				0, // debugLevel
-				clt_parameters.tileX,
-				clt_parameters.tileY); 
+			lp.filterNeighborPlanes(
+					st.planes, // final TilePlanes.PlaneData [][] planes,			
+					2, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
 
-		st.filterNeighborPlanes(
-				clt_parameters.plWorstWorsening, // final double worst_worsening,
-				clt_parameters.plWorstWorsening2,// final double worst_worsening2  Worst case worsening for thin planes,
-				clt_parameters.plWorstEq,        // final double worstEq,        // Worst case worsening after merge with equal weights
-				clt_parameters.plWorstEq2,       // final double worstEq2,       // Worst case worsening for thin planes with equal weights
-				clt_parameters.plWeakWorsening,  // final double worst_worsening,
-				clt_parameters.plOKMergeEigen,   // final double okMergeEigen, f result of the merged planes is below, OK to use thin planes (higher) threshold
-				clt_parameters.plMaxWorldSin2,   // final double maxWorldSin2,
-				clt_parameters.plDispNorm,
-				clt_parameters.plMaxEigen,
-				clt_parameters.plEigenFloor,    // final double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
-				clt_parameters.plMinStrength,
-				0, // final int debugLevel)
-				clt_parameters.tileX,
-				clt_parameters.tileY);
-/*	*/	
-		
-		int [][][] merge_candidates =  st.getMergeSameTileCandidates(
-				2, // final int debugLevel,
-				clt_parameters.tileX,
-				clt_parameters.tileY);
-		
-		boolean [][] pairs_to_merge = st.mergeSameTileEvaluate(
-				merge_candidates, // final int [][][] merge_candidates,
-				clt_parameters.plWorstWorsening, // final double worst_worsening,
-				clt_parameters.plWorstWorsening2,// final double worst_worsening2  Worst case worsening for thin planes,
-				clt_parameters.plWorstEq,        // final double worstEq,        // Worst case worsening after merge with equal weights
-				clt_parameters.plWorstEq2,       // final double worstEq2,       // Worst case worsening for thin planes with equal weights
-				clt_parameters.plWeakWorsening,  // final double worst_worsening,
-				clt_parameters.plOKMergeEigen,   // final double okMergeEigen, f result of the merged planes is below, OK to use thin planes (higher) threshold
-				clt_parameters.plMaxWorldSin2,   // final double maxWorldSin2,
-				clt_parameters.plDispNorm,
-				clt_parameters.plMaxEigen,
-				clt_parameters.plEigenFloor,    // final double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
-				0.0, // clt_parameters.plMinStrength,
-				clt_parameters.plPreferDisparity,
-				2, // final int debugLevel)
-				clt_parameters.tileX,
-				clt_parameters.tileY);
-		
-		
-		
-		st.selectNeighborPlanesMutual(
-				clt_parameters.plEigenFloor,    // final double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
-				0, // final int debugLevel)
-				clt_parameters.tileX,
-				clt_parameters.tileY);
-/*
-		st.selectNeighborPlanesMutual_old(
-				clt_parameters.plWorstWorsening, // final double worst_worsening,
-				clt_parameters.plWeakWorsening,  // final double worst_worsening,
-				clt_parameters.plOKMergeEigen,   // final double okMergeEigen,
-				clt_parameters.plMaxWorldSin2,   // final double maxWorldSin2,
+			int [][][] merge_candidates =  lp.getMergeSameTileCandidates(
+					st.planes, // final TilePlanes.PlaneData [][] planes,			
+					2, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
 
-				clt_parameters.plDispNorm,
-				clt_parameters.plMaxEigen,
-				clt_parameters.plEigenFloor,    // final double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
-				clt_parameters.plMinStrength,
-				0, // final int debugLevel)
-				clt_parameters.tileX,
-				clt_parameters.tileY);
-*/
+			boolean [][] pairs_to_merge = lp.mergeSameTileEvaluate(
+					st.planes,              // final TilePlanes.PlaneData [][] planes,
+					merge_candidates,       // final int [][][] merge_candidates,
+					2,                      // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+			System.out.println(pairs_to_merge.length);		
+
+			lp.selectNeighborPlanesMutual(
+					st.planes,              // final TilePlanes.PlaneData [][] planes,
+					0, // final int debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+		} else {		
+			st.matchPlanes(
+					clt_parameters.plPreferDisparity,
+					0, // debugLevel
+					clt_parameters.tileX,
+					clt_parameters.tileY); 
+
+			st.filterNeighborPlanes(
+					clt_parameters.plWorstWorsening, // final double worst_worsening,
+					clt_parameters.plWorstWorsening2,// final double worst_worsening2  Worst case worsening for thin planes,
+					clt_parameters.plWorstEq,        // final double worstEq,        // Worst case worsening after merge with equal weights
+					clt_parameters.plWorstEq2,       // final double worstEq2,       // Worst case worsening for thin planes with equal weights
+					clt_parameters.plWeakWorsening,  // final double worst_worsening,
+					clt_parameters.plOKMergeEigen,   // final double okMergeEigen, f result of the merged planes is below, OK to use thin planes (higher) threshold
+					clt_parameters.plMaxWorldSin2,   // final double maxWorldSin2,
+					clt_parameters.plDispNorm,
+					clt_parameters.plMaxEigen,
+					clt_parameters.plEigenFloor,    // final double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
+					clt_parameters.plMinStrength,
+					0, // final int debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+
+			int [][][] merge_candidates =  st.getMergeSameTileCandidates(
+					2, // final int debugLevel,
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+
+			boolean [][] pairs_to_merge = st.mergeSameTileEvaluate(
+					merge_candidates, // final int [][][] merge_candidates,
+					clt_parameters.plWorstWorsening, // final double worst_worsening,
+					clt_parameters.plWorstWorsening2,// final double worst_worsening2  Worst case worsening for thin planes,
+					clt_parameters.plWorstEq,        // final double worstEq,        // Worst case worsening after merge with equal weights
+					clt_parameters.plWorstEq2,       // final double worstEq2,       // Worst case worsening for thin planes with equal weights
+					clt_parameters.plWeakWorsening,  // final double worst_worsening,
+					clt_parameters.plOKMergeEigen,   // final double okMergeEigen, f result of the merged planes is below, OK to use thin planes (higher) threshold
+					clt_parameters.plMaxWorldSin2,   // final double maxWorldSin2,
+					clt_parameters.plDispNorm,
+					clt_parameters.plMaxEigen,
+					clt_parameters.plEigenFloor,    // final double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
+					0.0, // clt_parameters.plMinStrength,
+					clt_parameters.plPreferDisparity,
+					2, // final int debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+
+			st.selectNeighborPlanesMutual(
+					clt_parameters.plEigenFloor,    // final double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
+					0, // final int debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+		}
 		st.resolveConflicts(
 				clt_parameters.plMaxEigen,
 				clt_parameters.plConflDualTri, // boolean    conflDualTri,  // Resolve dual triangles conflict (odoodo)
@@ -3580,7 +3597,8 @@ public class TileProcessor {
 					clt_parameters.plMaxOutliers,    // final int                        maxOutliers,   //     =   20;  // Maximal number of outliers to remove
 					clt_parameters.stFloor,          // final double                     strength_floor,
 					clt_parameters.stPow,            // final double                     strength_pow,
-					clt_parameters.dbg_migrate && clt_parameters.stSmplMode , // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+//					clt_parameters.dbg_migrate && clt_parameters.stSmplMode , // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+					clt_parameters.stSmplMode , // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 					clt_parameters.stSmplSide , // final int                        smplSide, //        = 2;      // Sample size (side of a square)
 					clt_parameters.stSmplNum , // final int                        smplNum, //         = 3;      // Number after removing worst
 					clt_parameters.stSmplRms , // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample

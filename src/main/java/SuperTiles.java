@@ -6835,23 +6835,11 @@ public class SuperTiles{
 	/**
 	 * Find mutual links between multi-layer planes for supertiles. requires that for each plane there are calculated smalles eigenvalues
 	 * for merging with each plane for each of 8 neighbors 
-	 * @param rquality maximal degradation by merging (does not depend on the total weight)
-	 * @param okMergeEigen if result eigenvalue of the merged planes is below, OK to bypass worst worsening
-	 * @param maxWorldSin2 maximal square of the sine of the angle between the planes to allow merge (>= 1.0 - disable)
-	 * @param maxEigen maximal eigenvalue of each of the merged planes
-	 * @param minWeight minimal weight of each of the planes
 	 * @param debugLevel debug level
 	 * @param dbg_X debug supertile X coordinate
 	 * @param dbg_Y debug supertile Y coordinate
 	 */
 	public void selectNeighborPlanesMutual(
-//			final double rquality,
-//			final double weakWorsening,
-//			final double okMergeEigen,
-//			final double maxWorldSin2,
-//			final double dispNorm,
-//			final double maxEigen, // maximal eigenvalue of planes to consider
-//			final double minWeight, // minimal pain weight to consider
 	  		final double eigenFloor, // Add to eigenvalues of each participating plane and result to validate connections 
 			final int debugLevel,
 			final int dbg_X,
