@@ -199,6 +199,30 @@ public class TilePlanes {
 				}
 			}
 		}
+
+		public void orMeasSelection(boolean [][] meas_sel)
+		{
+			if (meas_sel == null) 
+				this.measuredSelection = null;
+			else {
+				if (this.measuredSelection == null) {
+					this.measuredSelection = meas_sel.clone();
+				}
+				for (int i = 0; i < meas_sel.length; i++){
+					if (meas_sel[i] != null) {
+						if (this.measuredSelection[i] == null) {
+							this.measuredSelection[i] = meas_sel[i].clone();
+						} else {
+							for (int j = 0; j < meas_sel[i].length; j++){
+								this.measuredSelection[i][j] |= meas_sel[i][j];
+							}
+						}
+					} 
+				}
+			}
+		}
+		
+		
 		
 		public boolean [] getMeasSelection(int nl){
 			if (this.measuredSelection == null) {
@@ -570,16 +594,6 @@ public class TilePlanes {
 									measured_strength_pow,  // double strength_pow,
 									true);                  // boolean null_if_none);
 						}
-/*						
-						disp_strength[nl] = measuredLayers.getDisparityStrength(
-								nl,                     // int num_layer,
-								getSTileXY()[0],        // int stX,
-								getSTileXY()[1],        // int stY,
-								null,                   // boolean [] sel_in, null here - all measured data
-								strength_floor,         //  double strength_floor,
-								measured_strength_pow,  // double strength_pow,
-								true);                  // boolean null_if_none);
-*/								
 						//disp_strength[nl] = measuredLayers.getDisparityStrength(
 						for (int indx = 0; indx < disp_strength[nl][1].length; indx++){
 							double w = disp_strength[nl][1][indx];
@@ -1602,7 +1616,28 @@ public class TilePlanes {
 				divide_by_area,
 				scale_projection,
 				debugLevel);
-		}		
+		}
+		
+		public EigenvalueDecomposition get2dDecomposition()
+		{
+			double [] vals3d =      getValues();
+			double [][] vectors3d = getVectors();
+			double [][] acovar = new double [2][2];
+			for (int i = 0; i < 2; i++){
+				for (int j = i; j < 2; j++){
+					acovar[i][j] = 0.0;
+					for (int k = 0; k < 3; k++){
+						acovar[i][j] += vals3d[k] * vectors3d[k][i+1] * vectors3d[k][j+1]; // 0 - z, disparity == 0
+					}
+					if (i != j) {
+						acovar[j][i] =acovar[i][j];
+					}
+				}
+			}
+			Matrix covar = new Matrix(acovar); // 2d, x y only
+			return covar.eig();
+		}
+		
 		/**
 		 * Get disparity values for the tiles of this overlapping supertile as [2*superTileSize * 2*superTileSize] array
 		 * and weights combined from provided window function, optional selection and using ellipsoid projection on the
@@ -1632,22 +1667,7 @@ public class TilePlanes {
 			double k_gauss = 0;
 			Matrix val2d = null, vect2d = null;
 			if (scale_projection > 0.0){
-				double [] vals3d =      getValues();
-				double [][] vectors3d = getVectors();
-				double [][] acovar = new double [2][2];
-				for (int i = 0; i < 2; i++){
-					for (int j = i; j < 2; j++){
-						acovar[i][j] = 0.0;
-						for (int k = 0; k < 3; k++){
-							acovar[i][j] += vals3d[k] * vectors3d[k][i+1] * vectors3d[k][j+1]; // 0 - z, disparity == 0
-						}
-						if (i != j) {
-							acovar[j][i] =acovar[i][j];
-						}
-					}
-				}
-				Matrix covar = new Matrix(acovar); // 2d, x y only
-				EigenvalueDecomposition eig = covar.eig();
+				EigenvalueDecomposition eig = get2dDecomposition();
 				val2d = eig.getD();
 				vect2d = eig.getV().transpose();
 				k_gauss = 0.5/(scale_projection*scale_projection);
@@ -1758,22 +1778,7 @@ public class TilePlanes {
 			double k_gauss = 0;
 			Matrix val2d = null, vect2d = null;
 			if (scale_projection > 0.0){
-				double [] vals3d =      getValues();
-				double [][] vectors3d = getVectors();
-				double [][] acovar = new double [2][2];
-				for (int i = 0; i < 2; i++){
-					for (int j = i; j < 2; j++){
-						acovar[i][j] = 0.0;
-						for (int k = 0; k < 3; k++){
-							acovar[i][j] += vals3d[k] * vectors3d[k][i+1] * vectors3d[k][j+1]; // 0 - z, disparity == 0
-						}
-						if (i != j) {
-							acovar[j][i] =acovar[i][j];
-						}
-					}
-				}
-				Matrix covar = new Matrix(acovar); // 2d, x y only
-				EigenvalueDecomposition eig = covar.eig();
+				EigenvalueDecomposition eig = get2dDecomposition();
 				val2d = eig.getD();
 				vect2d = eig.getV().transpose();
 				k_gauss = 0.5/(scale_projection*scale_projection);
@@ -1861,10 +1866,10 @@ public class TilePlanes {
 		 * and weights combined from provided window function, optional selection and using ellipsoid projection on the
 		 * px, py plane (constant disparity
 		 * Sharp weights - when selecting the best match - use exponent of (delta_disp) ^2 ?
-		 * Or divide weight by ellipse arae?
+		 * Or divide weight by ellipse area?
 		 * @param useWorld calculate disparity in the real world (false - just px, py, disparity plane)
 		 * @param window null or window function as [2*superTileSize * 2*superTileSize] array
-		 * @param dir - source tile shift from the targer: -1 center, 0 - N, 1 - NE
+		 * @param dir - source tile shift from the target: -1 center, 0 - N, 1 - NE
 		 * @param use_sel use plane selection (this.sel_mask) to select only some part of the plane
 		 * @param divide_by_area divide weights by ellipsoid area
 		 * @param scale_projection use plane ellipsoid projection for weight: 0 - do not use, > 0 linearly scale ellipsoid 
@@ -1888,22 +1893,7 @@ public class TilePlanes {
 			double k_gauss = 0;
 			Matrix val2d = null, vect2d = null;
 			if (scale_projection > 0.0){
-				double [] vals3d =      getValues();
-				double [][] vectors3d = getVectors();
-				double [][] acovar = new double [2][2];
-				for (int i = 0; i < 2; i++){
-					for (int j = i; j < 2; j++){
-						acovar[i][j] = 0.0;
-						for (int k = 0; k < 3; k++){
-							acovar[i][j] += vals3d[k] * vectors3d[k][i+1] * vectors3d[k][j+1]; // 0 - z, disparity == 0
-						}
-						if (i != j) {
-							acovar[j][i] =acovar[i][j];
-						}
-					}
-				}
-				Matrix covar = new Matrix(acovar); // 2d, x y only
-				EigenvalueDecomposition eig = covar.eig();
+				EigenvalueDecomposition eig = get2dDecomposition();
 				val2d = eig.getD();
 				vect2d = eig.getV().transpose();
 				k_gauss = 0.5/(scale_projection*scale_projection);
@@ -2037,6 +2027,20 @@ public class TilePlanes {
 		{
 			return getWorldPlaneDist2(otherPd, this.correctDistortions);
 		}
+		
+		/**
+		 * Get squared relative (to the z of the center) distance from the other plane to the center of the current "plane" (ellipsoid) 
+		 * @param otherPd other plane data
+		 * @return squared ratio of the distance the other plane to the (ellipsoid) center of this one over Z-distance
+		 */
+		public double getWorldPlaneRDist2(
+				PlaneData otherPd)
+		{
+			double dist2 = getWorldPlaneDist2(otherPd, this.correctDistortions);
+			double z =getCenterXYZ(this.correctDistortions, 0)[2];
+			return dist2/(z*z);
+		}
+
 		
 		
 		/**

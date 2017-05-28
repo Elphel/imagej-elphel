@@ -2178,6 +2178,14 @@ public class EyesisCorrectionParameters {
   		public double     plOKMergeEigen       =   0.03; // If result of the merged planes is below, OK to use thin planes (higher) threshold 
   		public double     plMaxWorldSin2       =   0.1;  // Maximal sine squared of the world angle between planes to merge. Set to >= 1.0 to disable
   		public double     plWeakWorsening      =   1.0;  // Relax merge requirements for weaker planes
+  		public double     plMaxOverlap         =   0.1;  // Maximal overlap between the same supertile planes to merge
+  		
+  		// comparing merge quality for plane pairs
+  		public double     plCostKrq            =   0.8;  // cost of merge quality weighted
+  		public double     plCostKrqEq          =   0.2;  // cost of merge quality equal weight
+  		public double     plCostSin2           =  10.0;  // cost of sin squared between normals
+  		public double     plCostRdist2         =1000.0;  // cost of squared relative distances       
+  		
   		
   		public boolean    plConflDualTri       =   false; // Resolve dual triangles conflict (odoodo)
   		public boolean    plConflMulti         =   false; // Resolve multiple odo triangles conflicts
@@ -2546,6 +2554,12 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plOKMergeEigen",   this.plOKMergeEigen +"");
 			properties.setProperty(prefix+"plMaxWorldSin2",   this.plMaxWorldSin2 +"");
 			properties.setProperty(prefix+"plWeakWorsening",  this.plWeakWorsening +"");
+			properties.setProperty(prefix+"plMaxOverlap",     this.plMaxOverlap +"");
+
+			properties.setProperty(prefix+"plCostKrq",        this.plCostKrq +"");
+			properties.setProperty(prefix+"plCostKrqEq",      this.plCostKrqEq +"");
+			properties.setProperty(prefix+"plCostSin2",       this.plCostSin2 +"");
+			properties.setProperty(prefix+"plCostRdist2",     this.plCostRdist2 +"");
 
 			properties.setProperty(prefix+"plConflDualTri",   this.plConflDualTri+"");
 			properties.setProperty(prefix+"plConflMulti",     this.plConflMulti+"");
@@ -2893,6 +2907,12 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plOKMergeEigen")!=null)    this.plOKMergeEigen=Double.parseDouble(properties.getProperty(prefix+"plOKMergeEigen"));
   			if (properties.getProperty(prefix+"plMaxWorldSin2")!=null)    this.plMaxWorldSin2=Double.parseDouble(properties.getProperty(prefix+"plMaxWorldSin2"));
   			if (properties.getProperty(prefix+"plWeakWorsening")!=null)   this.plWeakWorsening=Double.parseDouble(properties.getProperty(prefix+"plWeakWorsening"));
+  			if (properties.getProperty(prefix+"plMaxOverlap")!=null)      this.plMaxOverlap=Double.parseDouble(properties.getProperty(prefix+"plMaxOverlap"));
+
+  			if (properties.getProperty(prefix+"plCostKrq")!=null)         this.plCostKrq=Double.parseDouble(properties.getProperty(prefix+"plCostKrq"));
+  			if (properties.getProperty(prefix+"plCostKrqEq")!=null)       this.plCostKrqEq=Double.parseDouble(properties.getProperty(prefix+"plCostKrqEq"));
+  			if (properties.getProperty(prefix+"plCostSin2")!=null)        this.plCostSin2=Double.parseDouble(properties.getProperty(prefix+"plCostSin2"));
+  			if (properties.getProperty(prefix+"plCostRdist2")!=null)      this.plCostRdist2=Double.parseDouble(properties.getProperty(prefix+"plCostRdist2"));
 
   			if (properties.getProperty(prefix+"plConflDualTri")!=null)    this.plConflDualTri=Boolean.parseBoolean(properties.getProperty(prefix+"plConflDualTri"));
   			if (properties.getProperty(prefix+"plConflMulti")!=null)      this.plConflMulti=Boolean.parseBoolean(properties.getProperty(prefix+"plConflMulti"));
@@ -3268,6 +3288,13 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("If result of the merged planes is below, OK to use thin planes (higher) threshold ",this.plOKMergeEigen,  6);
   			gd.addNumericField("Maximal sine squared of the world angle between planes to merge. Set to >= 1.0 to disable", this.plMaxWorldSin2,  6);
   			gd.addNumericField("Relax merge requirements for weaker planes",                                   this.plWeakWorsening,  6);
+  			gd.addNumericField("Maximal overlap between the same supertile planes to merge",                   this.plMaxOverlap,  6);
+
+  			gd.addMessage     ("--- Planes merge costs ---");
+  			gd.addNumericField("Cost of merge quality weighted",                                               this.plCostKrq,     6);
+  			gd.addNumericField("Cost of merge quality equal weight",                                           this.plCostKrqEq,   6);
+  			gd.addNumericField("Cost of sin squared between normals",                                          this.plCostSin2,    6);
+  			gd.addNumericField("Cost of squared relative plane-to-other-center distances",                     this.plCostRdist2,  6);
 
   			gd.addCheckbox    ("Resolve dual triangles conflict (odoodo)",                                     this.plConflDualTri);
   			gd.addCheckbox    ("Resolve multiple odo triangles conflicts",                                     this.plConflMulti);
@@ -3628,6 +3655,12 @@ public class EyesisCorrectionParameters {
   			this.plOKMergeEigen=        gd.getNextNumber();
   			this.plMaxWorldSin2=        gd.getNextNumber();
   			this.plWeakWorsening=       gd.getNextNumber();
+  			this.plMaxOverlap=          gd.getNextNumber();
+
+  			this.plCostKrq=             gd.getNextNumber();
+  			this.plCostKrqEq=           gd.getNextNumber();
+  			this.plCostSin2=            gd.getNextNumber();
+  			this.plCostRdist2=          gd.getNextNumber();
 
   			this.plConflDualTri=        gd.getNextBoolean();
   			this.plConflMulti=          gd.getNextBoolean();
