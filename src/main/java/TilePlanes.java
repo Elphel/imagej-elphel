@@ -21,6 +21,10 @@
  ** -----------------------------------------------------------------------------**
  **
  */
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+
 import Jama.EigenvalueDecomposition;
 import Jama.Matrix;
 
@@ -3326,7 +3330,142 @@ public class TilePlanes {
 			world_xyz = norm_xyz.times((xyz.transpose().times(norm_xyz).get(0,0))).getColumnPackedCopy();
 			return world_xyz;
 		}
+		
+		public ArrayList<TilePlanes.PlaneData> createTilePlanesFromSelections(
+				String        suffix,
+				boolean [][][] plane_selections, //  = new boolean [nStiles][][][]; // num_tiles
+				double  [][][] disp_strength,			
+				// double       disp_far, // minimal disparity to select (or NaN)
+				// double       disp_near, // maximal disparity to select (or NaN)
+				double       dispNorm,   //  Normalize disparities to the average if above
+//				double       min_weight,
+				int          min_tiles,
+				double       plTargetEigen, //        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+				double       plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
+				int          plMaxOutliers, //        =    20;  // Maximal number of outliers to remove
+				double       strength_floor,
+				double       strength_pow,
+				boolean      correct_distortions,
+				boolean      smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+				int          smplSide, //        = 2;      // Sample size (side of a square)
+				int          smplNum, //         = 3;      // Number after removing worst
+				double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				int          debugLevel)
+		{
+			
+			// first make a plane from all tiles
+			ArrayList<TilePlanes.PlaneData> st_planes = new ArrayList<TilePlanes.PlaneData>();
+			
+			// iterate through all plane selections
+			for (int ps = 0; ps < plane_selections.length; ps++) {
+				TilePlanes.PlaneData pd = this.clone(); 
+				boolean OK = (pd.getPlaneFromMeas(
+						plane_selections[ps], // tile_sel,       // boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
+						disp_strength,
+						Double.NaN,    // double       disp_far, // minimal disparity to select (or NaN)
+						Double.NaN,    // double       disp_near, // maximal disparity to select (or NaN)
+						dispNorm,    // 0.0,            // plDispNorm,  // double       dispNorm,   //  Normalize disparities to the average if above
+						0.0,            // double       min_weight,
+						min_tiles,    // int          min_tiles,
+						
+						strength_floor, // 
+						strength_pow,   // double       strength_pow,
+						
+						// update !
+						smplMode,
+						smplSide,
+						smplNum,
+						smplRms,
+						debugLevel) != null);            // int          debugLevel)
+				if (OK) {
+					if (debugLevel > 0) {
+						if (pd.getWeight() > 1.0) {
+							System.out.println("Processing subplane "+ suffix+
+									", numPoints="+ pd.getNumPoints()+
+									", swc = "+pd.getWeight()+
+									", center=["+pd.getZxy()[0]+","+pd.getZxy()[1]+","+pd.getZxy()[2]+"]"+
+									", eig_val = {"+pd.getValues()[0]+","+pd.getValues()[1]+","+pd.getValues()[2]+"}"+
+									", eig_vect[0] = {"+pd.getVector()[0]+","+pd.getVector()[1]+","+pd.getVector()[2]+"}");
+						}
+					}
+					// now try to remove outliers
+					int max_outliers = (int) Math.round(pd.getNumPoints() * plFractOutliers);
+					if (max_outliers > plMaxOutliers) max_outliers = plMaxOutliers;
+					double targetV = plTargetEigen;
+					double z0 = pd.getZxy()[0];
+					if ((dispNorm > 0.0) && (z0 > dispNorm)) {
+						double dd = (dispNorm + z0)/ dispNorm; // > 1
+						targetV *= dd * dd; // > original
+					}
+					if (pd.getValues()[0] > targetV) {
+						OK = pd.removeOutliers( // getPlaneFromMeas should already have run
+								disp_strength, 
+								targetV,      // double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
+								max_outliers, // int        maxRemoved,  // maximal number of tiles to remove (not a constant)
+								debugLevel); // int        debugLevel)
+						if (!OK) {
+							continue;
+						}
+						if (debugLevel > 0) {
+							if (pd.getWeight() > 1.0) {
+								System.out.println("Removed outliers "+ suffix +
+										", numPoints="+ pd.getNumPoints()+
+										", swc = "+pd.getWeight()+
+										", center=["+pd.getZxy()[0]+","+pd.getZxy()[1]+","+pd.getZxy()[2]+"]"+
+										", eig_val = {"+pd.getValues()[0]+","+pd.getValues()[1]+","+pd.getValues()[2]+"}"+
+										", eig_vect[0] = {"+pd.getVector()[0]+","+pd.getVector()[1]+","+pd.getVector()[2]+"}");
+							}
+						}
+					}
+					double [] norm_xyz = pd.getWorldXYZ(
+							correct_distortions);
+					st_planes.add(pd);
+					if (debugLevel > 0) {
+						System.out.println("World normal " + suffix + " = {"+
+								norm_xyz[0]+", "+norm_xyz[1]+", "+norm_xyz[2]+"}");
+
+					}
+					// calculate the world planes too									
+//					if (debugLevel > -1){
+						pd.getWorldPlaneFromMeas(
+								plane_selections[ps], // tile_sel,       // boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
+								disp_strength,
+								Double.NaN,    // double       disp_far, // minimal disparity to select (or NaN)
+								Double.NaN,    // double       disp_near, // maximal disparity to select (or NaN)
+								dispNorm,      // 0.0,            // plDispNorm,  // double       dispNorm,   //  Normalize disparities to the average if above
+								0.0,            // double       min_weight,
+								min_tiles,      // int          min_tiles,
+								strength_floor, // 
+								strength_pow,   // double       strength_pow,
+								// update !
+								smplMode,
+								smplSide,
+								smplNum,
+								smplRms,
+								debugLevel);
+				}
+			}
+			if (st_planes.size() > 0){
+				// sort planes by increasing disparity (tile center or plane center ? ) Using plane center
+				Collections.sort(st_planes, new Comparator<TilePlanes.PlaneData>() {
+					@Override
+					public int compare(TilePlanes.PlaneData lhs, TilePlanes.PlaneData rhs) {
+						// -1 - less than, 1 - greater than, 0 - equal
+						return (rhs.getZxy()[0] > lhs.getZxy()[0]) ? -1 : (rhs.getZxy()[0] < lhs.getZxy()[0] ) ? 1 : 0;
+					}
+				});
+				return st_planes;
+			}
+			return null;		
+		}
+		
+		
+		
+		
 	}
+	
+	
+	
 	
 	//TODO: Remove below methods and promote PlaneData (no TilePlanes) after tested
 	

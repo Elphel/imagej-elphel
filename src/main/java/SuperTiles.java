@@ -2058,7 +2058,7 @@ public class SuperTiles{
 		return planes_selections;
 	}
 
-	public TilePlanes.PlaneData [][] createPlanesFromSelections(
+	public TilePlanes.PlaneData [][] createPlanesFromSelectionsOld(
 			final boolean [][][][] plane_selections, //  = new boolean [nStiles][][][]; // num_tiles
 			final double  [][][][] disp_strength,			
 			final double     plDispNorm,
@@ -2104,10 +2104,16 @@ public class SuperTiles{
 							System.out.println("createPlanesFromSelections(): nsTile="+nsTile);
 						}
 						if (plane_selections[nsTile] != null) {
+							
+							
+							
 							int stileY = nsTile / stilesX;  
 							int stileX = nsTile % stilesX;
 							int [] sTiles = {stileX, stileY};
 							int dl =  (nsTile == debug_stile) ? 3 : 0;
+							
+							
+							
 							result_planes[nsTile] = null;
 							// first make a plane from all tiles
 							ArrayList<TilePlanes.PlaneData> st_planes = new ArrayList<TilePlanes.PlaneData>();
@@ -2118,6 +2124,8 @@ public class SuperTiles{
 									correct_distortions,
 									measuredLayers,     // MeasuredLayers measuredLayers,
 									plPreferDisparity);   // boolean preferDisparity)
+
+							
 							// iterate through all plane selections
 							for (int ps = 0; ps < plane_selections[nsTile].length; ps++) {
 								TilePlanes.PlaneData pd = pd0.clone(); 
@@ -2234,6 +2242,9 @@ public class SuperTiles{
 								dbg_img =  showSupertileSeparation(true, disp_strength[nsTile], plane_selections[nsTile], result_planes[nsTile]);
 								sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "create_planes_world-"+nsTile+"-"+debugLevel,dbg_titles);
 							}
+							
+							
+							
 						}
 					}
 				}
@@ -2243,6 +2254,111 @@ public class SuperTiles{
 		return result_planes;		
 	}
 
+	public TilePlanes.PlaneData [][] createPlanesFromSelections(
+			final boolean [][][][] plane_selections, //  = new boolean [nStiles][][][]; // num_tiles
+			final double  [][][][] disp_strength,			
+			final double     plDispNorm,
+			final int        plMinPoints, //          =     5;  // Minimal number of points for plane detection
+			final double     plTargetEigen, //        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+			final double     plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
+			final int        plMaxOutliers, //        =    20;  // Maximal number of outliers to remove
+//			final double     plVertWors,    //        =    1.5  // if rotating plane vertical does not increase 'eigenvalue' more, use vertical  
+			final boolean    plPreferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
+			final GeometryCorrection geometryCorrection,
+			final boolean    correct_distortions,
+
+			final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+			final int        smplSide, //        = 2;      // Sample size (side of a square)
+			final int        smplNum, //         = 3;      // Number after removing worst
+			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+
+			final int        debugLevel,
+			final int        dbg_X,
+			final int        dbg_Y)
+	{
+		final int tilesX =        tileProcessor.getTilesX();
+		final int tilesY =        tileProcessor.getTilesY();
+		final int superTileSize = tileProcessor.getSuperTileSize();
+		final int tileSize =      tileProcessor.getTileSize();
+
+		final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
+		final int stilesY = (tilesY + superTileSize -1)/superTileSize;
+		final int nStiles = stilesX * stilesY; 
+		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final TilePlanes.PlaneData [][] result_planes = new TilePlanes.PlaneData[nStiles][];
+		//		this.planes = new TilePlanes.PlaneData[nStiles][];
+		final int debug_stile = (debugLevel > -1)? (dbg_Y * stilesX + dbg_X):-1;
+		// TODO: Remove when promoting PlaneData
+		final TilePlanes tpl = new TilePlanes(tileSize,superTileSize, geometryCorrection);
+
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
+						if (nsTile == debug_stile){
+							System.out.println("createPlanesFromSelections(): nsTile="+nsTile);
+						}
+						if (plane_selections[nsTile] != null) {
+							
+							
+							
+							int stileY = nsTile / stilesX;  
+							int stileX = nsTile % stilesX;
+							int [] sTiles = {stileX, stileY};
+							int dl =  (nsTile == debug_stile) ? 3 : 0;
+							
+							result_planes[nsTile] = null;
+							// first make a plane from all tiles
+							TilePlanes.PlaneData pd0 = tpl.new  PlaneData (
+									sTiles, // int [] sTileXY, 
+									tileSize, // int tileSize,
+									geometryCorrection, // GeometryCorrection   geometryCorrection,
+									correct_distortions,
+									measuredLayers,     // MeasuredLayers measuredLayers,
+									plPreferDisparity);   // boolean preferDisparity)
+							ArrayList<TilePlanes.PlaneData> st_planes = pd0.createTilePlanesFromSelections(
+											"" + nsTile, // String        suffix,
+											plane_selections[nsTile], // boolean [][][] plane_selections, //  = new boolean [nStiles][][][]; // num_tiles
+											disp_strength[nsTile],    // double  [][][] disp_strength,			
+											plDispNorm,               // double       dispNorm,   //  Normalize disparities to the average if above
+											plMinPoints,              // int          min_tiles,
+											plTargetEigen,            // double       plTargetEigen, //        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+											plFractOutliers,          // double       plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
+											plMaxOutliers,            // int          plMaxOutliers, //        =    20;  // Maximal number of outliers to remove
+											strength_floor,           // double       strength_floor,
+											strength_pow,             // double       strength_pow,
+											correct_distortions,      // boolean      correct_distortions,
+											smplMode,                 // boolean      smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+											smplSide,                 // int          smplSide, //        = 2;      // Sample size (side of a square)
+											smplNum,                  //  int          smplNum, //         = 3;      // Number after removing worst
+											smplRms,                  //  double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+											dl);                       // int          debugLevel);
+
+							if ((st_planes != null) && (!st_planes.isEmpty())){
+								if (LOWEST_PLANE(2) > 0) st_planes.add(0, st_planes.get(0)); // insert dummy at pos 0;
+								result_planes[nsTile] = st_planes.toArray(new TilePlanes.PlaneData[0] );
+								if (LOWEST_PLANE(2) > 0) result_planes[nsTile][0] = null; // remove dummy
+								if (dl >0){
+									System.out.println("createPlanesFromSelections(): nsTile="+nsTile);
+								}
+								if (dl > 2) {
+									String [] dbg_titles = showSupertileSeparationTitles( disp_strength[nsTile], plane_selections[nsTile], result_planes[nsTile]);
+									double [][] dbg_img =  showSupertileSeparation(false, disp_strength[nsTile], plane_selections[nsTile], result_planes[nsTile]);
+									showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+									sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "create_planes_disp-"+nsTile+"-"+debugLevel,dbg_titles);
+									dbg_img =  showSupertileSeparation(true, disp_strength[nsTile], plane_selections[nsTile], result_planes[nsTile]);
+									sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "create_planes_world-"+nsTile+"-"+debugLevel,dbg_titles);
+								}
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return result_planes;		
+	}
 	
 	public void processPlanes5(
 			final int        growSelection,                     // grow initial selection before processing 
