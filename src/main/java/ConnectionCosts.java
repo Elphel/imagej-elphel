@@ -72,7 +72,29 @@ public class ConnectionCosts {
 		this.steps =           steps;
 	}
 	
+	public int [][][] setStarValues( // also initConnectionCosts() 
+			int []    nsTiles,
+			int       debugLevel)
+	{
+		return initConnectionCosts(
+				true, // boolean set_start_planes,
+				nsTiles,
+				debugLevel);
+	}
+
+	
 	public int [][][] initConnectionCosts(
+			int []    nsTiles,
+			int       debugLevel)
+	{
+		return initConnectionCosts(
+				false, // boolean set_start_planes,
+				nsTiles,
+				debugLevel);
+	}
+
+	public int [][][] initConnectionCosts(
+			boolean set_start_planes,
 			int []    nsTiles,
 			int       debugLevel)
 	{
@@ -115,16 +137,19 @@ public class ConnectionCosts {
 		switch (steps){
 		case 1:
 			val_weights = getConnectionsCostSingleStep (
+					set_start_planes,
 					null,	
 					debugLevel - 1); // int        debugLevel)
 			break;
 		case 2:
 			val_weights = getConnectionsCostDualStep (
+					set_start_planes,
 					null,	
 					debugLevel - 1); // int        debugLevel)
 			break;
 		default:
 			val_weights = getConnectionsCostSingleStep (
+					set_start_planes,
 					null,	
 					debugLevel - 1); // int        debugLevel)			
 		}
@@ -155,6 +180,9 @@ public class ConnectionCosts {
 		
 		return neibs_init; // neighbors to clone
 	}
+
+	
+	
 	public double [] getValWeightLast(
 			int nsTile,
 			int nl,
@@ -186,6 +214,7 @@ public class ConnectionCosts {
 	}
 	
 	public double [][][] getConnectionsCostSingleStep (
+			boolean set_start_planes,
 			int [][][] neibs,	
 			int        debugLevel)
 	{
@@ -211,6 +240,23 @@ public class ConnectionCosts {
 								}
 							}
 							if (neibs_changed){
+								TilePlanes.PlaneData star_plane = getStarPlane(
+										nsTile,
+										nl,
+										neibs[isTile][nl],
+										orthoWeight,
+										diagonalWeight,
+										starPwr, // double         starPwr,    // Divide cost by number of connections to this power
+										starWeightPwr, 
+										tnSurface,
+										preferDisparity,
+										-1); // debugLevel);
+								if (set_start_planes){
+									planes[nsTile][nl].setStarPlane(star_plane);
+								}
+								vw[isTile][nl] = star_plane.getStarValueWeightDensity();
+								
+/*								
 								vw[isTile][nl] = getStarValueWeight(
 										nsTile,
 										nl,
@@ -222,6 +268,7 @@ public class ConnectionCosts {
 										tnSurface,
 										preferDisparity,
 										-1); // debugLevel);
+*/										
 							} else {
 								vw[isTile][nl] = val_weights[isTile][nl];
 							}
@@ -238,6 +285,7 @@ public class ConnectionCosts {
 	}
 
 	public double [][][] getConnectionsCostDualStep (
+			boolean set_start_planes,
 			int [][][] neibs,	
 			int        debugLevel)
 	{
@@ -270,17 +318,6 @@ public class ConnectionCosts {
 									int ineib1 = (tile_map.containsKey(nsTile1))? tile_map.get(nsTile1) : -1;
 									neibs2[dir] = (ineib1 >=0) ? neibs[tile_map.get(nsTile1)][nl1] : planes[nsTile1][nl1].getNeibBest();
 									if (!neibs_changed && (ineib1 >= 0)) {
-										/*
-										if ((neibs_init[ineib1] == null) || (neibs_init[ineib1][nl1] == null)) {
-											neibs_changed = true;
-										} else {
-											for (int dir1 = 0; dir1 < 8; dir1++) if (neibs[ineib1][nl1][dir1] != neibs_init[ineib1][nl1][dir1]){
-												neibs_changed = true;
-												break;
-											}
-										}
-
-										 */
 										if ((neibs_init[ineib1] == null) || (neibs[ineib1][nl1] == null)) {
 											neibs_changed = true;
 										} else {
@@ -294,6 +331,23 @@ public class ConnectionCosts {
 							}
 							
 							if (neibs_changed){
+								TilePlanes.PlaneData star_plane = getStarPlane2(
+										nsTile,
+										nl,
+										neibs0,
+										neibs2,
+										orthoWeight,
+										diagonalWeight,
+										starPwr, // double         starPwr,    // Divide cost by number of connections to this power
+										starWeightPwr, //
+										tnSurface,
+										preferDisparity,
+										-1); // debugLevel);
+								if (set_start_planes){
+									planes[nsTile][nl].setStarPlane(star_plane);
+								}
+								vw[isTile][nl] = star_plane.getStarValueWeightDensity();
+/*
 								vw[isTile][nl] = getStarValueWeight2(
 										nsTile,
 										nl,
@@ -306,6 +360,7 @@ public class ConnectionCosts {
 										tnSurface,
 										preferDisparity,
 										-1); // debugLevel);
+*/										
 							} else {
 								vw[isTile][nl] = val_weights[isTile][nl];
 							}
@@ -360,16 +415,19 @@ public class ConnectionCosts {
 		switch (steps){
 		case 1:
 			vw = getConnectionsCostSingleStep (
+					false,
 					neibs,	
 					debugLevel-1); // int        debugLevel)
 			break;
 		case 2:
 			vw = getConnectionsCostDualStep (
+					false,
 					neibs,	
 					debugLevel-1); // int        debugLevel)
 			break;
 		default:
 			vw = getConnectionsCostSingleStep (
+					false,
 					neibs,	
 					debugLevel-1); // int        debugLevel)			
 		}
@@ -427,6 +485,31 @@ public class ConnectionCosts {
 			boolean preferDisparity,
 			int    debugLevel)
 	{
+		return getStarPlane(
+				nsTile,
+				nl,
+				neibs,
+				orthoWeight,
+				diagonalWeight,
+				starPwr,    // Divide cost by number of connections to this power
+				starWeightPwr,    // Use this power of tile weight when calculating connection cost
+				tnSurface,
+				preferDisparity,
+				debugLevel).getStarValueWeightDensity();
+	}
+
+	TilePlanes.PlaneData getStarPlane(
+			int    nsTile,
+			int    nl,
+			int [] neibs,
+			double orthoWeight,
+			double diagonalWeight,
+			double starPwr,    // Divide cost by number of connections to this power
+			double   starWeightPwr,    // Use this power of tile weight when calculating connection cost
+			TileSurface.TileNeibs tnSurface,
+			boolean preferDisparity,
+			int    debugLevel)
+	{
 		TilePlanes.PlaneData merged_plane = planes[nsTile][nl]; // add weight
 		double conn_weight = 1.0; // center weight
 		for (int dir = 0; dir < 8; dir++){
@@ -450,9 +533,11 @@ public class ConnectionCosts {
 		if (starPwr != 0){
 			value_weight[0] /= (Math.pow((planes[nsTile][nl].getNumNeibBest() + 1.0), starPwr));
 		}
-		return value_weight;
+		merged_plane.setStarValueWeight(value_weight);
+		return merged_plane;
 	}
 
+	
 	/**
 	 * Calculate main eigenvalue of the current plane and all connected ones - used to estimate advantage of connection swap
 	 * This version uses two steps - not only directly connected, but neighbors' neighbors also, multiple paths to the same
@@ -473,6 +558,34 @@ public class ConnectionCosts {
 	
 	
 	public double [] getStarValueWeight2(
+			int      nsTile,
+			int      nl,
+			int []   neibs,
+			int [][] neibs2, // neighbors' neighbors
+			double   orthoWeight,
+			double   diagonalWeight,
+			double   starPwr,    // Divide cost by number of connections to this power
+			double   starWeightPwr,    // Use this power of tile weight when calculating connection cost
+			TileSurface.TileNeibs tnSurface,
+			boolean preferDisparity,
+			int     debugLevel)
+	{
+		return getStarPlane2(
+				nsTile,
+				nl,
+				neibs,
+				neibs2, // neighbors' neighbors
+				orthoWeight,
+				diagonalWeight,
+				starPwr,    // Divide cost by number of connections to this power
+				starWeightPwr,    // Use this power of tile weight when calculating connection cost
+				tnSurface,
+				preferDisparity,
+				debugLevel).getStarValueWeightDensity();
+	}
+
+	
+	TilePlanes.PlaneData getStarPlane2(
 			int      nsTile,
 			int      nl,
 			int []   neibs,
@@ -529,9 +642,13 @@ public class ConnectionCosts {
 		if (starPwr != 0){
 			value_weight[0] /= (Math.pow(tile_weights.size() + 1.0, starPwr));
 		}
-		return value_weight;
+		merged_plane.setStarValueWeight(value_weight);
+		return merged_plane;
+		
 	}
-
+	
+	
+	
 	/**
 	 * Calculate array of supertile indices that need to have connection cost recalculated when they are updated
 	 * first entries of the result will be the same in input array
