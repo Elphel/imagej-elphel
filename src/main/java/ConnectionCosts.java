@@ -28,7 +28,7 @@ import java.util.HashSet;
 public class ConnectionCosts {
 	TilePlanes.PlaneData [][] planes =  null;
 	boolean preferDisparity = false;
-	TileSurface.TileNeibs tnSurface;
+	TileNeibs tnSurface;
 	double         orthoWeight;
 	double         diagonalWeight;
 	double         starPwr;    // Divide cost by number of connections to this power
@@ -57,7 +57,7 @@ public class ConnectionCosts {
 			double         starValPwr, //  Raise value of each tile before averaging
 			int            steps,
 			TilePlanes.PlaneData [][] planes,
-			TileSurface.TileNeibs tnSurface,
+			TileNeibs tnSurface,
 			boolean preferDisparity)
 	{
 		this.planes =          planes;
@@ -481,7 +481,7 @@ public class ConnectionCosts {
 			double diagonalWeight,
 			double starPwr,    // Divide cost by number of connections to this power
 			double   starWeightPwr,    // Use this power of tile weight when calculating connection cost
-			TileSurface.TileNeibs tnSurface,
+			TileNeibs tnSurface,
 			boolean preferDisparity,
 			int    debugLevel)
 	{
@@ -506,7 +506,7 @@ public class ConnectionCosts {
 			double diagonalWeight,
 			double starPwr,    // Divide cost by number of connections to this power
 			double   starWeightPwr,    // Use this power of tile weight when calculating connection cost
-			TileSurface.TileNeibs tnSurface,
+			TileNeibs tnSurface,
 			boolean preferDisparity,
 			int    debugLevel)
 	{
@@ -566,7 +566,7 @@ public class ConnectionCosts {
 			double   diagonalWeight,
 			double   starPwr,    // Divide cost by number of connections to this power
 			double   starWeightPwr,    // Use this power of tile weight when calculating connection cost
-			TileSurface.TileNeibs tnSurface,
+			TileNeibs tnSurface,
 			boolean preferDisparity,
 			int     debugLevel)
 	{
@@ -594,7 +594,7 @@ public class ConnectionCosts {
 			double   diagonalWeight,
 			double   starPwr,    // Divide cost by number of connections to this power
 			double   starWeightPwr,    // Use this power of tile weight when calculating connection cost
-			TileSurface.TileNeibs tnSurface,
+			TileNeibs tnSurface,
 			boolean preferDisparity,
 			int     debugLevel)
 	{

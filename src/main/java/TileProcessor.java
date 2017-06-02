@@ -3386,7 +3386,7 @@ public class TileProcessor {
 			LinkPlanes lp = new LinkPlanes (clt_parameters, st);
 			// try to merge multiple times
 			
-			int max_num_merge_try = 5;
+			int max_num_merge_try = 8;
 			TilePlanes.PlaneData [][][] dbg_orig_planes = new TilePlanes.PlaneData [max_num_merge_try][][];
 			
 			for (int num_merge_try = 0; num_merge_try < max_num_merge_try; num_merge_try++){
@@ -3467,20 +3467,6 @@ public class TileProcessor {
 						clt_parameters.tileX,
 						clt_parameters.tileY);
 //				System.out.println("merge_cost_data.length = " + merge_cost_data.length);
-				/*
-//				double  [][][][][][]  merge_cost_data_eq = 
-						lp.costSameTileConnections(
-						true, // final boolean ignore_weights,
-						1.8,  // final double threshold_worst,
-						1000.0, //final double threshold_world_worst,
-						st.planes, // ffinal TilePlanes.PlaneData [][] planes,
-						merge_candidates,       // final int [][][] merge_candidates,
-						plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
-						2,                      // -1, // debugLevel,                  // final int        debugLevel)
-						clt_parameters.tileX,
-						clt_parameters.tileY);
-//				System.out.println("merge_cost_data_eq.length = " + merge_cost_data_eq.length);
-				*/
 				int [][][] merge_groups = lp.extractMergeSameTileGroups(
 						st.planes,              // final TilePlanes.PlaneData [][] planes,
 						merge_candidates,       // final int [][][] merge_candidates,

@@ -813,6 +813,17 @@ public class LinkPlanes {
 		ImageDtt.startAndJoin(threads);
 	}
 
+	/**
+	 * Merge the supertile planes with agreeing neighbors, non-exclusively (no considering other planes
+	 * of the same supertile. Start with the best fit, then goes to lower quality, until the individual
+	 * merge quality falls below scaled quality of the best, pre-set minimum or the merged plane becomes
+	 * too thick
+	 * Separately calculates merged weighted plane and with equal weights of the neighbors
+	 * @param planes array of plane instances for the same supertile
+	 * @param debugLevel
+	 * @param dbg_X
+	 * @param dbg_Y
+	 */
 	public void setNonExclusive(
 			final TilePlanes.PlaneData [][] planes,
 			final int     debugLevel,
@@ -834,7 +845,7 @@ public class LinkPlanes {
 		//				final int debug_stile = 9 * stilesX + 26;
 		final int debug_stile = dbg_Y * stilesX + dbg_X;
 
-		final Thread[] threads = ImageDtt.newThreadArray(st.tileProcessor.threadsMax);
+		final Thread[] threads = ImageDtt.newThreadArray((debugLevel > 1)? 1 : st.tileProcessor.threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 
 		for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -2426,7 +2437,7 @@ public class LinkPlanes {
 		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;  
 		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
 		final int nStiles =       stilesX * stilesY; 
-		final TileSurface.TileNeibs tnSurface = st.tileSurface.new TileNeibs(stilesX, stilesY);
+		final TileNeibs tnSurface = new TileNeibs(stilesX, stilesY);
 		final Thread[] threads = ImageDtt.newThreadArray(st.tileProcessor.threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -2441,7 +2452,7 @@ public class LinkPlanes {
 							starValPwr,     //double          starValPwr, //  Raise value of each tile before averaging
 							steps,          // int            steps,
 							planes,         // TilePlanes.PlaneData [][] planes,
-							tnSurface,      // TileSurface.TileNeibs tnSurface,
+							tnSurface,      // TileNeibs tnSurface,
 							preferDisparity); // boolean preferDisparity)
 					int [] mod_supertiles = new int[1];
 					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
@@ -2484,7 +2495,7 @@ public class LinkPlanes {
 		//				final int tileSize =      tileProcessor.getTileSize();
 		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;  
 		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
-		final TileSurface.TileNeibs tnSurface = st.tileSurface.new TileNeibs(stilesX, stilesY);
+		final TileNeibs tnSurface = new TileNeibs(stilesX, stilesY);
 		final Thread[] threads = ImageDtt.newThreadArray(st.tileProcessor.threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -2499,7 +2510,7 @@ public class LinkPlanes {
 							starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 							steps,          // int            steps,
 							planes,         // TilePlanes.PlaneData [][] planes,
-							tnSurface,      // TileSurface.TileNeibs tnSurface,
+							tnSurface,      // TileNeibs tnSurface,
 							preferDisparity); // boolean preferDisparity)
 					int [] supertiles = new int[1];
 					for (int isTile = ai.getAndIncrement(); isTile < mod_supertiles.length; isTile = ai.getAndIncrement()) {

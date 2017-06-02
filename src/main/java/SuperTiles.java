@@ -1025,147 +1025,6 @@ public class SuperTiles{
 		return bgTileDispStrength;
 	}
 
-	public void processPlanes(
-
-			final boolean [] selected, // or null
-			final double     min_disp,
-			final boolean    invert_disp, // use 1/disparity
-			final double     plDispNorm,
-			final int        debugLevel)
-	{
-
-		final int tilesX =        tileProcessor.getTilesX();
-		final int tilesY =        tileProcessor.getTilesY();
-		final int superTileSize = tileProcessor.getSuperTileSize();
-		final int tileSize =      tileProcessor.getTileSize();
-		final double  [] disparity = cltPass3d.getDisparity();
-		final double  [] strength =  cltPass3d.getStrength();
-		final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
-		final int stilesY = (tilesY + superTileSize -1)/superTileSize;
-		final int nStiles = stilesX * stilesY; 
-		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
-		final AtomicInteger ai = new AtomicInteger(0);
-		final int st_start = -superTileSize/2;
-		final int superTileSize2 = 2 * superTileSize;
-		final double [][] lapWeight = getLapWeights();
-		final int len2 = superTileSize2*superTileSize2;
-		final double []  double_zero =  new double  [len2];
-		final boolean [] boolean_zero = new boolean [len2];
-
-		final int debug_stile = 18 * stilesX + 25; 
-
-
-		for (int ithread = 0; ithread < threads.length; ithread++) {
-			threads[ithread] = new Thread() {
-				public void run() {
-					TilePlanes tpl = new TilePlanes(tileSize,superTileSize);
-					double [] stDisparity = new double [superTileSize2*superTileSize2];
-					double [] stStrength =  new double [superTileSize2*superTileSize2];
-					boolean [] stSel = new boolean [superTileSize2*superTileSize2];
-					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
-						int stileY = nsTile / stilesX;  
-						int stileX = nsTile % stilesX;
-						double sw = 0.0; // sum weights
-						double [] hist = new double [numBins];
-						int tY0 = stileY * superTileSize + st_start;
-						int tX0 = stileX * superTileSize + st_start;
-						System.arraycopy(double_zero,  0, stDisparity, 0, len2);
-						System.arraycopy(double_zero,  0, stStrength,  0, len2);
-						System.arraycopy(boolean_zero, 0, stSel,       0, len2);
-						for (int tY = 0; tY < superTileSize2; tY++){
-							int tileY = tY0 +tY;
-							if ((tileY >= 0) && (tileY < tilesY)) {
-								for (int tX = 0; tX < superTileSize2; tX++){
-									int tileX = tX0 +tX;
-									if ((tileX >= 0) && (tileX < tilesX)) {
-										int indx = tileY*tilesX + tileX;
-										double d = disparity[indx];
-										if (!Double.isNaN(d) && (d >= min_disp) &&((selected == null) || selected[indx])){
-											if (invert_disp){
-												d = 1.0/d;
-											}
-											double w = strength[indx] - strength_floor;
-											if (w > 0.0){
-												if (strength_pow != 1.0) w = Math.pow(w, strength_pow);
-												w *= lapWeight[tY][tX];
-												int indx_out =  tY * superTileSize2 + tX;
-												stDisparity[indx_out] = d;
-												stStrength[indx_out] =  w;
-												stSel[indx_out] =       true;
-												sw +=w;
-											}
-										}
-									}
-								}
-							}
-						}
-						if (sw >0){
-							//									int dl = ((nsTile >= debug_stile-1) && (nsTile <= debug_stile+1) ) ? 1 : 0;
-							//									int dl = (stileY == 17) ? 1 : 0;
-							int dl = (stileY >= 0) ? 1 : 0;
-							double [][][] rslt = tpl.getCovar(
-									stDisparity,
-									stStrength,
-									stSel,
-									plDispNorm,
-									0); // dl); // debugLevel);
-							if (dl > 0) {
-								int       numPoints =  (int) rslt[2][0][2];
-								double    kz =   rslt[2][0][1];
-								double    swc =  rslt[2][0][0];
-								double [] szxy = rslt[2][1];
-								double [][] eig_val =  rslt[0];
-								double [][] eig_vect = rslt[1];
-								if (swc > 1.0) {
-									System.out.println("Processing planes, nsTile="+nsTile+", stileX="+stileX+", stileY="+stileY+", numPoints="+numPoints+
-											", kz = "+kz+", sw = "+sw+ ", swc = "+swc+ ", center=["+szxy[0]+","+szxy[1]+","+szxy[2]+"]"+
-											", eig_val = {"+eig_val[0][0]+","+eig_val[1][1]+","+eig_val[2][2]+"}"+
-											", eig_vect[0] = {"+eig_vect[0][0]+","+eig_vect[1][0]+","+eig_vect[2][0]+"}");
-								}
-							}
-
-							/*
-		double [][][] rslt = {
-				eig.getD().getArray(),
-				eig.getV().getArray(),
-				{
-					{sw,kz},
-					{swz, swx, swy}}};
-		return rslt;
-
-							 */
-
-
-							if (dl > 1) {
-								System.out.println("Processing planes with average disparity");
-								double ss = 0.0, sd = 0.0;
-								for (int i = 0; i < stDisparity.length; i++){
-									if (!Double.isNaN(stDisparity[i]) && stSel[i]){
-										ss += stStrength[i];
-										sd += stStrength[i] * stDisparity[i];
-									}
-								}
-								if (ss > 0) {
-									sd /= ss; 
-								}
-								for (int i = 0; i < stDisparity.length; i++){
-									stDisparity[i] = sd;
-								}
-								tpl.getCovar(
-										stDisparity,
-										stStrength,
-										stSel,
-										plDispNorm,
-										dl); // debugLevel);
-							}
-						}
-					}
-				}
-			};
-		}		      
-		ImageDtt.startAndJoin(threads);
-	}
-
 
 	public double corrMaxEigen(
 			double maxEigen,
@@ -1766,13 +1625,38 @@ public class SuperTiles{
 		return plane_selections;
 	}
 
-	// use both horizontal and const disparity tiles to create tile clusters
-	// Add max_diff (maximal disparity difference while extracting initial tile selection) and max_tries (2..3) parameters
-	
-	// Add separate method to create + remove outliers from all planes (2 different ones)?
-	// TODO later re-assign pixels according to existing plane parameters
-	// Sort plane data by center (plane or supertile) disparity
-	
+	/**
+	 * Use both horizontal and const disparity tiles to create tile clusters
+	 *Add max_diff (maximal disparity difference while extracting initial tile selection) and max_tries (2..3) parameters
+	 * Add separate method to create + remove outliers from all planes (2 different ones)?
+	 * TODO later re-assign pixels according to existing plane parameters
+	 * Sort plane data by center (plane or supertile) disparity
+	 * 	
+	 * @param growSelection
+	 * @param stMeasSel
+	 * @param plDispNorm
+	 * @param plMinPoints
+	 * @param plPreferDisparity
+	 * @param geometryCorrection
+	 * @param correct_distortions
+	 * @param smplMode
+	 * @param smplSide
+	 * @param smplNum
+	 * @param smplRms
+	 * @param bin_blur_hor
+	 * @param bin_blur_vert
+	 * @param max_diff_hor
+	 * @param max_diff_vert
+	 * @param max_tries
+	 * @param smallDiff
+	 * @param highMix
+	 * @param world_hor
+	 * @param debugLevel
+	 * @param dbg_X
+	 * @param dbg_Y
+	 * @return
+	 */
+
 	public boolean [][][][]  initialDiscriminateTiles(
 			final int        growSelection,                     // grow initial selection before processing 
 			final int        stMeasSel,       //      = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
@@ -2057,16 +1941,37 @@ public class SuperTiles{
 		}
 		return planes_selections;
 	}
-
-	public TilePlanes.PlaneData [][] createPlanesFromSelectionsOld(
-			final boolean [][][][] plane_selections, //  = new boolean [nStiles][][][]; // num_tiles
-			final double  [][][][] disp_strength,			
+	
+	/**
+	 * Re-assign tiles to the planes according to fitted planes. Scans each known plane parallel with specified
+	 * size steps and specified number of steps, maximizing overall fit quality.
+	 * Total weight of the fitted tiles? RMS? 
+	 * @param planes per-supertile, per plane array of plane data instances. Should have
+	 *        nonexclusiveStar and nonexclusiveStarEq calculated
+	 * @param plDispNorm - normalization of the measured disparity precision - closer objects will have disparity
+	 *  difference proportionally reduced
+	 * @param plMinPoints minimal number of points in a plane
+	 * @param plPreferDisparity kept for historical reasons - when true, select disparity-most vector even if it has higher eigenvalue
+	 * @param geometryCorrection GeometryCorrection instance to use
+	 * @param correct_distortions correct geometrical distortions when converting to/from world coordinates 
+	 * @param smplMode sample mode
+	 * @param smplSide sample side for averaging/filtering tile disparities
+	 * @param smplNum number of best samples used fro averaging
+	 * @param smplRms maximal sample disparity rms to consider sample valid
+	 * @param max_disp_diff maximal disparity difference from the planes 
+	 * @param disp_step disparity scan step when searching for optimal fit
+	 * @param steps_per_plane number of disparity steps to try around initial plane
+	 * @param mode which of the calculated planes to use - 0 - weighted, 1 - equalized, 2 heaviest of the two, weighted combination
+	 * @param debugLevel debug level
+	 * @param dbg_X supertile X for elevated debug level
+	 * @param dbg_Y supertile X for elevated debug level
+	 * @return per-tile, per plane, per measurement layer (type of correlation - combo, 4, hor, vert), per tile selections of
+	 * filtered tiles
+	 */
+	public boolean [][][][]  refineDiscriminateTiles(
+			final TilePlanes.PlaneData [][] planes, 
 			final double     plDispNorm,
 			final int        plMinPoints, //          =     5;  // Minimal number of points for plane detection
-			final double     plTargetEigen, //        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
-			final double     plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
-			final int        plMaxOutliers, //        =    20;  // Maximal number of outliers to remove
-//			final double     plVertWors,    //        =    1.5  // if rotating plane vertical does not increase 'eigenvalue' more, use vertical  
 			final boolean    plPreferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
 			final GeometryCorrection geometryCorrection,
 			final boolean    correct_distortions,
@@ -2075,185 +1980,23 @@ public class SuperTiles{
 			final int        smplSide, //        = 2;      // Sample size (side of a square)
 			final int        smplNum, //         = 3;      // Number after removing worst
 			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+			
+			final double     max_disp_diff,    // maximal disparity difference from the plane to consider tile 
+			final double     disp_step,        // parallel move known planes around original know value for the best overall fit 
+			final int        steps_per_plane,  // number of steps for each plane to search for the best fit
+			final int        mode, // 0 - weighted, 1 - equalized, 2 - best, 3 - combined
 
 			final int        debugLevel,
 			final int        dbg_X,
 			final int        dbg_Y)
 	{
-		final int tilesX =        tileProcessor.getTilesX();
-		final int tilesY =        tileProcessor.getTilesY();
-		final int superTileSize = tileProcessor.getSuperTileSize();
-		final int tileSize =      tileProcessor.getTileSize();
-
-		final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
-		final int stilesY = (tilesY + superTileSize -1)/superTileSize;
-		final int nStiles = stilesX * stilesY; 
-		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
-		final AtomicInteger ai = new AtomicInteger(0);
-		final TilePlanes.PlaneData [][] result_planes = new TilePlanes.PlaneData[nStiles][];
-		//		this.planes = new TilePlanes.PlaneData[nStiles][];
-		final int debug_stile = (debugLevel > -1)? (dbg_Y * stilesX + dbg_X):-1;
-		// TODO: Remove when promoting PlaneData
-		final TilePlanes tpl = new TilePlanes(tileSize,superTileSize, geometryCorrection);
-
-		for (int ithread = 0; ithread < threads.length; ithread++) {
-			threads[ithread] = new Thread() {
-				public void run() {
-					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
-						if (nsTile == debug_stile){
-							System.out.println("createPlanesFromSelections(): nsTile="+nsTile);
-						}
-						if (plane_selections[nsTile] != null) {
-							
-							
-							
-							int stileY = nsTile / stilesX;  
-							int stileX = nsTile % stilesX;
-							int [] sTiles = {stileX, stileY};
-							int dl =  (nsTile == debug_stile) ? 3 : 0;
-							
-							
-							
-							result_planes[nsTile] = null;
-							// first make a plane from all tiles
-							ArrayList<TilePlanes.PlaneData> st_planes = new ArrayList<TilePlanes.PlaneData>();
-							TilePlanes.PlaneData pd0 = tpl.new  PlaneData (
-									sTiles, // int [] sTileXY, 
-									tileSize, // int tileSize,
-									geometryCorrection, // GeometryCorrection   geometryCorrection,
-									correct_distortions,
-									measuredLayers,     // MeasuredLayers measuredLayers,
-									plPreferDisparity);   // boolean preferDisparity)
-
-							
-							// iterate through all plane selections
-							for (int ps = 0; ps < plane_selections[nsTile].length; ps++) {
-								TilePlanes.PlaneData pd = pd0.clone(); 
-								boolean OK = (pd.getPlaneFromMeas(
-										plane_selections[nsTile][ps], // tile_sel,       // boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
-										disp_strength[nsTile],
-										Double.NaN,    // double       disp_far, // minimal disparity to select (or NaN)
-										Double.NaN,    // double       disp_near, // maximal disparity to select (or NaN)
-										plDispNorm,    // 0.0,            // plDispNorm,  // double       dispNorm,   //  Normalize disparities to the average if above
-										0.0,            // double       min_weight,
-										plMinPoints,    // int          min_tiles,
-										strength_floor, // 
-										strength_pow,   // double       strength_pow,
-										// update !
-										smplMode,
-										smplSide,
-										smplNum,
-										smplRms,
-										dl) != null);            // int          debugLevel)
-								if (OK) {
-									if (dl > 0) {
-										if (pd.getWeight() > 1.0) {
-											System.out.println("Processing subplane["+nsTile+"]["+ps+"]"+
-													", stileX="+stileX+
-													", stileY="+stileY+
-													", numPoints="+ pd.getNumPoints()+
-													", swc = "+pd.getWeight()+
-													", center=["+pd.getZxy()[0]+","+pd.getZxy()[1]+","+pd.getZxy()[2]+"]"+
-													", eig_val = {"+pd.getValues()[0]+","+pd.getValues()[1]+","+pd.getValues()[2]+"}"+
-													", eig_vect[0] = {"+pd.getVector()[0]+","+pd.getVector()[1]+","+pd.getVector()[2]+"}");
-										}
-									}
-									// now try to remove outliers
-									int max_outliers = (int) Math.round(pd.getNumPoints() * plFractOutliers);
-									if (max_outliers > plMaxOutliers) max_outliers = plMaxOutliers;
-									double targetV = plTargetEigen;
-									double z0 = pd.getZxy()[0];
-									if ((plDispNorm > 0.0) && (z0 > plDispNorm)) {
-										double dd = (plDispNorm + z0)/ plDispNorm; // > 1
-										targetV *= dd * dd; // > original
-									}
-									if (pd.getValues()[0] > targetV) {
-										OK = pd.removeOutliers( // getPlaneFromMeas should already have run
-												disp_strength[nsTile], 
-												targetV,      // double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
-												max_outliers, // int        maxRemoved,  // maximal number of tiles to remove (not a constant)
-												dl); // int        debugLevel)
-										if (!OK) {
-											continue;
-										}
-										if (dl > 0) {
-											if (pd.getWeight() > 1.0) {
-												System.out.println("Removed outliers["+nsTile+"]["+ps+"]"+
-														", stileX="+stileX+
-														", stileY="+stileY+
-														", numPoints="+ pd.getNumPoints()+
-														", swc = "+pd.getWeight()+
-														", center=["+pd.getZxy()[0]+","+pd.getZxy()[1]+","+pd.getZxy()[2]+"]"+
-														", eig_val = {"+pd.getValues()[0]+","+pd.getValues()[1]+","+pd.getValues()[2]+"}"+
-														", eig_vect[0] = {"+pd.getVector()[0]+","+pd.getVector()[1]+","+pd.getVector()[2]+"}");
-											}
-										}
-									}
-									double [] norm_xyz = pd.getWorldXYZ(
-											correct_distortions);
-									st_planes.add(pd);
-									if (dl > 0) {
-										System.out.println("World normal["+nsTile+"]["+ps+"] = {"+
-												norm_xyz[0]+", "+norm_xyz[1]+", "+norm_xyz[2]+"}");
-
-									}
-									// calculate the world planes too									
-//									if (debugLevel > -1){
-										pd.getWorldPlaneFromMeas(
-												plane_selections[nsTile][ps], // tile_sel,       // boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
-												disp_strength[nsTile],
-												Double.NaN,    // double       disp_far, // minimal disparity to select (or NaN)
-												Double.NaN,    // double       disp_near, // maximal disparity to select (or NaN)
-												plDispNorm,    // 0.0,            // plDispNorm,  // double       dispNorm,   //  Normalize disparities to the average if above
-												0.0,            // double       min_weight,
-												plMinPoints,    // int          min_tiles,
-												strength_floor, // 
-												strength_pow,   // double       strength_pow,
-												// update !
-												smplMode,
-												smplSide,
-												smplNum,
-												smplRms,
-												dl);
-//									}
-								}
-							}
-							if (st_planes.size() > 0){
-								// sort planes by increasing disparity (tile center or plane center ? ) Using plane center
-								Collections.sort(st_planes, new Comparator<TilePlanes.PlaneData>() {
-									@Override
-									public int compare(TilePlanes.PlaneData lhs, TilePlanes.PlaneData rhs) {
-										// -1 - less than, 1 - greater than, 0 - equal
-										return (rhs.getZxy()[0] > lhs.getZxy()[0]) ? -1 : (rhs.getZxy()[0] < lhs.getZxy()[0] ) ? 1 : 0;
-									}
-								});
-								if (LOWEST_PLANE(2) > 0) st_planes.add(0, st_planes.get(0)); // insert dummy at pos 0;
-								result_planes[nsTile] = st_planes.toArray(new TilePlanes.PlaneData[0] );
-								if (LOWEST_PLANE(2) > 0) result_planes[nsTile][0] = null; // remove dummy
-								if (dl >0){
-									System.out.println("createPlanesFromSelections(): nsTile="+nsTile);
-								}
-							}
-							if (dl > 2) {
-								String [] dbg_titles = showSupertileSeparationTitles( disp_strength[nsTile], plane_selections[nsTile], result_planes[nsTile]);
-								double [][] dbg_img =  showSupertileSeparation(false, disp_strength[nsTile], plane_selections[nsTile], result_planes[nsTile]);
-								showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
-								sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "create_planes_disp-"+nsTile+"-"+debugLevel,dbg_titles);
-								dbg_img =  showSupertileSeparation(true, disp_strength[nsTile], plane_selections[nsTile], result_planes[nsTile]);
-								sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "create_planes_world-"+nsTile+"-"+debugLevel,dbg_titles);
-							}
-							
-							
-							
-						}
-					}
-				}
-			};
-		}		      
-		ImageDtt.startAndJoin(threads);
-		return result_planes;		
+		// create a list of usable planes according to the mode
+		
+		
+		
+		return null;
 	}
-
+	
 	public TilePlanes.PlaneData [][] createPlanesFromSelections(
 			final boolean [][][][] plane_selections, //  = new boolean [nStiles][][][]; // num_tiles
 			final double  [][][][] disp_strength,			
@@ -2284,7 +2027,9 @@ public class SuperTiles{
 		final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
 		final int stilesY = (tilesY + superTileSize -1)/superTileSize;
 		final int nStiles = stilesX * stilesY; 
-		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+//		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+		final Thread[] threads = ImageDtt.newThreadArray((debugLevel > 1)? 1 : tileProcessor.threadsMax);
+		
 		final AtomicInteger ai = new AtomicInteger(0);
 		final TilePlanes.PlaneData [][] result_planes = new TilePlanes.PlaneData[nStiles][];
 		//		this.planes = new TilePlanes.PlaneData[nStiles][];
@@ -2336,6 +2081,52 @@ public class SuperTiles{
 											dl);                       // int          debugLevel);
 
 							if ((st_planes != null) && (!st_planes.isEmpty())){
+								if (dl > 0){
+									System.out.println("======= createPlanesFromSelections(): nsTile="+nsTile+" detecting bridges ==========");
+								}
+								boolean [][][] split_sels = pd0.filterBridges(
+										st_planes, // ArrayList<PlaneData> tilePlanes,
+										3, // int max_grow, // make configurable?
+										3, // int max_grow_far,
+										dl); // int debugLevel)
+								if (split_sels !=null){
+									if (dl > -1){
+										System.out.println("======= createPlanesFromSelections(): nsTile="+nsTile+" removing bridges ==========");
+									}
+									if (dl > 2) {
+										String [] dbg_titles = showSupertileSeparationTitles( disp_strength[nsTile], plane_selections[nsTile], result_planes[nsTile]);
+										double [][] dbg_img =  showSupertileSeparation(false, disp_strength[nsTile], plane_selections[nsTile], result_planes[nsTile]);
+										showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+										sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "pre_bridge_disp-"+nsTile+"-"+debugLevel,dbg_titles);
+										dbg_img =  showSupertileSeparation(true, disp_strength[nsTile], plane_selections[nsTile], result_planes[nsTile]);
+										sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "pre_bridge_world-"+nsTile+"-"+debugLevel,dbg_titles);
+									}
+									
+									
+									
+									st_planes = pd0.createTilePlanesFromSelections(
+											"" + nsTile+" bridges ",  // String        suffix,
+											split_sels,               // boolean [][][] plane_selections, //  = new boolean [nStiles][][][]; // num_tiles
+											disp_strength[nsTile],    // double  [][][] disp_strength,			
+											plDispNorm,               // double       dispNorm,   //  Normalize disparities to the average if above
+											plMinPoints,              // int          min_tiles,
+											plTargetEigen,            // double       plTargetEigen, //        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+											0.0,                      // double       plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
+											0,                        // plMaxOutliers,            // int          plMaxOutliers, //        =    20;  // Maximal number of outliers to remove
+											strength_floor,           // double       strength_floor,
+											strength_pow,             // double       strength_pow,
+											correct_distortions,      // boolean      correct_distortions,
+											smplMode,                 // boolean      smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+											smplSide,                 // int          smplSide, //        = 2;      // Sample size (side of a square)
+											smplNum,                  //  int          smplNum, //         = 3;      // Number after removing worst
+											smplRms,                  //  double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+											dl);                       // int          debugLevel);
+								}
+								
+							}
+							
+							if ((st_planes != null) && (!st_planes.isEmpty())){
+								
 								if (LOWEST_PLANE(2) > 0) st_planes.add(0, st_planes.get(0)); // insert dummy at pos 0;
 								result_planes[nsTile] = st_planes.toArray(new TilePlanes.PlaneData[0] );
 								if (LOWEST_PLANE(2) > 0) result_planes[nsTile][0] = null; // remove dummy
@@ -2465,7 +2256,7 @@ public class SuperTiles{
 				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
 				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 
-				debugLevel+1,          // final int        debugLevel,
+				debugLevel + 2, // 1,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
 				dbg_Y);              // final int        dbg_Y)
 		this.planes = new_planes; // save as "measured" (as opposed to "smoothed" by neighbors) planes
@@ -2488,132 +2279,6 @@ public class SuperTiles{
 		return wh;
 	}
 
-	// TODO: Obsolete (never used)?
-	TilePlanes.PlaneData [][] getNeibPlanes(
-			final int     dir,     // 0: get from up (N), 1:from NE, ... 7 - from NW
-			final boolean preferDisparity,
-			final boolean dbgMerge, // Combine 'other' plane with current
-			final int     dbg_X,
-			final int     dbg_Y
-			)
-	{
-		final int tilesX =        tileProcessor.getTilesX();
-		final int tilesY =        tileProcessor.getTilesY();
-		final int superTileSize = tileProcessor.getSuperTileSize();
-		final int tileSize =      tileProcessor.getTileSize();
-		final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
-		final int stilesY = (tilesY + superTileSize -1)/superTileSize;
-		final double [] nan_plane = new double [superTileSize*superTileSize];
-		for (int i = 0; i < nan_plane.length; i++) nan_plane[i] = Double.NaN;
-		final int [][] dirsYX = {{-1, 0},{-1,1},{0,1},{1,1},{1,0},{1,-1},{0,-1},{-1,-1}};
-		TilePlanes.PlaneData [][] neib_planes = new TilePlanes.PlaneData[stilesY * stilesX][];
-		TilePlanes tpl = null; // new TilePlanes(tileSize,superTileSize, geometryCorrection);
-		//				final int debug_stile = 20 * stilesX + 27;
-		//				final int debug_stile = 17 * stilesX + 27;
-		final int debug_stile = dbg_Y * stilesX + dbg_X;
-		//				final int debug_stile = -1;
-
-		for (int sty0 = 0; sty0 < stilesY; sty0++){
-			int sty = sty0 + dirsYX[dir][0];
-			for (int stx0 = 0; stx0 < stilesX; stx0++){
-				int nsTile0 = sty0 * stilesX + stx0; // result tile
-				int stx = stx0 + dirsYX[dir][1];
-				int nsTile = sty * stilesX + stx; // from where to get
-				if ((sty >= 0) && (sty < stilesY) && (stx >= 0) && (stx < stilesX) && (planes[nsTile] != null)) {
-					neib_planes[nsTile0] = new TilePlanes.PlaneData[planes[nsTile].length];
-					for (int np = 0; np < planes[nsTile].length; np++){
-						GeometryCorrection geometryCorrection = planes[nsTile][np].getGeometryCorrection();
-						boolean correct_distortions = planes[nsTile][np].getCorrectDistortions();
-						int [] sTileXY0 = {stx0,sty0}; 
-						if (tpl == null) {
-							tpl = new TilePlanes(tileSize,superTileSize, geometryCorrection);
-						}
-						TilePlanes.PlaneData pd = tpl.new PlaneData(
-								sTileXY0,
-								tileSize,
-								superTileSize,
-								geometryCorrection,
-								correct_distortions);
-						/*
-								TilePlanes.PlaneData pd = planes[nsTile0][np].clone();
-								pd.setS
-						 */
-						if (nsTile0 == debug_stile) {
-							System.out.println("getNeibPlanes(): nsTile0="+nsTile0+", nsTile="+nsTile+", np = "+np+" dir = "+ dir ); 
-						}
-						TilePlanes.PlaneData other_pd = pd.getPlaneToThis(
-								planes[nsTile][np], // PlaneData otherPd,
-								(nsTile0 == debug_stile)? 1:0); // int       debugLevel)
-						int num_this = (planes[nsTile0] == null)? 0:(planes[nsTile0].length); 
-						int best_index = 0;
-						if (dbgMerge && (num_this > 0)) {
-							double best_value = Double.NaN;
-							if (num_this > 1){
-								// find the best candidate for merge
-								for (int indx = 1; indx < planes[nsTile0].length; indx++){
-									if (nsTile0 == debug_stile) {
-										System.out.println("this with this, same weight:");
-										TilePlanes.PlaneData this_this_pd = planes[nsTile0][indx].mergePlaneToThis(
-												planes[nsTile0][indx], // PlaneData otherPd,
-												1.0,      // double    scale_other,
-												1.0, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
-												true,     // boolean   ignore_weights,
-												true, // boolean   sum_weights,
-												preferDisparity,
-												(nsTile0 == debug_stile)? 1:0); // int       debugLevel)
-										System.out.println("other with other, same weight:");
-										TilePlanes.PlaneData other_other_pd = other_pd.mergePlaneToThis(
-												other_pd, // PlaneData otherPd,
-												1.0,      // double    scale_other,
-												1.0, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
-												true,     // boolean   ignore_weights,
-												true, // boolean   sum_weights,
-												preferDisparity,
-												(nsTile0 == debug_stile)? 1:0); // int       debugLevel)
-										System.out.println("other with this, same weight:");
-									}
-									TilePlanes.PlaneData merged_pd = planes[nsTile0][indx].mergePlaneToThis(
-											other_pd, // PlaneData otherPd,
-											1.0,      // double    scale_other,
-											1.0, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
-											true,     // boolean   ignore_weights,
-											true, // boolean   sum_weights,
-											preferDisparity,
-											(nsTile0 == debug_stile)? 1:0); // int       debugLevel)
-									if (!(merged_pd.getValue() > best_value)) { // Double.isNaN(best_value) will work too
-										best_value = merged_pd.getValue();
-										best_index = indx;
-									}
-								}
-							}
-							// now merge with weights with the best plane of this supertile
-							if (nsTile0 == debug_stile) {
-								System.out.println("this with this, proportional weight, np(other):"+np+" best fit(this):"+best_index);
-							}									
-							TilePlanes.PlaneData merged_pd = planes[nsTile0][best_index].mergePlaneToThis(
-									other_pd, // PlaneData otherPd,
-									1.0,      // double    scale_other,
-									1.0, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
-									false,    // boolean   ignore_weights,
-									true, // boolean   sum_weights,
-									preferDisparity,
-									(nsTile0 == debug_stile)? 1:0); // int       debugLevel)
-							if (merged_pd != null) {
-								merged_pd.scaleWeight(0.5);
-							}
-							neib_planes[nsTile0][np] = merged_pd;
-						} else  {
-							neib_planes[nsTile0][np] = other_pd;
-						}
-					}
-				} else {
-					neib_planes[nsTile0] = null;
-				}
-			}
-		}
-		return neib_planes;
-	}
-	
 	public int fillSquares()
 	{
 		final int tilesX =        tileProcessor.getTilesX();
@@ -2807,7 +2472,7 @@ public class SuperTiles{
 		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;
 		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
 		final int dbgTile = dbg_Y * stilesX + dbg_X;
-		final TileSurface.TileNeibs tnSurface = tileSurface.new TileNeibs(stilesX, stilesY);
+		final TileNeibs tnSurface = new TileNeibs(stilesX, stilesY);
 		int [] rslt = {0,0};
 		for (int nsTile = 0; nsTile < conflicts.length; nsTile++) if (conflicts[nsTile] != null) {
 			// conflicts may disappear after being fixed, recheck for null
@@ -2827,7 +2492,7 @@ public class SuperTiles{
 								start_dir4,      // int start_dir4,
 								right,           // boolean right,
 								reverse,         // boolean reverse,
-								tnSurface,       // TileSurface.TileNeibs tnSurface,
+								tnSurface,       // TileNeibs tnSurface,
 								conflicts,       // int [][][] conflicts,
 								conflict_stats,  // Conflicts conflict_stats, // to be updated after applying resolution
 								starSteps, // How far to look around when calculationg connection cost
@@ -2857,7 +2522,7 @@ public class SuperTiles{
 			int start_dir4,
 			boolean right,
 			boolean reverse,
-			TileSurface.TileNeibs tnSurface,
+			TileNeibs tnSurface,
 			int [][][] conflicts,
 			Conflicts conflict_stats, // to be updated after applying resolution
 			int        starSteps, // How far to look around when calculationg connection cost
@@ -2979,7 +2644,7 @@ public class SuperTiles{
 					nsTiles[isTile],   // int nsTile0,
 					replacement_tiles, //HashMap<Integer,Integer> replacement_tiles, //
 					neibs_prev, // int [][][] replacement_neibs,
-					tnSurface); // TileSurface.TileNeibs tnSurface)
+					tnSurface); // TileNeibs tnSurface)
 		}
 		if (debugLevel > 1) {
 			System.out.println("Calculating original conflicts");
@@ -3040,7 +2705,7 @@ public class SuperTiles{
 					nsTiles[isTile],   // int nsTile0,
 					replacement_tiles, //HashMap<Integer,Integer> replacement_tiles, //
 					neibs, // neibs, // int [][][] replacement_neibs,
-					tnSurface); // TileSurface.TileNeibs tnSurface)
+					tnSurface); // TileNeibs tnSurface)
 		}
 		Conflicts new_conflicts_stats = new Conflicts(
 				new_conflicts,
@@ -3118,7 +2783,7 @@ public class SuperTiles{
 			int nl1,
 			int nl2,
 			int dir_mask,
-			TileSurface.TileNeibs tnSurface,
+			TileNeibs tnSurface,
 			int [][][] conflicts,
 			Conflicts conflict_stats, // to be updated after applying resolution
 			int        starSteps, // How far to look around when calculationg connection cost
@@ -3220,7 +2885,7 @@ public class SuperTiles{
 					nsTiles[isTile],   // int nsTile0,
 					replacement_tiles, //HashMap<Integer,Integer> replacement_tiles, //
 					neibs_prev, // int [][][] replacement_neibs,
-					tnSurface); // TileSurface.TileNeibs tnSurface)
+					tnSurface); // TileNeibs tnSurface)
 		}
 		if (debugLevel > 1) {
 			System.out.println("Involved supertiles:");
@@ -3292,7 +2957,7 @@ public class SuperTiles{
 						nsTiles[isTile],   // int nsTile0,
 						replacement_tiles, //HashMap<Integer,Integer> replacement_tiles, //
 						neibs_vars[variant], // neibs, // int [][][] replacement_neibs,
-						tnSurface); // TileSurface.TileNeibs tnSurface)
+						tnSurface); // TileNeibs tnSurface)
 			}
 			variant_conflicts_stats[variant] = new Conflicts(
 					variant_conflicts[variant],
@@ -3414,7 +3079,7 @@ public class SuperTiles{
 		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;
 		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
 		final int dbgTile = dbg_Y * stilesX + dbg_X;
-		final TileSurface.TileNeibs tnSurface = tileSurface.new TileNeibs(stilesX, stilesY);
+		final TileNeibs tnSurface = new TileNeibs(stilesX, stilesY);
 		int [] rslt = {0,0};
 		for (int nsTile = 0; nsTile < conflicts.length; nsTile++) if (conflicts[nsTile] != null) {
 			// conflicts may disappear after being fixed, recheck for null
@@ -3473,7 +3138,7 @@ public class SuperTiles{
 		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;
 		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
 		final int dbgTile = dbg_Y * stilesX + dbg_X;
-		final TileSurface.TileNeibs tnSurface = tileSurface.new TileNeibs(stilesX, stilesY);
+		final TileNeibs tnSurface = new TileNeibs(stilesX, stilesY);
 		int [] rslt = {0,0};
 		for (int nsTile = 0; nsTile < conflicts.length; nsTile++) if (conflicts[nsTile] != null) {
 			// conflicts may disappear after being fixed, recheck for null
@@ -3511,7 +3176,7 @@ public class SuperTiles{
 			int nsTile,
 			int nl1,
 			int nl2,
-			TileSurface.TileNeibs tnSurface,
+			TileNeibs tnSurface,
 			int [][][] conflicts,
 			Conflicts conflict_stats, // to be updated after applying resolution
 			int        starSteps, // How far to look around when calculationg connection cost
@@ -3619,7 +3284,7 @@ public class SuperTiles{
 					nsTiles[isTile],   // int nsTile0,
 					replacement_tiles, //HashMap<Integer,Integer> replacement_tiles, //
 					neibs_prev, // int [][][] replacement_neibs,
-					tnSurface); // TileSurface.TileNeibs tnSurface)
+					tnSurface); // TileNeibs tnSurface)
 		}
 		if (debugLevel > 1) {
 			System.out.println("Involved supertiles:");
@@ -3649,7 +3314,7 @@ public class SuperTiles{
 						nsTiles[isTile],   // int nsTile0,
 						replacement_tiles, //HashMap<Integer,Integer> replacement_tiles, //
 						neibs_vars[variant], // neibs, // int [][][] replacement_neibs,
-						tnSurface); // TileSurface.TileNeibs tnSurface)
+						tnSurface); // TileNeibs tnSurface)
 			}
 			variant_conflicts_stats[variant] = new Conflicts(
 					variant_conflicts[variant],
@@ -3809,7 +3474,7 @@ public class SuperTiles{
 			int nl1,
 			int nl2,
 			LinkPlanes lp,
-			TileSurface.TileNeibs tnSurface,
+			TileNeibs tnSurface,
 			int [][][] conflicts,
 			Conflicts conflict_stats, // to be updated after applying resolution
 			int        starSteps, // How far to look around when calculationg connection cost
@@ -3922,7 +3587,7 @@ public class SuperTiles{
 					nsTiles[isTile],   // int nsTile0,
 					replacement_tiles, // HashMap<Integer,Integer> replacement_tiles, //
 					neibs_prev, // int [][][] replacement_neibs,
-					tnSurface); // TileSurface.TileNeibs tnSurface)
+					tnSurface); // TileNeibs tnSurface)
 // calculate cost of conflicts			
 			
 			conflicts_old_cost += iconflicts.getConflictsCost(
@@ -3932,7 +3597,7 @@ public class SuperTiles{
 					replacement_tiles,     // HashMap<Integer,Integer> replacement_tiles, // null is OK
 					neibs_prev,            // int [][][]    replacement_neibs,               // null OK if  replacement_tiles == null
 					connectionCosts,       // ConnectionCosts connectionCosts,
-					tnSurface); // TileSurface.TileNeibs tnSurface)
+					tnSurface); // TileNeibs tnSurface)
 
 			
 		}
@@ -3971,7 +3636,7 @@ public class SuperTiles{
 						nsTiles[isTile],   // int nsTile0,
 						replacement_tiles, //HashMap<Integer,Integer> replacement_tiles, //
 						neibs_vars[variant], // neibs, // int [][][] replacement_neibs,
-						tnSurface); // TileSurface.TileNeibs tnSurface)
+						tnSurface); // TileNeibs tnSurface)
 				// connectionCosts now contains last calculated	val/weight pairs for broader array of tile data
 				conflicts_var_cost[variant] += iconflicts.getConflictsCost(
 						nsTiles[isTile],                    // int           nsTile0,
@@ -3980,7 +3645,7 @@ public class SuperTiles{
 						replacement_tiles,                  // HashMap<Integer,Integer> replacement_tiles, // null is OK
 						neibs_vars[variant],                // int [][][]    replacement_neibs,               // null OK if  replacement_tiles == null
 						connectionCosts,                    // ConnectionCosts connectionCosts,
-						tnSurface);                         // TileSurface.TileNeibs tnSurface)
+						tnSurface);                         // TileNeibs tnSurface)
 			}
 			variant_conflicts_stats[variant] = new Conflicts(
 					variant_conflicts[variant],
@@ -4159,7 +3824,7 @@ public class SuperTiles{
 		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;  
 		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
 		final int nStiles =       stilesX * stilesY; 
-		final TileSurface.TileNeibs tnSurface = tileSurface.new TileNeibs(stilesX, stilesY);
+		final TileNeibs tnSurface = new TileNeibs(stilesX, stilesY);
 		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -4174,7 +3839,7 @@ public class SuperTiles{
 							starValPwr,     //double          starValPwr, //  Raise value of each tile before averaging
 							steps,          // int            steps,
 							planes,         // TilePlanes.PlaneData [][] planes,
-							tnSurface,      // TileSurface.TileNeibs tnSurface,
+							tnSurface,      // TileNeibs tnSurface,
 							preferDisparity); // boolean preferDisparity)
 					int [] mod_supertiles = new int[1];
 					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
@@ -4214,7 +3879,7 @@ public class SuperTiles{
 		//				final int tileSize =      tileProcessor.getTileSize();
 		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;  
 		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
-		final TileSurface.TileNeibs tnSurface = tileSurface.new TileNeibs(stilesX, stilesY);
+		final TileNeibs tnSurface = new TileNeibs(stilesX, stilesY);
 		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -4229,7 +3894,7 @@ public class SuperTiles{
 							starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
 							steps,          // int            steps,
 							planes,         // TilePlanes.PlaneData [][] planes,
-							tnSurface,      // TileSurface.TileNeibs tnSurface,
+							tnSurface,      // TileNeibs tnSurface,
 							preferDisparity); // boolean preferDisparity)
 					int [] supertiles = new int[1];
 					for (int isTile = ai.getAndIncrement(); isTile < mod_supertiles.length; isTile = ai.getAndIncrement()) {
@@ -4273,7 +3938,7 @@ public class SuperTiles{
 			int nl1,
 			int nl2,
 			int dir_mask,
-			TileSurface.TileNeibs tnSurface,
+			TileNeibs tnSurface,
 			int        debugLevel)
 	{
 		int [][] layers0 = new int[5][2]; // 4 - center, 0 - N, 1 - E, 2 - S, 3 - w. 4 has 2, each other 0,1 or 2 layers
@@ -4684,7 +4349,7 @@ public class SuperTiles{
 		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;
 		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
 		final int dbgTile = dbg_Y * stilesX + dbg_X;
-		final TileSurface.TileNeibs tnSurface = tileSurface.new TileNeibs(stilesX, stilesY);
+		final TileNeibs tnSurface = new TileNeibs(stilesX, stilesY);
 		final Conflicts iconflicts = new Conflicts(this); 
 
 		int [] rslt = {0,0};
@@ -4870,12 +4535,12 @@ public class SuperTiles{
 												nsTiles[isTile],   // int nsTile0,
 												replacement_tiles, //HashMap<Integer,Integer> replacement_tiles, //
 												neibs_prev, // int [][][] replacement_neibs,
-												tnSurface); // TileSurface.TileNeibs tnSurface)
+												tnSurface); // TileNeibs tnSurface)
 										conflicts_new[isTile] = iconflicts.detectTriangularTileConflicts(
 												nsTiles[isTile],   // int nsTile0,
 												replacement_tiles, //HashMap<Integer,Integer> replacement_tiles, //
 												neibs, // int [][][] replacement_neibs,
-												tnSurface); // TileSurface.TileNeibs tnSurface)
+												tnSurface); // TileNeibs tnSurface)
 									}
 									if (debugLevel > 1) {
 										System.out.println("Involved supertiles:");
@@ -4974,7 +4639,7 @@ public class SuperTiles{
 			int dir4,
 			double maxEigen, // maximal eigenvalue of planes to consider
 			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
-			TileSurface.TileNeibs tnSurface,
+			TileNeibs tnSurface,
 			boolean preferDisparity,
 			int debugLevel)
 	{
@@ -5067,7 +4732,7 @@ public class SuperTiles{
 			double diagonalWeight,
 			double starPwr,    // Divide cost by number of connections to this power
 			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost			
-			TileSurface.TileNeibs tnSurface,
+			TileNeibs tnSurface,
 			boolean preferDisparity,
 			int    debugLevel)
 	{
@@ -5106,7 +4771,7 @@ public class SuperTiles{
 	
 	public int [] getInvolvedSupertiles(
 			int [] mod_supertiles,
-			TileSurface.TileNeibs tnSurface)
+			TileNeibs tnSurface)
 	{
 		HashSet<Integer> stiles_set = new HashSet<Integer>();
 		for (int i = 0; i < mod_supertiles.length; i++){
@@ -5157,7 +4822,7 @@ public class SuperTiles{
 			double         diagonalWeight,
 			double         starPwr,    // Divide cost by number of connections to this power
 			double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
-			TileSurface.TileNeibs tnSurface,
+			TileNeibs tnSurface,
 			boolean preferDisparity,
 			int    debugLevel)
 	{
@@ -6156,7 +5821,7 @@ public class SuperTiles{
 										smplSide,
 										smplNum,
 										smplRms,
-										dl);            // int          debugLevel)
+										dl - 2);            // int          debugLevel)
 								if (disp_strength == null) {
 									System.out.println("=== BUG in applyMergePlanes(): failed to getPlaneFromMeas() for merged planes");  
 									break;
@@ -6177,7 +5842,7 @@ public class SuperTiles{
 										smplSide,
 										smplNum,
 										smplRms,
-										dl);            // int          debugLevel)
+										dl - 2);            // int          debugLevel)
 								
 								
 								

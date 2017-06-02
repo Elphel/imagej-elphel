@@ -284,7 +284,7 @@ public class Conflicts {
 		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
 		final int nStiles =       stilesX * stilesY;
 		final int [][][] conflicts = new int [st.getPlanes().length][][];
-		final TileSurface.TileNeibs tnSurface = st.getTileSurface().new TileNeibs(stilesX, stilesY);
+		final TileNeibs tnSurface = new TileNeibs(stilesX, stilesY);
 		final Thread[] threads = ImageDtt.newThreadArray(st.getTileProcessor().threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -343,7 +343,7 @@ public class Conflicts {
 			HashMap<Integer,Integer> replacement_tiles, // null is OK
 			int [][][]    replacement_neibs,               // null OK if  replacement_tiles == null
 			double [][][] replacement_val_weights,
-			TileSurface.TileNeibs tnSurface)
+			TileNeibs tnSurface)
 	{
 		TilePlanes.PlaneData [][] planes = st.getPlanes();
 		// generate conflicts if not provided
@@ -405,7 +405,7 @@ public class Conflicts {
 			HashMap<Integer,Integer> replacement_tiles, // null is OK
 			int [][][]    replacement_neibs,               // null OK if  replacement_tiles == null
 			ConnectionCosts connectionCosts,
-			TileSurface.TileNeibs tnSurface)
+			TileNeibs tnSurface)
 	{
 		TilePlanes.PlaneData [][] planes = st.getPlanes();
 		// generate conflicts if not provided
@@ -465,7 +465,7 @@ public class Conflicts {
 			int nsTile0,
 			HashMap<Integer,Integer> replacement_tiles, // null is OK - will use only planes data
 			int [][][] replacement_neibs,               // null OK if  replacement_tiles == null
-			TileSurface.TileNeibs tnSurface)
+			TileNeibs tnSurface)
 	{
 		TilePlanes.PlaneData [][] planes = st.getPlanes();
 		ArrayList<Conflict> conflicts_list= new ArrayList<Conflict>();
