@@ -2212,13 +2212,13 @@ public class TilePlanes {
 			return plane;
 		}
 
-		public double[][] getDoublePlaneDisparityStrength_old(
+		public double[][] getDoublePlaneDisparityStrength(
 				double [] window,
 				boolean   use_sel,
 				boolean   divide_by_area,
 				double    scale_projection,
 				int       debugLevel)
-		{		return getDoublePlaneDisparityStrength_old(
+		{		return getDoublePlaneDisparityStrength(
 				true,
 				window,
 				use_sel,
@@ -2261,7 +2261,7 @@ public class TilePlanes {
 		 * @return a pair of arrays {disparity, strength}, each [2*superTileSize * 2*superTileSize]
 		 */
 		// obsolete, convert to another version ?
-		public double[][] getDoublePlaneDisparityStrength_old(
+		public double[][] getDoublePlaneDisparityStrength(
 				boolean   useWorld,
 				double [] window,
 				boolean   use_sel,
@@ -3211,7 +3211,7 @@ public class TilePlanes {
 				boolean correct_distortions,
 				int debugLevel)
 		{
-			double delta = 0.0001;
+//			double delta = 0.0001;
 			if (center_xyz != null) return center_xyz;
 			setCorrectDistortions(correct_distortions);
 			// get pixel coordinates of the plane origin point
@@ -3457,13 +3457,10 @@ public class TilePlanes {
 			return null;		
 		}
 
-		public boolean [][][]  refineDiscriminateTiles(
+		public boolean [][][]  reDiscriminateTiles_0(
+				String           prefix,
 				final PlaneData  [] planes, 
 				final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
-				final double     plDispNorm,
-				final int        plMinPoints, //          =     5;  // Minimal number of points for plane detection
-				final GeometryCorrection geometryCorrection,
-				final boolean    correct_distortions,
 
 				final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				final int        smplSide, //        = 2;      // Sample size (side of a square)
@@ -3477,6 +3474,9 @@ public class TilePlanes {
 				final int        mode, // 0 - weighted, 1 - equalized, 2 - best, 3 - combined
 				final int        debugLevel)
 		{
+			final int size2 = 4 * superTileSize*superTileSize;
+			final double max_disp_diff2 = max_disp_diff*max_disp_diff;
+			TileNeibs tileNeibs = new TileNeibs(2 * stSize, 2 * stSize);
 			if (planes == null) return null;
 			// create a list of usable planes according to the mode
 			ArrayList<PlaneData> tilePlanes = new ArrayList<PlaneData>();
@@ -3485,22 +3485,68 @@ public class TilePlanes {
 				PlaneData equal_pd =    planes[np].getNonexclusiveStarEq();
 				switch (mode){
 				case 0:
-					if (weighted_pd == null)throw new IllegalArgumentException ("refineDiscriminateTiles(): getNonexclusiveStar() retgurned null");
-					tilePlanes.add(weighted_pd);
+					if (weighted_pd == null){
+						if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStar() returned null, trying getNonexclusiveStarEq");
+						if (equal_pd == null) {
+							if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStarEq() returned null, using plane itself");
+							tilePlanes.add(planes[np]);
+						} else {
+							tilePlanes.add(equal_pd);
+						}
+//						throw new IllegalArgumentException ("refineDiscriminateTiles(): getNonexclusiveStar() returned null");
+					} else  {
+						tilePlanes.add(weighted_pd);
+					}
 					break;
 				case 1:
-					if (equal_pd == null)throw new IllegalArgumentException ("refineDiscriminateTiles(): getNonexclusiveStarEq() retgurned null");
-					tilePlanes.add(equal_pd);
+					if (equal_pd == null) { //throw new IllegalArgumentException ("refineDiscriminateTiles(): getNonexclusiveStarEq() returned null");
+						if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStarEq() returned null, trying getNonexclusiveStar");
+						if (weighted_pd == null) {
+							if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStar() returned null, using plane itself");
+							tilePlanes.add(planes[np]);
+						} else {
+							tilePlanes.add(weighted_pd);
+						}
+						
+					} else {
+						tilePlanes.add(equal_pd);
+					}
 					break;
 				case 2:
-					if (weighted_pd == null)throw new IllegalArgumentException ("refineDiscriminateTiles(): getNonexclusiveStar() retgurned null");
-					if (equal_pd == null)throw new IllegalArgumentException ("refineDiscriminateTiles(): getNonexclusiveStarEq() retgurned null");
+					if (weighted_pd == null) { //throw new IllegalArgumentException ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStar() returned null");
+						if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStar() returned null, trying getNonexclusiveStarEq");
+						if (equal_pd == null) {
+							if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStarEq() returned null, using plane itself");
+							tilePlanes.add(planes[np]);
+						} else {
+							tilePlanes.add(equal_pd);
+						}
+						break;
+					}
+					if (equal_pd == null) { //throw new IllegalArgumentException ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStarEq() returned null");
+						if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStarEq() returned null, trying getNonexclusiveStar");
+						tilePlanes.add(weighted_pd);
+						break;
+					}
 					if (weighted_pd.getWeight() > equal_pd.getWeight()) tilePlanes.add(weighted_pd);
 					else                                                tilePlanes.add(equal_pd);
 					break;
 				case 3:
-					if (weighted_pd == null)throw new IllegalArgumentException ("refineDiscriminateTiles(): getNonexclusiveStar() retgurned null");
-					if (equal_pd == null)throw new IllegalArgumentException ("refineDiscriminateTiles(): getNonexclusiveStarEq() retgurned null");
+					if (weighted_pd == null) { //throw new IllegalArgumentException ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStar() returned null");
+						if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStar() returned null, trying getNonexclusiveStarEq");
+						if (equal_pd == null) {
+							if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStarEq() returned null, using plane itself");
+							tilePlanes.add(planes[np]);
+						} else {
+							tilePlanes.add(equal_pd);
+						}
+						break;
+					}
+					if (equal_pd == null) { //throw new IllegalArgumentException ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStarEq() returned null");
+						if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStarEq() returned null, trying getNonexclusiveStar");
+						tilePlanes.add(weighted_pd);
+						break;
+					}
 					PlaneData combo_pd =  weighted_pd.mergePlaneToThis(
 							equal_pd, // PlaneData otherPd,
 							1.0,      // double    scale_other,
@@ -3508,15 +3554,429 @@ public class TilePlanes {
 							false,    // boolean   ignore_weights,
 							true,     // boolean   sum_weights,
 							preferDisparity, // boolean   preferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
-							debugLevel - 2); // int       debugLevel)
+							debugLevel - 3); // int       debugLevel)
+					 tilePlanes.add(combo_pd);
 					break;
 				default:
-		    		throw new IllegalArgumentException ("refineDiscriminateTiles(): invalid mode="+mode);
+		    		throw new IllegalArgumentException ("refineDiscriminateTiles() "+prefix+":"+np+": invalid mode="+mode);
 				}
 			}
 			if (tilePlanes.isEmpty()){
 				return null;
 			}
+			if (debugLevel > 1)	{
+				System.out.println ("refineDiscriminateTiles() "+prefix+" - step 1");
+			}
+			
+           // get measured disparity/strength data, filtered, not tilted
+			double [][][] disp_strength = new double[measuredLayers.getNumLayers()][][];
+			for (int ml = 0; ml < disp_strength.length; ml++) if ((stMeasSel & ( 1 << ml)) != 0){
+				if (smplMode) {
+					disp_strength[ml] = measuredLayers.getDisparityStrength( // expensive to calculate (improve removing outlayers
+							ml, // int num_layer,
+							getSTileXY()[0],        // int stX,
+							getSTileXY()[1],        // int stY,
+							null,                   // boolean [] sel_in, - use all 
+							strength_floor,
+							measured_strength_pow,  //
+							smplSide,               // = 2;      // Sample size (side of a square)
+							smplNum,                // = 3;      // Number after removing worst
+							smplRms,                // = 0.1;    // Maximal RMS of the remaining tiles in a sample
+							true);                  // boolean null_if_none)
+				} else {
+					disp_strength[ml] = measuredLayers.getDisparityStrength(
+							ml,                     // int num_layer,
+							getSTileXY()[0],        // int stX,
+							getSTileXY()[1],        // int stY,
+							null,                   // boolean [] sel_in, - use all
+							strength_floor,         //  double strength_floor,
+							measured_strength_pow,  // double strength_pow,
+							true);                  // boolean null_if_none);
+				}
+			}
+//			double [] window =	getWindow (2 * superTileSize);
+			if (debugLevel > 1)	{
+				System.out.println ("refineDiscriminateTiles() "+prefix+" - step 2");
+			}
+			// get all original planes 
+			int num_planes = tilePlanes.size();
+			double [][][] pds = new double [num_planes][][];
+			for (int np = 0; np < pds.length; np++){
+				PlaneData pd = tilePlanes.get(np);
+				pds[np] = pd.getDoublePlaneDisparityStrength(
+						false, // boolean   useWorld,
+						null, // double [] window,
+						-1, // int       dir,
+						false, // boolean   use_sel,
+						false, // boolean   divide_by_area,
+						1.0, // double    scale_projection,
+						0.0, // double    fraction_uni,
+						0); // int       debugLevel)
+			}
+			double [][][] flatness = new double [num_planes][disp_strength.length][];
+			int [][][] num_cells = new int [num_planes][disp_strength.length][];
+			for (int np = 0; np < pds.length; np++){
+				for (int ml = 0; ml < disp_strength.length; ml++) if (disp_strength[ml] != null){
+					flatness[np][ml] = new double[size2];
+					num_cells[np][ml] = new int[size2];
+					for (int indx = 0; indx < size2; indx++) if (disp_strength[ml][1][indx] > 0.0){
+						double d0 = pds[np][0][indx]; // disp_strength[ml][0][indx];
+						double sw = disp_strength[ml][1][indx], sd = 0.0, sd2 = 0.0;
+						num_cells[np][ml][indx]++;
+						for (int dir = 0; dir<8; dir++){
+							int indx1 = tileNeibs.getNeibIndex(indx, dir);
+							if (indx1 >= 0){
+								double w =  disp_strength[ml][1][indx1];
+								if (w > 0.0){
+									double d = disp_strength[ml][0][indx1] - d0;
+									sw += w;
+									sd += w * d;
+									sd2 += w * d * d;
+									num_cells[np][ml][indx]++;
+								}
+							}
+						}
+						if (sw > 0.0) {
+							sd /= sw;
+							sd2 /= sw;
+							sd2 -= sd * sd;
+						}
+						flatness[np][ml][indx] = sd2;  
+					}
+				}
+			}			
+			if (debugLevel > 2){
+				int dbg_ml = 0; // to protect from different layer configuration
+				for (; dbg_ml < disp_strength.length;  dbg_ml++){
+					if (disp_strength[dbg_ml] != null) break;
+				}
+				//disp_strength[dbg_ml][0], disp_strength[dbg_ml][1] * 10, disp_strength[dbg_ml][0] - pds[np][0], pds[np][0]
+				String [] dbg_titles = new String[2 + 5 * num_planes]; 
+				double [][] dbg_img = new double [dbg_titles.length][];
+				dbg_titles[0] = "disp_"+dbg_ml;
+				dbg_titles[1] = "str_"+dbg_ml;
+				dbg_img[0] = disp_strength[dbg_ml][0];
+				dbg_img[1] = disp_strength[dbg_ml][1];
+				for (int np = 0; np < num_planes; np++){
+					dbg_titles[2 + 0 * num_planes + np] = "pln_"+np;
+					dbg_titles[2 + 1 * num_planes + np] = "diff_"+np;
+					dbg_titles[2 + 2 * num_planes + np] = "flat_"+np;
+					dbg_titles[2 + 3 * num_planes + np] = "rflat_"+np;
+					dbg_titles[2 + 3 * num_planes + np] = "nrflat_"+np;
+					dbg_img[2 + 0 * num_planes + np] = pds[np][0];
+					dbg_img[2 + 1 * num_planes + np] = disp_strength[dbg_ml][0].clone();
+					dbg_img[2 + 2 * num_planes + np] = flatness[np][dbg_ml];
+					dbg_img[2 + 3 * num_planes + np] = new double[size2];
+					dbg_img[2 + 4 * num_planes + np] = new double[size2];
+					for (int i = 0; i < size2; i++) {
+						dbg_img[2 + 1 * num_planes + np][i] -= pds[np][0][i];
+						dbg_img[2 + 3 * num_planes + np][i] = 1.0 / (flatness[np][dbg_ml][i] + 0.001);
+						dbg_img[2 + 4 * num_planes + np][i] = num_cells[np][dbg_ml][i] * 1.0 / (flatness[np][dbg_ml][i] + 0.001);
+						if (disp_strength[dbg_ml][1][i] == 0.0){
+							dbg_img[2 + 1 * num_planes + np][i] = Double.NaN;
+							dbg_img[2 + 2 * num_planes + np][i] = Double.NaN;
+							dbg_img[2 + 3 * num_planes + np][i] = Double.NaN;
+							dbg_img[2 + 4 * num_planes + np][i] = Double.NaN;
+						}
+					}
+				}
+				showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+				sdfa_instance.showArrays(dbg_img,     2 * superTileSize, 2 * superTileSize, true, "refine-"+prefix,dbg_titles);
+			}
+			
+			
+			
+			
+			// calculate number of the variants for each plane
+			int  extra_vars = (((int) Math.pow(num_variants, 1.0/num_planes)) - 1) / 2; // 0 - single, 1 - 3 (1 each direction), ...
+			if (extra_vars > amplitude_steps) extra_vars = amplitude_steps; //
+			int steps = 2 * extra_vars + 1;
+			double [] disps = new double [steps];
+			disps[0] = 0.0; // center
+			for (int i = 0; i < extra_vars; i++){
+				disps[2 * i + 1] =  (disp_range * (i + 1)) / extra_vars; 
+				disps[2 * i + 2] = -disps[2 * i + 1]; 
+			}
+			int [] state = new int [num_planes]; // variants counter
+			boolean [][][] best_selections = null;
+//			int best_num_tiles = 0;
+			double best_cost = Double.NaN;
+			if (debugLevel > 1)	{
+				System.out.println ("refineDiscriminateTiles() "+prefix+" - step 3");
+			}
+			while (true){
+				if (debugLevel > 1)	{
+					System.out.print ("refineDiscriminateTiles() "+prefix+" - state:");
+					for (int np = 0; np < num_planes; np++){
+						System.out.print(" "+state[np]);
+					}
+					System.out.println();
+				}
+				// evaluate current variant
+				double [] weights = new double [num_planes];
+				double [] diffs0  = new double [num_planes];
+				boolean [][][] var_sels = new boolean [num_planes][disp_strength.length][]; 
+				for (int ml = 0; ml < disp_strength.length; ml++) if (disp_strength[ml] != null){
+					for (int nTile = 0; nTile < size2; nTile++) if (disp_strength[ml][1][nTile] != 0){
+						// find best fit
+						int best_np = -1;
+						double best_err2 = max_disp_diff2;
+						for (int np = 0; np < num_planes; np++){
+							double e2 = disp_strength[ml][0][nTile] - (pds[np][0][nTile] + disps[state[np]]);
+							e2 *= e2;
+							if (e2 < best_err2){
+								best_np = np;
+								best_err2 = e2;
+							}
+						}
+						if (best_np >= 0) { // found acceptable assignment
+							double w = disp_strength[ml][1][nTile]; //  * window[nTile];
+							double d = disp_strength[ml][0][nTile] - (pds[best_np][0][nTile] + disps[state[best_np]]);
+							weights[best_np] +=  w;
+							diffs0[best_np] +=  w*d;
+						}
+					}
+				}
+				if (debugLevel > 1)	{
+					System.out.println ("refineDiscriminateTiles() "+prefix+" - pass1 DONE");
+				}
+					// second pass - use new averages disparity offsets, that may change assignments
+				for (int np = 0; np < num_planes; np++){
+					if (weights[np] > 0.0) diffs0[np] /= weights[np]; 
+				}
+				weights =           new double [num_planes];
+				double [] diffs  =  new double [num_planes];
+				double [] diffs2  = new double [num_planes];
+				int    [] ntiles =  new int [num_planes];
+				int num_tiles = 0;
+				for (int ml = 0; ml < disp_strength.length; ml++) if (disp_strength[ml] != null){
+					for (int np = 0; np < num_planes; np++){
+						var_sels[np][ml] = new boolean [size2];
+					}
+					for (int nTile = 0; nTile < size2; nTile++) if (disp_strength[ml][1][nTile] != 0){
+						// find best fit
+						int best_np = -1;
+						double best_err2 = max_disp_diff2;
+						for (int np = 0; np < num_planes; np++){
+							double e2 = disp_strength[ml][0][nTile] - (pds[np][0][nTile] + disps[state[np]]+ diffs0[np]);
+							e2 *= e2;
+							if (e2 < best_err2){
+								best_np = np;
+								best_err2 = e2;
+							}
+						}
+						if (best_np >= 0) { // found acceptable assignment
+							double w = disp_strength[ml][1][nTile]; //  * window[nTile];
+							double d = disp_strength[ml][0][nTile] - (pds[best_np][0][nTile] + disps[state[best_np]]);
+							weights[best_np] +=  w;
+							diffs[best_np] +=    w*d;
+							diffs2[best_np] +=   w*d*d;
+							ntiles[best_np]++;
+							var_sels[best_np][ml][nTile] = true;
+							num_tiles ++;
+						}
+					}
+				}
+				for (int np = 0; np < num_planes; np++) if (weights[np] > 0.0){
+					diffs[np] /= weights[np];
+					diffs2[np] /= weights[np];
+					diffs2[np] -= diffs[np]*diffs[np]; 
+				}
+				// How to decide if this variant is better? Have number of tiles that fit, per-plane weights and per-plane rms=sqrt(diffs2)
+				// start with just number of tiles fit
+				double cost = 0;
+				double weight = 0.0;
+				for (int np = 0; np < num_planes; np++) {
+					weight += weights[np];
+					cost += weights[np]*diffs2[np];
+				}
+				
+				if ((weight > 0.0) && (num_tiles > 0)){
+					double corr_cost = cost/num_tiles;
+					if (debugLevel > 1)	{
+						System.out.print ("refineDiscriminateTiles() "+prefix+": [");
+						for (int np = 0; np < num_planes; np++){
+							System.out.print (" "+state[np]);
+						}
+						System.out.println ("] num_tiles = "+num_tiles+" weight="+weight+" corr_cost="+corr_cost+" cost="+cost);
+					}
+
+					if (Double.isNaN(best_cost) || (best_cost > corr_cost)) {
+						best_cost = corr_cost;
+						best_selections = var_sels;
+
+					}
+				}
+				
+//				if (num_tiles > best_num_tiles) {
+//					best_num_tiles = num_tiles;
+//					best_selections = var_sels;
+//				}
+				if (debugLevel > 1)	{
+					System.out.println ("refineDiscriminateTiles() "+prefix+" - pass2 DONE");
+				}
+				//  calculate next variant
+				boolean all_done = true;
+				for (int i = 0; i < num_planes; i ++){
+					if (state[i] < (steps - 1)){
+						state[i] ++;
+						for (int j = 0; j < i; j++){
+							state[j] = 0;
+						}
+						all_done = false;
+						break;
+					}
+				}
+				if (all_done){
+					break;
+				}
+
+			}
+			return best_selections;
+		}
+
+		/**
+		 * re-discriminate tiles between supertiles in the list using hints from the already calculated planes and their neighbors
+		 * @param prefix text to be used in debug output (such as supertile number) 
+		 * @param planes array of PlaneData instances of the current supertile to be used as hints 
+		 * @param stMeasSel select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert 
+		 * @param dispNorm normalize disparities to the average if above
+		 * @param smplMode use sample mode (false - each tile independent)
+		 * @param smplSide sample size (side of a square)
+		 * @param smplNum number after removing worst
+		 * @param smplRms maximal RMS of the remaining tiles in a sample
+		 * @param disp_tolerance maximal disparity difference from the plane to consider tile 
+		 * @param disp_var_floor squared add to variance to calculate reverse flatness (used mostly for single-cell clusters) (reuse disp_sigma)?
+		 * @param disp_sigma Gaussian sigma to compare how measured data is attracted to planes 
+		 * @param disp_range full range of the parallel plane shifts to evaluate (histograms full range)
+		 * @param amplitude_steps numer of histogram steps in each direction from the center
+		 * @param hist_blur histogram LPF sigma
+		 * @param exclusivity 1.0 - tile belongs to one plane only, 0.0 - regardless of others
+		 * @param mode what neighbor-dependent pre-calculated plane to use as hints: 0 - weighted, 1 - equalized, 2 - best, 3 - combined
+		 * @param debugLevel debug level
+		 * @return per-plane, per-measurement layer, per tile index - use this tile.
+		 */
+		
+		public boolean [][][]  reDiscriminateTiles(
+				String           prefix,
+				final PlaneData  [] planes, 
+				final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+				final double     dispNorm,   //  Normalize disparities to the average if above
+
+				final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+				final int        smplSide, //        = 2;      // Sample size (side of a square)
+				final int        smplNum, //         = 3;      // Number after removing worst
+				final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				
+				final double     disp_tolerance,   // maximal disparity difference from the plane to consider tile 
+				final double     disp_var_floor,   // squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
+				final double     disp_sigma,       // G.sigma to compare how measured data is attracted to planes 
+				final double     disp_range,       // parallel move known planes around original know value for the best overall fit
+				final int        amplitude_steps,  // number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
+				final double     hist_blur,        // Sigma to blur histogram
+				final double     exclusivity,      // 1.0 - tile belongs to one plane only, 0.0 - regardless of others
+			    final double     exclusivity2, //        =   0.8;   // For second pass if exclusivity > 1.0 - will assign only around strong neighbors
+			    final boolean    exclusivity_strict, //         = true;   // When growing selection do not allow any offenders around (false - more these than others)
+				final int        mode, // 0 - weighted, 1 - equalized, 2 - best, 3 - combined
+				final int        debugLevel)
+		{
+			final int size2 = 4 * superTileSize*superTileSize;
+			final double disp_tolerance2 = disp_tolerance * disp_tolerance;
+			final double floor2 = disp_var_floor * disp_var_floor;
+			final double ksigma = 0.5/(disp_sigma * disp_sigma);
+			
+			TileNeibs tileNeibs = new TileNeibs(2 * stSize, 2 * stSize);
+			if (planes == null) return null;
+			// create a list of usable planes according to the mode
+			ArrayList<PlaneData> tilePlanes = new ArrayList<PlaneData>();
+			for (int np = 0; np < planes.length; np++) if (planes[np] != null){
+				PlaneData weighted_pd = planes[np].getNonexclusiveStar();
+				PlaneData equal_pd =    planes[np].getNonexclusiveStarEq();
+				switch (mode){
+				case 0:
+					if (weighted_pd == null){
+						if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStar() returned null, trying getNonexclusiveStarEq");
+						if (equal_pd == null) {
+							if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStarEq() returned null, using plane itself");
+							tilePlanes.add(planes[np]);
+						} else {
+							tilePlanes.add(equal_pd);
+						}
+//						throw new IllegalArgumentException ("refineDiscriminateTiles(): getNonexclusiveStar() returned null");
+					} else  {
+						tilePlanes.add(weighted_pd);
+					}
+					break;
+				case 1:
+					if (equal_pd == null) { //throw new IllegalArgumentException ("refineDiscriminateTiles(): getNonexclusiveStarEq() returned null");
+						if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStarEq() returned null, trying getNonexclusiveStar");
+						if (weighted_pd == null) {
+							if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStar() returned null, using plane itself");
+							tilePlanes.add(planes[np]);
+						} else {
+							tilePlanes.add(weighted_pd);
+						}
+						
+					} else {
+						tilePlanes.add(equal_pd);
+					}
+					break;
+				case 2:
+					if (weighted_pd == null) { //throw new IllegalArgumentException ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStar() returned null");
+						if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStar() returned null, trying getNonexclusiveStarEq");
+						if (equal_pd == null) {
+							if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStarEq() returned null, using plane itself");
+							tilePlanes.add(planes[np]);
+						} else {
+							tilePlanes.add(equal_pd);
+						}
+						break;
+					}
+					if (equal_pd == null) { //throw new IllegalArgumentException ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStarEq() returned null");
+						if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStarEq() returned null, trying getNonexclusiveStar");
+						tilePlanes.add(weighted_pd);
+						break;
+					}
+					if (weighted_pd.getWeight() > equal_pd.getWeight()) tilePlanes.add(weighted_pd);
+					else                                                tilePlanes.add(equal_pd);
+					break;
+				case 3:
+					if (weighted_pd == null) { //throw new IllegalArgumentException ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStar() returned null");
+						if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStar() returned null, trying getNonexclusiveStarEq");
+						if (equal_pd == null) {
+							if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStarEq() returned null, using plane itself");
+							tilePlanes.add(planes[np]);
+						} else {
+							tilePlanes.add(equal_pd);
+						}
+						break;
+					}
+					if (equal_pd == null) { //throw new IllegalArgumentException ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStarEq() returned null");
+						if (debugLevel > 0)	System.out.println ("refineDiscriminateTiles() "+prefix+":"+np+": getNonexclusiveStarEq() returned null, trying getNonexclusiveStar");
+						tilePlanes.add(weighted_pd);
+						break;
+					}
+					PlaneData combo_pd =  weighted_pd.mergePlaneToThis(
+							equal_pd, // PlaneData otherPd,
+							1.0,      // double    scale_other,
+							1.0,      // double    starWeightPwr,    // Use this power of tile weight when calculating connection cost
+							false,    // boolean   ignore_weights,
+							true,     // boolean   sum_weights,
+							preferDisparity, // boolean   preferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
+							debugLevel - 3); // int       debugLevel)
+					 tilePlanes.add(combo_pd);
+					break;
+				default:
+		    		throw new IllegalArgumentException ("refineDiscriminateTiles() "+prefix+":"+np+": invalid mode="+mode);
+				}
+			}
+			if (tilePlanes.isEmpty()){
+				return null;
+			}
+			if (debugLevel > 1)	{
+				System.out.println ("refineDiscriminateTiles() "+prefix+" - step 1");
+			}
+			
            // get measured disparity/strength data, filtered, not tilted
 			double [][][] disp_strength = new double[measuredLayers.getNumLayers()][][];
 			for (int ml = 0; ml < disp_strength.length; ml++) if ((stMeasSel & ( 1 << ml)) != 0){
@@ -3544,7 +4004,9 @@ public class TilePlanes {
 				}
 			}
 			double [] window =	getWindow (2 * superTileSize);
- 
+			if (debugLevel > 1)	{
+				System.out.println ("refineDiscriminateTiles() "+prefix+" - step 2");
+			}
 			// get all original planes 
 			int num_planes = tilePlanes.size();
 			double [][][] pds = new double [num_planes][][];
@@ -3559,50 +4021,363 @@ public class TilePlanes {
 						1.0, // double    scale_projection,
 						0.0, // double    fraction_uni,
 						0); // int       debugLevel)
-			}			
-			
-			// calculate number of the variants for each plane
-			int  extra_vars = (((int) Math.pow(num_variants, 1.0/num_planes)) - 1) / 2; // 0 - single, 1 - 3 (1 each direction), ...
-			if (extra_vars > amplitude_steps) extra_vars = amplitude_steps; //
-			int steps = 2 * extra_vars + 1;
-			double [] disps = new double [steps];
-			disps[0] = 0.0; // center
-			for (int i = 0; i < extra_vars; i++){
-				disps[2 * i + 1] =  (disp_range * (i + 1)) / extra_vars; 
-				disps[2 * i + 2] = -disps[2 * i + 1]; 
 			}
-			int [] state = new int [num_planes]; // variants counter
-//			for (int variant = 0; i < num_variants; variant++ )
-			while (true){
-				// evaluate current variant
-				double [] weights = new double [num_planes];
-				double [] err2 =    new double [num_planes];
-				boolean 
-				
-				
-
-				//  calculate next variant
-				boolean all_done = true;
-				for (int i = 0; i < num_planes; i ++){
-					if (state[i] < (steps - 1)){
-						state[i] ++;
-						for (int j = 0; j < i; j++){
-							state[j] = 0;
+			double [][][] flatness = new double [num_planes][disp_strength.length][];
+			double [][][] norm_flatness = new double [num_planes][disp_strength.length][];
+			int [][][] num_cells = new int [num_planes][disp_strength.length][];
+			for (int np = 0; np < pds.length; np++){
+				for (int ml = 0; ml < disp_strength.length; ml++) if (disp_strength[ml] != null){
+					flatness[np][ml] = new double[size2];
+					norm_flatness[np][ml] = new double[size2];
+					num_cells[np][ml] = new int[size2];
+					for (int indx = 0; indx < size2; indx++) if (disp_strength[ml][1][indx] > 0.0){
+						double d0 = pds[np][0][indx]; // disp_strength[ml][0][indx];
+//						double sw = disp_strength[ml][1][indx], sd = 0.0, sd2 = 0.0;
+						double sw = disp_strength[ml][1][indx]/window[indx], sd = 0.0, sd2 = 0.0;
+						num_cells[np][ml][indx]++;
+						for (int dir = 0; dir<8; dir++){
+							int indx1 = tileNeibs.getNeibIndex(indx, dir);
+							if (indx1 >= 0){
+//								double w =  disp_strength[ml][1][indx1];
+								double w =  disp_strength[ml][1][indx1]/window[indx1];
+								if (w > 0.0){
+									double d = disp_strength[ml][0][indx1] - d0;
+									sw += w;
+									sd += w * d;
+									sd2 += w * d * d;
+									num_cells[np][ml][indx]++;
+								}
+							}
 						}
-						all_done = false;
-						break;
+						if (sw > 0.0) {
+							sd /= sw;
+							sd2 /= sw;
+							sd2 -= sd * sd;
+						}
+						double rms = Math.sqrt(sd2);
+						flatness[np][ml][indx] = rms; // sd2; // will not be used
+//						norm_flatness[np][ml][indx] = num_cells[np][ml][indx]/(sd2 + floor2);
+//						norm_flatness[np][ml][indx] = (num_cells[np][ml][indx] > 1) ? (1.0/sd2): (1.0/floor2);
+						norm_flatness[np][ml][indx] = (num_cells[np][ml][indx] > 1) ? (1.0/rms): (1.0/disp_var_floor);
+
 					}
 				}
-				if (all_done){
-					break;
+			}
+			// calculate histograms for each plane, combining weight with flatness
+			final int steps = amplitude_steps * 2 + 1;
+			double bin_size = disp_range/(2 * amplitude_steps);
+			double k_bin = 2 * amplitude_steps /  disp_range; // 1/bin_size
+			double [][] histograms = new double [num_planes][steps]; 
+			
+			for (int ml = 0; ml < disp_strength.length; ml++) if (disp_strength[ml] != null){
+				for (int indx = 0; indx < size2; indx++){
+					double weight = disp_strength[ml][1][indx];
+					if (weight > 0.0) {
+						double disp =   disp_strength[ml][0][indx];
+						for (int np = 0; np < num_planes; np++){
+							double d = disp - pds[np][0][indx];
+							double db = d * k_bin + amplitude_steps;
+							int bin = (int) Math.round (db);
+							if ((bin >= 0) && (bin < steps)) {
+								// combine correlation weight, variance between valid neighbors and number of valid neighbors
+//								double w = weight /(flatness[np][ml][indx] + floor2) * num_cells[np][ml][indx]; // TODO: tweak?
+								double w = weight * norm_flatness[np][ml][indx]; // TODO: tweak?
+								histograms[np][bin] += w;
+							}
+						}
+					}
 				}
+			}
+			// Raise weight of the center part of the histogram - there can be originally distinct parallel planes
+			// alternatively - use planes_mod or star* and no histograms at all?
+			final double initial_trust_sigma = 0.3*disp_tolerance; // TODO: use dispNorm !
+			for (int np = 0; np < num_planes; np++) {
+				double k_sigma = 0.5/(initial_trust_sigma*initial_trust_sigma);
+				for (int nb = 0; nb < steps; nb++) {
+					double offs = bin_size * (nb - amplitude_steps);
+					histograms[np][nb] *= Math.exp(-k_sigma*offs*offs);
+				}
+			}			
+			
+			// normalize histograms
+			for (int np = 0; np < num_planes; np++) {
+				double s = 0.0;
+				for (int nb = 0; nb < steps; nb++)
+					s += histograms[np][nb];
+				if (s > 0.0) {
+					for (int nb = 0; nb < steps; nb++)
+						histograms[np][nb] /= s;
+				}
+			}
+			if (debugLevel > 2) {
+				System.out.println("refineDiscriminateTiles() histograms raw:");
+				System.out.print("disparity: ");
+				for (int nb = 0; nb < steps; nb++) {
+					System.out.print(bin_size * (nb - amplitude_steps));
+					if (nb < (steps - 1))
+						System.out.print(", ");
+				}
+				System.out.println();
+				for (int np = 0; np < num_planes; np++) {
+					System.out.print(np + ": ");
+					for (int nb = 0; nb < steps; nb++) {
+						System.out.print(histograms[np][nb]);
+						if (nb < (steps - 1))
+							System.out.print(", ");
+					}
+					System.out.println();
+				}
+				System.out.println();
+				System.out.println();
+			}
+			
+			// Add LPF here?
+			if (hist_blur > 0.0) {
+				DoubleGaussianBlur gb=new DoubleGaussianBlur();
+				for (int np = 0; np < num_planes; np++) {
+					gb.blur1Direction(histograms[np], steps, 1, hist_blur/bin_size, 0.01,true);
+				}
+				if (debugLevel > 2) {
+					System.out.println("refineDiscriminateTiles() histograms blured:");
+					System.out.print("disparity: ");
+					for (int nb = 0; nb < steps; nb++) {
+						System.out.print(bin_size * (nb - amplitude_steps));
+						if (nb < (steps - 1))
+							System.out.print(", ");
+					}
+					System.out.println();
+					for (int np = 0; np < num_planes; np++) {
+						System.out.print(np + ": ");
+						for (int nb = 0; nb < steps; nb++) {
+							System.out.print(histograms[np][nb]);
+							if (nb < (steps - 1))
+								System.out.print(", ");
+						}
+						System.out.println();
+					}
+					System.out.println();
+				}
+				
+			}
+			
+			
+			// For each plane, regardless of others
+			double [] offsets = new double [num_planes];
+			for (int np = 0; np < num_planes; np++) {
+				int max_bin = 0;
+				for (int nb = 1; nb < steps; nb++){
+					if (histograms[np][nb] > histograms[np][max_bin]){
+						max_bin = nb;
+					}
+				}
+				// improve max by second degree polynomial
+				 offsets[np] = bin_size * (max_bin - amplitude_steps);
+				if ((max_bin > 0) && (max_bin < (steps-1))){
+					offsets[np] += bin_size * 0.5 *(histograms[np][max_bin + 1] - histograms[np][max_bin - 1]) /
+							(histograms[np][max_bin + 1] + histograms[np][max_bin - 1] - 2 * histograms[np][max_bin]);
+				}
+			}
+			
+			// for each tile, each plane calculate "attraction" of the tile to each plane, where attraction is defined by Gaussian
+			// of normalized disparity difference and "flatness" for each plane. Then, if the attraction exceeds "exclusivity" times
+			// best competitor - include this tile for that plane
+			double  [][][] attractions = new double[num_planes][disp_strength.length][];
+			for (int np = 0; np < num_planes; np++) {
+				for (int ml = 0; ml < disp_strength.length; ml++) if (disp_strength[ml] != null){
+					attractions[np][ml] = new double[size2];
+				}
+			}
+			for (int ml = 0; ml < disp_strength.length; ml++) if (disp_strength[ml] != null){
+				for (int indx = 0; indx < size2; indx++) if (disp_strength[ml][1][indx] > 0){
+					for (int np = 0; np < num_planes; np++) {
+						double d1 = pds[np][0][indx] + offsets[np]; // shifted plane
+						double d2 = disp_strength[ml][0][indx];
+						double dav = 0.5 * (d1 + d2);
+						double diff = d2 - d1;
+						if (dav > dispNorm) diff *= dispNorm/dav;
+						double diff2 = diff * diff;
+						if (diff2 <= disp_tolerance2) {
+							attractions[np][ml][indx] = Math.exp(-ksigma*diff2) * norm_flatness[np][ml][indx];
+							
+						}
+					}
+				}
+			}
+			double [][] attr_corr = new double [num_planes][num_planes];
+			for (int ml = 0; ml < disp_strength.length; ml++) if (disp_strength[ml] != null){
+				for (int indx = 0; indx < size2; indx++) if (disp_strength[ml][1][indx] > 0){
+					for (int np = 0; np < num_planes; np++) {
+						for (int np1 = np; np1 < num_planes; np1++) {
+							attr_corr[np][np1] += attractions[np][ml][indx] * attractions[np1][ml][indx];
+							if (np1 > np){
+								attr_corr[np1][np] = attr_corr[np][np1];
+							}
+						}
+					}
+				}
+			}
+			for (int np = 0; np < num_planes; np++) {
+				for (int np1 = np+1; np1 < num_planes; np1++) {
+					if ((attr_corr[np][np] > 0.0) && (attr_corr[np1][np1] > 0.0)){
+						attr_corr[np][np1] /= Math.sqrt(attr_corr[np][np] * attr_corr[np1][np1]);
+						attr_corr[np1][np] = attr_corr[np][np1];
+					}
+				}
+				attr_corr[np][np] = 1.0;
 
 			}
+			if ((debugLevel > 0) && (num_planes > 1)){
+				String dbg_s = "refineDiscriminateTiles() plane attraction correlation for "+prefix+":";
+				for (int np = 0; np < num_planes; np++) {
+					for (int np1 = np + 1; np1 < num_planes; np1++) {
+						dbg_s += String.format(" %d-%d:%6.3f",np,np1,attr_corr[np][np1]);
+					}
+				}
+				System.out.println(dbg_s);
+			}
+			
+			
+			// discriminate
+			boolean [][][] best_selections = new boolean[num_planes][disp_strength.length][];
+			for (int np = 0; np < num_planes; np++) {
+				for (int ml = 0; ml < disp_strength.length; ml++) if (disp_strength[ml] != null){
+					best_selections[np][ml] = new boolean[size2];
+				}
+			}
+			for (int ml = 0; ml < disp_strength.length; ml++) if (disp_strength[ml] != null){
+				for (int indx = 0; indx < size2; indx++) if (disp_strength[ml][1][indx] > 0){
+					if (num_planes == 1){
+						best_selections[0][ml][indx] = attractions[0][ml][indx] > 0.0; 
+					} else { // find to best candidates
+						int best_np = 0;
+						for (int np = 1; np < num_planes; np++) if (attractions[np][ml][indx] > attractions[best_np][ml][indx]){
+							best_np = np;
+						}
+						int best_np2 = (best_np ==0) ? 1:0;
+						for (int np = 1; np < num_planes; np++) if ((np != best_np ) && (attractions[np][ml][indx] > attractions[best_np2][ml][indx])){
+							best_np2 = np;
+						}
+						for (int np = 0; np < num_planes; np++){
+							int np_other = (np == best_np) ? best_np2 : best_np;
+							best_selections[np][ml][indx] = attractions[np][ml][indx] > exclusivity * attractions[np_other][ml][indx]; 
+						}
+					}
+				}
+			}
+			if ((exclusivity > 1.0) && (exclusivity2 > 0.0) && (num_planes > 1)) { // second pass - lower threshold but depend on neighbors
+				boolean changed = true;
+				while (changed) {
+					changed = false;
+					boolean [][][] best_selections_prev = best_selections.clone();
+					for (int np = 0; np < num_planes; np++) {
+						best_selections_prev[np] = best_selections[np].clone(); 
+						for (int ml = 0; ml < disp_strength.length; ml++) if (disp_strength[ml] != null){
+							best_selections_prev[np][ml] = best_selections[np][ml].clone();
+						}
+					}
 
+					for (int ml = 0; ml < disp_strength.length; ml++) if (disp_strength[ml] != null){
+						for (int indx = 0; indx < size2; indx++) if (disp_strength[ml][1][indx] > 0){
+							int best_np = 0;
+							for (int np = 1; np < num_planes; np++) if (attractions[np][ml][indx] > attractions[best_np][ml][indx]){
+								best_np = np;
+							}
+							int best_np2 = (best_np ==0) ? 1:0;
+							for (int np = 1; np < num_planes; np++) if ((np != best_np ) && (attractions[np][ml][indx] > attractions[best_np2][ml][indx])){
+								best_np2 = np;
+							}
+							for (int np = 0; np < num_planes; np++) if (!best_selections_prev[np][ml][indx]){ // only new
+								int np_other = (np == best_np) ? best_np2 : best_np;
+								if (attractions[np][ml][indx] > exclusivity2 * attractions[np_other][ml][indx]) {
+									int num_this = 0;
+									int num_other = 0;
+									boolean used_by_other = false;
+									for (int np1 = 0; np1 < num_planes; np1++) if (np1 != np){
+										if (best_selections_prev[np1][ml][indx]) {
+											used_by_other = true;
+											break;
+										}
+									}
+									if (! used_by_other) {
+										for (int dir = 0; dir < 8; dir++){
+											int indx1 = tileNeibs.getNeibIndex(indx, dir);
+											if (indx1 >= 0){
+												if (best_selections_prev[np][ml][indx1]) num_this ++;
+												for (int np1 = 0; np1 < num_planes; np1++) if (np1 != np){
+													if (best_selections_prev[np1][ml][indx1]) {
+														num_other ++;
+														break;
+													}
+												}
+											}
+										}
+										if ((num_this > num_other) && (!exclusivity_strict || (num_other == 0))){ // make it stricter and require num_other==0 ?
+											best_selections[np][ml][indx] = true;
+											changed = true;
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				
+			}
 			
+			if (debugLevel > 2){
+				int dbg_ml = 0; // to protect from different layer configuration
+				for (; dbg_ml < disp_strength.length;  dbg_ml++){
+					if (disp_strength[dbg_ml] != null) break;
+				}
+				//disp_strength[dbg_ml][0], disp_strength[dbg_ml][1] * 10, disp_strength[dbg_ml][0] - pds[np][0], pds[np][0]
+				String [] dbg_titles = new String[2 + 8 * num_planes]; 
+				double [][] dbg_img = new double [dbg_titles.length][];
+				dbg_titles[0] = "disp_"+dbg_ml;
+				dbg_titles[1] = "str_"+dbg_ml;
+				dbg_img[0] = disp_strength[dbg_ml][0];
+				dbg_img[1] = disp_strength[dbg_ml][1];
+				for (int np = 0; np < num_planes; np++){
+					dbg_titles[2 + 0 * num_planes + np] = "pln_"+np;
+					dbg_titles[2 + 1 * num_planes + np] = "diff_"+np;
+					dbg_titles[2 + 2 * num_planes + np] = "flat_"+np;
+					dbg_titles[2 + 3 * num_planes + np] = "rflat_"+np;
+					dbg_titles[2 + 4 * num_planes + np] = "nrflat_"+np;
+					dbg_titles[2 + 5 * num_planes + np] = "attr_"+np;
+					dbg_titles[2 + 6 * num_planes + np] = "sel_"+np; // add also old selection?
+					dbg_titles[2 + 7 * num_planes + np] = "oldsel_"+np; // add also old selection?
+					dbg_img[2 + 0 * num_planes + np] = pds[np][0];
+					dbg_img[2 + 1 * num_planes + np] = disp_strength[dbg_ml][0].clone();
+					dbg_img[2 + 2 * num_planes + np] = flatness[np][dbg_ml];
+					dbg_img[2 + 3 * num_planes + np] = new double[size2];
+					dbg_img[2 + 4 * num_planes + np] = norm_flatness[np][dbg_ml];
+					dbg_img[2 + 5 * num_planes + np] = attractions[np][dbg_ml];
+					dbg_img[2 + 6 * num_planes + np] = new double[size2];
+					dbg_img[2 + 7 * num_planes + np] = new double[size2];
+					for (int i = 0; i < size2; i++) {
+						dbg_img[2 + 1 * num_planes + np][i] -= pds[np][0][i];
+//						dbg_img[2 + 3 * num_planes + np][i] = 1.0 / (flatness[np][dbg_ml][i] + 0.001);
+						dbg_img[2 + 3 * num_planes + np][i] = (num_cells[np][dbg_ml][i] > 1) ? (1.0/flatness[np][dbg_ml][i]): (1.0/disp_var_floor); // floor2);
+//						dbg_img[2 + 4 * num_planes + np][i] = num_cells[np][dbg_ml][i] * 1.0 / (flatness[np][dbg_ml][i] + 0.001);
+						dbg_img[2 + 6 * num_planes + np][i] = best_selections[np][dbg_ml][i] ? 1.0 : 0.0;
+						dbg_img[2 + 7 * num_planes + np][i] = planes[np+1].measuredSelection[dbg_ml][i]? 1.0:0.0; // temporarily
+						
+						if (disp_strength[dbg_ml][1][i] == 0.0){
+							dbg_img[2 + 1 * num_planes + np][i] = Double.NaN;
+							dbg_img[2 + 2 * num_planes + np][i] = Double.NaN;
+							dbg_img[2 + 3 * num_planes + np][i] = Double.NaN;
+							dbg_img[2 + 4 * num_planes + np][i] = Double.NaN;
+							dbg_img[2 + 5 * num_planes + np][i] = Double.NaN;
+						}
+					}
+				}
+				showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+				sdfa_instance.showArrays(dbg_img,     2 * superTileSize, 2 * superTileSize, true, "refine-"+prefix,dbg_titles);
+			}
+			if (debugLevel > 1)	{
+				System.out.println ("refineDiscriminateTiles() "+prefix+" - step 3");
+			}
 			
-			
-			return null;
+			return best_selections;
 		}
 		
 		
@@ -3764,7 +4539,7 @@ public class TilePlanes {
 					split_selections[ns++] = tilePlanes.get(np).getMeasSelection();
 				}
 				for (TileSelections ts: split_planes){
-					PlaneData pd = tilePlanes.get(ts.np);
+//					PlaneData pd = tilePlanes.get(ts.np);
 					boolean [][] ms = tilePlanes.get(ts.np).getMeasSelection().clone();
 					for (int ml = 0; ml < ms.length; ml++) if (ms[ml] != null){
 						ms[ml] = ms[ml].clone();

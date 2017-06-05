@@ -2188,7 +2188,20 @@ public class EyesisCorrectionParameters {
   		public double     plMaxZRatio          =   2.0;  // Maximal ratio of Z to allow plane merging
   		public double     plMaxDisp            =   0.6;  // Maximal disparity of one of the planes to apply  maximal ratio
   		public double     plCutTail            =   1.4;  // When merging with neighbors cut the tail that is worse than scaled best
-  		public double     plMinTail            =   0.015;// Set cutoff value livel not less than
+  		public double     plMinTail            =   0.015;// Set cutoff value level not less than
+  		// parameters to recreate planes from tiles disparity/strengths using determined plane connections to neighbors
+  		public double     plDiscrTolerance     =   0.4;  // Maximal disparity difference from the plane to consider tile 
+  		public double     plDiscrDispRange     =   1.0;  // Parallel move known planes around original know value for the best overall fit
+  		public int        plDiscrSteps         =   10;   // Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
+  		public int        plDiscrVariants      =   100;  // total number of variants to try (protect from too many planes) 
+  		public int        plDiscrMode          =   3;    // 0 - weighted, 1 - equalized, 2 - best, 3 - combined
+  		
+  		public double     plDiscrVarFloor      =   0.03;  // Squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
+  		public double     plDiscrSigma         =   0.05;  // Gaussian sigma to compare how measured data is attracted to planes
+  		public double     plDiscrBlur          =   0.05;  // Sigma to blur histograms while re-discriminating
+  		public double     plDiscrExclusivity   =   1.5;   // Tile exclusivity: 1.0 - tile belongs to one plane only, 0.0 - regardless of others
+  		public double     plDiscrExclus2       =   0.8;   // For second pass if exclusivity > 1.0 - will assign only around strong neighbors 
+  		public boolean    plDiscrStrict        =   false; // When growing selection do not allow any offenders around (false - more these than others)
 
   		// comparing merge quality for plane pairs
   		public double     plCostKrq            =   0.8;  // cost of merge quality weighted in disparity space
@@ -2578,6 +2591,18 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plCutTail",        this.plCutTail +"");
 			properties.setProperty(prefix+"plMinTail",        this.plMinTail +"");
 
+			properties.setProperty(prefix+"plDiscrTolerance", this.plDiscrTolerance +"");
+			properties.setProperty(prefix+"plDiscrDispRange", this.plDiscrDispRange +"");
+  			properties.setProperty(prefix+"plDiscrSteps",     this.plDiscrSteps+"");
+  			properties.setProperty(prefix+"plDiscrVariants",  this.plDiscrVariants+"");
+  			properties.setProperty(prefix+"plDiscrMode",      this.plDiscrMode+"");
+			properties.setProperty(prefix+"plDiscrVarFloor",  this.plDiscrVarFloor +"");
+			properties.setProperty(prefix+"plDiscrSigma",     this.plDiscrSigma +"");
+			properties.setProperty(prefix+"plDiscrBlur",      this.plDiscrBlur +"");
+			properties.setProperty(prefix+"plDiscrExclusivity",this.plDiscrExclusivity +"");
+			properties.setProperty(prefix+"plDiscrExclus2",   this.plDiscrExclus2 +"");
+			properties.setProperty(prefix+"plDiscrStrict",    this.plDiscrStrict+"");
+
 			properties.setProperty(prefix+"plCostKrq",        this.plCostKrq +"");
 			properties.setProperty(prefix+"plCostKrqEq",      this.plCostKrqEq +"");
 			properties.setProperty(prefix+"plCostWrq",        this.plCostWrq +"");
@@ -2943,6 +2968,18 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plCutTail")!=null)         this.plCutTail=Double.parseDouble(properties.getProperty(prefix+"plCutTail"));
   			if (properties.getProperty(prefix+"plMinTail")!=null)         this.plMinTail=Double.parseDouble(properties.getProperty(prefix+"plMinTail"));
   			
+  			if (properties.getProperty(prefix+"plDiscrTolerance")!=null)  this.plDiscrTolerance=Double.parseDouble(properties.getProperty(prefix+"plDiscrTolerance"));
+  			if (properties.getProperty(prefix+"plDiscrDispRange")!=null)  this.plDiscrDispRange=Double.parseDouble(properties.getProperty(prefix+"plDiscrDispRange"));
+  			if (properties.getProperty(prefix+"plDiscrSteps")!=null)      this.plDiscrSteps=Integer.parseInt(properties.getProperty(prefix+"plDiscrSteps"));
+  			if (properties.getProperty(prefix+"plDiscrVariants")!=null)   this.plDiscrVariants=Integer.parseInt(properties.getProperty(prefix+"plDiscrVariants"));
+  			if (properties.getProperty(prefix+"plDiscrMode")!=null)       this.plDiscrMode=Integer.parseInt(properties.getProperty(prefix+"plDiscrMode"));
+  			if (properties.getProperty(prefix+"plDiscrVarFloor")!=null)   this.plDiscrVarFloor=Double.parseDouble(properties.getProperty(prefix+"plDiscrVarFloor"));
+  			if (properties.getProperty(prefix+"plDiscrSigma")!=null)      this.plDiscrSigma=Double.parseDouble(properties.getProperty(prefix+"plDiscrSigma"));
+  			if (properties.getProperty(prefix+"plDiscrBlur")!=null)       this.plDiscrBlur=Double.parseDouble(properties.getProperty(prefix+"plDiscrBlur"));
+  			if (properties.getProperty(prefix+"plDiscrExclusivity")!=null)this.plDiscrExclusivity=Double.parseDouble(properties.getProperty(prefix+"plDiscrExclusivity"));
+  			if (properties.getProperty(prefix+"plDiscrExclus2")!=null)    this.plDiscrExclus2=Double.parseDouble(properties.getProperty(prefix+"plDiscrExclus2"));
+  			if (properties.getProperty(prefix+"plDiscrStrict")!=null)     this.plDiscrStrict=Boolean.parseBoolean(properties.getProperty(prefix+"plDiscrStrict"));
+
   			if (properties.getProperty(prefix+"plCostKrq")!=null)         this.plCostKrq=Double.parseDouble(properties.getProperty(prefix+"plCostKrq"));
   			if (properties.getProperty(prefix+"plCostKrqEq")!=null)       this.plCostKrqEq=Double.parseDouble(properties.getProperty(prefix+"plCostKrqEq"));
   			if (properties.getProperty(prefix+"plCostWrq")!=null)         this.plCostWrq=Double.parseDouble(properties.getProperty(prefix+"plCostWrq"));
@@ -3338,6 +3375,19 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("When merging with neighbors cut the tail that is worse than scaled best",      this.plCutTail,  6);
   			gd.addNumericField("Set cutoff value livel not less than this",                                    this.plMinTail,  6);
   			
+  			gd.addMessage     ("--- Parameters to regenerate planes using preliminary tile connections  ---");
+  			gd.addNumericField("Maximal disparity difference from the plane to consider tile",                 this.plDiscrTolerance,  6);
+  			gd.addNumericField("Parallel move known planes around original know value for the best overall fit",this.plDiscrDispRange,  6);
+  			gd.addNumericField("Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)",this.plDiscrSteps,  0);
+  			gd.addNumericField("Total number of variants to try (protect from too many planes)",               this.plDiscrVariants,  0);
+  			gd.addNumericField("What plane to use as a hint: 0 - weighted, 1 - equalized, 2 - best, 3 - combined", this.plDiscrMode,  0);
+  			gd.addNumericField("Squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)",this.plDiscrVarFloor,  6);
+  			gd.addNumericField("Gaussian sigma to compare how measured data is attracted to planes",           this.plDiscrSigma,  6);
+  			gd.addNumericField("Sigma to blur histograms while re-discriminating",                             this.plDiscrBlur,  6);
+  			gd.addNumericField("Tile exclusivity: 1.0 - tile belongs to one plane only, 0.0 - regardless of others",this.plDiscrExclusivity,  6);
+  			gd.addNumericField("For second pass if exclusivity > 1.0 - will assign only around strong neighbors",this.plDiscrExclus2,  6);
+  			gd.addCheckbox    ("When growing selection do not allow any offenders around (false - more these than others)", this.plDiscrStrict);
+
   			gd.addMessage     ("--- Planes merge costs ---");
   			gd.addNumericField("Cost of merge quality weighted in disparity space",                            this.plCostKrq,     6);
   			gd.addNumericField("Cost of merge quality equal weight in disparity space",                        this.plCostKrqEq,   6);
@@ -3716,6 +3766,18 @@ public class EyesisCorrectionParameters {
   			this.plMaxDisp=             gd.getNextNumber();
   			this.plCutTail=             gd.getNextNumber();
   			this.plMinTail=             gd.getNextNumber();
+
+  			this.plDiscrTolerance=      gd.getNextNumber();
+  			this.plDiscrDispRange=      gd.getNextNumber();
+  			this.plDiscrSteps=    (int) gd.getNextNumber();
+  			this.plDiscrVariants= (int) gd.getNextNumber();
+  			this.plDiscrMode=     (int) gd.getNextNumber();
+  			this.plDiscrVarFloor=       gd.getNextNumber();
+  			this.plDiscrSigma=          gd.getNextNumber();
+  			this.plDiscrBlur=           gd.getNextNumber();
+  			this.plDiscrExclusivity=    gd.getNextNumber();
+  			this.plDiscrExclus2=        gd.getNextNumber();
+  			this.plDiscrStrict=         gd.getNextBoolean();
 
   			this.plCostKrq=             gd.getNextNumber();
   			this.plCostKrqEq=           gd.getNextNumber();

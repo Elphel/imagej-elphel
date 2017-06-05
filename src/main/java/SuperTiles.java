@@ -1182,11 +1182,14 @@ public class SuperTiles{
 			int nd = num_pm + 2 * num_ml + ml;	
 		
 			data [nd] = new double [4* superTileSize*superTileSize];
+			int [] multi_sel = new int [4* superTileSize*superTileSize];
 			for (int i = 0; i < data[nd].length; i++){
 				data [nd][i] = Double.NaN; 		
 				for (int np = 0; np < num_p; np++) if ((selections [np] != null) && (selections [np][ml] != null) && selections [np][ml][i]){
-					data [nd][i] = np + 1; 		
-					break;
+//					data [nd][i] = np + 1;
+					multi_sel[i] |= (1 << np);
+					data [nd][i] = multi_sel[i]; 		
+//					break;
 				}
 			}
 			data [num_pm + 0 * num_ml + ml] = disp_strength[ml][0];
@@ -1633,7 +1636,7 @@ public class SuperTiles{
 	 * Sort plane data by center (plane or supertile) disparity
 	 * 	
 	 * @param growSelection
-	 * @param stMeasSel
+	 * @param stMeasSel Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 	 * @param plDispNorm
 	 * @param plMinPoints
 	 * @param plPreferDisparity
@@ -1844,8 +1847,8 @@ public class SuperTiles{
 							if (dl > 0){
 								System.out.println("initialDiscriminateTiles() selecting: nsTile="+nsTile);
 							}
-							int stileY = nsTile / stilesX;  
-							int stileX = nsTile % stilesX;
+//							int stileY = nsTile / stilesX;  
+//							int stileX = nsTile % stilesX;
 //							int [] sTiles = {stileX, stileY};
 							double [][][][] ds = {vert_disp_strength[nsTile],hor_disp_strength[nsTile]};
 							boolean [][][][] sels_all = {new_planes_vert[nsTile],new_planes_hor[nsTile]}; // make possible to iterate
@@ -1948,9 +1951,9 @@ public class SuperTiles{
 	 * Total weight of the fitted tiles? RMS? 
 	 * @param planes per-supertile, per plane array of plane data instances. Should have
 	 *        nonexclusiveStar and nonexclusiveStarEq calculated
+	 * @param stMeasSel - select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 	 * @param plDispNorm - normalization of the measured disparity precision - closer objects will have disparity
-	 *  difference proportionally reduced
-	 * @param plMinPoints minimal number of points in a plane
+	 *        difference proportionally reduced
 	 * @param plPreferDisparity kept for historical reasons - when true, select disparity-most vector even if it has higher eigenvalue
 	 * @param geometryCorrection GeometryCorrection instance to use
 	 * @param correct_distortions correct geometrical distortions when converting to/from world coordinates 
@@ -1958,44 +1961,134 @@ public class SuperTiles{
 	 * @param smplSide sample side for averaging/filtering tile disparities
 	 * @param smplNum number of best samples used fro averaging
 	 * @param smplRms maximal sample disparity rms to consider sample valid
-	 * @param max_disp_diff maximal disparity difference from the planes 
-	 * @param disp_step disparity scan step when searching for optimal fit
-	 * @param steps_per_plane number of disparity steps to try around initial plane
-	 * @param mode which of the calculated planes to use - 0 - weighted, 1 - equalized, 2 heaviest of the two, weighted combination
+	 * @param plDiscrTolerance maximal disparity difference from the plane to consider tile  
+	 * @param plDiscrDispRange parallel move known planes around original know value for the best overall fit
+	 * @param plDiscrSteps number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
+	 * @param plDiscrVariants total number of variants to try (protect from too many planes) 
+	 * @param plDiscrMode what plane to use as a hint: 0 - weighted, 1 - equalized, 2 - best, 3 - combined
+	 * @param plDiscrVarFloor squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
+	 * @param plDiscrSigma Gaussian sigma to compare how measured data is attracted to planes
+	 * @param plDiscrBlur sigma to blur histograms while re-discriminating
+	 * @param plDiscrExclusivity tile exclusivity: 1.0 - tile belongs to one plane only, 0.0 - regardless of others
 	 * @param debugLevel debug level
 	 * @param dbg_X supertile X for elevated debug level
 	 * @param dbg_Y supertile X for elevated debug level
 	 * @return per-tile, per plane, per measurement layer (type of correlation - combo, 4, hor, vert), per tile selections of
 	 * filtered tiles
 	 */
+	
 	public boolean [][][][]  refineDiscriminateTiles(
-			final TilePlanes.PlaneData [][] planes, 
+			final TilePlanes.PlaneData [][] planes,
+			final int        stMeasSel,            //      = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			final double     plDispNorm,
-			final int        plMinPoints, //          =     5;  // Minimal number of points for plane detection
-			final boolean    plPreferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
+			final boolean    plPreferDisparity,    // Always start with disparity-most axis (false - lowest eigenvalue)
 			final GeometryCorrection geometryCorrection,
 			final boolean    correct_distortions,
 
-			final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-			final int        smplSide, //        = 2;      // Sample size (side of a square)
-			final int        smplNum, //         = 3;      // Number after removing worst
-			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+			final boolean    smplMode,             //        = true;   // Use sample mode (false - regular tile mode)
+			final int        smplSide,             //        = 2;      // Sample size (side of a square)
+			final int        smplNum,              //         = 3;      // Number after removing worst
+			final double     smplRms,              //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 			
-			final double     max_disp_diff,    // maximal disparity difference from the plane to consider tile 
-			final double     disp_step,        // parallel move known planes around original know value for the best overall fit 
-			final int        steps_per_plane,  // number of steps for each plane to search for the best fit
-			final int        mode, // 0 - weighted, 1 - equalized, 2 - best, 3 - combined
+			final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile 
+			final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
+			final int        plDiscrSteps,         //         =   3;    // Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
+			final int        plDiscrVariants,      //      =   100;  // Total number of variants to try (protect from too many planes) 
+			final int        plDiscrMode,          //          =   3;    // What plane to use as a hint: 0 - weighted, 1 - equalized, 2 - best, 3 - combined
+
+			final double     plDiscrVarFloor, //       =   0.03;  // Squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
+			final double     plDiscrSigma, //          =   0.05;  // Gaussian sigma to compare how measured data is attracted to planes
+			final double     plDiscrBlur, //           =   0.1;   // Sigma to blur histograms while re-discriminating
+			final double     plDiscrExclusivity, //    =   1.5;   // Tile exclusivity: 1.0 - tile belongs to one plane only, 0.0 - regardless of others
+			final double     plDiscrExclus2, //        =   0.8;   // For second pass if exclusivity > 1.0 - will assign only around strong neighbors
+			final boolean    plDiscrStrict, //         = true;   // When growing selection do not allow any offenders around (false - more these than others)
 
 			final int        debugLevel,
 			final int        dbg_X,
 			final int        dbg_Y)
 	{
 		// create a list of usable planes according to the mode
+		final int tilesX =        tileProcessor.getTilesX();
+		final int tilesY =        tileProcessor.getTilesY();
+		final int superTileSize = tileProcessor.getSuperTileSize();
+		final int tileSize =      tileProcessor.getTileSize();
+
+		final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
+		final int stilesY = (tilesY + superTileSize -1)/superTileSize;
+		final int nStiles = stilesX * stilesY;
+		final TilePlanes tpl = new TilePlanes(tileSize,superTileSize, geometryCorrection);
+		final Thread[] threads = ImageDtt.newThreadArray((debugLevel > 1)? 1 : tileProcessor.threadsMax);
 		
-		
-		
-		return null;
+		final AtomicInteger ai = new AtomicInteger(0);
+		this.planes = new TilePlanes.PlaneData[nStiles][];
+		final int debug_stile = (debugLevel > -1)? (dbg_Y * stilesX + dbg_X):-1;
+		final boolean [][][][] planes_selections = new boolean [nStiles][][][]; // num_tiles
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
+						int dl =  ((debugLevel > -1) && (nsTile == debug_stile)) ? 3 : 1;
+						if (dl > 1){
+							System.out.println("refineDiscriminateTiles() selecting: nsTile="+nsTile);
+						}
+						int stileY = nsTile / stilesX;  
+						int stileX = nsTile % stilesX;
+						int [] sTiles = {stileX, stileY};
+						TilePlanes.PlaneData pd0 = tpl.new  PlaneData (
+								sTiles, // int [] sTileXY, 
+								tileSize, // int tileSize,
+								geometryCorrection, // GeometryCorrection   geometryCorrection,
+								correct_distortions,
+								measuredLayers,     // MeasuredLayers measuredLayers,
+								plPreferDisparity);   // boolean preferDisparity)
+/*						
+						planes_selections[nsTile] = pd0.reDiscriminateTiles_0(
+								""+nsTile,        // String           prefix,
+								planes[nsTile],   // final PlaneData  [] planes, 
+								stMeasSel,        // final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+
+								smplMode,         // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+								smplSide,         // final int        smplSide, //        = 2;      // Sample size (side of a square)
+								smplNum,          // final int        smplNum, //         = 3;      // Number after removing worst
+								smplRms,          // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+								
+								plDiscrTolerance, // final double     max_disp_diff,    // maximal disparity difference from the plane to consider tile 
+								plDiscrDispRange, // final double     disp_range,       // parallel move known planes around original know value for the best overall fit
+							    plDiscrSteps,     // final int        amplitude_steps,  // number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
+							    plDiscrVariants,  // final int        num_variants,     // total number of variants to try (protect from too many planes) 
+							    plDiscrMode,      // final int        mode, // 0 - weighted, 1 - equalized, 2 - best, 3 - combined
+							    dl);               // debugLevel); // final int        debugLevel)
+*/
+						planes_selections[nsTile] = pd0.reDiscriminateTiles(
+								""+nsTile,        // String           prefix,
+								planes[nsTile],   // final PlaneData  [] planes, 
+								stMeasSel,        // final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+								plDispNorm,        // final double     dispNorm,   //  Normalize disparities to the average if above
+								smplMode,         // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+								smplSide,         // final int        smplSide, //        = 2;      // Sample size (side of a square)
+								smplNum,          // final int        smplNum, //         = 3;      // Number after removing worst
+								smplRms,          // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+								
+								plDiscrTolerance, // final double     disp_tolerance,   // maximal disparity difference from the plane to consider tile
+								plDiscrVarFloor,  // final double     disp_var_floor,   // squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
+								plDiscrSigma,     // final double     disp_sigma,       // G.sigma to compare how measured data is attracted to planes 
+								plDiscrDispRange, // final double     disp_range,       // parallel move known planes around original know value for the best overall fit
+							    plDiscrSteps,     // final int        amplitude_steps,  // number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
+							    plDiscrBlur,      // final double     hist_blur,        // Sigma to blur histogram
+							    plDiscrExclusivity, // final double   exclusivity,      // 1.0 - tile belongs to one plane only, 0.0 - regardless of others
+							    plDiscrExclus2,    // final double    excluisivity2, //        =   0.8;   // For second pass if exclusivity > 1.0 - will assign only around strong neighbors
+							    plDiscrStrict,     // final boolean    exclusivity_strict//         = true;   // When growing selection do not allow any offenders around (false - more these than others)
+							    
+							    plDiscrMode,      // final int        mode, // 0 - weighted, 1 - equalized, 2 - best, 3 - combined
+							    dl);               // debugLevel); // final int        debugLevel)
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return planes_selections;
 	}
+	
 	
 	public TilePlanes.PlaneData [][] createPlanesFromSelections(
 			final boolean [][][][] plane_selections, //  = new boolean [nStiles][][][]; // num_tiles
@@ -2177,7 +2270,7 @@ public class SuperTiles{
 			final boolean    msUseSel,        // final boolean                   use_sel,
 			final boolean    msDivideByArea,  // final boolean                   divide_by_area,
 			final double     msScaleProj,     // final double                    scale_projection,
-			
+
 			final double     smallDiff,  //       = 0.4;   // Consider merging initial planes if disparity difference below
 			final double     highMix,    //stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
 			final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
@@ -2187,11 +2280,11 @@ public class SuperTiles{
 	{
 		// use both horizontal and const disparity tiles to create tile clusters
 		// Add max_diff (maximal disparity difference while extracting initial tile selection) and max_tries (2..3) parameters
-		
+
 		// Add separate method to create + remove outliers from all planes (2 different ones)?
 		// TODO later re-assign pixels according to existing plane parameters
 		// Sort plane data by center (plane or supertile) disparity
-		
+
 		boolean [][][][]  plane_selections = initialDiscriminateTiles(
 				growSelection,        // final int        growSelection,                     // grow initial selection before processing 
 				stMeasSel,            // final int        stMeasSel,       //      = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
@@ -2219,6 +2312,152 @@ public class SuperTiles{
 				dbg_Y); // final int        dbg_Y)
 
 		// get per-tile disparity strength again (may consider using non-filtered data here)
+
+		double [][][][] disp_strength = getPlaneDispStrengths( // here use actual disparity, not tilted
+				null,                // final double []  world_plane_norm, // real world normal vector to a suggested plane family (0,1,0) for horizontal planes
+				stMeasSel,           // final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+
+				plPreferDisparity,   // final boolean    plPreferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
+				geometryCorrection,  // final GeometryCorrection geometryCorrection,
+				correct_distortions, // final boolean    correct_distortions,
+
+				smplMode,            // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
+				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
+				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+
+				debugLevel,          // final int        debugLevel,
+				dbg_X,               // final int        dbg_X,
+				dbg_Y);              // final int        dbg_Y)
+		// Create plane data (ellipsoids) from the disparity/strength data and tile selections, 
+		// remove outliers, order each supertile result in ascending disparity (from far to near) 		
+		// TODO: consider 1) assigning of the non-assigned tiles to clusters and 2) re-assigning all clusters one by one to the "best" plane
+		TilePlanes.PlaneData [][] new_planes = createPlanesFromSelections(
+				plane_selections,   // final boolean [][][][] plane_selections, //  = new boolean [nStiles][][][]; // num_tiles
+				disp_strength,       // final double  [][][][] disp_strength,			
+				plDispNorm,          // final double     plDispNorm,
+				plMinPoints,         // final int        plMinPoints, //          =     5;  // Minimal number of points for plane detection
+				plTargetEigen,       // final double     plTargetEigen, //        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+				plFractOutliers,     // final double     plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
+				plMaxOutliers,       // final int        plMaxOutliers, //        =    20;  // Maximal number of outliers to remove
+				plPreferDisparity,   // final boolean    plPreferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
+				geometryCorrection,  // final GeometryCorrection geometryCorrection,
+				correct_distortions, // final boolean    correct_distortions,
+
+				smplMode,            // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
+				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
+				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+
+				debugLevel + 2, // 1,          // final int        debugLevel,
+				dbg_X,               // final int        dbg_X,
+				dbg_Y);              // final int        dbg_Y)
+		this.planes = new_planes; // save as "measured" (as opposed to "smoothed" by neighbors) planes
+
+	}
+
+	/**
+	 * Re-assign tiles to the planes according to fitted planes. Scans each known plane parallel with specified
+	 * size steps and specified number of steps, maximizing overall fit quality.
+	 * Total weight of the fitted tiles? RMS? (now using number of fitted planes, if the same - than rms) 
+	 * @param stMeasSel - select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+	 * @param plDispNorm - normalization of the measured disparity precision - closer objects will have disparity
+	 *        difference proportionally reduced
+	 * @param plMinPoints Minimal number of plane tiles to remain
+	 * @param plTargetEigen target smallest eigenvalue (try to remove outliers if above)
+	 * @param plFractOutliers maximal fraction of all tiles to remove as outliers
+	 * @param plMaxOutliers maximal absolute number of tiles to  remove as outliers
+	 * @param plPreferDisparity kept for historical reasons - when true, select disparity-most vector even if it has higher eigenvalue
+	 * @param geometryCorrection GeometryCorrection instance to use
+	 * @param correct_distortions correct geometrical distortions when converting to/from world coordinates 
+	 * @param smplMode sample mode
+	 * @param smplSide sample side for averaging/filtering tile disparities
+	 * @param smplNum number of best samples used fro averaging
+	 * @param smplRms maximal sample disparity rms to consider sample valid
+	 * @param plDiscrTolerance maximal disparity difference from the plane to consider tile  
+	 * @param plDiscrDispRange parallel move known planes around original know value for the best overall fit
+	 * @param plDiscrSteps number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
+	 * @param plDiscrVariants total number of variants to try (protect from too many planes) 
+	 * @param plDiscrMode what plane to use as a hint: 0 - weighted, 1 - equalized, 2 - best, 3 - combined
+	 * @param plDiscrVarFloor squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
+	 * @param plDiscrSigma Gaussian sigma to compare how measured data is attracted to planes
+	 * @param plDiscrBlur sigma to blur histograms while re-discriminating
+	 * @param plDiscrExclusivity tile exclusivity: 1.0 - tile belongs to one plane only, 0.0 - regardless of others
+	 * @param debugLevel debug level
+	 * @param dbg_X supertile X for elevated debug level
+	 * @param dbg_Y supertile X for elevated debug level
+	 */
+	
+	public void regeneratePlanes(
+			final TilePlanes.PlaneData [][] planes,
+			final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+			final double     plDispNorm,
+			final int        plMinPoints, //          =     5;  // Minimal number of points for plane detection
+			final double     plTargetEigen, //        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+			final double     plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
+			final int        plMaxOutliers, //        =    20;  // Maximal number of outliers to remove
+			final boolean    plPreferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
+			final GeometryCorrection geometryCorrection,
+			final boolean    correct_distortions,
+
+			final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+			final int        smplSide, //        = 2;      // Sample size (side of a square)
+			final int        smplNum, //         = 3;      // Number after removing worst
+			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+
+			final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile 
+			final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
+			final int        plDiscrSteps,         //         =   3;    // Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
+			final int        plDiscrVariants,      //      =   100;  // Total number of variants to try (protect from too many planes) 
+			final int        plDiscrMode,          //          =   3;    // What plane to use as a hint: 0 - weighted, 1 - equalized, 2 - best, 3 - combined
+
+			final double     plDiscrVarFloor, //       =   0.03;  // Squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
+			final double     plDiscrSigma, //          =   0.05;  // Gaussian sigma to compare how measured data is attracted to planes
+			final double     plDiscrBlur, //           =   0.1;   // Sigma to blur histograms while re-discriminating
+			final double     plDiscrExclusivity, //    =   1.5;   // Tile exclusivity: 1.0 - tile belongs to one plane only, 0.0 - regardless of others
+			final double     plDiscrExclus2, //        =   0.8;   // For second pass if exclusivity > 1.0 - will assign only around strong neighbors
+			final boolean    plDiscrStrict, //         = true;   // When growing selection do not allow any offenders around (false - more these than others)
+			final int        debugLevel,
+			final int        dbg_X,
+			final int        dbg_Y)
+	{
+		// use both horizontal and const disparity tiles to create tile clusters
+		// Add max_diff (maximal disparity difference while extracting initial tile selection) and max_tries (2..3) parameters
+		
+		// Add separate method to create + remove outliers from all planes (2 different ones)?
+		// TODO later re-assign pixels according to existing plane parameters
+		// Sort plane data by center (plane or supertile) disparity
+		
+		boolean [][][][]  plane_selections = refineDiscriminateTiles(
+				planes, // final TilePlanes.PlaneData [][] planes,
+				stMeasSel,            // final int        stMeasSel,       //      = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+				plDispNorm,           // final double     plDispNorm,
+				plPreferDisparity,    // final boolean    plPreferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
+				geometryCorrection,   // final GeometryCorrection geometryCorrection,
+				correct_distortions,  // final boolean    correct_distortions,
+
+				smplMode,             // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+				smplSide,             //  final int        smplSide, //        = 2;      // Sample size (side of a square)
+				smplNum,              //  final int        smplNum, //         = 3;      // Number after removing worst
+				smplRms,              //  final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				
+				plDiscrTolerance,     //final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile 
+				plDiscrDispRange,     // final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
+				plDiscrSteps,         // final int        plDiscrSteps,         //         =   3;    // Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
+				plDiscrVariants,      // final int        plDiscrVariants,      //      =   100;  // Total number of variants to try (protect from too many planes) 
+				plDiscrMode,          // final int        plDiscrMode,          //          =   3;    // What plane to use as a hint: 0 - weighted, 1 - equalized, 2 - best, 3 - combined
+
+				plDiscrVarFloor,   // final double     plDiscrVarFloor, //       =   0.03;  // Squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
+				plDiscrSigma,      // final double     plDiscrSigma, //          =   0.05;  // Gaussian sigma to compare how measured data is attracted to planes
+				plDiscrBlur,       // final double     plDiscrBlur, //           =   0.1;   // Sigma to blur histograms while re-discriminating
+				plDiscrExclusivity,// final double     plDiscrExclusivity, //    =   0.5;   // Tile exclusivity: 1.0 - tile belongs to one plane only, 0.0 - regardless of others
+				plDiscrExclus2,    // final double     plDiscrExclus2, //    =   0.5;   // For second pass if exclusivity > 1.0 - will assign only around strong neighbors
+			    plDiscrStrict,     // final boolean    plDiscrStrict, //         = true;   // When growing selection do not allow any offenders around (false - more these than others)				
+				2, // debugLevel,           // final int        debugLevel,
+				dbg_X,                // final int        dbg_X,
+				dbg_Y);               // final int        dbg_Y)
+
+		// get per-tile disparity strength again (may consider using non-filtered data here) ?
 		
 		double [][][][] disp_strength = getPlaneDispStrengths( // here use actual disparity, not tilted
 				null,                // final double []  world_plane_norm, // real world normal vector to a suggested plane family (0,1,0) for horizontal planes
@@ -5648,25 +5887,6 @@ public class SuperTiles{
 		return diff; // return maximal difference
 	}
 
-	public double [][] planesGetDiff(
-			final TilePlanes.PlaneData[][] measured_planes,
-			final TilePlanes.PlaneData[][] mod_planes,
-			final int debugLevel,
-			final int dbg_X,
-			final int dbg_Y)
-	{
-		final int tilesX =        tileProcessor.getTilesX();
-		final int tilesY =        tileProcessor.getTilesY();
-		final int superTileSize = tileProcessor.getSuperTileSize();
-		final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
-		final int stilesY = (tilesY + superTileSize -1)/superTileSize;
-		final int debug_stile = dbg_Y * stilesX + dbg_X;
-		final TilePlanes.PlaneData[][] new_planes = copyPlanes(mod_planes);
-		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
-		final double [][] diffs = null;
-
-		return diffs;
-	}
 	
 	/**
 	 * Prepare visualization of the plane separation lines 

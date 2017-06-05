@@ -1460,8 +1460,8 @@ public class TileProcessor {
 			int []    clusters_in,
 			int       debugLevel)
 	{
-		showDoubleFloatArrays sdfa_instance = null;
-		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+//		showDoubleFloatArrays sdfa_instance = null;
+//		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 
 		// adding 1-tile frame around to avoid checking for the borders
 		int tilesX4 = tilesX + 4;
@@ -3233,6 +3233,142 @@ public class TileProcessor {
 		return true;
 	}	
 	
+	public void conditionSuperTiles(
+			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			GeometryCorrection geometryCorrection,
+			SuperTiles        st,
+			LinkPlanes        lp,
+			final int         debugLevel)
+	{
+		// try to merge multiple times
+		
+		int max_num_merge_try = 8;
+		TilePlanes.PlaneData [][][] dbg_orig_planes = new TilePlanes.PlaneData [max_num_merge_try][][];
+		
+		for (int num_merge_try = 0; num_merge_try < max_num_merge_try; num_merge_try++){
+			lp.matchPlanes(
+					st.planes, // final TilePlanes.PlaneData [][] planes,			
+					2, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+
+			lp.filterNeighborPlanes(
+					st.planes, // final TilePlanes.PlaneData [][] planes,
+					true, // final boolean merge_low_eigen,
+					2, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+
+			// calculate it here - use results to keep some planes from merging
+			double [][] quality_stats1 = lp.selectNeighborPlanesMutual(
+					st.planes,              // final TilePlanes.PlaneData [][] planes,
+					2, // final int debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+			if (debugLevel>100) System.out.println(quality_stats1.length);
+			
+			lp.setNonExclusive(
+					st.planes, // final TilePlanes.PlaneData [][] planes,
+					2, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+			
+			lp.calcStarValueStrength(
+					true, // boolean set_start_planes,
+					clt_parameters.plStarOrtho,    // orthoWeight,      // final double         orthoWeight,
+					clt_parameters.plStarDiag,     // diagonalWeight,   // final double         diagonalWeight,
+					clt_parameters.plStarPwr,      // starPwr,          // final double         starPwr,    // Divide cost by number of connections to this power
+					clt_parameters.plStarWeightPwr,// starWeightPwr,    // final double         starWeightPwr,    // Use this power of tile weight when calculating connection cost
+					clt_parameters.plWeightToDens, // weightToDens,     // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
+					clt_parameters.plStarValPwr,   // starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
+					2, // starSteps,        // final int            steps,
+					st.planes,      // final TilePlanes.PlaneData [][] planes,
+					clt_parameters.plPreferDisparity, // preferDisparity,  // final boolean        preferDisparity)
+					0); // debugLevel);
+			
+			
+			
+			int [][][] merge_candidates =  lp.getMergeSameTileCandidates(
+					st.planes, // final TilePlanes.PlaneData [][] planes,			
+					2, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+
+			boolean [][][] plane_nooverlaps = lp.overlapSameTileCandidates (
+					st.planes, // final TilePlanes.PlaneData [][] planes,			
+					merge_candidates,       // final int [][][] merge_candidates,
+					2, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+
+			// remove merge candidates that break connections to neighbors
+			lp.keepSameTileConnections(
+					st.planes, // final TilePlanes.PlaneData [][] planes,			
+					merge_candidates,       // final int [][][] merge_candidates,
+					plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
+					true, // final boolean merge_low_eigen,
+					2, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+
+
+//			double  [][][][][][]  merge_cost_data = 
+					lp.costSameTileConnections(
+					false, // final boolean ignore_weights,
+					1000.0, // final double threshold_worst,
+					1000.0, //final double threshold_world_worst,
+					st.planes, // ffinal TilePlanes.PlaneData [][] planes,
+					merge_candidates,       // final int [][][] merge_candidates,
+					plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
+					2,                      // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+//			System.out.println("merge_cost_data.length = " + merge_cost_data.length);
+			int [][][] merge_groups = lp.extractMergeSameTileGroups(
+					st.planes,              // final TilePlanes.PlaneData [][] planes,
+					merge_candidates,       // final int [][][] merge_candidates,
+					plane_nooverlaps, // boolean [][][] plane_overlaps,
+					2,                      // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+
+			dbg_orig_planes[num_merge_try] = st.planes.clone();
+			for (int nsTile=0; nsTile < st.planes.length; nsTile++) if (st.planes[nsTile] != null){
+				dbg_orig_planes[num_merge_try][nsTile] = st.planes[nsTile].clone();
+				for (int np = 0; np < st.planes[nsTile].length; np++ ) if (st.planes[nsTile][np] != null){
+					dbg_orig_planes[num_merge_try][nsTile][np] = st.planes[nsTile][np].clone(); 	
+				}
+			}
+
+			int num_removed_by_merging = st.applyMergePlanes(
+					st.planes,    // final TilePlanes.PlaneData[][]   planes,
+					merge_groups, // final int [][][]                 merge_groups,			
+					// parameters to generate ellipsoids			
+					0.0, // 3,                       // final double                     disp_far, // minimal disparity to select (or NaN)
+					Double.NaN,                      // final double                     disp_near, // maximal disparity to select (or NaN)
+					clt_parameters.plDispNorm,       // final double                     dispNorm,   //  Normalize disparities to the average if above
+					0.0,                             // final double                     min_weight,
+					clt_parameters.plMinPoints,      // final int                        min_tiles,
+					// parameters to reduce outliers			
+					clt_parameters.plTargetEigen,    // final double                     targetEigen,   //     =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+					clt_parameters.plFractOutliers,  // final double                     fractOutliers, //     =   0.3;  // Maximal fraction of outliers to remove
+					clt_parameters.plMaxOutliers,    // final int                        maxOutliers,   //     =   20;  // Maximal number of outliers to remove
+					2,                      // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+
+			System.out.println("Try "+num_merge_try+ ": removed "+num_removed_by_merging+" planes by merging, recalculating connections");
+			if (num_removed_by_merging == 0){ // re-calculate all links
+				break;
+
+			}
+		}
+		
+		
+		
+	}
+	
+	
 //======================
 	public void showPlanes(
 			EyesisCorrectionParameters.CLTParameters           clt_parameters,
@@ -3327,206 +3463,110 @@ public class TileProcessor {
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 		}
 
-
-
 		SuperTiles st = scan_prev.getSuperTiles();
-		/*
-		TileSurface tileSurface = new TileSurface(
-				st.tileProcessor.getTileSize(),      // int tileSize,
-				st.tileProcessor.getSuperTileSize(), // int superTileSize,
-				st.tileProcessor.getTilesX(),        // int tilesX,
-				st.tileProcessor.getTilesY(),        // int tilesY,
-				geometryCorrection,               // GeometryCorrection geometryCorrection,
-				st.tileProcessor.threadsMax);        // int threadsMax);
-				*/ 
 		st.setTileSurface(geometryCorrection); // tileSurface);
+
+		double []  world_hor = {0.0, 1.0, 0.0};
+		st.processPlanes5(
+				clt_parameters.stGrowSel,       // = 2; // = -1;  //Grow initial selection before processing supertiles, odd - ortho. <0 - use all tiles
+				clt_parameters.stMeasSel,       //      =     1   //Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+				clt_parameters.plDispNorm,      //      =   2.0;  // Normalize disparities to the average if above
+				clt_parameters.plMinPoints,     //      =     5;  // Minimal number of points for plane detection
+				clt_parameters.plTargetEigen,   //      =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+				clt_parameters.plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
+				clt_parameters.plMaxOutliers,   //      =    20;  // Maximal number of outliers to remove\
+				clt_parameters.plPreferDisparity,
+				geometryCorrection,
+				clt_parameters.correct_distortions,
+
+				clt_parameters.stSmplMode ,     // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+				clt_parameters.stSmplSide ,     // final int                        smplSide, //        = 2;      // Sample size (side of a square)
+				clt_parameters.stSmplNum ,      // final int                        smplNum, //         = 3;      // Number after removing worst
+				clt_parameters.stSmplRms ,      // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+
+				clt_parameters.plBlurBinHor,    // final double     bin_blur_hor,   // Blur disparity histograms for horizontal clusters by this sigma (in bins)
+				clt_parameters.plBlurBinVert,   // final double     bin_blur_vert,  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
+				clt_parameters.plMaxDiffHor,    // final double     max_diff_hor,   // maximal disparity difference (to assign to a cluster (of Double.NaN) at first run for horizontal planes
+				clt_parameters.plMaxDiffVert,   // final double     max_diff_vert,  // maximal disparity difference (to assign to a cluster (of Double.NaN) at first run for vertical plane
+				clt_parameters.plInitPasses,    // final int        max_tries,       // on last run - assign all remaining pixels to some cluster (disregard max_diff)
+
+				clt_parameters.msUseSel,        // final boolean    msUseSel,        // final boolean                   use_sel,
+				clt_parameters.msDivideByArea,  // final boolean    msDivideByArea,  // final boolean                   divide_by_area,
+				clt_parameters.msScaleProj,     //final double     msScaleProj,     // final double                    scale_projection,
+
+
+				clt_parameters.stSmallDiff,     //       = 0.4;   // Consider merging initial planes if disparity difference below
+				clt_parameters.stHighMix,       // stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
+				world_hor,                      // final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
+				0, // -1,                       // debugLevel,                  // final int        debugLevel)
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+		showDoubleFloatArrays sdfa_instance = null;
+		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+
+
+		//==========================
+
+		// Trying new class
+		LinkPlanes lp = new LinkPlanes (clt_parameters, st);
+
+		// condition supertiles (create and manage links, merge)
+		conditionSuperTiles(
+				clt_parameters,     //EyesisCorrectionParameters.CLTParameters           clt_parameters,
+				geometryCorrection, // GeometryCorrection geometryCorrection,
+				st,                 // SuperTiles        st,
+				lp,                 // LinkPlanes        lp,
+				debugLevel);        // final int         debugLevel);
+
+		// re-generate planes in the supertiles using previously calculated planes (for tghe tiles and their neighbors)
+		// as hints, new planes will be assumed parallel to the known and possibly slightly offset in disparity
+		st.regeneratePlanes(
+				st.planes,                        // final TilePlanes.PlaneData [][] planes,
+				clt_parameters.stMeasSel,         //      =     1   //Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+				clt_parameters.plDispNorm,        //      =   2.0;  // Normalize disparities to the average if above
+				clt_parameters.plMinPoints,       //      =     5;  // Minimal number of points for plane detection
+				clt_parameters.plTargetEigen,     //      =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+				clt_parameters.plFractOutliers,   //      =   0.3;  // Maximal fraction of outliers to remove
+				clt_parameters.plMaxOutliers,     //      =    20;  // Maximal number of outliers to remove\
+				clt_parameters.plPreferDisparity,
+				geometryCorrection,
+				clt_parameters.correct_distortions,
+
+				clt_parameters.stSmplMode,        // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+				clt_parameters.stSmplSide,        // final int                        smplSide, //        = 2;      // Sample size (side of a square)
+				clt_parameters.stSmplNum,         // final int                        smplNum, //         = 3;      // Number after removing worst
+				clt_parameters.stSmplRms,         // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+
+				clt_parameters.plDiscrTolerance,  // final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile 
+				clt_parameters.plDiscrDispRange,  // final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
+				clt_parameters.plDiscrSteps,      // final int        plDiscrSteps,         //         =   3;    // Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
+				clt_parameters.plDiscrVariants,   // final int        plDiscrVariants,      //      =   100;  // Total number of variants to try (protect from too many planes) 
+				clt_parameters.plDiscrMode,       // final int        plDiscrMode,          //          =   3;    // What plane to use as a hint: 0 - weighted, 1 - equalized, 2 - best, 3 - combined
+
+				clt_parameters.plDiscrVarFloor,   // final double     plDiscrVarFloor, //       =   0.03;  // Squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
+				clt_parameters.plDiscrSigma,      // final double     plDiscrSigma, //          =   0.05;  // Gaussian sigma to compare how measured data is attracted to planes
+				clt_parameters.plDiscrBlur,       // final double     plDiscrBlur, //           =   0.1;   // Sigma to blur histograms while re-discriminating
+				clt_parameters.plDiscrExclusivity,// final double     plDiscrExclusivity, //    =   0.5;   // Tile exclusivity: 1.0 - tile belongs to one plane only, 0.0 - regardless of others
+				clt_parameters.plDiscrExclus2,// final double     plDiscrExclus2, //    =   0.5;   // For second pass if exclusivity > 1.0 - will assign only around strong neighbors
+				clt_parameters.plDiscrStrict,     // final boolean    plDiscrStrict, //         = true;   // When growing selection do not allow any offenders around (false - more these than others)				
+				0, // -1,                        // debugLevel,                  // final int        debugLevel)
+				clt_parameters.tileX,
+				clt_parameters.tileY);
 		
+		// condition the redcefined planes
+		conditionSuperTiles(
+				clt_parameters,     //EyesisCorrectionParameters.CLTParameters           clt_parameters,
+				geometryCorrection, // GeometryCorrection geometryCorrection,
+				st,                 // SuperTiles        st,
+				lp,                 // LinkPlanes        lp,
+				debugLevel);        // final int         debugLevel);
 
-		// moved here
-//		if (clt_parameters.dbg_migrate) {
-			// separate each supertile data into clusters, trying both horizontal and perpendicular to view planes
-			double []  world_hor = {0.0, 1.0, 0.0};
-			st.processPlanes5(
-					clt_parameters.stGrowSel,       // = 2; // = -1;  //Grow initial selection before processing supertiles, odd - ortho. <0 - use all tiles
-					clt_parameters.stMeasSel,       //      =     1   //Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
-					clt_parameters.plDispNorm,      //      =   2.0;  // Normalize disparities to the average if above
-					clt_parameters.plMinPoints,     //      =     5;  // Minimal number of points for plane detection
-					clt_parameters.plTargetEigen,   //      =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
-					clt_parameters.plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
-					clt_parameters.plMaxOutliers,   //      =    20;  // Maximal number of outliers to remove\
-					clt_parameters.plPreferDisparity,
-					geometryCorrection,
-					clt_parameters.correct_distortions,
-
-					clt_parameters.stSmplMode ,     // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-					clt_parameters.stSmplSide ,     // final int                        smplSide, //        = 2;      // Sample size (side of a square)
-					clt_parameters.stSmplNum ,      // final int                        smplNum, //         = 3;      // Number after removing worst
-					clt_parameters.stSmplRms ,      // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-
-					clt_parameters.plBlurBinHor,    // final double     bin_blur_hor,   // Blur disparity histograms for horizontal clusters by this sigma (in bins)
-					clt_parameters.plBlurBinVert,   // final double     bin_blur_vert,  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
-					clt_parameters.plMaxDiffHor,    // final double     max_diff_hor,   // maximal disparity difference (to assign to a cluster (of Double.NaN) at first run for horizontal planes
-					clt_parameters.plMaxDiffVert,   // final double     max_diff_vert,  // maximal disparity difference (to assign to a cluster (of Double.NaN) at first run for vertical plane
-					clt_parameters.plInitPasses,    // final int        max_tries,       // on last run - assign all rfemaining pixels to some cluster (disregard max_diff)
-
-					clt_parameters.msUseSel,        // final boolean    msUseSel,        // final boolean                   use_sel,
-					clt_parameters.msDivideByArea,  // final boolean    msDivideByArea,  // final boolean                   divide_by_area,
-					clt_parameters.msScaleProj,     //final double     msScaleProj,     // final double                    scale_projection,
-
-
-					clt_parameters.stSmallDiff,     //       = 0.4;   // Consider merging initial planes if disparity difference below
-					clt_parameters.stHighMix,       // stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
-					world_hor,                      // final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
-					0, // -1,                       // debugLevel,                  // final int        debugLevel)
-					clt_parameters.tileX,
-					clt_parameters.tileY);
-			showDoubleFloatArrays sdfa_instance = null;
-			if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
-			// Trying new class
-			LinkPlanes lp = new LinkPlanes (clt_parameters, st);
-			// try to merge multiple times
-			
-			int max_num_merge_try = 8;
-			TilePlanes.PlaneData [][][] dbg_orig_planes = new TilePlanes.PlaneData [max_num_merge_try][][];
-			
-			for (int num_merge_try = 0; num_merge_try < max_num_merge_try; num_merge_try++){
-				lp.matchPlanes(
-						st.planes, // final TilePlanes.PlaneData [][] planes,			
-						2, // -1, // debugLevel,                  // final int        debugLevel)
-						clt_parameters.tileX,
-						clt_parameters.tileY);
-
-				lp.filterNeighborPlanes(
-						st.planes, // final TilePlanes.PlaneData [][] planes,
-						true, // final boolean merge_low_eigen,
-						2, // -1, // debugLevel,                  // final int        debugLevel)
-						clt_parameters.tileX,
-						clt_parameters.tileY);
-
-				// calculate it here - use results to keep some planes from merging
-				double [][] quality_stats1 = lp.selectNeighborPlanesMutual(
-						st.planes,              // final TilePlanes.PlaneData [][] planes,
-						2, // final int debugLevel)
-						clt_parameters.tileX,
-						clt_parameters.tileY);
-				
-				lp.setNonExclusive(
-						st.planes, // final TilePlanes.PlaneData [][] planes,
-						2, // -1, // debugLevel,                  // final int        debugLevel)
-						clt_parameters.tileX,
-						clt_parameters.tileY);
-				
-				lp.calcStarValueStrength(
-						true, // boolean set_start_planes,
-						clt_parameters.plStarOrtho,    // orthoWeight,      // final double         orthoWeight,
-						clt_parameters.plStarDiag,     // diagonalWeight,   // final double         diagonalWeight,
-						clt_parameters.plStarPwr,      // starPwr,          // final double         starPwr,    // Divide cost by number of connections to this power
-						clt_parameters.plStarWeightPwr,// starWeightPwr,    // final double         starWeightPwr,    // Use this power of tile weight when calculating connection cost
-						clt_parameters.plWeightToDens, // weightToDens,     // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
-						clt_parameters.plStarValPwr,   // starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
-						2, // starSteps,        // final int            steps,
-						st.planes,      // final TilePlanes.PlaneData [][] planes,
-						clt_parameters.plPreferDisparity, // preferDisparity,  // final boolean        preferDisparity)
-						0); // debugLevel);
-				
-				
-				
-				int [][][] merge_candidates =  lp.getMergeSameTileCandidates(
-						st.planes, // final TilePlanes.PlaneData [][] planes,			
-						2, // -1, // debugLevel,                  // final int        debugLevel)
-						clt_parameters.tileX,
-						clt_parameters.tileY);
-
-				boolean [][][] plane_nooverlaps = lp.overlapSameTileCandidates (
-						st.planes, // final TilePlanes.PlaneData [][] planes,			
-						merge_candidates,       // final int [][][] merge_candidates,
-						2, // -1, // debugLevel,                  // final int        debugLevel)
-						clt_parameters.tileX,
-						clt_parameters.tileY);
-
-				// remove merge candidates that break connections to neighbors
-				lp.keepSameTileConnections(
-						st.planes, // final TilePlanes.PlaneData [][] planes,			
-						merge_candidates,       // final int [][][] merge_candidates,
-						plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
-						true, // final boolean merge_low_eigen,
-						2, // -1, // debugLevel,                  // final int        debugLevel)
-						clt_parameters.tileX,
-						clt_parameters.tileY);
-
-
-//				double  [][][][][][]  merge_cost_data = 
-						lp.costSameTileConnections(
-						false, // final boolean ignore_weights,
-						1000.0, // final double threshold_worst,
-						1000.0, //final double threshold_world_worst,
-						st.planes, // ffinal TilePlanes.PlaneData [][] planes,
-						merge_candidates,       // final int [][][] merge_candidates,
-						plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
-						2,                      // -1, // debugLevel,                  // final int        debugLevel)
-						clt_parameters.tileX,
-						clt_parameters.tileY);
-//				System.out.println("merge_cost_data.length = " + merge_cost_data.length);
-				int [][][] merge_groups = lp.extractMergeSameTileGroups(
-						st.planes,              // final TilePlanes.PlaneData [][] planes,
-						merge_candidates,       // final int [][][] merge_candidates,
-						plane_nooverlaps, // boolean [][][] plane_overlaps,
-						2,                      // -1, // debugLevel,                  // final int        debugLevel)
-						clt_parameters.tileX,
-						clt_parameters.tileY);
-
-				dbg_orig_planes[num_merge_try] = st.planes.clone();
-				for (int nsTile=0; nsTile < st.planes.length; nsTile++) if (st.planes[nsTile] != null){
-					dbg_orig_planes[num_merge_try][nsTile] = st.planes[nsTile].clone();
-					for (int np = 0; np < st.planes[nsTile].length; np++ ) if (st.planes[nsTile][np] != null){
-						dbg_orig_planes[num_merge_try][nsTile][np] = st.planes[nsTile][np].clone(); 	
-					}
-				}
-
-				int num_removed_by_merging = st.applyMergePlanes(
-						st.planes,    // final TilePlanes.PlaneData[][]   planes,
-						merge_groups, // final int [][][]                 merge_groups,			
-						// parameters to generate ellipsoids			
-						0.0, // 3,                       // final double                     disp_far, // minimal disparity to select (or NaN)
-						Double.NaN,                      // final double                     disp_near, // maximal disparity to select (or NaN)
-						clt_parameters.plDispNorm,       // final double                     dispNorm,   //  Normalize disparities to the average if above
-						0.0,                             // final double                     min_weight,
-						clt_parameters.plMinPoints,      // final int                        min_tiles,
-						// parameters to reduce outliers			
-						clt_parameters.plTargetEigen,    // final double                     targetEigen,   //     =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
-						clt_parameters.plFractOutliers,  // final double                     fractOutliers, //     =   0.3;  // Maximal fraction of outliers to remove
-						clt_parameters.plMaxOutliers,    // final int                        maxOutliers,   //     =   20;  // Maximal number of outliers to remove
-						2,                      // -1, // debugLevel,                  // final int        debugLevel)
-						clt_parameters.tileX,
-						clt_parameters.tileY);
-
-				System.out.println("Try "+num_merge_try+ ": removed "+num_removed_by_merging+" planes by merging, recalculating connections");
-				if (num_removed_by_merging == 0){ // re-calculate all links
-					break;
-
-				}
-			}
-			/*		
-		if (num_removed_by_merging > 0){ // re-calculate all links
-			lp.matchPlanes(
-					st.planes, // final TilePlanes.PlaneData [][] planes,			
-					2, // -1, // debugLevel,                  // final int        debugLevel)
-					clt_parameters.tileX,
-					clt_parameters.tileY);
-
-			lp.filterNeighborPlanes(
-					st.planes, // final TilePlanes.PlaneData [][] planes,
-					true, // final boolean merge_low_eigen,
-					2, // -1, // debugLevel,                  // final int        debugLevel)
-					clt_parameters.tileX,
-					clt_parameters.tileY);
-		}
-			 */
 		double [][] quality_stats1 = lp.selectNeighborPlanesMutual(
 				st.planes,              // final TilePlanes.PlaneData [][] planes,
 				2, // final int debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
+		if (debugLevel>100) System.out.println(quality_stats1.length);
 
 		st.resolveConflicts(
 				lp, // LinkPlanes lp,
@@ -3549,7 +3589,7 @@ public class TileProcessor {
 				1, // final int debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
-/*
+		/*
 		st.resolveConflicts(
 				clt_parameters.plMaxEigen,
 				clt_parameters.plConflDualTri, // boolean    conflDualTri,  // Resolve dual triangles conflict (odoodo)
@@ -3567,9 +3607,9 @@ public class TileProcessor {
 				1, // final int debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
-*/		
-		
-		
+		 */		
+
+
 		if (clt_parameters.plSplitApply) {
 			while (true) {
 				int num_added = 0;
@@ -3631,7 +3671,7 @@ public class TileProcessor {
 					clt_parameters.plMaxOutliers,    // final int                        maxOutliers,   //     =   20;  // Maximal number of outliers to remove
 					clt_parameters.stFloor,          // final double                     strength_floor,
 					clt_parameters.stPow,            // final double                     strength_pow,
-//					clt_parameters.dbg_migrate && clt_parameters.stSmplMode , // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+					//					clt_parameters.dbg_migrate && clt_parameters.stSmplMode , // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 					clt_parameters.stSmplMode , // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 					clt_parameters.stSmplSide , // final int                        smplSide, //        = 2;      // Sample size (side of a square)
 					clt_parameters.stSmplNum , // final int                        smplNum, //         = 3;      // Number after removing worst
@@ -3662,6 +3702,7 @@ public class TileProcessor {
 					0, // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
+			if (debugLevel>100) System.out.println(quality_stats2.length);
 
 			st.resolveConflicts(
 					lp, // LinkPlanes lp,
@@ -3787,12 +3828,12 @@ public class TileProcessor {
 					}
 					plane_data[indx][i] = dbg_nl;
 				}
-				
+
 			}
 
 			sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "plane_data");
 
-/*
+			/*
 			TileSurface tileSurface = new TileSurface(
 					st.tileProcessor.getTileSize(),      // int tileSize,
 					st.tileProcessor.getSuperTileSize(), // int superTileSize,
@@ -3801,7 +3842,7 @@ public class TileProcessor {
 					geometryCorrection,               // GeometryCorrection geometryCorrection,
 					st.tileProcessor.threadsMax);        // int threadsMax); 
 			st.setTileSurface(tileSurface);
-*/
+			 */
 			st.tileSurface.createTileShells (
 					clt_parameters.msUseSel,            // final boolean                   use_sel,
 					clt_parameters.msDivideByArea,      // final boolean                   divide_by_area,
@@ -4059,7 +4100,7 @@ public class TileProcessor {
 		
 		boolean [] these_tiles;
 		int [] replaced =  null; // +1 - hor, +2 - vert
-		int [] replaced0 = null; // +1 - hor, +2 - vert
+//		int [] replaced0 = null; // +1 - hor, +2 - vert
 		
 		if (!clt_parameters.ortho_old) {
 			replaced = combineOrthoDisparity(
@@ -4096,7 +4137,7 @@ public class TileProcessor {
 				if (debugLevel > -1){
 					System.out.println("fixVerticalPoles() replaced "+ numFixed+ " tiles.");
 				}
-				replaced0 = replaced.clone();
+//				replaced0 = replaced.clone();
 				for (int i = 0; i < replaced.length; i++){
 					if (tilesHor[i]) replaced[i] |= 1;
 				}

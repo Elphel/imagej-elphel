@@ -282,7 +282,7 @@ public class LinkPlanes {
 				w2, // double w2)
 				0.0);//			double eigen_floor)
 
-		double this_wrq_norm = this_rq;
+		double this_wrq_norm = this_wrq;
 		if ((w1 + w2) < plWeakWorsening) this_wrq_norm *= (w1 + w2) / plWeakWorsening; // forgive more for weak planes
 
 		double this_wrq_eq = mergeRQuality(
@@ -293,7 +293,7 @@ public class LinkPlanes {
 				1.0, // double w2)
 				0.0);//			double eigen_floor)
 		this_wrq_eq /= (w1 + w2); // for comparison reduce this value for stronger planes
-		double this_wrq_eq_norm = this_rq_eq;
+		double this_wrq_eq_norm = this_wrq_eq;
 		if ((w1 + w2) < plWeakWorsening) this_wrq_eq_norm *= (w1 + w2) / plWeakWorsening; // forgive more for weak planes 
 		
 		boolean OK_to_merge = false;
@@ -395,9 +395,13 @@ public class LinkPlanes {
 			if (debugLevel > 1){
 				System.out.println(prefix+" (do not fit) this_rq="+this_rq+
 						", this_rq_eq="+this_rq_eq+
+						" this_wrq=" + (this_wrq) +
+						" this_wrq_eq=" + (this_wrq_eq) +
 						" w1="+w1+" w2="+w2+
 						" L1="+plane1.getValue()+" L2="+plane2.getValue()+
-						" L="+merged_ev+" L_eq="+merged_ev_eq);
+						" L="+merged_ev+" L_eq="+merged_ev_eq+
+						" L1W="+plane1.getWValue()+" L2W="+plane2.getWValue()+" LW="+merged_wev+
+						" L_eqW="+merged_wev_eq);
 				System.out.println(prefix+" (do not fit) world sin2 ="+
 						plane1.getWorldSin2(plane2));
 				System.out.println(prefix+" (do not fit)"+
