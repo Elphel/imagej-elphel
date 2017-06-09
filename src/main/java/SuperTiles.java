@@ -29,14 +29,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
-
-//import java.awt.Point;
-//import java.util.ArrayList;
-
-//import TilePlanes.PlaneData;
-
-//import TilePlanes.PlaneData;
-
 public class SuperTiles{
 	TileProcessor tileProcessor;
 	double      step_far;
@@ -1996,13 +1988,17 @@ public class SuperTiles{
 			final int        plDiscrVariants,      //      =   100;  // Total number of variants to try (protect from too many planes) 
 			final int        plDiscrMode,          //          =   3;    // What plane to use as a hint: 0 - weighted, 1 - equalized, 2 - best, 3 - combined
 
-			final double     plDiscrVarFloor, //       =   0.03;  // Squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
-			final double     plDiscrSigma, //          =   0.05;  // Gaussian sigma to compare how measured data is attracted to planes
-			final double     plDiscrBlur, //           =   0.1;   // Sigma to blur histograms while re-discriminating
+			final double     plDiscrVarFloor,    //       =   0.03;  // Squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
+			final double     plDiscrSigma,       //          =   0.05;  // Gaussian sigma to compare how measured data is attracted to planes
+			final double     plDiscrBlur,        //           =   0.1;   // Sigma to blur histograms while re-discriminating
 			final double     plDiscrExclusivity, //    =   1.5;   // Tile exclusivity: 1.0 - tile belongs to one plane only, 0.0 - regardless of others
-			final double     plDiscrExclus2, //        =   0.8;   // For second pass if exclusivity > 1.0 - will assign only around strong neighbors
-			final boolean    plDiscrStrict, //         = true;   // When growing selection do not allow any offenders around (false - more these than others)
-
+			final double     plDiscrExclus2,     //        =   0.8;   // For second pass if exclusivity > 1.0 - will assign only around strong neighbors
+			final boolean    plDiscrStrict,      //         = true;   // When growing selection do not allow any offenders around (false - more these than others)
+			final double     plDiscrCorrMax,     //        = 0.7;   // Attraction to different planes correlation that is too high for re-discrimination.
+			final double     plDiscrCorrMerge,   //     = 0.85;  // Attraction to different planes correlation that is high enough to merge planes
+			final int        plDiscrSteal,       //         =   4;     // If offender has this number of tiles (including center) the cell can not be used
+			final int        plDiscrGrown,       //         =   0;     // Only use tiles within this range from original selection
+			final double     plDiscrXMedian,     //        = 1.5;   // Remove outliers from the final selection that have distance more than scaled median
 			final int        debugLevel,
 			final int        dbg_X,
 			final int        dbg_Y)
@@ -2018,7 +2014,7 @@ public class SuperTiles{
 		final int nStiles = stilesX * stilesY;
 		final TilePlanes tpl = new TilePlanes(tileSize,superTileSize, geometryCorrection);
 		final Thread[] threads = ImageDtt.newThreadArray((debugLevel > 1)? 1 : tileProcessor.threadsMax);
-		
+
 		final AtomicInteger ai = new AtomicInteger(0);
 		this.planes = new TilePlanes.PlaneData[nStiles][];
 		final int debug_stile = (debugLevel > -1)? (dbg_Y * stilesX + dbg_X):-1;
@@ -2031,56 +2027,116 @@ public class SuperTiles{
 						if (dl > 1){
 							System.out.println("refineDiscriminateTiles() selecting: nsTile="+nsTile);
 						}
-						int stileY = nsTile / stilesX;  
-						int stileX = nsTile % stilesX;
-						int [] sTiles = {stileX, stileY};
-						TilePlanes.PlaneData pd0 = tpl.new  PlaneData (
-								sTiles, // int [] sTileXY, 
-								tileSize, // int tileSize,
-								geometryCorrection, // GeometryCorrection   geometryCorrection,
-								correct_distortions,
-								measuredLayers,     // MeasuredLayers measuredLayers,
-								plPreferDisparity);   // boolean preferDisparity)
-/*						
-						planes_selections[nsTile] = pd0.reDiscriminateTiles_0(
-								""+nsTile,        // String           prefix,
-								planes[nsTile],   // final PlaneData  [] planes, 
-								stMeasSel,        // final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+						if (planes[nsTile] != null) {
+							int stileY = nsTile / stilesX;  
+							int stileX = nsTile % stilesX;
+							int [] sTiles = {stileX, stileY};
+							TilePlanes.PlaneData pd0 = tpl.new  PlaneData (
+									sTiles, // int [] sTileXY, 
+									tileSize, // int tileSize,
+									geometryCorrection, // GeometryCorrection   geometryCorrection,
+									correct_distortions,
+									measuredLayers,     // MeasuredLayers measuredLayers,
+									plPreferDisparity);   // boolean preferDisparity)
 
-								smplMode,         // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-								smplSide,         // final int        smplSide, //        = 2;      // Sample size (side of a square)
-								smplNum,          // final int        smplNum, //         = 3;      // Number after removing worst
-								smplRms,          // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+							TilePlanes.PlaneData [] these_planes = planes[nsTile].clone();  // null pointer
+
+							for (int ntry = 0; ntry < planes[nsTile].length; ntry ++) { // can be while(true), just for debugging
+								int [] merge_planes = {-1, -1};
+								planes_selections[nsTile] = pd0.reDiscriminateTiles(
+										""+nsTile,         // String           prefix,
+										these_planes,  //planes[nsTile],    // final PlaneData  [] planes, 
+										merge_planes,      // final int []     merge_planes, // indices of planes suggested to be merged
+										stMeasSel,         // final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+										plDispNorm,        // final double     dispNorm,   //  Normalize disparities to the average if above
+										smplMode,          // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+										smplSide,          // final int        smplSide, //        = 2;      // Sample size (side of a square)
+										smplNum,           // final int        smplNum, //         = 3;      // Number after removing worst
+										smplRms,           // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+
+										plDiscrTolerance,  // final double     disp_tolerance,   // maximal disparity difference from the plane to consider tile
+										plDiscrVarFloor,   // final double     disp_var_floor,   // squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
+										plDiscrSigma,      // final double     disp_sigma,       // G.sigma to compare how measured data is attracted to planes 
+										plDiscrDispRange,  // final double     disp_range,       // parallel move known planes around original know value for the best overall fit
+										plDiscrSteps,      // final int        amplitude_steps,  // number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
+										plDiscrBlur,       // final double     hist_blur,        // Sigma to blur histogram
+										plDiscrExclusivity, // final double    exclusivity,      // 1.0 - tile belongs to one plane only, 0.0 - regardless of others
+										plDiscrExclus2,    // final double     excluisivity2, //        =   0.8;   // For second pass if exclusivity > 1.0 - will assign only around strong neighbors
+										plDiscrStrict,     // final boolean    exclusivity_strict//         = true;   // When growing selection do not allow any offenders around (false - more these than others)
+										plDiscrCorrMax,    // final double     plDiscrCorrMax, //         = 0.7;   // Attraction to different planes correlation that is too high for re-discrimination.				
+										plDiscrCorrMerge,  // final double     attractionCorrMerge, //         = 0.85;  // Attraction to different planes correlation that is high enough to merge planes
+										plDiscrSteal,      // final int        plDiscrSteal,        //         =   4;     // If offender has this number of tiles (including center) the cell can not be used
+										plDiscrGrown,      // final int        plDiscrGrown,        //         =   0;     // Only use tiles within this range from original selection
+										plDiscrXMedian,    // final double     outliersXMedian, //         = 1.5;   // Remove outliers from the final selection that have distance more than scaled median
+										plDiscrMode,       // final int        mode, // 0 - weighted, 1 - equalized, 2 - best, 3 - combined
+										dl);               // debugLevel); // final int        debugLevel)
+								if ((planes_selections[nsTile] != null) || (merge_planes[0] < 0)){ // either OK, or does not know what to do (keep old)
+									break;
+								}
+								// merging suggested plane pair
+								if (debugLevel > -1) {
+									System.out.println("refineDiscriminateTiles(): nsTile="+nsTile+" merging pair ["+merge_planes[0]+","+merge_planes[1]+"]");
+								}
+								TilePlanes.PlaneData [] new_planes = new TilePlanes.PlaneData [these_planes.length -1];
+								int np1 = 0;
+								for (int np = 0; np < these_planes.length; np++) {
+									if (np != merge_planes[1]){
+										new_planes[np1++] = these_planes[np]; 
+									}
+								}
+								TilePlanes.PlaneData plane1 = these_planes[merge_planes[0]].mergePlaneToThis(
+										these_planes[merge_planes[1]], // PlaneData otherPd,
+										1.0,         // double    scale_other,
+										1.0,         // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost																		
+										false,       // boolean   ignore_weights,
+										true, // boolean   sum_weights,
+										these_planes[merge_planes[0]].getPreferDisparity(), // preferDisparity,
+										dl-1); // int       debugLevel)
+								// combine tile selection - if next time pd0.reDiscriminateTiles() will fail, it will
+								// use old selections, we need to provide them (otherwise will use selection from the first plane)
+								plane1.orMeasSelection(these_planes[merge_planes[1]].getMeasSelection());
 								
-								plDiscrTolerance, // final double     max_disp_diff,    // maximal disparity difference from the plane to consider tile 
-								plDiscrDispRange, // final double     disp_range,       // parallel move known planes around original know value for the best overall fit
-							    plDiscrSteps,     // final int        amplitude_steps,  // number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
-							    plDiscrVariants,  // final int        num_variants,     // total number of variants to try (protect from too many planes) 
-							    plDiscrMode,      // final int        mode, // 0 - weighted, 1 - equalized, 2 - best, 3 - combined
-							    dl);               // debugLevel); // final int        debugLevel)
-*/
-						planes_selections[nsTile] = pd0.reDiscriminateTiles(
-								""+nsTile,        // String           prefix,
-								planes[nsTile],   // final PlaneData  [] planes, 
-								stMeasSel,        // final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
-								plDispNorm,        // final double     dispNorm,   //  Normalize disparities to the average if above
-								smplMode,         // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-								smplSide,         // final int        smplSide, //        = 2;      // Sample size (side of a square)
-								smplNum,          // final int        smplNum, //         = 3;      // Number after removing worst
-								smplRms,          // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+								// separately merge corresponding nonexclusiveStar and nonexclusiveStarEq of these planes - kit is not exact,
+								// but is needed just for a hint and is compatible with multithreading without recalculating other planes
 								
-								plDiscrTolerance, // final double     disp_tolerance,   // maximal disparity difference from the plane to consider tile
-								plDiscrVarFloor,  // final double     disp_var_floor,   // squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
-								plDiscrSigma,     // final double     disp_sigma,       // G.sigma to compare how measured data is attracted to planes 
-								plDiscrDispRange, // final double     disp_range,       // parallel move known planes around original know value for the best overall fit
-							    plDiscrSteps,     // final int        amplitude_steps,  // number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
-							    plDiscrBlur,      // final double     hist_blur,        // Sigma to blur histogram
-							    plDiscrExclusivity, // final double   exclusivity,      // 1.0 - tile belongs to one plane only, 0.0 - regardless of others
-							    plDiscrExclus2,    // final double    excluisivity2, //        =   0.8;   // For second pass if exclusivity > 1.0 - will assign only around strong neighbors
-							    plDiscrStrict,     // final boolean    exclusivity_strict//         = true;   // When growing selection do not allow any offenders around (false - more these than others)
-							    
-							    plDiscrMode,      // final int        mode, // 0 - weighted, 1 - equalized, 2 - best, 3 - combined
-							    dl);               // debugLevel); // final int        debugLevel)
+								TilePlanes.PlaneData    plane1Ex =    these_planes[merge_planes[0]].getNonexclusiveStar();
+								if (plane1Ex == null)   plane1Ex =    these_planes[merge_planes[0]];
+								TilePlanes.PlaneData    plane1ExEq =  these_planes[merge_planes[0]].getNonexclusiveStarEq();
+								if (plane1ExEq == null) plane1ExEq =  these_planes[merge_planes[0]];
+								
+								TilePlanes.PlaneData    plane2Ex =    these_planes[merge_planes[1]].getNonexclusiveStar();
+								if (plane2Ex == null)   plane2Ex =    these_planes[merge_planes[1]];
+								TilePlanes.PlaneData    plane2ExEq =  these_planes[merge_planes[1]].getNonexclusiveStarEq();
+								if (plane2ExEq == null) plane2ExEq =  these_planes[merge_planes[1]];
+								
+								TilePlanes.PlaneData plane1NonExcl = plane1Ex.mergePlaneToThis(
+										plane2Ex, // PlaneData otherPd,
+										1.0,         // double    scale_other,
+										1.0,         // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost																		
+										false,       // boolean   ignore_weights,
+										true, // boolean   sum_weights,
+										these_planes[merge_planes[0]].getPreferDisparity(), // preferDisparity,
+										dl-2); // int       debugLevel)
+
+								TilePlanes.PlaneData plane1NonExclEq = plane1ExEq.mergePlaneToThis(
+										plane2ExEq, // PlaneData otherPd,
+										1.0,         // double    scale_other,
+										1.0,         // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost																		
+										true,        // boolean   ignore_weights,
+										true,        // boolean   sum_weights,
+										these_planes[merge_planes[0]].getPreferDisparity(), // preferDisparity,
+										dl-2); // int       debugLevel)
+								plane1.setNonexclusiveStar  (plane1NonExcl);
+								plane1.setNonexclusiveStarEq(plane1NonExclEq);
+								new_planes[merge_planes[0]] = plane1;
+								if (dl > 1){
+									System.out.println("First plane ("+merge_planes[0]+"):\n"+(these_planes[merge_planes[0]].toString()));
+									System.out.println("Second plane ("+merge_planes[1]+"):\n"+(these_planes[merge_planes[1]].toString()));
+									System.out.println("combined plane:\n"+(plane1.toString()));
+								}
+								these_planes = new_planes.clone(); 
+							}
+						}
 					}
 				}
 			};
@@ -2416,7 +2472,13 @@ public class SuperTiles{
 			final double     plDiscrBlur, //           =   0.1;   // Sigma to blur histograms while re-discriminating
 			final double     plDiscrExclusivity, //    =   1.5;   // Tile exclusivity: 1.0 - tile belongs to one plane only, 0.0 - regardless of others
 			final double     plDiscrExclus2, //        =   0.8;   // For second pass if exclusivity > 1.0 - will assign only around strong neighbors
-			final boolean    plDiscrStrict, //         = true;   // When growing selection do not allow any offenders around (false - more these than others)
+			final boolean    plDiscrStrict,     //         = true;   // When growing selection do not allow any offenders around (false - more these than others)
+			final double     plDiscrCorrMax,    //         = 0.7;   // Attraction to different planes correlation that is too high for re-discrimination.
+			final double     plDiscrCorrMerge,  //         = 0.85;  // Attraction to different planes correlation that is high enough to merge planes
+			final int        plDiscrSteal,      //         = 4;     // If offender has this number of tiles (including center) the cell can not be used
+			final int        plDiscrGrown,      //         = 0;     // Only use tiles within this range from original selection
+			final double     plDiscrXMedian,    //         = 1.5;   // Remove outliers from the final selection that have distance more than scaled median
+			
 			final int        debugLevel,
 			final int        dbg_X,
 			final int        dbg_Y)
@@ -2452,7 +2514,14 @@ public class SuperTiles{
 				plDiscrBlur,       // final double     plDiscrBlur, //           =   0.1;   // Sigma to blur histograms while re-discriminating
 				plDiscrExclusivity,// final double     plDiscrExclusivity, //    =   0.5;   // Tile exclusivity: 1.0 - tile belongs to one plane only, 0.0 - regardless of others
 				plDiscrExclus2,    // final double     plDiscrExclus2, //    =   0.5;   // For second pass if exclusivity > 1.0 - will assign only around strong neighbors
-			    plDiscrStrict,     // final boolean    plDiscrStrict, //         = true;   // When growing selection do not allow any offenders around (false - more these than others)				
+			    plDiscrStrict,     // final boolean    plDiscrStrict, //         = true;   // When growing selection do not allow any offenders around (false - more these than others)
+				plDiscrCorrMax,    // final double     plDiscrCorrMax, //         = 0.7;   // Attraction to different planes correlation that is too high for re-discrimination.
+				plDiscrCorrMerge,  // final double     plDiscrCorrMerge,  //     = 0.85;  // Attraction to different planes correlation that is high enough to merge planes
+				plDiscrSteal,      // final int        plDiscrSteal,       //         =   4;     // If offender has this number of tiles (including center) the cell can not be used
+				plDiscrGrown,      // final int        plDiscrGrown,       //         =   0;     // Only use tiles within this range from original selection
+				
+				plDiscrXMedian,    //final double    plDiscrXMedian, //         = 1.5;   // Remove outliers from the final selection that have distance more than scaled median
+			    
 				2, // debugLevel,           // final int        debugLevel,
 				dbg_X,                // final int        dbg_X,
 				dbg_Y);               // final int        dbg_Y)
@@ -2498,8 +2567,11 @@ public class SuperTiles{
 				debugLevel + 2, // 1,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
 				dbg_Y);              // final int        dbg_Y)
-		this.planes = new_planes; // save as "measured" (as opposed to "smoothed" by neighbors) planes
+		// combine old and new planes (refineDiscriminateTiles will return null for the supertile if failed to re-disciminate)
 		
+		for (int nsTile = 0; nsTile < this.planes.length; nsTile++){
+			this.planes[nsTile] = (new_planes[nsTile] != null) ? new_planes[nsTile] : planes[nsTile];
+		}
 	}
 	
 	
@@ -5640,6 +5712,7 @@ public class SuperTiles{
 	}
 
 	public TilePlanes.PlaneData[][] planesSmooth(
+			final LinkPlanes lp,			
 			final double      meas_pull,//  relative pull of the original (measured) plane with respect to the average of the neighbors
 			final double      maxValue, // do not combine with too bad planes with primary eigenvalue above this value ( 0 any OK)
 			final int         num_passes,
@@ -5657,6 +5730,7 @@ public class SuperTiles{
 		}
 		for (int pass = 0; pass < num_passes; pass++){
 			double diff = planesSmoothStep(
+					lp,              // LinkPlanes       lp,			
 					meas_pull,       //  relative pull of the original (measured) plane with respect to the average of the neighbors
 					maxValue,        // final double maxValue, // do not combine with too bad planes
 					stopBadNeib,     // do not update supertile if any of connected neighbors is not good (false: just skip that neighbor)
@@ -5683,8 +5757,9 @@ public class SuperTiles{
 	}			
 
 	public double planesSmoothStep(
+			final LinkPlanes   lp,
 			final double meas_pull,//  relative pull of the original (measured) plane with respect to the average of the neighbors
-			final double maxValue, // do not combine with too bad planes
+			final double maxValue, // do not combine with too bad planes, do not merge if result is above
 			final boolean stopBadNeib, // do not update supertile if any of connected neighbors is not good (false: just skip that neighbor)
 			final double normPow,
 			final TilePlanes.PlaneData[][] measured_planes,
@@ -5738,8 +5813,50 @@ public class SuperTiles{
 								}
 								if (dl > 0) dbg_img[ 0] = this_new_plane.getSinglePlaneDisparity(false);
 								if (dl > 0) dbg_img[ 1] = measured_planes[nsTile0][np0].getSinglePlaneDisparity(false);
-
 								int [] neibs = this_new_plane.getNeibBest();
+								double [][] costs = new double[neibs.length][];
+								double [] weights = new double[neibs.length];
+								int cost_index = 1;
+								double sum_rcosts = 0.0;
+								int non_zero = 0;
+								for (int dir = 0; dir < neibs.length; dir++) if (neibs[dir] >= 0) {
+									int stx = stx0 + dirsYX[dir][1];
+									int sty = sty0 + dirsYX[dir][0];
+									int nsTile = sty * stilesX + stx; // from where to get
+									TilePlanes.PlaneData other_plane = this_new_plane.getPlaneToThis(
+											mod_planes[nsTile][neibs[dir]], // neighbor, previous value
+											dl - 1); // debugLevel);
+									costs[dir] = lp.getFitQualities(
+											this_new_plane, // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
+											other_plane,   // TilePlanes.PlaneData plane2,
+											Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
+											Double.NaN, // double               merged_ev_eq, // if NaN will calculate assuming the same supertile
+											Double.NaN, // double               merged_wev,    // if NaN will calculate assuming the same supertile - for world
+											Double.NaN, // double               merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
+											nsTile0+":"+np0+"-"+dir,  // String prefix,
+											0); // int debugLevel)
+									for (int i = 3; i < costs[dir].length; i++) costs[dir][i] *= costs[dir][2];
+									non_zero ++;
+									weights[dir] = 1.0/costs[dir][cost_index];
+									sum_rcosts += weights[dir]; 
+								}
+								for (int dir = 0; dir < neibs.length; dir++) if (neibs[dir] >= 0) {
+									weights[dir] *= non_zero/sum_rcosts; // average weight fcor active links will be 1.0 
+								}								
+								if (dl > 0) {
+									for (int dir = 0; dir <8; dir++)if (costs[dir] != null){
+										System.out.print(nsTile0+":"+np0+"-"+dir+"  "+String.format(" weight= %6.3f ",weights[dir]));
+										for (int i = 0; i < costs[dir].length; i++){
+											System.out.print(String.format("%8.3f", costs[dir][i]));
+//											if (i < 3)	System.out.print(String.format("%8.3f", costs[dir][i]));
+//											else System.out.print(String.format("%8.3f", costs[dir][i]*costs[dir][2]));
+										}
+										System.out.println();
+									}
+									System.out.println();
+								}
+								
+								
 								this_new_plane.setWeight(0.0); //
 								double num_merged = 0.0; // double to add fractional pull weight of the center
 								for (int dir = 0; dir < neibs.length; dir++){
@@ -5751,27 +5868,30 @@ public class SuperTiles{
 												mod_planes[nsTile][neibs[dir]], // neighbor, previous value
 												dl - 1); // debugLevel);
 										if (dl > 0) dbg_img[ 2 + dir] = other_plane.getSinglePlaneDisparity(false);
-										if ((other_plane != null) && ((other_plane.getValue() <= maxValue) || (maxValue == 0))) {
+										if ((other_plane != null) && ((other_plane.getValue() <= maxValue) || (maxValue == 0))) { // TODO:
 											if (this_new_plane.getWeight() > 0.0){
 												this_new_plane = this_new_plane.mergePlaneToThis(
 														other_plane, // PlaneData otherPd,
-														1.0,         // double    scale_other,
+														weights[dir], // 1.0,         // double    scale_other,
 														// here it should be no power function for the weights
 														1.0,         // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
 														false,       // boolean   ignore_weights,
 														true,        // boolean   sum_weights,
 														preferDisparity,
 														dl - 1); // int       debugLevel)
-												if (this_new_plane != null){
-													num_merged += 1.0;
-												}
 												
 											} else {
-												this_new_plane = other_plane; 
+												this_new_plane = other_plane; // should increment num_merged
+												this_new_plane.scaleWeight(weights[dir]);
+											}
+											if (this_new_plane != null){
+												num_merged += 1.0;
+												// just for debug / calculate
+												this_new_plane.getWorldXYZ(0);
 											}
 											new_planes[nsTile0][np0] = this_new_plane;
 											if (dl > 0) dbg_img[10 + dir] = this_new_plane.getSinglePlaneDisparity(false);
-										} else if (stopBadNeib){
+										} else if (stopBadNeib){ // just skip, not abandon? (set to false)
 											this_new_plane = null;
 											break;
 										}
@@ -5816,13 +5936,16 @@ public class SuperTiles{
 									}
 									if ((num_merged > 0.0) && (this_new_plane != null)){
 										this_new_plane.scaleWeight(1.0/num_merged);
+										double true_num_merged = num_merged - meas_pull + 1;
+										this_new_plane.setNumPoints((int) (this_new_plane.getNumPoints()/true_num_merged));
 									}
 									// Revert if the result value is higher than imposed maximum
-									if ((this_new_plane.getValue() > maxValue)  && (maxValue != 0)){
+									if ((this_new_plane.getValue() > maxValue)  && (maxValue != 0)){ // TODO: Set more relaxed here?
 										this_new_plane = mod_planes[nsTile0][np0].clone();
 										new_planes[nsTile0][np0] = this_new_plane;
 									}
-
+									// just for debug / calculate 
+									this_new_plane.getWorldXYZ(0);
 									// calculate largest disparity difference between old and new plane
 									if (rslt_diffs != null){ // filter out outliers here?
 										// get plane for both old and new, calc rms of diff
@@ -5851,7 +5974,7 @@ public class SuperTiles{
 										if (debugLevel > -1) {
 											//										if ((s > 5.0) || (dl > 0)){
 											if ((s > 5.0) || (dl > 0)){
-												System.out.println("planesSmoothStep() nsTile0="+nsTile0+
+												System.out.println("planesSmoothStep() nsTile0="+nsTile0+":"+np0+
 														" num_merged="+num_merged + " rms = "+s+
 														" new_weight = "+new_planes[nsTile0][np0].getWeight()+
 														" old_weight = "+mod_planes[nsTile0][np0].getWeight()+

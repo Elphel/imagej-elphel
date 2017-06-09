@@ -637,7 +637,7 @@ public class MeasuredLayers {
 	 * Get double-size  (for overlapping) array of disparities and strengths for the supertile
 	 * Using best (producing lowest disparity variance) subset of neighbor tiles
 	 * @param num_layer number of measurement layer (currently 0 - composite, 1 - quad, 2 - horizontal
-	 * and 3 - vertical piars correlation
+	 * and 3 - vertical pairs correlation
 	 * @param stX supertile horizontal index
 	 * @param stY supertile vertical index
 	 * @param sel_in input selection of the output data samples (or null)

@@ -2164,12 +2164,12 @@ public class EyesisCorrectionParameters {
   		public int        plInitPasses         =     3;  // Number of initial passes to assign tiles to vert (const disparity) and hor planes
   		
   		public int        plMinPoints          =     5;  // Minimal number of points for plane detection
-  		public double     plTargetEigen        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+  		public double     plTargetEigen        =   0.02; // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
   		public double     plFractOutliers      =   0.3;  // Maximal fraction of outliers to remove
   		public int        plMaxOutliers        =    20;  // Maximal number of outliers to remove
-  		public double     plMinStrength        =   0.1;  // Minimal total strength of a plane 
-  		public double     plMaxEigen           =   0.05; // Maximal eigenvalue of a plane 
-  		public double     plEigenFloor         =   0.01; // Add to eigenvalues of each participating plane and result to validate connections 
+  		public double     plMinStrength        =   0.01; // Minimal total strength of a plane 
+  		public double     plMaxEigen           =   0.06; // Maximal eigenvalue of a plane 
+  		public double     plEigenFloor         =   0.005;// Add to eigenvalues of each participating plane and result to validate connections 
   		public boolean    plDbgMerge           =   true; // Combine 'other' plane with current
   		public double     plWorstWorsening     =   2.0;  // Worst case worsening after merge
   		public double     plWorstWorsening2    =   5.0;  // Worst case worsening for thin planes
@@ -2177,6 +2177,7 @@ public class EyesisCorrectionParameters {
   		public double     plWorstEq2           =   2.0;  // Worst case worsening for thin planes with equal weights
   		public double     plOKMergeEigen       =   0.03; // If result of the merged planes is below, OK to use thin planes (higher) threshold 
   		public double     plMaxWorldSin2       =   0.1;  // Maximal sine squared of the world angle between planes to merge. Set to >= 1.0 to disable
+  		public double     pl2dForSin           =   2.5;  // Do not compare sin() between planes, if at least one has too small axis ratio 
   		public double     plWeakWorsening      =   1.0;  // Relax merge requirements for weaker planes
   		public double     plMaxOverlap         =   0.1;  // Maximal overlap between the same supertile planes to merge
   		// Merge same supetile planes if at least one is weak and they do not differ much
@@ -2184,12 +2185,14 @@ public class EyesisCorrectionParameters {
   		public double     plWeakEigen          =   0.1;  // Maximal eigenvalue of the result of non-weighted merge
   		public double     plWeakWeight2        =  10.0 ; // Maximal weight of the weak plane to merge (second variant)
   		public double     plWeakEigen2         =   0.05; // Maximal eigenvalue of the result of non-weighted merge  (second variant)
+  		public double     plSumThick           =   1.2;  // Do not merge if any sqrt of merged eigenvalue exceeds scaled sum of components 
 
   		public double     plMaxZRatio          =   2.0;  // Maximal ratio of Z to allow plane merging
   		public double     plMaxDisp            =   0.6;  // Maximal disparity of one of the planes to apply  maximal ratio
   		public double     plCutTail            =   1.4;  // When merging with neighbors cut the tail that is worse than scaled best
   		public double     plMinTail            =   0.015;// Set cutoff value level not less than
   		// parameters to recreate planes from tiles disparity/strengths using determined plane connections to neighbors
+  		public boolean    plDiscrEn            =   true; // Enable planes tiles selection regeneration hinted by supertile neighbors
   		public double     plDiscrTolerance     =   0.4;  // Maximal disparity difference from the plane to consider tile 
   		public double     plDiscrDispRange     =   1.0;  // Parallel move known planes around original know value for the best overall fit
   		public int        plDiscrSteps         =   10;   // Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
@@ -2202,6 +2205,12 @@ public class EyesisCorrectionParameters {
   		public double     plDiscrExclusivity   =   1.5;   // Tile exclusivity: 1.0 - tile belongs to one plane only, 0.0 - regardless of others
   		public double     plDiscrExclus2       =   0.8;   // For second pass if exclusivity > 1.0 - will assign only around strong neighbors 
   		public boolean    plDiscrStrict        =   false; // When growing selection do not allow any offenders around (false - more these than others)
+  		public double     plDiscrCorrMax       =   0.7;   // Attraction to different planes correlation that is too high for re-discrimination.
+  		public double     plDiscrCorrMerge     =   0.85;  // Attraction to different planes correlation that is high enough to merge planes				
+  		public int        plDiscrSteal         =   4;     // If offender has this number of tiles (including center) the cell can not be used
+  		public int        plDiscrGrown         =   4;     // Only use tiles within this range from original selection
+  		
+  		public double     plDiscrXMedian       =   1.5;   // Remove outliers from the final selection that have distance more than scaled median
 
   		// comparing merge quality for plane pairs
   		public double     plCostKrq            =   0.8;  // cost of merge quality weighted in disparity space
@@ -2232,7 +2241,7 @@ public class EyesisCorrectionParameters {
   		public boolean    plFillSquares        =   true; // Add diagonals to full squares
   		public boolean    plCutCorners         =   true; // Add ortho to 45-degree corners
 
-  		public double     plPull               =  .3;   // Relative weight of original (measured) plane compared to average neighbor pull
+  		public double     plPull               =  5.0; // .3;   // Relative weight of original (measured) plane compared to average neighbor pull
   		                                                // when combing with neighbors
   		public int        plIterations         =  10;   // Maximal number of smoothing iterations for each step
   		public boolean    plStopBad            =  true; // Do not update supertile if any of connected neighbors is not good (false: just skip that neighbor)
@@ -2578,6 +2587,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plWorstEq2",       this.plWorstEq2 +"");
 			properties.setProperty(prefix+"plOKMergeEigen",   this.plOKMergeEigen +"");
 			properties.setProperty(prefix+"plMaxWorldSin2",   this.plMaxWorldSin2 +"");
+			properties.setProperty(prefix+"pl2dForSin",       this.pl2dForSin +"");
 			properties.setProperty(prefix+"plWeakWorsening",  this.plWeakWorsening +"");
 			properties.setProperty(prefix+"plMaxOverlap",     this.plMaxOverlap +"");
 
@@ -2585,12 +2595,14 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plWeakEigen",      this.plWeakEigen +"");
 			properties.setProperty(prefix+"plWeakWeight2",    this.plWeakWeight2 +"");
 			properties.setProperty(prefix+"plWeakEigen2",     this.plWeakEigen2 +"");
+			properties.setProperty(prefix+"plSumThick",       this.plSumThick +"");
 			
 			properties.setProperty(prefix+"plMaxZRatio",      this.plMaxZRatio +"");
 			properties.setProperty(prefix+"plMaxDisp",        this.plMaxDisp +"");
 			properties.setProperty(prefix+"plCutTail",        this.plCutTail +"");
 			properties.setProperty(prefix+"plMinTail",        this.plMinTail +"");
 
+			properties.setProperty(prefix+"plDiscrEn",        this.plDiscrEn+"");
 			properties.setProperty(prefix+"plDiscrTolerance", this.plDiscrTolerance +"");
 			properties.setProperty(prefix+"plDiscrDispRange", this.plDiscrDispRange +"");
   			properties.setProperty(prefix+"plDiscrSteps",     this.plDiscrSteps+"");
@@ -2602,6 +2614,11 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plDiscrExclusivity",this.plDiscrExclusivity +"");
 			properties.setProperty(prefix+"plDiscrExclus2",   this.plDiscrExclus2 +"");
 			properties.setProperty(prefix+"plDiscrStrict",    this.plDiscrStrict+"");
+			properties.setProperty(prefix+"plDiscrCorrMax",   this.plDiscrCorrMax +"");
+			properties.setProperty(prefix+"plDiscrCorrMerge", this.plDiscrCorrMerge +"");
+  			properties.setProperty(prefix+"plDiscrSteal",     this.plDiscrSteal+"");
+  			properties.setProperty(prefix+"plDiscrGrown",     this.plDiscrGrown+"");
+			properties.setProperty(prefix+"plDiscrXMedian",   this.plDiscrXMedian +"");
 
 			properties.setProperty(prefix+"plCostKrq",        this.plCostKrq +"");
 			properties.setProperty(prefix+"plCostKrqEq",      this.plCostKrqEq +"");
@@ -2955,6 +2972,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plWorstEq2")!=null)        this.plWorstEq2=Double.parseDouble(properties.getProperty(prefix+"plWorstEq2"));
   			if (properties.getProperty(prefix+"plOKMergeEigen")!=null)    this.plOKMergeEigen=Double.parseDouble(properties.getProperty(prefix+"plOKMergeEigen"));
   			if (properties.getProperty(prefix+"plMaxWorldSin2")!=null)    this.plMaxWorldSin2=Double.parseDouble(properties.getProperty(prefix+"plMaxWorldSin2"));
+  			if (properties.getProperty(prefix+"pl2dForSin")!=null)        this.pl2dForSin=Double.parseDouble(properties.getProperty(prefix+"pl2dForSin"));
   			if (properties.getProperty(prefix+"plWeakWorsening")!=null)   this.plWeakWorsening=Double.parseDouble(properties.getProperty(prefix+"plWeakWorsening"));
   			if (properties.getProperty(prefix+"plMaxOverlap")!=null)      this.plMaxOverlap=Double.parseDouble(properties.getProperty(prefix+"plMaxOverlap"));
 
@@ -2962,12 +2980,14 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plWeakEigen")!=null)       this.plWeakEigen=Double.parseDouble(properties.getProperty(prefix+"plWeakEigen"));
   			if (properties.getProperty(prefix+"plWeakWeight2")!=null)     this.plWeakWeight2=Double.parseDouble(properties.getProperty(prefix+"plWeakWeight2"));
   			if (properties.getProperty(prefix+"plWeakEigen2")!=null)      this.plWeakEigen2=Double.parseDouble(properties.getProperty(prefix+"plWeakEigen2"));
+  			if (properties.getProperty(prefix+"plSumThick")!=null)        this.plSumThick=Double.parseDouble(properties.getProperty(prefix+"plSumThick"));
   			
   			if (properties.getProperty(prefix+"plMaxZRatio")!=null)       this.plMaxZRatio=Double.parseDouble(properties.getProperty(prefix+"plMaxZRatio"));
   			if (properties.getProperty(prefix+"plMaxDisp")!=null)         this.plMaxDisp=Double.parseDouble(properties.getProperty(prefix+"plMaxDisp"));
   			if (properties.getProperty(prefix+"plCutTail")!=null)         this.plCutTail=Double.parseDouble(properties.getProperty(prefix+"plCutTail"));
   			if (properties.getProperty(prefix+"plMinTail")!=null)         this.plMinTail=Double.parseDouble(properties.getProperty(prefix+"plMinTail"));
   			
+  			if (properties.getProperty(prefix+"plDiscrEn")!=null)         this.plDiscrEn=Boolean.parseBoolean(properties.getProperty(prefix+"plDiscrEn"));
   			if (properties.getProperty(prefix+"plDiscrTolerance")!=null)  this.plDiscrTolerance=Double.parseDouble(properties.getProperty(prefix+"plDiscrTolerance"));
   			if (properties.getProperty(prefix+"plDiscrDispRange")!=null)  this.plDiscrDispRange=Double.parseDouble(properties.getProperty(prefix+"plDiscrDispRange"));
   			if (properties.getProperty(prefix+"plDiscrSteps")!=null)      this.plDiscrSteps=Integer.parseInt(properties.getProperty(prefix+"plDiscrSteps"));
@@ -2979,6 +2999,11 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plDiscrExclusivity")!=null)this.plDiscrExclusivity=Double.parseDouble(properties.getProperty(prefix+"plDiscrExclusivity"));
   			if (properties.getProperty(prefix+"plDiscrExclus2")!=null)    this.plDiscrExclus2=Double.parseDouble(properties.getProperty(prefix+"plDiscrExclus2"));
   			if (properties.getProperty(prefix+"plDiscrStrict")!=null)     this.plDiscrStrict=Boolean.parseBoolean(properties.getProperty(prefix+"plDiscrStrict"));
+  			if (properties.getProperty(prefix+"plDiscrCorrMax")!=null)    this.plDiscrCorrMax=Double.parseDouble(properties.getProperty(prefix+"plDiscrCorrMax"));
+  			if (properties.getProperty(prefix+"plDiscrCorrMerge")!=null)  this.plDiscrCorrMerge=Double.parseDouble(properties.getProperty(prefix+"plDiscrCorrMerge"));
+  			if (properties.getProperty(prefix+"plDiscrSteal")!=null)      this.plDiscrSteal=Integer.parseInt(properties.getProperty(prefix+"plDiscrSteal"));
+  			if (properties.getProperty(prefix+"plDiscrGrown")!=null)      this.plDiscrGrown=Integer.parseInt(properties.getProperty(prefix+"plDiscrGrown"));
+  			if (properties.getProperty(prefix+"plDiscrXMedian")!=null)    this.plDiscrXMedian=Double.parseDouble(properties.getProperty(prefix+"plDiscrXMedian"));
 
   			if (properties.getProperty(prefix+"plCostKrq")!=null)         this.plCostKrq=Double.parseDouble(properties.getProperty(prefix+"plCostKrq"));
   			if (properties.getProperty(prefix+"plCostKrqEq")!=null)       this.plCostKrqEq=Double.parseDouble(properties.getProperty(prefix+"plCostKrqEq"));
@@ -3360,6 +3385,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Worst case worsening for thin planes with equal weights",                      this.plWorstEq2,  6);
   			gd.addNumericField("If result of the merged planes is below, OK to use thin planes (higher) threshold ",this.plOKMergeEigen,  6);
   			gd.addNumericField("Maximal sine squared of the world angle between planes to merge. Set to >= 1.0 to disable", this.plMaxWorldSin2,  6);
+  			gd.addNumericField("Do not compare sin() between planes, if at least one has too small axis ratio",this.pl2dForSin,  6);
   			gd.addNumericField("Relax merge requirements for weaker planes",                                   this.plWeakWorsening,  6);
   			gd.addNumericField("Maximal overlap between the same supertile planes to merge",                   this.plMaxOverlap,  6);
 
@@ -3368,6 +3394,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal eigenvalue of the result of non-weighted merge (first variant)",       this.plWeakEigen,  6);
   			gd.addNumericField("Maximal weight of the weak plane to merge (second variant)",                   this.plWeakWeight2,  6);
   			gd.addNumericField("Maximal eigenvalue of the result of non-weighted merge (second variant)",      this.plWeakEigen2,  6);
+  			gd.addNumericField("Do not merge if any sqrt of merged eigenvalue exceeds scaled sum of components", this.plSumThick,  6);
 
   			gd.addMessage     ("---  ---");
   			gd.addNumericField("Maximal ratio of Z to allow plane merging",                                    this.plMaxZRatio,  6);
@@ -3376,6 +3403,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Set cutoff value livel not less than this",                                    this.plMinTail,  6);
   			
   			gd.addMessage     ("--- Parameters to regenerate planes using preliminary tile connections  ---");
+  			gd.addCheckbox    (" Enable planes tiles selection regeneration hinted by supertile neighbors",    this.plDiscrEn);
   			gd.addNumericField("Maximal disparity difference from the plane to consider tile",                 this.plDiscrTolerance,  6);
   			gd.addNumericField("Parallel move known planes around original know value for the best overall fit",this.plDiscrDispRange,  6);
   			gd.addNumericField("Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)",this.plDiscrSteps,  0);
@@ -3387,6 +3415,11 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Tile exclusivity: 1.0 - tile belongs to one plane only, 0.0 - regardless of others",this.plDiscrExclusivity,  6);
   			gd.addNumericField("For second pass if exclusivity > 1.0 - will assign only around strong neighbors",this.plDiscrExclus2,  6);
   			gd.addCheckbox    ("When growing selection do not allow any offenders around (false - more these than others)", this.plDiscrStrict);
+  			gd.addNumericField("Attraction to different planes correlation that is too high for re-discrimination",this.plDiscrCorrMax,  6);
+  			gd.addNumericField("Attraction to different planes correlation that is high enough to merge",      this.plDiscrCorrMerge,  6);
+  			gd.addNumericField("If offender has this number of tiles (including center) the cell can not be used", this.plDiscrSteal,  0);
+  			gd.addNumericField("Only use tiles within this range from original selection",                     this.plDiscrGrown,  0);
+  			gd.addNumericField("Remove outliers from the final selection that have distance more than scaled median",this.plDiscrXMedian,  6);
 
   			gd.addMessage     ("--- Planes merge costs ---");
   			gd.addNumericField("Cost of merge quality weighted in disparity space",                            this.plCostKrq,     6);
@@ -3754,6 +3787,7 @@ public class EyesisCorrectionParameters {
   			this.plWorstEq2=            gd.getNextNumber();
   			this.plOKMergeEigen=        gd.getNextNumber();
   			this.plMaxWorldSin2=        gd.getNextNumber();
+  			this.pl2dForSin=            gd.getNextNumber();
   			this.plWeakWorsening=       gd.getNextNumber();
   			this.plMaxOverlap=          gd.getNextNumber();
 
@@ -3761,12 +3795,14 @@ public class EyesisCorrectionParameters {
   			this.plWeakEigen=           gd.getNextNumber();
   			this.plWeakWeight2=         gd.getNextNumber();
   			this.plWeakEigen2=          gd.getNextNumber();
+  			this.plSumThick=            gd.getNextNumber();
 
   			this.plMaxZRatio=           gd.getNextNumber();
   			this.plMaxDisp=             gd.getNextNumber();
   			this.plCutTail=             gd.getNextNumber();
   			this.plMinTail=             gd.getNextNumber();
 
+  			this.plDiscrEn=             gd.getNextBoolean();
   			this.plDiscrTolerance=      gd.getNextNumber();
   			this.plDiscrDispRange=      gd.getNextNumber();
   			this.plDiscrSteps=    (int) gd.getNextNumber();
@@ -3778,6 +3814,11 @@ public class EyesisCorrectionParameters {
   			this.plDiscrExclusivity=    gd.getNextNumber();
   			this.plDiscrExclus2=        gd.getNextNumber();
   			this.plDiscrStrict=         gd.getNextBoolean();
+  			this.plDiscrCorrMax=        gd.getNextNumber();
+  			this.plDiscrCorrMerge=      gd.getNextNumber();
+  			this.plDiscrSteal=    (int) gd.getNextNumber();
+  			this.plDiscrGrown=    (int) gd.getNextNumber();
+  			this.plDiscrXMedian=        gd.getNextNumber();
 
   			this.plCostKrq=             gd.getNextNumber();
   			this.plCostKrqEq=           gd.getNextNumber();

@@ -43,6 +43,7 @@ public class LinkPlanes {
 
 	public double     plOKMergeEigen; //       =   0.03; // If result of the merged planes is below, OK to use thin planes (higher) threshold 
 	public double     plMaxWorldSin2; //       =   0.1;  // Maximal sine squared of the world angle between planes to merge. Set to >= 1.0 to disable
+    public double     pl2dForSin; //           =   2.5;  // Do not compare sin() between planes, if at least one has too small axis ratio 
 
 	public double     plWeakWorsening; //      =   1.0;  // Relax merge requirements for weaker planes
 	public double     plMaxOverlap; //         =   0.1;  // Maximal overlap between the same supertile planes to merge
@@ -51,6 +52,7 @@ public class LinkPlanes {
 	public double     plWeakEigen; //          =   0.1; // Maximal eigenvalue of the result of non-weighted merge
     public double     plWeakWeight2; //        =  10.0 ; // Maximal weight of the weak plane to merge (second variant)
 	public double     plWeakEigen2; //         =   0.05; // Maximal eigenvalue of the result of non-weighted merge  (second variant)
+    public double     plSumThick; //           =   1.2;  // Do not merge if any sqrt of merged eigenvalue exceeds scaled sum of components 
 
 		// comparing merge quality for plane pairs
 	public double     plCostKrq; //            =   0.8;  // cost of merge quality weighted in disparity space
@@ -63,7 +65,7 @@ public class LinkPlanes {
 	public double     plMaxZRatio; //          =   2.5;  // Maximal ratio of Z to allow plane merging
 	public double     plMaxDisp; //            =   0.5;  // Maximal disparity of one of the planes to apply  maximal ratio
 	public double     plCutTail; //            =   1.4;  // When merging with neighbors cut the tail that is worse than scaled best
-	public double     plMinTail; //            =   0.015;// Set cutoff value livel not less than
+	public double     plMinTail; //            =   0.015;// Set cutoff value level not less than
 
 	
 	public int        dbg_tileX;
@@ -82,6 +84,7 @@ public class LinkPlanes {
 		plWeakWorsening =   clt_parameters.plWeakWorsening;
 		plOKMergeEigen =    clt_parameters.plOKMergeEigen;
 		plMaxWorldSin2 =    clt_parameters.plMaxWorldSin2;
+  		pl2dForSin =        clt_parameters.pl2dForSin;
 
 		plDispNorm =        clt_parameters.plDispNorm;
 		plMaxEigen =        clt_parameters.plMaxEigen;
@@ -93,6 +96,7 @@ public class LinkPlanes {
 		plWeakEigen =       clt_parameters.plWeakEigen;
 		plWeakWeight2 =     clt_parameters.plWeakWeight2;
 		plWeakEigen2 =      clt_parameters.plWeakEigen2;
+		plSumThick =        clt_parameters.plSumThick;
 
 		plCostKrq =         clt_parameters.plCostKrq;
 		plCostKrqEq =       clt_parameters.plCostKrqEq;
@@ -179,7 +183,7 @@ public class LinkPlanes {
 		double disp1 = plane1.getZxy()[0];
 		double disp2 = plane2.getZxy()[0];
 		if ((disp1 <= 0) || (disp2 <= 0) || (((disp1 <= plMaxDisp) || (disp2 <= plMaxDisp)) && ((disp1/disp2 > plMaxZRatio)  || (disp2/disp1 > plMaxZRatio)))){
-			if (debugLevel > -1)	System.out.println(prefix+" planes have too high disparity ratio ("+disp1+":"+disp2+" > plMaxZRatio="+plMaxZRatio+
+			if (debugLevel > 0)	System.out.println(prefix+" planes have too high disparity ratio ("+disp1+":"+disp2+" > plMaxZRatio="+plMaxZRatio+
 					", at least one of them < plMaxDisp="+plMaxDisp);
 			return false;
 		} else {
@@ -298,39 +302,73 @@ public class LinkPlanes {
 		
 		boolean OK_to_merge = false;
 		boolean notOK_to_merge = false;
+		// plSumThick should override weak_and_close
+		double sum_thick = Math.sqrt(plane1.getValue()) + Math.sqrt(plane2.getValue());
+		double sum_wthick = Math.sqrt(plane1.getWValue()) + Math.sqrt(plane2.getWValue());
+		if (Math.sqrt(merged_ev) > plSumThick * sum_thick){
+			notOK_to_merge = true;
+			if (dbg) System.out.println(prefix+": planes do not fit as weighted pixel thickness = "+Math.sqrt(merged_ev_eq)+
+					" > " +plSumThick+" * "+ sum_thick+" = "+(plSumThick * sum_thick) );
+		}
+		if (Math.sqrt(merged_ev_eq) > plSumThick * sum_thick){
+			notOK_to_merge = true;
+			if (dbg) System.out.println(prefix+": planes do not fit as equalized pixel thickness = "+Math.sqrt(merged_ev_eq)+
+					" > " +plSumThick+" * "+ sum_thick+" = "+(plSumThick * sum_thick) );
+		}
+		if (Math.sqrt(merged_wev) > plSumThick * sum_wthick){
+			notOK_to_merge = true;
+			if (dbg) System.out.println(prefix+": planes do not fit as weighted world thickness = "+Math.sqrt(merged_wev)+
+					" > " +plSumThick+" * "+ sum_wthick+" = "+(plSumThick * sum_wthick) );
+		}
+		if (Math.sqrt(merged_wev_eq) > plSumThick*sum_wthick){
+			notOK_to_merge = true;
+			if (dbg) System.out.println(prefix+": planes do not fit as equalized world thickness = "+Math.sqrt(merged_wev_eq)+
+					" > " +plSumThick+" * "+ sum_wthick+" = "+(plSumThick * sum_wthick) );
+		}
 		
-		if (this_rq_norm <= plWorstWorsening){
+		if (notOK_to_merge) {
+			weak_and_close = false;
+		}
+		
+		
+		
+		if (!notOK_to_merge && (this_rq_norm <= plWorstWorsening)){
 			OK_to_merge = true;
 			if (dbg) System.out.println(prefix+": planes may fit  (this_rq_norm="+this_rq_norm+"  <= plWorstWorsening="+plWorstWorsening+")");
 		}
-		if ((!OK_to_merge || dbg) && (merged_ev <= plOKMergeEigen) && (this_rq_norm <= plWorstWorsening2)){
+		if (!notOK_to_merge && (!OK_to_merge || dbg) && (merged_ev <= plOKMergeEigen) && (this_rq_norm <= plWorstWorsening2)){
 			OK_to_merge = true;
 			if (dbg) System.out.println(prefix+": planes may fit  (merged_ev="+merged_ev+
 					" <= plOKMergeEigen="+plOKMergeEigen+") && (this_rq_norm="+this_rq_norm+
 					" <= plWorstWorsening2="+plWorstWorsening2+")");
 		}
-		if ((!OK_to_merge || dbg) && (this_rq_eq_norm <= plWorstEq)){
+		if (!notOK_to_merge && (!OK_to_merge || dbg) && (this_rq_eq_norm <= plWorstEq)){
 			OK_to_merge = true;
 			if (dbg) System.out.println(prefix+": planes may fit (this_rq_eq_norm="+this_rq_eq_norm+" <= plWorstEq="+plWorstEq+")");
 		}
-		if ((!OK_to_merge || dbg) && (merged_ev_eq <= plOKMergeEigen) && (this_rq_eq_norm <= plWorstEq2)){
+		if (!notOK_to_merge && (!OK_to_merge || dbg) && (merged_ev_eq <= plOKMergeEigen) && (this_rq_eq_norm <= plWorstEq2)){
 			OK_to_merge = true;
 			if (dbg) System.out.println(prefix+": planes may fit (merged_ev_eq="+merged_ev_eq+" <= plOKMergeEigen) && (this_rq_eq_norm="+
 								this_rq_eq_norm+" <= plWorstEq2="+plWorstEq2+")");
 		}
 		
-		if ((!OK_to_merge || dbg) && (this_wrq_norm <= plWorstWorsening)){
+		if (!notOK_to_merge && (!OK_to_merge || dbg) && (this_wrq_norm <= plWorstWorsening)){
 			OK_to_merge = true;
 			if (dbg) System.out.println(prefix+": planes may fit  (this_wrq_norm="+this_wrq_norm+"  <= plWorstWorsening="+plWorstWorsening+")");
 		}
-		if ((!OK_to_merge || dbg) && (this_wrq_eq_norm <= plWorstEq)){
+		if (!notOK_to_merge && (!OK_to_merge || dbg) && (this_wrq_eq_norm <= plWorstEq)){
 			OK_to_merge = true;
 			if (dbg) System.out.println(prefix+": planes may fit (this_wrq_eq_norm="+this_wrq_eq_norm+" <= plWorstEq="+plWorstEq+")");
 		}
-		// do not apply sin2 to weak planes
-		if ((plMaxWorldSin2 < 1.0) && (weakest > plWeakWeight) && (plane1.getWorldSin2(plane2) > plMaxWorldSin2)) {
+		// do not apply sin2 to weak planes or if they are not flat enough
+		// TODO: Compare what can be compared (for 2 linear features or plane + linear?
+		
+		double min2d = Math.min(plane1.get2dRatio(), plane2.get2dRatio());
+		if (Double.isNaN(min2d)) min2d = pl2dForSin;
+		if ((plMaxWorldSin2 < 1.0) && (min2d >= pl2dForSin) && (!merge_weak || (weakest > plWeakWeight)) && (plane1.getWorldSin2(plane2) > plMaxWorldSin2)) {
 			notOK_to_merge = true;
-			if (dbg) System.out.println(prefix+": planes do not fit as sin2 > "+plMaxWorldSin2+" weakest="+weakest);
+			if (dbg) System.out.println(prefix+": planes do not fit as sin2 > "+plMaxWorldSin2+" weakest="+weakest+
+					" or minimal 2d = "+min2d+" >= pl2dForSin=" + pl2dForSin);
 		}
 		if (weak_and_close){
 			OK_to_merge = true;
@@ -521,7 +559,7 @@ public class LinkPlanes {
 		if (debugLevel > 0){
 			System.out.println(prefix+" cost="+cost);
 			if (debugLevel > 1){
-				System.out.println(prefix+ "cost contributions: "+
+				System.out.println(prefix+ " cost contributions: "+
 						((int)(100*qualities[3]))+"%, "+
 						((int)(100*qualities[4]))+"%, "+
 						((int)(100*qualities[5]))+"%, "+
@@ -792,7 +830,7 @@ public class LinkPlanes {
 													if (planesFit(
 															planes[nsTile0][np0], // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
 															planes[nsTile][np],   // 			TilePlanes.PlaneData plane2,
-															merge_low_eigen, // false,                // boolean              merge_weak,   // use for same supertile merge 
+															true, // merge_low_eigen, // false,                // boolean              merge_weak,   // use for same supertile merge 
 															merge_ev[np],         // double               merged_ev,    // if NaN will calculate assuming the same supertile
 															merge_ev_eq[np],      //double               merged_ev_eq, // if NaN will calculate assuming the same supertile
 															merge_wev[np],        // double merged_wev,    // if NaN will calculate assuming the same supertile - for world
@@ -802,6 +840,20 @@ public class LinkPlanes {
 															){
 														planes[nsTile0][np0].setMergedValid(dir, np, true, planes[nsTile].length);
 														planes[nsTile][np].setMergedValid((dir + 4) %8, np0, true, planes[nsTile0].length);
+														if (planesFit(
+																planes[nsTile0][np0], // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
+																planes[nsTile][np],   // 			TilePlanes.PlaneData plane2,
+																false, // merge_low_eigen, // false,                // boolean              merge_weak,   // use for same supertile merge 
+																merge_ev[np],         // double               merged_ev,    // if NaN will calculate assuming the same supertile
+																merge_ev_eq[np],      //double               merged_ev_eq, // if NaN will calculate assuming the same supertile
+																merge_wev[np],        // double merged_wev,    // if NaN will calculate assuming the same supertile - for world
+																merge_wev_eq[np],     // double merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
+																prefix,               // String prefix,
+																dl)                   // int debugLevel)
+																){
+															planes[nsTile0][np0].setMergedStrongValid(dir, np, true, planes[nsTile].length);
+															planes[nsTile][np].setMergedStrongValid((dir + 4) %8, np0, true, planes[nsTile0].length);
+														}
 													}
 												}															
 											}
@@ -1653,7 +1705,7 @@ public class LinkPlanes {
 								if (valid_candidates[nsTile0][np1][np2]) { // only check pair considered valid
 									boolean [] old_valid = new boolean[8];
 									for (int dir = 0; dir < 8; dir++){
-										old_valid[dir] = planes[nsTile0][np1].hasMergedValid(dir) || planes[nsTile0][np2].hasMergedValid(dir);
+										old_valid[dir] = planes[nsTile0][np1].hasMergedStrongValid(dir) || planes[nsTile0][np2].hasMergedStrongValid(dir);
 									}
 									// should be merged same way as later actually. Does it need to be recalculated from the original tiles?
 									TilePlanes.PlaneData merged_pd =  planes[nsTile0][np1].mergePlaneToThis(
@@ -2313,8 +2365,10 @@ public class LinkPlanes {
 												}
 												groups_list.add(sub_group);
 											} else {
-												System.out.println("====== BUG: extractMergeSameTileGroups() nsTile = "+nsTile+" : found incomplete group: "+group+""
-														+ "best_pair = null");
+												System.out.println("===== All remaining planes are incompatible to each other: extractMergeSameTileGroups() nsTile = "+nsTile+" : found incomplete group: "+group+""
+														+ " best_pair = null");
+												break; // all remaining planes are incompatible to each other 
+
 											}
 										}
 

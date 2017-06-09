@@ -3306,7 +3306,7 @@ public class TileProcessor {
 					st.planes, // final TilePlanes.PlaneData [][] planes,			
 					merge_candidates,       // final int [][][] merge_candidates,
 					plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
-					true, // final boolean merge_low_eigen,
+					true, // final boolean merge_low_eigen, here it should be true
 					2, // -1, // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
@@ -3520,47 +3520,54 @@ public class TileProcessor {
 
 		// re-generate planes in the supertiles using previously calculated planes (for tghe tiles and their neighbors)
 		// as hints, new planes will be assumed parallel to the known and possibly slightly offset in disparity
-		st.regeneratePlanes(
-				st.planes,                        // final TilePlanes.PlaneData [][] planes,
-				clt_parameters.stMeasSel,         //      =     1   //Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
-				clt_parameters.plDispNorm,        //      =   2.0;  // Normalize disparities to the average if above
-				clt_parameters.plMinPoints,       //      =     5;  // Minimal number of points for plane detection
-				clt_parameters.plTargetEigen,     //      =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
-				clt_parameters.plFractOutliers,   //      =   0.3;  // Maximal fraction of outliers to remove
-				clt_parameters.plMaxOutliers,     //      =    20;  // Maximal number of outliers to remove\
-				clt_parameters.plPreferDisparity,
-				geometryCorrection,
-				clt_parameters.correct_distortions,
+		if (clt_parameters.plDiscrEn) {
+			st.regeneratePlanes(
+					st.planes,                        // final TilePlanes.PlaneData [][] planes,
+					clt_parameters.stMeasSel,         //      =     1   //Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+					clt_parameters.plDispNorm,        //      =   2.0;  // Normalize disparities to the average if above
+					clt_parameters.plMinPoints,       //      =     5;  // Minimal number of points for plane detection
+					clt_parameters.plTargetEigen,     //      =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+					clt_parameters.plFractOutliers,   //      =   0.3;  // Maximal fraction of outliers to remove
+					clt_parameters.plMaxOutliers,     //      =    20;  // Maximal number of outliers to remove\
+					clt_parameters.plPreferDisparity,
+					geometryCorrection,
+					clt_parameters.correct_distortions,
 
-				clt_parameters.stSmplMode,        // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-				clt_parameters.stSmplSide,        // final int                        smplSide, //        = 2;      // Sample size (side of a square)
-				clt_parameters.stSmplNum,         // final int                        smplNum, //         = 3;      // Number after removing worst
-				clt_parameters.stSmplRms,         // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+					clt_parameters.stSmplMode,        // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+					clt_parameters.stSmplSide,        // final int                        smplSide, //        = 2;      // Sample size (side of a square)
+					clt_parameters.stSmplNum,         // final int                        smplNum, //         = 3;      // Number after removing worst
+					clt_parameters.stSmplRms,         // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 
-				clt_parameters.plDiscrTolerance,  // final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile 
-				clt_parameters.plDiscrDispRange,  // final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
-				clt_parameters.plDiscrSteps,      // final int        plDiscrSteps,         //         =   3;    // Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
-				clt_parameters.plDiscrVariants,   // final int        plDiscrVariants,      //      =   100;  // Total number of variants to try (protect from too many planes) 
-				clt_parameters.plDiscrMode,       // final int        plDiscrMode,          //          =   3;    // What plane to use as a hint: 0 - weighted, 1 - equalized, 2 - best, 3 - combined
+					clt_parameters.plDiscrTolerance,  // final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile 
+					clt_parameters.plDiscrDispRange,  // final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
+					clt_parameters.plDiscrSteps,      // final int        plDiscrSteps,         //         =   3;    // Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
+					clt_parameters.plDiscrVariants,   // final int        plDiscrVariants,      //      =   100;  // Total number of variants to try (protect from too many planes) 
+					clt_parameters.plDiscrMode,       // final int        plDiscrMode,          //          =   3;    // What plane to use as a hint: 0 - weighted, 1 - equalized, 2 - best, 3 - combined
 
-				clt_parameters.plDiscrVarFloor,   // final double     plDiscrVarFloor, //       =   0.03;  // Squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
-				clt_parameters.plDiscrSigma,      // final double     plDiscrSigma, //          =   0.05;  // Gaussian sigma to compare how measured data is attracted to planes
-				clt_parameters.plDiscrBlur,       // final double     plDiscrBlur, //           =   0.1;   // Sigma to blur histograms while re-discriminating
-				clt_parameters.plDiscrExclusivity,// final double     plDiscrExclusivity, //    =   0.5;   // Tile exclusivity: 1.0 - tile belongs to one plane only, 0.0 - regardless of others
-				clt_parameters.plDiscrExclus2,// final double     plDiscrExclus2, //    =   0.5;   // For second pass if exclusivity > 1.0 - will assign only around strong neighbors
-				clt_parameters.plDiscrStrict,     // final boolean    plDiscrStrict, //         = true;   // When growing selection do not allow any offenders around (false - more these than others)				
-				0, // -1,                        // debugLevel,                  // final int        debugLevel)
-				clt_parameters.tileX,
-				clt_parameters.tileY);
-		
-		// condition the redcefined planes
-		conditionSuperTiles(
-				clt_parameters,     //EyesisCorrectionParameters.CLTParameters           clt_parameters,
-				geometryCorrection, // GeometryCorrection geometryCorrection,
-				st,                 // SuperTiles        st,
-				lp,                 // LinkPlanes        lp,
-				debugLevel);        // final int         debugLevel);
+					clt_parameters.plDiscrVarFloor,   // final double     plDiscrVarFloor, //       =   0.03;  // Squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
+					clt_parameters.plDiscrSigma,      // final double     plDiscrSigma, //          =   0.05;  // Gaussian sigma to compare how measured data is attracted to planes
+					clt_parameters.plDiscrBlur,       // final double     plDiscrBlur, //           =   0.1;   // Sigma to blur histograms while re-discriminating
+					clt_parameters.plDiscrExclusivity,// final double     plDiscrExclusivity, //    =   0.5;   // Tile exclusivity: 1.0 - tile belongs to one plane only, 0.0 - regardless of others
+					clt_parameters.plDiscrExclus2,    // final double     plDiscrExclus2, //    =   0.5;   // For second pass if exclusivity > 1.0 - will assign only around strong neighbors
+					clt_parameters.plDiscrStrict,     // final boolean    plDiscrStrict, //         = true;   // When growing selection do not allow any offenders around (false - more these than others)				
+					clt_parameters.plDiscrCorrMax,    // final double     plDiscrCorrMax, //         = 0.7;   // Attraction to different planes correlation that is too high for re-discrimination.
+					clt_parameters.plDiscrCorrMerge,  // final double     plDiscrCorrMerge,  //     = 0.85;  // Attraction to different planes correlation that is high enough to merge planes
+					clt_parameters.plDiscrSteal,      // final int        plDiscrSteal,      //         =   4;     // If offender has this number of tiles (including center) the cell can not be used
+					clt_parameters.plDiscrGrown,      // final int        plDiscrGrown,      //         =   0;     // Only use tiles within this range from original selection
+					
+					clt_parameters.plDiscrXMedian,    // final double     plDiscrXMedian, //         = 1.5;   // Remove outliers from the final selection that have distance more than scaled median
+					0, // -1,                         // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
 
+			// condition the redcefined planes
+			conditionSuperTiles(
+					clt_parameters,     //EyesisCorrectionParameters.CLTParameters           clt_parameters,
+					geometryCorrection, // GeometryCorrection geometryCorrection,
+					st,                 // SuperTiles        st,
+					lp,                 // LinkPlanes        lp,
+					debugLevel);        // final int         debugLevel);
+		}
 		double [][] quality_stats1 = lp.selectNeighborPlanesMutual(
 				st.planes,              // final TilePlanes.PlaneData [][] planes,
 				2, // final int debugLevel)
@@ -3751,6 +3758,7 @@ public class TileProcessor {
 		if (clt_parameters.plIterations > 0) {
 			st.resetPlanesMod(); // clean start
 			planes_mod = st.planesSmooth(
+					lp,                                           // LinkPlanes       lp,			
 					clt_parameters.plPull,                        // final double      meas_pull,//  relative pull of the original (measured) plane with respect to the average of the neighbors
 					clt_parameters.plMaxEigen,                    // final double      maxValue, // do not combine with too bad planes
 					clt_parameters.plIterations,                  // final int         num_passes,
@@ -3758,7 +3766,7 @@ public class TileProcessor {
 					clt_parameters.plNormPow,                     // 0.0: 8 neighbors pull 8 times as 1, 1.0 - same as 1
 					Math.pow(10.0,  -clt_parameters.plPrecision), // final double      maxDiff, // maximal change in any of the disparity values
 					clt_parameters.plPreferDisparity,
-					0, // final int debugLevel)
+					1,// 0, // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY); 
 		} else {

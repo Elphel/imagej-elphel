@@ -21,6 +21,7 @@
  ** -----------------------------------------------------------------------------**
  **
  */
+import java.awt.Point;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -68,6 +69,8 @@ public class TilePlanes {
 		double [][] merged_eig_val = null; // for each of the directions (N, NE, .. NW) quality match for each layer 
 		double [][] merged_eig_eq =  null; // for each of the directions (N, NE, .. NW) quality match for each layer - ignoring weights 
 		boolean [][] merged_valid = null; // for each of the directions (N, NE, .. NW) if it is possible to connect with link swaps
+		boolean [][] merged_strong_valid = null; // for each of the directions (N, NE, .. NW) if it is possible to connect with link swaps (no "discounts"
+		// for low weight(s)
 		
 		int    []   neib_best =  null; // new int [8]; // for each of the directions (N, NE, .. NW) index of best match, -1 if none 
 // stores "worsening" of merging 2 	planes. if L1,L2,L = values[0] of plane1, plane2 plane composite: w1, w2 - weights for plane1, plane2
@@ -108,7 +111,7 @@ public class TilePlanes {
 		double [][]  merged_weig_val = null; // for each of the directions (N, NE, .. NW) quality match for each layer 
 		double [][]  merged_weig_eq =  null; // for each of the directions (N, NE, .. NW) quality match for each layer - ignoring weights 
 
-		
+		int mark0 = -1; // just for temporary labeling the plane
 		
 		public PlaneData clone(){
 			PlaneData pd = new PlaneData(
@@ -177,7 +180,20 @@ public class TilePlanes {
 				pd.wvectors[1] = this.wvectors[1].clone();
 				pd.wvectors[2] = this.wvectors[2].clone();
 			}
+			pd.mark0 = this.mark0; 
 			return pd;
+		}
+		
+		public int getMark0(){
+			return this.mark0;
+		}
+		
+		public void setMark0(int mark0){
+			this.mark0 = mark0;
+		}
+		
+		public boolean getPreferDisparity(){
+			return this.preferDisparity;
 		}
 		
 		public String getNeibString()
@@ -200,6 +216,10 @@ public class TilePlanes {
 			}
 			return false;
 		}
+		public double get2dRatio(){
+			if (wvalues != null) return Math.sqrt(wvalues[1]/wvalues[0]);
+			return Double.NaN;
+		}
 		public String toString()
 		{
 			
@@ -208,11 +228,13 @@ public class TilePlanes {
 			if (isHorizontal()){
 				s+= "HORIZONTAL ";
 			}
+			s += String.format("2d=%4.1f ", get2dRatio()); 
 			s += String.format( "np=%3d weight= %8.5f", num_points, weight);
 			if (starValueWeight != null) s += String.format(" star=[%8.5f, %8.5f]", starValueWeight[0], starValueWeight[1]);
 			else                         s +=               " star=  null"; 
 			s += String.format(" dens=%8.5f", conn_density);
-			if (zxy != null) s += String.format("\nzxy =     [%8.3f, %8.3f, %8.3f] (pix)",zxy[0],zxy[1],zxy[2]);
+			double [] px_py = getCenterPxPy();
+			if (zxy != null) s += String.format("\nzxy =     [%8.3f, %8.3f, %8.3f] (pix)",zxy[0],zxy[1]+px_py[0],zxy[2]+px_py[1]);
 			else  s +=                          "\nzxy =     null";
 			if (values != null)	s += String.format(", values = [%8.3f, %8.3f, %8.3f] pix^2",values[0],values[1],values[2]);
 			else  s +=                             " values = null";
@@ -234,9 +256,13 @@ public class TilePlanes {
 				if (nonexclusiveStar.isHorizontal()){
 					s+= "HORIZONTAL ";
 				}
+				s += String.format("2d=%4.1f ", nonexclusiveStar.get2dRatio()); 
 				s += String.format( "np=%3d weight= %8.5f", nonexclusiveStar.num_points, nonexclusiveStar.weight);
+				double [] ne_px_py = getCenterPxPy();
 				if (nonexclusiveStar.center_xyz != null) s += String.format("\n--center =[%8.2f, %8.2f, %8.2f]",
-						nonexclusiveStar.center_xyz[0],nonexclusiveStar.center_xyz[1],nonexclusiveStar.center_xyz[2]);
+						nonexclusiveStar.center_xyz[0],
+						nonexclusiveStar.center_xyz[1], //  + ne_px_py[0],
+						nonexclusiveStar.center_xyz[2]); //  + ne_px_py[1]);
 				else  s +=                                 "\n--ncenter =   null";
 				if (nonexclusiveStar.world_xyz != null)  s += String.format(" normal = [%8.2f, %8.2f, %8.2f] (m)",
 						nonexclusiveStar.world_xyz[0],nonexclusiveStar.world_xyz[1],nonexclusiveStar.world_xyz[2]);
@@ -245,12 +271,16 @@ public class TilePlanes {
 			if (nonexclusiveStarEq != null){
 				s+= "\nequalized:";
 				s+= nonexclusiveStarEq.getNeibString();
-				if (nonexclusiveStar.isHorizontal()){
+				if (nonexclusiveStarEq.isHorizontal()){
 					s+= "HORIZONTAL ";
 				}
+				s += String.format("2d=%4.1f ", nonexclusiveStarEq.get2dRatio()); 
 				s += String.format( "np=%3d weight= %8.5f", nonexclusiveStarEq.num_points, nonexclusiveStarEq.weight);
+				double [] ne_px_py = getCenterPxPy();
 				if (nonexclusiveStarEq.center_xyz != null) s += String.format("\n--center =[%8.2f, %8.2f, %8.2f]",
-						nonexclusiveStarEq.center_xyz[0],nonexclusiveStarEq.center_xyz[1],nonexclusiveStarEq.center_xyz[2]);
+						nonexclusiveStarEq.center_xyz[0],
+						nonexclusiveStarEq.center_xyz[1], //  + ne_px_py[0],
+						nonexclusiveStarEq.center_xyz[2]); //  + ne_px_py[1]);
 				else  s +=                                 "\n--ncenter =   null";
 				if (nonexclusiveStarEq.world_xyz != null)  s += String.format(" normal = [%8.2f, %8.2f, %8.2f] (m)",
 						nonexclusiveStarEq.world_xyz[0],nonexclusiveStarEq.world_xyz[1],nonexclusiveStarEq.world_xyz[2]);
@@ -426,7 +456,16 @@ public class TilePlanes {
 					}
 				}
 			}
-			
+
+			if (src.merged_strong_valid != null){
+				dst.merged_strong_valid = src.merged_strong_valid.clone();
+				for (int i = 0; i < src.merged_strong_valid.length; i++){
+					if (src.merged_strong_valid[i] != null){
+						dst.merged_strong_valid[i] = src.merged_strong_valid[i].clone();
+					}
+				}
+			}
+
 			if (src.neib_best != null) dst.neib_best = src.neib_best.clone();
 			
 			// also copy original plane parameters - tile selection and number of points
@@ -1680,6 +1719,7 @@ public class TilePlanes {
 			this.merged_weig_val = new double[8][];
 			this.merged_weig_eq = new double[8][];
 			this.merged_valid = new boolean[8][];
+			this.merged_strong_valid = new boolean[8][];
 			return this.merged_eig_val;
 		}
 		public double [][] getMergedValue()
@@ -1705,11 +1745,12 @@ public class TilePlanes {
 		
 		public double [] initMergedValue(int dir, int leng)
 		{
-			this.merged_eig_val[dir] = new double[leng];
-			this.merged_eig_eq[dir] =  new double[leng];
-			this.merged_weig_val[dir] = new double[leng];
-			this.merged_weig_eq[dir] =  new double[leng];
-			this.merged_valid[dir] =   new boolean[leng];
+			this.merged_eig_val[dir] =        new double[leng];
+			this.merged_eig_eq[dir] =         new double[leng];
+			this.merged_weig_val[dir] =       new double[leng];
+			this.merged_weig_eq[dir] =        new double[leng];
+			this.merged_valid[dir] =          new boolean[leng];
+			this.merged_strong_valid[dir] =   new boolean[leng];
 			for (int i = 0; i < leng; i++) {
 				this.merged_eig_val[dir][i] =  Double.NaN;
 				this.merged_eig_eq[dir][i] =   Double.NaN;
@@ -1851,7 +1892,53 @@ public class TilePlanes {
 		}
 		
 		
+		public boolean [][] getMergedStrongValid()
+		{
+			return this.merged_strong_valid;
+		}
+		
+		public boolean [] getMergedStrongValid(int dir)
+		{
+			if (this.merged_strong_valid == null) {
+				return null;
+			}
+			return this.merged_strong_valid[dir];
+		}
+		
+		public boolean hasMergedStrongValid(int dir){
+			if ((this.merged_strong_valid == null) || (this.merged_strong_valid[dir] == null)){
+				return false;
+			}
+			for (int np = 0; np < this.merged_strong_valid[dir].length; np++){
+				if (this.merged_strong_valid[dir][np]) return true;
+			}
+			return false;
+			
+		}
+		public boolean isMergedStrongValid(int dir, int plane)
+		{
+			if ((this.merged_strong_valid == null) || (this.merged_strong_valid[dir] == null)){
+				return false;
+			}
+			return this.merged_strong_valid[dir][plane];
+		}
 
+		public void setMergedStrongValid(int dir, int plane, boolean valid)
+		{
+			this.merged_strong_valid[dir][plane] = valid;
+		}
+
+		public void setMergedStrongValid(int dir, int plane, boolean valid, int leng)
+		{
+			if (this.merged_strong_valid == null){
+				this.merged_strong_valid = new boolean[8][];
+			}
+			if (this.merged_strong_valid[dir] == null){
+				this.merged_strong_valid[dir] = new boolean[leng];
+			}
+			this.merged_strong_valid[dir][plane] = valid;
+		}
+	
 		public int [] initNeibBest()
 		{
 			this.neib_best = new int[8];
@@ -3168,6 +3255,8 @@ public class TilePlanes {
 //						", other_det = "+((new Matrix(otherPd.vectors).det()) +", pdr_det = "+((new Matrix(pd.vectors).det()))));
 			}
 			copyNeib(this, pd);
+			pd.num_points = otherPd.num_points; // restore, maybe remove from copy_neib? 
+
 			return pd; // make sure pd are updated // "this" is not used. Should it be used instead of pd?  
 		}
 		
@@ -3839,6 +3928,7 @@ public class TilePlanes {
 		 * re-discriminate tiles between supertiles in the list using hints from the already calculated planes and their neighbors
 		 * @param prefix text to be used in debug output (such as supertile number) 
 		 * @param planes array of PlaneData instances of the current supertile to be used as hints 
+		 * @param merge_planes should be initilaized to int[2], will return indices of planes suggested to be merged or [-1, -1]
 		 * @param stMeasSel select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert 
 		 * @param dispNorm normalize disparities to the average if above
 		 * @param smplMode use sample mode (false - each tile independent)
@@ -3852,14 +3942,22 @@ public class TilePlanes {
 		 * @param amplitude_steps numer of histogram steps in each direction from the center
 		 * @param hist_blur histogram LPF sigma
 		 * @param exclusivity 1.0 - tile belongs to one plane only, 0.0 - regardless of others
+		 * @param exclusivity2 when exclusivity > 1.0, add tiles to the existing clusters if attraction > this relaxed level 
+		 * @param exclusivity_strict do not add to the clusters if there is a single offending neighbor (false just more of the these neighbors than offenders)
+		 * @param attractionCorrMax do not discriminate if at least one pair has attraction correlation above this level
+         * @param attractionCorrMerge attraction to different planes correlation that is high enough to merge planes
+         * @param plDiscrSteal if offender has this number of tiles (including center) the cell can not be used
+         * @param plDiscrGrown only use tiles within this range from original selection, < 0 - disable this filter 
+         * @param outliersXMedian remove outliers from the final selection that have distance more than scaled median
 		 * @param mode what neighbor-dependent pre-calculated plane to use as hints: 0 - weighted, 1 - equalized, 2 - best, 3 - combined
 		 * @param debugLevel debug level
-		 * @return per-plane, per-measurement layer, per tile index - use this tile.
+		 * @return per-plane, per-measurement layer, per tile index - use this tile. Return null if could not discriminate,
+		 *         in that case merge_planes may contain non-negative indices to be merged and the whole method re-ran
 		 */
-		
 		public boolean [][][]  reDiscriminateTiles(
 				String           prefix,
-				final PlaneData  [] planes, 
+				final PlaneData  [] planes,
+				final int []     merge_planes, // indices of planes suggested to be merged
 				final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 				final double     dispNorm,   //  Normalize disparities to the average if above
 
@@ -3875,8 +3973,14 @@ public class TilePlanes {
 				final int        amplitude_steps,  // number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
 				final double     hist_blur,        // Sigma to blur histogram
 				final double     exclusivity,      // 1.0 - tile belongs to one plane only, 0.0 - regardless of others
-			    final double     exclusivity2, //        =   0.8;   // For second pass if exclusivity > 1.0 - will assign only around strong neighbors
-			    final boolean    exclusivity_strict, //         = true;   // When growing selection do not allow any offenders around (false - more these than others)
+			    final double     exclusivity2,        //        =   0.8;   // For second pass if exclusivity > 1.0 - will assign only around strong neighbors
+			    final boolean    exclusivity_strict,  //         = true;   // When growing selection do not allow any offenders around (false - more these than others)
+				final double     attractionCorrMax,   //         = 0.7;   // Attraction to different planes correlation that is too high for re-discrimination.				
+				final double     attractionCorrMerge, //         = 0.85;  // Attraction to different planes correlation that is high enough to merge planes
+				final int        plDiscrSteal,        //         =   4;     // If offender has this number of tiles (including center) the cell can not be used
+				final int        plDiscrGrown,        //         =   0;     // Only use tiles within this range from original selection
+				final double     outliersXMedian,     //         = 1.5;   // Remove outliers from the final selection that have distance more than scaled median
+			    
 				final int        mode, // 0 - weighted, 1 - equalized, 2 - best, 3 - combined
 				final int        debugLevel)
 		{
@@ -3969,6 +4073,7 @@ public class TilePlanes {
 				default:
 		    		throw new IllegalArgumentException ("refineDiscriminateTiles() "+prefix+":"+np+": invalid mode="+mode);
 				}
+				tilePlanes.get(tilePlanes.size()-1).setMark0(np);
 			}
 			if (tilePlanes.isEmpty()){
 				return null;
@@ -4022,6 +4127,51 @@ public class TilePlanes {
 						0.0, // double    fraction_uni,
 						0); // int       debugLevel)
 			}
+			// Create enable and disable masks
+			
+			boolean [][] prev_used = new boolean [num_planes][size2];
+			boolean [][] mask =      new boolean [num_planes][];
+			boolean [][] used_strong = new boolean [num_planes][size2];
+			for (int np = 0; np < num_planes; np++){
+				boolean [][] meas_sel = tilePlanes.get(np).getMeasSelection();
+				for (int ml = 0; ml < meas_sel.length; ml++) if (meas_sel[ml] != null){
+					for (int indx = 0; indx < size2; indx++){
+						prev_used[np][indx] |= meas_sel[ml][indx];
+					}
+				}
+				mask[np] = prev_used[np].clone();
+				if (plDiscrGrown > 0) {
+					tileNeibs.growSelection(
+							plDiscrGrown, // int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+							mask[np], // boolean [] tiles,
+							null); // boolean [] prohibit)
+				} else if (plDiscrGrown < 0){
+					for (int indx = 0; indx < size2; indx++) mask[np][indx] = true;
+					
+				}
+				if (plDiscrSteal > 0){
+					for (int indx = 0; indx < size2; indx++) if (prev_used[np][indx]){
+						int num_neibs = 1;
+						for (int dir = 0; dir < 8; dir++){
+							int indx1 = tileNeibs.getNeibIndex(indx, dir);
+							if ((indx1 >=0) && prev_used[np][indx1]){
+								num_neibs++;	
+							}
+						}
+						used_strong[np][indx] = (num_neibs >= plDiscrSteal);
+					}
+				}
+			}			
+			if (plDiscrSteal > 0){
+				for (int np = 0; np < num_planes; np++){
+					for (int np1 = 0; np1 < num_planes; np1++) if (np1 != np){
+						for (int indx = 0; indx < size2; indx++){
+							mask[np][indx] &= !used_strong[np1][indx];
+						}
+					}
+				}
+			}			
+			
 			double [][][] flatness = new double [num_planes][disp_strength.length][];
 			double [][][] norm_flatness = new double [num_planes][disp_strength.length][];
 			int [][][] num_cells = new int [num_planes][disp_strength.length][];
@@ -4058,8 +4208,10 @@ public class TilePlanes {
 						flatness[np][ml][indx] = rms; // sd2; // will not be used
 //						norm_flatness[np][ml][indx] = num_cells[np][ml][indx]/(sd2 + floor2);
 //						norm_flatness[np][ml][indx] = (num_cells[np][ml][indx] > 1) ? (1.0/sd2): (1.0/floor2);
+						if (rms < disp_var_floor){
+							rms = disp_var_floor;
+						}
 						norm_flatness[np][ml][indx] = (num_cells[np][ml][indx] > 1) ? (1.0/rms): (1.0/disp_var_floor);
-
 					}
 				}
 			}
@@ -4074,7 +4226,7 @@ public class TilePlanes {
 					double weight = disp_strength[ml][1][indx];
 					if (weight > 0.0) {
 						double disp =   disp_strength[ml][0][indx];
-						for (int np = 0; np < num_planes; np++){
+						for (int np = 0; np < num_planes; np++) if (mask[np][indx]){
 							double d = disp - pds[np][0][indx];
 							double db = d * k_bin + amplitude_steps;
 							int bin = (int) Math.round (db);
@@ -4189,7 +4341,7 @@ public class TilePlanes {
 			}
 			for (int ml = 0; ml < disp_strength.length; ml++) if (disp_strength[ml] != null){
 				for (int indx = 0; indx < size2; indx++) if (disp_strength[ml][1][indx] > 0){
-					for (int np = 0; np < num_planes; np++) {
+					for (int np = 0; np < num_planes; np++) if (mask[np][indx]){
 						double d1 = pds[np][0][indx] + offsets[np]; // shifted plane
 						double d2 = disp_strength[ml][0][indx];
 						double dav = 0.5 * (d1 + d2);
@@ -4226,14 +4378,16 @@ public class TilePlanes {
 				attr_corr[np][np] = 1.0;
 
 			}
-			if ((debugLevel > 0) && (num_planes > 1)){
-				String dbg_s = "refineDiscriminateTiles() plane attraction correlation for "+prefix+":";
-				for (int np = 0; np < num_planes; np++) {
-					for (int np1 = np + 1; np1 < num_planes; np1++) {
-						dbg_s += String.format(" %d-%d:%6.3f",np,np1,attr_corr[np][np1]);
+			double max_attr_corr = 0.0;
+			int [] merge_pair = {-1,-1};
+			for (int np = 0; np < num_planes; np++) {
+				for (int np1 = np + 1; np1 < num_planes; np1++) {
+					if (attr_corr[np][np1] > max_attr_corr) {
+						max_attr_corr = attr_corr[np][np1];
+						merge_pair[0] = np;
+						merge_pair[1] = np1;
 					}
 				}
-				System.out.println(dbg_s);
 			}
 			
 			
@@ -4323,14 +4477,82 @@ public class TilePlanes {
 				}
 				
 			}
-			
+			boolean [][][] all_best_selections = null;
+			if (outliersXMedian > 0.0) {
+				all_best_selections = best_selections.clone();
+				for (int np = 0; np < num_planes; np++) if (best_selections[np] != null){
+					all_best_selections[np] = best_selections[np].clone();
+					for (int ml = 0; ml < best_selections[np].length; ml++) if (best_selections[np][ml] != null){
+						all_best_selections[np][ml] = best_selections[np][ml].clone();
+					}						
+				}
+				// from each plane remove outliers (without re-calculating mean value) that are farther from the mean than scaled median distance
+				class ValIndex {
+					int ml;
+					int indx;
+					double val;
+					ValIndex(int ml, int indx, double val){
+						this.ml = ml;
+						this.indx = indx;
+						this.val =  val;
+					}
+				}
+				for (int np = 0; np < num_planes; np++) if (best_selections[np] != null){
+					ArrayList<ValIndex> tile_list = new ArrayList<ValIndex>();
+					for (int ml = 0; ml < best_selections[np].length; ml++) if (best_selections[np][ml] != null){
+						for (int indx = 0; indx < best_selections[np][ml].length; indx++) if (best_selections[np][ml][indx]){
+							double d1 = pds[np][0][indx] + offsets[np]; // shifted plane
+							double d2 = disp_strength[ml][0][indx];
+							double diff = d2 - d1;
+//							double dav = 0.5 * (d1 + d2);
+//							if (dav > dispNorm) diff *= dispNorm/dav;
+							double diff2 = diff * diff;
+							tile_list.add(new ValIndex(ml,indx,diff2));
+						}
+					}
+					if (!tile_list.isEmpty()){
+						Collections.sort(tile_list, new Comparator<ValIndex>() {
+							@Override
+							public int compare(ValIndex lhs, ValIndex rhs) {
+								// -1 - less than, 1 - greater than, 0 - equal
+								return (rhs.val > lhs.val) ? -1 : (rhs.val < lhs.val ) ? 1 : 0;
+							}
+						});
+						int size = tile_list.size(); 
+						double threshold =tile_list.get(size/2).val * outliersXMedian * outliersXMedian *1.0; 
+						for (int i = (outliersXMedian > 1.0) ? (size / 2 + 1) : 0; i < size; i++){
+							if (tile_list.get(i).val > threshold) {
+								best_selections[np][tile_list.get(i).ml][tile_list.get(i).indx] = false;
+							}
+						}
+					}
+					// now restore outliers if they had non-outliers neighbors
+					ArrayList<Point> to_resore_list = new ArrayList<Point>(); 
+					for (int ml = 0; ml < best_selections[np].length; ml++) if (best_selections[np][ml] != null){
+						for (int indx = 0; indx < best_selections[np][ml].length; indx++) {
+							if (all_best_selections[np][ml][indx] && !best_selections[np][ml][indx]){ // removed as outliers
+								for (int dir = 0; dir<8; dir++){
+									int indx1 = tileNeibs.getNeibIndex(indx, dir);
+									if ((indx1 >= 0) && best_selections[np][ml][indx1]){
+										to_resore_list.add(new Point(ml, indx));
+										break;
+									}
+								}
+							}
+						}
+					}
+					for (Point p:to_resore_list) {
+						best_selections[np][p.x][p.y] = true;
+					}
+				}
+			}
 			if (debugLevel > 2){
 				int dbg_ml = 0; // to protect from different layer configuration
 				for (; dbg_ml < disp_strength.length;  dbg_ml++){
 					if (disp_strength[dbg_ml] != null) break;
 				}
 				//disp_strength[dbg_ml][0], disp_strength[dbg_ml][1] * 10, disp_strength[dbg_ml][0] - pds[np][0], pds[np][0]
-				String [] dbg_titles = new String[2 + 8 * num_planes]; 
+				String [] dbg_titles = new String[2 + 10 * num_planes]; 
 				double [][] dbg_img = new double [dbg_titles.length][];
 				dbg_titles[0] = "disp_"+dbg_ml;
 				dbg_titles[1] = "str_"+dbg_ml;
@@ -4342,31 +4564,37 @@ public class TilePlanes {
 					dbg_titles[2 + 2 * num_planes + np] = "flat_"+np;
 					dbg_titles[2 + 3 * num_planes + np] = "rflat_"+np;
 					dbg_titles[2 + 4 * num_planes + np] = "nrflat_"+np;
-					dbg_titles[2 + 5 * num_planes + np] = "attr_"+np;
-					dbg_titles[2 + 6 * num_planes + np] = "sel_"+np; // add also old selection?
-					dbg_titles[2 + 7 * num_planes + np] = "oldsel_"+np; // add also old selection?
+					dbg_titles[2 + 5 * num_planes + np] = "mask_"+np;
+					dbg_titles[2 + 6 * num_planes + np] = "attr_"+np;
+					dbg_titles[2 + 7 * num_planes + np] = "pre_sel_"+np; // before outliers
+					dbg_titles[2 + 8 * num_planes + np] = "sel_"+np; // add also old selection?
+					dbg_titles[2 + 9 * num_planes + np] = "oldsel_"+np; // add also old selection?
 					dbg_img[2 + 0 * num_planes + np] = pds[np][0];
 					dbg_img[2 + 1 * num_planes + np] = disp_strength[dbg_ml][0].clone();
 					dbg_img[2 + 2 * num_planes + np] = flatness[np][dbg_ml];
 					dbg_img[2 + 3 * num_planes + np] = new double[size2];
 					dbg_img[2 + 4 * num_planes + np] = norm_flatness[np][dbg_ml];
-					dbg_img[2 + 5 * num_planes + np] = attractions[np][dbg_ml];
-					dbg_img[2 + 6 * num_planes + np] = new double[size2];
+					dbg_img[2 + 5 * num_planes + np] = new double[size2];
+					dbg_img[2 + 6 * num_planes + np] = attractions[np][dbg_ml];
 					dbg_img[2 + 7 * num_planes + np] = new double[size2];
+					dbg_img[2 + 8 * num_planes + np] = new double[size2];
+					dbg_img[2 + 9 * num_planes + np] = new double[size2];
 					for (int i = 0; i < size2; i++) {
 						dbg_img[2 + 1 * num_planes + np][i] -= pds[np][0][i];
-//						dbg_img[2 + 3 * num_planes + np][i] = 1.0 / (flatness[np][dbg_ml][i] + 0.001);
 						dbg_img[2 + 3 * num_planes + np][i] = (num_cells[np][dbg_ml][i] > 1) ? (1.0/flatness[np][dbg_ml][i]): (1.0/disp_var_floor); // floor2);
-//						dbg_img[2 + 4 * num_planes + np][i] = num_cells[np][dbg_ml][i] * 1.0 / (flatness[np][dbg_ml][i] + 0.001);
-						dbg_img[2 + 6 * num_planes + np][i] = best_selections[np][dbg_ml][i] ? 1.0 : 0.0;
-						dbg_img[2 + 7 * num_planes + np][i] = planes[np+1].measuredSelection[dbg_ml][i]? 1.0:0.0; // temporarily
+						dbg_img[2 + 5 * num_planes + np][i] =  mask[np][i] ? 1.0 : 0.0;
+						if (all_best_selections != null) {
+							dbg_img[2 + 7 * num_planes + np][i] = all_best_selections[np][dbg_ml][i] ? 1.0 : 0.0;
+						}
+						dbg_img[2 + 8 * num_planes + np][i] = best_selections[np][dbg_ml][i] ? 1.0 : 0.0;
+						dbg_img[2 + 9 * num_planes + np][i] = planes[np+1].measuredSelection[dbg_ml][i]? 1.0:0.0; // temporarily
 						
 						if (disp_strength[dbg_ml][1][i] == 0.0){
 							dbg_img[2 + 1 * num_planes + np][i] = Double.NaN;
 							dbg_img[2 + 2 * num_planes + np][i] = Double.NaN;
 							dbg_img[2 + 3 * num_planes + np][i] = Double.NaN;
-							dbg_img[2 + 4 * num_planes + np][i] = Double.NaN;
 							dbg_img[2 + 5 * num_planes + np][i] = Double.NaN;
+							dbg_img[2 + 6 * num_planes + np][i] = Double.NaN;
 						}
 					}
 				}
@@ -4376,7 +4604,39 @@ public class TilePlanes {
 			if (debugLevel > 1)	{
 				System.out.println ("refineDiscriminateTiles() "+prefix+" - step 3");
 			}
+			// moved here to debug
+			if  (merge_planes != null) {
+				if ((max_attr_corr > attractionCorrMax) && (max_attr_corr > attractionCorrMerge)) { // attractionCorrMerge can be ==0, then all >..Max will be merged
+					tilePlanes.get(merge_pair[0]).getMark0();
+
+					merge_planes[0] = tilePlanes.get(merge_pair[0]).getMark0(); // merge_pair[0];
+					merge_planes[1] = tilePlanes.get(merge_pair[1]).getMark0(); // merge_pair[1];
+				} else {
+					merge_planes[0] = -1;
+					merge_planes[1] = -1;
+				}
+			}
 			
+			if (((debugLevel > -1) && ((debugLevel > 0) || (max_attr_corr > attractionCorrMax)) )&& (num_planes > 1)){
+				String dbg_s = "refineDiscriminateTiles() plane attraction correlation for "+prefix+": maximal="+max_attr_corr;
+				for (int np = 0; np < num_planes; np++) {
+					for (int np1 = np + 1; np1 < num_planes; np1++) {
+						dbg_s += String.format(" %d-%d:%6.3f",np,np1,attr_corr[np][np1]);
+					}
+				}
+				if (merge_planes[0] >= 0) {
+					dbg_s += " will merge pair: ["+merge_pair[0]+", "+merge_pair[1]+"],"+
+							" planes["+tilePlanes.get(merge_pair[0]).getMark0()+"] and"+
+							" planes["+tilePlanes.get(merge_pair[1]).getMark0()+"] ";
+				} else if (max_attr_corr > attractionCorrMax){
+					dbg_s += " KEEPENG original tile selections";
+				}
+				System.out.println(dbg_s);
+			}
+			
+			if (max_attr_corr > attractionCorrMax) {
+				return null;
+			}
 			return best_selections;
 		}
 		
