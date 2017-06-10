@@ -3307,6 +3307,7 @@ public class TileProcessor {
 					merge_candidates,       // final int [][][] merge_candidates,
 					plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
 					true, // final boolean merge_low_eigen, here it should be true
+					true, // final boolean useNonExcl, // consider only directions available for non-exclusive merges
 					2, // -1, // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
@@ -3766,7 +3767,7 @@ public class TileProcessor {
 					clt_parameters.plNormPow,                     // 0.0: 8 neighbors pull 8 times as 1, 1.0 - same as 1
 					Math.pow(10.0,  -clt_parameters.plPrecision), // final double      maxDiff, // maximal change in any of the disparity values
 					clt_parameters.plPreferDisparity,
-					1,// 0, // final int debugLevel)
+					0, // 1,// 0, // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY); 
 		} else {

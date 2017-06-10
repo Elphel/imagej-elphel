@@ -1156,6 +1156,7 @@ public class SuperTiles{
 		int num_p  = (selections == null) ? 0: selections.length;
 		int num_pm = num_ml * num_p;
 		int num_pd = (planes != null) ? (planes.length - LOWEST_PLANE(planes.length)) : 0; 
+		final double [][] lapWeight = getLapWeights();
 		double [][] data = new double [num_pm + 3 * num_ml + 4 * num_pd ][]; // 4* superTileSize*superTileSize];
 		for (int np = 0; np < num_p; np++) if (selections [np] != null){
 			for (int ml = 0; ml < num_ml; ml++) if ((disp_strength[ml]!=null) && (selections[np][ml] != null)){
@@ -1185,7 +1186,14 @@ public class SuperTiles{
 				}
 			}
 			data [num_pm + 0 * num_ml + ml] = disp_strength[ml][0];
-			data [num_pm + 1 * num_ml + ml] = disp_strength[ml][1];
+			data [num_pm + 1 * num_ml + ml] = disp_strength[ml][1].clone();
+			// undo lapweight to show
+			for (int sty = 0; sty < 2 * superTileSize; sty++){
+				for (int stx = 0; stx < 2 * superTileSize; stx++){
+					data [num_pm + 1 * num_ml + ml][stx + 2 * superTileSize * sty] /= lapWeight[sty][stx];
+				}
+			}
+			
 		}
 		for (int npd = 0; npd < num_pd; npd++) if (planes[npd +LOWEST_PLANE(planes.length)] != null){
 			double [][] ellipsoids = planes[npd +LOWEST_PLANE(planes.length)].getDoublePlaneDisparityStrength(
@@ -2099,15 +2107,11 @@ public class SuperTiles{
 								// separately merge corresponding nonexclusiveStar and nonexclusiveStarEq of these planes - kit is not exact,
 								// but is needed just for a hint and is compatible with multithreading without recalculating other planes
 								
-								TilePlanes.PlaneData    plane1Ex =    these_planes[merge_planes[0]].getNonexclusiveStar();
-								if (plane1Ex == null)   plane1Ex =    these_planes[merge_planes[0]];
-								TilePlanes.PlaneData    plane1ExEq =  these_planes[merge_planes[0]].getNonexclusiveStarEq();
-								if (plane1ExEq == null) plane1ExEq =  these_planes[merge_planes[0]];
+								TilePlanes.PlaneData    plane1Ex =    these_planes[merge_planes[0]].getNonexclusiveStarFb();
+								TilePlanes.PlaneData    plane1ExEq =  these_planes[merge_planes[0]].getNonexclusiveStarEqFb();
 								
-								TilePlanes.PlaneData    plane2Ex =    these_planes[merge_planes[1]].getNonexclusiveStar();
-								if (plane2Ex == null)   plane2Ex =    these_planes[merge_planes[1]];
-								TilePlanes.PlaneData    plane2ExEq =  these_planes[merge_planes[1]].getNonexclusiveStarEq();
-								if (plane2ExEq == null) plane2ExEq =  these_planes[merge_planes[1]];
+								TilePlanes.PlaneData    plane2Ex =    these_planes[merge_planes[1]].getNonexclusiveStarFb();
+								TilePlanes.PlaneData    plane2ExEq =  these_planes[merge_planes[1]].getNonexclusiveStarEqFb();
 								
 								TilePlanes.PlaneData plane1NonExcl = plane1Ex.mergePlaneToThis(
 										plane2Ex, // PlaneData otherPd,
@@ -5816,7 +5820,7 @@ public class SuperTiles{
 								int [] neibs = this_new_plane.getNeibBest();
 								double [][] costs = new double[neibs.length][];
 								double [] weights = new double[neibs.length];
-								int cost_index = 1;
+								int cost_index = 2; // overall cost
 								double sum_rcosts = 0.0;
 								int non_zero = 0;
 								for (int dir = 0; dir < neibs.length; dir++) if (neibs[dir] >= 0) {
@@ -5841,7 +5845,7 @@ public class SuperTiles{
 									sum_rcosts += weights[dir]; 
 								}
 								for (int dir = 0; dir < neibs.length; dir++) if (neibs[dir] >= 0) {
-									weights[dir] *= non_zero/sum_rcosts; // average weight fcor active links will be 1.0 
+									weights[dir] *= non_zero/sum_rcosts; // average weight for active links will be 1.0 
 								}								
 								if (dl > 0) {
 									for (int dir = 0; dir <8; dir++)if (costs[dir] != null){
@@ -5856,7 +5860,7 @@ public class SuperTiles{
 									System.out.println();
 								}
 								
-								
+								this_new_plane =this_new_plane.clone(); // not to change weight!
 								this_new_plane.setWeight(0.0); //
 								double num_merged = 0.0; // double to add fractional pull weight of the center
 								for (int dir = 0; dir < neibs.length; dir++){

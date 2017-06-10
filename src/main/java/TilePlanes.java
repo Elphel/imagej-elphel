@@ -199,7 +199,7 @@ public class TilePlanes {
 		public String getNeibString()
 		{
 			if (neib_best == null) {
-				return "[      undefined       ]"; 
+				return "[      undefined       ] "; 
 			}
 			String s = "[";
 			for (int dir = 0; dir < 8; dir++){
@@ -294,6 +294,12 @@ public class TilePlanes {
 		{
 			return this.nonexclusiveStar;
 		}
+		public PlaneData getNonexclusiveStarFb() // fallback to this plane if nonexclusiveStar is not available
+		{
+			if (this.nonexclusiveStar != null) return this.nonexclusiveStar;
+			return this;
+		}
+		
 		public void setNonexclusiveStar( PlaneData pd)
 		{
 			this.nonexclusiveStar = pd;
@@ -303,6 +309,14 @@ public class TilePlanes {
 		{
 			return this.nonexclusiveStarEq;
 		}
+
+		public PlaneData getNonexclusiveStarEqFb() // fallback to this plane if nonexclusiveStarEq is not available
+		{
+			if (this.nonexclusiveStarEq != null) return this.nonexclusiveStarEq;
+			return this;
+		}
+		
+		
 		public void setNonexclusiveStarEq( PlaneData pd)
 		{
 			this.nonexclusiveStarEq = pd;
@@ -2792,7 +2806,7 @@ public class TilePlanes {
 				System.out.println("Zero eigenvalue");
 				debugLevel = 10;
 			}
-			if (debugLevel > 0) {
+			if (debugLevel > 1) {
 				System.out.println("other_eig_vals");
 				other_eig_vals.print(8, 6);
 				System.out.println("this_eig_vals");
@@ -2820,7 +2834,7 @@ public class TilePlanes {
 			Matrix other_covar = other_eig_vectors.times(other_eig_vals.times(other_eig_vectors.transpose())); 
 			Matrix this_covar =  this_eig_vectors.times(this_eig_vals.times(this_eig_vectors.transpose()));
 			Matrix covar = (new Matrix(acovar)).times(other_fraction*(1.0-other_fraction)); // only centers with all masses
-			if (debugLevel > 0) {
+			if (debugLevel > 1) {
 				System.out.println("other_covar");
 				other_covar.print(8, 6);
 				System.out.println("this_covar");
@@ -2830,12 +2844,12 @@ public class TilePlanes {
 			}			
 
 			covar.plusEquals(other_covar.times(other_fraction));
-			if (debugLevel > 0) {
+			if (debugLevel > 1) {
 				System.out.println("covar with other_covar");
 				covar.print(8, 6);
 			}
 			covar.plusEquals(this_covar.times(1.0 - other_fraction));
-			if (debugLevel > 0) {
+			if (debugLevel > 1) {
 				System.out.println("covar with other_covar and this_covar");
 				covar.print(8, 6);
 			}
@@ -2847,7 +2861,7 @@ public class TilePlanes {
 			EigenvalueDecomposition eig = covar.eig(); // verify NaN - it gets stuck
 			//			eig.getD().getArray(),
 			//			eig.getV().getArray(),
-			if (debugLevel > 0) {
+			if (debugLevel > 1) {
 				System.out.println("eig.getV()");
 				eig.getV().print(8, 6);
 				System.out.println("eig.getD()");
@@ -2985,7 +2999,7 @@ public class TilePlanes {
 				System.out.println("Zero eigenvalue");
 				debugLevel = 10;
 			}
-			if (debugLevel > 0) {
+			if (debugLevel > 1) {
 				System.out.println("other_eig_vals");
 				other_eig_vals.print(8, 6);
 				System.out.println("this_eig_vals");
@@ -3013,7 +3027,7 @@ public class TilePlanes {
 			Matrix other_covar = other_eig_vectors.times(other_eig_vals.times(other_eig_vectors.transpose())); 
 			Matrix this_covar =  this_eig_vectors.times(this_eig_vals.times(this_eig_vectors.transpose()));
 			Matrix covar = (new Matrix(acovar)).times(other_fraction*(1.0-other_fraction)); // only centers with all masses
-			if (debugLevel > 0) {
+			if (debugLevel > 1) {
 				System.out.println("other_covar");
 				other_covar.print(8, 6);
 				System.out.println("this_covar");
@@ -3023,12 +3037,12 @@ public class TilePlanes {
 			}			
 
 			covar.plusEquals(other_covar.times(other_fraction));
-			if (debugLevel > 0) {
+			if (debugLevel > 1) {
 				System.out.println("covar with other_covar");
 				covar.print(8, 6);
 			}
 			covar.plusEquals(this_covar.times(1.0 - other_fraction));
-			if (debugLevel > 0) {
+			if (debugLevel > 1) {
 				System.out.println("covar with other_covar and this_covar");
 				covar.print(8, 6);
 			}
@@ -3040,7 +3054,7 @@ public class TilePlanes {
 			EigenvalueDecomposition eig = covar.eig(); // verify NaN - it gets stuck
 			//			eig.getD().getArray(),
 			//			eig.getV().getArray(),
-			if (debugLevel > 0) {
+			if (debugLevel > 1) {
 				System.out.println("eig.getV()");
 				eig.getV().print(8, 6);
 				System.out.println("eig.getD()");
@@ -3093,9 +3107,6 @@ public class TilePlanes {
 				for (int i = 0; i < 3; i ++) plane[2][i] = -plane[2][i];
 			}
 
-
-//			PlaneData pd = this.clone(); // will copy selections too
-//			pd.invalidateCalculated();   // real world vectors
 			pd_partial.setWValues(eig_val[oindx][oindx],eig_val[vindx][vindx],eig_val[hindx][hindx]); // eigenvalues [0] - thickness, 2 other to detect skinny (poles)
 			pd_partial.setWVectors(plane);
 
@@ -3114,6 +3125,20 @@ public class TilePlanes {
 				}
 				pd_partial.setWeight(new_weight);
 			}
+			if (debugLevel > 2) {
+				double L1 = getWValue();
+				double L2 = otherPd.getWValue();
+				double W1 = 1.0 - other_fraction;
+				double W2 = other_fraction;
+				double Lav = (L1*W1 + L2*W2)/(W1+W2); 
+				double L = pd_partial.getWValue();
+				if ((L*1.000001 < Lav) || (debugLevel > 0)){
+					System.out.println("========== mergePlaneToThisWorld(): L1="+L1+", L2 = "+L2+", W1="+W1+", W2="+W2+", Lav = "+Lav+", L="+L+
+							", L-Lav="+(L-Lav)+", scale_other="+scale_other+", other_fraction="+other_fraction);
+					System.out.println();
+				}
+			}
+			
 			return pd_partial;
 		}
 		
@@ -4140,12 +4165,12 @@ public class TilePlanes {
 					}
 				}
 				mask[np] = prev_used[np].clone();
-				if (plDiscrGrown > 0) {
+				if (plDiscrGrown > 100) { // >0
 					tileNeibs.growSelection(
 							plDiscrGrown, // int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 							mask[np], // boolean [] tiles,
 							null); // boolean [] prohibit)
-				} else if (plDiscrGrown < 0){
+				} else if (plDiscrGrown < 100){ //< 0
 					for (int indx = 0; indx < size2; indx++) mask[np][indx] = true;
 					
 				}
@@ -4162,7 +4187,7 @@ public class TilePlanes {
 					}
 				}
 			}			
-			if (plDiscrSteal > 0){
+			if (0 * plDiscrSteal > 0){ // 0*
 				for (int np = 0; np < num_planes; np++){
 					for (int np1 = 0; np1 < num_planes; np1++) if (np1 != np){
 						for (int indx = 0; indx < size2; indx++){

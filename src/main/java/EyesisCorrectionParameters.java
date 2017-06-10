@@ -2186,7 +2186,8 @@ public class EyesisCorrectionParameters {
   		public double     plWeakWeight2        =  10.0 ; // Maximal weight of the weak plane to merge (second variant)
   		public double     plWeakEigen2         =   0.05; // Maximal eigenvalue of the result of non-weighted merge  (second variant)
   		public double     plSumThick           =   1.2;  // Do not merge if any sqrt of merged eigenvalue exceeds scaled sum of components 
-
+  		public double     plNeNeibCost         =   5.0;  // When calculating non-exclusive planes, do not use neighbors with high cost
+  		public double     plNeOwn              =   5.0;  // When calculating non-exclusive planes, use cenrter plane relative weight
   		public double     plMaxZRatio          =   2.0;  // Maximal ratio of Z to allow plane merging
   		public double     plMaxDisp            =   0.6;  // Maximal disparity of one of the planes to apply  maximal ratio
   		public double     plCutTail            =   1.4;  // When merging with neighbors cut the tail that is worse than scaled best
@@ -2596,6 +2597,8 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plWeakWeight2",    this.plWeakWeight2 +"");
 			properties.setProperty(prefix+"plWeakEigen2",     this.plWeakEigen2 +"");
 			properties.setProperty(prefix+"plSumThick",       this.plSumThick +"");
+			properties.setProperty(prefix+"plNeNeibCost",     this.plNeNeibCost +"");
+			properties.setProperty(prefix+"plNeOwn",          this.plNeOwn +"");
 			
 			properties.setProperty(prefix+"plMaxZRatio",      this.plMaxZRatio +"");
 			properties.setProperty(prefix+"plMaxDisp",        this.plMaxDisp +"");
@@ -2981,6 +2984,8 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plWeakWeight2")!=null)     this.plWeakWeight2=Double.parseDouble(properties.getProperty(prefix+"plWeakWeight2"));
   			if (properties.getProperty(prefix+"plWeakEigen2")!=null)      this.plWeakEigen2=Double.parseDouble(properties.getProperty(prefix+"plWeakEigen2"));
   			if (properties.getProperty(prefix+"plSumThick")!=null)        this.plSumThick=Double.parseDouble(properties.getProperty(prefix+"plSumThick"));
+  			if (properties.getProperty(prefix+"plNeNeibCost")!=null)      this.plNeNeibCost=Double.parseDouble(properties.getProperty(prefix+"plNeNeibCost"));
+  			if (properties.getProperty(prefix+"plNeOwn")!=null)           this.plNeOwn=Double.parseDouble(properties.getProperty(prefix+"plNeOwn"));
   			
   			if (properties.getProperty(prefix+"plMaxZRatio")!=null)       this.plMaxZRatio=Double.parseDouble(properties.getProperty(prefix+"plMaxZRatio"));
   			if (properties.getProperty(prefix+"plMaxDisp")!=null)         this.plMaxDisp=Double.parseDouble(properties.getProperty(prefix+"plMaxDisp"));
@@ -3395,6 +3400,8 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal weight of the weak plane to merge (second variant)",                   this.plWeakWeight2,  6);
   			gd.addNumericField("Maximal eigenvalue of the result of non-weighted merge (second variant)",      this.plWeakEigen2,  6);
   			gd.addNumericField("Do not merge if any sqrt of merged eigenvalue exceeds scaled sum of components", this.plSumThick,  6);
+  			gd.addNumericField("When calculating non-exclusive planes, do not use neighbors with high cost",   this.plNeNeibCost,  6);
+  			gd.addNumericField("When calculating non-exclusive planes, use cenrter plane relative weight",     this.plNeOwn,  6);
 
   			gd.addMessage     ("---  ---");
   			gd.addNumericField("Maximal ratio of Z to allow plane merging",                                    this.plMaxZRatio,  6);
@@ -3796,6 +3803,8 @@ public class EyesisCorrectionParameters {
   			this.plWeakWeight2=         gd.getNextNumber();
   			this.plWeakEigen2=          gd.getNextNumber();
   			this.plSumThick=            gd.getNextNumber();
+  			this.plNeNeibCost=          gd.getNextNumber();
+  			this.plNeOwn=               gd.getNextNumber();
 
   			this.plMaxZRatio=           gd.getNextNumber();
   			this.plMaxDisp=             gd.getNextNumber();

@@ -52,7 +52,10 @@ public class LinkPlanes {
 	public double     plWeakEigen; //          =   0.1; // Maximal eigenvalue of the result of non-weighted merge
     public double     plWeakWeight2; //        =  10.0 ; // Maximal weight of the weak plane to merge (second variant)
 	public double     plWeakEigen2; //         =   0.05; // Maximal eigenvalue of the result of non-weighted merge  (second variant)
-    public double     plSumThick; //           =   1.2;  // Do not merge if any sqrt of merged eigenvalue exceeds scaled sum of components 
+    public double     plSumThick; //           =   1.2;  // Do not merge if any sqrt of merged eigenvalue exceeds scaled sum of components
+    public double     plNeNeibCost; //         =   5.0;  // When calculating non-exclusive planes, do not use neighbors with high cost
+    public double     plNeOwn; //              =   5.0;  // When calculating non-exclusive planes, use cenrter plane relative weight
+    
 
 		// comparing merge quality for plane pairs
 	public double     plCostKrq; //            =   0.8;  // cost of merge quality weighted in disparity space
@@ -97,6 +100,9 @@ public class LinkPlanes {
 		plWeakWeight2 =     clt_parameters.plWeakWeight2;
 		plWeakEigen2 =      clt_parameters.plWeakEigen2;
 		plSumThick =        clt_parameters.plSumThick;
+		plNeNeibCost =      clt_parameters.plNeNeibCost;
+		plNeOwn =           clt_parameters.plNeOwn;
+		
 
 		plCostKrq =         clt_parameters.plCostKrq;
 		plCostKrqEq =       clt_parameters.plCostKrqEq;
@@ -249,7 +255,7 @@ public class LinkPlanes {
 				1.0, // double w1,
 				1.0, // double w2)
 				plEigenFloor);//			double eigen_floor)
-		
+//		if (this_rq_eq == 0.01) System.out.println("planesFit(): this_rq_eq was negative");
 		double this_rq_eq_norm = this_rq_eq;
 		if ((w1 + w2) < plWeakWorsening) this_rq_eq_norm *= (w1 + w2) / plWeakWorsening; // forgive more for weak planes 
 		boolean weak_and_close = false;
@@ -274,6 +280,8 @@ public class LinkPlanes {
 				w1, // double w1,
 				w2, // double w2)
 				plEigenFloor);//			double eigen_floor)
+//		if (this_rq == 0.01) System.out.println("planesFit(): this_rq was negative");
+
 		double this_rq_norm = this_rq;
 		if ((w1 + w2) < plWeakWorsening) this_rq_norm *= (w1 + w2) / plWeakWorsening; // forgive more for weak planes
 
@@ -285,6 +293,7 @@ public class LinkPlanes {
 				w1, // double w1,
 				w2, // double w2)
 				0.0);//			double eigen_floor)
+//		if (this_wrq == 0.01) System.out.println("planesFit(): this_wrq was negative");
 
 		double this_wrq_norm = this_wrq;
 		if ((w1 + w2) < plWeakWorsening) this_wrq_norm *= (w1 + w2) / plWeakWorsening; // forgive more for weak planes
@@ -292,11 +301,14 @@ public class LinkPlanes {
 		double this_wrq_eq = mergeRQuality(
 				plane1.getWValue(), // double L1,
 				plane2.getWValue(), // double L2,
-				merged_wev, // double L,
+				merged_wev_eq, // double L,
 				1.0, // double w1,
 				1.0, // double w2)
 				0.0);//			double eigen_floor)
-		this_wrq_eq /= (w1 + w2); // for comparison reduce this value for stronger planes
+///		this_wrq_eq /= (w1 + w2); // for comparison reduce this value for stronger planes
+//		if (this_wrq_eq == 0.01) {
+//			System.out.println("planesFit(): this_wrq_eq was negative");
+//		}
 		double this_wrq_eq_norm = this_wrq_eq;
 		if ((w1 + w2) < plWeakWorsening) this_wrq_eq_norm *= (w1 + w2) / plWeakWorsening; // forgive more for weak planes 
 		
@@ -477,7 +489,7 @@ public class LinkPlanes {
 					false,       // boolean   ignore_weights,
 					true, // boolean   sum_weights,
 					plPreferDisparity, 
-					debugLevel - 1); // int       debugLevel)
+					debugLevel - 2); // int       debugLevel)
 			merged_ev =  merged_pd.getValue();
 			merged_wev = merged_pd.getWValue();
 		}
@@ -489,7 +501,7 @@ public class LinkPlanes {
 					true,        // boolean   ignore_weights,
 					true,        // boolean   sum_weights,
 					plPreferDisparity, 
-					debugLevel - 1); // int       debugLevel)
+					debugLevel - 2); // int       debugLevel)
 			merged_ev_eq =  merged_pd_eq.getValue();
 			merged_wev_eq = merged_pd_eq.getWValue();
 		}
@@ -502,6 +514,7 @@ public class LinkPlanes {
 				w1, // double w1,
 				w2, // double w2)
 				plEigenFloor);//			double eigen_floor)
+//		if (this_rq == 0.01) System.out.println("getFitQualities(): this_rq was negative");
 		double this_rq_nofloor = mergeRQuality(
 				plane1.getValue(), // double L1,
 				plane2.getValue(), // double L2,
@@ -509,6 +522,7 @@ public class LinkPlanes {
 				w1, // double w1,
 				w2, // double w2)
 				0); // eigenFloor);//			double eigen_floor)
+//		if (this_rq_nofloor == 0.01) System.out.println("getFitQualities(): this_rq_nofloor was negative");
 		double this_rq_eq = mergeRQuality(
 				plane1.getValue(), // double L1,
 				plane2.getValue(), // double L2,
@@ -516,8 +530,8 @@ public class LinkPlanes {
 				1.0, // double w1,
 				1.0, // double w2)
 				plEigenFloor);//			double eigen_floor)
-		this_rq /= (w1 + w2); // for comparison reduce this value for stronger planes
-
+///		this_rq /= (w1 + w2); // for comparison reduce this value for stronger planes
+//		if (this_rq_eq == 0.01) System.out.println("getFitQualities(): this_rq_eq was negative");
 		double this_wrq = mergeRQuality(
 				plane1.getWValue(), // double L1,
 				plane2.getWValue(), // double L2,
@@ -525,16 +539,17 @@ public class LinkPlanes {
 				w1, // double w1,
 				w2, // double w2)
 				0.0);//			double eigen_floor)
-		this_wrq /= (w1 + w2); // for comparison reduce this value for stronger planes
+//		if (this_wrq == 0.01) System.out.println("getFitQualities(): this_wrq was negative");
+///		this_wrq /= (w1 + w2); // for comparison reduce this value for stronger planes
 		double this_wrq_eq = mergeRQuality(
 				plane1.getWValue(), // double L1,
 				plane2.getWValue(), // double L2,
-				merged_wev, // double L,
+				merged_wev_eq, // double L,
 				1.0, // double w1,
 				1.0, // double w2)
 				0.0);//			double eigen_floor)
-		this_wrq_eq /= (w1 + w2); // for comparison reduce this value for stronger planes
-		
+///		this_wrq_eq /= (w1 + w2); // for comparison reduce this value for stronger planes
+//		if (this_wrq_eq == 0.01) System.out.println("getFitQualities(): this_wrq_eq was negative");
 		double sin2 = plane1.getWorldSin2(plane2);
 		double rdist2 = plane1.getWorldPlaneRDist2(plane2) + plane2.getWorldPlaneRDist2(plane1);
 		double [] costs = {
@@ -665,7 +680,9 @@ public class LinkPlanes {
 																	this_plane.setNeibMatch (dir, np, merged_pd.getValue()); // smallest eigenValue
 																	this_plane.setNeibWMatch(dir, np, merged_pd.getWValue()); // smallest eigenValue
 																}
-																
+																if (dl > 0){
+																	System.out.println("matchPlanes(): nsTile0 ="+nsTile0+":"+np0+"-("+dir+")->"+nsTile+":"+np+" (ignore_weights=true)");
+																}
 																merged_pd = this_plane.mergePlaneToThis(
 																		other_plane, // PlaneData otherPd,
 																		1.0,         // double    scale_other,
@@ -673,13 +690,17 @@ public class LinkPlanes {
 																		true, // false,       // boolean   ignore_weights,
 																		true, // boolean   sum_weights,
 																		plPreferDisparity, 
-																		dl-1); // int       debugLevel)
+																		dl-0); // int       debugLevel)
 
 																if (merged_pd !=null) { // now always, but may add later
 																	///															merged_pd.scaleWeight(0.5);
 																	this_plane.setNeibMatchEq (dir, np, merged_pd.getValue()); // smallest eigenValue
 																	this_plane.setNeibWMatchEq(dir, np, merged_pd.getWValue()); // smallest eigenValue
 																}
+																if (dl > 0){
+																	System.out.println("matchPlanes(): nsTile0 ="+nsTile0+":"+np0+"-("+dir+")->"+nsTile+":"+np+"...DONE, merged_pd.getWValue()="+merged_pd.getWValue());
+																}
+
 															}
 														}
 													}
@@ -826,6 +847,9 @@ public class LinkPlanes {
 											for (int np = np_min; np < merge_ev.length; np++){
 												if (	(planes[nsTile][np] != null) &&
 														!Double.isNaN(merge_ev[np])) {
+													if (dl > 0){
+														System.out.println("filterNeighborPlanes() nsTile0="+nsTile0+" np0="+np0+"-("+dir+")-> nsTile="+nsTile+" np="+np);
+													}
 													String prefix = "filterNeighborPlanes() nsTile0="+nsTile0+" np0="+np0+" dir="+dir+" nsTile="+nsTile+" np="+np;
 													if (planesFit(
 															planes[nsTile0][np0], // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
@@ -880,8 +904,9 @@ public class LinkPlanes {
 	 * @param dbg_X
 	 * @param dbg_Y
 	 */
-	public void setNonExclusive(
+	public void setNonExclusive_0(
 			final TilePlanes.PlaneData [][] planes,
+//			final double  center_weight,
 			final int     debugLevel,
 			final int     dbg_X,
 			final int     dbg_Y)
@@ -1103,6 +1128,240 @@ public class LinkPlanes {
 			};
 		}		      
 		ImageDtt.startAndJoin(threads);
+	}
+	
+	public void setNonExclusive(
+			final TilePlanes.PlaneData [][] planes,
+//			final double  center_weight,
+			final int     debugLevel,
+			final int     dbg_X,
+			final int     dbg_Y)
+	{
+		final int tilesX =        st.tileProcessor.getTilesX();
+		final int tilesY =        st.tileProcessor.getTilesY();
+		final int superTileSize = st.tileProcessor.getSuperTileSize();
+		//				final int tileSize =      tileProcessor.getTileSize();
+		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;  
+		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
+		final int nStiles =       stilesX * stilesY; 
+		final double [] nan_plane = new double [superTileSize*superTileSize];
+		for (int i = 0; i < nan_plane.length; i++) nan_plane[i] = Double.NaN;
+		final TileNeibs tnSurface = new TileNeibs(stilesX, stilesY);
+		final int debug_stile = dbg_Y * stilesX + dbg_X;
+		final Thread[] threads = ImageDtt.newThreadArray((debugLevel > 1)? 1 : st.tileProcessor.threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+//					TilePlanes.PlaneData [][] dbg_planes = planes;
+					for (int nsTile0 = ai.getAndIncrement(); nsTile0 < nStiles; nsTile0 = ai.getAndIncrement()) {
+						int dl = (nsTile0 == debug_stile) ? debugLevel:0;
+						if ( planes[nsTile0] != null) {
+							if (dl > 0){
+								System.out.println("setNonExclusive() nsTile0="+nsTile0);
+							}
+							for (int np0 = 0; np0 < planes[nsTile0].length; np0++) if (planes[nsTile0][np0] != null) {
+								// find best connection quality for each direction
+								int [] neibs = {-1,-1,-1,-1,-1,-1,-1,-1};
+								double [][] costs = new double[neibs.length][];
+								double [] weights = new double[neibs.length];
+								TilePlanes.PlaneData [] neib_pd = new TilePlanes.PlaneData[neibs.length];
+
+								int cost_index = 2;
+								double sum_rcosts = 0.0;
+								int non_zero = 0;
+								for (int dir = 0; dir < neibs.length; dir++) if (planes[nsTile0][np0].hasMergedValid(dir)){
+									int nsTile1 = tnSurface.getNeibIndex(nsTile0, dir);
+									if (nsTile1 >= 0){
+										boolean [] merged_valid = planes[nsTile0][np0].getMergedValid(dir);
+										double [][] costs_dir = new double[merged_valid.length][];
+										int best_np = -1;
+										for (int np = 0; np < merged_valid.length; np++) if (merged_valid[np] && (planes[nsTile1][np] != null)){
+											TilePlanes.PlaneData other_plane = planes[nsTile0][np0].getPlaneToThis(
+													planes[nsTile1][np], // neighbor, previous value
+													debugLevel - 2); // debugLevel);
+											if (other_plane != null) {
+												costs_dir[np] = getFitQualities(
+														planes[nsTile0][np0], // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
+														other_plane,          // TilePlanes.PlaneData plane2,
+														Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
+														Double.NaN, // double               merged_ev_eq, // if NaN will calculate assuming the same supertile
+														Double.NaN, // double               merged_wev,    // if NaN will calculate assuming the same supertile - for world
+														Double.NaN, // double               merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
+														nsTile0+":"+np0+"-"+dir+":"+np,  // String prefix,
+														0); // int debugLevel)
+												if (costs_dir[np] != null) {
+													for (int i = 3; i < costs_dir[np].length; i++) costs_dir[np][i] *= costs_dir[np][2];
+													if ((best_np < 0) || (costs_dir[np][cost_index] < costs_dir[best_np][cost_index])){
+														best_np = np;
+													}
+												}
+											}
+										}
+										if ((best_np >= 0) && (costs_dir[best_np][cost_index] < plNeNeibCost)) {
+											neibs[dir] = best_np;
+											costs[dir] = costs_dir[best_np];
+											non_zero ++;
+											weights[dir] = 1.0/costs[dir][cost_index];
+											sum_rcosts += weights[dir];
+											neib_pd[dir] = planes[nsTile1][best_np];
+										}
+									}
+								}
+								
+								
+								
+								for (int dir = 0; dir < neibs.length; dir++) if (neibs[dir] >= 0) {
+									weights[dir] *= non_zero/sum_rcosts; // average weight for active links will be 1.0 
+								}								
+								if (dl > 0) {
+									for (int dir = 0; dir <8; dir++)if (costs[dir] != null){
+										System.out.print(nsTile0+":"+np0+"-"+dir+"  "+String.format(" weight= %6.3f ",weights[dir]));
+										for (int i = 0; i < costs[dir].length; i++){
+											System.out.print(String.format("%8.3f", costs[dir][i]));
+										}
+										System.out.println();
+									}
+									System.out.println();
+								}
+								// maybe remove outliers here?
+								if (non_zero > 0) {
+									TilePlanes.PlaneData merged_pd = mergeWithNeibs(
+											planes[nsTile0][np0], // TilePlanes.PlaneData   center_pd,
+											neib_pd,              // TilePlanes.PlaneData[] neibs_pd,
+											plMaxEigen,           // double  maxValue, // do not combine with too bad planes, do not merge if result is above
+											plNeOwn,              // double                 center_weight,
+											false,                // boolean                stopBadNeib,
+											1.0,                  // final double           normPow,
+											weights,              // double []              weights,
+											false, // boolean                ignore_weights,
+											dl); // int debugLevel)
+									
+									merged_pd.getWorldXYZ(0); // debugLevel); // just to recalculate world data for debugging
+									merged_pd.setNeibBest(neibs);
+									planes[nsTile0][np0].setNonexclusiveStar(merged_pd);
+									TilePlanes.PlaneData merged_pd_eq = mergeWithNeibs(
+											planes[nsTile0][np0], // TilePlanes.PlaneData   center_pd,
+											neib_pd,              // TilePlanes.PlaneData[] neibs_pd,
+											plMaxEigen,           // double  maxValue, // do not combine with too bad planes, do not merge if result is above
+											plNeOwn,              // double                 center_weight,
+											false,                // boolean                stopBadNeib,
+											1.0,                  // final double           normPow,
+											weights,              // double []              weights,
+											true, // boolean                ignore_weights,
+											dl); // int debugLevel)
+									
+									merged_pd_eq.getWorldXYZ(0); // debugLevel); // just to recalculate world data for debugging
+									merged_pd_eq.setNeibBest(neibs);
+									planes[nsTile0][np0].setNonexclusiveStarEq(merged_pd_eq);
+								}
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+	}
+	
+	
+	
+	// TODO: reuse in planesSmoothStep
+	TilePlanes.PlaneData mergeWithNeibs(
+			TilePlanes.PlaneData   center_pd,
+			TilePlanes.PlaneData[] neibs_pd,
+			double                 maxValue, // do not combine with too bad planes, do not merge if result is above
+			double                 center_weight,
+			boolean                stopBadNeib,
+			final double           normPow,
+			double []              weights,
+			boolean                ignore_weights,
+			int debugLevel)
+	{
+		TilePlanes.PlaneData this_new_plane = center_pd.clone();
+
+		this_new_plane.setWeight(0.0); //
+		double num_merged = 0.0; // double to add fractional pull weight of the center
+		for (int dir = 0; dir < neibs_pd.length; dir++){
+			if (neibs_pd[dir] != null) {
+				TilePlanes.PlaneData other_plane = this_new_plane.getPlaneToThis(
+						neibs_pd[dir], // neighbor, previous value
+						debugLevel - 2); // debugLevel);
+				//				if (dl > 0) dbg_img[ 2 + dir] = other_plane.getSinglePlaneDisparity(false);
+				if ((other_plane != null) && ((other_plane.getValue() <= maxValue) || (maxValue == 0))) { // TODO:
+					if (this_new_plane.getWeight() > 0.0){
+						this_new_plane = this_new_plane.mergePlaneToThis(
+								other_plane, // PlaneData otherPd,
+								weights[dir], // 1.0,         // double    scale_other,
+								// here it should be no power function for the weights
+								1.0,               // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
+								ignore_weights,    // boolean   ignore_weights,
+								true,              // boolean   sum_weights,
+								center_pd.getPreferDisparity(),
+								debugLevel - 2);   // int       debugLevel)
+
+					} else {
+						this_new_plane = other_plane; // should increment num_merged
+						this_new_plane.scaleWeight(weights[dir]);
+					}
+					if (this_new_plane != null){
+						num_merged += 1.0;
+						// just for debug / calculate
+						this_new_plane.getWorldXYZ(0);
+					}
+					//					new_planes[nsTile0][np0] = this_new_plane;
+					//					if (dl > 0) dbg_img[10 + dir] = this_new_plane.getSinglePlaneDisparity(false);
+				} else if (stopBadNeib){ // just skip, not abandon? (set to false)
+					this_new_plane = null;
+					break;
+				}
+			}
+		}
+
+		if (this_new_plane != null) {
+			// average weight over participating directions, so the relative pull
+			// does not depend on number of neighbors
+			if ((num_merged > 0.0) && (this_new_plane != null) && (normPow > 1.0)){
+				double scale = Math.pow(num_merged, normPow);
+				this_new_plane.scaleWeight(1.0/scale);
+				num_merged /=scale;
+			}
+			
+			
+			if (    (center_weight > 0.0) &&
+					((center_pd.getValue() < maxValue) || (maxValue == 0) || 
+							(this_new_plane == null) || (this_new_plane.getWeight() == 0.0)) // keep measured if impossible to merge
+					){
+
+				if (this_new_plane.getWeight() > 0.0){
+					this_new_plane = this_new_plane.mergePlaneToThis(
+							center_pd, // PlaneData otherPd,
+							center_weight,                     // double    scale_other,
+							1.0, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost													
+							false,                         // boolean   ignore_weights,
+							true, // boolean   sum_weights,
+							center_pd.getPreferDisparity(),
+							debugLevel - 2);                           // int       debugLevel)
+					if (this_new_plane != null){
+						num_merged += center_weight;	// num_merged was 1.0 and weight is averaged over all neighbors 
+					}
+				} else {
+					this_new_plane = center_pd.clone();
+					num_merged = 1.0;	
+				}
+//				if (dl > 0) dbg_img[18] =  this_new_plane.getSinglePlaneDisparity(false);
+			}
+		}
+		if ((num_merged > 0.0) && (this_new_plane != null)){
+			// just for debug / calculate
+			this_new_plane.getWorldXYZ(0);
+			this_new_plane.scaleWeight(1.0/num_merged);
+			double true_num_merged = num_merged - center_weight + 1;
+			this_new_plane.setNumPoints((int) (this_new_plane.getNumPoints()/true_num_merged));
+		}
+		
+		return this_new_plane;
 	}
 	
 	
@@ -1670,6 +1929,7 @@ public class LinkPlanes {
 			final int [][][] merge_candidates,
 			final boolean [][][]   valid_candidates, // will be updated
 			final boolean    merge_low_eigen,
+			final boolean useNonExcl, // consider only directions available for non-exclusive merges
 			final int debugLevel,
 			final int dbg_X,
 			final int dbg_Y)
@@ -1705,7 +1965,30 @@ public class LinkPlanes {
 								if (valid_candidates[nsTile0][np1][np2]) { // only check pair considered valid
 									boolean [] old_valid = new boolean[8];
 									for (int dir = 0; dir < 8; dir++){
-										old_valid[dir] = planes[nsTile0][np1].hasMergedStrongValid(dir) || planes[nsTile0][np2].hasMergedStrongValid(dir);
+										if (planes[nsTile0][np1].hasMergedStrongValid(dir) || planes[nsTile0][np2].hasMergedStrongValid(dir)){
+											if (!useNonExcl) {
+												old_valid[dir] = true;
+											} else {
+												if ((planes[nsTile0][np1].getNonexclusiveStar() == null) ||
+														(planes[nsTile0][np1].getNonexclusiveStar().getNeibBest(dir) >=0)){
+													old_valid[dir] = true;
+												}
+												if ((planes[nsTile0][np1].getNonexclusiveStarEq() == null) ||
+														(planes[nsTile0][np1].getNonexclusiveStarEq().getNeibBest(dir) >=0)){
+													old_valid[dir] = true;
+												}
+												if ((planes[nsTile0][np2].getNonexclusiveStar() == null) ||
+														(planes[nsTile0][np2].getNonexclusiveStar().getNeibBest(dir) >=0)){
+													old_valid[dir] = true;
+												}
+												if ((planes[nsTile0][np2].getNonexclusiveStarEq() == null) ||
+														(planes[nsTile0][np2].getNonexclusiveStarEq().getNeibBest(dir) >=0)){
+													old_valid[dir] = true;
+												}
+											}
+										}
+//										old_valid[dir] = planes[nsTile0][np1].hasMergedStrongValid(dir) || planes[nsTile0][np2].hasMergedStrongValid(dir);
+										//getNonexclusiveStar
 									}
 									// should be merged same way as later actually. Does it need to be recalculated from the original tiles?
 									TilePlanes.PlaneData merged_pd =  planes[nsTile0][np1].mergePlaneToThis(
@@ -1823,8 +2106,8 @@ public class LinkPlanes {
 					for (int nsTile0 = ai.getAndIncrement(); nsTile0 < nStiles; nsTile0 = ai.getAndIncrement()) if ( merge_candidates[nsTile0] != null) {
 						int sty0 = nsTile0 / stilesX;  
 						int stx0 = nsTile0 % stilesX;
-						int dl = ((debugLevel > 0) && (nsTile0 == debug_stile)) ? 3: ((debugLevel > 1) ? 1:0);
-						if (dl > 1){
+						int dl = ((debugLevel > 0) && (nsTile0 == debug_stile)) ? 3: ((debugLevel > 1) ? 2:0);
+						if (dl > 2){
 							System.out.println("costSameTileConnections(): nsTile="+nsTile0);
 						}
 						int n_planes = planes[nsTile0].length;
@@ -1836,26 +2119,26 @@ public class LinkPlanes {
 								if (valid_candidates[nsTile0][np1][np2]) { // only check pair considered valid
 									String prefix = "costSameTileConnections() fit weighted: nsTile0="+nsTile0+" np1="+np1+" np2="+np2;
 									boolean fit1 = 	planesFit(
-											planes[nsTile0][np1].getNonexclusiveStar(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
-											planes[nsTile0][np2].getNonexclusiveStar(), // 			TilePlanes.PlaneData plane2,
+											planes[nsTile0][np1].getNonexclusiveStarFb(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
+											planes[nsTile0][np2].getNonexclusiveStarFb(), // 			TilePlanes.PlaneData plane2,
 											true,       // boolean              merge_weak,   // use for same supertile merge 
 											Double.NaN, // double merged_ev,    // if NaN will calculate assuming the same supertile
 											Double.NaN, // double merged_ev_eq, // if NaN will calculate assuming the same supertile
 											Double.NaN, // double merged_wev,    // if NaN will calculate assuming the same supertile - for world
 											Double.NaN, // double merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
 											prefix, // String prefix,
-											dl-1); // int debugLevel)
+											dl -1); // int debugLevel)
 									prefix = "costSameTileConnections() fit equal weight: nsTile0="+nsTile0+" np1="+np1+" np2="+np2;
 									boolean fit2 = 	planesFit(
-											planes[nsTile0][np1].getNonexclusiveStarEq(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
-											planes[nsTile0][np2].getNonexclusiveStarEq(), // 			TilePlanes.PlaneData plane2,
+											planes[nsTile0][np1].getNonexclusiveStarEqFb(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
+											planes[nsTile0][np2].getNonexclusiveStarEqFb(), // 			TilePlanes.PlaneData plane2,
 											true,       // boolean              merge_weak,   // use for same supertile merge 
 											Double.NaN, // double merged_ev,    // if NaN will calculate assuming the same supertile
 											Double.NaN, // double merged_ev_eq, // if NaN will calculate assuming the same supertile
 											Double.NaN, // double merged_wev,    // if NaN will calculate assuming the same supertile - for world
 											Double.NaN, // double merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
 											prefix, // String prefix,
-											dl-1); // int debugLevel)
+											dl -1); // int debugLevel)
 										if (!fit1 || !fit2){
 											valid_candidates[nsTile0][np1][np2] = false;
 											valid_candidates[nsTile0][np2][np1] = false;
@@ -2464,6 +2747,7 @@ public class LinkPlanes {
 			double w2,
 			double eigen_floor)
 	{
+		double minVal = 0.00001; // Sometimes get small negative (precision) when merging 2 equal planes 
 		double L1 = L1_in + eigen_floor;
 		double L2 = L2_in + eigen_floor;
 		double L =  L_in + eigen_floor;
@@ -2472,6 +2756,11 @@ public class LinkPlanes {
 		///				double wors = (L - Lav)*(w1+w2)*(w1+w2) /(Lav*w1*w2);
 		///				double rquality = (L - Lav)*(w1+w2) /(Lav*w1*w2); // ==wors/(w1+w2) to amplify stronger planes
 		double rquality =  (L - Lav)*(w1+w2)*(w1+w2) /(Lav*w1*w2); 
+		
+		if (rquality < minVal){
+			System.out.println("BUG: mergeRQuality("+L1_in+", "+L2_in+", "+L_in+", "+w1+", "+w2+", "+eigen_floor+") -> "+rquality);
+			rquality=minVal;
+		}
 		return rquality;
 	}
 	
