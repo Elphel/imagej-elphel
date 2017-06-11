@@ -109,7 +109,8 @@ public class TilePlanes {
 		double [][]  wvectors =    null; // [3][3] - eigenvectors calculated in the real world
 		double []    wvalues =     null; // [3] -eigenvalues calculated in the real world
 		double [][]  merged_weig_val = null; // for each of the directions (N, NE, .. NW) quality match for each layer 
-		double [][]  merged_weig_eq =  null; // for each of the directions (N, NE, .. NW) quality match for each layer - ignoring weights 
+		double [][]  merged_weig_eq =  null; // for each of the directions (N, NE, .. NW) quality match for each layer - ignoring weights
+		double [][]  link_costs; // for each of the directions (N, NE, .. NW) composite cost of connection
 
 		int mark0 = -1; // just for temporary labeling the plane
 		
@@ -480,6 +481,16 @@ public class TilePlanes {
 				}
 			}
 
+			if (src.link_costs != null){
+				dst.link_costs = src.link_costs.clone();
+				for (int i = 0; i < src.link_costs.length; i++){
+					if (src.link_costs[i] != null){
+						dst.link_costs[i] = src.link_costs[i].clone();
+					}
+				}
+			}
+			
+			
 			if (src.neib_best != null) dst.neib_best = src.neib_best.clone();
 			
 			// also copy original plane parameters - tile selection and number of points
@@ -1728,11 +1739,11 @@ public class TilePlanes {
 		
 		public double [][] initMergedValue()
 		{
-			this.merged_eig_val = new double[8][];
-			this.merged_eig_eq = new double[8][];
-			this.merged_weig_val = new double[8][];
-			this.merged_weig_eq = new double[8][];
-			this.merged_valid = new boolean[8][];
+			this.merged_eig_val =      new double[8][];
+			this.merged_eig_eq =       new double[8][];
+			this.merged_weig_val =     new double[8][];
+			this.merged_weig_eq =      new double[8][];
+			this.merged_valid =        new boolean[8][];
 			this.merged_strong_valid = new boolean[8][];
 			return this.merged_eig_val;
 		}
@@ -1755,7 +1766,23 @@ public class TilePlanes {
 		{
 			return this.merged_weig_eq;
 		}
+		public double [][] getLinkCosts()
+		{
+			return this.link_costs;
+		}
+		public double [] getLinkCosts(int dir)
+		{
+			return this.link_costs[dir];
+		}
+		public double getLinkCosts(int dir, int np)
+		{
+			return this.link_costs[dir][np];
+		}
 		
+		public void setLinkCosts(int dir, int plane, double value)
+		{
+			this.link_costs[dir][plane] = value;
+		}
 		
 		public double [] initMergedValue(int dir, int leng)
 		{
@@ -1774,6 +1801,19 @@ public class TilePlanes {
 			return getMergedValue(dir);
 		}
 
+		public double [][] initLinkCosts(){
+			this.link_costs =          new double[8][];
+			return link_costs;
+		}
+		public double [] initLinkCosts(int dir, int leng)
+		{
+			this.link_costs[dir] =            new double[leng];
+			for (int i = 0; i < leng; i++) {
+				this.link_costs[dir][i] =      Double.NaN;
+			}
+			return getLinkCosts(dir);
+		}
+		
 		public double [] getMergedValue(int dir)
 		{
 			if (this.merged_eig_val == null) {

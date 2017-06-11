@@ -3251,6 +3251,11 @@ public class TileProcessor {
 					2, // -1, // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
+			lp.interPlaneCosts( // not used yet, just for testing
+					st.planes, // final TilePlanes.PlaneData [][] planes,			
+					2, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
 
 			lp.filterNeighborPlanes(
 					st.planes, // final TilePlanes.PlaneData [][] planes,
@@ -3698,6 +3703,12 @@ public class TileProcessor {
 					clt_parameters.tileX,
 					clt_parameters.tileY);
 
+			lp.interPlaneCosts( // not used yet, just for testing
+					st.planes, // final TilePlanes.PlaneData [][] planes,			
+					2, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+
 			lp.filterNeighborPlanes(
 					st.planes, // final TilePlanes.PlaneData [][] planes,
 					true, // final boolean merge_low_eigen,
@@ -3769,7 +3780,32 @@ public class TileProcessor {
 					clt_parameters.plPreferDisparity,
 					0, // 1,// 0, // final int debugLevel)
 					clt_parameters.tileX,
-					clt_parameters.tileY); 
+					clt_parameters.tileY);
+			// create costs for the modified planes
+			lp.interPlaneCosts(
+					st.planes_mod, // final TilePlanes.PlaneData [][] planes,			
+					2, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+			lp.setExclusiveLinks(
+					st.planes_mod, // final TilePlanes.PlaneData [][] planes,			
+					2, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+			// once more after updating exclusive links
+			planes_mod = st.planesSmooth(
+					lp,                                           // LinkPlanes       lp,			
+					clt_parameters.plPull,                        // final double      meas_pull,//  relative pull of the original (measured) plane with respect to the average of the neighbors
+					clt_parameters.plMaxEigen,                    // final double      maxValue, // do not combine with too bad planes
+					clt_parameters.plIterations,                  // final int         num_passes,
+					clt_parameters.plStopBad,                     // Do not update supertile if any of connected neighbors is not good (false: just skip that neighbor)
+					clt_parameters.plNormPow,                     // 0.0: 8 neighbors pull 8 times as 1, 1.0 - same as 1
+					Math.pow(10.0,  -clt_parameters.plPrecision), // final double      maxDiff, // maximal change in any of the disparity values
+					clt_parameters.plPreferDisparity,
+					0, // 1,// 0, // final int debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+			
 		} else {
 			st.planes_mod = st.planes; // just use the measured ones
 		}
