@@ -237,7 +237,7 @@ public class TilePlanes {
 			double [] px_py = getCenterPxPy();
 			if (zxy != null) s += String.format("\nzxy =     [%8.3f, %8.3f, %8.3f] (pix)",zxy[0],zxy[1]+px_py[0],zxy[2]+px_py[1]);
 			else  s +=                          "\nzxy =     null";
-			if (values != null)	s += String.format(", values = [%8.3f, %8.3f, %8.3f] pix^2",values[0],values[1],values[2]);
+			if (values != null)	s += String.format(", values = [%8.5f, %8.4f, %8.3f] pix^2",values[0],values[1],values[2]);
 			else  s +=                             " values = null";
 			if (vectors != null) s += String.format("\nvectors = [%8.5f, %8.5f, %8.5f], [%8.5f, %8.5f, %8.5f], [%8.5f, %8.5f, %8.5f]",
 					vectors[0][0],vectors[0][1],vectors[0][2], vectors[1][0],vectors[1][1],vectors[1][2], vectors[2][0],vectors[2][1],vectors[2][2]);
@@ -247,7 +247,7 @@ public class TilePlanes {
 			else s +=                                  " normal =   null";
 			if (wxyz != null)       s += String.format("\nwxyz =    [%8.2f, %8.2f, %8.2f] (m)",wxyz[0],wxyz[1],wxyz[2]);
 			else s +=                                  "\nwxyz =  null";
-			if (wvalues != null)    s += String.format(" wvals = [%8.2f, %8.2f, %8.2f] (m^2)",wvalues[0],wvalues[1],wvalues[2]);
+			if (wvalues != null)    s += String.format(" wvals = [%8.4f, %8.3f, %8.2f] (m^2)",wvalues[0],wvalues[1],wvalues[2]);
 			else  s +=                                 " wvals =  null";
 			if (wvectors != null) s += String.format("\nwvect =   [%8.5f, %8.5f, %8.5f], [%8.5f, %8.5f, %8.5f], [%8.5f, %8.5f, %8.5f]",
 					wvectors[0][0],wvectors[0][1],wvectors[0][2], wvectors[1][0],wvectors[1][1],wvectors[1][2], wvectors[2][0],wvectors[2][1],wvectors[2][2]);
@@ -287,7 +287,30 @@ public class TilePlanes {
 						nonexclusiveStarEq.world_xyz[0],nonexclusiveStarEq.world_xyz[1],nonexclusiveStarEq.world_xyz[2]);
 				else s +=                                  " normal =   null";
 			}
-			s+="\n\n";
+			s+="\n";
+			if (link_costs != null){
+				for (int dir = 0; dir < link_costs.length; dir++){
+					s+=String.format("dir=%d: ", dir);
+					if (link_costs[dir] != null) {
+						int best_np = -1;
+						for (int np = 0; np < link_costs[dir].length; np++){
+							if (!Double.isNaN(link_costs[dir][np]) && ((best_np < 0) || (link_costs[dir][np] < link_costs[dir][best_np]))){
+								best_np = np;
+							}
+						}
+						for (int np = 0; np < link_costs[dir].length; np++){
+							if (np == best_np){
+								s+=String.format("%7.3f[%d] ", link_costs[dir][np],np);
+								
+							} else {
+								s+=String.format("%7.3f    ", link_costs[dir][np]);
+							}
+						}
+					}
+					s+="\n";
+				}
+			}
+			s+="\n";
 			return s;
 		}
 		

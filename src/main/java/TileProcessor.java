@@ -3317,19 +3317,33 @@ public class TileProcessor {
 					clt_parameters.tileX,
 					clt_parameters.tileY);
 
+//			 * Possible problem is that "normalizing" merge quality for low weights is not applicable for "star" plane that include neighhbors
+//			 * Switch to a single "cost" function (costSameTileConnectionsAlt())
+// Still - how to merge stray tiles that do not have neighbors/star? Still merge them "old way"	(costSameTileConnections()) if at least 1 does not
+//			have a "star"
 
 //			double  [][][][][][]  merge_cost_data = 
 					lp.costSameTileConnections(
-					false, // final boolean ignore_weights,
-					1000.0, // final double threshold_worst,
-					1000.0, //final double threshold_world_worst,
-					st.planes, // ffinal TilePlanes.PlaneData [][] planes,
+					st.planes, // final TilePlanes.PlaneData [][] planes,
 					merge_candidates,       // final int [][][] merge_candidates,
 					plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
 					2,                      // -1, // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
 //			System.out.println("merge_cost_data.length = " + merge_cost_data.length);
+					
+					lp.costSameTileConnectionsAlt(
+					5.0,  // final double         threshold,
+					10.0, // final double         threshold_nostar,
+
+					st.planes, // final TilePlanes.PlaneData [][] planes,
+					merge_candidates,       // final int [][][] merge_candidates,
+					plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
+					2,                      // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+					
+					
 			int [][][] merge_groups = lp.extractMergeSameTileGroups(
 					st.planes,              // final TilePlanes.PlaneData [][] planes,
 					merge_candidates,       // final int [][][] merge_candidates,
@@ -3805,6 +3819,12 @@ public class TileProcessor {
 					0, // 1,// 0, // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
+			lp.interPlaneCosts(
+					st.planes_mod, // final TilePlanes.PlaneData [][] planes,			
+					2, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+			// recalculate links? more smooth?
 			
 		} else {
 			st.planes_mod = st.planes; // just use the measured ones
@@ -3824,6 +3844,22 @@ public class TileProcessor {
 					clt_parameters.tileY); 
 
 			int [] wh = st.getShowPlanesWidthHeight();
+			double [][] plane_data_nonan_meas = st.getShowPlanes(
+					        st.getPlanes(),
+							clt_parameters.plMinStrength, //  minWeight,
+							clt_parameters.plMaxEigen, //  maxEigen,
+							clt_parameters.plDispNorm,
+							false, //boolean use_NaN)
+							0.0,
+							10.0);
+			double [][] plane_data_nan_meas = st.getShowPlanes(
+					        st.getPlanes(),
+							clt_parameters.plMinStrength, //  minWeight,
+							clt_parameters.plMaxEigen, //  maxEigen,
+							clt_parameters.plDispNorm,
+							true, //boolean use_NaN)
+							0.0,
+							10.0);
 			double [][] plane_data_nonan = st.getShowPlanes(
 					(planes_mod != null) ? st.getPlanesMod():st.getPlanes(),
 							clt_parameters.plMinStrength, //  minWeight,
@@ -3840,8 +3876,14 @@ public class TileProcessor {
 							true, //boolean use_NaN)
 							0.0,
 							10.0);
-			double [][] plane_data = new double [plane_data_nonan.length + plane_data_nan.length + 3][];
+			double [][] plane_data = new double [plane_data_nonan_meas.length + plane_data_nan_meas.length+ plane_data_nonan.length + plane_data_nan.length + 3][];
 			int indx = 0;
+			for (int i = 0; i < plane_data_nonan_meas.length; i++){
+				plane_data[indx++] = plane_data_nonan_meas[i];
+			}
+			for (int i = 0; i < plane_data_nan_meas.length; i++){
+				plane_data[indx++] = plane_data_nan_meas[i];
+			}
 			for (int i = 0; i < plane_data_nonan.length; i++){
 				plane_data[indx++] = plane_data_nonan[i];
 			}
