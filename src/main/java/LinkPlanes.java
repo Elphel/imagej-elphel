@@ -35,7 +35,8 @@ public class LinkPlanes {
 	public double     plMinStrength; //        =   0.1;  // Minimal total strength of a plane 
 	public double     plMaxEigen; //           =   0.05; // Maximal eigenvalue of a plane 
 	public double     plEigenFloor; //         =   0.01; // Add to eigenvalues of each participating plane and result to validate connections 
-	public double     plEigenStick; //         =   20.0; // Consider plane to be a "stick" if second eigenvalue is below 
+	public double     plEigenStick; //         =   25.0; // Consider plane to be a "stick" if second eigenvalue is below 
+	public double     plBadPlate; //           =   0.2;  // Not a plate if sin^2 between normals from disparity and world exceeds this 
 
 	public double     plWorstWorsening; //     =   2.0;  // Worst case worsening after merge
 	public double     plWorstWorsening2; //    =   5.0;  // Worst case worsening for thin planes
@@ -95,6 +96,7 @@ public class LinkPlanes {
 		plMaxEigen =        clt_parameters.plMaxEigen;
 		plEigenFloor =      clt_parameters.plEigenFloor; 
 		plEigenStick =      clt_parameters.plEigenStick; 
+		plBadPlate =        clt_parameters.plBadPlate;
 		plMinStrength =     clt_parameters.plMinStrength;
 		plMaxOverlap =      clt_parameters.plMaxOverlap;
 		
@@ -473,6 +475,7 @@ public class LinkPlanes {
 	// 2 - composite
 	// 3..7 contribution of each of the factor to the overall cost
 	public double getLinkCost(
+			boolean              en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
 			TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
 			TilePlanes.PlaneData plane2,
 			double               merged_ev,    // if NaN will calculate assuming the same supertile
@@ -484,6 +487,7 @@ public class LinkPlanes {
 		int cost_index = 2;
 		
 		double [] costs = getFitQualities(
+				en_sticks, // boolean              en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
 				plane1, // should belong to the same supertile (or be converted for one)
 				plane2,
 				merged_ev,    // if NaN will calculate assuming the same supertile
@@ -496,6 +500,7 @@ public class LinkPlanes {
 		else return costs[cost_index];
 	}
 	public double [] getFitQualities(
+			boolean              en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
 			TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
 			TilePlanes.PlaneData plane2,
 			double               merged_ev,    // if NaN will calculate assuming the same supertile
@@ -506,6 +511,18 @@ public class LinkPlanes {
 			int debugLevel)
 	{
 		if ((plane1 == null) || (plane2 == null)) return null;
+		boolean plate1 = true;
+		boolean plate2 = true;
+		if (en_sticks) {
+			plate1 &= (plane1.getValues()[1] >=     plEigenStick);
+			plate2 &= (plane1.getValues()[1] >=     plEigenStick);
+			plate1 &= (plane1.checkBadPlate(true) < plBadPlate);
+			plate2 &= (plane2.checkBadPlate(true) < plBadPlate);
+		}
+		if ((debugLevel > 0) && (!plate1 || !plate2)) {
+			System.out.println(prefix+ " plate1="+plate1+", plate1="+plate2+" ("+(plane1.getValues()[1])+", "+plane2.getValues()[1]+" < "+plEigenStick+")"+
+		   " or bad_plate1="+plane1.checkBadPlate(true)+" bad_plate2="+plane2.checkBadPlate(true)+" >= plBadPlate="+plBadPlate);
+		}
 		TilePlanes.PlaneData merged_pd = null;
 		TilePlanes.PlaneData merged_pd_eq = null;
 		if (Double.isNaN(merged_ev) || Double.isNaN(merged_wev)) {
@@ -579,14 +596,25 @@ public class LinkPlanes {
 //		if (this_wrq_eq == 0.01) System.out.println("getFitQualities(): this_wrq_eq was negative");
 		double sin2 = plane1.getWorldSin2(plane2);
 		double rdist2 = plane1.getWorldPlaneRDist2(plane2) + plane2.getWorldPlaneRDist2(plane1);
+		if (!plate2 && plate1){
+			rdist2 = 2 * plane2.getWorldPlaneRDist2(plane1);
+		} else if (plate2 && plate1){
+			rdist2 = 2 * plane1.getWorldPlaneRDist2(plane2);
+		} 
 		double [] costs = {
-				this_rq *     plCostKrq,
-				this_rq_eq *  plCostKrqEq,
-				this_wrq *    plCostWrq,
-				this_wrq_eq * plCostWrqEq,
+				Math.sqrt(this_rq  * this_rq_eq) *  plCostKrq,
+				0.5 *    (this_rq  + this_rq_eq) *  plCostKrqEq,
+				Math.sqrt(this_wrq * this_wrq_eq) * plCostWrq,
+				0.5 *    (this_wrq + this_wrq_eq) * plCostWrqEq,
 				sin2 *        plCostSin2,
 				rdist2 *      plCostRdist2};
-		double cost = costs[0]+costs[1]+costs[2]+costs[3]+costs[4]+costs[5];
+		double cost = costs[0]+costs[1]+costs[2]+costs[3];
+		if (plate1 && plate2){
+			cost += costs[4]; // sin
+		}
+		if (plate1 || plate2){
+			cost += costs[5]; // distance 
+		}
 		double [] qualities = {
 				this_rq,
 				this_rq_eq,
@@ -610,13 +638,13 @@ public class LinkPlanes {
 						((int)(100*qualities[8]))+"%");
 				System.out.println(prefix+
 						" this_rq=" + this_rq+
-						" this_wrq=" + (this_wrq) +
-						" this_wrq_eq=" + (this_wrq_eq) +
-						" this_wrq_raw=" + (this_wrq * (w1+w2)) +
-						" this_wrq_eq_raw=" + (this_wrq_eq * (w1+w2)) +
-						" this_rq_raw="+(this_rq * (w1+w2)) +
 						" this_rq_eq="+(this_rq_eq) +
 						" this_rq_nofloor="+(this_rq_nofloor) +
+						" this_wrq=" + (this_wrq) +
+						" this_wrq_eq=" + (this_wrq_eq) +
+//						" this_wrq_raw=" + (this_wrq * (w1+w2)) +
+//						" this_wrq_eq_raw=" + (this_wrq_eq * (w1+w2)) +
+//						" this_rq_raw="+(this_rq * (w1+w2)) +
 						" w1="+w1+" w2="+w2+
 						" L1="+plane1.getValue()+" L2="+plane2.getValue()+" L="+merged_ev+
 						" L_eq="+merged_ev_eq+
@@ -824,6 +852,7 @@ public class LinkPlanes {
 	 */
 	
 	public void interPlaneCosts(
+			final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
 			final TilePlanes.PlaneData [][] planes,			
 			final int                       debugLevel,
 			final int                       dbg_X,
@@ -871,6 +900,7 @@ public class LinkPlanes {
 																dl-1); // debugLevel);
 														if (other_plane !=null) { // now always, but may add later
 															double link_cost = getLinkCost(
+																	en_sticks, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
 																	this_plane,  // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
 																	other_plane, // TilePlanes.PlaneData plane2,
 																	Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
@@ -1385,6 +1415,7 @@ public class LinkPlanes {
 	}
 	
 	public void setNonExclusive(
+			final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
 			final TilePlanes.PlaneData [][] planes,
 //			final double  center_weight,
 			final int     debugLevel,
@@ -1437,6 +1468,7 @@ public class LinkPlanes {
 													debugLevel - 2); // debugLevel);
 											if (other_plane != null) {
 												costs_dir[np] = getFitQualities(
+														en_sticks, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
 														planes[nsTile0][np0], // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
 														other_plane,          // TilePlanes.PlaneData plane2,
 														Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
@@ -1537,6 +1569,7 @@ public class LinkPlanes {
 
 		this_new_plane.setWeight(0.0); //
 		double num_merged = 0.0; // double to add fractional pull weight of the center
+		double true_num_merged = 0.0;
 		for (int dir = 0; dir < neibs_pd.length; dir++){
 			if (neibs_pd[dir] != null) {
 				TilePlanes.PlaneData other_plane = this_new_plane.getPlaneToThis(
@@ -1561,6 +1594,7 @@ public class LinkPlanes {
 					}
 					if (this_new_plane != null){
 						num_merged += 1.0;
+						true_num_merged += 1.0;
 						// just for debug / calculate
 						this_new_plane.getWorldXYZ(0);
 					}
@@ -1580,6 +1614,7 @@ public class LinkPlanes {
 				double scale = Math.pow(num_merged, normPow);
 				this_new_plane.scaleWeight(1.0/scale);
 				num_merged /=scale;
+				true_num_merged /= scale;
 			}
 			
 			
@@ -1598,11 +1633,13 @@ public class LinkPlanes {
 							center_pd.getPreferDisparity(),
 							debugLevel - 2);                           // int       debugLevel)
 					if (this_new_plane != null){
-						num_merged += center_weight;	// num_merged was 1.0 and weight is averaged over all neighbors 
+						num_merged += center_weight;	// num_merged was 1.0 and weight is averaged over all neighbors
+						true_num_merged += 1.0;
 					}
 				} else {
 					this_new_plane = center_pd.clone();
-					num_merged = 1.0;	
+					num_merged = 1.0;
+					true_num_merged = 1.0;
 				}
 //				if (dl > 0) dbg_img[18] =  this_new_plane.getSinglePlaneDisparity(false);
 			}
@@ -1611,8 +1648,8 @@ public class LinkPlanes {
 			// just for debug / calculate
 			this_new_plane.getWorldXYZ(0);
 			this_new_plane.scaleWeight(1.0/num_merged);
-			double true_num_merged = num_merged - center_weight + 1;
-			this_new_plane.setNumPoints((int) (this_new_plane.getNumPoints()/true_num_merged));
+//			double true_num_merged = num_merged - center_weight + 1;
+			this_new_plane.setNumPoints((int) Math.round(this_new_plane.getNumPoints()/true_num_merged));
 		}
 		
 		return this_new_plane;
@@ -1628,6 +1665,7 @@ public class LinkPlanes {
 	 * @param dbg_Y debug supertile Y coordinate
 	 */
 	public double [][]  selectNeighborPlanesMutual(
+			final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
 			final TilePlanes.PlaneData [][] planes,
 			final int debugLevel,
 			final int dbg_X,
@@ -1644,8 +1682,6 @@ public class LinkPlanes {
 		for (int i = 0; i < nan_plane.length; i++) nan_plane[i] = Double.NaN;
 		final int [][] dirsYX = {{-1, 0},{-1,1},{0,1},{1,1},{1,0},{1,-1},{0,-1},{-1,-1}};
 		final int debug_stile = dbg_Y * stilesX + dbg_X;
-		
-
 		final Thread[] threads = ImageDtt.newThreadArray(st.tileProcessor.threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final AtomicInteger ai_numThread = new AtomicInteger(0);
@@ -1722,6 +1758,7 @@ public class LinkPlanes {
 													if (!other_matched[np] && merge_valid[np]) {
 														String prefix = "selectNeighborPlanesMutual(): nsTile0="+nsTile0+":"+np0+", nsTile="+nsTile+":"+np;
 														qualities[np0][np] = getFitQualities( // {this_rq, this_rq_eq}; 
+																en_sticks, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
 																planes[nsTile0][np0], //TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
 																planes[nsTile][np], //TilePlanes.PlaneData plane2,
 																merge_ev[np],       // double merged_ev,    // if NaN will calculate assuming the same supertile
@@ -2397,53 +2434,118 @@ public class LinkPlanes {
 											Double.NaN, // double merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
 											prefix, // String prefix,
 											dl -1); // int debugLevel)
-										if (!fit1 || !fit2){
-											valid_candidates[nsTile0][np1][np2] = false;
-											valid_candidates[nsTile0][np2][np1] = false;
-											if (dl > -1){
-												System.out.println("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+
-														" REMOVING PAIR, fit1="+fit1+" fit2="+fit2);
-											}
-											
-										} else {
-											if (dl > -1){
-												System.out.println("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+
-														" KEEPING PAIR, fit1="+fit1+" fit2="+fit2);
-											}
-											
+									//										if (!fit1 || !fit2){
+									if (!fit1 && !fit2){
+										valid_candidates[nsTile0][np1][np2] = false;
+										valid_candidates[nsTile0][np2][np1] = false;
+										if (dl > -1){
+											System.out.println("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+
+													" REMOVING PAIR, fit1="+fit1+" fit2="+fit2);
 										}
-										if (dl>0){
-											double [][] costs = new double[2][]; 
-											costs[0] = getFitQualities(
-													planes[nsTile0][np1].getNonexclusiveStarFb(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
-													planes[nsTile0][np2].getNonexclusiveStarFb(),          // TilePlanes.PlaneData plane2,
-													Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
-													Double.NaN, // double               merged_ev_eq, // if NaN will calculate assuming the same supertile
-													Double.NaN, // double               merged_wev,    // if NaN will calculate assuming the same supertile - for world
-													Double.NaN, // double               merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
-													nsTile0+":"+np1+":"+np2,  // String prefix,
-													0); // int debugLevel)
-											costs[1] = getFitQualities(
-													planes[nsTile0][np1].getNonexclusiveStarEqFb(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
-													planes[nsTile0][np2].getNonexclusiveStarEqFb(),          // TilePlanes.PlaneData plane2,
-													Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
-													Double.NaN, // double               merged_ev_eq, // if NaN will calculate assuming the same supertile
-													Double.NaN, // double               merged_wev,    // if NaN will calculate assuming the same supertile - for world
-													Double.NaN, // double               merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
-													nsTile0+":"+np1+":"+np2,  // String prefix,
-													0); // int debugLevel)
-											System.out.println("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs:");
-											System.out.print("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs weighted: ");
-											for (int i = 0; i < costs[0].length;i++) {
-												System.out.print(costs[0][i]+" ");
-											}
-											System.out.println();
-											System.out.print("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs equalized: ");
-											for (int i = 0; i < costs[1].length;i++) {
-												System.out.print(costs[1][i]+" ");
-											}
-											System.out.println();
+
+									} else {
+										if (dl > -1){
+											System.out.println("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+
+													" KEEPING PAIR, fit1="+fit1+" fit2="+fit2);
 										}
+
+									}
+									if (dl>0){
+										double [][] costs = new double[6][]; 
+										costs[0] = getFitQualities(
+												true, // en_sticks, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+												planes[nsTile0][np1].getNonexclusiveStarFb(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
+												planes[nsTile0][np2].getNonexclusiveStarFb(),          // TilePlanes.PlaneData plane2,
+												Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_ev_eq, // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_wev,    // if NaN will calculate assuming the same supertile - for world
+												Double.NaN, // double               merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
+												nsTile0+":"+np1+":"+np2,  // String prefix,
+												dl); // 0); // int debugLevel)
+										costs[1] = getFitQualities(
+												true, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+												planes[nsTile0][np1].getNonexclusiveStarEqFb(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
+												planes[nsTile0][np2].getNonexclusiveStarEqFb(),          // TilePlanes.PlaneData plane2,
+												Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_ev_eq, // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_wev,    // if NaN will calculate assuming the same supertile - for world
+												Double.NaN, // double               merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
+												nsTile0+":"+np1+":"+np2,  // String prefix,
+												dl); // 0); // int debugLevel)
+										costs[2] = getFitQualities(
+												true, // en_sticks, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+												planes[nsTile0][np1].getNonexclusiveStarFb(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
+												planes[nsTile0][np2],          // TilePlanes.PlaneData plane2,
+												Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_ev_eq, // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_wev,    // if NaN will calculate assuming the same supertile - for world
+												Double.NaN, // double               merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
+												nsTile0+":"+np1+":"+np2,  // String prefix,
+												dl); // 0); // int debugLevel)
+										costs[3] = getFitQualities(
+												true, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+												planes[nsTile0][np1].getNonexclusiveStarEqFb(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
+												planes[nsTile0][np2],          // TilePlanes.PlaneData plane2,
+												Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_ev_eq, // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_wev,    // if NaN will calculate assuming the same supertile - for world
+												Double.NaN, // double               merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
+												nsTile0+":"+np1+":"+np2,  // String prefix,
+												dl); // 0); // int debugLevel)
+										costs[4] = getFitQualities(
+												true, // en_sticks, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+												planes[nsTile0][np1], // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
+												planes[nsTile0][np2].getNonexclusiveStarFb(),          // TilePlanes.PlaneData plane2,
+												Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_ev_eq, // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_wev,    // if NaN will calculate assuming the same supertile - for world
+												Double.NaN, // double               merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
+												nsTile0+":"+np1+":"+np2,  // String prefix,
+												dl); // 0); // int debugLevel)
+										costs[5] = getFitQualities(
+												true, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+												planes[nsTile0][np1], // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
+												planes[nsTile0][np2].getNonexclusiveStarEqFb(),          // TilePlanes.PlaneData plane2,
+												Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_ev_eq, // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_wev,    // if NaN will calculate assuming the same supertile - for world
+												Double.NaN, // double               merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
+												nsTile0+":"+np1+":"+np2,  // String prefix,
+												dl); // 0); // int debugLevel)
+
+										System.out.println("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs:");
+										System.out.print("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs weighted: ");
+										for (int i = 0; i < costs[0].length;i++) {
+											System.out.print(costs[0][i]+" ");
+										}
+										System.out.println();
+										System.out.print("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs equalized: ");
+										for (int i = 0; i < costs[1].length;i++) {
+											System.out.print(costs[1][i]+" ");
+										}
+										System.out.println();
+										System.out.print("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs weighted, 1-st star, 2-nd measured: ");
+										for (int i = 0; i < costs[2].length;i++) {
+											System.out.print(costs[2][i]+" ");
+										}
+										System.out.println();
+										System.out.print("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs equalized, 1-st star, 2-nd measured: ");
+										for (int i = 0; i < costs[3].length;i++) {
+											System.out.print(costs[3][i]+" ");
+										}
+										System.out.println();
+										System.out.println();
+										System.out.print("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs weighted, 1-st measured, 2-nd star: ");
+										for (int i = 0; i < costs[4].length;i++) {
+											System.out.print(costs[4][i]+" ");
+										}
+										System.out.println();
+										System.out.print("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs equalized, 1-st measured, 2-nd star: ");
+										for (int i = 0; i < costs[5].length;i++) {
+											System.out.print(costs[5][i]+" ");
+										}
+										System.out.println();
+									}
 								}
 							}
 						}
@@ -2492,6 +2594,7 @@ public class LinkPlanes {
 									String prefix = "costSameTileConnectionsAlt() fit weighted: nsTile0="+nsTile0+" np1="+np1+" np2="+np2;
 									double [] costs = new double[2]; 
 									costs[0] = getLinkCost(
+											true, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
 											planes[nsTile0][np1].getNonexclusiveStarFb(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
 											planes[nsTile0][np2].getNonexclusiveStarFb(),          // TilePlanes.PlaneData plane2,
 											Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
@@ -2499,9 +2602,10 @@ public class LinkPlanes {
 											Double.NaN, // double               merged_wev,    // if NaN will calculate assuming the same supertile - for world
 											Double.NaN, // double               merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
 											prefix,  // String prefix,
-											0); // int debugLevel)
+											dl); // int debugLevel)
 									prefix = "costSameTileConnectionsAlt() fit equal weight: nsTile0="+nsTile0+" np1="+np1+" np2="+np2;
 									costs[1] = getLinkCost(
+											true, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
 											planes[nsTile0][np1].getNonexclusiveStarEqFb(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
 											planes[nsTile0][np2].getNonexclusiveStarEqFb(),          // TilePlanes.PlaneData plane2,
 											Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
@@ -2509,12 +2613,13 @@ public class LinkPlanes {
 											Double.NaN, // double               merged_wev,    // if NaN will calculate assuming the same supertile - for world
 											Double.NaN, // double               merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
 											prefix,  // String prefix,
-											0); // int debugLevel)
+											dl); // int debugLevel)
 									boolean star1 = (planes[nsTile0][np1].getNonexclusiveStar() != null) && (planes[nsTile0][np2].getNonexclusiveStar() != null);
 									boolean star2 = (planes[nsTile0][np1].getNonexclusiveStarEq() != null) && (planes[nsTile0][np2].getNonexclusiveStarEq() != null);
 									boolean fit1 = 	costs[0] < (star1 ? threshold : threshold_nostar);
 									boolean fit2 = 	costs[1] < (star2 ? threshold : threshold_nostar);
-									if (!fit1 || !fit2){
+//									if (!fit1 || !fit2){
+									if (!fit1 && !fit2){
 										valid_candidates[nsTile0][np1][np2] = false;
 										valid_candidates[nsTile0][np2][np1] = false;
 										if (dl > -1){
@@ -2528,8 +2633,9 @@ public class LinkPlanes {
 										}
 									}
 									if (dl>0){
-										double [][] costs0 = new double[2][]; 
+										double [][] costs0 = new double[6][]; 
 										costs0[0] = getFitQualities(
+												true, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
 												planes[nsTile0][np1].getNonexclusiveStarFb(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
 												planes[nsTile0][np2].getNonexclusiveStarFb(),          // TilePlanes.PlaneData plane2,
 												Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
@@ -2537,8 +2643,9 @@ public class LinkPlanes {
 												Double.NaN, // double               merged_wev,    // if NaN will calculate assuming the same supertile - for world
 												Double.NaN, // double               merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
 												nsTile0+":"+np1+":"+np2,  // String prefix,
-												0); // int debugLevel)
+												dl); // int debugLevel)
 										costs0[1] = getFitQualities(
+												true, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
 												planes[nsTile0][np1].getNonexclusiveStarEqFb(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
 												planes[nsTile0][np2].getNonexclusiveStarEqFb(),          // TilePlanes.PlaneData plane2,
 												Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
@@ -2546,7 +2653,85 @@ public class LinkPlanes {
 												Double.NaN, // double               merged_wev,    // if NaN will calculate assuming the same supertile - for world
 												Double.NaN, // double               merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
 												nsTile0+":"+np1+":"+np2,  // String prefix,
-												0); // int debugLevel)
+												dl); // int debugLevel)
+										
+										costs0[2] = getFitQualities(
+												true, // en_sticks, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+												planes[nsTile0][np1].getNonexclusiveStarFb(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
+												planes[nsTile0][np2],          // TilePlanes.PlaneData plane2,
+												Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_ev_eq, // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_wev,    // if NaN will calculate assuming the same supertile - for world
+												Double.NaN, // double               merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
+												nsTile0+":"+np1+":"+np2,  // String prefix,
+												dl); // 0); // int debugLevel)
+										costs0[3] = getFitQualities(
+												true, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+												planes[nsTile0][np1].getNonexclusiveStarEqFb(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
+												planes[nsTile0][np2],          // TilePlanes.PlaneData plane2,
+												Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_ev_eq, // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_wev,    // if NaN will calculate assuming the same supertile - for world
+												Double.NaN, // double               merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
+												nsTile0+":"+np1+":"+np2,  // String prefix,
+												dl); // 0); // int debugLevel)
+										costs0[4] = getFitQualities(
+												true, // en_sticks, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+												planes[nsTile0][np1], // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
+												planes[nsTile0][np2].getNonexclusiveStarFb(),          // TilePlanes.PlaneData plane2,
+												Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_ev_eq, // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_wev,    // if NaN will calculate assuming the same supertile - for world
+												Double.NaN, // double               merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
+												nsTile0+":"+np1+":"+np2,  // String prefix,
+												dl); // 0); // int debugLevel)
+										costs0[5] = getFitQualities(
+												true, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+												planes[nsTile0][np1], // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
+												planes[nsTile0][np2].getNonexclusiveStarEqFb(),          // TilePlanes.PlaneData plane2,
+												Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_ev_eq, // if NaN will calculate assuming the same supertile
+												Double.NaN, // double               merged_wev,    // if NaN will calculate assuming the same supertile - for world
+												Double.NaN, // double               merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
+												nsTile0+":"+np1+":"+np2,  // String prefix,
+												dl); // 0); // int debugLevel)
+
+										System.out.println("costSameTileConnectionsAlt(): nsTile="+nsTile0+":"+np1+":"+np2+" costs:");
+										System.out.print("costSameTileConnectionsAlt(): nsTile="+nsTile0+":"+np1+":"+np2+" costs weighted: ");
+										for (int i = 0; i < costs0[0].length;i++) {
+											System.out.print(costs0[0][i]+" ");
+										}
+										System.out.println();
+										System.out.print("costSameTileConnectionsAlt(): nsTile="+nsTile0+":"+np1+":"+np2+" costs equalized: ");
+										for (int i = 0; i < costs0[1].length;i++) {
+											System.out.print(costs0[1][i]+" ");
+										}
+										System.out.println();
+										System.out.print("costSameTileConnectionsAlt(): nsTile="+nsTile0+":"+np1+":"+np2+" costs weighted, 1-st star, 2-nd measured: ");
+										for (int i = 0; i < costs0[2].length;i++) {
+											System.out.print(costs0[2][i]+" ");
+										}
+										System.out.println();
+										System.out.print("costSameTileConnectionsAlt(): nsTile="+nsTile0+":"+np1+":"+np2+" costs equalized, 1-st star, 2-nd measured: ");
+										for (int i = 0; i < costs0[3].length;i++) {
+											System.out.print(costs0[3][i]+" ");
+										}
+										System.out.println();
+										System.out.println();
+										System.out.print("costSameTileConnectionsAlt(): nsTile="+nsTile0+":"+np1+":"+np2+" costs weighted, 1-st measured, 2-nd star: ");
+										for (int i = 0; i < costs0[4].length;i++) {
+											System.out.print(costs0[4][i]+" ");
+										}
+										System.out.println();
+										System.out.print("costSameTileConnectionsAlt(): nsTile="+nsTile0+":"+np1+":"+np2+" costs equalized, 1-st measured, 2-nd star: ");
+										for (int i = 0; i < costs0[5].length;i++) {
+											System.out.print(costs0[5][i]+" ");
+										}
+										System.out.println();
+										
+										
+										
+										
 										System.out.println("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs:");
 										System.out.print("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs weighted: ");
 										for (int i = 0; i < costs0[0].length;i++) {
@@ -2965,7 +3150,8 @@ public class LinkPlanes {
 												for (Integer np2: group){
 													if ((np2 > np1) && merge_pairs[np1][np2]){
 														String prefix = "extractMergeSameTileGroups() nsTile="+nsTile+" np1="+np1+" np2="+np2;
-														double [] qualities = getFitQualities( // {this_rq, this_rq_eq}; 
+														double [] qualities = getFitQualities( // {this_rq, this_rq_eq};
+																true, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
 																planes[nsTile][np1], //TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
 																planes[nsTile][np2], //TilePlanes.PlaneData plane2,
 																Double.NaN, // double merged_ev,    // if NaN will calculate assuming the same supertile
@@ -3020,6 +3206,7 @@ public class LinkPlanes {
 															if (nooverlap){
 																String prefix = "extractMergeSameTileGroups().2 nsTile="+nsTile+" np="+np;
 																double [] qualities = getFitQualities( // {this_rq, this_rq_eq}; 
+																		true, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
 																		merged_pd, //TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
 																		planes[nsTile][np], //TilePlanes.PlaneData plane2,
 																		Double.NaN, // double merged_ev,    // if NaN will calculate assuming the same supertile

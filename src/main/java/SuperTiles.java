@@ -1122,7 +1122,7 @@ public class SuperTiles{
 		int num_p  = (selections == null) ? 0: selections.length;
 		int num_pm = num_ml * num_p;
 		int num_pd = (planes != null) ? (planes.length - LOWEST_PLANE(planes.length)) : 0; 
-		String [] titles = new String [num_pm + 3 * num_ml + 4 * num_pd];
+		String [] titles = new String [num_pm + 3 * num_ml + 8 * num_pd];
 		for (int np = 0; np < num_p; np++){
 			for (int ml = 0; ml < num_ml; ml++){
 				titles [np * num_ml + ml] = "p"+np+"_l"+ml;
@@ -1137,7 +1137,11 @@ public class SuperTiles{
 			titles [num_pm + 3 * num_ml + 0 * num_pd + npd] = "pd_"+npd;
 			titles [num_pm + 3 * num_ml + 1 * num_pd + npd] = "pdm_"+npd;
 			titles [num_pm + 3 * num_ml + 2 * num_pd + npd] = "pdd_"+npd;
-			titles [num_pm + 3 * num_ml + 3 * num_pd + npd] = "pds_"+npd;
+			titles [num_pm + 3 * num_ml + 3 * num_pd + npd] = "pwd_"+npd;
+			titles [num_pm + 3 * num_ml + 4 * num_pd + npd] = "pds_"+npd;
+			titles [num_pm + 3 * num_ml + 5 * num_pd + npd] = "pws_"+npd;
+			titles [num_pm + 3 * num_ml + 6 * num_pd + npd] = "-pdd_"+npd;
+			titles [num_pm + 3 * num_ml + 7 * num_pd + npd] = "-pwd_"+npd;
 		}
 
 	// TilePlanes.PlaneData	
@@ -1157,7 +1161,7 @@ public class SuperTiles{
 		int num_pm = num_ml * num_p;
 		int num_pd = (planes != null) ? (planes.length - LOWEST_PLANE(planes.length)) : 0; 
 		final double [][] lapWeight = getLapWeights();
-		double [][] data = new double [num_pm + 3 * num_ml + 4 * num_pd ][]; // 4* superTileSize*superTileSize];
+		double [][] data = new double [num_pm + 3 * num_ml + 8 * num_pd ][]; // 4* superTileSize*superTileSize];
 		for (int np = 0; np < num_p; np++) if (selections [np] != null){
 			for (int ml = 0; ml < num_ml; ml++) if ((disp_strength[ml]!=null) && (selections[np][ml] != null)){
 				int nd = np * num_ml + ml; 
@@ -1196,14 +1200,30 @@ public class SuperTiles{
 			
 		}
 		for (int npd = 0; npd < num_pd; npd++) if (planes[npd +LOWEST_PLANE(planes.length)] != null){
-			double [][] ellipsoids = planes[npd +LOWEST_PLANE(planes.length)].getDoublePlaneDisparityStrength(
+/*			double [][] ellipsoids = planes[npd +LOWEST_PLANE(planes.length)].getDoublePlaneDisparityStrength(
 					useWorld,
 					null, // double [] window,
 					true, // boolean   use_sel,
 					true, // boolean   divide_by_area,
 					1.5, // double   scale_projection,
+					1); // int       debugLevel) */
+			double [][] ellipsoids = planes[npd +LOWEST_PLANE(planes.length)].getDoublePlaneDisparityStrength(
+					useWorld,
+					null, // double [] window,
+					-1, // 
+					true, // boolean   use_sel,
+					true, // boolean   divide_by_area,
+					1.5, // double   scale_projection,
+					0.0, // double    fraction_uni,
 					1); // int       debugLevel)
-			
+			double [][] ellipsoidsW = planes[npd +LOWEST_PLANE(planes.length)].getDoublePlaneWorldDisparityStrength(
+					null, // double [] window,
+					-1, // 
+					true, // boolean   use_sel,
+					true, // boolean   divide_by_area,
+					1.5, // double   scale_projection,
+					0.0, // double    fraction_uni,
+					1); // int       debugLevel)
 			data [num_pm + 3 * num_ml + 0 * num_pd + npd] = planes[npd +LOWEST_PLANE(planes.length)].getDoublePlaneDisparity(
 					useWorld,
 					false);
@@ -1219,13 +1239,151 @@ public class SuperTiles{
 					}					
 				}				
 			}	
-			data [num_pm + 3 * num_ml + 2 * num_pd + npd] = ellipsoids[0];
-			data [num_pm + 3 * num_ml + 3 * num_pd + npd] = ellipsoids[1];
+			if (ellipsoids != null) {
+				data [num_pm + 3 * num_ml + 2 * num_pd + npd] = ellipsoids[0];
+				data [num_pm + 3 * num_ml + 4 * num_pd + npd] = ellipsoids[1];
+				data [num_pm + 3 * num_ml + 6 * num_pd + npd] = new double[ntiles];
+				for (int i = 0; i < ntiles; i++) {
+					for (int ml = 0; ml < num_ml; ml++) if ((disp_strength[ml]!=null) && (msel[ml] != null)){
+						if (msel[ml][i] && (disp_strength[ml][1][i] > 0.0)){
+							data [num_pm + 3 * num_ml + 6 * num_pd + npd][i] = disp_strength[ml][0][i] - ellipsoids[0][i]; 
+						} else {
+							data [num_pm + 3 * num_ml + 6 * num_pd + npd][i] = Double.NaN;
+						}
+						break;
+					}
+				}
+			}
+			if (ellipsoidsW != null) {
+				data [num_pm + 3 * num_ml + 3 * num_pd + npd] = ellipsoidsW[0];
+				data [num_pm + 3 * num_ml + 5 * num_pd + npd] = ellipsoidsW[1];
+				data [num_pm + 3 * num_ml + 7 * num_pd + npd] = new double[ntiles];
+				for (int i = 0; i < ntiles; i++) {
+					for (int ml = 0; ml < num_ml; ml++) if ((disp_strength[ml]!=null) && (msel[ml] != null)){
+						if (msel[ml][i] && (disp_strength[ml][1][i] > 0.0)){
+							data [num_pm + 3 * num_ml + 7 * num_pd + npd][i] = disp_strength[ml][0][i] - ellipsoidsW[0][i]; 
+						} else {
+							data [num_pm + 3 * num_ml + 7 * num_pd + npd][i] = Double.NaN;
+						}
+						break;
+					}
+				}
+			}
 		}
-//		public boolean [] getMeasSelection(int nl){
-		
 		return data;
 	}
+	
+	public String [] showSupertileWorldTitles(
+			double [][][]  disp_strength,
+			boolean [][][] selections,
+			TilePlanes.PlaneData [] planes)
+	{
+		int num_p  = selections.length;
+		int num_pd = (planes != null) ? (planes.length - LOWEST_PLANE(planes.length)) : 0; 
+		String [] titles = new String [9 * num_pd];
+		for (int npd = 0; npd < num_pd; npd++){
+			titles [0 * num_pd + npd] = "tile_x_"+npd;
+			titles [1 * num_pd + npd] = "tile_y_"+npd;
+			titles [2 * num_pd + npd] = "tile_z_"+npd;
+			titles [3 * num_pd + npd] = "plane_x_"+npd;
+			titles [4 * num_pd + npd] = "plane_y_"+npd;
+			titles [5 * num_pd + npd] = "plane_z_"+npd;
+			titles [6 * num_pd + npd] = "diff_x_"+npd;
+			titles [7 * num_pd + npd] = "diff_y_"+npd;
+			titles [8 * num_pd + npd] = "diff_z_"+npd;
+		}
+
+	// TilePlanes.PlaneData	
+		return titles;
+	}
+/*	
+	public double [][] showSupertileWorld(
+			double [][][]  disp_strength,
+			boolean [][][] selections,
+			TilePlanes.PlaneData [] planes
+			)
+	{
+		int superTileSize = tileProcessor.getSuperTileSize();
+		int num_ml = disp_strength.length;
+		int num_p  = (selections == null) ? 0: selections.length;
+		int num_pm = num_ml * num_p;
+		int num_pd = (planes != null) ? (planes.length - LOWEST_PLANE(planes.length)) : 0;
+		int ml = 0;
+		for (ml = 0; ml < num_ml; ml++) if (disp_strength[ml]!=null){
+			break;
+		}
+		double [][] data = new double [num_pd][];
+		for (int npd = 0; npd < num_pd; npd++) if (planes[npd +LOWEST_PLANE(planes.length)] != null){
+			double [][] ellipsoids = planes[npd +LOWEST_PLANE(planes.length)].getDoublePlaneDisparityStrength(
+					useWorld,
+					null, // double [] window,
+					-1, // 
+					true, // boolean   use_sel,
+					true, // boolean   divide_by_area,
+					1.5, // double   scale_projection,
+					0.0, // double    fraction_uni,
+					1); // int       debugLevel)
+			double [][] ellipsoidsW = planes[npd +LOWEST_PLANE(planes.length)].getDoublePlaneWorldDisparityStrength(
+					null, // double [] window,
+					-1, // 
+					true, // boolean   use_sel,
+					true, // boolean   divide_by_area,
+					1.5, // double   scale_projection,
+					0.0, // double    fraction_uni,
+					1); // int       debugLevel)
+			data [num_pm + 3 * num_ml + 0 * num_pd + npd] = planes[npd +LOWEST_PLANE(planes.length)].getDoublePlaneDisparity(
+					useWorld,
+					false);
+			
+			boolean [][] msel = planes[npd +LOWEST_PLANE(planes.length)].getMeasSelection();
+			int ntiles = data [num_pm + 3 * num_ml + 0 * num_pd + npd].length; 
+			data [num_pm + 3 * num_ml + 1 * num_pd + npd] = new double [ntiles];
+			for (int i = 0; i < ntiles; i++) {
+				data [num_pm + 3 * num_ml + 1 * num_pd + npd][i] = Double.NaN;
+				for (int ml = 0; ml < num_ml; ml++) if ((disp_strength[ml]!=null) && (msel[ml] != null)){
+					if (msel[ml][i] && (disp_strength[ml][1][i] > 0.0)){
+						data [num_pm + 3 * num_ml + 1 * num_pd + npd][i] = data [num_pm + 3 * num_ml + 0 * num_pd + npd][i];
+					}					
+				}				
+			}	
+			if (ellipsoids != null) {
+				data [num_pm + 3 * num_ml + 2 * num_pd + npd] = ellipsoids[0];
+				data [num_pm + 3 * num_ml + 4 * num_pd + npd] = ellipsoids[1];
+				data [num_pm + 3 * num_ml + 6 * num_pd + npd] = new double[ntiles];
+				for (int i = 0; i < ntiles; i++) {
+					for (int ml = 0; ml < num_ml; ml++) if ((disp_strength[ml]!=null) && (msel[ml] != null)){
+						if (msel[ml][i] && (disp_strength[ml][1][i] > 0.0)){
+							data [num_pm + 3 * num_ml + 6 * num_pd + npd][i] = disp_strength[ml][0][i] - ellipsoids[0][i]; 
+						} else {
+							data [num_pm + 3 * num_ml + 6 * num_pd + npd][i] = Double.NaN;
+						}
+						break;
+					}
+				}
+			}
+			if (ellipsoidsW != null) {
+				data [num_pm + 3 * num_ml + 3 * num_pd + npd] = ellipsoidsW[0];
+				data [num_pm + 3 * num_ml + 5 * num_pd + npd] = ellipsoidsW[1];
+				data [num_pm + 3 * num_ml + 7 * num_pd + npd] = new double[ntiles];
+				for (int i = 0; i < ntiles; i++) {
+					for (int ml = 0; ml < num_ml; ml++) if ((disp_strength[ml]!=null) && (msel[ml] != null)){
+						if (msel[ml][i] && (disp_strength[ml][1][i] > 0.0)){
+							data [num_pm + 3 * num_ml + 7 * num_pd + npd][i] = disp_strength[ml][0][i] - ellipsoidsW[0][i]; 
+						} else {
+							data [num_pm + 3 * num_ml + 7 * num_pd + npd][i] = Double.NaN;
+						}
+						break;
+					}
+				}
+			}
+		}
+		return data;
+	}
+*/	
+	
+	
+	
+	
 	
 	// calculate "tilted" disparity, so planes parallel to the same world plane would have the same disparity
 	// also produces non-tilted, if world_plane_norm == null
@@ -2279,6 +2437,14 @@ public class SuperTiles{
 							}
 							
 							if ((st_planes != null) && (!st_planes.isEmpty())){
+								if (dl > 2) {
+									for (TilePlanes.PlaneData plane:st_planes){
+										plane.getWorldXYZ(0);
+										System.out.println(plane.toString());
+									}
+									// Calculate planes and print results
+								}
+//						this_new_plane.getWorldXYZ(0);
 								
 								if (LOWEST_PLANE(2) > 0) st_planes.add(0, st_planes.get(0)); // insert dummy at pos 0;
 								result_planes[nsTile] = st_planes.toArray(new TilePlanes.PlaneData[0] );
@@ -5831,6 +5997,8 @@ public class SuperTiles{
 											mod_planes[nsTile][neibs[dir]], // neighbor, previous value
 											dl - 1); // debugLevel);
 									costs[dir] = lp.getFitQualities(
+											// there probably be no sticks here after merging
+											false, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
 											this_new_plane, // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
 											other_plane,   // TilePlanes.PlaneData plane2,
 											Double.NaN, // double               merged_ev,    // if NaN will calculate assuming the same supertile
@@ -5863,6 +6031,7 @@ public class SuperTiles{
 								this_new_plane =this_new_plane.clone(); // not to change weight!
 								this_new_plane.setWeight(0.0); //
 								double num_merged = 0.0; // double to add fractional pull weight of the center
+								double true_num_merged = 0.0;
 								for (int dir = 0; dir < neibs.length; dir++){
 									if (neibs[dir] >= 0) {
 										int stx = stx0 + dirsYX[dir][1];
@@ -5885,11 +6054,16 @@ public class SuperTiles{
 														dl - 1); // int       debugLevel)
 												
 											} else {
+												this_new_plane.copyNeib(this_new_plane, other_plane); // keep neighbors of the original center plane
+												this_new_plane.copyStar(this_new_plane, other_plane);
 												this_new_plane = other_plane; // should increment num_merged
 												this_new_plane.scaleWeight(weights[dir]);
+												this_new_plane.invalidateCalculated();
 											}
 											if (this_new_plane != null){
 												num_merged += 1.0;
+												true_num_merged += 1.0;
+
 												// just for debug / calculate
 												this_new_plane.getWorldXYZ(0);
 											}
@@ -5908,6 +6082,8 @@ public class SuperTiles{
 										double scale = Math.pow(num_merged, normPow);
 										this_new_plane.scaleWeight(1.0/scale);
 										num_merged /=scale;
+										true_num_merged /= scale;
+
 									}
 									
 									if (    (meas_pull > 0.0) &&
@@ -5929,25 +6105,34 @@ public class SuperTiles{
 													preferDisparity,
 													dl - 1);                           // int       debugLevel)
 											if (this_new_plane != null){
-												num_merged += meas_pull;	// num_merged was 1.0 and weight is averaged over all neighbors 
+												num_merged += meas_pull;	// num_merged was 1.0 and weight is averaged over all neighbors
+												true_num_merged += 1.0;
 											}
 										} else {
 											this_new_plane = measured_planes[nsTile0][np0].clone();
-											num_merged = 1.0;	
+											num_merged = 1.0;
+											true_num_merged = 1.0;
 										}
 										new_planes[nsTile0][np0] = this_new_plane;
 										if (dl > 0) dbg_img[18] =  this_new_plane.getSinglePlaneDisparity(false);
 									}
 									if ((num_merged > 0.0) && (this_new_plane != null)){
 										this_new_plane.scaleWeight(1.0/num_merged);
-										double true_num_merged = num_merged - meas_pull + 1;
+//										double true_num_merged = num_merged - meas_pull + 1;
 										this_new_plane.setNumPoints((int) (this_new_plane.getNumPoints()/true_num_merged));
 									}
 									// Revert if the result value is higher than imposed maximum
 									if ((this_new_plane.getValue() > maxValue)  && (maxValue != 0)){ // TODO: Set more relaxed here?
+										if (dl > -1){
+											System.out.println("planesSmoothStep nsTile0="+nsTile0+" smoothed plane is too thick, using previous one");
+											dbg_img = new double [titles.length][];
+										}
 										this_new_plane = mod_planes[nsTile0][np0].clone();
 										new_planes[nsTile0][np0] = this_new_plane;
 									}
+//									Use non-exclusive
+									
+									
 									// just for debug / calculate 
 									this_new_plane.getWorldXYZ(0);
 									// calculate largest disparity difference between old and new plane
@@ -6908,6 +7093,7 @@ public class SuperTiles{
 			final double dispNorm,
 			final double maxEigen, // maximal eigenvalue of planes to consider
 			final double minWeight, // minimal pain weight to consider
+			final boolean weak_connected, // select connected planes even if they are weak/thick
 			TilePlanes.PlaneData [][] planes)
 	{
 		final int tilesX =        tileProcessor.getTilesX();
@@ -6923,14 +7109,26 @@ public class SuperTiles{
 				if (planes[nsTile] != null) {
 					selection[nsTile] = new boolean [planes[nsTile].length];
 					for (int np = 0; np < planes[nsTile].length; np++){
-						if ((planes[nsTile][np] != null) && (planes[nsTile][np].getWeight() >= minWeight)){
-							//&& (planes[nsTile][np].getValue() < maxEigen)){
-							double eigVal = planes[nsTile][np].getValue();
-							double disp = planes[nsTile][np].getZxy()[0];
-							selection[nsTile][np] = (eigVal < corrMaxEigen(
-									maxEigen,
-									dispNorm,
-									disp));
+//						if ((planes[nsTile][np] != null) && (planes[nsTile][np].getWeight() >= minWeight)){
+						if (planes[nsTile][np] != null){
+							boolean has_conn = false;
+							for (int dir = 0; dir < 8; dir++){
+								if (planes[nsTile][np].getNeibBest(dir) >= 0){
+									has_conn = true;
+									break;
+								}
+							}
+							if (weak_connected && has_conn) {
+								selection[nsTile][np] = true;
+							} else if  (planes[nsTile][np].getWeight() >= minWeight) {
+								//&& (planes[nsTile][np].getValue() < maxEigen)){
+								double eigVal = planes[nsTile][np].getValue();
+								double disp = planes[nsTile][np].getZxy()[0];
+								selection[nsTile][np] = (eigVal < corrMaxEigen(
+										maxEigen,
+										dispNorm,
+										disp));
+							}
 						}
 					}
 				}

@@ -160,6 +160,19 @@ public class TileNeibs{
 		}
 		return -1; // should not happen
 	}
+	public void shrinkSelection(
+			int        shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+			boolean [] tiles,
+			boolean [] prohibit)
+	{
+		boolean [] itiles = new boolean [tiles.length];
+		for (int i = 0; i < tiles.length; i++) itiles[i] = !tiles[i];
+		growSelection(
+				shrink,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				itiles,
+				prohibit);
+		for (int i = 0; i < tiles.length; i++) tiles[i] = !itiles[i];
+	}
 	
 	public void growSelection(
 			int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more

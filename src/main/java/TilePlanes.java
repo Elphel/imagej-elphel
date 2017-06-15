@@ -63,7 +63,7 @@ public class TilePlanes {
 		double []   center_xyz = null; // center of this this "plane" (ellipsoid) center in world coordinates
 		double []   world_xyz =  null; // world coordinates of the nearest point of the plane, in meters
 		double []   world_v1 =   null; // world in-plane vector, corresponding to vectors[1] 
-		double []   world_v2 =   null; // world in-plane vector, corresponding to vectors[1]
+		double []   world_v2 =   null; // world in-plane vector, corresponding to vectors[2]
 //		double []   daxy      =  null; // disparity and 2 relative angles (ax and ay) corresponding to fisheye view, near (0,0) scale is pixel size
 		// for now keeping both weighted and equal weight merged value - later remove less useful
 		double [][] merged_eig_val = null; // for each of the directions (N, NE, .. NW) quality match for each layer 
@@ -161,15 +161,17 @@ public class TilePlanes {
 			pd.preferDisparity =       this.preferDisparity;
 			
 			copyNeib(this,pd);
-			
+			copyStar(this,pd);
+/*			
 			if (starValueWeight != null){
 				pd.starValueWeight = starValueWeight.clone();
 			}
 			if (this.starPlane !=          null) pd.starPlane =          this.starPlane;
 			if (this.nonexclusiveStar !=   null) pd.nonexclusiveStar =   this.nonexclusiveStar;
 			if (this.nonexclusiveStarEq != null) pd.nonexclusiveStarEq = this.nonexclusiveStarEq;
-
-			pd.conn_density =      this.conn_density;
+			pd.conn_density =          this.conn_density;
+*/
+			pd.num_points =            this.num_points; // restore, maybe remove from copy_neib? 
 //			
 			if (this.wxyz != null)        pd.wxyz =        this.wxyz.clone();
 
@@ -211,16 +213,57 @@ public class TilePlanes {
 			return s;
 			
 		}
-		public boolean isHorizontal(){
+/*		
+		public boolean isHorizontalW(){
 			if (wvectors != null){
-				return (Math.abs(wvectors[0][1]) > 0.99);
+				return (Math.abs(wvectors[0][1]) > 0.99) && (checkBadPlate(false) < 0.2);
 			}
 			return false;
 		}
+*/		
+		public boolean isHorizontal(){
+			if (world_xyz != null){
+				double norm = world_xyz[1] / Math.sqrt(world_xyz[0]*world_xyz[0] + world_xyz[1]*world_xyz[1] + world_xyz[2]*world_xyz[2]); 
+				return (Math.abs(norm) > 0.99) && (checkBadPlate(false) < 0.2);
+			}
+			return false;
+		}
+
 		public double get2dRatio(){
 			if (wvalues != null) return Math.sqrt(wvalues[1]/wvalues[0]);
 			return Double.NaN;
 		}
+		/**
+		 * Verify plane normal in real world and calculated from pixels/disparity
+		 * Use to check consistency
+		 * @return sin squared of the angle between 2 normals, or NaN if there is no data to calculate it
+		 */
+		public double checkBadPlate(boolean force)
+		{
+			if (!force && (world_xyz == null)) return Double.NaN;
+			if (wvectors == null) return Double.NaN;
+			Matrix norm_disp =  new Matrix(this.getWorldXYZ(this.correctDistortions, 0),3); // normal to plane from disparity space
+			Matrix norm_world =  new Matrix(wvectors[0],3); // normal to plane from disparity space
+			Matrix cp = cross3d(norm_disp, norm_world);
+			double cp2 = cp.transpose().times(cp).get(0, 0);
+			double this_wv2 = norm_disp.transpose().times(norm_disp).get(0, 0);
+			double other_wv2 = norm_world.transpose().times(norm_world).get(0, 0);
+			return cp2/(this_wv2 * other_wv2);
+		}
+		
+		public double checkBadStick(boolean force)
+		{
+			if (!force && (world_xyz == null)) return Double.NaN;
+			if (wvectors == null) return Double.NaN;
+			Matrix long_disp =  new Matrix(this.getWorldV12(true,this.correctDistortions, 0),3); // normal to plane from disparity space
+			Matrix long_world =  new Matrix(wvectors[2],3); // normal to plane from disparity space
+			Matrix cp = cross3d(long_disp, long_world);
+			double cp2 = cp.transpose().times(cp).get(0, 0);
+			double this_wv2 = long_disp.transpose().times(long_disp).get(0, 0);
+			double other_wv2 = long_world.transpose().times(long_world).get(0, 0);
+			return cp2/(this_wv2 * other_wv2);
+		}
+		
 		public String toString()
 		{
 			
@@ -243,8 +286,21 @@ public class TilePlanes {
 					vectors[0][0],vectors[0][1],vectors[0][2], vectors[1][0],vectors[1][1],vectors[1][2], vectors[2][0],vectors[2][1],vectors[2][2]);
 			if (center_xyz != null) s += String.format("\ncenter =  [%8.2f, %8.2f, %8.2f]",center_xyz[0],center_xyz[1],center_xyz[2]);
 			else  s +=                                 "\ncenter =   null";
+			
 			if (world_xyz != null)  s += String.format(" normal = [%8.2f, %8.2f, %8.2f] (m)",world_xyz[0],world_xyz[1],world_xyz[2]);
 			else s +=                                  " normal =   null";
+			
+			double bad_plate = checkBadPlate(false);
+			if (!Double.isNaN(bad_plate)){
+				s+=String.format(" bad_plate=%6.4f", bad_plate);
+			}
+			double bad_stick = checkBadStick(false);
+			if (!Double.isNaN(bad_plate)){
+				s+=String.format(" bad_stick=%6.4f", bad_stick);
+			}
+			double [] world_xyz_w = getWorldXYZFromWorld();
+			if (world_xyz_w != null) s += String.format("\n%34s world normal = [%8.2f, %8.2f, %8.2f] (m)","",world_xyz_w[0],world_xyz_w[1],world_xyz_w[2]);
+
 			if (wxyz != null)       s += String.format("\nwxyz =    [%8.2f, %8.2f, %8.2f] (m)",wxyz[0],wxyz[1],wxyz[2]);
 			else s +=                                  "\nwxyz =  null";
 			if (wvalues != null)    s += String.format(" wvals = [%8.4f, %8.3f, %8.2f] (m^2)",wvalues[0],wvalues[1],wvalues[2]);
@@ -268,6 +324,15 @@ public class TilePlanes {
 				if (nonexclusiveStar.world_xyz != null)  s += String.format(" normal = [%8.2f, %8.2f, %8.2f] (m)",
 						nonexclusiveStar.world_xyz[0],nonexclusiveStar.world_xyz[1],nonexclusiveStar.world_xyz[2]);
 				else s +=                                  " normal =   null";
+				bad_plate = nonexclusiveStar.checkBadPlate(false);
+				if (!Double.isNaN(bad_plate)){
+					s+=String.format(" bad_plate=%6.4f", bad_plate);
+				}
+				bad_stick = nonexclusiveStar.checkBadStick(false);
+				if (!Double.isNaN(bad_plate)){
+					s+=String.format(" bad_stick=%6.4f", bad_stick);
+				}
+				
 			}
 			if (nonexclusiveStarEq != null){
 				s+= "\nequalized:";
@@ -286,6 +351,14 @@ public class TilePlanes {
 				if (nonexclusiveStarEq.world_xyz != null)  s += String.format(" normal = [%8.2f, %8.2f, %8.2f] (m)",
 						nonexclusiveStarEq.world_xyz[0],nonexclusiveStarEq.world_xyz[1],nonexclusiveStarEq.world_xyz[2]);
 				else s +=                                  " normal =   null";
+				bad_plate = nonexclusiveStarEq.checkBadPlate(false);
+				if (!Double.isNaN(bad_plate)){
+					s+=String.format(" bad_plate=%6.4f", bad_plate);
+				}
+				bad_stick = nonexclusiveStarEq.checkBadStick(false);
+				if (!Double.isNaN(bad_plate)){
+					s+=String.format(" bad_stick=%6.4f", bad_stick);
+				}
 			}
 			s+="\n";
 			if (link_costs != null){
@@ -310,7 +383,7 @@ public class TilePlanes {
 					s+="\n";
 				}
 			}
-			s+="\n";
+//			s+="\n";
 			return s;
 		}
 		
@@ -446,6 +519,21 @@ public class TilePlanes {
 			return this.measuredLayers;
 		}
 		
+		public void copyStar(
+				PlaneData src,
+				PlaneData dst)
+
+		
+		{
+			if (src.starValueWeight != null){
+				dst.starValueWeight = src.starValueWeight.clone();
+			}
+			if (src.starPlane !=          null) dst.starPlane =          src.starPlane;
+			if (src.nonexclusiveStar !=   null) dst.nonexclusiveStar =   src.nonexclusiveStar;
+			if (src.nonexclusiveStarEq != null) dst.nonexclusiveStarEq = src.nonexclusiveStarEq;
+			dst.conn_density =          src.conn_density;
+		}
+		
 		public void copyNeib(
 				PlaneData src,
 				PlaneData dst)
@@ -518,7 +606,7 @@ public class TilePlanes {
 			
 			// also copy original plane parameters - tile selection and number of points
 			
-			dst.num_points = src.num_points; 
+//			dst.num_points = src.num_points; 
 			if (src.plane_sel != null)  dst.plane_sel =  src.plane_sel.clone(); 
 		}
 		
@@ -1542,7 +1630,7 @@ public class TilePlanes {
 					}
 					
 					
-					if ((debugLevel > 3) && (disp_str[nl] != null)){
+					if ((debugLevel > 2) && (disp_str[nl] != null)){
 //					if ((debugLevel > 1) && (disp_str[nl] != null)){
 						  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
 						  double [][] dbg_img = new double [3][];
@@ -1557,6 +1645,7 @@ public class TilePlanes {
 				}
 			}
 			this.measuredSelection =      tile_sel; // it may be modified			
+			
 			
 			if ((sw < min_weight) || (num_tiles < min_tiles)) {
 				if (debugLevel > 1){
@@ -1602,6 +1691,24 @@ public class TilePlanes {
 								// end of difference from getPlaneFromMeas
 							}
 						}
+					}
+					if ((debugLevel > 3) && (disp_str[nl] != null)){
+						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+						double [][] dbg_img = new double [4][stSize2*stSize2];
+						for (int indx = 0; indx < dbg_img[0].length; indx++){
+							if (tiles_xyzw[nl][indx] != null) {
+							dbg_img[0][indx] = tiles_xyzw[nl][indx][0];
+							dbg_img[1][indx] = tiles_xyzw[nl][indx][1];
+							dbg_img[2][indx] = tiles_xyzw[nl][indx][2];
+							dbg_img[3][indx] = tiles_xyzw[nl][indx][3];
+							} else {
+								dbg_img[0][indx] = Double.NaN;
+								dbg_img[1][indx] = Double.NaN;
+								dbg_img[2][indx] = Double.NaN;
+								dbg_img[3][indx] = Double.NaN;
+							}
+						}
+						sdfa_instance.showArrays(dbg_img,  stSize2, stSize2, true, "world_x"+sTileXY[0]+"_y"+sTileXY[1]+"_"+nl);
 					}
 				}
 			}
@@ -2173,6 +2280,9 @@ public class TilePlanes {
 			return num_points;
 		}
 		public void setNumPoints(int num_points) {
+			if (num_points < 0){
+				System.out.println("setNumPoints(): Setting negative number of tiles in a plane: "+num_points);
+			}
 			this.num_points = num_points;
 		}
 		public double getWeight() {
@@ -2376,13 +2486,13 @@ public class TilePlanes {
 			return plane;
 		}
 
-		public double[][] getDoublePlaneDisparityStrength(
+		public double[][] getDoublePlaneDisparityStrengthOld(
 				double [] window,
 				boolean   use_sel,
 				boolean   divide_by_area,
 				double    scale_projection,
 				int       debugLevel)
-		{		return getDoublePlaneDisparityStrength(
+		{		return getDoublePlaneDisparityStrengthOld(
 				true,
 				window,
 				use_sel,
@@ -2425,7 +2535,7 @@ public class TilePlanes {
 		 * @return a pair of arrays {disparity, strength}, each [2*superTileSize * 2*superTileSize]
 		 */
 		// obsolete, convert to another version ?
-		public double[][] getDoublePlaneDisparityStrength(
+		public double[][] getDoublePlaneDisparityStrengthOld(
 				boolean   useWorld,
 				double [] window,
 				boolean   use_sel,
@@ -2544,6 +2654,16 @@ public class TilePlanes {
 				double    fraction_uni,
 				int       debugLevel)
 		{
+			return  getDoublePlaneDisparityStrength(
+					useWorld ? getWorldXYZ(this.correctDistortions) : null, // will calculate if not yet done so. Should it use otherPd, not pd? and then clone later?
+					window,
+					dir,
+					use_sel,
+					divide_by_area,
+					scale_projection,
+					fraction_uni,
+					debugLevel);
+			/*
 			double [][] disp_strength = new double[2][4*superTileSize*superTileSize];
 			double [] normal = getVector();
 			double [] zxy =    getZxy(); // {disparity, x center in pixels, y center in pixels (relative to a supertile center)
@@ -2615,8 +2735,151 @@ public class TilePlanes {
 				}
 			}
 			return disp_strength;
+*/			
+		}
+		
+		public double [] getWorldXYZFromWorld()
+		{
+			double []   wxyz = getWxyz();
+			double [][] wvectors = getWVectors();
+			if ((wxyz == null) || (wvectors == null)  || (wvectors[0] == null)) return null;
+			double normal_dot_normal = 0.0; // supposed to be unit length, but we'll still re-normalize it
+			double center_dot_normal = 0.0;
+			for (int i = 0; i < 3; i++){
+				normal_dot_normal += wvectors[0][i] *  wvectors[0][i];
+				center_dot_normal += wxyz[i] *  wvectors[0][i];
+			}
+			double scale = center_dot_normal / normal_dot_normal; 
+			double [] rslt = wvectors[0].clone();
+			for (int i = 0; i < 3; i++){
+				rslt[i] *= scale;
+			}
+			return rslt;
+		}
+		
+		public double[][] getDoublePlaneWorldDisparityStrength(
+				double [] window,
+				int       dir,
+				boolean   use_sel,
+				boolean   divide_by_area,
+				double    scale_projection,
+				double    fraction_uni,
+				int       debugLevel)
+		{
+			
+			return  getDoublePlaneDisparityStrength(
+					getWorldXYZFromWorld(),
+					window,
+					dir,
+					use_sel,
+					divide_by_area,
+					scale_projection,
+					fraction_uni,
+					debugLevel);
+		}
+		
+		/**
+		 * Get disparity values for the tiles of this overlapping supertile as [2*superTileSize * 2*superTileSize] array
+		 * and weights combined from provided window function, optional selection and using ellipsoid projection on the
+		 * px, py plane (constant disparity
+		 * Sharp weights - when selecting the best match - use exponent of (delta_disp) ^2 ?
+		 * Or divide weight by ellipse area?
+		 * @param world_normal Noral vector to the plane from the origin, or null to stay in pixel/disparity space.
+		 * @param window null or window function as [2*superTileSize * 2*superTileSize] array
+		 * @param dir - source tile shift from the target: -1 center, 0 - N, 1 - NE
+		 * @param use_sel use plane selection (this.sel_mask) to select only some part of the plane
+		 * @param divide_by_area divide weights by ellipsoid area
+		 * @param scale_projection use plane ellipsoid projection for weight: 0 - do not use, > 0 linearly scale ellipsoid 
+		 * @param fraction_uni add fraction of the total weight to each tile
+		 * @return a pair of arrays {disparity, strength}, each [2 * superTileSize * 2 * superTileSize], only 1/2 or 1/4 used for offset tiles\
+		 * TODO: add a combination of the ellipses and infinite planes?
+		 * 
+		 */
+		public double[][] getDoublePlaneDisparityStrength(
+				double [] world_normal, // either real world normal vector from (0,0,0) to the plane or null, in that case will stay n disparity space
+				double [] window,
+				int       dir,
+				boolean   use_sel,
+				boolean   divide_by_area,
+				double    scale_projection,
+				double    fraction_uni,
+				int       debugLevel)
+		{
+			double [][] disp_strength = new double[2][4*superTileSize*superTileSize];
+			double [] normal = getVector();
+			double [] zxy =    getZxy(); // {disparity, x center in pixels, y center in pixels (relative to a supertile center)
+			double    weight = getWeight();
+			double k_gauss = 0;
+			Matrix val2d = null, vect2d = null;
+			if (scale_projection > 0.0){
+				EigenvalueDecomposition eig = get2dDecomposition();
+				val2d = eig.getD();
+				vect2d = eig.getV().transpose();
+				k_gauss = 0.5/(scale_projection*scale_projection);
+				if (divide_by_area) {
+					double area = Math.sqrt(val2d.get(0, 0)*val2d.get(1, 1));
+					if (area > 0){
+						weight /= area;
+					}
+				}
+			}
+			int ss2 = superTileSize;
+			int ss4 = 2 * superTileSize;
+			
+			
+			int [][] offsets = {
+					// ymin, ymax, xmin,xmax, offsy, offsx
+					{  0, ss4,   0, ss4,    0,    0 },  // center	
+					{ss2, ss4,   0, ss4, -ss2,    0 },  // N	
+					{ss2, ss4,   0, ss2, -ss2,  ss2 },  // NE	
+					{  0, ss4,   0, ss2,    0,  ss2 },  // E	
+					{  0, ss2,   0, ss2,  ss2,  ss2 },  // SE	
+					{  0, ss2,   0, ss4,  ss2,    0 },  // S	
+					{  0, ss2, ss2, ss4,  ss2, -ss2 },  // SW	
+					{  0, ss4, ss2, ss4,    0, -ss2 },  // W	
+					{ss2, ss4, ss2, ss4, -ss2, -ss2 }}; // NW
+			int dir1 = dir + 1;
+			double [] pxyc = getCenterPxPy(); // center of this supertile, not plane center 
+			for (int iy = offsets[dir1][0]; iy < offsets[dir1][1]; iy++){
+				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
+				// pixel 31 and pixel 32 (counting from 0) in both directions
+				double y = tileSize * (iy - ss2 + 0.5) + 0.5  - zxy[2];
+				int oy = iy + offsets[dir1][4]; //vert index in the result tile
+				for (int ix = offsets[dir1][2]; ix < offsets[dir1][3]; ix++){
+					double x = tileSize * (ix - ss2 + 0.5) + 0.5 - zxy[1];
+					int indx = ss4 * oy + ix + offsets[dir1][5];
+					int indx_i = iy * ss4 + ix; // input index
+					if (world_normal != null) {
+						disp_strength[0][indx] = geometryCorrection.getPlaneDisparity( // disparity (at this center) for crossing other supertile plane
+								world_normal,
+								x + pxyc[0] + zxy[1],
+								y + pxyc[1] + zxy[2],
+								this.correctDistortions);
+					} else {
+						disp_strength[0][indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
+					}
+					double w = weight;
+					if ((w > 0.0) && (scale_projection > 0.0)){
+						double [] xy = {x,y};
+						Matrix vxy = vect2d.times(new Matrix(xy,2)); // verify if it is correct
+						double r2 = 0; 
+						for (int i = 0; i <2; i++){
+							double d = vxy.get(i,0);
+							r2 += d * d / val2d.get(i, i);
+						}
+						w *= ((1.0 - fraction_uni) * Math.exp(-k_gauss*r2) + fraction_uni);
+						
+						if (window != null) w *= window[indx_i];
+						if (use_sel && (sel_mask != null) && !(sel_mask[indx_i])) w = 0.0;
+					}					
+					disp_strength[1][indx] = w;
+				}
+			}
+			return disp_strength;
 		}
 
+		
+		
 		public double[][] getSinglePlaneDisparityStrength(
 				double [] window,
 				int       dir,
@@ -3528,10 +3791,10 @@ public class TilePlanes {
 				double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 				int          debugLevel)
 		{
-			
+
 			// first make a plane from all tiles
 			ArrayList<PlaneData> st_planes = new ArrayList<PlaneData>();
-			
+
 			// iterate through all plane selections
 			for (int ps = 0; ps < plane_selections.length; ps++) {
 				PlaneData pd = this.clone(); 
@@ -3543,10 +3806,10 @@ public class TilePlanes {
 						dispNorm,    // 0.0,            // plDispNorm,  // double       dispNorm,   //  Normalize disparities to the average if above
 						0.0,            // double       min_weight,
 						min_tiles,    // int          min_tiles,
-						
+
 						strength_floor, // 
 						strength_pow,   // double       strength_pow,
-						
+
 						// update !
 						smplMode,
 						smplSide,
@@ -3583,7 +3846,7 @@ public class TilePlanes {
 							continue;
 						}
 						if (debugLevel > 0) {
-							if (pd.getWeight() > 1.0) {
+							if (pd.getWeight() > 0.0) { // 1.0) {
 								System.out.println("Removed outliers "+ suffix +
 										", numPoints="+ pd.getNumPoints()+
 										", swc = "+pd.getWeight()+
@@ -3602,22 +3865,23 @@ public class TilePlanes {
 
 					}
 					// calculate the world planes too									
-						pd.getWorldPlaneFromMeas(
-								plane_selections[ps], // tile_sel,       // boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
-								disp_strength,
-								Double.NaN,    // double       disp_far, // minimal disparity to select (or NaN)
-								Double.NaN,    // double       disp_near, // maximal disparity to select (or NaN)
-								dispNorm,      // 0.0,            // plDispNorm,  // double       dispNorm,   //  Normalize disparities to the average if above
-								0.0,            // double       min_weight,
-								min_tiles,      // int          min_tiles,
-								strength_floor, // 
-								strength_pow,   // double       strength_pow,
-								// update !
-								smplMode,
-								smplSide,
-								smplNum,
-								smplRms,
-								debugLevel);
+					pd.getWorldPlaneFromMeas(
+							// use current selection, possibly reduced after removeOutliers()
+							null, // plane_selections[ps], // tile_sel,       // boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
+							disp_strength,
+							Double.NaN,    // double       disp_far, // minimal disparity to select (or NaN)
+							Double.NaN,    // double       disp_near, // maximal disparity to select (or NaN)
+							dispNorm,      // 0.0,            // plDispNorm,  // double       dispNorm,   //  Normalize disparities to the average if above
+							0.0,            // double       min_weight,
+							min_tiles,      // int          min_tiles,
+							strength_floor, // 
+							strength_pow,   // double       strength_pow,
+							// update !
+							smplMode,
+							smplSide,
+							smplNum,
+							smplRms,
+							debugLevel);
 				}
 			}
 			if (st_planes.size() > 0){

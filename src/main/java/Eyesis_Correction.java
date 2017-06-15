@@ -499,7 +499,7 @@ private Panel panel1,
 			addButton("CLT process files",         panelClt1, color_process);
 			addButton("CLT process sets",          panelClt1, color_process);
 			addButton("CLT process quads",         panelClt1, color_process);
-			addButton("CLT process corr",          panelClt1, color_process);
+			addButton("CLT process corr",          panelClt1, color_conf_process);
 			addButton("CLT disparity scan",        panelClt1, color_conf_process);
 			addButton("CLT reset fine corr",       panelClt1, color_stop);
 			addButton("CLT show fine corr",        panelClt1, color_configure);

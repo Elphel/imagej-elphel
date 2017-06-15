@@ -3170,9 +3170,13 @@ public class TileSurface {
 										if (grown_cluster[neTile1] == null) {
 											int nSurfTile1 = surf_indices[neTile1];
 											// should never be null as it is connected from nSurfTile0
-											grown_cluster[neTile1] = new boolean [tileData[nSurfTile1].length];
+											if (nSurfTile1 >=0) {
+												grown_cluster[neTile1] = new boolean [tileData[nSurfTile1].length]; // out_of_bounds
+											}
 										}
-										grown_cluster[neTile1][nl1] = true;
+										if(grown_cluster[neTile1] != null){
+											grown_cluster[neTile1][nl1] = true;
+										}
 									}
 								}
 							}

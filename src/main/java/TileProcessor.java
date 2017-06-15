@@ -881,6 +881,9 @@ public class TileProcessor {
 		CLTPass3d bgnd_data = clt_3d_passes.get(0); 
 		//		  double [][][][] texture_tiles = bgnd_data.texture_tiles;
 		double [][]     disparity_map=  bgnd_data.disparity_map;
+		double [] dbg_worst2 = new double [disparity_map[ImageDtt.IMG_DIFF0_INDEX].length];
+		final TileNeibs tnSurface = new TileNeibs(tilesX, tilesY);
+
 		for (int tileY = 0; tileY < tilesY; tileY++){
 			for (int tileX = 0; tileX < tilesX; tileX++){
 				int tindx = tileY * tilesX + tileX;
@@ -898,15 +901,41 @@ public class TileProcessor {
 				}
 				// see if the second worst variation exceeds sure_smth (like a window), really close object
 				int imax1 = 0;
+				double worst1 = 0.0;
+				// modified to look around for the 1-st maximum
 				for (int i = 1; i< quad; i++){
-					if (disparity_map[ImageDtt.IMG_DIFF0_INDEX+i][tindx] > disparity_map[ImageDtt.IMG_DIFF0_INDEX + imax1][tindx]) imax1 = i;
+//					if (disparity_map[ImageDtt.IMG_DIFF0_INDEX+i][tindx] > disparity_map[ImageDtt.IMG_DIFF0_INDEX + imax1][tindx]){
+					if (disparity_map[ImageDtt.IMG_DIFF0_INDEX+i][tindx] > worst1){
+						imax1 = i;
+						worst1 = disparity_map[ImageDtt.IMG_DIFF0_INDEX+i][tindx];
+					}
+					for (int dir =0; dir < 8; dir++){
+						int dtindx = tnSurface.getNeibIndex(tindx, dir);
+						if (dtindx >= 0){
+							if (disparity_map[ImageDtt.IMG_DIFF0_INDEX+i][dtindx] > worst1){
+								imax1 = i;
+								worst1 = disparity_map[ImageDtt.IMG_DIFF0_INDEX+i][dtindx];
+							}
+						}
+					}
 				}
 				int imax2 = (imax1 == 0)? 1 : 0;
 				for (int i = 0; i< quad; i++) if (i != imax1) {
 					if (disparity_map[ImageDtt.IMG_DIFF0_INDEX+i][tindx] > disparity_map[ImageDtt.IMG_DIFF0_INDEX + imax2][tindx]) imax2 = i;
 				}
+				dbg_worst2[tindx] = disparity_map[ImageDtt.IMG_DIFF0_INDEX + imax2][tindx];
+				
 				block_propagate[tindx] = (disparity_map[ImageDtt.IMG_DIFF0_INDEX + imax2][tindx] > sure_smth);
 			}
+		}
+		// grow block by 1 ?
+		tnSurface.growSelection(
+				2, // grow,
+				block_propagate, // tiles,
+				null); // prohibit);
+		if ((debugLevel > -1) && show_bgnd_nonbgnd){
+			 new showDoubleFloatArrays().showArrays(bgnd_data.disparity_map,  tilesX, tilesY, true, "bgnd_map",ImageDtt.DISPARITY_TITLES);
+			 new showDoubleFloatArrays().showArrays(dbg_worst2,  tilesX, tilesY, "worst2");
 		}
 		// TODO: check if minimal cluster strengh should be limited here
 		if (min_clstr_seed > 1){
@@ -3251,7 +3280,8 @@ public class TileProcessor {
 					2, // -1, // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
-			lp.interPlaneCosts( // not used yet, just for testing
+			lp.interPlaneCosts( //
+					true, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
 					st.planes, // final TilePlanes.PlaneData [][] planes,			
 					2, // -1, // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
@@ -3266,13 +3296,28 @@ public class TileProcessor {
 
 			// calculate it here - use results to keep some planes from merging
 			double [][] quality_stats1 = lp.selectNeighborPlanesMutual(
+//					false, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+					true, // final boolean                   en_sticks, // allow merging with bad plates
 					st.planes,              // final TilePlanes.PlaneData [][] planes,
 					2, // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
 			if (debugLevel>100) System.out.println(quality_stats1.length);
 			
+			
+			System.out.println("Testing - overwriting selectNeighborPlanesMutual() results with setExclusiveLinks()");
+			
+// Just overwrite results of the previous method			
+			lp.setExclusiveLinks(
+					st.planes, // final TilePlanes.PlaneData [][] planes,			
+					2, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+			
+			
 			lp.setNonExclusive(
+//					false, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+					true, // final boolean                   en_sticks, // allow merging with bad plates
 					st.planes, // final TilePlanes.PlaneData [][] planes,
 					2, // -1, // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
@@ -3307,7 +3352,7 @@ public class TileProcessor {
 					clt_parameters.tileY);
 
 			// remove merge candidates that break connections to neighbors
-			lp.keepSameTileConnections(
+			if (debugLevel>100) lp.keepSameTileConnections(
 					st.planes, // final TilePlanes.PlaneData [][] planes,			
 					merge_candidates,       // final int [][][] merge_candidates,
 					plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
@@ -3589,11 +3634,22 @@ public class TileProcessor {
 					debugLevel);        // final int         debugLevel);
 		}
 		double [][] quality_stats1 = lp.selectNeighborPlanesMutual(
+//				false, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+				true, // final boolean                   en_sticks, // allow merging with bad plates
 				st.planes,              // final TilePlanes.PlaneData [][] planes,
 				2, // final int debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 		if (debugLevel>100) System.out.println(quality_stats1.length);
+		
+		System.out.println("Testing - overwriting selectNeighborPlanesMutual() results with setExclusiveLinks()");
+		
+//Just overwrite results of the previous method			
+		lp.setExclusiveLinks(
+				st.planes, // final TilePlanes.PlaneData [][] planes,			
+				2, // -1, // debugLevel,                  // final int        debugLevel)
+				clt_parameters.tileX,
+				clt_parameters.tileY);
 
 		st.resolveConflicts(
 				lp, // LinkPlanes lp,
@@ -3718,6 +3774,7 @@ public class TileProcessor {
 					clt_parameters.tileY);
 
 			lp.interPlaneCosts( // not used yet, just for testing
+					true, // final boolean                   en_sticks, // allow merging with bad plates
 					st.planes, // final TilePlanes.PlaneData [][] planes,			
 					2, // -1, // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
@@ -3730,13 +3787,26 @@ public class TileProcessor {
 					clt_parameters.tileX,
 					clt_parameters.tileY);
 
+// Try replacing lp.selectNeighborPlanesMutual with
+//			lp.setExclusiveLinks()
 			double [][] quality_stats2 = lp.selectNeighborPlanesMutual(
+//					false, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+					true, // final boolean                   en_sticks, // allow merging with bad plates
 					st.planes,              // final TilePlanes.PlaneData [][] planes,
 					0, // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
 			if (debugLevel>100) System.out.println(quality_stats2.length);
 
+			System.out.println("Testing - overwriting selectNeighborPlanesMutual() results with setExclusiveLinks()");
+			
+// Just overwrite results of the previous method			
+			lp.setExclusiveLinks(
+					st.planes, // final TilePlanes.PlaneData [][] planes,			
+					2, // -1, // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+			
 			st.resolveConflicts(
 					lp, // LinkPlanes lp,
 					clt_parameters.plMaxEigen,
@@ -3780,52 +3850,255 @@ public class TileProcessor {
 
 		TilePlanes.PlaneData [][] planes_mod = null;
 
-		// smooth planes (by averaging with neighbors and the "measured" one with variable "pull")  
+		// smooth planes (by averaging with neighbors and the "measured" one with variable "pull")
 		if (clt_parameters.plIterations > 0) {
-			st.resetPlanesMod(); // clean start
-			planes_mod = st.planesSmooth(
-					lp,                                           // LinkPlanes       lp,			
-					clt_parameters.plPull,                        // final double      meas_pull,//  relative pull of the original (measured) plane with respect to the average of the neighbors
-					clt_parameters.plMaxEigen,                    // final double      maxValue, // do not combine with too bad planes
-					clt_parameters.plIterations,                  // final int         num_passes,
-					clt_parameters.plStopBad,                     // Do not update supertile if any of connected neighbors is not good (false: just skip that neighbor)
-					clt_parameters.plNormPow,                     // 0.0: 8 neighbors pull 8 times as 1, 1.0 - same as 1
-					Math.pow(10.0,  -clt_parameters.plPrecision), // final double      maxDiff, // maximal change in any of the disparity values
+			for (int num_merge_try = 0; num_merge_try < 10; num_merge_try ++ ) { // smooth and merge
+				st.resetPlanesMod(); // clean start
+				planes_mod = st.planesSmooth(
+						lp,                                           // LinkPlanes       lp,			
+						clt_parameters.plPull,                        // final double      meas_pull,//  relative pull of the original (measured) plane with respect to the average of the neighbors
+						clt_parameters.plMaxEigen,                    // final double      maxValue, // do not combine with too bad planes
+						clt_parameters.plIterations,                  // final int         num_passes,
+						clt_parameters.plStopBad,                     // Do not update supertile if any of connected neighbors is not good (false: just skip that neighbor)
+						clt_parameters.plNormPow,                     // 0.0: 8 neighbors pull 8 times as 1, 1.0 - same as 1
+						Math.pow(10.0,  -clt_parameters.plPrecision), // final double      maxDiff, // maximal change in any of the disparity values
+						clt_parameters.plPreferDisparity,
+						0, // 1,// 0, // final int debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+				// create costs for the modified planes
+				lp.interPlaneCosts(
+						true, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+						st.planes_mod, // final TilePlanes.PlaneData [][] planes,			
+						2, // -1, // debugLevel,                  // final int        debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+				lp.setExclusiveLinks(
+						st.planes_mod, // final TilePlanes.PlaneData [][] planes,			
+						2, // -1, // debugLevel,                  // final int        debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+				// once more after updating exclusive links
+				planes_mod = st.planesSmooth(
+						lp,                                           // LinkPlanes       lp,			
+						clt_parameters.plPull,                        // final double      meas_pull,//  relative pull of the original (measured) plane with respect to the average of the neighbors
+						clt_parameters.plMaxEigen,                    // final double      maxValue, // do not combine with too bad planes
+						clt_parameters.plIterations,                  // final int         num_passes,
+						clt_parameters.plStopBad,                     // Do not update supertile if any of connected neighbors is not good (false: just skip that neighbor)
+						clt_parameters.plNormPow,                     // 0.0: 8 neighbors pull 8 times as 1, 1.0 - same as 1
+						Math.pow(10.0,  -clt_parameters.plPrecision), // final double      maxDiff, // maximal change in any of the disparity values
+						clt_parameters.plPreferDisparity,
+						0, // 1,// 0, // final int debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+				lp.interPlaneCosts(
+						true, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+						st.planes_mod, // final TilePlanes.PlaneData [][] planes,			
+						2, // -1, // debugLevel,                  // final int        debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+				// recalculate links? more smooth?
+				lp.setExclusiveLinks(
+						st.planes_mod, // final TilePlanes.PlaneData [][] planes,			
+						2, // -1, // debugLevel,                  // final int        debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+				// just in case? Not yet needed			
+				lp.setNonExclusive(
+						//					false, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+						true, // final boolean                   en_sticks, // allow merging with bad plates
+						st.planes_mod, // final TilePlanes.PlaneData [][] planes,
+						2, // -1, // debugLevel,                  // final int        debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+				
+// see if some modified planes need to be merged (but merge originals)
+// TODO: Stricter requirements for merging here than for original planes?				
+				
+				int [][][] merge_candidates =  lp.getMergeSameTileCandidates(
+						st.planes_mod, // final TilePlanes.PlaneData [][] planes,			
+						2, // -1, // debugLevel,                  // final int        debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+
+				boolean [][][] plane_nooverlaps = lp.overlapSameTileCandidates (
+						st.planes_mod, // final TilePlanes.PlaneData [][] planes,			
+						merge_candidates,       // final int [][][] merge_candidates,
+						2, // -1, // debugLevel,                  // final int        debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+
+				// remove merge candidates that break connections to neighbors
+				if (debugLevel>100) lp.keepSameTileConnections(
+						st.planes_mod, // final TilePlanes.PlaneData [][] planes,			
+						merge_candidates,       // final int [][][] merge_candidates,
+						plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
+						true, // final boolean merge_low_eigen, here it should be true
+						true, // final boolean useNonExcl, // consider only directions available for non-exclusive merges
+						2, // -1, // debugLevel,                  // final int        debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+
+//				 * Possible problem is that "normalizing" merge quality for low weights is not applicable for "star" plane that include neighhbors
+//				 * Switch to a single "cost" function (costSameTileConnectionsAlt())
+	// Still - how to merge stray tiles that do not have neighbors/star? Still merge them "old way"	(costSameTileConnections()) if at least 1 does not
+//				have a "star"
+						lp.costSameTileConnections(
+						st.planes_mod, // final TilePlanes.PlaneData [][] planes,
+						merge_candidates,       // final int [][][] merge_candidates,
+						plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
+						2,                      // -1, // debugLevel,                  // final int        debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+//				System.out.println("merge_cost_data.length = " + merge_cost_data.length);
+						
+						lp.costSameTileConnectionsAlt(
+						5.0,  // final double         threshold,
+						10.0, // final double         threshold_nostar,
+
+						st.planes_mod, // final TilePlanes.PlaneData [][] planes,
+						merge_candidates,       // final int [][][] merge_candidates,
+						plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
+						2,                      // -1, // debugLevel,                  // final int        debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+						
+				int [][][] merge_groups = lp.extractMergeSameTileGroups(
+						st.planes_mod,              // final TilePlanes.PlaneData [][] planes,
+						merge_candidates,       // final int [][][] merge_candidates,
+						plane_nooverlaps, // boolean [][][] plane_overlaps,
+						2,                      // -1, // debugLevel,                  // final int        debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+				
+				int num_removed_by_merging = st.applyMergePlanes(
+						st.planes,    // final TilePlanes.PlaneData[][]   planes,
+						merge_groups, // final int [][][]                 merge_groups,			
+						// parameters to generate ellipsoids			
+						0.0, // 3,                       // final double                     disp_far, // minimal disparity to select (or NaN)
+						Double.NaN,                      // final double                     disp_near, // maximal disparity to select (or NaN)
+						clt_parameters.plDispNorm,       // final double                     dispNorm,   //  Normalize disparities to the average if above
+						0.0,                             // final double                     min_weight,
+						clt_parameters.plMinPoints,      // final int                        min_tiles,
+						// parameters to reduce outliers			
+						clt_parameters.plTargetEigen,    // final double                     targetEigen,   //     =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+						clt_parameters.plFractOutliers,  // final double                     fractOutliers, //     =   0.3;  // Maximal fraction of outliers to remove
+						clt_parameters.plMaxOutliers,    // final int                        maxOutliers,   //     =   20;  // Maximal number of outliers to remove
+						2,                      // -1, // debugLevel,                  // final int        debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+
+				System.out.println("Try "+num_merge_try+ ": removed "+num_removed_by_merging+" planes by merging, recalculating connections");
+				if (num_removed_by_merging == 0){ // re-calculate all links
+					break;
+
+				}
+				
+				// Do the same as in conditionSuperTiles before smoothing again
+				
+				
+				lp.matchPlanes(
+						st.planes, // final TilePlanes.PlaneData [][] planes,			
+						2, // -1, // debugLevel,                  // final int        debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+				lp.interPlaneCosts( //
+						true, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+						st.planes, // final TilePlanes.PlaneData [][] planes,			
+						2, // -1, // debugLevel,                  // final int        debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+
+				lp.filterNeighborPlanes(
+						st.planes, // final TilePlanes.PlaneData [][] planes,
+						true, // final boolean merge_low_eigen,
+						2, // -1, // debugLevel,                  // final int        debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+
+				// calculate it here - use results to keep some planes from merging
+				
+				
+				
+				
+				double [][] quality_stats2 = lp.selectNeighborPlanesMutual(
+//						false, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+						true, // final boolean                   en_sticks, // allow merging with bad plates
+						st.planes,              // final TilePlanes.PlaneData [][] planes,
+						2, // final int debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+				if (debugLevel>100) System.out.println(quality_stats2.length);
+				
+				
+				System.out.println("Testing - overwriting selectNeighborPlanesMutual() results with setExclusiveLinks()");
+				
+	// Just overwrite results of the previous method			
+				lp.setExclusiveLinks(
+						st.planes, // final TilePlanes.PlaneData [][] planes,			
+						2, // -1, // debugLevel,                  // final int        debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+				
+				
+				lp.setNonExclusive(
+//						false, // final boolean                   en_sticks, // treat planes with second eigenvalue below plEigenStick as "sticks"
+						true, // final boolean                   en_sticks, // allow merging with bad plates
+						st.planes, // final TilePlanes.PlaneData [][] planes,
+						2, // -1, // debugLevel,                  // final int        debugLevel)
+						clt_parameters.tileX,
+						clt_parameters.tileY);
+				
+				lp.calcStarValueStrength(
+						true, // boolean set_start_planes,
+						clt_parameters.plStarOrtho,    // orthoWeight,      // final double         orthoWeight,
+						clt_parameters.plStarDiag,     // diagonalWeight,   // final double         diagonalWeight,
+						clt_parameters.plStarPwr,      // starPwr,          // final double         starPwr,    // Divide cost by number of connections to this power
+						clt_parameters.plStarWeightPwr,// starWeightPwr,    // final double         starWeightPwr,    // Use this power of tile weight when calculating connection cost
+						clt_parameters.plWeightToDens, // weightToDens,     // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
+						clt_parameters.plStarValPwr,   // starValPwr,      //double     starValPwr, //  Raise value of each tile before averaging
+						2, // starSteps,        // final int            steps,
+						st.planes,      // final TilePlanes.PlaneData [][] planes,
+						clt_parameters.plPreferDisparity, // preferDisparity,  // final boolean        preferDisparity)
+						0); // debugLevel);
+				
+// end of possible merge, can try smoothing again 				
+				
+				
+
+				// just to show them, not currently processed
+
+				/*
+				 * will not work - hard-wired to use planes, not planes_mod!			
+			st.resolveConflicts(
+					lp, // LinkPlanes lp,
+					clt_parameters.plMaxEigen,
+					clt_parameters.plConflDualTri,  // boolean    conflDualTri,  // Resolve dual triangles conflict (odoodo)
+					clt_parameters.plConflMulti,    // boolean    conflMulti,    // Resolve multiple odo triangles conflicts
+					clt_parameters.plConflDiag,	    // boolean    conflDiag,     // Resolve diagonal (ood) conflicts
+					clt_parameters.plConflStar,     // boolean    conflStar,     // Resolve all conflicts around a supertile 
+					clt_parameters.plStarSteps,     // int starSteps, // How far to look around when calculationg connection cost
+					clt_parameters.plStarOrtho,     // double     orthoWeight,
+					clt_parameters.plStarDiag,      // double     diagonalWeight,
+					clt_parameters.plStarPwr,       // double     starPwr, // Divide cost by number of connections to this power
+					clt_parameters.plStarWeightPwr, // double     starWeightPwr,    // Use this power of tile weight when calculating connection cost
+					clt_parameters.plWeightToDens,  // double     weightToDens,    // // Balance weighted density against density. 0.0 - density, 1.0 - weighted density
+					clt_parameters.plStarValPwr,    // double     starValPwr, //  Raise value of each tile before averaging
+					clt_parameters.plDblTriLoss,    // double     diagonalWeight,
+					clt_parameters.plNewConfl,      // boolean    preferDisparity, // Allow more conflicts if overall cost is reduced
+					clt_parameters.plMaxChanges,    // int        maxChanges,  // Maximal number of simultaneous connection changes around one tile (0 - any)
 					clt_parameters.plPreferDisparity,
-					0, // 1,// 0, // final int debugLevel)
+					1, // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
-			// create costs for the modified planes
-			lp.interPlaneCosts(
-					st.planes_mod, // final TilePlanes.PlaneData [][] planes,			
-					2, // -1, // debugLevel,                  // final int        debugLevel)
-					clt_parameters.tileX,
-					clt_parameters.tileY);
-			lp.setExclusiveLinks(
-					st.planes_mod, // final TilePlanes.PlaneData [][] planes,			
-					2, // -1, // debugLevel,                  // final int        debugLevel)
-					clt_parameters.tileX,
-					clt_parameters.tileY);
-			// once more after updating exclusive links
-			planes_mod = st.planesSmooth(
-					lp,                                           // LinkPlanes       lp,			
-					clt_parameters.plPull,                        // final double      meas_pull,//  relative pull of the original (measured) plane with respect to the average of the neighbors
-					clt_parameters.plMaxEigen,                    // final double      maxValue, // do not combine with too bad planes
-					clt_parameters.plIterations,                  // final int         num_passes,
-					clt_parameters.plStopBad,                     // Do not update supertile if any of connected neighbors is not good (false: just skip that neighbor)
-					clt_parameters.plNormPow,                     // 0.0: 8 neighbors pull 8 times as 1, 1.0 - same as 1
-					Math.pow(10.0,  -clt_parameters.plPrecision), // final double      maxDiff, // maximal change in any of the disparity values
-					clt_parameters.plPreferDisparity,
-					0, // 1,// 0, // final int debugLevel)
-					clt_parameters.tileX,
-					clt_parameters.tileY);
-			lp.interPlaneCosts(
-					st.planes_mod, // final TilePlanes.PlaneData [][] planes,			
-					2, // -1, // debugLevel,                  // final int        debugLevel)
-					clt_parameters.tileX,
-					clt_parameters.tileY);
-			// recalculate links? more smooth?
-			
+				 */
+				
+				
+				
+				
+				
+			}		
+
 		} else {
 			st.planes_mod = st.planes; // just use the measured ones
 		}
@@ -3834,6 +4107,7 @@ public class TileProcessor {
 				clt_parameters.plDispNorm,
 				clt_parameters.plMaxEigen, //  maxEigen,
 				clt_parameters.plMinStrength, //  minWeight,
+				true, // final boolean weak_connected, // select connected planes even if they are weak/thick
 				st.getPlanesMod());
 
 		if (clt_parameters.show_planes){

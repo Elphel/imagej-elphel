@@ -5526,7 +5526,7 @@ public class QuadCLT {
 				  clt_parameters.min_clstr_block,// number of tiles in a cluster to block (just non-background?)
 				  disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
 				  clt_parameters.show_bgnd_nonbgnd,
-				  (clt_parameters.debug_filters ? debugLevel : -1));
+				  (clt_parameters.debug_filters ? (debugLevel) : -1));
 		  boolean [] bgnd_strict = bgnd_tiles.clone(); // only these have non 0 alpha
 		  tp.growTiles(
 				  clt_parameters.bgnd_grow,      // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
@@ -5568,8 +5568,6 @@ public class QuadCLT {
 						  texture_tiles_bgnd[tileY][tileX]= texture_tiles[tileY][tileX].clone();
 						  texture_tiles_bgnd[tileY][tileX][alpha_index] = alpha_zero;
 					  }
-					  
-					  
 				  }
 			  }
 		  }

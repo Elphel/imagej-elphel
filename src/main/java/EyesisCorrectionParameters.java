@@ -2022,7 +2022,7 @@ public class EyesisCorrectionParameters {
   		public double     bgnd_sure        = 0.18;  // minimal strength to be considered definitely background
   		public double     bgnd_maybe       = 0.1; // maximal strength to ignore as non-background
 //  		public double     bgnd_2diff       = 0.005; // maximal strength to ignore as non-background
-  		public int        min_clstr_seed   = 2;     // number of tiles in a cluster to seed (just background?)
+  		public int        min_clstr_seed   = 4; //2;     // number of tiles in a cluster to seed (just background?)
   		public int        min_clstr_lone   = 4;     // number of tiles in a cluster not close to other clusters (more than 2 tiles apart)
   		public double     min_clstr_weight = 0.0;   // Minimal total strength of the cluster 
   		public double     min_clstr_max    = 0.25;  // Minimal maximal strength of the cluster 
@@ -2149,7 +2149,7 @@ public class EyesisCorrectionParameters {
   		
   		// Multi-pass growing disparity
   		public int        grow_sweep         = 8; // Try these number of tiles around known ones 
-  		public double     grow_disp_max =   50.0; // Maximal disparity to try
+  		public double     grow_disp_max =   100.0; // Maximal disparity to try
   		public double     grow_disp_trust =  4.0; // Trust measured disparity within +/- this value 
   		public double     grow_disp_step =   6.0; // Increase disparity (from maximal tried) if nothing found in that tile // TODO: handle enclosed dips?  
   		public double     grow_min_diff =    0.5; // Grow more only if at least one channel has higher variance from others for the tile  
@@ -2170,6 +2170,8 @@ public class EyesisCorrectionParameters {
   		public double     plMinStrength        =   0.01; // Minimal total strength of a plane 
   		public double     plMaxEigen           =   0.06; // Maximal eigenvalue of a plane 
   		public double     plEigenFloor         =   0.005;// Add to eigenvalues of each participating plane and result to validate connections 
+  		public double     plEigenStick         =   25.0; // Consider plane to be a "stick" if second eigenvalue is below 
+  		public double     plBadPlate           =   0.2;  // Not a plate if sin^2 between normals from disparity and world exceeds this 
   		public boolean    plDbgMerge           =   true; // Combine 'other' plane with current
   		public double     plWorstWorsening     =   2.0;  // Worst case worsening after merge
   		public double     plWorstWorsening2    =   5.0;  // Worst case worsening for thin planes
@@ -2583,6 +2585,8 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plMinStrength",    this.plMinStrength +"");
 			properties.setProperty(prefix+"plMaxEigen",       this.plMaxEigen +"");
 			properties.setProperty(prefix+"plEigenFloor",     this.plEigenFloor +"");
+			properties.setProperty(prefix+"plEigenStick",     this.plEigenStick +"");
+			properties.setProperty(prefix+"plBadPlate",       this.plBadPlate +"");
 			properties.setProperty(prefix+"plDbgMerge",       this.plDbgMerge+"");
 			properties.setProperty(prefix+"plWorstWorsening", this.plWorstWorsening +"");
 			properties.setProperty(prefix+"plWorstWorsening2",this.plWorstWorsening2 +"");
@@ -2971,6 +2975,8 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plMinStrength")!=null)     this.plMinStrength=Double.parseDouble(properties.getProperty(prefix+"plMinStrength"));
   			if (properties.getProperty(prefix+"plMaxEigen")!=null)        this.plMaxEigen=Double.parseDouble(properties.getProperty(prefix+"plMaxEigen"));
   			if (properties.getProperty(prefix+"plEigenFloor")!=null)      this.plEigenFloor=Double.parseDouble(properties.getProperty(prefix+"plEigenFloor"));
+  			if (properties.getProperty(prefix+"plEigenStick")!=null)      this.plEigenStick=Double.parseDouble(properties.getProperty(prefix+"plEigenStick"));
+  			if (properties.getProperty(prefix+"plBadPlate")!=null)        this.plBadPlate=Double.parseDouble(properties.getProperty(prefix+"plBadPlate"));
   			if (properties.getProperty(prefix+"plDbgMerge")!=null)        this.plDbgMerge=Boolean.parseBoolean(properties.getProperty(prefix+"plDbgMerge"));
   			if (properties.getProperty(prefix+"plWorstWorsening")!=null)  this.plWorstWorsening=Double.parseDouble(properties.getProperty(prefix+"plWorstWorsening"));
   			if (properties.getProperty(prefix+"plWorstWorsening2")!=null) this.plWorstWorsening2=Double.parseDouble(properties.getProperty(prefix+"plWorstWorsening2"));
@@ -3157,7 +3163,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",      this.vignetting_range,  3);
   			gd.addNumericField("Kernel step in pixels (has 1 kernel margin on each side)",                this.kernel_step,            0);
   			gd.addNumericField("Nominal (rectilinear) disparity between side of square cameras (pix)",    this.disparity,  3);
-  			gd.addCheckbox    ("Perfcorm coorrelation",                                                   this.correlate);
+  			gd.addCheckbox    ("Perform correlation",                                                     this.correlate);
   			gd.addNumericField("itmask of pairs to combine in the composite (top, bottom, left,righth)",  this.corr_mask,            0);
   			gd.addCheckbox    ("Combine correlation with mirrored around disparity direction",            this.corr_sym);
   			gd.addCheckbox    ("Keep all partial correlations (otherwise - only combined one)",           this.corr_keep);
@@ -3387,6 +3393,8 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Minimal total strength of a plane",                                            this.plMinStrength,  6);
   			gd.addNumericField("Maximal eigenvalue of a plane",                                                this.plMaxEigen,  6);
   			gd.addNumericField("Add to eigenvalues of each participating plane and result to validate connections",this.plEigenFloor,  6);
+  			gd.addNumericField("Consider plane to be a \"stick\" if second eigenvalue is below",               this.plEigenStick,  6);
+  			gd.addNumericField("Not a plate if sin^2 between normals from disparity and world exceeds this",   this.plBadPlate,  6);
   			gd.addCheckbox    ("Combine 'other' plane with the current (unused)",                              this.plDbgMerge);
   			gd.addNumericField("Worst case worsening after merge",                                             this.plWorstWorsening,  6);
   			gd.addNumericField("Worst case worsening for thin planes",                                         this.plWorstWorsening2,  6);
@@ -3792,6 +3800,8 @@ public class EyesisCorrectionParameters {
   			this.plMinStrength=         gd.getNextNumber();
   			this.plMaxEigen=            gd.getNextNumber();
   			this.plEigenFloor=          gd.getNextNumber();
+  			this.plEigenStick=          gd.getNextNumber();
+  			this.plBadPlate=            gd.getNextNumber();
   			this.plDbgMerge=            gd.getNextBoolean();
   			this.plWorstWorsening=      gd.getNextNumber();
   			this.plWorstWorsening2=     gd.getNextNumber();
@@ -4484,7 +4494,7 @@ public class EyesisCorrectionParameters {
 		public double projectionYaw=           0.0;
 		public double projectionRoll=          0.0;
 		
-		public boolean matchPixelSize=    true; // disregard next value, calculate projectionPixelSize from teh equirectangular map
+		public boolean matchPixelSize=    true; // disregard next value, calculate projectionPixelSize from the equirectangular map
 		public double projectionPixelSize=0.00044036902;
 		public int    projectionWidth=   2920;
 		public int     projectionHeight= 2220;
