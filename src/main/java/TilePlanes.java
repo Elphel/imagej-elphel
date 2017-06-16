@@ -4594,7 +4594,7 @@ public class TilePlanes {
 			}
 			// Raise weight of the center part of the histogram - there can be originally distinct parallel planes
 			// alternatively - use planes_mod or star* and no histograms at all?
-			final double initial_trust_sigma = 0.3*disp_tolerance; // TODO: use dispNorm !
+			final double initial_trust_sigma = 0.3 * disp_tolerance; // TODO: use dispNorm !
 			for (int np = 0; np < num_planes; np++) {
 				double k_sigma = 0.5/(initial_trust_sigma*initial_trust_sigma);
 				for (int nb = 0; nb < steps; nb++) {

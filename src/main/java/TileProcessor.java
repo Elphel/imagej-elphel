@@ -3347,6 +3347,7 @@ public class TileProcessor {
 			boolean [][][] plane_nooverlaps = lp.overlapSameTileCandidates (
 					st.planes, // final TilePlanes.PlaneData [][] planes,			
 					merge_candidates,       // final int [][][] merge_candidates,
+					0.2, // final double     min_distance, 
 					2, // -1, // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
@@ -3372,6 +3373,7 @@ public class TileProcessor {
 					st.planes, // final TilePlanes.PlaneData [][] planes,
 					merge_candidates,       // final int [][][] merge_candidates,
 					plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
+					1.0,         // double                    relax,
 					2,                      // -1, // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
@@ -3393,6 +3395,7 @@ public class TileProcessor {
 					st.planes,              // final TilePlanes.PlaneData [][] planes,
 					merge_candidates,       // final int [][][] merge_candidates,
 					plane_nooverlaps, // boolean [][][] plane_overlaps,
+					1.0,         // double                    relax,
 					2,                      // -1, // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
@@ -3851,6 +3854,8 @@ public class TileProcessor {
 		TilePlanes.PlaneData [][] planes_mod = null;
 
 		// smooth planes (by averaging with neighbors and the "measured" one with variable "pull")
+		double relax_for_conflicts = 1.5;
+
 		if (clt_parameters.plIterations > 0) {
 			for (int num_merge_try = 0; num_merge_try < 10; num_merge_try ++ ) { // smooth and merge
 				st.resetPlanesMod(); // clean start
@@ -3874,7 +3879,8 @@ public class TileProcessor {
 						clt_parameters.tileX,
 						clt_parameters.tileY);
 				lp.setExclusiveLinks(
-						st.planes_mod, // final TilePlanes.PlaneData [][] planes,			
+						st.planes_mod, // final TilePlanes.PlaneData [][] planes,
+						2.5, //final double                    max_cost
 						2, // -1, // debugLevel,                  // final int        debugLevel)
 						clt_parameters.tileX,
 						clt_parameters.tileY);
@@ -3899,7 +3905,8 @@ public class TileProcessor {
 						clt_parameters.tileY);
 				// recalculate links? more smooth?
 				lp.setExclusiveLinks(
-						st.planes_mod, // final TilePlanes.PlaneData [][] planes,			
+						st.planes_mod, // final TilePlanes.PlaneData [][] planes,
+						2.5, //final double                    max_cost
 						2, // -1, // debugLevel,                  // final int        debugLevel)
 						clt_parameters.tileX,
 						clt_parameters.tileY);
@@ -3924,6 +3931,7 @@ public class TileProcessor {
 				boolean [][][] plane_nooverlaps = lp.overlapSameTileCandidates (
 						st.planes_mod, // final TilePlanes.PlaneData [][] planes,			
 						merge_candidates,       // final int [][][] merge_candidates,
+						0.2, // final double     min_distance, 
 						2, // -1, // debugLevel,                  // final int        debugLevel)
 						clt_parameters.tileX,
 						clt_parameters.tileY);
@@ -3938,6 +3946,16 @@ public class TileProcessor {
 						2, // -1, // debugLevel,                  // final int        debugLevel)
 						clt_parameters.tileX,
 						clt_parameters.tileY);
+				
+				// Consider supertiles with conflicts, merge conflicting layers with relaxed requirements
+				Conflicts iconflicts0 = new Conflicts(st); 
+				int [][][] conflicts0 = iconflicts0.detectTriangularConflicts(
+						1); // final int debugLevel)
+
+				int [][][] conflicting_candidates = lp.filterPairsByConflicts(
+						merge_candidates, // final int [][][]                merge_candidates,
+						conflicts0); // final int [][][]                conflicts)
+				
 
 //				 * Possible problem is that "normalizing" merge quality for low weights is not applicable for "star" plane that include neighhbors
 //				 * Switch to a single "cost" function (costSameTileConnectionsAlt())
@@ -3946,7 +3964,8 @@ public class TileProcessor {
 						lp.costSameTileConnections(
 						st.planes_mod, // final TilePlanes.PlaneData [][] planes,
 						merge_candidates,       // final int [][][] merge_candidates,
-						plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
+						plane_nooverlaps,       // final boolean [][][]   valid_candidates, // will be updated
+						1.0,                    // final double                    relax,
 						2,                      // -1, // debugLevel,                  // final int        debugLevel)
 						clt_parameters.tileX,
 						clt_parameters.tileY);
@@ -3967,6 +3986,7 @@ public class TileProcessor {
 						st.planes_mod,              // final TilePlanes.PlaneData [][] planes,
 						merge_candidates,       // final int [][][] merge_candidates,
 						plane_nooverlaps, // boolean [][][] plane_overlaps,
+						1.0,              // final double                    relax,
 						2,                      // -1, // debugLevel,                  // final int        debugLevel)
 						clt_parameters.tileX,
 						clt_parameters.tileY);
@@ -3990,8 +4010,95 @@ public class TileProcessor {
 
 				System.out.println("Try "+num_merge_try+ ": removed "+num_removed_by_merging+" planes by merging, recalculating connections");
 				if (num_removed_by_merging == 0){ // re-calculate all links
-					break;
+					// Consider supertiles with conflicts, merge conflicting layers with relaxed requirements
 
+					//TODO: Fix the mess to get rid of the plane_nooverlaps
+
+					Conflicts conflicts0_stats =  new Conflicts(
+							conflicts0,
+							st,
+							-1); // debugLevel);
+					System.out.println("Trying relaxed merging for conflicting plane pairs");
+
+					plane_nooverlaps = lp.overlapSameTileCandidates (
+							st.planes_mod, // final TilePlanes.PlaneData [][] planes,			
+							conflicting_candidates,       // final int [][][] merge_candidates,\
+							0.4, // final double     min_distance, 
+							2, // -1, // debugLevel,                  // final int        debugLevel)
+							clt_parameters.tileX,
+							clt_parameters.tileY);
+
+					// remove merge candidates that break connections to neighbors
+					if (debugLevel>100) lp.keepSameTileConnections(
+							st.planes_mod, // final TilePlanes.PlaneData [][] planes,			
+							conflicting_candidates,       // final int [][][] merge_candidates,
+							plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
+							true, // final boolean merge_low_eigen, here it should be true
+							true, // final boolean useNonExcl, // consider only directions available for non-exclusive merges
+							2, // -1, // debugLevel,                  // final int        debugLevel)
+							clt_parameters.tileX,
+							clt_parameters.tileY);
+
+					// Consider supertiles with conflicts, merge conflicting layers with relaxed requirements
+					//end of TODO: Fix the mess to get rid of the plane_nooverlaps
+
+
+					// try to merge original (measured) planes, not smoothed ones
+					lp.costSameTileConnections(
+//							st.planes_mod, // final TilePlanes.PlaneData [][] planes,
+							st.planes, // final TilePlanes.PlaneData [][] planes,
+							conflicting_candidates,       // final int [][][] merge_candidates,
+							plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
+							relax_for_conflicts,         // final double                    relax,
+							2,                      // -1, // debugLevel,                  // final int        debugLevel)
+							clt_parameters.tileX,
+							clt_parameters.tileY);
+					//			System.out.println("merge_cost_data.length = " + merge_cost_data.length);
+
+					lp.costSameTileConnectionsAlt(
+//							relax_for_conflicts,         // final double                    relax,
+							
+							relax_for_conflicts * 5.0,  // final double         threshold, // 
+							relax_for_conflicts * 10.0, // final double         threshold_nostar,
+
+//							st.planes_mod, // final TilePlanes.PlaneData [][] planes,
+							st.planes, // final TilePlanes.PlaneData [][] planes,
+							conflicting_candidates,  // final int [][][] merge_candidates,
+							plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
+							2,                      // -1, // debugLevel,                  // final int        debugLevel)
+							clt_parameters.tileX,
+							clt_parameters.tileY);
+
+					merge_groups = lp.extractMergeSameTileGroups(
+//							st.planes_mod,              // final TilePlanes.PlaneData [][] planes,
+							st.planes,              // final TilePlanes.PlaneData [][] planes,
+							merge_candidates,       // final int [][][] merge_candidates,
+							plane_nooverlaps, // boolean [][][] plane_overlaps,
+							relax_for_conflicts,         // final double                    relax,
+							2,                      // -1, // debugLevel,                  // final int        debugLevel)
+							clt_parameters.tileX,
+							clt_parameters.tileY);
+
+					num_removed_by_merging = st.applyMergePlanes(
+							st.planes,    // final TilePlanes.PlaneData[][]   planes,
+							merge_groups, // final int [][][]                 merge_groups,			
+							// parameters to generate ellipsoids			
+							0.0, // 3,                       // final double                     disp_far, // minimal disparity to select (or NaN)
+							Double.NaN,                      // final double                     disp_near, // maximal disparity to select (or NaN)
+							clt_parameters.plDispNorm,       // final double                     dispNorm,   //  Normalize disparities to the average if above
+							0.0,                             // final double                     min_weight,
+							clt_parameters.plMinPoints,      // final int                        min_tiles,
+							// parameters to reduce outliers			
+							clt_parameters.plTargetEigen,    // final double                     targetEigen,   //     =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
+							clt_parameters.plFractOutliers,  // final double                     fractOutliers, //     =   0.3;  // Maximal fraction of outliers to remove
+							clt_parameters.plMaxOutliers,    // final int                        maxOutliers,   //     =   20;  // Maximal number of outliers to remove
+							2,                      // -1, // debugLevel,                  // final int        debugLevel)
+							clt_parameters.tileX,
+							clt_parameters.tileY);
+					System.out.println("Try "+num_merge_try+ ": removed "+num_removed_by_merging+" conflicting planes by merging, recalculating connections");
+					if (num_removed_by_merging == 0){ // re-calculate all links
+						break;
+					}
 				}
 				
 				// Do the same as in conditionSuperTiles before smoothing again
@@ -4035,7 +4142,8 @@ public class TileProcessor {
 				
 	// Just overwrite results of the previous method			
 				lp.setExclusiveLinks(
-						st.planes, // final TilePlanes.PlaneData [][] planes,			
+						st.planes, // final TilePlanes.PlaneData [][] planes,
+						2.5, //final double                    max_cost
 						2, // -1, // debugLevel,                  // final int        debugLevel)
 						clt_parameters.tileX,
 						clt_parameters.tileY);
@@ -4097,7 +4205,12 @@ public class TileProcessor {
 				
 				
 				
-			}		
+			}
+			
+			
+			
+			
+			
 
 		} else {
 			st.planes_mod = st.planes; // just use the measured ones
