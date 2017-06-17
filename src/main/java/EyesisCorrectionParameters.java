@@ -2192,13 +2192,15 @@ public class EyesisCorrectionParameters {
   		public double     plNeOwn              =   5.0;  // When calculating non-exclusive planes, use center plane relative weight
 
   		public double     plExNeibCost         =   5.0;  // When calculating exclusive planes links, do not use neighbors with high cost
-  	    public double     plExNeibCostSngl     =  10.0;  // When calculating exclusive planes links, do not use no-link neighbors with high cost
+//  	    public double     plExNeibCostSngl     =  10.0;  // When calculating exclusive planes links, do not use no-link neighbors with high cost
   	    public double     plExNeibSmooth       =   0.5;  // Scale down maximal costs for smoothed planes (tighter requirements) 
+  	    public double     plMergeCostStar      =   5.0;  // Cost threshold for merging same tile planes if the plane has connected neighbors
+  	    public double     plMergeCost          =  10.0;  // Cost threshold for merging same tile planes if not connected
 
   	    public boolean    plConflMerge         =  true;  // Try to merge conflicting planes
   	    public double     plConflRelax         =   1.5;  // Scale parameters to relax planes fit for merging conflicting planes
   	    public boolean    plConflSngl          =  true;  // Only merge conflicting planes if this is the only conflicting pair in the supertile
-  	    public boolean    plConflSnglPair      =  true;  // Only merge conflicting planes only if there are only two planes in the supertile 
+  	    public boolean    plConflSnglPair      =  true;  // Only merge conflicting planes only if there are just two planes in the supertile 
   	    
   		public double     plMaxZRatio          =   2.0;  // Maximal ratio of Z to allow plane merging
   		public double     plMaxDisp            =   0.6;  // Maximal disparity of one of the planes to apply  maximal ratio
@@ -2616,8 +2618,9 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plNeOwn",          this.plNeOwn +"");
 
 			properties.setProperty(prefix+"plExNeibCost",     this.plExNeibCost +"");
-			properties.setProperty(prefix+"plExNeibCostSngl", this.plExNeibCostSngl +"");
 			properties.setProperty(prefix+"plExNeibSmooth",   this.plExNeibSmooth +"");
+			properties.setProperty(prefix+"plMergeCostStar",  this.plMergeCostStar +"");
+			properties.setProperty(prefix+"plMergeCost",      this.plMergeCost +"");
 			
 			properties.setProperty(prefix+"plConflMerge",     this.plConflMerge+"");
 			properties.setProperty(prefix+"plConflRelax",     this.plConflRelax +"");
@@ -3015,8 +3018,9 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plNeOwn")!=null)           this.plNeOwn=Double.parseDouble(properties.getProperty(prefix+"plNeOwn"));
 
   			if (properties.getProperty(prefix+"plExNeibCost")!=null)      this.plExNeibCost=Double.parseDouble(properties.getProperty(prefix+"plExNeibCost"));
-  			if (properties.getProperty(prefix+"plExNeibCostSngl")!=null)  this.plExNeibCostSngl=Double.parseDouble(properties.getProperty(prefix+"plExNeibCostSngl"));
   			if (properties.getProperty(prefix+"plExNeibSmooth")!=null)    this.plExNeibSmooth=Double.parseDouble(properties.getProperty(prefix+"plExNeibSmooth"));
+  			if (properties.getProperty(prefix+"plMergeCostStar")!=null)   this.plMergeCostStar=Double.parseDouble(properties.getProperty(prefix+"plMergeCostStar"));
+  			if (properties.getProperty(prefix+"plMergeCost")!=null)       this.plMergeCost=Double.parseDouble(properties.getProperty(prefix+"plMergeCost"));
 
   			if (properties.getProperty(prefix+"plConflMerge")!=null)      this.plConflMerge=Boolean.parseBoolean(properties.getProperty(prefix+"plConflMerge"));
   			if (properties.getProperty(prefix+"plConflRelax")!=null)      this.plConflRelax=Double.parseDouble(properties.getProperty(prefix+"plConflRelax"));
@@ -3442,14 +3446,15 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("When calculating non-exclusive planes, do not use neighbors with high cost",   this.plNeNeibCost,  6);
   			gd.addNumericField("When calculating non-exclusive planes, use cenrter plane relative weight",     this.plNeOwn,  6);
   			gd.addNumericField("When calculating exclusive planes links, do not use neighbors with high cost", this.plExNeibCost,  6);
-  			gd.addNumericField("When calculating exclusive planes links, do not use no-link neighbors with high cost", this.plExNeibCostSngl,  6);
   			gd.addNumericField("Scale down maximal costs for smoothed planes links (tighter requirements)",    this.plExNeibSmooth,  6);
+  			gd.addNumericField("Cost threshold for merging same tile planes if the plane has connected neighbors", this.plMergeCostStar,  6);
+  			gd.addNumericField("Cost threshold for merging same tile planes if not connected",                 this.plMergeCost,  6);
 
   			gd.addMessage     ("--- Merging planes with topological conflicts ---");
   			gd.addCheckbox    ("Try to merge conflicting planes",                                                    this.plConflMerge);
   			gd.addNumericField("Scale parameters to relax planes fit for merging conflicting planes",                this.plConflRelax,  6);
   			gd.addCheckbox    ("Only merge conflicting planes if this is the only conflicting pair in the supertile",this.plConflSngl);
-  			gd.addCheckbox    ("Only merge conflicting planes only if there are only two planes in the supertile",   this.plConflSnglPair);
+  			gd.addCheckbox    ("Only merge conflicting planes only if there are just two planes in the supertile",   this.plConflSnglPair);
   			
   			gd.addMessage     ("---  ---");
   			gd.addNumericField("Maximal ratio of Z to allow plane merging",                                    this.plMaxZRatio,  6);
@@ -3858,8 +3863,9 @@ public class EyesisCorrectionParameters {
   			this.plNeOwn=               gd.getNextNumber();
 
   			this.plExNeibCost=          gd.getNextNumber();
-  			this.plExNeibCostSngl=      gd.getNextNumber();
   			this.plExNeibSmooth=        gd.getNextNumber();
+  			this.plMergeCostStar=       gd.getNextNumber();
+  			this.plMergeCost=           gd.getNextNumber();
 
   			this.plConflMerge=          gd.getNextBoolean();
   			this.plConflRelax=          gd.getNextNumber();

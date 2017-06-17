@@ -3309,7 +3309,8 @@ public class TileProcessor {
 			
 // Just overwrite results of the previous method			
 			lp.setExclusiveLinks(
-					st.planes, // final TilePlanes.PlaneData [][] planes,			
+					st.planes, // final TilePlanes.PlaneData [][] planes,
+					lp.getExNeibCost(), // final double                    max_cost,
 					2, // -1, // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
@@ -3380,8 +3381,10 @@ public class TileProcessor {
 //			System.out.println("merge_cost_data.length = " + merge_cost_data.length);
 					
 					lp.costSameTileConnectionsAlt(
-					5.0,  // final double         threshold,
-					10.0, // final double         threshold_nostar,
+					//5.0,  // final double         threshold,
+					//10.0, // final double         threshold_nostar,
+					lp.getMergeCostStar(),   // relax_for_conflicts * 5.0,  // final double         threshold, // 
+					lp.getMergeCostNoStar(), //relax_for_conflicts * 10.0, // final double         threshold_nostar,
 
 					st.planes, // final TilePlanes.PlaneData [][] planes,
 					merge_candidates,       // final int [][][] merge_candidates,
@@ -3649,7 +3652,8 @@ public class TileProcessor {
 		
 //Just overwrite results of the previous method			
 		lp.setExclusiveLinks(
-				st.planes, // final TilePlanes.PlaneData [][] planes,			
+				st.planes, // final TilePlanes.PlaneData [][] planes,
+				lp.getExNeibCost(), // final double                    max_cost,
 				2, // -1, // debugLevel,                  // final int        debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
@@ -3805,7 +3809,8 @@ public class TileProcessor {
 			
 // Just overwrite results of the previous method			
 			lp.setExclusiveLinks(
-					st.planes, // final TilePlanes.PlaneData [][] planes,			
+					st.planes, // final TilePlanes.PlaneData [][] planes,	
+					lp.getExNeibCost(), // final double                    max_cost,
 					2, // -1, // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
@@ -3854,7 +3859,7 @@ public class TileProcessor {
 		TilePlanes.PlaneData [][] planes_mod = null;
 
 		// smooth planes (by averaging with neighbors and the "measured" one with variable "pull")
-		double relax_for_conflicts = 1.5;
+//		double relax_for_conflicts = lp.getConflRelax(); // 1.5;
 
 		if (clt_parameters.plIterations > 0) {
 			for (int num_merge_try = 0; num_merge_try < 10; num_merge_try ++ ) { // smooth and merge
@@ -3880,7 +3885,8 @@ public class TileProcessor {
 						clt_parameters.tileY);
 				lp.setExclusiveLinks(
 						st.planes_mod, // final TilePlanes.PlaneData [][] planes,
-						2.5, //final double                    max_cost
+//						2.5, //final double                      max_cost
+						lp.getExNeibCost()*lp.getExNeibSmooth(), // final double                    max_cost,
 						2, // -1, // debugLevel,                  // final int        debugLevel)
 						clt_parameters.tileX,
 						clt_parameters.tileY);
@@ -3906,7 +3912,8 @@ public class TileProcessor {
 				// recalculate links? more smooth?
 				lp.setExclusiveLinks(
 						st.planes_mod, // final TilePlanes.PlaneData [][] planes,
-						2.5, //final double                    max_cost
+//						2.5, //final double                      max_cost
+						lp.getExNeibCost()*lp.getExNeibSmooth(), // final double                    max_cost,
 						2, // -1, // debugLevel,                  // final int        debugLevel)
 						clt_parameters.tileX,
 						clt_parameters.tileY);
@@ -3953,15 +3960,16 @@ public class TileProcessor {
 						1); // final int debugLevel)
 
 				int [][][] conflicting_candidates = lp.filterPairsByConflicts(
+						st.planes_mod,    // final TilePlanes.PlaneData [][] planes,			
 						merge_candidates, // final int [][][]                merge_candidates,
-						conflicts0); // final int [][][]                conflicts)
-				
+						conflicts0);      // final int [][][]                conflicts)
 
-//				 * Possible problem is that "normalizing" merge quality for low weights is not applicable for "star" plane that include neighhbors
-//				 * Switch to a single "cost" function (costSameTileConnectionsAlt())
-	// Still - how to merge stray tiles that do not have neighbors/star? Still merge them "old way"	(costSameTileConnections()) if at least 1 does not
-//				have a "star"
-						lp.costSameTileConnections(
+
+				//				 * Possible problem is that "normalizing" merge quality for low weights is not applicable for "star" plane that include neighhbors
+				//				 * Switch to a single "cost" function (costSameTileConnectionsAlt())
+				// Still - how to merge stray tiles that do not have neighbors/star? Still merge them "old way"	(costSameTileConnections()) if at least 1 does not
+				//				have a "star"
+				lp.costSameTileConnections(
 						st.planes_mod, // final TilePlanes.PlaneData [][] planes,
 						merge_candidates,       // final int [][][] merge_candidates,
 						plane_nooverlaps,       // final boolean [][][]   valid_candidates, // will be updated
@@ -3969,11 +3977,14 @@ public class TileProcessor {
 						2,                      // -1, // debugLevel,                  // final int        debugLevel)
 						clt_parameters.tileX,
 						clt_parameters.tileY);
-//				System.out.println("merge_cost_data.length = " + merge_cost_data.length);
-						
-						lp.costSameTileConnectionsAlt(
-						5.0,  // final double         threshold,
-						10.0, // final double         threshold_nostar,
+				//				System.out.println("merge_cost_data.length = " + merge_cost_data.length);
+
+				lp.costSameTileConnectionsAlt(
+						//5.0,  // final double         threshold,
+						//10.0, // final double         threshold_nostar,
+						lp.getMergeCostStar(),   // relax_for_conflicts * 5.0,  // final double         threshold, // 
+						lp.getMergeCostNoStar(), //relax_for_conflicts * 10.0, // final double         threshold_nostar,
+
 
 						st.planes_mod, // final TilePlanes.PlaneData [][] planes,
 						merge_candidates,       // final int [][][] merge_candidates,
@@ -3981,7 +3992,7 @@ public class TileProcessor {
 						2,                      // -1, // debugLevel,                  // final int        debugLevel)
 						clt_parameters.tileX,
 						clt_parameters.tileY);
-						
+
 				int [][][] merge_groups = lp.extractMergeSameTileGroups(
 						st.planes_mod,              // final TilePlanes.PlaneData [][] planes,
 						merge_candidates,       // final int [][][] merge_candidates,
@@ -3990,7 +4001,7 @@ public class TileProcessor {
 						2,                      // -1, // debugLevel,                  // final int        debugLevel)
 						clt_parameters.tileX,
 						clt_parameters.tileY);
-				
+
 				int num_removed_by_merging = st.applyMergePlanes(
 						st.planes,    // final TilePlanes.PlaneData[][]   planes,
 						merge_groups, // final int [][][]                 merge_groups,			
@@ -4045,23 +4056,23 @@ public class TileProcessor {
 
 					// try to merge original (measured) planes, not smoothed ones
 					lp.costSameTileConnections(
-//							st.planes_mod, // final TilePlanes.PlaneData [][] planes,
-							st.planes, // final TilePlanes.PlaneData [][] planes,
-							conflicting_candidates,       // final int [][][] merge_candidates,
-							plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
-							relax_for_conflicts,         // final double                    relax,
-							2,                      // -1, // debugLevel,                  // final int        debugLevel)
+							//							st.planes_mod,           // final TilePlanes.PlaneData [][] planes,
+							st.planes,               // final TilePlanes.PlaneData [][] planes,
+							conflicting_candidates,  // final int [][][] merge_candidates,
+							plane_nooverlaps,        // final boolean [][][]   valid_candidates, // will be updated
+							lp.getConflRelax(),      //relax_for_conflicts,         // final double                    relax,
+							2,                       // -1, // debugLevel,                  // final int        debugLevel)
 							clt_parameters.tileX,
 							clt_parameters.tileY);
 					//			System.out.println("merge_cost_data.length = " + merge_cost_data.length);
 
 					lp.costSameTileConnectionsAlt(
-//							relax_for_conflicts,         // final double                    relax,
-							
-							relax_for_conflicts * 5.0,  // final double         threshold, // 
-							relax_for_conflicts * 10.0, // final double         threshold_nostar,
+							//							relax_for_conflicts,         // final double                    relax,
 
-//							st.planes_mod, // final TilePlanes.PlaneData [][] planes,
+							lp.getConflRelax() * lp.getMergeCostStar(),   // relax_for_conflicts * 5.0,  // final double         threshold, // 
+							lp.getConflRelax() * lp.getMergeCostNoStar(), //relax_for_conflicts * 10.0, // final double         threshold_nostar,
+
+							//							st.planes_mod, // final TilePlanes.PlaneData [][] planes,
 							st.planes, // final TilePlanes.PlaneData [][] planes,
 							conflicting_candidates,  // final int [][][] merge_candidates,
 							plane_nooverlaps, // final boolean [][][]   valid_candidates, // will be updated
@@ -4070,12 +4081,12 @@ public class TileProcessor {
 							clt_parameters.tileY);
 
 					merge_groups = lp.extractMergeSameTileGroups(
-//							st.planes_mod,              // final TilePlanes.PlaneData [][] planes,
-							st.planes,              // final TilePlanes.PlaneData [][] planes,
-							merge_candidates,       // final int [][][] merge_candidates,
-							plane_nooverlaps, // boolean [][][] plane_overlaps,
-							relax_for_conflicts,         // final double                    relax,
-							2,                      // -1, // debugLevel,                  // final int        debugLevel)
+							//							st.planes_mod,              // final TilePlanes.PlaneData [][] planes,
+							st.planes,                 // final TilePlanes.PlaneData [][] planes,
+							conflicting_candidates,    // final int [][][] merge_candidates,
+							plane_nooverlaps,          // boolean [][][] plane_overlaps,
+							lp.getConflRelax(),        // relax_for_conflicts,         // final double                    relax,
+							2,                         // -1, // debugLevel,                  // final int        debugLevel)
 							clt_parameters.tileX,
 							clt_parameters.tileY);
 
@@ -4100,7 +4111,7 @@ public class TileProcessor {
 						break;
 					}
 				}
-				
+
 				// Do the same as in conditionSuperTiles before smoothing again
 				
 				
@@ -4143,7 +4154,8 @@ public class TileProcessor {
 	// Just overwrite results of the previous method			
 				lp.setExclusiveLinks(
 						st.planes, // final TilePlanes.PlaneData [][] planes,
-						2.5, //final double                    max_cost
+//						2.5, //final double                      max_cost
+						lp.getExNeibCost()*lp.getExNeibSmooth(), // final double                    max_cost,
 						2, // -1, // debugLevel,                  // final int        debugLevel)
 						clt_parameters.tileX,
 						clt_parameters.tileY);

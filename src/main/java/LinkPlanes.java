@@ -58,9 +58,14 @@ public class LinkPlanes {
     public double     plNeNeibCost; //         =   5.0;  // When calculating non-exclusive planes, do not use neighbors with high cost
     public double     plNeOwn; //              =   5.0;  // When calculating non-exclusive planes, use center plane relative weight
     public double     plExNeibCost; //         =   5.0;  // When calculating non-exclusive planes, do not use neighbors with high cost
-    public double     plExNeibCostSngl; //     =  10.0;  // When calculating exclusive planes links, do not use no-link neighbors with high cost
     public double     plExNeibSmooth; //       =   0.5;  // Scale down maximal costs for smoothed planes (tighter requirements) 
+    public double     plMergeCostStar; //      =   5.0;  // Cost threshold for merging same tile planes if the plane has connected neighbors
+    public double     plMergeCost; //          =  10.0;  // Cost threshold for merging same tile planes if not connected
     
+    public boolean    plConflMerge; //         =  true;  // Try to merge conflicting planes
+    public double     plConflRelax; //         =   1.5;  // Scale parameters to relax planes fit for merging conflicting planes
+    public boolean    plConflSngl; //          =  true;  // Only merge conflicting planes if this is the only conflicting pair in the supertile
+    public boolean    plConflSnglPair; //      =  true;  // Only merge conflicting planes only if there are only two planes in the supertile 
 
 		// comparing merge quality for plane pairs
 	public double     plCostDist; //           =   4.0;  // Disparity (pix) - closer cost will use more of the real world, farther - disparity
@@ -111,9 +116,15 @@ public class LinkPlanes {
 		plNeNeibCost =      clt_parameters.plNeNeibCost;
 		plNeOwn =           clt_parameters.plNeOwn;
 		plExNeibCost =      clt_parameters.plExNeibCost;
-		plExNeibCostSngl =  clt_parameters.plExNeibCostSngl;
 		plExNeibSmooth =    clt_parameters.plExNeibSmooth;
+		plMergeCostStar =   clt_parameters.plMergeCostStar;
+		plMergeCost =       clt_parameters.plMergeCost;
 		
+		plConflMerge =      clt_parameters.plConflMerge;
+		plConflRelax =      clt_parameters.plConflRelax;
+		plConflSngl =       clt_parameters.plConflSngl;
+		plConflSnglPair =   clt_parameters.plConflSnglPair;
+
 		plCostDist =        clt_parameters.plCostDist;
 		plCostKrq =         clt_parameters.plCostKrq;
 		plCostKrqEq =       clt_parameters.plCostKrqEq;
@@ -135,11 +146,22 @@ public class LinkPlanes {
 	public double getExNeibCost(){
 		return plExNeibCost;
 	}
-	public double ExNeibCostSngl(){
-		return plExNeibCostSngl;
+	public double getMergeCostStar(){
+		return plMergeCostStar;
+	}
+	public double getMergeCostNoStar(){
+		return plMergeCost;
 	}
 	public double getExNeibSmooth(){
 		return plExNeibSmooth;
+	}
+
+	public double getConflRelax(){
+		return plConflRelax;
+	}
+	
+	public boolean getConflMerge(){
+		return plConflMerge;
 	}
 
 	public boolean areWeakSimilar(
@@ -634,9 +656,11 @@ public class LinkPlanes {
 		// reduce cost contribution for disparity space parameters for near objects, increase - for far 
 		
 		double average_disp = 0.5 * (plane1.getZxy()[0] + plane2.getZxy()[0]);
-		double cost_near = average_disp * average_disp / (average_disp * average_disp + this.plCostDist * this.plCostDist); 
-		double plCostKrq =   this.plCostKrq    * (1.0 - cost_near);
-		double plCostKrqEq = this.plCostKrqEq  * (1.0 - cost_near);
+		double cost_near = (this.plCostDist > 0.0) ?
+				(2.0 * average_disp * average_disp / (average_disp * average_disp + this.plCostDist * this.plCostDist)) :
+					1.0; 
+		double plCostKrq =   this.plCostKrq    * (2.0 - cost_near);
+		double plCostKrqEq = this.plCostKrqEq  * (2.0 - cost_near);
 		double plCostWrq =   this.plCostWrq    *  cost_near;
 		double plCostWrqEq = this.plCostWrqEq  *  cost_near;
 		
@@ -968,7 +992,7 @@ public class LinkPlanes {
 		}		      
 		ImageDtt.startAndJoin(threads);
 	}
-
+/*
 	public void setExclusiveLinks(
 			final TilePlanes.PlaneData [][] planes,
 			final int                       debugLevel,
@@ -981,7 +1005,8 @@ public class LinkPlanes {
 				debugLevel,
 				dbg_X,
 				dbg_Y);
-	}	
+	}
+*/
 	public void setExclusiveLinks(
 			final TilePlanes.PlaneData [][] planes,
 			final double                    max_cost,
@@ -2668,6 +2693,7 @@ public class LinkPlanes {
 	}
 	
 	public int [][][] filterPairsByConflicts(
+			final TilePlanes.PlaneData [][] planes,
 			final int [][][]                merge_candidates,
 			final int [][][]                conflicts)
 	{
@@ -2685,6 +2711,20 @@ public class LinkPlanes {
 				public void run() {
 					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
 						if ((merge_candidates[nsTile] != null) && (conflicts[nsTile] != null)) {
+							if (plConflSnglPair){
+								int num_planes = 0;
+								for (int i = 0; i < planes[nsTile].length; i++){
+									if (planes[nsTile][i] != null) num_planes++;
+								}
+								if (num_planes > 2) {
+									continue;
+								}
+							}
+							if (plConflSngl && (conflicts[nsTile].length > 1)){
+								continue;
+							}
+
+// TODO: maybe additionally check link costs correlation							
 							HashSet<Point> pairs_set = new HashSet<Point>();
 							for (int i = 0; i < merge_candidates[nsTile].length; i++ ){
 								if (merge_candidates[nsTile][i] != null){
