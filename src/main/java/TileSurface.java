@@ -416,7 +416,8 @@ public class TileSurface {
 			final int nStiles = stilesX * stilesY; 
 			final int nTiles =  nStiles * superTileSize * superTileSize; 
 			final double [][][][] fused_data = new double [nStiles][][][];
-			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+//			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+			final Thread[] threads = ImageDtt.newThreadArray((debugLevel > 1)? 1 : threadsMax);
 			final AtomicInteger ai = new AtomicInteger(0);
 			final int dbg_tile = dbg_Y * stilesX + dbg_X;
 			for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -424,7 +425,8 @@ public class TileSurface {
 					public void run() {
 						for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
 							if (planes[nsTile] != null) {
-								int dl = ((debugLevel > -1) && (nsTile == dbg_tile)) ? 3:0;
+//								int dl = ((debugLevel > -1) && (nsTile == dbg_tile)) ? 3:0;
+	                            int dl = ((debugLevel > 1) && (nsTile == dbg_tile)) ? 3: debugLevel;
 								if (dl > 0){
 									System.out.println("fuseSupertilePlanes(), nsTile = "+nsTile);
 								}
@@ -495,7 +497,7 @@ public class TileSurface {
 									}
 								}
 								fused_data[nsTile] = disp_strength;
-								if ((debugLevel > -1) && (dl>0)){
+								if ((debugLevel > -1) && (dl > 0)){
 									String[] titles = new String [3 * disp_strength.length];
 									double [][] dbg_img = new double [titles.length][];
 									for (int i = 0; i < disp_strength.length; i++) {

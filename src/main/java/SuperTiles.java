@@ -1413,7 +1413,9 @@ public class SuperTiles{
 		final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
 		final int stilesY = (tilesY + superTileSize -1)/superTileSize;
 		final int nStiles = stilesX * stilesY; 
-		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+//		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+		final Thread[] threads = ImageDtt.newThreadArray((debugLevel > 1)? 1 : tileProcessor.threadsMax);
+		
 		final AtomicInteger ai = new AtomicInteger(0);
 		final int debug_stile = (debugLevel > -1)? (dbg_Y * stilesX + dbg_X):-1;
 		// TODO: Remove when promoting PlaneData
@@ -1423,7 +1425,9 @@ public class SuperTiles{
 			threads[ithread] = new Thread() {
 				public void run() {
 					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
-						if (nsTile == debug_stile){
+//						int dl =  (nsTile == debug_stile) ? 3 : 0;
+                        int dl = ((debugLevel > 1) && (nsTile == debug_stile)) ? 3: debugLevel;
+						if (dl > 1){
 							System.out.println("getPlaneDispStrengths(): nsTile="+nsTile);
 						}
 						int stileY = nsTile / stilesX;  
@@ -1438,7 +1442,7 @@ public class SuperTiles{
 								measuredLayers,     // MeasuredLayers measuredLayers,
 								plPreferDisparity);   // boolean preferDisparity)
 
-						int dl =  (nsTile == debug_stile) ? 3 : 0;
+						
 
 						plane_disp_strength[nsTile] = new double[measuredLayers.getNumLayers()][][];
 						
@@ -1541,7 +1545,8 @@ public class SuperTiles{
 		final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
 		final int stilesY = (tilesY + superTileSize -1)/superTileSize;
 		final int nStiles = stilesX * stilesY; 
-		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+//		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+		final Thread[] threads = ImageDtt.newThreadArray((debugLevel > 1)? 1 :tileProcessor.threadsMax);		
 		final AtomicInteger ai = new AtomicInteger(0);
 		this.planes = new TilePlanes.PlaneData[nStiles][];
 		final int debug_stile = (debugLevel > -1)? (dbg_Y * stilesX + dbg_X):-1;
@@ -1553,12 +1558,13 @@ public class SuperTiles{
 				public void run() {
 					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
 						if (disparity_strengths[nsTile] != null){
-							if (nsTile == debug_stile){
+                            int dl = ((debugLevel > 1) && (nsTile == debug_stile)) ? 3: debugLevel;
+							if (dl > 1){
 								System.out.println("dispClusterize(): nsTile="+nsTile);
 							}
 							int stileY = nsTile / stilesX;  
 							int stileX = nsTile % stilesX;
-							int dl =  (nsTile == debug_stile) ? 3 : 0;
+//							int dl =  (nsTile == debug_stile) ? 3 : 0;
 
 							double[][][] disp_strength = new double[measuredLayers.getNumLayers()][][];
 
@@ -1853,7 +1859,8 @@ public class SuperTiles{
 		final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
 		final int stilesY = (tilesY + superTileSize -1)/superTileSize;
 		final int nStiles = stilesX * stilesY; 
-		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+//		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+		final Thread[] threads = ImageDtt.newThreadArray((debugLevel > 1)? 1 : tileProcessor.threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		this.planes = new TilePlanes.PlaneData[nStiles][];
 		final int debug_stile = (debugLevel > -1)? (dbg_Y * stilesX + dbg_X):-1;
@@ -1877,7 +1884,7 @@ public class SuperTiles{
 				cltPass3d.getDisparity(), // double [] disparity,
 				cltPass3d.getStrength(), // double [] strength,
 				grown_selection); // null); // boolean [] selection) // may be null
-		if (debugLevel > -1) {
+		if (debugLevel > 0) {
 			String [] titles = {"d0","s0","d1","s1","d2","s2","d3","s3","s","d","selection"};
 			boolean [] dbg_sel= grown_selection; // cltPass3d.getSelected(); 
 			double [][] dbg_img = new double [titles.length][];
@@ -1939,7 +1946,7 @@ public class SuperTiles{
 			final double [][][] mmm_hor = getMaxMinMax(
 					hor_disp_strength,  // final double [][][][] disparity_strength, // pre-calculated disparity/strength [per super-tile][per-measurement layer][2][tiles] or null
 					null); // final boolean [][] tile_sel // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
-			if (debugLevel > -1) {
+			if (debugLevel > 0) {
 				dbg_hist[1] = showDisparityHistogram();
 				dbg_hist[3] = showMaxMinMax();
 			}
@@ -1960,7 +1967,7 @@ public class SuperTiles{
 				sdfa_instance.showArrays(dbg_hist, hist_width0, hist_height0, true, "vert_hor_histograms_"+pass,dbg_hist_titles);
 			}
 			// try to independently (same selections) clusterize both ways
-			if (debugLevel > -1){
+			if (debugLevel > 0){
 				System.out.println("initialDiscriminateTiles(): before new_planes_hor, pass =" + (pass + 1) + " ( of "+max_tries+" )");
 			}
 			
@@ -1974,11 +1981,11 @@ public class SuperTiles{
 					plMinPoints,       // final int        plMinPoints, //          =     5;  // Minimal number of points for plane detection
 					smallDiff,         // final double     smallDiff,  //       = 0.4;   // Consider merging initial planes if disparity difference below
 					highMix,          // final double     highMix,    //stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
-					1, // debugLevel,
+					debugLevel, // 1, // debugLevel,
 					dbg_X,
 					dbg_Y);
 
-			if (debugLevel > -1){
+			if (debugLevel > 0){
 				System.out.println("initialDiscriminateTiles(): before new_planes_vert, pass =" + (pass + 1) + " ( of "+max_tries+" )");
 			}
 			final boolean [][][][] new_planes_vert = dispClusterize(
@@ -1991,7 +1998,7 @@ public class SuperTiles{
 					plMinPoints,       // final int        plMinPoints, //          =     5;  // Minimal number of points for plane detection
 					smallDiff,         // final double     smallDiff,  //       = 0.4;   // Consider merging initial planes if disparity difference below
 					highMix,          // final double     highMix,    //stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
-					2, // debugLevel,
+					debugLevel, // 2, // debugLevel,
 					dbg_X,
 					dbg_Y);
 			
@@ -2001,13 +2008,12 @@ public class SuperTiles{
 				threads[ithread] = new Thread() {
 					public void run() {
 						for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
-							int dl =  ((debugLevel > -1) && (nsTile == debug_stile)) ? 3 : 0;
+//							int dl =  ((debugLevel > -1) && (nsTile == debug_stile)) ? 3 : 0;
+                            int dl = ((debugLevel > 1) && (nsTile == debug_stile)) ? 3: debugLevel;
+							
 							if (dl > 0){
 								System.out.println("initialDiscriminateTiles() selecting: nsTile="+nsTile);
 							}
-//							int stileY = nsTile / stilesX;  
-//							int stileX = nsTile % stilesX;
-//							int [] sTiles = {stileX, stileY};
 							double [][][][] ds = {vert_disp_strength[nsTile],hor_disp_strength[nsTile]};
 							boolean [][][][] sels_all = {new_planes_vert[nsTile],new_planes_hor[nsTile]}; // make possible to iterate
 							class SelStrength{
@@ -2189,7 +2195,9 @@ public class SuperTiles{
 			threads[ithread] = new Thread() {
 				public void run() {
 					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
-						int dl =  ((debugLevel > -1) && (nsTile == debug_stile)) ? 3 : 1;
+//						int dl =  ((debugLevel > -1) && (nsTile == debug_stile)) ? 3 : 1;
+                        int dl = ((debugLevel > 1) && (nsTile == debug_stile)) ? 3: debugLevel;
+						
 						if (dl > 1){
 							System.out.println("refineDiscriminateTiles() selecting: nsTile="+nsTile);
 						}
@@ -2240,7 +2248,7 @@ public class SuperTiles{
 									break;
 								}
 								// merging suggested plane pair
-								if (debugLevel > -1) {
+								if (debugLevel > 0) {
 									System.out.println("refineDiscriminateTiles(): nsTile="+nsTile+" merging pair ["+merge_planes[0]+","+merge_planes[1]+"]");
 								}
 								TilePlanes.PlaneData [] new_planes = new TilePlanes.PlaneData [these_planes.length -1];
@@ -2257,7 +2265,7 @@ public class SuperTiles{
 										false,       // boolean   ignore_weights,
 										true, // boolean   sum_weights,
 										these_planes[merge_planes[0]].getPreferDisparity(), // preferDisparity,
-										dl-1); // int       debugLevel)
+										dl-2); // int       debugLevel)
 								// combine tile selection - if next time pd0.reDiscriminateTiles() will fail, it will
 								// use old selections, we need to provide them (otherwise will use selection from the first plane)
 								plane1.orMeasSelection(these_planes[merge_planes[1]].getMeasSelection());
@@ -2352,7 +2360,9 @@ public class SuperTiles{
 			threads[ithread] = new Thread() {
 				public void run() {
 					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
-						if (nsTile == debug_stile){
+//                        int dl = ((debugLevel > 1) && (nsTile == debug_stile)) ? 3: debugLevel;
+                        int dl = ((debugLevel > 1) && (nsTile == debug_stile)) ? 3: debugLevel;
+						if (dl > 1){
 							System.out.println("createPlanesFromSelections(): nsTile="+nsTile);
 						}
 						if (plane_selections[nsTile] != null) {
@@ -2362,7 +2372,8 @@ public class SuperTiles{
 							int stileY = nsTile / stilesX;  
 							int stileX = nsTile % stilesX;
 							int [] sTiles = {stileX, stileY};
-							int dl =  (nsTile == debug_stile) ? 3 : 0;
+//							int dl =  (nsTile == debug_stile) ? 3 : 0;
+							
 							
 							result_planes[nsTile] = null;
 							// first make a plane from all tiles
@@ -2392,7 +2403,7 @@ public class SuperTiles{
 											dl);                       // int          debugLevel);
 
 							if ((st_planes != null) && (!st_planes.isEmpty())){
-								if (dl > 0){
+								if (dl > 1){
 									System.out.println("======= createPlanesFromSelections(): nsTile="+nsTile+" detecting bridges ==========");
 								}
 								boolean [][][] split_sels = pd0.filterBridges(
@@ -2401,7 +2412,7 @@ public class SuperTiles{
 										3, // int max_grow_far,
 										dl); // int debugLevel)
 								if (split_sels !=null){
-									if (dl > -1){
+									if (dl > 1){
 										System.out.println("======= createPlanesFromSelections(): nsTile="+nsTile+" removing bridges ==========");
 									}
 									if (dl > 2) {
@@ -2431,7 +2442,7 @@ public class SuperTiles{
 											smplSide,                 // int          smplSide, //        = 2;      // Sample size (side of a square)
 											smplNum,                  //  int          smplNum, //         = 3;      // Number after removing worst
 											smplRms,                  //  double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-											dl);                       // int          debugLevel);
+											dl - 1);                       // int          debugLevel);
 								}
 								
 							}
@@ -2449,7 +2460,7 @@ public class SuperTiles{
 								if (LOWEST_PLANE(2) > 0) st_planes.add(0, st_planes.get(0)); // insert dummy at pos 0;
 								result_planes[nsTile] = st_planes.toArray(new TilePlanes.PlaneData[0] );
 								if (LOWEST_PLANE(2) > 0) result_planes[nsTile][0] = null; // remove dummy
-								if (dl >0){
+								if (dl >1){
 									System.out.println("createPlanesFromSelections(): nsTile="+nsTile);
 								}
 								if (dl > 2) {
@@ -2575,7 +2586,7 @@ public class SuperTiles{
 				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
 				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 
-				debugLevel + 2, // 1,          // final int        debugLevel,
+				debugLevel, //  + 2, // 1,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
 				dbg_Y);              // final int        dbg_Y)
 		this.planes = new_planes; // save as "measured" (as opposed to "smoothed" by neighbors) planes
@@ -2692,7 +2703,7 @@ public class SuperTiles{
 				
 				plDiscrXMedian,    //final double    plDiscrXMedian, //         = 1.5;   // Remove outliers from the final selection that have distance more than scaled median
 			    
-				2, // debugLevel,           // final int        debugLevel,
+				debugLevel,           // final int        debugLevel,
 				dbg_X,                // final int        dbg_X,
 				dbg_Y);               // final int        dbg_Y)
 
@@ -2734,7 +2745,7 @@ public class SuperTiles{
 				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
 				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 
-				debugLevel + 2, // 1,          // final int        debugLevel,
+				debugLevel, //  + 2, // 1,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
 				dbg_Y);              // final int        dbg_Y)
 		// combine old and new planes (refineDiscriminateTiles will return null for the supertile if failed to re-disciminate)
@@ -5844,14 +5855,14 @@ public class SuperTiles{
 	
 	
 
-	public TilePlanes.PlaneData[][] copyPlanes(
+	public TilePlanes.PlaneData[][] copyPlanes_old(
 			TilePlanes.PlaneData[][] src_planes)
 	{
 		TilePlanes.PlaneData[][] dst_planes = new TilePlanes.PlaneData[src_planes.length][];
-		return copyPlanes(src_planes, dst_planes);
+		return copyPlanes_old(src_planes, dst_planes);
 	}
 
-	public TilePlanes.PlaneData[][] copyPlanes(
+	public TilePlanes.PlaneData[][] copyPlanes_old(
 			final TilePlanes.PlaneData[][] src_planes,
 			final TilePlanes.PlaneData[][] dst_planes)
 	{
@@ -5881,7 +5892,7 @@ public class SuperTiles{
 		return dst_planes;
 	}
 
-	public TilePlanes.PlaneData[][] planesSmooth(
+	public TilePlanes.PlaneData[][] planesSmooth_old(
 			final LinkPlanes lp,			
 			final double      meas_pull,//  relative pull of the original (measured) plane with respect to the average of the neighbors
 			final double      maxValue, // do not combine with too bad planes with primary eigenvalue above this value ( 0 any OK)
@@ -5896,10 +5907,10 @@ public class SuperTiles{
 			final int         dbg_Y)
 	{
 		if (this.planes_mod == null){
-			this.planes_mod =copyPlanes(this.planes); // make always (for now) *********************
+			this.planes_mod =copyPlanes_old(this.planes); // make always (for now) *********************
 		}
 		for (int pass = 0; pass < num_passes; pass++){
-			double diff = planesSmoothStep(
+			double diff = planesSmoothStep_old(
 					lp,              // LinkPlanes       lp,			
 					meas_pull,       //  relative pull of the original (measured) plane with respect to the average of the neighbors
 					maxValue,        // final double maxValue, // do not combine with too bad planes
@@ -5926,7 +5937,7 @@ public class SuperTiles{
 		return this.planes_mod;
 	}			
 
-	public double planesSmoothStep(
+	public double planesSmoothStep_old(
 			final LinkPlanes   lp,
 			final double meas_pull,//  relative pull of the original (measured) plane with respect to the average of the neighbors
 			final double maxValue, // do not combine with too bad planes, do not merge if result is above
@@ -5947,7 +5958,7 @@ public class SuperTiles{
 		final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
 //		final int stilesY = (tilesY + superTileSize -1)/superTileSize;
 		final int debug_stile = dbg_Y * stilesX + dbg_X;
-		final TilePlanes.PlaneData[][] new_planes = copyPlanes(mod_planes);
+		final TilePlanes.PlaneData[][] new_planes = copyPlanes_old(mod_planes);
 		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
 		final int numThreads = threads.length;
 		final double [] rslt_diffs = calc_diff ? new double [numThreads] : null; // all 0;
@@ -6190,7 +6201,7 @@ public class SuperTiles{
 			};
 		}		      
 		ImageDtt.startAndJoin(threads);
-		copyPlanes (new_planes, mod_planes); // copy back
+		copyPlanes_old (new_planes, mod_planes); // copy back
 		if (rslt_diffs == null){
 			return Double.NaN;
 		}
@@ -6294,9 +6305,27 @@ public class SuperTiles{
 		return split_lines;
 	}
 
-	
-	
-	
+	/**
+	 * Apply same supertile planes merge by combining tiles and re-generating ellipsoids by diagonalizing
+	 * covariance matrices. Some outliers may be removed after merge
+	 * @param planes per supertile, per plane - array of supertile instances - will be modified =by merge
+	 * @param merge_groups per-supertile group sets for merging. Each group set is an array of groups. Each group is an array
+	 * of plane indices
+	 * Parameters to generate planes (ellipsoids): 
+	 * @param disp_far disparity lower limit (Double.NaN - any)
+	 * @param disp_near disparity upper limit (Double.NaN - any)
+	 * @param dispNorm disparity normalization value (when average disparity is above, difference is proportionally reduced)
+	 * @param min_weight minimal tile strength to be used
+	 * @param min_tiles minimal number of tiles to generate ellipsoid
+	 * Parameters for outlier removal:
+	 * @param targetEigen target main eigenvalue (thickness in disparity space)
+	 * @param fractOutliers maximal fraction of all tiles to be removed as outliers
+	 * @param maxOutliers maximal absolute number of outliers to be removed from each plane (ellipsoid)
+	 * @param debugLevel debug level
+	 * @param dbg_X tile x-index for detailed debug data
+	 * @param dbg_Y tile y-index for detailed debug data
+	 * @return total number of plane groups merged
+	 */
 	public int applyMergePlanes(
 			final TilePlanes.PlaneData[][]   planes,
 			final int [][][]                 merge_groups,			
@@ -6319,14 +6348,16 @@ public class SuperTiles{
 		final int superTileSize = tileProcessor.getSuperTileSize();
 		final int stilesX = (tilesX + superTileSize -1)/superTileSize;  
 		final int debug_stile = dbg_Y * stilesX + dbg_X;
-		final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+		final Thread[] threads = ImageDtt.newThreadArray((debugLevel > 1)? 1 : tileProcessor.threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				public void run() {
 					for (int nsTile = ai.getAndIncrement(); nsTile < planes.length; nsTile = ai.getAndIncrement()) {
-						int dl = ((debugLevel > -1) && (nsTile == debug_stile)) ? 4:0;
+//						int dl = ((debugLevel > -1) && (nsTile == debug_stile)) ? 4:0;
+                        int dl = ((debugLevel > 1) && (nsTile == debug_stile)) ? 4: debugLevel;
+						
 						if (merge_groups[nsTile] != null){
 							// first merge all to the lowest plane (they are ordered), then re-order remaining planes
 							for (int ng = 0; ng < merge_groups[nsTile].length; ng++) {

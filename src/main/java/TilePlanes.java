@@ -4969,7 +4969,7 @@ public class TilePlanes {
 				}
 			}
 			
-			if (((debugLevel > -1) && ((debugLevel > 0) || (max_attr_corr > attractionCorrMax)) )&& (num_planes > 1)){
+			if (((debugLevel > 0) && ((debugLevel > 1) || (max_attr_corr > attractionCorrMax)) )&& (num_planes > 1)){
 				String dbg_s = "refineDiscriminateTiles() plane attraction correlation for "+prefix+": maximal="+max_attr_corr;
 				for (int np = 0; np < num_planes; np++) {
 					for (int np1 = np + 1; np1 < num_planes; np1++) {
