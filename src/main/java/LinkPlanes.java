@@ -67,6 +67,16 @@ public class LinkPlanes {
     public boolean    plConflSngl; //          =  true;  // Only merge conflicting planes if this is the only conflicting pair in the supertile
     public boolean    plConflSnglPair; //      =  true;  // Only merge conflicting planes only if there are only two planes in the supertile 
 
+    public double     plThickWorld; //         =   0.2;  // Maximal real-world thickness of merged overlapping planes (meters) 
+    public double     plThickWorldConfl; //    =   0.4;  // Maximal real-world merged thickness for conflicting planes 
+    public double     plRelaxComplete;  //     =   1.5;  // Relax cost requirements when adding exclusive links to complete squares and triangles 
+    public double     plRelaxComplete2; //     =   2.0;  // Relax cost requirements during the second pass
+    
+    public boolean    plFillSquares; //        =   true; // Add diagonals to full squares
+    public boolean    plCutCorners; //         =   true; // Add ortho to 45-degree corners
+    public boolean    plHypotenuse; //         =   true; // Add hypotenuse connection if both legs exist
+    
+
 		// comparing merge quality for plane pairs
 	public double     plCostDist; //           =   4.0;  // Disparity (pix) - closer cost will use more of the real world, farther - disparity
 	public double     plCostKrq; //            =   0.8;  // cost of merge quality weighted in disparity space
@@ -137,6 +147,15 @@ public class LinkPlanes {
 		plConflSngl =       clt_parameters.plConflSngl;
 		plConflSnglPair =   clt_parameters.plConflSnglPair;
 
+		plThickWorld =      clt_parameters.plThickWorld;
+		plThickWorldConfl = clt_parameters.plThickWorldConfl;
+		plRelaxComplete =   clt_parameters.plRelaxComplete;
+		plRelaxComplete2 =  clt_parameters.plRelaxComplete2;
+
+		plFillSquares =     clt_parameters.plFillSquares;
+		plCutCorners =      clt_parameters.plCutCorners;
+		plHypotenuse =      clt_parameters.plHypotenuse;
+
 		plCostDist =        clt_parameters.plCostDist;
 		plCostKrq =         clt_parameters.plCostKrq;
 		plCostKrqEq =       clt_parameters.plCostKrqEq;
@@ -185,6 +204,13 @@ public class LinkPlanes {
 	
 	public boolean getConflMerge(){
 		return plConflMerge;
+	}
+
+	public double getRelaxComplete(){
+		return plRelaxComplete;
+	}
+	public double getRelaxComplete2(){
+		return plRelaxComplete2;
 	}
 
 	public boolean areWeakSimilar(
@@ -3654,11 +3680,7 @@ public class LinkPlanes {
 			boolean [][][] valid_candidates = overlapSameTileCandidates (
 					planes, // final TilePlanes.PlaneData [][] planes,			
 					merge_candidates,       // final int [][][] merge_candidates,
-					
-					// TODO: use parameters
-					0.2, // final double     min_distance,
-					
-					
+					plThickWorld, // 0.2, // final double     min_distance,
 					debugLevel,                  // final int        debugLevel)
 					dbg_tileX,
 					dbg_tileY);
@@ -4169,10 +4191,7 @@ public class LinkPlanes {
 			boolean [][][] valid_candidates = overlapSameTileCandidates (
 					planes_mod, // final TilePlanes.PlaneData [][] planes,			
 					merge_candidates,       // final int [][][] merge_candidates,
-					
-					// TODO: Use programmed parameters
-					0.2, // final double     min_distance, //?
-					
+					plThickWorld, // 0.2, // final double     min_distance,
 					debugLevel,                          // final int        debugLevel)
 					dbg_tileX,
 					dbg_tileY);
@@ -4263,9 +4282,7 @@ public class LinkPlanes {
 				valid_candidates = overlapSameTileCandidates (
 						planes_mod, // final TilePlanes.PlaneData [][] planes,			
 						conflicting_candidates,       // final int [][][] merge_candidates,\\
-						
-						0.4, // final double     min_distance,
-						
+						plThickWorldConfl, // 0.4, // final double     min_distance,
 						debugLevel,       // final int        debugLevel)
 						dbg_tileX,
 						dbg_tileY);
@@ -4373,5 +4390,565 @@ public class LinkPlanes {
 		return planes_mod;
 	}	
 
+	public boolean goodLink(
+			double threshold,
+			int nsTile,
+			int np,
+			int dir,
+			int dest_plane,
+			TilePlanes.PlaneData [][] planes,
+			TileNeibs tnSurface)
+	{
+		if (threshold == 0.0) return true;
+		double cost = getMutualLinkCost(
+				nsTile,
+				np,
+				dir,
+				dest_plane,
+				planes,
+				tnSurface);
+		return cost <= threshold; // cost may be Double.NaN, will return false
+	}
+	
+	public double getMutualLinkCost(
+			int nsTile,
+			int np,
+			int dir,
+			int dest_plane,
+			TilePlanes.PlaneData [][] planes,
+			TileNeibs tnSurface)
+	{
+		double cost = planes[nsTile][np].getLinkCosts(dir, dest_plane);
+		if (!Double.isNaN(cost)){
+			int back_dir = (dir + 4) % 8;
+			cost = 0.5 * (cost + planes[tnSurface.getNeibIndex(nsTile, dir)][dest_plane].getLinkCosts(back_dir, np));
+		}
+		return cost;
+	}
+	
+	public int fillSquares(
+			final TilePlanes.PlaneData[][] planes,
+			final double                   threshold,
+			final int debugLevel,
+			final int dbg_X,
+			final int dbg_Y)
+	{
+		final int tilesX =        st.tileProcessor.getTilesX();
+		final int tilesY =        st.tileProcessor.getTilesY();
+		final int superTileSize = st.tileProcessor.getSuperTileSize();
+		//				final int tileSize =      tileProcessor.getTileSize();
+		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;  
+		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
+		final TileNeibs tnSurface = new TileNeibs(stilesX, stilesY);
+		final int debug_stile = dbg_Y * stilesX + dbg_X;
+//		final int nStiles =       stilesX * stilesY;
+		int num_added = 0;
+		for (int stY = 0; stY < (stilesY - 1); stY++ ) {
+			for (int stX = 0; stX < (stilesX - 1); stX++ ) {
+				int nsTile = stY * stilesX + stX;
+				int [] nsTiles = { nsTile, nsTile + 1, nsTile + stilesX, nsTile + stilesX + 1};
+                int dl = ((debugLevel > 1) && (nsTile == debug_stile)) ? 3: debugLevel;
+				if (dl > 2){
+					System.out.println("fillSquares(): nsTile="+nsTile);
+				}
+				TilePlanes.PlaneData [][] planes4 = {planes[nsTiles[0]],planes[nsTiles[1]],planes[nsTiles[2]],planes[nsTiles[3]]};
+				if ((planes4[0] != null) && (planes4[1] != null) && (planes4[2] != null) && (planes4[3] != null)){
+					for (int np = 0; np < planes4[0].length; np++){
+						if (planes4[0][np] == null) continue;
+						int [] neibs0 = planes4[0][np].getNeibBest();
+						if ((neibs0[2] < 0) || (neibs0[4] < 0)) continue;
+						if (planes4[1][neibs0[2]] == null) continue;
+						if (planes4[2][neibs0[4]] == null) continue;
+						int [] neibs1 = planes4[1][neibs0[2]].getNeibBest();
+						int [] neibs2 = planes4[2][neibs0[4]].getNeibBest();
+						if ((neibs1[4] < 0) || (neibs2[2] < 0) || (neibs1[4] != neibs2[2])) continue;
+						int [] neibs3 = planes4[3][neibs1[4]].getNeibBest();
+						// got full square, does it already have diagonals
+						if ((neibs0[3] < 0) && (neibs3[7] < 0)){
+							// See if the link cost is below threshold
+							// from this to right-down and back
+							if (goodLink(threshold,nsTiles[0], np, 3, neibs1[4], planes, tnSurface )) {
+								neibs0[3] = neibs1[4];
+								neibs3[7] = np;
+								num_added++;
+								if (dl > 0){
+									System.out.println("fillSquares().1: added link "+
+											nsTiles[0]+":" + np+ "-(3)->"+neibs1[4]+", " + nsTiles[3]+":" + neibs1[4]+"-(7)->" + np+
+											" cost = "+getMutualLinkCost(nsTiles[0], np, 3, neibs1[4], planes, tnSurface ));												
+								}
+							}
+						}
+						if ((neibs1[5] < 0) && (neibs2[1] < 0)){
+							// See if the link cost is below threshold
+							// from right to down and back
+							if (goodLink(threshold, nsTiles[1], neibs0[2], 5, neibs0[4], planes, tnSurface )) {
+								neibs1[5] = neibs0[4];
+								neibs2[1] = neibs0[2];
+								num_added++;
+								if (dl > 0){
+									System.out.println("fillSquares().2: added link "+
+											nsTiles[1]+":" + neibs0[2]+"-(5)->"+neibs0[4]+", " + nsTiles[2]+":" + neibs0[4]+"-(1)->" + neibs0[2]+
+											" cost = " + getMutualLinkCost(nsTiles[1], neibs0[2], 5, neibs0[4], planes, tnSurface ));												
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		return num_added;
+	}
+	
+	public int fillHypotenuse(
+			final TilePlanes.PlaneData[][] planes,
+			final double                   threshold,
+			final int debugLevel,
+			final int dbg_X,
+			final int dbg_Y)
+	{
+		final int tilesX =        st.tileProcessor.getTilesX();
+		final int tilesY =        st.tileProcessor.getTilesY();
+		final int superTileSize = st.tileProcessor.getSuperTileSize();
+		//				final int tileSize =      tileProcessor.getTileSize();
+		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;  
+		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
+		final TileNeibs tnSurface = new TileNeibs(stilesX, stilesY);
+		final int debug_stile = dbg_Y * stilesX + dbg_X;
+//		final int nStiles =       stilesX * stilesY;
+		int num_added = 0;
+		for (int stY = 0; stY < (stilesY - 1); stY++ ) {
+			for (int stX = 0; stX < (stilesX - 1); stX++ ) {
+				int nsTile = stY * stilesX + stX;
+				int [] nsTiles = { nsTile, nsTile + 1, nsTile + stilesX, nsTile + stilesX + 1};
+                int dl = ((debugLevel > 1) && (nsTile == debug_stile)) ? 3: debugLevel;
+				if (dl > 2){
+					System.out.println("fillHypotenuse(): nsTile="+nsTile);
+				}
+				TilePlanes.PlaneData [][] planes4 = {planes[nsTiles[0]],planes[nsTiles[1]],planes[nsTiles[2]],planes[nsTiles[3]]};
+				// when right and down links exist
+				if ((planes4[0] != null) && (planes4[1] != null) && (planes4[2] != null)){
+					for (int np = 0; np < planes4[0].length; np++){
+						if (planes4[0][np] == null) continue;
+						int [] neibs0 = planes4[0][np].getNeibBest();
+						if ((neibs0[2] < 0) || (neibs0[4] < 0)) continue;
+//						if (planes4[1][neibs0[2]] == null) continue; // should never happen 
+//						if (planes4[2][neibs0[4]] == null) continue; // should never happen 
+						int [] neibs1 = planes4[1][neibs0[2]].getNeibBest();
+						int [] neibs2 = planes4[2][neibs0[4]].getNeibBest();
+						if ((neibs1[5] < 0) && (neibs2[1] < 0)){
+							// See if the link cost is below threshold
+							// from right to down and back
+							if (goodLink(threshold, nsTiles[1], neibs0[2], 5, neibs0[4], planes, tnSurface )) {
+								neibs1[5] = neibs0[4];
+								neibs2[1] = neibs0[2];
+								num_added++;
+								if (dl > 0){
+									System.out.println("fillHypotenuse().1: added link "+
+											nsTiles[1]+":" + neibs0[2]+"-(5)->"+neibs0[4]+", " + nsTiles[2]+":" + neibs0[4]+"-(1)->" + neibs0[2]+
+											" cost = " + getMutualLinkCost(nsTiles[1], neibs0[2], 5, neibs0[4], planes, tnSurface ));												
+								}
+							}
+						}
+					}
+				}
+				// when right and down from right links exist
+				if ((planes4[0] != null) && (planes4[1] != null) && (planes4[3] != null)){
+					for (int np = 0; np < planes4[0].length; np++){
+						if (planes4[0][np] == null) continue;
+						int [] neibs0 = planes4[0][np].getNeibBest();
+						if (neibs0[2] < 0) continue;
+//						if (planes4[1][neibs0[2]] == null) continue;
+//						if (planes4[2][neibs0[4]] == null) continue;
+						int [] neibs1 = planes4[1][neibs0[2]].getNeibBest();
+						if (neibs1[4] < 0) continue;
+						int [] neibs3 = planes4[3][neibs1[4]].getNeibBest();
+						// got right then down, connect if possible
+						if ((neibs0[3] < 0) && (neibs3[7] < 0)){
+							// See if the link cost is below threshold
+							// from this to right-down and back
+							if (goodLink(threshold,nsTiles[0], np, 3, neibs1[4], planes, tnSurface )) {
+								neibs0[3] = neibs1[4];
+								neibs3[7] = np;
+								num_added++;
+								if (dl > 0){
+									System.out.println("fillHypotenuse().2: added link "+
+											nsTiles[0]+":" + np+ "-(3)->"+neibs1[4]+", " + nsTiles[3]+":" + neibs1[4]+"-(7)->" + np+
+											" cost = "+getMutualLinkCost(nsTiles[0], np, 3, neibs1[4], planes, tnSurface ));												
+								}
+							}
+						}
+					}
+				}
+				// when down and right from down links exist
+				if ((planes4[0] != null) && (planes4[2] != null) && (planes4[3] != null)){
+					for (int np = 0; np < planes4[0].length; np++){
+						if (planes4[0][np] == null) continue;
+						int [] neibs0 = planes4[0][np].getNeibBest();
+						if (neibs0[4] < 0) continue;
+//						if (planes4[1][neibs0[2]] == null) continue;
+//						if (planes4[2][neibs0[4]] == null) continue;
+						int [] neibs2 = planes4[2][neibs0[4]].getNeibBest();
+						if (neibs2[2] < 0) continue;
+						int [] neibs3 = planes4[3][neibs2[2]].getNeibBest();
+						// got down then right, connect if possible
+						if ((neibs0[3] < 0) && (neibs3[7] < 0)){
+							// See if the link cost is below threshold
+							// from this to right-down and back
+							if (goodLink(threshold,nsTiles[0], np, 3, neibs2[2], planes, tnSurface )) {
+								neibs0[3] = neibs2[2];
+								neibs3[7] = np;
+								num_added++;
+								if (dl > 0){
+									System.out.println("fillHypotenuse().3: added link "+
+											nsTiles[0]+":" + np+ "-(3)->"+neibs2[2]+", " + nsTiles[3]+":" + neibs2[2]+"-(7)->" + np+
+											" cost = "+getMutualLinkCost(nsTiles[0], np, 3, neibs2[2], planes, tnSurface ));												
+								}
+							}
+						}
+					}
+				}
+				// when both ortho links exist from the opposite ([3]) tile
+				if ((planes4[1] != null) && (planes4[2] != null) && (planes4[3] != null)){
+					for (int np = 0; np < planes4[3].length; np++){
+						if (planes4[3][np] == null) continue;
+						int [] neibs3 = planes4[3][np].getNeibBest();
+						if ((neibs3[6] < 0) || (neibs3[0] < 0)) continue;
+//						if (planes4[1][neibs0[2]] == null) continue;
+//						if (planes4[2][neibs0[4]] == null) continue;
+						int [] neibs1 = planes4[1][neibs3[0]].getNeibBest();
+						int [] neibs2 = planes4[2][neibs3[6]].getNeibBest();
+						if ((neibs1[5] < 0) && (neibs2[1] < 0)){
+							// See if the link cost is below threshold
+							// from right to down and back
+							if (goodLink(threshold, nsTiles[1], neibs3[0], 5, neibs3[6], planes, tnSurface )) {
+								neibs1[5] = neibs3[6];
+								neibs2[1] = neibs3[0];
+								num_added++;
+								if (dl > 0){
+									System.out.println("fillSquares().2: added link "+
+											nsTiles[1]+":" + neibs3[0]+"-(5)->"+neibs3[6]+", " + nsTiles[2]+":" + neibs3[6]+"-(1)->" + neibs3[0]+
+											" cost = " + getMutualLinkCost(nsTiles[1], neibs3[0], 5, neibs3[6], planes, tnSurface ));												
+								}
+							}
+						}
+					}
+				}
+
+				
+				
+				if ((planes4[0] != null) && (planes4[1] != null) && (planes4[2] != null) && (planes4[3] != null)){
+					for (int np = 0; np < planes4[0].length; np++){
+						if (planes4[0][np] == null) continue;
+						int [] neibs0 = planes4[0][np].getNeibBest();
+						if ((neibs0[2] < 0) || (neibs0[4] < 0)) continue;
+						if (planes4[1][neibs0[2]] == null) continue;
+						if (planes4[2][neibs0[4]] == null) continue;
+						int [] neibs1 = planes4[1][neibs0[2]].getNeibBest();
+						int [] neibs2 = planes4[2][neibs0[4]].getNeibBest();
+						if ((neibs1[4] < 0) || (neibs2[2] < 0) || (neibs1[4] != neibs2[2])) continue;
+						int [] neibs3 = planes4[3][neibs1[4]].getNeibBest();
+						// got full square, does it already have diagonals
+						if ((neibs0[3] < 0) && (neibs3[7] < 0)){
+							// See if the link cost is below threshold
+							// from this to right-down and back
+							if (goodLink(threshold,nsTiles[0], np, 3, neibs1[4], planes, tnSurface )) {
+								neibs0[3] = neibs1[4];
+								neibs3[7] = np;
+								num_added++;
+								if (dl > 0){
+									System.out.println("fillSquares().1: added link "+
+											nsTiles[0]+":" + np+ "-(3)->"+neibs1[4]+", " + nsTiles[3]+":" + neibs1[4]+"-(7)->" + np+
+											" cost = "+getMutualLinkCost(nsTiles[0], np, 3, neibs1[4], planes, tnSurface ));												
+								}
+							}
+						}
+						if ((neibs1[5] < 0) && (neibs2[1] < 0)){
+							// See if the link cost is below threshold
+							// from right to down and back
+							if (goodLink(threshold, nsTiles[1], neibs0[2], 5, neibs0[4], planes, tnSurface )) {
+								neibs1[5] = neibs0[4];
+								neibs2[1] = neibs0[2];
+								num_added++;
+								if (dl > 0){
+									System.out.println("fillSquares().2: added link "+
+											nsTiles[1]+":" + neibs0[2]+"-(5)->"+neibs0[4]+", " + nsTiles[2]+":" + neibs0[4]+"-(1)->" + neibs0[2]+
+											" cost = " + getMutualLinkCost(nsTiles[1], neibs0[2], 5, neibs0[4], planes, tnSurface ));												
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		return num_added;
+	}
+
+	
+	public int cutCorners(
+			final TilePlanes.PlaneData[][] planes,
+			final double                   threshold,
+			final int debugLevel,
+			final int dbg_X,
+			final int dbg_Y)
+	{
+		final int tilesX =        st.tileProcessor.getTilesX();
+		final int tilesY =        st.tileProcessor.getTilesY();
+		final int superTileSize = st.tileProcessor.getSuperTileSize();
+		//				final int tileSize =      tileProcessor.getTileSize();
+		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;  
+		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
+//		final int nStiles =       stilesX * stilesY;
+		final TileNeibs tnSurface = new TileNeibs(stilesX, stilesY);
+		int num_added = 0;
+		final int debug_stile = dbg_Y * stilesX + dbg_X;
+		for (int stY = 0; stY < (stilesY - 1); stY++ ) {
+			for (int stX = 0; stX < (stilesX - 1); stX++ ) {
+				int nsTile = stY * stilesX + stX;
+				int dl = ((debugLevel > 1) && (nsTile == debug_stile)) ? 3: debugLevel;
+				if (dl > 2){
+					System.out.println("cutCorners(): nsTile="+nsTile);
+				}
+				int [] nsTiles = { nsTile, nsTile + 1, nsTile + stilesX, nsTile + stilesX + 1};
+				TilePlanes.PlaneData [][] planes4 = {planes[nsTiles[0]],planes[nsTiles[1]],planes[nsTiles[2]],planes[nsTiles[3]]};
+				if (planes4[0] != null) { // && (planes4[1] != null) && (planes4[2] != null)){
+					for (int np = 0; np < planes4[0].length; np++){
+						if (planes4[0][np] != null) {
+							int [] neibs0 = planes4[0][np].getNeibBest();
+							if ((neibs0[2] >= 0) && (neibs0[4] < 0)){
+								if (planes4[1][neibs0[2]] != null) {
+									int [] neibs1 = planes4[1][neibs0[2]].getNeibBest();
+									if (neibs1[5] >= 0) {
+										int [] neibs2 = planes4[2][neibs1[5]].getNeibBest();
+										// from this to down and back
+										if (neibs2[0] < 0) {
+											if (goodLink(threshold, nsTiles[0], np, 4, neibs1[5], planes, tnSurface )) {
+												neibs0[4] = neibs1[5];
+												neibs2[0] = np;  //?
+												num_added++;
+												if (dl > 0){
+													System.out.println("cutCorners().1: added link "+
+															nsTiles[0]+":" + np +"-(4)->"+neibs1[5]+", "+nsTiles[2]+":" + neibs1[5]+"-(0)->"+np+
+															" cost = " + getMutualLinkCost(nsTiles[0], np, 4, neibs1[5], planes, tnSurface ));												
+												}
+											}
+										}
+									}
+								}
+							}
+
+							if ((neibs0[2] < 0) && (neibs0[4] >= 0)){
+								if (planes4[2][neibs0[4]] != null) {
+									int [] neibs2 = planes4[2][neibs0[4]].getNeibBest();
+									if (neibs2[1] >= 0) {
+										int [] neibs1 = planes4[1][neibs2[1]].getNeibBest();
+										// from this to right and back
+										if (neibs1[6] < 0) {
+											if (goodLink(threshold, nsTiles[0], np, 2, neibs2[1], planes, tnSurface )) {
+												neibs0[2] = neibs2[1];
+												neibs1[6] = np;
+												num_added++;
+												if (dl > 0){
+													System.out.println("cutCorners().2: added link "+
+															nsTiles[0]+":" + np+"-(2)->"+neibs2[1]+", "+nsTiles[1]+":" + neibs2[1]+"-(6)->"+np+
+															" cost = " + getMutualLinkCost(nsTiles[0], np, 2, neibs2[1], planes, tnSurface ));												
+												}
+											}
+										}
+									}
+								}
+							}
+
+							if ((neibs0[2] >= 0) && (neibs0[3] >= 0)){
+								int [] neibs1 = planes4[1][neibs0[2]].getNeibBest();
+								if (neibs1[4] < 0) {
+									int [] neibs3 = planes4[3][neibs0[3]].getNeibBest();
+									// from right to right-down and back
+									if (neibs3[0] < 0) {
+										if (goodLink(threshold, nsTiles[1], neibs0[2], 4, neibs0[3], planes, tnSurface )) {
+											neibs1[4] = neibs0[3];
+											neibs3[0] = neibs0[2];
+											num_added++;
+											if (dl > 0){
+												System.out.println("cutCorners().3: added link "+
+														nsTiles[1]+":" + neibs0[2]+"-(4)->"+neibs0[3]+", " + nsTiles[3]+":" + neibs0[3]+"-(0)->" + neibs0[2]+
+														" cost = " + getMutualLinkCost(nsTiles[1], neibs0[2], 4, neibs0[3], planes, tnSurface ));												
+											}
+										}
+									}
+								}
+							}
+							
+							if ((neibs0[3] >= 0) && (neibs0[4] >= 0)){
+								int [] neibs2 = planes4[2][neibs0[4]].getNeibBest();
+								if (neibs2[2] < 0) {
+									int [] neibs3 = planes4[3][neibs0[3]].getNeibBest();
+									// from down to right-down and back
+									if (neibs3[6] < 0) {
+										if (goodLink(threshold, nsTiles[2], neibs0[4], 2, neibs0[3], planes, tnSurface )) {
+											neibs2[2] = neibs0[3];
+											neibs3[6] = neibs0[4];
+											num_added++;
+											if (dl > 0){
+												System.out.println("cutCorners().4: added link "+
+														nsTiles[2]+":" + neibs0[4]+"-(2)->"+neibs0[3]+", " + nsTiles[3]+":" + neibs0[3]+"-(6)->" + neibs0[4]+
+														" cost = " + getMutualLinkCost(nsTiles[2], neibs0[4], 2, neibs0[3], planes, tnSurface ));												
+											}
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				if (planes4[3] != null) { // && (planes4[1] != null) && (planes4[2] != null)){
+					for (int np = 0; np < planes4[3].length; np++){
+						if (planes4[3][np] != null){
+							int [] neibs3 = planes4[3][np].getNeibBest();
+							if ((neibs3[0] >= 0) && (neibs3[7] >= 0)){
+								int [] neibs0 = planes4[0][neibs3[7]].getNeibBest();
+								if (neibs0[2] < 0) {
+									int [] neibs1 = planes4[1][neibs3[0]].getNeibBest();
+									// from this to right and back
+									if ( neibs1[6] < 0) {
+										if (goodLink(threshold, nsTiles[0], neibs3[7], 2, neibs3[0], planes, tnSurface )) {
+											neibs0[2] = neibs3[0];
+											neibs1[6] = neibs3[7];
+											num_added++;
+											if (dl > 0){
+												System.out.println("cutCorners().5: added link "+
+														nsTiles[0]+":" + neibs3[7]+"-(2)->"+neibs3[0]+", " + nsTiles[1]+":" + neibs3[0]+"-(6)->" + neibs3[7]+
+														" cost = " + getMutualLinkCost(nsTiles[0], neibs3[7], 2, neibs3[0], planes, tnSurface ));												
+											}
+										}
+									}
+								}
+							}
+
+							if ((neibs3[6] >= 0) && (neibs3[7] >= 0)){
+								int [] neibs0 = planes4[0][neibs3[7]].getNeibBest();
+								if (neibs0[4] < 0) {
+									int [] neibs2 = planes4[2][neibs3[6]].getNeibBest();
+									// from this to down and back
+									if (neibs2[0] < 0) {
+										if (goodLink(threshold, nsTiles[0], neibs3[7], 4, neibs3[6], planes, tnSurface )) {
+											neibs0[4] = neibs3[6];
+											neibs2[0] = neibs3[7];
+											num_added++;
+											if (dl > 0){
+												System.out.println("cutCorners().6: added link "+
+														nsTiles[0]+":" + neibs3[7]+"-(4)->"+neibs3[6]+", " + nsTiles[2]+":" + neibs3[6]+"-(0)->" + neibs3[7]+
+														" cost = " + getMutualLinkCost(nsTiles[0], neibs3[7], 4, neibs3[6], planes, tnSurface ));												
+											}
+										}
+									}
+								}
+							}
+
+							if ((neibs3[7] >= 0) && (neibs3[6] < 0)){
+								int [] neibs0 = planes4[0][neibs3[7]].getNeibBest();
+								if (neibs0[4] >= 0) {
+									int [] neibs2 = planes4[2][neibs0[4]].getNeibBest();
+									// from down to down-right and back
+									if (neibs2[2] < 0) {
+										if (goodLink(threshold, nsTiles[2], neibs0[4], 2, np, planes, tnSurface )) {
+											neibs3[6] = neibs0[4];
+											neibs2[2] = np;  //?
+											num_added++;
+											if (dl > 0){
+												System.out.println("cutCorners().7: added link "+
+														nsTiles[3]+":" + np+"-(6)->"+neibs0[4]+", " + nsTiles[2]+":" + neibs0[4]+"-(2)->" + np+
+														" cost = " + getMutualLinkCost(nsTiles[2], neibs0[4], 2, np, planes, tnSurface ));												
+											}
+										}
+									}
+								}
+							}
+							
+							if ((neibs3[6] >= 0) && (neibs3[0] < 0)){
+								int [] neibs2 = planes4[2][neibs3[6]].getNeibBest();
+								if (neibs2[1] >= 0) {
+									int [] neibs1 = planes4[1][neibs2[1]].getNeibBest();
+									// from right to down-right and back
+									if (neibs1[4] < 0) {
+										if (goodLink(threshold, nsTiles[1], neibs2[1], 4, np, planes, tnSurface )) {
+											neibs3[0] = neibs2[1]; //?
+											neibs1[4] = np;
+											num_added++;
+											if (dl > 0){
+												System.out.println("cutCorners().8: added link "+
+														nsTiles[3]+":" + np+"-(0)->"+neibs2[1]+", " + nsTiles[1]+":" + neibs2[1]+"-(4)->" + np+
+														" cost = " + getMutualLinkCost(nsTiles[1], neibs2[1], 4, np, planes, tnSurface ));												
+											}
+										}
+									}
+								}
+							}
+						}
+					}					
+				}
+			}
+		}
+		return num_added;
+
+	}
+
+	public int addFinalLinks (
+			final TilePlanes.PlaneData[][] planes,
+			final double                   threshold_sq,
+			final double                   threshold_corn,
+			final double                   threshold_hyp,
+			final boolean                  en_sq,
+			final boolean                  en_corn,
+			final boolean                  en_hyp,
+			final int                      debugLevel)
+			
+	{
+		int total_added = 0;
+		while (true) {
+			while (true) {
+				int num_added = 0;
+				if (en_sq){
+					num_added += fillSquares(
+							planes,
+							threshold_sq,
+							debugLevel,
+							dbg_tileX,
+							dbg_tileY);
+
+				}
+				if (debugLevel > -1) {
+					System.out.println("after fillSquares() added "+num_added);
+				}
+				if (en_corn){
+					num_added += cutCorners(
+							planes,
+							threshold_corn,
+							debugLevel,
+							dbg_tileX,
+							dbg_tileY);
+				}
+				if (debugLevel > -1) {
+					System.out.println("after cutCorners() added (cumulative) "+num_added);
+				}
+				if (num_added == 0) break;
+				total_added += num_added;
+			}
+			int num_added = 0;
+			if (en_hyp){
+				num_added += fillHypotenuse(
+						planes,
+						threshold_hyp,
+						debugLevel,
+						dbg_tileX,
+						dbg_tileY);
+			}
+			if (debugLevel > -1) {
+				System.out.println("after fillHypotenuse() added "+num_added);
+			}
+			if (num_added == 0) break;
+			total_added += num_added;
+		}
+		return total_added;
+	}
 
 }

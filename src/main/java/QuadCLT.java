@@ -5508,11 +5508,16 @@ public class QuadCLT {
 			  int        debugLevel
 			  )
 	  {
+		  final boolean new_mode = false;
+		  
+		  
+		  
 		  final int tilesX = tp.getTilesX();
 		  final int tilesY = tp.getTilesY();
 		  showDoubleFloatArrays sdfa_instance = null;
 		  
-		  if (clt_parameters.debug_filters && (debugLevel > -1)) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		  if (clt_parameters.debug_filters && (debugLevel > -1))
+			  sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 		  
 		  CLTPass3d bgnd_data = tp.clt_3d_passes.get(0); 
 		  double [][][][] texture_tiles = bgnd_data.texture_tiles;
@@ -5527,6 +5532,26 @@ public class QuadCLT {
 				  disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
 				  clt_parameters.show_bgnd_nonbgnd,
 				  (clt_parameters.debug_filters ? (debugLevel) : -1));
+		  boolean [] bgnd_tiles_new =   tp.getBackgroundMask_new( // which tiles do belong to the background
+				  clt_parameters.bgnd_range,     // disparity range to be considered background
+				  clt_parameters.bgnd_sure,      // minimal strength to be considered definitely background
+				  clt_parameters.bgnd_maybe,     // maximal strength to ignore as non-background
+				  clt_parameters.sure_smth,      // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
+				  clt_parameters.min_clstr_seed, // number of tiles in a cluster to seed (just background?)
+				  clt_parameters.min_clstr_block,// number of tiles in a cluster to block (just non-background?)
+				  disparity_index, // index of disparity value in disparity_map == 2 (0,2 or 4)
+				  clt_parameters.show_bgnd_nonbgnd,
+				  (clt_parameters.debug_filters ? (debugLevel) : -1));
+		  boolean [] bgnd_dbg =    bgnd_tiles.clone(); // only these have non 0 alpha
+// TODO: fix mess - after modifying getBackgroundMask() to getBackgroundMask_new (before road with tractor was identified as a background because of a double
+// tile glitch, the background was wrong. So temporarily both old/new are used and combined (new is grown twice)
+// still does not work - using old variant for now
+		  
+// background selections (slightly) influences the plane mertging / connections		  
+		  
+		  for (int i = 0; i < bgnd_tiles.length; i++){
+//			  bgnd_tiles[i] &= bgnd_tiles_new[i];
+		  }
 		  boolean [] bgnd_strict = bgnd_tiles.clone(); // only these have non 0 alpha
 		  tp.growTiles(
 				  clt_parameters.bgnd_grow,      // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
@@ -5537,36 +5562,62 @@ public class QuadCLT {
 				  2,      // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 				  bgnd_tiles,
 				  null); // prohibit
+		  
+// hacking - grow bgnd texture even more, without changing selection		  
+		  boolean [] bgnd_tiles_grown2 = bgnd_tiles_grown.clone(); // only these have non 0 alpha
 
 		  bgnd_data.selected = bgnd_tiles_grown; // selected for background w/o extra transparent layer
-		  
+		  tp.growTiles(
+				  2,      // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				  bgnd_tiles_grown2,
+				  null); // prohibit
 		  if (sdfa_instance!=null){
-			  double [][] dbg_img = new double[3][tilesY * tilesX];
-			  String [] titles = {"strict","grown","more_grown"};
+			  double [][] dbg_img = new double[5][tilesY * tilesX];
+			  String [] titles = {"old","new","strict","grown","more_grown"};
 			  for (int i = 0; i<dbg_img[0].length;i++){
-				  dbg_img[0][i] = bgnd_strict[i]?1:0;
-				  dbg_img[1][i] =  bgnd_tiles_grown[i]?1:0;
-				  dbg_img[2][i] =  bgnd_tiles[i]?1:0;
+				  //
+				  dbg_img[0][i] =  bgnd_dbg[i]?1:0;
+				  dbg_img[1][i] =  bgnd_tiles_new[i]?1:0;
+				  dbg_img[2][i] =  bgnd_strict[i]?1:0;
+				  dbg_img[3][i] =  bgnd_tiles_grown[i]?1:0;
+				  dbg_img[4][i] =  bgnd_tiles[i]?1:0;
 			  }
 			sdfa_instance.showArrays(dbg_img,  tilesX, tilesY, true, "strict_grown",titles);
 		  }
-		  
-		  
 		  
 		  double [][][][] texture_tiles_bgnd = new double[tilesY][tilesX][][];
 		  double [] alpha_zero = new double [4*clt_parameters.transform_size*clt_parameters.transform_size];
 		  int alpha_index = 3;
 		  for (int i = 0; i < alpha_zero.length; i++) alpha_zero[i]=0.0;
-		  for (int tileY = 0; tileY < tilesY; tileY++){
-			  for (int tileX = 0; tileX < tilesX; tileX++){
-				  texture_tiles_bgnd[tileY][tileX]= null;
-				  if ((texture_tiles[tileY][tileX] != null) &&
-						  bgnd_tiles[tileY * tilesX + tileX]) {
-					  if (bgnd_tiles_grown[tileY * tilesX + tileX]) {
-						  texture_tiles_bgnd[tileY][tileX]= texture_tiles[tileY][tileX];
-					  }else{
-						  texture_tiles_bgnd[tileY][tileX]= texture_tiles[tileY][tileX].clone();
-						  texture_tiles_bgnd[tileY][tileX][alpha_index] = alpha_zero;
+		  if (new_mode) {
+			  for (int tileY = 0; tileY < tilesY; tileY++){
+				  for (int tileX = 0; tileX < tilesX; tileX++){
+					  texture_tiles_bgnd[tileY][tileX]= null;
+					  if ((texture_tiles[tileY][tileX] != null) &&
+							  //						  bgnd_tiles[tileY * tilesX + tileX]) {
+							  bgnd_tiles_grown2[tileY * tilesX + tileX]) {
+						  //					  if (bgnd_tiles_grown[tileY * tilesX + tileX]) {
+						  if (bgnd_tiles[tileY * tilesX + tileX]) {
+							  texture_tiles_bgnd[tileY][tileX]= texture_tiles[tileY][tileX];
+						  }else{
+							  texture_tiles_bgnd[tileY][tileX]= texture_tiles[tileY][tileX].clone();
+							  texture_tiles_bgnd[tileY][tileX][alpha_index] = alpha_zero;
+						  }
+					  }
+				  }
+			  }
+		  } else {
+			  for (int tileY = 0; tileY < tilesY; tileY++){
+				  for (int tileX = 0; tileX < tilesX; tileX++){
+					  texture_tiles_bgnd[tileY][tileX]= null;
+					  if ((texture_tiles[tileY][tileX] != null) &&
+							  bgnd_tiles[tileY * tilesX + tileX]) {
+						  if (bgnd_tiles_grown[tileY * tilesX + tileX]) {
+							  texture_tiles_bgnd[tileY][tileX]= texture_tiles[tileY][tileX];
+						  }else{
+							  texture_tiles_bgnd[tileY][tileX]= texture_tiles[tileY][tileX].clone();
+							  texture_tiles_bgnd[tileY][tileX][alpha_index] = alpha_zero;
+						  }
 					  }
 				  }
 			  }

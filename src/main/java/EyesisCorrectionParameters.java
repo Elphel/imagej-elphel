@@ -2200,7 +2200,13 @@ public class EyesisCorrectionParameters {
   	    public boolean    plConflMerge         =  true;  // Try to merge conflicting planes
   	    public double     plConflRelax         =   1.5;  // Scale parameters to relax planes fit for merging conflicting planes
   	    public boolean    plConflSngl          =  true;  // Only merge conflicting planes if this is the only conflicting pair in the supertile
-  	    public boolean    plConflSnglPair      =  true;  // Only merge conflicting planes only if there are just two planes in the supertile 
+  	    public boolean    plConflSnglPair      =  true;  // Only merge conflicting planes only if there are just two planes in the supertile
+  	    
+  	    public double     plThickWorld         =   0.2;  // Maximal real-world thickness of merged overlapping planes (meters) 
+  	    public double     plThickWorldConfl    =   0.4;  // Maximal real-world merged thickness for conflicting planes 
+  	    public double     plRelaxComplete      =   1.5;  // Relax cost requirements when adding exclusive links to complete squares and triangles 
+  	    public double     plRelaxComplete2     =   2.0;  // Relax cost requirements during the second pass 
+  	    
   	    
   		public double     plMaxZRatio          =   2.0;  // Maximal ratio of Z to allow plane merging
   		public double     plMaxDisp            =   0.6;  // Maximal disparity of one of the planes to apply  maximal ratio
@@ -2256,6 +2262,7 @@ public class EyesisCorrectionParameters {
   		public boolean    plMutualOnly         =   true; // keep only mutual links, remove weakest if conflict
   		public boolean    plFillSquares        =   true; // Add diagonals to full squares
   		public boolean    plCutCorners         =   true; // Add ortho to 45-degree corners
+  		public boolean    plHypotenuse         =   true; // Add hypotenuse connection if both legs exist
 
   		public double     plPull               =  5.0; // .3;   // Relative weight of original (measured) plane compared to average neighbor pull
   		                                                // when combing with neighbors
@@ -2626,6 +2633,10 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plConflRelax",     this.plConflRelax +"");
 			properties.setProperty(prefix+"plConflSngl",      this.plConflSngl+"");
 			properties.setProperty(prefix+"plConflSnglPair",  this.plConflSnglPair+"");
+			properties.setProperty(prefix+"plThickWorld",     this.plThickWorld +"");
+			properties.setProperty(prefix+"plThickWorldConfl",this.plThickWorldConfl +"");
+			properties.setProperty(prefix+"plRelaxComplete",  this.plRelaxComplete +"");
+			properties.setProperty(prefix+"plRelaxComplete2", this.plRelaxComplete2 +"");
 
 			properties.setProperty(prefix+"plMaxZRatio",      this.plMaxZRatio +"");
 			properties.setProperty(prefix+"plMaxDisp",        this.plMaxDisp +"");
@@ -2676,6 +2687,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plMutualOnly",     this.plMutualOnly+"");
 			properties.setProperty(prefix+"plFillSquares",    this.plFillSquares+"");
 			properties.setProperty(prefix+"plCutCorners",     this.plCutCorners+"");
+			properties.setProperty(prefix+"plHypotenuse",     this.plHypotenuse+"");
 			properties.setProperty(prefix+"plPull",           this.plPull +"");
 			properties.setProperty(prefix+"plNormPow",        this.plNormPow +"");
   			properties.setProperty(prefix+"plIterations",     this.plIterations+"");
@@ -3026,6 +3038,10 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plConflRelax")!=null)      this.plConflRelax=Double.parseDouble(properties.getProperty(prefix+"plConflRelax"));
   			if (properties.getProperty(prefix+"plConflSngl")!=null)       this.plConflSngl=Boolean.parseBoolean(properties.getProperty(prefix+"plConflSngl"));
   			if (properties.getProperty(prefix+"plConflSnglPair")!=null)   this.plConflSnglPair=Boolean.parseBoolean(properties.getProperty(prefix+"plConflSnglPair"));
+  			if (properties.getProperty(prefix+"plThickWorld")!=null)      this.plThickWorld=Double.parseDouble(properties.getProperty(prefix+"plThickWorld"));
+  			if (properties.getProperty(prefix+"plThickWorldConfl")!=null) this.plThickWorldConfl=Double.parseDouble(properties.getProperty(prefix+"plThickWorldConfl"));
+  			if (properties.getProperty(prefix+"plRelaxComplete")!=null)   this.plRelaxComplete=Double.parseDouble(properties.getProperty(prefix+"plRelaxComplete"));
+  			if (properties.getProperty(prefix+"plRelaxComplete2")!=null)  this.plRelaxComplete2=Double.parseDouble(properties.getProperty(prefix+"plRelaxComplete2"));
   			
   			if (properties.getProperty(prefix+"plMaxZRatio")!=null)       this.plMaxZRatio=Double.parseDouble(properties.getProperty(prefix+"plMaxZRatio"));
   			if (properties.getProperty(prefix+"plMaxDisp")!=null)         this.plMaxDisp=Double.parseDouble(properties.getProperty(prefix+"plMaxDisp"));
@@ -3076,6 +3092,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plMutualOnly")!=null)      this.plMutualOnly=Boolean.parseBoolean(properties.getProperty(prefix+"plMutualOnly"));
   			if (properties.getProperty(prefix+"plFillSquares")!=null)     this.plFillSquares=Boolean.parseBoolean(properties.getProperty(prefix+"plFillSquares"));
   			if (properties.getProperty(prefix+"plCutCorners")!=null)      this.plCutCorners=Boolean.parseBoolean(properties.getProperty(prefix+"plCutCorners"));
+  			if (properties.getProperty(prefix+"plHypotenuse")!=null)      this.plHypotenuse=Boolean.parseBoolean(properties.getProperty(prefix+"plHypotenuse"));
 
   			if (properties.getProperty(prefix+"plPull")!=null)            this.plPull=Double.parseDouble(properties.getProperty(prefix+"plPull"));
   			if (properties.getProperty(prefix+"plNormPow")!=null)         this.plNormPow=Double.parseDouble(properties.getProperty(prefix+"plNormPow"));
@@ -3451,10 +3468,14 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Cost threshold for merging same tile planes if not connected",                 this.plMergeCost,  6);
 
   			gd.addMessage     ("--- Merging planes with topological conflicts ---");
-  			gd.addCheckbox    ("Try to merge conflicting planes",                                                    this.plConflMerge);
-  			gd.addNumericField("Scale parameters to relax planes fit for merging conflicting planes",                this.plConflRelax,  6);
-  			gd.addCheckbox    ("Only merge conflicting planes if this is the only conflicting pair in the supertile",this.plConflSngl);
-  			gd.addCheckbox    ("Only merge conflicting planes only if there are just two planes in the supertile",   this.plConflSnglPair);
+  			gd.addCheckbox    ("Try to merge conflicting planes",                                                     this.plConflMerge);
+  			gd.addNumericField("Scale parameters to relax planes fit for merging conflicting planes",                 this.plConflRelax,  6);
+  			gd.addCheckbox    ("Only merge conflicting planes if this is the only conflicting pair in the supertile", this.plConflSngl);
+  			gd.addCheckbox    ("Only merge conflicting planes only if there are just two planes in the supertile",    this.plConflSnglPair);
+  			gd.addNumericField("Maximal real-world thickness of merged overlapping planes (meters)",                  this.plThickWorld,  6);
+  			gd.addNumericField("Maximal real-world merged thickness for conflicting planes",                          this.plThickWorldConfl,  6);
+  			gd.addNumericField("Relax cost requirements when adding exclusive links to complete squares and triangles",this.plRelaxComplete,  6);
+  			gd.addNumericField("Relax cost requirements more during the second pass",                                 this.plRelaxComplete2,  6);
   			
   			gd.addMessage     ("---  ---");
   			gd.addNumericField("Maximal ratio of Z to allow plane merging",                                    this.plMaxZRatio,  6);
@@ -3509,6 +3530,7 @@ public class EyesisCorrectionParameters {
 
   			gd.addCheckbox    ("Add diagonals to full squares",                                                this.plFillSquares);
   			gd.addCheckbox    ("Add ortho to 45-degree corners",                                               this.plCutCorners);
+  			gd.addCheckbox    ("Add hypotenuse connection if both legs exist",                                 this.plHypotenuse);
 
   			gd.addNumericField("Relative (to average neighbor) weight of the measured plane when combing with neighbors",     this.plPull,  6);
   			gd.addNumericField("0.0: 8 neighbors pull 8 times as 1, 1.0 - same as 1",                          this.plNormPow,  6);
@@ -3871,6 +3893,10 @@ public class EyesisCorrectionParameters {
   			this.plConflRelax=          gd.getNextNumber();
   			this.plConflSngl=           gd.getNextBoolean();
   			this.plConflSnglPair=       gd.getNextBoolean();
+  			this.plThickWorld=          gd.getNextNumber();
+  			this.plThickWorldConfl=     gd.getNextNumber();
+  			this.plRelaxComplete=       gd.getNextNumber();
+  			this.plRelaxComplete2=      gd.getNextNumber();
 
   			this.plMaxZRatio=           gd.getNextNumber();
   			this.plMaxDisp=             gd.getNextNumber();
@@ -3922,6 +3948,7 @@ public class EyesisCorrectionParameters {
 
   			this.plFillSquares=         gd.getNextBoolean();
   			this.plCutCorners=          gd.getNextBoolean();
+  			this.plHypotenuse=          gd.getNextBoolean();
 
   			this.plPull=                gd.getNextNumber();
   			this.plNormPow=             gd.getNextNumber();
