@@ -2326,6 +2326,15 @@ public class EyesisCorrectionParameters {
 		public double     tsMaxSurStrength     = 0.05;   // Maximal strength of the surrounded unassigned tile to join
 		public boolean    tsCountDis           = true;   // Include disabled tiles/borders when counting assigned neighbors
 		
+		public boolean    tsEnPlaneSeed        = true;   // Assign tiles that were used to generate planes
+		public boolean    tsEnOnly             = true;   // Allow assignment only surface
+		public boolean    tsEnGrow             = true;   // Grow the only surface assignments
+		public double     tsGrowStrength       = 0.01;   // Maximal strength when growing the only surfaces
+		public boolean    tsGrowStrong         = true;   // Grow over strong if disparity matches 
+		public double     tsContStrength       = 0.1;    // Minimal strength to continue grow with disparity match 
+		public double     tsContDiff           = 0.1;    // Maximal normalized disparity error to grow over strong tiles 
+		
+		
 		public boolean    tsEnSingle           = true;   // Allow assignment to the nearest surface with no competitors
 		public boolean    tsEnMulti            = true;   // Allow assignment when several surfaces fit
 
@@ -2336,7 +2345,11 @@ public class EyesisCorrectionParameters {
 		public boolean    tsLoopMulti          = true;   // Repeat multi-choice assignment while succeeding 
 		public boolean    tsReset              = false;  // Reset tiles to surfaces assignment
 		public boolean    tsShow               = false;  // Show results of tiles to surfaces assignment
-		public int        tsNumClust           = 50;     // Number of clusters to keep 
+		public int        tsNumClust           = 50;     // Number of clusters to keep
+
+		public int        tsConsensMode        = 7;      // Which assignments to match +1 - combo, +2 grown single, +4 plane seeds 
+		public int        tsConsensAgree       = 1;      // Minimal number of assignments to agree
+		
   		
   		public boolean    replaceWeakOutlayers =   true; // false; 
   		
@@ -2743,6 +2756,15 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"tsMinNeib",        this.tsMinNeib +"");
 			properties.setProperty(prefix+"tsMaxSurStrength", this.tsMaxSurStrength +"");
 			properties.setProperty(prefix+"tsCountDis",       this.tsCountDis +"");
+			
+			properties.setProperty(prefix+"tsEnPlaneSeed",    this.tsEnPlaneSeed+"");
+			properties.setProperty(prefix+"tsEnOnly",         this.tsEnOnly+"");
+			properties.setProperty(prefix+"tsEnGrow",         this.tsEnGrow+"");
+			properties.setProperty(prefix+"tsGrowStrength",   this.tsGrowStrength +"");
+			properties.setProperty(prefix+"tsGrowStrong",     this.tsGrowStrong+"");
+			properties.setProperty(prefix+"tsContStrength",   this.tsContStrength +"");
+			properties.setProperty(prefix+"tsContDiff",       this.tsContDiff +"");
+
 			properties.setProperty(prefix+"tsEnSingle",       this.tsEnSingle+"");
 			properties.setProperty(prefix+"tsEnMulti",        this.tsEnMulti+"");
 			properties.setProperty(prefix+"tsRemoveWeak1",    this.tsRemoveWeak1+"");
@@ -2752,6 +2774,9 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"tsShow",           this.tsShow+"");
 			properties.setProperty(prefix+"tsNumClust",       this.tsNumClust +"");
 			
+			properties.setProperty(prefix+"tsConsensMode",    this.tsConsensMode +"");
+			properties.setProperty(prefix+"tsConsensAgree",   this.tsConsensAgree +"");
+
 			properties.setProperty(prefix+"dbg_migrate",            this.dbg_migrate+"");
   			
 			properties.setProperty(prefix+"show_ortho_combine",     this.show_ortho_combine+"");
@@ -3150,6 +3175,15 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"tsMinNeib")!=null)         this.tsMinNeib=Integer.parseInt(properties.getProperty(prefix+"tsMinNeib"));
   			if (properties.getProperty(prefix+"tsMaxSurStrength")!=null)  this.tsMaxSurStrength=Double.parseDouble(properties.getProperty(prefix+"tsMaxSurStrength"));
   			if (properties.getProperty(prefix+"tsCountDis")!=null)        this.tsCountDis=Boolean.parseBoolean(properties.getProperty(prefix+"tsCountDis"));
+  			
+  			if (properties.getProperty(prefix+"tsEnPlaneSeed")!=null)     this.tsEnOnly=Boolean.parseBoolean(properties.getProperty(prefix+"tsEnPlaneSeed"));
+  			if (properties.getProperty(prefix+"tsEnOnly")!=null)          this.tsEnOnly=Boolean.parseBoolean(properties.getProperty(prefix+"tsEnOnly"));
+  			if (properties.getProperty(prefix+"tsEnGrow")!=null)          this.tsEnOnly=Boolean.parseBoolean(properties.getProperty(prefix+"tsEnGrow"));
+  			if (properties.getProperty(prefix+"tsGrowStrength")!=null)    this.tsGrowStrength=Double.parseDouble(properties.getProperty(prefix+"tsGrowStrength"));
+  			if (properties.getProperty(prefix+"tsGrowStrong")!=null)      this.tsGrowStrong=Boolean.parseBoolean(properties.getProperty(prefix+"tsGrowStrong"));
+  			if (properties.getProperty(prefix+"tsContStrength")!=null)    this.tsGrowStrength=Double.parseDouble(properties.getProperty(prefix+"tsContStrength"));
+  			if (properties.getProperty(prefix+"tsContDiff")!=null)        this.tsContDiff=Double.parseDouble(properties.getProperty(prefix+"tsContDiff"));
+
   			if (properties.getProperty(prefix+"tsEnSingle")!=null)        this.tsEnSingle=Boolean.parseBoolean(properties.getProperty(prefix+"tsEnSingle"));
   			if (properties.getProperty(prefix+"tsEnMulti")!=null)         this.tsEnMulti=Boolean.parseBoolean(properties.getProperty(prefix+"tsEnMulti"));
   			if (properties.getProperty(prefix+"tsRemoveWeak1")!=null)     this.tsRemoveWeak1=Boolean.parseBoolean(properties.getProperty(prefix+"tsRemoveWeak1"));
@@ -3160,6 +3194,8 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"tsShow")!=null)            this.tsShow=Boolean.parseBoolean(properties.getProperty(prefix+"tsShow"));
   			if (properties.getProperty(prefix+"tsNumClust")!=null)        this.tsNumClust=Integer.parseInt(properties.getProperty(prefix+"tsNumClust"));
 
+  			if (properties.getProperty(prefix+"tsConsensMode")!=null)     this.tsConsensMode=Integer.parseInt(properties.getProperty(prefix+"tsConsensMode"));
+  			if (properties.getProperty(prefix+"tsConsensAgree")!=null)    this.tsConsensAgree=Integer.parseInt(properties.getProperty(prefix+"tsConsensAgree"));
   			
   			if (properties.getProperty(prefix+"dbg_migrate")!=null)       this.dbg_migrate=Boolean.parseBoolean(properties.getProperty(prefix+"dbg_migrate"));
 
@@ -3590,6 +3626,15 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Minimal number of neighbors of unassigned tile to join (the farthest)",           this.tsMinNeib,  0);
   			gd.addNumericField("Maximal strength of the surrounded unassigned tile to join",                      this.tsMaxSurStrength,  6);
   			gd.addCheckbox    ("Include disabled tiles/borders when counting assigned neighbors",                 this.tsCountDis);
+  			
+  			gd.addCheckbox    ("Assign tiles that were used to generate planes",                                  this.tsEnPlaneSeed);
+  			gd.addCheckbox    ("Allow assignment only surface",                                                   this.tsEnOnly);
+  			gd.addCheckbox    ("Grow the only surface assignments",                                               this.tsEnGrow);
+  			gd.addNumericField("Maximal strength when growing the only surfaces",                                 this.tsGrowStrength,  6);
+  			gd.addCheckbox    ("Grow over strong if disparity matches",                                           this.tsGrowStrong);
+  			gd.addNumericField("Minimal strength to continue grow with disparity match",                          this.tsContStrength,  6);
+  			gd.addNumericField("Maximal normalized disparity error to grow over strong tiles",                    this.tsContDiff,  6);
+  			
   			gd.addCheckbox    ("Allow assignment to the nearest surface with no competitors",                     this.tsEnSingle);
   			gd.addCheckbox    ("Allow assignment when several surfaces fit",                                      this.tsEnMulti);
   			gd.addCheckbox    ("Remove weak clusters before growing",                                             this.tsRemoveWeak1);
@@ -3600,6 +3645,9 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Show results of tiles to surfaces assignment",                                    this.tsShow);
   			gd.addNumericField("Number of clusters to keep",                                                      this.tsNumClust,  0);
   			
+  			gd.addNumericField("Which assignments to match +1 - combo, +2 grown single, +4 plane seeds",          this.tsConsensMode,  0);
+  			gd.addNumericField("Minimal number of assignments to agree",                                          this.tsConsensAgree,  0);
+
   			gd.addCheckbox    ("Test new mode after migration",                                                this.dbg_migrate);
 
   			gd.addMessage     ("--- Other debug images ---");
@@ -4006,6 +4054,15 @@ public class EyesisCorrectionParameters {
   			this.tsMaxSurStrength=      gd.getNextNumber();
   			this.tsCountDis=            gd.getNextBoolean();
   			this.tsReset              = false;  // Reset tiles to surfaces assignment
+
+  			this.tsEnPlaneSeed=         gd.getNextBoolean();
+  			this.tsEnOnly=              gd.getNextBoolean();
+  			this.tsEnGrow=              gd.getNextBoolean();
+  			this.tsGrowStrength=        gd.getNextNumber();
+  			this.tsGrowStrong=          gd.getNextBoolean();
+  			this.tsContStrength=        gd.getNextNumber();
+  			this.tsContDiff=            gd.getNextNumber();
+
   			this.tsEnSingle=            gd.getNextBoolean();
   			this.tsEnMulti=             gd.getNextBoolean();
   			this.tsRemoveWeak1=         gd.getNextBoolean();
@@ -4015,7 +4072,10 @@ public class EyesisCorrectionParameters {
   			this.tsLoopMulti=           gd.getNextBoolean();
   			this.tsShow               = gd.getNextBoolean();
   			this.tsNumClust =     (int) gd.getNextNumber();
-  			
+
+  			this.tsConsensMode =  (int) gd.getNextNumber();
+  			this.tsConsensAgree = (int) gd.getNextNumber();
+
   			this.dbg_migrate=           gd.getNextBoolean();
 
   			this.show_ortho_combine=    gd.getNextBoolean();
@@ -4049,7 +4109,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Add to strengths when calculating pull of assigned tiles",                        this.tsAddStrength,  6);
   			gd.addNumericField("Radius of influence (in tiles) of the previously assigned tiles",                 this.tsSigma,  6);
   			gd.addNumericField("Maximal relative to radius distance to calculate influence",                      this.tsNSigma,  6);
-  			gd.addNumericField(" Additional pull of each surface ",                                               this.tsMinPull,  6);
+  			gd.addNumericField("Additional pull of each surface ",                                                this.tsMinPull,  6);
   			gd.addNumericField("Minimal ratio of the best surface candidate to the next one to make selection",   this.tsMinAdvantage,  6);
   			gd.addNumericField("Minimal size of a cluster to keep",                                               this.tsClustSize,  0);
   			gd.addNumericField("Minimal total weight of a cluster to keep",                                       this.tsClustWeight,  6);
@@ -4057,6 +4117,15 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal strength of the surrounded unassigned tile to join",                      this.tsMaxSurStrength,  6);
   			gd.addCheckbox    ("Include disabled tiles/borders when counting assigned neighbors",                 this.tsCountDis);
   			gd.addCheckbox    ("Reset tiles to surfaces assignment",                                              false);
+  			
+  			gd.addCheckbox    ("Assign tiles that were used to generate planes",                                  this.tsEnPlaneSeed);
+  			gd.addCheckbox    ("Allow assignment only surface",                                                   this.tsEnOnly);
+  			gd.addCheckbox    ("Grow the only surface assignments",                                               this.tsEnGrow);
+  			gd.addNumericField("Maximal strength when growing the only surfaces",                                 this.tsGrowStrength,  6);
+  			gd.addCheckbox    ("Grow over strong if disparity matches",                                           this.tsGrowStrong);
+  			gd.addNumericField("Minimal strength to continue grow with disparity match",                          this.tsContStrength,  6);
+  			gd.addNumericField("Maximal normalized disparity error to grow over strong tiles",                    this.tsContDiff,  6);
+
   			gd.addCheckbox    ("Allow assignment to the nearest surface with no competitors",                     this.tsEnSingle);
   			gd.addCheckbox    ("Allow assignment when several surfaces fit",                                      this.tsEnMulti);
   			gd.addCheckbox    ("Remove weak clusters before growing",                                             this.tsRemoveWeak1);
@@ -4066,6 +4135,10 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Repeat multi-choice assignment while succeeding",                                 this.tsLoopMulti);
   			gd.addCheckbox    ("Show results of tiles to surfaces assignment",                                    this.tsShow);
   			gd.addNumericField("Number of clusters to keep",                                                      this.tsNumClust,  0);
+
+  			gd.addNumericField("Which assignments to match +1 - combo, +2 grown single, +4 plane seeds",          this.tsConsensMode,  0);
+  			gd.addNumericField("Minimal number of assignments to agree",                                          this.tsConsensAgree,  0);
+  			
   			
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
@@ -4091,6 +4164,15 @@ public class EyesisCorrectionParameters {
   			this.tsMaxSurStrength=      gd.getNextNumber();
   			this.tsCountDis=            gd.getNextBoolean();
   			this.tsReset=               gd.getNextBoolean();
+
+  			this.tsEnPlaneSeed=         gd.getNextBoolean();
+  			this.tsEnOnly=              gd.getNextBoolean();
+  			this.tsEnGrow=              gd.getNextBoolean();
+  			this.tsGrowStrength=        gd.getNextNumber();
+  			this.tsGrowStrong=          gd.getNextBoolean();
+  			this.tsContStrength=        gd.getNextNumber();
+  			this.tsContDiff=            gd.getNextNumber();
+ 			
   			this.tsEnSingle=            gd.getNextBoolean();
   			this.tsEnMulti=             gd.getNextBoolean();
   			this.tsRemoveWeak1=         gd.getNextBoolean();
@@ -4098,8 +4180,11 @@ public class EyesisCorrectionParameters {
   			this.tsRemoveWeak2=         gd.getNextBoolean();
   			
   			this.tsLoopMulti=           gd.getNextBoolean();
-  			this.tsShow               = gd.getNextBoolean();
+  			this.tsShow =               gd.getNextBoolean();
   			this.tsNumClust=      (int) gd.getNextNumber();
+  			this.tsConsensMode =  (int) gd.getNextNumber();
+  			this.tsConsensAgree = (int) gd.getNextNumber();
+  			
   			return true;
   		}
   		

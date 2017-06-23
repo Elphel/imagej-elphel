@@ -104,7 +104,7 @@ public class TilePlanes {
 		
 		boolean      preferDisparity = false;
 		
-		// alternative "plane" calcualtions in the world coordinates
+		// alternative "plane" calculations in the world coordinates
 		double []    wxyz =        null; // [3] - plane center point when calculated in world coordinates (x, y , z)
 		double [][]  wvectors =    null; // [3][3] - eigenvectors calculated in the real world
 		double []    wvalues =     null; // [3] -eigenvalues calculated in the real world
@@ -3607,7 +3607,11 @@ public class TilePlanes {
 			}
 			copyNeib(this, pd);
 			pd.num_points = otherPd.num_points; // restore, maybe remove from copy_neib? 
-
+// copy other data from this tile			
+			pd.setMeasSelection(this.measuredSelection);
+			if (this.measuredLayers != null) pd.measuredLayers = this.measuredLayers;
+			if (this.sel_mask != null)       pd.sel_mask = this.sel_mask.clone();
+			copyStar(this,pd);
 			return pd; // make sure pd are updated // "this" is not used. Should it be used instead of pd?  
 		}
 		

@@ -1,6 +1,6 @@
 /**
  **
- ** SurfaceData - represents rectangualar area with per-tile disparity
+ ** SurfaceData - represents rectangular area with per-tile disparity
  **
  ** Copyright (C) 2017 Elphel, Inc.
  **

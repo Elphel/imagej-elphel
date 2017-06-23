@@ -3128,7 +3128,7 @@ public class TileProcessor {
 			final boolean     updateStatus,
 			final int         debugLevel)
 	{
-		trimCLTPasses(); // make possible to run this method multiple time - remove extra passes added by it last time		
+		trimCLTPasses(); // make possible to run this method multiple times - remove extra passes added by it last time		
 		CLTPass3d scan_prev = clt_3d_passes.get(clt_3d_passes.size() -1); // get last one
 //		boolean show_st =    clt_parameters.stShow || (debugLevel > 1);
 		SuperTiles st = scan_prev.getSuperTiles();
@@ -3136,10 +3136,11 @@ public class TileProcessor {
 		if (tileSurface == null){
 			return false;
 		}
-
+/*
 		tileSurface.testSimpleConnected(
 				230, // clt_parameters.tileX,
 				131);//clt_parameters.tileY);
+*/				
 		
 		double [][][]  dispStrength = st.getDisparityStrengths(
 				clt_parameters.stMeasSel); // int        stMeasSel) //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert)
@@ -3148,14 +3149,88 @@ public class TileProcessor {
 				clt_parameters.stMeasSel); // int        stMeasSel) //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert)
 
 		// Reset/initialize assignments - if not done so yet or specifically requested
+		boolean first_run = !tileSurface.isInit() || clt_parameters.tsReset;
 		tileSurface.InitTilesAssignment(
 				clt_parameters.tsReset,
 				dispStrength, // final double [][][]                            dispStrength,
 				tileSel,      // final boolean [][]                             tileSel,
                 debugLevel);    // final int                                    debugLevel,
         // assign tiles that do not depend on other assigned tiles - single pass
+		int [][] tile_layers = 	             tileSurface.getTileLayersCopy();
+		int [][] tile_layers_single_surf =   tileSurface.newTileLayers(tileSel); //  final boolean [][]                             tileSel,)
+		int [][] tile_layers_planes =        tileSurface.newTileLayers(tileSel); //  final boolean [][]                             tileSel,)
+		
+		int [] stats_single_surf=  tileSurface.assignTilesToSingleSurface(
+				tile_layers_single_surf,                      //final int [][]      tileLayers,
+				clt_parameters.tsNoEdge ,       // final boolean       noEdge,
+				0, // -1,                       // debugLevel,                  // final int        debugLevel)
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+		System.out.print("Assign the only surface :");
+		tileSurface.printStats(stats_single_surf);
+		// grow the only surface assignments
+		if (clt_parameters.tsEnGrow){
+			double [] growStrengths =     new double [tile_layers_single_surf.length];
+			double [] contMinStrengths =  new double [tile_layers_single_surf.length];
+			double [] growMaxDiffFar =    new double [tile_layers_single_surf.length];
+			double [] growMaxDiffNear =   new double [tile_layers_single_surf.length];
+			
+			int [][] assign_conflicts = null;
+			for (int i = 0; i < growStrengths.length; i++){
+				growStrengths[i] =    clt_parameters.tsGrowStrength; // save all the same, later can use different for different types of correlation
+				contMinStrengths[i] = clt_parameters.tsContStrength;
+				growMaxDiffFar[i]=    clt_parameters.tsContDiff;
+				growMaxDiffNear[i]=   clt_parameters.tsContDiff;
+				if ((tile_layers_single_surf[i] != null) && (assign_conflicts == null)){
+					assign_conflicts = new int[tile_layers_single_surf[i].length][];
+				}
+			}
+			stats_single_surf = tileSurface.growWeakAssigned(
+					tile_layers_single_surf,                                           //final int [][]      tileLayers,
+					assign_conflicts,                                      // final int [][]      conflicts,
+					clt_parameters.tsNoEdge ,                              // final boolean       noEdge,
+					growStrengths,                                         // final double []     maxStrength,
+					(clt_parameters.tsGrowStrong? contMinStrengths: null), //final double []     minStrengthContinue,
+					(clt_parameters.tsEnGrow?     growMaxDiffFar: null),   // final double []     maxDiffFar, // null
+					(clt_parameters.tsEnGrow?     growMaxDiffNear: null),  // final double []     maxDiffNear, // null
+					clt_parameters.plDispNorm,                             // final double        dispNorm, // disparity normalize (proportionally scale down disparity difference if above
+					dispStrength,                                          // final double [][][] dispStrength,
+					2, // -1,                                              // debugLevel,                  // final int        debugLevel)
+					clt_parameters.tileX,
+					clt_parameters.tileY);
+			System.out.print("growWeakAssigned():");
+			tileSurface.printStats(stats_single_surf);
+		}
+		
+		int [] stats_planes = tileSurface.assignPlanesTiles(
+				true,                // final boolean                  force,
+				tile_layers_planes,         //final int [][]      tileLayers,
+				st.planes_mod,       // final TilePlanes.PlaneData[][] planes,
+				2, // -1,            // debugLevel,                  // final int        debugLevel)
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+		System.out.print("assignPlanesTiles():");
+		tileSurface.printStats(stats_planes);
+		
+		
+		if (clt_parameters.tsEnOnly){
+			tileSurface.combineTileLayers(
+				true, // final boolean overwrite,
+				tile_layers, // final int [][] dst,
+				tile_layers_single_surf); // final int [][] src);
+		}
+		
+		if (clt_parameters.tsEnPlaneSeed) {
+				tileSurface.combineTileLayers(
+					true, // final boolean overwrite,
+					tile_layers, // final int [][] dst,
+					tile_layers_planes); // final int [][] src);
+		}
+		
+		
 		if (clt_parameters.tsEnSingle) {
 			int [] stats=  tileSurface.assignTilesToSurfaces(
+					tile_layers,                    //final int [][]      tileLayers,
 					clt_parameters.tsNoEdge ,       // final boolean       noEdge,
 					clt_parameters.tsUseCenter,     // final boolean       useCenter,
 					clt_parameters.tsMaxDiff,       //final double        maxDiff,
@@ -3185,6 +3260,7 @@ public class TileProcessor {
 		if (clt_parameters.tsEnMulti) {
 			for (int nTry = 0; nTry < 100; nTry++) {
 				int [] stats=  tileSurface.assignTilesToSurfaces(
+						tile_layers,                      //final int [][]      tileLayers,
 						clt_parameters.tsNoEdge ,       // final boolean       noEdge,
 						clt_parameters.tsUseCenter,     // final boolean       useCenter,
 						clt_parameters.tsMaxDiff,       //final double        maxDiff,
@@ -3217,6 +3293,7 @@ public class TileProcessor {
 		// Single pass, before growing assigned tiles  
 		if (clt_parameters.tsRemoveWeak1) {
 			int [] stats=  tileSurface.removeSmallClusters(
+					tile_layers,                      //final int [][]      tileLayers,
 					clt_parameters.tsClustSize , // final int           minSize,      // **
 					clt_parameters. tsClustWeight, // final double        minStrength,  // **
 					dispStrength,                   // final double [][][] dispStrength,
@@ -3232,6 +3309,7 @@ public class TileProcessor {
 		if (clt_parameters.tsGrowSurround) {
 			for (int nTry = 0; nTry < 100; nTry++) {
 				int [] stats=  tileSurface.assignFromFarthest(
+						tile_layers,                      //final int [][]      tileLayers,
 						clt_parameters.tsNoEdge ,         // final boolean       noEdge,
 						clt_parameters.tsMinNeib ,        // final int           minNeib,           // **
 						clt_parameters.tsMaxSurStrength , // final double        maxStrength,       // **
@@ -3255,6 +3333,7 @@ public class TileProcessor {
 		// Single pass, after growing assigned tiles  
 		if (clt_parameters.tsRemoveWeak2) {
 			int [] stats=  tileSurface.removeSmallClusters(
+					tile_layers,                      //final int [][]      tileLayers,
 					clt_parameters.tsClustSize , // final int           minSize,      // **
 					clt_parameters. tsClustWeight, // final double        minStrength,  // **
 					dispStrength,                   // final double [][][] dispStrength,
@@ -3263,6 +3342,39 @@ public class TileProcessor {
 					clt_parameters.tileY);
 			tileSurface.printStats(stats);
 		}
+		
+		// Just show current state 
+		tileSurface.statTileLayers(
+				tile_layers, // final int [][]      tileLayers,
+				tileSel,      // final boolean [][]       tileSel,
+				1); // final int                debugLevel)
+
+// removed tile_layers from globals, so multiple parallel assignments can be generated and then combined		
+		
+//		int [][] tile_layers = 	             tileSurface.getTileLayersCopy();
+//		int [][] tile_layers_single_surf =   tileSurface.newTileLayers(tileSel); //  final boolean [][]                             tileSel,)
+//		int [][] tile_layers_planes =        tileSurface.newTileLayers(tileSel); //  final boolean [][]                             tileSel,)
+		int [][][] tile_assignments = {tile_layers, tile_layers_single_surf, tile_layers_planes};
+		for (int i = 0; i < tile_assignments.length; i++){
+			if ((clt_parameters.tsConsensMode & (1 << i)) == 0) {
+				tile_assignments[i] = null;
+			}
+		}
+		tileSurface.compareAssignments(
+				tile_assignments); // final int [][][] tileAssignments)
+		
+		int [][][] opinions = new int [tile_layers.length][][];
+		tile_layers = tileSurface.getConsensusAssignment(
+				clt_parameters.tsConsensAgree, //  final int        min_agree,
+				opinions, // int [][][]       opinions_in,
+				tile_assignments); // final int [][][] tileAssignments)
+
+		
+		
+		tileSurface.setTileLayers(tile_layers);
+		
+
+		
 		// Just show current state 
 		tileSurface.InitTilesAssignment(
 				false,
