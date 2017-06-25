@@ -43,7 +43,11 @@ public class TileNeibs{
 	public int opposite(int dir){
 		return (dir + dirs / 2) % dirs;
 	}
-
+	
+	int getLength(){
+		return sizeX * sizeY;
+	}
+	
 	/**
 	 * Get x,y pair from index
 	 * @param indx element index
@@ -64,9 +68,15 @@ public class TileNeibs{
 	 */
 	
 	int getIndex(int x, int y){
+		if ((x < 0) || (y < 0) || (x >= sizeX) || (y >= sizeY)) return -1;
 		return y * sizeX + x;
 	}
-	
+
+	int getIndex(int [] xy){
+		if ((xy[0] < 0) || (xy[1] < 0) || (xy[0] >= sizeX) || (xy[1] >= sizeY)) return -1;
+		return xy[1] * sizeX + xy[0];
+	}
+
 	/**
 	 * Get 2d element index after step N, NE, ... NW. Returns -1 if leaving array   
 	 * @param indx start index
@@ -78,7 +88,11 @@ public class TileNeibs{
 		int y = indx / sizeX;
 		int x = indx % sizeX;
 		if (dir < 0) return indx;
-		switch (dir % dirs){
+		if (dir > 8) {
+			System.out.println("getNeibIndex(): indx="+indx+", dir="+dir);
+		}
+//		switch (dir % dirs){
+		switch (dir){
 		case 0: return (y == 0) ?                                    -1 : (indx - sizeX); 
 		case 1: return ((y == 0)           || ( x == (sizeX - 1))) ? -1 : (indx - sizeX + 1); 
 		case 2: return (                      ( x == (sizeX - 1))) ? -1 : (indx        + 1); 

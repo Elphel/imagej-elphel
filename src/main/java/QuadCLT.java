@@ -3196,7 +3196,7 @@ public class QuadCLT {
 		  double [][][][]     clt_corr_combo =   null;
 		  double [][][][][]   clt_corr_partial = null; // [tp.tilesY][tp.tilesX][pair][color][(2*transform_size-1)*(2*transform_size-1)]
 		  double [][]         clt_mismatch =     null; // [3*4][tp.tilesY * tp.tilesX] // transpose unapplied
-		  double [][][][]     texture_tiles =    null; // [tp.tilesY][tp.tilesX]["RGBA".length()][]; // tiles will be 16x16, 2 visualizaion mode full 16 or overlapped
+		  double [][][][]     texture_tiles =    null; // [tp.tilesY][tp.tilesX]["RGBA".length()][]; // tiles will be 16x16, 2 visualization mode full 16 or overlapped
 		  // undecided, so 2 modes of combining alpha - same as rgb, or use center tile only
 		  final int tilesX = tp.getTilesX();
 		  final int tilesY = tp.getTilesY();

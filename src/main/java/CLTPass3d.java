@@ -69,6 +69,67 @@ public class CLTPass3d{
 		{
 			return this.tileProcessor;
 		}
+		
+		public double [][][][] getTextureTiles()
+		{
+			return 	texture_tiles;
+		}
+		
+		public double [][] getTileRBGA(
+				int num_layers)
+		{
+			if (texture_tiles == null) return null;
+			int tilesY = texture_tiles.length;
+			int tilesX = 0;
+			int nl = 0;
+			for (int ty = 0; ty < tilesY; ty++){
+				if (texture_tiles[ty] != null){
+					tilesX = texture_tiles[ty].length;
+					for (int tx = 0; tx < tilesX; tx++){
+						if (texture_tiles[ty][tx] != null){
+							nl = texture_tiles[ty][tx].length;
+							break;
+						}
+					}
+					if (nl > 0) break;
+				}
+				if (nl > 0) break;
+			}
+			if (num_layers > nl) num_layers = nl;
+			int numTiles = tilesX * tilesY;
+			double [] scales = new double [num_layers];
+			for (int n = 0; n < num_layers; n++){
+				if       (n < 3)  scales[n] = 1.0/255.0; // R,B,G
+				else if  (n == 3) scales[n] = 1.0; //alpha
+				else if  (n < 8)  scales[n] = 1.0; // ports 0..3
+				else              scales[n] = 1.0/255.0; // RBG rms, in 1/255 units, but small 
+			}
+			double [][] tileTones = new double [num_layers][numTiles];
+			for (int ty = 0; ty < tilesY; ty++ ) if (texture_tiles[ty] != null){
+				for (int tx = 0; tx < tilesX; tx++ ) if (texture_tiles[ty][tx] != null) {
+					int indx = ty * tilesX + tx;
+					for (int n = 0; n < num_layers; n++) if (texture_tiles[ty][tx][n] != null){
+						double s = 0.0;
+						for (int i = 0; i < texture_tiles[ty][tx][n].length; i++){
+							s += texture_tiles[ty][tx][n][i];
+						}
+						s /= (texture_tiles[ty][tx][n].length/4); // overlapping tiles
+						s *= scales[n];
+						tileTones[n][indx] = s;
+					}
+				}
+			}
+			return tileTones;
+		}
+		
+		public String getTextureName()
+		{
+			if (texture != null) {
+				return texture;
+			} else {
+				return "null-texture-name";
+			}
+		}
 		public  void            updateSelection(){ // add updating border tiles?
 			int tilesX = tileProcessor.getTilesX();
 			int tilesY = tileProcessor.getTilesY();

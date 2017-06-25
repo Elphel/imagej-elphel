@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 //import java.util.concurrent.atomic.AtomicInteger;
 
+
 public class TileProcessor {
 	public ArrayList <CLTPass3d> clt_3d_passes = null;
 	public int       clt_3d_passes_size = 0; //clt_3d_passes size after initial processing
@@ -3136,17 +3137,139 @@ public class TileProcessor {
 		if (tileSurface == null){
 			return false;
 		}
-/*
-		tileSurface.testSimpleConnected(
-				230, // clt_parameters.tileX,
-				131);//clt_parameters.tileY);
-*/				
+		// show testure_tiles
+		
+		double [][][][] texture_tiles = scan_prev.getTextureTiles();
+		ImageDtt image_dtt = new ImageDtt();
 		
 		double [][][]  dispStrength = st.getDisparityStrengths(
 				clt_parameters.stMeasSel); // int        stMeasSel) //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert)
 
 		boolean [][] tileSel =  st.getMeasurementSelections(
 				clt_parameters.stMeasSel); // int        stMeasSel) //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert)
+		
+		
+		if (texture_tiles != null){
+			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			double [][] texture_nonoverlap = null;
+			double [][] texture_overlap = null;
+			String [] rgba_titles = {"red","blue","green","alpha"};
+			String [] rgba_weights_titles = {"red","blue","green","alpha","port0","port1","port2","port3","r-rms","b-rms","g-rms","w-rms"};
+			String name = scan_prev.getTextureName();
+			
+			boolean show_nonoverlap = false; // true; // clt_parameters.show_nonoverlap
+			boolean show_overlap =    false; //true; // clt_parameters.show_overlap
+			boolean show_rgba_color = false; //true; // clt_parameters.show_rgba_color
+
+			if (show_nonoverlap){
+				texture_nonoverlap = image_dtt.combineRGBATiles(
+						texture_tiles,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}   
+						clt_parameters.transform_size,
+						false,                         // when false - output each tile as 16x16, true - overlap to make 8x8
+						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only 
+						threadsMax,                    // maximal number of threads to launch                         
+						debugLevel);
+				sdfa_instance.showArrays(
+						texture_nonoverlap,
+						tilesX * (2 * clt_parameters.transform_size),
+						tilesY * (2 * clt_parameters.transform_size),
+						true,
+						name + "-TXTNOL-D",
+						(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
+
+			}
+			
+			if (show_overlap || show_rgba_color){
+				int alpha_index = 3;
+				texture_overlap = image_dtt.combineRGBATiles(
+						texture_tiles,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}   
+						clt_parameters.transform_size,
+						true,                         // when false - output each tile as 16x16, true - overlap to make 8x8
+						clt_parameters.sharp_alpha,    // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only 
+						threadsMax,                    // maximal number of threads to launch                         
+						debugLevel);
+				if (clt_parameters.alpha1 > 0){ // negative or 0 - keep alpha as it was
+					double scale = (clt_parameters.alpha1 > clt_parameters.alpha0) ? (1.0/(clt_parameters.alpha1 - clt_parameters.alpha0)) : 0.0; 
+					for (int i = 0; i < texture_overlap[alpha_index].length; i++){
+						double d = texture_overlap[alpha_index][i];
+						if      (d >=clt_parameters.alpha1) d = 1.0;
+						else if (d <=clt_parameters.alpha0) d = 0.0;
+						else d = scale * (d- clt_parameters.alpha0);
+						texture_overlap[alpha_index][i] = d;
+					}
+				}
+
+				if (show_overlap) {
+					sdfa_instance.showArrays(
+							texture_overlap,
+							tilesX * clt_parameters.transform_size,
+							tilesY * clt_parameters.transform_size,
+							true,
+							name + "-TXTOL-D",
+							(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
+				}
+				/*
+				  if (clt_parameters.show_rgba_color) {
+					  // for now - use just RGB. Later add oprion for RGBA
+					  double [][] texture_rgb = {texture_overlap[0],texture_overlap[1],texture_overlap[2]};
+					  double [][] texture_rgba = {texture_overlap[0],texture_overlap[1],texture_overlap[2],texture_overlap[3]};
+//					  ImagePlus img_texture = 
+					  linearStackToColor(
+							  clt_parameters,
+							  colorProcParameters,
+							  rgbParameters,
+							  name+"-texture", // String name,
+							  "-D"+clt_parameters.disparity, //String suffix, // such as disparity=...
+							  toRGB,
+							  !this.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
+							  true, // boolean saveShowIntermediate, // save/show if set globally
+							  true, // boolean saveShowFinal,        // save/show result (color image?)
+							  ((clt_parameters.alpha1 > 0)? texture_rgba: texture_rgb),
+							  tilesX *  clt_parameters.transform_size,
+							  tilesY *  clt_parameters.transform_size,
+							  1.0,         // double scaleExposure, // is it needed?
+							  debugLevel );
+				  }
+				 */
+			}
+			double [][] tiles_tone = scan_prev.getTileRBGA(
+					12); // int num_layers); 
+			sdfa_instance.showArrays(
+					tiles_tone,
+					tilesX,
+					tilesY,
+					true,
+					name + "tiles_tone",
+					(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
+		}
+		TileAssignment ta = new TileAssignment(
+				clt_parameters, // EyesisCorrectionParameters.CLTParameters clt_parameters,					
+				tileSurface,    // TileSurface ts,
+				scan_prev,      // CLTPass3d p3d,
+				//					tileSel,        // boolean[][] tile_sel,
+				dispStrength, // double [][][] dispStrength,
+				Double.NaN,     //  double kR,
+				Double.NaN,     // double kB,
+				Double.NaN);    // double fatZero)
+		
+		ta.showToneDiffWeights3();
+		ta.showToneDiffWeights1();
+
+		//		}
+
+
+
+		
+		
+		
+		// end of show testure_tiles
+/*
+		tileSurface.testSimpleConnected(
+				230, // clt_parameters.tileX,
+				131);//clt_parameters.tileY);
+*/				
+		
+		
 
 		// Reset/initialize assignments - if not done so yet or specifically requested
 		boolean first_run = !tileSurface.isInit() || clt_parameters.tsReset;
@@ -3195,7 +3318,7 @@ public class TileProcessor {
 					(clt_parameters.tsEnGrow?     growMaxDiffNear: null),  // final double []     maxDiffNear, // null
 					clt_parameters.plDispNorm,                             // final double        dispNorm, // disparity normalize (proportionally scale down disparity difference if above
 					dispStrength,                                          // final double [][][] dispStrength,
-					2, // -1,                                              // debugLevel,                  // final int        debugLevel)
+					debugLevel, // 2, // -1,                                              // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
 			System.out.print("growWeakAssigned():");
@@ -3205,7 +3328,8 @@ public class TileProcessor {
 		int [] stats_planes = tileSurface.assignPlanesTiles(
 				true,                // final boolean                  force,
 				tile_layers_planes,         //final int [][]      tileLayers,
-				st.planes_mod,       // final TilePlanes.PlaneData[][] planes,
+				st.planes_mod,       // final TilePlanes.PlaneData[][] planes
+				clt_parameters.tsNoEdge ,                              // final boolean       noEdge,
 				2, // -1,            // debugLevel,                  // final int        debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
@@ -3369,7 +3493,14 @@ public class TileProcessor {
 				opinions, // int [][][]       opinions_in,
 				tile_assignments); // final int [][][] tileAssignments)
 
+		int [][] tile_layers_surf = ta.imgToSurf(tile_layers);
+		ta.showTileCost(tile_layers_surf);
+		ta.showTileCosts(tile_layers_surf);
+		TileAssignment.TACosts [] ta_stats = ta.statTileCosts(tile_layers_surf);
 		
+		for (int i = 0; i < ta_stats.length; i++){
+			System.out.println(ta_stats[i].toString());
+		}
 		
 		tileSurface.setTileLayers(tile_layers);
 		

@@ -105,11 +105,36 @@ public class TileSurface {
 			this.t_dirs8 = tdirs;
 			
 		}
+		public int getThreadsMax(){
+			return this.threadsMax;
+		}
+		public int getSTilesX(){
+			return stilesX;
+		}
+		public int getSTilesY(){
+			return stilesY;
+		}
+		
+		public int getSuperTileSize(){
+			return superTileSize;
+		}
 
 		public int [][] getTileLayers()
 		{
 			return this.tileLayers;
 		}
+
+		public int getImageTilesX(){
+			return imageTilesX;
+		}
+		public int getImageTilesY(){
+			return imageTilesY;
+		}
+		
+		public 	TileData [][] getTileData(){
+			return this.tileData;
+		}
+
 		
 		public int [][] getTileLayersCopy()
 		{
@@ -155,6 +180,31 @@ public class TileSurface {
 				return this.parent_plane;
 			}
 */
+			public String getNeibString()
+			{
+				String s = "[";
+				for (int dir = 0; dir < 8; dir++){
+					s += (neighbors[dir]>=0) ? neighbors[dir]:"x";
+					if (dir < 7) s += ", ";
+				}
+				s+= "] ";
+				return s;
+			}
+			public String toString()
+			{
+				
+				String s = "          ";
+				s += getNeibString();
+				s += String.format( "index=%2d(%2d) parent = %3d:%1d disp=%8.5f weight=%8.5f",
+						new_index, indx,
+						parent_nsTile, parent_layer, disp_strength[0], disp_strength[1]);
+				
+
+				return s;
+			}
+			
+			
+			
 			public void setParentTileLayer (int parent_nsTile, int parent_layer)
 			{
 				this.parent_nsTile = parent_nsTile;
@@ -2069,7 +2119,7 @@ public class TileSurface {
 		 * @param dbg_Y debug tile Y coordinate
 		 * @return 
 		 */
-		public int [] assignTilesToSingleCandidate( // not used
+		public int [] assignTilesToSingleCandidate_old( // not used
 				final boolean       noEdge,
 				final double        maxDiff,
 				final double        minDiffOther,
@@ -2077,8 +2127,6 @@ public class TileSurface {
 				final double        maxStrength,
 				final int           moveDirs, // 1 increase disparity, 2 - decrease disparity, 3 - both directions
 				final double        dispNorm, // disparity normalize (proportionally scale down disparity difference if above
-//				final int [][]      tileLayers,
-//				final TileData [][] tileData,
 				final double [][][] dispStrength,
                 final int           debugLevel,
 				final int           dbg_X,
@@ -2217,7 +2265,7 @@ public class TileSurface {
 		
 		public int [][] getConsensusAssignment(
 				final int        min_agree,
-				int [][][]       opinions_in,
+				int [][][]       opinions_in, // options contain 1-based surface indices
 				final int [][][] tileAssignments)
 		{
 			final int imgTiles = imageTilesX * imageTilesY;
@@ -2241,7 +2289,7 @@ public class TileSurface {
 							System.out.println("getConsensusAssignment(): nTile="+nTile);
 						}
 						int num_agree = 0;
-						ArrayList <Integer> alts = new ArrayList <Integer>();
+						ArrayList <Integer> alts = new ArrayList <Integer>(); // elements are 1-based surfaces
 						for (int n = 0; n < num_in; n++)if (tileAssignments[n] != null){
 							int surf1 = tileAssignments[n][ml][nTile];
 							if (surf1 != 0){
@@ -2279,6 +2327,7 @@ public class TileSurface {
 		 * Assign tiles that were used to generate planes. Only tiles in the center (non-overlapping) part of the supertile
 		 * @param force re-assign tile if it was already assigned
 		 * @param tileLayers
+		 * @param noEdge do not assign tiles to the surface edges (can not add border later)
 		 * @param debugLevel
 		 * @param dbg_X
 		 * @param dbg_Y
@@ -2289,6 +2338,7 @@ public class TileSurface {
 				final boolean                  force,
 				final int [][]                 tileLayers,
 				final TilePlanes.PlaneData[][] planes,
+				final boolean                  noEdge,
                 final int                      debugLevel,
 				final int                      dbg_X,
 				final int                      dbg_Y)
@@ -2335,9 +2385,10 @@ public class TileSurface {
 										int ns = -1;
 										for (int ml = 0; ml < meas_sel.length; ml++) if (meas_sel[ml] != null){
 											if (meas_sel[ml][st_index]){
+												int nSurfTile = -1;
 												if (ns < 0){ // find for the first used ml, if there are more - they will reuse
 													nTile = (superTileSize * sty + dy) * imageTilesX + (superTileSize * stx + dx);
-													int nSurfTile = getSurfaceTileIndex(nTile);
+													nSurfTile = getSurfaceTileIndex(nTile);
 													for (int i = 0; i < tileData[nSurfTile].length; i ++){
 														if (    (tileData[nSurfTile][i].getParentNsTile() == nsTile) &&
 																(tileData[nSurfTile][i].getParentLayer() == np)) {
@@ -2359,9 +2410,24 @@ public class TileSurface {
 																(superTileSize * sty + dy)+")");
 													}
 												}
+												
 												if ((ns >= 0) && (force || (tileLayers[ml][nTile] == 0))) {
-													tileLayers[ml][nTile] = ns + 1;
-													stats_all[numThread][NEW_ASSIGNED] ++;
+													boolean bad_edge = noEdge;
+													if (bad_edge) {
+														bad_edge = false;
+														int []neibs = tileData[nSurfTile][ns].getNeighbors();
+														for (int i = 0; i < neibs.length; i++) if (neibs[i] < 0) {
+															bad_edge = true;
+															break;
+														}
+													}
+													if (bad_edge) {
+														stats_all[numThread][NO_SURF] ++;
+														tileLayers[ml][nTile] = IMPOSSIBLE;
+													} else {
+														tileLayers[ml][nTile] = ns + 1;
+														stats_all[numThread][NEW_ASSIGNED] ++;
+													}
 												}
 											}
 										}
@@ -2560,8 +2626,10 @@ public class TileSurface {
 						// calculate index in tileData (has different dimensions - TODO: trim?
 						int nSurfTile1 = getSurfaceTileIndex(nTile1);
 						int ns1 = neibs[dir];
-						System.out.println("growWeakAssigned(): nTile="+pTile.x+" ns="+pTile.y+" dir = "+dir+
-								" nSurfTile="+nSurfTile+" nSurfTile1="+nSurfTile1+" ns1="+ns1);  
+						if (debugLevel > 0) {
+							System.out.println("growWeakAssigned(): nTile="+pTile.x+" ns="+pTile.y+" dir = "+dir+
+									" nSurfTile="+nSurfTile+" nSurfTile1="+nSurfTile1+" ns1="+ns1);
+						}
 						boolean bad_edge = noEdge;
 						if (bad_edge) {
 							bad_edge = false;
@@ -3750,7 +3818,7 @@ public class TileSurface {
 							if (nl1 < 0){
 								if (debugLevel >-1) {
 									System.out.println("growClusterOnce(): Expected 8 neighbors for tile nSurfTile0="+
-											nSurfTile0+" neibs["+dir+"] = "+nl1);
+											nSurfTile0+":"+nl0+" neibs["+dir+"] = "+nl1);
 								}
 							} else {
 								int neTile1 = tnWindow.getNeibIndex(neTile0, dir);
@@ -4176,7 +4244,7 @@ public class TileSurface {
 											if (nl1 < 0){
 												if (debugLevel >-1) {
 													System.out.println("growEachCluster(): Expected 8 neighbors for tile nSurfTile0="+
-															nSurfTile0+" neibs["+dir+"] = "+nl1);
+															nSurfTile0+":"+nl0+" neibs["+dir+"] = "+nl1);
 												}
 												int nTile1 = tnImage.getNeibIndex(nTile0, dir);
 												if (nTile1 >= 0) {

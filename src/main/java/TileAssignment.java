@@ -1,0 +1,854 @@
+/**
+ **
+ ** TileAssignment - handle tile surfaces
+ **
+ ** Copyright (C) 2017 Elphel, Inc.
+ **
+ ** -----------------------------------------------------------------------------**
+ **  
+ **  TileAssignment.java is free software: you can redistribute it and/or modify
+ **  it under the terms of the GNU General Public License as published by
+ **  the Free Software Foundation, either version 3 of the License, or
+ **  (at your option) any later version.
+ **
+ **  This program is distributed in the hope that it will be useful,
+ **  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ **  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ **  GNU General Public License for more details.
+ **
+ **  You should have received a copy of the GNU General Public License
+ **  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ ** -----------------------------------------------------------------------------**
+ **
+ */
+import java.awt.Point;
+import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+
+//import ij.IJ;
+
+
+public class TileAssignment {
+	private TileSurface ts;
+	private CLTPass3d p3d; // last/ combined FPGA data
+	private EyesisCorrectionParameters.CLTParameters clt_parameters;
+	private double [][][] dispStrength; // indexed as a surface (full supertiles), not as image
+	private boolean [] valid_ml;
+	private double [][] tile_tones;
+	private double [][][] tone_diff_weight; // for each surface (not image) tile, for each of 8 directions,
+	//a pair of normalized tone difference and weight (both weight and diff == 0.0 for connections to/from undefined tiles
+	private double kR = 1.0; // relative weight of red to green ratio 
+	private double kB = 1.0; // relative weight of blue to green ratio
+	private double fatZero = 0.01; // for colors, normalized to 0..1.0 range
+	private int surfTilesX;
+	private int surfTilesY;
+	private int imgTilesX;
+	private int imgTilesY;
+	private TileNeibs tnImage;
+	private TileNeibs tnSurface;
+	private boolean [][][] valid_surf; // per measured layer, per surface tile, per surface layer
+	
+	// from clt_parameters
+	private double dispNorm;
+	private TACosts cost_coeff;
+	private double minFgBg =    0.1;  // Minimal foreground/ background separation to look for weak FG edge
+	private double minFgEdge =  0.2;  // Minimal foreground edge strength (stronger edges will have proportionally smaller costs)
+	private double minColSep =  0.05; // Minimal surface separation that requires color change 
+	private double minColDiff = 0.01; // Minimal surface separation that requires color change 
+	
+	static double [] NEIB_WEIGHTS = {0.5,0.25, 0.5, 0.25, 0.5,0.25, 0.5, 0.25, 1.0};
+	
+	static int INDEX_R = 0;
+	static int INDEX_B = 1;
+	static int INDEX_G = 2;
+	static int INDEX_A = 3;
+	public class TACosts{
+		public double empty;     // Cost of a tile that is not assigned
+		public double nolink;    // Cost of a tile not having any neighbor in particular direction
+		public double swtch;     // Cost of a tile switching to a neighbor that does not have a link
+		public double color;     // Cost of a tile switching to a disconnected neighbor divided by a color mismatch
+		public double diff;      // Cost of a weighted normalized tile disparity error
+		public double diff_best; // Cost of a weighted normalized tile disparity error above best surface
+		public double diff9;     // Cost of a weighted normalized tile disparity error for tile and 8 neighbors (DC)
+  		public double weak_fgnd; // Cost of a weak foreground edge
+		public double flaps;     // Cost of using supertile "flaps" (not in the center 8x8 tiles area)
+  		public double ml_mismatch;    // Cost of a measurement layer not having same layer in the same location or near
+
+		public TACosts (int mode)
+		{
+			this.empty =       1.0;
+			this.nolink =      1.0/1.50705;
+			this.swtch =       1.0/0.59474;
+			this.color =       1.0/2.25763;
+			this.diff =        1.0/1.94213;
+			this.diff_best =   1.0/0.06731;
+			this.diff9 =       1.0/1.09087;
+			this.weak_fgnd =   1.0/0.22250;
+			this.flaps =       1.0/0.07229;
+			this.ml_mismatch = 1.0;
+			// ml_mismatch not yet implemented - is it needed - maybe some see-through data appears on one layer only
+		}
+		/*
+empty=     0.00000 nolink= 1.50705 swtch=     0.59474 color= 2.25763 diff=        1.94213
+diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch= 0.00000
+		 */
+		public TACosts (EyesisCorrectionParameters.CLTParameters clt_parameters)
+		{
+			this.empty =       clt_parameters.taCostEmpty;
+			this.nolink =      clt_parameters.taCostNoLink;
+			this.swtch =       clt_parameters.taCostSwitch;
+			this.color =       clt_parameters.taCostColor;
+			this.diff =        clt_parameters.taCostDiff;
+			this.diff_best =   clt_parameters.taCostDiffBest;
+			this.diff9 =       clt_parameters.taCostDiff9;
+			this.weak_fgnd =   clt_parameters.taCostWeakFgnd;
+			this.flaps =       clt_parameters.taCostFlaps;
+			this.ml_mismatch = clt_parameters.taCostMismatch;
+			// ml_mismatch not yet implemented - is it needed - maybe some see-through data appears on one layer only
+		}
+
+		public TACosts(){}
+		public TACosts(double [] vals)
+		{
+			set(vals);
+		}
+
+		public void set(double [] vals)
+		{
+			this.empty =       vals[0];
+			this.nolink =      vals[1]; 
+			this.swtch =       vals[2];
+			this.color =       vals[3];
+			this.diff =        vals[4];
+			this.diff_best =   vals[5];
+			this.diff9 =       vals[6];
+			this.weak_fgnd =   vals[7]; 
+			this.flaps =       vals[8];
+			this.ml_mismatch = vals[9];
+		}
+		
+		
+		public double [] toArray(){
+			double [] rslt = {
+					this.empty,
+					this.nolink, 
+					this.swtch,
+					this.color,
+					this.diff,
+					this.diff_best,
+					this.diff9,
+					this.weak_fgnd, 
+					this.flaps,
+					this.ml_mismatch
+			};
+			return rslt;
+		}
+		
+		public String [] getTitles()
+		{
+			String [] titles = {
+					"empty",
+					"nolink", 
+					"swtch",
+					"color",
+					"diff",
+					"diff_best",
+					"diff9",
+					"weak_fgnd", 
+					"flaps",
+					"ml_mismatch"};
+			return titles;
+		}
+		
+		public String toString()
+		{
+			String s = "";
+			s+= String.format("empty=    %8.5f nolink=%8.5f swtch=    %8.5f color=%8.5f diff=       %8.5f\n",empty, nolink, swtch, color, diff);
+			s+= String.format("diff_best=%8.5f diff9= %8.5f weak_fgnd=%8.5f flaps=%8.5f ml_mismatch=%8.5f\n",diff_best, diff9, weak_fgnd, flaps, ml_mismatch);
+			return s;
+		}
+		
+		public double dotProd (TACosts costs){
+			double [] these = toArray();
+			double [] other = costs.toArray();
+			double prod = 0.0;
+			for (int i = 0; i < these.length; i++){
+				prod += these[i]*other[i];
+			}
+			return prod;
+		}
+
+		public void add (TACosts costs){
+			double [] these = toArray();
+			double [] other = costs.toArray();
+			for (int i = 0; i < these.length; i++){
+				these[i] += other[i];
+			}
+			set (these);
+		}
+
+		public void mul (TACosts costs){
+			double [] these = toArray();
+			double [] other = costs.toArray();
+			for (int i = 0; i < these.length; i++){
+				these[i] *= other[i];
+			}
+			set (these);
+		}
+
+		public void max (TACosts costs){
+			double [] these = toArray();
+			double [] other = costs.toArray();
+			for (int i = 0; i < these.length; i++){
+				these[i] = Math.max(these[i],other[i]);
+			}
+			set (these);
+		}
+
+		public void scale (double a){
+			double [] these = toArray();
+			for (int i = 0; i < these.length; i++){
+				these[i] *= a;
+			}
+			set (these);
+		}
+	}
+	
+	
+	/**
+	 * 
+	 * @param ts
+	 * @param p3d
+	 * @param tile_sel
+	 * @param dispStrength per measurement layer, combined disparity and strength array ([num_ml [2][])
+	 * @param kR
+	 * @param kB
+	 * @param fatZero
+	 */
+	public TileAssignment (
+			EyesisCorrectionParameters.CLTParameters clt_parameters,
+			TileSurface ts,
+			CLTPass3d p3d,
+			double [][][] dispStrength,
+			double kR,
+			double kB,
+			double fatZero)
+	{
+		this.ts = ts;
+		this.p3d = p3d;
+		copyParams(clt_parameters);
+		this.clt_parameters = clt_parameters; // replace with copying specific ones
+		valid_ml = new boolean [dispStrength.length];
+		for (int ml = 0; ml < dispStrength.length; ml++){
+			valid_ml[ml] = dispStrength[ml] != null;
+		}
+		if (!Double.isNaN(kR))      this.kR = kR;
+		if (!Double.isNaN(kB))      this.kB = kB;
+		if (!Double.isNaN(fatZero)) this.fatZero = fatZero;
+		this.surfTilesX = ts.getSTilesX() * ts.getSuperTileSize();
+		this.surfTilesY = ts.getSTilesY() * ts.getSuperTileSize();
+		this.imgTilesX = ts.getImageTilesX();
+		this.imgTilesY = ts.getImageTilesX();
+		this.tnImage =   new TileNeibs(imgTilesX, imgTilesY);
+		this.tnSurface = new TileNeibs(surfTilesX, surfTilesY);
+		setDispStrength(dispStrength);
+		setTones(p3d);
+	}
+	
+	
+	public void copyParams(EyesisCorrectionParameters.CLTParameters clt_parameters)
+	{
+		this.dispNorm =       clt_parameters.plDispNorm;
+		cost_coeff = new TACosts (clt_parameters);
+		cost_coeff.mul(new TACosts (0)); // make average ~=1.0 for each used component
+	}
+	public void setDispStrength(
+			double [][][] ds)
+	{
+		this.dispStrength = new double [ds.length][][];
+		for (int ml = 0; ml < ds.length; ml++) if (ds[ml] != null){
+			this.dispStrength[ml] = new double [ surfTilesX * surfTilesY][];
+			for (int nTile = 0; nTile < ds[ml][0].length; nTile++){
+				int nSurfTile = ts.getSurfaceTileIndex(nTile);
+				this.dispStrength[ml][nSurfTile] = new double[2]; // ds[ml][nTile];
+				this.dispStrength[ml][nSurfTile][0] = ds[ml][0][nTile];
+				this.dispStrength[ml][nSurfTile][1] = ds[ml][1][nTile];
+			}			
+		}
+	}
+	
+	
+	
+	public void setTones(CLTPass3d p3d)
+	{
+		double [][] tt = p3d.getTileRBGA(4);
+		
+		this.tile_tones = new double [surfTilesX * surfTilesY][tt.length];
+		for (int nTile = 0; nTile < tt[0].length; nTile++){
+			int nSurfTile = ts.getSurfaceTileIndex(nTile);
+			for (int j = 0; j < tt.length; j++){
+				this.tile_tones[nSurfTile][j] = tt[j][nTile];
+			}
+		}
+			
+		this.tone_diff_weight = new double [surfTilesX * surfTilesY][8][2];
+//		final int numTiles = imgTilesX * imgTilesY;
+		final Thread[] threads = ImageDtt.newThreadArray(ts.getThreadsMax());
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nSurfTile = ai.getAndIncrement(); nSurfTile < tone_diff_weight.length; nSurfTile = ai.getAndIncrement()) {
+						if (nSurfTile >= 0){
+							for (int dir = 0; dir < 4; dir++){
+								int nSurfTile1 = tnSurface.getNeibIndex(nSurfTile, dir);
+								if (nSurfTile1 >= 0){
+									tone_diff_weight[nSurfTile][dir] = 
+											getDiffWeight (
+													tile_tones[nSurfTile],
+													tile_tones[nSurfTile1]);
+									tone_diff_weight[nSurfTile1][(dir + 4) % 8] = tone_diff_weight[nSurfTile][dir];
+								}
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+	}
+	
+	public void showToneDiffWeights3(){
+		String [] titles = {"diffs","sqrt","centers","weights"};
+		double [][] img_data = new double[titles.length][9 * surfTilesX * surfTilesY];
+		TileNeibs tnSurface3 = new TileNeibs( 3 * surfTilesX, 3 * surfTilesY); 
+		for (int nSurfTile = 0; nSurfTile <  tone_diff_weight.length;  nSurfTile++){
+			int [] txy = tnSurface.getXY(nSurfTile);
+			int [] txy3 = {3 * txy[0] + 1, 3 * txy[1] + 1};
+			double sdw = 0.0, sw = 0.0;
+			int num_neibs = 0;
+			for (int dir = 0; dir < 8; dir++){
+				sw  += tone_diff_weight[nSurfTile][dir][1];
+				sdw += tone_diff_weight[nSurfTile][dir][0] * tone_diff_weight[nSurfTile][dir][1];
+				int nSurfTile3 = tnSurface3.getNeibIndex(tnSurface3.getIndex(txy3[0],txy3[1]),dir);
+				img_data[0][nSurfTile3] = tone_diff_weight[nSurfTile][dir][0]; 
+				img_data[1][nSurfTile3] = Math.sqrt(tone_diff_weight[nSurfTile][dir][0]); 
+				img_data[3][nSurfTile3] = tone_diff_weight[nSurfTile][dir][1];
+				if (tone_diff_weight[nSurfTile][dir][1] > 0.0) num_neibs ++;
+			}
+			if (sw > 0.0){
+				sdw /= sw;
+			}
+			if (num_neibs > 0){
+				sw /= num_neibs;
+			}
+			int nSurfTile3 = tnSurface3.getIndex(txy3[0],txy3[1]);
+			img_data[0][nSurfTile3] = sdw; 
+			img_data[1][nSurfTile3] = Math.sqrt(sdw); 
+			img_data[2][nSurfTile3] = sdw; 
+			img_data[3][nSurfTile3] = sw;
+		}
+		(new showDoubleFloatArrays()).showArrays(img_data,  3 * surfTilesX, 3 * surfTilesY, true, "Tone_diffs3", titles);
+	}
+
+	public void showToneDiffWeights1(){
+		double [][] img_data = new double[2][surfTilesX * surfTilesY];
+		for (int nSurfTile = 0; nSurfTile <  tone_diff_weight.length;  nSurfTile++){
+			double sdw = 0.0, sw = 0.0;
+			int num_neibs = 0;
+			for (int dir = 0; dir < 8; dir++){
+				sw  += tone_diff_weight[nSurfTile][dir][1];
+				sdw += tone_diff_weight[nSurfTile][dir][0] * tone_diff_weight[nSurfTile][dir][1];
+				if (tone_diff_weight[nSurfTile][dir][1] > 0.0) num_neibs ++;
+			}
+			if (sw > 0.0){
+				sdw /= sw;
+			}
+			if (num_neibs > 0){
+				sw /= num_neibs;
+			}
+			img_data[0][nSurfTile] = sdw; 
+			img_data[1][nSurfTile] = sw;
+		}
+		String [] titles = {"diffs","weights"};
+		(new showDoubleFloatArrays()).showArrays(img_data,  surfTilesX, surfTilesY, true, "Tone_diffs1", titles);
+	}
+	
+	
+	
+	private double [] getDiffWeight(
+			double [] tone1,
+			double [] tone2)
+	{
+		double [] tone_weight = {0.0, Math.max(tone1[INDEX_A] * tone2[INDEX_A], 0.0)};
+		if (tone_weight[1] > 0.0){
+			double [][] scaled = {
+					{(Math.max(tone1[INDEX_R], 0.0) + fatZero) * kR, (Math.max(tone1[INDEX_B], 0.0) + fatZero) * kB, (Math.max(tone1[INDEX_G], 0.0) + fatZero) },
+					{(Math.max(tone2[INDEX_R], 0.0) + fatZero) * kR, (Math.max(tone2[INDEX_B], 0.0) + fatZero) * kB, (Math.max(tone2[INDEX_G], 0.0) + fatZero)}};
+			double rdiff2 = 0.0;
+			for (int i = 0; i < 3; i++){
+				double rd = (scaled[0][i] - scaled[1][i])/(scaled[0][i] + scaled[1][i]);
+				rdiff2 += rd*rd;
+			}
+			tone_weight[0] = rdiff2/3.0;
+		}
+		return tone_weight;
+	}
+
+	public void intValidSurf()
+	{
+		TileSurface.TileData [][] tileData = ts.getTileData();
+		int nSurfTiles = surfTilesX * surfTilesY;
+		valid_surf = new boolean [valid_ml.length][][]; // surfTilesX * surfTilesY][];
+		for (int ml = 0; ml < valid_ml.length; ml++) if (valid_ml[ml]) {
+			valid_surf[ml] = new boolean [nSurfTiles][];
+		}
+		for (int nSurfTile = 0; nSurfTile < nSurfTiles; nSurfTile++) if (tileData[nSurfTile] != null){
+			boolean [] surf_en = new boolean [tileData[nSurfTile].length];
+			for (int i = 0; i < surf_en.length; i++) {
+				surf_en[i] = true;
+			}
+			for (int ml = 0; ml < valid_ml.length; ml++) if (valid_surf[ml] != null){
+				valid_surf[ml][nSurfTile] = surf_en.clone();
+			}
+		}
+	}
+	
+	/**
+	 * limit layer options for assigned cells to a single (selected) option, disable all negative ones
+	 * @param tileLayers
+	 */
+	
+	public void restrictSingle (
+			final int [][] tileLayers)
+	{
+		for (int ml = 0; ml < valid_ml.length; ml++) if ((valid_surf[ml] != null) && (tileLayers[ml] != null)){
+			for (int nTile = 0; nTile < tileLayers[ml].length; nTile++) if (tileLayers[ml][nTile] != 0){
+				int nSurfTile = ts.getSurfaceTileIndex(nTile);
+				for (int ns = 0; ns < valid_surf[ml][nSurfTile].length; ns++){
+					valid_surf[ml][nSurfTile][ns] = false;
+				}
+				if (tileLayers[ml][nTile] > 0) valid_surf[ml][nSurfTile][tileLayers[ml][nTile] - 1] = true;
+			}
+		}
+	}
+	/**
+	 * Limit layer options for assigned cells to a multiple options per tile cell
+	 * @param options
+	 */
+	
+	public void restrictMulti (
+			final int [][][] options)
+	{
+		for (int ml = 0; ml < valid_ml.length; ml++) if ((valid_surf[ml] != null) && (options[ml] != null)){
+			for (int nTile = 0; nTile < options[ml].length; nTile++) if ((options[ml][nTile] != null) && (options[ml][nTile].length > 0)){
+				int nSurfTile = ts.getSurfaceTileIndex(nTile);
+				for (int ns = 0; ns < valid_surf[ml][nSurfTile].length; ns++){
+					valid_surf[ml][nSurfTile][ns] = false;
+				}
+				for (int i = 0; i < options[ml][nTile].length; i++) {
+					valid_surf[ml][nSurfTile][options[ml][nTile][i] - 1] = true;
+				}
+			}
+		}
+	}
+	/**
+	 * Get signed normalized difference from the measured disparity to the selected surface
+	 * @param ml measured layer (combo, quad, hor, vert)
+	 * @param nSurfTile tile index in surface array (includes full supertiles)
+	 * @param ns number of the surface
+	 * @return signed disparity error, scaled down for large disparities
+	 */
+	public double dispDiff(
+			int ml,
+			int nSurfTile,
+			int ns)
+	{
+		if ((dispStrength[ml] == null) || (dispStrength[ml][nSurfTile] == null)) {
+				String msg="dispDiff(): no data for ml="+ml+", nSurfTile="+nSurfTile+", ns="+ns;
+//				IJ.showMessage(msg);
+				throw new IllegalArgumentException (msg);
+		}
+		double dm = dispStrength[ml][nSurfTile][0];
+		double ds = ts.getTileData()[nSurfTile][ns].getDisparity();
+		double diff = dm - ds;
+		double d_av = 0.5 * (dm + ds);
+		if (d_av > dispNorm){
+			diff *= dispNorm/d_av;
+		}
+		return diff;
+
+	}
+	
+	/**
+	 * Get absolute value of the normalized disparity difference from the measured value to the nearest surface 
+	 * @param ml measured layer (combo, quad, hor, vert)
+	 * @param nSurfTile tile index in surface array (includes full supertiles)
+	 * @return absolute value of the disparity error (scaled down for large disparities) to the nearest surface
+	 */
+	public double dispDiffBest(
+			int ml,
+			int nSurfTile)
+	{
+		double best = Double.NaN;
+		for (int ns = 0; ns < ts.getTileData()[nSurfTile].length; ns++){
+			double diff = dispDiff(ml, nSurfTile, ns);
+			double adiff = Math.abs(diff);
+			if (Double.isNaN(best) || (adiff < best)) {
+				best = adiff;
+			}
+		}
+		return best;
+	}
+	
+	/**
+	 * Get absolute value of the normalized disparity difference from the measured value to the farthest surface
+	 * Used to estimate cost of un-assigned tiles 
+	 * @param ml measured layer (combo, quad, hor, vert)
+	 * @param nSurfTile tile index in surface array (includes full supertiles)
+	 * @return absolute value of the disparity error (scaled down for large disparities) to the farthest surface
+	 */
+	public double dispDiffWorst(
+			int ml,
+			int nSurfTile)
+	{
+		double worst = Double.NaN;
+		if ((ts.getTileData() == null) || (ts.getTileData()[nSurfTile] == null)){
+			System.out.println("dispDiffWorst("+ml+","+nSurfTile+")");
+			return worst;
+		}
+		for (int ns = 0; ns < ts.getTileData()[nSurfTile].length; ns++){
+			double diff = dispDiff(ml, nSurfTile, ns);
+			double adiff = Math.abs(diff);
+			if (Double.isNaN(worst) || (adiff < worst)) {
+				worst = adiff;
+			}
+		}
+		return worst;
+	}
+	
+	public TACosts [] getTileCosts(
+			boolean   all_tiles,
+			int [][]  tileLayers)
+	{
+		TACosts [] ta_costs = new TACosts [surfTilesX * surfTilesY];
+		for (int nSurfTile = 0; nSurfTile < ta_costs.length; nSurfTile++){
+			boolean has_tile = false;
+			boolean has_block = false;
+			for (int ml = 0; ml <  tileLayers.length; ml++) if(tileLayers[ml] != null) {
+				if (tileLayers[ml][nSurfTile] < 0) {
+					has_block = true;
+					break;
+				}
+				if (tileLayers[ml][nSurfTile] > 0) {
+					has_tile = true;
+				}
+			}
+			if (!has_block && (all_tiles || has_tile)){
+				ta_costs[nSurfTile] = getTileCosts(
+						nSurfTile, // int                    nSurfTile,
+						tileLayers, // int [][]               tileLayers,
+						null); // HashMap<Point,Integer> replacements)
+			}
+		}		//for (int nSurfTile)
+		
+		return ta_costs;
+	}
+
+	public double [] calcTileCosts(
+			int [][]  tileLayers)
+	{
+		double [] costs = new double [surfTilesX * surfTilesY];
+		for (int nSurfTile = 0; nSurfTile < costs.length; nSurfTile++){
+			boolean has_tile = false;
+			boolean has_block = false;
+			for (int ml = 0; ml <  tileLayers.length; ml++) if(tileLayers[ml] != null) {
+				if (tileLayers[ml][nSurfTile] < 0) {
+					has_block = true;
+					break;
+				}
+				if (tileLayers[ml][nSurfTile] > 0) {
+					has_tile = true;
+				}
+			}
+			if (!has_block && has_tile){
+				TACosts ta_cost = getTileCosts(
+						nSurfTile, // int                    nSurfTile,
+						tileLayers, // int [][]               tileLayers,
+						null); // HashMap<Point,Integer> replacements)
+				costs[nSurfTile] = cost_coeff.dotProd(ta_cost);
+				
+			}
+		}
+		return costs;
+	}
+	
+	public void showTileCost(int [][]  tileLayers)
+	{
+		double [] composite_costs = calcTileCosts(tileLayers);
+		(new showDoubleFloatArrays()).showArrays(composite_costs, surfTilesX, surfTilesY, "composite_costs");
+	}
+
+	public void showTileCosts(int [][]  tileLayers)
+	{
+		String [] titles = (new TACosts()).getTitles();
+		int num_stiles = surfTilesX*surfTilesY;
+		double [][] cost_components = new double[titles.length][surfTilesX * surfTilesY];
+		double [] NaNs = new double[titles.length];
+		for (int i = 0; i < NaNs.length; i++) NaNs[i] = Double.NaN;
+		for (int nSurfTile = 0; nSurfTile < num_stiles; nSurfTile++){
+			boolean has_tile = false;
+			boolean has_block = false;
+			for (int ml = 0; ml <  tileLayers.length; ml++) if(tileLayers[ml] != null) {
+				if (tileLayers[ml][nSurfTile] < 0) {
+					has_block = true;
+					break;
+				}
+				if (tileLayers[ml][nSurfTile] > 0) {
+					has_tile = true;
+				}
+			}
+			double [] costs = NaNs;
+			if (!has_block) { // && has_tile){
+				TACosts ta_cost = getTileCosts(
+						nSurfTile, // int                    nSurfTile,
+						tileLayers, // int [][]               tileLayers,
+						null); // HashMap<Point,Integer> replacements)
+				ta_cost.mul(cost_coeff);
+				costs = ta_cost.toArray();				
+			}
+			for (int i =0; i < cost_components.length; i++){
+				cost_components[i][nSurfTile] = costs[i];
+			}
+		}
+		(new showDoubleFloatArrays()).showArrays(cost_components, surfTilesX, surfTilesY, true, "cost_components", titles);
+	}
+	
+	
+	public TACosts [] statTileCosts(
+			int [][]  tileLayers)
+	{
+		TACosts [] ta_stats = {new TACosts(), new TACosts()}; // average, max
+		int num_tiles = 0;
+		int numSurfTiles =surfTilesX * surfTilesY;
+		for (int nSurfTile = 0; nSurfTile < numSurfTiles; nSurfTile++){
+			if (nSurfTile == 47459){
+				System.out.println("statTileCosts() nSurfTile="+nSurfTile);
+			}
+			
+			boolean has_tile = false;
+			boolean has_block = false;
+			for (int ml = 0; ml <  tileLayers.length; ml++) if(tileLayers[ml] != null) {
+				if (tileLayers[ml][nSurfTile] < 0) {
+					has_block = true;
+					break;
+				}
+				if (tileLayers[ml][nSurfTile] > 0) {
+					has_tile = true;
+				}
+			}
+			if (!has_block) { // && has_tile){
+				TACosts ta_cost = getTileCosts(
+						nSurfTile, // int                    nSurfTile,
+						tileLayers, // int [][]               tileLayers,
+						null); // HashMap<Point,Integer> replacements)
+				ta_stats[0].max(ta_cost);
+				ta_stats[1].add(ta_cost);
+				num_tiles++;
+				
+			}
+		}
+		if (num_tiles > 0){
+			ta_stats[1].scale(1.0/num_tiles);
+		}
+		return ta_stats;
+	}
+	
+	/**
+	 * Get costs (not scaled) for the particular tile, add for all defined layers
+	 * @param nSurfTile tile index in surface array (includes full supertiles)
+	 * @param tileLayers current assignment
+	 * @param replacements optional assignment modification (or null)
+	 * @return TACosts instance with assigned values
+	 */
+	public TACosts getTileCosts(
+			int                    nSurfTile,
+			int [][]               tileLayers,
+			HashMap<Point,Integer> replacements)
+	{
+		TACosts costs = new TACosts();
+		if (nSurfTile == 47459){
+			System.out.println("getTileCosts() nSurfTile="+nSurfTile);
+		}
+		int [][] around = new int [valid_ml.length][]; // contains layer + 1
+		for (int ml = 0; ml <  valid_ml.length; ml++) if(valid_ml[ml]) {
+			around[ml] = new int [9]; 
+		}
+		int [] nSurfTiles = new int[9];
+		
+		for (int dir = 0; dir < 9; dir++){
+			nSurfTiles[dir] = tnSurface.getNeibIndex(nSurfTile, dir);
+			if (nSurfTiles[dir] < 0) {
+				for (int ml = 0; ml < around.length; ml++) if (around[ml] != null){
+					around[ml][dir] = TileSurface.PROHOBITED; 
+				}
+			} else {
+				for (int ml = 0; ml < around.length; ml++) if (around[ml] != null){
+					around[ml][dir] = tileLayers[ml][nSurfTiles[dir]]; 
+					if (replacements != null){
+						Integer isurf = replacements.get(new Point(ml, nSurfTiles[dir]));
+						if (isurf != null) {
+							around[ml][dir] = isurf; // substitute
+						}
+					}
+				}				
+			}
+		}
+		// 
+//		public double empty;     // Cost of a tile that is not assigned
+		for (int ml = 0; ml < around.length; ml++) if (around[ml] != null){
+			if (around[ml][8] == 0) costs.empty +=1.0; // Cost of a tile that is not assigned
+		}
+		
+//		public double nolink;    // Cost of a tile not having any neighbor in particular direction
+		for (int ml = 0; ml < around.length; ml++) if ((around[ml] != null) && (around[ml][8] > 0)){
+			if ((around[ml][8] - 1) >= ts.getTileData()[nSurfTile].length){
+				System.out.println("getTileCosts() BUG: nSurfTile="+nSurfTile);
+			}
+			int [] neibs = ts.getTileData()[nSurfTile][around[ml][8] - 1].getNeighbors();
+			for (int dir = 0; dir < 8; dir++) if (neibs[dir] >= 0){ // do not count non-existing connections
+				boolean link_this =  false;
+				boolean link_other = false;
+				int ml1 = ml;
+				int neibp1 = neibs[dir] + 1;
+				if (around[ml][dir] > 0) {
+					if (around[ml][dir] == neibp1) {
+						link_this = true;
+						
+					} else {
+						link_other = true;
+					}
+				} else if (around[ml][dir] == 0){
+					// see if some other ml contains this surface (ignore other surfaces
+					for (ml1 = 0; ml1 < around.length; ml1++) if ((ml1 != ml) && (around[ml1] != null)) {
+						if (around[ml1][dir] == neibp1){
+							link_this = true;
+							break; // ml1 will keep other ml
+						}
+					}
+				} else { // negative/prohibited
+					continue;
+				}
+				if (!link_this && !link_other){
+					costs.nolink +=1.0; 
+				} else if (link_other) {
+					costs.swtch += 1.0; // cost for any switch 
+					// check if it is fb->bg transition and fg is weak
+					double d_this =  ts.getTileData()[nSurfTiles[dir]][neibs[dir]].getDisparity();
+					double d_other = ts.getTileData()[nSurfTiles[dir]][around[ml][dir] -1].getDisparity();
+					double disp_diff = d_this - d_other;
+					double d_av = 0.5 * (d_this + d_other);
+					if (d_av > dispNorm){
+						disp_diff *= dispNorm/d_av;
+					}
+					// disp_diff here is signed, positive if center is FG, other is BG
+					if (disp_diff > minFgBg) {
+						double strength = dispStrength[ml][nSurfTile][1];
+						strength = Math.max(strength, minFgEdge);
+						costs.weak_fgnd += minFgEdge / strength; 
+					}
+					if (Math.abs(disp_diff) > minColSep){
+						double col_diff = tone_diff_weight[nSurfTile][dir][0];
+						col_diff= Math.max(col_diff,minColDiff);
+						costs.color += tone_diff_weight[nSurfTile][dir][1] * minColSep/col_diff;
+					}
+					
+				} else { // v, both can not coexist
+					// Anything to cost here?
+				}
+			}
+//			if (around[ml][8] == 0) costs.empty +=1.0; // each existing measurement layer that is not assigned
+			
+		} //for (int ml = 0; ml < around.length; ml++) if ((around[ml] != null) && (around[ml][8] > 0))
+		double disp_diff_lpf = 0.0, disp_diff_weight = 0.0;  // calculate LPF of the disparity signed error over all ML and 9 cells 
+		double disp_diff2 = 0.0, disp_weight = 0.0;  // calculate disparity error in the center, weighted   
+		double disp_diff_over_best = 0.0;  // calculate disparity error in the center, weighted   
+		for (int ml = 0; ml < around.length; ml++) if (around[ml] != null){
+			double diff=0.0, weight=0.0;
+			for (int dir = 0; dir < 9; dir++){
+				if (around[ml][dir] > 0){ // assigned
+					diff = dispDiff(
+							ml, // int ml,
+							nSurfTiles[dir], // int nSurfTile,
+							around[ml][dir] - 1); // int ns)
+				} else if ((dir == 8) && (around[ml][dir] == 0) ) { //no assigned (not prohibited) - center only, because worst does not have sign
+					diff = dispDiffWorst( // worst for all surfaces
+							ml, // int ml,
+							nSurfTiles[dir]); // int nSurfTile,
+				}
+				if (dispStrength[ml][nSurfTile] != null) { // not a bug
+					weight = dispStrength[ml][nSurfTile][1] * NEIB_WEIGHTS[dir];
+					disp_diff_lpf += diff * weight;
+					disp_diff_weight += weight;
+//				} else {
+//					System.out.println("getTileCosts() BUG, nSurfTile="+nSurfTile); 
+				}
+			}
+			// now diff, weight are for the center
+			disp_diff2 += diff * diff * weight;
+			disp_weight += weight;
+			disp_diff_over_best += (Math.abs(diff) -  dispDiffBest( ml, nSurfTiles[8])) * weight; // this one - not squared
+			
+		}
+		if (disp_diff_weight > 0.0) {
+			disp_diff_lpf /= disp_diff_weight;
+			costs.diff9 += disp_diff_lpf * disp_diff_lpf; 
+		}
+		if (disp_weight > 0.0) {
+			costs.diff +=      disp_diff2 / disp_weight;
+			costs.diff_best += disp_diff_over_best / disp_weight;
+		}
+		
+		int [] txy = tnSurface.getXY(nSurfTile);
+		int nSTile = (txy[0] / ts.getSuperTileSize()) + (txy[1] / ts.getSuperTileSize()) *  ts.getSTilesX();
+		for (int ml = 0; ml < around.length; ml++) if ((around[ml] != null) && (around[ml][8] > 0)){
+			int parentSTile =ts.getTileData()[nSurfTile][around[ml][8] -1].getParentNsTile();
+			if (parentSTile != nSTile){
+				costs.flaps += 1.0;
+			}
+		}		
+		return costs;
+	}
+
+	public int [][] imgToSurf (
+			int [][] tileLayersImg)
+	{
+		int [][] tileLayersSurf = new int[tileLayersImg.length][];
+		for (int ml = 0; ml < tileLayersImg.length; ml++) if (tileLayersImg[ml] != null){
+			tileLayersSurf[ml] = new int [tnSurface.getLength()];
+			for (int nTile = 0; nTile < tileLayersImg[ml].length; nTile++){
+				int nSurfTile = tnSurface.getIndex(tnImage.getXY(nTile));
+				if (nSurfTile >= 0) {
+					tileLayersSurf[ml][nSurfTile] = tileLayersImg[ml][nTile];
+				}
+			}
+		}
+		return tileLayersSurf;
+	}
+	
+	public int [][] surfToImg (
+			int [][] tileLayersSurf)
+	{
+		int [][] tileLayersImg = new int[tileLayersSurf.length][];
+		for (int ml = 0; ml < tileLayersSurf.length; ml++) if (tileLayersSurf[ml] != null){
+			tileLayersImg[ml] = new int [tnImage.getLength()];
+			for (int nSurfTile = 0; nSurfTile < tileLayersSurf[ml].length; nSurfTile++){
+				int nImgTile = tnImage.getIndex(tnSurface.getXY(nSurfTile));
+				if (nImgTile >= 0) {
+					tileLayersSurf[ml][nImgTile] = tileLayersImg[ml][nSurfTile];
+				}
+			}
+		}
+		return tileLayersSurf;
+	}
+}

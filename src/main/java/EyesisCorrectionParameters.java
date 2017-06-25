@@ -2350,7 +2350,21 @@ public class EyesisCorrectionParameters {
 		public int        tsConsensMode        = 7;      // Which assignments to match +1 - combo, +2 grown single, +4 plane seeds 
 		public int        tsConsensAgree       = 1;      // Minimal number of assignments to agree
 		
+		// Tile assignment parameters
+  		public double     taCostEmpty          = 1.0;    // Cost of a tile that is not assigned
+  		public double     taCostNoLink         = 1.0;    // Cost of a tile not having any neighbor in particular direction
+  		public double     taCostSwitch         = 1.0;    // Cost of a tile switching to a neighbor that does not have a link
+  		public double     taCostColor          = 1.0;    // Cost of a tile switching to a disconnected neighbor divided by a color mismatch
+  		public double     taCostDiff           = 1.0;    // Cost of a weighted normalized tile disparity error
+  		public double     taCostDiffBest       = 1.0;    // Cost of a weighted normalized tile disparity error above best surface
+  		public double     taCostDiff9          = 1.0;    // Cost of a weighted normalized tile disparity error for tile and 8 neighbors (DC)
+  		public double     taCostWeakFgnd       = 1.0;    // Cost of a weak foreground edge
+  		public double     taCostFlaps          = 1.0;    // Cost of using supertile "flaps" (not in the center 8x8 tiles area)
+  		public double     taCostMismatch       = 1.0;    // Cost of a measurement layer not having same layer in the same location or near
   		
+  		
+		
+		
   		public boolean    replaceWeakOutlayers =   true; // false; 
   		
   		public boolean    dbg_migrate =            true; 
@@ -2777,6 +2791,17 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"tsConsensMode",    this.tsConsensMode +"");
 			properties.setProperty(prefix+"tsConsensAgree",   this.tsConsensAgree +"");
 
+			properties.setProperty(prefix+"taCostEmpty",      this.taCostEmpty +"");
+			properties.setProperty(prefix+"taCostNoLink",     this.taCostNoLink +"");
+			properties.setProperty(prefix+"taCostSwitch",     this.taCostSwitch +"");
+			properties.setProperty(prefix+"taCostColor",      this.taCostColor +"");
+			properties.setProperty(prefix+"taCostDiff",       this.taCostDiff +"");
+			properties.setProperty(prefix+"taCostDiffBest",   this.taCostDiffBest +"");
+			properties.setProperty(prefix+"taCostDiff9",      this.taCostDiff9 +"");
+			properties.setProperty(prefix+"taCostWeakFgnd",   this.taCostWeakFgnd +"");
+			properties.setProperty(prefix+"taCostFlaps",      this.taCostFlaps +"");
+			properties.setProperty(prefix+"taCostMismatch",   this.taCostMismatch +"");
+			
 			properties.setProperty(prefix+"dbg_migrate",            this.dbg_migrate+"");
   			
 			properties.setProperty(prefix+"show_ortho_combine",     this.show_ortho_combine+"");
@@ -3176,9 +3201,9 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"tsMaxSurStrength")!=null)  this.tsMaxSurStrength=Double.parseDouble(properties.getProperty(prefix+"tsMaxSurStrength"));
   			if (properties.getProperty(prefix+"tsCountDis")!=null)        this.tsCountDis=Boolean.parseBoolean(properties.getProperty(prefix+"tsCountDis"));
   			
-  			if (properties.getProperty(prefix+"tsEnPlaneSeed")!=null)     this.tsEnOnly=Boolean.parseBoolean(properties.getProperty(prefix+"tsEnPlaneSeed"));
+  			if (properties.getProperty(prefix+"tsEnPlaneSeed")!=null)     this.tsEnPlaneSeed=Boolean.parseBoolean(properties.getProperty(prefix+"tsEnPlaneSeed"));
   			if (properties.getProperty(prefix+"tsEnOnly")!=null)          this.tsEnOnly=Boolean.parseBoolean(properties.getProperty(prefix+"tsEnOnly"));
-  			if (properties.getProperty(prefix+"tsEnGrow")!=null)          this.tsEnOnly=Boolean.parseBoolean(properties.getProperty(prefix+"tsEnGrow"));
+  			if (properties.getProperty(prefix+"tsEnGrow")!=null)          this.tsEnGrow=Boolean.parseBoolean(properties.getProperty(prefix+"tsEnGrow"));
   			if (properties.getProperty(prefix+"tsGrowStrength")!=null)    this.tsGrowStrength=Double.parseDouble(properties.getProperty(prefix+"tsGrowStrength"));
   			if (properties.getProperty(prefix+"tsGrowStrong")!=null)      this.tsGrowStrong=Boolean.parseBoolean(properties.getProperty(prefix+"tsGrowStrong"));
   			if (properties.getProperty(prefix+"tsContStrength")!=null)    this.tsGrowStrength=Double.parseDouble(properties.getProperty(prefix+"tsContStrength"));
@@ -3197,6 +3222,17 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"tsConsensMode")!=null)     this.tsConsensMode=Integer.parseInt(properties.getProperty(prefix+"tsConsensMode"));
   			if (properties.getProperty(prefix+"tsConsensAgree")!=null)    this.tsConsensAgree=Integer.parseInt(properties.getProperty(prefix+"tsConsensAgree"));
   			
+  			if (properties.getProperty(prefix+"taCostEmpty")!=null)       this.taCostEmpty=Double.parseDouble(properties.getProperty(prefix+"taCostEmpty"));
+  			if (properties.getProperty(prefix+"taCostNoLink")!=null)      this.taCostNoLink=Double.parseDouble(properties.getProperty(prefix+"taCostNoLink"));
+  			if (properties.getProperty(prefix+"taCostSwitch")!=null)      this.taCostSwitch=Double.parseDouble(properties.getProperty(prefix+"taCostSwitch"));
+  			if (properties.getProperty(prefix+"taCostColor")!=null)       this.taCostColor=Double.parseDouble(properties.getProperty(prefix+"taCostColor"));
+  			if (properties.getProperty(prefix+"taCostDiff")!=null)        this.taCostDiff=Double.parseDouble(properties.getProperty(prefix+"taCostDiff"));
+  			if (properties.getProperty(prefix+"taCostDiffBest")!=null)    this.taCostDiffBest=Double.parseDouble(properties.getProperty(prefix+"taCostDiffBest"));
+  			if (properties.getProperty(prefix+"taCostDiff9")!=null)       this.taCostDiff9=Double.parseDouble(properties.getProperty(prefix+"taCostDiff9"));
+  			if (properties.getProperty(prefix+"taCostWeakFgnd")!=null)    this.taCostWeakFgnd=Double.parseDouble(properties.getProperty(prefix+"taCostWeakFgnd"));
+  			if (properties.getProperty(prefix+"taCostFlaps")!=null)       this.taCostFlaps=Double.parseDouble(properties.getProperty(prefix+"taCostFlaps"));
+  			if (properties.getProperty(prefix+"taCostMismatch")!=null)    this.taCostMismatch=Double.parseDouble(properties.getProperty(prefix+"taCostMismatch"));
+
   			if (properties.getProperty(prefix+"dbg_migrate")!=null)       this.dbg_migrate=Boolean.parseBoolean(properties.getProperty(prefix+"dbg_migrate"));
 
   			if (properties.getProperty(prefix+"show_ortho_combine")!=null)     this.show_ortho_combine=Boolean.parseBoolean(properties.getProperty(prefix+"show_ortho_combine"));
@@ -3648,6 +3684,18 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Which assignments to match +1 - combo, +2 grown single, +4 plane seeds",          this.tsConsensMode,  0);
   			gd.addNumericField("Minimal number of assignments to agree",                                          this.tsConsensAgree,  0);
 
+  			gd.addMessage     ("--- Tile assignment parameters ---");
+  			gd.addNumericField("Cost of a tile that is not assigned",                                             this.taCostEmpty,  6);
+  			gd.addNumericField("Cost of a tile not having any neighbor in particular direction",                  this.taCostNoLink,  6);
+  			gd.addNumericField("Cost of a tile switching to a neighbor that does not have a link",                this.taCostSwitch,  6);
+  			gd.addNumericField("Cost of a tile switching to a disconnected neighbor divided by a color",          this.taCostColor,  6);
+  			gd.addNumericField("Cost of a weighted normalized tile disparity error",                              this.taCostDiff,  6);
+  			gd.addNumericField("Cost of a weighted normalized tile disparity error above best surface",           this.taCostDiffBest,  6);
+  			gd.addNumericField("Cost of a weighted normalized tile disparity error for tile and 8 neighbors (DC)",this.taCostDiff9,  6);
+  			gd.addNumericField("Cost of a weak foreground edge",                                                  this.taCostWeakFgnd,  6);
+  			gd.addNumericField("Cost of using supertile \"flaps\" (not in the center 8x8 tiles area)",            this.taCostFlaps,  6);
+  			gd.addNumericField("Cost of a measurement layer not having same layer in the same location or near",  this.taCostMismatch,  6);
+
   			gd.addCheckbox    ("Test new mode after migration",                                                this.dbg_migrate);
 
   			gd.addMessage     ("--- Other debug images ---");
@@ -4076,6 +4124,17 @@ public class EyesisCorrectionParameters {
   			this.tsConsensMode =  (int) gd.getNextNumber();
   			this.tsConsensAgree = (int) gd.getNextNumber();
 
+  			this.taCostEmpty=           gd.getNextNumber();
+  			this.taCostNoLink=          gd.getNextNumber();
+  			this.taCostSwitch=          gd.getNextNumber();
+  			this.taCostColor=           gd.getNextNumber();
+  			this.taCostDiff=            gd.getNextNumber();
+  			this.taCostDiffBest=        gd.getNextNumber();
+  			this.taCostDiff9=           gd.getNextNumber();
+  			this.taCostWeakFgnd=        gd.getNextNumber();
+  			this.taCostFlaps=           gd.getNextNumber();
+  			this.taCostMismatch=        gd.getNextNumber();
+
   			this.dbg_migrate=           gd.getNextBoolean();
 
   			this.show_ortho_combine=    gd.getNextBoolean();
@@ -4139,6 +4198,17 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Which assignments to match +1 - combo, +2 grown single, +4 plane seeds",          this.tsConsensMode,  0);
   			gd.addNumericField("Minimal number of assignments to agree",                                          this.tsConsensAgree,  0);
   			
+   			gd.addMessage     ("--- Tile assignment parameters ---");
+  			gd.addNumericField("Cost of a tile that is not assigned",                                             this.taCostEmpty,  6);
+  			gd.addNumericField("Cost of a tile not having any neighbor in particular direction",                  this.taCostNoLink,  6);
+  			gd.addNumericField("Cost of a tile switching to a neighbor that does not have a link",                this.taCostSwitch,  6);
+  			gd.addNumericField("Cost of a tile switching to a disconnected neighbor divided by a color",          this.taCostColor,  6);
+  			gd.addNumericField("Cost of a weighted normalized tile disparity error",                              this.taCostDiff,  6);
+  			gd.addNumericField("Cost of a weighted normalized tile disparity error above best surface",           this.taCostDiffBest,  6);
+  			gd.addNumericField("Cost of a weighted normalized tile disparity error for tile and 8 neighbors (DC)",this.taCostDiff9,  6);
+  			gd.addNumericField("Cost of a weak foreground edge",                                                  this.taCostWeakFgnd,  6);
+  			gd.addNumericField("Cost of using supertile \"flaps\" (not in the center 8x8 tiles area)",            this.taCostFlaps,  6);
+  			gd.addNumericField("Cost of a measurement layer not having same layer in the same location or near",  this.taCostMismatch,  6);
   			
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
@@ -4184,10 +4254,19 @@ public class EyesisCorrectionParameters {
   			this.tsNumClust=      (int) gd.getNextNumber();
   			this.tsConsensMode =  (int) gd.getNextNumber();
   			this.tsConsensAgree = (int) gd.getNextNumber();
-  			
+
+   			this.taCostEmpty=           gd.getNextNumber();
+  			this.taCostNoLink=          gd.getNextNumber();
+  			this.taCostSwitch=          gd.getNextNumber();
+  			this.taCostColor=           gd.getNextNumber();
+  			this.taCostDiff=            gd.getNextNumber();
+  			this.taCostDiffBest=        gd.getNextNumber();
+  			this.taCostDiff9=           gd.getNextNumber();
+  			this.taCostWeakFgnd=        gd.getNextNumber();
+  			this.taCostFlaps=           gd.getNextNumber();
+  			this.taCostMismatch=        gd.getNextNumber();
   			return true;
   		}
-  		
     }
 
     public static class DCTParameters {
