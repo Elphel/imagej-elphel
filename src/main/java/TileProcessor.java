@@ -3494,14 +3494,53 @@ public class TileProcessor {
 				tile_assignments); // final int [][][] tileAssignments)
 
 		int [][] tile_layers_surf = ta.imgToSurf(tile_layers);
-		ta.showTileCost(tile_layers_surf);
-		ta.showTileCosts(tile_layers_surf);
+		if (debugLevel > -1) {
+			double [][] dbg_tls = new double [tile_layers_surf.length][];
+			for (int ml = 0; ml < tile_layers_surf.length; ml++) if (tile_layers_surf[ml] != null){
+				dbg_tls[ml] = new double [tile_layers_surf[ml].length];
+				for (int i = 0; i < tile_layers_surf[ml].length; i++){
+					dbg_tls[ml][i] = tile_layers_surf[ml][i];
+				}
+			}
+			(new showDoubleFloatArrays()).showArrays(dbg_tls, ta.getSurfTilesX(), ta.getSurfTilesY(), true, "tile_layers_surf");
+		}
+		ta.showTileCost("before_",tile_layers_surf);
+		ta.showTileCosts("before_",tile_layers_surf);
 		TileAssignment.TACosts [] ta_stats = ta.statTileCosts(tile_layers_surf);
 		
 		for (int i = 0; i < ta_stats.length; i++){
 			System.out.println(ta_stats[i].toString());
 		}
 		
+		ta.optimizeAssignment(
+				clt_parameters.tsNoEdge ,         // final boolean       noEdge,
+				tile_layers_surf, // final int [][]  tileLayers,
+	            2, // final int       debugLevel,
+				clt_parameters.tileX,
+				clt_parameters.tileY);
+
+		
+		if (debugLevel > -1) {
+			double [][] dbg_tls = new double [tile_layers_surf.length][];
+			for (int ml = 0; ml < tile_layers_surf.length; ml++) if (tile_layers_surf[ml] != null){
+				dbg_tls[ml] = new double [tile_layers_surf[ml].length];
+				for (int i = 0; i < tile_layers_surf[ml].length; i++){
+					dbg_tls[ml][i] = tile_layers_surf[ml][i];
+				}
+			}
+			(new showDoubleFloatArrays()).showArrays(dbg_tls, ta.getSurfTilesX(), ta.getSurfTilesY(), true, "optimized_tile_layers_surf");
+		}
+		ta.showTileCost("after_",tile_layers_surf);
+		ta.showTileCosts("after_",tile_layers_surf);
+		ta_stats = ta.statTileCosts(tile_layers_surf);
+		System.out.println("Optimized:");
+		for (int i = 0; i < ta_stats.length; i++){
+			System.out.println(ta_stats[i].toString());
+		}
+		
+		tile_layers = ta.surfToImg(tile_layers_surf);
+		
+//==============		
 		tileSurface.setTileLayers(tile_layers);
 		
 

@@ -23,6 +23,7 @@
  */
 import java.awt.Point;
 import java.util.HashMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 //import ij.IJ;
@@ -51,10 +52,14 @@ public class TileAssignment {
 	// from clt_parameters
 	private double dispNorm;
 	private TACosts cost_coeff;
-	private double minFgBg =    0.1;  // Minimal foreground/ background separation to look for weak FG edge
-	private double minFgEdge =  0.2;  // Minimal foreground edge strength (stronger edges will have proportionally smaller costs)
-	private double minColSep =  0.05; // Minimal surface separation that requires color change 
-	private double minColDiff = 0.01; // Minimal surface separation that requires color change 
+	private double minFgBg; //  =    0.1;  // Minimal foreground/ background separation to look for weak FG edge
+	private double minFgEdge; //  =  0.2;  // Minimal foreground edge strength (stronger edges will have proportionally smaller costs)
+	private double minColSep; //  =  0.05; // Minimal surface separation that requires color change 
+	private double minColDiff; //  = 0.01; // Minimal color variation (larger proportionally reduces cost) 
+	private double dispOutlier; //             = 1.0;    // Disparity difference limit (to handle outliers)
+	private double strengthDiffPwr; //             = 0.25;   // Strength power when calculating disparity error
+	private double strengthBestPwr; //             = 0.0;    // Strength power when calculating disparity error over best
+	private double strengthDiff9Pwr; //            = 0.5;    // Strength power when calculating disparity error for group of 9
 	
 	static double [] NEIB_WEIGHTS = {0.5,0.25, 0.5, 0.25, 0.5,0.25, 0.5, 0.25, 1.0};
 	
@@ -76,15 +81,15 @@ public class TileAssignment {
 
 		public TACosts (int mode)
 		{
-			this.empty =       1.0;
-			this.nolink =      1.0/1.50705;
-			this.swtch =       1.0/0.59474;
-			this.color =       1.0/2.25763;
-			this.diff =        1.0/1.94213;
-			this.diff_best =   1.0/0.06731;
-			this.diff9 =       1.0/1.09087;
-			this.weak_fgnd =   1.0/0.22250;
-			this.flaps =       1.0/0.07229;
+			this.empty =       1.0/0.35833; // 0.71715;
+			this.nolink =      1.0/0.83739; // 0.95952; // 1.50705;
+			this.swtch =       1.0/0.07604; // 0.05172; // 0.59474;
+			this.color =       1.0/0.21458; // 0.19294; // 2.25763;
+			this.diff =        1.0/0.11879; // 0.11039; // 1.94213;
+			this.diff_best =   1.0/0.02831; // 0.00628; // 0.06731;
+			this.diff9 =       1.0/0.04064; // 0.01350; // 1.09087;
+			this.weak_fgnd =   1.0/1.177746; // 0.02172; // 0.01726; // 0.22250;
+			this.flaps =       1.0/0.1; // 0.00056; // 0.07229;
 			this.ml_mismatch = 1.0;
 			// ml_mismatch not yet implemented - is it needed - maybe some see-through data appears on one layer only
 		}
@@ -94,16 +99,16 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 		 */
 		public TACosts (EyesisCorrectionParameters.CLTParameters clt_parameters)
 		{
-			this.empty =       clt_parameters.taCostEmpty;
-			this.nolink =      clt_parameters.taCostNoLink;
-			this.swtch =       clt_parameters.taCostSwitch;
-			this.color =       clt_parameters.taCostColor;
-			this.diff =        clt_parameters.taCostDiff;
-			this.diff_best =   clt_parameters.taCostDiffBest;
-			this.diff9 =       clt_parameters.taCostDiff9;
-			this.weak_fgnd =   clt_parameters.taCostWeakFgnd;
-			this.flaps =       clt_parameters.taCostFlaps;
-			this.ml_mismatch = clt_parameters.taCostMismatch;
+			this.empty =       clt_parameters.taEnEmpty?    clt_parameters.taCostEmpty    : 0.0;
+			this.nolink =      clt_parameters.taEnNoLink?   clt_parameters.taCostNoLink   : 0.0;
+			this.swtch =       clt_parameters.taEnSwitch?   clt_parameters.taCostSwitch   : 0.0;
+			this.color =       clt_parameters.taEnColor?    clt_parameters.taCostColor    : 0.0;
+			this.diff =        clt_parameters.taEnDiff?     clt_parameters.taCostDiff     : 0.0;
+			this.diff_best =   clt_parameters.taEnDiffBest? clt_parameters.taCostDiffBest : 0.0;
+			this.diff9 =       clt_parameters.taEnDiff9?    clt_parameters.taCostDiff9    : 0.0;
+			this.weak_fgnd =   clt_parameters.taEnWeakFgnd? clt_parameters.taCostWeakFgnd : 0.0;
+			this.flaps =       clt_parameters.taEnFlaps?    clt_parameters.taCostFlaps    : 0.0;
+			this.ml_mismatch = clt_parameters.taEnMismatch? clt_parameters.taCostMismatch : 0.0;
 			// ml_mismatch not yet implemented - is it needed - maybe some see-through data appears on one layer only
 		}
 
@@ -248,7 +253,7 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 		this.surfTilesX = ts.getSTilesX() * ts.getSuperTileSize();
 		this.surfTilesY = ts.getSTilesY() * ts.getSuperTileSize();
 		this.imgTilesX = ts.getImageTilesX();
-		this.imgTilesY = ts.getImageTilesX();
+		this.imgTilesY = ts.getImageTilesY();
 		this.tnImage =   new TileNeibs(imgTilesX, imgTilesY);
 		this.tnSurface = new TileNeibs(surfTilesX, surfTilesY);
 		setDispStrength(dispStrength);
@@ -258,9 +263,23 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 	
 	public void copyParams(EyesisCorrectionParameters.CLTParameters clt_parameters)
 	{
-		this.dispNorm =       clt_parameters.plDispNorm;
-		cost_coeff = new TACosts (clt_parameters);
-		cost_coeff.mul(new TACosts (0)); // make average ~=1.0 for each used component
+		this.dispNorm =          clt_parameters.plDispNorm;
+		this.minFgBg =           clt_parameters.taMinFgBg;
+		this.minFgEdge =         clt_parameters.taMinFgEdge;
+		this.minColSep =         clt_parameters.taMinColSep; 
+		this.minColDiff =        clt_parameters.taMinColDiff; 
+		
+		this.dispOutlier =       clt_parameters.taOutlier;
+		this.strengthDiffPwr =   clt_parameters.taDiffPwr;
+		this.strengthBestPwr =   clt_parameters.taBestPwr;
+		this.strengthDiff9Pwr =  clt_parameters.taDiff9Pwr;
+		
+		this.cost_coeff = new TACosts (clt_parameters);
+		this.cost_coeff.mul(new TACosts (0)); // make average ~=1.0 for each used component
+		
+
+		
+		
 	}
 	public void setDispStrength(
 			double [][][] ds)
@@ -277,7 +296,15 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 		}
 	}
 	
-	
+	public int getSurfTilesX(){
+		return surfTilesX;
+	}
+	public int getSurfTilesY(){
+		return surfTilesY;
+	}
+//	private int surfTilesX;
+//	private int surfTilesY;
+
 	
 	public void setTones(CLTPass3d p3d)
 	{
@@ -453,7 +480,8 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 		}
 	}
 	/**
-	 * Get signed normalized difference from the measured disparity to the selected surface
+	 * Get signed normalized difference from the measured disparity to the selected surface,
+	 * limit it to +/-dispOutlier to reduce cost of the outliers
 	 * @param ml measured layer (combo, quad, hor, vert)
 	 * @param nSurfTile tile index in surface array (includes full supertiles)
 	 * @param ns number of the surface
@@ -476,6 +504,8 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 		if (d_av > dispNorm){
 			diff *= dispNorm/d_av;
 		}
+		if      (diff >  dispOutlier) diff =  dispOutlier;
+		else if (diff < -dispOutlier) diff = -dispOutlier;
 		return diff;
 
 	}
@@ -491,6 +521,11 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 			int nSurfTile)
 	{
 		double best = Double.NaN;
+		if ((ts.getTileData() == null) || (ts.getTileData()[nSurfTile] == null)){
+//			System.out.println("dispDiffBest("+ml+","+nSurfTile+")");
+			return best;
+		}
+		
 		for (int ns = 0; ns < ts.getTileData()[nSurfTile].length; ns++){
 			double diff = dispDiff(ml, nSurfTile, ns);
 			double adiff = Math.abs(diff);
@@ -514,7 +549,7 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 	{
 		double worst = Double.NaN;
 		if ((ts.getTileData() == null) || (ts.getTileData()[nSurfTile] == null)){
-			System.out.println("dispDiffWorst("+ml+","+nSurfTile+")");
+//			System.out.println("dispDiffWorst("+ml+","+nSurfTile+")");
 			return worst;
 		}
 		for (int ns = 0; ns < ts.getTileData()[nSurfTile].length; ns++){
@@ -583,13 +618,17 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 		return costs;
 	}
 	
-	public void showTileCost(int [][]  tileLayers)
+	public void showTileCost(
+			String prefix,
+			int [][]  tileLayers)
 	{
 		double [] composite_costs = calcTileCosts(tileLayers);
-		(new showDoubleFloatArrays()).showArrays(composite_costs, surfTilesX, surfTilesY, "composite_costs");
+		(new showDoubleFloatArrays()).showArrays(composite_costs, surfTilesX, surfTilesY, prefix+"composite_costs");
 	}
 
-	public void showTileCosts(int [][]  tileLayers)
+	public void showTileCosts(
+			String prefix,
+			int [][]  tileLayers)
 	{
 		String [] titles = (new TACosts()).getTitles();
 		int num_stiles = surfTilesX*surfTilesY;
@@ -621,7 +660,7 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 				cost_components[i][nSurfTile] = costs[i];
 			}
 		}
-		(new showDoubleFloatArrays()).showArrays(cost_components, surfTilesX, surfTilesY, true, "cost_components", titles);
+		(new showDoubleFloatArrays()).showArrays(cost_components, surfTilesX, surfTilesY, true, prefix+"cost_components", titles);
 	}
 	
 	
@@ -756,6 +795,11 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 						double strength = dispStrength[ml][nSurfTile][1];
 						strength = Math.max(strength, minFgEdge);
 						costs.weak_fgnd += minFgEdge / strength; 
+					} else if (disp_diff < -minFgBg) {
+						double [] dsmeas_other = dispStrength[ml][nSurfTiles[dir]];
+						double strength = (dsmeas_other != null)? dsmeas_other[1]: 0.0; // measured strength on the other end or 0.0 if nothing there
+						strength = Math.max(strength, minFgEdge);
+						costs.weak_fgnd += minFgEdge / strength; 
 					}
 					if (Math.abs(disp_diff) > minColSep){
 						double col_diff = tone_diff_weight[nSurfTile][dir][0];
@@ -772,7 +816,7 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 		} //for (int ml = 0; ml < around.length; ml++) if ((around[ml] != null) && (around[ml][8] > 0))
 		double disp_diff_lpf = 0.0, disp_diff_weight = 0.0;  // calculate LPF of the disparity signed error over all ML and 9 cells 
 		double disp_diff2 = 0.0, disp_weight = 0.0;  // calculate disparity error in the center, weighted   
-		double disp_diff_over_best = 0.0;  // calculate disparity error in the center, weighted   
+		double disp_diff_over_best = 0.0, disp_weight_best = 0.0;  // calculate disparity error in the center, weighted   
 		for (int ml = 0; ml < around.length; ml++) if (around[ml] != null){
 			double diff=0.0, weight=0.0;
 			for (int dir = 0; dir < 9; dir++){
@@ -787,16 +831,42 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 							nSurfTiles[dir]); // int nSurfTile,
 				}
 				if (dispStrength[ml][nSurfTile] != null) { // not a bug
-					weight = dispStrength[ml][nSurfTile][1] * NEIB_WEIGHTS[dir];
+					if (strengthDiff9Pwr > 0.0) {
+						weight = dispStrength[ml][nSurfTile][1];
+						if (strengthDiff9Pwr != 1.0) {
+							weight = Math.pow(weight, strengthDiff9Pwr);
+						}
+					} else {
+						weight = 1.0;
+					}
+					weight *= NEIB_WEIGHTS[dir];
 					disp_diff_lpf += diff * weight;
 					disp_diff_weight += weight;
 //				} else {
 //					System.out.println("getTileCosts() BUG, nSurfTile="+nSurfTile); 
 				}
 			}
-			// now diff, weight are for the center
+			// now diff is for the center, weight needs to be re-calculated
+			if (strengthDiffPwr > 0.0) {
+				weight = dispStrength[ml][nSurfTile][1];
+				if (strengthDiffPwr != 1.0) {
+					weight = Math.pow(weight, strengthDiffPwr);
+				}
+			} else {
+				weight = 1.0;
+			}
 			disp_diff2 += diff * diff * weight;
 			disp_weight += weight;
+			
+			// and once more for the disparity over best
+			if (strengthBestPwr > 0.0) {
+				weight = dispStrength[ml][nSurfTile][1];
+				if (strengthBestPwr != 1.0) {
+					weight = Math.pow(weight, strengthBestPwr);
+				}
+			} else {
+				weight = 1.0;
+			}
 			disp_diff_over_best += (Math.abs(diff) -  dispDiffBest( ml, nSurfTiles[8])) * weight; // this one - not squared
 			
 		}
@@ -826,6 +896,9 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 		int [][] tileLayersSurf = new int[tileLayersImg.length][];
 		for (int ml = 0; ml < tileLayersImg.length; ml++) if (tileLayersImg[ml] != null){
 			tileLayersSurf[ml] = new int [tnSurface.getLength()];
+			for (int i = 0; i < tileLayersSurf[ml].length; i++){
+				tileLayersSurf[ml][i] = -1;
+			}
 			for (int nTile = 0; nTile < tileLayersImg[ml].length; nTile++){
 				int nSurfTile = tnSurface.getIndex(tnImage.getXY(nTile));
 				if (nSurfTile >= 0) {
@@ -842,13 +915,226 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 		int [][] tileLayersImg = new int[tileLayersSurf.length][];
 		for (int ml = 0; ml < tileLayersSurf.length; ml++) if (tileLayersSurf[ml] != null){
 			tileLayersImg[ml] = new int [tnImage.getLength()];
+			for (int i = 0; i < tileLayersImg[ml].length; i++){
+				tileLayersImg[ml][i] = -1;
+			}
 			for (int nSurfTile = 0; nSurfTile < tileLayersSurf[ml].length; nSurfTile++){
 				int nImgTile = tnImage.getIndex(tnSurface.getXY(nSurfTile));
 				if (nImgTile >= 0) {
-					tileLayersSurf[ml][nImgTile] = tileLayersImg[ml][nSurfTile];
+					tileLayersImg[ml][nImgTile] = tileLayersSurf[ml][nSurfTile];
 				}
 			}
 		}
-		return tileLayersSurf;
+		return tileLayersImg;
+	}
+	
+	public void optimizeAssignment(
+	        final boolean   noEdge,	
+			final int [][]  tileLayers,
+            final int       debugLevel,
+			final int       dbg_X,
+			final int       dbg_Y)
+	{
+		final int step = 3;
+		final int tries = 1000;
+//		final int dbg_tile = dbg_X + dbg_Y * surfTilesX;
+		final int dbg_tile = 27083; // 44493;
+		final int num_tiles = surfTilesX * surfTilesY;
+		final int [][] tile_indices = new int [step*step][];
+		for (int sty = 0; sty < step; sty ++){
+			int num_y = (surfTilesY + step -1 - sty) / step;
+			for (int stx = 0; stx < step; stx ++){
+				int num_x = (surfTilesX + step -1 - stx) / step;
+				int indx1 = sty * step + stx;
+				int l = num_y * num_x;
+				tile_indices[indx1] = new int [l];
+				int indx2 = 0;
+				for (int y = 0; y < num_y; y++){
+					for (int x = 0; x < num_x; x++){
+						tile_indices[indx1][indx2++] = (sty + step * y) * surfTilesX + (stx + step * x); 
+					}
+				}
+			}
+		}
+		final Thread[] threads = ImageDtt.newThreadArray((debugLevel > 1)? 1 : ts.getThreadsMax());
+		final int numThreads =   threads.length;
+		final int [] improved =  new int [numThreads];
+		final AtomicInteger ai_numThread = new AtomicInteger(0);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final AtomicInteger ai_series = new AtomicInteger(0);
+		final AtomicBoolean [] dirty = new AtomicBoolean[surfTilesX * surfTilesY];
+		for (int nSurfTile = 0; nSurfTile < dirty.length; nSurfTile++){
+			boolean valid_tile = false; // bad may be only some ml?
+			for (int ml = 0; ml < tileLayers.length; ml++) if ((tileLayers[ml] != null) && (tileLayers[ml][nSurfTile] >= 0)){
+				valid_tile = true;
+				break;
+			}
+			if (valid_tile) dirty[nSurfTile] = new AtomicBoolean(true);
+		}
+		
+		final boolean [][] bad_surface = new boolean[num_tiles][];
+		final TileSurface.TileData [][] tileData = ts.getTileData();
+		if (noEdge) {
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int nSurfTile = ai.getAndIncrement(); nSurfTile < num_tiles; nSurfTile = ai.getAndIncrement()) {
+							if (tileData[nSurfTile] != null){
+								bad_surface[nSurfTile] = new boolean [tileData[nSurfTile].length];
+								for (int ns = 0; ns < tileData[nSurfTile].length; ns++) {
+									int []neibs = tileData[nSurfTile][ns].getNeighbors();
+									for (int i = 0; i < neibs.length; i++){
+										if (neibs[i] < 0){
+											bad_surface[nSurfTile][ns] = true;
+										}
+									}
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+		}
+		
+		for (int nTry = 0 ; nTry < tries; nTry++) {
+			for (int i = 0; i < improved.length; i++) improved[i] = 0;
+			int this_improved = 0;
+			for (int nSeries = 0; nSeries < tile_indices.length; nSeries++) {
+				final int fnSeries = nSeries;
+				ai.set(0);
+				ai_numThread.set(0);
+				for (int ithread = 0; ithread < threads.length; ithread++) {
+					threads[ithread] = new Thread() {
+						public void run() {
+							int numThread = ai_numThread.getAndIncrement(); // unique number of thread to write to rslt_diffs[numThread]
+							for (int iTile = ai.getAndIncrement(); iTile < tile_indices[fnSeries].length; iTile = ai.getAndIncrement()) {
+								int nSurfTile = tile_indices[fnSeries][iTile];
+	                            int dl = ((debugLevel > 1) && (nSurfTile == dbg_tile)) ? 3: debugLevel;
+								if (dl > 2){
+									System.out.println("optimizeAssignment(), nSurfTile = "+nSurfTile+" dl = "+dl);
+								}
+//								if (dirty[nSurfTile].get()) {
+								if ((dirty[nSurfTile] != null) && dirty[nSurfTile].getAndSet(false)) {
+									int num_surf = tileData[nSurfTile].length;
+									int lowest_surf = 0;
+									for (; lowest_surf < num_surf; lowest_surf ++){
+										if ((bad_surface[nSurfTile] != null) && !bad_surface[nSurfTile][lowest_surf]) {
+											break;
+										}
+									}
+									if (lowest_surf >=  num_surf) {
+										continue; // no valid surfaces at this location
+									}
+									double best_cost = cost_coeff.dotProd(getTileCosts(
+											nSurfTile,  // int                    nSurfTile,
+											tileLayers, // int [][]               tileLayers,
+											null));     // HashMap<Point,Integer> replacements);
+//									int [] initial_indices = tileLayers[nSurfTile].clone();
+									int [] initial_indices = new int [valid_ml.length]; // 1-based
+									for (int ml = 0; ml < valid_ml.length; ml ++ ){
+										if (tileLayers[ml] != null) {
+											initial_indices[ml] = tileLayers[ml][nSurfTile];  // 1-based
+										}
+									}
+									int [] best_surf = null;
+									int [] surfaces = null; // new int [valid_ml.length];
+									int max_reset = 0; //  = valid_ml.length; // maximal ml to reset
+									while (true) {
+										if (surfaces == null) {
+											surfaces = new int [valid_ml.length];
+											for (int ml = 0; ml < valid_ml.length; ml ++){
+												if  (!valid_ml[ml] || (tileLayers[ml][nSurfTile] < 0)) {
+													surfaces[ml] = -1;
+												}
+											}
+											max_reset = valid_ml.length;
+										} else { // find ml to increase surface
+											for (max_reset = 0; max_reset <  surfaces.length; max_reset++) if (surfaces[max_reset] >= 0){
+												for (surfaces[max_reset]++; surfaces[max_reset] < num_surf; surfaces[max_reset]++) {
+													if ((bad_surface[nSurfTile] == null) || !bad_surface[nSurfTile][surfaces[max_reset]]) {
+														break;
+													}													
+													
+												}
+												if (surfaces[max_reset] < num_surf) break;
+											}
+											if (max_reset >=  surfaces.length){
+												break; // while (true) {
+											}
+										}
+										// reset all surfaces[] with indices < max_reset to lowest
+										for (int ml = 0; ml < max_reset; ml++ ) if (valid_ml[ml] && (surfaces[ml] >= 0)){
+											surfaces[ml] = lowest_surf;
+										}
+										// now surfaces[] contain next combination of surfaces to try
+										
+										// tileLayers[nSurfTile] = surfaces;
+										for (int ml = 0; ml < valid_ml.length; ml ++ ){
+											if (tileLayers[ml] != null) {
+												tileLayers[ml][nSurfTile] = surfaces[ml] + 1; // 1-based from 0-based
+											}
+										}
+										
+										double cost = cost_coeff.dotProd(getTileCosts( //
+												nSurfTile,  // int                    nSurfTile,
+												tileLayers, // int [][]               tileLayers,
+												null));     // HashMap<Point,Integer> replacements);
+										if (cost < best_cost) {
+											best_cost = cost;
+											best_surf = surfaces.clone();
+										}
+										
+									} // while (true)
+									if (best_surf != null){ // update
+//										tileLayers[nSurfTile] = best_surf;
+										for (int ml = 0; ml < valid_ml.length; ml ++ ){
+											if (tileLayers[ml] != null) {
+												tileLayers[ml][nSurfTile] = best_surf[ml] + 1;  // 1-based from 0-based 
+											}
+										}
+										
+										
+										for (int dir = 0; dir <8; dir++) {
+											int nSurfTile1 = tnSurface.getNeibIndex(nSurfTile, dir);
+											if ((nSurfTile1 >= 0) && (dirty[nSurfTile1] != null)){
+												dirty[nSurfTile1].set(true);
+											}
+											improved[numThread]++;
+										}
+									} else { // restore initial data
+//										tileLayers[nSurfTile] = initial_indices;
+										for (int ml = 0; ml < valid_ml.length; ml ++ ){
+											if (tileLayers[ml] != null) {
+												tileLayers[ml][nSurfTile] = initial_indices[ml];  // 1-based from 1-based
+											}
+										}
+									}
+								}
+							}
+						}
+					};
+				}		      
+				ImageDtt.startAndJoin(threads);
+				if (debugLevel > -1){
+					int num_better = 0;
+					for (int i = 0; i < improved.length; i++){
+						num_better += improved[i];
+					}
+					System.out.println("optimizeAssignment(): pass = "+nTry+ ":"+nSeries+" improved:" + (num_better - this_improved));
+					this_improved = num_better;
+				}
+			} // for (int nSeries = 0; nSeries < tile_indices.length; nSeries++) {		
+			// should be checked only after all series (now 9 passes) are finished - if anything was added - continue
+			int num_improved = 0;
+			for (int i = 0; i < improved.length; i++){
+				num_improved += improved[i];
+			}
+			if (debugLevel > -1){
+				System.out.println("optimizeAssignment(): pass = "+nTry+ " improved:"+num_improved);
+			}
+			
+			if (num_improved == 0) break;
+		}
 	}
 }

@@ -2304,7 +2304,7 @@ public class TileSurface {
 								}
 							}
 						}
-						if ((alts.size() > 1) || (num_agree < min_agree)){
+						if (((alts.size() > 1) || (num_agree < min_agree)) && (consensus[ml][nTile] > 0)){
 							consensus[ml][nTile] = 0; // not assigned
 						}
 						if (!alts.isEmpty()){
