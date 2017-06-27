@@ -3512,7 +3512,7 @@ public class TileProcessor {
 			System.out.println(ta_stats[i].toString());
 		}
 		
-		ta.optimizeAssignment(
+		ta.optimizeAssignment25(
 				clt_parameters.tsNoEdge ,         // final boolean       noEdge,
 				tile_layers_surf, // final int [][]  tileLayers,
 	            2, // final int       debugLevel,
