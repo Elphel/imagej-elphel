@@ -319,6 +319,19 @@ public class MeasuredLayers {
 		return lapWeight;
 	}
 	
+	public double [] getLapWeights1d(){
+		int indx = 0;
+		final int superTileSize2 = 2 * superTileSize;
+		double [] weights = new double [superTileSize2 * superTileSize2];
+		for (int i = 0; i < superTileSize2; i++){
+			for (int j = 0; j < superTileSize2; j++){
+				weights[indx++] = lapWeight[i][j];
+			}
+		}
+		return weights;
+	}
+	
+	
 	/**
 	 * Get selection for the specific measurement layer and supertile X,Y coordinates
 	 * in the image. Combined with input selection

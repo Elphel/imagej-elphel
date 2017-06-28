@@ -5189,10 +5189,88 @@ public class TilePlanes {
 			return wnd;
 		}
 		
-		
-		
-		
-		
-
+		public boolean isWeakForeground(
+				final PlaneData fg_plane,
+//				final int stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+				final int outliers,  // remove any glitches?
+				double min_fg_strength,
+				final int debugLevel)
+		{
+			double [][] bg_ds = getDoublePlaneDisparityStrength(
+					false, // boolean   useWorld,
+					null, // double [] window,
+					-1, // int       dir,
+					false, // boolean   use_sel,
+					false, // boolean   divide_by_area,
+					1.0, // double    scale_projection,
+					0.0, // double    fraction_uni,
+					0); // int       debugLevel)
+			double [][] fg_ds = fg_plane.getDoublePlaneDisparityStrength(
+					false, // boolean   useWorld,
+					null, // double [] window,
+					-1, // int       dir,
+					false, // boolean   use_sel,
+					false, // boolean   divide_by_area,
+					1.0, // double    scale_projection,
+					0.0, // double    fraction_uni,
+					0); // int       debugLevel)
+			boolean [][] fg_sel = fg_plane.getMeasSelection();
+			for (int ml = 0; ml < fg_sel.length; ml++) if (fg_sel[ml] != null){ // if ((stMeasSel & ( 1 << ml)) != 0){
+				for (int indx = 0; indx < bg_ds[0].length; indx++) if (fg_sel[ml][indx]) {
+					if (fg_ds[0][indx] < bg_ds[0][indx]) {
+						return false;  // not a foreground
+					}
+				}
+			}
+			
+			// it is foreground, now get measured data and find maximal strength (remove outlayers?
+			double [] lap_weights = measuredLayers.getLapWeights1d();
+			double [][][] disp_strength = new double[measuredLayers.getNumLayers()][][];
+			for (int ml = 0; ml < disp_strength.length; ml++) if (fg_sel[ml] != null){ //  if ((stMeasSel & ( 1 << ml)) != 0) {
+				if (smplMode) {
+					disp_strength[ml] = measuredLayers.getDisparityStrength( // expensive to calculate (improve removing outlayers
+							ml, // int num_layer,
+							getSTileXY()[0],        // int stX,
+							getSTileXY()[1],        // int stY,
+							null,                   // boolean [] sel_in, - use all 
+							strength_floor,
+							measured_strength_pow,  //
+							smplSide,               // = 2;      // Sample size (side of a square)
+							smplNum,                // = 3;      // Number after removing worst
+							smplRms,                // = 0.1;    // Maximal RMS of the remaining tiles in a sample
+							true);                  // boolean null_if_none)
+				} else {
+					disp_strength[ml] = measuredLayers.getDisparityStrength(
+							ml,                     // int num_layer,
+							getSTileXY()[0],        // int stX,
+							getSTileXY()[1],        // int stY,
+							null,                   // boolean [] sel_in, - use all
+							strength_floor,         //  double strength_floor,
+							measured_strength_pow,  // double strength_pow,
+							true);                  // boolean null_if_none);
+				}
+			}
+			ArrayList<Double> fg_strengths = new ArrayList<Double>();
+			for (int ml = 0; ml < disp_strength.length; ml++)  if (fg_sel[ml] != null){ //  if ((stMeasSel & ( 1 << ml)) != 0) {
+				double [] strength = disp_strength[ml][1]; 
+				for (int indx = 0; indx < strength.length; indx ++)  if (fg_sel[ml][indx]) {
+					fg_strengths.add(strength[indx]/lap_weights[indx]); // strengths were already masked by a window
+				}
+			}
+			if (fg_strengths.isEmpty()){
+				return true; // should not happen, but it is OK to merge empty plane
+			}
+			Collections.sort(fg_strengths);
+			int indx = fg_strengths.size() - outliers -1;
+			if (indx < 0) indx = 0;
+			if (debugLevel > 0) {
+				if (fg_strengths.get(indx) >= min_fg_strength) {
+					System.out.println("strong pair: "+fg_strengths.get(indx)+" >= "+min_fg_strength);
+				} else {
+					System.out.println("weak pair: "+fg_strengths.get(indx)+" < "+min_fg_strength);
+				}
+			}
+			return (fg_strengths.get(indx) < min_fg_strength);
+		}
 	}
 }

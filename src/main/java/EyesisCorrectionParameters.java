@@ -2202,6 +2202,11 @@ public class EyesisCorrectionParameters {
   	    public boolean    plConflSngl          =  true;  // Only merge conflicting planes if this is the only conflicting pair in the supertile
   	    public boolean    plConflSnglPair      =  true;  // Only merge conflicting planes only if there are just two planes in the supertile
   	    
+  	    public double     plWeakFgStrength     =   0.15; // Consider merging plane if it is foreground and maximal strength below this  
+  	    public int        plWeakFgOutliers     =   1;    // Remove these strongest from foreground when determining the maximal strength
+  	    public double     plWeakFgRelax        =   2.0;  // Relax cost requirements when merging with weak foreground   
+  	    
+  	    
   	    public double     plThickWorld         =   0.2;  // Maximal real-world thickness of merged overlapping planes (meters) 
   	    public double     plThickWorldConfl    =   0.4;  // Maximal real-world merged thickness for conflicting planes 
   	    public double     plRelaxComplete      =   1.5;  // Relax cost requirements when adding exclusive links to complete squares and triangles 
@@ -2212,6 +2217,8 @@ public class EyesisCorrectionParameters {
   		public double     plMaxDisp            =   0.6;  // Maximal disparity of one of the planes to apply  maximal ratio
   		public double     plCutTail            =   1.4;  // When merging with neighbors cut the tail that is worse than scaled best
   		public double     plMinTail            =   0.015;// Set cutoff value level not less than
+  		
+  		
   		// parameters to recreate planes from tiles disparity/strengths using determined plane connections to neighbors
   		public boolean    plDiscrEn            =   true; // Enable planes tiles selection regeneration hinted by supertile neighbors
   		public double     plDiscrTolerance     =   0.4;  // Maximal disparity difference from the plane to consider tile 
@@ -2679,6 +2686,11 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plConflRelax",     this.plConflRelax +"");
 			properties.setProperty(prefix+"plConflSngl",      this.plConflSngl+"");
 			properties.setProperty(prefix+"plConflSnglPair",  this.plConflSnglPair+"");
+
+			properties.setProperty(prefix+"plWeakFgStrength", this.plWeakFgStrength +"");
+  			properties.setProperty(prefix+"plWeakFgOutliers", this.plWeakFgOutliers+"");
+			properties.setProperty(prefix+"plWeakFgRelax",    this.plWeakFgRelax +"");
+
 			properties.setProperty(prefix+"plThickWorld",     this.plThickWorld +"");
 			properties.setProperty(prefix+"plThickWorldConfl",this.plThickWorldConfl +"");
 			properties.setProperty(prefix+"plRelaxComplete",  this.plRelaxComplete +"");
@@ -3128,6 +3140,11 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plConflRelax")!=null)      this.plConflRelax=Double.parseDouble(properties.getProperty(prefix+"plConflRelax"));
   			if (properties.getProperty(prefix+"plConflSngl")!=null)       this.plConflSngl=Boolean.parseBoolean(properties.getProperty(prefix+"plConflSngl"));
   			if (properties.getProperty(prefix+"plConflSnglPair")!=null)   this.plConflSnglPair=Boolean.parseBoolean(properties.getProperty(prefix+"plConflSnglPair"));
+
+  			if (properties.getProperty(prefix+"plWeakFgStrength")!=null)  this.plWeakFgStrength=Double.parseDouble(properties.getProperty(prefix+"plWeakFgStrength"));
+  			if (properties.getProperty(prefix+"plWeakFgOutliers")!=null)  this.plWeakFgOutliers=Integer.parseInt(properties.getProperty(prefix+"plWeakFgOutliers"));
+  			if (properties.getProperty(prefix+"plWeakFgRelax")!=null)     this.plWeakFgRelax=Double.parseDouble(properties.getProperty(prefix+"plWeakFgRelax"));
+  			
   			if (properties.getProperty(prefix+"plThickWorld")!=null)      this.plThickWorld=Double.parseDouble(properties.getProperty(prefix+"plThickWorld"));
   			if (properties.getProperty(prefix+"plThickWorldConfl")!=null) this.plThickWorldConfl=Double.parseDouble(properties.getProperty(prefix+"plThickWorldConfl"));
   			if (properties.getProperty(prefix+"plRelaxComplete")!=null)   this.plRelaxComplete=Double.parseDouble(properties.getProperty(prefix+"plRelaxComplete"));
@@ -3605,6 +3622,11 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Scale parameters to relax planes fit for merging conflicting planes",                 this.plConflRelax,  6);
   			gd.addCheckbox    ("Only merge conflicting planes if this is the only conflicting pair in the supertile", this.plConflSngl);
   			gd.addCheckbox    ("Only merge conflicting planes only if there are just two planes in the supertile",    this.plConflSnglPair);
+
+  			gd.addNumericField("Consider merging plane if it is foreground and maximal strength below this",          this.plWeakFgStrength,  6);
+  			gd.addNumericField("Remove these strongest from foreground when determining the maximal strength",        this.plWeakFgOutliers,  0);
+  			gd.addNumericField("Relax cost requirements when merging with weak foreground",                           this.plWeakFgRelax,  6);
+  			
   			gd.addNumericField("Maximal real-world thickness of merged overlapping planes (meters)",                  this.plThickWorld,  6);
   			gd.addNumericField("Maximal real-world merged thickness for conflicting planes",                          this.plThickWorldConfl,  6);
   			gd.addNumericField("Relax cost requirements when adding exclusive links to complete squares and triangles",this.plRelaxComplete,  6);
@@ -4070,6 +4092,11 @@ public class EyesisCorrectionParameters {
   			this.plConflRelax=          gd.getNextNumber();
   			this.plConflSngl=           gd.getNextBoolean();
   			this.plConflSnglPair=       gd.getNextBoolean();
+
+  			this.plWeakFgStrength=      gd.getNextNumber();
+  			this.plWeakFgOutliers=(int) gd.getNextNumber();
+  			this.plWeakFgRelax=         gd.getNextNumber();
+  			
   			this.plThickWorld=          gd.getNextNumber();
   			this.plThickWorldConfl=     gd.getNextNumber();
   			this.plRelaxComplete=       gd.getNextNumber();

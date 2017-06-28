@@ -3839,7 +3839,7 @@ public class TileProcessor {
 		lp.conditionSuperTiles(
 				st.planes,              // final TilePlanes.PlaneData [][] planes,
 				10,                 // final int   max_num_merge_try, 
-				0); // debugLevel);        // final int         debugLevel);
+				1); // debugLevel);        // final int         debugLevel);
 // Used only by conflicts (not processed currently)
 		lp.calcStarValueStrength(
 				true, // boolean set_start_planes,
@@ -3912,7 +3912,7 @@ public class TileProcessor {
 					2, // starSteps,        // final int            steps,
 					st.planes,      // final TilePlanes.PlaneData [][] planes,
 					clt_parameters.plPreferDisparity, // preferDisparity,  // final boolean        preferDisparity)
-					debugLevel - 2);
+					debugLevel); //  - 2);
 			
 		}
 

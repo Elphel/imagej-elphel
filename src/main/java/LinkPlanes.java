@@ -67,6 +67,10 @@ public class LinkPlanes {
     public boolean    plConflSngl; //          =  true;  // Only merge conflicting planes if this is the only conflicting pair in the supertile
     public boolean    plConflSnglPair; //      =  true;  // Only merge conflicting planes only if there are only two planes in the supertile 
 
+    public double     plWeakFgStrength; //     =   0.15; // Consider merging plane if it is foreground and maximal strength below this  
+    public int        plWeakFgOutliers; //     =   1;    // Remove these strongest from foreground when determining the maximal strength
+    public double     plWeakFgRelax; //        =   2.0;  // Relax cost requirements when merging with weak foreground   
+    
     public double     plThickWorld; //         =   0.2;  // Maximal real-world thickness of merged overlapping planes (meters) 
     public double     plThickWorldConfl; //    =   0.4;  // Maximal real-world merged thickness for conflicting planes 
     public double     plRelaxComplete;  //     =   1.5;  // Relax cost requirements when adding exclusive links to complete squares and triangles 
@@ -146,6 +150,10 @@ public class LinkPlanes {
 		plConflRelax =      clt_parameters.plConflRelax;
 		plConflSngl =       clt_parameters.plConflSngl;
 		plConflSnglPair =   clt_parameters.plConflSnglPair;
+
+		plWeakFgStrength =  clt_parameters.plWeakFgStrength;
+		plWeakFgOutliers =  clt_parameters.plWeakFgOutliers;
+		plWeakFgRelax =     clt_parameters.plWeakFgRelax;
 
 		plThickWorld =      clt_parameters.plThickWorld;
 		plThickWorldConfl = clt_parameters.plThickWorldConfl;
@@ -1976,7 +1984,7 @@ public class LinkPlanes {
 						if ((dl > 1) && (nsTile == debug_stile)){
 							System.out.println("filterMergeSameTileCandidates().2: nsTile="+nsTile);
 							showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
-							sdfa_instance.showArrays(plane_strengths, 2 * superTileSize, 2* superTileSize, true, "planes_"+nsTile);
+							sdfa_instance.showArrays(plane_strengths, 2 * superTileSize, 2* superTileSize, true, "filterMergeSameTileCandidates_"+nsTile);
 						}
 						
 						
@@ -2103,7 +2111,7 @@ public class LinkPlanes {
 						if ((dl > 1) && (nsTile == debug_stile)){
 							System.out.println("overlapSameTileCandidates().2: nsTile="+nsTile);
 							showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
-							sdfa_instance.showArrays(plane_strengths, 2 * superTileSize, 2* superTileSize, true, "planes_"+nsTile);
+							sdfa_instance.showArrays(plane_strengths, 2 * superTileSize, 2* superTileSize, true, "overlapSameTileCandidates_"+nsTile);
 						}
 						for (int np1 = 0; np1 < planes[nsTile].length; np1++) if (planes[nsTile][np1] != null){
 							for (int np2 = np1 + 1; np2 < planes[nsTile].length; np2++) if (planes[nsTile][np2] != null){
@@ -2372,6 +2380,73 @@ public class LinkPlanes {
 		return valid_candidates;
 	}
 	
+	// TODO: also evaluate background hiding behind hole in the with no edge?
+	public  boolean[][] weakForeground(
+			final TilePlanes.PlaneData [][] planes,
+			final int [][][]                merge_candidates,
+			final boolean [][][]            valid_candidates, // will be updated
+//			final int                       stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+			final double                    min_fg_strength,
+			final int                       outliers,  // remove any glitches?
+			final int                       debugLevel,
+			final int                       dbg_X,
+			final int                       dbg_Y)
+	{
+		final int tilesX =        st.tileProcessor.getTilesX();
+		final int tilesY =        st.tileProcessor.getTilesY();
+		final int superTileSize = st.tileProcessor.getSuperTileSize();
+		//				final int tileSize =      tileProcessor.getTileSize();
+		final int stilesX =       (tilesX + superTileSize -1)/superTileSize;  
+		final int stilesY =       (tilesY + superTileSize -1)/superTileSize;
+		final int nStiles =       stilesX * stilesY;
+//		final double [][][][][][]  merged_neib_ev = new double [nStiles][][][][][];
+		final int debug_stile = dbg_Y * stilesX + dbg_X;
+		final Thread[] threads = ImageDtt.newThreadArray((debugLevel > 1)? 1 : st.tileProcessor.threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final boolean [][] weak_fgnd = new boolean [valid_candidates.length][];
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) if ( merge_candidates[nsTile] != null) {
+                        int dl = ((debugLevel > 1) && (nsTile == debug_stile)) ? 3: debugLevel;
+						if (dl > 2){
+							System.out.println("weakForeground(): nsTile="+nsTile);
+						}
+						int n_planes = planes[nsTile].length;
+						weak_fgnd[nsTile] = new boolean [merge_candidates[nsTile].length];
+						for (int nPair = 0; nPair < merge_candidates[nsTile].length; nPair++) {
+							int [] pair = merge_candidates[nsTile][nPair];
+							if (valid_candidates[nsTile][pair[0]][pair[1]]){
+								boolean weakfg = planes[nsTile][pair[0]].isWeakForeground(
+										planes[nsTile][pair[1]], // final PlaneData fg_plane,
+										//stMeasSel,               // final int stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+										outliers,                // final int outliers,  // remove any glitches?
+										min_fg_strength,        // double min_fg_strength);
+										dl);
+								
+								weakfg |= planes[nsTile][pair[1]].isWeakForeground(
+										planes[nsTile][pair[0]], // final PlaneData fg_plane,
+										//stMeasSel,               // final int stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+										outliers,                // final int outliers,  // remove any glitches?
+										min_fg_strength,        // double min_fg_strength);
+										dl);
+								weak_fgnd[nsTile][nPair] = weakfg;
+								if (debugLevel > 0) {
+									if (weakfg && (debugLevel > 0)) {
+										System.out.println(nsTile+":"+pair[0]+":"+pair[1]+" is a WEAK foreground pair");
+									}else if (debugLevel > 1) {
+										System.out.println(nsTile+":"+pair[0]+":"+pair[1]+" is NOT a weak foreground pair");
+									}
+								}
+							}
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return weak_fgnd;
+	}
 	
 	/**
 	 * Possible problem is that "normalizing" merge quality for low weights is not applicable for "star" plane that include neighbors
@@ -2391,7 +2466,9 @@ public class LinkPlanes {
 			final TilePlanes.PlaneData [][] planes,
 			final int [][][]                merge_candidates,
 			final boolean [][][]            valid_candidates, // will be updated
+			final boolean [][]              weak_fg_pairs, 
 			final double                    relax,
+			final double                    relax_weak_fg,
 			final int                       debugLevel,
 			final int                       dbg_X,
 			final int                       dbg_Y)
@@ -2418,17 +2495,28 @@ public class LinkPlanes {
 							System.out.println("costSameTileConnections(): nsTile="+nsTile0);
 						}
 						int n_planes = planes[nsTile0].length;
+						boolean [][] weak_fg = new boolean [n_planes][n_planes];
+						if ((weak_fg_pairs != null) && (weak_fg_pairs[nsTile0] != null)) {
+							for (int i = 0; i < merge_candidates[nsTile0].length; i++) {
+								weak_fg[merge_candidates[nsTile0][i][0]][merge_candidates[nsTile0][i][1]] = true;
+								weak_fg[merge_candidates[nsTile0][i][1]][merge_candidates[nsTile0][i][0]] = true;
+							}
+						}
 						//						overlap_merge_candidates[nsTile] = new boolean [n_planes][n_planes];
 						merged_neib_ev[nsTile0] = new double [n_planes][n_planes][4][][];
 						// get original directions
 						for (int np1 = 0; np1 < planes[nsTile0].length; np1++) if (planes[nsTile0][np1] != null){
 							for (int np2 = np1 + 1; np2 < planes[nsTile0].length; np2++) if (planes[nsTile0][np2] != null){
 								if (valid_candidates[nsTile0][np1][np2]) { // only check pair considered valid
+									double var_relax = relax;
+									if (weak_fg[np1][np2]){
+										var_relax *= relax_weak_fg;
+									}
 									String prefix = "costSameTileConnections() fit weighted: nsTile0="+nsTile0+" np1="+np1+" np2="+np2;
 									boolean fit1 = 	planesFit(
 											planes[nsTile0][np1].getNonexclusiveStarFb(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
 											planes[nsTile0][np2].getNonexclusiveStarFb(), // 			TilePlanes.PlaneData plane2,
-											relax,      // double                    relax,
+											var_relax, //relax,      // double                    relax,
 											true,       // boolean              merge_weak,   // use for same supertile merge 
 											Double.NaN, // double merged_ev,    // if NaN will calculate assuming the same supertile
 											Double.NaN, // double merged_ev_eq, // if NaN will calculate assuming the same supertile
@@ -2440,7 +2528,7 @@ public class LinkPlanes {
 									boolean fit2 = 	planesFit(
 											planes[nsTile0][np1].getNonexclusiveStarEqFb(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
 											planes[nsTile0][np2].getNonexclusiveStarEqFb(), // 			TilePlanes.PlaneData plane2,
-											relax,      // double                    relax,
+											var_relax, // relax,      // double                    relax,
 											true,       // boolean              merge_weak,   // use for same supertile merge 
 											Double.NaN, // double merged_ev,    // if NaN will calculate assuming the same supertile
 											Double.NaN, // double merged_ev_eq, // if NaN will calculate assuming the same supertile
@@ -2454,12 +2542,14 @@ public class LinkPlanes {
 										valid_candidates[nsTile0][np2][np1] = false;
 										if (dl > 0){
 											System.out.println("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+
+													(weak_fg[np1][np2]? " WEAK_FG_PAIR":"") +
 													" REMOVING PAIR, fit1="+fit1+" fit2="+fit2);
 										}
 
 									} else {
 										if (dl > 0){
 											System.out.println("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+
+													(weak_fg[np1][np2]? " WEAK_FG_PAIR":"") +
 													" KEEPING PAIR, fit1="+fit1+" fit2="+fit2);
 										}
 
@@ -2665,6 +2755,8 @@ public class LinkPlanes {
 			final TilePlanes.PlaneData [][] planes,
 			final int [][][]                merge_candidates,
 			final boolean [][][]            valid_candidates, // will be updated
+			final boolean [][]              weak_fg_pairs,
+			final double                    relax_weak_fg,
 			final int                       debugLevel,
 			final int                       dbg_X,
 			final int                       dbg_Y)
@@ -2691,7 +2783,13 @@ public class LinkPlanes {
 							System.out.println("costSameTileConnectionsAlt(): nsTile="+nsTile0);
 						}
 						int n_planes = planes[nsTile0].length;
-						//						overlap_merge_candidates[nsTile] = new boolean [n_planes][n_planes];
+						boolean [][] weak_fg = new boolean [n_planes][n_planes];
+						if ((weak_fg_pairs != null) && (weak_fg_pairs[nsTile0] != null)) {
+							for (int i = 0; i < merge_candidates[nsTile0].length; i++) {
+								weak_fg[merge_candidates[nsTile0][i][0]][merge_candidates[nsTile0][i][1]] = true;
+								weak_fg[merge_candidates[nsTile0][i][1]][merge_candidates[nsTile0][i][0]] = true;
+							}
+						}
 						merged_neib_ev[nsTile0] = new double [n_planes][n_planes][4][][];
 						// get original directions
 						for (int np1 = 0; np1 < planes[nsTile0].length; np1++) if (planes[nsTile0][np1] != null){
@@ -2725,19 +2823,31 @@ public class LinkPlanes {
 											dl - 1); // int debugLevel)
 									boolean star1 = (planes[nsTile0][np1].getNonexclusiveStar() != null) && (planes[nsTile0][np2].getNonexclusiveStar() != null);
 									boolean star2 = (planes[nsTile0][np1].getNonexclusiveStarEq() != null) && (planes[nsTile0][np2].getNonexclusiveStarEq() != null);
-									boolean fit1 = 	costs[0] < (star1 ? threshold : threshold_nostar);
-									boolean fit2 = 	costs[1] < (star2 ? threshold : threshold_nostar);
+									double ts = threshold;
+									double tns = threshold_nostar;
+									if (weak_fg[np1][np2]){
+										ts *= relax_weak_fg;
+										tns *= relax_weak_fg;
+									}
+//									boolean fit1 = 	costs[0] < (star1 ? threshold : threshold_nostar);
+//									boolean fit2 = 	costs[1] < (star2 ? threshold : threshold_nostar);
+									
+									boolean fit1 = 	costs[0] < (star1 ? ts : tns);
+									boolean fit2 = 	costs[1] < (star2 ? ts : tns);
+									
 //									if (!fit1 || !fit2){
 									if (!fit1 && !fit2){
 										valid_candidates[nsTile0][np1][np2] = false;
 										valid_candidates[nsTile0][np2][np1] = false;
 										if (dl > 0){
 											System.out.println("costSameTileConnectionsAlt(): nsTile="+nsTile0+":"+np1+":"+np2+
+													(weak_fg[np1][np2]? " WEAK_FG_PAIR":"") +
 													" REMOVING PAIR, fit1="+fit1+" fit2="+fit2+ " (star1="+star1+", star2="+star2+")");
 										}
 									} else {
 										if (dl > 0){
 											System.out.println("costSameTileConnectionsAlt(): nsTile="+nsTile0+":"+np1+":"+np2+
+													(weak_fg[np1][np2]? " WEAK_FG_PAIR":"") +
 													" KEEPING PAIR, fit1="+fit1+" fit2="+fit2+ " (star1="+star1+", star2="+star2+")");
 										}
 									}
@@ -3685,6 +3795,18 @@ public class LinkPlanes {
 					dbg_tileX,
 					dbg_tileY);
 
+		  boolean[][] weak_pairs = weakForeground(
+					planes,           // final TilePlanes.PlaneData [][] planes,
+					merge_candidates, // final int [][][]                merge_candidates,
+					valid_candidates, // final boolean [][][]            valid_candidates,
+					//					final int                       stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+					plWeakFgStrength, // final double                    min_fg_strength,
+					plWeakFgOutliers, // final int                       outliers,  // remove any glitches?
+					debugLevel,                  // final int        debugLevel)
+					dbg_tileX,
+					dbg_tileY);
+			
+			
 //			 * Possible problem is that "normalizing" merge quality for low weights is not applicable for "star" plane that includes neighhbors
 //			 * Switch to a single "cost" function (costSameTileConnectionsAlt())
 // Still - how to merge stray tiles that do not have neighbors/star? Still merge them "old way"	(costSameTileConnections()) if at least 1 does not
@@ -3695,9 +3817,11 @@ public class LinkPlanes {
 			// TODO: Switch to a single "cost" function (costSameTileConnectionsAlt())
 			costSameTileConnections(
 					planes, // final TilePlanes.PlaneData [][] planes,
-					merge_candidates,       // final int [][][] merge_candidates,
+					merge_candidates, // final int [][][] merge_candidates,
 					valid_candidates, // final boolean [][][]   valid_candidates, // will be updated
-					1.0,         // double                    relax,
+					weak_pairs,       // final boolean [][]              weak_fg_pairs, 
+					1.0,              // double                    relax,
+					plWeakFgRelax,    // final double                    relax_weak_fg,
 					debugLevel,                  // final int        debugLevel)
 					dbg_tileX,
 					dbg_tileY);
@@ -3712,6 +3836,8 @@ public class LinkPlanes {
 					planes, // final TilePlanes.PlaneData [][] planes,
 					merge_candidates,       // final int [][][] merge_candidates,
 					valid_candidates, // final boolean [][][]   valid_candidates, // will be updated
+					weak_pairs, // final boolean [][]              weak_fg_pairs, 
+					plWeakFgRelax,               // final double                    relax_weak_fg,
 					debugLevel,                  // final int        debugLevel)
 					dbg_tileX,
 					dbg_tileY);
@@ -4208,6 +4334,17 @@ public class LinkPlanes {
 					merge_candidates, // final int [][][]                merge_candidates,
 					conflicts0);      // final int [][][]                conflicts)
 
+			boolean[][] weak_pairs = weakForeground(
+					planes,           // final TilePlanes.PlaneData [][] planes,
+					merge_candidates, // final int [][][]                merge_candidates,
+					valid_candidates, // final boolean [][][]            valid_candidates,
+					//					final int                       stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+					plWeakFgStrength, // final double                    min_fg_strength,
+					plWeakFgOutliers, // final int                       outliers,  // remove any glitches?
+					debugLevel,                  // final int        debugLevel)
+					dbg_tileX,
+					dbg_tileY);
+			
 
 			//				 * Possible problem is that "normalizing" merge quality for low weights is not applicable for "star" plane that include neighhbors
 			//				 * Switch to a single "cost" function (costSameTileConnectionsAlt())
@@ -4217,7 +4354,9 @@ public class LinkPlanes {
 					planes_mod, // final TilePlanes.PlaneData [][] planes,
 					merge_candidates,       // final int [][][] merge_candidates,
 					valid_candidates,       // final boolean [][][]   valid_candidates, // will be updated
+					weak_pairs, // final boolean [][]              weak_fg_pairs, 
 					1.0,                    // final double                    relax,
+					plWeakFgRelax,          // final double                    relax_weak_fg,
 					debugLevel,             // final int        debugLevel)
 					dbg_tileX,
 					dbg_tileY);
@@ -4225,10 +4364,12 @@ public class LinkPlanes {
 			costSameTileConnectionsAlt(
 					getMergeCostStar(),   // relax_for_conflicts * 5.0,  // final double         threshold, // 
 					getMergeCostNoStar(), //relax_for_conflicts * 10.0, // final double         threshold_nostar,
-					planes_mod, // final TilePlanes.PlaneData [][] planes,
-					merge_candidates,       // final int [][][] merge_candidates,
-					valid_candidates, // final boolean [][][]   valid_candidates, // will be updated
-					debugLevel,             // final int        debugLevel)
+					planes_mod,           // final TilePlanes.PlaneData [][] planes,
+					merge_candidates,     // final int [][][] merge_candidates,
+					valid_candidates,     // final boolean [][][]   valid_candidates, // will be updated
+					weak_pairs,           // final boolean [][]              weak_fg_pairs, 
+					plWeakFgRelax,        // final double                    relax_weak_fg,
+					debugLevel,           // final int        debugLevel)
 					dbg_tileX,
 					dbg_tileY);
 
@@ -4288,13 +4429,25 @@ public class LinkPlanes {
 						dbg_tileY);
 
 				// again same sequence
+				boolean [][] confl_weak_pairs = weakForeground(
+							planes,                 // final TilePlanes.PlaneData [][] planes,
+							conflicting_candidates, // final int [][][]                merge_candidates,
+							valid_candidates,       // final boolean [][][]            valid_candidates,
+							//					final int                       stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+							plWeakFgStrength, // final double                    min_fg_strength,
+							plWeakFgOutliers, // final int                       outliers,  // remove any glitches?
+							debugLevel,                  // final int        debugLevel)
+							dbg_tileX,
+							dbg_tileY);
 				
 				// try to merge original (measured) planes, not smoothed ones ??
 				costSameTileConnections(
 						planes,               // final TilePlanes.PlaneData [][] planes,
 						conflicting_candidates,  // final int [][][] merge_candidates,
 						valid_candidates,        // final boolean [][][]   valid_candidates, // will be updated
-						getConflRelax(),      //relax_for_conflicts,         // final double                    relax,
+						confl_weak_pairs,        // final boolean [][]              weak_fg_pairs, 
+						getConflRelax(),         // relax_for_conflicts,         // final double                    relax,
+						plWeakFgRelax,           // final double                    relax_weak_fg,
 						debugLevel, // 2,                       // -1, // debugLevel,                  // final int        debugLevel)
 						dbg_tileX,
 						dbg_tileY);
@@ -4304,8 +4457,10 @@ public class LinkPlanes {
 						getConflRelax() * getMergeCostNoStar(), //relax_for_conflicts * 10.0, // final double         threshold_nostar,
 
 						planes, // final TilePlanes.PlaneData [][] planes,
-						conflicting_candidates,  // final int [][][] merge_candidates,
-						valid_candidates, // final boolean [][][]   valid_candidates, // will be updated
+						conflicting_candidates, // final int [][][] merge_candidates,
+						valid_candidates,       // final boolean [][][]   valid_candidates, // will be updated
+						confl_weak_pairs,       // final boolean [][]              weak_fg_pairs, 
+						plWeakFgRelax,          // final double                    relax_weak_fg,
 						debugLevel,             // final int        debugLevel)
 						dbg_tileX,
 						dbg_tileY);

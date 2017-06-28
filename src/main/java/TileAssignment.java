@@ -61,6 +61,9 @@ public class TileAssignment {
 	private double strengthBestPwr; //             = 0.0;    // Strength power when calculating disparity error over best
 	private double strengthDiff9Pwr; //            = 0.5;    // Strength power when calculating disparity error for group of 9
 	
+	private double shrinkWeakFgnd = 0.5; //  0.5; //reduce cost of multiple weak_fgnd links of the same tile
+	private double shrinkColor = 0.5; // 0.0;    //reduce cost of surface transitions w/o color change 
+	
 	static double [] NEIB_WEIGHTS = {0.5,0.25, 0.5, 0.25, 0.5,0.25, 0.5, 0.25, 1.0};
 	
 	static int INDEX_R = 0;
@@ -720,8 +723,10 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 			HashMap<Point,Integer> replacements)
 	{
 		TACosts costs = new TACosts();
-		if (nSurfTile == 47459){
+		int debugLevel = 0;
+		if (nSurfTile == 51360) { //  44831) { // 47459){
 			System.out.println("getTileCosts() nSurfTile="+nSurfTile);
+			debugLevel = 1;
 		}
 		int [][] around = new int [valid_ml.length][]; // contains layer + 1
 		for (int ml = 0; ml <  valid_ml.length; ml++) if(valid_ml[ml]) {
@@ -754,6 +759,9 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 		}
 		
 //		public double nolink;    // Cost of a tile not having any neighbor in particular direction
+		int num_weak_fgnd = 0; // to reduce multiple for teh same tile
+		int num_color_sep = 0; // to reduce multiple for teh same tile
+		
 		for (int ml = 0; ml < around.length; ml++) if ((around[ml] != null) && (around[ml][8] > 0)){
 			if ((around[ml][8] - 1) >= ts.getTileData()[nSurfTile].length){
 				System.out.println("getTileCosts() BUG: nSurfTile="+nSurfTile);
@@ -799,16 +807,19 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 						double strength = dispStrength[ml][nSurfTile][1];
 						strength = Math.max(strength, minFgEdge);
 						costs.weak_fgnd += minFgEdge / strength; 
+						num_weak_fgnd++;
 					} else if (mutual_weak_fgnd && (disp_diff < -minFgBg)) {
 						double [] dsmeas_other = dispStrength[ml][nSurfTiles[dir]];
 						double strength = (dsmeas_other != null)? dsmeas_other[1]: 0.0; // measured strength on the other end or 0.0 if nothing there
 						strength = Math.max(strength, minFgEdge);
 						costs.weak_fgnd += minFgEdge / strength; 
+						num_weak_fgnd++;
 					}
 					if (Math.abs(disp_diff) > minColSep){
 						double col_diff = tone_diff_weight[nSurfTile][dir][0];
 						col_diff= Math.max(col_diff,minColDiff);
 						costs.color += tone_diff_weight[nSurfTile][dir][1] * minColSep/col_diff;
+						num_color_sep++;
 					}
 					
 				} else { // v, both can not coexist
@@ -818,9 +829,18 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 //			if (around[ml][8] == 0) costs.empty +=1.0; // each existing measurement layer that is not assigned
 			
 		} //for (int ml = 0; ml < around.length; ml++) if ((around[ml] != null) && (around[ml][8] > 0))
+		
+		if ((num_weak_fgnd > 0) && (shrinkWeakFgnd > 0.0)){
+			costs.weak_fgnd /= Math.pow(num_weak_fgnd, shrinkWeakFgnd);
+		}
+
+		if ((num_color_sep > 0) && (shrinkColor > 0.0)){
+			costs.color /= Math.pow(num_color_sep, shrinkColor);
+		}
+		
 		double disp_diff_lpf = 0.0, disp_diff_weight = 0.0;  // calculate LPF of the disparity signed error over all ML and 9 cells 
 		double disp_diff2 = 0.0, disp_weight = 0.0;  // calculate disparity error in the center, weighted   
-		double disp_diff_over_best = 0.0, disp_weight_best = 0.0;  // calculate disparity error in the center, weighted   
+		double disp_diff_over_best = 0.0; // , disp_weight_best = 0.0;  // calculate disparity error in the center, weighted   
 		for (int ml = 0; ml < around.length; ml++) if (around[ml] != null){
 			double diff=0.0, weight=0.0;
 			for (int dir = 0; dir < 9; dir++){
@@ -846,8 +866,10 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 					weight *= NEIB_WEIGHTS[dir];
 					disp_diff_lpf += diff * weight;
 					disp_diff_weight += weight;
-//				} else {
-//					System.out.println("getTileCosts() BUG, nSurfTile="+nSurfTile); 
+					if (debugLevel > 0){
+						System.out.println("getTileCosts() nSurfTile = "+nSurfTile+"->"+dir+" disp_diff_lpf="+disp_diff_lpf+
+								" disp_diff_weight="+disp_diff_weight+" weight="+weight+ " diff="+diff+" around["+ml+"]["+dir+"]="+around[ml][dir]);
+					}
 				}
 			}
 			// now diff is for the center, weight needs to be re-calculated
@@ -876,7 +898,11 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 		}
 		if (disp_diff_weight > 0.0) {
 			disp_diff_lpf /= disp_diff_weight;
-			costs.diff9 += disp_diff_lpf * disp_diff_lpf; 
+			costs.diff9 += disp_diff_lpf * disp_diff_lpf;
+			if (debugLevel > 0){
+				System.out.println("getTileCosts() nSurfTile = "+nSurfTile+" disp_diff_lpf="+disp_diff_lpf+
+						" disp_diff_weight="+disp_diff_weight+" costs.diff9="+costs.diff9);
+			}
 		}
 		if (disp_weight > 0.0) {
 			costs.diff +=      disp_diff2 / disp_weight;
@@ -1155,7 +1181,7 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 		mutual_weak_fgnd = false;
 		final int tries = 1000;
 //		final int dbg_tile = dbg_X + dbg_Y * surfTilesX;
-		final int dbg_tile = 47779; // 27083; // 44493;
+		final int dbg_tile = 51360; // 51; // 44831; // 27083; // 44493;
 		final int num_tiles = surfTilesX * surfTilesY;
 		final int [][] tile_indices = new int [step*step][];
 		for (int sty = 0; sty < step; sty ++){
@@ -1244,13 +1270,32 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 										continue; // no valid surfaces at this location
 									}
 									double best_cost = 0.0;
-									for (int dir = 0; dir <9; dir++)  {
+									if (dl > 2) {
+										System.out.println("optimizeAssignment25(), tileLayers[0]["+nSurfTile+"] = " + tileLayers[0][nSurfTile]);
+//										int [] dbg_layers = new int [tileLayers.length];
+//										for (int ml = 0; ml < tileLayers.length; ml++){
+//											dbg_layers[ml] = (tileLayers[ml] == null) ? -0:  tileLayers[ml][nSurfTile];
+//										}
+//										System.out.println("optimizeAssignment25(), tileLayers["+nSurfTile+"] = " + dbg_layers);
+									}
+									for (int dir = 0; dir < 9; dir++)  {
 										int nSurfTile1 = tnSurface.getNeibIndex(nSurfTile, dir);
 										if (nSurfTile1 >= 0){
-											best_cost += cost_coeff.dotProd(getTileCosts(
+//											best_cost += cost_coeff.dotProd(getTileCosts(
+//													nSurfTile1,  // int                    nSurfTile,
+//													tileLayers, // int [][]               tileLayers,
+//													null));     // HashMap<Point,Integer> replacements);
+											TACosts ta_costs = getTileCosts(
 													nSurfTile1,  // int                    nSurfTile,
 													tileLayers, // int [][]               tileLayers,
-													null));     // HashMap<Point,Integer> replacements);
+													null);     // HashMap<Point,Integer> replacements);
+											double ccost = cost_coeff.dotProd(ta_costs);
+											best_cost += ccost;
+											if (dl > 2){
+												System.out.println("optimizeAssignment25(), nSurfTile = "+nSurfTile+" dir = "+dir +
+														" nSurfTile1="+nSurfTile1+" ccost = "+ccost+" best_cost="+best_cost);
+												System.out.println("ta_costs["+nSurfTile1+"]="+ta_costs.toString());
+											}
 										}
 									}
 //									int [] initial_indices = tileLayers[nSurfTile].clone();
@@ -1299,13 +1344,23 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 											}
 										}
 										double cost = 0.0;
-										for (int dir = 0; dir <9; dir++)  {
+										if (dl > 2) {
+											System.out.println("optimizeAssignment25(), surfaces[0]= " + surfaces[0]);
+										}
+										for (int dir = 0; dir < 9; dir++)  {
 											int nSurfTile1 = tnSurface.getNeibIndex(nSurfTile, dir);
 											if (nSurfTile1 >= 0){
-												cost += cost_coeff.dotProd(getTileCosts(
+												TACosts ta_costs = getTileCosts(
 														nSurfTile1,  // int                    nSurfTile,
 														tileLayers, // int [][]               tileLayers,
-														null));     // HashMap<Point,Integer> replacements);
+														null);     // HashMap<Point,Integer> replacements);
+												double ccost = cost_coeff.dotProd(ta_costs);
+												cost+=ccost;
+												if (dl > 2){
+													System.out.println("optimizeAssignment25(), nSurfTile = "+nSurfTile+" dir = "+dir +
+															" nSurfTile1="+nSurfTile1+" ccost = "+ccost+" cost="+cost);
+													System.out.println("ta_costs["+nSurfTile1+"]="+ta_costs.toString());
+												}
 											}
 										}
 										if (cost < best_cost) {
