@@ -1002,7 +1002,7 @@ public class ImageDtt {
 			final int                 window_type,
 			final double [][]         shiftXY, // [port]{shiftX,shiftY}
 			final double [][][]       fine_corr, // quadratic cofficients for fine correction (or null)
-			final double              corr_magic_scale, // stil not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
+			final double              corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85  
 			final double              shiftX, // shift image horizontally (positive - right) - just for testing
 			final double              shiftY, // shift image vertically (positive - down)
 			final int                 debug_tileX,
@@ -1595,7 +1595,7 @@ public class ImageDtt {
 													clt_mismatch[3*pair + 1 ][tIndex] = Double.NaN;
 													clt_mismatch[3*pair + 2 ][tIndex] = Double.NaN;
 												} else {
-													double [] corr_max_XYmp = getMaxXYCm( // get fractiona center as a "center of mass" inside circle/square from the integer max
+													double [] corr_max_XYmp = getMaxXYCm( // get fractional center as a "center of mass" inside circle/square from the integer max
 															tcorr_partial[pair][numcol],      // [data_size * data_size]
 															corr_size,      
 															icorr_max, // integer center coordinates (relative to top left)

@@ -2412,7 +2412,7 @@ public class LinkPlanes {
 						if (dl > 2){
 							System.out.println("weakForeground(): nsTile="+nsTile);
 						}
-						int n_planes = planes[nsTile].length;
+						//int n_planes = planes[nsTile].length;
 						weak_fgnd[nsTile] = new boolean [merge_candidates[nsTile].length];
 						for (int nPair = 0; nPair < merge_candidates[nsTile].length; nPair++) {
 							int [] pair = merge_candidates[nsTile][nPair];

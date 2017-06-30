@@ -21,8 +21,12 @@
  ** -----------------------------------------------------------------------------**
  **
  */
+import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -31,6 +35,8 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.Prefs;
+import ij.WindowManager;
+import ij.gui.Roi;
 import ij.io.FileSaver;
 import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
@@ -2838,7 +2844,7 @@ public class QuadCLT {
 			  EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
 			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
 			  final boolean    apply_corr, // calculate and apply additional fine geometry correction 
-			  final int          threadsMax,  // maximal number of threads to launch                         
+			  final int        threadsMax,  // maximal number of threads to launch                         
 			  final boolean    updateStatus,
 			  final int        debugLevel)
 	  {
@@ -3277,7 +3283,7 @@ public class QuadCLT {
 				  clt_parameters.clt_window,
 				  shiftXY, // 
 				  (clt_parameters.fcorr_ignore? null: this.fine_corr),
-				  clt_parameters.corr_magic_scale, // stil not understood coefficent that reduces reported disparity value.  Seems to be around 8.5 
+				  clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85 
 				  
 				  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
 				  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
@@ -3402,7 +3408,7 @@ public class QuadCLT {
 							  disparity_map,
 							  clt_mismatch,
 							  tilesX,
-							  clt_parameters.corr_magic_scale, // stil not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
+							  clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85  
 							  debugLevel); // int debugLevel)
 					  apply_fine_corr(
 							  new_corr,
@@ -3777,7 +3783,7 @@ public class QuadCLT {
 			  double [][] disparity_map,
 			  double [][] clt_mismatch,
 			  int         tilesX,
-			  double      magic_coeff, // stil not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
+			  double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
 			  int debugLevel)
 	  {
 		  // TODO: update the following indices when format of the arrays will change (removed unneeded data)
@@ -3789,13 +3795,13 @@ public class QuadCLT {
 
 		  int numUsed = 0;
 		  for (int i = 0; i < numTiles; i++) {
-			  if ((disparity_map[index_strength][i] >=  clt_parameters.fcorr_min_stength) &&
+			  if ((disparity_map[index_strength][i] >=  clt_parameters.fcorr_min_strength) &&
 					  (Math.abs(disparity_map[index_disparity][i]) <= clt_parameters.fcorr_disp_diff)) numUsed ++;
 		  }
 		  double [][][] mdata = new double[numUsed][3][];
 		  int indx = 0;
 		  for (int i = 0; i < numTiles; i++) {
-			  if ((disparity_map[index_strength][i] >=  clt_parameters.fcorr_min_stength) &&
+			  if ((disparity_map[index_strength][i] >=  clt_parameters.fcorr_min_strength) &&
 					  (Math.abs(disparity_map[index_disparity][i]) <= clt_parameters.fcorr_disp_diff)) {
 				  int tileX = i % tilesX;
 				  int tileY = i / tilesX;
@@ -3860,7 +3866,7 @@ public class QuadCLT {
 			  int len8 = tilesX8*tilesY8;
 			  double [][] mismatch_8 = new double[11][len8];
 			  for (int i = 0; i < numTiles; i++) {
-				  if ((disparity_map[index_strength][i] >=  clt_parameters.fcorr_min_stength) &&
+				  if ((disparity_map[index_strength][i] >=  clt_parameters.fcorr_min_strength) &&
 						  (Math.abs(disparity_map[index_disparity][i]) <= clt_parameters.fcorr_disp_diff)) {
 					  int tileX = i % tilesX;
 					  int tileY = i / tilesX;
@@ -3916,10 +3922,166 @@ public class QuadCLT {
 					  "mismatch_8",
 					  titles);
 		  }
-		  
-		  
 		  return coeff_full;
 	  }
+	  
+	  
+// new one, pre-calculated from the disparity scan
+	  public double [][][] fine_geometry_correction(
+			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  double [][] clt_mismatch,
+			  int         tilesX,
+			  double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
+			  int debugLevel)
+	  {
+		  // TODO: update the following indices when format of the arrays will change (removed unneeded data)
+		  final int [] indices_mismatch = {1,4,6,9}; //   "dy0", "dy1", "dx2", "dx3"
+		  final int numTiles =            clt_mismatch[0].length;
+		  final int tilesY =              numTiles/tilesX;
+
+		  int numUsed = 0;
+		  double [] strength = new double [numTiles];
+		  for (int i = 0; i < numTiles; i++) {
+			  boolean all_pairs = true;
+			  for (int nPair = 0; nPair < 4; nPair++){
+				  double w = clt_mismatch[3 * nPair + 2][i];
+				  if (w == 0.0) {
+					  all_pairs = false;
+					  strength[i] = 0.0;
+					  break;
+				  }
+				  strength[i] += w;
+			  }
+			  if (all_pairs) numUsed ++;
+		  }
+		  
+		  double [][][] mdata = new double[numUsed][3][];
+		  int indx = 0;
+		  for (int i = 0; i < numTiles; i++) {
+			  if (strength[i] > 0) {
+				  int tileX = i % tilesX;
+				  int tileY = i / tilesX;
+				  mdata[indx][0] = new double [2];
+				  mdata[indx][0][0] =  (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
+				  mdata[indx][0][1] =  (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
+				  mdata[indx][1] = new double [indices_mismatch.length]; // 4
+				  for (int ip = 0; ip < indices_mismatch.length; ip++) {
+					  mdata[indx][1][ip] =  clt_mismatch[indices_mismatch[ip]][i];
+				  }
+				  mdata[indx][2] = new double [1];
+				  mdata[indx][2][0] =  strength[i];
+				  indx ++;
+			  }
+		  }
+		  PolynomialApproximation pa = new PolynomialApproximation();
+		  double thresholdLin = 1.0E-20;  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
+		  double thresholdQuad = 1.0E-30; // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+
+		  /*
+		   * returns array of vectors or null
+		   * each vector (one per each z component) is either 6-element-  (A,B,C,D,E,F) if quadratic is possible and enabled
+		   * or 3-element - (D,E,F) if linear is possible and quadratic is not possible or disabled
+		   * returns null if not enough data even for the linear approximation
+		   */
+		  
+		  double [][] coeffs = pa.quadraticApproximation(
+				  mdata,
+				  !clt_parameters.fcorr_quadratic, // boolean forceLinear,  // use linear approximation
+				  thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
+				  thresholdQuad,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+				  debugLevel);
+		  for (int i = 0; i < coeffs.length; i++){
+			  if (coeffs[i] == null){
+				  coeffs[i] = new double [6];
+				  for (int j = 0; j < coeffs[i].length; i++) coeffs[i][j] = 0.0;
+			  } else if (coeffs[i].length < 6){
+				  double [] short_coeffs = coeffs[i];
+				  coeffs[i] = new double [6];
+				  for (int j = 0; j < coeffs[i].length; j++) {
+					  if (j < (coeffs[i].length - short_coeffs.length)) coeffs[i][j] = 0.0;
+					  else coeffs[i][j] = short_coeffs[j - (coeffs[i].length - short_coeffs.length)]; 
+				  }
+			  }
+		  }
+		  // convert to 8 sets of coefficient for px0, py0, px1, py1, ... py3.  
+		  double [][][] coeff_full = new double [4][2][6];
+		  double scale = 0.5/magic_coeff;
+		  for (int j = 0; j<6; j++){
+			  coeff_full[0][0][j] = -coeffs[2][j] * scale;
+			  coeff_full[0][1][j] = -coeffs[0][j] * scale;
+			  coeff_full[1][0][j] = -coeffs[3][j] * scale;
+			  coeff_full[1][1][j] =  coeffs[0][j] * scale;
+			  coeff_full[2][0][j] =  coeffs[2][j] * scale;
+			  coeff_full[2][1][j] = -coeffs[1][j] * scale;
+			  coeff_full[3][0][j] =  coeffs[3][j] * scale;
+			  coeff_full[3][1][j] =  coeffs[1][j] * scale;
+		  }
+		  if (debugLevel > -1){
+			  int tilesX8 = (tilesX - 1) / 8 + 1;
+			  int tilesY8 = (tilesY - 1) / 8 + 1;
+			  int len8 = tilesX8*tilesY8;
+			  double [][] mismatch_8 = new double[11][len8];
+			  for (int i = 0; i < numTiles; i++) {
+				  if (strength[i] > 0) {
+					  int tileX = i % tilesX;
+					  int tileY = i / tilesX;
+					  int tX8 = tileX/8;
+					  int tY8 = tileY/8;
+					  int indx8 = tY8*tilesX8+tX8;
+					  double tX =  (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
+					  double tY =  (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
+					  double w = strength[i];
+					  for (int ip = 0; ip < 4; ip++) {
+						  mismatch_8[ip][indx8] += w * clt_mismatch[indices_mismatch[ip]][i];
+					  }
+					  mismatch_8[8][indx8] += w * tX;
+					  mismatch_8[9][indx8] += w * tY;
+					  mismatch_8[10][indx8] += w;
+				  }
+			  }
+			  for (int i = 0; i < len8; i++) {
+				  if (mismatch_8[10][i] > 0){
+					  for (int n = 0; n<4; n++){
+						  mismatch_8[n][i] /= mismatch_8[10][i]; 
+					  }
+					  mismatch_8[8][i] /= mismatch_8[10][i]; 
+					  mismatch_8[9][i] /= mismatch_8[10][i]; 
+				  } else {
+					  for (int n = 0; n<4; n++){
+						  mismatch_8[n][i] = Double.NaN; 
+					  }
+					  mismatch_8[8][i] = Double.NaN; 
+					  mismatch_8[9][i] = Double.NaN; 
+					  
+				  }
+				  for (int n = 0; n<4; n++){
+					  double tX = mismatch_8[8][i];
+					  double tY = mismatch_8[9][i];
+					  //f(x,y)=A*x^2+B*y^2+C*x*y+D*x+E*y+F
+					  mismatch_8[4+n][i] = (
+							  coeffs[n][0]*tX*tX+
+							  coeffs[n][1]*tY*tY+
+							  coeffs[n][2]*tX*tY+
+							  coeffs[n][3]*tX+
+							  coeffs[n][4]*tY+
+							  coeffs[n][5]);
+				  }
+			  }
+			  String [] titles = {"dy0","dy1","dx2","dx3","cy0","cy1","cx2","cx3","tx","ty","w"};
+			  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			  sdfa_instance.showArrays(
+					  mismatch_8,
+					  tilesX8,
+					  tilesY8,
+					  true,
+					  "mismatch_8",
+					  titles);
+		  }
+		  return coeff_full;
+	  }
+	  
+	  
+	  
 	  
 	  public void apply_fine_corr(
 			  double [][][] corr,
@@ -3968,6 +4130,7 @@ public class QuadCLT {
 			  }
 		  }
 	  }
+	  
 	  
 	  public void reset_fine_corr()
 	  {
@@ -4262,7 +4425,7 @@ public class QuadCLT {
 		  double min_corr_selected = clt_parameters.min_corr;
 		  
 		  double [][][] disparity_maps = new double [clt_parameters.disp_scan_count][ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
-
+		  double [][][] clt_mismatches = new double [clt_parameters.disp_scan_count][12][];
 		  for (int scan_step = 0; scan_step < clt_parameters.disp_scan_count; scan_step++) {
 			  double disparity = clt_parameters.disp_scan_start + scan_step * clt_parameters.disp_scan_step;
 			  double [][] disparity_array = tp.setSameDisparity(disparity); // [tp.tilesY][tp.tilesX] - individual per-tile expected disparity
@@ -4280,7 +4443,8 @@ public class QuadCLT {
 					  // correlation results - final and partial          
 					  clt_corr_combo,               // [tp.tilesY][tp.tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 					  null, // clt_corr_partial,    // [tp.tilesY][tp.tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-					  null,    // [tp.tilesY][tp.tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
+					  clt_mismatches[scan_step], // null, [12][tilesY * tilesX] // transpose unapplied. null - do not calculate
+
 //	Use it with disparity_maps[scan_step]?		  clt_mismatch,    // [tp.tilesY][tp.tilesX][pair]{dx,dy,weight}[(2*transform_size-1)*(2*transform_size-1)] // transpose unapplied. null - do not calculate
 					  disparity_maps[scan_step],    // [2][tp.tilesY * tp.tilesX]
 					  null, //texture_tiles,        // [tp.tilesY][tp.tilesX]["RGBA".length()][]; 			  
@@ -4314,7 +4478,7 @@ public class QuadCLT {
 					  clt_parameters.clt_window,
 					  shiftXY, // 
 					  (clt_parameters.fcorr_ignore? null: this.fine_corr),
-					  clt_parameters.corr_magic_scale, // stil not understood coefficent that reduces reported disparity value.  Seems to be around 8.5 
+					  clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85 
 					  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
 					  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
 					  clt_parameters.tileX,         // final int               debug_tileX,
@@ -4325,6 +4489,48 @@ public class QuadCLT {
 					  threadsMax,
 					  debugLevel);
 		  }
+
+		  double [][] clt_mismatch = new double [12][tilesX*tilesY];
+		  for (int pair = 0; pair < 4; pair++){
+			  for (int scan_step = 0; scan_step < clt_parameters.disp_scan_count; scan_step++){
+				  for (int i = 0; i < tilesX * tilesY; i++){
+					  double w = clt_mismatches[scan_step][3 * pair + 2][i];
+					  clt_mismatch[3 * pair + 0][i] += clt_mismatches[scan_step][3 * pair + 0][i] * w; 
+					  clt_mismatch[3 * pair + 1][i] += clt_mismatches[scan_step][3 * pair + 1][i] * w; 
+					  clt_mismatch[3 * pair + 2][i] += w; 
+				  }
+			  }
+		  }
+		  for (int pair = 0; pair < 4; pair++){
+			  for (int i = 0; i < tilesX * tilesY; i++){
+				  double w = clt_mismatch[3 * pair + 2][i];
+				  if (w != 0.0){
+					  clt_mismatch[3 * pair + 0][i] /= w; 
+					  clt_mismatch[3 * pair + 1][i] /= w; 
+				  }
+			  }
+		  }
+		  
+		  if (debugLevel > -1) {
+			  showCltMismatches(
+					  "clt_mismatches", // String                                   title,
+					  clt_parameters,   // EyesisCorrectionParameters.CLTParameters clt_parameters,
+					  clt_mismatches, // double [][][]                            clt_mismatches)
+					  disparity_maps,// double [][][]                              disparities,
+					  ImageDtt.DISPARITY_INDEX_CM,
+					  ImageDtt.DISPARITY_STRENGTH_INDEX,
+					  
+					  tp.getTilesX(),
+					  tp.getTilesY());
+			  
+			  showCltMismatch(
+					  "clt_mismatch", // String                                   title,
+					  clt_parameters,   // EyesisCorrectionParameters.CLTParameters clt_parameters,
+					  clt_mismatch, // double [][][]                            clt_mismatch)
+					  tp.getTilesX(),
+					  tp.getTilesY());
+		  }
+		  
 		  int [] disp_indices = {
 				  ImageDtt.DISPARITY_INDEX_INT,
 				  ImageDtt.DISPARITY_INDEX_CM,
@@ -4379,6 +4585,393 @@ public class QuadCLT {
 		  
 		  return results;
 	  }
+
+	  public void showCltMismatches(
+			  String                                   title,
+			  EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  double [][][]                            clt_mismatches,
+			  double [][][]                            disparity_maps,
+			  int                                      disparity_index,
+			  int                                      strength_index,
+			  int tilesX,
+			  int tilesY)
+	  {
+		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+		  int n = clt_mismatches.length;
+		  String [] titles = new String [n * 14];  
+		  double [][] dbg_clt_mismatch= new double [clt_parameters.disp_scan_count * 14][];
+		  for (int pair = 0; pair < 4; pair++){
+			  for (int i = 0; i < n; i++){
+				  double disparity = clt_parameters.disp_scan_start + i * clt_parameters.disp_scan_step;
+
+				  titles[(2 * pair + 0) * n + i] = "dx_"+pair+"_"+disparity;
+				  titles[(2 * pair + 1) * n + i] = "dy_"+pair+"_"+disparity;
+				  titles[(2 * 4 + pair) * n + i] = "strength_"+pair+"_"+disparity;
+				  
+				  dbg_clt_mismatch[(2 * pair + 0) * n + i] = clt_mismatches[i][3 * pair + 0];
+				  dbg_clt_mismatch[(2 * pair + 1) * n + i] = clt_mismatches[i][3 * pair + 1];
+				  dbg_clt_mismatch[(2 * 4 + pair) * n + i] = clt_mismatches[i][3 * pair + 2];
+			  }
+		  }
+		  for (int i = 0; i < n; i++){
+			  double disparity = clt_parameters.disp_scan_start + i * clt_parameters.disp_scan_step;
+
+			  titles[ 12 * n + i] = "disp_"+disparity;
+			  titles[ 13 * n + i] = "strength_"+disparity;
+			  
+			  dbg_clt_mismatch[12 * n + i] = disparity_maps[i][disparity_index];
+			  dbg_clt_mismatch[13 * n + i] = disparity_maps[i][strength_index];
+		  }
+		  
+		  sdfa_instance.showArrays(dbg_clt_mismatch, tilesX,tilesY, true, title, titles);
+	  }
+	  
+	  public void showCltMismatch(
+			  String                                   title,
+			  EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  double [][]                              clt_mismatch,
+			  int tilesX,
+			  int tilesY)
+
+	  {
+		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+		  String [] titles = new String [12];  
+		  double [][] dbg_clt_mismatch= new double [12][];
+		  for (int pair = 0; pair < 4; pair++){
+				  titles[2 * pair + 0] = "dx_"+pair;
+				  titles[2 * pair + 1] = "dy_"+pair;
+				  titles[2 * 4 + pair] = "strength_"+pair;
+				  dbg_clt_mismatch[(2 * pair + 0)] = clt_mismatch[3 * pair + 0].clone();
+				  dbg_clt_mismatch[(2 * pair + 1)] = clt_mismatch[3 * pair + 1].clone();
+				  dbg_clt_mismatch[(2 * 4 + pair)] = clt_mismatch[3 * pair + 2];
+				  for (int i = 0; i < dbg_clt_mismatch[(2 * 4 + pair)].length; i++ ){
+					  if (dbg_clt_mismatch[(2 * 4 + pair)][i] == 0.0){
+						  dbg_clt_mismatch[(2 * pair + 0)][i] = Double.NaN;
+						  dbg_clt_mismatch[(2 * pair + 1)][i] = Double.NaN;
+					  }
+				  }
+		  }
+		  sdfa_instance.showArrays(dbg_clt_mismatch, tilesX, tilesY, true, title, titles);
+	  }
+	  
+	  public double [][] calcMismatchFromScan(
+			  final EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  final double [][][]                            clt_mismatches,
+			  final double [][][]                            disparity_maps,
+			  final int                                      disparity_index,
+			  final int                                      strength_index,
+			  final int                                      tilesX,
+			  final int                                      tilesY,
+			  final int                                      debugLevel)
+	  {
+		  final int dbg_tile = 46519; // 40926;
+		  final int dbg_pair = 3; // 0;
+
+		  double [][] combo_mismatch = new double [12][tilesX*tilesY];
+		  for (int pair = 0; pair < 4; pair++){
+			  final int f_pair = pair;
+			  for (int scan_step = 0; scan_step < clt_mismatches.length ; scan_step++){
+				  final int f_scan_step = scan_step;
+				  for (int ty = 0; ty < tilesY -clt_parameters.fcorr_sample_size/2 ; ty += clt_parameters.fcorr_sample_size){
+					  int ty_lim = ty + scan_step;
+					  if (ty_lim >= tilesY -clt_parameters.fcorr_sample_size/2) {
+						  ty_lim = tilesY;
+					  }
+					  for (int tx = 0; tx < tilesX - clt_parameters.fcorr_sample_size/2 ; tx += clt_parameters.fcorr_sample_size){
+						  int tx_lim = tx + scan_step;
+						  if (tx_lim >= tilesX - clt_parameters.fcorr_sample_size/2) {
+							  tx_lim = tilesX;
+						  }
+						  ArrayList<Integer> samples_dx_list = new ArrayList<Integer>();
+						  ArrayList<Integer> samples_dy_list = new ArrayList<Integer>();
+						  boolean dbg = false;
+						  for (int y = ty; y < ty_lim; y++){
+							  for (int x = tx; x < tx_lim; x++){
+								  int indx = y * tilesX + x;
+								  if ((disparity_maps[scan_step][strength_index][indx] >= clt_parameters.fcorr_min_strength) &&
+										  (Math.abs(disparity_maps[scan_step][disparity_index][indx]) <= clt_parameters.fcorr_disp_diff)){
+									  samples_dx_list.add(indx);
+									  samples_dy_list.add(indx);
+//									  if ((indx == 43345) && (pair == 0)) {
+									  if ((debugLevel > 0) && (indx == dbg_tile) && (pair == dbg_pair)) {
+										  System.out.println("process_fine_corr(): scan = "+ scan_step+" pair = "+pair+" indx = "+indx+" tx="+tx+" ty="+ty+" x="+x+" y="+y);
+										  dbg = true;
+									  }
+								  }
+							  }
+						  }
+						  // Now sort according to mismatches (consider both dy and dx
+						  
+						  Collections.sort(samples_dx_list, new Comparator<Integer>() {
+							  @Override
+							  public int compare(Integer lhs, Integer rhs) {
+								  // -1 - less than, 1 - greater than, 0 - equal, all inverted for descending
+								  double [] arr =  clt_mismatches[f_scan_step][3 * f_pair + 0];  // dx
+								  return (arr[lhs] > arr[rhs]) ? -1 : (arr[lhs] < arr[rhs] ) ? 1 : 0;
+							  }
+						  });
+						  
+						  Collections.sort(samples_dy_list, new Comparator<Integer>() {
+							  @Override
+							  public int compare(Integer lhs, Integer rhs) {
+								  // -1 - less than, 1 - greater than, 0 - equal, all inverted for descending
+								  double [] arr =  clt_mismatches[f_scan_step][3 * f_pair + 1]; // dy 
+								  return (arr[lhs] > arr[rhs]) ? -1 : (arr[lhs] < arr[rhs] ) ? 1 : 0;
+							  }
+						  });
+						  if (dbg ){
+							  for (int i = 0; i < samples_dx_list.size(); i++){
+								  System.out.println (i+ ": samples_dx_list["+i+"]="+samples_dx_list.get(i)+" -> "+clt_mismatches[scan_step][3 * pair + 0][samples_dx_list.get(i)]+
+										  " samples_dy_list["+i+"]="+samples_dy_list.get(i)+" -> "+clt_mismatches[scan_step][3 * pair + 1][samples_dy_list.get(i)]);
+							  }
+							  System.out.println();
+						  }
+						  int n_remove = (int) (samples_dx_list.size() * clt_parameters.fcorr_reloutliers);
+						  if (n_remove > (samples_dx_list.size() - clt_parameters.fcorr_mintiles)) {
+							  continue; // too small sample, remove completely
+						  }
+						  int remove_end = 0;
+						  HashSet<Integer> outlier_set = new HashSet<Integer>();
+						  // TODO: remove real outliers by updating weighted averages after each removal and finding which of the ends is the worst
+						  // Or half and half ? First remove from some each end, then worst?
+						  
+						  while (outlier_set.size() < n_remove){
+							  switch (remove_end){
+							  case 0:
+								  outlier_set.add(samples_dx_list.remove(0));  // remove first
+								  break;
+							  case 1:
+								  outlier_set.add(samples_dx_list.remove(samples_dx_list.size() - 1)); // remove last
+								  break;
+							  case 2:
+								  outlier_set.add(samples_dy_list.remove(0));  // remove first
+								  break;
+							  case 3:
+								  outlier_set.add(samples_dy_list.remove(samples_dy_list.size() - 1)); // remove last
+								  break;
+							  }
+							  remove_end = (remove_end + 1) & 3;
+							  if (dbg ){
+								  System.out.println ("Removing : remove_end="+remove_end+" outlier_set.sizde()="+outlier_set.size()+
+										  ", samples_dx_list.size()="+samples_dx_list.size()+", samples_dy_list.size()="+samples_dy_list.size());
+								  
+								  System.out.println();
+							  }
+						  }
+						  if (dbg ){
+							  for (int i = 0; i < samples_dx_list.size(); i++){
+								  System.out.println (i+ ": samples_dx_list["+i+"]="+samples_dx_list.get(i)+" -> "+clt_mismatches[scan_step][3 * pair + 0][samples_dx_list.get(i)]);
+							  }
+							  System.out.println();
+						  }
+						  if (dbg ){
+							  for (int i = 0; i < samples_dy_list.size(); i++){
+								  System.out.println (i+ ": samples_dy_list["+i+"]="+samples_dy_list.get(i)+" -> "+clt_mismatches[scan_step][3 * pair + 1][samples_dy_list.get(i)]);
+							  }
+							  System.out.println();
+						  }
+						  
+//						  int n_remove = clt_parameters.fcorr_mintiles;
+						  HashSet<Integer> remaining_set = new HashSet<Integer>();
+						  remaining_set.addAll(samples_dx_list);
+						  remaining_set.removeAll(outlier_set);
+						  for (Integer nTile: remaining_set){
+							  // using mismatch str5ength. How is it different from the disparity strength used in pre-selection?
+							  double w = clt_mismatches[scan_step][3 * pair + 2][nTile];
+							  combo_mismatch[3 * pair + 0][nTile] += clt_mismatches[scan_step][3 * pair + 0][nTile] * w; 
+							  combo_mismatch[3 * pair + 1][nTile] += clt_mismatches[scan_step][3 * pair + 1][nTile] * w; 
+							  combo_mismatch[3 * pair + 2][nTile] += w;
+							  if (dbg ){
+									  System.out.println (nTile+ " -> "+clt_mismatches[scan_step][3 * pair + 0][nTile]+
+											  ", "+clt_mismatches[scan_step][3 * pair + 1][nTile]+", w="+w+
+											  ", combo_mismatch["+(3 * pair + 0)+"]["+nTile+"]="+combo_mismatch[3 * pair + 0][nTile]+
+											  ", combo_mismatch["+(3 * pair + 1)+"]["+nTile+"]="+combo_mismatch[3 * pair + 1][nTile]+
+											  ", combo_mismatch["+(3 * pair + 2)+"]["+nTile+"]="+combo_mismatch[2 * pair + 1][nTile]);
+									  System.out.println();
+									  
+							  }
+						  }
+					  }
+				  }
+			  }
+		  }
+		  for (int pair = 0; pair < 4; pair++){
+			  for (int i = 0; i < tilesX * tilesY; i++){
+				  double w = combo_mismatch[3 * pair + 2][i];
+				  if ((debugLevel > 0) && (i ==  dbg_tile) && (pair == dbg_pair)) {
+					  System.out.println("process_fine_corr(): before norm: pair = "+pair+" i = "+i+" w="+w+
+							  ", combo_mismatch["+(3 * pair + 0)+"]["+i+"] = "+combo_mismatch[3 * pair + 0][i]+
+							  ", combo_mismatch["+(3 * pair + 1)+"]["+i+"] = "+combo_mismatch[3 * pair + 1][i]);
+				  }
+				  if (w != 0.0){
+					  combo_mismatch[3 * pair + 0][i] /= w; 
+					  combo_mismatch[3 * pair + 1][i] /= w; 
+				  }
+				  if ((debugLevel > 0) && (i == dbg_tile) && (pair == dbg_pair)) {
+					  System.out.println("process_fine_corr(): before norm: pair = "+pair+" i = "+i+" w="+w+
+							  ", combo_mismatch["+(3 * pair + 0)+"]["+i+"] = "+combo_mismatch[3 * pair + 0][i]+
+							  ", combo_mismatch["+(3 * pair + 1)+"]["+i+"] = "+combo_mismatch[3 * pair + 1][i]);
+				  }
+				  
+			  }
+		  }
+		  return combo_mismatch;
+	  }
+	  
+	  
+	  public void process_fine_corr(
+			  boolean dry_run,
+			  EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  int debugLevel
+			  ) {
+	        ImagePlus imp_src = WindowManager.getCurrentImage();
+	        if (imp_src==null){
+	            IJ.showMessage("Error","12*n-layer file clt_mismatches is required");
+	            return;
+	        }
+//	        final double  pre_disp_diff = clt_parameters.fcorr_disp_diff* 2; // allow wider initially
+	        ImageStack clt_mismatches_stack= imp_src.getStack();
+		    final int tilesX = clt_mismatches_stack.getWidth(); // tp.getTilesX();
+		    final int tilesY = clt_mismatches_stack.getHeight(); // tp.getTilesY();
+		    final int nTiles =tilesX * tilesY;
+		    final int num_scans =  clt_mismatches_stack.getSize()/14;
+		    final double [][][] clt_mismatches = new double [num_scans][12][nTiles];
+		    final double [][][] disparity_maps =  new double [num_scans][2][nTiles];
+//		    final int dbg_tile = 46519; // 40926;
+//		    final int dbg_pair = 3; // 0;
+		    for (int ns = 0; ns < num_scans; ns++){
+		    	for (int pair = 0; pair <4; pair++){
+		    		float [][] fset = new float [3][];
+		    		fset[0] = (float[]) clt_mismatches_stack.getPixels((2 * pair + 0) * num_scans + ns +1);
+		    		fset[1] = (float[]) clt_mismatches_stack.getPixels((2 * pair + 1) * num_scans + ns +1); //
+		    		fset[2] = (float[]) clt_mismatches_stack.getPixels((8 + pair   ) *  num_scans + ns +1);
+		    		for (int i = 0; i < nTiles; i++){
+		    			clt_mismatches[ns][pair * 3 + 0][i] = fset[0][i];
+		    			clt_mismatches[ns][pair * 3 + 1][i] = fset[1][i];
+		    			clt_mismatches[ns][pair * 3 + 2][i] = fset[2][i];
+		    		}
+		    	}
+	    		float [][] fset = new float [2][];
+	    		fset[0] = (float[]) clt_mismatches_stack.getPixels(12 * num_scans + ns +1);
+	    		fset[1] = (float[]) clt_mismatches_stack.getPixels(13 * num_scans + ns +1); //
+	    		for (int i = 0; i < nTiles; i++){
+	    			disparity_maps[ns][0][i] = fset[0][i];
+	    			disparity_maps[ns][1][i] = fset[1][i];
+	    		}
+		    }
+			  double [][] clt_mismatch = new double [12][tilesX*tilesY];
+			  for (int pair = 0; pair < 4; pair++){
+				  for (int scan_step = 0; scan_step < clt_parameters.disp_scan_count; scan_step++){
+					  for (int i = 0; i < tilesX * tilesY; i++){
+						  double w = clt_mismatches[scan_step][3 * pair + 2][i];
+						  clt_mismatch[3 * pair + 0][i] += clt_mismatches[scan_step][3 * pair + 0][i] * w; 
+						  clt_mismatch[3 * pair + 1][i] += clt_mismatches[scan_step][3 * pair + 1][i] * w; 
+						  clt_mismatch[3 * pair + 2][i] += w; 
+					  }
+				  }
+			  }
+			  for (int pair = 0; pair < 4; pair++){
+				  for (int i = 0; i < tilesX * tilesY; i++){
+					  double w = clt_mismatch[3 * pair + 2][i];
+					  if (w != 0.0){
+						  clt_mismatch[3 * pair + 0][i] /= w; 
+						  clt_mismatch[3 * pair + 1][i] /= w; 
+					  }
+				  }
+			  }
+		    
+			  if (debugLevel > -1) {
+				  showCltMismatches(
+						  "clt_mismatches_in", // String                                   title,
+						  clt_parameters,   // EyesisCorrectionParameters.CLTParameters clt_parameters,
+						  clt_mismatches,   // double [][][]                            clt_mismatches)
+						  disparity_maps,    // double [][][]                            disparity_maps,
+						  0,                // int                                      disparity_index,
+						  1,                // int                                      strength_index,
+						  tilesX,
+						  tilesY);
+						  
+				  showCltMismatch(
+						  "clt_mismatch_in", // String                                   title,
+						  clt_parameters,   // EyesisCorrectionParameters.CLTParameters clt_parameters,
+						  clt_mismatch, // double [][][]                            clt_mismatch)
+						  tilesX,
+						  tilesY);
+			  }
+// TODO: Add/use composite disparity calculation from the multi-scan data and use it to filter?			  
+
+			  Roi roi = imp_src.getRoi();
+			  Polygon p = roi.getPolygon();
+			  for (int i = 0; i < p.npoints; i++){
+				  System.out.println(i+": "+p.xpoints[i]+"/"+p.ypoints[i]);
+			  }
+			  
+			 double [][] combo_mismatch = calcMismatchFromScan(
+					 clt_parameters, // final EyesisCorrectionParameters.CLTParameters clt_parameters,
+					 clt_mismatches, // final double [][][]                            clt_mismatches,
+					  disparity_maps, // final double [][][]                            disparity_maps,
+					  0, // final int                                      disparity_index,
+					  1, // final int                                      strength_index,
+					  tilesX, // final int                                      tilesX,
+					  tilesY, // final int                                      tilesY,
+					  debugLevel); // final int                                      debugLevel)
+ 
+			  
+			  showCltMismatch(
+					  "combo_mismatch", // String                                   title,
+					  clt_parameters,   // EyesisCorrectionParameters.CLTParameters clt_parameters,
+					  combo_mismatch, // double [][][]                            clt_mismatch)
+					  tilesX,
+					  tilesY);
+
+// Before applying smooth:
+			  if (!dry_run) {
+				  double [][][] new_corr = fine_geometry_correction(
+						  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+						  combo_mismatch, // double [][] clt_mismatch,
+						  tilesX, // int         tilesX,
+						  clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85  
+						  debugLevel); // int debugLevel)
+				  apply_fine_corr(
+						  new_corr,
+						  debugLevel + 2);
+			  }
+			  // Calculate smooth versions
+			  if (clt_parameters.fcorr_sigma > 0.0){
+				  for (int pair = 0; pair < 4; pair++){
+					  for (int i = 0; i < tilesX * tilesY; i++){
+						  double w = combo_mismatch[3 * pair + 2][i];
+						  //					  if (w != 0.0){
+						  combo_mismatch[3 * pair + 0][i] *= w; 
+						  combo_mismatch[3 * pair + 1][i] *= w; 
+					  }
+					  //				  }
+				  }
+				  DoubleGaussianBlur gb = new DoubleGaussianBlur();
+				  for (int n = 0; n < combo_mismatch.length; n++){
+					  gb.blurDouble(combo_mismatch[n], tilesX, tilesY, clt_parameters.fcorr_sigma, clt_parameters.fcorr_sigma, 0.01);
+				  }
+			  }
+			  for (int pair = 0; pair < 4; pair++){
+				  for (int i = 0; i < tilesX * tilesY; i++){
+					  double w = combo_mismatch[3 * pair + 2][i];
+					  if (w != 0.0){
+						  combo_mismatch[3 * pair + 0][i] /= w; 
+						  combo_mismatch[3 * pair + 1][i] /= w; 
+					  }
+				  }
+			  }
+			  showCltMismatch(
+					  "blured_mismatch", // String                                   title,
+					  clt_parameters,   // EyesisCorrectionParameters.CLTParameters clt_parameters,
+					  combo_mismatch, // double [][][]                            clt_mismatch)
+					  tilesX,
+					  tilesY);
+			  
+	  }
+	  
+	  
+	  
 	  
 	  public double [][] process_disparity_scan(
 			  double [][] disparities_maps,
@@ -5968,7 +6561,7 @@ public class QuadCLT {
 				  clt_parameters.clt_window,
 				  shiftXY, // 
 				  (clt_parameters.fcorr_ignore? null: this.fine_corr),
-				  clt_parameters.corr_magic_scale, // stil not understood coefficent that reduces reported disparity value.  Seems to be around 8.5 
+				  clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85 
 				  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
 				  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
 				  clt_parameters.tileX,         // final int               debug_tileX,
@@ -6067,7 +6660,7 @@ public class QuadCLT {
 				  clt_parameters.clt_window,
 				  shiftXY, // 
 				  (clt_parameters.fcorr_ignore? null: this.fine_corr),
-				  clt_parameters.corr_magic_scale, // stil not understood coefficent that reduces reported disparity value.  Seems to be around 8.5 
+				  clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85 
 				  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
 				  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
 				  clt_parameters.tileX,         // final int               debug_tileX,

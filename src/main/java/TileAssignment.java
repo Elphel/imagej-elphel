@@ -60,6 +60,9 @@ public class TileAssignment {
 	private double strengthDiffPwr; //             = 0.25;   // Strength power when calculating disparity error
 	private double strengthBestPwr; //             = 0.0;    // Strength power when calculating disparity error over best
 	private double strengthDiff9Pwr; //            = 0.5;    // Strength power when calculating disparity error for group of 9
+	private double taColSigma; //           = 1.5;    // Gaussian sigma to blur color difference between tiles along each direction
+	private double taColFraction; //        = 0.3;    // Relative amount of the blurred color difference in the mixture  
+	
 	
 	private double shrinkWeakFgnd = 0.5; //  0.5; //reduce cost of multiple weak_fgnd links of the same tile
 	private double shrinkColor = 0.5; // 0.0;    //reduce cost of surface transitions w/o color change 
@@ -91,11 +94,11 @@ public class TileAssignment {
 			this.empty =       1.0/0.35833; // 0.71715;
 			this.nolink =      1.0/0.83739; // 0.95952; // 1.50705;
 			this.swtch =       1.0/0.07604; // 0.05172; // 0.59474;
-			this.color =       1.0/3.34968; // 0.21458; // 0.19294; // 2.25763;
+			this.color =       1.0/6.69936; // 3.34968; // 0.21458; // 0.19294; // 2.25763;
 			this.diff =        1.0/0.11879; // 0.11039; // 1.94213;
 			this.diff_best =   1.0/0.02831; // 0.00628; // 0.06731;
 			this.diff9 =       1.0/0.04064; // 0.01350; // 1.09087;
-			this.weak_fgnd =   1.0/1.177746; // 0.02172; // 0.01726; // 0.22250;
+			this.weak_fgnd =   1.0/2.355492; // 1.177746; // 0.02172; // 0.01726; // 0.22250;
 			this.flaps =       1.0/0.1; // 0.00056; // 0.07229;
 			this.ml_mismatch = 1.0;
 			// ml_mismatch not yet implemented - is it needed - maybe some see-through data appears on one layer only
@@ -281,11 +284,11 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 		this.strengthBestPwr =   clt_parameters.taBestPwr;
 		this.strengthDiff9Pwr =  clt_parameters.taDiff9Pwr;
 		
+		this.taColSigma =        clt_parameters.taColSigma;
+		this.taColFraction =     clt_parameters.taColFraction;
+
 		this.cost_coeff = new TACosts (clt_parameters);
 		this.cost_coeff.mul(new TACosts (0)); // make average ~=1.0 for each used component
-		
-
-		
 		
 	}
 	public void setDispStrength(
@@ -351,8 +354,82 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 		}		      
 		ImageDtt.startAndJoin(threads);
 	}
+
+	public void blurMixTones(
+			final boolean use_sqrt,
+			final boolean weighted) // blur weighted
+	{
+		this.tone_diff_weight = blurMixTones(
+				this.tone_diff_weight, // final double [][][] tone_diffs,
+				this.taColSigma, // final double sigma,
+				this.taColFraction, // final double fraction,
+				use_sqrt,
+				weighted); // final boolean weighted)
+	}
 	
-	public void showToneDiffWeights3(){
+	public double [][][] blurMixTones(
+			final double [][][] tone_diffs,
+			final double sigma,
+			final double fraction,
+			final boolean use_sqrt,
+			final boolean weighted) // blur weighted
+	{
+		final int num_tiles = surfTilesX * surfTilesY;
+		final double [][] dir_blur =   new double [4][num_tiles];
+		final double [][] dir_weight = new double [4][num_tiles];
+		final Thread[] threads = ImageDtt.newThreadArray(ts.getThreadsMax());
+		final AtomicInteger ai = new AtomicInteger(0);
+		final double [][][] mixed_diff_weight = new double [surfTilesX * surfTilesY][8][2];
+
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int dir = ai.getAndIncrement(); dir < 4; dir = ai.getAndIncrement()) {
+						for (int nSurfTile = 0; nSurfTile < num_tiles; nSurfTile++){
+							double w = tone_diffs[nSurfTile][dir][1];
+							double dw = tone_diffs[nSurfTile][dir][0] ;
+							if (use_sqrt) dw = Math.sqrt(dw);
+							if (weighted) dw *= w;
+							dir_blur[dir][nSurfTile] = dw;
+							dir_weight[dir][nSurfTile] = w;
+						}
+						DoubleGaussianBlur gb =new DoubleGaussianBlur(); 
+						gb.blurDouble(dir_blur[dir],   surfTilesX, surfTilesY, sigma, sigma, 0.01);
+						gb.blurDouble(dir_weight[dir], surfTilesX, surfTilesY, sigma, sigma, 0.01);
+						if (weighted){
+							for (int nSurfTile = 0; nSurfTile < num_tiles; nSurfTile++){
+								if (dir_weight[dir][nSurfTile] != 0.0) dir_blur[dir][nSurfTile] /= dir_weight[dir][nSurfTile];
+							}
+						}
+						int rdir = (dir + 4) % 8;
+						double rfract = 1.0 - fraction;
+						for (int nSurfTile = 0; nSurfTile < num_tiles; nSurfTile++){
+							int nSurfTile1 = tnSurface.getNeibIndex(nSurfTile, dir);
+							if (nSurfTile1 >= 0){
+								double d;
+								if (use_sqrt){
+									d = rfract * Math.sqrt(tone_diffs[nSurfTile][dir][0]) + fraction * dir_blur[dir][nSurfTile];
+									d *= d;
+								} else {
+									d =rfract * tone_diffs[nSurfTile][dir][0] + fraction * dir_blur[dir][nSurfTile];
+								}
+								mixed_diff_weight[nSurfTile][dir][0] = d;
+								mixed_diff_weight[nSurfTile][dir][1] = rfract * tone_diffs[nSurfTile][dir][1] + fraction * dir_weight[dir][nSurfTile];
+								mixed_diff_weight[nSurfTile1][rdir][0] = mixed_diff_weight[nSurfTile][dir][0];
+								mixed_diff_weight[nSurfTile1][rdir][1] = mixed_diff_weight[nSurfTile][dir][1];
+							}							
+						}
+					}
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return mixed_diff_weight;
+	}
+
+	
+	
+	public void showToneDiffWeights3(String prefix){
 		String [] titles = {"diffs","sqrt","centers","weights"};
 		double [][] img_data = new double[titles.length][9 * surfTilesX * surfTilesY];
 		TileNeibs tnSurface3 = new TileNeibs( 3 * surfTilesX, 3 * surfTilesY); 
@@ -382,10 +459,10 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 			img_data[2][nSurfTile3] = sdw; 
 			img_data[3][nSurfTile3] = sw;
 		}
-		(new showDoubleFloatArrays()).showArrays(img_data,  3 * surfTilesX, 3 * surfTilesY, true, "Tone_diffs3", titles);
+		(new showDoubleFloatArrays()).showArrays(img_data,  3 * surfTilesX, 3 * surfTilesY, true, prefix+"tone_diffs3", titles);
 	}
 
-	public void showToneDiffWeights1(){
+	public void showToneDiffWeights1(String prefix){
 		double [][] img_data = new double[2][surfTilesX * surfTilesY];
 		for (int nSurfTile = 0; nSurfTile <  tone_diff_weight.length;  nSurfTile++){
 			double sdw = 0.0, sw = 0.0;
@@ -405,7 +482,7 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 			img_data[1][nSurfTile] = sw;
 		}
 		String [] titles = {"diffs","weights"};
-		(new showDoubleFloatArrays()).showArrays(img_data,  surfTilesX, surfTilesY, true, "Tone_diffs1", titles);
+		(new showDoubleFloatArrays()).showArrays(img_data,  surfTilesX, surfTilesY, true, prefix+"tone_diffs1", titles);
 	}
 	
 	
@@ -830,12 +907,13 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 			
 		} //for (int ml = 0; ml < around.length; ml++) if ((around[ml] != null) && (around[ml][8] > 0))
 		
+		// using /4.0 to maintain same value (==1.0) for half neighbors (straight edge)
 		if ((num_weak_fgnd > 0) && (shrinkWeakFgnd > 0.0)){
-			costs.weak_fgnd /= Math.pow(num_weak_fgnd, shrinkWeakFgnd);
+			costs.weak_fgnd /= Math.pow(num_weak_fgnd/4.0, shrinkWeakFgnd);
 		}
 
 		if ((num_color_sep > 0) && (shrinkColor > 0.0)){
-			costs.color /= Math.pow(num_color_sep, shrinkColor);
+			costs.color /= Math.pow(num_color_sep/4.0, shrinkColor);
 		}
 		
 		double disp_diff_lpf = 0.0, disp_diff_weight = 0.0;  // calculate LPF of the disparity signed error over all ML and 9 cells 
@@ -874,9 +952,14 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 			}
 			// now diff is for the center, weight needs to be re-calculated
 			if (strengthDiffPwr > 0.0) {
-				weight = dispStrength[ml][nSurfTile][1];
-				if (strengthDiffPwr != 1.0) {
-					weight = Math.pow(weight, strengthDiffPwr);
+				if ((dispStrength[ml] == null) || (dispStrength[ml][nSurfTile] == null)){
+					System.out.println("getTileCosts() nSurfTile = "+nSurfTile+" ml = "+ml+" BUG - null pointer");
+					weight = 1.0;
+				} else {
+					weight = dispStrength[ml][nSurfTile][1]; // null pointer
+					if (strengthDiffPwr != 1.0) {
+						weight = Math.pow(weight, strengthDiffPwr);
+					}
 				}
 			} else {
 				weight = 1.0;

@@ -55,7 +55,7 @@ public class EyesisCorrectionParameters {
   		public boolean blueProc =              true;
   		public boolean toRGB =                 true;
   		public boolean rotate =                true;
-  		public boolean crop =                  true;  // crop to the sennor size 
+  		public boolean crop =                  true;  // crop to the sensor size 
   		public int     equirectangularFormat=     0;  // 0 - 8 bit RGBA, 1 - 16 bit RGBA, 2 (32 int or 16 float!) ?, 3 - 32-bit FP RGBA. only 0, 1 and 3 currently supported
   		public double  outputRangeInt=          0.25;  // 1.0 intensity will be mapped to 65535*0.25
   		public double  outputRangeFP=          255.0; // 1.0 intensity will be saved as 255.0 (in float 32-bit mode)
@@ -2004,10 +2004,23 @@ public class EyesisCorrectionParameters {
   		public double     fine_corr_x_3 =     0.0;   // additionally shift image in port 3 in x direction
   		public double     fine_corr_y_3 =     0.0;   // additionally shift image in port 3 in y direction
   		
-  		public double     fcorr_min_stength = 0.005; // minimal correlation strength to apply fine correction
-  		public double     fcorr_disp_diff =   3.0;   // consider only tiles with absolute residual disparity lower than
+  		public double     fcorr_min_strength = 0.15 ; // 0.005 minimal correlation strength to apply fine correction
+  		public double     fcorr_disp_diff =   1.5;   // consider only tiles with absolute residual disparity lower than
   		public boolean    fcorr_quadratic =   true;  // Use quadratic polynomial for fine correction (false - only linear)
   		public boolean    fcorr_ignore =      false; // Ignore currently calculated fine correction
+
+  		public double     fcorr_inf_strength = 0.20 ; // Minimal correlation strength to use for infinity correction
+  		public double     fcorr_inf_diff =    0.2;   // Disparity half-range for infinity
+  		public boolean    fcorr_inf_quad =    true;  // Use quadratic polynomial for infinity correction (false - only linear)
+  		public boolean    fcorr_inf_vert =    false; // Correct infinity in vertical direction (false - only horizontal)
+
+  		public int        fcorr_sample_size = 32;    // Use square this size side to detect outliers
+  		public int        fcorr_mintiles =    8;     // Keep tiles only if there are more in each square 
+  		public double     fcorr_reloutliers = 0.5;  // Remove this fraction of tiles from each sample
+  		public double     fcorr_sigma =       20.0;  // Gaussian blur channel mismatch data
+  		
+  		
+  		
   		
   		public double     corr_magic_scale =  0.85;  // reported correlation offset vs. actual one (not yet understood)
   		
@@ -2366,6 +2379,9 @@ public class EyesisCorrectionParameters {
 		public double     taDiffPwr            = 0.25;   // Strength power when calculating disparity error
 		public double     taBestPwr            = 0.0;    // Strength power when calculating disparity error over best
 		public double     taDiff9Pwr           = 0.5;    // Strength power when calculating disparity error for group of 9
+		public double     taColSigma           = 1.5;    // Gaussian sigma to blur color difference between tiles along each direction
+		public double     taColFraction        = 0.3;    // Relative amount of the blurred color difference in the mixture  
+		
 		
   		public double     taCostEmpty          = 1.0;    // Cost of a tile that is not assigned
   		public double     taCostNoLink         = 1.0;    // Cost of a tile not having any neighbor in particular direction
@@ -2499,12 +2515,22 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"fine_corr_x_3",    this.fine_corr_x_3 +"");
   			properties.setProperty(prefix+"fine_corr_y_3",    this.fine_corr_y_3 +"");
 
-  			properties.setProperty(prefix+"fcorr_min_stength",this.fcorr_min_stength +"");
+  			properties.setProperty(prefix+"fcorr_min_strength",this.fcorr_min_strength +"");
   			properties.setProperty(prefix+"fcorr_disp_diff",  this.fcorr_disp_diff +"");
 			properties.setProperty(prefix+"fcorr_quadratic",  this.fcorr_quadratic+"");
 			properties.setProperty(prefix+"fcorr_ignore",     this.fcorr_ignore+"");
 
-			properties.setProperty(prefix+"corr_magic_scale", this.corr_magic_scale +"");
+  			properties.setProperty(prefix+"fcorr_inf_strength",this.fcorr_inf_strength +"");
+  			properties.setProperty(prefix+"fcorr_inf_diff",   this.fcorr_inf_diff +"");
+			properties.setProperty(prefix+"fcorr_inf_quad",   this.fcorr_inf_quad+"");
+			properties.setProperty(prefix+"fcorr_inf_vert",   this.fcorr_inf_vert+"");
+
+			properties.setProperty(prefix+"fcorr_sample_size",this.fcorr_sample_size+"");
+  			properties.setProperty(prefix+"fcorr_mintiles",   this.fcorr_mintiles+"");
+  			properties.setProperty(prefix+"fcorr_reloutliers",this.fcorr_reloutliers +"");
+  			properties.setProperty(prefix+"fcorr_sigma",      this.fcorr_sigma +"");
+
+  			properties.setProperty(prefix+"corr_magic_scale", this.corr_magic_scale +"");
   			
 			properties.setProperty(prefix+"show_textures",    this.show_textures+"");
 			properties.setProperty(prefix+"debug_filters",    this.debug_filters+"");
@@ -2830,6 +2856,8 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"taDiffPwr",        this.taDiffPwr +"");
 			properties.setProperty(prefix+"taBestPwr",        this.taBestPwr +"");
 			properties.setProperty(prefix+"taDiff9Pwr",       this.taDiff9Pwr +"");
+			properties.setProperty(prefix+"taColSigma",       this.taColSigma +"");
+			properties.setProperty(prefix+"taColFraction",    this.taColFraction +"");
 			
 			properties.setProperty(prefix+"taCostEmpty",      this.taCostEmpty +"");
 			properties.setProperty(prefix+"taCostNoLink",     this.taCostNoLink +"");
@@ -2957,10 +2985,21 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"fine_corr_x_3")!=null) this.fine_corr_x_3=Double.parseDouble(properties.getProperty(prefix+"fine_corr_x_3"));
   			if (properties.getProperty(prefix+"fine_corr_y_3")!=null) this.fine_corr_y_3=Double.parseDouble(properties.getProperty(prefix+"fine_corr_y_3"));
   			
-  			if (properties.getProperty(prefix+"fcorr_min_stength")!=null) this.fcorr_min_stength=Double.parseDouble(properties.getProperty(prefix+"fcorr_min_stength"));
+  			if (properties.getProperty(prefix+"fcorr_min_strength")!=null) this.fcorr_min_strength=Double.parseDouble(properties.getProperty(prefix+"fcorr_min_strength"));
   			if (properties.getProperty(prefix+"fcorr_disp_diff")!=null)   this.fcorr_disp_diff=Double.parseDouble(properties.getProperty(prefix+"fcorr_disp_diff"));
   			if (properties.getProperty(prefix+"fcorr_quadratic")!=null)   this.fcorr_quadratic=Boolean.parseBoolean(properties.getProperty(prefix+"fcorr_quadratic"));
   			if (properties.getProperty(prefix+"fcorr_ignore")!=null)      this.fcorr_ignore=Boolean.parseBoolean(properties.getProperty(prefix+"fcorr_ignore"));
+
+  			if (properties.getProperty(prefix+"fcorr_inf_strength")!=null) this.fcorr_inf_strength=Double.parseDouble(properties.getProperty(prefix+"fcorr_inf_strength"));
+  			if (properties.getProperty(prefix+"fcorr_inf_diff")!=null)    this.fcorr_inf_diff=Double.parseDouble(properties.getProperty(prefix+"fcorr_inf_diff"));
+  			if (properties.getProperty(prefix+"fcorr_inf_quad")!=null)    this.fcorr_inf_quad=Boolean.parseBoolean(properties.getProperty(prefix+"fcorr_inf_quad"));
+  			if (properties.getProperty(prefix+"fcorr_inf_vert")!=null)    this.fcorr_inf_vert=Boolean.parseBoolean(properties.getProperty(prefix+"fcorr_inf_vert"));
+
+  			if (properties.getProperty(prefix+"fcorr_sample_size")!=null) this.fcorr_sample_size=Integer.parseInt(properties.getProperty(prefix+"fcorr_sample_size"));
+  			if (properties.getProperty(prefix+"fcorr_mintiles")!=null)    this.fcorr_mintiles=Integer.parseInt(properties.getProperty(prefix+"fcorr_mintiles"));
+  			if (properties.getProperty(prefix+"fcorr_reloutliers")!=null) this.fcorr_reloutliers=Double.parseDouble(properties.getProperty(prefix+"fcorr_reloutliers"));
+  			if (properties.getProperty(prefix+"fcorr_sigma")!=null)       this.fcorr_sigma=Double.parseDouble(properties.getProperty(prefix+"fcorr_sigma"));
+  			
   			if (properties.getProperty(prefix+"corr_magic_scale")!=null)  this.corr_magic_scale=Double.parseDouble(properties.getProperty(prefix+"corr_magic_scale"));
 
   			if (properties.getProperty(prefix+"show_textures")!=null)      this.show_textures=Boolean.parseBoolean(properties.getProperty(prefix+"show_textures"));
@@ -3287,6 +3326,8 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"taDiffPwr")!=null)         this.taDiffPwr=Double.parseDouble(properties.getProperty(prefix+"taDiffPwr"));
   			if (properties.getProperty(prefix+"taBestPwr")!=null)         this.taBestPwr=Double.parseDouble(properties.getProperty(prefix+"taBestPwr"));
   			if (properties.getProperty(prefix+"taDiff9Pwr")!=null)        this.taDiff9Pwr=Double.parseDouble(properties.getProperty(prefix+"taDiff9Pwr"));
+  			if (properties.getProperty(prefix+"taColSigma")!=null)        this.taDiff9Pwr=Double.parseDouble(properties.getProperty(prefix+"taColSigma"));
+  			if (properties.getProperty(prefix+"taColFraction")!=null)     this.taColFraction=Double.parseDouble(properties.getProperty(prefix+"taColFraction"));
 
   			if (properties.getProperty(prefix+"taCostEmpty")!=null)       this.taCostEmpty=Double.parseDouble(properties.getProperty(prefix+"taCostEmpty"));
   			if (properties.getProperty(prefix+"taCostNoLink")!=null)      this.taCostNoLink=Double.parseDouble(properties.getProperty(prefix+"taCostNoLink"));
@@ -3429,10 +3470,21 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("X 3",                                                                     this.fine_corr_x_3,  3);
   			gd.addNumericField("Y 4",                                                                     this.fine_corr_y_3,  3);
 
-  			gd.addNumericField("Minimal correlation strength to apply fine correction",                   this.fcorr_min_stength,  3);
+  			gd.addNumericField("Minimal correlation strength to apply fine correction",                   this.fcorr_min_strength,3);
   			gd.addNumericField("Consider only tiles with absolute residual disparity lower than",         this.fcorr_disp_diff,  3);
   			gd.addCheckbox    ("Use quadratic polynomial for fine correction (false - only linear)",      this.fcorr_quadratic);
   			gd.addCheckbox    ("Ignore current calculated fine correction (use manual only)",             this.fcorr_ignore);
+
+  			gd.addNumericField("Minimal correlation strength to use for infinity correction",             this.fcorr_inf_strength,3);
+  			gd.addNumericField("Disparity half-range for infinity",                                       this.fcorr_inf_diff,  3);
+  			gd.addCheckbox    ("Use quadratic polynomial for infinity correction (false - only linear)",  this.fcorr_inf_quad);
+  			gd.addCheckbox    ("Correct infinity in vertical direction (false - only horizontal)",        this.fcorr_inf_vert);
+
+  			gd.addNumericField("Use square this size side to detect outliers",                            this.fcorr_sample_size,  0);
+  			gd.addNumericField("Keep tiles only if there are more in each square",                        this.fcorr_mintiles,     0);
+  			gd.addNumericField("Remove this fraction of tiles from each sample",                          this.fcorr_reloutliers,  3);
+  			gd.addNumericField("Gaussian blur channel mismatch data",                                     this.fcorr_sigma,        3);
+
   			gd.addNumericField("Calculated from correlation offset vs. actual one (not yet understood)",  this.corr_magic_scale,  3);
   			
   			gd.addMessage     ("--- 3D reconstruction ---");
@@ -3776,6 +3828,8 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Strength power when calculating disparity error",                                 this.taDiffPwr, 6);
   			gd.addNumericField("Strength power when calculating disparity error over best",                       this.taBestPwr, 6);
   			gd.addNumericField("Strength power when calculating disparity error for group of 9",                  this.taDiff9Pwr, 6);
+  			gd.addNumericField("Gaussian sigma to blur color difference between tiles along each direction",      this.taColSigma, 6);
+  			gd.addNumericField("Relative amount of the blurred color difference in the mixture",                  this.taColFraction, 6);
 
   			gd.addNumericField("Cost of a tile that is not assigned",                                             this.taCostEmpty,  6);
   			gd.addNumericField("Cost of a tile not having any neighbor in particular direction",                  this.taCostNoLink,  6);
@@ -3909,10 +3963,21 @@ public class EyesisCorrectionParameters {
   			this.fine_corr_x_3=         gd.getNextNumber();
   			this.fine_corr_y_3=         gd.getNextNumber();
   			
-  			this.fcorr_min_stength=     gd.getNextNumber();
+  			this.fcorr_min_strength=    gd.getNextNumber();
   			this.fcorr_disp_diff=       gd.getNextNumber();
   			this.fcorr_quadratic=       gd.getNextBoolean();
   			this.fcorr_ignore=          gd.getNextBoolean();
+
+  			this.fcorr_inf_strength=    gd.getNextNumber();
+  			this.fcorr_inf_diff=        gd.getNextNumber();
+  			this.fcorr_inf_quad=        gd.getNextBoolean();
+  			this.fcorr_inf_vert=        gd.getNextBoolean();
+
+  			this.fcorr_sample_size= (int)gd.getNextNumber();
+  			this.fcorr_mintiles= (int)  gd.getNextNumber();
+  			this.fcorr_reloutliers=     gd.getNextNumber();
+  			this.fcorr_sigma=           gd.getNextNumber();
+
   			this.corr_magic_scale=      gd.getNextNumber();
 
   			this.show_textures=         gd.getNextBoolean();
@@ -4240,6 +4305,9 @@ public class EyesisCorrectionParameters {
   			this.taDiffPwr=             gd.getNextNumber();
   			this.taBestPwr=             gd.getNextNumber();
   			this.taDiff9Pwr=            gd.getNextNumber();
+  			this.taColSigma=            gd.getNextNumber();
+  			this.taColFraction=         gd.getNextNumber();
+  			
 
   			this.taCostEmpty=           gd.getNextNumber();
   			this.taCostNoLink=          gd.getNextNumber();
@@ -4335,6 +4403,8 @@ public class EyesisCorrectionParameters {
   	  		gd.addNumericField("Strength power when calculating disparity error",                                 this.taDiffPwr, 6);
   	  		gd.addNumericField("Strength power when calculating disparity error over best",                       this.taBestPwr, 6);
   	  		gd.addNumericField("Strength power when calculating disparity error for group of 9",                  this.taDiff9Pwr, 6);
+  			gd.addNumericField("Gaussian sigma to blur color difference between tiles along each direction",      this.taColSigma, 6);
+  			gd.addNumericField("Relative amount of the blurred color difference in the mixture",                  this.taColFraction, 6);
 
   			gd.addNumericField("Cost of a tile that is not assigned",                                             this.taCostEmpty,  6);
   			gd.addNumericField("Cost of a tile not having any neighbor in particular direction",                  this.taCostNoLink,  6);
@@ -4411,6 +4481,8 @@ public class EyesisCorrectionParameters {
   			this.taDiffPwr=             gd.getNextNumber();
   			this.taBestPwr=             gd.getNextNumber();
   			this.taDiff9Pwr=            gd.getNextNumber();
+  			this.taColSigma=            gd.getNextNumber();
+  			this.taColFraction=         gd.getNextNumber();
 
   			this.taCostEmpty=           gd.getNextNumber();
   			this.taCostNoLink=          gd.getNextNumber();

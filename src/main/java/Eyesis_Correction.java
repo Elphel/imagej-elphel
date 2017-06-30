@@ -77,7 +77,9 @@ private Panel panel1,
          panelPostProcessing2,
          panelPostProcessing3,
          panelDct1,
-         panelClt1;
+         panelClt1,
+         panelClt2
+         ;
    JP46_Reader_camera JP4_INSTANCE=null;
 
 //   private deBayerScissors debayer_instance;
@@ -368,7 +370,7 @@ private Panel panel1,
 
 		instance = this;
 		addKeyListener(IJ.getInstance());
-		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0) + (DCT_MODE?2:0);
+		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0) + (DCT_MODE?3:0);
 		setLayout(new GridLayout(menuRows, 1));
 
 		panel6 = new Panel();
@@ -488,7 +490,7 @@ private Panel panel1,
 		if (DCT_MODE) {
 			panelClt1 = new Panel();
 			panelClt1.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
-			addButton("Setup CLT parameters",      panelClt1, color_configure);
+//			addButton("Setup CLT parameters",      panelClt1, color_configure);
 			addButton("Select CLT image",          panelClt1, color_configure);
 			addButton("CLT stack",                 panelClt1, color_process);
 			addButton("Select second CLT image",   panelClt1, color_configure);
@@ -499,18 +501,47 @@ private Panel panel1,
 			addButton("CLT process files",         panelClt1, color_process);
 			addButton("CLT process sets",          panelClt1, color_process);
 			addButton("CLT process quads",         panelClt1, color_process);
-			addButton("CLT process corr",          panelClt1, color_conf_process);
-			addButton("CLT disparity scan",        panelClt1, color_conf_process);
-			addButton("CLT reset fine corr",       panelClt1, color_stop);
-			addButton("CLT show fine corr",        panelClt1, color_configure);
-			addButton("CLT apply fine corr",       panelClt1, color_process);
-			addButton("CLT reset 3D",              panelClt1, color_stop);
-			addButton("CLT 3D",                    panelClt1, color_process);
-			addButton("CLT planes",                panelClt1, color_conf_process);
-			addButton("CLT ASSIGN",                panelClt1, color_process);
-			addButton("CLT OUT 3D",                panelClt1, color_process);
+//			addButton("CLT process corr",          panelClt1, color_conf_process);
+//			addButton("CLT disparity scan",        panelClt1, color_conf_process);
+//			addButton("CLT reset fine corr",       panelClt1, color_stop);
+//			addButton("CLT show fine corr",        panelClt1, color_configure);
+//			addButton("CLT apply fine corr",       panelClt1, color_process);
+//			addButton("CLT reset 3D",              panelClt1, color_stop);
+//			addButton("CLT 3D",                    panelClt1, color_process);
+//			addButton("CLT planes",                panelClt1, color_conf_process);
+//			addButton("CLT ASSIGN",                panelClt1, color_process);
+//			addButton("CLT OUT 3D",                panelClt1, color_process);
 						
 			add(panelClt1);
+		}
+		if (DCT_MODE) {
+			panelClt2 = new Panel();
+			panelClt2.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
+			addButton("Setup CLT parameters",      panelClt2, color_configure);
+//			addButton("Select CLT image",          panelClt2, color_configure);
+//			addButton("CLT stack",                 panelClt2, color_process);
+//			addButton("Select second CLT image",   panelClt2, color_configure);
+//			addButton("CLT correlate",             panelClt2, color_process);
+//			addButton("Create CLT kernels",        panelClt2, color_process);
+//			addButton("Read CLT kernels",          panelClt2, color_process);
+//			addButton("Reset CLT kernels",         panelClt2, color_stop);
+//			addButton("CLT process files",         panelClt2, color_process);
+//			addButton("CLT process sets",          panelClt2, color_process);
+//			addButton("CLT process quads",         panelClt2, color_process);
+			addButton("CLT process corr",          panelClt2, color_conf_process);
+			addButton("CLT disparity scan",        panelClt2, color_conf_process);
+			addButton("CLT reset fine corr",       panelClt2, color_stop);
+			addButton("CLT show fine corr",        panelClt2, color_configure);
+			addButton("CLT apply fine corr",       panelClt2, color_process);
+			addButton("CLT test fine corr",        panelClt2, color_process);
+			addButton("CLT process fine corr",     panelClt2, color_conf_process);
+			addButton("CLT reset 3D",              panelClt2, color_stop);
+			addButton("CLT 3D",                    panelClt2, color_process);
+			addButton("CLT planes",                panelClt2, color_conf_process);
+			addButton("CLT ASSIGN",                panelClt2, color_process);
+			addButton("CLT OUT 3D",                panelClt2, color_process);
+						
+			add(panelClt2);
 		}
 		pack();
 
@@ -2888,7 +2919,7 @@ private Panel panel1,
     			IJ.showMessage("Warning",msg);
     			return;
     		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
@@ -3490,7 +3521,7 @@ private Panel panel1,
     			IJ.showMessage("Warning",msg);
     			return;
     		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
@@ -3556,7 +3587,7 @@ private Panel panel1,
     			IJ.showMessage("Warning",msg);
     			return;
     		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
@@ -3606,7 +3637,7 @@ private Panel panel1,
     			IJ.showMessage("Warning",msg);
     			return;
     		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
@@ -4082,7 +4113,7 @@ private Panel panel1,
     			IJ.showMessage("Warning",msg);
     			return;
     		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
@@ -4132,7 +4163,7 @@ private Panel panel1,
     			IJ.showMessage("Warning",msg);
     			return;
     		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
@@ -4187,7 +4218,7 @@ private Panel panel1,
     			IJ.showMessage("Warning",msg);
     			return;
     		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
@@ -4273,7 +4304,7 @@ private Panel panel1,
     			IJ.showMessage("Warning",msg);
     			return;
     		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
@@ -4368,7 +4399,7 @@ private Panel panel1,
     			IJ.showMessage("Warning",msg);
     			return;
     		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
@@ -4465,7 +4496,7 @@ private Panel panel1,
     			IJ.showMessage("Warning",msg);
     			return;
     		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
@@ -4562,6 +4593,24 @@ private Panel panel1,
         QUAD_CLT.show_fine_corr();
         return;
 
+    } else if (label.equals("CLT process fine corr") || label.equals("CLT test fine corr")) {
+    	boolean dry_run = label.equals("CLT test fine corr");
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+        QUAD_CLT.process_fine_corr(
+        		dry_run, // boolean dry_run
+        		CLT_PARAMETERS,
+        		DEBUG_LEVEL);
+        return;
+
     } else if (label.equals("CLT disparity scan")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
@@ -4585,7 +4634,7 @@ private Panel panel1,
     			IJ.showMessage("Warning",msg);
     			return;
     		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
@@ -4697,7 +4746,7 @@ private Panel panel1,
     			IJ.showMessage("Warning",msg);
     			return;
     		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
@@ -4823,7 +4872,7 @@ private Panel panel1,
     			IJ.showMessage("Warning",msg);
     			return;
     		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig";
+    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
@@ -5393,12 +5442,24 @@ private Panel panel1,
      setAllProperties(properties);
     
      OutputStream os;
-	try {
-		os = new FileOutputStream(path);
-	} catch (FileNotFoundException e1) {
-   	 IJ.showMessage("Error","Failed to open configuration file: "+path);
-	 return;
-	}
+     try {
+    	 os = new FileOutputStream(path);
+     } catch (FileNotFoundException e1) {
+    	 // missing config directory
+    	 File dir = (new File(path)).getParentFile();
+    	 if (!dir.exists()){
+    		 dir.mkdirs();
+    		 try {
+    			 os = new FileOutputStream(path);
+    		 } catch (FileNotFoundException e2) {
+    			 IJ.showMessage("Error","Failed to create directory "+dir.getName()+" to save configuration file: "+path);
+    			 return;
+    		 }
+    	 } else {
+    		 IJ.showMessage("Error","Failed to open configuration file: "+path);
+    		 return;
+    	 }
+     }
      if (useXML) {
          try {
      		properties.storeToXML(os,

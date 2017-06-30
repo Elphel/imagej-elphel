@@ -3252,9 +3252,13 @@ public class TileProcessor {
 				Double.NaN,     // double kB,
 				Double.NaN);    // double fatZero)
 		
-		ta.showToneDiffWeights3();
-		ta.showToneDiffWeights1();
-
+		ta.showToneDiffWeights3("Raw_");
+		ta.showToneDiffWeights1("Raw_");
+		ta.blurMixTones(
+				false, // final boolean use_sqrt,
+				true); //final boolean weighted) // blur weighted
+		ta.showToneDiffWeights3("Mixed_");
+		ta.showToneDiffWeights1("Mixed_");
 		//		}
 
 
