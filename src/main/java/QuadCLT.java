@@ -21,6 +21,7 @@
  ** -----------------------------------------------------------------------------**
  **
  */
+import java.awt.Point;
 import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.util.ArrayList;
@@ -2844,6 +2845,7 @@ public class QuadCLT {
 			  EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
 			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
 			  final boolean    apply_corr, // calculate and apply additional fine geometry correction 
+			  final boolean    infinity_corr, // calculate and apply geometry correction at infinity 
 			  final int        threadsMax,  // maximal number of threads to launch                         
 			  final boolean    updateStatus,
 			  final int        debugLevel)
@@ -3051,6 +3053,7 @@ public class QuadCLT {
 					  convolveFFTSize, // 128 - fft size, kernel size should be size/2
 					  scaleExposures,
 					  apply_corr, // calculate and apply additional fine geometry correction 
+					  infinity_corr, // calculate and apply geometry correction at infinity 
 					  threadsMax,  // maximal number of threads to launch                         
 					  updateStatus,
 					  debugLevel);
@@ -3146,7 +3149,8 @@ public class QuadCLT {
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  int              convolveFFTSize, // 128 - fft size, kernel size should be size/2
 			  double []	       scaleExposures, // probably not needed here
-			  final boolean    apply_corr, // calculate and apply additional fine geometry correction 
+			  final boolean    apply_corr, // calculate and apply additional fine geometry correction
+			  final boolean    infinity_corr, // calculate and apply geometry correction at infinity 
 			  final int        threadsMax,  // maximal number of threads to launch                         
 			  final boolean    updateStatus,
 			  final int        debugLevel){
@@ -3410,6 +3414,44 @@ public class QuadCLT {
 							  tilesX,
 							  clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85  
 							  debugLevel); // int debugLevel)
+					  apply_fine_corr(
+							  new_corr,
+							  debugLevel + 1);
+				  }
+			  }
+			  if (infinity_corr && (disparity_map != null)){
+				  System.out.println("=== applying geometry correction coefficients to correct disparity at infinity ===");
+				  double [][] inf_ds = {
+						  disparity_map[ImageDtt.DISPARITY_INDEX_CM],
+						  disparity_map[ ImageDtt.DISPARITY_STRENGTH_INDEX]};
+				  String [] titles = {"disp_cm", "strength"};
+				  if (sdfa_instance != null){
+					  sdfa_instance.showArrays(
+							  inf_ds,
+							  tilesX,
+							  tilesY,
+							  true,
+							  name + "-inf_corr",
+							  titles );
+				  }
+				  double [][][] new_corr = infinityCorrection(
+						  clt_parameters,  // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+						  inf_ds,   // double [][] disp_strength,
+						  tilesX, // int         tilesX,
+						  clt_parameters.corr_magic_scale, // double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
+						  debugLevel + 1); // int debugLevel)
+				  
+				    if (debugLevel > -1){
+				    	System.out.println("Ready to apply infinity correction");
+				    	show_fine_corr(
+				    			new_corr, // double [][][] corr,
+				    			"");// String prefix)
+
+				    }
+				  
+				  
+				  
+				  if (debugLevel > 100) {				  
 					  apply_fine_corr(
 							  new_corr,
 							  debugLevel + 1);
@@ -3931,7 +3973,7 @@ public class QuadCLT {
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  double [][] clt_mismatch,
 			  int         tilesX,
-			  double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
+			  double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 0.85 
 			  int debugLevel)
 	  {
 		  // TODO: update the following indices when format of the arrays will change (removed unneeded data)
@@ -4079,8 +4121,214 @@ public class QuadCLT {
 		  }
 		  return coeff_full;
 	  }
-	  
-	  
+	  /**
+	   * Calculate quadratic polynomials for each subcamera X/Y correction to match disparity = 0 at infinity
+	   * @param clt_parameters CLT parameters
+	   * @param disp_strength array of a single or multiple disparity/strength pairs (0,2, .. - disparity,
+	   *  1,3,.. - corresponding strengths
+	   * @param tilesX number of tiles in each data line
+	   * @param magic_coeff still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85 
+	   * @param debugLevel debug level
+	   * @return per sub-camera, per direction (x,y) 6 quadratic polynomial coefficients, same format as fine_geometry_correction()
+	   */
+	  public double [][][] infinityCorrection(
+			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  double [][] disp_strength,
+			  int         tilesX,
+			  double      magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
+			  int debugLevel)
+	  {
+		  ArrayList<Point> samples_list = new ArrayList<Point>();
+		  final int numTiles =            disp_strength[0].length;
+		  final int tilesY =              numTiles/tilesX;
+		  for (int num_set = 0; num_set < disp_strength.length/2; num_set++){
+			  int disp_index = 2 * num_set;
+			  int str_index = 2 * num_set+1;
+			  for (int nTile = 0; nTile < numTiles; nTile++){
+				  if ((disp_strength[str_index][nTile] >= clt_parameters.fcorr_inf_strength) && 
+						  (Math.abs(disp_strength[disp_index][nTile]) < clt_parameters.fcorr_inf_diff)){
+					  samples_list.add(new Point(num_set, nTile));
+				  }
+			  }
+			  
+		  }
+		  PolynomialApproximation pa = new PolynomialApproximation();
+		  double thresholdLin = 1.0E-20;  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
+		  double thresholdQuad = 1.0E-30; // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+		  double [][][] mdata;
+		  if (clt_parameters.fcorr_inf_vert) {
+			  mdata = new double[samples_list.size()][3][];
+		  } else {
+			  mdata = new double [8][samples_list.size()][3];
+		  }
+		  int indx = 0;
+		  for (Point p: samples_list){
+			  int tileX = p.y % tilesX;
+			  int tileY = p.y / tilesX;
+			  double centerX = tileX * tp.getTileSize() + tp.getTileSize()/2;// - shiftX;
+			  double centerY = tileY * tp.getTileSize() + tp.getTileSize()/2;//- shiftY;
+			  double [][] centersXY_disp = geometryCorrection.getPortsCoordinates(
+					  centerX,
+					  centerY,
+					  disp_strength[2 * p.x + 0][p.y]/magic_coeff); // disparity
+			  double [][] centersXY_inf = geometryCorrection.getPortsCoordinates(
+					  centerX,
+					  centerY,
+					  0.0); // disparity
+			  for (int i = 0; i < centersXY_disp.length;i++){
+				  centersXY_disp[i][0] -= centersXY_inf[i][0];
+				  centersXY_disp[i][1] -= centersXY_inf[i][1];
+			  }
+			  if (clt_parameters.fcorr_inf_vert) {
+				  mdata[indx][0] = new double [2];
+				  mdata[indx][0][0] =  (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
+				  mdata[indx][0][1] =  (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
+				  mdata[indx][1] = new double [8];
+				  for (int n = 0; n < 8; n++){
+//					  mdata[indx][1][n] =   centersXY_disp[n / 2][n % 2];
+					  mdata[indx][1][n] =   -centersXY_disp[n / 2][n % 2];
+				  }
+				  mdata[indx][2] = new double [1];
+				  mdata[indx][2][0] =  disp_strength[2 * p.x + 1][p.y]; // strength
+
+			  } else {
+				  for (int n = 0; n < 8; n++){
+					  mdata[n][indx][0] = (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
+//					  mdata[n][indx][1] = centersXY_disp[n / 2][n % 2];
+					  mdata[n][indx][1] = -centersXY_disp[n / 2][n % 2];
+					  mdata[n][indx][2] = disp_strength[2 * p.x + 1][p.y]; // strength
+				  }
+			  }
+			  indx ++;
+		  }
+		  double [][] coeffs = new double[8][6];
+		  if (clt_parameters.fcorr_inf_vert){
+			  double [][] approx2d = pa.quadraticApproximation(
+					  mdata,
+					  !clt_parameters.fcorr_inf_quad, // boolean forceLinear,  // use linear approximation
+					  thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
+					  thresholdQuad,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+					  debugLevel);
+			  for (int n = 0; n < 8; n++){
+				  if (approx2d[n].length == 6) {
+					  coeffs[n] = approx2d[n];
+				  } else {
+					  for (int i = 0; i < 3; i++){
+						  coeffs[n][3+i] = approx2d[n][i];
+					  }
+				  }
+			  }
+//			  disparity_approximation = coeffs[0];
+		  } else {
+			  for (int n = 0; n < 8; n++){
+				  double [] approx1d = pa.polynomialApproximation1d(mdata[n], clt_parameters.fcorr_inf_quad ? 2 : 1);
+				  //			  disparity_approximation = new double[6];
+				  coeffs[n][5] = approx1d[0];
+				  coeffs[n][3] = approx1d[1];
+				  if (approx1d.length > 2){
+					  coeffs[n][0] = approx1d[2];
+				  }
+			  }
+			  
+		  }
+		  
+		  double [][][] inf_corr = new double [4][2][];
+		  for (int n = 0; n < 8; n++){
+			  inf_corr[n / 2][n % 2] = coeffs[n];
+		  }		  
+
+		  if (debugLevel > 0) {
+			  indx = 0;
+			  for (Point p: samples_list){
+				  int tileX = p.y % tilesX;
+				  int tileY = p.y / tilesX;
+				  if (clt_parameters.fcorr_inf_vert) {
+					  mdata[indx][0] = new double [2];
+					  mdata[indx][0][0] =  (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
+					  mdata[indx][0][1] =  (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
+					  mdata[indx][1] = new double [1];
+					  mdata[indx][1][0] =  disp_strength[2 * p.x + 0][p.y]/magic_coeff; // disparity
+					  mdata[indx][2][0] =  disp_strength[2 * p.x + 1][p.y]; // strength
+
+				  } else {
+						  mdata[0][indx][0] = (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
+						  mdata[0][indx][1] = disp_strength[2 * p.x + 0][p.y]/magic_coeff; // disparity
+						  mdata[0][indx][2] = disp_strength[2 * p.x + 1][p.y]; // strength
+				  }
+				  indx ++;
+			  }
+			  
+			  coeffs = new double[1][6];
+			  if (clt_parameters.fcorr_inf_vert){
+				  double[][] approx2d = pa.quadraticApproximation(
+						  mdata,
+						  !clt_parameters.fcorr_inf_quad, // boolean forceLinear,  // use linear approximation
+						  thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
+						  thresholdQuad,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+						  debugLevel); {
+							  
+						  }
+				  if (approx2d[0].length == 6) {
+					  coeffs = approx2d;
+				  } else {
+					  for (int i = 0; i < 3; i++){
+						  coeffs[0][3+i] = approx2d[0][i];
+					  }
+				  }
+//				  disparity_approximation = coeffs[0];
+			  } else {
+				  double [] approx1d = pa.polynomialApproximation1d(mdata[0], clt_parameters.fcorr_inf_quad ? 2 : 1);
+				  //			  disparity_approximation = new double[6];
+				  coeffs[0][5] = approx1d[0];
+				  coeffs[0][3] = approx1d[1];
+				  if (approx1d.length > 2){
+					  coeffs[0][0] = approx1d[2];
+				  }
+				  
+			  }
+			  
+			  String [] titles = {"disparity","approx","diff", "strength"};
+			  double [][] dbg_img = new double [titles.length][numTiles];
+			  for (int nTile = 0; nTile < numTiles; nTile++){
+				  int tileX = nTile % tilesX;
+				  int tileY = nTile / tilesX;
+				  double x =  (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
+				  double y =  (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
+				  dbg_img[1][nTile] =
+						  coeffs[0][0] * x * x +
+						  coeffs[0][1] * y * y +
+						  coeffs[0][2] * x * y +
+						  coeffs[0][3] * x +
+						  coeffs[0][4] * y +
+						  coeffs[0][5];
+			  }
+
+			  for (Point p: samples_list){
+				  dbg_img[0][p.y] += disp_strength[2 * p.x][p.y] * disp_strength[2 * p.x + 1][p.y];
+				  dbg_img[3][p.y] += disp_strength[2 * p.x + 1][p.y];
+			  }
+			  for (int nTile = 0; nTile < numTiles; nTile++) {
+				  if (dbg_img[3][nTile] > 0.0) {
+					  dbg_img[0][nTile] /=dbg_img[3][nTile];
+				  } else {
+					  dbg_img[0][nTile] = Double.NaN;
+				  }
+			  }
+			  
+			  for (int nTile = 0; nTile < numTiles; nTile++) {
+				  if (dbg_img[3][nTile] > 0.0) {
+					  dbg_img[2][nTile] = dbg_img[0][nTile] - dbg_img[1][nTile];
+				  } else {
+					  dbg_img[2][nTile] = Double.NaN;
+				  }
+			  }
+
+			  (new showDoubleFloatArrays()).showArrays(dbg_img, tilesX, tilesY, true, "infinityCorrection", titles);
+
+
+		  }
+		  return inf_corr;
+	  }	  
 	  
 	  
 	  public void apply_fine_corr(
@@ -4818,7 +5066,52 @@ public class QuadCLT {
 		  return combo_mismatch;
 	  }
 	  
-	  
+	  public void process_infinity_corr(
+			  EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  int debugLevel
+			  ) {
+	        ImagePlus imp_src = WindowManager.getCurrentImage();
+	        if (imp_src==null){
+	            IJ.showMessage("Error","2*n-layer file with disparities/strengthspairs measured at infinity is required");
+	            return;
+	        }
+	        ImageStack disp_strength_stack= imp_src.getStack();
+		    final int tilesX = disp_strength_stack.getWidth(); // tp.getTilesX();
+		    final int tilesY = disp_strength_stack.getHeight(); // tp.getTilesY();
+		    final int nTiles =tilesX * tilesY;
+		    final int num_scans =  disp_strength_stack.getSize()/2;
+		    final double [][] inf_disp_strength = new double [2 * num_scans][nTiles];
+		    for (int n = 0; n <  disp_strength_stack.getSize(); n++){
+	    		float [] fpixels = (float[]) disp_strength_stack.getPixels(n +1);
+	    		for (int i = 0; i < nTiles; i++){
+	    			inf_disp_strength[n][i] = fpixels[i];
+	    		}
+		    }
+		    if (debugLevel > -1){
+		    	System.out.println("process_infinity_corr(): proocessing "+num_scans+" disparity/strength pairs");
+		    }
+		    double [][][] new_corr = infinityCorrection(
+		    		clt_parameters,  // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+		    		inf_disp_strength,   // double [][] disp_strength,
+		    		tilesX, // int         tilesX,
+		    		clt_parameters.corr_magic_scale, // double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
+		    		debugLevel + 1); // int debugLevel)
+
+		    if (debugLevel > -1){
+		    	System.out.println("process_infinity_corr(): ready to apply infinity correction");
+		    	show_fine_corr(
+		    			new_corr, // double [][][] corr,
+		    			"");// String prefix)
+
+		    }
+
+		    if (debugLevel > -100){
+		    	apply_fine_corr(
+		    			new_corr,
+		    			debugLevel + 2);
+		    }
+	        
+	  }	  
 	  public void process_fine_corr(
 			  boolean dry_run,
 			  EyesisCorrectionParameters.CLTParameters clt_parameters,
@@ -4901,11 +5194,12 @@ public class QuadCLT {
 // TODO: Add/use composite disparity calculation from the multi-scan data and use it to filter?			  
 
 			  Roi roi = imp_src.getRoi();
-			  Polygon p = roi.getPolygon();
-			  for (int i = 0; i < p.npoints; i++){
-				  System.out.println(i+": "+p.xpoints[i]+"/"+p.ypoints[i]);
+			  if (roi != null) {
+				  Polygon p = roi.getPolygon();
+				  for (int i = 0; i < p.npoints; i++){
+					  System.out.println(i+": "+p.xpoints[i]+"/"+p.ypoints[i]);
+				  }
 			  }
-			  
 			 double [][] combo_mismatch = calcMismatchFromScan(
 					 clt_parameters, // final EyesisCorrectionParameters.CLTParameters clt_parameters,
 					 clt_mismatches, // final double [][][]                            clt_mismatches,

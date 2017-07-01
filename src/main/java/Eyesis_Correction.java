@@ -535,6 +535,8 @@ private Panel panel1,
 			addButton("CLT apply fine corr",       panelClt2, color_process);
 			addButton("CLT test fine corr",        panelClt2, color_process);
 			addButton("CLT process fine corr",     panelClt2, color_conf_process);
+			addButton("CLT infinity corr",         panelClt2, color_conf_process);
+			addButton("CLT ext infinity corr",     panelClt2, color_conf_process);
 			addButton("CLT reset 3D",              panelClt2, color_stop);
 			addButton("CLT 3D",                    panelClt2, color_process);
 			addButton("CLT planes",                panelClt2, color_conf_process);
@@ -4472,8 +4474,9 @@ private Panel panel1,
         return;
         
 
-    } else if (label.equals("CLT process corr") || label.equals("CLT apply fine corr")) {
-    	boolean apply_corr = label.equals("CLT apply fine corr"); 
+    } else if (label.equals("CLT process corr") || label.equals("CLT apply fine corr") || label.equals("CLT infinity corr")) {
+    	boolean apply_corr = label.equals("CLT apply fine corr");
+    	boolean infinity_corr = label.equals("CLT infinity corr");
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
         if (QUAD_CLT == null){
@@ -4556,6 +4559,7 @@ private Panel panel1,
         		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
         		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
         		apply_corr,
+        		infinity_corr, // calculate and apply geometry correction at infinity         		
         		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
@@ -4611,6 +4615,25 @@ private Panel panel1,
         		DEBUG_LEVEL);
         return;
 
+    } else if (label.equals("CLT ext infinity corr")) {
+//    	boolean dry_run = label.equals("CLT test fine corr");
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+        QUAD_CLT.process_infinity_corr(
+        		CLT_PARAMETERS,
+        		DEBUG_LEVEL);
+        return;
+
+        
+        
     } else if (label.equals("CLT disparity scan")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
