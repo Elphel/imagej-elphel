@@ -578,8 +578,10 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 	{
 		if ((dispStrength[ml] == null) || (dispStrength[ml][nSurfTile] == null)) {
 				String msg="dispDiff(): no data for ml="+ml+", nSurfTile="+nSurfTile+", ns="+ns;
+				System.out.println(msg);
+				return Double.NaN;
 //				IJ.showMessage(msg);
-				throw new IllegalArgumentException (msg);
+//				throw new IllegalArgumentException (msg);
 		}
 		double dm = dispStrength[ml][nSurfTile][0];
 		double ds = ts.getTileData()[nSurfTile][ns].getDisparity();
