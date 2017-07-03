@@ -25,7 +25,24 @@ import java.util.ArrayList;
  */
 
 public class AlignmentCorrection {
+	static int NUM_SLICES = 10; // disp, strength, dx0, dy0, dx1, dy1, dx2, dy2, dx3, dy3), dx0, dx1, dy2, dy3 are not used now
+
 	QuadCLT qc;
+	
+	  public class Sample{
+		  public int series;
+		  public int tile;
+		  public double weight;
+		  Sample(int series, int tile, double weight) {
+			  this.series = series;
+			  this.tile =  tile;
+			  this.weight = weight;
+			  
+		  }
+	  }
+	
+	
+	
 	AlignmentCorrection (QuadCLT qc){
 		this.qc = qc;
 	}
@@ -117,7 +134,9 @@ public class AlignmentCorrection {
 
 			}
 		}
-		return infinityCorrection(
+
+		ArrayList<Sample> samples_list = selectInfinityTiles(
+				clt_parameters.fcorr_inf_vert,// final boolean use_vertical,
 				min_strength,
 				max_diff,
 				max_iterations,
@@ -128,11 +147,54 @@ public class AlignmentCorrection {
 				tilesX,
 				magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
 				debugLevel);
+		double [][][] disparity_corr_coefficiants = infinityCorrection(
+				clt_parameters.fcorr_inf_vert,// final boolean use_vertical,
+				//				min_strength,
+				//				max_diff,
+				//				max_iterations,
+				//				max_coeff_diff,
+				//				far_pull, //  = 0.2; // 1; //  0.5;
+				clt_parameters,
+				disp_strength,
+				samples_list,
+				tilesX,
+				magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
+				debugLevel);
+	    if (debugLevel > -1){
+	    	System.out.println("infinityCorrection(): coefficient increments from infinityCorrection");
+	    	show_fine_corr(
+	    			disparity_corr_coefficiants, // double [][][] corr,
+	    			"");// String prefix)
+	    }
+	    if (debugLevel > -100) { // temporary disabled
+	    	double [][][] mismatch_corr_coefficiants = infinityMismatchCorrection(
+	    			clt_parameters.fcorr_quadratic,// final boolean use_quadratic,
+	    			clt_parameters.fcorr_inf_vert,// final boolean use_vertical,
+	    			clt_parameters,
+	    			disp_strength,
+	    			samples_list,
+	    			tilesX,
+	    			magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
+	    			debugLevel);
+	    	if (debugLevel > -1){
+	    		System.out.println("infinityCorrection(): coefficient increments from infinityMismatchCorrection");
+	    		show_fine_corr(
+	    				mismatch_corr_coefficiants, // double [][][] corr,
+	    				"");// String prefix)
+	    	}
+	    	for (int i = 0; i < disparity_corr_coefficiants.length; i++){
+	    		for (int j = 0; j < disparity_corr_coefficiants[i].length; j++){
+	    			for (int k = 0; k < disparity_corr_coefficiants[i][j].length; k++){
+	    				disparity_corr_coefficiants[i][j][k] += mismatch_corr_coefficiants[i][j][k];
+	    			}
+	    		}
+	    	}
+	    }
+		return disparity_corr_coefficiants;
 	}
-
-
+	
 	/**
-	 * Calculate quadratic polynomials for each subcamera X/Y correction to match disparity = 0 at infinity
+	 * Select infinity tiles from a single or multiple image sets
 	 * Next parameters are made separate to be able to modify them between different runs keeping clt_parameters
 	 * @param min_strength minimal correlation strength to use tile
 	 * @param max_diff maximal disparity difference between tiles and previous approximation to use tiles
@@ -147,7 +209,8 @@ public class AlignmentCorrection {
 	 * @param debugLevel debug level
 	 * @return per sub-camera, per direction (x,y) 6 quadratic polynomial coefficients, same format as fine_geometry_correction()
 	 */
-	public double [][][] infinityCorrection(
+	public ArrayList<Sample> selectInfinityTiles(
+			final boolean use_vertical,
 			final double min_strength,
 			final double max_diff,
 			final int max_iterations,
@@ -166,18 +229,6 @@ public class AlignmentCorrection {
 		double thresholdLin = 1.0E-20;  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
 		double thresholdQuad = 1.0E-30; // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
 		double [] disp_surface = new double[numTiles];
-		//		  double [] corr_weight = new double [numTiles]; // reduce weight for far tiles (by more than range farther than surface)
-		class Sample{
-			int series;
-			int tile;
-			double weight;
-			Sample(int series, int tile, double weight) {
-				this.series = series;
-				this.tile =  tile;
-				this.weight = weight;
-
-			}
-		}
 		ArrayList<Sample> samples_list = new ArrayList<Sample>();
 		for (int pass = 0; pass < max_iterations; pass++){
 			for (int nTile = 0; nTile < numTiles; nTile++){
@@ -195,9 +246,9 @@ public class AlignmentCorrection {
 			}
 
 			samples_list.clear();
-			for (int num_set = 0; num_set < disp_strength.length/2; num_set++){
-				int disp_index = 2 * num_set;
-				int str_index = 2 * num_set+1;
+			for (int num_set = 0; num_set < disp_strength.length/NUM_SLICES; num_set++){
+				int disp_index = NUM_SLICES * num_set;
+				int str_index = NUM_SLICES * num_set + 1;
 				for (int nTile = 0; nTile < numTiles; nTile++){
 					if ((disp_strength[str_index][nTile] > min_strength) && 
 							//							  (Math.abs(disp_strength[disp_index][nTile] - disp_surface[nTile]) < max_diff)){
@@ -212,7 +263,7 @@ public class AlignmentCorrection {
 				}
 			}
 			double [][][] mdata;
-			if (clt_parameters.fcorr_inf_vert) {
+			if (use_vertical) {
 				mdata = new double[samples_list.size()][3][];
 			} else {
 				mdata = new double [1][samples_list.size()][3];
@@ -222,7 +273,7 @@ public class AlignmentCorrection {
 			for (Sample s: samples_list){
 				int tileX = s.tile % tilesX;
 				int tileY = s.tile / tilesX;
-				if (clt_parameters.fcorr_inf_vert) {
+				if (use_vertical) {
 					mdata[indx][0] = new double [2];
 					mdata[indx][0][0] =  (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
 					mdata[indx][0][1] =  (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
@@ -281,15 +332,14 @@ public class AlignmentCorrection {
 				}
 
 				(new showDoubleFloatArrays()).showArrays(dbg_img, tilesX, tilesY, true, "infinity_"+pass, titles);
-
-
-
-
 			}
+			
+			
+			
 
 
 			double [][] coeffs = new double[1][6];
-			if (clt_parameters.fcorr_inf_vert){
+			if (use_vertical){
 				double[][] approx2d = pa.quadraticApproximation(
 						mdata,
 						!clt_parameters.fcorr_inf_quad, // boolean forceLinear,  // use linear approximation
@@ -333,11 +383,48 @@ public class AlignmentCorrection {
 				disparity_poly[i] += coeffs[0][i];
 			}			  
 		}
+		return samples_list;
+		// use last generated samples_list;
+	}
+	
+	/**
+	 * Calculate quadratic polynomials for each subcamera X/Y correction to match disparity = 0 at infinity
+	 * Next parameters are made separate to be able to modify them between different runs keeping clt_parameters
+	 * @param clt_parameters CLT parameters
+	 * @param disp_strength array of a single or multiple disparity/strength pairs (0,2, .. - disparity,
+	 *  1,3,.. - corresponding strengths
+	 * @param samples_list sample list generated by selectInfinityTiles method, each element references measurement series,
+	 * tile index and (possibly modified) weight of each tile
+	 * @param tilesX number of tiles in each data line
+	 * @param magic_coeff still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85 
+	 * @param debugLevel debug level
+	 * @return per sub-camera, per direction (x,y) 6 quadratic polynomial coefficients, same format as fine_geometry_correction()
+	 */
+	public double [][][] infinityCorrection(
+//			final double min_strength0,
+//			final double max_diff0,
+//			final int max_iterations0,
+//			final double max_coeff_diff0,
+//			final double far_pull0, //  = 0.2; // 1; //  0.5;
+			final boolean use_vertical,
+			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			double [][] disp_strength,
+			ArrayList<Sample> samples_list,
+			int         tilesX,
+			double      magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
+			int debugLevel)
+	{
+		final int numTiles =            disp_strength[0].length;
+		final int tilesY =              numTiles/tilesX;
+		double [] disparity_poly = new double[6];
+		PolynomialApproximation pa = new PolynomialApproximation();
+		double thresholdLin = 1.0E-20;  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
+		double thresholdQuad = 1.0E-30; // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
 
 		// use last generated samples_list;
 
 		double [][][] mdata;
-		if (clt_parameters.fcorr_inf_vert) {
+		if (use_vertical) {
 			mdata = new double[samples_list.size()][3][];
 		} else {
 			mdata = new double [8][samples_list.size()][3];
@@ -360,7 +447,7 @@ public class AlignmentCorrection {
 				centersXY_disp[i][0] -= centersXY_inf[i][0];
 				centersXY_disp[i][1] -= centersXY_inf[i][1];
 			}
-			if (clt_parameters.fcorr_inf_vert) {
+			if (use_vertical) {
 				mdata[indx][0] = new double [2];
 				mdata[indx][0][0] =  (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
 				mdata[indx][0][1] =  (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
@@ -381,7 +468,7 @@ public class AlignmentCorrection {
 			indx ++;
 		}
 		double [][] coeffs = new double[8][6];
-		if (clt_parameters.fcorr_inf_vert){
+		if (use_vertical){
 			double [][] approx2d = pa.quadraticApproximation(
 					mdata,
 					!clt_parameters.fcorr_inf_quad, // boolean forceLinear,  // use linear approximation
@@ -452,12 +539,194 @@ public class AlignmentCorrection {
 				}
 			}
 
-			(new showDoubleFloatArrays()).showArrays(dbg_img, tilesX, tilesY, true, "infinityCorrection", titles);
+			(new showDoubleFloatArrays()).showArrays(dbg_img, tilesX, tilesY, true, "AC_infinityCorrection", titles);
 
 		}
 		return inf_corr;
 	}	  
 
+	/**
+	 * Correct channel mismatch (preserving disparity) using the same tiles as those for correcting disparity
+	 * at infinity
+	 * Next parameters are made separate to be able to modify them between different runs keeping clt_parameters
+	 * @param clt_parameters CLT parameters
+	 * @param disp_strength array of a single or multiple disparity/strength pairs (0,2, .. - disparity,
+	 *  1,3,.. - corresponding strengths
+	 * @param samples_list sample list generated by selectInfinityTiles method, each element references measurement series,
+	 * tile index and (possibly modified) weight of each tile
+	 * @param tilesX number of tiles in each data line
+	 * @param magic_coeff still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85 
+	 * @param debugLevel debug level
+	 * @return per sub-camera, per direction (x,y) 6 quadratic polynomial coefficients, same format as fine_geometry_correction()
+	 */
+	public double [][][] infinityMismatchCorrection(
+			final boolean use_quadratic,
+			final boolean use_vertical,
+			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			double [][] disp_strength,
+			ArrayList<Sample> samples_list,
+			int         tilesX,
+			double      magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
+			int debugLevel)
+	{
+		final int num_tiles =            disp_strength[0].length;
+		final int tilesY =              num_tiles/tilesX;
+		PolynomialApproximation pa = new PolynomialApproximation();
+		double thresholdLin = 1.0E-20;  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
+		double thresholdQuad = 1.0E-30; // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+		//		final int [] indices_mismatch = {1,4,6,9}; //   "dy0", "dy1", "dx2", "dx3"
+//		final int [] indices_mismatch = {2+1, 2+4, 2+6, 2+9}; //   "dy0", "dy1", "dx2", "dx3"
+		final int [] indices_mismatch = {2+1, 2+3, 2+4, 2+6}; //   "dy0", "dy1", "dx2", "dx3"
+
+		// use last generated samples_list;
+
+		double [][][] mdata;
+		if (use_vertical) {
+			mdata = new double[samples_list.size()][3][];
+		} else {
+			mdata = new double [indices_mismatch.length][samples_list.size()][3];
+		}
+		int indx = 0;
+		for (Sample s: samples_list){
+			int tileX = s.tile % tilesX;
+			int tileY = s.tile / tilesX;
+			if (use_vertical) {
+				// 2d optimization for 4 functions of x, y
+				mdata[indx][0] = new double [2];
+				mdata[indx][0][0] =  (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
+				mdata[indx][0][1] =  (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
+				mdata[indx][1] = new double [indices_mismatch.length]; // 4
+				for (int ip = 0; ip < indices_mismatch.length; ip++) {
+					mdata[indx][1][ip] =  disp_strength[indices_mismatch[ip] + (s.series * NUM_SLICES)][s.tile];
+				}
+
+				mdata[indx][2] = new double [1];
+				mdata[indx][2][0] = s.weight; //  disp_strength[2 * p.x + 1][p.y]; // strength
+
+			} else {
+				// 4 individual 1d optimization for functions of x only
+				for (int n = 0; n < indices_mismatch.length; n++){
+					mdata[n][indx][0] = (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
+					mdata[n][indx][1] = disp_strength[indices_mismatch[n] + (s.series * NUM_SLICES)][s.tile];
+					mdata[n][indx][2] = s.weight; // disp_strength[2 * p.x + 1][p.y]; // strength
+				}
+			}
+			indx ++;
+		}
+
+		double [][] coeffs = new double[8][6];
+		if (use_vertical){
+			double [][] approx2d = pa.quadraticApproximation(
+					mdata,
+					!use_quadratic, // boolean forceLinear,  // use linear approximation
+					thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
+					thresholdQuad,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+					debugLevel);
+			for (int n = 0; n < approx2d.length; n++){
+				if (approx2d[n].length == 6) {
+					coeffs[n] = approx2d[n];
+				} else {
+					for (int i = 0; i < 3; i++){
+						coeffs[n][3+i] = approx2d[n][i];
+					}
+				}
+			}
+		} else {
+			for (int n = 0; n < mdata.length; n++){
+				double [] approx1d = pa.polynomialApproximation1d(mdata[n], use_quadratic ? 2 : 1);
+				//			  disparity_approximation = new double[6];
+				coeffs[n][5] = approx1d[0];
+				coeffs[n][3] = approx1d[1];
+				if (approx1d.length > 2){
+					coeffs[n][0] = approx1d[2];
+				}
+			}
+		}
+
+		// convert to 8 sets of coefficient for px0, py0, px1, py1, ... py3.  
+		double [][][] coeff_full = new double [4][2][6];
+		double scale = 0.5/magic_coeff;
+		for (int j = 0; j < coeffs[0].length; j++){
+			coeff_full[0][0][j] = -coeffs[2][j] * scale;
+			coeff_full[0][1][j] = -coeffs[0][j] * scale;
+			coeff_full[1][0][j] = -coeffs[3][j] * scale;
+			coeff_full[1][1][j] =  coeffs[0][j] * scale;
+			coeff_full[2][0][j] =  coeffs[2][j] * scale;
+			coeff_full[2][1][j] = -coeffs[1][j] * scale;
+			coeff_full[3][0][j] =  coeffs[3][j] * scale;
+			coeff_full[3][1][j] =  coeffs[1][j] * scale;
+		}
+		if (debugLevel > -1){
+			double [] strength = new double [num_tiles];
+			for (Sample s: samples_list){
+				strength[s.tile] = s.weight;
+			}
+			int tilesX8 = (tilesX - 1) / 8 + 1;
+			int tilesY8 = (tilesY - 1) / 8 + 1;
+			int len8 = tilesX8*tilesY8;
+			double [][] mismatch_8 = new double[11][len8];
+			for (int i = 0; i < num_tiles; i++) {
+				if (strength[i] > 0) {
+					int tileX = i % tilesX;
+					int tileY = i / tilesX;
+					int tX8 = tileX/8;
+					int tY8 = tileY/8;
+					int indx8 = tY8*tilesX8+tX8;
+					double tX =  (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
+					double tY =  (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
+					double w = strength[i];
+					for (int ip = 0; ip < 4; ip++) {
+						mismatch_8[ip][indx8] += w * disp_strength[indices_mismatch[ip]][i];
+					}
+					mismatch_8[8][indx8] += w * tX;
+					mismatch_8[9][indx8] += w * tY;
+					mismatch_8[10][indx8] += w;
+				}
+			}
+			for (int i = 0; i < len8; i++) {
+				if (mismatch_8[10][i] > 0){
+					for (int n = 0; n<4; n++){
+						mismatch_8[n][i] /= mismatch_8[10][i]; 
+					}
+					mismatch_8[8][i] /= mismatch_8[10][i]; 
+					mismatch_8[9][i] /= mismatch_8[10][i]; 
+				} else {
+					for (int n = 0; n<4; n++){
+						mismatch_8[n][i] = Double.NaN; 
+					}
+					mismatch_8[8][i] = Double.NaN; 
+					mismatch_8[9][i] = Double.NaN; 
+
+				}
+				for (int n = 0; n<4; n++){
+					double tX = mismatch_8[8][i];
+					double tY = mismatch_8[9][i];
+					//f(x,y)=A*x^2+B*y^2+C*x*y+D*x+E*y+F
+					mismatch_8[4+n][i] = (
+							coeffs[n][0]*tX*tX+
+							coeffs[n][1]*tY*tY+
+							coeffs[n][2]*tX*tY+
+							coeffs[n][3]*tX+
+							coeffs[n][4]*tY+
+							coeffs[n][5]);
+				}
+			}
+			String [] titles = {"dy0","dy1","dx2","dx3","cy0","cy1","cx2","cx3","tx","ty","w"};
+			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			sdfa_instance.showArrays(
+					mismatch_8,
+					tilesX8,
+					tilesY8,
+					true,
+					"mismatch_8",
+					titles);
+		}
+
+		return coeff_full;
+
+	}	  
+	
+	
 	public double[][] filterHistogramFar (
 			final double[][] disp_strength_in,
 			final int        smpl_side, // 8 x8 masked, 16x16 sampled
@@ -470,10 +739,13 @@ public class AlignmentCorrection {
 			final boolean    norm_center, // if there are more tiles that fit than minsamples, replace with a single equal weight
 			final int        tilesX)
 	{
-		if (disp_strength_in.length > 2){
+		if (disp_strength_in.length > NUM_SLICES){
 			final double [][] disp_strength = new double [disp_strength_in.length][];
-			for (int i = 0; i < disp_strength_in.length; i+=2){
-				double [][] ds = {disp_strength_in[i],disp_strength_in[i+1]};
+			for (int nfirst = 0; nfirst < disp_strength_in.length; nfirst += NUM_SLICES){
+				double [][] ds = new double[NUM_SLICES][]; // {disp_strength_in[i],disp_strength_in[i+1]};
+				for (int slice = 0; slice < NUM_SLICES; slice++){
+					ds[slice] = disp_strength[nfirst+slice];
+				}
 				double [][] ds_rslt = filterHistogramFar (
 						ds,
 						smpl_side, // 8 x8 masked, 16x16 sampled
@@ -485,14 +757,16 @@ public class AlignmentCorrection {
 						min_samples,
 						norm_center,
 						tilesX);
-				disp_strength[i] =   ds_rslt[0];
-				disp_strength[i+1] = ds_rslt[1];
+				for (int slice = 0; slice < NUM_SLICES; slice++){
+					disp_strength[nfirst+slice] = ds_rslt[slice];
+				}
 			}
 			return disp_strength;
 		}
+
 		final int num_tiles = disp_strength_in[0].length;
 		int tilesY = num_tiles/tilesX;
-		final double [][] disp_strength = new double [2][num_tiles];
+		final double [][] disp_strength = new double [NUM_SLICES][num_tiles];
 //		final int low_lim = -smpl_side/2;
 //		final int high_lim = 3 * smpl_side/2;
 		final DoubleGaussianBlur gb=new DoubleGaussianBlur();
@@ -555,6 +829,8 @@ public class AlignmentCorrection {
 				if (norm_center) {
 					num_samples = 0;
 					double sdw = 0.0, sw = 0.0;
+					double [] sm = new double [NUM_SLICES - 2];
+
 					for (int sY = 0; sY < smpl_side; sY++){
 						int y = tY + sY;
 						for (int sX = 0; sX < smpl_side; sX++){
@@ -564,7 +840,10 @@ public class AlignmentCorrection {
 							if (w > 0.0){
 								if (Math.abs(disp_strength_in[0][nTile] - disp_inf) < max_diff) {
 									sw += disp_strength_in[1][nTile];
-									sdw +=disp_strength_in[0][nTile] * disp_strength_in[1][nTile];
+									sdw += disp_strength_in[0][nTile] * disp_strength_in[1][nTile];
+									for (int j = 0; j < sm.length; j++){
+										sm[j] += disp_strength_in[2 + j][nTile] * disp_strength_in[1][nTile];
+									}
 									num_samples++;
 								}
 							}
@@ -574,35 +853,23 @@ public class AlignmentCorrection {
 						int nTile = tY * tilesX + tX;
 						disp_strength[0][nTile] = sdw/sw; // weighted average disparity
 						disp_strength[1][nTile] = 1.0; // equal weight
+						for (int j = 0; j < sm.length; j++){
+							disp_strength[2 + j][nTile] = sm[j]/sw;
+						}
 					}
-				} else {
+				} else { // if (norm_center) 
 					// just center tile - fits or not
 					int nTile = tY * tilesX + tX;
 					double w = disp_strength_in[1][nTile];
 					if (w > 0.0){
 						if (Math.abs(disp_strength_in[0][nTile] - disp_inf) < max_diff) {
-							disp_strength[0][nTile] = disp_strength_in[0][nTile];
-							disp_strength[1][nTile] = disp_strength_in[1][nTile];
-						}
-					}
-					
-/*					
-					for (int sY = 0; sY < smpl_side; sY++){
-						int y = tY + sY;
-						for (int sX = 0; sX < smpl_side; sX++){
-							int x = tX + sX;
-							int nTile = y * tilesX + x;
-							double w = disp_strength_in[1][nTile];
-							if (w > 0.0){
-								if (Math.abs(disp_strength_in[0][nTile] - disp_inf) < max_diff) {
-									disp_strength[0][nTile] = disp_strength_in[0][nTile];
-									disp_strength[1][nTile] = disp_strength_in[1][nTile];
-								}
+							for (int j = 0; j < disp_strength.length; j++) {
+								disp_strength[j][nTile] = disp_strength_in[j][nTile];
 							}
 						}
 					}
-*/					
-				}
+				} //if (norm_center) else
+
 			}
 		}
 		return disp_strength;
@@ -616,10 +883,13 @@ public class AlignmentCorrection {
 			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 			final int        tilesX)
 	{
-		if (disp_strength_in.length > 2){
+		if (disp_strength_in.length > NUM_SLICES){
 			final double [][] disp_strength = new double [disp_strength_in.length][];
-			for (int i = 0; i < disp_strength_in.length; i+=2){
-				double [][] ds = {disp_strength_in[i],disp_strength_in[i+1]};
+			for (int nfirst = 0; nfirst < disp_strength_in.length; nfirst += NUM_SLICES){
+				double [][] ds = new double[NUM_SLICES][]; // {disp_strength_in[i],disp_strength_in[i+1]};
+				for (int slice = 0; slice < NUM_SLICES; slice++){
+					ds[slice] = disp_strength[nfirst+slice];
+				}
 				double [][] ds_rslt = filterDisparityStrength (
 						ds,
 						strength_floor,
@@ -628,20 +898,25 @@ public class AlignmentCorrection {
 						smplNum, //         = 3;      // Number after removing worst (should be >1)
 						smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 						tilesX);
-				disp_strength[i] =   ds_rslt[0];
-				disp_strength[i+1] = ds_rslt[1];
+				for (int slice = 0; slice < NUM_SLICES; slice++){
+					disp_strength[nfirst+slice] = ds_rslt[slice];
+				}
 			}
 			return disp_strength;
 		}
 
 		final int num_tiles = disp_strength_in[0].length;
 		int tilesY = num_tiles/tilesX;
-		final double [][] disp_strength = new double [2][num_tiles];
+		final double [][] disp_strength = new double [NUM_SLICES][num_tiles]; // disp, strength, mismatches
 		final int index_shift  = (smplSide /2) * (tilesX + 1) ; // diagonal shift
 		final int smplLen = smplSide*smplSide;
 
 		final double [] weight = new double [num_tiles]; // modified weight
 		final double [] disp = disp_strength_in[0];
+		final double [][] mismatch = new double [NUM_SLICES-2][];
+		for (int i = 0; i < mismatch.length; i++) {
+			mismatch[i] = disp_strength_in[i + 2];
+		}
 		final double smlVar = smplRms * smplRms; // maximal variance (weighted average of the squared difference from the mean)
 		for (int nTile = 0; nTile < num_tiles; nTile++){
 			double w = disp_strength_in[1][nTile] - strength_floor;
@@ -656,6 +931,7 @@ public class AlignmentCorrection {
 				boolean [] smpl_sel = new boolean [smplLen];
 				double [] smpl_d =  new double [smplLen];
 				double [] smpl_w =  new double [smplLen];
+				double [][] smpl_mismatch = new double [NUM_SLICES-2][smplLen];
 				for (int sy = 0; sy < smplSide; sy++){
 					int y = tY + sy; //  - smpl_center;
 					for (int sx = 0; sx < smplSide; sx++){
@@ -666,6 +942,9 @@ public class AlignmentCorrection {
 							smpl_sel[indxs] = true;
 							smpl_d[indxs] = disp[indx]; 
 							smpl_w[indxs] = weight[indx]; 
+							for (int i = 0; i < smpl_mismatch.length; i++){
+								smpl_mismatch[i][indxs] = mismatch[i][indx];
+							}
 							num_in_sample ++;
 						}
 					}
@@ -673,15 +952,23 @@ public class AlignmentCorrection {
 				if (num_in_sample >= smplNum){ // try, remove worst
 					// calculate 
 					double sd=0.0, sd2 = 0.0, sw = 0.0;
+					double [] sm = new double [mismatch.length];
 					for (int i = 0; i < smplLen; i++) if (smpl_sel[i]) {
 						double dw = smpl_d[i] * smpl_w[i];
 						sd += dw;
 						sd2 += dw * smpl_d[i];
 						sw +=       smpl_w[i];
+						for (int j = 0; j < sm.length; j++){
+							sm[j] += smpl_mismatch[j][i] * smpl_w[i];
+						}
 					}
 					// remove worst, update sd2, sd and sw
 					while ((num_in_sample > smplNum) && (sw > 0)){ // try, remove worst
 						double d_mean = sd/sw;
+//						double [] mismatch_mean = new double[sm.length];
+//						for (int j = 0; j < sm.length; j++){
+//							mismatch_mean[j] = sm[j]/sw;
+//						}
 						int iworst = -1;
 						double dworst2 = 0.0;
 						for (int i = 0; i < smplLen; i++) if (smpl_sel[i]) {
@@ -702,6 +989,10 @@ public class AlignmentCorrection {
 						sd -= dw; 
 						sd2 -= dw * smpl_d[iworst];
 						sw -=       smpl_w[iworst];
+						
+						for (int j = 0; j < sm.length; j++){
+							sm[j] -= smpl_mismatch[j][iworst] * smpl_w[iworst];
+						}
 						num_in_sample --;
 					}
 					// calculate variance of the remaining set
@@ -713,6 +1004,9 @@ public class AlignmentCorrection {
 							int indx = tY*tilesX + tX + index_shift;
 							disp_strength[0][indx] = sd;
 							disp_strength[1][indx] = sw;
+							for (int j = 0; j < sm.length; j++){
+								disp_strength[2 + j][indx] = sm[j]/sw ;
+							}
 						}
 					} else {
 						num_in_sample = 0;
@@ -723,5 +1017,21 @@ public class AlignmentCorrection {
 		}
 		return disp_strength;
 	}
+	  public void show_fine_corr(
+			  double [][][] corr,
+			  String prefix)
+	  {
+		  String sadd = (prefix.length() > 0)?(prefix+" "):""; 
 
+		  for (int n = 0; n< corr.length; n++){
+			  for (int i = 0; i< corr[n].length; i++){
+				  System.out.print(sadd+"port"+n+": "+QuadCLT.fine_corr_dir_names[i]+": ");
+				  for (int j = 0; j< corr[n][i].length; j++){
+					  System.out.print(QuadCLT.fine_corr_coeff_names[j]+"="+corr[n][i][j]+" ");
+				  }
+				  System.out.println();
+			  }
+		  }
+	  }
+	
 }

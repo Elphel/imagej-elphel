@@ -4466,7 +4466,7 @@ public class QuadCLT {
 				  }
 			  }
 
-			  (new showDoubleFloatArrays()).showArrays(dbg_img, tilesX, tilesY, true, "infinityCorrection", titles);
+			  (new showDoubleFloatArrays()).showArrays(dbg_img, tilesX, tilesY, true, "QC_infinityCorrection", titles);
 
 		  }
 		  return inf_corr;
@@ -5221,8 +5221,8 @@ public class QuadCLT {
 		    final int tilesX = disp_strength_stack.getWidth(); // tp.getTilesX();
 		    final int tilesY = disp_strength_stack.getHeight(); // tp.getTilesY();
 		    final int nTiles =tilesX * tilesY;
-		    final int num_scans =  disp_strength_stack.getSize()/2;
-		    final double [][] inf_disp_strength = new double [2 * num_scans][nTiles];
+		    final int num_scans =  disp_strength_stack.getSize()/AlignmentCorrection.NUM_SLICES;
+		    final double [][] inf_disp_strength = new double [AlignmentCorrection.NUM_SLICES * num_scans][nTiles];
 		    for (int n = 0; n <  disp_strength_stack.getSize(); n++){
 	    		float [] fpixels = (float[]) disp_strength_stack.getPixels(n +1);
 	    		for (int i = 0; i < nTiles; i++){
@@ -5232,20 +5232,8 @@ public class QuadCLT {
 		    if (debugLevel > -1){
 		    	System.out.println("process_infinity_corr(): proocessing "+num_scans+" disparity/strength pairs");
 		    }
-		    /*
-		    double [][][] new_corr = infinityCorrection(
-		    		clt_parameters.fcorr_inf_strength, //  final double min_strenth,
-		    		clt_parameters.fcorr_inf_diff, // final double max_diff,
-		    		20, // 0, // final int max_iterations,
-		    		0.0001, // final double max_coeff_diff,
-		    		clt_parameters,  // EyesisCorrectionParameters.CLTParameters           clt_parameters,
-		    		inf_disp_strength,   // double [][] disp_strength,
-		    		tilesX, // int         tilesX,
-		    		clt_parameters.corr_magic_scale, // double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
-		    		debugLevel + 1); // int debugLevel)
-		    		
-*/		    		
 		    AlignmentCorrection ac = new AlignmentCorrection(this);
+		    // includes both infinity correction and mismatch correction for the same infinity tiles
 		    double [][][] new_corr = ac.infinityCorrection(
 		    		clt_parameters.fcorr_inf_strength, //  final double min_strenth,
 		    		clt_parameters.fcorr_inf_diff, // final double max_diff,
@@ -5285,33 +5273,6 @@ public class QuadCLT {
 		    			new_corr,
 		    			debugLevel + 2);
 		    }
-/*		    
-		    double [][][] new_corr1 = ac.infinityCorrection(
-		    		clt_parameters.fcorr_inf_strength, //  final double min_strenth,
-		    		clt_parameters.fcorr_inf_diff, // final double max_diff,
-		    		20, // 0, // final int max_iterations,
-		    		0.0001, // final double max_coeff_diff,
-					0.25, //   final double far_pull, //  = 0.2; // 1; //  0.5;
-					1.0, //   final double     strength_pow,
-					3, //   final int        smplSide, //        = 2;      // Sample size (side of a square)
-					5, //   final int        smplNum, //         = 3;      // Number after removing worst (should be >1)
-					0.05, //  final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-					// histogram parameters
-					8,    // final int        hist_smpl_side, // 8 x8 masked, 16x16 sampled
-					-1.0, // final double     hist_disp_min,
-					0.05, // final double     hist_disp_step,
-					40,   // final int        hist_num_bins,
-					0.1,  // final double     hist_sigma,
-					0.1,  // final double     hist_max_diff,
-					10,   // final int        hist_min_samples,
-					false, // final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with 			
-					clt_parameters,  // EyesisCorrectionParameters.CLTParameters           clt_parameters,
-		    		inf_disp_strength,   // double [][] disp_strength,
-		    		tilesX, // int         tilesX,
-		    		clt_parameters.corr_magic_scale, // double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
-		    		debugLevel + 1); // int debugLevel)
-		    
-	        */
 	  }	  
 	  public void process_fine_corr(
 			  boolean dry_run,
