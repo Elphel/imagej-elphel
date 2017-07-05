@@ -4609,10 +4609,16 @@ private Panel panel1,
         		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
         	}
         }
+/*        
         QUAD_CLT.process_fine_corr(
         		dry_run, // boolean dry_run
         		CLT_PARAMETERS,
         		DEBUG_LEVEL);
+*/        
+        QUAD_CLT.processLazyEye(
+        		CLT_PARAMETERS,
+        		DEBUG_LEVEL);
+        
         return;
 
     } else if (label.equals("CLT ext infinity corr")) {

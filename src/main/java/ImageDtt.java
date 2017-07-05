@@ -964,6 +964,7 @@ public class ImageDtt {
 			final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
                                                        // [tilesY][tilesX] should be set by caller
 			final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // transpose unapplied. null - do not calculate
+			                                           // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
 
 			final double [][]         disparity_map,   // [8][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
 			                                           // last 2 - contrast, avg/ "geometric average)
@@ -1606,11 +1607,11 @@ public class ImageDtt {
 													double yp,xp;
 													if (corr_pairs[pair][2] > 0){ // transpose - switch x <-> y
 														yp = transform_size - 1 -corr_max_XYmp[0] - disparity_map[DISPARITY_INDEX_CM][tIndex];
-														xp = transform_size - 1 -corr_max_XYmp[1]; // do not campare to average - it should be 0 anyway
+														xp = transform_size - 1 -corr_max_XYmp[1]; // do not compare to average - it should be 0 anyway
 														
 													} else {
 														xp = transform_size - 1 -corr_max_XYmp[0] - disparity_map[DISPARITY_INDEX_CM][tIndex];
-														yp = transform_size - 1 -corr_max_XYmp[1]; // do not campare to average - it should be 0 anyway
+														yp = transform_size - 1 -corr_max_XYmp[1]; // do not compare to average - it should be 0 anyway
 													}
 													double strength = tcorr_partial[pair][numcol][max_index]; // using the new location than for combined
 													clt_mismatch[3*pair + 0 ][tIndex] = xp;

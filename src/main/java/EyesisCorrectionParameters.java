@@ -2008,19 +2008,40 @@ public class EyesisCorrectionParameters {
   		public double     fcorr_disp_diff =   1.5;   // consider only tiles with absolute residual disparity lower than
   		public boolean    fcorr_quadratic =   true;  // Use quadratic polynomial for fine correction (false - only linear)
   		public boolean    fcorr_ignore =      false; // Ignore currently calculated fine correction
-
   		public double     fcorr_inf_strength = 0.20 ; // Minimal correlation strength to use for infinity correction
   		public double     fcorr_inf_diff =    0.2;   // Disparity half-range for infinity
   		public boolean    fcorr_inf_quad =    true;  // Use quadratic polynomial for infinity correction (false - only linear)
   		public boolean    fcorr_inf_vert =    false; // Correct infinity in vertical direction (false - only horizontal)
 
+//--
+  		public boolean    inf_disp_apply =   true;   // Apply disparity correction to zero at infinity 
+  		public boolean    inf_mism_apply =   true;   // Apply lazy eye correction at infinity
+  		
+  		public int        inf_iters =        20;     // Infinity extraction - maximum iterations
+  		public double     inf_final_diff =   0.0001; // Coefficients maximal increment to exit iterations
+  		public double     inf_far_pull =     0.0;    // include farther tiles than tolerance, but scale their weights
+  		
+  		// infinity filter
+  		public double     inf_str_pow =      1.0;    // Strength power for infinity filtering
+  		public int        inf_smpl_side =    3;      // Sample size (side of a square) for infinity filtering
+  		public int        inf_smpl_num =     5;      // Number after removing worst (should be >1) for infinity filtering
+  		public double     inf_smpl_rms =     0.1;    // Maximal RMS of the remaining tiles in a sample for infinity filtering
+
+  		//Histogram infinity filter
+  		public int        ih_smpl_step =     8;      // Square sample step (50% overlap) 
+  		public double     ih_disp_min =     -1.0;    // Minimal disparity
+  		public double     ih_disp_step =     0.05;   // Disparity step
+  		public int        ih_num_bins =     40;      // Number of bins
+  		public double     ih_sigma =         0.1;    // Gaussian sigma (in disparity pixels)
+  		public double     ih_max_diff =      0.1;    // Keep samples within this difference from farthest maximum
+  		public int        ih_min_samples =  10;      // Minimal number of remaining samples
+  		public boolean    ih_norm_center =  true;    // Replace samples with a single average with equal weight 			
+
+  		// old fcorr parameters, reuse?
   		public int        fcorr_sample_size = 32;    // Use square this size side to detect outliers
   		public int        fcorr_mintiles =    8;     // Keep tiles only if there are more in each square 
   		public double     fcorr_reloutliers = 0.5;  // Remove this fraction of tiles from each sample
   		public double     fcorr_sigma =       20.0;  // Gaussian blur channel mismatch data
-  		
-  		
-  		
   		
   		public double     corr_magic_scale =  0.85;  // reported correlation offset vs. actual one (not yet understood)
   		
@@ -2524,6 +2545,25 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"fcorr_inf_diff",   this.fcorr_inf_diff +"");
 			properties.setProperty(prefix+"fcorr_inf_quad",   this.fcorr_inf_quad+"");
 			properties.setProperty(prefix+"fcorr_inf_vert",   this.fcorr_inf_vert+"");
+			
+			properties.setProperty(prefix+"inf_disp_apply",   this.inf_disp_apply+"");
+			properties.setProperty(prefix+"inf_mism_apply",   this.inf_mism_apply+"");
+  			properties.setProperty(prefix+"inf_iters",        this.inf_iters+"");
+  			properties.setProperty(prefix+"inf_final_diff",   this.inf_final_diff +"");
+  			properties.setProperty(prefix+"inf_far_pull",     this.inf_far_pull +"");
+  			properties.setProperty(prefix+"inf_str_pow",      this.inf_str_pow +"");
+  			properties.setProperty(prefix+"inf_smpl_side",    this.inf_smpl_side+"");
+  			properties.setProperty(prefix+"inf_smpl_num",     this.inf_smpl_num+"");
+  			properties.setProperty(prefix+"inf_smpl_rms",     this.inf_smpl_rms +"");
+
+  			properties.setProperty(prefix+"ih_smpl_step",     this.ih_smpl_step+"");
+  			properties.setProperty(prefix+"ih_disp_min",      this.ih_disp_min +"");
+  			properties.setProperty(prefix+"ih_disp_step",     this.ih_disp_step +"");
+  			properties.setProperty(prefix+"ih_num_bins",      this.ih_num_bins+"");
+  			properties.setProperty(prefix+"ih_sigma",         this.ih_sigma +"");
+  			properties.setProperty(prefix+"ih_max_diff",      this.ih_max_diff +"");
+  			properties.setProperty(prefix+"ih_min_samples",   this.ih_min_samples+"");
+			properties.setProperty(prefix+"ih_norm_center",   this.ih_norm_center+"");
 
 			properties.setProperty(prefix+"fcorr_sample_size",this.fcorr_sample_size+"");
   			properties.setProperty(prefix+"fcorr_mintiles",   this.fcorr_mintiles+"");
@@ -2995,6 +3035,30 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"fcorr_inf_quad")!=null)    this.fcorr_inf_quad=Boolean.parseBoolean(properties.getProperty(prefix+"fcorr_inf_quad"));
   			if (properties.getProperty(prefix+"fcorr_inf_vert")!=null)    this.fcorr_inf_vert=Boolean.parseBoolean(properties.getProperty(prefix+"fcorr_inf_vert"));
 
+  			
+  			
+  			if (properties.getProperty(prefix+"inf_disp_apply")!=null)    this.inf_disp_apply=Boolean.parseBoolean(properties.getProperty(prefix+"inf_disp_apply"));
+  			if (properties.getProperty(prefix+"inf_mism_apply")!=null)    this.inf_mism_apply=Boolean.parseBoolean(properties.getProperty(prefix+"inf_mism_apply"));
+  			if (properties.getProperty(prefix+"inf_iters")!=null)         this.inf_iters=Integer.parseInt(properties.getProperty(prefix+"inf_iters"));
+  			if (properties.getProperty(prefix+"inf_final_diff")!=null)    this.inf_final_diff=Double.parseDouble(properties.getProperty(prefix+"inf_final_diff"));
+  			if (properties.getProperty(prefix+"inf_far_pull")!=null)      this.inf_far_pull=Double.parseDouble(properties.getProperty(prefix+"inf_far_pull"));
+  			
+  			if (properties.getProperty(prefix+"inf_str_pow")!=null)       this.inf_str_pow=Double.parseDouble(properties.getProperty(prefix+"inf_str_pow"));
+  			if (properties.getProperty(prefix+"inf_smpl_side")!=null)     this.inf_smpl_side=Integer.parseInt(properties.getProperty(prefix+"inf_smpl_side"));
+  			if (properties.getProperty(prefix+"inf_smpl_num")!=null)      this.inf_smpl_num=Integer.parseInt(properties.getProperty(prefix+"inf_smpl_num"));
+  			if (properties.getProperty(prefix+"inf_smpl_rms")!=null)      this.inf_smpl_rms=Double.parseDouble(properties.getProperty(prefix+"inf_smpl_rms"));
+  			
+  			if (properties.getProperty(prefix+"ih_smpl_step")!=null)      this.ih_smpl_step=Integer.parseInt(properties.getProperty(prefix+"ih_smpl_step"));
+  			if (properties.getProperty(prefix+"ih_disp_min")!=null)       this.ih_disp_min=Double.parseDouble(properties.getProperty(prefix+"ih_disp_min"));
+  			if (properties.getProperty(prefix+"ih_disp_step")!=null)      this.ih_disp_step=Double.parseDouble(properties.getProperty(prefix+"ih_disp_step"));
+  			if (properties.getProperty(prefix+"ih_num_bins")!=null)       this.ih_num_bins=Integer.parseInt(properties.getProperty(prefix+"ih_num_bins"));
+  			if (properties.getProperty(prefix+"ih_sigma")!=null)          this.ih_sigma=Double.parseDouble(properties.getProperty(prefix+"ih_sigma"));
+  			if (properties.getProperty(prefix+"ih_max_diff")!=null)       this.ih_max_diff=Double.parseDouble(properties.getProperty(prefix+"ih_max_diff"));
+  			if (properties.getProperty(prefix+"ih_min_samples")!=null)    this.ih_min_samples=Integer.parseInt(properties.getProperty(prefix+"ih_min_samples"));
+  			if (properties.getProperty(prefix+"ih_norm_center")!=null)    this.ih_norm_center=Boolean.parseBoolean(properties.getProperty(prefix+"ih_norm_center"));
+  			
+  			
+  			
   			if (properties.getProperty(prefix+"fcorr_sample_size")!=null) this.fcorr_sample_size=Integer.parseInt(properties.getProperty(prefix+"fcorr_sample_size"));
   			if (properties.getProperty(prefix+"fcorr_mintiles")!=null)    this.fcorr_mintiles=Integer.parseInt(properties.getProperty(prefix+"fcorr_mintiles"));
   			if (properties.getProperty(prefix+"fcorr_reloutliers")!=null) this.fcorr_reloutliers=Double.parseDouble(properties.getProperty(prefix+"fcorr_reloutliers"));
@@ -3479,6 +3543,27 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Disparity half-range for infinity",                                       this.fcorr_inf_diff,  3);
   			gd.addCheckbox    ("Use quadratic polynomial for infinity correction (false - only linear)",  this.fcorr_inf_quad);
   			gd.addCheckbox    ("Correct infinity in vertical direction (false - only horizontal)",        this.fcorr_inf_vert);
+  			
+  			
+  			gd.addCheckbox    ("Apply disparity correction to zero at infinity",                          this.inf_disp_apply);
+  			gd.addCheckbox    ("Apply lazy eye correction at infinity",                                   this.inf_mism_apply);
+  			gd.addNumericField("Infinity extraction - maximum iterations",                                this.inf_iters,       0);
+  			gd.addNumericField("Coefficients maximal increment to exit iterations",                       this.inf_final_diff,  6);
+  			gd.addNumericField("Include farther tiles than tolerance, but scale their weights",           this.inf_far_pull,    3);
+  			gd.addMessage     ("--- Infinity filter ---");
+  			gd.addNumericField("Strength power",                                                          this.inf_str_pow,     3);
+  			gd.addNumericField("Sample size (side of a square)",                                          this.inf_smpl_side,   0);
+  			gd.addNumericField("Number after removing worst (should be >1)",                              this.inf_smpl_num,    0);
+  			gd.addNumericField("Maximal RMS of the remaining tiles in a sample",                          this.inf_smpl_rms,    3);
+  			gd.addMessage     ("--- Infinity histogram filter ---");
+  			gd.addNumericField("Square sample step (50% overlap)",                                        this.ih_smpl_step,    0);
+  			gd.addNumericField("Histogram minimal disparity",                                             this.ih_disp_min,     3);
+  			gd.addNumericField("Histogram disparity step",                                                this.ih_disp_step,    3);
+  			gd.addNumericField("Histogram number of bins",                                                this.ih_num_bins,     0);
+  			gd.addNumericField("Histogram Gaussian sigma (in disparity pixels)",                          this.ih_sigma,        3);
+  			gd.addNumericField("Keep samples within this difference from farthest maximum",               this.ih_max_diff,     3);
+  			gd.addNumericField("Minimal number of remaining samples",                                     this.ih_min_samples,  0);
+  			gd.addCheckbox    ("Replace samples with a single average with equal weight",                 this.ih_norm_center);
 
   			gd.addNumericField("Use square this size side to detect outliers",                            this.fcorr_sample_size,  0);
   			gd.addNumericField("Keep tiles only if there are more in each square",                        this.fcorr_mintiles,     0);
@@ -3972,6 +4057,26 @@ public class EyesisCorrectionParameters {
   			this.fcorr_inf_diff=        gd.getNextNumber();
   			this.fcorr_inf_quad=        gd.getNextBoolean();
   			this.fcorr_inf_vert=        gd.getNextBoolean();
+  			
+  			this.inf_disp_apply=        gd.getNextBoolean();
+  			this.inf_mism_apply=        gd.getNextBoolean();
+  			this.inf_iters=       (int) gd.getNextNumber();
+  			this.inf_final_diff=        gd.getNextNumber();
+  			this.inf_far_pull=          gd.getNextNumber();
+  			
+  			this.inf_str_pow=           gd.getNextNumber();
+  			this.inf_smpl_side=   (int) gd.getNextNumber();
+  			this.inf_smpl_num=    (int) gd.getNextNumber();
+  			this.inf_smpl_rms=          gd.getNextNumber();
+
+  			this.ih_smpl_step=    (int) gd.getNextNumber();
+  			this.ih_disp_min=           gd.getNextNumber();
+  			this.ih_disp_step=          gd.getNextNumber();
+  			this.ih_num_bins=     (int) gd.getNextNumber();
+  			this.ih_sigma=              gd.getNextNumber();
+  			this.ih_max_diff=           gd.getNextNumber();
+  			this.ih_min_samples=  (int) gd.getNextNumber();
+  			this.ih_norm_center=        gd.getNextBoolean();
 
   			this.fcorr_sample_size= (int)gd.getNextNumber();
   			this.fcorr_mintiles= (int)  gd.getNextNumber();

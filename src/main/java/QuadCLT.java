@@ -5236,29 +5236,31 @@ public class QuadCLT {
 		    // includes both infinity correction and mismatch correction for the same infinity tiles
 		    double [][][] new_corr = ac.infinityCorrection(
 		    		clt_parameters.fcorr_inf_strength, //  final double min_strenth,
-		    		clt_parameters.fcorr_inf_diff, // final double max_diff,
-		    		20, // 0, // final int max_iterations,
-		    		0.0001, // final double max_coeff_diff,
-					0.0, // 0.25, //   final double far_pull, //  = 0.2; // 1; //  0.5;
-					1.0, //   final double     strength_pow,
-					3, //   final int        smplSide, //        = 2;      // Sample size (side of a square)
-					5, //   final int        smplNum, //         = 3;      // Number after removing worst (should be >1)
-					0.1, // 0.05, //  final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+		    		clt_parameters.fcorr_inf_diff,     // final double max_diff,
+		    		clt_parameters.inf_iters,          // 20, // 0, // final int max_iterations,
+		    		clt_parameters.inf_final_diff,     // 0.0001, // final double max_coeff_diff,
+		    		clt_parameters.inf_far_pull,       // 0.0, // 0.25, //   final double far_pull, //  = 0.2; // 1; //  0.5;
+		    		clt_parameters.inf_str_pow,        // 1.0, //   final double     strength_pow,
+		    		clt_parameters.inf_smpl_side,      // 3, //   final int        smplSide, //        = 2;      // Sample size (side of a square)
+		    		clt_parameters.inf_smpl_num,       // 5, //   final int        smplNum,  //         = 3;      // Number after removing worst (should be >1)
+		    		clt_parameters.inf_smpl_rms,       // 0.1, // 0.05, //  final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 					// histogram parameters
-					8,    // final int        hist_smpl_side, // 8 x8 masked, 16x16 sampled
-					-1.0, // final double     hist_disp_min,
-					0.05, // final double     hist_disp_step,
-					40,   // final int        hist_num_bins,
-					0.1,  // final double     hist_sigma,
-					0.1,  // final double     hist_max_diff,
-					10,   // final int        hist_min_samples,
-					true, // final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with 			
+		    		clt_parameters.ih_smpl_step,       // 8,    // final int        hist_smpl_side, // 8 x8 masked, 16x16 sampled
+		    		clt_parameters.ih_disp_min,        // -1.0, // final double     hist_disp_min,
+		    		clt_parameters.ih_disp_step,       // 0.05, // final double     hist_disp_step,
+		    		clt_parameters.ih_num_bins,        // 40,   // final int        hist_num_bins,
+		    		clt_parameters.ih_sigma,           // 0.1,  // final double     hist_sigma,
+		    		clt_parameters.ih_max_diff,        // 0.1,  // final double     hist_max_diff,
+		    		clt_parameters.ih_min_samples,     // 10,   // final int        hist_min_samples,
+		    		clt_parameters.ih_norm_center,     // true, // final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with 			
 					clt_parameters,  // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 		    		inf_disp_strength,   // double [][] disp_strength,
 		    		tilesX, // int         tilesX,
 		    		clt_parameters.corr_magic_scale, // double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
 		    		debugLevel + 1); // int debugLevel)
 
+		    
+		    
 		    
 		    if (debugLevel > -1){
 		    	System.out.println("process_infinity_corr(): ready to apply infinity correction");
@@ -5273,12 +5275,86 @@ public class QuadCLT {
 		    			new_corr,
 		    			debugLevel + 2);
 		    }
+	  }
+	  
+	  
+	  public void processLazyEye(
+			  EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  int debugLevel
+			  ) {
+	        ImagePlus imp_src = WindowManager.getCurrentImage();
+	        if (imp_src==null){
+	            IJ.showMessage("Error","2*n-layer file with disparities/strengthspairs measured at infinity is required");
+	            return;
+	        }
+	        ImageStack disp_strength_stack= imp_src.getStack();
+		    final int tilesX = disp_strength_stack.getWidth(); // tp.getTilesX();
+		    final int tilesY = disp_strength_stack.getHeight(); // tp.getTilesY();
+		    final int nTiles =tilesX * tilesY;
+		    
+		    AlignmentCorrection ac = new AlignmentCorrection(this);
+			double [][] scans = ac.getFineCorrFromImage(
+					  imp_src,
+//					  0.2, // double min_comp_strength, // 0.2
+					  debugLevel);
+		    
+		    double [][][] new_corr = ac.lazyEyeCorrection(
+		    		clt_parameters.fcorr_inf_strength, //  final double min_strenth,
+		    		clt_parameters.fcorr_inf_diff,     // final double max_diff,
+					1.3, // final double comp_strength_var,
+		    		clt_parameters.inf_iters,          // 20, // 0, // final int max_iterations,
+		    		clt_parameters.inf_final_diff,     // 0.0001, // final double max_coeff_diff,
+		    		clt_parameters.inf_far_pull,       // 0.0, // 0.25, //   final double far_pull, //  = 0.2; // 1; //  0.5;
+		    		clt_parameters.inf_str_pow,        // 1.0, //   final double     strength_pow,
+					1.5, // final double     lazyEyeCompDiff, // clt_parameters.fcorr_disp_diff
+					clt_parameters.inf_smpl_side, // final int        lazyEyeSmplSide, //        = 2;      // Sample size (side of a square)
+					clt_parameters.inf_smpl_num, // final int        lazyEyeSmplNum, //         = 3;      // Number after removing worst (should be >1)
+					0.1, // final double     lazyEyeSmplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+					0.2, // final double     lazyEyeDispVariation, // 0.2, maximal full disparity difference between tgh tile and 8 neighborxs
+		    		clt_parameters.inf_smpl_side,      // 3, //   final int        smplSide, //        = 2;      // Sample size (side of a square)
+		    		clt_parameters.inf_smpl_num,       // 5, //   final int        smplNum,  //         = 3;      // Number after removing worst (should be >1)
+		    		clt_parameters.inf_smpl_rms,       // 0.1, // 0.05, //  final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+					// histogram parameters
+		    		clt_parameters.ih_smpl_step,       // 8,    // final int        hist_smpl_side, // 8 x8 masked, 16x16 sampled
+		    		clt_parameters.ih_disp_min,        // -1.0, // final double     hist_disp_min,
+		    		clt_parameters.ih_disp_step,       // 0.05, // final double     hist_disp_step,
+		    		clt_parameters.ih_num_bins,        // 40,   // final int        hist_num_bins,
+		    		clt_parameters.ih_sigma,           // 0.1,  // final double     hist_sigma,
+		    		clt_parameters.ih_max_diff,        // 0.1,  // final double     hist_max_diff,
+		    		clt_parameters.ih_min_samples,     // 10,   // final int        hist_min_samples,
+		    		clt_parameters.ih_norm_center,     // true, // final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
+					0.5, // final double     inf_fraction,    // fraction of the weight for the infinity tiles
+					clt_parameters,  // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+					scans,   // double [][] disp_strength,
+		    		tilesX, // int         tilesX,
+		    		clt_parameters.corr_magic_scale, // double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
+		    		debugLevel + 1); // int debugLevel)
+		    
+		    if (debugLevel > -100){
+				  apply_fine_corr(
+						  new_corr,
+						  debugLevel + 2);
+		    	
+		    }
 	  }	  
+	  
+	  
+	  
+	  
 	  public void process_fine_corr(
 			  boolean dry_run,
 			  EyesisCorrectionParameters.CLTParameters clt_parameters,
 			  int debugLevel
 			  ) {
+		  	if (dry_run) {
+			    AlignmentCorrection ac = new AlignmentCorrection(this);
+			    ac.process_fine_corr(
+						  dry_run, // boolean dry_run,
+						  clt_parameters, // EyesisCorrectionParameters.CLTParameters clt_parameters,
+						  debugLevel); // int debugLevel
+			    return; 
+		  	}
+		  
 	        ImagePlus imp_src = WindowManager.getCurrentImage();
 	        if (imp_src==null){
 	            IJ.showMessage("Error","12*n-layer file clt_mismatches is required");
