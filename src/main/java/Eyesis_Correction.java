@@ -4548,7 +4548,9 @@ private Panel panel1,
         }
         
 ///========================================        
-        
+        int num_infinity_corr = infinity_corr? CLT_PARAMETERS.inf_repeat : 1;
+        if ( num_infinity_corr < 1) num_infinity_corr = 1;
+        for (int i_infinity_corr = 0;  i_infinity_corr < num_infinity_corr; i_infinity_corr++) {
         QUAD_CLT.processCLTQuadCorrs(
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
@@ -4563,7 +4565,7 @@ private Panel panel1,
         		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
-        
+        }
         if (configPath!=null) {
         	saveTimestampedProperties( // save config again
         			configPath,      // full path or null
@@ -4609,20 +4611,15 @@ private Panel panel1,
         		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
         	}
         }
-/*        
-        QUAD_CLT.process_fine_corr(
-        		dry_run, // boolean dry_run
-        		CLT_PARAMETERS,
-        		DEBUG_LEVEL);
-*/        
+
         QUAD_CLT.processLazyEye(
+        		dry_run, // boolean dry_run
         		CLT_PARAMETERS,
         		DEBUG_LEVEL);
         
         return;
 
     } else if (label.equals("CLT ext infinity corr")) {
-//    	boolean dry_run = label.equals("CLT test fine corr");
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (

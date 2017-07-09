@@ -1986,6 +1986,7 @@ public class EyesisCorrectionParameters {
   		
   		public boolean    gen_chn_stacks =    false; // generate shifted channel rgb stacks
   		public boolean    gen_chn_img =       true;  // generate shifted channel images
+  		public boolean    gen_4_img =         true;  // Generate shifted channel images and save with the model
   		public boolean    show_nonoverlap =   true;  // show result RGBA before overlap combined (first channels, then RGBA combined?)
   		public boolean    show_overlap =      true;  // show result RGBA (first channels, then RGBA combined?)
   		public boolean    show_rgba_color =   true;  // show combined color image
@@ -1995,6 +1996,7 @@ public class EyesisCorrectionParameters {
   		public double     disp_scan_step =    1.0;   // disparity scan step
   		public int        disp_scan_count =   10;    // disparity scan number of measurements
   		
+  		public boolean    fine_dbg =          false; // Debug infinity/lazy eye correction
   		public double     fine_corr_x_0 =     0.0;   // additionally shift image in port 0 in x direction
   		public double     fine_corr_y_0 =     0.0;   // additionally shift image in port 0 in y direction
   		public double     fine_corr_x_1 =     0.0;   // additionally shift image in port 1 in x direction
@@ -2015,7 +2017,8 @@ public class EyesisCorrectionParameters {
 
 //--
   		public boolean    inf_disp_apply =   true;   // Apply disparity correction to zero at infinity 
-  		public boolean    inf_mism_apply =   true;   // Apply lazy eye correction at infinity
+  		public int        inf_repeat =       5;      // Re run disparity correction at infinity multiple times 
+//  		public boolean    inf_mism_apply =   true;   // Apply lazy eye correction at infinity
   		
   		public int        inf_iters =        20;     // Infinity extraction - maximum iterations
   		public double     inf_final_diff =   0.0001; // Coefficients maximal increment to exit iterations
@@ -2035,23 +2038,37 @@ public class EyesisCorrectionParameters {
   		public double     ih_sigma =         0.1;    // Gaussian sigma (in disparity pixels)
   		public double     ih_max_diff =      0.1;    // Keep samples within this difference from farthest maximum
   		public int        ih_min_samples =  10;      // Minimal number of remaining samples
-  		public boolean    ih_norm_center =  true;    // Replace samples with a single average with equal weight 			
+  		public boolean    ih_norm_center =  true;    // Replace samples with a single average with equal weight
+
+  		// Lazy eye parameters
+  		public int        ly_smpl_side =    3;       // Sample size (side of a square)
+  		public int        ly_smpl_num =     5;       // Number after removing worst (should be >1)
+ 		public double     ly_meas_disp =    1.5;     // Maximal measured relative disparity
+ 		public double     ly_smpl_rms =     0.1;     // Maximal RMS of the remaining tiles in a sample
+		public double     ly_disp_var =     0.2;     // Maximal full disparity difference to 8 neighbors
+ 		public double     ly_inf_frac =     0.5;     // Relative weight of infinity calibration data
+  		public boolean    ly_on_scan =      true;    // Calculate and apply lazy eye correction after disparity scan 
+  		public boolean    ly_inf_en =       true;    // Simultaneously correct disparity at infinity 
 
   		// old fcorr parameters, reuse?
-  		public int        fcorr_sample_size = 32;    // Use square this size side to detect outliers
-  		public int        fcorr_mintiles =    8;     // Keep tiles only if there are more in each square 
-  		public double     fcorr_reloutliers = 0.5;  // Remove this fraction of tiles from each sample
-  		public double     fcorr_sigma =       20.0;  // Gaussian blur channel mismatch data
+// 		public int        fcorr_sample_size = 32;    // Use square this size side to detect outliers
+// 		public int        fcorr_mintiles =    8;     // Keep tiles only if there are more in each square 
+// 		public double     fcorr_reloutliers = 0.5;   // Remove this fraction of tiles from each sample
+// 		public double     fcorr_sigma =       20.0;  // Gaussian blur channel mismatch data
   		
   		public double     corr_magic_scale =  0.85;  // reported correlation offset vs. actual one (not yet understood)
   		
   		// 3d reconstruction
   		public boolean    show_textures    = true;  // show generated textures
   		public boolean    debug_filters    = false;// show intermediate results of filtering
+  		// not used anywhere so far
   		public double     min_smth         = 0.25;  // 0.25 minimal noise-normalized pixel difference in a channel to suspect something    
   		public double     sure_smth        = 2.0;   // reliable noise-normalized pixel difference in a channel to have something    
   		public double     bgnd_range       = 0.3;   // disparity range to be considered background
   		public double     other_range      = 2.0;   // disparity difference from center (provided) disparity to trust
+  		
+  		public double     ex_strength      = 0.18;   // minimal 4-corr strength to trust tile
+  		public double     ex_nstrength     = 0.4;    // minimal 4-corr strength divided by channel diff for new (border) tiles
   		
   		public double     bgnd_sure        = 0.18;  // minimal strength to be considered definitely background
   		public double     bgnd_maybe       = 0.1; // maximal strength to ignore as non-background
@@ -2071,6 +2088,7 @@ public class EyesisCorrectionParameters {
   		public double     ortho_min_hor    = 0.07;  // minimal strength of hor correlation to be used instead of full 4-pair correlation - 
   		public double     ortho_min_vert   = 0.15;  // minimal strength of vert correlation to be used instead of full 4-pair correlation
   		public double     ortho_asym       = 1.2;   // vert/hor (or hor/vert) strength to be used instead of the full correlation
+  		public double     ortho_over4      = 0.8;   // vert/hor (or hor/vert) strength exceeding scaled 4-pair strength
   		public double     ortho_sustain    = 0.05;  // minimal strength of hor/vert to bridge over 
   		public int        ortho_run        = 3;     // minimal run of hor/vert tiles to be considered (at least from one side)
   		public double     ortho_minmax     = 0.09;  // minimal maximal strength in an ortho run 
@@ -2144,9 +2162,9 @@ public class EyesisCorrectionParameters {
   		
   		public boolean    stShow =            false; // Calculate and show supertiles histograms 
   		public int        stSize            = 8;     // Super tile size (square, in tiles)
-  		public double     stStepFar         = 0.1;   // Disaprity histogram step for far objects 
-  		public double     stStepNear        = 0.5;   // Disaprity histogram step for near objects
-  		public double     stStepThreshold   = 1.0;   // Disaprity threshold to switch cfrom linear to logarithmic steps
+  		public double     stStepFar         = 0.1;   // Disparity histogram step for far objects 
+  		public double     stStepNear        = 0.5;   // Disparity histogram step for near objects
+  		public double     stStepThreshold   = 1.0;   // Disparity threshold to switch from linear to logarithmic steps
   		public double     stMinDisparity    = 0.0;   // Minimal disparity (center of a bin)
   		public double     stMaxDisparity    = 15.0;  // Maximal disparity (center of a bin)
   		public double     stFloor           = 0.15;  // Subtract from strength, discard negative  
@@ -2184,12 +2202,16 @@ public class EyesisCorrectionParameters {
   		// Multi-pass growing disparity
   		public int        grow_sweep         = 8; // Try these number of tiles around known ones 
   		public double     grow_disp_max =   100.0; // Maximal disparity to try
-  		public double     grow_disp_trust =  4.0; // Trust measured disparity within +/- this value 
+  		public double     grow_disp_trust =  6.0; // Trust measured disparity within +/- this value 
   		public double     grow_disp_step =   6.0; // Increase disparity (from maximal tried) if nothing found in that tile // TODO: handle enclosed dips?  
   		public double     grow_min_diff =    0.5; // Grow more only if at least one channel has higher variance from others for the tile  
   		
+  		public boolean    grow_retry_far =  false; // Retry tiles around known foreground that have low max_tried_disparity
+  		public boolean    grow_pedantic =   false; // Scan full range between max_tried_disparity of the background and known foreground
+		public boolean    grow_retry_inf =  false;  // Retry border tiles that were identified as infinity earlier
+  		
   		public boolean    plPreferDisparity    =   false;// Always start with disparity-most axis (false - lowest eigenvalue)
-  		public double     plDispNorm           =   3.0;  // Normalize disparities to the average if above (now only for eigenvalue comparison)
+  		public double     plDispNorm           =   5.0;  // Normalize disparities to the average if above (now only for eigenvalue comparison)
   		
   		public double     plBlurBinVert        =   1.2;  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
   		public double     plBlurBinHor         =   0.8;  // Blur disparity histograms for horizontal clusters by this sigma (in bins)
@@ -2441,6 +2463,7 @@ public class EyesisCorrectionParameters {
   		public boolean    show_unique =            false; // show 'unique_scan' (removed already measured tiles with the same disparity)
   		public boolean    show_init_refine =       false; // show debug images during initial refinement 
   		public boolean    show_expand =            false; // show debug images during disparity expansion
+  		public boolean    show_retry_far =         false; // show debug images related to retrying far tiles near foreground
   		
   		public boolean    show_shells =            false; // show 'shells' 
   		public boolean    show_neighbors =         false; // show 'neighbors' 
@@ -2519,6 +2542,7 @@ public class EyesisCorrectionParameters {
 
   			properties.setProperty(prefix+"gen_chn_stacks",   this.gen_chn_stacks+"");
 			properties.setProperty(prefix+"gen_chn_img",      this.gen_chn_img+"");
+			properties.setProperty(prefix+"gen_4_img",        this.gen_4_img+"");
 			properties.setProperty(prefix+"show_nonoverlap",  this.show_nonoverlap+"");
 			properties.setProperty(prefix+"show_overlap",     this.show_overlap+"");
 			properties.setProperty(prefix+"show_rgba_color",  this.show_rgba_color+"");
@@ -2527,6 +2551,7 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"disp_scan_step",   this.disp_scan_step +"");
   			properties.setProperty(prefix+"disp_scan_count",  this.disp_scan_count+"");
 
+			properties.setProperty(prefix+"fine_dbg",         this.fine_dbg+"");
   			properties.setProperty(prefix+"fine_corr_x_0",    this.fine_corr_x_0 +"");
   			properties.setProperty(prefix+"fine_corr_y_0",    this.fine_corr_y_0 +"");
   			properties.setProperty(prefix+"fine_corr_x_1",    this.fine_corr_x_1 +"");
@@ -2547,7 +2572,9 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"fcorr_inf_vert",   this.fcorr_inf_vert+"");
 			
 			properties.setProperty(prefix+"inf_disp_apply",   this.inf_disp_apply+"");
-			properties.setProperty(prefix+"inf_mism_apply",   this.inf_mism_apply+"");
+  			properties.setProperty(prefix+"inf_repeat",       this.inf_repeat+"");
+  			
+//			properties.setProperty(prefix+"inf_mism_apply",   this.inf_mism_apply+"");
   			properties.setProperty(prefix+"inf_iters",        this.inf_iters+"");
   			properties.setProperty(prefix+"inf_final_diff",   this.inf_final_diff +"");
   			properties.setProperty(prefix+"inf_far_pull",     this.inf_far_pull +"");
@@ -2565,10 +2592,14 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"ih_min_samples",   this.ih_min_samples+"");
 			properties.setProperty(prefix+"ih_norm_center",   this.ih_norm_center+"");
 
-			properties.setProperty(prefix+"fcorr_sample_size",this.fcorr_sample_size+"");
-  			properties.setProperty(prefix+"fcorr_mintiles",   this.fcorr_mintiles+"");
-  			properties.setProperty(prefix+"fcorr_reloutliers",this.fcorr_reloutliers +"");
-  			properties.setProperty(prefix+"fcorr_sigma",      this.fcorr_sigma +"");
+			properties.setProperty(prefix+"ly_smpl_side",     this.ly_smpl_side+"");
+			properties.setProperty(prefix+"ly_smpl_num",      this.ly_smpl_num+"");
+			properties.setProperty(prefix+"ly_meas_disp",     this.ly_meas_disp +"");
+			properties.setProperty(prefix+"ly_smpl_rms",      this.ly_smpl_rms +"");
+			properties.setProperty(prefix+"ly_disp_var",      this.ly_disp_var +"");
+			properties.setProperty(prefix+"ly_inf_frac",      this.ly_inf_frac +"");
+			properties.setProperty(prefix+"ly_on_scan",       this.ly_on_scan+"");
+			properties.setProperty(prefix+"ly_inf_en",        this.ly_inf_en+"");
 
   			properties.setProperty(prefix+"corr_magic_scale", this.corr_magic_scale +"");
   			
@@ -2579,6 +2610,10 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"sure_smth",        this.sure_smth +"");
 			properties.setProperty(prefix+"bgnd_range",       this.bgnd_range +"");
 			properties.setProperty(prefix+"other_range",      this.other_range +"");
+
+			properties.setProperty(prefix+"ex_strength",      this.ex_strength +"");
+			properties.setProperty(prefix+"ex_nstrength",     this.ex_nstrength +"");
+			
 			properties.setProperty(prefix+"bgnd_sure",        this.bgnd_sure +"");
 			properties.setProperty(prefix+"bgnd_maybe",       this.bgnd_maybe +"");
   			properties.setProperty(prefix+"min_clstr_seed",   this.min_clstr_seed+"");
@@ -2595,6 +2630,7 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"ortho_min_hor",    this.ortho_min_hor +"");
   			properties.setProperty(prefix+"ortho_min_vert",   this.ortho_min_vert +"");
 			properties.setProperty(prefix+"ortho_asym",       this.ortho_asym +"");
+			properties.setProperty(prefix+"ortho_over4",      this.ortho_over4 +"");
 			properties.setProperty(prefix+"ortho_sustain",    this.ortho_sustain +"");
   			properties.setProperty(prefix+"ortho_run",        this.ortho_run+"");
 			properties.setProperty(prefix+"ortho_minmax",     this.ortho_minmax +"");
@@ -2705,6 +2741,9 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"grow_disp_trust",  this.grow_disp_trust +"");
 			properties.setProperty(prefix+"grow_disp_step",   this.grow_disp_step +"");
 			properties.setProperty(prefix+"grow_min_diff",    this.grow_min_diff +"");
+			properties.setProperty(prefix+"grow_retry_far",   this.grow_retry_far+"");
+			properties.setProperty(prefix+"grow_pedantic",    this.grow_pedantic+"");
+			properties.setProperty(prefix+"grow_retry_inf",   this.grow_retry_inf+"");
 
 			properties.setProperty(prefix+"plPreferDisparity",this.plPreferDisparity+"");
 			properties.setProperty(prefix+"plDispNorm",       this.plDispNorm +"");
@@ -2932,6 +2971,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"show_unique",            this.show_unique+"");
 			properties.setProperty(prefix+"show_init_refine",       this.show_init_refine+"");
 			properties.setProperty(prefix+"show_expand",            this.show_expand+"");
+			properties.setProperty(prefix+"show_retry_far",         this.show_retry_far+"");
 			properties.setProperty(prefix+"show_shells",            this.show_shells+"");
 			properties.setProperty(prefix+"show_neighbors",         this.show_neighbors+"");
 			properties.setProperty(prefix+"show_flaps_dirs",        this.show_flaps_dirs+"");
@@ -3008,6 +3048,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"alpha1")!=null)         this.alpha1=Double.parseDouble(properties.getProperty(prefix+"alpha1"));
   			if (properties.getProperty(prefix+"gen_chn_stacks")!=null) this.gen_chn_stacks=Boolean.parseBoolean(properties.getProperty(prefix+"gen_chn_stacks"));
   			if (properties.getProperty(prefix+"gen_chn_img")!=null)    this.gen_chn_img=Boolean.parseBoolean(properties.getProperty(prefix+"gen_chn_img"));
+  			if (properties.getProperty(prefix+"gen_4_img")!=null)      this.gen_4_img=Boolean.parseBoolean(properties.getProperty(prefix+"gen_4_img"));
   			if (properties.getProperty(prefix+"show_nonoverlap")!=null)this.show_nonoverlap=Boolean.parseBoolean(properties.getProperty(prefix+"show_nonoverlap"));
   			if (properties.getProperty(prefix+"show_overlap")!=null)   this.show_overlap=Boolean.parseBoolean(properties.getProperty(prefix+"show_overlap"));
   			if (properties.getProperty(prefix+"show_rgba_color")!=null)this.show_rgba_color=Boolean.parseBoolean(properties.getProperty(prefix+"show_rgba_color"));
@@ -3016,6 +3057,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"disp_scan_step")!=null) this.disp_scan_step=Double.parseDouble(properties.getProperty(prefix+"disp_scan_step"));
   			if (properties.getProperty(prefix+"disp_scan_count")!=null)this.disp_scan_count=Integer.parseInt(properties.getProperty(prefix+"disp_scan_count"));
   			
+  			if (properties.getProperty(prefix+"fine_dbg")!=null)       this.fine_dbg=Boolean.parseBoolean(properties.getProperty(prefix+"fine_dbg"));
   			if (properties.getProperty(prefix+"fine_corr_x_0")!=null) this.fine_corr_x_0=Double.parseDouble(properties.getProperty(prefix+"fine_corr_x_0"));
   			if (properties.getProperty(prefix+"fine_corr_y_0")!=null) this.fine_corr_y_0=Double.parseDouble(properties.getProperty(prefix+"fine_corr_y_0"));
   			if (properties.getProperty(prefix+"fine_corr_x_1")!=null) this.fine_corr_x_1=Double.parseDouble(properties.getProperty(prefix+"fine_corr_x_1"));
@@ -3038,7 +3080,9 @@ public class EyesisCorrectionParameters {
   			
   			
   			if (properties.getProperty(prefix+"inf_disp_apply")!=null)    this.inf_disp_apply=Boolean.parseBoolean(properties.getProperty(prefix+"inf_disp_apply"));
-  			if (properties.getProperty(prefix+"inf_mism_apply")!=null)    this.inf_mism_apply=Boolean.parseBoolean(properties.getProperty(prefix+"inf_mism_apply"));
+  			if (properties.getProperty(prefix+"inf_repeat")!=null)        this.inf_repeat=Integer.parseInt(properties.getProperty(prefix+"inf_repeat"));
+//  			if (properties.getProperty(prefix+"inf_mism_apply")!=null)    this.inf_mism_apply=Boolean.parseBoolean(properties.getProperty(prefix+"inf_mism_apply"));
+
   			if (properties.getProperty(prefix+"inf_iters")!=null)         this.inf_iters=Integer.parseInt(properties.getProperty(prefix+"inf_iters"));
   			if (properties.getProperty(prefix+"inf_final_diff")!=null)    this.inf_final_diff=Double.parseDouble(properties.getProperty(prefix+"inf_final_diff"));
   			if (properties.getProperty(prefix+"inf_far_pull")!=null)      this.inf_far_pull=Double.parseDouble(properties.getProperty(prefix+"inf_far_pull"));
@@ -3057,13 +3101,15 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"ih_min_samples")!=null)    this.ih_min_samples=Integer.parseInt(properties.getProperty(prefix+"ih_min_samples"));
   			if (properties.getProperty(prefix+"ih_norm_center")!=null)    this.ih_norm_center=Boolean.parseBoolean(properties.getProperty(prefix+"ih_norm_center"));
   			
-  			
-  			
-  			if (properties.getProperty(prefix+"fcorr_sample_size")!=null) this.fcorr_sample_size=Integer.parseInt(properties.getProperty(prefix+"fcorr_sample_size"));
-  			if (properties.getProperty(prefix+"fcorr_mintiles")!=null)    this.fcorr_mintiles=Integer.parseInt(properties.getProperty(prefix+"fcorr_mintiles"));
-  			if (properties.getProperty(prefix+"fcorr_reloutliers")!=null) this.fcorr_reloutliers=Double.parseDouble(properties.getProperty(prefix+"fcorr_reloutliers"));
-  			if (properties.getProperty(prefix+"fcorr_sigma")!=null)       this.fcorr_sigma=Double.parseDouble(properties.getProperty(prefix+"fcorr_sigma"));
-  			
+			if (properties.getProperty(prefix+"ly_smpl_side")!=null)      this.ly_smpl_side=Integer.parseInt(properties.getProperty(prefix+"ly_smpl_side"));
+			if (properties.getProperty(prefix+"ly_smpl_num")!=null)       this.ly_smpl_num=Integer.parseInt(properties.getProperty(prefix+"ly_smpl_num"));
+			if (properties.getProperty(prefix+"ly_meas_disp")!=null)      this.ly_meas_disp=Double.parseDouble(properties.getProperty(prefix+"ly_meas_disp"));
+			if (properties.getProperty(prefix+"ly_smpl_rms")!=null)       this.ly_smpl_rms=Double.parseDouble(properties.getProperty(prefix+"ly_smpl_rms"));
+			if (properties.getProperty(prefix+"ly_disp_var")!=null)       this.ly_disp_var=Double.parseDouble(properties.getProperty(prefix+"ly_disp_var"));
+			if (properties.getProperty(prefix+"ly_inf_frac")!=null)       this.ly_inf_frac=Double.parseDouble(properties.getProperty(prefix+"ly_inf_frac"));
+  			if (properties.getProperty(prefix+"ly_on_scan")!=null)        this.ly_on_scan=Boolean.parseBoolean(properties.getProperty(prefix+"ly_on_scan"));
+  			if (properties.getProperty(prefix+"ly_inf_en")!=null)         this.ly_inf_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_en"));
+ 			
   			if (properties.getProperty(prefix+"corr_magic_scale")!=null)  this.corr_magic_scale=Double.parseDouble(properties.getProperty(prefix+"corr_magic_scale"));
 
   			if (properties.getProperty(prefix+"show_textures")!=null)      this.show_textures=Boolean.parseBoolean(properties.getProperty(prefix+"show_textures"));
@@ -3073,6 +3119,10 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"sure_smth")!=null)         this.sure_smth=Double.parseDouble(properties.getProperty(prefix+"sure_smth"));
   			if (properties.getProperty(prefix+"bgnd_range")!=null)        this.bgnd_range=Double.parseDouble(properties.getProperty(prefix+"bgnd_range"));
   			if (properties.getProperty(prefix+"other_range")!=null)       this.other_range=Double.parseDouble(properties.getProperty(prefix+"other_range"));
+
+  			if (properties.getProperty(prefix+"ex_strength")!=null)       this.ex_strength=Double.parseDouble(properties.getProperty(prefix+"ex_strength"));
+  			if (properties.getProperty(prefix+"ex_nstrength")!=null)      this.ex_nstrength=Double.parseDouble(properties.getProperty(prefix+"ex_nstrength"));
+
   			if (properties.getProperty(prefix+"bgnd_sure")!=null)         this.bgnd_sure=Double.parseDouble(properties.getProperty(prefix+"bgnd_sure"));
   			if (properties.getProperty(prefix+"bgnd_maybe")!=null)        this.bgnd_maybe=Double.parseDouble(properties.getProperty(prefix+"bgnd_maybe"));
   			if (properties.getProperty(prefix+"min_clstr_seed")!=null)    this.min_clstr_seed=Integer.parseInt(properties.getProperty(prefix+"min_clstr_seed"));
@@ -3090,6 +3140,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"ortho_min_hor")!=null)     this.ortho_min_hor=Double.parseDouble(properties.getProperty(prefix+"ortho_min_hor"));
   			if (properties.getProperty(prefix+"ortho_min_vert")!=null)    this.ortho_min_vert=Double.parseDouble(properties.getProperty(prefix+"ortho_min_vert"));
   			if (properties.getProperty(prefix+"ortho_asym")!=null)        this.ortho_asym=Double.parseDouble(properties.getProperty(prefix+"ortho_asym"));
+  			if (properties.getProperty(prefix+"ortho_over4")!=null)       this.ortho_over4=Double.parseDouble(properties.getProperty(prefix+"ortho_over4"));
   			if (properties.getProperty(prefix+"ortho_sustain")!=null)     this.ortho_sustain=Double.parseDouble(properties.getProperty(prefix+"ortho_sustain"));
   			if (properties.getProperty(prefix+"ortho_run")!=null)         this.ortho_run=Integer.parseInt(properties.getProperty(prefix+"ortho_run"));
   			if (properties.getProperty(prefix+"ortho_minmax")!=null)      this.ortho_minmax=Double.parseDouble(properties.getProperty(prefix+"ortho_minmax"));
@@ -3196,6 +3247,9 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"grow_disp_trust")!=null)   this.grow_disp_trust=Double.parseDouble(properties.getProperty(prefix+"grow_disp_trust"));
   			if (properties.getProperty(prefix+"grow_disp_step")!=null)    this.grow_disp_step=Double.parseDouble(properties.getProperty(prefix+"grow_disp_step"));
   			if (properties.getProperty(prefix+"grow_min_diff")!=null)     this.grow_min_diff=Double.parseDouble(properties.getProperty(prefix+"grow_min_diff"));
+  			if (properties.getProperty(prefix+"grow_retry_far")!=null)    this.grow_retry_far=Boolean.parseBoolean(properties.getProperty(prefix+"grow_retry_far"));
+  			if (properties.getProperty(prefix+"grow_pedantic")!=null)     this.grow_pedantic=Boolean.parseBoolean(properties.getProperty(prefix+"grow_pedantic"));
+  			if (properties.getProperty(prefix+"grow_retry_inf")!=null)    this.grow_retry_inf=Boolean.parseBoolean(properties.getProperty(prefix+"grow_retry_inf"));
 
   			if (properties.getProperty(prefix+"plPreferDisparity")!=null) this.plPreferDisparity=Boolean.parseBoolean(properties.getProperty(prefix+"plPreferDisparity"));
   			if (properties.getProperty(prefix+"plDispNorm")!=null)        this.plDispNorm=Double.parseDouble(properties.getProperty(prefix+"plDispNorm"));
@@ -3426,6 +3480,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"show_unique")!=null)            this.show_unique=Boolean.parseBoolean(properties.getProperty(prefix+"show_unique"));
   			if (properties.getProperty(prefix+"show_init_refine")!=null)       this.show_init_refine=Boolean.parseBoolean(properties.getProperty(prefix+"show_init_refine"));
   			if (properties.getProperty(prefix+"show_expand")!=null)            this.show_expand=Boolean.parseBoolean(properties.getProperty(prefix+"show_expand"));
+  			if (properties.getProperty(prefix+"show_retry_far")!=null)         this.show_retry_far=Boolean.parseBoolean(properties.getProperty(prefix+"show_retry_far"));
   			if (properties.getProperty(prefix+"show_shells")!=null)            this.show_shells=Boolean.parseBoolean(properties.getProperty(prefix+"show_shells"));
   			if (properties.getProperty(prefix+"show_neighbors")!=null)         this.show_neighbors=Boolean.parseBoolean(properties.getProperty(prefix+"show_neighbors"));
   			if (properties.getProperty(prefix+"show_flaps_dirs")!=null)        this.show_flaps_dirs=Boolean.parseBoolean(properties.getProperty(prefix+"show_flaps_dirs"));
@@ -3516,6 +3571,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Alpha channel 1.0 threshold (higher - opaque)",                           this.alpha1,   3);
   			gd.addCheckbox    ("Generate shifted channel linear RGB stacks",                              this.gen_chn_stacks);
   			gd.addCheckbox    ("Generate shifted channel color image stack",                              this.gen_chn_img);
+  			gd.addCheckbox    ("Generate shifted channel images and save with the model 'CLT process corr'",this.gen_4_img);
   			gd.addCheckbox    ("Show result RGBA before overlap combined",                                this.show_nonoverlap);
   			gd.addCheckbox    ("Show result RGBA",                                                        this.show_overlap);
   			gd.addCheckbox    ("Show result color",                                                       this.show_rgba_color);
@@ -3525,6 +3581,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Disparity scan number of disparity values to scan",                       this.disp_scan_count,            0);
 
   			gd.addMessage("--- camera fine correction: X/Y for images 0..3  ---");
+  			gd.addCheckbox    ("Debug infinity/lazy eye correction",                                      this.fine_dbg);
   			gd.addNumericField("X 0",                                                                     this.fine_corr_x_0,  3);
   			gd.addNumericField("Y 0",                                                                     this.fine_corr_y_0,  3);
   			gd.addNumericField("X 1",                                                                     this.fine_corr_x_1,  3);
@@ -3546,7 +3603,10 @@ public class EyesisCorrectionParameters {
   			
   			
   			gd.addCheckbox    ("Apply disparity correction to zero at infinity",                          this.inf_disp_apply);
-  			gd.addCheckbox    ("Apply lazy eye correction at infinity",                                   this.inf_mism_apply);
+  			gd.addNumericField("Re run disparity correction at infinity multiple times",                  this.inf_repeat,      0);
+
+  			
+  			//  			gd.addCheckbox    ("Apply lazy eye correction at infinity",                                   this.inf_mism_apply);
   			gd.addNumericField("Infinity extraction - maximum iterations",                                this.inf_iters,       0);
   			gd.addNumericField("Coefficients maximal increment to exit iterations",                       this.inf_final_diff,  6);
   			gd.addNumericField("Include farther tiles than tolerance, but scale their weights",           this.inf_far_pull,    3);
@@ -3565,10 +3625,20 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Minimal number of remaining samples",                                     this.ih_min_samples,  0);
   			gd.addCheckbox    ("Replace samples with a single average with equal weight",                 this.ih_norm_center);
 
-  			gd.addNumericField("Use square this size side to detect outliers",                            this.fcorr_sample_size,  0);
-  			gd.addNumericField("Keep tiles only if there are more in each square",                        this.fcorr_mintiles,     0);
-  			gd.addNumericField("Remove this fraction of tiles from each sample",                          this.fcorr_reloutliers,  3);
-  			gd.addNumericField("Gaussian blur channel mismatch data",                                     this.fcorr_sigma,        3);
+  			gd.addMessage     ("--- Lazy eye parameters (disparity @ infinity should be adjusted first ---");
+			gd.addNumericField("Sample size (side of a square)",                                          this.ly_smpl_side,  0);
+			gd.addNumericField("Number after removing worst (should be >1)",                              this.ly_smpl_num,  0);
+			gd.addNumericField("Maximal measured relative disparity",                                     this.ly_meas_disp,  3);
+			gd.addNumericField("Maximal RMS of the remaining tiles in a sample",                          this.ly_smpl_rms,  3);
+			gd.addNumericField("Maximal full disparity difference to 8 neighbors",                        this.ly_disp_var,  3);
+			gd.addNumericField("Relative weight of infinity calibration data",                            this.ly_inf_frac,  3);
+  			gd.addCheckbox    ("Calculate and apply lazy eye correction after disparity scan (need to repeat)",this.ly_on_scan);
+  			gd.addCheckbox    ("Use infinity disparity (disable if there is not enough of infinity data)", this.ly_inf_en);
+  			gd.addMessage     ("---");
+//  			gd.addNumericField("Use square this size side to detect outliers",                            this.fcorr_sample_size,  0);
+//  			gd.addNumericField("Keep tiles only if there are more in each square",                        this.fcorr_mintiles,     0);
+//  			gd.addNumericField("Remove this fraction of tiles from each sample",                          this.fcorr_reloutliers,  3);
+//  			gd.addNumericField("Gaussian blur channel mismatch data",                                     this.fcorr_sigma,        3);
 
   			gd.addNumericField("Calculated from correlation offset vs. actual one (not yet understood)",  this.corr_magic_scale,  3);
   			
@@ -3580,6 +3650,10 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Reliable noise-normalized pixel difference in a channel to have something ",   this.sure_smth,  3);
   			gd.addNumericField("Disparity range to be considered background",                                  this.bgnd_range,  3);
   			gd.addNumericField("Disparity difference from the center (provided) disparity to trust",           this.other_range,  3);
+
+  			gd.addNumericField("Minimal 4-corr strength to trust tile",                                        this.ex_strength,  3);
+  			gd.addNumericField("Minimal 4-corr strength divided by channel diff for new (border) tiles",       this.ex_nstrength,  3);
+  			
   			gd.addNumericField("Minimal strength to be considered definitely background",                      this.bgnd_sure,  3);
   			gd.addNumericField("Maximal strength to ignore as non-background",                                 this.bgnd_maybe,  3);
 
@@ -3598,6 +3672,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Minimal strength of hor correlation to be used instead of full 4-pair correlation", this.ortho_min_hor,  3);
   			gd.addNumericField("Minimal strength of vert correlation to be used instead of full 4-pair correlation", this.ortho_min_vert,  3);
   			gd.addNumericField("Vert/hor (or hor/vert) strength to be used instead of the full correlation",   this.ortho_asym,  3);
+  			gd.addNumericField("Vert/hor (or hor/vert) strength exceeding scaled 4-pair strength",             this.ortho_over4,  3);
 
   			gd.addNumericField("Minimal strength of hor/vert to bridge over",                                  this.ortho_sustain,  3);
   			gd.addNumericField("minimal run of hor/vert tiles to be considered (at least from one side)",      this.ortho_run,      0);
@@ -3671,9 +3746,9 @@ public class EyesisCorrectionParameters {
   			
   			gd.addCheckbox    ("Show supertiles histograms",                                                   this.stShow);
   			gd.addNumericField("Super tile size (square, in tiles)",                                           this.stSize,  0);
-  			gd.addNumericField("Disaprity histogram step for far objects",                                     this.stStepFar,  6);
-  			gd.addNumericField("Disaprity histogram step for near objects",                                    this.stStepNear,  6);
-  			gd.addNumericField("Disaprity threshold to switch cfrom linear to logarithmic steps",              this.stStepThreshold,  6);
+  			gd.addNumericField("Disparity histogram step for far objects",                                     this.stStepFar,  6);
+  			gd.addNumericField("Disparity histogram step for near objects",                                    this.stStepNear,  6);
+  			gd.addNumericField("Disparity threshold to switch from linear to logarithmic steps",               this.stStepThreshold,  6);
   			gd.addNumericField("Minimal disparity (center of a bin)",                                          this.stMinDisparity,  6);
   			gd.addNumericField("Maximal disparity (center of a bin)",                                          this.stMaxDisparity,  6);
   			gd.addNumericField("Subtract from strength, discard negative",                                     this.stFloor,  6);
@@ -3706,11 +3781,15 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Do not re-measure correlation if target disparity differs from some previous by this",this.unique_tolerance,  6);
   			
   			gd.addMessage     ("--- Growing disparity range to scan ---");
-  			gd.addNumericField("Try these number of tiles around known ones",                                  this.grow_sweep,  0);
-  			gd.addNumericField("Maximal disparity to try",                                                     this.grow_disp_max,  6);
-  			gd.addNumericField("Trust measured disparity within +/- this value",                               this.grow_disp_trust,  6);
-  			gd.addNumericField("Increase disparity (from maximal tried) if nothing found in that tile",        this.grow_disp_step,  6);
+  			gd.addNumericField("Try these number of tiles around known ones",                                         this.grow_sweep,  0);
+  			gd.addNumericField("Maximal disparity to try",                                                            this.grow_disp_max,  6);
+  			gd.addNumericField("Trust measured disparity within +/- this value",                                      this.grow_disp_trust,  6);
+  			gd.addNumericField("Increase disparity (from maximal tried) if nothing found in that tile",               this.grow_disp_step,  6);
   			gd.addNumericField("Grow more only if at least one channel has higher variance from others for the tile", this.grow_min_diff,  6);
+  			gd.addCheckbox    ("Retry tiles around known foreground that have low max_tried_disparity",               this.grow_retry_far);
+  			gd.addCheckbox    ("Scan full range between max_tried_disparity of the background and known foreground",  this.grow_pedantic);
+  			gd.addCheckbox    ("Retry border tiles that were identified as infinity earlier",                         this.grow_retry_inf);
+
   			gd.addMessage     ("--- Planes detection ---");
   			gd.addCheckbox    ("Always start with disparity-most axis (false - lowest eigenvalue)",            this.plPreferDisparity);
   			gd.addNumericField("Normalize disparities to the average if above",                                this.plDispNorm,  6);
@@ -3949,6 +4028,7 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Show 'unique_scan' (removed already measured tiles with the same disparity)",  this.show_unique);
   			gd.addCheckbox    ("Show debug images during initial refinement",                                  this.show_init_refine);
   			gd.addCheckbox    ("Show debug images during disparity expansion",                                 this.show_expand);
+  			gd.addCheckbox    ("Show debug images related to retrying far tiles near foreground",              this.show_retry_far);
   			gd.addCheckbox    ("Show 'shells'",                                                                this.show_shells);
   			gd.addCheckbox    ("show 'neighbors'",                                                             this.show_neighbors);
   			gd.addCheckbox    ("Show 'flaps-dirs'",                                                            this.show_flaps_dirs);
@@ -4024,13 +4104,14 @@ public class EyesisCorrectionParameters {
   			this.diff_gauss=            gd.getNextBoolean();
   			this.min_agree=             gd.getNextNumber();
   			this.dust_remove=           gd.getNextBoolean();
-  			this.black_back=          gd.getNextBoolean();
+  			this.black_back=            gd.getNextBoolean();
   			this.keep_weights=          gd.getNextBoolean();
   			this.sharp_alpha=           gd.getNextBoolean();
   			this.alpha0=                gd.getNextNumber();
   			this.alpha1=                gd.getNextNumber();
   			this.gen_chn_stacks=        gd.getNextBoolean();
   			this.gen_chn_img=           gd.getNextBoolean();
+  			this.gen_4_img=             gd.getNextBoolean();
   			this.show_nonoverlap=       gd.getNextBoolean();
   			this.show_overlap=          gd.getNextBoolean();
   			this.show_rgba_color=       gd.getNextBoolean();
@@ -4039,6 +4120,7 @@ public class EyesisCorrectionParameters {
   			this.disp_scan_step=        gd.getNextNumber();
   			this.disp_scan_count= (int) gd.getNextNumber();
   			
+  			this.fine_dbg=              gd.getNextBoolean();
   			this.fine_corr_x_0=         gd.getNextNumber();
   			this.fine_corr_y_0=         gd.getNextNumber();
   			this.fine_corr_x_1=         gd.getNextNumber();
@@ -4059,7 +4141,8 @@ public class EyesisCorrectionParameters {
   			this.fcorr_inf_vert=        gd.getNextBoolean();
   			
   			this.inf_disp_apply=        gd.getNextBoolean();
-  			this.inf_mism_apply=        gd.getNextBoolean();
+  			this.inf_repeat=      (int) gd.getNextNumber();
+//  			this.inf_mism_apply=        gd.getNextBoolean();
   			this.inf_iters=       (int) gd.getNextNumber();
   			this.inf_final_diff=        gd.getNextNumber();
   			this.inf_far_pull=          gd.getNextNumber();
@@ -4078,10 +4161,19 @@ public class EyesisCorrectionParameters {
   			this.ih_min_samples=  (int) gd.getNextNumber();
   			this.ih_norm_center=        gd.getNextBoolean();
 
-  			this.fcorr_sample_size= (int)gd.getNextNumber();
-  			this.fcorr_mintiles= (int)  gd.getNextNumber();
-  			this.fcorr_reloutliers=     gd.getNextNumber();
-  			this.fcorr_sigma=           gd.getNextNumber();
+			this.ly_smpl_side=    (int) gd.getNextNumber();
+			this.ly_smpl_num=     (int) gd.getNextNumber();
+			this.ly_meas_disp=          gd.getNextNumber();
+			this.ly_smpl_rms=           gd.getNextNumber();
+			this.ly_disp_var=           gd.getNextNumber();
+			this.ly_inf_frac=           gd.getNextNumber();
+  			this.ly_on_scan=            gd.getNextBoolean();
+  			this.ly_inf_en=             gd.getNextBoolean();
+  			
+//  			this.fcorr_sample_size= (int)gd.getNextNumber();
+//  			this.fcorr_mintiles= (int)  gd.getNextNumber();
+//  			this.fcorr_reloutliers=     gd.getNextNumber();
+//  			this.fcorr_sigma=           gd.getNextNumber();
 
   			this.corr_magic_scale=      gd.getNextNumber();
 
@@ -4091,6 +4183,10 @@ public class EyesisCorrectionParameters {
   			this.sure_smth=             gd.getNextNumber();
   			this.bgnd_range=            gd.getNextNumber();
   			this.other_range=           gd.getNextNumber();
+
+  			this.ex_strength=           gd.getNextNumber();
+  			this.ex_nstrength=          gd.getNextNumber();
+
   			this.bgnd_sure=             gd.getNextNumber();
   			this.bgnd_maybe=            gd.getNextNumber();
   			this.min_clstr_seed=  (int) gd.getNextNumber();
@@ -4107,6 +4203,7 @@ public class EyesisCorrectionParameters {
   			this.ortho_min_hor=         gd.getNextNumber();
   			this.ortho_min_vert=        gd.getNextNumber();
   			this.ortho_asym=            gd.getNextNumber();
+  			this.ortho_over4=           gd.getNextNumber();
   			
   			this.ortho_sustain=         gd.getNextNumber();
   			this.ortho_run=       (int) gd.getNextNumber();
@@ -4215,6 +4312,9 @@ public class EyesisCorrectionParameters {
   			this.grow_disp_trust=       gd.getNextNumber();
   			this.grow_disp_step=        gd.getNextNumber();
   			this.grow_min_diff=         gd.getNextNumber();
+  			this.grow_retry_far=        gd.getNextBoolean();
+  			this.grow_pedantic=         gd.getNextBoolean();
+  			this.grow_retry_inf=        gd.getNextBoolean();
 
   			this.plPreferDisparity=     gd.getNextBoolean();
   			this.plDispNorm=            gd.getNextNumber();
@@ -4446,6 +4546,7 @@ public class EyesisCorrectionParameters {
   			this.show_unique=           gd.getNextBoolean();
   			this.show_init_refine=      gd.getNextBoolean();
   			this.show_expand=           gd.getNextBoolean();
+  			this.show_retry_far=        gd.getNextBoolean();
   			this.show_shells=           gd.getNextBoolean();
   			this.show_neighbors=        gd.getNextBoolean();
   			this.show_flaps_dirs=       gd.getNextBoolean();

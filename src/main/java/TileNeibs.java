@@ -104,6 +104,53 @@ public class TileNeibs{
 		default: return indx;
 		}
 	}
+	/**
+	 * Get 2d element index after step N, NE, ... NW. Returns -1 if leaving array
+	 * And 2 steps for dir = 8(N), 9(NNE),..23(NNW)   
+	 * @param indx start index
+	 * @param dir step direction (CW from up)
+	 * @return new index or -1 if leaving 
+	 */
+	int getNeibIndex2(int indx, int dir)
+	{
+		int y = indx / sizeX;
+		int x = indx % sizeX;
+		if (dir < 0) return indx;
+		if (dir > 24) {
+			System.out.println("getNeibIndex(): indx="+indx+", dir="+dir);
+		}
+//		switch (dir % dirs){
+		switch (dir){
+		case  0: return (y == 0) ?                                    -1 : (indx - sizeX); 
+		case  1: return ((y == 0)           || ( x == (sizeX - 1))) ? -1 : (indx - sizeX + 1); 
+		case  2: return (                      ( x == (sizeX - 1))) ? -1 : (indx        + 1); 
+		case  3: return ((y == (sizeY - 1)) || ( x == (sizeX - 1))) ? -1 : (indx + sizeX + 1); 
+		case  4: return ((y == (sizeY - 1))                       ) ? -1 : (indx + sizeX); 
+		case  5: return ((y == (sizeY - 1)) || ( x == 0))           ? -1 : (indx + sizeX - 1); 
+		case  6: return (                      ( x == 0))           ? -1 : (indx        - 1); 
+		case  7: return ((y == 0)           || ( x == 0))           ? -1 : (indx - sizeX - 1);
+		
+		case  8: return ( y < 2) ?                                   -1 : (indx - 2 * sizeX); 
+		case  9: return ((y < 2)            || ( x > (sizeX - 2))) ? -1 : (indx - 2 * sizeX + 1); 
+		case 10: return ((y < 2)            || ( x > (sizeX - 3))) ? -1 : (indx - 2 * sizeX + 2); 
+		case 11: return ((y < 1)            || ( x > (sizeX - 3))) ? -1 : (indx - 1 * sizeX + 2); 
+		case 12: return (                      ( x > (sizeX - 3))) ? -1 : (indx             + 2); 
+		case 13: return ((y > (sizeY - 2))  || ( x > (sizeX - 3))) ? -1 : (indx + 1 * sizeX + 2); 
+		case 14: return ((y > (sizeY - 3))  || ( x > (sizeX - 3))) ? -1 : (indx + 2 * sizeX + 2); 
+		case 15: return ((y > (sizeY - 3))  || ( x > (sizeX - 2))) ? -1 : (indx + 2 * sizeX + 1); 
+		case 16: return ((y > (sizeY - 3))                       ) ? -1 : (indx + 2 * sizeX); 
+		case 17: return ((y > (sizeY - 3))  || ( x < 1))           ? -1 : (indx + 2 * sizeX - 1); 
+		case 18: return ((y > (sizeY - 3))  || ( x < 2))           ? -1 : (indx + 2 * sizeX - 2); 
+		case 19: return ((y > (sizeY - 2))  || ( x < 2))           ? -1 : (indx + 1 * sizeX - 2); 
+		case 20: return (                      ( x < 2))           ? -1 : (indx             - 2); 
+		case 21: return ((y < 1)            || ( x < 2))           ? -1 : (indx - 1 * sizeX - 2); 
+		case 22: return ((y < 2)            || ( x < 2))           ? -1 : (indx - 2 * sizeX - 2); 
+		case 23: return ((y < 2)            || ( x < 1))           ? -1 : (indx - 2 * sizeX - 1); 
+		default: return indx;
+		}
+	}
+
+	
 	
 	/**
 	 * Return tile segment for 50% overlap. -1 - center, 0 N, 1 - NE,... 7 - NW

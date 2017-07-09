@@ -74,10 +74,10 @@ public class AlignmentCorrection {
 			final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with 			
 
 			EyesisCorrectionParameters.CLTParameters           clt_parameters,
-			double [][] disp_strength_in,
-			int         tilesX,
-			double      magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
-			int debugLevel)
+			double [][]      disp_strength_in,
+			int              tilesX,
+			double           magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
+			int              debugLevel)
 	{
 		double [][] disp_strength;
 		double min_strength;
@@ -153,6 +153,7 @@ public class AlignmentCorrection {
 				tilesX,
 				magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
 				debugLevel);
+/*		
 		double [][][] disparity_corr_coefficiants = null;
 		if (clt_parameters.inf_disp_apply) {
 			disparity_corr_coefficiants = infinityCorrection(
@@ -176,11 +177,13 @@ public class AlignmentCorrection {
 						"");// String prefix)
 			}
 		}
-		if (clt_parameters.inf_mism_apply) {
-			double [][][] mismatch_corr_coefficiants = infinityMismatchCorrection(
-					clt_parameters.fcorr_quadratic,// final boolean use_quadratic,
-					clt_parameters.fcorr_inf_vert,// final boolean use_vertical,
-					!clt_parameters.inf_disp_apply, // final boolean use_disparity, // for infinity 
+*/		
+		double [][][] mismatch_corr_coefficiants = null;
+//		if (clt_parameters.inf_disp_apply) {
+			mismatch_corr_coefficiants = infinityMismatchCorrection(
+					clt_parameters.fcorr_inf_quad, // final boolean use_quadratic,
+					clt_parameters.fcorr_inf_vert, // final boolean use_vertical,
+					clt_parameters.ly_inf_en,      // final boolean use_disparity, // for infinity 
 					clt_parameters,
 					disp_strength,
 					samples_list,
@@ -193,6 +196,7 @@ public class AlignmentCorrection {
 						mismatch_corr_coefficiants, // double [][][] corr,
 						"");// String prefix)
 			}
+/*			
 			if (disparity_corr_coefficiants == null) {
 				disparity_corr_coefficiants = mismatch_corr_coefficiants;
 				if (debugLevel > -1){
@@ -211,8 +215,9 @@ public class AlignmentCorrection {
 					System.out.println("infinityCorrection(): combining coefficient increments from infinityCorrection and infinityMismatchCorrection");
 				}
 			}
-		}
-		return disparity_corr_coefficiants;
+*/			
+//		}
+		return mismatch_corr_coefficiants;
 	}
 	
 	/**
@@ -622,7 +627,7 @@ public class AlignmentCorrection {
 		Matrix AINV = A.inverse();
 		double scale = 0.5/magic_coeff;
 		double [][] dbg_xy = null;
-		if (debugLevel > -1) {
+		if (debugLevel > 0) {
 			dbg_xy = new double [9][num_tiles];
 		}
 		for (Sample s: samples_list){
@@ -1167,20 +1172,24 @@ public class AlignmentCorrection {
 					double sdw = 0.0, sw = 0.0;
 					double [] sm = new double [NUM_SLICES - 2];
 
-					for (int sY = 0; sY < smpl_side; sY++){
+					for (int sY = -smpl_side/2; sY < smpl_side/2; sY++){
 						int y = tY + sY;
-						for (int sX = 0; sX < smpl_side; sX++){
-							int x = tX + sX;
-							int nTile = y * tilesX + x;
-							double w = disp_strength_in[1][nTile];
-							if (w > 0.0){
-								if (Math.abs(disp_strength_in[0][nTile] - disp_inf) < max_diff) {
-									sw += disp_strength_in[1][nTile];
-									sdw += disp_strength_in[0][nTile] * disp_strength_in[1][nTile];
-									for (int j = 0; j < sm.length; j++){
-										sm[j] += disp_strength_in[2 + j][nTile] * disp_strength_in[1][nTile];
+						if ((y >= 0) && (y <tilesY)) {
+							for (int sX = -smpl_side/2; sX < smpl_side/2; sX++){
+								int x = tX + sX;
+								if ((x >= 0) && (x <tilesX)) {
+									int nTile = y * tilesX + x;
+									double w = disp_strength_in[1][nTile];
+									if (w > 0.0){
+										if (Math.abs(disp_strength_in[0][nTile] - disp_inf) < max_diff) {
+											sw += disp_strength_in[1][nTile];
+											sdw += disp_strength_in[0][nTile] * disp_strength_in[1][nTile];
+											for (int j = 0; j < sm.length; j++){
+												sm[j] += disp_strength_in[2 + j][nTile] * disp_strength_in[1][nTile];
+											}
+											num_samples++;
+										}
 									}
-									num_samples++;
 								}
 							}
 						}
@@ -1370,7 +1379,77 @@ public class AlignmentCorrection {
 		  }
 	  }
 	  
-	  public double [][] getFineCorrFromImage(
+	  public double [][] getDoubleFromImage(
+			  ImagePlus imp_src,
+			  int debugLevel)
+	  {
+//		  double min_max_ratio = 1.3;
+	        ImageStack clt_mismatches_stack= imp_src.getStack();
+		    final int tilesX = clt_mismatches_stack.getWidth(); // tp.getTilesX();
+		    final int tilesY = clt_mismatches_stack.getHeight(); // tp.getTilesY();
+		    final int nTiles =tilesX * tilesY;
+		    final double [][] data = new double [clt_mismatches_stack.getSize()][nTiles];
+		    for (int n = 0; n < data.length; n++) {
+	    		float [] fpixels = (float[]) clt_mismatches_stack.getPixels(n +1);
+	    		for (int i = 0; i < nTiles; i++){
+	    			data[n][i] = fpixels[i];
+	    		}	    		
+		    }
+		  return data;
+	  }
+	  public double [][] getFineCorrFromDoubleArray(
+			  double [][] data,
+			  int         tilesX,
+			  int debugLevel)
+	  {
+//		  double min_max_ratio = 1.3;
+	        
+		    final int tilesY = data[0].length/tilesX; // tp.getTilesY();
+		    final int nTiles =tilesX * tilesY;
+		    final int num_scans = data.length/NUM_ALL_SLICES;
+
+		    final double [][] scans = new double [num_scans * NUM_ALL_SLICES][nTiles];
+		    
+		    for (int ns = 0; ns < num_scans; ns++){
+//		    	double [][]min_max_strength = new double[2][nTiles];
+		    	for (int pair = 0; pair < 4; pair++){
+		    		float [][] fset = new float [3][];
+//		    		fset[0] = (float[]) clt_mismatches_stack.getPixels(12 * num_scans + ns +1);
+//		    		fset[1] = (float[]) clt_mismatches_stack.getPixels(13 * num_scans + ns +1); //
+		    		scans[ns * NUM_ALL_SLICES + 0] = data[12 * num_scans + ns];
+		    		scans[ns * NUM_ALL_SLICES + 1] = data[13 * num_scans + ns];
+//		    		for (int i = 0; i < nTiles; i++){
+//		    			scans[ns * NUM_ALL_SLICES + 0][i] = fset[0][i]; // disparity 
+//		    			scans[ns * NUM_ALL_SLICES + 1][i] = fset[1][i]; // strength 
+//		    		}
+//		    		fset[0] = (float[]) clt_mismatches_stack.getPixels((2 * pair + 0) * num_scans + ns +1);
+//		    		fset[1] = (float[]) clt_mismatches_stack.getPixels((2 * pair + 1) * num_scans + ns +1); //
+//		    		fset[2] = (float[]) clt_mismatches_stack.getPixels((8 + pair   ) *  num_scans + ns +1);
+	    			scans[ns * NUM_ALL_SLICES + pair * 3 + 2] = data[(2 * pair + 0) * num_scans + ns]; 
+	    			scans[ns * NUM_ALL_SLICES + pair * 3 + 3] = data[(2 * pair + 1) * num_scans + ns];
+	    			scans[ns * NUM_ALL_SLICES + pair * 3 + 4] = data[(8 + pair   ) *  num_scans + ns];
+
+//		    		for (int i = 0; i < nTiles; i++){
+//		    			scans[ns * NUM_ALL_SLICES + pair * 3 + 2][i] = fset[0][i]; // dx_i 
+//		    			scans[ns * NUM_ALL_SLICES + pair * 3 + 3][i] = fset[1][i]; // dy_i
+//		    			scans[ns * NUM_ALL_SLICES + pair * 3 + 4][i] = fset[2][i]; // str_i
+//		    		}
+		    	}
+		    }
+		    if (debugLevel > 0) {
+		    	String [] prefixes = {"disparity", "strength", "dx0", "dy0", "str0", "dx1", "dy1", "str1", "dx2", "dy2", "str2", "dx3", "dy3", "str3"};
+		    	String [] titles = new String [num_scans * NUM_ALL_SLICES]; 
+			    for (int ns = 0; ns < num_scans; ns++){
+			    	for (int i = 0; i < NUM_ALL_SLICES; i++){
+			    		titles[ns * NUM_ALL_SLICES + i] = prefixes[i]+"_"+ns;
+			    	}
+			    }
+				(new showDoubleFloatArrays()).showArrays(scans, tilesX, tilesY, true, "scans" , titles);
+		    }
+		  return scans;
+	  }
+
+	  public double [][] getFineCorrFromImage_old(
 			  ImagePlus imp_src,
 			  int debugLevel)
 	  {
@@ -1397,28 +1476,13 @@ public class AlignmentCorrection {
 		    		fset[1] = (float[]) clt_mismatches_stack.getPixels((2 * pair + 1) * num_scans + ns +1); //
 		    		fset[2] = (float[]) clt_mismatches_stack.getPixels((8 + pair   ) *  num_scans + ns +1);
 		    		for (int i = 0; i < nTiles; i++){
-//		    			if (i == 55156) { // 52564){
-//		    				System.out.println("tile="+i+" scan="+ns+" pair = "+pair+ "fset[2]["+i+"]="+fset[2][i]);
-//		    			}
 		    			scans[ns * NUM_ALL_SLICES + pair * 3 + 2][i] = fset[0][i]; // dx_i 
 		    			scans[ns * NUM_ALL_SLICES + pair * 3 + 3][i] = fset[1][i]; // dy_i
 		    			scans[ns * NUM_ALL_SLICES + pair * 3 + 4][i] = fset[2][i]; // str_i
-//		    			if ((pair == 0) || (fset[2][i] < min_max_strength[0][i])) min_max_strength[0][i] = fset[2][i];
-//		    			if ((pair == 0) || (fset[2][i] > min_max_strength[1][i])) min_max_strength[1][i] = fset[2][i];
-//		    			if (fset[2][i] < min_comp_strength) {
-//		    				scans[ns * NUM_SLICES + 1][i] = -1.0; // -1.0 - temporary to indicate
-//		    			};
 		    		}
 		    	}
-//	    		for (int i = 0; i < nTiles; i++){
-//	    			if (min_max_strength[1][i] > (min_max_ratio * min_max_strength[0][i]) ){
-//	    				scans[ns * NUM_SLICES + 1][i] = -1.0; // -1.0 - temporary to indicate
-//	    			}
-//	    		}
-		    	
 		    }
 		    if (debugLevel > -1) {
-//		    	String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
 		    	String [] prefixes = {"disparity", "strength", "dx0", "dy0", "str0", "dx1", "dy1", "str1", "dx2", "dy2", "str2", "dx3", "dy3", "str3"};
 		    	String [] titles = new String [num_scans * NUM_ALL_SLICES]; 
 			    for (int ns = 0; ns < num_scans; ns++){
@@ -1436,7 +1500,7 @@ public class AlignmentCorrection {
 		public double [][][] lazyEyeCorrection(
 				final double min_strength_in,
 				final double max_diff,
-				final double comp_strength_var,
+//				final double comp_strength_var,
 				final int max_iterations,
 				final double max_coeff_diff,
 				final double far_pull, //  = 0.2; // 1; //  0.5;
@@ -1475,6 +1539,10 @@ public class AlignmentCorrection {
 		    		scans[ns * NUM_SLICES + i] = scans_14[ns * NUM_ALL_SLICES + indices_14_10[i]];
 		    	}
 		    }
+//		    (new showDoubleFloatArrays()).showArrays(scans_14, tilesX, tilesY, true, "scans14");
+//		    (new showDoubleFloatArrays()).showArrays(scans, tilesX, tilesY, true, "scans10");
+		    
+		    
 		    for (int ns = 0; ns < num_scans; ns++){
 		    	for (int nTile = 0; nTile < num_tiles; nTile++){
 		    		double s1=0.0, s2=0.0;
@@ -1510,7 +1578,7 @@ public class AlignmentCorrection {
 	 * None of comp_strength_rms methods works to detect potential outliers for horizontal/vertical features
 	 */
 		    
-		    if (debugLevel > -1) {
+		    if (debugLevel > 0) {
 		    	String [] titles = new String [num_scans]; 
 			    for (int ns = 0; ns < num_scans; ns++){
 		    		titles[ns] = "scan_" + ns;
@@ -1529,19 +1597,10 @@ public class AlignmentCorrection {
 					tilesX);// final int        tilesX);
 		    
 			if (debugLevel > -1) {
-				System.out.println("lazyEyeCorrection() 1: removing tile with residual disparity absoulte value > "+lazyEyeCompDiff);
+				System.out.println("lazyEyeCorrection() 1: removing tiles with residual disparity absoulte value > "+lazyEyeCompDiff);
 			}
-			/*
-		    for (int ns = 0; ns < num_scans; ns++){
-		    	for (int i = 0; i < num_tiles; i++){
-		    		double disp = filtered_scans[ns * NUM_SLICES + 0][i];
-		    		if (Math.abs(disp) > lazyEyeCompDiff) {
-			    		filtered_scans[ns * NUM_SLICES + 1][i] = 0.0;
-		    		}
-		    	}
-		    }
-		    */
-		    double [][] combo_mismatch = new double [NUM_SLICES][num_tiles];
+
+			double [][] combo_mismatch = new double [NUM_SLICES][num_tiles];
 		    double [] combo_comp_rms = new double [num_tiles];
 		    for (int ns = 0; ns < num_scans; ns++){
 		    	for (int nTile = 0; nTile < num_tiles; nTile++) {
@@ -1598,7 +1657,7 @@ public class AlignmentCorrection {
 	    		}
 	    	}			
 	    	
-		    if (debugLevel > -1) {
+		    if (debugLevel > 0) {
 		    	String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
 				(new showDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "combo_mismatch" , prefixes);
 		    }
@@ -1612,7 +1671,7 @@ public class AlignmentCorrection {
 	    			true,           // final boolean    norm_center, // if there are more tiles that fit than minsamples, replace with a single equal weight
 	    			tilesX);        // final int        tilesX);
 
-		    if (debugLevel > -1) {
+		    if (debugLevel > 0) {
 		    	String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
 				(new showDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "filtered_mismatch" , prefixes);
 		    }
@@ -1666,7 +1725,7 @@ public class AlignmentCorrection {
 						hist_min_samples, // final int        min_samples,
 						hist_norm_center, // final boolean    norm_center, // if there are more tiles that fit than minsamples, replace with 					
 						tilesX);          // final int        tilesX)
-				if (debugLevel > 0){
+				if (debugLevel > 1){
 					double [][] dbg_img = inf_scan.clone();
 					for (int n = 0; n < inf_scan.length; n++){
 						dbg_img[n] = inf_scan[n].clone();
@@ -1689,7 +1748,7 @@ public class AlignmentCorrection {
 			}
 			
 			
-			if (debugLevel > -1) {
+			if (debugLevel > 0) {
 		    	String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
 		    	String [] titles = new String [2 * NUM_SLICES]; 
 		    	for (int i = 0; i < NUM_SLICES; i++){
@@ -1805,7 +1864,7 @@ public class AlignmentCorrection {
 
 		    }			
 			
-		    if (debugLevel > -1) {
+		    if (debugLevel > 0) {
 		    	String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
 		    	String [] titles = new String [num_scans * NUM_SLICES]; 
 			    for (int ns = 0; ns < num_scans; ns++){
@@ -1817,7 +1876,7 @@ public class AlignmentCorrection {
 		    }
 		    
 		    
-		    if (debugLevel > -1) {
+		    if (debugLevel > 0) {
 		    	String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
 				(new showDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "combo_mismatch" , prefixes);
 		    }
@@ -1842,8 +1901,84 @@ public class AlignmentCorrection {
 		    return mismatch_corr_coefficiants;			
 		}
 	
-	  
-	  
+		  public double [][] combineCltMismatches(
+				  EyesisCorrectionParameters.CLTParameters clt_parameters,
+				  double [][][]                            clt_mismatches,
+				  double [][][]                            disparity_maps,
+				  int                                      disparity_index,
+				  int                                      strength_index)
+		  {
+			  int n = clt_mismatches.length;
+			  double [][] combo = new double [clt_parameters.disp_scan_count * AlignmentCorrection.NUM_ALL_SLICES][];
+			  for (int pair = 0; pair < 4; pair++){
+				  for (int i = 0; i < n; i++){
+					  combo[(2 * pair + 0) * n + i] = clt_mismatches[i][3 * pair + 0];
+					  combo[(2 * pair + 1) * n + i] = clt_mismatches[i][3 * pair + 1];
+					  combo[(2 * 4 + pair) * n + i] = clt_mismatches[i][3 * pair + 2];
+				  }
+			  }
+			  for (int i = 0; i < n; i++){
+				  combo[12 * n + i] = disparity_maps[i][disparity_index];
+				  combo[13 * n + i] = disparity_maps[i][strength_index];
+			  }
+			  return combo;
+		  }
+
+		  public void showCltMismatches(
+				  String                                   title,
+				  EyesisCorrectionParameters.CLTParameters clt_parameters,
+				  double [][]                              combo_data,
+				  int tilesX,
+				  int tilesY)
+		  {
+			  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+			  String [] titles = new String [combo_data.length];
+			  int num_scans = combo_data.length / AlignmentCorrection.NUM_ALL_SLICES;
+			  for (int pair = 0; pair < 4; pair++){
+				  for (int i = 0; i < num_scans; i++){
+					  double disparity = clt_parameters.disp_scan_start + i * clt_parameters.disp_scan_step;
+
+					  titles[(2 * pair + 0) * num_scans + i] = "dx_"+pair+"_"+disparity;
+					  titles[(2 * pair + 1) * num_scans + i] = "dy_"+pair+"_"+disparity;
+					  titles[(2 * 4 + pair) * num_scans + i] = "strength_"+pair+"_"+disparity;
+				  }
+			  }
+			  for (int i = 0; i < num_scans; i++){
+				  double disparity = clt_parameters.disp_scan_start + i * clt_parameters.disp_scan_step;
+				  titles[ 12 * num_scans + i] = "disp_"+disparity;
+				  titles[ 13 * num_scans + i] = "strength_"+disparity;
+			  }
+			  sdfa_instance.showArrays(combo_data, tilesX,tilesY, true, title, titles);
+		  }
+
+		  public void showCltMismatch(
+				  String                                   title,
+				  EyesisCorrectionParameters.CLTParameters clt_parameters,
+				  double [][]                              clt_mismatch,
+				  int tilesX,
+				  int tilesY)
+
+		  {
+			  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+			  String [] titles = new String [12];  
+			  double [][] dbg_clt_mismatch= new double [12][];
+			  for (int pair = 0; pair < 4; pair++){
+					  titles[2 * pair + 0] = "dx_"+pair;
+					  titles[2 * pair + 1] = "dy_"+pair;
+					  titles[2 * 4 + pair] = "strength_"+pair;
+					  dbg_clt_mismatch[(2 * pair + 0)] = clt_mismatch[3 * pair + 0].clone();
+					  dbg_clt_mismatch[(2 * pair + 1)] = clt_mismatch[3 * pair + 1].clone();
+					  dbg_clt_mismatch[(2 * 4 + pair)] = clt_mismatch[3 * pair + 2];
+					  for (int i = 0; i < dbg_clt_mismatch[(2 * 4 + pair)].length; i++ ){
+						  if (dbg_clt_mismatch[(2 * 4 + pair)][i] == 0.0){
+							  dbg_clt_mismatch[(2 * pair + 0)][i] = Double.NaN;
+							  dbg_clt_mismatch[(2 * pair + 1)][i] = Double.NaN;
+						  }
+					  }
+			  }
+			  sdfa_instance.showArrays(dbg_clt_mismatch, tilesX, tilesY, true, title, titles);
+		  }
+
 	  
 	  public void process_fine_corr(
 			  boolean dry_run,

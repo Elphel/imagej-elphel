@@ -51,7 +51,7 @@ public class CLTPass3d{
 		public  boolean []      border_tiles =         null;      // these are border tiles, zero out alpha
 		public  boolean []      selected =             null;          // which tiles are selected for this layer
 		public  double [][][][] texture_tiles;
-		public double [][]      max_tried_disparity =  null; //[ty][tx] used for combined passes, shows maximal disparity wor this tile, regardless of results
+		public double [][]      max_tried_disparity =  null; //[ty][tx] used for combined passes, shows maximal disparity for this tile, regardless of results
 		public  boolean         is_combo =             false;
 		public  boolean         is_measured =          false;
 		public  String          texture = null; // relative (to x3d) path
@@ -190,6 +190,7 @@ public class CLTPass3d{
 		 */
 
 		public double [][] getDiffs (){
+			if (disparity_map == null) return null;
 			double  [][] these_diffs =    new double[ImageDtt.QUAD][];
 			for (int i = 0; i< ImageDtt.QUAD; i++) these_diffs[i] = disparity_map[ImageDtt.IMG_DIFF0_INDEX + i];
 			return these_diffs;
@@ -206,6 +207,10 @@ public class CLTPass3d{
 
 		public boolean [] getSelected(){
 			return selected;
+		}
+		
+		public boolean [] getBorderTiles(){
+			return this.border_tiles;
 		}
 		
 		public void setSelected (boolean [] selected) {
@@ -444,7 +449,7 @@ public class CLTPass3d{
 		 * Replaces current combo disparity for tiles that are weak and do not have any neighbor within disparity range from this one
 		 * @param selection optional boolean mask of tiles to use/update
 		 * @param weakStrength maximal strength of the tile to be considered weak one
-		 * @param maxDiff maximal difference from the most similar neighbor to be considered an outlayer
+		 * @param maxDiff maximal difference from the most similar neighbor to be considered an outlier
 		 * @param disparityFar minimal acceptable disparity for weak tiles
 		 * @param disparityNear maximal acceptable disparity for weak tiles
 		 * @return mask of weak (replaced) tiles
@@ -455,8 +460,8 @@ public class CLTPass3d{
 				final boolean [] selection,
 				final double weakStrength,    // strength to be considered weak, subject to this replacement
 				final double maxDiff,
-				final double maxDiffPos,      // Replace weak outlayer tiles that have higher disparity than weighted average
-				final double maxDiffNeg,      // Replace weak outlayer tiles that have lower disparity than weighted average
+				final double maxDiffPos,      // Replace weak outlier tiles that have higher disparity than weighted average
+				final double maxDiffNeg,      // Replace weak outlier tiles that have lower disparity than weighted average
 				final double disparityFar,
 				final double disparityNear,
 				final int debugLevel)
@@ -474,7 +479,7 @@ public class CLTPass3d{
 			final double absMaxDisparity = 1.5 * disparityNear; // change?
 			final int dbg_nTile = (debugLevel > 0) ? 43493: -1; // x=77,y=134; // 42228; // x = 108, y = 130 46462; // 41545;
 			final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
-			// first pass = find outlayers
+			// first pass = find outliers
 			final AtomicInteger ai = new AtomicInteger(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
@@ -507,7 +512,7 @@ public class CLTPass3d{
 											sw += w;
 											sd += w * disparity[nTile1];
 											hasNeighbors = true;
-											if (Math.abs(disparity[nTile]-disparity[nTile1]) <= maxDiff){ // any outlayer - will be false
+											if (Math.abs(disparity[nTile]-disparity[nTile1]) <= maxDiff){ // any outlier - will be false
 												weakOutlayers[nTile] = false;
 //												break;
 											}
@@ -531,7 +536,7 @@ public class CLTPass3d{
 			}		      
 			ImageDtt.startAndJoin(threads);
 			
-			// second pass - replace outlayers
+			// second pass - replace outliers
 			final double [] src_disparity = disparity.clone();
 			ai.set(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -579,6 +584,167 @@ public class CLTPass3d{
 			ImageDtt.startAndJoin(threads);
 			return weakOutlayers;
 		}
+		
+		public boolean [] getUntestedBackgroundBorder (
+				final boolean    [] known,
+				final double     [] disparity,
+				final double        grow_disp_step,
+				final int     debugLevel)
+		{
+			final int tilesX = tileProcessor.getTilesX();
+			final int tilesY = tileProcessor.getTilesY();
+			final int num_tiles = tilesX * tilesY;
+			final TileNeibs tnImage = new TileNeibs(tilesX, tilesY); // num_tiles/tilesX);
+			final boolean [] untested_bgnd = new boolean [num_tiles];
+			final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+			final AtomicInteger ai = new AtomicInteger(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) {
+							if (known[nTile]){
+								int tX = nTile % tilesX;
+								int tY = nTile / tilesX;
+								double max_disp = max_tried_disparity[tY][tX] + grow_disp_step;
+								for (int dir = 0; dir < 8; dir++){
+									int nTile1 = tnImage.getNeibIndex(nTile, dir);
+									if ((nTile1 >=0) && known[nTile1] && (disparity[nTile1] > max_disp)) {
+										untested_bgnd[nTile] = true;
+										break;
+									}
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			return untested_bgnd;
+		}
+		
+		public boolean [] measuredTiles ()
+		{
+			final int tilesX = tileProcessor.getTilesX();
+			final int tilesY = tileProcessor.getTilesY();
+			final int num_tiles = tilesX * tilesY;
+			final boolean [] measured = new boolean [num_tiles];
+			final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+			final AtomicInteger ai = new AtomicInteger(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) {
+								int tX = nTile % tilesX;
+								int tY = nTile / tilesX;
+								measured[nTile] = tile_op[tY][tX] != 0;
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			return measured;
+		}
+		
+		
+		public double [] getSecondMaxDiff (
+				final boolean averaged)
+		{
+			final double [][] diffs = getDiffs();
+			if (diffs == null) return null;
+			
+			final int tilesX = tileProcessor.getTilesX();
+			final int tilesY = tileProcessor.getTilesY();
+			final int num_tiles = tilesX * tilesY;
+			final double [] second_max = new double [num_tiles];
+			final boolean [] measured =  measuredTiles ();
+			final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+			final AtomicInteger ai = new AtomicInteger(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) {
+							int imax1 = 0;
+							for (int ip = 1; ip < diffs.length; ip++){
+								if (diffs[ip][nTile] > diffs[imax1][nTile]) imax1 = ip;
+							}
+							int imax2 = (imax1 == 0)? 1 : 0;
+							for (int ip = 0; ip < diffs.length; ip++) if (ip != imax1) {
+								if (diffs[ip][nTile] > diffs[imax2][nTile]) imax2 = ip;
+							}
+							second_max[nTile] = diffs[imax2][nTile];
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			if (!averaged) return second_max;
+			final TileNeibs tnImage = new TileNeibs(tilesX, tilesY); // num_tiles/tilesX);
+			final double [] second_max_averaged = new double [num_tiles];
+			final double [] dir_weights = {1.0/16, 1.0/8, 1.0/16, 1.0/8, 1.0/16, 1.0/8, 1.0/16, 1.0/8, 1.0/4};
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) if (measured[nTile]) {
+							double sw = 0.0;
+							double swd = 0.0;
+							for (int dir = 0; dir < 9; dir++){ // including 8 - center
+								int nTile1 = tnImage.getNeibIndex(nTile, dir);
+								if ((nTile1 >=0) && measured[nTile1]) {
+									sw +=  dir_weights[dir];
+									swd += dir_weights[dir] * second_max[nTile1] ;
+								}
+							}
+							second_max_averaged[nTile] = swd/sw; 
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			return second_max_averaged;
+		}
+		
+		
+		
+		// same, but 2 steps around
+		public boolean [] getUntestedBackgroundBorder2 (
+				final boolean    [] known,
+				final double     [] disparity,
+				final double        grow_disp_step,
+				final int     debugLevel)
+		{
+			final int tilesX = tileProcessor.getTilesX();
+			final int tilesY = tileProcessor.getTilesY();
+			final int num_tiles = tilesX * tilesY;
+			final TileNeibs tnImage = new TileNeibs(tilesX, tilesY); // num_tiles/tilesX);
+			final boolean [] untested_bgnd = new boolean [num_tiles];
+			final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
+			final AtomicInteger ai = new AtomicInteger(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					public void run() {
+						for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) {
+							if (known[nTile]){
+								int tX = nTile % tilesX;
+								int tY = nTile / tilesX;
+								double max_disp = max_tried_disparity[tY][tX] + grow_disp_step;
+								for (int dir = 0; dir < 24; dir++){
+									int nTile1 = tnImage.getNeibIndex2(nTile, dir);
+									if ((nTile1 >=0) && known[nTile1] && (disparity[nTile1] > max_disp)) {
+										untested_bgnd[nTile] = true;
+										break;
+									}
+								}
+							}
+						}
+					}
+				};
+			}		      
+			ImageDtt.startAndJoin(threads);
+			return untested_bgnd;
+		}
+		
+		
 		
 		public SuperTiles getSuperTiles()
 		{

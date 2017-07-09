@@ -1383,10 +1383,10 @@ public class TilePlanes {
 			swx /= sw;
 			swy /= sw;
 
-			double kz = ((dispNorm > 0.0) && (swz > dispNorm)) ? (dispNorm / swz) : 1.0; 
+//			double kz = ((dispNorm > 0.0) && (swz > dispNorm)) ? (dispNorm / swz) : 1.0; 
 			
 			if (debugLevel > 0){
-				System.out.println("getPlaneFromMeas(): num_tiles="+num_tiles+", sw = "+sw +", swz = "+swz +", swx = "+swx +", swy = "+swy+", kz="+kz);
+				System.out.println("getPlaneFromMeas(): num_tiles="+num_tiles+", sw = "+sw +", swz = "+swz +", swx = "+swx +", swy = "+swy); // +", kz="+kz);
 			}
 
 			// TODO: scale disparity to make same scale for 3 axes?
@@ -1397,7 +1397,8 @@ public class TilePlanes {
 						if (tile_sel[nl][indx]) {
 							double w = disp_str[nl][1][indx] / sw;
 							if (w > 0.0){
-								double d =  kz * (disp_str[nl][0][indx] - swz);
+//								double d =  kz * (disp_str[nl][0][indx] - swz); // Not here!
+								double d =  disp_str[nl][0][indx] - swz;
 								double wd = w*d;
 								double x = ((indx % stSize2) - stSize + 0.5) * tileSize + 0.5 - swx;
 								double y = ((indx / stSize2) - stSize + 0.5) * tileSize + 0.5 - swy;
@@ -3795,6 +3796,7 @@ public class TilePlanes {
 				double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 				int          debugLevel)
 		{
+			if (debugLevel > 2) debugLevel ++; // no show all eigen stuff (debugLevel > 3)
 
 			// first make a plane from all tiles
 			ArrayList<PlaneData> st_planes = new ArrayList<PlaneData>();
