@@ -2315,6 +2315,10 @@ public class SuperTiles{
 										dl-2); // int       debugLevel)
 								// combine tile selection - if next time pd0.reDiscriminateTiles() will fail, it will
 								// use old selections, we need to provide them (otherwise will use selection from the first plane)
+								if (plane1 == null){
+									System.out.println("refineDiscriminateTiles() nsTile="+nsTile+" plane1 = null");
+									break;
+								}
 								plane1.orMeasSelection(these_planes[merge_planes[1]].getMeasSelection());
 								
 								// separately merge corresponding nonexclusiveStar and nonexclusiveStarEq of these planes - kit is not exact,

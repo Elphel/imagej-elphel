@@ -274,10 +274,10 @@ public class DisparityProcessor {
 	{
 		final int dbg_tile = -1; // 28643; // x=131, y=88
 		showDoubleFloatArrays sdfa_instance = null;
-		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		if (debugLevel > 0) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final int numThreads = threads.length;
-		if (debugLevel > -1) System.out.println("smoothDisparity(): using "+numThreads+" threads");
+		if (debugLevel > 0) System.out.println("smoothDisparity(): using "+numThreads+" threads");
 		final int len = disparity.length;
 		int numBorder = 0, numInternal = 0;
 		for (int i = 0; i < len; i++){
@@ -428,7 +428,7 @@ public class DisparityProcessor {
 				double diff = 0.0;
 				for (int i = 0; (i < numThreads) && (diff <= maxDiff) ; i++) if (diff < rslt_diffs[i]) diff = rslt_diffs[i];
 				if (diff <= maxDiff) {
-					if (debugLevel > -1) System.out.println("smoothDisparity(): pass = "+pass+", diff = "+diff+" <= "+maxDiff);
+					if (debugLevel > 0) System.out.println("smoothDisparity(): pass = "+pass+", diff = "+diff+" <= "+maxDiff);
 					break;
 				}
 			}

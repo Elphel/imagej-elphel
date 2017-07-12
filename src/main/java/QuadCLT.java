@@ -5702,7 +5702,7 @@ public class QuadCLT {
 			  final boolean    updateStatus,
 			  final int        debugLevel)
 	  {
-		  final int max_expand =  100; // 30;
+		  final int max_expand =  300; // 150; // 30;
 		  // Temporary assign here
 		  final int        disp_index =      ImageDtt.DISPARITY_INDEX_CM;
 		  final int        str_index =       ImageDtt.DISPARITY_STRENGTH_INDEX;
@@ -5901,6 +5901,7 @@ public class QuadCLT {
     				  image_data, // first index - number of image in a quad
     				  clt_parameters,
     				  refine_pass,
+    				  true, // final boolean     save_textures,
     				  threadsMax,  // maximal number of threads to launch                         
     				  updateStatus,
     				  debugLevel); 
@@ -5946,6 +5947,7 @@ public class QuadCLT {
 // process once more to try combining of processed
           boolean last_pass = false;
 //          for (int num_expand = 0; (num_expand < 4) && (num_extended != 0); num_expand++) {
+          boolean over_infinity = false;
           for (int num_expand = 0; num_expand < max_expand; num_expand++) {
         	  
       		Runtime runtime = Runtime.getRuntime();
@@ -6078,7 +6080,7 @@ public class QuadCLT {
         	  num_extended = tp.setupExtendDisparity(
         			  extended_pass,                              // final CLTPass3d   scan,            // combined scan with max_tried_disparity, will be modified to re-scan
         			  tp.clt_3d_passes.get(refine_pass), // final CLTPass3d   last_scan,       // last prepared tile - can use last_scan.disparity, .border_tiles and .selected
-        			  tp.clt_3d_passes.get(bg_pass), // final CLTPass3d   bg_scan,         // background scan data
+        			  over_infinity? null: tp.clt_3d_passes.get(bg_pass), // final CLTPass3d   bg_scan,         // background scan data
         			  clt_parameters.grow_sweep,      // 8; // Try these number of tiles around known ones 
         			  clt_parameters.grow_disp_max,   //  =   50.0; // Maximal disparity to try
         			  0.5 * clt_parameters.grow_disp_trust, //  =  4.0; // Trust measured disparity within +/- this value 
@@ -6127,6 +6129,7 @@ public class QuadCLT {
         			  image_data, // first index - number of image in a quad
         			  clt_parameters,
         			  refine_pass,
+    				  false, // final boolean     save_textures,
         			  threadsMax,  // maximal number of threads to launch                         
         			  updateStatus,
         			  debugLevel);
@@ -6177,7 +6180,8 @@ public class QuadCLT {
         	  if (last_pass) {
         		  break;
         	  } else if (numLeftRemoved[0] == 0){
-        		  last_pass = true;
+        		  if (over_infinity)  last_pass = true;
+        		  else over_infinity = true;
         	  }
 
           }
@@ -6241,6 +6245,7 @@ public class QuadCLT {
         			  image_data, // first index - number of image in a quad
         			  clt_parameters,
         			  scanIndex,
+    				  true, // final boolean     save_textures,
         			  threadsMax,  // maximal number of threads to launch                         
         			  updateStatus,
         			  debugLevel);
@@ -6404,6 +6409,7 @@ public class QuadCLT {
 					  image_data, // first index - number of image in a quad
 					  clt_parameters,
 					  scanIndex,
+    				  true, // final boolean     save_textures,
 					  threadsMax,  // maximal number of threads to launch                         
 					  updateStatus,
 					  debugLevel);
@@ -7077,6 +7083,7 @@ public class QuadCLT {
 			  final double [][][]       image_data, // first index - number of image in a quad
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  final int         scanIndex,
+			  final boolean     save_textures,
 			  final int         threadsMax,  // maximal number of threads to launch                         
 			  final boolean     updateStatus,
 			  final int         debugLevel)
@@ -7107,7 +7114,7 @@ public class QuadCLT {
 				  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
 				  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
 		  
-		  double [][][][] texture_tiles =     new double [tilesY][tilesX][][]; // ["RGBA".length()][];
+		  double [][][][] texture_tiles =   save_textures ? new double [tilesY][tilesX][][] : null; // ["RGBA".length()][];
 		  ImageDtt image_dtt = new ImageDtt();
 		  image_dtt.clt_aberrations_quad_corr(
 				  tile_op,                      // per-tile operation bit codes

@@ -339,6 +339,9 @@ public class LinkPlanes {
 					true, // boolean   sum_weights,
 					plPreferDisparity, 
 					debugLevel - 2); // int       debugLevel)
+			if (merged_pd == null){
+				return false;
+			}
 //			merged_ev = merged_pd.getValue();
 			merged_ev = merged_pd.getNormValue();
 			merged_wev = merged_pd.getWValue();
@@ -352,6 +355,10 @@ public class LinkPlanes {
 					true,        // boolean   sum_weights,
 					plPreferDisparity, 
 					debugLevel - 2); // int       debugLevel)
+			if (merged_pd_eq == null){
+				return false;
+			}
+
 //			merged_ev_eq = merged_pd_eq.getValue();
 			merged_ev_eq = merged_pd_eq.getNormValue();
 			merged_wev_eq = merged_pd_eq.getWValue();

@@ -1071,7 +1071,7 @@ public class TileProcessor {
 	public int setupExtendDisparity( // returns number of new tiles to try
 			final CLTPass3d   scan,            // combined scan with max_tried_disparity, will be modified to re-scan
 			final CLTPass3d   last_scan,       // last prepared tile - can use last_scan.disparity, .border_tiles and .selected
-			final CLTPass3d   bg_scan,         // background scan data
+			final CLTPass3d   bg_scan,         // background scan data, null - ignore background 
 			final int         grow_sweep,      // 8; // Try these number of tiles around known ones 
 			final double      grow_disp_max,   //  =   50.0; // Maximal disparity to try
 			final double      tried_margin,    //  =  4.0; // consider already tried if within this margin from already tried 
@@ -1089,7 +1089,7 @@ public class TileProcessor {
 			final boolean     updateStatus,
 			final int         debugLevel)
 	{
-		final int dbg_tile = 39379; // 54627; // ty=159, tx = 249
+		final int dbg_tile = -1; // 39379; // 54627; // ty=159, tx = 249
 		final int tlen = tilesY * tilesX;
 		final boolean retryTwoSteps = true; // false; //  true;
 		
@@ -1109,8 +1109,10 @@ public class TileProcessor {
 		
 		boolean [] known_tiles = these_no_border.clone();
 		// known are background or these tiles
-		for (int i = 0; i < known_tiles.length; i++) {
-			known_tiles[i] |= bg_scan.selected[i];
+		if (bg_scan != null) {
+			for (int i = 0; i < known_tiles.length; i++) {
+				known_tiles[i] |= bg_scan.selected[i];
+			}
 		}
 		// set combo disparity from  last prepared
 		for (int nt = 0; nt < known_tiles.length; nt++){
@@ -1136,7 +1138,7 @@ public class TileProcessor {
 						debugLevel);    // final int     debugLevel)
 				
 			}
-			if (!grow_retry_inf){
+			if (!grow_retry_inf && (bg_scan == null)){
 				for (int i = 0; i < untested_bgnd.length; i++) if (bg_scan.selected[i]) untested_bgnd[i] = false;
 			}
 			// turn these tiles as if they are not known (really known or belong to bgnd)
@@ -1333,7 +1335,7 @@ public class TileProcessor {
 				dbg_img[0][i] = scan.max_tried_disparity[ty][tx];
 				dbg_img[2][i] = scan.disparity[ty][tx];
 				dbg_img[3][i] = strength[i];
-				dbg_img[4][i] = ((bg_scan.selected != null) &&    (bg_scan.selected[i]))? boolean_val:0.0 ;
+				if (bg_scan != null) dbg_img[4][i] = ((bg_scan.selected != null) &&    (bg_scan.selected[i]))? boolean_val:0.0 ;
 				dbg_img[5][i] = ((last_scan.selected != null) &&  (last_scan.selected[i]))? boolean_val:0.0 ;
 				dbg_img[6][i] = 0.05 * (dbg_img[4][i] + dbg_img[5][i]);
 				dbg_img[7][i] = (scan.selected[i]?4:0)+ (scan.border_tiles[i]?8:0);
