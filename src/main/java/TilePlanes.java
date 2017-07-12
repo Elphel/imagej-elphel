@@ -94,6 +94,7 @@ public class TilePlanes {
 		int          smplSide = 2;      // Sample size (side of a square)
 		int          smplNum  = 3;      // Number after removing worst
 		double       smplRms  = 0.1;    // Maximal RMS of the remaining tiles in a sample
+		boolean      smplWnd =  false;   // Use sample mode (false - regular tile mode)
 		
 		double [] starValueWeight = null;
 		PlaneData starPlane = null;
@@ -280,7 +281,7 @@ public class TilePlanes {
 			double [] px_py = getCenterPxPy();
 			if (zxy != null) s += String.format("\nzxy =     [%8.3f, %8.3f, %8.3f] (pix)",zxy[0],zxy[1]+px_py[0],zxy[2]+px_py[1]);
 			else  s +=                          "\nzxy =     null";
-			if (values != null)	s += String.format(", values = [%8.5f, %8.4f, %8.3f] pix^2",values[0],values[1],values[2]);
+			if (values != null)	s += String.format(", values = [%8.5f, %8.4f, %8.3f] (%8.3f) pix^2",values[0],values[1],values[2], getNormValue());
 			else  s +=                             " values = null";
 			if (vectors != null) s += String.format("\nvectors = [%8.5f, %8.5f, %8.5f], [%8.5f, %8.5f, %8.5f], [%8.5f, %8.5f, %8.5f]",
 					vectors[0][0],vectors[0][1],vectors[0][2], vectors[1][0],vectors[1][1],vectors[1][2], vectors[2][0],vectors[2][1],vectors[2][2]);
@@ -747,6 +748,7 @@ public class TilePlanes {
 				int          smplSide, //        = 2;      // Sample size (side of a square)
 				int          smplNum, //         = 3;      // Number after removing worst
 				double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				boolean      smplWnd,  // use window functions for the samples
 				int          measSel, // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 				boolean      allow_parallel,
 				int          debugLevel)
@@ -788,7 +790,9 @@ public class TilePlanes {
 								smplSide, //        = 2;      // Sample size (side of a square)
 								smplNum, //         = 3;      // Number after removing worst
 								smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-								true); // boolean null_if_none)
+								smplWnd,  // use window functions for the samples
+								true, // boolean null_if_none)
+								debugLevel);
 					} else {
 						disp_strength[nl] = measuredLayers.getDisparityStrength(
 								nl,                     // int num_layer,
@@ -912,7 +916,9 @@ public class TilePlanes {
 									smplSide, //        = 2;      // Sample size (side of a square)
 									smplNum, //         = 3;      // Number after removing worst
 									smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-									true); // boolean null_if_none)
+									smplWnd,  // use window functions for the samples
+									true, // boolean null_if_none)
+									debugLevel);
 						} else {
 							disp_strength[nl] = measuredLayers.getDisparityStrength(
 									nl,                     // int num_layer,
@@ -1083,9 +1089,11 @@ public class TilePlanes {
 										strength_floor,
 										measured_strength_pow, //
 										smplSide, //        = 2;      // Sample size (side of a square)
-										smplNum, //         = 3;      // Number after removing worst
-										smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-										true); // boolean null_if_none)
+										smplNum,  //         = 3;      // Number after removing worst
+										smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+										smplWnd,  // use window functions for the samples
+										true,     // boolean null_if_none)
+										debugLevel);
 							}
 						} else {						
 							disp_str[nl] = measuredLayers.getDisparityStrength(
@@ -1102,9 +1110,11 @@ public class TilePlanes {
 			}
 			int numRemoved = 0;
 			boolean no_bugs = true;
-			for (; (getValue() > targetEigen) && (numRemoved < maxRemoved); numRemoved++){
+//			for (; (getValue() > targetEigen) && (numRemoved < maxRemoved); numRemoved++){
+			for (; (getNormValue() > targetEigen) && (numRemoved < maxRemoved); numRemoved++){
 				if (debugLevel > 2){
-					System.out.println("removePlaneOutliers("+sTileXY[0]+":"+sTileXY[1]+"): numRemoved = "+numRemoved+" eigenValue = " + getValue()+" target = "+targetEigen);
+					System.out.println("removePlaneOutliers("+sTileXY[0]+":"+sTileXY[1]+"): numRemoved = "+numRemoved+
+							" eigenValue = " + getValue()+" norm eigenValue = " + getNormValue()+" target = "+targetEigen);
 				}
 				// make a plane and find the worst (largest disparity difference) tile
 				// z = -(x*Vx + y*Vy)/Vz
@@ -1160,6 +1170,7 @@ public class TilePlanes {
 						smplSide,
 						smplNum,
 						smplRms,
+						smplWnd,  // use window functions for the samples
 						debugLevel-1) != null);
 				
 				if (!OK){ // restore last selection, re-run getPlaneFromMeas
@@ -1178,6 +1189,7 @@ public class TilePlanes {
 							smplSide,
 							smplNum,
 							smplRms,
+							smplWnd,  // use window functions for the samples
 							debugLevel-1) != null);
 					if (!OK) {
 						System.out.println("This is a BUG in removePlaneOutliers() - run with previous selection and failed");
@@ -1210,6 +1222,7 @@ public class TilePlanes {
 		 * @param smplSide size of the square sample side 
 		 * @param smplNum number of averaged samples (should be <= smplSide * smplSide and > 1) 
 		 * @param smplRms maximal square root of variance (in disparity pixels) to accept the result
+		 * @param smplWnd  use window functions for the samples
 		 * 
 		 * @param debugLevel debug level
 		 * @return per measurement layer : x,y,z, weight, or null if failed. This
@@ -1225,11 +1238,11 @@ public class TilePlanes {
 				int          min_tiles,
 				double       strength_floor,
 				double       strength_pow,
-
 				boolean      smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				int          smplSide, //        = 2;      // Sample size (side of a square)
 				int          smplNum, //         = 3;      // Number after removing worst
 				double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				boolean      smplWnd,        // use window functions for the samples
 				int          debugLevel)
 		{
 			double mindet = 1E-15;
@@ -1247,6 +1260,7 @@ public class TilePlanes {
 			this.min_weight =             min_weight;
 			this.min_tiles =              min_tiles;
 			this.dispNorm =               dispNorm;
+			this.smplWnd =                smplWnd;        // use window functions for the samples
 			this.smplMode =               smplMode; //        = true;   // Use sample mode (false - regular tile mode)
 			this.smplSide =               smplSide; //        = 2;      // Sample size (side of a square)
 			this.smplNum =                smplNum;    //         = 3;      // Number after removing worst
@@ -1275,7 +1289,9 @@ public class TilePlanes {
 									smplSide, //        = 2;      // Sample size (side of a square)
 									smplNum, //         = 3;      // Number after removing worst
 									smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-									true); // boolean null_if_none)
+									smplWnd, // final boolean    smplWnd,        // use window functions fro the samples
+									true, // boolean null_if_none)
+									debugLevel);
 						}
 						if (disp_str[nl] == null)	continue;
 						if (Double.isNaN(disp_far) && Double.isNaN(disp_near)){
@@ -1337,8 +1353,10 @@ public class TilePlanes {
 						  dbg_img[0] = disp_str[nl][0];
 						  dbg_img[1] = disp_str[nl][1];
 						  dbg_img[2] = new double [stSize2*stSize2];
-						  for (int i = 0; i < dbg_img[2].length; i++){
-							  dbg_img[2][i] = tile_sel[nl][i]?1.0:0.0;
+						  if (tile_sel[nl] != null) {
+							  for (int i = 0; i < dbg_img[2].length; i++){
+								  dbg_img[2][i] = tile_sel[nl][i]?1.0:0.0; // exception here?
+							  }
 						  }
 						  sdfa_instance.showArrays(dbg_img,  stSize2, stSize2, true, "disp_str_x"+sTileXY[0]+"_y"+sTileXY[1]+"_"+nl);
 					}
@@ -1365,8 +1383,10 @@ public class TilePlanes {
 							if (w > 0.0){
 								double d = disp_str[nl][0][indx];
 								// referencing samples to centers of pixels
-								double x = ((indx % stSize2) - stSize + 0.5) * tileSize + 0.5; // in pixels, not in tiles
-								double y = ((indx / stSize2) - stSize + 0.5) * tileSize + 0.5;
+//								double x = ((indx % stSize2) - stSize + 0.5) * tileSize + 0.5; // in pixels, not in tiles
+//								double y = ((indx / stSize2) - stSize + 0.5) * tileSize + 0.5;
+								double x = ((indx % stSize2) - stSize + 0.5) * tileSize; // in pixels, not in tiles
+								double y = ((indx / stSize2) - stSize + 0.5) * tileSize;
 								sw  += w;
 								swz += w * d;
 								swx += w * x;
@@ -1400,8 +1420,10 @@ public class TilePlanes {
 //								double d =  kz * (disp_str[nl][0][indx] - swz); // Not here!
 								double d =  disp_str[nl][0][indx] - swz;
 								double wd = w*d;
-								double x = ((indx % stSize2) - stSize + 0.5) * tileSize + 0.5 - swx;
-								double y = ((indx / stSize2) - stSize + 0.5) * tileSize + 0.5 - swy;
+//								double x = ((indx % stSize2) - stSize + 0.5) * tileSize + 0.5 - swx;
+//								double y = ((indx / stSize2) - stSize + 0.5) * tileSize + 0.5 - swy;
+								double x = ((indx % stSize2) - stSize + 0.5) * tileSize  - swx;
+								double y = ((indx / stSize2) - stSize + 0.5) * tileSize  - swy;
 								acovar [0][0] += wd * d;
 								acovar [0][1] += wd * x;
 								acovar [0][2] += wd * y;
@@ -1574,9 +1596,11 @@ public class TilePlanes {
 									strength_floor,
 									strength_pow, //
 									smplSide, //        = 2;      // Sample size (side of a square)
-									smplNum, //         = 3;      // Number after removing worst
-									smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-									true); // boolean null_if_none)
+									smplNum,  //         = 3;      // Number after removing worst
+									smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+									smplWnd,  // use window functions for the samples
+									true,     // boolean null_if_none)
+									debugLevel);
 						}
 						if (disp_str[nl] == null)	continue;
 						if (Double.isNaN(disp_far) && Double.isNaN(disp_near)){
@@ -1638,8 +1662,10 @@ public class TilePlanes {
 						  dbg_img[0] = disp_str[nl][0];
 						  dbg_img[1] = disp_str[nl][1];
 						  dbg_img[2] = new double [stSize2*stSize2];
-						  for (int i = 0; i < dbg_img[2].length; i++){
-							  dbg_img[2][i] = tile_sel[nl][i]?1.0:0.0;
+						  if (tile_sel[nl] != null) {
+							  for (int i = 0; i < dbg_img[2].length; i++){
+								  dbg_img[2][i] = tile_sel[nl][i]?1.0:0.0;
+							  }
 						  }
 						  sdfa_instance.showArrays(dbg_img,  stSize2, stSize2, true, "disp_str_x"+sTileXY[0]+"_y"+sTileXY[1]+"_"+nl);
 					}
@@ -1673,8 +1699,10 @@ public class TilePlanes {
 								tiles_xyzw[nl][indx] = new double [4];
 								double d = disp_str[nl][0][indx];
 								// referencing samples to centers of pixels
-								double x = ((indx % stSize2) - stSize + 0.5) * tileSize + 0.5 + px_py[0]; // in pixels, not in tiles
-								double y = ((indx / stSize2) - stSize + 0.5) * tileSize + 0.5 + px_py[1];
+//								double x = ((indx % stSize2) - stSize + 0.5) * tileSize + 0.5 + px_py[0]; // in pixels, not in tiles
+//								double y = ((indx / stSize2) - stSize + 0.5) * tileSize + 0.5 + px_py[1];
+								double x = ((indx % stSize2) - stSize + 0.5) * tileSize + px_py[0]; // in pixels, not in tiles
+								double y = ((indx / stSize2) - stSize + 0.5) * tileSize + px_py[1];
 								// difference from getPlaneFromMeas
 								double [] wxyz = geometryCorrection.getWorldCoordinates(
 										x,
@@ -1735,18 +1763,6 @@ public class TilePlanes {
 						if (tiles_xyzw[nl][indx] != null) {
 							double w = tiles_xyzw[nl][indx][3] / sw;
 							if (w > 0.0){
-/*								
-								double d =  kz * (disp_str[nl][0][indx] - swz);
-								double wd = w*d;
-								double x = ((indx % stSize2) - stSize + 0.5) * tileSize + 0.5 - swx;
-								double y = ((indx / stSize2) - stSize + 0.5) * tileSize + 0.5 - swy;
-								acovar [0][0] += wd * d;
-								acovar [0][1] += wd * x;
-								acovar [0][2] += wd * y;
-								acovar [1][1] += w * x * x;
-								acovar [1][2] += w * x * y;
-								acovar [2][2] += w * y * y;
-*/								
 								double x = tiles_xyzw[nl][indx][0] - swx;
 								double y = tiles_xyzw[nl][indx][1] - swy;
 								double z = tiles_xyzw[nl][indx][2] - swz;
@@ -1903,10 +1919,16 @@ public class TilePlanes {
 		}
 		public double [] getLinkCosts(int dir)
 		{
+			if ((link_costs==null) || (link_costs[dir] == null)){
+				return null;
+			}
 			return this.link_costs[dir];
 		}
 		public double getLinkCosts(int dir, int np)
 		{
+			if ((link_costs==null) || (link_costs[dir] == null)){
+				return Double.MAX_VALUE;
+			}
 			return this.link_costs[dir][np];
 		}
 		
@@ -2220,6 +2242,20 @@ public class TilePlanes {
 		public double getValue() {
 			return values[0];
 		}
+		
+		/**
+		 * Return "normalized" main eigenvalue - it is reduced for high disparities
+		 * @return normalized main eigenvalue
+		 */
+		public double getNormValue(){
+			double val = values[0];
+			if ((dispNorm > 0.0) && (zxy[0] > dispNorm)){
+				double k = dispNorm / zxy[0];
+				val *= k*k;
+			}
+			return val;
+		}
+		
 		public void setValues(double[] values) {
 			this.values = values;
 		}
@@ -2330,9 +2366,11 @@ public class TilePlanes {
 				int indx_sel = (2*sy + superTileSize) * superTileSize + superTileSize/2;
 				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
 				// pixel 31 and pixel 32 (counting from 0) in both directions
-				double y = tileSize * (sy + 0.5) + 0.5  - zxy[2];
+//				double y = tileSize * (sy + 0.5) + 0.5  - zxy[2];
+				double y = tileSize * (sy + 0.5)  - zxy[2];
 				for (int sx = -superTileSize/2; sx < superTileSize/2; sx++){
-					double x = tileSize * (sx + 0.5) + 0.5 - zxy[1];
+//					double x = tileSize * (sx + 0.5) + 0.5 - zxy[1];
+					double x = tileSize * (sx + 0.5) - zxy[1];
 					if (plane_sel[indx_sel] || !useNaN ||  (plane_sel==null)){
 						disparities[indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
 					} else {
@@ -2371,9 +2409,11 @@ public class TilePlanes {
 			for (int sy = -superTileSize; sy < superTileSize; sy++){
 				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
 				// pixel 31 and pixel 32 (counting from 0) in both directions
-				double y = tileSize * (sy + 0.5) + 0.5  - zxy[2];
+//				double y = tileSize * (sy + 0.5) + 0.5  - zxy[2];
+				double y = tileSize * (sy + 0.5)   - zxy[2];
 				for (int sx = -superTileSize; sx < superTileSize; sx++){
-					double x = tileSize * (sx + 0.5) + 0.5 - zxy[1];
+//					double x = tileSize * (sx + 0.5) + 0.5 - zxy[1];
+					double x = tileSize * (sx + 0.5) - zxy[1];
 					if (plane_sel[indx] || !useNaN ||  (plane_sel==null)){
 						if (useWorld) {
 							disparities[indx] = geometryCorrection.getPlaneDisparity( // disparity (at this center) for crossing other supertile plane
@@ -2442,9 +2482,11 @@ public class TilePlanes {
 			for (int sy = -3 * superTileSize / 2; sy < 3* superTileSize / 2; sy++){
 				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
 				// pixel 31 and pixel 32 (counting from 0) in both directions
-				double y = tileSize * (sy + 0.5) + 0.5  - zxy[2];
+//				double y = tileSize * (sy + 0.5) + 0.5  - zxy[2];
+				double y = tileSize * (sy + 0.5)  - zxy[2];
 				for (int sx = -3 * superTileSize/2; sx < 3 * superTileSize / 2; sx++){
-					double x = tileSize * (sx + 0.5) + 0.5 - zxy[1];
+//					double x = tileSize * (sx + 0.5) + 0.5 - zxy[1];
+					double x = tileSize * (sx + 0.5) - zxy[1];
 					if (useWorld) {
 						disparities[indx] = geometryCorrection.getPlaneDisparity( // disparity (at this center) for crossing other supertile plane
 								getWorldXYZ(this.correctDistortions), // will calculate if not yet done so. Should it use otherPd, not pd? and then clone later?
@@ -2575,9 +2617,11 @@ public class TilePlanes {
 			for (int sy = -superTileSize; sy < superTileSize; sy++){
 				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
 				// pixel 31 and pixel 32 (counting from 0) in both directions
-				double y = tileSize * (sy + 0.5) + 0.5 - zxy[2];
+//				double y = tileSize * (sy + 0.5) + 0.5 - zxy[2];
+				double y = tileSize * (sy + 0.5) - zxy[2];
 				for (int sx = -superTileSize; sx < superTileSize; sx++){
-					double x = tileSize * (sx + 0.5) + 0.5 - zxy[1];
+//					double x = tileSize * (sx + 0.5) + 0.5 - zxy[1];
+					double x = tileSize * (sx + 0.5) - zxy[1];
 					if (useWorld) {
 						disp_strength[0][indx] = geometryCorrection.getPlaneDisparity( // disparity (at this center) for crossing other supertile plane
 								getWorldXYZ(this.correctDistortions), // will calculate if not yet done so. Should it use otherPd, not pd? and then clone later?
@@ -2664,79 +2708,6 @@ public class TilePlanes {
 					scale_projection,
 					fraction_uni,
 					debugLevel);
-			/*
-			double [][] disp_strength = new double[2][4*superTileSize*superTileSize];
-			double [] normal = getVector();
-			double [] zxy =    getZxy(); // {disparity, x center in pixels, y center in pixels (relative to a supertile center)
-			double    weight = getWeight();
-			double k_gauss = 0;
-			Matrix val2d = null, vect2d = null;
-			if (scale_projection > 0.0){
-				EigenvalueDecomposition eig = get2dDecomposition();
-				val2d = eig.getD();
-				vect2d = eig.getV().transpose();
-				k_gauss = 0.5/(scale_projection*scale_projection);
-				if (divide_by_area) {
-					double area = Math.sqrt(val2d.get(0, 0)*val2d.get(1, 1));
-					if (area > 0){
-						weight /= area;
-					}
-				}
-			}
-			int ss2 = superTileSize;
-			int ss4 = 2 * superTileSize;
-			
-			
-			int [][] offsets = {
-					// ymin, ymax, xmin,xmax, offsy, offsx
-					{  0, ss4,   0, ss4,    0,    0 },  // center	
-					{ss2, ss4,   0, ss4, -ss2,    0 },  // N	
-					{ss2, ss4,   0, ss2, -ss2,  ss2 },  // NE	
-					{  0, ss4,   0, ss2,    0,  ss2 },  // E	
-					{  0, ss2,   0, ss2,  ss2,  ss2 },  // SE	
-					{  0, ss2,   0, ss4,  ss2,    0 },  // S	
-					{  0, ss2, ss2, ss4,  ss2, -ss2 },  // SW	
-					{  0, ss4, ss2, ss4,    0, -ss2 },  // W	
-					{ss2, ss4, ss2, ss4, -ss2, -ss2 }}; // NW
-			int dir1 = dir + 1;
-			double [] pxyc = getCenterPxPy(); // center of this supertile, not plane center 
-			for (int iy = offsets[dir1][0]; iy < offsets[dir1][1]; iy++){
-				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
-				// pixel 31 and pixel 32 (counting from 0) in both directions
-				double y = tileSize * (iy - ss2 + 0.5) + 0.5  - zxy[2];
-				int oy = iy + offsets[dir1][4]; //vert index in the result tile
-				for (int ix = offsets[dir1][2]; ix < offsets[dir1][3]; ix++){
-					double x = tileSize * (ix - ss2 + 0.5) + 0.5 - zxy[1];
-					int indx = ss4 * oy + ix + offsets[dir1][5];
-					int indx_i = iy * ss4 + ix; // input index
-					if (useWorld) {
-						disp_strength[0][indx] = geometryCorrection.getPlaneDisparity( // disparity (at this center) for crossing other supertile plane
-								getWorldXYZ(this.correctDistortions), // will calculate if not yet done so. Should it use otherPd, not pd? and then clone later?
-								x + pxyc[0] + zxy[1],
-								y + pxyc[1] + zxy[2],
-								this.correctDistortions);
-					} else {
-						disp_strength[0][indx] = zxy[0] - (normal[1] * x + normal[2] * y)/normal[0];
-					}
-					double w = weight;
-					if ((w > 0.0) && (scale_projection > 0.0)){
-						double [] xy = {x,y};
-						Matrix vxy = vect2d.times(new Matrix(xy,2)); // verify if it is correct
-						double r2 = 0; 
-						for (int i = 0; i <2; i++){
-							double d = vxy.get(i,0);
-							r2 += d * d / val2d.get(i, i);
-						}
-						w *= ((1.0 - fraction_uni) * Math.exp(-k_gauss*r2) + fraction_uni);
-						
-						if (window != null) w *= window[indx_i];
-						if (use_sel && (sel_mask != null) && !(sel_mask[indx_i])) w = 0.0;
-					}					
-					disp_strength[1][indx] = w;
-				}
-			}
-			return disp_strength;
-*/			
 		}
 		
 		public double [] getWorldXYZFromWorld()
@@ -2844,10 +2815,12 @@ public class TilePlanes {
 			for (int iy = offsets[dir1][0]; iy < offsets[dir1][1]; iy++){
 				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
 				// pixel 31 and pixel 32 (counting from 0) in both directions
-				double y = tileSize * (iy - ss2 + 0.5) + 0.5  - zxy[2];
+//				double y = tileSize * (iy - ss2 + 0.5) + 0.5  - zxy[2];
+				double y = tileSize * (iy - ss2 + 0.5)  - zxy[2];
 				int oy = iy + offsets[dir1][4]; //vert index in the result tile
 				for (int ix = offsets[dir1][2]; ix < offsets[dir1][3]; ix++){
-					double x = tileSize * (ix - ss2 + 0.5) + 0.5 - zxy[1];
+//					double x = tileSize * (ix - ss2 + 0.5) + 0.5 - zxy[1];
+					double x = tileSize * (ix - ss2 + 0.5) - zxy[1];
 					int indx = ss4 * oy + ix + offsets[dir1][5];
 					int indx_i = iy * ss4 + ix; // input index
 					if (world_normal != null) {
@@ -2963,10 +2936,12 @@ public class TilePlanes {
 			for (int iy = offsets[dir1][0]; iy < offsets[dir1][1]; iy++){
 				// adding half-tile and half-pixel to match the center of the pixel. Supertile center is between
 				// pixel 31 and pixel 32 (counting from 0) in both directions
-				double y = tileSize * (iy - ss2 + 0.5) + 0.5  - zxy[2];
+//				double y = tileSize * (iy - ss2 + 0.5) + 0.5  - zxy[2];
+				double y = tileSize * (iy - ss2 + 0.5)  - zxy[2];
 				int oy = iy + offsets[dir1][4]; //vert index in the result tile
 				for (int ix = offsets[dir1][2]; ix < offsets[dir1][3]; ix++){
-					double x = tileSize * (ix - ss2 + 0.5) + 0.5 - zxy[1];
+//					double x = tileSize * (ix - ss2 + 0.5) + 0.5 - zxy[1];
+					double x = tileSize * (ix - ss2 + 0.5) - zxy[1];
 					int indx = ss2 * oy + ix + offsets[dir1][5];
 					int indx_i = iy * ss4 + ix; // ss2;
 					if (useWorld) {
@@ -3102,6 +3077,16 @@ public class TilePlanes {
 			if (debugLevel > 0) {
 				System.out.println("mergePlaneToThis()");
 			}
+			if (values == null ) {
+				System.out.println("mergePlaneToThis(): values=null:\n"+toString());
+				return null;
+				
+			}
+			if (otherPd.values == null ) {
+				System.out.println("mergePlaneToThis(): otherPd.values=null:\n"+otherPd.toString());
+				return null;
+			}
+			
 			double [][] this_eig_avals = {
 					{values[0], 0.0,       0.0},
 					{0.0,       values[1], 0.0},
@@ -3268,7 +3253,7 @@ public class TilePlanes {
 			pd.setWeight(new_weight);
 			pd.setNumPoints(otherPd.getNumPoints()+this.getNumPoints());
 			// Repeat merging for world-based planes
-			mergePlaneToThisWorld(
+			return mergePlaneToThisWorld(
 					otherPd, // PlaneData otherPd,
 					pd,      // PlaneData pd_partial, // disparity-based data is already merged 
 					scale_other,
@@ -3277,7 +3262,7 @@ public class TilePlanes {
 					sum_weights,
 					preferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
 					debugLevel);
-			return pd;
+//			return pd;
 		}
 
 
@@ -3294,6 +3279,15 @@ public class TilePlanes {
 		{
 			if (debugLevel > 0) {
 				System.out.println("mergePlaneToThisWorld()");
+			}
+			if (wvalues == null ) {
+				System.out.println("mergePlaneToThisWorld(): wvalues=null:\n"+toString());
+				return null;
+				
+			}
+			if (otherPd.wvalues == null ) {
+				System.out.println("mergePlaneToThisWorld(): otherPd.wvalues=null:\n"+otherPd.toString());
+				return null;
 			}
 			double [][] this_eig_avals = {
 					{wvalues[0], 0.0,        0.0},
@@ -3794,9 +3788,12 @@ public class TilePlanes {
 				int          smplSide, //        = 2;      // Sample size (side of a square)
 				int          smplNum, //         = 3;      // Number after removing worst
 				double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				boolean      smplWnd,  // use window functions for the samples
 				int          debugLevel)
 		{
-			if (debugLevel > 2) debugLevel ++; // no show all eigen stuff (debugLevel > 3)
+			if (debugLevel > 2) {
+				debugLevel += 0; // +=1 // no show all eigen stuff (debugLevel > 3)
+			}
 
 			// first make a plane from all tiles
 			ArrayList<PlaneData> st_planes = new ArrayList<PlaneData>();
@@ -3821,6 +3818,7 @@ public class TilePlanes {
 						smplSide,
 						smplNum,
 						smplRms,
+						smplWnd,  // use window functions for the samples						
 						debugLevel) != null);            // int          debugLevel)
 				if (OK) {
 					if (debugLevel > 0) {
@@ -3837,12 +3835,16 @@ public class TilePlanes {
 					int max_outliers = (int) Math.round(pd.getNumPoints() * plFractOutliers);
 					if (max_outliers > plMaxOutliers) max_outliers = plMaxOutliers;
 					double targetV = plTargetEigen;
+					
+					/* Does it needs to be twice?
 					double z0 = pd.getZxy()[0];
-					if ((dispNorm > 0.0) && (z0 > dispNorm)) {
+					if ((dispNorm > 0.0) && (z0 > dispNorm)) { // not needed ?
 						double dd = (dispNorm + z0)/ dispNorm; // > 1
 						targetV *= dd * dd; // > original
 					}
-					if (pd.getValues()[0] > targetV) {
+					*/
+//					if (pd.getValues()[0] > targetV) {
+					if (pd.getNormValue() > targetV) {
 						OK = pd.removeOutliers( // getPlaneFromMeas should already have run
 								disp_strength, 
 								targetV,      // double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
@@ -3913,7 +3915,8 @@ public class TilePlanes {
 				final int        smplSide, //        = 2;      // Sample size (side of a square)
 				final int        smplNum, //         = 3;      // Number after removing worst
 				final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-				
+				final boolean    smplWnd,  // use window functions for the samples
+
 				final double     max_disp_diff,    // maximal disparity difference from the plane to consider tile 
 				final double     disp_range,       // parallel move known planes around original know value for the best overall fit
 				final int        amplitude_steps,  // number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
@@ -4029,7 +4032,9 @@ public class TilePlanes {
 							smplSide,               // = 2;      // Sample size (side of a square)
 							smplNum,                // = 3;      // Number after removing worst
 							smplRms,                // = 0.1;    // Maximal RMS of the remaining tiles in a sample
-							true);                  // boolean null_if_none)
+							smplWnd,                // use window functions for the samples
+							true,                   // boolean null_if_none)
+							debugLevel);
 				} else {
 					disp_strength[ml] = measuredLayers.getDisparityStrength(
 							ml,                     // int num_layer,
@@ -4323,7 +4328,7 @@ public class TilePlanes {
 				final int        smplSide, //        = 2;      // Sample size (side of a square)
 				final int        smplNum, //         = 3;      // Number after removing worst
 				final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-				
+				final boolean    smplWnd,  // use window functions for the samples
 				final double     disp_tolerance,   // maximal disparity difference from the plane to consider tile 
 				final double     disp_var_floor,   // squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
 				final double     disp_sigma,       // G.sigma to compare how measured data is attracted to planes 
@@ -4454,7 +4459,9 @@ public class TilePlanes {
 							smplSide,               // = 2;      // Sample size (side of a square)
 							smplNum,                // = 3;      // Number after removing worst
 							smplRms,                // = 0.1;    // Maximal RMS of the remaining tiles in a sample
-							true);                  // boolean null_if_none)
+							smplWnd,                // use window functions for the samples
+							true,                  // boolean null_if_none)
+							debugLevel);
 				} else {
 					disp_strength[ml] = measuredLayers.getDisparityStrength(
 							ml,                     // int num_layer,
@@ -5240,7 +5247,9 @@ public class TilePlanes {
 							smplSide,               // = 2;      // Sample size (side of a square)
 							smplNum,                // = 3;      // Number after removing worst
 							smplRms,                // = 0.1;    // Maximal RMS of the remaining tiles in a sample
-							true);                  // boolean null_if_none)
+							smplWnd,                // use window functions for the samples
+							true,                  // boolean null_if_none)
+							debugLevel);
 				} else {
 					disp_strength[ml] = measuredLayers.getDisparityStrength(
 							ml,                     // int num_layer,

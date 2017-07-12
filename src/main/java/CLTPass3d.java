@@ -74,7 +74,10 @@ public class CLTPass3d{
 		{
 			return 	texture_tiles;
 		}
-		
+		public double [][] getMaxTriedDisparity()
+		{
+			return max_tried_disparity;
+		}
 		public double [][] getTileRBGA(
 				int num_layers)
 		{
@@ -744,6 +747,9 @@ public class CLTPass3d{
 			return untested_bgnd;
 		}
 		
+
+		
+		
 		
 		
 		public SuperTiles getSuperTiles()
@@ -764,6 +770,7 @@ public class CLTPass3d{
 				int        smplSide, //        = 2;      // Sample size (side of a square)
 				int        smplNum, //         = 3;      // Number after removing worst
 				double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				boolean    smplWnd,  // use window functions for the samples
 				int        measSel)
 		{
 			this.superTiles = new SuperTiles(
@@ -780,6 +787,7 @@ public class CLTPass3d{
 					smplSide, //        = 2;      // Sample size (side of a square)
 					smplNum, //         = 3;      // Number after removing worst
 					smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+					smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
 					measSel);
 			return this.superTiles;
 		}
@@ -791,6 +799,7 @@ public class CLTPass3d{
 				int        smplSide, //        = 2;      // Sample size (side of a square)
 				int        smplNum,  //         = 3;      // Number after removing worst
 				double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				boolean    smplWnd,  // use window functions for the samples
 				int        measSel)
 		{
 			if (this.superTiles == null){
@@ -804,6 +813,7 @@ public class CLTPass3d{
 					smplSide, //        = 2;      // Sample size (side of a square)
 					smplNum,  //         = 3;      // Number after removing worst
 					smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+					smplWnd,  // use window functions for the samples
 					measSel);
 		}
 

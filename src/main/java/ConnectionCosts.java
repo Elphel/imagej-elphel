@@ -529,7 +529,8 @@ public class ConnectionCosts {
 				conn_weight += 1.0;
 			}
 		}
-		double [] value_weight = {merged_plane.getValue(),merged_plane.getWeight(),conn_weight};
+//		double [] value_weight = {merged_plane.getValue(),merged_plane.getWeight(),conn_weight};
+		double [] value_weight = {merged_plane.getNormValue(),merged_plane.getWeight(),conn_weight};
 		if (starPwr != 0){
 			value_weight[0] /= (Math.pow((planes[nsTile][nl].getNumNeibBest() + 1.0), starPwr));
 		}
@@ -638,7 +639,8 @@ public class ConnectionCosts {
 			
 			conn_weight += entry.getValue();
 		}
-		double [] value_weight = {merged_plane.getValue(),merged_plane.getWeight(),conn_weight};
+//		double [] value_weight = {merged_plane.getValue(),merged_plane.getWeight(),conn_weight};
+		double [] value_weight = {merged_plane.getNormValue(),merged_plane.getWeight(),conn_weight};
 		if (starPwr != 0){
 			value_weight[0] /= (Math.pow(tile_weights.size() + 1.0, starPwr));
 		}

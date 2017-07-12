@@ -26,6 +26,7 @@ import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Arrays;
 //import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicInteger;
 
 
 public class TileProcessor {
@@ -85,18 +86,37 @@ public class TileProcessor {
 	public void resetCLTPasses(){
 		clt_3d_passes = new ArrayList<CLTPass3d>();
 		clt_3d_passes_size = 0;
+		Runtime runtime = Runtime.getRuntime();
+	    runtime.gc();
+		System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
 	}
 	
 	public void saveCLTPasses(){
 		clt_3d_passes_size = clt_3d_passes.size();
 	}
 
+	public void trimCLTPasses(int keep){
+		clt_3d_passes_size = keep;
+		trimCLTPasses();
+	}
+	
+	
 	public void trimCLTPasses(){
 		while (clt_3d_passes.size() > clt_3d_passes_size){
 			clt_3d_passes.remove(clt_3d_passes_size);
 		}
+		Runtime runtime = Runtime.getRuntime();
+	    runtime.gc();
+		System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
 	}
 
+	public void removeNonMeasurement(){
+		for (int i = clt_3d_passes.size()-1; i > 0; i--) if (!clt_3d_passes.get(i).isMeasured()){
+			clt_3d_passes.remove(i);
+		}
+	}
+	
+	
 	
 	
 	
@@ -499,7 +519,470 @@ public class TileProcessor {
 		combo_pass.fixNaNDisparity(); // mostly for debug, measured disparity should be already fixed from NaN
 		return combo_pass;
 	}
-//trustedCorrelation	
+
+	/**
+	 * Verify that selected points are not all on the same line 
+	 * @param sel 2-d sample selection in linescan order
+	 * @param side square samples side
+	 * @return true if there are enough samples for plane extraction, false otherwise
+	 */
+	public boolean notColinear (
+			boolean [] sel,
+			int side)
+	{
+		int indx0, indx1;
+		for (indx0 = 0; indx0 < sel.length; indx0++){
+			if (sel[indx0]) break;
+		}
+		for (indx1 = indx0+1; indx1 < sel.length; indx1++){
+			if (sel[indx1]) break;
+		}
+		if (indx1 >= sel.length) return false; // too few points;
+		int sx0 = indx0 % side;
+		int sy0 = indx0 / side;
+		int sx1 = indx1 % side;
+		int sy1 = indx1 / side;
+		for (int indx = indx1 +1; indx < sel.length; indx++){
+			int sx = indx % side;
+			int sy = indx / side;
+			if ((sx - sx0) * (sy - sy1) != (sx - sx1) * (sy - sy0)){
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Verify that selected points are not all on the same line, even if the specified one is removed 
+	 * @param indx index of the point to be removed
+	 * @param sel 2-d sample selection in linescan order
+	 * @param side square samples side
+	 * @return true if there are enough samples for plane extraction, false otherwise
+	 */
+
+	public boolean notColinearWithout (
+			int        indx,
+			boolean [] sel,
+			int side)
+	{
+		if (!sel[indx]){
+			throw new IllegalArgumentException ("notCoplanarWithout(): specified is the non existing index");
+		}
+		sel[indx] = false;
+		boolean rslt = notColinear ( sel, side);
+		sel[indx] = true;
+		return rslt;
+	}
+	
+	/**
+	 * Get window function for tile samples (currently just 3x3) in a line-scan order
+	 * @param smplSide square sample side
+	 * @return [smplSide * smplSide]array of weights, 1.0 in the center
+	 */
+	
+	public double [] getSampleWindow(int smplSide, boolean all1){
+		double [] weights = new double [smplSide * smplSide];
+		for (int sy = 0; sy < smplSide; sy++){
+			for (int sx = 0; sx < smplSide; sx++){
+				weights[sy * smplSide + sx] = all1? 1.0 : Math.sin(Math.PI*(sy+0.5)/smplSide) * Math.sin(Math.PI*(sx+0.5)/smplSide);
+			}
+		}
+		return weights;
+	}
+
+
+	
+	/**
+	 * Get disparity/strength for last measured tiles (measured_scan), using neighbors measured in the same or earlier
+	 * scans, assuming the sample square can (almost) freely tilt for the best fit
+	 * @param measured_scan_index index in the clt_3d_passes list of the latest measured scan
+	 * @param start_scan_index lowest scan to use data from
+	 * @param disp_index disparity index in disparity_map (normally ImageDtt.DISPARITY_INDEX_CM)
+	 * @param str_index strength index in disparity_map (normally[ImageDtt.DISPARITY_STRENGTH_INDEX)
+	 * @param tiltXY null (free floating) or fixed {tilt_x, tilt_y) of the sample
+	 * @param trustedCorrelation maximal absolute value of measured correlation (no scaling) to trust (may use global trustedCorrelation) 
+	 * @param strength_floor subtract from the strength, discard negative
+	 * @param strength_pow raise strength to this power
+	 * @param smplSide side of tyhe sample square
+	 * @param smplNum number of the best fit neighbors to keep
+	 * @param smplRms maximal disparity RMS of the best remaining tiles to keep sample 
+	 * @param smplWnd use sample window function (false - all set to 1.0)
+	 * @param max_abs_tilt maximal disparity tilt in disparity difference (pix) per tile;
+	 * @param max_rel_tilt same as max_abs_tilt, but divided by disparity 
+	 * @param dbg_x debug tile X
+	 * @param dbg_y debug tile Y
+	 * @param debugLevel debug level
+	 * @return {disparity,strength};
+	 */
+//					combo_pass.calc_disparity[nt] =         pass.disparity_map[disparity_index][nt]/corr_magic_scale +  pass.disparity[ty][tx];
+	
+	public double [][] getFilteredDisparityStrength(
+			final int        measured_scan_index, // will not look at higher scans (OK to be non-measured, last measured will be used then)
+			final int        start_scan_index,
+			final int        disp_index,
+			final int        str_index,
+			final double []  tiltXY, // null - free with limit on both absolute (2.0?) and relative (0.2) values
+		    final double     trustedCorrelation,
+			final double     strength_floor,
+			final double     strength_pow,
+			final int        smplSide, //        = 2;      // Sample size (side of a square)
+			final int        smplNum, //         = 3;      // Number after removing worst (should be >1)
+			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+			final boolean    smplWnd, //
+			final double     max_abs_tilt, //  = 2.0; // pix per tile
+			final double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
+			final int        dbg_x,
+			final int        dbg_y,
+			final int        debugLevel)
+ 
+	{
+		final double [] smpl_weights = getSampleWindow(smplSide, !smplWnd);
+		final int smplLen = smplSide*smplSide;
+		final int smpl_center = smplSide / 2;
+		final int center_index = smpl_center * ( 1 + smplSide); 
+		final double smpl_dcenter = (smplSide -1.0) /2;
+//		final TileNeibs tnSurface = new TileNeibs(tilesX, tilesY);
+		final int tiles = tilesX * tilesY;
+		final boolean [] measured = new boolean [tiles];
+		final double smplVar = smplRms * smplRms; // maximal variance (weighted average of the squared difference from the mean)
+		final double thresholdLin = 1.0E-20;  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
+		final double thresholdQuad = 1.0E-30; // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+		final double [][] disp_strength = new double [2][tiles]; // strength < 0 - not measured!
+		
+		
+		
+		final int dbg_tile = (debugLevel > 0) ?(dbg_x + dbg_y * tilesX) : -1;
+		// Create a list of only measurement scans
+		final ArrayList<CLTPass3d> measured_list = new ArrayList<CLTPass3d> ();
+		for (int ipass = start_scan_index; ipass <= measured_scan_index; ipass++){
+			CLTPass3d pass = clt_3d_passes.get(ipass);
+			if ((pass != null) && pass.isMeasured()){
+				measured_list.add(pass);
+			}
+		}
+		final CLTPass3d measured_scan =measured_list.get(measured_list.size() - 1);// use last measured scan
+		
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) {
+//						int dl = (nTile == dbg_tile) ? debugLevel : -1;
+						int tileX = nTile % tilesX;
+						int tileY = nTile / tilesX;
+						measured[nTile] = measured_scan.tile_op[tileY][tileX] != 0;
+						if (!measured[nTile]) disp_strength[1][nTile] = -1.0;
+					}	
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		
+		ai.set(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					PolynomialApproximation pa = new PolynomialApproximation();
+					for (int nTile = ai.getAndIncrement(); nTile < tiles; nTile = ai.getAndIncrement()) if (measured[nTile]){
+						int dl = (nTile == dbg_tile) ? debugLevel : -1;
+						int tileX = nTile % tilesX;
+						int tileY = nTile / tilesX;
+						// check that the tile is strong enough and fractional disparity is in the trusted range
+						double w = measured_scan.disparity_map[str_index][nTile] - strength_floor;
+						if (w > 0) {
+							if (strength_pow != 1.0){
+								if (strength_pow == 0.0) {
+									w = 1.0;
+								} else  {
+									w= Math.pow(w, strength_pow);
+								}
+							}
+							double disp = measured_scan.disparity_map[disp_index][nTile];
+							if (Math.abs(disp) <= trustedCorrelation){
+								disp = disp/corr_magic_scale + measured_scan.disparity[tileY][tileX];
+								// Center tile is valid, makes sense to investigate neighbors from this or earlier tiles
+								int num_in_sample = 1;
+								double sum_wnd = 1.0;
+								boolean [] smpl_sel = new boolean [smplLen];
+								double [] smpl_d =    new double [smplLen];
+								double [] smpl_p =    new double [smplLen];
+								double [] smpl_w =    new double [smplLen];
+								// add center tile
+								smpl_sel[center_index] = true;
+								smpl_d[center_index] = disp;
+								smpl_w[center_index] = w;
+								// process tiles around, looking for the best fit among other tiles, skipping the center
+								for (int sy = 0; sy < smplSide; sy++){
+									int y = tileY + sy - smpl_center;
+									if ((y >= 0) && (y < tilesY)) {
+										for (int sx = 0; sx < smplSide; sx++){
+											int x = tileX + sx - smpl_center;
+											if ((x >= 0) && (x < tilesX)) {
+												int indxs = sy*smplSide + sx;
+												if (indxs != center_index) { // already assigned
+													int nTile1 = y * tilesX + x;
+													int best_pass_index = -1;
+													double best_adiff = Double.NaN;
+													for (int ipass = 0; ipass < measured_list.size(); ipass++){
+														CLTPass3d scan = measured_list.get(ipass);
+														double w1 = scan.disparity_map[str_index][nTile1] - strength_floor;
+														if (w1 > 0) {
+															if (strength_pow != 1.0){
+																if (strength_pow == 0.0) {
+																	w1 = 1.0;
+																} else  {
+																	w1= Math.pow(w, strength_pow);
+																}
+															}
+															double disp1 = scan.disparity_map[disp_index][nTile1];
+															if (Math.abs(disp1) <= trustedCorrelation){
+																disp1 = disp1/corr_magic_scale + scan.disparity[y][x];
+																double adiff = Math.abs(disp1 - disp);
+																if ((best_pass_index < 0) || (adiff < best_adiff)){
+																	best_pass_index = ipass;
+																	best_adiff = adiff;
+																	smpl_d[indxs] = disp1;
+																	smpl_w[indxs] = w1;
+																	// not summed yet!
+																}
+															}
+														}													
+													}
+													if (best_pass_index >= 0){
+														smpl_w  [indxs] *= smpl_weights[indxs];
+														smpl_sel[indxs] = true;
+														sum_wnd += smpl_weights[indxs];
+														num_in_sample ++;
+													}
+
+												}
+											}
+										}
+									}
+								}
+								
+								// filled all neighbor tiles data. See if sufficient to proceed, then remove extra tiles
+								// and process the remaining ones
+								
+								if (num_in_sample >= smplNum){ // try, remove worst
+									sample_loop:
+									{
+									boolean en_tilt = (tiltXY == null);
+									if (en_tilt) { // make sure there are enough samples and not all of them are on the same line
+										if (!notColinear(smpl_sel,smplSide)){
+											en_tilt = false;
+										}
+									}
+									if (en_tilt) { // enable floating tilt
+										double sd2 = 0.0, d_center = 0.0,  sw = 0.0;
+
+										// TODO: making simple - recalculate after removing. Can be done more efficient.
+										while (num_in_sample >= smplNum) { // try, remove worst
+											sd2 = 0.0;
+											d_center = 0.0;
+											sw = 0.0;
+
+											double [][][] mdata = new double [num_in_sample][3][];
+											int mindx = 0;
+											for (int sy = 0; sy < smplSide; sy++){
+												for (int sx = 0; sx < smplSide; sx++){
+													int indxs = sy * smplSide + sx;
+													if (smpl_sel[indxs]) {
+														mdata[mindx][0] = new double [2];
+														mdata[mindx][0][0] =  sx - smpl_dcenter;
+														mdata[mindx][0][1] =  sy - smpl_dcenter;
+														mdata[mindx][1] = new double [1];
+														mdata[mindx][1][0] = smpl_d[indxs];
+														mdata[mindx][2] = new double [1];
+														mdata[mindx][2][0] =  smpl_w[indxs];
+														mindx ++;
+													}
+												}
+											}
+											double[][] approx2d = pa.quadraticApproximation(
+													mdata,
+													true,          // boolean forceLinear,  // use linear approximation
+													thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
+													thresholdQuad, // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+													debugLevel);
+											if (approx2d == null){
+												if (debugLevel > -1){
+													System.out.println("getFilteredDisparityStrength(): can not find linear approximation");
+												}
+												break sample_loop;
+											}
+											// limit tilt to be within range
+											//											double     max_abs_tilt, //  = 2.0; // pix per tile
+											//											double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
+											double max_tilt = Math.min(max_abs_tilt, max_rel_tilt * approx2d[0][2]);
+											boolean overlimit = (Math.abs(approx2d[0][0]) > max_tilt) || (Math.abs(approx2d[0][1]) > max_tilt);
+											if (overlimit) {
+												approx2d[0][0] = Math.min(approx2d[0][0],  max_tilt); 
+												approx2d[0][1] = Math.min(approx2d[0][1],  max_tilt); 
+												approx2d[0][0] = Math.max(approx2d[0][0], -max_tilt); 
+												approx2d[0][1] = Math.max(approx2d[0][1], -max_tilt);
+											}
+											// subtract tilt from disparity
+											for (int sy = 0; sy < smplSide; sy++){
+												for (int sx = 0; sx < smplSide; sx++){
+													int indxs = sy * smplSide + sx;
+													 if (smpl_sel[indxs]) {
+														smpl_p[indxs] = approx2d[0][0] * (sx - smpl_dcenter) + approx2d[0][1] * (sy - smpl_dcenter) + approx2d[0][2];
+													}
+												}
+											}
+											
+											if (overlimit){ // re-calculate disparity average (in the center)
+												double sd=0.0;
+												for (int indxs = 0; indxs < smplLen;indxs++) if (smpl_sel[indxs]) {
+													double d = smpl_d[indxs] - smpl_p[indxs];
+													double dw = d * smpl_w[indxs];
+													sd += dw;
+													sw += smpl_w[indxs];
+												}
+												sd /= sw;
+												for (int indxs = 0; indxs < smplLen;indxs++) if (smpl_sel[indxs]) {
+													smpl_p[indxs] += sd;
+												}
+												approx2d[0][2] += sd;
+											}
+											d_center = approx2d[0][2];
+											sw = 0.0;
+											for (int indxs = 0; indxs < smplLen;indxs++) if (smpl_sel[indxs]) {
+												double d = smpl_d[indxs] - smpl_p[indxs];
+												double dw = d * smpl_w[indxs];
+												//									sd += dw;
+												sd2 += dw * smpl_d[indxs];
+												sw +=       smpl_w[indxs];
+											}
+												
+											
+											// remove worst - it should not make remaining set 
+											if (num_in_sample > smplNum) { // remove worst if it is not the last run where only calculations are needed
+//												double d_mean = sd/sw;
+												int iworst = -1;
+												double dworst2 = 0.0;
+												for (int indxs = 0; indxs < smplLen; indxs++) if (smpl_sel[indxs]) {
+//													double d2 = (smpl_d[i] - d_mean);
+													double d2 = smpl_d[indxs] - smpl_p[indxs];
+													d2 *=d2;
+													if (d2 > dworst2) {
+														if (notColinearWithout (
+																indxs, // int        indx,
+																smpl_sel, // boolean [] sel,
+																smplSide)) { // int side))
+															iworst = indxs;
+															dworst2 = d2;
+														}
+													}
+												}
+												if (iworst < 0){
+													System.out.println("**** this is a BUG in getFilteredDisparityStrength() can not find the worst sample ****");
+													break;
+												}
+												// remove worst sample
+												smpl_sel[iworst] = false;
+//												double dw = smpl_d[iworst] * smpl_w[iworst];
+//												sd -= dw; 
+//												sd2 -= dw * smpl_d[iworst];
+//												sw -=       smpl_w[iworst];
+												sum_wnd -= smpl_weights[iworst];
+												num_in_sample --;
+											} else {
+												break;
+											}
+											
+										} // removing worst tiles, all done, 
+										// calculate variance of the remaining set
+										if (sw > 0.0) {
+//											sd /= sw;
+//											sd2 /= sw;
+											double var = sd2/sw; //   - sd * sd;
+											if (var < smplVar) { // good, save in the result array
+												disp_strength[0][nTile] = d_center;
+												//								ds[1][indx] = sw * lapWeight[dy][dx] /num_in_sample; // average weights, multiply by window //** TODO: change
+												disp_strength[1][nTile] = sw /sum_wnd; // average weights, multiply by window //** TODO: change
+											}
+										}
+										
+									} else { // fixed tilt
+										// tilt around center
+										if ((tiltXY != null) && (tiltXY[0] != 0.0) && (tiltXY[1] != 0.0)){
+											for (int sy = 0; sy < smplSide; sy++){
+												for (int sx = 0; sx < smplSide; sx++){
+													int indxs = sy * smplSide + sx;
+													if (smpl_w[indxs] > 0.0) {
+														smpl_d[indxs] -= tiltXY[0]* (sx - smpl_dcenter) + tiltXY[1]* (sy - smpl_dcenter);
+													}
+												}
+											}
+										}
+
+
+										// calculate 
+										double sd=0.0, sd2 = 0.0, sw = 0.0;
+										for (int i = 0; i < smplLen; i++) if (smpl_sel[i]) {
+											double dw = smpl_d[i] * smpl_w[i];
+											sd += dw;
+											sd2 += dw * smpl_d[i];
+											sw +=       smpl_w[i];
+										}
+										// remove worst, update sd2, sd and sw
+										while ((num_in_sample > smplNum) && (sw > 0)){ // try, remove worst
+											double d_mean = sd/sw;
+											int iworst = -1;
+											double dworst2 = 0.0;
+											for (int i = 0; i < smplLen; i++) if (smpl_sel[i]) {
+												double d2 = (smpl_d[i] - d_mean);
+												d2 *=d2;
+												if (d2 > dworst2) {
+													iworst = i;
+													dworst2 = d2;
+												}
+											}
+											if (iworst < 0){
+												System.out.println("**** this is a BUG in getFilteredDisparityStrength() ****");
+												break;
+											}
+											// remove worst sample
+											smpl_sel[iworst] = false;
+											double dw = smpl_d[iworst] * smpl_w[iworst];
+											sd -= dw; 
+											sd2 -= dw * smpl_d[iworst];
+											sw -=       smpl_w[iworst];
+											sum_wnd -= smpl_weights[iworst];
+											num_in_sample --;
+										}
+										// calculate variance of the remaining set
+										if (sw > 0.0) {
+											sd /= sw;
+											sd2 /= sw;
+											double var = sd2 - sd * sd;
+											if (var < smplVar) { // good, save in the result array
+												disp_strength[0][nTile] = sd;
+												//								ds[1][indx] = sw * lapWeight[dy][dx] /num_in_sample; // average weights, multiply by window //** TODO: change
+												disp_strength[1][nTile] = sw  /sum_wnd; // average weights, multiply by window //** TODO: change
+											}
+										} else {
+											num_in_sample = 0;
+											System.out.println("**** this is a BUG in getFilteredDisparityStrength(), shoud not happen ? ****");
+										}
+									}
+									}
+								}
+							}
+						}
+					}	
+				}
+			};
+		}		      
+		ImageDtt.startAndJoin(threads);
+		return disp_strength;
+	}
+
+	
+	
 	
 /**
  * Calculate max_tried_disparity from the provided scans (use only actually measured ones)
@@ -606,7 +1089,7 @@ public class TileProcessor {
 			final boolean     updateStatus,
 			final int         debugLevel)
 	{
-		final int dbg_tile = 54627; // ty=159, tx = 249
+		final int dbg_tile = 39379; // 54627; // ty=159, tx = 249
 		final int tlen = tilesY * tilesX;
 		final boolean retryTwoSteps = true; // false; //  true;
 		
@@ -690,18 +1173,8 @@ public class TileProcessor {
 		int [] neighbors = dp.getNeighbors( // creates neighbors mask from bitmask
 				grown, // these_tiles, // grown, // these_tiles, // boolean [] selected,
 				tilesX);
-/*		
-		if (clt_parameters.show_neighbors) {
-			double [] dbg_neib = dp.dbgShowNeighbors(
-					grown, // these_tiles, // grown, // these_tiles,
-					neighbors, // _orig, // int [] neighbors,
-					clt_parameters.transform_size, // int    tile_size,
-					-1.0, // double bgnd,
-					1.0); // double fgnd)
-			sdfa_instance.showArrays(dbg_neib,tilesX*clt_parameters.transform_size, tilesY*clt_parameters.transform_size,"XXneighbors");
-		}
-*/
-			double [] dbg_pre_disp = null;
+
+		double [] dbg_pre_disp = null;
 			if (show_debug) {
 				dbg_pre_disp = scan.getDisparity().clone(); 
 			}
@@ -2302,6 +2775,13 @@ public class TileProcessor {
 			final double      ex_nstrength, // minimal 4-corr strength divided by channel diff for new (border) tiles
 			final double      this_maybe,       // maximal strength to ignore as non-background
 			final double      sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
+			final double      super_trust,      // If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds
+		// using plates disparity/strength - averaged for small square sets of tiles. If null - just use raw tiles
+			final double [][] plate_ds,  // disparity/strength last time measured for the multi-tile squares. Strength =-1 - not measured. May be null
+			final boolean     keep_raw_fg,  // do not replace raw tiles by the plates, if raw is closer (like poles)
+			final double      scale_filtered_strength_pre, // scale plate_ds[1] before comparing to raw strength
+			final double      scale_filtered_strength_post,// scale plate_ds[1] when replacing raw (generally plate_ds is more reliable if it exists)
+			
 			final boolean     show_filter_scan,
 			final int         min_clstr_seed, // clt_parameters.min_clstr_seed
 			final double      min_clstr_weight,  // double     min_weight // minimal total weight of the cluster
@@ -2313,7 +2793,7 @@ public class TileProcessor {
 			final int         debugLevel
 	)
 	{
-		final double super_trust = 1.6; // If strength exceeds ex_strength * super_trust, do not apply ex_nstrength
+//		final double super_trust = 1.6; // If strength exceeds ex_strength * super_trust, do not apply ex_nstrength
 		
 		final int dbg_tile = 49468; // x = 220, y = 152 (pavement line)
 		final boolean show_scan = show_filter_scan || (debugLevel > 1);
@@ -2374,6 +2854,25 @@ public class TileProcessor {
 //					these_tiles[i] = true;
 //				}
 			}
+			// combine with plates if available
+			if ((plate_ds != null) && (plate_ds[1][i] >=0) && (this_strength[i] < ex_strength* super_trust)) { // plate_ds[1][i] == -1 - no data, was not measured
+				if (plate_ds[1][i] > 0){
+  				  if ( // !refined_selected[i] ||
+						  !these_tiles[i] ||
+						  (this_disparity[i] <= plate_ds[0][i]) ||  // keep old way detected (including poles) is closer, replace if raw is farther
+						  (this_strength[i] < plate_ds[1][i] * scale_filtered_strength_pre) // keep old way detected (including poles) is closer, replace if raw is farther
+						  ) {
+  					these_tiles[i] = true;
+  					this_disparity[i] = plate_ds[0][i];
+  					this_strength[i] = plate_ds[1][i];
+				  }
+				} else if (these_tiles[i]){ // no plates and raw is not reliably
+					these_tiles[i] = false;
+				}
+			}
+			
+			
+			
 			// see if the second worst variation exceeds sure_smth (like a window), really close object
 			int imax1 = 0;
 			for (int ip = 1; ip < these_diffs.length; ip++){
@@ -2895,10 +3394,17 @@ public class TileProcessor {
 			int               bg_scan_index,
 			double            disparity_far,    //
 			double            disparity_near,   // 
-			double            ex_strength,   // minimal 4-corr strength to trust tile
+			double            ex_strength,   // minimal 4-corr strength to trust raw tile - above will prefer it to multi-tile plates
 	  		double            ex_nstrength, // minimal 4-corr strength divided by channel diff for new (border) tiles
 			double            this_maybe,       // maximal strength to ignore as non-background
 			double            sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
+
+			double            super_trust,      // If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds
+			double [][]       plate_ds,  // disparity/strength last time measured for the multi-tile squares. Strength =-1 - not measured. May be null
+			boolean           keep_raw_fg,  // do not replace raw tiles by the plates, if raw is closer (like poles)
+			double            scale_filtered_strength_pre, // scale plate_ds[1] before comparing to raw strength
+			double            scale_filtered_strength_post,// scale plate_ds[1] when replacing raw (generally plate_ds is more reliable if it exists)
+
 			int               disparity_index,  // index of disparity value in disparity_map == 2 (0,2 or 4)
 			GeometryCorrection geometryCorrection,
 			final int         threadsMax,  // maximal number of threads to launch                         
@@ -3034,6 +3540,12 @@ public class TileProcessor {
 				ex_nstrength,     // final double      ex_nstrength, // minimal 4-corr strength divided by channel diff for new (border) tiles
 				this_maybe,       // final double      this_maybe,       // maximal strength to ignore as non-background
 				sure_smth,        // final double      sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
+				super_trust,      // final double      super_trust,      // If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds
+				// using plates disparity/strength - averaged for small square sets of tiles. If null - just use raw tiles
+				plate_ds,        // final double [][] plate_ds,  // disparity/strength last time measured for the multi-tile squares. Strength =-1 - not measured. May be null
+				keep_raw_fg,  // final boolean     keep_raw_fg,  // do not replace raw tiles by the plates, if raw is closer (like poles)
+				scale_filtered_strength_pre, // 					final double      scale_filtered_strength_pre, // scale plate_ds[1] before comparing to raw strength
+				scale_filtered_strength_post,// final double      scale_filtered_strength_post,// scale plate_ds[1] when replacing raw (generally plate_ds is more reliable if it exists)
 				clt_parameters.show_filter_scan,
 				clt_parameters.min_clstr_seed, // clt_parameters.min_clstr_seed
 				clt_parameters.min_clstr_weight,  // double     min_weight // minimal total weight of the cluster
@@ -3077,7 +3589,7 @@ public class TileProcessor {
 		double [] dbg_with_super_disp = null;
 		double [] dbg_outlayers =       null;
 
-		if (use_supertiles) {	
+		if (use_supertiles) { // *** currently is not used (obsolete *** 	
 			String [] dbg_st_titles = {"raw", "blurred"+clt_parameters.stSigma,"max-min-max"}; 
 			double [][] dbg_hist = new double[dbg_st_titles.length][];
 
@@ -3094,6 +3606,7 @@ public class TileProcessor {
 					clt_parameters.stSmplSide,  // Sample size (side of a square)
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
+					clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[0] = scan_prev.getSuperTiles().showDisparityHistogram();
 
@@ -3110,6 +3623,7 @@ public class TileProcessor {
 					clt_parameters.stSmplSide,  // Sample size (side of a square)
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
+					clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[1] = scan_prev.getSuperTiles().showDisparityHistogram();
 
@@ -3136,7 +3650,10 @@ public class TileProcessor {
 			
 			
 			if (dbg_with_super_disp != null) dbg_with_super_disp = dbg_with_super_disp.clone(); // else no super disparity available
-		}	
+		}
+		
+		
+		
 		// replace weak outlaye tiles with weighted averages (modifies disparity)
 		boolean[] outlayers = scan_prev.replaceWeakOutlayers(
 				null, // final boolean [] selection,
@@ -3884,6 +4401,7 @@ public class TileProcessor {
 					clt_parameters.stSmplSide,  // Sample size (side of a square)
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
+					clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[0] = scan_prev.getSuperTiles().showDisparityHistogram();
 			scan_prev.setSuperTiles(
@@ -3899,6 +4417,7 @@ public class TileProcessor {
 					clt_parameters.stSmplSide,  // Sample size (side of a square)
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
+					clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[1] = scan_prev.getSuperTiles().showDisparityHistogram();
 		}
@@ -3917,6 +4436,7 @@ public class TileProcessor {
 				clt_parameters.stSmplSide,  // Sample size (side of a square)
 				clt_parameters.stSmplNum,   // Number after removing worst
 				clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
+				clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
 				clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 		if (show_st) { // otherwise only blured version is needed 
 			dbg_hist[2] = scan_prev.getSuperTiles().showDisparityHistogram();
@@ -3945,6 +4465,7 @@ public class TileProcessor {
 					clt_parameters.stSmplSide,  // Sample size (side of a square)
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
+					clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 		}
 
@@ -3968,6 +4489,7 @@ public class TileProcessor {
 				clt_parameters.stSmplSide ,     // final int                        smplSide, //        = 2;      // Sample size (side of a square)
 				clt_parameters.stSmplNum ,      // final int                        smplNum, //         = 3;      // Number after removing worst
 				clt_parameters.stSmplRms ,      // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
 
 				clt_parameters.plBlurBinHor,    // final double     bin_blur_hor,   // Blur disparity histograms for horizontal clusters by this sigma (in bins)
 				clt_parameters.plBlurBinVert,   // final double     bin_blur_vert,  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
@@ -3983,6 +4505,7 @@ public class TileProcessor {
 				clt_parameters.stSmallDiff,     //       = 0.4;   // Consider merging initial planes if disparity difference below
 				clt_parameters.stHighMix,       // stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
 				world_hor,                      // final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
+				clt_parameters.show_histograms, // final boolean    show_histograms,
 				0, // -1,                       // debugLevel,                  // final int        debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
@@ -4033,6 +4556,7 @@ public class TileProcessor {
 					clt_parameters.stSmplSide,        // final int                        smplSide, //        = 2;      // Sample size (side of a square)
 					clt_parameters.stSmplNum,         // final int                        smplNum, //         = 3;      // Number after removing worst
 					clt_parameters.stSmplRms,         // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+					clt_parameters.stSmplWnd,         // final boolean                 smplWnd,  // use window functions for the samples
 
 					clt_parameters.plDiscrTolerance,  // final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile 
 					clt_parameters.plDiscrDispRange,  // final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
@@ -4147,6 +4671,7 @@ public class TileProcessor {
 					clt_parameters.stSmplSide , // final int                        smplSide, //        = 2;      // Sample size (side of a square)
 					clt_parameters.stSmplNum , // final int                        smplNum, //         = 3;      // Number after removing worst
 					clt_parameters.stSmplRms , // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+					clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
 					debugLevel, // 1,                               // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
@@ -4686,6 +5211,8 @@ public class TileProcessor {
 			double            ex_nstrength, // minimal 4-corr strength divided by channel diff for new (border) tiles
 			double            this_maybe,       // maximal strength to ignore as non-background
 			double            sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
+			double            super_trust,      // If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds
+			
 			int               disparity_index,  // index of disparity value in disparity_map == 2 (0,2 or 4)
 			GeometryCorrection geometryCorrection,
 			final int         threadsMax,  // maximal number of threads to launch                         
@@ -4760,6 +5287,12 @@ public class TileProcessor {
 					
 					this_maybe,       // final double      this_maybe,       // maximal strength to ignore as non-background
 					sure_smth,        // final double      sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
+					super_trust,      // final double      super_trust,      // If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds
+					// using plates disparity/strength - averaged for small square sets of tiles. If null - just use raw tiles
+					null,        // final double [][] plate_ds,  // disparity/strength last time measured for the multi-tile squares. Strength =-1 - not measured. May be null
+					true,  // final boolean     keep_raw_fg,  // do not replace raw tiles by the plates, if raw is closer (like poles)
+					0.0, // 					final double      scale_filtered_strength_pre, // scale plate_ds[1] before comparing to raw strength
+					0.0,// final double      scale_filtered_strength_post,// scale plate_ds[1] when replacing raw (generally plate_ds is more reliable if it exists)
 					true, // clt_parameters.show_filter_scan,
 					clt_parameters.min_clstr_seed, // clt_parameters.min_clstr_seed
 					clt_parameters.min_clstr_weight,  // double     min_weight // minimal total weight of the cluster
@@ -4812,13 +5345,13 @@ public class TileProcessor {
 
 		//		if (clt_parameters.stShow){
 
-		// try renovated supertiles. Do twice to show both original and blured histograms
+		// try renovated supertiles. Do twice to show both original and blurred histograms
 		double [] dbg_orig_disparity =  null;
 		double [] dbg_with_super_disp = null;
 		double [] dbg_outlayers =       null;
 //		boolean [] grown = these_tiles.clone();
 
-		if (use_supertiles || show_st) {	
+		if (use_supertiles || show_st) {// currently not use (only to show)
 			String [] dbg_st_titles = {"raw", "blurred"+clt_parameters.stSigma,"max-min-max"}; 
 			double [][] dbg_hist = new double[dbg_st_titles.length][];
 
@@ -4835,6 +5368,7 @@ public class TileProcessor {
 					clt_parameters.stSmplSide,  // Sample size (side of a square)
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
+					clt_parameters.stSmplWnd,   // Use window functions for the samples
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[0] = scan_prev.getSuperTiles().showDisparityHistogram();
 
@@ -4851,6 +5385,7 @@ public class TileProcessor {
 					clt_parameters.stSmplSide,  // Sample size (side of a square)
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
+					clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[1] = scan_prev.getSuperTiles().showDisparityHistogram();
 
@@ -6245,6 +6780,7 @@ public class TileProcessor {
 	}
 
 	int iSign (int a) {return (a > 0) ? 1 : ((a < 0)? -1 : 0);}
+	
 	public void testTriangles(
 			String     texturePath,
 			Rectangle  bounds,
@@ -6307,6 +6843,9 @@ public class TileProcessor {
 				"triangles-"+texturePath,
 				titles);
 	}
+	
+
+	
 	/* Create a Thread[] array as large as the number of processors available.
 	 * From Stephan Preibisch's Multithreading.java class. See:
 	 * http://repo.or.cz/w/trakem2.git?a=blob;f=mpi/fruitfly/general/MultiThreading.java;hb=HEAD

@@ -331,6 +331,23 @@ public class MeasuredLayers {
 		return weights;
 	}
 	
+	/**
+	 * Get window function for tile samples (currently just 3x3) in a line-scan order
+	 * @param smplSide square sample side
+	 * @return [smplSide * smplSide]array of weights, 1.0 in the center
+	 */
+	
+	public double [] getSampleWindow(int smplSide, boolean all1){
+		double [] weights = new double [smplSide * smplSide];
+		for (int sy = 0; sy < smplSide; sy++){
+			for (int sx = 0; sx < smplSide; sx++){
+				weights[sy * smplSide + sx] = all1? 1.0 : Math.sin(Math.PI*(sy+0.5)/smplSide) * Math.sin(Math.PI*(sx+0.5)/smplSide);
+			}
+		}
+		return weights;
+	}
+	
+	
 	
 	/**
 	 * Get selection for the specific measurement layer and supertile X,Y coordinates
@@ -662,9 +679,11 @@ public class MeasuredLayers {
 	 * @param smplNum number of averaged samples (should be <= smplSide * smplSide and > 1) 
 	 * @param smplRms maximal square root of variance (in disparity pixels) to accept the result
 	 * @param null_if_none return null if there are no usable tiles in the result
+	 * @param smplWnd multiply samples weights by a window function
+	 * @param debugLevel debug level
 	 * @return a pair of arrays (disparity and strengths) in line-scan order each
 	 */
-	public double[][] getDisparityStrength (
+	public double[][] getDisparityStrength_old (
 			int num_layer,
 			int stX,
 			int stY,
@@ -674,7 +693,9 @@ public class MeasuredLayers {
 			int        smplSide, //        = 2;      // Sample size (side of a square)
 			int        smplNum, //         = 3;      // Number after removing worst (should be >1)
 			double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-			boolean null_if_none)
+			boolean    smplWnd, //
+			boolean    null_if_none,
+			int        debugLevel)
 	{
 		if ((layers[num_layer] == null) && null_if_none){
 			return null;
@@ -682,14 +703,19 @@ public class MeasuredLayers {
 		int st2 = 2 * superTileSize;
 		int st_half = superTileSize/2;
 		double [][] ds = new double [2][st2*st2];
+		final int dbg_tile = ((stX == 22) && (stY == 19)) ? (5 + 7*16) : -1;// 50397;
+		
 		int num_selected = 0;
 		int smpl_center = smplSide /2;
 		int st2e = st2 + smplSide;
 		int smplLen = smplSide*smplSide;
+		final double [] smpl_weights = getSampleWindow(smplSide, !smplWnd);
+		
 		double [] disp =     new double [st2e * st2e]; 
 		double [] weight = new double [st2e * st2e]; 
 		int st_halfe = st_half + smpl_center;
-		double smlVar = smplRms * smplRms; // maximal variance (weighted average of the squared difference from the mean)
+		double smplVar = smplRms * smplRms; // maximal variance (weighted average of the squared difference from the mean)
+		
 		
 		if (layers[num_layer] != null) {
 			for (int dy = 0; dy < st2e; dy ++){
@@ -700,6 +726,7 @@ public class MeasuredLayers {
 						if ((x >= 0) && (x < tilesX)) {
 							int indx = y * tilesX + x;
 							int indx_ste = dy * st2e + dx;
+							
 							if (layers[num_layer][indx] != null){ // apply sel_in later
 								disp[indx_ste] = layers[num_layer][indx].getDisparity();
 								double w = layers[num_layer][indx].getStrength() - strength_floor;
@@ -722,8 +749,12 @@ public class MeasuredLayers {
 		for (int dy = 0; dy < st2; dy ++){
 			for (int dx = 0; dx < st2; dx ++){
 				int indx = dy * st2 + dx;
+				if (indx == dbg_tile){
+					System.out.println("getDisparityStrength(): stX="+stX+" stY="+stY+" dx="+dx+" dy="+dy);
+				}
 				if (((sel_in == null) || sel_in[indx])){
 					int num_in_sample = 0;
+					double sum_wnd = 0.0;
 					boolean [] smpl_sel = new boolean [smplLen];
 					double [] smpl_d =  new double [smplLen];
 					double [] smpl_w =  new double [smplLen];
@@ -736,7 +767,8 @@ public class MeasuredLayers {
 								int indxs = sy * smplSide + sx;
 								smpl_sel[indxs] = true;
 								smpl_d[indxs] = disp[indxe]; 
-								smpl_w[indxs] = weight[indxe]; 
+								smpl_w[indxs] = weight[indxe] * smpl_weights[indxs]; 
+								sum_wnd += smpl_weights[indxs];
 								num_in_sample ++;
 							}
 						}
@@ -773,6 +805,7 @@ public class MeasuredLayers {
 							sd -= dw; 
 							sd2 -= dw * smpl_d[iworst];
 							sw -=       smpl_w[iworst];
+							sum_wnd -= smpl_weights[iworst];
 							num_in_sample --;
 						}
 						// calculate variance of the remaining set
@@ -780,9 +813,10 @@ public class MeasuredLayers {
 							sd /= sw;
 							sd2 /= sw;
 							double var = sd2 - sd * sd;
-							if (var < smlVar) { // good, save in the result array
+							if (var < smplVar) { // good, save in the result array
 								ds[0][indx] = sd;
-								ds[1][indx] = sw * lapWeight[dy][dx] /num_in_sample; // average weights, multiply by window
+//								ds[1][indx] = sw * lapWeight[dy][dx] /num_in_sample; // average weights, multiply by window //** TODO: change
+								ds[1][indx] = sw * lapWeight[dy][dx] /sum_wnd; // average weights, multiply by window //** TODO: change
 							}
 						} else {
 							num_in_sample = 0;
@@ -795,7 +829,412 @@ public class MeasuredLayers {
 		return ds;
 	}
 	
+	/**
+	 * Verify that selected points are not all on the same line 
+	 * @param sel 2-d sample selection in linescan order
+	 * @param side square samples side
+	 * @return true if there are enough samples for plane extraction, false otherwise
+	 */
+	public boolean notColinear (
+			boolean [] sel,
+			int side)
+	{
+		int indx0, indx1;
+		for (indx0 = 0; indx0 < sel.length; indx0++){
+			if (sel[indx0]) break;
+		}
+		for (indx1 = indx0+1; indx1 < sel.length; indx1++){
+			if (sel[indx1]) break;
+		}
+		if (indx1 >= sel.length) return false; // too few points;
+		int sx0 = indx0 % side;
+		int sy0 = indx0 / side;
+		int sx1 = indx1 % side;
+		int sy1 = indx1 / side;
+		for (int indx = indx1 +1; indx < sel.length; indx++){
+			int sx = indx % side;
+			int sy = indx / side;
+			if ((sx - sx0) * (sy - sy1) != (sx - sx1) * (sy - sy0)){
+				return true;
+			}
+		}
+		return false;
+	}
 
+	/**
+	 * Verify that selected points are not all on the same line, even if the specified one is removed 
+	 * @param indx index of the point to be removed
+	 * @param sel 2-d sample selection in linescan order
+	 * @param side square samples side
+	 * @return true if there are enough samples for plane extraction, false otherwise
+	 */
+
+	public boolean notColinearWithout (
+			int        indx,
+			boolean [] sel,
+			int side)
+	{
+		if (!sel[indx]){
+			throw new IllegalArgumentException ("notCoplanarWithout(): specified is the non existing index");
+		}
+		sel[indx] = false;
+		boolean rslt = notColinear ( sel, side);
+		sel[indx] = true;
+		return rslt;
+	}
+	
+	// testing - redirecting all existing requests to this one with floating planes
+	public double[][] getDisparityStrength (
+			int num_layer,
+			int stX,
+			int stY,
+			boolean [] sel_in,
+			double     strength_floor,
+			double     strength_pow,
+			int        smplSide, //        = 2;      // Sample size (side of a square)
+			int        smplNum, //         = 3;      // Number after removing worst (should be >1)
+			double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+			boolean    smplWnd, //
+			boolean    null_if_none,
+			int        debugLevel)
+	{
+		return getDisparityStrength (
+				num_layer,      // int num_layer,
+				stX,            // int stX,
+				stY,            // int stY,
+				sel_in,         // boolean [] sel_in,
+				null,           // double []  tiltXY, // null - free with limit on both absolute (2.0?) and relative (0.2) values 
+				strength_floor, // double     strength_floor,
+				strength_pow,   // double     strength_pow,
+				smplSide,       // int        smplSide, //        = 2;      // Sample size (side of a square)
+				smplNum,        // int        smplNum, //         = 3;      // Number after removing worst (should be >1)
+				smplRms,        // double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				smplWnd,        // boolean    smplWnd, //
+				2.0,            // double     max_abs_tilt, //  = 2.0; // pix per tile
+				0.2,            // double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
+				null_if_none,   // boolean    null_if_none,
+				debugLevel);    // int        debugLevel)
+	}
+	
+	public double[][] getDisparityStrength (
+			int num_layer,
+			int stX,
+			int stY,
+			boolean [] sel_in,
+			double []  tiltXY, // null - free with limit on both absolute (2.0?) and relative (0.2) values 
+			double     strength_floor,
+			double     strength_pow,
+			int        smplSide, //        = 2;      // Sample size (side of a square)
+			int        smplNum, //         = 3;      // Number after removing worst (should be >1)
+			double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+			boolean    smplWnd, //
+			double     max_abs_tilt, //  = 2.0; // pix per tile
+			double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
+			boolean    null_if_none,
+			int        debugLevel)
+	{
+			
+		if ((layers[num_layer] == null) && null_if_none){
+			return null;
+		}
+		int st2 = 2 * superTileSize;
+		int st_half = superTileSize/2;
+		double [][] ds = new double [2][st2*st2];
+		final int dbg_tile = ((stX == 22) && (stY == 19)) ? (5 + 7*16) : -1;// 50397;
+		
+		int num_selected = 0;
+		int smpl_center = smplSide /2;
+		double smpl_dcenter = (smplSide -1.0) /2;
+		int st2e = st2 + smplSide;
+		int smplLen = smplSide*smplSide;
+		final double [] smpl_weights = getSampleWindow(smplSide, !smplWnd);
+		
+		double [] disp =     new double [st2e * st2e]; 
+		double [] weight = new double [st2e * st2e]; 
+		int st_halfe = st_half + smpl_center;
+		double smplVar = smplRms * smplRms; // maximal variance (weighted average of the squared difference from the mean)
+		PolynomialApproximation pa = new PolynomialApproximation();
+		double thresholdLin = 1.0E-20;  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
+		double thresholdQuad = 1.0E-30; // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+		
+		
+		if (layers[num_layer] != null) {
+			for (int dy = 0; dy < st2e; dy ++){
+				int y = superTileSize * stY -st_halfe + dy;
+				if ((y >= 0) && (y < tilesY)) {
+					for (int dx = 0; dx < st2e; dx ++){
+						int x = superTileSize * stX -st_halfe + dx;
+						if ((x >= 0) && (x < tilesX)) {
+							int indx = y * tilesX + x;
+							int indx_ste = dy * st2e + dx;
+							
+							if (layers[num_layer][indx] != null){ // apply sel_in later
+								disp[indx_ste] = layers[num_layer][indx].getDisparity();
+								double w = layers[num_layer][indx].getStrength() - strength_floor;
+								if (w > 0) {
+									if (strength_pow != 1.0) w = Math.pow(w, strength_pow);
+//									w *= lapWeight[dy][dx];
+									disp[indx_ste] = layers[num_layer][indx].getDisparity();
+									weight[indx_ste] = w;
+									num_selected ++;
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+		if (null_if_none && (num_selected == 0)) return null;
+		// now work with disp, strength [st2e*st2de] and filter results to ds[2][st2*st2], applying sel_in
+		num_selected = 0;
+		for (int dy = 0; dy < st2; dy ++){
+			for (int dx = 0; dx < st2; dx ++){
+				int indx = dy * st2 + dx;
+				if (indx == dbg_tile){
+					System.out.println("getDisparityStrength(): stX="+stX+" stY="+stY+" dx="+dx+" dy="+dy);
+				}
+				if (((sel_in == null) || sel_in[indx])){
+					int num_in_sample = 0;
+					double sum_wnd = 0.0;
+					boolean [] smpl_sel = new boolean [smplLen];
+					double [] smpl_d =  new double [smplLen];
+					double [] smpl_p =  new double [smplLen];
+					double [] smpl_w =  new double [smplLen];
+					for (int sy = 0; sy < smplSide; sy++){
+						int y = dy + sy; //  - smpl_center;
+						for (int sx = 0; sx < smplSide; sx++){
+							int x = dx + sx; // - smpl_center;
+							int indxe = y * st2e + x;
+							if (weight[indxe] > 0.0){
+								int indxs = sy * smplSide + sx;
+								smpl_sel[indxs] = true;
+								smpl_d[indxs] = disp[indxe]; 
+								smpl_w[indxs] = weight[indxe] * smpl_weights[indxs]; 
+								sum_wnd += smpl_weights[indxs];
+								num_in_sample ++;
+							}
+						}
+					}
+					if (num_in_sample >= smplNum){ // try, remove worst
+						sample_loop:
+						{
+						boolean en_tilt = (tiltXY == null);
+						if (en_tilt) { // make sure there are enough samples and not all of them are on the same line
+							if (!notColinear(smpl_sel,smplSide)){
+								en_tilt = false;
+							}
+						}
+						if (en_tilt) { // enable floating tilt
+							double sd2 = 0.0, d_center = 0.0,  sw = 0.0;
+
+							// TODO: making simple - recalculate after removing. Can be done more efficient.
+							while (num_in_sample >= smplNum) { // try, remove worst
+								sd2 = 0.0;
+								d_center = 0.0;
+								sw = 0.0;
+
+								double [][][] mdata = new double [num_in_sample][3][];
+								int mindx = 0;
+								for (int sy = 0; sy < smplSide; sy++){
+									for (int sx = 0; sx < smplSide; sx++){
+										int indxs = sy * smplSide + sx;
+										if (smpl_sel[indxs]) {
+											mdata[mindx][0] = new double [2];
+											mdata[mindx][0][0] =  sx - smpl_dcenter;
+											mdata[mindx][0][1] =  sy - smpl_dcenter;
+											mdata[mindx][1] = new double [1];
+											mdata[mindx][1][0] = smpl_d[indxs];
+											mdata[mindx][2] = new double [1];
+											mdata[mindx][2][0] =  smpl_w[indxs];
+											mindx ++;
+										}
+									}
+								}
+								double[][] approx2d = pa.quadraticApproximation(
+										mdata,
+										true,          // boolean forceLinear,  // use linear approximation
+										thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
+										thresholdQuad, // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+										debugLevel);
+								if (approx2d == null){
+									if (debugLevel > -1){
+										System.out.println("getDisparityStrength(): can not find linear approximation");
+									}
+									break sample_loop;
+								}
+								// limit tilt to be within range
+								//											double     max_abs_tilt, //  = 2.0; // pix per tile
+								//											double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
+								double max_tilt = Math.min(max_abs_tilt, max_rel_tilt * approx2d[0][2]);
+								boolean overlimit = (Math.abs(approx2d[0][0]) > max_tilt) || (Math.abs(approx2d[0][1]) > max_tilt);
+								if (overlimit) {
+									approx2d[0][0] = Math.min(approx2d[0][0],  max_tilt); 
+									approx2d[0][1] = Math.min(approx2d[0][1],  max_tilt); 
+									approx2d[0][0] = Math.max(approx2d[0][0], -max_tilt); 
+									approx2d[0][1] = Math.max(approx2d[0][1], -max_tilt);
+								}
+								// subtract tilt from disparity
+								for (int sy = 0; sy < smplSide; sy++){
+									for (int sx = 0; sx < smplSide; sx++){
+										int indxs = sy * smplSide + sx;
+										 if (smpl_sel[indxs]) {
+											smpl_p[indxs] = approx2d[0][0] * (sx - smpl_dcenter) + approx2d[0][1] * (sy - smpl_dcenter) + approx2d[0][2];
+										}
+									}
+								}
+								
+								if (overlimit){ // re-calculate disparity average (in the center)
+									double sd=0.0;
+									for (int indxs = 0; indxs < smplLen;indxs++) if (smpl_sel[indxs]) {
+										double d = smpl_d[indxs] - smpl_p[indxs];
+										double dw = d * smpl_w[indxs];
+										sd += dw;
+										sw += smpl_w[indxs];
+									}
+									sd /= sw;
+									for (int indxs = 0; indxs < smplLen;indxs++) if (smpl_sel[indxs]) {
+										smpl_p[indxs] += sd;
+									}
+									approx2d[0][2] += sd;
+								}
+								d_center = approx2d[0][2];
+								sw = 0.0;
+								for (int indxs = 0; indxs < smplLen;indxs++) if (smpl_sel[indxs]) {
+									double d = smpl_d[indxs] - smpl_p[indxs];
+									double dw = d * smpl_w[indxs];
+									//									sd += dw;
+									sd2 += dw * smpl_d[indxs];
+									sw +=       smpl_w[indxs];
+								}
+									
+								
+								// remove worst - it should not make remaining set 
+								if (num_in_sample > smplNum) { // remove worst if it is not the last run where only calculations are needed
+//									double d_mean = sd/sw;
+									int iworst = -1;
+									double dworst2 = 0.0;
+									for (int indxs = 0; indxs < smplLen; indxs++) if (smpl_sel[indxs]) {
+//										double d2 = (smpl_d[i] - d_mean);
+										double d2 = smpl_d[indxs] - smpl_p[indxs];
+										d2 *=d2;
+										if (d2 > dworst2) {
+											if (notColinearWithout (
+													indxs, // int        indx,
+													smpl_sel, // boolean [] sel,
+													smplSide)) { // int side))
+												iworst = indxs;
+												dworst2 = d2;
+											}
+										}
+									}
+									if (iworst < 0){
+										System.out.println("**** this is a BUG in getDisparityStrength() can not find the worst sample ****");
+										break;
+									}
+									// remove worst sample
+									smpl_sel[iworst] = false;
+//									double dw = smpl_d[iworst] * smpl_w[iworst];
+//									sd -= dw; 
+//									sd2 -= dw * smpl_d[iworst];
+//									sw -=       smpl_w[iworst];
+									sum_wnd -= smpl_weights[iworst];
+									num_in_sample --;
+								} else {
+									break;
+								}
+								
+							} // removing worst tiles, all done, 
+							// calculate variance of the remaining set
+							if (sw > 0.0) {
+//								sd /= sw;
+//								sd2 /= sw;
+								double var = sd2/sw; //   - sd * sd;
+								if (var < smplVar) { // good, save in the result array
+									ds[0][indx] = d_center;
+									//								ds[1][indx] = sw * lapWeight[dy][dx] /num_in_sample; // average weights, multiply by window //** TODO: change
+									ds[1][indx] = sw * lapWeight[dy][dx] /sum_wnd; // average weights, multiply by window //** TODO: change
+								}
+							}
+							
+						} else { // fixed tilt
+							// tilt around center
+							if ((tiltXY != null) && (tiltXY[0] != 0.0) && (tiltXY[1] != 0.0)){
+								for (int sy = 0; sy < smplSide; sy++){
+									for (int sx = 0; sx < smplSide; sx++){
+										int indxs = sy * smplSide + sx;
+										if (smpl_w[indxs] > 0.0) {
+											smpl_d[indxs] -= tiltXY[0]* (sx - smpl_dcenter) + tiltXY[1]* (sy - smpl_dcenter);
+										}
+									}
+								}
+							}
+
+
+							// calculate 
+							double sd=0.0, sd2 = 0.0, sw = 0.0;
+							for (int i = 0; i < smplLen; i++) if (smpl_sel[i]) {
+								double dw = smpl_d[i] * smpl_w[i];
+								sd += dw;
+								sd2 += dw * smpl_d[i];
+								sw +=       smpl_w[i];
+							}
+							// remove worst, update sd2, sd and sw
+							while ((num_in_sample > smplNum) && (sw > 0)){ // try, remove worst
+								double d_mean = sd/sw;
+								int iworst = -1;
+								double dworst2 = 0.0;
+								for (int i = 0; i < smplLen; i++) if (smpl_sel[i]) {
+									double d2 = (smpl_d[i] - d_mean);
+									d2 *=d2;
+									if (d2 > dworst2) {
+										iworst = i;
+										dworst2 = d2;
+									}
+								}
+								if (iworst < 0){
+									System.out.println("**** this is a BUG in getDisparityStrength() ****");
+									break;
+								}
+								// remove worst sample
+								smpl_sel[iworst] = false;
+								double dw = smpl_d[iworst] * smpl_w[iworst];
+								sd -= dw; 
+								sd2 -= dw * smpl_d[iworst];
+								sw -=       smpl_w[iworst];
+								sum_wnd -= smpl_weights[iworst];
+								num_in_sample --;
+							}
+							// calculate variance of the remaining set
+							if (sw > 0.0) {
+								sd /= sw;
+								sd2 /= sw;
+								double var = sd2 - sd * sd;
+								if (var < smplVar) { // good, save in the result array
+									ds[0][indx] = sd;
+									//								ds[1][indx] = sw * lapWeight[dy][dx] /num_in_sample; // average weights, multiply by window //** TODO: change
+									ds[1][indx] = sw * lapWeight[dy][dx] /sum_wnd; // average weights, multiply by window //** TODO: change
+								}
+							} else {
+								num_in_sample = 0;
+								System.out.println("**** this is a BUG in getDisparityStrength(), shoud not happen ? ****");
+							}
+						}
+						}
+					}
+					
+					
+					
+					
+				}				
+			}
+		}
+		return ds;
+	}
+
+	
+	
+	
+	
 	public void growSelection(
 			int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 			boolean [] tiles,

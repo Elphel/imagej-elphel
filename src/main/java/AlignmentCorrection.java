@@ -1219,6 +1219,7 @@ public class AlignmentCorrection {
 		}
 		return disp_strength;
 	}
+	
 	public double[][] filterDisparityStrength (
 			final double[][] disp_strength_in,
 			final double     strength_floor,
@@ -1362,6 +1363,13 @@ public class AlignmentCorrection {
 		}
 		return disp_strength;
 	}
+	
+	
+	
+	
+	
+	
+	
 	  public void show_fine_corr(
 			  double [][][] corr,
 			  String prefix)

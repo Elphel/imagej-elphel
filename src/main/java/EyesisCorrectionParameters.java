@@ -2063,12 +2063,17 @@ public class EyesisCorrectionParameters {
   		public boolean    debug_filters    = false;// show intermediate results of filtering
   		// not used anywhere so far
   		public double     min_smth         = 0.25;  // 0.25 minimal noise-normalized pixel difference in a channel to suspect something    
-  		public double     sure_smth        = 2.0;   // reliable noise-normalized pixel difference in a channel to have something    
+  		public double     sure_smth        = 2.0;   // reliable noise-normalized pixel difference in a channel to have something
   		public double     bgnd_range       = 0.3;   // disparity range to be considered background
   		public double     other_range      = 2.0;   // disparity difference from center (provided) disparity to trust
   		
-  		public double     ex_strength      = 0.18;   // minimal 4-corr strength to trust tile
-  		public double     ex_nstrength     = 0.4;    // minimal 4-corr strength divided by channel diff for new (border) tiles
+  		public double     ex_strength      = 0.18;  // minimal 4-corr strength to trust tile
+  		public double     ex_nstrength     = 0.4;   // minimal 4-corr strength divided by channel diff for new (border) tiles
+  		
+  		public double     pt_super_trust   = 1.6;   // If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds
+  		public boolean    pt_keep_raw_fg   = true;  // Do not replace raw tiles by the plates, if raw is closer (like poles)
+  		public double     pt_scale_pre     = 1.5;   // Scale plates strength before comparing to raw strength
+  		public double     pt_scale_post    = 2.5;   // Scale plates strength when replacing raw (plates d/s data is more reliable if it exists)
   		
   		public double     bgnd_sure        = 0.18;  // minimal strength to be considered definitely background
   		public double     bgnd_maybe       = 0.1; // maximal strength to ignore as non-background
@@ -2115,7 +2120,10 @@ public class EyesisCorrectionParameters {
   		public double     poles_min_strength = 0.1; // Set new pole segment strength to max of horizontal correlation and this value
   		public boolean    poles_force_disp = true;  // Set disparity to that of the bottom of existing segment (false - use hor. disparity)
   		
-  		public int        max_clusters     = 300;    // Maximal number of clusters to generate for one run
+  		public int        max_clusters     = 300;   // Maximal number of clusters to generate for one run
+  		public boolean    remove_scans     = true;  // Remove all unneeded scans when generating x3d output to save memory
+  		
+  		
   		public boolean    correct_distortions = false; // Correct lens geometric distortions in a model (will need backdrop to be corrected too)
   		public boolean    show_triangles =    true;  // Show generated triangles
   		public boolean    avg_cluster_disp =  false;  // Weight-average disparity for the whole cluster 
@@ -2179,6 +2187,7 @@ public class EyesisCorrectionParameters {
   		public int        stSmplSide        = 2;      // Sample size (side of a square)
   		public int        stSmplNum         = 3;      // Number after removing worst
   		public double     stSmplRms         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+		public boolean    stSmplWnd         = false;  // Use window function for the samples (TODO: change default to true after testing)
   		
   		public int        stGrowSel         = 2;     // Grow initial selection before processing supertiles, odd - ortho. <0 - use all tiles
   		public int        stMeasSel         = 1;     // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
@@ -2461,6 +2470,7 @@ public class EyesisCorrectionParameters {
   		public boolean    show_filter_scan =       false; // show 'FilterScan'
   		public boolean    show_combined =          false; // show 'combo_scan' (combined multiple scans)
   		public boolean    show_unique =            false; // show 'unique_scan' (removed already measured tiles with the same disparity)
+  		public boolean    show_histograms =        false; // show supertile disparity histograms 
   		public boolean    show_init_refine =       false; // show debug images during initial refinement 
   		public boolean    show_expand =            false; // show debug images during disparity expansion
   		public boolean    show_retry_far =         false; // show debug images related to retrying far tiles near foreground
@@ -2614,6 +2624,11 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"ex_strength",      this.ex_strength +"");
 			properties.setProperty(prefix+"ex_nstrength",     this.ex_nstrength +"");
 			
+			properties.setProperty(prefix+"pt_super_trust",   this.pt_super_trust +"");
+			properties.setProperty(prefix+"pt_keep_raw_fg",   this.pt_keep_raw_fg+"");
+			properties.setProperty(prefix+"pt_scale_pre",     this.pt_scale_pre +"");
+			properties.setProperty(prefix+"pt_scale_post",    this.pt_scale_post +"");
+
 			properties.setProperty(prefix+"bgnd_sure",        this.bgnd_sure +"");
 			properties.setProperty(prefix+"bgnd_maybe",       this.bgnd_maybe +"");
   			properties.setProperty(prefix+"min_clstr_seed",   this.min_clstr_seed+"");
@@ -2660,6 +2675,7 @@ public class EyesisCorrectionParameters {
 			
 			
 			properties.setProperty(prefix+"max_clusters",     this.max_clusters+"");
+			properties.setProperty(prefix+"remove_scans",     this.remove_scans+"");
 			properties.setProperty(prefix+"correct_distortions",this.correct_distortions+"");
 			properties.setProperty(prefix+"show_triangles",   this.show_triangles+"");
 			properties.setProperty(prefix+"avg_cluster_disp", this.avg_cluster_disp+"");
@@ -2718,7 +2734,8 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"stSmplSide",       this.stSmplSide+"");
   			properties.setProperty(prefix+"stSmplNum",        this.stSmplNum+"");
 			properties.setProperty(prefix+"stSmplRms",        this.stSmplRms +"");
-
+			properties.setProperty(prefix+"stSmplWnd",        this.stSmplWnd+"");
+ 
 			properties.setProperty(prefix+"stGrowSel",        this.stGrowSel+"");
 			properties.setProperty(prefix+"stMeasSel",        this.stMeasSel+"");
 			properties.setProperty(prefix+"stSmallDiff",      this.stSmallDiff +"");
@@ -2969,6 +2986,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"show_filter_scan",       this.show_filter_scan+"");
 			properties.setProperty(prefix+"show_combined",          this.show_combined+"");
 			properties.setProperty(prefix+"show_unique",            this.show_unique+"");
+			properties.setProperty(prefix+"show_histograms",        this.show_histograms+"");
 			properties.setProperty(prefix+"show_init_refine",       this.show_init_refine+"");
 			properties.setProperty(prefix+"show_expand",            this.show_expand+"");
 			properties.setProperty(prefix+"show_retry_far",         this.show_retry_far+"");
@@ -3123,6 +3141,11 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"ex_strength")!=null)       this.ex_strength=Double.parseDouble(properties.getProperty(prefix+"ex_strength"));
   			if (properties.getProperty(prefix+"ex_nstrength")!=null)      this.ex_nstrength=Double.parseDouble(properties.getProperty(prefix+"ex_nstrength"));
 
+  			if (properties.getProperty(prefix+"pt_super_trust")!=null)    this.pt_super_trust=Double.parseDouble(properties.getProperty(prefix+"pt_super_trust"));
+  			if (properties.getProperty(prefix+"pt_keep_raw_fg")!=null)    this.pt_keep_raw_fg=Boolean.parseBoolean(properties.getProperty(prefix+"pt_keep_raw_fg"));
+  			if (properties.getProperty(prefix+"pt_scale_pre")!=null)      this.pt_scale_pre=Double.parseDouble(properties.getProperty(prefix+"pt_scale_pre"));
+  			if (properties.getProperty(prefix+"pt_scale_post")!=null)     this.pt_scale_post=Double.parseDouble(properties.getProperty(prefix+"pt_scale_post"));
+
   			if (properties.getProperty(prefix+"bgnd_sure")!=null)         this.bgnd_sure=Double.parseDouble(properties.getProperty(prefix+"bgnd_sure"));
   			if (properties.getProperty(prefix+"bgnd_maybe")!=null)        this.bgnd_maybe=Double.parseDouble(properties.getProperty(prefix+"bgnd_maybe"));
   			if (properties.getProperty(prefix+"min_clstr_seed")!=null)    this.min_clstr_seed=Integer.parseInt(properties.getProperty(prefix+"min_clstr_seed"));
@@ -3167,6 +3190,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"poles_force_disp")!=null)  this.poles_force_disp=Boolean.parseBoolean(properties.getProperty(prefix+"poles_force_disp"));
   			
   			if (properties.getProperty(prefix+"max_clusters")!=null)      this.max_clusters=Integer.parseInt(properties.getProperty(prefix+"max_clusters"));
+  			if (properties.getProperty(prefix+"remove_scans")!=null)  this.remove_scans=Boolean.parseBoolean(properties.getProperty(prefix+"remove_scans"));
   			if (properties.getProperty(prefix+"correct_distortions")!=null) this.correct_distortions=Boolean.parseBoolean(properties.getProperty(prefix+"correct_distortions"));
   			if (properties.getProperty(prefix+"show_triangles")!=null)    this.show_triangles=Boolean.parseBoolean(properties.getProperty(prefix+"show_triangles"));
   			if (properties.getProperty(prefix+"avg_cluster_disp")!=null)  this.avg_cluster_disp=Boolean.parseBoolean(properties.getProperty(prefix+"avg_cluster_disp"));
@@ -3225,6 +3249,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"stSmplSide")!=null)        this.stSmplSide=Integer.parseInt(properties.getProperty(prefix+"stSmplSide"));
   			if (properties.getProperty(prefix+"stSmplNum")!=null)         this.stSmplNum=Integer.parseInt(properties.getProperty(prefix+"stSmplNum"));
   			if (properties.getProperty(prefix+"stSmplRms")!=null)         this.stSmplRms=Double.parseDouble(properties.getProperty(prefix+"stSmplRms"));
+  			if (properties.getProperty(prefix+"stSmplWnd")!=null)         this.stSmplWnd=Boolean.parseBoolean(properties.getProperty(prefix+"stSmplWnd"));
 
   			if (properties.getProperty(prefix+"stGrowSel")!=null)         this.stGrowSel=Integer.parseInt(properties.getProperty(prefix+"stGrowSel"));
   			if (properties.getProperty(prefix+"stMeasSel")!=null)         this.stMeasSel=Integer.parseInt(properties.getProperty(prefix+"stMeasSel"));
@@ -3478,6 +3503,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"show_filter_scan")!=null)       this.show_filter_scan=Boolean.parseBoolean(properties.getProperty(prefix+"show_filter_scan"));
   			if (properties.getProperty(prefix+"show_combined")!=null)          this.show_combined=Boolean.parseBoolean(properties.getProperty(prefix+"show_combined"));
   			if (properties.getProperty(prefix+"show_unique")!=null)            this.show_unique=Boolean.parseBoolean(properties.getProperty(prefix+"show_unique"));
+  			if (properties.getProperty(prefix+"show_histograms")!=null)        this.show_histograms=Boolean.parseBoolean(properties.getProperty(prefix+"show_histograms"));
   			if (properties.getProperty(prefix+"show_init_refine")!=null)       this.show_init_refine=Boolean.parseBoolean(properties.getProperty(prefix+"show_init_refine"));
   			if (properties.getProperty(prefix+"show_expand")!=null)            this.show_expand=Boolean.parseBoolean(properties.getProperty(prefix+"show_expand"));
   			if (properties.getProperty(prefix+"show_retry_far")!=null)         this.show_retry_far=Boolean.parseBoolean(properties.getProperty(prefix+"show_retry_far"));
@@ -3654,6 +3680,12 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Minimal 4-corr strength to trust tile",                                        this.ex_strength,  3);
   			gd.addNumericField("Minimal 4-corr strength divided by channel diff for new (border) tiles",       this.ex_nstrength,  3);
   			
+  			gd.addMessage     ("********* Plates filetering when building initial z-map *********");
+  			gd.addNumericField("If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds", this.pt_super_trust,  3);
+  			gd.addCheckbox    ("Do not replace raw tiles by the plates, if raw is closer (like poles)",        this.pt_keep_raw_fg);
+  			gd.addNumericField("Scale plates strength before comparing to raw strength",                       this.pt_scale_pre,  3);
+  			gd.addNumericField("Scale plates strength when replacing raw (plates d/s data is more reliable if it exists)", this.pt_scale_post,  3);
+
   			gd.addNumericField("Minimal strength to be considered definitely background",                      this.bgnd_sure,  3);
   			gd.addNumericField("Maximal strength to ignore as non-background",                                 this.bgnd_maybe,  3);
 
@@ -3702,6 +3734,7 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Set disparity to that of the bottom of existing segment (false - use hor. disparity)",this.poles_force_disp);
   			
   			gd.addNumericField("Maximal number of clusters to generate for one run",                           this.max_clusters,   0);
+  			gd.addCheckbox    ("Remove all unneeded scans when generating x3d output to save memory",          this.remove_scans);
   			gd.addCheckbox    ("Correct lens geometric distortions in a model (will need backdrop to be corrected too)", this.correct_distortions);
   			gd.addCheckbox    ("Show generated triangles",                                                     this.show_triangles);
   			gd.addCheckbox    ("Weight-average disparity for the whole cluster ",                              this.avg_cluster_disp);
@@ -3763,6 +3796,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Sample size (side of a square)",                                               this.stSmplSide,  0);
   			gd.addNumericField("Number after removing worst",                                                  this.stSmplNum,  0);
   			gd.addNumericField("Maximal RMS of the remaining tiles in a sample",                               this.stSmplRms,  6);
+  			gd.addCheckbox    ("Use window function for the samples",                                          this.stSmplWnd);
   			
   			gd.addNumericField("Grow initial selection before processing supertiles, odd - ortho. <0 - use all tiles",this.stGrowSel,  0);
   			gd.addNumericField("Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert",this.stMeasSel,  0);
@@ -4026,6 +4060,7 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Show 'FilterScan'",                                                            this.show_filter_scan);
   			gd.addCheckbox    ("Show 'combo_scan' (combined multiple scans)",                                  this.show_combined);
   			gd.addCheckbox    ("Show 'unique_scan' (removed already measured tiles with the same disparity)",  this.show_unique);
+  			gd.addCheckbox    ("Show supertile disparity histograms ",                                         this.show_histograms);
   			gd.addCheckbox    ("Show debug images during initial refinement",                                  this.show_init_refine);
   			gd.addCheckbox    ("Show debug images during disparity expansion",                                 this.show_expand);
   			gd.addCheckbox    ("Show debug images related to retrying far tiles near foreground",              this.show_retry_far);
@@ -4187,6 +4222,11 @@ public class EyesisCorrectionParameters {
   			this.ex_strength=           gd.getNextNumber();
   			this.ex_nstrength=          gd.getNextNumber();
 
+  			this.pt_super_trust=        gd.getNextNumber();
+  			this.pt_keep_raw_fg=        gd.getNextBoolean();
+  			this.pt_scale_pre=          gd.getNextNumber();
+  			this.pt_scale_post=         gd.getNextNumber();
+
   			this.bgnd_sure=             gd.getNextNumber();
   			this.bgnd_maybe=            gd.getNextNumber();
   			this.min_clstr_seed=  (int) gd.getNextNumber();
@@ -4231,6 +4271,7 @@ public class EyesisCorrectionParameters {
   			this.poles_force_disp=      gd.getNextBoolean();
 
   			this.max_clusters=    (int) gd.getNextNumber();
+  			this.remove_scans=          gd.getNextBoolean();
   			this.correct_distortions=   gd.getNextBoolean();
   			this.show_triangles=        gd.getNextBoolean();
   			this.avg_cluster_disp=      gd.getNextBoolean();
@@ -4289,6 +4330,7 @@ public class EyesisCorrectionParameters {
   			this.stSmplSide=      (int) gd.getNextNumber();
   			this.stSmplNum=       (int) gd.getNextNumber();
   			this.stSmplRms=             gd.getNextNumber();
+  			this.stSmplWnd=             gd.getNextBoolean();
   			
   			this.stGrowSel=       (int) gd.getNextNumber();
   			this.stMeasSel=       (int) gd.getNextNumber();
@@ -4544,6 +4586,7 @@ public class EyesisCorrectionParameters {
   			this.show_filter_scan=      gd.getNextBoolean(); // first on refine
   			this.show_combined=         gd.getNextBoolean();
   			this.show_unique=           gd.getNextBoolean();
+  			this.show_histograms=       gd.getNextBoolean();
   			this.show_init_refine=      gd.getNextBoolean();
   			this.show_expand=           gd.getNextBoolean();
   			this.show_retry_far=        gd.getNextBoolean();

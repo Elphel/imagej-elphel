@@ -55,7 +55,8 @@ public class SuperTiles{
 	int         smplSide        = 2;      // Sample size (side of a square)
 	int         smplNum         = 3;      // Number after removing worst
 	double      smplRms         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-	
+	boolean     smplWnd         = false;  // final boolean    smplWnd,  // use window functions for the samples
+
 	
 	
 	MeasuredLayers measuredLayers = null;
@@ -95,6 +96,7 @@ public class SuperTiles{
 			int                     smplSide, //        = 2;      // Sample size (side of a square)
 			int                     smplNum, //         = 3;      // Number after removing worst
 			double                  smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+			boolean                 smplWnd,  // use window functions for the samples
 			int                     measSel)
 	{
 		this.cltPass3d =           cltPass3d;
@@ -111,6 +113,7 @@ public class SuperTiles{
 		this.smplSide        = smplSide;   // Sample size (side of a square)
 		this.smplNum         = smplNum;    // Number after removing worst
 		this.smplRms         = smplRms;    // Maximal RMS of the remaining tiles in a sample
+		this.smplWnd         = smplWnd;    // Use window functions for the samples
 		this.measSel =        measSel;
 		this.step_threshold_near = this.step_threshold_far * step_near / this.step_far ;
 		this.bin_far =             this.step_threshold_far / this.step_far; 
@@ -160,6 +163,7 @@ public class SuperTiles{
 				smplSide,   // final int        smplSide, //        = 2;      // Sample size (side of a square)
 				smplNum,    // final int        smplNum,  //         = 3;      // Number after removing worst
 				smplRms,    // final double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				smplWnd,    // final boolean    smplWnd,  // use window functions for the samples
 				measSel);   // calculate and blur supertiles (for all, not just selected?)
 		if (tileProcessor.globalDebugLevel > 0){
 			System.out.println("SuperTiles(): min_disparity = "+min_disparity+", max_disparity="+max_disparity);
@@ -391,6 +395,7 @@ public class SuperTiles{
 			final int             smplSide, //        = 2;      // Sample size (side of a square)
 			final int             smplNum,  //         = 3;      // Number after removing worst
 			final double          smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+			final boolean         smplWnd, //
 			final int             measSel)  //
 	{
 		if (disparity_strength != null) {
@@ -448,7 +453,9 @@ public class SuperTiles{
 												smplSide,       // int        smplSide, // = 2;   // Sample size (side of a square)
 												smplNum,        //int        smplNum,   // = 3;   // Number after removing worst (should be >1)
 												smplRms,        //double     smplRms,   // = 0.1; // Maximal RMS of the remaining tiles in a sample
-												true);          // boolean null_if_none);
+												smplWnd,
+												true,          // boolean null_if_none);
+												-1); // int debugLevel
 									} else {
 										disp_strength =  measuredLayers.getDisparityStrength(
 												nl,             // int num_layer,
@@ -543,6 +550,7 @@ public class SuperTiles{
 				this.smplSide,   // final int        smplSide, //        = 2;      // Sample size (side of a square)
 				this.smplNum,    // final int        smplNum,  //         = 3;      // Number after removing worst
 				this.smplRms,    // final double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				this.smplWnd,    // final boolean    smplWnd,  // use window functions for the samples
 				this.measSel);
 		final int globalDebugLevel = tileProcessor.globalDebugLevel;
 		maxMinMax = new double [disparityHistograms.length][][];
@@ -680,7 +688,8 @@ public class SuperTiles{
 					this.smplSide,   // final int        smplSide, //        = 2;      // Sample size (side of a square)
 					this.smplNum,    // final int        smplNum,  //         = 3;      // Number after removing worst
 					this.smplRms,    // final double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-					this.measSel); // calculate and blur with the current settings, specified at instantiation
+					this.smplWnd,    // final boolean         smplWnd, //
+					this.measSel);   // calculate and blur with the current settings, specified at instantiation
 		}
 		return showDisparityHistogram(disparityHistograms);
 	}
@@ -694,6 +703,7 @@ public class SuperTiles{
 			int        smplSide, //        = 2;      // Sample size (side of a square)
 			int        smplNum,  //         = 3;      // Number after removing worst
 			double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+			boolean    smplWnd, //
 			int        measSel) // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 	{
 		getDisparityHistograms( // will recalculate if does not exist or some parameters changed
@@ -704,6 +714,7 @@ public class SuperTiles{
 				smplSide,   // final int        smplSide, //        = 2;      // Sample size (side of a square)
 				smplNum,    // final int        smplNum,  //         = 3;      // Number after removing worst
 				smplRms,    // final double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				smplWnd,    // final boolean         smplWnd, //
 				measSel); // calculate and blur with the current settings, specified at instantiation
 		return showDisparityHistogram(disparityHistograms);
 	}
@@ -1404,7 +1415,7 @@ public class SuperTiles{
 			final int        smplSide, //        = 2;      // Sample size (side of a square)
 			final int        smplNum, //         = 3;      // Number after removing worst
 			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-			
+			final boolean    smplWnd, //
 			final int        debugLevel,
 			final int        dbg_X,
 			final int        dbg_Y)
@@ -1451,7 +1462,7 @@ public class SuperTiles{
 						plane_disp_strength[nsTile] = new double[measuredLayers.getNumLayers()][][];
 						
 						for (int ml = 0; ml < plane_disp_strength[nsTile].length; ml++) if ((stMeasSel & ( 1 << ml)) != 0){
-							
+							// TODO": apply tilt before/with getDisparityStrength()
 							if (smplMode) {
 								plane_disp_strength[nsTile][ml] =  measuredLayers.getDisparityStrength(
 										ml,             // int num_layer,
@@ -1463,7 +1474,9 @@ public class SuperTiles{
 										smplSide,       // int        smplSide, // = 2;   // Sample size (side of a square)
 										smplNum,        //int        smplNum,   // = 3;   // Number after removing worst (should be >1)
 										smplRms,        //double     smplRms,   // = 0.1; // Maximal RMS of the remaining tiles in a sample
-										true);          // boolean null_if_none);
+										true,           // boolean null_if_none);
+										smplWnd,        // boolean         smplWnd, //
+										dl);
 							} else {
 								plane_disp_strength[nsTile][ml] =  measuredLayers.getDisparityStrength(
 										ml,             // int num_layer,
@@ -1848,18 +1861,18 @@ public class SuperTiles{
 
 	public boolean [][][][]  initialDiscriminateTiles(
 			final int        growSelection,                     // grow initial selection before processing 
-			final int        stMeasSel,       //      = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+			final int        stMeasSel,          //      = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			final double     plDispNorm,
-			final int        plMinPoints, //          =     5;  // Minimal number of points for plane detection
+			final int        plMinPoints,       //          =     5;  // Minimal number of points for plane detection
 			final boolean    plPreferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
 			final GeometryCorrection geometryCorrection,
 			final boolean    correct_distortions,
 
-			final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-			final int        smplSide, //        = 2;      // Sample size (side of a square)
-			final int        smplNum, //         = 3;      // Number after removing worst
-			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-
+			final boolean    smplMode,       //        = true;   // Use sample mode (false - regular tile mode)
+			final int        smplSide,       //        = 2;      // Sample size (side of a square)
+			final int        smplNum,        //         = 3;      // Number after removing worst
+			final double     smplRms,        //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+			final boolean    smplWnd,        // use window functions fro the samples
 			final double     bin_blur_hor,   // Blur disparity histograms for horizontal clusters by this sigma (in bins)
 			final double     bin_blur_vert,  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
 			// TODO: scale down max_diff_hor, max_diff_vert  for large disparities?
@@ -1871,6 +1884,7 @@ public class SuperTiles{
 			// TODO: scale down smallDiff for large disparities?
 			final double     highMix,    //stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
 			final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
+			final boolean    show_histograms,
 			final int        debugLevel,
 			final int        dbg_X,
 			final int        dbg_Y)
@@ -1908,7 +1922,7 @@ public class SuperTiles{
 				cltPass3d.getDisparity(), // double [] disparity,
 				cltPass3d.getStrength(), // double [] strength,
 				grown_selection); // null); // boolean [] selection) // may be null
-		if (debugLevel > 0) {
+		if (show_histograms && (debugLevel > 0)) {
 			String [] titles = {"d0","s0","d1","s1","d2","s2","d3","s3","s","d","selection"};
 			boolean [] dbg_sel= grown_selection; // cltPass3d.getSelected(); 
 			double [][] dbg_img = new double [titles.length][];
@@ -1935,10 +1949,10 @@ public class SuperTiles{
 				geometryCorrection,  // final GeometryCorrection geometryCorrection,
 				correct_distortions, // final boolean    correct_distortions,
 				smplMode,            // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-				smplSide,            //final int        smplSide, //        = 2;      // Sample size (side of a square)
-				smplNum,             //final int        smplNum, //         = 3;      // Number after removing worst
-				smplRms,             //final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-
+				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
+				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
+				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				smplWnd,             // final boolean    smplWnd,  // use window functions fro the samples
 				debugLevel,
 				dbg_X,
 				dbg_Y);
@@ -1950,9 +1964,10 @@ public class SuperTiles{
 				geometryCorrection,  // final GeometryCorrection geometryCorrection,
 				correct_distortions, // final boolean    correct_distortions,
 				smplMode,            // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-				smplSide,            //final int        smplSide, //        = 2;      // Sample size (side of a square)
-				smplNum,             //final int        smplNum, //         = 3;      // Number after removing worst
-				smplRms,             //final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
+				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
+				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				smplWnd,             // final boolean    smplWnd,  // use window functions fro the samples
 				debugLevel,
 				dbg_X,
 				dbg_Y);
@@ -1970,7 +1985,7 @@ public class SuperTiles{
 			final double [][][] mmm_hor = getMaxMinMax(
 					hor_disp_strength,  // final double [][][][] disparity_strength, // pre-calculated disparity/strength [per super-tile][per-measurement layer][2][tiles] or null
 					null); // final boolean [][] tile_sel // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
-			if (debugLevel > 0) {
+			if (show_histograms && (debugLevel > 0)) {
 				dbg_hist[1] = showDisparityHistogram();
 				dbg_hist[3] = showMaxMinMax();
 			}
@@ -1980,11 +1995,11 @@ public class SuperTiles{
 					vert_disp_strength,  // final double [][][][] disparity_strength, // pre-calculated disparity/strength [per super-tile][per-measurement layer][2][tiles] or null
 					null); // final boolean [][] tile_sel // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
 
-			if (debugLevel > 0) {
+			if (show_histograms && (debugLevel > 0)) {
 				dbg_hist[0] = showDisparityHistogram();
 				dbg_hist[2] = showMaxMinMax();
 			}
-			if (debugLevel > 0) {
+			if (show_histograms && (debugLevel > 0)) {
 				int hist_width0 =  showDisparityHistogramWidth();
 				int hist_height0 = dbg_hist[0].length/hist_width0;
 				showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
@@ -2155,6 +2170,7 @@ public class SuperTiles{
 	 * @param smplSide sample side for averaging/filtering tile disparities
 	 * @param smplNum number of best samples used fro averaging
 	 * @param smplRms maximal sample disparity rms to consider sample valid
+	 * @param smplWnd use window functions for the samples
 	 * @param plDiscrTolerance maximal disparity difference from the plane to consider tile  
 	 * @param plDiscrDispRange parallel move known planes around original know value for the best overall fit
 	 * @param plDiscrSteps number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
@@ -2183,6 +2199,7 @@ public class SuperTiles{
 			final int        smplSide,             //        = 2;      // Sample size (side of a square)
 			final int        smplNum,              //         = 3;      // Number after removing worst
 			final double     smplRms,              //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+			final boolean    smplWnd,  // use window functions for the samples
 			
 			final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile 
 			final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
@@ -2257,7 +2274,7 @@ public class SuperTiles{
 										smplSide,          // final int        smplSide, //        = 2;      // Sample size (side of a square)
 										smplNum,           // final int        smplNum, //         = 3;      // Number after removing worst
 										smplRms,           // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-
+										smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
 										plDiscrTolerance,  // final double     disp_tolerance,   // maximal disparity difference from the plane to consider tile
 										plDiscrVarFloor,   // final double     disp_var_floor,   // squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
 										plDiscrSigma,      // final double     disp_sigma,       // G.sigma to compare how measured data is attracted to planes 
@@ -2363,7 +2380,7 @@ public class SuperTiles{
 			final int        smplSide, //        = 2;      // Sample size (side of a square)
 			final int        smplNum, //         = 3;      // Number after removing worst
 			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-
+			final boolean    smplWnd,  // use window functions for the samples
 			final int        debugLevel,
 			final int        dbg_X,
 			final int        dbg_Y)
@@ -2430,6 +2447,7 @@ public class SuperTiles{
 											smplSide,                 // int          smplSide, //        = 2;      // Sample size (side of a square)
 											smplNum,                  //  int          smplNum, //         = 3;      // Number after removing worst
 											smplRms,                  //  double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+											smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
 											dl);                       // int          debugLevel);
 
 							if ((st_planes != null) && (!st_planes.isEmpty())){
@@ -2472,6 +2490,7 @@ public class SuperTiles{
 											smplSide,                 // int          smplSide, //        = 2;      // Sample size (side of a square)
 											smplNum,                  //  int          smplNum, //         = 3;      // Number after removing worst
 											smplRms,                  //  double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+											smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
 											dl - 1);                       // int          debugLevel);
 								}
 								
@@ -2551,7 +2570,7 @@ public class SuperTiles{
 			final int        smplSide, //        = 2;      // Sample size (side of a square)
 			final int        smplNum, //         = 3;      // Number after removing worst
 			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-
+			final boolean    smplWnd,        // use window functions fro the samples
 			final double     bin_blur_hor,   // Blur disparity histograms for horizontal clusters by this sigma (in bins)
 			final double     bin_blur_vert,  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
 			final double     max_diff_hor,   // maximal disparity difference (to assign to a cluster (of Double.NaN) at first run for horizontal planes
@@ -2565,6 +2584,7 @@ public class SuperTiles{
 			final double     smallDiff,  //       = 0.4;   // Consider merging initial planes if disparity difference below
 			final double     highMix,    //stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
 			final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
+			final boolean    show_histograms,
 			final int        debugLevel,
 			final int        dbg_X,
 			final int        dbg_Y)
@@ -2587,9 +2607,9 @@ public class SuperTiles{
 
 				smplMode,            // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				smplSide,            //  final int        smplSide, //        = 2;      // Sample size (side of a square)
-				smplNum, //  final int        smplNum, //         = 3;      // Number after removing worst
-				smplRms, //  final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-
+				smplNum,             //  final int        smplNum, //         = 3;      // Number after removing worst
+				smplRms,             //  final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				smplWnd,             // final boolean    smplWnd,        // use window functions fro the samples
 				bin_blur_hor,   // final double     bin_blur_hor,   // Blur disparity histograms for horizontal clusters by this sigma (in bins)
 				bin_blur_vert,  // final double     bin_blur_vert,  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
 				max_diff_hor,   // final double     max_diff_hor,   // maximal disparity difference (to assign to a cluster (of Double.NaN) at first run for horizontal planes
@@ -2598,7 +2618,8 @@ public class SuperTiles{
 				smallDiff,      // final double     smallDiff,  //       = 0.4;   // Consider merging initial planes if disparity difference below
 				highMix,    //final double     highMix,    // stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
 				world_hor, // final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
-				debugLevel+1, // final int        debugLevel,
+				show_histograms, // final boolean    show_histograms,
+				debugLevel+0, // final int        debugLevel,
 				dbg_X, // final int        dbg_X,
 				dbg_Y); // final int        dbg_Y)
 
@@ -2616,7 +2637,7 @@ public class SuperTiles{
 				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
 				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
 				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-
+				smplWnd,             // final boolean    smplWnd,        // use window functions fro the samples
 				debugLevel,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
 				dbg_Y);              // final int        dbg_Y)
@@ -2639,6 +2660,7 @@ public class SuperTiles{
 				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
 				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
 				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
 
 				debugLevel + 2, //  + 2, // 1,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
@@ -2695,7 +2717,7 @@ public class SuperTiles{
 			final int        smplSide, //        = 2;      // Sample size (side of a square)
 			final int        smplNum, //         = 3;      // Number after removing worst
 			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-
+			final boolean    smplWnd,  // use window functions for the samples
 			final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile 
 			final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
 			final int        plDiscrSteps,         //         =   3;    // Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
@@ -2737,7 +2759,7 @@ public class SuperTiles{
 				smplSide,             //  final int        smplSide, //        = 2;      // Sample size (side of a square)
 				smplNum,              //  final int        smplNum, //         = 3;      // Number after removing worst
 				smplRms,              //  final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-				
+				smplWnd,              // final boolean    smplWnd,  // use window functions for the samples
 				plDiscrTolerance,     //final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile 
 				plDiscrDispRange,     // final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
 				plDiscrSteps,         // final int        plDiscrSteps,         //         =   3;    // Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
@@ -2775,7 +2797,7 @@ public class SuperTiles{
 				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
 				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
 				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-				
+				smplWnd,             // final boolean    smplWnd,  // use window functions for the samples
 				debugLevel,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
 				dbg_Y);              // final int        dbg_Y)
@@ -2798,7 +2820,7 @@ public class SuperTiles{
 				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
 				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
 				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-
+				smplWnd,             // final boolean    smplWnd,  // use window functions for the samples
 				debugLevel, //  + 2, // 1,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
 				dbg_Y);              // final int        dbg_Y)
@@ -5229,7 +5251,8 @@ public class SuperTiles{
 							preferDisparity, 
 							debugLevel - 2); // int       debugLevel)
 				}
-				ev_variants[variant][nt] = tri_plane.getValue();
+//				ev_variants[variant][nt] = tri_plane.getValue();
+				ev_variants[variant][nt] = tri_plane.getNormValue();
 				tri_merged[variant][nt] = tri_plane;
 			}
 			if ((best_pair < 0) || ((ev_variants[variant][0] + ev_variants[variant][1]) < best_value)){
@@ -5299,7 +5322,8 @@ public class SuperTiles{
 						debugLevel - 1); // int       debugLevel)
 			}
 		}
-		double [] value_weight = {merged_plane.getValue(),merged_plane.getWeight()};
+//		double [] value_weight = {merged_plane.getValue(),merged_plane.getWeight()};
+		double [] value_weight = {merged_plane.getNormValue(),merged_plane.getWeight()};
 		if (starPwr != 0){
 			value_weight[0] /= (Math.pow((planes[nsTile][nl].getNumNeibBest() + 1.0), starPwr));
 		}
@@ -5496,7 +5520,8 @@ public class SuperTiles{
 				int num_sat = 0;
 				for (int j = 0; j < planes[i].length; j++) if (planes[i][j] != null){
 //					if (planes[i][j].getWeight() >= minWeight){ /// Later does not compare too minWeight
-						double eigVal = planes[i][j].getValue(); // ************** generated does not have value ????????????
+//						double eigVal = planes[i][j].getValue(); // ************** generated does not have value ????????????
+						double eigVal = planes[i][j].getNormValue(); // ************** generated does not have value ????????????
 						double disp = planes[i][j].getSinglePlaneDisparity(false)[centerIndex];
 						/*
 								if (disp > dispNorm) {
@@ -5533,7 +5558,8 @@ public class SuperTiles{
 					
 						if (planes[nsTile][np].getWeight() >= minWeight){
 							//&& (planes[nsTile][np].getValue() < maxEigen)){
-							double eigVal = planes[nsTile][np].getValue();
+//							double eigVal = planes[nsTile][np].getValue();
+							double eigVal = planes[nsTile][np].getNormValue();
 							double disp = planes[nsTile][np].getZxy()[0];
 							/*
 									if (disp > dispNorm) {
@@ -6083,6 +6109,7 @@ public class SuperTiles{
 										smplSide,
 										smplNum,
 										smplRms,
+										smplWnd,
 										dl - 2);            // int          debugLevel)
 								if (disp_strength == null) {
 									System.out.println("=== BUG in applyMergePlanes(): failed to getPlaneFromMeas() for merged planes");  
@@ -6117,7 +6144,8 @@ public class SuperTiles{
 										targetEigen,
 										dispNorm,
 										planes[nsTile][np0]);
-								if (this_pd.getValue() > targetV) {
+//								if (this_pd.getValue() > targetV) {
+								if (this_pd.getNormValue() > targetV) {
 									boolean OK = this_pd.removeOutliers( // getPlaneFromMeas should already have run
 											disp_strength,
 											targetV,      // double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
@@ -6238,7 +6266,7 @@ public class SuperTiles{
 			final int                        smplSide, //        = 2;      // Sample size (side of a square)
 			final int                        smplNum, //         = 3;      // Number after removing worst
 			final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-			
+			final boolean                    smplWnd,  // use window functions for the samples
 			final int                        debugLevel,
 			final int                        dbg_X,
 			final int                        dbg_Y)
@@ -6392,6 +6420,7 @@ public class SuperTiles{
 											smplSide,
 											smplNum,
 											smplRms,
+											smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
 											measSel,          // int          measSel, // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 											allow_parallel,   //boolean      allow_parallel,
 											dl); // int          debugLevel)
@@ -6430,6 +6459,7 @@ public class SuperTiles{
 												smplSide,
 												smplNum,
 												smplRms,
+												smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
 												dl);            // int          debugLevel)
 										if (disp_strength == null) break;
 										// remove outliers //removeOutliers
@@ -6440,7 +6470,8 @@ public class SuperTiles{
 												targetEigen,
 												dispNorm,
 												bpd[np][npip]);
-										if (bpd[np][npip].getValue() > targetV) {
+//										if (bpd[np][npip].getValue() > targetV) {
+										if (bpd[np][npip].getNormValue() > targetV) {
 											OK = bpd[np][npip].removeOutliers( // getPlaneFromMeas should already have run
 													disp_strength,
 													targetV,      // double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
@@ -6667,7 +6698,8 @@ public class SuperTiles{
 											if ((plane_triads[nSplit][0] != null) && (plane_triads[nSplit][1] != null)){
 												double w1 = plane_triads[nSplit][0].getWeight();
 												double w2 = plane_triads[nSplit][1].getWeight();
-												split_quality[nSplit] = (w1 * plane_triads[nSplit][0].getValue() + w2 * plane_triads[nSplit][1].getValue())/
+//												split_quality[nSplit] = (w1 * plane_triads[nSplit][0].getValue() + w2 * plane_triads[nSplit][1].getValue())/
+												split_quality[nSplit] = (w1 * plane_triads[nSplit][0].getNormValue() + w2 * plane_triads[nSplit][1].getNormValue())/
 														(w1 + w2);
 												if (dl >0){
 													plane_triads[nSplit][2] = plane_triads[nSplit][0].clone().mergePlaneToThis(
@@ -6707,7 +6739,8 @@ public class SuperTiles{
 													dl-1);
 											//  check quality
 											if ((plane_triads[best_index][2] != null) &&
-													(plane_triads[best_index][2].getValue()/split_quality[best_index] > splitMinQuality)) {
+//													(plane_triads[best_index][2].getValue()/split_quality[best_index] > splitMinQuality)) {
+													(plane_triads[best_index][2].getNormValue()/split_quality[best_index] > splitMinQuality)) {
 												for (int nis = 0; nis < 2; nis++) {
 													plane_triads[best_index][nis].setNeibBest(neibs12[nis][best_index]);
 												}
@@ -6785,9 +6818,12 @@ public class SuperTiles{
 																System.out.print((plane_triads[nSplit][2].getNeibBest(dir) >=0)?"+":"-");
 															}
 															System.out.println(" : "+split_quality[nSplit]+
-																	" "+plane_triads[nSplit][0].getValue()+
-																	" "+plane_triads[nSplit][1].getValue()+
-																	" "+plane_triads[nSplit][2].getValue()+
+//																	" "+plane_triads[nSplit][0].getValue()+
+//																	" "+plane_triads[nSplit][1].getValue()+
+//																	" "+plane_triads[nSplit][2].getValue()+
+																	" "+plane_triads[nSplit][0].getNormValue()+
+																	" "+plane_triads[nSplit][1].getNormValue()+
+																	" "+plane_triads[nSplit][2].getNormValue()+
 																	" w"+plane_triads[nSplit][0].getWeight()+
 																	" w"+plane_triads[nSplit][1].getWeight()+
 																	" w"+plane_triads[nSplit][2].getWeight()
@@ -6852,7 +6888,8 @@ public class SuperTiles{
 								selection[nsTile][np] = true;
 							} else if  (planes[nsTile][np].getWeight() >= minWeight) {
 								//&& (planes[nsTile][np].getValue() < maxEigen)){
-								double eigVal = planes[nsTile][np].getValue();
+//								double eigVal = planes[nsTile][np].getValue();
+								double eigVal = planes[nsTile][np].getNormValue();
 								double disp = planes[nsTile][np].getZxy()[0];
 								selection[nsTile][np] = (eigVal < corrMaxEigen(
 										maxEigen,

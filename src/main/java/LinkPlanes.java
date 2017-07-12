@@ -317,14 +317,16 @@ public class LinkPlanes {
 				plDispNorm,
 				plane1);
 		if ((plMaxEigen != 0.0) &&
-				(plane1.getValue() > corr_max_eigen)){
-			if (debugLevel > 1)	System.out.println(prefix+" plane1 is too thick ("+plane1.getValue()+" > corr_max_eigen="+corr_max_eigen+")");
+//				(plane1.getValue() > corr_max_eigen)){
+			(plane1.getNormValue() > corr_max_eigen)){
+			if (debugLevel > 1)	System.out.println(prefix+" plane1 is too thick ("+plane1.getNormValue()+" > corr_max_eigen="+corr_max_eigen+")");
 			return false;
 		}
 
 		if ((plMaxEigen != 0.0) &&
-				(plane2.getValue() > corr_max_eigen)){
-			if (debugLevel > 1)	System.out.println(prefix+" plane2 is too thick ("+plane2.getValue()+" > corr_max_eigen="+corr_max_eigen+")");
+//				(plane2.getValue() > corr_max_eigen)){
+			(plane2.getNormValue() > corr_max_eigen)){
+			if (debugLevel > 1)	System.out.println(prefix+" plane2 is too thick ("+plane2.getNormValue()+" > corr_max_eigen="+corr_max_eigen+")");
 			return false;
 		}
 		
@@ -337,7 +339,8 @@ public class LinkPlanes {
 					true, // boolean   sum_weights,
 					plPreferDisparity, 
 					debugLevel - 2); // int       debugLevel)
-			merged_ev = merged_pd.getValue();
+//			merged_ev = merged_pd.getValue();
+			merged_ev = merged_pd.getNormValue();
 			merged_wev = merged_pd.getWValue();
 		}
 		if (Double.isNaN(merged_ev_eq) || (!check_is_weak_only && Double.isNaN(merged_wev_eq))) {
@@ -349,7 +352,8 @@ public class LinkPlanes {
 					true,        // boolean   sum_weights,
 					plPreferDisparity, 
 					debugLevel - 2); // int       debugLevel)
-			merged_ev_eq = merged_pd_eq.getValue();
+//			merged_ev_eq = merged_pd_eq.getValue();
+			merged_ev_eq = merged_pd_eq.getNormValue();
 			merged_wev_eq = merged_pd_eq.getWValue();
 			
 		}
@@ -357,8 +361,10 @@ public class LinkPlanes {
 		double w2 = plane2.getWeight();
 		double weakest = (w1 > w2) ? w2 : w1;
 		double this_rq_eq = mergeRQuality(
-				plane1.getValue(), // double L1,
-				plane2.getValue() , // double L2,
+//				plane1.getValue(), // double L1,
+//				plane2.getValue() , // double L2,
+				plane1.getNormValue(), // double L1,
+				plane2.getNormValue() , // double L2,
 				merged_ev_eq, // double L,
 				1.0, // double w1,
 				1.0, // double w2)
@@ -382,8 +388,10 @@ public class LinkPlanes {
 		
 		
 		double this_rq = mergeRQuality(
-				plane1.getValue(), // double L1,
-				plane2.getValue() , // double L2,
+//				plane1.getValue(), // double L1,
+//				plane2.getValue() , // double L2,
+				plane1.getNormValue(), // double L1,
+				plane2.getNormValue() , // double L2,
 				merged_ev, // double L,
 				w1, // double w1,
 				w2, // double w2)
@@ -423,7 +431,8 @@ public class LinkPlanes {
 		boolean OK_to_merge = false;
 		boolean notOK_to_merge = false;
 		// plSumThick should override weak_and_close
-		double sum_thick = Math.sqrt(plane1.getValue()) + Math.sqrt(plane2.getValue());
+//		double sum_thick = Math.sqrt(plane1.getValue()) + Math.sqrt(plane2.getValue());
+		double sum_thick = Math.sqrt(plane1.getNormValue()) + Math.sqrt(plane2.getNormValue());
 		double sum_wthick = Math.sqrt(plane1.getWValue()) + Math.sqrt(plane2.getWValue());
 		if (Math.sqrt(merged_ev) > plSumThick * sum_thick){
 			notOK_to_merge = true;
@@ -511,7 +520,8 @@ public class LinkPlanes {
 						" this_wrq=" + (this_wrq) +
 						" this_wrq_eq=" + (this_wrq_eq) +
 						" w1="+w1+" w2="+w2+
-						" L1="+plane1.getValue()+" L2="+plane2.getValue()+
+//						" L1="+plane1.getValue()+" L2="+plane2.getValue()+
+						" L1="+plane1.getNormValue()+" L2="+plane2.getNormValue()+
 						" L="+merged_ev+" L_eq="+merged_ev_eq+
 						" L1W="+plane1.getWValue()+" L2W="+plane2.getWValue()+" LW="+merged_wev+
 						" L_eqW="+merged_wev_eq);
@@ -538,7 +548,8 @@ public class LinkPlanes {
 							" this_wrq=" + (this_wrq) +
 							" this_wrq_eq=" + (this_wrq_eq) +
 							" w1="+w1+" w2="+w2+
-							" L1="+plane1.getValue()+" L2="+plane2.getValue()+
+//							" L1="+plane1.getValue()+" L2="+plane2.getValue()+
+							" L1="+plane1.getNormValue()+" L2="+plane2.getNormValue()+
 							" L="+merged_ev+" L_eq="+merged_ev_eq+
 							" L1W="+plane1.getWValue()+" L2W="+plane2.getWValue()+" LW="+merged_wev+
 							" L_eqW="+merged_wev_eq+
@@ -562,7 +573,8 @@ public class LinkPlanes {
 						" this_wrq=" + (this_wrq) +
 						" this_wrq_eq=" + (this_wrq_eq) +
 						" w1="+w1+" w2="+w2+
-						" L1="+plane1.getValue()+" L2="+plane2.getValue()+
+//						" L1="+plane1.getValue()+" L2="+plane2.getValue()+
+						" L1="+plane1.getNormValue()+" L2="+plane2.getNormValue()+
 						" L="+merged_ev+" L_eq="+merged_ev_eq+
 						" L1W="+plane1.getWValue()+" L2W="+plane2.getWValue()+" LW="+merged_wev+
 						" L_eqW="+merged_wev_eq +
@@ -643,7 +655,18 @@ public class LinkPlanes {
 					true, // boolean   sum_weights,
 					plPreferDisparity, 
 					debugLevel - 2); // int       debugLevel)
-			merged_ev =  merged_pd.getValue();
+//			merged_ev =  merged_pd.getValue();
+			if ((merged_pd == null) || (merged_pd.getValues() == null) || (merged_pd.getWValues() == null)){
+				if (debugLevel > -1) {
+					if (merged_pd == null) {
+						System.out.println("getFitQualities(): merged_pd is null");
+					} else {
+						System.out.println("getFitQualities(): got null:\n"+merged_pd.toString());
+					}
+				}				
+				return null;
+			}
+			merged_ev =  merged_pd.getNormValue();
 			merged_wev = merged_pd.getWValue();
 		}
 		if (Double.isNaN(merged_ev_eq) || Double.isNaN(merged_wev_eq)) {
@@ -655,30 +678,48 @@ public class LinkPlanes {
 					true,        // boolean   sum_weights,
 					plPreferDisparity, 
 					debugLevel - 2); // int       debugLevel)
-			merged_ev_eq =  merged_pd_eq.getValue();
+			if ((merged_pd_eq == null) || (merged_pd_eq.getValues() == null) || (merged_pd_eq.getWValues() == null)){
+				if (debugLevel > -1) {
+					if (merged_pd_eq == null) {
+						System.out.println("getFitQualities(): merged_pd_eq is null");
+					} else {
+						System.out.println("getFitQualities(): got null:\n"+merged_pd_eq.toString());
+					}
+				}				
+				return null;
+			}
+			
+//			merged_ev_eq =  merged_pd_eq.getValue();
+			merged_ev_eq =  merged_pd_eq.getNormValue();
 			merged_wev_eq = merged_pd_eq.getWValue();
 		}
 		double w1 = plane1.getWeight();
 		double w2 = plane2.getWeight();
 		double this_rq = mergeRQuality(
-				plane1.getValue(), // double L1,
-				plane2.getValue(), // double L2,
+//				plane1.getValue(), // double L1,
+//				plane2.getValue(), // double L2,
+				plane1.getNormValue(), // double L1,
+				plane2.getNormValue(), // double L2,
 				merged_ev, // double L,
 				w1, // double w1,
 				w2, // double w2)
 				plEigenFloor);//			double eigen_floor)
 //		if (this_rq == 0.01) System.out.println("getFitQualities(): this_rq was negative");
 		double this_rq_nofloor = mergeRQuality(
-				plane1.getValue(), // double L1,
-				plane2.getValue(), // double L2,
+//				plane1.getValue(), // double L1,
+//				plane2.getValue(), // double L2,
+				plane1.getNormValue(), // double L1,
+				plane2.getNormValue(), // double L2,
 				merged_ev, // double L,
 				w1, // double w1,
 				w2, // double w2)
 				0); // eigenFloor);//			double eigen_floor)
 //		if (this_rq_nofloor == 0.01) System.out.println("getFitQualities(): this_rq_nofloor was negative");
 		double this_rq_eq = mergeRQuality(
-				plane1.getValue(), // double L1,
-				plane2.getValue(), // double L2,
+//				plane1.getValue(), // double L1,
+//				plane2.getValue(), // double L2,
+				plane1.getNormValue(), // double L1,
+				plane2.getNormValue(), // double L2,
 				merged_ev_eq, // double L,
 				1.0, // double w1,
 				1.0, // double w2)
@@ -767,7 +808,8 @@ public class LinkPlanes {
 //						" this_wrq_eq_raw=" + (this_wrq_eq * (w1+w2)) +
 //						" this_rq_raw="+(this_rq * (w1+w2)) +
 						" w1="+w1+" w2="+w2+
-						" L1="+plane1.getValue()+" L2="+plane2.getValue()+" L="+merged_ev+
+//						" L1="+plane1.getValue()+" L2="+plane2.getValue()+" L="+merged_ev+
+						" L1="+plane1.getNormValue()+" L2="+plane2.getNormValue()+" L="+merged_ev+
 						" L_eq="+merged_ev_eq+
 						" L1W="+plane1.getWValue()+" L2W="+plane2.getWValue()+" LW="+merged_wev+
 						" L_eqW="+merged_wev_eq);
@@ -862,7 +904,8 @@ public class LinkPlanes {
 
 																if (merged_pd !=null) { // now always, but may add later
 																	///															merged_pd.scaleWeight(0.5);
-																	this_plane.setNeibMatch (dir, np, merged_pd.getValue()); // smallest eigenValue
+//																	this_plane.setNeibMatch (dir, np, merged_pd.getValue()); // smallest eigenValue
+																	this_plane.setNeibMatch (dir, np, merged_pd.getNormValue()); // smallest eigenValue
 																	this_plane.setNeibWMatch(dir, np, merged_pd.getWValue()); // smallest eigenValue
 																}
 																if (dl > 1){
@@ -879,7 +922,8 @@ public class LinkPlanes {
 
 																if (merged_pd !=null) { // now always, but may add later
 																	///															merged_pd.scaleWeight(0.5);
-																	this_plane.setNeibMatchEq (dir, np, merged_pd.getValue()); // smallest eigenValue
+//																	this_plane.setNeibMatchEq (dir, np, merged_pd.getValue()); // smallest eigenValue
+																	this_plane.setNeibMatchEq (dir, np, merged_pd.getNormValue()); // smallest eigenValue
 																	this_plane.setNeibWMatchEq(dir, np, merged_pd.getWValue()); // smallest eigenValue
 																}
 																if (dl > 1){
@@ -1499,7 +1543,8 @@ public class LinkPlanes {
 						neibs_pd[dir], // neighbor, previous value
 						debugLevel - 2); // debugLevel);
 				//				if (dl > 0) dbg_img[ 2 + dir] = other_plane.getSinglePlaneDisparity(false);
-				if ((other_plane != null) && ((other_plane.getValue() <= maxValue) || (maxValue == 0))) { // TODO:
+//				if ((other_plane != null) && ((other_plane.getValue() <= maxValue) || (maxValue == 0))) { // TODO:
+				if ((other_plane != null) && ((other_plane.getNormValue() <= maxValue) || (maxValue == 0))) { // TODO:
 					if (this_new_plane.getWeight() > 0.0){
 						this_new_plane = this_new_plane.mergePlaneToThis(
 								other_plane, // PlaneData otherPd,
@@ -1542,7 +1587,8 @@ public class LinkPlanes {
 			
 			
 			if (    (center_weight > 0.0) &&
-					((center_pd.getValue() < maxValue) || (maxValue == 0) || 
+//					((center_pd.getValue() < maxValue) || (maxValue == 0) || 
+					((center_pd.getNormValue() < maxValue) || (maxValue == 0) || 
 							(this_new_plane == null) || (this_new_plane.getWeight() == 0.0)) // keep measured if impossible to merge
 					){
 
@@ -2308,12 +2354,14 @@ public class LinkPlanes {
 											plDispNorm,
 											merged_pd);
 									if ((plMaxEigen != 0.0) &&
-											(merged_pd.getValue() > corr_max_eigen)){
+//										(merged_pd.getValue() > corr_max_eigen)){
+										(merged_pd.getNormValue() > corr_max_eigen)){
 										valid_candidates[nsTile0][np1][np2] = false;
 										valid_candidates[nsTile0][np2][np1] = false;
 										if (debugLevel > 0){
 											System.out.println("keepSameTileConnections(): REMOVING pair nsTile0="+nsTile0+":"+np1+":"+np2+
-													" as the merge would have high eigenvalue = "+merged_pd.getValue()+" > " + corr_max_eigen);
+//													" as the merge would have high eigenvalue = "+merged_pd.getValue()+" > " + corr_max_eigen);
+													" as the merge would have high eigenvalue = "+merged_pd.getNormValue()+" > " + corr_max_eigen);
 										}
 										continue; // to the next pair
 									}
@@ -3068,7 +3116,8 @@ public class LinkPlanes {
 																		dl - 3); // int       debugLevel)
 
 																if (merged_pd !=null) { // now always, but may add later
-																	merged_ev[dir][np] =  merged_pd.getValue(); // smallest eigenValue
+//																	merged_ev[dir][np] =  merged_pd.getValue(); // smallest eigenValue
+																	merged_ev[dir][np] =  merged_pd.getNormValue(); // smallest eigenValue
 																	merged_wev[dir][np] = merged_pd.getWValue(); // smallest eigenValue
 																	if (Double.isNaN(merged_ev[dir][np]) || Double.isNaN(merged_wev[dir][np]) ){
 																		System.out.println("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" NaN");
@@ -3085,7 +3134,8 @@ public class LinkPlanes {
 																		dl - 3); // int       debugLevel)
 
 																if (merged_pd !=null) { // now always, but may add later
-																	merged_ev_eq[dir][np] =  merged_pd.getValue(); // smallest eigenValue
+//																	merged_ev_eq[dir][np] =  merged_pd.getValue(); // smallest eigenValue
+																	merged_ev_eq[dir][np] =  merged_pd.getNormValue(); // smallest eigenValue
 																	merged_wev_eq[dir][np] = merged_pd.getWValue(); // smallest eigenValue
 																	if (Double.isNaN(merged_ev_eq[dir][np]) || Double.isNaN(merged_wev_eq[dir][np]) ){
 																		System.out.println("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" NaN2");
@@ -4082,7 +4132,8 @@ public class LinkPlanes {
 												mod_planes[nsTile][neibs[dir]], // neighbor, previous value
 												dl - 1); // debugLevel);
 										if (dl > 0) dbg_img[ 2 + dir] = other_plane.getSinglePlaneDisparity(false);
-										if ((other_plane != null) && ((other_plane.getValue() <= plMaxEigen) || (plMaxEigen == 0))) { // TODO:
+//										if ((other_plane != null) && ((other_plane.getValue() <= plMaxEigen) || (plMaxEigen == 0))) { // TODO:
+										if ((other_plane != null) && ((other_plane.getNormValue() <= plMaxEigen) || (plMaxEigen == 0))) { // TODO:
 											if (this_new_plane.getWeight() > 0.0){
 												this_new_plane = this_new_plane.mergePlaneToThis(
 														other_plane, // PlaneData otherPd,
@@ -4132,7 +4183,8 @@ public class LinkPlanes {
 											(measured_planes[nsTile0] != null) &&
 											(measured_planes[nsTile0][np0] != null) &&
 //											((measured_planes[nsTile0][np0].getValue() < plMaxEigen) || (plMaxEigen == 0))
-											((measured_planes[nsTile0][np0].getValue() < plMaxEigen) || (plMaxEigen == 0) || 
+//											((measured_planes[nsTile0][np0].getValue() < plMaxEigen) || (plMaxEigen == 0) || 
+											((measured_planes[nsTile0][np0].getNormValue() < plMaxEigen) || (plMaxEigen == 0) || 
 													(this_new_plane == null) || (this_new_plane.getWeight() == 0.0)) // keep measured if impossible to merge
 											){ // merge with "measured"
 
@@ -4163,7 +4215,8 @@ public class LinkPlanes {
 										this_new_plane.setNumPoints((int) (this_new_plane.getNumPoints()/true_num_merged));
 									}
 									// Revert if the result value is higher than imposed maximum
-									if ((this_new_plane.getValue() > plMaxEigen)  && (plMaxEigen != 0)){ // TODO: Set more relaxed here?
+//									if ((this_new_plane.getValue() > plMaxEigen)  && (plMaxEigen != 0)){ // TODO: Set more relaxed here?
+									if ((this_new_plane.getNormValue() > plMaxEigen)  && (plMaxEigen != 0)){ // TODO: Set more relaxed here?
 										if (dl > 0){
 											System.out.println("planesSmoothStep nsTile0="+nsTile0+" smoothed plane is too thick, using previous one");
 											dbg_img = new double [titles.length][];
@@ -4208,10 +4261,13 @@ public class LinkPlanes {
 														" num_merged="+num_merged + " rms = "+s+
 														" new_weight = "+new_planes[nsTile0][np0].getWeight()+
 														" old_weight = "+mod_planes[nsTile0][np0].getWeight()+
-														" new_value = "+new_planes[nsTile0][np0].getValue()+
-														" old_value = "+mod_planes[nsTile0][np0].getValue()+
+														" (new_value) = "+new_planes[nsTile0][np0].getValue()+
+														" (old_value) = "+mod_planes[nsTile0][np0].getValue()+
+														" new_norm_value = "+new_planes[nsTile0][np0].getNormValue()+
+														" old_norm_value = "+mod_planes[nsTile0][np0].getNormValue()+
 														" measured_weight = "+measured_planes[nsTile0][np0].getWeight()+
-														" measured_value = "+measured_planes[nsTile0][np0].getValue());
+														" (measured_value) = "+measured_planes[nsTile0][np0].getValue()+
+														" measured_norm_value = "+measured_planes[nsTile0][np0].getNormValue());
 											}
 										}
 
