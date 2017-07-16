@@ -2070,6 +2070,9 @@ public class EyesisCorrectionParameters {
   		public double     ex_strength      = 0.18;  // minimal 4-corr strength to trust tile
   		public double     ex_nstrength     = 0.4;   // minimal 4-corr strength divided by channel diff for new (border) tiles
   		
+  		public boolean    ex_over_bgnd     = false; // Allow expansion over previously identified background (infinity)
+  		public double     ex_min_over      = 1.0;   // When expanding over background, disregard lower disparity 
+  		
   		public double     pt_super_trust   = 1.6;   // If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds
   		public boolean    pt_keep_raw_fg   = true;  // Do not replace raw tiles by the plates, if raw is closer (like poles)
   		public double     pt_scale_pre     = 1.5;   // Scale plates strength before comparing to raw strength
@@ -2417,7 +2420,7 @@ public class EyesisCorrectionParameters {
 		public boolean    tsLoopMulti          = true;   // Repeat multi-choice assignment while succeeding 
 		public boolean    tsReset              = false;  // Reset tiles to surfaces assignment
 		public boolean    tsShow               = false;  // Show results of tiles to surfaces assignment
-		public int        tsNumClust           = 50;     // Number of clusters to keep
+		public int        tsNumClust           = 500;     // Number of clusters to keep
 
 		public int        tsConsensMode        = 7;      // Which assignments to match +1 - combo, +2 grown single, +4 plane seeds 
 		public int        tsConsensAgree       = 1;      // Minimal number of assignments to agree
@@ -2624,6 +2627,9 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"ex_strength",      this.ex_strength +"");
 			properties.setProperty(prefix+"ex_nstrength",     this.ex_nstrength +"");
 			
+			properties.setProperty(prefix+"ex_over_bgnd",     this.ex_over_bgnd+"");
+			properties.setProperty(prefix+"ex_min_over",      this.ex_min_over +"");
+
 			properties.setProperty(prefix+"pt_super_trust",   this.pt_super_trust +"");
 			properties.setProperty(prefix+"pt_keep_raw_fg",   this.pt_keep_raw_fg+"");
 			properties.setProperty(prefix+"pt_scale_pre",     this.pt_scale_pre +"");
@@ -3140,6 +3146,9 @@ public class EyesisCorrectionParameters {
 
   			if (properties.getProperty(prefix+"ex_strength")!=null)       this.ex_strength=Double.parseDouble(properties.getProperty(prefix+"ex_strength"));
   			if (properties.getProperty(prefix+"ex_nstrength")!=null)      this.ex_nstrength=Double.parseDouble(properties.getProperty(prefix+"ex_nstrength"));
+
+  			if (properties.getProperty(prefix+"ex_over_bgnd")!=null)      this.ex_over_bgnd=Boolean.parseBoolean(properties.getProperty(prefix+"ex_over_bgnd"));
+  			if (properties.getProperty(prefix+"ex_min_over")!=null)       this.ex_min_over=Double.parseDouble(properties.getProperty(prefix+"ex_min_over"));
 
   			if (properties.getProperty(prefix+"pt_super_trust")!=null)    this.pt_super_trust=Double.parseDouble(properties.getProperty(prefix+"pt_super_trust"));
   			if (properties.getProperty(prefix+"pt_keep_raw_fg")!=null)    this.pt_keep_raw_fg=Boolean.parseBoolean(properties.getProperty(prefix+"pt_keep_raw_fg"));
@@ -3680,6 +3689,9 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Minimal 4-corr strength to trust tile",                                        this.ex_strength,  3);
   			gd.addNumericField("Minimal 4-corr strength divided by channel diff for new (border) tiles",       this.ex_nstrength,  3);
   			
+  			gd.addCheckbox    ("Allow expansion over previously identified background (infinity)",             this.ex_over_bgnd);
+  			gd.addNumericField("When expanding over background, disregard lower disparity ",                   this.ex_min_over,  3);
+
   			gd.addMessage     ("********* Plates filetering when building initial z-map *********");
   			gd.addNumericField("If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds", this.pt_super_trust,  3);
   			gd.addCheckbox    ("Do not replace raw tiles by the plates, if raw is closer (like poles)",        this.pt_keep_raw_fg);
@@ -3803,10 +3815,10 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Consider merging initial planes if disparity difference below",                this.stSmallDiff,  6);
   			gd.addNumericField("Consider merging initial planes if jumps between ratio above",                 this.stHighMix,  6);
 
-  			gd.addNumericField("Outlayer tiles weaker than this may be replaced from neighbors",               this.outlayerStrength,  6);
-  			gd.addNumericField("Replace weak outlayer tiles that do not have neighbors within this disparity difference", this.outlayerDiff,  6);
-  			gd.addNumericField("Replace weak outlayer tiles that have higher disparity than weighted average", this.outlayerDiffPos,  6);
-  			gd.addNumericField("Replace weak outlayer tiles that have lower disparity than weighted average",  this.outlayerDiffNeg,  6);
+  			gd.addNumericField("Outlier tiles weaker than this may be replaced from neighbors",               this.outlayerStrength,  6);
+  			gd.addNumericField("Replace weak outlier tiles that do not have neighbors within this disparity difference", this.outlayerDiff,  6);
+  			gd.addNumericField("Replace weak outlier tiles that have higher disparity than weighted average", this.outlayerDiffPos,  6);
+  			gd.addNumericField("Replace weak outlier tiles that have lower disparity than weighted average",  this.outlayerDiffNeg,  6);
 
   			gd.addCheckbox    ("Combine with all previous after refine pass",                                  this.combine_refine);
   			gd.addNumericField("Disregard weaker tiles when combining scans",                                  this.combine_min_strength,  6);
@@ -4222,6 +4234,9 @@ public class EyesisCorrectionParameters {
   			this.ex_strength=           gd.getNextNumber();
   			this.ex_nstrength=          gd.getNextNumber();
 
+  			this.ex_over_bgnd=          gd.getNextBoolean();
+  			this.ex_min_over=           gd.getNextNumber();
+  			
   			this.pt_super_trust=        gd.getNextNumber();
   			this.pt_keep_raw_fg=        gd.getNextBoolean();
   			this.pt_scale_pre=          gd.getNextNumber();

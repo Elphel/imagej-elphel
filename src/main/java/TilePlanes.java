@@ -973,6 +973,82 @@ public class TilePlanes {
 		}
 		
 		/**
+		 * This method is used to filter sample plates by averaging subset of the square
+		 * sample and removing outliers. Currently only constant disparity and horizontal
+		 * surfaces are used, this method is used for horizontal ones to find tilts
+		 * d_disp/d_tx, d_disp/d_ty measured in pixels per tile
+		 * @param world_normal_xyz world space normal vector, currently only "up" - (0,1,0) is used
+		 * @param tile_disp_strengths [0] - unfiltered disparities for the supertile,
+		 *                            [1] - unfiltered correlation strengths for the
+		 *                                  supertile (just 0/non-0)
+		 * @param debugLevel
+		 * @return per tile arrays of either nulls or tilt-x, tilt-y pairs
+		 */
+		
+		public double [][] getDisparityTilts(
+				double []     world_normal_xyz,
+				double [][]   tile_disp_strengths,
+				int           debugLevel)
+		{
+			final int stSize2 = 2* stSize;
+			final int stCenter = (stSize2 + 1) * superTileSize / 2; 
+			final double [][] tile_tilts = new double [stSize2*stSize2][];
+			final double [] apy_vector = {0.0, 0.0, 1.0};
+			final Matrix py_vector = new Matrix(apy_vector,3); 
+			invalidateCalculated();			
+			double [] px_py = getCenterPxPy();
+			Matrix normal_row = new Matrix(world_normal_xyz,1); // 1x3
+			Matrix normal_col = new Matrix(world_normal_xyz,3); // 3x1
+			
+			// find world coordinates of the center of tile intersection with the plane
+			for (int lTile = 0; lTile < tile_disp_strengths[1].length; lTile++) if (tile_disp_strengths[1][lTile] > 0.0){
+				int tY = lTile / stSize2;
+				int tX = lTile % stSize2;
+				double px = px_py[0] + tX - stCenter;
+				double py = px_py[1] + tY - stCenter;
+				double disp = tile_disp_strengths[0][lTile];
+				// get world coordinates for each tile as determined individually
+				Matrix t_xyz = new Matrix(geometryCorrection.getWorldCoordinates(
+						px,
+						px,
+						disp,
+						this.correctDistortions),3);
+//				double n_by_w =  normal_row.times(t_xyz).get(0, 0);
+				// take pixel vector parallel to py and convert it to the world space
+				Matrix jacobian =  new Matrix(geometryCorrection.getWorldJacobian(
+						px,
+						py,
+						disp,
+						this.correctDistortions,
+						(debugLevel > 2)
+						));
+				Matrix inv_jacobian = jacobian.inverse();
+				Matrix wpy_vector = jacobian.times(py_vector); // 3 rows, 1 column py vector in the real world
+				// get 2 in-plane vectors in the real world
+				Matrix  wv1 = cross3d(normal_col, wpy_vector); 
+				Matrix  wv2 = cross3d(normal_col, wv1);
+				
+				// convert then to pixel space
+				Matrix pv1 = inv_jacobian.times(wv1); 
+				Matrix pv2 = inv_jacobian.times(wv2);
+				
+				// Get plane normal in the pixel space
+				Matrix pn = cross3d(pv1, pv2);
+				
+				// convert to the two tilts (d/dpx, d/dpy). We will need in pix/tile, not pix/pix
+				double [] txty = {
+						-pn.get(1, 0)/pn.get(0, 0)*stSize,
+						-pn.get(2, 0)/pn.get(0, 0)*stSize};
+				tile_tilts[lTile] = txty;
+			}
+			
+//			if (debugLevel > 1) {
+//				System.out.println("st_xyz = {"+st_xyz.get(0, 0)+","+st_xyz.get(1, 0)+","+st_xyz.get(2, 0)+"}"+" ="+n_by_w);
+//			}
+			return tile_tilts;
+			
+		}
+		/**
 		 * Tilt disparity values around the supertile center (this.zxy) so constant disparity in the output
 		 * corresponds to the real world plane parallel to the provided one. Used to discriminate tiles by
 		 * the effective disparity value (disparity in the center of the supertile of the parallel plane)
@@ -995,7 +1071,7 @@ public class TilePlanes {
 		{
 			final int stSize2 = 2* stSize;
 			invalidateCalculated();			
-			double [] px_py = getCenterPxPy();
+			double [] px_py = getCenterPxPy(); // tile center
 			// find world coordinates of the center of tile intersection with the plane
 			Matrix st_xyz = new Matrix(geometryCorrection.getWorldCoordinates(
 						px_py[0],
@@ -2251,7 +2327,8 @@ public class TilePlanes {
 			double val = values[0];
 			if ((dispNorm > 0.0) && (zxy[0] > dispNorm)){
 				double k = dispNorm / zxy[0];
-				val *= k*k;
+//				val *= k*k;
+				val *= k ; // reducing correction for the large disparities (making it sqrt() )
 			}
 			return val;
 		}
@@ -3671,6 +3748,13 @@ public class TilePlanes {
 				int debugLevel){
 			return getWorldXYZ(this.correctDistortions, debugLevel);
 		}
+		/**
+		 * Get vector from the camera perpendicular to the plane converted to the real world 
+		 * @param correct_distortions
+		 * @param debugLevel
+		 * @return
+		 */
+		
 		public double [] getWorldXYZ(
 				boolean correct_distortions,
 				int debugLevel)

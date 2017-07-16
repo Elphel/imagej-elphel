@@ -195,34 +195,54 @@ public class PolynomialApproximation {
 		  double [] xy=M.solve(new Matrix(aB)).getColumnPackedCopy();
 		  return xy;
 	  }
-	
-	  
+
 	/* ======================================================================== */
-	/**
-	 * Approximate function z(x,y) as a second degree polynomial (or just linear)
-	 * f(x,y)=A*x^2+B*y^2+C*x*y+D*x+E*y+F or f(x,y)=D*x+E*y+F 
-	 * data array consists of lines of either 2 or 3 vectors:
-	 *  2-element vector x,y
-	 *  variable length vector z (should be the same for all samples)
-	 *  optional 1- element vector w (weight of the sample)
-	 * 
-	 * returns array of vectors or null
-	 * each vector (one per each z component) is either 6-element-  (A,B,C,D,E,F) if quadratic is possible and enabled
-	 * or 3-element - (D,E,F) if linear is possible and quadratic is not possible or disabled
-	 * returns null if not enough data even for the linear approximation
-	 
-	 */
-	   public double [][] quadraticApproximation(
+	  /**
+	   * See below, this version is for backward compatibility with no damping
+	   * @param data
+	   * @param forceLinear
+	   * @return
+	   */
+	  public double [][] quadraticApproximation(
 			   double [][][] data,
 			   boolean forceLinear)  // use linear approximation
+	   {
+		   return quadraticApproximation(
+				   data,
+				   forceLinear,
+				   null); 
+	   }
+	
+	  
+	  /**
+	   * Approximate function z(x,y) as a second degree polynomial (or just linear)
+	   * f(x,y)=A*x^2+B*y^2+C*x*y+D*x+E*y+F or f(x,y)=D*x+E*y+F 
+	   * @param data array consists of lines of either 2 or 3 vectors:
+	   *        2-element vector x,y
+	   *        variable length vector z (should be the same for all samples)
+	   *        optional 1- element vector w (weight of the sample)
+	   * @param forceLinear force linear approximation
+	   * @param damping optional (may be null) array of 3 (for linear) or 6 (quadratic) values that adds cost
+	   *        for corresponding coefficient be non-zero. This can be used to find reasonable solutions when
+	   *        data is insufficient. Just one data point would result in a plane of constant z, co-linear
+	   *        points will produce a plane with a gradient along this line  
+	   * @return array of vectors or null
+	   * each vector (one per each z component) is either 6-element-  (A,B,C,D,E,F) if quadratic is possible and enabled
+	   * or 3-element - (D,E,F) if linear is possible and quadratic is not possible or disabled
+	   * returns null if not enough data even for the linear approximation
+	   */
+	   public double [][] quadraticApproximation(
+			   double [][][] data,
+			   boolean forceLinear,  // use linear approximation
+			   double [] damping)
 			   {
 		   return  quadraticApproximation(
 				   data,
 				   forceLinear,  // use linear approximation
-				   1.0E-10,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail) 11.0E-10 failed where it shouldn't?
-				   1.0E-15,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+				   damping,
 				   this.debugLevel);
 			   }
+	   
 	   public double [][] quadraticApproximation(
 			   double [][][] data,
 			   boolean forceLinear,  // use linear approximation
@@ -231,14 +251,27 @@ public class PolynomialApproximation {
 		   return  quadraticApproximation(
 				   data,
 				   forceLinear,  // use linear approximation
+				   null,
+				   debugLevel);
+	   }
+	   
+	   
+	   public double [][] quadraticApproximation(
+			   double [][][] data,
+			   boolean forceLinear,  // use linear approximation
+			   double [] damping,
+			   int debugLevel
+			   ){
+		   return  quadraticApproximation(
+				   data,
+				   forceLinear,  // use linear approximation
+				   damping,
 				   1.0E-10,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail) 11.0E-10 failed where it shouldn't?
 				   1.0E-15,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
 				   debugLevel);
-/*				   
-				   1.0E-12,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail) 11.0E-10 failed where it shouldn't?
-				   1.0E-20);  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
-*/				   
 	   }
+
+	   
 	   public double [][] quadraticApproximation(
 			   double [][][] data,
 			   boolean forceLinear,  // use linear approximation
@@ -248,14 +281,50 @@ public class PolynomialApproximation {
 		   return  quadraticApproximation(
 				   data,
 				   forceLinear,  // use linear approximation
+				   null,
+				   1.0E-10,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail) 11.0E-10 failed where it shouldn't?
+				   1.0E-15,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+				   this.debugLevel);
+	   }
+
+	   public double [][] quadraticApproximation(
+			   double [][][] data,
+			   boolean forceLinear,  // use linear approximation
+			   double thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
+			   double thresholdQuad,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+			   double [] damping)
+			   {
+		   return  quadraticApproximation(
+				   data,
+				   forceLinear,  // use linear approximation
+				   damping,
 				   1.0E-10,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail) 11.0E-10 failed where it shouldn't?
 				   1.0E-15,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
 				   this.debugLevel);
 	   }
 	   
 	   public double [][] quadraticApproximation(
+			   double [][][] data,
+			   boolean forceLinear,  // use linear approximation
+			   double thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
+			   double thresholdQuad,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+			   int debugLevel)
+	   {
+		   return  quadraticApproximation(
+				   data,
+				   forceLinear,  // use linear approximation
+				   null,
+				   thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail) 11.0E-10 failed where it shouldn't?
+				   thresholdQuad,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+				   debugLevel);
+		   
+	   }
+	   
+	   
+	   public double [][] quadraticApproximation(
 				   double [][][] data,
 				   boolean forceLinear,  // use linear approximation
+				   double [] damping,
 				   double thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
 				   double thresholdQuad,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
 				   int debugLevel
@@ -327,6 +396,23 @@ public class PolynomialApproximation {
 	(5) 0= A*S21 + B*S03 + C*S12 + D*S11 + E*S02 + F*S01 - SZ01
 	(6) 0= A*S20 + B*S02 + C*S11 + D*S10 + E*S01 + F*S00 - SZ00
 	*/
+			   Matrix mDampingLin =  null;
+			   Matrix mDampingQuad = null;
+			   if (damping != null){
+				   mDampingLin = new Matrix(3,3);
+				   for (int i = 0; i < 3; i++){
+					   int j = damping.length + i - 3;
+					   if (j >= 0) mDampingLin.set(i,i,damping[j]); 
+				   }
+				   if (!forceLinear) {
+					   mDampingQuad = new Matrix(6,6);
+					   for (int i = 0; i < 6; i++){
+						   int j = damping.length + i - 6;
+						   if (j >= 0) mDampingQuad.set(i,i,damping[j]); 
+					   }
+				   }
+			   }
+			   
 			   int zDim=data[0][1].length;   
 
 			   double w,z,x,x2,x3,x4,y,y2,y3,y4,wz;
@@ -399,11 +485,16 @@ public class PolynomialApproximation {
 					   {S20,S11,S10},
 					   {S11,S02,S01},
 					   {S10,S01,S00}};
-			   Matrix M=new Matrix (mAarrayL);
+			   Matrix mLin=new Matrix (mAarrayL);
+			   
+			   if (mDampingLin != null){
+				   mLin.plusEquals(mDampingLin);
+			   }
+			   // TODO Maybe bypass determinant checks for damped ?
 			   Matrix Z;
-	 	   	   if (debugLevel>3) System.out.println(">>> n="+n+" det_lin="+M.det()+" norm_lin="+normMatix(mAarrayL));
+	 	   	   if (debugLevel>3) System.out.println(">>> n="+n+" det_lin="+mLin.det()+" norm_lin="+normMatix(mAarrayL));
 	 	   	   double nmL=normMatix(mAarrayL);
-			   if ((nmL==0.0) || (Math.abs(M.det())/nmL<thresholdLin)){
+			   if ((nmL==0.0) || (Math.abs(mLin.det())/nmL<thresholdLin)){
 // return average value for each channel
 				   if (S00==0.0) return null; // not even average
 				   double [][] ABCDEF=new double[zDim][3];
@@ -422,7 +513,7 @@ public class PolynomialApproximation {
 				   zAarrayL[1]=SZ01[i];
 				   zAarrayL[2]=SZ00[i];
 			       Z=new Matrix (zAarrayL,3);
-			       ABCDEF[i]= M.solve(Z).getRowPackedCopy();
+			       ABCDEF[i]= mLin.solve(Z).getRowPackedCopy();
 			   }
 			   if (forceLinear) return ABCDEF;
 			   // quote try quadratic approximation            
@@ -433,18 +524,22 @@ public class PolynomialApproximation {
 					   {S30,S12,S21,S20,S11,S10},
 					   {S21,S03,S12,S11,S02,S01},
 					   {S20,S02,S11,S10,S01,S00}};
-			   M=new Matrix (mAarrayQ);
+			   Matrix mQuad=new Matrix (mAarrayQ);
+			   if (mDampingQuad != null){
+				   mQuad.plusEquals(mDampingQuad);
+			   }
+			   
 	 	   	   if (debugLevel>3) {
-	 	   		   System.out.println("    n="+n+" det_quad="+M.det()+" norm_quad="+normMatix(mAarrayQ)+" data.length="+data.length);
-	 	   		   M.print(10,5);
+	 	   		   System.out.println("    n="+n+" det_quad="+mQuad.det()+" norm_quad="+normMatix(mAarrayQ)+" data.length="+data.length);
+	 	   		   mQuad.print(10,5);
 	 	   	   }
 	 	   	   double nmQ=normMatix(mAarrayQ);
-			   if ((nmQ==0.0) || (Math.abs(M.det())/normMatix(mAarrayQ)<thresholdQuad)) {
-				   if (debugLevel>0) System.out.println("Using linear approximation, M.det()="+M.det()+
+			   if ((nmQ==0.0) || (Math.abs(mQuad.det())/normMatix(mAarrayQ)<thresholdQuad)) {
+				   if (debugLevel>0) System.out.println("Using linear approximation, M.det()="+mQuad.det()+
 						   " normMatix(mAarrayQ)="+normMatix(mAarrayQ)+
 						   ", thresholdQuad="+thresholdQuad+
 						   ", nmQ="+nmQ+
-						   ", Math.abs(M.det())/normMatix(mAarrayQ)="+(Math.abs(M.det())/normMatix(mAarrayQ))); //did not happen
+						   ", Math.abs(M.det())/normMatix(mAarrayQ)="+(Math.abs(mQuad.det())/normMatix(mAarrayQ))); //did not happen
 				   return ABCDEF; // not enough data for the quadratic approximation, return linear
 			   }
 //			   double [] zAarrayQ={SZ20,SZ02,SZ11,SZ10,SZ01,SZ00};
@@ -457,7 +552,7 @@ public class PolynomialApproximation {
 				   zAarrayQ[4]=SZ01[i];
 				   zAarrayQ[5]=SZ00[i];
 				   Z=new Matrix (zAarrayQ,6);
-				   ABCDEF[i]= M.solve(Z).getRowPackedCopy();
+				   ABCDEF[i]= mQuad.solve(Z).getRowPackedCopy();
 			   }
 			   return ABCDEF;
 		   }

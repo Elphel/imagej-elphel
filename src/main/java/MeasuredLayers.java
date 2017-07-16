@@ -337,7 +337,7 @@ public class MeasuredLayers {
 	 * @return [smplSide * smplSide]array of weights, 1.0 in the center
 	 */
 	
-	public double [] getSampleWindow(int smplSide, boolean all1){
+	static double [] getSampleWindow(int smplSide, boolean all1){
 		double [] weights = new double [smplSide * smplSide];
 		for (int sy = 0; sy < smplSide; sy++){
 			for (int sx = 0; sx < smplSide; sx++){
@@ -898,6 +898,9 @@ public class MeasuredLayers {
 			boolean    null_if_none,
 			int        debugLevel)
 	{
+		boolean use_new = true; // false;
+		
+		if (use_new) {
 		return getDisparityStrength (
 				num_layer,      // int num_layer,
 				stX,            // int stX,
@@ -914,6 +917,25 @@ public class MeasuredLayers {
 				0.2,            // double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
 				null_if_none,   // boolean    null_if_none,
 				debugLevel);    // int        debugLevel)
+		} else {
+			return getDisparityStrength_old (
+					num_layer,      // int num_layer,
+					stX,            // int stX,
+					stY,            // int stY,
+					sel_in,         // boolean [] sel_in,
+//					null,           // double []  tiltXY, // null - free with limit on both absolute (2.0?) and relative (0.2) values 
+					strength_floor, // double     strength_floor,
+					strength_pow,   // double     strength_pow,
+					smplSide,       // int        smplSide, //        = 2;      // Sample size (side of a square)
+					smplNum,        // int        smplNum, //         = 3;      // Number after removing worst (should be >1)
+					smplRms,        // double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+					smplWnd,        // boolean    smplWnd, //
+//					2.0,            // double     max_abs_tilt, //  = 2.0; // pix per tile
+//					0.2,            // double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
+					null_if_none,   // boolean    null_if_none,
+					debugLevel);    // int        debugLevel)
+			
+		}
 	}
 	
 	public double[][] getDisparityStrength (
@@ -921,7 +943,9 @@ public class MeasuredLayers {
 			int stX,
 			int stY,
 			boolean [] sel_in,
-			double []  tiltXY, // null - free with limit on both absolute (2.0?) and relative (0.2) values 
+			double [][] atiltXY, // null - free with limit on both absolute (2.0?) and relative (0.2) values
+			                     // if it has just one element - apply to all tiles, otherwise it is supposed
+			                     // to be per-tile of a supertile array
 			double     strength_floor,
 			double     strength_pow,
 			int        smplSide, //        = 2;      // Sample size (side of a square)
@@ -1018,7 +1042,7 @@ public class MeasuredLayers {
 					if (num_in_sample >= smplNum){ // try, remove worst
 						sample_loop:
 						{
-						boolean en_tilt = (tiltXY == null);
+						boolean en_tilt = (atiltXY == null);
 						if (en_tilt) { // make sure there are enough samples and not all of them are on the same line
 							if (!notColinear(smpl_sel,smplSide)){
 								en_tilt = false;
@@ -1128,7 +1152,10 @@ public class MeasuredLayers {
 										}
 									}
 									if (iworst < 0){
-										System.out.println("**** this is a BUG in getDisparityStrength() can not find the worst sample ****");
+										if (debugLevel > 0) {
+											System.out.println("**** this may be BUG in getDisparityStrength() can not find the worst sample  - all tiles fit perfectly ****");
+										}
+										// this can happen if some samples are the same and all the pixels fit exactly - use all of them
 										break;
 									}
 									// remove worst sample
@@ -1158,6 +1185,15 @@ public class MeasuredLayers {
 							
 						} else { // fixed tilt
 							// tilt around center
+							double [] tiltXY= {0.0,0.0};
+							if (atiltXY != null){ // if null ( free but failed co-linear test - keep both tilts == 0.0
+								if (atiltXY.length == 1){
+									tiltXY = atiltXY[0]; // common for all tiles (such as constant disparity)
+								} else if (atiltXY[indx] != null){
+									tiltXY = atiltXY[indx];
+								}
+							}
+							
 							if ((tiltXY != null) && (tiltXY[0] != 0.0) && (tiltXY[1] != 0.0)){
 								for (int sy = 0; sy < smplSide; sy++){
 									for (int sx = 0; sx < smplSide; sx++){

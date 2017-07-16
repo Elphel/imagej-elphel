@@ -5702,11 +5702,21 @@ public class QuadCLT {
 			  final boolean    updateStatus,
 			  final int        debugLevel)
 	  {
-		  final int max_expand =  300; // 150; // 30;
+		  final int max_expand =  500; // 150; // 30;
 		  // Temporary assign here
 		  final int        disp_index =      ImageDtt.DISPARITY_INDEX_CM;
 		  final int        str_index =       ImageDtt.DISPARITY_STRENGTH_INDEX;
 		  final double     strength_floor =  0.8* clt_parameters.combine_min_strength;
+		  
+		  // TODO: define, make parameters
+		  final double     comboMinStrength =     0.3; // 0.3; 
+		  final double     comboMinStrengthHor =  0.3; // 0.3;
+		  final double     comboMinStrengthVert = 0.3; // 0.3;
+		  final double     filterMinStrength =    0.3; // 0.3; 
+
+		  
+		  
+		  // TODO: make parameters
 		  final double     strength_pow    = 1.0;
 		  final int        smplSide        = 5; // 3;      // Sample size (side of a square)
 		  final int        smplNum         = 13; // 5;      // Number after removing worst (should be >1)
@@ -5720,7 +5730,7 @@ public class QuadCLT {
 //		  final double     reliable_raw_strength=0.25;
 		  
 		  final boolean show_init_refine = clt_parameters.show_init_refine;
-		  final boolean show_expand =      clt_parameters.show_expand && (max_expand <= 10);
+		  boolean show_expand =      clt_parameters.show_expand && (max_expand <= 10);
 		  final boolean show_retry_far =   clt_parameters.show_retry_far && (max_expand <= 10);
 		  //max_expand
 		  String name = (String) imp_quad[0].getProperty("name");
@@ -5767,6 +5777,9 @@ public class QuadCLT {
   		  double [][] filtered_bgnd_disp_strength = tp.getFilteredDisparityStrength(
   				  tp.clt_3d_passes.size() - 1,         // final int        measured_scan_index, // will not look at higher scans
   				  0,                  //	final int        start_scan_index,
+  				  null , // final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
+				  0.0,   // whatever as null above //  clt_parameters.ex_min_over,// final double     ex_min_over,       // when expanding over previously detected (by error) background, disregard far tiles  
+  				  
   				  disp_index,         // final int        disp_index,
   				  str_index,          // final int        str_index,
   				  null,               // final double []  tiltXY,    // null - free with limit on both absolute (2.0?) and relative (0.2) values
@@ -5917,6 +5930,8 @@ public class QuadCLT {
     				  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
     				  bg_pass, //  final int                   firstPass,
     				  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
+//      				  tp.clt_3d_passes.get(bg_pass).getSelected(), // selected , // final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
+ //   				  clt_parameters.ex_min_over,// final double     ex_min_over,       // when expanding over previously detected (by error) background, disregard far tiles  
     				  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
     				  0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
     				  clt_parameters.grow_disp_max,                     // final double                disp_near,
@@ -5948,7 +5963,13 @@ public class QuadCLT {
           boolean last_pass = false;
 //          for (int num_expand = 0; (num_expand < 4) && (num_extended != 0); num_expand++) {
           boolean over_infinity = false;
+          int dbg_start_pass = -20;
+          int dbg_end_pass = -29;
+          
           for (int num_expand = 0; num_expand < max_expand; num_expand++) {
+     		boolean dbg_pass = (num_expand >= dbg_start_pass) && (num_expand <= dbg_end_pass);
+     		show_expand =      (clt_parameters.show_expand && (max_expand <= 10)) || dbg_pass;
+
         	  
       		Runtime runtime = Runtime.getRuntime();
     	    runtime.gc();
@@ -5958,6 +5979,8 @@ public class QuadCLT {
       		  double [][] filtered_disp_strength = tp.getFilteredDisparityStrength(
       				  tp.clt_3d_passes.size() - 1,         // final int        measured_scan_index, // will not look at higher scans
       				  0,                  //	final int        start_scan_index,
+      				  tp.clt_3d_passes.get(bg_pass).getSelected(), // selected , // final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
+    				  clt_parameters.ex_min_over,// final double     ex_min_over,       // when expanding over previously detected (by error) background, disregard far tiles  
       				  disp_index,         // final int        disp_index,
       				  str_index,          // final int        str_index,
       				  null,               // final double []  tiltXY,    // null - free with limit on both absolute (2.0?) and relative (0.2) values
@@ -5973,7 +5996,14 @@ public class QuadCLT {
       				  dbg_x,              //	final int        dbg_x,
       				  dbg_y,              // final int        dbg_y,
       				  debugLevel);        //	final int        debugLevel)
-        	  
+      		  if (over_infinity) {  
+      			  tp.filterOverBackground(
+      					  filtered_disp_strength,                      // final double [][]           ds,
+      					  filtered_bgnd_disp_strength[1],              // final double []             bg_strength,
+      					  tp.clt_3d_passes.get(bg_pass).getSelected(), // final boolean []            bg_tiles,          // get from selected in clt_3d_passes.get(0);
+      					  filterMinStrength,                           // final double                minStrength, 
+      					  clt_parameters.ex_min_over);                 // final double                ex_min_over        // when expanding over previously detected (by error) background, disregard far tiles  
+      		  }
         	  refine_pass = tp.clt_3d_passes.size(); // 1
         	  // refine pass uses hor/vert thresholds inside
         	  tp.refinePassSetup( // prepare tile tasks for the refine pass (re-measure disparities)
@@ -6030,6 +6060,8 @@ public class QuadCLT {
     				  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
     				  bg_pass, //  final int                   firstPass,
     				  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
+//      				  tp.clt_3d_passes.get(bg_pass).getSelected(), // selected , // final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
+//    				  clt_parameters.ex_min_over,// final double     ex_min_over,       // when expanding over previously detected (by error) background, disregard far tiles  
     				  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
     				  0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
     				  clt_parameters.grow_disp_max,                     // final double                disp_near,
@@ -6041,6 +6073,16 @@ public class QuadCLT {
     				  false, // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
     				  true, // 	 final boolean               copyDebug)
     				  debugLevel);
+    		  if (over_infinity) {
+    			  tp.filterOverBackground(
+    					  extended_pass,        // final CLTPass3d              pass,
+    					  comboMinStrength,     //	 final double                minStrength, 
+    					  comboMinStrengthHor,  //	 final double                minStrengthHor,
+    					  comboMinStrengthVert, //final double                minStrengthVert,
+    					  tp.clt_3d_passes.get(bg_pass).getSelected(), // selected , // final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
+    					  clt_parameters.ex_min_over,// final double     ex_min_over,       // when expanding over previously detected (by error) background, disregard far tiles
+    					  filtered_disp_strength);
+    		  }
         	  if (show_expand || (clt_parameters.show_expand && last_pass)) tp.showScan(
         			  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
         			  "after_refine-combine-"+(tp.clt_3d_passes.size() - 1));
@@ -6076,7 +6118,7 @@ public class QuadCLT {
     		  }
         	  
         	  
-
+        	  boolean show_ex_debug = show_retry_far || (clt_parameters.show_retry_far && last_pass) || dbg_pass;
         	  num_extended = tp.setupExtendDisparity(
         			  extended_pass,                              // final CLTPass3d   scan,            // combined scan with max_tried_disparity, will be modified to re-scan
         			  tp.clt_3d_passes.get(refine_pass), // final CLTPass3d   last_scan,       // last prepared tile - can use last_scan.disparity, .border_tiles and .selected
@@ -6091,7 +6133,7 @@ public class QuadCLT {
         			  clt_parameters.grow_retry_inf,  // final boolean     grow_retry_inf,  // Retry border tiles that were identified as infinity earlier
         			  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
         			  geometryCorrection, // GeometryCorrection geometryCorrection,
-        			  (show_retry_far|| (clt_parameters.show_retry_far && last_pass)),     // true, // final boolean     show_debug,
+        			  show_ex_debug,     // true, // final boolean     show_debug,
 
         			  threadsMax,  // maximal number of threads to launch                         
         			  updateStatus,
@@ -6169,8 +6211,16 @@ public class QuadCLT {
     				  false, // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
     				  true, // 	 final boolean               copyDebug)
 //    				  (num_expand == 9)? 2: debugLevel);
-    				  debugLevel);    				  
-        	  
+    				  debugLevel);
+/*    		  
+    		  tp.filterOverBackground(
+    				  combo_pass,           // final CLTPass3d              pass,
+    				  comboMinStrength,     //	 final double                minStrength, 
+    				  comboMinStrengthHor,  //	 final double                minStrengthHor,
+    				  comboMinStrengthVert, //final double                minStrengthVert,
+    				  tp.clt_3d_passes.get(bg_pass).getSelected(), // selected , // final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
+    				  clt_parameters.ex_min_over);// final double     ex_min_over,       // when expanding over previously detected (by error) background, disregard far tiles
+*/    				    
         	  tp.clt_3d_passes.add(combo_pass);
         	  //  		  refine_pass = tp.clt_3d_passes.size();
         	  //          }
@@ -6180,12 +6230,19 @@ public class QuadCLT {
         	  if (last_pass) {
         		  break;
         	  } else if (numLeftRemoved[0] == 0){
-        		  if (over_infinity)  last_pass = true;
-        		  else over_infinity = true;
+				  System.out.println("**** processCLTQuad3d(): nothing to sxpand ***"); 
+				  System.out.println("!clt_parameters.ex_over_bgnd="+clt_parameters.ex_over_bgnd+" over_infinity="+over_infinity); 
+        		  if (!clt_parameters.ex_over_bgnd || over_infinity)  last_pass = true;
+        		  else {
+        			  over_infinity = true;
+        			  if (debugLevel > -1){
+        				  System.out.println("===== processCLTQuad3d(): trying to expand over previously identified background (may be by error)===="); 
+        			  }
+        		  }
         	  }
 
           }
-          
+          show_expand =      (clt_parameters.show_expand && (max_expand <= 10));
           tp.showScan(
 		  tp.clt_3d_passes.get(tp.clt_3d_passes.size()-2),   // CLTPass3d   scan,
 		  "after_pre_last_combo_pass-"+(tp.clt_3d_passes.size()-2)); //String title)

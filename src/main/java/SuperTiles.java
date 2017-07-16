@@ -1436,13 +1436,17 @@ public class SuperTiles{
 		// TODO: Remove when promoting PlaneData
 		final TilePlanes tpl = new TilePlanes(tileSize,superTileSize, geometryCorrection);
 		final double [][][][] plane_disp_strength = new double [nStiles][][][];
+		// DEBUG feature:
+		final double [][] zero_tilts = {{0.0,0.0}}; // set to null for float
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				public void run() {
+					double [][][] plane_tilts = null; // used only forworld_plane_norm != null
+					// to get tile disparities needed to calculate tilts
 					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
 //						int dl =  (nsTile == debug_stile) ? 3 : 0;
                         int dl = ((debugLevel > 1) && (nsTile == debug_stile)) ? 3: debugLevel;
-						if (dl > 1){
+						if (dl > 2){
 							System.out.println("getPlaneDispStrengths(): nsTile="+nsTile);
 						}
 						int stileY = nsTile / stilesX;  
@@ -1457,7 +1461,48 @@ public class SuperTiles{
 								measuredLayers,     // MeasuredLayers measuredLayers,
 								plPreferDisparity);   // boolean preferDisparity)
 
-						
+						if (smplMode && (world_plane_norm != null)) {
+							plane_tilts = new double [measuredLayers.getNumLayers()][][];
+							for (int ml = 0; ml < plane_tilts.length; ml++) if ((stMeasSel & ( 1 << ml)) != 0){
+								double [][] tile_disp_strengths = measuredLayers.getDisparityStrength(
+										ml,             // int num_layer,
+										stileX,         // int stX,
+										stileY,         // int stY,
+										null,           // boolean [] sel_in,
+										strength_floor, // double strength_floor,
+										strength_pow,   // double strength_pow,
+										true);          // boolean null_if_none);
+								if (tile_disp_strengths == null){
+									plane_tilts[ml] = 	zero_tilts;								
+								} else {
+									plane_tilts[ml] = pd0.getDisparityTilts(
+											world_plane_norm,     // double []     world_normal_xyz,
+											tile_disp_strengths,  // double [][]   tile_disp_strengths,
+											debugLevel);         // int           debugLevel);
+									if(dl > 2){
+										if (plane_tilts[ml] != null){
+											for (int k = 0; k < 2; k++) {
+												System.out.println((k > 0) ? "tilt Y, pix/tile" : "tilt X, pix/tile");
+												for (int i = 0; i < 2 * superTileSize; i++){
+													System.out.print(i+",");
+													for (int j = 0; j < 2 * superTileSize; j++){
+														int it = j + 2 * superTileSize * i;
+														if (plane_tilts[ml][it] !=null){
+															System.out.print(String.format("%f7.4", plane_tilts[ml][it][k]));
+														}
+														if (j < (2 * superTileSize - 1)){
+															System.out.print(", ");
+														}
+													}
+													System.out.println();
+												}
+												System.out.println();
+											}
+										}
+									}
+								}
+							}
+						}						
 
 						plane_disp_strength[nsTile] = new double[measuredLayers.getNumLayers()][][];
 						
@@ -1469,13 +1514,18 @@ public class SuperTiles{
 										stileX,         // int stX,
 										stileY,         // int stY,
 										null,           // boolean [] sel_in,
+//										((world_plane_norm == null)? zero_tilts: null),      // double []  tiltXY, // null - free with limit on both absolute (2.0?) and relative (0.2) values 
+										((world_plane_norm == null)? zero_tilts: plane_tilts[ml]),      // double []  tiltXY, // null - free with limit on both absolute (2.0?) and relative (0.2) values 
 										strength_floor, // double strength_floor,
 										strength_pow,   // double strength_pow,
 										smplSide,       // int        smplSide, // = 2;   // Sample size (side of a square)
 										smplNum,        //int        smplNum,   // = 3;   // Number after removing worst (should be >1)
 										smplRms,        //double     smplRms,   // = 0.1; // Maximal RMS of the remaining tiles in a sample
-										true,           // boolean null_if_none);
+//										true,           // boolean null_if_none);
 										smplWnd,        // boolean         smplWnd, //
+										2.0,            // double     max_abs_tilt, //  = 2.0; // pix per tile
+										0.2,            // double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
+										true,           // boolean null_if_none);
 										dl);
 							} else {
 								plane_disp_strength[nsTile][ml] =  measuredLayers.getDisparityStrength(
@@ -1505,7 +1555,7 @@ public class SuperTiles{
 								if (dl > 0) {
 									System.out.println("Plane tilted disparity for stileX = "+stileX+" stileY="+stileY+", average disparity "+(sd/sw));
 								}
-								if (dl>1) {
+								if (dl>2) {
 									String [] dbg_titles = showSupertileSeparationTitles( plane_disp_strength[nsTile], null);
 									double [][] dbg_img = showSupertileSeparation(false, plane_disp_strength[nsTile], null); // plane_sels);
 									showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
@@ -1519,7 +1569,7 @@ public class SuperTiles{
 										null, // boolean [][]  tile_sel, // null - do not use, {} use all (will be modified)
 										plane_disp_strength[nsTile], // double [][][] disp_str, // calculate just once if null 
 										dl); // 1); // int           debugLevel);
-								if (dl>1) {
+								if (dl>2) {
 									String [] dbg_titles = showSupertileSeparationTitles( plane_disp_strength[nsTile], null);
 									double [][] dbg_img = showSupertileSeparation(false, plane_disp_strength[nsTile], null); // plane_sels);
 									showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
@@ -2623,7 +2673,7 @@ public class SuperTiles{
 				highMix,    //final double     highMix,    // stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
 				world_hor, // final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
 				show_histograms, // final boolean    show_histograms,
-				debugLevel+0, // final int        debugLevel,
+				debugLevel+1, // final int        debugLevel,
 				dbg_X, // final int        dbg_X,
 				dbg_Y); // final int        dbg_Y)
 

@@ -3879,7 +3879,7 @@ public class LinkPlanes {
 					weak_pairs,       // final boolean [][]              weak_fg_pairs, 
 					1.0,              // double                    relax,
 					plWeakFgRelax,    // final double                    relax_weak_fg,
-					debugLevel,                  // final int        debugLevel)
+					1+ debugLevel,                  // final int        debugLevel)
 					dbg_tileX,
 					dbg_tileY);
 			// Calculate costs of merging planes of the same supertile and remove those that are exceed threshold

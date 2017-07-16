@@ -1,11 +1,3 @@
-import java.util.ArrayList;
-
-import Jama.Matrix;
-import ij.IJ;
-import ij.ImagePlus;
-import ij.ImageStack;
-import ij.WindowManager;
-
 /**
  **
  ** AlignmentCorrection - try to apply minor adjustments to the misaligned camera
@@ -29,6 +21,13 @@ import ij.WindowManager;
  ** -----------------------------------------------------------------------------**
  **
  */
+import java.util.ArrayList;
+
+import Jama.Matrix;
+import ij.IJ;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.WindowManager;
 
 public class AlignmentCorrection {
 	static int NUM_SLICES =      10; // disp, strength, dx0, dy0, dx1, dy1, dx2, dy2, dx3, dy3)
