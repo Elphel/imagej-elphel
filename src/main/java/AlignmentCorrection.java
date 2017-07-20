@@ -53,11 +53,11 @@ public class AlignmentCorrection {
 	}
 
 	public double [][][] infinityCorrection(
-			final double min_strength_in,
-			final double max_diff,
-			final int max_iterations,
-			final double max_coeff_diff,
-			final double far_pull, //  = 0.2; // 1; //  0.5;
+			final double     min_strength_in,
+			final double     max_diff,
+			final int        max_iterations,
+			final double     max_coeff_diff,
+			final double     far_pull, //  = 0.2; // 1; //  0.5;
 			final double     strength_pow,
 			final int        smplSide, //        = 2;      // Sample size (side of a square)
 			final int        smplNum, //         = 3;      // Number after removing worst (should be >1)

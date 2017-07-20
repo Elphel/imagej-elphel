@@ -42,6 +42,8 @@ public class TileProcessor {
 	public int       threadsMax =       100; // maximal number of frames to run  
 	public int       globalDebugLevel = 0;
 	
+	public double [][] dbg_filtered_disp_strength;
+	
 	// All parameters are set only once, during instantiation
 	
 	public TileProcessor(
@@ -687,6 +689,7 @@ public class TileProcessor {
 	 * @param smplSide side of tyhe sample square
 	 * @param smplNum number of the best fit neighbors to keep
 	 * @param smplRms maximal disparity RMS of the best remaining tiles to keep sample 
+	 * @param smplRelRms relative RMS to add to  smplRms: effective RMS = smplRms + disparity * smplRelRms
 	 * @param smplWnd use sample window function (false - all set to 1.0)
 	 * @param max_abs_tilt maximal disparity tilt in disparity difference (pix) per tile;
 	 * @param max_rel_tilt same as max_abs_tilt, but divided by disparity 
@@ -711,6 +714,7 @@ public class TileProcessor {
 			final int        smplSide, //        = 2;      // Sample size (side of a square)
 			final int        smplNum, //         = 3;      // Number after removing worst (should be >1)
 			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+			final double     smplRelRms, //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
 			final boolean    smplWnd, //
 			final double     max_abs_tilt, //  = 2.0; // pix per tile
 			final double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
@@ -727,7 +731,7 @@ public class TileProcessor {
 //		final TileNeibs tnSurface = new TileNeibs(tilesX, tilesY);
 		final int tiles = tilesX * tilesY;
 		final boolean [] measured = new boolean [tiles];
-		final double smplVar = smplRms * smplRms; // maximal variance (weighted average of the squared difference from the mean)
+//		final double smplVar = smplRms * smplRms; // maximal variance (weighted average of the squared difference from the mean)
 		final double thresholdLin = 1.0E-20;  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
 		final double thresholdQuad = 1.0E-30; // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
 		final double [][] disp_strength = new double [2][tiles]; // strength < 0 - not measured!
@@ -773,6 +777,10 @@ public class TileProcessor {
 						int tileY = nTile / tilesX;
 						// check that the tile is strong enough and fractional disparity is in the trusted range
 						double w = measured_scan.disparity_map[str_index][nTile] - strength_floor;
+//						if ((dl > 0) && (measured_scan.disparity_map[str_index][nTile] != 0)){
+						if ((dl > 0) && (measured_scan.tile_op[tileY][tileX] != 0)){
+							System.out.println("getFilteredDisparityStrength(): tileX="+tileX+", tileY="+tileY+" w="+w);
+						}
 						if (w > 0) {
 							if (strength_pow != 1.0){
 								if (strength_pow == 0.0) {
@@ -848,7 +856,9 @@ public class TileProcessor {
 
 									// filled all neighbor tiles data. See if sufficient to proceed, then remove extra tiles
 									// and process the remaining ones
-
+									if ((dl > 0) && (measured_scan.tile_op[tileY][tileX] != 0)){
+										System.out.println("getFilteredDisparityStrength() 1: tileX="+tileX+", tileY="+tileY+" num_in_sample="+num_in_sample);
+									}
 									if (num_in_sample >= smplNum){ // try, remove worst
 										sample_loop:
 										{
@@ -930,6 +940,7 @@ public class TileProcessor {
 														smpl_p[indxs] += sd;
 													}
 													approx2d[0][2] += sd;
+													
 												}
 												d_center = approx2d[0][2];
 												sw = 0.0;
@@ -983,10 +994,15 @@ public class TileProcessor {
 												//											sd /= sw;
 												//											sd2 /= sw;
 												double var = sd2/sw; //   - sd * sd;
+												double smplVar = smplRms + d_center * smplRelRms;
+												smplVar *= smplVar;
 												if (var < smplVar) { // good, save in the result array
 													disp_strength[0][nTile] = d_center;
 													//								ds[1][indx] = sw * lapWeight[dy][dx] /num_in_sample; // average weights, multiply by window //** TODO: change
 													disp_strength[1][nTile] = sw /sum_wnd; // average weights, multiply by window //** TODO: change
+												}
+												if (dl > 0){
+													System.out.println("getFilteredDisparityStrength() 2: tileX="+tileX+", tileY="+tileY+" num_in_sample="+num_in_sample+" var="+var);
 												}
 											}
 
@@ -1043,6 +1059,8 @@ public class TileProcessor {
 												sd /= sw;
 												sd2 /= sw;
 												double var = sd2 - sd * sd;
+												double smplVar = smplRms + sd * smplRelRms;
+												smplVar *= smplVar;
 												if (var < smplVar) { // good, save in the result array
 													disp_strength[0][nTile] = sd;
 													//								ds[1][indx] = sw * lapWeight[dy][dx] /num_in_sample; // average weights, multiply by window //** TODO: change
@@ -1113,6 +1131,7 @@ public class TileProcessor {
 			 final int                   firstPass,
 			 final int                   lastPassPlus1,
 			 final CLTPass3d             new_scan,
+			 final double                grow_disp_max,
 			 final double                unique_tolerance,
 			 final boolean               show_unique)
 	{
@@ -1124,6 +1143,7 @@ public class TileProcessor {
 			}
 		}
 		int removed = 0, total = 0;
+		int dbg_remain = 0;
 		for (int ty = 0; ty < tilesY; ty ++) {
 			for (int tx = 0; tx < tilesX; tx ++){
 				if (new_scan.tile_op[ty][tx] != 0){
@@ -1131,12 +1151,19 @@ public class TileProcessor {
 					for (int ipass = firstPass;  ipass <lastPassPlus1; ipass++ ){
 						CLTPass3d pass = passes.get(ipass);
 						if ((pass.tile_op[ty][tx] != 0) && pass.isMeasured()){
-							if (Math.abs(new_scan.disparity[ty][tx] - pass.disparity[ty][tx]) < unique_tolerance){
+							// Double.isNaN should not happen
+							if (     Double.isNaN(pass.disparity[ty][tx]) ||
+									(Math.abs(new_scan.disparity[ty][tx] - pass.disparity[ty][tx]) < unique_tolerance) ||
+									(new_scan.disparity[ty][tx] > grow_disp_max) ||
+									(new_scan.disparity[ty][tx] <= 0.0)){
 								new_scan.tile_op[ty][tx] = 0;
 								removed++;
 								break;
 							}
 						}
+					}
+					if (new_scan.tile_op[ty][tx] != 0){
+						dbg_remain++;
 					}
 				}
 			}
@@ -1152,6 +1179,406 @@ public class TileProcessor {
 		int [] rslt = {total-removed, removed};
 		return rslt;
 	}
+
+	/**
+	 * Get selection of the tiles that were tried before among selected
+	 * @param passes ArrayList of scan passes
+	 * @param firstPass index of the first pass to compare against
+	 * @param lastPassPlus1 index of the last pass + 1to compare against
+	 * @param selected tiles to process
+	 * @param prohibited tiles already marked as "bad" (already tried or out of range), may be null. If not null - will be modified
+	 * @param disparity array of disparity values to compare with already tried. Double.NaN values will be skipped (not marked)
+	 * @param mod_selected if true, selected array will be modified to exclude tried before cells  
+	 * @param mod_disparity if true, disparity array will be modified to have Double.NaN for the tried before cells
+	 * @param grow_disp_max maximal valid disparity (all above or <= 0 will be marked as "bad" (as if they were already tried) 
+	 * @param unique_pre_tolerance mark tiles that have disparity within +/- this values from already tried
+	 * @return array of the tiles that should not be used
+	 */
+	
+	public boolean [] getTriedBefore(
+			 final ArrayList <CLTPass3d> scan_list,
+			 final int                   start_scan_index, // firstPass,
+			 final int                   finish_scan_index, // lastPassPlus1,
+			 final boolean []            selected,
+			 final boolean []            prohibited,
+			 final double []             disparity,
+			 final boolean               mod_selected,
+			 final boolean               mod_disparity,
+			 final double                grow_disp_max,
+			 final double                unique_pre_tolerance)
+	{
+		final int tilesX = getTilesX();
+		final int tilesY = getTilesY();
+		final int tlen = tilesX * tilesY;
+		final boolean [] tried_before = (prohibited != null)? prohibited : (new boolean [tlen]);
+		final ArrayList<CLTPass3d> measured_list = new ArrayList<CLTPass3d> ();
+		for (int ipass = start_scan_index; ipass < finish_scan_index; ipass++){
+			CLTPass3d pass = clt_3d_passes.get(ipass);
+			if ((pass != null) && pass.isMeasured()){
+				measured_list.add(pass);
+			}
+		}
+		final int firstPass = 0;
+		final int lastPassPlus1 = measured_list.size(); 
+		
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < tlen; nTile = ai.getAndIncrement()) if (selected[nTile]){
+						if (!Double.isNaN(disparity[nTile])) {
+							if ((disparity[nTile] <= 0.0) || (disparity[nTile] > grow_disp_max)){
+								tried_before[nTile] = true;
+								if (mod_selected) selected[nTile] = false;
+								if (mod_disparity) disparity[nTile] = Double.NaN;
+							} else {
+								int ty = nTile / tilesX;
+								int tx = nTile % tilesX;
+								for (int i =  firstPass; i < lastPassPlus1; i++) {
+									if (Math.abs(disparity[nTile] - measured_list.get(i).disparity[ty][tx]) < unique_pre_tolerance){
+										tried_before[nTile] = true;
+										if (mod_selected) selected[nTile] = false;
+										if (mod_disparity) disparity[nTile] = Double.NaN;
+										break;
+									}
+								}
+							}
+						}
+					}	
+				}
+			};
+		}
+		ImageDtt.startAndJoin(threads);
+		return tried_before;
+	}
+	
+	
+	
+	public int [] prepareExpandVariant(
+			final CLTPass3d   scan,            // combined scan with max_tried_disparity, will be modified to re-scan
+			final CLTPass3d   last_scan,       // last prepared tile - can use last_scan.disparity, .border_tiles and .selected
+			final CLTPass3d   bg_scan,         // background scan data, null - ignore background
+			final ArrayList <CLTPass3d> passes,// List, first, last - to search for the already tried disparity
+			final int         firstPass,       
+			final int         lastPassPlus1,
+			final int         min_new,         // discard variant if there are less new tiles 
+			final boolean []  variants_flags,
+			final int         num_steps,  // how far to extend
+			final int         num_steps_disc,  // how far to extend
+			final int         smpl_size, // == 5
+			final int         min_points, // == 3
+			final boolean     use_wnd,   // use window function fro the neighbors 
+			final double      tilt_cost,
+			final double      split_threshold, // if full range of the values around the cell higher, need separate fg, bg
+			final double      same_range,      // modify
+			final double      diff_continue,   // maximal difference from the old value (for previously defined tiles
+			final double      max_abs_tilt, //   = 2.0; // pix per tile
+			final double      max_rel_tilt, //   = 0.2; // (pix / disparity) per tile
+			final int         max_tries, // maximal number of smoothing steps
+			final double      final_diff, // maximal change to finish iterations
+			final double      grow_disp_max,   //  =   50.0; // Maximal disparity to try
+			final double      unique_pre_tolerance, // usually larger than clt_parameters.unique_tolerance
+			final double      unique_tolerance,
+			final boolean     show_expand,
+			final boolean     show_unique,
+			final int         dbg_x,
+			final int         dbg_y,
+			final int         debugLevel)
+	{
+		class Variant{
+			boolean     expand_discontinuity; // true - expand discontinuity over known tiles
+			boolean     smooth_only;   // Do not expand ambiguous cells (with discontinuity) (only valid for expand_discontinuity = false)
+			boolean     extend_far;    // extend far (false - extend near)
+			int         num_steps;  // how far to extend
+			double      split_threshold; // if full range of the values around the cell higher, need separate fg, bg
+			double      same_range;      // modify
+			double      diff_continue;   // maximal difference from the old value (for previously defined tiles
+			Variant (
+					boolean     expand_discontinuity, // true - expand discontinuity over known tiles
+					boolean     smooth_only,   // Do not expand ambiguous cells (with discontinuity) (only valid for expand_discontinuity = false)
+					boolean     extend_far,    // extend far (false - extend near)
+					int         num_steps,  // how far to extend
+					double      split_threshold, // if full range of the values around the cell higher, need separate fg, bg
+					double      same_range,      // modify
+					double      diff_continue)
+			{
+				this.expand_discontinuity = expand_discontinuity; // true - expand discontinuity over known tiles
+				this.smooth_only =          smooth_only;   // Do not expand ambiguous cells (with discontinuity) (only valid for expand_discontinuity = false)
+				this.extend_far =           extend_far;    // extend far (false - extend near)
+				this.num_steps =            num_steps;  // how far to extend
+				this.split_threshold =      split_threshold; // if full range of the values around the cell higher, need separate fg, bg
+				this.same_range =           same_range;
+				this.diff_continue =        diff_continue;
+			}
+		}
+		Variant [] variants = {
+				//          disc  smooth   far
+				new Variant(false, true,  false, num_steps,      split_threshold, same_range, diff_continue), // +1
+				new Variant(false, false, false, num_steps,      split_threshold, same_range, diff_continue), // +2
+				new Variant(true,  false, false, num_steps_disc, split_threshold, same_range, diff_continue), // +4
+				new Variant(false, false, true,  num_steps,      split_threshold, same_range, diff_continue), // +8
+				new Variant(true,  false, true,  num_steps_disc, split_threshold, same_range, diff_continue) // +16
+		};
+		for (int num_var = 0; num_var < variants.length; num_var++){
+			if (variants_flags[num_var]) { // (variants_mask & (1 << num_var)) != 0) {
+//				scan.saveTileOpDisparity(); //  it is not used from this scan, but from last_scan
+				int num_op = setupExpand(
+						scan,                                   // final CLTPass3d   scan,            // combined scan with max_tried_disparity, will be modified to re-scan
+						last_scan,                              // final CLTPass3d   last_scan,       // last prepared tile - can use last_scan.disparity, .border_tiles and .selected
+						bg_scan,                                // final CLTPass3d   bg_scan,         // background scan data, null - ignore background 
+						passes,                                 //  final ArrayList <CLTPass3d> passes,// List, first, last - to search for the already tried disparity
+						firstPass,                              // final int         firstPass,       
+						lastPassPlus1,                          // final int         lastPassPlus1,
+						variants[num_var].expand_discontinuity, // final boolean     expand_discontinuity, // true - expand discontinuity over known tiles
+						variants[num_var].smooth_only,          // final boolean     smooth_only,   // Do not expand ambiguous cells (with discontinuity) (only valid for expand_discontinuity = false)
+						variants[num_var].extend_far,           // final boolean     extend_far,    // extend far (false - extend near)
+						variants[num_var].num_steps,            // final int         num_steps,  // how far to extend
+						smpl_size,                              // final int         smpl_size, // == 5
+						min_points,      // final int        min_points, // == 3
+						use_wnd,                                // final boolean     use_wnd,   // use window function fro the neighbors 
+						tilt_cost,                              // final double      tilt_cost,
+						variants[num_var].split_threshold,      //  final double      split_threshold, // if full range of the values around the cell higher, need separate fg, bg
+						variants[num_var].same_range,           //  final double      same_range,      // modify
+						variants[num_var].diff_continue,        // final double      diff_continue,   // maximal difference from the old value (for previously defined tiles
+						max_abs_tilt,                           // final double     max_abs_tilt, //   = 2.0; // pix per tile
+						max_rel_tilt,                           // final double     max_rel_tilt, //   = 0.2; // (pix / disparity) per tile
+						max_tries,                              // final int         max_tries, // maximal number of smoothing steps
+						final_diff,                             // final double      final_diff, // maximal change to finish iterations
+						grow_disp_max,                          // final double     grow_disp_max,
+						unique_pre_tolerance,                   // final double     unique_pre_tolerance, // usually larger than clt_parameters.unique_tolerance
+						show_expand,                            // final boolean     show_expand,
+						dbg_x,                                  // final int         dbg_x,
+						dbg_y,                                  // final int         dbg_y,
+						debugLevel);                            // final int         debugLevel)
+				if (num_op < min_new) {
+//					scan.restoreKeepTileOpDisparity(); // it is not used from this scan, but from last_scan
+					continue;
+				}
+				
+				// Remove tiles that were already tried, see if anything is left
+				int [] unique_stats = makeUnique(
+						passes, // clt_3d_passes,       // final ArrayList <CLTPass3d> passes,
+						firstPass,           //  final int                   firstPass,
+						lastPassPlus1, // clt_3d_passes.size(),// last_scan,           // - 1,                   //  final int                   lastPassPlus1,
+						scan,                //clt_3d_passes.get(refine_pass), //  final CLTPass3d             new_scan,
+						grow_disp_max,       // final double                grow_disp_max,
+						unique_tolerance,    //  final double                unique_tolerance,
+						show_unique);        // final boolean               show_unique)
+				int num_left = unique_stats[0];
+				if (num_left < min_new) {
+					if (debugLevel > 0){
+						System.out.println("prepareExpandVariants(): discarding variant "+num_var+ " as remaining "+num_left+" < "+min_new);
+					}		
+//					scan.restoreKeepTileOpDisparity();//  it is not used from this scan, but from last_scan
+					continue;
+				}
+				if (debugLevel > 0){
+					System.out.println("prepareExpandVariants(): remaining "+num_left+" tiles to be processed, used variant "+num_var);
+				}		
+				int [] rslt = {num_left, num_var};
+				return rslt;
+			}
+		}
+		return new int [2]; // nothing found
+	}
+	
+	
+	public int setupExpand(
+			final CLTPass3d   scan,            // combined scan with max_tried_disparity, will be modified to re-scan
+			final CLTPass3d   last_scan,       // last prepared tile - can use last_scan.disparity, .border_tiles and .selected
+			final CLTPass3d   bg_scan,         // background scan data, null - ignore background
+			final ArrayList <CLTPass3d> passes,// List, first, last - to search for the already tried disparity
+			final int         firstPass,       
+			final int         lastPassPlus1,
+			final boolean     expand_discontinuity, // true - expand discontinuity over known tiles
+			final boolean     smooth_only,   // Do not expand ambiguous cells (with discontinuity) (only valid for expand_discontinuity = false)
+			final boolean     extend_far,    // extend far (false - extend near)
+			final int         num_steps,  // how far to extend
+			final int         smpl_size, // == 5
+			final int         min_points, // == 3
+			final boolean     use_wnd,   // use window function fro the neighbors 
+			final double      tilt_cost,
+			final double      split_threshold, // if full range of the values around the cell higher, need separate fg, bg
+			final double      same_range,      // modify
+			final double      diff_continue,   // maximal difference from the old value (for previously defined tiles
+			final double      max_abs_tilt, //   = 2.0; // pix per tile
+			final double      max_rel_tilt, //   = 0.2; // (pix / disparity) per tile
+			final int         max_tries, // maximal number of smoothing steps
+			final double      final_diff, // maximal change to finish iterations
+			final double      grow_disp_max,
+			final double      unique_pre_tolerance, // usually larger than clt_parameters.unique_tolerance
+			final boolean     show_expand,
+			final int         dbg_x,
+			final int         dbg_y,
+			final int         debugLevel)
+	{
+		
+		final int tlen = tilesY * tilesX;
+		double [] disparity =     scan.getDisparity().clone(); // to modify in-place **** remove clone after debugged ****
+//		double [] dbg_disparity = scan.getDisparity().clone(); // to modify in-place **** remove clone after debugged ****
+		boolean [] these_no_border = new boolean [tlen];
+		for (int i = 0; i < these_no_border.length; i++) {
+			these_no_border[i] = last_scan.selected[i] && !last_scan.border_tiles[i]; 
+		}
+		
+		boolean [] dbg_last_selected = last_scan.selected.clone();
+		boolean [] dbg_last_border =   last_scan.border_tiles.clone();
+		boolean [] dbg_no_border =     these_no_border.clone();
+		
+		boolean [] known_tiles = these_no_border.clone();
+		// known are background or these tiles
+		if (bg_scan != null) {
+			for (int i = 0; i < known_tiles.length; i++) {
+				known_tiles[i] |= bg_scan.selected[i];
+			}
+		}
+		// set combo disparity from  last prepared
+		for (int nt = 0; nt < known_tiles.length; nt++){
+			int ty = nt / tilesX;
+			int tx = nt % tilesX;
+			disparity[nt] = 0.0;
+			if (these_no_border[nt]) disparity[nt] = last_scan.disparity[ty][tx];  
+		}
+		double [] dbg_disparity = disparity.clone();
+		
+		boolean [] expanded;
+		ExtendSurfaces es = new ExtendSurfaces(this);
+		if (expand_discontinuity) {
+			expanded = es.expandDiscontinuity( // return maximal correction value
+					passes,          // final ArrayList <CLTPass3d> passes,
+					firstPass,       // final int                   firstPass,
+					lastPassPlus1,   // final int                   lastPassPlus1,
+					disparity,       // final double []  values,     // will be modified, Double.NaN is not yet assigned
+					known_tiles,     // final boolean [] known,      // cells with known values (will not be modified)
+					num_steps,       // final int        num_steps,  // how far to extend
+					smpl_size,       // final int        smpl_size, // == 5
+					min_points,      // final int        min_points, // == 3
+					use_wnd,         // final boolean    use_wnd,   // use window function fro the neighbors 
+					tilt_cost,       // final double     tilt_cost,
+					split_threshold, // final double     split_threshold, // if full range of the values around the cell higher, need separate fg, bg
+					same_range,      // final double     same_range,      // modify
+					diff_continue,   // final double     diff_continue,   // maximal difference from the old value (for previously defined tiles
+					max_abs_tilt,    // final double     max_abs_tilt, //   = 2.0; // pix per tile
+					max_rel_tilt,    // final double     max_rel_tilt, //   = 0.2; // (pix / disparity) per tile
+					extend_far,      // final boolean    extend_far,    // extend far (false - extend near)
+					max_tries,       // final int        max_tries, // maximal number of smoothing steps
+					final_diff,      // final double     final_diff, // maximal change to finish iterations
+					grow_disp_max,    // final double     grow_disp_max,
+					unique_pre_tolerance, // final double     unique_pre_tolerance, // usually larger than clt_parameters.unique_tolerance
+					dbg_x,           // final int        dbg_x,
+					dbg_y,           // final int        dbg_y,
+					debugLevel);     // final int        debugLevel)
+
+		} else {
+			expanded = es.expandKnown( // return maximal correction value 
+					passes,          // final ArrayList <CLTPass3d> passes,
+					firstPass,       // final int                   firstPass,
+					lastPassPlus1,   // final int                   lastPassPlus1,
+					disparity,       // final double []  values,     // will be modified, Double.NaN is not yet assigned
+					known_tiles,     // final boolean [] known,      // cells with known values (will not be modified)
+					num_steps,       // final int        num_steps,  // how far to extend
+					smpl_size,       // final int        smpl_size, // == 5
+					min_points,      // final int        min_points, // == 3
+					use_wnd,         // final boolean    use_wnd,   // use window function fro the neighbors 
+					tilt_cost,       // final double     tilt_cost,
+					split_threshold, // final double     split_threshold, // if full range of the values around the cell higher, need separate fg, bg
+					same_range,      // final double     same_range,      // modify
+					diff_continue,   // final double     diff_continue,   // maximal difference from the old value (for previously defined tiles
+					max_abs_tilt,    // final double     max_abs_tilt, //   = 2.0; // pix per tile
+					max_rel_tilt,    // final double     max_rel_tilt, //   = 0.2; // (pix / disparity) per tile
+					smooth_only,     // final boolean    smooth_only,   // Do not expand ambiguous cells (with discontinuity)
+					extend_far,      // final boolean    extend_far,    // extend far (false - extend near)
+					max_tries,       // final int        max_tries, // maximal number of smoothing steps
+					final_diff,      // final double     final_diff, // maximal change to finish iterations 
+					grow_disp_max,    // final double     grow_disp_max,
+					unique_pre_tolerance, // final double     unique_pre_tolerance, // usually larger than clt_parameters.unique_tolerance
+					dbg_x,           // final int        dbg_x,
+					dbg_y,           // final int        dbg_y,
+					debugLevel);     // final int        debugLevel)
+		}
+		// combine what was prepared by refine and here
+		if (expanded == null) return 0;
+		boolean [] selected = new boolean[tlen];
+		boolean [] border =   new boolean[tlen];
+		for (int nTile = 0; nTile < tlen; nTile++){
+			//			selected[nTile] = known_tiles[nTile] || last_scan.selected[nTile] || expanded[nTile];
+//			if ((last_scan.selected == null) || (expanded == null) || (disparity == null)) {
+//				System.out.println( " BUG in setupExpand()");
+//			}  else {
+				selected[nTile] = (last_scan.selected[nTile] || expanded[nTile]) && !Double.isNaN(disparity[nTile]); // selected by refine and new java.lang.NullPointerException
+				border[nTile] = selected[nTile] && !known_tiles[nTile];
+//			}
+		}
+		scan.setSelected(selected);
+		scan.setBorderTiles(border);
+		int num_op = scan.setTileOpDisparity(
+				selected,   // boolean [] selection,
+				disparity); // double []  disparity)
+		if (debugLevel > 0){
+			System.out.println("setupExpand(): set "+num_op+" tiles to be processed (some will be removed)");
+		}		
+		// show debug images
+		if (show_expand){
+			String [] titles = {"disp_prev", "disparity", "masked", "sel_border","expanded","tile_op","pre-disparity", "this_tile_op", "this_pre-disparity","filt_disp","filt_str"};
+			double [][] dbg_img = new double [titles.length][];
+			dbg_img[0] = dbg_disparity;
+			dbg_img[1] = disparity;
+			dbg_img[2] = disparity.clone();
+			dbg_img[3] = new double[tlen];
+			dbg_img[4] = new double[tlen];
+			dbg_img[5] = new double[tlen];
+			dbg_img[6] = new double[tlen];
+			dbg_img[7] = new double[tlen];
+			dbg_img[8] = new double[tlen];
+			if (this.dbg_filtered_disp_strength != null) {
+				dbg_img[ 9] = this.dbg_filtered_disp_strength[0];
+				dbg_img[10] = this.dbg_filtered_disp_strength[1];
+			}
+						
+			
+			for (int i = 0; i < tlen; i++) {
+				dbg_img[3][i] = (dbg_last_selected[i]? 1.0:0.0)+ (dbg_last_border[i]? 2.0:0.0);
+				if (expanded != null) {
+					dbg_img[4][i] = (expanded[i]? 1.0:0.0);
+					if (!expanded[i]) dbg_img[2][i] = Double.NaN;
+				}
+			}
+			if (last_scan.tile_op!= null){
+				for (int ty = 0; ty < tilesY; ty++){
+					for (int tx = 0; tx < tilesX; tx++){
+						if (last_scan.tile_op[ty] != null) dbg_img[5][ty*tilesX + tx] = last_scan.tile_op[ty][tx]; 
+					}
+				}
+			}
+			if (last_scan.disparity!= null){
+				for (int ty = 0; ty < tilesY; ty++){
+					for (int tx = 0; tx < tilesX; tx++){
+						if (last_scan.disparity[ty] != null) dbg_img[6][ty*tilesX + tx] = last_scan.disparity[ty][tx]; 
+					}
+				}
+			}
+			if (scan.tile_op!= null){
+				for (int ty = 0; ty < tilesY; ty++){
+					for (int tx = 0; tx < tilesX; tx++){
+						if (scan.tile_op[ty] != null) dbg_img[7][ty*tilesX + tx] = scan.tile_op[ty][tx]; 
+					}
+				}
+			}
+			if (scan.disparity!= null){
+				for (int ty = 0; ty < tilesY; ty++){
+					for (int tx = 0; tx < tilesX; tx++){
+						if (scan.disparity[ty] != null) dbg_img[8][ty*tilesX + tx] = scan.disparity[ty][tx]; 
+					}
+				}
+			}
+			
+			(new showDoubleFloatArrays()).showArrays(dbg_img,  tilesX, tilesY, true, "setupExpand",titles);
+		}
+		
+		return num_op;
+	}
+	
 	
 	public int setupExtendDisparity( // returns number of new tiles to try
 			final CLTPass3d   scan,            // combined scan with max_tried_disparity, will be modified to re-scan
@@ -4601,7 +5028,7 @@ public class TileProcessor {
 				clt_parameters.stHighMix,       // stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
 				world_hor,                      // final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
 				clt_parameters.show_histograms, // final boolean    show_histograms,
-				0, // -1,                       // debugLevel,                  // final int        debugLevel)
+				1, // -1,                       // debugLevel,                  // final int        debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 //		showDoubleFloatArrays sdfa_instance = null;

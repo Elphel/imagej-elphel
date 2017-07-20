@@ -2674,33 +2674,33 @@ public class LinkPlanes {
 
 										System.out.println("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs:");
 										System.out.print("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs weighted: ");
-										for (int i = 0; i < costs[0].length;i++) {
+										if ( costs[0] != null) for (int i = 0; i < costs[0].length;i++) {
 											System.out.print(costs[0][i]+" ");
 										}
 										System.out.println();
 										System.out.print("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs equalized: ");
-										for (int i = 0; i < costs[1].length;i++) {
+										if ( costs[1] != null) for (int i = 0; i < costs[1].length;i++) {
 											System.out.print(costs[1][i]+" ");
 										}
 										System.out.println();
 										System.out.print("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs weighted, 1-st star, 2-nd measured: ");
-										for (int i = 0; i < costs[2].length;i++) {
+										if ( costs[2] != null) for (int i = 0; i < costs[2].length;i++) {
 											System.out.print(costs[2][i]+" ");
 										}
 										System.out.println();
 										System.out.print("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs equalized, 1-st star, 2-nd measured: ");
-										for (int i = 0; i < costs[3].length;i++) {
+										if ( costs[3] != null) for (int i = 0; i < costs[3].length;i++) {
 											System.out.print(costs[3][i]+" ");
 										}
 										System.out.println();
 										System.out.println();
 										System.out.print("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs weighted, 1-st measured, 2-nd star: ");
-										for (int i = 0; i < costs[4].length;i++) {
+										if ( costs[4] != null) for (int i = 0; i < costs[4].length;i++) {
 											System.out.print(costs[4][i]+" ");
 										}
 										System.out.println();
 										System.out.print("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+" costs equalized, 1-st measured, 2-nd star: ");
-										for (int i = 0; i < costs[5].length;i++) {
+										if ( costs[5] != null) for (int i = 0; i < costs[5].length;i++) {
 											System.out.print(costs[5][i]+" ");
 										}
 										System.out.println();

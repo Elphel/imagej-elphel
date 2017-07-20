@@ -584,7 +584,7 @@ public class MeasuredLayers {
 	 * @return double [2][4*superTileSize] {disparity[4*superTileSize], strength [4*superTileSize]}
 	 */
 
-	public double[][] getDisparityStrength (
+	public double[][] getDisparityStrengthML (
 			int num_layer,
 			int stX,
 			int stY,
@@ -638,7 +638,7 @@ public class MeasuredLayers {
 	 * @return double {disparity[tilesX * tilesY], strength[tilesX * tilesY]}
 	 */
 
-	public double[][] getDisparityStrength (
+	public double[][] getDisparityStrengthML (
 			int num_layer,
 			double strength_floor,
 			double strength_pow)
@@ -750,7 +750,7 @@ public class MeasuredLayers {
 			for (int dx = 0; dx < st2; dx ++){
 				int indx = dy * st2 + dx;
 				if (indx == dbg_tile){
-					System.out.println("getDisparityStrength(): stX="+stX+" stY="+stY+" dx="+dx+" dy="+dy);
+					System.out.println("getDisparityStrengthML(): stX="+stX+" stY="+stY+" dx="+dx+" dy="+dy);
 				}
 				if (((sel_in == null) || sel_in[indx])){
 					int num_in_sample = 0;
@@ -796,7 +796,7 @@ public class MeasuredLayers {
 								}
 							}
 							if (iworst < 0){
-								System.out.println("**** this is a BUG in getDisparityStrength() ****");
+								System.out.println("**** this is a BUG in getDisparityStrengthML() ****");
 								break;
 							}
 							// remove worst sample
@@ -820,7 +820,7 @@ public class MeasuredLayers {
 							}
 						} else {
 							num_in_sample = 0;
-							System.out.println("**** this is a BUG in getDisparityStrength(), shoud not happen ? ****");
+							System.out.println("**** this is a BUG in getDisparityStrengthML(), shoud not happen ? ****");
 						}
 					}
 				}				
@@ -884,7 +884,7 @@ public class MeasuredLayers {
 	}
 	
 	// testing - redirecting all existing requests to this one with floating planes
-	public double[][] getDisparityStrength (
+	public double[][] getDisparityStrengthMLTilted (
 			int num_layer,
 			int stX,
 			int stY,
@@ -895,13 +895,14 @@ public class MeasuredLayers {
 			int        smplNum, //         = 3;      // Number after removing worst (should be >1)
 			double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 			boolean    smplWnd, //
+			double     damp_tilt,    //
 			boolean    null_if_none,
 			int        debugLevel)
 	{
 		boolean use_new = true; // false;
 		
 		if (use_new) {
-		return getDisparityStrength (
+		return getDisparityStrengthMLTilted (
 				num_layer,      // int num_layer,
 				stX,            // int stX,
 				stY,            // int stY,
@@ -915,6 +916,7 @@ public class MeasuredLayers {
 				smplWnd,        // boolean    smplWnd, //
 				2.0,            // double     max_abs_tilt, //  = 2.0; // pix per tile
 				0.2,            // double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
+				damp_tilt,      // double     damp_tilt,    //
 				null_if_none,   // boolean    null_if_none,
 				debugLevel);    // int        debugLevel)
 		} else {
@@ -938,7 +940,7 @@ public class MeasuredLayers {
 		}
 	}
 	
-	public double[][] getDisparityStrength (
+	public double[][] getDisparityStrengthMLTilted (
 			int num_layer,
 			int stX,
 			int stY,
@@ -954,6 +956,7 @@ public class MeasuredLayers {
 			boolean    smplWnd, //
 			double     max_abs_tilt, //  = 2.0; // pix per tile
 			double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
+			double     damp_tilt,    //
 			boolean    null_if_none,
 			int        debugLevel)
 	{
@@ -961,6 +964,8 @@ public class MeasuredLayers {
 		if ((layers[num_layer] == null) && null_if_none){
 			return null;
 		}
+		final double [] damping = {damp_tilt, damp_tilt, 0.0}; // 0.0 will be applied to average value, tilt_cost - to both tilts
+		
 		int st2 = 2 * superTileSize;
 		int st_half = superTileSize/2;
 		double [][] ds = new double [2][st2*st2];
@@ -1015,7 +1020,7 @@ public class MeasuredLayers {
 			for (int dx = 0; dx < st2; dx ++){
 				int indx = dy * st2 + dx;
 				if (indx == dbg_tile){
-					System.out.println("getDisparityStrength(): stX="+stX+" stY="+stY+" dx="+dx+" dy="+dy);
+					System.out.println("getDisparityStrengthML(): stX="+stX+" stY="+stY+" dx="+dx+" dy="+dy);
 				}
 				if (((sel_in == null) || sel_in[indx])){
 					int num_in_sample = 0;
@@ -1044,7 +1049,7 @@ public class MeasuredLayers {
 						{
 						boolean en_tilt = (atiltXY == null);
 						if (en_tilt) { // make sure there are enough samples and not all of them are on the same line
-							if (!notColinear(smpl_sel,smplSide)){
+							if ((damp_tilt == 0.0) && !notColinear(smpl_sel,smplSide)){
 								en_tilt = false;
 							}
 						}
@@ -1077,12 +1082,13 @@ public class MeasuredLayers {
 								double[][] approx2d = pa.quadraticApproximation(
 										mdata,
 										true,          // boolean forceLinear,  // use linear approximation
+										damping,       // double [] damping,
 										thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
 										thresholdQuad, // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
 										debugLevel);
 								if (approx2d == null){
 									if (debugLevel > -1){
-										System.out.println("getDisparityStrength(): can not find linear approximation");
+										System.out.println("getDisparityStrengthML(): can not find linear approximation");
 									}
 									break sample_loop;
 								}
@@ -1142,7 +1148,7 @@ public class MeasuredLayers {
 										double d2 = smpl_d[indxs] - smpl_p[indxs];
 										d2 *=d2;
 										if (d2 > dworst2) {
-											if (notColinearWithout (
+											if ((damp_tilt !=0.0) || notColinearWithout (
 													indxs, // int        indx,
 													smpl_sel, // boolean [] sel,
 													smplSide)) { // int side))
@@ -1153,7 +1159,7 @@ public class MeasuredLayers {
 									}
 									if (iworst < 0){
 										if (debugLevel > 0) {
-											System.out.println("**** this may be BUG in getDisparityStrength() can not find the worst sample  - all tiles fit perfectly ****");
+											System.out.println("**** this may be BUG in getDisparityStrengthML() can not find the worst sample  - all tiles fit perfectly ****");
 										}
 										// this can happen if some samples are the same and all the pixels fit exactly - use all of them
 										break;
@@ -1228,7 +1234,7 @@ public class MeasuredLayers {
 									}
 								}
 								if (iworst < 0){
-									System.out.println("**** this is a BUG in getDisparityStrength() ****");
+									System.out.println("**** this is a BUG in getDisparityStrengthML() ****");
 									break;
 								}
 								// remove worst sample
@@ -1252,7 +1258,7 @@ public class MeasuredLayers {
 								}
 							} else {
 								num_in_sample = 0;
-								System.out.println("**** this is a BUG in getDisparityStrength(), shoud not happen ? ****");
+								System.out.println("**** this is a BUG in getDisparityStrengthML(), shoud not happen ? ****");
 							}
 						}
 						}

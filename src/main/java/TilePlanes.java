@@ -780,7 +780,7 @@ public class TilePlanes {
 			for (int nl = 0; nl < measuredLayers.getNumLayers(); nl ++){
 				if ((measuredSelection[nl] != null) &&  ((measSel & (1 << nl)) !=0)) {
 					if (smplMode) {
-						disp_strength[nl] = measuredLayers.getDisparityStrength( // expensive to calculate (improve removing outlayers
+						disp_strength[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
 								nl, // int num_layer,
 								getSTileXY()[0],        // int stX,
 								getSTileXY()[1],        // int stY,
@@ -791,10 +791,11 @@ public class TilePlanes {
 								smplNum, //         = 3;      // Number after removing worst
 								smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 								smplWnd,  // use window functions for the samples
+								0.001, // double     damp_tilt,    //
 								true, // boolean null_if_none)
 								debugLevel);
 					} else {
-						disp_strength[nl] = measuredLayers.getDisparityStrength(
+						disp_strength[nl] = measuredLayers.getDisparityStrengthML(
 								nl,                     // int num_layer,
 								getSTileXY()[0],        // int stX,
 								getSTileXY()[1],        // int stY,
@@ -906,7 +907,7 @@ public class TilePlanes {
 					if ((measuredSelection[nl] != null) &&  ((measSel & (1 << nl)) !=0)) {
 						// recalculate for all measure tiles, not just selected in the original PD
 						if (smplMode) {
-							disp_strength[nl] = measuredLayers.getDisparityStrength( // expensive to calculate (improve removing outlayers
+							disp_strength[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
 									nl, // int num_layer,
 									getSTileXY()[0],        // int stX,
 									getSTileXY()[1],        // int stY,
@@ -917,10 +918,11 @@ public class TilePlanes {
 									smplNum, //         = 3;      // Number after removing worst
 									smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 									smplWnd,  // use window functions for the samples
+									0.001, // double     damp_tilt,    //
 									true, // boolean null_if_none)
 									debugLevel);
 						} else {
-							disp_strength[nl] = measuredLayers.getDisparityStrength(
+							disp_strength[nl] = measuredLayers.getDisparityStrengthML(
 									nl,                     // int num_layer,
 									getSTileXY()[0],        // int stX,
 									getSTileXY()[1],        // int stY,
@@ -929,7 +931,7 @@ public class TilePlanes {
 									measured_strength_pow,  // double strength_pow,
 									true);                  // boolean null_if_none);
 						}
-						//disp_strength[nl] = measuredLayers.getDisparityStrength(
+						//disp_strength[nl] = measuredLayers.getDisparityStrengthML(
 						for (int indx = 0; indx < disp_strength[nl][1].length; indx++){
 							double w = disp_strength[nl][1][indx];
 							if (w > 0.0){
@@ -1157,7 +1159,7 @@ public class TilePlanes {
 					if (measuredSelection[nl] != null){
 						if (smplMode) {
 							if (need_disp_str) {
-								disp_str[nl] = measuredLayers.getDisparityStrength( // expensive to calculate (improve removing outlayers
+								disp_str[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
 										nl, // int num_layer,
 										sTileXY[0], // int stX,
 										sTileXY[1], // int stY,
@@ -1168,11 +1170,12 @@ public class TilePlanes {
 										smplNum,  //         = 3;      // Number after removing worst
 										smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 										smplWnd,  // use window functions for the samples
+										0.001, // double     damp_tilt,    //
 										true,     // boolean null_if_none)
 										debugLevel);
 							}
 						} else {						
-							disp_str[nl] = measuredLayers.getDisparityStrength(
+							disp_str[nl] = measuredLayers.getDisparityStrengthML(
 									nl, // int num_layer,
 									sTileXY[0], // int stX,
 									sTileXY[1], // int stY,
@@ -1354,7 +1357,7 @@ public class TilePlanes {
 				if (tile_sel[nl] != null){
 					if (smplMode) {
 						if (need_disp_str) {
-							disp_str[nl] = measuredLayers.getDisparityStrength( // expensive to calculate (improve removing outlayers
+							disp_str[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
 									nl, // int num_layer,
 									sTileXY[0], // int stX,
 									sTileXY[1], // int stY,
@@ -1366,6 +1369,7 @@ public class TilePlanes {
 									smplNum, //         = 3;      // Number after removing worst
 									smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 									smplWnd, // final boolean    smplWnd,        // use window functions fro the samples
+									0.001, // double     damp_tilt,    //
 									true, // boolean null_if_none)
 									debugLevel);
 						}
@@ -1409,7 +1413,7 @@ public class TilePlanes {
 						}
 						num_tiles += MeasuredLayers.getNumSelected(tile_sel[nl]);
 						if (tile_sel[nl] != null){
-							disp_str[nl] = measuredLayers.getDisparityStrength(
+							disp_str[nl] = measuredLayers.getDisparityStrengthML(
 									nl, // int num_layer,
 									sTileXY[0], // int stX,
 									sTileXY[1], // int stY,
@@ -1663,7 +1667,7 @@ public class TilePlanes {
 				if (tile_sel[nl] != null){
 					if (smplMode) {
 						if (need_disp_str) {
-							disp_str[nl] = measuredLayers.getDisparityStrength( // expensive to calculate (improve removing outlayers
+							disp_str[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
 									nl, // int num_layer,
 									sTileXY[0], // int stX,
 									sTileXY[1], // int stY,
@@ -1675,6 +1679,7 @@ public class TilePlanes {
 									smplNum,  //         = 3;      // Number after removing worst
 									smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 									smplWnd,  // use window functions for the samples
+									0.001, // double     damp_tilt,    //
 									true,     // boolean null_if_none)
 									debugLevel);
 						}
@@ -1718,7 +1723,7 @@ public class TilePlanes {
 						}
 						num_tiles += MeasuredLayers.getNumSelected(tile_sel[nl]);
 						if (tile_sel[nl] != null){
-							disp_str[nl] = measuredLayers.getDisparityStrength(
+							disp_str[nl] = measuredLayers.getDisparityStrengthML(
 									nl, // int num_layer,
 									sTileXY[0], // int stX,
 									sTileXY[1], // int stY,
@@ -4106,7 +4111,7 @@ public class TilePlanes {
 			double [][][] disp_strength = new double[measuredLayers.getNumLayers()][][];
 			for (int ml = 0; ml < disp_strength.length; ml++) if ((stMeasSel & ( 1 << ml)) != 0){
 				if (smplMode) {
-					disp_strength[ml] = measuredLayers.getDisparityStrength( // expensive to calculate (improve removing outlayers
+					disp_strength[ml] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
 							ml, // int num_layer,
 							getSTileXY()[0],        // int stX,
 							getSTileXY()[1],        // int stY,
@@ -4117,10 +4122,11 @@ public class TilePlanes {
 							smplNum,                // = 3;      // Number after removing worst
 							smplRms,                // = 0.1;    // Maximal RMS of the remaining tiles in a sample
 							smplWnd,                // use window functions for the samples
+							0.001, // double     damp_tilt,    //
 							true,                   // boolean null_if_none)
 							debugLevel);
 				} else {
-					disp_strength[ml] = measuredLayers.getDisparityStrength(
+					disp_strength[ml] = measuredLayers.getDisparityStrengthML(
 							ml,                     // int num_layer,
 							getSTileXY()[0],        // int stX,
 							getSTileXY()[1],        // int stY,
@@ -4533,7 +4539,7 @@ public class TilePlanes {
 			double [][][] disp_strength = new double[measuredLayers.getNumLayers()][][];
 			for (int ml = 0; ml < disp_strength.length; ml++) if ((stMeasSel & ( 1 << ml)) != 0){
 				if (smplMode) {
-					disp_strength[ml] = measuredLayers.getDisparityStrength( // expensive to calculate (improve removing outlayers
+					disp_strength[ml] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
 							ml, // int num_layer,
 							getSTileXY()[0],        // int stX,
 							getSTileXY()[1],        // int stY,
@@ -4544,10 +4550,11 @@ public class TilePlanes {
 							smplNum,                // = 3;      // Number after removing worst
 							smplRms,                // = 0.1;    // Maximal RMS of the remaining tiles in a sample
 							smplWnd,                // use window functions for the samples
+							0.001, // double     damp_tilt,    //
 							true,                  // boolean null_if_none)
 							debugLevel);
 				} else {
-					disp_strength[ml] = measuredLayers.getDisparityStrength(
+					disp_strength[ml] = measuredLayers.getDisparityStrengthML(
 							ml,                     // int num_layer,
 							getSTileXY()[0],        // int stX,
 							getSTileXY()[1],        // int stY,
@@ -5321,7 +5328,7 @@ public class TilePlanes {
 			double [][][] disp_strength = new double[measuredLayers.getNumLayers()][][];
 			for (int ml = 0; ml < disp_strength.length; ml++) if (fg_sel[ml] != null){ //  if ((stMeasSel & ( 1 << ml)) != 0) {
 				if (smplMode) {
-					disp_strength[ml] = measuredLayers.getDisparityStrength( // expensive to calculate (improve removing outlayers
+					disp_strength[ml] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
 							ml, // int num_layer,
 							getSTileXY()[0],        // int stX,
 							getSTileXY()[1],        // int stY,
@@ -5332,10 +5339,11 @@ public class TilePlanes {
 							smplNum,                // = 3;      // Number after removing worst
 							smplRms,                // = 0.1;    // Maximal RMS of the remaining tiles in a sample
 							smplWnd,                // use window functions for the samples
+							0.001, // double     damp_tilt,    //
 							true,                  // boolean null_if_none)
 							debugLevel);
 				} else {
-					disp_strength[ml] = measuredLayers.getDisparityStrength(
+					disp_strength[ml] = measuredLayers.getDisparityStrengthML(
 							ml,                     // int num_layer,
 							getSTileXY()[0],        // int stX,
 							getSTileXY()[1],        // int stY,

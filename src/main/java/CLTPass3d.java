@@ -27,9 +27,11 @@ import java.awt.Rectangle;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class CLTPass3d{
-		public  double [][]     disparity; // per-tile disparity set for the pass[tileY][tileX] 
-		public  int    [][]     tile_op;   // what was done in the current pass
-		public  double [][]     disparity_map =  null; // add 4 layers - worst difference for the port
+		public   double [][]    disparity; // per-tile disparity set for the pass[tileY][tileX] 
+		public   int    [][]    tile_op;   // what was done in the current pass
+		private  double [][]    disparity_sav; // saved disaprity 
+		private  int    [][]    tile_op_sav;   // saved tile_op
+		public   double [][]    disparity_map =  null; // add 4 layers - worst difference for the port
 		double []               calc_disparity = null; // composite disparity, calculated from "disparity", and "disparity_map" fields
 		                                       // using horizontal features and corr_magic_scale
 		// used directly in TileProcessor.compositeScan()
@@ -55,7 +57,7 @@ public class CLTPass3d{
 		public  boolean         is_combo =             false;
 		public  boolean         is_measured =          false;
 		public  String          texture = null; // relative (to x3d) path
-		public  Rectangle       bounds;
+		public  Rectangle       texture_bounds;
 		public  int             dbg_index;
 		public  int             disparity_index = ImageDtt.DISPARITY_INDEX_CM; // may also be ImageDtt.DISPARITY_INDEX_POLY
 		
@@ -133,6 +135,9 @@ public class CLTPass3d{
 				return "null-texture-name";
 			}
 		}
+		
+		
+		// Will not work if texture is disabled
 		public  void            updateSelection(){ // add updating border tiles?
 			int tilesX = tileProcessor.getTilesX();
 			int tilesY = tileProcessor.getTilesY();
@@ -149,7 +154,11 @@ public class CLTPass3d{
 					selected[ty * tilesX + tx] = false; // may be omitted 
 				}
 			}
-			bounds = new Rectangle(minX, minY, maxX - minX +1, maxY - minY +1 );
+			texture_bounds = new Rectangle(minX, minY, maxX - minX +1, maxY - minY +1 );
+		}
+		
+		public  Rectangle  getTextureBounds(){
+			return texture_bounds;
 		}
 		
 		public boolean isProcessed(){
@@ -219,7 +228,11 @@ public class CLTPass3d{
 		public void setSelected (boolean [] selected) {
 			this.selected = selected;
 		}
+		public void setBorderTiles (boolean [] border_tiles) {
+			this.border_tiles = border_tiles;
+		}
 
+		
 		public void fixNaNDisparity()
 		{
 			fixNaNDisparity(
@@ -647,6 +660,65 @@ public class CLTPass3d{
 			ImageDtt.startAndJoin(threads);
 			return measured;
 		}
+		
+		public void saveTileOpDisparity()
+		{
+			disparity_sav =disparity.clone();
+			for (int i = 0; i < disparity.length; i++ ) if (disparity[i]!= null) disparity_sav[i] = disparity[i].clone();
+			tile_op_sav =tile_op.clone();
+			for (int i = 0; i < tile_op.length; i++ ) if (tile_op[i]!= null) tile_op_sav[i] = tile_op[i].clone();
+		}
+		public void restoreTileOpDisparity()
+		{
+			disparity = disparity_sav;
+			tile_op = tile_op_sav;
+		}
+		public void restoreKeepTileOpDisparity()
+		{
+			restoreTileOpDisparity();
+			saveTileOpDisparity();
+		}
+		
+		public int setTileOpDisparity(
+				boolean [] selection,
+				double []  disparity)
+		{
+			int op = ImageDtt.setImgMask(0, 0xf);
+			op =     ImageDtt.setPairMask(op,0xf);
+			op =     ImageDtt.setForcedDisparity(op,true);
+			return setTileOpDisparity(
+					op,         // int        tile_op,
+					selection,  // boolean [] selection,
+					disparity); // double []  disparity)
+		}
+		public int setTileOpDisparity(
+				int        tile_op,
+				boolean [] selection,
+				double []  disparity)
+		{
+			final int tilesX = tileProcessor.getTilesX();
+			final int tilesY = tileProcessor.getTilesY();
+			this.disparity =   new double [tilesY][tilesX];
+			this.tile_op =     new int [tilesY][tilesX];
+			int num_op_tiles = 0;
+
+			for (int ty = 0; ty < tilesY; ty++) for (int tx = 0; tx <tilesX; tx++){
+				int indx =  tilesX * ty + tx;
+				if (this.selected[indx]) {
+					this.disparity[ty][tx] = disparity[indx];
+					this.tile_op[ty][tx] = tile_op;
+					num_op_tiles ++;
+				} else {
+					this.disparity[ty][tx] = 0.0;
+					this.tile_op[ty][tx] = 0;
+				}
+			}
+			return num_op_tiles;
+		}
+		
+		
+		
+		
 		
 		
 		public double [] getSecondMaxDiff (

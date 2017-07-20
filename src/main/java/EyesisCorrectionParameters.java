@@ -1935,6 +1935,7 @@ public class EyesisCorrectionParameters {
   		public double     vignetting_range  = 5.0; // do not try to correct vignetting less than vignetting_max/vignetting_range
   		public int        kernel_step =       16;  // source kernels step in pixels (have 1 kernel margin on each side)  
   		public double     disparity  =        0.0; // nominal disparity between side of square cameras (pix)
+  		public double     z_correction  =     0.0; // Inverse distance to infinity (misalignment cortrection)
   		public boolean    correlate =         true; // calculate correlation
   		public int        corr_mask =         15;  // bitmask of pairs to combine in the composite
   		public boolean    corr_sym =          false; // combine correlation with mirrored around disparity direction
@@ -2123,7 +2124,7 @@ public class EyesisCorrectionParameters {
   		public double     poles_min_strength = 0.1; // Set new pole segment strength to max of horizontal correlation and this value
   		public boolean    poles_force_disp = true;  // Set disparity to that of the bottom of existing segment (false - use hor. disparity)
   		
-  		public int        max_clusters     = 300;   // Maximal number of clusters to generate for one run
+  		public int        max_clusters     = 500;   // Maximal number of clusters to generate for one run
   		public boolean    remove_scans     = true;  // Remove all unneeded scans when generating x3d output to save memory
   		
   		
@@ -2209,7 +2210,9 @@ public class EyesisCorrectionParameters {
   		public double     combine_min_strength = 0.12; // Disregard weaker tiles when combining scans
   		public double     combine_min_hor =      0.12; // Disregard weaker tiles when combining scans for horizontal correlation
   		public double     combine_min_vert =     0.12; // Disregard weaker tiles when combining scans for vertical correlation
-  		public double     unique_tolerance = 0.1; // Do not re-measure correlation if target disparity differs from some previous by this
+  		
+// TODO: Move together with similar parameters  		
+//  		public double     unique_tolerance = 0.1; // Do not re-measure correlation if target disparity differs from some previous by this
   		
   		// Multi-pass growing disparity
   		public int        grow_sweep         = 8; // Try these number of tiles around known ones 
@@ -2222,6 +2225,46 @@ public class EyesisCorrectionParameters {
   		public boolean    grow_pedantic =   false; // Scan full range between max_tried_disparity of the background and known foreground
 		public boolean    grow_retry_inf =  false;  // Retry border tiles that were identified as infinity earlier
   		
+		// New for initial growing
+		public boolean    gr_new_expand = true;
+		public int        gr_max_expand =  500; // 150; // 30;
+		public double     gr_strength_floor =  0.9; // Should be normally less than combine_min_strength 
+		public double     gr_comboMinStrength =     0.3; // 0.3; 
+		public double     gr_comboMinStrengthHor =  0.3; // 0.3;
+		public double     gr_comboMinStrengthVert = 0.3; // 0.3;
+		public double     gr_filterMinStrength =    0.3; // 0.3; 
+		  
+		public double     gr_strength_pow    = 1.0;
+		public int        gr_smplSide        = 5; // 3;      // Sample size (side of a square)
+		public int        gr_smplNum         = 13; // 13; // 5;      // Number after removing worst (should be >1)
+		public double     gr_smplRms        = 0.15; // Maximal RMS of the remaining tiles in a sample
+		public double     gr_smplRelRms     = 0.01; // 05;  // Maximal RMS/disparity in addition to smplRms
+		public boolean    gr_smplWnd = true; //
+		public double     gr_max_abs_tilt   = 2.0; // pix per tile
+		public double     gr_max_rel_tilt   = 0.2; // (pix / disparity) per tile
+//		  0x1e, // 0x1f, // final int         variants_mask,
+		public int        gr_min_new           =  20;    // Discard variant if it requests too few tiles
+		public boolean    gr_var_new_sngl      =   false;// Expand only unambiguous tiles over previously undefined  
+		public boolean    gr_var_new_fg        =   true; // Expand unambiguous and foreground tiles over previously undefined
+		public boolean    gr_var_all_fg        =   true;  
+		public boolean    gr_var_new_bg        =   true;  
+		public boolean    gr_var_all_bg        =   true;  
+		public int        gr_num_steps         =   8;    // How far to extend over previously undefined disparity tiles
+		public int        gr_steps_over        =   4;    // How far to extend over previously determined disparity tiles
+		public int        gr_smpl_size         =   5;    // Extend sample square side
+		public int        gr_min_pnts          =   3;    // Extend at least this number of the seed tiles
+		public boolean    gr_use_wnd           =   true; // Use window function for square sample 
+		public double     gr_tilt_damp         =   0.001;// Tilt cost for damping insufficient plane data 
+		public double     gr_split_rng         =   5.0;  // When growing, range of disparities to be extended without far/near division
+		public double     gr_same_rng          =   3.0;  // consider far/near tiles within that range from the farthest/closest
+		public double     gr_diff_cont         =   2.0;  // Maximal difference from the old value when smoothing
+		public double     gr_abs_tilt          =   2.0;  // Maximal filter disparity absolute tilt (pix per tile)
+		public double     gr_rel_tilt          =   0.2;  // Maximal filter disparity tilt (pix / disparity) per tile
+		public int        gr_smooth            =   50;   // Maximal number of smoothing steps (reduce if long?)
+		public double     gr_fin_diff          =   0.01; // Maximal change to finish smoothing iterations 
+ 		public double     gr_unique_tol        =   0.15; // Do not re-measure correlation if target disparity differs from some previous by this
+	 	public double     gr_unique_pretol     =   0.5;  // Larger tolerance for expanding (not refining)
+		
   		public boolean    plPreferDisparity    =   false;// Always start with disparity-most axis (false - lowest eigenvalue)
   		public double     plDispNorm           =   5.0;  // Normalize disparities to the average if above (now only for eigenvalue comparison)
   		
@@ -2512,6 +2555,7 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"vignetting_range", this.vignetting_range+"");
   			properties.setProperty(prefix+"kernel_step",      this.kernel_step+"");
   			properties.setProperty(prefix+"disparity",        this.disparity +"");
+  			properties.setProperty(prefix+"z_correction",     this.z_correction +"");
 			properties.setProperty(prefix+"correlate",        this.correlate+"");
   			properties.setProperty(prefix+"corr_mask",        this.corr_mask+"");
 			properties.setProperty(prefix+"corr_sym",         this.corr_sym+"");
@@ -2758,7 +2802,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"combine_min_strength", this.combine_min_strength +"");
 			properties.setProperty(prefix+"combine_min_hor",  this.combine_min_hor +"");
 			properties.setProperty(prefix+"combine_min_vert", this.combine_min_vert +"");
-			properties.setProperty(prefix+"unique_tolerance", this.unique_tolerance +"");
+//			properties.setProperty(prefix+"unique_tolerance", this.unique_tolerance +"");
   			properties.setProperty(prefix+"grow_sweep",       this.grow_sweep+"");
 			properties.setProperty(prefix+"grow_disp_max",    this.grow_disp_max +"");
 			properties.setProperty(prefix+"grow_disp_trust",  this.grow_disp_trust +"");
@@ -2767,6 +2811,43 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"grow_retry_far",   this.grow_retry_far+"");
 			properties.setProperty(prefix+"grow_pedantic",    this.grow_pedantic+"");
 			properties.setProperty(prefix+"grow_retry_inf",   this.grow_retry_inf+"");
+			
+			properties.setProperty(prefix+"gr_new_expand",    this.gr_new_expand+"");
+  			properties.setProperty(prefix+"gr_max_expand",    this.gr_max_expand+"");
+			properties.setProperty(prefix+"gr_strength_floor",this.gr_strength_floor +"");
+			properties.setProperty(prefix+"gr_comboMinStrength",    this.gr_comboMinStrength +"");
+			properties.setProperty(prefix+"gr_comboMinStrengthHor", this.gr_comboMinStrengthHor +"");
+			properties.setProperty(prefix+"gr_comboMinStrengthVert",this.gr_comboMinStrengthVert +"");
+			properties.setProperty(prefix+"gr_filterMinStrength",   this.gr_filterMinStrength +"");
+			properties.setProperty(prefix+"gr_strength_pow",  this.gr_strength_pow +"");
+  			properties.setProperty(prefix+"gr_smplSide",      this.gr_smplSide+"");
+  			properties.setProperty(prefix+"gr_smplNum",       this.gr_smplNum+"");
+			properties.setProperty(prefix+"gr_smplRms",       this.gr_smplRms +"");
+			properties.setProperty(prefix+"gr_smplRelRms",    this.gr_smplRelRms +"");
+			properties.setProperty(prefix+"gr_smplWnd",       this.gr_smplWnd+"");
+			properties.setProperty(prefix+"gr_max_abs_tilt",  this.gr_max_abs_tilt +"");
+			properties.setProperty(prefix+"gr_max_rel_tilt",  this.gr_max_rel_tilt +"");
+  			properties.setProperty(prefix+"gr_min_new",       this.gr_min_new+"");
+			properties.setProperty(prefix+"gr_var_new_sngl",  this.gr_var_new_sngl+"");
+			properties.setProperty(prefix+"gr_var_new_fg",    this.gr_var_new_fg+"");
+			properties.setProperty(prefix+"gr_var_all_fg",    this.gr_var_all_fg+"");
+			properties.setProperty(prefix+"gr_var_new_bg",    this.gr_var_new_bg+"");
+			properties.setProperty(prefix+"gr_var_all_bg",    this.gr_var_all_bg+"");
+  			properties.setProperty(prefix+"gr_num_steps",     this.gr_num_steps+"");
+  			properties.setProperty(prefix+"gr_steps_over",    this.gr_steps_over+"");
+  			properties.setProperty(prefix+"gr_smpl_size",     this.gr_smpl_size+"");
+  			properties.setProperty(prefix+"gr_min_pnts",      this.gr_min_pnts+"");
+			properties.setProperty(prefix+"gr_use_wnd",       this.gr_use_wnd+"");
+			properties.setProperty(prefix+"gr_tilt_damp",     this.gr_tilt_damp +"");
+			properties.setProperty(prefix+"gr_split_rng",     this.gr_split_rng +"");
+			properties.setProperty(prefix+"gr_same_rng",      this.gr_same_rng +"");
+			properties.setProperty(prefix+"gr_diff_cont",     this.gr_diff_cont +"");
+			properties.setProperty(prefix+"gr_abs_tilt",      this.gr_abs_tilt +"");
+			properties.setProperty(prefix+"gr_rel_tilt",      this.gr_rel_tilt +"");
+  			properties.setProperty(prefix+"gr_smooth",        this.gr_smooth+"");
+			properties.setProperty(prefix+"gr_fin_diff",      this.gr_fin_diff +"");
+			properties.setProperty(prefix+"gr_unique_tol",    this.gr_unique_tol +"");
+			properties.setProperty(prefix+"gr_unique_pretol", this.gr_unique_pretol +"");
 
 			properties.setProperty(prefix+"plPreferDisparity",this.plPreferDisparity+"");
 			properties.setProperty(prefix+"plDispNorm",       this.plDispNorm +"");
@@ -3032,6 +3113,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"vignetting_range")!=null) this.vignetting_range=Double.parseDouble(properties.getProperty(prefix+"vignetting_range"));
   			if (properties.getProperty(prefix+"kernel_step")!=null)    this.kernel_step=Integer.parseInt(properties.getProperty(prefix+"kernel_step"));
   			if (properties.getProperty(prefix+"disparity")!=null)      this.disparity=Double.parseDouble(properties.getProperty(prefix+"disparity"));
+  			if (properties.getProperty(prefix+"z_correction")!=null)   this.z_correction=Double.parseDouble(properties.getProperty(prefix+"z_correction"));
   			if (properties.getProperty(prefix+"correlate")!=null)      this.correlate=Boolean.parseBoolean(properties.getProperty(prefix+"correlate"));
   			if (properties.getProperty(prefix+"corr_mask")!=null)      this.corr_mask=Integer.parseInt(properties.getProperty(prefix+"corr_mask"));
   			if (properties.getProperty(prefix+"corr_sym")!=null)       this.corr_sym=Boolean.parseBoolean(properties.getProperty(prefix+"corr_sym"));
@@ -3275,7 +3357,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"combine_min_strength")!=null) this.combine_min_strength=Double.parseDouble(properties.getProperty(prefix+"combine_min_strength"));
   			if (properties.getProperty(prefix+"combine_min_hor")!=null)   this.combine_min_hor=Double.parseDouble(properties.getProperty(prefix+"combine_min_hor"));
   			if (properties.getProperty(prefix+"combine_min_vert")!=null)  this.combine_min_vert=Double.parseDouble(properties.getProperty(prefix+"combine_min_vert"));
-  			if (properties.getProperty(prefix+"unique_tolerance")!=null)  this.unique_tolerance=Double.parseDouble(properties.getProperty(prefix+"unique_tolerance"));
+//  			if (properties.getProperty(prefix+"unique_tolerance")!=null)  this.unique_tolerance=Double.parseDouble(properties.getProperty(prefix+"unique_tolerance"));
   			if (properties.getProperty(prefix+"grow_sweep")!=null)        this.grow_sweep=Integer.parseInt(properties.getProperty(prefix+"grow_sweep"));
   			if (properties.getProperty(prefix+"grow_disp_max")!=null)     this.grow_disp_max=Double.parseDouble(properties.getProperty(prefix+"grow_disp_max"));
   			if (properties.getProperty(prefix+"grow_disp_trust")!=null)   this.grow_disp_trust=Double.parseDouble(properties.getProperty(prefix+"grow_disp_trust"));
@@ -3284,7 +3366,44 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"grow_retry_far")!=null)    this.grow_retry_far=Boolean.parseBoolean(properties.getProperty(prefix+"grow_retry_far"));
   			if (properties.getProperty(prefix+"grow_pedantic")!=null)     this.grow_pedantic=Boolean.parseBoolean(properties.getProperty(prefix+"grow_pedantic"));
   			if (properties.getProperty(prefix+"grow_retry_inf")!=null)    this.grow_retry_inf=Boolean.parseBoolean(properties.getProperty(prefix+"grow_retry_inf"));
-
+  			
+  			if (properties.getProperty(prefix+"gr_new_expand")!=null)           this.gr_new_expand=Boolean.parseBoolean(properties.getProperty(prefix+"gr_new_expand"));
+  			if (properties.getProperty(prefix+"gr_max_expand")!=null)           this.gr_max_expand=Integer.parseInt(properties.getProperty(prefix+"gr_max_expand"));
+  			if (properties.getProperty(prefix+"gr_strength_floor")!=null)       this.gr_strength_floor=Double.parseDouble(properties.getProperty(prefix+"gr_strength_floor"));
+  			if (properties.getProperty(prefix+"gr_comboMinStrength")!=null)     this.gr_comboMinStrength=Double.parseDouble(properties.getProperty(prefix+"gr_comboMinStrength"));
+  			if (properties.getProperty(prefix+"gr_comboMinStrengthHor")!=null)  this.gr_comboMinStrengthHor=Double.parseDouble(properties.getProperty(prefix+"gr_comboMinStrengthHor"));
+  			if (properties.getProperty(prefix+"gr_comboMinStrengthVert")!=null) this.gr_comboMinStrengthVert=Double.parseDouble(properties.getProperty(prefix+"gr_comboMinStrengthVert"));
+  			if (properties.getProperty(prefix+"gr_filterMinStrength")!=null)    this.gr_filterMinStrength=Double.parseDouble(properties.getProperty(prefix+"gr_filterMinStrength"));
+  			if (properties.getProperty(prefix+"gr_strength_pow")!=null)         this.gr_strength_pow=Double.parseDouble(properties.getProperty(prefix+"gr_strength_pow"));
+  			if (properties.getProperty(prefix+"gr_smplSide")!=null)             this.gr_smplSide=Integer.parseInt(properties.getProperty(prefix+"gr_smplSide"));
+  			if (properties.getProperty(prefix+"gr_smplNum")!=null)              this.gr_smplNum=Integer.parseInt(properties.getProperty(prefix+"gr_smplNum"));
+  			if (properties.getProperty(prefix+"gr_smplRms")!=null)              this.gr_smplRms=Double.parseDouble(properties.getProperty(prefix+"gr_smplRms"));
+  			if (properties.getProperty(prefix+"gr_smplRelRms")!=null)           this.gr_smplRelRms=Double.parseDouble(properties.getProperty(prefix+"gr_smplRelRms"));
+  			if (properties.getProperty(prefix+"gr_smplWnd")!=null)              this.gr_smplWnd=Boolean.parseBoolean(properties.getProperty(prefix+"gr_smplWnd"));
+  			if (properties.getProperty(prefix+"gr_max_abs_tilt")!=null)         this.gr_max_abs_tilt=Double.parseDouble(properties.getProperty(prefix+"gr_max_abs_tilt"));
+  			if (properties.getProperty(prefix+"gr_max_rel_tilt")!=null)         this.gr_max_rel_tilt=Double.parseDouble(properties.getProperty(prefix+"gr_max_rel_tilt"));
+  			if (properties.getProperty(prefix+"gr_min_new")!=null)              this.gr_min_new=Integer.parseInt(properties.getProperty(prefix+"gr_min_new"));
+  			if (properties.getProperty(prefix+"gr_var_new_sngl")!=null)         this.gr_var_new_sngl=Boolean.parseBoolean(properties.getProperty(prefix+"gr_var_new_sngl"));
+  			if (properties.getProperty(prefix+"gr_var_new_fg")!=null)           this.gr_var_new_fg=Boolean.parseBoolean(properties.getProperty(prefix+"gr_var_new_fg"));
+  			if (properties.getProperty(prefix+"gr_var_all_fg")!=null)           this.gr_var_all_fg=Boolean.parseBoolean(properties.getProperty(prefix+"gr_var_all_fg"));
+  			if (properties.getProperty(prefix+"gr_var_new_bg")!=null)           this.gr_var_new_bg=Boolean.parseBoolean(properties.getProperty(prefix+"gr_var_new_bg"));
+  			if (properties.getProperty(prefix+"gr_var_all_bg")!=null)           this.gr_var_all_bg=Boolean.parseBoolean(properties.getProperty(prefix+"gr_var_all_bg"));
+  			if (properties.getProperty(prefix+"gr_num_steps")!=null)            this.gr_num_steps=Integer.parseInt(properties.getProperty(prefix+"gr_num_steps"));
+  			if (properties.getProperty(prefix+"gr_steps_over")!=null)           this.gr_steps_over=Integer.parseInt(properties.getProperty(prefix+"gr_steps_over"));
+  			if (properties.getProperty(prefix+"gr_smpl_size")!=null)            this.gr_smpl_size=Integer.parseInt(properties.getProperty(prefix+"gr_smpl_size"));
+  			if (properties.getProperty(prefix+"gr_min_pnts")!=null)             this.gr_min_pnts=Integer.parseInt(properties.getProperty(prefix+"gr_min_pnts"));
+  			if (properties.getProperty(prefix+"gr_use_wnd")!=null)              this.gr_use_wnd=Boolean.parseBoolean(properties.getProperty(prefix+"gr_use_wnd"));
+  			if (properties.getProperty(prefix+"gr_tilt_damp")!=null)            this.gr_tilt_damp=Double.parseDouble(properties.getProperty(prefix+"gr_tilt_damp"));
+  			if (properties.getProperty(prefix+"gr_split_rng")!=null)            this.gr_split_rng=Double.parseDouble(properties.getProperty(prefix+"gr_split_rng"));
+  			if (properties.getProperty(prefix+"gr_same_rng")!=null)             this.gr_same_rng=Double.parseDouble(properties.getProperty(prefix+"gr_same_rng"));
+  			if (properties.getProperty(prefix+"gr_diff_cont")!=null)            this.gr_diff_cont=Double.parseDouble(properties.getProperty(prefix+"gr_diff_cont"));
+  			if (properties.getProperty(prefix+"gr_abs_tilt")!=null)             this.gr_abs_tilt=Double.parseDouble(properties.getProperty(prefix+"gr_abs_tilt"));
+  			if (properties.getProperty(prefix+"gr_rel_tilt")!=null)             this.gr_rel_tilt=Double.parseDouble(properties.getProperty(prefix+"gr_rel_tilt"));
+  			if (properties.getProperty(prefix+"gr_smooth")!=null)               this.gr_smooth=Integer.parseInt(properties.getProperty(prefix+"gr_smooth"));
+  			if (properties.getProperty(prefix+"gr_fin_diff")!=null)             this.gr_fin_diff=Double.parseDouble(properties.getProperty(prefix+"gr_fin_diff"));
+  			if (properties.getProperty(prefix+"gr_unique_tol")!=null)           this.gr_unique_tol=Double.parseDouble(properties.getProperty(prefix+"gr_unique_tol"));
+  			if (properties.getProperty(prefix+"gr_unique_pretol")!=null)        this.gr_unique_pretol=Double.parseDouble(properties.getProperty(prefix+"gr_unique_pretol"));
+  			
   			if (properties.getProperty(prefix+"plPreferDisparity")!=null) this.plPreferDisparity=Boolean.parseBoolean(properties.getProperty(prefix+"plPreferDisparity"));
   			if (properties.getProperty(prefix+"plDispNorm")!=null)        this.plDispNorm=Double.parseDouble(properties.getProperty(prefix+"plDispNorm"));
 
@@ -3556,8 +3675,9 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",      this.vignetting_range,  3);
   			gd.addNumericField("Kernel step in pixels (has 1 kernel margin on each side)",                this.kernel_step,            0);
   			gd.addNumericField("Nominal (rectilinear) disparity between side of square cameras (pix)",    this.disparity,  3);
+  			gd.addNumericField("Inverse distance to infinity (misalignment cortrection)",                 this.z_correction,  6);
   			gd.addCheckbox    ("Perform correlation",                                                     this.correlate);
-  			gd.addNumericField("itmask of pairs to combine in the composite (top, bottom, left,righth)",  this.corr_mask,            0);
+  			gd.addNumericField("Bitmask of pairs to combine in the composite (top, bottom, left,righth)", this.corr_mask,            0);
   			gd.addCheckbox    ("Combine correlation with mirrored around disparity direction",            this.corr_sym);
   			gd.addCheckbox    ("Keep all partial correlations (otherwise - only combined one)",           this.corr_keep);
   			gd.addCheckbox    ("Show combined correlations",                                              this.corr_show);
@@ -3824,9 +3944,9 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Disregard weaker tiles when combining scans",                                  this.combine_min_strength,  6);
   			gd.addNumericField("Disregard weaker tiles when combining scans  for horizontal correlation",      this.combine_min_hor,  6);
   			gd.addNumericField("Disregard weaker tiles when combining scans  for vertical correlation",        this.combine_min_vert,  6);
-  			gd.addNumericField("Do not re-measure correlation if target disparity differs from some previous by this",this.unique_tolerance,  6);
+//  			gd.addNumericField("Do not re-measure correlation if target disparity differs from some previous by this",this.unique_tolerance,  6);
   			
-  			gd.addMessage     ("--- Growing disparity range to scan ---");
+  			gd.addMessage     ("========= Growing disparity range to scan ========");
   			gd.addNumericField("Try these number of tiles around known ones",                                         this.grow_sweep,  0);
   			gd.addNumericField("Maximal disparity to try",                                                            this.grow_disp_max,  6);
   			gd.addNumericField("Trust measured disparity within +/- this value",                                      this.grow_disp_trust,  6);
@@ -3835,6 +3955,46 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Retry tiles around known foreground that have low max_tried_disparity",               this.grow_retry_far);
   			gd.addCheckbox    ("Scan full range between max_tried_disparity of the background and known foreground",  this.grow_pedantic);
   			gd.addCheckbox    ("Retry border tiles that were identified as infinity earlier",                         this.grow_retry_inf);
+
+  			gd.addMessage     ("--- more growing parameters ---");
+  			
+  			gd.addCheckbox    ("New expansion mode",                                                                  this.gr_new_expand);
+  			gd.addNumericField("Expansion steps limit",                                                               this.gr_max_expand,  0);
+  			gd.addNumericField("Strength floor for multi-tile (now 5x5) samples (normally < combine_min_strength) ",  this.gr_strength_floor,  6);
+  			gd.addNumericField("Over background extra reliable strength",                                             this.gr_comboMinStrength,  6);
+  			gd.addNumericField("Over background extra reliable strength horizontal",                                  this.gr_comboMinStrengthHor,  6);
+  			gd.addNumericField("Over background extra reliable strength vertical",                                    this.gr_comboMinStrengthVert,  6);
+  			gd.addNumericField("Over background filtered extra reliable strength",                                    this.gr_filterMinStrength,  6);
+  			gd.addNumericField("Strength power exponent for tilted plates growing",                                   this.gr_strength_pow,  6);
+  			gd.addNumericField("Sample size (side of a square) for tilted plates growing",                            this.gr_smplSide,  0);
+  			gd.addNumericField("Number of tiles in a square tilted plate (should be >1)",                             this.gr_smplNum,  0);
+  			gd.addNumericField("Maximal RMS for the tiles to the tilted plate",                                       this.gr_smplRms,  6);
+  			gd.addNumericField("Maximal relative RMS for the tiles to the tilted plate - multiply by disparity and add", this.gr_smplRelRms,  6);
+  			gd.addCheckbox    ("Use window function for the square sample plates",                                    this.gr_smplWnd);
+  			gd.addNumericField("Maximal growing plate tilt in disparity pix per tile",                                this.gr_max_abs_tilt,  6);
+  			gd.addNumericField("Maximal relative growing plate tilt in disparity pix per tile per disaprity pixel",   this.gr_max_rel_tilt,  6);
+  			gd.addNumericField("Discard variant if it requests too few tiles",                                        this.gr_min_new,  0);
+  			gd.addCheckbox    ("Retry tiles around known foreground that have low max_tried_disparity",               this.gr_var_new_sngl);
+  			gd.addCheckbox    ("Retry tiles around known foreground that have low max_tried_disparity",               this.gr_var_new_fg);
+  			gd.addCheckbox    ("Retry tiles around known foreground that have low max_tried_disparity",               this.gr_var_all_fg);
+  			gd.addCheckbox    ("Retry tiles around known foreground that have low max_tried_disparity",               this.gr_var_new_bg);
+  			gd.addCheckbox    ("Retry tiles around known foreground that have low max_tried_disparity",               this.gr_var_all_bg);
+  			gd.addNumericField("Try these number of tiles around known ones",                                         this.gr_num_steps,  0);
+  			gd.addNumericField("Try these number of tiles around known ones",                                         this.gr_steps_over,  0);
+  			gd.addNumericField("Try these number of tiles around known ones",                                         this.gr_smpl_size,  0);
+  			gd.addNumericField("Try these number of tiles around known ones",                                         this.gr_min_pnts,  0);
+  			gd.addCheckbox    ("Retry tiles around known foreground that have low max_tried_disparity",               this.gr_use_wnd);
+  			gd.addNumericField("Maximal disparity to try",                                                            this.gr_tilt_damp,  6);
+  			gd.addNumericField("Maximal disparity to try",                                                            this.gr_split_rng,  6);
+  			gd.addNumericField("Maximal disparity to try",                                                            this.gr_same_rng,  6);
+  			gd.addNumericField("Maximal disparity to try",                                                            this.gr_diff_cont,  6);
+  			gd.addNumericField("Maximal disparity to try",                                                            this.gr_abs_tilt,  6);
+  			gd.addNumericField("Maximal disparity to try",                                                            this.gr_rel_tilt,  6);
+  			gd.addNumericField("Try these number of tiles around known ones",                                         this.gr_smooth,  0);
+  			gd.addNumericField("Maximal disparity to try",                                                            this.gr_fin_diff,  6);
+  			gd.addNumericField("Maximal disparity to try",                                                            this.gr_unique_tol,  6);
+  			gd.addNumericField("Maximal disparity to try",                                                            this.gr_unique_pretol,  6);
+  			
 
   			gd.addMessage     ("--- Planes detection ---");
   			gd.addCheckbox    ("Always start with disparity-most axis (false - lowest eigenvalue)",            this.plPreferDisparity);
@@ -4112,6 +4272,7 @@ public class EyesisCorrectionParameters {
   			this.vignetting_range=      gd.getNextNumber();
   			this.kernel_step=     (int) gd.getNextNumber();
   			this.disparity=             gd.getNextNumber();
+  			this.z_correction=          gd.getNextNumber();
   			this.correlate=             gd.getNextBoolean();
   			this.corr_mask=       (int) gd.getNextNumber();
   			this.corr_sym=              gd.getNextBoolean();
@@ -4362,8 +4523,7 @@ public class EyesisCorrectionParameters {
   			this.combine_min_strength=  gd.getNextNumber();
   			this.combine_min_hor=       gd.getNextNumber();
   			this.combine_min_vert=      gd.getNextNumber();
-  			this.unique_tolerance=      gd.getNextNumber();
-
+//  			this.unique_tolerance=      gd.getNextNumber();
   			this.grow_sweep=      (int) gd.getNextNumber();
   			this.grow_disp_max=         gd.getNextNumber();
   			this.grow_disp_trust=       gd.getNextNumber();
@@ -4372,6 +4532,43 @@ public class EyesisCorrectionParameters {
   			this.grow_retry_far=        gd.getNextBoolean();
   			this.grow_pedantic=         gd.getNextBoolean();
   			this.grow_retry_inf=        gd.getNextBoolean();
+  			
+  			this.gr_new_expand=         gd.getNextBoolean();
+  			this.gr_max_expand=   (int) gd.getNextNumber();
+  			this.gr_strength_floor=     gd.getNextNumber();
+  			this.gr_comboMinStrength=   gd.getNextNumber();
+  			this.gr_comboMinStrengthHor=  gd.getNextNumber();
+  			this.gr_comboMinStrengthVert= gd.getNextNumber();
+  			this.gr_filterMinStrength=  gd.getNextNumber();
+  			this.gr_strength_pow=       gd.getNextNumber();
+  			this.gr_smplSide=     (int) gd.getNextNumber();
+  			this.gr_smplNum=      (int) gd.getNextNumber();
+  			this.gr_smplRms=            gd.getNextNumber();
+  			this.gr_smplRelRms=         gd.getNextNumber();
+  			this.gr_smplWnd=            gd.getNextBoolean();
+  			this.gr_max_abs_tilt=       gd.getNextNumber();
+  			this.gr_max_rel_tilt=       gd.getNextNumber();
+  			this.gr_min_new=      (int) gd.getNextNumber();
+  			this.gr_var_new_sngl=       gd.getNextBoolean();
+  			this.gr_var_new_fg=         gd.getNextBoolean();
+  			this.gr_var_all_fg=         gd.getNextBoolean();
+  			this.gr_var_new_bg=         gd.getNextBoolean();
+  			this.gr_var_all_bg=         gd.getNextBoolean();
+  			this.gr_num_steps=    (int) gd.getNextNumber();
+  			this.gr_steps_over=   (int) gd.getNextNumber();
+  			this.gr_smpl_size=    (int) gd.getNextNumber();
+  			this.gr_min_pnts=     (int) gd.getNextNumber();
+  			this.gr_use_wnd=            gd.getNextBoolean();
+  			this.gr_tilt_damp=          gd.getNextNumber();
+  			this.gr_split_rng=          gd.getNextNumber();
+  			this.gr_same_rng=           gd.getNextNumber();
+  			this.gr_diff_cont=          gd.getNextNumber();
+  			this.gr_abs_tilt=           gd.getNextNumber();
+  			this.gr_rel_tilt=           gd.getNextNumber();
+  			this.gr_smooth=       (int) gd.getNextNumber();
+  			this.gr_fin_diff=           gd.getNextNumber();
+  			this.gr_unique_tol=         gd.getNextNumber();
+  			this.gr_unique_pretol=      gd.getNextNumber();
 
   			this.plPreferDisparity=     gd.getNextBoolean();
   			this.plDispNorm=            gd.getNextNumber();

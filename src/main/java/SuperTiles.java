@@ -442,7 +442,7 @@ public class SuperTiles{
 								double [][] disp_strength;
 								if (disparity_strength == null) {
 									if (smplMode) {
-										disp_strength =  measuredLayers.getDisparityStrength(
+										disp_strength =  measuredLayers.getDisparityStrengthMLTilted(
 												nl,             // int num_layer,
 												stileX,         // int stX,
 												stileY,         // int stY,
@@ -454,10 +454,11 @@ public class SuperTiles{
 												smplNum,        //int        smplNum,   // = 3;   // Number after removing worst (should be >1)
 												smplRms,        //double     smplRms,   // = 0.1; // Maximal RMS of the remaining tiles in a sample
 												smplWnd,
+												0.001, // double     damp_tilt,    //
 												true,          // boolean null_if_none);
 												-1); // int debugLevel
 									} else {
-										disp_strength =  measuredLayers.getDisparityStrength(
+										disp_strength =  measuredLayers.getDisparityStrengthML(
 												nl,             // int num_layer,
 												stileX,         // int stX,
 												stileY,         // int stY,
@@ -1403,8 +1404,8 @@ public class SuperTiles{
 	// calculate "tilted" disparity, so planes parallel to the same world plane would have the same disparity
 	// also produces non-tilted, if world_plane_norm == null
 	// Protecting from behind the horizon - set strength of all tiles in the negative disparity area to 0
-	public double [][][][] getPlaneDispStrengths(
-			final double []  world_plane_norm, // real world normal vector to a suggested plane family (0,1,0) for horizontal planes
+	public double [][][][] getPlaneDispStrengthsST(
+			final double []  world_plane_norm, // real world normal vector to a suggested plane family (0,1,0) for horizontal planes, (0,0,1) const disparity, null - floating
 			final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 
 			final boolean    plPreferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
@@ -1420,6 +1421,8 @@ public class SuperTiles{
 			final int        dbg_X,
 			final int        dbg_Y)
 	{
+		final boolean const_disparity = (world_plane_norm != null) && (world_plane_norm[0] == 0.0)  && (world_plane_norm[1] == 0.0);
+		final boolean floating =  (world_plane_norm == null);
 		final int tilesX =        tileProcessor.getTilesX();
 		final int tilesY =        tileProcessor.getTilesY();
 		final int superTileSize = tileProcessor.getSuperTileSize();
@@ -1461,42 +1464,46 @@ public class SuperTiles{
 								measuredLayers,     // MeasuredLayers measuredLayers,
 								plPreferDisparity);   // boolean preferDisparity)
 
-						if (smplMode && (world_plane_norm != null)) {
+//						if (smplMode && (world_plane_norm != null)) {
+						if (smplMode && !floating) {
 							plane_tilts = new double [measuredLayers.getNumLayers()][][];
 							for (int ml = 0; ml < plane_tilts.length; ml++) if ((stMeasSel & ( 1 << ml)) != 0){
-								double [][] tile_disp_strengths = measuredLayers.getDisparityStrength(
-										ml,             // int num_layer,
-										stileX,         // int stX,
-										stileY,         // int stY,
-										null,           // boolean [] sel_in,
-										strength_floor, // double strength_floor,
-										strength_pow,   // double strength_pow,
-										true);          // boolean null_if_none);
-								if (tile_disp_strengths == null){
-									plane_tilts[ml] = 	zero_tilts;								
-								} else {
-									plane_tilts[ml] = pd0.getDisparityTilts(
-											world_plane_norm,     // double []     world_normal_xyz,
-											tile_disp_strengths,  // double [][]   tile_disp_strengths,
-											debugLevel);         // int           debugLevel);
-									if(dl > 2){
-										if (plane_tilts[ml] != null){
-											for (int k = 0; k < 2; k++) {
-												System.out.println((k > 0) ? "tilt Y, pix/tile" : "tilt X, pix/tile");
-												for (int i = 0; i < 2 * superTileSize; i++){
-													System.out.print(i+",");
-													for (int j = 0; j < 2 * superTileSize; j++){
-														int it = j + 2 * superTileSize * i;
-														if (plane_tilts[ml][it] !=null){
-															System.out.print(String.format("%f7.4", plane_tilts[ml][it][k]));
+								plane_tilts[ml] = 	zero_tilts;
+								if (!const_disparity) {
+									double [][] tile_disp_strengths = measuredLayers.getDisparityStrengthML(
+											ml,             // int num_layer,
+											stileX,         // int stX,
+											stileY,         // int stY,
+											null,           // boolean [] sel_in,
+											strength_floor, // double strength_floor,
+											strength_pow,   // double strength_pow,
+											true);          // boolean null_if_none);
+									// if failed - keep constant disparity (plane_tilts[ml] = 	zero_tilts)
+									
+									if (tile_disp_strengths != null){
+										plane_tilts[ml] = pd0.getDisparityTilts(
+												world_plane_norm,     // double []     world_normal_xyz,
+												tile_disp_strengths,  // double [][]   tile_disp_strengths,
+												debugLevel);         // int           debugLevel);
+										if(dl > 2){
+											if (plane_tilts[ml] != null){
+												for (int k = 0; k < 2; k++) {
+													System.out.println((k > 0) ? "tilt Y, pix/tile" : "tilt X, pix/tile");
+													for (int i = 0; i < 2 * superTileSize; i++){
+														System.out.print(i+",");
+														for (int j = 0; j < 2 * superTileSize; j++){
+															int it = j + 2 * superTileSize * i;
+															if (plane_tilts[ml][it] !=null){
+																System.out.print(String.format("%f7.4", plane_tilts[ml][it][k]));
+															}
+															if (j < (2 * superTileSize - 1)){
+																System.out.print(", ");
+															}
 														}
-														if (j < (2 * superTileSize - 1)){
-															System.out.print(", ");
-														}
+														System.out.println();
 													}
 													System.out.println();
 												}
-												System.out.println();
 											}
 										}
 									}
@@ -1509,13 +1516,13 @@ public class SuperTiles{
 						for (int ml = 0; ml < plane_disp_strength[nsTile].length; ml++) if ((stMeasSel & ( 1 << ml)) != 0){
 							// TODO": apply tilt before/with getDisparityStrength()
 							if (smplMode) {
-								plane_disp_strength[nsTile][ml] =  measuredLayers.getDisparityStrength(
+								plane_disp_strength[nsTile][ml] =  measuredLayers.getDisparityStrengthMLTilted(
 										ml,             // int num_layer,
 										stileX,         // int stX,
 										stileY,         // int stY,
 										null,           // boolean [] sel_in,
-//										((world_plane_norm == null)? zero_tilts: null),      // double []  tiltXY, // null - free with limit on both absolute (2.0?) and relative (0.2) values 
-										((world_plane_norm == null)? zero_tilts: plane_tilts[ml]),      // double []  tiltXY, // null - free with limit on both absolute (2.0?) and relative (0.2) values 
+//										((world_plane_norm == null)? zero_tilts: plane_tilts[ml]),      // double []  tiltXY, // null - free with limit on both absolute (2.0?) and relative (0.2) values 
+										(floating? null: plane_tilts[ml]),      // double []  tiltXY, // null - free with limit on both absolute (2.0?) and relative (0.2) values 
 										strength_floor, // double strength_floor,
 										strength_pow,   // double strength_pow,
 										smplSide,       // int        smplSide, // = 2;   // Sample size (side of a square)
@@ -1525,10 +1532,11 @@ public class SuperTiles{
 										smplWnd,        // boolean         smplWnd, //
 										2.0,            // double     max_abs_tilt, //  = 2.0; // pix per tile
 										0.2,            // double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
+										0.001, // double     damp_tilt,    //
 										true,           // boolean null_if_none);
 										dl);
 							} else {
-								plane_disp_strength[nsTile][ml] =  measuredLayers.getDisparityStrength(
+								plane_disp_strength[nsTile][ml] =  measuredLayers.getDisparityStrengthML(
 										ml,             // int num_layer,
 										stileX,         // int stX,
 										stileY,         // int stY,
@@ -1687,7 +1695,7 @@ public class SuperTiles{
 								}
 								// compare closest to be able to use tilted planes later
 								for (int ml = 0; ml < num_ml; ml++) if (tile_en[ml] != null) {
-									if ( dl >1) {
+									if ( dl >2) {
 										System.out.println("dispClusterize(), nsTile="+nsTile+", tile_en["+ml+"] + iter = "+iter);
 										for (int i = 0; i < 2 * superTileSize; i ++){
 											for (int j = 0; j < 2 * superTileSize; j ++){
@@ -1721,7 +1729,7 @@ public class SuperTiles{
 											}
 										}
 									}
-									if ( dl >1) {
+									if ( dl > 2) {
 										System.out.println("dispClusterize(), nsTile="+nsTile+", plane_sels[?]["+ml+"] ,iter = "+iter);
 										for (int i = 0; i < 2 * superTileSize; i ++){
 											for (int j = 0; j < 2 * superTileSize; j ++){
@@ -1757,7 +1765,7 @@ public class SuperTiles{
 									if (sw > 0) {
 										sd /= sw;
 									}
-									if (dl > 0) {
+									if (dl > 2) {
 										System.out.println("plane num_sel["+np+"] = "+num_sel[np]+" disp "+max_only[np][0]+"->"+sd+
 												", weight "+max_only[np][1]+"->"+sw);
 									}
@@ -1991,8 +1999,9 @@ public class SuperTiles{
 		}
 		
 //		double [] world_hor = {0.0, 1.0, 0.0};
+		double [] const_disp = {0.0, 0.0, 1.0}; // constant z in world coordinates, same as constant disparity
 
-		final double [][][][] hor_disp_strength = getPlaneDispStrengths(
+		final double [][][][] hor_disp_strength = getPlaneDispStrengthsST(
 				world_hor,           // final double []  world_plane_norm, // real world normal vector to a suggested plane family (0,1,0) for horizontal planes
 				stMeasSel,           //final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 				plPreferDisparity,   // final boolean    plPreferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
@@ -2007,8 +2016,8 @@ public class SuperTiles{
 				dbg_X,
 				dbg_Y);
 
-		final double [][][][] vert_disp_strength = getPlaneDispStrengths(
-				null,           // final double []  world_plane_norm, // real world normal vector to a suggested plane family (0,1,0) for horizontal planes
+		final double [][][][] vert_disp_strength = getPlaneDispStrengthsST(
+				const_disp,          // final double []  world_plane_norm, // real world normal vector to a suggested plane family (0,1,0) for horizontal planes
 				stMeasSel,           //final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 				plPreferDisparity,   // final boolean    plPreferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
 				geometryCorrection,  // final GeometryCorrection geometryCorrection,
@@ -2191,7 +2200,7 @@ public class SuperTiles{
 									}
 								}
 								planes_selections[nsTile] = new_planes_selections;
-								if (dl > 1){
+								if (dl > 2){
 									System.out.println("initialDiscriminateTiles() new_planes_selections.length= "+new_planes_selections.length);
 								}
 							}
@@ -2673,14 +2682,15 @@ public class SuperTiles{
 				highMix,    //final double     highMix,    // stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
 				world_hor, // final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
 				show_histograms, // final boolean    show_histograms,
-				debugLevel+1, // final int        debugLevel,
+				debugLevel+0, // final int        debugLevel,
 				dbg_X, // final int        dbg_X,
 				dbg_Y); // final int        dbg_Y)
 
 		// get per-tile disparity strength again (may consider using non-filtered data here)
 
-		double [][][][] disp_strength = getPlaneDispStrengths( // here use actual disparity, not tilted
-				null,                // final double []  world_plane_norm, // real world normal vector to a suggested plane family (0,1,0) for horizontal planes
+		double [][][][] disp_strength = getPlaneDispStrengthsST( // here use actual disparity, not tilted
+				
+				null,                // final double []  world_plane_norm, // null - floating, (0,0,1) - const disparity, (0,1,0) - horizontal
 				stMeasSel,           // final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 
 				plPreferDisparity,   // final boolean    plPreferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
@@ -2716,7 +2726,7 @@ public class SuperTiles{
 				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 				smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
 
-				debugLevel + 2, //  + 2, // 1,          // final int        debugLevel,
+				debugLevel + 1, //  + 2, // 1,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
 				dbg_Y);              // final int        dbg_Y)
 		this.planes = new_planes; // save as "measured" (as opposed to "smoothed" by neighbors) planes
@@ -2839,8 +2849,8 @@ public class SuperTiles{
 
 		// get per-tile disparity strength again (may consider using non-filtered data here) ?
 		
-		double [][][][] disp_strength = getPlaneDispStrengths( // here use actual disparity, not tilted
-				null,                // final double []  world_plane_norm, // real world normal vector to a suggested plane family (0,1,0) for horizontal planes
+		double [][][][] disp_strength = getPlaneDispStrengthsST( // here use actual disparity, not tilted
+				null,                // final double []  world_plane_norm, // null - floating, (0,0,1) - constant disparity,  (0,1,0) for horizontal planes
 				stMeasSel,           // final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 
 				plPreferDisparity,   // final boolean    plPreferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
@@ -5637,7 +5647,11 @@ public class SuperTiles{
 									}
 								}
 								for (int y = 0; y < superTileSize; y++) {
-									System.arraycopy(plane, superTileSize * y, data[ns], indx + width * y, superTileSize);
+									if (data.length < (ns+1)){
+										System.out.println("BUG in getShowPlanes()!, ns = "+ns+", data.length="+data.length);
+									} else {
+										System.arraycopy(plane, superTileSize * y, data[ns], indx + width * y, superTileSize); //java.lang.ArrayIndexOutOfBoundsException: 5
+									}
 								}
 								ns ++;
 							}
@@ -6435,7 +6449,7 @@ public class SuperTiles{
 									}
 									// show disparity (all and masked for this plane) and strength
 									for (int ml = 0; ml < num_meas_layers; ml++) {
-										double [][] dbg_disp_str = planes[nsTile][np].getMeasuredLayers().getDisparityStrength(
+										double [][] dbg_disp_str = planes[nsTile][np].getMeasuredLayers().getDisparityStrengthML(
 												ml,                     // int num_layer,
 												stx,        // int stX,
 												sty,        // int stY,
@@ -7610,7 +7624,7 @@ public class SuperTiles{
 		int numMeasLayers = measuredLayers.getNumLayers();
 		double [][][] ds = new double[numMeasLayers][][];
 		for (int ml = 0; ml <  numMeasLayers; ml++) if ((stMeasSel & ( 1 << ml)) != 0) {
-			ds[ml] = 	measuredLayers.getDisparityStrength (
+			ds[ml] = 	measuredLayers.getDisparityStrengthML (
 					ml, // int num_layer,
 					this.strength_floor, // double strength_floor,
 					this.strength_pow); //  double strength_pow)

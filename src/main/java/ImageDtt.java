@@ -1002,7 +1002,8 @@ public class ImageDtt {
 			final int                 transform_size,
 			final int                 window_type,
 			final double [][]         shiftXY, // [port]{shiftX,shiftY}
-			final double [][][]       fine_corr, // quadratic cofficients for fine correction (or null)
+			final double              disparity_corr, // disparity at infinity
+			final double [][][]       fine_corr, // quadratic coefficients for fine correction (or null)
 			final double              corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85  
 			final double              shiftX, // shift image horizontally (positive - right) - just for testing
 			final double              shiftY, // shift image vertically (positive - down)
@@ -1030,6 +1031,9 @@ public class ImageDtt {
 		final int corr_size = transform_size * 2 -1;
 		final int [][] transpose_indices = new int [corr_size*(corr_size-1)/2][2];
 		int indx = 0;
+		if (disparity_corr != 0.0){
+			System.out.println(String.format("Using manual infinity disparity correction of %8.5f pixels",disparity_corr));
+		}
 		for (int i =0; i < corr_size-1; i++){
 			for (int j = i+1; j < corr_size; j++){
 				transpose_indices[indx  ][0] = i * corr_size + j;
@@ -1183,7 +1187,7 @@ public class ImageDtt {
 							double [][] centersXY = geometryCorrection.getPortsCoordinates(
 									centerX,
 									centerY,
-									disparity_array[tileY][tileX]);
+									disparity_array[tileY][tileX] + disparity_corr);
 							if ((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
 								for (int i = 0; i < quad; i++) {
 									System.out.println("clt_aberrations_quad_corr(): color="+chn+", tileX="+tileX+", tileY="+tileY+
