@@ -624,7 +624,6 @@ public class ExtendSurfaces {
 			final double []  values,     // will be modified, Double.NaN is not yet assigned
 			final boolean [] known,      // cells with known values (will not be modified)
 			final int        num_steps,  // how far to extend
-//			final boolean [] new_cells,  // cells that need to  be calculated
 			final int        smpl_size, // == 5
 			final int        min_points, // == 3
 			final boolean    use_wnd,   // use window function for the neighbors 
@@ -637,8 +636,11 @@ public class ExtendSurfaces {
 			final boolean    extend_far,    // extend far (false - extend near)
 			final int        max_tries, // maximal number of smoothing steps
 			final double     final_diff, // maximal change to finish iterations 
+		    final double     grow_disp_min,
 			final double     grow_disp_max,
+			final double     grow_disp_step,
 			final double     unique_pre_tolerance, // usually larger than clt_parameters.unique_tolerance
+			final boolean    try_next, // try next disparity range if the current one was already tried
 			final int        dbg_x,
 			final int        dbg_y,
 			final int        debugLevel)
@@ -657,17 +659,21 @@ public class ExtendSurfaces {
 			return null; // no discontinuity seeds
 		}
 
-		boolean [] prohibited = tp.getTriedBefore(
-				passes,        // final ArrayList <CLTPass3d> passes,
-				firstPass,     // final int                   firstPass,
-				lastPassPlus1, // final int                   lastPassPlus1,
-				expanding,     // final boolean []            selected,
-				null,          //  final boolean []            prohibited,
-				values,        // final double []             disparity,
-				true, //  final boolean               mod_selected,
-				true, //  final boolean               mod_disparity,
-				grow_disp_max, // final double                grow_disp_max,
-				unique_pre_tolerance); // final double                unique_pre_tolerance)
+		boolean [] prohibited = tp.getTriedBefore( 
+				passes,         // final ArrayList <CLTPass3d> passes,
+				firstPass,      // final int                   firstPass,
+				lastPassPlus1,  // final int                   lastPassPlus1,
+				expanding,      // final boolean []            selected,
+				null,           // final boolean []            prohibited,
+				values,         // final double []             disparity,
+				true,           // final boolean               mod_selected,
+				true,           // final boolean               mod_disparity,
+				false,          // final boolean               en_near,
+				false,          // final boolean               en_far,
+				grow_disp_min,  // final double                grow_disp_min,
+				grow_disp_max,  // final double                grow_disp_max,
+				grow_disp_step, // final double                grow_disp_step,
+				try_next ? 0.0: unique_pre_tolerance); // final double unique_pre_tolerance) // disable for try_next
 		
 		for (int nstep = 0; nstep < num_steps; nstep++){
 			int num_new_cells = 0;
@@ -694,8 +700,12 @@ public class ExtendSurfaces {
 						values,          // final double []             disparity,
 						true,            //  final boolean               mod_selected,
 						true,            //  final boolean               mod_disparity,
-						grow_disp_max,   // final double                grow_disp_max,
-						unique_pre_tolerance); // final double                unique_pre_tolerance)				
+						false,          // final boolean               en_near,
+						false,          // final boolean               en_far,
+						grow_disp_min,  // final double                grow_disp_min,
+						grow_disp_max,  // final double                grow_disp_max,
+						grow_disp_step, // final double                grow_disp_step,
+						try_next ? 0.0: unique_pre_tolerance); // final double unique_pre_tolerance) // disable for try_next
 				
 			}
 			int mt = 2 * (nstep + 1); // max_tries; // or use k * nstep ???
@@ -741,6 +751,24 @@ public class ExtendSurfaces {
 				System.out.println("expandDiscontinuity(): nstep="+nstep+" mt="+mt);
 			}
 		}
+		if (try_next){
+			tp.getTriedBefore(
+				passes,          // final ArrayList <CLTPass3d> passes,
+				firstPass,       // final int                   firstPass,
+				lastPassPlus1,   // final int                   lastPassPlus1,
+				expanding,       // final boolean []            selected,
+				prohibited,      //  final boolean []            prohibited,
+				values,          // final double []             disparity,
+				true,            //  final boolean               mod_selected,
+				true,            //  final boolean               mod_disparity,
+				// TODO: some version to enable both en_near and en_far? or make en_far assume en_near and make it first?
+				!extend_far,     // final boolean               en_near,
+				extend_far,      // final boolean               en_far,
+				grow_disp_min,   // final double                grow_disp_min,
+				grow_disp_max,   // final double                grow_disp_max,
+				grow_disp_step,  // final double                grow_disp_step,
+				unique_pre_tolerance); // final double unique_pre_tolerance)
+		}		
 		return expanding;
 	}
 
@@ -766,8 +794,11 @@ public class ExtendSurfaces {
 			final boolean    extend_far,    // extend far (false - extend near)
 			final int        max_tries, // maximal number of smoothing steps
 			final double     final_diff, // maximal change to finish iterations
+		    final double     grow_disp_min,
 			final double     grow_disp_max,
+			final double     grow_disp_step,
 			final double     unique_pre_tolerance, // usually larger than clt_parameters.unique_tolerance
+			final boolean    try_next, // try next disparity range if the current one was already tried
 			final int        dbg_x,
 			final int        dbg_y,
 			final int        debugLevel)
@@ -784,17 +815,22 @@ public class ExtendSurfaces {
 		if (expanding == null){
 			return null; // no discontinuity seeds
 		}
-		boolean [] prohibited = tp.getTriedBefore(
-				passes,        // final ArrayList <CLTPass3d> passes,
-				firstPass,     // final int                   firstPass,
-				lastPassPlus1, // final int                   lastPassPlus1,
-				expanding,     // final boolean []            selected,
-				null,          //  final boolean []            prohibited,
-				values,        // final double []             disparity,
-				true, //  final boolean               mod_selected,
-				true, //  final boolean               mod_disparity,
-				grow_disp_max, // final double                grow_disp_max,
-				unique_pre_tolerance); // final double                unique_pre_tolerance)
+		
+		boolean [] prohibited = tp.getTriedBefore( 
+				passes,         // final ArrayList <CLTPass3d> passes,
+				firstPass,      // final int                   firstPass,
+				lastPassPlus1,  // final int                   lastPassPlus1,
+				expanding,      // final boolean []            selected,
+				null,           // final boolean []            prohibited,
+				values,         // final double []             disparity,
+				true,           // final boolean               mod_selected,
+				true,           // final boolean               mod_disparity,
+				false,          // final boolean               en_near,
+				false,          // final boolean               en_far,
+				grow_disp_min,  // final double                grow_disp_min,
+				grow_disp_max,  // final double                grow_disp_max,
+				grow_disp_step, // final double                grow_disp_step,
+				try_next ? 0.0: unique_pre_tolerance); // final double unique_pre_tolerance) // disable for try_next
 
 		for (int nstep = 0; nstep < num_steps; nstep++){
 			int num_new_cells = 0;
@@ -811,6 +847,7 @@ public class ExtendSurfaces {
 						dbg_x,           // final int        dbg_x,
 						dbg_y,           // final int        dbg_y,
 						debugLevel);     // final int        debugLevel)
+				
 				tp.getTriedBefore(
 						passes,          // final ArrayList <CLTPass3d> passes,
 						firstPass,       // final int                   firstPass,
@@ -820,8 +857,12 @@ public class ExtendSurfaces {
 						values,          // final double []             disparity,
 						true,            //  final boolean               mod_selected,
 						true,            //  final boolean               mod_disparity,
-						grow_disp_max,   // final double                grow_disp_max,
-						unique_pre_tolerance); // final double                unique_pre_tolerance)				
+						false,          // final boolean               en_near,
+						false,          // final boolean               en_far,
+						grow_disp_min,  // final double                grow_disp_min,
+						grow_disp_max,  // final double                grow_disp_max,
+						grow_disp_step, // final double                grow_disp_step,
+						try_next ? 0.0: unique_pre_tolerance); // final double unique_pre_tolerance) // disable for try_next
 			}
 			int mt = 2 * (nstep + 1); // max_tries; // or use k * nstep ???
 			// increase tries last iteration?
@@ -867,6 +908,25 @@ public class ExtendSurfaces {
 				System.out.println("expandKnown(): nstep="+nstep+" mt="+mt);
 			}
 		}
+		if (try_next){
+			tp.getTriedBefore(
+				passes,          // final ArrayList <CLTPass3d> passes,
+				firstPass,       // final int                   firstPass,
+				lastPassPlus1,   // final int                   lastPassPlus1,
+				expanding,       // final boolean []            selected,
+				prohibited,      //  final boolean []            prohibited,
+				values,          // final double []             disparity,
+				true,            //  final boolean               mod_selected,
+				true,            //  final boolean               mod_disparity,
+				// TODO: some version to enable both en_near and en_far? or make en_far assume en_near and make it first?
+				!extend_far,     // final boolean               en_near,
+				extend_far,      // final boolean               en_far,
+				grow_disp_min,   // final double                grow_disp_min,
+				grow_disp_max,   // final double                grow_disp_max,
+				grow_disp_step,  // final double                grow_disp_step,
+				unique_pre_tolerance); // final double unique_pre_tolerance)
+		}		
+		
 		return expanding;
 	}
 	

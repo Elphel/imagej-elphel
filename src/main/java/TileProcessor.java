@@ -544,7 +544,9 @@ public class TileProcessor {
 					}
 					combo_pass.calc_disparity[nt] =         pass.disparity_map[disparity_index][nt]/corr_magic_scale +  pass.disparity[ty][tx];
 					combo_pass.strength[nt] =               pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nt];
+					// Only copy for full disparity
 					for (int i = 0; i< ImageDtt.QUAD; i++)  combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt] = pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i][nt];
+					
 					if (copyDebug){
 						combo_pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nt] =            pass.disparity_map[ImageDtt.DISPARITY_INDEX_CM][nt];
 						combo_pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nt] =      pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nt];
@@ -1190,8 +1192,12 @@ public class TileProcessor {
 	 * @param disparity array of disparity values to compare with already tried. Double.NaN values will be skipped (not marked)
 	 * @param mod_selected if true, selected array will be modified to exclude tried before cells  
 	 * @param mod_disparity if true, disparity array will be modified to have Double.NaN for the tried before cells
-	 * @param grow_disp_max maximal valid disparity (all above or <= 0 will be marked as "bad" (as if they were already tried) 
-	 * @param unique_pre_tolerance mark tiles that have disparity within +/- this values from already tried
+	 * @param en_near permit increasing disparity if that one was already tried
+	 * @param en_far permit decreasing disparity if that one was already tried (if both en_near and en_far - try near first)
+	 * @param grow_disp_min maximal valid disparity (all below will be marked as "bad" (as if they were already tried) 
+	 * @param grow_disp_max maximal valid disparity (all above  will be marked as "bad" (as if they were already tried)
+	 * @param grow_disp_step disparity increase/decrease step if that one was used and en_near or en_far are true
+	 * @param unique_pre_tolerance mark tiles that have disparity within +/- this values from already tried. Set to 0 to disable (only remove invalid)
 	 * @return array of the tiles that should not be used
 	 */
 	
@@ -1204,7 +1210,11 @@ public class TileProcessor {
 			 final double []             disparity,
 			 final boolean               mod_selected,
 			 final boolean               mod_disparity,
+			 final boolean               en_near,
+			 final boolean               en_far,
+			 final double                grow_disp_min,
 			 final double                grow_disp_max,
+			 final double                grow_disp_step,
 			 final double                unique_pre_tolerance)
 	{
 		final int tilesX = getTilesX();
@@ -1228,21 +1238,62 @@ public class TileProcessor {
 				public void run() {
 					for (int nTile = ai.getAndIncrement(); nTile < tlen; nTile = ai.getAndIncrement()) if (selected[nTile]){
 						if (!Double.isNaN(disparity[nTile])) {
-							if ((disparity[nTile] <= 0.0) || (disparity[nTile] > grow_disp_max)){
+							if ((disparity[nTile] <= grow_disp_min) || (disparity[nTile] > grow_disp_max)){
 								tried_before[nTile] = true;
 								if (mod_selected) selected[nTile] = false;
 								if (mod_disparity) disparity[nTile] = Double.NaN;
 							} else {
 								int ty = nTile / tilesX;
 								int tx = nTile % tilesX;
+								boolean duplicate = false;
 								for (int i =  firstPass; i < lastPassPlus1; i++) {
-									if (Math.abs(disparity[nTile] - measured_list.get(i).disparity[ty][tx]) < unique_pre_tolerance){
-										tried_before[nTile] = true;
-										if (mod_selected) selected[nTile] = false;
-										if (mod_disparity) disparity[nTile] = Double.NaN;
+									if ((unique_pre_tolerance>0) && 
+											(Math.abs(disparity[nTile] - measured_list.get(i).disparity[ty][tx]) < unique_pre_tolerance)){
+										duplicate = true;
 										break;
 									}
 								}
+								// Try to replace a duplicate disparity to try with a larger one
+								if (duplicate && en_near) {
+									for (double disp = disparity[nTile] + grow_disp_step; disp <= grow_disp_max;  disp += grow_disp_step){
+										boolean step_duplicate = false;
+										for (int i =  firstPass; i < lastPassPlus1; i++) {
+											if (Math.abs(disp - measured_list.get(i).disparity[ty][tx]) < unique_pre_tolerance){
+												step_duplicate = true;
+												break;
+											}
+										}
+										if (!step_duplicate){
+											duplicate = false;
+											if (mod_disparity) disparity[nTile] = disp;
+											break;
+										}
+									}
+								}
+								// Try to replace a duplicate disparity to try with a smaller one (including failed larger one)
+								if (duplicate && en_far) {
+									for (double disp = disparity[nTile] - grow_disp_step; disp > grow_disp_min;  disp -= grow_disp_step){
+										boolean step_duplicate = false;
+										for (int i =  firstPass; i < lastPassPlus1; i++) {
+											if (Math.abs(disp - measured_list.get(i).disparity[ty][tx]) < unique_pre_tolerance){
+												step_duplicate = true;
+												break;
+											}
+										}
+										if (!step_duplicate){
+											duplicate = false;
+											if (mod_disparity) disparity[nTile] = disp;
+											break;
+										}
+									}
+								}
+
+								if (duplicate) {
+									tried_before[nTile] = true;
+									if (mod_selected) selected[nTile] = false;
+									if (mod_disparity) disparity[nTile] = Double.NaN;
+								}
+								
 							}
 						}
 					}	
@@ -1277,7 +1328,9 @@ public class TileProcessor {
 			final double      max_rel_tilt, //   = 0.2; // (pix / disparity) per tile
 			final int         max_tries, // maximal number of smoothing steps
 			final double      final_diff, // maximal change to finish iterations
-			final double      grow_disp_max,   //  =   50.0; // Maximal disparity to try
+		    final double      grow_disp_min, // minimal disparity to use (0.0?)
+			final double      grow_disp_max, // maximal disparity to try
+			final double      grow_disp_step, // disparity step (increment/decrement if that one was already tried)
 			final double      unique_pre_tolerance, // usually larger than clt_parameters.unique_tolerance
 			final double      unique_tolerance,
 			final boolean     show_expand,
@@ -1290,14 +1343,17 @@ public class TileProcessor {
 			boolean     expand_discontinuity; // true - expand discontinuity over known tiles
 			boolean     smooth_only;   // Do not expand ambiguous cells (with discontinuity) (only valid for expand_discontinuity = false)
 			boolean     extend_far;    // extend far (false - extend near)
+			boolean     try_next;      // try next closer disparity if requested was tried before
 			int         num_steps;  // how far to extend
 			double      split_threshold; // if full range of the values around the cell higher, need separate fg, bg
 			double      same_range;      // modify
 			double      diff_continue;   // maximal difference from the old value (for previously defined tiles
+		
 			Variant (
 					boolean     expand_discontinuity, // true - expand discontinuity over known tiles
 					boolean     smooth_only,   // Do not expand ambiguous cells (with discontinuity) (only valid for expand_discontinuity = false)
 					boolean     extend_far,    // extend far (false - extend near)
+					boolean     try_next,
 					int         num_steps,  // how far to extend
 					double      split_threshold, // if full range of the values around the cell higher, need separate fg, bg
 					double      same_range,      // modify
@@ -1306,6 +1362,7 @@ public class TileProcessor {
 				this.expand_discontinuity = expand_discontinuity; // true - expand discontinuity over known tiles
 				this.smooth_only =          smooth_only;   // Do not expand ambiguous cells (with discontinuity) (only valid for expand_discontinuity = false)
 				this.extend_far =           extend_far;    // extend far (false - extend near)
+				this.try_next =             try_next;
 				this.num_steps =            num_steps;  // how far to extend
 				this.split_threshold =      split_threshold; // if full range of the values around the cell higher, need separate fg, bg
 				this.same_range =           same_range;
@@ -1313,12 +1370,13 @@ public class TileProcessor {
 			}
 		}
 		Variant [] variants = {
-				//          disc  smooth   far
-				new Variant(false, true,  false, num_steps,      split_threshold, same_range, diff_continue), // +1
-				new Variant(false, false, false, num_steps,      split_threshold, same_range, diff_continue), // +2
-				new Variant(true,  false, false, num_steps_disc, split_threshold, same_range, diff_continue), // +4
-				new Variant(false, false, true,  num_steps,      split_threshold, same_range, diff_continue), // +8
-				new Variant(true,  false, true,  num_steps_disc, split_threshold, same_range, diff_continue) // +16
+				//          disc  smooth   far   next
+				new Variant(false, true,  false, false, num_steps,      split_threshold, same_range, diff_continue),
+				new Variant(false, false, false, false, num_steps,      split_threshold, same_range, diff_continue),
+				new Variant(true,  false, false, false, num_steps_disc, split_threshold, same_range, diff_continue),
+				new Variant(false, false, true,  false, num_steps,      split_threshold, same_range, diff_continue),
+				new Variant(true,  false, true,  false, num_steps_disc, split_threshold, same_range, diff_continue), 
+				new Variant(false, false, false, true,  num_steps_disc, split_threshold,  same_range, diff_continue), 
 		};
 		for (int num_var = 0; num_var < variants.length; num_var++){
 			if (variants_flags[num_var]) { // (variants_mask & (1 << num_var)) != 0) {
@@ -1333,9 +1391,10 @@ public class TileProcessor {
 						variants[num_var].expand_discontinuity, // final boolean     expand_discontinuity, // true - expand discontinuity over known tiles
 						variants[num_var].smooth_only,          // final boolean     smooth_only,   // Do not expand ambiguous cells (with discontinuity) (only valid for expand_discontinuity = false)
 						variants[num_var].extend_far,           // final boolean     extend_far,    // extend far (false - extend near)
+						variants[num_var].try_next,             // extend far (false - extend near)
 						variants[num_var].num_steps,            // final int         num_steps,  // how far to extend
 						smpl_size,                              // final int         smpl_size, // == 5
-						min_points,      // final int        min_points, // == 3
+						min_points,                             // final int        min_points, // == 3
 						use_wnd,                                // final boolean     use_wnd,   // use window function fro the neighbors 
 						tilt_cost,                              // final double      tilt_cost,
 						variants[num_var].split_threshold,      //  final double      split_threshold, // if full range of the values around the cell higher, need separate fg, bg
@@ -1345,7 +1404,9 @@ public class TileProcessor {
 						max_rel_tilt,                           // final double     max_rel_tilt, //   = 0.2; // (pix / disparity) per tile
 						max_tries,                              // final int         max_tries, // maximal number of smoothing steps
 						final_diff,                             // final double      final_diff, // maximal change to finish iterations
+						grow_disp_min,                          // final double     grow_disp_min,
 						grow_disp_max,                          // final double     grow_disp_max,
+						grow_disp_step,                         // final double     grow_disp_step,
 						unique_pre_tolerance,                   // final double     unique_pre_tolerance, // usually larger than clt_parameters.unique_tolerance
 						show_expand,                            // final boolean     show_expand,
 						dbg_x,                                  // final int         dbg_x,
@@ -1394,6 +1455,7 @@ public class TileProcessor {
 			final boolean     expand_discontinuity, // true - expand discontinuity over known tiles
 			final boolean     smooth_only,   // Do not expand ambiguous cells (with discontinuity) (only valid for expand_discontinuity = false)
 			final boolean     extend_far,    // extend far (false - extend near)
+			final boolean     try_next,
 			final int         num_steps,  // how far to extend
 			final int         smpl_size, // == 5
 			final int         min_points, // == 3
@@ -1406,7 +1468,9 @@ public class TileProcessor {
 			final double      max_rel_tilt, //   = 0.2; // (pix / disparity) per tile
 			final int         max_tries, // maximal number of smoothing steps
 			final double      final_diff, // maximal change to finish iterations
+			final double      grow_disp_min,
 			final double      grow_disp_max,
+			final double      grow_disp_step,
 			final double      unique_pre_tolerance, // usually larger than clt_parameters.unique_tolerance
 			final boolean     show_expand,
 			final int         dbg_x,
@@ -1464,8 +1528,11 @@ public class TileProcessor {
 					extend_far,      // final boolean    extend_far,    // extend far (false - extend near)
 					max_tries,       // final int        max_tries, // maximal number of smoothing steps
 					final_diff,      // final double     final_diff, // maximal change to finish iterations
-					grow_disp_max,    // final double     grow_disp_max,
+					grow_disp_min,   // final double     grow_disp_min,
+					grow_disp_max,   // final double     grow_disp_max,
+					grow_disp_step,  // final double     grow_disp_step,
 					unique_pre_tolerance, // final double     unique_pre_tolerance, // usually larger than clt_parameters.unique_tolerance
+					try_next,        // final boolean    try_next, // try next disparity range if the current one was already tried
 					dbg_x,           // final int        dbg_x,
 					dbg_y,           // final int        dbg_y,
 					debugLevel);     // final int        debugLevel)
@@ -1491,8 +1558,11 @@ public class TileProcessor {
 					extend_far,      // final boolean    extend_far,    // extend far (false - extend near)
 					max_tries,       // final int        max_tries, // maximal number of smoothing steps
 					final_diff,      // final double     final_diff, // maximal change to finish iterations 
-					grow_disp_max,    // final double     grow_disp_max,
+					grow_disp_min,   // final double     grow_disp_min,
+					grow_disp_max,   // final double     grow_disp_max,
+					grow_disp_step,  // final double     grow_disp_step,
 					unique_pre_tolerance, // final double     unique_pre_tolerance, // usually larger than clt_parameters.unique_tolerance
+					try_next,        // final boolean    try_next, // try next disparity range if the current one was already tried
 					dbg_x,           // final int        dbg_x,
 					dbg_y,           // final int        dbg_y,
 					debugLevel);     // final int        debugLevel)
@@ -1519,7 +1589,7 @@ public class TileProcessor {
 			System.out.println("setupExpand(): set "+num_op+" tiles to be processed (some will be removed)");
 		}		
 		// show debug images
-		if (show_expand){
+		if (show_expand || try_next){
 			String [] titles = {"disp_prev", "disparity", "masked", "sel_border","expanded","tile_op","pre-disparity", "this_tile_op", "this_pre-disparity","filt_disp","filt_str"};
 			double [][] dbg_img = new double [titles.length][];
 			dbg_img[0] = dbg_disparity;
@@ -3911,20 +3981,20 @@ public class TileProcessor {
 			//			  final double [][][]       image_data, // first index - number of image in a quad
 			EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			// disparity range - differences from
-			boolean           use_supertiles,
-			int               bg_scan_index,
-			double            disparity_far,    //
-			double            disparity_near,   // 
-			double            ex_strength,   // minimal 4-corr strength to trust raw tile - above will prefer it to multi-tile plates
-	  		double            ex_nstrength, // minimal 4-corr strength divided by channel diff for new (border) tiles
-			double            this_maybe,       // maximal strength to ignore as non-background
-			double            sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
+			boolean           use_supertiles,   // false
+			int               bg_scan_index,    // 0
+			double            disparity_far,    // 0.3
+			double            disparity_near,   // 150 
+			double            ex_strength,      // 0.18  minimal 4-corr strength to trust raw tile - above will prefer it to multi-tile plates
+	  		double            ex_nstrength,     // 0.4 minimal 4-corr strength divided by channel diff for new (border) tiles
+			double            this_maybe,       // 0.1 maximal strength to ignore as non-background
+			double            sure_smth,        // 2.0 if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
 
-			double            super_trust,      // If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds
+			double            super_trust,      // 1.6 If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds
 			double [][]       plate_ds,  // disparity/strength last time measured for the multi-tile squares. Strength =-1 - not measured. May be null
-			boolean           keep_raw_fg,  // do not replace raw tiles by the plates, if raw is closer (like poles)
-			double            scale_filtered_strength_pre, // scale plate_ds[1] before comparing to raw strength
-			double            scale_filtered_strength_post,// scale plate_ds[1] when replacing raw (generally plate_ds is more reliable if it exists)
+			boolean           keep_raw_fg,      // true do not replace raw tiles by the plates, if raw is closer (like poles)
+			double            scale_filtered_strength_pre, // 1.5  scale plate_ds[1] before comparing to raw strength
+			double            scale_filtered_strength_post,// 2.5 scale plate_ds[1] when replacing raw (generally plate_ds is more reliable if it exists)
 
 			int               disparity_index,  // index of disparity value in disparity_map == 2 (0,2 or 4)
 			GeometryCorrection geometryCorrection,
@@ -4311,7 +4381,7 @@ public class TileProcessor {
 		scan_next.tile_op =       tile_op;
 		scan_next.border_tiles =  borderTiles;
 		scan_next.selected =      grown; // includes border_tiles
-		clt_3d_passes.add(scan_next);
+//		clt_3d_passes.add(scan_next); // was here
 		//		}
 		return scan_next;
 	}

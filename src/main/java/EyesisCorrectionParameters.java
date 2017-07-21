@@ -2228,7 +2228,7 @@ public class EyesisCorrectionParameters {
 		// New for initial growing
 		public boolean    gr_new_expand = true;
 		public int        gr_max_expand =  500; // 150; // 30;
-		public double     gr_strength_floor =  0.9; // Should be normally less than combine_min_strength 
+		public double     gr_strength_floor =       0.09; // Should be normally less than combine_min_strength 
 		public double     gr_comboMinStrength =     0.3; // 0.3; 
 		public double     gr_comboMinStrengthHor =  0.3; // 0.3;
 		public double     gr_comboMinStrengthVert = 0.3; // 0.3;
@@ -2249,6 +2249,7 @@ public class EyesisCorrectionParameters {
 		public boolean    gr_var_all_fg        =   true;  
 		public boolean    gr_var_new_bg        =   true;  
 		public boolean    gr_var_all_bg        =   true;  
+		public boolean    gr_var_next          =   true; // try next disparity range  TODO: add related statements
 		public int        gr_num_steps         =   8;    // How far to extend over previously undefined disparity tiles
 		public int        gr_steps_over        =   4;    // How far to extend over previously determined disparity tiles
 		public int        gr_smpl_size         =   5;    // Extend sample square side
@@ -2833,6 +2834,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"gr_var_all_fg",    this.gr_var_all_fg+"");
 			properties.setProperty(prefix+"gr_var_new_bg",    this.gr_var_new_bg+"");
 			properties.setProperty(prefix+"gr_var_all_bg",    this.gr_var_all_bg+"");
+			properties.setProperty(prefix+"gr_var_next",      this.gr_var_next+"");
   			properties.setProperty(prefix+"gr_num_steps",     this.gr_num_steps+"");
   			properties.setProperty(prefix+"gr_steps_over",    this.gr_steps_over+"");
   			properties.setProperty(prefix+"gr_smpl_size",     this.gr_smpl_size+"");
@@ -3388,6 +3390,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"gr_var_all_fg")!=null)           this.gr_var_all_fg=Boolean.parseBoolean(properties.getProperty(prefix+"gr_var_all_fg"));
   			if (properties.getProperty(prefix+"gr_var_new_bg")!=null)           this.gr_var_new_bg=Boolean.parseBoolean(properties.getProperty(prefix+"gr_var_new_bg"));
   			if (properties.getProperty(prefix+"gr_var_all_bg")!=null)           this.gr_var_all_bg=Boolean.parseBoolean(properties.getProperty(prefix+"gr_var_all_bg"));
+  			if (properties.getProperty(prefix+"gr_var_next")!=null)             this.gr_var_next=Boolean.parseBoolean(properties.getProperty(prefix+"gr_var_next"));
   			if (properties.getProperty(prefix+"gr_num_steps")!=null)            this.gr_num_steps=Integer.parseInt(properties.getProperty(prefix+"gr_num_steps"));
   			if (properties.getProperty(prefix+"gr_steps_over")!=null)           this.gr_steps_over=Integer.parseInt(properties.getProperty(prefix+"gr_steps_over"));
   			if (properties.getProperty(prefix+"gr_smpl_size")!=null)            this.gr_smpl_size=Integer.parseInt(properties.getProperty(prefix+"gr_smpl_size"));
@@ -3974,26 +3977,27 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal growing plate tilt in disparity pix per tile",                                this.gr_max_abs_tilt,  6);
   			gd.addNumericField("Maximal relative growing plate tilt in disparity pix per tile per disaprity pixel",   this.gr_max_rel_tilt,  6);
   			gd.addNumericField("Discard variant if it requests too few tiles",                                        this.gr_min_new,  0);
-  			gd.addCheckbox    ("Retry tiles around known foreground that have low max_tried_disparity",               this.gr_var_new_sngl);
-  			gd.addCheckbox    ("Retry tiles around known foreground that have low max_tried_disparity",               this.gr_var_new_fg);
-  			gd.addCheckbox    ("Retry tiles around known foreground that have low max_tried_disparity",               this.gr_var_all_fg);
-  			gd.addCheckbox    ("Retry tiles around known foreground that have low max_tried_disparity",               this.gr_var_new_bg);
-  			gd.addCheckbox    ("Retry tiles around known foreground that have low max_tried_disparity",               this.gr_var_all_bg);
-  			gd.addNumericField("Try these number of tiles around known ones",                                         this.gr_num_steps,  0);
-  			gd.addNumericField("Try these number of tiles around known ones",                                         this.gr_steps_over,  0);
-  			gd.addNumericField("Try these number of tiles around known ones",                                         this.gr_smpl_size,  0);
-  			gd.addNumericField("Try these number of tiles around known ones",                                         this.gr_min_pnts,  0);
-  			gd.addCheckbox    ("Retry tiles around known foreground that have low max_tried_disparity",               this.gr_use_wnd);
-  			gd.addNumericField("Maximal disparity to try",                                                            this.gr_tilt_damp,  6);
-  			gd.addNumericField("Maximal disparity to try",                                                            this.gr_split_rng,  6);
-  			gd.addNumericField("Maximal disparity to try",                                                            this.gr_same_rng,  6);
-  			gd.addNumericField("Maximal disparity to try",                                                            this.gr_diff_cont,  6);
-  			gd.addNumericField("Maximal disparity to try",                                                            this.gr_abs_tilt,  6);
-  			gd.addNumericField("Maximal disparity to try",                                                            this.gr_rel_tilt,  6);
-  			gd.addNumericField("Try these number of tiles around known ones",                                         this.gr_smooth,  0);
-  			gd.addNumericField("Maximal disparity to try",                                                            this.gr_fin_diff,  6);
-  			gd.addNumericField("Maximal disparity to try",                                                            this.gr_unique_tol,  6);
-  			gd.addNumericField("Maximal disparity to try",                                                            this.gr_unique_pretol,  6);
+  			gd.addCheckbox    ("Expand only unambiguous tiles over previously undefined",                             this.gr_var_new_sngl);
+  			gd.addCheckbox    ("Expand unambiguous and FOREGROUND tiles over previously UNDEFINED",                   this.gr_var_new_fg);
+  			gd.addCheckbox    ("Expand unambiguous and FOREGROUND tiles over already DEFINED",                        this.gr_var_all_fg);
+  			gd.addCheckbox    ("Expand unambiguous and BACKGROUND tiles over previously UNDEFINED",                   this.gr_var_new_bg);
+  			gd.addCheckbox    ("Expand unambiguous and BACKGROUND tiles over already DEFINED",                        this.gr_var_all_bg);
+  			gd.addCheckbox    ("Try next disparity range that was not tried before",                                  this.gr_var_next);
+  			gd.addNumericField("How far to extend over previously undefined disparity tiles",                         this.gr_num_steps,  0);
+  			gd.addNumericField("How far to extend over previously determined disparity tiles",                        this.gr_steps_over,  0);
+  			gd.addNumericField("Extend sample plate square side",                                                     this.gr_smpl_size,  0);
+  			gd.addNumericField("Extend at least this number of the seed tiles",                                       this.gr_min_pnts,  0);
+  			gd.addCheckbox    ("Use window function for square sample ",                                              this.gr_use_wnd);
+  			gd.addNumericField("Tilt cost for damping insufficient plane data",                                       this.gr_tilt_damp,  6);
+  			gd.addNumericField("When growing, range of disparities to be extended without far/near subdivision",      this.gr_split_rng,  6);
+  			gd.addNumericField("Consider far/near tiles within that range from the farthest/closest",                 this.gr_same_rng,  6);
+  			gd.addNumericField("Maximal difference from the old value when smoothing",                                this.gr_diff_cont,  6);
+  			gd.addNumericField("Maximal filter disparity absolute tilt (pix per tile)",                               this.gr_abs_tilt,  6);
+  			gd.addNumericField("Maximal filter disparity tilt (pix / disparity) per tile",                            this.gr_rel_tilt,  6);
+  			gd.addNumericField("Maximal number of smoothing steps (reduce if long?)",                                 this.gr_smooth,  0);
+  			gd.addNumericField("Maximal change to finish smoothing iterations",                                       this.gr_fin_diff,  6);
+  			gd.addNumericField("Do not re-measure correlation if target disparity differs from some previous less",   this.gr_unique_tol,  6);
+  			gd.addNumericField("Larger tolerance for expanding (not refining)",                                       this.gr_unique_pretol,  6);
   			
 
   			gd.addMessage     ("--- Planes detection ---");
@@ -4554,6 +4558,7 @@ public class EyesisCorrectionParameters {
   			this.gr_var_all_fg=         gd.getNextBoolean();
   			this.gr_var_new_bg=         gd.getNextBoolean();
   			this.gr_var_all_bg=         gd.getNextBoolean();
+  			this.gr_var_next=           gd.getNextBoolean();
   			this.gr_num_steps=    (int) gd.getNextNumber();
   			this.gr_steps_over=   (int) gd.getNextNumber();
   			this.gr_smpl_size=    (int) gd.getNextNumber();
