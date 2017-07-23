@@ -771,7 +771,7 @@ public class ImageDtt {
 								chn,                              
 								centerX, // center of aberration-corrected (common model) tile, X
 								centerY, //
-								(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2), // external tile compare
+								((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) ? 1 : 0, // external tile compare
 								no_deconvolution,
 								transpose);
 						if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (chn == 2)) {
@@ -896,7 +896,7 @@ public class ImageDtt {
 										chn,                              
 										centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
 										centersXY[i][1], // centerY, //
-										(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2), // external tile compare
+										((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) ? 1 : 0, // external tile compare
 										no_deconvolution,
 										transpose);
 							}
@@ -952,8 +952,8 @@ public class ImageDtt {
 	
 	
 	public double [][][][][][] clt_aberrations_quad_corr(
+			final int                 macro_scale,     // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
-//			final double              disparity,
 			final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 			final double [][][]       image_data, // first index - number of image in a quad
 			 // correlation results - final and partial          
@@ -977,7 +977,6 @@ public class ImageDtt {
 			final double              corr_red,
 			final double              corr_blue,
 			final double              corr_sigma,
-//			final int                 corr_mask,       // which pairs to combine in the combo:  1 - top, 2 bottom, 4 - left, 8 - right
 			final boolean             corr_normalize,  // normalize correlation results by rms
 	  		final double              min_corr,        // 0.0001; // minimal correlation value to consider valid 
 			final double              max_corr_sigma,  // 1.5;  // weights of points around global max to find fractional
@@ -1014,6 +1013,8 @@ public class ImageDtt {
 			final int                 threadsMax,  // maximal number of threads to launch                         
 			final int                 globalDebugLevel)
 	{
+		final boolean macro_mode = macro_scale != 1;      // correlate tile data instead of the pixel data
+
 		final int quad = 4;   // number of subcameras
 		final int numcol = 3; // number of colors
 		final int nChn = image_data[0].length;
@@ -1184,61 +1185,74 @@ public class ImageDtt {
 						for (int chn = 0; chn <numcol; chn++) {
 							centerX = tileX * transform_size + transform_size/2 - shiftX;
 							centerY = tileY * transform_size + transform_size/2 - shiftY;
-							double [][] centersXY = geometryCorrection.getPortsCoordinates(
-									centerX,
-									centerY,
-									disparity_array[tileY][tileX] + disparity_corr);
-							if ((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
-								for (int i = 0; i < quad; i++) {
-									System.out.println("clt_aberrations_quad_corr(): color="+chn+", tileX="+tileX+", tileY="+tileY+
-											" centerX="+centerX+" centerY="+centerY+" disparity="+disparity_array[tileY][tileX]+
-											" centersXY["+i+"][0]="+centersXY[i][0]+" centersXY["+i+"][1]="+centersXY[i][1]);
+							double [][] centersXY;
+							if (macro_mode){
+								if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) { // before correction
+									System.out.println("\nUsing MACRO mode, centerX="+centerX+", centerY="+centerY);
+								}
+								centersXY = geometryCorrection.getPortsCoordinatesIdeal(
+										macro_scale,
+										centerX,
+										centerY,
+										macro_scale* disparity_array[tileY][tileX] + disparity_corr);
+							} else {
+								centersXY = geometryCorrection.getPortsCoordinates(
+										centerX,
+										centerY,
+										disparity_array[tileY][tileX] + disparity_corr);
+								if ((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
+									for (int i = 0; i < quad; i++) {
+										System.out.println("clt_aberrations_quad_corr(): color="+chn+", tileX="+tileX+", tileY="+tileY+
+												" centerX="+centerX+" centerY="+centerY+" disparity="+disparity_array[tileY][tileX]+
+												" centersXY["+i+"][0]="+centersXY[i][0]+" centersXY["+i+"][1]="+centersXY[i][1]);
+									}
+								}
+
+								if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) { // before correction
+									System.out.print(disparity_array[tileY][tileX]+"\t"+
+											centersXY[0][0]+"\t"+centersXY[0][1]+"\t"+
+											centersXY[1][0]+"\t"+centersXY[1][1]+"\t"+
+											centersXY[2][0]+"\t"+centersXY[2][1]+"\t"+
+											centersXY[3][0]+"\t"+centersXY[3][1]+"\t");
+								}
+
+								for (int ip = 0; ip < centersXY.length; ip++){
+									centersXY[ip][0] -= shiftXY[ip][0];
+									centersXY[ip][1] -= shiftXY[ip][1];
+								}
+
+								if (fine_corr != null){
+									double tX = (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0
+									double tY = (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
+									for (int ip = 0; ip < centersXY.length; ip++){
+										//f(x,y)=A*x^2+B*y^2+C*x*y+D*x+E*y+F
+										for (int d = 0; d <2; d++)
+											centersXY[ip][d] -= (
+													fine_corr[ip][d][0]*tX*tX+
+													fine_corr[ip][d][1]*tY*tY+
+													fine_corr[ip][d][2]*tX*tY+
+													fine_corr[ip][d][3]*tX+
+													fine_corr[ip][d][4]*tY+
+													fine_corr[ip][d][5]);
+									}
 								}
 							}
-
-							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) { // before correction
-								System.out.print(disparity_array[tileY][tileX]+"\t"+
+							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) {
+								System.out.println("\nUsing "+(macro_mode?"MACRO":"PIXEL")+" mode, centerX="+centerX+", centerY="+centerY);
+								System.out.println(disparity_array[tileY][tileX]+"\t"+
 							    centersXY[0][0]+"\t"+centersXY[0][1]+"\t"+
 							    centersXY[1][0]+"\t"+centersXY[1][1]+"\t"+
 							    centersXY[2][0]+"\t"+centersXY[2][1]+"\t"+
 							    centersXY[3][0]+"\t"+centersXY[3][1]+"\t");
-							}
-
-							for (int ip = 0; ip < centersXY.length; ip++){
-								centersXY[ip][0] -= shiftXY[ip][0];
-								centersXY[ip][1] -= shiftXY[ip][1];
 							}
 							
-							if (fine_corr != null){
-								double tX = (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0
-								double tY = (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
-								for (int ip = 0; ip < centersXY.length; ip++){
-									//f(x,y)=A*x^2+B*y^2+C*x*y+D*x+E*y+F
-									for (int d = 0; d <2; d++)
-									centersXY[ip][d] -= (
-											fine_corr[ip][d][0]*tX*tX+
-											fine_corr[ip][d][1]*tY*tY+
-											fine_corr[ip][d][2]*tX*tY+
-											fine_corr[ip][d][3]*tX+
-											fine_corr[ip][d][4]*tY+
-											fine_corr[ip][d][5]);
-								}
-							}
-
-							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) {
-								System.out.print(disparity_array[tileY][tileX]+"\t"+
-							    centersXY[0][0]+"\t"+centersXY[0][1]+"\t"+
-							    centersXY[1][0]+"\t"+centersXY[1][1]+"\t"+
-							    centersXY[2][0]+"\t"+centersXY[2][1]+"\t"+
-							    centersXY[3][0]+"\t"+centersXY[3][1]+"\t");
-							}
 
 							for (int i = 0; i < quad; i++) {
 								clt_data[i][chn][tileY][tileX] = new double [4][];
-								fract_shiftsXY[i] = extract_correct_tile( // return a pair of resudual offsets
+								fract_shiftsXY[i] = extract_correct_tile( // return a pair of residual offsets
 										image_data[i],
 										width,       // image width
-										clt_kernels[i], // [color][tileY][tileX][band][pixel]
+										(clt_kernels == null) ? null : clt_kernels[i], // [color][tileY][tileX][band][pixel]
 										clt_data[i][chn][tileY][tileX], //double  [][]        clt_tile,    // should be double [4][];
 										kernel_step,
 										transform_size,
@@ -1246,7 +1260,9 @@ public class ImageDtt {
 										chn,                              
 										centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
 										centersXY[i][1], // centerY, //
-										((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)),
+//										((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)),
+										((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) ? (globalDebugLevel + 0) : 0, // external tile compare
+										
 //										(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2), // external tile compare
 										no_deconvolution,
 										false); // transpose);
@@ -1279,7 +1295,7 @@ public class ImageDtt {
 											fract_shiftsXY[i][0],            // double        shiftX,
 											fract_shiftsXY[i][1],            // double        shiftY,
 											//									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
-											((globalDebugLevel > 0) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
+											((globalDebugLevel > 1) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
 													(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));									
 								}
 								if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
@@ -1400,7 +1416,7 @@ public class ImageDtt {
 							}
 							double avScale = 0.0, avScaleHor = 0.0, avScaleVert = 0.0;
 							if (numPairs > 0) {
-								boolean debugMax = (globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY);
+								boolean debugMax = (globalDebugLevel > 1) && (tileX == debug_tileX) && (tileY == debug_tileY);
 								avScale = 1.0/numPairs;
 								if (numPairsHor > 0)  avScaleHor = 1.0/numPairsHor;
 								if (numPairsVert > 0) avScaleVert = 1.0/numPairsVert;
@@ -2724,7 +2740,7 @@ public class ImageDtt {
 			
 		}
 
-		if (globalDebugLevel > 0){
+		if (globalDebugLevel > 1){
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 			String [] titles = {"cos_hor","sin_hor","cos_vert","sin_vert"};
 			double [][] cs_dbg = {cos_hor, sin_hor, cos_vert, sin_vert};
@@ -3525,7 +3541,7 @@ public class ImageDtt {
 // return
 // kernel [0][0] is centered at  (-kernel_step/2,-kernel_step/2)	
 	
-	public double [] extract_correct_tile( // return a pair of resudual offsets
+	public double [] extract_correct_tile( // return a pair of residual offsets
 			double [][]         image_data,
 			int                 width,       // image width
 			double  [][][][][]  clt_kernels, // [color][tileY][tileX][band][pixel]
@@ -3535,34 +3551,43 @@ public class ImageDtt {
 			DttRad2             dtt, 
 			int                 chn,                              
 			double              centerX, // center of aberration-corrected (common model) tile, X
-			double              centerY, // 
-			boolean             bdebug0, // external tile compare
+			double              centerY, //
+			int                 debugLevel,
+//			boolean             bdebug0, // external tile compare
 			boolean             dbg_no_deconvolution,
 			boolean             dbg_transpose)
 	{
-		boolean bdebug = false;
+		boolean use_kernels = (clt_kernels != null) && !dbg_no_deconvolution;
+		boolean bdebug0 = debugLevel > 0;
+		boolean bdebug =  debugLevel > 1;
 		double [] residual_shift = new double[2];
 		int height = image_data[0].length/width;
 		int transform_size2 = 2* transform_size;
 //		if (dtt == null) dtt = new DttRad2(transform_size); should have window set up
-		double []   tile_in =  new double [4*transform_size*transform_size];    
-		// 1. find closest kernel
-		int ktileX = (int) Math.round(centerX/kernel_step) + 1;
-		int ktileY = (int) Math.round(centerY/kernel_step) + 1;
-		if      (ktileY < 0)                                ktileY = 0;
-		else if (ktileY >= clt_kernels[chn].length)         ktileY = clt_kernels[chn].length-1;
-		if      (ktileX < 0)                                ktileX = 0;
-		else if (ktileX >= clt_kernels[chn][ktileY].length) ktileX = clt_kernels[chn][ktileY].length-1;
-		CltExtra ce = new CltExtra (clt_kernels[chn][ktileY][ktileX][4]);
-		// 2. calculate correction for center of the kernel offset
-		double kdx = centerX - (ktileX -1 +0.5) *  kernel_step; // difference in pixel
-		double kdy = centerY - (ktileY -1 +0.5) *  kernel_step;
-		// 3. find top-left corner of the
-		// check signs, ce.data_x is "-" as if original kernel was shifted to "+" need to take pixel sifted "-"
-		// same with extra shift
-		double px = centerX - transform_size - (ce.data_x + ce.dxc_dx * kdx + ce.dxc_dy * kdy) ; // fractional left corner
-		double py = centerY - transform_size - (ce.data_y + ce.dyc_dx * kdx + ce.dyc_dy * kdy) ; // fractional top corner
+		double []   tile_in =  new double [4*transform_size*transform_size]; 
 		
+		double px = centerX - transform_size;
+		double py = centerY - transform_size;
+		int ktileX = 0;
+		int ktileY = 0;
+		if (use_kernels) {
+			// 1. find closest kernel
+			ktileX = (int) Math.round(centerX/kernel_step) + 1;
+			ktileY = (int) Math.round(centerY/kernel_step) + 1;
+			if      (ktileY < 0)                                ktileY = 0;
+			else if (ktileY >= clt_kernels[chn].length)         ktileY = clt_kernels[chn].length-1;
+			if      (ktileX < 0)                                ktileX = 0;
+			else if (ktileX >= clt_kernels[chn][ktileY].length) ktileX = clt_kernels[chn][ktileY].length-1;
+			CltExtra ce = new CltExtra (clt_kernels[chn][ktileY][ktileX][4]);
+			// 2. calculate correction for center of the kernel offset
+			double kdx = centerX - (ktileX -1 +0.5) *  kernel_step; // difference in pixel
+			double kdy = centerY - (ktileY -1 +0.5) *  kernel_step;
+			// 3. find top-left corner of the
+			// check signs, ce.data_x is "-" as if original kernel was shifted to "+" need to take pixel sifted "-"
+			// same with extra shift
+			px = centerX - transform_size - (ce.data_x + ce.dxc_dx * kdx + ce.dxc_dy * kdy) ; // fractional left corner
+			py = centerY - transform_size - (ce.data_y + ce.dyc_dx * kdx + ce.dyc_dy * kdy) ; // fractional top corner
+		}
 		if (bdebug0){
 			System.out.print(px+"\t"+py+"\t");
 		}
@@ -3608,14 +3633,14 @@ public class ImageDtt {
 			}
 			clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size);
 		}
-		if (bdebug) {
+		if (bdebug0) {
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 			sdfa_instance.showArrays(tile_in,  transform_size2, transform_size2, "tile_in_x"+ctile_left+"_y"+ctile_top);
 			String [] titles = {"CC","SC","CS","SS"};
 			sdfa_instance.showArrays(clt_tile,  transform_size, transform_size, true, "clt_x"+ctile_left+"_y"+ctile_top, titles);
 		}
 		// deconvolve with kernel
-		if (!dbg_no_deconvolution) {
+		if (use_kernels) {
 			double [][] ktile = clt_kernels[chn][ktileY][ktileX];
 			convolve_tile(
 					clt_tile,        // double [][]     data,    // array [transform_size*transform_size], will be updated  DTT4 converted

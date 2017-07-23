@@ -72,6 +72,8 @@ public class GeometryCorrection {
 	public double [][] XYZ_he;     // all cameras coordinates transformed to eliminate heading and elevation (rolls preserved) 
 	public double [][] XYZ_her = null; // XYZ of the lenses in a corrected CCS (adjusted for to elevation, heading,  common_roll)
 	public double [][] rXY =     null; // XY pairs of the in a normal plane, relative to disparityRadius
+	public double [][] rXY_ideal = {{-0.5, -0.5}, {0.5,-0.5}, {-0.5, 0.5}, {0.5,0.5}}; 
+
 	public double cameraRadius=0; // average distance from the "mass center" of the sensors to the sensors
 	public double disparityRadius=0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad camera (~=150mm)?
 
@@ -596,11 +598,15 @@ public class GeometryCorrection {
 		return jacobian;		
 	}
 	
-	/*
+	/**
 	 * Calculate pixel coordinates for each of numSensors images, for a given (px,py) of the idealized "center" (still distorted) image
 	 * and generic disparity, measured in pixels 
+	 * @param px pixel X coordinate
+	 * @param py pixel Y coordinate
+	 * @param disparity disparity
+	 * @return array of per port pairs of pixel shifts
 	 */
-
+	
 	public double [][] getPortsCoordinates(
 			double px,
 			double py,
@@ -627,7 +633,7 @@ public class GeometryCorrection {
 			double rri = 1.0;
 			for (int j = 0; j < a.length; j++){
 				rri *= ri;
-				rD2rND += a[j]*(rri - a[j]);
+				rD2rND += a[j]*(rri - a[j]); // BUG here !!!! - fix later, will need to re-adjust all fine corr
 			}
 			double pXid = pXci * rD2rND;  
 			double pYid = pYci * rD2rND;
@@ -640,6 +646,117 @@ public class GeometryCorrection {
 		return pXY;
 	}
 
+	public double [][] getPortsCoordinatesIdeal_wrong(
+			double px,
+			double py,
+			double disparity)
+	{
+		double [][] pXY = new double [numSensors][2];
+		double pXcd = px - 0.5 * this.pixelCorrectionWidth;
+		double pYcd = py - 0.5 * this.pixelCorrectionHeight;
+		double rD = Math.sqrt(pXcd*pXcd + pYcd*pYcd)*0.001*this.pixelSize; // distorted radius in a virtual center camera
+		double rND2R=getRByRDist(rD/this.distortionRadius, (debugLevel > -1));
+		double pXc = pXcd * rND2R; // non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
+		double pYc = pYcd * rND2R; // in pixels
+		double [] a={this.distortionC,this.distortionB,this.distortionA,this.distortionA5,this.distortionA6,this.distortionA7,this.distortionA8};
+		for (int i = 0; i < numSensors; i++){
+			// non-distorted XY of the shifted location of the individual sensor
+			double pXci = pXc - disparity *  this.rXY_ideal[i][0]; // in pixels
+			double pYci = pYc - disparity *  this.rXY_ideal[i][1];
+			// calculate back to distorted
+			double rNDi = Math.sqrt(pXci*pXci + pYci*pYci); // in pixels
+			//		Rdist/R=A8*R^7+A7*R^6+A6*R^5+A5*R^4+A*R^3+B*R^2+C*R+(1-A6-A7-A6-A5-A-B-C)");
+			double ri = rNDi* 0.001 * this.pixelSize / this.distortionRadius; // relative to distortion radius
+			//    		double rD2rND = (1.0 - distortionA8 - distortionA7 - distortionA6 - distortionA5 - distortionA - distortionB - distortionC);
+			double rD2rND = 1.0;
+			double rri = 1.0;
+			for (int j = 0; j < a.length; j++){
+				rri *= ri;
+				rD2rND += a[j]*(rri - a[j]);
+			}
+			double pXid = pXci * rD2rND;  
+			double pYid = pYci * rD2rND;
+			// individual rotate (check sign)
+//			double c_roll = Math.cos((this.roll[i] - this.common_roll) * Math.PI/180.0);
+//			double s_roll = Math.sin((this.roll[i] - this.common_roll) * Math.PI/180.0);
+			double c_roll = Math.cos(( - this.common_roll) * Math.PI/180.0);
+			double s_roll = Math.sin(( - this.common_roll) * Math.PI/180.0);
+			pXY[i][0] =  c_roll *  pXid + s_roll* pYid + 0.5 * this.pixelCorrectionWidth; // this.pXY0[i][0];
+			pXY[i][1] = -s_roll *  pXid + c_roll* pYid + 0.5 * this.pixelCorrectionWidth; // this.pXY0[i][1];
+		}
+		return pXY;
+	}
+	
+	// should return same as input if disparity==0
+	public double [][] getPortsCoordinatesIdeal(
+			double px,
+			double py,
+			double disparity)
+	{
+		// reverse getPortsCoordinates
+		double c_roll = Math.cos(( - this.common_roll) * Math.PI/180.0);
+		double s_roll = Math.sin(( - this.common_roll) * Math.PI/180.0);
+		double pXcd0 = px -  0.5 * this.pixelCorrectionWidth;  
+		double pYcd0 = py -  0.5 * this.pixelCorrectionWidth;
+		double pXcd = c_roll *  pXcd0 - s_roll* pYcd0;   
+		double pYcd = s_roll *  pXcd0 + c_roll* pYcd0;
+		double rD = Math.sqrt(pXcd*pXcd + pYcd*pYcd)*0.001*this.pixelSize; // distorted radius in a virtual center camera
+		double rND2R=getRByRDist(rD/this.distortionRadius, (debugLevel > -1));
+		double pXc = pXcd * rND2R; // non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
+		double pYc = pYcd * rND2R; // in pixels
+		double [] a={this.distortionC,this.distortionB,this.distortionA,this.distortionA5,this.distortionA6,this.distortionA7,this.distortionA8};
+		double [][] pXY = new double [numSensors][2];
+		for (int i = 0; i < numSensors; i++){
+			// non-distorted XY of the shifted location of the individual sensor
+			double pXci = pXc - disparity *  this.rXY_ideal[i][0]; // in pixels
+			double pYci = pYc - disparity *  this.rXY_ideal[i][1];
+			
+			// calculate back to distorted
+			double rNDi = Math.sqrt(pXci*pXci + pYci*pYci); // in pixels
+			//		Rdist/R=A8*R^7+A7*R^6+A6*R^5+A5*R^4+A*R^3+B*R^2+C*R+(1-A8-A7-A6-A5-A-B-C)");
+			double ri = rNDi* 0.001 * this.pixelSize / this.distortionRadius; // relative to distortion radius
+			//    		double rD2rND = (1.0 - distortionA8 - distortionA7 - distortionA6 - distortionA5 - distortionA - distortionB - distortionC);
+			double rD2rND = 1.0;
+			double rri = 1.0;
+			for (int j = 0; j < a.length; j++){
+				rri *= ri;
+				rD2rND += a[j]*(rri - 1.0);
+			}
+			double pXid = pXci * rD2rND;  
+			double pYid = pYci * rD2rND;
+			pXY[i][0] =  c_roll *  pXid + s_roll* pYid + 0.5 * this.pixelCorrectionWidth; // this.pXY0[i][0];
+			pXY[i][1] = -s_roll *  pXid + c_roll* pYid + 0.5 * this.pixelCorrectionWidth; // this.pXY0[i][1];
+		}
+		return pXY;
+	}
+	
+	
+	
+	public double [][] getPortsCoordinatesIdeal(
+			int    macro_scale, // 1 for pixels, 8 - for tiles when correlating tiles instead of the pixels
+			double px,
+			double py,
+			double disparity)
+	{
+		if (macro_scale == 1){
+			return getPortsCoordinates(
+					px * macro_scale,
+					py * macro_scale,
+					disparity);
+		}
+		double [][] coords = getPortsCoordinatesIdeal(
+				px * macro_scale,
+				py * macro_scale,
+				disparity);
+		for (int i = 0; i < coords.length; i++){
+			for (int j = 0; j< coords[i].length; j++){
+				coords[i][j] /= macro_scale;
+			}
+		}
+		return coords;
+	}
+
+	
 	// Copied from PixelMapping
 	/**
 	 * Calculate reverse distortion table - from pixel radius to non-distorted radius	

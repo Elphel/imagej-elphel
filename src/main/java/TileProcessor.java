@@ -80,6 +80,9 @@ public class TileProcessor {
 		return this.corr_magic_scale;
 	}
 	
+	public int getThreadsMax(){
+		return this.threadsMax;
+	}
 //	public void setMagicScale (double scale)
 //	{
 //		this.corr_magic_scale = scale;
@@ -373,8 +376,9 @@ public class TileProcessor {
 	 * @param disp_far        lowest disparity value to consider (does not apply to max_tried_disparity)
 	 * @param disp_near       highest disparity value to consider (does not apply to max_tried_disparity)
 	 * @param minStrength     full correlation strength to consider data to be reliable 
-	 * @param minStrengthHor  horizontal (for vertical features) correlation strength to consider data to be reliable
-	 * @param minStrengthVert vertical (for horizontal features) correlation strength to consider data to be reliable
+	 * @param minStrengthHor  horizontal (for vertical features) correlation strength to consider data to be reliable. NaN - do not use 
+	 * @param minStrengthVert vertical (for horizontal features) correlation strength to consider data to be reliable. NaN - do not use
+	 * @param no_weak         Do not use weak at all
 	 * @param use_last        use last scan data if nothing strong enough (false - use the strongest)
 	 * @param usePoly         use polynomial method to find max for full correlation, false - use center of mass
 	 * @param copyDebug       copy data that is only needed for debug purposes
@@ -390,6 +394,7 @@ public class TileProcessor {
 			 final double                minStrength, 
 			 final double                minStrengthHor,
 			 final double                minStrengthVert,
+			 final boolean               no_weak,
 			 final boolean               use_last,   //  
 			 // TODO: when useCombo - pay attention to borders (disregard)
 			 final boolean               usePoly,  // use polynomial method to find max), valid if useCombo == false
@@ -488,7 +493,7 @@ public class TileProcessor {
 											best_index = ipass;
 										}
 									} else {
-										if ((last && (strength > 0.0)) || (strength > strongest_weak)){ 
+										if ((last && (strength > 0.0)) || (!no_weak && (strength > strongest_weak))){ 
 											strongest_weak = strength;
 											best_weak_index = ipass;
 										}
@@ -497,16 +502,16 @@ public class TileProcessor {
 //							}
 						}
 
-						if (adiff_hor <= trustedCorrelation){
+						if (!Double.isNaN(minStrengthHor) && (adiff_hor <= trustedCorrelation)){
 							double disp_hor = mdisp_hor/corr_magic_scale +  pass.disparity[ty][tx];
 							if ((disp_hor >= disp_far) && (disp_hor <= disp_near) && !Double.isNaN(adiff_hor)){
-								if (strength_hor >= minStrength) { 
+								if (strength_hor >= minStrengthHor) { 
 									if (!(adiff_hor >= adiff_best_hor)){ // adiff_best == Double.NaN works too 
 										adiff_best_hor = adiff_hor;
 										best_index_hor = ipass;
 									}
 								} else {
-									if ((last && (strength_hor > 0.0))  || (strength_hor > strongest_weak_hor)){ 
+									if ((last && (strength_hor > 0.0))  || (!no_weak && (strength_hor > strongest_weak_hor))){ 
 										strongest_weak_hor = strength_hor;
 										best_weak_index_hor = ipass;
 									}
@@ -514,16 +519,16 @@ public class TileProcessor {
 							}
 						}
 						
-						if (adiff_vert <= trustedCorrelation){
+						if (!Double.isNaN(minStrengthVert) && (adiff_vert <= trustedCorrelation)){
 							double disp_vert = mdisp_vert/corr_magic_scale +  pass.disparity[ty][tx];
 							if ((disp_vert >= disp_far) && (disp_vert <= disp_near) && !Double.isNaN(adiff_vert)){
-								if (strength_vert >= minStrength) { 
+								if (strength_vert >= minStrengthVert) { 
 									if (!(adiff_vert >= adiff_best_vert)){ // adiff_best == Double.NaN works too 
 										adiff_best_vert = adiff_vert;
 										best_index_vert = ipass;
 									}
 								} else {
-									if ((last && (strength_vert > 0.0))  || (strength_vert > strongest_weak_vert)){ 
+									if ((last && (strength_vert > 0.0))  || (!no_weak && (strength_vert > strongest_weak_vert))){ 
 										strongest_weak_vert = strength_vert;
 										best_weak_index_vert = ipass;
 									}
@@ -599,10 +604,118 @@ public class TileProcessor {
 				}
 			}
 		}
+		combo_pass.getDisparity(); // See if it does not break anything - triggers calculation if not done yet
 		combo_pass.fixNaNDisparity(); // mostly for debug, measured disparity should be already fixed from NaN
 		return combo_pass;
 	}
 
+	/**
+	 * Create next measurement scan that can handle multiple disparities, using quad correlations only
+	 * @param passes
+	 * @param firstPass
+	 * @param lastPassPlus1
+	 * @param trustedCorrelation
+	 * @param disp_far
+	 * @param disp_near
+	 * @param minStrength
+	 * @param unique_tolerance
+	 * @param usePoly
+	 * @param debugLevel
+	 * @return
+	 */
+
+	public CLTPass3d RefineQuadMulti(
+			 final ArrayList <CLTPass3d> passes,
+			 final int                   firstPass,
+			 final int                   lastPassPlus1,
+			 final double                trustedCorrelation,
+			 final double                disp_far,   // limit results to the disparity range
+			 final double                disp_near,
+			 final double                minStrength,
+			 final double                unique_tolerance,
+			 
+			 // TODO: when useCombo - pay attention to borders (disregard)
+			 final boolean               usePoly,  // use polynomial method to find max), valid if useCombo == false
+			 final int                   debugLevel)
+	{
+		final int dbg_tile = (debugLevel > 0)? 839: -1; // x = 122, y= 108; -1; // 27669;
+		CLTPass3d combo_pass =new CLTPass3d(this);
+		final int tlen = tilesX * tilesY;
+		final int disparity_index = usePoly ? ImageDtt.DISPARITY_INDEX_POLY : ImageDtt.DISPARITY_INDEX_CM;
+		combo_pass.tile_op =              new int [tilesY][tilesX];
+		combo_pass.disparity =            new double [tilesY][tilesX];
+//		for (int i = 0; i< ImageDtt.QUAD; i++) combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i] = new double[tlen];
+		int op = ImageDtt.setImgMask(0, 0xf);
+		op =     ImageDtt.setPairMask(op,0xf);
+		op =     ImageDtt.setForcedDisparity(op,true);
+		int num_new = 0;
+		for (int ty = 0; ty < tilesY; ty ++) {
+			for (int tx = 0; tx < tilesX; tx ++){
+				int nt = ty * tilesX + tx;
+				if (nt == dbg_tile) {
+					System.out.println("RefineQuadMulti(): nt = "+nt);
+				}
+				for (int ipass = firstPass;  ipass <lastPassPlus1; ipass++ ){
+					CLTPass3d pass = passes.get(ipass);
+					if (nt == dbg_tile) {
+						System.out.println("RefineQuadMulti(): ipass = "+ipass+" nt = "+nt+" pass.tile_op["+ty+"]["+tx+"]="+pass.tile_op[ty][tx]+
+								" pass.isCombo()="+(pass.isCombo())+" pass.isProcessed()="+(pass.isProcessed()));
+					}
+					if ( pass.isMeasured() && (pass.tile_op[ty][tx] != 0 )) { // current tile has valid data
+						
+						
+//						if (	(Double.isNaN(combo_pass.max_tried_disparity[ty][tx]) ||
+//								(pass.disparity[ty][tx] > combo_pass.max_tried_disparity[ty][tx]))){
+//							combo_pass.max_tried_disparity[ty][tx] = pass.disparity[ty][tx];
+//						}
+						double mdisp =         pass.disparity_map[disparity_index][nt];
+						double strength =      pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nt];
+						double adiff =      Math.abs(mdisp);
+						
+						if ((strength >= minStrength) && (adiff <= trustedCorrelation)){
+							double disp = mdisp/corr_magic_scale +  pass.disparity[ty][tx];
+//							double disp_low =  (disp > pass.disparity[ty][tx]) ? pass.disparity[ty][tx] : (2 * disp - pass.disparity[ty][tx]); 
+//							double disp_high = (disp > pass.disparity[ty][tx]) ? (2 * disp - pass.disparity[ty][tx]) : pass.disparity[ty][tx];
+							double disp_low =  Math.min(disp, pass.disparity[ty][tx]); 
+							double disp_high = Math.max(disp, pass.disparity[ty][tx]);
+//							if ((disp_high - disp_low) > 2 * unique_tolerance) { // suggested correction is not too small
+							if ((disp_high - disp_low) > unique_tolerance) { // suggested correction is not too small
+								boolean duplicate = false;
+								for (int iother = firstPass;  iother <lastPassPlus1; iother++ ) {
+									CLTPass3d other = passes.get(iother);
+									if ( other.isMeasured() && (other.tile_op[ty][tx] != 0 )){ //  && (iother != ipass)){
+										if (    (Math.abs(other.disparity[ty][tx] - disp) < unique_tolerance) ||
+												((other.disparity[ty][tx] - disp) * (other.disparity[ty][tx] - pass.disparity[ty][tx]) <0) // between
+												){
+											duplicate = true;
+											break;
+										}
+									}
+								}
+								if (!duplicate){
+									combo_pass.tile_op[ty][tx] = op;	
+									combo_pass.disparity[ty][tx] = disp;	
+									num_new++;
+									break; // for (int ipass = firstPass;  ipass <lastPassPlus1; ipass++ ){
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+//		combo_pass.getDisparity(); // See if it does not break anything - triggers calculation if not done yet
+//		combo_pass.fixNaNDisparity(); // mostly for debug, measured disparity should be already fixed from NaN
+		if (debugLevel > -1){
+			System.out.println("RefineQuadMulti(): prepared "+num_new+" tiles to be measured");
+		}
+		return (num_new > 0) ? combo_pass: null;
+	}
+	
+	
+	
+	
+	
 	/**
 	 * Verify that selected points are not all on the same line 
 	 * @param sel 2-d sample selection in linescan order
@@ -703,6 +816,7 @@ public class TileProcessor {
 //					combo_pass.calc_disparity[nt] =         pass.disparity_map[disparity_index][nt]/corr_magic_scale +  pass.disparity[ty][tx];
 	
 	public double [][] getFilteredDisparityStrength(
+			final ArrayList <CLTPass3d> passes,// List, first, last - to search for the already tried disparity
 			final int        measured_scan_index, // will not look at higher scans (OK to be non-measured, last measured will be used then)
 			final int        start_scan_index,
 			final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
@@ -743,8 +857,8 @@ public class TileProcessor {
 		final int dbg_tile = (debugLevel > 0) ?(dbg_x + dbg_y * tilesX) : -1;
 		// Create a list of only measurement scans
 		final ArrayList<CLTPass3d> measured_list = new ArrayList<CLTPass3d> ();
-		for (int ipass = start_scan_index; ipass <= measured_scan_index; ipass++){
-			CLTPass3d pass = clt_3d_passes.get(ipass);
+		for (int ipass = start_scan_index; (ipass < passes.size()) && (ipass <= measured_scan_index) ; ipass++){
+			CLTPass3d pass = passes.get(ipass);
 			if ((pass != null) && pass.isMeasured()){
 				measured_list.add(pass);
 			}
@@ -3566,7 +3680,7 @@ public class TileProcessor {
 			String [] titles = {"masked","map","orig_map","hor_map","vert_map","bg_sel","far",
 					"before_small","before_lone","before_gaps","these","near","block",
 					"strength","hor-strength","vert-strength",
-					"diff0","diff1","diff2","diff3", "enum_clusters", "disp_cm", "disp_poly", "disp_hor", "disp_vert", "poison"};
+					"diff0","diff1","diff2","diff3", "enum_clusters", "disp_cm", "disp_poly", "disp_hor", "disp_vert", "poison","platde_d","plate_s"};
 			double [][] dbg_img = new double[titles.length][tilesY * tilesX];
 			for (int i = 0; i<dbg_img[0].length;i++){
 				dbg_img[ 0][i] =   this_disparity_masked[i];
@@ -3605,6 +3719,10 @@ public class TileProcessor {
 			dbg_img[22] =  scan. disparity_map[ImageDtt.DISPARITY_INDEX_POLY];
 			dbg_img[23] =  scan. disparity_map[ImageDtt.DISPARITY_INDEX_HOR];
 			dbg_img[24] =  scan. disparity_map[ImageDtt.DISPARITY_INDEX_VERT];
+			if (plate_ds != null) {
+				dbg_img[26] =  plate_ds[0];
+				dbg_img[26] =  plate_ds[1];
+			}
 			
 			sdfa_instance.showArrays(dbg_img,  tilesX, tilesY, true, "FilterScan"+clt_3d_passes.size(),titles);
 			System.out.println("FilterScan"+clt_3d_passes.size());
@@ -4190,7 +4308,7 @@ public class TileProcessor {
 					clt_parameters.stStepFar,        // double     step_near,
 					clt_parameters.stStepThreshold,  // double     step_threshold,
 					clt_parameters.stMinDisparity,   // double     min_disparity,
-					clt_parameters.stMaxDisparity,   // double     max_disparity,
+					clt_parameters.grow_disp_max,   // double     max_disparity,
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
 					0.0,// NO BLUR double     stBlurSigma)
@@ -4207,7 +4325,7 @@ public class TileProcessor {
 					clt_parameters.stStepFar,        // double     step_near,
 					clt_parameters.stStepThreshold,  // double     step_threshold,
 					clt_parameters.stMinDisparity,   // double     min_disparity,
-					clt_parameters.stMaxDisparity,   // double     max_disparity,
+					clt_parameters.grow_disp_max,   // double     max_disparity,
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
 					clt_parameters.stSigma, // with blur double     stBlurSigma)
@@ -4985,7 +5103,7 @@ public class TileProcessor {
 					clt_parameters.stStepFar,        // double     step_near,
 					clt_parameters.stStepThreshold,  // double     step_threshold,
 					clt_parameters.stMinDisparity,   // double     min_disparity,
-					clt_parameters.stMaxDisparity,   // double     max_disparity,
+					clt_parameters.grow_disp_max,   // double     max_disparity,
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
 					0.0, // NO BLUR double     stBlurSigma)
@@ -5001,7 +5119,7 @@ public class TileProcessor {
 					clt_parameters.stStepFar,        // double     step_near,
 					clt_parameters.stStepThreshold,  // double     step_threshold,
 					clt_parameters.stMinDisparity,   // double     min_disparity,
-					clt_parameters.stMaxDisparity,   // double     max_disparity,
+					clt_parameters.grow_disp_max,   // double     max_disparity,
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
 					0.0, // NO BLUR double     stBlurSigma)
@@ -5020,7 +5138,7 @@ public class TileProcessor {
 				clt_parameters.stStepFar,        // double     step_near,
 				clt_parameters.stStepThreshold,  // double     step_threshold,
 				clt_parameters.stMinDisparity,   // double     min_disparity,
-				clt_parameters.stMaxDisparity,   // double     max_disparity,
+				clt_parameters.grow_disp_max,   // double     max_disparity,
 				clt_parameters.stFloor,          // double     strength_floor,
 				clt_parameters.stPow,            // double     strength_pow,
 				clt_parameters.stSigma,          // with blur double     stBlurSigma)
@@ -5049,7 +5167,7 @@ public class TileProcessor {
 					clt_parameters.stStepFar,        // double     step_near,
 					clt_parameters.stStepThreshold,  // double     step_threshold,
 					clt_parameters.stMinDisparity,   // double     min_disparity,
-					clt_parameters.stMaxDisparity,   // double     max_disparity,
+					clt_parameters.grow_disp_max,   // double     max_disparity,
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
 					0.0, // NO BLUR double     stBlurSigma)
@@ -5976,7 +6094,7 @@ public class TileProcessor {
 					clt_parameters.stStepFar,        // double     step_near,
 					clt_parameters.stStepThreshold,  // double     step_threshold,
 					clt_parameters.stMinDisparity,   // double     min_disparity,
-					clt_parameters.stMaxDisparity,   // double     max_disparity,
+					clt_parameters.grow_disp_max,   // double     max_disparity,
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
 					0.0, // NO BLUR double     stBlurSigma)
@@ -5993,7 +6111,7 @@ public class TileProcessor {
 					clt_parameters.stStepFar,        // double     step_near,
 					clt_parameters.stStepThreshold,  // double     step_threshold,
 					clt_parameters.stMinDisparity,   // double     min_disparity,
-					clt_parameters.stMaxDisparity,   // double     max_disparity,
+					clt_parameters.grow_disp_max,   // double     max_disparity,
 					clt_parameters.stFloor,          // double     strength_floor,
 					clt_parameters.stPow,            // double     strength_pow,
 					clt_parameters.stSigma, // with blur double     stBlurSigma)
