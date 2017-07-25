@@ -633,7 +633,8 @@ public class GeometryCorrection {
 			double rri = 1.0;
 			for (int j = 0; j < a.length; j++){
 				rri *= ri;
-				rD2rND += a[j]*(rri - a[j]); // BUG here !!!! - fix later, will need to re-adjust all fine corr
+//				rD2rND += a[j]*(rri - a[j]); // BUG here !!!! - fix later, will need to re-adjust all fine corr
+				rD2rND += a[j]*(rri - 1.0); // Fixed
 			}
 			double pXid = pXci * rD2rND;  
 			double pYid = pYci * rD2rND;
@@ -672,7 +673,7 @@ public class GeometryCorrection {
 			double rri = 1.0;
 			for (int j = 0; j < a.length; j++){
 				rri *= ri;
-				rD2rND += a[j]*(rri - a[j]);
+				rD2rND += a[j]*(rri - 1.0);
 			}
 			double pXid = pXci * rD2rND;  
 			double pYid = pYci * rD2rND;

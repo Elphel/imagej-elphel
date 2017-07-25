@@ -3606,12 +3606,12 @@ public class ImageDtt {
 		} else { // copy by 1
 			for (int i = 0; i < transform_size2; i++){
 				int pi = ctile_top + i;
-				if      (pi < 0)       pi = 0;
-				else if (pi >= height) pi = height - 1;
+				if      (pi < 0)       pi &= 1;
+				else if (pi >= height) pi = height - 2 + (pi & 1);
 				for (int j = 0; j < transform_size2; j++){
 					int pj = ctile_left + j;
-					if      (pj < 0)      pj = 0;
-					else if (pj >= width) pj = width - 1;
+					if      (pj < 0)      pj &= 1;
+					else if (pj >= width) pj = width - 2 + (pj & 1);
 					tile_in[transform_size2 * i + j] = image_data[chn][pi * width + pj];
 				}			
 			}			

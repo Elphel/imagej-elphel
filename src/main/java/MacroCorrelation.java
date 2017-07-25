@@ -23,6 +23,12 @@
  **
  */
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.concurrent.atomic.AtomicInteger;
+
+
 public class MacroCorrelation {
 	TileProcessor tp; // pixel tile processor
 	TileProcessor mtp; // macro tile processor
@@ -339,7 +345,7 @@ public class MacroCorrelation {
 			EyesisCorrectionParameters.CLTParameters clt_parameters,
 			GeometryCorrection                       geometryCorrection,			  
 			final double                             trustedCorrelation,
-			final double                             disp_far,   // limit results to the disparity range
+			final double                             disp_far,   // limit results to the disparity range, far - start with 1 step above 0 (was valid for all)
 			final double                             disp_near,
 			final double                             minStrength,
 			final double                             unique_tolerance,
@@ -372,8 +378,218 @@ public class MacroCorrelation {
 		return refined_macro;
 		
 	}
+
+	public ArrayList <CLTPass3d> prepareMeasurementsFromMacro(
+			final ArrayList <CLTPass3d> macro_passes, // macro correlation measurements
+			// in pixels
+			final double                disp_far,   // limit results to the disparity range
+			final double                disp_near,
+			final double                minStrength,
+			final double                mc_trust_fin, //          =   0.3;   // When consolidating macro results, exclude high residual disparity
+			final double                mc_trust_sigma, //        =   0.2;   // Gaussian sigma to reduce weight of large residual disparity
+			final double                mc_ortho_weight, //       =   0.5;   // Weight from ortho neighbor supertiles
+			final double                mc_diag_weight, //        =   0.25;  // Weight from diagonal neighbor supertiles
+			final double                mc_gap, //                =   0.4;   // Do not remove measurements farther from the kept ones
+			final boolean               usePoly,  // use polynomial method to find max), valid if useCombo == false
+			final boolean               sort_disparity,  // sort results for increasing disparity (false - decreasing strength)
+			final int                   dbg_x,
+			final int                   dbg_y,
+			final int                   debugLevel)
 	
-	
+	{
+		class DispStrength{
+			double disparity;
+			double strength;
+			DispStrength (double disparity, double strength){
+				this.disparity = disparity;
+				this.strength = strength;
+			}
+			double [] toArray(){
+				double [] arr = {disparity, strength};
+				return arr;
+			}
+			public String toString(){
+				return String.format("disparity=%7.3f strength=%7.4f",disparity, strength);
+			}
+		}
+		final int mTilesX = mtp.getTilesX();
+		final int mTilesY = mtp.getTilesY();
+		final int mTiles = mTilesX * mTilesY; 
+		final ArrayList <CLTPass3d> measurements = new ArrayList <CLTPass3d>();
+		final TileNeibs tnSurface = new TileNeibs(mtp.getTilesX(), mtp.getTilesY());
+		final Thread[] threads = ImageDtt.newThreadArray(tp.threadsMax);
+		final int []  max_meas = new int [threads.length]; // maximal numer of measurements per tile
+		final int []  num_meas = new int [threads.length]; // maximal numer of measurements per tile
+		final AtomicInteger ai_thread = new AtomicInteger(0);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final int dbg_tile = dbg_x + dbg_y * mTilesX;
+		final double [][][] macro_ds = new double [mTiles][][];
+		final int firstPass = 0;
+		final int lastPassPlus1 = macro_passes.size();
+		final int disparity_index = usePoly ? ImageDtt.DISPARITY_INDEX_POLY : ImageDtt.DISPARITY_INDEX_CM;
+		final double disp_far8 = disp_far/tp.getTileSize();   // here tp, not mtp
+		final double disp_near8 = disp_near/tp.getTileSize();   // here tp, not mtp
+		final double corr_magic_scale = mtp.getMagicScale();
+		//mtp.clt_3d_passes
+		
+		final double [] neib_weights = {
+				mc_ortho_weight,
+				mc_diag_weight,
+				mc_ortho_weight,
+				mc_diag_weight,
+				mc_ortho_weight,
+				mc_diag_weight,
+				mc_ortho_weight,
+				mc_diag_weight,
+				1.0};
+		final double kexp = (mc_trust_sigma == 0.0) ? 0.0: (0.5/mc_trust_sigma/mc_trust_sigma);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+					int this_thread = ai_thread.getAndIncrement();
+
+					for (int mTile0 = ai.getAndIncrement(); mTile0 < mTiles; mTile0 = ai.getAndIncrement()) {
+						int dl = (mTile0 == dbg_tile) ? debugLevel : -1;
+						if (dl > 0){
+							System.out.println("prepareMeasurementsFromMacro() mTile0="+mTile0);
+						}
+						ArrayList<DispStrength> ds_list = new ArrayList<DispStrength>();
+						for (int ipass = firstPass;  ipass <lastPassPlus1; ipass++ ){
+							CLTPass3d pass = macro_passes.get(ipass);
+							if ( pass.isMeasured()) { // current tile has valid data
+								for (int dir = 0; dir < neib_weights.length; dir++){ // 8 - center
+									int mTile = tnSurface.getNeibIndex(mTile0, dir);
+									if ((mTile >= 0) && (neib_weights[dir] != 0.0)) {
+										int mty = mTile / mTilesX; 
+										int mtx = mTile % mTilesX;
+										if (pass.tile_op[mty][mtx] != 0 ) { // current tile has valid data
+											double mdisp =         pass.disparity_map[disparity_index][mTile];
+											double strength =      pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][mTile];
+											double adiff =      Math.abs(mdisp);
+											if ((strength >= minStrength) && (adiff <= mc_trust_fin)){
+												double disp = mdisp/corr_magic_scale +  pass.disparity[mty][mtx];
+												if ((disp >= disp_far8) && (disp <= disp_near8)) {
+													double weight = strength * neib_weights[dir];
+													if (mc_trust_sigma != 0.0){
+														weight *= Math.exp(-kexp*mdisp*mdisp);
+													}
+													ds_list.add(new DispStrength(disp, weight));
+												}
+											}
+										}
+									}
+								}
+							}
+						}
+						// sort by strength copy to new list then remove all that are closer than usePoly, repeat until not empty
+						Collections.sort(ds_list, new Comparator<DispStrength>() {
+							@Override
+							public int compare(DispStrength lhs, DispStrength rhs) {
+								// descending
+								return (lhs.strength > rhs.strength) ? -1 : (lhs.strength < rhs.strength) ? 1 : 0;
+							}
+						});
+						ArrayList<DispStrength> ds_list_keep = new ArrayList<DispStrength>();
+
+						while (!ds_list.isEmpty()){
+							DispStrength ds_kept = ds_list.remove(0);
+							ds_list_keep.add(ds_kept); // move strongest
+							for (int i = ds_list.size(); i > 0; i--){
+								DispStrength ds = ds_list.remove(0);
+								if (Math.abs(ds_kept.disparity-ds.disparity) >= mc_gap){
+									ds_list.add(ds);
+								}
+							}
+						}
+						if (!ds_list_keep.isEmpty()){
+							if (sort_disparity){
+								Collections.sort(ds_list_keep, new Comparator<DispStrength>() {
+									@Override
+									public int compare(DispStrength lhs, DispStrength rhs) {
+										// ascending
+										return (lhs.disparity < rhs.disparity) ? -1 : (lhs.disparity > rhs.disparity) ? 1 : 0;
+									}
+								});
+							}
+							macro_ds[mTile0] = new double[ds_list_keep.size()][];
+							int indx=0;
+							for (DispStrength ds:ds_list_keep){
+								macro_ds[mTile0][indx++] = ds.toArray();	
+							}
+							if (max_meas[this_thread] < ds_list_keep.size()){
+								max_meas[this_thread] = ds_list_keep.size();
+								if (debugLevel > -1){ // (dl > 0){
+									System.out.println("prepareMeasurementsFromMacro() mTile0="+mTile0+" max_meas["+this_thread+"]="+max_meas[this_thread]);
+								}
+							}
+							num_meas[this_thread] += ds_list_keep.size();
+						}
+
+					}
+				}
+			};
+		}
+		ImageDtt.startAndJoin(threads);
+		int longest = 0;
+		int total_meas = 0;
+		for (int i = 0; i < max_meas.length; i++){
+			if (longest < max_meas[i]) {
+				longest = max_meas[i];
+				total_meas +=num_meas[i];
+			}
+		}
+
+		if (debugLevel > -1){
+			System.out.println("prepareMeasurementsFromMacro(): longest="+longest+" total_meas="+total_meas);
+		}
+		
+		int op = ImageDtt.setImgMask(0, 0xf);
+		op =     ImageDtt.setPairMask(op,0xf);
+		op =     ImageDtt.setForcedDisparity(op,true);
+		final int fop = op;
+		ai.set(0);
+		ai_thread.set(0);
+		for (int i = 0; i < longest; i++){
+			measurements.add(new CLTPass3d(tp, 0 )); // mode 0 - initialize tile_op and disparity arrays
+		}
+		
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				public void run() {
+//					int this_thread = ai_thread.getAndIncrement();
+					int tileSize = tp.getTileSize();
+					int tilesX = tp.getTilesX();
+					int tilesY = tp.getTilesY();
+					
+					for (int mTile = ai.getAndIncrement(); mTile < mTiles; mTile = ai.getAndIncrement()) {
+						int dl = (mTile == dbg_tile) ? debugLevel : -1;
+						if (dl > 0){
+							System.out.println("prepareMeasurementsFromMacro().1 mTile0="+mTile);
+						}
+						if (macro_ds[mTile] != null){
+							int mty = mTile / mTilesX; 
+							int mtx = mTile % mTilesX;
+							int ty0 = mty * tileSize;
+							int tx0 = mtx * tileSize;
+							int ty1 = ty0 + tileSize; if (ty1 > tilesY) ty1 = tilesY;
+							int tx1 = tx0 + tileSize; if (tx1 > tilesX) tx1 = tilesX;
+							for (int ipass = 0; ipass < macro_ds[mTile].length;ipass++){
+								CLTPass3d pass = measurements.get(ipass);
+								for (int ty = ty0; ty < ty1; ty++){
+									for (int tx = tx0; tx < tx1; tx++){
+										pass.tile_op[ty][tx] = fop;
+										pass.disparity[ty][tx] = macro_ds[mTile][ipass][0]*tileSize;
+									}
+								}
+							}
+						}
+					}
+				}
+			};
+		}
+		ImageDtt.startAndJoin(threads);
+		return measurements;
+	}
 	
 	
 }

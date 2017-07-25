@@ -2007,6 +2007,7 @@ public class EyesisCorrectionParameters {
   		public double     fine_corr_x_3 =     0.0;   // additionally shift image in port 3 in x direction
   		public double     fine_corr_y_3 =     0.0;   // additionally shift image in port 3 in y direction
   		
+  		public double     fcorr_radius =       0.75 ; // Do not try to correct outside this fraction of width/hight
   		public double     fcorr_min_strength = 0.15 ; // 0.005 minimal correlation strength to apply fine correction
   		public double     fcorr_disp_diff =   1.5;   // consider only tiles with absolute residual disparity lower than
   		public boolean    fcorr_quadratic =   true;  // Use quadratic polynomial for fine correction (false - only linear)
@@ -2131,8 +2132,8 @@ public class EyesisCorrectionParameters {
   		public boolean    correct_distortions = false; // Correct lens geometric distortions in a model (will need backdrop to be corrected too)
   		public boolean    show_triangles =    true;  // Show generated triangles
   		public boolean    avg_cluster_disp =  false;  // Weight-average disparity for the whole cluster 
-  		public double     maxDispTriangle   = 0.2;    // Maximal disparity difference in a triangle face to show
-  		
+  		public double     maxDispTriangle   = 0.2;    // Maximal relative disparity difference in a triangle face
+  		public double     infinityDistance  = 10000;  // Distance to generate backdrop (0 - use regular backdrop)
   		public boolean    shUseFlaps        = true;  // Split into shells with flaps
   		public boolean    shAggrFade        = true;  // Aggressive fade alpha (whole boundary)
   		public int        shMinArea         = 1;     // Minimal shell area (not counting flaps
@@ -2245,19 +2246,23 @@ public class EyesisCorrectionParameters {
 		
 // Macro disparity scanning parameters		
 		public double     mc_disp8_step        =   2.0;   // Macro disparity scan step (actual disparity step is 8x)
-		public double     mc_disp8_trust       =   3.0;   //Trust measured disparity within +/- this value 
-		public double     mc_strength          =   0.2;   // Minimal composite correlation to process
- 		public double     mc_unique_tol        =   0.1;   // Do not re-measure macro correlation if target disparity differs from some previous by this
-		
+		public double     mc_disp8_trust       =   2.0;   //Trust measured disparity within +/- this value 
+		public double     mc_strength          =   0.2;   // Minimal composite correlation to process (0.2..0.3)
+ 		public double     mc_unique_tol        =   0.05;  // Do not re-measure macro correlation if target disparity differs from some previous by this
+ 		public double     mc_trust_fin         =   0.3;   // When consolidating macro results, exclude high residual disparity
+ 		public double     mc_trust_sigma       =   0.2;   // Gaussian sigma to reduce weight of large residual disparity
+ 		public double     mc_ortho_weight      =   0.5;   // Weight from ortho neighbor supertiles
+ 		public double     mc_diag_weight       =   0.25;  // Weight from diagonal neighbor supertiles
+ 		public double     mc_gap               =   0.4;   // Do not remove measurements farther from the kept ones
 		
 //		  0x1e, // 0x1f, // final int         variants_mask,
 		public int        gr_min_new           =  20;    // Discard variant if it requests too few tiles
 		public boolean    gr_var_new_sngl      =   false;// Expand only unambiguous tiles over previously undefined  
 		public boolean    gr_var_new_fg        =   true; // Expand unambiguous and foreground tiles over previously undefined
 		public boolean    gr_var_all_fg        =   true;  
-		public boolean    gr_var_new_bg        =   true;  
-		public boolean    gr_var_all_bg        =   true;  
-		public boolean    gr_var_next          =   true; // try next disparity range  TODO: add related statements
+		public boolean    gr_var_new_bg        =   false;  
+		public boolean    gr_var_all_bg        =   false;  
+		public boolean    gr_var_next          =   false; // try next disparity range  TODO: add related statements
 		public int        gr_num_steps         =   8;    // How far to extend over previously undefined disparity tiles
 		public int        gr_steps_over        =   4;    // How far to extend over previously determined disparity tiles
 		public int        gr_smpl_size         =   5;    // Extend sample square side
@@ -2528,7 +2533,9 @@ public class EyesisCorrectionParameters {
   		public boolean    show_histograms =        false; // show supertile disparity histograms 
   		public boolean    show_init_refine =       false; // show debug images during initial refinement 
   		public boolean    show_expand =            false; // show debug images during disparity expansion
+  		public boolean    show_variant =           false; // show prepareExpandVariant when elevating variant number
   		public boolean    show_retry_far =         false; // show debug images related to retrying far tiles near foreground
+  		public boolean    show_macro =             false; // show debug images related to macro correlation
   		
   		public boolean    show_shells =            false; // show 'shells' 
   		public boolean    show_neighbors =         false; // show 'neighbors' 
@@ -2627,6 +2634,7 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"fine_corr_x_3",    this.fine_corr_x_3 +"");
   			properties.setProperty(prefix+"fine_corr_y_3",    this.fine_corr_y_3 +"");
 
+  			properties.setProperty(prefix+"fcorr_radius",     this.fcorr_radius +"");
   			properties.setProperty(prefix+"fcorr_min_strength",this.fcorr_min_strength +"");
   			properties.setProperty(prefix+"fcorr_disp_diff",  this.fcorr_disp_diff +"");
 			properties.setProperty(prefix+"fcorr_quadratic",  this.fcorr_quadratic+"");
@@ -2739,6 +2747,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"show_triangles",   this.show_triangles+"");
 			properties.setProperty(prefix+"avg_cluster_disp", this.avg_cluster_disp+"");
 			properties.setProperty(prefix+"maxDispTriangle",  this.maxDispTriangle +"");
+			properties.setProperty(prefix+"infinityDistance", this.infinityDistance +"");
 			properties.setProperty(prefix+"shUseFlaps",       this.shUseFlaps+"");
 			properties.setProperty(prefix+"shAggrFade",       this.shAggrFade+"");
   			properties.setProperty(prefix+"shMinArea",        this.shMinArea+"");
@@ -2842,7 +2851,13 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"mc_strength",      this.mc_strength +"");
 			properties.setProperty(prefix+"mc_unique_tol",    this.mc_unique_tol +"");
 			
-  			properties.setProperty(prefix+"gr_min_new",       this.gr_min_new+"");
+			properties.setProperty(prefix+"mc_trust_fin",     this.mc_trust_fin +"");
+			properties.setProperty(prefix+"mc_trust_sigma",   this.mc_trust_sigma +"");
+			properties.setProperty(prefix+"mc_ortho_weight",  this.mc_ortho_weight +"");
+			properties.setProperty(prefix+"mc_diag_weight",   this.mc_diag_weight +"");
+			properties.setProperty(prefix+"mc_gap",           this.mc_gap +"");
+
+			properties.setProperty(prefix+"gr_min_new",       this.gr_min_new+"");
 			properties.setProperty(prefix+"gr_var_new_sngl",  this.gr_var_new_sngl+"");
 			properties.setProperty(prefix+"gr_var_new_fg",    this.gr_var_new_fg+"");
 			properties.setProperty(prefix+"gr_var_all_fg",    this.gr_var_all_fg+"");
@@ -3092,7 +3107,9 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"show_histograms",        this.show_histograms+"");
 			properties.setProperty(prefix+"show_init_refine",       this.show_init_refine+"");
 			properties.setProperty(prefix+"show_expand",            this.show_expand+"");
+			properties.setProperty(prefix+"show_variant",           this.show_variant+"");
 			properties.setProperty(prefix+"show_retry_far",         this.show_retry_far+"");
+			properties.setProperty(prefix+"show_macro",             this.show_macro+"");
 			properties.setProperty(prefix+"show_shells",            this.show_shells+"");
 			properties.setProperty(prefix+"show_neighbors",         this.show_neighbors+"");
 			properties.setProperty(prefix+"show_flaps_dirs",        this.show_flaps_dirs+"");
@@ -3189,6 +3206,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"fine_corr_x_3")!=null) this.fine_corr_x_3=Double.parseDouble(properties.getProperty(prefix+"fine_corr_x_3"));
   			if (properties.getProperty(prefix+"fine_corr_y_3")!=null) this.fine_corr_y_3=Double.parseDouble(properties.getProperty(prefix+"fine_corr_y_3"));
   			
+  			if (properties.getProperty(prefix+"fcorr_radius")!=null)      this.fcorr_radius=Double.parseDouble(properties.getProperty(prefix+"fcorr_radius"));
   			if (properties.getProperty(prefix+"fcorr_min_strength")!=null) this.fcorr_min_strength=Double.parseDouble(properties.getProperty(prefix+"fcorr_min_strength"));
   			if (properties.getProperty(prefix+"fcorr_disp_diff")!=null)   this.fcorr_disp_diff=Double.parseDouble(properties.getProperty(prefix+"fcorr_disp_diff"));
   			if (properties.getProperty(prefix+"fcorr_quadratic")!=null)   this.fcorr_quadratic=Boolean.parseBoolean(properties.getProperty(prefix+"fcorr_quadratic"));
@@ -3302,6 +3320,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"show_triangles")!=null)    this.show_triangles=Boolean.parseBoolean(properties.getProperty(prefix+"show_triangles"));
   			if (properties.getProperty(prefix+"avg_cluster_disp")!=null)  this.avg_cluster_disp=Boolean.parseBoolean(properties.getProperty(prefix+"avg_cluster_disp"));
   			if (properties.getProperty(prefix+"maxDispTriangle")!=null)   this.maxDispTriangle=Double.parseDouble(properties.getProperty(prefix+"maxDispTriangle"));
+  			if (properties.getProperty(prefix+"infinityDistance")!=null)  this.infinityDistance=Double.parseDouble(properties.getProperty(prefix+"infinityDistance"));
   			if (properties.getProperty(prefix+"shUseFlaps")!=null)        this.shUseFlaps=Boolean.parseBoolean(properties.getProperty(prefix+"shUseFlaps"));
   			if (properties.getProperty(prefix+"shAggrFade")!=null)        this.shAggrFade=Boolean.parseBoolean(properties.getProperty(prefix+"shAggrFade"));
   			if (properties.getProperty(prefix+"shMinArea")!=null)         this.shMinArea=Integer.parseInt(properties.getProperty(prefix+"shMinArea"));
@@ -3403,7 +3422,12 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"mc_disp8_trust")!=null)    this.mc_disp8_trust=Double.parseDouble(properties.getProperty(prefix+"mc_disp8_trust"));
   			if (properties.getProperty(prefix+"mc_strength")!=null)       this.mc_strength=Double.parseDouble(properties.getProperty(prefix+"mc_strength"));
   			if (properties.getProperty(prefix+"mc_unique_tol")!=null)     this.mc_unique_tol=Double.parseDouble(properties.getProperty(prefix+"mc_unique_tol"));
-  			
+  			if (properties.getProperty(prefix+"mc_trust_fin")!=null)      this.mc_trust_fin=Double.parseDouble(properties.getProperty(prefix+"mc_trust_fin"));
+  			if (properties.getProperty(prefix+"mc_trust_sigma")!=null)    this.mc_trust_sigma=Double.parseDouble(properties.getProperty(prefix+"mc_trust_sigma"));
+  			if (properties.getProperty(prefix+"mc_ortho_weight")!=null)   this.mc_ortho_weight=Double.parseDouble(properties.getProperty(prefix+"mc_ortho_weight"));
+  			if (properties.getProperty(prefix+"mc_diag_weight")!=null)    this.mc_diag_weight=Double.parseDouble(properties.getProperty(prefix+"mc_diag_weight"));
+  			if (properties.getProperty(prefix+"mc_gap")!=null)            this.mc_gap=Double.parseDouble(properties.getProperty(prefix+"mc_gap"));
+
   			if (properties.getProperty(prefix+"gr_min_new")!=null)        this.gr_min_new=Integer.parseInt(properties.getProperty(prefix+"gr_min_new"));
   			if (properties.getProperty(prefix+"gr_var_new_sngl")!=null)   this.gr_var_new_sngl=Boolean.parseBoolean(properties.getProperty(prefix+"gr_var_new_sngl"));
   			if (properties.getProperty(prefix+"gr_var_new_fg")!=null)     this.gr_var_new_fg=Boolean.parseBoolean(properties.getProperty(prefix+"gr_var_new_fg"));
@@ -3657,7 +3681,9 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"show_histograms")!=null)        this.show_histograms=Boolean.parseBoolean(properties.getProperty(prefix+"show_histograms"));
   			if (properties.getProperty(prefix+"show_init_refine")!=null)       this.show_init_refine=Boolean.parseBoolean(properties.getProperty(prefix+"show_init_refine"));
   			if (properties.getProperty(prefix+"show_expand")!=null)            this.show_expand=Boolean.parseBoolean(properties.getProperty(prefix+"show_expand"));
+  			if (properties.getProperty(prefix+"show_variant")!=null)           this.show_variant=Boolean.parseBoolean(properties.getProperty(prefix+"show_variant"));
   			if (properties.getProperty(prefix+"show_retry_far")!=null)         this.show_retry_far=Boolean.parseBoolean(properties.getProperty(prefix+"show_retry_far"));
+  			if (properties.getProperty(prefix+"show_macro")!=null)             this.show_macro=Boolean.parseBoolean(properties.getProperty(prefix+"show_macro"));
   			if (properties.getProperty(prefix+"show_shells")!=null)            this.show_shells=Boolean.parseBoolean(properties.getProperty(prefix+"show_shells"));
   			if (properties.getProperty(prefix+"show_neighbors")!=null)         this.show_neighbors=Boolean.parseBoolean(properties.getProperty(prefix+"show_neighbors"));
   			if (properties.getProperty(prefix+"show_flaps_dirs")!=null)        this.show_flaps_dirs=Boolean.parseBoolean(properties.getProperty(prefix+"show_flaps_dirs"));
@@ -3769,7 +3795,8 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("X 3",                                                                     this.fine_corr_x_3,  3);
   			gd.addNumericField("Y 4",                                                                     this.fine_corr_y_3,  3);
 
-  			gd.addNumericField("Minimal correlation strength to apply fine correction",                   this.fcorr_min_strength,3);
+  			gd.addNumericField("Y 4",                                                                     this.fcorr_radius,  3);
+  			gd.addNumericField("Do not try to correct outside this fraction of width/hight",              this.fcorr_min_strength,3);
   			gd.addNumericField("Consider only tiles with absolute residual disparity lower than",         this.fcorr_disp_diff,  3);
   			gd.addCheckbox    ("Use quadratic polynomial for fine correction (false - only linear)",      this.fcorr_quadratic);
   			gd.addCheckbox    ("Ignore current calculated fine correction (use manual only)",             this.fcorr_ignore);
@@ -3894,6 +3921,7 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Show generated triangles",                                                     this.show_triangles);
   			gd.addCheckbox    ("Weight-average disparity for the whole cluster ",                              this.avg_cluster_disp);
   			gd.addNumericField("Maximal disparity difference in a triangle face to show",                      this.maxDispTriangle,  6);
+  			gd.addNumericField("Distance to generate backdrop (0 - use regular backdrop)",                     this.infinityDistance,  8);
 
   			gd.addCheckbox    ("Split into shells with flaps",                                                 this.shUseFlaps);
   			gd.addCheckbox    ("Aggressive fade alpha (whole boundary)",                                       this.shAggrFade);
@@ -4008,6 +4036,11 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Minimal macro correlation strength to process",                                       this.mc_strength,  6);
   			gd.addNumericField("Do not re-measure macro correlation if target disparity differs less",                this.mc_unique_tol,  6);
 
+  			gd.addNumericField("When consolidating macro results, exclude high residual disparity",                   this.mc_trust_fin,  6);
+  			gd.addNumericField("Gaussian sigma to reduce weight of large residual disparity",                         this.mc_trust_sigma,  6);
+  			gd.addNumericField("Weight from ortho neighbor supertiles",                                               this.mc_ortho_weight,  6);
+  			gd.addNumericField("Weight from diagonal neighbor supertiles",                                            this.mc_diag_weight,  6);
+  			gd.addNumericField("Do not remove measurements farther from the kept ones",                               this.mc_gap,  6);
   			gd.addMessage     ("--- more growing parameters ---");
   			
   			gd.addNumericField("Discard variant if it requests too few tiles",                                        this.gr_min_new,  0);
@@ -4273,7 +4306,9 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Show supertile disparity histograms ",                                         this.show_histograms);
   			gd.addCheckbox    ("Show debug images during initial refinement",                                  this.show_init_refine);
   			gd.addCheckbox    ("Show debug images during disparity expansion",                                 this.show_expand);
+  			gd.addCheckbox    ("Show prepareExpandVariant when elevating variant",                             this.show_variant);
   			gd.addCheckbox    ("Show debug images related to retrying far tiles near foreground",              this.show_retry_far);
+  			gd.addCheckbox    ("Show debug images related to macro correlation",                               this.show_macro);
   			gd.addCheckbox    ("Show 'shells'",                                                                this.show_shells);
   			gd.addCheckbox    ("show 'neighbors'",                                                             this.show_neighbors);
   			gd.addCheckbox    ("Show 'flaps-dirs'",                                                            this.show_flaps_dirs);
@@ -4376,6 +4411,7 @@ public class EyesisCorrectionParameters {
   			this.fine_corr_x_3=         gd.getNextNumber();
   			this.fine_corr_y_3=         gd.getNextNumber();
   			
+  			this.fcorr_radius=         gd.getNextNumber();
   			this.fcorr_min_strength=    gd.getNextNumber();
   			this.fcorr_disp_diff=       gd.getNextNumber();
   			this.fcorr_quadratic=       gd.getNextBoolean();
@@ -4490,6 +4526,7 @@ public class EyesisCorrectionParameters {
   			this.show_triangles=        gd.getNextBoolean();
   			this.avg_cluster_disp=      gd.getNextBoolean();
   			this.maxDispTriangle=       gd.getNextNumber();
+  			this.infinityDistance=      gd.getNextNumber();
   			this.shUseFlaps=            gd.getNextBoolean();
   			this.shAggrFade=            gd.getNextBoolean();
   			this.shMinArea=       (int) gd.getNextNumber();
@@ -4592,6 +4629,12 @@ public class EyesisCorrectionParameters {
   			this.mc_strength=           gd.getNextNumber();
   			this.mc_unique_tol=         gd.getNextNumber();
   			
+  			this.mc_unique_tol=         gd.getNextNumber();
+  			this.mc_unique_tol=         gd.getNextNumber();
+  			this.mc_unique_tol=         gd.getNextNumber();
+  			this.mc_unique_tol=         gd.getNextNumber();
+  			this.mc_unique_tol=         gd.getNextNumber();
+
   			this.gr_min_new=      (int) gd.getNextNumber();
   			this.gr_var_new_sngl=       gd.getNextBoolean();
   			this.gr_var_new_fg=         gd.getNextBoolean();
@@ -4846,7 +4889,9 @@ public class EyesisCorrectionParameters {
   			this.show_histograms=       gd.getNextBoolean();
   			this.show_init_refine=      gd.getNextBoolean();
   			this.show_expand=           gd.getNextBoolean();
+  			this.show_variant=          gd.getNextBoolean();
   			this.show_retry_far=        gd.getNextBoolean();
+  			this.show_macro=            gd.getNextBoolean();
   			this.show_shells=           gd.getNextBoolean();
   			this.show_neighbors=        gd.getNextBoolean();
   			this.show_flaps_dirs=       gd.getNextBoolean();

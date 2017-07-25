@@ -50,8 +50,8 @@ public class CLTPass3d{
 		                                                     // exceeds minBgFract, otherwise proceed to the next one (and accumulate strength)
 		private double []       bgTileDisparity =      null;
 		private double []       bgTileStrength =       null;
-		public  boolean []      border_tiles =         null;      // these are border tiles, zero out alpha
-		public  boolean []      selected =             null;          // which tiles are selected for this layer
+		public  boolean []      border_tiles =         null; // these are border tiles, zero out alpha
+		public  boolean []      selected =             null; // which tiles are selected for this layer
 		public  double [][][][] texture_tiles;
 		public double [][]      max_tried_disparity =  null; //[ty][tx] used for combined passes, shows maximal disparity for this tile, regardless of results
 		public  boolean         is_combo =             false;
@@ -67,6 +67,19 @@ public class CLTPass3d{
 		{
 			this.tileProcessor = tileProcessor;
 		}
+		
+		public CLTPass3d (TileProcessor tileProcessor, int mode)
+		{
+			this.tileProcessor = tileProcessor;
+			switch (mode){
+			case 0:
+				tile_op =   new int [tileProcessor.getTilesY()][tileProcessor.getTilesX()];
+				disparity = new double [tileProcessor.getTilesY()][tileProcessor.getTilesX()];
+				break;
+				
+			}
+		}
+
 		public TileProcessor getTileProcessor()
 		{
 			return this.tileProcessor;

@@ -141,6 +141,7 @@ public class AlignmentCorrection {
 		}
 
 		ArrayList<Sample> samples_list = selectInfinityTiles(
+			    clt_parameters.fcorr_radius,       // 	final double fcorr_radius,
 				clt_parameters.fcorr_inf_vert,// final boolean use_vertical,
 				min_strength,
 				max_diff,
@@ -195,33 +196,44 @@ public class AlignmentCorrection {
 						mismatch_corr_coefficiants, // double [][][] corr,
 						"");// String prefix)
 			}
-/*			
-			if (disparity_corr_coefficiants == null) {
-				disparity_corr_coefficiants = mismatch_corr_coefficiants;
-				if (debugLevel > -1){
-					System.out.println("infinityCorrection(): using only coefficient increments from infinityMismatchCorrection");
-				}
-
-			} else { 
-				for (int i = 0; i < disparity_corr_coefficiants.length; i++){
-					for (int j = 0; j < disparity_corr_coefficiants[i].length; j++){
-						for (int k = 0; k < disparity_corr_coefficiants[i][j].length; k++){
-							disparity_corr_coefficiants[i][j][k] += mismatch_corr_coefficiants[i][j][k];
-						}
-					}
-				}
-				if (debugLevel > -1){
-					System.out.println("infinityCorrection(): combining coefficient increments from infinityCorrection and infinityMismatchCorrection");
-				}
-			}
-*/			
-//		}
 		return mismatch_corr_coefficiants;
 	}
+
+	/**
+	 * Discard correction data outside of the center image area
+	 * @param fcorr_radius fraction of the image to use (1.0 - 100%) 
+	 * @param tilesX width in tiles 
+	 * @param tilesY height in tiles
+	 * @return boolean array in linescan order
+	 */
+	public boolean[] getCenterMask(
+			double     fcorr_radius,
+			int tilesX,
+			int tilesY)
+	{
+		boolean [] mask = new boolean [tilesX * tilesY];
+		
+		int y0 = (int)  (0.5 * tilesY*(1.0 - fcorr_radius));
+		int y1 = (int)  (0.5 * tilesY*(1.0 + fcorr_radius));
+		int x0 = (int)  (0.5 * tilesX*(1.0 - fcorr_radius));
+		int x1 = (int)  (0.5 * tilesX*(1.0 + fcorr_radius));
+		if (y0 < 0)      y0 = 0;
+		if (y1 > tilesY) y1 = tilesY;
+		if (x0 < 0)      x0 = 0;
+		if (x1 > tilesX) x1 = tilesX;
+		for (int ty = y0; ty < y1; ty++){
+			for (int tx = x0; tx < x1; tx++){
+				mask[tx + tilesX * ty] = true;
+			}
+		}
+		return mask;
+	}
+	
 	
 	/**
 	 * Select infinity tiles from a single or multiple image sets
 	 * Next parameters are made separate to be able to modify them between different runs keeping clt_parameters
+	 * @param fcorr_radius do not use peripheral tiles
 	 * @param min_strength minimal correlation strength to use tile
 	 * @param max_diff maximal disparity difference between tiles and previous approximation to use tiles
 	 * @param max_iterations maximal number of iterations to find disparity surface
@@ -236,6 +248,7 @@ public class AlignmentCorrection {
 	 * @return per sub-camera, per direction (x,y) 6 quadratic polynomial coefficients, same format as fine_geometry_correction()
 	 */
 	public ArrayList<Sample> selectInfinityTiles(
+		    final double fcorr_radius,
 			final boolean use_vertical,
 			final double min_strength,
 			final double max_diff,
@@ -250,6 +263,7 @@ public class AlignmentCorrection {
 	{
 		final int numTiles =            disp_strength[0].length;
 		final int tilesY =              numTiles/tilesX;
+		final boolean []  center_mask = getCenterMask(fcorr_radius, tilesX, tilesY);
 		double [] disparity_poly = new double[6];
 		PolynomialApproximation pa = new PolynomialApproximation();
 		double thresholdLin = 1.0E-20;  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
@@ -275,7 +289,7 @@ public class AlignmentCorrection {
 			for (int num_set = 0; num_set < disp_strength.length/NUM_SLICES; num_set++){
 				int disp_index = NUM_SLICES * num_set;
 				int str_index = NUM_SLICES * num_set + 1;
-				for (int nTile = 0; nTile < numTiles; nTile++){
+				for (int nTile = 0; nTile < numTiles; nTile++) if (center_mask[nTile]){
 					if ((disp_strength[str_index][nTile] > min_strength) && 
 							//							  (Math.abs(disp_strength[disp_index][nTile] - disp_surface[nTile]) < max_diff)){
 							((disp_strength[disp_index][nTile] - disp_surface[nTile]) < max_diff)){
@@ -1505,6 +1519,7 @@ public class AlignmentCorrection {
 	  
 	  
 		public double [][][] lazyEyeCorrection(
+				final double fcorr_radius,
 				final double min_strength_in,
 				final double max_diff,
 //				final double comp_strength_var,
@@ -1538,6 +1553,7 @@ public class AlignmentCorrection {
 			final int num_scans = scans_14.length/NUM_ALL_SLICES;
 		    final int num_tiles = scans_14[0].length;
 		    final int tilesY = num_tiles/tilesX; 
+			final boolean []  center_mask = getCenterMask(fcorr_radius, tilesX, tilesY);
 		    final double [][] scans = new double [num_scans * NUM_SLICES][];
 		    final int [] indices_14_10 = {0,1,2,3,5,6,8,9,11,12};
 		    final double [][] comp_strength_rms = new double [num_scans][num_tiles];
@@ -1546,9 +1562,6 @@ public class AlignmentCorrection {
 		    		scans[ns * NUM_SLICES + i] = scans_14[ns * NUM_ALL_SLICES + indices_14_10[i]];
 		    	}
 		    }
-//		    (new showDoubleFloatArrays()).showArrays(scans_14, tilesX, tilesY, true, "scans14");
-//		    (new showDoubleFloatArrays()).showArrays(scans, tilesX, tilesY, true, "scans10");
-		    
 		    
 		    for (int ns = 0; ns < num_scans; ns++){
 		    	for (int nTile = 0; nTile < num_tiles; nTile++){
@@ -1563,24 +1576,6 @@ public class AlignmentCorrection {
 		    		comp_strength_rms[ns][nTile] = Math.sqrt(s2 - s1*s1);
 		    	}
 		    }
-/*
-		    for (int ns = 0; ns < num_scans; ns++){
-		    	for (int nTile = 0; nTile < num_tiles; nTile++){
-		    		double s1=0.0, s2=0.0;
-		    		for (int pair = 0; pair <4; pair++){
-		    			double s = scans_14[ns * NUM_ALL_SLICES + 4 + 3 * pair][nTile];
-		    			if (pair == 0){
-		    				s1 = s;
-		    				s2 = s;
-		    			} else {
-		    				s1= Math.min(s, s1);
-		    				s2= Math.max(s, s2);
-		    			}
-		    		}
-		    		comp_strength_rms[ns][nTile] = s2 - s1;
-		    	}
-		    }
-*/
 	/* 
 	 * None of comp_strength_rms methods works to detect potential outliers for horizontal/vertical features
 	 */
@@ -1809,6 +1804,7 @@ public class AlignmentCorrection {
 			
 			// create list for infinity data
 			ArrayList<Sample> inf_samples_list = selectInfinityTiles(
+				    clt_parameters.fcorr_radius,       // 	final double fcorr_radius,
 					clt_parameters.fcorr_inf_vert,// final boolean use_vertical,
 					0.0, // any > 0.0
 					max_diff, // max_diff, //clt_parameters.fcorr_inf_diff
@@ -1836,7 +1832,7 @@ public class AlignmentCorrection {
 	    		total_weights[0] += s.weight;
 	    	}
 			
-	    	for (int nTile = 0; nTile < num_tiles; nTile++) {
+	    	for (int nTile = 0; nTile < num_tiles; nTile++) if (center_mask[nTile]){
 	    		total_weights[1]+= inf_and_ly[1 * NUM_SLICES + 1][nTile];
 	    	}
 			
@@ -1855,7 +1851,7 @@ public class AlignmentCorrection {
 	    	}
 			
 			// Supplement list with the lazy eye scans data - use all tiles
-			for (int nTile = 0; nTile < num_tiles; nTile++) {
+			for (int nTile = 0; nTile < num_tiles; nTile++) if (center_mask[nTile]) {
 				double w = inf_and_ly[1 * NUM_SLICES + 1][nTile];
 				if (w > 0.0) {
 					inf_samples_list.add(new Sample(1,nTile,w));
@@ -2124,6 +2120,7 @@ public class AlignmentCorrection {
 			
 			
 			ArrayList<Sample> inf_samples_list = selectInfinityTiles(
+				    clt_parameters.fcorr_radius,       // 	final double fcorr_radius,
 					clt_parameters.fcorr_inf_vert,// final boolean use_vertical,
 					0.0, // any > 0.0
 					clt_parameters.fcorr_inf_diff, // max_diff, //clt_parameters.fcorr_inf_diff

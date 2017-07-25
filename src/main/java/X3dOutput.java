@@ -64,7 +64,7 @@ public class X3dOutput {
 		this.clt_3d_passes = clt_3d_passes;
 	}
 	// init document, bounding box, backdrop
-	public void generateBackground()
+	public void generateBackground(boolean use_backdrop)
 	{
 		try {
 
@@ -98,14 +98,16 @@ public class X3dOutput {
         Element el_Bgnd = x3dDoc.createElement("Background");
         el_Bgnd.setAttribute("class","Background");
         el_Bgnd.setAttribute("id",   "Background");
-        el_Bgnd.setAttribute("frontUrl",   bgnd_pass.texture);
-        // temporarily - add same picture to all other sides. Actually - any square will work, make some
-        // perspective grids/ colors to simplify orientation when looking wrong way
-        el_Bgnd.setAttribute("backUrl",   bgnd_pass.texture);
-        el_Bgnd.setAttribute("leftUrl",   bgnd_pass.texture);
-        el_Bgnd.setAttribute("rightUrl",   bgnd_pass.texture);
-        el_Bgnd.setAttribute("topUrl",   bgnd_pass.texture);
-        el_Bgnd.setAttribute("bottomUrl",   bgnd_pass.texture);
+        if (use_backdrop) {
+        	el_Bgnd.setAttribute("frontUrl",   bgnd_pass.texture);
+        	// temporarily - add same picture to all other sides. Actually - any square will work, make some
+        	// perspective grids/ colors to simplify orientation when looking wrong way
+        	el_Bgnd.setAttribute("backUrl",   bgnd_pass.texture);
+        	el_Bgnd.setAttribute("leftUrl",   bgnd_pass.texture);
+        	el_Bgnd.setAttribute("rightUrl",   bgnd_pass.texture);
+        	el_Bgnd.setAttribute("topUrl",   bgnd_pass.texture);
+        	el_Bgnd.setAttribute("bottomUrl",   bgnd_pass.texture);
+        }
 		el_Scene.appendChild(el_Bgnd);
 	}
 	

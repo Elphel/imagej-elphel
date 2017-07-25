@@ -640,11 +640,9 @@ public class TileProcessor {
 	{
 		final int dbg_tile = (debugLevel > 0)? 839: -1; // x = 122, y= 108; -1; // 27669;
 		CLTPass3d combo_pass =new CLTPass3d(this);
-		final int tlen = tilesX * tilesY;
 		final int disparity_index = usePoly ? ImageDtt.DISPARITY_INDEX_POLY : ImageDtt.DISPARITY_INDEX_CM;
 		combo_pass.tile_op =              new int [tilesY][tilesX];
 		combo_pass.disparity =            new double [tilesY][tilesX];
-//		for (int i = 0; i< ImageDtt.QUAD; i++) combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i] = new double[tlen];
 		int op = ImageDtt.setImgMask(0, 0xf);
 		op =     ImageDtt.setPairMask(op,0xf);
 		op =     ImageDtt.setForcedDisparity(op,true);
@@ -679,7 +677,7 @@ public class TileProcessor {
 							double disp_low =  Math.min(disp, pass.disparity[ty][tx]); 
 							double disp_high = Math.max(disp, pass.disparity[ty][tx]);
 //							if ((disp_high - disp_low) > 2 * unique_tolerance) { // suggested correction is not too small
-							if ((disp_high - disp_low) > unique_tolerance) { // suggested correction is not too small
+							if ((disp_high - disp_low) >= unique_tolerance) { // suggested correction is not too small
 								boolean duplicate = false;
 								for (int iother = firstPass;  iother <lastPassPlus1; iother++ ) {
 									CLTPass3d other = passes.get(iother);
@@ -711,8 +709,6 @@ public class TileProcessor {
 		}
 		return (num_new > 0) ? combo_pass: null;
 	}
-	
-	
 	
 	
 	
@@ -7357,7 +7353,8 @@ public class TileProcessor {
 			for (int x = 0; (x < width) && (indx <= maxIndex); x++){
 				if (indices[y][x] >=0){
 					// center coordinates for 8*8 tile is [3.5,3.5]
-					double disp = disparity[(bounds.y + y) * tilesX + (bounds.x + x)];
+//					double disp = disparity[(bounds.y + y) * tilesX + (bounds.x + x)];
+					double disp = (disparity == null)? min_disparity:( disparity[(bounds.y + y) * tilesX + (bounds.x + x)]);
 					if      (disp < min_disparity) disp = min_disparity;
 					else if (disp > max_disparity) disp = max_disparity;
 					indexedDisparity[indx] =disp;
@@ -7370,7 +7367,7 @@ public class TileProcessor {
 
 	
 	public double [][] getCoords( // get world XYZ in meters for indices
-			double [] disparity,
+			double [] disparity, // null - use min_disparity
 			double min_disparity,
 			double max_disparity,
 			Rectangle bounds,
@@ -7390,7 +7387,7 @@ public class TileProcessor {
 					// center coordinates for 8*8 tile is [3.5,3.5]
 					double px = (bounds.x + x + 0.5) * tile_size - 0.5;
 					double py = (bounds.y + y + 0.5) * tile_size - 0.5;
-					double disp = disparity[(bounds.y + y) * tilesX + (bounds.x + x)];
+					double disp = (disparity == null)? min_disparity:( disparity[(bounds.y + y) * tilesX + (bounds.x + x)]);
 					if      (disp < min_disparity) disp = min_disparity;
 					else if (disp > max_disparity) disp = max_disparity;
 					coordinate[indx] = geometryCorrection.getWorldCoordinates(
@@ -7528,7 +7525,7 @@ public class TileProcessor {
 		String [] titles = {"disparity","triangles"};
 		double [][] dbg_img = new double [titles.length][tilesX*tilesY*tile_size*tile_size];
 		for (int i = 0; i < selected.length; i++ ){
-			double d = selected[i]?disparity[i]:Double.NaN;
+			double d = selected[i]? ((disparity.length >1) ? disparity[i] : disparity[0]):Double.NaN;
 			int y = i / tilesX;
 			int x = i % tilesX;
 			for (int dy = 0; dy <tile_size; dy ++){
