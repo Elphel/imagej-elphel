@@ -531,6 +531,7 @@ private Panel panel1,
 			addButton("CLT process corr",          panelClt2, color_conf_process);
 			addButton("CLT disparity scan",        panelClt2, color_conf_process);
 			addButton("CLT reset fine corr",       panelClt2, color_stop);
+			addButton("CLT reset extrinsic corr",  panelClt2, color_stop);
 			addButton("CLT show fine corr",        panelClt2, color_configure);
 			addButton("CLT apply fine corr",       panelClt2, color_process);
 			addButton("CLT test fine corr",        panelClt2, color_process);
@@ -4585,6 +4586,18 @@ private Panel panel1,
         	}
         }
         QUAD_CLT.reset_fine_corr();
+        return;
+    } else if (label.equals("CLT reset extrinsic corr")) {
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+        QUAD_CLT.resetExtrinsicCorr();
         return;
     } else if (label.equals("CLT show fine corr")) {
         if (QUAD_CLT == null){

@@ -29,6 +29,8 @@ import ij.IJ;
 public class GeometryCorrection {
 	static double SCENE_UNITS_SCALE = 0.001;
 	static String SCENE_UNITS_NAME = "m";
+	static final String [] CORR_NAMES = {"tilt0","tilt1","tilt2","azimuth0","azimuth1","azimuth2","roll0","roll1","roll2","roll3"};
+
 	public int    debugLevel = 0;
 	//	public double azimuth; // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
 	//	public double radius;  // mm, distance from the rotation axis
@@ -81,6 +83,133 @@ public class GeometryCorrection {
 	private double    stepR=0.001;
 	private double    maxR=2.0; // calculate up to this*distortionRadius
 
+	public  CorrVector extrinsic_corr;
+
+	public GeometryCorrection(double [] extrinsic_corr)
+	{
+		this.extrinsic_corr = 	new CorrVector(extrinsic_corr);
+	}
+	
+	// correction of cameras mis-alignment
+	public CorrVector getCorrVector(double [] vector){
+		return new CorrVector(vector);
+	}
+
+	public CorrVector getCorrVector(){
+		return extrinsic_corr;
+	}
+
+	public void setCorrVector(CorrVector vector){
+		if (vector == null){
+			vector = new CorrVector();
+		}
+		extrinsic_corr = vector;
+	}
+
+	
+	
+	public class CorrVector{
+		static final int LENGTH =       10;
+		static final int TILT_INDEX =    0;
+		static final int AZIMUTH_INDEX = 3;
+		static final int ROLL_INDEX =    6;
+		double [] vector;
+		public CorrVector ()
+		{
+			this.vector = new double[10];
+		}
+		public CorrVector (
+				double tilt0,    double tilt1,    double tilt2,
+				double azimuth0, double azimuth1, double azimuth2,
+				double roll0,    double roll1,    double roll2, double roll3)
+		{}
+		public CorrVector (double [] vector)
+		{
+			this.vector = vector;		
+		}
+		/**
+		 * Set subcamera corrections from a single array
+		 * @param tilt    for subcameras 0..2, radians, positive - up (subcamera 3 so sum == 0)
+		 * @param azimuth for subcameras 0..2, radians, positive - right (subcamera 3 so sum == 0)
+		 * @param roll    for subcameras 0..3, radians, positive - CW looking to the target
+		 */
+		public CorrVector (double [] tilt, double [] azimuth, double [] roll)
+		{
+			double [] vector = {
+					tilt[0],    tilt[1],    tilt[2],
+					azimuth[0], azimuth[1], azimuth[2],
+					roll[0], roll[1], roll[2], roll[3]};
+			this.vector = vector;		
+		}
+		
+		public CorrVector getCorrVector(double [] vector){
+			return new CorrVector(vector);
+		}
+
+		public double [] toArray()
+		{
+			return vector;
+		}
+		public double [] getTilts()
+		{
+			double [] tilts =     {vector[0], vector[1], vector[2], - (vector[0] + vector[1] +vector[2])};
+			return tilts;
+		}
+		public double getTilt(int indx)
+		{
+			if (indx == 3) return - (vector[0] + vector[1] +vector[2]);
+			else           return vector[0 + indx];
+		}
+		public double [] getAzimuths()
+		{
+			double [] azimuths =  {vector[3], vector[4], vector[5], -(vector[3] + vector[4] + vector[5])};
+			return azimuths;
+		}
+		public double getAzimuth(int indx)
+		{
+			if (indx == 3) return - (vector[3] + vector[4] +vector[5]);
+			else           return vector[3 + indx];
+		}
+		public double [] getRolls()
+		{
+			double [] rolls =     {vector[6],vector[7],vector[8], vector[9]};
+			return rolls;
+		}
+		public double getRoll(int indx)
+		{
+			return vector[6 + indx];
+		}
+		public String toString()
+		{
+			String s;
+			double [] v = new double [vector.length];
+			for (int i = 0; i < vector.length; i++){
+				v[i] = vector[i]*180/Math.PI;
+			}
+			s  = String.format("tilt    (up):    %8.5f° %8.5f° %8.5f° %8.5f°\n" , v[0], v[1], v[2], -(v[0] + v[1] + v[2]) );
+			s += String.format("azimuth (right): %8.5f° %8.5f° %8.5f° %8.5f°\n" , v[3], v[4], v[5], -(v[3] + v[4] + v[5]) );
+			s += String.format("roll    (CW):    %8.5f° %8.5f° %8.5f° %8.5f°\n" , v[6], v[7], v[8], v[9] );
+			return s;
+		}
+		public void incrementVector(double [] incr)
+		{
+			for (int i = 0; i < incr.length; i++){
+				vector[i]+=incr[i];
+			}
+		}
+		
+		public void incrementVector(CorrVector incr)
+		{
+			incrementVector(incr.toArray());
+		}
+		
+		
+		public CorrVector clone(){
+			return new CorrVector(this.vector.clone());
+		}
+		
+	}
+	
 	public void setDistortion(
 			double focalLength,
 			double distortionC,
@@ -612,6 +741,29 @@ public class GeometryCorrection {
 			double py,
 			double disparity)
 	{
+		boolean new_ports = true; // false;
+		
+		if (new_ports) {
+		double [][][][] fj = getPortsCoordinatesAndDerivatives(
+				getCorrVector(), // CorrVector corr_vector,
+				false,           // boolean calc_deriv,
+				px, // double px,
+				py, // double py,
+				disparity); // double disparity)
+		return fj[0][0];
+		} else {
+			return  getPortsCoordinates_nocorr( // old, tested
+					px,
+					py,
+					disparity);
+		}
+	}
+
+	public double [][] getPortsCoordinates_nocorr( // old, tested
+			double px,
+			double py,
+			double disparity)
+	{
 		double [][] pXY = new double [numSensors][2];
 		double pXcd = px - 0.5 * this.pixelCorrectionWidth;
 		double pYcd = py - 0.5 * this.pixelCorrectionHeight;
@@ -639,20 +791,44 @@ public class GeometryCorrection {
 			double pXid = pXci * rD2rND;  
 			double pYid = pYci * rD2rND;
 			// individual rotate (check sign)
-			double c_roll = Math.cos((this.roll[i] - this.common_roll) * Math.PI/180.0);
-			double s_roll = Math.sin((this.roll[i] - this.common_roll) * Math.PI/180.0);
+			double a_roll = (this.roll[i] - this.common_roll) * Math.PI/180.0 ;
+			double c_roll = Math.cos(a_roll);
+			double s_roll = Math.sin(a_roll);
+//			double c_roll = Math.cos((this.roll[i] - this.common_roll) * Math.PI/180.0);
+//			double s_roll = Math.sin((this.roll[i] - this.common_roll) * Math.PI/180.0);
 			pXY[i][0] =  c_roll *  pXid + s_roll* pYid + this.pXY0[i][0];
 			pXY[i][1] = -s_roll *  pXid + c_roll* pYid + this.pXY0[i][1];
 		}
 		return pXY;
 	}
-
-	public double [][] getPortsCoordinatesIdeal_wrong(
+	
+	
+	/**
+	 * Calculate pixel coordinates for each of numSensors images, for a given (px,py) of the idealized "center" (still distorted) image
+	 * and generic disparity, measured in pixels 
+	 * @param corr_vector misalignment correction 
+	 * @param px pixel X coordinate
+	 * @param py pixel Y coordinate
+	 * @param disparity disparity
+	 * @return array of per port pairs of pixel shifts
+	 */
+	
+	public double [][][][] getPortsCoordinatesAndDerivatives(
+			CorrVector corr_vector,
+			boolean calc_deriv,
 			double px,
 			double py,
 			double disparity)
 	{
 		double [][] pXY = new double [numSensors][2];
+		double [][][] pXYderiv = calc_deriv? new double [numSensors][2][CorrVector.LENGTH] : null;
+		double [][][][] rslt = new double[calc_deriv? 2:1][][][];
+		rslt[0] =    new double[1][][];
+		rslt[0][0] = pXY;
+		if (calc_deriv){
+			rslt[1] = pXYderiv;
+		}
+		
 		double pXcd = px - 0.5 * this.pixelCorrectionWidth;
 		double pYcd = py - 0.5 * this.pixelCorrectionHeight;
 		double rD = Math.sqrt(pXcd*pXcd + pYcd*pYcd)*0.001*this.pixelSize; // distorted radius in a virtual center camera
@@ -660,34 +836,138 @@ public class GeometryCorrection {
 		double pXc = pXcd * rND2R; // non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
 		double pYc = pYcd * rND2R; // in pixels
 		double [] a={this.distortionC,this.distortionB,this.distortionA,this.distortionA5,this.distortionA6,this.distortionA7,this.distortionA8};
+		double corr_scale = focalLength/(0.001*pixelSize);
+		double  ri_scale = 0.001 * this.pixelSize / this.distortionRadius;
 		for (int i = 0; i < numSensors; i++){
 			// non-distorted XY of the shifted location of the individual sensor
-			double pXci = pXc - disparity *  this.rXY_ideal[i][0]; // in pixels
-			double pYci = pYc - disparity *  this.rXY_ideal[i][1];
+			double pXci = pXc - disparity *  this.rXY[i][0]; // in pixels
+			double pYci = pYc - disparity *  this.rXY[i][1];
+			// add misalignment, for small angles express in non-distorted pixels 
+				pXci +=  -corr_vector.getAzimuth(i) * corr_scale;
+				pYci +=   corr_vector.getTilt(i)    * corr_scale;
 			// calculate back to distorted
 			double rNDi = Math.sqrt(pXci*pXci + pYci*pYci); // in pixels
 			//		Rdist/R=A8*R^7+A7*R^6+A6*R^5+A5*R^4+A*R^3+B*R^2+C*R+(1-A6-A7-A6-A5-A-B-C)");
-			double ri = rNDi* 0.001 * this.pixelSize / this.distortionRadius; // relative to distortion radius
+			double ri = rNDi* ri_scale; // relative to distortion radius
 			//    		double rD2rND = (1.0 - distortionA8 - distortionA7 - distortionA6 - distortionA5 - distortionA - distortionB - distortionC);
 			double rD2rND = 1.0;
 			double rri = 1.0;
 			for (int j = 0; j < a.length; j++){
 				rri *= ri;
-				rD2rND += a[j]*(rri - 1.0);
+				rD2rND += a[j]*(rri - 1.0); // Fixed
 			}
 			double pXid = pXci * rD2rND;  
 			double pYid = pYci * rD2rND;
 			// individual rotate (check sign)
-//			double c_roll = Math.cos((this.roll[i] - this.common_roll) * Math.PI/180.0);
-//			double s_roll = Math.sin((this.roll[i] - this.common_roll) * Math.PI/180.0);
-			double c_roll = Math.cos(( - this.common_roll) * Math.PI/180.0);
-			double s_roll = Math.sin(( - this.common_roll) * Math.PI/180.0);
-			pXY[i][0] =  c_roll *  pXid + s_roll* pYid + 0.5 * this.pixelCorrectionWidth; // this.pXY0[i][0];
-			pXY[i][1] = -s_roll *  pXid + c_roll* pYid + 0.5 * this.pixelCorrectionWidth; // this.pXY0[i][1];
+			double a_roll = (this.roll[i] - this.common_roll) * Math.PI/180.0 + corr_vector.getRoll(i) ;
+			double c_roll = Math.cos(a_roll);
+			double s_roll = Math.sin(a_roll);
+			pXY[i][0] =  c_roll *  pXid + s_roll * pYid + this.pXY0[i][0];
+			pXY[i][1] = -s_roll *  pXid + c_roll * pYid + this.pXY0[i][1];
+			if (calc_deriv) {
+				double dpXci_dazimuth = -corr_scale;
+				double dpYci_dtilt =     corr_scale;
+//			double rNDi = Math.sqrt(pXci*pXci + pYci*pYci); // in pixels
+				double dri_dazimuth = pXci/rNDi * dpXci_dazimuth * ri_scale;
+				double dri_dtilt =    pYci/rNDi * dpYci_dtilt * ri_scale;
+				double drD2rND_dri = 0.0;
+				rri = 1.0;
+				for (int j = 0; j < a.length; j++){
+					drD2rND_dri += (j+1) * rri;
+					rri *= ri;
+				}
+				
+				double drD2rND_dazimuth = drD2rND_dri * dri_dazimuth;  
+				double drD2rND_dtilt =    drD2rND_dri * dri_dtilt;  
+//				double pXid = pXci * rD2rND;  
+//				double pYid = pYci * rD2rND;
+				double dpXid_dazimuth = dpXci_dazimuth * rD2rND + pXid * drD2rND_dazimuth;  
+				double dpYid_dazimuth =                           pYid * drD2rND_dazimuth;  
+				double dpXid_dtilt =                              pXid * drD2rND_dtilt;  
+				double dpYid_dtilt =   dpYci_dtilt     * rD2rND + pYid * drD2rND_dtilt;  
+				
+//  			pXY[i][0] =  c_roll *  pXid + s_roll * pYid + this.pXY0[i][0];
+//				pXY[i][1] = -s_roll *  pXid + c_roll * pYid + this.pXY0[i][1];
+
+				double dxi_dazimuth =  c_roll *  dpXid_dazimuth + s_roll * dpYid_dazimuth;
+				double dyi_dazimuth = -s_roll *  dpXid_dazimuth + c_roll * dpYid_dazimuth;
+				
+				double dxi_dtilt =     c_roll *  dpXid_dtilt + s_roll * dpYid_dtilt;
+				double dyi_dtilt =    -s_roll *  dpXid_dtilt + c_roll * dpYid_dtilt;
+				
+				if (i < (numSensors - 1)){
+					pXYderiv[i][0][CorrVector.TILT_INDEX+i] =      dxi_dtilt; 
+					pXYderiv[i][1][CorrVector.TILT_INDEX+i] =      dyi_dtilt; 
+					pXYderiv[i][0][CorrVector.AZIMUTH_INDEX+i] =   dxi_dazimuth; 
+					pXYderiv[i][1][CorrVector.AZIMUTH_INDEX+i] =   dyi_dazimuth; 
+				} else {
+					for (int j = 0; j < (numSensors - 1); j++){
+						pXYderiv[j][0][CorrVector.TILT_INDEX+i] = -dxi_dtilt; 
+						pXYderiv[j][1][CorrVector.TILT_INDEX+i] = -dyi_dtilt; 
+						pXYderiv[j][0][CorrVector.AZIMUTH_INDEX+i] = -dxi_dazimuth; 
+						pXYderiv[j][1][CorrVector.AZIMUTH_INDEX+i] = -dyi_dazimuth; 
+					}
+				}
+				double dxi_droll = -s_roll * pXid + c_roll * pYid;   
+				double dyi_droll = -c_roll * pXid - s_roll * pYid;
+				pXYderiv[i][0][CorrVector.ROLL_INDEX+i] = dxi_droll; 
+				pXYderiv[i][1][CorrVector.ROLL_INDEX+i] = dyi_droll; 
+				
+			}
 		}
-		return pXY;
+		return rslt;
 	}
+
+	// debug version, calculates derivatives as differences
+	public double [][][][] getPortsCoordinatesAndDerivatives(
+			double delta, // 1e-6
+			CorrVector corr_vector,
+			double px,
+			double py,
+			double disparity)
+	{
+		double [][][][] rslt = new double[2][][][];
+		rslt[0] = getPortsCoordinatesAndDerivatives(
+				corr_vector, // CorrVector corr_vector,
+				false, // boolean calc_deriv,
+				px, // double px,
+				py, // double py,
+				disparity // double disparity
+				)[0];
+		double [][][] pXYderiv = new double [numSensors][2][CorrVector.LENGTH];
+		rslt[1] = pXYderiv;
+		for (int nPar = 0; nPar < CorrVector.LENGTH; nPar++){
+			CorrVector cv_delta_p = corr_vector.clone();
+			CorrVector cv_delta_m = corr_vector.clone();
+			cv_delta_p.vector[nPar] += 0.5 *delta; 
+			cv_delta_m.vector[nPar] -= 0.5 *delta;
+			double [][] rslt_p = getPortsCoordinatesAndDerivatives(
+					cv_delta_p, // CorrVector corr_vector,
+					false, // boolean calc_deriv,
+					px, // double px,
+					py, // double py,
+					disparity // double disparity
+					)[0][0];
+			double [][] rslt_m = getPortsCoordinatesAndDerivatives(
+					cv_delta_m, // CorrVector corr_vector,
+					false, // boolean calc_deriv,
+					px, // double px,
+					py, // double py,
+					disparity // double disparity
+					)[0][0];
+			for (int sens = 0; sens < numSensors; sens++){
+				for (int dir = 0; dir < 2; dir++){
+					pXYderiv[sens][dir][nPar] = (rslt_p[sens][dir] - rslt_m[sens][dir]) / delta;
+				}
+			}
+		}
+		return rslt;
+	}
+
 	
+	
+	
+
 	// should return same as input if disparity==0
 	public double [][] getPortsCoordinatesIdeal(
 			double px,

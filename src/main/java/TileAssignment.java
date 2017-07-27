@@ -955,7 +955,7 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 			// now diff is for the center, weight needs to be re-calculated
 			if (strengthDiffPwr > 0.0) {
 				if ((dispStrength[ml] == null) || (dispStrength[ml][nSurfTile] == null)){
-					System.out.println("getTileCosts() nSurfTile = "+nSurfTile+" ml = "+ml+" BUG - null pointer");
+					System.out.println("getTileCosts() nSurfTile = "+nSurfTile+" ml = "+ml+" is it really a BUG - null pointer here?");
 					weight = 1.0;
 				} else {
 					weight = dispStrength[ml][nSurfTile][1]; // null pointer

@@ -2726,7 +2726,7 @@ public class SuperTiles{
 				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 				smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
 
-				debugLevel + 1, //  + 2, // 1,          // final int        debugLevel,
+				debugLevel + 0, // 1, //  + 2, // 1,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
 				dbg_Y);              // final int        dbg_Y)
 		this.planes = new_planes; // save as "measured" (as opposed to "smoothed" by neighbors) planes

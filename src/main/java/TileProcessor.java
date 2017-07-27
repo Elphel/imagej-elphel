@@ -5235,7 +5235,7 @@ public class TileProcessor {
 		lp.conditionSuperTiles(
 				st.planes,              // final TilePlanes.PlaneData [][] planes,
 				10,                 // final int   max_num_merge_try, 
-				1); // debugLevel);        // final int         debugLevel);
+				0); // 1); // debugLevel);        // final int         debugLevel);
 // Used only by conflicts (not processed currently)
 		lp.calcStarValueStrength(
 				true, // boolean set_start_planes,

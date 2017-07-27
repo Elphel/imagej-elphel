@@ -22,12 +22,9 @@
  **
  */
 
-import java.awt.Polygon;
+//import java.awt.Polygon;
 import java.awt.Rectangle;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashSet;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -37,7 +34,6 @@ import ij.ImagePlus;
 import ij.ImageStack;
 import ij.Prefs;
 import ij.WindowManager;
-import ij.gui.Roi;
 import ij.io.FileSaver;
 import ij.process.ColorProcessor;
 import ij.process.ImageProcessor;
@@ -52,10 +48,11 @@ public class QuadCLT {
 	public EyesisCorrectionParameters.CorrectionParameters correctionsParameters=null;
 	double [][][][][][]                                    clt_kernels = null;
 	GeometryCorrection                                     geometryCorrection = null;
+	double []                                              extrinsic_corr = new double [GeometryCorrection.CORR_NAMES.length]; // extrinsic corrections (needed from properties, before geometryCorrection
 	public int                                             extra_items = 8; // number of extra items saved with kernels (center offset (partial, full, derivatives)
 	public ImagePlus                                       eyesisKernelImage = null;
 	public long                                            startTime;
-	public double [][][]                                   fine_corr  = new double [4][2][6]; // per port, per x/y, set of 6 coefficient for fine geometric corrections 
+	public double [][][]                                   fine_corr  = new double [4][2][6]; // per port, per x/y, set of 6 coefficient for fine geometric corrections
 	
 	TileProcessor                                          tp = null;
 
@@ -91,7 +88,7 @@ public class QuadCLT {
 	}
 
 	// TODO:Add saving just calibration
-	public void setProperties(){
+	public void setProperties(){ // save
 		for (int n = 0; n < fine_corr.length; n++){
 			for (int d = 0; d < fine_corr[n].length; d++){
 				for (int i = 0; i < fine_corr[n][d].length; i++){
@@ -100,9 +97,16 @@ public class QuadCLT {
 				}
 			}
 		}
+		
+		if (geometryCorrection != null){
+			for (int i = 0; i < GeometryCorrection.CORR_NAMES.length; i++){
+				String name = prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
+				properties.setProperty(name,  geometryCorrection.getCorrVector().toArray()[i]+"");
+			}
+		}
 	}	
-
-	public void getProperties(){
+	
+	public void getProperties(){ // restore
 		for (int n = 0; n < fine_corr.length; n++){
 			for (int d = 0; d < fine_corr[n].length; d++){
 				for (int i = 0; i < fine_corr[n][d].length; i++){
@@ -110,6 +114,16 @@ public class QuadCLT {
 		  			if (properties.getProperty(name)!=null) this.fine_corr[n][d][i]=Double.parseDouble(properties.getProperty(name));
 				}
 			}
+		}
+		// always set extrinsic_corr
+		for (int i = 0; i < GeometryCorrection.CORR_NAMES.length; i++){
+			String name = prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
+  			if (properties.getProperty(name)!=null) {
+  				this.extrinsic_corr[i] = Double.parseDouble(properties.getProperty(name));
+  				if (geometryCorrection != null){
+  					geometryCorrection.getCorrVector().toArray()[i] = this.extrinsic_corr[i];
+  				}  				
+  			}
 		}
 	}	
 
@@ -129,7 +143,7 @@ public class QuadCLT {
 		return geometryCorrection != null;
 	}
 	public boolean initGeometryCorrection(int debugLevel){
-		geometryCorrection = new GeometryCorrection();
+		geometryCorrection = new GeometryCorrection(extrinsic_corr);
 		PixelMapping.SensorData [] sensors =  eyesisCorrections.pixelMapping.sensors;
 		// verify that all sensors have the same distortion parameters
 		int numSensors = sensors.length;
@@ -3458,6 +3472,7 @@ public class QuadCLT {
 					    AlignmentCorrection ac = new AlignmentCorrection(this);
 					    // includes both infinity correction and mismatch correction for the same infinity tiles
 					    double [][][] new_corr = ac.infinityCorrection(
+					    		clt_parameters.ly_poly,        // final boolean use_poly,
 					    		clt_parameters.fcorr_inf_strength, //  final double min_strenth,
 					    		clt_parameters.fcorr_inf_diff,     // final double max_diff,
 					    		clt_parameters.inf_iters,          // 20, // 0, // final int max_iterations,
@@ -3876,334 +3891,6 @@ public class QuadCLT {
 
 	  }
 
-	  /**
-	   * Calculate quadratic polynomials for each subcamera X/Y correction to match disparity = 0 at infinity
-	   * Next parameters are made separate to be able to modify them between different runs keeping clt_parameters
-	   * @param min_strenth minimal correlation strength to use tile
-	   * @param max_diff maximal disparity difference between tiles and previous approximation to use tiles
-	   * @param max_iterations maximal number of iterations to find disparity surface
-	   * @param max_coeff_diff coefficients maximal change to continue iterations
-	   * @param clt_parameters CLT parameters
-	   * @param disp_strength array of a single or multiple disparity/strength pairs (0,2, .. - disparity,
-	   *  1,3,.. - corresponding strengths
-	   * @param tilesX number of tiles in each data line
-	   * @param magic_coeff still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85 
-	   * @param debugLevel debug level
-	   * @return per sub-camera, per direction (x,y) 6 quadratic polynomial coefficients, same format as fine_geometry_correction()
-	   */
-	  public double [][][] infinityCorrection(
-			  final double min_strenth,
-			  final double max_diff,
-			  final int max_iterations,
-			  final double max_coeff_diff,
-			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
-			  double [][] disp_strength,
-			  int         tilesX,
-			  double      magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
-			  int debugLevel)
-	  {
-		  final double far_pull = 0.2; // 1; //  0.5;
-		  final int numTiles =            disp_strength[0].length;
-		  final int tilesY =              numTiles/tilesX;
-		  double [] disparity_poly = new double[6];
-		  PolynomialApproximation pa = new PolynomialApproximation();
-		  double thresholdLin = 1.0E-20;  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
-		  double thresholdQuad = 1.0E-30; // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
-		  double [] disp_surface = new double[numTiles];
-//		  double [] corr_weight = new double [numTiles]; // reduce weight for far tiles (by more than range farther than surface)
-		  class Sample{
-			  int series;
-			  int tile;
-			  double weight;
-			  Sample(int series, int tile, double weight) {
-				  this.series = series;
-				  this.tile =  tile;
-				  this.weight = weight;
-				  
-			  }
-		  }
-		  ArrayList<Sample> samples_list = new ArrayList<Sample>();
-		  for (int pass = 0; pass < max_iterations; pass++){
-			  for (int nTile = 0; nTile < numTiles; nTile++){
-				  int tileX = nTile % tilesX;
-				  int tileY = nTile / tilesX;
-				  double x =  (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
-				  double y =  (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
-				  disp_surface[nTile] =
-						  disparity_poly[0] * x * x +
-						  disparity_poly[1] * y * y +
-						  disparity_poly[2] * x * y +
-						  disparity_poly[3] * x +
-						  disparity_poly[4] * y +
-						  disparity_poly[5];
-			  }
-			  
-			  samples_list.clear();
-			  for (int num_set = 0; num_set < disp_strength.length/2; num_set++){
-				  int disp_index = 2 * num_set;
-				  int str_index = 2 * num_set+1;
-				  for (int nTile = 0; nTile < numTiles; nTile++){
-					  if ((disp_strength[str_index][nTile] >= min_strenth) && 
-//							  (Math.abs(disp_strength[disp_index][nTile] - disp_surface[nTile]) < max_diff)){
-						  ((disp_strength[disp_index][nTile] - disp_surface[nTile]) < max_diff)){
-						  double weight= disp_strength[str_index][nTile];
-						  // next are for far tiles, that differ by more than max_diff
-						  if (Math.abs(disp_strength[disp_index][nTile] - disp_surface[nTile]) > max_diff){
-							  weight *= far_pull;
-						  }
-						  samples_list.add(new Sample(num_set, nTile, weight));
-					  }
-				  }
-			  }
-			  double [][][] mdata;
-			  if (clt_parameters.fcorr_inf_vert) {
-				  mdata = new double[samples_list.size()][3][];
-			  } else {
-				  mdata = new double [1][samples_list.size()][3];
-			  }
-			  
-			  int indx = 0;
-			  for (Sample s: samples_list){
-				  int tileX = s.tile % tilesX;
-				  int tileY = s.tile / tilesX;
-				  if (clt_parameters.fcorr_inf_vert) {
-					  mdata[indx][0] = new double [2];
-					  mdata[indx][0][0] =  (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
-					  mdata[indx][0][1] =  (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
-					  mdata[indx][1] = new double [1];
-					  mdata[indx][1][0] =  (disp_strength[2 * s.series + 0][s.tile]/magic_coeff - disp_surface[s.tile]); // disparity residual
-					  mdata[indx][2] = new double [1];
-					  mdata[indx][2][0] =  s.weight; // disp_strength[2 * s.series + 1][s.tile]; // strength
-//					  if (Math.abs( mdata[indx][1][0]) > max_diff) { // far tiles
-//						  mdata[indx][2][0] *= far_pull;
-//					  }
-
-				  } else {
-						  mdata[0][indx][0] = (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
-						  mdata[0][indx][1] = (disp_strength[2 * s.series + 0][s.tile]/magic_coeff - disp_surface[s.tile]); // disparity residual
-						  mdata[0][indx][2] = s.weight; // disp_strength[2 * s.series + 1][s.tile]; // strength
-//						  if (Math.abs( mdata[0][indx][1]) > max_diff) { // far tiles
-//							  mdata[0][indx][2] *= far_pull;
-//						  }
-				  }
-				  indx ++;
-			  }
-			  if ((debugLevel > -1) && (pass < 20)){
-				  String [] titles = {"disparity","approx","diff", "strength"};
-				  double [][] dbg_img = new double [titles.length][numTiles];
-				  for (int nTile = 0; nTile < numTiles; nTile++){
-					  int tileX = nTile % tilesX;
-					  int tileY = nTile / tilesX;
-					  double x =  (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
-					  double y =  (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
-					  dbg_img[1][nTile] =
-							  disparity_poly[0] * x * x +
-							  disparity_poly[1] * y * y +
-							  disparity_poly[2] * x * y +
-							  disparity_poly[3] * x +
-							  disparity_poly[4] * y +
-							  disparity_poly[5];
-				  }
-
-				  for (Sample s: samples_list){
-					  dbg_img[0][s.tile] += disp_strength[2 * s.series][s.tile] * s.weight; // disp_strength[2 * p.x + 1][p.y];
-					  dbg_img[3][s.tile] += s.weight; // disp_strength[2 * p.x + 1][p.y];
-				  }
-				  for (int nTile = 0; nTile < numTiles; nTile++) {
-					  if (dbg_img[3][nTile] > 0.0) {
-						  dbg_img[0][nTile] /=dbg_img[3][nTile];
-					  } else {
-						  dbg_img[0][nTile] = Double.NaN;
-					  }
-				  }
-				  
-				  for (int nTile = 0; nTile < numTiles; nTile++) {
-					  if (dbg_img[3][nTile] > 0.0) {
-						  dbg_img[2][nTile] = dbg_img[0][nTile] - dbg_img[1][nTile];
-					  } else {
-						  dbg_img[2][nTile] = Double.NaN;
-					  }
-				  }
-
-				  (new showDoubleFloatArrays()).showArrays(dbg_img, tilesX, tilesY, true, "infinity_"+pass, titles);
-				  
-				  
-				  
-				  
-			  }
-			  
-			  
-			  double [][] coeffs = new double[1][6];
-			  if (clt_parameters.fcorr_inf_vert){
-				  double[][] approx2d = pa.quadraticApproximation(
-						  mdata,
-						  !clt_parameters.fcorr_inf_quad, // boolean forceLinear,  // use linear approximation
-						  thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
-						  thresholdQuad,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
-						  debugLevel); {
-							  
-						  }
-				  if (approx2d[0].length == 6) {
-					  coeffs = approx2d;
-				  } else {
-					  for (int i = 0; i < 3; i++){
-						  coeffs[0][3+i] = approx2d[0][i];
-					  }
-				  }
-			  } else {
-				  double [] approx1d = pa.polynomialApproximation1d(mdata[0], clt_parameters.fcorr_inf_quad ? 2 : 1);
-				  //			  disparity_approximation = new double[6];
-				  coeffs[0][5] = approx1d[0];
-				  coeffs[0][3] = approx1d[1];
-				  if (approx1d.length > 2){
-					  coeffs[0][0] = approx1d[2];
-				  }
-			  }
-			  if (debugLevel > -1){
-				  System.out.println(String.format(
-						  "infinityCorrection() disparity pass=%03d A=%8.5f B=%8.5f C=%8.5f D=%8.5f E=%8.5f F=%8.5f",
-						  pass, disparity_poly[0], disparity_poly[1], disparity_poly[2],
-						  disparity_poly[3], disparity_poly[4], disparity_poly[5]) );
-			  }
-			  boolean all_done = true;
-			  for (int i = 0; i < disparity_poly.length; i++){
-				  if (Math.abs(coeffs[0][i]) > max_coeff_diff){
-					  all_done = false;
-					  break;
-				  }
-			  }
-			  
-			  if (all_done) break;
-			  for (int i = 0; i < disparity_poly.length; i++){
-				  disparity_poly[i] += coeffs[0][i];
-			  }			  
-		  }
-		  
-		  // use last generated samples_list;
-		  
-		  double [][][] mdata;
-		  if (clt_parameters.fcorr_inf_vert) {
-			  mdata = new double[samples_list.size()][3][];
-		  } else {
-			  mdata = new double [8][samples_list.size()][3];
-		  }
-		  int indx = 0;
-		  for (Sample s: samples_list){
-			  int tileX = s.tile % tilesX;
-			  int tileY = s.tile / tilesX;
-			  double centerX = tileX * tp.getTileSize() + tp.getTileSize()/2;// - shiftX;
-			  double centerY = tileY * tp.getTileSize() + tp.getTileSize()/2;//- shiftY;
-			  double [][] centersXY_disp = geometryCorrection.getPortsCoordinates(
-					  centerX,
-					  centerY,
-					  disp_strength[2 * s.series + 0][s.tile]/magic_coeff); // disparity
-			  double [][] centersXY_inf = geometryCorrection.getPortsCoordinates(
-					  centerX,
-					  centerY,
-					  0.0); // disparity
-			  for (int i = 0; i < centersXY_disp.length;i++){
-				  centersXY_disp[i][0] -= centersXY_inf[i][0];
-				  centersXY_disp[i][1] -= centersXY_inf[i][1];
-			  }
-			  if (clt_parameters.fcorr_inf_vert) {
-				  mdata[indx][0] = new double [2];
-				  mdata[indx][0][0] =  (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
-				  mdata[indx][0][1] =  (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
-				  mdata[indx][1] = new double [8];
-				  for (int n = 0; n < 8; n++){
-					  mdata[indx][1][n] =   -centersXY_disp[n / 2][n % 2];
-				  }
-				  mdata[indx][2] = new double [1];
-				  mdata[indx][2][0] = s.weight; //  disp_strength[2 * p.x + 1][p.y]; // strength
-
-			  } else {
-				  for (int n = 0; n < 8; n++){
-					  mdata[n][indx][0] = (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
-					  mdata[n][indx][1] = -centersXY_disp[n / 2][n % 2];
-					  mdata[n][indx][2] = s.weight; // disp_strength[2 * p.x + 1][p.y]; // strength
-				  }
-			  }
-			  indx ++;
-		  }
-		  double [][] coeffs = new double[8][6];
-		  if (clt_parameters.fcorr_inf_vert){
-			  double [][] approx2d = pa.quadraticApproximation(
-					  mdata,
-					  !clt_parameters.fcorr_inf_quad, // boolean forceLinear,  // use linear approximation
-					  thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
-					  thresholdQuad,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
-					  debugLevel);
-			  for (int n = 0; n < 8; n++){
-				  if (approx2d[n].length == 6) {
-					  coeffs[n] = approx2d[n];
-				  } else {
-					  for (int i = 0; i < 3; i++){
-						  coeffs[n][3+i] = approx2d[n][i];
-					  }
-				  }
-			  }
-		  } else {
-			  for (int n = 0; n < 8; n++){
-				  double [] approx1d = pa.polynomialApproximation1d(mdata[n], clt_parameters.fcorr_inf_quad ? 2 : 1);
-				  //			  disparity_approximation = new double[6];
-				  coeffs[n][5] = approx1d[0];
-				  coeffs[n][3] = approx1d[1];
-				  if (approx1d.length > 2){
-					  coeffs[n][0] = approx1d[2];
-				  }
-			  }
-		  }
-		  
-		  double [][][] inf_corr = new double [4][2][];
-		  for (int n = 0; n < 8; n++){
-			  inf_corr[n / 2][n % 2] = coeffs[n];
-		  }		  
-
-		  if (debugLevel > 0) {
-			  String [] titles = {"disparity","approx","diff", "strength"};
-			  double [][] dbg_img = new double [titles.length][numTiles];
-			  for (int nTile = 0; nTile < numTiles; nTile++){
-				  int tileX = nTile % tilesX;
-				  int tileY = nTile / tilesX;
-				  double x =  (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0;
-				  double y =  (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
-				  dbg_img[1][nTile] =
-						  disparity_poly[0] * x * x +
-						  disparity_poly[1] * y * y +
-						  disparity_poly[2] * x * y +
-						  disparity_poly[3] * x +
-						  disparity_poly[4] * y +
-						  disparity_poly[5];
-			  }
-
-			  for (Sample s: samples_list){
-				  dbg_img[0][s.tile] += disp_strength[2 * s.series][s.tile] * s.weight; // disp_strength[2 * p.x + 1][p.y];
-				  dbg_img[3][s.tile] += s.weight; // disp_strength[2 * s.series + 1][s.tile];
-			  }
-			  
-			  for (int nTile = 0; nTile < numTiles; nTile++) {
-				  if (dbg_img[3][nTile] > 0.0) {
-					  dbg_img[0][nTile] /=dbg_img[3][nTile];
-				  } else {
-					  dbg_img[0][nTile] = Double.NaN;
-				  }
-			  }
-			  
-			  for (int nTile = 0; nTile < numTiles; nTile++) {
-				  if (dbg_img[3][nTile] > 0.0) {
-					  dbg_img[2][nTile] = dbg_img[0][nTile] - dbg_img[1][nTile];
-				  } else {
-					  dbg_img[2][nTile] = Double.NaN;
-				  }
-			  }
-
-			  (new showDoubleFloatArrays()).showArrays(dbg_img, tilesX, tilesY, true, "QC_infinityCorrection", titles);
-
-		  }
-		  return inf_corr;
-	  }	  
-	  
-	  
 	  public void apply_fine_corr(
 			  double [][][] corr,
 			  int debugLevel)
@@ -4250,12 +3937,32 @@ public class QuadCLT {
 				  System.out.println();
 			  }
 		  }
+		  System.out.println();
+		  showExtrinsicCorr();
 	  }
 	  
 	  
 	  public void reset_fine_corr()
 	  {
 		  this.fine_corr = new double [4][2][6]; // reset all coefficients to 0  
+	  }
+	  
+	  public void showExtrinsicCorr()
+	  {
+		  System.out.println("Extrinsic corrections");
+		  if (geometryCorrection == null){
+			  System.out.println("are not set, will be:");
+			  System.out.println(new GeometryCorrection(this.extrinsic_corr).getCorrVector().toString());
+		  } else {
+			  System.out.println(geometryCorrection.getCorrVector().toString());
+		  }
+	  }
+	  public void resetExtrinsicCorr()
+	  {
+		  this.extrinsic_corr = new double [GeometryCorrection.CORR_NAMES.length];
+		  if (geometryCorrection != null){
+			  geometryCorrection.setCorrVector(null);
+		  }
 	  }
 	  
 	  public void cltDisparityScans(
@@ -4671,6 +4378,7 @@ public class QuadCLT {
 						  debugLevel); // int debugLevel)
 
 				  double [][][] new_corr = ac.lazyEyeCorrection(
+						  clt_parameters.ly_poly,        // final boolean use_poly,						  
 						  clt_parameters.fcorr_radius,       // 	final double fcorr_radius,
 						  clt_parameters.fcorr_inf_strength, //  final double min_strenth,
 						  clt_parameters.fcorr_inf_diff,     // final double max_diff,
@@ -4702,7 +4410,7 @@ public class QuadCLT {
 						  tilesX, // int         tilesX,
 						  clt_parameters.corr_magic_scale, // double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
 						  debugLevel + (clt_parameters.fine_dbg ? 1:0)); // int debugLevel)
-				  if (clt_parameters.ly_on_scan) {					    
+				  if (clt_parameters.ly_on_scan && (new_corr != null)) {					    
 					  if (debugLevel > -1){
 						  System.out.println("=== Applying lazy eye correction === ");
 					  }
@@ -4779,14 +4487,14 @@ public class QuadCLT {
 			  ) {
 	        ImagePlus imp_src = WindowManager.getCurrentImage();
 	        if (imp_src==null){
-	            IJ.showMessage("Error","2*n-layer file with disparities/strengthspairs measured at infinity is required");
+	            IJ.showMessage("Error","14*n-layer file with disparities/strengthspairs measured at infinity is required");
 	            return;
 	        }
 	        ImageStack disp_strength_stack= imp_src.getStack();
 		    final int tilesX = disp_strength_stack.getWidth(); // tp.getTilesX();
 		    final int tilesY = disp_strength_stack.getHeight(); // tp.getTilesY();
 		    final int nTiles =tilesX * tilesY;
-		    final int num_scans =  disp_strength_stack.getSize()/AlignmentCorrection.NUM_SLICES;
+		    final int num_scans =  disp_strength_stack.getSize()/AlignmentCorrection.NUM_ALL_SLICES;
 		    final double [][] inf_disp_strength = new double [AlignmentCorrection.NUM_SLICES * num_scans][nTiles];
 		    for (int n = 0; n <  disp_strength_stack.getSize(); n++){
 	    		float [] fpixels = (float[]) disp_strength_stack.getPixels(n +1);
@@ -4800,6 +4508,7 @@ public class QuadCLT {
 		    AlignmentCorrection ac = new AlignmentCorrection(this);
 		    // includes both infinity correction and mismatch correction for the same infinity tiles
 		    double [][][] new_corr = ac.infinityCorrection(
+		    		clt_parameters.ly_poly,        // final boolean use_poly,
 		    		clt_parameters.fcorr_inf_strength, //  final double min_strenth,
 		    		clt_parameters.fcorr_inf_diff,     // final double max_diff,
 		    		clt_parameters.inf_iters,          // 20, // 0, // final int max_iterations,
@@ -4876,6 +4585,7 @@ public class QuadCLT {
 			
 		    
 		    double [][][] new_corr = ac.lazyEyeCorrection(
+		    		clt_parameters.ly_poly,        // final boolean use_poly,		    		
 				    clt_parameters.fcorr_radius,       // 	final double fcorr_radius,
 		    		clt_parameters.fcorr_inf_strength, //  final double min_strenth,
 		    		clt_parameters.fcorr_inf_diff,     // final double max_diff,
@@ -4908,7 +4618,7 @@ public class QuadCLT {
 		    		clt_parameters.corr_magic_scale, // double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
 		    		debugLevel + (clt_parameters.fine_dbg ? 1:0)); // int debugLevel)
 		    
-		    if (!dry_run){
+		    if (!dry_run && (new_corr != null)){
 				  apply_fine_corr(
 						  new_corr,
 						  debugLevel + 2);
@@ -5419,7 +5129,7 @@ public class QuadCLT {
     			  ImageDtt.DISPARITY_INDEX_CM, // index of disparity value in disparity_map == 2 (0,2 or 4)
     			  threadsMax,  // maximal number of threads to launch                         
     			  updateStatus,
-    			  1); // debugLevel);
+    			  debugLevel);
     	  //		  bgnd_data.texture = imp_bgnd.getTitle()+".png";
     	  
     	  if (clt_parameters.show_expand ) { // getBackgroundImage() sets selected
@@ -5833,425 +5543,104 @@ public class QuadCLT {
         	  //       	  runtime.gc();
         	  //       	  System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
 
-        	  boolean  use_zMapExpansionStep = true; // false;
+        	  num_extended = zMapExpansionStep(
+        			  tp.clt_3d_passes,               // final ArrayList <CLTPass3d> passes,// List, first, last - to search for the already tried disparity
+        			  clt_parameters,                 //final EyesisCorrectionParameters.CLTParameters           clt_parameters, // for refinePassSetup()
+        			  0,                              // final int         firstPass,       
+        			  tp.clt_3d_passes.size(),        // final int         lastPassPlus1,
+        			  bg_pass,                        // final int         bg_index,
 
-        	  if (use_zMapExpansionStep) {        	  
-        		  num_extended = zMapExpansionStep(
-        				  tp.clt_3d_passes,               // final ArrayList <CLTPass3d> passes,// List, first, last - to search for the already tried disparity
-        				  clt_parameters,                 //final EyesisCorrectionParameters.CLTParameters           clt_parameters, // for refinePassSetup()
-        				  0,                              // final int         firstPass,       
-        				  tp.clt_3d_passes.size(),        // final int         lastPassPlus1,
-        				  bg_pass,                        // final int         bg_index,
+        			  true,                           // final boolean     refine,         // now always should be true ?
+        			  clt_parameters.gr_new_expand,   // final boolean     expand_neibs,   // expand from neighbors
+        			  !clt_parameters.gr_new_expand,  // final boolean     expand_legacy,  // old mode of growing tiles (using max scanned). If both true, will try only if expand_neibs fails
 
-        				  true,                           // final boolean     refine,         // now always should be true ?
-        				  clt_parameters.gr_new_expand,   // final boolean     expand_neibs,   // expand from neighbors
-        				  !clt_parameters.gr_new_expand,  // final boolean     expand_legacy,  // old mode of growing tiles (using max scanned). If both true, will try only if expand_neibs fails
+        			  // Filtering by background data:
+        			  filtered_bgnd_disp_strength,    // final double [][] filtered_bgnd_ds,       // if not null, will filter results not to have low disparity new tiles over supposed bgnd
+        			  // for legacy expansion it is not used, but just checked for null, so double [0][] should work too
+        			  clt_parameters.ex_min_over ,              // final double      ex_min_over,            // when expanding over previously detected (by error) background, disregard far tiles
+        			  clt_parameters.gr_ovrbg_filtered ,  // final double      str_over_bg,            // Minimal filtered strength when replacing background data 
+        			  clt_parameters.gr_ovrbg_cmb ,     // final double      str_over_bg_combo,      // Minimal combined strength  when replacing background data
+        			  clt_parameters.gr_ovrbg_cmb_hor , // final double      str_over_bg_combo_hor,  // Minimal combined strength  when replacing background data
+        			  clt_parameters.gr_ovrbg_cmb_vert, // final double      str_over_bg_combo_vert, // Minimal combined strength  when replacing background data
 
-        				  // Filtering by background data:
-        				  filtered_bgnd_disp_strength,    // final double [][] filtered_bgnd_ds,       // if not null, will filter results not to have low disparity new tiles over supposed bgnd
-        				  // for legacy expansion it is not used, but just checked for null, so double [0][] should work too
-        				  clt_parameters.ex_min_over ,              // final double      ex_min_over,            // when expanding over previously detected (by error) background, disregard far tiles
-        				  clt_parameters.gr_ovrbg_filtered ,  // final double      str_over_bg,            // Minimal filtered strength when replacing background data 
-        				  clt_parameters.gr_ovrbg_cmb ,     // final double      str_over_bg_combo,      // Minimal combined strength  when replacing background data
-        				  clt_parameters.gr_ovrbg_cmb_hor , // final double      str_over_bg_combo_hor,  // Minimal combined strength  when replacing background data
-        				  clt_parameters.gr_ovrbg_cmb_vert, // final double      str_over_bg_combo_vert, // Minimal combined strength  when replacing background data
+        			  // Refine parameters use directly some clt_parameters, others below
+        			  clt_parameters.stUseRefine,               // final boolean     stUseRefine, // use supertiles (now false)
+        			  clt_parameters.bgnd_range,                //final double      bgnd_range,     // double            disparity_far,  
+        			  clt_parameters.ex_strength,               // final double      ex_strength,    // double            this_sure,        // minimal strength to be considered definitely good
+        			  clt_parameters.ex_nstrength,              //final double      ex_nstrength,   // double            ex_nstrength, // minimal 4-corr strength divided by channel diff for new (border) tiles
+        			  clt_parameters.bgnd_maybe,                // final double      bgnd_maybe,     // double            this_maybe,       // maximal strength to ignore as non-background
+        			  clt_parameters.sure_smth,                 // final double      sure_smth,      // sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
+        			  clt_parameters.pt_super_trust,            //final double      pt_super_trust, //  final double      super_trust,      // If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds
+        			  // using plates disparity/strength - averaged for small square sets of tiles. If null - just use raw tiles
+        			  clt_parameters.pt_keep_raw_fg,            // final boolean     pt_keep_raw_fg, // 		final boolean     keep_raw_fg,  // do not replace raw tiles by the plates, if raw is closer (like poles)
+        			  clt_parameters.pt_scale_pre,              // final double      pt_scale_pre,   // final double      scale_filtered_strength_pre, // scale plate_ds[1] before comparing to raw strength
+        			  clt_parameters.pt_scale_post,             // final double      pt_scale_post,  // final double      scale_filtered_strength_post,// scale plate_ds[1] when replacing raw (generally plate_ds is more reliable if it exists)
 
-        				  // Refine parameters use directly some clt_parameters, others below
-        				  clt_parameters.stUseRefine,               // final boolean     stUseRefine, // use supertiles (now false)
-        				  clt_parameters.bgnd_range,                //final double      bgnd_range,     // double            disparity_far,  
-        				  clt_parameters.ex_strength,               // final double      ex_strength,    // double            this_sure,        // minimal strength to be considered definitely good
-        				  clt_parameters.ex_nstrength,              //final double      ex_nstrength,   // double            ex_nstrength, // minimal 4-corr strength divided by channel diff for new (border) tiles
-        				  clt_parameters.bgnd_maybe,                // final double      bgnd_maybe,     // double            this_maybe,       // maximal strength to ignore as non-background
-        				  clt_parameters.sure_smth,                 // final double      sure_smth,      // sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
-        				  clt_parameters.pt_super_trust,            //final double      pt_super_trust, //  final double      super_trust,      // If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds
-        				  // using plates disparity/strength - averaged for small square sets of tiles. If null - just use raw tiles
-        				  clt_parameters.pt_keep_raw_fg,            // final boolean     pt_keep_raw_fg, // 		final boolean     keep_raw_fg,  // do not replace raw tiles by the plates, if raw is closer (like poles)
-        				  clt_parameters.pt_scale_pre,              // final double      pt_scale_pre,   // final double      scale_filtered_strength_pre, // scale plate_ds[1] before comparing to raw strength
-        				  clt_parameters.pt_scale_post,             // final double      pt_scale_post,  // final double      scale_filtered_strength_post,// scale plate_ds[1] when replacing raw (generally plate_ds is more reliable if it exists)
+        			  // Composite scan parameters 
+        			  clt_parameters.combine_min_strength,      // final double      combine_min_strength,              // final double                minStrength, 
+        			  clt_parameters.combine_min_hor,           // final double      combine_min_hor,                   // final double                minStrengthHor,
+        			  clt_parameters.combine_min_vert,          // final double      combine_min_vert,                  // final double                minStrengthVert,
 
-        				  // Composite scan parameters 
-        				  clt_parameters.combine_min_strength,      // final double      combine_min_strength,              // final double                minStrength, 
-        				  clt_parameters.combine_min_hor,           // final double      combine_min_hor,                   // final double                minStrengthHor,
-        				  clt_parameters.combine_min_vert,          // final double      combine_min_vert,                  // final double                minStrengthVert,
+        			  //getFilteredDisparityStrength parameters
 
-        				  //getFilteredDisparityStrength parameters
+        			  // Consider separate parameters for FDS?
+        			  clt_parameters.fds_str_floor,        // final double      fds_str_floor,
+        			  clt_parameters.fds_str_pow,          // final double      fds_str_pow,
+        			  clt_parameters.fds_smpl_side,             // final int         fds_smpl_size, // == 5
+        			  clt_parameters.fds_smpl_num,              // final int         fds_smpl_points, // == 3
+        			  clt_parameters.fds_smpl_rms,              // final double      fds_abs_rms,
+        			  clt_parameters.fds_smpl_rel_rms,          // final double      fds_rel_rms,
+        			  clt_parameters.fds_smpl_wnd,              // final boolean     fds_use_wnd,   // use window function fro the neighbors 
+        			  0.001,                                    // final double      fds_tilt_damp,
+        			  clt_parameters.fds_abs_tilt,              // final double      fds_abs_tilt, //   = 2.0; // pix per tile
+        			  clt_parameters.fds_rel_tilt,              // final double      fds_rel_tilt, //   = 0.2; // (pix / disparity) per tile
 
-        				  // Consider separate parameters for FDS?
-        				  clt_parameters.fds_str_floor,        // final double      fds_str_floor,
-        				  clt_parameters.fds_str_pow,          // final double      fds_str_pow,
-        				  clt_parameters.fds_smpl_side,             // final int         fds_smpl_size, // == 5
-        				  clt_parameters.fds_smpl_num,              // final int         fds_smpl_points, // == 3
-        				  clt_parameters.fds_smpl_rms,              // final double      fds_abs_rms,
-        				  clt_parameters.fds_smpl_rel_rms,          // final double      fds_rel_rms,
-        				  clt_parameters.fds_smpl_wnd,              // final boolean     fds_use_wnd,   // use window function fro the neighbors 
-        				  0.001,                                    // final double      fds_tilt_damp,
-        				  clt_parameters.fds_abs_tilt,              // final double      fds_abs_tilt, //   = 2.0; // pix per tile
-        				  clt_parameters.fds_rel_tilt,              // final double      fds_rel_tilt, //   = 0.2; // (pix / disparity) per tile
+        			  // expansion from neighbors parameters:
+        			  clt_parameters.gr_min_new ,               // final int         gr_min_new,         // discard variant if there are less new tiles 
+        			  clt_parameters.gr_steps_over,             // final int         gr_steps_over,  // how far to extend
+        			  clt_parameters.gr_var_new_sngl ,          // final boolean     gr_var_new_sngl,  
+        			  clt_parameters.gr_var_new_fg ,            // final boolean     gr_var_new_fg,
+        			  clt_parameters.gr_var_all_fg ,            // final boolean     gr_var_all_fg,  
+        			  clt_parameters.gr_var_new_bg ,            // final boolean     gr_var_new_bg,  
+        			  clt_parameters.gr_var_all_bg ,            // final boolean     gr_var_all_bg,
+        			  clt_parameters.gr_var_next ,              // final boolean     gr_var_next,
 
-        				  // expansion from neighbors parameters:
-        				  clt_parameters.gr_min_new ,               // final int         gr_min_new,         // discard variant if there are less new tiles 
-        				  clt_parameters.gr_steps_over,             // final int         gr_steps_over,  // how far to extend
-        				  clt_parameters.gr_var_new_sngl ,          // final boolean     gr_var_new_sngl,  
-        				  clt_parameters.gr_var_new_fg ,            // final boolean     gr_var_new_fg,
-        				  clt_parameters.gr_var_all_fg ,            // final boolean     gr_var_all_fg,  
-        				  clt_parameters.gr_var_new_bg ,            // final boolean     gr_var_new_bg,  
-        				  clt_parameters.gr_var_all_bg ,            // final boolean     gr_var_all_bg,
-        				  clt_parameters.gr_var_next ,              // final boolean     gr_var_next,
+        			  clt_parameters.gr_smpl_size , // final int         gr_smpl_size ,      // 5,      // 	final int         smpl_size, // == 5
+        			  clt_parameters.gr_min_pnts , // final int         gr_min_pnts ,       // 5, // 4, // 3,      //    final int        min_points, // == 3
+        			  clt_parameters.gr_use_wnd , // final boolean     gr_use_wnd ,        // true,   // 	final boolean     use_wnd,   // use window function fro the neighbors 
+        			  clt_parameters.gr_tilt_damp , // final double      gr_tilt_damp ,      // 0.001,  // 	final double      tilt_cost,
+        			  clt_parameters.gr_split_rng , // final double      gr_split_rng ,      // 5.0,    // 	final double      split_threshold, // if full range of the values around the cell higher, need separate fg, bg
+        			  clt_parameters.gr_same_rng , // final double      gr_same_rng ,       // 3.0,    // 	final double      same_range,      // modify
+        			  clt_parameters.gr_diff_cont , // final double      gr_diff_cont ,      // 2.0,    // 	final double      diff_continue,   // maximal difference from the old value (for previously defined tiles
+        			  clt_parameters.gr_abs_tilt , // final double      gr_abs_tilt ,       // 2.0,    //    final double     max_abs_tilt, //   = 2.0; // pix per tile
+        			  clt_parameters.gr_rel_tilt , // final double      gr_rel_tilt ,       // 0.2,    //    final double     max_rel_tilt, //   = 0.2; // (pix / disparity) per tile
+        			  clt_parameters.gr_smooth , // final int         gr_smooth ,         // 50,     // 	final int         max_tries, // maximal number of smoothing steps
+        			  clt_parameters.gr_fin_diff , // final double      gr_fin_diff ,       // 0.01,   // 	final double      final_diff, // maximal change to finish iterations 
+        			  clt_parameters.gr_unique_pretol , // final double      gr_unique_pretol ,  // 1.0,    // 	final double      unique_pre_tolerance, // usually larger than clt_parameters.unique_tolerance
 
-        				  clt_parameters.gr_smpl_size , // final int         gr_smpl_size ,      // 5,      // 	final int         smpl_size, // == 5
-        				  clt_parameters.gr_min_pnts , // final int         gr_min_pnts ,       // 5, // 4, // 3,      //    final int        min_points, // == 3
-        				  clt_parameters.gr_use_wnd , // final boolean     gr_use_wnd ,        // true,   // 	final boolean     use_wnd,   // use window function fro the neighbors 
-        				  clt_parameters.gr_tilt_damp , // final double      gr_tilt_damp ,      // 0.001,  // 	final double      tilt_cost,
-        				  clt_parameters.gr_split_rng , // final double      gr_split_rng ,      // 5.0,    // 	final double      split_threshold, // if full range of the values around the cell higher, need separate fg, bg
-        				  clt_parameters.gr_same_rng , // final double      gr_same_rng ,       // 3.0,    // 	final double      same_range,      // modify
-        				  clt_parameters.gr_diff_cont , // final double      gr_diff_cont ,      // 2.0,    // 	final double      diff_continue,   // maximal difference from the old value (for previously defined tiles
-        				  clt_parameters.gr_abs_tilt , // final double      gr_abs_tilt ,       // 2.0,    //    final double     max_abs_tilt, //   = 2.0; // pix per tile
-        				  clt_parameters.gr_rel_tilt , // final double      gr_rel_tilt ,       // 0.2,    //    final double     max_rel_tilt, //   = 0.2; // (pix / disparity) per tile
-        				  clt_parameters.gr_smooth , // final int         gr_smooth ,         // 50,     // 	final int         max_tries, // maximal number of smoothing steps
-        				  clt_parameters.gr_fin_diff , // final double      gr_fin_diff ,       // 0.01,   // 	final double      final_diff, // maximal change to finish iterations 
-        				  clt_parameters.gr_unique_pretol , // final double      gr_unique_pretol ,  // 1.0,    // 	final double      unique_pre_tolerance, // usually larger than clt_parameters.unique_tolerance
+        			  // legacy expansion
+        			  clt_parameters.grow_min_diff ,  // final double      grow_min_diff,   // =    0.5; // Grow more only if at least one channel has higher variance from others for the tile
+        			  clt_parameters.grow_retry_far , // final boolean     grow_retry_far,  // final boolean     grow_retry_far,  // Retry tiles around known foreground that have low max_tried_disparity
+        			  clt_parameters.grow_pedantic ,  // final boolean     grow_pedantic,   // final boolean     grow_pedantic,   // Scan full range between max_tried_disparity of the background and known foreground
+        			  clt_parameters.grow_retry_inf , // final boolean     grow_retry_inf,  // final boolean     grow_retry_inf,  // Retry border tiles that were identified as infinity earlier
 
-        				  // legacy expansion
-        				  clt_parameters.grow_min_diff ,  // final double      grow_min_diff,   // =    0.5; // Grow more only if at least one channel has higher variance from others for the tile
-        				  clt_parameters.grow_retry_far , // final boolean     grow_retry_far,  // final boolean     grow_retry_far,  // Retry tiles around known foreground that have low max_tried_disparity
-        				  clt_parameters.grow_pedantic ,  // final boolean     grow_pedantic,   // final boolean     grow_pedantic,   // Scan full range between max_tried_disparity of the background and known foreground
-        				  clt_parameters.grow_retry_inf , // final boolean     grow_retry_inf,  // final boolean     grow_retry_inf,  // Retry border tiles that were identified as infinity earlier
+        			  // common expansion
+        			  clt_parameters.gr_num_steps,    // final int         gr_num_steps,    // how far to extend
+        			  clt_parameters.gr_unique_tol ,  // final double      gr_unique_tol,
+        			  0.0, // clt_parameters.grow_disp_min ,  // final double      grow_disp_min,   // final double                disp_near,
+        			  clt_parameters.grow_disp_max ,  // final double      grow_disp_max,   // final double                disp_near,
+        			  clt_parameters.grow_disp_step , // final double      grow_disp_step,  //  =   6.0; // Increase disparity (from maximal tried) if nothing found in that tile // TODO: handle enclosed dips?  
 
-        				  // common expansion
-        				  clt_parameters.gr_num_steps,    // final int         gr_num_steps,    // how far to extend
-        				  clt_parameters.gr_unique_tol ,  // final double      gr_unique_tol,
-        				  0.0, // clt_parameters.grow_disp_min ,  // final double      grow_disp_min,   // final double                disp_near,
-        				  clt_parameters.grow_disp_max ,  // final double      grow_disp_max,   // final double                disp_near,
-        				  clt_parameters.grow_disp_step , // final double      grow_disp_step,  //  =   6.0; // Increase disparity (from maximal tried) if nothing found in that tile // TODO: handle enclosed dips?  
+        			  // for debug level > 1, just corresponding clt_parameters.* will work, otherwise following 3 can override
+        			  last_pass,                      // final boolean     last_pass, // just for more debug?
+        			  true,                           // final boolean     remove_non_measurement, // save memory, true is OK
+        			  show_expand,                    // final boolean     show_expand,
+        			  clt_parameters. show_unique,    // final boolean     show_unique,
+        			  show_retry_far,                 // final boolean     show_retry_far,
 
-        				  // for debug level > 1, just corresponding clt_parameters.* will work, otherwise following 3 can override
-        				  last_pass,                      // final boolean     last_pass, // just for more debug?
-        				  true,                           // final boolean     remove_non_measurement, // save memory, true is OK
-        				  show_expand,                    // final boolean     show_expand,
-        				  clt_parameters. show_unique,    // final boolean     show_unique,
-        				  show_retry_far,                 // final boolean     show_retry_far,
-
-        				  dbg_x,
-        				  dbg_y,             // final int        dbg_y,
-        				  debugLevel+1);        //	final int        debugLevel)
-
-
-        	  } else { // if (use_zMapExpansionStep) {
-
-        		  // Temporarily mixing results of      refinePassSetup() and    	  tp.getFilteredDisparityStrength(). The Later needs measurement pass, not refined
-        		  double [][] filtered_disp_strength = tp.getFilteredDisparityStrength(
-        				  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,// List, first, last - to search for the already tried disparity
-        				  tp.clt_3d_passes.size() - 1,         // final int        measured_scan_index, // will not look at higher scans
-        				  0,                  //	final int        start_scan_index,
-        				  tp.clt_3d_passes.get(bg_pass).getSelected(), // selected , // final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
-        				  clt_parameters.ex_min_over,// final double     ex_min_over,       // when expanding over previously detected (by error) background, disregard far tiles  
-        				  disp_index,         // final int        disp_index,
-        				  str_index,          // final int        str_index,
-        				  null,               // final double []  tiltXY,    // null - free with limit on both absolute (2.0?) and relative (0.2) values
-        				  trustedCorrelation, //	final double     trustedCorrelation,
-        				  strength_floor,     //	final double     strength_floor,
-        				  strength_pow,       // final double     strength_pow,
-        				  smplSide,           // final int        smplSide, //        = 2;      // Sample size (side of a square)
-        				  smplNum,            // final int        smplNum, //         = 3;      // Number after removing worst (should be >1)
-        				  smplRms,            //	final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-        				  smplRelRms,         // final double     smplRelRms, //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
-        				  smplWnd,            //	final boolean    smplWnd, //
-        				  max_abs_tilt,       //	final double     max_abs_tilt, //  = 2.0; // pix per tile
-        				  max_rel_tilt,       //	final double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
-        				  dbg_x,
-        				  dbg_y,             // final int        dbg_y,
-        				  debugLevel+1);        //	final int        debugLevel)
-        		  if (over_infinity) {  
-        			  tp.filterOverBackground(
-        					  filtered_disp_strength,                      // final double [][]           ds,
-        					  filtered_bgnd_disp_strength[1],              // final double []             bg_strength,
-        					  tp.clt_3d_passes.get(bg_pass).getSelected(), // final boolean []            bg_tiles,          // get from selected in clt_3d_passes.get(0);
-        					  filterMinStrength,                           // final double                minStrength, 
-        					  clt_parameters.ex_min_over);                 // final double                ex_min_over        // when expanding over previously detected (by error) background, disregard far tiles  
-        		  }
-        		  refine_pass = tp.clt_3d_passes.size(); // 1
-        		  // refine pass uses hor/vert thresholds inside
-        		  CLTPass3d refined = tp.refinePassSetup( // prepare tile tasks for the refine pass (re-measure disparities)
-        				  //				  final double [][][]       image_data, // first index - number of image in a quad
-        				  clt_parameters,
-        				  clt_parameters.stUseRefine, // use supertiles
-        				  bg_pass, 
-        				  // disparity range - differences from 
-        				  clt_parameters.bgnd_range,     // double            disparity_far,  
-        				  clt_parameters.grow_disp_max,  // other_range, //double            disparity_near,   //
-        				  clt_parameters.ex_strength,    // double            this_sure,        // minimal strength to be considered definitely good
-        				  clt_parameters.ex_nstrength,   // double            ex_nstrength, // minimal 4-corr strength divided by channel diff for new (border) tiles
-        				  clt_parameters.bgnd_maybe,     // double            this_maybe,       // maximal strength to ignore as non-background
-        				  clt_parameters.sure_smth,      // sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
-        				  clt_parameters.pt_super_trust, //  final double      super_trust,      // If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds
-        				  // using plates disparity/strength - averaged for small square sets of tiles. If null - just use raw tiles
-        				  filtered_disp_strength,        // 		final double [][] plate_ds,  // disparity/strength last time measured for the multi-tile squares. Strength =-1 - not measured. May be null
-        				  clt_parameters.pt_keep_raw_fg, // 		final boolean     keep_raw_fg,  // do not replace raw tiles by the plates, if raw is closer (like poles)
-        				  clt_parameters.pt_scale_pre,   // final double      scale_filtered_strength_pre, // scale plate_ds[1] before comparing to raw strength
-        				  clt_parameters.pt_scale_post,  // final double      scale_filtered_strength_post,// scale plate_ds[1] when replacing raw (generally plate_ds is more reliable if it exists)
-
-        				  ImageDtt.DISPARITY_INDEX_CM,   // index of disparity value in disparity_map == 2 (0,2 or 4)
-        				  geometryCorrection,
-        				  threadsMax,  // maximal number of threads to launch                         
-        				  updateStatus,
-        				  debugLevel);
-        		  tp.clt_3d_passes.add(refined);
-
-        		  if (show_expand || (clt_parameters.show_expand && last_pass)) {
-        			  tp.showScan(
-        					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
-        					  "after_refine-"+refine_pass);
-        		  }        		  
-
-        		  tp.calcMaxTried(
-        				  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
-        				  bg_pass, //  final int                   firstPass,
-        				  refine_pass, // may add 1 to include current (for future?)     //  final int                   lastPassPlus1,
-        				  tp.clt_3d_passes.get(refine_pass)); //  final int                   lastPassPlus1,
-
-        		  // repeated composite scan may be replaced by just a clone
-        		  CLTPass3d extended_pass = tp.compositeScan(
-        				  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
-        				  bg_pass, //  final int                   firstPass,
-        				  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
-        				  //      				  tp.clt_3d_passes.get(bg_pass).getSelected(), // selected , // final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
-        				  //    				  clt_parameters.ex_min_over,// final double     ex_min_over,       // when expanding over previously detected (by error) background, disregard far tiles  
-        				  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
-        				  0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
-        				  clt_parameters.grow_disp_max,                     // final double                disp_near,
-        				  clt_parameters.combine_min_strength,              // final double                minStrength, 
-        				  clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
-        				  clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
-        				  false,      // final boolean               no_weak,
-        				  true, // false, // final boolean               use_last,   //  
-        				  // TODO: when useCombo - pay attention to borders (disregard)
-        				  false, // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
-        				  true, // 	 final boolean               copyDebug)
-        				  debugLevel);
-        		  if (over_infinity) {
-        			  tp.filterOverBackground(
-        					  extended_pass,        // final CLTPass3d            pass,
-        					  comboMinStrength,     //	 final double             minStrength, 
-        					  comboMinStrengthHor,  //	 final double             minStrengthHor,
-        					  comboMinStrengthVert, //final double                minStrengthVert,
-        					  tp.clt_3d_passes.get(bg_pass).getSelected(), // selected , // final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
-        					  clt_parameters.ex_min_over,// final double     ex_min_over,       // when expanding over previously detected (by error) background, disregard far tiles
-        					  filtered_disp_strength);
-        		  }
-        		  if (show_expand || (clt_parameters.show_expand && last_pass)) tp.showScan(
-        				  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
-        				  "after_refine-combine-"+(tp.clt_3d_passes.size() - 1));
-
-
-        		  if (show_expand || (clt_parameters.show_expand && last_pass)) {
-        			  String [] titles = {"disp","strength", "disp_combined","str_combined","max_tried","selected"};
-        			  String title = "FDS_"+(tp.clt_3d_passes.size() - 1);
-        			  double [][] dbg_img = new double [titles.length][];
-        			  dbg_img[0] = filtered_disp_strength[0];
-        			  dbg_img[1] = filtered_disp_strength[1];
-        			  dbg_img[2] = extended_pass.getDisparity();
-        			  dbg_img[3] = extended_pass.getStrength();
-        			  double [][] max_tried_disparity = extended_pass.getMaxTriedDisparity();
-        			  if (max_tried_disparity != null){
-        				  dbg_img[4] = new double [tilesX * tilesY];
-        				  for (int ty = 0; ty < tilesY; ty++){
-        					  for (int tx = 0; tx < tilesX; tx++){
-        						  dbg_img[4][ty*tilesX + tx] = max_tried_disparity[ty][tx];
-        					  }
-        				  }
-        			  }
-        			  boolean [] s_selected =  extended_pass.selected;
-        			  boolean [] s_border =    extended_pass.border_tiles;
-        			  if ((s_selected != null) && (s_border != null)){
-        				  dbg_img[5] = new double [tilesX * tilesY];
-        				  for (int i = 0; i < dbg_img[5].length; i++){
-        					  dbg_img[5][i] = 1.0 * ((s_selected[i]?1:0) + (s_border[i]?2:0));
-        				  }
-        			  }
-
-        			  (new showDoubleFloatArrays()).showArrays(dbg_img,  tilesX, tilesY, true, title,titles); 
-        		  }
-
-        		  if (new_expand) { // show_expand){ // use new mode
-        			  if (last_pass){
-        				  System.out.println("+++++++++++ Last pass ++++++++++++");
-        			  }
-
-        			  //        			public boolean []
-        			  tp.dbg_filtered_disp_strength = filtered_disp_strength; // to be shown inside
-        			  boolean [] variants_flags = {
-        					  clt_parameters.gr_var_new_sngl,  
-        					  clt_parameters.gr_var_new_fg,
-        					  clt_parameters.gr_var_all_fg,  
-        					  clt_parameters.gr_var_new_bg,  
-        					  clt_parameters.gr_var_all_bg,
-        					  clt_parameters.gr_var_next};
-
-        			  numLeftRemoved = tp.prepareExpandVariant(
-        					  extended_pass,                     // final CLTPass3d   scan,            // combined scan with max_tried_disparity, will be modified to re-scan
-        					  tp.clt_3d_passes.get(refine_pass), // final CLTPass3d   last_scan,       // last prepared tile - can use last_scan.disparity, .border_tiles and .selected
-        					  tp.clt_3d_passes.get(bg_pass),     // final CLTPass3d   bg_scan,         // background scan data
-        					  tp.clt_3d_passes,                  // final ArrayList <CLTPass3d> passes,// List, first, last - to search for the already tried disparity
-        					  0,                                 // 	final int         firstPass,       
-        					  tp.clt_3d_passes.size(),           //         					final int         lastPassPlus1,
-        					  clt_parameters.gr_min_new ,        // 20, // 	final int         min_new,         // discard variant if there are less new tiles 
-        					  variants_flags, // 0x1e, // 0x1f,                     // final int         variants_mask,
-        					  clt_parameters.gr_num_steps ,      // 8, // 	final int         num_steps,  // how far to extend
-        					  clt_parameters.gr_steps_over ,     // 8, // 4, // final int         num_steps_disc,  // how far to extend
-        					  clt_parameters.gr_smpl_size ,      // 5,      // 	final int         smpl_size, // == 5
-        					  clt_parameters.gr_min_pnts ,       // 5, // 4, // 3,      //    final int        min_points, // == 3
-        					  clt_parameters.gr_use_wnd ,        // true,   // 	final boolean     use_wnd,   // use window function fro the neighbors 
-        					  clt_parameters.gr_tilt_damp ,      // 0.001,  // 	final double      tilt_cost,
-        					  clt_parameters.gr_split_rng ,      // 5.0,    // 	final double      split_threshold, // if full range of the values around the cell higher, need separate fg, bg
-        					  clt_parameters.gr_same_rng ,       // 3.0,    // 	final double      same_range,      // modify
-        					  clt_parameters.gr_diff_cont ,      // 2.0,    // 	final double      diff_continue,   // maximal difference from the old value (for previously defined tiles
-        					  clt_parameters.gr_abs_tilt ,       // 2.0,    //    final double     max_abs_tilt, //   = 2.0; // pix per tile
-        					  clt_parameters.gr_rel_tilt ,       // 0.2,    //    final double     max_rel_tilt, //   = 0.2; // (pix / disparity) per tile
-        					  clt_parameters.gr_smooth ,         // 50,     // 	final int         max_tries, // maximal number of smoothing steps
-        					  clt_parameters.gr_fin_diff ,       // 0.01,   // 	final double      final_diff, // maximal change to finish iterations 
-        					  0.0, // clt_parameters.grow_disp_max,      // final double                grow_disp_min,
-        					  clt_parameters.grow_disp_max,      // final double                grow_disp_max,
-        					  clt_parameters.grow_disp_step,      // final double                grow_disp_step,
-        					  clt_parameters.gr_unique_pretol ,  // 1.0,    // 	final double      unique_pre_tolerance, // usually larger than clt_parameters.unique_tolerance
-        					  last_pass?  clt_parameters.gr_unique_tol : clt_parameters.gr_unique_pretol, // 	final double      unique_tolerance,
-        							  clt_parameters. show_expand,       // 	final boolean     show_expand,
-        							  clt_parameters. show_unique,       // 	final boolean     show_unique,
-        							  //show_expand
-        							  138, // 216, // 214, // 210, // 206, // 204, // 202, // 200, // 198,     // 	final int         dbg_x,
-        							  149, // 138, // 140, // 142, // 143, // 142,     // 	final int         dbg_y,
-        							  1); // 2); // 1);     // 	final int         debugLevel)
-
-        			  refine_pass = tp.clt_3d_passes.size(); //  now points to the extended_pass !!
-
-        			  tp.clt_3d_passes.add(extended_pass);
-   					  if (clt_parameters.show_expand || (clt_parameters.show_variant && (numLeftRemoved[1] > 1 ))) tp.showScan(
-       					  
-        					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
-        					  "prepareExpandVariant-"+numLeftRemoved[1]+"-"+refine_pass); //String title)
-
-
-        		  } else { // old way
-
-        			  boolean show_ex_debug = show_retry_far || (clt_parameters.show_retry_far && last_pass) || dbg_pass;
-        			  num_extended = tp.setupExtendDisparity(
-        					  extended_pass,                              // final CLTPass3d   scan,            // combined scan with max_tried_disparity, will be modified to re-scan
-        					  tp.clt_3d_passes.get(refine_pass), // final CLTPass3d   last_scan,       // last prepared tile - can use last_scan.disparity, .border_tiles and .selected
-        					  over_infinity? null: tp.clt_3d_passes.get(bg_pass), // final CLTPass3d   bg_scan,         // background scan data
-        							  clt_parameters.grow_sweep,      // 8; // Try these number of tiles around known ones 
-        							  clt_parameters.grow_disp_max,   //  =   50.0; // Maximal disparity to try
-        							  0.5 * clt_parameters.grow_disp_trust, //  =  4.0; // Trust measured disparity within +/- this value 
-        							  clt_parameters.grow_disp_step,  //  =   6.0; // Increase disparity (from maximal tried) if nothing found in that tile // TODO: handle enclosed dips?  
-        							  clt_parameters.grow_min_diff,   // =    0.5; // Grow more only if at least one channel has higher variance from others for the tile
-        							  clt_parameters.grow_retry_far,  // final boolean     grow_retry_far,  // Retry tiles around known foreground that have low max_tried_disparity
-        							  clt_parameters.grow_pedantic,   // final boolean     grow_pedantic,   // Scan full range between max_tried_disparity of the background and known foreground
-        							  clt_parameters.grow_retry_inf,  // final boolean     grow_retry_inf,  // Retry border tiles that were identified as infinity earlier
-        							  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
-        							  geometryCorrection, // GeometryCorrection geometryCorrection,
-        							  show_ex_debug,     // true, // final boolean     show_debug,
-
-        							  threadsMax,  // maximal number of threads to launch                         
-        							  updateStatus,
-        							  debugLevel);
-        			  //TODO:  break if nothing wanted? - no, there are some left to be refined
-
-        			  if (debugLevel > -1){
-        				  System.out.println("=== setupExtendDisparity() pass:"+num_expand+" added "+num_extended+" new tiles to scan");
-        			  }
-
-        			  refine_pass = tp.clt_3d_passes.size(); // 1
-
-        			  tp.clt_3d_passes.add(extended_pass);
-
-        			  numLeftRemoved = tp.makeUnique(
-        					  tp.clt_3d_passes,                  // final ArrayList <CLTPass3d> passes,
-        					  0,                                 //  final int                   firstPass,
-        					  refine_pass, // - 1,                   //  final int                   lastPassPlus1,
-        					  tp.clt_3d_passes.get(refine_pass), //  final CLTPass3d             new_scan,
-        					  clt_parameters.grow_disp_max,       // final double                grow_disp_max,
-        					  clt_parameters.gr_unique_tol,   //  final double                unique_tolerance,
-        					  clt_parameters.show_unique);      // final boolean               show_unique)
-        			  if (show_expand) tp.showScan(
-        					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
-        					  "before_measure-"+refine_pass); //String title)
-
-        			  if (debugLevel > -1){
-        				  System.out.println("last makeUnique("+refine_pass+") -> left: "+numLeftRemoved[0]+", removed:" + numLeftRemoved[1]);
-        			  }
-        			  //        		  num_extended = numLeftRemoved[0];
-        			  //TODO:  break if nothing wanted? - here yes, will make sense
-        		  } // end of old way 
-        		  //        	  } // if (use_zMapExpansionStep)  else       	  
-
-
-        		  ////      	  num_extended = numLeftRemoved[0];
-
-        		  //          refine_pass = tp.clt_3d_passes.size(); // 
-        		  //java.lang.IndexOutOfBoundsException: Index: 43, Size: 35
-
-        		  refine_pass = tp.clt_3d_passes.size() - 1; // was not here!
-
-        		  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
-        				  image_data, // first index - number of image in a quad
-        				  clt_parameters,
-        				  refine_pass,
-        				  false, // final boolean     save_textures,
-        				  threadsMax,  // maximal number of threads to launch                         
-        				  updateStatus,
-        				  debugLevel);
-
-        		  // ********************************************** //
-        		  tp.removeNonMeasurement();
-        		  refine_pass = tp.clt_3d_passes.size() - 1;
-        		  // ********************************************** //
-
-
-
-        		  if (show_expand || (clt_parameters.show_expand && last_pass)) {
-        			  tp.showScan(
-        					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
-        					  "after_measure-"+refine_pass); //String title)
-        			  // just testing:
-
-        		  }
-
-
-        		  if (debugLevel > -1){
-        			  System.out.println("extending: CLTMeasure("+refine_pass+"),  num_extended = "+num_extended);
-        		  }
-        		  //num_expand == 9
-
-        		  CLTPass3d combo_pass = tp.compositeScan(
-        				  tp.clt_3d_passes, // final ArrayList <CLTPass3d> passes,
-        				  bg_pass, //  final int                   firstPass,
-        				  tp.clt_3d_passes.size(),                          //  final int                   lastPassPlus1,
-        				  tp.getTrustedCorrelation(),                       // 	 final double                trustedCorrelation,
-        				  -0.5, // 0.0, // clt_parameters.bgnd_range,                //	 final double                disp_far,   // limit results to the disparity range
-        				  clt_parameters.grow_disp_max,                     // final double                disp_near,
-        				  clt_parameters.combine_min_strength,              // final double                minStrength, 
-        				  clt_parameters.combine_min_hor,                   // final double                minStrengthHor,
-        				  clt_parameters.combine_min_vert,                  // final double                minStrengthVert,
-        				  false,      // final boolean               no_weak,
-        				  false, // final boolean               use_last,   //  
-        				  // TODO: when useCombo - pay attention to borders (disregard)
-        				  false, // final boolean               usePoly)  // use polynomial method to find max), valid if useCombo == false
-        				  true, // 	 final boolean               copyDebug)
-        				  //    				  (num_expand == 9)? 2: debugLevel);
-        				  debugLevel);
-        		  //    		  tp.filterOverBackground(
-        		  //    				  combo_pass,           // final CLTPass3d              pass,
-        		  //    				  comboMinStrength,     //	 final double                minStrength, 
-        		  //    				  comboMinStrengthHor,  //	 final double                minStrengthHor,
-        		  //    				  comboMinStrengthVert, //final double                minStrengthVert,
-        		  //    				  tp.clt_3d_passes.get(bg_pass).getSelected(), // selected , // final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
-        		  //    				  clt_parameters.ex_min_over);// final double     ex_min_over,       // when expanding over previously detected (by error) background, disregard far tiles
-        		  tp.clt_3d_passes.add(combo_pass);
-        		  //  		  refine_pass = tp.clt_3d_passes.size();
-        		  //          }
-        		  if (show_expand || (clt_parameters.show_expand && last_pass)) tp.showScan(
-        				  tp.clt_3d_passes.get(tp.clt_3d_passes.size() -1), // refine_pass), // CLTPass3d   scan,
-        				  "after_combo_pass-"+(tp.clt_3d_passes.size() -1)); // (refine_pass)); //String title)
-        	  } // if (use_zMapExpansionStep)  else       	  
-
+        			  dbg_x,
+        			  dbg_y,             // final int        dbg_y,
+        			  debugLevel+1);        //	final int        debugLevel)
 
         	  if (last_pass) {
         		  break;
@@ -6270,7 +5659,7 @@ public class QuadCLT {
           }
 
 
-          
+
           
           
           
@@ -6867,7 +6256,7 @@ public class QuadCLT {
 					  clt_parameters,
 					  colorProcParameters,
 					  rgbParameters,
-					  this.image_name+"-img_bgnd", // +scanIndex,
+					  this.image_name+"-img_infinity", // +scanIndex,
 					  scanIndex, 
 					  threadsMax,  // maximal number of threads to launch                         
 					  updateStatus,
@@ -6886,7 +6275,8 @@ public class QuadCLT {
 			  generateClusterX3d(
 					  x3dOutput,
 					  texturePath,
-					  "shape_id-bgnd", // (scanIndex - next_pass), // id
+					  "INFINITY", // id (scanIndex - next_pass), // id
+					  "INFINITY", // class
 					  scan.getTextureBounds(),
 					  scan.selected,
 					  scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
@@ -6990,6 +6380,7 @@ public class QuadCLT {
 					  x3dOutput,
 					  texturePath,
 					  "shape_id-"+(scanIndex - next_pass), // id
+					  null, // class
 					  scan.getTextureBounds(),
 					  scan.selected,
 					  scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
@@ -7022,6 +6413,7 @@ public class QuadCLT {
 			  X3dOutput  x3dOutput,
 			  String     texturePath,
 			  String     id,
+			  String     class_name,
 			  Rectangle  bounds,
 			  boolean [] selected,
 			  double []  disparity, // if null, will use min_disparity
@@ -7084,6 +6476,7 @@ public class QuadCLT {
 		  x3dOutput.addCluster(
 				  texturePath,
 				  id,
+				  class_name,
 				  texCoord,
 				  worldXYZ,
 				  triangles);
