@@ -2131,6 +2131,8 @@ public class EyesisCorrectionParameters {
   		
   		public int        max_clusters     = 500;   // Maximal number of clusters to generate for one run
   		public boolean    remove_scans     = true;  // Remove all unneeded scans when generating x3d output to save memory
+  		public boolean    output_x3d       = true;  // Generate x3d output
+  		public boolean    output_obj       = true;  // Generate Wavefront obj output
   		
   		
   		public boolean    correct_distortions = false; // Correct lens geometric distortions in a model (will need backdrop to be corrected too)
@@ -2749,6 +2751,8 @@ public class EyesisCorrectionParameters {
 			
 			properties.setProperty(prefix+"max_clusters",     this.max_clusters+"");
 			properties.setProperty(prefix+"remove_scans",     this.remove_scans+"");
+			properties.setProperty(prefix+"output_x3d",       this.output_x3d+"");
+			properties.setProperty(prefix+"output_obj",       this.output_obj+"");
 			properties.setProperty(prefix+"correct_distortions",this.correct_distortions+"");
 			properties.setProperty(prefix+"show_triangles",   this.show_triangles+"");
 			properties.setProperty(prefix+"avg_cluster_disp", this.avg_cluster_disp+"");
@@ -3323,7 +3327,9 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"poles_force_disp")!=null)  this.poles_force_disp=Boolean.parseBoolean(properties.getProperty(prefix+"poles_force_disp"));
   			
   			if (properties.getProperty(prefix+"max_clusters")!=null)      this.max_clusters=Integer.parseInt(properties.getProperty(prefix+"max_clusters"));
-  			if (properties.getProperty(prefix+"remove_scans")!=null)  this.remove_scans=Boolean.parseBoolean(properties.getProperty(prefix+"remove_scans"));
+  			if (properties.getProperty(prefix+"remove_scans")!=null)      this.remove_scans=Boolean.parseBoolean(properties.getProperty(prefix+"remove_scans"));
+  			if (properties.getProperty(prefix+"output_x3d")!=null)        this.output_x3d=Boolean.parseBoolean(properties.getProperty(prefix+"output_x3d"));
+  			if (properties.getProperty(prefix+"output_obj")!=null)        this.output_obj=Boolean.parseBoolean(properties.getProperty(prefix+"output_obj"));
   			if (properties.getProperty(prefix+"correct_distortions")!=null) this.correct_distortions=Boolean.parseBoolean(properties.getProperty(prefix+"correct_distortions"));
   			if (properties.getProperty(prefix+"show_triangles")!=null)    this.show_triangles=Boolean.parseBoolean(properties.getProperty(prefix+"show_triangles"));
   			if (properties.getProperty(prefix+"avg_cluster_disp")!=null)  this.avg_cluster_disp=Boolean.parseBoolean(properties.getProperty(prefix+"avg_cluster_disp"));
@@ -3927,6 +3933,8 @@ public class EyesisCorrectionParameters {
   			
   			gd.addNumericField("Maximal number of clusters to generate for one run",                           this.max_clusters,   0);
   			gd.addCheckbox    ("Remove all unneeded scans when generating x3d output to save memory",          this.remove_scans);
+  			gd.addCheckbox    ("Generate x3d output",                                                          this.output_x3d);
+  			gd.addCheckbox    ("Generate Wavefront obj output",                                                this.output_obj);
   			gd.addCheckbox    ("Correct lens geometric distortions in a model (will need backdrop to be corrected too)", this.correct_distortions);
   			gd.addCheckbox    ("Show generated triangles",                                                     this.show_triangles);
   			gd.addCheckbox    ("Weight-average disparity for the whole cluster ",                              this.avg_cluster_disp);
@@ -4534,6 +4542,8 @@ public class EyesisCorrectionParameters {
 
   			this.max_clusters=    (int) gd.getNextNumber();
   			this.remove_scans=          gd.getNextBoolean();
+  			this.output_x3d=            gd.getNextBoolean();
+  			this.output_obj=            gd.getNextBoolean();
   			this.correct_distortions=   gd.getNextBoolean();
   			this.show_triangles=        gd.getNextBoolean();
   			this.avg_cluster_disp=      gd.getNextBoolean();
@@ -4542,7 +4552,7 @@ public class EyesisCorrectionParameters {
   			this.shUseFlaps=            gd.getNextBoolean();
   			this.shAggrFade=            gd.getNextBoolean();
   			this.shMinArea=       (int) gd.getNextNumber();
-  			this.shMinStrength=        gd.getNextNumber();
+  			this.shMinStrength=         gd.getNextNumber();
   			this.tiRigidVertical=       gd.getNextNumber();
   			this.tiRigidHorizontal=     gd.getNextNumber();
   			this.tiRigidDiagonal=       gd.getNextNumber();

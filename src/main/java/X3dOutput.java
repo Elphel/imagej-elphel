@@ -1,4 +1,3 @@
-
 /**
  **
  ** X3dOutput - generate x3d representation of the model

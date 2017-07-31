@@ -24,6 +24,7 @@
 
 //import java.awt.Polygon;
 import java.awt.Rectangle;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -6171,7 +6172,8 @@ public class QuadCLT {
 		  if (this.image_data == null){
 			  return false;
 		  }
-		  
+		  X3dOutput x3dOutput = null;
+		  WavefrontExport wfOutput = null;
 		  if (clt_parameters.remove_scans){
 			  System.out.println("Removing all scans but the first(background) and the last to save memory");
 			  System.out.println("Will need to re-start the program to be able to output differently");
@@ -6199,18 +6201,37 @@ public class QuadCLT {
 		  tp.showScan(
 				  tp.clt_3d_passes.get(next_pass-1),   // CLTPass3d   scan,
 				  "after_pass3-"+(next_pass-1)); //String title)
-		// create x3d file
-		  X3dOutput x3dOutput = new X3dOutput(
+ 		  String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
+				  true,  // smart,
+				  true);  //newAllowed, // save
+
+ 			// create x3d file
+		  if (clt_parameters.output_x3d) {
+			  x3dOutput = new X3dOutput(
 					clt_parameters,
 					correctionsParameters,
 					geometryCorrection,
 					tp.clt_3d_passes);
-		  
-		  x3dOutput.generateBackground(clt_parameters.infinityDistance <= 0.0); // needs just first (background) scan
- 		  String x3d_path= correctionsParameters.selectX3dDirectory(
-				  true,  // smart,
-				  true);  //newAllowed, // save
-		 
+		  }
+		  if (clt_parameters.output_obj && (x3d_path != null)) {
+			  try {
+				wfOutput = new WavefrontExport(
+						  x3d_path,
+						  this.image_name,
+						  clt_parameters,
+						  correctionsParameters,
+						  geometryCorrection,
+						  tp.clt_3d_passes);
+			} catch (IOException e) {
+				System.out.println("Failed to open Wavefront files for writing");
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				// do nothing, just keep 
+			}
+		  }
+		  if (x3dOutput != null) {
+			  x3dOutput.generateBackground(clt_parameters.infinityDistance <= 0.0); // needs just first (background) scan
+		  }
  		  
  		  if (clt_parameters.infinityDistance > 0.0){ // generate background as a billboard
 // 			  tp.showScan(
@@ -6272,20 +6293,27 @@ public class QuadCLT {
 //    				  "infinityDistance");
 			  
 			  boolean showTri = false; // ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||((scanIndex - next_pass) == 73);
-			  generateClusterX3d(
-					  x3dOutput,
-					  texturePath,
-					  "INFINITY", // id (scanIndex - next_pass), // id
-					  "INFINITY", // class
-					  scan.getTextureBounds(),
-					  scan.selected,
-					  scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
-					  clt_parameters.transform_size,
-					  clt_parameters.correct_distortions, // requires backdrop image to be corrected also
-					  showTri, // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
-					  infinity_disparity,  // 0.3
-					  clt_parameters.grow_disp_max, // other_range, // 2.0 'other_range - difference from the specified (*_CM)
-					  clt_parameters.maxDispTriangle);
+			  try {
+				generateClusterX3d(
+						  x3dOutput,
+						  wfOutput,  // output WSavefront if not null
+						  texturePath,
+						  "INFINITY", // id (scanIndex - next_pass), // id
+						  "INFINITY", // class
+						  scan.getTextureBounds(),
+						  scan.selected,
+						  scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
+						  clt_parameters.transform_size,
+						  clt_parameters.correct_distortions, // requires backdrop image to be corrected also
+						  showTri, // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
+						  infinity_disparity,  // 0.3
+						  clt_parameters.grow_disp_max, // other_range, // 2.0 'other_range - difference from the specified (*_CM)
+						  clt_parameters.maxDispTriangle);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				return false;
+			}
 			  // maybe not needed
  			  scan.setBorderTiles(bg_border_backup);
  			  scan.setSelected(bg_sel_backup);
@@ -6376,31 +6404,39 @@ public class QuadCLT {
 			  boolean showTri = ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||((scanIndex - next_pass) == 73);
 			  
 //			  boolean showTri = ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||(scanIndex == 49) || (scanIndex == 54);
-			  generateClusterX3d(
-					  x3dOutput,
-					  texturePath,
-					  "shape_id-"+(scanIndex - next_pass), // id
-					  null, // class
-					  scan.getTextureBounds(),
-					  scan.selected,
-					  scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
-					  clt_parameters.transform_size,
-					  clt_parameters.correct_distortions, // requires backdrop image to be corrected also
-					  showTri, // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
-					  clt_parameters.bgnd_range,  // 0.3
-					  clt_parameters.grow_disp_max, // other_range, // 2.0 'other_range - difference from the specified (*_CM)
-					  clt_parameters.maxDispTriangle);
-
-
-
+			  try {
+				generateClusterX3d(
+						  x3dOutput,
+						  wfOutput,  // output WSavefront if not null
+						  texturePath,
+						  "shape_id-"+(scanIndex - next_pass), // id
+						  null, // class
+						  scan.getTextureBounds(),
+						  scan.selected,
+						  scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
+						  clt_parameters.transform_size,
+						  clt_parameters.correct_distortions, // requires backdrop image to be corrected also
+						  showTri, // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
+						  clt_parameters.bgnd_range,  // 0.3
+						  clt_parameters.grow_disp_max, // other_range, // 2.0 'other_range - difference from the specified (*_CM)
+						  clt_parameters.maxDispTriangle);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				return false;
+			}
 		  }
 
 		  // now generate and save texture files (start with full, later use bounding rectangle?)
 
 
-		  if (x3d_path != null){
-			  x3d_path+=Prefs.getFileSeparator()+this.image_name+".x3d";
-			  x3dOutput.generateX3D(x3d_path);
+		  if ((x3d_path != null) && (x3dOutput != null)){
+//			  x3d_path+=Prefs.getFileSeparator()+this.image_name+".x3d";
+//			  x3dOutput.generateX3D(x3d_path);
+			  x3dOutput.generateX3D(x3d_path+Prefs.getFileSeparator()+this.image_name+".x3d");
+		  }
+		  if (wfOutput != null){
+			  wfOutput.close();
 		  }
 		  return true;
 //		  return imp_bgnd; // relative (to x3d directory) path - (String) imp_bgnd.getProperty("name");
@@ -6410,20 +6446,21 @@ public class QuadCLT {
 	  
 	  
 	  public void generateClusterX3d(
-			  X3dOutput  x3dOutput,
-			  String     texturePath,
-			  String     id,
-			  String     class_name,
-			  Rectangle  bounds,
-			  boolean [] selected,
-			  double []  disparity, // if null, will use min_disparity
-			  int        tile_size,
-			  boolean    correctDistortions, // requires backdrop image to be corrected also
-			  boolean    show_triangles,
-			  double     min_disparity,
-			  double     max_disparity,
-			  double     maxDispTriangle
-			  ) 
+			  X3dOutput       x3dOutput, // output x3d if not null
+			  WavefrontExport wfOutput,  // output WSavefront if not null
+			  String          texturePath,
+			  String          id,
+			  String          class_name,
+			  Rectangle       bounds,
+			  boolean []      selected,
+			  double []       disparity, // if null, will use min_disparity
+			  int             tile_size,
+			  boolean         correctDistortions, // requires backdrop image to be corrected also
+			  boolean         show_triangles,
+			  double          min_disparity,
+			  double          max_disparity,
+			  double          maxDispTriangle
+			  ) throws IOException 
 	  {
 		  int [][] indices =  tp.getCoordIndices( // starting with 0, -1 - not selected
 				  bounds,
@@ -6472,7 +6509,7 @@ public class QuadCLT {
 					  indices,
 					  triangles);
 		  }
-
+		  if (x3dOutput != null) {
 		  x3dOutput.addCluster(
 				  texturePath,
 				  id,
@@ -6480,6 +6517,16 @@ public class QuadCLT {
 				  texCoord,
 				  worldXYZ,
 				  triangles);
+		  }
+		  if (wfOutput != null) {
+			  wfOutput.addCluster(
+				  texturePath,
+				  id,
+//				  class_name,
+				  texCoord,
+				  worldXYZ,
+				  triangles);
+		  }
 	  }
 	  
 	  
