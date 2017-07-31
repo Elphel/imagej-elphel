@@ -1220,8 +1220,10 @@ public class ImageDtt {
 									centersXY[ip][0] -= shiftXY[ip][0];
 									centersXY[ip][1] -= shiftXY[ip][1];
 								}
-
+								// TODO: use correction after disparity applied (to work for large disparity values)
 								if (fine_corr != null){
+									// old correction
+									/*
 									double tX = (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0
 									double tY = (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
 									for (int ip = 0; ip < centersXY.length; ip++){
@@ -1234,6 +1236,20 @@ public class ImageDtt {
 													fine_corr[ip][d][3]*tX+
 													fine_corr[ip][d][4]*tY+
 													fine_corr[ip][d][5]);
+									}
+									*/
+									
+									for (int ip = 0; ip < centersXY.length; ip++){
+										double [] tXY = geometryCorrection.getRelativeCoords(centersXY[ip]);
+										for (int d = 0; d <2; d++) {
+											centersXY[ip][d] -= (
+													fine_corr[ip][d][0]*tXY[0]*tXY[0]+
+													fine_corr[ip][d][1]*tXY[1]*tXY[1]+
+													fine_corr[ip][d][2]*tXY[0]*tXY[1]+
+													fine_corr[ip][d][3]*tXY[0]+
+													fine_corr[ip][d][4]*tXY[1]+
+													fine_corr[ip][d][5]);
+										}
 									}
 								}
 							}

@@ -2049,9 +2049,12 @@ public class EyesisCorrectionParameters {
  		public double     ly_smpl_rms =     0.2;     // 1;     // Maximal RMS of the remaining tiles in a sample
 		public double     ly_disp_var =     0.5;     // 2;     // Maximal full disparity difference to 8 neighbors
  		public double     ly_inf_frac =     0.5;     // Relative weight of infinity calibration data
-  		public boolean    ly_on_scan =      true;    // Calculate and apply lazy eye correction after disparity scan 
-  		public boolean    ly_inf_en =       true;    // Simultaneously correct disparity at infinity 
+  		public boolean    ly_on_scan =      true;    // Calculate and apply lazy eye correction after disparity scan (poly or extrinsic) 
+  		public boolean    ly_inf_en =       true;    // Simultaneously correct disparity at infinity (both poly and extrinsic) 
+  		public boolean    ly_inf_force=     false;   // Force convergence correction during extrinsic, even with no infinity data 
   		public boolean    ly_poly =         false;   // Use polynomial correction, false - correct tilt/azimuth/roll of each sensor 
+  		
+  		
 
   		// old fcorr parameters, reuse?
 // 		public int        fcorr_sample_size = 32;    // Use square this size side to detect outliers
@@ -2675,6 +2678,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"ly_inf_frac",      this.ly_inf_frac +"");
 			properties.setProperty(prefix+"ly_on_scan",       this.ly_on_scan+"");
 			properties.setProperty(prefix+"ly_inf_en",        this.ly_inf_en+"");
+			properties.setProperty(prefix+"ly_inf_force",     this.ly_inf_force+"");
 			properties.setProperty(prefix+"ly_poly",          this.ly_poly+"");
 
 			properties.setProperty(prefix+"corr_magic_scale", this.corr_magic_scale +"");
@@ -3251,6 +3255,7 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"ly_inf_frac")!=null)       this.ly_inf_frac=Double.parseDouble(properties.getProperty(prefix+"ly_inf_frac"));
   			if (properties.getProperty(prefix+"ly_on_scan")!=null)        this.ly_on_scan=Boolean.parseBoolean(properties.getProperty(prefix+"ly_on_scan"));
   			if (properties.getProperty(prefix+"ly_inf_en")!=null)         this.ly_inf_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_en"));
+  			if (properties.getProperty(prefix+"ly_inf_force")!=null)      this.ly_inf_force=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_force"));
   			if (properties.getProperty(prefix+"ly_poly")!=null)           this.ly_poly=Boolean.parseBoolean(properties.getProperty(prefix+" "));
  			
   			if (properties.getProperty(prefix+"corr_magic_scale")!=null)  this.corr_magic_scale=Double.parseDouble(properties.getProperty(prefix+"corr_magic_scale"));
@@ -3840,8 +3845,9 @@ public class EyesisCorrectionParameters {
 			gd.addNumericField("Maximal RMS of the remaining tiles in a sample",                          this.ly_smpl_rms,  3);
 			gd.addNumericField("Maximal full disparity difference to 8 neighbors",                        this.ly_disp_var,  3);
 			gd.addNumericField("Relative weight of infinity calibration data",                            this.ly_inf_frac,  3);
-  			gd.addCheckbox    ("Calculate and apply lazy eye correction after disparity scan (need to repeat)",this.ly_on_scan);
-  			gd.addCheckbox    ("Use infinity disparity (disable if there is not enough of infinity data)", this.ly_inf_en);
+  			gd.addCheckbox    ("Calculate and apply lazy eye correction after disparity scan (poly or extrinsic), may repeat",this.ly_on_scan);
+  			gd.addCheckbox    ("Use infinity disparity (disable if there is not enough of infinity data), both poly and extrinsic", this.ly_inf_en);
+  			gd.addCheckbox    ("Force convergence correction during extrinsic, even with no infinity data", this.ly_inf_force);
   			gd.addCheckbox    ("*Use polynomial correction, false - correct tilt/azimuth/roll of each sensor)", this.ly_poly);
   			gd.addMessage     ("---");
 //  			gd.addNumericField("Use square this size side to detect outliers",                            this.fcorr_sample_size,  0);
@@ -4455,6 +4461,7 @@ public class EyesisCorrectionParameters {
 			this.ly_inf_frac=           gd.getNextNumber();
   			this.ly_on_scan=            gd.getNextBoolean();
   			this.ly_inf_en=             gd.getNextBoolean();
+  			this.ly_inf_force=          gd.getNextBoolean();
   			this.ly_poly=               gd.getNextBoolean();
   			
 //  			this.fcorr_sample_size= (int)gd.getNextNumber();
