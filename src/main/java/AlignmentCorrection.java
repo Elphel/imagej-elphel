@@ -1876,53 +1876,61 @@ B = |+dy0   -dy1      -2*dy3 |
 		}			
 
 		// create list for infinity data
-		ArrayList<Sample> inf_samples_list = selectInfinityTiles(
-				clt_parameters.fcorr_radius,       // 	final double fcorr_radius,
-				clt_parameters.fcorr_inf_vert,// final boolean use_vertical,
-				0.0, // any > 0.0
-				max_diff, // max_diff, //clt_parameters.fcorr_inf_diff
-				max_iterations, // max_iterations, // clt_parameters.inf_iters
-				max_coeff_diff, // max_coeff_diff, // clt_parameters.inf_final_diff
-				far_pull, // far_pull, // clt_parameters.inf_far_pull,  = 0.2; // 1; //  0.5;
-				clt_parameters,
-				inf_scan,
-				tilesX,
-				magic_coeff, // magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
-				debugLevel);
+//		/clt_parameters.ly_inf_en,
+		ArrayList<Sample> inf_samples_list;
+		if (clt_parameters.ly_inf_en) {
+			inf_samples_list = selectInfinityTiles(
+					clt_parameters.fcorr_radius,       // 	final double fcorr_radius,
+					clt_parameters.fcorr_inf_vert,// final boolean use_vertical,
+					0.0, // any > 0.0
+					max_diff, // max_diff, //clt_parameters.fcorr_inf_diff
+					max_iterations, // max_iterations, // clt_parameters.inf_iters
+					max_coeff_diff, // max_coeff_diff, // clt_parameters.inf_final_diff
+					far_pull, // far_pull, // clt_parameters.inf_far_pull,  = 0.2; // 1; //  0.5;
+					clt_parameters,
+					inf_scan,
+					tilesX,
+					magic_coeff, // magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
+					debugLevel);
 
-		if (debugLevel > -1) {
-			double inf_weight = 0.0;
+			if (debugLevel > -1) {
+				double inf_weight = 0.0;
+				for (Sample s: inf_samples_list) {
+					inf_weight += s.weight;
+				}
+				System.out.println("lazyEyeCorrection(): number of infinity samples="+inf_samples_list.size()+", total weight = "+inf_weight);
+
+			}			
+			// adjust weight to balance infinity data and lazy eye one. As some tiles were discarded by selectInfinityTiles() list and not the original
+			// array has to be used to find the total weight of the infinity tile. Other ones will be used with no extra filtering
+			double [] total_weights = new double[2];
 			for (Sample s: inf_samples_list) {
-				inf_weight += s.weight;
+				total_weights[0] += s.weight;
 			}
-			System.out.println("lazyEyeCorrection(): number of infinity samples="+inf_samples_list.size()+", total weight = "+inf_weight);
 
-		}			
-		// adjust weight to balance infinity data and lazy eye one. As some tiles were discarded by selectInfinityTiles() list and not the original
-		// array has to be used to find the total weight of the infinity tile. Other ones will be used with no extra filtering
-		double [] total_weights = new double[2];
-		for (Sample s: inf_samples_list) {
-			total_weights[0] += s.weight;
-		}
-
-		for (int nTile = 0; nTile < num_tiles; nTile++) if (center_mask[nTile]){
-			total_weights[1]+= inf_and_ly[1 * NUM_SLICES + 1][nTile];
-		}
-
-		double [] weights = {
-				inf_fraction *         (total_weights[0] + total_weights[1]) / total_weights[0], 
-				(1.0 - inf_fraction) * (total_weights[0] + total_weights[1]) / total_weights[1], 
-		};
-
-		for (int ns = 0; ns <2; ns++) {
-			for (int nTile = 0; nTile < num_tiles; nTile++) {
-				inf_and_ly[ns * NUM_SLICES + 1][nTile] *= weights[ns];
+			for (int nTile = 0; nTile < num_tiles; nTile++) if (center_mask[nTile]){
+				total_weights[1]+= inf_and_ly[1 * NUM_SLICES + 1][nTile];
 			}
-		}
-		for (Sample s: inf_samples_list) {
-			s.weight *= weights[0];
-		}
 
+			double [] weights = {
+					inf_fraction *         (total_weights[0] + total_weights[1]) / total_weights[0], 
+					(1.0 - inf_fraction) * (total_weights[0] + total_weights[1]) / total_weights[1], 
+			};
+
+			for (int ns = 0; ns <2; ns++) {
+				for (int nTile = 0; nTile < num_tiles; nTile++) {
+					inf_and_ly[ns * NUM_SLICES + 1][nTile] *= weights[ns];
+				}
+			}
+			for (Sample s: inf_samples_list) {
+				s.weight *= weights[0];
+			}
+		} else {
+			inf_samples_list = new ArrayList<Sample>(); // do not use infinity at all 
+		}
+		///-----
+		
+		
 		// Supplement list with the lazy eye scans data - use all tiles
 		for (int nTile = 0; nTile < num_tiles; nTile++) if (center_mask[nTile]) {
 			double w = inf_and_ly[1 * NUM_SLICES + 1][nTile];
@@ -1995,7 +2003,7 @@ B = |+dy0   -dy1      -2*dy3 |
 				System.out.println(corr_vector.toString());
 			}
 			if (apply_extrinsic){
-				qc.geometryCorrection.getCorrVector().incrementVector(corr_vector);
+				qc.geometryCorrection.getCorrVector().incrementVector(corr_vector, clt_parameters.ly_corr_scale);
 				if (debugLevel > -1){
 					System.out.println("New extrinsic corrections:");
 					System.out.println(qc.geometryCorrection.getCorrVector().toString());

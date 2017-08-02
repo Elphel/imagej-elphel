@@ -2050,7 +2050,7 @@ public class EyesisCorrectionParameters {
 		public double     ly_disp_var =     0.5;     // 2;     // Maximal full disparity difference to 8 neighbors
  		public double     ly_inf_frac =     0.5;     // Relative weight of infinity calibration data
   		public boolean    ly_on_scan =      true;    // Calculate and apply lazy eye correction after disparity scan (poly or extrinsic) 
-  		public boolean    ly_inf_en =       true;    // Simultaneously correct disparity at infinity (both poly and extrinsic) 
+  		public boolean    ly_inf_en =       false; // true;    // Simultaneously correct disparity at infinity (both poly and extrinsic) 
   		public boolean    ly_inf_force=     false;   // Force convergence correction during extrinsic, even with no infinity data 
   		public boolean    ly_poly =         false;   // Use polynomial correction, false - correct tilt/azimuth/roll of each sensor
   		
@@ -2060,6 +2060,7 @@ public class EyesisCorrectionParameters {
   		public double     lyf_frac_keep =   0.5;     // Keep best fit samples, discard worst
   		public int        lyf_min_samples = 5;       // Minimal number of tiles remaining in the sample
   		public boolean    lyf_norm_center = true;    // Replace samples with a single average with equal weight
+  		public double     ly_corr_scale =   1.0;     // Scale calculated correction vector 
 
   		// old fcorr parameters, reuse?
 // 		public int        fcorr_sample_size = 32;    // Use square this size side to detect outliers
@@ -2695,6 +2696,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"lyf_frac_keep",    this.lyf_frac_keep +"");
 			properties.setProperty(prefix+"lyf_min_samples",  this.lyf_min_samples+"");
 			properties.setProperty(prefix+"lyf_norm_center",  this.lyf_norm_center+"");
+			properties.setProperty(prefix+"ly_corr_scale",    this.ly_corr_scale +"");
 
 			properties.setProperty(prefix+"corr_magic_scale", this.corr_magic_scale +"");
   			
@@ -3282,6 +3284,7 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"lyf_frac_keep")!=null)     this.lyf_frac_keep=Double.parseDouble(properties.getProperty(prefix+"lyf_frac_keep"));
 			if (properties.getProperty(prefix+"lyf_min_samples")!=null)   this.lyf_min_samples=Integer.parseInt(properties.getProperty(prefix+"lyf_min_samples"));
   			if (properties.getProperty(prefix+"lyf_norm_center")!=null)   this.lyf_norm_center=Boolean.parseBoolean(properties.getProperty(prefix+"lyf_norm_center"));
+			if (properties.getProperty(prefix+"ly_corr_scale")!=null)     this.ly_corr_scale=Double.parseDouble(properties.getProperty(prefix+"ly_corr_scale"));
 
   			if (properties.getProperty(prefix+"corr_magic_scale")!=null)  this.corr_magic_scale=Double.parseDouble(properties.getProperty(prefix+"corr_magic_scale"));
 
@@ -3886,6 +3889,7 @@ public class EyesisCorrectionParameters {
 			gd.addNumericField("Keep best fit samples, discard worst",                                    this.lyf_frac_keep,  3);
 			gd.addNumericField("Minimal number of tiles remaining in the sample",                         this.lyf_min_samples,  0);
   			gd.addCheckbox    ("Replace samples with a single average with equal weight",                 this.lyf_norm_center);
+			gd.addNumericField("Scale calculated correction vector",                                      this.ly_corr_scale,  3);
   			gd.addMessage     ("---");
 //  			gd.addNumericField("Use square this size side to detect outliers",                            this.fcorr_sample_size,  0);
 //  			gd.addNumericField("Keep tiles only if there are more in each square",                        this.fcorr_mintiles,     0);
@@ -4510,6 +4514,7 @@ public class EyesisCorrectionParameters {
 			this.lyf_frac_keep=         gd.getNextNumber();
 			this.lyf_min_samples= (int) gd.getNextNumber();
   			this.lyf_norm_center=       gd.getNextBoolean();
+			this.ly_corr_scale=         gd.getNextNumber();
 //  			this.fcorr_sample_size= (int)gd.getNextNumber();
 //  			this.fcorr_mintiles= (int)  gd.getNextNumber();
 //  			this.fcorr_reloutliers=     gd.getNextNumber();

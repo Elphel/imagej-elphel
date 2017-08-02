@@ -215,16 +215,17 @@ public class GeometryCorrection {
 			
 			return s;
 		}
-		public void incrementVector(double [] incr)
+		public void incrementVector(double [] incr,
+				double scale)
 		{
 			for (int i = 0; i < incr.length; i++){
-				vector[i]+=incr[i];
+				vector[i]+= incr[i] * scale;
 			}
 		}
 		
-		public void incrementVector(CorrVector incr)
+		public void incrementVector(CorrVector incr, double scale)
 		{
-			incrementVector(incr.toArray());
+			incrementVector(incr.toArray(), scale);
 		}
 		
 		
