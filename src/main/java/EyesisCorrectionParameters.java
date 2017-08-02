@@ -2045,7 +2045,7 @@ public class EyesisCorrectionParameters {
   		// Lazy eye parameters
   		public int        ly_smpl_side =    3;       // Sample size (side of a square) disp/strength filter
   		public int        ly_smpl_num =     5;       // Number after removing worst (should be >1)
- 		public double     ly_meas_disp =    1.5;     // Maximal measured relative disparity
+// 		public double     ly_meas_disp =    1.5;     // Maximal measured relative disparity - using  (0.8*disp_scan_step)
  		public double     ly_smpl_rms =     0.2;     // 1;     // Maximal RMS of the remaining tiles in a sample
 		public double     ly_disp_var =     0.5;     // 2;     // Maximal full disparity difference to 8 neighbors
  		public double     ly_inf_frac =     0.5;     // Relative weight of infinity calibration data
@@ -2680,7 +2680,7 @@ public class EyesisCorrectionParameters {
 
 			properties.setProperty(prefix+"ly_smpl_side",     this.ly_smpl_side+"");
 			properties.setProperty(prefix+"ly_smpl_num",      this.ly_smpl_num+"");
-			properties.setProperty(prefix+"ly_meas_disp",     this.ly_meas_disp +"");
+//			properties.setProperty(prefix+"ly_meas_disp",     this.ly_meas_disp +"");
 			properties.setProperty(prefix+"ly_smpl_rms",      this.ly_smpl_rms +"");
 			properties.setProperty(prefix+"ly_disp_var",      this.ly_disp_var +"");
 			properties.setProperty(prefix+"ly_inf_frac",      this.ly_inf_frac +"");
@@ -3267,7 +3267,7 @@ public class EyesisCorrectionParameters {
   			
 			if (properties.getProperty(prefix+"ly_smpl_side")!=null)      this.ly_smpl_side=Integer.parseInt(properties.getProperty(prefix+"ly_smpl_side"));
 			if (properties.getProperty(prefix+"ly_smpl_num")!=null)       this.ly_smpl_num=Integer.parseInt(properties.getProperty(prefix+"ly_smpl_num"));
-			if (properties.getProperty(prefix+"ly_meas_disp")!=null)      this.ly_meas_disp=Double.parseDouble(properties.getProperty(prefix+"ly_meas_disp"));
+//			if (properties.getProperty(prefix+"ly_meas_disp")!=null)      this.ly_meas_disp=Double.parseDouble(properties.getProperty(prefix+"ly_meas_disp"));
 			if (properties.getProperty(prefix+"ly_smpl_rms")!=null)       this.ly_smpl_rms=Double.parseDouble(properties.getProperty(prefix+"ly_smpl_rms"));
 			if (properties.getProperty(prefix+"ly_disp_var")!=null)       this.ly_disp_var=Double.parseDouble(properties.getProperty(prefix+"ly_disp_var"));
 			if (properties.getProperty(prefix+"ly_inf_frac")!=null)       this.ly_inf_frac=Double.parseDouble(properties.getProperty(prefix+"ly_inf_frac"));
@@ -3869,7 +3869,8 @@ public class EyesisCorrectionParameters {
   			gd.addMessage     ("--- Lazy eye parameters (disparity @ infinity should be adjusted first ---");
 			gd.addNumericField("Sample size (side of a square)",                                          this.ly_smpl_side,  0);
 			gd.addNumericField("Number after removing worst (should be >1)",                              this.ly_smpl_num,  0);
-			gd.addNumericField("Maximal measured relative disparity",                                     this.ly_meas_disp,  3);
+  			gd.addMessage     ("Maximal measured relative disparity = "+ (0.8*disp_scan_step)+" (0.8 * disp_scan_step)");
+//			gd.addNumericField("Maximal measured relative disparity",                                     this.ly_meas_disp,  3);
 			gd.addNumericField("Maximal RMS of the remaining tiles in a sample",                          this.ly_smpl_rms,  3);
 			gd.addNumericField("Maximal full disparity difference to 8 neighbors",                        this.ly_disp_var,  3);
 			gd.addNumericField("Relative weight of infinity calibration data",                            this.ly_inf_frac,  3);
@@ -4494,7 +4495,7 @@ public class EyesisCorrectionParameters {
 
 			this.ly_smpl_side=    (int) gd.getNextNumber();
 			this.ly_smpl_num=     (int) gd.getNextNumber();
-			this.ly_meas_disp=          gd.getNextNumber();
+//			this.ly_meas_disp=          gd.getNextNumber();
 			this.ly_smpl_rms=           gd.getNextNumber();
 			this.ly_disp_var=           gd.getNextNumber();
 			this.ly_inf_frac=           gd.getNextNumber();

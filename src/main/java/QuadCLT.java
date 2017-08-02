@@ -4388,7 +4388,7 @@ public class QuadCLT {
 						  clt_parameters.inf_final_diff,     // 0.0001, // final double max_coeff_diff,
 						  clt_parameters.inf_far_pull,       // 0.0, // 0.25, //   final double far_pull, //  = 0.2; // 1; //  0.5;
 						  clt_parameters.inf_str_pow,        // 1.0, //   final double     strength_pow,
-						  clt_parameters.ly_meas_disp,       // 1.5, // final double     lazyEyeCompDiff, // clt_parameters.fcorr_disp_diff
+						  0.8*clt_parameters.disp_scan_step, // 1.5, // final double     lazyEyeCompDiff, // clt_parameters.fcorr_disp_diff
 						  clt_parameters.ly_smpl_side,       // 3,   // final int        lazyEyeSmplSide, //        = 2;      // Sample size (side of a square)
 						  clt_parameters.ly_smpl_num,        // 5,   // final int        lazyEyeSmplNum, //         = 3;      // Number after removing worst (should be >1)
 						  clt_parameters.ly_smpl_rms,        // 0.1, // final double     lazyEyeSmplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
@@ -4595,7 +4595,7 @@ public class QuadCLT {
 		    		clt_parameters.inf_final_diff,     // 0.0001, // final double max_coeff_diff,
 		    		clt_parameters.inf_far_pull,       // 0.0, // 0.25, //   final double far_pull, //  = 0.2; // 1; //  0.5;
 		    		clt_parameters.inf_str_pow,        // 1.0, //   final double     strength_pow,
-		    		clt_parameters.ly_meas_disp,       // 1.5, // final double     lazyEyeCompDiff, // clt_parameters.fcorr_disp_diff
+		    		0.8*clt_parameters.disp_scan_step, // clt_parameters.ly_meas_disp,       // 1.5, // final double     lazyEyeCompDiff, // clt_parameters.fcorr_disp_diff
 					clt_parameters.ly_smpl_side,       // 3,   // final int        lazyEyeSmplSide, //        = 2;      // Sample size (side of a square)
 					clt_parameters.ly_smpl_num,        // 5,   // final int        lazyEyeSmplNum, //         = 3;      // Number after removing worst (should be >1)
 					clt_parameters.ly_smpl_rms,        // 0.1, // final double     lazyEyeSmplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
