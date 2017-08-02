@@ -45,17 +45,7 @@ public class AlignmentCorrection {
 
 		}
 	}
-	/*
-	static double [][]dMismatch_dXY = {
-			{ 0.0 ,  1.0 , 0.0 ,  0.0 , 0.0 ,  0.0 ,  0.0 , 0.0  }, // mv0 = dy0 
-			{ 0.0 ,  0.0 , 0.0 ,  1.0 , 0.0 ,  0.0 ,  0.0 , 0.0  }, // mv1 = dy1
-			{ 0.0 ,  0.0 , 0.0 ,  0.0 , 1.0 ,  0.0 ,  0.0 , 0.0  }, // mv2 = dx2
-			{ 0.0 ,  0.0 , 0.0 ,  0.0 , 0.0 ,  0.0 ,  1.0 , 0.0  }, // mv3 = dx3
-			{-0.5 ,  0.0 , 0.5 ,  0.0 , 0.0 ,  0.0 ,  0.0 , 0.0  }, // mv4 = (dx1 - dx0)/2;
-			{ 0.0 ,  0.0 , 0.0 ,  0.0 , 0.0 , -0.5 ,  0.0 , 0.5  }, // mv5 = (dy3 - dy2)/2;
-			{ 0.25,  0.0 , 0.25,  0.0 , 0.0 , -0.25,  0.0 ,-0.25 }, // mv6 = (dx0 + dx1 -dy2 - dy3)/4;
-			{ 0.125, 0.0 , 0.125, 0.0 , 0.0 ,  0.125, 0.0 , 0.125}};  // mv6 = (dx0 + dx1 +dy2 + dy3)/8;
-	*/
+
 	public class Mismatch{
 		public boolean   use_disparity; // adjust dx0+dx1+dy0+dy1 == 0
 		public double [] pXY; // tile center x,y
@@ -128,6 +118,21 @@ public class AlignmentCorrection {
 					offsets[1][1], //dy1;
 					offsets[2][0], //dx2;
 					offsets[3][0], //dx3;
+					0.5*(offsets[1][0] - offsets[0][0]), //(dx1 - dx0)/2; 0.5/magic is already applied
+					0.5*(offsets[3][1] - offsets[2][1]), //(dy3 - dy2)/2;
+					0.25* (offsets[0][0] + offsets[1][0] - offsets[2][1] - offsets[3][1]), //(dx0 + dx1 -dy2 - dy3)/4;
+					use_disparity ? (0.125* (offsets[0][0] + offsets[1][0] + offsets[2][1] + offsets[3][1])) : 0.0 // only when disparity is known to be 0
+			};
+			return y;
+		}
+/*
+		public double [] getY()
+		{
+			double [] y = {
+					offsets[0][1], //dy0;
+					offsets[1][1], //dy1;
+					offsets[2][0], //dx2;
+					offsets[3][0], //dx3;
 					(offsets[1][0] - offsets[0][0]), //(dx1 - dx0)/2; 0.5/magic is already applied
 					(offsets[3][1] - offsets[2][1]), //(dy3 - dy2)/2;
 					0.5* (offsets[0][0] + offsets[1][0] - offsets[2][1] - offsets[3][1]), //(dx0 + dx1 -dy2 - dy3)/4;
@@ -136,6 +141,7 @@ public class AlignmentCorrection {
 			return y;
 		}
 		
+ */
 		public void copyToY(
 				double [] y,
 				int n_sample)
@@ -1705,7 +1711,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			}
 		}
 
-		if (debugLevel > 100) {
+		if (debugLevel > 0) { //  100) {
 			(new showDoubleFloatArrays()).showArrays(combo_comp_rms, tilesX, tilesY, "combo_comp_rms");
 		}
 
@@ -1730,16 +1736,16 @@ B = |+dy0   -dy1      -2*dy3 |
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
 			(new showDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "combo_mismatch" , prefixes);
 		}
-
-		combo_mismatch =  filterLazyEyePairs (
-				combo_mismatch, // final double[][] samples_in,
-				8,              // final int        smpl_side, // 8 x8 masked, 16x16 sampled
-				0.25,           // final double     rms_max, TODO: find reasonable one mot critical?
-				0.5,            // final double     frac_keep,
-				5,              // final int        min_samples,
-				true,           // final boolean    norm_center, // if there are more tiles that fit than minsamples, replace with a single equal weight
-				tilesX);        // final int        tilesX);
-
+		if (clt_parameters.lyf_filter) {
+			combo_mismatch =  filterLazyEyePairs (
+					combo_mismatch, // final double[][] samples_in,
+					clt_parameters.lyf_smpl_side ,   // 8,              // final int        smpl_side, // 8 x8 masked, 16x16 sampled
+					clt_parameters.lyf_rms_max ,     // 0.25,           // final double     rms_max, TODO: find reasonable one not critical?
+					clt_parameters.lyf_frac_keep ,   // 0.5,            // final double     frac_keep,
+					clt_parameters.lyf_min_samples , // 5,              // final int        min_samples,
+					clt_parameters.lyf_norm_center , // true,           // final boolean    norm_center, // if there are more tiles that fit than minsamples, replace with a single equal weight
+					tilesX);        // final int        tilesX);
+		}
 		if (debugLevel > 0) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
 			(new showDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "filtered_mismatch" , prefixes);

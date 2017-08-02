@@ -2043,7 +2043,7 @@ public class EyesisCorrectionParameters {
   		public boolean    ih_norm_center =  true;    // Replace samples with a single average with equal weight
 
   		// Lazy eye parameters
-  		public int        ly_smpl_side =    3;       // Sample size (side of a square)
+  		public int        ly_smpl_side =    3;       // Sample size (side of a square) disp/strength filter
   		public int        ly_smpl_num =     5;       // Number after removing worst (should be >1)
  		public double     ly_meas_disp =    1.5;     // Maximal measured relative disparity
  		public double     ly_smpl_rms =     0.2;     // 1;     // Maximal RMS of the remaining tiles in a sample
@@ -2052,9 +2052,14 @@ public class EyesisCorrectionParameters {
   		public boolean    ly_on_scan =      true;    // Calculate and apply lazy eye correction after disparity scan (poly or extrinsic) 
   		public boolean    ly_inf_en =       true;    // Simultaneously correct disparity at infinity (both poly and extrinsic) 
   		public boolean    ly_inf_force=     false;   // Force convergence correction during extrinsic, even with no infinity data 
-  		public boolean    ly_poly =         false;   // Use polynomial correction, false - correct tilt/azimuth/roll of each sensor 
+  		public boolean    ly_poly =         false;   // Use polynomial correction, false - correct tilt/azimuth/roll of each sensor
   		
-  		
+  		public boolean    lyf_filter =      true;    // Filter lazy eye pairs by their values
+  		public int        lyf_smpl_side =   8;       // 8 x8 masked, 16x16 sampled
+  		public double     lyf_rms_max =     0.25;    // Maximal RMS (all components to components average) 
+  		public double     lyf_frac_keep =   0.5;     // Keep best fit samples, discard worst
+  		public int        lyf_min_samples = 5;       // Minimal number of tiles remaining in the sample
+  		public boolean    lyf_norm_center = true;    // Replace samples with a single average with equal weight
 
   		// old fcorr parameters, reuse?
 // 		public int        fcorr_sample_size = 32;    // Use square this size side to detect outliers
@@ -2684,6 +2689,13 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"ly_inf_force",     this.ly_inf_force+"");
 			properties.setProperty(prefix+"ly_poly",          this.ly_poly+"");
 
+			properties.setProperty(prefix+"lyf_filter",       this.lyf_filter+"");
+			properties.setProperty(prefix+"lyf_smpl_side",    this.lyf_smpl_side+"");
+			properties.setProperty(prefix+"lyf_rms_max",      this.lyf_rms_max +"");
+			properties.setProperty(prefix+"lyf_frac_keep",    this.lyf_frac_keep +"");
+			properties.setProperty(prefix+"lyf_min_samples",  this.lyf_min_samples+"");
+			properties.setProperty(prefix+"lyf_norm_center",  this.lyf_norm_center+"");
+
 			properties.setProperty(prefix+"corr_magic_scale", this.corr_magic_scale +"");
   			
 			properties.setProperty(prefix+"show_textures",    this.show_textures+"");
@@ -3262,12 +3274,19 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"ly_on_scan")!=null)        this.ly_on_scan=Boolean.parseBoolean(properties.getProperty(prefix+"ly_on_scan"));
   			if (properties.getProperty(prefix+"ly_inf_en")!=null)         this.ly_inf_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_en"));
   			if (properties.getProperty(prefix+"ly_inf_force")!=null)      this.ly_inf_force=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_force"));
-  			if (properties.getProperty(prefix+"ly_poly")!=null)           this.ly_poly=Boolean.parseBoolean(properties.getProperty(prefix+" "));
+  			if (properties.getProperty(prefix+"ly_poly")!=null)           this.ly_poly=Boolean.parseBoolean(properties.getProperty(prefix+"ly_poly"));
  			
+  			if (properties.getProperty(prefix+"lyf_filter")!=null)        this.lyf_filter=Boolean.parseBoolean(properties.getProperty(prefix+"lyf_filter"));
+			if (properties.getProperty(prefix+"lyf_smpl_side")!=null)     this.lyf_smpl_side=Integer.parseInt(properties.getProperty(prefix+"lyf_smpl_side"));
+			if (properties.getProperty(prefix+"lyf_rms_max")!=null)       this.lyf_rms_max=Double.parseDouble(properties.getProperty(prefix+"lyf_rms_max"));
+			if (properties.getProperty(prefix+"lyf_frac_keep")!=null)     this.lyf_frac_keep=Double.parseDouble(properties.getProperty(prefix+"lyf_frac_keep"));
+			if (properties.getProperty(prefix+"lyf_min_samples")!=null)   this.lyf_min_samples=Integer.parseInt(properties.getProperty(prefix+"lyf_min_samples"));
+  			if (properties.getProperty(prefix+"lyf_norm_center")!=null)   this.lyf_norm_center=Boolean.parseBoolean(properties.getProperty(prefix+"lyf_norm_center"));
+
   			if (properties.getProperty(prefix+"corr_magic_scale")!=null)  this.corr_magic_scale=Double.parseDouble(properties.getProperty(prefix+"corr_magic_scale"));
 
-  			if (properties.getProperty(prefix+"show_textures")!=null)      this.show_textures=Boolean.parseBoolean(properties.getProperty(prefix+"show_textures"));
-  			if (properties.getProperty(prefix+"debug_filters")!=null)      this.debug_filters=Boolean.parseBoolean(properties.getProperty(prefix+"debug_filters"));
+  			if (properties.getProperty(prefix+"show_textures")!=null)     this.show_textures=Boolean.parseBoolean(properties.getProperty(prefix+"show_textures"));
+  			if (properties.getProperty(prefix+"debug_filters")!=null)     this.debug_filters=Boolean.parseBoolean(properties.getProperty(prefix+"debug_filters"));
 
   			if (properties.getProperty(prefix+"min_smth")!=null)          this.min_smth=Double.parseDouble(properties.getProperty(prefix+"min_smth"));
   			if (properties.getProperty(prefix+"sure_smth")!=null)         this.sure_smth=Double.parseDouble(properties.getProperty(prefix+"sure_smth"));
@@ -3858,6 +3877,14 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Use infinity disparity (disable if there is not enough of infinity data), both poly and extrinsic", this.ly_inf_en);
   			gd.addCheckbox    ("Force convergence correction during extrinsic, even with no infinity data", this.ly_inf_force);
   			gd.addCheckbox    ("*Use polynomial correction, false - correct tilt/azimuth/roll of each sensor)", this.ly_poly);
+
+  			gd.addMessage     ("--- Lazy eye samples filter ---");
+  			gd.addCheckbox    ("Filter lazy eye pairs by their values",                                   this.lyf_filter);
+			gd.addNumericField("Fileter sample side (if 8, 8 x8 masked, 16x16 sampled)",                  this.lyf_smpl_side,  0);
+			gd.addNumericField("Maximal RMS (all components to components average)",                      this.lyf_rms_max,  3);
+			gd.addNumericField("Keep best fit samples, discard worst",                                    this.lyf_frac_keep,  3);
+			gd.addNumericField("Minimal number of tiles remaining in the sample",                         this.lyf_min_samples,  0);
+  			gd.addCheckbox    ("Replace samples with a single average with equal weight",                 this.lyf_norm_center);
   			gd.addMessage     ("---");
 //  			gd.addNumericField("Use square this size side to detect outliers",                            this.fcorr_sample_size,  0);
 //  			gd.addNumericField("Keep tiles only if there are more in each square",                        this.fcorr_mintiles,     0);
@@ -4476,6 +4503,12 @@ public class EyesisCorrectionParameters {
   			this.ly_inf_force=          gd.getNextBoolean();
   			this.ly_poly=               gd.getNextBoolean();
   			
+  			this.lyf_filter=            gd.getNextBoolean();
+			this.lyf_smpl_side=   (int) gd.getNextNumber();
+			this.lyf_rms_max=           gd.getNextNumber();
+			this.lyf_frac_keep=         gd.getNextNumber();
+			this.lyf_min_samples= (int) gd.getNextNumber();
+  			this.lyf_norm_center=       gd.getNextBoolean();
 //  			this.fcorr_sample_size= (int)gd.getNextNumber();
 //  			this.fcorr_mintiles= (int)  gd.getNextNumber();
 //  			this.fcorr_reloutliers=     gd.getNextNumber();
