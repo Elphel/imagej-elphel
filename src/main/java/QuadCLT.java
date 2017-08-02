@@ -5166,7 +5166,7 @@ public class QuadCLT {
 //		  }
     	  
     	  
-    	  bgnd_data.texture = imp_bgnd.getTitle()+ (clt_parameters.black_back? ".jpeg" : ".png");
+    	  bgnd_data.texture = (imp_bgnd == null)? null: ( imp_bgnd.getTitle()+ (clt_parameters.black_back? ".jpeg" : ".png"));
 
     	  // create x3d file
     	  X3dOutput x3dOutput = new X3dOutput(
@@ -5176,10 +5176,11 @@ public class QuadCLT {
     			  tp.clt_3d_passes);
 
 		  x3dOutput.generateBackground(clt_parameters.infinityDistance <= 0.0); // needs just first (background) scan
+/*		  
     	  String x3d_path= correctionsParameters.selectX3dDirectory(
     			  true,  // smart,
     			  true);  //newAllowed, // save
-
+*/
     	  // refine first measurement
     	  int bg_pass = tp.clt_3d_passes.size() - 1; // 0
     	  int refine_pass = tp.clt_3d_passes.size(); // 1
@@ -6182,14 +6183,6 @@ public class QuadCLT {
 			  tp.clt_3d_passes.add(latest_scan); // put it back
 		  }
 		  int next_pass = tp.clt_3d_passes.size(); // 
-//		  tp.showScan(
-//				  tp.clt_3d_passes.get(0),   // CLTPass3d   scan,
-//				  "bg_scan"); //String title)
-//		  tp.showScan(
-//				  tp.clt_3d_passes.get(next_pass-1),   // CLTPass3d   scan,
-//				  "after_pass2-"+(next_pass-1)); //String title)
-		  
-//		  tp.thirdPassSetup( // prepare tile tasks for the second pass based on the previous one(s)
 		  tp.thirdPassSetupSurf( // prepare tile tasks for the second pass based on the previous one(s) // needs last scan
 				  clt_parameters,
 				  clt_parameters.bgnd_range, // double            disparity_far, 
@@ -6233,92 +6226,91 @@ public class QuadCLT {
 			  x3dOutput.generateBackground(clt_parameters.infinityDistance <= 0.0); // needs just first (background) scan
 		  }
  		  
- 		  if (clt_parameters.infinityDistance > 0.0){ // generate background as a billboard
-// 			  tp.showScan(
-// 					  tp.clt_3d_passes.get(0),   // CLTPass3d   scan,
-// 					  "bg_scan_inf"); //String title)
+		  int bgndIndex = 0; // it already exists?
+		  CLTPass3d bgndScan = tp.clt_3d_passes.get(bgndIndex);
+//		  boolean [] bgnd_sel = bgndScan.getSelected().clone();
+//		  int num_bgnd = 0;
+//		  for (int i = 0; i < bgnd_sel.length; i++) if (bgnd_sel[i]) num_bgnd++;
+//		  if (num_bgnd >= clt_parameters.min_bgnd_tiles) { // TODO: same for the backdrop too
+		  if (bgndScan.texture != null) { // TODO: same for the backdrop too
+			  if (clt_parameters.infinityDistance > 0.0){ // generate background as a billboard
+				  double infinity_disparity = 	geometryCorrection.getDisparityFromZ(clt_parameters.infinityDistance);
+				  // grow selection, then grow once more and create border_tiles
+				  // create/rstore, probably not needed 
+				  boolean [] bg_sel_backup = bgndScan.getSelected().clone();
+				  boolean [] bg_border_backup = (bgndScan.getBorderTiles() == null) ? null: bgndScan.getBorderTiles().clone();
+				  boolean [] bg_selected = bgndScan.getSelected();
+				  // 			  tp.growTiles(
+				  // 					  2,                   // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				  // 					 bg_selected,
+				  // 					  null); // prohibit
+				  boolean [] border_tiles = bg_selected.clone(); 
+				  tp.growTiles(
+						  2,                   // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+						  bg_selected,
+						  null); // prohibit
+				  // 			  for (int)
 
- 			  double infinity_disparity = 	geometryCorrection.getDisparityFromZ(clt_parameters.infinityDistance);
- 				
+				  for (int i = 0; i < border_tiles.length; i++){
+					  border_tiles[i] = !border_tiles[i] && bg_selected[i];  
+				  }
+				  // update texture_tiles (remove what is known not to be background
+				  for (int ty = 0; ty < tilesY; ty++){
+					  for (int tx = 0; tx < tilesX; tx++){
+						  if (!bg_selected[tx + tilesX*ty]){
+							  bgndScan.texture_tiles[ty][tx] = null;
+						  }
+					  }
+				  }
 
- 			  int scanIndex = 0; // it already exists?
-			  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
- 			  // grow selection, then grow once more and create border_tiles
-			  // create/rstore, probably not needed 
- 			  boolean [] bg_sel_backup = scan.getSelected().clone();
- 			  boolean [] bg_border_backup = (scan.getBorderTiles() == null) ? null: scan.getBorderTiles().clone();
- 			  boolean [] bg_selected = scan.getSelected();
-// 			  tp.growTiles(
-// 					  2,                   // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
-// 					 bg_selected,
-// 					  null); // prohibit
- 			  boolean [] border_tiles = bg_selected.clone(); 
- 			  tp.growTiles(
- 					  2,                   // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
- 					 bg_selected,
- 					  null); // prohibit
-// 			  for (int)
- 			  
- 			  for (int i = 0; i < border_tiles.length; i++){
- 				 border_tiles[i] = !border_tiles[i] && bg_selected[i];  
- 			  }
- 			  // update texture_tiles (remove what is known not to be background
- 			  for (int ty = 0; ty < tilesY; ty++){
- 	 			  for (int tx = 0; tx < tilesX; tx++){
- 	 				if (!bg_selected[tx + tilesX*ty]){
- 	 					scan.texture_tiles[ty][tx] = null;
- 	 				}
- 	 			  }
- 			  }
- 			  
- 			  scan.setBorderTiles(border_tiles);
- 			  // updates selection from non-null texture tiles
-			  String texturePath = getPassImage( // get image from a single pass
-					  clt_parameters,
-					  colorProcParameters,
-					  rgbParameters,
-					  this.image_name+"-img_infinity", // +scanIndex,
-					  scanIndex, 
-					  threadsMax,  // maximal number of threads to launch                         
-					  updateStatus,
-					  debugLevel);
-			  double [] scan_disparity = new double [tilesX * tilesY];
-			  int indx = 0;
-			  //		  boolean [] scan_selected = scan.getSelected();
-			  for (int ty = 0; ty < tilesY; ty ++) for (int tx = 0; tx < tilesX; tx ++){
-				  scan_disparity[indx++] = infinity_disparity;
+				  bgndScan.setBorderTiles(border_tiles);
+				  // updates selection from non-null texture tiles
+				  String texturePath = getPassImage( // get image from a single pass
+						  clt_parameters,
+						  colorProcParameters,
+						  rgbParameters,
+						  this.image_name+"-img_infinity", // +scanIndex,
+						  bgndIndex, 
+						  threadsMax,  // maximal number of threads to launch                         
+						  updateStatus,
+						  debugLevel);
+				  double [] scan_disparity = new double [tilesX * tilesY];
+				  int indx = 0;
+				  //		  boolean [] scan_selected = scan.getSelected();
+				  for (int ty = 0; ty < tilesY; ty ++) for (int tx = 0; tx < tilesX; tx ++){
+					  scan_disparity[indx++] = infinity_disparity;
+				  }
+				  //			  tp.showScan(
+				  //    				  scan, // CLTPass3d   scan,
+				  //    				  "infinityDistance");
+
+				  boolean showTri = false; // ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||((scanIndex - next_pass) == 73);
+				  try {
+					  generateClusterX3d(
+							  x3dOutput,
+							  wfOutput,  // output WSavefront if not null
+							  texturePath,
+							  "INFINITY", // id (scanIndex - next_pass), // id
+							  "INFINITY", // class
+							  bgndScan.getTextureBounds(),
+							  bgndScan.selected,
+							  scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
+							  clt_parameters.transform_size,
+							  clt_parameters.correct_distortions, // requires backdrop image to be corrected also
+							  showTri, // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
+							  infinity_disparity,  // 0.3
+							  clt_parameters.grow_disp_max, // other_range, // 2.0 'other_range - difference from the specified (*_CM)
+							  clt_parameters.maxDispTriangle);
+				  } catch (IOException e) {
+					  // TODO Auto-generated catch block
+					  e.printStackTrace();
+					  return false;
+				  }
+				  // maybe not needed
+				  bgndScan.setBorderTiles(bg_border_backup);
+				  bgndScan.setSelected(bg_sel_backup);
 			  }
-//			  tp.showScan(
-//    				  scan, // CLTPass3d   scan,
-//    				  "infinityDistance");
-			  
-			  boolean showTri = false; // ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||((scanIndex - next_pass) == 73);
-			  try {
-				generateClusterX3d(
-						  x3dOutput,
-						  wfOutput,  // output WSavefront if not null
-						  texturePath,
-						  "INFINITY", // id (scanIndex - next_pass), // id
-						  "INFINITY", // class
-						  scan.getTextureBounds(),
-						  scan.selected,
-						  scan_disparity, // scan.disparity_map[ImageDtt.DISPARITY_INDEX_CM],
-						  clt_parameters.transform_size,
-						  clt_parameters.correct_distortions, // requires backdrop image to be corrected also
-						  showTri, // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
-						  infinity_disparity,  // 0.3
-						  clt_parameters.grow_disp_max, // other_range, // 2.0 'other_range - difference from the specified (*_CM)
-						  clt_parameters.maxDispTriangle);
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-				return false;
-			}
-			  // maybe not needed
- 			  scan.setBorderTiles(bg_border_backup);
- 			  scan.setSelected(bg_sel_backup);
- 		  }
- 		  
+		  }
  		  
  		  
  		  
@@ -6620,6 +6612,7 @@ public class QuadCLT {
 			sdfa_instance.showArrays(dbg_img,  tilesX, tilesY, true, "strict_grown",titles);
 		  }
 		  
+		  int num_bgnd = 0;
 		  double [][][][] texture_tiles_bgnd = new double[tilesY][tilesX][][];
 		  double [] alpha_zero = new double [4*clt_parameters.transform_size*clt_parameters.transform_size];
 		  int alpha_index = 3;
@@ -6632,6 +6625,7 @@ public class QuadCLT {
 							  bgnd_tiles_grown2[tileY * tilesX + tileX]) {
 						  if (bgnd_tiles[tileY * tilesX + tileX]) {
 							  texture_tiles_bgnd[tileY][tileX]= texture_tiles[tileY][tileX];
+							  num_bgnd++;
 						  }else{
 							  texture_tiles_bgnd[tileY][tileX]= texture_tiles[tileY][tileX].clone();
 							  texture_tiles_bgnd[tileY][tileX][alpha_index] = alpha_zero;
@@ -6647,6 +6641,7 @@ public class QuadCLT {
 							  bgnd_tiles[tileY * tilesX + tileX]) {
 						  if (bgnd_tiles_grown2[tileY * tilesX + tileX]) {
 							  texture_tiles_bgnd[tileY][tileX]= texture_tiles[tileY][tileX];
+							  num_bgnd++;
 						  }else{
 							  texture_tiles_bgnd[tileY][tileX]= texture_tiles[tileY][tileX].clone();
 							  texture_tiles_bgnd[tileY][tileX][alpha_index] = alpha_zero;
@@ -6655,6 +6650,11 @@ public class QuadCLT {
 				  }
 			  }
 		  }
+		  
+		  if (num_bgnd < clt_parameters.min_bgnd_tiles){
+			  return null; // no background to generate
+		  }
+		  
 		  
 		  ImageDtt image_dtt = new ImageDtt();
 		  double [][] texture_overlap = image_dtt.combineRGBATiles(

@@ -2140,6 +2140,7 @@ public class EyesisCorrectionParameters {
   		public boolean    avg_cluster_disp =  false;  // Weight-average disparity for the whole cluster 
   		public double     maxDispTriangle   = 0.2;    // Maximal relative disparity difference in a triangle face
   		public double     infinityDistance  = 10000;  // Distance to generate backdrop (0 - use regular backdrop)
+  		public int        min_bgnd_tiles    = 10;     // Minimal number of background tiles to generate background
   		public boolean    shUseFlaps        = true;  // Split into shells with flaps
   		public boolean    shAggrFade        = true;  // Aggressive fade alpha (whole boundary)
   		public int        shMinArea         = 1;     // Minimal shell area (not counting flaps
@@ -2758,10 +2759,11 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"avg_cluster_disp", this.avg_cluster_disp+"");
 			properties.setProperty(prefix+"maxDispTriangle",  this.maxDispTriangle +"");
 			properties.setProperty(prefix+"infinityDistance", this.infinityDistance +"");
+			properties.setProperty(prefix+"min_bgnd_tiles",   this.min_bgnd_tiles+"");
 			properties.setProperty(prefix+"shUseFlaps",       this.shUseFlaps+"");
 			properties.setProperty(prefix+"shAggrFade",       this.shAggrFade+"");
   			properties.setProperty(prefix+"shMinArea",        this.shMinArea+"");
-			properties.setProperty(prefix+"shMinStrength",   this.shMinStrength +"");
+			properties.setProperty(prefix+"shMinStrength",    this.shMinStrength +"");
 			properties.setProperty(prefix+"tiRigidVertical",  this.tiRigidVertical +"");
 			properties.setProperty(prefix+"tiRigidHorizontal",this.tiRigidHorizontal +"");
 			properties.setProperty(prefix+"tiRigidDiagonal",  this.tiRigidDiagonal +"");
@@ -3335,10 +3337,11 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"avg_cluster_disp")!=null)  this.avg_cluster_disp=Boolean.parseBoolean(properties.getProperty(prefix+"avg_cluster_disp"));
   			if (properties.getProperty(prefix+"maxDispTriangle")!=null)   this.maxDispTriangle=Double.parseDouble(properties.getProperty(prefix+"maxDispTriangle"));
   			if (properties.getProperty(prefix+"infinityDistance")!=null)  this.infinityDistance=Double.parseDouble(properties.getProperty(prefix+"infinityDistance"));
+  			if (properties.getProperty(prefix+"min_bgnd_tiles")!=null)    this.min_bgnd_tiles=Integer.parseInt(properties.getProperty(prefix+"min_bgnd_tiles"));
   			if (properties.getProperty(prefix+"shUseFlaps")!=null)        this.shUseFlaps=Boolean.parseBoolean(properties.getProperty(prefix+"shUseFlaps"));
   			if (properties.getProperty(prefix+"shAggrFade")!=null)        this.shAggrFade=Boolean.parseBoolean(properties.getProperty(prefix+"shAggrFade"));
   			if (properties.getProperty(prefix+"shMinArea")!=null)         this.shMinArea=Integer.parseInt(properties.getProperty(prefix+"shMinArea"));
-  			if (properties.getProperty(prefix+"shMinStrength")!=null)    this.shMinStrength=Double.parseDouble(properties.getProperty(prefix+"shMinStrength"));
+  			if (properties.getProperty(prefix+"shMinStrength")!=null)     this.shMinStrength=Double.parseDouble(properties.getProperty(prefix+"shMinStrength"));
   			if (properties.getProperty(prefix+"tiRigidVertical")!=null)   this.tiRigidVertical=Double.parseDouble(properties.getProperty(prefix+"tiRigidVertical"));
   			if (properties.getProperty(prefix+"tiRigidHorizontal")!=null) this.tiRigidHorizontal=Double.parseDouble(properties.getProperty(prefix+"tiRigidHorizontal"));
   			if (properties.getProperty(prefix+"tiRigidDiagonal")!=null)   this.tiRigidDiagonal=Double.parseDouble(properties.getProperty(prefix+"tiRigidDiagonal"));
@@ -3809,7 +3812,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("X 3",                                                                     this.fine_corr_x_3,  3);
   			gd.addNumericField("Y 4",                                                                     this.fine_corr_y_3,  3);
 
-  			gd.addNumericField("Y 4",                                                                     this.fcorr_radius,  3);
+  			gd.addNumericField("fcorr_radius",                                                            this.fcorr_radius,  3);
   			gd.addNumericField("Do not try to correct outside this fraction of width/hight",              this.fcorr_min_strength,3);
   			gd.addNumericField("Consider only tiles with absolute residual disparity lower than",         this.fcorr_disp_diff,  3);
   			gd.addCheckbox    ("Use quadratic polynomial for fine correction (false - only linear)",      this.fcorr_quadratic);
@@ -3940,6 +3943,7 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Weight-average disparity for the whole cluster ",                              this.avg_cluster_disp);
   			gd.addNumericField("Maximal disparity difference in a triangle face to show",                      this.maxDispTriangle,  6);
   			gd.addNumericField("Distance to generate backdrop (0 - use regular backdrop)",                     this.infinityDistance,  8);
+  			gd.addNumericField(" Minimal number of background tiles to generate background",                   this.min_bgnd_tiles,   0);
 
   			gd.addCheckbox    ("Split into shells with flaps",                                                 this.shUseFlaps);
   			gd.addCheckbox    ("Aggressive fade alpha (whole boundary)",                                       this.shAggrFade);
@@ -4549,6 +4553,7 @@ public class EyesisCorrectionParameters {
   			this.avg_cluster_disp=      gd.getNextBoolean();
   			this.maxDispTriangle=       gd.getNextNumber();
   			this.infinityDistance=      gd.getNextNumber();
+  			this.min_bgnd_tiles=  (int) gd.getNextNumber();
   			this.shUseFlaps=            gd.getNextBoolean();
   			this.shAggrFade=            gd.getNextBoolean();
   			this.shMinArea=       (int) gd.getNextNumber();

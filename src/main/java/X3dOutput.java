@@ -97,7 +97,7 @@ public class X3dOutput {
         Element el_Bgnd = x3dDoc.createElement("Background");
         el_Bgnd.setAttribute("class","Background");
         el_Bgnd.setAttribute("id",   "Background");
-        if (use_backdrop) {
+        if (use_backdrop && (bgnd_pass.texture != null)) {
         	el_Bgnd.setAttribute("frontUrl",   bgnd_pass.texture);
         	// temporarily - add same picture to all other sides. Actually - any square will work, make some
         	// perspective grids/ colors to simplify orientation when looking wrong way

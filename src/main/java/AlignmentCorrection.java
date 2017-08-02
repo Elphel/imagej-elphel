@@ -154,16 +154,7 @@ public class AlignmentCorrection {
 			}
 		}
 		
-		/**
-		 * Convert transposed jacobian from {d_dx0,d_dy0, ...,d_dy3} to d_mvi (measurement vectors),
-		 * where sum of measurement vectors squared is minimized. Same matrix multiplications
-		 * is applied to each group of 8 columns. last column in each group is only non-zero if
-		 * disparity is known to be 0; 
-		 * @param jt transposed Jacobian of 10/9 rows and 8*n columns
-		 * @return converted transposed Jacobian of the same dimensions
-		 */
-		double [][] convertJt_mv(
-				double [][] jt)
+		public double [][] get_dMismatch_dXY()
 		{
 			double [][] dMismatch_dXY = { // extra 0.5 is because differences dxi, dyi are already *= 0.5/magic
 					//x0       y0      x1       y1      x2      y2      x3      y3
@@ -175,6 +166,23 @@ public class AlignmentCorrection {
 					{ 0.0 ,   -0.25,   0.0 ,  -0.25,   0.0 ,   0.25,   0.0 ,   0.25  }, // mv5 = (dy3 - dy2)/2 = (y3 - y1 - y0 + y2) / 2
 					{-0.125,   0.125,  0.125,  0.125, -0.125, -0.125,  0.125, -0.125 }, // mv6 = (dx0 + dx1 -dy2 - dy3)/4 = (x1 - x0 + x3 - x2 - y2 + y0 - y3 + y1)/4
 					{-0.0625, -0.0625, 0.0625,-0.0625,-0.0625, 0.0625, 0.0625, 0.0625}};// mv7 = (dx0 + dx1 +dy2 + dy3)/8=  (x1 - x0 + x3 - x2 + y2 - y0 + y3 - y1)/8
+			return dMismatch_dXY;
+		}
+		
+		
+		/**
+		 * Convert transposed jacobian from {d_dx0,d_dy0, ...,d_dy3} to d_mvi (measurement vectors),
+		 * where sum of measurement vectors squared is minimized. Same matrix multiplications
+		 * is applied to each group of 8 columns. last column in each group is only non-zero if
+		 * disparity is known to be 0; 
+		 * @param jt transposed Jacobian of 10/9 rows and 8*n columns
+		 * @return converted transposed Jacobian of the same dimensions
+		 */
+		double [][] convertJt_mv(
+				double [][] jt)
+		{
+			double [][] dMismatch_dXY = get_dMismatch_dXY();
+					
 			double [][] jt_conv = new double [jt.length][jt[0].length/dMismatch_dXY[0].length*dMismatch_dXY.length]; // now dMismatch_dXY is square
 			// multiplying by transposed dMismatch_dXY
 			for (int g = 0; g < jt[0].length/dMismatch_dXY[0].length; g++) {
@@ -2092,18 +2100,11 @@ B = |+dy0   -dy1      -2*dy3 |
 		String [] dbg_titles_tar=GeometryCorrection.CORR_NAMES;
 		String [] dbg_titles_sym= {"sym0","sym1","sym2","sym3","sym4","sym5","sroll0","sroll1","sroll2","sroll3"};
 		String [] dbg_titles_xy=  {"x0","y0","x1","y1","x2","y2","x3","y3"};
-//		String [] dbg_titles_mv=  {"dy0","dy1","dx2","dx3","dx1-dx0","dy3-dy2","dh-dv","dhy+dv"};
 		double [][] dbg_img_deriv = null; // compare derivatives with delta-diffs
-//		double [][] dbg_xy = null;  // jacobian dmv/dsym
-//		double [][] dbg_mv = null;  // jacobian dmv/dsym
 		double [][] dbg_dxy_dsym = null;  // jacobian dxy/dsym 
-//		double [][] dbg_dmv_dsym = null;  // jacobian dmv/dsym
 		if (dbg_images) {
 			dbg_img_deriv = doubleNaN(dbg_titles_xy.length * dbg_titles_tar.length *2, dbg_length); // compare derivatives with delta-diffs
-//			dbg_xy =        doubleNaN(dbg_titles_xy.length,                            dbg_length); // jacobian dmv/dsym
-//			dbg_mv =        doubleNaN(dbg_titles_mv.length,                            dbg_length); // jacobian dmv/dsym
 			dbg_dxy_dsym =  doubleNaN(dbg_titles_xy.length * dbg_titles_sym.length,    dbg_length); // jacobian dxy/dsym 
-//			dbg_dmv_dsym =  doubleNaN(dbg_titles_mv.length * dbg_titles_sym.length,    dbg_length); // jacobian dmv/dsym
 		}
 		
 		int num_pars = 0;
@@ -2142,30 +2143,8 @@ B = |+dy0   -dy1      -2*dy3 |
 				}
 			}
 			if (debugLevel > 0){
-//				double [][] j_partial_debug = new double [2 * NUM_SENSORS][];
 				double [][] deriv_dbg = new double [2 * NUM_SENSORS][];
 				double [] dbg_a_vector= null;
-/*				
-				double [] dbg_a_vector= {
-				0.0038591302038724394,	
-				-0.08463081841166764,	
-				0.06130822266181911,	
-				-0.036393168371534744,	
-				0.025155872946661495,	
-				0.0,	
-				0.0
-				};
-
-				double [] dbg_a_vector= {
-				0.5, // 0.0038591302038724394, // 0.0, // 	
-				0.0, // -0.08463081841166764,	
-				0.0, // 0.06130822266181911,	
-				0.0, // -0.036393168371534744,	
-				0.0, // 0.025155872946661495,	
-				0.0,	
-				0.0
-				};	
-*/
 				geometryCorrection.getPortsCoordinatesAndDerivatives(
 						dbg_a_vector, // double [] dbg_a_vector, // replace actual radial distortion coefficients
 						1E-8, //6,    // double delta, // 1e-6
@@ -2224,8 +2203,6 @@ B = |+dy0   -dy1      -2*dy3 |
 					dbg_img_deriv_titles[2 * (i * dbg_titles_tar.length + j) + 1]= dbg_titles_xy[i] + "_" +dbg_titles_tar[j] + "delta";  
 				}
 			}
-			// dbg_xy =        new double [dbg_titles_xy.length]                           [dbg_length]; // jacobian dmv/dsym
-			// dbg_mv =        new double [dbg_titles_mv.length]                           [dbg_length]; // jacobian dmv/dsym
 
 			String [] dbg_dxy_dsym_titles = new String [dbg_titles_xy.length * dbg_titles_sym.length];
 			for (int i = 0; i < dbg_titles_xy.length; i++){
@@ -2233,29 +2210,103 @@ B = |+dy0   -dy1      -2*dy3 |
 					dbg_dxy_dsym_titles[i * dbg_titles_sym.length + j]= dbg_titles_xy[i] + "_" +dbg_titles_sym[j];  
 				}
 			}
-//			String [] dmv_dmv_dsym_titles = new String [dbg_titles_mv.length * dbg_titles_sym.length];
-//			for (int i = 0; i < dbg_titles_mv.length; i++){
-//				for (int j = 0; j < dbg_titles_sym.length; j++){
-//					dmv_dmv_dsym_titles[i * dbg_titles_sym.length + j]= dbg_titles_mv[i] + "_" +dbg_titles_sym[j];  
-//				}
-//			}
 
 			dbgImgRemoveEmpty(dbg_img_deriv);
-//			dbgImgRemoveEmpty(dbg_xy);
-//			dbgImgRemoveEmpty(dbg_mv);
 			dbgImgRemoveEmpty(dbg_dxy_dsym);
-//			dbgImgRemoveEmpty(dbg_dmv_dsym);
 
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
 			sdfa_instance.showArrays(dbg_img_deriv, dbg_owidth, dbg_oheight, true, "dbg_img_deriv", dbg_img_deriv_titles);
-//			sdfa_instance.showArrays(dbg_xy,        dbg_owidth, dbg_oheight, true, "dbg_xy",        dbg_titles_xy);
-//			sdfa_instance.showArrays(dbg_mv,        dbg_owidth, dbg_oheight, true, "dbg_mv",        dbg_titles_mv);
 			sdfa_instance.showArrays(dbg_dxy_dsym,  dbg_owidth, dbg_oheight, true, "dbg_dxy_dsym",  dbg_dxy_dsym_titles);
-//			sdfa_instance.showArrays(dbg_dmv_dsym,  dbg_owidth, dbg_oheight, true, "dbg_dmv_dsym",  dmv_dmv_dsym_titles);
 		}
 		return jt;
 	}
 
+	
+	double [][] debug_mv_from_sym_jacobian(
+			double delta,
+			boolean [] par_mask,
+			ArrayList<Mismatch> mismatch_list,
+			GeometryCorrection geometryCorrection,
+			GeometryCorrection.CorrVector corr_vector,
+			int debugLevel)
+	{
+		int num_pars = 0;
+		for (int i = 0; i < par_mask.length; i++) if (par_mask[i]) num_pars ++;
+		
+		double [][] jt_mv = new double  [num_pars][2 * NUM_SENSORS * mismatch_list.size()];
+		double [] sym_par_0 = corr_vector.toSymArray(par_mask);
+		for (int sym_par = 0; sym_par < num_pars; sym_par++ ) {
+			double [] sym_par_p = sym_par_0.clone();
+			double [] sym_par_m = sym_par_0.clone();
+			sym_par_p[sym_par] += 0.5 * delta;
+			sym_par_m[sym_par] -= 0.5 * delta;
+			GeometryCorrection.CorrVector corr_p = geometryCorrection.getCorrVector(sym_par_p, par_mask);
+			GeometryCorrection.CorrVector corr_m = geometryCorrection.getCorrVector(sym_par_m, par_mask);
+			double [] mv_p = debug_mv_from_sym(
+					mismatch_list,
+					geometryCorrection,
+					corr_p,
+					debugLevel);
+			double [] mv_m = debug_mv_from_sym(
+					mismatch_list,
+					geometryCorrection,
+					corr_m,
+					debugLevel);
+			for (int i = 0; i < jt_mv[sym_par].length; i++){
+				jt_mv[sym_par][i] = (mv_p[i]-mv_m[i])/delta;
+			}
+			
+		}
+		return jt_mv;
+	}
+	
+	
+	/**
+	 * Debugging jacobian with two coordinate transformations - input and output. Calculating output mv vector
+	 * for all coordinate points for current corr_vector (to use it with delta corr_vecotr)
+	 * @param mismatch_list
+	 * @param geometryCorrection
+	 * @param corr_vector
+	 * @param debugLevel
+	 * @return
+	 */
+	double [] debug_mv_from_sym(
+//			boolean [] par_mask,
+			ArrayList<Mismatch> mismatch_list,
+			GeometryCorrection geometryCorrection,
+			GeometryCorrection.CorrVector corr_vector,
+			int debugLevel)
+	{
+		double [][] dMismatch_dXY = (new Mismatch()).get_dMismatch_dXY(); // just a static array
+		double [] mv = new double [2 * NUM_SENSORS * mismatch_list.size()];
+		
+		for (int indx = 0; indx<mismatch_list.size(); indx++){ // need indx value
+			Mismatch mm = mismatch_list.get(indx);
+			double [] pXY = mm.getPXY();
+			double [][] f = geometryCorrection.getPortsCoordinatesAndDerivatives( // 4x2
+					corr_vector, // CorrVector corr_vector,
+					null,        //	boolean calc_deriv,
+					pXY[0],      // double px,
+					pXY[1],      // double py,
+					mm.getDisparityMeas()); // getDisparityTask()); // double disparity)
+			// convert to symmetrical coordianets
+			// f is [4][2] array of port x,y coordinates - convert them to mv (linear array)
+			
+			double [] mv_partial = new double [dMismatch_dXY.length];
+			for (int i = 0; i < mv_partial.length; i++){
+				for (int nsens = 0; nsens < NUM_SENSORS; nsens++){
+					for (int dir = 0; dir <2; dir++){
+						mv_partial[i]+=f[nsens][dir]* dMismatch_dXY[i][2*nsens+dir];
+					}
+				}
+			}
+			for (int n = 0; n < 2* NUM_SENSORS; n++){
+				mv[2 * NUM_SENSORS * indx + n] = mv_partial[n]; 
+			}
+		}
+		return mv;
+	}
+	
 	public int dbg_index(double [] pXY, int decimate)
 	{
 		int width =  qc.tp.getTilesX()*qc.tp.getTileSize()/decimate;
@@ -2398,6 +2449,9 @@ B = |+dy0   -dy1      -2*dy3 |
 		
 		double [][] jta_mv =  (new Mismatch()).convertJt_mv (jta); //double [][] jt)
 		
+
+		
+		
 		Matrix jt = new Matrix(jta_mv);
 		double [] y_minus_fx_a = getYminusFx( // mv[0]..mv[7], not the measured data (dx0, dy0, ... dx3, dy3)
 				mismatch_list); // ArrayList<Mismatch> mismatch_list)
@@ -2427,10 +2481,22 @@ B = |+dy0   -dy1      -2*dy3 |
 		double [][] dbg_xy = null;  // jacobian dmv/dsym
 		double [][] dbg_mv = null;  // jacobian dmv/dsym
 		double [][] dbg_dmv_dsym = null;  // jacobian dmv/dsym
+		double [][] dbg_dmv_dsym_delta = null;  // jacobian dmv/dsym
+		double [][] dbg_dmv_dsym_diff =  null;  // jacobian dmv/dsym
 		if (dbg_images) {
-			dbg_xy =        doubleNaN(dbg_titles_xy.length,                            dbg_length); // jacobian dmv/dsym
-			dbg_mv =        doubleNaN(dbg_titles_mv.length,                            dbg_length); // jacobian dmv/dsym
-			dbg_dmv_dsym =  doubleNaN(dbg_titles_mv.length * dbg_titles_sym.length,    dbg_length); // jacobian dmv/dsym
+			double [][] jta_mv_delta = debug_mv_from_sym_jacobian(
+					1e-9, // 6,               // double delta,
+					par_mask,           // boolean [] par_mask,
+					mismatch_list,      // ArrayList<Mismatch> mismatch_list,
+					geometryCorrection, // GeometryCorrection geometryCorrection,
+					corr_vector,        // GeometryCorrection.CorrVector corr_vector)
+					debugLevel);		// int debugLevel)
+			
+			dbg_xy =              doubleNaN(dbg_titles_xy.length,                            dbg_length); // jacobian dmv/dsym
+			dbg_mv =              doubleNaN(dbg_titles_mv.length,                            dbg_length); // jacobian dmv/dsym
+			dbg_dmv_dsym =        doubleNaN(dbg_titles_mv.length * dbg_titles_sym.length,    dbg_length); // jacobian dmv/dsym
+			dbg_dmv_dsym_delta =  doubleNaN(dbg_titles_mv.length * dbg_titles_sym.length,    dbg_length); // jacobian dmv/dsym
+			dbg_dmv_dsym_diff =   doubleNaN(dbg_titles_mv.length * dbg_titles_sym.length,    dbg_length); // jacobian dmv/dsym
 			// dbg_xy =        new double [dbg_titles_xy.length]                           [dbg_length]; // jacobian dmv/dsym
 			// dbg_mv =        new double [dbg_titles_mv.length]                           [dbg_length]; // jacobian dmv/dsym
 
@@ -2464,6 +2530,8 @@ B = |+dy0   -dy1      -2*dy3 |
 							System.out.println("solveCorr(): dbg_dmv_dsym.length="+dbg_dmv_dsym.length+ ", dbg_dmv_dsym[0].length="+dbg_dmv_dsym[0].length);
 						}
 						dbg_dmv_dsym[i * dbg_titles_sym.length + j][dbg_index] = jta_mv [oj][dbg_titles_mv.length * indx + i];  //java.lang.ArrayIndexOutOfBoundsException: 3552
+						dbg_dmv_dsym_delta[i * dbg_titles_sym.length + j][dbg_index] = jta_mv_delta [oj][dbg_titles_mv.length * indx + i];
+						dbg_dmv_dsym_diff[i * dbg_titles_sym.length + j][dbg_index] = jta_mv_delta [oj][dbg_titles_mv.length * indx + i] - jta_mv [oj][dbg_titles_mv.length * indx + i];
 						oj++;
 					}
 				}
@@ -2472,11 +2540,15 @@ B = |+dy0   -dy1      -2*dy3 |
 			dbgImgRemoveEmpty(dbg_xy);
 			dbgImgRemoveEmpty(dbg_xy);
 			dbgImgRemoveEmpty(dbg_dmv_dsym);
+			dbgImgRemoveEmpty(dbg_dmv_dsym_delta);
+			dbgImgRemoveEmpty(dbg_dmv_dsym_diff);
 
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
-			sdfa_instance.showArrays(dbg_xy,        dbg_owidth, dbg_oheight, true, "dbg_xy",        dbg_titles_xy);
-			sdfa_instance.showArrays(dbg_mv,        dbg_owidth, dbg_oheight, true, "dbg_mv",        dbg_titles_mv);
-			sdfa_instance.showArrays(dbg_dmv_dsym,  dbg_owidth, dbg_oheight, true, "dbg_dmv_dsym",  dbg_dmv_dsym_titles);
+			sdfa_instance.showArrays(dbg_xy,              dbg_owidth, dbg_oheight, true, "dbg_xy",        dbg_titles_xy);
+			sdfa_instance.showArrays(dbg_mv,              dbg_owidth, dbg_oheight, true, "dbg_mv",        dbg_titles_mv);
+			sdfa_instance.showArrays(dbg_dmv_dsym,        dbg_owidth, dbg_oheight, true, "dbg_dmv_dsym",  dbg_dmv_dsym_titles);
+			sdfa_instance.showArrays(dbg_dmv_dsym_delta,  dbg_owidth, dbg_oheight, true, "delta_dmv_dsym",dbg_dmv_dsym_titles);
+			sdfa_instance.showArrays(dbg_dmv_dsym_diff,   dbg_owidth, dbg_oheight, true, "diff_dmv_dsym", dbg_dmv_dsym_titles);
 		}
 		if (debugLevel>-1) {
 			jtj.print(18, 6);

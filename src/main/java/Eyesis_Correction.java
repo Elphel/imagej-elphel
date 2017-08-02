@@ -501,7 +501,7 @@ private Panel panel1,
 			addButton("CLT process files",         panelClt1, color_process);
 			addButton("CLT process sets",          panelClt1, color_process);
 			addButton("CLT process quads",         panelClt1, color_process);
-//			addButton("CLT process corr",          panelClt1, color_conf_process);
+//			addButton("CLT 4 images",          panelClt1, color_conf_process);
 //			addButton("CLT disparity scan",        panelClt1, color_conf_process);
 //			addButton("CLT reset fine corr",       panelClt1, color_stop);
 //			addButton("CLT show fine corr",        panelClt1, color_configure);
@@ -528,7 +528,7 @@ private Panel panel1,
 //			addButton("CLT process files",         panelClt2, color_process);
 //			addButton("CLT process sets",          panelClt2, color_process);
 //			addButton("CLT process quads",         panelClt2, color_process);
-			addButton("CLT process corr",          panelClt2, color_conf_process);
+			addButton("CLT 4 images",          panelClt2, color_conf_process);
 			addButton("CLT disparity scan",        panelClt2, color_conf_process);
 			addButton("CLT reset fine corr",       panelClt2, color_stop);
 			addButton("CLT reset extrinsic corr",  panelClt2, color_stop);
@@ -4475,7 +4475,7 @@ private Panel panel1,
         return;
         
 
-    } else if (label.equals("CLT process corr") || label.equals("CLT apply fine corr") || label.equals("CLT infinity corr")) {
+    } else if (label.equals("CLT 4 images") || label.equals("CLT apply fine corr") || label.equals("CLT infinity corr")) {
     	boolean apply_corr = label.equals("CLT apply fine corr");
     	boolean infinity_corr = label.equals("CLT infinity corr");
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
