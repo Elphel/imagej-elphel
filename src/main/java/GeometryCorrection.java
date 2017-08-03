@@ -982,7 +982,8 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125,  0.   , -0.   ,  -0.   
 			double pXid = pXci * rD2rND;  
 			double pYid = pYci * rD2rND;
 			// individual rotate (check sign)
-			double a_roll = (this.roll[i] - this.common_roll) * Math.PI/180.0 ;
+//			double a_roll = (this.roll[i] - this.common_roll) * Math.PI/180.0 ;
+			double a_roll = (this.roll[i]) * Math.PI/180.0 ;
 			double c_roll = Math.cos(a_roll);
 			double s_roll = Math.sin(a_roll);
 //			double c_roll = Math.cos((this.roll[i] - this.common_roll) * Math.PI/180.0);
@@ -1045,7 +1046,8 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125,  0.   , -0.   ,  -0.   
 			double pXid = pXci * rD2rND;  
 			double pYid = pYci * rD2rND;
 			// individual rotate (check sign)
-			double a_roll = (this.roll[i] - this.common_roll) * Math.PI/180.0 + corr_vector.getRoll(i) ;
+//			double a_roll = (this.roll[i] - this.common_roll) * Math.PI/180.0 + corr_vector.getRoll(i) ;
+			double a_roll = (this.roll[i]) * Math.PI/180.0 + corr_vector.getRoll(i) ;
 			double c_roll = Math.cos(a_roll);
 			double s_roll = Math.sin(a_roll);
 			pXY[i][0] =  c_roll *  pXid + s_roll * pYid + this.pXY0[i][0];
@@ -1151,7 +1153,8 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125,  0.   , -0.   ,  -0.   
 			double pXid = pXci * rD2rND;  
 			double pYid = pYci * rD2rND;
 			// individual rotate (check sign)
-			double a_roll = (this.roll[i] - this.common_roll) * Math.PI/180.0 + corr_vector.getRoll(i) ;
+//			double a_roll = (this.roll[i] - this.common_roll) * Math.PI/180.0 + corr_vector.getRoll(i) ;
+			double a_roll = (this.roll[i]) * Math.PI/180.0 + corr_vector.getRoll(i) ;
 			double c_roll = Math.cos(a_roll);
 			double s_roll = Math.sin(a_roll);
 			pXY[i][0] =  c_roll *  pXid + s_roll * pYid + this.pXY0[i][0];
@@ -1285,8 +1288,8 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125,  0.   , -0.   ,  -0.   
 			double disparity)
 	{
 		// reverse getPortsCoordinates
-		double c_roll = Math.cos(( - this.common_roll) * Math.PI/180.0);
-		double s_roll = Math.sin(( - this.common_roll) * Math.PI/180.0);
+		double c_roll = 1.0; // Math.cos(( - this.common_roll) * Math.PI/180.0);
+		double s_roll = 0.0; // Math.sin(( - this.common_roll) * Math.PI/180.0);
 		double pXcd0 = px -  0.5 * this.pixelCorrectionWidth;  
 		double pYcd0 = py -  0.5 * this.pixelCorrectionWidth;
 		double pXcd = c_roll *  pXcd0 - s_roll* pYcd0;   
