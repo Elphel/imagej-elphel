@@ -3913,7 +3913,7 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Allow expansion over previously identified background (infinity)",             this.ex_over_bgnd);
   			gd.addNumericField("When expanding over background, disregard lower disparity ",                   this.ex_min_over,  3);
 
-  			gd.addMessage     ("********* Plates filetering when building initial z-map *********");
+  			gd.addMessage     ("********* Plates filtering when building initial z-map *********");
   			gd.addNumericField("If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds", this.pt_super_trust,  3);
   			gd.addCheckbox    ("Do not replace raw tiles by the plates, if raw is closer (like poles)",        this.pt_keep_raw_fg);
   			gd.addNumericField("Scale plates strength before comparing to raw strength",                       this.pt_scale_pre,  3);

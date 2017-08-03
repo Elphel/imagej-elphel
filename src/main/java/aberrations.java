@@ -267,7 +267,7 @@ Panel panel1,panel2;
 
  public static int     INVERSE_DIRECT_SIZE=    32; // size (side of square) of direct PSF kernel
  public static int     INVERSE_REVERSE_SIZE=   64; // size (side of square) of reverse PSF kernel
- public static boolean INVERSE_FILTER=       true; // apply variable-sigma filetering to the inverted PSF
+ public static boolean INVERSE_FILTER=       true; // apply variable-sigma filtering to the inverted PSF
 
 
  public static int     SPLIT_OVERSAMPLE=    2;

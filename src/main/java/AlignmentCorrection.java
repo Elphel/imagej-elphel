@@ -2358,7 +2358,26 @@ B = |+dy0   -dy1      -2*dy3 |
 		}
 	}
 	
+	double [] getJtJTrace( // just debugging
+			double [][] jt,
+			double [] w)
+	{
+		double [] jtj_trace = new double [jt.length];
+		if (w == null){
+			w = new double[jt[0].length];
+			for (int i = 0; i < w.length; i++){
+				w[i] = 1.0/w.length;
+			}
+		}
 	
+		for (int i = 0; i < jt.length; i++){
+			for (int k = 0; k < jt[i].length; k++){
+				jtj_trace[i] += w[k] * jt[i][k]*jt[i][k];
+			}
+		}
+		return jtj_trace;
+		
+	}
 
 	double [][] getJTJ(
 			double [][] jt,
@@ -2425,7 +2444,13 @@ B = |+dy0   -dy1      -2*dy3 |
 		for (int indx = 0; indx<mismatch_list.size(); indx++){ // need indx value
 			Mismatch mm = mismatch_list.get(indx);
 			mm.copyToW(w, indx);
-		}		  
+		}
+		double sumw = 0.0;
+		for (int i = 0; i < w.length; i++) sumw += w[i];
+		if (sumw > 0.0){
+			for (int i = 0; i < w.length; i++) w[i]/=sumw;
+		}
+
 		return w;
 	}
 
@@ -2458,7 +2483,7 @@ B = |+dy0   -dy1      -2*dy3 |
 				corr_vector,        // GeometryCorrection.CorrVector corr_vector)
 				debugLevel);		// int debugLevel)
 
-		// convert Jacobian outputs to symmetrical measurement vectors (last one is non-zero only if disaprity should be adjusted)
+		// convert Jacobian outputs to symmetrical measurement vectors (last one is non-zero only if disparity should be adjusted)
 
 		
 		double [][] jta_mv =  (new Mismatch()).convertJt_mv (jta); //double [][] jt)
@@ -2478,8 +2503,13 @@ B = |+dy0   -dy1      -2*dy3 |
 			System.out.println("--- solveCorr(): initial RMS = " + rms0);
 		}
 		Matrix y_minus_fx_weighted = new Matrix(y_minus_fx_a_weighted, y_minus_fx_a_weighted.length);
-		double [][] jtja = getJTJ(jta, weights);
+//		double [][] jtja = getJTJ(jta, weights);
+		double [][] jtja = getJTJ(jta_mv, weights);
 		Matrix jtj = new Matrix(jtja); // getJTJ(jta, weights)); // less operations than jt.times(jt.transpose());
+//		double [] jt_trace_null_dbg = getJtJTrace(jta,null);
+//		double [] jt_trace_dbg =      getJtJTrace(jta,weights);
+//		double [] jt_mv_trace_null_dbg = getJtJTrace(jta_mv,null);
+//		double [] jt_mv_trace_dbg =      getJtJTrace(jta_mv,weights);
 // 		
 		boolean dbg_images = debugLevel>1; 
 		int dbg_decimate = 64; // just for the debug image
