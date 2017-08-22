@@ -48,6 +48,7 @@ public class MacroCorrelation {
 					tp.superTileSize, // int superTileSize,
 					tp.getMagicScale(), // double scale,
 					trusted_correlation, // double trustedCorrelation,
+					0.0, // double maxOverexposure,
 					tp.getThreadsMax()); // int threadsMax)
 	}
 	public TileProcessor  CLTMacroScan( // perform single pass according to prepared tiles operations and disparity
@@ -225,6 +226,7 @@ public class MacroCorrelation {
 				macro_scan.tile_op,                      // per-tile operation bit codes
 				macro_scan.disparity,         // clt_parameters.disparity,     // final double            disparity,
 				input_data,                   // final double [][][]      imade_data, // first index - number of image in a quad
+				null,                         // boolean [][] saturation_imp, // (near) saturated pixels or null
 				// correlation results - final and partial          
 				clt_corr_combo,               // [tp.tilesY][tp.tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 				clt_corr_partial,             // clt_corr_partial,    // [tp.tilesY][tp.tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate

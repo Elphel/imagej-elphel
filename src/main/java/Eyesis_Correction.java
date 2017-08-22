@@ -78,7 +78,8 @@ private Panel panel1,
          panelPostProcessing3,
          panelDct1,
          panelClt1,
-         panelClt2
+         panelClt2,
+         panelClt3
          ;
    JP46_Reader_camera JP4_INSTANCE=null;
 
@@ -370,7 +371,7 @@ private Panel panel1,
 
 		instance = this;
 		addKeyListener(IJ.getInstance());
-		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0) + (DCT_MODE?3:0);
+		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0) + (DCT_MODE?4:0);
 		setLayout(new GridLayout(menuRows, 1));
 
 		panel6 = new Panel();
@@ -518,16 +519,6 @@ private Panel panel1,
 			panelClt2 = new Panel();
 			panelClt2.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
 			addButton("Setup CLT parameters",      panelClt2, color_configure);
-//			addButton("Select CLT image",          panelClt2, color_configure);
-//			addButton("CLT stack",                 panelClt2, color_process);
-//			addButton("Select second CLT image",   panelClt2, color_configure);
-//			addButton("CLT correlate",             panelClt2, color_process);
-//			addButton("Create CLT kernels",        panelClt2, color_process);
-//			addButton("Read CLT kernels",          panelClt2, color_process);
-//			addButton("Reset CLT kernels",         panelClt2, color_stop);
-//			addButton("CLT process files",         panelClt2, color_process);
-//			addButton("CLT process sets",          panelClt2, color_process);
-//			addButton("CLT process quads",         panelClt2, color_process);
 			addButton("CLT 4 images",          panelClt2, color_conf_process);
 			addButton("CLT disparity scan",        panelClt2, color_conf_process);
 			addButton("CLT reset fine corr",       panelClt2, color_stop);
@@ -539,12 +530,22 @@ private Panel panel1,
 			addButton("CLT infinity corr",         panelClt2, color_conf_process);
 			addButton("CLT ext infinity corr",     panelClt2, color_conf_process);
 			addButton("CLT reset 3D",              panelClt2, color_stop);
+			addButton("CLT Extrinsics",            panelClt2, color_process);
+			addButton("CLT Poly corr",             panelClt2, color_process);
 			addButton("CLT 3D",                    panelClt2, color_process);
 			addButton("CLT planes",                panelClt2, color_conf_process);
 			addButton("CLT ASSIGN",                panelClt2, color_process);
 			addButton("CLT OUT 3D",                panelClt2, color_process);
 						
 			add(panelClt2);
+		}
+		if (DCT_MODE) {
+			panelClt3 = new Panel();
+			panelClt3.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
+			addButton("Setup CLT Batch parameters", panelClt3, color_configure);
+			addButton("Setup CLT parameters",       panelClt3, color_configure);
+			addButton("CLT Batch process",          panelClt3, color_process);
+			add(panelClt3);
 		}
 		pack();
 
@@ -3668,6 +3669,12 @@ private Panel panel1,
 //		int srcKernelSize,
         EYESIS_DCT.showKernels(); // show restored kernels
 /* ======================================================================== */
+    } else if (label.equals("Setup CLT Batch parameters")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	CORRECTION_PARAMETERS.showCLTDialog("CLT Batch parameters");
+    	return;
+        
+/* ======================================================================== */
     } else if (label.equals("Setup CLT parameters")) {
     	CLT_PARAMETERS.showDialog();
         return;
@@ -4762,7 +4769,9 @@ private Panel panel1,
         
 /// ============================================
         
-    } else if (label.equals("CLT 3D")) {
+    } else if (label.equals("CLT 3D") || label.equals("CLT Extrinsics") || label.equals("CLT Poly corr")) {
+    	boolean adjust_extrinsics = label.equals("CLT Extrinsics") || label.equals("CLT Poly corr");
+    	boolean adjust_poly = label.equals("CLT Poly corr");
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
         if (QUAD_CLT == null){
@@ -4834,6 +4843,8 @@ private Panel panel1,
         }
         
         QUAD_CLT.processCLTQuads3d(
+        		adjust_extrinsics, // boolean adjust_extrinsics,
+        		adjust_poly,       // boolean adjust_poly,
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
         		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,

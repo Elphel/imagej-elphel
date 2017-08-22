@@ -1671,8 +1671,9 @@ public class TileSurface {
 					debugLevel,        // final int                       debugLevel,
 					dbg_X,             // final int                       dbg_X,
 					dbg_Y);            // final int                       dbg_Y);
-			
-			showSurfaceDS (tileData, "tileData");			
+			if (debugLevel >- 1) {
+				showSurfaceDS (tileData, "tileData");
+			}
 			this.tileData = tileData;
 			return tileData;
 		}
@@ -2220,7 +2221,8 @@ public class TileSurface {
 		}
 
 		public void compareAssignments(
-				final int [][][] tileAssignments)
+				final int [][][] tileAssignments,
+				final int debugLevel)
 		{
 			final int imgTiles = imageTilesX * imageTilesY;
 			final int num_in = tileAssignments.length;
@@ -2259,8 +2261,10 @@ public class TileSurface {
 				
 				img_data[num_in+1][nTile] = combo[nTile];
 			}
-			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
-			sdfa_instance.showArrays(img_data,  imageTilesX, imageTilesY, true, "consensus",titles);
+			if (debugLevel > -1) {
+				showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+				sdfa_instance.showArrays(img_data,  imageTilesX, imageTilesY, true, "consensus",titles);
+			}
 		}
 		
 		public int [][] getConsensusAssignment(

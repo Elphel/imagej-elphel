@@ -315,16 +315,16 @@ public class AlignmentCorrection {
 				magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
 				debugLevel);
 
-		double [][][] mismatch_corr_coefficiants = null;
+		double [][][] mismatch_corr_coefficients = null;
 		ArrayList<Mismatch> mismatch_list = use_poly? null : (new ArrayList<Mismatch>());
 
-		mismatch_corr_coefficiants = infinityMismatchCorrection(
+		mismatch_corr_coefficients = infinityMismatchCorrection(
 				clt_parameters.disp_scan_start, // final double  disp_scan_start,
-				clt_parameters.disp_scan_step, // final double  disp_scan_step,
-				use_poly,                        // clt_parameters.ly_poly,        // final boolean use_poly,
-				clt_parameters.fcorr_inf_quad, // final boolean use_quadratic,
-				clt_parameters.fcorr_inf_vert, // final boolean use_vertical,
-				clt_parameters.ly_inf_en,      // final boolean use_disparity, // for infinity 
+				clt_parameters.disp_scan_step,  // final double  disp_scan_step,
+				use_poly,                       // final boolean use_poly,
+				clt_parameters.fcorr_inf_quad,  // final boolean use_quadratic,
+				clt_parameters.fcorr_inf_vert,  // final boolean use_vertical,
+				clt_parameters.ly_inf_en,       // final boolean use_disparity, // for infinity 
 				clt_parameters,
 				disp_strength,
 				samples_list,
@@ -335,10 +335,10 @@ public class AlignmentCorrection {
 		if (debugLevel > -1){
 			System.out.println("infinityCorrection(): coefficient increments from infinityMismatchCorrection");
 			show_fine_corr(
-					mismatch_corr_coefficiants, // double [][][] corr,
+					mismatch_corr_coefficients, // double [][][] corr,
 					"");// String prefix)
 		}
-		return mismatch_corr_coefficiants;
+		return mismatch_corr_coefficients;
 	}
 
 	/**
@@ -789,7 +789,7 @@ public class AlignmentCorrection {
 		Matrix AINV = A.inverse();
 		double scale = 0.5/magic_coeff;
 		double [][] dbg_xy = null;
-		if (debugLevel > 0) {
+		if (clt_parameters.show_extrinsic && (debugLevel > -2)) { // TODO: Add clt_parameters
 			dbg_xy = new double [9][num_tiles];
 		}
 		for (Sample s: samples_list){
@@ -1586,11 +1586,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		return scans;
 	}
 
-
-
-	public double [][][] lazyEyeCorrection(
-//			final double     disp_scan_start,
-//			final double     disp_scan_step,
+	public double [][][] lazyEyeCorrectionStep(
 			final boolean    use_poly, // Use polynomial correction, false - correct tilt/azimuth/roll of each sensor
 			final double     fcorr_radius,
 			final double     min_strength_in,
@@ -1622,7 +1618,52 @@ B = |+dy0   -dy1      -2*dy3 |
 			double [][]      scans_14,
 			int              tilesX,
 			double           magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
-			int debugLevel){
+			int debugLevel)
+		{
+			return null;
+		}
+
+
+	public double [][][] lazyEyeCorrection(
+			final boolean    use_poly, // Use polynomial correction, false - correct tilt/azimuth/roll of each sensor
+			final double     fcorr_radius,
+			final double     min_strength_in,
+			final double     max_diff,
+			//				final double comp_strength_var,
+			final int        max_iterations,
+			final double     max_coeff_diff,
+			final double     far_pull, //  = 0.2; // 1; //  0.5;
+			final double     strength_pow,
+			final double     lazyEyeCompDiff, // clt_parameters.fcorr_disp_diff
+			final int        lazyEyeSmplSide, //        = 2;      // Sample size (side of a square)
+			final int        lazyEyeSmplNum, //         = 3;      // Number after removing worst (should be >1)
+			final double     lazyEyeSmplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+			final double     lazyEyeDispVariation, // maximal full disparity difference between the tile and 8 neighborxs
+			final double     lazyEyeDispRelVariation,
+			final double     ly_norm_disp, //  =    5.0;     // Reduce weight of higher disparity tiles
+			final int        smplSide, //        = 2;      // Sample size (side of a square)
+			final int        smplNum, //         = 3;      // Number after removing worst (should be >1)
+			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+			// histogram parameters
+			final int        hist_smpl_side, // 8 x8 masked, 16x16 sampled
+			final double     hist_disp_min,
+			final double     hist_disp_step,
+			final int        hist_num_bins,
+			final double     hist_sigma,
+			final double     hist_max_diff,
+			final int        hist_min_samples,
+			final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with 
+			final double     inf_fraction,    // fraction of the weight for the infinity tiles
+			EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			double [][]      scans_14,
+			double [][]      target_disparity, // null or programmed disparity (1 per each 14 entries of scans_14) 
+			int              tilesX,
+			double           magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
+			int              debugLevel){
+		
+//		final double lazyEyeDispRelVariation = 0.02;
+		
+		final int dbg_nTile = -59038;
 		final int num_scans = scans_14.length/NUM_ALL_SLICES;
 		final int num_tiles = scans_14[0].length;
 		final int tilesY = num_tiles/tilesX; 
@@ -1671,7 +1712,15 @@ B = |+dy0   -dy1      -2*dy3 |
 				lazyEyeSmplRms, // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 				tilesX);// final int        tilesX);
 
-		if (debugLevel > -1) {
+		if (debugLevel > -2) { // -2) { //  100) {
+			(new showDoubleFloatArrays()).showArrays(filtered_scans, tilesX, tilesY, true, "filtered_scans");
+			if (debugLevel > -1) { // -2) { //  100) {
+				(new showDoubleFloatArrays()).showArrays(scans, tilesX, tilesY, true, "scans");
+				(new showDoubleFloatArrays()).showArrays(target_disparity, tilesX, tilesY, true, "target_disparity");
+			}
+		}
+
+		if (debugLevel > -2) {
 			System.out.println("lazyEyeCorrection() 1: removing tiles with residual disparity absoulte value > "+lazyEyeCompDiff);
 		}
 
@@ -1679,6 +1728,9 @@ B = |+dy0   -dy1      -2*dy3 |
 		double [] combo_comp_rms = new double [num_tiles];
 		for (int ns = 0; ns < num_scans; ns++){
 			for (int nTile = 0; nTile < num_tiles; nTile++) {
+				if (nTile == dbg_nTile){
+					System.out.println("lazyEyeCorrection().1: nTile="+nTile);
+				}
 				double w = filtered_scans[ns * NUM_SLICES + 1][nTile];
 				if (w > 0.0){
 					double disp = filtered_scans[ns * NUM_SLICES + 0][nTile];
@@ -1686,9 +1738,15 @@ B = |+dy0   -dy1      -2*dy3 |
 						for (int i = 2; i < NUM_SLICES; i++) if (i != 1){
 							combo_mismatch[i][nTile] += filtered_scans[ns * NUM_SLICES + i][nTile] * w;
 						}
-						combo_mismatch[0][nTile] += (
-								filtered_scans[ns * NUM_SLICES + 0][nTile]/clt_parameters.corr_magic_scale +
-								clt_parameters.disp_scan_start + clt_parameters.disp_scan_step * ns)* w;
+						if (target_disparity != null){
+							combo_mismatch[0][nTile] += (
+									filtered_scans[ns * NUM_SLICES + 0][nTile]/clt_parameters.corr_magic_scale +
+									target_disparity[ns][nTile])* w;
+						} else {
+							combo_mismatch[0][nTile] += (
+									filtered_scans[ns * NUM_SLICES + 0][nTile]/clt_parameters.corr_magic_scale +
+									(clt_parameters.disp_scan_start + clt_parameters.disp_scan_step * ns ) )* w;
+						}
 						combo_mismatch[1][nTile] += w;
 						combo_comp_rms[nTile] += w * comp_strength_rms[ns][nTile];
 					}
@@ -1697,6 +1755,10 @@ B = |+dy0   -dy1      -2*dy3 |
 		}
 
 		for (int nTile = 0; nTile < num_tiles; nTile++) {
+			if (nTile == dbg_nTile){
+				System.out.println("lazyEyeCorrection().2: nTile="+nTile);
+			}
+			
 			double w = combo_mismatch[1][nTile];
 			if (w > 0.0){
 				for (int i = 0; i < NUM_SLICES; i++) if (i != 1){
@@ -1711,19 +1773,35 @@ B = |+dy0   -dy1      -2*dy3 |
 			}
 		}
 
-		if (debugLevel > 0) { //  100) {
+		// reduce influence of high disparity
+//		double norm_ly_disparity = 100.0; // disabling
+		for (int nTile = 0; nTile < num_tiles; nTile++) {
+			if (combo_mismatch[0][nTile] > ly_norm_disp) {
+				combo_mismatch[1][nTile] *= ly_norm_disp/combo_mismatch[0][nTile];
+			}
+		}
+		
+		
+		
+		
+		if (debugLevel > 0) { // -2) { //  100) {
 			(new showDoubleFloatArrays()).showArrays(combo_comp_rms, tilesX, tilesY, "combo_comp_rms");
 		}
 
 		final TileNeibs tnImage = new TileNeibs(tilesX, tilesY); // num_tiles/tilesX);
 		for (int nTile = 0; nTile < num_tiles; nTile++) if (combo_mismatch[1][nTile] > 0.0){
+			if (nTile == dbg_nTile){
+				System.out.println("lazyEyeCorrection().3: nTile="+nTile);
+			}
 			double d = combo_mismatch[0][nTile];
+			double lev = lazyEyeDispVariation + lazyEyeDispRelVariation * d;
 			for (int dir = 0; dir <8; dir++){
 				int nTile1 = tnImage.getNeibIndex(nTile, dir);
 				if ((nTile1 >= 0) && (combo_mismatch[1][nTile1] > 0.0)){
-					if (Math.abs(combo_mismatch[0][nTile1] - d) > lazyEyeDispVariation){
+					if (Math.abs(combo_mismatch[0][nTile1] - d) > lev) { // azyEyeDispVariation){
 						combo_mismatch[1][nTile] = 0.0;
-						for (int i = 0; i < NUM_SLICES; i++) if (i != 1){
+//						for (int i = 0; i < NUM_SLICES; i++) if (i != 1){
+						for (int i = 2; i < NUM_SLICES; i++) if (i != 1){
 							combo_mismatch[i][nTile] = Double.NaN;
 						}
 						break;
@@ -1732,7 +1810,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			}
 		}			
 
-		if (debugLevel > 0) {
+		if (debugLevel > 0) { // 0) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
 			(new showDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "combo_mismatch" , prefixes);
 		}
@@ -1939,7 +2017,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			}
 		}
 
-		if (debugLevel > -1) {
+		if (debugLevel > 0) {
 			double inf_weight = 0.0;
 			for (Sample s: inf_samples_list) {
 				inf_weight += s.weight;
@@ -1956,7 +2034,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					titles[ns * NUM_SLICES + i] = prefixes[i]+"_"+ns;
 				}
 			}
-			(new showDoubleFloatArrays()).showArrays(filtered_scans, tilesX, tilesY, true, "filtered_scans" , titles);
+			(new showDoubleFloatArrays()).showArrays(filtered_scans, tilesX, tilesY, true, "filtered_scans_a" , titles);
 		}
 
 
@@ -1965,10 +2043,10 @@ B = |+dy0   -dy1      -2*dy3 |
 			(new showDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, combo_mismatch[0].length/tilesX, true, "combo_mismatch" , prefixes);
 		}
 		ArrayList<Mismatch> mismatch_list = use_poly? null : (new ArrayList<Mismatch>());
-		double [][][] mismatch_corr_coefficiants = infinityMismatchCorrection(
+		double [][][] mismatch_corr_coefficients = infinityMismatchCorrection(
 				clt_parameters.disp_scan_start, // final double  disp_scan_start,
 				clt_parameters.disp_scan_step, // final double  disp_scan_step,
-				use_poly,                        // clt_parameters.ly_poly,        // final boolean use_poly, 
+				use_poly,                       // final boolean use_poly, 
 				clt_parameters.fcorr_quadratic, // final boolean use_quadratic,
 				true, // clt_parameters.fcorr_inf_vert,  // final boolean use_vertical,
 				false,                          // final boolean use_disparity, // for infinity 
@@ -1979,23 +2057,27 @@ B = |+dy0   -dy1      -2*dy3 |
 				magic_coeff,                    // double      , // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5
 				mismatch_list,                  // ArrayList<Mismatch> mismatch_list,
 				debugLevel);                    // int debugLevel)
-		if (debugLevel > -1) {
+		if (debugLevel > -2) {
 			System.out.println("===== lazyEyeCorrection(): correction coefficients =====");
-			if (mismatch_corr_coefficiants != null) {
+			if (mismatch_corr_coefficients != null) {
 				show_fine_corr(
-						mismatch_corr_coefficiants,
-						"mismatch_corr_coefficiants");
+						mismatch_corr_coefficients,
+						"mismatch_corr_coefficients");
 			}
 		}
 		if (!use_poly && (mismatch_list != null)){
+			double [] old_new_rms = new double[1];
 			boolean apply_extrinsic = true;
 			GeometryCorrection.CorrVector corr_vector = solveCorr (
 					clt_parameters.ly_inf_en,    // boolean use_disparity,     // if true will ignore disparity data even if available (was false)
 					clt_parameters.ly_inf_force, // boolean force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
+					clt_parameters.ly_com_roll,  // boolean    common_roll,    // Enable common roll (valid for high disparity range only) 
+
 					mismatch_list,                          // ArrayList<Mismatch> mismatch_list,
 					qc.geometryCorrection,                  // GeometryCorrection geometryCorrection,
 					qc.geometryCorrection.getCorrVector(),  // GeometryCorrection.CorrVector corr_vector,
-					2); // 1); // int debugLevel)
+					old_new_rms,                            // double [] old_new_rms, // should be double[2]
+					debugLevel); // 2); // 1); // int debugLevel)
 			if (debugLevel > -1){
 				System.out.println("Old extrinsic corrections:");
 				System.out.println(qc.geometryCorrection.getCorrVector().toString());
@@ -2009,14 +2091,20 @@ B = |+dy0   -dy1      -2*dy3 |
 					System.out.println(qc.geometryCorrection.getCorrVector().toString());
 				}
 			}
+			mismatch_corr_coefficients = new double [1][2][];
+			mismatch_corr_coefficients[0][0] = corr_vector.toSymArray(null);
+//			mismatch_corr_coefficients[0][1] = new double[1];
+//			old_new_rms[1] = getRMS(getYminusFx(mismatch_list), getWeights(mismatch_list));
+			mismatch_corr_coefficients[0][1] = old_new_rms;
 		} else {
-			if (debugLevel > -1){
-				System.out.println("Extrinsic parameters (tilt, azimuth, roll) of subcameras is disabled, clt_parameters.ly_poly="+
-						clt_parameters.ly_poly+" (should be false for extrinsics)");
+			if (debugLevel > -2){
+				System.out.println("Extrinsic parameters (tilt, azimuth, roll) of subcameras is disabled, use_poly="+
+						use_poly+" (should be false for extrinsics)");
 				System.out.println(qc.geometryCorrection.getCorrVector().toString());
 			}
+			return mismatch_corr_coefficients;			
 		}
-		return mismatch_corr_coefficiants;			
+		return mismatch_corr_coefficients;			
 	}
 
 	public double [][] combineCltMismatches(
@@ -2458,9 +2546,12 @@ B = |+dy0   -dy1      -2*dy3 |
 			boolean use_disparity,     // if true will ignore disparity data even if available
 			boolean force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
 			                           // data, using just radial distortions 
+	  		boolean    common_roll,    // Enable common roll (valid for high disparity range only) 
+			
 			ArrayList<Mismatch> mismatch_list,
 			GeometryCorrection geometryCorrection,
 			GeometryCorrection.CorrVector corr_vector,
+			double [] old_new_rms, // should be double[2]
 			int debugLevel)
 	{
 		boolean has_disparity = force_convergence; // force false;
@@ -2471,10 +2562,26 @@ B = |+dy0   -dy1      -2*dy3 |
 				break;
 			}
 		}
-		boolean [] par_mask = new boolean[10];
-		for (int i = (has_disparity ? 0 : 1); i < par_mask.length; i++){
-			par_mask[i] = true;
-		}
+//		boolean [] par_mask = new boolean[10];
+//		for (int i = (has_disparity ? 0 : 1); i < par_mask.length; i++){
+//			par_mask[i] = true;
+//		}
+		boolean [] par_mask = geometryCorrection.getParMask(
+				has_disparity, // boolean use_disparity,
+				common_roll); // boolean common_roll);
+/*			{ // TODO: move to GeometryCorrection
+				has_disparity, //sym0
+				true,          //sym1
+				true,          //sym2
+				true,          //sym3
+				true,          //sym4
+				true,          //sym5
+				common_roll,   //sym6 // common roll
+				true,          //sym7
+				true,          //sym8
+				true           //sym9
+		};
+		*/
 		
 		double [][] jta = getJacobianTransposed(
 				par_mask,           // boolean [] par_mask,
@@ -2501,6 +2608,10 @@ B = |+dy0   -dy1      -2*dy3 |
 		double rms0 = getRMS	(y_minus_fx_a, weights);
 		if (debugLevel > -1){
 			System.out.println("--- solveCorr(): initial RMS = " + rms0);
+		}
+		
+		if (old_new_rms != null){
+			old_new_rms[0] =rms0;
 		}
 		Matrix y_minus_fx_weighted = new Matrix(y_minus_fx_a_weighted, y_minus_fx_a_weighted.length);
 //		double [][] jtja = getJTJ(jta, weights);

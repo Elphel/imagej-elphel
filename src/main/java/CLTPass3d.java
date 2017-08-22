@@ -27,6 +27,7 @@ import java.awt.Rectangle;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class CLTPass3d{
+//	static double  max_overexposed = 0.8; // TODO: make parameter
 		public   double [][]    disparity; // per-tile disparity set for the pass[tileY][tileX] 
 		public   int    [][]    tile_op;   // what was done in the current pass
 		private  double [][]    disparity_sav; // saved disaprity 
@@ -192,8 +193,7 @@ public class CLTPass3d{
 		 */
 		public void resetProcessed(){ 
 			
-			fixNaNDisparity();
-			
+			if (disparity_map != null) fixNaNDisparity();
 			calc_disparity =       null; // composite disparity, calculated from "disparity", and "disparity_map" fields
 			calc_disparity_hor =   null; // composite disparity, calculated from "disparity", and "disparity_map" fields
 			calc_disparity_vert =  null; // composite disparity, calculated from "disparity", and "disparity_map" fields
@@ -356,20 +356,32 @@ public class CLTPass3d{
 			}
 			return disparity;
 		}
+
+		public double [] getOverexposedFraction(){
+			return (disparity_map != null)? disparity_map[ImageDtt.OVEREXPOSED] : null;
+		}
+		
 		
 		/**
-		 * Returns per-tile correlation "strength". Initially - copy of the FPGA-generated data, b ut later may be replaced by a combination
+		 * Returns per-tile correlation "strength". Initially - copy of the FPGA-generated data, but later may be replaced by a combination
 		 * of the combined data from 4-sensor (4-pair) correlation and horizontal/vertical pairs only to improve detection of vertical/
 		 * horizontal features  
 		 * @return line-scan array of per-tile correlation strength by reference (not a copy), so it can be modified
 		 */
 		public double [] getStrength(){
 			double trustedCorrelation = tileProcessor.getTrustedCorrelation();
+			double max_overexposure = tileProcessor.getMaxOverexposure();
 			if (strength == null){
 				strength =  disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX].clone();
 				if (trustedCorrelation > 0.0){
 					for (int i = 0; i < strength.length; i++){
 						if (Math.abs(disparity_map[disparity_index][i]) > trustedCorrelation) strength[i] = 0.0; // too far 
+					}
+				}
+				double [] overexposed = disparity_map[ImageDtt.OVEREXPOSED];
+				if ((max_overexposure > 0.0) && (overexposed != null)){
+					for (int i = 0; i < strength.length; i++){
+						if (overexposed[i] > max_overexposure) strength[i] = 0.0; // too overexposed 
 					}
 				}
 			}
@@ -388,6 +400,7 @@ public class CLTPass3d{
 		 */
 		public double [] getHorStrength(){
 			double trustedCorrelation = tileProcessor.getTrustedCorrelation();
+			double max_overexposure = tileProcessor.getMaxOverexposure();
 			if (strength_hor == null) {
 				strength_hor = disparity_map[ImageDtt.DISPARITY_INDEX_HOR_STRENGTH].clone();
 				if (trustedCorrelation > 0.0){
@@ -395,20 +408,34 @@ public class CLTPass3d{
 						if (Math.abs(disparity_map[ImageDtt.DISPARITY_INDEX_HOR][i]) > trustedCorrelation) strength_hor[i] = 0.0; // too far 
 					}
 				}
+				double [] overexposed = disparity_map[ImageDtt.OVEREXPOSED];
+				if ((max_overexposure > 0.0) && (overexposed != null)){
+					for (int i = 0; i < strength_hor.length; i++){
+						if (overexposed[i] > max_overexposure) strength_hor[i] = 0.0; // too overexposed 
+					}
+				}
+				
 			}
 			return strength_hor;
 		}
 		/**
-		 * Get veriical pairs correlation strength for horizontal features. Not a copy
+		 * Get vertical pairs correlation strength for horizontal features. Not a copy
 		 * @return line-scan array of per-tile horizontal pairs correlation strength by reference (not a copy)
 		 */
 		public double [] getVertStrength(){
 			double trustedCorrelation = tileProcessor.getTrustedCorrelation();
+			double max_overexposure = tileProcessor.getMaxOverexposure();
 			if (strength_vert == null) {
 				strength_vert = disparity_map[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH].clone();
 				if (trustedCorrelation > 0.0){
 					for (int i = 0; i < strength_vert.length; i++){
 						if (Math.abs(disparity_map[ImageDtt.DISPARITY_INDEX_VERT][i]) > trustedCorrelation) strength_vert[i] = 0.0; // too far 
+					}
+				}
+				double [] overexposed = disparity_map[ImageDtt.OVEREXPOSED];
+				if ((max_overexposure > 0.0) && (overexposed != null)){
+					for (int i = 0; i < strength_hor.length; i++){
+						if (overexposed[i] > max_overexposure) strength_vert[i] = 0.0; // too overexposed 
 					}
 				}
 				
@@ -704,6 +731,7 @@ public class CLTPass3d{
 					selection,  // boolean [] selection,
 					disparity); // double []  disparity)
 		}
+		
 		public int setTileOpDisparity(
 				int        tile_op,
 				boolean [] selection,
@@ -712,26 +740,39 @@ public class CLTPass3d{
 			final int tilesX = tileProcessor.getTilesX();
 			final int tilesY = tileProcessor.getTilesY();
 			this.disparity =   new double [tilesY][tilesX];
-			this.tile_op =     new int [tilesY][tilesX];
+			if (selection != null) {
+				this.tile_op =     new int [tilesY][tilesX];
+			}
 			int num_op_tiles = 0;
 
 			for (int ty = 0; ty < tilesY; ty++) for (int tx = 0; tx <tilesX; tx++){
 				int indx =  tilesX * ty + tx;
-				if (this.selected[indx]) {
-					this.disparity[ty][tx] = disparity[indx];
-					this.tile_op[ty][tx] = tile_op;
-					num_op_tiles ++;
+				if (selection == null) {
+					this.disparity[ty][tx] = (disparity == null)? 0.0: disparity[indx];
+					if (this.tile_op[ty][tx] != 0){
+						num_op_tiles ++;
+					}
 				} else {
-					this.disparity[ty][tx] = 0.0;
-					this.tile_op[ty][tx] = 0;
+					if (selection[indx]) {
+						this.disparity[ty][tx] = (disparity == null)? 0.0: disparity[indx];
+						this.tile_op[ty][tx] = tile_op;
+						num_op_tiles ++;
+					} else {
+						this.disparity[ty][tx] = 0.0;
+						this.tile_op[ty][tx] = 0;
+					}
 				}
 			}
 			return num_op_tiles;
 		}
 		
-		
-		
-		
+		/**
+		 * Set next measurement disparity from last calculated
+		 */
+		public void updateDisparity()
+		{
+			setTileOpDisparity(null, getDisparity(0));
+		}
 		
 		
 		public double [] getSecondMaxDiff (

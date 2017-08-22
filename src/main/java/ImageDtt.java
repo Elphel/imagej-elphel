@@ -50,6 +50,7 @@ public class ImageDtt {
 //	 public static int FORCE_DISPARITY_BIT = 8; // move to parameters?
 	  
 	  static int  QUAD =                           4; // number of cameras in camera
+	  static int  GREEN_CHN =                      2; // index of green channel
 	  static int  DISPARITY_INDEX_INT =            0; // 0 - disparity from correlation integer pixels, 1 - ortho
 	  static int  DISPARITY_INDEX_CM =             2; // 2 - disparity from correlation "center mass", 3 - ortho (only used for fine correction)
 	  static int  DISPARITY_INDEX_HOR =            4; // disparity from correlation of the horizontal pairs with center suppressed
@@ -60,9 +61,10 @@ public class ImageDtt {
 	  static int  DISPARITY_STRENGTH_INDEX =      10; // index of strength data in disparity map ==6
 	  static int  DISPARITY_VARIATIONS_INDEX =    11; // index of strength data in disparity map ==6
 	  static int  IMG_DIFF0_INDEX =               12; // index of noise- normalized image difference for port 0 in disparity map
+	  static int  OVEREXPOSED =                   16; // index of overexposed fraction of all pixels
 	  static String [] DISPARITY_TITLES = {
 			  "int_disp","int_y_disp","cm_disp","cm_y_disp","hor_disp","hor_strength","vert_disp","vert_strength",
-			  "poly_disp", "poly_y_disp", "strength_disp", "vary_disp","diff0","diff1","diff2","diff3"};
+			  "poly_disp", "poly_y_disp", "strength_disp", "vary_disp","diff0","diff1","diff2","diff3","overexp"};
 	  
 	  static int  TCORR_COMBO_RSLT =  0; // normal combined correlation from all   selected pairs (mult/sum)
 	  static int  TCORR_COMBO_SUM =   1; // sum of channle correlations from all   selected pairs
@@ -773,7 +775,11 @@ public class ImageDtt {
 								centerY, //
 								((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) ? 1 : 0, // external tile compare
 								no_deconvolution,
-								transpose);
+								transpose,
+								// no saturation processing
+								null, // boolean []          saturation_imp, // (near) saturated pixels or null
+								null); // int []              overexp_all ) // {number of overexposed,  number of all tiles} or null
+								
 						if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (chn == 2)) {
 							showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 							String [] titles = {"CC","SC","CS","SS"};
@@ -898,7 +904,10 @@ public class ImageDtt {
 										centersXY[i][1], // centerY, //
 										((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) ? 1 : 0, // external tile compare
 										no_deconvolution,
-										transpose);
+										transpose,
+										// no saturation processing
+										null, // boolean []          saturation_imp, // (near) saturated pixels or null
+										null); // int []              overexp_all ) // {number of overexposed,  number of all tiles} or null
 							}
 							if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (chn == 2)) {
 								showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
@@ -956,6 +965,7 @@ public class ImageDtt {
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 			final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 			final double [][][]       image_data, // first index - number of image in a quad
+		    final boolean [][]        saturation_imp, // (near) saturated pixels or null
 			 // correlation results - final and partial          
 			final double [][][][]     clt_corr_combo,  // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 			                                           // [type][tilesY][tilesX] should be set by caller
@@ -1127,7 +1137,9 @@ public class ImageDtt {
 		}
 		if (disparity_map != null){
 			for (int i = 0; i<disparity_map.length;i++){
-				disparity_map[i] = new double [tilesY*tilesX];
+				if ((i != OVEREXPOSED) || (saturation_imp!= null)){
+					disparity_map[i] = new double [tilesY*tilesX];
+				}
 			}
 		}
 		if (clt_mismatch != null){
@@ -1151,7 +1163,8 @@ public class ImageDtt {
 			sdfa_instance.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
 		}
 
-		
+//		final double [] overexposed = disparity_map[OVEREXPOSED];
+//		final int [][] overexp_all = (saturation_imp != null) ? ( new int [tilesX*tilesY][2]): null;  
 						
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
@@ -1182,6 +1195,9 @@ public class ImageDtt {
 							}
 						}
 						boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY);
+						
+						final int [] overexp_all = (saturation_imp != null) ? ( new int [2]): null;  
+
 						for (int chn = 0; chn <numcol; chn++) {
 							centerX = tileX * transform_size + transform_size/2 - shiftX;
 							centerY = tileY * transform_size + transform_size/2 - shiftY;
@@ -1261,7 +1277,6 @@ public class ImageDtt {
 							    centersXY[2][0]+"\t"+centersXY[2][1]+"\t"+
 							    centersXY[3][0]+"\t"+centersXY[3][1]+"\t");
 							}
-							
 
 							for (int i = 0; i < quad; i++) {
 								clt_data[i][chn][tileY][tileX] = new double [4][];
@@ -1281,7 +1296,10 @@ public class ImageDtt {
 										
 //										(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2), // external tile compare
 										no_deconvolution,
-										false); // transpose);
+										false, // ); // transpose);
+										((saturation_imp != null) ? saturation_imp[i] : null), //final boolean [][]        saturation_imp, // (near) saturated pixels or null
+										((saturation_imp != null) ? overexp_all: null)); // final double [] overexposed)
+										
 							}
 							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) {
 								System.out.println();
@@ -1323,6 +1341,11 @@ public class ImageDtt {
 								}
 							}
 						}
+						// calculate overexposed fraction
+						if (saturation_imp != null) {
+							disparity_map[OVEREXPOSED][nTile] = (1.0 * overexp_all[0]) / overexp_all[1];
+						}
+				
 						// all color channels are done here
 						double extra_disparity = 0.0; // if allowed, shift images extra before trying to combine
 						if (clt_corr_combo != null){ // not null - calculate correlations
@@ -3571,7 +3594,10 @@ public class ImageDtt {
 			int                 debugLevel,
 //			boolean             bdebug0, // external tile compare
 			boolean             dbg_no_deconvolution,
-			boolean             dbg_transpose)
+			boolean             dbg_transpose,
+			boolean []          saturation_imp, // (near) saturated pixels or null
+			int []              overexp_all ) // {number of overexposed,  number of all tiles} or null
+			
 	{
 		boolean use_kernels = (clt_kernels != null) && !dbg_no_deconvolution;
 		boolean bdebug0 = debugLevel > 0;
@@ -3632,6 +3658,39 @@ public class ImageDtt {
 				}			
 			}			
 		}
+		if ((chn == GREEN_CHN) && (saturation_imp != null)) {
+//			double overexp_fract = 1.0/(transform_size2 * transform_size2 * QUAD);
+//			int num_overexp = 0;
+			//overexp_all
+			if ((ctile_left >= 0) && (ctile_left < (width - transform_size2)) &&
+					(ctile_top >= 0) && (ctile_top < (height - transform_size2))) {
+				for (int i = 0; i < transform_size2; i++){
+					int indx = (ctile_top + i) * width + ctile_left;
+					for (int j = 0; j < transform_size2; j++) {
+						if (saturation_imp[indx++]) {
+							overexp_all[0] ++;
+						}
+					}
+				}
+				overexp_all[1] += transform_size2 * transform_size2;
+			} else { // copy by 1
+				for (int i = 0; i < transform_size2; i++){
+					int pi = ctile_top + i;
+					if      (pi < 0)       pi &= 1;
+					else if (pi >= height) pi = height - 2 + (pi & 1);
+					for (int j = 0; j < transform_size2; j++){
+						int pj = ctile_left + j;
+						if      (pj < 0)      pj &= 1;
+						else if (pj >= width) pj = width - 2 + (pj & 1);
+						if (saturation_imp[pi * width + pj]) {
+							overexp_all[0] ++;
+						}
+					}			
+				}
+				overexp_all[1] += transform_size2 * transform_size2;
+			}
+		}
+		
 		// Fold and transform
 		double [][][] fold_coeff = null;
 		if (!dbg_transpose){

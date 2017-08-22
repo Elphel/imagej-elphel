@@ -368,10 +368,10 @@ public class EyesisCorrectionParameters {
 
     		gd.addStringField("Equirectangular maps directory (may be empty)",     this.equirectangularDirectory, 60);
     		gd.addCheckbox("Select equirectangular maps directory",                false);
-    		gd.addStringField("Results directory",                                 this.resultsDirectory, 40);
+    		gd.addStringField("Results directory",                                 this.resultsDirectory, 60);
     		gd.addCheckbox("Select results directory",                             false);
-    		gd.addStringField("Source files prefix",                               this.sourcePrefix, 40);
-    		gd.addStringField("Source files suffix",                               this.sourceSuffix, 40);
+    		gd.addStringField("Source files prefix",                               this.sourcePrefix, 60);
+    		gd.addStringField("Source files suffix",                               this.sourceSuffix, 60);
     		gd.addNumericField("First subcamera (in the source filename)",         this.firstSubCamera, 0);
     		
     		gd.addStringField("Sensor files prefix",                               this.sensorPrefix, 40);
@@ -457,13 +457,6 @@ public class EyesisCorrectionParameters {
     		this.firstSubCamera=   (int) gd.getNextNumber();
     		this.sensorPrefix=           gd.getNextString();
     		this.sensorSuffix=           gd.getNextString();
-    		this.sharpKernelPrefix=      gd.getNextString();
-    		this.sharpKernelSuffix=      gd.getNextString();
-    		this.smoothKernelPrefix=     gd.getNextString();
-    		this.smoothKernelSuffix=     gd.getNextString();
-    		this.dctKernelPrefix=        gd.getNextString();
-    		this.dctSymSuffix=           gd.getNextString();
-    		this.dctAsymSuffix=          gd.getNextString();
     		this.cltKernelPrefix=        gd.getNextString();
     		this.cltSuffix=              gd.getNextString();
     		this.equirectangularPrefix=  gd.getNextString();
@@ -479,6 +472,60 @@ public class EyesisCorrectionParameters {
     		return true;
     	}
 
+    	public boolean showCLTDialog(String title) { 
+    		GenericDialog gd = new GenericDialog(title);
+    		
+    		gd.addCheckbox    ("Save current settings with results",               this.saveSettings);           // 1 
+    		gd.addStringField ("Source files directory",                           this.sourceDirectory, 60);    // 2 
+    		gd.addCheckbox    ("Select source directory",                          false);                       // 3 
+    		gd.addStringField ("Sensor calibration directory",                     this.sensorDirectory, 60);    // 4
+    		gd.addCheckbox    ("Select sensor calibration directory",              false);                       // 5  
+
+
+    		gd.addStringField ("Aberration kernels for CLT directory",             this.cltKernelDirectory, 60); // 6
+    		gd.addCheckbox    ("Select aberration kernels for CLT directory",      false);                       // 7
+    		
+    		gd.addStringField ("x3d output directory",                             this.x3dDirectory, 60);       // 8
+    		gd.addCheckbox    ("Select x3d output directory",                      false);                       // 9
+
+    		gd.addStringField("Results directory",                                 this.resultsDirectory, 60);   // 10
+    		gd.addCheckbox("Select results directory",                             false);                       // 11
+    		
+    		gd.addStringField("Source files prefix",                               this.sourcePrefix, 60);       // 12
+    		gd.addStringField("Source files suffix",                               this.sourceSuffix, 60);       // 13
+    		gd.addNumericField("First subcamera (in the source filename)",         this.firstSubCamera, 0);      // 14
+    		
+    		gd.addStringField("Sensor files prefix",                               this.sensorPrefix, 40);       // 15       
+    		gd.addStringField("Sensor files suffix",                               this.sensorSuffix, 40);       // 16
+    		
+    		gd.addStringField("CLT kernel files  prefix",                          this.cltKernelPrefix, 40);    // 17
+    		gd.addStringField("CLT symmetical kernel files",                       this.cltSuffix, 40);          // 18
+    		
+    		gd.addMessage("============ batch parameters ============");
+    		
+    		
+    		WindowTools.addScrollBars(gd);
+    		gd.showDialog();
+    		if (gd.wasCanceled()) return false;
+
+    		
+    		
+    		this.saveSettings=      gd.getNextBoolean(); // 1
+
+    		this.sourceDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSourceDirectory(false, false);   // 3 
+    		this.sensorDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSensorDirectory(false, false);   // 5 
+    		this.cltKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectCLTKernelDirectory(false, true); // 7
+    		this.x3dDirectory=           gd.getNextString(); if (gd.getNextBoolean()) selectX3dDirectory(false, true);       // 9
+    		this.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) selectResultsDirectory(false, true);   // 11
+    		this.sourcePrefix=           gd.getNextString();  // 12
+    		this.sourceSuffix=           gd.getNextString();  // 13
+    		this.firstSubCamera=   (int) gd.getNextNumber();  // 14
+    		this.sensorPrefix=           gd.getNextString();  // 15
+    		this.sensorSuffix=           gd.getNextString();  // 16
+    		this.cltKernelPrefix=        gd.getNextString();  // 17
+    		this.cltSuffix=              gd.getNextString();  // 18
+    		return true;
+    	}
     	
 // TODO: extract timestamnp from JP4 or, at least combine movie timestamp+frame into a single filename string
     	public String [] getSourcePaths(){
@@ -1923,12 +1970,15 @@ public class EyesisCorrectionParameters {
   		public double     fat_zero =          0.0;  // modify phase correlation to prevent division by very small numbers
   		public double     corr_sigma =        0.8;  // LPF correlation sigma
   		public boolean    norm_kern =         true; // normalize kernels
-  		public boolean    gain_equalize =     false;// equalize green channel gain
+  		public boolean    gain_equalize =     false;// equalize green channel gain (bug fix for wrong exposure in Exif ?)
   		public boolean    colors_equalize =   true; // equalize R/G, B/G of the individual channels
+  		public boolean    nosat_equalize =    true; // Skip saturated when adjusting gains
+  		public double     sat_level =         0.95; // Saturation level of the most saturated color channel 
+  		public double     max_overexposure =  0.6;  // Do not use tiles with higher fraction of (near) saturated tiles 
   		public double     novignetting_r    = 0.2644; // reg gain in the center of sensor calibration R (instead of vignetting)
   		public double     novignetting_g    = 0.3733; // green gain in the center of sensor calibration G
   		public double     novignetting_b    = 0.2034; // blue gain in the center of sensor calibration B
-  		public double     scale_r =           1.0; // extra gain correction after vignetting or nonvignetting, before other processing
+  		public double     scale_r =           1.0; // extra gain correction after vignetting or non-vignetting, before other processing
   		public double     scale_g =           1.0;
   		public double     scale_b =           1.0;
   		public double     vignetting_max    = 0.4; // value in vignetting data to correspond to 1x in the kernel
@@ -2048,11 +2098,21 @@ public class EyesisCorrectionParameters {
 // 		public double     ly_meas_disp =    1.5;     // Maximal measured relative disparity - using  (0.8*disp_scan_step)
  		public double     ly_smpl_rms =     0.2;     // 1;     // Maximal RMS of the remaining tiles in a sample
 		public double     ly_disp_var =     0.5;     // 2;     // Maximal full disparity difference to 8 neighbors
+		public double     ly_disp_rvar =    0.02;    // Maximal relative full disparity difference to 8 neighbors
+		public double     ly_norm_disp =    5.0;     // Reduce weight of higher disparity tiles 
  		public double     ly_inf_frac =     0.5;     // Relative weight of infinity calibration data
   		public boolean    ly_on_scan =      true;    // Calculate and apply lazy eye correction after disparity scan (poly or extrinsic) 
   		public boolean    ly_inf_en =       false; // true;    // Simultaneously correct disparity at infinity (both poly and extrinsic) 
   		public boolean    ly_inf_force=     false;   // Force convergence correction during extrinsic, even with no infinity data 
+  		public boolean    ly_com_roll=      false;   // Enable common roll (valid for high disparity range only) 
   		public boolean    ly_poly =         false;   // Use polynomial correction, false - correct tilt/azimuth/roll of each sensor
+  		
+  		// Lazy eye multi-step fitting
+  		public double     lym_overexp     = 0.0001;  // Any (near) saturated pixels - discard tile (see sat_level also)
+  		public boolean    lym_update_disp = true;    // Update target disparity after each step 
+  		public int        lym_iter =        25;      // Maximal number of iterations
+  		public double     lym_change =      1e-5;    // Parameter vector difference to exit 4e-6 - OK
+  		public double     lym_poly_change = 0.002;   // Parameter vector difference to exit from polynomial correction
   		
   		public boolean    lyf_filter =      true;    // Filter lazy eye pairs by their values
   		public int        lyf_smpl_side =   8;       // 8 x8 masked, 16x16 sampled
@@ -2537,6 +2597,7 @@ public class EyesisCorrectionParameters {
   		public boolean    dbg_migrate =            true; 
   		
   		// other debug images
+  		public boolean    show_extrinsic =         false; // show extrinsic adjustment differences
   		public boolean    show_ortho_combine =     false; // Show 'ortho_combine' 
   		public boolean    show_refine_supertiles = false; // show 'refine_disparity_supertiles' 
   		public boolean    show_bgnd_nonbgnd =      false; // show 'bgnd_nonbgnd' 
@@ -2574,6 +2635,10 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"norm_kern",        this.norm_kern+"");
 			properties.setProperty(prefix+"gain_equalize",    this.gain_equalize+"");
 			properties.setProperty(prefix+"colors_equalize",  this.colors_equalize+"");
+			properties.setProperty(prefix+"nosat_equalize",this.nosat_equalize+"");
+  			properties.setProperty(prefix+"sat_level",        this.sat_level+"");
+  			properties.setProperty(prefix+"max_overexposure", this.max_overexposure+"");
+  			
   			properties.setProperty(prefix+"novignetting_r",   this.novignetting_r+"");
   			properties.setProperty(prefix+"novignetting_g",   this.novignetting_g+"");
   			properties.setProperty(prefix+"novignetting_b",   this.novignetting_b+"");
@@ -2684,11 +2749,20 @@ public class EyesisCorrectionParameters {
 //			properties.setProperty(prefix+"ly_meas_disp",     this.ly_meas_disp +"");
 			properties.setProperty(prefix+"ly_smpl_rms",      this.ly_smpl_rms +"");
 			properties.setProperty(prefix+"ly_disp_var",      this.ly_disp_var +"");
+			properties.setProperty(prefix+"ly_disp_rvar",     this.ly_disp_rvar +"");
+			properties.setProperty(prefix+"ly_norm_disp",     this.ly_norm_disp +"");
 			properties.setProperty(prefix+"ly_inf_frac",      this.ly_inf_frac +"");
 			properties.setProperty(prefix+"ly_on_scan",       this.ly_on_scan+"");
 			properties.setProperty(prefix+"ly_inf_en",        this.ly_inf_en+"");
 			properties.setProperty(prefix+"ly_inf_force",     this.ly_inf_force+"");
+			properties.setProperty(prefix+"ly_com_roll",      this.ly_com_roll+"");
 			properties.setProperty(prefix+"ly_poly",          this.ly_poly+"");
+			
+			properties.setProperty(prefix+"lym_overexp",      this.lym_overexp +"");
+			properties.setProperty(prefix+"lym_update_disp",  this.lym_update_disp+"");
+			properties.setProperty(prefix+"lym_iter",         this.lym_iter+"");
+			properties.setProperty(prefix+"lym_change",       this.lym_change +"");
+			properties.setProperty(prefix+"lym_poly_change",  this.lym_poly_change +"");
 
 			properties.setProperty(prefix+"lyf_filter",       this.lyf_filter+"");
 			properties.setProperty(prefix+"lyf_smpl_side",    this.lyf_smpl_side+"");
@@ -3124,6 +3198,7 @@ public class EyesisCorrectionParameters {
 			
 			properties.setProperty(prefix+"dbg_migrate",            this.dbg_migrate+"");
   			
+			properties.setProperty(prefix+"show_extrinsic",         this.show_extrinsic+"");
 			properties.setProperty(prefix+"show_ortho_combine",     this.show_ortho_combine+"");
 			properties.setProperty(prefix+"show_refine_supertiles", this.show_refine_supertiles+"");
 			properties.setProperty(prefix+"show_bgnd_nonbgnd",      this.show_bgnd_nonbgnd+"");
@@ -3162,6 +3237,10 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"norm_kern")!=null)      this.norm_kern=Boolean.parseBoolean(properties.getProperty(prefix+"norm_kern"));
   			if (properties.getProperty(prefix+"gain_equalize")!=null)  this.gain_equalize=Boolean.parseBoolean(properties.getProperty(prefix+"gain_equalize"));
   			if (properties.getProperty(prefix+"colors_equalize")!=null)this.colors_equalize=Boolean.parseBoolean(properties.getProperty(prefix+"colors_equalize"));
+  			if (properties.getProperty(prefix+"nosat_equalize")!=null)this.nosat_equalize=Boolean.parseBoolean(properties.getProperty(prefix+"nosat_equalize"));
+  			if (properties.getProperty(prefix+"sat_level")!=null)      this.sat_level=Double.parseDouble(properties.getProperty(prefix+"sat_level"));
+  			if (properties.getProperty(prefix+"max_overexposure")!=null)this.max_overexposure=Double.parseDouble(properties.getProperty(prefix+"max_overexposure"));
+
   			if (properties.getProperty(prefix+"novignetting_r")!=null) this.novignetting_r=Double.parseDouble(properties.getProperty(prefix+"novignetting_r"));
   			if (properties.getProperty(prefix+"novignetting_g")!=null) this.novignetting_g=Double.parseDouble(properties.getProperty(prefix+"novignetting_g"));
   			if (properties.getProperty(prefix+"novignetting_b")!=null) this.novignetting_b=Double.parseDouble(properties.getProperty(prefix+"novignetting_b"));
@@ -3272,12 +3351,21 @@ public class EyesisCorrectionParameters {
 //			if (properties.getProperty(prefix+"ly_meas_disp")!=null)      this.ly_meas_disp=Double.parseDouble(properties.getProperty(prefix+"ly_meas_disp"));
 			if (properties.getProperty(prefix+"ly_smpl_rms")!=null)       this.ly_smpl_rms=Double.parseDouble(properties.getProperty(prefix+"ly_smpl_rms"));
 			if (properties.getProperty(prefix+"ly_disp_var")!=null)       this.ly_disp_var=Double.parseDouble(properties.getProperty(prefix+"ly_disp_var"));
+			if (properties.getProperty(prefix+"ly_disp_rvar")!=null)      this.ly_disp_rvar=Double.parseDouble(properties.getProperty(prefix+"ly_disp_rvar"));
+			if (properties.getProperty(prefix+"ly_norm_disp")!=null)      this.ly_norm_disp=Double.parseDouble(properties.getProperty(prefix+"ly_norm_disp"));
 			if (properties.getProperty(prefix+"ly_inf_frac")!=null)       this.ly_inf_frac=Double.parseDouble(properties.getProperty(prefix+"ly_inf_frac"));
   			if (properties.getProperty(prefix+"ly_on_scan")!=null)        this.ly_on_scan=Boolean.parseBoolean(properties.getProperty(prefix+"ly_on_scan"));
   			if (properties.getProperty(prefix+"ly_inf_en")!=null)         this.ly_inf_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_en"));
   			if (properties.getProperty(prefix+"ly_inf_force")!=null)      this.ly_inf_force=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_force"));
+  			if (properties.getProperty(prefix+"ly_com_roll")!=null)       this.ly_com_roll=Boolean.parseBoolean(properties.getProperty(prefix+"ly_com_roll"));
   			if (properties.getProperty(prefix+"ly_poly")!=null)           this.ly_poly=Boolean.parseBoolean(properties.getProperty(prefix+"ly_poly"));
- 			
+
+			if (properties.getProperty(prefix+"lym_overexp")!=null)       this.lym_overexp=Double.parseDouble(properties.getProperty(prefix+"lym_overexp"));
+  			if (properties.getProperty(prefix+"lym_update_disp")!=null)   this.lym_update_disp=Boolean.parseBoolean(properties.getProperty(prefix+"lym_update_disp"));
+			if (properties.getProperty(prefix+"lym_iter")!=null)          this.lym_iter=Integer.parseInt(properties.getProperty(prefix+"lym_iter"));
+			if (properties.getProperty(prefix+"lym_change")!=null)        this.lym_change=Double.parseDouble(properties.getProperty(prefix+"lym_change"));
+			if (properties.getProperty(prefix+"lym_poly_change")!=null)   this.lym_poly_change=Double.parseDouble(properties.getProperty(prefix+"lym_poly_change"));
+  			
   			if (properties.getProperty(prefix+"lyf_filter")!=null)        this.lyf_filter=Boolean.parseBoolean(properties.getProperty(prefix+"lyf_filter"));
 			if (properties.getProperty(prefix+"lyf_smpl_side")!=null)     this.lyf_smpl_side=Integer.parseInt(properties.getProperty(prefix+"lyf_smpl_side"));
 			if (properties.getProperty(prefix+"lyf_rms_max")!=null)       this.lyf_rms_max=Double.parseDouble(properties.getProperty(prefix+"lyf_rms_max"));
@@ -3711,6 +3799,7 @@ public class EyesisCorrectionParameters {
   			
   			if (properties.getProperty(prefix+"dbg_migrate")!=null)       this.dbg_migrate=Boolean.parseBoolean(properties.getProperty(prefix+"dbg_migrate"));
 
+  			if (properties.getProperty(prefix+"show_extrinsic")!=null)         this.show_extrinsic=Boolean.parseBoolean(properties.getProperty(prefix+"show_extrinsic"));
   			if (properties.getProperty(prefix+"show_ortho_combine")!=null)     this.show_ortho_combine=Boolean.parseBoolean(properties.getProperty(prefix+"show_ortho_combine"));
   			if (properties.getProperty(prefix+"show_refine_supertiles")!=null) this.show_refine_supertiles=Boolean.parseBoolean(properties.getProperty(prefix+"show_refine_supertiles"));
   			if (properties.getProperty(prefix+"show_bgnd_nonbgnd")!=null)      this.show_bgnd_nonbgnd=Boolean.parseBoolean(properties.getProperty(prefix+"show_bgnd_nonbgnd"));
@@ -3751,9 +3840,13 @@ public class EyesisCorrectionParameters {
    			gd.addNumericField("Modify phase correlation to prevent division by very small numbers",      this.fat_zero,                  4);
    			gd.addNumericField("LPF correlarion sigma ",                                                  this.corr_sigma,                3);
   			gd.addCheckbox    ("Normalize kernels ",                                                      this.norm_kern);
-  			gd.addCheckbox    ("Equalize green channel gain of the individual cnannels",                  this.gain_equalize);
+  			gd.addCheckbox    ("Equalize green channel gain of the individual cnannels (bug fix for exposure)", this.gain_equalize);
   			gd.addCheckbox    ("Equalize R/G, B/G balance of the individual channels",                    this.colors_equalize);
-  			gd.addNumericField("Reg gain in the center of sensor calibration R (instead of vignetting)",  this.novignetting_r,   4);
+  			gd.addCheckbox    ("Skip saturated when adjusting gains",                                     this.nosat_equalize);
+  			gd.addNumericField("Saturation level of the most saturated color channel",                    this.sat_level,   4);
+  			gd.addNumericField("Do not use tiles with higher fraction of (near) saturated tiles",         this.max_overexposure,   4);
+  			
+  			gd.addNumericField("Red gain in the center of sensor calibration R (instead of vignetting)",  this.novignetting_r,   4);
   			gd.addNumericField("Green gain in the center of sensor calibration G (instead of vignetting)",this.novignetting_g, 4);
   			gd.addNumericField("Blue gain in the center of sensor calibration B (instead of vignetting)", this.novignetting_b,  4);
   			gd.addNumericField("Extra red correction to compensate for light temperature",                this.scale_r,  4);
@@ -3874,13 +3967,23 @@ public class EyesisCorrectionParameters {
 			gd.addNumericField("Number after removing worst (should be >1)",                              this.ly_smpl_num,  0);
   			gd.addMessage     ("Maximal measured relative disparity = "+ (0.8*disp_scan_step)+" (0.8 * disp_scan_step)");
 //			gd.addNumericField("Maximal measured relative disparity",                                     this.ly_meas_disp,  3);
-			gd.addNumericField("Maximal RMS of the remaining tiles in a sample",                          this.ly_smpl_rms,  3);
-			gd.addNumericField("Maximal full disparity difference to 8 neighbors",                        this.ly_disp_var,  3);
+			gd.addNumericField("Maximal RMS of the remaining tiles in a sample",                          this.ly_smpl_rms,  5);
+			gd.addNumericField("Maximal full disparity difference to 8 neighbors",                        this.ly_disp_var,  5);
+			gd.addNumericField("Maximal relative full disparity difference to 8 neighbors",               this.ly_disp_rvar, 5);
+			gd.addNumericField("Reduce weight of higher disparity tiles",                                 this.ly_norm_disp, 5);
 			gd.addNumericField("Relative weight of infinity calibration data",                            this.ly_inf_frac,  3);
   			gd.addCheckbox    ("Calculate and apply lazy eye correction after disparity scan (poly or extrinsic), may repeat",this.ly_on_scan);
   			gd.addCheckbox    ("Use infinity disparity (disable if there is not enough of infinity data), both poly and extrinsic", this.ly_inf_en);
   			gd.addCheckbox    ("Force convergence correction during extrinsic, even with no infinity data", this.ly_inf_force);
+  			gd.addCheckbox    ("Enable common roll adjustment (valid for high disparity range scans only)", this.ly_com_roll);
   			gd.addCheckbox    ("*Use polynomial correction, false - correct tilt/azimuth/roll of each sensor)", this.ly_poly);
+  			
+  			gd.addMessage     ("--- Lazy eye multi-step fitting ---");
+			gd.addNumericField("Any (near) saturated pixels - discard tile (see sat_level also)",         this.lym_overexp,  10);
+  			gd.addCheckbox    ("Update target disparity after each step",                                 this.lym_update_disp);
+			gd.addNumericField("Maximal number of iterations",                                            this.lym_iter,  0);
+			gd.addNumericField("Parameter vector difference to exit",                                     this.lym_change,  10);
+			gd.addNumericField("Parameter vector difference to exit from polynomial correction",          this.lym_poly_change,  10);
 
   			gd.addMessage     ("--- Lazy eye samples filter ---");
   			gd.addCheckbox    ("Filter lazy eye pairs by their values",                                   this.lyf_filter);
@@ -4351,6 +4454,7 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Test new mode after migration",                                                this.dbg_migrate);
 
   			gd.addMessage     ("--- Other debug images ---");
+  			gd.addCheckbox    ("Show extrinsic adjustment differences",                                        this.show_extrinsic);
   			gd.addCheckbox    ("Show 'ortho_combine'",                                                         this.show_ortho_combine);
   			gd.addCheckbox    ("Show 'refine_disparity_supertiles'",                                           this.show_refine_supertiles);
   			gd.addCheckbox    ("Show 'bgnd_nonbgnd'",                                                          this.show_bgnd_nonbgnd);
@@ -4389,6 +4493,10 @@ public class EyesisCorrectionParameters {
   			this.norm_kern=             gd.getNextBoolean();
   			this.gain_equalize=         gd.getNextBoolean();
   			this.colors_equalize=       gd.getNextBoolean();
+  			this.nosat_equalize=     gd.getNextBoolean();
+  			this.sat_level=             gd.getNextNumber();
+  			this.max_overexposure=      gd.getNextNumber();
+
   			this.novignetting_r=        gd.getNextNumber();
   			this.novignetting_g=        gd.getNextNumber();
   			this.novignetting_b=        gd.getNextNumber();
@@ -4502,11 +4610,20 @@ public class EyesisCorrectionParameters {
 //			this.ly_meas_disp=          gd.getNextNumber();
 			this.ly_smpl_rms=           gd.getNextNumber();
 			this.ly_disp_var=           gd.getNextNumber();
+			this.ly_disp_rvar=          gd.getNextNumber();
+			this.ly_norm_disp=          gd.getNextNumber();
 			this.ly_inf_frac=           gd.getNextNumber();
   			this.ly_on_scan=            gd.getNextBoolean();
   			this.ly_inf_en=             gd.getNextBoolean();
   			this.ly_inf_force=          gd.getNextBoolean();
+  			this.ly_com_roll=           gd.getNextBoolean();
   			this.ly_poly=               gd.getNextBoolean();
+
+			this.lym_overexp=           gd.getNextNumber();
+  			this.lym_update_disp=       gd.getNextBoolean();
+			this.lym_iter=        (int) gd.getNextNumber();
+			this.lym_change=            gd.getNextNumber();
+			this.lym_poly_change=       gd.getNextNumber();
   			
   			this.lyf_filter=            gd.getNextBoolean();
 			this.lyf_smpl_side=   (int) gd.getNextNumber();
@@ -4946,6 +5063,7 @@ public class EyesisCorrectionParameters {
   			
   			this.dbg_migrate=           gd.getNextBoolean();
 
+  			this.show_extrinsic=        gd.getNextBoolean();
   			this.show_ortho_combine=    gd.getNextBoolean();
   			this.show_refine_supertiles=gd.getNextBoolean();
   			this.show_bgnd_nonbgnd=     gd.getNextBoolean(); // first on second pass

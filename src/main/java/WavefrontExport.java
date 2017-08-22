@@ -49,6 +49,8 @@ public class WavefrontExport {
 		public int v_index =  1; // first index is 1, not 0
 		public int vt_index = 1; // first index is 1, not 0
 		public int f_index =  1; // first index is 1, not 0
+		public String obj_path;
+		public String mtl_path;
 
 		public WavefrontExport(
 				String                                          out_dir,
@@ -61,8 +63,10 @@ public class WavefrontExport {
 			this.correctionsParameters = correctionsParameters;
 			this.geometry_correction =    geometry_correction;
 			this.clt_3d_passes = clt_3d_passes;
-			mtl_writer = new FileWriter(out_dir+Prefs.getFileSeparator()+project_name+MTL_EXT);
-			obj_writer = new FileWriter(out_dir+Prefs.getFileSeparator()+project_name+OBJ_EXT); // .close();
+			mtl_path = out_dir+Prefs.getFileSeparator()+project_name+MTL_EXT;
+			obj_path = out_dir+Prefs.getFileSeparator()+project_name+OBJ_EXT;
+			mtl_writer = new FileWriter(mtl_path);
+			obj_writer = new FileWriter(obj_path); // .close();
 			mtl_writer.write("#\n# Wavefront material file\n#\n");
 			obj_writer.write("#\n# Wavefront object file\n#\n");
 			obj_writer.write("mtllib ./"+project_name+MTL_EXT+"\n\n"); // add "./" to indicate relative path? // ./1488240527_408296.obj.mtl\n");
