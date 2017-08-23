@@ -110,6 +110,19 @@ public class EyesisCorrectionParameters {
     	public String cltKernelDirectory="";
     	public String cltKernelPrefix="clt-";
     	public String cltSuffix=".clt-tiff";
+  		public boolean use_x3d_subdirs =  true;
+  		
+  		// CLT 3d batch parameters
+  		
+  		public boolean clt_batch_4img =       true;  // Create a set of 4 images, usually for disparity = 0
+  		public boolean clt_batch_extrinsic =  false; // Calibrate extrinsic parameters for each set
+  		public boolean clt_batch_poly =       false; // Calculate fine polynomial correction for each set
+  		public boolean clt_batch_explore =    true;  // 1-st step of 3d reconstruction - explore disparities for each tile
+  		public boolean clt_batch_surf =       true;  // Create super-tile 2.5d surfaces
+  		public boolean clt_batch_assign =     true;  // Assign tiles to surfaces
+  		public boolean clt_batch_gen3d =      true;  // Generate 3d output: x3d and/or obj+mtl
+  		
+
 
     	public String x3dDirectory="";   	
     	
@@ -200,7 +213,15 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"cltSuffix",             this.cltSuffix);
 
     		properties.setProperty(prefix+"x3dDirectory",          this.x3dDirectory);
+    		properties.setProperty(prefix+"use_x3d_subdirs",       this.use_x3d_subdirs+"");
 
+    		properties.setProperty(prefix+"clt_batch_4img",        this.clt_batch_4img+"");
+    		properties.setProperty(prefix+"clt_batch_extrinsic",   this.clt_batch_extrinsic+"");
+    		properties.setProperty(prefix+"clt_batch_poly",        this.clt_batch_poly+"");
+    		properties.setProperty(prefix+"clt_batch_explore",     this.clt_batch_explore+"");
+    		properties.setProperty(prefix+"clt_batch_surf",        this.clt_batch_surf+"");
+    		properties.setProperty(prefix+"clt_batch_assign",      this.clt_batch_assign+"");
+    		properties.setProperty(prefix+"clt_batch_gen3d",       this.clt_batch_gen3d+"");
     	}
 
     	public void getProperties(String prefix,Properties properties){
@@ -293,7 +314,16 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"cltSuffix")!=            null) this.cltSuffix=properties.getProperty(prefix+"cltSuffix");
   		    
 			if (properties.getProperty(prefix+"x3dDirectory")!=         null) this.x3dDirectory=properties.getProperty(prefix+"x3dDirectory");
-  		    
+
+			if (properties.getProperty(prefix+"use_x3d_subdirs")!= null) this.use_x3d_subdirs=Boolean.parseBoolean((String) properties.getProperty(prefix+"use_x3d_subdirs"));
+			
+			if (properties.getProperty(prefix+"clt_batch_4img")!= null)      this.clt_batch_4img=Boolean.parseBoolean((String) properties.getProperty(prefix+"clt_batch_4img"));
+			if (properties.getProperty(prefix+"clt_batch_extrinsic")!= null) this.clt_batch_extrinsic=Boolean.parseBoolean((String) properties.getProperty(prefix+"clt_batch_extrinsic"));
+			if (properties.getProperty(prefix+"clt_batch_poly")!= null)      this.clt_batch_poly=Boolean.parseBoolean((String) properties.getProperty(prefix+"clt_batch_poly"));
+			if (properties.getProperty(prefix+"clt_batch_explore")!= null)   this.clt_batch_explore=Boolean.parseBoolean((String) properties.getProperty(prefix+"clt_batch_explore"));
+			if (properties.getProperty(prefix+"clt_batch_surf")!= null)      this.clt_batch_surf=Boolean.parseBoolean((String) properties.getProperty(prefix+"clt_batch_surf"));
+			if (properties.getProperty(prefix+"clt_batch_assign")!= null)    this.clt_batch_assign=Boolean.parseBoolean((String) properties.getProperty(prefix+"clt_batch_assign"));
+			if (properties.getProperty(prefix+"clt_batch_gen3d")!= null)     this.clt_batch_gen3d=Boolean.parseBoolean((String) properties.getProperty(prefix+"clt_batch_gen3d"));
     	}
 
     	public boolean showDialog(String title) { 
@@ -365,6 +395,7 @@ public class EyesisCorrectionParameters {
     		
     		gd.addStringField ("x3d output directory",                             this.x3dDirectory, 60);
     		gd.addCheckbox    ("Select x3d output directory",                      false);
+    		gd.addCheckbox    ("Use individual subdirectory for each 3d model (timestamp as name)", this.use_x3d_subdirs);
 
     		gd.addStringField("Equirectangular maps directory (may be empty)",     this.equirectangularDirectory, 60);
     		gd.addCheckbox("Select equirectangular maps directory",                false);
@@ -450,6 +481,7 @@ public class EyesisCorrectionParameters {
     		this.dctKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectDCTKernelDirectory(false, true);
     		this.cltKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectCLTKernelDirectory(false, true);
     		this.x3dDirectory=           gd.getNextString(); if (gd.getNextBoolean()) selectX3dDirectory(false, true);
+    		this.use_x3d_subdirs=        gd.getNextBoolean();
     		this.equirectangularDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectEquirectangularDirectory(false, false); 
     		this.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) selectResultsDirectory(false, true); 
     		this.sourcePrefix=           gd.getNextString();
@@ -488,20 +520,29 @@ public class EyesisCorrectionParameters {
     		gd.addStringField ("x3d output directory",                             this.x3dDirectory, 60);       // 8
     		gd.addCheckbox    ("Select x3d output directory",                      false);                       // 9
 
-    		gd.addStringField("Results directory",                                 this.resultsDirectory, 60);   // 10
-    		gd.addCheckbox("Select results directory",                             false);                       // 11
+    		gd.addCheckbox    ("Use individual subdirectory for each 3d model (timestamp as name)", this.use_x3d_subdirs); //10
     		
-    		gd.addStringField("Source files prefix",                               this.sourcePrefix, 60);       // 12
-    		gd.addStringField("Source files suffix",                               this.sourceSuffix, 60);       // 13
-    		gd.addNumericField("First subcamera (in the source filename)",         this.firstSubCamera, 0);      // 14
+    		gd.addStringField("Results directory",                                 this.resultsDirectory, 60);   // 11
+    		gd.addCheckbox("Select results directory",                             false);                       // 12
     		
-    		gd.addStringField("Sensor files prefix",                               this.sensorPrefix, 40);       // 15       
-    		gd.addStringField("Sensor files suffix",                               this.sensorSuffix, 40);       // 16
+    		gd.addStringField("Source files prefix",                               this.sourcePrefix, 60);       // 13
+    		gd.addStringField("Source files suffix",                               this.sourceSuffix, 60);       // 14
+    		gd.addNumericField("First subcamera (in the source filename)",         this.firstSubCamera, 0);      // 15
     		
-    		gd.addStringField("CLT kernel files  prefix",                          this.cltKernelPrefix, 40);    // 17
-    		gd.addStringField("CLT symmetical kernel files",                       this.cltSuffix, 40);          // 18
+    		gd.addStringField("Sensor files prefix",                               this.sensorPrefix, 40);       // 16       
+    		gd.addStringField("Sensor files suffix",                               this.sensorSuffix, 40);       // 17
+    		
+    		gd.addStringField("CLT kernel files  prefix",                          this.cltKernelPrefix, 40);    // 18
+    		gd.addStringField("CLT symmetical kernel files",                       this.cltSuffix, 40);          // 19
     		
     		gd.addMessage("============ batch parameters ============");
+    		gd.addCheckbox    ("Create a set of 4 images, usually for disparity = 0",                this.clt_batch_4img);      // 20
+    		gd.addCheckbox    ("Calibrate extrinsic parameters for each set",                        this.clt_batch_extrinsic); // 21
+    		gd.addCheckbox    ("Calculate fine polynomial correction for each set",                  this.clt_batch_poly);      // 22
+    		gd.addCheckbox    ("1-st step of 3d reconstruction - explore disparities for each tile", this.clt_batch_explore);   // 23
+    		gd.addCheckbox    ("Create super-tile 2.5d surfaces",                                    this.clt_batch_surf);      // 24
+    		gd.addCheckbox    ("Assign tiles to surfaces",                                           this.clt_batch_assign);    // 25
+    		gd.addCheckbox    ("Generate 3d output: x3d and/or obj+mtl",                             this.clt_batch_gen3d);     // 26
     		
     		
     		WindowTools.addScrollBars(gd);
@@ -516,14 +557,23 @@ public class EyesisCorrectionParameters {
     		this.sensorDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSensorDirectory(false, false);   // 5 
     		this.cltKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectCLTKernelDirectory(false, true); // 7
     		this.x3dDirectory=           gd.getNextString(); if (gd.getNextBoolean()) selectX3dDirectory(false, true);       // 9
-    		this.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) selectResultsDirectory(false, true);   // 11
-    		this.sourcePrefix=           gd.getNextString();  // 12
-    		this.sourceSuffix=           gd.getNextString();  // 13
-    		this.firstSubCamera=   (int) gd.getNextNumber();  // 14
-    		this.sensorPrefix=           gd.getNextString();  // 15
-    		this.sensorSuffix=           gd.getNextString();  // 16
-    		this.cltKernelPrefix=        gd.getNextString();  // 17
-    		this.cltSuffix=              gd.getNextString();  // 18
+    		this.use_x3d_subdirs=        gd.getNextBoolean(); // 10
+    		this.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) selectResultsDirectory(false, true);   // 12
+    		this.sourcePrefix=           gd.getNextString();  // 13
+    		this.sourceSuffix=           gd.getNextString();  // 14
+    		this.firstSubCamera=   (int) gd.getNextNumber();  // 15
+    		this.sensorPrefix=           gd.getNextString();  // 16
+    		this.sensorSuffix=           gd.getNextString();  // 17
+    		this.cltKernelPrefix=        gd.getNextString();  // 18
+    		this.cltSuffix=              gd.getNextString();  // 19
+
+    		this.clt_batch_4img=         gd.getNextBoolean(); // 20
+    		this.clt_batch_extrinsic=    gd.getNextBoolean(); // 21
+    		this.clt_batch_poly=         gd.getNextBoolean(); // 22
+    		this.clt_batch_explore=      gd.getNextBoolean(); // 23
+    		this.clt_batch_surf=         gd.getNextBoolean(); // 24
+    		this.clt_batch_assign=       gd.getNextBoolean(); // 25
+    		this.clt_batch_gen3d=        gd.getNextBoolean(); // 26
     		return true;
     	}
     	
@@ -1058,6 +1108,31 @@ public class EyesisCorrectionParameters {
     				null, // filter
     				this.x3dDirectory); //this.sourceDirectory);
     		if (dir!=null) this.x3dDirectory=dir;
+    		return dir;
+    	}
+
+    	// select qualified (by 'name' - quad timestamp) x3d subdirectory
+    	public String selectX3dDirectory(String name, boolean smart, boolean newAllowed) {
+    		
+    		String dir= CalibrationFileManagement.selectDirectory(
+    				smart,
+    				newAllowed, // save  
+    				"x3d output directory", // title
+    				"Select x3d output directory", // button
+    				null, // filter
+    				this.x3dDirectory); //this.sourceDirectory);
+    		if (dir!=null) {
+    			this.x3dDirectory=dir;
+    			if (this.use_x3d_subdirs &&(name != null) && !name.equals("")) {
+    			dir= CalibrationFileManagement.selectDirectory(
+        				smart,
+        				newAllowed, // save  
+        				"x3d output sub-directory", // title
+        				"Select x3d output sub-directory", // button
+        				null, // filter
+        				this.x3dDirectory + Prefs.getFileSeparator()+name); //this.sourceDirectory);
+    			}
+    		}
     		return dir;
     	}
     	

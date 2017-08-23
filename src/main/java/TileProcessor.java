@@ -3514,7 +3514,7 @@ public class TileProcessor {
 		final int dbg_tile = 49468; // x = 220, y = 152 (pavement line)
 		final boolean show_scan = show_filter_scan || (debugLevel > 1);
 		showDoubleFloatArrays sdfa_instance = null;
-		if ((debugLevel > -1) || show_scan) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		if ((debugLevel > -2) && ((debugLevel > -1) || show_scan)) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 		if (debugLevel > 0){
 			System.out.println("FilterScan(,,"+disparity_far+", " +disparity_near+", "+ sure_smth);
 		}
@@ -4501,8 +4501,10 @@ public class TileProcessor {
 			GeometryCorrection geometryCorrection,
 			final int         threadsMax,  // maximal number of threads to launch                         
 			final boolean     updateStatus,
+			final boolean     batch_mode,
 			final int         debugLevel)
 	{
+		final int debugLevelInner =  batch_mode ? -5: debugLevel;
 		trimCLTPasses(); // make possible to run this method multiple times - remove extra passes added by it last time		
 		CLTPass3d scan_prev = clt_3d_passes.get(clt_3d_passes.size() -1); // get last one
 //		boolean show_st =    clt_parameters.stShow || (debugLevel > 1);
@@ -4535,7 +4537,7 @@ public class TileProcessor {
 			boolean show_overlap =    false; //true; // clt_parameters.show_overlap
 			boolean show_rgba_color = false; //true; // clt_parameters.show_rgba_color
 
-			if (show_nonoverlap){
+			if (!batch_mode && show_nonoverlap){
 				texture_nonoverlap = image_dtt.combineRGBATiles(
 						texture_tiles,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}   
 						clt_parameters.transform_size,
@@ -4553,7 +4555,7 @@ public class TileProcessor {
 
 			}
 			
-			if (show_overlap || show_rgba_color){
+			if (!batch_mode && (show_overlap || show_rgba_color)){
 				int alpha_index = 3;
 				texture_overlap = image_dtt.combineRGBATiles(
 						texture_tiles,                 // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}   
@@ -4583,7 +4585,7 @@ public class TileProcessor {
 							(clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
 				}
 			}
-			if (debugLevel > -1) {
+			if (!batch_mode && (debugLevel > -1)) {
 				double [][] tiles_tone = scan_prev.getTileRBGA(
 						12); // int num_layers); 
 				sdfa_instance.showArrays(
@@ -4604,14 +4606,14 @@ public class TileProcessor {
 				Double.NaN,     //  double kR,
 				Double.NaN,     // double kB,
 				Double.NaN);    // double fatZero)
-		if (debugLevel > -1) {
+		if (!batch_mode && (debugLevel > -1)) {
 			ta.showToneDiffWeights3("Raw_");
 			ta.showToneDiffWeights1("Raw_");
 		}
 		ta.blurMixTones(
 				false, // final boolean use_sqrt,
 				true); //final boolean weighted) // blur weighted
-		if (debugLevel >-1) {
+		if (!batch_mode && (debugLevel >-1)) {
 			ta.showToneDiffWeights3("Mixed_");
 			ta.showToneDiffWeights1("Mixed_");
 		}
@@ -4637,7 +4639,7 @@ public class TileProcessor {
 				clt_parameters.tsReset,
 				dispStrength, // final double [][][]                            dispStrength,
 				tileSel,      // final boolean [][]                             tileSel,
-                debugLevel);    // final int                                    debugLevel,
+                debugLevelInner);    // final int                                    debugLevel,
         // assign tiles that do not depend on other assigned tiles - single pass
 		int [][] tile_layers = 	             tileSurface.getTileLayersCopy();
 		int [][] tile_layers_single_surf =   tileSurface.newTileLayers(tileSel); //  final boolean [][]                             tileSel,)
@@ -4646,7 +4648,7 @@ public class TileProcessor {
 		int [] stats_single_surf=  tileSurface.assignTilesToSingleSurface(
 				tile_layers_single_surf,                      //final int [][]      tileLayers,
 				clt_parameters.tsNoEdge ,       // final boolean       noEdge,
-				0, // -1,                       // debugLevel,                  // final int        debugLevel)
+				batch_mode ? -5: 0, // -1,                       // debugLevel,                  // final int        debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 		System.out.print("Assign the only surface :");
@@ -4678,7 +4680,7 @@ public class TileProcessor {
 					(clt_parameters.tsEnGrow?     growMaxDiffNear: null),  // final double []     maxDiffNear, // null
 					clt_parameters.plDispNorm,                             // final double        dispNorm, // disparity normalize (proportionally scale down disparity difference if above
 					dispStrength,                                          // final double [][][] dispStrength,
-					debugLevel, // 2, // -1,                                              // debugLevel,                  // final int        debugLevel)
+					debugLevelInner, // 2, // -1,                                              // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
 			System.out.print("growWeakAssigned():");
@@ -4690,7 +4692,7 @@ public class TileProcessor {
 				tile_layers_planes,         //final int [][]      tileLayers,
 				st.planes_mod,       // final TilePlanes.PlaneData[][] planes
 				clt_parameters.tsNoEdge ,                              // final boolean       noEdge,
-				2, // -1,            // debugLevel,                  // final int        debugLevel)
+				debugLevelInner, //  2, // -1,            // debugLevel,                  // final int        debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 		System.out.print("assignPlanesTiles():");
@@ -4732,7 +4734,7 @@ public class TileProcessor {
 					clt_parameters.tsMinAdvantage,  //final double        minAdvantage,
 					clt_parameters.plDispNorm,      // final double        dispNorm, // disparity normalize (proportionally scale down disparity difference if above
 					dispStrength,                   // final double [][][] dispStrength,
-					0, // -1,                       // debugLevel,                  // final int        debugLevel)
+					batch_mode ? -5: 0,   // -1,    // debugLevel,                  // final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
 			System.out.print("Assign to nearest with single candidate :");
@@ -4762,7 +4764,7 @@ public class TileProcessor {
 						clt_parameters.tsMinAdvantage,  //final double        minAdvantage,
 						clt_parameters.plDispNorm,      // final double        dispNorm, // disparity normalize (proportionally scale down disparity difference if above
 						dispStrength,                   // final double [][][] dispStrength,
-						0, // -1,                       // debugLevel,                  // final int        debugLevel)
+						batch_mode ? -5: 0,             // 0, // -1,  final int        debugLevel)
 						clt_parameters.tileX,
 						clt_parameters.tileY);
 				System.out.print("Assign to best fit surface :");
@@ -4781,7 +4783,7 @@ public class TileProcessor {
 					clt_parameters.tsClustSize , // final int           minSize,      // **
 					clt_parameters. tsClustWeight, // final double        minStrength,  // **
 					dispStrength,                   // final double [][][] dispStrength,
-					0, // -1,                       // debugLevel,                  // final int        debugLevel)
+					batch_mode ? -5: 0,             // 0, // -1,  final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
 			tileSurface.printStats(stats);
@@ -4799,7 +4801,7 @@ public class TileProcessor {
 						clt_parameters.tsMaxSurStrength , // final double        maxStrength,       // **
 						clt_parameters.tsCountDis,        // final boolean       includeImpossible, // ** // count prohibited neighbors as assigned
 						dispStrength,                     // final double [][][] dispStrength,
-						0, // -1,                         // debugLevel,                  // final int        debugLevel)
+						batch_mode ? -5: 0,             // 0, // -1,  final int        debugLevel)
 						clt_parameters.tileX,
 						clt_parameters.tileY);
 				System.out.print("Assign from neighbors :");
@@ -4821,7 +4823,7 @@ public class TileProcessor {
 					clt_parameters.tsClustSize , // final int           minSize,      // **
 					clt_parameters. tsClustWeight, // final double        minStrength,  // **
 					dispStrength,                   // final double [][][] dispStrength,
-					0, // -1,                       // debugLevel,                  // final int        debugLevel)
+					batch_mode ? -5: 0,             // 0, // -1,  final int        debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
 			tileSurface.printStats(stats);
@@ -4846,7 +4848,7 @@ public class TileProcessor {
 		}
 		tileSurface.compareAssignments(
 				tile_assignments, // final int [][][] tileAssignments)
-				debugLevel); // 
+				debugLevelInner); // 
 		
 		int [][][] opinions = new int [tile_layers.length][][];
 		tile_layers = tileSurface.getConsensusAssignment(
@@ -4855,7 +4857,7 @@ public class TileProcessor {
 				tile_assignments); // final int [][][] tileAssignments)
 
 		int [][] tile_layers_surf = ta.imgToSurf(tile_layers);
-		if (debugLevel > -1) {
+		if (!batch_mode && (debugLevel > -1)) {
 			double [][] dbg_tls = new double [tile_layers_surf.length][];
 			for (int ml = 0; ml < tile_layers_surf.length; ml++) if (tile_layers_surf[ml] != null){
 				dbg_tls[ml] = new double [tile_layers_surf[ml].length];
@@ -4865,7 +4867,7 @@ public class TileProcessor {
 			}
 			(new showDoubleFloatArrays()).showArrays(dbg_tls, ta.getSurfTilesX(), ta.getSurfTilesY(), true, "tile_layers_surf");
 		}
-		if (debugLevel > -1) {
+		if (!batch_mode && (debugLevel > -1)) {
 			ta.showTileCost("before_",tile_layers_surf);
 			ta.showTileCosts("before_",tile_layers_surf);
 		}
@@ -4878,12 +4880,12 @@ public class TileProcessor {
 		ta.optimizeAssignment25(
 				clt_parameters.tsNoEdge ,         // final boolean       noEdge,
 				tile_layers_surf, // final int [][]  tileLayers,
-	            2, // final int       debugLevel,
+				(batch_mode ? -5 : 2),  //	2, // final int       debugLevel,
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 
 		
-		if (debugLevel > -1) {
+		if (!batch_mode && (debugLevel > -1)) {
 			double [][] dbg_tls = new double [tile_layers_surf.length][];
 			for (int ml = 0; ml < tile_layers_surf.length; ml++) if (tile_layers_surf[ml] != null){
 				dbg_tls[ml] = new double [tile_layers_surf[ml].length];
@@ -4893,10 +4895,10 @@ public class TileProcessor {
 			}
 			(new showDoubleFloatArrays()).showArrays(dbg_tls, ta.getSurfTilesX(), ta.getSurfTilesY(), true, "optimized_tile_layers_surf");
 		}
-		if (debugLevel > -2) {
+		if (!batch_mode && (debugLevel > -2)) {
 			ta.showTileCost("after_",tile_layers_surf);
 		}
-		if (debugLevel > -1) {
+		if (!batch_mode && (debugLevel > -1)) {
 			ta.showTileCosts("after_",tile_layers_surf);
 		}
 		ta_stats = ta.statTileCosts(tile_layers_surf);
@@ -4919,26 +4921,26 @@ public class TileProcessor {
 				tileSel,      // final boolean [][]                             tileSel,
                 debugLevel);    // final int                                    debugLevel,
 		
-		if (clt_parameters.tsShow && (debugLevel > -2)){
+		if (!batch_mode && clt_parameters.tsShow && (debugLevel > -2)){
 			tileSurface.showAssignment(
 					"assignments", // String title,
 					dispStrength); // final double [][][] dispStrength)
 		}
 		boolean [][] assigned_sel = tileSurface.extractSelection(
-				0, // final int           debugLevel,
+				batch_mode ? -5: 0, // final int           debugLevel,
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 
 		
 		int [][] clusters1 = tileSurface.enumerateClusters(
 				assigned_sel, //final boolean [][] selection,
-				0, // final int           debugLevel,
+				batch_mode ? -5: 0, // final int           debugLevel,
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 		
 		int [][] cluster_stats1 = tileSurface.clusterStats(
 				clusters1, // int [][] clusters,
-				0, // final int           debugLevel,
+				batch_mode ? -5: 0, // final int           debugLevel,
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 
@@ -4946,7 +4948,7 @@ public class TileProcessor {
 				cluster_stats1, // int [][] cluster_stats,
 				-1); //clt_parameters.tsNumClust); // int max_clusters){
 		
-		if (clt_parameters.tsShow && (debugLevel > -1)){
+		if (!batch_mode && clt_parameters.tsShow && (debugLevel > -1)){
 			tileSurface.showClusters(
 					"clusters_individual", // String title,
 					cluster_stats1, // int [][] cluster_stats,
@@ -4957,12 +4959,12 @@ public class TileProcessor {
 		// Try splitting (currently no initial conflicts):
 		int [][] clusters1a = tileSurface.spitConflictClusters(
 				clusters1, // final int [][] clusters,
-				0, // final int           debugLevel,
+				batch_mode ? -5: 0, // final int           debugLevel,
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 		int [][] cluster_stats1a = tileSurface.clusterStats(
 				clusters1a, // int [][] clusters,
-				0, // final int           debugLevel,
+				batch_mode ? -5: 0, // final int           debugLevel,
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 
@@ -4970,7 +4972,7 @@ public class TileProcessor {
 				cluster_stats1a, // int [][] cluster_stats,
 				-1); //clt_parameters.tsNumClust); // int max_clusters){
 
-		if (clt_parameters.tsShow && (debugLevel > -1)){
+		if (!batch_mode && clt_parameters.tsShow && (debugLevel > -1)){
 			tileSurface.showClusters(
 					"clusters_individual_fixed", // String title,
 					cluster_stats1a, // int [][] cluster_stats,
@@ -4983,19 +4985,19 @@ public class TileProcessor {
 		boolean [][] grown_sel = tileSurface.growSelection(
 				2,              // int grow,
 				assigned_sel,   // final boolean [][] sel_in,
-				0,              // final int debugLevel,
+				batch_mode ? -5: 0, // final int           debugLevel,
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 
 		int [][] clusters2 = tileSurface.enumerateClusters(
 				grown_sel,      // final boolean [][] selection,
-				0,              // final int           debugLevel,
+				batch_mode ? -5: 0, // final int           debugLevel,
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 
 		int [][] cluster_stats2 = tileSurface.clusterStats(
 				clusters2, // int [][] clusters,
-				0, // final int           debugLevel,
+				batch_mode ? -5: 0, // final int           debugLevel,
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 
@@ -5003,7 +5005,7 @@ public class TileProcessor {
 				cluster_stats2, // int [][] cluster_stats,
 				-1); //clt_parameters.tsNumClust); // int max_clusters){
 		
-		if (clt_parameters.tsShow && (debugLevel > -1)){
+		if (!batch_mode && clt_parameters.tsShow && (debugLevel > -1)){
 			tileSurface.showClusters(
 					"clusters_merged", // String title,
 					cluster_stats2, // int [][] cluster_stats,
@@ -5014,13 +5016,13 @@ public class TileProcessor {
 		// Just for testing: splitting combined clusters
 		int [][] clusters2a = tileSurface.spitConflictClusters(
 				clusters2, // final int [][] clusters,
-				0, // final int           debugLevel,
+				batch_mode ? -5: 0, // final int           debugLevel,
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 		
 		int [][] cluster_stats2a = tileSurface.clusterStats(
 				clusters2a, // int [][] clusters,
-				0, // final int           debugLevel,
+				batch_mode ? -5: 0, // final int           debugLevel,
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 
@@ -5028,7 +5030,7 @@ public class TileProcessor {
 				cluster_stats2a, // int [][] cluster_stats,
 				-1); //clt_parameters.tsNumClust); // int max_clusters){
 
-		if (clt_parameters.tsShow && (debugLevel > -1)){
+		if (!batch_mode && clt_parameters.tsShow && (debugLevel > -1)){
 			tileSurface.showClusters(
 					"clusters_merged_split", // String title,
 					cluster_stats2a, // int [][] cluster_stats,
@@ -5038,11 +5040,11 @@ public class TileProcessor {
 		
 		tileSurface.mergeAndGrow( // T ODO: add result
 				assigned_sel, // final boolean [][] sel_in,
-				0, // final int           debugLevel,
+				batch_mode ? -5: 0, // final int           debugLevel,
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 		
-		if (clt_parameters.tsShow && (debugLevel > -1)){
+		if (!batch_mode && clt_parameters.tsShow && (debugLevel > -1)){
 			int numToShow = clt_parameters.tsNumClust;
 			int num_surf = tileSurface.getSurfaceDataLength();
 			if (numToShow > num_surf) numToShow = num_surf;
@@ -5067,6 +5069,7 @@ public class TileProcessor {
 			GeometryCorrection geometryCorrection,
 			final int         threadsMax,  // maximal number of threads to launch                         
 			final boolean     updateStatus,
+			final boolean     batch_mode,
 			final int         debugLevel)
 	{
 		trimCLTPasses(); // make possible to run this method multiple time - remove extra passes added by it last time		
@@ -5207,7 +5210,7 @@ public class TileProcessor {
 
 		// Trying new class
 		LinkPlanes lp = new LinkPlanes (clt_parameters, st);
-		if (clt_parameters.show_planes && (debugLevel > -1)){
+		if (!batch_mode && clt_parameters.show_planes && (debugLevel > -1)){
 			showPlaneData(
 					"initial",
 					clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
@@ -5552,7 +5555,7 @@ public class TileProcessor {
 				true, // final boolean weak_connected, // select connected planes even if they are weak/thick
 				st.getPlanesMod());
 
-		if (clt_parameters.show_planes && (debugLevel > -2)){
+		if (!batch_mode && clt_parameters.show_planes && (debugLevel > -2)){
 			showPlaneData(
 					"final",
 					clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
@@ -5930,17 +5933,19 @@ public class TileProcessor {
 			GeometryCorrection geometryCorrection,
 			final int         threadsMax,  // maximal number of threads to launch                         
 			final boolean     updateStatus,
+			final boolean     batch_mode,
 			final int         debugLevel)
 	{
+		int debugLevelInner = batch_mode ? -5: debugLevel;
 		CLTPass3d scan_bg =   clt_3d_passes.get(bg_scan_index); // 
 		CLTPass3d scan_prev = clt_3d_passes.get(clt_3d_passes.size() -1); // get last one
 		CLTPass3d scan_lm =   getLastMeasured(-1);
 //		boolean [] border_tiles = (scan_lm != null) ? scan_lm.getBorderTiles() : null;
 		
 		showDoubleFloatArrays sdfa_instance = null;
-		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		if (!batch_mode && (debugLevel > -1)) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 		//TODO: for next passes - combine all selected for previous passes (all passes with smaller disparity)
-		boolean show_st =    clt_parameters.stShow || (debugLevel > 1);
+		boolean show_st =   !batch_mode && ( clt_parameters.stShow || (debugLevel > 1));
 		
 		boolean [] these_tiles;
 		int [] replaced =  null; // +1 - hor, +2 - vert
@@ -5959,7 +5964,7 @@ public class TileProcessor {
 					clt_parameters.or_threshold, // 1.5;   // Minimal scaled offsetg ortho strength to normal strength needed for replacement
 					clt_parameters.or_absHor,    // 0.15;  // Minimal horizontal absolute scaled offset ortho strength needed for replacement
 					clt_parameters.or_absVert,   // 0.19;  // Minimal vertical absolute scaled offset ortho strength needed for replacement
-					debugLevel);
+					debugLevelInner);
 
 			if (clt_parameters.poles_fix) {
 				boolean [] selection = new boolean [replaced.length];
@@ -6017,7 +6022,7 @@ public class TileProcessor {
 					true,             // final boolean     zero_gap_strength, // set strength to zero when covering gaps
 					//					final int         threadsMax,  // maximal number of threads to launch                         
 					//					final boolean     updateStatus,
-					2); //debugLevel);
+					batch_mode ? -5: 2); //debugLevel);
 		} else {
 			these_tiles= combineHorVertDisparity_old(
 				scan_prev,                     // final CLTPass3d   scan,
@@ -6028,7 +6033,7 @@ public class TileProcessor {
 				this_maybe,       // maximal strength to ignore as non-background
 				sure_smth,        // if 2-nd worst image difference (noise-normalized) exceeds this - do not propagate bgnd
 				clt_parameters,
-				debugLevel);
+				debugLevelInner);
 		
 			scan_prev.combineHorVertStrength(true, false); // strength now max of original and horizontal. Use scale  instead of boolean?
 		}
@@ -6152,7 +6157,7 @@ public class TileProcessor {
 	}
 	
 //==================
-	public void thirdPassSetup( // prepare tile tasks for the second pass based on the previous one(s)
+	public void thirdPassSetup_old( // prepare tile tasks for the second pass based on the previous one(s)
 			EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			double            disparity_far,    //
 			double            disparity_near,   // 

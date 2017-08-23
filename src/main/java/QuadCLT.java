@@ -45,6 +45,7 @@ public class QuadCLT {
 	static String []                                       fine_corr_coeff_names = {"A","B","C","D","E","F"};
 	static String []                                       fine_corr_dir_names = {"X","Y"};
 	static String                                          prefix = "EYESIS_DCT."; // change later (first on save)
+	static int                                             QUAD =  4; // number of cameras
 	public Properties                                      properties = null;
 	public EyesisCorrections                               eyesisCorrections = null;
 	public EyesisCorrectionParameters.CorrectionParameters correctionsParameters=null;
@@ -53,7 +54,10 @@ public class QuadCLT {
 	double []                                              extrinsic_corr = new double [GeometryCorrection.CORR_NAMES.length]; // extrinsic corrections (needed from properties, before geometryCorrection
 	public int                                             extra_items = 8; // number of extra items saved with kernels (center offset (partial, full, derivatives)
 	public ImagePlus                                       eyesisKernelImage = null;
-	public long                                            startTime;
+	public long                                            startTime;     // start of batch processing
+	public long                                            startSetTime;  // start of set processing
+	public long                                            startStepTime; // start of step processing
+	
 	public double [][][]                                   fine_corr  = new double [4][2][6]; // per port, per x/y, set of 6 coefficient for fine geometric corrections
 	
 	TileProcessor                                          tp = null;
@@ -1247,7 +1251,7 @@ public class QuadCLT {
 				  return;
 			  }
 		  }
-		  System.out.println("Processing "+fileIndices.length+" files finished at "+
+		  System.out.println("processCLTChannelImages(): Processing "+fileIndices.length+" files finished at "+
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }		
 
@@ -1974,7 +1978,7 @@ public class QuadCLT {
 				  }
 			  }
 		  }
-		  System.out.println("Processing "+fileIndices.length+" files finished at "+
+		  System.out.println("processCLTSets(): processing "+fileIndices.length+" files finished at "+
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }		
 	  
@@ -2610,7 +2614,7 @@ public class QuadCLT {
 				  return;
 			  }
 		  }
-		  System.out.println("Processing "+fileIndices.length+" files finished at "+
+		  System.out.println("processCLTQuads(): processing "+fileIndices.length+" files finished at "+
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }		
 	  
@@ -3257,6 +3261,7 @@ public class QuadCLT {
 					  infinity_corr, // calculate and apply geometry correction at infinity 
 					  threadsMax,  // maximal number of threads to launch                         
 					  updateStatus,
+					  false, // batch_mode 
 					  debugLevel);
 			  Runtime.getRuntime().gc();
 			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+fileIndices.length+") finished at "+
@@ -3268,7 +3273,7 @@ public class QuadCLT {
 				  return;
 			  }
 		  }
-		  System.out.println("Processing "+fileIndices.length+" files ("+setNames.size()+" file sets) finished at "+
+		  System.out.println("processCLTQuadCorrs(): processing "+fileIndices.length+" files ("+setNames.size()+" file sets) finished at "+
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }		
 	  public void channelGainsEqualize(
@@ -3503,6 +3508,7 @@ public class QuadCLT {
 			  final boolean    infinity_corr, // calculate and apply geometry correction at infinity 
 			  final int        threadsMax,  // maximal number of threads to launch                         
 			  final boolean    updateStatus,
+			  final boolean    batch_mode, //no debug images
 			  final int        debugLevel){
 		  boolean advanced=this.correctionsParameters.zcorrect || this.correctionsParameters.equirectangular;
 		  //		  boolean crop=      advanced? true: this.correctionsParameters.crop; 
@@ -3703,7 +3709,7 @@ public class QuadCLT {
 					  }
 				  }
 				  
-				  if (clt_parameters.show_overlap) {
+				  if (!batch_mode && clt_parameters.show_overlap) {
 					  sdfa_instance.showArrays(
 							  texture_overlap,
 							  tilesX * clt_parameters.transform_size,
@@ -3712,7 +3718,7 @@ public class QuadCLT {
 							  name + "-TXTOL-D"+clt_parameters.disparity,
 							  (clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
 				  }
-				  if (clt_parameters.show_rgba_color) {
+				  if (!batch_mode && clt_parameters.show_rgba_color) {
 					  // for now - use just RGB. Later add oprion for RGBA
 					  double [][] texture_rgb = {texture_overlap[0],texture_overlap[1],texture_overlap[2]};
 					  double [][] texture_rgba = {texture_overlap[0],texture_overlap[1],texture_overlap[2],texture_overlap[3]};
@@ -3738,7 +3744,7 @@ public class QuadCLT {
 		  // visualize correlation results
 		  if (clt_corr_combo!=null){
 			  if (disparity_map != null){
-				  if (!infinity_corr && clt_parameters.show_map &&  (debugLevel > -1)){
+				  if (!batch_mode && !infinity_corr && clt_parameters.show_map &&  (debugLevel > -1)){
 					  sdfa_instance.showArrays(
 							  disparity_map,
 							  tilesX,
@@ -3756,7 +3762,7 @@ public class QuadCLT {
 						  disparity_map[ImageDtt.DISPARITY_INDEX_CM],
 						  disparity_map[ ImageDtt.DISPARITY_STRENGTH_INDEX]};
 				  String [] titles = {"disp_cm", "strength"};
-				  if (clt_mismatch != null){
+				  if (!batch_mode && (clt_mismatch != null)){
 					  double [][] inf_ds1 = {
 							  disparity_map[ImageDtt.DISPARITY_INDEX_CM],
 							  disparity_map[ ImageDtt.DISPARITY_STRENGTH_INDEX],
@@ -3772,10 +3778,10 @@ public class QuadCLT {
 					  inf_ds = inf_ds1;
 					  titles = titles1;
 				  }
-				  if (clt_parameters.inf_repeat <1) {
+				  if (clt_parameters.inf_repeat < 1) {
 					  System.out.println("=== Generating image to be saved and then used for correction with 'CLT ext infinity corr'===");
 					  // This image can be saved and re-read with "CLT ext infinity corr" command
-					  if (sdfa_instance != null){
+					  if (!batch_mode && (sdfa_instance != null)){
 						  sdfa_instance.showArrays(
 								  inf_ds,
 								  tilesX,
@@ -3785,68 +3791,65 @@ public class QuadCLT {
 								  titles );
 					  }
 				  } else { // calculate/apply coefficients
-					  	if (debugLevel + (clt_parameters.fine_dbg ? 1:0) > 0){
-					  		// still show image, even as it is not needed
-							  if (sdfa_instance != null){
-								  sdfa_instance.showArrays(
-										  inf_ds,
-										  tilesX,
-										  tilesY,
-										  true,
-										  name + "-inf_corr",
-										  titles );
-							  }
-					  	}
-					  
-					    AlignmentCorrection ac = new AlignmentCorrection(this);
-					    // includes both infinity correction and mismatch correction for the same infinity tiles
-					    double [][][] new_corr = ac.infinityCorrection(
-					    		clt_parameters.ly_poly,        // final boolean use_poly,
-					    		clt_parameters.fcorr_inf_strength, //  final double min_strenth,
-					    		clt_parameters.fcorr_inf_diff,     // final double max_diff,
-					    		clt_parameters.inf_iters,          // 20, // 0, // final int max_iterations,
-					    		clt_parameters.inf_final_diff,     // 0.0001, // final double max_coeff_diff,
-					    		clt_parameters.inf_far_pull,       // 0.0, // 0.25, //   final double far_pull, //  = 0.2; // 1; //  0.5;
-					    		clt_parameters.inf_str_pow,        // 1.0, //   final double     strength_pow,
-					    		clt_parameters.inf_smpl_side,      // 3, //   final int        smplSide, //        = 2;      // Sample size (side of a square)
-					    		clt_parameters.inf_smpl_num,       // 5, //   final int        smplNum,  //         = 3;      // Number after removing worst (should be >1)
-					    		clt_parameters.inf_smpl_rms,       // 0.1, // 0.05, //  final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-								// histogram parameters
-					    		clt_parameters.ih_smpl_step,       // 8,    // final int        hist_smpl_side, // 8 x8 masked, 16x16 sampled
-					    		clt_parameters.ih_disp_min,        // -1.0, // final double     hist_disp_min,
-					    		clt_parameters.ih_disp_step,       // 0.05, // final double     hist_disp_step,
-					    		clt_parameters.ih_num_bins,        // 40,   // final int        hist_num_bins,
-					    		clt_parameters.ih_sigma,           // 0.1,  // final double     hist_sigma,
-					    		clt_parameters.ih_max_diff,        // 0.1,  // final double     hist_max_diff,
-					    		clt_parameters.ih_min_samples,     // 10,   // final int        hist_min_samples,
-					    		clt_parameters.ih_norm_center,     // true, // final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with 			
-								clt_parameters,                    // EyesisCorrectionParameters.CLTParameters           clt_parameters,
-								inf_ds,                            // double [][] disp_strength,
-					    		tilesX,                            // int         tilesX,
-					    		clt_parameters.corr_magic_scale,   // double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
-					    		debugLevel + (clt_parameters.fine_dbg ? 1:0));                   // int debugLevel)
-					    
-					    if (debugLevel > -1){
-					    	System.out.println("process_infinity_corr(): ready to apply infinity correction");
-					    	show_fine_corr(
-					    			new_corr, // double [][][] corr,
-					    			"");// String prefix)
+					  if (debugLevel + (clt_parameters.fine_dbg ? 1:0) > 0){
+						  // still show image, even as it is not needed
+						  if (!batch_mode && (sdfa_instance != null)) {
+							  sdfa_instance.showArrays(
+									  inf_ds,
+									  tilesX,
+									  tilesY,
+									  true,
+									  name + "-inf_corr",
+									  titles );
+						  }
+					  }
 
-					    }
+					  AlignmentCorrection ac = new AlignmentCorrection(this);
+					  // includes both infinity correction and mismatch correction for the same infinity tiles
+					  double [][][] new_corr = ac.infinityCorrection(
+							  clt_parameters.ly_poly,        // final boolean use_poly,
+							  clt_parameters.fcorr_inf_strength, //  final double min_strenth,
+							  clt_parameters.fcorr_inf_diff,     // final double max_diff,
+							  clt_parameters.inf_iters,          // 20, // 0, // final int max_iterations,
+							  clt_parameters.inf_final_diff,     // 0.0001, // final double max_coeff_diff,
+							  clt_parameters.inf_far_pull,       // 0.0, // 0.25, //   final double far_pull, //  = 0.2; // 1; //  0.5;
+							  clt_parameters.inf_str_pow,        // 1.0, //   final double     strength_pow,
+							  clt_parameters.inf_smpl_side,      // 3, //   final int        smplSide, //        = 2;      // Sample size (side of a square)
+							  clt_parameters.inf_smpl_num,       // 5, //   final int        smplNum,  //         = 3;      // Number after removing worst (should be >1)
+							  clt_parameters.inf_smpl_rms,       // 0.1, // 0.05, //  final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+							  // histogram parameters
+							  clt_parameters.ih_smpl_step,       // 8,    // final int        hist_smpl_side, // 8 x8 masked, 16x16 sampled
+							  clt_parameters.ih_disp_min,        // -1.0, // final double     hist_disp_min,
+							  clt_parameters.ih_disp_step,       // 0.05, // final double     hist_disp_step,
+							  clt_parameters.ih_num_bins,        // 40,   // final int        hist_num_bins,
+							  clt_parameters.ih_sigma,           // 0.1,  // final double     hist_sigma,
+							  clt_parameters.ih_max_diff,        // 0.1,  // final double     hist_max_diff,
+							  clt_parameters.ih_min_samples,     // 10,   // final int        hist_min_samples,
+							  clt_parameters.ih_norm_center,     // true, // final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with 			
+							  clt_parameters,                    // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+							  inf_ds,                            // double [][] disp_strength,
+							  tilesX,                            // int         tilesX,
+							  clt_parameters.corr_magic_scale,   // double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
+							  debugLevel + (clt_parameters.fine_dbg ? 1:0));                   // int debugLevel)
 
-					    if (clt_parameters.inf_disp_apply){
-					    	apply_fine_corr(
-					    			new_corr,
-					    			debugLevel + 2);
-					    }
+					  if (debugLevel > -1){
+						  System.out.println("process_infinity_corr(): ready to apply infinity correction");
+						  show_fine_corr(
+								  new_corr, // double [][][] corr,
+								  "");// String prefix)
 
-					  
-					  
+					  }
+
+					  if (clt_parameters.inf_disp_apply){
+						  apply_fine_corr(
+								  new_corr,
+								  debugLevel + 2);
+					  }
 				  }
 			  }
 
 
-			  if (!infinity_corr && clt_parameters.corr_show && (debugLevel > -1)){
+			  if (!batch_mode && !infinity_corr && clt_parameters.corr_show && (debugLevel > -1)){
 				  double [][] corr_rslt = new double [clt_corr_combo.length][];
 				  String [] titles = new String[clt_corr_combo.length]; // {"combo","sum"};
 				  for (int i = 0; i< titles.length; i++) titles[i] = ImageDtt.TCORR_TITLES[i];
@@ -3868,7 +3871,7 @@ public class QuadCLT {
 						  titles );
 			  }
 
-			  if (!infinity_corr && (clt_corr_partial!=null)){
+			  if (!batch_mode && !infinity_corr && (clt_corr_partial!=null)){
 				  if (debugLevel > -1){ // -1
 					  String [] allColorNames = {"red","blue","green","combo"};
 					  String [] titles = new String[clt_corr_partial.length];
@@ -3918,7 +3921,7 @@ public class QuadCLT {
 					  System.out.println("--tilesX="+tilesX);
 					  System.out.println("--tilesY="+tilesY);
 				  }
-				  if (debugLevel > 0){
+				  if (!batch_mode && (debugLevel > 0)){
 					  double [][] clt = new double [clt_data[iQuad].length*4][];
 					  for (int chn = 0; chn < clt_data[iQuad].length; chn++) {
 						  double [][] clt_set = image_dtt.clt_dbg(
@@ -3964,7 +3967,7 @@ public class QuadCLT {
 						  "-D"+clt_parameters.disparity, //String suffix, // such as disparity=...
 						  toRGB,
 						  !this.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
-						  true, // boolean saveShowIntermediate, // save/show if set globally
+						  !batch_mode, // true, // boolean saveShowIntermediate, // save/show if set globally
 						  false, // boolean saveShowFinal,        // save/show result (color image?)
 						  iclt_data,
 						  tilesX *  clt_parameters.transform_size,
@@ -3973,7 +3976,7 @@ public class QuadCLT {
 						  debugLevel );
 				  
 			  } // end of generating shifted channel images
-			  if (clt_parameters.gen_chn_img) {
+			  if (!batch_mode && clt_parameters.gen_chn_img) {
 				  // combine to a sliced color image
 				  int [] slice_seq = {0,1,3,2}; //clockwise
 				  int width = imps_RGB[0].getWidth();
@@ -3996,6 +3999,7 @@ public class QuadCLT {
 			  if (clt_parameters.gen_4_img) {
 				  // Save as individual JPEG images in the model directory
 		 		  String x3d_path= correctionsParameters.selectX3dDirectory(
+		 				  name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
 						  true,  // smart,
 						  true);  //newAllowed, // save
 				  for (int sub_img = 0; sub_img < 4; sub_img++){
@@ -4003,7 +4007,7 @@ public class QuadCLT {
 							  imps_RGB[sub_img],
 							  x3d_path,
 							  correctionsParameters.png && !clt_parameters.black_back,
-							  clt_parameters.show_textures,
+							  !batch_mode && clt_parameters.show_textures,
 							  correctionsParameters.JPEG_quality); // jpegQuality); // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
 				  }
 			  }
@@ -4573,7 +4577,7 @@ public class QuadCLT {
 				  return;
 			  }
 		  }
-		  System.out.println("Processing "+fileIndices.length+" files finished at "+
+		  System.out.println("cltDisparityScans(): processing "+fileIndices.length+" files finished at "+
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }		
 
@@ -5097,7 +5101,7 @@ public class QuadCLT {
 			  final boolean    updateStatus,
 			  final int        debugLevel)
 	  {
-		  this.startTime=System.nanoTime();
+		  this.startStepTime=System.nanoTime();
 
 		  if (tp == null){
 			  System.out.println("showCLTPlanes(): tp is null");
@@ -5112,10 +5116,11 @@ public class QuadCLT {
 				  geometryCorrection,		  			
 				  threadsMax,
 				  updateStatus,
+				  false, // batch_mode
 				  debugLevel);
 		  Runtime.getRuntime().gc();
-	      System.out.println("Processing  finished at "+
-			  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+	      System.out.println("showCLTPlanes(): processing  finished at "+
+			  IJ.d2s(0.000000001*(System.nanoTime()-this.startStepTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 	  
 	  public boolean assignCLTPlanes(
@@ -5132,22 +5137,23 @@ public class QuadCLT {
 		  		System.out.println("showCLTPlanes(): tp.clt_3d_passes is null");
 		  		return false;
 		  	}
-		  	this.startTime=System.nanoTime();
+		  	this.startStepTime=System.nanoTime();
 		  	boolean ok = tp.assignTilesToSurfaces(
 		  			clt_parameters,
 		  			geometryCorrection,		  			
 		  			threadsMax,
 		  			updateStatus,
+		  			false, //  boolean batch_mode, 
 		  			debugLevel);
 		  	Runtime.getRuntime().gc();
-		  	System.out.println("Processing  finished at "+
-		  			IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+		  	System.out.println("assignCLTPlanes(): processing  finished at "+
+		  			IJ.d2s(0.000000001*(System.nanoTime()-this.startStepTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 		  	return ok;
 		  	
 	  }
 	  
 	  
-	  public void out3d(
+	  public void out3d_old(
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  final int          threadsMax,  // maximal number of threads to launch                         
 			  final boolean    updateStatus,
@@ -5166,6 +5172,7 @@ public class QuadCLT {
 		  			geometryCorrection,
 		  			threadsMax,
 		  			updateStatus,
+		  			false, // batch_mode
 		  			debugLevel);
 //		  	CLTPass3d last_scan = tp.clt_3d_passes.get(tp.clt_3d_passes.size() -1); // get last one
 		  	
@@ -5452,6 +5459,7 @@ public class QuadCLT {
 						  adjust_poly,
 						  threadsMax,  //final int        threadsMax,  // maximal number of threads to launch                         
 						  updateStatus,// final boolean    updateStatus,
+						  false,       // final boolean    batch_mode,
 						  debugLevel); // final int        debugLevel)
 				  
 
@@ -5466,6 +5474,7 @@ public class QuadCLT {
 						  rgbParameters,
 						  threadsMax,  // maximal number of threads to launch                         
 						  updateStatus,
+						  false,       // final boolean    batch_mode,
 						  debugLevel);
 			  }
 			  
@@ -5495,7 +5504,7 @@ public class QuadCLT {
 			  final boolean    updateStatus,
 			  final int        debugLevel)
 	  {
-		  this.startTime=System.nanoTime();		  
+		  this.startStepTime=System.nanoTime();		  
 		  final boolean    show_init_refine = clt_parameters.show_init_refine;
 
 		  //max_expand
@@ -5915,8 +5924,8 @@ public class QuadCLT {
     	  
  ///// Refining after all added   - end 	  
 		  Runtime.getRuntime().gc();
-	      System.out.println("Processing  finished at "+
-			  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+	      System.out.println("preExpandCLTQuad3d(): processing  finished at "+
+			  IJ.d2s(0.000000001*(System.nanoTime()-this.startStepTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 		  return true;
 	  }
 	  
@@ -5927,17 +5936,17 @@ public class QuadCLT {
 			  boolean 		   adjust_poly,
 			  final int        threadsMax,  // maximal number of threads to launch                         
 			  final boolean    updateStatus,
+			  final boolean    batch_mode,
 			  final int        debugLevel)
 	  {
-//		  final int tilesX =  tp.getTilesX();
-//		  final int tilesY =  tp.getTilesY();
+		  int debugLevelInner =  batch_mode ? -5: debugLevel;
 		  boolean update_disp_from_latest = clt_parameters.lym_update_disp ; // true;
 		  int max_tries =                   clt_parameters.lym_iter; // 25;
 		  double min_sym_update =           clt_parameters.lym_change; //  4e-6; // stop iterations if no angle changes more than this
 		  double min_poly_update =          clt_parameters.lym_poly_change; //  Parameter vector difference to exit from polynomial correction
 		  int bg_scan = 0;
 		  int combo_scan= tp.clt_3d_passes.size()-1;
-		  if (clt_parameters.show_extrinsic && (debugLevel >-1)) {
+		  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) {
 			  tp.showScan(
 					  tp.clt_3d_passes.get(bg_scan),   // CLTPass3d   scan,
 					  "bg_scan"); //String title)
@@ -5968,7 +5977,7 @@ public class QuadCLT {
 				  clt_parameters.fds_rel_tilt,       //	final double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
 				  clt_parameters.tileX, //   dbg_x,              //	final int        dbg_x,
 				  clt_parameters.tileX, //  dbg_y,              // final int        dbg_y,
-				  debugLevel);        //	final int        debugLevel)
+				  debugLevelInner);        //	final int        debugLevel)
 		  // prepare re-measurements of background
 		  boolean [] bg_sel = tp.clt_3d_passes.get(bg_scan).getSelected();  
 		  boolean [] bg_use = new boolean [bg_sel.length];
@@ -6019,8 +6028,8 @@ public class QuadCLT {
 				  null,           // final double [][] mismatch,    // null or double [12][]
     			  tp.threadsMax,  // maximal number of threads to launch                         
     			  false, // updateStatus,
-    			  debugLevel - 1);
-    	  if (clt_parameters.show_extrinsic && (debugLevel >-1)) {
+    			  debugLevelInner - 1);
+    	  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) {
     		  tp.showScan(
     				  tp.clt_3d_passes.get(bg_scan),   // CLTPass3d   scan,
     				  "bg_scan_post"); //String title)
@@ -6051,7 +6060,7 @@ public class QuadCLT {
 				  clt_parameters.fds_rel_tilt,       //	final double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
 				  clt_parameters.tileX, //   dbg_x,              //	final int        dbg_x,
 				  clt_parameters.tileX, //  dbg_y,              // final int        dbg_y,
-				  debugLevel);        //	final int        debugLevel)
+				  debugLevelInner);        //	final int        debugLevel)
 		  // update selection after filtering
 		  
 		  combo_disp = tp.clt_3d_passes.get(combo_scan).getDisparity(0);
@@ -6074,7 +6083,7 @@ public class QuadCLT {
 			  System.out.println("Updated number of lazy eye tiles = " + num_combo1+" (was "+num_combo+")");
 		  }
 
-		  if (clt_parameters.show_extrinsic && (debugLevel >-1)) {
+		  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) {
 			  String [] titles = {"bgnd_disp","bgnd_str","combo_disp","combo_str","bg_sel","bg_use","combo_use"};
 			  double [] dbg_bg_sel = new double [bg_sel.length];
 			  double [] dbg_bg_use =   new double [bg_sel.length];
@@ -6113,7 +6122,7 @@ public class QuadCLT {
 	    			  bg_mismatch,    // final double [][] mismatch,    // null or double [12][]
 	    			  tp.threadsMax,  // maximal number of threads to launch                         
 	    			  false, // updateStatus,
-	    			  debugLevel - 1);
+	    			  debugLevelInner - 1);
 	    	  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
 	    			  image_data, // first index - number of image in a quad
 	    			  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
@@ -6124,7 +6133,7 @@ public class QuadCLT {
 	    			  combo_mismatch,    // final double [][] mismatch,    // null or double [12][]
 	    			  tp.threadsMax,  // maximal number of threads to launch                         
 	    			  false, // updateStatus,
-	    			  debugLevel - 1);
+	    			  debugLevelInner - 1);
 	    	  double [][] scans14 = new double [28][];
 	    	  scans14[14 * 0 + 0] =  tp.clt_3d_passes.get(bg_scan).disparity_map[ImageDtt.DISPARITY_INDEX_CM]; // .getDisparity(0);
 	    	  scans14[14 * 0 + 1] =  tp.clt_3d_passes.get(bg_scan).getStrength();
@@ -6136,7 +6145,7 @@ public class QuadCLT {
 	    	  }
 //	  		(new showDoubleFloatArrays()).showArrays(scans14, tp.getTilesX(), tp.getTilesY(), true, "scans_14"); //  , titles);
 
-	    	  if (clt_parameters.show_extrinsic && (debugLevel > 1)) {
+	    	  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel > 1)) {
 	    		  tp.showScan(
 	    				  tp.clt_3d_passes.get(bg_scan),   // CLTPass3d   scan,
 	    				  "bg_scan_iter"); //String title)
@@ -6181,13 +6190,13 @@ public class QuadCLT {
 					  target_disparity,          // double [][]      target_disparity, // null or programmed disparity (1 per each 14 entries of scans_14)
 					  tp.getTilesX(), // int         tilesX,
 					  clt_parameters.corr_magic_scale, // double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5  
-					  debugLevel - 1); //  + (clt_parameters.fine_dbg ? 1:0)); // int debugLevel)
+					  debugLevelInner - 1); //  + (clt_parameters.fine_dbg ? 1:0)); // int debugLevel)
 	    	  comp_diff = 0.0;
     		  int num_pars = 0;
 	    	  if (adjust_poly) {
 				  apply_fine_corr(
 						  new_corr,
-						  debugLevel + 2);
+						  debugLevelInner + 2);
 	    		  for (int n = 0; n < new_corr.length; n++){
 	    			  for (int d = 0; d < new_corr[n].length; d++){
 	    				  for (int i = 0; i < new_corr[n][d].length; i++){
@@ -6239,8 +6248,11 @@ public class QuadCLT {
 		  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 		  final int        threadsMax,  // maximal number of threads to launch                         
 		  final boolean    updateStatus,
+		  final boolean    batch_mode,
 		  final int        debugLevel)
 	  {
+		  final int debugLevelInner =  batch_mode ? -5: debugLevel;
+		  
 //		  final int tilesX = tp.getTilesX();
 //		  final int tilesY = tp.getTilesY();
 		  final double     trustedCorrelation = tp.getTrustedCorrelation();
@@ -6313,7 +6325,7 @@ public class QuadCLT {
   				  max_rel_tilt,       //	final double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
   				  dbg_x,              //	final int        dbg_x,
   				  dbg_y,              // final int        dbg_y,
-  				  debugLevel);        //	final int        debugLevel)
+  				  debugLevelInner);   //	final int        debugLevel)
           
           
           
@@ -6422,7 +6434,7 @@ public class QuadCLT {
 
         			  dbg_x,
         			  dbg_y,             // final int        dbg_y,
-        			  debugLevel+1);        //	final int        debugLevel)
+        			  debugLevelInner+1);        //	final int        debugLevel)
 
         	  if (last_pass) {
         		  break;
@@ -6446,7 +6458,7 @@ public class QuadCLT {
           
           
           show_expand =      (clt_parameters.show_expand && (max_expand <= 10));
-          if (debugLevel > -1) {
+          if (debugLevelInner > -1) {
         	  tp.showScan(
         			  tp.clt_3d_passes.get(tp.clt_3d_passes.size()-2),   // CLTPass3d   scan,
         			  "after_pre_last_combo_pass-"+(tp.clt_3d_passes.size()-2)); //String title)
@@ -6477,9 +6489,8 @@ public class QuadCLT {
 				  geometryCorrection,
 				  threadsMax,  // maximal number of threads to launch                         
 				  updateStatus,
-				  debugLevel);
-
-          
+				  batch_mode,
+				  debugLevelInner);
           
 // Save tp.clt_3d_passes.size() to roll back without restarting the program          
           tp.saveCLTPasses();
@@ -6926,9 +6937,10 @@ public class QuadCLT {
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  final int        threadsMax,  // maximal number of threads to launch                         
 			  final boolean    updateStatus,
+			  final boolean    batch_mode,
 			  final int        debugLevel)
 	  {
-		  this.startTime=System.nanoTime();
+		  this.startStepTime=System.nanoTime();
 		  final int tilesX = tp.getTilesX();
 		  final int tilesY = tp.getTilesY();
 		  if (this.image_data == null){
@@ -6952,12 +6964,13 @@ public class QuadCLT {
 				  threadsMax,  // maximal number of threads to launch                         
 				  updateStatus,
 				  0); // final int         debugLevel)
-		  if (debugLevel > -1) {
+		  if (!batch_mode && (debugLevel > -1)) {
 			  tp.showScan(
 					  tp.clt_3d_passes.get(next_pass-1),   // CLTPass3d   scan,
 					  "after_pass3-"+(next_pass-1)); //String title)
 		  }
  		  String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
+ 				  this.image_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
 				  true,  // smart,
 				  true);  //newAllowed, // save
 
@@ -7036,7 +7049,7 @@ public class QuadCLT {
 						  bgndIndex, 
 						  threadsMax,  // maximal number of threads to launch                         
 						  updateStatus,
-						  debugLevel);
+						  batch_mode ? -5: debugLevel);
 				  double [] scan_disparity = new double [tilesX * tilesY];
 				  int indx = 0;
 				  //		  boolean [] scan_selected = scan.getSelected();
@@ -7094,7 +7107,8 @@ public class QuadCLT {
     				  false, // final boolean     save_corr,
 					  threadsMax,  // maximal number of threads to launch                         
 					  updateStatus,
-					  debugLevel);
+					  batch_mode ? -5: debugLevel);
+
 		  }
 
 		  // TEMPORARY EXIT
@@ -7116,7 +7130,7 @@ public class QuadCLT {
 					  scanIndex, 
 					  threadsMax,  // maximal number of threads to launch                         
 					  updateStatus,
-					  debugLevel);
+					  batch_mode ? -5: debugLevel);
 
 			  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
 
@@ -7159,7 +7173,7 @@ public class QuadCLT {
 			  }
 */			  
 //			  boolean showTri = ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||(scanIndex < 3);
-			  boolean showTri = (debugLevel > -1) && (((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||((scanIndex - next_pass) == 73));
+			  boolean showTri = !batch_mode && (debugLevel > -1) && (((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||((scanIndex - next_pass) == 73));
 			  
 //			  boolean showTri = ((scanIndex < next_pass + 1) && clt_parameters.show_triangles) ||(scanIndex == 49) || (scanIndex == 54);
 			  try {
@@ -7199,8 +7213,8 @@ public class QuadCLT {
 			  System.out.println("Wavefront material file saved to "+wfOutput.mtl_path);
 		  }
 		  Runtime.getRuntime().gc();
-		  System.out.println("Generating 3d output files  finished at "+
-				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+		  System.out.println("output3d(): generating 3d output files  finished at "+
+				  IJ.d2s(0.000000001*(System.nanoTime()-this.startStepTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 		  
 		  
 		  return true;
@@ -7475,6 +7489,9 @@ public class QuadCLT {
 				  clt_parameters.black_back, //  boolean noalpha,
 				  debugLevel); 
 		  String path= correctionsParameters.selectX3dDirectory(
+				  //TODO: Which one to use - name or this.image_name ?
+ 				  this.image_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+// 				  name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
 				  true,  // smart,
 				  true);  //newAllowed, // save
 		  // only show/save original size if debug or debug_filters)
@@ -7620,6 +7637,9 @@ public class QuadCLT {
 		  
 		  
 		  String path= correctionsParameters.selectX3dDirectory(
+				  //TODO: Which one to use - name or this.image_name ?
+ 				  this.image_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+// 				  name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
 				  true,  // smart,
 				  true);  //newAllowed, // save
 		  // only show/save original size if debug or debug_filters)  
@@ -7999,7 +8019,511 @@ public class QuadCLT {
 		  scan.resetProcessed();
 		  return scan;
 	  }
+	
 	  
+	  public ImagePlus [] conditionImageSet(
+			  final int                           nSet, // index of the 4-image set
+			  final EyesisCorrectionParameters.CLTParameters           clt_parameters,
+			  final int [][]                      fileIndices, // =new int [numImagesToProcess][2]; // file index, channel number
+			  final ArrayList<String>             setNames, //  = new ArrayList<String>();
+			  final ArrayList<ArrayList<Integer>> setFiles, //  = new ArrayList<ArrayList<Integer>>();
+			  final double []                     referenceExposures, // =eyesisCorrections.calcReferenceExposures(debugLevel); // multiply each image by this and divide by individual (if not NaN)
+			  final double []                     scaleExposures, //  = new double[channelFiles.length]; //
+			  final boolean [][]                  saturation_imp, //  = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
+			  final boolean                       batch_mode,     // disable any debug images
+			  final int                           debugLevel)
+	  {
+		  String [] sourceFiles=correctionsParameters.getSourcePaths();
+		  int maxChn = 0;
+		  for (int i = 0; i < setFiles.get(nSet).size(); i++){
+			  int chn = fileIndices[setFiles.get(nSet).get(i)][1];
+			  if (chn > maxChn) maxChn = chn;
+		  }
+		  int [] channelFiles = new int[maxChn+1];
+		  for (int i =0; i < channelFiles.length; i++) channelFiles[i] = -1;
+		  for (int i = 0; i < setFiles.get(nSet).size(); i++){
+			  channelFiles[fileIndices[setFiles.get(nSet).get(i)][1]] = setFiles.get(nSet).get(i);
+		  }
+
+		  ImagePlus [] imp_srcs = new ImagePlus[channelFiles.length];
+///		  boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
+///		  double [] scaleExposures = new double[channelFiles.length]; //
+		  double [][] dbg_dpixels =  batch_mode? null : (new double [channelFiles.length][]);
+
+		  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
+			  int nFile=channelFiles[srcChannel];
+			  imp_srcs[srcChannel]=null;
+			  if (nFile >=0){
+				  if (correctionsParameters.isJP4()){
+					  int subchannel=eyesisCorrections.pixelMapping.getSubChannel(srcChannel);
+					  if (this.correctionsParameters.swapSubchannels01) {
+						  switch (subchannel){
+						  case 0: subchannel=1; break;
+						  case 1: subchannel=0; break;
+						  }
+					  }
+					  if (debugLevel>0) System.out.println("Processing set " + setNames.get(nSet)+" channel "+srcChannel+" - subchannel "+subchannel+" of "+sourceFiles[nFile]);
+					  ImagePlus imp_composite=eyesisCorrections.JP4_INSTANCE.open(
+							  "", // path,
+							  sourceFiles[nFile],
+							  "",  //arg - not used in JP46 reader
+							  true, // un-apply camera color gains
+							  null, // new window
+							  false); // do not show
+					  imp_srcs[srcChannel]=eyesisCorrections.JP4_INSTANCE.demuxImage(imp_composite, subchannel);
+					  if (imp_srcs[srcChannel] == null) imp_srcs[srcChannel] = imp_composite; // not a composite image
+					  // do we need to add any properties?				  
+				  } else { 
+					  imp_srcs[srcChannel]=new ImagePlus(sourceFiles[nFile]);
+					  //					  (new JP46_Reader_camera(false)).decodeProperiesFromInfo(imp_src); // decode existent properties from info
+					  eyesisCorrections.JP4_INSTANCE.decodeProperiesFromInfo(imp_srcs[srcChannel]); // decode existent properties from info
+					  if (debugLevel>0) System.out.println("Processing "+sourceFiles[nFile]);
+				  }
+
+				  scaleExposures[srcChannel] = 1.0;
+				  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
+					  scaleExposures[srcChannel] = referenceExposures[nFile]/Double.parseDouble((String) imp_srcs[srcChannel].getProperty("EXPOSURE"));
+					  if (debugLevel > -1) {
+						  System.out.println("Will scale intensity (to compensate for exposure) by  "+scaleExposures[srcChannel]+
+								  ", EXPOSURE = "+imp_srcs[srcChannel].getProperty("EXPOSURE"));
+					  }
+				  }
+				  imp_srcs[srcChannel].setProperty("name",    correctionsParameters.getNameFromSourceTiff(sourceFiles[nFile]));
+				  imp_srcs[srcChannel].setProperty("channel", srcChannel); // it may already have channel
+				  imp_srcs[srcChannel].setProperty("path",    sourceFiles[nFile]); // it may already have channel
+
+				  if (this.correctionsParameters.pixelDefects && (eyesisCorrections.defectsXY!=null)&& (eyesisCorrections.defectsXY[srcChannel]!=null)){
+					  // apply pixel correction
+					  int numApplied=	eyesisCorrections.correctDefects(
+							  imp_srcs[srcChannel],
+							  srcChannel,
+							  debugLevel);
+					  if ((debugLevel>0) && (numApplied>0)) { // reduce verbosity after verified defect correction works
+						  System.out.println("Corrected "+numApplied+" pixels in "+sourceFiles[nFile]);
+					  }
+				  }
+				  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
+				  int width =  imp_srcs[srcChannel].getWidth();
+				  int height = imp_srcs[srcChannel].getHeight();
+				  if (!batch_mode && (debugLevel > -1)) {
+					  double [] max_pix= {0.0, 0.0, 0.0, 0.0};
+//					  for (int y = 0; y < height-1; y+=2){
+					  for (int y = 0; y < 499; y+=2){
+//						  for (int x = 0; x < width-1; x+=2){
+						  for (int x = width/2; x < width-1; x+=2){
+							  if (pixels[y*width+x        ] > max_pix[0])  max_pix[0] = pixels[y*width+x        ];
+							  if (pixels[y*width+x+      1] > max_pix[1])  max_pix[1] = pixels[y*width+x+      1];
+							  if (pixels[y*width+x+width  ] > max_pix[2])  max_pix[2] = pixels[y*width+x+width  ];
+							  if (pixels[y*width+x+width+1] > max_pix[3])  max_pix[3] = pixels[y*width+x+width+1];
+						  }
+					  }
+					  System.out.println(String.format("channel %d max_pix[] = %6.2f %6.2f %6.2f %6.2f", srcChannel, max_pix[0], max_pix[1], max_pix[2], max_pix[3]));
+					  dbg_dpixels[srcChannel] = new double [pixels.length];
+					  for (int i = 0; i < pixels.length; i++) dbg_dpixels[srcChannel][i] = pixels[i];
+					  //						  imp_srcs[srcChannel].show();
+				  }
+				  if (clt_parameters.sat_level > 0.0){
+					  double [] saturations = {
+							  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_1")),
+							  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_0")),
+							  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_3")),
+							  Double.parseDouble((String) imp_srcs[srcChannel].getProperty("saturation_2"))};
+					  saturation_imp[srcChannel] = new boolean[width*height];
+					  System.out.println(String.format("channel %d saturations = %6.2f %6.2f %6.2f %6.2f", srcChannel,
+							  saturations[0],saturations[1],saturations[2],saturations[3]));
+					  double [] scaled_saturations = new double [saturations.length];
+					  for (int i = 0; i < scaled_saturations.length; i++){
+						  scaled_saturations[i] = saturations[i] * clt_parameters.sat_level;
+					  }
+					  for (int y = 0; y < height-1; y+=2){
+						  for (int x = 0; x < width-1; x+=2){
+							  if (pixels[y*width+x        ] > scaled_saturations[0])  saturation_imp[srcChannel][y*width+x        ] = true;
+							  if (pixels[y*width+x+      1] > scaled_saturations[1])  saturation_imp[srcChannel][y*width+x      +1] = true;
+							  if (pixels[y*width+x+width  ] > scaled_saturations[2])  saturation_imp[srcChannel][y*width+x+width  ] = true;
+							  if (pixels[y*width+x+width+1] > scaled_saturations[3])  saturation_imp[srcChannel][y*width+x+width+1] = true;
+						  }
+					  }
+				  }
+
+
+				  if (this.correctionsParameters.vignetting){
+					  if ((eyesisCorrections.channelVignettingCorrection==null) || (srcChannel<0) || (srcChannel>=eyesisCorrections.channelVignettingCorrection.length) || (eyesisCorrections.channelVignettingCorrection[srcChannel]==null)){
+						  System.out.println("No vignetting data for channel "+srcChannel);
+						  return null;
+					  }
+					  ///						  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
+
+
+					  if (pixels.length!=eyesisCorrections.channelVignettingCorrection[srcChannel].length){
+						  System.out.println("Vignetting data for channel "+srcChannel+" has "+eyesisCorrections.channelVignettingCorrection[srcChannel].length+" pixels, image "+sourceFiles[nFile]+" has "+pixels.length);
+						  return null;
+					  }
+					  // TODO: Move to do it once:
+					  double min_non_zero = 0.0;
+					  for (int i=0;i<pixels.length;i++){
+						  double d = eyesisCorrections.channelVignettingCorrection[srcChannel][i];
+						  if ((d > 0.0) && ((min_non_zero == 0) || (min_non_zero > d))){
+							  min_non_zero = d;
+						  }
+					  }
+					  double max_vign_corr = clt_parameters.vignetting_range*min_non_zero;
+
+					  System.out.println("Vignetting data: channel="+srcChannel+", min = "+min_non_zero);
+					  for (int i=0;i<pixels.length;i++){
+						  double d = eyesisCorrections.channelVignettingCorrection[srcChannel][i];
+						  if (d > max_vign_corr) d = max_vign_corr;
+						  pixels[i]*=d;
+					  }
+					  // Scale here, combine with vignetting later?
+					  ///						  int width =  imp_srcs[srcChannel].getWidth();
+					  ///						  int height = imp_srcs[srcChannel].getHeight();
+					  for (int y = 0; y < height-1; y+=2){
+						  for (int x = 0; x < width-1; x+=2){
+							  pixels[y*width+x        ] *= clt_parameters.scale_g;
+							  pixels[y*width+x+width+1] *= clt_parameters.scale_g;
+							  pixels[y*width+x      +1] *= clt_parameters.scale_r;
+							  pixels[y*width+x+width  ] *= clt_parameters.scale_b;
+						  }
+					  }
+
+				  } else { // assuming GR/BG pattern
+					  System.out.println("Applying fixed color gain correction parameters: Gr="+
+							  clt_parameters.novignetting_r+", Gg="+clt_parameters.novignetting_g+", Gb="+clt_parameters.novignetting_b);
+					  ///						  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
+					  ///						  int width =  imp_srcs[srcChannel].getWidth();
+					  ///						  int height = imp_srcs[srcChannel].getHeight();
+					  double kr = clt_parameters.scale_r/clt_parameters.novignetting_r;
+					  double kg = clt_parameters.scale_g/clt_parameters.novignetting_g;
+					  double kb = clt_parameters.scale_b/clt_parameters.novignetting_b;
+					  for (int y = 0; y < height-1; y+=2){
+						  for (int x = 0; x < width-1; x+=2){
+							  pixels[y*width+x        ] *= kg;
+							  pixels[y*width+x+width+1] *= kg;
+							  pixels[y*width+x      +1] *= kr;
+							  pixels[y*width+x+width  ] *= kb;
+						  }
+					  }
+				  }
+			  }
+		  }
+		  // temporary applying scaleExposures[srcChannel] here, setting it to all 1.0
+		  System.out.println("Temporarily applying scaleExposures[] here" );
+		  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
+			  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
+			  for (int i = 0; i < pixels.length; i++){
+				  pixels[i] *= scaleExposures[srcChannel];
+			  }
+			  scaleExposures[srcChannel] = 1.0;
+		  }
+
+		  // may need to equalize gains between channels
+		  if (clt_parameters.gain_equalize || clt_parameters.colors_equalize){
+			  channelGainsEqualize(
+					  clt_parameters.gain_equalize,
+					  clt_parameters.colors_equalize,
+					  clt_parameters.nosat_equalize, // boolean nosat_equalize,
+					  channelFiles,
+					  imp_srcs,
+					  saturation_imp, // boolean[][] saturated,
+					  setNames.get(nSet), // just for debug messages == setNames.get(nSet)
+					  debugLevel);
+		  }
+
+
+		  if (!batch_mode && (debugLevel > -1) && (saturation_imp != null)){
+			  String [] titles = {"chn0","chn1","chn2","chn3"};
+			  double [][] dbg_satur = new double [saturation_imp.length] [saturation_imp[0].length];
+			  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
+				  for (int i = 0; i < saturation_imp[srcChannel].length; i++){
+					  dbg_satur[srcChannel][i] = saturation_imp[srcChannel][i]? 1.0 : 0.0;
+				  }
+			  }
+			  int width =  imp_srcs[0].getWidth();
+			  int height = imp_srcs[0].getHeight();
+			  (new showDoubleFloatArrays()).showArrays(dbg_satur, width, height, true, "Saturated" , titles);
+
+			  if (debugLevel > -1) { // 0){
+				  double [][] dbg_dpixels_norm = new double [channelFiles.length][];
+				  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
+					  float [] pixels=(float []) imp_srcs[srcChannel].getProcessor().getPixels();
+					  dbg_dpixels_norm[srcChannel] = new double[pixels.length]; 
+					  for (int i = 0; i < pixels.length; i++){
+						  dbg_dpixels_norm[srcChannel][i] = pixels[i];
+					  }
+				  }
+				  (new showDoubleFloatArrays()).showArrays(dbg_dpixels, width, height, true, "dpixels" , titles);
+				  (new showDoubleFloatArrays()).showArrays(dbg_dpixels_norm, width, height, true, "dpixels_norm" , titles);
+				  double [][] dbg_dpixels_split = new double [4 * dbg_dpixels.length][dbg_dpixels[0].length / 4];
+				  String [] dbg_titles = {"g1_0","r_0","b_0","g2_0","g1_2","r_1","b_1","g2_1","g1_2","r_2","b_2","g2_2","g1_3","r_3","b_3","g2_3"};
+				  for (int srcChn = 0; srcChn < 4; srcChn++) {
+					  for (int y = 0; y < height-1; y+=2){
+						  for (int x = 0; x < width-1; x+=2){
+							  dbg_dpixels_split[ 0 + 4 * srcChn][ y*width/4 +x/2 ] = dbg_dpixels_norm[srcChn][y * width + x             ];
+							  dbg_dpixels_split[ 3 + 4 * srcChn][ y*width/4 +x/2 ] = dbg_dpixels_norm[srcChn][y * width + x  + width + 1];
+							  dbg_dpixels_split[ 1 + 4 * srcChn][ y*width/4 +x/2 ] = dbg_dpixels_norm[srcChn][y * width + x  +         1];
+							  dbg_dpixels_split[ 2 + 4 * srcChn][ y*width/4 +x/2 ] = dbg_dpixels_norm[srcChn][y * width + x  + width    ];
+						  }
+					  }
+				  }
+				  (new showDoubleFloatArrays()).showArrays(dbg_dpixels_split, width/2, height/2, true, "dpixels_split" , dbg_titles);
+			  }					  
+		  }
+
+		  return imp_srcs;
+	  }
+
+	  public void batchCLT3d(
+			  EyesisCorrectionParameters.CLTParameters          clt_parameters,
+			  EyesisCorrectionParameters.DebayerParameters      debayerParameters,
+			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+			  EyesisCorrectionParameters.ColorProcParameters    colorProcParameters,
+			  CorrectionColorProc.ColorGainsParameters          channelGainParameters,
+			  EyesisCorrectionParameters.RGBParameters          rgbParameters,
+			  EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+			  final int        threadsMax,  // maximal number of threads to launch                         
+			  final boolean    updateStatus,
+			  final int        debugLevel)
+	  {
+		  
+		  this.startTime=System.nanoTime();
+		  String [] sourceFiles=correctionsParameters.getSourcePaths();
+		  boolean [] enabledFiles=new boolean[sourceFiles.length];
+		  for (int i=0;i<enabledFiles.length;i++) enabledFiles[i]=false;
+		  int numFilesToProcess=0;
+		  int numImagesToProcess=0;
+		  for (int nFile=0;nFile<enabledFiles.length;nFile++){
+			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
+				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
+				  if (correctionsParameters.isJP4()){
+					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
+					  // removeUnusedSensorData should be off!?
+					  channels=this.eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
+				  }
+				  if (channels!=null){
+					  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
+						  if (!enabledFiles[nFile]) numFilesToProcess++;
+						  enabledFiles[nFile]=true;
+						  numImagesToProcess++;
+					  }
+				  }
+			  }
+		  }
+		  if (numFilesToProcess==0){
+			  System.out.println("No files to process (of "+sourceFiles.length+")");
+			  return;
+		  } else {
+			  if (debugLevel>0) System.out.println(numFilesToProcess+ " files to process (of "+sourceFiles.length+"), "+numImagesToProcess+" images to process");
+		  }
+		  double [] referenceExposures=eyesisCorrections.calcReferenceExposures(debugLevel); // multiply each image by this and divide by individual (if not NaN)
+		  int [][] fileIndices=new int [numImagesToProcess][2]; // file index, channel number
+		  int index=0;
+		  for (int nFile=0;nFile<enabledFiles.length;nFile++){
+			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
+				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
+				  if (correctionsParameters.isJP4()){
+					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
+					  channels=eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
+				  }
+				  if (channels!=null){
+					  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
+						  fileIndices[index  ][0]=nFile;
+						  fileIndices[index++][1]=channels[i];
+					  }
+				  }
+			  }
+		  }
+		  ArrayList<String> setNames = new ArrayList<String>();
+		  ArrayList<ArrayList<Integer>> setFiles = new ArrayList<ArrayList<Integer>>();
+
+		  for (int iImage=0;iImage<fileIndices.length;iImage++){
+			  int nFile=fileIndices[iImage][0];
+			  String setName = correctionsParameters.getNameFromSourceTiff(sourceFiles[nFile]);
+			  if (!setNames.contains(setName)) {
+				  setNames.add(setName);
+				  setFiles.add(new ArrayList<Integer>());
+			  }
+			  setFiles.get(setNames.indexOf(setName)).add(new Integer(nFile));
+		  }
+		  
+		  // Do per 4-image set processing
+		  int nSet = 0;
+		  for (nSet = 0; nSet < setNames.size(); nSet++){
+			  if ((nSet > 0) &&(debugLevel > -2)) {
+				  System.out.println("Processing set "+(nSet+1)+" (of "+fileIndices.length+") finished at "+
+				  IJ.d2s(0.000000001*(System.nanoTime()-this.startSetTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+			  }
+			  this.startSetTime = System.nanoTime();
+			  boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[QUAD][] : null;
+			  double [] scaleExposures = new double[QUAD]; //
+			  ImagePlus [] imp_srcs = conditionImageSet(
+					  nSet,               // final int                           nSet, // index of the 4-image set
+					  clt_parameters,     // final EyesisCorrectionParameters.CLTParameters           clt_parameters,
+					  fileIndices,        // final int [][]                      fileIndices, // =new int [numImagesToProcess][2]; // file index, channel number
+					  setNames,           // final ArrayList<String>             setNames, //  = new ArrayList<String>();
+					  setFiles,           // final ArrayList<ArrayList<Integer>> setFiles, //  = new ArrayList<ArrayList<Integer>>();
+					  referenceExposures, //final double []                     referenceExposures, // =eyesisCorrections.calcReferenceExposures(debugLevel); // multiply each image by this and divide by individual (if not NaN)
+					  scaleExposures,     // final double []                     scaleExposures, //  = new double[channelFiles.length]; //
+					  saturation_imp,     // final boolean [][]                  saturation_imp, //  = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
+					  true,               // final boolean                       batch_mode,     // disable any debug images
+					  debugLevel);        // final int                           debugLevel)
+			  
+			  // once per quad here
+			  if (imp_srcs == null) continue;
+			  if (correctionsParameters.clt_batch_4img){
+				  processCLTQuadCorr( // returns ImagePlus, but it already should be saved/shown
+						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
+						  clt_parameters,
+						  debayerParameters,
+						  nonlinParameters,
+						  colorProcParameters,
+						  channelGainParameters,
+						  rgbParameters,
+						  convolveFFTSize, // 128 - fft size, kernel size should be size/2
+						  scaleExposures,
+						  false, // apply_corr, // calculate and apply additional fine geometry correction 
+						  false, // infinity_corr, // calculate and apply geometry correction at infinity 
+						  threadsMax,  // maximal number of threads to launch
+						  true, // batch_mode 
+						  updateStatus,
+						  debugLevel);
+			  }
+			  if (correctionsParameters.clt_batch_extrinsic) {
+				  if (tp != null) tp.resetCLTPasses();
+				  boolean ok = preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
+						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
+						  clt_parameters,
+						  debayerParameters,
+						  nonlinParameters,
+						  colorProcParameters,
+						  channelGainParameters,
+						  rgbParameters,
+						  threadsMax,  // maximal number of threads to launch                         
+						  updateStatus,
+						  debugLevel);
+				  if (ok) {
+					  System.out.println("Adjusting extrinsics");
+					  extrinsicsCLT(
+							  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+							  false,          // adjust_poly,
+							  threadsMax,     //final int        threadsMax,  // maximal number of threads to launch                         
+							  updateStatus,   // final boolean    updateStatus,
+							  true,           // final boolean    batch_mode,
+							  debugLevel);    // final int        debugLevel)
+				  }
+			  }
+			  if (correctionsParameters.clt_batch_poly) {
+				  if (tp != null) tp.resetCLTPasses();
+				  boolean ok = preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
+						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
+						  clt_parameters,
+						  debayerParameters,
+						  nonlinParameters,
+						  colorProcParameters,
+						  channelGainParameters,
+						  rgbParameters,
+						  threadsMax,  // maximal number of threads to launch                         
+						  updateStatus,
+						  debugLevel);
+				  if (ok) {
+					  System.out.println("Adjusting polynomial fine crorection");
+					  extrinsicsCLT(
+							  clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+							  true,           // adjust_poly,
+							  threadsMax,     //final int        threadsMax,  // maximal number of threads to launch                         
+							  updateStatus,   // final boolean    updateStatus,
+							  true,           // final boolean    batch_mode,
+							  debugLevel);    // final int        debugLevel)
+				  }
+				  
+			  }
+			  if (correctionsParameters.clt_batch_explore) {
+				  if (tp != null) tp.resetCLTPasses();
+				  boolean ok = preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
+						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
+						  clt_parameters,
+						  debayerParameters,
+						  nonlinParameters,
+						  colorProcParameters,
+						  channelGainParameters,
+						  rgbParameters,
+						  threadsMax,  // maximal number of threads to launch                         
+						  updateStatus,
+						  debugLevel);
+				  if (ok) {
+					  System.out.println("Explore 3d space");
+					  expandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
+							  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+							  clt_parameters,
+							  debayerParameters,
+							  nonlinParameters,
+							  colorProcParameters,
+							  channelGainParameters,
+							  rgbParameters,
+							  threadsMax,  // maximal number of threads to launch                         
+							  updateStatus,
+							  true,       // final boolean    batch_mode,
+							  debugLevel);
+				  } else continue;
+				  
+			  } else continue; // if (correctionsParameters.clt_batch_explore)
+
+			  if (correctionsParameters.clt_batch_surf) {
+				  tp.showPlanes(
+						  clt_parameters,
+						  geometryCorrection,		  			
+						  threadsMax,
+						  updateStatus,
+						  true,          // batch_mode
+						  debugLevel);
+				  
+			  } else continue; // if (correctionsParameters.clt_batch_surf)
+
+			  if (correctionsParameters.clt_batch_assign) {
+				  boolean ok = tp.assignTilesToSurfaces(
+						  clt_parameters,
+						  geometryCorrection,		  			
+						  threadsMax,
+						  updateStatus,
+						  true, //  boolean batch_mode, 
+						  debugLevel);
+				  if (!ok) continue;
+			  } else continue; // if (correctionsParameters.clt_batch_assign)
+
+			  if (correctionsParameters.clt_batch_gen3d) {
+				  boolean ok = output3d(
+						  clt_parameters,      // EyesisCorrectionParameters.CLTParameters           clt_parameters,
+						  colorProcParameters, // EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+						  rgbParameters,       // EyesisCorrectionParameters.RGBParameters             rgbParameters,
+						  threadsMax,          // final int        threadsMax,  // maximal number of threads to launch                         
+						  updateStatus,        // final boolean    updateStatus,
+						  true,                //   final boolean    batch_mode,
+						  debugLevel);         // final int        debugLevel)
+				  if (!ok) continue;
+			  } else continue; // if (correctionsParameters.clt_batch_gen3d)
+			  
+			  Runtime.getRuntime().gc();
+//			  if (debugLevel > -2) System.out.println("Processing set "+(nSet+1)+" (of "+fileIndices.length+") finished at "+
+//					  IJ.d2s(0.000000001*(System.nanoTime()-this.startSetTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+			  if (eyesisCorrections.stopRequested.get()>0) {
+				  System.out.println("User requested stop");
+				  System.out.println("Processing "+(nSet + 1)+" file sets (of "+setNames.size()+") finished at "+
+						  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+				  return;
+			  }
+		  }
+		  if (debugLevel > -2) {
+			  System.out.println("Processing set "+(nSet+1)+" (of "+fileIndices.length+") finished at "+
+			  IJ.d2s(0.000000001*(System.nanoTime()-this.startSetTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+		  }
+		  
+		  System.out.println("Processing "+fileIndices.length+" files ("+setNames.size()+" file sets) finished in "+
+				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+	  }		
 	  
 	  
 }

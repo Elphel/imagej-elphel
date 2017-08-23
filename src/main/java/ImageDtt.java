@@ -1042,7 +1042,7 @@ public class ImageDtt {
 		final int corr_size = transform_size * 2 -1;
 		final int [][] transpose_indices = new int [corr_size*(corr_size-1)/2][2];
 		int indx = 0;
-		if (disparity_corr != 0.0){
+		if ((globalDebugLevel > -1) && (disparity_corr != 0.0)){
 			System.out.println(String.format("Using manual infinity disparity correction of %8.5f pixels",disparity_corr));
 		}
 		for (int i =0; i < corr_size-1; i++){
