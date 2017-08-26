@@ -542,8 +542,8 @@ private Panel panel1,
 		if (DCT_MODE) {
 			panelClt3 = new Panel();
 			panelClt3.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
-			addButton("Setup CLT Batch parameters", panelClt3, color_configure);
 			addButton("Setup CLT parameters",       panelClt3, color_configure);
+			addButton("Setup CLT Batch parameters", panelClt3, color_configure);
 			addButton("CLT batch process",          panelClt3, color_process);
 			add(panelClt3);
 		}
@@ -4604,7 +4604,7 @@ private Panel panel1,
         		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
         	}
         }
-        QUAD_CLT.resetExtrinsicCorr();
+        QUAD_CLT.resetExtrinsicCorr(CLT_PARAMETERS);
         return;
     } else if (label.equals("CLT show fine corr")) {
         if (QUAD_CLT == null){

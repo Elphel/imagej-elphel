@@ -612,11 +612,13 @@ public class AlignmentCorrection {
 			mdata = new double [8][samples_list.size()][3];
 		}
 		int indx = 0;
+		final Matrix [] corr_rots = qc.geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices 
 		for (Sample s: samples_list){
 			int tileX = s.tile % tilesX;
 			int tileY = s.tile / tilesX;
 			double centerX = tileX * qc.tp.getTileSize() + qc.tp.getTileSize()/2;// - shiftX;
 			double centerY = tileY * qc.tp.getTileSize() + qc.tp.getTileSize()/2;//- shiftY;
+/*			
 			double [][] centersXY_disp = qc.geometryCorrection.getPortsCoordinates(
 					centerX,
 					centerY,
@@ -625,6 +627,22 @@ public class AlignmentCorrection {
 					centerX,
 					centerY,
 					0.0); // disparity
+*/					
+			double [][] centersXY_disp = qc.geometryCorrection.getPortsCoordinatesAndDerivatives(
+					corr_rots, // Matrix []   rots,
+					null,      //  Matrix [][] deriv_rots, 
+					null,      // double [][] pXYderiv, // if not null, should be double[8][]
+					centerX,
+					centerY,
+					disp_strength[2 * s.series + 0][s.tile]/magic_coeff); // disparity
+			double [][] centersXY_inf = qc.geometryCorrection.getPortsCoordinatesAndDerivatives(
+					corr_rots, // Matrix []   rots,
+					null,      //  Matrix [][] deriv_rots, 
+					null,      // double [][] pXYderiv, // if not null, should be double[8][]
+					centerX,
+					centerY,
+					0.0); // disparity
+
 			for (int i = 0; i < centersXY_disp.length;i++){
 				centersXY_disp[i][0] -= centersXY_inf[i][0];
 				centersXY_disp[i][1] -= centersXY_inf[i][1];
@@ -2077,7 +2095,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					qc.geometryCorrection,                  // GeometryCorrection geometryCorrection,
 					qc.geometryCorrection.getCorrVector(),  // GeometryCorrection.CorrVector corr_vector,
 					old_new_rms,                            // double [] old_new_rms, // should be double[2]
-					debugLevel); // 2); // 1); // int debugLevel)
+					2); // debugLevel); // 2); // 1); // int debugLevel)
 			if (debugLevel > -1){
 				System.out.println("Old extrinsic corrections:");
 				System.out.println(qc.geometryCorrection.getCorrVector().toString());
@@ -2218,20 +2236,31 @@ B = |+dy0   -dy1      -2*dy3 |
 			jt_dbg = new double  [num_pars][2 * NUM_SENSORS * mismatch_list.size()];
 		}
 		
-		
+		Matrix []   corr_rots =  corr_vector.getRotMatrices(); // get array of per-sensor rotation matrices
+		Matrix [][] deriv_rots = corr_vector.getRotDeriveMatrices(); 
 		for (int indx = 0; indx<mismatch_list.size(); indx++){ // need indx value
 			Mismatch mm = mismatch_list.get(indx);
 			double [] pXY = mm.getPXY();
 			double [][] deriv = new double [2 * NUM_SENSORS][];
 			int dbg_index =dbg_index (pXY, dbg_decimate);
-//			double [][] f =  
-			geometryCorrection.getPortsCoordinatesAndDerivatives(
+//			double [][] f =
+/*			
+			geometryCorrection.getPortsCoordinatesAndDerivatives_old(
 					corr_vector, // CorrVector corr_vector,
 					deriv,   // 	boolean calc_deriv,
 					pXY[0],      // double px,
 					pXY[1],      // double py,
 					mm.getDisparityMeas()); // getDisparityTask()); // double disparity)
-			// convert to symmetrical coordianets
+*/
+			geometryCorrection.getPortsCoordinatesAndDerivatives(
+					corr_rots,   //  Matrix []   rots,
+					deriv_rots,  //  Matrix [][] deriv_rots, 
+					deriv,       // 	boolean calc_deriv,
+					pXY[0],      // double px,
+					pXY[1],      // double py,
+					mm.getDisparityMeas()); // getDisparityTask()); // double disparity)
+			
+			// convert to symmetrical coordinates
 			
 			 double [][] jt_partial = corr_vector.getJtPartial(
 						deriv, // double [][] port_coord_deriv,
@@ -2381,17 +2410,27 @@ B = |+dy0   -dy1      -2*dy3 |
 	{
 		double [][] dMismatch_dXY = (new Mismatch()).get_dMismatch_dXY(); // just a static array
 		double [] mv = new double [2 * NUM_SENSORS * mismatch_list.size()];
-		
+		Matrix [] corr_rots = corr_vector.getRotMatrices(); // get array of per-sensor rotation matrices 
 		for (int indx = 0; indx<mismatch_list.size(); indx++){ // need indx value
 			Mismatch mm = mismatch_list.get(indx);
 			double [] pXY = mm.getPXY();
-			double [][] f = geometryCorrection.getPortsCoordinatesAndDerivatives( // 4x2
+			/*
+			double [][] f = geometryCorrection.getPortsCoordinatesAndDerivatives_old( // 4x2
 					corr_vector, // CorrVector corr_vector,
 					null,        //	boolean calc_deriv,
 					pXY[0],      // double px,
 					pXY[1],      // double py,
 					mm.getDisparityMeas()); // getDisparityTask()); // double disparity)
-			// convert to symmetrical coordianets
+*/
+			double [][] f = geometryCorrection.getPortsCoordinatesAndDerivatives( // 4x2
+					corr_rots,    //  Matrix []   rots,
+					null, //  Matrix [][] deriv_rots, 
+					null,        //	boolean calc_deriv,
+					pXY[0],      // double px,
+					pXY[1],      // double py,
+					mm.getDisparityMeas()); // getDisparityTask()); // double disparity)
+
+			// convert to symmetrical coordinates
 			// f is [4][2] array of port x,y coordinates - convert them to mv (linear array)
 			
 			double [] mv_partial = new double [dMismatch_dXY.length];
@@ -2588,6 +2627,7 @@ B = |+dy0   -dy1      -2*dy3 |
 				mismatch_list,      // ArrayList<Mismatch> mismatch_list,
 				geometryCorrection, // GeometryCorrection geometryCorrection,
 				corr_vector,        // GeometryCorrection.CorrVector corr_vector)
+//				debugLevel);		// int debugLevel)
 				debugLevel);		// int debugLevel)
 
 		// convert Jacobian outputs to symmetrical measurement vectors (last one is non-zero only if disparity should be adjusted)
@@ -2684,9 +2724,9 @@ B = |+dy0   -dy1      -2*dy3 |
 						} else if ((dbg_titles_mv.length * indx + i) >= jta_mv [oj].length){
 							System.out.println("solveCorr(): dbg_dmv_dsym.length="+dbg_dmv_dsym.length+ ", dbg_dmv_dsym[0].length="+dbg_dmv_dsym[0].length);
 						}
-						dbg_dmv_dsym[i * dbg_titles_sym.length + j][dbg_index] = jta_mv [oj][dbg_titles_mv.length * indx + i];  //java.lang.ArrayIndexOutOfBoundsException: 3552
+						dbg_dmv_dsym[i * dbg_titles_sym.length + j][dbg_index] =       jta_mv [oj][dbg_titles_mv.length * indx + i];  //java.lang.ArrayIndexOutOfBoundsException: 3552
 						dbg_dmv_dsym_delta[i * dbg_titles_sym.length + j][dbg_index] = jta_mv_delta [oj][dbg_titles_mv.length * indx + i];
-						dbg_dmv_dsym_diff[i * dbg_titles_sym.length + j][dbg_index] = jta_mv_delta [oj][dbg_titles_mv.length * indx + i] - jta_mv [oj][dbg_titles_mv.length * indx + i];
+						dbg_dmv_dsym_diff[i * dbg_titles_sym.length + j][dbg_index] =  jta_mv_delta [oj][dbg_titles_mv.length * indx + i] - jta_mv [oj][dbg_titles_mv.length * indx + i];
 						oj++;
 					}
 				}

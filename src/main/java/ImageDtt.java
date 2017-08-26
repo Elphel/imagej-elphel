@@ -1,7 +1,3 @@
-import java.util.concurrent.atomic.AtomicInteger;
-
-import ij.ImageStack;
-
 /**
  **
  ** ImageDtt - Process images with DTT-based methods
@@ -25,6 +21,9 @@ import ij.ImageStack;
  ** -----------------------------------------------------------------------------**
  **
  */
+import java.util.concurrent.atomic.AtomicInteger;
+import Jama.Matrix;
+import ij.ImageStack;
 
 public class ImageDtt {
 	
@@ -847,6 +846,7 @@ public class ImageDtt {
 		final double [][][][][][] clt_data = new double[quad][nChn][tilesY][tilesX][4][];
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
+		final Matrix [] corr_rots = geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices 
 		
 		
 		if (globalDebugLevel > 0) {
@@ -872,23 +872,34 @@ public class ImageDtt {
 						//						tileX = nTile % tilesX;
 						tileY = nTile /tilesX;
 						tileX = nTile % tilesX;
-						for (int chn = 0; chn <numcol; chn++) {
+						
 
 
-							centerX = tileX * transform_size + transform_size/2 - shiftX;
-							centerY = tileY * transform_size + transform_size/2 - shiftY;
-							double [][] centersXY = geometryCorrection.getPortsCoordinates(
-									centerX,
-									centerY,
-									disparity);
-							if ((globalDebugLevel > 0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
-									(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)) {
-								for (int i = 0; i < quad; i++) {
-									System.out.println("clt_aberrations_quad(): color="+chn+", tileX="+tileX+", tileY="+tileY+
-											" centerX="+centerX+" centerY="+centerY+" disparity="+disparity+
-											" centersXY["+i+"][0]="+centersXY[i][0]+" centersXY["+i+"][1]="+centersXY[i][1]);
-								}
+						centerX = tileX * transform_size + transform_size/2 - shiftX;
+						centerY = tileY * transform_size + transform_size/2 - shiftY;
+//						double [][] centersXY = geometryCorrection.getPortsCoordinates(
+//								centerX,
+//								centerY,
+//								disparity);
+						double [][] centersXY = geometryCorrection.getPortsCoordinatesAndDerivatives(
+								corr_rots, // Matrix []   rots,
+								null,      //  Matrix [][] deriv_rots, 
+								null,      // double [][] pXYderiv, // if not null, should be double[8][]
+								centerX,
+								centerY,
+								disparity);
+						
+						if ((globalDebugLevel > 0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
+								(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)) {
+							for (int i = 0; i < quad; i++) {
+								System.out.println("clt_aberrations_quad():  tileX="+tileX+", tileY="+tileY+
+										" centerX="+centerX+" centerY="+centerY+" disparity="+disparity+
+										" centersXY["+i+"][0]="+centersXY[i][0]+" centersXY["+i+"][1]="+centersXY[i][1]);
 							}
+						}
+						
+						
+						for (int chn = 0; chn <numcol; chn++) {
 
 							for (int i = 0; i < quad; i++) {
 								fract_shiftsXY[i] = extract_correct_tile( // return a pair of resudual offsets
@@ -1023,8 +1034,8 @@ public class ImageDtt {
 			final int                 threadsMax,  // maximal number of threads to launch                         
 			final int                 globalDebugLevel)
 	{
+		final boolean debug_ports_coordinates = (debug_tileX == -1234);
 		final boolean macro_mode = macro_scale != 1;      // correlate tile data instead of the pixel data
-
 		final int quad = 4;   // number of subcameras
 		final int numcol = 3; // number of colors
 		final int nChn = image_data[0].length;
@@ -1163,9 +1174,19 @@ public class ImageDtt {
 			sdfa_instance.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
 		}
 
-//		final double [] overexposed = disparity_map[OVEREXPOSED];
-//		final int [][] overexp_all = (saturation_imp != null) ? ( new int [tilesX*tilesY][2]): null;  
-						
+/*		final double [][] dbg_ports_coords = debug_ports_coordinates ? (new double[4*2*3][nTilesInChn]):null; 
+		String [] dbg_titles = new String[4*2*3];
+		if (dbg_ports_coords != null) {
+			for (int dbg_p = 0; dbg_p < 4; dbg_p++){
+				for (int dbg_d = 0; dbg_d < 2; dbg_d++){
+					dbg_titles      [6 * dbg_p + 3 * dbg_d + 0] = "port_"+dbg_p+((dbg_d > 0)?"y":"x")+"_diff";
+					dbg_titles      [6 * dbg_p + 3 * dbg_d + 1] = "port_"+dbg_p+((dbg_d > 0)?"y":"x")+"_shft";
+					dbg_titles      [6 * dbg_p + 3 * dbg_d + 2] = "port_"+dbg_p+((dbg_d > 0)?"y":"x")+"_rot";
+				}
+			}
+		}
+*/		
+		final Matrix [] corr_rots = geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices 
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				public void run() {
@@ -1182,6 +1203,7 @@ public class ImageDtt {
 					PolynomialApproximation pa =     null;
 					if (corr_max_weights_poly !=null)   pa = new PolynomialApproximation(0); // debug level
 					for (int nTile = ai.getAndIncrement(); nTile < nTilesInChn; nTile = ai.getAndIncrement()) {
+						
 						tileY = nTile /tilesX;
 						tileX = nTile % tilesX;
 						tIndex = tileY * tilesX + tileX; 
@@ -1197,10 +1219,105 @@ public class ImageDtt {
 						boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY);
 						
 						final int [] overexp_all = (saturation_imp != null) ? ( new int [2]): null;  
+						
+						// Moved from inside chn loop
+						centerX = tileX * transform_size + transform_size/2 - shiftX;
+						centerY = tileY * transform_size + transform_size/2 - shiftY;
+						// TODO: move port coordinates out of color channel loop
+						double [][] centersXY;
+						if (macro_mode){
+							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY)) { // before correction
+								System.out.println("\nUsing MACRO mode, centerX="+centerX+", centerY="+centerY);
+							}
+							centersXY = geometryCorrection.getPortsCoordinatesIdeal(
+									macro_scale,
+									centerX,
+									centerY,
+									macro_scale* disparity_array[tileY][tileX] + disparity_corr);
+							
+						} else {
+							centersXY = geometryCorrection.getPortsCoordinatesAndDerivatives(
+									corr_rots, // Matrix []   rots,
+									null,      //  Matrix [][] deriv_rots, 
+									null,      // double [][] pXYderiv, // if not null, should be double[8][]
+									centerX,
+									centerY,
+									disparity_array[tileY][tileX] + disparity_corr);
+/*							
+							if (dbg_ports_coords != null) {
+								double [][] centersXY_shift = geometryCorrection.getPortsCoordinates_old(
+										centerX,
+										centerY,
+										disparity_array[tileY][tileX] + disparity_corr);
+								for (int dbg_p = 0; dbg_p < 4; dbg_p++){
+									for (int dbg_d = 0; dbg_d < 2; dbg_d++){
+										dbg_ports_coords[6 * dbg_p + 3 * dbg_d + 0][nTile] = centersXY[dbg_p][dbg_d] - centersXY_shift[dbg_p][dbg_d];
+										dbg_ports_coords[6 * dbg_p + 3 * dbg_d + 1][nTile] = centersXY_shift[dbg_p][dbg_d];
+										dbg_ports_coords[6 * dbg_p + 3 * dbg_d + 2][nTile] = centersXY[dbg_p][dbg_d];
+									}
+								}
+//								centersXY = centersXY_rot; // use these
+							}
+*/							
+							if ((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
+								for (int i = 0; i < quad; i++) {
+									System.out.println("clt_aberrations_quad_corr():  tileX="+tileX+", tileY="+tileY+
+											" centerX="+centerX+" centerY="+centerY+" disparity="+disparity_array[tileY][tileX]+
+											" centersXY["+i+"][0]="+centersXY[i][0]+" centersXY["+i+"][1]="+centersXY[i][1]);
+								}
+							}
 
+							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY)) { // before correction
+								System.out.print(disparity_array[tileY][tileX]+"\t"+
+										centersXY[0][0]+"\t"+centersXY[0][1]+"\t"+
+										centersXY[1][0]+"\t"+centersXY[1][1]+"\t"+
+										centersXY[2][0]+"\t"+centersXY[2][1]+"\t"+
+										centersXY[3][0]+"\t"+centersXY[3][1]+"\t");
+							}
+
+							for (int ip = 0; ip < centersXY.length; ip++){
+								centersXY[ip][0] -= shiftXY[ip][0];
+								centersXY[ip][1] -= shiftXY[ip][1];
+							}
+							// TODO: use correction after disparity applied (to work for large disparity values)
+							if (fine_corr != null){
+								// old correction
+								//double tX = (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0
+								//double tY = (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
+								//for (int ip = 0; ip < centersXY.length; ip++){
+								//	//f(x,y)=A*x^2+B*y^2+C*x*y+D*x+E*y+F
+								//	for (int d = 0; d <2; d++)
+								//		centersXY[ip][d] -= (
+								//				fine_corr[ip][d][0]*tX*tX+
+								//				fine_corr[ip][d][1]*tY*tY+
+								//				fine_corr[ip][d][2]*tX*tY+
+								//				fine_corr[ip][d][3]*tX+
+								//				fine_corr[ip][d][4]*tY+
+								//				fine_corr[ip][d][5]);
+								//}
+								
+								for (int ip = 0; ip < centersXY.length; ip++){
+									double [] tXY = geometryCorrection.getRelativeCoords(centersXY[ip]);
+									for (int d = 0; d <2; d++) {
+										centersXY[ip][d] -= (
+												fine_corr[ip][d][0]*tXY[0]*tXY[0]+
+												fine_corr[ip][d][1]*tXY[1]*tXY[1]+
+												fine_corr[ip][d][2]*tXY[0]*tXY[1]+
+												fine_corr[ip][d][3]*tXY[0]+
+												fine_corr[ip][d][4]*tXY[1]+
+												fine_corr[ip][d][5]);
+									}
+								}
+							}
+						} // if (macro_mode) ... else
+						
+						
 						for (int chn = 0; chn <numcol; chn++) {
+							
+/*
 							centerX = tileX * transform_size + transform_size/2 - shiftX;
 							centerY = tileY * transform_size + transform_size/2 - shiftY;
+							// TODO: move port coordinates out of color channel loop
 							double [][] centersXY;
 							if (macro_mode){
 								if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) { // before correction
@@ -1239,21 +1356,19 @@ public class ImageDtt {
 								// TODO: use correction after disparity applied (to work for large disparity values)
 								if (fine_corr != null){
 									// old correction
-									/*
-									double tX = (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0
-									double tY = (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
-									for (int ip = 0; ip < centersXY.length; ip++){
-										//f(x,y)=A*x^2+B*y^2+C*x*y+D*x+E*y+F
-										for (int d = 0; d <2; d++)
-											centersXY[ip][d] -= (
-													fine_corr[ip][d][0]*tX*tX+
-													fine_corr[ip][d][1]*tY*tY+
-													fine_corr[ip][d][2]*tX*tY+
-													fine_corr[ip][d][3]*tX+
-													fine_corr[ip][d][4]*tY+
-													fine_corr[ip][d][5]);
-									}
-									*/
+									//double tX = (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0
+									//double tY = (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
+									//for (int ip = 0; ip < centersXY.length; ip++){
+									//	//f(x,y)=A*x^2+B*y^2+C*x*y+D*x+E*y+F
+									//	for (int d = 0; d <2; d++)
+									//		centersXY[ip][d] -= (
+									//				fine_corr[ip][d][0]*tX*tX+
+									//				fine_corr[ip][d][1]*tY*tY+
+									//				fine_corr[ip][d][2]*tX*tY+
+									//				fine_corr[ip][d][3]*tX+
+									//				fine_corr[ip][d][4]*tY+
+									//				fine_corr[ip][d][5]);
+									//}
 									
 									for (int ip = 0; ip < centersXY.length; ip++){
 										double [] tXY = geometryCorrection.getRelativeCoords(centersXY[ip]);
@@ -1268,7 +1383,11 @@ public class ImageDtt {
 										}
 									}
 								}
-							}
+							} // if (macro_mode) ... else
+							
+*/							
+							
+							
 							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) {
 								System.out.println("\nUsing "+(macro_mode?"MACRO":"PIXEL")+" mode, centerX="+centerX+", centerY="+centerY);
 								System.out.println(disparity_array[tileY][tileX]+"\t"+
@@ -1821,6 +1940,11 @@ public class ImageDtt {
 			};
 		}		      
 		startAndJoin(threads);
+/*		
+		if (dbg_ports_coords != null) {
+			(new showDoubleFloatArrays()).showArrays(dbg_ports_coords,  tilesX, tilesY, true, "ports_coordinates", dbg_titles);
+		}
+*/
 		return clt_data;
 	}
 	

@@ -2327,7 +2327,7 @@ public class EyesisCorrections {
 		   saveAndShowEnable( imp,    correctionsParameters , true, true);
 	   }
 
-	   private void saveAndShowEnable(
+	   public void saveAndShowEnable(
 			   ImagePlus             imp,
 			   EyesisCorrectionParameters.CorrectionParameters  correctionsParameters,
 			   boolean               enableSave,

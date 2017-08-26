@@ -106,12 +106,13 @@ public class QuadCLT {
 				}
 			}
 		}
-		
-		if (geometryCorrection != null){
-			for (int i = 0; i < GeometryCorrection.CORR_NAMES.length; i++){
-				String name = prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
-				properties.setProperty(name,  geometryCorrection.getCorrVector().toArray()[i]+"");
-			}
+		GeometryCorrection gc = geometryCorrection;
+		if (gc == null) { // if it was not yet created
+			gc = new GeometryCorrection(this.extrinsic_corr);
+		}
+		for (int i = 0; i < GeometryCorrection.CORR_NAMES.length; i++){
+			String name = prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
+			properties.setProperty(name,  gc.getCorrVector().toArray()[i]+"");
 		}
 	}	
 	
@@ -2607,7 +2608,7 @@ public class QuadCLT {
 					  updateStatus,
 					  debugLevel);
 			  Runtime.getRuntime().gc();
-			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+fileIndices.length+") finished at "+
+			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+setNames.size()+") finished at "+
 					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
 				  System.out.println("User requested stop");
@@ -3264,7 +3265,7 @@ public class QuadCLT {
 					  false, // batch_mode 
 					  debugLevel);
 			  Runtime.getRuntime().gc();
-			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+fileIndices.length+") finished at "+
+			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+setNames.size()+") finished at "+
 					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
 				  System.out.println("User requested stop");
@@ -3596,11 +3597,15 @@ public class QuadCLT {
 		  
 //		  double min_corr_selected = clt_parameters.corr_normalize? clt_parameters.min_corr_normalized: clt_parameters.min_corr;
 		  double min_corr_selected = clt_parameters.min_corr;
-		  double [][] shiftXY = {
-				  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
-				  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
-				  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
-				  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
+		  double [][] shiftXY = new double [4][2];
+		  if (!clt_parameters.fine_corr_ignore) {
+			  double [][] shiftXY0 = {
+					  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
+					  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
+					  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
+					  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
+			  shiftXY = shiftXY0;
+		  }
 		  
 		  final double disparity_corr = (clt_parameters.z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/clt_parameters.z_correction);
 		  double [][][][][][] clt_data = image_dtt.clt_aberrations_quad_corr(
@@ -3652,8 +3657,8 @@ public class QuadCLT {
 				  
 				  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
 				  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
-				  clt_parameters.tileX,         // final int               debug_tileX,
-				  clt_parameters.tileY,         // final int               debug_tileY,
+				  -1234, // clt_parameters.tileX,         // final int               debug_tileX,
+				  clt_parameters.tileY,         // final int               debug_tileY, -1234 will cause port coordinates debug images
 				  (clt_parameters.dbg_mode & 64) != 0, // no fract shift
 				  (clt_parameters.dbg_mode & 128) != 0, // no convolve
 				  //				  (clt_parameters.dbg_mode & 256) != 0, // transpose convolve
@@ -3719,7 +3724,7 @@ public class QuadCLT {
 							  (clt_parameters.keep_weights?rgba_weights_titles:rgba_titles));
 				  }
 				  if (!batch_mode && clt_parameters.show_rgba_color) {
-					  // for now - use just RGB. Later add oprion for RGBA
+					  // for now - use just RGB. Later add option for RGBA
 					  double [][] texture_rgb = {texture_overlap[0],texture_overlap[1],texture_overlap[2]};
 					  double [][] texture_rgba = {texture_overlap[0],texture_overlap[1],texture_overlap[2],texture_overlap[3]};
 //					  ImagePlus img_texture = 
@@ -3976,7 +3981,7 @@ public class QuadCLT {
 						  debugLevel );
 				  
 			  } // end of generating shifted channel images
-			  if (!batch_mode && clt_parameters.gen_chn_img) {
+			  if (clt_parameters.gen_chn_img) {
 				  // combine to a sliced color image
 				  int [] slice_seq = {0,1,3,2}; //clockwise
 				  int width = imps_RGB[0].getWidth();
@@ -3991,10 +3996,17 @@ public class QuadCLT {
 				  }
 				  ImagePlus imp_stack = new ImagePlus(name+"-SHIFTED-D"+clt_parameters.disparity, array_stack);
 				  imp_stack.getProcessor().resetMinAndMax();
-				  imp_stack.updateAndDraw();
+				  if (!batch_mode) {
+					  imp_stack.updateAndDraw();
+				  }
 				  //imp_stack.getProcessor().resetMinAndMax();
 				  //imp_stack.show();
-				  eyesisCorrections.saveAndShow(imp_stack, this.correctionsParameters);
+//				  eyesisCorrections.saveAndShow(imp_stack, this.correctionsParameters);
+				  eyesisCorrections.saveAndShowEnable(
+						  imp_stack,  // ImagePlus             imp,
+						  this.correctionsParameters, // EyesisCorrectionParameters.CorrectionParameters  correctionsParameters,
+						  true, // boolean               enableSave,
+						  !batch_mode) ;// boolean               enableShow);
 			  }
 			  if (clt_parameters.gen_4_img) {
 				  // Save as individual JPEG images in the model directory
@@ -4301,11 +4313,15 @@ public class QuadCLT {
 			  System.out.println(geometryCorrection.getCorrVector().toString());
 		  }
 	  }
-	  public void resetExtrinsicCorr()
+	  public void resetExtrinsicCorr(
+			  EyesisCorrectionParameters.CLTParameters           clt_parameters)
 	  {
 		  this.extrinsic_corr = new double [GeometryCorrection.CORR_NAMES.length];
 		  if (geometryCorrection != null){
 			  geometryCorrection.setCorrVector(null);
+		  }
+		  if (clt_parameters.fine_corr_apply){
+			  clt_parameters.fine_corr_ignore = false;
 		  }
 	  }
 	  
@@ -4645,11 +4661,15 @@ public class QuadCLT {
 			  double disparity = clt_parameters.disp_scan_start + scan_step * clt_parameters.disp_scan_step;
 			  double [][] disparity_array = tp.setSameDisparity(disparity); // [tp.tilesY][tp.tilesX] - individual per-tile expected disparity
 			  
-			  double [][] shiftXY = {
-					  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
-					  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
-					  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
-					  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
+			  double [][] shiftXY = new double [4][2];
+			  if (!clt_parameters.fine_corr_ignore) {
+				  double [][] shiftXY0 = {
+						  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
+						  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
+						  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
+						  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
+				  shiftXY = shiftXY0;
+			  }
 
 			  final double disparity_corr = (clt_parameters.z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/clt_parameters.z_correction);
 			  
@@ -5479,7 +5499,7 @@ public class QuadCLT {
 			  }
 			  
 			  Runtime.getRuntime().gc();
-			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+fileIndices.length+") finished at "+
+			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+setNames.size()+") finished at "+
 					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
 				  System.out.println("User requested stop");
@@ -7746,11 +7766,15 @@ public class QuadCLT {
 		  
 		  double [][] disparity_map = new double [ImageDtt.DISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 
-		  double [][] shiftXY = {
-				  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
-				  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
-				  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
-				  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
+		  double [][] shiftXY = new double [4][2];
+		  if (!clt_parameters.fine_corr_ignore) {
+			  double [][] shiftXY0 = {
+					  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
+					  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
+					  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
+					  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
+			  shiftXY = shiftXY0;
+		  }
 		  
 		  double [][][][] texture_tiles =     new double [tilesY][tilesX][][]; // ["RGBA".length()][];
 		  ImageDtt image_dtt = new ImageDtt();
@@ -7948,11 +7972,15 @@ public class QuadCLT {
 		  
 		  double [][] disparity_map = save_corr ? new double [ImageDtt.DISPARITY_TITLES.length][] : null; //[0] -residual disparity, [1] - orthogonal (just for debugging)
 
-		  double [][] shiftXY = {
-				  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
-				  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
-				  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
-				  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
+		  double [][] shiftXY = new double [4][2];
+		  if (!clt_parameters.fine_corr_ignore) {
+			  double [][] shiftXY0 = {
+					  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
+					  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
+					  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
+					  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
+			  shiftXY = shiftXY0;
+		  }
 		  
 		  double [][][][] texture_tiles =   save_textures ? new double [tilesY][tilesX][][] : null; // ["RGBA".length()][];
 		  ImageDtt image_dtt = new ImageDtt();
@@ -8285,7 +8313,6 @@ public class QuadCLT {
 			  final boolean    updateStatus,
 			  final int        debugLevel)
 	  {
-		  
 		  this.startTime=System.nanoTime();
 		  String [] sourceFiles=correctionsParameters.getSourcePaths();
 		  boolean [] enabledFiles=new boolean[sourceFiles.length];
@@ -8345,12 +8372,13 @@ public class QuadCLT {
 			  }
 			  setFiles.get(setNames.indexOf(setName)).add(new Integer(nFile));
 		  }
-		  
+		  boolean batch_dbg = correctionsParameters.clt_batch_dbg1 && (setNames.size() < 2) ;
+
 		  // Do per 4-image set processing
 		  int nSet = 0;
 		  for (nSet = 0; nSet < setNames.size(); nSet++){
 			  if ((nSet > 0) &&(debugLevel > -2)) {
-				  System.out.println("Processing set "+(nSet+1)+" (of "+fileIndices.length+") finished at "+
+				  System.out.println("Processing set "+(nSet+1)+" (of "+setNames.size()+") finished at "+
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startSetTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  }
 			  this.startSetTime = System.nanoTime();
@@ -8365,29 +8393,67 @@ public class QuadCLT {
 					  referenceExposures, //final double []                     referenceExposures, // =eyesisCorrections.calcReferenceExposures(debugLevel); // multiply each image by this and divide by individual (if not NaN)
 					  scaleExposures,     // final double []                     scaleExposures, //  = new double[channelFiles.length]; //
 					  saturation_imp,     // final boolean [][]                  saturation_imp, //  = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
-					  true,               // final boolean                       batch_mode,     // disable any debug images
+					  !batch_dbg,         // final boolean                       batch_mode,     // disable any debug images
 					  debugLevel);        // final int                           debugLevel)
 			  
 			  // once per quad here
 			  if (imp_srcs == null) continue;
-			  if (correctionsParameters.clt_batch_4img){
-				  processCLTQuadCorr( // returns ImagePlus, but it already should be saved/shown
-						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
-						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
-						  clt_parameters,
-						  debayerParameters,
-						  nonlinParameters,
-						  colorProcParameters,
-						  channelGainParameters,
-						  rgbParameters,
-						  convolveFFTSize, // 128 - fft size, kernel size should be size/2
-						  scaleExposures,
-						  false, // apply_corr, // calculate and apply additional fine geometry correction 
-						  false, // infinity_corr, // calculate and apply geometry correction at infinity 
-						  threadsMax,  // maximal number of threads to launch
-						  true, // batch_mode 
-						  updateStatus,
-						  debugLevel);
+			  // creating GeometryCorrection instance for  applyPixelShift()
+//			  setTiles (imp_srcs[0], // set global tp.tilesX, tp.tilesY
+//					  clt_parameters,
+//					  threadsMax);
+			  
+			  if (correctionsParameters.clt_batch_apply_man) {
+				  boolean fine_corr_set = !clt_parameters.fine_corr_ignore;
+				  if (fine_corr_set) {
+					  boolean nz = false;
+					  double [][] shiftXY = {
+							  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
+							  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
+							  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
+							  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
+
+					  for (int i = 0; i < shiftXY.length; i++){
+						  for (int j = 0; j < shiftXY[i].length; j++){
+							  if (shiftXY[i][j] != 0.0) {
+								  nz = true;
+								  break;
+							  }
+						  }
+					  }
+					  if (nz) {
+						  geometryCorrection.getCorrVector().applyPixelShift(
+								  shiftXY); // double [][] pXY_shift)
+						  clt_parameters.fine_corr_ignore = true;
+						  System.out.println("Detected non-zero manual pixel correction, applying it to extrinsics (azimuth, tilt) and disabling");
+					  }
+				  }
+				  
+			  } else if (!clt_parameters.fine_corr_ignore){ // temporary? Remove DC from the manual correction
+				  double [][] shiftXY = {
+						  {clt_parameters.fine_corr_x_0,clt_parameters.fine_corr_y_0},
+						  {clt_parameters.fine_corr_x_1,clt_parameters.fine_corr_y_1},
+						  {clt_parameters.fine_corr_x_2,clt_parameters.fine_corr_y_2},
+						  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
+					double [] pXY_avg = {0.0,0.0};
+					for (int i = 0; i < shiftXY.length; i++){
+						for (int j = 0; j < 2; j++) {
+							pXY_avg[j] += shiftXY[i][j]/shiftXY.length;
+						}
+					}
+					for (int i = 0; i < shiftXY.length; i++){
+						for (int j = 0; j < 2; j++) {
+							shiftXY[i][j] -= pXY_avg[j];
+						}
+					}
+					clt_parameters.fine_corr_x_0 = shiftXY[0][0];
+					clt_parameters.fine_corr_y_0 = shiftXY[0][1];
+					clt_parameters.fine_corr_x_1 = shiftXY[1][0];
+					clt_parameters.fine_corr_y_1 = shiftXY[1][1];
+					clt_parameters.fine_corr_x_2 = shiftXY[2][0];
+					clt_parameters.fine_corr_y_2 = shiftXY[2][1];
+					clt_parameters.fine_corr_x_3 = shiftXY[3][0];
+					clt_parameters.fine_corr_y_3 = shiftXY[3][1];
 			  }
 			  if (correctionsParameters.clt_batch_extrinsic) {
 				  if (tp != null) tp.resetCLTPasses();
@@ -8410,7 +8476,7 @@ public class QuadCLT {
 							  false,          // adjust_poly,
 							  threadsMax,     //final int        threadsMax,  // maximal number of threads to launch                         
 							  updateStatus,   // final boolean    updateStatus,
-							  true,           // final boolean    batch_mode,
+							  !batch_dbg,     // final boolean    batch_mode,
 							  debugLevel);    // final int        debugLevel)
 				  }
 			  }
@@ -8435,10 +8501,29 @@ public class QuadCLT {
 							  true,           // adjust_poly,
 							  threadsMax,     //final int        threadsMax,  // maximal number of threads to launch                         
 							  updateStatus,   // final boolean    updateStatus,
-							  true,           // final boolean    batch_mode,
+							  !batch_dbg,     // final boolean    batch_mode,
 							  debugLevel);    // final int        debugLevel)
 				  }
 				  
+			  }
+			  if (correctionsParameters.clt_batch_4img){
+				  processCLTQuadCorr( // returns ImagePlus, but it already should be saved/shown
+						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
+						  clt_parameters,
+						  debayerParameters,
+						  nonlinParameters,
+						  colorProcParameters,
+						  channelGainParameters,
+						  rgbParameters,
+						  convolveFFTSize, // 128 - fft size, kernel size should be size/2
+						  scaleExposures,
+						  false, // apply_corr, // calculate and apply additional fine geometry correction 
+						  false, // infinity_corr, // calculate and apply geometry correction at infinity 
+						  threadsMax,  // maximal number of threads to launch
+						  !batch_dbg,  // batch_mode 
+						  updateStatus,
+						  debugLevel);
 			  }
 			  if (correctionsParameters.clt_batch_explore) {
 				  if (tp != null) tp.resetCLTPasses();
@@ -8466,7 +8551,7 @@ public class QuadCLT {
 							  rgbParameters,
 							  threadsMax,  // maximal number of threads to launch                         
 							  updateStatus,
-							  true,       // final boolean    batch_mode,
+							  !batch_dbg,  // final boolean    batch_mode,
 							  debugLevel);
 				  } else continue;
 				  
@@ -8478,7 +8563,7 @@ public class QuadCLT {
 						  geometryCorrection,		  			
 						  threadsMax,
 						  updateStatus,
-						  true,          // batch_mode
+						  !batch_dbg,      // batch_mode
 						  debugLevel);
 				  
 			  } else continue; // if (correctionsParameters.clt_batch_surf)
@@ -8489,7 +8574,7 @@ public class QuadCLT {
 						  geometryCorrection,		  			
 						  threadsMax,
 						  updateStatus,
-						  true, //  boolean batch_mode, 
+						  !batch_dbg, //  boolean batch_mode, 
 						  debugLevel);
 				  if (!ok) continue;
 			  } else continue; // if (correctionsParameters.clt_batch_assign)
@@ -8501,7 +8586,7 @@ public class QuadCLT {
 						  rgbParameters,       // EyesisCorrectionParameters.RGBParameters             rgbParameters,
 						  threadsMax,          // final int        threadsMax,  // maximal number of threads to launch                         
 						  updateStatus,        // final boolean    updateStatus,
-						  true,                //   final boolean    batch_mode,
+						  !batch_dbg,          //   final boolean    batch_mode,
 						  debugLevel);         // final int        debugLevel)
 				  if (!ok) continue;
 			  } else continue; // if (correctionsParameters.clt_batch_gen3d)
@@ -8517,7 +8602,7 @@ public class QuadCLT {
 			  }
 		  }
 		  if (debugLevel > -2) {
-			  System.out.println("Processing set "+(nSet+1)+" (of "+fileIndices.length+") finished at "+
+			  System.out.println("Processing set "+nSet+" (of "+setNames.size()+") finished at "+
 			  IJ.d2s(0.000000001*(System.nanoTime()-this.startSetTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 		  }
 		  

@@ -114,13 +114,15 @@ public class EyesisCorrectionParameters {
   		
   		// CLT 3d batch parameters
   		
-  		public boolean clt_batch_4img =       true;  // Create a set of 4 images, usually for disparity = 0
+  		public boolean clt_batch_apply_man =  true;  // Apply (and disable) manual pixel shift
   		public boolean clt_batch_extrinsic =  false; // Calibrate extrinsic parameters for each set
   		public boolean clt_batch_poly =       false; // Calculate fine polynomial correction for each set
+  		public boolean clt_batch_4img =       true;  // Create a set of 4 images, usually for disparity = 0
   		public boolean clt_batch_explore =    true;  // 1-st step of 3d reconstruction - explore disparities for each tile
   		public boolean clt_batch_surf =       true;  // Create super-tile 2.5d surfaces
   		public boolean clt_batch_assign =     true;  // Assign tiles to surfaces
   		public boolean clt_batch_gen3d =      true;  // Generate 3d output: x3d and/or obj+mtl
+  		public boolean clt_batch_dbg1 =       true;  // Generate debug images if a single set is selected
   		
 
 
@@ -215,13 +217,15 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"x3dDirectory",          this.x3dDirectory);
     		properties.setProperty(prefix+"use_x3d_subdirs",       this.use_x3d_subdirs+"");
 
-    		properties.setProperty(prefix+"clt_batch_4img",        this.clt_batch_4img+"");
+    		properties.setProperty(prefix+"clt_batch_apply_man",   this.clt_batch_apply_man+"");
     		properties.setProperty(prefix+"clt_batch_extrinsic",   this.clt_batch_extrinsic+"");
     		properties.setProperty(prefix+"clt_batch_poly",        this.clt_batch_poly+"");
+    		properties.setProperty(prefix+"clt_batch_4img",        this.clt_batch_4img+"");
     		properties.setProperty(prefix+"clt_batch_explore",     this.clt_batch_explore+"");
     		properties.setProperty(prefix+"clt_batch_surf",        this.clt_batch_surf+"");
     		properties.setProperty(prefix+"clt_batch_assign",      this.clt_batch_assign+"");
     		properties.setProperty(prefix+"clt_batch_gen3d",       this.clt_batch_gen3d+"");
+    		properties.setProperty(prefix+"clt_batch_dbg1",        this.clt_batch_dbg1+"");
     	}
 
     	public void getProperties(String prefix,Properties properties){
@@ -317,13 +321,15 @@ public class EyesisCorrectionParameters {
 
 			if (properties.getProperty(prefix+"use_x3d_subdirs")!= null) this.use_x3d_subdirs=Boolean.parseBoolean((String) properties.getProperty(prefix+"use_x3d_subdirs"));
 			
-			if (properties.getProperty(prefix+"clt_batch_4img")!= null)      this.clt_batch_4img=Boolean.parseBoolean((String) properties.getProperty(prefix+"clt_batch_4img"));
+			if (properties.getProperty(prefix+"clt_batch_apply_man")!= null) this.clt_batch_apply_man=Boolean.parseBoolean((String) properties.getProperty(prefix+"clt_batch_apply_man"));
 			if (properties.getProperty(prefix+"clt_batch_extrinsic")!= null) this.clt_batch_extrinsic=Boolean.parseBoolean((String) properties.getProperty(prefix+"clt_batch_extrinsic"));
 			if (properties.getProperty(prefix+"clt_batch_poly")!= null)      this.clt_batch_poly=Boolean.parseBoolean((String) properties.getProperty(prefix+"clt_batch_poly"));
+			if (properties.getProperty(prefix+"clt_batch_4img")!= null)      this.clt_batch_4img=Boolean.parseBoolean((String) properties.getProperty(prefix+"clt_batch_4img"));
 			if (properties.getProperty(prefix+"clt_batch_explore")!= null)   this.clt_batch_explore=Boolean.parseBoolean((String) properties.getProperty(prefix+"clt_batch_explore"));
 			if (properties.getProperty(prefix+"clt_batch_surf")!= null)      this.clt_batch_surf=Boolean.parseBoolean((String) properties.getProperty(prefix+"clt_batch_surf"));
 			if (properties.getProperty(prefix+"clt_batch_assign")!= null)    this.clt_batch_assign=Boolean.parseBoolean((String) properties.getProperty(prefix+"clt_batch_assign"));
 			if (properties.getProperty(prefix+"clt_batch_gen3d")!= null)     this.clt_batch_gen3d=Boolean.parseBoolean((String) properties.getProperty(prefix+"clt_batch_gen3d"));
+			if (properties.getProperty(prefix+"clt_batch_dbg1")!= null)      this.clt_batch_dbg1=Boolean.parseBoolean((String) properties.getProperty(prefix+"clt_batch_dbg1"));
     	}
 
     	public boolean showDialog(String title) { 
@@ -522,11 +528,11 @@ public class EyesisCorrectionParameters {
 
     		gd.addCheckbox    ("Use individual subdirectory for each 3d model (timestamp as name)", this.use_x3d_subdirs); //10
     		
-    		gd.addStringField("Results directory",                                 this.resultsDirectory, 60);   // 11
-    		gd.addCheckbox("Select results directory",                             false);                       // 12
+    		gd.addStringField ("Results directory",                                this.resultsDirectory, 60);   // 11
+    		gd.addCheckbox    ("Select results directory",                         false);                       // 12
     		
-    		gd.addStringField("Source files prefix",                               this.sourcePrefix, 60);       // 13
-    		gd.addStringField("Source files suffix",                               this.sourceSuffix, 60);       // 14
+    		gd.addStringField ("Source files prefix",                              this.sourcePrefix, 60);       // 13
+    		gd.addStringField ("Source files suffix",                              this.sourceSuffix, 60);       // 14
     		gd.addNumericField("First subcamera (in the source filename)",         this.firstSubCamera, 0);      // 15
     		
     		gd.addStringField("Sensor files prefix",                               this.sensorPrefix, 40);       // 16       
@@ -535,15 +541,17 @@ public class EyesisCorrectionParameters {
     		gd.addStringField("CLT kernel files  prefix",                          this.cltKernelPrefix, 40);    // 18
     		gd.addStringField("CLT symmetical kernel files",                       this.cltSuffix, 40);          // 19
     		
-    		gd.addMessage("============ batch parameters ============");
-    		gd.addCheckbox    ("Create a set of 4 images, usually for disparity = 0",                this.clt_batch_4img);      // 20
+    		gd.addMessage     ("============ batch parameters ============");
+    		gd.addCheckbox    ("Apply (and disable) manual pixel shift",                             this.clt_batch_apply_man); // 20
     		gd.addCheckbox    ("Calibrate extrinsic parameters for each set",                        this.clt_batch_extrinsic); // 21
     		gd.addCheckbox    ("Calculate fine polynomial correction for each set",                  this.clt_batch_poly);      // 22
-    		gd.addCheckbox    ("1-st step of 3d reconstruction - explore disparities for each tile", this.clt_batch_explore);   // 23
-    		gd.addCheckbox    ("Create super-tile 2.5d surfaces",                                    this.clt_batch_surf);      // 24
-    		gd.addCheckbox    ("Assign tiles to surfaces",                                           this.clt_batch_assign);    // 25
-    		gd.addCheckbox    ("Generate 3d output: x3d and/or obj+mtl",                             this.clt_batch_gen3d);     // 26
-    		
+    		gd.addCheckbox    ("Create a set of 4 images, usually for disparity = 0",                this.clt_batch_4img);      // 23
+    		gd.addCheckbox    ("1-st step of 3d reconstruction - explore disparities for each tile", this.clt_batch_explore);   // 24
+    		gd.addCheckbox    ("Create super-tile 2.5d surfaces",                                    this.clt_batch_surf);      // 25
+    		gd.addCheckbox    ("Assign tiles to surfaces",                                           this.clt_batch_assign);    // 26
+    		gd.addCheckbox    ("Generate 3d output: x3d and/or obj+mtl",                             this.clt_batch_gen3d);     // 27
+    		gd.addCheckbox    ("Generate debug images if a single set is selected",                  this.clt_batch_dbg1);      // 28
+    		 
     		
     		WindowTools.addScrollBars(gd);
     		gd.showDialog();
@@ -567,13 +575,15 @@ public class EyesisCorrectionParameters {
     		this.cltKernelPrefix=        gd.getNextString();  // 18
     		this.cltSuffix=              gd.getNextString();  // 19
 
-    		this.clt_batch_4img=         gd.getNextBoolean(); // 20
+    		this.clt_batch_apply_man=    gd.getNextBoolean(); // 20
     		this.clt_batch_extrinsic=    gd.getNextBoolean(); // 21
     		this.clt_batch_poly=         gd.getNextBoolean(); // 22
-    		this.clt_batch_explore=      gd.getNextBoolean(); // 23
-    		this.clt_batch_surf=         gd.getNextBoolean(); // 24
-    		this.clt_batch_assign=       gd.getNextBoolean(); // 25
-    		this.clt_batch_gen3d=        gd.getNextBoolean(); // 26
+    		this.clt_batch_4img=         gd.getNextBoolean(); // 23
+    		this.clt_batch_explore=      gd.getNextBoolean(); // 24
+    		this.clt_batch_surf=         gd.getNextBoolean(); // 25
+    		this.clt_batch_assign=       gd.getNextBoolean(); // 26
+    		this.clt_batch_gen3d=        gd.getNextBoolean(); // 27
+    		this.clt_batch_dbg1=         gd.getNextBoolean(); // 28
     		return true;
     	}
     	
@@ -2131,6 +2141,8 @@ public class EyesisCorrectionParameters {
   		public double     fine_corr_y_2 =     0.0;   // additionally shift image in port 2 in y direction
   		public double     fine_corr_x_3 =     0.0;   // additionally shift image in port 3 in x direction
   		public double     fine_corr_y_3 =     0.0;   // additionally shift image in port 3 in y direction
+  		public boolean    fine_corr_ignore =  false; // Ignore manual pixel correction
+  		public boolean    fine_corr_apply =   true;  // Apply and set to ignore manual pixel correction after extrinsics correction
   		
   		public double     fcorr_radius =       0.75 ; // Do not try to correct outside this fraction of width/hight
   		public double     fcorr_min_strength = 0.15 ; // 0.005 minimal correlation strength to apply fine correction
@@ -2786,6 +2798,8 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"fine_corr_y_2",    this.fine_corr_y_2 +"");
   			properties.setProperty(prefix+"fine_corr_x_3",    this.fine_corr_x_3 +"");
   			properties.setProperty(prefix+"fine_corr_y_3",    this.fine_corr_y_3 +"");
+			properties.setProperty(prefix+"fine_corr_ignore", this.fine_corr_ignore+"");
+			properties.setProperty(prefix+"fine_corr_apply",  this.fine_corr_apply+"");
 
   			properties.setProperty(prefix+"fcorr_radius",     this.fcorr_radius +"");
   			properties.setProperty(prefix+"fcorr_min_strength",this.fcorr_min_strength +"");
@@ -3385,6 +3399,8 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"fine_corr_y_2")!=null) this.fine_corr_y_2=Double.parseDouble(properties.getProperty(prefix+"fine_corr_y_2"));
   			if (properties.getProperty(prefix+"fine_corr_x_3")!=null) this.fine_corr_x_3=Double.parseDouble(properties.getProperty(prefix+"fine_corr_x_3"));
   			if (properties.getProperty(prefix+"fine_corr_y_3")!=null) this.fine_corr_y_3=Double.parseDouble(properties.getProperty(prefix+"fine_corr_y_3"));
+  			if (properties.getProperty(prefix+"fine_corr_ignore")!=null) this.fine_corr_ignore=Boolean.parseBoolean(properties.getProperty(prefix+"fine_corr_ignore"));
+  			if (properties.getProperty(prefix+"fine_corr_apply")!=null)  this.fine_corr_apply=Boolean.parseBoolean(properties.getProperty(prefix+"fine_corr_apply"));
   			
   			if (properties.getProperty(prefix+"fcorr_radius")!=null)      this.fcorr_radius=Double.parseDouble(properties.getProperty(prefix+"fcorr_radius"));
   			if (properties.getProperty(prefix+"fcorr_min_strength")!=null) this.fcorr_min_strength=Double.parseDouble(properties.getProperty(prefix+"fcorr_min_strength"));
@@ -4000,7 +4016,9 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("X 2",                                                                     this.fine_corr_x_2,  3);
   			gd.addNumericField("Y 2",                                                                     this.fine_corr_y_2,  3);
   			gd.addNumericField("X 3",                                                                     this.fine_corr_x_3,  3);
-  			gd.addNumericField("Y 4",                                                                     this.fine_corr_y_3,  3);
+  			gd.addNumericField("Y 3",                                                                     this.fine_corr_y_3,  3);
+  			gd.addCheckbox    ("Ignore manual pixel correction (set/reset automatically if enabled below)",   this.fine_corr_ignore);
+  			gd.addCheckbox    ("Apply and set to ignore manual pixel correction after extrinsics correction", this.fine_corr_apply);
 
   			gd.addNumericField("fcorr_radius",                                                            this.fcorr_radius,  3);
   			gd.addNumericField("Do not try to correct outside this fraction of width/hight",              this.fcorr_min_strength,3);
@@ -4647,8 +4665,10 @@ public class EyesisCorrectionParameters {
   			this.fine_corr_y_2=         gd.getNextNumber();
   			this.fine_corr_x_3=         gd.getNextNumber();
   			this.fine_corr_y_3=         gd.getNextNumber();
+  			this.fine_corr_ignore=      gd.getNextBoolean();
+  			this.fine_corr_apply=       gd.getNextBoolean();
   			
-  			this.fcorr_radius=         gd.getNextNumber();
+  			this.fcorr_radius=          gd.getNextNumber();
   			this.fcorr_min_strength=    gd.getNextNumber();
   			this.fcorr_disp_diff=       gd.getNextNumber();
   			this.fcorr_quadratic=       gd.getNextBoolean();
