@@ -2095,7 +2095,10 @@ B = |+dy0   -dy1      -2*dy3 |
 					qc.geometryCorrection,                  // GeometryCorrection geometryCorrection,
 					qc.geometryCorrection.getCorrVector(),  // GeometryCorrection.CorrVector corr_vector,
 					old_new_rms,                            // double [] old_new_rms, // should be double[2]
-					2); // debugLevel); // 2); // 1); // int debugLevel)
+//					2); // debugLevel); // 2); // 1); // int debugLevel)
+			debugLevel); // 2); // 1); // int debugLevel)
+//TODO: ** Put 2 here to debug derivative images (diff_dmv_dsym - does not match yet, probably different "addition" of angles)			
+			
 			if (debugLevel > -1){
 				System.out.println("Old extrinsic corrections:");
 				System.out.println(qc.geometryCorrection.getCorrVector().toString());
