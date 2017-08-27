@@ -3671,7 +3671,7 @@ private Panel panel1,
 /* ======================================================================== */
     } else if (label.equals("Setup CLT Batch parameters")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	CORRECTION_PARAMETERS.showCLTDialog("CLT Batch parameters");
+    	CORRECTION_PARAMETERS.showCLTDialog("CLT Batch parameters",CLT_PARAMETERS);
     	return;
         
 /* ======================================================================== */

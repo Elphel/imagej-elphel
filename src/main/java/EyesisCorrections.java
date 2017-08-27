@@ -2374,6 +2374,23 @@ public class EyesisCorrections {
 			   boolean               png,
 			   boolean               show,
 			   int                   jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+		   saveAndShow(
+				   imp,
+				   path,
+				   png,
+				   show,
+				   jpegQuality,//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+				   this.debugLevel);
+	   }
+	   
+	   
+	   void saveAndShow(
+			   ImagePlus             imp,
+			   String                path,
+			   boolean               png,
+			   boolean               show,
+			   int                   jpegQuality,//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+			   int                   debugLevel){
 		   if (path!=null) {
 			   path+=Prefs.getFileSeparator()+imp.getTitle();
 			   boolean hasAlphaHighByte = false;
@@ -2389,14 +2406,14 @@ public class EyesisCorrections {
 			   
 			   if (hasAlphaHighByte){
 				   if (png){
-					   if (this.debugLevel > 0) System.out.println("Saving RGBA result to "+path+".png");
+					   if (debugLevel > 0) System.out.println("Saving RGBA result to "+path+".png");
 					   (new EyesisTiff()).savePNG_ARGB32(
 							   imp,
 							   path+".png"
 							   );
 
 				   } else {
-					   if (this.debugLevel > 0) System.out.println("Saving RGBA result to "+path+".tiff");
+					   if (debugLevel > 0) System.out.println("Saving RGBA result to "+path+".tiff");
 					   try {
 						   (new EyesisTiff()).saveTiffARGB32(
 								   imp,
@@ -2415,12 +2432,12 @@ public class EyesisCorrections {
 				   }
 				   
 			   } else if (((imp.getStackSize()==1)) && (jpegQuality!=0) && ((imp.getFileInfo().fileType== FileInfo.RGB) || (jpegQuality>0))) {
-				   if (this.debugLevel>0) System.out.println("Saving result to "+path+".jpeg");
+				   if (debugLevel>0) System.out.println("Saving result to "+path+".jpeg");
 				   FileSaver fs=new FileSaver(imp);
 				   if (jpegQuality>0) FileSaver.setJpegQuality(jpegQuality);
 				   fs.saveAsJpeg(path+".jpeg");
 			   } else {
-				   if (this.debugLevel>0) System.out.println("Saving result to "+path+".tiff");
+				   if (debugLevel>0) System.out.println("Saving result to "+path+".tiff");
 				   FileSaver fs=new FileSaver(imp);
 				   // Save as RGBA if it is RGBA
 				   int bytesPerPixel = imp.getBytesPerPixel();
@@ -2468,7 +2485,7 @@ public class EyesisCorrections {
 	 	 
 	 	  if (path!=null) {
 	 		  path+=Prefs.getFileSeparator()+compositeImage.getTitle();
-	 		  if (this.debugLevel>0) System.out.println("Saving result to "+path+".tiff");
+	 		  if (debugLevel>0) System.out.println("Saving result to "+path+".tiff");
 	 		  FileSaver fs=new FileSaver(compositeImage);
 	 		  if (compositeImage.getStackSize()>1)  fs.saveAsTiffStack(path+".tiff");
 	 		  else fs.saveAsTiff(path+".tiff");

@@ -4020,7 +4020,8 @@ public class QuadCLT {
 							  x3d_path,
 							  correctionsParameters.png && !clt_parameters.black_back,
 							  !batch_mode && clt_parameters.show_textures,
-							  correctionsParameters.JPEG_quality); // jpegQuality); // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+							  correctionsParameters.JPEG_quality, // jpegQuality); // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+							  (debugLevel > 0) ? debugLevel : 1); // int debugLevel (print what it saves)
 				  }
 			  }
 		  }

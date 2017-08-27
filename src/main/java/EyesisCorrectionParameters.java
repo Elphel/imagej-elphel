@@ -510,7 +510,8 @@ public class EyesisCorrectionParameters {
     		return true;
     	}
 
-    	public boolean showCLTDialog(String title) { 
+    	public boolean showCLTDialog(String title,
+    			CLTParameters clt_parameters) { 
     		GenericDialog gd = new GenericDialog(title);
     		
     		gd.addCheckbox    ("Save current settings with results",               this.saveSettings);           // 1 
@@ -551,8 +552,13 @@ public class EyesisCorrectionParameters {
     		gd.addCheckbox    ("Assign tiles to surfaces",                                           this.clt_batch_assign);    // 26
     		gd.addCheckbox    ("Generate 3d output: x3d and/or obj+mtl",                             this.clt_batch_gen3d);     // 27
     		gd.addCheckbox    ("Generate debug images if a single set is selected",                  this.clt_batch_dbg1);      // 28
+    		if (clt_parameters != null) {
+    			gd.addMessage     ("============ selected CLT parameters ============");
+    			gd.addNumericField("Maximal disparity to try",                                                            clt_parameters.grow_disp_max,  6);
+      			gd.addCheckbox    ("Equalize green channel gain of the individual cnannels (bug fix for exposure)",       clt_parameters.gain_equalize);
+      			gd.addNumericField("Inverse distance to infinity (misalignment correction)",                              clt_parameters.z_correction,  6);
     		 
-    		
+    		}
     		WindowTools.addScrollBars(gd);
     		gd.showDialog();
     		if (gd.wasCanceled()) return false;
@@ -584,6 +590,11 @@ public class EyesisCorrectionParameters {
     		this.clt_batch_assign=       gd.getNextBoolean(); // 26
     		this.clt_batch_gen3d=        gd.getNextBoolean(); // 27
     		this.clt_batch_dbg1=         gd.getNextBoolean(); // 28
+    		if (clt_parameters != null) {
+    			clt_parameters.grow_disp_max = gd.getNextNumber();
+    			clt_parameters.gain_equalize = gd.getNextBoolean();
+    			clt_parameters.z_correction =  gd.getNextNumber();    			
+    		}    		
     		return true;
     	}
     	
@@ -3947,7 +3958,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",      this.vignetting_range,  3);
   			gd.addNumericField("Kernel step in pixels (has 1 kernel margin on each side)",                this.kernel_step,            0);
   			gd.addNumericField("Nominal (rectilinear) disparity between side of square cameras (pix)",    this.disparity,  3);
-  			gd.addNumericField("Inverse distance to infinity (misalignment cortrection)",                 this.z_correction,  6);
+  			gd.addNumericField("Inverse distance to infinity (misalignment correction)",                  this.z_correction,  6);
   			gd.addCheckbox    ("Perform correlation",                                                     this.correlate);
   			gd.addNumericField("Bitmask of pairs to combine in the composite (top, bottom, left,righth)", this.corr_mask,            0);
   			gd.addCheckbox    ("Combine correlation with mirrored around disparity direction",            this.corr_sym);
