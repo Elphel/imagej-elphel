@@ -557,7 +557,9 @@ public class EyesisCorrectionParameters {
     			gd.addNumericField("Maximal disparity to try",                                                            clt_parameters.grow_disp_max,  6);
       			gd.addCheckbox    ("Equalize green channel gain of the individual cnannels (bug fix for exposure)",       clt_parameters.gain_equalize);
       			gd.addNumericField("Inverse distance to infinity (misalignment correction)",                              clt_parameters.z_correction,  6);
-    		 
+      			gd.addNumericField("Number of clusters to keep",                                                          clt_parameters.tsNumClust,  0);
+      			gd.addNumericField("Maximal number of output meshes to generate",                                         clt_parameters.max_clusters,   0);
+
     		}
     		WindowTools.addScrollBars(gd);
     		gd.showDialog();
@@ -593,7 +595,9 @@ public class EyesisCorrectionParameters {
     		if (clt_parameters != null) {
     			clt_parameters.grow_disp_max = gd.getNextNumber();
     			clt_parameters.gain_equalize = gd.getNextBoolean();
-    			clt_parameters.z_correction =  gd.getNextNumber();    			
+    			clt_parameters.z_correction =  gd.getNextNumber(); 
+      			clt_parameters.tsNumClust =    (int) gd.getNextNumber();
+      			clt_parameters.max_clusters =  (int) gd.getNextNumber();
     		}    		
     		return true;
     	}
@@ -2399,7 +2403,7 @@ public class EyesisCorrectionParameters {
   		
 		// New for initial growing
 		public boolean    gr_new_expand        =   true;
-		public int        gr_max_expand        = 500; // 150; // 30;
+//		public int        gr_max_expand        = 500; // 150; // 30;
 		public double     gr_ovrbg_cmb         =   0.3; // 0.3; 
 		public double     gr_ovrbg_cmb_hor     =   0.3; // 0.3;
 		public double     gr_ovrbg_cmb_vert    =   0.3; // 0.3;
@@ -2520,7 +2524,7 @@ public class EyesisCorrectionParameters {
   		public double     plDiscrTolerance     =   0.4;  // Maximal disparity difference from the plane to consider tile 
   		public double     plDiscrDispRange     =   1.0;  // Parallel move known planes around original know value for the best overall fit
   		public int        plDiscrSteps         =   10;   // Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
-  		public int        plDiscrVariants      =   100;  // total number of variants to try (protect from too many planes) 
+//  		public int        plDiscrVariants      =   500;  // total number of variants to try (protect from too many planes) 
   		public int        plDiscrMode          =   3;    // 0 - weighted, 1 - equalized, 2 - best, 3 - combined
   		
   		public double     plDiscrVarFloor      =   0.03;  // Squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
@@ -3031,7 +3035,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"grow_retry_inf",   this.grow_retry_inf+"");
 			
 			properties.setProperty(prefix+"gr_new_expand",    this.gr_new_expand+"");
-  			properties.setProperty(prefix+"gr_max_expand",    this.gr_max_expand+"");
+//  			properties.setProperty(prefix+"gr_max_expand",    this.gr_max_expand+"");
 			properties.setProperty(prefix+"fds_str_floor",    this.fds_str_floor +"");
 			properties.setProperty(prefix+"gr_ovrbg_cmb",     this.gr_ovrbg_cmb +"");
 			properties.setProperty(prefix+"gr_ovrbg_cmb_hor", this.gr_ovrbg_cmb_hor +"");
@@ -3145,7 +3149,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"plDiscrTolerance", this.plDiscrTolerance +"");
 			properties.setProperty(prefix+"plDiscrDispRange", this.plDiscrDispRange +"");
   			properties.setProperty(prefix+"plDiscrSteps",     this.plDiscrSteps+"");
-  			properties.setProperty(prefix+"plDiscrVariants",  this.plDiscrVariants+"");
+//  			properties.setProperty(prefix+"plDiscrVariants",  this.plDiscrVariants+"");
   			properties.setProperty(prefix+"plDiscrMode",      this.plDiscrMode+"");
 			properties.setProperty(prefix+"plDiscrVarFloor",  this.plDiscrVarFloor +"");
 			properties.setProperty(prefix+"plDiscrSigma",     this.plDiscrSigma +"");
@@ -3632,7 +3636,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"grow_retry_inf")!=null)    this.grow_retry_inf=Boolean.parseBoolean(properties.getProperty(prefix+"grow_retry_inf"));
   			
   			if (properties.getProperty(prefix+"gr_new_expand")!=null)     this.gr_new_expand=Boolean.parseBoolean(properties.getProperty(prefix+"gr_new_expand"));
-  			if (properties.getProperty(prefix+"gr_max_expand")!=null)     this.gr_max_expand=Integer.parseInt(properties.getProperty(prefix+"gr_max_expand"));
+//  			if (properties.getProperty(prefix+"gr_max_expand")!=null)     this.gr_max_expand=Integer.parseInt(properties.getProperty(prefix+"gr_max_expand"));
   			if (properties.getProperty(prefix+"fds_str_floor")!=null)     this.fds_str_floor=Double.parseDouble(properties.getProperty(prefix+"fds_str_floor"));
   			if (properties.getProperty(prefix+"gr_ovrbg_cmb")!=null)      this.gr_ovrbg_cmb=Double.parseDouble(properties.getProperty(prefix+"gr_ovrbg_cmb"));
   			if (properties.getProperty(prefix+"gr_ovrbg_cmb_hor")!=null)  this.gr_ovrbg_cmb_hor=Double.parseDouble(properties.getProperty(prefix+"gr_ovrbg_cmb_hor"));
@@ -3745,7 +3749,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"plDiscrTolerance")!=null)  this.plDiscrTolerance=Double.parseDouble(properties.getProperty(prefix+"plDiscrTolerance"));
   			if (properties.getProperty(prefix+"plDiscrDispRange")!=null)  this.plDiscrDispRange=Double.parseDouble(properties.getProperty(prefix+"plDiscrDispRange"));
   			if (properties.getProperty(prefix+"plDiscrSteps")!=null)      this.plDiscrSteps=Integer.parseInt(properties.getProperty(prefix+"plDiscrSteps"));
-  			if (properties.getProperty(prefix+"plDiscrVariants")!=null)   this.plDiscrVariants=Integer.parseInt(properties.getProperty(prefix+"plDiscrVariants"));
+//  			if (properties.getProperty(prefix+"plDiscrVariants")!=null)   this.plDiscrVariants=Integer.parseInt(properties.getProperty(prefix+"plDiscrVariants"));
   			if (properties.getProperty(prefix+"plDiscrMode")!=null)       this.plDiscrMode=Integer.parseInt(properties.getProperty(prefix+"plDiscrMode"));
   			if (properties.getProperty(prefix+"plDiscrVarFloor")!=null)   this.plDiscrVarFloor=Double.parseDouble(properties.getProperty(prefix+"plDiscrVarFloor"));
   			if (properties.getProperty(prefix+"plDiscrSigma")!=null)      this.plDiscrSigma=Double.parseDouble(properties.getProperty(prefix+"plDiscrSigma"));
@@ -4173,7 +4177,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Set new pole segment strength to max of horizontal correlation and this value",   this.poles_min_strength,  3);
   			gd.addCheckbox    ("Set disparity to that of the bottom of existing segment (false - use hor. disparity)",this.poles_force_disp);
   			
-  			gd.addNumericField("Maximal number of clusters to generate for one run",                           this.max_clusters,   0);
+  			gd.addNumericField("Maximal number of output meshes to generate",                                 this.max_clusters,   0);
   			gd.addCheckbox    ("Remove all unneeded scans when generating x3d output to save memory",          this.remove_scans);
   			gd.addCheckbox    ("Generate x3d output",                                                          this.output_x3d);
   			gd.addCheckbox    ("Generate Wavefront obj output",                                                this.output_obj);
@@ -4273,7 +4277,7 @@ public class EyesisCorrectionParameters {
   			gd.addMessage     ("--- more growing parameters ---");
   			
   			gd.addCheckbox    ("New expansion mode",                                                                  this.gr_new_expand);
-  			gd.addNumericField("Expansion steps limit",                                                               this.gr_max_expand,  0);
+//  			gd.addNumericField("Expansion steps limit",                                                               this.gr_max_expand,  0);
   			gd.addNumericField("Strength floor for multi-tile (now 5x5) samples (normally < combine_min_strength) ",  this.fds_str_floor,  6);
   			gd.addNumericField("Over background extra reliable strength",                                             this.gr_ovrbg_cmb,  6);
   			gd.addNumericField("Over background extra reliable strength horizontal",                                  this.gr_ovrbg_cmb_hor,  6);
@@ -4397,7 +4401,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal disparity difference from the plane to consider tile",                 this.plDiscrTolerance,  6);
   			gd.addNumericField("Parallel move known planes around original know value for the best overall fit",this.plDiscrDispRange,  6);
   			gd.addNumericField("Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)",this.plDiscrSteps,  0);
-  			gd.addNumericField("Total number of variants to try (protect from too many planes)",               this.plDiscrVariants,  0);
+//  			gd.addNumericField("Total number of variants to try (protect from too many planes)",               this.plDiscrVariants,  0);
   			gd.addNumericField("What plane to use as a hint: 0 - weighted, 1 - equalized, 2 - best, 3 - combined", this.plDiscrMode,  0);
   			gd.addNumericField("Squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)",this.plDiscrVarFloor,  6);
   			gd.addNumericField("Gaussian sigma to compare how measured data is attracted to planes",           this.plDiscrSigma,  6);
@@ -4898,7 +4902,7 @@ public class EyesisCorrectionParameters {
   			this.grow_retry_inf=        gd.getNextBoolean();
   			
   			this.gr_new_expand=         gd.getNextBoolean();
-  			this.gr_max_expand=   (int) gd.getNextNumber();
+//  			this.gr_max_expand=   (int) gd.getNextNumber();
   			this.fds_str_floor=         gd.getNextNumber();
   			this.gr_ovrbg_cmb=          gd.getNextNumber();
   			this.gr_ovrbg_cmb_hor=      gd.getNextNumber();
@@ -5012,7 +5016,7 @@ public class EyesisCorrectionParameters {
   			this.plDiscrTolerance=      gd.getNextNumber();
   			this.plDiscrDispRange=      gd.getNextNumber();
   			this.plDiscrSteps=    (int) gd.getNextNumber();
-  			this.plDiscrVariants= (int) gd.getNextNumber();
+//  			this.plDiscrVariants= (int) gd.getNextNumber();
   			this.plDiscrMode=     (int) gd.getNextNumber();
   			this.plDiscrVarFloor=       gd.getNextNumber();
   			this.plDiscrSigma=          gd.getNextNumber();

@@ -6284,15 +6284,6 @@ public class QuadCLT {
 		  final int        disp_index =      ImageDtt.DISPARITY_INDEX_CM;
 		  final int        str_index =       ImageDtt.DISPARITY_STRENGTH_INDEX;
 		  final double     strength_floor =  clt_parameters.fds_str_floor;  // 0.6* clt_parameters.combine_min_strength;
-//		  final double     strength_floor =  0.8* clt_parameters.combine_min_strength;
-		  
-		  // TODO: define, make parameters
-//		  final double     comboMinStrength =    clt_parameters.gr_ovrbg_cmb;      //  0.3; // 0.3; 
-//		  final double     comboMinStrengthHor = clt_parameters.gr_ovrbg_cmb_hor ;  //  0.3; // 0.3;
-//		  final double     comboMinStrengthVert =clt_parameters.gr_ovrbg_cmb_vert ; //  0.3; // 0.3;
-//		  final double     filterMinStrength =   clt_parameters.gr_ovrbg_filtered ;    //  0.3; // 0.3; 
-
-		  
 		  
 		  // TODO: make parameters
 		  final double     strength_pow    = clt_parameters.fds_str_pow ;   // 1.0;
@@ -6308,13 +6299,7 @@ public class QuadCLT {
 		  final int        dbg_x = 155;
 		  final int        dbg_y = 207;
 		  
-		  
-// TEMPORARY EXIT
-//    	  if (tp.clt_3d_passes.size() > 0) return null; // just to fool compiler 
-          
-          // above - multiple refinements (reduce, make conditional?)
           int num_extended = -1;
-//          int [] numLeftRemoved; 
 // process once more to try combining of processed
           boolean last_pass = false;
 //          for (int num_expand = 0; (num_expand < 4) && (num_extended != 0); num_expand++) {
@@ -8379,7 +8364,7 @@ public class QuadCLT {
 		  int nSet = 0;
 		  for (nSet = 0; nSet < setNames.size(); nSet++){
 			  if ((nSet > 0) &&(debugLevel > -2)) {
-				  System.out.println("Processing set "+(nSet+1)+" (of "+setNames.size()+") finished at "+
+				  System.out.println("Processing set "+(nSet+0)+" (of "+setNames.size()+") finished at "+
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startSetTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  }
 			  this.startSetTime = System.nanoTime();

@@ -1562,7 +1562,7 @@ public class TileProcessor {
 //					scan.restoreKeepTileOpDisparity();//  it is not used from this scan, but from last_scan
 					continue;
 				}
-				if (debugLevel > -1){
+				if (debugLevel > -2){
 					System.out.println("prepareExpandVariants(): remaining "+num_left+" tiles to be processed, used variant "+num_var+" ("+num_left+")");
 				}		
 				int [] rslt = {num_left, num_var};
@@ -5261,7 +5261,7 @@ public class TileProcessor {
 					clt_parameters.plDiscrTolerance,  // final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile 
 					clt_parameters.plDiscrDispRange,  // final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
 					clt_parameters.plDiscrSteps,      // final int        plDiscrSteps,         //         =   3;    // Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
-					clt_parameters.plDiscrVariants,   // final int        plDiscrVariants,      //      =   100;  // Total number of variants to try (protect from too many planes) 
+//					clt_parameters.plDiscrVariants,   // final int        plDiscrVariants,      //      =   100;  // Total number of variants to try (protect from too many planes) 
 					clt_parameters.plDiscrMode,       // final int        plDiscrMode,          //          =   3;    // What plane to use as a hint: 0 - weighted, 1 - equalized, 2 - best, 3 - combined
 
 					clt_parameters.plDiscrVarFloor,   // final double     plDiscrVarFloor, //       =   0.03;  // Squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)

@@ -2263,7 +2263,7 @@ public class SuperTiles{
 			final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile 
 			final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
 			final int        plDiscrSteps,         //         =   3;    // Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
-			final int        plDiscrVariants,      //      =   100;  // Total number of variants to try (protect from too many planes) 
+//			final int        plDiscrVariants,      //      =   100;  // Total number of variants to try (protect from too many planes) 
 			final int        plDiscrMode,          //          =   3;    // What plane to use as a hint: 0 - weighted, 1 - equalized, 2 - best, 3 - combined
 
 			final double     plDiscrVarFloor,    //       =   0.03;  // Squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
@@ -2785,7 +2785,7 @@ public class SuperTiles{
 			final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile 
 			final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
 			final int        plDiscrSteps,         //         =   3;    // Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
-			final int        plDiscrVariants,      //      =   100;  // Total number of variants to try (protect from too many planes) 
+//			final int        plDiscrVariants,      //      =   100;  // Total number of variants to try (protect from too many planes) 
 			final int        plDiscrMode,          //          =   3;    // What plane to use as a hint: 0 - weighted, 1 - equalized, 2 - best, 3 - combined
 
 			final double     plDiscrVarFloor, //       =   0.03;  // Squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
@@ -2827,7 +2827,7 @@ public class SuperTiles{
 				plDiscrTolerance,     //final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile 
 				plDiscrDispRange,     // final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
 				plDiscrSteps,         // final int        plDiscrSteps,         //         =   3;    // Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
-				plDiscrVariants,      // final int        plDiscrVariants,      //      =   100;  // Total number of variants to try (protect from too many planes) 
+//				plDiscrVariants,      // final int        plDiscrVariants,      //      =   100;  // Total number of variants to try (protect from too many planes) 
 				plDiscrMode,          // final int        plDiscrMode,          //          =   3;    // What plane to use as a hint: 0 - weighted, 1 - equalized, 2 - best, 3 - combined
 
 				plDiscrVarFloor,   // final double     plDiscrVarFloor, //       =   0.03;  // Squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
