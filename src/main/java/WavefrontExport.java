@@ -133,9 +133,13 @@ map_Kd 1488240527_408296-img2-texture.png
 			// output all triangles (faces)
 			for (int i = 0; i < triangles.length; i++){
 				obj_writer.write(String.format("f %d/%d %d/%d %d/%d\n",
-						triangles[i][0]+v_index,triangles[i][0]+vt_index, // actually v_index and vt_index should =be the same
-						triangles[i][1]+v_index,triangles[i][1]+vt_index,
-						triangles[i][2]+v_index,triangles[i][2]+vt_index));
+///						triangles[i][0]+v_index,triangles[i][0]+vt_index, // actually v_index and vt_index should =be the same
+///						triangles[i][1]+v_index,triangles[i][1]+vt_index,
+///						triangles[i][2]+v_index,triangles[i][2]+vt_index));
+						// wrong normals
+				triangles[i][2]+v_index,triangles[i][2]+vt_index, // actually v_index and vt_index should =be the same
+				triangles[i][1]+v_index,triangles[i][1]+vt_index,
+				triangles[i][0]+v_index,triangles[i][0]+vt_index));
 			}
 			obj_writer.write("# end of material "+   material_id+"\n");
 			obj_writer.write("# vertices:          "+         coordinate.length+"\n");

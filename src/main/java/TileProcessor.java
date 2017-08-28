@@ -1562,7 +1562,7 @@ public class TileProcessor {
 //					scan.restoreKeepTileOpDisparity();//  it is not used from this scan, but from last_scan
 					continue;
 				}
-				if (debugLevel > -2){
+				if (debugLevel > -10){
 					System.out.println("prepareExpandVariants(): remaining "+num_left+" tiles to be processed, used variant "+num_var+" ("+num_left+")");
 				}		
 				int [] rslt = {num_left, num_var};
