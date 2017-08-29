@@ -30,7 +30,11 @@ import ij.Prefs;
 import ij.gui.GenericDialog;
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.HashMap;
 import java.util.Properties;
+import java.util.Set;
 
 
 public class EyesisCorrectionParameters {
@@ -601,6 +605,8 @@ public class EyesisCorrectionParameters {
     		}    		
     		return true;
     	}
+    	
+    	
     	
 // TODO: extract timestamnp from JP4 or, at least combine movie timestamp+frame into a single filename string
     	public String [] getSourcePaths(){
@@ -2720,6 +2726,10 @@ public class EyesisCorrectionParameters {
   		public boolean    show_planes =            false; // show planes
   		public double []  vertical_xyz =           {0.0,1.0,0.0}; // real world up unit vector in camera CS (x - right, y - up, z - to camera};
   		
+  		public HashMap<String,Double> z_corr_map = new HashMap<String,Double>();
+  		public static String Z_CORR_PREFIX = "z_corr.";
+  		
+  		
   		public CLTParameters(){}
   		public void setProperties(String prefix,Properties properties){
   			properties.setProperty(prefix+"transform_size",   this.transform_size+"");
@@ -3324,7 +3334,13 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"vertical_xyz.x",         this.vertical_xyz[0]+"");
 			properties.setProperty(prefix+"vertical_xyz.y",         this.vertical_xyz[1]+"");
 			properties.setProperty(prefix+"vertical_xyz.z",         this.vertical_xyz[2]+"");
-}
+			
+			if (z_corr_map != null) {
+				for (HashMap.Entry<String,Double> entry : z_corr_map.entrySet()){
+					properties.setProperty(prefix+Z_CORR_PREFIX+entry.getKey(),   entry.getValue().toString());
+				}
+			}
+  		}
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"transform_size")!=null) this.transform_size=Integer.parseInt(properties.getProperty(prefix+"transform_size"));
   			if (properties.getProperty(prefix+"clt_window")!=null)     this.clt_window=Integer.parseInt(properties.getProperty(prefix+"clt_window"));
@@ -3929,6 +3945,14 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"vertical_xyz.y")!=null)     this.vertical_xyz[1]=Double.parseDouble(properties.getProperty(prefix+"vertical_xyz.y"));
   			if (properties.getProperty(prefix+"vertical_xyz.z")!=null)     this.vertical_xyz[2]=Double.parseDouble(properties.getProperty(prefix+"vertical_xyz.z"));
   			
+  			Set<String> ss = properties.stringPropertyNames();
+  			String full_prefix = prefix+Z_CORR_PREFIX;
+  			int li = full_prefix.length();
+  			for (String s:ss){
+  				if (s.indexOf(full_prefix) == 0){
+  					z_corr_map.put(s.substring(li), Double.parseDouble(properties.getProperty(s)));
+  				}
+  			}
   		}
   		
   		public boolean showDialog() {
@@ -5353,6 +5377,43 @@ public class EyesisCorrectionParameters {
 
   			return true;
   		}
+    	public boolean modifyZCorr (String title) {
+    		if (z_corr_map == null){
+    			z_corr_map = new HashMap<String,Double>();
+    		}
+    		GenericDialog gd = new GenericDialog(title);
+    		if (z_corr_map.size() > 0) {
+    			gd.addMessage("Edit infinity disparity correction (in 1/m), set >= 1.0 to remove for the following");
+				for (HashMap.Entry<String,Double> entry : z_corr_map.entrySet()){
+					gd.addNumericField(entry.getKey(),   entry.getValue(), 8);
+				}
+    		}
+			gd.addMessage("Add new infinity correction");
+    		gd.addStringField ("Timestamp string (seconds_microseconds):",                              "", 40);
+			gd.addNumericField("Infinity correction (in 1/m)",                                          0,  8);
+    		gd.addCheckbox    ("Clear list",                                                            false);
+    		WindowTools.addScrollBars(gd);
+    		gd.showDialog();
+    		if (gd.wasCanceled()) return false;
+    		HashMap<String,Double> new_map = new HashMap<String,Double>();
+			for (HashMap.Entry<String,Double> entry : z_corr_map.entrySet()){
+				double d = gd.getNextNumber();
+				if (d < 1.0) {
+					new_map.put(entry.getKey(),d);
+				}
+			}
+			String new_ts =  gd.getNextString(); 
+			double d =       gd.getNextNumber();
+			if (gd.getNextBoolean()){
+				z_corr_map = new HashMap<String,Double>();
+			} else {
+				z_corr_map = new_map;
+			}
+			if(new_ts.length() > 0){
+				z_corr_map.put(new_ts, d);
+			}
+    		return true;
+    	}
     }
 
     public static class DCTParameters {

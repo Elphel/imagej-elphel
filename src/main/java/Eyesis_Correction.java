@@ -543,6 +543,7 @@ private Panel panel1,
 			panelClt3 = new Panel();
 			panelClt3.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
 			addButton("Setup CLT parameters",       panelClt3, color_configure);
+			addButton("Infinity offset",            panelClt3, color_configure);
 			addButton("Setup CLT Batch parameters", panelClt3, color_configure);
 			addButton("CLT batch process",          panelClt3, color_process);
 			add(panelClt3);
@@ -3678,6 +3679,12 @@ private Panel panel1,
     } else if (label.equals("Setup CLT parameters")) {
     	CLT_PARAMETERS.showDialog();
         return;
+/* ======================================================================== */
+    } else if (label.equals("Infinity offset")) {
+    	while (true) {
+    		if (!CLT_PARAMETERS.modifyZCorr("Modify infinity per image set disparity corrections")) break;
+    	}
+    	return;
 /* ======================================================================== */
         //   public ImagePlus DBG_IMP = null;
     } else if (label.equals("Select CLT image")) {

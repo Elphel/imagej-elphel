@@ -3606,8 +3606,12 @@ public class QuadCLT {
 					  {clt_parameters.fine_corr_x_3,clt_parameters.fine_corr_y_3}};
 			  shiftXY = shiftXY0;
 		  }
-		  
-		  final double disparity_corr = (clt_parameters.z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/clt_parameters.z_correction);
+//		  final double disparity_corr = (clt_parameters.z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/clt_parameters.z_correction);
+		  double z_correction =  clt_parameters.z_correction;
+		  if (clt_parameters.z_corr_map.containsKey(name)){
+			  z_correction +=clt_parameters.z_corr_map.get(name);
+		  }
+		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
 		  double [][][][][][] clt_data = image_dtt.clt_aberrations_quad_corr(
 				  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 				  tile_op,                      // per-tile operation bit codes
@@ -4672,8 +4676,13 @@ public class QuadCLT {
 				  shiftXY = shiftXY0;
 			  }
 
-			  final double disparity_corr = (clt_parameters.z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/clt_parameters.z_correction);
-			  
+//			  final double disparity_corr = (clt_parameters.z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/clt_parameters.z_correction);
+			  double z_correction =  clt_parameters.z_correction;
+			  if (clt_parameters.z_corr_map.containsKey(image_name)){
+				  z_correction +=clt_parameters.z_corr_map.get(image_name);
+			  }
+			  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
+
 			  image_dtt.clt_aberrations_quad_corr(
 					  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 					  tile_op,                      // per-tile operation bit codes
@@ -6272,7 +6281,7 @@ public class QuadCLT {
 		  final boolean    batch_mode,
 		  final int        debugLevel)
 	  {
-		  final int debugLevelInner =  batch_mode ? -5: debugLevel;
+		  final int debugLevelInner =  batch_mode ? -3: debugLevel;
 		  
 //		  final int tilesX = tp.getTilesX();
 //		  final int tilesY = tp.getTilesY();
@@ -6440,7 +6449,7 @@ public class QuadCLT {
 
         			  dbg_x,
         			  dbg_y,             // final int        dbg_y,
-        			  debugLevelInner+1);        //	final int        debugLevel)
+        			  debugLevelInner + 2);        //	final int        debugLevel)
 
         	  if (last_pass) {
         		  break;
@@ -7728,12 +7737,13 @@ public class QuadCLT {
 //linearStackToColor
 
 	  public CLTPass3d CLTBackgroundMeas( // measure background
-			  final double [][][]       image_data, // first index - number of image in a quad
-			  final boolean [][] saturation_imp, // (near) saturated pixels or null
+//			  final String        image_name,
+			  final double [][][] image_data, // first index - number of image in a quad
+			  final boolean [][]  saturation_imp, // (near) saturated pixels or null
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
-			  final int         threadsMax,  // maximal number of threads to launch                         
-			  final boolean     updateStatus,
-			  final int         debugLevel)
+			  final int           threadsMax,  // maximal number of threads to launch                         
+			  final boolean       updateStatus,
+			  final int           debugLevel)
 	  {
 		  final int tilesX = tp.getTilesX();
 		  final int tilesY = tp.getTilesY();
@@ -7764,7 +7774,13 @@ public class QuadCLT {
 		  
 		  double [][][][] texture_tiles =     new double [tilesY][tilesX][][]; // ["RGBA".length()][];
 		  ImageDtt image_dtt = new ImageDtt();
-		  final double disparity_corr = (clt_parameters.z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/clt_parameters.z_correction);
+//		  final double disparity_corr = (clt_parameters.z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/clt_parameters.z_correction);
+		  double z_correction =  clt_parameters.z_correction;
+		  if (clt_parameters.z_corr_map.containsKey(image_name)){
+			  z_correction +=clt_parameters.z_corr_map.get(image_name);
+		  }
+		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
+		  
 		  image_dtt.clt_aberrations_quad_corr(
 				  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 				  tile_op,                      // per-tile operation bit codes
@@ -7922,6 +7938,7 @@ public class QuadCLT {
 	  }
 	  
 	  public CLTPass3d  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
+//			  final String        image_name,
 			  final double [][][] image_data, // first index - number of image in a quad
 			  final boolean [][]  saturation_imp, // (near) saturated pixels or null
 			  final EyesisCorrectionParameters.CLTParameters           clt_parameters,
@@ -7970,7 +7987,13 @@ public class QuadCLT {
 		  
 		  double [][][][] texture_tiles =   save_textures ? new double [tilesY][tilesX][][] : null; // ["RGBA".length()][];
 		  ImageDtt image_dtt = new ImageDtt();
-		  final double disparity_corr = (clt_parameters.z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/clt_parameters.z_correction);
+//		  final double disparity_corr = (clt_parameters.z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/clt_parameters.z_correction);
+		  double z_correction =  clt_parameters.z_correction;
+		  if (clt_parameters.z_corr_map.containsKey(image_name)){
+			  z_correction +=clt_parameters.z_corr_map.get(image_name);
+		  }
+		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
+		  
 		  image_dtt.clt_aberrations_quad_corr(
 				  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 				  tile_op,                      // per-tile operation bit codes
