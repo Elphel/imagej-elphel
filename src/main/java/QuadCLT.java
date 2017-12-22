@@ -114,7 +114,15 @@ public class QuadCLT {
 			String name = prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
 			properties.setProperty(name,  gc.getCorrVector().toArray()[i]+"");
 		}
-	}	
+	}
+	
+	public void listGeometryCorrection(boolean full){
+		GeometryCorrection gc = geometryCorrection;
+		if (gc == null) { // if it was not yet created
+			gc = new GeometryCorrection(this.extrinsic_corr);
+		}
+		gc.listGeometryCorrection(full);
+	}
 	
 	public void getProperties(){ // restore
 		for (int n = 0; n < fine_corr.length; n++){
@@ -3661,7 +3669,7 @@ public class QuadCLT {
 				  
 				  clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
 				  clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
-				  -1234, // clt_parameters.tileX,         // final int               debug_tileX,
+				  clt_parameters.tileX, // -1234, // clt_parameters.tileX,         // final int               debug_tileX,
 				  clt_parameters.tileY,         // final int               debug_tileY, -1234 will cause port coordinates debug images
 				  (clt_parameters.dbg_mode & 64) != 0, // no fract shift
 				  (clt_parameters.dbg_mode & 128) != 0, // no convolve

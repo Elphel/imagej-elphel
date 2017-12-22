@@ -519,10 +519,11 @@ private Panel panel1,
 			panelClt2 = new Panel();
 			panelClt2.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
 			addButton("Setup CLT parameters",      panelClt2, color_configure);
-			addButton("CLT 4 images",          panelClt2, color_conf_process);
+			addButton("CLT 4 images",              panelClt2, color_conf_process);
 			addButton("CLT disparity scan",        panelClt2, color_conf_process);
 			addButton("CLT reset fine corr",       panelClt2, color_stop);
 			addButton("CLT reset extrinsic corr",  panelClt2, color_stop);
+			addButton("CLT show geometry",         panelClt2, color_configure);
 			addButton("CLT show fine corr",        panelClt2, color_configure);
 			addButton("CLT apply fine corr",       panelClt2, color_process);
 			addButton("CLT test fine corr",        panelClt2, color_process);
@@ -4612,6 +4613,18 @@ private Panel panel1,
         	}
         }
         QUAD_CLT.resetExtrinsicCorr(CLT_PARAMETERS);
+        return;
+    } else if (label.equals("CLT show geometry")) {
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+        QUAD_CLT.listGeometryCorrection(true);
         return;
     } else if (label.equals("CLT show fine corr")) {
         if (QUAD_CLT == null){
