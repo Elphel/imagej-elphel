@@ -51,6 +51,13 @@ public class DttRad2 {
 	int    [] unfold_index = null;  // index  for each element of idct(2nx2n)
 	double [][] unfold_k = null; // First index - mode: 0 - CC 1: SC, 2: CS, 3: SS. Other indices matching unfold_index items. Each is a product of 2 window coefficients and sign  
 	
+	public int [][] getFoldIndex(){
+		return fold_index;
+	}
+	public int [] getUnfoldIndex(){
+		return unfold_index;
+	}
+	
 	public DttRad2 (int maxN){ // n - maximal
 		setup_arrays(maxN); // always setup arrays for fast calculations
 	}
@@ -175,6 +182,18 @@ public class DttRad2 {
 						fi[0][0],fi[0][1],fi[0][2],fi[0][3],
 						fi[1][0],fi[1][1],fi[1][2],fi[1][3], hwindow[fi[0][1]], hwindow[fi[1][1]]));
 			}
+			for (int i = 0; i < n*n; i++){
+				System.out.println(String.format("%3x:   %6x   %6x   %6x   %6x",i,fold_index[i][0],fold_index[i][1],fold_index[i][2],fold_index[i][3]));
+//				System.out.println(String.format("   : %8.5f %8.5f %8.5f %8.5f", fold_k[0][i][0],  fold_k[0][i][1], fold_k[0][i][2], fold_k[0][i][3]));
+//				System.out.println(String.format("   : %8.5f %8.5f %8.5f %8.5f", fold_k[1][i][0],  fold_k[1][i][1], fold_k[1][i][2], fold_k[1][i][3]));
+//				System.out.println(String.format("   : %8.5f %8.5f %8.5f %8.5f", fold_k[2][i][0],  fold_k[2][i][1], fold_k[2][i][2], fold_k[2][i][3]));
+//				System.out.println(String.format("   : %8.5f %8.5f %8.5f %8.5f", fold_k[3][i][0],  fold_k[3][i][1], fold_k[3][i][2], fold_k[3][i][3]));
+				System.out.println(String.format("   :   %2d   %2d   %2d   %2d", (fold_k[0][i][0]<0)?-1:1,  (fold_k[0][i][1]<0)?-1:1, (fold_k[0][i][2]<0)?-1:1, (fold_k[0][i][3]<0)?-1:1));
+				System.out.println(String.format("   :   %2d   %2d   %2d   %2d", (fold_k[1][i][0]<0)?-1:1,  (fold_k[1][i][1]<0)?-1:1, (fold_k[1][i][2]<0)?-1:1, (fold_k[1][i][3]<0)?-1:1));
+				System.out.println(String.format("   :   %2d   %2d   %2d   %2d", (fold_k[2][i][0]<0)?-1:1,  (fold_k[2][i][1]<0)?-1:1, (fold_k[2][i][2]<0)?-1:1, (fold_k[2][i][3]<0)?-1:1));
+				System.out.println(String.format("   :   %2d   %2d   %2d   %2d", (fold_k[3][i][0]<0)?-1:1,  (fold_k[3][i][1]<0)?-1:1, (fold_k[3][i][2]<0)?-1:1, (fold_k[3][i][3]<0)?-1:1));
+			}
+			
 		}
 	}
 	
@@ -239,18 +258,19 @@ public class DttRad2 {
 	public double [][][] get_shifted_fold_2d(
 			int n,
 			double shift_hor,
-			double shift_vert)
+			double shift_vert,
+			int debugLevel)
 	{ // n - DCT and window size
-		
+		int n2 = 2* n;
 		double [][][] fold_sk = new double[4][n*n][4];
 		int []    vert_ind =    new int[2];
 		double [][] vert_k =    new double[2][2];
 		int    [] hor_ind =     new int[2];
 		double [][] hor_k =     new double[2][2];
-		double ahc = Math.cos(Math.PI/16*shift_hor);
-		double ahs = Math.sin(Math.PI/16*shift_hor);
-		double avc = Math.cos(Math.PI/16*shift_vert);
-		double avs = Math.sin(Math.PI/16*shift_vert);
+		double ahc = Math.cos(Math.PI/n2*shift_hor);
+		double ahs = Math.sin(Math.PI/n2*shift_hor);
+		double avc = Math.cos(Math.PI/n2*shift_vert);
+		double avs = Math.sin(Math.PI/n2*shift_vert);
 		
 		int [][] fi;
 		for (int i = 0; i < n; i++ ){
@@ -288,6 +308,79 @@ public class DttRad2 {
 		return fold_sk;
 	}
 
+	// Generate (slightly - up to +/- 0.5) shifted window for standard sin window (derivative uses same table)
+	// only for mode=1 (sin window)
+	public double [][][] get_shifted_fold_2d_direct(
+			int n,
+			double shift_hor,
+			double shift_vert,
+			int debugLevel) // fpga scale (1 << 17 -1)
+	{ // n - DCT and window size
+		
+		int n2 = 2 * n;
+		double [][][] fold_sk = new double[4][n*n][4];
+		int []    vert_ind =    new int[2];
+		double [][] vert_k =    new double[2][2];
+		int    [] hor_ind =     new int[2];
+		double [][] hor_k =     new double[2][2];
+//		double ahc = Math.cos(Math.PI/n2*shift_hor);
+//		double ahs = Math.sin(Math.PI/n2*shift_hor);
+//		double avc = Math.cos(Math.PI/n2*shift_vert);
+//		double avs = Math.sin(Math.PI/n2*shift_vert);
+		double [] wnd_hor = new double[n2];
+		double [] wnd_vert = new double[n2];
+		double f = Math.PI/n2;
+		for (int i = 0; i < n2; i++ ){
+			wnd_hor[i] =  Math.sin(f * (i+ 0.5 +shift_hor));
+			wnd_vert[i] = Math.sin(f * (i+ 0.5 +shift_vert));
+		}
+		if (debugLevel > 0){
+			System.out.println("Window (index,hor,vert) ");
+			for (int i = 0; i <16; i++) System.out.print(String.format("%5x ", i)); System.out.println();
+			for (int i = 0; i <16; i++) System.out.print(String.format("%5x ", (int) Math.round(debugLevel * wnd_hor[i]))); System.out.println();
+			for (int i = 0; i <16; i++) System.out.print(String.format("%5x ", (int) Math.round(debugLevel * wnd_vert[i]))); System.out.println();
+			System.out.println();
+		}
+		int [][] fi;
+		for (int i = 0; i < n; i++ ){
+			fi = get_fold_indices(i,n);
+			vert_ind[0] = fi[0][0];
+			vert_ind[1] = fi[1][0];
+//			double vw0 = avc*hwindow[fi[0][1]] + avs*hwindow[fi[0][4]]*fi[0][5];
+//			double vw1 = avc*hwindow[fi[1][1]] + avs*hwindow[fi[1][4]]*fi[1][5];
+			double vw0 = wnd_vert[vert_ind[0]];
+			double vw1 = wnd_vert[vert_ind[1]];
+			vert_k[0][0] =   fi[0][2] * vw0; // use cosine sign
+			vert_k[0][1] =   fi[1][2] * vw1; // use cosine sign
+			vert_k[1][0] =   fi[0][3] * vw0; // use sine sign
+			vert_k[1][1] =   fi[1][3] * vw1; // use sine sign
+			
+			for (int j = 0; j < n; j++ ){
+				fi = get_fold_indices(j,n);
+				hor_ind[0] = fi[0][0];
+				hor_ind[1] = fi[1][0];
+//				double hw0 = ahc*hwindow[fi[0][1]] + ahs*hwindow[fi[0][4]]*fi[0][5];
+//				double hw1 = ahc*hwindow[fi[1][1]] + ahs*hwindow[fi[1][4]]*fi[1][5];
+				double hw0 = wnd_hor[hor_ind[0]];
+				double hw1 = wnd_hor[hor_ind[1]];
+				
+				hor_k[0][0] =   fi[0][2] * hw0; // use cosine sign
+				hor_k[0][1] =   fi[1][2] * hw1; // use cosine sign
+				hor_k[1][0] =   fi[0][3] * hw0; // use sine sign
+				hor_k[1][1] =   fi[1][3] * hw1; // use sine sign
+				
+				int indx = n*i + j;
+				
+				for (int mode = 0; mode<4; mode++){
+					for (int k = 0; k<4;k++) {
+						fold_sk[mode][indx][k] =     vert_k[(mode>>1) &1][(k>>1) & 1] * hor_k[mode &1][k & 1]; 
+					}
+				}
+			}
+		}
+		return fold_sk;
+	}
+	
  	
 	// return index and two signs (c,s) for 1-d imdct. x is index (0..2*n-1) of the imdct array, value is sign * (idct_index+1),
 	// where idct_index (0..n-1) is index in the dct-iv array
@@ -359,6 +452,51 @@ public class DttRad2 {
 		}
 		return y;
 	}
+
+	public double [] dttt_iv(double [] x, int mode, int n, double scale, int mask){ // mode 0 - dct,dct 1:dst,dct, 2: dct, dst, 3: dst,dst
+		double [] y = new double [n*n];
+		double [] line = new double[n];
+		// first (horizontal) pass
+		System.out.println("dttt_iv, mode="+mode);
+		System.out.println("horizontal pass "+(((mode & 1)!=0)? "dst_iv":"dct_iv"));
+		for (int i = 0; i<n; i++){
+			System.arraycopy(x, n*i, line, 0, n);
+			line = ((mode & 1)!=0)? dst_iv(line):dct_iv(line);
+			System.out.print(String.format("%02x: ", i));
+			for (int j=0; j < n;j++) {
+				int di = ((int) Math.round(x[n*i+j]*scale)) & mask;
+				System.out.print(String.format("%07x ", di));
+			}
+			System.out.print("  ");
+			for (int j=0; j < n;j++) {
+				int di = ((int) Math.round(line[j] * scale)) & mask;
+				System.out.print(String.format("%07x ", di));
+			}
+			System.out.println();
+			for (int j=0; j < n;j++) y[j*n+i] =line[j]; // transpose
+		}
+		// second (vertical) pass
+		System.out.println("vertical pass "+(((mode & 2)!=0)? "dst_iv":"dct_iv")+" (after transpose)");
+		for (int i = 0; i<n; i++){
+			System.arraycopy(y, n*i, line, 0, n);
+			line = ((mode & 2)!=0)? dst_iv(line):dct_iv(line);
+			System.out.print(String.format("%02x: ", i));
+			for (int j=0; j < n;j++) {
+				int di = ((int) Math.round(y[n*i+j]*scale*0.5)) & mask;
+				System.out.print(String.format("%07x ", di));
+			}
+			System.out.print("  ");
+			for (int j=0; j < n;j++) {
+				int di = ((int) Math.round(line[j] * scale)) & mask;
+				System.out.print(String.format("%07x ", di));
+			}
+			System.out.println();
+			System.arraycopy(line, 0, y, n*i, n);
+		}
+		return y;
+	}
+	
+	
 	
 	public double [] dttt_ii(double [] x){
 		return dttt_ii(x, 1 << (ilog2(x.length)/2)); 
@@ -468,7 +606,8 @@ public class DttRad2 {
 	public void set_window(int mode){
 		set_window(mode, N);
 	}
-	public void set_window(int mode, int len){
+	public void set_window(int mode, int len){ // using mode==1
+		// for N=8: sin (pi/32), sin (3*pi/32), sin (5*pi/32), sin (7*pi/32), sin (9*pi/32), sin (11*pi/32), sin (13*pi/32), sin (15*pi/32)
 		hwindow = new double[len];
 		double f = Math.PI/(2.0*len);
 		double sqrt1_2=Math.sqrt(0.5);
@@ -532,6 +671,28 @@ public class DttRad2 {
 		}
 		return y;
 	}
+
+	public double [] fold_tile_debug(
+			double [] x,
+			int n,
+			int mode, //////
+			double [][][] fold_k
+			) { // x should be 2n*2n
+		System.out.println("fold_tile_debug, mode = "+mode);
+		double [] y = new double [n*n];
+		for (int i = 0; i<y.length;i++) {
+			y[i] = 0;
+			System.out.print(String.format("%2d: ",i));
+			for (int k = 0; k < 4; k++){
+				y[i] += x[fold_index[i][k]] * fold_k[mode][i][k];
+				System.out.print(String.format("(%f * %f) ", x[fold_index[i][k]], fold_k[mode][i][k]));
+				if (k < 3) System.out.print("+ ");
+			}
+			System.out.println(String.format("= %f", y[i]));
+		}
+		return y;
+	}
+	
 	
 	
 	public double [] unfold_tile(

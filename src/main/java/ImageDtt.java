@@ -26,7 +26,12 @@ import Jama.Matrix;
 import ij.ImageStack;
 
 public class ImageDtt {
-	
+	  static boolean FPGA_COMPARE_DATA= true; // false; //
+	  static int     FPGA_SHIFT_BITS =  7; // number of bits for fractional pixel shift
+	  static int     FPGA_PIXEL_BITS = 15; // bits to represent pixel data (positive)
+	  static int     FPGA_WND_BITS =   17; // bits to represent mclt window (positive for 18-bit signed mpy input)
+	  static int     FPGA_DTT_IN =     22; // bits to represent maximal value after folding (input to DTT)
+	  static int     FPGA_TILE_SIZE =  22; // size of square side for the composite colors tile (16..22)
 	  static double [] kern_g={
 			  0.0,   0.125,  0.0  ,
 			  0.125, 0.5,    0.125,
@@ -44,7 +49,7 @@ public class ImageDtt {
 			  {0,1,2,3,4,5,6,7,8}, // middle
 			  {0,1,3,4,6,7},       // middle right
 			  {1,2,4,5},           // bottom left
-			  {0,1,2,3,4,5},       // mottom middle
+			  {0,1,2,3,4,5},       // bottom middle
 			  {0,1,3,4}};          // bottom right
 //	 public static int FORCE_DISPARITY_BIT = 8; // move to parameters?
 	  
@@ -1034,7 +1039,7 @@ public class ImageDtt {
 			final int                 threadsMax,  // maximal number of threads to launch                         
 			final int                 globalDebugLevel)
 	{
-		final boolean debug_ports_coordinates = (debug_tileX == -1234);
+//		final boolean debug_ports_coordinates = (debug_tileX == -1234);
 		final boolean macro_mode = macro_scale != 1;      // correlate tile data instead of the pixel data
 		final int quad = 4;   // number of subcameras
 		final int numcol = 3; // number of colors
@@ -1281,20 +1286,6 @@ public class ImageDtt {
 							}
 							// TODO: use correction after disparity applied (to work for large disparity values)
 							if (fine_corr != null){
-								// old correction
-								//double tX = (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0
-								//double tY = (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
-								//for (int ip = 0; ip < centersXY.length; ip++){
-								//	//f(x,y)=A*x^2+B*y^2+C*x*y+D*x+E*y+F
-								//	for (int d = 0; d <2; d++)
-								//		centersXY[ip][d] -= (
-								//				fine_corr[ip][d][0]*tX*tX+
-								//				fine_corr[ip][d][1]*tY*tY+
-								//				fine_corr[ip][d][2]*tX*tY+
-								//				fine_corr[ip][d][3]*tX+
-								//				fine_corr[ip][d][4]*tY+
-								//				fine_corr[ip][d][5]);
-								//}
 								
 								for (int ip = 0; ip < centersXY.length; ip++){
 									double [] tXY = geometryCorrection.getRelativeCoords(centersXY[ip]);
@@ -1313,81 +1304,7 @@ public class ImageDtt {
 						
 						
 						for (int chn = 0; chn <numcol; chn++) {
-							
-/*
-							centerX = tileX * transform_size + transform_size/2 - shiftX;
-							centerY = tileY * transform_size + transform_size/2 - shiftY;
-							// TODO: move port coordinates out of color channel loop
-							double [][] centersXY;
-							if (macro_mode){
-								if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) { // before correction
-									System.out.println("\nUsing MACRO mode, centerX="+centerX+", centerY="+centerY);
-								}
-								centersXY = geometryCorrection.getPortsCoordinatesIdeal(
-										macro_scale,
-										centerX,
-										centerY,
-										macro_scale* disparity_array[tileY][tileX] + disparity_corr);
-							} else {
-								centersXY = geometryCorrection.getPortsCoordinates(
-										centerX,
-										centerY,
-										disparity_array[tileY][tileX] + disparity_corr);
-								if ((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
-									for (int i = 0; i < quad; i++) {
-										System.out.println("clt_aberrations_quad_corr(): color="+chn+", tileX="+tileX+", tileY="+tileY+
-												" centerX="+centerX+" centerY="+centerY+" disparity="+disparity_array[tileY][tileX]+
-												" centersXY["+i+"][0]="+centersXY[i][0]+" centersXY["+i+"][1]="+centersXY[i][1]);
-									}
-								}
-
-								if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) { // before correction
-									System.out.print(disparity_array[tileY][tileX]+"\t"+
-											centersXY[0][0]+"\t"+centersXY[0][1]+"\t"+
-											centersXY[1][0]+"\t"+centersXY[1][1]+"\t"+
-											centersXY[2][0]+"\t"+centersXY[2][1]+"\t"+
-											centersXY[3][0]+"\t"+centersXY[3][1]+"\t");
-								}
-
-								for (int ip = 0; ip < centersXY.length; ip++){
-									centersXY[ip][0] -= shiftXY[ip][0];
-									centersXY[ip][1] -= shiftXY[ip][1];
-								}
-								// TODO: use correction after disparity applied (to work for large disparity values)
-								if (fine_corr != null){
-									// old correction
-									//double tX = (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0
-									//double tY = (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
-									//for (int ip = 0; ip < centersXY.length; ip++){
-									//	//f(x,y)=A*x^2+B*y^2+C*x*y+D*x+E*y+F
-									//	for (int d = 0; d <2; d++)
-									//		centersXY[ip][d] -= (
-									//				fine_corr[ip][d][0]*tX*tX+
-									//				fine_corr[ip][d][1]*tY*tY+
-									//				fine_corr[ip][d][2]*tX*tY+
-									//				fine_corr[ip][d][3]*tX+
-									//				fine_corr[ip][d][4]*tY+
-									//				fine_corr[ip][d][5]);
-									//}
-									
-									for (int ip = 0; ip < centersXY.length; ip++){
-										double [] tXY = geometryCorrection.getRelativeCoords(centersXY[ip]);
-										for (int d = 0; d <2; d++) {
-											centersXY[ip][d] -= (
-													fine_corr[ip][d][0]*tXY[0]*tXY[0]+
-													fine_corr[ip][d][1]*tXY[1]*tXY[1]+
-													fine_corr[ip][d][2]*tXY[0]*tXY[1]+
-													fine_corr[ip][d][3]*tXY[0]+
-													fine_corr[ip][d][4]*tXY[1]+
-													fine_corr[ip][d][5]);
-										}
-									}
-								}
-							} // if (macro_mode) ... else
-							
-*/							
-							
-							
+							boolean debug_for_fpga = FPGA_COMPARE_DATA && (globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2);
 							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) {
 								System.out.println("\nUsing "+(macro_mode?"MACRO":"PIXEL")+" mode, centerX="+centerX+", centerY="+centerY);
 								System.out.println(disparity_array[tileY][tileX]+"\t"+
@@ -1398,6 +1315,100 @@ public class ImageDtt {
 							}
 
 							for (int i = 0; i < quad; i++) {
+								if (debug_for_fpga && (i==0)){
+									double [][] fpga_clt_data = new double [4][];
+									double [] fpga_fract_shiftsXY;
+									double [] fpga_centersXY = {centersXY[i][0],centersXY[i][1]};
+									int fpga_chn = chn; // ==2, green
+									// round to nearest 1/128 pix (supported by FPGA code)
+									System.out.println(String.format("Center X= %f, center Y = %f", fpga_centersXY[0],fpga_centersXY[1]));
+									for (int j=0; j<2;j++){
+										fpga_centersXY[j] = Math.round(128*fpga_centersXY[j])/128.0; 
+									}
+									
+									
+									for (int j=0; j<2;j++){
+										fpga_centersXY[j] = Math.round(fpga_centersXY[j]); 
+									}
+									
+									
+//									fpga_centersXY[0]+=0.5; // half pixel shift horizontal zero pixel shift vertical
+//									fpga_centersXY[1]+=0.5; // half pixel shift vertical, zero pixel shift horizontal 
+									
+//									fpga_centersXY[0]+=1.0; //
+									
+									fpga_chn =           2;
+
+									
+									System.out.println(String.format("Manually changing offset: center X= %f, center Y = %f", fpga_centersXY[0],fpga_centersXY[1]));
+									System.out.println(String.format("Manually changing color to %d (was %d)", fpga_chn, chn));
+									
+									
+									
+									fpga_fract_shiftsXY = extract_correct_tile( // return a pair of residual offsets
+											image_data[i],
+											width,       // image width
+											null,
+											fpga_clt_data, //double  [][]        clt_tile,    // should be double [4][];
+											kernel_step,
+											transform_size,
+											dtt, 
+											fpga_chn, // chn,                              
+											fpga_centersXY[0], // centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
+											fpga_centersXY[1], // centersXY[i][1], // centerY, //
+											-10, // globalDebugLevel,
+											true, // no_deconvolution,
+											false, // ); // transpose);
+											null,
+											null);
+									showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+									String [] titles = {"CC","SC","CS","SS"};
+									double [][] dbg_tile = new double [4][];
+									for (int im = 0; im < 4; im++) dbg_tile[im]=fpga_clt_data[im];   
+									sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "fpre-shifted_x"+tileX+"_y"+tileY+"-z", titles);
+									fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
+											fpga_clt_data, // double  [][]  clt_tile,
+											transform_size,
+											fpga_fract_shiftsXY[0],            // double        shiftX,
+											fpga_fract_shiftsXY[1],            // double        shiftY,
+											true); // debug									
+									for (int im = 0; im < 4; im++) dbg_tile[im]=fpga_clt_data[im];   
+									sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "f-shifted_x"+tileX+"_y"+tileY+"-z", titles);
+									System.out.println("Debugging for FPGA data, globalDebugLevel = "+globalDebugLevel+", tileX="+tileX+", tileY="+tileY+", sesnlor="+i+", color="+chn);
+									System.out.println("Debugging for FPGA data, fpga_fract_shiftsXY[0] = "+fpga_fract_shiftsXY[0]+", fpga_fract_shiftsXY[1]="+fpga_fract_shiftsXY[1]);
+									System.out.println();
+									
+									double scale = (1 << (FPGA_DTT_IN - 9)); //  -1;
+									// compensate for DTT scale
+									scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+									scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+									// compensate for rotator scale:
+									scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+									scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+									double [] fpga_dtt_lim = {0.0,0.0};
+									for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+										for (int j = 0; j < 64; j++){
+											if (fpga_clt_data[dct_mode][j] > fpga_dtt_lim[0]) fpga_dtt_lim[0] = fpga_clt_data[dct_mode][j];
+											if (fpga_clt_data[dct_mode][j] < fpga_dtt_lim[1]) fpga_dtt_lim[1] = fpga_clt_data[dct_mode][j];
+										}
+									}
+									
+									System.out.println(String.format("// DTT rotated, shift_x=%f. shift_y = %f", fpga_fract_shiftsXY[0],fpga_fract_shiftsXY[1]));
+									System.out.println(String.format("// DTT rotated  range: %f ... %f", fpga_dtt_lim[1], fpga_dtt_lim[0]));
+//									scale = (1 << (FPGA_DTT_IN - 9)); //  -1;
+									for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+										for (int j = 0; j < 64; j++){
+											int id = (int) Math.round(scale * fpga_clt_data[dct_mode][j]);
+											System.out.print(String.format("%7x ", id & ((1 << 25) -1)));
+											if ((j % 8) == 7) System.out.println();
+										}
+										System.out.println();
+									}
+									
+									
+									
+								}
+								
 								clt_data[i][chn][tileY][tileX] = new double [4][];
 								fract_shiftsXY[i] = extract_correct_tile( // return a pair of residual offsets
 										image_data[i],
@@ -1411,19 +1422,20 @@ public class ImageDtt {
 										centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
 										centersXY[i][1], // centerY, //
 //										((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)),
-										((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) ? (globalDebugLevel + 0) : 0, // external tile compare
+										(!FPGA_COMPARE_DATA && (globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2) && (i==0)) ? (globalDebugLevel + 0) : 0, // external tile compare
 										
 //										(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2), // external tile compare
 										no_deconvolution,
 										false, // ); // transpose);
 										((saturation_imp != null) ? saturation_imp[i] : null), //final boolean [][]        saturation_imp, // (near) saturated pixels or null
 										((saturation_imp != null) ? overexp_all: null)); // final double [] overexposed)
+								
 										
 							}
 							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) {
 								System.out.println();
 							}							
-							if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (chn == 2)) {
+							if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (chn == 2) && !FPGA_COMPARE_DATA) {
 								showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 								double [][] dbg_tile = new double [16][];
@@ -1439,6 +1451,7 @@ public class ImageDtt {
 								}
 							}
 
+//							if (!no_fract_shift && !FPGA_COMPARE_DATA) {
 							if (!no_fract_shift) {
 								// apply residual shift
 								for (int i = 0; i < quad; i++) {
@@ -1456,8 +1469,11 @@ public class ImageDtt {
 									String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 									double [][] dbg_tile = new double [16][];
 									for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][chn][tileY][tileX][i & 3];   
-									sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY, titles);
+									sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY+"-z", titles);
 								}
+								
+								
+								
 							}
 						}
 						// calculate overexposed fraction
@@ -3716,13 +3732,15 @@ public class ImageDtt {
 			double              centerX, // center of aberration-corrected (common model) tile, X
 			double              centerY, //
 			int                 debugLevel,
-//			boolean             bdebug0, // external tile compare
 			boolean             dbg_no_deconvolution,
 			boolean             dbg_transpose,
 			boolean []          saturation_imp, // (near) saturated pixels or null
 			int []              overexp_all ) // {number of overexposed,  number of all tiles} or null
 			
 	{
+		boolean debug_fpga = debugLevel < -9;
+		if (debug_fpga) debugLevel = 1;
+		
 		boolean use_kernels = (clt_kernels != null) && !dbg_no_deconvolution;
 		boolean bdebug0 = debugLevel > 0;
 		boolean bdebug =  debugLevel > 1;
@@ -3757,9 +3775,9 @@ public class ImageDtt {
 		if (bdebug0){
 			System.out.print(px+"\t"+py+"\t");
 		}
-		
-		int ctile_left = (int) Math.round(px);
-		int ctile_top =  (int) Math.round(py);
+		// Was wrong rounding, fractional part gets to +0.5 
+		int ctile_left = (int) -Math.round(-px);
+		int ctile_top =  (int) -Math.round(-py);
 		residual_shift[0] = -(px - ctile_left);
 		residual_shift[1] = -(py - ctile_top);
 		// 4. Verify the tile fits in image and use System.arraycopy(sym_conv, 0, tile_in, 0, n2*n2) to copy data to tile_in
@@ -3782,6 +3800,30 @@ public class ImageDtt {
 				}			
 			}			
 		}
+		if (debug_fpga){ // show extended tile, all colors
+//		//FPGA_TILE_SIZE
+			System.out.println("\nFull Bayer fpga tile data");
+			int lt = (FPGA_TILE_SIZE - transform_size2)/2;
+			double [][] fpga_tile = new double [3][FPGA_TILE_SIZE * FPGA_TILE_SIZE];
+			for (int fpga_chn = 0; fpga_chn < 3; fpga_chn++){
+				for (int i = 0; i < FPGA_TILE_SIZE; i++){
+					System.arraycopy(image_data[fpga_chn], ((ctile_top - lt) + i) * width + (ctile_left - lt), fpga_tile[fpga_chn], FPGA_TILE_SIZE * i, FPGA_TILE_SIZE);
+				}
+			}
+			int id = (1 << (FPGA_PIXEL_BITS - 9)); // 8
+			for (int i = 0; i < FPGA_TILE_SIZE*FPGA_TILE_SIZE; i++) {
+				double d = 0.0;
+				for (int fpga_chn = 0; fpga_chn < 3; fpga_chn++){
+					d +=  fpga_tile[fpga_chn][i];
+				}
+				System.out.print(String.format("%4x ",(int) Math.round(id * d)));
+				if (((i+1) %FPGA_TILE_SIZE) == 0) {
+					System.out.println();	
+				}
+			}
+		}
+		
+		
 		if ((chn == GREEN_CHN) && (saturation_imp != null)) {
 //			double overexp_fract = 1.0/(transform_size2 * transform_size2 * QUAD);
 //			int num_overexp = 0;
@@ -3814,24 +3856,311 @@ public class ImageDtt {
 				overexp_all[1] += transform_size2 * transform_size2;
 			}
 		}
+		if (debug_fpga) {
+			System.out.println("debug_fpga: residual_shift[0]="+residual_shift[0]+", residual_shift[1]="+residual_shift[1]);
+			int ishx, ishy;
+			ishx = (int) Math.round((1 << (FPGA_SHIFT_BITS)) * residual_shift[0]);
+			ishy = (int) Math.round((1 << (FPGA_SHIFT_BITS)) * residual_shift[1]);
+			if (ishx >= (1 << (FPGA_SHIFT_BITS-1))) ishx = (1 << (FPGA_SHIFT_BITS-1)) - 1; 
+			if (ishy >= (1 << (FPGA_SHIFT_BITS-1))) ishy = (1 << (FPGA_SHIFT_BITS-1)) - 1; 
+			if (ishx < -(1 << (FPGA_SHIFT_BITS-1))) ishx = -(1 << (FPGA_SHIFT_BITS-1)); 
+			if (ishy < -(1 << (FPGA_SHIFT_BITS-1))) ishy = -(1 << (FPGA_SHIFT_BITS-1)); 
+			residual_shift[0] = ishx * (1.0/(1 << (FPGA_SHIFT_BITS))); 
+			residual_shift[1] = ishy * (1.0/(1 << (FPGA_SHIFT_BITS)));
+			System.out.println("rounded: residual_shift[0]="+residual_shift[0]+", residual_shift[1]="+residual_shift[1]);
+			double [] fpga_pix_lim = {0.0,0.0};
+			for (int i = 0; i < 256; i++){
+				if (tile_in[i] > fpga_pix_lim[0]) fpga_pix_lim[0] = tile_in[i];
+				if (tile_in[i] < fpga_pix_lim[1]) fpga_pix_lim[1] = tile_in[i];
+			}
+			System.out.println(String.format("\n// Pixels input range: %f ... %f", fpga_pix_lim[1], fpga_pix_lim[0]));
+			System.out.println(String.format("%x // shift_x, %d bits",ishx & ((1 << (FPGA_SHIFT_BITS)) - 1),FPGA_SHIFT_BITS));
+			System.out.println(String.format("%x // shift_y, %d bits",ishy & ((1 << (FPGA_SHIFT_BITS)) - 1),FPGA_SHIFT_BITS));
+			System.out.println(String.format("%x // bayer",15));
+			int id = (1 << (FPGA_PIXEL_BITS - 9)); // 8
+			for (int row = 0; row <16; row++){
+				for (int col = 0; col <16; col++){
+					System.out.print(String.format("%4x ",(int) Math.round(id * tile_in[row*16 + col])));
+				}
+				System.out.println();
+			}
+		}
 		
 		// Fold and transform
 		double [][][] fold_coeff = null;
 		if (!dbg_transpose){
-			fold_coeff = dtt.get_shifted_fold_2d(
+			fold_coeff = dtt.get_shifted_fold_2d ( // get_shifted_fold_2d(
 					transform_size,
 					residual_shift[0],
-					residual_shift[1]);
+					residual_shift[1],
+					0); // debug level
+		}
+
+		if (debug_fpga) {
+			System.out.println("debug_fpga: residual_shift[0]="+residual_shift[0]+", residual_shift[1]="+residual_shift[1]);
+			System.out.println("Signs table (per mode, per index - bitstring of variants, 0 - positive, 1 - negative");
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					int d = 0;
+					for (int b = 0; b < 4; b++){
+						if (fold_coeff[dct_mode][i][b] < 0){
+							d |= (1 << b);
+						}
+					}
+					System.out.print(String.format("%x ",d));
+					if ((i % 16) == 15){
+						System.out.println();
+					}
+				}
+			}
+			System.out.println("Absolute values, shoud be the same for each of 4 modes");
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					for (int b = 0; b < 4; b++){
+						int d = (int) Math.round(((1 << FPGA_WND_BITS) -1)* Math.abs(fold_coeff[dct_mode][i][b]));
+						System.out.print(String.format("%5x ",d & ((1 << (FPGA_WND_BITS)) - 1)));
+					}
+					if ((i % 4) == 3){
+						System.out.println();
+					}
+				}
+				System.out.println();
+			}
+			
+			double [][][] fold_coeff_direct = dtt.get_shifted_fold_2d_direct ( // get_shifted_fold_2d(
+						transform_size,
+						residual_shift[0],
+						residual_shift[1],
+						(1 << FPGA_WND_BITS) -1); // debug level - use as scale
+			
+			System.out.println("Direct sin table");
+			for (int i = 0; i < 64; i++){
+				for (int b = 0; b < 4; b++){
+					int d = (int) Math.round(((1 << FPGA_WND_BITS) -1)* Math.abs(fold_coeff_direct[0][i][b])); // dct_mode=0
+					System.out.print(String.format("%5x ",d & ((1 << (FPGA_WND_BITS)) - 1)));
+				}
+				if ((i % 4) == 3){
+					System.out.println();
+				}
+			}
+			System.out.println();
+
+			double [][][] fold_coeff_old = dtt.get_shifted_fold_2d ( // get_shifted_fold_2d(
+					transform_size,
+					residual_shift[0],
+					residual_shift[1],
+					(1 << FPGA_WND_BITS) -1); // debug level - use as scale
+
+			System.out.println("Direct sin table");
+			for (int i = 0; i < 64; i++){
+				for (int b = 0; b < 4; b++){
+					int d = (int) Math.round(((1 << FPGA_WND_BITS) -1)* Math.abs(fold_coeff_old[0][i][b])); // dct_mode=0
+					System.out.print(String.format("%5x ",d & ((1 << (FPGA_WND_BITS)) - 1)));
+				}
+				if ((i % 4) == 3){
+					System.out.println();
+				}
+			}
+			System.out.println();
+
+			System.out.println("Diff: new - old");
+			for (int i = 0; i < 64; i++){
+				for (int b = 0; b < 4; b++){
+					int d0 = (int) Math.round(((1 << FPGA_WND_BITS) -1)* Math.abs(fold_coeff[0][i][b])); // dct_mode=0
+					int d = (int) Math.round(((1 << FPGA_WND_BITS) -1)* Math.abs(fold_coeff_direct[0][i][b])); // dct_mode=0
+					System.out.print(String.format("%5d ",d - d0));
+				}
+				if ((i % 4) == 3){
+					System.out.println();
+				}
+			}
+			System.out.println();
+
+			
+			
+			System.out.println("\nFold index");
+			int [][] fpga_fi = dtt.getFoldIndex();
+			for (int i = 0; i < 64; i++){
+				for (int k = 0; k <4; k++) {
+				        System.out.print(String.format("%02x ", fpga_fi[i][k]));
+				}
+				System.out.print("  ");
+				if (i%8 == 7) System.out.println();
+			}
+			System.out.println();
+			
+			// Show for different Bayer patterns
+			int [] bayer_patterns = {0x1, 0x2, 0x4, 0x8, 0x9, 0x6};
+			for (int bp:bayer_patterns){
+				System.out.println("Pattern (row/col) "+bp+":");
+				System.out.println("| "+(((bp & 1) !=0) ? "X ":"  ")+(((bp & 2) !=0) ? "X ":"  ")+"|");
+				System.out.println("| "+(((bp & 4) !=0) ? "X ":"  ")+(((bp & 8) !=0) ? "X ":"  ")+"|");
+				for (int i = 0; i < 64; i++){
+					for (int k = 0; k <4; k++) {
+						int row = (fpga_fi[i][k] >> 4);
+						int col = (fpga_fi[i][k] & 0xf);
+						int indx = (row & 1) + 2 * (col & 1);
+						if (((1 << indx) & bp) != 0) {
+							System.out.print(String.format("%2x ", fpga_fi[i][k]));
+						} else {
+							System.out.print(" . ");
+						}
+					}
+					System.out.print("  ");
+					if (i%8 == 7) System.out.println();
+				}
+				System.out.println();
+			}
+			
+			for (int bp:bayer_patterns){
+				System.out.println("Pattern (mode bits) "+bp+":");
+				System.out.println("| "+(((bp & 1) !=0) ? "X ":"  ")+(((bp & 2) !=0) ? "X ":"  ")+"|");
+				System.out.println("| "+(((bp & 4) !=0) ? "X ":"  ")+(((bp & 8) !=0) ? "X ":"  ")+"|");
+				for (int i = 0; i < 64; i++){
+					for (int k = 0; k < 4; k++) {
+						int row = (fpga_fi[i][k] >> 4);
+						int col = (fpga_fi[i][k] & 0xf);
+						int indx = (row & 1) + 2 * (col & 1);
+						int d = 0;
+						for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+							if (fold_coeff[dct_mode][i][k] < 0){
+								d |= (1 << dct_mode);
+							}
+						}						
+						
+						if (((1 << indx) & bp) != 0) {
+							System.out.print(String.format("%02x ", d));
+						} else {
+							System.out.print(" . ");
+						}
+					}
+					System.out.print("  ");
+					if (i%8 == 7) System.out.println();
+				}
+				System.out.println();
+			}
+			
+			
+			double [][] fpga_w_u = new double [4][256];
+			double [][] fpga_w_s = new double [4][256];
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					for (int b=0; b < 4; b++){
+						fpga_w_u [dct_mode][fpga_fi[i][b]] = Math.abs(fold_coeff[dct_mode][i][b]); 
+						fpga_w_s [dct_mode][fpga_fi[i][b]] = fold_coeff[dct_mode][i][b]; 
+					}
+				}
+			}
+			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			String [] titles = {"CC","SC","CS","SS"};
+			sdfa_instance.showArrays(fpga_w_s,  2 * transform_size, 2 * transform_size, true, "fpga_w_s_x"+ctile_left+"_y"+ctile_top, titles);
+			sdfa_instance.showArrays(fpga_w_u,  2 * transform_size, 2 * transform_size, true, "fpga_w_u_x"+ctile_left+"_y"+ctile_top, titles);
+
+			
+			
+		} //if (debug_fpga)
+		
+		
+		if (!debug_fpga) {
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				if (fold_coeff != null){
+					clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode, fold_coeff); // DCCT, DSCT, DCST, DSST
+				} else {
+					clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode); // DCCT, DSCT, DCST, DSST
+				}
+				clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size);
+			}
 		}
 		
-		for (int dct_mode = 0; dct_mode <4; dct_mode++) {
-			if (fold_coeff != null){
-				clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode, fold_coeff); // DCCT, DSCT, DCST, DSST
-			} else {
-				clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode); // DCCT, DSCT, DCST, DSST
+		if (debug_fpga){
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				if (fold_coeff != null){
+					clt_tile[dct_mode] = dtt.fold_tile_debug (tile_in, transform_size, dct_mode, fold_coeff); // DCCT, DSCT, DCST, DSST
+				} else {
+					clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode); // DCCT, DSCT, DCST, DSST
+				}
 			}
-			clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size);
+			
+			
+			
+			double [] fpga_dtt_lim = {0.0,0.0};
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					if (clt_tile[dct_mode][i] > fpga_dtt_lim[0]) fpga_dtt_lim[0] = clt_tile[dct_mode][i];
+					if (clt_tile[dct_mode][i] < fpga_dtt_lim[1]) fpga_dtt_lim[1] = clt_tile[dct_mode][i];
+				}
+			}
+			System.out.println(String.format("// DTT input range: %f ... %f", fpga_dtt_lim[1], fpga_dtt_lim[0]));
+//			double scale = (1 << (FPGA_DTT_IN - 10)) -1;
+///			double scale = (1 << (FPGA_DTT_IN - 8)) -1;
+			double scale = (1 << (FPGA_DTT_IN - 9)); //  -1;
+///			scale /= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+///			scale /= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+			scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+			scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					int id = (int) Math.round(scale * clt_tile[dct_mode][i]);
+					System.out.print(String.format("%7x ", id & ((1 << 25) -1)));
+					if ((i % 8) == 7) System.out.println();
+				}
+				System.out.println();
+			}
+			System.out.println();
+
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size, scale, ((1 << 25) -1)); // debug level
+			}
+			fpga_dtt_lim[0] = 0.0;
+			fpga_dtt_lim[1] = 0.0;
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					if (clt_tile[dct_mode][i] > fpga_dtt_lim[0]) fpga_dtt_lim[0] = clt_tile[dct_mode][i];
+					if (clt_tile[dct_mode][i] < fpga_dtt_lim[1]) fpga_dtt_lim[1] = clt_tile[dct_mode][i];
+				}
+			}
+			System.out.println(String.format("// DTT output range: %f ... %f", fpga_dtt_lim[1], fpga_dtt_lim[0]));
+			// scale = (1 << (FPGA_DTT_IN - 9)); //  -1;
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					int id = (int) Math.round(scale * clt_tile[dct_mode][i]);
+					System.out.print(String.format("%7x ", id & ((1 << 25) -1)));
+					if ((i % 8) == 7) System.out.println();
+				}
+				System.out.println();
+			}
+			System.out.println();
+			System.out.println("Testing symmetry of checkerboard patterns");
+			for (int dct_mode = 0; dct_mode < 2; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					int id = (int) Math.round(scale * clt_tile[dct_mode][i]);
+					int id1 = (int) Math.round(scale * clt_tile[3-dct_mode][63-i]);
+					System.out.print(String.format("%7x ", (id-id1) & ((1 << 25) -1)));
+					if ((i % 8) == 7) System.out.println();
+				}
+				System.out.println();
+			}
+			System.out.println();
+			System.out.println("Testing antisymmetry of checkerboard patterns");
+			for (int dct_mode = 0; dct_mode < 2; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					int id = (int) Math.round(scale * clt_tile[dct_mode][i]);
+					int id1 = (int) Math.round(scale * clt_tile[3-dct_mode][63-i]);
+					System.out.print(String.format("%7x ", (id+id1) & ((1 << 25) -1)));
+					if ((i % 8) == 7) System.out.println();
+				}
+				System.out.println();
+			}
+			System.out.println();
+			
+			
+			
+//apply rotation
+		
 		}
+		
+		
+		
 		if (bdebug0) {
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 			sdfa_instance.showArrays(tile_in,  transform_size2, transform_size2, "tile_in_x"+ctile_left+"_y"+ctile_top);
