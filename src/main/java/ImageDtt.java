@@ -1086,7 +1086,7 @@ public class ImageDtt {
 		System.out.println("scale1="+scale1);
 		for (int chn = 0; chn < 3; chn++) {
 			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
-				System.out.println("Color="+chn+" fpga_clt_data_out[chn][dct_mode] = dtt.dttt_iv(..., scale1="+scale1);
+				System.out.println("// Color="+chn+" fpga_clt_data_out[chn][dct_mode] = dtt.dttt_iv(..., scale1="+scale1);
 				fpga_clt_data_out[chn][dct_mode] = dtt.dttt_iv   (fpga_clt_data_out[chn][dct_mode], dct_mode, transform_size, scale1, ((1 << 25) -1)); // debug level
 //				fpga_clt_data_out[chn][dct_mode] = dtt.dttt_iv   (fpga_clt_data_out[chn][dct_mode], dct_mode, transform_size);
 			}
@@ -1219,7 +1219,7 @@ public class ImageDtt {
 			scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
 			scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
 			scale *= 2; // Increased twice in FPGA adding twice each number in FPGA
-			System.out.println("Color="+chn+" fpga_clt_data_out[chn][dct_mode] = dtt.dttt_iv(..., scale="+scale);
+			System.out.println("// Color="+chn+" fpga_clt_data_out[chn][dct_mode] = dtt.dttt_iv(..., scale="+scale);
 
 //			if (chn != GREEN_CHN) scale *= 2; // adding twice each number in FPGA for R and B - done before
 			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
