@@ -27,7 +27,7 @@ import Jama.Matrix;
 import ij.ImageStack;
 
 public class ImageDtt {
-	  static boolean FPGA_COMPARE_DATA= true; // false; //
+	  static boolean FPGA_COMPARE_DATA= false; // true; // false; //
 	  static int     FPGA_SHIFT_BITS =  7; // number of bits for fractional pixel shift
 	  static int     FPGA_PIXEL_BITS = 15; // bits to represent pixel data (positive)
 	  static int     FPGA_WND_BITS =   17; // bits to represent mclt window (positive for 18-bit signed mpy input)
@@ -979,6 +979,48 @@ public class ImageDtt {
 		return clt_data;
 	}
 
+	public void printSignsFPGA (
+			DttRad2               dtt
+			){
+		double [][][] fold_coeff = dtt.getFoldK();
+		int [][] fpga_fi = dtt.getFoldIndex();
+// For R/B color channels (1 - 4 non-zero) show signs during folding of a single pixel contributor (4 Bayer variants) per each mode
+		String [] mode_names={"CC","SC", "CS","SS"};
+		int [] bayer_patterns = {0x1, 0x2, 0x4, 0x8}; // , 0x9, 0x6};
+		boolean [][][] signs = new boolean [bayer_patterns.length][4][64];
+
+//		for (int bp:bayer_patterns){
+	    for (int ibp = 0; ibp < bayer_patterns.length; ibp++){
+	    	int bp = bayer_patterns[ibp];
+			System.out.println("\nPattern (row/col) "+bp+":");
+			System.out.println("| "+(((bp & 1) !=0) ? "X ":"  ")+(((bp & 2) !=0) ? "X ":"  ")+"|");
+			System.out.println("| "+(((bp & 4) !=0) ? "X ":"  ")+(((bp & 8) !=0) ? "X ":"  ")+"|");
+			for (int mode = 0; mode < 4; mode++){
+				if (mode == 0) 	System.out.println("DTT mode = "+mode+" ("+ mode_names[mode]+"): term sign");
+				else 	        System.out.println("DTT mode = "+mode+" ("+ mode_names[mode]+"): term inverse relative to CC ");
+				for (int i = 0; i < 64; i++){
+					for (int k = 0; k < 4; k++){
+						int row = (fpga_fi[i][k] >> 4);
+						int col = (fpga_fi[i][k] & 0xf);
+						int indx = (row & 1) + 2 * (col & 1);
+						if (((1 << indx) & bp) != 0) { // only use non-zero pixels, for 1 in 4 - only one k would match
+							signs[ibp][mode][i] = fold_coeff[mode][i][k] < 0;
+							if (mode == 0) 	{
+								if (fold_coeff[mode][i][k] < 0) System.out.print("- ");
+								else                            System.out.print("+ ");
+							} else {
+								boolean sgn = signs[ibp][mode][i] ^ signs[ibp][0][i];
+								if (sgn) System.out.print("* ");
+								else     System.out.print(". ");
+							}
+//							continue;
+						}
+					}
+					if ((i+1)%8 == 0) System.out.println();
+				}
+			}
+		}
+	}
 
 	public void generateFPGACompareData(
 			final double [][]         image_data, // for selected subcamera
@@ -987,6 +1029,9 @@ public class ImageDtt {
 			final int                 width,
 			DttRad2                   dtt
 			){
+
+		printSignsFPGA(dtt);
+
 		int height = image_data[0].length/width;
 		double [][][] fpga_clt_data_in = new double [3][4][];
 		double [][][] fpga_clt_data_out = new double [3][4][];
@@ -1651,9 +1696,14 @@ public class ImageDtt {
 //									{ 1.3, -2.7},
 //									{-1.3,  2.7},
 //									{ 0.0,  0.0}};
+
+//							{ 2.3, -2.7},
+//							{-0.3,  2.7},
+//							{ 0.0,  0.0}};
+
 							{ 2.3, -2.7},
 							{-0.3,  2.7},
-							{ 0.0,  0.0}};
+							{ 1.0,  0.0}};
 
 							double [][] colorCentersXY = {
 									{centersXY[fpga_cam][0] + manual_offsets[0][0], centersXY[fpga_cam][1] + manual_offsets[0][1]}, // add manual offsets here
