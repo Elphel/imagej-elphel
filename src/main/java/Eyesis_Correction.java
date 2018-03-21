@@ -600,8 +600,9 @@ private Panel panel1,
     	}
     	try {
     		prefsProperties.loadFromXML(is);
-    		getAllProperties(prefsProperties);
-    		if (DEBUG_LEVEL>0) System.out.println("Configuration parameters are restored from "+this.prefsPath);
+    		System.out.println("Skipping getAllProperties(prefsProperties)");
+//    		getAllProperties(prefsProperties);
+//   		if (DEBUG_LEVEL>0) System.out.println("Configuration parameters are restored from "+this.prefsPath);
 
     	} catch (IOException e) {
     		String msg="Failed to read XML configuration file: "+this.prefsPath;
