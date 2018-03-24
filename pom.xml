@@ -73,29 +73,38 @@
 				<directory>${project.build.testSourceDirectory}</directory>
 			</testResource>
 		</testResources>
-		<plugins>
-                        <plugin>
-                                <groupId>org.apache.maven.plugins</groupId>
-                                <artifactId>maven-plugin-plugin</artifactId>
-                                <configuration>
-                                    <!-- see http://jira.codehaus.org/browse/MNG-5346 -->
-                                    <skipErrorNoDescriptorsFound>true</skipErrorNoDescriptorsFound>
-                                </configuration>
-                                <executions>
-                                    <execution>
-                                        <id>mojo-descriptor</id>
-                                        <goals>
-                                            <goal>descriptor</goal>
-                                        </goals>
-                                    </execution>
-                                </executions>
-	
-                        </plugin>
-  			
-			<plugin>
+		<pluginManagement>
+		    <plugins>
+            <plugin>
+                <groupId>org.eclipse.m2e</groupId>
+                <artifactId>lifecycle-mapping</artifactId>
+                <version>1.0.0</version>
+                <configuration>
+                    <lifecycleMappingMetadata>
+                        <pluginExecutions>
+                            <pluginExecution>
+                                <pluginExecutionFilter>
+                                    <groupId>org.codehaus.mojo</groupId>
+                                    <artifactId>aspectj-maven-plugin</artifactId>
+                                    <versionRange>[1.0,)</versionRange>
+                                    <goals>
+                                        <goal>test-compile</goal>
+                                        <goal>compile</goal>
+                                    </goals>
+                                </pluginExecutionFilter>
+                                <action>
+                                    <execute />
+                                </action>
+                            </pluginExecution>
+                        </pluginExecutions>
+                    </lifecycleMappingMetadata>
+                </configuration>
+            </plugin>
+		    
+			   <plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>exec-maven-plugin</artifactId>
-                                <version>1.3.2</version>
+                                <version>1.3.2</version><!--$NO-MVN-MAN-VER$-->
 				<executions>
 					<execution>
                                                 <phase>package</phase>
@@ -109,7 +118,7 @@
 					<mainClass>Eyesis_Correction</mainClass>   
 				</configuration>
 			</plugin>
- 			<plugin>
+ 			   <plugin>
 				<groupId>org.codehaus.mojo</groupId>
 				<artifactId>buildnumber-maven-plugin</artifactId>
 				<version>1.3</version>
@@ -131,7 +140,8 @@
                                     </items>
 				</configuration>
                         </plugin>
-		</plugins>
+		    </plugins>
+        </pluginManagement>
 		
 	</build>
 
