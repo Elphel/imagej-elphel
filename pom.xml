@@ -178,10 +178,10 @@
 	</repositories>
 
 	<scm>
-		<connection>scm:git:git://github.com/Elphel/imagej-elphel</connection>
-		<developerConnection>scm:git:https://github.com/Elphel/imagej-elphel</developerConnection>
+		<connection>scm:git:git://git.elphel.com/Elphel/imagej-elphel</connection>
+		<developerConnection>scm:git:https://git.elphel.com/Elphel/imagej-elphel</developerConnection>
 		<tag>HEAD</tag>
-		<url>https://github.com/Elphel/imagej-elphel</url>
+		<url>https://git.elphel.com/Elphel/imagej-elphel</url>
 	</scm>
 
 	<packaging>maven-plugin</packaging>
