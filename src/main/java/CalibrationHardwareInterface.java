@@ -738,8 +738,15 @@ public class CalibrationHardwareInterface {
 	   				IJ.showMessage("Error",msg); 
 	   				throw new IllegalArgumentException (msg);
 	   			}
-
-	   			String sTemperature=((Node) (((Node) dom.getDocumentElement().getElementsByTagName("sensorTemperature").item(0)).getChildNodes().item(0))).getNodeValue();
+	   			
+	   			String sTemperature=null;
+	   			
+	   			if ((dom.getDocumentElement().getElementsByTagName("sensorTemperature").item(0))!=null){
+	   				sTemperature=((Node) (((Node) dom.getDocumentElement().getElementsByTagName("sensorTemperature").item(0)).getChildNodes().item(0))).getNodeValue();
+	   			}else{
+	   				sTemperature= "0.0";
+	   			}
+	   			
 	   			// remove opening and closing "
 	   			if (sTemperature==null){
 	   				String msg="Could not read sensor temperature";
