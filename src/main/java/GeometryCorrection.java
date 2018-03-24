@@ -61,20 +61,20 @@ public class GeometryCorrection {
 
 
 	public int       numSensors = 4;
-	public double [] forward =   null;
-	public double [] right =     null;
-	public double [] height =    null;
-	public double [] roll  =     null;  // degrees, CW (to target) - positive
-	public double [][] pXY0 =    null;  // sensor center XY in pixels 
+	private double [] forward =   null;
+	private double [] right =     null;
+	private double [] height =    null;
+	private double [] roll  =     null;  // degrees, CW (to target) - positive
+	public  double [][] pXY0 =    null;  // sensor center XY in pixels 
 
-	public double common_right;    // mm right, camera center
-	public double common_forward;  // mm forward (to target), camera center
-	public double common_height;   // mm up, camera center
-	public double common_roll;     // degrees CW (to target) camera as a whole
-	public double [][] XYZ_he;     // all cameras coordinates transformed to eliminate heading and elevation (rolls preserved) 
-	public double [][] XYZ_her = null; // XYZ of the lenses in a corrected CCS (adjusted for to elevation, heading,  common_roll)
-	public double [][] rXY =     null; // XY pairs of the in a normal plane, relative to disparityRadius
-	public double [][] rXY_ideal = {{-0.5, -0.5}, {0.5,-0.5}, {-0.5, 0.5}, {0.5,0.5}}; 
+	private double common_right;    // mm right, camera center
+	private double common_forward;  // mm forward (to target), camera center
+	private double common_height;   // mm up, camera center
+	private double common_roll;     // degrees CW (to target) camera as a whole
+	private double [][] XYZ_he;     // all cameras coordinates transformed to eliminate heading and elevation (rolls preserved) 
+	private double [][] XYZ_her = null; // XYZ of the lenses in a corrected CCS (adjusted for to elevation, heading,  common_roll)
+	private double [][] rXY =     null; // XY pairs of the in a normal plane, relative to disparityRadius
+	private double [][] rXY_ideal = {{-0.5, -0.5}, {0.5,-0.5}, {-0.5, 0.5}, {0.5,0.5}}; 
 
 	public double cameraRadius=0; // average distance from the "mass center" of the sensors to the sensors
 	public double disparityRadius=0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad camera (~=150mm)?

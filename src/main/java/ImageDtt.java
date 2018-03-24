@@ -5,7 +5,7 @@
  ** Copyright (C) 2016 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
- **  
+ **
  **  ImageDtt.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
@@ -22,11 +22,17 @@
  **
  */
 import java.util.concurrent.atomic.AtomicInteger;
+
 import Jama.Matrix;
 import ij.ImageStack;
 
 public class ImageDtt {
-	
+	  static boolean FPGA_COMPARE_DATA= false; // true; // false; //
+	  static int     FPGA_SHIFT_BITS =  7; // number of bits for fractional pixel shift
+	  static int     FPGA_PIXEL_BITS = 15; // bits to represent pixel data (positive)
+	  static int     FPGA_WND_BITS =   17; // bits to represent mclt window (positive for 18-bit signed mpy input)
+	  static int     FPGA_DTT_IN =     22; // bits to represent maximal value after folding (input to DTT)
+	  static int     FPGA_TILE_SIZE =  22; // size of square side for the composite colors tile (16..22)
 	  static double [] kern_g={
 			  0.0,   0.125,  0.0  ,
 			  0.125, 0.5,    0.125,
@@ -44,10 +50,10 @@ public class ImageDtt {
 			  {0,1,2,3,4,5,6,7,8}, // middle
 			  {0,1,3,4,6,7},       // middle right
 			  {1,2,4,5},           // bottom left
-			  {0,1,2,3,4,5},       // mottom middle
+			  {0,1,2,3,4,5},       // bottom middle
 			  {0,1,3,4}};          // bottom right
 //	 public static int FORCE_DISPARITY_BIT = 8; // move to parameters?
-	  
+
 	  static int  QUAD =                           4; // number of cameras in camera
 	  static int  GREEN_CHN =                      2; // index of green channel
 	  static int  DISPARITY_INDEX_INT =            0; // 0 - disparity from correlation integer pixels, 1 - ortho
@@ -64,15 +70,15 @@ public class ImageDtt {
 	  static String [] DISPARITY_TITLES = {
 			  "int_disp","int_y_disp","cm_disp","cm_y_disp","hor_disp","hor_strength","vert_disp","vert_strength",
 			  "poly_disp", "poly_y_disp", "strength_disp", "vary_disp","diff0","diff1","diff2","diff3","overexp"};
-	  
+
 	  static int  TCORR_COMBO_RSLT =  0; // normal combined correlation from all   selected pairs (mult/sum)
 	  static int  TCORR_COMBO_SUM =   1; // sum of channle correlations from all   selected pairs
 	  static int  TCORR_COMBO_HOR =   2; // combined correlation from 2 horizontal pairs (0,1). Used to detect vertical features
 	  static int  TCORR_COMBO_VERT =  3; // combined correlation from 2 vertical   pairs (0,1). Used to detect horizontal features
 	  static String [] TCORR_TITLES = {"combo","sum","hor","vert"};
-	  
-	  
-	 
+
+
+
      public static int getImgMask  (int data){ return (data & 0xf);}      // which images to use
      public static int getPairMask (int data){ return ((data >> 4) & 0xf);} // which pairs to combine in the combo:  1 - top, 2 bottom, 4 - left, 8 - right
      public static int setImgMask  (int data, int mask) {return (data & ~0xf) | (mask & 0xf);}
@@ -81,14 +87,14 @@ public class ImageDtt {
      public static int     setForcedDisparity (int data, boolean force) {return (data & ~0x100) | (force?0x100:0);}
      public static boolean getOrthoLines (int data){return (data & 0x200) != 0;}
      public static int     setOrthoLines (int data, boolean force) {return (data & ~0x200) | (force?0x200:0);}
-	
+
 	public ImageDtt(){
 
 	}
 
 	public double [][][][] mdctStack(
 			final ImageStack                                 imageStack,
-			final int                                        subcamera, // 
+			final int                                        subcamera, //
 			final EyesisCorrectionParameters.DCTParameters   dctParameters, //
 			final EyesisDCT                                  eyesisDCT,
 			final int                                        threadsMax, // maximal step in pixels on the maxRadius for 1 angular step (i.e. 0.5)
@@ -115,7 +121,7 @@ public class ImageDtt {
 //		  if (dctParameters.kernel_chn >=0 ){
 //			  dct_kernels = eyesisDCT.kernels[dctParameters.kernel_chn];
 //		  }
-		  
+
 		  for (chn=0;chn<nChn;chn++) {
 			  fpixels= (float[]) imageStack.getPixels(chn+1);
 			  double[] dpixels = new double[fpixels.length];
@@ -134,12 +140,12 @@ public class ImageDtt {
 						dctParameters.tileX,
 						dctParameters.tileY,
 						dctParameters.dbg_mode,
-						threadsMax,  // maximal number of threads to launch                         
+						threadsMax,  // maximal number of threads to launch
 						debugLevel);
 		  }
 		return dct_data;
 	}
-	
+
 	public double [][][] lapped_dct(
 			final double [] dpixels,
 			final int       width,
@@ -153,14 +159,14 @@ public class ImageDtt {
 			final int       debug_tileX,
 			final int       debug_tileY,
 			final int       debug_mode,
-			final int       threadsMax,  // maximal number of threads to launch                         
+			final int       threadsMax,  // maximal number of threads to launch
 			final int       globalDebugLevel)
 	{
 		final int kernel_margin = 1; //move to parameters?
 		final int height=dpixels.length/width;
 		final int tilesX=width/dct_size-1;
 		final int tilesY=height/dct_size-1;
-		final int nTiles=tilesX*tilesY; 
+		final int nTiles=tilesX*tilesY;
 		final double [][][] dct_data = new double[tilesY][tilesX][dct_size*dct_size];
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
@@ -176,18 +182,19 @@ public class ImageDtt {
 		final double [] dciii = dtt0.dttt_iii  (dc, dct_size);
 		final double [] dciiie = dtt0.dttt_iiie  (dc, 0, dct_size);
 		if ((globalDebugLevel > 0) && (color ==2)) {
-			double [][]dcx = {dc,dciii,dciiie, dtt0.dttt_ii(dc, dct_size),dtt0.dttt_iie(dc, 0, dct_size)}; 
+			double [][]dcx = {dc,dciii,dciiie, dtt0.dttt_ii(dc, dct_size),dtt0.dttt_iie(dc, 0, dct_size)};
 			showDoubleFloatArrays sdfa_instance0 = new showDoubleFloatArrays(); // just for debugging?
 			sdfa_instance0.showArrays(dcx,  dct_size, dct_size, true, "dcx");
 		}
 
-		
+
 		if (globalDebugLevel > 0) {
 			System.out.println("lapped_dctdc(): width="+width+" height="+height);
 		}
 
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					DttRad2 dtt = new DttRad2(dct_size);
 					dtt.set_window(window_type);
@@ -231,11 +238,11 @@ public class ImageDtt {
 											int dx = (xy % dct_kernels.asym_size) - asym_center;
 											int y = tileY*dct_size - dy + i;
 											int x = tileX*dct_size - dx + j;
-											if (y < 0) y &= 1; 
+											if (y < 0) y &= 1;
 											if (x < 0) x &= 1;
 											if (y >= height) y = (height - 2) + (y & 1);
 											if (x >= width)  x = (width - 2) +  (x & 1);
-											tile_in[i*n2 + j] += asym_val[indx] * dpixels[ y * width + x]; 
+											tile_in[i*n2 + j] += asym_val[indx] * dpixels[ y * width + x];
 											if ((globalDebugLevel > 0) && (tileY == debug_tileY) && (tileX == debug_tileX) && (color == 2)) {
 												System.out.println("dy= "+dy+" dx="+dx+" x = "+x+" y="+y+" y*width + x="+(y*width + x));
 												System.out.println("asym_val["+indx+"]="+asym_val[indx]+
@@ -315,8 +322,8 @@ public class ImageDtt {
 										}
 									}
 									System.out.println("s1="+s1+" s2="+s2+" s1/s2="+(s1/s2)+" s0="+s0+" s3="+s3);
-								}								
-//								tile_in = sym_conv.clone(); 
+								}
+//								tile_in = sym_conv.clone();
 								System.arraycopy(sym_conv, 0, tile_in, 0, n2*n2);
 							}
 						} else { // no aberration correction, just copy data
@@ -336,7 +343,7 @@ public class ImageDtt {
 								s0 = dct_size*dct_size/s0;
 							} else if (debug_mode == 3){
 								for (int i=0;i<dct_size;i++){
-									double scale0 = (i>0)?2.0:1.0; 
+									double scale0 = (i>0)?2.0:1.0;
 									for (int j=0;j<dct_size;j++){
 										double scale = scale0*((j>0)?2.0:1.0);
 										int indx = i*dct_size+j;
@@ -345,30 +352,30 @@ public class ImageDtt {
 								}
 								s0 = (2*dct_size-1)*(2*dct_size-1)/s0;
 							}else if (debug_mode == 4){
-								//dciii								
+								//dciii
 								for (int i=0;i<dct_kernels.st_kernels[color][kernelTileY][kernelTileX].length; i++){
 									s0+=dciii[i]* dct_kernels.st_kernels[color][kernelTileY][kernelTileX][i];
 								}
 								s0 = dct_size*dct_size/s0;
 							} else s0 = 1.0;
-							
+
 							for (int i = 0; i < tile_out.length; i++){
 								tile_out[i] *= s0;
 							}
 						}
-						
+
 						if ((tileY == debug_tileY) && (tileX == debug_tileX) && (color == 2)) {
 							tile_out_copy = tile_out.clone();
 						}
-						
-						
+
+
 						if ((dct_kernels != null) && !skip_sym){ // convolve in frequency domain with sym_kernel
 							for (int i = 0; i < tile_out.length; i++){
 								tile_out[i] *=dct_kernels.st_kernels[color][kernelTileY][kernelTileX][i];
 							}
-						}						
+						}
 
-						
+
 						if ((dct_kernels!=null) && (tileY == debug_tileY) && (tileX == debug_tileX) && (color == 2)) {
 							double [][] dbg_tile = {
 									dct_kernels.st_direct[color][kernelTileY][kernelTileX],
@@ -381,7 +388,7 @@ public class ImageDtt {
 								System.out.println("tileY="+tileY+" tileX="+tileX+" kernelTileY="+kernelTileY+" kernelTileX="+kernelTileX);
 								double s0=0.0, s1=0.0, s2=0.0, s3=0.0;
 								for (int i=0;i<dct_size;i++){
-									double scale0 = (i>0)?2.0:1.0; 
+									double scale0 = (i>0)?2.0:1.0;
 									for (int j=0;j<dct_size;j++){
 										double scale = scale0*((j>0)?2.0:1.0);
 										int indx = i*dct_size+j;
@@ -398,15 +405,15 @@ public class ImageDtt {
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
 		return dct_data;
 	}
-	
+
 	// extract DCT transformed parameters in linescan order (for visualization)
 	public double [] lapped_dct_dbg(
 			final double [][][] dct_data,
-			final int           threadsMax,     // maximal number of threads to launch                         
+			final int           threadsMax,     // maximal number of threads to launch
 			final int           globalDebugLevel)
 	{
 		final int tilesY=dct_data.length;
@@ -421,6 +428,7 @@ public class ImageDtt {
 
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					int tileY,tileX;
 					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
@@ -432,15 +440,15 @@ public class ImageDtt {
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
 		return dct_data_out;
 	}
-	
+
 	public void dct_lpf(
 			final double sigma,
 			final double [][][] dct_data,
-			final int       threadsMax,     // maximal number of threads to launch                         
+			final int       threadsMax,     // maximal number of threads to launch
 			final int       globalDebugLevel)
 	{
 		final int tilesY=dct_data.length;
@@ -450,8 +458,8 @@ public class ImageDtt {
 		final int dct_len = dct_size*dct_size;
 		final double [] filter_direct= new double[dct_len];
 		if (sigma == 0) {
-			filter_direct[0] = 1.0; 
-			for (int i= 1; i<filter_direct.length;i++) filter_direct[i] =0; 
+			filter_direct[0] = 1.0;
+			for (int i= 1; i<filter_direct.length;i++) filter_direct[i] =0;
 		} else {
 			for (int i = 0; i < dct_size; i++){
 				for (int j = 0; j < dct_size; j++){
@@ -473,33 +481,34 @@ public class ImageDtt {
 		for (int i = 0; i<filter_direct.length; i++){
 			filter_direct[i] /= sum;
 		}
-		
+
 		if (globalDebugLevel > 0) {
 			for (int i=0; i<filter_direct.length;i++){
-				System.out.println("dct_lpf_psf() "+i+": "+filter_direct[i]); 
+				System.out.println("dct_lpf_psf() "+i+": "+filter_direct[i]);
 			}
 		}
 		DttRad2 dtt = new DttRad2(dct_size);
 		final double [] filter= dtt.dttt_iiie(filter_direct);
 		final double [] dbg_filter= dtt.dttt_ii(filter);
-		
-//		for (int i=0; i < filter.length;i++) filter[i] *= dct_size;  
-		for (int i=0; i < filter.length;i++) filter[i] *= 2*dct_size;  
-		
+
+//		for (int i=0; i < filter.length;i++) filter[i] *= dct_size;
+		for (int i=0; i < filter.length;i++) filter[i] *= 2*dct_size;
+
 		if (globalDebugLevel > 0) {
 			for (int i=0; i<filter.length;i++){
-				System.out.println("dct_lpf_psf() "+i+": "+filter[i]); 
+				System.out.println("dct_lpf_psf() "+i+": "+filter[i]);
 			}
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 			double [][] ff = {filter_direct,filter,dbg_filter};
 			sdfa_instance.showArrays(ff,  dct_size,dct_size, true, "filter_lpf");
 		}
-		
+
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					int tileY,tileX;
 					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
@@ -511,10 +520,10 @@ public class ImageDtt {
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
 	}
-	
+
 	public double [][][][] dct_color_convert(
 			final double [][][][] dct_data,
 			final double kr,
@@ -522,7 +531,7 @@ public class ImageDtt {
 			final double sigma_rb,        // blur of channels 0,1 (r,b) in addition to 2 (g)
 			final double sigma_y,         // blur of Y from G
 			final double sigma_color,     // blur of Pr, Pb in addition to Y
-			final int       threadsMax,     // maximal number of threads to launch                         
+			final int       threadsMax,     // maximal number of threads to launch
 			final int       globalDebugLevel)
 	{
 		final int tilesY=dct_data[0].length;
@@ -546,9 +555,9 @@ public class ImageDtt {
 				norm_sym_weights[i*dct_size+j] = d;
 			}
 		}
-		
+
 		for (int n = 0; n<3; n++) {
-			
+
 			double s = 0.0;
 			for (int i = 0; i < dct_size; i++){
 				for (int j = 0; j < dct_size; j++){
@@ -557,23 +566,23 @@ public class ImageDtt {
 					else                    d = Math.exp(-(i*i+j*j)/(2*sigmas[n]));
 					filters_proto_direct[n][i*dct_size+j] = d;
 				}
-				
+
 			}
 			for (int i = 0; i< dct_len; i++){
 				s += norm_sym_weights[i]*filters_proto_direct[n][i];
 			}
-			
+
 			if (globalDebugLevel>0) System.out.println("dct_color_convert(): sigmas["+n+"]="+sigmas[n]+", sum="+s);
 			for (int i = 0; i < dct_len; i++){
 				filters_proto_direct[n][i] /=s;
 			}
 		}
-		
+
 		DttRad2 dtt = new DttRad2(dct_size);
 		for (int i = 0; i < filters_proto.length; i++){
 			filters_proto[i] = dtt.dttt_iiie(filters_proto_direct[i]);
 			if (globalDebugLevel > 0)  System.out.println("filters_proto.length="+filters_proto.length+" filters_proto["+i+"].length="+filters_proto[i].length+" dct_len="+dct_len+" dct_size="+dct_size);
-			for (int j=0; j < dct_len; j++) filters_proto[i][j] *= 2*dct_size;  
+			for (int j=0; j < dct_len; j++) filters_proto[i][j] *= 2*dct_size;
 
 		}
 		if (globalDebugLevel > 0) {
@@ -593,10 +602,10 @@ public class ImageDtt {
 					if (i > 0){
 						filters[i][j][k] *= filters_proto[2][k]; // for Pr, Pb sigma_color
 					}
-					if (j <2){ // all but green 
+					if (j <2){ // all but green
 						filters[i][j][k] *= filters_proto[0][k]; // for R,B sigma_rb
 					}
-					
+
 				}
 			}
 		}
@@ -608,12 +617,13 @@ public class ImageDtt {
 					filters[2][0], filters[2][1], filters[2][2]};
 			sdfa_instance.showArrays(ff,  dct_size,dct_size, true, "filters");
 		}
-		
+
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					int tileY,tileX;
 					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
@@ -626,27 +636,27 @@ public class ImageDtt {
 									yPrPb[i][tileY][tileX][k] += filters[i][j][k] * dct_data[j][tileY][tileX][k];
 								}
 							}
-							
+
 						}
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
 		return yPrPb;
 	}
-	
 
-	
-	
-	
-	
+
+
+
+
+
 	public double [] lapped_idct(
-//			final double [][][] dctdc_data,  // array [tilesY][tilesX][dct_size*dct_size+1] - last element is DC value  
-			final double [][][] dct_data,  // array [tilesY][tilesX][dct_size*dct_size]  
+//			final double [][][] dctdc_data,  // array [tilesY][tilesX][dct_size*dct_size+1] - last element is DC value
+			final double [][][] dct_data,  // array [tilesY][tilesX][dct_size*dct_size]
 			final int       dct_size,
 			final int       window_type,
-			final int       threadsMax,  // maximal number of threads to launch                         
+			final int       threadsMax,  // maximal number of threads to launch
 			final int       globalDebugLevel)
 	{
 //		final int tilesX=dct_width/dct_size;
@@ -683,6 +693,7 @@ public class ImageDtt {
 			ai.set(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						DttRad2 dtt = new DttRad2(dct_size);
 						dtt.set_window(window_type);
@@ -698,22 +709,22 @@ public class ImageDtt {
 							tile_dct=dtt.dttt_iv  (tile_in, 0, dct_size);
 							tile_out=dtt.unfold_tile(tile_dct, dct_size, 0); // mpode=0 - DCCT
 							for (int i = 0; i < n2;i++){
-								int start_line = ((tileY*dct_size + i) *(tilesX+1) + tileX)*dct_size; 
+								int start_line = ((tileY*dct_size + i) *(tilesX+1) + tileX)*dct_size;
 								for (int j = 0; j<n2;j++) {
-									dpixels[start_line + j] += tile_out[n2 * i + j]; //  +1.0; 
+									dpixels[start_line + j] += tile_out[n2 * i + j]; //  +1.0;
 								}
 							}
 						}
 					}
 				};
-			}		      
+			}
 			startAndJoin(threads);
 		}
 		return dpixels;
 	}
 
-	// perform 2d clt and apply aberration corrections, all colors 
-	public double [][][][][] clt_aberrations( 
+	// perform 2d clt and apply aberration corrections, all colors
+	public double [][][][][] clt_aberrations(
 			final double [][]       image_data,
 			final int               width,
 			final double [][][][][] clt_kernels, // [color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
@@ -727,15 +738,15 @@ public class ImageDtt {
 			final boolean           no_fract_shift,
 			final boolean           no_deconvolution,
 			final boolean           transpose,
-			final int               threadsMax,  // maximal number of threads to launch                         
+			final int               threadsMax,  // maximal number of threads to launch
 			final int               globalDebugLevel)
 	{
 		final int nChn = image_data.length;
 		final int height=image_data[0].length/width;
 		final int tilesX=width/transform_size;
 		final int tilesY=height/transform_size;
-		final int nTilesInChn=tilesX*tilesY; 
-		final int nTiles=tilesX*tilesY*nChn; 
+		final int nTilesInChn=tilesX*tilesY;
+		final int nTiles=tilesX*tilesY*nChn;
 		final double [][][][][] clt_data = new double[nChn][tilesY][tilesX][4][];
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
@@ -745,13 +756,14 @@ public class ImageDtt {
 		}
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					DttRad2 dtt = new DttRad2(transform_size);
 					dtt.set_window(window_type);
 					int tileY,tileX, chn;
 					//						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 					double centerX; // center of aberration-corrected (common model) tile, X
-					double centerY; // 
+					double centerY; //
 					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
 						chn=nTile/nTilesInChn;
 						tileY =(nTile % nTilesInChn)/tilesX;
@@ -768,8 +780,8 @@ public class ImageDtt {
 								clt_data[chn][tileY][tileX], //double  [][]        clt_tile,    // should be double [4][];
 								kernel_step,
 								transform_size,
-								dtt, 
-								chn,                              
+								dtt,
+								chn,
 								centerX, // center of aberration-corrected (common model) tile, X
 								centerY, //
 								((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) ? 1 : 0, // external tile compare
@@ -778,19 +790,19 @@ public class ImageDtt {
 								// no saturation processing
 								null, // boolean []          saturation_imp, // (near) saturated pixels or null
 								null); // int []              overexp_all ) // {number of overexposed,  number of all tiles} or null
-								
+
 						if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (chn == 2)) {
 							showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 							String [] titles = {"CC","SC","CS","SS"};
 							sdfa_instance.showArrays(clt_data[chn][tileY][tileX],  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
 						}
-						
+
 						if ((globalDebugLevel > -1) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
 								(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)) {
 							System.out.println("clt_aberrations(): color="+chn+", tileX="+tileX+", tileY="+tileY+
 									" fract_shiftXY[0]="+fract_shiftXY[0]+" fract_shiftXY[1]="+fract_shiftXY[1]);
 						}
-						
+
 						if (!no_fract_shift) {
 							// apply residual shift
 							fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
@@ -800,7 +812,7 @@ public class ImageDtt {
 									fract_shiftXY[1],            // double        shiftY,
 //									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
 									((globalDebugLevel > 0) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
-											(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));									
+											(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
 							if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
 								showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"CC","SC","CS","SS"};
@@ -810,7 +822,7 @@ public class ImageDtt {
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
 		return clt_data;
 	}
@@ -832,7 +844,7 @@ public class ImageDtt {
 			final boolean             no_fract_shift,
 			final boolean             no_deconvolution,
 			final boolean             transpose,
-			final int                 threadsMax,  // maximal number of threads to launch                         
+			final int                 threadsMax,  // maximal number of threads to launch
 			final int                 globalDebugLevel)
 	{
 		final int quad = 4;   // number of subcameras
@@ -841,20 +853,21 @@ public class ImageDtt {
 		final int height=image_data[0][0].length/width;
 		final int tilesX=width/transform_size;
 		final int tilesY=height/transform_size;
-		final int nTilesInChn=tilesX*tilesY; 
-//		final int nTiles=tilesX*tilesY*nChn; 
+		final int nTilesInChn=tilesX*tilesY;
+//		final int nTiles=tilesX*tilesY*nChn;
 		final double [][][][][][] clt_data = new double[quad][nChn][tilesY][tilesX][4][];
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
-		final Matrix [] corr_rots = geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices 
-		
-		
+		final Matrix [] corr_rots = geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
+
+
 		if (globalDebugLevel > 0) {
 			System.out.println("clt_aberrations(): width="+width+" height="+height+" transform_size="+transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					DttRad2 dtt = new DttRad2(transform_size);
 					dtt.set_window(window_type);
@@ -872,7 +885,7 @@ public class ImageDtt {
 						//						tileX = nTile % tilesX;
 						tileY = nTile /tilesX;
 						tileX = nTile % tilesX;
-						
+
 
 
 						centerX = tileX * transform_size + transform_size/2 - shiftX;
@@ -883,12 +896,12 @@ public class ImageDtt {
 //								disparity);
 						double [][] centersXY = geometryCorrection.getPortsCoordinatesAndDerivatives(
 								corr_rots, // Matrix []   rots,
-								null,      //  Matrix [][] deriv_rots, 
+								null,      //  Matrix [][] deriv_rots,
 								null,      // double [][] pXYderiv, // if not null, should be double[8][]
 								centerX,
 								centerY,
 								disparity);
-						
+
 						if ((globalDebugLevel > 0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
 								(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)) {
 							for (int i = 0; i < quad; i++) {
@@ -897,8 +910,8 @@ public class ImageDtt {
 										" centersXY["+i+"][0]="+centersXY[i][0]+" centersXY["+i+"][1]="+centersXY[i][1]);
 							}
 						}
-						
-						
+
+
 						for (int chn = 0; chn <numcol; chn++) {
 
 							for (int i = 0; i < quad; i++) {
@@ -909,8 +922,8 @@ public class ImageDtt {
 										clt_data[i][chn][tileY][tileX], //double  [][]        clt_tile,    // should be double [4][];
 										kernel_step,
 										transform_size,
-										dtt, 
-										chn,                              
+										dtt,
+										chn,
 										centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
 										centersXY[i][1], // centerY, //
 										((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) ? 1 : 0, // external tile compare
@@ -924,7 +937,7 @@ public class ImageDtt {
 								showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 								double [][] dbg_tile = new double [16][];
-								for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][chn][tileY][tileX][i & 3];   
+								for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][chn][tileY][tileX][i & 3];
 								sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
 							}
 
@@ -946,13 +959,13 @@ public class ImageDtt {
 											fract_shiftsXY[i][1],            // double        shiftY,
 											//									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
 											((globalDebugLevel > 0) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
-													(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));									
+													(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
 								}
 								if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
 									showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 									String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 									double [][] dbg_tile = new double [16][];
-									for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][chn][tileY][tileX][i & 3];   
+									for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][chn][tileY][tileX][i & 3];
 									sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY, titles);
 								}
 							}
@@ -961,27 +974,407 @@ public class ImageDtt {
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
 		return clt_data;
 	}
 
-/*
- * 	
- */
-	
-	
+	public void printSignsFPGA (
+			DttRad2               dtt
+			){
+		double [][][] fold_coeff = dtt.getFoldK();
+		int [][] fpga_fi = dtt.getFoldIndex();
+// For R/B color channels (1 - 4 non-zero) show signs during folding of a single pixel contributor (4 Bayer variants) per each mode
+		String [] mode_names={"CC","SC", "CS","SS"};
+		int [] bayer_patterns = {0x1, 0x2, 0x4, 0x8}; // , 0x9, 0x6};
+		boolean [][][] signs = new boolean [bayer_patterns.length][4][64];
+
+//		for (int bp:bayer_patterns){
+	    for (int ibp = 0; ibp < bayer_patterns.length; ibp++){
+	    	int bp = bayer_patterns[ibp];
+			System.out.println("\nPattern (row/col) "+bp+":");
+			System.out.println("| "+(((bp & 1) !=0) ? "X ":"  ")+(((bp & 2) !=0) ? "X ":"  ")+"|");
+			System.out.println("| "+(((bp & 4) !=0) ? "X ":"  ")+(((bp & 8) !=0) ? "X ":"  ")+"|");
+			for (int mode = 0; mode < 4; mode++){
+				if (mode == 0) 	System.out.println("DTT mode = "+mode+" ("+ mode_names[mode]+"): term sign");
+				else 	        System.out.println("DTT mode = "+mode+" ("+ mode_names[mode]+"): term inverse relative to CC ");
+				for (int i = 0; i < 64; i++){
+					for (int k = 0; k < 4; k++){
+						int row = (fpga_fi[i][k] >> 4);
+						int col = (fpga_fi[i][k] & 0xf);
+						int indx = (row & 1) + 2 * (col & 1);
+						if (((1 << indx) & bp) != 0) { // only use non-zero pixels, for 1 in 4 - only one k would match
+							signs[ibp][mode][i] = fold_coeff[mode][i][k] < 0;
+							if (mode == 0) 	{
+								if (fold_coeff[mode][i][k] < 0) System.out.print("- ");
+								else                            System.out.print("+ ");
+							} else {
+								boolean sgn = signs[ibp][mode][i] ^ signs[ibp][0][i];
+								if (sgn) System.out.print("* ");
+								else     System.out.print(". ");
+							}
+//							continue;
+						}
+					}
+					if ((i+1)%8 == 0) System.out.println();
+				}
+			}
+		}
+	}
+
+	public void generateFPGACompareData(
+			final double [][]         image_data, // for selected subcamera
+			final double [][]         colorCentersXY, // pixel centers per color (2 - green)
+			final int                 transform_size,
+			final int                 width,
+			DttRad2                   dtt
+			){
+
+		printSignsFPGA(dtt);
+
+		int height = image_data[0].length/width;
+		double [][][] fpga_clt_data_in = new double [3][4][];
+		double [][][] fpga_clt_data_out = new double [3][4][];
+		double [][][] fpga_clt_data_rot = new double [3][4][];
+//		double [][] fpga_fract_shiftsXY = new double[3][];
+		double [][] fpga_centersXY = new double [3][2];
+//		int    [][] color_int_shifts = new int [3][2];
+
+		double [][][][] fold_coeff = new double[3][][][];
+		int [] ctile_left = new int [3];
+		int [] ctile_top =  new int [3];
+		double [][] residual_shift = new double[3][2];
+		int    []   ishx = new int[3];
+		int    []   ishy = new int[3];
+
+		double [][] fpga_full_tile = new double [3][FPGA_TILE_SIZE * FPGA_TILE_SIZE];
+		double [][] fpga_tile =      new double [3][4*transform_size*transform_size];
+		for (int chn = 0; chn<3; chn++) for (int j = 0; j < 2; j++) {
+			fpga_centersXY[chn][j] = colorCentersXY[chn][j];
+			// Round to FPGA precision
+			fpga_centersXY[chn][j] = Math.round(128*fpga_centersXY[chn][j])/128.0;
+		}
+		for (int chn = 0; chn<3; chn++) {
+			double px = fpga_centersXY[chn][0] - transform_size;
+			double py = fpga_centersXY[chn][1] - transform_size;
+			// Was wrong rounding, fractional part gets to +0.5
+			ctile_left[chn] = (int) -Math.round(-px);
+			ctile_top[chn] =  (int) -Math.round(-py);
+			residual_shift[chn][0] = -(px - ctile_left[chn]);
+			residual_shift[chn][1] = -(py - ctile_top[chn]);
+		}
+		int lt = (FPGA_TILE_SIZE - 2 * transform_size)/2;
+		for (int chn = 0; chn < 3; chn++){
+			for (int i = 0; i < FPGA_TILE_SIZE; i++){
+				System.arraycopy(
+						image_data[chn],
+						((ctile_top[GREEN_CHN] - lt) + i) * width + (ctile_left[GREEN_CHN] - lt),
+						fpga_full_tile[chn], FPGA_TILE_SIZE * i,
+						FPGA_TILE_SIZE);
+			}
+		}
+		for (int chn = 0; chn < 3; chn++){
+
+	 		if ((ctile_left[chn] >= 0) && (ctile_left[chn] < (width - transform_size * 2)) &&
+					(ctile_top[chn] >= 0) && (ctile_top[chn] < (height - transform_size * 2))) {
+				for (int i = 0; i < transform_size * 2; i++){
+					System.arraycopy(image_data[chn], (ctile_top[chn] + i) * width + ctile_left[chn], fpga_tile[chn], transform_size * 2 * i, transform_size* 2);
+				}
+			} else { // copy by 1
+				for (int i = 0; i < transform_size* 2; i++){
+					int pi = ctile_top[chn] + i;
+					if      (pi < 0)       pi &= 1;
+					else if (pi >= height) pi = height - 2 + (pi & 1);
+					for (int j = 0; j < transform_size* 2; j++){
+						int pj = ctile_left[chn] + j;
+						if      (pj < 0)      pj &= 1;
+						else if (pj >= width) pj = width - 2 + (pj & 1);
+						fpga_tile[chn][transform_size * 2 * i + j] = image_data[chn][pi * width + pj];
+					}
+				}
+			}
+		}
+		// Fold and transform
+		for (int chn = 0; chn < 3; chn++){
+			fold_coeff[chn] = dtt.get_shifted_fold_2d ( // get_shifted_fold_2d(
+					transform_size,
+					residual_shift[chn][0],
+					residual_shift[chn][1],
+					0); // debug level
+		}
+		for (int chn = 0; chn < 3; chn++){
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+//				fpga_clt_data_in[chn][dct_mode] = dtt.fold_tile_debug (fpga_tile[chn], transform_size, dct_mode, fold_coeff[chn]); // DCCT, DSCT, DCST, DSST
+				fpga_clt_data_in[chn][dct_mode] = dtt.fold_tile (fpga_tile[chn], transform_size, dct_mode, fold_coeff[chn]); // DCCT, DSCT, DCST, DSST
+			}
+		}
+
+		for (int chn = 0; chn < 3; chn++) if (chn != GREEN_CHN) {
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					fpga_clt_data_in[chn][dct_mode][i] *= 2.0; //adding twice each number in FPGA for R and B
+				}
+			}
+		}
+
+
+		for (int chn = 0; chn < 3; chn++) {
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				fpga_clt_data_out[chn][dct_mode] = fpga_clt_data_in[chn][dct_mode].clone();
+			}
+		}
+
+		double scale1 = (1 << (FPGA_DTT_IN - 9)); //  -1;
+		scale1 *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+		scale1 *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+//		scale1 *= 2.0;
+		System.out.println("scale1="+scale1);
+		for (int chn = 0; chn < 3; chn++) {
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				System.out.println("// Color="+chn+" fpga_clt_data_out[chn][dct_mode] = dtt.dttt_iv(..., scale1="+scale1);
+				fpga_clt_data_out[chn][dct_mode] = dtt.dttt_iv   (fpga_clt_data_out[chn][dct_mode], dct_mode, transform_size, scale1, ((1 << 25) -1)); // debug level
+//				fpga_clt_data_out[chn][dct_mode] = dtt.dttt_iv   (fpga_clt_data_out[chn][dct_mode], dct_mode, transform_size);
+			}
+		}
+
+		for (int chn = 0; chn < 3; chn++) {
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				fpga_clt_data_rot[chn][dct_mode] = fpga_clt_data_out[chn][dct_mode].clone();
+			}
+		}
+
+// Rotate for fractional shift:
+
+		for (int chn = 0; chn < 3; chn++) {
+			fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
+					fpga_clt_data_rot[chn], // double  [][]  clt_tile,
+					transform_size,
+					residual_shift[chn][0],            // double        shiftX,
+					residual_shift[chn][1],            // double        shiftY,
+					true); // debug
+		}
+
+//		int byr_shift = ((ctile_top[GREEN_CHN] & 1) <<1) | (ctile_left[GREEN_CHN] & 1);
+//GREEN_CHN
+
+		// Printout
+		System.out.println("// Debugging FPGA implementation");
+		for (int chn = 0; chn<3; chn++) {
+			System.out.println("// residual_shift["+chn+"][0]="+residual_shift[chn][0]+", residual_shift["+chn+"][1]="+residual_shift[chn][1]);
+			ishx[chn] = (int) Math.round((1 << (FPGA_SHIFT_BITS)) * residual_shift[chn][0]);
+			ishy[chn] = (int) Math.round((1 << (FPGA_SHIFT_BITS)) * residual_shift[chn][1]);
+			if (ishx[chn] >= (1 << (FPGA_SHIFT_BITS-1))) ishx[chn] = (1 << (FPGA_SHIFT_BITS-1)) - 1;
+			if (ishy[chn] >= (1 << (FPGA_SHIFT_BITS-1))) ishy[chn] = (1 << (FPGA_SHIFT_BITS-1)) - 1;
+			if (ishx[chn] < -(1 << (FPGA_SHIFT_BITS-1))) ishx[chn] = -(1 << (FPGA_SHIFT_BITS-1));
+			if (ishy[chn] < -(1 << (FPGA_SHIFT_BITS-1))) ishy[chn] = -(1 << (FPGA_SHIFT_BITS-1));
+			residual_shift[chn][0] = ishx[chn] * (1.0/(1 << (FPGA_SHIFT_BITS)));
+			residual_shift[chn][1] = ishy[chn] * (1.0/(1 << (FPGA_SHIFT_BITS)));
+			System.out.println(String.format("%4x // color %d shift_x, %d bits", ishx[chn] & ((1 << (FPGA_SHIFT_BITS)) - 1),chn,FPGA_SHIFT_BITS));
+			System.out.println(String.format("%4x // color %d shift_y, %d bits", ishy[chn] & ((1 << (FPGA_SHIFT_BITS)) - 1),chn,FPGA_SHIFT_BITS));
+			System.out.println(String.format("%4x // color %d ctile_left", ctile_left[chn],chn));
+			System.out.println(String.format("%4x // color %d ctile_top",  ctile_top[chn], chn));
+		}
+
+
+
+
+
+
+		System.out.println("\n// Full Bayer fpga tile data");
+		int id = (1 << (FPGA_PIXEL_BITS - 9)); // 8
+		for (int i = 0; i < FPGA_TILE_SIZE*FPGA_TILE_SIZE; i++) {
+			double d = 0.0;
+			for (int fpga_chn = 0; fpga_chn < 3; fpga_chn++){
+				d +=  fpga_full_tile[fpga_chn][i];
+			}
+			System.out.print(String.format("%4x ",(int) Math.round(id * d)));
+			if (((i+1) %FPGA_TILE_SIZE) == 0) {
+				System.out.println();
+			}
+		}
+		System.out.println();
+
+		for (int chn = 0; chn<3; chn++) {
+			double [] fpga_pix_lim = {0.0,0.0};
+			for (int i = 0; i < 256; i++) if (fpga_tile[chn][i] != 0){
+				if (fpga_tile[chn][i] > fpga_pix_lim[0]) fpga_pix_lim[0] = fpga_tile[chn][i];
+				if (fpga_tile[chn][i] < fpga_pix_lim[1]) fpga_pix_lim[1] = fpga_tile[chn][i];
+			}
+			System.out.println(String.format("\n// Color # %d: Pixels input range: %f ... %f", chn, fpga_pix_lim[1], fpga_pix_lim[0]));
+			System.out.println(String.format("//%x // shift_x, %d bits",ishx[chn] & ((1 << (FPGA_SHIFT_BITS)) - 1),FPGA_SHIFT_BITS));
+			System.out.println(String.format("//%x // shift_y, %d bits",ishy[chn] & ((1 << (FPGA_SHIFT_BITS)) - 1),FPGA_SHIFT_BITS));
+			for (int row = 0; row <16; row++){
+				for (int col = 0; col <16; col++){
+					System.out.print(String.format("%4x ",(int) Math.round(id * fpga_tile[chn][row*16 + col])));
+				}
+				System.out.println();
+			}
+			System.out.println();
+		}
+		System.out.println();
+		for (int chn = 0; chn<3; chn++) {
+			System.out.println("// Color="+chn+", signs table (per mode, per index - bitstring of variants, 0 - positive, 1 - negative)");
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					int d = 0;
+					for (int b = 0; b < 4; b++){
+						if (fold_coeff[chn][dct_mode][i][b] < 0){
+							d |= (1 << b);
+						}
+					}
+					System.out.print(String.format("%x ",d));
+					if ((i % 16) == 15){
+						System.out.println();
+					}
+				}
+			}
+			System.out.println();
+		}
+		System.out.println();
+		for (int chn = 0; chn<3; chn++) {
+			System.out.println("// Color = "+chn+", absolute values, mode0 (CC), others are the same");
+			//		for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+			int dct_mode = 0;
+			for (int i = 0; i < 64; i++){
+				for (int b = 0; b < 4; b++){
+					int d = (int) Math.round(((1 << FPGA_WND_BITS) -1)* Math.abs(fold_coeff[chn][dct_mode][i][b]));
+					System.out.print(String.format("%5x ",d & ((1 << (FPGA_WND_BITS)) - 1)));
+				}
+				if ((i % 4) == 3){
+					System.out.println();
+				}
+			}
+			System.out.println();
+			//		}
+		}
+		System.out.println();
+
+
+
+		for (int chn = 0; chn<3; chn++) {
+			double [] fpga_dtt_lim = {0.0,0.0};
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					if (fpga_clt_data_in[chn][dct_mode][i] > fpga_dtt_lim[0]) fpga_dtt_lim[0] = fpga_clt_data_in[chn][dct_mode][i];
+					if (fpga_clt_data_in[chn][dct_mode][i] < fpga_dtt_lim[1]) fpga_dtt_lim[1] = fpga_clt_data_in[chn][dct_mode][i];
+				}
+			}
+			System.out.println(String.format("// Color= %d, DTT input range: %f ... %f", chn, fpga_dtt_lim[1], fpga_dtt_lim[0]));
+			double scale = (1 << (FPGA_DTT_IN - 9)); //  -1;
+			scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+			scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+			scale *= 2; // Increased twice in FPGA adding twice each number in FPGA
+			System.out.println("// Color="+chn+" fpga_clt_data_out[chn][dct_mode] = dtt.dttt_iv(..., scale="+scale);
+
+//			if (chn != GREEN_CHN) scale *= 2; // adding twice each number in FPGA for R and B - done before
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					int idd = (int) Math.round(scale * fpga_clt_data_in[chn][dct_mode][i]);
+					System.out.print(String.format("%7x ", idd & ((1 << 25) -1)));
+					if ((i % 8) == 7) System.out.println();
+				}
+				System.out.println();
+			}
+			System.out.println();
+		}
+		System.out.println();
+
+		for (int chn = 0; chn<3; chn++) {
+			double [] fpga_dtt_lim = {0.0,0.0};
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					if (fpga_clt_data_out[chn][dct_mode][i] > fpga_dtt_lim[0]) fpga_dtt_lim[0] = fpga_clt_data_out[chn][dct_mode][i];
+					if (fpga_clt_data_out[chn][dct_mode][i] < fpga_dtt_lim[1]) fpga_dtt_lim[1] = fpga_clt_data_out[chn][dct_mode][i];
+				}
+			}
+			System.out.println(String.format("// Color = %d: DTT output range: %f ... %f", chn, fpga_dtt_lim[1], fpga_dtt_lim[0]));
+			// scale = (1 << (FPGA_DTT_IN - 9)); //  -1;
+//			double scale = (1 << (FPGA_DTT_IN - 8)); //  increased twice
+			double scale = (1 << (FPGA_DTT_IN - 9)); //  Do not increase - lead to overflow !
+			scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+			scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					int idd = (int) Math.round(scale * fpga_clt_data_out[chn][dct_mode][i]);
+					System.out.print(String.format("%7x ", idd & ((1 << 25) -1)));
+					if ((i % 8) == 7) System.out.println();
+				}
+				System.out.println();
+			}
+			System.out.println();
+			System.out.println("// Color = "+chn+" Testing symmetry of checkerboard patterns");
+			for (int dct_mode = 0; dct_mode < 2; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					if ((i % 8) == 0) System.out.print("// ");
+					int idd = (int) Math.round(scale * fpga_clt_data_out[chn][dct_mode][i]);
+					int idd1 = (int) Math.round(scale * fpga_clt_data_out[chn][3-dct_mode][63-i]);
+					System.out.print(String.format("%7x ", (idd-idd1) & ((1 << 25) -1)));
+					if ((i % 8) == 7) System.out.println();
+				}
+				System.out.println();
+			}
+			System.out.println();
+			System.out.println("// Color = "+chn+" Testing antisymmetry of checkerboard patterns");
+			for (int dct_mode = 0; dct_mode < 2; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					if ((i % 8) == 0) System.out.print("// ");
+					int idd = (int) Math.round(scale * fpga_clt_data_out[chn][dct_mode][i]);
+					int idd1 = (int) Math.round(scale * fpga_clt_data_out[chn][3-dct_mode][63-i]);
+					System.out.print(String.format("%7x ", (idd+idd1) & ((1 << 25) -1)));
+					if ((i % 8) == 7) System.out.println();
+				}
+				System.out.println();
+			}
+			System.out.println();
+		}
+		System.out.println();
+
+		for (int chn = 0; chn<3; chn++) {
+//			double scale = (1 << (FPGA_DTT_IN - 9)); //  -1;
+//			double scale = (1 << (FPGA_DTT_IN - 8)); //
+			double scale = (1 << (FPGA_DTT_IN - 9)); //  Do not increase - lead to overflow !
+
+			// compensate for DTT scale
+			scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+			scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+			// compensate for rotator scale:
+			scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+			scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+			double [] fpga_dtt_lim = {0.0,0.0};
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int j = 0; j < 64; j++){
+					if (fpga_clt_data_rot[chn][dct_mode][j] > fpga_dtt_lim[0]) fpga_dtt_lim[0] = fpga_clt_data_rot[chn][dct_mode][j];
+					if (fpga_clt_data_rot[chn][dct_mode][j] < fpga_dtt_lim[1]) fpga_dtt_lim[1] = fpga_clt_data_rot[chn][dct_mode][j];
+				}
+			}
+
+			System.out.println(String.format("// Color = %d: DTT rotated, shift_x=%f. shift_y = %f", chn, residual_shift[chn][0],residual_shift[chn][1]));
+			System.out.println(String.format("// DTT rotated  range: %f ... %f", fpga_dtt_lim[1], fpga_dtt_lim[0]));
+//			scale = (1 << (FPGA_DTT_IN - 9)); //  -1;
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int j = 0; j < 64; j++){
+					int idd = (int) Math.round(scale * fpga_clt_data_rot[chn][dct_mode][j]);
+					System.out.print(String.format("%7x ", idd & ((1 << 25) -1)));
+					if ((j % 8) == 7) System.out.println();
+				}
+				System.out.println();
+			}
+		}
+	}
+
+
 	public double [][][][][][] clt_aberrations_quad_corr(
 			final int                 macro_scale,     // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 			final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 			final double [][][]       image_data, // first index - number of image in a quad
 		    final boolean [][]        saturation_imp, // (near) saturated pixels or null
-			 // correlation results - final and partial          
+			 // correlation results - final and partial
 			final double [][][][]     clt_corr_combo,  // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 			                                           // [type][tilesY][tilesX] should be set by caller
-													   // types: 0 - selected correlation (product+offset), 1 - sum 
-			
+													   // types: 0 - selected correlation (product+offset), 1 - sum
+
 			final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
                                                        // [tilesY][tilesX] should be set by caller
 			final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // transpose unapplied. null - do not calculate
@@ -999,13 +1392,13 @@ public class ImageDtt {
 			final double              corr_blue,
 			final double              corr_sigma,
 			final boolean             corr_normalize,  // normalize correlation results by rms
-	  		final double              min_corr,        // 0.0001; // minimal correlation value to consider valid 
+	  		final double              min_corr,        // 0.0001; // minimal correlation value to consider valid
 			final double              max_corr_sigma,  // 1.5;  // weights of points around global max to find fractional
 			final double              max_corr_radius, // 3.5;
-			
+
 			final int                 enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
 			final double              enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
-			
+
 			final boolean 			  max_corr_double, //"Double pass when masking center of mass to reduce preference for integer values
 			final int                 corr_mode, // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
 			final double              min_shot,        // 10.0;  // Do not adjust for shot noise if lower than
@@ -1024,17 +1417,17 @@ public class ImageDtt {
 			final double [][]         shiftXY, // [port]{shiftX,shiftY}
 			final double              disparity_corr, // disparity at infinity
 			final double [][][]       fine_corr, // quadratic coefficients for fine correction (or null)
-			final double              corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85  
+			final double              corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
 			final double              shiftX, // shift image horizontally (positive - right) - just for testing
 			final double              shiftY, // shift image vertically (positive - down)
 			final int                 debug_tileX,
 			final int                 debug_tileY,
 			final boolean             no_fract_shift,
 			final boolean             no_deconvolution,
-			final int                 threadsMax,  // maximal number of threads to launch                         
+			final int                 threadsMax,  // maximal number of threads to launch
 			final int                 globalDebugLevel)
 	{
-		final boolean debug_ports_coordinates = (debug_tileX == -1234);
+//		final boolean debug_ports_coordinates = (debug_tileX == -1234);
 		final boolean macro_mode = macro_scale != 1;      // correlate tile data instead of the pixel data
 		final int quad = 4;   // number of subcameras
 		final int numcol = 3; // number of colors
@@ -1042,14 +1435,14 @@ public class ImageDtt {
 		final int height=image_data[0][0].length/width;
 		final int tilesX=width/transform_size;
 		final int tilesY=height/transform_size;
-		final int nTilesInChn=tilesX*tilesY; 
+		final int nTilesInChn=tilesX*tilesY;
 		final double [][][][][][] clt_data = new double[quad][nChn][tilesY][tilesX][][];
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
-		final double [] col_weights= new double [numcol]; // colors are RBG  
-		col_weights[2] = 1.0/(1.0 + corr_red + corr_blue);    // green color 
-		col_weights[0] = corr_red *  col_weights[2]; 
-		col_weights[1] = corr_blue * col_weights[2]; 
+		final double [] col_weights= new double [numcol]; // colors are RBG
+		col_weights[2] = 1.0/(1.0 + corr_red + corr_blue);    // green color
+		col_weights[0] = corr_red *  col_weights[2];
+		col_weights[1] = corr_blue * col_weights[2];
 		final int corr_size = transform_size * 2 -1;
 		final int [][] transpose_indices = new int [corr_size*(corr_size-1)/2][2];
 		int indx = 0;
@@ -1062,10 +1455,10 @@ public class ImageDtt {
 				transpose_indices[indx++][1] = j * corr_size + i;
 			}
 		}
-		
+
 		// reducing weight of on-axis correlation values to enhance detection of vertical/horizontal lines
 		// multiply correlation results inside the horizontal center strip  2*enhortho_width - 1 wide by enhortho_scale
-		
+
 		final double [] enh_ortho_scale = new double [corr_size];
 		for (int i = 0; i < corr_size; i++){
 			if ((i < (transform_size - enhortho_width)) || (i > (transform_size - 2 + enhortho_width))) enh_ortho_scale[i] = 1.0;
@@ -1077,14 +1470,14 @@ public class ImageDtt {
 			System.out.println("enhortho_width="+ enhortho_width+" enhortho_scale="+ enhortho_scale);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" enh_ortho_scale["+i+"]="+ enh_ortho_scale[i]);
-				
+
 			}
 		}
 		if (globalDebugLevel > 0) {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
-		final int [][] zi = 
+		final int [][] zi =
 			{{ 0,  1,  2,  3},
 			 {-1,  0, -3,  2},
 			 {-2, -3,  0,  1},
@@ -1094,20 +1487,20 @@ public class ImageDtt {
 				{2,3,0},
 				{0,2,1},
 				{1,3,1}};
-		
+
 		final double[][] port_offsets = {
 				{-0.5, -0.5},
 				{ 0.5, -0.5},
 				{-0.5,  0.5},
 				{ 0.5,  0.5}};
 		final int transform_len = transform_size * transform_size;
-		
-		
-		
+
+
+
 		final double [] filter_direct= new double[transform_len];
 		if (corr_sigma == 0) {
-			filter_direct[0] = 1.0; 
-			for (int i= 1; i<filter_direct.length;i++) filter_direct[i] =0; 
+			filter_direct[0] = 1.0;
+			for (int i= 1; i<filter_direct.length;i++) filter_direct[i] =0;
 		} else {
 			for (int i = 0; i < transform_size; i++){
 				for (int j = 0; j < transform_size; j++){
@@ -1129,10 +1522,10 @@ public class ImageDtt {
 		for (int i = 0; i<filter_direct.length; i++){
 			filter_direct[i] /= sum;
 		}
-		
+
 		DttRad2 dtt = new DttRad2(transform_size);
 		final double [] filter= dtt.dttt_iiie(filter_direct);
-		for (int i=0; i < filter.length;i++) filter[i] *= 2*transform_size;  
+		for (int i=0; i < filter.length;i++) filter[i] *= 2*transform_size;
 
 		// prepare disparity maps and weights
 		final int max_search_radius = (int) Math.abs(max_corr_radius); // use negative max_corr_radius for squares instead of circles?
@@ -1143,8 +1536,8 @@ public class ImageDtt {
 			System.out.println("max_search_radius_poly="+max_search_radius_poly);
 			System.out.println("corr_fat_zero=         "+corr_fat_zero);
 			System.out.println("disparity_array[0][0]= "+disparity_array[0][0]);
-			
-			
+
+
 		}
 		if (disparity_map != null){
 			for (int i = 0; i<disparity_map.length;i++){
@@ -1167,14 +1560,14 @@ public class ImageDtt {
 		final double [] lt_window = dtt.getWin2d();	// [256]
 		final double [] lt_window2 = new double [lt_window.length]; // squared
 		for (int i = 0; i < lt_window.length; i++) lt_window2[i] = lt_window[i] * lt_window[i];
-		
-		
+
+
 		if (globalDebugLevel > 1) {
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 			sdfa_instance.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
 		}
 
-/*		final double [][] dbg_ports_coords = debug_ports_coordinates ? (new double[4*2*3][nTilesInChn]):null; 
+/*		final double [][] dbg_ports_coords = debug_ports_coordinates ? (new double[4*2*3][nTilesInChn]):null;
 		String [] dbg_titles = new String[4*2*3];
 		if (dbg_ports_coords != null) {
 			for (int dbg_p = 0; dbg_p < 4; dbg_p++){
@@ -1185,10 +1578,11 @@ public class ImageDtt {
 				}
 			}
 		}
-*/		
-		final Matrix [] corr_rots = geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices 
+*/
+		final Matrix [] corr_rots = geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					DttRad2 dtt = new DttRad2(transform_size);
 					dtt.set_window(window_type);
@@ -1203,12 +1597,12 @@ public class ImageDtt {
 					PolynomialApproximation pa =     null;
 					if (corr_max_weights_poly !=null)   pa = new PolynomialApproximation(0); // debug level
 					for (int nTile = ai.getAndIncrement(); nTile < nTilesInChn; nTile = ai.getAndIncrement()) {
-						
+
 						tileY = nTile /tilesX;
 						tileX = nTile % tilesX;
-						tIndex = tileY * tilesX + tileX; 
+						tIndex = tileY * tilesX + tileX;
 						if (tile_op[tileY][tileX] == 0) continue; // nothing to do for this tile
-						int                 img_mask = getImgMask(tile_op[tileY][tileX]);         // which images to use 
+						int                 img_mask = getImgMask(tile_op[tileY][tileX]);         // which images to use
 						int                 corr_mask = getPairMask(tile_op[tileY][tileX]);       // which pairs to combine in the combo:  1 - top, 2 bottom, 4 - left, 8 - right
 						// mask out pairs that use missing channels
 						for (int i = 0; i< corr_pairs.length; i++){
@@ -1217,9 +1611,9 @@ public class ImageDtt {
 							}
 						}
 						boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY);
-						
-						final int [] overexp_all = (saturation_imp != null) ? ( new int [2]): null;  
-						
+
+						final int [] overexp_all = (saturation_imp != null) ? ( new int [2]): null;
+
 						// Moved from inside chn loop
 						centerX = tileX * transform_size + transform_size/2 - shiftX;
 						centerY = tileY * transform_size + transform_size/2 - shiftY;
@@ -1234,16 +1628,16 @@ public class ImageDtt {
 									centerX,
 									centerY,
 									macro_scale* disparity_array[tileY][tileX] + disparity_corr);
-							
+
 						} else {
 							centersXY = geometryCorrection.getPortsCoordinatesAndDerivatives(
 									corr_rots, // Matrix []   rots,
-									null,      //  Matrix [][] deriv_rots, 
+									null,      //  Matrix [][] deriv_rots,
 									null,      // double [][] pXYderiv, // if not null, should be double[8][]
 									centerX,
 									centerY,
 									disparity_array[tileY][tileX] + disparity_corr);
-/*							
+/*
 							if (dbg_ports_coords != null) {
 								double [][] centersXY_shift = geometryCorrection.getPortsCoordinates_old(
 										centerX,
@@ -1258,7 +1652,7 @@ public class ImageDtt {
 								}
 //								centersXY = centersXY_rot; // use these
 							}
-*/							
+*/
 							if ((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
 								for (int i = 0; i < quad; i++) {
 									System.out.println("clt_aberrations_quad_corr():  tileX="+tileX+", tileY="+tileY+
@@ -1281,21 +1675,7 @@ public class ImageDtt {
 							}
 							// TODO: use correction after disparity applied (to work for large disparity values)
 							if (fine_corr != null){
-								// old correction
-								//double tX = (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0
-								//double tY = (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
-								//for (int ip = 0; ip < centersXY.length; ip++){
-								//	//f(x,y)=A*x^2+B*y^2+C*x*y+D*x+E*y+F
-								//	for (int d = 0; d <2; d++)
-								//		centersXY[ip][d] -= (
-								//				fine_corr[ip][d][0]*tX*tX+
-								//				fine_corr[ip][d][1]*tY*tY+
-								//				fine_corr[ip][d][2]*tX*tY+
-								//				fine_corr[ip][d][3]*tX+
-								//				fine_corr[ip][d][4]*tY+
-								//				fine_corr[ip][d][5]);
-								//}
-								
+
 								for (int ip = 0; ip < centersXY.length; ip++){
 									double [] tXY = geometryCorrection.getRelativeCoords(centersXY[ip]);
 									for (int d = 0; d <2; d++) {
@@ -1310,84 +1690,37 @@ public class ImageDtt {
 								}
 							}
 						} // if (macro_mode) ... else
-						
-						
+						if (FPGA_COMPARE_DATA && (globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
+							final int fpga_cam = 0;
+							double [][] manual_offsets={
+//									{ 1.3, -2.7},
+//									{-1.3,  2.7},
+//									{ 0.0,  0.0}};
+
+//							{ 2.3, -2.7},
+//							{-0.3,  2.7},
+//							{ 0.0,  0.0}};
+
+							{ 2.3, -2.7},
+							{-0.3,  2.7},
+							{ 1.0,  0.0}};
+
+							double [][] colorCentersXY = {
+									{centersXY[fpga_cam][0] + manual_offsets[0][0], centersXY[fpga_cam][1] + manual_offsets[0][1]}, // add manual offsets here
+									{centersXY[fpga_cam][0] + manual_offsets[1][0], centersXY[fpga_cam][1] + manual_offsets[1][1]},
+									{centersXY[fpga_cam][0] + manual_offsets[2][0], centersXY[fpga_cam][1] + manual_offsets[2][1]}
+							};
+							generateFPGACompareData(
+									image_data[fpga_cam], // final double [][]                  image_data, // for selected subcamera
+									colorCentersXY,       // final double [][]         colorCentersXY, // pixel centers per color (2 - green)
+									transform_size,       // final int                 transform_size,
+									width,                 // final int                 width
+									dtt
+									);
+						}
+
 						for (int chn = 0; chn <numcol; chn++) {
-							
-/*
-							centerX = tileX * transform_size + transform_size/2 - shiftX;
-							centerY = tileY * transform_size + transform_size/2 - shiftY;
-							// TODO: move port coordinates out of color channel loop
-							double [][] centersXY;
-							if (macro_mode){
-								if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) { // before correction
-									System.out.println("\nUsing MACRO mode, centerX="+centerX+", centerY="+centerY);
-								}
-								centersXY = geometryCorrection.getPortsCoordinatesIdeal(
-										macro_scale,
-										centerX,
-										centerY,
-										macro_scale* disparity_array[tileY][tileX] + disparity_corr);
-							} else {
-								centersXY = geometryCorrection.getPortsCoordinates(
-										centerX,
-										centerY,
-										disparity_array[tileY][tileX] + disparity_corr);
-								if ((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
-									for (int i = 0; i < quad; i++) {
-										System.out.println("clt_aberrations_quad_corr(): color="+chn+", tileX="+tileX+", tileY="+tileY+
-												" centerX="+centerX+" centerY="+centerY+" disparity="+disparity_array[tileY][tileX]+
-												" centersXY["+i+"][0]="+centersXY[i][0]+" centersXY["+i+"][1]="+centersXY[i][1]);
-									}
-								}
-
-								if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) { // before correction
-									System.out.print(disparity_array[tileY][tileX]+"\t"+
-											centersXY[0][0]+"\t"+centersXY[0][1]+"\t"+
-											centersXY[1][0]+"\t"+centersXY[1][1]+"\t"+
-											centersXY[2][0]+"\t"+centersXY[2][1]+"\t"+
-											centersXY[3][0]+"\t"+centersXY[3][1]+"\t");
-								}
-
-								for (int ip = 0; ip < centersXY.length; ip++){
-									centersXY[ip][0] -= shiftXY[ip][0];
-									centersXY[ip][1] -= shiftXY[ip][1];
-								}
-								// TODO: use correction after disparity applied (to work for large disparity values)
-								if (fine_corr != null){
-									// old correction
-									//double tX = (2.0 * tileX)/tilesX - 1.0; // -1.0 to +1.0
-									//double tY = (2.0 * tileY)/tilesY - 1.0; // -1.0 to +1.0
-									//for (int ip = 0; ip < centersXY.length; ip++){
-									//	//f(x,y)=A*x^2+B*y^2+C*x*y+D*x+E*y+F
-									//	for (int d = 0; d <2; d++)
-									//		centersXY[ip][d] -= (
-									//				fine_corr[ip][d][0]*tX*tX+
-									//				fine_corr[ip][d][1]*tY*tY+
-									//				fine_corr[ip][d][2]*tX*tY+
-									//				fine_corr[ip][d][3]*tX+
-									//				fine_corr[ip][d][4]*tY+
-									//				fine_corr[ip][d][5]);
-									//}
-									
-									for (int ip = 0; ip < centersXY.length; ip++){
-										double [] tXY = geometryCorrection.getRelativeCoords(centersXY[ip]);
-										for (int d = 0; d <2; d++) {
-											centersXY[ip][d] -= (
-													fine_corr[ip][d][0]*tXY[0]*tXY[0]+
-													fine_corr[ip][d][1]*tXY[1]*tXY[1]+
-													fine_corr[ip][d][2]*tXY[0]*tXY[1]+
-													fine_corr[ip][d][3]*tXY[0]+
-													fine_corr[ip][d][4]*tXY[1]+
-													fine_corr[ip][d][5]);
-										}
-									}
-								}
-							} // if (macro_mode) ... else
-							
-*/							
-							
-							
+							boolean debug_for_fpga = FPGA_COMPARE_DATA && (globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2);
 							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) {
 								System.out.println("\nUsing "+(macro_mode?"MACRO":"PIXEL")+" mode, centerX="+centerX+", centerY="+centerY);
 								System.out.println(disparity_array[tileY][tileX]+"\t"+
@@ -1398,6 +1731,100 @@ public class ImageDtt {
 							}
 
 							for (int i = 0; i < quad; i++) {
+								if (debug_for_fpga && (i==0)){
+									double [][] fpga_clt_data = new double [4][];
+									double [] fpga_fract_shiftsXY;
+									double [] fpga_centersXY = {centersXY[i][0],centersXY[i][1]};
+									int fpga_chn = chn; // ==2, green
+									// round to nearest 1/128 pix (supported by FPGA code)
+									System.out.println(String.format("Center X= %f, center Y = %f", fpga_centersXY[0],fpga_centersXY[1]));
+									for (int j=0; j<2;j++){
+										fpga_centersXY[j] = Math.round(128*fpga_centersXY[j])/128.0;
+									}
+
+
+									for (int j=0; j<2;j++){
+										fpga_centersXY[j] = Math.round(fpga_centersXY[j]);
+									}
+
+
+//									fpga_centersXY[0]+=0.5; // half pixel shift horizontal zero pixel shift vertical
+//									fpga_centersXY[1]+=0.5; // half pixel shift vertical, zero pixel shift horizontal
+
+//									fpga_centersXY[0]+=1.0; //
+
+									fpga_chn =           2;
+
+
+									System.out.println(String.format("Manually changing offset: center X= %f, center Y = %f", fpga_centersXY[0],fpga_centersXY[1]));
+									System.out.println(String.format("Manually changing color to %d (was %d)", fpga_chn, chn));
+
+
+
+									fpga_fract_shiftsXY = extract_correct_tile( // return a pair of residual offsets
+											image_data[i],
+											width,       // image width
+											null,
+											fpga_clt_data, //double  [][]        clt_tile,    // should be double [4][];
+											kernel_step,
+											transform_size,
+											dtt,
+											fpga_chn, // chn,
+											fpga_centersXY[0], // centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
+											fpga_centersXY[1], // centersXY[i][1], // centerY, //
+											-10, // globalDebugLevel,
+											true, // no_deconvolution,
+											false, // ); // transpose);
+											null,
+											null);
+									showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+									String [] titles = {"CC","SC","CS","SS"};
+									double [][] dbg_tile = new double [4][];
+									for (int im = 0; im < 4; im++) dbg_tile[im]=fpga_clt_data[im];
+									sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "fpre-shifted_x"+tileX+"_y"+tileY+"-z", titles);
+									fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
+											fpga_clt_data, // double  [][]  clt_tile,
+											transform_size,
+											fpga_fract_shiftsXY[0],            // double        shiftX,
+											fpga_fract_shiftsXY[1],            // double        shiftY,
+											true); // debug
+									for (int im = 0; im < 4; im++) dbg_tile[im]=fpga_clt_data[im];
+									sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "f-shifted_x"+tileX+"_y"+tileY+"-z", titles);
+									System.out.println("Debugging for FPGA data, globalDebugLevel = "+globalDebugLevel+", tileX="+tileX+", tileY="+tileY+", sesnlor="+i+", color="+chn);
+									System.out.println("Debugging for FPGA data, fpga_fract_shiftsXY[0] = "+fpga_fract_shiftsXY[0]+", fpga_fract_shiftsXY[1]="+fpga_fract_shiftsXY[1]);
+									System.out.println();
+
+									double scale = (1 << (FPGA_DTT_IN - 9)); //  -1;
+									// compensate for DTT scale
+									scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+									scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+									// compensate for rotator scale:
+									scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+									scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+									double [] fpga_dtt_lim = {0.0,0.0};
+									for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+										for (int j = 0; j < 64; j++){
+											if (fpga_clt_data[dct_mode][j] > fpga_dtt_lim[0]) fpga_dtt_lim[0] = fpga_clt_data[dct_mode][j];
+											if (fpga_clt_data[dct_mode][j] < fpga_dtt_lim[1]) fpga_dtt_lim[1] = fpga_clt_data[dct_mode][j];
+										}
+									}
+
+									System.out.println(String.format("// DTT rotated, shift_x=%f. shift_y = %f", fpga_fract_shiftsXY[0],fpga_fract_shiftsXY[1]));
+									System.out.println(String.format("// DTT rotated  range: %f ... %f", fpga_dtt_lim[1], fpga_dtt_lim[0]));
+//									scale = (1 << (FPGA_DTT_IN - 9)); //  -1;
+									for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+										for (int j = 0; j < 64; j++){
+											int id = (int) Math.round(scale * fpga_clt_data[dct_mode][j]);
+											System.out.print(String.format("%7x ", id & ((1 << 25) -1)));
+											if ((j % 8) == 7) System.out.println();
+										}
+										System.out.println();
+									}
+
+
+
+								}
+
 								clt_data[i][chn][tileY][tileX] = new double [4][];
 								fract_shiftsXY[i] = extract_correct_tile( // return a pair of residual offsets
 										image_data[i],
@@ -1406,28 +1833,29 @@ public class ImageDtt {
 										clt_data[i][chn][tileY][tileX], //double  [][]        clt_tile,    // should be double [4][];
 										kernel_step,
 										transform_size,
-										dtt, 
-										chn,                              
+										dtt,
+										chn,
 										centersXY[i][0], // centerX, // center of aberration-corrected (common model) tile, X
 										centersXY[i][1], // centerY, //
 //										((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)),
-										((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) ? (globalDebugLevel + 0) : 0, // external tile compare
-										
+										(!FPGA_COMPARE_DATA && (globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2) && (i==0)) ? (globalDebugLevel + 0) : 0, // external tile compare
+
 //										(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2), // external tile compare
 										no_deconvolution,
 										false, // ); // transpose);
 										((saturation_imp != null) ? saturation_imp[i] : null), //final boolean [][]        saturation_imp, // (near) saturated pixels or null
 										((saturation_imp != null) ? overexp_all: null)); // final double [] overexposed)
-										
+
+
 							}
 							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) {
 								System.out.println();
-							}							
-							if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (chn == 2)) {
+							}
+							if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (chn == 2) && !FPGA_COMPARE_DATA) {
 								showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 								double [][] dbg_tile = new double [16][];
-								for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][chn][tileY][tileX][i & 3];   
+								for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][chn][tileY][tileX][i & 3];
 								sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "pre-shifted_x"+tileX+"_y"+tileY, titles);
 							}
 
@@ -1439,6 +1867,7 @@ public class ImageDtt {
 								}
 							}
 
+//							if (!no_fract_shift && !FPGA_COMPARE_DATA) {
 							if (!no_fract_shift) {
 								// apply residual shift
 								for (int i = 0; i < quad; i++) {
@@ -1449,30 +1878,35 @@ public class ImageDtt {
 											fract_shiftsXY[i][1],            // double        shiftY,
 											//									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
 											((globalDebugLevel > 1) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
-													(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));									
+													(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
 								}
 								if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
 									showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 									String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
 									double [][] dbg_tile = new double [16][];
-									for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][chn][tileY][tileX][i & 3];   
-									sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY, titles);
+									for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data[i>>2][chn][tileY][tileX][i & 3];
+									sdfa_instance.showArrays(dbg_tile,  transform_size, transform_size, true, "shifted_x"+tileX+"_y"+tileY+"-z", titles);
 								}
+
+
+
 							}
 						}
+
+
 						// calculate overexposed fraction
 						if (saturation_imp != null) {
 							disparity_map[OVEREXPOSED][nTile] = (1.0 * overexp_all[0]) / overexp_all[1];
 						}
-				
+
 						// all color channels are done here
 						double extra_disparity = 0.0; // if allowed, shift images extra before trying to combine
 						if (clt_corr_combo != null){ // not null - calculate correlations
-							
+
 							tcorr_tpartial=new double[corr_pairs.length][numcol+1][4][transform_len];
 //							tcorr_tcombo =   new double[quad][transform_len];
 							tcorr_partial =  new double[quad][numcol+1][];
-							
+
 							for (int pair = 0; pair < corr_pairs.length; pair++){
 								for (int chn = 0; chn <numcol; chn++){
 									double [][] data1 = clt_data[corr_pairs[pair][0]][chn][tileY][tileX];
@@ -1488,10 +1922,10 @@ public class ImageDtt {
 											tcorr_tpartial[pair][chn][n][i] = 0;
 											for (int k=0; k<4; k++){
 												if (zi[n][k] < 0)
-													tcorr_tpartial[pair][chn][n][i] -= 
+													tcorr_tpartial[pair][chn][n][i] -=
 															data1[-zi[n][k]][i] * data2[k][i];
 												else
-													tcorr_tpartial[pair][chn][n][i] += 
+													tcorr_tpartial[pair][chn][n][i] +=
 													data1[zi[n][k]][i] * data2[k][i];
 											}
 											tcorr_tpartial[pair][chn][n][i] *= scale;
@@ -1499,10 +1933,10 @@ public class ImageDtt {
 									}
 									// got transform-domain correlation for the pair, 1 color
 								}
-								// calculate composite color 
+								// calculate composite color
 								for (int i = 0; i < transform_len; i++) {
 									for (int n = 0; n<4; n++) {
-										tcorr_tpartial[pair][numcol][n][i] = 
+										tcorr_tpartial[pair][numcol][n][i] =
 												col_weights[0]* tcorr_tpartial[pair][0][n][i] +
 												col_weights[1]* tcorr_tpartial[pair][1][n][i] +
 												col_weights[2]* tcorr_tpartial[pair][2][n][i];
@@ -1540,12 +1974,12 @@ public class ImageDtt {
 											double d = tcorr_partial[pair][chn][transpose_indices[i][0]];
 											tcorr_partial[pair][chn][transpose_indices[i][0]] = tcorr_partial[pair][chn][transpose_indices[i][1]];
 											tcorr_partial[pair][chn][transpose_indices[i][1]] = d;
-											//transpose_indices									
-										}		
-									}									
+											//transpose_indices
+										}
+									}
 								}
 								// make symmetrical around the disparity direction (horizontal) (here using just average, not mul/sum mixture)
-								if (corr_sym && (clt_mismatch == null)){ // when measuring clt_mismatch symmetry should be off ! 
+								if (corr_sym && (clt_mismatch == null)){ // when measuring clt_mismatch symmetry should be off !
 									for (int chn = firstColor; chn <= numcol; chn++){
 										for (int i = 1 ; i < transform_size; i++){
 											int indx1 = (transform_size - 1 - i) * corr_size;
@@ -1553,16 +1987,16 @@ public class ImageDtt {
 											for (int j = 0; j< corr_size; j++){
 												int indx1j = indx1 + j;
 												int indx2j = indx2 + j;
-												tcorr_partial[pair][chn][indx1j] = 
+												tcorr_partial[pair][chn][indx1j] =
 														0.5* (tcorr_partial[pair][chn][indx1j] + tcorr_partial[pair][chn][indx2j]);
 												tcorr_partial[pair][chn][indx2j] = tcorr_partial[pair][chn][indx1j];
 											}
 										}
-									}									
+									}
 								}
 							} // all pairs calculated
 							tcorr_combo = new double [TCORR_TITLES.length][corr_size * corr_size];
-							
+
 							int numPairs = 	0, numPairsHor = 0, numPairsVert = 0;
 							for (int pair = 0; pair < corr_pairs.length; pair++) if (((corr_mask >> pair) & 1) != 0){
 								numPairs++;
@@ -1624,7 +2058,7 @@ public class ImageDtt {
 											} else {
 												tcorr_combo[TCORR_COMBO_RSLT][i] =  -corr_offset;
 											}
-											
+
 											if (tcorr_combo[TCORR_COMBO_HOR][i] > 0.0){
 												tcorr_combo[TCORR_COMBO_HOR][i] = Math.pow(tcorr_combo[TCORR_COMBO_HOR][i],avScaleHor) - corr_offset;
 											} else {
@@ -1649,9 +2083,9 @@ public class ImageDtt {
 										}
 									}
 								}
-/*								
+/*
 								double [] rms = new double [tcorr_combo.length];
-								for (int n = 0; n < rms.length; n++) rms[n] = 1.0; 
+								for (int n = 0; n < rms.length; n++) rms[n] = 1.0;
 								if (corr_normalize){ // normalize both composite and sum by their RMS
 									for (int n = 0; n<tcorr_combo.length; n++){
 										rms[n] = 0;
@@ -1667,7 +2101,7 @@ public class ImageDtt {
 										}
 									}
 								}
-*/								
+*/
 								// return results
 								for (int n = 0; n < clt_corr_combo.length; n++){ // tcorr_combo now may be longer than clt_corr_combo
 									clt_corr_combo[n][tileY][tileX] = tcorr_combo[n];
@@ -1678,7 +2112,7 @@ public class ImageDtt {
 								if (disparity_map != null) {
 									int [] icorr_max =getMaxXYInt( // find integer pair or null if below threshold
 											tcorr_combo[TCORR_COMBO_RSLT],      // [data_size * data_size]
-											corr_size,      
+											corr_size,
 											min_corr,    // minimal value to consider (at integer location, not interpolated)
 											debugMax);
 									int max_index = -1;
@@ -1700,7 +2134,7 @@ public class ImageDtt {
 												clt_mismatch[3*pair + 2 ][tIndex] = Double.NaN;
 											}
 										}
-									} else {	
+									} else {
 										double [] corr_max_XYi = {icorr_max[0],icorr_max[1]};
 										disparity_map[DISPARITY_INDEX_INT][tIndex] =  transform_size - 1 -corr_max_XYi[0];
 										disparity_map[DISPARITY_INDEX_INT+1][tIndex] = transform_size - 1 -corr_max_XYi[1];
@@ -1713,7 +2147,7 @@ public class ImageDtt {
 										//									Calculate "center of mass" coordinates
 										double [] corr_max_XYm = getMaxXYCm( // get fractiona center as a "center of mass" inside circle/square from the integer max
 												tcorr_combo[TCORR_COMBO_RSLT],      // [data_size * data_size]
-												corr_size,      
+												corr_size,
 												icorr_max, // integer center coordinates (relative to top left)
 												max_corr_radius,  // positive - within that distance, negative - within 2*(-radius)+1 square
 												max_corr_double, //"Double pass when masking center of mass to reduce preference for integer values
@@ -1724,7 +2158,7 @@ public class ImageDtt {
 										double [] corr_max_XS_hor = getMaxXSOrtho( // get fractiona center as a "center of mass" inside circle/square from the integer max
 												tcorr_combo[TCORR_COMBO_HOR],      // [data_size * data_size]
 												enh_ortho_scale, // [data_size]
-												corr_size, 
+												corr_size,
 												max_corr_radius,
 //												max_corr_double, // reusing, true - just poly for maximum
 												(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // debugMax);
@@ -1733,7 +2167,7 @@ public class ImageDtt {
 										double [] corr_max_XS_vert = getMaxXSOrtho( // get fractiona center as a "center of mass" inside circle/square from the integer max
 												tcorr_combo[TCORR_COMBO_VERT],      // [data_size * data_size]
 												enh_ortho_scale, // [data_size]
-												corr_size, 
+												corr_size,
 												max_corr_radius,
 //												max_corr_double, // reusing, true - just poly for maximum (probably keep it that way)
 												(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // debugMax);
@@ -1743,7 +2177,7 @@ public class ImageDtt {
 										double [] corr_max_XY = getMaxXYPoly( // get interpolated maximum coordinates using 2-nd degree polynomial
 												pa,
 												tcorr_combo[TCORR_COMBO_RSLT],        // [data_size * data_size]
-												corr_size,      
+												corr_size,
 												icorr_max,          // integer center coordinates (relative to top left)
 												corr_max_weights_poly,   // [(radius+1) * (radius+1)]
 												max_search_radius_poly,                  // max_search_radius, for polynomial - always use 1
@@ -1761,12 +2195,12 @@ public class ImageDtt {
 										else if (corr_mode == 3) extra_disparity = disparity_map[DISPARITY_INDEX_HOR][tIndex];
 										else if (corr_mode == 4) extra_disparity = disparity_map[DISPARITY_INDEX_VERT][tIndex];
 										if (Double.isNaN(extra_disparity)) extra_disparity = 0;
-										
+
 										if (clt_mismatch != null){
 											for (int pair = 0; pair < corr_pairs.length; pair++) if (((corr_mask >> pair) & 1) != 0){
 												icorr_max =getMaxXYInt( // find integer pair or null if below threshold
 														tcorr_partial[pair][numcol],      // [data_size * data_size]
-														corr_size,      
+														corr_size,
 														min_corr,    // minimal value to consider (at integer location, not interpolated)
 														debugMax);
 												if (icorr_max == null){
@@ -1776,7 +2210,7 @@ public class ImageDtt {
 												} else {
 													double [] corr_max_XYmp = getMaxXYCm( // get fractional center as a "center of mass" inside circle/square from the integer max
 															tcorr_partial[pair][numcol],      // [data_size * data_size]
-															corr_size,      
+															corr_size,
 															icorr_max, // integer center coordinates (relative to top left)
 															max_corr_radius,  // positive - within that distance, negative - within 2*(-radius)+1 square
 															max_corr_double, //"Double pass when masking center of mass to reduce preference for integer values
@@ -1786,7 +2220,7 @@ public class ImageDtt {
 													if (corr_pairs[pair][2] > 0){ // transpose - switch x <-> y
 														yp = transform_size - 1 -corr_max_XYmp[0] - disparity_map[DISPARITY_INDEX_CM][tIndex];
 														xp = transform_size - 1 -corr_max_XYmp[1]; // do not compare to average - it should be 0 anyway
-														
+
 													} else {
 														xp = transform_size - 1 -corr_max_XYmp[0] - disparity_map[DISPARITY_INDEX_CM][tIndex];
 														yp = transform_size - 1 -corr_max_XYmp[1]; // do not compare to average - it should be 0 anyway
@@ -1796,19 +2230,19 @@ public class ImageDtt {
 													clt_mismatch[3*pair + 1 ][tIndex] = yp;
 													clt_mismatch[3*pair + 2 ][tIndex] = strength;
 												}
-											}											
+											}
 										}
 									}
 								}
-								
+
 							}
 						} // end of if (clt_corr_combo != null)
-						
+
 						if (texture_tiles !=null) {
 
 //							if ((extra_disparity != 0) && (((1 << FORCE_DISPARITY_BIT) & tile_op[tileY][tileX]) == 0)){ // 0 - adjust disparity, 1 - use provided
 							if ((extra_disparity != 0) && !getForcedDisparity(tile_op[tileY][tileX])){ // 0 - adjust disparity, 1 - use provided
-								// shift images by 0.5 * extra disparity in the diagonal direction 
+								// shift images by 0.5 * extra disparity in the diagonal direction
 								for (int chn = 0; chn <numcol; chn++) { // color
 									for (int i = 0; i < quad; i++) {
 										fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
@@ -1818,7 +2252,7 @@ public class ImageDtt {
 												extra_disparity * port_offsets[i][1] / corr_magic_scale,     // double        shiftY,
 												//									(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // external tile compare
 												((globalDebugLevel > 0) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
-														(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));									
+														(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
 									}
 								}
 							}
@@ -1836,7 +2270,7 @@ public class ImageDtt {
 										for (int j = 0; j < filter.length; j++){
 											clt_tile[j] *= scale*filter[j];
 										}
-										// IDCT-IV should be in reversed order: CC->CC, SC->CS, CS->SC, SS->SS 
+										// IDCT-IV should be in reversed order: CC->CC, SC->CS, CS->SC, SS->SS
 										int idct_mode = ((dct_mode << 1) & 2) | ((dct_mode >> 1) & 1);
 										clt_tile = dtt.dttt_iv  (clt_tile, idct_mode, transform_size);
 										// iclt_tile[i][chn] = dtt.dttt_iv  (clt_data[i][chn][tileY][tileX][dct_mode], idct_mode, transform_size);
@@ -1895,7 +2329,7 @@ public class ImageDtt {
 								}
 								sdfa_instance.showArrays(dbg_tile, 2* transform_size, 2* transform_size, true, "tiles_debayered_x"+tileX+"_y"+tileY, titles);
 							}
-							
+
 							double []     max_diff = null;
 							if ((disparity_map != null) && (disparity_map.length >= (IMG_DIFF0_INDEX + quad))){
 								max_diff = new double[quad];
@@ -1931,24 +2365,24 @@ public class ImageDtt {
 							}
 							if ((disparity_map != null) && (disparity_map.length >= (IMG_DIFF0_INDEX + quad))){
 								for (int i = 0; i < max_diff.length; i++){
-									disparity_map[IMG_DIFF0_INDEX + i][tIndex] = max_diff[i]; 
+									disparity_map[IMG_DIFF0_INDEX + i][tIndex] = max_diff[i];
 								}
 							}
 						}
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
-/*		
+/*
 		if (dbg_ports_coords != null) {
 			(new showDoubleFloatArrays()).showArrays(dbg_ports_coords,  tilesX, tilesY, true, "ports_coordinates", dbg_titles);
 		}
 */
 		return clt_data;
 	}
-	
-	
+
+
 	public double [][] tile_combine_rgba(
 			double [][][] iclt_tile,    // [port][numcol][256]
 			double []     max_diff,       // maximal (weighted) deviation of each channel from the average
@@ -1968,8 +2402,8 @@ public class ImageDtt {
 		int numcol =  iclt_tile[0].length;
 		int tile_len = iclt_tile[0][0].length;
 		int usedPorts = ((port_mask >> 0) & 1) + ((port_mask >> 1) & 1) + ((port_mask >> 2) & 1) + ((port_mask >> 3) & 1);
-		
-				
+
+
 		double [][] port_weights = new double[ports][tile_len];
 		double [][] color_avg =    new double[numcol][tile_len];
 		double [][] rgba = new double[numcol + 1 + (keep_weights?(ports + 4):0)][];
@@ -1993,8 +2427,8 @@ public class ImageDtt {
 				rgba[rms_start+numcol][i] = Math.sqrt(sw); // will fade as window
 			}
 		}
-		
-		
+
+
 		double []  alpha = new double[tile_len];
 		double threshold2 = diff_sigma * diff_threshold;
 		threshold2 *= threshold2; // squared to compare with diff^2
@@ -2031,7 +2465,7 @@ public class ImageDtt {
 				// find 2 best ports (resolving 2 pairs of close values)
 				int bestPort1=0;
 				for (int ip = bestPort1+1; ip < ports; ip++) if (port_weights[ip][i] > port_weights[bestPort1][i]) bestPort1 = ip;
-				int bestPort2 = (bestPort1 == 0)?1:0; 
+				int bestPort2 = (bestPort1 == 0)?1:0;
 				for (int ip = bestPort2+1; ip < ports; ip++) if ((ip != bestPort1) && (port_weights[ip][i] > port_weights[bestPort2][i])) bestPort2 = ip;
 				// find weighted average between these 2 ports
 				double w1 = port_weights[bestPort1][i]/(port_weights[bestPort1][i]+port_weights[bestPort2][i]);
@@ -2048,7 +2482,7 @@ public class ImageDtt {
 						dc /= lt_window[i]; // to compensate fading near the edges
 						d2[ip]+= chn_weights[chn]*dc*dc;
 					}
-					port_weights[ip][i] = Math.exp(-ksigma * d2[ip]); 
+					port_weights[ip][i] = Math.exp(-ksigma * d2[ip]);
 				}
 				// and now make a new average with those weights
 				double k = 0.0;
@@ -2057,12 +2491,12 @@ public class ImageDtt {
 				for (int chn = 0; chn < numcol; chn++){
 					color_avg[chn][i] = 0;
 					for (int ip = 0; ip < ports; ip++) {
-						color_avg[chn][i] += k* port_weights[ip][i] * iclt_tile[ip][chn][i]; 
+						color_avg[chn][i] += k* port_weights[ip][i] * iclt_tile[ip][chn][i];
 					}
 				}
-				
-/*				
-				
+
+/*
+
 				// remove outlayers (if any) here completely? diff_threshold
 				// threshold2
 				while ((d2[0] > threshold2) || (d2[1] > threshold2) || (d2[2] > threshold2) || (d2[3] > threshold2)){ // assuming ports==4!
@@ -2078,7 +2512,7 @@ public class ImageDtt {
 					for (int chn = 0; chn < numcol; chn++){
 						color_avg[chn][i] = 0;
 						for (int ip = 0; ip < ports; ip++) {
-							color_avg[chn][i] += k* port_weights[ip][i] * iclt_tile[ip][chn][i]; 
+							color_avg[chn][i] += k* port_weights[ip][i] * iclt_tile[ip][chn][i];
 						}
 					}
 					// recalculate all weights using difference from this average of the best pair
@@ -2090,7 +2524,7 @@ public class ImageDtt {
 							dc /= lt_window[i]; // to compensate fading near the edges
 							d2[ip]+= chn_weights[chn]*dc*dc;
 						}
-						port_weights[ip][i] = Math.exp(-ksigma * d2[ip]); 
+						port_weights[ip][i] = Math.exp(-ksigma * d2[ip]);
 					}
 				}
 				// one last time re-average? (weights will change)
@@ -2100,12 +2534,12 @@ public class ImageDtt {
 				for (int chn = 0; chn < numcol; chn++){
 					color_avg[chn][i] = 0;
 					for (int ip = 0; ip < ports; ip++) {
-						color_avg[chn][i] += k* port_weights[ip][i] * iclt_tile[ip][chn][i]; 
+						color_avg[chn][i] += k* port_weights[ip][i] * iclt_tile[ip][chn][i];
 					}
 				}
-*/				
+*/
 			} // or (int i = 0; i < tile_len; i++){
-			
+
 		} else if (usedPorts > 0){ // just copy from a single channel
 			for (int ip = 0; ip < ports; ip++) if ((port_mask & ( 1 << ip)) != 0){
 				for (int i = 0; i < tile_len; i++){
@@ -2127,8 +2561,8 @@ public class ImageDtt {
 			}
 			alpha[i] *= lt_window[i]/usedPorts; // make it configurable?
 		}
-	
-		for (int i = 0; i < numcol; i++) rgba[i] = color_avg[i]; 
+
+		for (int i = 0; i < numcol; i++) rgba[i] = color_avg[i];
 		rgba[numcol] = alpha;
 		for (int i = 0; i < ports; i++)  rgba[numcol + 1 + i] = port_weights[i];
 		if (max_diff != null){
@@ -2148,7 +2582,7 @@ public class ImageDtt {
 				max_diff[ip] = Math.sqrt(max_diff[ip]);
 			}
 		}
-		
+
 		return rgba;
 	}
 
@@ -2157,7 +2591,7 @@ public class ImageDtt {
 	{
 		int np = port_weights.length;
 		for (int i = 0; i < port_weights[0].length; i++){
-			
+
 			int wi = 0;
 			for (int ip = 1; ip < np; ip++) if (port_weights[ip][i] < port_weights[wi][i]) wi = ip;
 			double avg = 0;
@@ -2170,8 +2604,8 @@ public class ImageDtt {
 			port_weights[wi][i] *= port_weights[wi][i]/avg;
 		}
 	}
-	
-	
+
+
 	public double [] tile_debayer_shot_corr(
 			boolean   rb,
 			double [] tile,
@@ -2196,8 +2630,8 @@ public class ImageDtt {
 		}
 		return tile_db;
 	}
-	
-	
+
+
 	public double [] tile_debayer(
 			boolean   rb,
 			double [] tile,
@@ -2209,7 +2643,7 @@ public class ImageDtt {
 		double [] kern = rb ? kern_rb : kern_g;
 		double k_corn = rb? (16.0/9.0):(4.0/3.0);
 		double k_side = rb? (4.0/3.0):(8.0/7.0);
-		// top left 
+		// top left
 		int indx = 0;
 		int side_type = 0;
 		for (int dri = 0; dri < corn_side_indices[side_type].length; dri++) {
@@ -2227,7 +2661,7 @@ public class ImageDtt {
 			}
 			rslt[indx] *= k_side;
 		}
-		// top right 
+		// top right
 		indx = tsm1;
 		side_type = 2;
 		for (int dri = 0; dri < corn_side_indices[side_type].length; dri++) {
@@ -2238,7 +2672,7 @@ public class ImageDtt {
 		// middle left
 		side_type = 3;
 		for (int i = 1; i < tsm1; i++){
-			indx = i* tile_size; 
+			indx = i* tile_size;
 			for (int dri = 0; dri < corn_side_indices[side_type].length; dri++) {
 				int dr = corn_side_indices[side_type][dri]; // middle left
 				rslt[indx]+=tile[indx + neib_indices[dr]] * kern[dr];
@@ -2260,7 +2694,7 @@ public class ImageDtt {
 		// middle right
 		side_type = 5;
 		for (int i = 1; i < tsm1; i++){
-			indx = i* tile_size + tsm1; 
+			indx = i* tile_size + tsm1;
 			for (int dri = 0; dri < corn_side_indices[side_type].length; dri++) {
 				int dr = corn_side_indices[side_type][dri]; // middle left
 				rslt[indx]+=tile[indx + neib_indices[dr]] * kern[dr];
@@ -2268,7 +2702,7 @@ public class ImageDtt {
 			rslt[indx] *= k_side;
 		}
 
-		// bottom left 
+		// bottom left
 		indx = tsm1*tile_size;
 		side_type = 6;
 		for (int dri = 0; dri < corn_side_indices[side_type].length; dri++) {
@@ -2288,7 +2722,7 @@ public class ImageDtt {
 			rslt[indx] *= k_side;
 		}
 
-		// bottom right 
+		// bottom right
 		indx++; // = tile_size*tile_size-1;
 		side_type = 8;
 		for (int dri = 0; dri < corn_side_indices[side_type].length; dri++) {
@@ -2298,14 +2732,14 @@ public class ImageDtt {
 		rslt[indx] *= k_corn;
 		return rslt;
 	}
-	//final int    []   neib_indices = {-width-1,-width,-width+1,-1,0,1,width-1,width,width+1};       
-	
-	
+	//final int    []   neib_indices = {-width-1,-width,-width+1,-1,0,1,width-1,width,width+1};
+
+
 	// return weights for positive x,y, [(radius+a)*(radius+1)]
 	public double [] setMaxXYWeights(
 			double sigma,
 			int    radius){ // ==3.0, ignore data outside sigma * nSigma
-			 // 
+			 //
 		double [] weights = new double [(radius + 1)*(radius + 1)];
 		int indx = 0;
 		for (int i = 0; i <= radius; i ++){
@@ -2315,9 +2749,9 @@ public class ImageDtt {
 		}
 		return weights;
 	}
-	
+
 	// find interpolated location of maximum, return {x,y} or null (if too low or non-existing)
-	
+
 	public int [] getMaxXYInt( // find integer pair or null if below threshold
 			double [] data,      // [data_size * data_size]
 			int       data_size,
@@ -2334,7 +2768,7 @@ public class ImageDtt {
 			if (debug){
 					System.out.println("getMaxXYInt() -> null (data["+imx+"] = "+data[imx]+" < "+minMax);
 			}
-			return null;	
+			return null;
 		}
 		int [] rslt = {imx %  data_size, imx /  data_size};
 		if (debug){
@@ -2342,7 +2776,7 @@ public class ImageDtt {
 		}
 		return rslt;
 	}
-	
+
 	public double [] getMaxXYCm( // get fractiona center as a "center of mass" inside circle/square from the integer max
 			double [] data,      // [data_size * data_size]
 			int       data_size,
@@ -2365,7 +2799,7 @@ public class ImageDtt {
 			if ((dataY >= 0) && (dataY < data_size)){
 				int y2 = y*y;
 				for (int x = - iradius ; x <= iradius; x++){
-					int dataX = icenter[0] +x; 
+					int dataX = icenter[0] +x;
 					double r2 = y2 + x * x;
 //					if ((dataX >= 0) && (dataX < data_size) && (square || ((y2 + x * x) <= ir2))){
 					if ((dataX >= 0) && (dataX < data_size) && (square || (r2 <= ir2))){
@@ -2425,9 +2859,9 @@ public class ImageDtt {
 		}
 		icenter = (int) Math.round(xcenter);
 		double strength = corr_1d[icenter] / ((data_size+1) / 2);// scale to ~match regular strength
-		double [] rslt1 = {xcenter, strength}; 
+		double [] rslt1 = {xcenter, strength};
 		return rslt1;
-/*		
+/*
 		double s0 = 0, sx=00;
 		int x_min = (int) Math.ceil(xcenter - radius);
 		if (x_min < 0) x_min = 0;
@@ -2463,10 +2897,10 @@ public class ImageDtt {
 			}
 		}
 		return rslt;
-*/		
+*/
 	}
-	
-	
+
+
 	public double [] getMaxXYPoly( // get interpolated maximum coordinates using 2-nd degree polynomial
 			PolynomialApproximation pa,
 			double [] data,      // [data_size * data_size]
@@ -2479,7 +2913,7 @@ public class ImageDtt {
 		// TODO: make sure it is within 1pxx1px square from the integer maximum? If not - return null and use center of mass instead?
 		if (pa == null) pa = new PolynomialApproximation();
 		if (icenter == null) return null; //gigo
-		
+
 		double [][] zdata = {{0.0,0.0},{0.0},{0.0}};
 //		radius = 1;
 		double [][][] mdata = new double[(2 * radius + 1) * (2 * radius + 1)][3][];
@@ -2487,9 +2921,9 @@ public class ImageDtt {
 		for (int y = - radius ; y <= radius; y++){
 			int dataY = icenter[1] +y;
 			if ((dataY >= 0) && (dataY < data_size)){
-				int ay = (y >= 0)?y:-y; 
+				int ay = (y >= 0)?y:-y;
 				for (int x = - radius ; x <= radius; x++){
-					int dataX = icenter[0] +x; 
+					int dataX = icenter[0] +x;
 					if ((dataX >= 0) && (dataX < data_size)){
 						int ax = (x >= 0) ? x: -x;
 						mdata[indx][0] = new double [2];
@@ -2509,7 +2943,7 @@ public class ImageDtt {
 		}
 		if (debug){
 			System.out.println("before: getMaxXYPoly(): icenter[0] = "+icenter[0]+" icenter[1] = "+icenter[1]);
-			
+
 			for (int i = 0; i< mdata.length; i++){
 				System.out.println(i+": "+mdata[i][0][0]+"/"+mdata[i][0][1]+" z="+mdata[i][1][0]+" w="+mdata[i][2][0]);
 			}
@@ -2527,8 +2961,8 @@ public class ImageDtt {
 		}
 		return rslt;
 	}
-	
-	
+
+
 // perform 2d clt, result is [tileY][tileX][cc_sc_cs_ss][index_in_tile]
 	public double [][][][] clt_2d(
 			final double [] dpixels,
@@ -2540,13 +2974,13 @@ public class ImageDtt {
 			final int       debug_tileX,
 			final int       debug_tileY,
 			final int       debug_mode,
-			final int       threadsMax,  // maximal number of threads to launch                         
+			final int       threadsMax,  // maximal number of threads to launch
 			final int       globalDebugLevel)
 	{
 		final int height=dpixels.length/width;
 		final int tilesX=width/dct_size-1;
 		final int tilesY=height/dct_size-1;
-		final int nTiles=tilesX*tilesY; 
+		final int nTiles=tilesX*tilesY;
 		final double [][][][] dct_data = new double[tilesY][tilesX][4][dct_size*dct_size];
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
@@ -2569,6 +3003,7 @@ public class ImageDtt {
 		}
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					DttRad2 dtt = new DttRad2(dct_size);
 					dtt.set_window(window_type);
@@ -2588,7 +3023,7 @@ public class ImageDtt {
 						} else {
 							int x0 = tileX * dct_size - shiftX;
 							if      (x0 < 0)             x0 = 0; // first/last will be incorrect
-							else if (x0 >= (width - n2)) x0 = width - n2;  
+							else if (x0 >= (width - n2)) x0 = width - n2;
 							for (int i = 0; i < n2;i++){
 								int y0 = tileY * dct_size + i - shiftY;
 								if      (y0 < 0)       y0 = 0;
@@ -2617,18 +3052,18 @@ public class ImageDtt {
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
 		return dct_data;
 	}
-	
+
 	public double [] iclt_2d(
-			final double [][][][] dct_data,  // array [tilesY][tilesX][4][dct_size*dct_size]  
+			final double [][][][] dct_data,  // array [tilesY][tilesX][4][dct_size*dct_size]
 			final int             dct_size,
 			final int             window_type,
 			final int             debug_mask, // which transforms to combine
 			final int             debug_mode, // skip idct - just unfold
-			final int             threadsMax,  // maximal number of threads to launch                         
+			final int             threadsMax,  // maximal number of threads to launch
 			final int             globalDebugLevel)
 	{
 		final int tilesY=dct_data.length;
@@ -2668,6 +3103,7 @@ public class ImageDtt {
 			ai.set(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						DttRad2 dtt = new DttRad2(dct_size);
 						dtt.set_window(window_type);
@@ -2679,7 +3115,7 @@ public class ImageDtt {
 						int n_half = dct_size / 2;
 						int lastY = tilesY-1;
 						int lastX = tilesX-1;
-						int offset = n_half * (dct_size * tilesX) + n_half; 
+						int offset = n_half * (dct_size * tilesX) + n_half;
 						for (int nTile = ai.getAndIncrement(); nTile < tiles_list[nser.get()].length; nTile = ai.getAndIncrement()) {
 							tileX = tiles_list[nser.get()][nTile][0];
 							tileY = tiles_list[nser.get()][nTile][1];
@@ -2689,17 +3125,17 @@ public class ImageDtt {
 									if ((debug_mode & 1) != 0) {
 										tile_dct = tile_in;
 									} else {
-										// IDCT-IV should be in reversed order: CC->CC, SC->CS, CS->SC, SS->SS 
-										int idct_mode = ((dct_mode << 1) & 2) | ((dct_mode >> 1) & 1); 
+										// IDCT-IV should be in reversed order: CC->CC, SC->CS, CS->SC, SS->SS
+										int idct_mode = ((dct_mode << 1) & 2) | ((dct_mode >> 1) & 1);
 										tile_dct = dtt.dttt_iv  (tile_in, idct_mode, dct_size);
 									}
 									tile_mdct = dtt.unfold_tile(tile_dct, dct_size, dct_mode); // mode=0 - DCCT
 									if ((tileY >0) && (tileX > 0) && (tileY < lastY) && (tileX < lastX)) { // fast, no extra checks
 										for (int i = 0; i < n2;i++){
-											//									int start_line = ((tileY*dct_size + i) *(tilesX+1) + tileX)*dct_size; 
-											int start_line = ((tileY*dct_size + i) * tilesX + tileX)*dct_size - offset; 
+											//									int start_line = ((tileY*dct_size + i) *(tilesX+1) + tileX)*dct_size;
+											int start_line = ((tileY*dct_size + i) * tilesX + tileX)*dct_size - offset;
 											for (int j = 0; j<n2;j++) {
-												dpixels[start_line + j] += debug_scale * tile_mdct[n2 * i + j]; // add (cc+sc+cs+ss)/4 
+												dpixels[start_line + j] += debug_scale * tile_mdct[n2 * i + j]; // add (cc+sc+cs+ss)/4
 											}
 										}
 									} else { // be careful with margins
@@ -2707,7 +3143,7 @@ public class ImageDtt {
 											if (	((tileY > 0) && (tileY < lastY)) ||
 													((tileY == 0) && (i >= n_half)) ||
 													((tileY == lastY) && (i < (n2 - n_half)))) {
-												int start_line = ((tileY*dct_size + i) * tilesX + tileX)*dct_size  - offset; 
+												int start_line = ((tileY*dct_size + i) * tilesX + tileX)*dct_size  - offset;
 												for (int j = 0; j<n2;j++) {
 													if (	((tileX > 0) && (tileX < lastX)) ||
 															((tileX == 0) && (j >= n_half)) ||
@@ -2724,18 +3160,18 @@ public class ImageDtt {
 						}
 					}
 				};
-			}		      
+			}
 			startAndJoin(threads);
 		}
 		return dpixels;
 	}
 
 	public double [][] combineRGBATiles(
-			final double [][][][] texture_tiles,  // array [tilesY][tilesX][4][4*transform_size] or [tilesY][tilesX]{null}   
+			final double [][][][] texture_tiles,  // array [tilesY][tilesX][4][4*transform_size] or [tilesY][tilesX]{null}
 			final int             transform_size,
 			final boolean         overlap,    // when false - output each tile as 16x16, true - overlap to make 8x8
-			final boolean         sharp_alpha, // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only 
-			final int             threadsMax,  // maximal number of threads to launch                         
+			final boolean         sharp_alpha, // combining mode for alpha channel: false - treat as RGB, true - apply center 8x8 only
+			final int             threadsMax,  // maximal number of threads to launch
 			final int             globalDebugLevel)
 	{
 		final int tilesY=texture_tiles.length;
@@ -2761,7 +3197,7 @@ public class ImageDtt {
 				}
 			}
 		}
-		
+
 //		final double [][] dpixels = new double["RGBA".length()+(has_weights? 4: 0)][width*height]; // assuming java initializes them to 0
 		final double [][] dpixels = new double["RGBA".length()+(has_weights? 8: 0)][width*height]; // assuming java initializes them to 0
 		final Thread[] threads = newThreadArray(threadsMax);
@@ -2783,13 +3219,14 @@ public class ImageDtt {
 			ai.set(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						int tileY,tileX;
 						int n2 = transform_size * 2;
 						int n_half = transform_size / 2;
 						int lastY = tilesY-1;
 						int lastX = tilesX-1;
-						int offset = n_half * (transform_size * tilesX) + n_half; 
+						int offset = n_half * (transform_size * tilesX) + n_half;
 						for (int nTile = ai.getAndIncrement(); nTile < tiles_list[nser.get()].length; nTile = ai.getAndIncrement()) {
 							tileX = tiles_list[nser.get()][nTile][0];
 							tileY = tiles_list[nser.get()][nTile][1];
@@ -2802,11 +3239,11 @@ public class ImageDtt {
 											for (int chn = 0; chn < texture_tile.length; chn++) {
 												if ((chn != 3) || !sharp_alpha) {
 													for (int j = 0; j<n2;j++) {
-														dpixels[chn][start_line + j] += texture_tile[chn][n2 * i + j]; 
+														dpixels[chn][start_line + j] += texture_tile[chn][n2 * i + j];
 													}
 												} else if ((i >= n_half) && (i < (n2-n_half))) {
 													for (int j = n_half; j < (n2 - n_half); j++) {
-														dpixels[chn][start_line + j] += texture_tile[chn][n2 * i + j]; 
+														dpixels[chn][start_line + j] += texture_tile[chn][n2 * i + j];
 													}
 												}
 											}
@@ -2816,7 +3253,7 @@ public class ImageDtt {
 											if (	((tileY > 0) && (tileY < lastY)) ||
 													((tileY == 0) && (i >= n_half)) ||
 													((tileY == lastY) && (i < (n2 - n_half)))) {
-												int start_line = ((tileY*transform_size + i) * tilesX + tileX)*transform_size  - offset; 
+												int start_line = ((tileY*transform_size + i) * tilesX + tileX)*transform_size  - offset;
 												for (int chn = 0; chn < texture_tile.length; chn++) {
 													if ((chn != 3) || !sharp_alpha) {
 														for (int j = 0; j<n2;j++) {
@@ -2849,34 +3286,34 @@ public class ImageDtt {
 													dpixels[chn],
 													(tileY * n2 + i)* width + tileX*n2,
 													n2);
-										}										
+										}
 									}
 								}
 							}
 						}
 					}
 				};
-			}		      
+			}
 			startAndJoin(threads);
 		}
 		return dpixels;
 	}
 
-	
-	
-	
+
+
+
 	public double [][][][] clt_shiftXY(
-			final double [][][][] dct_data,  // array [tilesY][tilesX][4][dct_size*dct_size]  
+			final double [][][][] dct_data,  // array [tilesY][tilesX][4][dct_size*dct_size]
 			final int             dct_size,
 			final double          shiftX,
 			final double          shiftY,
 			final int             dbg_swap_mode,
-			final int             threadsMax,  // maximal number of threads to launch                         
+			final int             threadsMax,  // maximal number of threads to launch
 			final int             globalDebugLevel)
 	{
 		final int tilesY=dct_data.length;
 		final int tilesX=dct_data[0].length;
-		final int nTiles = tilesY* tilesX; 
+		final int nTiles = tilesY* tilesX;
 		if (globalDebugLevel > 0) {
 			System.out.println("clt_shift():tilesX=        "+tilesX);
 			System.out.println("clt_shift():tilesY=        "+tilesY);
@@ -2893,14 +3330,14 @@ public class ImageDtt {
 			double cv = Math.cos((i+0.5)*Math.PI*shiftY/dct_size);
 			double sv = Math.sin((i+0.5)*Math.PI*shiftY/dct_size);
 			for (int j = 0; j < dct_size; j++){
-				int iv = dct_size * j + i; // 2d DTT results are stored transposed! 
-				int ih = dct_size * i + j; 
-				cos_hor[ih] = ch; 
-				sin_hor[ih] = sh; 
-				cos_vert[iv] = cv; 
-				sin_vert[iv] = sv; 
+				int iv = dct_size * j + i; // 2d DTT results are stored transposed!
+				int ih = dct_size * i + j;
+				cos_hor[ih] = ch;
+				sin_hor[ih] = sh;
+				cos_vert[iv] = cv;
+				sin_vert[iv] = sv;
 			}
-			
+
 		}
 
 		if (globalDebugLevel > 1){
@@ -2909,18 +3346,19 @@ public class ImageDtt {
 			double [][] cs_dbg = {cos_hor, sin_hor, cos_vert, sin_vert};
 			sdfa_instance.showArrays(cs_dbg,  dct_size, dct_size, true, "shift_cos_sin", titles);
 		}
-		
+
 		final double [][][][] rslt = new double[dct_data.length][dct_data[0].length][dct_data[0][0].length][dct_data[0][0][0].length];
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					int tileY,tileX;
 					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
 						tileY = nTile/tilesX;
 						tileX = nTile - tileY * tilesX;
-						// Horizontal shift CLT tiled data is stored in transposed way (horizontal - Y, vertical X) 
+						// Horizontal shift CLT tiled data is stored in transposed way (horizontal - Y, vertical X)
 						for (int i = 0; i < cos_hor.length; i++) {
 							rslt[tileY][tileX][0][i] = dct_data[tileY][tileX][0][i] * cos_hor[i] - dct_data[tileY][tileX][1][i] * sin_hor[i];
 							rslt[tileY][tileX][1][i] = dct_data[tileY][tileX][1][i] * cos_hor[i] + dct_data[tileY][tileX][0][i] * sin_hor[i] ;
@@ -2941,19 +3379,19 @@ public class ImageDtt {
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
 		return rslt;
 	}
 
 	public double [][][][] clt_correlate(
-			final double [][][][] data1,  // array [tilesY][tilesX][4][dct_size*dct_size]  
-			final double [][][][] data2,  // array [tilesY][tilesX][4][dct_size*dct_size]  
+			final double [][][][] data1,  // array [tilesY][tilesX][4][dct_size*dct_size]
+			final double [][][][] data2,  // array [tilesY][tilesX][4][dct_size*dct_size]
 			final int             dct_size,
 			final double          fat_zero,    // add to denominator to modify phase correlation (same units as data1, data2)
 			final int             debug_tileX,
 			final int             debug_tileY,
-			final int             threadsMax,  // maximal number of threads to launch                         
+			final int             threadsMax,  // maximal number of threads to launch
 			final int             globalDebugLevel)
 	{
 		final int tilesY=(data1.length > data2.length)?data2.length:data1.length;
@@ -2963,33 +3401,34 @@ public class ImageDtt {
 			System.out.println("clt_shift():tilesX= "+tilesX);
 			System.out.println("clt_shift():tilesY= "+tilesY);
 		}
-		/* Direct matrix Z1: X2 ~= Z1 * Shift   
+		/* Direct matrix Z1: X2 ~= Z1 * Shift
 		 * {{+cc  -sc  -cs  +ss},
 		 *  {+sc  +cc  -ss  -cs},
 		 *  {+cs  -ss  +cc  -sc},
 		 *  {+ss  +cs  +sc  +cc}}
-		 *  
-		 * T= transp({cc, sc, cs, ss}) 
+		 *
+		 * T= transp({cc, sc, cs, ss})
 		 */
 		/*
-		final int [][] zi = 
+		final int [][] zi =
 			{{ 0, -1, -2,  3},
 			 { 1,  0, -3, -2},
 			 { 2, -3,  0, -1},
 			 { 3,  2,  1,  0}};
 		*/
-		final int [][] zi = 
+		final int [][] zi =
 			{{ 0,  1,  2,  3},
 			 {-1,  0, -3,  2},
 			 {-2, -3,  0,  1},
 			 { 3, -2, -1,  0}};
-		
+
 		final int dct_len = dct_size * dct_size;
 		final double [][][][] rslt = new double[tilesY][tilesX][4][dct_len];
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					int tileY,tileX;
 					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
@@ -3009,9 +3448,9 @@ public class ImageDtt {
 										(tileX >= rslt[tileY].length) ||
 										(n >= rslt[tileY][tileX].length) ||
 										(i >= rslt[tileY][tileX][n].length)) {
-									
+
 									System.out.println("===== tileY="+tileY+" ("+tilesY+") tileX="+tileX+" ("+tilesX+") n="+n+" i="+i);
-								
+
 									System.out.println(
 											" rslt.length="+rslt.length+
 											" rslt.length[tileY]="+rslt[tileY].length+
@@ -3023,10 +3462,10 @@ public class ImageDtt {
 								rslt[tileY][tileX][n][i] = 0;
 								for (int k=0; k<4; k++){
 									if (zi[n][k] < 0)
-										rslt[tileY][tileX][n][i] -= 
+										rslt[tileY][tileX][n][i] -=
 											data1[tileY][tileX][-zi[n][k]][i] * data2[tileY][tileX][k][i];
 									else
-										rslt[tileY][tileX][n][i] += 
+										rslt[tileY][tileX][n][i] +=
 										data1[tileY][tileX][zi[n][k]][i] * data2[tileY][tileX][k][i];
 								}
 								rslt[tileY][tileX][n][i] *= scale;
@@ -3042,7 +3481,7 @@ public class ImageDtt {
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
 		return rslt;
 	}
@@ -3051,7 +3490,7 @@ public class ImageDtt {
 			final double          sigma,
 			final double [][][][] clt_data,
 			final int             dct_size,
-			final int             threadsMax,     // maximal number of threads to launch                         
+			final int             threadsMax,     // maximal number of threads to launch
 			final int             globalDebugLevel)
 	{
 		final int tilesY=clt_data.length;
@@ -3061,8 +3500,8 @@ public class ImageDtt {
 		final int dct_len = dct_size*dct_size;
 		final double [] filter_direct= new double[dct_len];
 		if (sigma == 0) {
-			filter_direct[0] = 1.0; 
-			for (int i= 1; i<filter_direct.length;i++) filter_direct[i] =0; 
+			filter_direct[0] = 1.0;
+			for (int i= 1; i<filter_direct.length;i++) filter_direct[i] =0;
 		} else {
 			for (int i = 0; i < dct_size; i++){
 				for (int j = 0; j < dct_size; j++){
@@ -3084,31 +3523,32 @@ public class ImageDtt {
 		for (int i = 0; i<filter_direct.length; i++){
 			filter_direct[i] /= sum;
 		}
-		
+
 		if (globalDebugLevel > 1) {
 			for (int i=0; i<filter_direct.length;i++){
-				System.out.println("dct_lpf_psf() "+i+": "+filter_direct[i]); 
+				System.out.println("dct_lpf_psf() "+i+": "+filter_direct[i]);
 			}
 		}
 		DttRad2 dtt = new DttRad2(dct_size);
 		final double [] filter= dtt.dttt_iiie(filter_direct);
 		final double [] dbg_filter= dtt.dttt_ii(filter);
-		for (int i=0; i < filter.length;i++) filter[i] *= 2*dct_size;  
-		
+		for (int i=0; i < filter.length;i++) filter[i] *= 2*dct_size;
+
 		if (globalDebugLevel > 1) {
 			for (int i=0; i<filter.length;i++){
-				System.out.println("dct_lpf_psf() "+i+": "+filter[i]); 
+				System.out.println("dct_lpf_psf() "+i+": "+filter[i]);
 			}
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 			double [][] ff = {filter_direct,filter,dbg_filter};
 			sdfa_instance.showArrays(ff,  dct_size,dct_size, true, "filter_lpf");
 		}
-		
+
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					int tileY,tileX;
 					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
@@ -3124,14 +3564,14 @@ public class ImageDtt {
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
 	}
-	
+
 	public void clt_dtt2( // transform dcct2, dsct2, dcst2, dsst2
 			final double [][][][] data,
 			final boolean         transpose, // when doing inverse transform, the data comes in transposed form, so CS <->SC
-			final int             threadsMax,     // maximal number of threads to launch                         
+			final int             threadsMax,     // maximal number of threads to launch
 			final int             globalDebugLevel)
 	{
 		final int tilesY=data.length;
@@ -3143,6 +3583,7 @@ public class ImageDtt {
 
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					DttRad2 dtt = new DttRad2(dct_size);
 					int tileY,tileX;
@@ -3156,13 +3597,13 @@ public class ImageDtt {
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
 	}
-	
+
 	public double [][][] clt_corr_quad( // combine 4 correlation quadrants after DTT2
 			final double [][][][] data,
-			final int             threadsMax,     // maximal number of threads to launch                         
+			final int             threadsMax,     // maximal number of threads to launch
 			final int             globalDebugLevel)
 	{
 		final int tilesY=data.length;
@@ -3170,14 +3611,15 @@ public class ImageDtt {
 		final int nTiles=tilesX*tilesY;
 		final int dct_size = (int) Math.round(Math.sqrt(data[0][0][0].length));
 		final int rslt_size=dct_size*2-1;
-		
+
 		final double [][][] rslt = new double[tilesY][tilesX][rslt_size*rslt_size];
-		
+
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					int tileY,tileX;
 					double scale = 0.25;
@@ -3186,48 +3628,48 @@ public class ImageDtt {
 						tileX = nTile - tileY * tilesX;
 						rslt[tileY][tileX][rslt_size*dct_size - dct_size] = scale * data[tileY][tileX][0][0]; // center
 						for (int j = 1; j < dct_size; j++) { //  for i == 0
-							rslt[tileY][tileX][rslt_size*dct_size - dct_size + j] = scale * (data[tileY][tileX][0][j] + data[tileY][tileX][1][j-1]); 
-							rslt[tileY][tileX][rslt_size*dct_size - dct_size - j] = scale * (data[tileY][tileX][0][j] - data[tileY][tileX][1][j-1]); 
-						}						
+							rslt[tileY][tileX][rslt_size*dct_size - dct_size + j] = scale * (data[tileY][tileX][0][j] + data[tileY][tileX][1][j-1]);
+							rslt[tileY][tileX][rslt_size*dct_size - dct_size - j] = scale * (data[tileY][tileX][0][j] - data[tileY][tileX][1][j-1]);
+						}
 						for (int i = 1; i < dct_size; i++) {
 							rslt[tileY][tileX][rslt_size*(dct_size + i) - dct_size] =
-									scale * (data[tileY][tileX][0][i*dct_size] + data[tileY][tileX][2][(i-1)*dct_size]); 
+									scale * (data[tileY][tileX][0][i*dct_size] + data[tileY][tileX][2][(i-1)*dct_size]);
 							rslt[tileY][tileX][rslt_size*(dct_size - i) - dct_size] =
-									scale * (data[tileY][tileX][0][i*dct_size] - data[tileY][tileX][2][(i-1)*dct_size]); 
+									scale * (data[tileY][tileX][0][i*dct_size] - data[tileY][tileX][2][(i-1)*dct_size]);
 							for (int j = 1; j < dct_size; j++) {
 								rslt[tileY][tileX][rslt_size*(dct_size + i) - dct_size + j] =
-										scale * (data[tileY][tileX][0][i*    dct_size + j] + 
+										scale * (data[tileY][tileX][0][i*    dct_size + j] +
 												 data[tileY][tileX][1][i*    dct_size + j - 1] +
 												 data[tileY][tileX][2][(i-1)*dct_size + j] +
-												 data[tileY][tileX][3][(i-1)*dct_size + j - 1]); 
-								
+												 data[tileY][tileX][3][(i-1)*dct_size + j - 1]);
+
 								rslt[tileY][tileX][rslt_size*(dct_size + i) - dct_size - j] =
-										scale * ( data[tileY][tileX][0][i*    dct_size + j] + 
+										scale * ( data[tileY][tileX][0][i*    dct_size + j] +
 												 -data[tileY][tileX][1][i*    dct_size + j - 1] +
 												  data[tileY][tileX][2][(i-1)*dct_size + j] +
-												 -data[tileY][tileX][3][(i-1)*dct_size + j - 1]); 
+												 -data[tileY][tileX][3][(i-1)*dct_size + j - 1]);
 								rslt[tileY][tileX][rslt_size*(dct_size - i) - dct_size + j] =
-										scale * (data[tileY][tileX][0][i*    dct_size + j] + 
+										scale * (data[tileY][tileX][0][i*    dct_size + j] +
 												 data[tileY][tileX][1][i*    dct_size + j - 1] +
 												 -data[tileY][tileX][2][(i-1)*dct_size + j] +
 												 -data[tileY][tileX][3][(i-1)*dct_size + j - 1]);
 								rslt[tileY][tileX][rslt_size*(dct_size - i) - dct_size - j] =
-										scale * (data[tileY][tileX][0][i*    dct_size + j] + 
+										scale * (data[tileY][tileX][0][i*    dct_size + j] +
 												 -data[tileY][tileX][1][i*    dct_size + j - 1] +
 												 -data[tileY][tileX][2][(i-1)*dct_size + j] +
-												 data[tileY][tileX][3][(i-1)*dct_size + j - 1]); 
+												 data[tileY][tileX][3][(i-1)*dct_size + j - 1]);
 							}
 						}
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
 		return rslt;
 	}
-	
+
 	private double [] corr_unfold_tile(
-			double [][]  qdata, // [4][transform_size*transform_size] data after DCT2 (pixel domain) 
+			double [][]  qdata, // [4][transform_size*transform_size] data after DCT2 (pixel domain)
 			int          transform_size
 			)
 	{
@@ -3236,51 +3678,51 @@ public class ImageDtt {
 		double [] rslt = new double [corr_pixsize*corr_pixsize];
 		rslt[corr_pixsize*transform_size - transform_size] = corr_pixscale * qdata[0][0]; // center
 		for (int j = 1; j < transform_size; j++) { //  for i == 0
-			rslt[corr_pixsize*transform_size - transform_size + j] = corr_pixscale * (qdata[0][j] + qdata[1][j-1]); 
-			rslt[corr_pixsize*transform_size - transform_size - j] = corr_pixscale * (qdata[0][j] - qdata[1][j-1]); 
-		}						
+			rslt[corr_pixsize*transform_size - transform_size + j] = corr_pixscale * (qdata[0][j] + qdata[1][j-1]);
+			rslt[corr_pixsize*transform_size - transform_size - j] = corr_pixscale * (qdata[0][j] - qdata[1][j-1]);
+		}
 		for (int i = 1; i < transform_size; i++) {
 			rslt[corr_pixsize*(transform_size + i) - transform_size] =
-					corr_pixscale * (qdata[0][i*transform_size] + qdata[2][(i-1)*transform_size]); 
+					corr_pixscale * (qdata[0][i*transform_size] + qdata[2][(i-1)*transform_size]);
 			rslt[corr_pixsize*(transform_size - i) - transform_size] =
-					corr_pixscale * (qdata[0][i*transform_size] - qdata[2][(i-1)*transform_size]); 
+					corr_pixscale * (qdata[0][i*transform_size] - qdata[2][(i-1)*transform_size]);
 			for (int j = 1; j < transform_size; j++) {
 				rslt[corr_pixsize*(transform_size + i) - transform_size + j] =
-						corr_pixscale * (qdata[0][i*    transform_size + j] + 
+						corr_pixscale * (qdata[0][i*    transform_size + j] +
 								 qdata[1][i*    transform_size + j - 1] +
 								 qdata[2][(i-1)*transform_size + j] +
-								 qdata[3][(i-1)*transform_size + j - 1]); 
-				
+								 qdata[3][(i-1)*transform_size + j - 1]);
+
 				rslt[corr_pixsize*(transform_size + i) - transform_size - j] =
-						corr_pixscale * ( qdata[0][i*    transform_size + j] + 
+						corr_pixscale * ( qdata[0][i*    transform_size + j] +
 								 -qdata[1][i*    transform_size + j - 1] +
 								  qdata[2][(i-1)*transform_size + j] +
-								 -qdata[3][(i-1)*transform_size + j - 1]); 
+								 -qdata[3][(i-1)*transform_size + j - 1]);
 				rslt[corr_pixsize*(transform_size - i) - transform_size + j] =
-						corr_pixscale * (qdata[0][i*    transform_size + j] + 
+						corr_pixscale * (qdata[0][i*    transform_size + j] +
 								 qdata[1][i*    transform_size + j - 1] +
 								 -qdata[2][(i-1)*transform_size + j] +
 								 -qdata[3][(i-1)*transform_size + j - 1]);
 				rslt[corr_pixsize*(transform_size - i) - transform_size - j] =
-						corr_pixscale * (qdata[0][i*    transform_size + j] + 
+						corr_pixscale * (qdata[0][i*    transform_size + j] +
 								 -qdata[1][i*    transform_size + j - 1] +
 								 -qdata[2][(i-1)*transform_size + j] +
-								 qdata[3][(i-1)*transform_size + j - 1]); 
+								 qdata[3][(i-1)*transform_size + j - 1]);
 			}
 		}
-		
-		
+
+
 		return rslt;
-		
+
 	}
-	
-	
+
+
 	// extract correlation result  in linescan order (for visualization)
 	public double [] corr_dbg(
 			final double [][][] corr_data,
 			final int           corr_size,
 			final double        border_contrast,
-			final int           threadsMax,     // maximal number of threads to launch                         
+			final int           threadsMax,     // maximal number of threads to launch
 			final int           globalDebugLevel)
 	{
 		final int tilesY=corr_data.length;
@@ -3288,17 +3730,18 @@ public class ImageDtt {
 		final int nTiles=tilesX*tilesY;
 		final int tile_size = corr_size+1;
 		final int corr_len = corr_size*corr_size;
-		
+
 		final double [] corr_data_out = new double[tilesY*tilesX*tile_size*tile_size];
-		
+
 		System.out.println("corr_dbg(): tilesY="+tilesY+", tilesX="+tilesX+", corr_size="+corr_size+", corr_len="+corr_len);
-		
+
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		for (int i=0; i<corr_data_out.length;i++) corr_data_out[i]= 0;
 
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					int tileY,tileX;
 					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
@@ -3316,14 +3759,14 @@ public class ImageDtt {
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
 		return corr_data_out;
 	}
 
-	
-	
-	
+
+
+
 	// extract correlation result  in linescan order (for visualization)
 	public double [][] corr_partial_dbg(
 			final double [][][][][] corr_data,
@@ -3331,7 +3774,7 @@ public class ImageDtt {
 			final int pairs,
 			final int colors,
 			final double            border_contrast,
-			final int               threadsMax,     // maximal number of threads to launch                         
+			final int               threadsMax,     // maximal number of threads to launch
 			final int               globalDebugLevel)
 	{
 		final int tilesY=corr_data.length;
@@ -3339,13 +3782,13 @@ public class ImageDtt {
 		final int nTiles=tilesX*tilesY;
 		final int tile_size = corr_size+1;
 		final int corr_len = corr_size*corr_size;
-		
+
 		System.out.println("corr_partial_dbg(): tilesY="+tilesY+", tilesX="+tilesX+", corr_size="+corr_size+", corr_len="+corr_len+
 				" pairs="+pairs +" colors = "+colors+" tile_size="+tile_size);
-		
+
 		final double [][] corr_data_out = new double[pairs*colors][tilesY*tilesX*tile_size*tile_size];
 //		final String [] colorNames = {"red","blue","green","composite"};
-		
+
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		for (int pair = 0; pair< pairs; pair++) {
@@ -3356,6 +3799,7 @@ public class ImageDtt {
 
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					int tileY,tileX;
 					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
@@ -3383,19 +3827,19 @@ public class ImageDtt {
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
 		return corr_data_out;
 	}
 
-	
-	
-	
-	
-	
+
+
+
+
+
 	public double [][][][][] cltStack(
 			final ImageStack                                 imageStack,
-			final int                                        subcamera, // 
+			final int                                        subcamera, //
 			final EyesisCorrectionParameters.CLTParameters   cltParameters, //
 			final int                                        shiftX, // shift image horizontally (positive - right)
 			final int                                        shiftY, // shift image vertically (positive - down)
@@ -3410,7 +3854,7 @@ public class ImageDtt {
 		  double [][][][][] dct_data = new double [nChn][][][][];
 		  float [] fpixels;
 		  int i,chn; //tileX,tileY;
-		  
+
 		  for (chn=0;chn<nChn;chn++) {
 			  fpixels= (float[]) imageStack.getPixels(chn+1);
 			  double[] dpixels = new double[fpixels.length];
@@ -3426,19 +3870,19 @@ public class ImageDtt {
 						cltParameters.tileX,    //       debug_tileX,
 						cltParameters.tileY,    //       debug_tileY,
 						cltParameters.dbg_mode, //       debug_mode,
-						threadsMax,  // maximal number of threads to launch                         
+						threadsMax,  // maximal number of threads to launch
 						debugLevel);
 		  }
 		return dct_data;
 	}
-	
-	
-	
-	
+
+
+
+
 	// extract DCT transformed parameters in linescan order (for visualization)
 	public double [][] clt_dbg(
 			final double [][][][] dct_data,
-			final int             threadsMax,     // maximal number of threads to launch                         
+			final int             threadsMax,     // maximal number of threads to launch
 			final int             globalDebugLevel)
 	{
 		final int tilesY=dct_data.length;
@@ -3447,15 +3891,16 @@ public class ImageDtt {
 		final int dct_size = (int) Math.round(Math.sqrt(dct_data[0][0][0].length));
 		final int dct_len = dct_size*dct_size;
 		final double [][] dct_data_out = new double[4][tilesY*tilesX*dct_len];
-		
+
 		System.out.println("clt_dbg(): tilesY="+tilesY+", tilesX="+tilesX+", dct_size="+dct_size+", dct_len="+dct_len+", dct_data_out[0].length="+dct_data_out[0].length);
-		
+
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		for (int n=0; n<dct_data_out.length;n++) for (int i=0; i<dct_data_out[n].length;i++) dct_data_out[n][i]= 0;
 
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					int tileY,tileX;
 					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
@@ -3469,7 +3914,7 @@ public class ImageDtt {
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
 		return dct_data_out;
 	}
@@ -3480,7 +3925,7 @@ public class ImageDtt {
 			int src_size, // 64
 			int dtt_size) // 8
 	{
-		
+
 		int [] indices = {0,-src_size,-1,1,src_size,-src_size-1,-src_size+1,src_size-1,src_size+1};
 //		double [] weights = {0.25,0.125,0.125,0.125,0.125,0.0625,0.0625,0.0625,0.0625};
 		// sum = 4.0, so sum of all kernels is ~ the same
@@ -3502,20 +3947,20 @@ public class ImageDtt {
 		// make sure selected area (2*dst_size-1) * (2*dst_size-1) fits into src_kernel, move center if not
 		if      (src_x < 2 * dtt_size)             src_x = 2 * dtt_size - 1; // 15
 		else if (src_x > (src_size - 2* dtt_size)) src_x = src_size - 2* dtt_size;
-		
+
 		if      (src_y < 2 * dtt_size)             src_y = 2 * dtt_size - 1; // 15
 		else if (src_y > (src_size - 2* dtt_size)) src_y = src_size - 2* dtt_size;
 		indx = 0;
 		// downscale, copy
 		for (int i = -dtt_size + 1; i < dtt_size; i++){
-			int src_i = (src_y + 2 * i) * src_size  + src_x; 
+			int src_i = (src_y + 2 * i) * src_size  + src_x;
 			for (int j = -dtt_size + 1; j < dtt_size; j++){
 				double d = 0.0;
 				for (int k = 0; k < indices.length; k++){
 					d += weights[k]*src_kernel[src_i + 2 * j + indices[k]];
 				}
 				dst_kernel[indx++] = d;
-			}			
+			}
 		}
 		dst_kernel[indx++] = 0.5*(src_x - src_center);
 		dst_kernel[indx++] = 0.5*(src_y - src_center);
@@ -3523,9 +3968,9 @@ public class ImageDtt {
 		dst_kernel[indx++] = 0.5*(sy / s);
 	}
 
-	void clt_normalize_kernel( // 
+	void clt_normalize_kernel( //
 			double []   kernel, // should be (2*dtt_size-1) * (2*dtt_size-1) + 4 size (last (2*dtt_size-1) are not modified)
-			double []   window, // normalizes result kernel * window to have sum of elements == 1.0 
+			double []   window, // normalizes result kernel * window to have sum of elements == 1.0
 			int dtt_size, // 8
 			boolean bdebug)
 	{
@@ -3547,35 +3992,35 @@ public class ImageDtt {
 		}
  	}
 
-	void clt_symmetrize_kernel( // 
+	void clt_symmetrize_kernel( //
 			double []     kernel,      // should be (2*dtt_size-1) * (2*dtt_size-1) +2 size (last 2 are not modified)
-			double [][]   sym_kernels, // set of 4 SS, AS, SA, AA kdernels, each dtt_size * dtt_size (may have 5-th with center shift  
+			double [][]   sym_kernels, // set of 4 SS, AS, SA, AA kdernels, each dtt_size * dtt_size (may have 5-th with center shift
 			final int     dtt_size) // 8
 	{
 		int in_size = 2*dtt_size-1;
 		int dtt_size_m1 = dtt_size - 1;
 		int center = dtt_size_m1 * in_size + dtt_size_m1;
-		
+
 		for (int i = 0; i < dtt_size; i++){
 			for (int j = 0; j < dtt_size; j++){
-				int indx0 = center - i * in_size - j;  
-				int indx1 = center - i * in_size + j;  
-				int indx2 = center + i * in_size - j;  
-				int indx3 = center + i * in_size + j;  
+				int indx0 = center - i * in_size - j;
+				int indx1 = center - i * in_size + j;
+				int indx2 = center + i * in_size - j;
+				int indx3 = center + i * in_size + j;
 				sym_kernels[0][i*dtt_size+j] =                                 0.25*( kernel[indx0] + kernel[indx1] + kernel[indx2] + kernel[indx3]);
 				if (j > 0)              sym_kernels[1][i*dtt_size+j-1] =       0.25*(-kernel[indx0] + kernel[indx1] - kernel[indx2] + kernel[indx3]);
 				if (i > 0)              sym_kernels[2][(i-1)*dtt_size+j] =     0.25*(-kernel[indx0] - kernel[indx1] + kernel[indx2] + kernel[indx3]);
 				if ((i > 0) && (j > 0)) sym_kernels[3][(i-1)*dtt_size+(j-1)] = 0.25*(-kernel[indx0] + kernel[indx1] - kernel[indx2] + kernel[indx3]);
 			}
-			sym_kernels[1][i*dtt_size + dtt_size_m1] = 0.0;   
-			sym_kernels[2][dtt_size_m1*dtt_size + i] = 0.0;   
-			sym_kernels[3][i*dtt_size + dtt_size_m1] = 0.0;   
-			sym_kernels[3][dtt_size_m1*dtt_size + i] = 0.0;   
+			sym_kernels[1][i*dtt_size + dtt_size_m1] = 0.0;
+			sym_kernels[2][dtt_size_m1*dtt_size + i] = 0.0;
+			sym_kernels[3][i*dtt_size + dtt_size_m1] = 0.0;
+			sym_kernels[3][dtt_size_m1*dtt_size + i] = 0.0;
 		}
  	}
 
-	void clt_dtt3_kernel( // 
-			double [][]   kernels, // set of 4 SS, AS, SA, AA kdernels, each dtt_size * dtt_size (may have 5-th with center shift  
+	void clt_dtt3_kernel( //
+			double [][]   kernels, // set of 4 SS, AS, SA, AA kdernels, each dtt_size * dtt_size (may have 5-th with center shift
 			final int     dtt_size, // 8
 			DttRad2       dtt)
 	{
@@ -3584,13 +4029,13 @@ public class ImageDtt {
 			kernels[quad] = dtt.dttt_iiie(kernels[quad], quad, dtt_size);
 		}
  	}
-/*	
+/*
 	void clt_fill_coord_corr ( // add 6 more items to extra data:  dxc/dx,dyc/dy, dyc/dx, dyc/dy - pixel shift when applied to different center
 			// and x0, y0 (which censor pixel this kernel applies to) ? - not needed
 			double [][]   kernels, // set of 4 SS, AS, SA, AA kdernels, each dtt_size * dtt_size (may have 5-th with center shift
-			
+
 			)
-	
+
 */
 	public class CltExtra{
 		public double data_x   = 0.0; // kernel data is relative to this displacement X (0.5 pixel increments)
@@ -3599,9 +4044,9 @@ public class ImageDtt {
 		public double center_y = 0.0; // actual center X (use to find derivatives)
 		public double dxc_dx   = 0.0; // add this to data_x per each pixel X-shift relative to the kernel centger location
 		public double dxc_dy   = 0.0; // same per each Y-shift pixel
-		public double dyc_dx   = 0.0;		
-		public double dyc_dy   = 0.0;		
-		
+		public double dyc_dx   = 0.0;
+		public double dyc_dy   = 0.0;
+
 		public CltExtra(){}
 		public CltExtra(double [] data)
 		{
@@ -3611,8 +4056,8 @@ public class ImageDtt {
 			center_y = data[3]; // actual center X (use to find derivatives)
 			dxc_dx   = data[4]; // add this to data_x per each pixel X-shift relative to the kernel centger location
 			dxc_dy   = data[5]; // same per each Y-shift pixel
-			dyc_dx   = data[6];		
-			dyc_dy   = data[7];		
+			dyc_dx   = data[6];
+			dyc_dy   = data[7];
 		}
 		public double [] getArray()
 		{
@@ -3623,17 +4068,17 @@ public class ImageDtt {
 					center_y,
 					dxc_dx,
 					dxc_dy,
-					dyc_dx,		
-					dyc_dy		
+					dyc_dx,
+					dyc_dy
 			};
 			return rslt;
 		}
 	}
-	
+
 	public void clt_fill_coord_corr(
 			final int               kern_step, // distance between kernel centers, in pixels.
 			final double [][][][][] clt_data,
-			final int               threadsMax,     // maximal number of threads to launch                         
+			final int               threadsMax,     // maximal number of threads to launch
 			final int               globalDebugLevel)
 	{
 		final int nChn=clt_data.length;
@@ -3645,6 +4090,7 @@ public class ImageDtt {
 		final AtomicInteger ai = new AtomicInteger(0);
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					int tileY,tileX,chn;
 					for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
@@ -3671,7 +4117,7 @@ public class ImageDtt {
 										sw  += ce.center_y;
 										sxw += dtx * ce.center_y;
 										syw += dty * ce.center_y;
-									}									
+									}
 								}
 							}
 						}
@@ -3686,7 +4132,7 @@ public class ImageDtt {
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
 	}
 
@@ -3695,15 +4141,15 @@ public class ImageDtt {
 		public double fract_x; // remaining fractional offset X
 		public double fract_y; // remaining fractional offset X
 	}
-	
-	
+
+
 
 // Extract and correct one image tile using kernel data, required result tile and shifts - x and y
 // option - align to Bayer (integer shift by even pixels - no need
 // input - RBG stack of sparse data
 // return
-// kernel [0][0] is centered at  (-kernel_step/2,-kernel_step/2)	
-	
+// kernel [0][0] is centered at  (-kernel_step/2,-kernel_step/2)
+
 	public double [] extract_correct_tile( // return a pair of residual offsets
 			double [][]         image_data,
 			int                 width,       // image width
@@ -3711,18 +4157,20 @@ public class ImageDtt {
 			double  [][]        clt_tile,    // should be double [4][];
 			int                 kernel_step,
 			int                 transform_size,
-			DttRad2             dtt, 
-			int                 chn,                              
+			DttRad2             dtt,
+			int                 chn,
 			double              centerX, // center of aberration-corrected (common model) tile, X
 			double              centerY, //
 			int                 debugLevel,
-//			boolean             bdebug0, // external tile compare
 			boolean             dbg_no_deconvolution,
 			boolean             dbg_transpose,
 			boolean []          saturation_imp, // (near) saturated pixels or null
 			int []              overexp_all ) // {number of overexposed,  number of all tiles} or null
-			
+
 	{
+		boolean debug_fpga = debugLevel < -9;
+		if (debug_fpga) debugLevel = 1;
+
 		boolean use_kernels = (clt_kernels != null) && !dbg_no_deconvolution;
 		boolean bdebug0 = debugLevel > 0;
 		boolean bdebug =  debugLevel > 1;
@@ -3730,8 +4178,8 @@ public class ImageDtt {
 		int height = image_data[0].length/width;
 		int transform_size2 = 2* transform_size;
 //		if (dtt == null) dtt = new DttRad2(transform_size); should have window set up
-		double []   tile_in =  new double [4*transform_size*transform_size]; 
-		
+		double []   tile_in =  new double [4*transform_size*transform_size];
+
 		double px = centerX - transform_size;
 		double py = centerY - transform_size;
 		int ktileX = 0;
@@ -3757,9 +4205,9 @@ public class ImageDtt {
 		if (bdebug0){
 			System.out.print(px+"\t"+py+"\t");
 		}
-		
-		int ctile_left = (int) Math.round(px);
-		int ctile_top =  (int) Math.round(py);
+		// Was wrong rounding, fractional part gets to +0.5
+		int ctile_left = (int) -Math.round(-px);
+		int ctile_top =  (int) -Math.round(-py);
 		residual_shift[0] = -(px - ctile_left);
 		residual_shift[1] = -(py - ctile_top);
 		// 4. Verify the tile fits in image and use System.arraycopy(sym_conv, 0, tile_in, 0, n2*n2) to copy data to tile_in
@@ -3779,9 +4227,33 @@ public class ImageDtt {
 					if      (pj < 0)      pj &= 1;
 					else if (pj >= width) pj = width - 2 + (pj & 1);
 					tile_in[transform_size2 * i + j] = image_data[chn][pi * width + pj];
-				}			
-			}			
+				}
+			}
 		}
+		if (debug_fpga){ // show extended tile, all colors
+//		//FPGA_TILE_SIZE
+			System.out.println("\nFull Bayer fpga tile data");
+			int lt = (FPGA_TILE_SIZE - transform_size2)/2;
+			double [][] fpga_tile = new double [3][FPGA_TILE_SIZE * FPGA_TILE_SIZE];
+			for (int fpga_chn = 0; fpga_chn < 3; fpga_chn++){
+				for (int i = 0; i < FPGA_TILE_SIZE; i++){
+					System.arraycopy(image_data[fpga_chn], ((ctile_top - lt) + i) * width + (ctile_left - lt), fpga_tile[fpga_chn], FPGA_TILE_SIZE * i, FPGA_TILE_SIZE);
+				}
+			}
+			int id = (1 << (FPGA_PIXEL_BITS - 9)); // 8
+			for (int i = 0; i < FPGA_TILE_SIZE*FPGA_TILE_SIZE; i++) {
+				double d = 0.0;
+				for (int fpga_chn = 0; fpga_chn < 3; fpga_chn++){
+					d +=  fpga_tile[fpga_chn][i];
+				}
+				System.out.print(String.format("%4x ",(int) Math.round(id * d)));
+				if (((i+1) %FPGA_TILE_SIZE) == 0) {
+					System.out.println();
+				}
+			}
+		}
+
+
 		if ((chn == GREEN_CHN) && (saturation_imp != null)) {
 //			double overexp_fract = 1.0/(transform_size2 * transform_size2 * QUAD);
 //			int num_overexp = 0;
@@ -3809,29 +4281,313 @@ public class ImageDtt {
 						if (saturation_imp[pi * width + pj]) {
 							overexp_all[0] ++;
 						}
-					}			
+					}
 				}
 				overexp_all[1] += transform_size2 * transform_size2;
 			}
 		}
-		
+		if (debug_fpga) {
+			System.out.println("debug_fpga: residual_shift[0]="+residual_shift[0]+", residual_shift[1]="+residual_shift[1]);
+			int ishx, ishy;
+			ishx = (int) Math.round((1 << (FPGA_SHIFT_BITS)) * residual_shift[0]);
+			ishy = (int) Math.round((1 << (FPGA_SHIFT_BITS)) * residual_shift[1]);
+			if (ishx >= (1 << (FPGA_SHIFT_BITS-1))) ishx = (1 << (FPGA_SHIFT_BITS-1)) - 1;
+			if (ishy >= (1 << (FPGA_SHIFT_BITS-1))) ishy = (1 << (FPGA_SHIFT_BITS-1)) - 1;
+			if (ishx < -(1 << (FPGA_SHIFT_BITS-1))) ishx = -(1 << (FPGA_SHIFT_BITS-1));
+			if (ishy < -(1 << (FPGA_SHIFT_BITS-1))) ishy = -(1 << (FPGA_SHIFT_BITS-1));
+			residual_shift[0] = ishx * (1.0/(1 << (FPGA_SHIFT_BITS)));
+			residual_shift[1] = ishy * (1.0/(1 << (FPGA_SHIFT_BITS)));
+			System.out.println("rounded: residual_shift[0]="+residual_shift[0]+", residual_shift[1]="+residual_shift[1]);
+			double [] fpga_pix_lim = {0.0,0.0};
+			for (int i = 0; i < 256; i++){
+				if (tile_in[i] > fpga_pix_lim[0]) fpga_pix_lim[0] = tile_in[i];
+				if (tile_in[i] < fpga_pix_lim[1]) fpga_pix_lim[1] = tile_in[i];
+			}
+			System.out.println(String.format("\n// Pixels input range: %f ... %f", fpga_pix_lim[1], fpga_pix_lim[0]));
+			System.out.println(String.format("%x // shift_x, %d bits",ishx & ((1 << (FPGA_SHIFT_BITS)) - 1),FPGA_SHIFT_BITS));
+			System.out.println(String.format("%x // shift_y, %d bits",ishy & ((1 << (FPGA_SHIFT_BITS)) - 1),FPGA_SHIFT_BITS));
+			System.out.println(String.format("%x // bayer",15));
+			int id = (1 << (FPGA_PIXEL_BITS - 9)); // 8
+			for (int row = 0; row <16; row++){
+				for (int col = 0; col <16; col++){
+					System.out.print(String.format("%4x ",(int) Math.round(id * tile_in[row*16 + col])));
+				}
+				System.out.println();
+			}
+		}
+
 		// Fold and transform
 		double [][][] fold_coeff = null;
 		if (!dbg_transpose){
-			fold_coeff = dtt.get_shifted_fold_2d(
+			fold_coeff = dtt.get_shifted_fold_2d ( // get_shifted_fold_2d(
 					transform_size,
 					residual_shift[0],
-					residual_shift[1]);
+					residual_shift[1],
+					0); // debug level
 		}
-		
-		for (int dct_mode = 0; dct_mode <4; dct_mode++) {
-			if (fold_coeff != null){
-				clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode, fold_coeff); // DCCT, DSCT, DCST, DSST
-			} else {
-				clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode); // DCCT, DSCT, DCST, DSST
+
+		if (debug_fpga) {
+			System.out.println("debug_fpga: residual_shift[0]="+residual_shift[0]+", residual_shift[1]="+residual_shift[1]);
+			System.out.println("Signs table (per mode, per index - bitstring of variants, 0 - positive, 1 - negative");
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					int d = 0;
+					for (int b = 0; b < 4; b++){
+						if (fold_coeff[dct_mode][i][b] < 0){
+							d |= (1 << b);
+						}
+					}
+					System.out.print(String.format("%x ",d));
+					if ((i % 16) == 15){
+						System.out.println();
+					}
+				}
 			}
-			clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size);
+			System.out.println("Absolute values, shoud be the same for each of 4 modes");
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					for (int b = 0; b < 4; b++){
+						int d = (int) Math.round(((1 << FPGA_WND_BITS) -1)* Math.abs(fold_coeff[dct_mode][i][b]));
+						System.out.print(String.format("%5x ",d & ((1 << (FPGA_WND_BITS)) - 1)));
+					}
+					if ((i % 4) == 3){
+						System.out.println();
+					}
+				}
+				System.out.println();
+			}
+
+			double [][][] fold_coeff_direct = dtt.get_shifted_fold_2d_direct ( // get_shifted_fold_2d(
+						transform_size,
+						residual_shift[0],
+						residual_shift[1],
+						(1 << FPGA_WND_BITS) -1); // debug level - use as scale
+
+			System.out.println("Direct sin table");
+			for (int i = 0; i < 64; i++){
+				for (int b = 0; b < 4; b++){
+					int d = (int) Math.round(((1 << FPGA_WND_BITS) -1)* Math.abs(fold_coeff_direct[0][i][b])); // dct_mode=0
+					System.out.print(String.format("%5x ",d & ((1 << (FPGA_WND_BITS)) - 1)));
+				}
+				if ((i % 4) == 3){
+					System.out.println();
+				}
+			}
+			System.out.println();
+
+			double [][][] fold_coeff_old = dtt.get_shifted_fold_2d ( // get_shifted_fold_2d(
+					transform_size,
+					residual_shift[0],
+					residual_shift[1],
+					(1 << FPGA_WND_BITS) -1); // debug level - use as scale
+
+			System.out.println("Direct sin table");
+			for (int i = 0; i < 64; i++){
+				for (int b = 0; b < 4; b++){
+					int d = (int) Math.round(((1 << FPGA_WND_BITS) -1)* Math.abs(fold_coeff_old[0][i][b])); // dct_mode=0
+					System.out.print(String.format("%5x ",d & ((1 << (FPGA_WND_BITS)) - 1)));
+				}
+				if ((i % 4) == 3){
+					System.out.println();
+				}
+			}
+			System.out.println();
+
+			System.out.println("Diff: new - old");
+			for (int i = 0; i < 64; i++){
+				for (int b = 0; b < 4; b++){
+					int d0 = (int) Math.round(((1 << FPGA_WND_BITS) -1)* Math.abs(fold_coeff[0][i][b])); // dct_mode=0
+					int d = (int) Math.round(((1 << FPGA_WND_BITS) -1)* Math.abs(fold_coeff_direct[0][i][b])); // dct_mode=0
+					System.out.print(String.format("%5d ",d - d0));
+				}
+				if ((i % 4) == 3){
+					System.out.println();
+				}
+			}
+			System.out.println();
+
+
+
+			System.out.println("\nFold index");
+			int [][] fpga_fi = dtt.getFoldIndex();
+			for (int i = 0; i < 64; i++){
+				for (int k = 0; k <4; k++) {
+				        System.out.print(String.format("%02x ", fpga_fi[i][k]));
+				}
+				System.out.print("  ");
+				if (i%8 == 7) System.out.println();
+			}
+			System.out.println();
+
+			// Show for different Bayer patterns
+			int [] bayer_patterns = {0x1, 0x2, 0x4, 0x8, 0x9, 0x6};
+			for (int bp:bayer_patterns){
+				System.out.println("Pattern (row/col) "+bp+":");
+				System.out.println("| "+(((bp & 1) !=0) ? "X ":"  ")+(((bp & 2) !=0) ? "X ":"  ")+"|");
+				System.out.println("| "+(((bp & 4) !=0) ? "X ":"  ")+(((bp & 8) !=0) ? "X ":"  ")+"|");
+				for (int i = 0; i < 64; i++){
+					for (int k = 0; k <4; k++) {
+						int row = (fpga_fi[i][k] >> 4);
+						int col = (fpga_fi[i][k] & 0xf);
+						int indx = (row & 1) + 2 * (col & 1);
+						if (((1 << indx) & bp) != 0) {
+							System.out.print(String.format("%2x ", fpga_fi[i][k]));
+						} else {
+							System.out.print(" . ");
+						}
+					}
+					System.out.print("  ");
+					if (i%8 == 7) System.out.println();
+				}
+				System.out.println();
+			}
+
+			for (int bp:bayer_patterns){
+				System.out.println("Pattern (mode bits) "+bp+":");
+				System.out.println("| "+(((bp & 1) !=0) ? "X ":"  ")+(((bp & 2) !=0) ? "X ":"  ")+"|");
+				System.out.println("| "+(((bp & 4) !=0) ? "X ":"  ")+(((bp & 8) !=0) ? "X ":"  ")+"|");
+				for (int i = 0; i < 64; i++){
+					for (int k = 0; k < 4; k++) {
+						int row = (fpga_fi[i][k] >> 4);
+						int col = (fpga_fi[i][k] & 0xf);
+						int indx = (row & 1) + 2 * (col & 1);
+						int d = 0;
+						for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+							if (fold_coeff[dct_mode][i][k] < 0){
+								d |= (1 << dct_mode);
+							}
+						}
+
+						if (((1 << indx) & bp) != 0) {
+							System.out.print(String.format("%02x ", d));
+						} else {
+							System.out.print(" . ");
+						}
+					}
+					System.out.print("  ");
+					if (i%8 == 7) System.out.println();
+				}
+				System.out.println();
+			}
+
+
+			double [][] fpga_w_u = new double [4][256];
+			double [][] fpga_w_s = new double [4][256];
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					for (int b=0; b < 4; b++){
+						fpga_w_u [dct_mode][fpga_fi[i][b]] = Math.abs(fold_coeff[dct_mode][i][b]);
+						fpga_w_s [dct_mode][fpga_fi[i][b]] = fold_coeff[dct_mode][i][b];
+					}
+				}
+			}
+			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			String [] titles = {"CC","SC","CS","SS"};
+			sdfa_instance.showArrays(fpga_w_s,  2 * transform_size, 2 * transform_size, true, "fpga_w_s_x"+ctile_left+"_y"+ctile_top, titles);
+			sdfa_instance.showArrays(fpga_w_u,  2 * transform_size, 2 * transform_size, true, "fpga_w_u_x"+ctile_left+"_y"+ctile_top, titles);
+
+
+
+		} //if (debug_fpga)
+
+
+		if (!debug_fpga) {
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				if (fold_coeff != null){
+					clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode, fold_coeff); // DCCT, DSCT, DCST, DSST
+				} else {
+					clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode); // DCCT, DSCT, DCST, DSST
+				}
+				clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size);
+			}
 		}
+
+		if (debug_fpga){
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				if (fold_coeff != null){
+					clt_tile[dct_mode] = dtt.fold_tile_debug (tile_in, transform_size, dct_mode, fold_coeff); // DCCT, DSCT, DCST, DSST
+				} else {
+					clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode); // DCCT, DSCT, DCST, DSST
+				}
+			}
+
+
+
+			double [] fpga_dtt_lim = {0.0,0.0};
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					if (clt_tile[dct_mode][i] > fpga_dtt_lim[0]) fpga_dtt_lim[0] = clt_tile[dct_mode][i];
+					if (clt_tile[dct_mode][i] < fpga_dtt_lim[1]) fpga_dtt_lim[1] = clt_tile[dct_mode][i];
+				}
+			}
+			System.out.println(String.format("// DTT input range: %f ... %f", fpga_dtt_lim[1], fpga_dtt_lim[0]));
+			double scale = (1 << (FPGA_DTT_IN - 9)); //  -1;
+			scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+			scale *= 1.0 *((1 << FPGA_WND_BITS) -1) / (1 << FPGA_WND_BITS);
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					int id = (int) Math.round(scale * clt_tile[dct_mode][i]);
+					System.out.print(String.format("%7x ", id & ((1 << 25) -1)));
+					if ((i % 8) == 7) System.out.println();
+				}
+				System.out.println();
+			}
+			System.out.println();
+
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				System.out.println("Color= 2? clt_tile[dct_mode] = dtt.dttt_iv(..., scale="	+scale);
+				clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size, scale, ((1 << 25) -1)); // debug level
+			}
+			fpga_dtt_lim[0] = 0.0;
+			fpga_dtt_lim[1] = 0.0;
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					if (clt_tile[dct_mode][i] > fpga_dtt_lim[0]) fpga_dtt_lim[0] = clt_tile[dct_mode][i];
+					if (clt_tile[dct_mode][i] < fpga_dtt_lim[1]) fpga_dtt_lim[1] = clt_tile[dct_mode][i];
+				}
+			}
+			System.out.println(String.format("// DTT output range: %f ... %f", fpga_dtt_lim[1], fpga_dtt_lim[0]));
+			// scale = (1 << (FPGA_DTT_IN - 9)); //  -1;
+			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					int id = (int) Math.round(scale * clt_tile[dct_mode][i]);
+					System.out.print(String.format("%7x ", id & ((1 << 25) -1)));
+					if ((i % 8) == 7) System.out.println();
+				}
+				System.out.println();
+			}
+			System.out.println();
+			System.out.println("Testing symmetry of checkerboard patterns");
+			for (int dct_mode = 0; dct_mode < 2; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					int id = (int) Math.round(scale * clt_tile[dct_mode][i]);
+					int id1 = (int) Math.round(scale * clt_tile[3-dct_mode][63-i]);
+					System.out.print(String.format("%7x ", (id-id1) & ((1 << 25) -1)));
+					if ((i % 8) == 7) System.out.println();
+				}
+				System.out.println();
+			}
+			System.out.println();
+			System.out.println("Testing antisymmetry of checkerboard patterns");
+			for (int dct_mode = 0; dct_mode < 2; dct_mode++) {
+				for (int i = 0; i < 64; i++){
+					int id = (int) Math.round(scale * clt_tile[dct_mode][i]);
+					int id1 = (int) Math.round(scale * clt_tile[3-dct_mode][63-i]);
+					System.out.print(String.format("%7x ", (id+id1) & ((1 << 25) -1)));
+					if ((i % 8) == 7) System.out.println();
+				}
+				System.out.println();
+			}
+			System.out.println();
+
+
+
+//apply rotation
+
+		}
+
+
+
 		if (bdebug0) {
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 			sdfa_instance.showArrays(tile_in,  transform_size2, transform_size2, "tile_in_x"+ctile_left+"_y"+ctile_top);
@@ -3846,7 +4602,7 @@ public class ImageDtt {
 					ktile,           // double [][]     kernel,  // array [4][transform_size*transform_size]  DTT3 converted
 					transform_size,
 					bdebug);
-//					dbg_transpose);			
+//					dbg_transpose);
 		}
 		if (bdebug) {
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
@@ -3855,43 +4611,43 @@ public class ImageDtt {
 		}
 		return residual_shift;
 	}
-	
-//	public 
+
+//	public
 	public void convolve_tile(
 			double [][]     data,    // array [transform_size*transform_size], will be updated  DTT4 converted
 			double [][]     kernel,  // array [4][transform_size*transform_size]  DTT3 converted
 			int             transform_size,
 			boolean         bdebug) // externally decoded debug tile
 //			boolean         dbg_transpose)
-			
+
 	{
-		/* Direct matrix Z1: X2 ~= Z1 * Shift   
+		/* Direct matrix Z1: X2 ~= Z1 * Shift
 		 * {{+cc  -sc  -cs  +ss},
 		 *  {+sc  +cc  -ss  -cs},
 		 *  {+cs  -ss  +cc  -sc},
 		 *  {+ss  +cs  +sc  +cc}}
-		 *  
-		 * T= transp({cc, sc, cs, ss}) 
+		 *
+		 * T= transp({cc, sc, cs, ss})
 		 */
 		/*
-		final int [][] zi = 
+		final int [][] zi =
 			{{ 0, -1, -2,  3},
 			 { 1,  0, -3, -2},
 			 { 2, -3,  0, -1},
 			 { 3,  2,  1,  0}};
-		final int [][] zi = 
+		final int [][] zi =
 			{{ 0,  1,  2,  3},
 			 {-1,  0, -3,  2},
 			 {-2, -3,  0,  1},
 			 { 3, -2, -1,  0}};
 		 */
-		// opposite sign from correlation		
-		final int [][] zi =	{ // 
+		// opposite sign from correlation
+		final int [][] zi =	{ //
 				{ 0, -1, -2,  3},
 				{ 1,  0, -3, -2},
 				{ 2, -3,  0, -1},
 				{ 3,  2,  1,  0}};
-		
+
 		final int transform_len = transform_size * transform_size;
 		final double [][] rslt = new double[4][transform_len];
 		for (int i = 0; i < transform_len; i++) {
@@ -3917,7 +4673,7 @@ public class ImageDtt {
 			data[n] = rslt[n];
 		}
 	}
-	
+
 	public void fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 		double  [][]  clt_tile,
 		int           transform_size,
@@ -3936,12 +4692,12 @@ public class ImageDtt {
 			double cv = Math.cos((i+0.5)*Math.PI*shiftY/transform_size);
 			double sv = Math.sin((i+0.5)*Math.PI*shiftY/transform_size);
 			for (int j = 0; j < transform_size; j++){
-				int iv = transform_size * j + i; // 2d DTT results are stored transposed! 
-				int ih = transform_size * i + j; 
-				cos_hor[ih] = ch; 
-				sin_hor[ih] = sh; 
-				cos_vert[iv] = cv; 
-				sin_vert[iv] = sv; 
+				int iv = transform_size * j + i; // 2d DTT results are stored transposed!
+				int ih = transform_size * i + j;
+				cos_hor[ih] = ch;
+				sin_hor[ih] = sh;
+				cos_vert[iv] = cv;
+				sin_vert[iv] = sv;
 			}
 		}
 		if (bdebug){
@@ -3951,7 +4707,7 @@ public class ImageDtt {
 			sdfa_instance.showArrays(cs_dbg,  transform_size, transform_size, true, "shift_cos_sin", titles);
 		}
 		double [][] tmp_tile = new double [4][transform_len];
-		// Horizontal shift CLT tiled data is stored in transposed way (horizontal - Y, vertical X) 
+		// Horizontal shift CLT tiled data is stored in transposed way (horizontal - Y, vertical X)
 		for (int i = 0; i < cos_hor.length; i++) {
 			tmp_tile[0][i] = clt_tile[0][i] * cos_hor[i] - clt_tile[1][i] * sin_hor[i];
 			tmp_tile[1][i] = clt_tile[1][i] * cos_hor[i] + clt_tile[0][i] * sin_hor[i] ;
@@ -3968,9 +4724,9 @@ public class ImageDtt {
 			clt_tile[3][i] = tmp_tile[3][i] * cos_vert[i] + tmp_tile[1][i] * sin_vert[i];
 		}
 	}
-	
-	
-	
+
+
+
 	public double [][][][] mdctScale(
 			final ImageStack                                 imageStack,
 			final int                                        subcamera, // not needed
@@ -3989,7 +4745,7 @@ public class ImageDtt {
 		  /* find number of the green channel - should be called "green", if none - use last */
 		  // Extract float pixels from inage stack, convert each to double
 
-		  
+
 		  for (chn=0;chn<nChn;chn++) {
 			  fpixels= (float[]) imageStack.getPixels(chn+1);
 			  double[] dpixels = new double[fpixels.length];
@@ -4008,14 +4764,14 @@ public class ImageDtt {
 						dctParameters.tileX,
 						dctParameters.tileY,
 						dctParameters.dbg_mode,
-						threadsMax,  // maximal number of threads to launch                         
+						threadsMax,  // maximal number of threads to launch
 						debugLevel);
 		  }
 		return dct_data;
 	}
-	
-	
-	
+
+
+
 	public double [][][] lapped_dct_scale( // scale image to 8/9 size in each direction
 			final double [] dpixels,
 			final int       width,
@@ -4029,7 +4785,7 @@ public class ImageDtt {
 			final int       debug_tileX,
 			final int       debug_tileY,
 			final int       debug_mode,
-			final int       threadsMax,  // maximal number of threads to launch                         
+			final int       threadsMax,  // maximal number of threads to launch
 			final int       globalDebugLevel)
 	{
 		final int height=dpixels.length/width;
@@ -4038,7 +4794,7 @@ public class ImageDtt {
 		final int tilesX = (width - n2) / src_size + 1;
 		final int tilesY = (height - n2) / src_size + 1;
 
-		final int nTiles=tilesX*tilesY; 
+		final int nTiles=tilesX*tilesY;
 		final double [][][] dct_data = new double[tilesY][tilesX][dct_size*dct_size];
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
@@ -4054,13 +4810,14 @@ public class ImageDtt {
 //		final double [] dciii = dtt0.dttt_iii  (dc, dct_size);
 //		final double [] dciiie = dtt0.dttt_iiie  (dc, 0, dct_size);
 
-		
+
 		if (globalDebugLevel > 0) {
 			System.out.println("lapped_dctdc(): width="+width+" height="+height);
 		}
 
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					DttRad2 dtt = new DttRad2(dct_size);
 					dtt.set_window(window_type);
@@ -4089,16 +4846,16 @@ public class ImageDtt {
 //						if ((tileY == debug_tileY) && (tileX == debug_tileX) && (color == 2)) {
 //							tile_out_copy = tile_out.clone();
 //						}
-						
+
 						System.arraycopy(tile_out, 0, dct_data[tileY][tileX], 0, tile_out.length);
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
 		return dct_data;
 	}
-	
+
 	public void dct_scale(
 			final double  scale_hor,  // < 1.0 - enlarge in dct domain (shrink in time/space)
 			final double  scale_vert, // < 1.0 - enlarge in dct domain (shrink in time/space)
@@ -4106,7 +4863,7 @@ public class ImageDtt {
 			final double [][][] dct_data,
 			final int       debug_tileX,
 			final int       debug_tileY,
-			final int       threadsMax,     // maximal number of threads to launch                         
+			final int       threadsMax,     // maximal number of threads to launch
 			final int       globalDebugLevel)
 	{
 		final int tilesY=dct_data.length;
@@ -4128,6 +4885,7 @@ public class ImageDtt {
 
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					int tileY,tileX;
 					double [] dct1 = new double [dct_size*dct_size];
@@ -4179,9 +4937,9 @@ public class ImageDtt {
 											bidata[1][1] = dct[indx + dct_size + 1];
 										}
 									}
-									
+
 								}
-								// bilinear interpolation 
+								// bilinear interpolation
 								dct1[i*dct_size+j] =
 										bidata[0][0] * (1.0-fi) * (1.0-fj) +
 										bidata[0][1] * (1.0-fi) *      fj  +
@@ -4211,19 +4969,19 @@ public class ImageDtt {
 							String [] titles = {"orig","scaled"};
 							sdfa_instance.showArrays(scaled_tiles,  dct_size, dct_size, true, "scaled_tile", titles);
 						}
-						
+
 						System.arraycopy(dct1, 0, dct, 0, dct_len); // replace original data
 					}
 				}
 			};
-		}		      
+		}
 		startAndJoin(threads);
 	}
-	
-	
-	
-	
-	
+
+
+
+
+
 	/* Create a Thread[] array as large as the number of processors available.
 	 * From Stephan Preibisch's Multithreading.java class. See:
 	 * http://repo.or.cz/w/trakem2.git?a=blob;f=mpi/fruitfly/general/MultiThreading.java;hb=HEAD
@@ -4246,7 +5004,7 @@ public class ImageDtt {
 		}
 
 		try
-		{   
+		{
 			for (int ithread = 0; ithread < threads.length; ++ithread)
 				threads[ithread].join();
 		} catch (InterruptedException ie)
@@ -4254,5 +5012,5 @@ public class ImageDtt {
 			throw new RuntimeException(ie);
 		}
 	}
-	
+
 }
