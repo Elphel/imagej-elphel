@@ -5,7 +5,7 @@
  ** Copyright (C) 2011-2014 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
- **  
+ **
  **  DistortionCalibrationData.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
@@ -22,17 +22,6 @@
  **
  */
 
-import ij.IJ;
-import ij.ImagePlus;
-import ij.ImageStack;
-import ij.Prefs;
-import ij.gui.GenericDialog;
-import ij.io.FileSaver;
-import ij.io.Opener;
-import ij.process.FloatProcessor;
-import ij.process.ImageProcessor;
-import ij.text.TextWindow;
-
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -44,6 +33,17 @@ import java.util.List;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.HierarchicalConfiguration;
 import org.apache.commons.configuration.XMLConfiguration;
+
+import ij.IJ;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.Prefs;
+import ij.gui.GenericDialog;
+import ij.io.FileSaver;
+import ij.io.Opener;
+import ij.process.FloatProcessor;
+import ij.process.ImageProcessor;
+import ij.text.TextWindow;
 
 //import EyesisCameraParameters;
 //import Distortions.EyesisSubCameraParameters;
@@ -61,7 +61,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         public int       numPointers=4;    // maximal number of pointers to look for
         public int       numMotors  =3;    // maximal number of motors to look for
         public GridImageParameters [] gIP= null; // per-grid image parameters
-        public GridImageSet []        gIS= null; // sets of images with the same timestamp 
+        public GridImageSet []        gIS= null; // sets of images with the same timestamp
 //    	public String [] paths=null;
 //    	private ImagePlus []     gridImages=null; // array of grid images (to be used instead of files)
 //    	public double [] timestamps=null;
@@ -71,7 +71,7 @@ import org.apache.commons.configuration.XMLConfiguration;
 //    	public double [][][] pixelsXY=null; // for each image, each grid node - a pair of {px,py}
 //    	public int    [][][] pixelsUV=null; // for each image, each grid node - a pair of {gridU, gridV}
     	public double [][] sensorMasks= null; // per-channel (not image) mask
-    	
+
     	//pixelsXY, pixelsUV should match, second dimension is variable
     	public boolean updateStatus=true;
     	public int     debugLevel=2;
@@ -102,9 +102,9 @@ import org.apache.commons.configuration.XMLConfiguration;
     		public double [][] pixelsXY=   null; // for each image, each grid node - a set of of {px,py,contrast,vignR,vignG,vignB} vign* is in the 0..1.0 range
     		public double []   pixelsMask= null; // for each image, each grid node - weight function derived from contrast and 3 parameters
     		public int    [][] pixelsUV=  null; // for each image, each grid node - a pair of {gridU, gridV}
-    		public boolean  [] badNodes=  null; // if not null, marks node with excessive errors 
+    		public boolean  [] badNodes=  null; // if not null, marks node with excessive errors
     		public double [][] pixelsXY_extra=  null; // extra data, for nodes that are out of the physical grid (may be needed after re-calibration)
-    		public int    [][] pixelsUV_extra=  null; 
+    		public int    [][] pixelsUV_extra=  null;
     		public double      gridPeriod=0.0;  // average grid period, in pixels (to filter out (double-) reflected images
     		public boolean     noUsefulPSFKernels=false; // used to mark images w/o good PSF data
     		public double      diameter=0.0;
@@ -152,7 +152,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	}
 
         	public int getNumContrastNodes(double minContrast){
-        	    int num=0;	
+        	    int num=0;
         		for (int i=0;i<this.pixelsXY.length;i++) if (this.pixelsXY[i][contrastIndex]>=minContrast) num++;
         		return num;
         	}
@@ -163,7 +163,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	 * @param r0 reference diameter
         	 * @param minContrast minimal contrast to count the node
         	 */
-        	
+
         	public void setImageDiameter( // need to get image center px,py. Maybe r0 - use to normalize result diameter
         			double xc,
         			double yc,
@@ -222,10 +222,10 @@ import org.apache.commons.configuration.XMLConfiguration;
         			double minContrast,
         			double shrinkBlurSigma,
         			double shrinkBlurLevel){
-        		if (this.pixelsMask!=null) return; // need to reset ro re-calculate 
+        		if (this.pixelsMask!=null) return; // need to reset ro re-calculate
         		if (this.pixelsUV==null) {this.pixelsMask=null; return; }
         		if (this.pixelsUV.length==0){ this.pixelsMask=new double[0]; return; }
-        		
+
         		this.pixelsMask=new double [this.pixelsUV.length];
         		if (shrinkBlurSigma<=0){
             		for (int i=0;i<this.pixelsUV.length;i++){
@@ -242,7 +242,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         			if (this.pixelsUV[i][1]>maxV) maxV=this.pixelsUV[i][1];
         			if (this.pixelsUV[i][1]<minV) minV=this.pixelsUV[i][1];
         		}
-        		
+
         		int U0=minU-margin;
         		int V0=minV-margin;
         		int width= (maxU-minU+1+2*margin);
@@ -252,7 +252,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		for (int i=0;i<this.pixelsUV.length;i++){
         			int index=(this.pixelsUV[i][0]-U0)+width*(this.pixelsUV[i][1]-V0);
         			mask[index]=(this.pixelsXY[i][contrastIndex]>=minContrast)?1.0:-1.0; // java.lang.ArrayIndexOutOfBoundsException: 2230
-        		}        		
+        		}
         		(new DoubleGaussianBlur()).blurDouble(
 							mask,
 							width,
@@ -288,7 +288,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     		public double horAxisErrPsi;        //11 angle in degrees "horizontal" goniometer axis is rotated around moving X axis (up)
     		public double entrancePupilForward; //12 common to all lenses - distance from the sensor to the lens entrance pupil
     		public double centerAboveHorizontal;//13 camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
-    		public double [] GXYZ=new double [3];  //14 (12) coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system 
+    		public double [] GXYZ=new double [3];  //14 (12) coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
 //			this.GXYZ[stationNumber][1],              //15 (13)  y
 //			this.GXYZ[stationNumber][2],              //16 (14)  z
     		public boolean orientationEstimated=true; // orientation is estimated from other stes, notr adjusted by LMA
@@ -302,7 +302,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     		public int getMaxIndexPlusOne(){
     			return this.thisParsStartIndex+getSetVector().length;
     		}
-    		
+
     		public double [] getSetVector(){
     			double [] sv={
     		    		this.goniometerTilt,
@@ -313,9 +313,9 @@ import org.apache.commons.configuration.XMLConfiguration;
     		    		this.horAxisErrPsi,
     		    		this.entrancePupilForward,
     		    		this.centerAboveHorizontal,
-    		    		this.GXYZ[0], 
-    		    		this.GXYZ[1], 
-    		    		this.GXYZ[2] 
+    		    		this.GXYZ[0],
+    		    		this.GXYZ[1],
+    		    		this.GXYZ[2]
     			};
     			return sv;
     		}
@@ -333,9 +333,9 @@ import org.apache.commons.configuration.XMLConfiguration;
 	    		this.horAxisErrPsi=        vector[ 5];
 	    		this.entrancePupilForward= vector[ 6];
 	    		this.centerAboveHorizontal=vector[ 7];
-	    		this.GXYZ[0]=              vector[ 8]; 
-	    		this.GXYZ[1]=              vector[ 9]; 
-	    		this.GXYZ[2]=              vector[10]; 
+	    		this.GXYZ[0]=              vector[ 8];
+	    		this.GXYZ[1]=              vector[ 9];
+	    		this.GXYZ[2]=              vector[10];
     		}
 
     		public double getParameterValue(int index){
@@ -343,7 +343,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     			double [] sv=getSetVector();
     			if ((thisIndex<0) || (index >sv.length)) return Double.NaN;
     			return sv[thisIndex];
-    			
+
     		}
     		public void setParameterValue(int index,
     				double value,
@@ -364,9 +364,9 @@ import org.apache.commons.configuration.XMLConfiguration;
     			case  5: this.horAxisErrPsi=        value; break;
     			case  6: this.entrancePupilForward= value; break;
     			case  7: this.centerAboveHorizontal=value; break;
-    			case  8: this.GXYZ[0]=              value; break; 
-    			case  9: this.GXYZ[1]=              value; break; 
-    			case 10: this.GXYZ[2]=              value; break; 
+    			case  8: this.GXYZ[0]=              value; break;
+    			case  9: this.GXYZ[1]=              value; break;
+    			case 10: this.GXYZ[2]=              value; break;
     			}
     		}
 
@@ -398,7 +398,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     			for (int i=0;i<sv.length;i++) if (!Double.isNaN(sv[i]) && mask[this.thisParsStartIndex+ i]) vector[i+this.thisParsStartIndex]=sv[i];
     			return vector;
     		}
-    		
+
     		public void updateSetFromParameterVector(double [] vector){
     			if (vector.length!=this.numPars){
     				String msg="Wrong parameter vector length - got:"+vector.length+", expected: "+this.numPars;
@@ -413,9 +413,9 @@ import org.apache.commons.configuration.XMLConfiguration;
 	    		this.horAxisErrPsi=        vector[this.thisParsStartIndex+ 5];
 	    		this.entrancePupilForward= vector[this.thisParsStartIndex+ 6];
 	    		this.centerAboveHorizontal=vector[this.thisParsStartIndex+ 7];
-	    		this.GXYZ[0]=              vector[this.thisParsStartIndex+ 8]; 
-	    		this.GXYZ[1]=              vector[this.thisParsStartIndex+ 9]; 
-	    		this.GXYZ[2]=              vector[this.thisParsStartIndex+10]; 
+	    		this.GXYZ[0]=              vector[this.thisParsStartIndex+ 8];
+	    		this.GXYZ[1]=              vector[this.thisParsStartIndex+ 9];
+	    		this.GXYZ[2]=              vector[this.thisParsStartIndex+10];
     		}
 
     		public void updateSetFromParameterVector(double [] vector, boolean [] mask){
@@ -432,9 +432,9 @@ import org.apache.commons.configuration.XMLConfiguration;
 	    		if (mask[this.thisParsStartIndex+ 5]) this.horAxisErrPsi=        vector[this.thisParsStartIndex+ 5];
 	    		if (mask[this.thisParsStartIndex+ 6]) this.entrancePupilForward= vector[this.thisParsStartIndex+ 6];
 	    		if (mask[this.thisParsStartIndex+ 7]) this.centerAboveHorizontal=vector[this.thisParsStartIndex+ 7];
-	    		if (mask[this.thisParsStartIndex+ 8]) this.GXYZ[0]=              vector[this.thisParsStartIndex+ 8]; 
-	    		if (mask[this.thisParsStartIndex+ 9]) this.GXYZ[1]=              vector[this.thisParsStartIndex+ 9]; 
-	    		if (mask[this.thisParsStartIndex+10]) this.GXYZ[2]=              vector[this.thisParsStartIndex+10]; 
+	    		if (mask[this.thisParsStartIndex+ 8]) this.GXYZ[0]=              vector[this.thisParsStartIndex+ 8];
+	    		if (mask[this.thisParsStartIndex+ 9]) this.GXYZ[1]=              vector[this.thisParsStartIndex+ 9];
+	    		if (mask[this.thisParsStartIndex+10]) this.GXYZ[2]=              vector[this.thisParsStartIndex+10];
     		}
 
     		public double getSetWeight(){return this.setWeight;}
@@ -445,7 +445,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		this.stationNumber=stationNumber;
         	}
     	}
-    	
+
     	public int index_right; // =     getParameterIndexByName("subcamRight");          // 0
     	public int index_forward; // =   getParameterIndexByName("subcamForward");        // 1
     	public int index_azimuth; // =   getParameterIndexByName("subcamAzimuth");        // 0
@@ -453,13 +453,13 @@ import org.apache.commons.configuration.XMLConfiguration;
     	public int index_elevation; // = getParameterIndexByName("subcamElevation");      // 4
     	public int index_gh; //=         getParameterIndexByName("goniometerHorizontal"); // 6
     	public int index_ga; //=         getParameterIndexByName("goniometerAxial");      // 7
-    	
+
         public String [][] parameterDescriptionsCartesian ={ // may be shorter, have null rows, shorter rows - will use parameterDescriptions for missing data
         		{"subcamRight",          "Subcamera distance from the vertical rotation axis, positive - right looking to the target","mm","S","E"},                  // 0
         		{"subcamForward",        "Subcamera distance from the vertical rotation axis, positive - towards the target","mm","S","E"},                               // 1
         		null,                                                   // 2
         		{"subcamHeading",        "Optical axis heading (0 - to the target, positive - CW looking from top)","degrees","S","E"}};               // 3
-    	
+
         public String [][] parameterDescriptions ={
         		{"subcamAzimuth",        "Subcamera azimuth, clockwise looking from top","degrees","S","E"},                                    // 0
         		{"subcamDistance",       "Subcamera distance from the axis","mm","S","E"},                                                      // 1
@@ -468,14 +468,14 @@ import org.apache.commons.configuration.XMLConfiguration;
         		{"subcamElevation",      "Optical axis elevation (up from equator)","degrees","S","E"},                                         // 4
         		{"subcamRoll",           "Subcamera roll, positive CW looking to the target","degrees","S","E"},                                // 5
     			{"goniometerHorizontal", "Goniometer rotation around 'horizontal' axis (tilting from the target - positive)","degrees","R","E"},// 6
-    			{"goniometerAxial",      "Rotation around Eyesis main axis (clockwise in plan - positive)","degrees","R","E"},                  // 7 
+    			{"goniometerAxial",      "Rotation around Eyesis main axis (clockwise in plan - positive)","degrees","R","E"},                  // 7
     			{"interAxisDistance",    "Distance between goniometer axes","mm","C","E"},                                                      // 8
     			{"interAxisAngle",       "Angle error between goniometer axes (<0 if vertical axis rotated CW )","degrees","C","E"},            // 9
     			{"horAxisErrPhi",        "Horizontal axis azimuth error (CW in plan)","degrees","C","E"},                                       //10
     			{"horAxisErrPsi",        "Horizontal axis roll error (CW looking to target)","degrees","C","E"},                                //11
     			{"entrancePupilForward", "Distance from the sensor to the lens entrance pupil","mm","C","E"},                              //12
     			{"centerAboveHorizontal","CenterAboveHorizontal","mm","C","E"},                                                            //13
-    			{"GXYZ0",                "Goniometer reference point position X (target coordinates, left)","mm","T","E"},                      //14 (12) 
+    			{"GXYZ0",                "Goniometer reference point position X (target coordinates, left)","mm","T","E"},                      //14 (12)
     			{"GXYZ1",                "Goniometer reference point position Y (target coordinates, up)","mm","T","E"},                        //15 (13)
     			{"GXYZ2",                "Goniometer reference point position Z (target coordinates, away)","mm","T","E"} ,                     //16 (14)
     			{"subcamFocalLength",    "Lens focal length","mm","S","I"},                                                                     //17 (15)
@@ -488,7 +488,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     			{"subcamDistortionA",    "Distortion A (r^4)","relative","S","I"},                                                              //24 (22)
     			{"subcamDistortionB",    "Distortion B (r^3)","relative","S","I"},                                                              //25 (23)
     			{"subcamDistortionC",    "Distortion C (r^2)","relative","S","I"},                                                               //26 (24)
-    			
+
         		{"subcamElong_C_o",      "Orthogonal elongation for r^2","relative","S","I"},     // 27 39 (37)
         		{"subcamElong_C_d",      "Diagonal   elongation for r^2","relative","S","I"},     // 28 40 (38)
 
@@ -522,7 +522,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		{"subcamElong_A8_o",     "Orthogonal elongation for r^8","relative","S","I"},     // 51 51 (49)
         		{"subcamElong_A8_d",     "Diagonal   elongation for r^8","relative","S","I"}      // 52 52 (50)
         };
-        
+
         public String [] channelSuffixes={ // natural order (same as array indices, may be modified to camera/subcamera
         		"00","01","02","03","04","05","06","07","08","09",
         		"10","11","12","13","14","15","16","17","18","19",
@@ -536,8 +536,8 @@ import org.apache.commons.configuration.XMLConfiguration;
         	this.index_elevation = getParameterIndexByName("subcamElevation");      // 4
         	this.index_gh=         getParameterIndexByName("goniometerHorizontal"); // 6
         	this.index_ga=         getParameterIndexByName("goniometerAxial");      // 7
-        }        
-        
+        }
+
         public boolean isCartesian(){
         	return (eyesisCameraParameters !=null) && eyesisCameraParameters.cartesian;
         }
@@ -552,11 +552,11 @@ import org.apache.commons.configuration.XMLConfiguration;
         	}
     		return this.parameterDescriptions[i][j];
         }
-        
+
         public boolean isNonRadial(int index){
         	return parameterDescriptions[index][0].startsWith("subcamEccen_") || parameterDescriptions[index][0].startsWith("subcamElong_");
         }
-        
+
         public int getParameterIndexByName(String name){
         	if (isCartesian()){
             	for (int i=0;i<this.parameterDescriptionsCartesian.length;i++) if ((this.parameterDescriptionsCartesian[i]!=null) && this.parameterDescriptionsCartesian[i][0].equals(name)){
@@ -568,13 +568,13 @@ import org.apache.commons.configuration.XMLConfiguration;
         	}
         	return -1;
         }
-        
+
         public int getNumDescriptions(){
         	return this.parameterDescriptions.length;
         }
 
 /**
- * Initialize data from scratch using filenames "grid-<timestamp-seconds>_<timestamp-microseconds>-<channel-number>.tiff        
+ * Initialize data from scratch using filenames "grid-<timestamp-seconds>_<timestamp-microseconds>-<channel-number>.tiff
  * @param filenames List of grid filenames (2-slice TIFFs)
  */
 
@@ -633,11 +633,11 @@ import org.apache.commons.configuration.XMLConfiguration;
         	for (int i=0;i<stationFilenames.length;i++) numFiles+=stationFilenames[i].length;
         	this.gIP=new GridImageParameters[numFiles];
 
-        	
+
         	int numFile=0;
         	for (int numStation=0;numStation<stationFilenames.length;numStation++){
         		for (int index=0;index<stationFilenames[numStation].length;index++){
-        			
+
         			System.out.println(numFile+" ("+numStation+":"+index+"): "+stationFilenames[numStation][index]);
         			this.gIP[numFile]=new GridImageParameters(numFile);
         			this.gIP[numFile].path=stationFilenames[numStation][index]; //Exception in thread "Run$_AWT-EventQueue-0" java.lang.NullPointerException at Distortions$DistortionCalibrationData.<init>(Distortions.java:5987)
@@ -645,13 +645,13 @@ import org.apache.commons.configuration.XMLConfiguration;
         			int i1=stationFilenames[numStation][index].indexOf('-',stationFilenames[numStation][index].lastIndexOf(Prefs.getFileSeparator()));
         			int i2=stationFilenames[numStation][index].indexOf('-',i1+1);
         			int i3=stationFilenames[numStation][index].indexOf('.',i2+1);
-        			// Extract timestamp from the filename        		
+        			// Extract timestamp from the filename
         			if ((i1<0) || (i2<0)) {
         				String msg="invalid file format - '"+stationFilenames[numStation][index]+"', should be '<timestamp-seconds>_<timestamp-microseconds>-<channel-number>.tiff'";
         				IJ.showMessage("Error",msg);
         				throw new IllegalArgumentException (msg);
         			}
-        			// Extract channel number from the filename  
+        			// Extract channel number from the filename
 
         			this.gIP[numFile].timestamp=Double.parseDouble(stationFilenames[numStation][index].substring(i1+1,i2).replace('_','.'));
         			String channelSuffix=stationFilenames[numStation][index].substring(i2+1,i3);
@@ -673,23 +673,23 @@ import org.apache.commons.configuration.XMLConfiguration;
 // Create parameters array
         	initPars (this.gIP.length,parameterDescriptions.length);
         	if (this.debugLevel>1) System.out.println("setupDistortionCalibrationData(): Resetting this.gIS");
-        	this.gIS=null; // so it will be initialized in readAllGrids() 
+        	this.gIS=null; // so it will be initialized in readAllGrids()
         	readAllGrids(patternParameters); // prepare grid parameters for LMA
         	// no orientation
-        	
+
         }
-      
+
         public DistortionCalibrationData (
         		EyesisCameraParameters eyesisCameraParameters
         		) {
         	setupIndices();
         	int numSubCameras=(eyesisCameraParameters==null)?1:eyesisCameraParameters.eyesisSubCameras[0].length;
-        	
+
         	this.numSubCameras=numSubCameras;
         	this.eyesisCameraParameters=eyesisCameraParameters;
         }
 
-         
+
         public DistortionCalibrationData (
         		ImagePlus [] images, // images in the memory
         		PatternParameters patternParameters,
@@ -701,7 +701,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	this.eyesisCameraParameters=eyesisCameraParameters;
         	setImages(images,patternParameters);
         }
-        
+
         public int get_gIS_index(int numImg){
         	if (this.gIS==null) return -1;
         	for (int i=0;i<this.gIS.length;i++)
@@ -709,9 +709,25 @@ import org.apache.commons.configuration.XMLConfiguration;
         			for (int j=0;j<this.gIS[i].imageSet.length;j++)
         				if ((this.gIS[i].imageSet[j]!=null) &&(this.gIS[i].imageSet[j].imgNumber==numImg)) return i;
         	return -1;
-        	
+
         }
-        
+
+        public void listCameraParameters(boolean xcam){
+        	int numSubCameras=getNumSubCameras();
+        	if (this.gIP!=null) {
+        		int maxChn=0;
+        		for (int i=0;i<this.gIP.length;i++) if ((this.gIP[i]!=null) && (this.gIP[i].channel>maxChn)){
+        			maxChn=this.gIP[i].channel;
+        		}
+        		numSubCameras=maxChn+1;
+        	}
+
+        	if (xcam && (numSubCameras == 4)) {
+        		listCameraParametersXcam();
+        	} else {
+        		listCameraParameters();
+        	}
+        }
         public void listCameraParameters(){
             int numSubCameras=getNumSubCameras();
             if (this.gIP!=null) {
@@ -728,14 +744,14 @@ import org.apache.commons.configuration.XMLConfiguration;
         		if (this.eyesisCameraParameters.numStations>1){
         			sb.append("Station "+stationNumber+" W="+(100*this.eyesisCameraParameters.stationWeight[stationNumber])+"%");  for (int i=-1;i<numSubCameras;i++) sb.append("\t===");  sb.append("\n");
         		}
-        		
+
         		int [] lensDistortionModels=new int [numSubCameras];
         		for (int i=0;i<numSubCameras;i++) lensDistortionModels[i]=eyesisCameraParameters.getLensDistortionModel(stationNumber,i);
         		sb.append("Lens Distortion Model\t");
         		for (int i=0;i<numSubCameras;i++) sb.append("\t"+lensDistortionModels[i]);
         		sb.append("\n");
         		double [][] cameraPars=new double [numSubCameras][];
-            	
+
             	for (int i=0;i<numSubCameras;i++) cameraPars[i]=eyesisCameraParameters.getParametersVector(stationNumber,i);
             	// parameters same order as in this
             	for (int n=0;n<cameraPars[0].length;n++) if (isSubcameraParameter(n) && isIntrinsicParameter(n)){
@@ -778,6 +794,186 @@ import org.apache.commons.configuration.XMLConfiguration;
      	    new TextWindow("Camera parameters", header, sb.toString(), 85*(numSubCameras+3),600);
          }
 
+        public void listCameraParametersXcam(){ // getNumSubCameras() should be 4!
+        	double rollDegPerTurn =  -0.45/33.5*180/Math.PI; //  -0.769644799429464 deg/turn, CW screw increases roll, degrees per 1 screw turn
+        	double headDegPerTurn = 0.45/34.5*180/Math.PI; //  0.7473362545184652  deg/turn, both screws CW decreases heading (degree/turn)
+        	double elevDegPerTurn = 0.45/14*180/Math.PI; //  1.8416500557776463 deg/turn, top CW, bottom CCW decreases elevation (degree/turn)
+
+
+            int numSubCameras=getNumSubCameras();
+            if (this.gIP!=null) {
+            	int maxChn=0;
+            	for (int i=0;i<this.gIP.length;i++) if ((this.gIP[i]!=null) && (this.gIP[i].channel>maxChn)){
+            		maxChn=this.gIP[i].channel;
+            	}
+            	numSubCameras=maxChn+1;
+            }
+        	String header="Name\tUnits";
+        	StringBuffer sb = new StringBuffer();
+        	for (int i=0;i<numSubCameras;i++) header+="\t"+i;
+        	for (int stationNumber=0;stationNumber<this.eyesisCameraParameters.numStations;stationNumber++){
+        		if (this.eyesisCameraParameters.numStations>1){
+        			sb.append("Station "+stationNumber+" W="+(100*this.eyesisCameraParameters.stationWeight[stationNumber])+"%");  for (int i=-1;i<numSubCameras;i++) sb.append("\t===");  sb.append("\n");
+        		}
+
+        		int [] lensDistortionModels=new int [numSubCameras];
+        		for (int i=0;i<numSubCameras;i++) lensDistortionModels[i]=eyesisCameraParameters.getLensDistortionModel(stationNumber,i);
+//        		sb.append("Lens Distortion Model\t");
+//        		for (int i=0;i<numSubCameras;i++) sb.append("\t"+lensDistortionModels[i]);
+//        		sb.append("\n");
+        		double [][] cameraPars=new double [numSubCameras][];
+
+            	for (int i=0;i<numSubCameras;i++) cameraPars[i]=eyesisCameraParameters.getParametersVector(stationNumber,i);
+
+            	// calculate average height average right
+            	double [] subcamRight =      new double[numSubCameras];
+            	double [] subcamHeight =     new double[numSubCameras];
+            	double [] subcamCorrRight =  new double[numSubCameras]; // in rotated C.S.
+            	double [] subcamCorrHeight = new double[numSubCameras]; // in rotated C.S.
+            	double [] subcamHeading =    new double[numSubCameras];
+            	double [] subcamElevation =  new double[numSubCameras];
+            	double subcamRightCenter =     0.0;
+            	double subcamHeightCenter =    0.0;
+            	double subcamHeadingCenter =   0.0;
+            	double subcamElevationCenter = 0.0;
+            	double [] subcamRelRot =        new double[numSubCameras];
+            	double [] subcamRelHeading =    new double[numSubCameras];
+            	double [] subcamRelElevation =  new double[numSubCameras];
+
+            	double [] rollCorrTurns =       new double[numSubCameras];
+            	double [] topCorrTurns =        new double[numSubCameras];
+            	double [] botCorrTurns =        new double[numSubCameras];
+            	for (int i=0;i<numSubCameras;i++) {
+            		subcamRight[i] =     cameraPars[i][getParameterIndexByName("subcamRight")];
+            		subcamHeight[i] =    cameraPars[i][getParameterIndexByName("subcamHeight")];
+            		subcamHeading[i] =   cameraPars[i][getParameterIndexByName("subcamHeading")];
+            		subcamElevation[i] = cameraPars[i][getParameterIndexByName("subcamElevation")];
+            		subcamRightCenter +=     subcamRight[i];
+            		subcamHeightCenter +=    subcamHeight[i];
+            		subcamHeadingCenter +=   subcamHeading[i];
+            		subcamElevationCenter += subcamElevation[i];
+            	}
+            	subcamRightCenter /= numSubCameras;
+            	subcamHeightCenter /= numSubCameras;
+            	subcamHeadingCenter /= numSubCameras;
+            	subcamElevationCenter /= numSubCameras;
+            	double [] subcamNominalDirs = {135.0,45.0, -135.0, -45.0};
+            	double [] subcamDirsDeg = new double[numSubCameras];
+            	double commonRot = 0.0;
+            	for (int i=0;i<numSubCameras;i++) {
+            		subcamDirsDeg[i]=180.0/Math.PI*Math.atan2(subcamHeight[i]-subcamHeightCenter, subcamRight[i]-subcamRightCenter);
+            		commonRot += subcamNominalDirs[i]-subcamDirsDeg[i];
+            	}
+            	commonRot /= numSubCameras;
+            	for (int i=0;i<numSubCameras;i++) {
+            		subcamRelRot[i] =       cameraPars[i][getParameterIndexByName("subcamRoll")] - commonRot;
+            		subcamRelHeading[i] =   subcamHeading[i] - subcamHeadingCenter;
+            		subcamRelElevation[i] =   subcamElevation[i] - subcamElevationCenter;
+
+            		double r = Math.sqrt((subcamHeight[i]-subcamHeightCenter)*(subcamHeight[i]-subcamHeightCenter)+
+            				(subcamRight[i]-subcamRightCenter)*(subcamRight[i]-subcamRightCenter));
+            		subcamCorrRight[i] = r*Math.cos(Math.PI/180.0*(subcamDirsDeg[i]+commonRot));
+            		subcamCorrHeight[i] = r*Math.sin(Math.PI/180.0*(subcamDirsDeg[i]+commonRot));
+
+            		rollCorrTurns[i] = subcamRelRot[i] * rollDegPerTurn;
+            		topCorrTurns[i] =  subcamRelHeading[i] * headDegPerTurn + subcamRelElevation[i] * elevDegPerTurn;
+            		botCorrTurns[i] =  subcamRelHeading[i] * headDegPerTurn - subcamRelElevation[i] * elevDegPerTurn;
+
+            	}
+/*
+            	// parameters same order as in this
+            	for (int n=0;n<cameraPars[0].length;n++) if (isSubcameraParameter(n) && isIntrinsicParameter(n)){
+            		sb.append(getParameterName(n)+"\t"+getParameterUnits(n));
+            		for (int i=0;i<numSubCameras;i++) sb.append("\t"+IJ.d2s(cameraPars[i][n],3));
+            		sb.append("\n");
+            	}
+*/
+//            	sb.append("---");  for (int i=-1;i<numSubCameras;i++) sb.append("\t");  sb.append("\n");
+            	int flindex =getParameterIndexByName("subcamFocalLength");
+        		sb.append(getParameterName(flindex)+"\t"+getParameterUnits(flindex));
+        		for (int i=0;i<numSubCameras;i++) sb.append("\t"+IJ.d2s(cameraPars[i][flindex],3));
+        		sb.append("\n");
+
+            	sb.append("Camera roll"+"\t"+"degrees"+"\t"+IJ.d2s(commonRot,3));
+            	for (int i=1;i<numSubCameras;i++) sb.append("\t");  sb.append("\n");
+
+            	sb.append("Camera heading"+"\t"+"degrees"+"\t"+IJ.d2s(subcamHeadingCenter,3));
+            	for (int i=1;i<numSubCameras;i++) sb.append("\t");  sb.append("\n");
+
+            	sb.append("Camera elevation"+"\t"+"degrees"+"\t"+IJ.d2s(subcamElevationCenter,3));
+            	for (int i=1;i<numSubCameras;i++) sb.append("\t");  sb.append("\n");
+
+            	sb.append("Rel roll"+"\t"+"degrees");
+            	for (int i=0;i<numSubCameras;i++) sb.append("\t"+IJ.d2s(subcamRelRot[i],3));
+            	sb.append("\n");
+
+
+            	sb.append("Rel heading"+"\t"+"degrees");
+            	for (int i=0;i<numSubCameras;i++) sb.append("\t"+IJ.d2s(subcamRelHeading[i],3));
+            	sb.append("\n");
+
+            	sb.append("Rel elevation"+"\t"+"degrees");
+            	for (int i=0;i<numSubCameras;i++) sb.append("\t"+IJ.d2s(subcamRelElevation[i],3));
+            	sb.append("\n");
+
+            	sb.append("Corr right"+"\t"+"mm");
+            	for (int i=0;i<numSubCameras;i++) sb.append("\t"+IJ.d2s(subcamCorrRight[i],3));
+            	sb.append("\n");
+
+            	sb.append("Corr height"+"\t"+"mm");
+            	for (int i=0;i<numSubCameras;i++) sb.append("\t"+IJ.d2s(subcamCorrHeight[i],3));
+            	sb.append("\n");
+
+            	sb.append("---");  for (int i=-1;i<numSubCameras;i++) sb.append("\t");  sb.append("\n");
+            	sb.append("Screw roll"+"\t"+"turns CW");
+            	for (int i=0;i<numSubCameras;i++) sb.append("\t"+IJ.d2s(rollCorrTurns[i],2));
+            	sb.append("\n");
+
+            	sb.append("Screw top"+"\t"+"turns CW");
+            	for (int i=0;i<numSubCameras;i++) sb.append("\t"+IJ.d2s(topCorrTurns[i],2));
+            	sb.append("\n");
+
+            	sb.append("Screw bottom"+"\t"+"turns CW");
+            	for (int i=0;i<numSubCameras;i++) sb.append("\t"+IJ.d2s(botCorrTurns[i],2));
+            	sb.append("\n");
+
+            	sb.append("---");  for (int i=-1;i<numSubCameras;i++) sb.append("\t");  sb.append("\n");
+
+            	for (int n=0;n<cameraPars[0].length;n++) if (isSubcameraParameter(n) && !isIntrinsicParameter(n)){
+            		sb.append(getParameterName(n)+"\t"+getParameterUnits(n));
+            		for (int i=0;i<numSubCameras;i++) sb.append("\t"+IJ.d2s(cameraPars[i][n],3));
+            		sb.append("\n");
+            	}
+            	sb.append("---");  for (int i=-1;i<numSubCameras;i++) sb.append("\t");  sb.append("\n");
+            	/*
+            	for (int n=0;n<cameraPars[0].length;n++) if (
+            			!isSubcameraParameter(n)&&
+            			!isLocationParameter(n)&&
+            			!isOrientationParameter(n)){
+            		sb.append(getParameterName(n)+"\t"+getParameterUnits(n));
+            		sb.append("\t"+IJ.d2s(cameraPars[0][n],3));
+            		for (int i=1;i<numSubCameras;i++) sb.append("\t---");
+            		sb.append("\n");
+            	}
+            	sb.append("---");  for (int i=-1;i<numSubCameras;i++) sb.append("\t");  sb.append("\n");
+            	for (int n=0;n<cameraPars[0].length;n++) if (isLocationParameter(n)){
+            		sb.append(getParameterName(n)+"\t"+getParameterUnits(n));
+            		sb.append("\t"+IJ.d2s(cameraPars[0][n],3));
+            		for (int i=1;i<numSubCameras;i++) sb.append("\t---");
+            		sb.append("\n");
+            	}
+            	sb.append("---");  for (int i=-1;i<numSubCameras;i++) sb.append("\t");  sb.append("\n");
+            	for (int n=0;n<cameraPars[0].length;n++) if (isOrientationParameter(n)){
+            		sb.append(getParameterName(n)+"\t"+getParameterUnits(n));
+            		sb.append("\t"+IJ.d2s(cameraPars[0][n],3));
+            		for (int i=1;i<numSubCameras;i++) sb.append("\t---");
+            		sb.append("\n");
+            	}
+*/
+            }
+     	    new TextWindow("Camera parameters", header, sb.toString(), 85*(numSubCameras+3),600);
+         }
+
 
         public void setImages(
         		ImagePlus [] images,  // images in the memory
@@ -798,11 +994,11 @@ import org.apache.commons.configuration.XMLConfiguration;
         	readAllGrids(patternParameters); // prepare grid parameters for LMA
         	// no orientation
         }
-        
+
         public void listImageSet(){
         	listImageSet(null,null, null);
-        } 
-        
+        }
+
         public void listImageSet(
         		int [] numPoints,
         		double [] setRMS,
@@ -819,7 +1015,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	if (setRMS!=null) header+="\tRMS\tWeight";
         	for (int n=0;n<this.gIS[0].imageSet.length;n++) header+="\t"+n;
     		StringBuffer sb = new StringBuffer();
-    		
+
     		for (int i=0;i<this.gIS.length;i++){
     			double axial_corr_sign=this.gIS[i].goniometerAxial; // correct sign of rotation beyond +/-180 according to motor steps
     			if (this.gIS[i].motors != null) {
@@ -831,7 +1027,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					if (axial_corr_sign > 90.0) {
     						axial_corr_sign -= 360.0;
     					}
-    					
+
     				}
     			}
     			// calculate average tilt for this tilt motor and difference of the current tilt from average
@@ -839,11 +1035,11 @@ import org.apache.commons.configuration.XMLConfiguration;
     			if (!Double.isNaN(this.gIS[i].goniometerTilt) && (this.gIS[i].motors != null)){
     				int i_low,i_high;
     				for (i_low=i-1;i_low>=0;i_low--){
-    					if ((this.gIS[i_low].motors != null) && (this.gIS[i_low].motors[2] != this.gIS[i].motors[2])) break; 
+    					if ((this.gIS[i_low].motors != null) && (this.gIS[i_low].motors[2] != this.gIS[i].motors[2])) break;
     				}
     				i_low++;
     				for (i_high=i+1;i_high < this.gIS.length;i_high++){
-    					if ((this.gIS[i_high].motors != null) && (this.gIS[i_high].motors[2] != this.gIS[i].motors[2])) break; 
+    					if ((this.gIS[i_high].motors != null) && (this.gIS[i_high].motors[2] != this.gIS[i].motors[2])) break;
     				}
     				int num_avg=0;
     				double sum_avg=0.0;
@@ -853,8 +1049,8 @@ import org.apache.commons.configuration.XMLConfiguration;
     						sum_avg += this.gIS[i_avg].goniometerTilt;
     					}
     				}
-    				if (num_avg>0) dTilt = this.gIS[i].goniometerTilt - (sum_avg/num_avg); 
-    				
+    				if (num_avg>0) dTilt = this.gIS[i].goniometerTilt - (sum_avg/num_avg);
+
     			}
 //    			double firstHorAxisErrPhi=Double.NaN;
 //    			double firstHorAxisErrPsi=Double.NaN;
@@ -868,7 +1064,7 @@ import org.apache.commons.configuration.XMLConfiguration;
 //    			firstGXYZ1=this.gIS[i].GXYZ[1];
 //    			firstGXYZ2=this.gIS[i].GXYZ[2];
     			firstInterAxisAngle = this.gIS[i].interAxisAngle;
-    			
+
     			sb.append(i+"\t"+IJ.d2s(this.gIS[i].timeStamp,6));
     			if (this.eyesisCameraParameters.numStations>1)	sb.append(i+"\t"+ this.gIS[i].getStationNumber());
     			sb.append("\t"+(Double.isNaN(this.gIS[i].goniometerAxial)?"---":((this.gIS[i].orientationEstimated?"(":"")+IJ.d2s(axial_corr_sign,3)+(this.gIS[i].orientationEstimated?")":""))));
@@ -879,7 +1075,7 @@ import org.apache.commons.configuration.XMLConfiguration;
 //    			sb.append("\t"+(Double.isNaN(firstGXYZ0)?"---":IJ.d2s(firstGXYZ0,3)));
 //    			sb.append("\t"+(Double.isNaN(firstGXYZ1)?"---":IJ.d2s(firstGXYZ1,3)));
 //    			sb.append("\t"+(Double.isNaN(firstGXYZ2)?"---":IJ.d2s(firstGXYZ2,3)));
-    			
+
     			sb.append("\t"+(Double.isNaN(dTilt)?"---":IJ.d2s(dTilt,3)));
     			sb.append("\t"+(Double.isNaN(firstInterAxisAngle)?"---":IJ.d2s(firstInterAxisAngle,3)));
 
@@ -892,12 +1088,12 @@ import org.apache.commons.configuration.XMLConfiguration;
             	int numEnImages=0;
             	for (int n=0;n<this.gIS[i].imageSet.length;n++)if (this.gIS[i].imageSet[n]!=null){
             		if (this.gIS[i].imageSet[n].enabled) numEnImages++;
-            	}            	
+            	}
             	sb.append("\t"+numEnImages);
             	int matchedPointersInSet=0;
             	for (int n=0;n<this.gIS[i].imageSet.length;n++){
             		if (this.gIS[i].imageSet[n]!=null){
-            			matchedPointersInSet+=this.gIS[i].imageSet[n].matchedPointers;            			
+            			matchedPointersInSet+=this.gIS[i].imageSet[n].matchedPointers;
             		}
             	}
             	sb.append("\t"+matchedPointersInSet);
@@ -916,7 +1112,7 @@ import org.apache.commons.configuration.XMLConfiguration;
             			sb.append(numPointers+"("+this.gIS[i].imageSet[n].matchedPointers+"):"+this.gIS[i].imageSet[n].hintedMatch +
             					" "+IJ.d2s(this.gIS[i].imageSet[n].gridPeriod,1));
             			if (!this.gIS[i].imageSet[n].enabled) sb.append(")");
-            			
+
             		}
             	}
             	sb.append("\n");
@@ -925,7 +1121,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         }
         /**
          * crete list of image indices per image set
-         * @return array of image indices for each image set 
+         * @return array of image indices for each image set
          */
         public int [][] listImages(boolean enabledOnly){
         	int [][] imageSets = new int [this.gIS.length][];
@@ -940,7 +1136,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     		}
         	return imageSets;
         }
-        
+
         /**
          * Filter images (grids) by calibration status with laser pointers and "hinted" from the camera orientation
          * buildImageSets may be needed to be re-ran (if it was ran with all=false)
@@ -1015,7 +1211,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		if (resetHinted) this.gIP[i].hintedMatch=-1; // undefined
         		if (Double.isNaN(this.gIP[i].gridPeriod) ||
         				((minGridPeriodFraction>0) && ((this.gIP[i].gridPeriod<minGridPeriod[stationNumber]) || (this.gIP[i].gridPeriod>maxGridPeriod[stationNumber])))){
-        			this.gIP[i].hintedMatch=0; // is it needed? 
+        			this.gIP[i].hintedMatch=0; // is it needed?
         			this.gIP[i].enabled=false; // failed against minimal grid period (too far) - probably double reflection in the windows
         		}
         		if (this.gIP[i].hintedMatch==0) this.gIP[i].enabled=false; // failed against predicted grid
@@ -1024,8 +1220,8 @@ import org.apache.commons.configuration.XMLConfiguration;
         					(this.gIP[i].matchedPointers>=minPointers) ||
         					((this.gIP[i].matchedPointers>0) && (this.gIP[i].hintedMatch>0)) || // orientation and one pointer
         					((this.gIP[i].hintedMatch>1) && enableNoLaser)) { // do not use bottom images w/o matched pointers
-        				// before enabling - copy orientation from gIS  
-        				if (!this.gIP[i].enabled && (gIS_index[i]>=0)){ 
+        				// before enabling - copy orientation from gIS
+        				if (!this.gIP[i].enabled && (gIS_index[i]>=0)){
         					if (!Double.isNaN(this.gIS[gIS_index[i]].goniometerTilt))	setGH(i,this.gIS[gIS_index[i]].goniometerTilt );
         					if (!Double.isNaN(this.gIS[gIS_index[i]].goniometerAxial))	setGA(i,this.gIS[gIS_index[i]].goniometerAxial );
         				}
@@ -1035,7 +1231,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         				disabledNoLaser++;
         			}
         		}
-        			
+
         		if (disableNoVignetting) {
         			if (this.gIP[i].enabled &!this.gIP[i].flatFieldAvailable) numNoVignetting++;
         			this.gIP[i].enabled &= this.gIP[i].flatFieldAvailable;
@@ -1050,13 +1246,13 @@ import org.apache.commons.configuration.XMLConfiguration;
                 	}
                 	if (hasMotors) this.gIP[i].enabled=false; // got some no-motor images made without scanning
         		}
-        		
+
         		/* Disable no-pointer, new, number of points less than required */
         		if (this.gIP[i].enabled && !wasEnabled && (this.gIP[i].matchedPointers==0) && (this.gIP[i].pixelsXY.length<minGridNodes)){
         			this.gIP[i].enabled=false;
         			notEnoughNodes++;
         		}
-        		
+
             	if (this.gIP[i].enabled) numEnabled++;
             	this.gIP[i].newEnabled=this.gIP[i].enabled&&!wasEnabled;
             	if (this.gIP[i].newEnabled) newEnabled++;
@@ -1070,8 +1266,8 @@ import org.apache.commons.configuration.XMLConfiguration;
         // 2 - recalculate hinted
         // connect "enabled" to strategies (not done yet)
       //  applyHintedGrids90 - moved to the parent class
-        
-        
+
+
         /**
          * Create array of image sets ("panoramas"), sorted by timestamps
          * @return number of sets
@@ -1129,13 +1325,13 @@ import org.apache.commons.configuration.XMLConfiguration;
     		}
         	return this.gIS.length;
         }
-        
+
         /**
          * Create array of image sets ("panoramas"), sorted by timestamps
          * @param all // use all images (false - only enabled)
          * @return number of sets
          */
-        
+
         public int buildImageSetsOld(boolean all){
         	List <Double> timeStampList=new ArrayList<Double>(this.gIP.length);
         	int numChannels=0;
@@ -1169,7 +1365,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         /**
          * Set goniometer initial orientation from the image with maximal number of laser pointers (make averaging later?)
          * Needed before LMA to have some reasonable initial orientation
-         * @param overwriteAll if true, overwrite orientation data even if it is alredy not NaN, false -skipp those that have orientation set 
+         * @param overwriteAll if true, overwrite orientation data even if it is alredy not NaN, false -skipp those that have orientation set
          */
         public void setInitialOrientation(boolean overwriteAll){
 			if (this.debugLevel>0) {
@@ -1191,7 +1387,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         			EyesisSubCameraParameters esp = this.eyesisCameraParameters.eyesisSubCameras[stationNumber][bestChannel];
         			if (overwriteAll || Double.isNaN(this.gIS[i].goniometerAxial)){
  //       				System.out.println("setInitialOrientation("+overwriteAll+"),  Double.isNaN(this.gIS["+i+"].goniometerAxial)="+Double.isNaN(this.gIS[i].goniometerAxial));
-        				
+
         				double subcam_heading = (esp.heading + (esp.cartesian? 0: esp.azimuth));
         				this.gIS[i].goniometerAxial=-subcam_heading;
         				for (int j=0;j<this.gIS[i].imageSet.length;j++) if (this.gIS[i].imageSet[j]!=null) setGA(this.gIS[i].imageSet[j].imgNumber,this.gIS[i].goniometerAxial);
@@ -1213,7 +1409,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	}
         }
         /**
-         * update image set (panorama, set of simultaneous images) goniometer orientation from the image parameters, do after running LMA 
+         * update image set (panorama, set of simultaneous images) goniometer orientation from the image parameters, do after running LMA
          * @param selectedImages boolean array of selected images (in current strategy) or null (all selected)
          */
 // TODO: potential problem here if only some images were enabled in the strategy -- FIXED
@@ -1221,7 +1417,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         /**
          * Updated version - only flag as orientationEstimated if no enabled images exist in the set or any of the angles is NaN
          * Temporarily duplicate  image parameters from those of the set (should not be needed)
-         * selectedImages will not be used 
+         * selectedImages will not be used
          */
         public void updateSetOrientation(boolean [] selectedImages){ // if selectedImages[] is not null will set orientationEstimated for unselected images
         	if (this.gIS==null){
@@ -1229,7 +1425,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		System.out.println(msg);
         		IJ.showMessage(msg);
         	}
-        	
+
         	for (int i=0; i<this.gIS.length;i++){
         		this.gIS[i].orientationEstimated=true;
         		if (!Double.isNaN(this.gIS[i].goniometerAxial) && !Double.isNaN(this.gIS[i].goniometerTilt)) {
@@ -1243,7 +1439,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		}
         		if (!this.gIS[i].orientationEstimated){
         			// now fill that data to all disabled images of the same set (just for listing RMS errors and debugging)
-        			for (int j=0;j<this.gIS[i].imageSet.length;j++) if (this.gIS[i].imageSet[j]!=null) { // fill even those that are enabled 
+        			for (int j=0;j<this.gIS[i].imageSet.length;j++) if (this.gIS[i].imageSet[j]!=null) { // fill even those that are enabled
         				setGA(this.gIS[i].imageSet[j].imgNumber,this.gIS[i].goniometerAxial );
         				setGH(this.gIS[i].imageSet[j].imgNumber,this.gIS[i].goniometerTilt );
         			}
@@ -1254,7 +1450,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		}
         	}
         }
-        
+
         public void updateSetOrientationOld(boolean [] selectedImages){
         	if (this.gIS==null){
         		String msg="Image set is not initilaized";
@@ -1266,7 +1462,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     				this.gIS[i].goniometerAxial=Double.NaN;
     				this.gIS[i].goniometerTilt= Double.NaN;
     				this.gIS[i].orientationEstimated=true;
-        			
+
         		}
         		for (int j=0;j<this.gIS[i].imageSet.length;j++) if ((this.gIS[i].imageSet[j]!=null) && this.gIS[i].imageSet[j].enabled){
         			if ((selectedImages==null) || selectedImages[this.gIS[i].imageSet[j].imgNumber]) {
@@ -1279,14 +1475,14 @@ import org.apache.commons.configuration.XMLConfiguration;
         		}
         		// now fill that data to all disabled images of the same set (just for listing RMS errors and debugging)
         		if (!Double.isNaN(this.gIS[i].goniometerAxial) && !Double.isNaN(this.gIS[i].goniometerTilt)){
-        			for (int j=0;j<this.gIS[i].imageSet.length;j++) if (this.gIS[i].imageSet[j]!=null) { // fill even those that are enabled 
+        			for (int j=0;j<this.gIS[i].imageSet.length;j++) if (this.gIS[i].imageSet[j]!=null) { // fill even those that are enabled
         				setGA(this.gIS[i].imageSet[j].imgNumber,this.gIS[i].goniometerAxial );
         				setGH(this.gIS[i].imageSet[j].imgNumber,this.gIS[i].goniometerTilt );
         			}
         		}
         	}
         }
-        
+
         public boolean isEstimated(int imgNum){
         	if (this.gIS==null) {
             	String msg="Image sets are not initialized";
@@ -1294,7 +1490,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		throw new IllegalArgumentException (msg);
         	}
         	if (this.gIP[imgNum].gridImageSet!=null) return this.gIP[imgNum].gridImageSet.orientationEstimated;
-        	// should not get here 
+        	// should not get here
         	System.out.println("FIXME: isEstimated("+imgNum+"): this.gIP["+imgNum+"].gridImageSet==null");
         	for (int i=0;i<this.gIS.length;i++)	if (this.gIS[i].imageSet!=null){
         		for (int j=0;j<this.gIS[i].imageSet.length;j++) if ((this.gIS[i].imageSet[j]!=null) && (this.gIS[i].imageSet[j].imgNumber==imgNum)){
@@ -1326,7 +1522,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	for (int i=0;i<this.gIS.length;i++)	if (this.gIS[i].imageSet!=null){
         		for (int j=0;j<this.gIS[i].imageSet.length;j++) if (this.gIS[i].imageSet[j]!=null) {
         			if ((!enabledOnly || this.gIS[i].imageSet[j].enabled) && this.gIS[i].orientationEstimated) numEstimated++;
-        			
+
         		}
         	}
         	return numEstimated;
@@ -1345,7 +1541,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	return numEstimated;
         }
 
-        
+
         int getNumEnabled(){
         	int num=0;
         	for (int i=0;i<this.gIP.length;i++) if ((this.gIP[i]!=null) && this.gIP[i].enabled) num++;
@@ -1385,7 +1581,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	for (int i=0;i<result.length;i++) result[i]=(this.gIP[i]!=null)?this.gIP[i].hintedMatch:-1;
         	return result;
         }
-        
+
         boolean [] selectNewEnabled () {
         	boolean [] newEnabled=new boolean [this.gIP.length] ;
         	for (int i=0;i<this.gIP.length;i++) newEnabled[i]= (this.gIP[i]!=null) && this.gIP[i].enabled && this.gIP[i].newEnabled;
@@ -1407,12 +1603,12 @@ import org.apache.commons.configuration.XMLConfiguration;
         		Arrays.fill(estimated, true);
             	return estimated;
         	}
-        	
+
         	for (int i=0;i<estimated.length;i++) estimated[i]=false;
         	for (int i=0;i<this.gIS.length;i++)	if (this.gIS[i].imageSet!=null){
         		for (int j=0;j<this.gIS[i].imageSet.length;j++) if (this.gIS[i].imageSet[j]!=null) {
         			if ((!enabledOnly || this.gIS[i].imageSet[j].enabled) ) estimated[this.gIS[i].imageSet[j].imgNumber]= this.gIS[i].orientationEstimated;
-        			
+
         		}
         	}
         	return estimated;
@@ -1440,7 +1636,7 @@ import org.apache.commons.configuration.XMLConfiguration;
          * Now 3-rd term - interAxisAngle - with goniometerTilt it is used for correction of non-pure axial movement of the camera.
          */
         public double [] getImagesetTiltAxial(double timeStamp){
-        	int mAxial=1;     // m2 
+        	int mAxial=1;     // m2
         	int mHorizontal=2;// m3
         	// this is probably already set
         	for (int i=0;i<this.gIS.length;i++){
@@ -1464,7 +1660,7 @@ import org.apache.commons.configuration.XMLConfiguration;
                     				if ((early_set<0) || (this.gIS[j].timeStamp >this.gIS[early_set].timeStamp)) early_set = j;
                     			}
                 			}
-                			
+
                 			if ((late_set <0) && (early_set<0)) {
                     			if (this.debugLevel>0) System.out.println("Failed to find any known orientation");
                     			return null;
@@ -1482,7 +1678,7 @@ import org.apache.commons.configuration.XMLConfiguration;
             						if (axialCenter>0) axialCenter-=180.0;
             						else axialCenter+=180.0;
             					}
-            					
+
             					double interEarly=this.gIS[early_set].interAxisAngle;
             					double interLate= this.gIS[late_set].interAxisAngle;
             					interEarly-=360.0*Math.floor((interEarly+180.0)/360.0);
@@ -1492,7 +1688,7 @@ import org.apache.commons.configuration.XMLConfiguration;
             						if (interCenter>0) interCenter-=180.0;
             						else interCenter+=180.0;
             					}
-            					
+
             					double tiltEarly=this.gIS[early_set].goniometerTilt;
             					double tiltLate= this.gIS[late_set].goniometerTilt;
             					tiltEarly-=360.0*Math.floor((tiltEarly+180.0)/360.0);
@@ -1566,12 +1762,12 @@ import org.apache.commons.configuration.XMLConfiguration;
             				int indexSecond=-1;
             				for (int j=0;j<setList.size();j++) {
             					if (((this.gIS[indexClosest].motors[mAxial]-thisMotorAxial)*
-            							(this.gIS[setList.get(j)].motors[mAxial]-thisMotorAxial)<0) && // different side 
+            							(this.gIS[setList.get(j)].motors[mAxial]-thisMotorAxial)<0) && // different side
             							((indexSecond<0) || (Math.abs(this.gIS[setList.get(j)].motors[mAxial]-thisMotorAxial)<dClosest))){
             						indexSecond=setList.get(j);
             						dClosest=Math.abs(this.gIS[indexSecond].motors[mAxial]-thisMotorAxial);
             					}
-            				}            				
+            				}
             				if (this.debugLevel>2) System.out.println("indexSecond="+indexSecond);
             				if (indexSecond<0){ // no sets on the opposite side from the indexClosest, use second closest on the same side as indexClosest
                 				for (int j=0;j<setList.size();j++) {
@@ -1580,8 +1776,8 @@ import org.apache.commons.configuration.XMLConfiguration;
                 						indexSecond=setList.get(j);
                 						dClosest=Math.abs(this.gIS[indexSecond].motors[mAxial]-thisMotorAxial);
                 					}
-                				}            				
-            					
+                				}
+
             				}
             				if (indexSecond<0){ // no second sets at all
             					System.out.println("getImagesetTiltAxial("+timeStamp+") - this is a BUG ");
@@ -1661,7 +1857,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	}
         	return null;
         }
-        
+
         public double getImageTimestamp(ImagePlus image){
         	if ((image.getProperty("timestamp")==null) || (((String) image.getProperty("timestamp")).length()==0)) {
         		(new JP46_Reader_camera(false)).decodeProperiesFromInfo(image);
@@ -1691,9 +1887,9 @@ import org.apache.commons.configuration.XMLConfiguration;
         		IJ.showMessage("Error",msg);
         		throw new IllegalArgumentException (msg);
         	}
-        	return channel; 
+        	return channel;
         }
- 
+
         /**
          * initialize image data with camera defaults
          * @param distortionCalibrationData grid distortionCalibrationData
@@ -1701,7 +1897,7 @@ import org.apache.commons.configuration.XMLConfiguration;
          * @return
          */
         // Used in Goniometer
-        public void initImageSet( 
+        public void initImageSet(
         		EyesisCameraParameters eyesisCameraParameters) {
         	for (int i=0;i<this.getNumImages();i++){
         		int subCam=this.getImageSubcamera(i);
@@ -1709,11 +1905,11 @@ import org.apache.commons.configuration.XMLConfiguration;
         		this.setParameters(eyesisCameraParameters.getParametersVector(stationNumber,subCam), i);
         	}
         }
-        
-        
-        
+
+
+
 // constructor from XML file
-        
+
         public DistortionCalibrationData (
         		boolean smart,
         		String defaultPath,
@@ -1733,8 +1929,8 @@ import org.apache.commons.configuration.XMLConfiguration;
 					defaultPath); //String defaultPath
 			if ((pathname==null) || (pathname=="")) return;
 //			setGridImages(gridImages);
-//TODO: these images will be overwritten by setFromXML !!!!!!!!!			
-			this.gIS=null; // So readAllGrids will create it 
+//TODO: these images will be overwritten by setFromXML !!!!!!!!!
+			this.gIS=null; // So readAllGrids will create it
         	setFromXML(
         			pathname,
             		eyesisCameraParameters,
@@ -1781,7 +1977,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	System.out.println("DistortionCalibrationData("+pathname+",eyesisCameraParameters) 2 -> this.gIS.length="+((this.gIS==null)?"null":this.gIS.length));
 			updateSetOrientation(null); // update orientation of image sets (built in readAllGrids())
         	}
-*/        
+*/
         public void setFromXML(String pathname,
         		EyesisCameraParameters eyesisCameraParameters, // should have cartesian set
     			EyesisAberrations.AberrationParameters aberrationParameters) {
@@ -1794,14 +1990,14 @@ import org.apache.commons.configuration.XMLConfiguration;
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-    		this.numSubCameras=Integer.parseInt(hConfig.getString("subcameras","1"));	
+    		this.numSubCameras=Integer.parseInt(hConfig.getString("subcameras","1"));
         	System.out.println("Number of subcameras is "+this.numSubCameras);
 			int num=hConfig.getMaxIndex("file");
 			num++;
         	this.gIP=new GridImageParameters[num];
         	this.pars=new double[num][parameterDescriptions.length];
         	System.out.println("Number of pattern grid images in "+pathname+" is "+num);
-        	
+
         	int numSets=hConfig.getMaxIndex("set")+1; // see if it returns -1 for none
         	System.out.println("Number of image sets in "+pathname+" is "+numSets);
         	if (numSets>0){
@@ -1820,7 +2016,7 @@ import org.apache.commons.configuration.XMLConfiguration;
                 			this.gIS[index].setParameterValue(j,Double.parseDouble(sub.getString(descrField(j,0))), false);
                 		}
                 	}
-                	
+
             		if (sub.getString("orientationEstimated")!=null) {
             			this.gIS[i].orientationEstimated=Boolean.parseBoolean(sub.getString("orientationEstimated"));
 /*                    	System.out.println(i+": restored orientationEstimated="+this.gIS[i].orientationEstimated+
@@ -1832,19 +2028,19 @@ import org.apache.commons.configuration.XMLConfiguration;
                     			" tilt="+this.gIS[i].goniometerTilt+
                     			" axial="+this.gIS[i].goniometerAxial);*/
             		}
-            		
+
             	}
 
         	} else {
         		this.gIS=null; // has to be build later
         	}
-        	
+
         	for (int i=0;i<num;i++) {
         		this.gIP[i]=new GridImageParameters(i);
         		HierarchicalConfiguration sub = hConfig.configurationAt("file("+i+")");
         		this.gIP[i].imgNumber=i;
-        		this.gIP[i].path=sub.getString("name");	
-        		this.gIP[i].timestamp=Double.parseDouble(sub.getString("timestamp"));	
+        		this.gIP[i].path=sub.getString("name");
+        		this.gIP[i].timestamp=Double.parseDouble(sub.getString("timestamp"));
         		this.gIP[i].channel=Integer.parseInt(sub.getString("channel"));
         		if (sub.getString("stationNumber")!=null) this.gIP[i].setStationNumber(Integer.parseInt(sub.getString("stationNumber")));
         		else this.gIP[i].setStationNumber(0);
@@ -1856,7 +2052,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		this.gIP[i].enabled=sub.getBoolean("enabled",false);
 //        		if (aberrationParameters.trustEnabled && this.gIP[i].enabled) this.gIP[i].hintedMatch=2; // trusted
         		if (aberrationParameters.trustEnabled) this.gIP[i].hintedMatch= this.gIP[i].enabled?2:-1; // trusted and only trusted to enabled
-      		
+
         		for (int j=0;j<this.parameterDescriptions.length;j++){
 //            		if (sub.getString(parameterDescriptions[j][0])!=null)
                		if (sub.getString(descrField(j,0))!=null)
@@ -1886,7 +2082,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         			this.gIP[ip].gridImageSet=this.gIS[this.gIP[ip].setNumber];
         			//this.gIP[i].channel
         		}
-        		
+
         	} else {
             	System.out.println("Re-creating image set data from individual images (old format)");
             	System.out.println("WARNING: Some parameters may get from unused images and so have wrong values");
@@ -1950,10 +2146,10 @@ import org.apache.commons.configuration.XMLConfiguration;
         public boolean saveTimestampedToXML(String pathname, String comment) {
         	return saveToXML(pathname+"_"+IJ.d2s(0.000001*(System.nanoTime()/1000),6).replace('.', '_')+".dcal-xml",      // full path or null
         			null);
-        }        
+        }
         public boolean saveToXML(String pathname) {
         	return saveToXML(pathname,null);
-        }        
+        }
         public boolean saveToXML(String pathname, String comment) {
         	XMLConfiguration hConfig=new XMLConfiguration();
         	if (comment!=null) hConfig.addProperty("comment",comment);
@@ -1989,7 +2185,7 @@ import org.apache.commons.configuration.XMLConfiguration;
             		hConfig.addProperty("set."+descrField(j,0),vector[j]);
             	}
         	}
-       	
+
 //        	hConfig.addProperty("grids","");
         	File file=new File (pathname);
         	BufferedWriter writer;
@@ -2006,7 +2202,7 @@ import org.apache.commons.configuration.XMLConfiguration;
 			this.pathName=pathname;
         	return true;
         }
-      
+
 //    		public double      gridPeriod=0.0;  // average grid period, in pixels (to filter out (double-) reflected images
         public double calcGridPeriod(int fileNumber){
         	if ((this.gIP[fileNumber].pixelsXY==null) || (this.gIP[fileNumber].pixelsXY.length<3)) {
@@ -2040,13 +2236,13 @@ import org.apache.commons.configuration.XMLConfiguration;
         	return this.gIP[fileNumber].gridPeriod;
 
         }
-        
+
         public int [] setGridsWithRemap(
         		int fileNumber,
         		int [][] reMap,
         		float [][] pixels,
         		PatternParameters patternParameters){
-//        	boolean disableNoFlatfield=false;  // true only for processing transitional images - mixture of ff/ no-ff 
+//        	boolean disableNoFlatfield=false;  // true only for processing transitional images - mixture of ff/ no-ff
     		int sensorWidth=this.eyesisCameraParameters.getSensorWidth(this.gIP[fileNumber].channel);
     		int sensorHeight=this.eyesisCameraParameters.getSensorHeight(this.gIP[fileNumber].channel);
         	int station=this.gIP[fileNumber].getStationNumber();
@@ -2055,16 +2251,16 @@ import org.apache.commons.configuration.XMLConfiguration;
 //    		int numOfGridNodes=0;
 //    		int numOfGridNodes_extra=0;
         	for (int i=0;i<pixels[0].length;i++) if ((pixels[0][i]>=0) && (pixels[1][i]>=0) && (pixels[0][i]<sensorWidth) && (pixels[1][i]<sensorHeight)){
-        		int u=(int) Math.round(pixels[2][i]);
-        		int v=(int) Math.round(pixels[3][i]);
+        		int u=Math.round(pixels[2][i]);
+        		int v=Math.round(pixels[3][i]);
     			int u1= reMap[0][0]*u + reMap[0][1]*v + reMap[0][2]; // u
     			int v1= reMap[1][0]*u + reMap[1][1]*v + reMap[1][2]; // v;
 //        		if (patternParameters.getXYZM(u,v,this.debugLevel>1)!=null) size++;
         		if (patternParameters.getXYZM(u1,v1,false,station)!=null) size++; // already assumes correct uv?
         		else size_extra++;
         	}
-        	
-        	
+
+
         	this.gIP[fileNumber].resetMask();
         	this.gIP[fileNumber].pixelsXY=new double [size][6];
         	this.gIP[fileNumber].pixelsUV=new int    [size][2];
@@ -2079,14 +2275,14 @@ import org.apache.commons.configuration.XMLConfiguration;
 //			this.gIP[fileNumber].flatFieldAvailable=pixels.length>=8;
 //        	if (disableNoFlatfield && !this.gIP[fileNumber].flatFieldAvailable) this.gIP[fileNumber].enabled=false; // just to use old mixed data
         	for (int i=0;i<pixels[0].length;i++) if ((pixels[0][i]>=0) && (pixels[1][i]>=0) && (pixels[0][i]<sensorWidth) && (pixels[1][i]<sensorHeight)) {
-        		int u=(int) Math.round(pixels[2][i]);
-        		int v=(int) Math.round(pixels[3][i]);
+        		int u=Math.round(pixels[2][i]);
+        		int v=Math.round(pixels[3][i]);
     			int u1= reMap[0][0]*u + reMap[0][1]*v + reMap[0][2]; // u
     			int v1= reMap[1][0]*u + reMap[1][1]*v + reMap[1][2]; // v;
 
-        		
+
 //        		if (patternParameters.getXYZM(u,v,this.debugLevel>1)!=null) {
-        		
+
         		if (patternParameters.getXYZM(u1,v1,false,station)!=null) {
         			this.gIP[fileNumber].pixelsXY[index][0]=pixels[0][i];
         			this.gIP[fileNumber].pixelsXY[index][1]=pixels[1][i];
@@ -2118,11 +2314,11 @@ import org.apache.commons.configuration.XMLConfiguration;
         	int [] result = {size,size_extra};
         	return result;
         }
-        
-        
+
+
         public boolean readAllGrids(PatternParameters patternParameters){
-        	boolean disableNoFlatfield=false;  // true only for processing transitional images - mixture of ff/ no-ff 
-			System.out.println("readAllGrids(), this.debugLevel="+this.debugLevel+" this.gIS is "+((this.gIS==null)?"null":"not null")); 
+        	boolean disableNoFlatfield=false;  // true only for processing transitional images - mixture of ff/ no-ff
+			System.out.println("readAllGrids(), this.debugLevel="+this.debugLevel+" this.gIS is "+((this.gIS==null)?"null":"not null"));
         	int numImages=getNumImages();
 //        	this.pixelsXY=new double[numImages][][];
 //        	this.pixelsUV=new int[numImages][][];
@@ -2157,11 +2353,11 @@ import org.apache.commons.configuration.XMLConfiguration;
         		this.gIP[fileNumber].matchedPointers=getUsedPonters(imp_grid);
 //        		this.gIP[fileNumber].enabled=true; // will filter separately
 //        		this.gIP[fileNumber].hintedMatch=-1; // unknown yet - now read from the calibration file
-        		
+
         		double [] saturations=new double [4];
         		for (int i=0;i<saturations.length;i++) {
         			saturations[i]=Double.NaN;
-        			if (imp_grid.getProperty("saturation_" + i) !=null) saturations[i]=Double.parseDouble((String) imp_grid.getProperty("saturation_" + i)); 
+        			if (imp_grid.getProperty("saturation_" + i) !=null) saturations[i]=Double.parseDouble((String) imp_grid.getProperty("saturation_" + i));
         		}
         		if (!Double.isNaN(saturations[1])) this.gIP[fileNumber].saturation[0]=saturations[1];
         		if (!Double.isNaN(saturations[2])) this.gIP[fileNumber].saturation[2]=saturations[2];
@@ -2170,7 +2366,7 @@ import org.apache.commons.configuration.XMLConfiguration;
             		if (!Double.isNaN(saturations[0])) this.gIP[fileNumber].saturation[1]=saturations[0];
             		if (!Double.isNaN(saturations[3])) this.gIP[fileNumber].saturation[1]=saturations[3];
         		}
-        		
+
                 stack=imp_grid.getStack();
             	if ((stack==null) || (stack.getSize()<4)) {
             		String msg="Expected a 8-slice stack in "+this.gIP[fileNumber].path;
@@ -2180,7 +2376,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		float [][] pixels=new float[stack.getSize()][]; // now - 8 (x,y,u,v,contrast, vignR,vignG,vignB
             	for (int i=0;i<pixels.length;i++) pixels[i]= (float[]) stack.getPixels(i+1); // pixel X : negative - no grid here
 
-            	
+
             	if (this.eyesisCameraParameters.badNodeThreshold>0.0){
             		boolean thisDebug =false;
 //            		thisDebug|=        (fileNumber== 720); // chn 25
@@ -2191,8 +2387,8 @@ import org.apache.commons.configuration.XMLConfiguration;
 //            		thisDebug|=        (fileNumber==1081); // chn 14
 
 //            		int maxBadNeighb=1; // 7 of 8 shold be good
-            		
-            		
+
+
                  int numBadNodes=fixBadGridNodes(
                 		pixels,
                 		stack.getWidth(),
@@ -2209,7 +2405,7 @@ import org.apache.commons.configuration.XMLConfiguration;
                 		  " enabled="+this.gIP[fileNumber].enabled+" hintedMatch="+this.gIP[fileNumber].hintedMatch);
                  }
             	}
-  
+
     			this.gIP[fileNumber].flatFieldAvailable=pixels.length>=8;
             	if (disableNoFlatfield && !this.gIP[fileNumber].flatFieldAvailable) this.gIP[fileNumber].enabled=false; // just to use old mixed data
             	// start new code:
@@ -2227,7 +2423,7 @@ import org.apache.commons.configuration.XMLConfiguration;
             	numOfGridNodes+=sizeSizeExtra[0];
             	numOfGridNodes_extra+=sizeSizeExtra[1];
 /*
-            	
+
         		int sensorWidth=this.eyesisCameraParameters.getSensorWidth(this.gIP[fileNumber].channel);
         		int sensorHeight=this.eyesisCameraParameters.getSensorHeight(this.gIP[fileNumber].channel);
             	int station=this.gIP[fileNumber].getStationNumber();
@@ -2245,8 +2441,8 @@ import org.apache.commons.configuration.XMLConfiguration;
             	this.gIP[fileNumber].pixelsUV=new int    [size][2];
             	this.gIP[fileNumber].pixelsXY_extra=new double [size_extra][6];
             	this.gIP[fileNumber].pixelsUV_extra=new int    [size_extra][2];
-            	
-            	
+
+
             	numOfGridNodes+=size;
             	numOfGridNodes_extra+=size_extra;
             	int index=0;
@@ -2255,9 +2451,9 @@ import org.apache.commons.configuration.XMLConfiguration;
 //    			this.gIP[fileNumber].flatFieldAvailable=pixels.length>=8;
 
 //            	if (disableNoFlatfield && !this.gIP[fileNumber].flatFieldAvailable) this.gIP[fileNumber].enabled=false; // just to use old mixed data
-            	
-            	
-            	
+
+
+
             	for (int i=0;i<pixels[0].length;i++) if ((pixels[0][i]>=0) && (pixels[1][i]>=0) && (pixels[0][i]<sensorWidth) && (pixels[1][i]<sensorHeight)) {
             		int u=(int) Math.round(pixels[2][i]);
             		int v=(int) Math.round(pixels[3][i]);
@@ -2290,9 +2486,9 @@ import org.apache.commons.configuration.XMLConfiguration;
             			index_extra++;
             		}
             	}
-*/            	
-            	
-            	calcGridPeriod(fileNumber); // will be used to filter out reflections 
+*/
+
+            	calcGridPeriod(fileNumber); // will be used to filter out reflections
 //System.out.println ("pixelsXY["+fileNumber+"]length="+pixelsXY[fileNumber].length);
         	}
     		if (this.debugLevel>3) {
@@ -2314,7 +2510,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     			System.out.println("readAllGrids(), numImages="+numImages+", total number of grid nodes="+numOfGridNodes+", unused nodes "+numOfGridNodes_extra);
     		}
     		 // probably - do not need to verify that this.gIS is null - should do that anyway. UPDATE: no, now reading config file creates gIS
-/*    		
+/*
     		if (this.gIS!=null){
 				System.out.println("readAllGrids() 1: ");
     			for (int is=0;is<this.gIS.length;is++){
@@ -2426,16 +2622,16 @@ import org.apache.commons.configuration.XMLConfiguration;
         	}
         	if (numBad==0) {
 				System.out.println("fixBadGridNodes() BUG - should not get here.");
-        		return 0; // should not get here - 
+        		return 0; // should not get here -
         	}
         	double [][] dbgData=null;
 			if (debugLevel>debugThreshold){
 				dbgData=new double[9][];
 				dbgData[0]=diffs2.clone();
 				dbgData[2]=dbgData[0].clone();
-				for (int i=0;i< dbgData[2].length;i++) if (!localWorst[i]) dbgData[2][i]=-1.0; 
+				for (int i=0;i< dbgData[2].length;i++) if (!localWorst[i]) dbgData[2][i]=-1.0;
 //				(new showDoubleFloatArrays()).showArrays(diffs2, width, height,  "diffs2");
-			}        	
+			}
         	// Trying to eliminate all non local worst (may that is just extra as there anot too many bad nodes)
         	int numStillBad=0;
         	for (int i=0;i<localWorst.length;i++) if (localWorst[i]){
@@ -2517,10 +2713,10 @@ import org.apache.commons.configuration.XMLConfiguration;
 					dbgData[3][i]=fpixels[0][i];
 					dbgData[4][i]=fpixels[1][i];
 			    }
-			}        	
+			}
 
-// TODO - try to fix some around pixels first?			
-			
+// TODO - try to fix some around pixels first?
+
 // Actually patching locally worst nodes
         	for (int index=0;index<localWorst.length;index++) if (localWorst[index]){
         		int numNonZero=0;
@@ -2592,16 +2788,16 @@ import org.apache.commons.configuration.XMLConfiguration;
 					dbgData[7][i]=dbgData[3][i]-fpixels[0][i];
 					dbgData[8][i]=dbgData[4][i]-fpixels[1][i];
 			    }
-				 
+
 				String [] dbgTitles={"diff20","diff2Mod","localWorst", "old-X", "old-Y", "new-X", "new-Y","old-new-X","old-new-Y"};
 				if (dbgTitle!=null) (new showDoubleFloatArrays()).showArrays(dbgData, width, height, true,  dbgTitle, dbgTitles);
-			}        	
+			}
         	return numBad;
         }
-        
+
 // TODO: Move all custom image properties (including encode/decode from JP4_reader_camera) to a separate class.
-// below is a duplicatie from MatchSimulatedPattern        
-        
+// below is a duplicatie from MatchSimulatedPattern
+
         public double[][] getPointersXY(ImagePlus imp, int numPointers){
 			   // read image info to properties (if it was not done yet - should it?
 			   if ((imp.getProperty("timestamp")==null) || (((String) imp.getProperty("timestamp")).length()==0)) {
@@ -2622,7 +2818,7 @@ import org.apache.commons.configuration.XMLConfiguration;
 			   if (numPointerDetected>0) return pointersXY;
 			   else return null;
 		   }
-        
+
         public int [] getMotorPositions(ImagePlus imp, int numMotors){
         	// read image info to properties (if it was not done yet - should it?
         	if ((imp.getProperty("timestamp")==null) || (((String) imp.getProperty("timestamp")).length()==0)) {
@@ -2641,7 +2837,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	if (numMotorsDetected>0) return motorPos;
         	else return null;
         }
-        
+
         public int  getUsedPonters(ImagePlus imp){
         	// read image info to properties (if it was not done yet - should it?
         	if ((imp.getProperty("timestamp")==null) || (((String) imp.getProperty("timestamp")).length()==0)) {
@@ -2653,12 +2849,12 @@ import org.apache.commons.configuration.XMLConfiguration;
         	}
         	return 0;
         }
-        
-        
+
+
         public int getImageNumPoints(int numImg){
         	return this.gIP[numImg].pixelsUV.length;
         }
-       
+
         public void initPars(int numImages, int numPars) {
         	this.pars=new double [numImages][numPars];
         	for (int i=0;i<numImages;i++) for (int j=0;j<numPars;j++) this.pars[i][j]=Double.NaN;
@@ -2722,8 +2918,8 @@ import org.apache.commons.configuration.XMLConfiguration;
         public GridImageParameters getGridImageParameters(int numImg){
         	return this.gIP[numImg];
         }
-        
-        // next is just for goniometer - use elevation and heading for cartesian mode? 
+
+        // next is just for goniometer - use elevation and heading for cartesian mode?
         public double [] getHeadEl(int imgNum){ // get sensor heading +(azimuth) and elevation
         	if ((imgNum<0) || (imgNum>=this.pars.length)) {
         		String msg="There are only "+this.pars.length+" images defined, requested #"+imgNum;
@@ -2738,7 +2934,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         			this.pars[imgNum][index_heading]+", "+this.pars[imgNum][index_elevation]);
         	return headel;
         }
-        // set goniometer horizontal axis angle and goniometer axial angles in all images 
+        // set goniometer horizontal axis angle and goniometer axial angles in all images
         public void setGHGA(double gh, double ga){
         	for (int imgNum=0;imgNum<this.pars.length;imgNum++) setGHGA( imgNum, gh,ga);
         }
@@ -2758,12 +2954,12 @@ import org.apache.commons.configuration.XMLConfiguration;
         	if (this.gIP[numImg].gridImageSet!=null) return this.gIP[numImg].gridImageSet.goniometerTilt;
         	return this.pars[numImg][index_gh];
         }
-        
+
         public double getGA(int numImg){
         	if (this.gIP[numImg].gridImageSet!=null) return this.gIP[numImg].gridImageSet.goniometerAxial;
         	return this.pars[numImg][index_ga];
         }
-        
+
         public void setParameters(double [] parameters, int numImg, boolean[] mask){
         	if ((numImg<0) || (numImg>=this.pars.length)) {
         		String msg="There are only "+this.pars.length+" images defined, requested #"+numImg;
@@ -2782,7 +2978,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	if (this.gIP[numImg].gridImageSet!=null) this.gIP[numImg].gridImageSet.updateSetFromParameterVector(parameters,mask);
 
         }
-        
+
         public void setIntrinsicParameters(double [] parameters, int num){
         	if ((num<0) || (num>=this.pars.length)) {
         		String msg="There are only "+this.pars.length+" images defined, requested #"+num;
@@ -2815,8 +3011,8 @@ import org.apache.commons.configuration.XMLConfiguration;
         	for (int i=0;i<parameters.length;i++) if (isSubcameraParameter(i))this.pars[num][i]=parameters[i];
         	// no need to update image sets
         }
-        
-        
+
+
         public String getParameterName(int num){
         	if ((num<0) || (num>=this.parameterDescriptions.length)) {
         		String msg="There are only "+this.parameterDescriptions.length+" parameters defined, requested #"+num;
@@ -2824,7 +3020,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		throw new IllegalArgumentException (msg);
         	}
         	return descrField(num,0);
-        	
+
         }
         public String getParameterDescription(int num){
         	if ((num<0) || (num>=this.parameterDescriptions.length)) {
@@ -2833,7 +3029,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		throw new IllegalArgumentException (msg);
         	}
         	return descrField(num,1);
-        	
+
         }
         public String getParameterUnits(int num){
         	if ((num<0) || (num>=this.parameterDescriptions.length)) {
@@ -2850,7 +3046,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		throw new IllegalArgumentException (msg);
         	}
         	return (descrField(num,3).equals("S"));
-        	
+
         }
         public boolean isLocationParameter(int num){ //X,Y or Z location of the camera
         	if ((num<0) || (num>=this.parameterDescriptions.length)) {
@@ -2877,7 +3073,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		throw new IllegalArgumentException (msg);
         	}
         	return (descrField(num,4).equals("I"));
-        	
+
         }
         public String getImagePath(int num) {
         	if ((num<0) || (num>=this.gIP.length)) {
@@ -2921,7 +3117,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	return this.numSubCameras;
         }
         /**
-         * 
+         *
          * @param imgNumber number of grid image to edit parameters (location, distortion) for
          * @return <2 - canceled, -1 - done, els - number of the next image to edit
          */
@@ -2983,7 +3179,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	for (int i=0;i<this.gIP.length;i++) if (this.gIP[i].channel>nChn) nChn=this.gIP[i].channel;
         	return nChn+1;
         }
-        
+
         public double getMask(int chnNum, double px, double py){
         	int width= eyesisCameraParameters.sensorWidth/eyesisCameraParameters.decimateMasks;
         	int height=eyesisCameraParameters.sensorHeight/eyesisCameraParameters.decimateMasks;
@@ -3002,8 +3198,8 @@ import org.apache.commons.configuration.XMLConfiguration;
         	if ((iPX<0) || (iPY<0) || (iPX>=width) || (iPY>=height)) return 0.0;
         	return mask[iPY*width+iPX];  // null ponter
         }
-        
-        
+
+
         public void setMaskFromImageStack(ImagePlus imp){
         	if (imp == null){
         		String msg="sensors mask image is null";
@@ -3018,7 +3214,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		eyesisCameraParameters.sensorWidth=Integer.parseInt((String) imp.getProperty("sensorWidth"));
         	if (imp.getProperty("sensorHeight")!=null)
         		eyesisCameraParameters.sensorHeight=Integer.parseInt((String) imp.getProperty("sensorHeight"));
-        	
+
     		if (this.sensorMasks==null) {
     			this.sensorMasks=new double[getNumChannels()][];
     			for (int i=0;i<this.sensorMasks.length;i++) this.sensorMasks[i]=null;
@@ -3049,7 +3245,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     			}
     		}
         }
-        
+
         public ImagePlus saveMaskAsImageStack(String title, String path){
         	ImagePlus imp=getMaskAsImageStack(title);
         	if (imp==null) return null;
@@ -3086,13 +3282,13 @@ import org.apache.commons.configuration.XMLConfiguration;
         		ip.setPixels(pixels[0]);
         		imp=new ImagePlus(title, ip);
         	}
-// TODO: add more properties here (MAC+channel)? preserve other properties?        	
+// TODO: add more properties here (MAC+channel)? preserve other properties?
         	imp.setProperty("sensorWidth", ""+eyesisCameraParameters.sensorWidth);
         	imp.setProperty("sensorHeight", ""+eyesisCameraParameters.sensorHeight);
         	imp.setProperty("shrinkGridForMask", ""+eyesisCameraParameters.shrinkGridForMask);
         	imp.setProperty("maskBlurSigma", ""+eyesisCameraParameters.maskBlurSigma);
         	imp.setProperty("decimateMasks", ""+eyesisCameraParameters.decimateMasks);
-        	
+
         	(new JP46_Reader_camera(false)).encodeProperiesToInfo(imp);
         	imp.getProcessor().resetMinAndMax();
         	return imp;
@@ -3103,9 +3299,9 @@ import org.apache.commons.configuration.XMLConfiguration;
          * @param width  sensor width, pixels
          * @param height sensor height, pixels
          * @param shrink shrink sensor mask by this amount (sensor, non-decimated pixels)
-         * @param radius radial mask - zero if farther than radius, 0.5*(cos(pi*r/radius)+1.0) if less 
-         * @param minimalAlpha - zero mask below this threshold 
-         * @return returns arrray with the same size as sensorMask that corresponds to low-vignetting areas of the sensor/lens 
+         * @param radius radial mask - zero if farther than radius, 0.5*(cos(pi*r/radius)+1.0) if less
+         * @param minimalAlpha - zero mask below this threshold
+         * @return returns arrray with the same size as sensorMask that corresponds to low-vignetting areas of the sensor/lens
          */
 
         public double [] nonVignettedMask(
@@ -3140,7 +3336,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	if (minimalAlpha>0.0) for (int i=0;i<mask.length;i++) if (mask[i]<minimalAlpha) mask[i]=0.0;
         	return mask;
         }
-        
+
         public double [][] calculateSensorMasks() {
         	return calculateSensorMasks(
         			eyesisCameraParameters.decimateMasks,
@@ -3150,7 +3346,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         			eyesisCameraParameters.maskBlurSigma);
         }
         /**
-         * 
+         *
          * @param width image width, in pixels (pixel X coordinates are between 0 and width-1, inclusive)
          * @param height image height, in pixels (pixel Y coordinates are between 0 and height-1, inclusive)
          * @param shrinkGridForMask shrink detected grids by this number of nodes in each direction before bluring
@@ -3190,8 +3386,8 @@ import org.apache.commons.configuration.XMLConfiguration;
         	}
         	return this.sensorMasks;
         }
-        
-        
+
+
         /**
          * Create round mask inside the actual one, with the provided center. Blur result with the same sigma as original
          * @param chn sensor number
@@ -3217,7 +3413,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	System.out.println("iYC="+iYC);
         	System.out.println("initial ir02="+ir02+ "("+Math.sqrt(ir02)+")");
         	for (int i = 0; i < this.sensorMasks[chn].length; i++) if (this.sensorMasks[chn][i]<0.5) {
-        		int ix = (i % dWidth) - iXC; 
+        		int ix = (i % dWidth) - iXC;
         		int iy = (i / dWidth) - iYC;
         		int ir2=ix*ix + iy*iy;
         		if (ir2 < ir02) ir02 = ir2;
@@ -3225,7 +3421,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	System.out.println("second ir02="+ir02+ "("+Math.sqrt(ir02)+")");
         	double [] mask= new double[this.sensorMasks[chn].length];
         	for (int i = 0; i < mask.length; i++) {
-        		int ix = (i % dWidth) - iXC; 
+        		int ix = (i % dWidth) - iXC;
         		int iy = (i / dWidth) - iYC;
         		mask[i]=((ix*ix + iy*iy) > ir02)?0.0:1.0;
         	}
@@ -3249,8 +3445,8 @@ import org.apache.commons.configuration.XMLConfiguration;
         	}
         	return this.sensorMasks[chn];
         }
-        
-        
+
+
         public double [] calculateImageGridMask(int imgNum) {
         	return calculateImageGridMask(
         			imgNum,
@@ -3275,7 +3471,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	rAverage/=rAverageNum; // average distance to the fartherst node from the current
         	double      sigma=sigmaUV;
         	if(sigma<0) sigma*=-rAverage;
-// old version, trying new - will influence all sensor masks!!        	
+// old version, trying new - will influence all sensor masks!!
 //        	gb.blurDouble(preMask[1], dWidth, dHeight, sigma/decimate, sigma/decimate, 0.01);
         	double [] mask0=preMask[1].clone();
         	gb.blurDouble(preMask[1], dWidth, dHeight, sigma/decimate, sigma/decimate, 0.01);
@@ -3285,11 +3481,11 @@ import org.apache.commons.configuration.XMLConfiguration;
         	}
         	return preMask[1];
         }
-        
-        
-        
+
+
+
         /**
-         * 
+         *
          * @param imgNum number of image to process
          * @param decimate - reduce image resolution for the mask
          * @param width - image width (actual will be divided by decimate
@@ -3349,8 +3545,8 @@ import org.apache.commons.configuration.XMLConfiguration;
         		double [][] testArray=new double[3][pXY.length*pXY[0].length];
         		int index=0;
         		for (int v=0;v<iMask.length;v++) for (int u=0;u<iMask[0].length;u++){
-        			testArray[0][index]=pXY[v][u][0];	
-        			testArray[1][index]=pXY[v][u][1];	
+        			testArray[0][index]=pXY[v][u][0];
+        			testArray[1][index]=pXY[v][u][1];
         			testArray[2][index++]=iMask[v][u];
 
         		}
@@ -3375,8 +3571,8 @@ import org.apache.commons.configuration.XMLConfiguration;
         		double [][] testArray1=new double[3][pXY.length*pXY[0].length];
         		int index=0;
         		for (int v=0;v<iMask.length;v++) for (int u=0;u<iMask[0].length;u++){
-        			testArray1[0][index]=pXY[v][u][0];	
-        			testArray1[1][index]=pXY[v][u][1];	
+        			testArray1[0][index]=pXY[v][u][0];
+        			testArray1[1][index]=pXY[v][u][1];
         			testArray1[2][index++]=iMask[v][u];
 
         		}
@@ -3403,7 +3599,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		// calculate average radius (for bluring)
         		double r=Math.sqrt(r2Max);
         		rAverage+=r;
-        		rAverageNum++; 
+        		rAverageNum++;
 
         		int iR= (int) Math.round(r);
         		int iX0= (int) Math.round (pXY[v][u][0]);
@@ -3413,7 +3609,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		int yLowLim=iY0-iR;
         		int yHighLim=iY0+iR;
         		if (xLowLim<0)       xLowLim=0;
-// decimation apply below        		
+// decimation apply below
         		if (xHighLim>=width) xHighLim=width-1;
         		if (yLowLim<0)       yLowLim=0;
         		if (yHighLim>=height)yHighLim=height-1;
@@ -3429,5 +3625,5 @@ import org.apache.commons.configuration.XMLConfiguration;
         	return  result;
 
         }
-        
+
     }
