@@ -875,9 +875,9 @@ import ij.text.TextWindow;
             		subcamCorrRight[i] = r*Math.cos(Math.PI/180.0*(subcamDirsDeg[i]+commonRot));
             		subcamCorrHeight[i] = r*Math.sin(Math.PI/180.0*(subcamDirsDeg[i]+commonRot));
 
-            		rollCorrTurns[i] = subcamRelRot[i] * rollDegPerTurn;
-            		topCorrTurns[i] =  subcamRelHeading[i] * headDegPerTurn + subcamRelElevation[i] * elevDegPerTurn;
-            		botCorrTurns[i] =  subcamRelHeading[i] * headDegPerTurn - subcamRelElevation[i] * elevDegPerTurn;
+            		rollCorrTurns[i] = subcamRelRot[i] / rollDegPerTurn;
+            		topCorrTurns[i] =  subcamRelHeading[i] / headDegPerTurn + subcamRelElevation[i] / elevDegPerTurn;
+            		botCorrTurns[i] =  subcamRelHeading[i] / headDegPerTurn - subcamRelElevation[i] / elevDegPerTurn;
 
             	}
 /*
