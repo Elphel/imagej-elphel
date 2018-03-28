@@ -718,6 +718,7 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 		addButton("Edit Strategy",panelFitDistortions,color_configure);
 		addButton("Save Strategy",panelFitDistortions,color_bundle);
 		addButton("Restore Strategy",panelFitDistortions,color_restore);
+		addButton("List Strategy",panelFitDistortions,color_report);
 		addButton("Run LMA",panelFitDistortions,color_bundle);
 		addButton("Bad Nodes",panelFitDistortions,color_bundle);
 		addButton("Debug deriv",panelFitDistortions,color_debug);
@@ -2311,18 +2312,8 @@ if (MORE_BUTTONS) {
 /* ======================================================================== */
 		if (label.equals("List Eyesis4pi") || label.equals("List X-cam")) {
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-			System.out.println("DISTORTION_CALIBRATION_DATA="+((DISTORTION_CALIBRATION_DATA==null)?"null":" NOT null"));
-			System.out.println("+++++++++++ EYESIS_CAMERA_PARAMETERS.numStations="+EYESIS_CAMERA_PARAMETERS.numStations+
-					" +EYESIS_CAMERA_PARAMETERS.goniometerHorizontal.length="+EYESIS_CAMERA_PARAMETERS.goniometerHorizontal.length);
-			if (DISTORTION_CALIBRATION_DATA!=null) {
-			if (DEBUG_LEVEL>1) System.out.println("+++++++++++ DISTORTION_CALIBRATION_DATA.eyesisCameraParameters.numStations="+DISTORTION_CALIBRATION_DATA.eyesisCameraParameters.numStations+
-					" +DISTORTION_CALIBRATION_DATA.eyesisCameraParameters.goniometerHorizontal.length="+DISTORTION_CALIBRATION_DATA.eyesisCameraParameters.goniometerHorizontal.length);
-			}
-
 			DistortionCalibrationData dcd=(DISTORTION_CALIBRATION_DATA!=null)?DISTORTION_CALIBRATION_DATA:
 				new DistortionCalibrationData(EYESIS_CAMERA_PARAMETERS);
-			if (DEBUG_LEVEL>1) System.out.println("+++++++++++ dcd.eyesisCameraParameters.numStations="+dcd.eyesisCameraParameters.numStations+
-					" +dcd.eyesisCameraParameters.goniometerHorizontal.length="+dcd.eyesisCameraParameters.goniometerHorizontal.length);
 			dcd.listCameraParameters(label.equals("List X-cam"));
 			return;
 		}
@@ -2486,8 +2477,7 @@ if (MORE_BUTTONS) {
 			return;
 		}
 /* ======================================================================== */
-
-		if       (label.equals("Edit Strategy")) {
+		if       (label.equals("Edit Strategy") || label.equals("List Strategy")) {
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 			if (LENS_DISTORTIONS==null) {
 				if (LENS_DISTORTION_PARAMETERS==null){
@@ -2506,7 +2496,11 @@ if (MORE_BUTTONS) {
 				LENS_DISTORTIONS.fittingStrategy=new FittingStrategy(DISTORTION_CALIBRATION_DATA);
 			}
 			LENS_DISTORTIONS.fittingStrategy.debugLevel=DEBUG_LEVEL;
-			LENS_DISTORTIONS.fittingStrategy.selectStrategy(LENS_DISTORTIONS.seriesNumber);
+			if (label.equals("Edit Strategy")) {
+				LENS_DISTORTIONS.fittingStrategy.selectStrategy(LENS_DISTORTIONS.seriesNumber);
+			} else {
+				LENS_DISTORTIONS.fittingStrategy.listStrategies();
+			}
 			return;
 		}
 /* ======================================================================== */
@@ -2558,6 +2552,7 @@ if (MORE_BUTTONS) {
 
 			return;
 		}
+
 /* ======================================================================== */
 		if       (label.equals("Run LMA")) {
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;

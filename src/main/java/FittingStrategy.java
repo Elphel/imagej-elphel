@@ -5,7 +5,7 @@
  ** Copyright (C) 2011-2014 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
- **  
+ **
  **  FittingStrategy.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
@@ -21,10 +21,6 @@
  ** -----------------------------------------------------------------------------**
  **
  */
-import ij.IJ;
-import ij.gui.GenericDialog;
-import ij.text.TextWindow;
-
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -40,10 +36,14 @@ import java.util.Set;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.XMLConfiguration;
 
+import ij.IJ;
+import ij.gui.GenericDialog;
+import ij.text.TextWindow;
 
-    
+
+
     /**
-     * 
+     *
      * Specifies images to process and parameters to adjust
      * Each parameter cab be:
      * 0 - "fixed" - use individual, per-image parameters, do not modify them
@@ -57,7 +57,7 @@ import org.apache.commons.configuration.XMLConfiguration;
      * 6 - "per-station" save to all (super)
      * 7 - "weak common" - like common, but enable small individual variations (for a price) - not yet implemented, will have separate weight fixed/floating
      * 8 - "weak station" - like per-station, but enable individual (for a price)
-     * 
+     *
 +====================+===========+===========+
 |                    |  Same TS  |  Diff TS  |
 |                    +-----+-----+-----+-----+
@@ -121,7 +121,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     	public int [][] parameterMode=null; // per series, per-parameter
     	public int [][][] parameterGroups=null; // per series, per-parameter - null or array of group numbers (1 element per image)
     	public int [][] zGroups=null;
-    	public boolean saveUnusedGroups=false; // purge groups for parameters when saving to XML, preserve if true 
+    	public boolean saveUnusedGroups=false; // purge groups for parameters when saving to XML, preserve if true
     	public double [] lambdas=null;   // LMA initial lambda for each step
     	public double defaultLambda=0.001;
     	public int [][] parameterList=null; // list of all parameters in the system, each has subcamera number and parameters index
@@ -141,21 +141,21 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			"same weight",
     			"variable weight",
     	};
-    	
+
     	// next arrays will be initialized at buildVariancesMaps only if at least some parameters use variances, otherwise they will be null
     	public double [] variationsAverages=null; // holds per extrinsic parameter or per parameter/per station average values
     	public int    [] averageCellIndex=  null; // for each element in the parameters vector holds index in  variationsAverages array
-    	public double [] weightOnAverage=   null; // how variation of this parameter influences average (for all or for currenrt station 
-    	public double [] weightVariance=    null; // weight for LMA over variance of parameters from average 
-    	public double [] varianceErrorsSquared=  null; // weighted squared errors 
-    	
-    	
-    	
+    	public double [] weightOnAverage=   null; // how variation of this parameter influences average (for all or for currenrt station
+    	public double [] weightVariance=    null; // weight for LMA over variance of parameters from average
+    	public double [] varianceErrorsSquared=  null; // weighted squared errors
+
+    	public String [] strategyComment = null;
+
     	public FittingStrategy(
     	    	DistortionCalibrationData distortionCalibrationData// per-image parameters
     			) {
     		this.distortionCalibrationData=distortionCalibrationData;
-    		setDflt(0);    		
+    		setDflt(0);
     	}
 		public FittingStrategy(
     	    	DistortionCalibrationData distortionCalibrationData,// per-image parameters
@@ -164,10 +164,10 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		this.distortionCalibrationData=distortionCalibrationData;
     		this.selectedImages=new boolean[numSeries][this.distortionCalibrationData.getNumImages()];
     		this.selectedValidImages=new boolean[numSeries][this.distortionCalibrationData.getNumImages()];
-    		
-    		setDflt(numSeries);    		
+
+    		setDflt(numSeries);
     	}
-		
+
 	   	public FittingStrategy(
         		boolean smart,
         		String defaultPath,
@@ -188,8 +188,8 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 	    	    	pathname);
 			System.out.println("Restored fitting strategy from "+pathname);
 	   	}
-		
-		
+
+
     	/**
     	 * Reads FittingStrategy from an XML file
     	 * @param distortionCalibrationData should be defined before this class!
@@ -243,8 +243,9 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 			this.parameterGroups=new int[nSer][len][];
 			this.lambdas=new double  [nSer];
 			this.stepDone=new double [nSer];
+			this.strategyComment=new String[nSer];
         	for (int i=0;i<nSer;i++){ // iterate through series
-//this.stopAfterThis        		
+//this.stopAfterThis
 // read selected images (no check here that it matches to the    distortionCalibrationData!
         		String sSeries="series.series_"+i;
         		String fs=hConfig.getString(sSeries+".selectedImages");
@@ -257,7 +258,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			} else {
     				this.varianceModes[i]=varianceModeDisabled;
     			}
-    			
+
         		for (int j=0;j<this.parameterList.length;j++){
         			int nPar=this.parameterList[j][1];
         			int nSub=this.parameterList[j][0];
@@ -299,26 +300,32 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			} else {
     				this.zGroups[i]=null;
     			}
+
+    			if (hConfig.getString(sSeries+".strategyComment")!=null) {
+    				this.strategyComment[i]=hConfig.getString(sSeries+".strategyComment");
+    			}
+
+
         	}
 //        	if (hConfig.getString("variances")!=null){
 //            if (!hConfig.configurationAt("variances").isEmpty()){
        		if (hConfig.configurationsAt("variances").size()>0){
 //        		System.out.println("hConfig.configurationAt(\"variances\").isEmpty()=false");
         		this.distortionCalibrationData.eyesisCameraParameters.getCostsPropertiesXML("variances.",hConfig);
-        	} 
+        	}
         	this.pathName=pathname;
 //        	distortionCalibrationData.readAllGrids();
     	}
-    	
+
 /**
  * Adjust  selectedImages and parameterGroups after number of images may change, old number of images should be >0
- * If the new number is larger, the first images attributes will be copied, the extra ones - use those of the last of the old ones	
+ * If the new number is larger, the first images attributes will be copied, the extra ones - use those of the last of the old ones
  * @param newNumberOfImages new number of images used by this series
  */
     	public void adjustNumberOfImages(int newNumberOfImages){
     		if ((this.selectedImages == null) ||(this.selectedImages[0].length==0)) {
     			String msg="selectedImages array is "+((this.selectedImages == null)?"null":"empty");
-    			IJ.showMessage("Error",msg); 
+    			IJ.showMessage("Error",msg);
     			throw new IllegalArgumentException (msg);
     		}
     		if (this.selectedImages[0].length==newNumberOfImages) return;
@@ -334,10 +341,10 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     	    			for (int i=0;i<newNumberOfImages;i++) this.parameterGroups[nSer][nPar][i]=(i<tmpGroup.length)?tmpGroup[i]:tmpGroup[tmpGroup.length-1];
     				}
     			}
-    			
+
     		}
     	}
-    	
+
     	public String selectAndSaveToXML(
     			boolean smart,
     			String defaultPath){
@@ -357,7 +364,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 			return pathname;
 
     	}
-    	  //http://commons.apache.org/configuration/userguide/howto_xml.html      
+    	  //http://commons.apache.org/configuration/userguide/howto_xml.html
         public boolean saveToXML(String pathname) {
         	if (pathname==null) return false;
         	XMLConfiguration hConfig=new XMLConfiguration();
@@ -371,10 +378,10 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
         		hConfig.addProperty("parameterMap.par_"+i+".index",this.parameterList[i][1]);
         		hConfig.addProperty("parameterMap.par_"+i+".visible",this.parameterEnable[i]?"1":"0");
     		}
-        	
+
     		hConfig.addProperty("series","");
     		hConfig.addProperty("series.number",this.selectedImages.length);
-    		
+
         	for (int i=0;i<this.selectedImages.length;i++){ // iterate through series
         		String sSeries="series.series_"+i;
         		hConfig.addProperty(sSeries,"");
@@ -410,6 +417,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
         		hConfig.addProperty(sSeries+".lambdas",lambdas[i]);
         		hConfig.addProperty(sSeries+".stepDone",stepDone[i]);
         		hConfig.addProperty(sSeries+".stopAfterThis",this.stopAfterThis[i]);
+        		hConfig.addProperty(sSeries+".strategyComment",this.strategyComment[i]);
         	}
         	hConfig.addProperty("variances","");
        		this.distortionCalibrationData.eyesisCameraParameters.setCostsPropertiesXML("variances.",hConfig);
@@ -448,20 +456,21 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     				this.stopAfterThis[numSeries]=this.stopAfterThis[sourceSeries];
     				this.varianceModes[numSeries]=this.varianceModes[sourceSeries];
     				this.zGroups[numSeries]=(this.zGroups[sourceSeries]!=null)?this.zGroups[sourceSeries].clone():null;
+    				this.strategyComment[numSeries] = this.strategyComment[sourceSeries]+" (copy)";
     				return true;
     		} else {
     			return false;
     		}
         }
-        
-        
-        
+
+
+
         /**
          * Verifies that series exists and is not empty (valid for LMA)
          * @param num - series to verify
          * @return true if series is valid
          */
-    	public boolean isSeriesValid(int num){
+    	public boolean isSeriesValidVerbose(int num){
     		if ((num<0) || (num>=this.selectedImages.length)) return false;
     		boolean someImagesSelected=false;
     		for (int i=0;i<this.selectedImages[num].length;i++) if (this.selectedImages[num][i]){
@@ -483,6 +492,27 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		}
     		return true;
     	}
+
+    	public boolean isSeriesValid(int num){
+    		if ((num<0) || (num>=this.selectedImages.length)) return false;
+    		boolean someImagesSelected=false;
+    		for (int i=0;i<this.selectedImages[num].length;i++) if (this.selectedImages[num][i]){
+    			someImagesSelected=true;
+    			break;
+    		}
+    		if (!someImagesSelected) {
+    			return false;
+    		}
+    		boolean someParametersSelected=false;
+    		for (int i=0;i<this.parameterMode[num].length;i++) if (this.parameterMode[num][i]>0){
+    			someParametersSelected=true;
+    			break;
+    		}
+    		if (!someParametersSelected) {
+    			return false;
+    		}
+    		return true;
+    	}
     	/**
     	 * Determins if LMA should stop after this series (either flag is set or next is invalid)
     	 * @param num number of series to test
@@ -495,7 +525,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     	}
 
         /**
-         * 
+         *
          * Specifies images to process and parameters to adjust
          * Each parameter cab be:
          * 0 - "fixed" - use individual, per-image parameters, do not modify them
@@ -521,7 +551,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 
          *
          */
-        
+
  //    	public int [][] reverseParameterMap=null; // reversed map - for each [imageNumber][parameterNumber] -> vector index (-1 fixed)\
     	// selects all enabled images in the specified series (modifies strategy series!)
     	/**
@@ -577,7 +607,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     	public void invalidateSelectedImage(int ser,int nImg){
     		this.selectedValidImages[ser][nImg]=false;
     	}
-    	
+
     	//this.selectedValidImages
     	public boolean [] selectedImages(int ser) {
     		return selectedImages(ser,false);
@@ -603,11 +633,11 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     	public int getNumSeries(){
     		return this.selectedImages.length;
     	}
-    	
+
        	/**
     	 * Creates map from the parameter vector index to the {grid image number, parameter number}
     	 * When the parameter is shared by several images, the map points to the one which value will be used
-    	 * (they might be different). Timestamp of the masterImages[] is used to determine which image to use.  
+    	 * (they might be different). Timestamp of the masterImages[] is used to determine which image to use.
     	 * Simultaneously creates this.reverseParameterMap that maps each of the image/parameter to the parameter vector
     	 * Needs to be run for each new strategy series
     	 * @param numSeries number of fitting strategy series
@@ -621,14 +651,14 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		this.reverseParameterMap=new int [numImg][numPars];
 //			boolean [] selectedEnabledImagesAll=selectedImages(numSeries,true); // strictly as in series, including no valid points ones
 			boolean [] selectedEnabledImages=selectedImages(numSeries);
-// set defaults - -1 - "fixed", use individual parameter from this image    		
+// set defaults - -1 - "fixed", use individual parameter from this image
     		for (int i=0;i<numImg;i++) for (int j=0;j<numPars;j++) this.reverseParameterMap[i][j]=-1;
     		int vectorIndex=0;
 //    		int [][] tmpMap=new int[numTPars][3]; // temporary array parameterMap[][] (will be truncated)
     		int [][] tmpMap=new int[numPars*numImg][3]; // temporary array parameterMap[][] (will be truncated)
 			double masterTS=this.distortionCalibrationData.getImageTimestamp(this.masterImages[numSeries]); // timestamp of the master image
 			int [] masterVectorIndices = new int [numTPars];
-// iterate through all global/subcamera parameters    		
+// iterate through all global/subcamera parameters
     		for (int numTPar=0;numTPar<numTPars;numTPar++) if (this.parameterMode[numSeries][numTPar]!=this.modeFixed){ // skip "fixed"
     			boolean isCommon=
     				(this.parameterMode[numSeries][numTPar]==this.modeCommon) ||
@@ -657,7 +687,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     				}
     				vectorIndexMaster = masterVectorIndices[numTParMaster]; // use as vectorIndex for slaves
     			}
-    			
+
     			if (this.debugLevel>2) System.out.println("numTPar="+numTPar+" numSub="+numSub+" numPar="+numPar+" numTParMaster="+numTParMaster);
 // iterate through available images
     			for (int numThisImg=0;numThisImg<numImg;numThisImg++) {
@@ -670,20 +700,20 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 // is it "same as" ?
     					if (vectorIndexMaster >= 0){
     						this.reverseParameterMap[numThisImg][numPar] = vectorIndexMaster;
-    						// does not look for same parameter in later images - leave it for the master? 
+    						// does not look for same parameter in later images - leave it for the master?
     					} else {
-// assign it a new parameter    					
+// assign it a new parameter
     						this.reverseParameterMap[numThisImg][numPar]=vectorIndex;
     						masterVectorIndices[numTPar] = vectorIndex;
     						double thisTS=this.distortionCalibrationData.getImageTimestamp(numThisImg);
     						int thisStation=this.distortionCalibrationData.gIP[numThisImg].getStationNumber();
-// set pointer to this first image    					
+// set pointer to this first image
     						tmpMap[vectorIndex][0]=numThisImg; // vectorindex==22 > tmpMap.length?
     						tmpMap[vectorIndex][1]=numPar;
     						tmpMap[vectorIndex][2]=this.parameterMode[numSeries][numTPar];
     						double minDist=Math.abs(this.distortionCalibrationData.getImageTimestamp(numThisImg)-masterTS);
     						if (this.debugLevel>2) System.out.println("vectorIndex="+vectorIndex+" numThisImg="+numThisImg);
-// see if same parameter in some other (later) image(s) is shared    
+// see if same parameter in some other (later) image(s) is shared
     						for (int numOtherImg=numThisImg + 1; numOtherImg < numImg; numOtherImg++)
     							if ((selectedEnabledImages[numOtherImg]) && // OOB 1
     									(!isSubCamera || (numSub==this.distortionCalibrationData.getImageSubcamera(numOtherImg))) &&
@@ -693,7 +723,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     										isCommon ||
     										(isGroup && (this.parameterGroups[numSeries][numTPar][numThisImg]==
     										this.parameterGroups[numSeries][numTPar][numOtherImg]))){
-// assign it a the same parameter    					
+// assign it a the same parameter
     									this.reverseParameterMap[numOtherImg][numPar]=vectorIndex;
     									double thisDist=Math.abs(this.distortionCalibrationData.getImageTimestamp(numThisImg)-masterTS);
     									if (thisDist<minDist) {
@@ -706,17 +736,17 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     					}
     				}
     			}
-    			
+
     		}
     		// reverseParameterMap built,   vectorIndex equals to the total number of parameters needed for fitting
-    		//truncate tmpMap into this.parameterMap[][]    		
+    		//truncate tmpMap into this.parameterMap[][]
     		this.parameterMap=new int[vectorIndex][];
-    		for (int i=0;i<vectorIndex;i++) this.parameterMap[i] =tmpMap[i]; 
+    		for (int i=0;i<vectorIndex;i++) this.parameterMap[i] =tmpMap[i];
     		this.currentSeriesNumber=numSeries;
 		   	if (this.debugLevel>2) System.out.println("this.parameterMap.length="+this.parameterMap.length);
     		return this.parameterMap.length;
     	}
-    	
+
     	/**
     	 * Prepare data for calculating additional LMA terms for parameter variances
     	 * @param numSeries fitting series to use
@@ -764,10 +794,10 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 					continue;
 				}
 
-				
+
 				int tiltMotor=this.distortionCalibrationData.gIS[setNumber].motors[tiltMotorIndex];// null pointer for triclops after adding variances for tilt
-				
-				
+
+
 				iStationTilt=station+numStations*tiltMotor;
 				if (!tiltList.contains(iStationTilt)) tiltList.add(iStationTilt);
 			}
@@ -859,7 +889,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			System.out.println("buildVariancesMaps() numStationTilts="+numStationTilts+" numSeriesPars="+numSeriesPars+ " useSetWeights="+useSetWeights+
     					" number of averages="+startIndex);
     		}
-			
+
 			this.variationsAverages=new double [startIndex]; // total number of different averages
 			int [] numContributors=new int [startIndex];
 			for (int i=0;i<this.variationsAverages.length;i++) {
@@ -1011,15 +1041,15 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     	}
     	public double [] getVarianceError2(){ return (this.averageCellIndex==null)?null:this.varianceErrorsSquared;}
     	public double [] getWeights(){ return (this.averageCellIndex==null)?null:this.weightVariance;}
-    	
+
     	/**
-    	 * 
+    	 *
     	 * @return number of the current fitting strategy series
     	 */
     	public int getCurrentSeries(){
     		return this.currentSeriesNumber;
     	}
-    	
+
     	/**
     	 * Calculate vector of the parameters used in LMA algorithm, extracted from the
     	 * individual data, using parameter map (calculated once after changing series)
@@ -1038,9 +1068,9 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		}
     		return vector;
     	}
-    	
+
     	/**
-    	 * Saves data from the parameter vector to that of the images 
+    	 * Saves data from the parameter vector to that of the images
     	 * @param vector vector of parameters (after LMA fitting)
     	 */
     	// TODO: Update the temporarily disabled images also, when possible (modify buildParameterMap also?
@@ -1056,7 +1086,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			for (int nPar=0;nPar<this.reverseParameterMap[numImg].length;nPar++) if (this.reverseParameterMap[numImg][nPar]>=0){
 //    				this.distortionCalibrationData.pars[numImg][nPar]=vector[this.reverseParameterMap[numImg][nPar]];
     				this.distortionCalibrationData.setParameterValue(numImg,nPar,vector[this.reverseParameterMap[numImg][nPar]],true);
-    				
+
     				if (this.debugLevel>2){
     					System.out.println(" Updated image "+numImg+" "+distortionCalibrationData.getParameterName(nPar)+" = "+
     				//			this.distortionCalibrationData.pars[numImg][nPar]) ; //vector[this.reverseParameterMap[numImg][nPar]]);
@@ -1094,7 +1124,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			}
     		}
     	}
-    	
+
     	/**
     	 * Calculates current values of all parameters for the particular sensor - some ("fixed")
     	 * are taken from the data stored for this individual image, others - from the parameter
@@ -1118,7 +1148,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     	 * Calculates which of all parameters for the particular sensor are to be adjusted (to reduce calcualtions)
     	 * @param numImg number of image
     	 * @param vector parameters vector
-    	 * @return mask vector to be used with the results of getImageParametersVector() 
+    	 * @return mask vector to be used with the results of getImageParametersVector()
     	 */
     	public boolean [] getImageParametersVectorMask (int numImg){
     		if ((this.reverseParameterMap==null) || (this.reverseParameterMap[numImg]==null)) return null;
@@ -1133,7 +1163,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     	 * Calculates index in the parameter vector corresponding to each image parameter vector element
     	 * @param numImg number of image
     	 * @param vector parameters vector
-    	 * @return mask vector to be used with the results of getImageParametersVector() 
+    	 * @return mask vector to be used with the results of getImageParametersVector()
     	 */
     	public int [] getImageParametersVectorReverseMap (int numImg){
     		if ((this.reverseParameterMap==null) || (this.reverseParameterMap[numImg]==null)) return null;
@@ -1185,7 +1215,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     	    	sb.append("\t"+this.distortionCalibrationData.getImageSubcamera(i));
     	    }
     	    sb.append("\n");
-    	    
+
     	    for (int k=0;k<this.reverseParameterMap[0].length;k++){
 //    			boolean isSubCamera=this.distortionCalibrationData.isSubcameraParameter(k);
 //        	    sb.append(this.distortionCalibrationData.getParameterName(this.parameterMap[k][1])); // name of parameter
@@ -1193,14 +1223,14 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
         	    for (int i=0; i<this.reverseParameterMap.length;i++) if (selectedEnabledImages[i]){
         	    	int mode =this.reverseParameterMap[i][k];
         	    		sb.append("\t"+((mode>=0)?mode:"-"));
-        	    	
+
         	    }
         	    sb.append("\n");
-    	    	
+
     	    }
     	    new TextWindow(title, header, sb.toString(), 800,600);
     	}
-    	
+
     	/**
     	 * Add/reduce number of series in this fitting strategy
     	 * @param numSeries new number of series
@@ -1221,6 +1251,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		int [] oldMasterImages=null;
         	double [] oldStepDone=null;
         	boolean [] oldStopAfterThis=null;
+        	String [] oldStrategyComment=null;
             int oldNumSeries=(this.selectedImages==null)?0:this.selectedImages.length;
             int oldLength=0;
     		if (this.selectedImages!=null){
@@ -1229,6 +1260,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			oldParameterMode=new int[oldNumSeries][];
     			oldParameterGroups=new int[oldNumSeries][][];
     			oldZGroups=new int[oldNumSeries][];
+        		oldStrategyComment = new String [oldNumSeries];
     			for (int i=0;i<oldNumSeries;i++){
     				oldSelectedImages[i]=this.selectedImages[i].clone();
         			oldParameterMode[i]= this.parameterMode[i].clone(); // out of bound - 2
@@ -1237,6 +1269,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
         				oldParameterGroups[i][j]=(parameterGroups[i][j]==null)?null:parameterGroups[i][j].clone();
         			if (this.zGroups[i]!=null) oldZGroups[i]=this.zGroups[i].clone();
         			else this.zGroups[i]=oldZGroups[i];
+        			oldStrategyComment[i]=this.strategyComment[i];
     			}
     			oldVarianceModes=(this.varianceModes==null)?null:this.varianceModes.clone();
     			oldLambdas=this.lambdas.clone();
@@ -1256,9 +1289,10 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
         		this.stopAfterThis[i]=oldStopAfterThis[i];
     			this.varianceModes[i]=oldVarianceModes[i];
     			this.zGroups[i]=(oldZGroups[i]!=null)?oldZGroups[i].clone():null;
+    			this.strategyComment[i] = oldStrategyComment[i];
     		}
     	}
-    	
+
     	public void updateNumberOfSubcameras(){  // can break "same as"?
     		int numPars=   this.distortionCalibrationData.getNumParameters();
     		int numSubCams=this.distortionCalibrationData.getNumSubCameras();
@@ -1275,7 +1309,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
         		for (int i=0;i<numSubPars;i++)subParIndex[i]=(oldTotalPars-numSubPars)+i;
     		}
 //       public boolean isSubcameraParameter(int num){
-    		
+
     		int numSeries=this.parameterMode.length;
     		if (oldTotalPars<totalNumPars){ // grow, repeat last subcamera
     			if (this.debugLevel>1) System.out.println("Increasing total number of parameters in fitting strategy: "+oldTotalPars+" -> "+totalNumPars);
@@ -1322,7 +1356,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
         		}
     		}
     	}
-    	
+
     	private void setDflt(int numSeries){
     		if (numSeries==0) {
         		this.selectedImages=null;
@@ -1332,6 +1366,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
         		this.parameterGroups=null;
         		this.varianceModes=null;
         		this.zGroups=null;
+        		this.strategyComment=null;
                 return;
     		}
     		this.stopAfterThis=new boolean[numSeries];
@@ -1357,6 +1392,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		this.parameterGroups=new int[numSeries][totalNumPars][];
     		this.parameterEnable= new boolean [totalNumPars];
     		this.zGroups=new int[numSeries][];
+    		this.strategyComment = new String [numSeries];
     		for (int i=0;i<this.selectedImages.length;i++){
     			invalidateSelectedImages(i);
     			for (int j=0;j<this.selectedImages[i].length;j++){
@@ -1371,9 +1407,10 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			this.masterImages[i]=0; // first image, supposingly the earliest timestamp
     			this.varianceModes[i]=varianceModeDisabled;
         		this.zGroups[i]=null;
+        		this.strategyComment[i] = "";
     		}
-    		
-    		initParameterList();    		
+
+    		initParameterList();
 
     		for (int i=0;i<numPars;i++){
     			this.parameterEnable[i]=true; // initially enable all parameters for the first camera
@@ -1387,7 +1424,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			}
     		}
     	}
-    	
+
     	private void initParameterList(){
     		int numPars=   this.distortionCalibrationData.getNumParameters();
     		int numSubCams=this.distortionCalibrationData.getNumSubCameras();
@@ -1403,7 +1440,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			this.parameterList[i][1]=i;
 //    			this.parameterEnable[i]=true; // initially enable all parameters for the first camera
     		}
-    		
+
     		for (int i=1;i<numSubCams;i++){
     			int i1=numPars+numSubPars*(i-1);
     			int j1=0;
@@ -1414,7 +1451,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
         			j1++;
     			}
     		}
-    		
+
     	}
     	/**
     	 * Find parameter number from subcamera and index
@@ -1435,7 +1472,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		Arrays.sort(array);
     		return array;
     	}
-    	
+
     	public boolean selectIndividualImages(
     			boolean [] selection,
     			boolean allImages,
@@ -1497,11 +1534,11 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     	    	enabledSets[i]=false;
     	    	selectedSets[i]=false;
     	    	if (imageSets[i]!=null) for (int j=0;j<imageSets[i].length;j++){
-    	    		enabledSets[i] |= enabled[imageSets[i][j]];	
-    	    		selectedSets[i] |= selection[imageSets[i][j]];	
+    	    		enabledSets[i] |= enabled[imageSets[i][j]];
+    	    		selectedSets[i] |= selection[imageSets[i][j]];
     	    	}
     	    }
-    	    
+
     		int endIndex=startIndex;
     		int numSet=0;
     		for (endIndex=startIndex; (endIndex<enabledSets.length) && (numSet<perPage);endIndex++) if (enabledSets[endIndex]) numSet++;
@@ -1540,8 +1577,8 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 	    			endIndex,
 	    			perPage);
     	}
-    	
-    	
+
+
     	/**
     	 * Manage image selection for the current series
     	 * @param numSeries series number to manage
@@ -1567,7 +1604,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     				"Individual images, start from current selection",// 4
     				"Image sets, start from empty selection",         // 5
     				"Image sets, start from current selection"        // 6
-    				};   
+    				};
     		int numStations=this.distortionCalibrationData.eyesisCameraParameters.getNumStations();
     		int numChannels=this.distortionCalibrationData.eyesisCameraParameters.getNumChannels(0); // for station 0
     		boolean [] selected=          this.selectedImages[numSeries];
@@ -1593,14 +1630,14 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		Arrays.fill(totalPerStation, 0);
     		int [] imageStations=this.distortionCalibrationData.getStations();
     		int [] imageChannels=this.distortionCalibrationData.getChannels();
-    		
+
     		int numNewEnabled=0;
     		int [] numNewEnabledPerStation=new int [numStations];
     		Arrays.fill(numNewEnabledPerStation, 0);
     		int numNewEnabledSelected=0;
     		int [] numNewEnabledSelectedPerStation=new int [numStations];
     		Arrays.fill(numNewEnabledSelectedPerStation, 0);
-    		
+
     		int numEstimatedSelected=0;
     		int [] numEstimatedSelectedPerStation=new int [numStations];
     		Arrays.fill(numEstimatedSelectedPerStation, 0);
@@ -1608,7 +1645,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		int numEstimated=0;
     		int [] numEstimatedPerStation=new int [numStations];
     		Arrays.fill(numEstimatedPerStation, 0);
-    		
+
     		int numEstimatedAll=0;
     		int [] numEstimatedAllPerStation=new int [numStations];
     		Arrays.fill(numEstimatedAllPerStation, 0);
@@ -1621,7 +1658,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		Map <Integer,Integer> mapHM=new HashMap<Integer,Integer>();
     		for (Integer index=0;index<matchedPointersIndex.length;index++) mapMP.put(new Integer(matchedPointersIndex[index]),index);
     		for (Integer index=0;index<hintedMatchIndex.length;index++) mapHM.put(new Integer(hintedMatchIndex[index]),index);
-    		
+
     		int []   numMatchedPointers=        new int [matchedPointersIndex.length];
     		int []   numMatchedPointersSelected=new int [matchedPointersIndex.length];
     		int []   numMatchedPointersEnabled= new int [matchedPointersIndex.length];
@@ -1658,7 +1695,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
         		Arrays.fill(numHintedMatchEnabledPerStation[n], 0);
     		}
 
-    		
+
     		for (int i=0;i<selected.length;i++) if (imageStations[i]>=0){
     			int mpi=mapMP.get(new Integer(matchedPointers[i]));
     			int hmi=mapHM.get(new Integer(hintedMatch[i]));
@@ -1693,11 +1730,11 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
         			}
         			numMatchedPointersEnabledPerStation[mpi][imageStations[i]]++;
     				numMatchedPointersEnabled[mpi]++;
-        			
+
         			numHintedMatchEnabledPerStation[hmi][imageStations[i]]++;
     				numHintedMatchEnabled[hmi]++;
-    				
-    				
+
+
     			}
     			if (estimatedAll[i]){
     				numEstimatedAllPerStation[imageStations[i]]++;
@@ -1708,7 +1745,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 
 				numHintedMatchPerStation[hmi][imageStations[i]]++;
 				numHintedMatch[hmi]++;
-				
+
 				totalPerStation[imageStations[i]]++;
 
     		}
@@ -1735,7 +1772,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     				sHintedMatch[n]+=" station_"+(i+1)+": ["+numHintedMatchSelectedPerStation[n][i]+" / "+
     						numHintedMatchEnabledPerStation[n][i]+" / "+numHintedMatchPerStation[n][i]+"]";
     			}
-    			
+
     		}
 
     		int operIndex=0,selectionTypeIndex=0;
@@ -1806,7 +1843,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		boolean [] selection=new boolean [enabled.length];
     		Arrays.fill(selection,false);
     		switch (selectionTypeIndex){
-    		case 0: 
+    		case 0:
     			selection=enabled.clone();
     			break;
     		case 1:
@@ -1834,15 +1871,15 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     	    			500)) return -1; //perPage))
     			break;
     		}
-			for (int i=0;i<selection.length;i++) selection[i] &= requiredMatchedPointers[mapMP.get(new Integer(matchedPointers[i]))]; 
-			for (int i=0;i<selection.length;i++) selection[i] &= requiredHintedMatch[mapHM.get(new Integer(hintedMatch[i]))]; 
-    		
-			for (int i=0;i<selection.length;i++) if (imageStations[i]>=0) selection[i] &= requiredStations[imageStations[i]]; 
+			for (int i=0;i<selection.length;i++) selection[i] &= requiredMatchedPointers[mapMP.get(new Integer(matchedPointers[i]))];
+			for (int i=0;i<selection.length;i++) selection[i] &= requiredHintedMatch[mapHM.get(new Integer(hintedMatch[i]))];
+
+			for (int i=0;i<selection.length;i++) if (imageStations[i]>=0) selection[i] &= requiredStations[imageStations[i]];
 			else selection[i] = false;
-				
-			for (int i=0;i<selection.length;i++) if (imageChannels[i]>=0) selection[i] &= requiredChannels[imageChannels[i]]; 
+
+			for (int i=0;i<selection.length;i++) if (imageChannels[i]>=0) selection[i] &= requiredChannels[imageChannels[i]];
 			else selection[i] = false;
-			
+
 			// now combine new/old selections
 			switch (operIndex){
 			case 0: // keep new selection
@@ -1869,10 +1906,126 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 			this.selectedImages[numSeries]=selection;
 			return more?0:1;
     	}
-    	
-    	
+       	/**
+   	 *
+   	 * @param numSeries Number of series to edit
+   	 * @param useImages Select images for this series
+   	 * @param fromToImages - limit number of checkboxes, otherwise window does not show the bottom ones
+   	 * @param useParameters Select parameters for this series
+   	 * @param askNextSeries Ask for next series number
+   	 * @param zeroAndOther use 2 channels 0 and "other", propagate settings for channel 1 to all the rest
+   	 * @return -2 - cancel, -1, done, otherwise - number of step to edit
+   	public int selectStrategyStep(
+   			int numSeries,
+   			boolean useImages,
+				int [] fromToImages,
+   			boolean allImages,
+   			boolean useParameters,
+   			boolean askLambdas,
+   			boolean askNextSeries,
+   			boolean zeroAndOther
+   			){
+			GenericDialog gd = new GenericDialog("Fitting Strategy Step Configuration, step "+numSeries+
+					                             " number of enabled images="+this.distortionCalibrationData.getNumEnabled());
+			gd.addStringField  ("Comment",   this.strategyComment[numSeries],80);
+
+   	 */
+
+    	public void listStrategies() {
+    		if (this.selectedImages == null) {
+    			String msg="No strategies defined";
+    			IJ.showMessage("Error",msg);
+    			return;
+    		}
+    		int fromSer = 0;
+    		int toSer = this.selectedImages.length;
+			boolean zeroAndOther=    true;
+    		GenericDialog gd = new GenericDialog("List Fitting Strategies");
+    		gd.addNumericField("First number of series to list", fromSer, 0);
+    		gd.addNumericField("Last number of series to list", toSer - 1, 0);
+    		gd.addCheckbox    ("Use only channel 0 and \"all other channels\"",zeroAndOther);
+    		gd.showDialog();
+    		if (gd.wasCanceled()) return;
+    		fromSer=          (int) gd.getNextNumber();
+    		toSer=            (int) gd.getNextNumber();
+    		zeroAndOther=           gd.getNextBoolean();
+    		listStrategies(fromSer, toSer, zeroAndOther);
+    	}
+
+    	public void listStrategies(
+        		int     fromSer,
+        		int     toSer,
+       			boolean zeroAndOther
+    			) {
+    		if (this.selectedImages == null) {
+    			String msg="No strategies defined";
+    			IJ.showMessage("Error",msg);
+    			return;
+    		}
+    		int [] choice_offsets = new int [this.parameterEnable.length];
+    		//
+    	    String header="Strategy Number\t";
+    	    StringBuffer sb = new StringBuffer();
+    		for (int i=fromSer;i<toSer;i++)  if (isSeriesValid(i)) header+="\t"+i;
+			sb.append("Comment\t");
+			for (int i=fromSer;i<toSer;i++) if (isSeriesValid(i)) sb.append("\t"+this.strategyComment[i]);sb.append("\n");
+			sb.append("Number of selected images\t");
+			for (int i=fromSer;i<toSer;i++) if (isSeriesValid(i)) {
+				int ns = 0;
+				for (int j=0; j<this.selectedImages[i].length;j++) if (this.selectedImages[i][j]) ns++;
+				sb.append("\t"+ns);
+			}
+			sb.append("\n");
+			// parameters
+			for (int ipar =0; ipar<this.parameterEnable.length;ipar++) if (this.parameterEnable[ipar] &&
+					(!zeroAndOther || (this.parameterList[ipar][0] <= 1) || (this.parameterList[ipar][0] ==24))){ // in "zeroAndOther" mode do not show other subcameras
+				int parIndex=this.parameterList[ipar][1];
+				int subCam=this.parameterList[ipar][0];
+				boolean isSub=this.distortionCalibrationData.isSubcameraParameter(parIndex);
+				String sChn=(zeroAndOther && (subCam>=1)&& (subCam<24))?"-head-other":
+					((zeroAndOther && (subCam>=24))?"-bottom":("-"+subCam));
+				boolean noWeak=!this.distortionCalibrationData.eyesisCameraParameters.isExtrinsic(parIndex);
+				boolean isTilt=this.distortionCalibrationData.eyesisCameraParameters.isTilt(parIndex);
+				// for non-subcamera or subcam 0 - no extra choices. For "zeroAndOther" - only "0". For other subCam - all less than this
+				int subMaxNum = (this.distortionCalibrationData.isSubcameraParameter(parIndex) && (subCam > 0)) ? (zeroAndOther? 0 : (subCam-1)):-1;
+				String [] commonChoices = (isTilt?this.definedModesTiltEq:(noWeak?this.definedModesNoWeak:this.definedModes));
+				String [] theseChoices;
+				String thisChoice = "";
+				choice_offsets[ipar] = 0;
+
+				sb.append(this.distortionCalibrationData.getParameterName(parIndex)+"\t"+(isSub?(" sub"+sChn):"com "));
+				for (int numSeries=fromSer;numSeries<toSer;numSeries++) if (isSeriesValid(numSeries)) {
+					if (subMaxNum < 0){
+//						theseChoices = commonChoices;
+						thisChoice = this.definedModesAll[this.parameterMode[numSeries][ipar]];
+					} else { // only can happen if (!isTilt) && (noWeak)
+						choice_offsets[ipar] = commonChoices.length;
+						theseChoices = new String [commonChoices.length + subMaxNum + 1];
+						for (int ch = 0; ch < commonChoices.length; ch++) theseChoices[ch] = commonChoices[ch];
+						for (int ch = 0; ch <= subMaxNum; ch++)  theseChoices[ch + commonChoices.length] = "same as "+ch;
+						// choice index for "same as ..." starts with  this.definedModesAll.length, but in the listbox index is lower
+						int indx = this.parameterMode[numSeries][ipar];
+						if (indx >= this.definedModesAll.length) {
+							indx -= (this.definedModesAll.length - choice_offsets[ipar]);
+						}
+						thisChoice = theseChoices[indx];
+//						System.out.println("selectStrategyStep(): this.parameterMode["+numSeries+"]["+ipar+"]=" + this.parameterMode[numSeries][ipar]+" indx = "+indx);
+					}
+					if (thisChoice.equals("fixed")) thisChoice = "-";
+					sb.append("\t"+thisChoice);
+				}
+				sb.append("\n");
+
+			}
+
+
+		    new TextWindow("Strategies_List", header, sb.toString(), 800,1000);
+			System.out.println("** Do not save as .csv - it will replace tabs with commas! ***");
+    	}
+
+
     	/**
-    	 * 
+    	 *
     	 * @param numSeries Number of series to edit
     	 * @param useImages Select images for this series
     	 * @param fromToImages - limit number of checkboxes, otherwise window does not show the bottom ones
@@ -1916,8 +2069,10 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     			int sourceSeries= findLastValidSeries(numSeries);
     			if (sourceSeries>=0)  copySeries(sourceSeries, numSeries);
     		}
-    		
-			GenericDialog gd = new GenericDialog("Fitting Strategy Step Configuration, step "+numSeries+" number of enabled images="+this.distortionCalibrationData.getNumEnabled());
+
+			GenericDialog gd = new GenericDialog("Fitting Strategy Step Configuration, step "+numSeries+
+					                             " number of enabled images="+this.distortionCalibrationData.getNumEnabled());
+			gd.addStringField  ("Comment",   this.strategyComment[numSeries],80);
 			gd.addCheckbox("Advanced image selection (disregard other fields)", showAdvancedImageSelection);
 			gd.addCheckbox("Copy all from the series below, ignore all other fields", false);
 			gd.addNumericField("Source series to copy from", (numSeries>0)?(numSeries-1):(numSeries+1), 0, 3, "");
@@ -1941,9 +2096,9 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 			if (this.distortionCalibrationData.eyesisCameraParameters.numStations>1){
 				gd.addMessage("Constrain by stations");
 //				gd.addCheckbox("Remove images of unselected stations below", true);
-				for (int i=0;i<this.distortionCalibrationData.eyesisCameraParameters.numStations;i++) 	gd.addCheckbox("Station "+i, constrainByStation[i]);				
+				for (int i=0;i<this.distortionCalibrationData.eyesisCameraParameters.numStations;i++) 	gd.addCheckbox("Station "+i, constrainByStation[i]);
 			}
-			
+
 			if (useImages) {
 	    		gd.addNumericField("Image selection range, from", fromToImages[0], 0);
 	    		gd.addNumericField("Image selection range, up to (including)", fromToImages[1], 0);
@@ -1959,7 +2114,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 							this.selectedImages[numSeries][i]);
 				}
 				if (allImages) gd.addCheckbox("Enable selected, disable deselected images", false);
- 
+
 				gd.addNumericField("The 'master' (used for common parameters)", this.masterImages[numSeries], 0);
 
 			}
@@ -2065,13 +2220,13 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 							"Same target group for station " +i,
 							zGroupsChoices,
 							zGroupsChoices[zG]); // definedModesAll - includes all others
-					
+
 				}
 			} else {
 				this.zGroups[numSeries]=new int [1];
 				this.zGroups[numSeries][0]=0;
 			}
-			
+
 			if (askNextSeries) {
 				gd.addCheckbox("Rebuild/Show parameter Map", showDirectMap);
 				gd.addCheckbox("Rebuild/Show reverse parameter Map", showReverseMap);
@@ -2082,6 +2237,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 			WindowTools.addScrollBars(gd);
 			gd.showDialog();
 			if (gd.wasCanceled()) return -2;
+			this.strategyComment[numSeries]= gd.getNextString();
 			showAdvancedImageSelection=gd.getNextBoolean();
 			if (showAdvancedImageSelection){
 				int rslt=0;
@@ -2116,7 +2272,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 				}
 				return numSeries; // caller will repeat with the same series
 			}
-			
+
 			if (copyFromPrevious){
     			int sourceSeries= findLastValidSeries(sourceStrategy);
     			if (sourceSeries>=0) {
@@ -2130,7 +2286,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 				return numSeries; // caller will repeat with the same series
 			}
 			if (removeAllImages || selectAllImages) {
-//				
+//
 				for (int i =0; i<this.distortionCalibrationData.getNumImages();i++){
 //					this.selectedImages[numSeries][i]=false; // invalidate - all, regardless of .enabled
 					this.selectedImages[numSeries][i]=selectAllImages || ((i==0) && removeAllImages); // invalidate - all, regardless of .enabled
@@ -2157,14 +2313,14 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 						(!zeroAndOther || (this.parameterList[i][0] <=1) || (this.parameterList[i][0]==24))){ // in "zeroAndOther" mode do not show other subcameras
 					//				for (int i =0; i<this.parameterEnable.length;i++) if (this.parameterEnable[i]){
 					this.parameterMode[numSeries][i]=gd.getNextChoiceIndex();
-					
+
 // make adjustment for "same as (other lower numbered subcamera)"
 					if ((choice_offsets[i] > 0) && (this.parameterMode[numSeries][i] >= choice_offsets[i])){
 						System.out.print("selectStrategyStep(): choice_offsets["+i+"]="+choice_offsets[i]+ " this.parameterMode["+numSeries+"]["+i+"]=" + this.parameterMode[numSeries][i]);
 						this.parameterMode[numSeries][i] += (this.definedModesAll.length - choice_offsets[i]);
 						System.out.println(", corrected=" + this.parameterMode[numSeries][i]);
 					}
-					
+
 					if (this.parameterMode[numSeries][i]==this.modeGroup) {
 						if (this.parameterGroups[numSeries][i]!=null) lastGroups=this.parameterGroups[numSeries][i]; // default groups
 						else if (lastGroups!=null) this.parameterGroups[numSeries][i]=lastGroups.clone(); // may be null
@@ -2196,9 +2352,9 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		if (enableDisableSelected) {
     			this.distortionCalibrationData.enableSelected(this.selectedImages[numSeries]);
     		}
-    	
+
     		if (this.varianceModes!=null) this.varianceModes[numSeries]=gd.getNextChoiceIndex();
-    		
+
     		boolean editVariancesCosts=gd.getNextBoolean();
     		if (editVariancesCosts){
 				for (int i =0; i<this.parameterList.length;i++) {
@@ -2220,13 +2376,13 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 					}
 				}
     		}
-    		
+
 			if (numStations>1){
 				for (int i=0;i<numStations;i++){
 					this.zGroups[numSeries][i]=gd.getNextChoiceIndex()-1;
 				}
 			}
-    		
+
     		if (!gd.wasOKed()) return -1; // pressed Done (no need to ask for the next number)
 
 			if (askNextSeries) {
@@ -2252,14 +2408,14 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
  //   			System.out.println("selectGroups("+numSeries+", "+numPar+")");
  //   		}
 
-    		
+
 			int parIndex=this.parameterList[numPar][1];
 			int subCam=this.parameterList[numPar][0];
 			String name=this.distortionCalibrationData.getParameterName(parIndex)+
 			(this.distortionCalibrationData.isSubcameraParameter(parIndex)?(" s"+subCam):"com ");
     		GenericDialog gd = new GenericDialog("Select image groups for "+name);
     		gd.addMessage("Select which images share the same value of "+name);
-    		
+
     		if (this.parameterGroups[numSeries][numPar]==null) {
     			this.parameterGroups[numSeries][numPar]=new int [this.distortionCalibrationData.getNumImages()];
     			for (int i=0;i<this.parameterGroups[numSeries][numPar].length;i++)this.parameterGroups[numSeries][numPar][i]=0;
@@ -2273,18 +2429,18 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     					);
     		}
 			WindowTools.addScrollBars(gd);
-          
+
 			gd.showDialog();
 			if (gd.wasCanceled()) return false;
     		for (int i =0; i<this.distortionCalibrationData.getNumImages();i++) if (this.selectedImages[numSeries][i]){
     			this.parameterGroups[numSeries][numPar][i]=gd.getNextChoiceIndex();
     		}
 			return true;
-			
+
 		}
 		/**
 		 * Organizes list of groups and creates a list of selection choices. If all members fit in the range
-		 * of 0 (length-1) and (force==false), group numbers are preserved, otherwise they are renumbered 
+		 * of 0 (length-1) and (force==false), group numbers are preserved, otherwise they are renumbered
 		 * @param groups array of integers - group numbers
 		 * @param force force renumbering groups
 		 * @return list of selection choices
@@ -2332,7 +2488,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 
     		int numSeries=startSerNumber;
     		int oldLength=(this.selectedImages==null)?0:this.selectedImages.length;
-    		
+
     		GenericDialog gd = new GenericDialog("Fitting Strategy Step Configuration");
     		if (oldLength<=0) gd.addNumericField("Number of series in this strategy", defaultLength, 0);
     		gd.addNumericField("Number of series to edit (<0 - none)", numSeries, 0);
