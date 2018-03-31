@@ -55,7 +55,7 @@ import ij.text.TextWindow;
      * 4 - "per group"
      * 5 - "per-station"
      * 6 - "per-station" save to all (super)
-     * 7 - "weak common" - like common, but enable small individual variations (for a price) - not yet implemented, will have separate weight fixed/floating
+     * 7 - "weak common" - like common, but enable small individual variations (for a price)
      * 8 - "weak station" - like per-station, but enable individual (for a price)
      *
 +====================+===========+===========+
@@ -211,6 +211,10 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
         	XMLConfiguration hConfig=null;
         	try {
 				hConfig=new XMLConfiguration(pathname);
+				hConfig.setListDelimiter((char) 0);
+				hConfig.setDelimiterParsingDisabled(true);
+				hConfig.setAttributeSplittingDisabled(true);
+
 			} catch (ConfigurationException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -303,9 +307,9 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
 
     			if (hConfig.getString(sSeries+".strategyComment")!=null) {
     				this.strategyComment[i]=hConfig.getString(sSeries+".strategyComment");
+    				if ((this.strategyComment[i].length()>10) && this.strategyComment[i].substring(0,9).equals("<![CDATA["))
+    					this.strategyComment[i]=this.strategyComment[i].substring(9,this.strategyComment[i].length()-3);
     			}
-
-
         	}
 //        	if (hConfig.getString("variances")!=null){
 //            if (!hConfig.configurationAt("variances").isEmpty()){
@@ -368,6 +372,11 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
         public boolean saveToXML(String pathname) {
         	if (pathname==null) return false;
         	XMLConfiguration hConfig=new XMLConfiguration();
+
+        	hConfig.setListDelimiter((char) 0);
+			hConfig.setDelimiterParsingDisabled(true);
+			hConfig.setAttributeSplittingDisabled(true);
+
         	hConfig.setRootElementName("FittingStrategy");
 //        	write which of the overall parameter correspond to each global/subcamera one, and which parameters are hidden/shown
     		hConfig.addProperty("parameterMap","");
@@ -417,7 +426,16 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
         		hConfig.addProperty(sSeries+".lambdas",lambdas[i]);
         		hConfig.addProperty(sSeries+".stepDone",stepDone[i]);
         		hConfig.addProperty(sSeries+".stopAfterThis",this.stopAfterThis[i]);
-        		hConfig.addProperty(sSeries+".strategyComment",this.strategyComment[i]);
+
+            	if (this.strategyComment[i]!=null){
+            		String comment_esc=this.strategyComment[i].replace(",","\\,");
+//            		comment_esc=comment_esc.replace("/","\\/");
+            		//          hConfig.addProperty("comment","<![CDATA["+comment_esc+ "]]>");
+            		hConfig.addProperty(sSeries+".strategyComment",comment_esc);
+            	}
+//        		hConfig.addProperty(sSeries+".strategyComment","<![CDATA["+this.strategyComment[i]+"]]>");
+//        		hConfig.addPropertyDirect(sSeries+".strategyComment","<![CDATA["+this.strategyComment[i]+"]]>");
+//        		hConfig.setProperty(sSeries+".strategyComment","<![CDATA["+this.strategyComment[i]+"]]>");
         	}
         	hConfig.addProperty("variances","");
        		this.distortionCalibrationData.eyesisCameraParameters.setCostsPropertiesXML("variances.",hConfig);
@@ -514,7 +532,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		return true;
     	}
     	/**
-    	 * Determins if LMA should stop after this series (either flag is set or next is invalid)
+    	 * Determines if LMA should stop after this series (either flag is set or next is invalid)
     	 * @param num number of series to test
     	 * @return true if LMA should stop
     	 */
