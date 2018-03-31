@@ -3,12 +3,12 @@
 ** Eyesis_Correction.java
 **
 ** De-mosaic and correct aberrations using array of inverted PSF kernels
-** 
+**
 **
 ** Copyright (C) 2010-2012 Elphel, Inc.
 **
 ** -----------------------------------------------------------------------------**
-**  
+**
 **  Eyesis_Correction.java is free software: you can redistribute it and/or modify
 **  it under the terms of the GNU General Public License as published by
 **  the Free Software Foundation, either version 3 of the License, or
@@ -25,17 +25,15 @@
 **
 */
 
-import ij.*;
-import ij.process.*;
-import ij.gui.*;
-import ij.io.FileInfo;
-import ij.io.FileSaver;
-import ij.io.OpenDialog;
-import ij.io.Opener;
-import ij.plugin.frame.*;
-
-import java.awt.*;
-import java.awt.event.*;
+import java.awt.Button;
+import java.awt.Color;
+import java.awt.Frame;
+import java.awt.GridLayout;
+import java.awt.Panel;
+import java.awt.Rectangle;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.awt.event.WindowEvent;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -53,6 +51,26 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileFilter;
 
+import ij.CompositeImage;
+import ij.IJ;
+import ij.ImageJ;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.Prefs;
+import ij.WindowManager;
+import ij.gui.GUI;
+import ij.gui.GenericDialog;
+import ij.gui.Plot;
+import ij.gui.PlotWindow;
+import ij.gui.Roi;
+import ij.io.FileInfo;
+import ij.io.FileSaver;
+import ij.io.OpenDialog;
+import ij.io.Opener;
+import ij.plugin.frame.PlugInFrame;
+import ij.process.ColorProcessor;
+import ij.process.FloatProcessor;
+import ij.process.ImageProcessor;
 import loci.common.services.DependencyException;
 import loci.common.services.ServiceException;
 import loci.formats.FormatException;
@@ -62,7 +80,7 @@ import loci.formats.FormatException;
 
 public class Eyesis_Correction extends PlugInFrame implements ActionListener {
    /**
-	 * 
+	 *
 	 */
 	private static final long serialVersionUID = -1507307664341265263L;
 private Panel panel1,
@@ -97,13 +115,13 @@ private Panel panel1,
 		   32, // addTop
 		   32, // addRight
 		   32  // addBottom
-   );		   
+   );
 
    public static EyesisCorrectionParameters.DCTParameters DCT_PARAMETERS = new EyesisCorrectionParameters.DCTParameters(
 		   32,  // dct_size
 		    6,  // asym_size
 	  	   10,  // asym_pixels =  10; // maximal number of non-zero pixels in direct convolution kernel
-	  		2,  // asym_distance = 2; // how far to try a new asym kernel pixel from existing ones 
+	  		2,  // asym_distance = 2; // how far to try a new asym kernel pixel from existing ones
 		    1,  // dct_window
 		    1.0,// compactness
 	        5,  // asym_tax_free,
@@ -111,10 +129,10 @@ private Panel panel1,
    );
 
    public static EyesisCorrectionParameters.CLTParameters CLT_PARAMETERS = new EyesisCorrectionParameters.CLTParameters();
-   
+
    public static EyesisDCT EYESIS_DCT = null;
    public static QuadCLT   QUAD_CLT =   null;
-   
+
    public static EyesisCorrectionParameters.DebayerParameters DEBAYER_PARAMETERS = new EyesisCorrectionParameters.DebayerParameters(
 		   64,    // size //128;
 		   0.5,   // polarStep -  size of largest polar cell to Cartesian one;
@@ -131,21 +149,21 @@ private Panel panel1,
 //		   false, // showEnergy - plot debayer high frequency energy (use to select between "scissors" and default uniform
 
 		   false, // debug - display internal data for the tile around selected pixel
-		   2592,  // xDebug - near the center  
+		   2592,  // xDebug - near the center
 		   1936,  // yDebug - near the center
 		   true  // debayerStacks - show debayer debug images as stack (false - individual)
    );
 
    public static EyesisCorrectionParameters.NonlinParameters NONLIN_PARAMETERS=new EyesisCorrectionParameters.NonlinParameters(
-		   false, //true, // useRejectBlocksFilter - apply blocking artifacts rejection filter to the mask 
-		   true, // combineBothModes - combine (sqrt(A*B) mask with rejected blocks and the one without 
+		   false, //true, // useRejectBlocksFilter - apply blocking artifacts rejection filter to the mask
+		   true, // combineBothModes - combine (sqrt(A*B) mask with rejected blocks and the one without
 		   256,  // maskFFTSize- FFT size of the sliding filter for the mask
 		    32,  // blockPeriod - size of the JPEG macroblock (16) scaled for oversampling
 		   1.0,  // rejectFreqSigma - width of the rejection filter zeros (in frequency counts)
 		   2.5,  //5.0  // lowPassSigma -  sigma for the nonlinear filtering (higher the sigma, farther from the edges is the "sharpened" image used)
 		   0.006, //1.0,  //0.005, // filtMin -   minimal low-pass filtered squared difference between the corrected and original pixels to trigger sharpness enhancement
 		   0.2, //5.0, //0.025, // filtMax -   squared low-pass filtered difference between the corrected and original pixels, so above that level 100% corrected image is used
- 		   1.0, // thresholdCorrection_11 - multiply filtMin and filtMax for channel 1-1 
+ 		   1.0, // thresholdCorrection_11 - multiply filtMin and filtMax for channel 1-1
  		   1.0, // thresholdCorrection_12,
  		   1.0, // thresholdCorrection_13,
  		   1.0, // thresholdCorrection_21,
@@ -159,12 +177,12 @@ private Panel panel1,
 			0.0, // noiseGainWeights_0, // r weights used to calculate noise gains from individual color. Currently mask is calculated for green only
 			0.0, // noiseGainWeights_1, // b
 			1.0, // noiseGainWeights_2, // g
-			1.0,  // blurSigma,     // blur sigma for mask calculation (blur convolution kernels for noise gain calculation 
+			1.0,  // blurSigma,     // blur sigma for mask calculation (blur convolution kernels for noise gain calculation
 			3.0,  // noiseGainPower;
 			// ring filter
 		  	true,  // useRingFilter;    // filter out spots on denoise mask
 		    0.3,   // minMaxValue;       //  minimal value (relative to filtMax) of the local maximum to be processed
-		    1.2,   // overRingThreshold; // ratio of local max. and maximal value in the surrounding ring to trigger filter 
+		    1.2,   // overRingThreshold; // ratio of local max. and maximal value in the surrounding ring to trigger filter
 		    1.1,   //  overRingLimit;     // limit values in the center circle to scaled maximum in a ring
 		    6.0,   //  ringIR;            // ring inner radius (center circle radius)
 		    9.0    //  ringOR;            // ring outer radius
@@ -181,7 +199,7 @@ private Panel panel1,
 		0.003, // minLin;
 		0.299, // kr;
 		0.114, // kb;
-		1.0, //2.5,   // saturationRed;                              
+		1.0, //2.5,   // saturationRed;
 		1.0, // 2.5,   // saturationBlue;
 		true,  // useFirstY;
         3.0,   // maskSigma,        3);
@@ -197,18 +215,18 @@ private Panel panel1,
 		1.0,   // minimal value for average compared to average over the whole picture
 		0.01,  // satDetFinRelDiff; // maximal difference from average for the saturated tile to be considered saturated
 		0.01,  // satDetGrowRelDiff
-	  	0.3,    // satDetNewWeight,   // weight of new pixel when expanding overexposed areas 
-		
+	  	0.3,    // satDetNewWeight,   // weight of new pixel when expanding overexposed areas
+
 		64,    // satDetExpSym; // number of overexposure expand steps, not allowing any brighter
 		16,     // satDetExpOver;// number of overexposure expand steps, limited under, any over
-			
+
 		6, // satDetExpCleanUp; // number of overexposure expand steps, not allowing any brighter (final to clean up oscillations)
-        0.03, // satDetGrowRelDiffCleanUp; // maximal difference from start tile average during growing of overexposed areas (final to clean up oscillations) 
+        0.03, // satDetGrowRelDiffCleanUp; // maximal difference from start tile average during growing of overexposed areas (final to clean up oscillations)
   		2,     // blueOverShrink; // shrink blue overexposed area by this number of pixels (to get to undisturbed R/G)
   		8,     //blueOverGrow; // grow blue overexposed area by this number of pixels
   		12,     // blueBandWidth; // average amount of blue leak in pixels
   		70,     // blueBandWidthDark; // average amount of blue leak in pixels (slope at dark)
-  		
+
 		1.0,    //  blueNeutral; // Value of Yb/Yrg ratio for the small areas where safe color c an not be found
 		100.0,  // blueSolutionRadius; // How far to trust blue color ratio from the found solution (in pixels)
 	  	false,  // blueLeakNoHint,    // use blueNeutral in the small areas that do not have reliable color sample
@@ -217,12 +235,12 @@ private Panel panel1,
   		5,      // blueLeakWiresSize; //size (in pixels) of the small objects to fix blue
   		0.03,   // blueLeakWiresThreshold; //size (in pixels) of the small objects to fix blue
 	  	true    // use8 // use 8 neighbors (false - only 4)
-		
+
    );
-   
 
 
-   
+
+
    //ColorCalibrationParameters
    public static CorrectionColorProc.ColorGainsParameters CHANNEL_GAINS_PARAMETERS=new CorrectionColorProc.ColorGainsParameters();
    public static EyesisCorrectionParameters.ColorCalibParameters COLOR_CALIB_PARAMETERS= new EyesisCorrectionParameters.ColorCalibParameters(
@@ -303,33 +321,33 @@ private Panel panel1,
    public static EyesisCorrectionParameters.CorrectionParameters CORRECTION_PARAMETERS = new EyesisCorrectionParameters.CorrectionParameters();
    public static EyesisCorrections EYESIS_CORRECTIONS=null;
    public static EyesisCorrectionParameters.EquirectangularParameters EQUIRECTANGULAR_PARAMETERS = new EyesisCorrectionParameters.EquirectangularParameters();
-   
+
    public static int     CONVOLVE_FFT_SIZE= 128; // FFT size for sliding convolution with kernel
    public static int     THREADS_MAX=      100; // testing multi-threading, limit maximal number of threads
 
    public double GAUSS_WIDTH=0.4; //0 - use Hamming window
 
 /* replace */
-   public static int     PSF_SUBPIXEL_SHOULD_BE_4=4;         // sub-pixel decimation 
+   public static int     PSF_SUBPIXEL_SHOULD_BE_4=4;         // sub-pixel decimation
 
 //   public float [][] OUT_PIXELS=null; // (global, used with threads to accumulate output result
    public double []  DEBAYER_ENERGY=null; // (global, used with threads to accumulate output result)
-   public int        DEBAYER_ENERGY_WIDTH; // width of the DEBAYER_ENERGY image 
+   public int        DEBAYER_ENERGY_WIDTH; // width of the DEBAYER_ENERGY image
 
    public double []  DENOISE_MASK=null; // (global, used to return denoise mask to save/show
-   public int        DENOISE_MASK_WIDTH; // width of the DENOISE_MASK image 
- 
-   public double []  DENOISE_MASK_CHROMA=null; // (global, used to return denoise mask to save/show
-   public int        DENOISE_MASK_CHROMA_WIDTH; // width of the DENOISE_MASK_CHROMA image 
+   public int        DENOISE_MASK_WIDTH; // width of the DENOISE_MASK image
 
-   
+   public double []  DENOISE_MASK_CHROMA=null; // (global, used to return denoise mask to save/show
+   public int        DENOISE_MASK_CHROMA_WIDTH; // width of the DENOISE_MASK_CHROMA image
+
+
    public double []  MASK_LOHIRES=null; // (global, used with threads to accumulate output result)
 //   public float []  MASK_LOHIRES=null; // (global, used with threads to accumulate output result)
 
 
 //   public static String [] stackColorNames={"red","green","blue"};
    public static String [] stackColorNames= {"Red","Green","Blue"};
-  
+
    public static ImageStack convolutionKernelStack=null; // select to use for image convolution
    public static ImageStack convolutionKernelStack2=null; // select to use for image convolution
    public static ImagePlus imp_gaussian=null;
@@ -340,14 +358,14 @@ private Panel panel1,
    public PixelMapping.InterSensor.DisparityTiles DISPARITY_TILES=null;
    public ImagePlus DBG_IMP = null;
    public ImagePlus CORRELATE_IMP = null;
-   
+
 	public class SyncCommand{
 	    public boolean isRunning=      false;
 	    public AtomicInteger stopRequested=  new AtomicInteger(0); // 0 - not requested, 1 - ASAP, 2 - gracefully
 	    public String  buttonLabel="";
 	}
-   
-   
+
+
 	public Eyesis_Correction() {
 		super("Eyesis_Correction");
 		if (IJ.versionLessThan("1.43q")) return;
@@ -367,7 +385,7 @@ private Panel panel1,
 		Color color_conf_process=  new Color(180, 240, 240);
 		Color color_restore=       new Color(180, 240, 180);
 		Color color_stop=          new Color(255, 160, 160);
-		
+
 
 		instance = this;
 		addKeyListener(IJ.getInstance());
@@ -398,7 +416,7 @@ private Panel panel1,
 		add(panel5a);
 
 
-		// Debug/development options 
+		// Debug/development options
 
 		if (ADVANCED_MODE) {
 			panel1 = new Panel();
@@ -440,7 +458,7 @@ private Panel panel1,
 			addButton("Tiff Properties", panel7);
 		}
 		add(panel7);
-		
+
 		if (MODE_3D){
 			panelPostProcessing1 = new Panel();
 			panelPostProcessing1.setLayout(new GridLayout(1, 0, 5, 5));
@@ -450,7 +468,7 @@ private Panel panel1,
 			addButton("Linear Features", panelPostProcessing1);
 			addButton("Intercam correlations", panelPostProcessing1);
 			add(panelPostProcessing1);
-			
+
 			panelPostProcessing2 = new Panel();
 			panelPostProcessing2.setLayout(new GridLayout(1, 0, 5, 5));
 			addButton("Tile correlations", panelPostProcessing2);
@@ -512,7 +530,7 @@ private Panel panel1,
 //			addButton("CLT planes",                panelClt1, color_conf_process);
 //			addButton("CLT ASSIGN",                panelClt1, color_process);
 //			addButton("CLT OUT 3D",                panelClt1, color_process);
-						
+
 			add(panelClt1);
 		}
 		if (DCT_MODE) {
@@ -537,7 +555,7 @@ private Panel panel1,
 			addButton("CLT planes",                panelClt2, color_conf_process);
 			addButton("CLT ASSIGN",                panelClt2, color_process);
 			addButton("CLT OUT 3D",                panelClt2, color_process);
-						
+
 			add(panelClt2);
 		}
 		if (DCT_MODE) {
@@ -635,7 +653,7 @@ private Panel panel1,
 //			throw new IOException (msg);
 		}
     }
-	
+
 	public static String stack2string(Exception e) {
 		try {
 			StringWriter sw = new StringWriter();
@@ -662,13 +680,15 @@ private Panel panel1,
 		b.addKeyListener(IJ.getInstance());
 		panel.add(b);
 	}
+	@Override
 	public void processWindowEvent(WindowEvent e) {
 		super.processWindowEvent(e);
 		if (e.getID()==WindowEvent.WINDOW_CLOSING) {
-			instance = null;	
+			instance = null;
 		}
 	}
 
+	@Override
 	public void actionPerformed(ActionEvent e) {
 		String label = e.getActionCommand();
 		if        (label.equals("Abort")) {
@@ -707,39 +727,39 @@ private Panel panel1,
     if (label.equals("Configure spilt")) {
       showSplitBayerToStackDialog(SPLIT_PARAMETERS);
       return;
-    }  
+    }
 /* ======================================================================== */
     if (label.equals("Configure demosaic")) {
         showDeBayerDialog(DEBAYER_PARAMETERS, PROCESS_PARAMETERS);
         return;
-    }  
+    }
 /* ======================================================================== */
     if (label.equals("Configure convolution")) {
     	showStackConvolutionDialog();
         return;
-    }  
+    }
 /* ======================================================================== */
     if (label.equals("Configure denoise")) {
     	showCombinePairDialog(NONLIN_PARAMETERS, PROCESS_PARAMETERS);
         return;
-    }  
+    }
 /* ======================================================================== */
     if (label.equals("Configure color")) {
     	showColorProcessDialog(COLOR_PROC_PARAMETERS);
         return;
-    } 
+    }
 /* ======================================================================== */
     if (label.equals("Channel gains")) {
     	showColorCalibDialog(COLOR_CALIB_PARAMETERS);
         return;
-    } 
+    }
 /* ======================================================================== */
     if (label.equals("Configure RGB")) {
     	showRGBProcessDialog(RGB_PARAMETERS);
         return;
-    }  
-    
-//    
+    }
+
+//
 /* ======================================================================== */
     if (label.equals("Split Image")) {
       if (!showSplitBayerToStackDialog(SPLIT_PARAMETERS)) return;
@@ -764,7 +784,7 @@ private Panel panel1,
         IJ.showMessage("Error","Bayer image stack required");
         return;
       }
-    
+
       ImageStack imageStack= aliasScissorsStack(imp_src.getStack(),  // stack with 3 colors/slices with the image
     		                                    DEBAYER_PARAMETERS,
     		                                    PROCESS_PARAMETERS.showDebayerEnergy,
@@ -816,7 +836,7 @@ private Panel panel1,
       }
       ImageStack convolvedStack= convolveStackWithKernelStack (imp_src.getStack(),  // stack with 3 colors/slices with the image
                                                            convolutionKernelStack, // stack with 3 colors/slices convolution kernels
-                                                                CONVOLVE_FFT_SIZE, // 128 - fft size, kernel size should be size/2 
+                                                                CONVOLVE_FFT_SIZE, // 128 - fft size, kernel size should be size/2
                                                                       THREADS_MAX,
                                                                     UPDATE_STATUS); // update status info
 
@@ -856,10 +876,10 @@ private Panel panel1,
                                                   NONLIN_PARAMETERS, // show mask generated and used
                                                   null, //    noiseMask, // 2-d array of kernelsNoiseGain (divide mask by it)
                                                   32,   //    noiseStep, // linear pixels per noiseMask pixels (32)
-                                                  
+
                     							  THREADS_MAX,
                     							  UPDATE_STATUS); // update status info
-                                                  
+
 	  if (PROCESS_PARAMETERS.showDenoiseMask) {
 		  SDFA_INSTANCE.showArrays (DENOISE_MASK,DENOISE_MASK_WIDTH,DENOISE_MASK.length/DENOISE_MASK_WIDTH, "mask");
 	  }
@@ -888,7 +908,7 @@ private Panel panel1,
 
 /* find number of the green channel - should be called "green", if none - use last */
      if (!fixSliceSequence (stack_convolved)) {
-    	 return;     
+    	 return;
      }
      processColorsWeights(stack_convolved,
                                255.0/PSF_SUBPIXEL_SHOULD_BE_4/PSF_SUBPIXEL_SHOULD_BE_4,
@@ -981,7 +1001,7 @@ private Panel panel1,
                                                         DEBAYER_PARAMETERS.debayerRelativeWidthGreen, // result green mask mpy by scaled default (diamond)
                                                       DEBAYER_PARAMETERS.debayerRelativeWidthRedblue, // result red/blue mask mpy by scaled default (square)
                                                  DEBAYER_PARAMETERS.debayerRelativeWidthRedblueMain, // green mask when applied to red/blue, main (center)
-                                               DEBAYER_PARAMETERS.debayerRelativeWidthRedblueClones); // green mask when applied to red/blue, clones 
+                                               DEBAYER_PARAMETERS.debayerRelativeWidthRedblueClones); // green mask when applied to red/blue, clones
 
       double [][] both_masks= debayer_instance.aliasScissors(pixels_debayer[1], // fht array for green, will be masked in-place
                                                              DEBAYER_PARAMETERS.debayerThreshold, // no high frequencies - use default uniform filter
@@ -994,7 +1014,7 @@ private Panel panel1,
 
       double [] green_mask=   both_masks[0];
       double [] red_blue_mask=both_masks[1];
-        
+
       pixels_debayer[1]=FHT_INSTANCE.multiply(pixels_debayer[1],green_mask,false);
       pixels_debayer[0]=FHT_INSTANCE.multiply(pixels_debayer[0],red_blue_mask,false);
       pixels_debayer[2]=FHT_INSTANCE.multiply(pixels_debayer[2],red_blue_mask,false);
@@ -1035,12 +1055,12 @@ private Panel panel1,
       }
       return;
 /* ======================================================================== */
-     
+
     } else if (label.equals("Save")) {
     	saveProperties(null,CORRECTION_PARAMETERS.resultsDirectory,true, PROPERTIES);
     	return;
 /* ======================================================================== */
-        
+
     } else if (label.equals("Restore")) {
     	loadProperties(null,CORRECTION_PARAMETERS.resultsDirectory,true, PROPERTIES);
     	return;
@@ -1051,7 +1071,7 @@ private Panel panel1,
           IJ.showMessage("Error","Please select image stack of 3 (float) slices (r,g,b)");
           return;
         }
-        
+
         if (!showRGBProcessDialog(RGB_PARAMETERS)) return;
 
         ImageStack stack=imp_colorStack.getStack();
@@ -1060,7 +1080,7 @@ private Panel panel1,
         ImageStack stack_rot=rotateStack32CW(stack_crop);
         ImageStack stack16=convertRGB32toRGB16Stack(
         	stack_rot,
-      		RGB_PARAMETERS); 
+      		RGB_PARAMETERS);
         ImagePlus imp_stack16 = new ImagePlus(imp_colorStack.getTitle()+"-16b", stack16);
         CompositeImage compositeImage=convertToComposite(imp_stack16);
         compositeImage.show();
@@ -1079,8 +1099,8 @@ private Panel panel1,
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	CORRECTION_PARAMETERS.showDialog("Correction parameters");
     	return;
-    	
-    	
+
+
 /* ======================================================================== */
     } else  if (label.equals("Channel gains/colors")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
@@ -1095,7 +1115,7 @@ private Panel panel1,
     		System.out.println("rebuilding equirectangular map");
     		EYESIS_CORRECTIONS.rebuildEquirectangularMaps(
     				EQUIRECTANGULAR_PARAMETERS,
-    				THREADS_MAX,           // int          threadsMax,  // maximal number of threads to launch                         
+    				THREADS_MAX,           // int          threadsMax,  // maximal number of threads to launch
     				UPDATE_STATUS,         // boolean    updateStatus,
     				DEBUG_LEVEL);           //int        globalDebugLevel){
     	}
@@ -1126,7 +1146,7 @@ private Panel panel1,
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
-    					null, // use as default directory if path==null 
+    					null, // use as default directory if path==null
     					true,
     					PROPERTIES);
 
@@ -1136,22 +1156,22 @@ private Panel panel1,
     			IJ.showMessage("Error",msg);
     			return;
     		}
-    	}      
-        
+    	}
+
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
         int numChannels=EYESIS_CORRECTIONS.getNumChannels();
         NONLIN_PARAMETERS.modifyNumChannels(numChannels);
         CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
-        
+
         if (CORRECTION_PARAMETERS.deconvolve && (NONLIN_PARAMETERS.noiseGainPower!=0)) {
         EYESIS_CORRECTIONS.updateImageNoiseGains(
         		NONLIN_PARAMETERS,     //EyesisCorrectionParameters.NonlinParameters nonlinParameters,
         		CONVOLVE_FFT_SIZE,     //int          fftSize, // 128 - fft size, kernel size should be size/2
-    			THREADS_MAX,           // int          threadsMax,  // maximal number of threads to launch                         
+    			THREADS_MAX,           // int          threadsMax,  // maximal number of threads to launch
     			UPDATE_STATUS,         // boolean    updateStatus,
     			DEBUG_LEVEL);           //int        globalDebugLevel){
         }
-       
+
         EYESIS_CORRECTIONS.processChannelImages(
         		SPLIT_PARAMETERS, // EyesisCorrectionParameters.SplitParameters         splitParameters,
         		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
@@ -1161,13 +1181,13 @@ private Panel panel1,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
         		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
         		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
         if (configPath!=null) {
         	saveTimestampedProperties( // save config again
         			configPath,      // full path or null
-        			null, // use as default directory if path==null 
+        			null, // use as default directory if path==null
         			true,
         			PROPERTIES);
         }
@@ -1194,7 +1214,7 @@ private Panel panel1,
 						path,
 						CORRECTION_PARAMETERS.equirectangularFormat,
 						(CORRECTION_PARAMETERS.equirectangularFormat==3)?CORRECTION_PARAMETERS.outputRangeFP:CORRECTION_PARAMETERS.outputRangeInt,
-						CORRECTION_PARAMETERS.imageJTags,	
+						CORRECTION_PARAMETERS.imageJTags,
 						DEBUG_LEVEL);
 			} catch (ServiceException e) {
 				// TODO Auto-generated catch block
@@ -1224,29 +1244,29 @@ private Panel panel1,
     } else if (label.equals("Configure PP")) {
     	POST_PROCESSING.postProcessingParameters.showDialog("Configure processing parameters");
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	return;		
+    	return;
 /* ======================================================================== */
     } else if (label.equals("Source PP")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	POST_PROCESSING.postProcessingParameters.selectSourceFiles(
     			false, // boolean allFiles,
     			DEBUG_LEVEL); //int debugLevel
-    	return;		
+    	return;
 /* ======================================================================== */
     } else if (label.equals("ConvertPP")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	POST_PROCESSING.convertSourceFiles(
     			DEBUG_LEVEL); //int debugLevel
-    	return;		
+    	return;
 /* ======================================================================== */
     } else if (label.equals("Linear Features")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	if (!POST_PROCESSING.linearFeaturesParameters.showDialog("Configure linear features parameters")) return;
     	POST_PROCESSING.linearFeatures(
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
     			DEBUG_LEVEL); //int debugLevel
 
-    	return;		
+    	return;
 /* ======================================================================== */
     } else if (label.equals("Intercam correlations")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
@@ -1267,10 +1287,10 @@ private Panel panel1,
     	if (POST_PROCESSING.disparityCorrelationParameters.useFileData){
     		String []patterns={".lin-tiff",".tiff",".tif"};
     		if (DEBUG_LEVEL>1) System.out.println("Suggesting "+POST_PROCESSING.disparityCorrelationParameters.dataPathName);
-    		
+
     		String path= selectFile(
     				true,   //smart
-    				false, // save  
+    				false, // save
     				"External file with per-image slice (i.e. linear features)", // title
     				"Select external image file", // button
     				new MultipleExtensionsFileFilter(patterns,patterns[0]+" files"), // filter
@@ -1336,13 +1356,13 @@ private Panel panel1,
     	    	POST_PROCESSING.interSensor.mapWidth,
     	    	POST_PROCESSING.interSensor.mapHeight)) return;
 //    	POST_PROCESSING.linearFeatures(
-//        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
+//        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
 //    			DEBUG_LEVEL); //int debugLevel
     	double [][] correlation= POST_PROCESSING.correlationTest(
     			POST_PROCESSING.disparityCorrelationParameters.corrShift,
     			POST_PROCESSING.disparityCorrelationParameters.corrXC,
     			POST_PROCESSING.disparityCorrelationParameters.corrYC,
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
     			DEBUG_LEVEL); //int debugLevel
 		int numSensors=POST_PROCESSING.interSensor.channel.length;
 		int numLayers=POST_PROCESSING.interSensor.overlapImages.length/numSensors;
@@ -1353,7 +1373,7 @@ private Panel panel1,
 			for (int nLayer=0;nLayer<numLayers;nLayer++){
 				titles[nPair*numLayers+nLayer]=titles1[nLayer]+"_"+nPair;
 			}
-			
+
 		}
 		this.SDFA_INSTANCE.showArrays(
 				correlation,
@@ -1440,7 +1460,7 @@ private Panel panel1,
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
-    					null, // use as default directory if path==null 
+    					null, // use as default directory if path==null
     					true,
     					PROPERTIES);
 
@@ -1457,7 +1477,7 @@ private Panel panel1,
     	  	  String []patterns={".lin-tiff",".tiff",".tif"};
     	  	  String path= selectFile(
     	  			  true,   //smart
-    	  			  false, // save  
+    	  			  false, // save
     	  			  "External file with per-image slice (i.e. linear features)", // title
     	  			  "Select external image file", // button
     	  			  new MultipleExtensionsFileFilter(patterns,patterns[0]+" files"), // filter
@@ -1487,7 +1507,7 @@ private Panel panel1,
     			}
     		  }
     	}
-    	
+
     	DISPARITY_TILES=POST_PROCESSING.getDisparityTiles(
     			externalTitle,
     			externalData,
@@ -1497,7 +1517,7 @@ private Panel panel1,
         		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS,
     			DEBUG_LEVEL); //int debugLevel
-    	
+
     	if ((DISPARITY_TILES!=null) && POST_PROCESSING.disparityCorrelationParameters.saveCorrelationToImage){
     		String path=POST_PROCESSING.postProcessingParameters.selectResultsDirectory(
     				true,
@@ -1511,7 +1531,7 @@ private Panel panel1,
     		path+=Prefs.getFileSeparator()+DISPARITY_TILES.impDisparity.getTitle();
     		FileSaver fs=new FileSaver(DISPARITY_TILES.impDisparity);
     		fs.saveAsTiffStack(path);
-    		
+
     	}
 /* ======================================================================== */
     } else if (label.equals("Load correlations")) {
@@ -1521,7 +1541,7 @@ private Panel panel1,
     		return;
     	}
   	  String []patterns={".corr-tiff",".tiff",".tif"};
-	  String path= selectFile(false, // save  
+	  String path= selectFile(false, // save
 			  "Disparity correlation file selection", // title
 			  "Select disparity correlation file", // button
 			  new MultipleExtensionsFileFilter(patterns,patterns[0]+" files"), // filter
@@ -1592,7 +1612,7 @@ private Panel panel1,
     			}
     			index++;
     		}
-    		titles [index]=String.format("%03d-combo", ni);	
+    		titles [index]=String.format("%03d-combo", ni);
     		for (int rY=0;rY<resultHeight;rY++){
     			double [] row= DISPARITY_TILES.getCorrelationArray(
     					ni,
@@ -1604,7 +1624,7 @@ private Panel panel1,
     	    			DEBUG_LEVEL); //int debugLevel
 
     			for (int rX=0;rX<row.length;rX++) pixels[index][resultWidth*rY+rX]=row[rX];
-    		}    			
+    		}
     		index++;
     		index++; // skip for synthetic
     	}
@@ -1623,7 +1643,7 @@ private Panel panel1,
     	for (int ni=0;ni<numImages;ni++){
     		for (int ns=0; ns<pairMap[ni].length;ns++) if (pairMap[ni][ns]) index++;
     		index++; // skip combo
-    		titles [index]=String.format("%03d-synth", ni);	
+    		titles [index]=String.format("%03d-synth", ni);
 			for (int rY=0;rY<resultHeight;rY++){
 				double [] row= DISPARITY_TILES. getCorrelationArray( // synthetic pixels
 						ni,
@@ -1636,8 +1656,8 @@ private Panel panel1,
 			}
 			index++;
     	}
-		
-		
+
+
 		this.SDFA_INSTANCE.showArrays(
 				pixels,
 				resultWidth,
@@ -1699,7 +1719,7 @@ private Panel panel1,
     			zMapTitles);
     	return;
 /* ======================================================================== */
-    	
+
     } else if (label.equals("Fill FG gaps")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	double [][] disparityScales=POST_PROCESSING.interSensor.getDisparityScales();
@@ -1709,7 +1729,7 @@ private Panel panel1,
     			256,
     			POST_PROCESSING.interSensor.mapWidth,
     			POST_PROCESSING.interSensor.mapHeight)) return;
-    	
+
     	if (DISPARITY_TILES==null){
     		if (!loadCorrelations()) return;
     	}
@@ -1777,11 +1797,11 @@ private Panel panel1,
     			"-fgD"+POST_PROCESSING.disparityCorrelationParameters.fillFgGapDiff+ //double maxDifference,
     			"-fgM"+POST_PROCESSING.disparityCorrelationParameters.fillFgGapMin //double foregroundThreshold,
 
-    			
+
     			,
     			zMapTitles);
     	return;
-//"Fill FG gaps"    	
+//"Fill FG gaps"
 /* ======================================================================== */
     } else if (label.equals("Filter Z-map")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
@@ -1802,10 +1822,10 @@ private Panel panel1,
     	if (POST_PROCESSING.disparityCorrelationParameters.useFileData){
     		String []patterns={".lin-tiff",".tiff",".tif"};
     		if (DEBUG_LEVEL>1) System.out.println("Suggesting "+POST_PROCESSING.disparityCorrelationParameters.dataPathName);
-    		
+
     		String path= selectFile(
     				true,   //smart
-    				false, // save  
+    				false, // save
     				"External file with per-image slice (i.e. linear features)", // title
     				"Select external image file", // button
     				new MultipleExtensionsFileFilter(patterns,patterns[0]+" files"), // filter
@@ -1890,7 +1910,7 @@ private Panel panel1,
 				THREADS_MAX, //int threadsMax,
 				UPDATE_STATUS, //boolean showProgress,
 				DEBUG_LEVEL); //int debugLevel)
-    	
+
     	float [][] pixels=DISPARITY_TILES.renderZMap(POST_PROCESSING.disparityCorrelationParameters.zMapWOI,false);
     	String [] zMapTitles=new String [pixels.length];
     	for (int nImg=0;nImg<zMapTitles.length;nImg++) zMapTitles[nImg]="img-"+nImg;
@@ -1938,10 +1958,10 @@ private Panel panel1,
     	if (POST_PROCESSING.disparityCorrelationParameters.useFileData){
     		String []patterns={".lin-tiff",".tiff",".tif"};
     		if (DEBUG_LEVEL>1) System.out.println("Suggesting "+POST_PROCESSING.disparityCorrelationParameters.dataPathName);
-    		
+
     		String path= selectFile(
     				true,   //smart
-    				false, // save  
+    				false, // save
     				"External file with per-image slice (i.e. linear features)", // title
     				"Select external image file", // button
     				new MultipleExtensionsFileFilter(patterns,patterns[0]+" files"), // filter
@@ -2145,7 +2165,7 @@ private Panel panel1,
 					"-WVCr"+POST_PROCESSING.disparityCorrelationParameters.zMapVarWeights[2]+
 					"-WVAux"+POST_PROCESSING.disparityCorrelationParameters.zMapVarWeights[3],
 					zMapTitles);
-			
+
 /*
       					aux2[i]=(float) disparity;
     					aux3[i]=(float) pairVarDbgBest;
@@ -2153,7 +2173,7 @@ private Panel panel1,
     					aux5[i]=(float) thisDiffDbgBest;
 
  */
-			
+
 		}
 		if (POST_PROCESSING.disparityCorrelationParameters.zMapCorrMask!=0){
 			float [][] pixels=DISPARITY_TILES.renderZMap(POST_PROCESSING.disparityCorrelationParameters.zMapWOI,1,true);
@@ -2175,7 +2195,7 @@ private Panel panel1,
 					"-WCCr"+POST_PROCESSING.disparityCorrelationParameters.zMapCorrWeights[2]+
 					"-WCAux"+POST_PROCESSING.disparityCorrelationParameters.zMapCorrWeights[3],
 					zMapTitles);
-			
+
 			// debug
 			pixels=DISPARITY_TILES.renderZMap(POST_PROCESSING.disparityCorrelationParameters.zMapWOI,7,true);
 			this.SDFA_INSTANCE.showArrays(
@@ -2250,9 +2270,9 @@ private Panel panel1,
 					zMapTitles);
 
 
-			
+
 		}
-		
+
     	return;
 /* ======================================================================== */
     } else if (label.equals("Refine Disparities")) {
@@ -2274,10 +2294,10 @@ private Panel panel1,
     	if (POST_PROCESSING.disparityCorrelationParameters.useFileData){
     		String []patterns={".lin-tiff",".tiff",".tif"};
     		if (DEBUG_LEVEL>1) System.out.println("Suggesting "+POST_PROCESSING.disparityCorrelationParameters.dataPathName);
-    		
+
     		String path= selectFile(
     				true,   //smart
-    				false, // save  
+    				false, // save
     				"External file with per-image slice (i.e. linear features)", // title
     				"Select external image file", // button
     				new MultipleExtensionsFileFilter(patterns,patterns[0]+" files"), // filter
@@ -2386,10 +2406,10 @@ private Panel panel1,
     	if (POST_PROCESSING.disparityCorrelationParameters.useFileData){
     		String []patterns={".lin-tiff",".tiff",".tif"};
     		if (DEBUG_LEVEL>1) System.out.println("Suggesting "+POST_PROCESSING.disparityCorrelationParameters.dataPathName);
-    		
+
     		String path= selectFile(
     				true,   //smart
-    				false, // save  
+    				false, // save
     				"External file with per-image slice (i.e. linear features)", // title
     				"Select external image file", // button
     				new MultipleExtensionsFileFilter(patterns,patterns[0]+" files"), // filter
@@ -2431,7 +2451,7 @@ private Panel panel1,
     			POST_PROCESSING.interSensor.mapWidth, //int imageWidth,
 				200, // int margins,
 				POST_PROCESSING.disparityCorrelationParameters.photometricIgnoreFraction, //double ignoreFraction,
-				POST_PROCESSING.disparityCorrelationParameters.photometricSubdivAverage, //int subdivAverage, 
+				POST_PROCESSING.disparityCorrelationParameters.photometricSubdivAverage, //int subdivAverage,
 				POST_PROCESSING.disparityCorrelationParameters.photometricSubdivHalfDifference, //int subdivHalfDifference,
 				POST_PROCESSING.disparityCorrelationParameters.photometricSmoothVarianceSigma, //double smoothVarianceSigma,
 				POST_PROCESSING.disparityCorrelationParameters.photometricScaleVariance,        //double scaleVariance,
@@ -2458,10 +2478,10 @@ private Panel panel1,
     	if (POST_PROCESSING.disparityCorrelationParameters.useFileData){
     		String []patterns={".lin-tiff",".tiff",".tif"};
     		if (DEBUG_LEVEL>1) System.out.println("Suggesting "+POST_PROCESSING.disparityCorrelationParameters.dataPathName);
-    		
+
     		String path= selectFile(
     				true,   //smart
-    				false, // save  
+    				false, // save
     				"External file with per-image slice (i.e. linear features)", // title
     				"Select external image file", // button
     				new MultipleExtensionsFileFilter(patterns,patterns[0]+" files"), // filter
@@ -2533,7 +2553,7 @@ private Panel panel1,
     				POST_PROCESSING.interSensor.mapWidth, //int imageWidth,
     				200, // int margins,
     				POST_PROCESSING.disparityCorrelationParameters.photometricIgnoreFraction, //double ignoreFraction,
-    				POST_PROCESSING.disparityCorrelationParameters.photometricSubdivAverage, //int subdivAverage, 
+    				POST_PROCESSING.disparityCorrelationParameters.photometricSubdivAverage, //int subdivAverage,
     				POST_PROCESSING.disparityCorrelationParameters.photometricSubdivHalfDifference, //int subdivHalfDifference,
     				POST_PROCESSING.disparityCorrelationParameters.photometricSmoothVarianceSigma, //double smoothVarianceSigma,
     				POST_PROCESSING.disparityCorrelationParameters.photometricScaleVariance,        //double scaleVariance,
@@ -2561,7 +2581,7 @@ private Panel panel1,
     			POST_PROCESSING.disparityCorrelationParameters.zMapCorrWeights,
     			POST_PROCESSING.disparityCorrelationParameters.debugRow,
     			POST_PROCESSING.disparityCorrelationParameters.debugColumn,
-    			0 ,// int combineMode, // different image pairs - 0 
+    			0 ,// int combineMode, // different image pairs - 0
     			POST_PROCESSING.disparityCorrelationParameters.filter2DisparityMax, //double    disparityMax,
     			POST_PROCESSING.disparityCorrelationParameters.filter2DisaprityMin, //double    disaprityMin,
     			(POST_PROCESSING.disparityCorrelationParameters.filter2UpdateMax?POST_PROCESSING.disparityCorrelationParameters.filter2MinAbsolute:Double.NaN), //double    minAbsolute, // or NaN - will use enabled/disabled state of the tile
@@ -2630,10 +2650,10 @@ private Panel panel1,
         double [] ys;
         double [] ys1;
     	double [] y_shifted= new double[n];
-    	
-    	
+
+
     	for (int ii = 0; ii<n; ii++) {
-    		dindex[ii] = (double) ii;
+    		dindex[ii] = ii;
     		x[ii] = 0.0;
     	}
 //    	x[1] = 1.0;
@@ -2643,14 +2663,14 @@ private Panel panel1,
     	yc=  dtt.dct_iv(x);
     	ys = dtt.dst_iv(x);
     	ys1 = dtt.dstiv_direct(x);
-    	
+
 //    	xr1= dtt.dct_iv(yc);
     	for (int ii = 0; ii<n; ii++) {
-    		y_shifted[ii] = cos_shift_x[ii]*yc[ii]-sin_shift_x[ii]*ys[ii]; 
+    		y_shifted[ii] = cos_shift_x[ii]*yc[ii]-sin_shift_x[ii]*ys[ii];
     	}
     	yr1= dtt.dct_iv(y_shifted);
-    	
-    	
+
+
         PlotWindow.noGridLines = false; // draw grid lines
         Plot plot = new Plot("Example Plot","X Axis","Y Axis",dindex,x);
         plot.setLimits(0, n-1, -2, 2);
@@ -2659,21 +2679,21 @@ private Panel panel1,
         plot.setColor(Color.red);
         plot.addPoints(dindex,yc,PlotWindow.X);
         plot.addPoints(dindex,yc,PlotWindow.LINE);
-        
+
         plot.setColor(Color.black);
         plot.addPoints(dindex,ys,PlotWindow.X);
         plot.addPoints(dindex,ys1,PlotWindow.LINE);
-        
+
         plot.setColor(Color.magenta);
         plot.addPoints(dindex,y_shifted,PlotWindow.X);
         plot.addPoints(dindex,y_shifted,PlotWindow.LINE);
-        
+
         plot.setColor(Color.cyan);
         plot.addPoints(dindex,yr1,PlotWindow.X);
         plot.addPoints(dindex,yr1,PlotWindow.LINE);
 
         plot.setColor(Color.blue);
-        
+
         plot.show();
     	return;
 /* ======================================================================== */
@@ -2682,14 +2702,14 @@ private Panel panel1,
        	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 //       	IJ.showMessage("DCT test 1");
            if (!DCT_PARAMETERS.showDialog()) return;
-   // process selected image stack        
+   // process selected image stack
            ImagePlus imp_src = WindowManager.getCurrentImage();
            if (imp_src==null){
                IJ.showMessage("Error","JP4 image or Bayer image stack required");
                return;
            }
            if (imp_src.getStackSize()<3){ // convert JP4 to image stack
-           	
+
            	   EyesisCorrectionParameters.SplitParameters split_parameters = new EyesisCorrectionParameters.SplitParameters(
            			   1,  // oversample;
            			   // Add just for mdct (N/2)
@@ -2697,9 +2717,9 @@ private Panel panel1,
            			   DCT_PARAMETERS.dct_size/2, // addTop
            			   DCT_PARAMETERS.dct_size/2, // addRight
            			   DCT_PARAMETERS.dct_size/2  // addBottom
-           	   );		   
-           	
-           	
+           	   );
+
+
            	ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
            			split_parameters);
            	DBG_IMP = new ImagePlus(imp_src.getTitle()+"-SPIT", sourceStack);
@@ -2732,7 +2752,7 @@ private Panel panel1,
            				DCT_PARAMETERS.dct_size/2, // addTop
            				DCT_PARAMETERS.dct_size/2, // addRight
            				DCT_PARAMETERS.dct_size/2  // addBottom
-           				);		   
+           				);
 
 
            		ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
@@ -2769,7 +2789,7 @@ private Panel panel1,
         			   dctdc_data[chn],
         			   THREADS_MAX, DEBUG_LEVEL);
            }
-           
+
 //           int tilesY = DBG_IMP.getHeight()/DCT_PARAMETERS.dct_size - 1;
 //           int tilesX = DBG_IMP.getWidth()/DCT_PARAMETERS.dct_size - 1;
            int tilesY = dctdc_data[0].length;
@@ -2789,25 +2809,25 @@ private Panel panel1,
            			tilesX*DCT_PARAMETERS.dct_size,
            			tilesY*DCT_PARAMETERS.dct_size,
            			true,
-           			DBG_IMP.getTitle()+"-DCT");  
+           			DBG_IMP.getTitle()+"-DCT");
            }
            double [][] idct_data = new double [dctdc_data.length][];
            for (int chn=0; chn<idct_data.length;chn++){
            	idct_data[chn] = image_dtt.lapped_idct(
-           			dctdc_data[chn],                  // scanline representation of dcd data, organized as dct_size x dct_size tiles  
+           			dctdc_data[chn],                  // scanline representation of dcd data, organized as dct_size x dct_size tiles
            			DCT_PARAMETERS.dct_size,        // final int
            			DCT_PARAMETERS.dct_window,      //window_type
-           			THREADS_MAX,                    // maximal number of threads to launch                         
+           			THREADS_MAX,                    // maximal number of threads to launch
            			DEBUG_LEVEL);                   //        globalDebugLevel)
            }
            SDFA_INSTANCE.showArrays(idct_data,
            		(tilesX + 1) * DCT_PARAMETERS.dct_size,
            		(tilesY + 1) * DCT_PARAMETERS.dct_size,
            		true,
-           		DBG_IMP.getTitle()+"-IDCTDC");  
+           		DBG_IMP.getTitle()+"-IDCTDC");
        	return;
-     		
-           
+
+
 /* ======================================================================== */
     } else if (label.equals("MDCT stack")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
@@ -2830,7 +2850,7 @@ private Panel panel1,
         				DCT_PARAMETERS.dct_size/2, // addTop
         				DCT_PARAMETERS.dct_size/2, // addRight
         				DCT_PARAMETERS.dct_size/2  // addBottom
-        				);		   
+        				);
 
 
         		ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
@@ -2850,15 +2870,15 @@ private Panel panel1,
         		DCT_PARAMETERS,
         		EYESIS_DCT,
         		THREADS_MAX, DEBUG_LEVEL, UPDATE_STATUS);
-        
+
         for (int chn = 0; chn < dctdc_data.length; chn++) {
         image_dtt.dct_lpf(
         		DCT_PARAMETERS.dbg_sigma,
     			dctdc_data[chn],
     			THREADS_MAX, DEBUG_LEVEL);
         }
-        
-        
+
+
         int tilesY = DBG_IMP.getHeight()/DCT_PARAMETERS.dct_size - 1;
         int tilesX = DBG_IMP.getWidth()/DCT_PARAMETERS.dct_size - 1;
         System.out.println("tilesX="+tilesX);
@@ -2876,31 +2896,31 @@ private Panel panel1,
         			tilesX*DCT_PARAMETERS.dct_size,
         			tilesY*DCT_PARAMETERS.dct_size,
         			true,
-        			DBG_IMP.getTitle()+"-DCT");  
+        			DBG_IMP.getTitle()+"-DCT");
         }
         double [][] idct_data = new double [dctdc_data.length][];
         for (int chn=0; chn<idct_data.length;chn++){
         	idct_data[chn] = image_dtt.lapped_idct(
-        			dctdc_data[chn],                  // scanline representation of dcd data, organized as dct_size x dct_size tiles  
+        			dctdc_data[chn],                  // scanline representation of dcd data, organized as dct_size x dct_size tiles
         			DCT_PARAMETERS.dct_size,        // final int
         			DCT_PARAMETERS.dct_window,      //window_type
-        			THREADS_MAX,                    // maximal number of threads to launch                         
+        			THREADS_MAX,                    // maximal number of threads to launch
         			DEBUG_LEVEL);                   //        globalDebugLevel)
         }
         SDFA_INSTANCE.showArrays(idct_data,
         		(tilesX + 1) * DCT_PARAMETERS.dct_size,
         		(tilesY + 1) * DCT_PARAMETERS.dct_size,
         		true,
-        		DBG_IMP.getTitle()+"-IDCTDC");  
+        		DBG_IMP.getTitle()+"-IDCTDC");
     	return;
 /* ======================================================================== */
-    	
+
     } else if (label.equals("Setup DCT parameters")) {
         DCT_PARAMETERS.showDialog();
         return;
 
 /* ======================================================================== */
-    	
+
     } else if (label.equals("DCT process files")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
@@ -2929,7 +2949,7 @@ private Panel panel1,
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
-    					null, // use as default directory if path==null 
+    					null, // use as default directory if path==null
     					true,
     					PROPERTIES);
 
@@ -2939,8 +2959,8 @@ private Panel panel1,
     			IJ.showMessage("Error",msg);
     			return;
     		}
-    	}      
-        
+    	}
+
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
         int numChannels=EYESIS_CORRECTIONS.getNumChannels();
         NONLIN_PARAMETERS.modifyNumChannels(numChannels);
@@ -2969,14 +2989,14 @@ private Panel panel1,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
         		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
         		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
-        
+
         if (configPath!=null) {
         	saveTimestampedProperties( // save config again
         			configPath,      // full path or null
-        			null, // use as default directory if path==null 
+        			null, // use as default directory if path==null
         			true,
         			PROPERTIES);
         }
@@ -2995,7 +3015,7 @@ private Panel panel1,
     	double blurSigma = 0.8;
 		DoubleGaussianBlur gb=null;
 		if (blurSigma>0)	 gb=new DoubleGaussianBlur();
-    	
+
     	int iw = (tilesX+1) * n;
     	int ih = (tilesY+1) * n;
     	DttRad2 dtt4 =   new DttRad2(4);
@@ -3003,7 +3023,7 @@ private Panel panel1,
     	DttRad2 dtt8 =   new DttRad2(8);
 		dtt8.set_window(window_type);
 
-		
+
     	DttRad2 dtt =   new DttRad2(n);
 		dtt.set_window(window_type);
 
@@ -3012,28 +3032,28 @@ private Panel panel1,
     	for (int ii = 0; ii<10;ii++){
     		p[(ii/3)*n  + (ii)] = 1.0; // shifted delta;
 //    		p[(n-1-ii/3)*n  + (n-1-ii)] = 1.0; // shifted delta;
-    		
+
     	}
-    	
+
     	if (blurSigma>0){
     		gb.blurDouble(p, n, n, blurSigma, blurSigma, 0.01);
     	}
         SDFA_INSTANCE.showArrays(p, n, n, "p "+n+"x"+n);
         double [] Fciip = dtt.dttt_ii(p, n);
         SDFA_INSTANCE.showArrays(Fciip, n, n, "p "+n+"x"+n);
-		
+
     	double [] x = new double[n*n];
     	for (int ii=0;ii<x.length;ii++) x[ii] = 0;
     	/*
     	for (int ii = 0; ii<10;ii++){
     		x[(5+ii)*n  + (11+ii)] = 1.0; // shifted delta;
     	}
-    	
+
     	if (blurSigma>0){
     		gb.blurDouble(x, n, n, blurSigma, blurSigma, 0.01);
     	}
     	*/
-    	
+
 //    	x[5*n  + 11] = 1.0; // shifted delta;
 //    	x[17*n + 15] = 1.0; // shifted delta;
     	x[10*n +  8] = 1.0; // shifted delta;
@@ -3057,10 +3077,10 @@ private Panel panel1,
         	cos_shift_y[ii]= Math.cos(Math.PI*(ii+0.5)*shiftXY[1]/n);
         	sin_shift_y[ii]= Math.sin(Math.PI*(ii+0.5)*shiftXY[1]/n);
         }
-        
-    	
-    	
-    	
+
+
+
+
         SDFA_INSTANCE.showArrays(x, n, n, "x "+n+"x"+n);
         double [][] yy = new double[4][];
         double [][] yr = new double[3][];
@@ -3069,8 +3089,8 @@ private Panel panel1,
         yy[2] = dtt.dttt_iv(x, 2, n);
         yy[3] = dtt.dttt_iv(x, 3, n);
         SDFA_INSTANCE.showArrays(yy, n, n, true, "y "+n+"x"+n);
-        
-        
+
+
 //        double [] y = dtt.dttt_iv(x, 0, n);
 //        SDFA_INSTANCE.showArrays(y, n, n, "y "+n+"x"+n);
         yr[0] = dtt.dttt_iv(yy[0], 0, n);
@@ -3087,25 +3107,25 @@ private Panel panel1,
         double [] yconv = new double[n*n];
         for (int ii=0;ii<y.length;ii++){
         	yconv[ii] = (yy[0][ii]+yy[3][ii])*Fciip[ii]*50;
-        	
+
         }
         yr[2] = dtt.dttt_iv(yconv, 0, n);
-        
+
         SDFA_INSTANCE.showArrays(yr, n, n, true, "yr "+n+"x"+n);
-        
+
         if (n < 64) return;
-        
+
     	double [] mx = new double[iw*ih];
     	double [][] mxt =  new double[tilesY*tilesX][];
     	double [][] mxtf = new double[tilesY*tilesX][]; // folded
     	double [][] mxtfu = new double[tilesY*tilesX][]; // folded/unfolded
         double [][] mycc = new double[tilesY*tilesX][];  // dct for x and y
         double [][] mysc = new double[tilesY*tilesX][];  // dst for x, dct for y
-        double [][] myccx = new double[tilesY*tilesX][]; // dct shifted in x direction 
+        double [][] myccx = new double[tilesY*tilesX][]; // dct shifted in x direction
         double [][] myt =  new double[tilesY*tilesX][];
         double [][] imyt = new double[tilesY*tilesX][];
     	double []   imy =  new double[iw*ih];
-        
+
     	for (int ii=0;ii<mx.length;ii++) mx[ii] = 0;
     	for (int ii=0;ii<imy.length;ii++) imy[ii] = 0;
     	for (int iy=0;iy<n;iy++) for (int ix=0;ix<n;ix++) mx[iw*(iy +   n)+ (ix +   n)] = x[n*iy+ix];
@@ -3118,10 +3138,10 @@ private Panel panel1,
     	for (int iy=0;iy<n;iy++) for (int ix=0;ix<n;ix++) mx[iw*(iy + 2*n)+ (ix + 3*n)] = x[n*(n-1-iy)+(n -1 -ix)];
     	for (int iy=0;iy<n;iy++) for (int ix=0;ix<n;ix++) mx[iw*(iy + 3*n)+ (ix + 3*n)] = x[n*iy+ix];
     	for (int ii = 0; ii<mx.length; ii++){
-//    		if ((((ii % iw) ^ (ii / iw)) & 1) !=0) mx[ii] = 0;  
+//    		if ((((ii % iw) ^ (ii / iw)) & 1) !=0) mx[ii] = 0;
     	}
         SDFA_INSTANCE.showArrays(mx, iw, ih, "mx "+iw+"x"+ih);
-        
+
         for (int tileY = 0; tileY < tilesY; tileY++){
             for (int tileX = 0; tileX < tilesX; tileX++){
             	double [] tile = new double [4*n*n];
@@ -3134,11 +3154,11 @@ private Panel panel1,
             	mxt[tileN] =   tile.clone();
             	mxtf[tileN] =  dtt.fold_tile   (tile, n, 0); // DCCT
             	mxtfu[tileN] = dtt.unfold_tile (mxtf[tileN], n,0); // DCCT
-            	
+
             	mycc[tileN] =   dtt.dttt_iv     (mxtf[tileN], 0, n);
 //            	mysc[tileN] =   dtt.dttt_iv     (mxtf[tileN], 1, n); // x - sin, y - cos
             	mysc[tileN] =   dtt.dttt_iv     (mxtf[tileN], 2, n); // x - sin, y - cos
-            	
+
             	myccx[tileN] = new double[n*n];
             	int indx = 0;
             	for (int iy=0;iy<n;iy++){
@@ -3149,7 +3169,7 @@ private Panel panel1,
             	}
             	myt [tileN] =   dtt.dttt_iv     (myccx[tileN], 0, n);
             	imyt[tileN] =  dtt.unfold_tile (myt [tileN], n, 0); // DCCT, each tile - imdct
-            	
+
             	for (int iy=0;iy<n2;iy++){
             		for (int ix=0;ix<n2;ix++){
             			imy[iw*(iy + n * tileY)+ (ix+ n*tileX)] += imyt[tileN][n2*iy + ix] ;
@@ -3184,13 +3204,13 @@ private Panel panel1,
         		DCT_PARAMETERS.sym_compactness);
         factorConvKernel.setDCWeight(
         		DCT_PARAMETERS.dc_weight);
-        
+
         int target_kernel_size = 2*DCT_PARAMETERS.dct_size - 1;
 //    	int target_expanded_size = 2*DCT_PARAMETERS.dct_size + DCT_PARAMETERS.asym_size -2;
-    	
+
     	int target_expanded_size =     4*DCT_PARAMETERS.dct_size;
     	int target_antiperiodic_size = 2*DCT_PARAMETERS.dct_size;
-    	
+
         double [] target_expanded =     null;
         double [] target_antiperiodic = null;
         if ((EYESIS_DCT != null) && EYESIS_DCT.kernelImageSet() && (DCT_PARAMETERS.color_channel >= 0)){
@@ -3200,13 +3220,13 @@ private Panel panel1,
         			DCT_PARAMETERS.color_channel, // 0..2
         			DCT_PARAMETERS.tileX, // horizontal number of kernel to extract
         			DCT_PARAMETERS.tileY);  // vertical number of kernel to extract
-        	
+
         	if ((DCT_PARAMETERS.decimation==2)&& (DCT_PARAMETERS.decimateSigma < 0)){
             	target_expanded = EYESIS_DCT.reformatKernel2(
             			src_kernel,// will be blured in-place
             			CONVOLVE_FFT_SIZE/2,  // typical 64
             			target_expanded_size);  // typical 15
-        		
+
         	} else {
         	target_expanded = EYESIS_DCT.reformatKernel(
         			src_kernel,// will be blured in-place
@@ -3226,7 +3246,7 @@ private Panel panel1,
         	}
 //        	target_antiperiodic
 
-        
+
         } else {
         	System.out.println("Using synthesized target kernel");
 
@@ -3263,7 +3283,7 @@ private Panel panel1,
         		for (int ii = 0; ii<target_kernel_size; ii++) for (int jj = 0; jj<target_kernel_size; jj++){
         			int ii1 = (ii >=  DCT_PARAMETERS.dct_size)? (2 * DCT_PARAMETERS.dct_size -ii -2):ii;
         			int jj1 = (jj >=  DCT_PARAMETERS.dct_size)? (2 * DCT_PARAMETERS.dct_size -jj -2):jj;
-        			target_kernel[target_kernel_size*ii+jj] = target_kernel[target_kernel_size*ii1+jj1]; 
+        			target_kernel[target_kernel_size*ii+jj] = target_kernel[target_kernel_size*ii1+jj1];
         		}
         	}
         	target_expanded = new double [target_expanded_size * target_expanded_size];
@@ -3272,13 +3292,13 @@ private Panel panel1,
         	int left_top_margin = (target_expanded_size - target_kernel_size) / 2; // ((DCT_PARAMETERS.asym_size-1)/2);
         	for (int ii=0;ii < target_kernel_size; ii++){
         		for (int jj=0; jj < target_kernel_size; jj++){
-        			target_expanded[(ii+left_top_margin)*target_expanded_size + (jj+left_top_margin)] = 
+        			target_expanded[(ii+left_top_margin)*target_expanded_size + (jj+left_top_margin)] =
         					target_kernel[ii*target_kernel_size + jj];
         		}
         	}
             SDFA_INSTANCE.showArrays(target_kernel,   target_kernel_size,      target_kernel_size,   "target_kernel");
             SDFA_INSTANCE.showArrays(target_expanded,   target_expanded_size,      target_expanded_size,   "target_expanded");
-        	
+
         }
         if (EYESIS_DCT == null){
         	EYESIS_DCT = new  EyesisDCT (
@@ -3291,12 +3311,12 @@ private Panel panel1,
     			DCT_PARAMETERS.dct_size,
     			target_expanded);
         SDFA_INSTANCE.showArrays(target_antiperiodic,   target_antiperiodic_size,      target_antiperiodic_size,   "target_antiperiodic");
-        
+
         boolean [] mask = null;
         if (!DCT_PARAMETERS.dbg_mask.equals("")){
         	mask = new boolean [DCT_PARAMETERS.asym_size*DCT_PARAMETERS.asym_size];
         	for (int ii = 0; ii<mask.length; ii++) {
-        		mask[ii] = ((ii <= DCT_PARAMETERS.dbg_mask.length()) && (DCT_PARAMETERS.dbg_mask.charAt(ii) == '*')); 
+        		mask[ii] = ((ii <= DCT_PARAMETERS.dbg_mask.length()) && (DCT_PARAMETERS.dbg_mask.charAt(ii) == '*'));
         	}
 
         }
@@ -3319,7 +3339,7 @@ private Panel panel1,
         double [] asym_kernel = factorConvKernel.getAsymKernel();
         double [] convolved =   factorConvKernel.getConvolved();
 //        double [] target_weights = factorConvKernel.getTargetWeights();
-        
+
         double [] diff100 = new double [convolved.length];
 //        double [] weighted_diff100 = new double [convolved.length];
         for (int ii=0;ii<convolved.length;ii++) {
@@ -3338,7 +3358,7 @@ private Panel panel1,
         SDFA_INSTANCE.showArrays(asym_kernel,   DCT_PARAMETERS.asym_size,      DCT_PARAMETERS.asym_size,  "asym_kernel");
 //        SDFA_INSTANCE.showArrays(compare_kernels,  target_expanded_size, target_expanded_size, true, "compare_kernels");
         SDFA_INSTANCE.showArrays(compare_kernels,  target_antiperiodic_size, target_antiperiodic_size, true, "compare_kernels");
-//        
+//
 //        SDFA_INSTANCE.showArrays(convolved,  target_kernel_size, target_kernel_size,   "convolved");
         return;
     } else if (label.equals("Min Kernel Factorization")){
@@ -3358,7 +3378,7 @@ private Panel panel1,
         		DCT_PARAMETERS.dc_weight);
         int target_kernel_size = 2*DCT_PARAMETERS.dct_size - 1;
 //    	int target_expanded_size = 2*DCT_PARAMETERS.dct_size + DCT_PARAMETERS.asym_size -2;
-    	
+
     	int target_expanded_size =     4*DCT_PARAMETERS.dct_size;
     	int target_antiperiodic_size = 2*DCT_PARAMETERS.dct_size;
         double [] target_expanded =     null;
@@ -3376,7 +3396,7 @@ private Panel panel1,
             			src_kernel,// will be blured in-place
             			CONVOLVE_FFT_SIZE/2,  // typical 64
             			target_expanded_size);  // typical 15
-        		
+
         	} else {
         	target_expanded = EYESIS_DCT.reformatKernel(
         			src_kernel,// will be blured in-place
@@ -3421,7 +3441,7 @@ private Panel panel1,
         	int left_top_margin = ((DCT_PARAMETERS.asym_size-1)/2);
         	for (int ii=0;ii < target_kernel_size; ii++){
         		for (int jj=0; jj < target_kernel_size; jj++){
-        			target_expanded[(ii+left_top_margin)*target_expanded_size + (jj+left_top_margin)] = 
+        			target_expanded[(ii+left_top_margin)*target_expanded_size + (jj+left_top_margin)] =
         					target_kernel[ii*target_kernel_size + jj];
         		}
         	}
@@ -3472,7 +3492,7 @@ private Panel panel1,
         	s3+=target_antiperiodic[ii];
             if (DEBUG_LEVEL>3) {
             	System.out.println(ii+": t="+target_antiperiodic[ii]+" c="+convolved[ii]+" s2="+s2+" s3="+s3);
-            }        	
+            }
         }
         double sum_asym = 0.0, sum_sym = 0.0;
         for (int ii = 0; ii < asym_kernel.length; ii++){
@@ -3486,7 +3506,7 @@ private Panel panel1,
             	sum_sym += d;
             }
         }
-        
+
 //        double [][] compare_kernels = {target_expanded, convolved, weighted_diff100,target_weights, diff100};
         double [][] compare_kernels = {target_antiperiodic, convolved, diff100};
         if (DEBUG_LEVEL>0) {
@@ -3505,14 +3525,14 @@ private Panel panel1,
     	double [][] sym_kernels = {sym_kernel,sym_dct_iii,sym_dct_iii_ii};
 
         SDFA_INSTANCE.showArrays(sym_kernels,    DCT_PARAMETERS.dct_size,       DCT_PARAMETERS.dct_size, true,  "sym_kernel_iii_ii");
-        
+
 ////        SDFA_INSTANCE.showArrays(sym_kernel,    DCT_PARAMETERS.dct_size,       DCT_PARAMETERS.dct_size,   "sym_kernel");
         SDFA_INSTANCE.showArrays(asym_kernel,   DCT_PARAMETERS.asym_size,      DCT_PARAMETERS.asym_size,  "asym_kernel");
         SDFA_INSTANCE.showArrays(compare_kernels,  target_antiperiodic_size, target_antiperiodic_size, true, "compare_kernels");
 //        SDFA_INSTANCE.showArrays(convolved,  target_kernel_size, target_kernel_size,   "convolved");
         return;
-    	
-    	
+
+
     } else if (label.equals("DCT test 4")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
@@ -3531,7 +3551,7 @@ private Panel panel1,
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
-    					null, // use as default directory if path==null 
+    					null, // use as default directory if path==null
     					true,
     					PROPERTIES);
 
@@ -3541,12 +3561,12 @@ private Panel panel1,
     			IJ.showMessage("Error",msg);
     			return;
     		}
-    	}      
-        
+    	}
+
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
         int numChannels=EYESIS_CORRECTIONS.getNumChannels();
 
-        
+
     } else if (label.equals("Select kernels image")) {
         if (!DCT_PARAMETERS.showDialog()) return;
         if (EYESIS_DCT == null){
@@ -3562,7 +3582,7 @@ private Panel panel1,
             return;
         }
         EYESIS_DCT.setKernelImageFile( imp_src);
-// set CLT image file too        
+// set CLT image file too
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (
         			PROPERTIES,
@@ -3570,9 +3590,9 @@ private Panel panel1,
         			CORRECTION_PARAMETERS);
         }
         QUAD_CLT.setKernelImageFile( imp_src);
-        
-        
-        
+
+
+
     } else if (label.equals("Create DCT kernels")) {
         if (!DCT_PARAMETERS.showDialog()) return;
         if (EYESIS_DCT == null){
@@ -3597,7 +3617,7 @@ private Panel panel1,
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
-    					null, // use as default directory if path==null 
+    					null, // use as default directory if path==null
     					true,
     					PROPERTIES);
 
@@ -3607,10 +3627,10 @@ private Panel panel1,
     			IJ.showMessage("Error",msg);
     			return;
     		}
-    	}      
-        
+    	}
+
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
-        
+
         EYESIS_DCT.createDCTKernels(
         		DCT_PARAMETERS,
         		CONVOLVE_FFT_SIZE/2,
@@ -3622,7 +3642,7 @@ private Panel panel1,
         if (EYESIS_DCT != null){
         	EYESIS_DCT.resetDCTKernels();
         }
-        
+
     } else if (label.equals("Read DCT kernels")) {
         if (!DCT_PARAMETERS.showDialog()) return;
         if (EYESIS_DCT == null){
@@ -3647,7 +3667,7 @@ private Panel panel1,
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
-    					null, // use as default directory if path==null 
+    					null, // use as default directory if path==null
     					true,
     					PROPERTIES);
 
@@ -3657,10 +3677,10 @@ private Panel panel1,
     			IJ.showMessage("Error",msg);
     			return;
     		}
-    	}      
-        
+    	}
+
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
-        
+
         EYESIS_DCT.readDCTKernels(
         		DCT_PARAMETERS,
         		CONVOLVE_FFT_SIZE/2,
@@ -3675,7 +3695,7 @@ private Panel panel1,
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	CORRECTION_PARAMETERS.showCLTDialog("CLT Batch parameters",CLT_PARAMETERS);
     	return;
-        
+
 /* ======================================================================== */
     } else if (label.equals("Setup CLT parameters")) {
     	CLT_PARAMETERS.showDialog();
@@ -3692,7 +3712,7 @@ private Panel panel1,
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	//            	IJ.showMessage("DCT test 1");
     	if (!CLT_PARAMETERS.showDialog()) return;
-    	// process selected image stack        
+    	// process selected image stack
     	ImagePlus imp_src = WindowManager.getCurrentImage();
     	if (imp_src==null){
     		IJ.showMessage("Error","JP4 image or Bayer image stack required");
@@ -3707,7 +3727,7 @@ private Panel panel1,
     				CLT_PARAMETERS.transform_size/2, // addTop
     				CLT_PARAMETERS.transform_size/2, // addRight
     				CLT_PARAMETERS.transform_size/2  // addBottom
-    				);		   
+    				);
 
 
     		ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
@@ -3725,7 +3745,7 @@ private Panel panel1,
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	//            	IJ.showMessage("DCT test 1");
     	if (!CLT_PARAMETERS.showDialog()) return;
-    	// process selected image stack        
+    	// process selected image stack
     	ImagePlus imp_src = WindowManager.getCurrentImage();
     	if (imp_src==null){
     		IJ.showMessage("Error","JP4 image or Bayer image stack required");
@@ -3740,7 +3760,7 @@ private Panel panel1,
     				CLT_PARAMETERS.transform_size/2, // addTop
     				CLT_PARAMETERS.transform_size/2, // addRight
     				CLT_PARAMETERS.transform_size/2  // addBottom
-    				);		   
+    				);
 
 
     		ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
@@ -3754,7 +3774,7 @@ private Panel panel1,
     	} else {
     		CORRELATE_IMP = imp_src;
     	}
-    	
+
 /* ======================================================================== */
     } else if (label.equals("CLT stack")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
@@ -3776,7 +3796,7 @@ private Panel panel1,
         				CLT_PARAMETERS.transform_size/2, // addTop
         				CLT_PARAMETERS.transform_size/2, // addRight
         				CLT_PARAMETERS.transform_size/2  // addBottom
-        				);		   
+        				);
 
 
         		ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
@@ -3788,7 +3808,7 @@ private Panel panel1,
         		DBG_IMP = imp_src;
         	}
         }
-        
+
         ImageDtt image_dtt = new ImageDtt();
         double [][][][][] clt_data = image_dtt.cltStack(
         		DBG_IMP.getStack(),
@@ -3797,7 +3817,7 @@ private Panel panel1,
         		CLT_PARAMETERS.ishift_x, //final int shiftX, // shift image horizontally (positive - right)
         		CLT_PARAMETERS.ishift_y, //final int shiftY, // shift image vertically (positive - down)
         		THREADS_MAX, DEBUG_LEVEL, UPDATE_STATUS);
-        
+
         int tilesY = DBG_IMP.getHeight()/CLT_PARAMETERS.transform_size - 1;
         int tilesX = DBG_IMP.getWidth()/CLT_PARAMETERS.transform_size - 1;
         System.out.println("'CLT stack': tilesX="+tilesX);
@@ -3816,33 +3836,33 @@ private Panel panel1,
         			tilesX*CLT_PARAMETERS.transform_size,
         			tilesY*CLT_PARAMETERS.transform_size,
         			true,
-        			DBG_IMP.getTitle()+"-CLT+"+CLT_PARAMETERS.iclt_mask);  
+        			DBG_IMP.getTitle()+"-CLT+"+CLT_PARAMETERS.iclt_mask);
         }
-        
+
         if ((CLT_PARAMETERS.shift_x != 0) || (CLT_PARAMETERS.shift_y !=0)){
             for (int chn = 0; chn < clt_data.length; chn++) {
         	clt_data[chn] = image_dtt.clt_shiftXY(
-        			clt_data[chn],                  // final double [][][][] dct_data,  // array [tilesY][tilesX][4][dct_size*dct_size]  
+        			clt_data[chn],                  // final double [][][][] dct_data,  // array [tilesY][tilesX][4][dct_size*dct_size]
         			CLT_PARAMETERS.transform_size,  // final int             dct_size,
         			CLT_PARAMETERS.shift_x,         // final double          shiftX,
         			CLT_PARAMETERS.shift_y,         // final double          shiftY,
         			(CLT_PARAMETERS.dbg_mode >> 2) & 3, // swap order hor/vert
-        			THREADS_MAX,                    // maximal number of threads to launch                         
+        			THREADS_MAX,                    // maximal number of threads to launch
         			DEBUG_LEVEL);                   // globalDebugLevel)
             }
         }
-        
-        
-        
+
+
+
         double [][] iclt_data = new double [clt_data.length][];
         for (int chn=0; chn<iclt_data.length;chn++){
         	iclt_data[chn] = image_dtt.iclt_2d(
-        			clt_data[chn],                  // scanline representation of dcd data, organized as dct_size x dct_size tiles  
+        			clt_data[chn],                  // scanline representation of dcd data, organized as dct_size x dct_size tiles
         			CLT_PARAMETERS.transform_size,  // final int
         			CLT_PARAMETERS.clt_window,      //window_type
         			CLT_PARAMETERS.iclt_mask,       //which of 4 to transform back
         			CLT_PARAMETERS.dbg_mode,        //which of 4 to transform back
-        			THREADS_MAX,                    // maximal number of threads to launch                         
+        			THREADS_MAX,                    // maximal number of threads to launch
         			DEBUG_LEVEL);                   //        globalDebugLevel)
         }
         SDFA_INSTANCE.showArrays(
@@ -3850,7 +3870,7 @@ private Panel panel1,
         		(tilesX + 1) * CLT_PARAMETERS.transform_size,
         		(tilesY + 1) * CLT_PARAMETERS.transform_size,
         		true,
-        		DBG_IMP.getTitle()+"-ICLT-"+CLT_PARAMETERS.iclt_mask);  
+        		DBG_IMP.getTitle()+"-ICLT-"+CLT_PARAMETERS.iclt_mask);
     	return;
 /* ======================================================================== */
     } else if (label.equals("CLT correlate")) {
@@ -3876,7 +3896,7 @@ private Panel panel1,
         				CLT_PARAMETERS.transform_size/2, // addTop
         				CLT_PARAMETERS.transform_size/2, // addRight
         				CLT_PARAMETERS.transform_size/2  // addBottom
-        				);		   
+        				);
 
 
         		ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
@@ -3888,7 +3908,7 @@ private Panel panel1,
         		DBG_IMP = imp_src;
         	}
         }
-        
+
         if (CORRELATE_IMP == null) {
         	ImagePlus imp_src = WindowManager.getCurrentImage();
         	if (imp_src==null){
@@ -3904,7 +3924,7 @@ private Panel panel1,
         				CLT_PARAMETERS.transform_size/2, // addTop
         				CLT_PARAMETERS.transform_size/2, // addRight
         				CLT_PARAMETERS.transform_size/2  // addBottom
-        				);		   
+        				);
 
 
         		ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
@@ -3918,8 +3938,8 @@ private Panel panel1,
         	} else {
         		CORRELATE_IMP = imp_src;
         	}
-        	
-        }        
+
+        }
         String suffix = "-dx_"+(CLT_PARAMETERS.ishift_x+CLT_PARAMETERS.shift_x)+"_dy_"+(CLT_PARAMETERS.ishift_y+CLT_PARAMETERS.shift_y);
         ImageDtt image_dtt = new ImageDtt();
         String [] titles = {
@@ -3933,7 +3953,7 @@ private Panel panel1,
         		0, //final int shiftX, // shift image horizontally (positive - right)
         		0, //final int shiftY, // shift image vertically (positive - down)
         		THREADS_MAX, DEBUG_LEVEL, UPDATE_STATUS);
-        
+
         int tilesY = DBG_IMP.getHeight()/CLT_PARAMETERS.transform_size - 1;
         int tilesX = DBG_IMP.getWidth()/CLT_PARAMETERS.transform_size - 1;
         System.out.println("'CLT stack': tilesX="+tilesX);
@@ -3952,10 +3972,10 @@ private Panel panel1,
         			tilesX*CLT_PARAMETERS.transform_size,
         			tilesY*CLT_PARAMETERS.transform_size,
         			true,
-        			DBG_IMP.getTitle()+"-CLT+"+suffix, titles);  
+        			DBG_IMP.getTitle()+"-CLT+"+suffix, titles);
         }
         // convert second image (should be the same size)
-// apply integer shift to the second image        
+// apply integer shift to the second image
         double [][][][][] clt_data2 = image_dtt.cltStack(
         		CORRELATE_IMP.getStack(),
         		0, // CLT_PARAMETERS.kernel_chn,
@@ -3967,26 +3987,26 @@ private Panel panel1,
         int tilesX2 = DBG_IMP.getWidth()/CLT_PARAMETERS.transform_size - 1;
         System.out.println("'CLT stack 2': tilesX="+tilesX2);
         System.out.println("'CLT stack 2': tilesY="+tilesY2);
-        
+
         if ((tilesX2 != tilesX) || (tilesY2 != tilesY)) {
             System.out.println("Imges for correlation mismatch: "+tilesX+"x"+tilesY+" != "+tilesX2+"x"+tilesY2);
             return;
         }
 
-// optionally apply fractional shift to the second image        
+// optionally apply fractional shift to the second image
         if ((CLT_PARAMETERS.shift_x != 0) || (CLT_PARAMETERS.shift_y !=0)){
             for (int chn = 0; chn < clt_data.length; chn++) {
         	clt_data2[chn] = image_dtt.clt_shiftXY(
-        			clt_data2[chn],                 // final double [][][][] dct_data,  // array [tilesY][tilesX][4][dct_size*dct_size]  
+        			clt_data2[chn],                 // final double [][][][] dct_data,  // array [tilesY][tilesX][4][dct_size*dct_size]
         			CLT_PARAMETERS.transform_size,  // final int             dct_size,
         			CLT_PARAMETERS.shift_x,         // final double          shiftX,
         			CLT_PARAMETERS.shift_y,         // final double          shiftY,
         			(CLT_PARAMETERS.dbg_mode >> 2) & 3, // swap order hor/vert
-        			THREADS_MAX,                    // maximal number of threads to launch                         
+        			THREADS_MAX,                    // maximal number of threads to launch
         			DEBUG_LEVEL);                   // globalDebugLevel)
             }
         }
-        
+
         clt = new double [clt_data2.length*4][];
         for (int chn = 0; chn < clt_data.length; chn++) {
         	double [][] clt_set = image_dtt.clt_dbg(
@@ -4001,24 +4021,24 @@ private Panel panel1,
         			tilesX*CLT_PARAMETERS.transform_size,
         			tilesY*CLT_PARAMETERS.transform_size,
         			true,
-        			DBG_IMP.getTitle()+"-CLT2+"+suffix, titles);  
+        			DBG_IMP.getTitle()+"-CLT2+"+suffix, titles);
         }
 
         double [][][][][] clt_corr = new double [clt_data.length][][][][];
         for (int chn = 0; chn < clt_data.length; chn++) {
         	clt_corr[chn] = image_dtt.clt_correlate(
-        			clt_data[chn],                  // final double [][][][] data1,  // array [tilesY][tilesX][4][dct_size*dct_size]  
-        			clt_data2[chn],                 // final double [][][][] data2,  // array [tilesY][tilesX][4][dct_size*dct_size]  
+        			clt_data[chn],                  // final double [][][][] data1,  // array [tilesY][tilesX][4][dct_size*dct_size]
+        			clt_data2[chn],                 // final double [][][][] data2,  // array [tilesY][tilesX][4][dct_size*dct_size]
         			CLT_PARAMETERS.transform_size,  // final int             dct_size,
         			CLT_PARAMETERS.fat_zero,  // final double          fat_zero,    // add to denominator to modify phase correlation (same units as data1, data2)
             		CLT_PARAMETERS.tileX, //final int debug_tileX
             		CLT_PARAMETERS.tileY, //final int debug_tileY
 
-        			THREADS_MAX,                    // maximal number of threads to launch                         
+        			THREADS_MAX,                    // maximal number of threads to launch
         			DEBUG_LEVEL);                   // globalDebugLevel)
         }
 
-        
+
         clt = new double [clt_data.length*4][];
         for (int chn = 0; chn < clt_data.length; chn++) {
         	double [][] clt_set = image_dtt.clt_dbg(
@@ -4032,16 +4052,16 @@ private Panel panel1,
         			tilesX*CLT_PARAMETERS.transform_size,
         			tilesY*CLT_PARAMETERS.transform_size,
         			true,
-        			DBG_IMP.getTitle()+"-CORR+"+suffix, titles);  
+        			DBG_IMP.getTitle()+"-CORR+"+suffix, titles);
         }
-        
+
         if (CLT_PARAMETERS.corr_sigma > 0.0){
         	for (int chn = 0; chn < clt_data.length; chn++) {
         		image_dtt.clt_lpf( // filter in-place
         				CLT_PARAMETERS.corr_sigma,            // final double          sigma,
         				clt_corr[chn],                        // final double [][][][] clt_data,
         				CLT_PARAMETERS.transform_size,
-        				THREADS_MAX,                          // maximal number of threads to launch                         
+        				THREADS_MAX,                          // maximal number of threads to launch
         				DEBUG_LEVEL);                        // globalDebugLevel)
         	}
             clt = new double [clt_data.length*4][];
@@ -4057,17 +4077,17 @@ private Panel panel1,
             			tilesX*CLT_PARAMETERS.transform_size,
             			tilesY*CLT_PARAMETERS.transform_size,
             			true,
-            			DBG_IMP.getTitle()+"-LPF_CORR+"+suffix, titles);  
+            			DBG_IMP.getTitle()+"-LPF_CORR+"+suffix, titles);
             }
-        	
+
         }
     	for (int chn = 0; chn < clt_corr.length; chn++) {
     		image_dtt.clt_dtt2( // DCCT2, DSCT2, DCST2, DSST2 - in-place
     				clt_corr[chn],                        // final double [][][][] clt_data,
     				true,                                 // final boolean transpose, // when doing inverse transform, the data comes in transposed form, so CS <->SC
-    				THREADS_MAX,                          // maximal number of threads to launch                         
+    				THREADS_MAX,                          // maximal number of threads to launch
     				DEBUG_LEVEL);                        // globalDebugLevel)
-    	}        	
+    	}
         clt = new double [clt_corr.length*4][];
         for (int chn = 0; chn < clt_data.length; chn++) {
         	double [][] clt_set = image_dtt.clt_dbg(
@@ -4081,9 +4101,9 @@ private Panel panel1,
         			tilesX*CLT_PARAMETERS.transform_size,
         			tilesY*CLT_PARAMETERS.transform_size,
         			true,
-        			DBG_IMP.getTitle()+"-ICORR+"+suffix, titles);  
+        			DBG_IMP.getTitle()+"-ICORR+"+suffix, titles);
         }
-        
+
         double [][][][] corr_tiles = new double [clt_corr.length][][][];
         for (int chn = 0; chn < clt_corr.length; chn++) {
         	corr_tiles[chn] = image_dtt.clt_corr_quad(
@@ -4100,18 +4120,18 @@ private Panel panel1,
             			CLT_PARAMETERS.corr_border_contrast,
             			THREADS_MAX,
             			DEBUG_LEVEL);
-            	
+
             }
         	String [] titles_rbg = {"red","blue","green"};
         	SDFA_INSTANCE.showArrays(corr_rslt,
         			tilesX*(2*CLT_PARAMETERS.transform_size),
         			tilesY*(2*CLT_PARAMETERS.transform_size),
         			true,
-        			DBG_IMP.getTitle()+"-C"+suffix, titles_rbg);  
+        			DBG_IMP.getTitle()+"-C"+suffix, titles_rbg);
         }
-        
+
 //==============================================================================
-        
+
     } else if (label.equals("Create CLT kernels")) {
         if (!CLT_PARAMETERS.showDialog()) return;
         if (QUAD_CLT == null){
@@ -4135,7 +4155,7 @@ private Panel panel1,
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
-    					null, // use as default directory if path==null 
+    					null, // use as default directory if path==null
     					true,
     					PROPERTIES);
 
@@ -4145,8 +4165,17 @@ private Panel panel1,
     			IJ.showMessage("Error",msg);
     			return;
     		}
-    	}      
-        
+    	}
+    	String cltPath=EYESIS_CORRECTIONS.correctionsParameters.selectCLTKernelDirectory( // create if it does not exist
+				true,
+				true);
+    	if (cltPath==null) {
+			String msg="No CLT kernels (results) directory selected, command aborted";
+			System.out.println("Warning: "+msg);
+			IJ.showMessage("Warning",msg);
+			return;
+    	}
+
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
 
         QUAD_CLT.createCLTKernels(
@@ -4155,13 +4184,13 @@ private Panel panel1,
                 THREADS_MAX,
                 UPDATE_STATUS, // update status info
         		DEBUG_LEVEL);
-        
+
         //"Reset DCT kernels"
     } else if (label.equals("Reset CLT kernels")) {
         if (QUAD_CLT != null){
         	QUAD_CLT.resetCLTKernels();
         }
-        
+
     } else if (label.equals("Read CLT kernels")) {
         if (!CLT_PARAMETERS.showDialog()) return;
         if (QUAD_CLT == null){
@@ -4185,7 +4214,7 @@ private Panel panel1,
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
-    					null, // use as default directory if path==null 
+    					null, // use as default directory if path==null
     					true,
     					PROPERTIES);
 
@@ -4195,10 +4224,10 @@ private Panel panel1,
     			IJ.showMessage("Error",msg);
     			return;
     		}
-    	}      
-        
+    	}
+
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
-        
+
         QUAD_CLT.readCLTKernels(
         		CLT_PARAMETERS,
                 THREADS_MAX,
@@ -4240,7 +4269,7 @@ private Panel panel1,
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
-    					null, // use as default directory if path==null 
+    					null, // use as default directory if path==null
     					true,
     					PROPERTIES);
 
@@ -4250,8 +4279,8 @@ private Panel panel1,
     			IJ.showMessage("Error",msg);
     			return;
     		}
-    	}      
-        
+    	}
+
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
         int numChannels=EYESIS_CORRECTIONS.getNumChannels();
         NONLIN_PARAMETERS.modifyNumChannels(numChannels);
@@ -4274,9 +4303,9 @@ private Panel panel1,
             			DEBUG_LEVEL);
         	}
         }
-        
-///========================================        
-        
+
+///========================================
+
         QUAD_CLT.processCLTChannelImages(
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
@@ -4286,19 +4315,19 @@ private Panel panel1,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
         		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
         		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
-        
+
         if (configPath!=null) {
         	saveTimestampedProperties( // save config again
         			configPath,      // full path or null
-        			null, // use as default directory if path==null 
+        			null, // use as default directory if path==null
         			true,
         			PROPERTIES);
         }
         return;
-        
+
     } else if (label.equals("CLT process sets")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
@@ -4326,7 +4355,7 @@ private Panel panel1,
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
-    					null, // use as default directory if path==null 
+    					null, // use as default directory if path==null
     					true,
     					PROPERTIES);
 
@@ -4336,8 +4365,8 @@ private Panel panel1,
     			IJ.showMessage("Error",msg);
     			return;
     		}
-    	}      
-        
+    	}
+
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
         int numChannels=EYESIS_CORRECTIONS.getNumChannels();
         NONLIN_PARAMETERS.modifyNumChannels(numChannels);
@@ -4369,9 +4398,9 @@ private Panel panel1,
         		return;
         	}
         }
-        
-///========================================        
-        
+
+///========================================
+
         QUAD_CLT.processCLTSets(
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
@@ -4381,19 +4410,19 @@ private Panel panel1,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
         		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
         		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
-        
+
         if (configPath!=null) {
         	saveTimestampedProperties( // save config again
         			configPath,      // full path or null
-        			null, // use as default directory if path==null 
+        			null, // use as default directory if path==null
         			true,
         			PROPERTIES);
         }
         return;
-        
+
     } else if (label.equals("CLT process quads")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
@@ -4421,7 +4450,7 @@ private Panel panel1,
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
-    					null, // use as default directory if path==null 
+    					null, // use as default directory if path==null
     					true,
     					PROPERTIES);
 
@@ -4431,8 +4460,8 @@ private Panel panel1,
     			IJ.showMessage("Error",msg);
     			return;
     		}
-    	}      
-        
+    	}
+
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
         int numChannels=EYESIS_CORRECTIONS.getNumChannels();
         NONLIN_PARAMETERS.modifyNumChannels(numChannels);
@@ -4464,9 +4493,9 @@ private Panel panel1,
         		return;
         	}
         }
-        
-///========================================        
-        
+
+///========================================
+
         QUAD_CLT.processCLTQuads(
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
@@ -4476,19 +4505,19 @@ private Panel panel1,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
         		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
         		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
-        
+
         if (configPath!=null) {
         	saveTimestampedProperties( // save config again
         			configPath,      // full path or null
-        			null, // use as default directory if path==null 
+        			null, // use as default directory if path==null
         			true,
         			PROPERTIES);
         }
         return;
-        
+
 
     } else if (label.equals("CLT 4 images") || label.equals("CLT apply fine corr") || label.equals("CLT infinity corr")) {
     	boolean apply_corr = label.equals("CLT apply fine corr");
@@ -4519,7 +4548,7 @@ private Panel panel1,
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
-    					null, // use as default directory if path==null 
+    					null, // use as default directory if path==null
     					true,
     					PROPERTIES);
 
@@ -4529,8 +4558,8 @@ private Panel panel1,
     			IJ.showMessage("Error",msg);
     			return;
     		}
-    	}      
-        
+    	}
+
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
         int numChannels=EYESIS_CORRECTIONS.getNumChannels();
         NONLIN_PARAMETERS.modifyNumChannels(numChannels);
@@ -4562,8 +4591,8 @@ private Panel panel1,
         		return;
         	}
         }
-        
-///========================================        
+
+///========================================
         int num_infinity_corr = infinity_corr? CLT_PARAMETERS.inf_repeat : 1;
         if ( num_infinity_corr < 1) num_infinity_corr = 1;
         for (int i_infinity_corr = 0;  i_infinity_corr < num_infinity_corr; i_infinity_corr++) {
@@ -4577,15 +4606,15 @@ private Panel panel1,
         		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
         		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
         		apply_corr,
-        		infinity_corr, // calculate and apply geometry correction at infinity         		
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
+        		infinity_corr, // calculate and apply geometry correction at infinity
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
         }
         if (configPath!=null) {
         	saveTimestampedProperties( // save config again
         			configPath,      // full path or null
-        			null, // use as default directory if path==null 
+        			null, // use as default directory if path==null
         			true,
         			PROPERTIES);
         }
@@ -4656,7 +4685,7 @@ private Panel panel1,
         		dry_run, // boolean dry_run
         		CLT_PARAMETERS,
         		DEBUG_LEVEL);
-        
+
         return;
 
     } else if (label.equals("CLT ext infinity corr")) {
@@ -4675,8 +4704,8 @@ private Panel panel1,
         		DEBUG_LEVEL);
         return;
 
-        
-        
+
+
     } else if (label.equals("CLT disparity scan")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
@@ -4704,7 +4733,7 @@ private Panel panel1,
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
-    					null, // use as default directory if path==null 
+    					null, // use as default directory if path==null
     					true,
     					PROPERTIES);
 
@@ -4714,8 +4743,8 @@ private Panel panel1,
     			IJ.showMessage("Error",msg);
     			return;
     		}
-    	}      
-        
+    	}
+
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
         int numChannels=EYESIS_CORRECTIONS.getNumChannels();
         NONLIN_PARAMETERS.modifyNumChannels(numChannels);
@@ -4747,9 +4776,9 @@ private Panel panel1,
         		return;
         	}
         }
-        
-///========================================        
-        
+
+///========================================
+
         QUAD_CLT.cltDisparityScans(
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
@@ -4759,19 +4788,19 @@ private Panel panel1,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
         		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
         		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
-        
+
         if (configPath!=null) {
         	saveTimestampedProperties( // save config again
         			configPath,      // full path or null
-        			null, // use as default directory if path==null 
+        			null, // use as default directory if path==null
         			true,
         			PROPERTIES);
         }
         return;
-        
+
     } else if (label.equals("CLT reset 3D")) {
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (
@@ -4786,9 +4815,9 @@ private Panel panel1,
         QUAD_CLT.tp.setTrustedCorrelation(CLT_PARAMETERS.grow_disp_trust);
 
         return;
-        
+
 /// ============================================
-        
+
     } else if (label.equals("CLT 3D") || label.equals("CLT Extrinsics") || label.equals("CLT Poly corr")) {
     	boolean adjust_extrinsics = label.equals("CLT Extrinsics") || label.equals("CLT Poly corr");
     	boolean adjust_poly = label.equals("CLT Poly corr");
@@ -4818,7 +4847,7 @@ private Panel panel1,
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
-    					null, // use as default directory if path==null 
+    					null, // use as default directory if path==null
     					true,
     					PROPERTIES);
 
@@ -4828,8 +4857,8 @@ private Panel panel1,
     			IJ.showMessage("Error",msg);
     			return;
     		}
-    	}      
-        
+    	}
+
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
         int numChannels=EYESIS_CORRECTIONS.getNumChannels();
         NONLIN_PARAMETERS.modifyNumChannels(numChannels);
@@ -4861,7 +4890,7 @@ private Panel panel1,
         		return;
         	}
         }
-        
+
         QUAD_CLT.processCLTQuads3d(
         		adjust_extrinsics, // boolean adjust_extrinsics,
         		adjust_poly,       // boolean adjust_poly,
@@ -4873,22 +4902,22 @@ private Panel panel1,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
         		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
 //        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
-        
 
-        
-        
+
+
+
         if (configPath!=null) {
         	saveTimestampedProperties( // save config again
         			configPath,      // full path or null
-        			null, // use as default directory if path==null 
+        			null, // use as default directory if path==null
         			true,
         			PROPERTIES);
         }
         return;
-        
+
     } else if (label.equals("CLT planes")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
@@ -4898,7 +4927,7 @@ private Panel panel1,
         }
         QUAD_CLT.showCLTPlanes(
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
         return;
@@ -4911,10 +4940,10 @@ private Panel panel1,
         }
 
     	if (!CLT_PARAMETERS.showTsDialog()) return;
-        
+
         boolean OK = QUAD_CLT.assignCLTPlanes(
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
         if (!OK){
@@ -4922,7 +4951,7 @@ private Panel panel1,
        		return;
         }
         return;
-        
+
     } else if (label.equals("CLT OUT 3D")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
@@ -4930,7 +4959,7 @@ private Panel panel1,
        		System.out.println("QUAD_CLT is null, nothing to show (will add previous steps)");
        		return;
         }
-        
+
     	String configPath=null;
     	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
     		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
@@ -4946,7 +4975,7 @@ private Panel panel1,
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
-    					null, // use as default directory if path==null 
+    					null, // use as default directory if path==null
     					true,
     					PROPERTIES);
 
@@ -4956,12 +4985,12 @@ private Panel panel1,
     			IJ.showMessage("Error",msg);
     			return;
     		}
-    	}      
+    	}
         boolean OK = QUAD_CLT.output3d(
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
         		RGB_PARAMETERS,  // EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        		THREADS_MAX,     // final int          threadsMax,  // maximal number of threads to launch                         
+        		THREADS_MAX,     // final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS,   // final boolean    updateStatus,
         		false,           // final boolean    batch_mode,
         		DEBUG_LEVEL); //final int        debugLevel);
@@ -4970,16 +4999,16 @@ private Panel panel1,
         	System.out.println("Error: "+msg);
         	IJ.showMessage("Error",msg);
         }
-        
-/*        
+
+/*
         if (configPath!=null) {
         	saveTimestampedProperties( // save config again
         			configPath,      // full path or null
-        			null, // use as default directory if path==null 
+        			null, // use as default directory if path==null
         			true,
         			PROPERTIES);
         }
-        
+
 */
     } else if (label.equals("CLT batch process")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
@@ -5008,7 +5037,7 @@ private Panel panel1,
     		try {
     			saveTimestampedProperties(
     					configPath,      // full path or null
-    					null, // use as default directory if path==null 
+    					null, // use as default directory if path==null
     					true,
     					PROPERTIES);
 
@@ -5018,8 +5047,8 @@ private Panel panel1,
     			IJ.showMessage("Error",msg);
     			return;
     		}
-    	}      
-        
+    	}
+
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
         int numChannels=EYESIS_CORRECTIONS.getNumChannels();
         NONLIN_PARAMETERS.modifyNumChannels(numChannels);
@@ -5051,8 +5080,8 @@ private Panel panel1,
         		return;
         	}
         }
-        
-///========================================        
+
+///========================================
         QUAD_CLT.batchCLT3d(
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
@@ -5062,29 +5091,29 @@ private Panel panel1,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
         		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
         		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch                         
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
-        
+
         if (configPath!=null) {
         	saveTimestampedProperties( // save config again
         			configPath,      // full path or null
-        			null, // use as default directory if path==null 
+        			null, // use as default directory if path==null
         			true,
         			PROPERTIES);
         }
         return;
-        
-        
-        
-        
-        
-//        
-// End of buttons code    	
+
+
+
+
+
+//
+// End of buttons code
     }
     DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    
-//    
+
+//
   }
 
 		public boolean getDCTShiftwDialog(double [] shiftXY) {
@@ -5100,15 +5129,15 @@ private Panel panel1,
   				shiftXY[1]=   gd.getNextNumber();
   			}
   			return true;
-  		}  
-	
-	
-	
+  		}
+
+
+
   private boolean loadCorrelations(){
     	String []patterns={".corr-tiff",".tiff",".tif"};
 		String path= selectFile(
 				true,   //smart
-				false, // save  
+				false, // save
 				"Select inter-image correlation vs. diparity file ", // title
 				"Select inter-image correlation file", // button
 				new MultipleExtensionsFileFilter(patterns,patterns[0]+" files"), // filter
@@ -5121,10 +5150,10 @@ private Panel panel1,
 		return false;
   }
 /* ======================================================================== */
-  
+
   public String [] selectSourceFiles(String [] defaultPaths) {
 	  String []patterns={".jp4",".jp46",".tiff",".tif"};
-	  return selectFiles(false, // save  
+	  return selectFiles(false, // save
 			  "Source file(s) selection", // title
 			  "Select source file", // button
 			  new MultipleExtensionsFileFilter(patterns,"JP4/TIFF files"), // filter
@@ -5132,7 +5161,7 @@ private Panel panel1,
   }
   public String selectSourceFile(String defaultPath) {
 	  String []patterns={".jp4",".jp46",".tiff",".tif"};
-	  return selectFile(false, // save  
+	  return selectFile(false, // save
 			  "Source file(s) selection", // title
 			  "Select source file", // button
 			  new MultipleExtensionsFileFilter(patterns,"JP4/TIFF files"), // filter
@@ -5207,7 +5236,7 @@ private Panel panel1,
 	  }
 	  if ((dir==null) || (!dir.exists())) {
 		  if (DEFAULT_DIRECTORY!=null) {
-			  defaultPath = DEFAULT_DIRECTORY; 
+			  defaultPath = DEFAULT_DIRECTORY;
 			  dir = new File(defaultPath);
 		  }
 	  }
@@ -5224,9 +5253,9 @@ private Panel panel1,
 	  JFileChooser fc= new JFileChooser();
 	  fc.setFileSelectionMode(directory?JFileChooser.DIRECTORIES_ONLY:JFileChooser.FILES_ONLY);
 	  fc.setMultiSelectionEnabled(true);
-	  if ((title!=null)  && (title.length()>0)) fc.setDialogTitle(title); 
-	  if ((button!=null) && (button.length()>0)) fc.setApproveButtonText(button); 
-	  if (filter!=null) fc.setFileFilter(filter) ; 
+	  if ((title!=null)  && (title.length()>0)) fc.setDialogTitle(title);
+	  if ((button!=null) && (button.length()>0)) fc.setApproveButtonText(button);
+	  if (filter!=null) fc.setFileFilter(filter) ;
 	  if (dir!=null) 	fc.setCurrentDirectory(dir);
 	  fc.setSelectedFiles(files);
 	  int returnVal = save?(fc.showSaveDialog(IJ.getInstance())):(fc.showOpenDialog(IJ.getInstance()));
@@ -5251,7 +5280,7 @@ private Panel panel1,
 	  }
 	  if ((dir==null) || (!dir.exists())) {
 		  if (DEFAULT_DIRECTORY!=null) {
-			  defaultPath = DEFAULT_DIRECTORY; 
+			  defaultPath = DEFAULT_DIRECTORY;
 			  dir = new File(defaultPath);
 		  }
 	  }
@@ -5268,9 +5297,9 @@ private Panel panel1,
 	  JFileChooser fc= new JFileChooser();
 	  fc.setFileSelectionMode(directory?JFileChooser.DIRECTORIES_ONLY:JFileChooser.FILES_ONLY);
 	  fc.setMultiSelectionEnabled(false);
-	  if ((title!=null)  && (title.length()>0)) fc.setDialogTitle(title); 
-	  if ((button!=null) && (button.length()>0)) fc.setApproveButtonText(button); 
-	  if (filter!=null) fc.setFileFilter(filter) ; 
+	  if ((title!=null)  && (title.length()>0)) fc.setDialogTitle(title);
+	  if ((button!=null) && (button.length()>0)) fc.setApproveButtonText(button);
+	  if (filter!=null) fc.setFileFilter(filter) ;
 	  if (dir!=null) 	fc.setCurrentDirectory(dir);
 	  int returnVal = save?(fc.showSaveDialog(IJ.getInstance())):(fc.showOpenDialog(IJ.getInstance()));
 	  if (returnVal!=JFileChooser.APPROVE_OPTION)	return null;
@@ -5280,7 +5309,7 @@ private Panel panel1,
   class MultipleExtensionsFileFilter extends FileFilter {
 	  protected String [] patterns;
 	  protected String    description="JP4 files";
-	  
+
 	  public MultipleExtensionsFileFilter (String [] patterns,String description) {
 		  this.description=description;
 		  this.patterns=patterns.clone();
@@ -5288,24 +5317,26 @@ private Panel panel1,
 	  public MultipleExtensionsFileFilter (String [] patterns) {
 		  this.patterns=patterns.clone();
 	  }
-	  public boolean accept (File file) {
-		  int i;  
+	  @Override
+	public boolean accept (File file) {
+		  int i;
 		  String name=file.getName();
 		  if (file.isDirectory()) return true;
 		  for (i=0;i<patterns.length;i++) {
 			  if (name.toLowerCase().endsWith(patterns[i].toLowerCase())) return true;
 		  }
-		  return false; 
+		  return false;
 	  }
-	  public String getDescription() {
+	  @Override
+	public String getDescription() {
 		  return description;
 	  }
   }
 
-  
+
  /* ======================================================================== */
-  
-  
+
+
   private boolean fixSliceSequence (ImageStack stack){
 	  int i,j;
 	  int [] rgbNumbers= {0,0,0};
@@ -5355,7 +5386,7 @@ private Panel panel1,
     stack.setPixels   (stack.getPixels(slice2),      slice1);
     stack.setPixels   (pixels,                       slice2);
   }
- 
+
 
 /* ======================================================================== */
    public ImageStack cropStack32(
@@ -5402,7 +5433,7 @@ private Panel panel1,
 		 stack_rot.addSlice(stack.getSliceLabel(i+1), opixels);
 	  }
 	  return stack_rot;
-	  
+
   }
   /* ======================================================================== */
   public ImagePlus cropImage32(
@@ -5486,9 +5517,9 @@ private Panel panel1,
 		 stack16.addSlice(stack32.getSliceLabel(i+1), spixels);
 	  }
 	  return stack16;
-	  
+
   }
-  
+
   public ImagePlus convertRGB48toRGB24(
 		  ImageStack stack16,
 		  String title,
@@ -5557,34 +5588,34 @@ private Panel panel1,
 /* ======================================================================== */
 	public void saveTimestampedProperties(
 			String path,      // full path or null
-			String directory, // use as default directory if path==null 
+			String directory, // use as default directory if path==null
 			boolean useXML,
 			Properties properties ){
 		if (path==null){
    			String msg="path should not be null";
-   			IJ.showMessage("Error",msg); 
+   			IJ.showMessage("Error",msg);
 			throw new IllegalArgumentException (msg);
 		}
 		saveProperties(
 				path+"_"+IJ.d2s(0.000001*(System.nanoTime()/1000),6).replace('.', '_'),      // full path or null
-				directory, // use as default directory if path==null 
+				directory, // use as default directory if path==null
 				useXML,
 				properties );
-		
-	}			
 
-  
-  
+	}
+
+
+
 	public void saveProperties(
 			String path,      // full path or null
-			String directory, // use as default directory if path==null 
+			String directory, // use as default directory if path==null
 			boolean useXML,
 			Properties properties ){
    	    String [] XMLPatterns= {".corr-xml",".xml"};
    	    String [] confPatterns={".conf"};
    	    String [] patterns=useXML?XMLPatterns:confPatterns;
      if (path==null) {
-	    path= selectFile(true, // save  
+	    path= selectFile(true, // save
 			  "Save configuration selection", // title
 			  "Select configuration file", // button
 			  new MultipleExtensionsFileFilter(patterns, (useXML?"XML ":"")+"Configuration files ("+(useXML?"*.corr-xml":"*.conf")+")"), // filter
@@ -5592,7 +5623,7 @@ private Panel panel1,
      } else path+=patterns[0];
      if (path==null) return;
      setAllProperties(properties);
-    
+
      OutputStream os;
      try {
     	 os = new FileOutputStream(path);
@@ -5616,7 +5647,7 @@ private Panel panel1,
          try {
      		properties.storeToXML(os,
      		 "last updated " + new java.util.Date(), "UTF8");
-     		
+
      	 } catch (IOException e) {
          	 IJ.showMessage("Error","Failed to write XML configuration file: "+path);
          	 return;
@@ -5639,10 +5670,10 @@ private Panel panel1,
 	 if (DEBUG_LEVEL>0) System.out.println("Configuration parameters are saved to "+path);
 
 	}
-	
-	
-	
-	
+
+
+
+
 /* ======================================================================== */
 	public void loadProperties(
 			String path,
@@ -5653,7 +5684,7 @@ private Panel panel1,
 	    String [] confPatterns={".conf"};
 	    String [] patterns=useXML?XMLPatterns:confPatterns;
 	     if (path==null) {
-	 	    path= selectFile(false, // save  
+	 	    path= selectFile(false, // save
 	 			  "Configuration file selection", // title
 	 			  "Read configuration file", // button
 	 			  new MultipleExtensionsFileFilter(patterns,(useXML?"XML ":"")+"Configuration files ("+(useXML?"*.corr-xml":"*.conf")+")"), // filter
@@ -5671,7 +5702,7 @@ private Panel panel1,
 	     if (useXML) {
 	         try {
 	     		properties.loadFromXML(is);
-	     		
+
 	     	 } catch (IOException e) {
 	         	 IJ.showMessage("Error","Failed to read XML configuration file: "+path);
 	         	 return;
@@ -5689,7 +5720,7 @@ private Panel panel1,
 	 	 } catch (IOException e) {
 	 		// TODO Auto-generated catch block
 	 		e.printStackTrace();
-	 	 }      
+	 	 }
 	     getAllProperties(properties);
 		 if (DEBUG_LEVEL>0) System.out.println("Configuration parameters are restored from "+path);
 	}
@@ -5833,18 +5864,18 @@ private Panel panel1,
 				  System.out.println ("suffix="+ suffix[nFile]);
 			  }
 			  for (nChn=0;nChn<numChannels;nChn++)  {
-				  if ((!processParameters.thisFileOnly) || (nChn==(channel-1))) { 
+				  if ((!processParameters.thisFileOnly) || (nChn==(channel-1))) {
 					  filenames[nFile][nChn]=prefix[nFile]+"_"+(nChn+1)+"-"+suffix[nFile]+extension;
 					  for (nSubChn=0;nSubChn<numSubChannels;nSubChn++) {
-						  if ((!processParameters.thisFileOnly) || (nSubChn==(processParameters.subChannelToProcess-1))) 
-							  channels[nFile][nChn][nSubChn]=true;  
+						  if ((!processParameters.thisFileOnly) || (nSubChn==(processParameters.subChannelToProcess-1)))
+							  channels[nFile][nChn][nSubChn]=true;
 						  else channels[nFile][nChn][nSubChn]=false;
 					  }
 				  } else{
 					  filenames[nFile][nChn]=null;
 					  channels[nFile][nChn]=null;
 				  }
-			  }		  
+			  }
 		  } else {
 			  filenames[nFile][0]=ifilenames[nFile];
 			  channels[nFile][0][0]=true;
@@ -5857,7 +5888,7 @@ private Panel panel1,
 		  for (nChn=0;(nChn<numChannels) && (filenames[nFile]!=null);nChn++) if (filenames[nFile][nChn]!=null) {
 			  for (nFile1=0;nFile1<nFile;nFile1++)
 				  if ((filenames[nFile1]!=null) &&
-						  (filenames[nFile1][nChn]!=null) && 
+						  (filenames[nFile1][nChn]!=null) &&
 						  (directories[nFile1].equals(directories[nFile]))&&
 						  (filenames[nFile1][nChn].equals(filenames[nFile][nChn]))) {
 					  filenames[nFile]=null;
@@ -5884,7 +5915,7 @@ private Panel panel1,
 
 	  for (nChn=0;nChn<numChannels;nChn++)
 		  for (nSubChn=0;nSubChn<numSubChannels;nSubChn++) kernelsNoise[nChn][nSubChn]=null;
-  
+
 // == Calculate noise gains of convolution kernels ==
 	  //processParameters.frames[i][j]
 	  imageNoiseGains=new ImagePlus [numChannels][numSubChannels] ;
@@ -5925,7 +5956,7 @@ private Panel panel1,
 			  }
 			  convolutionKernelStack2=imp_kernels2.getStack();
 			  if (DEBUG_LEVEL>1) System.out.println("Using second (lowpass) stack "+kernelPath+" for noise gain calculation");
-		  }  else convolutionKernelStack2=null; 
+		  }  else convolutionKernelStack2=null;
 		  kernelsNoise[nChn][nSubChn]=EYESIS_CORRECTIONS.calculateKernelsNoiseGains (
 				  convolutionKernelStack,  // first stack with 3 colors/slices convolution kernels
 				  convolutionKernelStack2, // second stack with 3 colors/slices convolution kernels (or null)
@@ -5937,7 +5968,7 @@ private Panel panel1,
 		  convolutionKernelStack=null;
 		  convolutionKernelStack2=null;
 		  runtime.gc();
-/*  imageNoiseGains is used , maybe change below to use just the array	kernelsNoise[nChn][nSubChn] */	  
+/*  imageNoiseGains is used , maybe change below to use just the array	kernelsNoise[nChn][nSubChn] */
      	  title="noiseGains_"+(nonlinParameters.useDiffNoiseGains?"diff_":"")+(nChn+1)+""+(nSubChn+1);
 		  imageNoiseGains[nChn][nSubChn]= new ImagePlus(title, kernelsNoise[nChn][nSubChn]);
 		  if (processParameters.saveNoiseGains || processParameters.showNoiseGains) {
@@ -5949,16 +5980,16 @@ private Panel panel1,
 					  processParameters.showNoiseGains
 			  );
 //			  if (!processParameters.showNoiseGains) imageNoiseGains[nChn][nSubChn]=null; // it is needed!
-		  }		  
-	  }  
+		  }
+	  }
 	  convolutionKernelStack=null;
 	  convolutionKernelStack2=null;
 	  runtime.gc();
-	  
-	  
-//==================================================	  
+
+
+//==================================================
 	  //	  int i,nFile,nChn,nSubChn;
-	  for (nFile=0;nFile<numFiles;nFile++) if (filenames[nFile]!=null) 
+	  for (nFile=0;nFile<numFiles;nFile++) if (filenames[nFile]!=null)
 		  for (nChn=0;nChn<numChannels;nChn++) if (filenames[nFile][nChn]!=null) {
 			  if (DEBUG_LEVEL>1) System.out.println(">> using: "+directories[nFile]+filenames[nFile][nChn]+ ", eyesisMode="+eyesisMode);
 			  file=new File(directories[nFile]+filenames[nFile][nChn]);
@@ -6008,13 +6039,13 @@ private Panel panel1,
 					  }
 					  continue;
 				  }
-				  // Split into Bayer components, oversample, increase canvas    		  
+				  // Split into Bayer components, oversample, increase canvas
 				  stack= bayerToStack(
 						  result[nFile][nChn][nSubChn], // source Bayer image, linearized, 32-bit (float))
 						  splitParameters);
 				  titleFull=title+"-SPLIT";
 				  if (!processParameters.debayer) {
-					  result[nFile][nChn][nSubChn]= new ImagePlus(titleFull, stack);    			  
+					  result[nFile][nChn][nSubChn]= new ImagePlus(titleFull, stack);
 					  saveAndShow(result[nFile][nChn][nSubChn], processParameters, filesParameters);
 					  if(!saveResult) {
 						  result[nFile][nChn][nSubChn]=null; // erase results to save memory
@@ -6079,7 +6110,7 @@ private Panel panel1,
 					  stack_d= convolveStackWithKernelStack(
 							  stack,  // stack with 3 colors/slices with the image
 							  convolutionKernelStack, // stack with 3 colors/slices convolution kernels
-							  convolveFFTSize, // 128 - fft size, kernel size should be size/2 
+							  convolveFFTSize, // 128 - fft size, kernel size should be size/2
 							  threadsMax,
 							  updateStatus); // update status info
 					  titleFull=title+"-DECONV";
@@ -6107,7 +6138,7 @@ private Panel panel1,
 						  stack_g= convolveStackWithKernelStack(
 								  stack,  // stack with 3 colors/slices with the image
 								  convolutionKernelStack, // stack with 3 colors/slices convolution kernels
-								  convolveFFTSize, // 128 - fft size, kernel size should be size/2 
+								  convolveFFTSize, // 128 - fft size, kernel size should be size/2
 								  threadsMax,
 								  updateStatus); // update status info
 						  // Combine Gaussian and Deconvolved
@@ -6119,10 +6150,10 @@ private Panel panel1,
 								     1,     // decimate result (not yet supported)
 								     nonlinParameters.noiseGainPower
 								  );
-// show noise mask here?						  
+// show noise mask here?
 						  nonlinParameters.showMask=processParameters.showDenoiseMask;
 //				          if (DEBUG_LEVEL>1) System.out.println ( " noiseMask.length="+((noiseMask==null)?"null":(noiseMask.length+" noiseMask[0].length="+noiseMask[0].length)));
-						  
+
 						  stack=  combineLoHiStacks(stack_d, // ImageStack with the image, convolved with the reversed PSF (sharp but with high noise)
 								  stack_g,  // ImageStack with the image, convolved with the Gaussian (just lateral compensated)  (blurred, but low noise)
 								  nChn,
@@ -6142,7 +6173,7 @@ private Panel panel1,
 								  if (processParameters.crop){
 									  denoiseMask=cropImage32(denoiseMask,splitParameters);
 								  }
-// rotate the result			  
+// rotate the result
 								  if (processParameters.rotate){
 									  denoiseMask=rotateImage32CW(denoiseMask);
 								  }
@@ -6154,7 +6185,7 @@ private Panel panel1,
 									  denoiseMask= new ImagePlus(denoiseMask.getTitle(),ip);
 									  denoiseMask.updateAndDraw();
 								  }
-								  if (processParameters.showDenoiseMask) denoiseMask.show(); 
+								  if (processParameters.showDenoiseMask) denoiseMask.show();
 // public ImagePlus Image32toGreyRGB24(ImagePlus imp);
 								  if (processParameters.saveDenoiseMask) {
 									  ImagePlus denoiseMaskRGB24=Image32toGreyRGB24(denoiseMask);
@@ -6207,14 +6238,14 @@ private Panel panel1,
 					  stack_g= convolveStackWithKernelStack(
 							  stack,  // stack with 3 colors/slices with the image
 							  convolutionKernelStack, // stack with 3 colors/slices convolution kernels
-							  convolveFFTSize, // 128 - fft size, kernel size should be size/2 
+							  convolveFFTSize, // 128 - fft size, kernel size should be size/2
 							  threadsMax,
 							  updateStatus); // update status info
 					  titleFull=title+"-LOWRES";
 				  }// end of if (processParameters.deconvolve)
-				  //stack now has the result, titleFull - correct title for the image 
+				  //stack now has the result, titleFull - correct title for the image
 				  if (!processParameters.colorProc){
-					  result[nFile][nChn][nSubChn]= new ImagePlus(titleFull, stack);    			  
+					  result[nFile][nChn][nSubChn]= new ImagePlus(titleFull, stack);
 					  saveAndShow(result[nFile][nChn][nSubChn], processParameters, filesParameters);
 					  if(!saveResult) {
 						  result[nFile][nChn][nSubChn]=null; // erase results to save memory
@@ -6240,7 +6271,7 @@ private Panel panel1,
 						  nSubChn
 				  );
 				  if (DEBUG_LEVEL>1) System.out.println("Processed colors to YPbPr, total number of slices="+stack.getSize());
-// Show/save color denoise mask				  
+// Show/save color denoise mask
 				  if ((processParameters.saveChromaDenoiseMask || processParameters.showChromaDenoiseMask) && (DENOISE_MASK_CHROMA!=null)) {
 					  ImagePlus chromaDenoiseMask=SDFA_INSTANCE.makeArrays (DENOISE_MASK_CHROMA,
 							  DENOISE_MASK_CHROMA_WIDTH,
@@ -6251,7 +6282,7 @@ private Panel panel1,
 						  if (processParameters.crop){
 							  chromaDenoiseMask=cropImage32(chromaDenoiseMask,splitParameters);
 						  }
-//rotate the result			  
+//rotate the result
 						  if (processParameters.rotate){
 							  chromaDenoiseMask=rotateImage32CW(chromaDenoiseMask);
 						  }
@@ -6263,7 +6294,7 @@ private Panel panel1,
 							  chromaDenoiseMask= new ImagePlus(chromaDenoiseMask.getTitle(),ip);
 							  chromaDenoiseMask.updateAndDraw();
 						  }
-						  if (processParameters.showChromaDenoiseMask) chromaDenoiseMask.show(); 
+						  if (processParameters.showChromaDenoiseMask) chromaDenoiseMask.show();
 //public ImagePlus Image32toGreyRGB24(ImagePlus imp);
 						  if (processParameters.saveChromaDenoiseMask) {
 							  ImagePlus chromaDenoiseMaskRGB24=Image32toGreyRGB24(chromaDenoiseMask);
@@ -6282,7 +6313,7 @@ private Panel panel1,
 					    );
 					  }
 				  }
-				  
+
 				  if (processParameters.toRGB) {
 					  YPrPbToRGB(stack,
 							  colorProcParameters.kr,        // 0.299;
@@ -6301,12 +6332,12 @@ private Panel panel1,
 					  titleFull=title+"-YPrPb"; // including "-DECONV" or "-COMBO"
 					  if (DEBUG_LEVEL>1) System.out.println("Using full stack, including YPbPr");
 				  }
-				  result[nFile][nChn][nSubChn]= new ImagePlus(titleFull, stack);    			  
+				  result[nFile][nChn][nSubChn]= new ImagePlus(titleFull, stack);
 				  // Crop image to match original one (scaled to oversampling)
 				  if (processParameters.crop){
 					  stack=cropStack32(stack,splitParameters);
 				  }
-				  // rotate the result			  
+				  // rotate the result
 				  if (processParameters.rotate){
 					  stack=rotateStack32CW(stack);
 				  }
@@ -6321,12 +6352,12 @@ private Panel panel1,
 				  } else { // that's not the end result, save if required
 					  saveAndShow(result[nFile][nChn][nSubChn], filesParameters, processParameters.save32, false,processParameters.JPEG_quality); // save, no show
 				  }
-				  // convert to RGB48 (16 bits per color component)			  
+				  // convert to RGB48 (16 bits per color component)
 				  stack=convertRGB32toRGB16Stack(
 						  stack,
-						  rgbParameters); 
+						  rgbParameters);
 				  titleFull=title+"-RGB48";
-				  result[nFile][nChn][nSubChn]= new ImagePlus(titleFull, stack);    			  
+				  result[nFile][nChn][nSubChn]= new ImagePlus(titleFull, stack);
 				  compositeImage=convertToComposite(result[nFile][nChn][nSubChn]);
 				  if (!processParameters.jpeg){ // RGB48 was the end result
 					  saveAndShow(compositeImage, processParameters, filesParameters);
@@ -6402,8 +6433,8 @@ private Panel panel1,
 		  boolean               save,
 		  boolean               show){
 	  saveAndShow(imp, filesParameters,  save,  show, -1);
-  } 
-  
+  }
+
   private void saveAndShow(
 		  ImagePlus             imp,
 		  EyesisCorrectionParameters.FilesParameters       filesParameters,
@@ -6445,7 +6476,7 @@ private Panel panel1,
 		  imp.show();
 	  }
   }
- 
+
   private void saveAndShow(
 		  CompositeImage        compositeImage,
 		  EyesisCorrectionParameters.ProcessParameters     processParameters,
@@ -6501,9 +6532,9 @@ private Panel panel1,
 		  compositeImage.show();
 	  }
   }
-  
-  
-  
+
+
+
   /* ======================================================================== */
 	/* Create a Thread[] array as large as the number of processors available.
 	 * From Stephan Preibisch's Multithreading.java class. See:
@@ -6527,7 +6558,7 @@ private Panel panel1,
 		}
 
 		try
-		{   
+		{
 			for (int ithread = 0; ithread < threads.length; ++ithread)
 				threads[ithread].join();
 		} catch (InterruptedException ie)
@@ -6566,17 +6597,17 @@ private Panel panel1,
   }
 
 /* ======================================================================== */
-  /* convolve image stack with the kernel stack using FHT. kernels should be (size/2)*(size/2) - currently 64x64, then image will be split into same 
+  /* convolve image stack with the kernel stack using FHT. kernels should be (size/2)*(size/2) - currently 64x64, then image will be split into same
       (size/2)*(size/2) overlapping by step=size/4 segments. Both are zero-padded to size x size, so after convolution the result will not roll over, and
       processed 128x128 result arrays are accumulated in the output stack.
       The input image should be properly extended by size/4 in each direction (and so the kernel arrays should match it) - that would minimize border effects.*/
- 
+
   /* ======================================================================== */
   public ImageStack convolveStackWithKernelStack (
 		  final ImageStack  imageStack,  // stack with 3 colors/slices with the image
 		  final ImageStack kernelStack, // stack with 3 colors/slices convolution kernels
-		  final int               size, // 128 - fft size, kernel size should be size/2 
-		  final int          threadsMax,  // maximal number of threads to launch                         
+		  final int               size, // 128 - fft size, kernel size should be size/2
+		  final int          threadsMax,  // maximal number of threads to launch
 		  final boolean    updateStatus) // update status info
   {
 	  if ((imageStack==null) || (kernelStack==null)) return null;
@@ -6599,7 +6630,7 @@ private Panel panel1,
 	  final AtomicInteger ai = new AtomicInteger(0);
 	  final int numberOfKernels=     tilesY*tilesX*nChn;
 	  final int numberOfKernelsInChn=tilesY*tilesX;
-	  if (MASTER_DEBUG_LEVEL>1) 
+	  if (MASTER_DEBUG_LEVEL>1)
 		  System.out.println("Eyesis_Correction:convolveStackWithKernelStack :\n"+
 			  "MASTER_DEBUG_LEVEL="+MASTER_DEBUG_LEVEL+"\n"+
 			  "imgWidth="+imgWidth+"\n"+
@@ -6613,11 +6644,12 @@ private Panel panel1,
 			  "kernelWidth="+kernelWidth+"\n"+
 			  "kernelNumHor="+kernelNumHor+"\n"+
 			  "numberOfKernelsInChn="+numberOfKernelsInChn+"\n");
-	  
+
 	  final long startTime = System.nanoTime();
 	  for (int ithread = 0; ithread < threads.length; ithread++) {
 		  threads[ithread] = new Thread() {
-			  public void run() {
+			  @Override
+			public void run() {
 				  float [] pixels=null;       // will be initialized at first use
 				  float [] kernelPixels=null; // will be initialized at first use
 				  double [] kernel=       new double[kernelSize*kernelSize];
@@ -6637,7 +6669,7 @@ private Panel panel1,
 						  if (updateStatus) IJ.showStatus("Convolving image with kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+tilesY);
 						  if (MASTER_DEBUG_LEVEL>2) System.out.println("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+tilesY+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 					  }
-					  
+
 					  if (chn!=chn0) {
 						  pixels=      (float[]) imageStack.getPixels(chn+1);
 						  kernelPixels=(float[]) kernelStack.getPixels(chn+1);
@@ -6656,7 +6688,7 @@ private Panel panel1,
 					  fht_instance.swapQuadrants(outTile);
 					  fht_instance.transform(    outTile);
 					  /* read convolution kernel */
-					  EYESIS_CORRECTIONS.extractOneKernel(kernelPixels, //  array of combined square kernels, each 
+					  EYESIS_CORRECTIONS.extractOneKernel(kernelPixels, //  array of combined square kernels, each
 							  kernel, // will be filled, should have correct size before call
 							  kernelNumHor, // number of kernels in a row
 							  //tileX*kernelSize, // horizontal number of kernel to extract
@@ -6668,7 +6700,7 @@ private Panel panel1,
 //					  debug_sum=0;
 //					  for (i=0;i<doubleKernel.length;i++) debug_sum+=doubleKernel[i];
 //					  if (MASTER_DEBUG_LEVEL>1) System.out.println("kernel sum="+debug_sum);
-					  
+
 					  //if ((tileY==tilesY/2) && (tileX==tilesX/2))  SDFA_INSTANCE.showArrays(doubleKernel,size,size, "doubleKernel-"+chn);
 					  /* FHT transform of the kernel */
 					  fht_instance.swapQuadrants(doubleKernel);
@@ -6691,7 +6723,7 @@ private Panel panel1,
 				  }
 			  }
 		  };
-	  }		      
+	  }
 	  startAndJoin(threads);
 	  if (DEBUG_LEVEL > 1) System.out.println("Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 
@@ -6702,10 +6734,10 @@ private Panel panel1,
 	  }
 	  return outStack;
   }
-/* ======================================================================== */ 
+/* ======================================================================== */
 
-  
-  /* ======================================================================== */ 
+
+  /* ======================================================================== */
   // uses global OUT_PIXELS to accumulate results
   public ImageStack aliasScissorsStack (
 		  final ImageStack                        imageStack,  // stack with 3 colors/slices with the image
@@ -6759,7 +6791,8 @@ private Panel panel1,
 	  final long startTime = System.nanoTime();
 	  for (int ithread = 0; ithread < threads.length; ithread++) {
 		  threads[ithread] = new Thread() {
-			  public void run() {
+			  @Override
+			public void run() {
 				  double [][] tile=        new double[nChn][debayerParameters.size * debayerParameters.size ];
 				  double [][] both_masks;
 				  float [][] pixels=       new float[nChn][];
@@ -6773,8 +6806,8 @@ private Panel panel1,
 						  debayerParameters.debayerRelativeWidthGreen, // result green mask mpy by scaled default (diamond)
 						  debayerParameters.debayerRelativeWidthRedblue, // result red/blue mask mpy by scaled default (square)
 						  debayerParameters.debayerRelativeWidthRedblueMain, // green mask when applied to red/blue, main (center)
-						  debayerParameters.debayerRelativeWidthRedblueClones);// green mask when applied to red/blue, clones 
-				  
+						  debayerParameters.debayerRelativeWidthRedblueClones);// green mask when applied to red/blue, clones
+
 				  for (int nTile = ai.getAndIncrement(); nTile < numberOfKernels; nTile = ai.getAndIncrement()) {
 					  tileY = nTile /tilesX;
 					  tileX = nTile % tilesX;
@@ -6782,7 +6815,7 @@ private Panel panel1,
 						  if (updateStatus) IJ.showStatus("(2)Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY);
 						  if (MASTER_DEBUG_LEVEL>1) System.out.println("(2)Reducing sampling aliases, row "+(tileY+1)+" of "+tilesY+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 					  }
-				  
+
 					  if ((tileY==yTileDebug) && (tileX==xTileDebug)) DEBUG_LEVEL=4;
 					  else DEBUG_LEVEL=wasDebugLevel;
 					  for (chn=0;chn<nChn;chn++){
@@ -6837,11 +6870,11 @@ private Panel panel1,
 								  tileY*step); // top corner Y
 					  }
 					  if ((tileY==yTileDebug) && (tileX==xTileDebug) && (SDFA_instance!=null)) SDFA_instance.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "B00");
-					  
+
 				  }
 			  }
 		  };
-	  }		      
+	  }
 	  startAndJoin(threads);
 	  DEBUG_LEVEL=wasDebugLevel;
 	  /* prepare result stack to return */
@@ -6849,7 +6882,7 @@ private Panel panel1,
 	  for (chn=0;chn<nChn;chn++) {
 		  outStack.addSlice(imageStack.getSliceLabel(chn+1), outPixles[chn]);
 	  }
-	  DEBAYER_ENERGY_WIDTH=	 (DEBAYER_ENERGY!=null)?tilesX:0; // for the image to be displayed externally 
+	  DEBAYER_ENERGY_WIDTH=	 (DEBAYER_ENERGY!=null)?tilesX:0; // for the image to be displayed externally
 //	  if (debayerParameters.showEnergy) {
 //		  SDFA_INSTANCE.showArrays (DEBAYER_ENERGY,tilesX,tilesY, "Debayer-Energy");
 //	  }
@@ -6916,7 +6949,7 @@ private Panel panel1,
 	  }
 	  return maskFHT;
   }
-  
+
   private int extendDimension(
 		  int dimension,
 		  int step) {
@@ -6967,9 +7000,9 @@ private Panel panel1,
 	  return pixels;
   }
 
-  
-  
-  
+
+
+
   public double [] filterMaskFromBlockArtifacts(
 //  public float [] filterMaskFromBlockArtifacts(
 		  final double []     pixels, // input pixel array
@@ -6992,7 +7025,7 @@ private Panel panel1,
 	  final int tilesY=imgHeight/step-1; // vertical number of overlapping tiles in the source image (should be expanded from the registered one by "step" in each direction)
 	  if (MASTER_DEBUG_LEVEL>1) System.out.println("filterMaskFromBlockArtifacts, tilesX="+tilesX);
 	  if (MASTER_DEBUG_LEVEL>1) System.out.println("filterMaskFromBlockArtifacts, tilesY="+tilesY);
-	  
+
 	  int i; //tileX,tileY;
 
 //	  for (i=0;i<length;i++) MASK_LOHIRES[i]=0.0;
@@ -7006,7 +7039,8 @@ private Panel panel1,
 	  final long startTime = System.nanoTime();
 	  for (int ithread = 0; ithread < threads.length; ithread++) {
 		  threads[ithread] = new Thread() {
-			  public void run() {
+			  @Override
+			public void run() {
 				  double [] tile=        new double[size * size ];
 				  int tileY,tileX;
 				  DoubleFHT       fht_instance =   new DoubleFHT(); // provide DoubleFHT instance to save on initializations (or null)
@@ -7038,18 +7072,18 @@ private Panel panel1,
 								  imgWidth, // width of pixels array
 								  tileX*step, // left corner X
 								  tileY*step); // top corner Y
-					  
+
 				  }
 			  }
 		  };
-	  }		      
+	  }
 	  startAndJoin(threads);
 	  return MASK_LOHIRES;
   }
- 
-  
-  
-  
+
+
+
+
 /* ======================================================================== */
     public double [] ringFilter(double [] dmask,       // mask to be filtered
     		                    int       width,       // mask width
@@ -7073,7 +7107,7 @@ private Panel panel1,
     		if (r2<ringIR2) nc++;
     		else if (r2<=ringOR2) nr++;
     	}
-    	if ((nc==0) || (nr==0)) return result; // do not filter; 
+    	if ((nc==0) || (nr==0)) return result; // do not filter;
     	int [] indxc=new int[nc];
     	int [] indxr=new int[nr];
     	nc=0;
@@ -7111,7 +7145,7 @@ private Panel panel1,
     	return result;
     }
 /* ======================================================================== */
-/* Combine two  3-slice image stacks generated from the same source image - one high-res/high noise, other low-res/low noise 
+/* Combine two  3-slice image stacks generated from the same source image - one high-res/high noise, other low-res/low noise
  * @param nonlinParameters TODO*/
   public ImageStack combineLoHiStacks(ImageStack        stack_convolved, // ImageStack with the image, convolved with the reversed PSF (sharp but with high noise)
                                       ImageStack         stack_gaussian, // ImageStack with the image, convolved with the Gaussian (just lateral compensated)  (blurred, but low noise)
@@ -7149,14 +7183,14 @@ private Panel panel1,
       float [] lopassPixels=(float[]) stack_gaussian.getPixels(greenChn+1);
 /*
       for (i=0;i<lopassPixels.length;i++) {
- 
+
         d=hipassPixels[i]-lopassPixels[i];
         diffGreens[i]=d*d;
         if (max<lopassPixels[i]) max=lopassPixels[i];
       }
-*/      
+*/
       for (i=0;i<lopassPixels.length;i++) {
-    	  
+
 //          d=hipassPixels[i]-lopassPixels[i];
 //          diffGreens[i]=d*d;
     	  diffGreens[i]=hipassPixels[i]-lopassPixels[i];
@@ -7171,7 +7205,7 @@ private Panel panel1,
     	  diffGreens[i]=diffGreens[i]*diffGreens[i];
       }
       if ((DEBUG_LEVEL>2) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(lopassPixels.clone(), imgWidth, imgHeight,"lopassPixels");
-      
+
       for (i=0;i<lopassPixels.length;i++) {
     	  if (max<lopassPixels[i]) max=lopassPixels[i];
       }
@@ -7186,7 +7220,7 @@ private Panel panel1,
 //      if ((DEBUG_LEVEL>3) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffG-norm-limited");
       if ((DEBUG_LEVEL>1) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffG-norm-limited");
       if (nonlinParameters.useRejectBlocksFilter) { // use frequency domain filtering
-    	  
+
     	  double lowpassSigmaFreq=1.0*nonlinParameters.maskFFTSize/(2*Math.PI*nonlinParameters.lowPassSigma); // low pass sigma in frequency domain
     	  double [] filterFHT = createFilterForBlockArtifacts(
     			  nonlinParameters.maskFFTSize, // size of square FHT
@@ -7194,16 +7228,16 @@ private Panel panel1,
     			  nonlinParameters.rejectFreqSigma, // sigma of the rejection spots ( 0.0 - just zero a single point)
     			  lowpassSigmaFreq); // sigma of the low pass filter (frequency units, 0.0 - do not filter)
     	  if ((DEBUG_LEVEL>3) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(filterFHT,"filterFHT");
-// Extend at least by half sliding window in each direction to reduce border effect 	  
+// Extend at least by half sliding window in each direction to reduce border effect
     	  diffGreens1=extendDoubleArrayForSlidingWindow(
     			  diffGreens, // input pixel array
     			  imgWidth,  // width of the image
     			  nonlinParameters.maskFFTSize/2); // size of sliding step (half of the sliding window size)
     	  int extendedWidth=  extendDimension(imgWidth, (nonlinParameters.maskFFTSize/2));
           int extendedHeight= extendDimension(imgHeight,(nonlinParameters.maskFFTSize/2));
-         
+
           if ((DEBUG_LEVEL>3) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens1.clone(),extendedWidth,  extendedHeight,"diffGreens-extended");
-    	  
+
 // run block rejection filter
     	  diffGreens1=filterMaskFromBlockArtifacts(
     			  diffGreens1, // input pixel array
@@ -7231,27 +7265,27 @@ private Panel panel1,
     			diffGreens[i]=(d>0)?Math.sqrt(diffGreens[i]*diffGreens1[i]):0.0;
     		}
     	  } else {
-    		  diffGreens=diffGreens1; 
+    		  diffGreens=diffGreens1;
     	  }
       } else { // just apply low-pass filter to the mask
 //    		DoubleGaussianBlur gb=new DoubleGaussianBlur();
     		gb.blurDouble(diffGreens, imgWidth, imgHeight, nonlinParameters.lowPassSigma, nonlinParameters.lowPassSigma, 0.01);
       }
       if ((DEBUG_LEVEL>1) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-filtered");
-      
+
 //      final double [][]       noiseMask, // 2-d array of kernelsNoiseGain (divide mask by it)
 //      final int               noiseStep, // linear pixels per noiseMask pixels (32)
 /* divide mask by noiseMask, if defined */
       if (noiseMask!=null) {
     	  if (DEBUG_LEVEL>1) System.out.println ( "diffGreens.length="+diffGreens.length+" imgWidth="+imgWidth+" noiseMask.length="+noiseMask.length+" noiseMask[0].length="+noiseMask[0].length);
-    	  
+
           for (i=0;i<diffGreens.length;i++) {
         	  j=(i/imgWidth)/noiseStep;
         	  k=(i%imgWidth)/noiseStep;
         	  if (j>=noiseMask.length)    j=noiseMask.length-1;
         	  if (k>=noiseMask[j].length) k=noiseMask[j].length-1;
         	  diffGreens[i]/=noiseMask[j][k];
-          }    	  
+          }
       }
       if ((DEBUG_LEVEL>1) && nonlinParameters.showMask) SDFA_INSTANCE.showArrays(diffGreens.clone(), imgWidth, imgHeight,"diffGreens-noise");
       if (nonlinParameters.useRingFilter) {
@@ -7277,11 +7311,11 @@ private Panel panel1,
 //    	  SDFA_INSTANCE.showArrays(diffGreens, imgWidth, imgHeight,"mask");
 //      }
      DENOISE_MASK=diffGreens;
-     DENOISE_MASK_WIDTH=imgWidth; 
+     DENOISE_MASK_WIDTH=imgWidth;
 
 /* Combine 2 stacks and a mask */
       return combineStacksWithMask (stack_gaussian,
-                                   stack_convolved, 
+                                   stack_convolved,
                                         diffGreens);
    }
 
@@ -7289,7 +7323,7 @@ private Panel panel1,
 
   /* Combine 2 stacks and a mask */
   public ImageStack combineStacksWithMask (ImageStack stack_bg,
-		  ImageStack stack_fg, 
+		  ImageStack stack_fg,
 		  //                                                 float [] mask ) {
 		  double [] mask ) {
 
@@ -7404,7 +7438,7 @@ private Panel panel1,
 	  }
   }
 
-  
+
 /* ======================================================================== */
 /* accumulate square tile to the pixel array (tile may extend beyond the array, will be cropped) */
   synchronized void  accumulateSquareTile(
@@ -7595,7 +7629,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 			true, // save32 - save 32-bit tiff also if the end result is 8 or 16 bit
 
 */
-  
+
   public boolean showProcessDialog(EyesisCorrectionParameters.ProcessParameters processParameters) {
 	  GenericDialog gd = new GenericDialog("Process parameters");
 	  //	    gd.addCheckbox    ("Use first approximation for Y",           colorProcParameters.useFirstY);
@@ -7606,7 +7640,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
       gd.addCheckbox ("Open file selection dialog (false - use selected)",processParameters.selectFile);
 	  gd.addCheckbox ("Process only selected file (false - all 3)",       processParameters.thisFileOnly);
 	  gd.addNumericField("Channel to process (if only selected file, 1..3)", processParameters.subChannelToProcess,0);
-	  
+
 	  gd.addCheckbox ("Splt into Bayer stack (if false will exit)",       processParameters.split);
 	  gd.addCheckbox ("De-mosaic (if false will exit)",                   processParameters.debayer);
 	  gd.addCheckbox ("Show de-mosaic middle-frequency 'energy",          processParameters.showDebayerEnergy);
@@ -7637,7 +7671,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 	  gd.showDialog();
 	  if (gd.wasCanceled()) return false;
 	  processParameters.eyesisMode=        gd.getNextBoolean();
-	  for (i=0; i<processParameters.frames.length;i++) for (j=0;j<processParameters.frames[i].length;j++) 
+	  for (i=0; i<processParameters.frames.length;i++) for (j=0;j<processParameters.frames[i].length;j++)
 		  processParameters.frames[i][j]=  gd.getNextBoolean();
 	  processParameters.selectFile=        gd.getNextBoolean();
 	  processParameters.thisFileOnly=      gd.getNextBoolean();
@@ -7669,9 +7703,9 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
       UPDATE_STATUS=                       gd.getNextBoolean();
 	  MASTER_DEBUG_LEVEL=            (int) gd.getNextNumber();
 	  return true;
-  }  
+  }
 /* ======================================================================== */
-  
+
    public boolean showFilesDialog(
 		   EyesisCorrectionParameters.FilesParameters filesParameters,
 		   EyesisCorrectionParameters.ProcessParameters processParameters) {
@@ -7696,7 +7730,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 //sourceFile
 	    if (filesParameters.sourceFiles!=null) {
 	    	if (filesParameters.sourceFiles.length==1) {
-	  		  gd.addStringField ("Source file(s) path (select one - will include other channels):    ", filesParameters.sourceFiles[0], 80);	    		
+	  		  gd.addStringField ("Source file(s) path (select one - will include other channels):    ", filesParameters.sourceFiles[0], 80);
 	        } else if (filesParameters.sourceFiles.length>1) {
 	          gd.addMessage("Multiple source files selected");
 	        }
@@ -7712,7 +7746,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 	    if (gd.wasCanceled()) return false;
 		boolean newEyesisMode=           gd.getNextBoolean();
 
-		
+
 	    if (processParameters.eyesisMode) {
 	    	for (i=0; i<filesParameters.rPSFNames.length;i++)
 	    		for (j=0;j<filesParameters.rPSFNames[i].length;j++) if (filesParameters.rPSFNames[i][j]!=null) {
@@ -7742,7 +7776,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
   }
 
   /* ======================================================================== */
-  
+
   public boolean showRGBProcessDialog(EyesisCorrectionParameters.RGBParameters rgbParameters) {
     GenericDialog gd = new GenericDialog("RGB conversion parameters");
 
@@ -7798,35 +7832,35 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 	    gd.addNumericField("Minimal value for average compared to average over the whole picture",colorProcParameters.satDetMinFrac,       4);
 	    gd.addNumericField("Maximal difference from average for the saturated tile to be considered saturated",colorProcParameters.satDetFinRelDiff,    4);
 	    gd.addNumericField("Maximal difference from the start tile average during growing",colorProcParameters.satDetGrowRelDiff,    4);
-	    
-	    
+
+
 	    gd.addNumericField("Weight of new pixel when expanding overexposed areas",colorProcParameters.satDetNewWeight,    4);
 
-	    
+
 	    gd.addNumericField("Number of overexposure expand steps, nothing special for brighter",colorProcParameters.satDetExpSym,    0);
 	    gd.addNumericField("Number of overexposure expand steps, limited under, any over",colorProcParameters.satDetExpOver,    0);
-	    
+
 	    gd.addNumericField("Maximal difference from the start tile average during growing (final to clean up oscillations)",colorProcParameters.satDetGrowRelDiffCleanUp,    4);
 	    gd.addNumericField("Number of overexposure expand steps, final to clean up oscillations)",colorProcParameters.satDetExpCleanUp,    0);
 	    gd.addNumericField("Shrink blue overexposed area by this number of pixels (to get to undisturbed R/G)",colorProcParameters.blueOverShrink,    0);
 	    gd.addNumericField("Grow blue overexposed area by this number of pixels",colorProcParameters.blueOverGrow,    0);
 	    gd.addNumericField("Average amount of blue leak in pixels",colorProcParameters.blueBandWidth,    4);
 	    gd.addNumericField("Average amount of blue leak in pixels (slope at dark)",colorProcParameters.blueBandWidthDark,    4);
-	    
+
 
 	    gd.addNumericField("Value of Yb/Yrg ratio for the small areas where safe color can not be found",colorProcParameters.blueNeutral,    4);
 	    gd.addNumericField("How far to trust blue color ratio from the found solution (in pixels)",colorProcParameters.blueSolutionRadius,    4);
-	    
-	    
+
+
 	    gd.addCheckbox    ("Use blueNeutral in the small areas that do not have reliable color sample",  colorProcParameters.blueLeakNoHint);
 	    gd.addCheckbox    ("Do not brighten blue in corrected areas, only darken",  colorProcParameters.blueLeakNoBrighten);
-	    
+
 	    gd.addCheckbox    ("Fix thin objects with saturated blue, but not R+G",  colorProcParameters.blueLeakFixWires);
 	    gd.addNumericField("Width (in pixels) of the small objects to fix blue flood",colorProcParameters.blueLeakWiresSize,    4);
 	    gd.addNumericField("Relative amplitude (fraction of saturation) of samll flooded by blue objects to process",colorProcParameters.blueLeakWiresThreshold,    4);
-	    
+
 	    gd.addCheckbox    ("Use 8 neighbors (false - only 4)",  colorProcParameters.use8);
-	    
+
 	    gd.addNumericField("Debug Level:",                          MASTER_DEBUG_LEVEL,      0);
 	    WindowTools.addScrollBars(gd);
 	    gd.showDialog();
@@ -7858,10 +7892,10 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 	    colorProcParameters.satDetFinRelDiff=         gd.getNextNumber();
 	    colorProcParameters.satDetGrowRelDiff=        gd.getNextNumber();
 	    colorProcParameters.satDetNewWeight=          gd.getNextNumber();
-	    
+
 	    colorProcParameters.satDetExpSym=       (int) gd.getNextNumber();
 	    colorProcParameters.satDetExpOver=      (int) gd.getNextNumber();
-	    
+
 	    colorProcParameters.satDetGrowRelDiffCleanUp= gd.getNextNumber();
 	    colorProcParameters.satDetExpCleanUp=   (int) gd.getNextNumber();
 	    colorProcParameters.blueOverShrink=     (int) gd.getNextNumber();
@@ -7870,10 +7904,10 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 	    colorProcParameters.blueBandWidthDark=        gd.getNextNumber();
 	    colorProcParameters.blueNeutral=              gd.getNextNumber();
 	    colorProcParameters.blueSolutionRadius=       gd.getNextNumber();
-	    
+
 	    colorProcParameters.blueLeakNoHint=           gd.getNextBoolean();
 	    colorProcParameters.blueLeakNoBrighten=       gd.getNextBoolean();
-	    
+
 	    colorProcParameters.blueLeakFixWires=         gd.getNextBoolean();
 	    colorProcParameters.blueLeakWiresSize=        gd.getNextNumber();
 	    colorProcParameters.blueLeakWiresThreshold=   gd.getNextNumber();
@@ -7907,12 +7941,12 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 ///    	showColorCalibDialog(COLOR_CALIB_PARAMETERS);
 
 /* ======================================================================== */
-  
+
   public boolean showCombinePairDialog(EyesisCorrectionParameters.NonlinParameters nonlinParameters, EyesisCorrectionParameters.ProcessParameters processParameters) {
     GenericDialog gd = new GenericDialog("Combining high-re and low-res images");
     gd.addNumericField("Mask low-pass filter mask sigma (spatial domain)" ,  nonlinParameters.lowPassSigma,     3); // 5.0-  sigma for the nonlinear filtering
-    gd.addCheckbox    ("Apply block rejection filter to the mask",           nonlinParameters.useRejectBlocksFilter); 
-    gd.addCheckbox    ("Combine masks withe blocks rejected and not",        nonlinParameters.combineBothModes); 
+    gd.addCheckbox    ("Apply block rejection filter to the mask",           nonlinParameters.useRejectBlocksFilter);
+    gd.addCheckbox    ("Combine masks withe blocks rejected and not",        nonlinParameters.combineBothModes);
     gd.addNumericField("Sliding FFT size for block filtering",               nonlinParameters.maskFFTSize,      0);
     gd.addNumericField("JPEG block period adjusted to oversampling (32)",    nonlinParameters.blockPeriod,      0);
     gd.addNumericField("Mask block rejection filter sigma (freq. domain)" ,  nonlinParameters.rejectFreqSigma,     3); // 1.0-
@@ -7924,9 +7958,9 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 */
     for (int i=0; i<nonlinParameters.thresholdCorr.length;i++)
  	   gd.addNumericField("Filter Min/Max scale for channel "+i, nonlinParameters.thresholdCorr[i],  3);
-    
+
     gd.addNumericField("Nonlinear filter threshold",            nonlinParameters.threshold,        3); // 0.01 when blurred intensity is below this value, use it as a denominator
-    gd.addCheckbox    ("Show generated/used mask",              processParameters.showDenoiseMask);   
+    gd.addCheckbox    ("Show generated/used mask",              processParameters.showDenoiseMask);
     gd.addCheckbox    ("Save generated/used mask",              processParameters.saveDenoiseMask);
 	gd.addCheckbox    ("Use differntial noise gains",           nonlinParameters.useDiffNoiseGains);
     gd.addNumericField("Noise gain weight 0 (red)",             nonlinParameters.noiseGainWeights[0], 3); // Weight of red component noise gain (0.0)
@@ -7934,10 +7968,10 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     gd.addNumericField("Noise gain weight 2 (green)",             nonlinParameters.noiseGainWeights[2], 3); // Weight of green component noise gain (1.0)
     gd.addNumericField("Blur kernels for noise calculation",    nonlinParameters.blurSigma, 3); // // blur sigma for mask calculation (blur convolution kernels for noise gain calculation
 	gd.addNumericField("Noise Gain power",                      nonlinParameters.noiseGainPower,3);
-	
+
 	gd.addCheckbox    ("Filter out spots on denoise mask",      nonlinParameters.useRingFilter);    // filter out spots on denoise mask
 	gd.addNumericField("Minimal relative value of local max",   nonlinParameters.minMaxValue,3);       // minimal value (relative to filtMax) of the local maximum to be processed
-	gd.addNumericField("Relative max over ring threshold",      nonlinParameters.overRingThreshold,3); // ratio of local max. and maximal value in the surrounding ring to trigger filter 
+	gd.addNumericField("Relative max over ring threshold",      nonlinParameters.overRingThreshold,3); // ratio of local max. and maximal value in the surrounding ring to trigger filter
 	gd.addNumericField("Limit center circle over ring max",     nonlinParameters.overRingLimit,3);     // limit values in the center circle to scaled maximum in a ring
 	gd.addNumericField("Ring inner radius",                     nonlinParameters.ringIR,3);            // ring inner radius (center circle radius)
 	gd.addNumericField("Ring outer radius",                     nonlinParameters.ringOR,3);            // ring outer radius
@@ -7953,14 +7987,14 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     nonlinParameters.rejectFreqSigma=             gd.getNextNumber();
     nonlinParameters.filtMin=                     gd.getNextNumber();
     nonlinParameters.filtMax=                     gd.getNextNumber();
-/*    
+/*
     for (i=0; i<nonlinParameters.thresholdCorrection.length;i++) for (j=0;j<nonlinParameters.thresholdCorrection[i].length;j++)
  	   nonlinParameters.thresholdCorrection[i][j]=gd.getNextNumber();
 */
     for (int i=0; i<nonlinParameters.thresholdCorr.length;i++) nonlinParameters.thresholdCorr[i]=gd.getNextNumber();
 
     nonlinParameters.threshold=                   gd.getNextNumber();
-    processParameters.showDenoiseMask=            gd.getNextBoolean();   
+    processParameters.showDenoiseMask=            gd.getNextBoolean();
     processParameters.saveDenoiseMask=            gd.getNextBoolean();
     nonlinParameters.useDiffNoiseGains=           gd.getNextBoolean();
     nonlinParameters.noiseGainWeights[0]=         gd.getNextNumber();
@@ -7970,7 +8004,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     nonlinParameters.noiseGainPower=              gd.getNextNumber();
     nonlinParameters.useRingFilter=               gd.getNextBoolean();
 	nonlinParameters.minMaxValue=                 gd.getNextNumber();
-	nonlinParameters.overRingThreshold=           gd.getNextNumber(); 
+	nonlinParameters.overRingThreshold=           gd.getNextNumber();
 	nonlinParameters.overRingLimit=               gd.getNextNumber();
 	nonlinParameters.ringIR=                      gd.getNextNumber();
 	nonlinParameters.ringOR=                      gd.getNextNumber();
@@ -7992,10 +8026,10 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     CONVOLVE_FFT_SIZE=1;
     for (i=(int) gd.getNextNumber(); i >1; i>>=1) CONVOLVE_FFT_SIZE <<=1; /* make it to be power of 2 */
     UPDATE_STATUS=               gd.getNextBoolean();
-    THREADS_MAX=           (int) gd.getNextNumber();    
+    THREADS_MAX=           (int) gd.getNextNumber();
     MASTER_DEBUG_LEVEL=    (int) gd.getNextNumber();
     return true;
- }  
+ }
 /* ======================================================================== */
   public boolean showDeBayerDialog(EyesisCorrectionParameters.DebayerParameters debayerParameters, EyesisCorrectionParameters.ProcessParameters processParameters) {
     int i;
@@ -8004,8 +8038,8 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     gd.addNumericField("Debayer lo-pass relative width for green",            debayerParameters.debayerRelativeWidthGreen,   3); //1.5 result green mask mpy by scaled default (diamond)
     gd.addNumericField("Debayer lo-pass relative width for red/blue",         debayerParameters.debayerRelativeWidthRedblue, 3); //1.5 result red/blue mask mpy by scaled default (square)
     gd.addNumericField("Debayer lo-pass relative width for red/blue (main)",  debayerParameters.debayerRelativeWidthRedblueMain, 3); //1.3 green mask when applied to red/blue, main (center)
-    gd.addNumericField("Debayer lo-pass relative width for red/blue (clones)",debayerParameters.debayerRelativeWidthRedblueClones, 3); //2.0 green mask when applied to red/blue, clones 
-    gd.addNumericField("Debayer mask - power for the ampliutude",             debayerParameters.debayerGamma,   3); //0.3  
+    gd.addNumericField("Debayer lo-pass relative width for red/blue (clones)",debayerParameters.debayerRelativeWidthRedblueClones, 3); //2.0 green mask when applied to red/blue, clones
+    gd.addNumericField("Debayer mask - power for the ampliutude",             debayerParameters.debayerGamma,   3); //0.3
     gd.addNumericField("relative increase value with radius",                 debayerParameters.debayerBonus,   3); //0.5 - scale far pixels as (1.0+bonus*r/rmax)
     gd.addNumericField("Relative alais strength to mask out point",           debayerParameters.mainToAlias,3); //0.5; // relative main/alias amplitudes to enable lixels (i.e. 0.5 means that if alias is >0.5*main, the pixel will be masked out)
     gd.addNumericField("Gaussian blur sigma for the alias-rejecting masks",   debayerParameters.debayerMaskBlur,   3); //2.0
@@ -8013,17 +8047,17 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     gd.addCheckbox    ("Use 'scissors' filter",                               debayerParameters.debayerUseScissors);    // true; // use "scissors", if false - just apply "diamond" ands "square" with debayerParameters.debayerRelativeWidthGreen and debayerParameters.debayerRelativeWidthRedblue
     gd.addCheckbox    ("Show mid frequency components energy plots",         processParameters.showDebayerEnergy);    // false - plot debayer high frequency energy (use to select between "scissors" and default uniform
     gd.addCheckbox    ("Save mid frequency components energy plots",         processParameters.saveDebayerEnergy);    // false - plot debayer high frequency energy (use to select between "scissors" and default uniform
-    
-    
-//	   
+
+
+//
 
     gd.addNumericField("Polar grid largest cell size to cartesian one ratio", debayerParameters.polarStep, 3); //   0.5;// size of largest polar cell to cartesian one
     gd.addNumericField("Debayer FFT Size (64)",                               debayerParameters.size,   0); // 64
-    
+
     gd.addCheckbox    ("Debug: show data for selected tile",                  debayerParameters.debug); // false
-    gd.addNumericField("Debug: X-coordinate of the point of interest  (oversampled)",   debayerParameters.xDebug, 0); 
+    gd.addNumericField("Debug: X-coordinate of the point of interest  (oversampled)",   debayerParameters.xDebug, 0);
     gd.addNumericField("Debug: Y-coordinate of the point of interest  (oversampled)",   debayerParameters.yDebug, 0);
-    
+
     gd.addNumericField("Maximal number of concurrent threads",                THREADS_MAX, 0); //   100
     gd.addCheckbox    ("Update ImageJ status",                                UPDATE_STATUS);
     gd.addCheckbox    ("Show debayer debug images as stacks (false - individual)", debayerParameters.debayerStacks); // true
@@ -8044,20 +8078,20 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     debayerParameters.debayerMaskBlur=             gd.getNextNumber();
 
     debayerParameters.debayerUseScissors=          gd.getNextBoolean();
-//    debayerParameters.showEnergy=                  gd.getNextBoolean();    
+//    debayerParameters.showEnergy=                  gd.getNextBoolean();
     processParameters.showDebayerEnergy=           gd.getNextBoolean();
     processParameters.saveDebayerEnergy=           gd.getNextBoolean();
     debayerParameters.polarStep=                   gd.getNextNumber();
 
     debayerParameters.size=1;
     for (i=(int) gd.getNextNumber(); i >1; i>>=1) debayerParameters.size <<=1; /* make it to be power of 2 */
-    
+
     debayerParameters.debug=                gd.getNextBoolean();
-    debayerParameters.xDebug=        (int) gd.getNextNumber(); 
+    debayerParameters.xDebug=        (int) gd.getNextNumber();
     debayerParameters.yDebug=        (int) gd.getNextNumber();
 
-    
-    THREADS_MAX=            (int) gd.getNextNumber();    
+
+    THREADS_MAX=            (int) gd.getNextNumber();
     UPDATE_STATUS=                gd.getNextBoolean();
     debayerParameters.debayerStacks=               gd.getNextBoolean();
     MASTER_DEBUG_LEVEL=     (int) gd.getNextNumber();
@@ -8082,17 +8116,17 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     splitParameters.addBottom=    (int) gd.getNextNumber();
     MASTER_DEBUG_LEVEL= (int) gd.getNextNumber();
     return true;
- }  
+ }
 
 /* ======================================================================== */
 /* ======================================================================== */
 /* ======================================================================== */
 /* ======================================================================== */
 /* unfinished/not used */
-/* ======================================================================== 
+/* ========================================================================
  * @param colorProcParameters TODO*/
-  
-  
+
+
   public void  processColorsWeights(ImageStack stack,
 		  double scale,     // initila maximal pixel value (16))
 		  EyesisCorrectionParameters.ColorProcParameters  colorProcParameters,
@@ -8161,7 +8195,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
           fpixels_g[i]=(float) linGamma(colorProcParameters.gamma, gamma_a, gamma_linK, colorProcParameters.minLin, blueRemovedRGB[1][i]);
           fpixels_b[i]=(float) linGamma(colorProcParameters.gamma, gamma_a, gamma_linK, colorProcParameters.minLin, blueRemovedRGB[2][i]);
         }
-      
+
 /* Convert to YPbPr */
       double Y,Pb,Pr;
       double Kg=1.0-colorProcParameters.kr-colorProcParameters.kb;
@@ -8248,11 +8282,11 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     	  gb.blurDouble(dpixels_pr_dark, width, height, colorProcParameters.chromaDarkSigma, colorProcParameters.chromaDarkSigma, 0.01);
     	  gb.blurDouble(dpixels_pb_dark, width, height, colorProcParameters.chromaDarkSigma, colorProcParameters.chromaDarkSigma, 0.01);
           if (DEBUG_LEVEL>3) {
-        	  SDFA_INSTANCE.showArrays(dmask, width, height,"dmask");          
-        	  SDFA_INSTANCE.showArrays(dpixels_pr, width, height,"dpixels_pr");          
-        	  SDFA_INSTANCE.showArrays(dpixels_pb, width, height,"dpixels_pb");          
-        	  SDFA_INSTANCE.showArrays(dpixels_pr_dark, width, height,"dpixels_pr_dark");          
-        	  SDFA_INSTANCE.showArrays(dpixels_pb_dark, width, height,"dpixels_pb_dark");          
+        	  SDFA_INSTANCE.showArrays(dmask, width, height,"dmask");
+        	  SDFA_INSTANCE.showArrays(dpixels_pr, width, height,"dpixels_pr");
+        	  SDFA_INSTANCE.showArrays(dpixels_pb, width, height,"dpixels_pb");
+        	  SDFA_INSTANCE.showArrays(dpixels_pr_dark, width, height,"dpixels_pr_dark");
+        	  SDFA_INSTANCE.showArrays(dpixels_pb_dark, width, height,"dpixels_pb_dark");
           }
           double mp;
           double k =1.0/(colorProcParameters.maskMax-colorProcParameters.maskMin);
@@ -8276,7 +8310,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
                 	  if (dmask[i]>1.0) dmask[i]=1.0;
                   }
         	  }
-        	  
+
           }
           for (i=0;i<dmask.length;i++) {
         	  mp=dmask[i];

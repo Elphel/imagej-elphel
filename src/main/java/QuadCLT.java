@@ -711,7 +711,7 @@ public class QuadCLT {
 					  imp_clt.show();
 				  }
 				  FileSaver fs=new FileSaver(imp_clt);
-				  fs.saveAsTiffStack(cltPath);
+				  fs.saveAsTiffStack(cltPath); // directory does not exist
 			  }
 		  }
 		  return true;
