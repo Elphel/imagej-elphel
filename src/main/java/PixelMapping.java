@@ -2,13 +2,13 @@
 ** -----------------------------------------------------------------------------**
 ** PixelMapping.java
 **
-** Using camera calibration files to resample images for equirectangular projection 
-** 
+** Using camera calibration files to resample images for equirectangular projection
+**
 **
 ** Copyright (C) 2012 Elphel, Inc.
 **
 ** -----------------------------------------------------------------------------**
-**  
+**
 **  PixelMapping.java is free software: you can redistribute it and/or modify
 **  it under the terms of the GNU General Public License as published by
 **  the Free Software Foundation, either version 3 of the License, or
@@ -37,9 +37,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.SwingUtilities;
 
-import loci.common.services.DependencyException;
-import loci.common.services.ServiceException;
-import loci.formats.FormatException;
 import Jama.Matrix;
 import ij.IJ;
 import ij.ImagePlus;
@@ -50,6 +47,9 @@ import ij.io.FileSaver;
 import ij.io.Opener;
 import ij.process.ColorProcessor;
 import ij.text.TextWindow;
+import loci.common.services.DependencyException;
+import loci.common.services.ServiceException;
+import loci.formats.FormatException;
 
 
 public class PixelMapping {
@@ -61,7 +61,7 @@ public class PixelMapping {
 	public double panoLongitudeRight=Double.NaN;
 	public double panoLatitudeTop=Double.NaN;
 	public double panoLatitudeBottom=Double.NaN;
-	
+
 	public int debugLevel=1;
 	public int lanczosA=3;
 	public int oversampled=2;
@@ -120,7 +120,7 @@ public class PixelMapping {
     public int getNumChannels(){
     	return (this.sensors==null)?0:this.sensors.length;
     }
-    
+
     public String getPath(int channel ){
     	if ((channel<0) || (channel>=this.sensors.length)) return null;
     	return this.sensors[channel].getPath();
@@ -138,14 +138,14 @@ public class PixelMapping {
     	if ((channel<0) || (channel>=this.sensors.length)) return -1;
     	return this.sensors[channel].getSubCamera();
     }
-/*    
+/*
     public int getSensorPort(int channel ){
     	if ((channel<0) || (channel>=this.sensors.length)) return -1;
     	return this.sensors[channel].getSensorPort();
     }
     */
-    
-    
+
+
     public boolean isChannelAvailable(int channel){
     	return (this.sensors != null) && (channel>=0)  && (channel<this.sensors.length) && (this.sensors[channel]!=null);
     }
@@ -155,7 +155,7 @@ public class PixelMapping {
     //removeUnusedSensorData xshould be off!
     public int [] channelsForSubCamera(int subCamera){
 		System.out.println("channelsForSubCamera("+subCamera+"),this.sensors.length="+this.sensors.length);
-//    	ArrayList<ArrayList<ArrayList<Integer>>> camera_IPs = new ArrayList<ArrayList<ArrayList<Integer>>>(); 
+//    	ArrayList<ArrayList<ArrayList<Integer>>> camera_IPs = new ArrayList<ArrayList<ArrayList<Integer>>>();
     	ArrayList<Point> cam_port = new ArrayList<Point>();
     	for (int i=0;i<this.sensors.length;i++)  if (this.sensors[i]!=null) {
     		Point cp = new Point(this.sensors[i].subcamera, this.sensors[i].sensor_port);
@@ -168,14 +168,14 @@ public class PixelMapping {
 		Arrays.sort(cam_port_arr, new Comparator<Point>() {
 			@Override
 			public int compare(Point o1, Point o2) {
-				return (o1.x>o2.x)? 1:((o1.x < o2.x)?-1:(o1.y > o2.y)? 1:((o1.y < o2.y)?-1:0)); 
+				return (o1.x>o2.x)? 1:((o1.x < o2.x)?-1:(o1.y > o2.y)? 1:((o1.y < o2.y)?-1:0));
 			}
 		});
 		// debugging:
 		System.out.println("----- This filename subcamera "+subCamera+": physical camera "+cam_port_arr[subCamera].x+", sensor_port "+cam_port_arr[subCamera].y);
 		if (subCamera >= cam_port_arr.length) {
 			System.out.println("Error: Subcamera "+subCamera+" > that total namera of sensor ports in the system = "+cam_port_arr.length);
-			return null; 
+			return null;
 		}
     	if (this.sensors == null) return null;
     	int numChannels=0;
@@ -189,9 +189,9 @@ public class PixelMapping {
     	}
     	return result;
     }
-    
-    
-    
+
+
+
     public void removeChannel(int channel){
     	if ((this.sensors != null) && (channel>=0)  && (channel<this.sensors.length)) this.sensors[channel]=null;
     }
@@ -207,7 +207,7 @@ public class PixelMapping {
 				height,
 				bayer);
 	}
-    
+
 	public double [] getBayerFlatField(
 			int channel,
 			int width,
@@ -219,7 +219,7 @@ public class PixelMapping {
 				height,
 				bayer);
 	}
-	
+
 	public int [][] getDefectsXY(
 			int channel){
 		if ((this.sensors == null) || (channel<0)  && (channel>=this.sensors.length))return null;
@@ -238,7 +238,7 @@ public class PixelMapping {
 				int width,
 				int height,
 				int [][] bayer){ //{{1,0},{2,1}} GR/BG
-       	 * 
+       	 *
        	int maxChannel=0;
        	for (int i=0;i<calibFiles.length;i++){
 			int indexPeriod=calibFiles[i].indexOf('.',calibFiles[i].lastIndexOf(Prefs.getFileSeparator()));
@@ -254,17 +254,17 @@ public class PixelMapping {
        	}
     }
        	*/
-       	
-   
+
+
     public PixelMapping (int debugLevel){ // boolean just to make a different constructor
     	this.debugLevel=debugLevel;
-    }    
- 
-    
+    }
+
+
     public PixelMapping (String defaultPath,boolean ok,int debugLevel){ // boolean just to make a different constructor
     	this.debugLevel=debugLevel;
-    	loadChannelMaps (defaultPath); 
-    }    
+    	loadChannelMaps (defaultPath);
+    }
     public void loadChannelMaps (String defaultPath){
     	String [] extensions={".eqr-tiff", ".eqrect-tiff"};
     	String [] defaultPaths=((defaultPath==null) || defaultPath.equals(""))?null:(new String[1]);
@@ -294,7 +294,7 @@ public class PixelMapping {
     		this.sensors=new SensorData[maxChannel+1];
     		for (int i=0;i<this.sensors.length;i++) this.sensors[i]=(i<tmp.length)?tmp[i]:null;
     	}
-    	
+
     	for (int i=0;i<eqrectFiles.length;i++){
     		int indexPeriod=eqrectFiles[i].indexOf('.',eqrectFiles[i].lastIndexOf(Prefs.getFileSeparator()));
     		int channel=Integer.parseInt(eqrectFiles[i].substring(indexPeriod-2,indexPeriod));
@@ -307,13 +307,13 @@ public class PixelMapping {
     		else this.sensors[channel].createEquirectangularMap(channelPath);
     	}
     }
-    
+
     public void loadChannelEquirectangularMap(
     		int channel,
     		String path){
     	if ((this.sensors==null) || (this.sensors[channel]==null)){
     		String msg="Sensor "+channel+" data is not initialized";
-   			IJ.showMessage("Error",msg); 
+   			IJ.showMessage("Error",msg);
 			throw new IllegalArgumentException (msg);
     	}
 //    	this.sensors[channel] =new SensorData(path,true);
@@ -342,7 +342,7 @@ public class PixelMapping {
     		}
     	}
     }
-    
+
     public ImagePlus resampleToEquirectangular(
     		String path,
     		int sourceImageScale,
@@ -402,7 +402,7 @@ public class PixelMapping {
     	for (int channel=0;channel<this.sensors.length;channel++) deleteEquirectangularMapFull(channel);
     	}
     }
-    
+
     public void  deleteEquirectangularMapAll(int channel){
     	if ((this.sensors!=null) && (this.sensors.length>channel) && (this.sensors[channel]!=null)){
     		this.sensors[channel].equirectangularMap=null;
@@ -459,7 +459,7 @@ public class PixelMapping {
  * @param maxThreads
  * @return 4-slice RGBA image, floating point 32 bits per sample per color channel
  */
-    
+
     public ImagePlus resampleToEquirectangularRGBFP32(
     		ImagePlus imp,
     		int channel,
@@ -494,7 +494,8 @@ public class PixelMapping {
    		IJ.showStatus("Warping image channel "+channel);
    		for (int ithread = 0; ithread < threads.length; ithread++) {
    			threads[ithread] = new Thread() {
-   				public void run() {
+   				@Override
+				public void run() {
    					for (int opy=opyAtomic.getAndIncrement(); opy<erm.mapWOI.height;opy=opyAtomic.getAndIncrement()){
 
    						for (int opx=0;opx<erm.mapWOI.width;opx++){
@@ -502,7 +503,7 @@ public class PixelMapping {
    							int oIndex=opy*erm.mapWOI.width+opx;
    							double [] RGBA={erm.partialMap[2][oIndex],0.0,0.0,0.0};
    							outPixels[3][oIndex]=(float) RGBA[0];
-   							if (outPixels[3][oIndex]>0){ // do not convolve pixels with alpha=0; 
+   							if (outPixels[3][oIndex]>0){ // do not convolve pixels with alpha=0;
    								double x=scale*erm.partialMap[0][oIndex];
    								double y=scale*erm.partialMap[1][oIndex];
    								int ix= (int) Math.round(x);
@@ -561,7 +562,8 @@ public class PixelMapping {
     					final int numFinished=opyDoneAtomic.getAndIncrement();
     					//					IJ.showProgress(progressValues[numFinished]);
     					SwingUtilities.invokeLater(new Runnable() {
-    						public void run() {
+    						@Override
+							public void run() {
     							// Here, we can safely update the GUI
     							// because we'll be called from the
     							// event dispatch thread
@@ -618,14 +620,15 @@ public class PixelMapping {
    		IJ.showStatus("Warping image channel "+channel);
    		for (int ithread = 0; ithread < threads.length; ithread++) {
    			threads[ithread] = new Thread() {
-   				public void run() {
+   				@Override
+				public void run() {
    					for (int opy=opyAtomic.getAndIncrement(); opy<erm.mapWOI.height;opy=opyAtomic.getAndIncrement()){
 
    						for (int opx=0;opx<erm.mapWOI.width;opx++){
 
    							int oIndex=opy*erm.mapWOI.width+opx;
    							double [] RGBA={255*erm.partialMap[2][oIndex],0.0,0.0,0.0};
-   							if (RGBA[0]>0){ // do not convolve pixels with alpha=0; 
+   							if (RGBA[0]>0){ // do not convolve pixels with alpha=0;
    								double x=scale*erm.partialMap[0][oIndex];
    								double y=scale*erm.partialMap[1][oIndex];
    								int ix= (int) Math.round(x);
@@ -666,7 +669,8 @@ public class PixelMapping {
     					final int numFinished=opyDoneAtomic.getAndIncrement();
     					//					IJ.showProgress(progressValues[numFinished]);
     					SwingUtilities.invokeLater(new Runnable() {
-    						public void run() {
+    						@Override
+							public void run() {
     							// Here, we can safely update the GUI
     							// because we'll be called from the
     							// event dispatch thread
@@ -691,15 +695,15 @@ public class PixelMapping {
 		return impOut;
     }
 
-    
-     
-    
+
+
+
     /**
      * Generate a stack of Lanczos kernels to for re-sampling
      * @param lacrososA - value of "a" in sinc(x)*sinc(x/a)
      * @param oversampled reduce resolution of the image if it was over-sampled (2 for current Eeyesis software)
      * @param binsPerHalfPixel calculate for this number of fractional pixels (oversampled pixels, not sensor ones)
-     * @return [fractional pixels vertical] [fractional pixels horizontal][delta pixel horizontal][ delta pixel vertical] 
+     * @return [fractional pixels vertical] [fractional pixels horizontal][delta pixel horizontal][ delta pixel vertical]
      */
     public double  [][][][] generateLanczosStack(){
     	return generateLanczosStack(
@@ -739,27 +743,27 @@ public class PixelMapping {
             			}
             		}
         		}
-        	}    		
+        	}
     	}
     	this.lanczos=lanczos;
     	if (this.debugLevel>0) System.out.println("Generated Lanczos kernel stack with A="+ this.lanczosA+", oversampled="+oversampled+", binsPerHalfPixel="+binsPerHalfPixel);
     	return lanczos;
     }
 
-    
+
     public double [] testLanczosCenter(double [][][][] lanczos){
     	int size=    lanczos.length;
-    	int center=	lanczos[0][0].length/2;	
+    	int center=	lanczos[0][0].length/2;
     	double [] testArr=new double [size*size];
     	for (int i=0;i<testArr.length;i++) testArr[i]=0.0;
     	for (int iy=0;iy<lanczos.length;iy++){
         	for (int ix=0;ix<lanczos[0].length;ix++){
             			testArr[iy*size+ix]=lanczos[iy][ix][center][center];
-        	}    		
+        	}
     	}
     	return testArr;
     }
-   
+
     public double [] testLanczosStack(double [][][][] lanczos){
     	int halfDirSamples= lanczos.length/2;
     	int halfKernelSize= lanczos[0][0].length/2;
@@ -775,7 +779,7 @@ public class PixelMapping {
     			"  halfKernelSize="+halfKernelSize+"\n"+
     			"  halfSize="+halfSize+"\n"+
     			"  size="+size+"\n");
-    			
+
     	double [] testArr=new double [size*size];
     	for (int i=0;i<testArr.length;i++) testArr[i]=0.0;
     	for (int iy=0;iy<(lanczos.length-1);iy++){
@@ -787,12 +791,12 @@ public class PixelMapping {
             			testArr[fullIY*size+fullIX]=lanczos[iy][ix][ipy][ipx];
             		}
         		}
-        	}    		
+        	}
     	}
     	return testArr;
     }
 
-    
+
     public void normalizeLanczosStack(double [][][][] lanczos){
     	for (int iy=0;iy< lanczos.length;iy++){
         	for (int ix=0;ix<lanczos[0].length;ix++){
@@ -808,14 +812,14 @@ public class PixelMapping {
             			lanczos[iy][ix][ipy][ipx]*=k;
             		}
         		}
-        	}    		
+        	}
     	}
     }
 
-    
-    
 
-    
+
+
+
     public double [] testLanczosStackNormalization(double [][][][] lanczos){
     	int size=    lanczos.length;
     	double [] testArr=new double [size*size];
@@ -827,12 +831,12 @@ public class PixelMapping {
             			testArr[iy*size+ix]+=lanczos[iy][ix][ipy][ipx];
             		}
         		}
-        	}    		
+        	}
     	}
     	return testArr;
     }
 
-    
+
     public float[] generateOverlapMap(){
     	float [] pixels=null;
     	for (int channelNumber=0;channelNumber<this.sensors.length;channelNumber++) if ((this.sensors[channelNumber]!=null) && (this.sensors[channelNumber].equirectangularMap!=null)){
@@ -862,7 +866,7 @@ public class PixelMapping {
      * @return bit masks in scan-line (long, then lat) order
      * sets this.panoDegreesPerPixel
      */
-    		
+
     public int [] generateOverlapBits( double threshold, int [] sensorList ){
     	if (sensorList==null){ // all sensors
     		sensorList=new int [this.sensors.length];
@@ -919,7 +923,7 @@ public class PixelMapping {
     			for (int i=0;i<numChannels;i++) if ((us & (1<<i))!=0){
         			for (int j=i;j<numChannels;j++) if ((us & (1<<j))!=0){
         				overlap[i][j]+=pixelWeight; // will include [i][i]
-        			}    				
+        			}
     			}
     		}
     	}
@@ -927,14 +931,14 @@ public class PixelMapping {
     	for (int i=0;i<(numChannels-1);i++) for (int j=i+1;j<numChannels;j++) overlap[j][i]=overlap[i][j];
     	return overlap;
     }
-    
+
     /**
      * Generate a list of sensor pairs that have sufficient overlap areas
      * @param alphaThreshold minimal alpha value to consider (i.e. 0.0 - all with non-zero alpha)
-     * @param overlapThreshold minimal fraction of the overlap area to square root of the product of the sensor areas 
+     * @param overlapThreshold minimal fraction of the overlap area to square root of the product of the sensor areas
      * @return list of sensor number pairs
      */
-    
+
     public int [][] findSensorPairs(
     		double alphaThreshold,
     		double overlapThreshold){
@@ -962,9 +966,9 @@ public class PixelMapping {
 				overlap[i][j]/=Math.sqrt(overlap[i][i]*overlap[j][j])/100.0;
 			}
 			PIXEL_MAPPING.listOverlap(overlap);
-  
+
    */
-    
+
     public void listOverlap(double [][] overlap){
     	StringBuffer sb=new StringBuffer();
     	String header="Sensor ";
@@ -979,14 +983,14 @@ public class PixelMapping {
     	}
 	    new TextWindow("sensor overlaps", header, sb.toString(), 900,900);
     }
-    
+
     public int getPanoWidth() {return this.panoWidth;}
     public int getPanoHeight() {return this.panoHeight;}
 
     public void listParameters(){
         int numSubCameras=getNumSubCameras();
         if (numSubCameras==0) return;
-        
+
         double [][] cameraPars=new double [numSubCameras][];
         for (int i=0;i<numSubCameras;i++) cameraPars[i]=getParametersVector(i);
         // parameters same order as in this
@@ -1065,7 +1069,7 @@ public class PixelMapping {
     public double [] getParametersVector(int chn){
     	return this.sensors[chn].getParametersVector();
     }
-    
+
     public String getParameterName(int index){
     	return (new SensorData()).getParameterName(index);
     }
@@ -1075,7 +1079,7 @@ public class PixelMapping {
     public String getParameterUnits(int index){
     	return (new SensorData()).getParameterUnits(index);
     }
-    
+
     public double[][] applyOverlapMap(
     		String path, //
     		String imgPathFormat,
@@ -1161,14 +1165,14 @@ public class PixelMapping {
     			}
     		}
     		if (convertToDouble) interSensor.argb24ToAYCbCr(
-    				impOverlap, 
+    				impOverlap,
     				iChn, // 0 - first image, 1 - second image in the pair
         			aYCbCr);
     	}
     	if (convertToDouble) interSensor.overlapImages=aYCbCr;
     	return aYCbCr;
     }
-    
+
     public InterSensor loadPlaneMap(
     		String path, //
     		int debugLevel
@@ -1194,8 +1198,8 @@ public class PixelMapping {
     	}
     	return interSensor;
     }
-    
-    
+
+
     public void applyPlaneMap(
     		String path, //
     		String imgPathFormat,
@@ -1311,11 +1315,11 @@ public class PixelMapping {
     		}
     		return impPlane;
     }
-    
-    
-    
+
+
+
     public void generateAndSaveInterSensorMaps(
-    		String directory, 
+    		String directory,
     		String fileNameFormat, //prefix%02d-%02dsuffix
     		double alphaThreshold,
     		double overlapThreshold,
@@ -1369,8 +1373,8 @@ public class PixelMapping {
         }
     }
 
-    
-    
+
+
     /**
      * Create 3xNumber of sensors (channels) map from plane pixels to individual sensor images pixels (pixel-X, pixel-Y, alpha(mask) )
      * Uses intermediate equirectangular map that should be defined
@@ -1379,15 +1383,15 @@ public class PixelMapping {
      * @param projectionYaw - Longitude (in degrees) of the normal to the projection plane
      * @param projectionRoll - Rotation of the projection plane around the perpendicular from the lens centers
      * @param projectionPixelSize ratio of the plane pixel size to the distance from the lens center to the projection plane
-     * @param projectionWidth - width of the projection rectangle 
-     * @param projectionHeight - height of the projection rectangle 
-     * @param projectionCenterX - X-coordinate (along the projection plane X - right) of the intersection of the projection plane with the perpendicular from the lens center  
-     * @param projectionCenterY - Y-coordinate (along the projection plane Y - down) of the intersection of the projection plane with the perpendicular from the lens center  
+     * @param projectionWidth - width of the projection rectangle
+     * @param projectionHeight - height of the projection rectangle
+     * @param projectionCenterX - X-coordinate (along the projection plane X - right) of the intersection of the projection plane with the perpendicular from the lens center
+     * @param projectionCenterY - Y-coordinate (along the projection plane Y - down) of the intersection of the projection plane with the perpendicular from the lens center
      * @param title - Image title
      * @param debugLevel - debug level
-     * @return image with 3*N slices - {pixelX1, pixelY1, alpha1, pixelX2, pixelY2, alpha2, ...} and metadata needed to map images 
+     * @return image with 3*N slices - {pixelX1, pixelY1, alpha1, pixelX2, pixelY2, alpha2, ...} and metadata needed to map images
      */
-    
+
     // TODO: Make NaN for projectionPixelSize,projectionCenterX,projectionCenterY and 0 for projectionWidth - then find automatically
     // also save as parameters
     public ImagePlus getPlaneToSensorsMap(
@@ -1407,10 +1411,10 @@ public class PixelMapping {
 
         generateOverlapBits(0.1, channels ); // sets  this.panoDegreesPerPixel among other things
     	// determine projectionPixelSize (should be the same for all sensors
-    	if (Double.isNaN(projectionPixelSize) || (projectionPixelSize<=0.0)) { 
+    	if (Double.isNaN(projectionPixelSize) || (projectionPixelSize<=0.0)) {
     		projectionPixelSize=Math.PI/180.0*this.panoDegreesPerPixel;
     		if (debugLevel>0) System.out.println("getPlaneToSensorsMap(): Using projectionPixelSize="+projectionPixelSize);
-    		
+
 //        	SensorData.EquirectangularMap erm=this.sensors[channels[0]].equirectangularMap;
 //        	projectionPixelSize=erm.degreesPerPixel*Math.PI/180;
     	}
@@ -1425,7 +1429,7 @@ public class PixelMapping {
     			{-Math.sin(projPsi), Math.cos(projPsi), 0.0},
     			{      0.0,                 0.0,        1.0}};
     	Matrix R10=new Matrix(aR10,3,3);
-    	
+
        	// rotate by - projTheta around projection plane X
     	double [][] aR21={
     			{1.0,    0.0,               0.0        },
@@ -1439,7 +1443,7 @@ public class PixelMapping {
     			{-Math.sin(projPhi), 0.0, Math.cos(projPhi)}};
     	Matrix MA=((new Matrix(aR32,3,3)).times(R21)).times(R10);
     	float [][][] projLatLong = new float [projectionHeight][projectionWidth][2];
-    	
+
     	double [][] V={{0.0},{0.0},{1.0}};
     	Matrix MV=new Matrix(V,3,1);
     	for (int py=0;py<projectionHeight;py++) {
@@ -1491,7 +1495,7 @@ public class PixelMapping {
 					"LatLong_map",
 					titles);
     	}
-    	
+
     	float [][] pixels=new float [3*channels.length][];
     	String [] titles=new String [3*channels.length];
     	for (int iSens=0;iSens<channels.length;iSens++){
@@ -1526,14 +1530,14 @@ public class PixelMapping {
     	    		projectionElevation,
     	    		projectionRoll);
     		for (int i=0;i<projectedXYZCenter.length;i++) projectedXYZCenter[i]+=projectedXYZ[iSens][i];
-    	}        
+    	}
 		for (int i=0;i<projectedXYZCenter.length;i++) projectedXYZCenter[i]/=channels.length;
         imp.setProperty("comment_channel","sensor number");
     	for (int iSens=0;iSens<channels.length;iSens++){
     		int chn=channels[iSens];
             imp.setProperty("channel"+(iSens+1),chn+"");
             imp.setProperty("path"+iSens,this.sensors[chn].path);
-    	}        
+    	}
         imp.setProperty("comment_azimuth", "lens center azimuth, CW from top, degrees");
     	imp.setProperty("comment_radius", "lens center distance from the camera vertical axis, mm");
     	imp.setProperty("comment_height", "lens center vertical position from the head center, mm");
@@ -1544,7 +1548,7 @@ public class PixelMapping {
     	imp.setProperty("comment_ppaXYZ", "Projection coordinates of each lens center on the common plane passing through the camera center");
     	imp.setProperty("comment_ppXYZ", "Projection coordinates of each lens center on the common plane passing through the sensors center of gravity");
 
-    	
+
     	for (int iSens=0;iSens<channels.length;iSens++){
     		int chn=channels[iSens];
             imp.setProperty("azimuth"+(iSens+1),  ""+this.sensors[chn].azimuth);
@@ -1561,7 +1565,7 @@ public class PixelMapping {
             imp.setProperty("ppX"+(iSens+1),""+(projectedXYZ[chn][0]-projectedXYZCenter[0]));
             imp.setProperty("ppY"+(iSens+1),""+(projectedXYZ[chn][1]-projectedXYZCenter[1]));
             imp.setProperty("ppZ"+(iSens+1),""+(projectedXYZ[chn][2]-projectedXYZCenter[2]));
-    	}        
+    	}
 // save image plane vectors
     	imp.setProperty("comment_projectionCenter", "Pixel X and Y corresponding to the center of the image plane (closest to the camera center)");
     	imp.setProperty("projectionCenterX",  ""+projectionCenterX); // currently integer
@@ -1575,25 +1579,25 @@ public class PixelMapping {
 
 		double [] imagePlane= unityVector((MA.times(new Matrix(VZ))).getRowPackedCopy());
 		double [] imagePlaneX=unityVector((MA.times(new Matrix(VX))).getRowPackedCopy());
-    	
+
     	imp.setProperty("comment_imagePlane", "X,Y,Z components of the unity vector normal to the image plane. Plane X axis is defined by provection of the interVector");
     	imp.setProperty("imagePlaneX",  ""+imagePlane[0]);
     	imp.setProperty("imagePlaneY",  ""+imagePlane[1]);
     	imp.setProperty("imagePlaneZ",  ""+imagePlane[2]);
-    	
+
     	imp.setProperty("comment_interVector", "X,Y,Z components of the vector from camera1 to camera2 centers, in camera coord system, mm");
     	imp.setProperty("interVectorX",  ""+imagePlaneX[0]);
     	imp.setProperty("interVectorY",  ""+imagePlaneX[1]);
     	imp.setProperty("interVectorZ",  ""+imagePlaneX[2]);
-    	// data for triclops viewer 
+    	// data for triclops viewer
     	imp.setProperty("comment_dispScales", "Disparity data for triclops viewer");
     	for (int iSens=0;iSens<channels.length;iSens++){
     		int chn=channels[iSens];
             imp.setProperty("dispScales_"+iSens+"_x",""+(-1.0*(projectedXYZ[chn][0]-projectedXYZCenter[0])/nominalHorizontalDisparity));
             imp.setProperty("dispScales_"+iSens+"_y",""+(     (projectedXYZ[chn][1]-projectedXYZCenter[1])/nominalHorizontalDisparity));
-    	}    	
-   	
-/* from older calibration, manual:    	
+    	}
+
+/* from older calibration, manual:
     	var dispScales_0_x = 0.0103208521;
     	var dispScales_0_y = 0.5763058147;
     	var dispScales_1_x = -0.5059333518;
@@ -1601,14 +1605,14 @@ public class PixelMapping {
     	var dispScales_2_x = 0.4956124998;
     	var dispScales_2_y = -0.2898449402;
 */
-    	
+
     	(new JP46_Reader_camera(false)).encodeProperiesToInfo(imp);
     	return imp;
-    }   
-    
+    }
+
     /**
      * Suggest common projection plane in camera coordinates perpendicular to average view vector,
-     *  X-axis along projection of channlel1-> channel2 vector 
+     *  X-axis along projection of channlel1-> channel2 vector
      * @param channels array of channels (sensors) to use
      * @param channel1 right sub-camera
      * @param channel2 left sub-camera
@@ -1616,7 +1620,7 @@ public class PixelMapping {
      * @param strictHorizontalDisparity - set roll to make two cameras have pure horizontal disparity (false - minimize overall roll)
      * @return (Yaw, elevation, roll) of the projection plane in degrees
      */
-   
+
     public double [] suggestProjectionPlaneYawElevationRoll(
     		int [] channels,
     		int channel1,
@@ -1641,10 +1645,10 @@ public class PixelMapping {
         		System.out.println("this.sensors["+chn+"].theta"+this.sensors[chn].theta+", theta="+theta);
         		System.out.println("this.sensors["+chn+"].azimuth"+this.sensors[chn].azimuth+
         				" this.sensors["+chn+"].phi"+this.sensors[chn].phi+" (sum="+
-        				(this.sensors[chn].azimuth+this.sensors[chn].phi)+ 
+        				(this.sensors[chn].azimuth+this.sensors[chn].phi)+
         				", phi="+phi);
         	}
-        	
+
            	// rotate by - projPsi around projection plane z (normal)
         	double [][] aR10={
         			{ Math.cos(psi), Math.sin(psi), 0.0},
@@ -1712,7 +1716,7 @@ public class PixelMapping {
     		System.out.println("interProjectionUnity=("+interProjectionUnity[0]+","+interProjectionUnity[1]+","+interProjectionUnity[2]+")");
     		System.out.println("horProjectionUnity=("+horProjectionUnity[0]+","+horProjectionUnity[1]+","+horProjectionUnity[2]+")");
     		System.out.println("vertProjectionUnity=("+vertProjectionUnity[0]+","+vertProjectionUnity[1]+","+vertProjectionUnity[2]+")");
-    		
+
     		System.out.println("cosPPRoll="+cosPPRoll+" sinPPRoll="+sinPPRoll);
     		System.out.println("ppYaw="+ppYaw+" ppElevation="+ppElevation+" ppRoll="+ppRoll);
     	}
@@ -1737,8 +1741,8 @@ public class PixelMapping {
     	double phi=Math.PI/180*ppYaw; // radians
     	double [] v=lensCenterVector(channel);
     	double [][] V={{v[0]},{v[1]},{v[2]}};
-    	
-     	/*1) rotate by -phi) around 
+
+     	/*1) rotate by -phi) around
      	 | cos(phi)    0  -sin(phi)   |
      	 |     0       1         0    |
      	 |  sin(phi)   0   cos(phi)   |
@@ -1769,7 +1773,7 @@ public class PixelMapping {
     	double [] xyz= R2.times(R1.times(R0.times(new Matrix(V)))).getRowPackedCopy();
     	return xyz;
     }
-    
+
 //    double [] crossProduct3(double [] a,double [] b){
     /**
      * Calculate sensor entrance pupil coordinates in camera coordinate system
@@ -1798,7 +1802,7 @@ public class PixelMapping {
      			{0.0,Math.cos(theta),Math.sin(theta)},
      			{0.0,-Math.sin(theta),Math.cos(theta)}};
      	Matrix R2=new Matrix(aR2);
-     	/*    	
+     	/*
      	3) rotate by -(azimuth+phi) around C2Y:Vc3= R3*Vc2
      	| Xc3 |   | cos(azimuth+phi)    0   sin(azimuth+phi)   |   |Xc2|
      	| Yc3 | = |     0               1         0            | * |Yc2|
@@ -1809,7 +1813,7 @@ public class PixelMapping {
      			{0.0,1.0,0.0},
      			{-Math.sin(phi+azimuth),0.0,Math.cos(phi+azimuth)}};
      	Matrix R3=new Matrix(aR3);
-     	/*    	
+     	/*
      	4) Now axes are aligned, just translate to get to eyesis coordinates: Vey= T1+Vc3
      	| Xey |   |      r * sin (azimuth)       |   |Xc3|
      	| Yey | = | height+centerAboveHorizontal | + |Yc3|
@@ -1827,10 +1831,10 @@ public class PixelMapping {
      	 double [] aB=T1.plus(R3.times(R2.times(T0))).getRowPackedCopy();
      	 return aB;
     }
-    
-    
+
+
     /**
-     * Create a 6-slice map of the flat rectangular intersection area of two sensors 
+     * Create a 6-slice map of the flat rectangular intersection area of two sensors
      * to the sensor pixel coordinates. The map is centered around the mid-point of the two
      * sensors on the sphere, horizontal dimension (x) from sensor1 to sensor 2.
      * 	this.panoDegreesPerPixel, this.panoLongitudeLeft, this.panoLongitudeRight,
@@ -1842,7 +1846,7 @@ public class PixelMapping {
      * @param angleSizeY overlap dimension in degrees (usually high)
      * @param extraPixels trim result to have only this number of non-overlapping pixels along X-axis
      * @param debugLevel debug level
-     * @return image with 6 slices - {pixelX1, pixelY1, alpha1, pixelX2, pixelY2, alpha2} 
+     * @return image with 6 slices - {pixelX1, pixelY1, alpha1, pixelX2, pixelY2, alpha2}
      */
     public ImagePlus interSensorOverlapMap(
     		int channel1,
@@ -1930,7 +1934,7 @@ public class PixelMapping {
         imp.setProperty("channel2",channel2+"");
         imp.setProperty("path1",this.sensors[channel1].path);
         imp.setProperty("path2",this.sensors[channel2].path);
-        
+
     	imp.setProperty("comment_azimuth", "lens center azimuth, CW from top, degrees");
     	imp.setProperty("azimuth1", ""+this.sensors[channel1].azimuth);
     	imp.setProperty("azimuth2", ""+this.sensors[channel2].azimuth);
@@ -1950,30 +1954,30 @@ public class PixelMapping {
     	imp.setProperty("comment_projectionCenter", "Pixel X and Y corresponding to the center of the image plane (closest to the camera center)");
     	imp.setProperty("projectionCenterX",  ""+projectionCenterX); // currently integer
     	imp.setProperty("projectionCenterY",  ""+projectionCenterY); // currently integer
-    	
+
     	imp.setProperty("comment_projectionPixelSize", "Projection pixel size relative to the distance from the camera center to the image plane");
     	imp.setProperty("projectionPixelSize",  ""+Math.PI/180.0*this.panoDegreesPerPixel);
-    	
+
     	imp.setProperty("comment_imagePlane", "X,Y,Z components of the unity vector normal to the image plane. Plane X axis is defined by projection of the interVector");
     	imp.setProperty("imagePlaneX",  ""+vectors[0][0]);
     	imp.setProperty("imagePlaneY",  ""+vectors[0][1]);
     	imp.setProperty("imagePlaneZ",  ""+vectors[0][2]);
-    	
+
     	imp.setProperty("comment_interVector", "X,Y,Z components of the vector from camera1 to camera2 centers, in camera coord system, mm");
     	imp.setProperty("interVectorX",  ""+vectors[1][0]);
     	imp.setProperty("interVectorY",  ""+vectors[1][1]);
     	imp.setProperty("interVectorZ",  ""+vectors[1][2]);
-    	
+
     	(new JP46_Reader_camera(false)).encodeProperiesToInfo(imp);
     	return imp;
     }
- 
+
     /**
      * Map sensor overlap flat rectangular area to coordinates on the sphere. Adding multiple of 360 to parameters is OK here,
-     * result is -90<=..<=+90 for latitude and -180>=..>+180 for longitude  
+     * result is -90<=..<=+90 for latitude and -180>=..>+180 for longitude
      * @param channel1 - number of the first camera
      * @param channel1 - number of the second camera
-     * @param angleSizeX angular overlap size along the line connecting two cameras, in degrees 
+     * @param angleSizeX angular overlap size along the line connecting two cameras, in degrees
      * @param angleSizeY angular overlap size perpendicular to the line connecting two cameras, in degrees
      * @param vectors  should be initialized as double [2][]. Returns 2 vectors:
      *  first - unity vector, normal to the image plane, second - vector from camera1 to camera 2, mm.
@@ -1990,8 +1994,8 @@ public class PixelMapping {
     		double [][] vectors, // should be initialized as double[2][]
     		int debugLevel
     ){
-    	
-    	
+
+
 		double lat1= this.sensors[channel1].theta; //latitude (elevation) of the first camera optical axis, degrees
 		double long1 = this.sensors[channel1].azimuth+this.sensors[channel1].phi; //longitude (heading+azimuth) of the first camera (CW from top) adding multiple 360 is OK here
 		double lat2 = this.sensors[channel2].theta; //latitude of the second camera
@@ -2035,7 +2039,7 @@ public class PixelMapping {
     			{-Math.sin(phi2), 0.0, Math.cos(phi2)}};
     	Matrix MA2=(new Matrix(aR32) ).times(R22);
     	double [] u2=(MA2.times(mSensorAxis)).getColumnPackedCopy(); // unity vector in the direction of the first camera axis
-    	
+
     	double [] rsltUZ={
     			u2[0]+u1[0],
     			u2[1]+u1[1],
@@ -2087,14 +2091,14 @@ public class PixelMapping {
     				x*rsltUX[2]+y*rsltUY[2]+rsltUZ[2],
     		};
     		// convert to latitude/longitude
-    		v=unityVector(v); // re-normalize to increase precision?  
+    		v=unityVector(v); // re-normalize to increase precision?
     		result[iy][ix][0]=(float) ((180.0/Math.PI)*Math.asin(v[1])); // latitude v[1] (y) - up -90..+90
     		result[iy][ix][1]=(float) ((180.0/Math.PI)*Math.atan2(v[0],v[2])); // longitude v[0](x) right, V[2](z) to the target +/-180
     	}
-    	
+
     	vectors[0]=rsltUZ;
     	vectors[1]=interCamerVector;
-    	
+
     	return result;
     }
     /**
@@ -2137,14 +2141,14 @@ public class PixelMapping {
     	return uvect;
     }
 
-    
-    
+
+
     /**
      * Map rectangle of {lat,long} pairs to sensor pixels;
      * @param channel number of sensor (channel)
-     * @param latlong 2-d array of lat, long pairs 
+     * @param latlong 2-d array of lat, long pairs
      * @param debugLevel debug level
-     * @return array of pixelx, pixely and alpha slices, indexed in scanline order 
+     * @return array of pixelx, pixely and alpha slices, indexed in scanline order
      */
     public float [][] mapRectangleToSensor(
     		int channel,
@@ -2164,7 +2168,7 @@ public class PixelMapping {
     	double minLong=this.panoLongitudeLeft+woi.x*this.panoDegreesPerPixel;
     	double maxLong=this.panoLongitudeLeft+(woi.x+woi.width)*this.panoDegreesPerPixel;
     	while (minLong<-180.0) minLong+=360.0;
-    	while (minLong>=180.0) minLong-=360.0; // -180<=long<180     	
+    	while (minLong>=180.0) minLong-=360.0; // -180<=long<180
     	while (maxLong<-180.0) maxLong+=360.0;
     	while (maxLong>=180.0) maxLong-=360.0; // -180<=long<180
     	boolean rollover= (maxLong<=minLong);
@@ -2222,7 +2226,7 @@ public class PixelMapping {
     	}
     	return pixelCoords;
     }
-    
+
     public class InterSensor{
     	public int numOverlapChannels=2;
     	public int debugLevel=1;
@@ -2233,17 +2237,17 @@ public class PixelMapping {
     	public double [] imagePlane=new double[3];  // X,Y,Z components of the unity vector normal to the image plane. Plane X axis is defined by projection of the interVector
 //    	double [] interVector=null; //"X,Y,Z components of the vector from camera1 to camera2 centers, in camera coord system, mm"
     	public float [][] map; //{pixelx1,pixely1,alpha1,pixelX2,pixelY2,alpha2}[]  // may have now 3 (more) components
-    	public double [][] overlapImages=null; // {alpha1, Y1, Cb1, Cr1, alpha2, Y2, Cb2, Cr2}[pixels] 
+    	public double [][] overlapImages=null; // {alpha1, Y1, Cb1, Cr1, alpha2, Y2, Cb2, Cr2}[pixels]
     	public double [][] sobelY=null; // edge-detection ran on {Y1,Y2}, same format;
     	public boolean [][] booleanEdges=null;
     	public boolean [][] thinEdges=null;
     	public double preSobelSigma=1.4;
     	public double edgeSpreadOrtho=0.5;
     	public double edgeSpreadDiagonal=0.4;
-    	
+
     	public double edgeThresholdHigh=0.2;
     	public double edgeThresholdLow=0.08; //4;
-    	
+
     	public int debugXMin=144;
     	public int debugXMax=151;
     	public int debugYMin=65;
@@ -2253,7 +2257,7 @@ public class PixelMapping {
     	public int mapHeight;
     	public double [] projectionCenterXY=new double[2]; // pixel coordinates that correspond to the image plane normal vector (so far integer)
     	public double projectionPixelSize;
-    	public int tilesSize; // size of largest (top) tiles, power of 2.  (FFT Size will be twice that 
+    	public int tilesSize; // size of largest (top) tiles, power of 2.  (FFT Size will be twice that
     	public int tilesX0;   // pixel X position of the top left corner of the top left tile
     	public int tilesY0;   // pixel Y position of the top left corner of the top left tile
     	public int tilesNHor; // number of tiles horizontally
@@ -2262,12 +2266,12 @@ public class PixelMapping {
     	public double [][][][][][] tiles; // [side][self][layer][vert][hor][disparity]
     	public int minDisparity;
     	public int maxDisparity;
-    	
+
     	public double [][][][][] disparityMap=null; // [side][self][vert][hor][disparity]
     	public double [][][][]   linearFeatures=null; // [side][vert][hor][feature_parameter]
     	public int   disparityMapFFTSize;
     	public int   disparityMapOverlapFraction;
-    	
+
     	public float [][][] ambiguityMap=null; // [side][first pos, first contrast, second pos, second contrast][pixel
     	public float [][]   resolvedMap=null; //  [side][pixel]
 
@@ -2275,14 +2279,14 @@ public class PixelMapping {
     	public double [] azimuth=new double[2];
     	public double [] radius=new double[2];
     	public double [] height= new double[2];
-  
+
     	public EdgesSegmeniting edgesSegmeniting=new EdgesSegmeniting();
-    	public float [][] distanceFromEdges=null; 
-    	public int [][] edgeAreas=null; 
+    	public float [][] distanceFromEdges=null;
+    	public int [][] edgeAreas=null;
  /*
     	public int [] channel=new int[2];
     	public double [][] disparityScales; // for each channel - a pair of {scaleX, scaleY} or null if undefined;
-   	
+
   */
     	public double [][] getDisparityScales(){
     		if (this.channel==null) return null; // even channels are not initialized
@@ -2361,7 +2365,7 @@ public class PixelMapping {
     		this.projectionCenterXY[0]=  Double.parseDouble((String) imp.getProperty("projectionCenterX"));
     		this.projectionCenterXY[1]=  Double.parseDouble((String) imp.getProperty("projectionCenterY"));
     		this.projectionPixelSize=    Double.parseDouble((String) imp.getProperty("projectionPixelSize"));
-    		
+
     		for (int chn=0;chn<this.numOverlapChannels;chn++){
         		this.channel[chn]=Integer.parseInt  ((String) imp.getProperty("channel"+(chn+1)));
         		this.azimuth[chn]= Double.parseDouble((String) imp.getProperty("azimuth"+(chn+1)));
@@ -2369,9 +2373,9 @@ public class PixelMapping {
         		this.height[chn]=  Double.parseDouble((String) imp.getProperty("height"+(chn+1)));
     		}
     	}
-    	
+
     	public void argb24ToAYCbCr(
-    			ImagePlus imp, 
+    			ImagePlus imp,
     			int imgNum, // 0 - first image, 1 - second image in teh pair
     			double [][] aYCbCr){ // should be initialized as double [8][]
     		double [][] aYCbCr1=argb24ToAYCbCr(imp);
@@ -2379,7 +2383,7 @@ public class PixelMapping {
     			aYCbCr[i+imgNum*aYCbCr1.length]= aYCbCr1[i];
     		}
     	}
-    	
+
     	public double [][] argb24ToAYCbCr(
     			ImagePlus imp1,
     			ImagePlus imp2
@@ -2414,8 +2418,8 @@ public class PixelMapping {
     		}
     		return aYCbCr;
     	}
-    	
-    	
+
+
     	public double [] showThresholdedDisparity(
     			double [][][] disparityMap,
     			int zeroShift, // 1/2 corrFFTSize
@@ -2457,7 +2461,7 @@ public class PixelMapping {
         			disparityMap,
         			zeroShift, // 1/2 corrFFTSize
         			threshold);
-    		
+
     		double [] result =new double [this.mapWidth*this.mapHeight];
     		for (int index=0;index<result.length;index++) {
     			int y=index/this.mapWidth;
@@ -2471,7 +2475,7 @@ public class PixelMapping {
     		return result;
     	}
 
-    	
+
     	public double [][][] correlateImage(
     			final boolean side,
     			final boolean autoCorrelation,
@@ -2496,15 +2500,16 @@ public class PixelMapping {
 		   final AtomicInteger rowNum = new AtomicInteger(0);
 		   final AtomicInteger rowsFinished = new AtomicInteger(0);
 		   final double [][][] result=new double[numTileRows][][];
-		   
+
 	   		for (int ithread = 0; ithread < threads.length; ithread++) {
 	   			threads[ithread] = new Thread() {
-	   				public void run() {
+	   				@Override
+					public void run() {
 	   					DoubleFHT doubleFHT=new DoubleFHT();
 	   					for (int row=rowNum.getAndIncrement(); row<numTileRows;row=rowNum.getAndIncrement()) {
 	   						int corrYC=row*corrFFTSize/overlapFraction+corrFFTSize/overlapFraction/2;
 	   						result[row]=correlateOneRow(
-	   								doubleFHT, 
+	   								doubleFHT,
 	   				    			side,
 	   				    			autoCorrelation,
 	   								corrFFTSize,
@@ -2523,7 +2528,8 @@ public class PixelMapping {
 	   								debugLevel);
     						final int numFinished=rowsFinished.getAndIncrement();
     						SwingUtilities.invokeLater(new Runnable() {
-    							public void run() {
+    							@Override
+								public void run() {
     								IJ.showProgress(numFinished,numTileRows);
     							}
     						});
@@ -2537,13 +2543,13 @@ public class PixelMapping {
 	   		IJ.showProgress(1.0);
 	   		return result;
     	}
-    	
-    	
+
+
     	/**
     	 * Calculate correlation between the two images assuming strict horizontal disparity
-    	 * @param doubleFHT instance of DoubleFHT to re-use, or null  
-    	 * @param side If true - calculate for right (second) image 
-    	 * @param autoCorrelation If true, calculate autocorrelation (to detect periodic patterns that lead to ambiguity 
+    	 * @param doubleFHT instance of DoubleFHT to re-use, or null
+    	 * @param side If true - calculate for right (second) image
+    	 * @param autoCorrelation If true, calculate autocorrelation (to detect periodic patterns that lead to ambiguity
     	 * @param corrFFTSize FFT size (power of 2)
     	 * @param overlapFraction Shift by this fraction of the corrFFTSize between tiles
     	 * @param corrYC Center Y for the correlation
@@ -2553,15 +2559,15 @@ public class PixelMapping {
     	 * @param corrCrWeight  Relative weight of the Cr component (<=0 - skip)
     	 * @param correlationHighPassSigma High pass filter for correlation
     	 * @param correlationLowPassSigma Low-pass filter for correlation
-    	 * @param noiseNormalizationSigmaY  Normalize Y component to the RMS value (do nothing if <=0.0) 
+    	 * @param noiseNormalizationSigmaY  Normalize Y component to the RMS value (do nothing if <=0.0)
     	 * @param noiseNormalizationSigmaCbCr Normalize color components to the RMS value (do nothing if <=0.0)
     	 * @param minFracArea use only tiles with the defined area (fraction of the full corrFFTSize*corrFFTSize) exceeds this value
-    	 * @param useBinaryAlpha Accept any alpha>0.0 when calculating areas 
+    	 * @param useBinaryAlpha Accept any alpha>0.0 when calculating areas
     	 * @param debugLevel
-    	 * @return For each tile (with the step corrFFTSize/overlapFraction) where defined area exceeds minimal limits return horizontal profile. For undefined tiles retuern null  
+    	 * @return For each tile (with the step corrFFTSize/overlapFraction) where defined area exceeds minimal limits return horizontal profile. For undefined tiles retuern null
     	 */
 
-    	
+
     	public double [][] correlateOneRow(
     			DoubleFHT doubleFHT,
     			boolean side,
@@ -2585,7 +2591,7 @@ public class PixelMapping {
 //    		int indexY= 1;
     		int indexCb=2;
     		int indexCr=3;
-    		
+
     		int numTiles=this.mapWidth*overlapFraction/corrFFTSize;
     		if (doubleFHT==null) doubleFHT=new DoubleFHT();
     		double[] hamming1d=doubleFHT.getHamming1d(corrFFTSize,0.0); // pure shifted cosine, not real Hamming
@@ -2626,7 +2632,7 @@ public class PixelMapping {
     					if (window[0]!=null) window[0][index]*=h;
     					if (window[1]!=null) window[1][index]*=h;
     				}
-    				// window and forward FHT 
+    				// window and forward FHT
     				for (int nImage=0;nImage<2;nImage++) if (selection[nTile][nImage*numLayers]!=null) {
     					for (int nComp=1;nComp<=3;nComp++) if (selection[nTile][nComp+nImage*numLayers]!=null){
     		    			normalizeAndWindow(selection[nTile][nComp+nImage*numLayers], window[nImage],true);
@@ -2678,14 +2684,14 @@ public class PixelMapping {
 								double sigma=(nComp==1)?noiseNormalizationSignaY:noiseNormalizationSignaCbCr;
 								if (sigma>0){
 									double rms=hFNoiseNormalize(
-											first, // double [] data, will be modified 
+											first, // double [] data, will be modified
 											sigma, // double filterSigma,
 											true);  // boolean centerOnly);
 									if (debugLevel>3){
 										System.out.println("Correlation RMS for component "+((nComp==1)?"Y":((nComp==2)?"Cb":"Cr"))+ " was "+rms);
 									}
 								}
-								for (int i=0;i<corr.length;i++) corr[i]+=componentWeights[nComp-1]*first[i]; // not all pixels are needed, just the centerline 
+								for (int i=0;i<corr.length;i++) corr[i]+=componentWeights[nComp-1]*first[i]; // not all pixels are needed, just the centerline
 							}
 						}
 						// debug-show partial correlation?
@@ -2709,12 +2715,12 @@ public class PixelMapping {
         					corrFFTSize,
         					true,
         			"corr"+nTile+"-y"+corrYC+"-MAXDSP"+maxDisparity+"-PC"+phaseCorrelationFraction);
-					
+
 				}
 			}
     		return result;
     	}
-    	
+
     	/**
     	 * Merge several representations of the linear features (pointed from different cells)
     	 * @param corrFFTSize size of the square tile side
@@ -2724,9 +2730,9 @@ public class PixelMapping {
     	 * @param directionTolerance Maximal angle difference between merging features (radians)
     	 * @param normalDistanceTolerance Maximal distance between merging features (pixels) - orthogonal to the linear feature
     	 * @param tangentialDistanceTolerance Maximal distance between merging features (pixels) - parallel to the linear feature
-    	 * @param hostsTolerance Merge neighbors claiming the same (close) point as belonging to each 
-    	 * @param directionSigma Influence of the merging features decreases as the Gaussian of angle with this sigma 
-    	 * @param normalDistanceSigma Influence of the merging features decreases as the Gaussian of distance between them with this sigma (orthogonal to the linear feature) 
+    	 * @param hostsTolerance Merge neighbors claiming the same (close) point as belonging to each
+    	 * @param directionSigma Influence of the merging features decreases as the Gaussian of angle with this sigma
+    	 * @param normalDistanceSigma Influence of the merging features decreases as the Gaussian of distance between them with this sigma (orthogonal to the linear feature)
     	 * @param tangentialDistanceSigma Same in the direction of the linear feature
     	 * @param minMerged do not output features that have less number of merged cells (0 - non-merged feature outside of current cell, 1 nothing merged, feature inside cell, >1 - several merged)
     	 * @param scaleDistances // ~1.05? compensate for decrease in measured distances to the features (partially caused by windowing)
@@ -2737,7 +2743,7 @@ public class PixelMapping {
     			int corrFFTSize,
     			int overlapFraction, // default 8
     			double [][][] features,
-    			double strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead 
+    			double strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead
     			double directionTolerance,
     			double normalDistanceTolerance,
     			double tangentialDistanceTolerance,
@@ -2759,7 +2765,7 @@ public class PixelMapping {
 
     		int height=features.length;
     		int width=features[0].length;
-    		
+
     		// now include not just same cell, but all other hosts
     		int [][] cellUsage=   getCellUsage(
         			corrFFTSize,
@@ -2799,7 +2805,7 @@ public class PixelMapping {
         			corrFFTSize,
         			overlapFraction, // default 8
         			features,
-        			0.0, //strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead 
+        			0.0, //strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead
         			directionTolerance,
         			normalDistanceTolerance,
         			tangentialDistanceTolerance,
@@ -2819,7 +2825,7 @@ public class PixelMapping {
         			corrFFTSize,
         			overlapFraction, // default 8
         			features,
-        			0.0, // strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead 
+        			0.0, // strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead
         			directionTolerance,
         			normalDistanceTolerance,
         			tangentialDistanceTolerance,
@@ -2831,7 +2837,7 @@ public class PixelMapping {
             		debugRow,
             		debugColumn,
     				debugLevel);
-    		
+
     		for (int row=0;row<height;row++){
     			for (int col=0;col<width;col++){
     				if (cellUsage[row][col]<minMerged) filteredFeatures[row][col]=null;
@@ -2844,7 +2850,7 @@ public class PixelMapping {
     		    			corrFFTSize,
     		    			overlapFraction, // default 8
     		    			filteredFeatures,
-    		    			0.0, //strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead 
+    		    			0.0, //strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead
     		    			swapTangentialTolerance,
     		    			swapSearchRange,
     		        		debugRow,
@@ -2852,9 +2858,9 @@ public class PixelMapping {
     						debugLevel);
     			   if (swapResults[0]==0) break;
     			}
-    			
+
     		}
-    		
+
     		if (!Double.isNaN(cellUsageShift)){
         		for (int row=0;row<height;row++){
         			for (int col=0;col<width;col++) if (filteredFeatures[row][col]!=null){
@@ -2872,10 +2878,10 @@ public class PixelMapping {
     			int corrFFTSize,
     			int overlapFraction, // default 8
     			double [][][] features,
-    			double strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead 
+    			double strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead
     			double tangentialDistanceTolerance,
     			int scanRange,
-//    			double scaleDistances, // should be already applied! 
+//    			double scaleDistances, // should be already applied!
         		int debugRow,
         		int debugColumn,
 				int debugLevel){
@@ -2918,7 +2924,7 @@ public class PixelMapping {
 									" distance="+distance);
     					}
         				numOutsideCell++;
-        				if (distance<0.0){ // maybe it is not needed here at all? 
+        				if (distance<0.0){ // maybe it is not needed here at all?
         					distance=-distance;
         					angle+=Math.PI;
         					angle-=2*Math.PI*Math.round(angle/(2*Math.PI));
@@ -3005,7 +3011,7 @@ public class PixelMapping {
         			features[row1][col1]=null;
         			double distance=feature[4];
         			double angle=   feature[3];
-					if (distance<0.0){ // maybe it is not needed here at all? 
+					if (distance<0.0){ // maybe it is not needed here at all?
 						distance=-distance;
 						angle+=Math.PI;
 						angle-=2*Math.PI*Math.round(angle/(2*Math.PI));
@@ -3028,7 +3034,7 @@ public class PixelMapping {
 		    		}
 //					distance=xc*cosA+yc*sinA - distance;
 					distance-=xc*cosA+yc*sinA;
-					if (distance<0.0){ // maybe it is not needed here at all? 
+					if (distance<0.0){ // maybe it is not needed here at all?
 						distance=-distance;
 						angle+=Math.PI;
 						angle-=2*Math.PI*Math.round(angle/(2*Math.PI));
@@ -3050,11 +3056,11 @@ public class PixelMapping {
     		if (debugLevel>1) System.out.println(">>>> swapHosts(): numMoved="+numMoved+" numWantMove="+numWantMove+" numOutsideCell="+numOutsideCell+" maximaDistance="+maximalDistance);
     		return result;
      	}
-     	
 
-     	
-     	
-     	
+
+
+
+
      	private double getFeatureMatch(
      			int row10,
      			int col10,
@@ -3068,7 +3074,7 @@ public class PixelMapping {
     			double directionSigma, // make a fixed fraction of directionTolerance?
     			double normalDistanceSigma, // make a fixed fraction of distanceTolerance?
     			double tangentialDistanceSigma, // make a fixed fraction of distanceTolerance?
-    			double scaleDistances, 
+    			double scaleDistances,
 				int debugLevel){
      		// swap ends to make sure the result absolutely does not depend on the order in a pair
      		int row1,row2,col1,col2;
@@ -3102,15 +3108,15 @@ public class PixelMapping {
 			double angle=(angle1+angle2)/2; // here ignoring weights
 			double sinAngle=Math.sin(angle);
 			double cosAngle=Math.cos(angle);
-			
-			
+
+
      		double distance1= scaleDistances*features[row1][col1][4];
      		double distance2= scaleDistances*features[row2][col2][4];
      		double x1=distance1*Math.cos(angle1);
      		double y1=distance1*Math.sin(angle1);
      		double x2=distance2*Math.cos(angle2)+gridStep*(col2-col1);
      		double y2=distance2*Math.sin(angle2)+gridStep*(row2-row1);
-     		
+
      		double dX=x2-x1;
      		double dY=y2-y1;
      		double dNormal=-sinAngle*dX+cosAngle*dY;
@@ -3132,7 +3138,7 @@ public class PixelMapping {
     			int corrFFTSize,
     			int overlapFraction, // default 8
     			double [][][] features,
-    			double strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead 
+    			double strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead
     			double directionTolerance,
     			double normalDistanceTolerance,
     			double tangentialDistanceTolerance,
@@ -3161,20 +3167,20 @@ public class PixelMapping {
 
         			double distance=scaleDistances*features[row][col][4];
         			double angle=   features[row][col][3];
-					if (distance<0.0){ // maybe it is not needed here at all? 
+					if (distance<0.0){ // maybe it is not needed here at all?
 						distance=-distance;
 						angle+=Math.PI;
 						angle-=2*Math.PI*Math.round(angle/(2*Math.PI));
 //						phaseAtZero=-phaseAtZero; // not used here
 					}
-        			
-        			
-        			
+
+
+
         			double dX=distance*Math.cos(angle);
         			double dY=distance*Math.sin(angle);
         			int row0=row+ ((int) Math.round(dY/gridStep));
         			int col0=col+ ((int) Math.round(dX/gridStep));
-        			
+
 					if (modDebugLevel>2){
 						int corrYC=row*corrFFTSize/overlapFraction+corrFFTSize/overlapFraction/2;
 						int corrXC=col*corrFFTSize/overlapFraction+corrFFTSize/overlapFraction/2;
@@ -3186,7 +3192,7 @@ public class PixelMapping {
 								" phase zero="+IJ.d2s(180/Math.PI*features[row][col][5],2)
 						);
 					}
-        			
+
 					double sumWeights=0.0, sumWDist=0.0, sumX=0.0, sumY=0.0, sumSinAngle=0.0, sumCosAngle=0.0, sumSinPhase=0.0, sumCosPhase=0.0,
 				       sumAbsStrength=0.0, sumReferenceLevel=0.0, sumPhaseStrength=0.0;
 					for (int dRow=-scanAroundCells;dRow<=scanAroundCells;dRow++) {
@@ -3221,7 +3227,7 @@ public class PixelMapping {
 												directionSigma, // make a fixed fraction of directionTolerance?
 												normalDistanceSigma, // make a fixed fraction of distanceTolerance?
 												tangentialDistanceSigma, // make a fixed fraction of distanceTolerance?
-												scaleDistances, 
+												scaleDistances,
 												debugLevel);
 										if (wDistance>0){
 											double [] feature=features[row1][col1].clone();
@@ -3232,7 +3238,7 @@ public class PixelMapping {
 												feature[3]-=2*Math.PI*Math.round(feature[3]/(2*Math.PI));
 												feature[5]=-feature[5]; // not used here
 											}
-											
+
 											double dX1=scaleDistances*feature[4]*Math.cos(feature[3])+(interCenter* (col1-col));//  dCol);
 											double dY1=scaleDistances*feature[4]*Math.sin(feature[3])+(interCenter* (row1-row));// dRow);
 
@@ -3241,7 +3247,7 @@ public class PixelMapping {
 											if (Math.abs(dAngle)>(Math.PI/2)){
 												feature[3]+=Math.PI;
 												feature[3]-=2*Math.PI*Math.round(feature[3]/(2*Math.PI));
-												feature[5]=-feature[5]; //phaseAtZero 
+												feature[5]=-feature[5]; //phaseAtZero
 											}
 											double wSharedDistance=wDistance * share;
 											double w=combinedStrength(strengthMode,features[row][col])*wSharedDistance;
@@ -3295,7 +3301,7 @@ public class PixelMapping {
     	    											" sumSinPhase="+sumSinPhase+
     	    											" sumCosPhase="+sumCosPhase+
     	    											" cellUsage["+row+"]["+col+"]="+cellUsage[row][col]);
-    	    								}    	    			
+    	    								}
 
 										} else {
 	    									int corrYC=row1*corrFFTSize/overlapFraction+corrFFTSize/overlapFraction/2;
@@ -3304,7 +3310,7 @@ public class PixelMapping {
 											 //bug
 										}
 									}
-									
+
 								}
 							}
 						}
@@ -3316,7 +3322,7 @@ public class PixelMapping {
 					double y=sumY/sumWeights;
 //					double distance=x*Math.sin(angle)-y*Math.cos(angle);
 					distance=x*Math.cos(angle)+y*Math.sin(angle);
-					
+
 					if (modDebugLevel>2){
 						System.out.println("combineFeatures()5: "+
 								" angle="+IJ.d2s(180/Math.PI*angle,2)+
@@ -3325,8 +3331,8 @@ public class PixelMapping {
 								" x="+x+
 								" y="+y);
 
-					}					
-					
+					}
+
 					if (distance<0.0){
 						distance=-distance;
 						angle+=Math.PI;
@@ -3357,7 +3363,7 @@ public class PixelMapping {
 								" phase zero="+IJ.d2s(180/Math.PI*feature[5],2)
 						);
 					}
-					
+
 					filteredFeatures[row][col]=feature;
         		}
     		}
@@ -3378,7 +3384,7 @@ public class PixelMapping {
 				if ((x<features[0].length) && (y<features.length) && (features[y][x]!=null) ){
 					if (features[y][x].length>6) d=features[y][x][6];
 					else d=1.0;
-					
+
 				}
 				usage[index]=d*scale;
 			}
@@ -3386,7 +3392,7 @@ public class PixelMapping {
 
      	}
 
-     	
+
      	private void getFeatureShares(
      			int [][][][] hosts,
      			double [][][] shares,
@@ -3394,7 +3400,7 @@ public class PixelMapping {
     			int corrFFTSize,
     			int overlapFraction, // default 8
     			double [][][] features,
-    			double strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead 
+    			double strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead
     			double directionTolerance,
     			double normalDistanceTolerance,
     			double tangentialDistanceTolerance,
@@ -3402,7 +3408,7 @@ public class PixelMapping {
     			double directionSigma, // make a fixed fraction of directionTolerance?
     			double normalDistanceSigma, // make a fixed fraction of distanceTolerance?
     			double tangentialDistanceSigma, // make a fixed fraction of distanceTolerance?
-    			double scaleDistances, 
+    			double scaleDistances,
         		int debugRow,
         		int debugColumn,
 				int debugLevel){
@@ -3435,7 +3441,7 @@ public class PixelMapping {
 								" angle="+IJ.d2s(180/Math.PI*angle,2)+
 								" dX="+dX+
 								" dY="+dY);
-					}    	    			
+					}
 					for (int dRow=-scanAroundCells;dRow<=scanAroundCells;dRow++) {
 						int row1=row0+dRow;
 						if ((row1>=0) && (row1<height)) {
@@ -3447,7 +3453,7 @@ public class PixelMapping {
 										int corrXC=col1*corrFFTSize/overlapFraction+corrFFTSize/overlapFraction/2;
 										System.out.println("getFeatureShares()1a: row1="+row1+" col1="+col1+" YC="+corrYC+" XC="+corrXC+
 												" cellUsage[row1][col1]="+cellUsage[row1][col1]);
-									}    	    			
+									}
 									if (cellUsage[row1][col1]>0){ //cellUsage[row][col] - just to be sure, not needed
 										double wDist=getFeatureMatch(
 												row,
@@ -3462,7 +3468,7 @@ public class PixelMapping {
 												directionSigma, // make a fixed fraction of directionTolerance?
 												normalDistanceSigma, // make a fixed fraction of distanceTolerance?
 												tangentialDistanceSigma, // make a fixed fraction of distanceTolerance?
-												scaleDistances, 
+												scaleDistances,
 												debugLevel);
 										if (wDist>0){
 											theseHosts[numHost][0]=col1;
@@ -3479,7 +3485,7 @@ public class PixelMapping {
 														" w="+w+
 														" sumShares="+sumShares+
 														" numHost="+numHost);
-											}    	    			
+											}
 										} else {
 											if (modDebugLevel>2){
 												int corrYC=row1*corrFFTSize/overlapFraction+corrFFTSize/overlapFraction/2;
@@ -3489,8 +3495,8 @@ public class PixelMapping {
 														" sumShares="+sumShares+
 														" numHost="+numHost);
 											}
-										}    	    			
-										
+										}
+
 									}
 								}
 							}
@@ -3507,7 +3513,7 @@ public class PixelMapping {
         		}
     		}
      	}
-     	
+
      	private int [][] getCellUsage(
     			int corrFFTSize,
     			int overlapFraction, // default 8
@@ -3554,7 +3560,7 @@ public class PixelMapping {
 								" distance="+IJ.d2s(distance,3)+
 								" strength="+IJ.d2s(features[row][col][0],4)+
 								" refLev="+IJ.d2s(features[row][col][1],4));
-					}    	    			
+					}
 					for (int dRow=-range;(dRow<=range) && best;dRow++) {
 						int row1=row0+dRow;
 						if ((row1>=0) && (row1<height)) {
@@ -3574,7 +3580,7 @@ public class PixelMapping {
 											-1, // just check tolerance
 											-1, // just check tolerance
 											-1, // just check tolerance
-											scaleDistances, 
+											scaleDistances,
 											debugLevel);
 									best&=(w<=0) || (Math.abs(distance)<=Math.abs(scaleDistances*features[row1][col1][4]));
     								if ((w>0) &&(modDebugLevel>2)){
@@ -3585,10 +3591,10 @@ public class PixelMapping {
     											" best="+best+
     											" distance="+IJ.d2s(distance,3)+
     											" scaleDistances*features["+row1+"]["+col1+"]["+4+"]="+scaleDistances*features[row1][col1][4]);
-    								}    	    			
+    								}
 									if (!best) break;
 								}
-								
+
 							}
 						}
 					}
@@ -3604,13 +3610,13 @@ public class PixelMapping {
     		return cellUsage;
      	}
 
-     	
+
     	/**
-    	 * 
+    	 *
     	 * @param corrFFTSize
     	 * @param overlapFraction
     	 * @param features
-    	 * @param ignorePhase 
+    	 * @param ignorePhase
     	 * @param strengthMode
     	 * @param phaseIntegrationWidth
     	 * @param resultHighPass
@@ -3624,7 +3630,7 @@ public class PixelMapping {
     			final double [][][] features,
     			final boolean ignorePhase,
     			final boolean preserveDC,
-    			final double strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead 
+    			final double strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead
     			final double phaseIntegrationWidth, // use the same as during extraction?
     			final double resultHighPass, //cutting "ribbon" near zero frequency - influences length of the detected line
     			final int debugRow,
@@ -3632,7 +3638,7 @@ public class PixelMapping {
 				final int threadsMax,
 				final int debugLevel){
 
-    		
+
 //    		final int numTileRows=    this.mapHeight*overlapFraction/corrFFTSize+(((this.mapHeight*overlapFraction/corrFFTSize)*corrFFTSize/overlapFraction<this.mapHeight)?1:0);
 //    		final int numTileColumns= this.mapWidth *overlapFraction/corrFFTSize+(((this.mapWidth *overlapFraction/corrFFTSize)*corrFFTSize/overlapFraction<this.mapWidth )?1:0);
     		final int mapHeight=this.mapHeight;
@@ -3649,7 +3655,8 @@ public class PixelMapping {
     		final AtomicInteger numNonEmpty =  new AtomicInteger(0);
     		for (int ithread = 0; ithread < threads.length; ithread++) {
     			threads[ithread] = new Thread() {
-    				public void run() {
+    				@Override
+					public void run() {
     					DoubleFHT doubleFHT=new DoubleFHT();
     					double [] tilePlot;
     					for (int tile=tileNum.getAndIncrement(); tile<numTiles;tile=tileNum.getAndIncrement()) {
@@ -3660,14 +3667,14 @@ public class PixelMapping {
     							numNonEmpty.getAndIncrement();
     							int corrYC=row*corrFFTSize/overlapFraction+corrFFTSize/overlapFraction/2;
     							int corrXC=col*corrFFTSize/overlapFraction+corrFFTSize/overlapFraction/2;
-    							doubleFHT.debug=((row==debugRow) && (col==debugColumn)); 
+    							doubleFHT.debug=((row==debugRow) && (col==debugColumn));
     							tilePlot=reconstructTileFeature(
     									doubleFHT,
     									corrFFTSize,
     									feature,
     									ignorePhase,
     									preserveDC,
-    									strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead 
+    									strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead
     									phaseIntegrationWidth, // use the same as during extraction?
     									resultHighPass, //cutting "ribbon" near zero frequency - influences length of the detected line
     									debugLevel + (doubleFHT.debug?1:0)
@@ -3675,7 +3682,7 @@ public class PixelMapping {
 //								if ((row== 105) && (debugLevel>1)) {
 //									System.out.println("reconstructImageFeature():  row="+row+" col="+col+" corrYC="+corrYC+" corrXC="+corrXC);
 //								}
-/*    							
+/*
     	   						if ((Math.abs(row-debugRow)<6) && (Math.abs(col-debugColumn)<6) && (feature!=null) && (debugLevel>1)){
     	   							System.out.println ("reconstructImageFeature(): tile="+tile+" ( of "+numTiles+"), row="+row+" col="+col+" corrYC="+corrYC+" corrXC="+corrXC+
     	   								" strength="+feature[0]+
@@ -3706,7 +3713,8 @@ public class PixelMapping {
     							}
     							final int numFinished=tilesFinished.getAndIncrement();
     							SwingUtilities.invokeLater(new Runnable() {
-    								public void run() {
+    								@Override
+									public void run() {
     									IJ.showProgress(numFinished,numTiles);
     								}
     							});
@@ -3727,10 +3735,10 @@ public class PixelMapping {
 
     	/**
     	 * Plot the extracted linear feature to a square tile
-    	 * @param doubleFHT - instance of doubleFHT. if not null, will be reused and the cached data will not be re-calculated 
+    	 * @param doubleFHT - instance of doubleFHT. if not null, will be reused and the cached data will not be re-calculated
     	 * @param corrFFTSize size of the square tile side
     	 * @param feature array of parameters describing the linear feature (see tileLineDetect() method)
-    	 * @param ignorePhase  always plot feature with zero phase (white on black)  
+    	 * @param ignorePhase  always plot feature with zero phase (white on black)
     	 * @param preserveDC  do not remove DC component from the plotted feature
     	 * @param strengthMode scale normalized linear feature to (0.0): absolute strength, 1.0 - relative strength (0.0<strengthMode<1.0): intermediate, (-1): phaseStrength, -2 - no scaling
     	 * @param phaseIntegrationWidth  use the same as during extraction?
@@ -3744,7 +3752,7 @@ public class PixelMapping {
 			double [] feature,
 			boolean ignorePhase,
 			boolean preserveDC,
-			double strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead 
+			double strengthMode, // 0.0 - absolute, 1.0 - relative, 0.5 - "balanced", "-1" - use phaseStrength instead
 			double phaseIntegrationWidth, // use the same as during extraction?
 			double resultHighPass, //cutting "ribbon" near zero frequency - influences length of the detected line
 			int debugLevel
@@ -3769,8 +3777,8 @@ public class PixelMapping {
 					bandIndices,
 					phaseIntegrationWidth,
 					resultHighPass,
-					angle);			
-			
+					angle);
+
 			double [] phaseStepCorr=doubleFHT.compensatePhaseStep(
 					angle,
 					phaseAtZero,
@@ -3780,7 +3788,7 @@ public class PixelMapping {
 					bandIndices,
 					0); // zeroBinHalfSize); - only used with non-zero modifiedAmpPhase
     		double[] hamming1d=doubleFHT.getHamming1d(corrFFTSize,0.0); // complete zero out on the border
-    		
+
     		double [] uniform=new double[length];
     		for (int iy=0;iy<corrFFTSize;iy++) for (int ix=0;ix<corrFFTSize;ix++){
     			int index=iy*corrFFTSize+ix;
@@ -3799,8 +3807,8 @@ public class PixelMapping {
 						corrFFTSize,
 						corrFFTSize,
 						"bandMask");
-				
-				
+
+
 				System.out.println("+++reconstructTileFeature(): "+
 						" strengthMode="+strengthMode+
 						" scale="+IJ.d2s(scale,3)+
@@ -3810,7 +3818,7 @@ public class PixelMapping {
 						" angle="+IJ.d2s(180/Math.PI*angle,2)+
 						" distance="+IJ.d2s(distance,2)+
 						" phase zero="+IJ.d2s(180/Math.PI*phaseAtZero,2)
-						
+
 						);
 				(new showDoubleFloatArrays()).showArrays(
 						uniform,
@@ -3839,16 +3847,16 @@ public class PixelMapping {
 			}
 			return reconstructedFeature;
     	}
-    	
+
     	private double combinedStrength(
     			double strengthMode,
     			double [] feature){
     		return (strengthMode<-1.0)?1.0:((strengthMode>0.0)?( feature[0]/Math.pow(feature[1],strengthMode)):feature[2]);
     	}
-    	
+
     	/**
     	 * Calculate parameters of the line features in the current image
-    	 * @param side  0- left, 1 - right image      
+    	 * @param side  0- left, 1 - right image
     	 * @param corrFFTSize size of the square tile side
     	 * @param overlapFraction overlap tiles by this fraction of the tile size (corrFFTSize)
     	 * @param alphaThreshold Minimal required overlap of the tile with image alpha (0 - do not calculate)
@@ -3860,7 +3868,7 @@ public class PixelMapping {
     	 * @param dispertionCost - >0 - use phase dispersion when calculating quality of phase match, 0 - only weights.
     	 * @param featureFilter Bitmask enabling different phase half-steps (+1 - 0, +2 - pi/2, +4 - pi, +8 - 3pi/2. Value zero allows arbitrary step
     	 *        step 0 corresponds to thin white line, pi - thin black line, +pi/2 - edge black-to-white in the direction of directionAngle,
-    	 *        3pi/2 - white-to-black in the direction of directionAngle 
+    	 *        3pi/2 - white-to-black in the direction of directionAngle
     	 * @param minRMSFrac Minimal frequency sample value relative to RMS to be considered when looking for the linear phase feature (0.0 - skip test)
     	 * @param minAbs  Minimal frequency sample absolute value to be considered when looking for the linear phase feature  (0.0 - skip test)
     	 * @param maxPhaseMismatch calculate phase differences for each full (above threshold) set of 4 samples (in a 2x2 square) and measure the distance
@@ -3872,9 +3880,9 @@ public class PixelMapping {
     	 * @return array [tileY][tileX] {feature parameters (or null if feature failed to be detected)}:
     	 * 		   0 - absolute strength of the feature (proportional to the image contrast)
     	 *		   1 - Strength reference level (RMS of the frequency samples amplitudes (in the selected band in the frequency domain)
-    	 *		   2 - phaseStrength - composite value calculated when selecting the feature direction - this value is calculated even if calculateStrength is false 
-    	 *		   3 - angle from the tile center to the detected feature (perpendicular to the feature direction itself), zero - left, pi/2 - down (pixel coordiantes) 
-    	 *		   4 - distance in pixels from the tile center to the feature 
+    	 *		   2 - phaseStrength - composite value calculated when selecting the feature direction - this value is calculated even if calculateStrength is false
+    	 *		   3 - angle from the tile center to the detected feature (perpendicular to the feature direction itself), zero - left, pi/2 - down (pixel coordiantes)
+    	 *		   4 - distance in pixels from the tile center to the feature
     	 *		   5 - phaseAtZero Detected feature type (may be constrained by featureFilter - see that parameter for meaning of the different phase values
     	 */
     	public double [][][] detectLinearFeatures(
@@ -3918,8 +3926,8 @@ public class PixelMapping {
     				threadsMax,
     				debugLevel);
     	}
-    	
-    	
+
+
     	public double [][][] detectLinearFeatures(
     			final int imageNumber, //boolean side,
     			final int corrFFTSize,
@@ -3940,7 +3948,7 @@ public class PixelMapping {
 				final int debugColumn,
 				final int threadsMax,
 				final int debugLevel){
-    		
+
     		if (debugLevel>1) System.out.println ("detectLinearFeatures("+imageNumber+",...)");
     		final int numTileRows=    this.mapHeight*overlapFraction/corrFFTSize+(((this.mapHeight*overlapFraction/corrFFTSize)*corrFFTSize/overlapFraction<this.mapHeight)?1:0);
     		final int numTileColumns= this.mapWidth *overlapFraction/corrFFTSize+(((this.mapWidth *overlapFraction/corrFFTSize)*corrFFTSize/overlapFraction<this.mapWidth )?1:0);
@@ -3951,7 +3959,8 @@ public class PixelMapping {
     		final double [][][] result=new double[numTileRows][numTileColumns][];
 	   		for (int ithread = 0; ithread < threads.length; ithread++) {
 	   			threads[ithread] = new Thread() {
-	   				public void run() {
+	   				@Override
+					public void run() {
 	   					DoubleFHT doubleFHT=new DoubleFHT();
 	   					for (int tile=tileNum.getAndIncrement(); tile<numTiles;tile=tileNum.getAndIncrement()) {
 	   						int row= tile/numTileColumns;
@@ -3980,7 +3989,8 @@ public class PixelMapping {
 	   								debugLevel);
     						final int numFinished=tilesFinished.getAndIncrement();
     						SwingUtilities.invokeLater(new Runnable() {
-    							public void run() {
+    							@Override
+								public void run() {
     								IJ.showProgress(numFinished,numTiles);
     							}
     						});
@@ -4006,11 +4016,11 @@ public class PixelMapping {
 	   		return result;
     	}
 
-    	
+
     	/**
     	 * Calculate parameters of the line feature in the current image tile
-    	 * @param doubleFHT - instance of doubleFHT. if not null, will be reused and the cached data will not be re-calculated 
-    	 * @param side  0- left, 1 - right image      
+    	 * @param doubleFHT - instance of doubleFHT. if not null, will be reused and the cached data will not be re-calculated
+    	 * @param side  0- left, 1 - right image
     	 * @param alphaThreshold Minimal required overlap of the tile with image alpha (0 - do not calculate)
     	 * @param useBinaryAlpha consider all alpha>0.0 as 1.0
     	 * @param corrFFTSize size of the square tile side
@@ -4023,7 +4033,7 @@ public class PixelMapping {
     	 * @param dispertionCost - >0 - use phase dispersion when calculating quality of phase match, 0 - only weights.
     	 * @param featureFilter Bitmask enabling different phase half-steps (+1 - 0, +2 - pi/2, +4 - pi, +8 - 3pi/2. Value zero allows arbitrary step
     	 *        step 0 corresponds to thin white line, pi - thin black line, +pi/2 - edge black-to-white in the direction of directionAngle,
-    	 *        3pi/2 - white-to-black in the direction of directionAngle 
+    	 *        3pi/2 - white-to-black in the direction of directionAngle
     	 * @param minRMSFrac Minimal frequency sample value relative to RMS to be considered when looking for the linear phase feature (0.0 - skip test)
     	 * @param minAbs  Minimal frequency sample absolute value to be considered when looking for the linear phase feature  (0.0 - skip test)
     	 * @param maxPhaseMismatch calculate phase differences for each full (above threshold) set of 4 samples (in a 2x2 square) and measure the distance
@@ -4034,9 +4044,9 @@ public class PixelMapping {
     	 * @return array with the following result fields (or null if feature failed to be detected):
     	 * 		   0 - absolute strength of the feature (proportional to the image contrast)
     	 *		   1 - Strength reference level (RMS of the frequency samples amplitudes (in the selected band in the frequency domain)
-    	 *		   2 - phaseStrength - composite value calculated when selecting the feature direction - this value is calculated even if calculateStrength is false 
-    	 *		   3 - angle from the tile center to the detected feature (perpendicular to the feature direction itself), zero - left, pi/2 - down (pixel coordiantes) 
-    	 *		   4 - distance in pixels from the tile center to the feature 
+    	 *		   2 - phaseStrength - composite value calculated when selecting the feature direction - this value is calculated even if calculateStrength is false
+    	 *		   3 - angle from the tile center to the detected feature (perpendicular to the feature direction itself), zero - left, pi/2 - down (pixel coordiantes)
+    	 *		   4 - distance in pixels from the tile center to the feature
     	 *		   5 - phaseAtZero Detected feature type (may be constrained by featureFilter - see that parameter for meaning of the different phase values
     	 */
     	public double [] tileLineDetect(
@@ -4078,7 +4088,7 @@ public class PixelMapping {
 //    		for (int i=0;i<length;i++) corr[0][i]=0;
 //    		int alphaIndex=side?numLayers:0;
     		int alphaIndex=imageNumber*numLayers;
-    		    		
+
     		double [] tileData=  selection[alphaIndex+1].clone();
     		double [] tileAlpha= selection[alphaIndex+0];
     		if (alphaThreshold>0.0){
@@ -4107,7 +4117,7 @@ public class PixelMapping {
     			doubleFHT.multiplyByReal(tileData, frequencyFilter);
     		}
     		doubleFHT.debug=(debugLevel>3);
-			double [] dirDistStrength= doubleFHT.calcPhaseApproximation( 
+			double [] dirDistStrength= doubleFHT.calcPhaseApproximation(
 					phaseIntegrationWidth,
 					tileData,
 					minRMSFrac,
@@ -4116,7 +4126,7 @@ public class PixelMapping {
 					dispertionCost,
 					featureFilter);
 			if (dirDistStrength==null) return null;
-			
+
 			double angle=        dirDistStrength[0];
 			double distance=     dirDistStrength[1];
 			double phaseAtZero=  dirDistStrength[2];
@@ -4148,8 +4158,8 @@ public class PixelMapping {
 					bandIndices,
 					phaseIntegrationWidth,
 					resultHighPass,
-					angle);			
-			
+					angle);
+
 			double [] phaseStepCorr=doubleFHT.compensatePhaseStep(
 					angle,
 					phaseAtZero,
@@ -4182,7 +4192,7 @@ public class PixelMapping {
 			return result;
     	}
 
-    	
+
     	public void testLineDetect(
 				int corrFFTSize,
 				int corrXC,
@@ -4262,7 +4272,7 @@ public class PixelMapping {
     			}
     		}
     		doubleFHT.debug=(debugLevel>1);
-			double [] dirDistStrength= doubleFHT.calcPhaseApproximation( 
+			double [] dirDistStrength= doubleFHT.calcPhaseApproximation(
 					phaseIntegrationWidth,
 					first,
 					minRMSFrac,
@@ -4275,7 +4285,7 @@ public class PixelMapping {
 			double distance=     dirDistStrength[1];
 			double phaseAtZero=  dirDistStrength[2];
 			double phaseStrength=dirDistStrength[3];
-			
+
 			// needed data is already received, next just for debugging
 			int    [] bandIndices= doubleFHT.getBandIndices(
 					false,
@@ -4286,8 +4296,8 @@ public class PixelMapping {
 					bandIndices,
 					phaseIntegrationWidth,
 					resultHighPass,
-					angle);			
-			
+					angle);
+
 //			double [][] modifiedAmpPhase=doubleFHT.calcIndAmHPhase (first, bandIndices);
 			double [] phaseStepCorr=doubleFHT.compensatePhaseStep(
 					angle,
@@ -4314,7 +4324,7 @@ public class PixelMapping {
 				System.out.println("            Angle="+IJ.d2s(180*angle/Math.PI,2)+" degrees");
 				System.out.println("         distance="+IJ.d2s(distance,2)+" pixels");
 				System.out.println("       zero phase="+IJ.d2s(180*phaseAtZero/Math.PI,2)+" degrees");
-			}				
+			}
 			if (debugLevel>0){
 
 				double [] reconstructed=doubleFHT.reconstructLinearFeature(
@@ -4340,9 +4350,9 @@ public class PixelMapping {
 			}
     	}
 
-    	
-    	
-    	
+
+
+
     	public void testLineDetectDebug(
 				int corrFFTSize,
 				int corrXC,
@@ -4365,7 +4375,7 @@ public class PixelMapping {
 				int debugLevel){
     		int length=corrFFTSize*corrFFTSize;
     		DoubleFHT doubleFHT= new DoubleFHT();
-    		
+
 //    		double [][] selection = new double[this.overlapImages.length][length];
     		int numLayers=this.overlapImages.length/2;
     		double [][] selection = getSelection(
@@ -4404,9 +4414,9 @@ public class PixelMapping {
     		//calculateAmplitude
 			doubleFHT.swapQuadrants(first);
 			doubleFHT.transform(first,false);
-			
-			
-			
+
+
+
     		if (debugLevel>2){
     			double [] unfilteredAmplitude=doubleFHT.calculateAmplitude(first);
     			for (int i=0;i<unfilteredAmplitude.length;i++) unfilteredAmplitude[i]=Math.log(unfilteredAmplitude[i]); // NaN OK
@@ -4416,7 +4426,7 @@ public class PixelMapping {
     					corrFFTSize,
     					"unfilteredLog-Y"+corrXC+"-y"+corrYC+"-PC"+phaseCorrelationFraction);
     		}
-			
+
     		if (frequencyFilter!=null){
     			doubleFHT.multiplyByReal(first, frequencyFilter);
     			if (debugLevel>2){
@@ -4435,7 +4445,7 @@ public class PixelMapping {
     			}
     		}
     		doubleFHT.debug=(debugLevel>1);
-			double [] dirDistStrength= doubleFHT.calcPhaseApproximation( 
+			double [] dirDistStrength= doubleFHT.calcPhaseApproximation(
 					phaseIntegrationWidth,
 					first,
 					minRMSFrac,
@@ -4448,7 +4458,7 @@ public class PixelMapping {
 			double distance=     dirDistStrength[1];
 			double phaseAtZero=  dirDistStrength[2];
 //			double phaseStrength=dirDistStrength[3];
-			
+
 			// needed data is already received, next just for debugging
 			int    [] bandIndices= doubleFHT.getBandIndices(
 					false,
@@ -4459,11 +4469,11 @@ public class PixelMapping {
 					bandIndices,
 					phaseIntegrationWidth,
 					resultHighPass,
-					angle);			
-			
-			
+					angle);
+
+
 			double [][] modifiedAmpPhase=doubleFHT.calcIndAmHPhase (first, bandIndices);
-			
+
 
 			double [] phaseStepCorr=doubleFHT.compensatePhaseStep(
 					angle,
@@ -4474,9 +4484,9 @@ public class PixelMapping {
 					bandIndices,
 					zeroBinHalfSize);
 
-			
+
 			if (debugLevel>0){
-				
+
 				double [][] dbgMask=new double [2][corrFFTSize*corrFFTSize/2];
 				for (int i=0;i<dbgMask[0].length;i++){
 					dbgMask[0][i]=0.0;
@@ -4487,7 +4497,7 @@ public class PixelMapping {
 					dbgMask[0][index]=bandMask[n];
 					dbgMask[1][index]=1.0;
 				}
-				
+
     			(new showDoubleFloatArrays()).showArrays(
     					dbgMask,
     					corrFFTSize,
@@ -4544,7 +4554,7 @@ public class PixelMapping {
 						null, //modPhase,
 						phaseStepCorr,
 						null);
-				
+
 
 				//debugWindowed
 				double [][] reconstructionComparison={reconstructed,reconstructedNoBand,reconstructed1,reconstructedNoBand1,debugWindowed};
@@ -4562,7 +4572,7 @@ public class PixelMapping {
     					"reconstructed-x"+corrXC+"-y"+corrYC,
     					titles);
 
-				
+
 			}
 			double [] strengths=doubleFHT.linearFeatureStrength(
 					first,
@@ -4575,9 +4585,9 @@ public class PixelMapping {
 					bandMask);
 			if (debugLevel>0){
 				System.out.println(" ====== Linear feature strength: absolute="+strengths[0]+" relative="+(strengths[0]/strengths[1]));
-			}				
+			}
     	}
- 
+
     	public double [] correlateRectangular(
     			boolean autoCorrelation,
 				int corrFFTSize,
@@ -4641,7 +4651,7 @@ public class PixelMapping {
             			debugCorr[1]=first.clone();
             			debugCorr[2]=second.clone();
             		}
-    				// TODO: use common (per-thread) DoubleFHT instance to use caching of sin,cos, filter tables   			
+    				// TODO: use common (per-thread) DoubleFHT instance to use caching of sin,cos, filter tables
     				corr[i+1]=(new DoubleFHT()).correlate (
     						first,
     						second,
@@ -4664,7 +4674,7 @@ public class PixelMapping {
         		if (debugLevel>2){
         			String [] titles={"corr","first","second"};
         			debugCorr[0]=corr[0];
-        			
+
         			(new showDoubleFloatArrays()).showArrays(
         					debugCorr,
         					corrFFTSize,
@@ -4681,16 +4691,16 @@ public class PixelMapping {
 						fullCorr[dstIndex++]+=corr[0][srcIndex++];
 					}
 				}
-    			
+
     		}
     		return fullCorr;
     	}
-    	
+
     	/**
-    	 * Create a stack of channel images (YCbCr and optionally with external data 
+    	 * Create a stack of channel images (YCbCr and optionally with external data
     	 * @param xc first image center X
     	 * @param yc first image center Y
-    	 * @param size square side, power of 2 (will use twice larger internally) 
+    	 * @param size square side, power of 2 (will use twice larger internally)
     	 * @param first image number of the first in pair
     	 * @param second image number of the second in pair
     	 * @param dx - how much to shift the second image from the first, horizontally, right
@@ -4698,7 +4708,7 @@ public class PixelMapping {
     	 * @param channelMask - channles to use ! - Y, 2 - Cb, 4-Cr
     	 * @param externalData array of external image data, first index image number, secon - pixel number
     	 * @param doubleSizeOutput - output twice the required size tile (to be able to probe around needed pixels
-    	 * @param window - 1d in linescan order, (2*size)*(2*size). Probably - flat==1.0 in the inner size*size area. May be null - will be generated internally  
+    	 * @param window - 1d in linescan order, (2*size)*(2*size). Probably - flat==1.0 in the inner size*size area. May be null - will be generated internally
     	 * @param doubleFHT DoubleFHT or null (to save resources)
     	 * @param debugLevel debug level
     	 * @return 2d array of the shifted slices from 2 images (only enabled in the channelMask and externalData first image-first channel, second image fiurst channel, ...
@@ -4721,13 +4731,13 @@ public class PixelMapping {
     			){
     		int numImgChannels=4; // alpha-Y-Cb-Cr
     		if (doubleFHT==null) doubleFHT=new DoubleFHT();
-    		int iDx= (int) Math.round(dxA); // 
+    		int iDx= (int) Math.round(dxA); //
     		int iDy= (int) Math.round(dyA);
     		int [] xc={xc1,xc1+ iDx};
     		int [] yc={yc1,yc1+ iDy};
     		double [] dx={-(dxA-iDx)/2,(dxA-iDx)/2}; // sub-pixel shift of the first image, second image
     		double [] dy={-(dyA-iDy)/2,(dyA-iDy)/2};
-    		
+
     		boolean [] shiftImage= {(dx[0]!=0.0) || (dy[0]!=0.0), (dx[1]!=0.0) || (dy[1]!=0.0)};
     		int numLayers=0;
     		for (int chm=channelMask; chm!=0; chm>>=1) if ((chm & 1)!=0) numLayers++;
@@ -4830,7 +4840,7 @@ public class PixelMapping {
     						for (int iX=0;iX<doubleSize;iX++){
     							if ((oIndex>=result[oSliceNumber].length) || (oIndex>=slice.length) || (oIndex>=window.length)){
     								System.out.println("iX="+iX+" iY="+iY+" oIndex="+oIndex);
-    								
+
     							}
 //    							result[oSliceNumber][oIndex++]=imgSlice[oIndex]/window[oIndex]+dc;// no NaN with Hamming
     							result[oSliceNumber][oIndex]=slice[oIndex]/window[oIndex]+dc;// no NaN with Hamming
@@ -4873,8 +4883,8 @@ public class PixelMapping {
     		}
     		return result;
     	}
-    	
-    	
+
+
     	public class DisparityTiles{
         	public double [][] disparityScales=       null; // for each channel - a pair of {scaleX, scaleY} or null if undefined (interSensor has the same)
     		public ImagePlus impDisparity=null;
@@ -4885,12 +4895,12 @@ public class PixelMapping {
     		private int tilesX;
     		private int tilesY;
     		public String title;
-    		private float [][] pixels=null; 
+    		private float [][] pixels=null;
     		private float [] centerPixels=null; // disparity arrays combined for the center virtual image
     		private float [][] syntheticPixels=null; // disparity arrays for individual images restored from the centerPixels
     		private BitSet innerMask=null; // will be provided to zMap instances to quickly find that there are no inner (sans padding) pixels
     		private int  []   borderMask=null; // will be provided to zMap +1:top+2:bottom+8:left+16:right (to prevent roll over when iterating around
-    		private double centerPixelsFatZero=0.0; 
+    		private double centerPixelsFatZero=0.0;
 //    		private int [][] imagePairs=null;
     		private int [][] imagePairIndices=null;
     		private double [] doubleTileWindow=null;
@@ -4902,7 +4912,7 @@ public class PixelMapping {
     				int imageWidth,
     				int margins,
     				double ignoreFraction,
-    				int subdivAverage, 
+    				int subdivAverage,
     				int subdivHalfDifference,
     				double smoothVarianceSigma,
     				double scaleVariance,
@@ -4913,7 +4923,7 @@ public class PixelMapping {
         				imageWidth,
         				margins,
         				ignoreFraction,
-        				subdivAverage, 
+        				subdivAverage,
         				subdivHalfDifference,
         				smoothVarianceSigma,
         				scaleVariance,
@@ -4996,7 +5006,7 @@ public class PixelMapping {
 
     		//       	public void setTilesFromImagePlus(ImagePlus imp){
 
-    		
+
         	/**
         	 * encode overlapping disparity tiles to multi-slice image, save metadata
         	 * @param corrFFTSize correlation FFT size
@@ -5091,7 +5101,7 @@ public class PixelMapping {
 
                 imp_stack.setProperty("tilesY",  ""+this.tilesY);
                 imp_stack.setProperty("tilesX",  ""+this.tilesX);
-                
+
                 imp_stack.setProperty("disparityPoints",  ""+disparityPoints);
                 imp_stack.setProperty("numPairs",  ""+numPairs);
                 for (int nPair=0;nPair<numPairs;nPair++){
@@ -5113,7 +5123,7 @@ public class PixelMapping {
         		if (show) imp_stack.show();
         		return imp_stack;
         	}
-        	
+
         	public void setTilesFromImagePlus(
         			ImagePlus imp){
                 String [] requiredProperties={
@@ -5184,8 +5194,8 @@ public class PixelMapping {
                 	}
                 }
         	}
-        	
-        	
+
+
            	public void combineDisparityToCenter(
         			final double fatZero,
         			final int threadsMax,
@@ -5206,7 +5216,8 @@ public class PixelMapping {
 		   		if (showProgress) IJ.showStatus("Centering correlation data...");
 		   		for (int ithread = 0; ithread < threads.length; ithread++) {
 		   			threads[ithread] = new Thread() {
-		   				public void run() {
+		   				@Override
+						public void run() {
 		   					// common for the tread
 		   					double [][] partial=new double [imagePairIndices.length][];
            					for (int tile=tileIndexAtomic.getAndIncrement(); tile<tiles;tile=tileIndexAtomic.getAndIncrement()){
@@ -5214,7 +5225,7 @@ public class PixelMapping {
            						if (debugThis){
            							System.out.println("tile="+tile+" tiles="+tiles+" tilesX="+tilesX);
            						}
-           						
+
            						for (int nPair=0;nPair<partial.length;nPair++){
            							int nImg= imagePairIndices[nPair][0];
            							double [] dXY=disparityScales[nImg];
@@ -5250,11 +5261,12 @@ public class PixelMapping {
            			        			tile%tilesX, //int itx,
            			        			tile/tilesX,
            			        			centerPixels); //int ity
-           				       	
+
            		   	   			if (showProgress){
            		   	   				final int fTile=tile;
            	    					SwingUtilities.invokeLater(new Runnable() {
-           	    						public void run() {
+           	    						@Override
+										public void run() {
            	    							// Here, we can safely update the GUI
            	    							// because we'll be called from the
            	    							// event dispatch thread
@@ -5280,10 +5292,10 @@ public class PixelMapping {
         		}
         	}
 
-        	
+
         	/**
         	 * Calculating combined correlation arrays for the actual cameras from the  center camera
-        	 * Will do nothing if the data is already calcualted 
+        	 * Will do nothing if the data is already calcualted
         	 * @param threadsMax maximal number of therads to use
         	 * @param showProgress show ImageJ progress/status
         	 * @param debugLevel debug level
@@ -5313,12 +5325,13 @@ public class PixelMapping {
 		   		if (showProgress) IJ.showStatus("Re-centering correlation data...");
 		   		for (int ithread = 0; ithread < threads.length; ithread++) {
 		   			threads[ithread] = new Thread() {
-		   				public void run() {
+		   				@Override
+						public void run() {
            					for (int tile=tileIndexAtomic.getAndIncrement(); tile<tiles;tile=tileIndexAtomic.getAndIncrement()){
            						int nImage=tile/tilesPerImage;
            						int tileX=tile%tilesX;
            						int tileY=(tile%tilesPerImage)/tilesX;
-           						
+
            						boolean debugThis= (debugLevel>2 ) && (nImage==0)&& (tile== ( (tiles/tilesX/2)*tilesX +(tilesX/2)));
            						if (debugThis){
            							System.out.println("nImage="+nImage+"tile="+tile+" tiles="+tiles+" tilesX="+tilesX);
@@ -5342,7 +5355,8 @@ public class PixelMapping {
            		   	   			if (showProgress){
            		   	   				final int fTile=tile;
            	    					SwingUtilities.invokeLater(new Runnable() {
-           	    						public void run() {
+           	    						@Override
+										public void run() {
            	    							// Here, we can safely update the GUI
            	    							// because we'll be called from the
            	    							// event dispatch thread
@@ -5358,7 +5372,7 @@ public class PixelMapping {
 		   		if (showProgress) IJ.showStatus("");
 		   		if (showProgress) IJ.showProgress(1.0);
         	}
-        	
+
         	private void  initDoubleTileWindow(){
         		int size=this.overlapStep*2;
         		this.doubleTileWindow = new double [size*size];
@@ -5376,7 +5390,7 @@ public class PixelMapping {
         		return getRecenteredDisparity(itx,ity,this.centerPixels,relDxy,debugLevel);}
 */
         	/**
-        	 * Calculate correlation tile for different center 
+        	 * Calculate correlation tile for different center
         	 * @param tileX horizontal tile number
         	 * @param tileY vertical tile number
         	 * @param tiledCorrelation encoded tiled correlation ararys
@@ -5451,7 +5465,7 @@ public class PixelMapping {
         			}
         		}
          		return result;
-        	} 
+        	}
 
         	public double [] getTileDisparity(
         			int itx,
@@ -5481,7 +5495,7 @@ public class PixelMapping {
         			data[index++]=(float) disparityArray[i]; //oob 20375037
         		}
         	}
-        	
+
         	public double [] getCorrelationArray(
         			double x,
         			double y,
@@ -5523,8 +5537,8 @@ public class PixelMapping {
             			showProgress,
             			debugLevel );
         	}
-        	
-        	
+
+
         	public double [] getCorrelationArray(
         			int firstImage,
         			int secondImageIndex,
@@ -5584,21 +5598,21 @@ public class PixelMapping {
         		int index11=ity1*width+itx1*disparityPoints;
         		double [] result=new double [disparityPoints];
         		for (int i=0;i<disparityPoints;i++){
-        			if ((i>result.length) || 
+        			if ((i>result.length) ||
         					((index00+i)>=data.length) || ((index10+i)>=data.length) || ((index01+i)>=data.length) || ((index11+i)>=data.length)){
         				System.out.println("width="+width+" index00="+index00+" index10="+index10+" index01="+index01+" index11="+index11);
         				System.out.println("itx0="+itx0+" itx1="+itx1+" ity0="+ity0+" ity1="+ity1+" this.tilesX="+this.tilesX+" this.tilesY="+this.tilesY);
-        				
+
         			}
         			result[i]=  // bi-linear interpolation //TODO:java.lang.ArrayIndexOutOfBoundsException: 24760512at PixelMapping$InterSensor$DisparityTiles.getCorrelationArray(PixelMapping.java:4619)
-        		        
+
         				(data[index00+i]*(1.0-tx)+data[index10+i]*tx)*(1.0-ty)+
         				(data[index01+i]*(1.0-tx)+data[index11+i]*tx)*ty;
         		}
         		return result;
         	}
 
-        	
+
         	public double [] getCorrelationArray(
         			int imageNumber,
         			double fatZero,
@@ -5627,7 +5641,7 @@ public class PixelMapping {
             			debugLevel );
 
         		double [] result=new double [partial[0].length];
-        		double pwr=1.0/partial.length;  // sqrt for 2 other images 
+        		double pwr=1.0/partial.length;  // sqrt for 2 other images
         		for (int nP=0;nP<result.length;nP++){
     				double d=1.0;
         			for (int nI=0;nI<partial.length;nI++){
@@ -5637,7 +5651,7 @@ public class PixelMapping {
     				result[nP]=Math.pow(d, pwr)-fatZero;
         		}
         		return result;
-        	}        	
+        	}
         	private int imagesToNPair(int firstImage, int secondImageIndex){
         		for (int i=0;i<this.imagePairIndices.length;i++) if ((this.imagePairIndices[i][0]==firstImage)&& (this.imagePairIndices[i][1]==secondImageIndex)) return i;
         		return -1;
@@ -5662,7 +5676,7 @@ public class PixelMapping {
         		Rectangle woi=new Rectangle (
         				pixelWOI.x/this.overlapStep,
         				pixelWOI.y/this.overlapStep,
-        				(pixelWOI.x+pixelWOI.width -1)/this.overlapStep - pixelWOI.x/this.overlapStep +1, 
+        				(pixelWOI.x+pixelWOI.width -1)/this.overlapStep - pixelWOI.x/this.overlapStep +1,
         				(pixelWOI.y+pixelWOI.height-1)/this.overlapStep - pixelWOI.y/this.overlapStep +1);
         		return woi;
         	}
@@ -5729,8 +5743,8 @@ public class PixelMapping {
         		}
         		return totalFilled;
            	}
-        	
-        	
+
+
            	public int fillForegroundGapsStep(
         			Rectangle woi, // in tiles - may be
         			final int nImg,
@@ -5757,7 +5771,7 @@ public class PixelMapping {
         				" zMapWOI.width="+zMapWOI.width+" zMapWOI.height="+zMapWOI.height);
 
         		if (debugLevel>1) System.out.println("fillForegroundGapsStep() foregroundThreshold="+foregroundThreshold+" maxDifference="+maxDifference+" tiles="+tiles);
-        		
+
         		final Thread[] threads = newThreadArray(threadsMax);
 		   		final AtomicInteger tileIndexAtomic     = new AtomicInteger(0);
 		   		if (showProgress) IJ.showProgress(0.0);
@@ -5765,7 +5779,8 @@ public class PixelMapping {
 		   		final AtomicInteger numberUpdated = new AtomicInteger(0);
 		   		for (int ithread = 0; ithread < threads.length; ithread++) {
 		   			threads[ithread] = new Thread() {
-		   				public void run() {
+		   				@Override
+						public void run() {
 		   					for (int tile=tileIndexAtomic.getAndIncrement(); tile<tiles;tile=tileIndexAtomic.getAndIncrement()){
 		   						if (fillForegroundTile(
 		   								zMapWOI.x+tile%tilesX, //int tileX,
@@ -5778,7 +5793,8 @@ public class PixelMapping {
 		   						if (showProgress){
 		   							final int finalTile=tile;
 		   							SwingUtilities.invokeLater(new Runnable() {
-		   								public void run() {
+		   								@Override
+										public void run() {
 		   									IJ.showProgress(finalTile,tiles);
 		   								}
 		   							});
@@ -5819,7 +5835,7 @@ public class PixelMapping {
  //       						(zMap[tileY1][tileX1].foregroundIndex<zMap[tileY][tileX].maximums.length) &&
         						(zMap[tileY1][tileX1].foregroundIndex<zMap[tileY1][tileX1].maximums.length) && // not at infinity
         						(Math.abs(zMap[tileY1][tileX1].maximums[zMap[tileY1][tileX1].foregroundIndex][0]-zTile.maximums[plane][0])<=maxDifference)){
-        					numMatched++;       					
+        					numMatched++;
         				}
         			}
         			if (numMatched>=minNeib){
@@ -5828,11 +5844,11 @@ public class PixelMapping {
         			}
         		}
         		return false;
-        		
+
         	}
-        	
-        	
-    		
+
+
+
     		public void foregroundByOcclusion(
     				double [][][] imageData, // [img]{Alpha, Y,Cb,Cr, Ext}. Alpha may be null - will handle later?
     				int imageFullWidth,
@@ -5861,7 +5877,7 @@ public class PixelMapping {
     			// process all image pairs
     			for (int nImg=0;nImg<this.disparityScales.length;nImg++){
     				int [] sImg=new int [this.disparityScales.length-1];
-    				for (int j=0;j<sImg.length;j++)sImg[j]=(j<nImg)?j:(j+1); 
+    				for (int j=0;j<sImg.length;j++)sImg[j]=(j<nImg)?j:(j+1);
     				foregroundByOcclusion(
     	    				nImg,
     	    				sImg, // list of second images
@@ -5891,7 +5907,7 @@ public class PixelMapping {
     	    				debugLevel);
     			}
     		}
-    		
+
         	public void foregroundByOcclusion( // remove unneeded parameters later
 					final int nImg,
 					final int[] sImg, // list of second images
@@ -5931,14 +5947,15 @@ public class PixelMapping {
 		   		if (showProgress) IJ.showProgress(0.0);
 		   		if (showProgress) IJ.showStatus("Filtering zMap foreground for image "+nImg+" ("+(nImg+1)+" of "+this.disparityScales.length+") ...");
 				final int debugTile=debugRow*tilesX+debugColumn;
-				//TODO: define here		    				
+				//TODO: define here
 				final double [] window=new double [4*this.overlapStep*this.overlapStep];
     			window[0]=Double.NaN;
 				final double [] refineWindow=new double [refineTilePeriod*refineTilePeriod*4];
 				refineWindow[0]=Double.NaN;
 		   		for (int ithread = 0; ithread < threads.length; ithread++) {
 		   			threads[ithread] = new Thread() {
-		   				public void run() {
+		   				@Override
+						public void run() {
 		    				DoubleFHT doubleFHT = new DoubleFHT();
 		    				DoubleFHT refineFHT= new DoubleFHT();
 		   					for (int tile=tileIndexAtomic.getAndIncrement(); tile<tiles;tile=tileIndexAtomic.getAndIncrement()){
@@ -5980,7 +5997,8 @@ public class PixelMapping {
 		   						if (showProgress){
 		   							final int finalTile=tile;
 		   							SwingUtilities.invokeLater(new Runnable() {
-		   								public void run() {
+		   								@Override
+										public void run() {
 		   									IJ.showProgress(finalTile,tiles);
 		   								}
 		   							});
@@ -6058,21 +6076,21 @@ public class PixelMapping {
     						if (bgPlane<zTile.maximums.length){
     							for (int i=bgPlane+1;i<zTile.maximums.length;i++) if (zTile.maximums[i][1]>zTile.maximums[bgPlane][1]) bgPlane=i;
     						}
-    						
+
     					}
-    					
+
     				}
     			}
     			// now bgPlane - background plane (if >=maximums.length - use infinity)
 //				double bgFraction, // process maximal correlation or the first farther plane with correlation intensity >= this part of maximal
 
     			// is there any forground?
-/*    			
+/*
     			if (!zTile.advanceForeground()) return true; // got to the end
     			if (zTile.enabledPixels[zTile.foregroundIndex]==null) {
     				zTile.initEnabledForegroundPixelsPlane();
     			}
-*/    			
+*/
     			int tileOverlap=zTile.getOverlap();
     			int paddedSize=zTile.getPaddedSize();
     			int paddedLength=zTile.getPaddedLength();
@@ -6084,7 +6102,7 @@ public class PixelMapping {
     			double [][][][] slices=new double [sImgSet.length][][][];
     			double [][][][] variance=new double [sImgSet.length][][][]; // [sIndex][pair 0/1][chn][pixel
     			int length=0; // initialize it to a correct value right here?
- //   			int numOther=sImgSet.length; 
+ //   			int numOther=sImgSet.length;
     			int [][] otherPairs=new int [(sImgSet.length*(sImgSet.length-1))/2][2];
     			// with 3 images there is only one other pair, but try to maki it work later with more images
     			{
@@ -6115,7 +6133,7 @@ public class PixelMapping {
 					for (int i=0;i<sImgSet.length;i++){
 						System.out.println("  nImg="+nImg+" sImgSet["+i+"]="+sImgSet[i]);
 					}
-				} 
+				}
 				float [] aux2=new float[paddedLength];
 				for (int i=0;i<paddedLength;i++){ //tileOverlap
 //					int iPix= (margin+(i/paddedSize))*size +(margin+ (i%paddedSize));
@@ -6245,7 +6263,7 @@ public class PixelMapping {
     				double k=1.0;
     				//    					for (int iPix=0;iPix<length;iPix++){ // i - pixel index
     				float [] aux0=new float[paddedLength];
-// debug layers    				
+// debug layers
 //    				float [] aux2=new float[paddedLength];
     				float [] aux3=new float[paddedLength];
     				float [] aux4=new float[paddedLength];
@@ -6266,7 +6284,7 @@ public class PixelMapping {
     						int sIndex0=otherPairs[nPair][0];
     						int sIndex1=otherPairs[nPair][1];
     						double occlVal=0.0;
-// debug    						
+// debug
     						double pairVarDbg=0.0;
     						double pairDiffDbg=0.0;
     						double thisDiffDbg=0.0;
@@ -6321,7 +6339,7 @@ public class PixelMapping {
     									slices[sIndex1][chn+1][0][iPix]-
     									slices[sIndex0][chn+1][1][iPix]-
     									slices[sIndex1][chn+1][1][iPix]));
-    							occlVal+=normVarWeights[chn]*(thisDiff/pairVar/zMapVarThresholds[chn])/(pairDiff+k); // consider both - with /pairVar and without 
+    							occlVal+=normVarWeights[chn]*(thisDiff/pairVar/zMapVarThresholds[chn])/(pairDiff+k); // consider both - with /pairVar and without
 
         						pairVarDbg+=normVarWeights[chn]*pairVar;
         						pairDiffDbg+=normVarWeights[chn]*pairDiff;
@@ -6329,19 +6347,19 @@ public class PixelMapping {
         						double dd=slices[sIndex0][chn+1][1][iPix]-slices[sIndex1][chn+1][1][iPix];
         						thisDiffVar+=normVarWeights[chn]*Math.sqrt(0.5*(dd*dd+pairVar*pairVar));
 
-    							// other variant - if pairDiff>1.0 - =>    occlVal=0.0;						
+    							// other variant - if pairDiff>1.0 - =>    occlVal=0.0;
 
     						}
     						if ((nPair==0) || (occlVarVal<occlVal)){
     							occlVarVal=occlVal;
 //    							bestPair=nPair;
-    							
+
     							//debug
     							pairVarDbgBest=pairVarDbg;
     							pairDiffDbgBest=pairDiffDbg;
     							thisDiffDbgBest=thisDiffDbg;
     							thisDiffVarBest=thisDiffVar;
-    							
+
     						}
 							if (debugLevel>4) {
 								System.out.println(	" pairVarDbgBest="+IJ.d2s(pairVarDbgBest,5));
@@ -6349,15 +6367,15 @@ public class PixelMapping {
 
     					}
     					aux0[i]=(float) occlVarVal;
-// debug    					
+// debug
 //    					aux2[i]=(float) disparity;
     					aux3[i]=(float) pairVarDbgBest;
     					aux4[i]=(float) pairDiffDbgBest;
     					aux5[i]=(float) thisDiffDbgBest;
     					aux6[i]=(float) thisDiffVarBest;
-    					
-    					
-    				}	
+
+
+    				}
     				zTile.setAux(0,aux0);
 // debug
 //    				zTile.setAux(2,aux2);
@@ -6365,7 +6383,7 @@ public class PixelMapping {
     				zTile.setAux(4,aux4);
     				zTile.setAux(5,aux5);
     				zTile.setAux(6,aux6);
-    				
+
     				if (debugLevel>3){
 						float [][] debugData={aux2,aux3,aux4,aux5,aux6,aux0};
 						String [] debugTitles={"var","pair","this","occl","dvar","disp"};
@@ -6393,7 +6411,7 @@ public class PixelMapping {
     						refineSmoothThis[sIndex][chn]=localCorrelation(
     								refineFHT, // DoubleFHT doubleFHT, // will generate if null, can be used to reuse initialization
     								pair, //double [][] data,   // difines size
-    								refineWindow, //double [] window, // defines tile size 
+    								refineWindow, //double [] window, // defines tile size
     								udXY, // double [] dXY,    // unity vector defines disparity direction
     								refinePhaseCoeff, //phaseCoeff, // phase correlation fraction (0 - normal, 1.0 - pure phase)
     								refineHighPassSigma,
@@ -6418,7 +6436,7 @@ public class PixelMapping {
     						refineSmoothOther[nPair][chn]=localCorrelation(
     								refineFHT, // DoubleFHT doubleFHT, // will generate if null, can be used to reuse initialization
     								pair, //double [][] data,   // difines size
-    								refineWindow, //double [] window, // defines tile size 
+    								refineWindow, //double [] window, // defines tile size
     								udXY, // double [] dXY,    // unity vector defines disparity direction
     								refinePhaseCoeff, //phaseCoeff, // phase correlation fraction (0 - normal, 1.0 - pure phase)
     								refineHighPassSigma,
@@ -6429,7 +6447,7 @@ public class PixelMapping {
     					}
     				}
     				float [] aux1=new float[paddedLength];
-//    				
+//
     				float [] aux7=new float[paddedLength];
     				float [] aux8=new float[paddedLength];
     				float [] aux9=new float[paddedLength];
@@ -6459,7 +6477,7 @@ public class PixelMapping {
     	        					bestOcclCorrSecond=refineSmoothThis[sIndex1][chn][iPix];
     								//										bestPair=nPair;
     							}
-    						}    			
+    						}
     						occlCorrVal+=normCorrWeights[chn]*bestOcclCorrVal;
         					occlCorrOther+=normCorrWeights[chn]*bestOcclCorrOther;
         					occlCorrFirst+=normCorrWeights[chn]*bestOcclCorrFirst;
@@ -6488,9 +6506,9 @@ public class PixelMapping {
 								"C"+nImg+"_tile"+tileX+"-"+tileY,
 								debugTitles);
     				}
-    				
+
     			}
-    			return; // zTile.isForegroundValid(); // this current plane is not empty 
+    			return; // zTile.isForegroundValid(); // this current plane is not empty
     		}
     		public double [] normalizeWeights(int mask,double [] weights){
     			double [] maskedWeights=weights.clone();
@@ -6504,7 +6522,7 @@ public class PixelMapping {
     			for (int i=0;i<weights.length;i++) normalizedWeights[i]=(sum==0.0)?0.0:(weights[i]/sum);
     			return normalizedWeights;
     		}
-    		
+
 
     		public void filterForegroundZMap(
 //    				final int nImg,
@@ -6536,7 +6554,7 @@ public class PixelMapping {
     			// process all image pairs
     			for (int nImg=0;nImg<this.disparityScales.length;nImg++){
     				int [] sImg=new int [this.disparityScales.length-1];
-    				for (int j=0;j<sImg.length;j++)sImg[j]=(j<nImg)?j:(j+1); 
+    				for (int j=0;j<sImg.length;j++)sImg[j]=(j<nImg)?j:(j+1);
     				filterForegroundZMap(
     	    				nImg,
     	    				sImg, // list of second images
@@ -6606,14 +6624,15 @@ public class PixelMapping {
 		   		if (showProgress) IJ.showProgress(0.0);
 		   		if (showProgress) IJ.showStatus("Filtering zMap foreground for image "+nImg+" ("+(nImg+1)+" of "+this.disparityScales.length+") ...");
 				final int debugTile=debugRow*tilesX+debugColumn;
-				//TODO: define here		    				
+				//TODO: define here
 				final double [] window=new double [4*this.overlapStep*this.overlapStep];
     			window[0]=Double.NaN;
 				final double [] refineWindow=new double [refineTilePeriod*refineTilePeriod*4];
 				refineWindow[0]=Double.NaN;
 		   		for (int ithread = 0; ithread < threads.length; ithread++) {
 		   			threads[ithread] = new Thread() {
-		   				public void run() {
+		   				@Override
+						public void run() {
 		    				DoubleFHT doubleFHT = new DoubleFHT();
 		    				DoubleFHT refineFHT= new DoubleFHT();
 		   					for (int tile=tileIndexAtomic.getAndIncrement(); tile<tiles;tile=tileIndexAtomic.getAndIncrement()){
@@ -6654,7 +6673,8 @@ public class PixelMapping {
 		   						if (showProgress){
 		   							final int finalTile=tile;
 		   							SwingUtilities.invokeLater(new Runnable() {
-		   								public void run() {
+		   								@Override
+										public void run() {
 		   									IJ.showProgress(finalTile,tiles);
 		   								}
 		   							});
@@ -6739,7 +6759,7 @@ public class PixelMapping {
     						window, // double [] window, // should be 4*size*size long;
     						doubleFHT, //DoubleFHT doubleFHT, // to reuse tables
     						debugLevel);
-    				
+
     				if (debugLevel>3){ // +2 for selected tile
     					System.out.println("Debugging tileX="+tileX+", tileY="+tileY+" disparity="+disparity+" dX="+ dX+" dY="+dY);
     					int numActive=0;
@@ -6822,7 +6842,7 @@ public class PixelMapping {
     									blurVarianceSigma,
     									0.01);
     						}
-    						
+
 
 
 
@@ -6872,7 +6892,7 @@ public class PixelMapping {
     									size,
     									size,
     									"AUX_"+nImg+"-"+sImg+"__"+tileX+"-"+tileY);
-    							
+
     						}
     						for (int i=0;i<paddedLength;i++){ //tileOverlap
     							int i1= (margin+(i/paddedSize))*size +(margin+ (i%paddedSize));
@@ -6888,7 +6908,7 @@ public class PixelMapping {
     					double [] refineSmooth=localCorrelation(
     							refineFHT, // DoubleFHT doubleFHT, // will generate if null, can be used to reuse initialization
     							pair, //double [][] data,   // difines size
-    							refineWindow, //double [] window, // defines tile size 
+    							refineWindow, //double [] window, // defines tile size
     							udXY, // double [] dXY,    // unity vector defines disparity direction
     							refinePhaseCoeff, //phaseCoeff, // phase correlation fraction (0 - normal, 1.0 - pure phase)
     							refineHighPassSigma,
@@ -6903,9 +6923,9 @@ public class PixelMapping {
     						}
     					}
     				}
-    				
+
     			}
-    			return zTile.isForegroundValid(); // this current plane is not empty 
+    			return zTile.isForegroundValid(); // this current plane is not empty
     		}
 
     		public void refinePlaneDisparity(
@@ -6932,7 +6952,7 @@ public class PixelMapping {
     				double [] zMapCorrWeights,
     				int       debugRow,
     				int       debugColumn,
-    				
+
     				double    disparityMax,
     				double    disaprityMin,
     				double    minAbsolute, // or NaN - will use enabled/disabled state of the tile
@@ -6950,7 +6970,7 @@ public class PixelMapping {
     			// process all image pairs
     			for (int nImg=0;nImg<this.disparityScales.length;nImg++){
     				int [] sImg=new int [this.disparityScales.length-1];
-    				for (int j=0;j<sImg.length;j++)sImg[j]=(j<nImg)?j:(j+1); 
+    				for (int j=0;j<sImg.length;j++)sImg[j]=(j<nImg)?j:(j+1);
     				refinePlaneDisparity(
     	    				nImg,
     	    				sImg, // list of second images
@@ -7016,7 +7036,7 @@ public class PixelMapping {
     				final double [] zMapCorrWeights,
     				final int debugRow,
     				final int debugColumn,
-    				
+
     				final double disparityMax,
     				final double disaprityMin,
     				final double minAbsolute, // or NaN - will use enabled/disabled state of the tile
@@ -7028,7 +7048,7 @@ public class PixelMapping {
     				final double maskBlurSigma,
     				final double corrHighPassSigma, // subtract blurred version to minimize correlation caused by masks
 
-    				
+
     				final int threadsMax,
     				final boolean showProgress,
     				final int debugLevel){
@@ -7044,7 +7064,7 @@ public class PixelMapping {
 		   		if (showProgress) IJ.showProgress(0.0);
 		   		if (showProgress) IJ.showStatus("refinePlaneDisparity for image "+nImg+" ("+(nImg+1)+" of "+this.disparityScales.length+") ...");
 				final int debugTile=debugRow*tilesX+debugColumn;
-				//TODO: define here		    				
+				//TODO: define here
 //				final double [] window=new double [4*this.overlapStep*this.overlapStep];
 //    			window[0]=Double.NaN;
 //				final double [] refineWindow=new double [refineTilePeriod*refineTilePeriod*4];
@@ -7052,7 +7072,8 @@ public class PixelMapping {
 				final int size=2*this.overlapStep;
 		   		for (int ithread = 0; ithread < threads.length; ithread++) {
 		   			threads[ithread] = new Thread() {
-		   				public void run() {
+		   				@Override
+						public void run() {
 		    				DoubleFHT doubleFHT = new DoubleFHT();
 		    				final double [] window=new double [size*size];
 		        			window[0]=Double.NaN;
@@ -7106,7 +7127,8 @@ public class PixelMapping {
 		   						if (showProgress){
 		   							final int finalTile=tile;
 		   							SwingUtilities.invokeLater(new Runnable() {
-		   								public void run() {
+		   								@Override
+										public void run() {
 		   									IJ.showProgress(finalTile,tiles);
 		   								}
 		   							});
@@ -7119,10 +7141,10 @@ public class PixelMapping {
 		   		IJ.showProgress(1.0);
         	}
 
-    		
-    		
-    		
-    		
+
+
+
+
        		private void refinePlaneDisparityTile ( // false if nothing left in the current foreground, may repeat
     				int tileX,
     				int tileY,
@@ -7153,7 +7175,7 @@ public class PixelMapping {
 //    				double [] refineWindow,
 //    				DoubleFHT refineFHT,
     				// new arguments
-//    				int combineMode, // different image pairs - 0 
+//    				int combineMode, // different image pairs - 0
     				double disparityMax,
     				double disaprityMin,
     				double minAbsolute, // or NaN - will use enabled/disabled state of the tile
@@ -7168,7 +7190,7 @@ public class PixelMapping {
     				boolean showProgress,
     				int debugLevel){
        			// TODO: also calculate "unlikely" - high autocorrelation, not occluded, low inter-correlation
-       			
+
     			double [] normCorrWeights=normalizeWeights(zMapCorrMask,zMapCorrWeights);
     			ZTile zTile=allZMap[nImg][tileY][tileX];
     			int tileOverlap=zTile.getOverlap();
@@ -7196,7 +7218,7 @@ public class PixelMapping {
     			}
         		double corrMaxDist2=refineCorrMaxDistance*refineCorrMaxDistance;
         		int halfDispRange=(int) Math.ceil(2*refineCorrMaxDistance*refineSubPixel);
-        		
+
         		if (Double.isNaN(window[0])) {
         			int index=0;
             		int quarterSize=size/4; //8
@@ -7218,14 +7240,14 @@ public class PixelMapping {
 								"Window_N"+nImg+"-X"+tileX+"-Y"+tileY
 						);
 					}
-        			
+
         		}
         		for (int plane=0;plane<zTile.getNumberOfPlanes();plane++) if (zTile.getPlaneEnabled(plane)) {
         			if (debugLevel>3) {
         				System.out.println ("refinePlaneDisparityTile("+tileX+","+tileY+", ...) plane="+plane+
         						" disparity="+zTile.getPlaneDisparity(plane)+" strength="+zTile.getPlaneStrength(plane));
-        				
-        				
+
+
         			}
         			if (!(zTile.getPlaneDisparity(plane)<disaprityMin) && !(zTile.getPlaneDisparity(plane)>disparityMax)){ // NaN is OK
         				double disparity= zTile.getPlaneDisparity(plane);
@@ -7377,7 +7399,7 @@ public class PixelMapping {
         								"S"+plane+"-"+IJ.d2s(disparity,1)+"_N"+nImg+"-"+sImg+"_sIndex-"+sIndex+"_tile"+tileX+"-"+tileY,
         								debugTitles);
         					}
-        					
+
         					// process correlation, calculate auto-first, auto-second and cross for each pair,
 
         					// add them with weights and calculate disparity correction - at this stage - only for the whole tile
@@ -7401,10 +7423,10 @@ public class PixelMapping {
         										corrHighPassSigma,
         										0.01);
         								for (int i=0;i<length;i++) pairs[chn][n][i]-=loPass[i];
-        							} else { 
+        							} else {
         								normalizeAndWindow (pairs[chn][n], null, true); // only remove DC
         							}
-        							for (int i=0;i<length;i++) pairs[chn][n][i]*=pairEnabledMask[sIndex][i]; // 
+        							for (int i=0;i<length;i++) pairs[chn][n][i]*=pairEnabledMask[sIndex][i]; //
         						}
         						for (int i=0;i<length;i++){
         							centerCorr[0]+=normCorrWeights[chn]*pairs[chn][0][i]*pairs[chn][0][i];
@@ -7414,7 +7436,7 @@ public class PixelMapping {
         					}
         					if (debugLevel>3){ // +2 for selected tile
         						System.out.println("centerCorr[0]="+centerCorr[0]+" centerCorr[1]="+centerCorr[1]+" centerCorr[2]="+centerCorr[2]);
-// show high-pass/masked pairs        						
+// show high-pass/masked pairs
         						int numActive=0;
         						for (int i=0;i<slices[sIndex].length;i++) if (slices[sIndex][i]!=null) numActive++;
         						String [] channelNames={"alpha","Y","Cb","Cr","Aux"};
@@ -7494,7 +7516,7 @@ public class PixelMapping {
                 								interpolatedSize,
                 								interpolatedSize,
                 								"U"+plane+"_N"+nImg+"-"+sImg+"_sIndex-"+sIndex+"_tile"+tileX+"-"+tileY);
-        								
+
         							}
         							if (disparityArray==null) {
         								disparityArray=new double [2*halfDispRange+1];
@@ -7511,7 +7533,7 @@ public class PixelMapping {
         								int index01=index00+interpolatedSize;
         								int index10=index00+1;
         								int index11=index01+1;
-        								disparityArray[i]+= // ACCUMULATE bi-linear interpolated data 
+        								disparityArray[i]+= // ACCUMULATE bi-linear interpolated data
         									(upsampled[index00]*(1.0-deltaX)+upsampled[index10]*deltaX)*(1.0-deltaY)+
         									(upsampled[index01]*(1.0-deltaX)+upsampled[index11]*deltaX)*     deltaY;
         								if (debugLevel>5){
@@ -7540,7 +7562,7 @@ public class PixelMapping {
     							if (debugLevel>3){
     								System.out.println("Old disparity["+plane+"]="+disparity+" new disparity="+(disparity+disparCorr));
     							}
-    							zTile.setPlaneDisparity(disparity+disparCorr,plane); 
+    							zTile.setPlaneDisparity(disparity+disparCorr,plane);
     						}
     					}
 
@@ -7548,8 +7570,8 @@ public class PixelMapping {
     			} // end for (int plane...)
        		}
 
-       		
-       		
+
+
     		public void planeLikely(
 //    				int nImg,
 //    				int [] sImg, // list of second images
@@ -7575,7 +7597,7 @@ public class PixelMapping {
     				double [] zMapCorrWeights,
     				int debugRow,
     				int debugColumn,
-    				int combineMode, // different image pairs - 0 
+    				int combineMode, // different image pairs - 0
 
     				double disparityMax,
     				double disaprityMin,
@@ -7596,7 +7618,7 @@ public class PixelMapping {
     			// process all image pairs
     			for (int nImg=0;nImg<this.disparityScales.length;nImg++){
     				int [] sImg=new int [this.disparityScales.length-1];
-    				for (int j=0;j<sImg.length;j++)sImg[j]=(j<nImg)?j:(j+1); 
+    				for (int j=0;j<sImg.length;j++)sImg[j]=(j<nImg)?j:(j+1);
     				planeLikely(
     	    				nImg,
     	    				sImg, // list of second images
@@ -7622,7 +7644,7 @@ public class PixelMapping {
     	    				zMapCorrWeights,
     	    				debugRow,
     	    				debugColumn,
-    	    				combineMode, // different image pairs - 0 
+    	    				combineMode, // different image pairs - 0
 
     	    				disparityMax,
     	    				disaprityMin,
@@ -7668,7 +7690,7 @@ public class PixelMapping {
     				final double [] zMapCorrWeights,
     				final int debugRow,
     				final int debugColumn,
-    				final int combineMode, // different image pairs - 0 
+    				final int combineMode, // different image pairs - 0
 
     				final double disparityMax,
     				final double disaprityMin,
@@ -7698,7 +7720,7 @@ public class PixelMapping {
 		   		if (showProgress) IJ.showProgress(0.0);
 		   		if (showProgress) IJ.showStatus("planeLikely for image "+nImg+" ("+(nImg+1)+" of "+this.disparityScales.length+") ...");
 				final int debugTile=debugRow*tilesX+debugColumn;
-				//TODO: define here		    				
+				//TODO: define here
 //				final double [] window=new double [4*this.overlapStep*this.overlapStep];
 //    			window[0]=Double.NaN;
 //				final double [] refineWindow=new double [refineTilePeriod*refineTilePeriod*4];
@@ -7706,7 +7728,8 @@ public class PixelMapping {
 				final int size=2*this.overlapStep;
 		   		for (int ithread = 0; ithread < threads.length; ithread++) {
 		   			threads[ithread] = new Thread() {
-		   				public void run() {
+		   				@Override
+						public void run() {
 		    				DoubleFHT doubleFHT = new DoubleFHT();
 		    				final double [] window=new double [size*size];
 		        			window[0]=Double.NaN;
@@ -7746,7 +7769,7 @@ public class PixelMapping {
 		   			    				doubleFHT,
 		   			    				subTileWindow,
 		   			    				subTileFHT,
-		   			    				combineMode, // different image pairs - 0 
+		   			    				combineMode, // different image pairs - 0
 		   			    				disparityMax,
 		   			    				disaprityMin,
 		   			    				minAbsolute, // or NaN - will use enabled/disabled state of the tile
@@ -7766,7 +7789,8 @@ public class PixelMapping {
 		   						if (showProgress){
 		   							final int finalTile=tile;
 		   							SwingUtilities.invokeLater(new Runnable() {
-		   								public void run() {
+		   								@Override
+										public void run() {
 		   									IJ.showProgress(finalTile,tiles);
 		   								}
 		   							});
@@ -7779,9 +7803,9 @@ public class PixelMapping {
 		   		IJ.showProgress(1.0);
         	}
 
-       		
-       		
-       		
+
+
+
        		private void planeLikelyTile ( // false if nothing left in the current foreground, may repeat
     				int tileX,
     				int tileY,
@@ -7813,7 +7837,7 @@ public class PixelMapping {
     				double [] subTileWindow,
     				DoubleFHT subTileFHT,
     				// new arguments
-    				int combineMode, // different image pairs - 0 
+    				int combineMode, // different image pairs - 0
     				double disparityMax,
     				double disaprityMin,
     				double minAbsolute, // or NaN - will use enabled/disabled state of the tile
@@ -7832,7 +7856,7 @@ public class PixelMapping {
     				boolean showProgress,
     				int debugLevel){
        			// TODO: also calculate "unlikely" - high autocorrelation, not occluded, low inter-correlation
-       			
+
     			double [] normVarWeights= normalizeWeights(zMapVarMask,zMapVarWeights);
     			double [] normCorrWeights=normalizeWeights(zMapCorrMask,zMapCorrWeights);
 //                int auxChannelNumber=3;
@@ -8042,7 +8066,7 @@ public class PixelMapping {
         					// process correlation, calculate auto-first, auto-second and cross for each pair,
         					// add them with weights and calculate disparity correction - at this stage - only for the whole tile
         					double [][][] pairs=new double [slices[sIndex].length-1][][];
-        					double [][][] corrs=null; 
+        					double [][][] corrs=null;
         					for (int chn=0;chn<(slices[sIndex].length-1);chn++) if ((zMapCorrMask& (1<<chn))!=0){ // should work with all channels disabled
         						//    						int length=slices[sIndex][chn+1][0].length;
         						//    						size=(int) Math.sqrt(length)
@@ -8060,15 +8084,15 @@ public class PixelMapping {
         										corrHighPassSigma,
         										0.01);
         								for (int i=0;i<length;i++) pairs[chn][n][i]-=loPass[i];
-        							} else { 
+        							} else {
         								normalizeAndWindow (pairs[chn][n], null, true); // only remove DC
         							}
-        							for (int i=0;i<length;i++) pairs[chn][n][i]*=pairEnabledMask[sIndex][i]; // 
+        							for (int i=0;i<length;i++) pairs[chn][n][i]*=pairEnabledMask[sIndex][i]; //
         						}
         						double [][][] thisChnCorrs=subTileCorrelation(
         								subTileFHT, //DoubleFHT doubleFHT, // will generate if null, can be used to reuse initialization
         								pairs[chn], //double [][] data,   // difines size
-        								subTileWindow, //double [] window, // defines tile size 
+        								subTileWindow, //double [] window, // defines tile size
         								subTilePhaseCoeff, //double phaseCoeff, // phase correlation fraction (0 - normal, 1.0 - pure phase)
         								subTileHighPassSigma, //double highPassSigma,
         								subTileLowPassSigma, //double lowPassSigma,
@@ -8086,7 +8110,7 @@ public class PixelMapping {
         					}
         					if (debugLevel>3){ // +2 for selected tile
 //        						System.out.println("centerCorr[0]="+centerCorr[0]+" centerCorr[1]="+centerCorr[1]+" centerCorr[2]="+centerCorr[2]);
-// show high-pass/masked pairs        						
+// show high-pass/masked pairs
         						int numActive=0;
         						for (int i=0;i<slices[sIndex].length;i++) if (slices[sIndex][i]!=null) numActive++;
         						String [] channelNames={"alpha","Y","Cb","Cr","Aux"};
@@ -8108,7 +8132,7 @@ public class PixelMapping {
         										);
         							}
         							debugData[index++]=pairs[i-1][0]; //ava.lang.ArrayIndexOutOfBoundsException: 3 //Exception in thread "Thread-1033" java.lang.NullPointerException
-        							debugTitles[index]=channelNames[i]+"-"+sImg; 
+        							debugTitles[index]=channelNames[i]+"-"+sImg;
         							debugData[index++]=pairs[i-1][1];
         						}
         						(new showDoubleFloatArrays()).showArrays(
@@ -8152,7 +8176,7 @@ public class PixelMapping {
         		        			// corrtile fades at the tile edges similar to window[]
         		        		}
         		        		// TODO: corrTile may all be zero - handle this?
-        		        		
+
 //        		        		double corrThreshold=0.0;
         		        		for (int i=0;i<length;i++) linearMatchWeight[i]*= ((corrTile[i]>0.0)?corrTile[i]:0.0);
         		        		double sumWindow=0.0;
@@ -8164,8 +8188,8 @@ public class PixelMapping {
         		        		// Normalize for Bayesian
         		        		double [] linearMatchWeightNorm=new double[length];
         		        		double scaleLMW=sumWindow/sumLMW;
-        		        		for (int i=0;i<length;i++) linearMatchWeightNorm[i]=scaleLMW*linearMatchWeight[i]-window[i]; 
-        		        		
+        		        		for (int i=0;i<length;i++) linearMatchWeightNorm[i]=scaleLMW*linearMatchWeight[i]-window[i];
+
 //        		        		int numNonZero=0;
         		        		// calculate pair[1][i] ~= a*pair[0][i] + b using weight linearMatchWeight[i] - for each color channel !
 // debug show linearMatchWeight
@@ -8197,7 +8221,7 @@ public class PixelMapping {
 
             							for (int i=0;i<length;i++) if (linearMatchWeightNorm[i]!=0.0) {
             								for (int n=0;n<2;n++) {
-            									
+
                 								double  S1=0.0;
                 								double  S2=0.0;
                 								double  v2=0;
@@ -8210,7 +8234,7 @@ public class PixelMapping {
                 										numPix++;
                 									}
                 								}
-                								
+
                 								v2=(S2-(S1*S1)/numPix)/numPix;
                 								variance[chn][n][i]=Math.sqrt(v2);
 //                								sumWV2+=linearMatchWeight[i]*v2;
@@ -8220,9 +8244,9 @@ public class PixelMapping {
                 								S0tot[n]+=window[i];
                 								S1tot[n]+=window[i]*slices[sIndex][chn+1][n][i];
                 								S2tot[n]+=window[i]*slices[sIndex][chn+1][n][i]*slices[sIndex][chn+1][n][i];
-                								
+
             								}
-            								
+
             								this.photometric.addStagingSample(
             										staging[chn], // double []staging,
             										chn, //int chn,
@@ -8231,7 +8255,7 @@ public class PixelMapping {
             										slices[sIndex][chn+1][1][i], //double v2
             				        				// reduce weight depending on difference, scale to measured variance
             										varianceBlurScale, //double scaleVariance, (if 0 - do not use variance at all)
-            				        				kLocal, // double kLocal, // 0 - use global varaiance, 1.0 - use local 
+            				        				kLocal, // double kLocal, // 0 - use global varaiance, 1.0 - use local
             				        				nImg, // int nImg1, // first image number
             				        				sImg, //int nImg2, // second image number
             				        				variance[chn][0][i], //double var1, // first image variance
@@ -8242,7 +8266,7 @@ public class PixelMapping {
             							for (int n=0;n<2;n++){
             								fVar[n]=S2tot[n]/S0tot[n]-S1tot[n]*S1tot[n]/S0tot[n]/S0tot[n];
             							}
-            							
+
             							avgVariance[chn]=Math.sqrt(sumWV2/sumW);
             							avgRange[chn]=   Math.sqrt(0.5*(fVar[0]+fVar[1]));
             							if (debugLevel>3){
@@ -8254,7 +8278,7 @@ public class PixelMapping {
             									staging[chn],
             									chn,
             									avgVariance[chn]*varianceBlurScale);
-            							//varianceBlurScale            							
+            							//varianceBlurScale
             						}else{
             							staging[chn]=null;
             							variance[chn]=null;
@@ -8265,7 +8289,7 @@ public class PixelMapping {
             					double sumRelVar=0.0;
             					for (int chn=0;chn<slices[sIndex].length-1;chn++) if (avgVariance[chn]>0.0){
                 					if (debugLevel>3){
-                						System.out.println("avgVariance["+chn+"]="+avgVariance[chn]+ 
+                						System.out.println("avgVariance["+chn+"]="+avgVariance[chn]+
                 								" avgRange["+chn+"]="+avgRange[chn]+
                 								" getAverageVariance("+nImg+","+chn+")="+this.photometric.getAverageVariance(nImg,chn));
                 					}
@@ -8322,7 +8346,7 @@ public class PixelMapping {
                 							if (debugLevel>3) planeStrengthChn[chn][i]=strength;
             							}
             						} else {
-            							if (debugLevel>3) planeStrengthChn[chn]=null; 
+            							if (debugLevel>3) planeStrengthChn[chn]=null;
             						}
             					}
 
@@ -8349,12 +8373,12 @@ public class PixelMapping {
             					}
             					// now - need to save "likely" back to the tiles or compare right now?
             					// "unlikely - just correlation"
-            					// 
-            					
+            					//
+
         					}
 
         				} // for (int sIndex=0;sIndex<sImgSet.length;sIndex++){
- 
+
 
         			}
 
@@ -8372,17 +8396,17 @@ public class PixelMapping {
         							else planeStrengthCombo[plane][i]*=planeStrength[plane][sIndex][i];
         						}
         					break;
-        					case 1: // add   
+        					case 1: // add
         						for (int i=0;i<planeStrengthCombo[plane].length;i++){ // do not add negative values
         							if (planeStrength[plane][sIndex][i]>0.0) planeStrengthCombo[plane][i]+=planeStrength[plane][sIndex][i];
         						}
             					break;
-        					case 2: // min   
+        					case 2: // min
         						for (int i=0;i<planeStrengthCombo[plane].length;i++){
         							if (planeStrength[plane][sIndex][i]< planeStrengthCombo[plane][i]) planeStrengthCombo[plane][i]=planeStrength[plane][sIndex][i];
         						}
             					break;
-        					case 3: // max   
+        					case 3: // max
         						for (int i=0;i<planeStrengthCombo[plane].length;i++){
         							if (planeStrength[plane][sIndex][i]> planeStrengthCombo[plane][i]) planeStrengthCombo[plane][i]=planeStrength[plane][sIndex][i];
         						}
@@ -8396,24 +8420,24 @@ public class PixelMapping {
     							if (planeStrengthCombo[plane][i]>0.0) planeStrengthCombo[plane][i]=Math.pow(planeStrengthCombo[plane][i],a);
     						}
     					break;
-    					case 1: // add   
+    					case 1: // add
     						for (int i=0;i<planeStrengthCombo[plane].length;i++){ // do not add negative values
     							planeStrengthCombo[plane][i]*=a;
     						}
         					break;
-    					case 2: // min   
-    					case 3: // max   
+    					case 2: // min
+    					case 3: // max
         					break;
     					}
         			} else {
         				planeStrengthCombo[plane]=null;
         			}
         		}
-				
+
         		zTile.initAux(1);
 				float [] aux0=new float[paddedLength];
 //				float [] aux1=new float[paddedLength];
-       		
+
         		int [] planeIndex=new int[paddedLength];
         		for (int i=0;i<paddedLength;i++)planeIndex[i]=-1;
         		for (int plane=0;plane<zTile.getNumberOfPlanes();plane++) if (planeStrengthCombo[plane]!=null) {
@@ -8423,7 +8447,7 @@ public class PixelMapping {
         				if (	(planeStrengthCombo[plane][iPix]>0) && // should be positive
         						((planeIndex[i]<0) ||((planeStrengthCombo[planeIndex[i]]!=null) &&
         						(planeStrengthCombo[plane]!=null) &&
-        					
+
         						(planeStrengthCombo[planeIndex[i]][iPix] < planeStrengthCombo[plane][iPix])))) { //java.lang.NullPointerException
         					planeIndex[i]=plane;
         					numUsed_dbg++;
@@ -8466,7 +8490,7 @@ public class PixelMapping {
         		for (int i=0;i<paddedLength;i++)aux0[i]=(float) ((planeIndex[i]>=0)?zTile.getPlaneDisparity( planeIndex[i]):0.0); // make it NaN?
         		zTile.setAux(0,aux0);
        		}
-       		
+
        		/**
        		 * calculate auto/inter correaltion of the smaller subtiles
        		 * @param doubleFHT - DHT instance reused by the thread (should be initialized)
@@ -8481,7 +8505,7 @@ public class PixelMapping {
            	public double [][][] subTileCorrelation(
         			DoubleFHT doubleFHT, // will generate if null, can be used to reuse initialization
         			double [][] data,   // difines size
-        			double [] window, // defines tile size 
+        			double [] window, // defines tile size
         			double phaseCoeff, // phase correlation fraction (0 - normal, 1.0 - pure phase)
         			double highPassSigma,
         			double lowPassSigma,
@@ -8528,12 +8552,12 @@ public class PixelMapping {
         		return corrs;
         	}
 
-       		
-       		
-       		
-       		
+
+
+
+
        		/**
-       		 * Calculate occlusion by closer planes to a pixel resolution (use fractions for partially occluded pixels)        		
+       		 * Calculate occlusion by closer planes to a pixel resolution (use fractions for partially occluded pixels)
        		 * @param thisZMap [tileY]tileX]
        		 * @param xc center of the WOI, X
        		 * @param yc center of the WOI, Y
@@ -8548,7 +8572,7 @@ public class PixelMapping {
        				double xc,
        				double yc,
        				double disparity,
-       				double foregroundDisparityMargin, 
+       				double foregroundDisparityMargin,
        				double disparityTolerance,
        				int debugLevel
        		){
@@ -8587,7 +8611,7 @@ public class PixelMapping {
        					tileX,
        					tileY,
        					disparityThresholdFg,
-       					disparity, 
+       					disparity,
            				disparityTolerance,
            				debugLevel);
        			enMasks[0][1]=(bothXY[0])?
@@ -8596,7 +8620,7 @@ public class PixelMapping {
        	       					tileX+1,
        	       					tileY,
        	       					disparityThresholdFg,
-       	       					disparity, 
+       	       					disparity,
        	           				disparityTolerance,
        	           				debugLevel):null;
        			enMasks[1][0]=(bothXY[1])?
@@ -8605,7 +8629,7 @@ public class PixelMapping {
        					tileX,
        					tileY+1,
        					disparityThresholdFg,
-       					disparity, 
+       					disparity,
            				disparityTolerance,
            				debugLevel):null;
        			enMasks[1][1]=(bothXY[0]&&bothXY[1])?getEnabledNonOccluded(
@@ -8613,7 +8637,7 @@ public class PixelMapping {
        					tileX+1,
        					tileY+1,
        					disparityThresholdFg,
-       					disparity, 
+       					disparity,
            				disparityTolerance,
            				debugLevel):null;
 //    			int paddedSize=thisZMap[tileY][tileX].getPaddedSize();
@@ -8684,7 +8708,7 @@ public class PixelMapping {
 /*
         					((int) (Math.floor((double)iXYbr[0])/this.overlapStep))>((int) (Math.floor((double)iXYtl[0])/this.overlapStep)),
        					((int) (Math.floor((double)iXYbr[1])/this.overlapStep))>((int) (Math.floor((double)iXYtl[1])/this.overlapStep))};
-     					
+
  */
     					extraBits[index++]=enMasks[whereY[y][1]][whereX[x][1]][whereY[y][0]*this.paddedSize + whereX[x][0]];
     				}
@@ -8697,7 +8721,7 @@ public class PixelMapping {
 							"EB_-X"+tileX+"-Y"+tileY
 					);
 
-    				
+
     			}
     			int index=0;
     			double [] result=new double[this.paddedSize*this.paddedSize];
@@ -8724,7 +8748,7 @@ public class PixelMapping {
     				int tileX,
     				int tileY,
     				double disparityThresholdFg,
-       				double disparity, 
+       				double disparity,
        				double disparityTolerance,
        				int debugLevel){
     			if ((tileX<0) || (tileY<0) || (tileX>=this.tilesX) || (tileY>=this.tilesY) || (thisZMap[tileY][tileX]==null)){
@@ -8735,7 +8759,7 @@ public class PixelMapping {
     			if (debugLevel>5){
     				boolean [] geno=thisZMap[tileY][tileX].getEnabledNonOccluded(
            					disparityThresholdFg,
-           					disparity, 
+           					disparity,
                				disparityTolerance,
                				debugLevel);
     				int dbgSize=(int)Math.sqrt(geno.length);
@@ -8746,18 +8770,18 @@ public class PixelMapping {
 							"GENO_-X"+tileX+"-Y"+tileY
 					);
 
-    				
+
     			}
 				return thisZMap[tileY][tileX].getEnabledNonOccluded(
        					disparityThresholdFg,
-       					disparity, 
+       					disparity,
            				disparityTolerance,
            				debugLevel);
     		}
         	/**
         	 * Calculate fine-step (4 pix?) correlation between the pair of square images (32x32) that are already shifted to compensate for known disparity
         	 * only center area (with 1/4 margins) will be calculated, if the correlation is strong enough, the updated disparity arrays will be calculated fro these tiles
-        	 *   
+        	 *
         	 * @param data a pair of square arrays to be correlated (32x32 pixels)
         	 * @param window cosine mask (8x8=64 pixels long). If the center element is 0.0 - will generate array
         	 * @param dXY unity vector in the direction of the disparity between the two images
@@ -8768,7 +8792,7 @@ public class PixelMapping {
         	public double [] localCorrelation(
         			DoubleFHT doubleFHT, // will generate if null, can be used to reuse initialization
         			double [][] data,   // difines size
-        			double [] window, // defines tile size 
+        			double [] window, // defines tile size
         			double [] dXY,    // unity vector defines disparity direction
         			double phaseCoeff, // phase correlation fraction (0 - normal, 1.0 - pure phase)
         			double highPassSigma,
@@ -8779,7 +8803,7 @@ public class PixelMapping {
         		return localCorrelation(
         				doubleFHT, // will generate if null, can be used to reuse initialization
     			data,   // difines size
-    			window, // defines tile size 
+    			window, // defines tile size
     			dXY,    // unity vector defines disparity direction
     			phaseCoeff, // phase correlation fraction (0 - normal, 1.0 - pure phase)
     			highPassSigma,
@@ -8788,11 +8812,11 @@ public class PixelMapping {
     			debugLevel,
     			null);
         	}
-        	
+
         	public double [] localCorrelation(
         			DoubleFHT doubleFHT, // will generate if null, can be used to reuse initialization
         			double [][] data,   // difines size
-        			double [] window, // defines tile size 
+        			double [] window, // defines tile size
         			double [] dXY,    // unity vector defines disparity direction
         			double phaseCoeff, // phase correlation fraction (0 - normal, 1.0 - pure phase)
         			double highPassSigma,
@@ -8807,7 +8831,7 @@ public class PixelMapping {
         		int tileExtra=size-tileSize; // 24??
         		int tileLength=tileSize*tileSize; // 64
         		int tileCenter=(tileSize+1)*tileSize/2; // 36
-        		
+
         		int numTilesRow=size/(2*tileStep); // 4
         		if (doubleFHT==null) doubleFHT= new DoubleFHT();
         		if (Double.isNaN(window[0])){
@@ -8853,7 +8877,7 @@ public class PixelMapping {
         					if (normalize==1) {
         						for (int i=0;i<tileLength;i++)sc+=second[i]*second[i];
         						sc=Math.sqrt(sc/tileLength);
-        						if ((debugLevel>3) && (tileY==0) && (tileX==0))	for (int i=0;i<second.length;i++) System.out.println("second["+i+"]="+second[i]); 
+        						if ((debugLevel>3) && (tileY==0) && (tileX==0))	for (int i=0;i<second.length;i++) System.out.println("second["+i+"]="+second[i]);
         						if (debugLevel>2) System.out.println("localCorrelation(): phaseCoeff="+phaseCoeff+" sc="+sc+" second["+tileCenter+"]="+second[tileCenter]);
 
         						sc=second[tileCenter]/sc; // relative correlation strength at zero.
@@ -8862,7 +8886,7 @@ public class PixelMapping {
         					}
         				}
         				if (debugLevel>2) System.out.println("localCorrelation(): sc="+sc);
-        				
+
         				// accumulate result
         	    			int index=topLeft+ tileStep*(tileY*size+ tileX);
             				for (int iy=0;iy<tileSize;iy++){
@@ -8887,7 +8911,7 @@ public class PixelMapping {
         					title);
     			}
 
-/*        		
+/*
         		if (debugArray!=null){
         			String [] dbgTitles={"corr","first","second"};
         			(new showDoubleFloatArrays()).showArrays(
@@ -8898,15 +8922,15 @@ public class PixelMapping {
         					"correlation-refine",
         					dbgTitles);
         		}
-*/        		
+*/
         		return result;
         	}
-   
+
         	/**
-        	 * Create a stack of channel images (YCbCr and optionally with external data 
+        	 * Create a stack of channel images (YCbCr and optionally with external data
         	 * @param xc1 first image center X
         	 * @param yc1 first image center Y
-        	 * @param size square side, power of 2 (will use twice larger internally) 
+        	 * @param size square side, power of 2 (will use twice larger internally)
         	 * @param first image number of the first in pair
         	 * @param second image number of the second in pair
         	 * @param dxA - how much to shift the second image from the first, horizontally, right
@@ -8914,7 +8938,7 @@ public class PixelMapping {
         	 * @param channelMask - channels to use +1 - Y, +2 - Cb, +4-Cr +8 - Aux.
         	 * @param imageData [image][alpha,Y,Cb,Cr,ext][] array of source image data
         	 * @param doubleSizeOutput - output twice the required size tile (to be able to probe around needed pixels
-        	 * @param window - 1d in linescan order, (2*size)*(2*size). Probably - flat==1.0 in the inner size*size area. May be null - will be generated internally  
+        	 * @param window - 1d in linescan order, (2*size)*(2*size). Probably - flat==1.0 in the inner size*size area. May be null - will be generated internally
         	 * @param doubleFHT DoubleFHT or null (to save resources)
         	 * @param debugLevel debug level
         	 * @return 3d array of the shifted slices from 2 images [channel][image number 0,1][pixels]
@@ -8938,15 +8962,15 @@ public class PixelMapping {
         			){
         		int numImgChannels=5; // alpha-Y-Cb-Cr-Ext
         		if (doubleFHT==null) doubleFHT=new DoubleFHT();
-        		int iDx= (int) Math.round(dxA); // 
+        		int iDx= (int) Math.round(dxA); //
         		int iDy= (int) Math.round(dyA);
         		int [] xc={xc1,xc1+ iDx};
         		int [] yc={yc1,yc1+ iDy};
         		double [] dx={-(dxA-iDx)/2,(dxA-iDx)/2}; // sub-pixel shift of the first image, second image
         		double [] dy={-(dyA-iDy)/2,(dyA-iDy)/2};
-        		
+
         		boolean [] shiftImage= {(dx[0]!=0.0) || (dy[0]!=0.0), (dx[1]!=0.0) || (dy[1]!=0.0)};
-        		
+
         		double [][][] result=new double[numImgChannels][][];
         		result[0]=null; // alpha
         		for (int i=0;i<numImgChannels-1;i++) {
@@ -9054,7 +9078,7 @@ public class PixelMapping {
         						for (int iX=0;iX<doubleSize;iX++){
         							if ((oIndex>=result[channel][iImg].length) || (oIndex>=slice.length) || (oIndex>=window.length)){
         								System.out.println("iX="+iX+" iY="+iY+" oIndex="+oIndex);
-        								
+
         							}
         							result[channel][iImg][oIndex]=shiftImage[iImg]?(slice[oIndex]/window[oIndex]+dc):slice[oIndex];// no NaN with Hamming
         							oIndex++;
@@ -9076,7 +9100,7 @@ public class PixelMapping {
         		}
         		return result;
         	}
-        	
+
            	public double [] getSelection(
         			double [] imageSlice, // one image/channel slice
         			double [] selection, // null or array to reuse
@@ -9107,10 +9131,10 @@ public class PixelMapping {
     	    		}
         		return selection;
         	}
- 		
-    		
-    		
-        	
+
+
+
+
         	public void setupZMap(
         			Rectangle woi, // in tiles - may be
         			final int nImg,
@@ -9147,7 +9171,7 @@ public class PixelMapping {
         		if (debugLevel>2) System.out.println("setupZMap() zMapWOI.x="+zMapWOI.x+" zMapWOI.y="+zMapWOI.y+
         				" zMapWOI.width="+zMapWOI.width+" zMapWOI.height="+zMapWOI.height);
         		this.paddedSize=this.overlapStep+2*overlap;
-        		this.innerMask=(BitSet) new BitSet(this.paddedSize*this.paddedSize);
+        		this.innerMask=new BitSet(this.paddedSize*this.paddedSize);
         		for (int i=0;i<this.overlapStep;i++) for (int j=0;j<this.overlapStep;j++){
         			this.innerMask.set((overlap+i)*this.paddedSize+overlap+j);
         		}
@@ -9157,7 +9181,7 @@ public class PixelMapping {
         		for (int i=0;i<tileSize;i++) for (int j=0;j<tileSize;j++){
         			this.borderMask[i*tileSize+j]=((i==0)?5:0)+((i==(tileSize-1))?2:0)+((j==0)?0x50:0)+((j==(tileSize-1))?0x20:0);
         		}
-        		
+
 
         		final Thread[] threads = newThreadArray(threadsMax);
 		   		final AtomicInteger tileIndexAtomic     = new AtomicInteger(0);
@@ -9165,7 +9189,8 @@ public class PixelMapping {
 		   		if (showProgress) IJ.showStatus("Setting up zMap for image "+nImg+" ("+(nImg+1)+" of "+this.disparityScales.length+") ...");
 		   		for (int ithread = 0; ithread < threads.length; ithread++) {
 		   			threads[ithread] = new Thread() {
-		   				public void run() {
+		   				@Override
+						public void run() {
 		   					for (int tile=tileIndexAtomic.getAndIncrement(); tile<tiles;tile=tileIndexAtomic.getAndIncrement()){
 		   						setupZMapTile(
 		   								zMapWOI.x+tile%tilesX, //int tileX,
@@ -9183,7 +9208,8 @@ public class PixelMapping {
 		   						if (showProgress){
 		   							final int finalTile=tile;
 		   							SwingUtilities.invokeLater(new Runnable() {
-		   								public void run() {
+		   								@Override
+										public void run() {
 		   									IJ.showProgress(finalTile,tiles);
 		   								}
 		   							});
@@ -9229,7 +9255,7 @@ public class PixelMapping {
         		int tileXmin=woi.x/this.overlapStep;
         		int tileXmax=(xRight-1)/this.overlapStep+1; // +1 to the last needed
         		if (tileXmax>this.tilesX) tileXmax=this.tilesX;
-        		
+
         		for (int i=0;i<result.length;i++) result[i]=Float.NaN;
         		for (int tileY=tileYmin;tileY<tileYmax;tileY++) for (int tileX=tileXmin;tileX<tileXmax; tileX++){
         			ZTile zTile=this.zMap[nImg][tileY][tileX];
@@ -9267,7 +9293,7 @@ public class PixelMapping {
         		int tileXmin=woi.x/this.overlapStep;
         		int tileXmax=(xRight-1)/this.overlapStep+1; // +1 to the last needed
         		if (tileXmax>this.tilesX) tileXmax=this.tilesX;
-        		
+
         		for (int i=0;i<result.length;i++) result[i]=0.0f;
         		for (int tileY=tileYmin;tileY<tileYmax;tileY++) for (int tileX=tileXmin;tileX<tileXmax; tileX++){
         			ZTile zTile=this.zMap[nImg][tileY][tileX];
@@ -9293,8 +9319,8 @@ public class PixelMapping {
         		}
         		return result;
         	}
-        	
-        	
+
+
         	private void setupZMapTile(
         			int tileX,
         			int tileY,
@@ -9425,7 +9451,7 @@ public class PixelMapping {
         		zTile.setInnerMask(this.innerMask);
         		zTile.setBorderMask(this.borderMask);
         	}
-        	
+
         	private class ZTile{
         		public int numPlanes; //=0;
         		public int size;
@@ -9440,8 +9466,8 @@ public class PixelMapping {
         		public boolean [] enabledPlane;
         		public BitSet [] enabledPixels; //=null;
         		public BitSet [] certainPixels; //=null;
-        		public float [][] likely; //=null; 
-        		public float [][] unlikely; //=null; 
+        		public float [][] likely; //=null;
+        		public float [][] unlikely; //=null;
         		public float [][] auxData=null;
         		private BitSet innerMask=null;
         		private int []borderMask=null;
@@ -9548,10 +9574,10 @@ public class PixelMapping {
         			return this.unlikely[n];
         		}
 
-        		
 
-        		
-        		
+
+
+
         		public void initEnabledForegroundPixelsPlane(){
         			if (this.foregroundThreshold>=this.enabledPixels.length) return; // or make it an error?
         			int paddedSize= this.size+this.overlap*2;
@@ -9716,13 +9742,13 @@ public class PixelMapping {
           		  (this.foregroundIndex<this.maximums.length) && (!this.enabledPlane[this.foregroundIndex] || (this.maximums[this.foregroundIndex][1]<this.foregroundThreshold))
           		  ;this.foregroundIndex++);
             	}
-            	
+
         	} // end of private class ZTile
 
         	public class Photometric{
         		public String [] channelNames={"Y","Cb","Cr","Aux"};
         		public double  [][] valueLimits=null; // lo/high limits for each channel
-        		public int subdivAverage=256; 
+        		public int subdivAverage=256;
         		public int subdivHalfDifference=128; // 257
 //        		public int subdivVariance = 256;
         		public double smoothVarianceSigma=10.0;
@@ -9766,7 +9792,7 @@ public class PixelMapping {
         				double v2,
         				// reduce weight depending on difference, scale to measured variance
         				double scaleVariance,
-        				double kLocal, // 0 - use global varaiance, 1.0 - use local 
+        				double kLocal, // 0 - use global varaiance, 1.0 - use local
         				int nImg1, // first image number
         				int nImg2, // second image number
         				double var1, // first image variance
@@ -9858,10 +9884,10 @@ public class PixelMapping {
         				int chn,
         				double sigma){
         			if (sigma<=0) return;
-        			
+
 //        			double min=this.valueLimits[chn][0];
         			double step=(this.valueLimits[chn][1]-this.valueLimits[chn][0])/(this.subdivAverage-1);
-        			
+
        				(new DoubleGaussianBlur()).blurDouble(
        						staging,
        						this.subdivAverage,
@@ -9875,7 +9901,7 @@ public class PixelMapping {
         				int imageWidth,
         				int margins,
         				double ignoreFraction,
-                		int subdivAverage, 
+                		int subdivAverage,
                 		int subdivHalfDifference,
 //                		int subdivVariance,
                 		double smoothVarianceSigma,
@@ -9883,7 +9909,7 @@ public class PixelMapping {
         				int debugLevel
         				){
         			if (margins<1) margins=1;
-            		this.subdivAverage=subdivAverage; 
+            		this.subdivAverage=subdivAverage;
             		this.subdivHalfDifference=subdivHalfDifference;
 //            		this.subdivVariance = subdivVariance;
             		this.smoothVarianceSigma=smoothVarianceSigma;
@@ -9910,22 +9936,22 @@ public class PixelMapping {
             				}
                 			if (debugLevel>2){
                 				System.out.println("nImg="+nImg+" chn="+chn+
-                						" min0="+IJ.d2s(min,3)+" max0="+IJ.d2s(max,3)); 
+                						" min0="+IJ.d2s(min,3)+" max0="+IJ.d2s(max,3));
                 			}
             				for (int y=margins;y<(imageHeight-margins);y++) for (int x=margins;x<(imageWidth-margins);x++){
             					if (image[y*imageWidth+x]<min) {
             						min=image[y*imageWidth+x];
-                        			if (debugLevel>2)	System.out.println("y="+y+" x="+x+" min="+IJ.d2s(min,3)); 
-                        			
+                        			if (debugLevel>2)	System.out.println("y="+y+" x="+x+" min="+IJ.d2s(min,3));
+
             					}
             					if (image[y*imageWidth+x]>max) {
             						max=image[y*imageWidth+x];
-                        			if (debugLevel>2)	System.out.println("y="+y+" x="+x+" max="+IJ.d2s(max,3)); 
+                        			if (debugLevel>2)	System.out.println("y="+y+" x="+x+" max="+IJ.d2s(max,3));
             					}
             				}
                 			if (debugLevel>2){
                 				System.out.println("nImg="+nImg+" chn="+chn+
-                						" min="+IJ.d2s(min,3)+" max="+IJ.d2s(max,3)); 
+                						" min="+IJ.d2s(min,3)+" max="+IJ.d2s(max,3));
                 			}
 
             			}
@@ -9933,7 +9959,7 @@ public class PixelMapping {
             			for (int i=0;i<histogram.length;i++) histogram[i]=0;
             			double step=(max-min)/(this.histogramSize-0.0001);
             			if (debugLevel>2){
-            				System.out.println(	" min="+IJ.d2s(min,3)+" max="+IJ.d2s(max,3)+" step="+IJ.d2s(step,6)); 
+            				System.out.println(	" min="+IJ.d2s(min,3)+" max="+IJ.d2s(max,3)+" step="+IJ.d2s(step,6));
             			}
 
             			for (int nImg=0;nImg<this.numImages;nImg++) if ((images[nImg]!=null) && (images[nImg][chn]!=null)){
@@ -9950,18 +9976,18 @@ public class PixelMapping {
             			for (int i=0;i<histogram.length;i++)totalNum+= histogram[i];
             			int ignoreNumPix= (int)(Math.floor(totalNum*ignoreFraction));
             			if (debugLevel>2){
-            				System.out.println(	" totalNum="+totalNum+" ignoreNumPix="+ignoreNumPix); 
+            				System.out.println(	" totalNum="+totalNum+" ignoreNumPix="+ignoreNumPix);
             			}
 
             			this.valueLimits[chn]=new double[2];
             			int num=0;
             			for (int i=0;i<histogram.length;i++){
             				num+=histogram[i];
-                			if (debugLevel>2)	System.out.println("---  "+num+" min+"+i+"*step="+IJ.d2s(min+i*step,3)); 
+                			if (debugLevel>2)	System.out.println("---  "+num+" min+"+i+"*step="+IJ.d2s(min+i*step,3));
             			    if (num>=ignoreNumPix){
             			    	this.valueLimits[chn][0]=min+i*step;
                     			if (debugLevel>2){
-                    				System.out.println("i="+i+" min+i*step="+IJ.d2s(min+i*step,3)); 
+                    				System.out.println("i="+i+" min+i*step="+IJ.d2s(min+i*step,3));
                     			}
             			    	break;
             			    }
@@ -9969,18 +9995,18 @@ public class PixelMapping {
             			num=0;
             			for (int i=histogram.length-1;i>=0;i--){
             				num+=histogram[i];
-                			if (debugLevel>2)	System.out.println("---  "+num+" min+"+i+"*step="+IJ.d2s(min+i*step,3)); 
+                			if (debugLevel>2)	System.out.println("---  "+num+" min+"+i+"*step="+IJ.d2s(min+i*step,3));
             			    if (num>=ignoreNumPix){
             			    	this.valueLimits[chn][1]=min+i*step;
                     			if (debugLevel>2){
-                    				System.out.println("i="+i+" min+i*step="+IJ.d2s(min+i*step,3)); 
+                    				System.out.println("i="+i+" min+i*step="+IJ.d2s(min+i*step,3));
                     			}
             			    	break;
             			    }
             			}
             			if (debugLevel>1){
             				System.out.println("Channel '"+this.channelNames[chn]+
-            						"' min="+IJ.d2s(this.valueLimits[chn][0],3)+" max="+IJ.d2s(this.valueLimits[chn][1],3)); 
+            						"' min="+IJ.d2s(this.valueLimits[chn][0],3)+" max="+IJ.d2s(this.valueLimits[chn][1],3));
             			}
             			// calculatye variance for each emage/channel
             			for (int nImg=0;nImg<this.numImages;nImg++) if ((images[nImg]!=null) && (images[nImg][chn]!=null)){
@@ -10020,7 +10046,7 @@ public class PixelMapping {
 //                    			if ((debugLevel>1) && (nImg==0) && (chn==0)){
                         			if ((debugLevel>2) && (nImg==0)){
                     				System.out.println("samples["+i+"]="+samples[i]+
-                    						" this.standardVariance["+nImg+"]["+chn+"]["+i+"]="+IJ.d2s(this.standardVariance[nImg][chn][i],3)); 
+                    						" this.standardVariance["+nImg+"]["+chn+"]["+i+"]="+IJ.d2s(this.standardVariance[nImg][chn][i],3));
                     			}
 
             				}
@@ -10052,7 +10078,7 @@ public class PixelMapping {
             							true //boolean xDirection: true - horizontal
             					);
             				}
-            			}            			
+            			}
             		}
         			// now cteate matchingQuality arrays for each image pair/channel
 //            		this.matchingQuality=new double [this.numImages][this.numImages-1][this.valueLimits.length][this.subdivAverage*this.subdivDifference];
@@ -10101,7 +10127,7 @@ public class PixelMapping {
             				titles[index]=this.channelNames[chn]+"-"+nImg+"-"+sImg;
             				debugData[index++]=(this.matchingQuality[nImg][sIndex][chn]!=null)?this.matchingQuality[nImg][sIndex][chn]:zero;
             			}
-            			
+
             		}
         			(new showDoubleFloatArrays()).showArrays(
         					debugData,
@@ -10113,17 +10139,17 @@ public class PixelMapping {
         		}
         	} // end of private class Photometric
     	} // end of public class DisparityTiles
-    	
+
     	/**
     	 * Calculate fine-step (4 pix?) correlation between the pair of square images (32x32) that are already shifterd to compensate for known disparity
     	 * only center area (with 1/4 margins) will be calculated, if the correlation is strong enough, the updated disparity arrays will be calculated for these tiles
-    	 *   
+    	 *
     	 * @param data a pair of square arrays to be correlated (32x32 pixels)
     	 * @param window cosine mask (8x8=64 pixels long). If the center element is 0.0 - will generate array
     	 * @param dXY unity vector in the direction of the disparity between the two images
     	 * @param phaseCoeff 0.0 - normal correlation, 1.0 - pure phase correlation
-    	 * @param disparityArrays tiles of disparity array, top level should be initialized to double [16] [] (for 32x32=1024 input, 8x8 window) 
-    	 * @param corrMaxDist maximal distance to the correlation maximum 
+    	 * @param disparityArrays tiles of disparity array, top level should be initialized to double [16] [] (for 32x32=1024 input, 8x8 window)
+    	 * @param corrMaxDist maximal distance to the correlation maximum
     	 * @param corrThreshold minimal ratio of correlation(0) to avarage correlation to correct disparity
     	 * @param subPixel subdivide grid and result disparityArrays by this number (power of 2)
     	 * @param generateSmooth generate smooth output (otherwise return null)
@@ -10133,13 +10159,13 @@ public class PixelMapping {
     	public double [] refineCorrelation(
     			DoubleFHT doubleFHT, // will generate if null, can be used to reuse initialization
     			double [][] data,   // difines size
-    			double [] window, // defines tile size 
+    			double [] window, // defines tile size
     			double [] dXY,    // unity vector defines disparity direction
     			double phaseCoeff, // phase correlation fraction (0 - normal, 1.0 - pure phase)
     			double highPassSigma,
     			double lowPassSigma,
     			double [][] disparityArrays, // top level should be initialized
-    			double corrMaxDist, // distance from rhe center to look for the correlation maximum for disparity correction 
+    			double corrMaxDist, // distance from rhe center to look for the correlation maximum for disparity correction
     			double corrThreshold, // relative correlation contrast to correct disparity
     			int subPixel,       // subdivide pixels when updating disparity
     			boolean generateSmooth,
@@ -10151,7 +10177,7 @@ public class PixelMapping {
     		int tileExtra=size-tileSize;
     		int tileLength=tileSize*tileSize;
     		int tileCenter=(tileSize+1)*tileSize/2;
-    		
+
     		int numTilesRow=size/(2*tileStep);
     		if (doubleFHT==null) doubleFHT= new DoubleFHT();
     		if (Double.isNaN(window[0])){
@@ -10195,14 +10221,14 @@ public class PixelMapping {
     							debugArray[1][debugTopLeft+debug_i*debugSize+debug_j]=first[(debug_i/subPixel)*tileSize+(debug_j/subPixel)];
     							debugArray[2][debugTopLeft+debug_i*debugSize+debug_j]=second[(debug_i/subPixel)*tileSize+(debug_j/subPixel)];
     						}
-    						
+
     					}
     				}
     				second=doubleFHT.correlate (second,first,highPassSigma,lowPassSigma,phaseCoeff); // second will be modified
     				double sc=0.0;
     				for (int i=0;i<tileLength;i++)sc+=second[i]*second[i];
     				sc=Math.sqrt(sc/tileLength);
-    				if ((debugLevel>3) && (tileY==0) && (tileX==0))	for (int i=0;i<second.length;i++) System.out.println("second["+i+"]="+second[i]); 
+    				if ((debugLevel>3) && (tileY==0) && (tileX==0))	for (int i=0;i<second.length;i++) System.out.println("second["+i+"]="+second[i]);
     				if (debugLevel>2) System.out.println("refineCorrelation(): phaseCoeff="+phaseCoeff+" sc="+sc+" second["+tileCenter+"]="+second[tileCenter]);
 
     				sc=second[tileCenter]/sc; // realtive correlation strength at zero.
@@ -10217,11 +10243,11 @@ public class PixelMapping {
     						for (int debug_j=0;debug_j<debugTileSize;debug_j++) {
     							debugArray[0][debugTopLeft+debug_i*debugSize+debug_j]=second[(debug_i/subPixel)*tileSize+(debug_j/subPixel)];
     						}
-    						
+
     					}
     				}
     				if (debugLevel>2) System.out.println("refineCorrelation(): sc="+sc+" threshold="+corrThreshold);
-    				
+
     				if (sc>=corrThreshold) {
     					// find absolute maximum on correlation
     					double max=0;
@@ -10263,7 +10289,7 @@ public class PixelMapping {
         						}
         					}
 
-        					
+
             				if (debugArray!=null){
             					int debugSize=size*subPixel;
             					int debugTileSize=tileSize*subPixel;
@@ -10275,7 +10301,7 @@ public class PixelMapping {
             					}
             				}
         					// TODO: update maximum at zero with maximum on the interpolation curve?
-        					
+
         				}
     				}
     				// accumulate result
@@ -10288,7 +10314,7 @@ public class PixelMapping {
     	    		}
     			}
     		}
-    		
+
     		if (debugArray!=null){
     			String [] dbgTitles={"corr","first","second"};
     			(new showDoubleFloatArrays()).showArrays(
@@ -10301,10 +10327,10 @@ public class PixelMapping {
     		}
     		return result;
     	}
-    	
-    	
-    	
-    	
+
+
+
+
        	public double [][][][][] calculateDisparityTiles(
     			final String externalTitle,
     			final double [][] externalData, // if not null - process instead of channel data
@@ -10317,9 +10343,9 @@ public class PixelMapping {
 				final int interpolationSize,
 				final int interpolationUpSample,
     			final int [][][][][][] correlationMap, // [image number][other image index][pixelY][pixelX]{{tiledX,tilledY,pixelIndex}, ...}
-    			final int [] minDispalcementTileX, 
+    			final int [] minDispalcementTileX,
     			final int [] maxDispalcementTileX,
-    			final int [] minDispalcementTileY, 
+    			final int [] minDispalcementTileY,
     			final int [] maxDispalcementTileY,
     			final double corrPhaseFraction,
     			final double correlationHighPassSigma,
@@ -10328,7 +10354,7 @@ public class PixelMapping {
     			final double corrCrWeight,
     			final double[] subpixAMax,
     			final double subpixRMax,
-    			final int    subpixNMax,  
+    			final int    subpixNMax,
 				final int corrFFTSize,
 				final int overlapStep,
 				final int numTilesX,
@@ -10352,14 +10378,14 @@ public class PixelMapping {
     			fhtCache[tileY]=null;
     		}
     		final int numSensors=this.channel.length;
-			int minDispalcementTileXAll=minDispalcementTileX[0]; 
+			int minDispalcementTileXAll=minDispalcementTileX[0];
 			int maxDispalcementTileXAll=maxDispalcementTileX[0];
-			int minDispalcementTileYAll=minDispalcementTileY[0]; 
+			int minDispalcementTileYAll=minDispalcementTileY[0];
 			int maxDispalcementTileYAll=maxDispalcementTileY[0];
 			for (int i=1;i<numSensors;i++){
-				if (minDispalcementTileXAll>minDispalcementTileX[i]) minDispalcementTileXAll=minDispalcementTileX[i]; 
+				if (minDispalcementTileXAll>minDispalcementTileX[i]) minDispalcementTileXAll=minDispalcementTileX[i];
 				if (maxDispalcementTileXAll<maxDispalcementTileX[i]) maxDispalcementTileXAll=maxDispalcementTileX[i];
-				if (minDispalcementTileYAll>minDispalcementTileY[i]) minDispalcementTileYAll=minDispalcementTileY[i]; 
+				if (minDispalcementTileYAll>minDispalcementTileY[i]) minDispalcementTileYAll=minDispalcementTileY[i];
 				if (maxDispalcementTileYAll<maxDispalcementTileY[i]) maxDispalcementTileYAll=maxDispalcementTileY[i];
 			}
 			if (debugLevel>2){
@@ -10381,16 +10407,16 @@ public class PixelMapping {
 			double[] window1d=(new DoubleFHT()).getHamming1d(corrFFTSize,0.0); // pure elevated cosine
 			final double [] window=new double [corrFFTSize*corrFFTSize];
     		for (int iy=0;iy<corrFFTSize;iy++) for (int ix=0;ix<corrFFTSize;ix++) window[iy*corrFFTSize+ix]=window1d[iy]*window1d[ix];
-//  		Window to interpoalate subpixel resolution near correlation local maximums (original pixels)    		
+//  		Window to interpoalate subpixel resolution near correlation local maximums (original pixels)
 			double[] windowInterpolation1d=(new DoubleFHT()).getHamming1d(interpolationSize); // Hamming
 			final double [] windowInterpolation=new double [interpolationSize*interpolationSize];
     		for (int iy=0;iy<interpolationSize;iy++) for (int ix=0;ix<interpolationSize;ix++) windowInterpolation[iy*interpolationSize+ix]=windowInterpolation1d[iy]*windowInterpolation1d[ix];
-//  		Window to interpoalate subpixel resolution near correlation local maximums (subdivided pixels) - divide by this window to cancel the previous one   		
+//  		Window to interpoalate subpixel resolution near correlation local maximums (subdivided pixels) - divide by this window to cancel the previous one
     		int upSampleSize=interpolationSize*interpolationUpSample;
 			double[] windowUpSample1d=(new DoubleFHT()).getHamming1d(upSampleSize); //Hamming
 			final double [] iWindowUpSample=new double [upSampleSize*upSampleSize];  // inverse window
     		for (int iy=0;iy<upSampleSize;iy++) for (int ix=0;ix<upSampleSize;ix++) iWindowUpSample[iy*upSampleSize+ix]=1.0/(windowUpSample1d[iy]*windowUpSample1d[ix]);
-    		
+
     		//Create a flat-top window to switch before pixel and subpixel resolution correlation sections
     		double[] windowSample1d0=(new DoubleFHT()).getHamming1d(upSampleSize/2,0.0); //Pure cosine
     		double[] windowSample1d=new double [upSampleSize];
@@ -10401,7 +10427,7 @@ public class PixelMapping {
     		}
 			final double [] windowSample=new double [upSampleSize*upSampleSize];  // inverse window
     		for (int iy=0;iy<upSampleSize;iy++) for (int ix=0;ix<upSampleSize;ix++) windowSample[iy*upSampleSize+ix]=windowSample1d[iy]*windowSample1d[ix];
-    		
+
 
     		final String [] channelName={"Y","Cb","Cr","Ext"};
     		int [] channelList=null;
@@ -10415,7 +10441,7 @@ public class PixelMapping {
 //    			double [][] externalData, // if not null - process instead of channel data
     		} else {
     			channelList=new int [1];
-    			channelList[0]=3; 
+    			channelList[0]=3;
     		}
     		int channelMaskMod=(externalData==null)?channelMask:8;
     		double [] maskedWeights={
@@ -10432,7 +10458,7 @@ public class PixelMapping {
     		final Thread[] threads = newThreadArray(threadsMax);
     		int numPairs=0;
     		for (int i=0;i<otherImage.length;i++) numPairs+=otherImage[i].length;
-    		final int [][] firstSecondIndex=new int [numPairs][2]; // first image numer, index  of the second image 
+    		final int [][] firstSecondIndex=new int [numPairs][2]; // first image numer, index  of the second image
     		int index=0;
     		for (int i=0;i<otherImage.length;i++) for (int j=0;j<otherImage[i].length;j++){
     			firstSecondIndex[index  ][0]=i;
@@ -10444,8 +10470,8 @@ public class PixelMapping {
     			for (int nImg=0;nImg<numSensors;nImg++) nextCachedY[nImg]=0; // reset before next channel run?
         		for (int tileY=tileYMin;tileY<=tileYMax;tileY++) fhtCache[tileY]=null;
 
-    			
-    			
+
+
     			final int finalChnYCbCr=channelList[iChnYCbCr];
     			if (updateStatus) IJ.showStatus("Correlating channel "+channelName[finalChnYCbCr]);
     			for (int iTileY=tileYMin;iTileY<=tileYMax;iTileY++){
@@ -10460,7 +10486,7 @@ public class PixelMapping {
         				}
     					fhtCache[tileY+minDispalcementTileYAll-1]=null;
     					for (int nImg=0;nImg<numSensors;nImg++){
-    						if (nextCachedY[nImg]<tileY+minDispalcementTileYAll) nextCachedY[nImg]= tileY+minDispalcementTileYAll; // for filling up cache initially only 
+    						if (nextCachedY[nImg]<tileY+minDispalcementTileYAll) nextCachedY[nImg]= tileY+minDispalcementTileYAll; // for filling up cache initially only
     					}
     				}
     				// now free more - tiles for particular images that are "obsolete" earlier than others
@@ -10470,7 +10496,7 @@ public class PixelMapping {
     	    					System.out.println("calculateDisparityTiles(), freeing tile row "+tileYDel+" for image "+nImg);
     	    				}
     						if (fhtCache[tileYDel]!=null) fhtCache[tileYDel][nImg]=null;
-    						if (nextCachedY[nImg]<=tileYDel) nextCachedY[nImg]= tileYDel+1; // for filling up cache initially only 
+    						if (nextCachedY[nImg]<=tileYDel) nextCachedY[nImg]= tileYDel+1; // for filling up cache initially only
     					}
     				}
     				// calculate rows of FHT tiles
@@ -10502,7 +10528,8 @@ public class PixelMapping {
     		   		final AtomicInteger rsltTileAtomic     = new AtomicInteger(0);
     		   		for (int ithread = 0; ithread < threads.length; ithread++) {
     		   			threads[ithread] = new Thread() {
-    		   				public void run() {
+    		   				@Override
+							public void run() {
     		   					DoubleFHT doubleFHT=new DoubleFHT();
     		   					DoubleFHT interpolationFHT=null; // will be initialized if needed
     		   					boolean useFilter=(correlationHighPassSigma>=0.0) || (correlationLowPassSigma>=0.0);
@@ -10512,8 +10539,8 @@ public class PixelMapping {
     		   							correlationLowPassSigma);
     		   					double [][][] stage=null; // [pY][pX]{data, weight}
     		   					for (int rsltTile=rsltTileAtomic.getAndIncrement(); rsltTile<firstSecondIndex.length*(tileXMax-tileXMin+1);rsltTile=rsltTileAtomic.getAndIncrement()){
-//    		   						boolean debugThisTile=(debugLevel>2) && (finalChnYCbCr==0) && (tileY==tileYMin) &&(rsltTile==0); // make 
-    		   						boolean debugThisTile=(debugLevel>2) && (finalChnYCbCr==0) && (tileY==tileYMin) &&(rsltTile==1); // make 
+//    		   						boolean debugThisTile=(debugLevel>2) && (finalChnYCbCr==0) && (tileY==tileYMin) &&(rsltTile==0); // make
+    		   						boolean debugThisTile=(debugLevel>2) && (finalChnYCbCr==0) && (tileY==tileYMin) &&(rsltTile==1); // make
 
     		   						int nImg=firstSecondIndex[rsltTile%firstSecondIndex.length][0];
     		   						int secondIndex=firstSecondIndex[rsltTile%firstSecondIndex.length][1];
@@ -10546,7 +10573,7 @@ public class PixelMapping {
     		   								} else if ((disparityTiles[tileY][tileX][nImg]==null)) {
     		   									System.out.println("disparityTiles["+tileY+"]["+tileX+"]["+nImg+"]==null");
     		   								}
-    		   								disparityTiles[tileY][tileX][nImg][i]=null;      // TODO:java.lang.NullPointerException	
+    		   								disparityTiles[tileY][tileX][nImg][i]=null;      // TODO:java.lang.NullPointerException
     		   							}
     		   						}
     		   						if (disparityTiles[tileY][tileX][nImg][secondIndex]==null){
@@ -10623,10 +10650,10 @@ public class PixelMapping {
     		   						}
     		   						if (debugThisTile && (debugLevel>4)){
     		   							for (int dbg_i=0;dbg_i<stage.length;dbg_i++){
-    		   								System.out.print("\n==== "+dbg_i);	
+    		   								System.out.print("\n==== "+dbg_i);
 
     		   								for (int dbg_j=0;dbg_j<stage[0].length;dbg_j++){
-    		   									System.out.print(" "+dbg_j+":"+stage[dbg_i][dbg_j][0]+"/"+stage[dbg_i][dbg_j][1]);		
+    		   									System.out.print(" "+dbg_j+":"+stage[dbg_i][dbg_j][0]+"/"+stage[dbg_i][dbg_j][1]);
     		   								}
     		   							}
     		   							System.out.println();
@@ -10640,7 +10667,7 @@ public class PixelMapping {
     		   								debugStage[0][i]=(stage[dbgY][dbgX][1]>0)?(stage[dbgY][dbgX][0]/stage[dbgY][dbgX][1]):0.0;
     		   								debugStage[1][i]=stage[dbgY][dbgX][0];
     		   								debugStage[2][i]=stage[dbgY][dbgX][1];
-    		   								
+
     		   							}
     		   							String [] titles={"result","data","weight"};
     		   							(new showDoubleFloatArrays()).showArrays(
@@ -10657,7 +10684,7 @@ public class PixelMapping {
     		   						for (int pY=0;pY<stage.length;pY++) for (int pX=0;pX<stage[0].length;pX++){
     		   							if (stage[pY][pX][1]!=0) stage[pY][pX][0]/=stage[pY][pX][1];
     		   						}
-    		   						
+
     		   						// traverse disparity and linear interpolate (first pass)
     		   						double maxDX=disparityRange*(disparityScales[secondImage][0]-disparityScales[nImg][0]);
     		   						double maxDY=disparityRange*(disparityScales[secondImage][1]-disparityScales[nImg][1]);
@@ -10709,7 +10736,7 @@ public class PixelMapping {
     		   								if (correlationSection[i]>=threshold) numMax++;
     		   								else isMax[i]=false;
     		   							}
-    		   							
+
     		   							if (numMax>subpixNMax) numMax=subpixNMax; // limit to specified number of correlation maximums to subpixel
     		   							int [] maxIndices=new int [numMax];
     		   							maxIndices[0]=iMax;
@@ -10736,7 +10763,7 @@ public class PixelMapping {
     		   								if (n>1){
     		   									double s=maxIndices[maxNum-1]+((nearDown>=0)?nearDown:0)+((nearUp>=0)?nearUp:0);
     		   									int iMerged=(int) Math.round(s/n);
-    		   									
+
     	        		   						if (debugThisTile){
     	        		   							System.out.println("Merging close maximums: "+maxIndices[maxNum-1]+" with "+
     	        		   									((nearDown>=0)?nearDown:"")+" "+((nearUp>=0)?nearUp:"")+" to "+iMerged);
@@ -10762,7 +10789,7 @@ public class PixelMapping {
         		   								System.out.println(n+" "+maxIndices[n]+"("+(d*maxIndices[n])+" pix) "+correlationSection[maxIndices[n]]);
         		   							}
         		   						}
-    		   							
+
     		   							// iterate through all maximums, subdivide pixels around them and replace data in correlationSection
     		   							// alternative way to get subpixel - correlate with proper centered tile (not on a grid), upsample result
     		   							for (int n=0;n<maxNum;n++){
@@ -10773,12 +10800,12 @@ public class PixelMapping {
     		   								int iXTL=centerX+iXC-interpolationSize/2; // interpolation top lext corner relative to TL of the stage array
     		   								int iYTL=centerY+iYC-interpolationSize/2;
     		   								double [] interpolationInput=new double [interpolationSize*interpolationSize];
-    		   								
+
             		   						if (debugThisTile){
             		   							System.out.println("iXC="+iXC+" iYC="+iYC+" iXTL="+iXTL+" iYTL="+iYTL);
             		   						}
 
-    		   								
+
     		   								for (int index=0;index<interpolationInput.length;index++){
     		   									int iiY=index/interpolationSize+iYTL;
     		   									int iiX=index%interpolationSize+iXTL; // no check for OOB - should be guaranteed
@@ -10795,7 +10822,7 @@ public class PixelMapping {
             		   									interpolationSize,
             		   									"II"+n+"-"+iXTL+"-"+iYTL);
 
-            		   						}    		   								
+            		   						}
     		   								// normalize and save DC
     		   								double dc=normalizeAndWindowGetDC (interpolationInput, windowInterpolation);
             		   						if (debugThisTile && (debugLevel>3)){
@@ -10805,8 +10832,8 @@ public class PixelMapping {
             		   									interpolationSize,
             		   									"IW"+n+"-"+iXTL+"-"+iYTL);
 
-            		   						}    		   								
-    		   								
+            		   						}
+
     		   								if (interpolationFHT==null) interpolationFHT=new DoubleFHT();
     		   								double [] upsampled=interpolationFHT.upsample(interpolationInput,interpolationUpSample); // add scalind to upsample()
             		   						if (debugThisTile && (debugLevel>3)){
@@ -10816,7 +10843,7 @@ public class PixelMapping {
             		   									interpolationSize*interpolationUpSample,
             		   									"RO"+n+"-"+iXTL+"-"+iYTL);
 
-            		   						}    		   								
+            		   						}
 
     		   								// divide by scaled window, add removed earlier DC level
     		   								for (int i=0;i<upsampled.length;i++){
@@ -10829,7 +10856,7 @@ public class PixelMapping {
             		   									interpolationSize*interpolationUpSample,
             		   									"IO"+n+"-"+iXTL+"-"+iYTL);
 
-            		   						}    		   								
+            		   						}
     		   								//windowSample
     		   								iXTL-=centerX; // relative to reference center
     		   								iYTL-=centerY; // relative to reference center
@@ -10848,7 +10875,7 @@ public class PixelMapping {
     		   									if ((iY>=iYTL) && (iX>=iXTL) && (iY<iYBR) && (iX<iXBR)){
     		   										//dX-=iX-iXTL;
     		   										//dY-=iY-iYTL;
-    		   										dX-=iXTL; // now relative to interpolation square 
+    		   										dX-=iXTL; // now relative to interpolation square
     		   										dY-=iYTL;
     		   										dX*=interpolationUpSample;
     		   										dY*=interpolationUpSample;
@@ -10866,7 +10893,7 @@ public class PixelMapping {
     	            		   							System.out.print(" Updating point="+di+" isX=" +isX+" isY=" +isY+
     	            		   									" old="+IJ.d2s(correlationSection[di],3));
     	            		   						}
-    		   										
+
     		   										double d= // bi-linear interpolated data
     		   											(upsampled   [index00]*(1.0-dX)+upsampled   [index10]*dX)*(1.0-dY)+
     		   											(upsampled   [index01]*(1.0-dX)+upsampled   [index11]*dX)*     dY;
@@ -10905,14 +10932,14 @@ public class PixelMapping {
     		return disparityTiles;
        	}
 
-    	
+
     	/**
-    	 * Calculate one row of FHT tiles for 1 image/one YCbCr channel, save it in the cache for correlation calculation 
+    	 * Calculate one row of FHT tiles for 1 image/one YCbCr channel, save it in the cache for correlation calculation
     	 * @param altImage     alternative image array - use instead of the YCbCr slice
     	 * @param tileY        number of tile row to calculate
     	 * @param chnYCbCr     channel number 0 - Y, 1 - Cb, 2 - Cr
     	 * @param numImg       image number to use
-    	 * @param window       elevated 2-d cosine (0.5*cos+1) window       
+    	 * @param window       elevated 2-d cosine (0.5*cos+1) window
     	 * @param fhtCache     [tilesY][numImg][tilesx][] array that will be filled with the direct [corrFFTSize*corrFFTSize] FHT data
     	 * @param corrFFTSize  size of the tile side, pixels
     	 * @param overlapStep  tile period, pixels (fraction of corrFFTSize)
@@ -10959,7 +10986,8 @@ public class PixelMapping {
            		final AtomicInteger tileXAtomic     = new AtomicInteger(tileXMin);
            		for (int ithread = 0; ithread < threads.length; ithread++) {
            			threads[ithread] = new Thread() {
-           				public void run() {
+           				@Override
+						public void run() {
            	        		double [] alphaSlice=new double[length];
            	        		double [] channelSlice=new double[length];
            	        		DoubleFHT doubleFHT=new DoubleFHT();
@@ -10993,11 +11021,11 @@ public class PixelMapping {
            		startAndJoin(threads);
     	}
 
-    	
-    	
-    	
+
+
+
     	public double [][] correlate(
-    			int [][] iCenterXY, // for each image - centerX, centerY 
+    			int [][] iCenterXY, // for each image - centerX, centerY
     			boolean autoCorrelation,
 				int corrFFTSize,
 				double phaseCorrelationFraction,
@@ -11011,7 +11039,7 @@ public class PixelMapping {
 				boolean useBinaryAlpha,
 				int threadsMax,
 				int debugLevel){
-    		
+
     		int length=corrFFTSize*corrFFTSize;
     		int numSensors=this.channel.length;
     		int numLayers=this.overlapImages.length/numSensors;
@@ -11110,7 +11138,7 @@ public class PixelMapping {
     							"windowed-Y"+iFirst+"-:"+iSecond,
     							firstSecondTitles);
     				}
-    				// TODO: use common (per-thread) DoubleFHT instance to use caching of sin,cos, filter tables   			
+    				// TODO: use common (per-thread) DoubleFHT instance to use caching of sin,cos, filter tables
     				corr[layerResult]=(new DoubleFHT()).correlate (
     						first,
     						second,
@@ -11131,9 +11159,9 @@ public class PixelMapping {
 
     			}
     		}
-    		
-// specific for disparity along horizontal line only    		
-/*    		
+
+// specific for disparity along horizontal line only
+/*
     		double [] corrRes=correlationResults(
         			corr[0],
         			contrastThreshold,
@@ -11156,13 +11184,13 @@ public class PixelMapping {
     					}
     				}
     			}
-    			
+
     		}
 */
     		return corr;
     	}
 
-    	
+
     	public double [][] correlate( // old for image pairs
     			boolean autoCorrelation,
 				int corrFFTSize,
@@ -11233,9 +11261,9 @@ public class PixelMapping {
         			"windowed-Y"+corrXC+"-y"+corrYC+"-SHFT"+corrShift+"-PC"+phaseCorrelationFraction);
         		}
 
-    			
+
     			normalizeAndWindow(second,window[1],true);
-// TODO: use common (per-thread) DoubleFHT instance to use caching of sin,cos, filter tables   			
+// TODO: use common (per-thread) DoubleFHT instance to use caching of sin,cos, filter tables
     			corr[i+1]=(new DoubleFHT()).correlate (
     					first,
     					second,
@@ -11256,9 +11284,9 @@ public class PixelMapping {
         		for (int j=0;j<length;j++) corr[0][j]+=componentWeights[i]*corr[i+1][j];
 
     		}
-    		
-// specific for disparity along horizontal line only    		
-    		
+
+// specific for disparity along horizontal line only
+
     		double [] corrRes=correlationResults(
         			corr[0],
         			contrastThreshold,
@@ -11281,7 +11309,7 @@ public class PixelMapping {
     					}
     				}
     			}
-    			
+
     		}
 
     		return corr;
@@ -11289,7 +11317,7 @@ public class PixelMapping {
 
     	/**
     	 * Find min/max positions of above threshold values, positions and values of largest maximums above threshold.
-    	 * All positions are relative to the center. 
+    	 * All positions are relative to the center.
     	 * @param corr square correlation array (only horizontal middle line is used)
     	 * @param threshold minimal correlation value to consider
     	 * @param shift add this shift to positions
@@ -11317,7 +11345,7 @@ public class PixelMapping {
     		for (int i=scanMin;i<size;i++ ){
     			double d=corr[index+i];
     			if (d>threshold){
-    				
+
     				if (i>max) max=i;
     				if (i<min) min=i;
     				if ((i>0) && ((d>=corr[index+i-1]) || ((i==scanMin) && !enableNegativeDisparity)) && (i<(size-1)) && (d>corr[index+i+1]))  {
@@ -11330,7 +11358,7 @@ public class PixelMapping {
     		}
     		if (numMax<1) return null;
     		double [] results= new double [2*(numMax+1)];
-    		results[0]=min-(size/2)+shift; 
+    		results[0]=min-(size/2)+shift;
     		results[1]=max-(size/2)+shift;
 // first find all maximums, then reorder (relative maximum values may change
     		int iMax=0;
@@ -11339,7 +11367,7 @@ public class PixelMapping {
     			if (c>threshold){
     				if (i>max) max=i;
     				if (i<min) min=i;
-    				
+
     				if (localMax[i]) {
     					if ((i==scanMin) && (corr[index+i-1]>corr[index+i])) {
     						if (debugLevel>2) System.out.println("correlationResults(): limiting negative disparity to 0");
@@ -11366,7 +11394,7 @@ public class PixelMapping {
     				for (int i=0; i<(numMax-1);i++) {
     	    			if (debugLevel>2) System.out.println("correlationResults(): results["+(2*i+3)+"]="+results[2*i+3]+
     	    					", results["+(2*i+5)+"]="+results[2*i+5]);
-    					
+
     					if (results[2*i+3]<results[2*i+5]){
     						ordered=false;
     						// swap maximums;
@@ -11404,14 +11432,14 @@ public class PixelMapping {
     			for (int iX=xMinLim;iX<xMaxLim;iX++){
     				int tX=iX-this.tilesX0;
     				for (int level=this.tiles0.length-1;level>=0;level--){
-    					
+
     					int size = (this.tilesSize>>level);
 						double [][] tile=this.tiles0[level][tY/size][tX/size];
     					if (tile!=null){
     						int index=iY*this.mapWidth+iX;
     						disparity[2][index]=tile[0][0];
     						disparity[3][index]=tile[0][1]; // contrast background
-    						disparity[4][index]=tile[tile.length-1][0]; // last - FG if available, if not - BG 
+    						disparity[4][index]=tile[tile.length-1][0]; // last - FG if available, if not - BG
     						disparity[5][index]=tile[tile.length-1][1]; // contrast *-ground
     						disparity[0][index]=(disparity[3][index]>disparity[5][index])?disparity[2][index]:disparity[4][index];
     						disparity[1][index]=(disparity[3][index]>disparity[5][index])?disparity[3][index]:disparity[5][index];
@@ -11422,8 +11450,8 @@ public class PixelMapping {
     		}
     		return disparity;
     	}
-    	
-// just temporary to visualize tiles - actual disparity will be processed diffirently 
+
+// just temporary to visualize tiles - actual disparity will be processed diffirently
     	public double [][] showDisparityFromTiles(
     			int debugLevel){
     		double [][] disparity=new double [8][this.mapWidth*this.mapHeight];
@@ -11448,7 +11476,7 @@ public class PixelMapping {
     						int size = (this.tilesSize>>level);
     						double [] tile=this.tiles[side][self][level][tY/size][tX/size];
     						if (tile!=null){
-// find single maximal value    							
+// find single maximal value
     							double maxV=0;
     							int maxI=-1;
     							for (int i=0;i<tile.length;i++) if (tile[i]>maxV){
@@ -11478,7 +11506,7 @@ public class PixelMapping {
     		}
     		return disparity;
     	}
-    	
+
     	public float [][] createAmbiguityMaps(
     			int side,
     			double weightSobel,
@@ -11494,11 +11522,11 @@ public class PixelMapping {
     			double scale,
 
     			int debugLevel){
-    		
+
     		//TODO: *********** here combine with cross-correlation with auto correlation,
 //			int self=0;
 
-    		
+
     		int numSamples= this.maxDisparity-this.minDisparity+1;
     		if (this.ambiguityMap==null){
     			this.ambiguityMap=new float[2][][];
@@ -11554,7 +11582,7 @@ public class PixelMapping {
     						1,
     						debugLevel);
     			}
-    			
+
     			for (int iX=1;iX<this.mapWidth;iX++){
     				double [] line =     new double[numSamples];
     				double [] autoLine = new double[numSamples];
@@ -11592,7 +11620,7 @@ public class PixelMapping {
     							}
     						} else { // find local maximum not equal to absolute one
     							for (int iDisp=0;iDisp<numSamples;iDisp++) if ((line[iDisp]>max[nMax]) && (iDisp!=iMax[0])) {
-    								if (((iDisp==0) || (line[iDisp]>=line[iDisp-1])) && ((iDisp==(numSamples-1)) || (line[iDisp]>=line[iDisp+1]))){ 
+    								if (((iDisp==0) || (line[iDisp]>=line[iDisp-1])) && ((iDisp==(numSamples-1)) || (line[iDisp]>=line[iDisp+1]))){
     									max[nMax]=line[iDisp];
     									iMax[nMax]=iDisp;
     								}
@@ -11647,21 +11675,21 @@ public class PixelMapping {
     				}
     			}
     			if (!Float.isNaN(this.ambiguityMap[side][0][i]) && ((this.ambiguityMap[side][1][i]*bonus)>=threshold)) {
-    				if ((Float.isNaN(this.ambiguityMap[side][2][i]) || 
+    				if ((Float.isNaN(this.ambiguityMap[side][2][i]) ||
     						(
 //    								((this.ambiguityMap[side][3][i]*bonus)<threshold) &&
     								(this.ambiguityMap[side][3][i]<(minSecondFrac*this.ambiguityMap[side][1][i]))
     						))){
     					this.resolvedMap[side][i]=this.ambiguityMap[side][0][i];
-    					
+
     				} else {
-    					this.resolvedMap[side][i]=-2; //ambiguous disparity 
+    					this.resolvedMap[side][i]=-2; //ambiguous disparity
     				}
     			}
     		}
     		return this.resolvedMap[side];// (Float.NaN - undefined, >=0 - disparity, <-1 - ambiguity)
     	}
-    	
+
     	public float [] getResolvedState(
     			int side,
     			double threshold,
@@ -11693,14 +11721,14 @@ public class PixelMapping {
         									(this.ambiguityMap[side][3][i]>=(minSecondFrac*this.ambiguityMap[side][1][i])))){
         				resolvedState[i]=(float) (2.0*scale); // ambiguity
         			}
-    				
+
     			} else {
     				resolvedState[i]=(float) (1.0*scale); // already resolved
     			}
     		}
     		return resolvedState;
     	}
-    	
+
     	public int [] fillVoidsStep(
     			int    side,
     			int    minNumNeib,
@@ -11739,18 +11767,18 @@ public class PixelMapping {
 //	    					int numDefinedNeighbors=0;
 //	    					double [] neighbors=new double [dirs.length];
 	    					for (int dir=0;dir<dirs.length;dir++){
-	    						
+
 	    					}
-	    					
+
 	    				}
 	    			}
 	    		}
     	return null;
     	}
-    	
-    	
-    	
-    	
+
+
+
+
     	public int [] resolveAmbiguityStep(
     			int side,
     			double minExistentAlpha,
@@ -11768,7 +11796,7 @@ public class PixelMapping {
 			  int debugX=280;
 			  int debugY=970;
 			  int debugDelta=10;
-			  
+
 
     		int [] dirs={0,1,1+this.mapWidth,this.mapWidth,-1+this.mapWidth, -1, -1 -this.mapWidth, -this.mapWidth, 1-this.mapWidth};
     		double [] weights={1.0/(1.0+weightCb+weightCr),weightCb/(1.0+weightCb+weightCr),weightCr/(1.0+weightCb+weightCr)};
@@ -11785,7 +11813,7 @@ public class PixelMapping {
     				int index=iY*this.mapWidth+iX;
     				debugLevel=debugLevel0+(((iY>=(debugY-debugDelta))&&(iY<=(debugY+debugDelta))&&
     						(iX>=(debugX-debugDelta))&&(iX<=(debugX+debugDelta)))?1:0);
-    						
+
     				if (this.resolvedMap[side][index]>=0.0){
     					for (int iDir0=0;iDir0<dirs.length;iDir0++) {
     						int index1=index+dirs[iDir0];
@@ -11813,7 +11841,7 @@ public class PixelMapping {
     											this.overlapImages[iAlphaThis][index2]*
     											this.overlapImages[iAlphaOther][index2+((side==0)?dispar:-dispar)];
     									} else {
-    										continue; // 0 alpha 
+    										continue; // 0 alpha
     									}
     									if (existentAlphas[iDir]<minExistentAlpha){
         									if (debugLevel>2){
@@ -11868,7 +11896,7 @@ public class PixelMapping {
     									}
     									newOptions[optionNew[iDir]]=true;
     								}
-    							} // for (int iDir=0;iDir<dirs.length;iDir++) 
+    							} // for (int iDir=0;iDir<dirs.length;iDir++)
     							if (newOptions[0]&&newOptions[1]){
 
     								if (debugLevel>1){
@@ -11904,9 +11932,9 @@ public class PixelMapping {
     		}
     		int [] result={numResol,numFailed};
     		return result;
-    	}    	
-    	
-    	
+    	}
+
+
     	/**
     	 * Combine pixel matching and correlation into disparity map
     	 * @param side 0 - left image, 1 - right
@@ -11914,7 +11942,7 @@ public class PixelMapping {
     	 * @param weightCb weight of the image Cb component as fraction of Y
     	 * @param weightCr weight of the image Cr component as fraction of Y
     	 * @param noiseLev pixel noise as a fraction of the full scale (1.0)
-    	 * @param debugLevel  Debug level 
+    	 * @param debugLevel  Debug level
     	 * @return array of the same format as original image
     	 */
     	public double [] getFrameDisparity(
@@ -11983,15 +12011,15 @@ public class PixelMapping {
     		IJ.showProgress(1.0);
     		return map;
     	}
-    	
-    	
-    	
+
+
+
     	/**
     	 * Generate "cross-section" of the tiles data
     	 * @param sectionY Position of the section
     	 * @param side 0 - left image, 1 - right
-    	 * @param debugLevel Debug level 
-    	 * @return 2d packed array - contrast of correlation for each disparity first,  each pixel - second 
+    	 * @param debugLevel Debug level
+    	 * @return 2d packed array - contrast of correlation for each disparity first,  each pixel - second
     	 */
 
     	public double[]  tilesSection(
@@ -12025,13 +12053,13 @@ public class PixelMapping {
     		}
     		return result;
     	}
-    	
+
     	/**
     	 * Calculate multiplied alpha of the two images along the section for the same array as in tilesSection
     	 * @param sectionY Position of the section
     	 * @param side 0 - left image, 1 - right
-    	 * @param debugLevel Debug level 
-    	 * @return 2d packed array - contrast of correlation for each disparity first,  each pixel - second 
+    	 * @param debugLevel Debug level
+    	 * @return 2d packed array - contrast of correlation for each disparity first,  each pixel - second
     	 */
     	public double[]  alphaSection(
     			int sectionY,
@@ -12055,7 +12083,7 @@ public class PixelMapping {
     		}
     		return result;
     	}
-    	
+
     	public void initSobelY(
     			boolean uncoditionally){
     		if (uncoditionally || (this.sobelY==null)){
@@ -12176,7 +12204,7 @@ public class PixelMapping {
 
 //TODO: make an approximate version, that after making first N steps is looking when the parallel branches will come
     	// as close as 1 orthogonal (not diagonal) pixel apart. THen calculate lengths and areas (adding missing connection)
-    	
+
     	private int commonAncestor(
     			int index1,
     			int index2,
@@ -12187,31 +12215,31 @@ public class PixelMapping {
     			int debugLevel){
     		double ttr1,ttr2;
     		int pDir;
-    		if (debugLevel>2) System.out.println("\n---commonAncestor("+index1+", "+index2+", ...):"); 
+    		if (debugLevel>2) System.out.println("\n---commonAncestor("+index1+", "+index2+", ...):");
     		while ((index1!=index2) && (index1>=0) && (index2>=0)) {
     			 ttr1=timeToReach[index1];
     			 ttr2=timeToReach[index2];
     			if (ttr1>ttr2){
     				if (node[index1]!=null) pDir=(int) node[index1][8][0];
     				else for (pDir=0;pDir<8;pDir++) if ((parents[index1]& (1<<pDir))!=0) break;
-    	    		if (debugLevel>2) System.out.print (" parents["+index1+"]="+String.format("0x%02x",parents[index1])+" pDir="+pDir); 
+    	    		if (debugLevel>2) System.out.print (" parents["+index1+"]="+String.format("0x%02x",parents[index1])+" pDir="+pDir);
     				index1=topology[index1][pDir];
-    	    		if (debugLevel>2) System.out.println (" index1="+index1); 
+    	    		if (debugLevel>2) System.out.println (" index1="+index1);
     			} else {
     				if (node[index2]!=null) pDir=(int) node[index2][8][0];
     				else for (pDir=0;pDir<8;pDir++) if ((parents[index2]& (1<<pDir))!=0) break;
-    	    		if (debugLevel>2) System.out.print (" parents["+index2+"]="+String.format("0x%02x",parents[index2])+" pDir="+pDir); 
+    	    		if (debugLevel>2) System.out.print (" parents["+index2+"]="+String.format("0x%02x",parents[index2])+" pDir="+pDir);
     				index2=topology[index2][pDir];
-    	    		if (debugLevel>2) System.out.println (" index2="+index2); 
+    	    		if (debugLevel>2) System.out.println (" index2="+index2);
     			}
     		}
-    		if (debugLevel>2) System.out.println( ((index1==index2)?index1:-1)+ " => (index1="+index1+", index2="+index2); 
+    		if (debugLevel>2) System.out.println( ((index1==index2)?index1:-1)+ " => (index1="+index1+", index2="+index2);
     		return (index1==index2)?index1:-1;
     	}
 
-    	
+
     	//TODO: enhance nodes by "re-routing"  to the common point (first run wave from the approximate center for some distance, then go back and find the point
-    	// with the smallest sum of times from each of the ends 
+    	// with the smallest sum of times from each of the ends
     	public void thinEdge(
     			ArrayList<Integer> edgeList,
     			double [] image,
@@ -12225,7 +12253,7 @@ public class PixelMapping {
     			int debugLevel0
     			){
 //     		int updateCounts=10;
-     		
+
 //     		int debugXMin=140;
 //     		int debugXMax=155;
 //     		int debugYMin=60;
@@ -12251,7 +12279,7 @@ public class PixelMapping {
    					if ((x1>=0) && (x1<imageWidth) && (y1>=0) && (y1<imageHeight)){
    						Index=x1+y1*imageWidth;
    	   					topology[i][dir]=edgeList.indexOf(Index);
-   					} else topology[i][dir]=-1;   					
+   					} else topology[i][dir]=-1;
    				}
 			}
 			*/
@@ -12270,13 +12298,13 @@ public class PixelMapping {
    					int y1=y+dirs[dir][1];
    					if ((x1>=0) && (x1<imageWidth) && (y1>=0) && (y1<imageHeight)){
    	   					topology[i][dir]=topologyIndex[x1+y1*imageWidth];
-   					} else topology[i][dir]=-1;   					
+   					} else topology[i][dir]=-1;
    				}
 			}
 			topologyIndex=null;
-			
-			
-			
+
+
+
 			double [] speed      = new double[topologySize]; // edge analog value, speed of wave
 			double [] timeToReach= new double[topologySize]; // value on the wave front (when got from a single parent)
 			int    [] pathArea   = new int   [topologySize]; // signed area of the path (YdX-XdY), when it comes from a single parent. Clockwise cycles positive, twice number of pixels
@@ -12291,7 +12319,7 @@ public class PixelMapping {
 				Integer Index=edgeList.get(i);
 				pixelX[i]=(short) (Index%imageWidth);
 				pixelY[i]=(short) (Index/imageWidth);
-				
+
 				speed[i]=image[Index];
 				timeToReach[i]=0;
 				pathArea[i]=0;
@@ -12352,7 +12380,7 @@ public class PixelMapping {
    			    			if (debugLevel>2) System.out.println( " --NEW CELL--");
    						} else {
    							boolean improve=timeToReach[newIndex]>newValue;
-   							// as we take the smallest value from the list, all cells that can be improved do not have their children yet. But may have multiple parents   							
+   							// as we take the smallest value from the list, all cells that can be improved do not have their children yet. But may have multiple parents
    							if (improve){
    								int cycleWithBestArea=newArea-pathArea[newIndex];
    								if (cycleWithBestArea<0) cycleWithBestArea=-cycleWithBestArea;
@@ -12364,11 +12392,11 @@ public class PixelMapping {
    						    			parents,
    						    			node,// to find the best parent if there are many of them
    						    			debugLevel);
-   								
+
    								cycleWithBestArea-=(newLength+pathLength[newIndex]-2*(1+pathLength[commonIndex]));// should be 0 if the paths have no gaps - verify?
    	   			    			if (debugLevel>2) System.out.print( " -- OLD CELL, IMPROVE, cycleWithBestArea="+cycleWithBestArea+" newArea="+newArea+" pathArea["+newIndex+"]="+pathArea[newIndex]+
    	   			    				" newLength="+newLength+" pathLength["+newIndex+"]="+pathLength[newIndex]+" common: pathLength["+commonIndex+"]="+pathLength[commonIndex]);
-   								if (cycleWithBestArea<=minCycleArea){ // replace the only or one of the older parents 
+   								if (cycleWithBestArea<=minCycleArea){ // replace the only or one of the older parents
    									if (node[newIndex]==null){ // just replace, no need to add as it is (still) in the list
    										parents[newIndex]=parentMask;
    									} else { // already has multiple parents - remove those that do not qualify cycles criteria
@@ -12404,7 +12432,7 @@ public class PixelMapping {
    								pathArea[newIndex]=newArea;
    								pathLength[newIndex]=newLength;
    								if (node[newIndex]!=null){ // save the new data to node array, check/remove old parent(s
-   									if (debugLevel>2) System.out.print( " -- node is not null, saving new values to node["+newIndex+"]["+dirToParent+"] "); 
+   									if (debugLevel>2) System.out.print( " -- node is not null, saving new values to node["+newIndex+"]["+dirToParent+"] ");
    									node[newIndex][dirToParent][0]=newValue;
    									node[newIndex][dirToParent][1]=newArea;
    									node[newIndex][dirToParent][2]=newLength;
@@ -12413,7 +12441,7 @@ public class PixelMapping {
    										int cycleWithParentArea=newArea-(int) node[newIndex][pDir][1];
    										if (cycleWithParentArea<0) cycleWithParentArea=-cycleWithParentArea;
    										cycleWithParentArea-=(newLength+ (int) node[newIndex][pDir][2]-2);// should be 0 if the paths have no gaps - verify?
-   										
+
    		   	   			    			if (debugLevel>2) System.out.println( " Comparing paths in the node, cycleWithBestArea="+cycleWithBestArea+" newArea="+newArea+
    		   	   			    					" node["+newIndex+"]["+pDir+"][1]="+node[newIndex][pDir][1]+
    		    	   			    				" newLength="+newLength+" node["+newIndex+"]["+pDir+"][2]="+node[newIndex][pDir][2]);
@@ -12452,7 +12480,7 @@ public class PixelMapping {
    	   								cycleWithBestArea-=(newLength+pathLength[newIndex]-2*(1+pathLength[commonIndex]));// should be 0 if the paths have no gaps - verify?
    	   	   			    			if (debugLevel>2) System.out.println( " cycleWithBestArea="+cycleWithBestArea+" newArea="+newArea+" pathArea["+newIndex+"]="+pathArea[newIndex]+
    	    	   			    				" newLength="+newLength+" pathLength["+newIndex+"]="+pathLength[newIndex]+" common: pathLength["+commonIndex+"]="+pathLength[commonIndex]);
-   	   								
+
    	   								if (cycleWithBestArea>minCycleArea){ // for most (no-node) pixels will fail
    	   	   	   			    			if (debugLevel>2) System.out.print( " cycleWithBestArea> "+minCycleArea+", old parents="+String.format("0x%02x ", parents[newIndex]));
    										int pDir=0;
@@ -12476,11 +12504,11 @@ public class PixelMapping {
    	   									node[newIndex][dirToParent][0]=newValue;
    	   									node[newIndex][dirToParent][1]=newArea;
    	   									node[newIndex][dirToParent][2]=newLength;
-   	   								} // if (cycleWithBestArea>minCycleArea) - do not do anything   			
-   	   								
+   	   								} // if (cycleWithBestArea>minCycleArea) - do not do anything
+
    								} else { // if (node[newIndex]==null){ - adding more to the same node - is that likely?
 		   	   			    		if (debugLevel>2) System.out.print( " Node existed, adding data to direction "+dirToParent);
-   									
+
    									parents[newIndex]|=parentMask; // add new parent (we may remove it later
    									node[newIndex][dirToParent][0]=newValue;
    									node[newIndex][dirToParent][1]=newArea;
@@ -12505,27 +12533,27 @@ public class PixelMapping {
    		   	   			    					" node["+newIndex+"]["+pDir+"][1]="+node[newIndex][pDir][1]+
    		    	   			    				" newLength="+newLength+" node["+newIndex+"]["+pDir+"][2]="+node[newIndex][pDir][2]+" common: pathLength["+commonIndex+"]="+pathLength[commonIndex]);
 
-   										
+
    										if (cycleWithParentArea<minCycleArea){ // remove that parent
    											if (node[newIndex][pDir][0]<newValue) { // remove new one
    	   											parents[newIndex] &=~parentMask;
    	   											break;
    											} else { // remove old one (that was worse).
-   												parents[newIndex] &= ~(1<<pDir); // do not break - may happen that multiple will be removed ?? 
+   												parents[newIndex] &= ~(1<<pDir); // do not break - may happen that multiple will be removed ??
    											}
    										}
    									}
    								}
    							}
    						}
-   						
+
    					} //if (newIndex>=0)
    				}
    			}
    			if (showProgress)IJ.showProgress(1.0);
 // May be a good idea to display wavefront image here for debugging?
 //  			now we can remove extra pixels
-   			if (dbgImage!=null){ //   			float [][]dbgImage=new float [7][image.length]; 
+   			if (dbgImage!=null){ //   			float [][]dbgImage=new float [7][image.length];
    				for (int n=0;n< dbgImage.length;n++) for (int i=0;i<image.length;i++){
    					dbgImage[n][i]=Float.NaN;
    				}
@@ -12533,14 +12561,14 @@ public class PixelMapping {
    					int index=pixelX[i]+pixelY[i]*imageWidth;
    					dbgImage[0][index]=(float) speed[i]; // same as source image, just masked
    					dbgImage[1][index]=(float) timeToReach[i]; //
-   					dbgImage[2][index]=(float) pathArea[i];    // 
-   					dbgImage[3][index]=(float) pathLength[i];  //
+   					dbgImage[2][index]=pathArea[i];    //
+   					dbgImage[3][index]=pathLength[i];  //
    					if (node[i]!=null){
    						int numParents=0;
    						for (int dir=0;dir<8;dir++) if ((parents[i]& (1<<dir))!=0) numParents++;
    						dbgImage[4][index]=numParents;
    					}
-   					dbgImage[6][index]=(float) parents[i];  //
+   					dbgImage[6][index]=parents[i];  //
 
 
    				}
@@ -12557,7 +12585,7 @@ public class PixelMapping {
    				}
 
    			}
-// now trim - first pass   			
+// now trim - first pass
    			waveList=new ArrayList<Integer>(10000);
    			ArrayList<Integer>endsList=new ArrayList<Integer>(10000);
    			byte [] stageBytes=new byte[topologySize];
@@ -12581,7 +12609,7 @@ public class PixelMapping {
    						if (hasGreater && hasChildren) break;
    					}
    				}
-   				if (!hasGreater && !hasChildren){ // try farther 
+   				if (!hasGreater && !hasChildren){ // try farther
    					endsList.clear();
    					endsList.add(new Integer(index));
    					int listPos=0;
@@ -12599,12 +12627,12 @@ public class PixelMapping {
    										endsList.add(childIndex);
    										stageBytes[childIndex]=1;
    									}
-   									
+
    								}
    							}
-   							
+
    						}
-   						
+
    					}
    					while (endsList.size()>0){
    						Integer Index=endsList.remove(0);
@@ -12623,7 +12651,7 @@ public class PixelMapping {
    			stageBytes=null;
    			while (waveList.size()>0){
    				int index=waveList.remove(0);
-// multiple parents is not an excuse for survival   				
+// multiple parents is not an excuse for survival
    				int parentIndex=-1;
    				if (parents[index]==0){
    					System.out.println("2: BUG at X="+pixelX[index]+", Y="+pixelY[index]+" - parents["+index+"]=0");
@@ -12659,7 +12687,7 @@ public class PixelMapping {
    				}
 
    			}
-   			if (dbgImage!=null){ //   			float [][]dbgImage=new float [7][image.length]; 
+   			if (dbgImage!=null){ //   			float [][]dbgImage=new float [7][image.length];
    				for (int i=0;i<topologySize;i++){
    					int index=pixelX[i]+pixelY[i]*imageWidth;
    					dbgImage[5][index]=(parents[i]!=0)?1.0f:0.0f;
@@ -12731,9 +12759,9 @@ public class PixelMapping {
 			if (showProgress) IJ.showStatus("");
     		return bitmapAccumulator;
     	}
-    	
-    	
-    	
+
+
+
     	public float [][] testEdgeThinning(
     			double [] image,
     			boolean [] edges,
@@ -13022,7 +13050,7 @@ public class PixelMapping {
     				numEdge++;
     				if (showProgress) IJ.showStatus("Isolating edge group "+(numEdge)+"...");
     				if (debugLevel>1)   System.out.println("Isolating edge group "+(numEdge)+"...");
-    				while ((startIndex<this.imageLength) && 
+    				while ((startIndex<this.imageLength) &&
     						((edgesAreas[startIndex]!=0) ||
     								(gapsNotEdges?(edgeDistance[startIndex]<=threshold):(edgeDistance[startIndex]>threshold)) ||
     								((startIndex%this.imageWidth)<xMin) ||
@@ -13085,7 +13113,7 @@ public class PixelMapping {
     				int [] edgeAreas,
     				int edgeAreaNumber,
     				int imageWidth,
-    				Rectangle bounds, // bounding rectangle to speed up search. Should not have y, x<2 and > appropriate dimensions 
+    				Rectangle bounds, // bounding rectangle to speed up search. Should not have y, x<2 and > appropriate dimensions
     				boolean showProgress,
     				int debugLevel
     		){
@@ -13093,7 +13121,7 @@ public class PixelMapping {
     			return createInitialEdgeAreaBorder(
     					edgeAreas,
     					edgeAreaNumber,
-    					bounds, // bounding rectangle to speed up search. Should not have y, x<2 and > appropriate dimensions 
+    					bounds, // bounding rectangle to speed up search. Should not have y, x<2 and > appropriate dimensions
     					showProgress,
     					debugLevel);
     		}
@@ -13101,7 +13129,7 @@ public class PixelMapping {
     		public ArrayList<ArrayList<Integer>> createInitialEdgeAreaBorder( // never returns
     				int [] edgeAreas,
     				int edgeAreaNumber,
-    				Rectangle bounds, // bounding rectangle to speed up search. Should not have y, x<2 and > appropriate dimensions 
+    				Rectangle bounds, // bounding rectangle to speed up search. Should not have y, x<2 and > appropriate dimensions
     				boolean showProgress,
     				int debugLevel
     		){
@@ -13114,8 +13142,8 @@ public class PixelMapping {
 
     			for (int y=yMin;y<yMax;y++)	for (int x=xMin;x<xMax;x++){
     				//    			int index=x+y*imageWidth;
-    				//    			stage[x+y*imageWidth]=edgeAreas[x+y*imageWidth]==edgeAreaNumber;	
-    				stage[x+y*this.imageWidth]=false; // just clear	
+    				//    			stage[x+y*imageWidth]=edgeAreas[x+y*imageWidth]==edgeAreaNumber;
+    				stage[x+y*this.imageWidth]=false; // just clear
     			}
 
     			ArrayList<ArrayList<Integer>> boundariesList=new ArrayList<ArrayList<Integer>>(100);
@@ -13127,17 +13155,17 @@ public class PixelMapping {
     								(edgeAreas[startIndex]==edgeAreaNumber))) startIndex++; // this fits
     				if (startIndex>=(length-1)) break;
     				// Now this current does not belong to edgeArea, and the east neighbor - does
-    				int dir=3; // up 
+    				int dir=3; // up
     				ArrayList<Integer> boundarysList=new ArrayList<Integer>(10000);
     				Integer Index=startIndex;
     				int startDir=dir;
-    				
+
 					dir=(startDir+1)%4;
 					if ((edgeAreas[Index+this.iDirs4[dir]]!=edgeAreaNumber)) startDir=dir;
 					else if ((edgeAreas[Index+this.iDirs4[startDir]]==edgeAreaNumber)){
 						dir=(startDir+3)%4;
 						if ((edgeAreas[Index+this.iDirs4[dir]]!=edgeAreaNumber)) startDir=dir;
-						else startDir=(startDir+2)%4; // turn back 
+						else startDir=(startDir+2)%4; // turn back
 					} // nothing matched - go on forward
     				dir=startDir;
     				if (debugLevel>=minDebugLevel) System.out.println("createInitialEdgeAreaBorder(,"+edgeAreaNumber+",..): startIndex="+startIndex+" startDir="+startDir);
@@ -13152,7 +13180,7 @@ public class PixelMapping {
     					else if ((edgeAreas[Index+this.iDirs4[dir]]==edgeAreaNumber)){
     						dir1=(dir+3)%4;
     						if ((edgeAreas[Index+this.iDirs4[dir1]]!=edgeAreaNumber)) dir=dir1;
-    						else dir=(dir+2)%4; // turn back 
+    						else dir=(dir+2)%4; // turn back
     					} // nothing matched - go on forward
         				if (debugLevel>=minDebugLevel){
         					System.out.println("createInitialEdgeAreaBorder(): Index="+Index+", dir="+dir+" x="+(Index%this.imageWidth)+" y=" +(Index/this.imageWidth)+
@@ -13184,7 +13212,7 @@ public class PixelMapping {
     				int edgeAreaNumber, // any if edgeAreas is null
     				ArrayList<ArrayList<Integer>> borders, // will be modified
     				int imageWidth,
-    				Rectangle bounds, // bounding rectangle to speed up search. Should not have y, x<2 and > appropriate dimensions 
+    				Rectangle bounds, // bounding rectangle to speed up search. Should not have y, x<2 and > appropriate dimensions
     				boolean showProgress,
     				int debugLevel
     		){
@@ -13207,27 +13235,27 @@ public class PixelMapping {
 
     			int yMin=bounds.y-margins, yMax=bounds.y+bounds.height+margins,xMin=bounds.x-margins, xMax=bounds.x+bounds.width+margins;
     			for (int y=yMin;y<yMax;y++)	for (int x=xMin;x<xMax;x++){
-    				stage[x+y*imageWidth]=this.emptyCell; // just clear	
+    				stage[x+y*imageWidth]=this.emptyCell; // just clear
     			}
     			// Mark initial border(s)
     			for (int numBorder=0;numBorder<borders.size();numBorder++) {
     				ArrayList<Integer> border= borders.get(numBorder);
     				for (int i=0;i<border.size();i++) stage[border.get(i)]=this.oldCell;
     			}
-    			
+
 				if (debugLevel>=minDebugLevel){
 					float [] fEdge=new float [length];
 					for (int i=0;i<length;i++) fEdge[i]=stage[i];
-					
+
 					(new showDoubleFloatArrays()).showArrays(
 							fEdge,
 							imageWidth,
 							length/imageWidth,
 							"Edge="+edgeAreaNumber);
 				}
-    			
-    			
-    			
+
+
+
     			if (thresholdFinal>thresholdStart) {
     	    		return -1; // error
     			}
@@ -13282,7 +13310,7 @@ public class PixelMapping {
     							}
     							if (numNeibGroups>1){
     								index=index1; // start with old cell - will have to come here again
-    								// no, can not mark it "bad" 
+    								// no, can not mark it "bad"
     							}
     						}
     					}
@@ -13306,7 +13334,7 @@ public class PixelMapping {
     						edgeDistance[blockedCell]=(float)(threshold-1.0);
     						// temporarily block the first non-old cell by lovering threshold
     					}
-    					
+
 
     					// now we do not need old border segment list, can start again:
     					int startIndex=index;
@@ -13314,13 +13342,13 @@ public class PixelMapping {
     					badCells.clear();
     					Integer Index=startIndex;
     					dir=startDir;
-    					
+
     					if (debugLevel>=minDebugLevel){
     						System.out.println(" **** vacuumEdgeAreaBorder() startDir="+startDir+" startIndex="+startIndex+
     								" start-x="+(startIndex%imageWidth)+" start-y="+(startIndex/imageWidth)+
     								" blockedCell="+blockedCell+ " threshold="+threshold);
     					}
-    					
+
 						if (stage[Index]!=this.oldCell) stage[Index]=this.newCell; //*** java.lang.ArrayIndexOutOfBoundsException: -612
     					do {
         					if (debugLevel>=minDebugLevel){
@@ -13335,7 +13363,7 @@ public class PixelMapping {
 //    						if (stage[Index]!=this.oldCell) stage[Index]=this.newCell; //*** java.lang.ArrayIndexOutOfBoundsException: -612
     						Index+=this.iDirs4[dir];//
     						if (stage[Index]!=this.oldCell) stage[Index]=this.newCell; //*** java.lang.ArrayIndexOutOfBoundsException: -612
-    						
+
         					if (debugLevel>=minDebugLevel){
         						System.out.println(" === NEW  Index="+Index+
         								" x="+(Index%imageWidth)+" y="+(Index/imageWidth)+
@@ -13361,7 +13389,7 @@ public class PixelMapping {
             						System.out.println("\nnumNeibGroups="+numNeibGroups+" index2="+index2+
         								" x="+(index2%imageWidth)+" y="+(index2/imageWidth)+" stage[index2]="+stage[index2]+" edgeDistance[index2]="+edgeDistance[index2]);
             					}
-            					
+
 
 //    							if (numNeibGroups>1) continue; // using this cell will break link between edges, do not use it.
     							if (numNeibGroups<2) break; // using this cell will not break link between edges, OK to use it.
@@ -13373,7 +13401,7 @@ public class PixelMapping {
     					} while ((Index!=startIndex) || (dir!=startDir));
     					// restore original value of the blocked cell
     					if (blockedCell>=0) edgeDistance[blockedCell]=blockedCellValue;
-    					// mark new cells as old 
+    					// mark new cells as old
     					// restore bad cells
     					int newCells=0;
     					for (int i=0;i<badCells.size();i++) {
@@ -13404,11 +13432,11 @@ public class PixelMapping {
     			if (edgeAreas!=null){
     				for (int y=bounds.y; y<(bounds.y+bounds.height);y++) for (int x=bounds.x; x<(bounds.x+bounds.width);x++){
     					int index=y*this.imageWidth+x;
-    					if ((edgeAreas[index]==edgeAreaNumber) && (stage[index]==this.oldCell)) edgeAreas[index]=0; // erase it here 
+    					if ((edgeAreas[index]==edgeAreaNumber) && (stage[index]==this.oldCell)) edgeAreas[index]=0; // erase it here
     				}
     			}
-    			
-    			
+
+
         		return totalNewCells;
     		}
     	}
@@ -13460,9 +13488,9 @@ public class PixelMapping {
     			}
     		}
     		return sobelResult;
-    		
+
     	}
-    	
+
     	public double [] sobelFilter1(
     			double [] srcImage,
     			int width,
@@ -13517,7 +13545,7 @@ public class PixelMapping {
     					double s22=Math.abs(s2)*edgeSpreadOrtho;
     					double sp2=Math.abs(s1+s2)*edgeSpreadDiagonal;
     					double sm2=Math.abs(s1-s2)*edgeSpreadDiagonal;
-    					
+
 						sobelResult[index+1]+=s12;
 						sobelResult[index-1]+=s12;
 						sobelResult[index+up]+=  s22;
@@ -13539,7 +13567,7 @@ public class PixelMapping {
     			}
     		}
     		return sobelResult;
-    		
+
     	}
     	public double [] sobelFilter0(
     			double [] srcImage,
@@ -13636,22 +13664,22 @@ public class PixelMapping {
     			}
     		}
     		return sobelResult;
-    		
+
     	}
-    	
+
     	/**
     	 * Calculate difference between pixels on the two images along a section line as (weighted_RMS+noiseLev)/(weighted distance+noiseLev)
     	 * @param sectionY Position of the section line
     	 * @param side 0 - left image, 1 - right
     	 * @param side 0 - correlate with other image, 1 - auto-correlate (to detect periodic)
     	 * @param weightSobel (0.0 ... 1.0) - weight of the image Y component processed by a Sobel edge-detection
-    	 *  (Y will have 1-weightSobel) weight 
+    	 *  (Y will have 1-weightSobel) weight
     	 * @param weightCb weight of the image Cb component as fraction of Y
     	 * @param weightCr weight of the image Cr component as fraction of Y
     	 * @param noiseLev pixel noise as a fraction of the full scale (1.0)
     	 * @return 2d packed array - measure of similarity between matching pixels on the two images, same format as in tilesSection() and alphaSection()
     	 */
-    	
+
     	public double [] sectionPixelDifference(
     			int sectionY,
     			int side,
@@ -13704,11 +13732,11 @@ public class PixelMapping {
     				// Don't be too smart and use simultaneous calculation of the SX and SX2 - got square root of -2.220446049250313E-16,
     				// so first calculate and subtract average
     				for (int nComp=0;nComp<weights.length;nComp++){
-                        double d= images[0][nComp][indexThis]-images[1][nComp][indexOther];			
+                        double d= images[0][nComp][indexThis]-images[1][nComp][indexOther];
                         weightedDiff+=	0.5*weights[nComp]*d*d;
-                        d= images[0][nComp][indexThis-1]-images[1][nComp][indexOther-1];			
+                        d= images[0][nComp][indexThis-1]-images[1][nComp][indexOther-1];
                         weightedDiff+=	0.25*weights[nComp]*d*d;
-                        d= images[0][nComp][indexThis+1]-images[1][nComp][indexOther+1];			
+                        d= images[0][nComp][indexThis+1]-images[1][nComp][indexOther+1];
                         weightedDiff+=	0.25*weights[nComp]*d*d;
 
                         for (int iDir=0;iDir<dirs.length;iDir++){ // 9 points
@@ -13717,19 +13745,19 @@ public class PixelMapping {
     					}
     					SX[0][nComp]/=dirs.length; // make it average
     					SX[1][nComp]/=dirs.length; // make it average
-    					
+
     				}
-    				
+
     				for (int nComp=0;nComp<weights.length;nComp++){
     					double d;
     					for (int iDir=0;iDir<dirs.length;iDir++){ // 9 points
-    					  d=images[0][nComp][indexThis+dirs[iDir]]-SX[0][nComp]; 
+    					  d=images[0][nComp][indexThis+dirs[iDir]]-SX[0][nComp];
     					  SX2[0][nComp]+=d*d;
     					  d=images[1][nComp][indexOther+dirs[iDir]]-SX[1][nComp];
     					  SX2[1][nComp]+=d*d;
     					}
     					weightedRMS+=weights[nComp]*(SX2[0][nComp]+SX2[1][nComp])/(2*dirs.length);
-/*    					
+/*
     					if (debugLevel>1) {
     						System.out.print("sectionPixelDifference(): iX="+iX+" iDispar="+iDispar+" iXOther="+iXOther+
     								" nComp="+nComp+ " SX[0][nComp]="+SX[0][nComp]+" SX2[0]="+SX2[0][nComp]+" SX[1]="+SX[1][nComp]+" SX2[1]="+SX2[1][nComp]);
@@ -13739,21 +13767,21 @@ public class PixelMapping {
     					}
 */
     				}
-    				weightedDiff=Math.sqrt(weightedDiff);	
+    				weightedDiff=Math.sqrt(weightedDiff);
     				weightedRMS= Math.sqrt(weightedRMS);
     				if (noiseLev>=0) result[iX*numSamples+iDispar]=(weightedRMS+noiseLev)/(weightedDiff+noiseLev);
     				else  result[iX*numSamples+iDispar]=(-noiseLev)/(weightedDiff-noiseLev);
-/*    				
+/*
 					if (debugLevel>1) {
 						System.out.println(">>> weightedRMS="+weightedRMS+ " weightedDiff="+weightedDiff+ " result[iX*numSamples+iDispar]="+result[iX*numSamples+iDispar]+
 					" noiseLev="+noiseLev);
 					}
-*/					
+*/
     			}
     		}
     		return result;
     	}
-    	
+
     	public double [] sectionPixelSobel(
     			int sectionY,
     			int side,
@@ -13778,11 +13806,11 @@ public class PixelMapping {
     		return result;
     	}
 
-    	
-    	
-    	
-    	
-    	
+
+
+
+
+
     	public double[]  removePeriodicSection(
     			double [] imageCross,
     			double [] imageAuto,
@@ -13794,7 +13822,7 @@ public class PixelMapping {
     			double scale,
     			int debugLevel){
     		int dbgMin=360,dbgMax=380;
-    		
+
     		int sectionLength=this.mapWidth;
     		int numSamples= this.maxDisparity-this.minDisparity+1;
     		double [] result = new double[sectionLength*numSamples];
@@ -13824,31 +13852,31 @@ public class PixelMapping {
 				index=iX*numSamples;
     			for (int i=0;i<numSamples;i++){
     				result[index++]=cross[i];
-    			}    				
+    			}
     		}
     		return result;
     	}
-    	
-    	
-    	
-    	
+
+
+
+
     	/**
     	 * Combine correlation data with auto-correlation to remove ambiguity caused by periodic patterns
     	 * @param cross Array of correlation results (starting with this.minDisparity, usually -1)
     	 * @param auto Array of auto-correlation (same dimension as cross
-    	 * @param minPeriod Minimal period to consider 
+    	 * @param minPeriod Minimal period to consider
     	 * @param minZeroAuto Minimal autocorrelation value at zero to process
     	 * @param minPeriodContrast Minimal ratio of the first auto-correlation maximum to autocorrelation at zero
     	 * @param minAbsoluteFraction Minimal ratio of the first auto-correlation maximum to the absolute autocorrelation maximum,
     	 * @param blurMaskSigma blur periodic rejection mask with this sigma
-    	 * @param scale Scale rejection mask (scale==1 will reduce the false disparity contrast twice (if the auto had the same first amplitude as zero)  
+    	 * @param scale Scale rejection mask (scale==1 will reduce the false disparity contrast twice (if the auto had the same first amplitude as zero)
     	 * @param debugLevel
     	 * @return null if did not match criteria, otherwise the array to be used instead of cross.
     	 */
-    	
+
     	// TODO: What if we found not the fundamental period but a multiple?
     	// also - does not work (yet) if period is less than disparity
-    	
+
     	public double [] removePeriodic(
     			double [] cross,
     			double [] auto,
@@ -13898,13 +13926,13 @@ public class PixelMapping {
     				break;
     			}
     		}
-    		
+
     		if (iMax<0) {
     			if (debugLevel>1) System.out.println("removePeriodic(): No qualifying period above "+minPeriod+
     					" detected, minIndex="+minIndex+" auto["+(-this.minDisparity)+"]="+auto[-this.minDisparity]);
     			return null; // no maximum above minPeriod
     		}
-    		
+
     		max=auto[iMax];
     		/*
 // Make sure there are no local maximums between zero and this ?
@@ -13921,7 +13949,7 @@ public class PixelMapping {
     			min=auto[i];
     		}
     		int period=iMax-this.minDisparity;
-    		
+
 			if (debugLevel>1) System.out.println("removePeriodic(): period ="+period+" auto["+(-this.minDisparity)+"]="+auto[-this.minDisparity]+
 					" max="+max+" min="+min+" iMin="+iMin);
 			if (min<0) min=0.0; // change floor
@@ -13931,7 +13959,7 @@ public class PixelMapping {
     		double k=scale/auto[-this.minDisparity];
     		for (int i=0;i<numSamples;i++){
     			int iSrc=i-period;
-    			mask[i]=((iSrc>=0) && (cross[iSrc]>min))? (k*(cross[iSrc]-min)):0.0; 
+    			mask[i]=((iSrc>=0) && (cross[iSrc]>min))? (k*(cross[iSrc]-min)):0.0;
     		}
     		if (blurMaskSigma>0.0) {
     			(new DoubleGaussianBlur()).blur1Direction(
@@ -13949,7 +13977,7 @@ public class PixelMapping {
     		/*
     		 double [] mask=auto.clone();
     		double k=scale/auto[-this.minDisparity];
-    		for (int i=0;i<numSamples;i++) mask[i]=((i>iMin) && (auto[i]>min))? (k*(auto[i]-min)):0.0; 
+    		for (int i=0;i<numSamples;i++) mask[i]=((i>iMin) && (auto[i]>min))? (k*(auto[i]-min)):0.0;
     		if (blurMaskSigma>0.0) {
     			(new DoubleGaussianBlur()).blur1Direction(
     					mask,
@@ -13965,7 +13993,7 @@ public class PixelMapping {
 
     		 */
     	}
-    	
+
 
     	/**
     	 * Setup coverage of the overlap area with tiles of the specified size
@@ -13983,11 +14011,11 @@ public class PixelMapping {
     			){
     		this.minDisparity=minDisparity;
     		this.maxDisparity=maxDisparity;
-    		
+
     		int numLayers=this.overlapImages.length/2;
 
     		int minY=this.mapHeight,minX=this.mapWidth,maxY=0,maxX=0;
-    		
+
     		for (int iy=0;iy<this.mapHeight;iy++) for (int ix=0;ix<this.mapWidth;ix++){
     			int index=iy*this.mapWidth+ix;
     			if ((this.overlapImages[0][index]>0) && (this.overlapImages[numLayers][index]>0)){
@@ -13999,7 +14027,7 @@ public class PixelMapping {
     		}
     		if (maxY<minY) {
     			if (this.debugLevel>0) System.out.println("No overlap");
-    			return null; 
+    			return null;
     		}
     		int width= (maxX-minX+1);
     		int height=(maxY-minY+1);
@@ -14026,7 +14054,7 @@ public class PixelMapping {
     	 * Combined tile disparity (from correlation) array with those of parent and neighbors
     	 * @param parentFraction Multiply by (1+max(parentFraction*parent(x),0))
     	 * @param neighborsFraction Multiply by (1+max(Multiply by (1+max(neighborsFraction*neighbors(x),0))[x),0))
-    	 * @param neighborsPower amplify if any of the neighbors share the same disparity, so value is calculated as RMS bnut with variable power instead of 2 
+    	 * @param neighborsPower amplify if any of the neighbors share the same disparity, so value is calculated as RMS bnut with variable power instead of 2
     	 * @param debugLevel Debug level
     	 */
 		public void applyParentAndNeighbors(
@@ -14112,8 +14140,8 @@ public class PixelMapping {
 
 		}
 
-    	
-    	
+
+
     	/**
     	 * Generate tile structure of the disparity values based on correlation between two images. Each (non-null) tile stores an
     	 * array of correlation contrasts for each integer disparity value from this.disparityMin to this.disparityMax (inclusive)
@@ -14138,8 +14166,8 @@ public class PixelMapping {
     	 * @param debugLevel Debug level
     	 * @return Number of non-null tiles
     	 */
-    	
-    	
+
+
     	public int generateTileLevels(
     			int sides,
     			int selves,
@@ -14197,7 +14225,7 @@ public class PixelMapping {
     		return numNonEmptyTiles;
     	}
 
-// Convert to multithread    	
+// Convert to multithread
     	public int  generateTileLevel(
     			int side,
     			int self,
@@ -14248,13 +14276,13 @@ public class PixelMapping {
     		}
     		return numNonEmptyTiles;
     	}
-    	
+
     	/**
     	 * Generate disparity tile by correlating the images, starting with info from the higher level tile (if available)
     	 * @param side 0 - left image, 1 - right image
     	 * @param self 0 - correlation with other, 1 - autocorrelation
     	 * @param level Level of the tile to generate
-    	 * @param tileX Horizontal tile number 
+    	 * @param tileX Horizontal tile number
     	 * @param tileY Vertical tile number
     	 * @param phaseCorrelationFraction 1.0 - use pure phase correlation, 0.0 - just correlation
     	 * @param corrCbWeight relative weight of the Cb component in correlation (Y has weight of 1.0)
@@ -14301,7 +14329,7 @@ public class PixelMapping {
     		if (isCorner) minTileFraction*=minTileFraction;
     		int corrXC=this.tilesX0+tileX*size+size/2;
     		int corrYC=this.tilesY0+tileY*size+size/2;
-    		
+
     		double [] parentTile;
     		if (level==0)	parentTile=null;
     		else {
@@ -14322,10 +14350,10 @@ public class PixelMapping {
         			debugLevel //int debugLevel
         			);
     		if (shifts==null){
-    			
+
     			return null;
     		}
-    		
+
     		if (debugLevel>2){
     			System.out.print("Accumulating - first pass: ");
     		}
@@ -14403,12 +14431,12 @@ public class PixelMapping {
     		this.tiles[side][self][level][tileY][tileX]=accumulatedCorrs[0];
     		return this.tiles[side][self][level][tileY][tileX];
     	}
-    	
-    	
-    	
+
+
+
     	/**
     	 * Create new or additional list of the correlation shifts to try
-    	 * @param threshold Minimal correlation contrast to grant 
+    	 * @param threshold Minimal correlation contrast to grant
     	 * @param size Tile size (half of the correlation FFT size
     	 * @param relativeStep Maximal distance between correlation shifts relative to size (if distance from the new
     	 *  shift and already calculated is less than that, new correlation will not be performed
@@ -14418,7 +14446,7 @@ public class PixelMapping {
     	 * @param debugLevel Debug level
     	 * @return array of non-negative correlation shifts to try (may be zero length if none are needed), null - all below threshold
     	 */
-    	
+
     	int[] generateShiftsList(
     			double threshold,
     			int size,
@@ -14430,7 +14458,7 @@ public class PixelMapping {
     			){
     		int minStep=1; // make it 2?
     		int step=(int) Math.round(relativeStep*size);
-    		if (step<minStep) step=minStep; 
+    		if (step<minStep) step=minStep;
     		if (prevCorrelation==null){
     			int [] initialShifts={0,size/2}; // try two shifts? or just one {0} ?
         		if (debugLevel>2){
@@ -14480,7 +14508,7 @@ public class PixelMapping {
         		}
 
     		}
-    		
+
     		int numMax=0;
     		for (int i=0;i<localMax.length;i++) if (localMax[i]) numMax++;
     		int [] iShifts=new int [numMax];
@@ -14528,7 +14556,7 @@ public class PixelMapping {
     		}
     		return shifts; // may be zero length
     	}
-    	
+
     	/**
     	 * Correlate two images with different shifts (needed when shifts are large compared to FFT size)
     	 * and accumulate results into an array, starting with specified  this.minDisparity
@@ -14550,7 +14578,7 @@ public class PixelMapping {
     	 * @param minTileFraction Minimal tile overlap fraction to process tile (will be squared in the corners of the tile map)
     	 * @param threadsMax Maximal number of concurrent threads to run
     	 * @param debugLevel Debug level
-    	 * @return accumulated Correlation results for the specified range of disparities as [0][], [1][] = number of samples averaged 
+    	 * @return accumulated Correlation results for the specified range of disparities as [0][], [1][] = number of samples averaged
     	 */
 
     	public double [][] correlateMultipleShifts(
@@ -14670,7 +14698,7 @@ public class PixelMapping {
         				accumulatedCorrelation[1][resultIndex+j]+=1.0;
         			}
         		}
-        		
+
     		}
     		int numPoints=0;
     		for (int i=0; i<accumulatedCorrelation[0].length;i++){
@@ -14689,7 +14717,7 @@ public class PixelMapping {
     		return accumulatedCorrelation;
     	}
 
-// old version (*0), delete    	
+// old version (*0), delete
     	public double [][] collectDisparityFromTiles0(
     			int debugLevel){
     		double [][] disparity=new double [6][this.mapWidth*this.mapHeight];
@@ -14709,14 +14737,14 @@ public class PixelMapping {
     			for (int iX=xMinLim;iX<xMaxLim;iX++){
     				int tX=iX-this.tilesX0;
     				for (int level=this.tiles0.length-1;level>=0;level--){
-    					
+
     					int size = (this.tilesSize>>level);
 						double [][] tile=this.tiles0[level][tY/size][tX/size];
     					if (tile!=null){
     						int index=iY*this.mapWidth+iX;
     						disparity[2][index]=tile[0][0];
     						disparity[3][index]=tile[0][1]; // contrast background
-    						disparity[4][index]=tile[tile.length-1][0]; // last - FG if available, if not - BG 
+    						disparity[4][index]=tile[tile.length-1][0]; // last - FG if available, if not - BG
     						disparity[5][index]=tile[tile.length-1][1]; // contrast *-ground
     						disparity[0][index]=(disparity[3][index]>disparity[5][index])?disparity[2][index]:disparity[4][index];
     						disparity[1][index]=(disparity[3][index]>disparity[5][index])?disparity[3][index]:disparity[5][index];
@@ -14727,7 +14755,7 @@ public class PixelMapping {
     		}
     		return disparity;
     	}
-    	
+
     	public int [] generateTileLevels0(
     			double phaseCorrelationFraction,
 				double corrCbWeight,
@@ -14775,7 +14803,7 @@ public class PixelMapping {
     		return result;
     	}
 
-// Convert to multithread    	
+// Convert to multithread
     	public int [] generateTileLevel0(
     			int level,
 				double phaseCorrelationFraction,
@@ -14823,12 +14851,12 @@ public class PixelMapping {
     		int [] result={numNonEmptyTiles,numWithForeground};
     		return result;
     	}
-    	
-    	
+
+
     	/**
     	 * Generate disparity tile by correlating the images, starting with info from the higher level tile (if available)
     	 * @param level level of the tile to generate
-    	 * @param tileX Horizontal tile number 
+    	 * @param tileX Horizontal tile number
     	 * @param tileY Vertical tile number
     	 * @param phaseCorrelationFraction 1.0 - use pure phase correlation, 0.0 - just correlation
     	 * @param correlationHighPassSigma Correlation high-pass filter sigma,  pixels in frequency domain
@@ -14881,14 +14909,14 @@ public class PixelMapping {
     		}
     		if (parentTile==null) return null; // no parent to this tile
     		double [][] corrResults ={null,null};
-    		int [] shifts={-1,-1}; // undefined 
+    		int [] shifts={-1,-1}; // undefined
     		double[] hamming1d=doubleFHT.getHamming1d(corrFFTSize);
     		double [] componentWeights={
     				1.0/(1.0+corrCbWeight+corrCrWeight),
     				corrCbWeight/(1.0+corrCbWeight+corrCrWeight),
     				corrCrWeight/(1.0+corrCbWeight+corrCrWeight)};
-    		
-    		
+
+
     		int length=corrFFTSize*corrFFTSize;
     		for (int numBgFg=0;numBgFg<parentTile.length;numBgFg++) if (parentTile[numBgFg]!=null){ // try for both for- and backgrounds
     			shifts[numBgFg]=(int) Math.round(parentTile[numBgFg][0]);
@@ -14942,7 +14970,7 @@ public class PixelMapping {
         				}
         			}
             		for (int j=0;j<length;j++) corr[0][j]+=componentWeights[i]*corr[i+1][j];
-            		
+
         		}
         		corrResults[numBgFg]=correlationResults(
             			corr[0], // composite - Y, Cb, Cr
@@ -14959,7 +14987,7 @@ public class PixelMapping {
 						", max="+IJ.d2s(corrResults[numBgFg][1],3)+
 						", MAX1="+IJ.d2s(corrResults[numBgFg][2],3)+" ("+IJ.d2s(corrResults[numBgFg][3],3)+")";
 						for (int j=2;j<(corrResults[numBgFg].length/2);j++){
-							dbgStr+=", MAX"+j+"="+IJ.d2s(corrResults[numBgFg][2*j],3)+" ("+IJ.d2s(corrResults[numBgFg][2*j+1],3)+")"; 
+							dbgStr+=", MAX"+j+"="+IJ.d2s(corrResults[numBgFg][2*j],3)+" ("+IJ.d2s(corrResults[numBgFg][2*j+1],3)+")";
 						}
 					}
 					System.out.println(dbgStr);
@@ -14992,7 +15020,7 @@ public class PixelMapping {
     				newShift[i]=true;
     			}
     		}
-    		
+
     		// re-run correlation with selections centered at target shifts[i]
     		for (int numShift=0;numShift<shifts.length;numShift++) if (newShift[numShift]){
         		double [][] selection = getSelection(
@@ -15062,14 +15090,14 @@ public class PixelMapping {
 						", max="+IJ.d2s(corrResults[numShift][1],3)+
 						", MAX1="+IJ.d2s(corrResults[numShift][2],3)+" ("+IJ.d2s(corrResults[numShift][3],3)+")";
 						for (int j=2;j<(corrResults[numShift].length/2);j++){
-							dbgStr+=", MAX"+j+"="+IJ.d2s(corrResults[numShift][2*j],3)+" ("+IJ.d2s(corrResults[numShift][2*j+1],3)+")"; 
+							dbgStr+=", MAX"+j+"="+IJ.d2s(corrResults[numShift][2*j],3)+" ("+IJ.d2s(corrResults[numShift][2*j+1],3)+")";
 						}
 					}
 					System.out.println(dbgStr);
 				}
 
-        		
-        		
+
+
     		}
   // now one or 2 correlations were run with shifts[] , each of the results is expected to be close to those (that)
     		double [][] rslt = {null,null};
@@ -15116,10 +15144,10 @@ public class PixelMapping {
     		}
     		return this.tiles0[level][tileY][tileX];
     	}
-    	
-    	
-    	
-    	
+
+
+
+
     	/**
     	 * Setup coverage of the overlap area with tiles of the specified size
     	 * @param size Tile size (half of the windowed FFT size)
@@ -15132,7 +15160,7 @@ public class PixelMapping {
     		int numLayers=this.overlapImages.length/2;
 
     		int minY=this.mapHeight,minX=this.mapWidth,maxY=0,maxX=0;
-    		
+
     		for (int iy=0;iy<this.mapHeight;iy++) for (int ix=0;ix<this.mapWidth;ix++){
     			int index=iy*this.mapWidth+ix;
     			if ((this.overlapImages[0][index]>0) && (this.overlapImages[numLayers][index]>0)){
@@ -15144,7 +15172,7 @@ public class PixelMapping {
     		}
     		if (maxY<minY) {
     			if (this.debugLevel>0) System.out.println("No overlap");
-    			return null; 
+    			return null;
     		}
     		int width= (maxX-minX+1);
     		int height=(maxY-minY+1);
@@ -15165,8 +15193,8 @@ public class PixelMapping {
     		}
     		return nTiles;
     	}
-    	
-    	
+
+
     	/**
     	 * Get a square selection (for FFT-based correlation) from a pair of A-Y-Cb-Cr images. OK if selection extends beyond source image
     	 * @param size size of square side
@@ -15229,7 +15257,7 @@ public class PixelMapping {
 				default:x0[i]=xc-width/2;
 				}
 			}
-			
+
     		if ((numSensors!=2) || (this.overlapImages[0]==null)  || (this.overlapImages[0]==null)) {
     			pairType=0;
     		}
@@ -15267,7 +15295,7 @@ public class PixelMapping {
     		}
     		return selection;
     	}
-/*  
+/*
     	public double [] getSelection(
 				int width,
 				int height,
@@ -15323,7 +15351,7 @@ public class PixelMapping {
 	    		}
     		return selection;
     	}
-    	
+
     	public double [][] getSelection(
 				int width,
 				int height,
@@ -15360,8 +15388,8 @@ public class PixelMapping {
     		return selection;
     	}
 
-    	
-    	
+
+
     	public double [] selectionStats(
     			double [][]selection,
     			boolean binaryAlpha){
@@ -15381,12 +15409,12 @@ public class PixelMapping {
     		for (int i=0;i<stats.length;i++) stats[i]/=selection[0].length;
     		return stats;
     	}
-    	
+
     	/**
     	 * Normalize square data by dividing each element by the RMS of the high-frequency part of it
     	 * @param data square array (packed in 1d in line-scan order), will be modified
-    	 * @param filterSigma filter sigma (in pixels), HF filter is subtraction of Gaussian- blurred copy 
-    	 * @return RMS of the original data 
+    	 * @param filterSigma filter sigma (in pixels), HF filter is subtraction of Gaussian- blurred copy
+    	 * @return RMS of the original data
     	 */
     	public double hFNoiseNormalize(
     			double [] data,
@@ -15429,7 +15457,7 @@ public class PixelMapping {
     			for (j=0;j<pixels.length;j++){
     				s+=pixels[j]*windowFunction[j];
     				s0+=windowFunction[j];
-    				
+
     			}
     			s/=s0;
     		}
@@ -15451,7 +15479,7 @@ public class PixelMapping {
     		return s;
     	}
 
-    	
+
     	public ImagePlus resampleToOverlapRGB24(
     			boolean isOverlap, // false - justsome projection  plane image
     			ImagePlus imp,
@@ -15469,10 +15497,10 @@ public class PixelMapping {
     			IJ.showMessage(msg);
     			return null;
     		}
-//TODO - make for any number of channels available in the map 
+//TODO - make for any number of channels available in the map
     		int index;
     		for (index=0;index<this.channel.length;index++) if (channel==this.channel[index]) break;
-    		
+
     		if (index>=this.channel.length){
     			String msg="This map is for channel"+((this.channel.length>1)?"s ":" ");
     			for (int i=0;i<this.channel.length;i++){
@@ -15498,14 +15526,15 @@ public class PixelMapping {
     		IJ.showStatus("Warping image channel "+channel);
     		for (int ithread = 0; ithread < threads.length; ithread++) {
     			threads[ithread] = new Thread() {
-    				public void run() {
+    				@Override
+					public void run() {
     					for (int opy=opyAtomic.getAndIncrement(); opy<mapHeight;opy=opyAtomic.getAndIncrement()){
 
     						for (int opx=0;opx<mapWidth;opx++){
 
     							int oIndex=opy*mapWidth+opx;
     							double [] RGBA={255*map[2][oIndex],0.0,0.0,0.0};
-    							if (RGBA[0]>0){ // do not convolve pixels with alpha=0; 
+    							if (RGBA[0]>0){ // do not convolve pixels with alpha=0;
     								double x=scale*map[0][oIndex];
     								double y=scale*map[1][oIndex];
     								int ix= (int) Math.round(x);
@@ -15546,7 +15575,8 @@ public class PixelMapping {
     						final int numFinished=opyDoneAtomic.getAndIncrement();
     						//					IJ.showProgress(progressValues[numFinished]);
     						SwingUtilities.invokeLater(new Runnable() {
-    							public void run() {
+    							@Override
+								public void run() {
     								// Here, we can safely update the GUI
     								// because we'll be called from the
     								// event dispatch thread
@@ -15573,10 +15603,10 @@ public class PixelMapping {
     	}
     }
 
-    
-    
-    
-    
+
+
+
+
 	public class SensorData{
 		public String path=null;
 		public int    channel=   -1;
@@ -15589,7 +15619,7 @@ public class PixelMapping {
     	public double right;   // distance to the right (radius*sin(azimuth))
     	public double forward; // distance forward (radius*cos(azimuth))
     	public double heading;   // absolute heading in degrees (used in cartesian mode)
-	    
+
     	public double azimuth; // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     	public double radius;  // mm, distance from the rotation axis
     	public double height;       // mm, up - from the origin point
@@ -15608,15 +15638,15 @@ public class PixelMapping {
 		public double distortionC=0.0; // r^2
 		public double px0=1296.0;          // center of the lens on the sensor, pixels
 		public double py0=968.0;           // center of the lens on the sensor, pixels
-		
+
 	    public double [][] pixelCorrection=      null; // x,y, alpha, add flat, color, etc.
 //	    public double []   sensorMask=           null;
 	    public int    pixelCorrectionDecimation= 1;
 	    public int    pixelCorrectionWidth=      2592;
 	    public int    pixelCorrectionHeight=     1936;
 	    public double entrancePupilForward=      0.0;
-	    
-	    
+
+
 	    private double [] rByRDist=null;
 	    private double    stepR=0.001;
 	    private double    maxR=2.0; // calculate up to this*distortionRadius
@@ -15626,25 +15656,25 @@ public class PixelMapping {
 
 	    public int [][] defectsXY=null; // pixel defects coordinates list (starting with worst)
 		public double [] defectsDiff=null; // pixel defects value (diff from average of neighbors), matching defectsXY
-	    
+
 	    // TODO - add option to generate individual flat projections
 		public InterSensor interSensor=null; // multiple sensors may have the same instance of the interSensor
 
 		// new non-radial parameters
 		final private boolean cummulativeCorrection=true; // r_xy, r_od for higher terms are relative to lower ones
-		final private double [][] r_xy_dflt={{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0}}; // only 6, as for the first term delta x, delta y ==0  
+		final private double [][] r_xy_dflt={{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0}}; // only 6, as for the first term delta x, delta y ==0
 		final private double [][] r_od_dflt=   {{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0}}; // ortho
-		
-		public double [][] r_xy=null; // only 6, as for the first term delta x, delta y ==0  
+
+		public double [][] r_xy=null; // only 6, as for the first term delta x, delta y ==0
 		public double [][] r_od=null; // ortho
 
-		public double [][] r_xyod=null; //{x0,y0,ortho, diagonal}   
+		public double [][] r_xyod=null; //{x0,y0,ortho, diagonal}
 
-	    
+
 	    public SensorData (String channelPath , boolean ok ){
 	    	createEquirectangularMap(channelPath);
 	    }
-	    
+
 	    public void createEquirectangularMap(String channelPath){
 	    	this.equirectangularMap= new EquirectangularMap(channelPath);
 
@@ -15657,7 +15687,7 @@ public class PixelMapping {
 			for (int i=0;i<r_xy.length;i++) r_xy[i]=r_xy_dflt[i].clone();
     	}
 
-	    
+
 	    public double [][] getNonRadialCumulative(){
     		this.r_xyod=new double [this.r_od.length][4]; //{x0,y0,ortho, diagonal}
     		this.r_xyod[0][0]=0.0; // this.px0; //
@@ -15681,8 +15711,8 @@ public class PixelMapping {
     		}
     		return this.r_xyod;
 	    }
-	    
-	    
+
+
         public String [][] parameterDescriptions ={ // was 17, now 43
         		{"Azimuth",       "Subcamera azimuth, clockwise looking from top","degrees"},                                    //  0
         		{"Distance",      "Subcamera distance from the axis","mm"},                                                      //  1
@@ -15701,7 +15731,7 @@ public class PixelMapping {
     			{"DistortionB",   "Distortion B (r^3)","relative"},                                                              // 14 23 20
     			{"DistortionC",   "Distortion C (r^2)","relative"},                                                              // 15 24 21
     			{"entrancePupilForward",   "Distance to actual entrance pupil from the lens center (positive - away from sensor)","mm"}, // 16 25
-    			
+
         		{"elong_C_o",   "Orthogonal elongation for r^2", "relative"},     //17
         		{"elong_C_d",   "Diagonal   elongation for r^2", "relative"},     //18
 
@@ -15709,7 +15739,7 @@ public class PixelMapping {
         		{"eccen_B_y",   "Distortion center shift Y for r^3", "relative"}, //20
         		{"elong_B_o",   "Orthogonal elongation for r^3", "relative"},     //21
         		{"elong_B_d",   "Diagonal   elongation for r^3", "relative"},     //22
-        		
+
         		{"eccen_A_x",   "Distortion center shift X for r^4", "relative"}, //23
         		{"eccen_A_y",   "Distortion center shift Y for r^4", "relative"}, //24
         		{"elong_A_o",   "Orthogonal elongation for r^4", "relative"},     //25
@@ -15761,7 +15791,7 @@ public class PixelMapping {
 	    			this.r_xy[0][1],
 	    			this.r_od[1][0],
 	    			this.r_od[1][1],
-	    			
+
 	    			this.r_xy[1][0],
 	    			this.r_xy[1][1],
 	    			this.r_od[2][0],
@@ -15802,9 +15832,10 @@ public class PixelMapping {
 	    	return parameterDescriptions[index][2];
 	    }
 	    public String getPath(){return this.path;}
-	    
+
 		/**
 		 * Interpolate (bi-linear) X/Y corrections and flat-field data for the sensor
+		 * @param rgbOnly - only flat field, no geometry
 		 * @param px     - pixel X coordinate (non-decimated)
 		 * @param py     - pixel Y coordinate (non-decimated)
 		 * @return       - vector of {corrX, corrY, alpha, flatfield_red, flatfield_green, flatfield_blue}
@@ -15844,12 +15875,12 @@ public class PixelMapping {
 			}
 			return vector;
 		}
-	    
+
 		public double [] getBayerFlatField(
 				int width,
 				int height,
 				int [][] bayer){ //{{1,0},{2,1}} GR/BG
-			
+
 			double [] corrScale = new double [width*height];
 			for (int y=0;y<height;y++) for (int x=0;x<width;x++){
 				int iBayer=bayer[y&1][x&1];
@@ -15858,7 +15889,7 @@ public class PixelMapping {
 						x,    //double px,
 						y //double py)
 						);
-				
+
 /*				double d=interpolateCorrectionVector(
 						true, // boolean rgbOnly,
 						x,    //double px,
@@ -15868,7 +15899,7 @@ public class PixelMapping {
 					System.out.println("getBayerFlatField(): v.length="+v.length+" x="+x+" y="+y+" iBayer="+iBayer);
 				}
 				double d=v[iBayer];
-				if (d!=0.0) d=1.0/d; 
+				if (d!=0.0) d=1.0/d;
 				corrScale[y*width+x]=d;
 			}
 			return corrScale;
@@ -15877,7 +15908,7 @@ public class PixelMapping {
 				int width,
 				int height,
 				int [][] bayer){ //{{1,0},{2,1}} GR/BG
-			
+
 			float [] corrScale = new float [width*height];
 			for (int y=0;y<height;y++) for (int x=0;x<width;x++){
 				int iBayer=bayer[y&1][x&1];
@@ -15895,7 +15926,7 @@ public class PixelMapping {
 					System.out.println("getBayerFlatField(): v.length="+v.length+" x="+x+" y="+y+" iBayer="+iBayer);
 				}
 				double d=v[iBayer];
-				if (d!=0.0) d=1.0/d; 
+				if (d!=0.0) d=1.0/d;
 				corrScale[y*width+x]= (float) d;
 			}
 			return corrScale;
@@ -15906,7 +15937,7 @@ public class PixelMapping {
 		public double [] getDefectsDiff(){
 			return this.defectsDiff;
 		}
-	    
+
 	    public class  DirectMap{
 	    	public int width;
 	    	public int height;
@@ -15950,7 +15981,7 @@ public class PixelMapping {
 	    	public float [][] map; // saving memory : first index - pixel #, empty -  null, otherwise {x,y,alpha, ...)
 	    	public float [][] partialMap; //
 	    	public Rectangle mapWOI=null;  // selection of the partialMap in the overall map. May
-	    	
+
 	    	public EquirectangularMap(String path){
 		        setMapFromImageStack(path);
 		    	this.degreesPerPixel=(this.longitudeRight-this.longitudeLeft)/(this.pixelsHorizontal-0); // with 360 - last pixel (this.longitudeRight) IS NOT included !
@@ -15992,8 +16023,8 @@ public class PixelMapping {
 		    	this.numLayers=numLayers;
 		    	this.map=new float[this.pixelsVertical*this.pixelsHorizontal][];
 		    }
-		    
-		    
+
+
 	        public ImagePlus saveMapAsImageStack(String title, String path){
 	        	ImagePlus imp=getMapAsImageStack(title);
 	        	if (imp==null) return null;
@@ -16019,23 +16050,23 @@ public class PixelMapping {
         			else            stack.addSlice("layer"+n,this.partialMap[n]);
         		}
         		ImagePlus imp = new ImagePlus(title, stack);
-	// TODO: add more properties here (MAC+channel)? preserve other properties?        	
+	// TODO: add more properties here (MAC+channel)? preserve other properties?
 	        	imp.setProperty("channel",   ""+this.channel);  // image channel
 	        	imp.setProperty("XPosition", ""+this.mapWOI.x); // real XPosition as tiff tag 0x11e is rational (5)
 	        	imp.setProperty("YPosition", ""+this.mapWOI.y); // real XPosition as tiff tag 0x11f is rational (5)
 	        	imp.setProperty("ImageFullWidth", "" +this.pixelsHorizontal);// real ImageFullWidth as tiff tag 0x8214 is rational (5)
 	        	imp.setProperty("ImageFullLength", ""+this.pixelsVertical);   // real ImageFullLength as tiff tag 0x8215 is rational (5)
-	        	
+
 	        	imp.setProperty("longitudeLeft",  ""+this.longitudeLeft);
 	        	imp.setProperty("longitudeRight", ""+this.longitudeRight);
 	        	imp.setProperty("latitudeTop",    ""+this.latitudeTop);
 	        	imp.setProperty("latitudeBottom", ""+this.latitudeBottom);
-	        	
+
 	        	(new JP46_Reader_camera(false)).encodeProperiesToInfo(imp);
 	        	imp.getProcessor().resetMinAndMax();
 	        	return imp;
 	        }
-	
+
 	        public void setMapFromImageStack(String path){
 	        	Opener opener=new Opener();
 	        	ImagePlus imp=opener.openImage("", path);
@@ -16067,7 +16098,7 @@ public class PixelMapping {
 	        		this.latitudeTop=Double.parseDouble ((String) imp.getProperty("latitudeTop"));
 	        	if (imp.getProperty("latitudeBottom")!=null)
 	        		this.latitudeBottom=Double.parseDouble ((String) imp.getProperty("latitudeBottom"));
-	        	
+
         		ImageStack stack = imp.getStack();
             	if (stack==null) {
             		String msg="Expected a image stack with masks";
@@ -16079,9 +16110,9 @@ public class PixelMapping {
             	for (int i=0;i<numChannels;i++) this.partialMap[i]= (float[]) stack.getPixels(i+1);
 //            	System.out.println("setMapFromImageStack(): loaded "+path);
 	        }
-	        
-		    
-		    
+
+
+
 		    public int createPartialMap(int width){ // does not delete the original map
 		    	int [] histogram=new int [this.pixelsHorizontal];
 		    	for (int i=0;i<this.pixelsHorizontal;i++) histogram[i]=0;
@@ -16094,8 +16125,8 @@ public class PixelMapping {
 		    			numLayers=this.map[index-1].length;
 		    		}
 		    		histogram[iLong]++;
-		    		if (minILat>iLat) minILat=iLat;  
-		    		if (maxILat<iLat) maxILat=iLat;  
+		    		if (minILat>iLat) minILat=iLat;
+		    		if (maxILat<iLat) maxILat=iLat;
 		    	}
 		    	int maxHist=0;
 		    	int minILong=-1;
@@ -16131,7 +16162,7 @@ public class PixelMapping {
 		    		}
 		    	}
 		    	return numPix;
-		    	
+
 		    }
 
 	    }
@@ -16152,13 +16183,13 @@ public class PixelMapping {
 	    	setSensorDataFromImageStack(imp);
 	    }
 	    public SensorData (){} // just to get parameter names
-	    
+
 	    public int getChannel(){return this.channel;}
 	    public int getSubChannel(){return this.subchannel;}
 	    public int getSubCamera(){return this.subcamera;}
 	    public int getSensorPort(){return this.sensor_port;}
-	    
-	    
+
+
 	    public void setSensorDataFromImageStack(ImagePlus imp){
 //	    	int corrX=0,corrY=1,corrMask=2;
 	    	if (imp == null){
@@ -16192,23 +16223,23 @@ public class PixelMapping {
 	    		IJ.showMessage("Error",msg);
 	    		throw new IllegalArgumentException (msg);
 	        }
-	        
+
 	    	if (imp.getStackSize()<3){
 	    		String msg="Expecting >=3 slices, got "+imp.getStackSize();
 	    		IJ.showMessage("Error",msg);
 	    		throw new IllegalArgumentException (msg);
 	    	}
-			
+
 			ImageStack stack = imp.getStack();
 			float [][] pixels =new float[stack.getSize()][];
 	    	for (int i=0;i<pixels.length;i++) pixels[i]= (float[]) stack.getPixels(i+1);
 
 
-	        
+
 	        this.pixelCorrectionWidth=      Integer.parseInt  ((String) imp.getProperty("pixelCorrectionWidth"));
 	        this.pixelCorrectionHeight=     Integer.parseInt  ((String) imp.getProperty("pixelCorrectionHeight"));
 	        this.pixelCorrectionDecimation= Integer.parseInt  ((String) imp.getProperty("pixelCorrectionDecimation"));
-	        
+
 	        this.distortionRadius= Double.parseDouble((String) imp.getProperty("distortionRadius"));
 	        this.focalLength=      Double.parseDouble((String) imp.getProperty("focalLength"));
 	        this.pixelSize=        Double.parseDouble((String) imp.getProperty("pixelSize"));
@@ -16232,13 +16263,13 @@ public class PixelMapping {
 	        this.theta=            Double.parseDouble((String) imp.getProperty("elevation"));
 	        this.psi=              Double.parseDouble((String) imp.getProperty("roll"));
 	        this.channel=          Integer.parseInt  ((String) imp.getProperty("channel"));
-// older files do not have these properties	        
+// older files do not have these properties
 	        if (imp.getProperty("subcamera")!=null)  this.subcamera= Integer.parseInt((String) imp.getProperty("subcamera"));
 	        if (imp.getProperty("subchannel")!=null) this.subchannel=Integer.parseInt((String) imp.getProperty("subchannel"));
 	        if (imp.getProperty("sensor_port")!=null) this.sensor_port=Integer.parseInt((String) imp.getProperty("sensor_port"));
-	        
-	        
-	        
+
+
+
 	        // now read the calibration data and mask
 	        	this.pixelCorrection=null;
 	        this.pixelCorrection=new double [pixels.length] [pixels[0].length];
@@ -16261,7 +16292,7 @@ public class PixelMapping {
         		this.defectsXY=null;
         		this.defectsDiff=null;
         	}
-	        
+
         	setDefaultNonRadial();
 			for (int i=0;i<this.r_xy.length;i++) {
 				if (imp.getProperty("r_xy_"+i+"_x")  !=null) this.r_xy[i][0]= Double.parseDouble((String) imp.getProperty("r_xy_"+i+"_x"));
@@ -16271,11 +16302,11 @@ public class PixelMapping {
 				if (imp.getProperty("r_od_"+i+"_o")  !=null) this.r_od[i][0]= Double.parseDouble((String) imp.getProperty("r_od_"+i+"_o"));
 				if (imp.getProperty("r_od_"+i+"_d")  !=null) this.r_od[i][1]= Double.parseDouble((String) imp.getProperty("r_od_"+i+"_d"));
 			}
-			
+
         	if (imp.getProperty("forward")  !=null) this.forward=  Double.parseDouble((String) imp.getProperty("forward"));
         	if (imp.getProperty("right")    !=null) this.right=    Double.parseDouble((String) imp.getProperty("right"));
         	if (imp.getProperty("aheading") !=null) this.heading=  Double.parseDouble((String) imp.getProperty("aheading"));
-			
+
         	if (imp.getProperty("cartesian") !=null) {
         		this.cartesian= Boolean.parseBoolean((String) imp.getProperty("cartesian"));
         		updateCartesian(); // recalculate other parameters (they may or may nort be provided
@@ -16283,26 +16314,26 @@ public class PixelMapping {
         		this.cartesian = false;
         	}
 	    }
-	    
+
     	public void updateCartesian(){ // set alternative parameters
     		if (cartesian) {
     			this.azimuth = Math.atan2(this.right, this.forward)*180.0/Math.PI;
     			this.radius = Math.sqrt(this.forward*this.forward + this.right*this.right);
-    			this.phi = this.heading - this.azimuth; 
+    			this.phi = this.heading - this.azimuth;
     		} else {
-    			this.forward = this.radius * Math.cos(Math.PI*this.azimuth/180.0); 
-    			this.right =   this.radius * Math.sin(Math.PI*this.azimuth/180.0); 
+    			this.forward = this.radius * Math.cos(Math.PI*this.azimuth/180.0);
+    			this.right =   this.radius * Math.sin(Math.PI*this.azimuth/180.0);
     			this.heading = this.phi +  this.azimuth;
     		}
     	}
-	    
-	    
-	    
+
+
+
 	    /**
-	     * Calculate rotation matrix that converts sensor coordinates to world coordinates 
+	     * Calculate rotation matrix that converts sensor coordinates to world coordinates
 	     * @return 3x3 rotation matrix
 	     */
-	    
+
 	    public Matrix rotateSensorCoordToPanoCoord(){
         	double sAZP=Math.sin((this.azimuth+this.phi)*Math.PI/180);
         	double cAZP=Math.cos((this.azimuth+this.phi)*Math.PI/180);
@@ -16319,7 +16350,7 @@ public class PixelMapping {
         	*/
         	    	double [][] aR1={{cPS,sPS,0.0},{-sPS,cPS,0.0},{0.0,0.0,1.0}};
         	    	Matrix R1=new Matrix(aR1);
-        	/*    	
+        	/*
         	2) rotate by - theta around C1X:Vc2= R2*Vc1
         	| Xc2 |   |    1         0         0        |   |Xc1|
         	| Yc2 | = |    0    cos(theta)   sin(theta) | * |Yc1|
@@ -16327,7 +16358,7 @@ public class PixelMapping {
         	*/
         	    	double [][] aR2={{1.0,0.0,0.0},{0.0,cTH,sTH},{0.0,-sTH,cTH}};
         	    	Matrix R2=new Matrix(aR2);
-        	/*    	
+        	/*
         	3) rotate by -(azimuth+phi) around C2Y:Vc3= R3*Vc2
         	| Xc3 |   | cos(azimuth+phi)    0   sin(azimuth+phi)   |   |Xc2|
         	| Yc3 | = |     0               1         0            | * |Yc2|
@@ -16415,7 +16446,7 @@ public class PixelMapping {
 	    			}
 	    			x-=corr[0]; // same sign as in Distortions.initFittingSeries()
 	    			y-=corr[1];
-	    			x-=this.px0; // 
+	    			x-=this.px0; //
 	    			y-=this.py0; // from the lens center
 	    			x*=0.001*this.pixelSize;
 	    			y*=0.001*this.pixelSize;
@@ -16458,7 +16489,7 @@ public class PixelMapping {
 	    		IJ.showProgress(iy, this.directMap.height-1);
 	    	}
 	    }
-	    
+
 	    public double ipow(double a, int b){
 	    	switch (b) {
 	    	case 1: return a;
@@ -16475,7 +16506,7 @@ public class PixelMapping {
 	    	}
 	    }
 
-	    
+
 	    public void combineDistortionsEquirectangularToSensor(
 	    		int    channel,
 		    	double longitudeLeft0,
@@ -16532,15 +16563,16 @@ public class PixelMapping {
 	    	final double distortionB =    this.distortionB;
 	    	final double distortionC =    this.distortionC;
 	    	final double [][] r_xyod=getNonRadialCumulative();
-	    	
+
 //	    	final double d=1.0-this.distortionA8-this.distortionA7-this.distortionA6-this.distortionA5-this.distortionA-this.distortionB-this.distortionC;
 //	    	final boolean use8=(this.distortionA8!=0.0) || (this.distortionA7!=0.0) || (this.distortionA6!=0.0);
 	    	final EquirectangularMap equirectangularMap=this.equirectangularMap;
-	    	
+
 //	    	for (int iLat=0;iLat<equirectangularMap.pixelsVertical;iLat++){
 	    	for (int ithread = 0; ithread < threads.length; ithread++) {
 	    		threads[ithread] = new Thread() {
-	    			public void run() {
+	    			@Override
+					public void run() {
 	    				for (int iLat=ipLatAtomic.getAndIncrement(); iLat<equirectangularMap.pixelsVertical;iLat=ipLatAtomic.getAndIncrement()){
 	    		        	double [] a={distortionC,distortionB,distortionA,distortionA5,distortionA6,distortionA7,distortionA8};
 	    					double latitude=equirectangularMap.latitudeTop-equirectangularMap.degreesPerPixel*iLat;
@@ -16580,7 +16612,7 @@ public class PixelMapping {
 //	    					        		if ((debugLevel>2) && ((r_xyod[i][0]!=0.0) || (r_xyod[i][0]!=0.0))){
 //	    					        			System.out.println ("i="+i+" r_xyod[i][0]="+r_xyod[i][0]+" r_xyod[i][1]="+r_xyod[i][1]+" a[0]="+a[0]+" a[1]="+a[1]+" a[2]="+a[2]+" a[3]="+a[3]);
 //	    					        		}
-	    					        	}	    								
+	    					        	}
 //	    					        	double [] xyDist={v[0]+distortionRadius*deltaX, v[1]+distortionRadius*deltaY};
 	    								pXY=new double[2];
 	    					        	// convert to sensor pixels coordinates
@@ -16591,8 +16623,8 @@ public class PixelMapping {
 	    								if (use8) k=((((((distortionA8*r+distortionA7)*r+distortionA6)*r+distortionA5)*r + distortionA)*r+distortionB)*r+distortionC)*r+d;
 	    								else	  k=(((distortionA5*r + distortionA)*r+distortionB)*r+distortionC)*r+d;
 	    								// calculate in sensor pixel
-	    								pXY[0]= v[0]*k*1000.0/pixelSize+px0; // in pixels, right 
-	    								pXY[1]=-v[1]*k*1000.0/pixelSize+py0; // in pixels, down 
+	    								pXY[0]= v[0]*k*1000.0/pixelSize+px0; // in pixels, right
+	    								pXY[1]=-v[1]*k*1000.0/pixelSize+py0; // in pixels, down
 	    								*/
 	    								// un-apply residual correction, for now - consider it small/smooth to skip reverse mapping, make it a two step
 	    								int corrX=((int) Math.floor(pXY[0]/pixelCorrectionDecimation));
@@ -16634,7 +16666,7 @@ public class PixelMapping {
 	    								}
 	    								pXY[0]+=corr[0]; // opposite sign as in Distortions.initFittingSeries()
 	    								pXY[1]+=corr[1];
-	    								// map to image pixels 
+	    								// map to image pixels
 	    								pXY[0]=(pXY[0]-equirectangularMap.x0)/equirectangularMap.pixelStep;
 	    								pXY[1]=(pXY[1]-equirectangularMap.y0)/equirectangularMap.pixelStep;
 	    								if (
@@ -16651,13 +16683,14 @@ public class PixelMapping {
 	    								}
 	    							}
 	    						}
-	    						if (pXY==null) equirectangularMap.map[outIndex]=null; 
+	    						if (pXY==null) equirectangularMap.map[outIndex]=null;
 	    					}
 	    					//	    		IJ.showProgress(iLat, equirectangularMap.pixelsVertical-1);
 	    					final int numFinished=ipLatDoneAtomic.getAndIncrement();
 	    					//					IJ.showProgress(progressValues[numFinished]);
 	    					SwingUtilities.invokeLater(new Runnable() {
-	    						public void run() {
+	    						@Override
+								public void run() {
 	    							// Here, we can safely update the GUI
 	    							// because we'll be called from the
 	    							// event dispatch thread
@@ -16670,8 +16703,8 @@ public class PixelMapping {
 	    	}
 	    	startAndJoin(threads);
 	    }
-	    
-	    
+
+
 	    public void combineDistortionsEquirectangularToSensorRadial( // old version without non-radial terms
 	    		int    channel,
 		    	double longitudeLeft0,
@@ -16726,15 +16759,16 @@ public class PixelMapping {
 	    	final double distortionA =    this.distortionA;
 	    	final double distortionB =    this.distortionB;
 	    	final double distortionC =    this.distortionC;
-	    	
+
 	    	final double d=1.0-this.distortionA8-this.distortionA7-this.distortionA6-this.distortionA5-this.distortionA-this.distortionB-this.distortionC;
 	    	final boolean use8=(this.distortionA8!=0.0) || (this.distortionA7!=0.0) || (this.distortionA6!=0.0);
 	    	final EquirectangularMap equirectangularMap=this.equirectangularMap;
-	    	
+
 //	    	for (int iLat=0;iLat<equirectangularMap.pixelsVertical;iLat++){
 	    	for (int ithread = 0; ithread < threads.length; ithread++) {
 	    		threads[ithread] = new Thread() {
-	    			public void run() {
+	    			@Override
+					public void run() {
 	    				for (int iLat=ipLatAtomic.getAndIncrement(); iLat<equirectangularMap.pixelsVertical;iLat=ipLatAtomic.getAndIncrement()){
 
 	    					double latitude=equirectangularMap.latitudeTop-equirectangularMap.degreesPerPixel*iLat;
@@ -16760,8 +16794,8 @@ public class PixelMapping {
 	    								else	  k=(((distortionA5*r + distortionA)*r+distortionB)*r+distortionC)*r+d;
 	    								// calculate in sensor pixel
 	    								pXY=new double[2];
-	    								pXY[0]= v[0]*k*1000.0/pixelSize+px0; // in pixels, right 
-	    								pXY[1]=-v[1]*k*1000.0/pixelSize+py0; // in pixels, down 
+	    								pXY[0]= v[0]*k*1000.0/pixelSize+px0; // in pixels, right
+	    								pXY[1]=-v[1]*k*1000.0/pixelSize+py0; // in pixels, down
 	    								// un-apply residual correction, for now - consider it small/smooth to skip reverse mapping, make it a two step
 	    								int corrX=((int) Math.floor(pXY[0]/pixelCorrectionDecimation));
 	    								int corrY=((int) Math.floor(pXY[1]/pixelCorrectionDecimation));
@@ -16802,7 +16836,7 @@ public class PixelMapping {
 	    								}
 	    								pXY[0]+=corr[0]; // opposite sign as in Distortions.initFittingSeries()
 	    								pXY[1]+=corr[1];
-	    								// map to image pixels 
+	    								// map to image pixels
 	    								pXY[0]=(pXY[0]-equirectangularMap.x0)/equirectangularMap.pixelStep;
 	    								pXY[1]=(pXY[1]-equirectangularMap.y0)/equirectangularMap.pixelStep;
 	    								if (
@@ -16819,14 +16853,15 @@ public class PixelMapping {
 	    								}
 	    							}
 	    						}
-	    						if (pXY==null) equirectangularMap.map[outIndex]=null; 
+	    						if (pXY==null) equirectangularMap.map[outIndex]=null;
 
 	    					}
 	    					//	    		IJ.showProgress(iLat, equirectangularMap.pixelsVertical-1);
 	    					final int numFinished=ipLatDoneAtomic.getAndIncrement();
 	    					//					IJ.showProgress(progressValues[numFinished]);
 	    					SwingUtilities.invokeLater(new Runnable() {
-	    						public void run() {
+	    						@Override
+								public void run() {
 	    							// Here, we can safely update the GUI
 	    							// because we'll be called from the
 	    							// event dispatch thread
@@ -16844,8 +16879,8 @@ public class PixelMapping {
 	    }
 
 	    /**
-	     * Calculate reverse distortion table - from pixel radius to non-distorted radius	
-	     * Rdist/R=A5*R^4+A*R^3+B*R^2+C*R+(1-A5-A-B-C)    
+	     * Calculate reverse distortion table - from pixel radius to non-distorted radius
+	     * Rdist/R=A5*R^4+A*R^3+B*R^2+C*R+(1-A5-A-B-C)
 	     * @return false if distortion is too high
 	     */
 	    public boolean calcReverseDistortionTable(){
@@ -16892,7 +16927,7 @@ public class PixelMapping {
 	    		if (bailOut) {
 					if (debugThis)	System.out.println("calcReverseDistortionTable() i="+i+" Bailing out, drDistDr="+drDistDr);
 	    			return false;
-	    		} 
+	    		}
 	    		rPrev=r;
 	    		this.rByRDist[i]=r/rDist;
 				if (debugThis)	System.out.println("calcReverseDistortionTable() i="+i+" rDist="+rDist+" r="+r+" rPrev="+rPrev+" this.rByRDist[i]="+this.rByRDist[i]);
@@ -16921,10 +16956,10 @@ public class PixelMapping {
 	    		if (debug) System.out.println("this.rByRDist["+(index+1)+"]="+this.rByRDist[index+1]);
 	    		if (debug) System.out.println("rDist="+rDist);
 	    		if (debug) System.out.println("(rDist/this.stepR="+(rDist/this.stepR));
-	    		
+
 	    	}
 	    	return result;
-	    	
+
 	    }
 
 	}
@@ -16950,7 +16985,7 @@ public class PixelMapping {
 		}
 
 		try
-		{   
+		{
 			for (int ithread = 0; ithread < threads.length; ++ithread)
 				threads[ithread].join();
 		} catch (InterruptedException ie)

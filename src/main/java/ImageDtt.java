@@ -4042,7 +4042,7 @@ public class ImageDtt {
 		public double data_y   = 0.0; // kernel data is relative to this displacement Y (0.5 pixel increments)
 		public double center_x = 0.0; // actual center X (use to find derivatives)
 		public double center_y = 0.0; // actual center X (use to find derivatives)
-		public double dxc_dx   = 0.0; // add this to data_x per each pixel X-shift relative to the kernel centger location
+		public double dxc_dx   = 0.0; // add this to data_x per each pixel X-shift relative to the kernel center location
 		public double dxc_dy   = 0.0; // same per each Y-shift pixel
 		public double dyc_dx   = 0.0;
 		public double dyc_dy   = 0.0;
@@ -4075,6 +4075,17 @@ public class ImageDtt {
 		}
 	}
 
+	public void offsetKernelSensor(
+			double [][] clt_tile, // clt tile, including [4] - metadata
+			double dx,
+			double dy) {
+		CltExtra ce = new CltExtra (clt_tile[4]);
+		ce.center_x += dx;
+		ce.center_y += dy;
+		ce.data_x +=   dx;
+		ce.data_y +=   dy;
+		clt_tile[4] = ce.getArray();
+	}
 	public void clt_fill_coord_corr(
 			final int               kern_step, // distance between kernel centers, in pixels.
 			final double [][][][][] clt_data,
@@ -4201,6 +4212,8 @@ public class ImageDtt {
 			// same with extra shift
 			px = centerX - transform_size - (ce.data_x + ce.dxc_dx * kdx + ce.dxc_dy * kdy) ; // fractional left corner
 			py = centerY - transform_size - (ce.data_y + ce.dyc_dx * kdx + ce.dyc_dy * kdy) ; // fractional top corner
+		}else {
+			System.out.println("Skipping kernels!!!");
 		}
 		if (bdebug0){
 			System.out.print(px+"\t"+py+"\t");
