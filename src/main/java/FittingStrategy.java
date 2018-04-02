@@ -1982,7 +1982,7 @@ I* - special case when the subcamera is being adjusted/replaced. How to deal wit
     		}
     		int [] choice_offsets = new int [this.parameterEnable.length];
     		//
-    	    String header="Strategy Number\t";
+    	    String header="Strategy #\tType";
     	    StringBuffer sb = new StringBuffer();
     		for (int i=fromSer;i<toSer;i++)  if (isSeriesValid(i)) header+="\t"+i;
 			sb.append("Comment\t");
