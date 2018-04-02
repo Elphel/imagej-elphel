@@ -723,7 +723,7 @@ public class QuadCLT {
 						  updateStatus,
 						  debugLevel); // update status info
 
-				  double [][] flat_kernels = flattenCLTKernels (      // per color, save 4 kernelas and displacement as (2*dtt_size+1)*(2*dtt_size) tiles in an image (last row - shift x,y)
+				  double [][] flat_kernels = flattenCLTKernels (      // per color, save 4 kernels and displacement as (2*dtt_size+1)*(2*dtt_size) tiles in an image (last row - shift x,y)
 						  kernels,    // per color/per tileY/ per tileX/per quadrant (plus offset as 5-th)/per pixel
 						  threadsMax,  // maximal number of threads to launch
 						  updateStatus,
