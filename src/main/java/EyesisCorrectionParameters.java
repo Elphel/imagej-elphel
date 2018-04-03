@@ -128,6 +128,7 @@ public class EyesisCorrectionParameters {
 
 
 
+    	public String x3dModelVersion="v01";
     	public String x3dDirectory="";
 
     	public void setProperties(String prefix,Properties properties){
@@ -218,6 +219,8 @@ public class EyesisCorrectionParameters {
 
     		properties.setProperty(prefix+"x3dDirectory",          this.x3dDirectory);
     		properties.setProperty(prefix+"use_x3d_subdirs",       this.use_x3d_subdirs+"");
+
+    		properties.setProperty(prefix+"x3dModelVersion",       this.x3dModelVersion);
 
     		properties.setProperty(prefix+"clt_batch_apply_man",   this.clt_batch_apply_man+"");
     		properties.setProperty(prefix+"clt_batch_extrinsic",   this.clt_batch_extrinsic+"");
@@ -323,6 +326,8 @@ public class EyesisCorrectionParameters {
 
 			if (properties.getProperty(prefix+"use_x3d_subdirs")!= null) this.use_x3d_subdirs=Boolean.parseBoolean(properties.getProperty(prefix+"use_x3d_subdirs"));
 
+			if (properties.getProperty(prefix+"x3dModelVersion")!=      null) this.x3dModelVersion=properties.getProperty(prefix+"x3dModelVersion");
+
 			if (properties.getProperty(prefix+"clt_batch_apply_man")!= null) this.clt_batch_apply_man=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_apply_man"));
 			if (properties.getProperty(prefix+"clt_batch_extrinsic")!= null) this.clt_batch_extrinsic=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_extrinsic"));
 			if (properties.getProperty(prefix+"clt_batch_poly")!= null)      this.clt_batch_poly=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_poly"));
@@ -401,6 +406,7 @@ public class EyesisCorrectionParameters {
     		gd.addStringField ("Aberration kernels for CLT directory",             this.cltKernelDirectory, 60);
     		gd.addCheckbox    ("Select aberration kernels for CLT directory",      false);
 
+    		gd.addStringField ("x3d model version",                                this.x3dModelVersion, 20);    // 10a
     		gd.addStringField ("x3d output directory",                             this.x3dDirectory, 60);
     		gd.addCheckbox    ("Select x3d output directory",                      false);
     		gd.addCheckbox    ("Use individual subdirectory for each 3d model (timestamp as name)", this.use_x3d_subdirs);
@@ -488,6 +494,7 @@ public class EyesisCorrectionParameters {
     		this.smoothKernelDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectSmoothKernelDirectory(false, true);
     		this.dctKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectDCTKernelDirectory(false, true);
     		this.cltKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectCLTKernelDirectory(false, true);
+    		this.x3dModelVersion=        gd.getNextString(); // 10a
     		this.x3dDirectory=           gd.getNextString(); if (gd.getNextBoolean()) selectX3dDirectory(false, true);
     		this.use_x3d_subdirs=        gd.getNextBoolean();
     		this.equirectangularDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectEquirectangularDirectory(false, false);
@@ -533,10 +540,12 @@ public class EyesisCorrectionParameters {
     		gd.addStringField ("Aberration kernels for CLT directory",             this.cltKernelDirectory, 60); // 6
     		gd.addCheckbox    ("Select aberration kernels for CLT directory",      false);                       // 7
 
+    		gd.addStringField ("x3d model version",                                this.x3dModelVersion, 60);    // 10a
     		gd.addStringField ("x3d output directory",                             this.x3dDirectory, 60);       // 8
-    		gd.addCheckbox    ("Select x3d output directory",                      false);                       // 9
+    		gd.addCheckbox    ("Select x3d output (top model) directory",          false);                       // 9
 
     		gd.addCheckbox    ("Use individual subdirectory for each 3d model (timestamp as name)", this.use_x3d_subdirs); //10
+
 
     		gd.addStringField ("Results directory",                                this.resultsDirectory, 60);   // 11
     		gd.addCheckbox    ("Select results directory",                         false);                       // 12
@@ -581,6 +590,7 @@ public class EyesisCorrectionParameters {
     		this.sourceDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSourceDirectory(false, false);   // 3
     		this.sensorDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSensorDirectory(false, false);   // 5
     		this.cltKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectCLTKernelDirectory(false, true); // 7
+    		this.x3dModelVersion=        gd.getNextString(); //  10a
     		this.x3dDirectory=           gd.getNextString(); if (gd.getNextBoolean()) selectX3dDirectory(false, true);       // 9
     		this.use_x3d_subdirs=        gd.getNextBoolean(); // 10
     		this.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) selectResultsDirectory(false, true);   // 12
@@ -1148,7 +1158,7 @@ public class EyesisCorrectionParameters {
     	}
 
     	// select qualified (by 'name' - quad timestamp) x3d subdirectory
-    	public String selectX3dDirectory(String name, boolean smart, boolean newAllowed) {
+    	public String selectX3dDirectory(String name, String version, boolean smart, boolean newAllowed) {
 
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
@@ -1159,14 +1169,18 @@ public class EyesisCorrectionParameters {
     				this.x3dDirectory); //this.sourceDirectory);
     		if (dir!=null) {
     			this.x3dDirectory=dir;
-    			if (this.use_x3d_subdirs &&(name != null) && !name.equals("")) {
-    			dir= CalibrationFileManagement.selectDirectory(
-        				smart,
-        				newAllowed, // save
-        				"x3d output sub-directory", // title
-        				"Select x3d output sub-directory", // button
-        				null, // filter
-        				this.x3dDirectory + Prefs.getFileSeparator()+name); //this.sourceDirectory);
+    			if (this.use_x3d_subdirs && (name != null) && !name.equals("")) {
+    				name = this.x3dDirectory + Prefs.getFileSeparator()+name;
+        			if ((version != null) && !version.equals("")) {
+        				name = name + Prefs.getFileSeparator()+version;
+        			}
+    				dir= CalibrationFileManagement.selectDirectory(
+    						smart,
+    						newAllowed, // save
+    						"x3d output sub-directory", // title
+    						"Select x3d output sub-directory", // button
+    						null, // filter
+    						name); //this.x3dDirectory + Prefs.getFileSeparator()+name); //this.sourceDirectory);
     			}
     		}
     		return dir;

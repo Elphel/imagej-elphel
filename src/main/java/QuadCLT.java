@@ -4069,6 +4069,7 @@ public class QuadCLT {
 				  // Save as individual JPEG images in the model directory
 		 		  String x3d_path= correctionsParameters.selectX3dDirectory(
 		 				  name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+		 				  correctionsParameters.x3dModelVersion,
 						  true,  // smart,
 						  true);  //newAllowed, // save
 				  for (int sub_img = 0; sub_img < 4; sub_img++){
@@ -7039,6 +7040,7 @@ public class QuadCLT {
 		  }
  		  String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
  				  this.image_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+ 				  correctionsParameters.x3dModelVersion,
 				  true,  // smart,
 				  true);  //newAllowed, // save
 
@@ -7559,6 +7561,7 @@ public class QuadCLT {
 		  String path= correctionsParameters.selectX3dDirectory(
 				  //TODO: Which one to use - name or this.image_name ?
  				  this.image_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+ 				  correctionsParameters.x3dModelVersion,
 // 				  name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
 				  true,  // smart,
 				  true);  //newAllowed, // save
@@ -7707,6 +7710,7 @@ public class QuadCLT {
 		  String path= correctionsParameters.selectX3dDirectory(
 				  //TODO: Which one to use - name or this.image_name ?
  				  this.image_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+ 				  correctionsParameters.x3dModelVersion,
 // 				  name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
 				  true,  // smart,
 				  true);  //newAllowed, // save

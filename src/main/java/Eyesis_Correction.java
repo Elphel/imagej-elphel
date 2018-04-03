@@ -27,12 +27,19 @@
 
 import java.awt.Button;
 import java.awt.Color;
+import java.awt.Component;
+import java.awt.Dialog;
 import java.awt.Frame;
 import java.awt.GridLayout;
+import java.awt.Label;
+import java.awt.MouseInfo;
 import java.awt.Panel;
+import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
 import java.io.File;
 import java.io.FileInputStream;
@@ -394,10 +401,10 @@ private Panel panel1,
 
 		panel6 = new Panel();
 		panel6.setLayout(new GridLayout(1, 0, 5, 5));
-		addButton("Save",panel6);
-		addButton("Restore",panel6,color_restore);
-		addButton("Stop",panel6,color_stop);
-		addButton("Abort",panel6,color_stop);
+		addButton("Save",    panel6,color_process); //, "Save configuration");
+		addButton("Restore", panel6,color_restore); // , "Restore configuration");
+		addButton("Stop",    panel6,color_stop);
+		addButton("Abort",   panel6,color_stop);
 
 		add(panel6);
 
@@ -666,18 +673,62 @@ private Panel panel1,
 		}
 	}
 
+	public class AwtToolTip extends MouseAdapter{
+
+		private String toolTipText= "...";
+		private Component component = null;
+		private Dialog dialog;
+
+		public AwtToolTip(String toolTipText, Component component){
+			this.toolTipText= toolTipText;
+			this.component= component;
+			dialog = new Dialog(new Frame());
+			dialog.add(new Label(toolTipText));
+			dialog.setLocationRelativeTo(component);
+			dialog.pack();
+		}
+
+		@Override
+		public void mouseEntered(MouseEvent mouseEvent){
+			Point location = MouseInfo.getPointerInfo().getLocation();
+			int x = (int) location.getX();
+			int y = (int) location.getY();
+
+			dialog.setLocation(x,y);
+
+			dialog.setVisible(true);
+		}
+
+		@Override
+		public void mouseExited(MouseEvent mouseEvent){
+			dialog.setVisible(false);
+
+		}
+
+	}
+
+	void addButton(String label, Panel panel,Color color, String toolTip) {
+		Button b = new Button(label);
+		b.setBackground(color);
+		b.addActionListener(this);
+		b.addKeyListener(IJ.getInstance());
+		b.addMouseListener(new AwtToolTip(toolTip, b));
+		panel.add(b);
+	}
 
 	void addButton(String label, Panel panel,Color color) {
 		Button b = new Button(label);
 		b.setBackground(color);
 		b.addActionListener(this);
 		b.addKeyListener(IJ.getInstance());
+//		b.addMouseListener(new AwtToolTip(label, b));
 		panel.add(b);
 	}
 	void addButton(String label, Panel panel) {
 		Button b = new Button(label);
 		b.addActionListener(this);
 		b.addKeyListener(IJ.getInstance());
+//		b.addMouseListener(new AwtToolTip(label, b));
 		panel.add(b);
 	}
 	@Override
