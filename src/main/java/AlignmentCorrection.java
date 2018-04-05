@@ -5,7 +5,7 @@
  ** Copyright (C) 2017 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
- **  
+ **
  **  AlignmentCorrection.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
@@ -95,7 +95,7 @@ public class AlignmentCorrection {
 		public double getStrength() {
 			return strength;
 		}
-		
+
 		public double [] getOffsets(){
 			double [] offsets1d = new double [offsets.length * offsets[0].length];
 			for (int i = 0; i < offsets.length; i++){
@@ -105,10 +105,10 @@ public class AlignmentCorrection {
 			}
 			return offsets1d;
 		}
-		
+
 		/**
 		 * Calculate error vector of 8 components, the last one will be optionally masked by weight - used only when measured
-		 * disparity should be 0 (as at infinity)    
+		 * disparity should be 0 (as at infinity)
 		 * @return 8 components
 		 */
 		public double [] getY()
@@ -140,7 +140,7 @@ public class AlignmentCorrection {
 			};
 			return y;
 		}
-		
+
  */
 		public void copyToY(
 				double [] y,
@@ -149,7 +149,7 @@ public class AlignmentCorrection {
 			double [] sub_y = getY();
 			System.arraycopy(sub_y, 0, y, n_sample * (2 * NUM_SENSORS), (2 * NUM_SENSORS));
 		}
-		
+
 		public void copyToW(
 				double [] w,
 				int n_sample)
@@ -159,12 +159,12 @@ public class AlignmentCorrection {
 				w[n_sample * (2 * NUM_SENSORS) + i] = (use_disparity || (i < 7)) ? strength : 0.0;
 			}
 		}
-		
+
 		public double [][] get_dMismatch_dXY()
 		{
 			double [][] dMismatch_dXY = { // extra 0.5 is because differences dxi, dyi are already *= 0.5/magic
 					//x0       y0      x1       y1      x2      y2      x3      y3
-					{ 0.0 ,   -0.5,    0.0 ,   0.5 ,   0.0 ,   0.0 ,   0.0 ,   0.0   }, // mv0 = dy0 = y1 - y0 
+					{ 0.0 ,   -0.5,    0.0 ,   0.5 ,   0.0 ,   0.0 ,   0.0 ,   0.0   }, // mv0 = dy0 = y1 - y0
 					{ 0.0 ,    0.0 ,   0.0 ,   0.0 ,   0.0 ,  -0.5 ,   0.0 ,   0.5   }, // mv1 = dy1 = y3 - y2
 					{-0.5 ,    0.0 ,   0.0 ,   0.0 ,   0.5 ,   0.0 ,   0.0 ,   0.0   }, // mv2 = dx2 = x2 - x0
 					{ 0.0 ,    0.0 ,  -0.5 ,   0.0 ,   0.0 ,   0.0 ,   0.5 ,   0.0   }, // mv3 = dx3 = x3 - x1
@@ -174,13 +174,13 @@ public class AlignmentCorrection {
 					{-0.0625, -0.0625, 0.0625,-0.0625,-0.0625, 0.0625, 0.0625, 0.0625}};// mv7 = (dx0 + dx1 +dy2 + dy3)/8=  (x1 - x0 + x3 - x2 + y2 - y0 + y3 - y1)/8
 			return dMismatch_dXY;
 		}
-		
-		
+
+
 		/**
 		 * Convert transposed jacobian from {d_dx0,d_dy0, ...,d_dy3} to d_mvi (measurement vectors),
 		 * where sum of measurement vectors squared is minimized. Same matrix multiplications
 		 * is applied to each group of 8 columns. last column in each group is only non-zero if
-		 * disparity is known to be 0; 
+		 * disparity is known to be 0;
 		 * @param jt transposed Jacobian of 10/9 rows and 8*n columns
 		 * @return converted transposed Jacobian of the same dimensions
 		 */
@@ -188,7 +188,7 @@ public class AlignmentCorrection {
 				double [][] jt)
 		{
 			double [][] dMismatch_dXY = get_dMismatch_dXY();
-					
+
 			double [][] jt_conv = new double [jt.length][jt[0].length/dMismatch_dXY[0].length*dMismatch_dXY.length]; // now dMismatch_dXY is square
 			// multiplying by transposed dMismatch_dXY
 			for (int g = 0; g < jt[0].length/dMismatch_dXY[0].length; g++) {
@@ -204,16 +204,16 @@ public class AlignmentCorrection {
 			}
 			return jt_conv;
 		}
-		
+
 	}
 
-	//System.arraycopy(dpixels, (tileY*width+tileX)*dct_size + i*width, tile_in, i*n2, n2);	
+	//System.arraycopy(dpixels, (tileY*width+tileX)*dct_size + i*width, tile_in, i*n2, n2);
 	AlignmentCorrection (QuadCLT qc){
 		this.qc = qc;
 	}
 
 	public double [][][] infinityCorrection(
-			final boolean    use_poly, 
+			final boolean    use_poly,
 			final double     min_strength_in,
 			final double     max_diff,
 			final int        max_iterations,
@@ -231,12 +231,12 @@ public class AlignmentCorrection {
 			final double     hist_sigma,
 			final double     hist_max_diff,
 			final int        hist_min_samples,
-			final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with 			
+			final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
 
 			EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			double [][]      disp_strength_in,
 			int              tilesX,
-			double           magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
+			double           magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5
 			int              debugLevel)
 	{
 		double [][] disp_strength;
@@ -250,7 +250,7 @@ public class AlignmentCorrection {
 					smplNum, //         = 3;      // Number after removing worst (should be >1)
 					smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 					tilesX);
-			min_strength = 0; // all > 0	
+			min_strength = 0; // all > 0
 			if (debugLevel > 0){
 				double [][] dbg_img = disp_strength.clone();
 				for (int n = 0; n < disp_strength.length; n++){
@@ -282,7 +282,7 @@ public class AlignmentCorrection {
 					hist_sigma,       // final double     sigma,
 					hist_max_diff,    // final double     max_diff,
 					hist_min_samples, // final int        min_samples,
-					hist_norm_center, // final boolean    norm_center, // if there are more tiles that fit than minsamples, replace with 					
+					hist_norm_center, // final boolean    norm_center, // if there are more tiles that fit than minsamples, replace with
 					tilesX);          // final int        tilesX)
 			if (debugLevel > 0){
 				double [][] dbg_img = disp_strength.clone();
@@ -312,7 +312,7 @@ public class AlignmentCorrection {
 				clt_parameters,
 				disp_strength,
 				tilesX,
-				magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
+				magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5
 				debugLevel);
 
 		double [][][] mismatch_corr_coefficients = null;
@@ -324,7 +324,7 @@ public class AlignmentCorrection {
 				use_poly,                       // final boolean use_poly,
 				clt_parameters.fcorr_inf_quad,  // final boolean use_quadratic,
 				clt_parameters.fcorr_inf_vert,  // final boolean use_vertical,
-				clt_parameters.ly_inf_en,       // final boolean use_disparity, // for infinity 
+				clt_parameters.ly_inf_en,       // final boolean use_disparity, // for infinity
 				clt_parameters,
 				disp_strength,
 				samples_list,
@@ -334,6 +334,10 @@ public class AlignmentCorrection {
 				debugLevel);
 		if (debugLevel > -1){
 			System.out.println("infinityCorrection(): coefficient increments from infinityMismatchCorrection");
+			if (mismatch_corr_coefficients == null) { // non-null only for poly !
+				System.out.println("imismatch_corr_coefficients == null");
+				return mismatch_corr_coefficients;
+			}
 			show_fine_corr(
 					mismatch_corr_coefficients, // double [][][] corr,
 					"");// String prefix)
@@ -343,8 +347,8 @@ public class AlignmentCorrection {
 
 	/**
 	 * Discard correction data outside of the center image area
-	 * @param fcorr_radius fraction of the image to use (1.0 - 100%) 
-	 * @param tilesX width in tiles 
+	 * @param fcorr_radius fraction of the image to use (1.0 - 100%)
+	 * @param tilesX width in tiles
 	 * @param tilesY height in tiles
 	 * @return boolean array in linescan order
 	 */
@@ -385,7 +389,7 @@ public class AlignmentCorrection {
 	 * @param disp_strength array of a single or multiple disparity/strength pairs (0,2, .. - disparity,
 	 *  1,3,.. - corresponding strengths
 	 * @param tilesX number of tiles in each data line
-	 * @param magic_coeff still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85 
+	 * @param magic_coeff still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
 	 * @param debugLevel debug level
 	 * @return per sub-camera, per direction (x,y) 6 quadratic polynomial coefficients, same format as fine_geometry_correction()
 	 */
@@ -400,7 +404,7 @@ public class AlignmentCorrection {
 			EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			double [][] disp_strength,
 			int         tilesX,
-			double      magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
+			double      magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5
 			int debugLevel)
 	{
 		final int numTiles =            disp_strength[0].length;
@@ -432,7 +436,7 @@ public class AlignmentCorrection {
 				int disp_index = NUM_SLICES * num_set;
 				int str_index = NUM_SLICES * num_set + 1;
 				for (int nTile = 0; nTile < numTiles; nTile++) if (center_mask[nTile]){
-					if ((disp_strength[str_index][nTile] > min_strength) && 
+					if ((disp_strength[str_index][nTile] > min_strength) &&
 							//							  (Math.abs(disp_strength[disp_index][nTile] - disp_surface[nTile]) < max_diff)){
 							((disp_strength[disp_index][nTile] - disp_surface[nTile]) < max_diff)){
 						double weight= disp_strength[str_index][nTile];
@@ -563,7 +567,7 @@ public class AlignmentCorrection {
 			if (all_done) break;
 			for (int i = 0; i < disparity_poly.length; i++){
 				disparity_poly[i] += coeffs[0][i];
-			}			  
+			}
 		}
 		return samples_list;
 		// use last generated samples_list;
@@ -578,7 +582,7 @@ public class AlignmentCorrection {
 	 * @param samples_list sample list generated by selectInfinityTiles method, each element references measurement series,
 	 * tile index and (possibly modified) weight of each tile
 	 * @param tilesX number of tiles in each data line
-	 * @param magic_coeff still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85 
+	 * @param magic_coeff still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
 	 * @param debugLevel debug level
 	 * @return per sub-camera, per direction (x,y) 6 quadratic polynomial coefficients, same format as fine_geometry_correction()
 	 */
@@ -593,7 +597,7 @@ public class AlignmentCorrection {
 			double [][] disp_strength,
 			ArrayList<Sample> samples_list,
 			int         tilesX,
-			double      magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
+			double      magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5
 			int debugLevel)
 	{
 		final int numTiles =            disp_strength[0].length;
@@ -612,13 +616,13 @@ public class AlignmentCorrection {
 			mdata = new double [8][samples_list.size()][3];
 		}
 		int indx = 0;
-		final Matrix [] corr_rots = qc.geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices 
+		final Matrix [] corr_rots = qc.geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
 		for (Sample s: samples_list){
 			int tileX = s.tile % tilesX;
 			int tileY = s.tile / tilesX;
 			double centerX = tileX * qc.tp.getTileSize() + qc.tp.getTileSize()/2;// - shiftX;
 			double centerY = tileY * qc.tp.getTileSize() + qc.tp.getTileSize()/2;//- shiftY;
-/*			
+/*
 			double [][] centersXY_disp = qc.geometryCorrection.getPortsCoordinates(
 					centerX,
 					centerY,
@@ -627,17 +631,17 @@ public class AlignmentCorrection {
 					centerX,
 					centerY,
 					0.0); // disparity
-*/					
+*/
 			double [][] centersXY_disp = qc.geometryCorrection.getPortsCoordinatesAndDerivatives(
 					corr_rots, // Matrix []   rots,
-					null,      //  Matrix [][] deriv_rots, 
+					null,      //  Matrix [][] deriv_rots,
 					null,      // double [][] pXYderiv, // if not null, should be double[8][]
 					centerX,
 					centerY,
 					disp_strength[2 * s.series + 0][s.tile]/magic_coeff); // disparity
 			double [][] centersXY_inf = qc.geometryCorrection.getPortsCoordinatesAndDerivatives(
 					corr_rots, // Matrix []   rots,
-					null,      //  Matrix [][] deriv_rots, 
+					null,      //  Matrix [][] deriv_rots,
 					null,      // double [][] pXYderiv, // if not null, should be double[8][]
 					centerX,
 					centerY,
@@ -699,7 +703,7 @@ public class AlignmentCorrection {
 		double [][][] inf_corr = new double [4][2][];
 		for (int n = 0; n < 8; n++){
 			inf_corr[n / 2][n % 2] = coeffs[n];
-		}		  
+		}
 
 		if (debugLevel > 0) {
 			String [] titles = {"disparity","approx","diff", "strength"};
@@ -743,7 +747,7 @@ public class AlignmentCorrection {
 
 		}
 		return inf_corr;
-	}	  
+	}
 
 	/**
 	 * Correct channel mismatch (preserving disparity) using the same tiles as those for correcting disparity
@@ -765,7 +769,7 @@ public class AlignmentCorrection {
 	public double [][][] infinityMismatchCorrection(
 			final double  disp_scan_start,
 			final double  disp_scan_step,
-			final boolean use_poly, 
+			final boolean use_poly,
 			final boolean use_quadratic,
 			final boolean use_vertical,
 			final boolean use_disparity, // for infinity
@@ -773,7 +777,7 @@ public class AlignmentCorrection {
 			double [][] disp_strength,
 			ArrayList<Sample> samples_list,
 			int         tilesX,
-			double      magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
+			double      magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5
 			ArrayList<Mismatch> mismatch_list,
 			int debugLevel)
 	{
@@ -788,7 +792,7 @@ public class AlignmentCorrection {
 		//		final int [] indices_mismatch = {2+1, 2+3, 2+4, 2+6}; //   "dy0", "dy1", "dx2", "dx3"
 		final int [][] indices_mismatch = {
 				{2+0, 2+2, 2+4, 2+6},  // "dx0", "dx1", "dx2", "dx3"
-				{2+1, 2+3, 2+5, 2+7}}; // "dy0", "dy1", "dy2", "dy3" 
+				{2+1, 2+3, 2+5, 2+7}}; // "dy0", "dy1", "dy2", "dy3"
 
 		// use last generated samples_list;
 
@@ -847,12 +851,12 @@ x0 + x1 + x2 + x3 = 0
 e1 = (y1 - y0  - 2*dy0)^2 +
      (y2 - y0  - 2*dy2)^2 +
      (y3 - y1  - 2*dy3)^2 +
-     (y3 - y2  - 2*dy1)^2 = 
+     (y3 - y2  - 2*dy1)^2 =
 
      (y1 - y0  - 2*dy0)^2 +
      (y2 - y0  - 2*dy2)^2 +
      (-(y0+y1+y2) - y1  - 2*dy3)^2 +
-     (-(y0+y1+y2) - y2  - 2*dy1)^2 = 
+     (-(y0+y1+y2) - y2  - 2*dy1)^2 =
 
      (y1 - y0  - 2*dy0)^2 +
      (y2 - y0  - 2*dy2)^2 +
@@ -882,7 +886,7 @@ de1/dy2 = +2 * (y2 - y0  - 2*dy2)
           +2 * (2*y0 + 2*y1 + 4 * y2  + 4*dy1) =
 
           2*(2*(-dy2 + dy3 +2*dy1) + y0 * 2 + y1 * 4 + y2 * 6
-1 * y0 + 2 * y1 + 3 * y2 + (-dy2 + dy3 +2*dy1) = 0;           
+1 * y0 + 2 * y1 + 3 * y2 + (-dy2 + dy3 +2*dy1) = 0;
 
 
 
@@ -890,7 +894,7 @@ de1/dy2 = +2 * (y2 - y0  - 2*dy2)
 
 2 * y0 + 1 * y1 + 1 * y2 + (dy0+dy1+dy2+dy3) = 0;
 1 * y0 + 3 * y1 + 2 * y2 + (-dy0 +2*dy3 +dy1)  = 0
-1 * y0 + 2 * y1 + 3 * y2 + (-dy2 +dy3 + 2*dy1) = 0;           
+1 * y0 + 2 * y1 + 3 * y2 + (-dy2 +dy3 + 2*dy1) = 0;
     | 2  1  1 |
 A = | 1  3  2 |
     | 1  2  3 |
@@ -904,7 +908,7 @@ B = |+dy0   -dy1      -2*dy3 |
 				 *			    |-dy0   -dy1 -dy2   -dy3 |
 				 *			B = |+dy0   -dy1      -2*dy3 |
 				 *			    |+dy2 -2*dy1        -dy3 |
-				 */					
+				 */
 
 				double [] B_arr = {
 						-dxy[0][dir]    -dxy[1][dir] -dxy[2][dir] -dxy[3][dir],
@@ -1028,7 +1032,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			}
 		}
 
-		// convert to 8 sets of coefficient for px0, py0, px1, py1, ... py3.  
+		// convert to 8 sets of coefficient for px0, py0, px1, py1, ... py3.
 		double [][][] coeff_full = new double [4][2][6];
 		for (int j = 0; j < coeffs[0].length; j++){
 			coeff_full[0][0][j] = coeffs[0][j];
@@ -1041,7 +1045,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			coeff_full[3][1][j] = coeffs[7][j];
 		}
 		return coeff_full;
-	}	  
+	}
 
 	public double[][] filterLazyEyePairs (
 			final double[][] samples_in,
@@ -1117,7 +1121,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					for (int i = 0; i < s1.length; i++){
 						s1[i] /= sw; // average
 						s2[i] /= sw;
-						rms += s2[i] - s1[i] * s1[i]; 
+						rms += s2[i] - s1[i] * s1[i];
 					}
 					rms = Math.sqrt(rms/s1.length);
 					//					if (rms_max > 0.0){
@@ -1131,7 +1135,7 @@ B = |+dy0   -dy1      -2*dy3 |
 								int nTile = sample_list.get(i);
 								double sv = 0;
 								for (int n = 0; n < s1.length; n++){
-									double d = samples_in[2 + n][nTile] - s1[n]; 
+									double d = samples_in[2 + n][nTile] - s1[n];
 									sv += d * d;
 								}
 								if (sv >  worst_var) {
@@ -1182,7 +1186,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		}
 		return samples;
 
-	}	
+	}
 
 
 	public double[][] filterHistogramFar (
@@ -1278,7 +1282,7 @@ B = |+dy0   -dy1      -2*dy3 |
 
 				// now hist[decr] is a local max, lowest in the range
 
-				double a = 0.5*(hist[decr + 1] -2*hist[decr] + hist[decr - 1]); 
+				double a = 0.5*(hist[decr + 1] -2*hist[decr] + hist[decr - 1]);
 				double b = 0.5*(hist[decr + 1] - hist[decr - 1]);
 				double dx =  - b/(2*a);
 				if (dx > 1.0) dx = 1.0;
@@ -1319,7 +1323,7 @@ B = |+dy0   -dy1      -2*dy3 |
 							disp_strength[2 + j][nTile] = sm[j]/sw;
 						}
 					}
-				} else { // if (norm_center) 
+				} else { // if (norm_center)
 					// just center tile - fits or not
 					int nTile = tY * tilesX + tX;
 					double w = disp_strength_in[1][nTile];
@@ -1403,8 +1407,8 @@ B = |+dy0   -dy1      -2*dy3 |
 						if (weight[indx] > 0.0){
 							int indxs = sy * smplSide + sx;
 							smpl_sel[indxs] = true;
-							smpl_d[indxs] = disp[indx]; 
-							smpl_w[indxs] = weight[indx]; 
+							smpl_d[indxs] = disp[indx];
+							smpl_w[indxs] = weight[indx];
 							for (int i = 0; i < smpl_mismatch.length; i++){
 								smpl_mismatch[i][indxs] = mismatch[i][indx];
 							}
@@ -1413,7 +1417,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					}
 				}
 				if (num_in_sample >= smplNum){ // try, remove worst
-					// calculate 
+					// calculate
 					double sd=0.0, sd2 = 0.0, sw = 0.0;
 					double [] sm = new double [mismatch.length];
 					for (int i = 0; i < smplLen; i++) if (smpl_sel[i]) {
@@ -1449,7 +1453,7 @@ B = |+dy0   -dy1      -2*dy3 |
 						// remove worst sample
 						smpl_sel[iworst] = false;
 						double dw = smpl_d[iworst] * smpl_w[iworst];
-						sd -= dw; 
+						sd -= dw;
 						sd2 -= dw * smpl_d[iworst];
 						sw -=       smpl_w[iworst];
 
@@ -1491,7 +1495,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			double [][][] corr,
 			String prefix)
 	{
-		String sadd = (prefix.length() > 0)?(prefix+" "):""; 
+		String sadd = (prefix.length() > 0)?(prefix+" "):"";
 
 		for (int n = 0; n< corr.length; n++){
 			for (int i = 0; i< corr[n].length; i++){
@@ -1518,7 +1522,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			float [] fpixels = (float[]) clt_mismatches_stack.getPixels(n +1);
 			for (int i = 0; i < nTiles; i++){
 				data[n][i] = fpixels[i];
-			}	    		
+			}
 		}
 		return data;
 	}
@@ -1540,14 +1544,14 @@ B = |+dy0   -dy1      -2*dy3 |
 			for (int pair = 0; pair < 4; pair++){
 				scans[ns * NUM_ALL_SLICES + 0] = data[12 * num_scans + ns];
 				scans[ns * NUM_ALL_SLICES + 1] = data[13 * num_scans + ns];
-				scans[ns * NUM_ALL_SLICES + pair * 3 + 2] = data[(2 * pair + 0) * num_scans + ns]; 
+				scans[ns * NUM_ALL_SLICES + pair * 3 + 2] = data[(2 * pair + 0) * num_scans + ns];
 				scans[ns * NUM_ALL_SLICES + pair * 3 + 3] = data[(2 * pair + 1) * num_scans + ns];
 				scans[ns * NUM_ALL_SLICES + pair * 3 + 4] = data[(8 + pair   ) *  num_scans + ns];
 			}
 		}
 		if (debugLevel > 0) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "str0", "dx1", "dy1", "str1", "dx2", "dy2", "str2", "dx3", "dy3", "str3"};
-			String [] titles = new String [num_scans * NUM_ALL_SLICES]; 
+			String [] titles = new String [num_scans * NUM_ALL_SLICES];
 			for (int ns = 0; ns < num_scans; ns++){
 				for (int i = 0; i < NUM_ALL_SLICES; i++){
 					titles[ns * NUM_ALL_SLICES + i] = prefixes[i]+"_"+ns;
@@ -1578,14 +1582,14 @@ B = |+dy0   -dy1      -2*dy3 |
 				fset[0] = (float[]) clt_mismatches_stack.getPixels(12 * num_scans + ns +1);
 				fset[1] = (float[]) clt_mismatches_stack.getPixels(13 * num_scans + ns +1); //
 				for (int i = 0; i < nTiles; i++){
-					scans[ns * NUM_ALL_SLICES + 0][i] = fset[0][i]; // disparity 
-					scans[ns * NUM_ALL_SLICES + 1][i] = fset[1][i]; // strength 
+					scans[ns * NUM_ALL_SLICES + 0][i] = fset[0][i]; // disparity
+					scans[ns * NUM_ALL_SLICES + 1][i] = fset[1][i]; // strength
 				}
 				fset[0] = (float[]) clt_mismatches_stack.getPixels((2 * pair + 0) * num_scans + ns +1);
 				fset[1] = (float[]) clt_mismatches_stack.getPixels((2 * pair + 1) * num_scans + ns +1); //
 				fset[2] = (float[]) clt_mismatches_stack.getPixels((8 + pair   ) *  num_scans + ns +1);
 				for (int i = 0; i < nTiles; i++){
-					scans[ns * NUM_ALL_SLICES + pair * 3 + 2][i] = fset[0][i]; // dx_i 
+					scans[ns * NUM_ALL_SLICES + pair * 3 + 2][i] = fset[0][i]; // dx_i
 					scans[ns * NUM_ALL_SLICES + pair * 3 + 3][i] = fset[1][i]; // dy_i
 					scans[ns * NUM_ALL_SLICES + pair * 3 + 4][i] = fset[2][i]; // str_i
 				}
@@ -1593,7 +1597,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		}
 		if (debugLevel > -1) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "str0", "dx1", "dy1", "str1", "dx2", "dy2", "str2", "dx3", "dy3", "str3"};
-			String [] titles = new String [num_scans * NUM_ALL_SLICES]; 
+			String [] titles = new String [num_scans * NUM_ALL_SLICES];
 			for (int ns = 0; ns < num_scans; ns++){
 				for (int i = 0; i < NUM_ALL_SLICES; i++){
 					titles[ns * NUM_ALL_SLICES + i] = prefixes[i]+"_"+ns;
@@ -1630,12 +1634,12 @@ B = |+dy0   -dy1      -2*dy3 |
 			final double     hist_sigma,
 			final double     hist_max_diff,
 			final int        hist_min_samples,
-			final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with 
+			final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
 			final double     inf_fraction,    // fraction of the weight for the infinity tiles
 			EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			double [][]      scans_14,
 			int              tilesX,
-			double           magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
+			double           magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5
 			int debugLevel)
 		{
 			return null;
@@ -1670,21 +1674,21 @@ B = |+dy0   -dy1      -2*dy3 |
 			final double     hist_sigma,
 			final double     hist_max_diff,
 			final int        hist_min_samples,
-			final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with 
+			final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
 			final double     inf_fraction,    // fraction of the weight for the infinity tiles
 			EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			double [][]      scans_14,
-			double [][]      target_disparity, // null or programmed disparity (1 per each 14 entries of scans_14) 
+			double [][]      target_disparity, // null or programmed disparity (1 per each 14 entries of scans_14)
 			int              tilesX,
-			double           magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
+			double           magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5
 			int              debugLevel){
-		
+
 //		final double lazyEyeDispRelVariation = 0.02;
-		
+
 		final int dbg_nTile = -59038;
 		final int num_scans = scans_14.length/NUM_ALL_SLICES;
 		final int num_tiles = scans_14[0].length;
-		final int tilesY = num_tiles/tilesX; 
+		final int tilesY = num_tiles/tilesX;
 		final boolean []  center_mask = getCenterMask(fcorr_radius, tilesX, tilesY);
 		final double [][] scans = new double [num_scans * NUM_SLICES][];
 		final int [] indices_14_10 = {0,1,2,3,5,6,8,9,11,12};
@@ -1708,12 +1712,12 @@ B = |+dy0   -dy1      -2*dy3 |
 				comp_strength_rms[ns][nTile] = Math.sqrt(s2 - s1*s1);
 			}
 		}
-		/* 
+		/*
 		 * None of comp_strength_rms methods works to detect potential outliers for horizontal/vertical features
 		 */
 
 		if (debugLevel > 0) {
-			String [] titles = new String [num_scans]; 
+			String [] titles = new String [num_scans];
 			for (int ns = 0; ns < num_scans; ns++){
 				titles[ns] = "scan_" + ns;
 			}
@@ -1776,7 +1780,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			if (nTile == dbg_nTile){
 				System.out.println("lazyEyeCorrection().2: nTile="+nTile);
 			}
-			
+
 			double w = combo_mismatch[1][nTile];
 			if (w > 0.0){
 				for (int i = 0; i < NUM_SLICES; i++) if (i != 1){
@@ -1798,10 +1802,10 @@ B = |+dy0   -dy1      -2*dy3 |
 				combo_mismatch[1][nTile] *= ly_norm_disp/combo_mismatch[0][nTile];
 			}
 		}
-		
-		
-		
-		
+
+
+
+
 		if (debugLevel > 0) { // -2) { //  100) {
 			(new showDoubleFloatArrays()).showArrays(combo_comp_rms, tilesX, tilesY, "combo_comp_rms");
 		}
@@ -1826,7 +1830,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					}
 				}
 			}
-		}			
+		}
 
 		if (debugLevel > 0) { // 0) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
@@ -1894,7 +1898,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					hist_sigma,       // final double     sigma,
 					hist_max_diff,    // final double     max_diff,
 					hist_min_samples, // final int        min_samples,
-					hist_norm_center, // final boolean    norm_center, // if there are more tiles that fit than minsamples, replace with 					
+					hist_norm_center, // final boolean    norm_center, // if there are more tiles that fit than minsamples, replace with
 					tilesX);          // final int        tilesX)
 			if (debugLevel > 1){
 				double [][] dbg_img = inf_scan.clone();
@@ -1921,7 +1925,7 @@ B = |+dy0   -dy1      -2*dy3 |
 
 		if (debugLevel > 0) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
-			String [] titles = new String [2 * NUM_SLICES]; 
+			String [] titles = new String [2 * NUM_SLICES];
 			for (int i = 0; i < NUM_SLICES; i++){
 				titles[i] = prefixes[i]+"-inf";
 				titles[i + NUM_SLICES] = prefixes[i]+"-ly";
@@ -1969,7 +1973,7 @@ B = |+dy0   -dy1      -2*dy3 |
 				}
 			}
 			(new showDoubleFloatArrays()).showArrays(dbg_img, tilesX1, tilesY1, true, "inf_and_ly8",titles);
-		}			
+		}
 
 		// create list for infinity data
 //		/clt_parameters.ly_inf_en,
@@ -1986,7 +1990,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					clt_parameters,
 					inf_scan,
 					tilesX,
-					magic_coeff, // magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5  
+					magic_coeff, // magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5
 					debugLevel);
 
 			if (debugLevel > -1) {
@@ -1996,7 +2000,7 @@ B = |+dy0   -dy1      -2*dy3 |
 				}
 				System.out.println("lazyEyeCorrection(): number of infinity samples="+inf_samples_list.size()+", total weight = "+inf_weight);
 
-			}			
+			}
 			// adjust weight to balance infinity data and lazy eye one. As some tiles were discarded by selectInfinityTiles() list and not the original
 			// array has to be used to find the total weight of the infinity tile. Other ones will be used with no extra filtering
 			double [] total_weights = new double[2];
@@ -2009,8 +2013,8 @@ B = |+dy0   -dy1      -2*dy3 |
 			}
 
 			double [] weights = {
-					inf_fraction *         (total_weights[0] + total_weights[1]) / total_weights[0], 
-					(1.0 - inf_fraction) * (total_weights[0] + total_weights[1]) / total_weights[1], 
+					inf_fraction *         (total_weights[0] + total_weights[1]) / total_weights[0],
+					(1.0 - inf_fraction) * (total_weights[0] + total_weights[1]) / total_weights[1],
 			};
 
 			for (int ns = 0; ns <2; ns++) {
@@ -2022,11 +2026,11 @@ B = |+dy0   -dy1      -2*dy3 |
 				s.weight *= weights[0];
 			}
 		} else {
-			inf_samples_list = new ArrayList<Sample>(); // do not use infinity at all 
+			inf_samples_list = new ArrayList<Sample>(); // do not use infinity at all
 		}
 		///-----
-		
-		
+
+
 		// Supplement list with the lazy eye scans data - use all tiles
 		for (int nTile = 0; nTile < num_tiles; nTile++) if (center_mask[nTile]) {
 			double w = inf_and_ly[1 * NUM_SLICES + 1][nTile];
@@ -2042,11 +2046,11 @@ B = |+dy0   -dy1      -2*dy3 |
 			}
 			System.out.println("lazyEyeCorrection(): number of all samples="+inf_samples_list.size()+", total weight = "+inf_weight);
 
-		}			
+		}
 
 		if (debugLevel > 0) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
-			String [] titles = new String [num_scans * NUM_SLICES]; 
+			String [] titles = new String [num_scans * NUM_SLICES];
 			for (int ns = 0; ns < num_scans; ns++){
 				for (int i = 0; i < NUM_SLICES; i++){
 					titles[ns * NUM_SLICES + i] = prefixes[i]+"_"+ns;
@@ -2064,10 +2068,10 @@ B = |+dy0   -dy1      -2*dy3 |
 		double [][][] mismatch_corr_coefficients = infinityMismatchCorrection(
 				clt_parameters.disp_scan_start, // final double  disp_scan_start,
 				clt_parameters.disp_scan_step, // final double  disp_scan_step,
-				use_poly,                       // final boolean use_poly, 
+				use_poly,                       // final boolean use_poly,
 				clt_parameters.fcorr_quadratic, // final boolean use_quadratic,
 				true, // clt_parameters.fcorr_inf_vert,  // final boolean use_vertical,
-				false,                          // final boolean use_disparity, // for infinity 
+				false,                          // final boolean use_disparity, // for infinity
 				clt_parameters,                 // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 				inf_and_ly,                     // double [][] disp_strength,
 				inf_samples_list,               // ArrayList<Sample> samples_list,
@@ -2089,7 +2093,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			GeometryCorrection.CorrVector corr_vector = solveCorr (
 					clt_parameters.ly_inf_en,    // boolean use_disparity,     // if true will ignore disparity data even if available (was false)
 					clt_parameters.ly_inf_force, // boolean force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
-					clt_parameters.ly_com_roll,  // boolean    common_roll,    // Enable common roll (valid for high disparity range only) 
+					clt_parameters.ly_com_roll,  // boolean    common_roll,    // Enable common roll (valid for high disparity range only)
 
 					mismatch_list,                          // ArrayList<Mismatch> mismatch_list,
 					qc.geometryCorrection,                  // GeometryCorrection geometryCorrection,
@@ -2097,8 +2101,8 @@ B = |+dy0   -dy1      -2*dy3 |
 					old_new_rms,                            // double [] old_new_rms, // should be double[2]
 //					2); // debugLevel); // 2); // 1); // int debugLevel)
 			debugLevel); // 2); // 1); // int debugLevel)
-//TODO: ** Put 2 here to debug derivative images (diff_dmv_dsym - does not match yet, probably different "addition" of angles)			
-			
+//TODO: ** Put 2 here to debug derivative images (diff_dmv_dsym - does not match yet, probably different "addition" of angles)
+
 			if (debugLevel > -1){
 				System.out.println("Old extrinsic corrections:");
 				System.out.println(qc.geometryCorrection.getCorrVector().toString());
@@ -2123,9 +2127,9 @@ B = |+dy0   -dy1      -2*dy3 |
 						use_poly+" (should be false for extrinsics)");
 				System.out.println(qc.geometryCorrection.getCorrVector().toString());
 			}
-			return mismatch_corr_coefficients;			
+			return mismatch_corr_coefficients;
 		}
-		return mismatch_corr_coefficients;			
+		return mismatch_corr_coefficients;
 	}
 
 	public double [][] combineCltMismatches(
@@ -2187,7 +2191,7 @@ B = |+dy0   -dy1      -2*dy3 |
 
 	{
 		showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
-		String [] titles = new String [12];  
+		String [] titles = new String [12];
 		double [][] dbg_clt_mismatch= new double [12][];
 		for (int pair = 0; pair < 4; pair++){
 			titles[2 * pair + 0] = "dx_"+pair;
@@ -2213,23 +2217,23 @@ B = |+dy0   -dy1      -2*dy3 |
 			GeometryCorrection.CorrVector corr_vector,
 			int debugLevel)
 	{
-		boolean dbg_images = debugLevel>1; 
+		boolean dbg_images = debugLevel>1;
 		int dbg_decimate = 64; // just for the debug image
 		int dbg_width =  qc.tp.getTilesX()*qc.tp.getTileSize();
 		int dbg_height = qc.tp.getTilesY()*qc.tp.getTileSize();
-		int dbg_owidth = dbg_width/dbg_decimate; 
+		int dbg_owidth = dbg_width/dbg_decimate;
 		int dbg_oheight = dbg_height/dbg_decimate;
 		int dbg_length = dbg_owidth*dbg_oheight;
 		String [] dbg_titles_tar=GeometryCorrection.CORR_NAMES;
 		String [] dbg_titles_sym= {"sym0","sym1","sym2","sym3","sym4","sym5","sroll0","sroll1","sroll2","sroll3"};
 		String [] dbg_titles_xy=  {"x0","y0","x1","y1","x2","y2","x3","y3"};
 		double [][] dbg_img_deriv = null; // compare derivatives with delta-diffs
-		double [][] dbg_dxy_dsym = null;  // jacobian dxy/dsym 
+		double [][] dbg_dxy_dsym = null;  // jacobian dxy/dsym
 		if (dbg_images) {
 			dbg_img_deriv = doubleNaN(dbg_titles_xy.length * dbg_titles_tar.length *2, dbg_length); // compare derivatives with delta-diffs
-			dbg_dxy_dsym =  doubleNaN(dbg_titles_xy.length * dbg_titles_sym.length,    dbg_length); // jacobian dxy/dsym 
+			dbg_dxy_dsym =  doubleNaN(dbg_titles_xy.length * dbg_titles_sym.length,    dbg_length); // jacobian dxy/dsym
 		}
-		
+
 		int num_pars = 0;
 		for (int i = 0; i < par_mask.length; i++) if (par_mask[i]) num_pars ++;
 
@@ -2238,16 +2242,16 @@ B = |+dy0   -dy1      -2*dy3 |
 		if (debugLevel > 0){
 			jt_dbg = new double  [num_pars][2 * NUM_SENSORS * mismatch_list.size()];
 		}
-		
+
 		Matrix []   corr_rots =  corr_vector.getRotMatrices(); // get array of per-sensor rotation matrices
-		Matrix [][] deriv_rots = corr_vector.getRotDeriveMatrices(); 
+		Matrix [][] deriv_rots = corr_vector.getRotDeriveMatrices();
 		for (int indx = 0; indx<mismatch_list.size(); indx++){ // need indx value
 			Mismatch mm = mismatch_list.get(indx);
 			double [] pXY = mm.getPXY();
 			double [][] deriv = new double [2 * NUM_SENSORS][];
 			int dbg_index =dbg_index (pXY, dbg_decimate);
 //			double [][] f =
-/*			
+/*
 			geometryCorrection.getPortsCoordinatesAndDerivatives_old(
 					corr_vector, // CorrVector corr_vector,
 					deriv,   // 	boolean calc_deriv,
@@ -2257,14 +2261,14 @@ B = |+dy0   -dy1      -2*dy3 |
 */
 			geometryCorrection.getPortsCoordinatesAndDerivatives(
 					corr_rots,   //  Matrix []   rots,
-					deriv_rots,  //  Matrix [][] deriv_rots, 
+					deriv_rots,  //  Matrix [][] deriv_rots,
 					deriv,       // 	boolean calc_deriv,
 					pXY[0],      // double px,
 					pXY[1],      // double py,
 					mm.getDisparityMeas()); // getDisparityTask()); // double disparity)
-			
+
 			// convert to symmetrical coordinates
-			
+
 			 double [][] jt_partial = corr_vector.getJtPartial(
 						deriv, // double [][] port_coord_deriv,
 						par_mask); // boolean [] par_mask
@@ -2272,8 +2276,8 @@ B = |+dy0   -dy1      -2*dy3 |
 			// put partial transposed jacobian into full transposed Jacobian
 			for (int npar = 0; npar < jt.length; npar++){
 				for (int n = 0; n < 2* NUM_SENSORS; n++){
-//						jt[npar][2 * NUM_SENSORS * indx + n] = j_partial[n][npar]; // here Jacobian was not transposed 
-						jt[npar][2 * NUM_SENSORS * indx + n] = jt_partial[npar][n]; 
+//						jt[npar][2 * NUM_SENSORS * indx + n] = j_partial[n][npar]; // here Jacobian was not transposed
+						jt[npar][2 * NUM_SENSORS * indx + n] = jt_partial[npar][n];
 				}
 			}
 			if (debugLevel > 0){
@@ -2283,20 +2287,20 @@ B = |+dy0   -dy1      -2*dy3 |
 						dbg_a_vector, // double [] dbg_a_vector, // replace actual radial distortion coefficients
 						1E-8, //6,    // double delta, // 1e-6
 						corr_vector, // CorrVector corr_vector,
-						deriv_dbg, // j_partial_debug, // 
+						deriv_dbg, // j_partial_debug, //
 						pXY[0],      // double px,
 						pXY[1],      // double py,
 						mm.getDisparityMeas()); // Task()); // double disparity)
-				
+
 				// convert to symmetrical coordinates
 				 double [][] jt_partial_dbg = corr_vector.getJtPartial(
 							deriv_dbg, // double [][] port_coord_deriv,
 							par_mask); // boolean [] par_mask
-				
+
 				double max_rdiff = 0;
 				for (int npar = 0; npar < jt.length; npar++){
 					for (int n = 0; n < 2 * NUM_SENSORS; n++){
-//						jt_dbg[npar][2 * NUM_SENSORS * indx + n] = j_partial_debug[n][npar];  // here Jacobian was not transposed 
+//						jt_dbg[npar][2 * NUM_SENSORS * indx + n] = j_partial_debug[n][npar];  // here Jacobian was not transposed
 						jt_dbg[npar][2 * NUM_SENSORS * indx + n] = jt_partial_dbg[npar][n];
 						double avg  = 0.5*(jt_dbg[npar][2 * NUM_SENSORS * indx + n] + jt[npar][2 * NUM_SENSORS * indx + n]);
 						double rdiff= Math.abs(0.5*(jt_dbg[npar][2 * NUM_SENSORS * indx + n] - jt[npar][2 * NUM_SENSORS * indx + n]));
@@ -2315,8 +2319,8 @@ B = |+dy0   -dy1      -2*dy3 |
 				if (dbg_images) {
 					for (int i = 0; i < dbg_titles_xy.length; i++){
 						for (int j = 0; j < dbg_titles_tar.length; j++){
-							dbg_img_deriv[2 * (i * dbg_titles_tar.length + j) + 0][dbg_index] = deriv[i][j];  
-							dbg_img_deriv[2 * (i * dbg_titles_tar.length + j) + 1][dbg_index] = deriv_dbg[i][j];  
+							dbg_img_deriv[2 * (i * dbg_titles_tar.length + j) + 0][dbg_index] = deriv[i][j];
+							dbg_img_deriv[2 * (i * dbg_titles_tar.length + j) + 1][dbg_index] = deriv_dbg[i][j];
 						}
 					}
 					for (int i = 0; i < dbg_titles_xy.length; i++){
@@ -2333,15 +2337,15 @@ B = |+dy0   -dy1      -2*dy3 |
 			String [] dbg_img_deriv_titles = new String [dbg_titles_xy.length * dbg_titles_tar.length *2];
 			for (int i = 0; i < dbg_titles_xy.length; i++){
 				for (int j = 0; j < dbg_titles_tar.length; j++){
-					dbg_img_deriv_titles[2 * (i * dbg_titles_tar.length + j) + 0]= dbg_titles_xy[i] + "_" +dbg_titles_tar[j];  
-					dbg_img_deriv_titles[2 * (i * dbg_titles_tar.length + j) + 1]= dbg_titles_xy[i] + "_" +dbg_titles_tar[j] + "delta";  
+					dbg_img_deriv_titles[2 * (i * dbg_titles_tar.length + j) + 0]= dbg_titles_xy[i] + "_" +dbg_titles_tar[j];
+					dbg_img_deriv_titles[2 * (i * dbg_titles_tar.length + j) + 1]= dbg_titles_xy[i] + "_" +dbg_titles_tar[j] + "delta";
 				}
 			}
 
 			String [] dbg_dxy_dsym_titles = new String [dbg_titles_xy.length * dbg_titles_sym.length];
 			for (int i = 0; i < dbg_titles_xy.length; i++){
 				for (int j = 0; j < dbg_titles_sym.length; j++){
-					dbg_dxy_dsym_titles[i * dbg_titles_sym.length + j]= dbg_titles_xy[i] + "_" +dbg_titles_sym[j];  
+					dbg_dxy_dsym_titles[i * dbg_titles_sym.length + j]= dbg_titles_xy[i] + "_" +dbg_titles_sym[j];
 				}
 			}
 
@@ -2355,7 +2359,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		return jt;
 	}
 
-	
+
 	double [][] debug_mv_from_sym_jacobian(
 			double delta,
 			boolean [] par_mask,
@@ -2366,7 +2370,7 @@ B = |+dy0   -dy1      -2*dy3 |
 	{
 		int num_pars = 0;
 		for (int i = 0; i < par_mask.length; i++) if (par_mask[i]) num_pars ++;
-		
+
 		double [][] jt_mv = new double  [num_pars][2 * NUM_SENSORS * mismatch_list.size()];
 		double [] sym_par_0 = corr_vector.toSymArray(par_mask);
 		for (int sym_par = 0; sym_par < num_pars; sym_par++ ) {
@@ -2389,12 +2393,12 @@ B = |+dy0   -dy1      -2*dy3 |
 			for (int i = 0; i < jt_mv[sym_par].length; i++){
 				jt_mv[sym_par][i] = (mv_p[i]-mv_m[i])/delta;
 			}
-			
+
 		}
 		return jt_mv;
 	}
-	
-	
+
+
 	/**
 	 * Debugging jacobian with two coordinate transformations - input and output. Calculating output mv vector
 	 * for all coordinate points for current corr_vector (to use it with delta corr_vecotr)
@@ -2413,7 +2417,7 @@ B = |+dy0   -dy1      -2*dy3 |
 	{
 		double [][] dMismatch_dXY = (new Mismatch()).get_dMismatch_dXY(); // just a static array
 		double [] mv = new double [2 * NUM_SENSORS * mismatch_list.size()];
-		Matrix [] corr_rots = corr_vector.getRotMatrices(); // get array of per-sensor rotation matrices 
+		Matrix [] corr_rots = corr_vector.getRotMatrices(); // get array of per-sensor rotation matrices
 		for (int indx = 0; indx<mismatch_list.size(); indx++){ // need indx value
 			Mismatch mm = mismatch_list.get(indx);
 			double [] pXY = mm.getPXY();
@@ -2427,7 +2431,7 @@ B = |+dy0   -dy1      -2*dy3 |
 */
 			double [][] f = geometryCorrection.getPortsCoordinatesAndDerivatives( // 4x2
 					corr_rots,    //  Matrix []   rots,
-					null, //  Matrix [][] deriv_rots, 
+					null, //  Matrix [][] deriv_rots,
 					null,        //	boolean calc_deriv,
 					pXY[0],      // double px,
 					pXY[1],      // double py,
@@ -2435,7 +2439,7 @@ B = |+dy0   -dy1      -2*dy3 |
 
 			// convert to symmetrical coordinates
 			// f is [4][2] array of port x,y coordinates - convert them to mv (linear array)
-			
+
 			double [] mv_partial = new double [dMismatch_dXY.length];
 			for (int i = 0; i < mv_partial.length; i++){
 				for (int nsens = 0; nsens < NUM_SENSORS; nsens++){
@@ -2445,12 +2449,12 @@ B = |+dy0   -dy1      -2*dy3 |
 				}
 			}
 			for (int n = 0; n < 2* NUM_SENSORS; n++){
-				mv[2 * NUM_SENSORS * indx + n] = mv_partial[n]; 
+				mv[2 * NUM_SENSORS * indx + n] = mv_partial[n];
 			}
 		}
 		return mv;
 	}
-	
+
 	public int dbg_index(double [] pXY, int decimate)
 	{
 		int width =  qc.tp.getTilesX()*qc.tp.getTileSize()/decimate;
@@ -2472,7 +2476,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		}
 		return dbg_img;
 	}
-	
+
 	public void dbgImgRemoveEmpty(double [][] dbg_img){
 		for (int nimg = 0; nimg < dbg_img.length; nimg++) if (dbg_img[nimg] != null){
 			boolean has_data = false;
@@ -2487,7 +2491,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			}
 		}
 	}
-	
+
 	double [] getJtJTrace( // just debugging
 			double [][] jt,
 			double [] w)
@@ -2499,14 +2503,14 @@ B = |+dy0   -dy1      -2*dy3 |
 				w[i] = 1.0/w.length;
 			}
 		}
-	
+
 		for (int i = 0; i < jt.length; i++){
 			for (int k = 0; k < jt[i].length; k++){
 				jtj_trace[i] += w[k] * jt[i][k]*jt[i][k];
 			}
 		}
 		return jtj_trace;
-		
+
 	}
 
 	double [][] getJTJ(
@@ -2563,7 +2567,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		for (int indx = 0; indx<mismatch_list.size(); indx++){ // need indx value
 			Mismatch mm = mismatch_list.get(indx);
 			mm.copyToY(yMinusFx, indx);
-		}		  
+		}
 		return yMinusFx;
 	}
 
@@ -2587,9 +2591,9 @@ B = |+dy0   -dy1      -2*dy3 |
 	public GeometryCorrection.CorrVector  solveCorr (
 			boolean use_disparity,     // if true will ignore disparity data even if available
 			boolean force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
-			                           // data, using just radial distortions 
-	  		boolean    common_roll,    // Enable common roll (valid for high disparity range only) 
-			
+			                           // data, using just radial distortions
+	  		boolean    common_roll,    // Enable common roll (valid for high disparity range only)
+
 			ArrayList<Mismatch> mismatch_list,
 			GeometryCorrection geometryCorrection,
 			GeometryCorrection.CorrVector corr_vector,
@@ -2624,7 +2628,7 @@ B = |+dy0   -dy1      -2*dy3 |
 				true           //sym9
 		};
 		*/
-		
+
 		double [][] jta = getJacobianTransposed(
 				par_mask,           // boolean [] par_mask,
 				mismatch_list,      // ArrayList<Mismatch> mismatch_list,
@@ -2635,12 +2639,12 @@ B = |+dy0   -dy1      -2*dy3 |
 
 		// convert Jacobian outputs to symmetrical measurement vectors (last one is non-zero only if disparity should be adjusted)
 
-		
-		double [][] jta_mv =  (new Mismatch()).convertJt_mv (jta); //double [][] jt)
-		
 
-		
-		
+		double [][] jta_mv =  (new Mismatch()).convertJt_mv (jta); //double [][] jt)
+
+
+
+
 		Matrix jt = new Matrix(jta_mv);
 		double [] y_minus_fx_a = getYminusFx( // mv[0]..mv[7], not the measured data (dx0, dy0, ... dx3, dy3)
 				mismatch_list); // ArrayList<Mismatch> mismatch_list)
@@ -2652,7 +2656,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		if (debugLevel > -1){
 			System.out.println("--- solveCorr(): initial RMS = " + rms0);
 		}
-		
+
 		if (old_new_rms != null){
 			old_new_rms[0] =rms0;
 		}
@@ -2664,12 +2668,12 @@ B = |+dy0   -dy1      -2*dy3 |
 //		double [] jt_trace_dbg =      getJtJTrace(jta,weights);
 //		double [] jt_mv_trace_null_dbg = getJtJTrace(jta_mv,null);
 //		double [] jt_mv_trace_dbg =      getJtJTrace(jta_mv,weights);
-// 		
-		boolean dbg_images = debugLevel>1; 
+//
+		boolean dbg_images = debugLevel>1;
 		int dbg_decimate = 64; // just for the debug image
 		int dbg_width =  qc.tp.getTilesX()*qc.tp.getTileSize();
 		int dbg_height = qc.tp.getTilesY()*qc.tp.getTileSize();
-		int dbg_owidth = dbg_width/dbg_decimate; 
+		int dbg_owidth = dbg_width/dbg_decimate;
 		int dbg_oheight = dbg_height/dbg_decimate;
 		int dbg_length = dbg_owidth*dbg_oheight;
 //		String [] dbg_titles_tar=GeometryCorrection.CORR_NAMES;
@@ -2689,7 +2693,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					geometryCorrection, // GeometryCorrection geometryCorrection,
 					corr_vector,        // GeometryCorrection.CorrVector corr_vector)
 					debugLevel);		// int debugLevel)
-			
+
 			dbg_xy =              doubleNaN(dbg_titles_xy.length,                            dbg_length); // jacobian dmv/dsym
 			dbg_mv =              doubleNaN(dbg_titles_mv.length,                            dbg_length); // jacobian dmv/dsym
 			dbg_dmv_dsym =        doubleNaN(dbg_titles_mv.length * dbg_titles_sym.length,    dbg_length); // jacobian dmv/dsym
@@ -2701,7 +2705,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			String [] dbg_dmv_dsym_titles = new String [dbg_titles_mv.length * dbg_titles_sym.length];
 			for (int i = 0; i < dbg_titles_mv.length; i++){
 				for (int j = 0; j < dbg_titles_sym.length; j++){
-					dbg_dmv_dsym_titles[i * dbg_titles_sym.length + j]= dbg_titles_mv[i] + "_" +dbg_titles_sym[j];  
+					dbg_dmv_dsym_titles[i * dbg_titles_sym.length + j]= dbg_titles_mv[i] + "_" +dbg_titles_sym[j];
 				}
 			}
 			for (int indx = 0; indx < mismatch_list.size(); indx++){
@@ -2764,8 +2768,8 @@ B = |+dy0   -dy1      -2*dy3 |
 			System.out.println("solveCorr() rslt:");
 			System.out.println(rslt.toString());
 		}
-		
-		
+
+
 		return rslt;
 	}
 

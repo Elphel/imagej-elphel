@@ -4315,21 +4315,23 @@ public class QuadCLT {
 				  show_fine_corr( this.fine_corr, "  was");
 			  }
 		  }
-		  if (debugLevel > 1){
+		  if (corr==null) {
+			  System.out.println("New correction is null (only non-null for poly, not for infinity");
+			  return;
+		  } else {
 			  if (debugLevel > 1){
 				  show_fine_corr(corr, "added");
 			  }
-		  }
-
-		  for (int n = 0; n< corr.length; n++){
-			  for (int i = 0; i< corr[n].length; i++){
-				  for (int j = 0; j< corr[n][i].length; j++){
-					  this.fine_corr[n][i][j]+=corr[n][i][j];
+			  for (int n = 0; n< corr.length; n++){
+				  for (int i = 0; i< corr[n].length; i++){
+					  for (int j = 0; j< corr[n][i].length; j++){
+						  this.fine_corr[n][i][j]+=corr[n][i][j];
+					  }
 				  }
 			  }
-		  }
-		  if (debugLevel > 0){
-			  show_fine_corr( this.fine_corr, "");
+			  if (debugLevel > 0){
+				  show_fine_corr( this.fine_corr, "");
+			  }
 		  }
 	  }
 	  public void show_fine_corr()
