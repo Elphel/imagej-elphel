@@ -526,6 +526,201 @@ public class EyesisCorrectionParameters {
     		return true;
     	}
 
+
+    	public boolean showJDialog(String title) {
+//    		GenericDialog gd = new GenericDialog(title);
+    		GenericJTabbedDialog gd = new GenericJTabbedDialog(title ,1000, 900);
+            gd.addTab("Eyesis parameters","Eyesis camera parameters, most not all applicable to quad cameras");
+    		gd.addCheckbox ("Splt into Bayer stack (if false will exit)",       this.split);
+    		gd.addCheckbox ("Apply vignetting/color correction to source files",this.vignetting);
+    		gd.addCheckbox ("Replace hot/warm/cold pixels with average of neighbors",this.pixelDefects);
+    		gd.addNumericField("Pixel difference thershold to consider it \"bad\" on 255.0 scale (0 - use all)", this.pixelDefectsThreshold, 2,6,"8.0");
+			String [] choices={"none","absolute","relative"};
+			if (this.exposureCorrectionMode<0) this.exposureCorrectionMode=0;
+			else if (this.exposureCorrectionMode>=choices.length) this.exposureCorrectionMode=choices.length-1;
+			gd.addChoice      ("Exposure correction",choices, choices[this.exposureCorrectionMode]);
+    		gd.addNumericField("Reference exposure (effective only in \"absolute\" mode)", 1000.0*this.referenceExposure, 2,6,"ms");
+    		gd.addNumericField("Exposure scale (effective only in \"relative\" mode) 0 - darken, 1 - lighten", this.relativeExposure, 3,5,"");
+    		gd.addCheckbox ("De-mosaic (if false will exit)",                   this.debayer);
+    		gd.addCheckbox ("Show de-mosaic middle-frequency 'energy",          this.showDebayerEnergy);
+    		gd.addCheckbox ("Save de-mosaic middle-frequency 'energy",          this.saveDebayerEnergy);
+    		gd.addCheckbox ("Sharpen (convolve with calibration kernels)",      this.deconvolve);
+    		gd.addCheckbox ("Denoise (convolve with Gaussian in smooth areas)", this.combine);
+    		gd.addCheckbox ("Show denoise mask (white - use hi-res, black - low-res)", this.showDenoiseMask);
+    		gd.addCheckbox ("Save denoise mask (white - use hi-res, black - low-res)", this.saveDenoiseMask);
+    		gd.addCheckbox ("Show kernel noise gains",                          this.showNoiseGains);
+    		gd.addCheckbox ("Save kernel noise gains",                          this.saveNoiseGains);
+    		gd.addCheckbox ("Convert colors",                                   this.colorProc);
+    		gd.addCheckbox ("Fix blue leak",                                    this.blueProc);
+    		gd.addCheckbox ("Show chroma denoise mask (white - use hi-res, black - low-res)", this.showChromaDenoiseMask);
+    		gd.addCheckbox ("Save chroma denoise mask (white - use hi-res, black - low-res)", this.saveChromaDenoiseMask);
+    		gd.addCheckbox ("Rotate result image",                              this.rotate);
+    		gd.addCheckbox ("Crop result image to the original size",           this.crop);
+			String [] equirectangularFormatChoices={"RGBA 8-bit","RGBA 16-bit","RGBA 32-bit integer","RGBA 32-bit float","ImageJ stack"};
+			int [] equirectangularFormats={0,1,2,3,4};
+			int equirectangularFormatIndex=0;
+			for ( int i=0;i<equirectangularFormats.length;i++) if (equirectangularFormats[i]==this.equirectangularFormat){
+				equirectangularFormatIndex=i;
+				break;
+			}
+			gd.addChoice   ("Equirectangular output format",equirectangularFormatChoices, equirectangularFormatChoices[equirectangularFormatIndex]);
+    		gd.addNumericField("Map 1.0 intensity to this fraction of the full range 8/16/32-bit integer mode output", 100*this.outputRangeInt, 2,6,"%");
+    		gd.addNumericField("Map 1.0 intensity to this value in 32-bit floating point output mode", this.outputRangeFP, 2,6,"");
+    		gd.addCheckbox ("Encode ImageJ specific Info metadata to the output file TIFF header", this.imageJTags);
+
+			gd.addCheckbox ("Convert to RGB48",                                 this.toRGB);
+    		gd.addCheckbox ("Convert to 8 bit RGB (and save JPEG if save is enabled)", this.jpeg);
+    		gd.addCheckbox ("Use PNG instead of TIFF for 32 bit (8 per color) RGBA", this.png);
+    		gd.addCheckbox ("Save the result to file system",                   this.save);
+    		gd.addCheckbox ("Save 16-bit tiff if the result is 8 bit",          this.save16);
+    		gd.addCheckbox    ("Save 32-bit tiff if the result is 8 or 16 bit",    this.save32);
+    		gd.addCheckbox    ("Show the result image",                            this.show);
+    		gd.addNumericField("JPEG quality (%)",                                 this.JPEG_quality,0);
+    		gd.addNumericField("JPEG scale   (%)",                            100* this.JPEG_scale,0);
+    		gd.addCheckbox    ("Warp results to equirectangular",                  this.equirectangular);
+    		gd.addCheckbox    ("Calculate distances in overlapping areas",         this.zcorrect);
+    		gd.addCheckbox    ("Save current settings with results",               this.saveSettings);
+
+            gd.addTab("Directories","Direcories paths");
+    		gd.addStringField ("Source files directory",                           this.sourceDirectory, 60);
+    		gd.addCheckbox    ("Select source directory",                          false);
+    		gd.addStringField ("Sensor calibration directory",                     this.sensorDirectory, 60);
+    		gd.addCheckbox    ("Select sensor calibration directory",              false);
+
+    		gd.addStringField ("Aberration kernels (sharp) directory",             this.sharpKernelDirectory, 60);
+    		gd.addCheckbox    ("Select aberration kernels (sharp) directory",      false);
+    		gd.addStringField ("Aberration kernels (smooth) directory",            this.smoothKernelDirectory, 60);
+    		gd.addCheckbox    ("Select aberration kernels (smooth) directory",     false);
+
+    		gd.addStringField ("Aberration kernels for DCT directory",             this.dctKernelDirectory, 60);
+    		gd.addCheckbox    ("Select aberration kernels for DCT directory",      false);
+
+    		gd.addStringField ("Aberration kernels for CLT directory",             this.cltKernelDirectory, 60);
+    		gd.addCheckbox    ("Select aberration kernels for CLT directory",      false);
+
+    		gd.addStringField ("x3d model version",                                this.x3dModelVersion, 20);    // 10a
+    		gd.addStringField ("x3d output directory",                             this.x3dDirectory, 60);
+    		gd.addCheckbox    ("Select x3d output directory",                      false);
+    		gd.addCheckbox    ("Use individual subdirectory for each 3d model (timestamp as name)", this.use_x3d_subdirs);
+
+    		gd.addStringField("Equirectangular maps directory (may be empty)",     this.equirectangularDirectory, 60);
+    		gd.addCheckbox("Select equirectangular maps directory",                false);
+    		gd.addStringField("Results directory",                                 this.resultsDirectory, 60);
+    		gd.addCheckbox("Select results directory",                             false);
+
+            gd.addTab("Prefix/suffix","Prefixes and suffixes for various file types");
+    		gd.addStringField("Source files prefix",                               this.sourcePrefix, 60);
+    		gd.addStringField("Source files suffix",                               this.sourceSuffix, 60);
+    		gd.addNumericField("First subcamera (in the source filename)",         this.firstSubCamera, 0);
+
+    		gd.addStringField("Sensor files prefix",                               this.sensorPrefix, 40);
+    		gd.addStringField("Sensor files suffix",                               this.sensorSuffix, 40);
+    		gd.addStringField("Kernel files (sharp) prefix",                       this.sharpKernelPrefix, 40);
+    		gd.addStringField("Kernel files (sharp) suffix",                       this.sharpKernelSuffix, 40);
+    		gd.addStringField("Kernel files (smooth) prefix",                      this.smoothKernelPrefix, 40);
+    		gd.addStringField("Kernel files (smooth) suffix",                      this.smoothKernelSuffix, 40);
+
+    		gd.addStringField("DCT kernel files  prefix",                          this.dctKernelPrefix, 40);
+    		gd.addStringField("DCT symmetical kernel files",                       this.dctSymSuffix, 40);
+    		gd.addStringField("DCT asymmetrical kernel files suffix",              this.dctAsymSuffix, 40);
+    		gd.addStringField("CLT kernel files prefix",                           this.cltKernelPrefix, 40);
+    		gd.addStringField("CLT kernel files suffix",                           this.cltSuffix, 40);
+
+    		gd.addStringField("Equirectangular maps prefix",     this.equirectangularPrefix, 40);
+    		gd.addStringField("Equirectangular maps suffix",     this.equirectangularSuffix, 40);
+    		gd.addCheckbox("Cut rolling-over equirectangular images in two", this.equirectangularCut);
+
+    		gd.addStringField("Plane projection map prefix",     this.planeMapPrefix, 40);
+    		gd.addStringField("Plane projection map suffix",     this.planeMapSuffix, 40);
+    		gd.addCheckbox("Use projection to a common plane instead of the  equirectangular", this.usePlaneProjection);
+    		gd.addCheckbox("Save de-warped images as JPEG instead of TIFF",  this.planeAsJPEG);
+
+
+//    		gd.addStringField("Suffix for the second part of rolled-over equirectangular images",  this.equirectangularSuffixA, 40);
+
+    		gd.addCheckbox   ("Remove unused sensor data",       this.removeUnusedSensorData);
+    		gd.addCheckbox   ("Swap top and equator images",     this.swapSubchannels01);
+//    		WindowTools.addScrollBars(gd);
+    		gd.showDialog();
+    		if (gd.wasCanceled()) return false;
+    		this.split=                  gd.getNextBoolean();
+    		this.vignetting=             gd.getNextBoolean();
+    		this.pixelDefects=           gd.getNextBoolean();
+    		this.pixelDefectsThreshold=  gd.getNextNumber();
+			this.exposureCorrectionMode= gd.getNextChoiceIndex();
+    		this.referenceExposure=0.001*gd.getNextNumber();
+    		this.relativeExposure=       gd.getNextNumber();
+    		this.debayer=           gd.getNextBoolean();
+    		this.showDebayerEnergy= gd.getNextBoolean();
+    		this.saveDebayerEnergy= gd.getNextBoolean();
+    		this.deconvolve=        gd.getNextBoolean();
+    		this.combine=           gd.getNextBoolean();
+    		this.showDenoiseMask=   gd.getNextBoolean();
+    		this.saveDenoiseMask=   gd.getNextBoolean();
+    		this.showNoiseGains=    gd.getNextBoolean();
+    		this.saveNoiseGains=    gd.getNextBoolean();
+    		this.colorProc=         gd.getNextBoolean();
+    		this.blueProc=         gd.getNextBoolean();
+    		this.showChromaDenoiseMask=   gd.getNextBoolean();
+    		this.saveChromaDenoiseMask=   gd.getNextBoolean();
+    		this.rotate=            gd.getNextBoolean();
+    		this.crop=              gd.getNextBoolean();
+    		this.equirectangularFormat= equirectangularFormats[gd.getNextChoiceIndex()];
+    		this.outputRangeInt=0.01*gd.getNextNumber();
+    		this.outputRangeFP=     gd.getNextNumber();
+    		this.imageJTags=        gd.getNextBoolean();
+    		this.toRGB=             gd.getNextBoolean();
+    		this.jpeg=              gd.getNextBoolean();
+    		this.png=               gd.getNextBoolean();
+    		this.save=              gd.getNextBoolean();
+    		this.save16=            gd.getNextBoolean();
+    		this.save32=            gd.getNextBoolean();
+    		this.show=              gd.getNextBoolean();
+    		this.JPEG_quality=(int) gd.getNextNumber();
+    		this.JPEG_scale=   0.01*gd.getNextNumber();
+    		this.equirectangular=   gd.getNextBoolean();
+    		this.zcorrect=          gd.getNextBoolean();
+    		this.saveSettings=      gd.getNextBoolean();
+
+    		this.sourceDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSourceDirectory(false, false);
+    		this.sensorDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSensorDirectory(false, false);
+    		this.sharpKernelDirectory=   gd.getNextString(); if (gd.getNextBoolean()) selectSharpKernelDirectory(false, false);
+    		this.smoothKernelDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectSmoothKernelDirectory(false, true);
+    		this.dctKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectDCTKernelDirectory(false, true);
+    		this.cltKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectCLTKernelDirectory(false, true);
+    		this.x3dModelVersion=        gd.getNextString(); // 10a
+    		this.x3dDirectory=           gd.getNextString(); if (gd.getNextBoolean()) selectX3dDirectory(false, true);
+    		this.use_x3d_subdirs=        gd.getNextBoolean();
+    		this.equirectangularDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectEquirectangularDirectory(false, false);
+    		this.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) selectResultsDirectory(false, true);
+    		this.sourcePrefix=           gd.getNextString();
+    		this.sourceSuffix=           gd.getNextString();
+    		this.firstSubCamera=   (int) gd.getNextNumber();
+    		this.sensorPrefix=           gd.getNextString();
+    		this.sensorSuffix=           gd.getNextString();
+    		this.sharpKernelPrefix=      gd.getNextString();
+    		this.sharpKernelSuffix=      gd.getNextString();
+    		this.smoothKernelPrefix=     gd.getNextString();
+    		this.smoothKernelSuffix=     gd.getNextString();
+    		this.dctKernelPrefix=        gd.getNextString();
+    		this.dctSymSuffix=           gd.getNextString();
+    		this.dctAsymSuffix=          gd.getNextString();
+    		this.cltKernelPrefix=        gd.getNextString();
+    		this.cltSuffix=              gd.getNextString();
+    		this.equirectangularPrefix=  gd.getNextString();
+    		this.equirectangularSuffix=  gd.getNextString();
+    		this.equirectangularCut=     gd.getNextBoolean();
+    		this.planeMapPrefix=         gd.getNextString();
+    		this.planeMapSuffix=         gd.getNextString();
+    		this.usePlaneProjection=     gd.getNextBoolean();
+    		this.planeAsJPEG=            gd.getNextBoolean();
+//    		this.equirectangularSuffixA= gd.getNextString();
+    		this.removeUnusedSensorData= gd.getNextBoolean();
+    		this.swapSubchannels01= gd.getNextBoolean();
+    		return true;
+    	}
+
+
     	public boolean showCLTDialog(String title,
     			CLTParameters clt_parameters) {
     		GenericDialog gd = new GenericDialog(title);
@@ -2232,6 +2427,9 @@ public class EyesisCorrectionParameters {
   		public boolean    ly_inf_en =       false; // true;    // Simultaneously correct disparity at infinity (both poly and extrinsic)
   		public boolean    ly_inf_force=     false;   // Force convergence correction during extrinsic, even with no infinity data
   		public boolean    ly_com_roll=      false;   // Enable common roll (valid for high disparity range only)
+
+  		public boolean    ly_focalLength=   true; // Correct scales (focal length temperature? variations)
+
   		public boolean    ly_poly =         false;   // Use polynomial correction, false - correct tilt/azimuth/roll of each sensor
 
   		// Lazy eye multi-step fitting
@@ -2889,6 +3087,7 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"ly_inf_en",        this.ly_inf_en+"");
 			properties.setProperty(prefix+"ly_inf_force",     this.ly_inf_force+"");
 			properties.setProperty(prefix+"ly_com_roll",      this.ly_com_roll+"");
+			properties.setProperty(prefix+"ly_focalLength",   this.ly_focalLength+"");
 			properties.setProperty(prefix+"ly_poly",          this.ly_poly+"");
 
 			properties.setProperty(prefix+"lym_overexp",      this.lym_overexp +"");
@@ -3499,6 +3698,9 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"ly_inf_en")!=null)         this.ly_inf_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_en"));
   			if (properties.getProperty(prefix+"ly_inf_force")!=null)      this.ly_inf_force=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_force"));
   			if (properties.getProperty(prefix+"ly_com_roll")!=null)       this.ly_com_roll=Boolean.parseBoolean(properties.getProperty(prefix+"ly_com_roll"));
+  			if (properties.getProperty(prefix+"ly_focalLength")!=null)    this.ly_focalLength=Boolean.parseBoolean(properties.getProperty(prefix+"ly_focalLength"));
+
+
   			if (properties.getProperty(prefix+"ly_poly")!=null)           this.ly_poly=Boolean.parseBoolean(properties.getProperty(prefix+"ly_poly"));
 
 			if (properties.getProperty(prefix+"lym_overexp")!=null)       this.lym_overexp=Double.parseDouble(properties.getProperty(prefix+"lym_overexp"));
@@ -4127,6 +4329,7 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Use infinity disparity (disable if there is not enough of infinity data), both poly and extrinsic", this.ly_inf_en);
   			gd.addCheckbox    ("Force convergence correction during extrinsic, even with no infinity data", this.ly_inf_force);
   			gd.addCheckbox    ("Enable common roll adjustment (valid for high disparity range scans only)", this.ly_com_roll);
+  			gd.addCheckbox    ("Correct scales (focal length temperature? variations)",                   this.ly_focalLength);
   			gd.addCheckbox    ("*Use polynomial correction, false - correct tilt/azimuth/roll of each sensor)", this.ly_poly);
 
   			gd.addMessage     ("--- Lazy eye multi-step fitting ---");
@@ -4770,6 +4973,7 @@ public class EyesisCorrectionParameters {
   			this.ly_inf_en=             gd.getNextBoolean();
   			this.ly_inf_force=          gd.getNextBoolean();
   			this.ly_com_roll=           gd.getNextBoolean();
+  			this.ly_focalLength=        gd.getNextBoolean();
   			this.ly_poly=               gd.getNextBoolean();
 
 			this.lym_overexp=           gd.getNextNumber();
@@ -5237,6 +5441,1306 @@ public class EyesisCorrectionParameters {
 
   			return true;
   		}
+
+  		public boolean showJDialog() {
+//  			GenericDialog gd = new GenericDialog("Set CLT parameters");
+  			GenericJTabbedDialog gd = new GenericJTabbedDialog("Set CLT parameters",800,900);
+  			gd.addTab         ("General", "General parameters");
+  			gd.addNumericField("Transform size (default 8)",                                              this.transform_size,            0, 6, "pixels","Should always be 8");
+  			gd.addNumericField("Lapped transform window type (0- rectangular, 1 - sinus)",                this.clt_window,                0);
+   			gd.addNumericField("shift_x",                                                                 this.shift_x,                   4);
+   			gd.addNumericField("shift_y",                                                                 this.shift_y,                   4);
+  			gd.addNumericField("Bit mask - which of 4 transforms to combine after iclt",                  this.iclt_mask,                 0);
+  			gd.addNumericField("Tile X to extract (0..163)",                                              this.tileX,                     0);
+  			gd.addNumericField("Tile Y to extract (0..122)",                                              this.tileY,                     0);
+  			gd.addNumericField("dbg_mode: 0 - normal, +1 - no DCT/IDCT, just fold",                       this.dbg_mode,                  0);
+  			gd.addNumericField("ishift_x: shift source image by this pixels left",                        this.ishift_x,                  0);
+  			gd.addNumericField("ishift_y: shift source image by this pixels down",                        this.ishift_y,                  0);
+   			gd.addNumericField("Modify phase correlation to prevent division by very small numbers",      this.fat_zero,                  4);
+   			gd.addNumericField("LPF correlarion sigma ",                                                  this.corr_sigma,                3);
+  			gd.addCheckbox    ("Normalize kernels ",                                                      this.norm_kern);
+  			gd.addCheckbox    ("Equalize green channel gain of the individual cnannels (bug fix for exposure)", this.gain_equalize);
+  			gd.addCheckbox    ("Equalize R/G, B/G balance of the individual channels",                    this.colors_equalize);
+  			gd.addCheckbox    ("Skip saturated when adjusting gains",                                     this.nosat_equalize);
+  			gd.addNumericField("Saturation level of the most saturated color channel",                    this.sat_level,   4);
+  			gd.addNumericField("Do not use tiles with higher fraction of (near) saturated tiles",         this.max_overexposure,   4);
+
+  			gd.addNumericField("Red gain in the center of sensor calibration R (instead of vignetting)",  this.novignetting_r,   4);
+  			gd.addNumericField("Green gain in the center of sensor calibration G (instead of vignetting)",this.novignetting_g, 4);
+  			gd.addNumericField("Blue gain in the center of sensor calibration B (instead of vignetting)", this.novignetting_b,  4);
+  			gd.addNumericField("Extra red correction to compensate for light temperature",                this.scale_r,  4);
+  			gd.addNumericField("Extra green correction to compensate for light temperature",              this.scale_g,  4);
+  			gd.addNumericField("Extra blue correction to compensate for light temperature",               this.scale_b,  4);
+  			gd.addNumericField("Value (max) in vignetting data to correspond to 1x in the kernel",        this.vignetting_max,      3);
+  			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",      this.vignetting_range,  3);
+  			gd.addNumericField("Kernel step in pixels (has 1 kernel margin on each side)",                this.kernel_step,            0);
+  			gd.addNumericField("Nominal (rectilinear) disparity between side of square cameras (pix)",    this.disparity,  3);
+  			gd.addNumericField("Inverse distance to infinity (misalignment correction)",                  this.z_correction,  6);
+  			gd.addCheckbox    ("Perform correlation",                                                     this.correlate);
+  			gd.addNumericField("Bitmask of pairs to combine in the composite (top, bottom, left,righth)", this.corr_mask,            0);
+  			gd.addCheckbox    ("Combine correlation with mirrored around disparity direction",            this.corr_sym);
+  			gd.addCheckbox    ("Keep all partial correlations (otherwise - only combined one)",           this.corr_keep);
+  			gd.addCheckbox    ("Show combined correlations",                                              this.corr_show);
+  			gd.addCheckbox    ("Calculate per-pair X/Y variations of measured correlations ",             this.corr_mismatch);
+  			gd.addNumericField("Add to pair correlation before multiplying by other pairs (between sum and product)",    this.corr_offset,  6);
+  			gd.addNumericField("Red to green correlation weight",                                         this.corr_red,  4);
+  			gd.addNumericField("Blue to green correlation weight",                                        this.corr_blue,  4);
+  			gd.addCheckbox    ("Normalize each correlation tile by rms",                                  this.corr_normalize);
+  			gd.addNumericField("Minimal correlation value to consider valid",                             this.min_corr,  6);
+  			gd.addNumericField("Minimal correlation value to consider valid when normalizing results",    this.min_corr_normalized,  6);
+  			gd.addNumericField("Sigma for weights of points around global max to find fractional",        this.max_corr_sigma,  3);
+  			gd.addNumericField("Maximal distance from int max to consider",                               this.max_corr_radius,  3);
+  			gd.addNumericField("Calculated from correlation offset vs. actual one (not yet understood)",  this.corr_magic_scale,  3);
+
+  			gd.addTab         ("vert/hor", "Enhance detection of horizontal/vertical features (when enh_ortho is enabled for tile");
+
+  			gd.addMessage("--- Enhance detection of horizontal/vertical features (when enh_ortho is enabled for tile ---");
+  			gd.addNumericField("Reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)",  this.enhortho_width,            0);
+  			gd.addNumericField("Multiply center correlation pixels (inside enhortho_width) (1.0 - disables enh_orttho)",  this.enhortho_scale,  3);
+
+
+  			gd.addCheckbox    ("Double pass when masking center of mass to reduce preference for integer values", this.max_corr_double);
+  			gd.addNumericField("Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial",   this.corr_mode,            0);
+  			gd.addNumericField("Contrast of dotted border on correlation results",                        this.corr_border_contrast,  6);
+
+  			gd.addTab         ("tileTasks", "tiles tasks (current tile_task_op = "+this.tile_task_op+")");
+
+  			gd.addMessage("--- tiles tasks (current tile_task_op = "+this.tile_task_op+") ---");
+  			gd.addCheckbox    ("Enhace ortho lines detection (enh_ortho)",                                               ImageDtt.getOrthoLines(this.tile_task_op));
+  			gd.addCheckbox    ("Force disparity for image rendering (false - use found from tile correlation)",          ImageDtt.getForcedDisparity(this.tile_task_op));
+  			gd.addNumericField("Bitmask of used images (1 - top left, 2 - top right, 4 - bottom left, 8 bottom right)",  ImageDtt.getImgMask(this.tile_task_op),            0);
+  			gd.addNumericField("Bitmask of used pairs  (1 - top, 2 - bottom, 4 - left, 8 - right)",                      ImageDtt.getPairMask(this.tile_task_op),            0);
+  			gd.addNumericField("Tile operations window left (in 8x8 tiles)",                              this.tile_task_wl,            0);
+  			gd.addNumericField("Tile operations window top",                                              this.tile_task_wt,            0);
+  			gd.addNumericField("Tile operations window width",                                            this.tile_task_ww,            0);
+  			gd.addNumericField("Tile operations window height",                                           this.tile_task_wh,            0);
+
+  			gd.addNumericField("Do not adjust for shot noise (~sqrt) if lower than this",                 this.min_shot,  4);
+  			gd.addNumericField("Scale when dividing by sqrt for shot noise compensation of pixel differences (<0 - disable)", this.scale_shot,  4);
+
+  			gd.addNumericField("RMS difference from average to reduce weights (255 full scale image)",    this.diff_sigma,  4);
+  			gd.addNumericField("RMS difference from average in sigmas to discard channel",                this.diff_threshold,  4);
+  			gd.addCheckbox    ("Gaussian as weight when averaging images (false - sharp all/nothing)",    this.diff_gauss);
+  			gd.addNumericField("Minimal number of channels to agree on a point (real number to work with fuzzy averages)",   this.min_agree,  2);
+  			gd.addCheckbox    ("Do not reduce average weight when only one image differes much from the average", this.dust_remove);
+  			gd.addCheckbox    ("Use black for backdrop outside of the FOV",                               this.black_back);
+  			gd.addCheckbox    ("Add port weights to RGBA stack (debug feature)",                          this.keep_weights);
+  			gd.addCheckbox    ("Alpha channel: use center 8x8 (unchecked - treat same as RGB)",           this.sharp_alpha);
+  			gd.addNumericField("Alpha channel 0.0 thereshold (lower - transparent)",                      this.alpha0,   3);
+  			gd.addNumericField("Alpha channel 1.0 threshold (higher - opaque)",                           this.alpha1,   3);
+  			gd.addCheckbox    ("Generate shifted channel linear RGB stacks",                              this.gen_chn_stacks);
+  			gd.addCheckbox    ("Generate shifted channel color image stack",                              this.gen_chn_img);
+  			gd.addCheckbox    ("Generate shifted channel images and save with the model 'CLT process corr'",this.gen_4_img);
+  			gd.addCheckbox    ("Show result RGBA before overlap combined",                                this.show_nonoverlap);
+  			gd.addCheckbox    ("Show result RGBA",                                                        this.show_overlap);
+  			gd.addCheckbox    ("Show result color",                                                       this.show_rgba_color);
+  			gd.addCheckbox    ("Show disparity maps",                                                     this.show_map);
+  			gd.addNumericField("Disparity scan start value",                                              this.disp_scan_start,  2);
+  			gd.addNumericField("Disparity scan step",                                                     this.disp_scan_step,  2);
+  			gd.addNumericField("Disparity scan number of disparity values to scan",                       this.disp_scan_count,            0);
+
+  			gd.addTab         ("Manual", "camera fine correction: X/Y for images 0..3");
+
+  			gd.addMessage("--- camera fine correction: X/Y for images 0..3  ---");
+  			gd.addCheckbox    ("Debug infinity/lazy eye correction",                                      this.fine_dbg);
+  			gd.addNumericField("X 0",                                                                     this.fine_corr_x_0,  3);
+  			gd.addNumericField("Y 0",                                                                     this.fine_corr_y_0,  3);
+  			gd.addNumericField("X 1",                                                                     this.fine_corr_x_1,  3);
+  			gd.addNumericField("Y 1",                                                                     this.fine_corr_y_1,  3);
+  			gd.addNumericField("X 2",                                                                     this.fine_corr_x_2,  3);
+  			gd.addNumericField("Y 2",                                                                     this.fine_corr_y_2,  3);
+  			gd.addNumericField("X 3",                                                                     this.fine_corr_x_3,  3);
+  			gd.addNumericField("Y 3",                                                                     this.fine_corr_y_3,  3);
+  			gd.addCheckbox    ("Ignore manual pixel correction (set/reset automatically if enabled below)",   this.fine_corr_ignore);
+  			gd.addCheckbox    ("Apply and set to ignore manual pixel correction after extrinsics correction", this.fine_corr_apply);
+
+  			gd.addNumericField("fcorr_radius",                                                            this.fcorr_radius,  3);
+  			gd.addNumericField("Do not try to correct outside this fraction of width/hight",              this.fcorr_min_strength,3);
+  			gd.addNumericField("Consider only tiles with absolute residual disparity lower than",         this.fcorr_disp_diff,  3);
+  			gd.addCheckbox    ("Use quadratic polynomial for fine correction (false - only linear)",      this.fcorr_quadratic);
+  			gd.addCheckbox    ("Ignore current calculated fine correction (use manual only)",             this.fcorr_ignore);
+
+  			gd.addNumericField("Minimal correlation strength to use for infinity correction",             this.fcorr_inf_strength,3);
+  			gd.addNumericField("Disparity half-range for infinity",                                       this.fcorr_inf_diff,  3);
+  			gd.addCheckbox    ("Use quadratic polynomial for infinity correction (false - only linear)",  this.fcorr_inf_quad);
+  			gd.addCheckbox    ("Correct infinity in vertical direction (false - only horizontal)",        this.fcorr_inf_vert);
+
+
+  			gd.addCheckbox    ("Apply disparity correction to zero at infinity",                          this.inf_disp_apply);
+  			gd.addNumericField("Re run disparity correction at infinity multiple times",                  this.inf_repeat,      0);
+
+  			//  			gd.addCheckbox    ("Apply lazy eye correction at infinity",                                   this.inf_mism_apply);
+  			gd.addNumericField("Infinity extraction - maximum iterations",                                this.inf_iters,       0);
+  			gd.addNumericField("Coefficients maximal increment to exit iterations",                       this.inf_final_diff,  6);
+  			gd.addNumericField("Include farther tiles than tolerance, but scale their weights",           this.inf_far_pull,    3);
+
+  			gd.addTab         ("Infinity", "Infinity filter and Infinity histogram filter");
+
+  			gd.addMessage     ("--- Infinity filter ---");
+  			gd.addNumericField("Strength power",                                                          this.inf_str_pow,     3);
+  			gd.addNumericField("Sample size (side of a square)",                                          this.inf_smpl_side,   0);
+  			gd.addNumericField("Number after removing worst (should be >1)",                              this.inf_smpl_num,    0);
+  			gd.addNumericField("Maximal RMS of the remaining tiles in a sample",                          this.inf_smpl_rms,    3);
+  			gd.addMessage     ("--- Infinity histogram filter ---");
+  			gd.addNumericField("Square sample step (50% overlap)",                                        this.ih_smpl_step,    0);
+  			gd.addNumericField("Histogram minimal disparity",                                             this.ih_disp_min,     3);
+  			gd.addNumericField("Histogram disparity step",                                                this.ih_disp_step,    3);
+  			gd.addNumericField("Histogram number of bins",                                                this.ih_num_bins,     0);
+  			gd.addNumericField("Histogram Gaussian sigma (in disparity pixels)",                          this.ih_sigma,        3);
+  			gd.addNumericField("Keep samples within this difference from farthest maximum",               this.ih_max_diff,     3);
+  			gd.addNumericField("Minimal number of remaining samples",                                     this.ih_min_samples,  0);
+  			gd.addCheckbox    ("Replace samples with a single average with equal weight",                 this.ih_norm_center);
+
+  			gd.addTab         ("Lazy eye", "Lazy eye parameters (disparity @ infinity should be adjusted first");
+  			gd.addMessage     ("--- Lazy eye parameters (disparity @ infinity should be adjusted first ---");
+			gd.addNumericField("Sample size (side of a square)",                                          this.ly_smpl_side,  0);
+			gd.addNumericField("Number after removing worst (should be >1)",                              this.ly_smpl_num,  0);
+  			gd.addMessage     ("Maximal measured relative disparity = "+ (0.8*disp_scan_step)+" (0.8 * disp_scan_step)");
+//			gd.addNumericField("Maximal measured relative disparity",                                     this.ly_meas_disp,  3);
+			gd.addNumericField("Maximal RMS of the remaining tiles in a sample",                          this.ly_smpl_rms,  5);
+			gd.addNumericField("Maximal full disparity difference to 8 neighbors",                        this.ly_disp_var,  5);
+			gd.addNumericField("Maximal relative full disparity difference to 8 neighbors",               this.ly_disp_rvar, 5);
+			gd.addNumericField("Reduce weight of higher disparity tiles",                                 this.ly_norm_disp, 5);
+			gd.addNumericField("Relative weight of infinity calibration data",                            this.ly_inf_frac,  3);
+  			gd.addCheckbox    ("Calculate and apply lazy eye correction after disparity scan (poly or extrinsic), may repeat",this.ly_on_scan);
+  			gd.addCheckbox    ("Use infinity disparity (disable if there is not enough of infinity data), both poly and extrinsic", this.ly_inf_en);
+  			gd.addCheckbox    ("Force convergence correction during extrinsic, even with no infinity data", this.ly_inf_force);
+  			gd.addCheckbox    ("Enable common roll adjustment (valid for high disparity range scans only)", this.ly_com_roll);
+  			gd.addCheckbox    ("Correct scales (focal length temperature? variations)",                   this.ly_focalLength);
+  			gd.addCheckbox    ("*Use polynomial correction, false - correct tilt/azimuth/roll of each sensor)", this.ly_poly);
+
+  			gd.addMessage     ("--- Lazy eye multi-step fitting ---");
+			gd.addNumericField("Any (near) saturated pixels - discard tile (see sat_level also)",         this.lym_overexp,  10);
+  			gd.addCheckbox    ("Update target disparity after each step",                                 this.lym_update_disp);
+			gd.addNumericField("Maximal number of iterations",                                            this.lym_iter,  0);
+			gd.addNumericField("Parameter vector difference to exit",                                     this.lym_change,  10);
+			gd.addNumericField("Parameter vector difference to exit from polynomial correction",          this.lym_poly_change,  10);
+
+  			gd.addMessage     ("--- Lazy eye samples filter ---");
+  			gd.addCheckbox    ("Filter lazy eye pairs by their values",                                   this.lyf_filter);
+			gd.addNumericField("Fileter sample side (if 8, 8 x8 masked, 16x16 sampled)",                  this.lyf_smpl_side,  0);
+			gd.addNumericField("Maximal RMS (all components to components average)",                      this.lyf_rms_max,  3);
+			gd.addNumericField("Keep best fit samples, discard worst",                                    this.lyf_frac_keep,  3);
+			gd.addNumericField("Minimal number of tiles remaining in the sample",                         this.lyf_min_samples,  0);
+  			gd.addCheckbox    ("Replace samples with a single average with equal weight",                 this.lyf_norm_center);
+			gd.addNumericField("Scale calculated correction vector",                                      this.ly_corr_scale,  3);
+  			gd.addMessage     ("---");
+//  			gd.addNumericField("Use square this size side to detect outliers",                            this.fcorr_sample_size,  0);
+//  			gd.addNumericField("Keep tiles only if there are more in each square",                        this.fcorr_mintiles,     0);
+//  			gd.addNumericField("Remove this fraction of tiles from each sample",                          this.fcorr_reloutliers,  3);
+//  			gd.addNumericField("Gaussian blur channel mismatch data",                                     this.fcorr_sigma,        3);
+
+///  			gd.addNumericField("Calculated from correlation offset vs. actual one (not yet understood)",  this.corr_magic_scale,  3);
+
+  			gd.addTab         ("3D", "3D reconstruction");
+  			gd.addMessage     ("--- 3D reconstruction ---");
+  			gd.addCheckbox    ("Show generated textures",                                                      this.show_textures);
+  			gd.addCheckbox    ("show intermediate results of filtering",                                       this.debug_filters);
+
+  			gd.addNumericField("Minimal noise-normalized pixel difference in a channel to suspect something",  this.min_smth,  3);
+  			gd.addNumericField("Reliable noise-normalized pixel difference in a channel to have something ",   this.sure_smth,  3);
+  			gd.addNumericField("Disparity range to be considered background",                                  this.bgnd_range,  3);
+  			gd.addNumericField("Disparity difference from the center (provided) disparity to trust",           this.other_range,  3);
+
+  			gd.addNumericField("Minimal 4-corr strength to trust tile",                                        this.ex_strength,  3);
+  			gd.addNumericField("Minimal 4-corr strength divided by channel diff for new (border) tiles",       this.ex_nstrength,  3);
+
+  			gd.addCheckbox    ("Allow expansion over previously identified background (infinity)",             this.ex_over_bgnd);
+  			gd.addNumericField("When expanding over background, disregard lower disparity ",                   this.ex_min_over,  3);
+
+  			gd.addTab         ("Plates", "Plates filtering when building initial z-map");
+  			gd.addMessage     ("********* Plates filtering when building initial z-map *********");
+  			gd.addNumericField("If strength exceeds ex_strength * super_trust, do not apply ex_nstrength and plate_ds", this.pt_super_trust,  3);
+  			gd.addCheckbox    ("Do not replace raw tiles by the plates, if raw is closer (like poles)",        this.pt_keep_raw_fg);
+  			gd.addNumericField("Scale plates strength before comparing to raw strength",                       this.pt_scale_pre,  3);
+  			gd.addNumericField("Scale plates strength when replacing raw (plates d/s data is more reliable if it exists)", this.pt_scale_post,  3);
+
+  			gd.addNumericField("Minimal strength to be considered definitely background",                      this.bgnd_sure,  3);
+  			gd.addNumericField("Maximal strength to ignore as non-background",                                 this.bgnd_maybe,  3);
+
+  			gd.addNumericField("Number of tiles in a cluster to seed (just background?)",                      this.min_clstr_seed,   0);
+  			gd.addNumericField("Number of tiles in a cluster not close to other clusters (more than 2 tiles apart)", this.min_clstr_lone,   0);
+  			gd.addNumericField("Minimal total strength of the cluster",                                        this.min_clstr_weight,  3);
+  			gd.addNumericField("Minimal maximal strength of the cluster",                                      this.min_clstr_max,  3);
+
+  			gd.addNumericField("Fill gaps betsween clusters, see comments for 'grow'",                         this.fill_gaps,   0);
+  			gd.addNumericField("Same as fill_gaps above, on the final pass",                                   this.fill_final,   0);
+  			gd.addNumericField("Number of tiles in a cluster to block (just non-background?)",                 this.min_clstr_block,   0);
+  			gd.addNumericField("Number of tiles to grow tile selection (1 - hor/vert, 2 - hor/vert/diagonal)", this.bgnd_grow,   0);
+
+  			gd.addCheckbox    ("Use old ortho features processing (orth0_* parameters, false - use or_*)",     this.ortho_old);
+
+  			gd.addNumericField("Minimal strength of hor correlation to be used instead of full 4-pair correlation", this.ortho_min_hor,  3);
+  			gd.addNumericField("Minimal strength of vert correlation to be used instead of full 4-pair correlation", this.ortho_min_vert,  3);
+  			gd.addNumericField("Vert/hor (or hor/vert) strength to be used instead of the full correlation",   this.ortho_asym,  3);
+  			gd.addNumericField("Vert/hor (or hor/vert) strength exceeding scaled 4-pair strength",             this.ortho_over4,  3);
+
+  			gd.addNumericField("Minimal strength of hor/vert to bridge over",                                  this.ortho_sustain,  3);
+  			gd.addNumericField("minimal run of hor/vert tiles to be considered (at least from one side)",      this.ortho_run,      0);
+  			gd.addNumericField("Minimal maximal strength in an ortho run (max. in run >=...)",                 this.ortho_minmax,  3);
+  			gd.addNumericField("Number of tiles to bridge over hor/vert gaps",                                 this.ortho_bridge,   0);
+  			gd.addNumericField("Maximal disparity RMS in a run to replace by average)",                        this.ortho_rms,  3);
+  			gd.addNumericField("Convolve hor/vert strength by 3*(2*l+1) kernels to detect multi-tile features",this.ortho_half_length,   0);
+  			gd.addNumericField("Fraction of convolved ortho in a mix with raw",                                this.ortho_mix,  3);
+
+  			gd.addTab         ("Ortho+4", "Combining of ortho and 4-pair correlations");
+  			gd.addMessage     ("--- Combining of ortho and 4-pair correlations ---");
+  			gd.addCheckbox    ("Apply ortho correction to horizontal correlation (vertical features)",            this.or_hor);
+  			gd.addCheckbox    ("Apply ortho correction to vertical correlation (horizontal features)",            this.or_vert);
+  			gd.addNumericField("Blur sigma: verically for horizontal correlation, horizontally - for vertically", this.or_sigma,  3);
+  			gd.addNumericField("3-point sharpening (-k, +2k+1, -k)",                                              this.or_sharp,  3);
+  			gd.addNumericField("Scale ortho correletion strength relative to 4-directional one",                  this.or_scale,  3);
+  			gd.addNumericField("Subtract from scaled correlation strength, limit by 0",                           this.or_offset,  3);
+  			gd.addNumericField("Minimal ratio of orthogonal strengths required for dis[parity replacement",       this.or_asym,  3);
+  			gd.addNumericField("Minimal scaled offset ortho strength to normal strength needed for replacement",  this.or_threshold,  3);
+  			gd.addNumericField("Minimal horizontal absolute scaled offset ortho strength needed for replacement", this.or_absHor,  3);
+  			gd.addNumericField("Minimal vertical absolute scaled offset ortho strength needed for replacement",   this.or_absVert,  3);
+
+  			gd.addTab         ("Vert", "Fix vertical structures, such as street poles");
+  			gd.addMessage     ("--- Fix vertical structures, such as street poles ---");
+  			gd.addCheckbox    ("Continue vertical structures to the ground",                                      this.poles_fix);
+  			gd.addNumericField("Number of tiles to extend over the poles bottoms",                                this.poles_len,   0);
+  			gd.addNumericField("Maximal ratio of invisible to visible pole length",                               this.poles_ratio,  3);
+  			gd.addNumericField("Set new pole segment strength to max of horizontal correlation and this value",   this.poles_min_strength,  3);
+  			gd.addCheckbox    ("Set disparity to that of the bottom of existing segment (false - use hor. disparity)",this.poles_force_disp);
+
+  			gd.addNumericField("Maximal number of output meshes to generate",                                 this.max_clusters,   0);
+  			gd.addCheckbox    ("Remove all unneeded scans when generating x3d output to save memory",          this.remove_scans);
+  			gd.addCheckbox    ("Generate x3d output",                                                          this.output_x3d);
+  			gd.addCheckbox    ("Generate Wavefront obj output",                                                this.output_obj);
+  			gd.addCheckbox    ("Correct lens geometric distortions in a model (will need backdrop to be corrected too)", this.correct_distortions);
+  			gd.addCheckbox    ("Show generated triangles",                                                     this.show_triangles);
+  			gd.addCheckbox    ("Weight-average disparity for the whole cluster ",                              this.avg_cluster_disp);
+  			gd.addNumericField("Maximal disparity difference in a triangle face to show",                      this.maxDispTriangle,  6);
+  			gd.addNumericField("Distance to generate backdrop (0 - use regular backdrop)",                     this.infinityDistance,  8);
+  			gd.addNumericField(" Minimal number of background tiles to generate background",                   this.min_bgnd_tiles,   0);
+
+  			gd.addCheckbox    ("Split into shells with flaps",                                                 this.shUseFlaps);
+  			gd.addCheckbox    ("Aggressive fade alpha (whole boundary)",                                       this.shAggrFade);
+  			gd.addNumericField("Minimal shell area (not counting flaps",                                       this.shMinArea,   0);
+  			gd.addNumericField("Minimal value of the shell maximum strength",                                  this.shMinStrength,  6);
+
+  			gd.addTab         ("Ice", "Thin ice parameters");
+  			gd.addMessage     ("--- Thin ice parameters ---");
+  			gd.addNumericField("Relative disparity rigidity in vertical direction",                            this.tiRigidVertical,  6);
+  			gd.addNumericField("Relative disparity rigidity in horizontal direction",                          this.tiRigidHorizontal,  6);
+  			gd.addNumericField("Relative disparity rigidity in diagonal   direction",                          this.tiRigidDiagonal,  6);
+  			gd.addNumericField("Strength floor - subtract (limit with 0) before applying",                     this.tiStrengthOffset,  6);
+  			gd.addNumericField("Divide actual disparity by this  before Math.pow and applying to TI",          this.tiDispScale,  6);
+  			gd.addNumericField("Apply pow to disparity (restore sign) for disparity difference pressure on TI",this.tiDispPow,  6);
+  			gd.addNumericField("tiDispPull: multiply strength*disparity difference to pull force",             this.tiDispPull,  6);
+  			gd.addNumericField("Scale tiDispPull for pre-final pass",                                          this.tiDispPullPreFinal,  6);
+  			gd.addNumericField("Scale tiDispPull for final pass",                                              this.tiDispPullFinal,  6);
+  			gd.addNumericField("Normalize stresses to average disparity if it is above threshold",             this.tiBreakNorm,  6);
+  			gd.addNumericField("TI break value of abs(d0-3d1+3d2-d3)",                                         this.tiBreak3,  6);
+  			gd.addNumericField("TI break value of (d0-3d1+3d2-d3) * (d1 - d2)",                                this.tiBreak31,  6);
+  			gd.addNumericField("TI break value of (-d0+d1+d2-d3) * abs(d1 - d2)",                              this.tiBreak21,  6);
+  			gd.addNumericField("TI disparity threshold to remove as too far tiles",                            this.tiBreakFar,  6);
+  			gd.addNumericField("TI disparity threshold to remove as too near tiles",                           this.tiBreakNear,  6);
+  			gd.addNumericField("TI break mode: +1: abs(3-rd derivative), +2: -(3-rd * 1-st), +4: -(2-nd * abs(1-st))", this.tiBreakMode,  0);
+  			gd.addNumericField("Amplify colinear breaks in neighbor tiles",                                    this.tiBreakSame,  6);
+  			gd.addNumericField("Amplify 90-degree turnintg breaks in neighbor tiles",                          this.tiBreakTurn,  6);
+
+  			gd.addNumericField("Heal disparity gap before pre-last smooth",                                    this.tiHealPreLast,  6);
+  			gd.addNumericField("Heal disparity gap before last smooth",                                        this.tiHealLast,  6);
+  			gd.addNumericField("Maximal length of an internal break in the cluster to heal",                   this.tiHealSame, 0);
+
+  			gd.addNumericField("Maximal number of TI iterations for each step",                                this.tiIterations, 0);
+  			gd.addNumericField("Iteration maximal error (1/power of 10)",                                      this.tiPrecision,  0);
+  			gd.addNumericField("Number of cycles break-smooth (after the first smooth)",                       this.tiNumCycles,  0);
+
+  			gd.addTab         ("Fg/Bg", "Fg/Bg separation");
+  			gd.addMessage     ("--- Fg/Bg separation ---");
+  			gd.addCheckbox    ("Apply super-tiles during refine passes",                                       this.stUseRefine);
+  			gd.addCheckbox    ("Apply super-tiles during pass2 ",                                              this.stUsePass2);
+  			gd.addCheckbox    ("Apply super-tiles during render",                                              this.stUseRender);
+
+  			gd.addCheckbox    ("Show supertiles histograms",                                                   this.stShow);
+  			gd.addNumericField("Super tile size (square, in tiles)",                                           this.stSize,  0);
+  			gd.addNumericField("Disparity histogram step for far objects",                                     this.stStepFar,  6);
+  			gd.addNumericField("Disparity histogram step for near objects",                                    this.stStepNear,  6);
+  			gd.addNumericField("Disparity threshold to switch from linear to logarithmic steps",               this.stStepThreshold,  6);
+  			gd.addNumericField("Minimal disparity (center of a bin)",                                          this.stMinDisparity,  6);
+
+//  			gd.addNumericField("Maximal disparity (center of a bin)",                                          this.stMaxDisparity,  6);
+  			gd.addMessage     ("Maximal disparity (center of a bin) - using grow_disp_max="+this.grow_disp_max);
+  			gd.addNumericField("Subtract from strength, discard negative",                                     this.stFloor,  6);
+  			gd.addNumericField("Raise strength to this power ",                                                this.stPow,  6);
+  			gd.addNumericField("Blur disparity histogram (sigma in bins)",                                     this.stSigma,  6);
+  			gd.addNumericField("Minimal backgroubnd disparity to extract as a maximum from the supertiles",    this.stMinBgDisparity,  6);
+  			gd.addNumericField("Minimal fraction of the disparity histogram to use as background",             this.stMinBgFract,  6);
+  			gd.addNumericField("Use background disparity from supertiles if tile strength is less",            this.stUseDisp,  6);
+  			gd.addNumericField("Multiply st strength if used instead of regular strength ",                    this.stStrengthScale,  6);
+
+  			gd.addCheckbox    ("Use sample mode (false - regular tile mode)",                                  this.stSmplMode);
+  			gd.addNumericField("Sample size (side of a square)",                                               this.stSmplSide,  0);
+  			gd.addNumericField("Number after removing worst",                                                  this.stSmplNum,  0);
+  			gd.addNumericField("Maximal RMS of the remaining tiles in a sample",                               this.stSmplRms,  6);
+  			gd.addCheckbox    ("Use window function for the samples",                                          this.stSmplWnd);
+
+  			gd.addNumericField("Grow initial selection before processing supertiles, odd - ortho. <0 - use all tiles",this.stGrowSel,  0);
+  			gd.addNumericField("Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert",this.stMeasSel,  0);
+  			gd.addNumericField("Consider merging initial planes if disparity difference below",                this.stSmallDiff,  6);
+  			gd.addNumericField("Consider merging initial planes if jumps between ratio above",                 this.stHighMix,  6);
+
+  			gd.addNumericField("Outlier tiles weaker than this may be replaced from neighbors",               this.outlayerStrength,  6);
+  			gd.addNumericField("Replace weak outlier tiles that do not have neighbors within this disparity difference", this.outlayerDiff,  6);
+  			gd.addNumericField("Replace weak outlier tiles that have higher disparity than weighted average", this.outlayerDiffPos,  6);
+  			gd.addNumericField("Replace weak outlier tiles that have lower disparity than weighted average",  this.outlayerDiffNeg,  6);
+
+  			gd.addCheckbox    ("Combine with all previous after refine pass",                                  this.combine_refine);
+  			gd.addNumericField("Disregard weaker tiles when combining scans",                                  this.combine_min_strength,  6);
+  			gd.addNumericField("Disregard weaker tiles when combining scans  for horizontal correlation",      this.combine_min_hor,  6);
+  			gd.addNumericField("Disregard weaker tiles when combining scans  for vertical correlation",        this.combine_min_vert,  6);
+//  			gd.addNumericField("Do not re-measure correlation if target disparity differs from some previous by this",this.unique_tolerance,  6);
+
+  			gd.addTab         ("Grow", "Growing disparity range to scan");
+  			gd.addMessage     ("========= Growing disparity range to scan ========");
+  			gd.addNumericField("Try these number of tiles around known ones",                                         this.grow_sweep,  0);
+  			gd.addNumericField("Maximal disparity to try",                                                            this.grow_disp_max,  6);
+  			gd.addNumericField("Trust measured disparity within +/- this value",                                      this.grow_disp_trust,  6);
+  			gd.addNumericField("Increase disparity (from maximal tried) if nothing found in that tile",               this.grow_disp_step,  6);
+  			gd.addNumericField("Grow more only if at least one channel has higher variance from others for the tile", this.grow_min_diff,  6);
+  			gd.addCheckbox    ("Retry tiles around known foreground that have low max_tried_disparity",               this.grow_retry_far);
+  			gd.addCheckbox    ("Scan full range between max_tried_disparity of the background and known foreground",  this.grow_pedantic);
+  			gd.addCheckbox    ("Retry border tiles that were identified as infinity earlier",                         this.grow_retry_inf);
+
+  			gd.addMessage     ("--- more growing parameters ---");
+
+  			gd.addCheckbox    ("New expansion mode",                                                                  this.gr_new_expand);
+//  			gd.addNumericField("Expansion steps limit",                                                               this.gr_max_expand,  0);
+  			gd.addNumericField("Strength floor for multi-tile (now 5x5) samples (normally < combine_min_strength) ",  this.fds_str_floor,  6);
+  			gd.addNumericField("Over background extra reliable strength",                                             this.gr_ovrbg_cmb,  6);
+  			gd.addNumericField("Over background extra reliable strength horizontal",                                  this.gr_ovrbg_cmb_hor,  6);
+  			gd.addNumericField("Over background extra reliable strength vertical",                                    this.gr_ovrbg_cmb_vert,  6);
+  			gd.addNumericField("Over background filtered extra reliable strength",                                    this.gr_ovrbg_filtered,  6);
+
+  			gd.addMessage     ("--- \"plate\" filtering when growing parameters ---");
+  			gd.addNumericField("Strength power exponent for tilted plates growing",                                   this.fds_str_pow,  6);
+  			gd.addNumericField("Sample size (side of a square) for tilted plates growing",                            this.fds_smpl_side,  0);
+  			gd.addNumericField("Number of tiles in a square tilted plate (should be >1)",                             this.fds_smpl_num,  0);
+  			gd.addNumericField("Maximal RMS for the tiles to the tilted plate",                                       this.fds_smpl_rms,  6);
+  			gd.addNumericField("Maximal relative RMS for the tiles to the tilted plate - multiply by disparity and add", this.fds_smpl_rel_rms,  6);
+  			gd.addCheckbox    ("Use window function for the square sample plates",                                    this.fds_smpl_wnd);
+  			gd.addNumericField("Maximal growing plate tilt in disparity pix per tile",                                this.fds_abs_tilt,  6);
+  			gd.addNumericField("Maximal relative growing plate tilt in disparity pix per tile per disaprity pixel",   this.fds_rel_tilt,  6);
+
+  			gd.addTab         ("Macro", "Macro tiles correlation parameters");
+  			gd.addMessage     ("--- Macro correlation parameters ---");
+  			gd.addNumericField("Macro disparity scan step (actual disparity step is 8x)",                             this.mc_disp8_step,  6);
+  			gd.addNumericField("Trust measured macro(8x)  disparity within +/- this value ",                          this.mc_disp8_trust,  6);
+  			gd.addNumericField("Minimal macro correlation strength to process",                                       this.mc_strength,  6);
+  			gd.addNumericField("Do not re-measure macro correlation if target disparity differs less",                this.mc_unique_tol,  6);
+
+  			gd.addNumericField("When consolidating macro results, exclude high residual disparity",                   this.mc_trust_fin,  6);
+  			gd.addNumericField("Gaussian sigma to reduce weight of large residual disparity",                         this.mc_trust_sigma,  6);
+  			gd.addNumericField("Weight from ortho neighbor supertiles",                                               this.mc_ortho_weight,  6);
+  			gd.addNumericField("Weight from diagonal neighbor supertiles",                                            this.mc_diag_weight,  6);
+  			gd.addNumericField("Do not remove measurements farther from the kept ones",                               this.mc_gap,  6);
+
+  			gd.addTab         ("Grow2", "More disparity range growing parameters");
+  			gd.addMessage     ("--- more growing parameters ---");
+  			gd.addNumericField("Discard variant if it requests too few tiles",                                        this.gr_min_new,  0);
+  			gd.addCheckbox    ("Expand only unambiguous tiles over previously undefined",                             this.gr_var_new_sngl);
+  			gd.addCheckbox    ("Expand unambiguous and FOREGROUND tiles over previously UNDEFINED",                   this.gr_var_new_fg);
+  			gd.addCheckbox    ("Expand unambiguous and FOREGROUND tiles over already DEFINED",                        this.gr_var_all_fg);
+  			gd.addCheckbox    ("Expand unambiguous and BACKGROUND tiles over previously UNDEFINED",                   this.gr_var_new_bg);
+  			gd.addCheckbox    ("Expand unambiguous and BACKGROUND tiles over already DEFINED",                        this.gr_var_all_bg);
+  			gd.addCheckbox    ("Try next disparity range that was not tried before",                                  this.gr_var_next);
+  			gd.addNumericField("How far to extend over previously undefined disparity tiles",                         this.gr_num_steps,  0);
+  			gd.addNumericField("How far to extend over previously determined disparity tiles",                        this.gr_steps_over,  0);
+  			gd.addNumericField("Extend sample plate square side",                                                     this.gr_smpl_size,  0);
+  			gd.addNumericField("Extend at least this number of the seed tiles",                                       this.gr_min_pnts,  0);
+  			gd.addCheckbox    ("Use window function for square sample ",                                              this.gr_use_wnd);
+  			gd.addNumericField("Tilt cost for damping insufficient plane data",                                       this.gr_tilt_damp,  6);
+  			gd.addNumericField("When growing, range of disparities to be extended without far/near subdivision",      this.gr_split_rng,  6);
+  			gd.addNumericField("Consider far/near tiles within that range from the farthest/closest",                 this.gr_same_rng,  6);
+  			gd.addNumericField("Maximal difference from the old value when smoothing",                                this.gr_diff_cont,  6);
+  			gd.addNumericField("Maximal filter disparity absolute tilt (pix per tile)",                               this.gr_abs_tilt,  6);
+  			gd.addNumericField("Maximal filter disparity tilt (pix / disparity) per tile",                            this.gr_rel_tilt,  6);
+  			gd.addNumericField("Maximal number of smoothing steps (reduce if long?)",                                 this.gr_smooth,  0);
+  			gd.addNumericField("Maximal change to finish smoothing iterations",                                       this.gr_fin_diff,  6);
+  			gd.addNumericField("Do not re-measure correlation if target disparity differs from some previous less",   this.gr_unique_tol,  6);
+  			gd.addNumericField("Larger tolerance for expanding (not refining)",                                       this.gr_unique_pretol,  6);
+
+
+  			gd.addTab         ("Plane Det", "Planes detection");
+  			gd.addMessage     ("--- Planes detection ---");
+  			gd.addCheckbox    ("Always start with disparity-most axis (false - lowest eigenvalue)",            this.plPreferDisparity);
+  			gd.addNumericField("Normalize disparities to the average if above",                                this.plDispNorm,  6);
+
+  			gd.addNumericField("Blur disparity histograms for constant disparity clusters by this sigma (in bins)",   this.plBlurBinVert,  6);
+  			gd.addNumericField("Blur disparity histograms for horizontal clusters by this sigma (in bins)",           this.plBlurBinHor,  6);
+  			gd.addNumericField("Maximal normalized disparity difference when initially assigning to vertical plane",  this.plMaxDiffVert,  6);
+  			gd.addNumericField("Maximal normalized disparity difference when initially assigning to horizontal plane",this.plMaxDiffHor,  6);
+  			gd.addNumericField("Number of initial passes to assign tiles to vert (const disparity) and hor planes",   this.plInitPasses,  0);
+
+  			gd.addNumericField("Minimal number of points for plane detection",                                 this.plMinPoints,  0);
+  			gd.addNumericField("Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below", this.plTargetEigen,  6);
+  			gd.addNumericField("Maximal fraction of outliers to remove",                                       this.plFractOutliers,  6);
+  			gd.addNumericField("Maximal number of outliers to remove",                                         this.plMaxOutliers,  0);
+  			gd.addNumericField("Minimal total strength of a plane",                                            this.plMinStrength,  6);
+  			gd.addNumericField("Maximal eigenvalue of a plane",                                                this.plMaxEigen,  6);
+  			gd.addNumericField("Add to eigenvalues of each participating plane and result to validate connections",this.plEigenFloor,  6);
+  			gd.addNumericField("Consider plane to be a \"stick\" if second eigenvalue is below",               this.plEigenStick,  6);
+  			gd.addNumericField("Not a plate if sin^2 between normals from disparity and world exceeds this",   this.plBadPlate,  6);
+  			gd.addCheckbox    ("Combine 'other' plane with the current (unused)",                              this.plDbgMerge);
+  			gd.addNumericField("Worst case worsening after merge",                                             this.plWorstWorsening,  6);
+  			gd.addNumericField("Worst case worsening for thin planes",                                         this.plWorstWorsening2,  6);
+  			gd.addNumericField("Worst case worsening after merge with equal weights",                          this.plWorstEq,  6);
+  			gd.addNumericField("Worst case worsening for thin planes with equal weights",                      this.plWorstEq2,  6);
+  			gd.addNumericField("If result of the merged planes is below, OK to use thin planes (higher) threshold ",this.plOKMergeEigen,  6);
+  			gd.addNumericField("Maximal sine squared of the world angle between planes to merge. Set to >= 1.0 to disable", this.plMaxWorldSin2,  6);
+  			gd.addNumericField("Do not compare sin() between planes, if at least one has too small axis ratio",this.pl2dForSin,  6);
+  			gd.addNumericField("Relax merge requirements for weaker planes",                                   this.plWeakWorsening,  6);
+  			gd.addNumericField("Maximal overlap between the same supertile planes to merge",                   this.plMaxOverlap,  6);
+
+  			gd.addTab         ("Merge", "Merge same supetile planes if at least one is weak and they do not differ much");
+  			gd.addMessage     ("--- Merge same supetile planes if at least one is weak and they do not differ much ---");
+  			gd.addNumericField("Maximal weight of the weak plane to merge (first variant)",                    this.plWeakWeight,  6);
+  			gd.addNumericField("Maximal eigenvalue of the result of non-weighted merge (first variant)",       this.plWeakEigen,  6);
+  			gd.addNumericField("Maximal weight of the weak plane to merge (second variant)",                   this.plWeakWeight2,  6);
+  			gd.addNumericField("Maximal eigenvalue of the result of non-weighted merge (second variant)",      this.plWeakEigen2,  6);
+  			gd.addNumericField("Do not merge if any sqrt of merged eigenvalue exceeds scaled sum of components", this.plSumThick,  6);
+  			gd.addNumericField("When calculating non-exclusive planes, do not use neighbors with high cost",   this.plNeNeibCost,  6);
+  			gd.addNumericField("When calculating non-exclusive planes, use cenrter plane relative weight",     this.plNeOwn,  6);
+  			gd.addNumericField("When calculating exclusive planes links, do not use neighbors with high cost", this.plExNeibCost,  6);
+  			gd.addNumericField("Scale down maximal costs for smoothed planes links (tighter requirements)",    this.plExNeibSmooth,  6);
+  			gd.addNumericField("Cost threshold for merging same tile planes if the plane has connected neighbors", this.plMergeCostStar,  6);
+  			gd.addNumericField("Cost threshold for merging same tile planes if not connected",                 this.plMergeCost,  6);
+
+  			gd.addMessage     ("--- Merging planes with topological conflicts ---");
+  			gd.addCheckbox    ("Try to merge conflicting planes",                                                     this.plConflMerge);
+  			gd.addNumericField("Scale parameters to relax planes fit for merging conflicting planes",                 this.plConflRelax,  6);
+  			gd.addCheckbox    ("Only merge conflicting planes if this is the only conflicting pair in the supertile", this.plConflSngl);
+  			gd.addCheckbox    ("Only merge conflicting planes only if there are just two planes in the supertile",    this.plConflSnglPair);
+
+  			gd.addNumericField("Consider merging plane if it is foreground and maximal strength below this",          this.plWeakFgStrength,  6);
+  			gd.addNumericField("Remove these strongest from foreground when determining the maximal strength",        this.plWeakFgOutliers,  0);
+  			gd.addNumericField("Relax cost requirements when merging with weak foreground",                           this.plWeakFgRelax,  6);
+
+  			gd.addNumericField("Maximal real-world thickness of merged overlapping planes (meters)",                  this.plThickWorld,  6);
+  			gd.addNumericField("Maximal real-world merged thickness for conflicting planes",                          this.plThickWorldConfl,  6);
+  			gd.addNumericField("Relax cost requirements when adding exclusive links to complete squares and triangles",this.plRelaxComplete,  6);
+  			gd.addNumericField("Relax cost requirements more during the second pass",                                 this.plRelaxComplete2,  6);
+
+  			gd.addMessage     ("---  ---");
+  			gd.addNumericField("Maximal ratio of Z to allow plane merging",                                    this.plMaxZRatio,  6);
+  			gd.addNumericField("Maximal disparity of one of the planes to apply  maximal ratio",               this.plMaxDisp,  6);
+  			gd.addNumericField("When merging with neighbors cut the tail that is worse than scaled best",      this.plCutTail,  6);
+  			gd.addNumericField("Set cutoff value level not less than this",                                    this.plMinTail,  6);
+
+
+  			gd.addTab         ("Regenerate", "Parameters to regenerate planes using preliminary tile connections");
+  			gd.addMessage     ("--- Parameters to regenerate planes using preliminary tile connections  ---");
+  			gd.addCheckbox    ("Enable planes tiles selection regeneration hinted by supertile neighbors",     this.plDiscrEn);
+  			gd.addNumericField("Maximal disparity difference from the plane to consider tile",                 this.plDiscrTolerance,  6);
+  			gd.addNumericField("Parallel move known planes around original know value for the best overall fit",this.plDiscrDispRange,  6);
+  			gd.addNumericField("Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)",this.plDiscrSteps,  0);
+  			gd.addNumericField("What plane to use as a hint: 0 - weighted, 1 - equalized, 2 - best, 3 - combined", this.plDiscrMode,  0);
+  			gd.addNumericField("Squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)",this.plDiscrVarFloor,  6);
+  			gd.addNumericField("Gaussian sigma to compare how measured data is attracted to planes",           this.plDiscrSigma,  6);
+  			gd.addNumericField("Sigma to blur histograms while re-discriminating",                             this.plDiscrBlur,  6);
+  			gd.addNumericField("Tile exclusivity: 1.0 - tile belongs to one plane only, 0.0 - regardless of others",this.plDiscrExclusivity,  6);
+  			gd.addNumericField("For second pass if exclusivity > 1.0 - will assign only around strong neighbors",this.plDiscrExclus2,  6);
+  			gd.addCheckbox    ("When growing selection do not allow any offenders around (false - more these than others)", this.plDiscrStrict);
+  			gd.addNumericField("Attraction to different planes correlation that is too high for re-discrimination",this.plDiscrCorrMax,  6);
+  			gd.addNumericField("Attraction to different planes correlation that is high enough to merge",      this.plDiscrCorrMerge,  6);
+  			gd.addNumericField("If offender has this number of tiles (including center) the cell can not be used", this.plDiscrSteal,  0);
+  			gd.addNumericField("Only use tiles within this range from original selection",                     this.plDiscrGrown,  0);
+  			gd.addNumericField("Remove outliers from the final selection that have distance more than scaled median",this.plDiscrXMedian,  6);
+
+  			gd.addTab         ("Merge costs", "Planes merge costs");
+  			gd.addMessage     ("--- Planes merge costs ---");
+  			gd.addNumericField(" Disparity (pix) - closer cost will use more of the real world, farther - disparity",this.plCostDist,  6);
+  			gd.addNumericField("Cost of merge quality sqrt(weighted*equal) in disparity space",                this.plCostKrq,     6);
+  			gd.addNumericField("Cost of merge quality averaje of weighted and equal weight in disparity space",this.plCostKrqEq,   6);
+  			gd.addNumericField("Cost of merge quality sqrt(weighted*equal) in world space",                    this.plCostWrq,     6);
+  			gd.addNumericField("Cost of merge quality average of weighted and equal weight in world space",    this.plCostWrqEq,   6);
+  			gd.addNumericField("Cost of sin squared between normals",                                          this.plCostSin2,    6);
+  			gd.addNumericField("Cost of squared relative plane-to-other-center distances",                     this.plCostRdist2,  6);
+
+  			gd.addCheckbox    ("Resolve dual triangles conflict (odoodo)",                                     this.plConflDualTri);
+  			gd.addCheckbox    ("Resolve multiple odo triangles conflicts",                                     this.plConflMulti);
+  			gd.addCheckbox    ("Resolve diagonal (ood) conflicts",                                             this.plConflDiag);
+  			gd.addCheckbox    ("Resolve all conflicts around a supertile",                                     this.plConflStar);
+  			gd.addNumericField("How far to look around when calculationg connection cost",                     this.plStarSteps,  0);
+  			gd.addNumericField("When calculating cost for the connections scale 4 ortho neighbors",            this.plStarOrtho,  6);
+  			gd.addNumericField("When calculating cost for the connections scale 4 diagonal neighbors",         this.plStarDiag,  6);
+  			gd.addNumericField("Divide cost by number of connections to this power",                           this.plStarPwr,  6);
+  			gd.addNumericField("Use this power of tile weight when calculating connection cost",               this.plStarWeightPwr,  6);
+  			gd.addNumericField("Balance weighted density against density. 0.0 - density, 1.0 - weighted density", this.plWeightToDens,  6);
+  			gd.addNumericField("Raise value of each tile before averaging",                                    this.plStarValPwr,  6);
+  			gd.addNumericField("When resolving double triangles allow minor degradation (0.0 - strict)",       this.plDblTriLoss,  6);
+  			gd.addCheckbox    ("Allow more conflicts if overall cost is reduced",                              this.plNewConfl);
+  			gd.addNumericField("aximal number of simultaneous connection changes around one tile (0 - any)",   this.plMaxChanges,  0);
+
+  			gd.addCheckbox    ("Keep only mutual links, remove weakest if conflict",                           this.plMutualOnly);
+
+  			gd.addCheckbox    ("Add diagonals to full squares",                                                this.plFillSquares);
+  			gd.addCheckbox    ("Add ortho to 45-degree corners",                                               this.plCutCorners);
+  			gd.addCheckbox    ("Add hypotenuse connection if both legs exist",                                 this.plHypotenuse);
+
+  			gd.addNumericField("Relative (to average neighbor) weight of the measured plane when combing with neighbors",     this.plPull,  6);
+  			gd.addNumericField("0.0: 8 neighbors pull 8 times as 1, 1.0 - same as 1",                          this.plNormPow,  6);
+  			gd.addNumericField("Maximal number of smoothing iterations for each step",                         this.plIterations,  0);
+  			gd.addCheckbox    ("Do not update supertile if any of connected is not good (false: just skip that neighbor)", this.plStopBad);
+  			gd.addNumericField("Maximal step difference (1/power of 10)",                                      this.plPrecision,  0);
+
+  			gd.addNumericField("Relative weight of center plane when splitting into pairs",                    this.plSplitPull,  6);
+  			gd.addNumericField("Minimal number of neighbors to split plane in pairs",                          this.plSplitMinNeib,  0);
+  			gd.addNumericField("Minimal weight of split plains to show",                                       this.plSplitMinWeight,  6);
+  			gd.addNumericField("Minimal split quality to show",                                                this.plSplitMinQuality,  6);
+  			gd.addCheckbox    ("Apply plane split to pairs",                                                   this.plSplitApply);
+  			gd.addCheckbox    ("Allow tiles to belong to both planes of the pair",                             this.plNonExclusive);
+  			gd.addCheckbox    ("Allow other tiles from the same supertile",                                    this.plUseOtherPlanes);
+  			gd.addCheckbox    ("Allow parallel shift of the specified planes before adding",                   this.plAllowParallel);
+  			gd.addNumericField("Maximal normalized tile disparity difference from the plane to consider",      this.plMaxDiff,  6);
+  			gd.addNumericField("Maximal difference of the added tile ratio to the average  disparity difference",this.plOtherDiff,  6);
+  			gd.addCheckbox    ("Separate tiles for split planes by X, Y",                                      this.plSplitXY);
+  			gd.addNumericField("Disparity tolerance when separating by X, Y",                                  this.plSplitXYTolerance,  6);
+
+  			gd.addCheckbox    ("Fuse planes together (off for debug only)",                                    this.plFuse);
+  			gd.addCheckbox    ("Keep unconnected supertiles",                                                  this.plKeepOrphans);
+  			gd.addNumericField("Minimal strength unconnected supertiles to keep",                              this.plMinOrphan,  6);
+
+  			gd.addTab         ("Snap", "Snap to planes");
+  			gd.addMessage     ("--- Snap to planes ---");
+  			gd.addNumericField("Maximal (scaled by plDispNorm) disparity difference to snap to plane at any strength",     this.plSnapDispAny,  6);
+  			gd.addNumericField("Maximal strength to fit any distance (if does not fit otherwise - treat as zero strength", this.plSnapStrengthAny,  6);
+  			gd.addNumericField("Maximal negative disparity difference from the best match",                    this.plSnapNegAny,  6);
+  			gd.addNumericField("Maximal (scaled by plDispNorm) disparity difference to snap to plane at low strength",     this.plSnapDispMax,  6);
+  			gd.addNumericField("Maximal disparity diff. by weight product to snap to plane",                   this.plSnapDispWeight,  6);
+  			gd.addNumericField("Zero strength snap mode: 0: no special treatment, 1 - strongest, 2 - farthest",this.plSnapZeroMode,  0);
+
+  			gd.addCheckbox    ("Use planes selection masks (generated when splitting to intersecting pairs",   this.msUseSel);
+  			gd.addCheckbox    ("Divide plane strengths by ellipsoid area",                                     this.msDivideByArea);
+  			gd.addNumericField("Scale projection of the plane ellipsoid",                                      this.msScaleProj,  6);
+  			gd.addNumericField("Spread this fraction of the ellipsoid weight among extended (double) supertile",this.msFractUni,  6);
+
+  			gd.addTab         ("Assign", "Tiles assignment");
+  			gd.addMessage     ("--- Tiles assignment ---");
+  			gd.addCheckbox    ("Do not assign tiles to the surface edges (not having all 8 neighbors)",           this.tsNoEdge);
+  			gd.addCheckbox    ("Only assign outside of 8x8 center if no suitable alternative",                    this.tsUseCenter);
+  			gd.addNumericField("Maximal disparity difference when assigning tiles",                               this.tsMaxDiff,  6);
+  			gd.addNumericField("Minimal disparity difference to be considered as a competitor surface",           this.tsMinDiffOther,  6);
+  			gd.addNumericField("Minimal tile correlation strength to be assigned",                                this.tsMinStrength,  6);
+  			gd.addNumericField("Maximal tile correlation strength to be assigned",                                this.tsMaxStrength,  6);
+  			gd.addNumericField("Minimal surface strength at the tile location",                                   this.tsMinSurface,  6);
+  			gd.addNumericField("Allowed tile disparity correction: 1 increase, 2 - decrease, 3 - both directions",this.tsMoveDirs,  0);
+  			gd.addNumericField("Raise surface strengths ratio to this power when comparing candidates",           this.tsSurfStrPow,  6);
+  			gd.addNumericField("Add to strengths when calculating pull of assigned tiles",                        this.tsAddStrength,  6);
+  			gd.addNumericField("Radius of influence (in tiles) of the previously assigned tiles",                 this.tsSigma,  6);
+  			gd.addNumericField("Maximal relative to radius distance to calculate influence",                      this.tsNSigma,  6);
+  			gd.addNumericField(" Additional pull of each surface ",                                               this.tsMinPull,  6);
+  			gd.addNumericField("Minimal ratio of the best surface candidate to the next one to make selection",   this.tsMinAdvantage,  6);
+
+  			gd.addNumericField("Minimal size of a cluster to keep",                                               this.tsClustSize,  0);
+  			gd.addNumericField("Minimal total weight of a cluster to keep",                                       this.tsClustWeight,  6);
+  			gd.addNumericField("Minimal number of neighbors of unassigned tile to join (the farthest)",           this.tsMinNeib,  0);
+  			gd.addNumericField("Maximal strength of the surrounded unassigned tile to join",                      this.tsMaxSurStrength,  6);
+  			gd.addCheckbox    ("Include disabled tiles/borders when counting assigned neighbors",                 this.tsCountDis);
+
+  			gd.addCheckbox    ("Assign tiles that were used to generate planes",                                  this.tsEnPlaneSeed);
+  			gd.addCheckbox    ("Allow assignment only surface",                                                   this.tsEnOnly);
+  			gd.addCheckbox    ("Grow the only surface assignments",                                               this.tsEnGrow);
+  			gd.addNumericField("Maximal strength when growing the only surfaces",                                 this.tsGrowStrength,  6);
+  			gd.addCheckbox    ("Grow over strong if disparity matches",                                           this.tsGrowStrong);
+  			gd.addNumericField("Minimal strength to continue grow with disparity match",                          this.tsContStrength,  6);
+  			gd.addNumericField("Maximal normalized disparity error to grow over strong tiles",                    this.tsContDiff,  6);
+
+  			gd.addCheckbox    ("Allow assignment to the nearest surface with no competitors",                     this.tsEnSingle);
+  			gd.addCheckbox    ("Allow assignment when several surfaces fit",                                      this.tsEnMulti);
+  			gd.addCheckbox    ("Remove weak clusters before growing",                                             this.tsRemoveWeak1);
+  			gd.addCheckbox    ("Assign tiles that have neighbors to the lowest disparity",                        this.tsGrowSurround);
+  			gd.addCheckbox    ("Remove weak clusters after growing",                                              this.tsRemoveWeak2);
+
+  			gd.addCheckbox    ("Repeat multi-choice assignment while succeeding",                                 this.tsLoopMulti);
+  			gd.addCheckbox    ("Show results of tiles to surfaces assignment",                                    this.tsShow);
+  			gd.addNumericField("Number of clusters to keep",                                                      this.tsNumClust,  0);
+
+  			gd.addNumericField("Which assignments to match +1 - combo, +2 grown single, +4 plane seeds",          this.tsConsensMode,  0);
+  			gd.addNumericField("Minimal number of assignments to agree",                                          this.tsConsensAgree,  0);
+
+  			gd.addMessage     ("--- Tile assignment parameters ---");
+  			gd.addNumericField("Minimal foreground/ background separation to look for weak FG edge",              this.taMinFgBg,    6);
+  			gd.addNumericField("Minimal foreground edge strength (stronger edges will have proportionally smaller costs)", this.taMinFgEdge,  6);
+  			gd.addNumericField("Minimal surface separation that requires color change",                           this.taMinColSep,  6);
+  			gd.addNumericField("Minimal color variation (larger proportionally reduces cost)",                    this.taMinColDiff, 6);
+  			gd.addNumericField("Disparity difference limit (to handle outliers)",                                 this.taOutlier, 6);
+  			gd.addNumericField("Strength power when calculating disparity error",                                 this.taDiffPwr, 6);
+  			gd.addNumericField("Strength power when calculating disparity error over best",                       this.taBestPwr, 6);
+  			gd.addNumericField("Strength power when calculating disparity error for group of 9",                  this.taDiff9Pwr, 6);
+  			gd.addNumericField("Gaussian sigma to blur color difference between tiles along each direction",      this.taColSigma, 6);
+  			gd.addNumericField("Relative amount of the blurred color difference in the mixture",                  this.taColFraction, 6);
+
+  			gd.addNumericField("Cost of a tile that is not assigned",                                             this.taCostEmpty,  6);
+  			gd.addNumericField("Cost of a tile not having any neighbor in particular direction",                  this.taCostNoLink,  6);
+  			gd.addNumericField("Cost of a tile switching to a neighbor that does not have a link",                this.taCostSwitch,  6);
+  			gd.addNumericField("Cost of a tile switching to a disconnected neighbor divided by a color",          this.taCostColor,  6);
+  			gd.addNumericField("Cost of a weighted normalized tile disparity error",                              this.taCostDiff,  6);
+  			gd.addNumericField("Cost of a weighted normalized tile disparity error above best surface",           this.taCostDiffBest,  6);
+  			gd.addNumericField("Cost of a weighted normalized tile disparity error for tile and 8 neighbors (DC)",this.taCostDiff9,  6);
+  			gd.addNumericField("Cost of a weak foreground edge",                                                  this.taCostWeakFgnd,  6);
+  			gd.addNumericField("Cost of using supertile \"flaps\" (not in the center 8x8 tiles area)",            this.taCostFlaps,  6);
+  			gd.addNumericField("Cost of a measurement layer not having same layer in the same location or near",  this.taCostMismatch,  6);
+
+  			gd.addCheckbox    ("Cost of a tile that is not assigned",                                             this.taEnEmpty);
+  			gd.addCheckbox    ("Cost of a tile not having any neighbor in particular direction",                  this.taEnNoLink);
+  			gd.addCheckbox    ("Cost of a tile switching to a neighbor that does not have a link",                this.taEnSwitch);
+  			gd.addCheckbox    ("Cost of a tile switching to a disconnected neighbor divided by a color",          this.taEnColor);
+  			gd.addCheckbox    ("Cost of a weighted normalized tile disparity error",                              this.taEnDiff);
+  			gd.addCheckbox    ("Cost of a weighted normalized tile disparity error above best surface",           this.taEnDiffBest);
+  			gd.addCheckbox    ("Cost of a weighted normalized tile disparity error for tile and 8 neighbors (DC)",this.taEnDiff9);
+  			gd.addCheckbox    ("Cost of a weak foreground edge",                                                  this.taEnWeakFgnd);
+  			gd.addCheckbox    ("Cost of using supertile \"flaps\" (not in the center 8x8 tiles area)",            this.taEnFlaps);
+  			gd.addCheckbox    ("Cost of a measurement layer not having same layer in the same location or near",  this.taEnMismatch);
+
+  			gd.addTab         ("Debug", "Other debug images");
+  			gd.addMessage     ("--- Other debug images ---");
+  			gd.addCheckbox    ("Test new mode after migration",                                                this.dbg_migrate);
+  			gd.addCheckbox    ("Show extrinsic adjustment differences",                                        this.show_extrinsic);
+  			gd.addCheckbox    ("Show 'ortho_combine'",                                                         this.show_ortho_combine);
+  			gd.addCheckbox    ("Show 'refine_disparity_supertiles'",                                           this.show_refine_supertiles);
+  			gd.addCheckbox    ("Show 'bgnd_nonbgnd'",                                                          this.show_bgnd_nonbgnd);
+  			gd.addCheckbox    ("Show 'FilterScan'",                                                            this.show_filter_scan);
+  			gd.addCheckbox    ("Show 'combo_scan' (combined multiple scans)",                                  this.show_combined);
+  			gd.addCheckbox    ("Show 'unique_scan' (removed already measured tiles with the same disparity)",  this.show_unique);
+  			gd.addCheckbox    ("Show supertile disparity histograms ",                                         this.show_histograms);
+  			gd.addCheckbox    ("Show debug images during initial refinement",                                  this.show_init_refine);
+  			gd.addCheckbox    ("Show debug images during disparity expansion",                                 this.show_expand);
+  			gd.addCheckbox    ("Show prepareExpandVariant when elevating variant",                             this.show_variant);
+  			gd.addCheckbox    ("Show debug images related to retrying far tiles near foreground",              this.show_retry_far);
+  			gd.addCheckbox    ("Show debug images related to macro correlation",                               this.show_macro);
+  			gd.addCheckbox    ("Show 'shells'",                                                                this.show_shells);
+  			gd.addCheckbox    ("show 'neighbors'",                                                             this.show_neighbors);
+  			gd.addCheckbox    ("Show 'flaps-dirs'",                                                            this.show_flaps_dirs);
+  			gd.addCheckbox    ("Show 'first_N_clusters'",                                                      this.show_first_clusters);
+  			gd.addCheckbox    ("Show planes",                                                                  this.show_planes);
+  			gd.addMessage     ("Unity up vector in camera coordinate system (x - right, y - up, z - to camera): {"+
+  			this.vertical_xyz[0]+","+this.vertical_xyz[1]+","+this.vertical_xyz[2]+"}");
+
+//  			gd.buildDialog();
+  			gd.showDialog();
+  			System.out.println("gd.wasCanceled="+gd.wasCanceled());
+/*
+  			if (true) return false;
+  			WindowTools.addScrollBars(gd);
+  			gd.showDialog();
+*/
+  			if (gd.wasCanceled()) return false;
+  			this.transform_size=  (int) gd.getNextNumber();
+  			this.clt_window=      (int) gd.getNextNumber();
+  			this.shift_x =              gd.getNextNumber();
+  			this.shift_y =              gd.getNextNumber();
+  			this.iclt_mask=       (int) gd.getNextNumber();
+  			this.tileX=           (int) gd.getNextNumber();
+  			this.tileY=           (int) gd.getNextNumber();
+  			this.dbg_mode=        (int) gd.getNextNumber();
+  			this.ishift_x=        (int) gd.getNextNumber();
+  			this.ishift_y=        (int) gd.getNextNumber();
+  			this.fat_zero =             gd.getNextNumber();
+  			this.corr_sigma =           gd.getNextNumber();
+  			this.norm_kern=             gd.getNextBoolean();
+  			this.gain_equalize=         gd.getNextBoolean();
+  			this.colors_equalize=       gd.getNextBoolean();
+  			this.nosat_equalize=     gd.getNextBoolean();
+  			this.sat_level=             gd.getNextNumber();
+  			this.max_overexposure=      gd.getNextNumber();
+
+  			this.novignetting_r=        gd.getNextNumber();
+  			this.novignetting_g=        gd.getNextNumber();
+  			this.novignetting_b=        gd.getNextNumber();
+  			this.scale_r=               gd.getNextNumber();
+  			this.scale_g=               gd.getNextNumber();
+  			this.scale_b=               gd.getNextNumber();
+  			this.vignetting_max=        gd.getNextNumber();
+  			this.vignetting_range=      gd.getNextNumber();
+  			this.kernel_step=     (int) gd.getNextNumber();
+  			this.disparity=             gd.getNextNumber();
+  			this.z_correction=          gd.getNextNumber();
+  			this.correlate=             gd.getNextBoolean();
+  			this.corr_mask=       (int) gd.getNextNumber();
+  			this.corr_sym=              gd.getNextBoolean();
+  			this.corr_keep=             gd.getNextBoolean();
+  			this.corr_show=             gd.getNextBoolean();
+  			this.corr_mismatch=         gd.getNextBoolean();
+  			this.corr_offset=           gd.getNextNumber();
+  			this.corr_red=              gd.getNextNumber();
+  			this.corr_blue=             gd.getNextNumber();
+  			this.corr_normalize=        gd.getNextBoolean();
+  			this.min_corr=              gd.getNextNumber();
+  			this.min_corr_normalized=   gd.getNextNumber();
+  			this.max_corr_sigma=        gd.getNextNumber();
+  			this.max_corr_radius=       gd.getNextNumber();
+  this.corr_magic_scale=      gd.getNextNumber();
+
+
+  			this.enhortho_width= (int) gd.getNextNumber();
+  			this.enhortho_scale=        gd.getNextNumber();
+
+  			this.max_corr_double=       gd.getNextBoolean();
+  			this.corr_mode=       (int) gd.getNextNumber();
+  			this.corr_border_contrast=  gd.getNextNumber();
+
+//  			this.tile_task_op=    (int) gd.getNextNumber();
+  			this.tile_task_op = ImageDtt.setOrthoLines      (this.tile_task_op, gd.getNextBoolean());
+  			this.tile_task_op = ImageDtt.setForcedDisparity (this.tile_task_op, gd.getNextBoolean());
+  			this.tile_task_op = ImageDtt.setImgMask         (this.tile_task_op, (int) gd.getNextNumber());
+  			this.tile_task_op = ImageDtt.setPairMask        (this.tile_task_op, (int) gd.getNextNumber());
+
+  			this.tile_task_wl=    (int) gd.getNextNumber();
+  			this.tile_task_wt=    (int) gd.getNextNumber();
+  			this.tile_task_ww=    (int) gd.getNextNumber();
+  			this.tile_task_wh=    (int) gd.getNextNumber();
+  			this.min_shot=              gd.getNextNumber();
+  			this.scale_shot=            gd.getNextNumber();
+  			this.diff_sigma=            gd.getNextNumber();
+  			this.diff_threshold=        gd.getNextNumber();
+  			this.diff_gauss=            gd.getNextBoolean();
+  			this.min_agree=             gd.getNextNumber();
+  			this.dust_remove=           gd.getNextBoolean();
+  			this.black_back=            gd.getNextBoolean();
+  			this.keep_weights=          gd.getNextBoolean();
+  			this.sharp_alpha=           gd.getNextBoolean();
+  			this.alpha0=                gd.getNextNumber();
+  			this.alpha1=                gd.getNextNumber();
+  			this.gen_chn_stacks=        gd.getNextBoolean();
+  			this.gen_chn_img=           gd.getNextBoolean();
+  			this.gen_4_img=             gd.getNextBoolean();
+  			this.show_nonoverlap=       gd.getNextBoolean();
+  			this.show_overlap=          gd.getNextBoolean();
+  			this.show_rgba_color=       gd.getNextBoolean();
+  			this.show_map=              gd.getNextBoolean();
+  			this.disp_scan_start=       gd.getNextNumber();
+  			this.disp_scan_step=        gd.getNextNumber();
+  			this.disp_scan_count= (int) gd.getNextNumber();
+
+  			this.fine_dbg=              gd.getNextBoolean();
+  			this.fine_corr_x_0=         gd.getNextNumber();
+  			this.fine_corr_y_0=         gd.getNextNumber();
+  			this.fine_corr_x_1=         gd.getNextNumber();
+  			this.fine_corr_y_1=         gd.getNextNumber();
+  			this.fine_corr_x_2=         gd.getNextNumber();
+  			this.fine_corr_y_2=         gd.getNextNumber();
+  			this.fine_corr_x_3=         gd.getNextNumber();
+  			this.fine_corr_y_3=         gd.getNextNumber();
+  			this.fine_corr_ignore=      gd.getNextBoolean();
+  			this.fine_corr_apply=       gd.getNextBoolean();
+
+  			this.fcorr_radius=          gd.getNextNumber();
+  			this.fcorr_min_strength=    gd.getNextNumber();
+  			this.fcorr_disp_diff=       gd.getNextNumber();
+  			this.fcorr_quadratic=       gd.getNextBoolean();
+  			this.fcorr_ignore=          gd.getNextBoolean();
+
+  			this.fcorr_inf_strength=    gd.getNextNumber();
+  			this.fcorr_inf_diff=        gd.getNextNumber();
+  			this.fcorr_inf_quad=        gd.getNextBoolean();
+  			this.fcorr_inf_vert=        gd.getNextBoolean();
+
+  			this.inf_disp_apply=        gd.getNextBoolean();
+  			this.inf_repeat=      (int) gd.getNextNumber();
+//  			this.inf_mism_apply=        gd.getNextBoolean();
+  			this.inf_iters=       (int) gd.getNextNumber();
+  			this.inf_final_diff=        gd.getNextNumber();
+  			this.inf_far_pull=          gd.getNextNumber();
+
+  			this.inf_str_pow=           gd.getNextNumber();
+  			this.inf_smpl_side=   (int) gd.getNextNumber();
+  			this.inf_smpl_num=    (int) gd.getNextNumber();
+  			this.inf_smpl_rms=          gd.getNextNumber();
+
+  			this.ih_smpl_step=    (int) gd.getNextNumber();
+  			this.ih_disp_min=           gd.getNextNumber();
+  			this.ih_disp_step=          gd.getNextNumber();
+  			this.ih_num_bins=     (int) gd.getNextNumber();
+  			this.ih_sigma=              gd.getNextNumber();
+  			this.ih_max_diff=           gd.getNextNumber();
+  			this.ih_min_samples=  (int) gd.getNextNumber();
+  			this.ih_norm_center=        gd.getNextBoolean();
+
+			this.ly_smpl_side=    (int) gd.getNextNumber();
+			this.ly_smpl_num=     (int) gd.getNextNumber();
+//			this.ly_meas_disp=          gd.getNextNumber();
+			this.ly_smpl_rms=           gd.getNextNumber();
+			this.ly_disp_var=           gd.getNextNumber();
+			this.ly_disp_rvar=          gd.getNextNumber();
+			this.ly_norm_disp=          gd.getNextNumber();
+			this.ly_inf_frac=           gd.getNextNumber();
+  			this.ly_on_scan=            gd.getNextBoolean();
+  			this.ly_inf_en=             gd.getNextBoolean();
+  			this.ly_inf_force=          gd.getNextBoolean();
+  			this.ly_com_roll=           gd.getNextBoolean();
+  			this.ly_focalLength=        gd.getNextBoolean();
+  			this.ly_poly=               gd.getNextBoolean();
+
+			this.lym_overexp=           gd.getNextNumber();
+  			this.lym_update_disp=       gd.getNextBoolean();
+			this.lym_iter=        (int) gd.getNextNumber();
+			this.lym_change=            gd.getNextNumber();
+			this.lym_poly_change=       gd.getNextNumber();
+
+  			this.lyf_filter=            gd.getNextBoolean();
+			this.lyf_smpl_side=   (int) gd.getNextNumber();
+			this.lyf_rms_max=           gd.getNextNumber();
+			this.lyf_frac_keep=         gd.getNextNumber();
+			this.lyf_min_samples= (int) gd.getNextNumber();
+  			this.lyf_norm_center=       gd.getNextBoolean();
+			this.ly_corr_scale=         gd.getNextNumber();
+//  			this.fcorr_sample_size= (int)gd.getNextNumber();
+//  			this.fcorr_mintiles= (int)  gd.getNextNumber();
+//  			this.fcorr_reloutliers=     gd.getNextNumber();
+//  			this.fcorr_sigma=           gd.getNextNumber();
+
+///  			this.corr_magic_scale=      gd.getNextNumber();
+
+  			this.show_textures=         gd.getNextBoolean();
+  			this.debug_filters=         gd.getNextBoolean();
+  			this.min_smth=              gd.getNextNumber();
+  			this.sure_smth=             gd.getNextNumber();
+  			this.bgnd_range=            gd.getNextNumber();
+  			this.other_range=           gd.getNextNumber();
+
+  			this.ex_strength=           gd.getNextNumber();
+  			this.ex_nstrength=          gd.getNextNumber();
+
+  			this.ex_over_bgnd=          gd.getNextBoolean();
+  			this.ex_min_over=           gd.getNextNumber();
+
+  			this.pt_super_trust=        gd.getNextNumber();
+  			this.pt_keep_raw_fg=        gd.getNextBoolean();
+  			this.pt_scale_pre=          gd.getNextNumber();
+  			this.pt_scale_post=         gd.getNextNumber();
+
+  			this.bgnd_sure=             gd.getNextNumber();
+  			this.bgnd_maybe=            gd.getNextNumber();
+  			this.min_clstr_seed=  (int) gd.getNextNumber();
+  			this.min_clstr_lone=  (int) gd.getNextNumber();
+  			this.min_clstr_weight=      gd.getNextNumber();
+  			this.min_clstr_max=         gd.getNextNumber();
+
+  			this.fill_gaps=       (int) gd.getNextNumber();
+  			this.fill_final=      (int) gd.getNextNumber();
+  			this.min_clstr_block= (int) gd.getNextNumber();
+  			this.bgnd_grow=       (int) gd.getNextNumber();
+
+  			this.ortho_old=             gd.getNextBoolean();
+  			this.ortho_min_hor=         gd.getNextNumber();
+  			this.ortho_min_vert=        gd.getNextNumber();
+  			this.ortho_asym=            gd.getNextNumber();
+  			this.ortho_over4=           gd.getNextNumber();
+
+  			this.ortho_sustain=         gd.getNextNumber();
+  			this.ortho_run=       (int) gd.getNextNumber();
+  			this.ortho_minmax=          gd.getNextNumber();
+  			this.ortho_bridge=    (int) gd.getNextNumber();
+  			this.ortho_rms=             gd.getNextNumber();
+  			this.ortho_half_length=(int)gd.getNextNumber();
+  			this.ortho_mix=             gd.getNextNumber();
+
+  			this.or_hor=                gd.getNextBoolean();
+  			this.or_vert=               gd.getNextBoolean();
+  			this.or_sigma=              gd.getNextNumber();
+  			this.or_sharp=              gd.getNextNumber();
+  			this.or_scale=              gd.getNextNumber();
+  			this.or_offset=             gd.getNextNumber();
+  			this.or_asym=               gd.getNextNumber();
+  			this.or_threshold=          gd.getNextNumber();
+  			this.or_absHor=             gd.getNextNumber();
+  			this.or_absVert=            gd.getNextNumber();
+
+  			this.poles_fix=             gd.getNextBoolean();
+  			this.poles_len=        (int)gd.getNextNumber();
+  			this.poles_ratio=           gd.getNextNumber();
+  			this.poles_min_strength=    gd.getNextNumber();
+  			this.poles_force_disp=      gd.getNextBoolean();
+
+  			this.max_clusters=    (int) gd.getNextNumber();
+  			this.remove_scans=          gd.getNextBoolean();
+  			this.output_x3d=            gd.getNextBoolean();
+  			this.output_obj=            gd.getNextBoolean();
+  			this.correct_distortions=   gd.getNextBoolean();
+  			this.show_triangles=        gd.getNextBoolean();
+  			this.avg_cluster_disp=      gd.getNextBoolean();
+  			this.maxDispTriangle=       gd.getNextNumber();
+  			this.infinityDistance=      gd.getNextNumber();
+  			this.min_bgnd_tiles=  (int) gd.getNextNumber();
+  			this.shUseFlaps=            gd.getNextBoolean();
+  			this.shAggrFade=            gd.getNextBoolean();
+  			this.shMinArea=       (int) gd.getNextNumber();
+  			this.shMinStrength=         gd.getNextNumber();
+  			this.tiRigidVertical=       gd.getNextNumber();
+  			this.tiRigidHorizontal=     gd.getNextNumber();
+  			this.tiRigidDiagonal=       gd.getNextNumber();
+  			this.tiStrengthOffset=      gd.getNextNumber();
+  			this.tiDispScale=           gd.getNextNumber();
+  			this.tiDispPow=             gd.getNextNumber();
+  			this.tiDispPull=            gd.getNextNumber();
+  			this.tiDispPullPreFinal=    gd.getNextNumber();
+  			this.tiDispPullFinal=       gd.getNextNumber();
+  			this.tiBreakNorm=           gd.getNextNumber();
+  			this.tiBreak3=              gd.getNextNumber();
+  			this.tiBreak31=             gd.getNextNumber();
+  			this.tiBreak21=             gd.getNextNumber();
+  			this.tiBreakFar=            gd.getNextNumber();
+  			this.tiBreakNear=           gd.getNextNumber();
+  			this.tiBreakMode=     (int) gd.getNextNumber();
+  			this.tiBreakSame=           gd.getNextNumber();
+  			this.tiBreakTurn=           gd.getNextNumber();
+
+  			this.tiHealPreLast=         gd.getNextNumber();
+  			this.tiHealLast=            gd.getNextNumber();
+  			this.tiHealSame=      (int) gd.getNextNumber();
+
+  			this.tiIterations=    (int) gd.getNextNumber();
+  			this.tiPrecision=     (int) gd.getNextNumber();
+  			this.tiNumCycles=     (int) gd.getNextNumber();
+
+  			this.stUseRefine=           gd.getNextBoolean();
+  			this.stUsePass2=            gd.getNextBoolean();
+  			this.stUseRender=           gd.getNextBoolean();
+
+  			this.stShow=                gd.getNextBoolean();
+  			this.stSize=          (int) gd.getNextNumber();
+  			this.stStepFar=             gd.getNextNumber();
+  			this.stStepNear=            gd.getNextNumber();
+  			this.stStepThreshold=       gd.getNextNumber();
+  			this.stMinDisparity=        gd.getNextNumber();
+//  			this.stMaxDisparity=        gd.getNextNumber();
+  			this.stFloor=               gd.getNextNumber();
+  			this.stPow=                 gd.getNextNumber();
+  			this.stSigma=               gd.getNextNumber();
+  			this.stMinBgDisparity=      gd.getNextNumber();
+  			this.stMinBgFract=          gd.getNextNumber();
+  			this.stUseDisp=             gd.getNextNumber();
+  			this.stStrengthScale=       gd.getNextNumber();
+
+  			this.stSmplMode=            gd.getNextBoolean();
+  			this.stSmplSide=      (int) gd.getNextNumber();
+  			this.stSmplNum=       (int) gd.getNextNumber();
+  			this.stSmplRms=             gd.getNextNumber();
+  			this.stSmplWnd=             gd.getNextBoolean();
+
+  			this.stGrowSel=       (int) gd.getNextNumber();
+  			this.stMeasSel=       (int) gd.getNextNumber();
+  			this.stSmallDiff=           gd.getNextNumber();
+  			this.stHighMix=             gd.getNextNumber();
+
+  			this.outlayerStrength=      gd.getNextNumber();
+  			this.outlayerDiff=          gd.getNextNumber();
+  			this.outlayerDiffPos=       gd.getNextNumber();
+  			this.outlayerDiffNeg=       gd.getNextNumber();
+
+  			this.combine_refine=        gd.getNextBoolean();
+
+  			this.combine_min_strength=  gd.getNextNumber();
+  			this.combine_min_hor=       gd.getNextNumber();
+  			this.combine_min_vert=      gd.getNextNumber();
+//  			this.unique_tolerance=      gd.getNextNumber();
+  			this.grow_sweep=      (int) gd.getNextNumber();
+  			this.grow_disp_max=         gd.getNextNumber();
+  			this.grow_disp_trust=       gd.getNextNumber();
+  			this.grow_disp_step=        gd.getNextNumber();
+  			this.grow_min_diff=         gd.getNextNumber();
+  			this.grow_retry_far=        gd.getNextBoolean();
+  			this.grow_pedantic=         gd.getNextBoolean();
+  			this.grow_retry_inf=        gd.getNextBoolean();
+
+  			this.gr_new_expand=         gd.getNextBoolean();
+//  			this.gr_max_expand=   (int) gd.getNextNumber();
+  			this.fds_str_floor=         gd.getNextNumber();
+  			this.gr_ovrbg_cmb=          gd.getNextNumber();
+  			this.gr_ovrbg_cmb_hor=      gd.getNextNumber();
+  			this.gr_ovrbg_cmb_vert=     gd.getNextNumber();
+  			this.gr_ovrbg_filtered=     gd.getNextNumber();
+  			this.fds_str_pow=           gd.getNextNumber();
+  			this.fds_smpl_side=   (int) gd.getNextNumber();
+  			this.fds_smpl_num=    (int) gd.getNextNumber();
+  			this.fds_smpl_rms=          gd.getNextNumber();
+  			this.fds_smpl_rel_rms=      gd.getNextNumber();
+  			this.fds_smpl_wnd=          gd.getNextBoolean();
+  			this.fds_abs_tilt=          gd.getNextNumber();
+  			this.fds_rel_tilt=          gd.getNextNumber();
+
+  			this.mc_disp8_step=         gd.getNextNumber();
+  			this.mc_disp8_trust=        gd.getNextNumber();
+  			this.mc_strength=           gd.getNextNumber();
+  			this.mc_unique_tol=         gd.getNextNumber();
+
+  			this.mc_unique_tol=         gd.getNextNumber();
+  			this.mc_unique_tol=         gd.getNextNumber();
+  			this.mc_unique_tol=         gd.getNextNumber();
+  			this.mc_unique_tol=         gd.getNextNumber();
+  			this.mc_unique_tol=         gd.getNextNumber();
+
+  			this.gr_min_new=      (int) gd.getNextNumber();
+  			this.gr_var_new_sngl=       gd.getNextBoolean();
+  			this.gr_var_new_fg=         gd.getNextBoolean();
+  			this.gr_var_all_fg=         gd.getNextBoolean();
+  			this.gr_var_new_bg=         gd.getNextBoolean();
+  			this.gr_var_all_bg=         gd.getNextBoolean();
+  			this.gr_var_next=           gd.getNextBoolean();
+  			this.gr_num_steps=    (int) gd.getNextNumber();
+  			this.gr_steps_over=   (int) gd.getNextNumber();
+  			this.gr_smpl_size=    (int) gd.getNextNumber();
+  			this.gr_min_pnts=     (int) gd.getNextNumber();
+  			this.gr_use_wnd=            gd.getNextBoolean();
+  			this.gr_tilt_damp=          gd.getNextNumber();
+  			this.gr_split_rng=          gd.getNextNumber();
+  			this.gr_same_rng=           gd.getNextNumber();
+  			this.gr_diff_cont=          gd.getNextNumber();
+  			this.gr_abs_tilt=           gd.getNextNumber();
+  			this.gr_rel_tilt=           gd.getNextNumber();
+  			this.gr_smooth=       (int) gd.getNextNumber();
+  			this.gr_fin_diff=           gd.getNextNumber();
+  			this.gr_unique_tol=         gd.getNextNumber();
+  			this.gr_unique_pretol=      gd.getNextNumber();
+
+  			this.plPreferDisparity=     gd.getNextBoolean();
+  			this.plDispNorm=            gd.getNextNumber();
+
+  			this.plBlurBinVert=         gd.getNextNumber();
+  			this.plBlurBinHor=          gd.getNextNumber();
+  			this.plMaxDiffVert=         gd.getNextNumber();
+  			this.plMaxDiffHor=          gd.getNextNumber();
+  			this.plInitPasses=    (int) gd.getNextNumber();
+
+  			this.plMinPoints=     (int) gd.getNextNumber();
+  			this.plTargetEigen=         gd.getNextNumber();
+  			this.plFractOutliers=       gd.getNextNumber();
+  			this.plMaxOutliers=   (int) gd.getNextNumber();
+  			this.plMinStrength=         gd.getNextNumber();
+  			this.plMaxEigen=            gd.getNextNumber();
+  			this.plEigenFloor=          gd.getNextNumber();
+  			this.plEigenStick=          gd.getNextNumber();
+  			this.plBadPlate=            gd.getNextNumber();
+  			this.plDbgMerge=            gd.getNextBoolean();
+  			this.plWorstWorsening=      gd.getNextNumber();
+  			this.plWorstWorsening2=     gd.getNextNumber();
+  			this.plWorstEq=             gd.getNextNumber();
+  			this.plWorstEq2=            gd.getNextNumber();
+  			this.plOKMergeEigen=        gd.getNextNumber();
+  			this.plMaxWorldSin2=        gd.getNextNumber();
+  			this.pl2dForSin=            gd.getNextNumber();
+  			this.plWeakWorsening=       gd.getNextNumber();
+  			this.plMaxOverlap=          gd.getNextNumber();
+
+  			this.plWeakWeight=          gd.getNextNumber();
+  			this.plWeakEigen=           gd.getNextNumber();
+  			this.plWeakWeight2=         gd.getNextNumber();
+  			this.plWeakEigen2=          gd.getNextNumber();
+  			this.plSumThick=            gd.getNextNumber();
+  			this.plNeNeibCost=          gd.getNextNumber();
+  			this.plNeOwn=               gd.getNextNumber();
+
+  			this.plExNeibCost=          gd.getNextNumber();
+  			this.plExNeibSmooth=        gd.getNextNumber();
+  			this.plMergeCostStar=       gd.getNextNumber();
+  			this.plMergeCost=           gd.getNextNumber();
+
+  			this.plConflMerge=          gd.getNextBoolean();
+  			this.plConflRelax=          gd.getNextNumber();
+  			this.plConflSngl=           gd.getNextBoolean();
+  			this.plConflSnglPair=       gd.getNextBoolean();
+
+  			this.plWeakFgStrength=      gd.getNextNumber();
+  			this.plWeakFgOutliers=(int) gd.getNextNumber();
+  			this.plWeakFgRelax=         gd.getNextNumber();
+
+  			this.plThickWorld=          gd.getNextNumber();
+  			this.plThickWorldConfl=     gd.getNextNumber();
+  			this.plRelaxComplete=       gd.getNextNumber();
+  			this.plRelaxComplete2=      gd.getNextNumber();
+
+  			this.plMaxZRatio=           gd.getNextNumber();
+  			this.plMaxDisp=             gd.getNextNumber();
+  			this.plCutTail=             gd.getNextNumber();
+  			this.plMinTail=             gd.getNextNumber();
+
+  			this.plDiscrEn=             gd.getNextBoolean();
+  			this.plDiscrTolerance=      gd.getNextNumber();
+  			this.plDiscrDispRange=      gd.getNextNumber();
+  			this.plDiscrSteps=    (int) gd.getNextNumber();
+//  			this.plDiscrVariants= (int) gd.getNextNumber();
+  			this.plDiscrMode=     (int) gd.getNextNumber();
+  			this.plDiscrVarFloor=       gd.getNextNumber();
+  			this.plDiscrSigma=          gd.getNextNumber();
+  			this.plDiscrBlur=           gd.getNextNumber();
+  			this.plDiscrExclusivity=    gd.getNextNumber();
+  			this.plDiscrExclus2=        gd.getNextNumber();
+  			this.plDiscrStrict=         gd.getNextBoolean();
+  			this.plDiscrCorrMax=        gd.getNextNumber();
+  			this.plDiscrCorrMerge=      gd.getNextNumber();
+  			this.plDiscrSteal=    (int) gd.getNextNumber();
+  			this.plDiscrGrown=    (int) gd.getNextNumber();
+  			this.plDiscrXMedian=        gd.getNextNumber();
+
+  			this.plCostDist=            gd.getNextNumber();
+  			this.plCostKrq=             gd.getNextNumber();
+  			this.plCostKrqEq=           gd.getNextNumber();
+  			this.plCostWrq=             gd.getNextNumber();
+  			this.plCostWrqEq=           gd.getNextNumber();
+  			this.plCostSin2=            gd.getNextNumber();
+  			this.plCostRdist2=          gd.getNextNumber();
+
+  			this.plConflDualTri=        gd.getNextBoolean();
+  			this.plConflMulti=          gd.getNextBoolean();
+  			this.plConflDiag=           gd.getNextBoolean();
+  			this.plConflStar=           gd.getNextBoolean();
+  			this.plStarSteps=     (int) gd.getNextNumber();
+  			this.plStarOrtho=           gd.getNextNumber();
+  			this.plStarDiag=            gd.getNextNumber();
+  			this.plStarPwr=             gd.getNextNumber();
+  			this.plStarWeightPwr=       gd.getNextNumber();
+  			this.plWeightToDens=        gd.getNextNumber();
+  			this.plStarValPwr=          gd.getNextNumber();
+  			this.plDblTriLoss=          gd.getNextNumber();
+  			this.plNewConfl=            gd.getNextBoolean();
+  			this.plMaxChanges=    (int) gd.getNextNumber();
+
+  			this.plMutualOnly=          gd.getNextBoolean();
+
+  			this.plFillSquares=         gd.getNextBoolean();
+  			this.plCutCorners=          gd.getNextBoolean();
+  			this.plHypotenuse=          gd.getNextBoolean();
+
+  			this.plPull=                gd.getNextNumber();
+  			this.plNormPow=             gd.getNextNumber();
+  			this.plIterations=    (int) gd.getNextNumber();
+  			this.plStopBad=             gd.getNextBoolean();
+  			this.plPrecision=     (int) gd.getNextNumber();
+
+  			this.plSplitPull=           gd.getNextNumber();
+  			this.plSplitMinNeib=  (int) gd.getNextNumber();
+  			this.plSplitMinWeight=      gd.getNextNumber();
+  			this.plSplitMinQuality=     gd.getNextNumber();
+  			this.plSplitApply=          gd.getNextBoolean();
+  			this.plNonExclusive=        gd.getNextBoolean();
+  			this.plUseOtherPlanes=      gd.getNextBoolean();
+  			this.plAllowParallel=       gd.getNextBoolean();
+  			this.plMaxDiff=             gd.getNextNumber();
+  			this.plOtherDiff=           gd.getNextNumber();
+  			this.plSplitXY=             gd.getNextBoolean();
+  			this.plSplitXYTolerance=    gd.getNextNumber();
+
+  			this.plFuse=                gd.getNextBoolean();
+  			this.plKeepOrphans=         gd.getNextBoolean();
+  			this.plMinOrphan=           gd.getNextNumber();
+
+  			this.plSnapDispAny=         gd.getNextNumber();
+  			this.plSnapStrengthAny=     gd.getNextNumber();
+  			this.plSnapNegAny=          gd.getNextNumber();
+  			this.plSnapDispMax=         gd.getNextNumber();
+  			this.plSnapDispWeight=      gd.getNextNumber();
+  			this.plSnapZeroMode=  (int) gd.getNextNumber();
+
+  			this.msUseSel=              gd.getNextBoolean();
+  			this.msDivideByArea=        gd.getNextBoolean();
+  			this.msScaleProj=           gd.getNextNumber();
+  			this.msFractUni=            gd.getNextNumber();
+
+  			this.tsNoEdge=              gd.getNextBoolean();
+  			this.tsUseCenter=           gd.getNextBoolean();
+  			this.tsMaxDiff=             gd.getNextNumber();
+  			this.tsMinDiffOther=        gd.getNextNumber();
+  			this.tsMinStrength=         gd.getNextNumber();
+  			this.tsMaxStrength=         gd.getNextNumber();
+  			this.tsMinSurface=          gd.getNextNumber();
+  			this.tsMoveDirs=      (int) gd.getNextNumber();
+  			this.tsSurfStrPow=          gd.getNextNumber();
+  			this.tsAddStrength=         gd.getNextNumber();
+  			this.tsSigma=               gd.getNextNumber();
+  			this.tsNSigma=              gd.getNextNumber();
+  			this.tsMinPull=             gd.getNextNumber();
+  			this.tsMinAdvantage=        gd.getNextNumber();
+
+  			this.tsClustSize=     (int) gd.getNextNumber();
+  			this.tsClustWeight=         gd.getNextNumber();
+  			this.tsMinNeib=       (int) gd.getNextNumber();
+  			this.tsMaxSurStrength=      gd.getNextNumber();
+  			this.tsCountDis=            gd.getNextBoolean();
+  			this.tsReset              = false;  // Reset tiles to surfaces assignment
+
+  			this.tsEnPlaneSeed=         gd.getNextBoolean();
+  			this.tsEnOnly=              gd.getNextBoolean();
+  			this.tsEnGrow=              gd.getNextBoolean();
+  			this.tsGrowStrength=        gd.getNextNumber();
+  			this.tsGrowStrong=          gd.getNextBoolean();
+  			this.tsContStrength=        gd.getNextNumber();
+  			this.tsContDiff=            gd.getNextNumber();
+
+  			this.tsEnSingle=            gd.getNextBoolean();
+  			this.tsEnMulti=             gd.getNextBoolean();
+  			this.tsRemoveWeak1=         gd.getNextBoolean();
+  			this.tsGrowSurround=        gd.getNextBoolean();
+  			this.tsRemoveWeak2=         gd.getNextBoolean();
+
+  			this.tsLoopMulti=           gd.getNextBoolean();
+  			this.tsShow               = gd.getNextBoolean();
+  			this.tsNumClust =     (int) gd.getNextNumber();
+
+  			this.tsConsensMode =  (int) gd.getNextNumber();
+  			this.tsConsensAgree = (int) gd.getNextNumber();
+
+  			this.taMinFgBg=             gd.getNextNumber();
+  			this.taMinFgEdge=           gd.getNextNumber();
+  			this.taMinColSep=           gd.getNextNumber();
+  			this.taMinColDiff=          gd.getNextNumber();
+  			this.taOutlier=             gd.getNextNumber();
+  			this.taDiffPwr=             gd.getNextNumber();
+  			this.taBestPwr=             gd.getNextNumber();
+  			this.taDiff9Pwr=            gd.getNextNumber();
+  			this.taColSigma=            gd.getNextNumber();
+  			this.taColFraction=         gd.getNextNumber();
+
+
+  			this.taCostEmpty=           gd.getNextNumber();
+  			this.taCostNoLink=          gd.getNextNumber();
+  			this.taCostSwitch=          gd.getNextNumber();
+  			this.taCostColor=           gd.getNextNumber();
+  			this.taCostDiff=            gd.getNextNumber();
+  			this.taCostDiffBest=        gd.getNextNumber();
+  			this.taCostDiff9=           gd.getNextNumber();
+  			this.taCostWeakFgnd=        gd.getNextNumber();
+  			this.taCostFlaps=           gd.getNextNumber();
+  			this.taCostMismatch=        gd.getNextNumber();
+
+  			this.taEnEmpty=             gd.getNextBoolean();
+  			this.taEnNoLink=            gd.getNextBoolean();
+  			this.taEnSwitch=            gd.getNextBoolean();
+  			this.taEnColor=             gd.getNextBoolean();
+  			this.taEnDiff=              gd.getNextBoolean();
+  			this.taEnDiffBest=          gd.getNextBoolean();
+  			this.taEnDiff9=             gd.getNextBoolean();
+  			this.taEnWeakFgnd=          gd.getNextBoolean();
+  			this.taEnFlaps=             gd.getNextBoolean();
+  			this.taEnMismatch=          gd.getNextBoolean();
+
+  			this.dbg_migrate=           gd.getNextBoolean();
+
+  			this.show_extrinsic=        gd.getNextBoolean();
+  			this.show_ortho_combine=    gd.getNextBoolean();
+  			this.show_refine_supertiles=gd.getNextBoolean();
+  			this.show_bgnd_nonbgnd=     gd.getNextBoolean(); // first on second pass
+  			this.show_filter_scan=      gd.getNextBoolean(); // first on refine
+  			this.show_combined=         gd.getNextBoolean();
+  			this.show_unique=           gd.getNextBoolean();
+  			this.show_histograms=       gd.getNextBoolean();
+  			this.show_init_refine=      gd.getNextBoolean();
+  			this.show_expand=           gd.getNextBoolean();
+  			this.show_variant=          gd.getNextBoolean();
+  			this.show_retry_far=        gd.getNextBoolean();
+  			this.show_macro=            gd.getNextBoolean();
+  			this.show_shells=           gd.getNextBoolean();
+  			this.show_neighbors=        gd.getNextBoolean();
+  			this.show_flaps_dirs=       gd.getNextBoolean();
+  			this.show_first_clusters=   gd.getNextBoolean();
+  			this.show_planes=           gd.getNextBoolean();
+/**/
+  			return true;
+  		}
+
 
   		public boolean showTsDialog() {
   			GenericDialog gd = new GenericDialog("Set CLT tiles to surfaces assignment parameters");

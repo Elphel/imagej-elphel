@@ -568,10 +568,13 @@ private Panel panel1,
 		if (DCT_MODE) {
 			panelClt3 = new Panel();
 			panelClt3.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
-			addButton("Setup CLT parameters",       panelClt3, color_configure);
+			addButton("Setup CLT",                  panelClt3, color_configure);
 			addButton("Infinity offset",            panelClt3, color_configure);
 			addButton("Setup CLT Batch parameters", panelClt3, color_configure);
 			addButton("CLT batch process",          panelClt3, color_process);
+//			addButton("JTabbed",                    panelClt3, color_stop);
+//			addButton("Demo",                       panelClt3, color_process);
+
 			add(panelClt3);
 		}
 		pack();
@@ -1148,7 +1151,7 @@ private Panel panel1,
 /* ======================================================================== */
     } else if (label.equals("Configure correction")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	CORRECTION_PARAMETERS.showDialog("Correction parameters");
+    	CORRECTION_PARAMETERS.showJDialog("Correction parameters");
     	return;
 
 
@@ -3752,6 +3755,10 @@ private Panel panel1,
     	CLT_PARAMETERS.showDialog();
         return;
 /* ======================================================================== */
+    } else if (label.equals("Setup CLT")) {
+    	CLT_PARAMETERS.showJDialog();
+        return;
+/* ======================================================================== */
     } else if (label.equals("Infinity offset")) {
     	while (true) {
     		if (!CLT_PARAMETERS.modifyZCorr("Modify infinity per image set disparity corrections")) break;
@@ -5155,11 +5162,7 @@ private Panel panel1,
         }
         return;
 
-
-
-
-
-//
+//JTabbedTest
 // End of buttons code
     }
     DEBUG_LEVEL=MASTER_DEBUG_LEVEL;

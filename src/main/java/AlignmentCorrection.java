@@ -622,16 +622,7 @@ public class AlignmentCorrection {
 			int tileY = s.tile / tilesX;
 			double centerX = tileX * qc.tp.getTileSize() + qc.tp.getTileSize()/2;// - shiftX;
 			double centerY = tileY * qc.tp.getTileSize() + qc.tp.getTileSize()/2;//- shiftY;
-/*
-			double [][] centersXY_disp = qc.geometryCorrection.getPortsCoordinates(
-					centerX,
-					centerY,
-					disp_strength[2 * s.series + 0][s.tile]/magic_coeff); // disparity
-			double [][] centersXY_inf = qc.geometryCorrection.getPortsCoordinates(
-					centerX,
-					centerY,
-					0.0); // disparity
-*/
+
 			double [][] centersXY_disp = qc.geometryCorrection.getPortsCoordinatesAndDerivatives(
 					corr_rots, // Matrix []   rots,
 					null,      //  Matrix [][] deriv_rots,
@@ -2094,6 +2085,7 @@ B = |+dy0   -dy1      -2*dy3 |
 					clt_parameters.ly_inf_en,    // boolean use_disparity,     // if true will ignore disparity data even if available (was false)
 					clt_parameters.ly_inf_force, // boolean force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
 					clt_parameters.ly_com_roll,  // boolean    common_roll,    // Enable common roll (valid for high disparity range only)
+					clt_parameters.ly_focalLength,// boolean    corr_focalLength,     // Correct scales (focal length temperature? variations)
 
 					mismatch_list,                          // ArrayList<Mismatch> mismatch_list,
 					qc.geometryCorrection,                  // GeometryCorrection geometryCorrection,
@@ -2250,15 +2242,6 @@ B = |+dy0   -dy1      -2*dy3 |
 			double [] pXY = mm.getPXY();
 			double [][] deriv = new double [2 * NUM_SENSORS][];
 			int dbg_index =dbg_index (pXY, dbg_decimate);
-//			double [][] f =
-/*
-			geometryCorrection.getPortsCoordinatesAndDerivatives_old(
-					corr_vector, // CorrVector corr_vector,
-					deriv,   // 	boolean calc_deriv,
-					pXY[0],      // double px,
-					pXY[1],      // double py,
-					mm.getDisparityMeas()); // getDisparityTask()); // double disparity)
-*/
 			geometryCorrection.getPortsCoordinatesAndDerivatives(
 					corr_rots,   //  Matrix []   rots,
 					deriv_rots,  //  Matrix [][] deriv_rots,
@@ -2421,14 +2404,6 @@ B = |+dy0   -dy1      -2*dy3 |
 		for (int indx = 0; indx<mismatch_list.size(); indx++){ // need indx value
 			Mismatch mm = mismatch_list.get(indx);
 			double [] pXY = mm.getPXY();
-			/*
-			double [][] f = geometryCorrection.getPortsCoordinatesAndDerivatives_old( // 4x2
-					corr_vector, // CorrVector corr_vector,
-					null,        //	boolean calc_deriv,
-					pXY[0],      // double px,
-					pXY[1],      // double py,
-					mm.getDisparityMeas()); // getDisparityTask()); // double disparity)
-*/
 			double [][] f = geometryCorrection.getPortsCoordinatesAndDerivatives( // 4x2
 					corr_rots,    //  Matrix []   rots,
 					null, //  Matrix [][] deriv_rots,
@@ -2593,6 +2568,8 @@ B = |+dy0   -dy1      -2*dy3 |
 			boolean force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
 			                           // data, using just radial distortions
 	  		boolean    common_roll,    // Enable common roll (valid for high disparity range only)
+			boolean    corr_focalLength,     // Correct scales (focal length temperature? variations)
+
 
 			ArrayList<Mismatch> mismatch_list,
 			GeometryCorrection geometryCorrection,
@@ -2608,34 +2585,20 @@ B = |+dy0   -dy1      -2*dy3 |
 				break;
 			}
 		}
-//		boolean [] par_mask = new boolean[10];
-//		for (int i = (has_disparity ? 0 : 1); i < par_mask.length; i++){
-//			par_mask[i] = true;
-//		}
+
 		boolean [] par_mask = geometryCorrection.getParMask(
 				has_disparity, // boolean use_disparity,
-				common_roll); // boolean common_roll);
-/*			{ // TODO: move to GeometryCorrection
-				has_disparity, //sym0
-				true,          //sym1
-				true,          //sym2
-				true,          //sym3
-				true,          //sym4
-				true,          //sym5
-				common_roll,   //sym6 // common roll
-				true,          //sym7
-				true,          //sym8
-				true           //sym9
-		};
-		*/
+				common_roll,// boolean common_roll,
+				corr_focalLength); // boolean corr_focalLength);
 
 		double [][] jta = getJacobianTransposed(
 				par_mask,           // boolean [] par_mask,
 				mismatch_list,      // ArrayList<Mismatch> mismatch_list,
 				geometryCorrection, // GeometryCorrection geometryCorrection,
 				corr_vector,        // GeometryCorrection.CorrVector corr_vector)
-//				debugLevel);		// int debugLevel)
 				debugLevel);		// int debugLevel)
+
+//		debugLevel = 2;
 
 		// convert Jacobian outputs to symmetrical measurement vectors (last one is non-zero only if disparity should be adjusted)
 
@@ -2653,7 +2616,7 @@ B = |+dy0   -dy1      -2*dy3 |
 				mismatch_list); // ArrayList<Mismatch> mismatch_list)
 		double [] y_minus_fx_a_weighted = mulWeight(y_minus_fx_a, weights);
 		double rms0 = getRMS	(y_minus_fx_a, weights);
-		if (debugLevel > -1){
+		if (debugLevel > -2){
 			System.out.println("--- solveCorr(): initial RMS = " + rms0);
 		}
 
@@ -2661,14 +2624,8 @@ B = |+dy0   -dy1      -2*dy3 |
 			old_new_rms[0] =rms0;
 		}
 		Matrix y_minus_fx_weighted = new Matrix(y_minus_fx_a_weighted, y_minus_fx_a_weighted.length);
-//		double [][] jtja = getJTJ(jta, weights);
 		double [][] jtja = getJTJ(jta_mv, weights);
 		Matrix jtj = new Matrix(jtja); // getJTJ(jta, weights)); // less operations than jt.times(jt.transpose());
-//		double [] jt_trace_null_dbg = getJtJTrace(jta,null);
-//		double [] jt_trace_dbg =      getJtJTrace(jta,weights);
-//		double [] jt_mv_trace_null_dbg = getJtJTrace(jta_mv,null);
-//		double [] jt_mv_trace_dbg =      getJtJTrace(jta_mv,weights);
-//
 		boolean dbg_images = debugLevel>1;
 		int dbg_decimate = 64; // just for the debug image
 		int dbg_width =  qc.tp.getTilesX()*qc.tp.getTileSize();
@@ -2676,8 +2633,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		int dbg_owidth = dbg_width/dbg_decimate;
 		int dbg_oheight = dbg_height/dbg_decimate;
 		int dbg_length = dbg_owidth*dbg_oheight;
-//		String [] dbg_titles_tar=GeometryCorrection.CORR_NAMES;
-		String [] dbg_titles_sym= {"sym0","sym1","sym2","sym3","sym4","sym5","sroll0","sroll1","sroll2","sroll3"};
+		String [] dbg_titles_sym= {"sym0","sym1","sym2","sym3","sym4","sym5","sroll0","sroll1","sroll2","sroll3", "zoom0", "zoom1", "zoom2"};
 		String [] dbg_titles_xy=  {"x0","y0","x1","y1","x2","y2","x3","y3"};
 		String [] dbg_titles_mv=  {"dy0","dy1","dx2","dx3","dx1-dx0","dy3-dy2","dh-dv","dhy+dv"};
 		double [][] dbg_xy = null;  // jacobian dmv/dsym
@@ -2699,8 +2655,6 @@ B = |+dy0   -dy1      -2*dy3 |
 			dbg_dmv_dsym =        doubleNaN(dbg_titles_mv.length * dbg_titles_sym.length,    dbg_length); // jacobian dmv/dsym
 			dbg_dmv_dsym_delta =  doubleNaN(dbg_titles_mv.length * dbg_titles_sym.length,    dbg_length); // jacobian dmv/dsym
 			dbg_dmv_dsym_diff =   doubleNaN(dbg_titles_mv.length * dbg_titles_sym.length,    dbg_length); // jacobian dmv/dsym
-			// dbg_xy =        new double [dbg_titles_xy.length]                           [dbg_length]; // jacobian dmv/dsym
-			// dbg_mv =        new double [dbg_titles_mv.length]                           [dbg_length]; // jacobian dmv/dsym
 
 			String [] dbg_dmv_dsym_titles = new String [dbg_titles_mv.length * dbg_titles_sym.length];
 			for (int i = 0; i < dbg_titles_mv.length; i++){
@@ -2764,7 +2718,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			drslt[i] *= -1.0;
 		}
 		GeometryCorrection.CorrVector rslt = geometryCorrection.getCorrVector(drslt, par_mask);
-		if (debugLevel > -1){
+		if (debugLevel > -2){
 			System.out.println("solveCorr() rslt:");
 			System.out.println(rslt.toString());
 		}

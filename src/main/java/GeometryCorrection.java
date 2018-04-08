@@ -9,7 +9,7 @@ import ij.IJ;
  ** Copyright (C) 2017 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
- **  
+ **
  **  GeometryCorrection.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
@@ -29,15 +29,9 @@ import ij.IJ;
 public class GeometryCorrection {
 	static double SCENE_UNITS_SCALE = 0.001;
 	static String SCENE_UNITS_NAME = "m";
-	static final String [] CORR_NAMES = {"tilt0","tilt1","tilt2","azimuth0","azimuth1","azimuth2","roll0","roll1","roll2","roll3"};
+	static final String [] CORR_NAMES = {"tilt0","tilt1","tilt2","azimuth0","azimuth1","azimuth2","roll0","roll1","roll2","roll3","zoom0","zoom1","zoom2"};
 
 	public int    debugLevel = 0;
-	//	public double azimuth; // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
-	//	public double radius;  // mm, distance from the rotation axis
-	//	public double height;       // mm, up - from the origin point
-	//	public double phi;     // degrees, optical axis from azimuth/r vector, clockwise heading
-	//	public double theta;   // degrees, optical axis from the eyesis horizon, positive - up elevation
-	//	public double psi;     // degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target roll
 	public int    pixelCorrectionWidth=2592;   // virtual camera center is at (pixelCorrectionWidth/2, pixelCorrectionHeight/2)
 	public int    pixelCorrectionHeight=1936;
 	public double focalLength=4.5;
@@ -50,31 +44,26 @@ public class GeometryCorrection {
 	public double distortionA=0.0; // r^4 (normalized to focal length or to sensor half width?)
 	public double distortionB=0.0; // r^3
 	public double distortionC=0.0; // r^2
-	//	public double px0=1296.0;          // center of the lens on the sensor, pixels
-	//	public double py0=968.0;           // center of the lens on the sensor, pixels
 
-
-	// parameters, common for all sensors	
+	// parameters, common for all sensors
 	public double    elevation = 0.0; // degrees, up - positive;
 	public double    heading  =  0.0;  // degrees, CW (from top) - positive
-	//	public double    roll_common  =     0.0;  // degrees, CW (to target) - positive
-
 
 	public int       numSensors = 4;
 	private double [] forward =   null;
 	private double [] right =     null;
 	private double [] height =    null;
 	private double [] roll  =     null;  // degrees, CW (to target) - positive
-	public  double [][] pXY0 =    null;  // sensor center XY in pixels 
+	public  double [][] pXY0 =    null;  // sensor center XY in pixels
 
 	private double common_right;    // mm right, camera center
 	private double common_forward;  // mm forward (to target), camera center
 	private double common_height;   // mm up, camera center
 	private double common_roll;     // degrees CW (to target) camera as a whole
-	private double [][] XYZ_he;     // all cameras coordinates transformed to eliminate heading and elevation (rolls preserved) 
+	private double [][] XYZ_he;     // all cameras coordinates transformed to eliminate heading and elevation (rolls preserved)
 	private double [][] XYZ_her = null; // XYZ of the lenses in a corrected CCS (adjusted for to elevation, heading,  common_roll)
 	private double [][] rXY =     null; // XY pairs of the in a normal plane, relative to disparityRadius
-	private double [][] rXY_ideal = {{-0.5, -0.5}, {0.5,-0.5}, {-0.5, 0.5}, {0.5,0.5}}; 
+	private double [][] rXY_ideal = {{-0.5, -0.5}, {0.5,-0.5}, {-0.5, 0.5}, {0.5,0.5}};
 
 	public double cameraRadius=0; // average distance from the "mass center" of the sensors to the sensors
 	public double disparityRadius=0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad camera (~=150mm)?
@@ -89,7 +78,7 @@ public class GeometryCorrection {
 	{
 		this.extrinsic_corr = 	new CorrVector(extrinsic_corr);
 	}
-	
+
 	// correction of cameras mis-alignment
 	public CorrVector getCorrVector(double [] vector){
 		return new CorrVector(vector);
@@ -113,54 +102,44 @@ public class GeometryCorrection {
 
 	public boolean [] getParMask(
 			boolean use_disparity,
-			boolean common_roll)
+			boolean common_roll,
+			boolean corr_focalLength)
 	{
 		return (new CorrVector()).getParMask(
 				use_disparity,
-				common_roll);
+				common_roll,
+				corr_focalLength);
 	}
 
-	
-	
+
+
 	public class CorrVector{
-		static final int LENGTH =       10;
+		static final int LENGTH =       13; //  10;
+		static final int LENGTH_ANGLES =10;
 		static final int TILT_INDEX =    0;
 		static final int AZIMUTH_INDEX = 3;
 		static final int ROLL_INDEX =    6;
+		static final int ZOOM_INDEX =    10;
 		static final double ROT_AZ_SGN = -1.0; // sign of first sin for azimuth rotation
 		static final double ROT_TL_SGN =  1.0; // sign of first sin for tilt rotation
 		static final double ROT_RL_SGN =  1.0; // sign of first sin for roll rotation
 		double [] vector;
-		
+
 		public Matrix [] getRotMatrices()
 		{
 			Matrix [] rots = new Matrix [4];
 			double [] azimuths = getAzimuths();
 			double [] tilts =    getTilts();
 			double [] rolls =    getFullRolls();
+			double [] zooms =    getZooms();
 			for (int chn = 0; chn < rots.length; chn++) {
 				double ca = Math.cos(azimuths[chn]);
 				double sa = Math.sin(azimuths[chn]);
 				double ct = Math.cos(tilts[chn]);
 				double st = Math.sin(tilts[chn]);
-				double cr = Math.cos(rolls[chn]);
-				double sr = Math.sin(rolls[chn]);
-/*				
-				double [][] a_az = { // inverted - OK
-						{ ca,  0.0,  -sa},
-						{ 0.0, 1.0,  0.0},
-						{ sa,  0.0,  ca}};
-
-				double [][] a_t =  { // inverted - OK
-						{ 1.0,  0.0, 0.0},
-						{ 0.0,  ct,  st},
-						{ 0.0, -st,  ct}};
-
-				double [][] a_r =  { // inverted OK
-						{ cr,  sr,  0.0},
-						{ -sr,  cr,  0.0},
-						{ 0.0, 0.0, 1.0}};
-*/
+				double zoom = (1.0 + zooms[chn]);
+				double cr = Math.cos(rolls[chn]) * zoom;
+				double sr = Math.sin(rolls[chn]) * zoom;
 				double [][] a_az = { // inverted - OK
 						{ ca,               0.0,  sa * ROT_AZ_SGN },
 						{ 0.0,              1.0,  0.0},
@@ -181,22 +160,25 @@ public class GeometryCorrection {
 			return rots;
 		}
 		/**
-		 * Get derivatives of the rotation matrices, per sensor per axis (azimuth, tilt, roll)
+		 * Get derivatives of the rotation matrices, per sensor per axis (azimuth, tilt, roll, zoom)
 		 * d/dx and d/dy should be normalized by z-component of the vector (not derivative)
 		 * @return 2-d array array of derivatives matrices
 		 */
-		
+//TODO: UPDATE to include scales
 		public Matrix [][] getRotDeriveMatrices()
 		{
-			Matrix [][] rot_derivs = new Matrix [4][3]; // channel, azimuth-tilt-roll
+			Matrix [][] rot_derivs = new Matrix [4][4]; // channel, azimuth-tilt-roll-zoom
 			double [] azimuths = getAzimuths();
 			double [] tilts =    getTilts();
 			double [] rolls =    getFullRolls();
+			double [] zooms =    getZooms();
+
 			for (int chn = 0; chn < rot_derivs.length; chn++) {
 				double ca = Math.cos(azimuths[chn]);
 				double sa = Math.sin(azimuths[chn]);
 				double ct = Math.cos(tilts[chn]);
 				double st = Math.sin(tilts[chn]);
+				double zoom = (1.0 + zooms[chn]);
 				double cr = Math.cos(rolls[chn]);
 				double sr = Math.sin(rolls[chn]);
 				double [][] a_az = { // inverted - OK
@@ -213,24 +195,7 @@ public class GeometryCorrection {
 						{ cr,                sr * ROT_RL_SGN,  0.0},
 						{ -sr * ROT_RL_SGN,  cr,               0.0},
 						{ 0.0,               0.0,              1.0}};
-				
-/*
- 				double [][] a_daz = { // inverted - OK
- 
-						{ -sa,              0.0,   ca * ROT_AZ_SGN },
-						{  0.0,             1.0,   0.0},
-						{ -ca* ROT_AZ_SGN,  0.0,  -sa}};
 
-				double [][] a_dt =  { // inverted - OK
-						{ 1.0,  0.0,               0.0},
-						{ 0.0, -st,                ct * ROT_TL_SGN},
-						{ 0.0, -ct * ROT_TL_SGN,  -st}};
-
-				double [][] a_dr =  { // inverted OK
-						{ -sr,               cr * ROT_RL_SGN,  0.0},
-						{ -cr * ROT_RL_SGN, -sr,               0.0},
-						{ 0.0,               0.0,              1.0}};
-*/
 				double [][] a_daz = { // inverted - OK
 						{ -sa,              0.0,   ca * ROT_AZ_SGN },
 						{  0.0,             0.0,   0.0},
@@ -242,25 +207,31 @@ public class GeometryCorrection {
 						{ 0.0, -ct * ROT_TL_SGN,  -st}};
 
 				double [][] a_dr =  { // inverted OK
-						{ -sr,               cr * ROT_RL_SGN,  0.0},
-						{ -cr * ROT_RL_SGN, -sr,               0.0},
+						{ -sr * zoom,               cr * zoom * ROT_RL_SGN,  0.0},
+						{ -cr * zoom *ROT_RL_SGN,  -sr * zoom,               0.0},
 						{ 0.0,               0.0,              0.0}};
-				
-				
+
+				double [][] a_dzoom =  { // inverted OK
+						{ cr,                sr * ROT_RL_SGN,  0.0},
+						{ -sr * ROT_RL_SGN,  cr,               0.0},
+						{ 0.0,               0.0,              0.0}};
+
+
 				// d/d_az
 				rot_derivs[chn][0] = (new Matrix(a_r ).times(new Matrix(a_t ).times(new Matrix(a_daz))));
 				rot_derivs[chn][1] = (new Matrix(a_r ).times(new Matrix(a_dt).times(new Matrix(a_az ))));
 				rot_derivs[chn][2] = (new Matrix(a_dr).times(new Matrix(a_t ).times(new Matrix(a_az ))));
+				rot_derivs[chn][3] = (new Matrix(a_dzoom).times(new Matrix(a_t ).times(new Matrix(a_az ))));
 			}
 			return rot_derivs;
 		}
-		
-		
-		
-		
+
+
+
+
 		public CorrVector ()
 		{
-			this.vector = new double[10];
+			this.vector = new double[LENGTH];
 		}
 
 		public CorrVector (
@@ -270,23 +241,29 @@ public class GeometryCorrection {
 			this.vector = toTarArray(sym_vector, par_mask);
 
 		}
-		
+
 		public CorrVector (
 				double tilt0,    double tilt1,    double tilt2,
 				double azimuth0, double azimuth1, double azimuth2,
-				double roll0,    double roll1,    double roll2, double roll3)
+				double roll0,    double roll1,    double roll2, double roll3,
+				double zoom0,   double zoom1,   double zoom2)
 		{
 			double [] v = {
 					tilt0,    tilt1,    tilt2,
 					azimuth0, azimuth1, azimuth2,
-					roll0,    roll1,    roll2, roll3};
+					roll0,    roll1,    roll2, roll3,
+					zoom0,   zoom1,   zoom2};
 			this.vector = v;
 		}
-		
-		
+
+
 		public CorrVector (double [] vector)
 		{
+
 			if (vector != null) {
+				if (vector.length != LENGTH) {
+					throw new IllegalArgumentException("vector.length = "+vector.length+" != "+LENGTH);
+				}
 				this.vector = vector;
 			}
 		}
@@ -295,22 +272,24 @@ public class GeometryCorrection {
 		 * @param tilt    for subcameras 0..2, radians, positive - up (subcamera 3 so sum == 0)
 		 * @param azimuth for subcameras 0..2, radians, positive - right (subcamera 3 so sum == 0)
 		 * @param roll    for subcameras 0..3, radians, positive - CW looking to the target
+		 * @param zoom    for subcameras 0..2, difference from 1.0 . Positive - image is too small, needs to be zoomed in by (1.0 + scale)
 		 */
-		public CorrVector (double [] tilt, double [] azimuth, double [] roll)
+		public CorrVector (double [] tilt, double [] azimuth, double [] roll, double [] zoom)
 		{
 			double [] vector = {
 					tilt[0],    tilt[1],    tilt[2],
 					azimuth[0], azimuth[1], azimuth[2],
-					roll[0], roll[1], roll[2], roll[3]};
-			this.vector = vector;		
+					roll[0], roll[1], roll[2], roll[3],
+					zoom[0], zoom[1], zoom[2]};
+			this.vector = vector;
 		}
-		
+
 		public CorrVector getCorrVector(double [] vector){
 			return new CorrVector(vector);
 		}
 
-		
-		
+
+
 		public double [] toArray()
 		{
 			return vector;
@@ -346,6 +325,18 @@ public class GeometryCorrection {
 			return vector[6 + indx];
 		}
 
+		public double [] getZooms()
+		{
+			double [] zooms =     {vector[10], vector[11], vector[12], - (vector[10] + vector[11] +vector[12])};
+			return zooms;
+		}
+		public double getZoom(int indx)
+		{
+			if (indx == 3) return - (vector[10] + vector[11] +vector[12]);
+			else           return vector[10 + indx];
+		}
+
+
 		// Include factory calibration rolls
 		public double [] getFullRolls()
 		{
@@ -362,30 +353,34 @@ public class GeometryCorrection {
 			return vector[6 + indx] + roll[indx] * Math.PI/180.0;
 		}
 
+		@Override
 		public String toString()
 		{
 			String s;
 			double [] sym_vect = toSymArray(null);
 			double [] v = new double [vector.length];
 			double [] sv = new double [vector.length];
-			for (int i = 0; i < vector.length; i++){
-				v[i] =  vector[i]*180/Math.PI;
-				sv[i] = sym_vect[i]*180/Math.PI;
+			for (int i = 0; i < LENGTH; i++){
+				if (i < LENGTH_ANGLES) {
+					v[i] =  vector[i]*180/Math.PI;
+					sv[i] = sym_vect[i]*180/Math.PI;
+				} else {
+					v[i] =  vector[i];
+					sv[i] = sym_vect[i];
+				}
 			}
-			
+
 			s  = String.format("tilt    (up):    %8.5f° %8.5f° %8.5f° %8.5f°\n" , v[0], v[1], v[2], -(v[0] + v[1] + v[2]) );
 			s += String.format("azimuth (right): %8.5f° %8.5f° %8.5f° %8.5f°\n" , v[3], v[4], v[5], -(v[3] + v[4] + v[5]) );
 			s += String.format("roll    (CW):    %8.5f° %8.5f° %8.5f° %8.5f°\n" , v[6], v[7], v[8], v[9] );
+			s += String.format("diff zoom (in):  %8.5f‰ %8.5f‰ %8.5f‰ %8.5f‰\n" , 1000*v[10],1000*v[11],1000*v[12], -1000*(v[10] + v[11] + v[12]) );
 			s += "Symmetrical vector:\n";
-			s += "   |↘ ↙|     |↘ ↗|     |↗ ↘|     |↙ ↘|      |↙ ↗|     |↖  ↘| 6: common roll 7:(r0-r3)/2, \n";
-			s += "0: |↗ ↖|  1: |↙ ↖|  2: |↖ ↙|  3: |↖ ↗|  4:  |↗ ↙|  5: |↘  ↖| 8:(r1-r2)/2    9:(r0+r3-r1-r2)/4\n";
-			s += String.format("0: %8.5f° 1:%8.5f° 2:%8.5f° 3:%8.5f° 4:%8.5f° 5:%8.5f° 6:%8.5f° 7:%8.5f° 8:%8.5f° 9:%8.5f°\n" ,
-					sv[0], sv[1], sv[2], sv[3], sv[4], sv[5], sv[6], sv[7], sv[8], sv[9] );
-//			s += String.format("sym_vect: 0: %10.7f 1:%10.7f 2:%10.7f 3:%10.7f 4:%10.7f 5:%10.7f 6:%10.7f 7:%10.7f 8:%10.7f 9:%10.7f\n" ,
-//					sym_vect[0], sym_vect[1], sym_vect[2], sym_vect[3], sym_vect[4], sym_vect[5], sym_vect[6], sym_vect[7], sym_vect[8], sym_vect[9] );
-//			s += String.format("vector:   0: %10.7f 1:%10.7f 2:%10.7f 3:%10.7f 4:%10.7f 5:%10.7f 6:%10.7f 7:%10.7f 8:%10.7f 9:%10.7f\n" ,
-//					vector[0], vector[1], vector[2], vector[3], vector[4], vector[5], vector[6], vector[7], vector[8], vector[9] );
-			
+			s += "    |↘ ↙|     |↘ ↗|     |↗ ↘|     |↙ ↘|      |↙ ↗|     |↖  ↘| 6: common roll 7:(r0-r3)/2,           |- +|     |- -|     |- +|\n";
+			s += " 0: |↗ ↖|  1: |↙ ↖|  2: |↖ ↙|  3: |↖ ↗|  4:  |↗ ↙|  5: |↘  ↖| 8:(r1-r2)/2    9:(r0+r3-r1-r2)/4  10: |- +| 11: |+ +| 12: |+ -|\n";
+
+			s += String.format(" 0: %8.5f° 1:%8.5f° 2:%8.5f° 3:%8.5f° 4:%8.5f° 5:%8.5f° 6:%8.5f° 7:%8.5f° 8:%8.5f° 9:%8.5f° 10: %8.5f‰ 11:%8.5f‰ 12:%8.5f‰\n" ,
+					sv[0], sv[1], sv[2], sv[3], sv[4], sv[5], sv[6], sv[7], sv[8], sv[9], 1000*sv[10], 1000*sv[11], 1000*sv[12] );
+
 			return s;
 		}
 		public void incrementVector(double [] incr,
@@ -395,19 +390,20 @@ public class GeometryCorrection {
 				vector[i]+= incr[i] * scale;
 			}
 		}
-		
+
 		public void incrementVector(CorrVector incr, double scale)
 		{
 			incrementVector(incr.toArray(), scale);
 		}
-		
+
+		@Override
 		public CorrVector clone(){
 			return new CorrVector(this.vector.clone());
 		}
-		
+
 		/**
 		 * Convert manual pixel shift between images to azimuth/tilt rotations (distortions ignored)
-		 * and apply (add) them to the current vector (normally should be all 0.0)		
+		 * and apply (add) them to the current vector (normally should be all 0.0)
 		 * @param pXY_shift manula XY pixel corrections (shiftXY made of clt_parameters.fine_corr_[xy]_[0123])
 		 */
 		public void applyPixelShift(double [][] pXY_shift){
@@ -423,35 +419,35 @@ public class GeometryCorrection {
 				vector[AZIMUTH_INDEX + i] += pix_to_rads * (pXY_shift[i][0] - pXY_avg[0]);
 			}
 		}
-		
+
 		/**
 		 * Get conversion matrix from symmetrical coordinates
 		 * @return
 		 *
 		 *     |↘ ↙|     |↘ ↗|     |↗ ↘|     |↙ ↘|      |↙ ↗|     |↖  ↘|
 		 *  0: |↗ ↖|  1: |↙ ↖|  2: |↖ ↙|  3: |↖ ↗|  4:  |↗ ↙|  5: |↘  ↖|
-		 *  
+		 *
 		 */
 		public double [][] dSym_j_dTar_i()
 		{
-			//Previous does not consider movement of the 4-th sensor, so t3 = -t0+t1+t2), a3 = -(a0+a1+a2) 					
 			double [][] tar_to_sym = {
-					{-2.0, -2.0,  2.0, -2.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0}, // t0
-					{-2.0,  0.0,  0.0, -2.0,  2.0, -2.0, 0.0,   0.0,  0.0,  0.0}, // t1
-					{ 0.0, -2.0,  2.0,  0.0,  2.0, -2.0, 0.0,   0.0,  0.0,  0.0}, // t2
-					
-					{ 2.0,  2.0,  2.0, -2.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0}, // a0
-					{ 0.0,  2.0,  2.0,  0.0,  2.0,  2.0, 0.0,   0.0,  0.0,  0.0}, // a1
-					{ 2.0,  0.0,  0.0, -2.0,  2.0,  2.0, 0.0,   0.0,  0.0,  0.0}, // a2
-					
-//					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 1.0, 0.0, 0.0, 0.0}, // roll 0
-//					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0, 1.0, 0.0, 0.0}, // roll 1
-//					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0, 0.0, 1.0, 0.0}, // roll 2
-//					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0, 0.0, 0.0, 1.0}};// roll 3
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.5,  0.0,  0.25}, // roll 0
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.0,  0.5, -0.25}, // roll 1
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.0, -0.5, -0.25}, // roll 2
-					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25, -0.5,  0.0,  0.25}};// roll 3
+					{-2.0, -2.0,  2.0, -2.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // t0
+					{-2.0,  0.0,  0.0, -2.0,  2.0, -2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // t1
+					{ 0.0, -2.0,  2.0,  0.0,  2.0, -2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // t2
+
+					{ 2.0,  2.0,  2.0, -2.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // a0
+					{ 0.0,  2.0,  2.0,  0.0,  2.0,  2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // a1
+					{ 2.0,  0.0,  0.0, -2.0,  2.0,  2.0, 0.0,   0.0,  0.0,  0.0,   0.0,  0.0,  0.0}, // a2
+
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.5,  0.0,  0.25,  0.0,  0.0,  0.0}, // roll 0
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.0,  0.5, -0.25,  0.0,  0.0,  0.0}, // roll 1
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.0, -0.5, -0.25,  0.0,  0.0,  0.0}, // roll 2
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25, -0.5,  0.0,  0.25,  0.0,  0.0,  0.0}, // roll 3
+
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,  -1.0, -1.0,  0.0}, // scale 0
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,   0.0, -1.0,  1.0}, // scale 1
+					{ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,  -1.0,  0.0,  1.0}  // scale 2
+			};
 
 			return tar_to_sym;
 		}
@@ -460,119 +456,103 @@ public class GeometryCorrection {
 			//			Matrix tar_to_sym = sym_to_tar.inverse();
 			//			return tar_to_sym.getArray();
 			/*
->>> a=[[-2, -2, 2, -2, 0, 0, 0, 0, 0, 0], [-2, 0, 0, -2, 2, -2, 0, 0, 0, 0], [0, -2, 2, 0, 2, -2, 0, 0, 0, 0], [2, 2, 2, -2, 0, 0, 0, 0, 0, 0], [0, 2, 2, 0, 2, 2, 0, 0, 0, 0],
-... [2, 0, 0, -2, 2, 2, 0, 0, 0, 0], [0, 0, 0, 0, 0, 0, 1, 0, 0, 0], [0, 0, 0, 0, 0, 0, 0, 1, 0, 0], [0, 0, 0, 0, 0, 0, 0, 0, 1, 0], [0, 0, 0, 0, 0, 0, 0, 0, 0, 1]]
->>> m = numpy.matrix(a)
->>> m
-matrix([[-2, -2,  2, -2,  0,  0,  0,  0,  0,  0],
-        [-2,  0,  0, -2,  2, -2,  0,  0,  0,  0],
-        [ 0, -2,  2,  0,  2, -2,  0,  0,  0,  0],
-        [ 2,  2,  2, -2,  0,  0,  0,  0,  0,  0],
-        [ 0,  2,  2,  0,  2,  2,  0,  0,  0,  0],
-        [ 2,  0,  0, -2,  2,  2,  0,  0,  0,  0],
-        [ 0,  0,  0,  0,  0,  0,  1,  0,  0,  0],
-        [ 0,  0,  0,  0,  0,  0,  0,  1,  0,  0],
-        [ 0,  0,  0,  0,  0,  0,  0,  0,  1,  0],
-        [ 0,  0,  0,  0,  0,  0,  0,  0,  0,  1]])
->>> numpy.linalg.inv(m)
-matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125,  0.   , -0.   ,  -0.   , -0.   ],
-        [-0.125,  0.125, -0.125,  0.125,  0.125, -0.125,  0.   ,  0.   ,   0.   ,  0.   ],
-        [ 0.125, -0.125,  0.125,  0.125,  0.125, -0.125,  0.   ,  0.   ,   0.   ,  0.   ],
-        [-0.125, -0.125,  0.125, -0.125,  0.125, -0.125,  0.   ,  0.   ,   0.   ,  0.   ],
-        [-0.125,  0.125,  0.125, -0.125,  0.125,  0.125,  0.   ,  0.   ,   0.   ,  0.   ],
-        [ 0.125, -0.125, -0.125, -0.125,  0.125,  0.125,  0.   ,  0.   ,   0.   ,  0.   ],
-        [ 0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  1.   ,  0.   ,   0.   ,  0.   ],
-        [ 0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  1.   ,   0.   ,  0.   ],
-        [ 0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,   1.   ,  0.   ],
-        [ 0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,   0.   ,  1.   ]])
-        
-        
-a=[[-2.0, -2.0,  2.0, -2.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0],
-[-2.0,  0.0,  0.0, -2.0,  2.0, -2.0, 0.0,   0.0,  0.0,  0.0],
-[ 0.0, -2.0,  2.0,  0.0,  2.0, -2.0, 0.0,   0.0,  0.0,  0.0],
-[ 2.0,  2.0,  2.0, -2.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0],
-[ 0.0,  2.0,  2.0,  0.0,  2.0,  2.0, 0.0,   0.0,  0.0,  0.0],
-[ 2.0,  0.0,  0.0, -2.0,  2.0,  2.0, 0.0,   0.0,  0.0,  0.0],
-[ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.5,  0.0,  0.25],
-[ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.0,  0.5, -0.25],
-[ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.0, -0.5, -0.25],
-[ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25, -0.5,  0.0,  0.25]]
+a=[
+[-2.0, -2.0,  2.0, -2.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0],
+[-2.0,  0.0,  0.0, -2.0,  2.0, -2.0, 0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0],
+[ 0.0, -2.0,  2.0,  0.0,  2.0, -2.0, 0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0],
+[ 2.0,  2.0,  2.0, -2.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0],
+[ 0.0,  2.0,  2.0,  0.0,  2.0,  2.0, 0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0],
+[ 2.0,  0.0,  0.0, -2.0,  2.0,  2.0, 0.0,   0.0,  0.0,  0.0,  0.0,  0.0,  0.0],
+[ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.5,  0.0,  0.25, 0.0,  0.0,  0.0],
+[ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.0,  0.5, -0.25, 0.0,  0.0,  0.0],
+[ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25,  0.0, -0.5, -0.25, 0.0,  0.0,  0.0],
+[ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.25, -0.5,  0.0,  0.25, 0.0,  0.0,  0.0],
+[ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0, -1.0, -1.0,  0.0],
+[ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0,  0.0, -1.0,  1.0],
+[ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0, 0.0,   0.0,  0.0,  0.0, -1.0,  0.0,  1.0]]
 
-matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.   , -0.   ],
-        [-0.125,  0.125, -0.125,  0.125,  0.125, -0.125,  0.   ,  0.   ,    0.   ,  0.   ],
-        [ 0.125, -0.125,  0.125,  0.125,  0.125, -0.125,  0.   ,  0.   ,    0.   ,  0.   ],
-        [-0.125, -0.125,  0.125, -0.125,  0.125, -0.125,  0.   ,  0.   ,    0.   ,  0.   ],
-        [-0.125,  0.125,  0.125, -0.125,  0.125,  0.125,  0.   ,  0.   ,    0.   ,  0.   ],
-        [ 0.125, -0.125, -0.125, -0.125,  0.125,  0.125,  0.   ,  0.   ,    0.   ,  0.   ],
-        [ 0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  1.   ,  1.   ,    1.   ,  1.   ],
-        [-0.   , -0.   , -0.   , -0.   , -0.   , -0.   ,  1.   , -0.   ,   -0.   , -1.   ],
-        [-0.   , -0.   , -0.   , -0.   , -0.   , -0.   , -0.   ,  1.   ,   -1.   , -0.   ],
-        [-0.   , -0.   , -0.   , -0.   , -0.   , -0.   ,  1.   , -1.   ,   -1.   ,  1.   ]])
-			 */
+
+matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.   , -0.   , -0.   , -0.   , -0.   ],
+        [-0.125,  0.125, -0.125,  0.125,  0.125, -0.125,  0.   ,  0.   ,    0.   ,  0.   ,  0.   ,  0.   ,  0.   ],
+        [ 0.125, -0.125,  0.125,  0.125,  0.125, -0.125,  0.   ,  0.   ,    0.   ,  0.   ,  0.   ,  0.   ,  0.   ],
+        [-0.125, -0.125,  0.125, -0.125,  0.125, -0.125,  0.   ,  0.   ,    0.   ,  0.   ,  0.   ,  0.   ,  0.   ],
+        [-0.125,  0.125,  0.125, -0.125,  0.125,  0.125,  0.   ,  0.   ,    0.   ,  0.   ,  0.   ,  0.   ,  0.   ],
+        [ 0.125, -0.125, -0.125, -0.125,  0.125,  0.125,  0.   ,  0.   ,    0.   ,  0.   ,  0.   ,  0.   ,  0.   ],
+        [ 0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  1.   ,  1.   ,    1.   ,  1.   ,  0.   ,  0.   ,  0.   ],
+        [-0.   , -0.   , -0.   , -0.   , -0.   , -0.   ,  1.   , -0.   ,   -0.   , -1.   , -0.   , -0.   , -0.   ],
+        [-0.   , -0.   , -0.   , -0.   , -0.   , -0.   , -0.   ,  1.   ,   -1.   , -0.   , -0.   , -0.   , -0.   ],
+        [-0.   , -0.   , -0.   , -0.   , -0.   , -0.   ,  1.   , -1.   ,   -1.   ,  1.   , -0.   , -0.   , -0.   ],
+        [-0.   , -0.   , -0.   , -0.   , -0.   , -0.   , -0.   , -0.   ,   -0.   , -0.   , -0.5  ,  0.5  , -0.5  ],
+        [-0.   , -0.   , -0.   , -0.   , -0.   , -0.   , -0.   , -0.   ,   -0.   , -0.   , -0.5  , -0.5  ,  0.5  ],
+        [ 0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,  0.   ,    0.   ,  0.   , -0.5  ,  0.5  ,  0.5  ]])
+*/
 			double [][] sym_to_tar=	{
-					// t0       t1      t2     a0       a1     a2     r0       r1      r2       r3    
-					{-0.125, -0.125,  0.125,  0.125, -0.125,  0.125,  0.0  ,  0.0  ,   0.0  ,  0.0  },  // sym0
-			        {-0.125,  0.125, -0.125,  0.125,  0.125, -0.125,  0.0  ,  0.0  ,   0.0  ,  0.0  },  // sym1
-			        { 0.125, -0.125,  0.125,  0.125,  0.125, -0.125,  0.0  ,  0.0  ,   0.0  ,  0.0  },  // sym2
-			        {-0.125, -0.125,  0.125, -0.125,  0.125, -0.125,  0.0  ,  0.0  ,   0.0  ,  0.0  },  // sym3
-			        {-0.125,  0.125,  0.125, -0.125,  0.125,  0.125,  0.0  ,  0.0  ,   0.0  ,  0.0  },  // sym4
-			        { 0.125, -0.125, -0.125, -0.125,  0.125,  0.125,  0.0  ,  0.0  ,   0.0  ,  0.0  },  // sym5
-//			        { 0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  1.0  ,  0.0  ,   0.0  ,  0.0  },  // sym6 = r0
-//			        { 0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  1.0  ,   0.0  ,  0.0  },  // sym7 = r1
-//			        { 0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,   1.0  ,  0.0  },  // sym8 = r2
-//			        { 0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,   0.0  ,  1.0  }}; // sym9 = r3
-			        { 0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  1.0  ,  1.0  ,   1.0  ,  1.0  },  // sym6 = (r0+r1+r2+r3)/4
-			        { 0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  1.0  ,  0.0  ,   0.0  , -1.0  },  // sym7 = (r0-r3)/2
-			        { 0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  1.0  ,  -1.0  ,  0.0  },  // sym8 = (r1-r2)/2
-			        { 0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  0.0  ,  1.0  , -1.0  ,  -1.0  ,  1.0  }}; // sym9 = (r0+r3-r1-r2)/4
+					// t0     t1     t2     a0     a1     a2     r0    r1    r2    r3    s0    s1    s2
+					{-0.125,-0.125, 0.125, 0.125,-0.125, 0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0 },  // sym0
+			        {-0.125, 0.125,-0.125, 0.125, 0.125,-0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0 },  // sym1
+			        { 0.125,-0.125, 0.125, 0.125, 0.125,-0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0 },  // sym2
+			        {-0.125,-0.125, 0.125,-0.125, 0.125,-0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0 },  // sym3
+			        {-0.125, 0.125, 0.125,-0.125, 0.125, 0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0 },  // sym4
+			        { 0.125,-0.125,-0.125,-0.125, 0.125, 0.125, 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0 },  // sym5
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 1.0,  1.0,  1.0,  1.0,  0.0,  0.0,  0.0 },  // sym6  = (r0+r1+r2+r3)/4
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 1.0,  0.0,  0.0, -1.0,  0.0,  0.0,  0.0 },  // sym7  = (r0-r3)/2
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  1.0, -1.0,  0.0,  0.0,  0.0,  0.0 },  // sym8  = (r1-r2)/2
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 1.0, -1.0, -1.0,  1.0,  0.0,  0.0,  0.0 },  // sym9  = (r0+r3-r1-r2)/4
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0, -1.0,  1.0, -0.5,  0.5, -0.5 },  // sym10 = -s0 - s2
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0, -1.0,  1.0, -0.5, -0.5,  0.5 },  // sym11 = -s0 - s1
+			        { 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0  , 0.0,  0.0, -1.0,  1.0, -0.5,  0.5,  0.5 }   // sym12 =  s1 + s2
+			        };
 			return sym_to_tar;
 		}
-		
+
 		public boolean [] getParMask(
 				boolean use_disparity,
-				boolean common_roll)
+				boolean common_roll,
+				boolean corr_focalLength)
 		{
-			boolean [] par_mask = { // TODO: move to GeometryCorrection
-					use_disparity, //sym0
-					true,          //sym1
-					true,          //sym2
-					true,          //sym3
-					true,          //sym4
-					true,          //sym5
-					common_roll,   //sym6 // common roll
-					true,          //sym7
-					true,          //sym8
-					true           //sym9
+			boolean [] par_mask = {
+					use_disparity,    //sym0
+					true,             //sym1
+					true,             //sym2
+					true,             //sym3
+					true,             //sym4
+					true,             //sym5
+					common_roll,      //sym6 // common roll
+					true,             //sym7
+					true,             //sym8
+					true,             //sym9
+					corr_focalLength, //sym10
+					corr_focalLength, //sym11
+					corr_focalLength  //sym12
 			};
 			return par_mask;
-
 		}
-		
-		
+
+
 		/**
 		 * Get partial transposed Jacobian as 2d array (for one measurement set) from partial Jacobian for each sample
 		 * with derivatives of port coordinates (all 4) by 3 tilts (ports 0..2), 3 azimuths (ports 0..2) and all 4 rolls
 		 * Tilt and azimuth for port 3 is calculated so center would not move. Tilt is positive up, azimuth - right and
 		 * roll - clockwise
-		 * 
-		 * Result is transposed Jacobian (rows (9 or 10) - parameters, columns - port coordinate components (8). Parameters
-		 * here are symmetrical, 0 is disparity-related (all to the center), remaining 9 preserve disparity and 
-		 * are only responsible for the "lazy eye" (last 4  are for roll):
-		 *  
+		 *
+		 * Result is transposed Jacobian (rows (9 , 10,12 or 13) - parameters, columns - port coordinate components (8). Parameters
+		 * here are symmetrical, 0 is disparity-related (all to the center), remaining 9 preserve disparity and
+		 * are only responsible for the "lazy eye" (last 4  are were roll, now differential zooms are added):
+		 *
 		 *     |↘ ↙|     |↘ ↗|     |↗ ↘|     |↙ ↘|      |↙ ↗|     |↖  ↘|
 		 *  0: |↗ ↖|  1: |↙ ↖|  2: |↖ ↙|  3: |↖ ↗|  4:  |↗ ↙|  5: |↘  ↖|
-		 * 
+		 *
 		 * @param port_coord_deriv result of getPortsCoordinatesAndDerivatives: first index: port0x, port0y... port3y,
 		 *                         second index - parameters [tilt0, tilt1, ..., roll3]
 		 * @param par_mask array of 10 elements - which parameters to use (normally all true or all but first
 		 * @return
 		 */
-		
+
 		public double [][] getJtPartial(
 				double [][] port_coord_deriv,
 				boolean [] par_mask)
 		{
-			int num_pars = 0; 
+			int num_pars = 0;
 			for (int npar = 0; npar < LENGTH; npar++) if ((par_mask==null) || par_mask[npar]) {
 				num_pars++;
 			}
@@ -600,7 +580,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				boolean [] par_mask)
 		{
 			double [][] tar_to_sym = dSym_j_dTar_i();
-			int num_pars = 0; 
+			int num_pars = 0;
 			for (int npar = 0; npar < vector.length; npar++) if ((par_mask==null) || par_mask[npar]) {
 				num_pars++;
 			}
@@ -608,7 +588,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			int opar = 0;
 			for (int npar = 0; npar < LENGTH; npar++) if ((par_mask==null) || par_mask[npar]) {
 				for (int i = 0; i < tar_array.length; i++){
-					sym_array[opar] += tar_array[i] * tar_to_sym[i][npar]; 
+					sym_array[opar] += tar_array[i] * tar_to_sym[i][npar];
 				}
 				opar++;
 			}
@@ -624,17 +604,17 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			for (int npar = 0; npar < LENGTH; npar++)  {
 				int spar = 0;
 				for (int i = 0; i < LENGTH; i++) if ((par_mask==null) || par_mask[i]){
-					tar_array[npar] += sym_array[spar] * sym_to_tar[i][npar]; 
+					tar_array[npar] += sym_array[spar] * sym_to_tar[i][npar];
 					spar++;
 				}
 			}
 			return tar_array;
 		}
 	}
-	
-	
-	
-	
+
+
+
+
 	public void setDistortion(
 			double focalLength,
 			double distortionC,
@@ -734,7 +714,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		common_height  /= numSensors;
 		//    	double [][]
 		this.XYZ_he = new double [numSensors][3]; // after heading, then elevation rotation
-		/*    	
+		/*
     	rotate by phi around C2Y:Vc3= R3*Vc2
     	| cos(phi)   0   -sin(phi)   |   |X|
     	|     0      1         0     | * |Y|
@@ -744,7 +724,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		double s_head=  Math.sin(heading*Math.PI/180);
 		double [][] aR_head={{c_head,0.0,-s_head},{0.0,1.0,0.0},{s_head,0.0,c_head}};
 		Matrix R_head=new Matrix(aR_head);
-		/*    	
+		/*
     	rotate by theta around C1X:Vc2= R2*Vc1
     	|    1        0         0        |   |X|
     	|    0   cos(theta)  -sin(theta) | * |Y|
@@ -754,7 +734,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		double s_elev=  Math.sin(elevation*Math.PI/180);
 		double [][] aR_elev={{1.0,0.0,0.0},{0.0,c_elev, -s_elev},{0.0, s_elev, c_elev}};
 		Matrix R_elev=new Matrix(aR_elev);
-		Matrix R_head_elev = R_elev.times(R_head); 
+		Matrix R_head_elev = R_elev.times(R_head);
 
 		for (int i = 0; i<numSensors; i++){
 			double [][] aXYZi_ccs = {
@@ -763,13 +743,13 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					{  forward[i] - common_forward}};
 			Matrix XYZi_ccs = new Matrix(aXYZi_ccs);
 			Matrix mXYZ_he = R_head_elev.times(XYZi_ccs);
-			for (int j = 0; j<3;j++) this.XYZ_he[i][j] = mXYZ_he.get(j, 0); 
+			for (int j = 0; j<3;j++) this.XYZ_he[i][j] = mXYZ_he.get(j, 0);
 		}
 		// Calculate average radius
 		cameraRadius = 0;
 		for (int i = 0; i < numSensors; i++){
 			cameraRadius += this.XYZ_he[i][0] * this.XYZ_he[i][0] + this.XYZ_he[i][1] * this.XYZ_he[i][1];
-		}    	
+		}
 		cameraRadius = Math.sqrt(cameraRadius/numSensors);
 	}
 
@@ -778,8 +758,8 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		if (numSensors != 4 ){
 			throw new IllegalArgumentException ("adjustSquare() is valid only for quad-cameras, numSensors="+numSensors);
 		}
-		this.disparityRadius = Math.sqrt(2.0) * this.cameraRadius; 
-		double Sx = - XYZ_he[0][1] + XYZ_he[1][0] - XYZ_he[2][0] + XYZ_he[3][1]; 
+		this.disparityRadius = Math.sqrt(2.0) * this.cameraRadius;
+		double Sx = - XYZ_he[0][1] + XYZ_he[1][0] - XYZ_he[2][0] + XYZ_he[3][1];
 		double Sy = - XYZ_he[0][0] - XYZ_he[1][1] + XYZ_he[2][1] + XYZ_he[3][0];
 		double psi = 0.25*Math.PI - Math.atan2(Sy, Sx);
 		common_roll = psi*180/Math.PI;
@@ -807,11 +787,11 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					{this.XYZ_he[i][2]}};
 			Matrix mXYZi_he = new Matrix(aXYZi_he);
 			Matrix mXYZ_her = R_roll.times(mXYZi_he);
-			for (int j = 0; j<3;j++) this.XYZ_her[i][j] = mXYZ_her.get(j, 0); 
-			for (int j = 0; j<2;j++) this.rXY[i][j] = this.XYZ_her[i][j]/this.disparityRadius; 
+			for (int j = 0; j<3;j++) this.XYZ_her[i][j] = mXYZ_her.get(j, 0);
+			for (int j = 0; j<2;j++) this.rXY[i][j] = this.XYZ_her[i][j]/this.disparityRadius;
 		}
 	}
-	
+
 	public void listGeometryCorrection(boolean showAll){
 		System.out.println("'=== Constant parameters ===");
 		System.out.println("pixelCorrectionWidth =\t"+  pixelCorrectionWidth+"\tpix");
@@ -837,7 +817,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		System.out.print  ("roll = ");   for (int i = 0; i < numSensors;i++) System.out.print("\t"+roll[i]);      System.out.println("\tdegrees");
 		System.out.print  ("px0 = ");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+pXY0[i][0]);  System.out.println("\tpix");
 		System.out.print  ("py0 = ");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+pXY0[i][1]);  System.out.println("\tpix");
-		
+
 		System.out.println("'=== Common calculated parameters ===");
 		System.out.println("common_right =\t"+common_right + "\tmm");
 		System.out.println("common_forward =\t"+common_forward + "\tmm");
@@ -856,7 +836,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			System.out.print  ("Y_her =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_her[i][1]);  System.out.println("\tmm");
 			System.out.print  ("Z_her =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+XYZ_her[i][2]);  System.out.println("\tmm");
 		}
-		
+
 		System.out.println("'=== Individual calculated parameters ===");
 		System.out.print  ("residual_roll = ");   for (int i = 0; i < numSensors;i++) System.out.print("\t"+(roll[i]-common_roll));System.out.println("\tdegrees");
 		System.out.print  ("X_rel =");    for (int i = 0; i < numSensors;i++) System.out.print("\t"+rXY[i][0]);  System.out.println("\trelative to disparityRadius");
@@ -871,12 +851,12 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	public double getDisparityFromZ(double z){
 		return (1000.0 * SCENE_UNITS_SCALE * this.focalLength * this.disparityRadius / this.pixelSize) / z;
 	}
-	
-	
+
+
 	public double getFOVPix(){ // get ratio of 1 pixel X/Y to Z (distance to object)
 		return 0.001 * this.pixelSize / this.focalLength;
 	}
-	
+
 	public double getFOVWidth(){ // get FOV ratio: width to distance
 		return this.pixelCorrectionWidth * 0.001 * this.pixelSize / this.focalLength;
 	}
@@ -888,8 +868,8 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	{
 		return ( 0.001 * this.pixelSize) / this.focalLength;
 	}
-	
-	
+
+
 	/**
 	 * Get real world coordinates from pixel coordinates and nominal disparity
 	 * @param px horizontal pixel coordinate (right)
@@ -916,11 +896,11 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		double [] xyz = {x,y,z};
 		return xyz;
 	}
-	
+
 	/**
 	 * Find disparity for the intersection of the view ray (px, py) and a real-world plane orthogonal through the end of the
 	 * vector norm_xyz
-	 * @param norm_xyz vector from the origin (camera) orthogonal to the plane, length is a distance to the plane 
+	 * @param norm_xyz vector from the origin (camera) orthogonal to the plane, length is a distance to the plane
 	 * @param px pixel coordinate horizontal
 	 * @param py pixel coordinate vertical
 	 * @param correctDistortions true for lens distortion correction, false otherwise
@@ -944,9 +924,9 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		double z = -SCENE_UNITS_SCALE * this.focalLength * this.disparityRadius / (0.001*this.pixelSize); // "+" - near, "-" far
 		double vect_dot_norm = (x * norm_xyz[0]) +           (y * norm_xyz[1]) +           (z * norm_xyz[2]);
 		double norm_dot_norm = (norm_xyz[0] * norm_xyz[0]) + (norm_xyz[1] * norm_xyz[1]) + (norm_xyz[2] * norm_xyz[2]);
-		return vect_dot_norm / norm_dot_norm; 
+		return vect_dot_norm / norm_dot_norm;
 	}
-	
+
 	/* Just for testing using delta instead of d */
 	public double [][] getWorldJacobian(
 			double px,
@@ -963,15 +943,15 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			dpxpy[i] += delta;
 			double [] xyz = getWorldCoordinates(dpxpy[1],dpxpy[2],dpxpy[0],correctDistortions);
 			for (int j = 0; j<3; j++){
-				jacobian[j][i] = (xyz[j] - xyz0[j])/delta; 
+				jacobian[j][i] = (xyz[j] - xyz0[j])/delta;
 			}
 		}
 		return jacobian;
 	}
-	
-	
+
+
 	/**
-	 * Get jacobian matrix - derivatives of real world [x,y,z] (in meters, right, up, to camera) by [disparity, px,py] (in pixels disparity, right, down) 
+	 * Get jacobian matrix - derivatives of real world [x,y,z] (in meters, right, up, to camera) by [disparity, px,py] (in pixels disparity, right, down)
 	 * @param px horizontal pixel coordinate (right)
 	 * @param py vertical pixel coordinate (down)
 	 * @param disparity nominal disparity (pixels)
@@ -987,59 +967,59 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	{
 		double pXcd = px - 0.5 * this.pixelCorrectionWidth;
 		double pYcd = py - 0.5 * this.pixelCorrectionHeight;
-		
-		double d_pXcd_d_px = 1.0; 
-		double d_pYcd_d_py = 1.0; 
-		
+
+		double d_pXcd_d_px = 1.0;
+		double d_pYcd_d_py = 1.0;
+
 		double pXcd2_pYcd2 = pXcd*pXcd + pYcd*pYcd;
 		double rD = Math.sqrt(pXcd2_pYcd2)*0.001*this.pixelSize; // distorted radius in a virtual center camera
-		
-		double rrD = rD / this.distortionRadius;
-		double d_rRD_d_px = pXcd * rD / pXcd2_pYcd2  / this.distortionRadius;   
-		double d_rRD_d_py = pYcd * rD / pXcd2_pYcd2  / this.distortionRadius;
-		
 
-		
+		double rrD = rD / this.distortionRadius;
+		double d_rRD_d_px = pXcd * rD / pXcd2_pYcd2  / this.distortionRadius;
+		double d_rRD_d_py = pYcd * rD / pXcd2_pYcd2  / this.distortionRadius;
+
+
+
 		double rND2R = correctDistortions?(getRByRDist(rrD, false)): 1.0;
-	
-		
-		
+
+
+
 		double rrND = rND2R * rrD; // relative to distortion radius non-distorted radius
-		
-		
+
+
 		// k = rD/r
 		double d_k_d_rrND = correctDistortions?getDerivRDistFromR(rrND):0.0;
 		double d_rND2R_d_rrD = - rND2R * rND2R * d_k_d_rrND / ( d_k_d_rrND * rrND + 1.0/ rND2R); // rrND);
-		
-		double d_rND2R_d_px = d_rND2R_d_rrD * d_rRD_d_px;   
-		double d_rND2R_d_py = d_rND2R_d_rrD * d_rRD_d_py;   
-		
+
+		double d_rND2R_d_px = d_rND2R_d_rrD * d_rRD_d_px;
+		double d_rND2R_d_py = d_rND2R_d_rrD * d_rRD_d_py;
+
 		double pXc = pXcd * rND2R; // non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
 		double pYc = pYcd * rND2R; // in pixels
-		
+
 		double d_pXc_d_px = pXcd * d_rND2R_d_px + d_pXcd_d_px * rND2R; // incorrect
 		double d_pYc_d_py = pYcd * d_rND2R_d_py + d_pYcd_d_py * rND2R; // incorrect
-		
-		double d_pXc_d_py = pXcd * d_rND2R_d_py; // incorrect (too small)? 
+
+		double d_pXc_d_py = pXcd * d_rND2R_d_py; // incorrect (too small)?
 		double d_pYc_d_px = pYcd * d_rND2R_d_px; // incorrect (too small)?
-		
+
 		double z =  -SCENE_UNITS_SCALE * this.focalLength * this.disparityRadius / (disparity * 0.001*this.pixelSize); // "+" - near, "-" far
 		double kx =  SCENE_UNITS_SCALE * this.disparityRadius / disparity;
 		double ky = -SCENE_UNITS_SCALE * this.disparityRadius / disparity;
 		double x =  kx * pXc;
 		double y =  ky * pYc;
-		
+
 		double d_z_d_disparity = -z / disparity;
 		double d_x_d_disparity = -x / disparity;
 		double d_y_d_disparity = -y / disparity;
 		// d_z_d_px == d_z_d_py ==0
-		double [][] jacobian = 
+		double [][] jacobian =
 			{		{d_x_d_disparity, kx * d_pXc_d_px, kx * d_pXc_d_py},
 					{d_y_d_disparity, ky * d_pYc_d_px, ky * d_pYc_d_py},
 					{d_z_d_disparity, 0.0,             0.0}};
 		return jacobian; // xyz;
 	}
-	
+
 	/**
 	 * Get pixel disparity and coordinates from the real world coordinates (in meters)
 	 * @param xyz real world coordinates {x, y, z} in meters (right up, towards camera)
@@ -1054,8 +1034,8 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		double y = xyz[1];
 		double z = xyz[2];
 		double disparity = -SCENE_UNITS_SCALE * this.focalLength * this.disparityRadius / (z * 0.001*this.pixelSize);
-		// non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)in mm	
-		double pXc = x * disparity / (SCENE_UNITS_SCALE * this.disparityRadius); // pixels 
+		// non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)in mm
+		double pXc = x * disparity / (SCENE_UNITS_SCALE * this.disparityRadius); // pixels
 		double pYc =-y * disparity / (SCENE_UNITS_SCALE * this.disparityRadius); // pixels
 		double rND = Math.sqrt(pXc*pXc + pYc*pYc)*0.001*this.pixelSize; // mm
 		double rD2RND = correctDistortions?getRDistByR(rND/this.distortionRadius):1.0;
@@ -1064,7 +1044,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		double [] dxy = {disparity, px, py};
 		return dxy;
 	}
-	
+
 	/* Just for testing using delta instead of d */
 	public double [][] getImageJacobian(
 			double [] xyz0,
@@ -1078,15 +1058,15 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			xyz[i] += delta;
 			double [] dpxpy = getImageCoordinates(xyz,correctDistortions);
 			for (int j = 0; j<3; j++){
-				jacobian[j][i] = (dpxpy[j] - dpxpy0[j])/delta; 
+				jacobian[j][i] = (dpxpy[j] - dpxpy0[j])/delta;
 			}
 		}
 		return jacobian;
 	}
-	
+
 
 	/**
-	 * Get jacobian matrix - derivatives of [disparity, px,py] (in pixels disparity, right, down) by real world [x,y,z] (in meters, right, up, to camera) 
+	 * Get jacobian matrix - derivatives of [disparity, px,py] (in pixels disparity, right, down) by real world [x,y,z] (in meters, right, up, to camera)
 	 * @param xyz real world coordinates {x, y, z} in meters (right up, towards camera)
 	 * @param correctDistortions true: correct lens distortions, false - no lens distortions
 	 * @return {{dx/ddisparity, dx/dpx, dx/dpy},{dy/ddisparity, dy/dpx, dy/dpy},{dz/ddisparity, dz/dpx, dz/dpy}}
@@ -1104,9 +1084,9 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		double z = xyz[2];
 		double disparity = -SCENE_UNITS_SCALE * this.focalLength * this.disparityRadius / (z * 0.001*this.pixelSize);
 
-		double d_disparity_d_z = -disparity / z; // no dependence on x,y 
-		// non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)in mm	
-		double pXc = x * disparity / (SCENE_UNITS_SCALE * this.disparityRadius); 
+		double d_disparity_d_z = -disparity / z; // no dependence on x,y
+		// non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)in mm
+		double pXc = x * disparity / (SCENE_UNITS_SCALE * this.disparityRadius);
 		double pYc =-y * disparity / (SCENE_UNITS_SCALE * this.disparityRadius);
 
 		double d_pXc_d_z = -pXc / z; // pXc/disparity * d_disparity_d_z = pXc/disparity * (-disparity / z);
@@ -1114,7 +1094,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 
 		double d_pXc_d_x =  disparity / (SCENE_UNITS_SCALE * this.disparityRadius);
 		double d_pYc_d_y = -disparity / (SCENE_UNITS_SCALE * this.disparityRadius);
-		
+
 
 		double rND2 = pXc*pXc + pYc*pYc;
 		double rrND = Math.sqrt(rND2)*0.001*this.pixelSize/this.distortionRadius; // relative to distortion radius;
@@ -1122,20 +1102,20 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 
 		double d_rrND_d_pXc =  pXc*rrND/rND2;
 		double d_rrND_d_pYc =  pYc*rrND/rND2;
-		
-		
+
+
 		double rD2RND = correctDistortions?getRDistByR(rrND):1.0;
 		double d_rD2RND_d_rrND = correctDistortions?getDerivRDistFromR(rrND) : 0.0;
-/*		
-		double d_rD2RND_d_rrND0 = correctDistortions?getDerivRDistFromR(rrND,0.000001) : 0.0;		
+/*
+		double d_rD2RND_d_rrND0 = correctDistortions?getDerivRDistFromR(rrND,0.000001) : 0.0;
 		if (debugLevel > 0){
 			System.out.println("getImageJacobian():, d_rD2RND_d_rrND0 = "+d_rD2RND_d_rrND0+" ("+0.000001+"), d_rD2RND_d_rrND="+d_rD2RND_d_rrND);
 		}
 */
 		double p_px_d_x = d_pXc_d_x * (pXc * (d_rD2RND_d_rrND * d_rrND_d_pXc) + rD2RND); // / (0.001 * this.pixelSize);
 		double p_py_d_y = d_pYc_d_y * (pYc * (d_rD2RND_d_rrND * d_rrND_d_pYc) + rD2RND); // / (0.001 * this.pixelSize);
-		
-		
+
+
 		double p_px_d_y = pXc * (d_rD2RND_d_rrND * d_rrND_d_pYc * d_pYc_d_y); // / (0.001 * this.pixelSize);
 		double p_py_d_x = pYc * (d_rD2RND_d_rrND * d_rrND_d_pXc * d_pXc_d_x); // / (0.001 * this.pixelSize);
 
@@ -1149,39 +1129,9 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				{p_px_d_x,p_px_d_y, p_px_d_z},
 				{p_py_d_x,p_py_d_y, p_py_d_z}};
 
-		return jacobian;		
+		return jacobian;
 	}
-	
-	/**
-	 * Calculate pixel coordinates for each of numSensors images, for a given (px,py) of the idealized "center" (still distorted) image
-	 * and generic disparity, measured in pixels 
-	 * @param px pixel X coordinate
-	 * @param py pixel Y coordinate
-	 * @param disparity disparity
-	 * @return array of per port pairs of pixel shifts
-	 */
-	
-	public double [][] getPortsCoordinates_old(
-			double px,
-			double py,
-			double disparity)
-	{
-		double [][] port_coords =  getPortsCoordinatesAndDerivatives_old(
-				getCorrVector(), // CorrVector corr_vector,
-				null,           // boolean calc_deriv,
-				px, // double px,
-				py, // double py,
-				disparity); // double disparity)
-//		double [][] port_coords_rot =  getPortsCoordinatesAndDerivatives_rot(
-//				getCorrVector(), // CorrVector corr_vector,
-//				null,           // boolean calc_deriv,
-//				px, // double px,
-//				py, // double py,
-//				disparity); // double disparity)
-		
-		return port_coords;
-	}
-	
+
 	/**
 	 * Convert pixel coordinates to relative (from -1.0 to +1.0 each) to apply polynomial corrections
 	 * @param pXY pair of pixel  X, pixel Y image coordinates
@@ -1195,73 +1145,29 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		return relXY;
 	}
 
-	public double [][] getPortsCoordinates_nocorr( // old, tested
-			double px,
-			double py,
-			double disparity)
-	{
-		double [][] pXY = new double [numSensors][2];
-		double pXcd = px - 0.5 * this.pixelCorrectionWidth;
-		double pYcd = py - 0.5 * this.pixelCorrectionHeight;
-		double rD = Math.sqrt(pXcd*pXcd + pYcd*pYcd)*0.001*this.pixelSize; // distorted radius in a virtual center camera
-		double rND2R=getRByRDist(rD/this.distortionRadius, (debugLevel > -1));
-		double pXc = pXcd * rND2R; // non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
-		double pYc = pYcd * rND2R; // in pixels
-		double [] a={this.distortionC,this.distortionB,this.distortionA,this.distortionA5,this.distortionA6,this.distortionA7,this.distortionA8};
-		for (int i = 0; i < numSensors; i++){
-			// non-distorted XY of the shifted location of the individual sensor
-			double pXci = pXc - disparity *  this.rXY[i][0]; // in pixels
-			double pYci = pYc - disparity *  this.rXY[i][1];
-			// calculate back to distorted
-			double rNDi = Math.sqrt(pXci*pXci + pYci*pYci); // in pixels
-			//		Rdist/R=A8*R^7+A7*R^6+A6*R^5+A5*R^4+A*R^3+B*R^2+C*R+(1-A6-A7-A6-A5-A-B-C)");
-			double ri = rNDi* 0.001 * this.pixelSize / this.distortionRadius; // relative to distortion radius
-			//    		double rD2rND = (1.0 - distortionA8 - distortionA7 - distortionA6 - distortionA5 - distortionA - distortionB - distortionC);
-			double rD2rND = 1.0;
-			double rri = 1.0;
-			for (int j = 0; j < a.length; j++){
-				rri *= ri;
-//				rD2rND += a[j]*(rri - a[j]); // BUG here !!!! - fix later, will need to re-adjust all fine corr
-				rD2rND += a[j]*(rri - 1.0); // Fixed
-			}
-			double pXid = pXci * rD2rND;  
-			double pYid = pYci * rD2rND;
-			// individual rotate (check sign)
-//			double a_roll = (this.roll[i] - this.common_roll) * Math.PI/180.0 ;
-			double a_roll = (this.roll[i]) * Math.PI/180.0 ;
-			double c_roll = Math.cos(a_roll);
-			double s_roll = Math.sin(a_roll);
-//			double c_roll = Math.cos((this.roll[i] - this.common_roll) * Math.PI/180.0);
-//			double s_roll = Math.sin((this.roll[i] - this.common_roll) * Math.PI/180.0);
-			pXY[i][0] =  c_roll *  pXid + s_roll* pYid + this.pXY0[i][0];
-			pXY[i][1] = -s_roll *  pXid + c_roll* pYid + this.pXY0[i][1];
-		}
-		return pXY;
-	}
-	
-	
 	/**
 	 * Calculate pixel coordinates for each of numSensors images, for a given (px,py) of the idealized "center" (still distorted) image
-	 * and generic disparity, measured in pixels 
-	 * @param corr_vector misalignment correction 
+	 * and generic disparity, measured in pixels
+	 * @param rots misalignment correction (now includes zoom in addition to rotations
+	 * @param deriv_rots derivatives by d_az, f_elev, d_rot, d_zoom
 	 * @param px pixel X coordinate
 	 * @param py pixel Y coordinate
 	 * @param disparity disparity
 	 * @return array of per port pairs of pixel shifts
 	 */
-	
+
 	public double [][] getPortsCoordinatesAndDerivatives(
 			Matrix []   rots,
-			Matrix [][] deriv_rots, 
+			Matrix [][] deriv_rots,
 			double [][] pXYderiv, // if not null, should be double[8][]
 			double px,
 			double py,
 			double disparity)
 	{
 //		String dbg_s = corr_vector.toString();
-		
+
 		double [][] pXY = new double [numSensors][2];
-		
+
 		double pXcd = px - 0.5 * this.pixelCorrectionWidth;
 		double pYcd = py - 0.5 * this.pixelCorrectionHeight;
 		double rD = Math.sqrt(pXcd*pXcd + pYcd*pYcd)*0.001*this.pixelSize; // distorted radius in a virtual center camera
@@ -1269,23 +1175,21 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		double pXc = pXcd * rND2R; // non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
 		double pYc = pYcd * rND2R; // in pixels
 		double [] a={this.distortionC,this.distortionB,this.distortionA,this.distortionA5,this.distortionA6,this.distortionA7,this.distortionA8};
-//		double corr_scale = focalLength/(0.001*pixelSize);
 		double fl_pix = focalLength/(0.001*pixelSize); // focal length in pixels
 		double  ri_scale = 0.001 * this.pixelSize / this.distortionRadius;
-//		Matrix [] rots = corr_vector.getRotMatrices(); // get array of per-sensor rotation matrices 
 
 		for (int i = 0; i < numSensors; i++){
 			// non-distorted XY of the shifted location of the individual sensor
 			double pXci0 = pXc - disparity *  this.rXY[i][0]; // in pixels
 			double pYci0 = pYc - disparity *  this.rXY[i][1];
 			// TODO: convert to true rotations
-			
+
 			double [][] avi = {{pXci0}, {pYci0},{fl_pix}};
 			Matrix vi = new Matrix(avi); // non-distorted sensor channel view vector in pixels (z -along the common axis)
 			Matrix rvi = rots[i].times(vi);
 			double norm_z = fl_pix/rvi.get(2, 0);
-			double pXci =  rvi.get(0, 0) * norm_z; 
-			double pYci =  rvi.get(1, 0) * norm_z; 
+			double pXci =  rvi.get(0, 0) * norm_z;
+			double pYci =  rvi.get(1, 0) * norm_z;
 			// calculate back to distorted
 			double rNDi = Math.sqrt(pXci*pXci + pYci*pYci); // in pixels
 			//		Rdist/R=A8*R^7+A7*R^6+A6*R^5+A5*R^4+A*R^3+B*R^2+C*R+(1-A6-A7-A6-A5-A-B-C)");
@@ -1297,368 +1201,90 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				rri *= ri;
 				rD2rND += a[j]*(rri - 1.0); // Fixed
 			}
-			double pXid = pXci * rD2rND;  
+			double pXid = pXci * rD2rND;
 			double pYid = pYci * rD2rND;
 
 			pXY[i][0] =  pXid + this.pXY0[i][0];
 			pXY[i][1] =  pYid + this.pXY0[i][1];
-			
+
 			if (pXYderiv != null) {
 				pXYderiv[2 * i] =   new double [CorrVector.LENGTH];
 				pXYderiv[2 * i+1] = new double [CorrVector.LENGTH];
 				Matrix drvi_daz = deriv_rots[i][0].times(vi);
 				Matrix drvi_dtl = deriv_rots[i][1].times(vi);
 				Matrix drvi_drl = deriv_rots[i][2].times(vi);
+				Matrix drvi_dzm = deriv_rots[i][3].times(vi);
 
 				double dpXci_dazimuth = drvi_daz.get(0, 0) * norm_z - pXci * drvi_daz.get(2, 0) / rvi.get(2, 0);
 				double dpYci_dazimuth = drvi_daz.get(1, 0) * norm_z - pYci * drvi_daz.get(2, 0) / rvi.get(2, 0);
 
 				double dpXci_dtilt =    drvi_dtl.get(0, 0) * norm_z - pXci * drvi_dtl.get(2, 0) / rvi.get(2, 0);
 				double dpYci_dtilt =    drvi_dtl.get(1, 0) * norm_z - pYci * drvi_dtl.get(2, 0) / rvi.get(2, 0);
-				
+
 				double dpXci_droll =    drvi_drl.get(0, 0) * norm_z - pXci * drvi_drl.get(2, 0) / rvi.get(2, 0);
 				double dpYci_droll =    drvi_drl.get(1, 0) * norm_z - pYci * drvi_drl.get(2, 0) / rvi.get(2, 0);
 
-///				double dpXci_dazimuth = -corr_scale;
-///				double dpYci_dtilt =     corr_scale;
-///				double dri_dazimuth = pXci/rNDi * dpXci_dazimuth * ri_scale;
-///				double dri_dtilt =    pYci/rNDi * dpYci_dtilt * ri_scale;
-				
-//			    double ri = ri_scale  * Math.sqrt(pXci*pXci + pYci*pYci) ; // relative to distortion radius
+				double dpXci_dzoom =    drvi_dzm.get(0, 0) * norm_z - pXci * drvi_dzm.get(2, 0) / rvi.get(2, 0);
+				double dpYci_dzoom =    drvi_drl.get(1, 0) * norm_z - pYci * drvi_dzm.get(2, 0) / rvi.get(2, 0);
+
 				double dri_dazimuth =  ri_scale / rNDi* (pXci * dpXci_dazimuth +  pYci * dpYci_dazimuth);
 				double dri_dtilt =     ri_scale / rNDi* (pXci * dpXci_dtilt +     pYci * dpYci_dtilt);
-				
-				double dri_droll =     ri_scale / rNDi* (pXci * dpXci_droll +     pYci * dpYci_droll);
-// TODO: verify dri_droll == 0 and remove				
-				
+
+				double dri_droll =     ri_scale / rNDi* (pXci * dpXci_droll +     pYci * dpYci_droll); // Not used anywhere ?
+// TODO: verify dri_droll == 0 and remove
+
 				double drD2rND_dri = 0.0;
 				rri = 1.0;
 				for (int j = 0; j < a.length; j++){
 					drD2rND_dri += a[j] * (j+1) * rri;
 					rri *= ri;
 				}
-				
-//	double pXid = pXci * rD2rND;  
-//	double pYid = pYci * rD2rND;
-				
-				double drD2rND_dazimuth = drD2rND_dri * dri_dazimuth;  
+
+				double drD2rND_dazimuth = drD2rND_dri * dri_dazimuth;
 				double drD2rND_dtilt =    drD2rND_dri * dri_dtilt;
-//				double drD2rND_droll =    0.0;
-				
-///				double dpXid_dazimuth = dpXci_dazimuth * rD2rND + pXid * drD2rND_dazimuth;  
-///				double dpYid_dazimuth =                           pYid * drD2rND_dazimuth;  
-///				double dpXid_dtilt =                              pXid * drD2rND_dtilt;  
-///				double dpYid_dtilt =   dpYci_dtilt     * rD2rND + pYid * drD2rND_dtilt;  
-				
-////				double dpXid_dazimuth = dpXci_dazimuth * rD2rND + pXid * drD2rND_dazimuth;
-////				double dpYid_dazimuth = dpYci_dazimuth * rD2rND + pYid * drD2rND_dazimuth;
-////				double dpXid_dtilt =    dpXci_dtilt    * rD2rND + pXid * drD2rND_dtilt;  
-////				double dpYid_dtilt =    dpYci_dtilt    * rD2rND + pYid * drD2rND_dtilt;
-				
+
 				double dpXid_dazimuth = dpXci_dazimuth * rD2rND + pXci * drD2rND_dazimuth;
 				double dpYid_dazimuth = dpYci_dazimuth * rD2rND + pYci * drD2rND_dazimuth;
-				double dpXid_dtilt =    dpXci_dtilt    * rD2rND + pXci * drD2rND_dtilt;  
-				double dpYid_dtilt =    dpYci_dtilt    * rD2rND + pYci * drD2rND_dtilt;  
-				
-				
+				double dpXid_dtilt =    dpXci_dtilt    * rD2rND + pXci * drD2rND_dtilt;
+				double dpYid_dtilt =    dpYci_dtilt    * rD2rND + pYci * drD2rND_dtilt;
+
+
 				double dpXid_droll =    dpXci_droll    * rD2rND;
 				double dpYid_droll =    dpYci_droll    * rD2rND;
 
-///				double dxi_dazimuth =  c_roll *  dpXid_dazimuth + s_roll * dpYid_dazimuth;
-///				double dyi_dazimuth = -s_roll *  dpXid_dazimuth + c_roll * dpYid_dazimuth;
-				
-///				double dxi_dtilt =     c_roll *  dpXid_dtilt + s_roll * dpYid_dtilt;
-///				double dyi_dtilt =    -s_roll *  dpXid_dtilt + c_roll * dpYid_dtilt;
+				double dpXid_dzoom =    dpXci_dzoom    * rD2rND;
+				double dpYid_dzoom =    dpYci_dzoom    * rD2rND;
+
+
 				// verify that d/dsym are well, symmetrical
 				if (i < (numSensors - 1)){
-					pXYderiv[2 * i + 0][CorrVector.TILT_INDEX+i] =      dpXid_dtilt; 
-					pXYderiv[2 * i + 1][CorrVector.TILT_INDEX+i] =      dpYid_dtilt; 
-					pXYderiv[2 * i + 0][CorrVector.AZIMUTH_INDEX+i] =   dpXid_dazimuth; 
-					pXYderiv[2 * i + 1][CorrVector.AZIMUTH_INDEX+i] =   dpYid_dazimuth; 
+					pXYderiv[2 * i + 0][CorrVector.TILT_INDEX+i] =      dpXid_dtilt;
+					pXYderiv[2 * i + 1][CorrVector.TILT_INDEX+i] =      dpYid_dtilt;
+					pXYderiv[2 * i + 0][CorrVector.AZIMUTH_INDEX+i] =   dpXid_dazimuth;
+					pXYderiv[2 * i + 1][CorrVector.AZIMUTH_INDEX+i] =   dpYid_dazimuth;
+
+					pXYderiv[2 * i + 0][CorrVector.ZOOM_INDEX+i] =   dpXid_dzoom;
+					pXYderiv[2 * i + 1][CorrVector.ZOOM_INDEX+i] =   dpYid_dzoom;
 				} else {
 					for (int j = 0; j < (numSensors - 1); j++){
-						pXYderiv[2 * i + 0][CorrVector.TILT_INDEX+j] = -dpXid_dtilt; 
-						pXYderiv[2 * i + 1][CorrVector.TILT_INDEX+j] = -dpYid_dtilt; 
-						pXYderiv[2 * i + 0][CorrVector.AZIMUTH_INDEX+j] = -dpXid_dazimuth; 
-						pXYderiv[2 * i + 1][CorrVector.AZIMUTH_INDEX+j] = -dpYid_dazimuth; 
+						pXYderiv[2 * i + 0][CorrVector.TILT_INDEX+j] = -dpXid_dtilt;
+						pXYderiv[2 * i + 1][CorrVector.TILT_INDEX+j] = -dpYid_dtilt;
+						pXYderiv[2 * i + 0][CorrVector.AZIMUTH_INDEX+j] = -dpXid_dazimuth;
+						pXYderiv[2 * i + 1][CorrVector.AZIMUTH_INDEX+j] = -dpYid_dazimuth;
+
+						pXYderiv[2 * i + 0][CorrVector.ZOOM_INDEX+j] = -dpXid_dzoom;
+						pXYderiv[2 * i + 1][CorrVector.ZOOM_INDEX+j] = -dpYid_dzoom;
 					}
 				}
-//				double dxi_droll = -s_roll * pXid + c_roll * pYid;   
-//				double dyi_droll = -c_roll * pXid - s_roll * pYid;
-				pXYderiv[2 * i + 0][CorrVector.ROLL_INDEX+i] = dpXid_droll; 
-				pXYderiv[2 * i + 1][CorrVector.ROLL_INDEX+i] = dpYid_droll; 
+				pXYderiv[2 * i + 0][CorrVector.ROLL_INDEX+i] = dpXid_droll;
+				pXYderiv[2 * i + 1][CorrVector.ROLL_INDEX+i] = dpYid_droll;
 			}
 		}
 		return pXY;
 	}
 
-	public double [][] getPortsCoordinatesAndDerivatives_old(
-			CorrVector corr_vector,
-			double [][] pXYderiv, // if not null, should be double[8][]
-			double px,
-			double py,
-			double disparity)
-	{
-//		String dbg_s = corr_vector.toString();
-		
-		double [][] pXY = new double [numSensors][2];
-		
-		double pXcd = px - 0.5 * this.pixelCorrectionWidth;
-		double pYcd = py - 0.5 * this.pixelCorrectionHeight;
-		double rD = Math.sqrt(pXcd*pXcd + pYcd*pYcd)*0.001*this.pixelSize; // distorted radius in a virtual center camera
-		double rND2R=getRByRDist(rD/this.distortionRadius, (debugLevel > -1));
-		double pXc = pXcd * rND2R; // non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
-		double pYc = pYcd * rND2R; // in pixels
-		double [] a={this.distortionC,this.distortionB,this.distortionA,this.distortionA5,this.distortionA6,this.distortionA7,this.distortionA8};
-		double corr_scale = focalLength/(0.001*pixelSize);
-		double  ri_scale = 0.001 * this.pixelSize / this.distortionRadius;
-		for (int i = 0; i < numSensors; i++){
-			// non-distorted XY of the shifted location of the individual sensor
-			double pXci = pXc - disparity *  this.rXY[i][0]; // in pixels
-			double pYci = pYc - disparity *  this.rXY[i][1];
-			// TODO: convert to true rotations
-			// add misalignment, for small angles express in non-distorted pixels 
-				pXci +=  -corr_vector.getAzimuth(i) * corr_scale;
-				pYci +=   corr_vector.getTilt(i)    * corr_scale;
-			// calculate back to distorted
-			double rNDi = Math.sqrt(pXci*pXci + pYci*pYci); // in pixels
-			//		Rdist/R=A8*R^7+A7*R^6+A6*R^5+A5*R^4+A*R^3+B*R^2+C*R+(1-A6-A7-A6-A5-A-B-C)");
-			double ri = rNDi* ri_scale; // relative to distortion radius
-			//    		double rD2rND = (1.0 - distortionA8 - distortionA7 - distortionA6 - distortionA5 - distortionA - distortionB - distortionC);
-			double rD2rND = 1.0;
-			double rri = 1.0;
-			for (int j = 0; j < a.length; j++){
-				rri *= ri;
-				rD2rND += a[j]*(rri - 1.0); // Fixed
-			}
-			double pXid = pXci * rD2rND;  
-			double pYid = pYci * rD2rND;
-			// individual rotate (check sign)
-			double a_roll = (this.roll[i]) * Math.PI/180.0 + corr_vector.getRoll(i) ;
-			double c_roll = Math.cos(a_roll);
-			double s_roll = Math.sin(a_roll);
-			pXY[i][0] =  c_roll *  pXid + s_roll * pYid + this.pXY0[i][0];
-			pXY[i][1] = -s_roll *  pXid + c_roll * pYid + this.pXY0[i][1];
 
-			if (pXYderiv != null) {
-				pXYderiv[2 * i] =   new double [CorrVector.LENGTH];
-				pXYderiv[2 * i+1] = new double [CorrVector.LENGTH];
-				double dpXci_dazimuth = -corr_scale;
-				double dpYci_dtilt =     corr_scale;
-				double dri_dazimuth = pXci/rNDi * dpXci_dazimuth * ri_scale;
-				double dri_dtilt =    pYci/rNDi * dpYci_dtilt * ri_scale;
-				double drD2rND_dri = 0.0;
-				rri = 1.0;
-				for (int j = 0; j < a.length; j++){
-					drD2rND_dri += a[j] * (j+1) * rri;
-					rri *= ri;
-				}
-				
-				double drD2rND_dazimuth = drD2rND_dri * dri_dazimuth;  
-				double drD2rND_dtilt =    drD2rND_dri * dri_dtilt;  
-				double dpXid_dazimuth = dpXci_dazimuth * rD2rND + pXid * drD2rND_dazimuth;  
-				double dpYid_dazimuth =                           pYid * drD2rND_dazimuth;  
-				double dpXid_dtilt =                              pXid * drD2rND_dtilt;  
-				double dpYid_dtilt =   dpYci_dtilt     * rD2rND + pYid * drD2rND_dtilt;  
-				
-				double dxi_dazimuth =  c_roll *  dpXid_dazimuth + s_roll * dpYid_dazimuth;
-				double dyi_dazimuth = -s_roll *  dpXid_dazimuth + c_roll * dpYid_dazimuth;
-				
-				double dxi_dtilt =     c_roll *  dpXid_dtilt + s_roll * dpYid_dtilt;
-				double dyi_dtilt =    -s_roll *  dpXid_dtilt + c_roll * dpYid_dtilt;
-				// verify that d/dsym are well, symmetrical
-				if (i < (numSensors - 1)){
-					pXYderiv[2 * i + 0][CorrVector.TILT_INDEX+i] =      dxi_dtilt; 
-					pXYderiv[2 * i + 1][CorrVector.TILT_INDEX+i] =      dyi_dtilt; 
-					pXYderiv[2 * i + 0][CorrVector.AZIMUTH_INDEX+i] =   dxi_dazimuth; 
-					pXYderiv[2 * i + 1][CorrVector.AZIMUTH_INDEX+i] =   dyi_dazimuth; 
-				} else {
-					for (int j = 0; j < (numSensors - 1); j++){
-						pXYderiv[2 * i + 0][CorrVector.TILT_INDEX+j] = -dxi_dtilt; 
-						pXYderiv[2 * i + 1][CorrVector.TILT_INDEX+j] = -dyi_dtilt; 
-						pXYderiv[2 * i + 0][CorrVector.AZIMUTH_INDEX+j] = -dxi_dazimuth; 
-						pXYderiv[2 * i + 1][CorrVector.AZIMUTH_INDEX+j] = -dyi_dazimuth; 
-					}
-				}
-				double dxi_droll = -s_roll * pXid + c_roll * pYid;   
-				double dyi_droll = -c_roll * pXid - s_roll * pYid;
-				pXYderiv[2 * i + 0][CorrVector.ROLL_INDEX+i] = dxi_droll; 
-				pXYderiv[2 * i + 1][CorrVector.ROLL_INDEX+i] = dyi_droll; 
-			}
-		}
-		return pXY;
-	}
-	
-	public double [][] getPortsCoordinatesAndDerivatives_old(
-			double [] dbg_a_vector, // replace actual radial distortion coefficients
-			CorrVector corr_vector,
-			double [][] pXYderiv, // if not null, should be double[8][]
-			double px,
-			double py,
-			double disparity)
-	{
-		
-		double [][] pXY = new double [numSensors][2];
-		
-		double pXcd = px - 0.5 * this.pixelCorrectionWidth;
-		double pYcd = py - 0.5 * this.pixelCorrectionHeight;
-		double rD = Math.sqrt(pXcd*pXcd + pYcd*pYcd)*0.001*this.pixelSize; // distorted radius in a virtual center camera
-		double rND2R=getRByRDist(rD/this.distortionRadius, (debugLevel > -1));
-		double pXc = pXcd * rND2R; // non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
-		double pYc = pYcd * rND2R; // in pixels
-		double [] a={this.distortionC,this.distortionB,this.distortionA,this.distortionA5,this.distortionA6,this.distortionA7,this.distortionA8};
-		if (dbg_a_vector != null){
-			a = dbg_a_vector;
-		}
-		double corr_scale = focalLength/(0.001*pixelSize);
-		double  ri_scale = 0.001 * this.pixelSize / this.distortionRadius;
-		for (int i = 0; i < numSensors; i++){
-			// non-distorted XY of the shifted location of the individual sensor
-			double pXci0 = pXc - disparity *  this.rXY[i][0]; // in pixels
-			double pYci0 = pYc - disparity *  this.rXY[i][1];
-			// add misalignment, for small angles express in non-distorted pixels 
-			double pXci = pXci0  - corr_vector.getAzimuth(i) * corr_scale;
-			double pYci = pYci0  + corr_vector.getTilt(i)    * corr_scale;
-			// calculate back to distorted
-			double rNDi = Math.sqrt(pXci*pXci + pYci*pYci); // in pixels
-			//		Rdist/R=A8*R^7+A7*R^6+A6*R^5+A5*R^4+A*R^3+B*R^2+C*R+(1-A6-A7-A6-A5-A-B-C)");
-			double ri = rNDi* ri_scale; // relative to distortion radius
-			//    		double rD2rND = (1.0 - distortionA8 - distortionA7 - distortionA6 - distortionA5 - distortionA - distortionB - distortionC);
-			double rD2rND = 1.0;
-			double rri = 1.0;
-			for (int j = 0; j < a.length; j++){
-				rri *= ri;
-				rD2rND += a[j]*(rri - 1.0); // Fixed
-			}
-			double pXid = pXci * rD2rND;  
-			double pYid = pYci * rD2rND;
-			// individual rotate (check sign)
-//			double a_roll = (this.roll[i] - this.common_roll) * Math.PI/180.0 + corr_vector.getRoll(i) ;
-			double a_roll = (this.roll[i]) * Math.PI/180.0 + corr_vector.getRoll(i) ;
-			double c_roll = Math.cos(a_roll);
-			double s_roll = Math.sin(a_roll);
-			pXY[i][0] =  c_roll *  pXid + s_roll * pYid + this.pXY0[i][0];
-			pXY[i][1] = -s_roll *  pXid + c_roll * pYid + this.pXY0[i][1];
-			//		double [][] pXYderiv = calc_deriv? new double [numSensors*2][CorrVector.LENGTH] : null;
-
-			if (pXYderiv != null) {
-				pXYderiv[2 * i] =   new double [CorrVector.LENGTH];
-				pXYderiv[2 * i+1] = new double [CorrVector.LENGTH];
-				double dpXci_dazimuth = -corr_scale;
-				double dpYci_dtilt =     corr_scale;
-				double dri_dazimuth = pXci/rNDi * dpXci_dazimuth * ri_scale;
-				double dri_dtilt =    pYci/rNDi * dpYci_dtilt *    ri_scale;
-				double drD2rND_dri = 0.0;
-				rri = 1.0;
-				for (int j = 0; j < a.length; j++){
-					drD2rND_dri += a[j] * (j+1) * rri;
-					rri *= ri;
-				}
-				
-				double drD2rND_dazimuth = drD2rND_dri * dri_dazimuth;  
-				double drD2rND_dtilt =    drD2rND_dri * dri_dtilt;
-				
-				// TODO: understand! hack - testing seems to work, but why? 
-				drD2rND_dazimuth /=  rD2rND;  
-				drD2rND_dtilt    /=  rD2rND;
-				
-				
-//				double pXid = pXci * rD2rND;  
-//				double pYid = pYci * rD2rND;
-				
-				double dpXid_dazimuth = dpXci_dazimuth * rD2rND + pXid * drD2rND_dazimuth;  
-				double dpYid_dazimuth =                           pYid * drD2rND_dazimuth;  
-				double dpXid_dtilt =                              pXid * drD2rND_dtilt;  
-				double dpYid_dtilt =   dpYci_dtilt     * rD2rND + pYid * drD2rND_dtilt;  
-				
-//  			pXY[i][0] =  c_roll *  pXid + s_roll * pYid + this.pXY0[i][0];
-//				pXY[i][1] = -s_roll *  pXid + c_roll * pYid + this.pXY0[i][1];
-
-				double dxi_dazimuth =  c_roll *  dpXid_dazimuth + s_roll * dpYid_dazimuth;
-				double dyi_dazimuth = -s_roll *  dpXid_dazimuth + c_roll * dpYid_dazimuth;
-				
-				double dxi_dtilt =     c_roll *  dpXid_dtilt + s_roll * dpYid_dtilt;
-				double dyi_dtilt =    -s_roll *  dpXid_dtilt + c_roll * dpYid_dtilt;
-				// verify that d/dsym are well, symmetrical
-				if (i < (numSensors - 1)){
-					pXYderiv[2 * i + 0][CorrVector.TILT_INDEX+i] =      dxi_dtilt; 
-					pXYderiv[2 * i + 1][CorrVector.TILT_INDEX+i] =      dyi_dtilt; 
-					pXYderiv[2 * i + 0][CorrVector.AZIMUTH_INDEX+i] =   dxi_dazimuth; 
-					pXYderiv[2 * i + 1][CorrVector.AZIMUTH_INDEX+i] =   dyi_dazimuth; 
-				} else {
-					for (int j = 0; j < (numSensors - 1); j++){
-						pXYderiv[2 * i + 0][CorrVector.TILT_INDEX+j] = -dxi_dtilt; 
-						pXYderiv[2 * i + 1][CorrVector.TILT_INDEX+j] = -dyi_dtilt; 
-						pXYderiv[2 * i + 0][CorrVector.AZIMUTH_INDEX+j] = -dxi_dazimuth; 
-						pXYderiv[2 * i + 1][CorrVector.AZIMUTH_INDEX+j] = -dyi_dazimuth; 
-					}
-				}
-				double dxi_droll = -s_roll * pXid + c_roll * pYid;   
-				double dyi_droll = -c_roll * pXid - s_roll * pYid;
-				pXYderiv[2 * i + 0][CorrVector.ROLL_INDEX+i] = dxi_droll; 
-				pXYderiv[2 * i + 1][CorrVector.ROLL_INDEX+i] = dyi_droll; 
-			}
-		}
-		return pXY;
-	}
-	
-	
-	
-	// debug version, calculates derivatives as differences
-	public double [][] getPortsCoordinatesAndDerivatives_old(
-			double [] dbg_a_vector, // replace actual radial distortion coefficients
-			double delta, // 1e-6
-			CorrVector corr_vector,
-			double [][] pXYderiv, // if not null, should be double[8][]
-			double px,
-			double py,
-			double disparity)
-	{
-		
-		double [][] pXYderiv0 = new double[8][];
-		double [][] rslt = getPortsCoordinatesAndDerivatives_old(
-				dbg_a_vector, // double [] dbg_a_vector, // replace actual radial distortion coefficients
-				corr_vector, // CorrVector corr_vector,
-				pXYderiv0, // null, // false, // boolean calc_deriv,
-				px, // double px,
-				py, // double py,
-				disparity // double disparity
-				);
-		for (int i = 0; i < pXYderiv.length; i++){
-			pXYderiv[i] = new double [CorrVector.LENGTH];
-		}
-		for (int nPar = 0; nPar < CorrVector.LENGTH; nPar++){
-			CorrVector cv_delta_p = corr_vector.clone();
-			CorrVector cv_delta_m = corr_vector.clone();
-			cv_delta_p.vector[nPar] += 0.5 *delta; 
-			cv_delta_m.vector[nPar] -= 0.5 *delta;
-
-			double [][] rslt_p = getPortsCoordinatesAndDerivatives_old(
-					dbg_a_vector, // double [] dbg_a_vector, // replace actual radial distortion coefficients
-					cv_delta_p, // CorrVector corr_vector,
-					null, // boolean calc_deriv,
-					px, // double px,
-					py, // double py,
-					disparity // double disparity
-					);
-			double [][] rslt_m = getPortsCoordinatesAndDerivatives_old(
-					dbg_a_vector, // double [] dbg_a_vector, // replace actual radial distortion coefficients
-					cv_delta_m, // CorrVector corr_vector,
-					null, // boolean calc_deriv,
-					px, // double px,
-					py, // double py,
-					disparity // double disparity
-					);
-			for (int sens = 0; sens < numSensors; sens++){
-				for (int dir = 0; dir < 2; dir++){
-					pXYderiv[2 * sens +dir][nPar] = (rslt_p[sens][dir] - rslt_m[sens][dir]) / delta;
-				}
-			}
-		}
-		return rslt;
-	}
-
-	public double [][] getPortsCoordinatesAndDerivatives( // uses rotations
+	public double [][] getPortsCoordinatesAndDerivatives( // uses rotations - used in AlignmentCorrection class
 			double [] dbg_a_vector, // replace actual radial distortion coefficients (not currently used)
 			double delta, // 1e-6
 			CorrVector corr_vector,
@@ -1669,34 +1295,30 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	{
 		// slower, will re-calculate matrices for each tile, but for debug - that is OK
 		Matrix []   corr_rots =  corr_vector.getRotMatrices(); // get array of per-sensor rotation matrices
-///		Matrix [][] deriv_rots = corr_vector.getRotDeriveMatrices(); 
-		
-///		double [][] pXYderiv0 = new double[8][];
 		double [][] rslt = getPortsCoordinatesAndDerivatives(
-//				dbg_a_vector, // double [] dbg_a_vector, // replace actual radial distortion coefficients
 				corr_rots, // Matrix []   rots,
-				null, // deriv_rots, // Matrix [][] deriv_rots, 
+				null, // deriv_rots, // Matrix [][] deriv_rots,
 				null, // pXYderiv0, // null, // false, // boolean calc_deriv,
 				px, // double px,
 				py, // double py,
 				disparity // double disparity
 				);
-		
+
 		for (int i = 0; i < pXYderiv.length; i++){
 			pXYderiv[i] = new double [CorrVector.LENGTH];
 		}
 		for (int nPar = 0; nPar < CorrVector.LENGTH; nPar++){
 			CorrVector cv_delta_p = corr_vector.clone();
 			CorrVector cv_delta_m = corr_vector.clone();
-			cv_delta_p.vector[nPar] += 0.5 *delta; 
+			cv_delta_p.vector[nPar] += 0.5 *delta;
 			cv_delta_m.vector[nPar] -= 0.5 *delta;
 			Matrix []   corr_rots_p =  cv_delta_p.getRotMatrices(); // get array of per-sensor rotation matrices
 			Matrix []   corr_rots_m =  cv_delta_m.getRotMatrices(); // get array of per-sensor rotation matrices
-			
+
 			double [][] rslt_p = getPortsCoordinatesAndDerivatives(
 //					dbg_a_vector, // double [] dbg_a_vector, // replace actual radial distortion coefficients
 					corr_rots_p, // Matrix []   rots,
-					null, // Matrix [][] deriv_rots, 
+					null, // Matrix [][] deriv_rots,
 					null, // boolean calc_deriv,
 					px, // double px,
 					py, // double py,
@@ -1705,7 +1327,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			double [][] rslt_m = getPortsCoordinatesAndDerivatives(
 //					dbg_a_vector, // double [] dbg_a_vector, // replace actual radial distortion coefficients
 					corr_rots_m, // Matrix []   rots,
-					null, // Matrix [][] deriv_rots, 
+					null, // Matrix [][] deriv_rots,
 					null, // boolean calc_deriv,
 					px, // double px,
 					py, // double py,
@@ -1719,11 +1341,11 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		}
 		return rslt;
 	}
-	
-	
-	
+
+
+
 	// should return same as input if disparity==0
-	public double [][] getPortsCoordinatesIdeal(
+	public double [][] getPortsCoordinatesIdeal( // used in macro mode
 			double px,
 			double py,
 			double disparity)
@@ -1731,9 +1353,9 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		// reverse getPortsCoordinates
 		double c_roll = 1.0; // Math.cos(( - this.common_roll) * Math.PI/180.0);
 		double s_roll = 0.0; // Math.sin(( - this.common_roll) * Math.PI/180.0);
-		double pXcd0 = px -  0.5 * this.pixelCorrectionWidth;  
+		double pXcd0 = px -  0.5 * this.pixelCorrectionWidth;
 		double pYcd0 = py -  0.5 * this.pixelCorrectionWidth;
-		double pXcd = c_roll *  pXcd0 - s_roll* pYcd0;   
+		double pXcd = c_roll *  pXcd0 - s_roll* pYcd0;
 		double pYcd = s_roll *  pXcd0 + c_roll* pYcd0;
 		double rD = Math.sqrt(pXcd*pXcd + pYcd*pYcd)*0.001*this.pixelSize; // distorted radius in a virtual center camera
 		double rND2R=getRByRDist(rD/this.distortionRadius, (debugLevel > -1));
@@ -1745,7 +1367,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			// non-distorted XY of the shifted location of the individual sensor
 			double pXci = pXc - disparity *  this.rXY_ideal[i][0]; // in pixels
 			double pYci = pYc - disparity *  this.rXY_ideal[i][1];
-			
+
 			// calculate back to distorted
 			double rNDi = Math.sqrt(pXci*pXci + pYci*pYci); // in pixels
 			//		Rdist/R=A8*R^7+A7*R^6+A6*R^5+A5*R^4+A*R^3+B*R^2+C*R+(1-A8-A7-A6-A5-A-B-C)");
@@ -1757,28 +1379,22 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				rri *= ri;
 				rD2rND += a[j]*(rri - 1.0);
 			}
-			double pXid = pXci * rD2rND;  
+			double pXid = pXci * rD2rND;
 			double pYid = pYci * rD2rND;
 			pXY[i][0] =  c_roll *  pXid + s_roll* pYid + 0.5 * this.pixelCorrectionWidth; // this.pXY0[i][0];
 			pXY[i][1] = -s_roll *  pXid + c_roll* pYid + 0.5 * this.pixelCorrectionWidth; // this.pXY0[i][1];
 		}
 		return pXY;
 	}
-	
-	
-	
+
+
+
 	public double [][] getPortsCoordinatesIdeal(
 			int    macro_scale, // 1 for pixels, 8 - for tiles when correlating tiles instead of the pixels
 			double px,
 			double py,
 			double disparity)
 	{
-//		if (macro_scale == 1){
-//			return getPortsCoordinates(
-//					px * macro_scale,
-//					py * macro_scale,
-//					disparity);
-//		}
 		double [][] coords = getPortsCoordinatesIdeal(
 				px * macro_scale,
 				py * macro_scale,
@@ -1791,11 +1407,11 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		return coords;
 	}
 
-	
+
 	// Copied from PixelMapping
 	/**
-	 * Calculate reverse distortion table - from pixel radius to non-distorted radius	
-	 * Rdist/R=A5*R^4+A*R^3+B*R^2+C*R+(1-A5-A-B-C)    
+	 * Calculate reverse distortion table - from pixel radius to non-distorted radius
+	 * Rdist/R=A5*R^4+A*R^3+B*R^2+C*R+(1-A5-A-B-C)
 	 * @return false if distortion is too high
 	 */
 	public boolean calcReverseDistortionTable(){
@@ -1842,14 +1458,14 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			if (bailOut) {
 				if (debugThis)	System.out.println("calcReverseDistortionTable() i="+i+" Bailing out, drDistDr="+drDistDr);
 				return false;
-			} 
+			}
 			rPrev=r;
 			this.rByRDist[i]=r/rDist;
 			if (debugThis)	System.out.println("calcReverseDistortionTable() i="+i+" rDist="+rDist+" r="+r+" rPrev="+rPrev+" this.rByRDist[i]="+this.rByRDist[i]);
 		}
 		return true;
 	}
-	
+
 	/**
 	 * Get relative (to distortion radius) distorted radius ratio to non-distorted from non-distorted
 	 * @param r non-distorted radius (1.0 is 2.8512mm)
@@ -1859,7 +1475,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	{
 		boolean use8=(this.distortionA8!=0.0) || (this.distortionA7!=0.0) || (this.distortionA6!=0.0);
 		double d=1.0-this.distortionA8-this.distortionA7-this.distortionA6-this.distortionA5-this.distortionA-this.distortionB-this.distortionC;
-		
+
 		double k;
 		if (use8){
 			k=(((((((this.distortionA8)*r+this.distortionA7)*r+this.distortionA6)*r+this.distortionA5)*r + this.distortionA)*r+this.distortionB)*r+this.distortionC)*r+d;
@@ -1870,29 +1486,27 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	}
 
 	/**
-	 * Get derivative of relative (to distortion radius) d_Rdist/d_R from relative (to distortion radius) non-distorted radius  
+	 * Get derivative of relative (to distortion radius) d_Rdist/d_R from relative (to distortion radius) non-distorted radius
 	 * @param r non-distorted relative radius
 	 * @return derivative d_Rdist/d_R from (relative to relative)
 	 */
 	public double getDerivRDistFromR(double r) // relative to distortion radius
 	{
 		boolean use8=(this.distortionA8!=0.0) || (this.distortionA7!=0.0) || (this.distortionA6!=0.0);
-//		double d=1.0-this.distortionA8-this.distortionA7-this.distortionA6-this.distortionA5-this.distortionA-this.distortionB-this.distortionC;
 		double drDistDr;
 		if (use8){
 			drDistDr=(((((((7*this.distortionA8)*r + 6*this.distortionA7)*r + 5*this.distortionA6)*r + 4*this.distortionA5)*r + 3*this.distortionA)*r+2*this.distortionB)*r+1*this.distortionC); // +d;
 		} else {
-//			drDistDr=(((4*this.distortionA5*r + 3*this.distortionA)*r+2*this.distortionB)*r+1*this.distortionC)*r;
 			drDistDr=((4*this.distortionA5*r + 3*this.distortionA)*r+2*this.distortionB)*r+1*this.distortionC;
 		}
 		return drDistDr;
 	}
-	
+
 	public double getDerivRDistFromR(double r, double delta) // relative to distortion radius
 	{
 		return (getRDistByR(r+delta) -getRDistByR(r))/delta;
-		
-	}	
+
+	}
 
 
 	public double getRByRDist(double rDist, boolean debug){
@@ -1921,51 +1535,5 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		}
 		return result;
 	}
-	
-	/*
-	public double getDerivRByRDist(double rDist, boolean debug, double delta){
-		return (getRByRDist(rDist+delta, false) - getRByRDist(rDist, false))/delta;
-	}
-
-	public double getDerivRByRDist(double rDist, boolean debug){
-		// add exceptions;
-		if (this.rByRDist==null) {
-			calcReverseDistortionTable();
-			if (debug)System.out.println("getDerivRByRDist("+IJ.d2s(rDist,3)+"): this.rByRDist==null");
-			//		return Double.NaN;
-		}
-		if (rDist<0) {
-			if (debug)System.out.println("getDerivRByRDist("+IJ.d2s(rDist,3)+"): rDist<0");
-			return Double.NaN;
-		}
-		int index=(int) Math.floor(rDist/this.stepR);
-		if (index>=(this.rByRDist.length-1)) {
-			if (debug) System.out.println("getDerivRByRDist("+IJ.d2s(rDist,3)+"): index="+index+">="+(this.rByRDist.length-1));
-			return Double.NaN;
-		}
-		double result=this.rByRDist[index+1]-this.rByRDist[index];
-		if ((index > 0) || (index < (this.rByRDist.length-2))){ // interpolate
-			double a = rDist/this.stepR-index; // fractional part, 0..1.0
-			if ( a <= 0.5){
-				result= 2  * (0.5 - a) * (this.rByRDist[index+1] - this.rByRDist[index]) +
-					                a *  (this.rByRDist[index+1] - this.rByRDist[index-1]);
-			} else {
-				result= 2  * (1.0 - a) * (this.rByRDist[index+1] - this.rByRDist[index]) +
-						     (a - 0.5) * (this.rByRDist[index+2] - this.rByRDist[index]);
-				
-			}
-			
-		}
-		if (Double.isNaN(result)){
-			if (debug) System.out.println("this.rByRDist["+index+"]="+this.rByRDist[index]);
-			if (debug) System.out.println("this.rByRDist["+(index+1)+"]="+this.rByRDist[index+1]);
-			if (debug) System.out.println("rDist="+rDist);
-			if (debug) System.out.println("(rDist/this.stepR="+(rDist/this.stepR));
-
-		}
-		return result/this.stepR;
-	}
-	*/
-
 
 }

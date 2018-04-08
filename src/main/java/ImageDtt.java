@@ -1566,6 +1566,10 @@ public class ImageDtt {
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 			sdfa_instance.showArrays(lt_window,  2*transform_size, 2*transform_size, "lt_window");
 		}
+		if (globalDebugLevel > 0) {
+			System.out.println("macro_mode="+macro_mode);
+		}
+
 
 /*		final double [][] dbg_ports_coords = debug_ports_coordinates ? (new double[4*2*3][nTilesInChn]):null;
 		String [] dbg_titles = new String[4*2*3];
@@ -4213,7 +4217,7 @@ public class ImageDtt {
 			px = centerX - transform_size - (ce.data_x + ce.dxc_dx * kdx + ce.dxc_dy * kdy) ; // fractional left corner
 			py = centerY - transform_size - (ce.data_y + ce.dyc_dx * kdx + ce.dyc_dy * kdy) ; // fractional top corner
 		}else {
-			System.out.println("Skipping kernels!!!");
+//			System.out.println("Skipping kernels!!!"); // Happens when using macro_mode, should not happen otherwise
 		}
 		if (bdebug0){
 			System.out.print(px+"\t"+py+"\t");
