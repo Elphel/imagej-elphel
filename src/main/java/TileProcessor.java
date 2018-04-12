@@ -3518,7 +3518,7 @@ public class TileProcessor {
 		final boolean show_scan = show_filter_scan || (debugLevel > 1);
 		showDoubleFloatArrays sdfa_instance = null;
 		if ((debugLevel > -2) && ((debugLevel > -1) || show_scan)) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
-		if (debugLevel > 0){
+		if (debugLevel > -2){
 			System.out.println("FilterScan(,,"+disparity_far+", " +disparity_near+", "+ sure_smth);
 		}
 		final int tlen = tilesY * tilesX;
@@ -3747,7 +3747,8 @@ public class TileProcessor {
 		return these_tiles;
 	}
 
-
+// Next runs before filter, maybe should be after or combined otherwise (i.e filter strengths, but keep original disparities. Or use disparity
+// to some power when averaging here)
 	public int [] combineOrthoDisparity(
 			final CLTPass3d   scan,        // scan data
 			final boolean     or_hor,       // true;  // Apply ortho correction to horizontal correlation (vertical features)
@@ -3760,6 +3761,8 @@ public class TileProcessor {
 			final double      or_threshold, // 1.5;   // Minimal scaled offsetg ortho strength to normal strength needed for replacement
 	  		final double      or_absHor,    // 0.15;  // Minimal horizontal absolute scaled offset ortho strength needed for replacement
 	  		final double      or_absVert,   // 0.19;  // Minimal vertical absolute scaled offset ortho strength needed for replacement
+	  		final double      or_maxDisp,   // 5.0;   // Maximal disparity to apply ortho correction
+	  		final boolean     show_ortho,   // show replacement of disparity/strength by those of hor/vert
 			final int         debugLevel)
 	{
 		double [] disparity =      scan.getDisparity(0);  // calculated, to be modified
@@ -3769,6 +3772,31 @@ public class TileProcessor {
 		double [] strength_hor =   scan.getHorStrength(); // .clone();
 		double [] strength_vert =  scan.getVertStrength(); // .clone();
 		int [] replaced = new int[strength.length];
+		double [][] dbg_img = null;
+		String []  dbg_titles = {"disparity",         // 0
+								 "orig_disparity",    // 1
+								 "hor_disparity",     // 2
+								 "hor_disparity_mod", // 3
+								 "vert_disparity",    // 4
+								 "vert_disparity_mod",// 5
+								 "strength",          // 6
+								 "orig_strength",     // 7
+								 "hor_strength",      // 8
+								 "hor_strength_mod",  // 9
+								 "vert_strength",     // 10
+								 "vert_strength_mod", // 11
+								 "replaced"};         // 12
+
+		if (show_ortho) {
+			dbg_img=new double [dbg_titles.length][];
+			dbg_img[1] =  disparity.clone();
+			dbg_img[2] =  disparity_hor.clone();
+			dbg_img[4] =  disparity_vert.clone();
+			dbg_img[7] =  strength.clone();
+			dbg_img[8] =  strength_hor.clone();
+			dbg_img[10] = strength_vert.clone();
+
+		}
 		if (or_hor){
 			for (int i = 0; i < strength_hor.length; i++){
 				strength_hor[i] *= or_scale;
@@ -3780,6 +3808,11 @@ public class TileProcessor {
 					or_sharp,       // double k,           // sharpen in orthogonal direction with (-k,2*k-1,-k). 0 - no sharpening
 					or_offset,      // double offset,      // subtract from strength, limit by 0.0
 					false);         // boolean vert)       // true - sharpen vertically,  blur horizontally. False - sharpen horizontally, blur vertically
+			if (show_ortho) {
+				dbg_img[3] =  disparity_hor.clone();
+				dbg_img[9] =  strength_hor.clone();
+			}
+
 		}
 		if (or_vert){
 			for (int i = 0; i < strength_vert.length; i++){
@@ -3792,12 +3825,16 @@ public class TileProcessor {
 					or_sharp,       // double k,           // sharpen in orthogonal direction with (-k,2*k-1,-k). 0 - no sharpening
 					or_offset,      // double offset,      // subtract from strength, limit by 0.0
 					true);          // boolean vert)       // true - sharpen vertically,  blur horizontally. False - sharpen horizontally, blur vertically
+			if (show_ortho) {
+				dbg_img[5] =  disparity_vert.clone();
+				dbg_img[11] =  strength_vert.clone();
+			}
 		}
 		double ko = (or_threshold - 1) * or_offset;
 		double ao = (or_asym - 1) * or_offset;
 		if (or_hor){
 			for (int i = 0; i < strength_hor.length; i++){
-				if (
+				if (    (disparity_hor[i] < or_maxDisp) &&
 						(strength_hor[i] > or_absHor) &&
 						(strength_hor[i] > or_threshold * strength[i] - ko) &&
 						(!or_vert || (strength_hor[i] > or_asym * strength_vert[i] - ao))){
@@ -3809,7 +3846,7 @@ public class TileProcessor {
 		}
 		if (or_vert){
 			for (int i = 0; i < strength_vert.length; i++){
-				if (
+				if (    (disparity_vert[i] < or_maxDisp) &&
 						(strength_vert[i] > or_absVert) &&
 						(strength_vert[i] > or_threshold * strength[i] - ko) &&
 						(!or_hor || (strength_vert[i] > or_asym * strength_hor[i] - ao))){
@@ -3818,6 +3855,15 @@ public class TileProcessor {
 					replaced[i] |= 2;
 				}
 			}
+		}
+		if (show_ortho) {
+			dbg_img[0] =  disparity.clone();
+			dbg_img[6] =  strength.clone();
+			dbg_img[12] = new double [replaced.length];
+			for (int i = 0; i < replaced.length; i++) {
+				dbg_img[12][i] = replaced[i];
+			}
+			(new showDoubleFloatArrays()).showArrays(dbg_img, tilesX, tilesY, true, "ortho_internal",dbg_titles);
 		}
 		return replaced;
 	}
@@ -4192,6 +4238,8 @@ public class TileProcessor {
 				clt_parameters.or_threshold, // 1.5;   // Minimal scaled offsetg ortho strength to normal strength needed for replacement
 				clt_parameters.or_absHor,    // 0.15;  // Minimal horizontal absolute scaled offset ortho strength needed for replacement
 				clt_parameters.or_absVert,   // 0.19;  // Minimal vertical absolute scaled offset ortho strength needed for replacement
+				clt_parameters.or_maxDisp,   // 5.0;   // Maximal disparity to apply ortho correction
+				show_ortho,                  //  show replacement of disparity/strength by those of hor/vert
 				debugLevel);
 
 		if (clt_parameters.poles_fix) {
@@ -4311,6 +4359,13 @@ public class TileProcessor {
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
+					clt_parameters.fs_max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+					clt_parameters.fs_max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+					clt_parameters.fs_damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+					clt_parameters.fs_min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+					clt_parameters.fs_transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+					clt_parameters.fs_far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+					clt_parameters.fs_far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[0] = scan_prev.getSuperTiles().showDisparityHistogram();
 
@@ -4328,6 +4383,13 @@ public class TileProcessor {
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
+					clt_parameters.fs_max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+					clt_parameters.fs_max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+					clt_parameters.fs_damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+					clt_parameters.fs_min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+					clt_parameters.fs_transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+					clt_parameters.fs_far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+					clt_parameters.fs_far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[1] = scan_prev.getSuperTiles().showDisparityHistogram();
 
@@ -4457,7 +4519,7 @@ public class TileProcessor {
 		for (int i = 0; i < masked_filtered.length; i++){
 			if (!grown[i])  masked_filtered[i] = Double.NaN;
 		}
-		if (show_super){
+		if (show_super && false){ // something is broken, java.lang.NullPointerException at TileProcessor.refinePassSetup(TileProcessor.java:4488)
 			String [] dbg_disp_tiltes={"masked", "filtered", "disp_combo", "disparity","st_disparity", "strength",
 					"st_strength","outlayers","these","border","border_tiles"}; // ,"before","after","after1","after2","after3","neib"};
 			double [][] dbg_disp = new double [dbg_disp_tiltes.length][];
@@ -5083,7 +5145,7 @@ public class TileProcessor {
 		//		if (use_supertiles || show_st) {
 		String [] dbg_st_titles = {"raw", "sampled", "blurred"+clt_parameters.stSigma,"max-min-max"};
 		double [][] dbg_hist = new double[dbg_st_titles.length][];
-		if (show_st) { // otherwise only blured version is needed
+		if (show_st) { // otherwise only blurred version is needed
 			scan_prev.setSuperTiles(
 					clt_parameters.stStepNear,       // double     step_disparity,
 					clt_parameters.stStepFar,        // double     step_near,
@@ -5098,6 +5160,13 @@ public class TileProcessor {
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
+					clt_parameters.fs_max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+					clt_parameters.fs_max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+					clt_parameters.fs_damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+					clt_parameters.fs_min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+					clt_parameters.fs_transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+					clt_parameters.fs_far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+					clt_parameters.fs_far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[0] = scan_prev.getSuperTiles().showDisparityHistogram();
 			scan_prev.setSuperTiles(
@@ -5114,6 +5183,13 @@ public class TileProcessor {
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
+					clt_parameters.fs_max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+					clt_parameters.fs_max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+					clt_parameters.fs_damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+					clt_parameters.fs_min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+					clt_parameters.fs_transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+					clt_parameters.fs_far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+					clt_parameters.fs_far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[1] = scan_prev.getSuperTiles().showDisparityHistogram();
 		}
@@ -5133,6 +5209,13 @@ public class TileProcessor {
 				clt_parameters.stSmplNum,   // Number after removing worst
 				clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 				clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
+				clt_parameters.fs_max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+				clt_parameters.fs_max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+				clt_parameters.fs_damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+				clt_parameters.fs_min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+				clt_parameters.fs_transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+				clt_parameters.fs_far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+				clt_parameters.fs_far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 				clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 		if (show_st) { // otherwise only blured version is needed
 			dbg_hist[2] = scan_prev.getSuperTiles().showDisparityHistogram();
@@ -5162,6 +5245,13 @@ public class TileProcessor {
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
+					clt_parameters.fs_max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+					clt_parameters.fs_max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+					clt_parameters.fs_damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+					clt_parameters.fs_min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+					clt_parameters.fs_transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+					clt_parameters.fs_far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+					clt_parameters.fs_far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 		}
 
@@ -5186,6 +5276,14 @@ public class TileProcessor {
 				clt_parameters.stSmplNum ,      // final int                        smplNum, //         = 3;      // Number after removing worst
 				clt_parameters.stSmplRms ,      // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 				clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
+
+				clt_parameters.fs_max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+				clt_parameters.fs_max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+				clt_parameters.fs_damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+				clt_parameters.fs_min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+				clt_parameters.fs_transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+				clt_parameters.fs_far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+				clt_parameters.fs_far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 
 				clt_parameters.plBlurBinHor,    // final double     bin_blur_hor,   // Blur disparity histograms for horizontal clusters by this sigma (in bins)
 				clt_parameters.plBlurBinVert,   // final double     bin_blur_vert,  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
@@ -5260,6 +5358,14 @@ public class TileProcessor {
 					clt_parameters.stSmplNum,         // final int                        smplNum, //         = 3;      // Number after removing worst
 					clt_parameters.stSmplRms,         // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stSmplWnd,         // final boolean                 smplWnd,  // use window functions for the samples
+
+					clt_parameters.fs_max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+					clt_parameters.fs_max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+					clt_parameters.fs_damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+					clt_parameters.fs_min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+					clt_parameters.fs_transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+					clt_parameters.fs_far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+					clt_parameters.fs_far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 
 					clt_parameters.plDiscrTolerance,  // final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile
 					clt_parameters.plDiscrDispRange,  // final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
@@ -5375,6 +5481,15 @@ public class TileProcessor {
 					clt_parameters.stSmplNum , // final int                        smplNum, //         = 3;      // Number after removing worst
 					clt_parameters.stSmplRms , // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
+
+					clt_parameters.fs_max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+					clt_parameters.fs_max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+					clt_parameters.fs_damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+					clt_parameters.fs_min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+					clt_parameters.fs_transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+					clt_parameters.fs_far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+					clt_parameters.fs_far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
+
 					debugLevel, // 1,                               // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
@@ -5967,6 +6082,9 @@ public class TileProcessor {
 					clt_parameters.or_threshold, // 1.5;   // Minimal scaled offsetg ortho strength to normal strength needed for replacement
 					clt_parameters.or_absHor,    // 0.15;  // Minimal horizontal absolute scaled offset ortho strength needed for replacement
 					clt_parameters.or_absVert,   // 0.19;  // Minimal vertical absolute scaled offset ortho strength needed for replacement
+					clt_parameters.or_maxDisp,   // 5.0;   // Maximal disparity to apply ortho correction
+					clt_parameters.show_ortho_combine, //  show replacement of disparity/strength by those of hor/vert
+
 					debugLevelInner);
 
 			if (clt_parameters.poles_fix) {
@@ -6026,7 +6144,7 @@ public class TileProcessor {
 					//					final int         threadsMax,  // maximal number of threads to launch
 					//					final boolean     updateStatus,
 					batch_mode ? -5: 2); //debugLevel);
-		} else {
+		} else { //!ortho_old
 			these_tiles= combineHorVertDisparity_old(
 				scan_prev,                     // final CLTPass3d   scan,
 				scan_bg.selected, // clt_3d_passes.get(0).selected, // final boolean [] bg_tiles,          // get from selected in clt_3d_passes.get(0);
@@ -6091,6 +6209,15 @@ public class TileProcessor {
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stSmplWnd,   // Use window functions for the samples
+
+					clt_parameters.fs_max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+					clt_parameters.fs_max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+					clt_parameters.fs_damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+					clt_parameters.fs_min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+					clt_parameters.fs_transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+					clt_parameters.fs_far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+					clt_parameters.fs_far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
+
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[0] = scan_prev.getSuperTiles().showDisparityHistogram();
 
@@ -6108,6 +6235,15 @@ public class TileProcessor {
 					clt_parameters.stSmplNum,   // Number after removing worst
 					clt_parameters.stSmplRms,   // Maximal RMS of the remaining tiles in a sample
 					clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
+
+					clt_parameters.fs_max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+					clt_parameters.fs_max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+					clt_parameters.fs_damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+					clt_parameters.fs_min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+					clt_parameters.fs_transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+					clt_parameters.fs_far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+					clt_parameters.fs_far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
+
 					clt_parameters.stMeasSel); // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 			dbg_hist[1] = scan_prev.getSuperTiles().showDisparityHistogram();
 

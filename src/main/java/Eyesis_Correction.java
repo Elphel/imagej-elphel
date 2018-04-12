@@ -572,6 +572,7 @@ private Panel panel1,
 			addButton("Infinity offset",            panelClt3, color_configure);
 			addButton("Setup CLT Batch parameters", panelClt3, color_configure);
 			addButton("CLT batch process",          panelClt3, color_process);
+			addButton("CM Test",                    panelClt3, color_stop);
 //			addButton("JTabbed",                    panelClt3, color_stop);
 //			addButton("Demo",                       panelClt3, color_process);
 
@@ -3752,7 +3753,7 @@ private Panel panel1,
 
 /* ======================================================================== */
     } else if (label.equals("Setup CLT parameters")) {
-    	CLT_PARAMETERS.showDialog();
+    	CLT_PARAMETERS.showJDialog();
         return;
 /* ======================================================================== */
     } else if (label.equals("Setup CLT")) {
@@ -3769,7 +3770,7 @@ private Panel panel1,
     } else if (label.equals("Select CLT image")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	//            	IJ.showMessage("DCT test 1");
-    	if (!CLT_PARAMETERS.showDialog()) return;
+    	if (!CLT_PARAMETERS.showJDialog()) return;
     	// process selected image stack
     	ImagePlus imp_src = WindowManager.getCurrentImage();
     	if (imp_src==null){
@@ -3802,7 +3803,7 @@ private Panel panel1,
     } else if (label.equals("Select second CLT image")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	//            	IJ.showMessage("DCT test 1");
-    	if (!CLT_PARAMETERS.showDialog()) return;
+    	if (!CLT_PARAMETERS.showJDialog()) return;
     	// process selected image stack
     	ImagePlus imp_src = WindowManager.getCurrentImage();
     	if (imp_src==null){
@@ -3837,7 +3838,7 @@ private Panel panel1,
     } else if (label.equals("CLT stack")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 //    	IJ.showMessage("DCT test 1");
-        if (!CLT_PARAMETERS.showDialog()) return;
+        if (!CLT_PARAMETERS.showJDialog()) return;
 // process selected image stack
         if (DBG_IMP == null) {
         	ImagePlus imp_src = WindowManager.getCurrentImage();
@@ -3937,7 +3938,7 @@ private Panel panel1,
 		System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
 
 //    	IJ.showMessage("DCT test 1");
-        if (!CLT_PARAMETERS.showDialog()) return;
+        if (!CLT_PARAMETERS.showJDialog()) return;
 // process selected image stack
         if (DBG_IMP == null) {
         	ImagePlus imp_src = WindowManager.getCurrentImage();
@@ -4191,7 +4192,7 @@ private Panel panel1,
 //==============================================================================
 
     } else if (label.equals("Create CLT kernels")) {
-        if (!CLT_PARAMETERS.showDialog()) return;
+        if (!CLT_PARAMETERS.showJDialog()) return;
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (
         			PROPERTIES,
@@ -4250,7 +4251,7 @@ private Panel panel1,
         }
 
     } else if (label.equals("Read CLT kernels")) {
-        if (!CLT_PARAMETERS.showDialog()) return;
+        if (!CLT_PARAMETERS.showJDialog()) return;
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (
         			PROPERTIES,
@@ -5161,6 +5162,9 @@ private Panel panel1,
         			PROPERTIES);
         }
         return;
+    } else if (label.equals("CM Test")) {
+    	cm_test();
+        return;
 
 //JTabbedTest
 // End of buttons code
@@ -5185,7 +5189,136 @@ private Panel panel1,
   			return true;
   		}
 
+  public boolean cm_test() {
+	    double hsize_x = 1.5;
+	    double hsize_y = 1.5;
+	    int    steps =  20;
+	    double sigma =   0.0;
+	    boolean separable = true; // false;
+	    double pwr = 1.0;
+		GenericJTabbedDialog gd = new GenericJTabbedDialog("Set CLT parameters",400,300);
+		gd.addNumericField("Half size X",                                              hsize_x,            6, 8, "pix",
+				"Correlation maximum half width in disparity direction");
+		gd.addNumericField("Half size Y",                                              hsize_y,            6, 8, "pix",
+				"Correlation maximum half width in orthogonal direction");
+		gd.addNumericField("Number of steps",                                          steps,              0, 6, "",
+				"Number of steps to subdivide [0,1) half-interval");
+		gd.addNumericField("Low pass sigma",                                           sigma,              3, 6, "pix",
+				"Correlation maximum half width in orthogonal direction");
+		gd.addCheckbox    ("X/Y separable",                                                                 separable);
+		gd.addNumericField("Value power",                                              pwr,                6, 8, "",
+				"Raise values to this power before calculating CM");
 
+		gd.showDialog();
+		if (gd.wasCanceled()) return false;
+		DoubleGaussianBlur gb=new DoubleGaussianBlur();
+
+		hsize_x =              gd.getNextNumber();
+		hsize_y =              gd.getNextNumber();
+
+		steps =          (int) gd.getNextNumber();
+		sigma =                gd.getNextNumber();
+		separable =            gd.getNextBoolean();
+		pwr =                  gd.getNextNumber();
+
+		int size_x = 2*((int) Math.round(hsize_x+ 2*sigma+1)) + 1;
+		int size_y = 2*((int) Math.round(hsize_y+ 2*sigma+1)) + 1;
+
+		System.out.println("size_x="+size_x+", size_y="+size_y+" sigma = "+sigma+" separable "+separable+" pwr=" + pwr);
+		String [] titles = new String[steps];
+		double [][] data = new double [steps][size_x*size_y];
+		for (int i = 0;i<steps; i++) {
+			double dx = 1.0*i/steps;
+			titles[i] = IJ.d2s(dx,3);
+			for (int iy = 0; iy < size_y; iy++) {
+				double y =  (iy - (size_y - 1)/2)/hsize_y;
+				if ((y >= -1.0) && (y <= 1.0)) {
+					double ay = separable ? (0.5*(Math.cos(y * Math.PI) + 1.0)):1.0;
+					for (int ix = 0; ix < size_x; ix++) {
+
+						double x = (ix - (size_x - 1)/2 - dx)/hsize_x;
+						double r = separable? Math.abs(x) : Math.sqrt(x*x+y*y);
+//						if ((r >= -hsize_x) && (x <= hsize_x)) {
+						if (r <= 1.0) {
+							double ax = 0.5*(Math.cos(r  * Math.PI) + 1.0);
+							data[i][iy*size_x+ix] = ax*ay;
+						}
+					}
+				}
+			}
+		}
+		(new showDoubleFloatArrays()) .showArrays(data,  size_x, size_y, true, "pre-gauss", titles);
+		if (sigma > 0.0) {
+			for (int i = 0; i < steps; i++) {
+				gb.blurDouble(
+						data[i],
+						size_x,
+						size_y,
+						sigma,
+						sigma,
+						0.01);
+			}
+			(new showDoubleFloatArrays()) .showArrays(data,  size_x, size_y, true, "blured", titles);
+		}
+
+		double [] cm_x = new double [steps];
+		for (int i = 0;i<steps; i++) {
+			double s0=0,sx=0;
+			for (int iy = 0; iy < size_y; iy++ ) {
+				for (int ix = 0; ix < size_x; ix++ ) {
+					double d = Math.pow(data[i][iy*size_y+ix], pwr);
+					s0+=d;
+					sx+=ix*d;
+				}
+			}
+			cm_x[i] = sx/s0 - (size_x - 1)/2;
+		}
+		for (int i = 0;i <= steps/2; i++) {
+			double dx = 1.0*i/steps;
+			System.out.println(String.format("%3d %8.5f %8.5f %8.5f %8.5f %8.5f", i, dx, cm_x[i],cm_x[i]-dx, cm_x[i]/(dx+0.00000001), dx/(cm_x[i]+0.00000001)));
+		}
+
+
+
+		return true;
+/*
+		double s0 = 0, sx=0,sy = 0;
+		for (int y = - iradius ; y <= iradius; y++){
+			int dataY = icenter[1] +y;
+			if ((dataY >= 0) && (dataY < data_size)){
+				int y2 = y*y;
+				for (int x = - iradius ; x <= iradius; x++){
+					int dataX = icenter[0] +x;
+					double r2 = y2 + x * x;
+//					if ((dataX >= 0) && (dataX < data_size) && (square || ((y2 + x * x) <= ir2))){
+					if ((dataX >= 0) && (dataX < data_size) && (square || (r2 <= ir2))){
+//						double w = max_corr_double? (1.0 - r2/ir2):1.0;
+//						double d =  w* data[dataY * data_size + dataX];
+						double d =  data[dataY * data_size + dataX];
+						s0 += d;
+						sx += d * dataX;
+						sy += d * dataY;
+					}
+				}
+			}
+		}
+		double [] rslt = {sx / s0, sy / s0};
+ *
+ * 		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+
+			  sdfa_instance.showArrays(double_stack,  imp_src.getWidth(), imp_src.getHeight(), true, "BEFORE_CLT_PROC", rbg_titles);
+ *
+			        	   gb.blurDouble(
+			        			   results[indexVar],
+			        			   size,
+			        			   size,
+			        			   blurVarianceSigma,
+			        			   blurVarianceSigma,
+			        			   0.01);
+
+ */
+
+  }
 
   private boolean loadCorrelations(){
     	String []patterns={".corr-tiff",".tiff",".tif"};

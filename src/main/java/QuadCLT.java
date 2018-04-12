@@ -3572,7 +3572,7 @@ public class QuadCLT {
 		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 
 		  // may use this.StartTime to report intermediate steps execution times
-		  String name=(String) imp_quad[0].getProperty("name");
+		  String name=this.correctionsParameters.getModelName((String) imp_quad[0].getProperty("name"));
 		  //		int channel= Integer.parseInt((String) imp_src.getProperty("channel"));
 //		  int channel= (Integer) imp_quad[0].getProperty("channel");
 		  String path= (String) imp_quad[0].getProperty("path");
@@ -3666,6 +3666,7 @@ public class QuadCLT {
 		  }
 		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
 		  double [][][][][][] clt_data = image_dtt.clt_aberrations_quad_corr(
+				  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 				  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 				  tile_op,                      // per-tile operation bit codes
 				  disparity_array,              // final double            disparity,
@@ -4740,6 +4741,7 @@ public class QuadCLT {
 			  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
 
 			  image_dtt.clt_aberrations_quad_corr(
+					  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 					  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 					  tile_op,                      // per-tile operation bit codes
 					  disparity_array,              // clt_parameters.disparity,     // final double            disparity,
@@ -5632,13 +5634,13 @@ public class QuadCLT {
 				  debugLevel);
 		  tp.clt_3d_passes.add(bgnd_data);
 		  //    	  if (show_init_refine)
-		  if (debugLevel > -1) {
+		  if ((debugLevel > -2) && clt_parameters.show_first_bg) {
 			  tp.showScan(
 					  tp.clt_3d_passes.get(0), // CLTPass3d   scan,
 					  "bgnd_data-"+tp.clt_3d_passes.size());
 		  }
 
-		  //TODO: Move away form here?
+		  //TODO: Move away from here?
     	  ImagePlus imp_bgnd = getBackgroundImage(
     			  clt_parameters,
     			  colorProcParameters,
@@ -5827,7 +5829,8 @@ public class QuadCLT {
     			  tp.clt_3d_passes.add(refined);
 
     			  ///    		  if (debugLevel > 1)
-    			  if (debugLevel > 0)
+//    			  if (debugLevel > 0)
+       			  if ((debugLevel > -2) && clt_parameters.show_first_bg)
     				  tp.showScan(
     						  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
     						  "before_makeUnique-"+refine_pass);
@@ -5973,8 +5976,9 @@ public class QuadCLT {
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
-			  if (debugLevel > -1){
-				  System.out.println("CLTMeasure("+refine_pass+")");
+//			  if (debugLevel > -1){
+			  if (debugLevel > -2){
+				  System.out.println("?.CLTMeasure("+refine_pass+")");
 			  }
 			  if (show_init_refine) tp.showScan(
 					  tp.clt_3d_passes.get(refine_pass), // CLTPass3d   scan,
@@ -7041,7 +7045,7 @@ public class QuadCLT {
 					  "after_pass3-"+(next_pass-1)); //String title)
 		  }
  		  String x3d_path= correctionsParameters.selectX3dDirectory( // for x3d and obj
- 				  this.image_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+ 				 correctionsParameters.getModelName(this.image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
  				  correctionsParameters.x3dModelVersion,
 				  true,  // smart,
 				  true);  //newAllowed, // save
@@ -7058,7 +7062,7 @@ public class QuadCLT {
 			  try {
 				wfOutput = new WavefrontExport(
 						  x3d_path,
-						  this.image_name,
+						  correctionsParameters.getModelName(this.image_name),
 						  clt_parameters,
 						  correctionsParameters,
 						  geometryCorrection,
@@ -7117,7 +7121,7 @@ public class QuadCLT {
 						  clt_parameters,
 						  colorProcParameters,
 						  rgbParameters,
-						  this.image_name+"-img_infinity", // +scanIndex,
+						  correctionsParameters.getModelName(this.image_name)+"-img_infinity", // +scanIndex,
 						  bgndIndex,
 						  threadsMax,  // maximal number of threads to launch
 						  updateStatus,
@@ -7198,7 +7202,7 @@ public class QuadCLT {
 					  clt_parameters,
 					  colorProcParameters,
 					  rgbParameters,
-					  this.image_name+"-img"+scanIndex,
+					  correctionsParameters.getModelName(this.image_name)+"-img"+scanIndex,
 					  scanIndex,
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
@@ -7275,9 +7279,9 @@ public class QuadCLT {
 
 
 		  if ((x3d_path != null) && (x3dOutput != null)){
-//			  x3d_path+=Prefs.getFileSeparator()+this.image_name+".x3d";
+//			  x3d_path+=Prefs.getFileSeparator()+correctionsParameters.getModelName(this.image_name)+".x3d";
 //			  x3dOutput.generateX3D(x3d_path);
-			  x3dOutput.generateX3D(x3d_path+Prefs.getFileSeparator()+this.image_name+".x3d");
+			  x3dOutput.generateX3D(x3d_path+Prefs.getFileSeparator()+correctionsParameters.getModelName(this.image_name)+".x3d");
 		  }
 		  if (wfOutput != null){
 			  wfOutput.close();
@@ -7562,7 +7566,7 @@ public class QuadCLT {
 				  debugLevel);
 		  String path= correctionsParameters.selectX3dDirectory(
 				  //TODO: Which one to use - name or this.image_name ?
- 				  this.image_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+ 				  correctionsParameters.getModelName(this.image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
  				  correctionsParameters.x3dModelVersion,
 // 				  name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
 				  true,  // smart,
@@ -7711,7 +7715,7 @@ public class QuadCLT {
 
 		  String path= correctionsParameters.selectX3dDirectory(
 				  //TODO: Which one to use - name or this.image_name ?
- 				  this.image_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+ 				  correctionsParameters.getModelName(this.image_name), // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
  				  correctionsParameters.x3dModelVersion,
 // 				  name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
 				  true,  // smart,
@@ -7841,6 +7845,7 @@ public class QuadCLT {
 		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
 
 		  image_dtt.clt_aberrations_quad_corr(
+				  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 				  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 				  tile_op,                      // per-tile operation bit codes
 				  disparity_array,              // clt_parameters.disparity,     // final double            disparity,
@@ -8054,6 +8059,7 @@ public class QuadCLT {
 		  final double disparity_corr = (z_correction == 0) ? 0.0 : geometryCorrection.getDisparityFromZ(1.0/z_correction);
 
 		  image_dtt.clt_aberrations_quad_corr(
+				  clt_parameters.img_dtt,       // final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 				  1,                            // final int  macro_scale, // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 				  tile_op,                      // per-tile operation bit codes
 				  disparity_array,              // clt_parameters.disparity,     // final double            disparity,

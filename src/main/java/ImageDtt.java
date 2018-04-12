@@ -67,12 +67,18 @@ public class ImageDtt {
 	  static int  DISPARITY_VARIATIONS_INDEX =    11; // index of strength data in disparity map ==6
 	  static int  IMG_DIFF0_INDEX =               12; // index of noise- normalized image difference for port 0 in disparity map
 	  static int  OVEREXPOSED =                   16; // index of overexposed fraction of all pixels
+// remove when not needed
+	  static int  DBG0_INDEX =                    17; // index of dbg0 data (copy of CM)
+	  static int  DBG1_INDEX =                    18; // index of dbg1 data (poly 1)
+	  static int  DBG2_INDEX =                    19; // index of dbg2 data (poly 2)
+	  static int  DBG3_INDEX =                    20; // index of dbg3 data (poly 3)
 	  static String [] DISPARITY_TITLES = {
 			  "int_disp","int_y_disp","cm_disp","cm_y_disp","hor_disp","hor_strength","vert_disp","vert_strength",
-			  "poly_disp", "poly_y_disp", "strength_disp", "vary_disp","diff0","diff1","diff2","diff3","overexp"};
+			  "poly_disp", "poly_y_disp", "strength_disp", "vary_disp","diff0","diff1","diff2","diff3","overexp",
+			  "dbg0","dbg1","dbg2","dbg3"};
 
 	  static int  TCORR_COMBO_RSLT =  0; // normal combined correlation from all   selected pairs (mult/sum)
-	  static int  TCORR_COMBO_SUM =   1; // sum of channle correlations from all   selected pairs
+	  static int  TCORR_COMBO_SUM =   1; // sum of channel correlations from all   selected pairs
 	  static int  TCORR_COMBO_HOR =   2; // combined correlation from 2 horizontal pairs (0,1). Used to detect vertical features
 	  static int  TCORR_COMBO_VERT =  3; // combined correlation from 2 vertical   pairs (0,1). Used to detect horizontal features
 	  static String [] TCORR_TITLES = {"combo","sum","hor","vert"};
@@ -1365,6 +1371,7 @@ public class ImageDtt {
 
 
 	public double [][][][][][] clt_aberrations_quad_corr(
+			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
 			final int                 macro_scale,     // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 			final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
@@ -1539,6 +1546,7 @@ public class ImageDtt {
 
 
 		}
+		// add optional initialization of debug layers here
 		if (disparity_map != null){
 			for (int i = 0; i<disparity_map.length;i++){
 				if ((i != OVEREXPOSED) || (saturation_imp!= null)){
@@ -2138,6 +2146,11 @@ public class ImageDtt {
 												clt_mismatch[3*pair + 2 ][tIndex] = Double.NaN;
 											}
 										}
+										if (disparity_map[DBG0_INDEX] != null) disparity_map[DBG0_INDEX][tIndex] = Double.NaN;
+										if (disparity_map[DBG1_INDEX] != null) disparity_map[DBG1_INDEX][tIndex] = Double.NaN;
+										if (disparity_map[DBG2_INDEX] != null) disparity_map[DBG2_INDEX][tIndex] = Double.NaN;
+										if (disparity_map[DBG3_INDEX] != null) disparity_map[DBG3_INDEX][tIndex] = Double.NaN;
+
 									} else {
 										double [] corr_max_XYi = {icorr_max[0],icorr_max[1]};
 										disparity_map[DISPARITY_INDEX_INT][tIndex] =  transform_size - 1 -corr_max_XYi[0];
@@ -2149,7 +2162,7 @@ public class ImageDtt {
 //										disparity_map[DISPARITY_VARIATIONS_INDEX][tIndex] = (rms[1]*tcorr_combo[1][max_index])/(rms[0]*tcorr_combo[0][max_index]); // correlation combo value at the integer maximum
 										disparity_map[DISPARITY_VARIATIONS_INDEX][tIndex] = (tcorr_combo[TCORR_COMBO_SUM][max_index])/(tcorr_combo[TCORR_COMBO_RSLT][max_index]); // correlation combo value at the integer maximum
 										//									Calculate "center of mass" coordinates
-										double [] corr_max_XYm = getMaxXYCm( // get fractiona center as a "center of mass" inside circle/square from the integer max
+										double [] corr_max_XYm = getMaxXYCm( // get fractional center as a "center of mass" inside circle/square from the integer max
 												tcorr_combo[TCORR_COMBO_RSLT],      // [data_size * data_size]
 												corr_size,
 												icorr_max, // integer center coordinates (relative to top left)
@@ -2159,7 +2172,7 @@ public class ImageDtt {
 										disparity_map[DISPARITY_INDEX_CM][tIndex] = transform_size - 1 -corr_max_XYm[0];
 										disparity_map[DISPARITY_INDEX_CM+1][tIndex] = transform_size - 1 -corr_max_XYm[1];
 										// returns x and strength, not x,y
-										double [] corr_max_XS_hor = getMaxXSOrtho( // get fractiona center as a "center of mass" inside circle/square from the integer max
+										double [] corr_max_XS_hor = getMaxXSOrtho( // get fractional center as a "center of mass" inside circle/square from the integer max
 												tcorr_combo[TCORR_COMBO_HOR],      // [data_size * data_size]
 												enh_ortho_scale, // [data_size]
 												corr_size,
@@ -2168,7 +2181,7 @@ public class ImageDtt {
 												(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // debugMax);
 										disparity_map[DISPARITY_INDEX_HOR][tIndex] = transform_size - 1 - corr_max_XS_hor[0];
 										disparity_map[DISPARITY_INDEX_HOR_STRENGTH][tIndex] = corr_max_XS_hor[1];
-										double [] corr_max_XS_vert = getMaxXSOrtho( // get fractiona center as a "center of mass" inside circle/square from the integer max
+										double [] corr_max_XS_vert = getMaxXSOrtho( // get fractional center as a "center of mass" inside circle/square from the integer max
 												tcorr_combo[TCORR_COMBO_VERT],      // [data_size * data_size]
 												enh_ortho_scale, // [data_size]
 												corr_size,
@@ -2180,12 +2193,25 @@ public class ImageDtt {
 										//									Calculate polynomial interpolated maximum coordinates
 										double [] corr_max_XY = getMaxXYPoly( // get interpolated maximum coordinates using 2-nd degree polynomial
 												pa,
-												tcorr_combo[TCORR_COMBO_RSLT],        // [data_size * data_size]
+												tcorr_combo[TCORR_COMBO_RSLT],      // [data_size * data_size]
 												corr_size,
-												icorr_max,          // integer center coordinates (relative to top left)
-												corr_max_weights_poly,   // [(radius+1) * (radius+1)]
-												max_search_radius_poly,                  // max_search_radius, for polynomial - always use 1
+												icorr_max,                          // integer center coordinates (relative to top left)
+												corr_max_weights_poly,              // [(radius+1) * (radius+1)]
+												max_search_radius_poly,             // max_search_radius, for polynomial - always use 1
+												imgdtt_params.poly_pwr,             // double    value_pwr, // raise value to this power (trying to compensate sticking to integer values)
+												imgdtt_params.poly_value_to_weight, //boolean   poly_value_to_weight, // multiply weight by value
+
 												debugMax);
+										//double
+										if (corr_max_XY != null){
+											corr_max_XY[0] = transform_size - 1 -corr_max_XY[0];
+											corr_max_XY[1] = transform_size - 1 -corr_max_XY[1];
+										} else {
+											corr_max_XY = new double[2];
+											corr_max_XY[0] = Double.NaN;
+											corr_max_XY[1] = Double.NaN;
+										}
+/*
 										if (corr_max_XY != null){
 											disparity_map[DISPARITY_INDEX_POLY][tIndex] = transform_size - 1 -corr_max_XY[0];
 											disparity_map[DISPARITY_INDEX_POLY+1][tIndex] = transform_size - 1 -corr_max_XY[1];
@@ -2193,6 +2219,42 @@ public class ImageDtt {
 											disparity_map[DISPARITY_INDEX_POLY][tIndex] = Double.NaN;
 											disparity_map[DISPARITY_INDEX_POLY+1][tIndex] = Double.NaN;
 										}
+*/
+										disparity_map[DISPARITY_INDEX_POLY][tIndex] =   corr_max_XY[0];
+										disparity_map[DISPARITY_INDEX_POLY+1][tIndex] = corr_max_XY[1];
+
+										// just debug (up to 4 layers)
+										if (disparity_map[DBG0_INDEX] != null) {
+											disparity_map[DBG0_INDEX][tIndex] = transform_size - 1 -corr_max_XYm[0];
+										}
+										if (disparity_map[DBG2_INDEX] != null) {
+												disparity_map[DBG2_INDEX][tIndex] = corr_max_XY[0];
+										}
+										if (disparity_map[DBG1_INDEX] != null) {
+											disparity_map[DBG1_INDEX][tIndex] = disparity_map[DBG0_INDEX][tIndex];
+											if (!Double.isNaN(corr_max_XY[0]) &&
+													(Math.abs(disparity_map[DISPARITY_INDEX_CM][tIndex] - corr_max_XY[0]) < imgdtt_params.max_poly_diff) &&
+													(disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] > imgdtt_params.min_poly_strength)) { // debug threshold
+												disparity_map[DBG1_INDEX][tIndex] = corr_max_XY[0];
+												disparity_map[DBG3_INDEX][tIndex] = Double.NaN;
+											} else { // show only "bad" and strong poly
+												if (disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] > imgdtt_params.min_poly_strength) {
+													disparity_map[DBG3_INDEX][tIndex] = disparity_map[DBG2_INDEX][tIndex];
+												} else {
+													disparity_map[DBG3_INDEX][tIndex] = Double.NaN;
+												}
+											}
+//											if (disparity_map[DBG3_INDEX] != null) {
+//												disparity_map[DBG3_INDEX][tIndex] = disparity_map[DBG2_INDEX][tIndex] - disparity_map[DBG0_INDEX][tIndex];
+//											}
+										}
+										if (imgdtt_params.mix_corr_poly) {
+											// apply
+											disparity_map[DISPARITY_INDEX_CM][tIndex] = disparity_map[DBG1_INDEX][tIndex];
+											// TODO: add Y for correction !!!!
+										}
+
+										//
 										if      (corr_mode == 0) extra_disparity = disparity_map[DISPARITY_INDEX_INT][tIndex];
 										else if (corr_mode == 1) extra_disparity = disparity_map[DISPARITY_INDEX_CM][tIndex];
 										else if (corr_mode == 2) extra_disparity = disparity_map[DISPARITY_INDEX_POLY][tIndex];
@@ -2912,6 +2974,8 @@ public class ImageDtt {
 			int []    icenter, // integer center coordinates (relative to top left)
 			double [] weights,   // [(radius+1) * (radius+1)]
 			int       radius,
+			double    value_pwr, // raise value to this power (trying to compensate sticking to integer values)
+			boolean   poly_value_to_weight, // multiply weight by value
 			boolean   debug)
 	{
 		// TODO: make sure it is within 1pxx1px square from the integer maximum? If not - return null and use center of mass instead?
@@ -2935,8 +2999,16 @@ public class ImageDtt {
 						mdata[indx][0][1] =  dataY;
 						mdata[indx][1] = new double [1];
 						mdata[indx][1][0] =  data[dataY * data_size + dataX];
+						if (value_pwr != 1.0) {
+							if (mdata[indx][1][0] > 0) {
+								mdata[indx][1][0] = Math.pow(mdata[indx][1][0], value_pwr);
+							} else {
+								mdata[indx][1][0] = 0.0;
+							}
+						}
 						mdata[indx][2] = new double [1];
 						mdata[indx][2][0] =  weights[ay * (radius + 1) + ax];
+						if (poly_value_to_weight) mdata[indx][2][0] *= mdata[indx][1][0];
 						indx++;
 					}
 				}

@@ -6,7 +6,7 @@
  ** Copyright (C) 2017 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
- **  
+ **
  **  CLTPass3d.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
@@ -28,9 +28,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class CLTPass3d{
 //	static double  max_overexposed = 0.8; // TODO: make parameter
-		public   double [][]    disparity; // per-tile disparity set for the pass[tileY][tileX] 
+		public   double [][]    disparity; // per-tile disparity set for the pass[tileY][tileX]
 		public   int    [][]    tile_op;   // what was done in the current pass
-		private  double [][]    disparity_sav; // saved disaprity 
+		private  double [][]    disparity_sav; // saved disaprity
 		private  int    [][]    tile_op_sav;   // saved tile_op
 		public   double [][]    disparity_map =  null; // add 4 layers - worst difference for the port
 		double []               calc_disparity = null; // composite disparity, calculated from "disparity", and "disparity_map" fields
@@ -45,7 +45,7 @@ public class CLTPass3d{
 		// Bg disparity & strength is calculated from the supertiles and used instead of the tile disparity if it is too weak. Assuming, that
 		// foreground features should have good correlation details, and if the tile does not nhave them it likely belongs to the background.
 		// calculate disparity and strength from the (lapped) supertiles, using lowest allowed (>= minBgDisparity) disparity histogram maximums
-		// of the supertiles this tile belongs to  
+		// of the supertiles this tile belongs to
 		private double          minBgDisparity =        0.0;
 		private double          minBgFract =            0.0; // Use the lowest maximum if the strength strength (of all maximus >= minBgDisparity)
 		                                                     // exceeds minBgFract, otherwise proceed to the next one (and accumulate strength)
@@ -61,14 +61,14 @@ public class CLTPass3d{
 		public  Rectangle       texture_bounds;
 		public  int             dbg_index;
 		public  int             disparity_index = ImageDtt.DISPARITY_INDEX_CM; // may also be ImageDtt.DISPARITY_INDEX_POLY
-		
+
 		SuperTiles              superTiles = null;
 		TileProcessor           tileProcessor;
 		public CLTPass3d (TileProcessor tileProcessor)
 		{
 			this.tileProcessor = tileProcessor;
 		}
-		
+
 		public CLTPass3d (TileProcessor tileProcessor, int mode)
 		{
 			this.tileProcessor = tileProcessor;
@@ -77,7 +77,7 @@ public class CLTPass3d{
 				tile_op =   new int [tileProcessor.getTilesY()][tileProcessor.getTilesX()];
 				disparity = new double [tileProcessor.getTilesY()][tileProcessor.getTilesX()];
 				break;
-				
+
 			}
 		}
 
@@ -85,7 +85,7 @@ public class CLTPass3d{
 		{
 			return this.tileProcessor;
 		}
-		
+
 		public double [][][][] getTextureTiles()
 		{
 			return 	texture_tiles;
@@ -121,7 +121,7 @@ public class CLTPass3d{
 				if       (n < 3)  scales[n] = 1.0/255.0; // R,B,G
 				else if  (n == 3) scales[n] = 1.0; //alpha
 				else if  (n < 8)  scales[n] = 1.0; // ports 0..3
-				else              scales[n] = 1.0/255.0; // RBG rms, in 1/255 units, but small 
+				else              scales[n] = 1.0/255.0; // RBG rms, in 1/255 units, but small
 			}
 			double [][] tileTones = new double [num_layers][numTiles];
 			for (int ty = 0; ty < tilesY; ty++ ) if (texture_tiles[ty] != null){
@@ -140,7 +140,7 @@ public class CLTPass3d{
 			}
 			return tileTones;
 		}
-		
+
 		public String getTextureName()
 		{
 			if (texture != null) {
@@ -149,8 +149,8 @@ public class CLTPass3d{
 				return "null-texture-name";
 			}
 		}
-		
-		
+
+
 		// Will not work if texture is disabled
 		public  void            updateSelection(){ // add updating border tiles?
 			int tilesX = tileProcessor.getTilesX();
@@ -165,34 +165,34 @@ public class CLTPass3d{
 					if (maxY < ty) maxY  = ty;
 					if (minY > ty) minY  = ty;
 				} else {
-					selected[ty * tilesX + tx] = false; // may be omitted 
+					selected[ty * tilesX + tx] = false; // may be omitted
 				}
 			}
 			texture_bounds = new Rectangle(minX, minY, maxX - minX +1, maxY - minY +1 );
 		}
-		
+
 		public  Rectangle  getTextureBounds(){
 			return texture_bounds;
 		}
-		
+
 		public boolean isProcessed(){
-			return calc_disparity != null;	
+			return calc_disparity != null;
 		}
-		
+
 		public boolean isMeasured(){
 			return is_measured;
 //			return (disparity_map != null) && (disparity != null); // 	disparity == null for composite scans
 		}
-		
+
 		public boolean isCombo(){
-			return is_combo;	
+			return is_combo;
 		}
-		
+
 		/**
 		 * Called after each measurement
 		 */
-		public void resetProcessed(){ 
-			
+		public void resetProcessed(){
+
 			if (disparity_map != null) fixNaNDisparity();
 			calc_disparity =       null; // composite disparity, calculated from "disparity", and "disparity_map" fields
 			calc_disparity_hor =   null; // composite disparity, calculated from "disparity", and "disparity_map" fields
@@ -206,8 +206,8 @@ public class CLTPass3d{
 //			border_tiles =         null;      // these are border tiles, zero out alpha
 //			selected =             null;          // which tiles are selected for this layer
 			superTiles =           null;
-			
-			
+
+
 		}
 		/**
 		 * Get FPGA-calculated per-tile maximal differences between the particular image and the average one.
@@ -220,24 +220,24 @@ public class CLTPass3d{
 			for (int i = 0; i< ImageDtt.QUAD; i++) these_diffs[i] = disparity_map[ImageDtt.IMG_DIFF0_INDEX + i];
 			return these_diffs;
 		}
-		
+
 		public void resetCalc(){ // only needed if the same task was reused
 			calc_disparity = null;
 			strength =       null;
 			strength_hor =   null;
 			strength_vert =  null;
 			superTiles =     null;
-			
+
 		}
 
 		public boolean [] getSelected(){
 			return selected;
 		}
-		
+
 		public boolean [] getBorderTiles(){
 			return this.border_tiles;
 		}
-		
+
 		public void setSelected (boolean [] selected) {
 			this.selected = selected;
 		}
@@ -245,7 +245,7 @@ public class CLTPass3d{
 			this.border_tiles = border_tiles;
 		}
 
-		
+
 		public void fixNaNDisparity()
 		{
 			fixNaNDisparity(
@@ -261,8 +261,8 @@ public class CLTPass3d{
 					disparity_map[ImageDtt.DISPARITY_INDEX_VERT],
 					disparity_map[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH]);
 		}
-		
-		
+
+
 		public void fixNaNDisparity(
 				boolean [] select,   // which tiles to correct (null - all)
 				double [] disparity,
@@ -316,7 +316,7 @@ public class CLTPass3d{
 				}
 			}
 		}
-		
+
 		public double [] combineHorVertStrength(
 				boolean combineHor,
 				boolean combineVert)
@@ -336,7 +336,7 @@ public class CLTPass3d{
 			}
 			return strength;
 		}
-		
+
 		public double [] combineSuper(
 				boolean updateStrength, // use ST strength if true, keep original (update disparity only) if false
 				double  stStrengthScale,
@@ -347,7 +347,7 @@ public class CLTPass3d{
 
 			double [] strength = getStrength();
 			double [] disparity = getDisparity(0);
-			
+
 			for (int i = 0; i < disparity.length; i++){
 				if (strength[i] < useSuper)  {
 					disparity[i] = bgTileDisparity[i];
@@ -360,12 +360,12 @@ public class CLTPass3d{
 		public double [] getOverexposedFraction(){
 			return (disparity_map != null)? disparity_map[ImageDtt.OVEREXPOSED] : null;
 		}
-		
-		
+
+
 		/**
 		 * Returns per-tile correlation "strength". Initially - copy of the FPGA-generated data, but later may be replaced by a combination
 		 * of the combined data from 4-sensor (4-pair) correlation and horizontal/vertical pairs only to improve detection of vertical/
-		 * horizontal features  
+		 * horizontal features
 		 * @return line-scan array of per-tile correlation strength by reference (not a copy), so it can be modified
 		 */
 		public double [] getStrength(){
@@ -375,13 +375,13 @@ public class CLTPass3d{
 				strength =  disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX].clone();
 				if (trustedCorrelation > 0.0){
 					for (int i = 0; i < strength.length; i++){
-						if (Math.abs(disparity_map[disparity_index][i]) > trustedCorrelation) strength[i] = 0.0; // too far 
+						if (Math.abs(disparity_map[disparity_index][i]) > trustedCorrelation) strength[i] = 0.0; // too far
 					}
 				}
 				double [] overexposed = disparity_map[ImageDtt.OVEREXPOSED];
 				if ((max_overexposure > 0.0) && (overexposed != null)){
 					for (int i = 0; i < strength.length; i++){
-						if (overexposed[i] > max_overexposure) strength[i] = 0.0; // too overexposed 
+						if (overexposed[i] > max_overexposure) strength[i] = 0.0; // too overexposed
 					}
 				}
 			}
@@ -405,16 +405,16 @@ public class CLTPass3d{
 				strength_hor = disparity_map[ImageDtt.DISPARITY_INDEX_HOR_STRENGTH].clone();
 				if (trustedCorrelation > 0.0){
 					for (int i = 0; i < strength_hor.length; i++){
-						if (Math.abs(disparity_map[ImageDtt.DISPARITY_INDEX_HOR][i]) > trustedCorrelation) strength_hor[i] = 0.0; // too far 
+						if (Math.abs(disparity_map[ImageDtt.DISPARITY_INDEX_HOR][i]) > trustedCorrelation) strength_hor[i] = 0.0; // too far
 					}
 				}
 				double [] overexposed = disparity_map[ImageDtt.OVEREXPOSED];
 				if ((max_overexposure > 0.0) && (overexposed != null)){
 					for (int i = 0; i < strength_hor.length; i++){
-						if (overexposed[i] > max_overexposure) strength_hor[i] = 0.0; // too overexposed 
+						if (overexposed[i] > max_overexposure) strength_hor[i] = 0.0; // too overexposed
 					}
 				}
-				
+
 			}
 			return strength_hor;
 		}
@@ -429,25 +429,25 @@ public class CLTPass3d{
 				strength_vert = disparity_map[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH].clone();
 				if (trustedCorrelation > 0.0){
 					for (int i = 0; i < strength_vert.length; i++){
-						if (Math.abs(disparity_map[ImageDtt.DISPARITY_INDEX_VERT][i]) > trustedCorrelation) strength_vert[i] = 0.0; // too far 
+						if (Math.abs(disparity_map[ImageDtt.DISPARITY_INDEX_VERT][i]) > trustedCorrelation) strength_vert[i] = 0.0; // too far
 					}
 				}
 				double [] overexposed = disparity_map[ImageDtt.OVEREXPOSED];
 				if ((max_overexposure > 0.0) && (overexposed != null)){
 					for (int i = 0; i < strength_hor.length; i++){
-						if (overexposed[i] > max_overexposure) strength_vert[i] = 0.0; // too overexposed 
+						if (overexposed[i] > max_overexposure) strength_vert[i] = 0.0; // too overexposed
 					}
 				}
-				
+
 			}
 			return strength_vert;
 		}
-		
+
 		/**
 		 * Get Get combine per-tile disparity values from correlation combined with pre-programmed initial disparity shift.
 		 * @return line-scan array of per-tile disparity by reference (not a copy), so it can be modified
 		 */
-		
+
 		public double [] getDisparity() // get calculated combo disparity
 		{
 			return getDisparity(0);
@@ -472,7 +472,7 @@ public class CLTPass3d{
 				return calc_disparity_combo;
 			}
 		}
-		
+
 		// methods to "condition" measured disparity values
 		public void conditionDisparity()
 		{
@@ -500,7 +500,7 @@ public class CLTPass3d{
 			}
 			calc_disparity_combo = calc_disparity.clone(); // for now - just clone, can be modified separately and combined with hor/vert
 		}
-		
+
 		/**
 		 * Replaces current combo disparity for tiles that are weak and do not have any neighbor within disparity range from this one
 		 * @param selection optional boolean mask of tiles to use/update
@@ -509,8 +509,8 @@ public class CLTPass3d{
 		 * @param disparityFar minimal acceptable disparity for weak tiles
 		 * @param disparityNear maximal acceptable disparity for weak tiles
 		 * @return mask of weak (replaced) tiles
-		 * 
-		 * Replace weak by a weighted average of non-weak. If there are none - use weak ones, including this one too. 
+		 *
+		 * Replace weak by a weighted average of non-weak. If there are none - use weak ones, including this one too.
 		 */
 		public boolean[] replaceWeakOutlayers(
 				final boolean [] selection,
@@ -524,14 +524,14 @@ public class CLTPass3d{
 		{
 			final int tilesX = tileProcessor.getTilesX();
 			final int tilesY = tileProcessor.getTilesY();
-			
+
 			final int nTiles = tilesX*tilesY;
 			final boolean [] weakOutlayers = new boolean [nTiles];
 			int [] dirs8 = {-tilesX,  -tilesX + 1, 1, tilesX +1, tilesX, tilesX - 1, -1, -tilesX - 1};
 			final int [] dirs = dirs8;
 			final double [] disparity = getDisparity(0);
 			final double [] strength =  getStrength();
-			final double absMinDisparity = 0.5 * disparityFar; // adjust? below this is definitely wrong (weak) 
+			final double absMinDisparity = 0.5 * disparityFar; // adjust? below this is definitely wrong (weak)
 			final double absMaxDisparity = 1.5 * disparityNear; // change?
 			final int dbg_nTile = (debugLevel > 0) ? 43493: -1; // x=77,y=134; // 42228; // x = 108, y = 130 46462; // 41545;
 			final Thread[] threads = ImageDtt.newThreadArray(tileProcessor.threadsMax);
@@ -539,6 +539,7 @@ public class CLTPass3d{
 			final AtomicInteger ai = new AtomicInteger(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
 							if (((strength[nTile] < weakStrength) ||
@@ -589,14 +590,15 @@ public class CLTPass3d{
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
-			
+
 			// second pass - replace outliers
 			final double [] src_disparity = disparity.clone();
 			ai.set(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
 							if (nTile == dbg_nTile){
@@ -609,7 +611,7 @@ public class CLTPass3d{
 									if (!weakOutlayers[nTile1] && ((selection == null) || selection[nTile1 ]) ) {
 										double w = strength[nTile1];
 										sw += w;
-										sd += w * src_disparity[nTile1]; 
+										sd += w * src_disparity[nTile1];
 									}
 								}
 								if (sw == 0) { // Nothing strong around - repeat with weak and this one too.
@@ -624,7 +626,7 @@ public class CLTPass3d{
 											w = strength[nTile1];
 											if (!Double.isNaN( src_disparity[nTile1])) {
 												sw += w;
-												sd += w * src_disparity[nTile1]; 
+												sd += w * src_disparity[nTile1];
 											}
 										}
 									}
@@ -636,11 +638,11 @@ public class CLTPass3d{
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			return weakOutlayers;
 		}
-		
+
 		public boolean [] getUntestedBackgroundBorder (
 				final boolean    [] known,
 				final double     [] disparity,
@@ -656,6 +658,7 @@ public class CLTPass3d{
 			final AtomicInteger ai = new AtomicInteger(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) {
 							if (known[nTile]){
@@ -673,11 +676,11 @@ public class CLTPass3d{
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			return untested_bgnd;
 		}
-		
+
 		public boolean [] measuredTiles ()
 		{
 			final int tilesX = tileProcessor.getTilesX();
@@ -688,6 +691,7 @@ public class CLTPass3d{
 			final AtomicInteger ai = new AtomicInteger(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) {
 								int tX = nTile % tilesX;
@@ -696,11 +700,11 @@ public class CLTPass3d{
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			return measured;
 		}
-		
+
 		public void saveTileOpDisparity()
 		{
 			disparity_sav =disparity.clone();
@@ -718,7 +722,7 @@ public class CLTPass3d{
 			restoreTileOpDisparity();
 			saveTileOpDisparity();
 		}
-		
+
 		public int setTileOpDisparity(
 				boolean [] selection,
 				double []  disparity)
@@ -731,7 +735,7 @@ public class CLTPass3d{
 					selection,  // boolean [] selection,
 					disparity); // double []  disparity)
 		}
-		
+
 		public int setTileOpDisparity(
 				int        tile_op,
 				boolean [] selection,
@@ -765,7 +769,7 @@ public class CLTPass3d{
 			}
 			return num_op_tiles;
 		}
-		
+
 		/**
 		 * Set next measurement disparity from last calculated
 		 */
@@ -773,14 +777,14 @@ public class CLTPass3d{
 		{
 			setTileOpDisparity(null, getDisparity(0));
 		}
-		
-		
+
+
 		public double [] getSecondMaxDiff (
 				final boolean averaged)
 		{
 			final double [][] diffs = getDiffs();
 			if (diffs == null) return null;
-			
+
 			final int tilesX = tileProcessor.getTilesX();
 			final int tilesY = tileProcessor.getTilesY();
 			final int num_tiles = tilesX * tilesY;
@@ -790,6 +794,7 @@ public class CLTPass3d{
 			final AtomicInteger ai = new AtomicInteger(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) {
 							int imax1 = 0;
@@ -804,7 +809,7 @@ public class CLTPass3d{
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			if (!averaged) return second_max;
 			final TileNeibs tnImage = new TileNeibs(tilesX, tilesY); // num_tiles/tilesX);
@@ -813,6 +818,7 @@ public class CLTPass3d{
 			ai.set(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) if (measured[nTile]) {
 							double sw = 0.0;
@@ -824,17 +830,17 @@ public class CLTPass3d{
 									swd += dir_weights[dir] * second_max[nTile1] ;
 								}
 							}
-							second_max_averaged[nTile] = swd/sw; 
+							second_max_averaged[nTile] = swd/sw;
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			return second_max_averaged;
 		}
-		
-		
-		
+
+
+
 		// same, but 2 steps around
 		public boolean [] getUntestedBackgroundBorder2 (
 				final boolean    [] known,
@@ -851,6 +857,7 @@ public class CLTPass3d{
 			final AtomicInteger ai = new AtomicInteger(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) {
 							if (known[nTile]){
@@ -868,21 +875,21 @@ public class CLTPass3d{
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			return untested_bgnd;
 		}
-		
 
-		
-		
-		
-		
+
+
+
+
+
 		public SuperTiles getSuperTiles()
 		{
 			return this.superTiles;
 		}
-		
+
 		public SuperTiles setSuperTiles(
 				double     step_near,
 				double     step_far,
@@ -897,6 +904,15 @@ public class CLTPass3d{
 				int        smplNum, //         = 3;      // Number after removing worst
 				double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 				boolean    smplWnd,  // use window functions for the samples
+
+				double     max_abs_tilt,  //  2.0;   // pix per tile
+				double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
+				double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
+				double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+				double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
+				int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
+				double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
+
 				int        measSel)
 		{
 			this.superTiles = new SuperTiles(
@@ -914,18 +930,35 @@ public class CLTPass3d{
 					smplNum, //         = 3;      // Number after removing worst
 					smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 					smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
+					max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+					max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+					damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+					min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+					transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+					far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+					far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
+//					true,          // boolean    null_if_none,
 					measSel);
 			return this.superTiles;
 		}
 		public double [] showDisparityHistogram(
 				double [][][][] disparity_strength, // pre-calculated disparity/strength [per super-tile][per-measurement layer][2][tiles] or null
 				boolean [][]    tile_sel, // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
-				
+
 				boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				int        smplSide, //        = 2;      // Sample size (side of a square)
 				int        smplNum,  //         = 3;      // Number after removing worst
 				double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 				boolean    smplWnd,  // use window functions for the samples
+
+	  			double     max_abs_tilt,  //  2.0;   // pix per tile
+				double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
+				double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
+				double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+				double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
+				int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
+				double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
+
 				int        measSel)
 		{
 			if (this.superTiles == null){
@@ -940,6 +973,15 @@ public class CLTPass3d{
 					smplNum,  //         = 3;      // Number after removing worst
 					smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 					smplWnd,  // use window functions for the samples
+
+					max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+					max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+					damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+					min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+					transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+					far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+					far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
+
 					measSel);
 		}
 
@@ -958,13 +1000,13 @@ public class CLTPass3d{
 				return rslt;
 			}
 			return getBgDispStrength(
-					this.minBgDisparity, 
+					this.minBgDisparity,
 					this.minBgFract);
 		}
-		
-		
+
+
 		public double [][] getBgDispStrength(
-				final double minBgDisparity, 
+				final double minBgDisparity,
 				final double minBgFract)
 		{
 			if (superTiles == null){
@@ -972,7 +1014,7 @@ public class CLTPass3d{
 			}
 			if ((minBgDisparity != this.minBgDisparity) || (minBgFract != this.minBgFract)){
 				this.minBgDisparity = minBgDisparity;
-				this.minBgFract = minBgFract; 
+				this.minBgFract = minBgFract;
 				superTiles.bgDisparity = null; // per super-tile
 				superTiles.bgStrength = null; // per super-tile
 				bgTileDisparity = null; // per tile
@@ -980,7 +1022,7 @@ public class CLTPass3d{
 			}
 			if ((superTiles.bgDisparity == null) || (superTiles.bgStrength == null)){
 				if (superTiles.getBgDispStrength(
-						minBgDisparity, 
+						minBgDisparity,
 						minBgFract) == null) {
 					superTiles.bgDisparity = null; // per super-tile
 					superTiles.bgStrength = null; // per super-tile
@@ -989,7 +1031,7 @@ public class CLTPass3d{
 					return null; // failed
 				}
 				// now lap-combine supertiles, get this.* from superTiles.*
-				
+
 				double [][] bgTileDispStrength = superTiles.getBgTileDispStrength();
 				bgTileDisparity = bgTileDispStrength[0];
 				bgTileStrength =  bgTileDispStrength[1];
@@ -997,7 +1039,7 @@ public class CLTPass3d{
 			double [][] rslt = {bgTileDisparity,bgTileStrength};
 			return rslt;
 		}
-		
+
 		public double [] getBgDisparity(){
 			return bgTileDisparity;
 		}

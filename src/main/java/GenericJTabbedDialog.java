@@ -5,6 +5,7 @@
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Component;
 import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
@@ -109,7 +110,13 @@ public class GenericJTabbedDialog implements ActionListener {
    		}
 		if (tooltip != null) {
 			label.setToolTipText(tooltip);
-			if (component != null) component.setToolTipText(tooltip);
+			if (component != null) {
+				component.setToolTipText(tooltip);
+				Component [] comps = component.getComponents();
+				if ((comps != null) && (comps.length >0)) {
+					((JComponent) comps[0]).setToolTipText(tooltip);
+				}
+			}
 		}
 		labels.get(labels.size()-1).add(label);
 		components.get(components.size()-1).add(component);
@@ -148,6 +155,7 @@ public class GenericJTabbedDialog implements ActionListener {
 		inp_units.putClientProperty("type",  "String");
 		inp_units.setLayout(new FlowLayout(FlowLayout.LEFT));
 		addLine(label, inp_units, tooltip);
+
 	}
 
 	public void addNumericField(String label, double defaultValue, int digits) { // as in IJ
