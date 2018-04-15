@@ -571,6 +571,23 @@ public class MeasuredLayers {
 		return sw;
 	}
 
+	public double[][] getDisparityStrengthML (
+			int num_layer,
+			int stX,
+			int stY,
+			boolean [] sel_in,
+			MeasuredLayersFilterParameters mlfp,
+			boolean null_if_none){
+		return getDisparityStrengthML(
+				num_layer,
+				stX,
+				stY,
+				sel_in,
+				mlfp.strength_floor,
+				mlfp.strength_pow,
+				null_if_none);
+	}
+
 	/**
 	 * Get disparity and correlation strength for the specific measurement layer and
 	 * supertile X,Y coordinates in the image. Combined with input selection
@@ -628,6 +645,17 @@ public class MeasuredLayers {
 		if (null_if_none && (num_selected == 0)) return null;
 		return ds;
 	}
+
+	public double[][] getDisparityStrengthML (
+			int num_layer,
+			MeasuredLayersFilterParameters mlfp){
+
+		return getDisparityStrengthML(
+				num_layer,
+				mlfp.strength_floor,
+				mlfp.strength_pow);
+	}
+
 
 	/**
 	 * Get disparity and correlation strength for the specific measurement layer.
@@ -688,12 +716,13 @@ public class MeasuredLayers {
 			int stX,
 			int stY,
 			boolean [] sel_in,
-			double     strength_floor,
-			double     strength_pow,
-			int        smplSide, //        = 2;      // Sample size (side of a square)
-			int        smplNum, //         = 3;      // Number after removing worst (should be >1)
-			double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-			boolean    smplWnd, //
+			MeasuredLayersFilterParameters mlfp,
+//			double     strength_floor,
+//			double     strength_pow,
+//			int        smplSide, //        = 2;      // Sample size (side of a square)
+//			int        smplNum, //         = 3;      // Number after removing worst (should be >1)
+//			double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//			boolean    smplWnd, //
 			boolean    null_if_none,
 			int        debugLevel)
 	{
@@ -706,15 +735,15 @@ public class MeasuredLayers {
 		final int dbg_tile = ((stX == 22) && (stY == 19)) ? (5 + 7*16) : -1;// 50397;
 
 		int num_selected = 0;
-		int smpl_center = smplSide /2;
-		int st2e = st2 + smplSide;
-		int smplLen = smplSide*smplSide;
-		final double [] smpl_weights = getSampleWindow(smplSide, !smplWnd);
+		int smpl_center = mlfp.smplSide /2;
+		int st2e = st2 + mlfp.smplSide;
+		int smplLen = mlfp.smplSide*mlfp.smplSide;
+		final double [] smpl_weights = getSampleWindow(mlfp.smplSide, !mlfp.smplWnd);
 
 		double [] disp =     new double [st2e * st2e];
 		double [] weight = new double [st2e * st2e];
 		int st_halfe = st_half + smpl_center;
-		double smplVar = smplRms * smplRms; // maximal variance (weighted average of the squared difference from the mean)
+		double smplVar = mlfp.smplRms * mlfp.smplRms; // maximal variance (weighted average of the squared difference from the mean)
 
 
 		if (layers[num_layer] != null) {
@@ -729,9 +758,9 @@ public class MeasuredLayers {
 
 							if (layers[num_layer][indx] != null){ // apply sel_in later
 								disp[indx_ste] = layers[num_layer][indx].getDisparity();
-								double w = layers[num_layer][indx].getStrength() - strength_floor;
+								double w = layers[num_layer][indx].getStrength() - mlfp.strength_floor;
 								if (w > 0) {
-									if (strength_pow != 1.0) w = Math.pow(w, strength_pow);
+									if (mlfp.strength_pow != 1.0) w = Math.pow(w, mlfp.strength_pow);
 //									w *= lapWeight[dy][dx];
 									disp[indx_ste] = layers[num_layer][indx].getDisparity();
 									weight[indx_ste] = w;
@@ -758,13 +787,13 @@ public class MeasuredLayers {
 					boolean [] smpl_sel = new boolean [smplLen];
 					double [] smpl_d =  new double [smplLen];
 					double [] smpl_w =  new double [smplLen];
-					for (int sy = 0; sy < smplSide; sy++){
+					for (int sy = 0; sy < mlfp.smplSide; sy++){
 						int y = dy + sy; //  - smpl_center;
-						for (int sx = 0; sx < smplSide; sx++){
+						for (int sx = 0; sx < mlfp.smplSide; sx++){
 							int x = dx + sx; // - smpl_center;
 							int indxe = y * st2e + x;
 							if (weight[indxe] > 0.0){
-								int indxs = sy * smplSide + sx;
+								int indxs = sy * mlfp.smplSide + sx;
 								smpl_sel[indxs] = true;
 								smpl_d[indxs] = disp[indxe];
 								smpl_w[indxs] = weight[indxe] * smpl_weights[indxs];
@@ -773,7 +802,7 @@ public class MeasuredLayers {
 							}
 						}
 					}
-					if (num_in_sample >= smplNum){ // try, remove worst
+					if (num_in_sample >= mlfp.smplNum){ // try, remove worst
 						// calculate
 						double sd=0.0, sd2 = 0.0, sw = 0.0;
 						for (int i = 0; i < smplLen; i++) if (smpl_sel[i]) {
@@ -783,7 +812,7 @@ public class MeasuredLayers {
 							sw +=       smpl_w[i];
 						}
 						// remove worst, update sd2, sd and sw
-						while ((num_in_sample > smplNum) && (sw > 0)){ // try, remove worst
+						while ((num_in_sample > mlfp.smplNum) && (sw > 0)){ // try, remove worst
 							double d_mean = sd/sw;
 							int iworst = -1;
 							double dworst2 = 0.0;
@@ -889,20 +918,21 @@ public class MeasuredLayers {
 			int stX,
 			int stY,
 			boolean [] sel_in,
-			double     strength_floor,
-			double     strength_pow,
-			int        smplSide, //        = 2;      // Sample size (side of a square)
-			int        smplNum, //         = 3;      // Number after removing worst (should be >1)
-			double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-			boolean    smplWnd, //
+			MeasuredLayersFilterParameters mlfp,     // filter parameters
+//			double     strength_floor,
+//			double     strength_pow,
+//			int        smplSide, //        = 2;      // Sample size (side of a square)
+//			int        smplNum, //         = 3;      // Number after removing worst (should be >1)
+//			double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//			boolean    smplWnd, //
 
-  			double     max_abs_tilt,  //  2.0;   // pix per tile
-			double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-			double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-			double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-			double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-			int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-			double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
+//  			double     max_abs_tilt,  //  2.0;   // pix per tile
+//			double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
+//			double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
+//			double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//			double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
+//			int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
+//			double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
 
 			boolean    null_if_none,
 			int        debugLevel)
@@ -916,19 +946,20 @@ public class MeasuredLayers {
 				stY,            // int stY,
 				sel_in,         // boolean [] sel_in,
 				null,           // double []  tiltXY, // null - free with limit on both absolute (2.0?) and relative (0.2) values
-				strength_floor, // double     strength_floor,
-				strength_pow,   // double     strength_pow,
-				smplSide,       // int        smplSide, //        = 2;      // Sample size (side of a square)
-				smplNum,        // int        smplNum, //         = 3;      // Number after removing worst (should be >1)
-				smplRms,        // double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-				smplWnd,        // boolean    smplWnd, //
-				max_abs_tilt,   // double     max_abs_tilt, //  = 2.0; // pix per tile
-				max_rel_tilt,   // double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
-				damp_tilt,      //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-				min_tilt_disp,  //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-				transition,     //  1.0;   // Mode transition range (between tilted and maximal disparity)
-				far_mode,       //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-				far_power,      //  1.0;   // Raise disparity to this power before averaging for far objects
+				mlfp,     // MeasuredLayersFilterParameters mlfp,     // filter parameters
+//				strength_floor, // double     strength_floor,
+//				strength_pow,   // double     strength_pow,
+//				smplSide,       // int        smplSide, //        = 2;      // Sample size (side of a square)
+//				smplNum,        // int        smplNum, //         = 3;      // Number after removing worst (should be >1)
+//				smplRms,        // double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//				smplWnd,        // boolean    smplWnd, //
+//				max_abs_tilt,   // double     max_abs_tilt, //  = 2.0; // pix per tile
+//				max_rel_tilt,   // double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
+//				damp_tilt,      //  0.001; // Damp tilt to handle insufficient  (co-linear)data
+//				min_tilt_disp,  //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//				transition,     //  1.0;   // Mode transition range (between tilted and maximal disparity)
+//				far_mode,       //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
+//				far_power,      //  1.0;   // Raise disparity to this power before averaging for far objects
 				null_if_none,   // boolean    null_if_none,
 				debugLevel);    // int        debugLevel)
 		} else {
@@ -938,12 +969,13 @@ public class MeasuredLayers {
 					stY,            // int stY,
 					sel_in,         // boolean [] sel_in,
 //					null,           // double []  tiltXY, // null - free with limit on both absolute (2.0?) and relative (0.2) values
-					strength_floor, // double     strength_floor,
-					strength_pow,   // double     strength_pow,
-					smplSide,       // int        smplSide, //        = 2;      // Sample size (side of a square)
-					smplNum,        // int        smplNum, //         = 3;      // Number after removing worst (should be >1)
-					smplRms,        // double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-					smplWnd,        // boolean    smplWnd, //
+					mlfp,     // MeasuredLayersFilterParameters mlfp,     // filter parameters
+//					strength_floor, // double     strength_floor,
+//					strength_pow,   // double     strength_pow,
+//					smplSide,       // int        smplSide, //        = 2;      // Sample size (side of a square)
+//					smplNum,        // int        smplNum, //         = 3;      // Number after removing worst (should be >1)
+//					smplRms,        // double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//					smplWnd,        // boolean    smplWnd, //
 //					2.0,            // double     max_abs_tilt, //  = 2.0; // pix per tile
 //					0.2,            // double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
 					null_if_none,   // boolean    null_if_none,
@@ -965,19 +997,20 @@ public class MeasuredLayers {
 			double [][] atiltXY, // null - free with limit on both absolute (2.0?) and relative (0.2) values
 			                     // if it has just one element - apply to all tiles, otherwise it is supposed
 			                     // to be per-tile of a supertile array
-			double     strength_floor,
-			double     strength_pow,
-			int        smplSide, //        = 3;      // Sample size (side of a square)
-			int        smplNum, //         = 5;      // Number after removing worst (should be >1)
-			double     smplRms, //         = 0.3;    // Maximal RMS of the remaining tiles in a sample
-			boolean    smplWnd, //
-			double     max_abs_tilt,     //  2.0;   // pix per tile
-			double     max_rel_tilt,     //  0.2;   // (pix / disparity) per tile
-			double     damp_tilt,        //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-			double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-			double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-			int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-			double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
+			MeasuredLayersFilterParameters mlfp,
+//			double     strength_floor,
+//			double     strength_pow,
+//			int        smplSide, //        = 3;      // Sample size (side of a square)
+//			int        smplNum, //         = 5;      // Number after removing worst (should be >1)
+//			double     smplRms, //         = 0.3;    // Maximal RMS of the remaining tiles in a sample
+//			boolean    smplWnd, //
+//			double     max_abs_tilt,     //  2.0;   // pix per tile
+//			double     max_rel_tilt,     //  0.2;   // (pix / disparity) per tile
+//			double     damp_tilt,        //  0.001; // Damp tilt to handle insufficient  (co-linear)data
+//			double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//			double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
+//			int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
+//			double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
 			boolean    null_if_none,
 			int        debugLevel)
 	{
@@ -985,7 +1018,7 @@ public class MeasuredLayers {
 		if ((layers[num_layer] == null) && null_if_none){
 			return null;
 		}
-		final double [] damping = {damp_tilt, damp_tilt, 0.0}; // 0.0 will be applied to average value, tilt_cost - to both tilts
+		final double [] damping = {mlfp.damp_tilt, mlfp.damp_tilt, 0.0}; // 0.0 will be applied to average value, tilt_cost - to both tilts
 
 		int st2 = 2 * superTileSize;
 		int st_half = superTileSize/2;
@@ -993,26 +1026,26 @@ public class MeasuredLayers {
 		final int dbg_tile = ((stX == 22) && (stY == 19)) ? (5 + 7*16) : -1;// 50397;
 
 		int num_selected = 0;
-		int smpl_center = smplSide /2;
-		double smpl_dcenter = (smplSide -1.0) /2;
-		int st2e = st2 + smplSide;
-		int smplLen = smplSide*smplSide;
-		final double [] smpl_weights = getSampleWindow(smplSide, !smplWnd);
+		int smpl_center = mlfp.smplSide /2;
+		double smpl_dcenter = (mlfp.smplSide -1.0) /2;
+		int st2e = st2 + mlfp.smplSide;
+		int smplLen = mlfp.smplSide*mlfp.smplSide;
+		final double [] smpl_weights = getSampleWindow(mlfp.smplSide, !mlfp.smplWnd);
 
 		double [] disp =     new double [st2e * st2e];
 		double [] weight = new double [st2e * st2e];
 		int st_halfe = st_half + smpl_center;
-		double smplVar = smplRms * smplRms; // maximal variance (weighted average of the squared difference from the mean)
+		double smplVar = mlfp.smplRms * mlfp.smplRms; // maximal variance (weighted average of the squared difference from the mean)
 		PolynomialApproximation pa = new PolynomialApproximation();
 		double thresholdLin = 1.0E-20;  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
 		double thresholdQuad = 1.0E-30; // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
 
-		double  disp_pwr_far =  min_tilt_disp - transition/2.0;
-		double  disp_pwr_near = min_tilt_disp + transition/2.0;
-		double  disp_pwr_near2 = disp_pwr_near + smplRms;
+		double  disp_pwr_far =  mlfp.min_tilt_disp - mlfp.transition/2.0;
+		double  disp_pwr_near = mlfp.min_tilt_disp + mlfp.transition/2.0;
+		double  disp_pwr_near2 = disp_pwr_near + mlfp.smplRms;
 		double [] disp_pwr = null;
-		boolean far_mode_en = (far_mode == 1) || (far_mode == 2);
-		boolean remove_far_only = (far_mode == 2);
+		boolean far_mode_en = (mlfp.far_mode == 1) || (mlfp.far_mode == 2);
+		boolean remove_far_only = (mlfp.far_mode == 2);
 		if (far_mode_en) {
 			disp_pwr = new double [st2e * st2e];
 		}
@@ -1035,15 +1068,15 @@ public class MeasuredLayers {
 
 							if (layers[num_layer][indx] != null){ // apply sel_in later
 								disp[indx_ste] = layers[num_layer][indx].getDisparity();
-								double w = layers[num_layer][indx].getStrength() - strength_floor;
+								double w = layers[num_layer][indx].getStrength() - mlfp.strength_floor;
 								if (w > 0) {
-									if (strength_pow != 1.0) w = Math.pow(w, strength_pow);
+									if (mlfp.strength_pow != 1.0) w = Math.pow(w, mlfp.strength_pow);
 //									w *= lapWeight[dy][dx];
 									disp[indx_ste] = layers[num_layer][indx].getDisparity(); // same?
 									weight[indx_ste] = w;
 									num_selected ++;
 									if (far_mode_en && (disp[indx_ste] < disp_pwr_near2)  && (disp[indx_ste] > 0)) {
-										disp_pwr[indx_ste] = Math.pow(disp[indx_ste], far_power);
+										disp_pwr[indx_ste] = Math.pow(disp[indx_ste], mlfp.far_power);
 										num_far++;
 									}
 								}
@@ -1063,340 +1096,348 @@ public class MeasuredLayers {
 					System.out.println("getDisparityStrengthML(): stX="+stX+" stY="+stY+" dx="+dx+" dy="+dy);
 				}
 				if (((sel_in == null) || sel_in[indx])){
-					int num_in_sample = 0;
-					double sum_wnd = 0.0;
-					boolean [] smpl_sel = new boolean [smplLen];
-					double [] smpl_d =  new double [smplLen];
-					double [] smpl_p =  new double [smplLen];
-					double [] smpl_w =  new double [smplLen];
-					if (far_mode_en ) {
-						smpl_far_sel =  new boolean [smplLen];
-						smpl_pwr_d =  new double [smplLen];
-						smpl_far_w =  new double [smplLen];
-						num_in_sample_far = 0;
-					}
-					for (int sy = 0; sy < smplSide; sy++){
-						int y = dy + sy; //  - smpl_center;
-						for (int sx = 0; sx < smplSide; sx++){
-							int x = dx + sx; // - smpl_center;
-							int indxe = y * st2e + x;
-							if (weight[indxe] > 0.0){
-								int indxs = sy * smplSide + sx;
-								smpl_sel[indxs] = true;
-								smpl_d[indxs] = disp[indxe];
-								smpl_w[indxs] = weight[indxe] * smpl_weights[indxs];
-								sum_wnd += smpl_weights[indxs];
-								num_in_sample ++;
-								if (far_mode_en && (disp_pwr[indxe]>0.0)) {
-									smpl_far_sel[indxs] = true;
-									smpl_pwr_d[indxs] =   disp_pwr[indxe];
-									smpl_far_w[indxs] = smpl_w[indxs];
-									num_in_sample_far++;
+					// check if it need filtering
+					int indxe_center = (dy + smpl_center)*st2e + (dx + smpl_center);
+					if (weight[indxe_center] >= mlfp.strength_sure) { // tile does not need filtering
+						ds[0][indx] = disp[indxe_center];
+						ds[1][indx] = weight[indxe_center];
+
+					} else {
+						int num_in_sample = 0;
+						double sum_wnd = 0.0;
+						boolean [] smpl_sel = new boolean [smplLen];
+						double [] smpl_d =  new double [smplLen];
+						double [] smpl_p =  new double [smplLen];
+						double [] smpl_w =  new double [smplLen];
+						if (far_mode_en ) {
+							smpl_far_sel =  new boolean [smplLen];
+							smpl_pwr_d =  new double [smplLen];
+							smpl_far_w =  new double [smplLen];
+							num_in_sample_far = 0;
+						}
+						for (int sy = 0; sy < mlfp.smplSide; sy++){
+							int y = dy + sy; //  - smpl_center;
+							for (int sx = 0; sx < mlfp.smplSide; sx++){
+								int x = dx + sx; // - smpl_center;
+								int indxe = y * st2e + x;
+								if (weight[indxe] > 0.0){
+									int indxs = sy * mlfp.smplSide + sx;
+									smpl_sel[indxs] = true;
+									smpl_d[indxs] = disp[indxe];
+									smpl_w[indxs] = weight[indxe] * smpl_weights[indxs];
+									sum_wnd += smpl_weights[indxs];
+									num_in_sample ++;
+									if (far_mode_en && (disp_pwr[indxe]>0.0)) {
+										smpl_far_sel[indxs] = true;
+										smpl_pwr_d[indxs] =   disp_pwr[indxe];
+										smpl_far_w[indxs] = smpl_w[indxs];
+										num_in_sample_far++;
+									}
 								}
 							}
 						}
-					}
-					if (far_mode_en ) {
-						smpl_far_d = smpl_d.clone();
-					}
-					if (num_in_sample >= smplNum){ // try, remove worst
-						sample_loop:
-						{
-						boolean en_tilt = (atiltXY == null);
-						if (en_tilt) { // make sure there are enough samples and not all of them are on the same line
-							if ((damp_tilt == 0.0) && !notColinear(smpl_sel,smplSide)){
-								en_tilt = false;
-							}
+						if (far_mode_en ) {
+							smpl_far_d = smpl_d.clone();
 						}
-						if (en_tilt) { // enable floating tilt
-							double sd2 = 0.0, d_center = 0.0,  sw = 0.0;
+						if (num_in_sample >= mlfp.smplNum){ // try, remove worst
+							sample_loop:
+							{
+							boolean en_tilt = (atiltXY == null);
+							if (en_tilt) { // make sure there are enough samples and not all of them are on the same line
+								if ((mlfp.damp_tilt == 0.0) && !notColinear(smpl_sel, mlfp.smplSide)){
+									en_tilt = false;
+								}
+							}
+							if (en_tilt) { // enable floating tilt
+								double sd2 = 0.0, d_center = 0.0,  sw = 0.0;
 
-							// TODO: making simple - recalculate after removing. Can be done more efficient.
-							while (num_in_sample >= smplNum) { // try, remove worst
-								sd2 = 0.0;
-								d_center = 0.0;
-								sw = 0.0;
+								// TODO: making simple - recalculate after removing. Can be done more efficient.
+								while (num_in_sample >= mlfp.smplNum) { // try, remove worst
+									sd2 = 0.0;
+									d_center = 0.0;
+									sw = 0.0;
 
-								double [][][] mdata = new double [num_in_sample][3][];
-								int mindx = 0;
-								for (int sy = 0; sy < smplSide; sy++){
-									for (int sx = 0; sx < smplSide; sx++){
-										int indxs = sy * smplSide + sx;
-										if (smpl_sel[indxs]) {
-											mdata[mindx][0] = new double [2];
-											mdata[mindx][0][0] =  sx - smpl_dcenter;
-											mdata[mindx][0][1] =  sy - smpl_dcenter;
-											mdata[mindx][1] = new double [1];
-											mdata[mindx][1][0] = smpl_d[indxs];
-											mdata[mindx][2] = new double [1];
-											mdata[mindx][2][0] =  smpl_w[indxs];
-											mindx ++;
-										}
-									}
-								}
-								double[][] approx2d = pa.quadraticApproximation(
-										mdata,
-										true,          // boolean forceLinear,  // use linear approximation
-										damping,       // double [] damping,
-										thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
-										thresholdQuad, // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
-										debugLevel);
-								if (approx2d == null){
-									if (debugLevel > -1){
-										System.out.println("getDisparityStrengthML(): can not find linear approximation");
-									}
-									break sample_loop;
-								}
-								// limit tilt to be within range
-								//											double     max_abs_tilt, //  = 2.0; // pix per tile
-								//											double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
-								double max_tilt = Math.min(max_abs_tilt, max_rel_tilt * approx2d[0][2]);
-								boolean overlimit = (Math.abs(approx2d[0][0]) > max_tilt) || (Math.abs(approx2d[0][1]) > max_tilt);
-								if (overlimit) {
-									approx2d[0][0] = Math.min(approx2d[0][0],  max_tilt);
-									approx2d[0][1] = Math.min(approx2d[0][1],  max_tilt);
-									approx2d[0][0] = Math.max(approx2d[0][0], -max_tilt);
-									approx2d[0][1] = Math.max(approx2d[0][1], -max_tilt);
-								}
-								// subtract tilt from disparity
-								for (int sy = 0; sy < smplSide; sy++){
-									for (int sx = 0; sx < smplSide; sx++){
-										int indxs = sy * smplSide + sx;
-										if (smpl_sel[indxs]) {
-											smpl_p[indxs] = approx2d[0][0] * (sx - smpl_dcenter) + approx2d[0][1] * (sy - smpl_dcenter) + approx2d[0][2];
-										}
-									}
-								}
-
-								if (overlimit){ // re-calculate disparity average (in the center)
-									double sd=0.0;
-									for (int indxs = 0; indxs < smplLen;indxs++) if (smpl_sel[indxs]) {
-										double d = smpl_d[indxs] - smpl_p[indxs];
-										double dw = d * smpl_w[indxs];
-										sd += dw;
-										sw += smpl_w[indxs];
-									}
-									sd /= sw;
-									for (int indxs = 0; indxs < smplLen;indxs++) if (smpl_sel[indxs]) {
-										smpl_p[indxs] += sd;
-									}
-									approx2d[0][2] += sd;
-								}
-								d_center = approx2d[0][2];
-								sw = 0.0;
-								for (int indxs = 0; indxs < smplLen;indxs++) if (smpl_sel[indxs]) {
-									double d = smpl_d[indxs] - smpl_p[indxs];
-									double dw = d * smpl_w[indxs];
-									//									sd += dw;
-									sd2 += dw * smpl_d[indxs];
-									sw +=       smpl_w[indxs];
-								}
-
-
-								// remove worst - it should not make remaining set
-								if (num_in_sample > smplNum) { // remove worst if it is not the last run where only calculations are needed
-									//									double d_mean = sd/sw;
-									int iworst = -1;
-									double dworst2 = 0.0;
-									for (int indxs = 0; indxs < smplLen; indxs++) if (smpl_sel[indxs]) {
-										//										double d2 = (smpl_d[i] - d_mean);
-										double d2 = smpl_d[indxs] - smpl_p[indxs];
-										d2 *=d2;
-										if (d2 > dworst2) {
-											if ((damp_tilt !=0.0) || notColinearWithout (
-													indxs, // int        indx,
-													smpl_sel, // boolean [] sel,
-													smplSide)) { // int side))
-												iworst = indxs;
-												dworst2 = d2;
+									double [][][] mdata = new double [num_in_sample][3][];
+									int mindx = 0;
+									for (int sy = 0; sy < mlfp.smplSide; sy++){
+										for (int sx = 0; sx < mlfp.smplSide; sx++){
+											int indxs = sy * mlfp.smplSide + sx;
+											if (smpl_sel[indxs]) {
+												mdata[mindx][0] = new double [2];
+												mdata[mindx][0][0] =  sx - smpl_dcenter;
+												mdata[mindx][0][1] =  sy - smpl_dcenter;
+												mdata[mindx][1] = new double [1];
+												mdata[mindx][1][0] = smpl_d[indxs];
+												mdata[mindx][2] = new double [1];
+												mdata[mindx][2][0] =  smpl_w[indxs];
+												mindx ++;
 											}
 										}
 									}
-									if (iworst < 0){
-										if (debugLevel > 0) {
-											System.out.println("**** this may be BUG in getDisparityStrengthML() can not find the worst sample  - all tiles fit perfectly ****");
+									double[][] approx2d = pa.quadraticApproximation(
+											mdata,
+											true,          // boolean forceLinear,  // use linear approximation
+											damping,       // double [] damping,
+											thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
+											thresholdQuad, // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+											debugLevel);
+									if (approx2d == null){
+										if (debugLevel > -1){
+											System.out.println("getDisparityStrengthML(): can not find linear approximation");
 										}
-										// this can happen if some samples are the same and all the pixels fit exactly - use all of them
+										break sample_loop;
+									}
+									// limit tilt to be within range
+									//											double     max_abs_tilt, //  = 2.0; // pix per tile
+									//											double     max_rel_tilt, //  = 0.2; // (pix / disparity) per tile
+									double max_tilt = Math.min(mlfp.max_abs_tilt, mlfp.max_rel_tilt * approx2d[0][2]);
+									boolean overlimit = (Math.abs(approx2d[0][0]) > max_tilt) || (Math.abs(approx2d[0][1]) > max_tilt);
+									if (overlimit) {
+										approx2d[0][0] = Math.min(approx2d[0][0],  max_tilt);
+										approx2d[0][1] = Math.min(approx2d[0][1],  max_tilt);
+										approx2d[0][0] = Math.max(approx2d[0][0], -max_tilt);
+										approx2d[0][1] = Math.max(approx2d[0][1], -max_tilt);
+									}
+									// subtract tilt from disparity
+									for (int sy = 0; sy < mlfp.smplSide; sy++){
+										for (int sx = 0; sx < mlfp.smplSide; sx++){
+											int indxs = sy * mlfp.smplSide + sx;
+											if (smpl_sel[indxs]) {
+												smpl_p[indxs] = approx2d[0][0] * (sx - smpl_dcenter) + approx2d[0][1] * (sy - smpl_dcenter) + approx2d[0][2];
+											}
+										}
+									}
+
+									if (overlimit){ // re-calculate disparity average (in the center)
+										double sd=0.0;
+										for (int indxs = 0; indxs < smplLen;indxs++) if (smpl_sel[indxs]) {
+											double d = smpl_d[indxs] - smpl_p[indxs];
+											double dw = d * smpl_w[indxs];
+											sd += dw;
+											sw += smpl_w[indxs];
+										}
+										sd /= sw;
+										for (int indxs = 0; indxs < smplLen;indxs++) if (smpl_sel[indxs]) {
+											smpl_p[indxs] += sd;
+										}
+										approx2d[0][2] += sd;
+									}
+									d_center = approx2d[0][2];
+									sw = 0.0;
+									for (int indxs = 0; indxs < smplLen;indxs++) if (smpl_sel[indxs]) {
+										double d = smpl_d[indxs] - smpl_p[indxs];
+										double dw = d * smpl_w[indxs];
+										//									sd += dw;
+										sd2 += dw * smpl_d[indxs];
+										sw +=       smpl_w[indxs];
+									}
+
+
+									// remove worst - it should not make remaining set
+									if (num_in_sample > mlfp.smplNum) { // remove worst if it is not the last run where only calculations are needed
+										//									double d_mean = sd/sw;
+										int iworst = -1;
+										double dworst2 = 0.0;
+										for (int indxs = 0; indxs < smplLen; indxs++) if (smpl_sel[indxs]) {
+											//										double d2 = (smpl_d[i] - d_mean);
+											double d2 = smpl_d[indxs] - smpl_p[indxs];
+											d2 *=d2;
+											if (d2 > dworst2) {
+												if ((mlfp.damp_tilt !=0.0) || notColinearWithout (
+														indxs, // int        indx,
+														smpl_sel, // boolean [] sel,
+														mlfp.smplSide)) { // int side))
+													iworst = indxs;
+													dworst2 = d2;
+												}
+											}
+										}
+										if (iworst < 0){
+											if (debugLevel > 0) {
+												System.out.println("**** this may be BUG in getDisparityStrengthML() can not find the worst sample  - all tiles fit perfectly ****");
+											}
+											// this can happen if some samples are the same and all the pixels fit exactly - use all of them
+											break;
+										}
+										// remove worst sample
+										smpl_sel[iworst] = false;
+										//									double dw = smpl_d[iworst] * smpl_w[iworst];
+										//									sd -= dw;
+										//									sd2 -= dw * smpl_d[iworst];
+										//									sw -=       smpl_w[iworst];
+										sum_wnd -= smpl_weights[iworst];
+										num_in_sample --;
+									} else {
+										break;
+									}
+
+								} // removing worst tiles, all done,
+								// calculate variance of the remaining set
+								if (sw > 0.0) {
+									//								sd /= sw;
+									//								sd2 /= sw;
+									double var = sd2/sw; //   - sd * sd;
+									if (var < smplVar) { // good, save in the result array
+										ds[0][indx] = d_center;
+										//								ds[1][indx] = sw * lapWeight[dy][dx] /num_in_sample; // average weights, multiply by window //** TODO: change
+										ds[1][indx] = sw * lapWeight[dy][dx] /sum_wnd; // average weights, multiply by window //** TODO: change
+									}
+								}
+
+							} else { // fixed tilt
+								// tilt around center
+								double [] tiltXY= {0.0,0.0};
+								if (atiltXY != null){ // if null ( free but failed co-linear test - keep both tilts == 0.0
+									if (atiltXY.length == 1){
+										tiltXY = atiltXY[0]; // common for all tiles (such as constant disparity)
+									} else if (atiltXY[indx] != null){
+										tiltXY = atiltXY[indx];
+									}
+								}
+
+								if ((tiltXY != null) && (tiltXY[0] != 0.0) && (tiltXY[1] != 0.0)){
+									for (int sy = 0; sy < mlfp.smplSide; sy++){
+										for (int sx = 0; sx < mlfp.smplSide; sx++){
+											int indxs = sy * mlfp.smplSide + sx;
+											if (smpl_w[indxs] > 0.0) {
+												smpl_d[indxs] -= tiltXY[0]* (sx - smpl_dcenter) + tiltXY[1]* (sy - smpl_dcenter);
+											}
+										}
+									}
+								}
+
+
+								// calculate
+								double sd=0.0, sd2 = 0.0, sw = 0.0;
+								for (int i = 0; i < smplLen; i++) if (smpl_sel[i]) {
+									double dw = smpl_d[i] * smpl_w[i];
+									sd += dw;
+									sd2 += dw * smpl_d[i];
+									sw +=       smpl_w[i];
+								}
+								// remove worst, update sd2, sd and sw
+								while ((num_in_sample > mlfp.smplNum) && (sw > 0)){ // try, remove worst
+									double d_mean = sd/sw;
+									int iworst = -1;
+									double dworst2 = 0.0;
+									for (int i = 0; i < smplLen; i++) if (smpl_sel[i]) {
+										double d2 = (smpl_d[i] - d_mean);
+										d2 *=d2;
+										if (d2 > dworst2) {
+											iworst = i;
+											dworst2 = d2;
+										}
+										//remove_far_only
+									}
+									if (iworst < 0){
+										System.out.println("**** this is a BUG2 in getDisparityStrengthML() ****");
 										break;
 									}
 									// remove worst sample
 									smpl_sel[iworst] = false;
-									//									double dw = smpl_d[iworst] * smpl_w[iworst];
-									//									sd -= dw;
-									//									sd2 -= dw * smpl_d[iworst];
-									//									sw -=       smpl_w[iworst];
+									double dw = smpl_d[iworst] * smpl_w[iworst];
+									sd -= dw;
+									sd2 -= dw * smpl_d[iworst];
+									sw -=       smpl_w[iworst];
 									sum_wnd -= smpl_weights[iworst];
 									num_in_sample --;
+								}
+								// calculate variance of the remaining set
+								if (sw > 0.0) {
+									sd /= sw;
+									sd2 /= sw;
+									double var = sd2 - sd * sd;
+									if (var < smplVar) { // good, save in the result array
+										ds[0][indx] = sd;
+										//								ds[1][indx] = sw * lapWeight[dy][dx] /num_in_sample; // average weights, multiply by window //** TODO: change
+										ds[1][indx] = sw * lapWeight[dy][dx] /sum_wnd; // average weights, multiply by window //** TODO: change
+									}
 								} else {
-									break;
-								}
-
-							} // removing worst tiles, all done,
-							// calculate variance of the remaining set
-							if (sw > 0.0) {
-								//								sd /= sw;
-								//								sd2 /= sw;
-								double var = sd2/sw; //   - sd * sd;
-								if (var < smplVar) { // good, save in the result array
-									ds[0][indx] = d_center;
-									//								ds[1][indx] = sw * lapWeight[dy][dx] /num_in_sample; // average weights, multiply by window //** TODO: change
-									ds[1][indx] = sw * lapWeight[dy][dx] /sum_wnd; // average weights, multiply by window //** TODO: change
+									num_in_sample = 0;
+									System.out.println("**** this is a BUG in getDisparityStrengthML(), shoud not happen ? ****");
 								}
 							}
-
-						} else { // fixed tilt
-							// tilt around center
-							double [] tiltXY= {0.0,0.0};
-							if (atiltXY != null){ // if null ( free but failed co-linear test - keep both tilts == 0.0
-								if (atiltXY.length == 1){
-									tiltXY = atiltXY[0]; // common for all tiles (such as constant disparity)
-								} else if (atiltXY[indx] != null){
-									tiltXY = atiltXY[indx];
-								}
-							}
-
-							if ((tiltXY != null) && (tiltXY[0] != 0.0) && (tiltXY[1] != 0.0)){
-								for (int sy = 0; sy < smplSide; sy++){
-									for (int sx = 0; sx < smplSide; sx++){
-										int indxs = sy * smplSide + sx;
-										if (smpl_w[indxs] > 0.0) {
-											smpl_d[indxs] -= tiltXY[0]* (sx - smpl_dcenter) + tiltXY[1]* (sy - smpl_dcenter);
-										}
-									}
-								}
-							}
-
-
-							// calculate
-							double sd=0.0, sd2 = 0.0, sw = 0.0;
-							for (int i = 0; i < smplLen; i++) if (smpl_sel[i]) {
-								double dw = smpl_d[i] * smpl_w[i];
-								sd += dw;
-								sd2 += dw * smpl_d[i];
-								sw +=       smpl_w[i];
-							}
-							// remove worst, update sd2, sd and sw
-							while ((num_in_sample > smplNum) && (sw > 0)){ // try, remove worst
-								double d_mean = sd/sw;
-								int iworst = -1;
-								double dworst2 = 0.0;
-								for (int i = 0; i < smplLen; i++) if (smpl_sel[i]) {
-									double d2 = (smpl_d[i] - d_mean);
-									d2 *=d2;
-									if (d2 > dworst2) {
-										iworst = i;
-										dworst2 = d2;
-									}
-									//remove_far_only
-								}
-								if (iworst < 0){
-									System.out.println("**** this is a BUG2 in getDisparityStrengthML() ****");
-									break;
-								}
-								// remove worst sample
-								smpl_sel[iworst] = false;
-								double dw = smpl_d[iworst] * smpl_w[iworst];
-								sd -= dw;
-								sd2 -= dw * smpl_d[iworst];
-								sw -=       smpl_w[iworst];
-								sum_wnd -= smpl_weights[iworst];
-								num_in_sample --;
-							}
-							// calculate variance of the remaining set
-							if (sw > 0.0) {
-								sd /= sw;
-								sd2 /= sw;
-								double var = sd2 - sd * sd;
-								if (var < smplVar) { // good, save in the result array
-									ds[0][indx] = sd;
-									//								ds[1][indx] = sw * lapWeight[dy][dx] /num_in_sample; // average weights, multiply by window //** TODO: change
-									ds[1][indx] = sw * lapWeight[dy][dx] /sum_wnd; // average weights, multiply by window //** TODO: change
-								}
-							} else {
-								num_in_sample = 0;
-								System.out.println("**** this is a BUG in getDisparityStrengthML(), shoud not happen ? ****");
 							}
 						}
-						}
-					}
-					// now apply far if needed
-					if (num_in_sample_far > 0) { // calculate small far disparity, then merge with normal one
-						// remove extra
-						// smpl_pwr_d - disparity to power
-						// smpl_far_d - just disparity
-						if (num_in_sample_far >= smplNum){ // try, remove worst
-							double sd=0.0, sd2 = 0.0, sw = 0.0;
-							double sdp =0.0; // , sdp2 = 0.0;
-							for (int i = 0; i < smplLen; i++) if (smpl_far_sel[i]) {
-								double dw = smpl_far_d[i] * smpl_far_w[i];
-								sd += dw;
-								sd2 += dw * smpl_far_d[i];
-								sw +=       smpl_far_w[i];
-								double dpw = smpl_pwr_d[i] * smpl_far_w[i];
-								sdp += dpw;
-//								sdp2 += dpw * smpl_pwr_d[i];
-							}
-
-
-							// remove worst (before power), update sd2, sd and sw
-							while ((num_in_sample_far > smplNum) && (sw > 0)){ // try, remove worst
-								double d_mean = sd/sw;
-								int iworst = -1;
-								double dworst2 = 0.0;
+						// now apply far if needed
+						if (num_in_sample_far > 0) { // calculate small far disparity, then merge with normal one
+							// remove extra
+							// smpl_pwr_d - disparity to power
+							// smpl_far_d - just disparity
+							if (num_in_sample_far >= mlfp.smplNum){ // try, remove worst
+								double sd=0.0, sd2 = 0.0, sw = 0.0;
+								double sdp =0.0; // , sdp2 = 0.0;
 								for (int i = 0; i < smplLen; i++) if (smpl_far_sel[i]) {
-									double d2 = (smpl_far_d[i] - d_mean);
-									d2 *=d2;
-									if ((d2 > dworst2) && (!remove_far_only ||(smpl_far_d[i] < d_mean))) {
-										iworst = i;
-										dworst2 = d2;
-									}
+									double dw = smpl_far_d[i] * smpl_far_w[i];
+									sd += dw;
+									sd2 += dw * smpl_far_d[i];
+									sw +=       smpl_far_w[i];
+									double dpw = smpl_pwr_d[i] * smpl_far_w[i];
+									sdp += dpw;
+									//								sdp2 += dpw * smpl_pwr_d[i];
 								}
-								if (iworst < 0){
-									System.out.println("**** this is a BUG3 in getDisparityStrengthML() ****");
-									break;
-								}
-								// remove worst sample
-								smpl_far_sel[iworst] = false;
-								double dw = smpl_far_d[iworst] * smpl_far_w[iworst];
-								sd -= dw;
-								sd2 -= dw * smpl_far_d[iworst];
-								sw -=       smpl_far_w[iworst];
-								sum_wnd -= smpl_weights[iworst];
-								num_in_sample_far --;
 
-								// Remove from the power average too
 
-								sdp -= smpl_pwr_d[iworst] * smpl_far_w[iworst];
-							}
-							// calculate variance of the remaining set
-							if (sw > 0.0) {
-								sd /= sw;
-								sd2 /= sw;
-								double var = sd2 - sd * sd;
-								if (var < smplVar) { // good, save in the result array (here use linear disparity
-									// here need to combine two filtering modes - "tilted" and "far"
-									sdp = Math.pow(sdp/sw, 1.0/far_power);
-									if (sdp < disp_pwr_near) { // otherwise keep tilted mode result
-										double far_w = sw * lapWeight[dy][dx] /sum_wnd; // average weights, multiply by window //** TODO: change
-										if (sdp < disp_pwr_far) {
-											ds[0][indx] = sdp;
-											ds[1][indx] = far_w;
-										} else { // interpolate
-											double k = (sdp - disp_pwr_far) / transition;
-											ds[0][indx] = (1.0 - k) * sdp +   k * ds[0][indx];
-											ds[1][indx] = (1.0 - k) * far_w + k * ds[1][indx];
+								// remove worst (before power), update sd2, sd and sw
+								while ((num_in_sample_far > mlfp.smplNum) && (sw > 0)){ // try, remove worst
+									double d_mean = sd/sw;
+									int iworst = -1;
+									double dworst2 = 0.0;
+									for (int i = 0; i < smplLen; i++) if (smpl_far_sel[i]) {
+										double d2 = (smpl_far_d[i] - d_mean);
+										d2 *=d2;
+										if ((d2 > dworst2) && (!remove_far_only ||(smpl_far_d[i] < d_mean))) {
+											iworst = i;
+											dworst2 = d2;
 										}
 									}
-									ds[0][indx] = sd;
-									ds[1][indx] = sw * lapWeight[dy][dx] /sum_wnd; // average weights, multiply by window //** TODO: change
+									if (iworst < 0){
+										System.out.println("**** this is a BUG3 in getDisparityStrengthML() ****");
+										break;
+									}
+									// remove worst sample
+									smpl_far_sel[iworst] = false;
+									double dw = smpl_far_d[iworst] * smpl_far_w[iworst];
+									sd -= dw;
+									sd2 -= dw * smpl_far_d[iworst];
+									sw -=       smpl_far_w[iworst];
+									sum_wnd -= smpl_weights[iworst];
+									num_in_sample_far --;
+
+									// Remove from the power average too
+
+									sdp -= smpl_pwr_d[iworst] * smpl_far_w[iworst];
 								}
-							} else {
-								num_in_sample = 0;
-								System.out.println("**** this is a BUG4 in getDisparityStrengthML(), shoud not happen ? ****");
+								// calculate variance of the remaining set
+								if (sw > 0.0) {
+									sd /= sw;
+									sd2 /= sw;
+									double var = sd2 - sd * sd;
+									if (var < smplVar) { // good, save in the result array (here use linear disparity
+										// here need to combine two filtering modes - "tilted" and "far"
+										sdp = Math.pow(sdp/sw, 1.0/mlfp.far_power);
+										if (sdp < disp_pwr_near) { // otherwise keep tilted mode result
+											double far_w = sw * lapWeight[dy][dx] /sum_wnd; // average weights, multiply by window //** TODO: change
+											if (sdp < disp_pwr_far) {
+												ds[0][indx] = sdp;
+												ds[1][indx] = far_w;
+											} else { // interpolate
+												double k = (sdp - disp_pwr_far) / mlfp.transition;
+												ds[0][indx] = (1.0 - k) * sdp +   k * ds[0][indx];
+												ds[1][indx] = (1.0 - k) * far_w + k * ds[1][indx];
+											}
+										}
+										ds[0][indx] = sd;
+										ds[1][indx] = sw * lapWeight[dy][dx] /sum_wnd; // average weights, multiply by window //** TODO: change
+									}
+								} else {
+									num_in_sample = 0;
+									System.out.println("**** this is a BUG4 in getDisparityStrengthML(), shoud not happen ? ****");
+								}
 							}
 						}
 					}
-				}
+				} // end of tile
 			}
 		}
 		return ds;

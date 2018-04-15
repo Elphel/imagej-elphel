@@ -38,8 +38,6 @@ public class SuperTiles{
 	double      bin_near;              // bin value (before rounding) matching  (min_disparity + step_threshold_near)
 	double      min_disparity;
 	double      max_disparity;
-	double      strength_floor;
-	double      strength_pow;
 	double      stBlurSigma;
 	int         numBins;
 	double []   bin_centers;
@@ -51,11 +49,14 @@ public class SuperTiles{
 	int         measSel = 1; // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 
 	boolean     smplMode        = true;   // Use sample mode (false - regular tile mode)
+
+	/*
+	double      strength_floor;
+	double      strength_pow;
 	int         smplSide        = 2;      // Sample size (side of a square)
 	int         smplNum         = 3;      // Number after removing worst
 	double      smplRms         = 0.1;    // Maximal RMS of the remaining tiles in a sample
 	boolean     smplWnd         = false;  // final boolean    smplWnd,  // use window functions for the samples
-
 	double      max_abs_tilt  = 2.0; // Maximal absolute tilt in pixels/tile
 	double      max_rel_tilt  = 0.2; // Maximal relative tilt in pixels/tile/disparity
 	double      damp_tilt  =    0.001; // Damp tilt to handle insufficient  (co-linear)data
@@ -63,8 +64,8 @@ public class SuperTiles{
 	double      transition    = 1.0; // Mode transition range (between tilted and maximal disparity)
 	int         far_mode  =     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
 	double      far_power =     1.0; // Raise disparity to this power before averaging for far objects
-
-
+*/
+	MeasuredLayersFilterParameters mlfp = new MeasuredLayersFilterParameters();     // filter parameters
 	MeasuredLayers measuredLayers = null;
 
 	CLTPass3d cltPass3d;
@@ -95,22 +96,26 @@ public class SuperTiles{
 			double                  step_threshold,
 			double                  min_disparity,
 			double                  max_disparity,
-			double                  strength_floor,
-			double                  strength_pow,
+
 			double                  stBlurSigma,
 			boolean                 smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-			int                     smplSide, //        = 2;      // Sample size (side of a square)
-			int                     smplNum, //         = 3;      // Number after removing worst
-			double                  smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-			boolean                 smplWnd,  // use window functions for the samples
+			MeasuredLayersFilterParameters  mlfp,
 
-  			double     max_abs_tilt,  //  2.0;   // pix per tile
-			double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-			double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-			double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-			double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-			int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-			double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
+//			double                  strength_floor,
+//			double                  strength_pow,
+//			boolean                 smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+//			int                     smplSide, //        = 2;      // Sample size (side of a square)
+//			int                     smplNum, //         = 3;      // Number after removing worst
+//			double                  smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//			boolean                 smplWnd,  // use window functions for the samples
+
+//  			double     max_abs_tilt,  //  2.0;   // pix per tile
+//			double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
+//			double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
+//			double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//			double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
+//			int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
+//			double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
 //			boolean    null_if_none,
 
 			int                     measSel)
@@ -122,26 +127,23 @@ public class SuperTiles{
 		this.step_threshold_far = step_threshold;
 		this.min_disparity =  min_disparity;
 		this.max_disparity =  max_disparity;
-		this.strength_floor = strength_floor;
-		this.strength_pow =   strength_pow;
 		this.stBlurSigma =    stBlurSigma;
 		this.smplMode        = smplMode;   // Use sample mode (false - regular tile mode)
-		this.smplSide        = smplSide;   // Sample size (side of a square)
-		this.smplNum         = smplNum;    // Number after removing worst
-		this.smplRms         = smplRms;    // Maximal RMS of the remaining tiles in a sample
+		this.mlfp = mlfp.clone();
 
-		this.max_abs_tilt =  max_abs_tilt;
-		this.max_rel_tilt =  max_rel_tilt;
-		this.damp_tilt =     damp_tilt;
-		this.min_tilt_disp = min_tilt_disp;
-		this.transition =    transition;
-		this.far_mode =      far_mode;
-		this.far_power =     far_power;
-
-		this.smplWnd         = smplWnd;    // Use window functions for the samples
-
-
-
+//		this.strength_floor = strength_floor;
+//		this.strength_pow =   strength_pow;
+//		this.smplSide        = smplSide;   // Sample size (side of a square)
+//		this.smplNum         = smplNum;    // Number after removing worst
+//		this.smplRms         = smplRms;    // Maximal RMS of the remaining tiles in a sample
+//		this.max_abs_tilt =  max_abs_tilt;
+//		this.max_rel_tilt =  max_rel_tilt;
+//		this.damp_tilt =     damp_tilt;
+//		this.min_tilt_disp = min_tilt_disp;
+//		this.transition =    transition;
+//		this.far_mode =      far_mode;
+//		this.far_power =     far_power;
+//		this.smplWnd         = smplWnd;    // Use window functions for the samples
 
 
 		this.measSel =        measSel;
@@ -190,18 +192,19 @@ public class SuperTiles{
 				null,       // double  []   world_plane, // tilt equi-disparity planes to match real world planes (usually horizontal (or null)
 				null,       // boolean [][] tile_sel, // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
 				smplMode,   // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-				smplSide,   // final int        smplSide, //        = 2;      // Sample size (side of a square)
-				smplNum,    // final int        smplNum,  //         = 3;      // Number after removing worst
-				smplRms,    // final double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-				smplWnd,    // final boolean    smplWnd,  // use window functions for the samples
+				mlfp,
+//				smplSide,   // final int        smplSide, //        = 2;      // Sample size (side of a square)
+//				smplNum,    // final int        smplNum,  //         = 3;      // Number after removing worst
+//				smplRms,    // final double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//				smplWnd,    // final boolean    smplWnd,  // use window functions for the samples
 
-				max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-				max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-				damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-				min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-				transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-				far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-				far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
+//				max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+//				max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//				damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//				min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//				transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+//				far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//				far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 
 				measSel);   // calculate and blur supertiles (for all, not just selected?)
 		if (tileProcessor.globalDebugLevel > 0){
@@ -431,18 +434,20 @@ public class SuperTiles{
 			final double [][][][] disparity_strength, // pre-calculated disparity/strength [per super-tile][per-measurement layer][2][tiles] or null
 			final boolean [][]    tile_sel, // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
 			final boolean         smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-			final int             smplSide, //        = 2;      // Sample size (side of a square)
-			final int             smplNum,  //         = 3;      // Number after removing worst
-			final double          smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-			final boolean         smplWnd, //
 
-			final double          max_abs_tilt,  //  2.0;   // pix per tile
-			final double          max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-			final double          damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-			final double          min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-			final double          transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-			final int             far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-			final double          far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
+			final MeasuredLayersFilterParameters mlfp,
+//			final int             smplSide, //        = 2;      // Sample size (side of a square)
+//			final int             smplNum,  //         = 3;      // Number after removing worst
+//			final double          smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//			final boolean         smplWnd, //
+
+//			final double          max_abs_tilt,  //  2.0;   // pix per tile
+//			final double          max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
+//			final double          damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
+//			final double          min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//			final double          transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
+//			final int             far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
+//			final double          far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
 
 			final int             measSel)  //
 	{
@@ -451,33 +456,34 @@ public class SuperTiles{
 		}
 		if ((this.disparityHistograms != null) &&
 				(smplMode == this.smplMode) &&
-				(smplSide == this.smplSide) &&
-				(smplNum  == this.smplNum) &&
-				(smplRms  == this.smplRms) &&
+				(mlfp.equals(this.mlfp)) &&
+//				(smplSide == this.smplSide) &&
+//				(smplNum  == this.smplNum) &&
+//				(smplRms  == this.smplRms) &&
 
-				(max_abs_tilt  == this.max_abs_tilt) &&
-				(max_rel_tilt  == this.max_rel_tilt) &&
-				(damp_tilt  == this.damp_tilt) &&
-				(min_tilt_disp  == this.min_tilt_disp) &&
-				(transition  == this.transition) &&
-				(far_mode  == this.far_mode) &&
-				(far_power  == this.far_power) &&
-
+//				(max_abs_tilt  == this.max_abs_tilt) &&
+//				(max_rel_tilt  == this.max_rel_tilt) &&
+//				(damp_tilt  == this.damp_tilt) &&
+//				(min_tilt_disp  == this.min_tilt_disp) &&
+//				(transition  == this.transition) &&
+//				(far_mode  == this.far_mode) &&
+//				(far_power  == this.far_power) &&
 				(measSel  == this.measSel)){
 				return this.disparityHistograms;
 		}
 		this.smplMode =      smplMode;   // Use sample mode (false - regular tile mode)
-		this.smplSide =      smplSide;   // Sample size (side of a square)
-		this.smplNum  =      smplNum;    // Number after removing worst
-		this.smplRms  =      smplRms;    // Maximal RMS of the remaining tiles in a sample
+		this.mlfp = mlfp.clone();
+//		this.smplSide =      smplSide;   // Sample size (side of a square)
+//		this.smplNum  =      smplNum;    // Number after removing worst
+//		this.smplRms  =      smplRms;    // Maximal RMS of the remaining tiles in a sample
 
-		this.max_abs_tilt =  max_abs_tilt;
-		this.max_rel_tilt =  max_rel_tilt;
-		this.damp_tilt =     damp_tilt;
-		this.min_tilt_disp = min_tilt_disp;
-		this.transition =    transition;
-		this.far_mode =      far_mode;
-		this.far_power =     far_power;
+//		this.max_abs_tilt =  max_abs_tilt;
+//		this.max_rel_tilt =  max_rel_tilt;
+//		this.damp_tilt =     damp_tilt;
+//		this.min_tilt_disp = min_tilt_disp;
+//		this.transition =    transition;
+//		this.far_mode =      far_mode;
+//		this.far_power =     far_power;
 
 		this.measSel  =      measSel;
 
@@ -515,21 +521,22 @@ public class SuperTiles{
 												stileY,         // int stY,
 												(((tile_sel == null) || (tile_sel[nl].length == 0))? null:tile_sel[nl]), // boolean [] sel_in,
 												//											null,           // boolean [] sel_in,
-												strength_floor, // double strength_floor,
-												strength_pow,   // double strength_pow,
-												smplSide,       // int        smplSide, // = 2;   // Sample size (side of a square)
-												smplNum,        //int        smplNum,   // = 3;   // Number after removing worst (should be >1)
-												smplRms,        //double     smplRms,   // = 0.1; // Maximal RMS of the remaining tiles in a sample
-												smplWnd,
+												mlfp,
+//												strength_floor, // double strength_floor,
+//												strength_pow,   // double strength_pow,
+//												smplSide,       // int        smplSide, // = 2;   // Sample size (side of a square)
+//												smplNum,        //int        smplNum,   // = 3;   // Number after removing worst (should be >1)
+//												smplRms,        //double     smplRms,   // = 0.1; // Maximal RMS of the remaining tiles in a sample
+//												smplWnd,
 
 
-												max_abs_tilt,   //  = 2.0; // Maximal absolute tilt in pixels/tile
-												max_rel_tilt,   //  = 0.2; // Maximal relative tilt in pixels/tile/disparity
-												damp_tilt,      //  =    0.001; // Damp tilt to handle insufficient  (co-linear)data
-												min_tilt_disp,  // = 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-												transition,     //    = 1.0; // Mode transition range (between tilted and maximal disparity)
-												far_mode,       //  =     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-												far_power,      // =     1.0; // Raise disparity to this power before averaging for far objects
+//												max_abs_tilt,   //  = 2.0; // Maximal absolute tilt in pixels/tile
+//												max_rel_tilt,   //  = 0.2; // Maximal relative tilt in pixels/tile/disparity
+//												damp_tilt,      //  =    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//												min_tilt_disp,  // = 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//												transition,     //    = 1.0; // Mode transition range (between tilted and maximal disparity)
+//												far_mode,       //  =     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//												far_power,      // =     1.0; // Raise disparity to this power before averaging for far objects
 
 												true,          // boolean null_if_none);
 												-1); // int debugLevel
@@ -540,8 +547,8 @@ public class SuperTiles{
 												stileY,         // int stY,
 												(((tile_sel == null) || (tile_sel[nl].length == 0))? null:tile_sel[nl]), // boolean [] sel_in,
 												//											null,           // boolean [] sel_in,
-												strength_floor, // double strength_floor,
-												strength_pow,   // double strength_pow,
+												mlfp.strength_floor, // double strength_floor,
+												mlfp.strength_pow,   // double strength_pow,
 												true);          // boolean null_if_none);
 									}
 								} else {
@@ -625,18 +632,19 @@ public class SuperTiles{
 				disparity_strength, // pre-calculated disparity/strength [per super-tile][per-measurement layer][2][tiles] or null
 				tile_sel,   // boolean [][] tile_sel, // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
 				this.smplMode,   // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-				this.smplSide,   // final int        smplSide, //        = 2;      // Sample size (side of a square)
-				this.smplNum,    // final int        smplNum,  //         = 3;      // Number after removing worst
-				this.smplRms,    // final double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-				this.smplWnd,    // final boolean    smplWnd,  // use window functions for the samples
+				this.mlfp,
+//				this.smplSide,   // final int        smplSide, //        = 2;      // Sample size (side of a square)
+//				this.smplNum,    // final int        smplNum,  //         = 3;      // Number after removing worst
+//				this.smplRms,    // final double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//				this.smplWnd,    // final boolean    smplWnd,  // use window functions for the samples
 
-				this.max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-				this.max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-				this.damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-				this.min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-				this.transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-				this.far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-				this.far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
+//				this.max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+//				this.max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//				this.damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//				this.min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//				this.transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+//				this.far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//				this.far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 
 				this.measSel);
 		final int globalDebugLevel = tileProcessor.globalDebugLevel;
@@ -647,7 +655,7 @@ public class SuperTiles{
 			threads[ithread] = new Thread() {
 				@Override
 				public void run() {
-					DoubleGaussianBlur gb=new DoubleGaussianBlur();
+//					DoubleGaussianBlur gb=new DoubleGaussianBlur();
 					for (int nsTile = ai.getAndIncrement(); nsTile < maxMinMax.length; nsTile = ai.getAndIncrement()) {
 						if (disparityHistograms[nsTile] != null) {
 							double [] dh = disparityHistograms[nsTile];
@@ -773,18 +781,20 @@ public class SuperTiles{
 					null, // double  []   world_plane, // tilt equi-disparity planes to match real world planes (usually horizontal (or null)
 					null,   // boolean [][] tile_sel, // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
 					this.smplMode,   // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-					this.smplSide,   // final int        smplSide, //        = 2;      // Sample size (side of a square)
-					this.smplNum,    // final int        smplNum,  //         = 3;      // Number after removing worst
-					this.smplRms,    // final double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-					this.smplWnd,    // final boolean         smplWnd, //
+					this.mlfp,
 
-					this.max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-					this.max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-					this.damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-					this.min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-					this.transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-					this.far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-					this.far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
+//					this.smplSide,   // final int        smplSide, //        = 2;      // Sample size (side of a square)
+//					this.smplNum,    // final int        smplNum,  //         = 3;      // Number after removing worst
+//					this.smplRms,    // final double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//					this.smplWnd,    // final boolean         smplWnd, //
+
+//					this.max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+//					this.max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//					this.damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//					this.min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//					this.transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+//					this.far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//					this.far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 
 					this.measSel);   // calculate and blur with the current settings, specified at instantiation
 		}
@@ -797,18 +807,19 @@ public class SuperTiles{
 			final double [][][][] disparity_strength, // pre-calculated disparity/strength [per super-tile][per-measurement layer][2][tiles] or null
 			boolean [][] tile_sel, // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
 			boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-			int        smplSide, //        = 2;      // Sample size (side of a square)
-			int        smplNum,  //         = 3;      // Number after removing worst
-			double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-			boolean    smplWnd, //
+			MeasuredLayersFilterParameters mlfp, // parameters
+//			int        smplSide, //        = 2;      // Sample size (side of a square)
+//			int        smplNum,  //         = 3;      // Number after removing worst
+//			double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//			boolean    smplWnd, //
 
-  			double     max_abs_tilt,  //  2.0;   // pix per tile
-			double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-			double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-			double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-			double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-			int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-			double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
+//  			double     max_abs_tilt,  //  2.0;   // pix per tile
+//			double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
+//			double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
+//			double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//			double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
+//			int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
+//			double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
 
 			int        measSel) // bitmask of the selected measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 	{
@@ -817,18 +828,19 @@ public class SuperTiles{
 				disparity_strength, // pre-calculated disparity/strength [per super-tile][per-measurement layer][2][tiles] or nullntal (or null)
 				tile_sel,   // boolean [][] tile_sel, // null  or per-measurement layer, per-tile selection. For each layer null - do not use, {} - use all
 				smplMode,   // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-				smplSide,   // final int        smplSide, //        = 2;      // Sample size (side of a square)
-				smplNum,    // final int        smplNum,  //         = 3;      // Number after removing worst
-				smplRms,    // final double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-				smplWnd,    // final boolean         smplWnd, //
+				mlfp,
+//				smplSide,   // final int        smplSide, //        = 2;      // Sample size (side of a square)
+//				smplNum,    // final int        smplNum,  //         = 3;      // Number after removing worst
+//				smplRms,    // final double     smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//				smplWnd,    // final boolean         smplWnd, //
 
-				max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-				max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-				damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-				min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-				transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-				far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-				far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
+//				max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+//				max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//				damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//				min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//				transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+//				far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//				far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 
 				measSel); // calculate and blur with the current settings, specified at instantiation
 		return showDisparityHistogram(disparityHistograms);
@@ -994,7 +1006,7 @@ public class SuperTiles{
 			final double minBgDisparity,
 			final double minBgFract)
 	{
-		final double step_disparity = step_near; // TODO: implement
+////		final double step_disparity = step_near; // TODO: implement
 
 
 		if (maxMinMax == null) return null;
@@ -1410,7 +1422,7 @@ public class SuperTiles{
 			boolean [][][] selections,
 			TilePlanes.PlaneData [] planes)
 	{
-		int num_p  = selections.length;
+//		int num_p  = selections.length;
 		int num_pd = (planes != null) ? (planes.length - LOWEST_PLANE(planes.length)) : 0;
 		String [] titles = new String [9 * num_pd];
 		for (int npd = 0; npd < num_pd; npd++){
@@ -1529,18 +1541,20 @@ public class SuperTiles{
 			final boolean    correct_distortions,
 
 			final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-			final int        smplSide, //        = 2;      // Sample size (side of a square)
-			final int        smplNum, //         = 3;      // Number after removing worst
-			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-			final boolean    smplWnd, //
 
-			final double     max_abs_tilt,  //  2.0;   // pix per tile
-			final double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-			final double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-			final double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-			final double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-			final int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-			final double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
+			final MeasuredLayersFilterParameters mlfp,
+//			final int        smplSide, //        = 2;      // Sample size (side of a square)
+//			final int        smplNum, //         = 3;      // Number after removing worst
+//			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//			final boolean    smplWnd, //
+
+//			final double     max_abs_tilt,  //  2.0;   // pix per tile
+//			final double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
+//			final double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
+//			final double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//			final double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
+//			final int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
+//			final double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
 
 			final int        debugLevel,
 			final int        dbg_X,
@@ -1601,8 +1615,8 @@ public class SuperTiles{
 											stileX,         // int stX,
 											stileY,         // int stY,
 											null,           // boolean [] sel_in,
-											strength_floor, // double strength_floor,
-											strength_pow,   // double strength_pow,
+											mlfp.strength_floor, // double strength_floor,
+											mlfp.strength_pow,   // double strength_pow,
 											true);          // boolean null_if_none);
 									// if failed - keep constant disparity (plane_tilts[ml] = 	zero_tilts)
 
@@ -1649,20 +1663,20 @@ public class SuperTiles{
 										null,           // boolean [] sel_in,
 //										((world_plane_norm == null)? zero_tilts: plane_tilts[ml]),      // double []  tiltXY, // null - free with limit on both absolute (2.0?) and relative (0.2) values
 										(floating? null: plane_tilts[ml]),      // double []  tiltXY, // null - free with limit on both absolute (2.0?) and relative (0.2) values
-										strength_floor, // double strength_floor,
-										strength_pow,   // double strength_pow,
-										smplSide,       // int        smplSide, // = 2;   // Sample size (side of a square)
-										smplNum,        //int        smplNum,   // = 3;   // Number after removing worst (should be >1)
-										smplRms,        //double     smplRms,   // = 0.1; // Maximal RMS of the remaining tiles in a sample
-//										true,           // boolean null_if_none);
-										smplWnd,        // boolean         smplWnd, //
-										max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-										max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-										damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-										min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-										transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-										far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-										far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
+										mlfp,
+//										strength_floor, // double strength_floor,
+//										strength_pow,   // double strength_pow,
+//										smplSide,       // int        smplSide, // = 2;   // Sample size (side of a square)
+//										smplNum,        //int        smplNum,   // = 3;   // Number after removing worst (should be >1)
+//										smplRms,        //double     smplRms,   // = 0.1; // Maximal RMS of the remaining tiles in a sample
+//										smplWnd,        // boolean         smplWnd, //
+//										max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+//										max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//										damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//										min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//										transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+//										far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//										far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 										true,           // boolean null_if_none);
 										dl);
 							} else {
@@ -1671,8 +1685,8 @@ public class SuperTiles{
 										stileX,         // int stX,
 										stileY,         // int stY,
 										null,           // boolean [] sel_in,
-										strength_floor, // double strength_floor,
-										strength_pow,   // double strength_pow,
+										mlfp.strength_floor, // double strength_floor,
+										mlfp.strength_pow,   // double strength_pow,
 										true);          // boolean null_if_none);
 							}
 						}
@@ -2058,18 +2072,20 @@ public class SuperTiles{
 			final boolean    correct_distortions,
 
 			final boolean    smplMode,       //        = true;   // Use sample mode (false - regular tile mode)
-			final int        smplSide,       //        = 2;      // Sample size (side of a square)
-			final int        smplNum,        //         = 3;      // Number after removing worst
-			final double     smplRms,        //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-			final boolean    smplWnd,        // use window functions fro the samples
 
-			final double     max_abs_tilt,  //  2.0;   // pix per tile
-			final double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-			final double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-			final double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-			final double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-			final int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-			final double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
+			final MeasuredLayersFilterParameters mlfp,
+//			final int        smplSide,       //        = 2;      // Sample size (side of a square)
+//			final int        smplNum,        //         = 3;      // Number after removing worst
+//			final double     smplRms,        //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//			final boolean    smplWnd,        // use window functions fro the samples
+
+//			final double     max_abs_tilt,  //  2.0;   // pix per tile
+//			final double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
+//			final double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
+//			final double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//			final double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
+//			final int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
+//			final double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
 
 			final double     bin_blur_hor,   // Blur disparity histograms for horizontal clusters by this sigma (in bins)
 			final double     bin_blur_vert,  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
@@ -2148,18 +2164,19 @@ public class SuperTiles{
 				geometryCorrection,  // final GeometryCorrection geometryCorrection,
 				correct_distortions, // final boolean    correct_distortions,
 				smplMode,            // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
-				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
-				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-				smplWnd,             // final boolean    smplWnd,  // use window functions for the samples
+				mlfp,
+//				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
+//				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
+//				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//				smplWnd,             // final boolean    smplWnd,  // use window functions for the samples
 
-				max_abs_tilt,        // 2.0; // Maximal absolute tilt in pixels/tile
-				max_rel_tilt,        // 0.2; // Maximal relative tilt in pixels/tile/disparity
-				damp_tilt,           //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-				min_tilt_disp,       // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-				transition,          // 1.0; // Mode transition range (between tilted and maximal disparity)
-				far_mode,            //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-				far_power,           //    1.0; // Raise disparity to this power before averaging for far objects
+//				max_abs_tilt,        // 2.0; // Maximal absolute tilt in pixels/tile
+//				max_rel_tilt,        // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//				damp_tilt,           //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//				min_tilt_disp,       // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//				transition,          // 1.0; // Mode transition range (between tilted and maximal disparity)
+//				far_mode,            //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//				far_power,           //    1.0; // Raise disparity to this power before averaging for far objects
 
 				debugLevel,
 				dbg_X,
@@ -2172,18 +2189,19 @@ public class SuperTiles{
 				geometryCorrection,  // final GeometryCorrection geometryCorrection,
 				correct_distortions, // final boolean    correct_distortions,
 				smplMode,            // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
-				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
-				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-				smplWnd,             // final boolean    smplWnd,  // use window functions for the samples
+				mlfp,
+//				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
+//				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
+//				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//				smplWnd,             // final boolean    smplWnd,  // use window functions for the samples
 
-				max_abs_tilt,        // 2.0; // Maximal absolute tilt in pixels/tile
-				max_rel_tilt,        // 0.2; // Maximal relative tilt in pixels/tile/disparity
-				damp_tilt,           //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-				min_tilt_disp,       // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-				transition,          // 1.0; // Mode transition range (between tilted and maximal disparity)
-				far_mode,            //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-				far_power,           //    1.0; // Raise disparity to this power before averaging for far objects
+//				max_abs_tilt,        // 2.0; // Maximal absolute tilt in pixels/tile
+//				max_rel_tilt,        // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//				damp_tilt,           //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//				min_tilt_disp,       // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//				transition,          // 1.0; // Mode transition range (between tilted and maximal disparity)
+//				far_mode,            //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//				far_power,           //    1.0; // Raise disparity to this power before averaging for far objects
 
 				debugLevel,
 				dbg_X,
@@ -2421,18 +2439,20 @@ public class SuperTiles{
 			final boolean    correct_distortions,
 
 			final boolean    smplMode,             //        = true;   // Use sample mode (false - regular tile mode)
-			final int        smplSide,             //        = 2;      // Sample size (side of a square)
-			final int        smplNum,              //         = 3;      // Number after removing worst
-			final double     smplRms,              //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-			final boolean    smplWnd,              // use window functions for the samples
 
-			final double     max_abs_tilt,         //  2.0;   // pix per tile
-			final double     max_rel_tilt,         //  0.2;   // (pix / disparity) per tile
-			final double     damp_tilt,            //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-			final double     min_tilt_disp,        //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-			final double     transition,           //  1.0;   // Mode transition range (between tilted and maximal disparity)
-			final int        far_mode,             //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-			final double     far_power,            //  1.0;   // Raise disparity to this power before averaging for far objects
+			final MeasuredLayersFilterParameters mlfp,
+//			final int        smplSide,             //        = 2;      // Sample size (side of a square)
+//			final int        smplNum,              //         = 3;      // Number after removing worst
+//			final double     smplRms,              //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//			final boolean    smplWnd,              // use window functions for the samples
+
+//			final double     max_abs_tilt,         //  2.0;   // pix per tile
+//			final double     max_rel_tilt,         //  0.2;   // (pix / disparity) per tile
+//			final double     damp_tilt,            //  0.001; // Damp tilt to handle insufficient  (co-linear)data
+//			final double     min_tilt_disp,        //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//			final double     transition,           //  1.0;   // Mode transition range (between tilted and maximal disparity)
+//			final int        far_mode,             //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
+//			final double     far_power,            //  1.0;   // Raise disparity to this power before averaging for far objects
 
 			final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile
 			final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
@@ -2505,18 +2525,19 @@ public class SuperTiles{
 										stMeasSel,         // final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 										plDispNorm,        // final double     dispNorm,   //  Normalize disparities to the average if above
 										smplMode,          // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-										smplSide,          // final int        smplSide, //        = 2;      // Sample size (side of a square)
-										smplNum,           // final int        smplNum, //         = 3;      // Number after removing worst
-										smplRms,           // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-										smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
+										mlfp,
+//										smplSide,          // final int        smplSide, //        = 2;      // Sample size (side of a square)
+//										smplNum,           // final int        smplNum, //         = 3;      // Number after removing worst
+//										smplRms,           // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//										smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
 
-										max_abs_tilt,      // 2.0; // Maximal absolute tilt in pixels/tile
-										max_rel_tilt,      // 0.2; // Maximal relative tilt in pixels/tile/disparity
-										damp_tilt,         //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-										min_tilt_disp,     // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-										transition,        // 1.0; // Mode transition range (between tilted and maximal disparity)
-										far_mode,          //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-										far_power,         //    1.0; // Raise disparity to this power before averaging for far objects
+//										max_abs_tilt,      // 2.0; // Maximal absolute tilt in pixels/tile
+//										max_rel_tilt,      // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//										damp_tilt,         //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//										min_tilt_disp,     // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//										transition,        // 1.0; // Mode transition range (between tilted and maximal disparity)
+//										far_mode,          //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//										far_power,         //    1.0; // Raise disparity to this power before averaging for far objects
 
 										plDiscrTolerance,  // final double     disp_tolerance,   // maximal disparity difference from the plane to consider tile
 										plDiscrVarFloor,   // final double     disp_var_floor,   // squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
@@ -2622,20 +2643,21 @@ public class SuperTiles{
 			final boolean    plPreferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
 			final GeometryCorrection geometryCorrection,
 			final boolean    correct_distortions,
-
 			final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-			final int        smplSide, //        = 2;      // Sample size (side of a square)
-			final int        smplNum, //         = 3;      // Number after removing worst
-			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-			final boolean    smplWnd,  // use window functions for the samples
 
-			final double     max_abs_tilt,  //  2.0;   // pix per tile
-			final double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-			final double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-			final double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-			final double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-			final int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-			final double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
+			final MeasuredLayersFilterParameters mlfp,
+//			final int        smplSide, //        = 2;      // Sample size (side of a square)
+//			final int        smplNum, //         = 3;      // Number after removing worst
+//			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//			final boolean    smplWnd,  // use window functions for the samples
+
+//			final double     max_abs_tilt,  //  2.0;   // pix per tile
+//			final double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
+//			final double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
+//			final double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//			final double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
+//			final int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
+//			final double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
 
 			final int        debugLevel,
 			final int        dbg_X,
@@ -2697,22 +2719,25 @@ public class SuperTiles{
 											plTargetEigen,            // double       plTargetEigen, //        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
 											plFractOutliers,          // double       plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
 											plMaxOutliers,            // int          plMaxOutliers, //        =    20;  // Maximal number of outliers to remove
-											strength_floor,           // double       strength_floor,
-											strength_pow,             // double       strength_pow,
+//											strength_floor,           // double       strength_floor,
+//											strength_pow,             // double       strength_pow,
 											correct_distortions,      // boolean      correct_distortions,
 											smplMode,                 // boolean      smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-											smplSide,                 // int          smplSide, //        = 2;      // Sample size (side of a square)
-											smplNum,                  //  int          smplNum, //         = 3;      // Number after removing worst
-											smplRms,                  //  double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-											smplWnd,                  // final boolean    smplWnd,  // use window functions for the samples
 
-											max_abs_tilt,             // 2.0; // Maximal absolute tilt in pixels/tile
-											max_rel_tilt,             // 0.2; // Maximal relative tilt in pixels/tile/disparity
-											damp_tilt,                //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-											min_tilt_disp,            // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-											transition,               // 1.0; // Mode transition range (between tilted and maximal disparity)
-											far_mode,                 //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-											far_power,                //    1.0; // Raise disparity to this power before averaging for far objects
+											mlfp,
+
+//											smplSide,                 // int          smplSide, //        = 2;      // Sample size (side of a square)
+//											smplNum,                  //  int          smplNum, //         = 3;      // Number after removing worst
+//											smplRms,                  //  double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//											smplWnd,                  // final boolean    smplWnd,  // use window functions for the samples
+
+//											max_abs_tilt,             // 2.0; // Maximal absolute tilt in pixels/tile
+//											max_rel_tilt,             // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//											damp_tilt,                //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//											min_tilt_disp,            // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//											transition,               // 1.0; // Mode transition range (between tilted and maximal disparity)
+//											far_mode,                 //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//											far_power,                //    1.0; // Raise disparity to this power before averaging for far objects
 
 											dl);                       // int          debugLevel);
 
@@ -2749,22 +2774,23 @@ public class SuperTiles{
 											plTargetEigen,            // double       plTargetEigen, //        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
 											0.0,                      // double       plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
 											0,                        // plMaxOutliers,            // int          plMaxOutliers, //        =    20;  // Maximal number of outliers to remove
-											strength_floor,           // double       strength_floor,
-											strength_pow,             // double       strength_pow,
+//											strength_floor,           // double       strength_floor,
+//											strength_pow,             // double       strength_pow,
 											correct_distortions,      // boolean      correct_distortions,
 											smplMode,                 // boolean      smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-											smplSide,                 // int          smplSide, //        = 2;      // Sample size (side of a square)
-											smplNum,                  //  int          smplNum, //         = 3;      // Number after removing worst
-											smplRms,                  //  double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-											smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
+											mlfp,
+//											smplSide,                 // int          smplSide, //        = 2;      // Sample size (side of a square)
+//											smplNum,                  //  int          smplNum, //         = 3;      // Number after removing worst
+//											smplRms,                  //  double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//											smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
 
-											max_abs_tilt,             // 2.0; // Maximal absolute tilt in pixels/tile
-											max_rel_tilt,             // 0.2; // Maximal relative tilt in pixels/tile/disparity
-											damp_tilt,                //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-											min_tilt_disp,            // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-											transition,               // 1.0; // Mode transition range (between tilted and maximal disparity)
-											far_mode,                 //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-											far_power,                //    1.0; // Raise disparity to this power before averaging for far objects
+//											max_abs_tilt,             // 2.0; // Maximal absolute tilt in pixels/tile
+//											max_rel_tilt,             // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//											damp_tilt,                //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//											min_tilt_disp,            // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//											transition,               // 1.0; // Mode transition range (between tilted and maximal disparity)
+//											far_mode,                 //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//											far_power,                //    1.0; // Raise disparity to this power before averaging for far objects
 
 											dl - 1);                       // int          debugLevel);
 								}
@@ -2842,18 +2868,20 @@ public class SuperTiles{
 			final boolean    correct_distortions,
 
 			final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-			final int        smplSide, //        = 2;      // Sample size (side of a square)
-			final int        smplNum, //         = 3;      // Number after removing worst
-			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-			final boolean    smplWnd,        // use window functions fro the samples
 
-			final double     max_abs_tilt,  //  2.0;   // pix per tile
-			final double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-			final double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-			final double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-			final double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-			final int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-			final double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
+			final MeasuredLayersFilterParameters mlfp,
+//			final int        smplSide, //        = 2;      // Sample size (side of a square)
+//			final int        smplNum, //         = 3;      // Number after removing worst
+//			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//			final boolean    smplWnd,        // use window functions fro the samples
+
+//			final double     max_abs_tilt,  //  2.0;   // pix per tile
+//			final double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
+//			final double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
+//			final double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//			final double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
+//			final int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
+//			final double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
 
 			final double     bin_blur_hor,   // Blur disparity histograms for horizontal clusters by this sigma (in bins)
 			final double     bin_blur_vert,  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
@@ -2890,18 +2918,19 @@ public class SuperTiles{
 				correct_distortions, // final boolean    correct_distortions,
 
 				smplMode,            // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-				smplSide,            //  final int        smplSide, //        = 2;      // Sample size (side of a square)
-				smplNum,             //  final int        smplNum, //         = 3;      // Number after removing worst
-				smplRms,             //  final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-				smplWnd,             // final boolean    smplWnd,        // use window functions fro the samples
+				mlfp,
+//				smplSide,            //  final int        smplSide, //        = 2;      // Sample size (side of a square)
+//				smplNum,             //  final int        smplNum, //         = 3;      // Number after removing worst
+//				smplRms,             //  final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//				smplWnd,             // final boolean    smplWnd,        // use window functions fro the samples
 
-				max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-				max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-				damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-				min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-				transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-				far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-				far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
+//				max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+//				max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//				damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//				min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//				transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+//				far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//				far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 
 				bin_blur_hor,   // final double     bin_blur_hor,   // Blur disparity histograms for horizontal clusters by this sigma (in bins)
 				bin_blur_vert,  // final double     bin_blur_vert,  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
@@ -2928,18 +2957,19 @@ public class SuperTiles{
 				correct_distortions, // final boolean    correct_distortions,
 
 				smplMode,            // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
-				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
-				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-				smplWnd,             // final boolean    smplWnd,        // use window functions fro the samples
+				mlfp,
+//				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
+//				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
+//				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//				smplWnd,             // final boolean    smplWnd,        // use window functions fro the samples
 
-				max_abs_tilt,        // 2.0; // Maximal absolute tilt in pixels/tile
-				max_rel_tilt,        // 0.2; // Maximal relative tilt in pixels/tile/disparity
-				damp_tilt,           //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-				min_tilt_disp,       // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-				transition,          // 1.0; // Mode transition range (between tilted and maximal disparity)
-				far_mode,            //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-				far_power,           //    1.0; // Raise disparity to this power before averaging for far objects
+//				max_abs_tilt,        // 2.0; // Maximal absolute tilt in pixels/tile
+//				max_rel_tilt,        // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//				damp_tilt,           //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//				min_tilt_disp,       // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//				transition,          // 1.0; // Mode transition range (between tilted and maximal disparity)
+//				far_mode,            //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//				far_power,           //    1.0; // Raise disparity to this power before averaging for far objects
 
 				debugLevel,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
@@ -2960,18 +2990,19 @@ public class SuperTiles{
 				correct_distortions, // final boolean    correct_distortions,
 
 				smplMode,            // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
-				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
-				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-				smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
+				mlfp,
+//				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
+//				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
+//				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//				smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
 
-				max_abs_tilt,        // 2.0; // Maximal absolute tilt in pixels/tile
-				max_rel_tilt,        // 0.2; // Maximal relative tilt in pixels/tile/disparity
-				damp_tilt,           //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-				min_tilt_disp,       // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-				transition,          // 1.0; // Mode transition range (between tilted and maximal disparity)
-				far_mode,            //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-				far_power,           //    1.0; // Raise disparity to this power before averaging for far objects
+//				max_abs_tilt,        // 2.0; // Maximal absolute tilt in pixels/tile
+//				max_rel_tilt,        // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//				damp_tilt,           //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//				min_tilt_disp,       // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//				transition,          // 1.0; // Mode transition range (between tilted and maximal disparity)
+//				far_mode,            //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//				far_power,           //    1.0; // Raise disparity to this power before averaging for far objects
 
 				debugLevel + 0, // 1, //  + 2, // 1,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
@@ -3033,18 +3064,20 @@ public class SuperTiles{
 			final boolean    correct_distortions,
 
 			final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-			final int        smplSide, //        = 2;      // Sample size (side of a square)
-			final int        smplNum, //         = 3;      // Number after removing worst
-			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-			final boolean    smplWnd,  // use window functions for the samples
 
-			final double     max_abs_tilt,  //  2.0;   // pix per tile
-			final double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-			final double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-			final double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-			final double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-			final int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-			final double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
+			final MeasuredLayersFilterParameters mlfp,
+//			final int        smplSide, //        = 2;      // Sample size (side of a square)
+//			final int        smplNum, //         = 3;      // Number after removing worst
+//			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//			final boolean    smplWnd,  // use window functions for the samples
+
+//			final double     max_abs_tilt,  //  2.0;   // pix per tile
+//			final double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
+//			final double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
+//			final double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//			final double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
+//			final int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
+//			final double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
 
 			final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile
 			final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
@@ -3084,18 +3117,19 @@ public class SuperTiles{
 				correct_distortions,  // final boolean    correct_distortions,
 
 				smplMode,             // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-				smplSide,             //  final int        smplSide, //        = 2;      // Sample size (side of a square)
-				smplNum,              //  final int        smplNum, //         = 3;      // Number after removing worst
-				smplRms,              //  final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-				smplWnd,              // final boolean    smplWnd,  // use window functions for the samples
+				mlfp,
+//				smplSide,             //  final int        smplSide, //        = 2;      // Sample size (side of a square)
+//				smplNum,              //  final int        smplNum, //         = 3;      // Number after removing worst
+//				smplRms,              //  final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//				smplWnd,              // final boolean    smplWnd,  // use window functions for the samples
 
-				max_abs_tilt,         // 2.0; // Maximal absolute tilt in pixels/tile
-				max_rel_tilt,         // 0.2; // Maximal relative tilt in pixels/tile/disparity
-				damp_tilt,            //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-				min_tilt_disp,        // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-				transition,           // 1.0; // Mode transition range (between tilted and maximal disparity)
-				far_mode,             //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-				far_power,            //    1.0; // Raise disparity to this power before averaging for far objects
+//				max_abs_tilt,         // 2.0; // Maximal absolute tilt in pixels/tile
+//				max_rel_tilt,         // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//				damp_tilt,            //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//				min_tilt_disp,        // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//				transition,           // 1.0; // Mode transition range (between tilted and maximal disparity)
+//				far_mode,             //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//				far_power,            //    1.0; // Raise disparity to this power before averaging for far objects
 
 				plDiscrTolerance,     //final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile
 				plDiscrDispRange,     // final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
@@ -3131,18 +3165,19 @@ public class SuperTiles{
 				correct_distortions, // final boolean    correct_distortions,
 
 				smplMode,            // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
-				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
-				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-				smplWnd,             // final boolean    smplWnd,  // use window functions for the samples
+				mlfp,
+//				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
+//				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
+//				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//				smplWnd,             // final boolean    smplWnd,  // use window functions for the samples
 
-				max_abs_tilt,        // 2.0; // Maximal absolute tilt in pixels/tile
-				max_rel_tilt,        // 0.2; // Maximal relative tilt in pixels/tile/disparity
-				damp_tilt,           //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-				min_tilt_disp,       // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-				transition,          // 1.0; // Mode transition range (between tilted and maximal disparity)
-				far_mode,            //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-				far_power,           //    1.0; // Raise disparity to this power before averaging for far objects
+//				max_abs_tilt,        // 2.0; // Maximal absolute tilt in pixels/tile
+//				max_rel_tilt,        // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//				damp_tilt,           //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//				min_tilt_disp,       // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//				transition,          // 1.0; // Mode transition range (between tilted and maximal disparity)
+//				far_mode,            //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//				far_power,           //    1.0; // Raise disparity to this power before averaging for far objects
 
 				debugLevel,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
@@ -3163,18 +3198,19 @@ public class SuperTiles{
 				correct_distortions, // final boolean    correct_distortions,
 
 				smplMode,            // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
-				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
-				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-				smplWnd,             // final boolean    smplWnd,  // use window functions for the samples
+				mlfp,
+//				smplSide,            // final int        smplSide, //        = 2;      // Sample size (side of a square)
+//				smplNum,             // final int        smplNum, //         = 3;      // Number after removing worst
+//				smplRms,             // final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//				smplWnd,             // final boolean    smplWnd,  // use window functions for the samples
 
-				max_abs_tilt,        // 2.0; // Maximal absolute tilt in pixels/tile
-				max_rel_tilt,        // 0.2; // Maximal relative tilt in pixels/tile/disparity
-				damp_tilt,           //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-				min_tilt_disp,       // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-				transition,          // 1.0; // Mode transition range (between tilted and maximal disparity)
-				far_mode,            //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-				far_power,           //    1.0; // Raise disparity to this power before averaging for far objects
+//				max_abs_tilt,        // 2.0; // Maximal absolute tilt in pixels/tile
+//				max_rel_tilt,        // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//				damp_tilt,           //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//				min_tilt_disp,       // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//				transition,          // 1.0; // Mode transition range (between tilted and maximal disparity)
+//				far_mode,            //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//				far_power,           //    1.0; // Raise disparity to this power before averaging for far objects
 
 				debugLevel, //  + 2, // 1,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
@@ -6464,22 +6500,23 @@ public class SuperTiles{
 										dispNorm,       // double       dispNorm,   //  Normalize disparities to the average if above
 										min_weight,     // double       min_weight,
 										min_tiles,      // int          min_tiles,
-										strength_floor, // double       strength_floor,
-										strength_pow,   // double       strength_pow,
+//										strength_floor, // double       strength_floor,
+//										strength_pow,   // double       strength_pow,
 //OK?
 										smplMode,
-										smplSide,
-										smplNum,
-										smplRms,
-										smplWnd,
+										mlfp,
+//										smplSide,
+//										smplNum,
+//										smplRms,
+//										smplWnd,
 
-										max_abs_tilt,             // 2.0; // Maximal absolute tilt in pixels/tile
-										max_rel_tilt,             // 0.2; // Maximal relative tilt in pixels/tile/disparity
-										damp_tilt,                //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-										min_tilt_disp,            // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-										transition,               // 1.0; // Mode transition range (between tilted and maximal disparity)
-										far_mode,                 //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-										far_power,                //    1.0; // Raise disparity to this power before averaging for far objects
+//										max_abs_tilt,             // 2.0; // Maximal absolute tilt in pixels/tile
+//										max_rel_tilt,             // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//										damp_tilt,                //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//										min_tilt_disp,            // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//										transition,               // 1.0; // Mode transition range (between tilted and maximal disparity)
+//										far_mode,                 //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//										far_power,                //    1.0; // Raise disparity to this power before averaging for far objects
 
 										dl - 2);            // int          debugLevel)
 								if (disp_strength == null) {
@@ -6495,23 +6532,24 @@ public class SuperTiles{
 										dispNorm,       // double       dispNorm,   //  Normalize disparities to the average if above
 										min_weight,     // double       min_weight,
 										min_tiles,      // int          min_tiles,
-										strength_floor, // double       strength_floor,
-										strength_pow,   // double       strength_pow,
+//										strength_floor, // double       strength_floor,
+//										strength_pow,   // double       strength_pow,
 //OK?
 										smplMode,
-										smplSide,
-										smplNum,
-										smplRms,
+										mlfp,
+//										smplSide,
+//										smplNum,
+//										smplRms,
 
-										smplWnd, // was not here
+//										smplWnd, // was not here
 
-										max_abs_tilt,             // 2.0; // Maximal absolute tilt in pixels/tile
-										max_rel_tilt,             // 0.2; // Maximal relative tilt in pixels/tile/disparity
-										damp_tilt,                //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-										min_tilt_disp,            // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-										transition,               // 1.0; // Mode transition range (between tilted and maximal disparity)
-										far_mode,                 //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-										far_power,                //    1.0; // Raise disparity to this power before averaging for far objects
+//										max_abs_tilt,             // 2.0; // Maximal absolute tilt in pixels/tile
+//										max_rel_tilt,             // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//										damp_tilt,                //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//										min_tilt_disp,            // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//										transition,               // 1.0; // Mode transition range (between tilted and maximal disparity)
+//										far_mode,                 //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//										far_power,                //    1.0; // Raise disparity to this power before averaging for far objects
 
 										dl - 2);            // int          debugLevel)
 
@@ -6641,22 +6679,23 @@ public class SuperTiles{
 			final double                     targetEigen,   //     =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
 			final double                     fractOutliers, //     =   0.3;  // Maximal fraction of outliers to remove
 			final int                        maxOutliers,   //     =   20;  // Maximal number of outliers to remove
-			final double                     strength_floor,
-			final double                     strength_pow,
+//			final double                     strength_floor,
+//			final double                     strength_pow,
 
 			final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-			final int                        smplSide, //        = 2;      // Sample size (side of a square)
-			final int                        smplNum, //         = 3;      // Number after removing worst
-			final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-			final boolean                    smplWnd,  // use window functions for the samples
+			final MeasuredLayersFilterParameters mlfp,
+//			final int                        smplSide, //        = 2;      // Sample size (side of a square)
+//			final int                        smplNum, //         = 3;      // Number after removing worst
+//			final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+//			final boolean                    smplWnd,  // use window functions for the samples
 
-			final double                     max_abs_tilt,  //  2.0;   // pix per tile
-			final double                     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-			final double                     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-			final double                     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-			final double                     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-			final int                        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-			final double                     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
+//			final double                     max_abs_tilt,  //  2.0;   // pix per tile
+//			final double                     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
+//			final double                     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
+//			final double                     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//			final double                     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
+//			final int                        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
+//			final double                     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
 
 			final int                        debugLevel,
 			final int                        dbg_X,
@@ -6778,8 +6817,9 @@ public class SuperTiles{
 												stx,        // int stX,
 												sty,        // int stY,
 												null,       // boolean [] sel_in,
-												strength_floor,         //  double strength_floor,
-												strength_pow,  // double strength_pow,
+												mlfp,
+//												strength_floor,         //  double strength_floor,
+//												strength_pow,  // double strength_pow,
 												true);                  // boolean null_if_none);
 										if (dbg_disp_str != null){
 											boolean [] dbg_msel = planes[nsTile][np].getMeasSelection(ml);
@@ -6809,18 +6849,19 @@ public class SuperTiles{
 											non_exclusive,    // boolean      non_exclusive,
 											use_other_planes, // boolean      use_other_planes,
 											smplMode,
-											smplSide,
-											smplNum,
-											smplRms,
-											smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
+											mlfp,
+//											smplSide,
+//											smplNum,
+//											smplRms,
+//											smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
 
-											max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-											max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-											damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-											min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-											transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-											far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-											far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
+//											max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+//											max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//											damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//											min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//											transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+//											far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//											far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 
 											measSel,          // int          measSel, // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 											allow_parallel,   //boolean      allow_parallel,
@@ -6853,22 +6894,23 @@ public class SuperTiles{
 												dispNorm,       // double       dispNorm,   //  Normalize disparities to the average if above
 												min_weight,     // double       min_weight,
 												min_tiles,      // int          min_tiles,
-												strength_floor, // double       strength_floor,
-												strength_pow,   // double       strength_pow,
+//												strength_floor, // double       strength_floor,
+//												strength_pow,   // double       strength_pow,
 // OK?
 												smplMode,
-												smplSide,
-												smplNum,
-												smplRms,
-												smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
+												mlfp,
+//												smplSide,
+//												smplNum,
+//												smplRms,
+//												smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
 
-												max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-												max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-												damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-												min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-												transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-												far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-												far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
+//												max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+//												max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//												damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//												min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//												transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+//												far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//												far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 
 												dl);            // int          debugLevel)
 										if (disp_strength == null) break;
@@ -6898,22 +6940,23 @@ public class SuperTiles{
 												dispNorm,       // double       dispNorm,   //  Normalize disparities to the average if above
 												min_weight,     // double       min_weight,
 												min_tiles,      // int          min_tiles,
-												strength_floor, // double       strength_floor,
-												strength_pow,   // double       strength_pow,
+//												strength_floor, // double       strength_floor,
+//												strength_pow,   // double       strength_pow,
 // OK?
 												smplMode,
-												smplSide,
-												smplNum,
-												smplRms,
-												smplWnd,           // was not here: final boolean    smplWnd,  // use window functions for the samples
+												mlfp,
+//												smplSide,
+//												smplNum,
+//												smplRms,
+//												smplWnd,           // was not here: final boolean    smplWnd,  // use window functions for the samples
 
-												max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-												max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-												damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-												min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-												transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-												far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-												far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
+//												max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
+//												max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
+//												damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
+//												min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//												transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
+//												far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//												far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 
 												dl);            // int          debugLevel)
 									}
@@ -7982,8 +8025,9 @@ public class SuperTiles{
 		for (int ml = 0; ml <  numMeasLayers; ml++) if ((stMeasSel & ( 1 << ml)) != 0) {
 			ds[ml] = 	measuredLayers.getDisparityStrengthML (
 					ml, // int num_layer,
-					this.strength_floor, // double strength_floor,
-					this.strength_pow); //  double strength_pow)
+					this.mlfp);
+//					this.mlfp.strength_floor, // double strength_floor,
+//					this.mlfp.strength_pow); //  double strength_pow)
 		}
 		return ds;
 	}

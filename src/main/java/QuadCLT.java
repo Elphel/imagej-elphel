@@ -3690,8 +3690,8 @@ public class QuadCLT {
 				  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
 				  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
 				  clt_parameters.max_corr_radius,
-				  clt_parameters.enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
-				  clt_parameters.enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
+//				  clt_parameters.enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
+//				  clt_parameters.enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
 				  clt_parameters.max_corr_double, // Double pass when masking center of mass to reduce preference for integer values
 				  clt_parameters.corr_mode,     // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
 				  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
@@ -4766,8 +4766,8 @@ public class QuadCLT {
 					  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
 					  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
 					  clt_parameters.max_corr_radius,
-					  clt_parameters.enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
-					  clt_parameters.enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
+//					  clt_parameters.enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
+//					  clt_parameters.enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
 					  clt_parameters.max_corr_double, // Double pass when masking center of mass to reduce preference for integer values
 					  clt_parameters.corr_mode,     // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
 					  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
@@ -7869,8 +7869,8 @@ public class QuadCLT {
 				  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
 				  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
 				  clt_parameters.max_corr_radius,
-				  clt_parameters.enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
-				  clt_parameters.enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
+//				  clt_parameters.enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
+//				  clt_parameters.enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
 				  clt_parameters.max_corr_double, // Double pass when masking center of mass to reduce preference for integer values
 				  clt_parameters.corr_mode,     // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
 				  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than
@@ -8083,8 +8083,8 @@ public class QuadCLT {
 				  min_corr_selected, // 0.0001; // minimal correlation value to consider valid
 				  clt_parameters.max_corr_sigma,// 1.5;  // weights of points around global max to find fractional
 				  clt_parameters.max_corr_radius,
-				  clt_parameters.enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
-				  clt_parameters.enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
+//				  clt_parameters.enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
+//				  clt_parameters.enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
 				  clt_parameters.max_corr_double, // Double pass when masking center of mass to reduce preference for integer values
 				  clt_parameters.corr_mode,     // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
 				  clt_parameters.min_shot,       // 10.0;  // Do not adjust for shot noise if lower than

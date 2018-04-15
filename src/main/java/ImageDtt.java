@@ -57,6 +57,7 @@ public class ImageDtt {
 	  static int  QUAD =                           4; // number of cameras in camera
 	  static int  GREEN_CHN =                      2; // index of green channel
 	  static int  DISPARITY_INDEX_INT =            0; // 0 - disparity from correlation integer pixels, 1 - ortho
+	  // Now DISPARITY_INDEX_CM may be POLY with backup from CM (for bad correlation)
 	  static int  DISPARITY_INDEX_CM =             2; // 2 - disparity from correlation "center mass", 3 - ortho (only used for fine correction)
 	  static int  DISPARITY_INDEX_HOR =            4; // disparity from correlation of the horizontal pairs with center suppressed
 	  static int  DISPARITY_INDEX_HOR_STRENGTH =   5; // strength for hor mode (emphasis on vertical lines)
@@ -72,10 +73,19 @@ public class ImageDtt {
 	  static int  DBG1_INDEX =                    18; // index of dbg1 data (poly 1)
 	  static int  DBG2_INDEX =                    19; // index of dbg2 data (poly 2)
 	  static int  DBG3_INDEX =                    20; // index of dbg3 data (poly 3)
+	  static int  DBG4_INDEX =                    21; // index of dbg3 data (poly 3)
+	  static int  DBG5_INDEX =                    22; // index of dbg3 data (poly 3)
+	  static int  DBG6_INDEX =                    23; // index of dbg3 data (poly 3)
+	  static int  DBG7_INDEX =                    24; // index of dbg3 data (poly 3)
+	  static int  DBG8_INDEX =                    25; // index of dbg3 data (poly 3)
+	  static int  DBG9_INDEX =                    26; // index of dbg3 data (poly 3)
+	  static int  DBG10_INDEX =                   27; // index of dbg3 data (poly 3)
+	  static int  DBG11_INDEX =                   28; // index of dbg3 data (poly 3)
+	  static int  DBG12_INDEX =                   29; // index of dbg3 data (poly 3)
 	  static String [] DISPARITY_TITLES = {
 			  "int_disp","int_y_disp","cm_disp","cm_y_disp","hor_disp","hor_strength","vert_disp","vert_strength",
 			  "poly_disp", "poly_y_disp", "strength_disp", "vary_disp","diff0","diff1","diff2","diff3","overexp",
-			  "dbg0","dbg1","dbg2","dbg3"};
+			  "dbg0","dbg1","dbg2","dbg3","dbg4","dbg5","dbg6","dbg7","dbg8","dbg9","dbg10","dbg11","dbg12"};
 
 	  static int  TCORR_COMBO_RSLT =  0; // normal combined correlation from all   selected pairs (mult/sum)
 	  static int  TCORR_COMBO_SUM =   1; // sum of channel correlations from all   selected pairs
@@ -1403,8 +1413,8 @@ public class ImageDtt {
 			final double              max_corr_sigma,  // 1.5;  // weights of points around global max to find fractional
 			final double              max_corr_radius, // 3.5;
 
-			final int                 enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
-			final double              enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
+//			final int                 enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
+//			final double              enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
 
 			final boolean 			  max_corr_double, //"Double pass when masking center of mass to reduce preference for integer values
 			final int                 corr_mode, // Correlation mode: 0 - integer max, 1 - center of mass, 2 - polynomial
@@ -1435,6 +1445,7 @@ public class ImageDtt {
 			final int                 globalDebugLevel)
 	{
 //		final boolean debug_ports_coordinates = (debug_tileX == -1234);
+		final double poly_corr = imgdtt_params.poly_corr_scale; // maybe add per-tile task bits to select none/near/far
 		final boolean macro_mode = macro_scale != 1;      // correlate tile data instead of the pixel data
 		final int quad = 4;   // number of subcameras
 		final int numcol = 3; // number of colors
@@ -1468,18 +1479,43 @@ public class ImageDtt {
 
 		final double [] enh_ortho_scale = new double [corr_size];
 		for (int i = 0; i < corr_size; i++){
-			if ((i < (transform_size - enhortho_width)) || (i > (transform_size - 2 + enhortho_width))) enh_ortho_scale[i] = 1.0;
-			else enh_ortho_scale[i] = enhortho_scale;
+			if ((i < (transform_size - imgdtt_params.enhortho_width)) || (i > (transform_size - 2 + imgdtt_params.enhortho_width))) {
+				enh_ortho_scale[i] = 1.0;
+			} else {
+				enh_ortho_scale[i] = imgdtt_params.enhortho_scale;
+			}
 			if (i == (transform_size-1)) enh_ortho_scale[i] = 0.0 ; // hardwired 0 in the center
 			enh_ortho_scale[i] *= Math.sin(Math.PI*(i+1.0)/(2*transform_size));
 		}
 		if (globalDebugLevel > 0){
-			System.out.println("enhortho_width="+ enhortho_width+" enhortho_scale="+ enhortho_scale);
+			System.out.println("enhortho_width="+ imgdtt_params.enhortho_width+" enhortho_scale="+ imgdtt_params.enhortho_scale);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" enh_ortho_scale["+i+"]="+ enh_ortho_scale[i]);
 
 			}
 		}
+
+		// Create window  to select center correlation strip using
+		// ortho_height - full width of non-zero elements
+		// ortho_eff_height - effective height (ration of the weighted column sum to the center value)
+		int wcenter = transform_size - 1;
+		final double [] ortho_weights = new double [corr_size]; // [15]
+		for (int i = 0; i < corr_size; i++){
+			if ((i >= wcenter - imgdtt_params.ortho_height/2) && (i <= wcenter + imgdtt_params.ortho_height/2)) {
+				double dx = 1.0*(i-wcenter)/(imgdtt_params.ortho_height/2 + 1);
+				ortho_weights[i] = 0.5*(1.0+Math.cos(Math.PI*dx))/imgdtt_params.ortho_eff_height;
+			}
+		}
+		if (globalDebugLevel > 0){
+			System.out.println("ortho_height="+ imgdtt_params.ortho_height+" ortho_eff_height="+ imgdtt_params.ortho_eff_height);
+			for (int i = 0; i < corr_size; i++){
+				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
+			}
+		}
+
+
+
+
 		if (globalDebugLevel > 0) {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
@@ -1832,10 +1868,7 @@ public class ImageDtt {
 										}
 										System.out.println();
 									}
-
-
-
-								}
+								} // end of debug_for_fpga
 
 								clt_data[i][chn][tileY][tileX] = new double [4][];
 								fract_shiftsXY[i] = extract_correct_tile( // return a pair of residual offsets
@@ -1916,7 +1949,6 @@ public class ImageDtt {
 						if (clt_corr_combo != null){ // not null - calculate correlations
 
 							tcorr_tpartial=new double[corr_pairs.length][numcol+1][4][transform_len];
-//							tcorr_tcombo =   new double[quad][transform_len];
 							tcorr_partial =  new double[quad][numcol+1][];
 
 							for (int pair = 0; pair < corr_pairs.length; pair++){
@@ -1991,6 +2023,7 @@ public class ImageDtt {
 									}
 								}
 								// make symmetrical around the disparity direction (horizontal) (here using just average, not mul/sum mixture)
+								// symmetry can be added to result, not individual (if sum - yes, but with multiplication - not)
 								if (corr_sym && (clt_mismatch == null)){ // when measuring clt_mismatch symmetry should be off !
 									for (int chn = firstColor; chn <= numcol; chn++){
 										for (int i = 1 ; i < transform_size; i++){
@@ -2199,9 +2232,33 @@ public class ImageDtt {
 												corr_max_weights_poly,              // [(radius+1) * (radius+1)]
 												max_search_radius_poly,             // max_search_radius, for polynomial - always use 1
 												imgdtt_params.poly_pwr,             // double    value_pwr, // raise value to this power (trying to compensate sticking to integer values)
-												imgdtt_params.poly_value_to_weight, //boolean   poly_value_to_weight, // multiply weight by value
+												imgdtt_params.poly_vasw_pwr,        // double   poly_vasw_pwr, // multiply weight by value
 
 												debugMax);
+										// Possible to bypass ortho calculation for bad tiles?
+										double [][] corr_max_ortho = new double[2][];
+										// return argmax, max, half-width
+										corr_max_ortho[0] =	getMaxXSOrtho2(   // get fractional center using a quadratic polynomial
+												tcorr_combo[TCORR_COMBO_HOR], // double [] data,            // [data_size * data_size]
+												ortho_weights,                // double [] enhortho_scales, // [data_size]
+												corr_size,                    // int       data_size,
+												imgdtt_params.ortho_nsamples, // int       num_samples,     // number of samples to keep (5?)
+												imgdtt_params.ortho_vasw_pwr, // double   value_as_weight, // use positive value as sample weight
+												(globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY)); // debugMax);
+										corr_max_ortho[1] =	getMaxXSOrtho2(   // get fractional center using a quadratic polynomial
+												tcorr_combo[TCORR_COMBO_VERT],// double [] data,            // [data_size * data_size]
+												ortho_weights,                // double [] enhortho_scales, // [data_size]
+												corr_size,                    // int       data_size,
+												imgdtt_params.ortho_nsamples, // int       num_samples,     // number of samples to keep (5?)
+												imgdtt_params.ortho_vasw_pwr, // double   value_as_weight, // use positive value as sample weight
+												(globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY)); // debugMax);
+//										(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // debugMax);
+ //										disparity_map[DISPARITY_INDEX_HOR][tIndex] = transform_size - 1 - corr_max_XS_hor[0];
+//										disparity_map[DISPARITY_INDEX_HOR_STRENGTH][tIndex] = corr_max_XS_hor[1];
+
+
+
+
 										//double
 										if (corr_max_XY != null){
 											corr_max_XY[0] = transform_size - 1 -corr_max_XY[0];
@@ -2211,15 +2268,27 @@ public class ImageDtt {
 											corr_max_XY[0] = Double.NaN;
 											corr_max_XY[1] = Double.NaN;
 										}
-/*
-										if (corr_max_XY != null){
-											disparity_map[DISPARITY_INDEX_POLY][tIndex] = transform_size - 1 -corr_max_XY[0];
-											disparity_map[DISPARITY_INDEX_POLY+1][tIndex] = transform_size - 1 -corr_max_XY[1];
+
+										if (corr_max_ortho[0] != null){
+											corr_max_ortho[0][0] = transform_size - 1 -corr_max_ortho[0][0];
 										} else {
-											disparity_map[DISPARITY_INDEX_POLY][tIndex] = Double.NaN;
-											disparity_map[DISPARITY_INDEX_POLY+1][tIndex] = Double.NaN;
+											corr_max_ortho[0] = new double[3];
+											corr_max_ortho[0][0] = Double.NaN;
+											corr_max_ortho[0][1] = Double.NaN;
+											corr_max_ortho[0][2] = Double.NaN;
 										}
-*/
+
+										if (corr_max_ortho[1] != null){
+											corr_max_ortho[1][0] = transform_size - 1 -corr_max_ortho[1][0];
+										} else {
+											corr_max_ortho[1] = new double[3];
+											corr_max_ortho[1][0] = Double.NaN;
+											corr_max_ortho[1][1] = Double.NaN;
+											corr_max_ortho[1][2] = Double.NaN;
+										}
+
+
+
 										disparity_map[DISPARITY_INDEX_POLY][tIndex] =   corr_max_XY[0];
 										disparity_map[DISPARITY_INDEX_POLY+1][tIndex] = corr_max_XY[1];
 
@@ -2232,26 +2301,101 @@ public class ImageDtt {
 										}
 										if (disparity_map[DBG1_INDEX] != null) {
 											disparity_map[DBG1_INDEX][tIndex] = disparity_map[DBG0_INDEX][tIndex];
-											if (!Double.isNaN(corr_max_XY[0]) &&
-													(Math.abs(disparity_map[DISPARITY_INDEX_CM][tIndex] - corr_max_XY[0]) < imgdtt_params.max_poly_diff) &&
+											disparity_map[DBG3_INDEX][tIndex] = Double.NaN;
+											if ((corr_max_XY.length > 4) &&
+													!Double.isNaN(corr_max_XY[3]) && !Double.isNaN(corr_max_XY[4]) &&
+													(corr_max_XY[3] < imgdtt_params.max_poly_hwidth) &&
+													(corr_max_XY[4] < imgdtt_params.max_poly_hwidth) &&
 													(disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] > imgdtt_params.min_poly_strength)) { // debug threshold
 												disparity_map[DBG1_INDEX][tIndex] = corr_max_XY[0];
-												disparity_map[DBG3_INDEX][tIndex] = Double.NaN;
-											} else { // show only "bad" and strong poly
-												if (disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] > imgdtt_params.min_poly_strength) {
-													disparity_map[DBG3_INDEX][tIndex] = disparity_map[DBG2_INDEX][tIndex];
+												disparity_map[DBG3_INDEX][tIndex] = corr_max_XY[0]; // Double.NaN;
+											}
+										}
+/*
+										if (disparity_map[DBG6_INDEX] != null) {
+											if ((corr_max_XY.length > 4) &&
+													(disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] > imgdtt_params.min_poly_strength)) {
+												//											disparity_map[DBG4_INDEX][tIndex] = corr_max_XY[2]; // value
+												disparity_map[DBG5_INDEX][tIndex] = corr_max_XY[3]; // half-width x
+												disparity_map[DBG6_INDEX][tIndex] = corr_max_XY[4]; // half-width y
+												disparity_map[DBG4_INDEX][tIndex] = (corr_max_XY[3]-corr_max_XY[4]); // value
+											} else {
+												disparity_map[DBG5_INDEX][tIndex] = Double.NaN;
+												disparity_map[DBG6_INDEX][tIndex] = Double.NaN;
+												disparity_map[DBG4_INDEX][tIndex] = Double.NaN;
+											}
+										}
+*/
+										if (disparity_map[DBG12_INDEX] != null) {
+											if ((corr_max_XY.length > 4) && // only show for strong enough poly correlation
+													(disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] > imgdtt_params.min_poly_strength)) {
+												disparity_map[DBG4_INDEX ][tIndex] = corr_max_XY[0];  // argmax
+												disparity_map[DBG7_INDEX ][tIndex] = corr_max_XY[2];  // max
+												disparity_map[DBG10_INDEX][tIndex] = corr_max_XY[3]; // half-width x
+
+												disparity_map[DBG5_INDEX ][tIndex] = corr_max_ortho[0][0]; // argmax
+												disparity_map[DBG8_INDEX ][tIndex] = corr_max_ortho[0][1]; // max
+												disparity_map[DBG11_INDEX][tIndex] = corr_max_ortho[0][2]; // half-width x
+
+												disparity_map[DBG6_INDEX ][tIndex] = corr_max_ortho[1][0]; // argmax
+												disparity_map[DBG9_INDEX ][tIndex] = corr_max_ortho[1][1]; // max
+												disparity_map[DBG12_INDEX][tIndex] = corr_max_ortho[1][2]; // half-width x
+											} else {
+												disparity_map[DBG4_INDEX ][tIndex] = Double.NaN;
+												disparity_map[DBG5_INDEX ][tIndex] = Double.NaN;
+												disparity_map[DBG6_INDEX ][tIndex] = Double.NaN;
+												disparity_map[DBG7_INDEX ][tIndex] = Double.NaN;
+												disparity_map[DBG8_INDEX ][tIndex] = Double.NaN;
+												disparity_map[DBG9_INDEX ][tIndex] = Double.NaN;
+												disparity_map[DBG10_INDEX][tIndex] = Double.NaN;
+												disparity_map[DBG11_INDEX][tIndex] = Double.NaN;
+												disparity_map[DBG12_INDEX][tIndex] = Double.NaN;
+											}
+										}
+										// use poly only if half-width y < limit (now it is ~2.0 for good corr)
+
+
+										if (imgdtt_params.mix_corr_poly) { // regardless of debug
+											// apply
+											if ((corr_max_XY.length > 4) && !Double.isNaN(corr_max_XY[3]) && !Double.isNaN(corr_max_XY[4]) &&
+													(corr_max_XY[3] < imgdtt_params.max_poly_hwidth) &&
+													(corr_max_XY[4] < imgdtt_params.max_poly_hwidth) &&
+													(disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] > imgdtt_params.min_poly_strength)) { // debug threshold
+												// now CM is actually poly!
+												double pcorr = (corr_max_XY[3]-corr_max_XY[4]);
+												if (pcorr > 0.0) {
+													pcorr *= poly_corr; // maybe add per-tile control far/near/none
 												} else {
-													disparity_map[DBG3_INDEX][tIndex] = Double.NaN;
+													pcorr = 0.0;
+												}
+
+												disparity_map[DISPARITY_INDEX_CM+0][tIndex] = corr_max_XY[0]+pcorr; // only for X
+												disparity_map[DISPARITY_INDEX_CM+1][tIndex] = corr_max_XY[1];
+
+												// correct far objects by using hor/vert correlations
+												if (imgdtt_params.far_object_correct) {
+													// check strengths:
+													if ((corr_max_XY[2] >= imgdtt_params.fo_min_strength) &&
+														(corr_max_ortho[0][1] >= imgdtt_params.fo_min_strength) &&
+														(corr_max_ortho[1][1] >= imgdtt_params.fo_min_strength) &&
+														// check halw-widths
+														(corr_max_XY[3] <=       imgdtt_params.fo_max_hwidth) &&
+														(corr_max_ortho[0][2] <= imgdtt_params.fo_max_hwidth) &&
+														(corr_max_ortho[1][2] <= imgdtt_params.fo_max_hwidth)) {
+														double disp_full = corr_max_XY[0];
+														double disp_near =  Math.max(corr_max_ortho[0][0],corr_max_ortho[1][0]);
+														double disp_far =   Math.min(corr_max_ortho[0][0],corr_max_ortho[1][0]);
+														if ((disp_full < disp_near) && (disp_full > disp_far)) {
+															double corr = (disp_near - disp_far) * imgdtt_params.fo_overcorrection + (disp_near -disp_full);
+															double lim_corr = (disp_near -disp_full) * imgdtt_params.fo_lim_overcorr;
+															corr = Math.min(corr, lim_corr);
+															if (corr > 0.0) {
+																disparity_map[DISPARITY_INDEX_CM+0][tIndex] += corr;
+															}
+														}
+													}
 												}
 											}
-//											if (disparity_map[DBG3_INDEX] != null) {
-//												disparity_map[DBG3_INDEX][tIndex] = disparity_map[DBG2_INDEX][tIndex] - disparity_map[DBG0_INDEX][tIndex];
-//											}
-										}
-										if (imgdtt_params.mix_corr_poly) {
-											// apply
-											disparity_map[DISPARITY_INDEX_CM][tIndex] = disparity_map[DBG1_INDEX][tIndex];
-											// TODO: add Y for correction !!!!
 										}
 
 										//
@@ -2886,12 +3030,11 @@ public class ImageDtt {
 		return rslt;
 	}
 
-	public double [] getMaxXSOrtho( // get fractional center as a "center of mass" inside circle/square from the integer max
+	public double [] getMaxXSOrtho( // // get fractional center using a quadratic polynomial
 			double [] data,            // [data_size * data_size]
 			double [] enhortho_scales, // [data_size]
 			int       data_size,
 			double    radius,  // positive - within that distance, negative - within 2*(-radius)+1 square
-//			boolean   poly_mode,
 			boolean   debug)
 	{
 		double [] corr_1d = new double [data_size];
@@ -2905,8 +3048,7 @@ public class ImageDtt {
 		for (int i = 1; i < data_size; i++){
 			if (corr_1d[i] > corr_1d[icenter]) icenter = i;
 		}
-		//calculate as "center of mass"
-//		int iradius = (int) Math.abs(radius);
+
 		double [] coeff = null;
 		double xcenter = icenter;
 		double [][] pa_data=null;
@@ -2927,44 +3069,92 @@ public class ImageDtt {
 		double strength = corr_1d[icenter] / ((data_size+1) / 2);// scale to ~match regular strength
 		double [] rslt1 = {xcenter, strength};
 		return rslt1;
-/*
-		double s0 = 0, sx=00;
-		int x_min = (int) Math.ceil(xcenter - radius);
-		if (x_min < 0) x_min = 0;
-		int x_max = (int) Math.floor(xcenter + radius);
-		if (x_max >= data_size) x_max = data_size - 1;
-		for (int x = x_min ; x <= x_max; x++){
-			double d =  corr_1d[x];
-			s0 += d;
-			sx += d * x;
-		}
-		double [] rslt = {sx / s0, strength}; // scale to ~match regular strength
-		if (debug){
-			System.out.println("getMaxXYCmEnhOrtho() -> "+rslt[0]+"/"+rslt[1]);
-			for (int i = 0; i < data_size; i++){
-				System.out.println("corr_1d["+i+"]="+corr_1d[i]);
-			}
-			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
-			double [] masked_data = new double [data_size*data_size];
-			for (int j = 0; j < data_size; j++){
-				for (int i = 0; i < data_size; i++){
-					masked_data[i * data_size + j] = data[i * data_size + j] * enhortho_scales[i];
-				}
-			}
-			double [][] dbg_data = {data,masked_data};
-			String [] titles = {"correlation", "enhortho_correlation"};
-			sdfa_instance.showArrays(dbg_data,  data_size, data_size, true, "getMaxXYCmEnhOrtho", titles);
-			if (coeff != null) 	System.out.println("a = "+coeff[2]+", b = "+coeff[1]+", c = "+coeff[0]);
-			System.out.println("xcenter="+xcenter);
-			if (pa_data != null) {
-				for (int i = 0; i < pa_data.length; i++){
-					System.out.println("pa_data["+i+"]={"+pa_data[i][0]+", "+pa_data[i][1]+"}");
-				}
-			}
-		}
-		return rslt;
-*/
 	}
+
+	// value as weight (boolean), make 0 if <0,
+	// select # of points (normally 5 if v_as_w, 3 if not
+	// calculate x, f(x) and half width
+	// balance strength? Or just assume appropriate window
+	// maybe optimized to symmetrical data
+
+	public double [] getMaxXSOrtho2(   // get fractional center using a quadratic polynomial
+			double [] data,            // [data_size * data_size]
+			double [] vweights,        // [data_size]
+			int       data_size,
+			int       num_samples,     // number of samples to keep (5?)
+			double    vasw_pwr,        // use value to this power as sample weight
+			boolean   debug)
+	{
+		double [] corr_1d = new double [data_size];
+		for (int j = 0; j < data_size; j++){
+			corr_1d[j] = 0;
+			for (int i = 0; i < data_size; i++){
+				corr_1d[j] += data[i * data_size + j] * vweights[i];
+			}
+		}
+		int hsize = num_samples/2;
+		int i0 = hsize;
+		for (int i = hsize; i < (data_size - num_samples + hsize) ; i++){
+			if (corr_1d[i] > corr_1d[i0]) i0 = i;
+		}
+		i0 -= hsize;
+		double [] coeff = null;
+		double [][] pa_data=new double[num_samples][(vasw_pwr > 0.0)?3:2];
+		for (int i = 0; i < num_samples; i++) {
+			pa_data[i][0] = i + i0;
+			pa_data[i][1] = corr_1d[i + i0];
+			if (vasw_pwr > 0.0) {
+				pa_data[i][2] =  Math.pow(Math.abs(pa_data[i][1]), vasw_pwr);
+			}
+		}
+		PolynomialApproximation pa = new PolynomialApproximation(debug?5:0); // debugLevel
+		coeff = pa.polynomialApproximation1d(pa_data, 2);
+		double xcenter, fx, hwidth;
+		if ((coeff == null) || (coeff[2] > 0.0)){
+			xcenter = i0 + hsize;
+			fx = corr_1d[i0+hsize];
+			hwidth =  data_size;
+		} else {
+			xcenter = - coeff[1]/(2* coeff[2]);
+			fx = coeff[0] + coeff[1]*xcenter + coeff[2]*xcenter*xcenter;
+			hwidth = Math.sqrt(-fx/coeff[2]);
+		}
+		if (debug){
+			System.out.println("getMaxXSOrtho2(): getMaxXYPoly(): xcenter="+xcenter+" fx="+fx+" hwidth="+hwidth+" i0="+i0);
+			System.out.println("vweights[i]=");
+			for (int i=0; i < vweights.length; i++) System.out.print(vweights[i]+" "); System.out.println();
+			System.out.println("corr_1d[i]=");
+			for (int i=0; i < corr_1d.length; i++) System.out.print(corr_1d[i]+" "); System.out.println();
+			System.out.println("pa_data[i]=");
+			for (int i=0; i < pa_data.length; i++) System.out.println(i+": "+pa_data[i][0]+" "+pa_data[i][1]+" "+pa_data[i][2]+" ");
+			if (coeff != null) {
+				System.out.println("coeff: a = "+coeff[2]+", b="+coeff[1]+", c="+coeff[0]);
+			}
+			System.out.println("\n----source data ----------");
+			for (int i = 0; i < data_size; i++){
+				for (int j = 0; j < data_size; j++){
+					System.out.print(String.format(" %6.3f", data[i * data_size + j]));
+				}
+				System.out.println();
+			}
+			System.out.println("\n---- masked ----------");
+			for (int i = 0; i < data_size; i++){
+				for (int j = 0; j < data_size; j++){
+					System.out.print(String.format(" %6.3f", data[i * data_size + j] * vweights[i]));
+				}
+				System.out.println();
+			}
+			for (int j = 0; j < data_size; j++){
+				System.out.print(String.format(" %6.3f", corr_1d[j]));
+			}
+			System.out.println();
+		}
+
+		double [] rslt = {xcenter, fx, hwidth};
+		return rslt;
+
+	}
+
 
 
 	public double [] getMaxXYPoly( // get interpolated maximum coordinates using 2-nd degree polynomial
@@ -2975,7 +3165,7 @@ public class ImageDtt {
 			double [] weights,   // [(radius+1) * (radius+1)]
 			int       radius,
 			double    value_pwr, // raise value to this power (trying to compensate sticking to integer values)
-			boolean   poly_value_to_weight, // multiply weight by value
+			double    poly_vasw_pwr, // multiply weight by value to this power
 			boolean   debug)
 	{
 		// TODO: make sure it is within 1pxx1px square from the integer maximum? If not - return null and use center of mass instead?
@@ -3008,7 +3198,7 @@ public class ImageDtt {
 						}
 						mdata[indx][2] = new double [1];
 						mdata[indx][2][0] =  weights[ay * (radius + 1) + ax];
-						if (poly_value_to_weight) mdata[indx][2][0] *= mdata[indx][1][0];
+						if (poly_vasw_pwr > 0 ) mdata[indx][2][0] *= Math.pow(Math.abs(mdata[indx][1][0]), poly_vasw_pwr);
 						indx++;
 					}
 				}
@@ -3024,10 +3214,19 @@ public class ImageDtt {
 				System.out.println(i+": "+mdata[i][0][0]+"/"+mdata[i][0][1]+" z="+mdata[i][1][0]+" w="+mdata[i][2][0]);
 			}
 		}
-		double [] rslt = pa.quadraticMax2d(
+//		double [] rslt = pa.quadraticMax2d(
+		double [] rslt = pa.quadraticMaxV2dX2Y2XY( // 6 elements - Xc, Yx, f(x,y), A, B, C (from A*x^2 + B*y^2 +C*x*y+...)
 				mdata,
 				1.0E-30,//25, // 1.0E-15,
 				debug? 4:0);
+		if (rslt == null) return null;
+		// calculate width_x and width_y
+		double hwx = Double.NaN, hwy = Double.NaN;
+		if ((rslt[2] > 0.0) && (rslt[3] <0.0) && (rslt[4] <0.0)) {
+			hwx = Math.sqrt(-rslt[2]/rslt[3]);
+			hwy = Math.sqrt(-rslt[2]/rslt[4]);
+		}
+		double [] xyvwh = {rslt[0], rslt[1], rslt[2], hwx, hwy};
 		if (debug){
 			System.out.println("after: getMaxXYPoly(): icenter[0] = "+icenter[0]+" icenter[1] = "+icenter[1]);
 			for (int i = 0; i< mdata.length; i++){
@@ -3035,7 +3234,7 @@ public class ImageDtt {
 			}
 			System.out.println("quadraticMax2d(mdata) --> "+((rslt==null)?"null":(rslt[0]+"/"+rslt[1])));
 		}
-		return rslt;
+		return xyvwh; // rslt;
 	}
 
 

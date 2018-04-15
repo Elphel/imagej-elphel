@@ -23,10 +23,6 @@
 **
 */
 
-import ij.IJ;
-import ij.gui.GenericDialog;
-import ij.text.TextWindow;
-
 import java.awt.Point;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -46,23 +42,17 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.XMLConfiguration;
 
-
-
-
-
-
-
-
-
-
 //import Distortions.LMAArrays; // may still reuse?
 import Jama.LUDecomposition;
 import Jama.Matrix;
+import ij.IJ;
+import ij.gui.GenericDialog;
+import ij.text.TextWindow;
 
 
 public class FocusingField {
 //    public String path;
-// restored from properties	
+// restored from properties
 	FieldFitting fieldFitting=null;
 	QualBOptimize qualBOptimize=new QualBOptimize();
 	public double pX0_distortions;
@@ -74,8 +64,8 @@ public class FocusingField {
 	boolean filterInput;
 	double  filterInputMotorDiff;
 	double  filterInputDiff; // um
-	boolean filterInputFirstLast; 
-	boolean filterInputTooFar; // filter samples that are too far from the "center of mass" of other samples 
+	boolean filterInputFirstLast;
+	boolean filterInputTooFar; // filter samples that are too far from the "center of mass" of other samples
 	double  filterInputFarRatio; // remove samples that are farther than this ration of average distance
 	boolean filterInputConcave;
 	double  filterInputConcaveSigma;
@@ -97,7 +87,7 @@ public class FocusingField {
 	int     minCenterSamplesBest; // minimal number of samples (channel/dir/location) for adjustment in the center, best channel
 	int     minCenterSamplesTotal; // minimal number of samples (channel/dir/location) for adjustment in the center, all channels total
 	int     centerSamples;        // number of center samples to consider for minLeftCenterSamples
-	
+
 	double  maxRMS;               // maximal (pure) RMS allowed during adjustment
     double zMin;
     double zMax;
@@ -105,18 +95,18 @@ public class FocusingField {
     double tMin;
     double tMax;
     double tStep;
-	
-	double targetRelFocalShift; // target focal shift relative to best composite "sharpness" 
-	double targetRelTiltX; // target tilt Horizontal 
+
+	double targetRelFocalShift; // target focal shift relative to best composite "sharpness"
+	double targetRelTiltX; // target tilt Horizontal
 	double targetRelTiltY; // target tilt Vertical
-	
+
 	public double avgTx; // average absolute tilt X (optionally used when finding Z of the glued SFE)
 	public double avgTy; // average absolute tilt Y (optionally used when finding Z of the glued SFE)
 	public int [] zTxTyAdjustMode; //[3] - 0 - keep, 1 adjust common, 2 - adjust individual
 	public boolean updateAverageTilts; // update avgTx, avgTy after averaging measurements (in "Focus Average" and "Temp. Scan")
 	public int recalculateAverageTilts; // recalculate tilts during averaging, same values as in zTxTyAdjustMode
 
-	
+
 	// when false - tangential is master
 	double [] minMeas; // pixels
 	double [] maxMeas; // pixels
@@ -136,7 +126,7 @@ public class FocusingField {
 	private boolean qualBRemoveBadSamples;
 	public int qualBOptimizeMode; // 0 - none, +1 - optimize Zc, +2 - optimize Tx, +4 - optimize Ty
 	public double [] qualBOptimizationResults=null; // not saved, re-calculated when needed
-	
+
 	private double qb_scan_below; // um
 	private double qb_scan_above; // um
 	private double qb_scan_step; // um
@@ -215,7 +205,7 @@ public class FocusingField {
 	public int sensorHeight;
 //	public static final double PIXEL_SIZE=0.0022; // mm
 	public double PIXEL_SIZE; // mm
-	
+
 	public double [][][] sampleCoord;
 	public ArrayList<FocusingFieldMeasurement> measurements;
 	double [] weightReference=null; // calculated per-channel (6) array of maximal PSF FWHM after applying min/max correction
@@ -232,8 +222,8 @@ public class FocusingField {
 	double [] nextVector=null;
 	double [] savedVector=null;
 	boolean [][] goodCalibratedSamples=null;
-	
-	
+
+
 	private LMAArrays lMAArrays=null;
 	private LMAArrays savedLMAArrays=null;
 	// temporarily changing visibility of currentfX
@@ -246,7 +236,7 @@ public class FocusingField {
 
 	private double firstRMS=-1.0; // RMS before current series of LMA started
 	private double firstRMSPure=-1.0; // RMS before current series of LMA started
-	
+
     public int threadsMax=100; // 0 - old code
 	private boolean multiJacobian=true; // to try multithreaded mode
 
@@ -270,8 +260,8 @@ public class FocusingField {
     	filterInput = true;
     	filterInputMotorDiff = 500.0;
     	filterInputDiff = 2.0; // um
-    	filterInputFirstLast = true; 
-    	filterInputTooFar = true; // filter samples that are too far from the "center of mass" of other samples 
+    	filterInputFirstLast = true;
+    	filterInputTooFar = true; // filter samples that are too far from the "center of mass" of other samples
     	filterInputFarRatio = 3.0; // remove samples that are farther than this ration of average distance
     	filterInputConcave = true; //um
     	filterInputConcaveSigma = 8.0; //um
@@ -288,10 +278,10 @@ public class FocusingField {
     	filterCalibByNeib=3;           // remove samples having less neighbors (same channel) that this during calibration
     	filterSetsByRMS=0.0;           // remove complete sets (same timestamp) with RMS greater than scaled average
     	filterSetsByRMSTiltOnly=true;  // only remove non-scan sets
-    	
+
     	minLeftSamples=10;      // minimal number of samples (channel/dir/location) for adjustment
-    	minBestLeftSamples=5;   // minimal number of samples of the best channel/dir for adjustment (FIXME: still may fail if colinear and tilt free) 
-    	
+    	minBestLeftSamples=5;   // minimal number of samples of the best channel/dir for adjustment (FIXME: still may fail if colinear and tilt free)
+
     	minCenterSamplesBest=4; // minimal number of samples (channel/dir/location) for adjustment in the center, best channel
     	minCenterSamplesTotal=0;// minimal number of samples (channel/dir/location) for adjustment in the center, all channels total
     	centerSamples=       8; // there should remain at least  of centerSamples closest to r==0
@@ -303,11 +293,11 @@ public class FocusingField {
         tMin=-10.0;
         tMax= 10.0;
         tStep=2.0;
-    	
+
     	targetRelFocalShift=0.0; // target focal shift relative to best composite "sharpness"
-    	targetRelTiltX=0.0; // target tilt Horizontal 
-    	targetRelTiltY=0.0; // target tilt Vertical 
-    	
+    	targetRelTiltX=0.0; // target tilt Horizontal
+    	targetRelTiltY=0.0; // target tilt Vertical
+
     	avgTx=0.0; // average absolute tilt X (optionally used when finding Z of the glued SFE)
     	avgTy=0.0; // average absolute tilt Y (optionally used when finding Z of the glued SFE)
     	zTxTyAdjustMode=new int[3]; //[3] - 0 - keep, 1 adjust common, 2 - adjust individual
@@ -317,8 +307,8 @@ public class FocusingField {
     	updateAverageTilts=true;
     	recalculateAverageTilts=1; // recalculate, common
 
-    	
-    	
+
+
     	// when false - tangential is master
     	double [] minMeasDflt= {0.5,0.5,0.5,0.5,0.5,0.5}; // pixels
     	minMeas= minMeasDflt; // pixels
@@ -377,8 +367,8 @@ public class FocusingField {
     	strategyComment="";
     	lastInSeries=true;
     	currentStrategyStep=-1; // -1 do not read from strategies
-    	
-    	
+
+
     	showParams= false; // show modified parameters
     	showDisabledParams = false;
     	showCorrectionParams = false;
@@ -405,12 +395,12 @@ public class FocusingField {
     	updateWeightWhileFitting=false;
         debugPoint=-1;
         debugParameter=-1;
-        
+
         currentPX0=pX0_distortions;
         currentPY0=pY0_distortions;
-    	
+
     }
-    
+
 
     public void setProperties(String prefix,Properties properties){
     	if (debugLevel>1) System.out.println("FocusingField: setProperties()");
@@ -461,7 +451,7 @@ public class FocusingField {
     		properties.setProperty(prefix+"filterSetsByRMSTiltOnly",filterSetsByRMSTiltOnly+"");
     		properties.setProperty(prefix+"minLeftSamples",minLeftSamples+"");
     		properties.setProperty(prefix+"minBestLeftSamples",minBestLeftSamples+"");
-    		
+
     		properties.setProperty(prefix+"minCenterSamplesBest",minCenterSamplesBest+"");
     		properties.setProperty(prefix+"minCenterSamplesTotal",minCenterSamplesTotal+"");
     		properties.setProperty(prefix+"centerSamples",centerSamples+"");
@@ -474,10 +464,10 @@ public class FocusingField {
     		properties.setProperty(prefix+"tStep",tStep+"");
 
     		properties.setProperty(prefix+"targetRelFocalShift",targetRelFocalShift+"");
-    		
+
     		properties.setProperty(prefix+"targetRelTiltX",targetRelTiltX+"");
     		properties.setProperty(prefix+"targetRelTiltY",targetRelTiltY+"");
-    		
+
     		properties.setProperty(prefix+"avgTx",avgTx+"");
     		properties.setProperty(prefix+"avgTy",avgTy+"");
     		for (int i=0;i<zTxTyAdjustMode.length; i++) properties.setProperty(prefix+"zTxTyAdjustMode_"+i,zTxTyAdjustMode[i]+"");
@@ -519,7 +509,7 @@ public class FocusingField {
     		properties.setProperty(prefix+"rslt_mtf50_mode",rslt_mtf50_mode+"");
     		properties.setProperty(prefix+"rslt_solve",rslt_solve+"");
     		for (int chn=0; chn<rslt_show_chn.length; chn++) properties.setProperty(prefix+"rslt_show_chn_"+chn,rslt_show_chn[chn]+"");
-    		// always re-calculate here? - only in calibration mode or restore calibration mode? No, only in LMA in calibration mode		
+    		// always re-calculate here? - only in calibration mode or restore calibration mode? No, only in LMA in calibration mode
     		//		zRanges=calcZRanges(dataWeightsToBoolean());
     		if (zRanges!=null){
     			properties.setProperty(prefix+"zRanges_length",zRanges.length+"");
@@ -537,21 +527,21 @@ public class FocusingField {
     				if (goodCalibratedSamples[chn]!=null) for (int j=0;j<goodCalibratedSamples[chn].length;j++) s+=goodCalibratedSamples[chn][j]?"+":"-";
         			properties.setProperty(prefix+"goodCalibratedSamples_"+chn,s);
     			}
-    			
+
     		}
     	}
     }
 
 	/**
 	 * Set parameters from properties
-	 * @param prefix property name prefix 
+	 * @param prefix property name prefix
 	 * @param properties properties
 	 * @param keepFromHistory keep distortion center read from the history (file or structure)
 	 */
 	public void getProperties(String prefix,
 			Properties properties,
 			boolean keepFromHistory){
-		
+
 		savedProperties=properties;
 		propertiesPrefix=prefix;
 		if (debugLevel>1) System.out.println("FocusingField: getProperties()");
@@ -588,12 +578,12 @@ public class FocusingField {
 			filterInputTooFar=Boolean.parseBoolean(properties.getProperty(prefix+"filterInputTooFar"));
 		if (properties.getProperty(prefix+"filterInputFarRatio")!=null)
 			filterInputFarRatio=Double.parseDouble(properties.getProperty(prefix+"filterInputFarRatio"));
-		
+
 		if (properties.getProperty(prefix+"filterInputConcave")!=null)
 			filterInputConcave=Boolean.parseBoolean(properties.getProperty(prefix+"filterInputConcave"));
 		if (properties.getProperty(prefix+"filterInputConcaveSigma")!=null)
 			filterInputConcaveSigma=Double.parseDouble(properties.getProperty(prefix+"filterInputConcaveSigma"));
-		
+
 		if (properties.getProperty(prefix+"filterInputConcaveRemoveFew")!=null)
 			filterInputConcaveRemoveFew=Boolean.parseBoolean(properties.getProperty(prefix+"filterInputConcaveRemoveFew"));
 		if (properties.getProperty(prefix+"filterInputConcaveMinSeries")!=null)
@@ -622,10 +612,10 @@ public class FocusingField {
 			filterSetsByRMSTiltOnly=Boolean.parseBoolean(properties.getProperty(prefix+"filterSetsByRMSTiltOnly"));
 		if (properties.getProperty(prefix+"minLeftSamples")!=null)
 			minLeftSamples=Integer.parseInt(properties.getProperty(prefix+"minLeftSamples"));
-		
+
 		if (properties.getProperty(prefix+"minBestLeftSamples")!=null)
 			minBestLeftSamples=Integer.parseInt(properties.getProperty(prefix+"minBestLeftSamples"));
-		
+
 		if (properties.getProperty(prefix+"minCenterSamplesBest")!=null)
 			minCenterSamplesBest=Integer.parseInt(properties.getProperty(prefix+"minCenterSamplesBest"));
 		if (properties.getProperty(prefix+"minCenterSamplesTotal")!=null)
@@ -648,7 +638,7 @@ public class FocusingField {
 			tStep=Double.parseDouble(properties.getProperty(prefix+"tStep"));
 		if (properties.getProperty(prefix+"targetRelFocalShift")!=null)
 			targetRelFocalShift=Double.parseDouble(properties.getProperty(prefix+"targetRelFocalShift"));
-		
+
 		if (properties.getProperty(prefix+"targetRelTiltX")!=null)
 			targetRelTiltX=Double.parseDouble(properties.getProperty(prefix+"targetRelTiltX"));
 		if (properties.getProperty(prefix+"targetRelTiltY")!=null)
@@ -690,7 +680,7 @@ public class FocusingField {
 			k_sag=Double.parseDouble(properties.getProperty(prefix+"k_sag"));
 		if (properties.getProperty(prefix+"k_tan")!=null)
 			k_tan=Double.parseDouble(properties.getProperty(prefix+"k_tan"));
-		
+
 		if (properties.getProperty(prefix+"k_qualBFractionPeripheral")!=null)
 			k_qualBFractionPeripheral=Double.parseDouble(properties.getProperty(prefix+"k_qualBFractionPeripheral"));
 		if (properties.getProperty(prefix+"k_qualBFractionHor")!=null)
@@ -790,6 +780,7 @@ public class FocusingField {
 	public class LMAArrays { // reuse from Distortions?
 		public double [][] jTByJ= null; // jacobian multiplied by Jacobian transposed
 		public double [] jTByDiff=null; // jacobian multiplied difference vector
+		@Override
 		public LMAArrays clone() {
 			LMAArrays lma=new LMAArrays();
 			lma.jTByJ = this.jTByJ.clone();
@@ -910,12 +901,12 @@ public boolean configureDataVector(
 		gd.addCheckbox("Filter tilted samples/channels by Z",filterTiltedZ);
 		gd.addCheckbox("Filter tilted samples by value (leave lower than maximal fwhm used in focal scan mode)",filterTiltedByScanValue);
 		gd.addNumericField("Filter tilted samples by value (remove samples above scaled best FWHM for channel/location)",filterTiltedByValueScale,2,5,"x");
-		
+
 		gd.addNumericField("Remove samples having less neighbors (same channel) than this",filterCalibByNeib,0,1,"");
-		
+
 		gd.addNumericField("Remove complete sets (same timestamp) with RMS greater than scaled average RMS",filterSetsByRMS,3,5,"x");
 		gd.addCheckbox("Only remove sets of tilt calibration, keep focus scanning ones",filterSetsByRMSTiltOnly);
-		
+
 		gd.addCheckbox("Sagittal channels are master channels (false - tangential are masters)",sagittalMaster);
 		gd.addMessage("=== Setting minimal measured PSF radius for different colors/directions ===");
 
@@ -958,7 +949,7 @@ public boolean configureDataVector(
 			return true;
 		}
 
-		// boolean configureDataVector(String title, boolean forcenew, boolean moreset)   
+		// boolean configureDataVector(String title, boolean forcenew, boolean moreset)
 
 		parallelOnly=            gd.getNextBoolean();
 		filterInput=             gd.getNextBoolean();
@@ -980,7 +971,7 @@ public boolean configureDataVector(
 		filterCalibByNeib=           (int) gd.getNextNumber();
     	filterSetsByRMS=                   gd.getNextNumber();
     	filterSetsByRMSTiltOnly=           gd.getNextBoolean();
-		
+
 
 		sagittalMaster= gd.getNextBoolean();
 		for (int i=0;i<minMeas.length;i++)this.minMeas[i]= gd.getNextNumber();
@@ -1026,7 +1017,7 @@ public boolean configureDataVector(
 	currentPX0=centerXY[0];
 	currentPY0=centerXY[1];
 	this.savedVector=fieldFitting.createParameterVector(sagittalMaster);
-	//     initialVector     
+	//     initialVector
 	return true;
 }
 
@@ -1053,7 +1044,7 @@ public double [][] getSeriesWeights(){
 	for (int chn=0;chn<seriesWeights.length;chn++)  for (int sample=0;sample<seriesWeights[chn].length;sample++) seriesWeights[chn][sample]=0.0;
 	for (int index=0;index<dataVector.length;index++) if (dataWeights[index]>0.0){
 		seriesWeights[dataVector[index].channel][dataVector[index].sampleIndex]+=dataWeights[index];
-	}	
+	}
 	if (debugLevel>1){
 		System.out.println("==== getSeriesWeights():");
 		for (int chn=0;chn<seriesWeights.length;chn++)  for (int sample=0;sample<seriesWeights[chn].length;sample++){
@@ -1211,10 +1202,10 @@ private boolean [] filterByValue (
 		for (int i=0;i<enable_masked.length;i++) if ((i<scanMask.length) && scanMask[i]) enable_masked[i]=false;
 	}
 	boolean [] enable_out=enable_masked.clone();
-	
+
 	double [][] fwhm = fieldFitting.getFWHM(
     		true, // boolean corrected,
-    		true //boolean allChannels 
+    		true //boolean allChannels
     		);
 	if (scale>1.0){
 		for (int chn=0;chn<fwhm.length;chn++) for (int sample=0;sample<fwhm[chn].length;sample++){
@@ -1286,7 +1277,7 @@ private boolean [] filterNotEnoughSamples(
 			if (dataVector[nextIndex].timestamp.equals(lastTimestamp)) lastIndex=nextIndex;
 			else break;
 		}
-		
+
 		int [] numCenterSamples=      new int [getNumChannels()];
 		int [] numSamples=            new int [getNumChannels()];
 		for (int chn=0;chn<getNumChannels();chn++){
@@ -1308,7 +1299,7 @@ private boolean [] filterNotEnoughSamples(
 			numTotalCenterSamples+=numCenterSamples[chn];
 			if (numBestChannelSamples<numSamples[chn]) numBestChannelSamples = numSamples[chn];
 			if (numBestChannelCenterSamples<numCenterSamples[chn]) numBestChannelCenterSamples = numCenterSamples[chn];
-		}		
+		}
     	if (
     			(numTotalCenterSamples       < minTotalCenterSamples) ||
     			(numBestChannelCenterSamples < minBestChannelCenterSamples) ||
@@ -1404,13 +1395,13 @@ private boolean [] filterConcave(
 	for (int i=0;i<enable_masked.length;i++) if ((i<scanMask.length) && !scanMask[i]) enable_masked[i]=false;
 	boolean [] enable_out=enable_masked.clone();
 
-	
+
 	int debugThreshold=1;
 	double maxGap=sigma; // this point has this gap towards minimal
 	double kexp=-0.5/(sigma*sigma);
 //	boolean [] enable_out=enable_in.clone();
 	double keepNearMin=sigma; // when removing non-concave points around min, skip very close ones
-	
+
 	double [][] flatSampleCoordinates=fieldFitting.getSampleCoordinates();
 	int numFilteredInsufficient = 0;
 	int numFiltered = 0;
@@ -1456,7 +1447,7 @@ private boolean [] filterConcave(
 			boolean [] nonConcave=new boolean[thisIndices.length];
 			for (int i=0;i<thisIndices.length;i++){
 //if ((chn==0) && (sample==7) && (i>=16)){
-//   System.out.println("DEBUG00");				
+//   System.out.println("DEBUG00");
 //}
 				point_z[i]=fieldFitting.getMotorsZ(
 						dataVector[thisIndices[i]].motors, // 3 motor coordinates
@@ -1464,7 +1455,7 @@ private boolean [] filterConcave(
 						flatSampleCoordinates[sample][1]); // pixel y
 				point_v[i]=dataVector[thisIndices[i]].value;
 				nonConcave[i]=false;
-			}			
+			}
 			for (int i=0;i<thisIndices.length;i++){
 				point_filt[i]=0.0;
 				double weight=0.0;
@@ -1530,7 +1521,7 @@ private boolean [] filterConcave(
 					if (!goodPoint) nonConcave[i]=true;
 				}
 			}
-			
+
 			// propagate
 			for (int i=0;i<thisIndices.length;i++) if (!nonConcave[i]){
 				if ((point_z[i]-point_z[minIndex])>keepNearMin){
@@ -1555,7 +1546,7 @@ private boolean [] filterConcave(
 				enable_out[thisIndices[i]]=false;
 				numFiltered++;
 			}
-			
+
 			// See if too few are left - remove them
 			int numPointsLeft=0;
 			for (int i=0;i<thisIndices.length;i++) if (enable_out[thisIndices[i]]){
@@ -1572,7 +1563,7 @@ private boolean [] filterConcave(
 					}
 				}
 			}
-			
+
 
 			if (debugLevel>debugThreshold) {
 				System.out.println("filterConcave(), chn="+chn+", sample="+sample);
@@ -1592,7 +1583,7 @@ private boolean [] filterConcave(
 	}
 	if (debugLevel>0) System.out.println("filterConcave(): removed for too few points "+numFilteredInsufficient+" samples");
 	if (debugLevel>0) System.out.println("filterConcave(): removed for non-concave "+numFiltered+" samples");
-	
+
 	//	for (int chn=0;chn<numPoints.length;chn++) for (int sample=0;sample<numPoints[chn].length;sample++){
 	z0_estimates=new double[getNumChannels()];
 	for (int chn=0;chn<z0_estimates.length;chn++){
@@ -1668,7 +1659,7 @@ private boolean [] filterTooFar(
 			}
 		}
 	}
-	
+
 	if (debugLevel>0) System.out.println("filterTooFar(): removed "+numFiltered+" samples");
 	// restore masked out data
 	for (int i=0;i<enable_out.length;i++) if (
@@ -1737,7 +1728,7 @@ private boolean [] filterCrazyInput(
 					enable_out[index]=false;
 				}
 			} else { // large difference?
-				if ((Math.abs(dataVector[index].value-dataVector[lastIndex[chn][sample]].value))>=diff){ 
+				if ((Math.abs(dataVector[index].value-dataVector[lastIndex[chn][sample]].value))>=diff){
 					// yes, remove both this and previous
 					if (enable_out[lastIndex[chn][sample]]) numFiltered++;
 					enable_out[lastIndex[chn][sample]]=false;
@@ -1938,7 +1929,7 @@ public void setDataVector(
 	boolean [] fullScanMask=createScanMask(vector);
 	int numSamples=0;
 	for (int i=0;i<vector.length;i++) if (chanSel[vector[i].channel]){
-		
+
 		if (calibrateMode && parallelOnly && !fullScanMask[i]) continue; // skip non-scan
 		numSamples++;
 	}
@@ -1999,7 +1990,7 @@ public void setDataVector(
 				en);
 		maskDataWeights(en);
 	}
-	
+
 	if (calibrateMode && filterTiltedZ){
 		boolean [] en=dataWeightsToBoolean();
 		en= filterByZRanges(
@@ -2035,7 +2026,7 @@ public void setDataVector(
 				true); // calibrate mode - for debug print
 		maskDataWeights(en);
 	}
-	
+
 	if (calibrateMode && (filterSetsByRMS>0)){
 		fieldFitting.initSampleCorrVector(
 				flattenSampleCoord(), //double [][] sampleCoordinates,
@@ -2047,10 +2038,10 @@ public void setDataVector(
 				filterSetsByRMSTiltOnly?scanMask:null);
 		maskDataWeights(en);
 	}
-	
+
 
 // TODO: add filtering for tilt motor calibration
-	
+
 	fieldFitting.initSampleCorrVector(
 			flattenSampleCoord(), //double [][] sampleCoordinates,
 			getSeriesWeights()); //double [][] sampleSeriesWeights);
@@ -2107,7 +2098,7 @@ public class PartialFXJac{
 			double [] jac){ //, int num){
 		this.index=index;
 		this.f=f;
-		this.jac=jac; 
+		this.jac=jac;
 //		if (num>=0) jac=new double [num];
 //		else jac=null;
 //		jac=null;
@@ -2133,7 +2124,7 @@ public double [] createFXandJacobianMulti(
 
 	final int numPars=fieldFitting.getNumberOfParameters(sagittalMaster);
 	int numRegPars=fieldFitting.getNumberOfRegularParameters(sagittalMaster);
-	
+
 	final int numSelChn=fieldFitting.getNumberOfChannels();
 	final Thread[] threads = newThreadArray(threadsMax);
 	final ArrayList<ArrayList<PartialFXJac>> fxList = new ArrayList<ArrayList<PartialFXJac>>();
@@ -2141,7 +2132,7 @@ public double [] createFXandJacobianMulti(
 		fxList.add(new ArrayList<PartialFXJac>());
 	}
 	// create list of indices of measurements corresponding to new timestamp/sample (up to 6 increment)
-	final ArrayList<Integer> measIndicesList=getSetSampleIndices(); // uses dataVector; 
+	final ArrayList<Integer> measIndicesList=getSetSampleIndices(); // uses dataVector;
 /*	String prevTimeStamp="";
 	double prevPx=-1,prevPy=-1;
 
@@ -2152,13 +2143,14 @@ public double [] createFXandJacobianMulti(
 			measIndicesList.add(new Integer(n));
 		}
 	}
-*/	
+*/
 	final AtomicInteger measIndex = new AtomicInteger(0);
 	final AtomicInteger threadIndexAtomic = new AtomicInteger(0);
 	final boolean [] centerSelect=correct_measurement_ST?fieldFitting.getCenterSelect():null; //falseFalse;
 	for (int ithread = 0; ithread < threads.length; ithread++) {
-		
+
 		threads[ithread] = new Thread() {
+			@Override
 			public void run() {
 				int threadIndex=threadIndexAtomic.getAndIncrement();
 				fxList.get(threadIndex).clear(); // not needed
@@ -2238,7 +2230,7 @@ public double [] createFXandJacobianMulti(
 		jacobian=new double [numPars][dataVector.length+numCorrPar];
 		for (double [] row : jacobian) 	Arrays.fill(row, 0.0);
 	}
-	
+
 	for (ArrayList<PartialFXJac> partilaList:fxList){
 		for (PartialFXJac partialFXJac:partilaList){
 			int n=partialFXJac.index;
@@ -2270,7 +2262,7 @@ public double [] createFXandJacobianMulti(
 							for (int j=0;j<numSamples;j++){
 								jacobian[numRegPars+pindex+j][index]=fieldFitting.sampleCorrCrossWeights[chn][np][i][j];
 							}
-						}                         
+						}
 						index++;
 					}
 				}
@@ -2308,7 +2300,7 @@ public double [] createFXandJacobianMulti(
 		}
 
 		try
-		{   
+		{
 			for (int ithread = 0; ithread < threads.length; ++ithread)
 				threads[ithread].join();
 		} catch (InterruptedException ie)
@@ -2351,10 +2343,10 @@ public double [] createFXandJacobianMulti(
 							ms.px, // pixel x
 							ms.py, // pixel y
 							derivs);
-				} else {				
+				} else {
 					subData=fieldFitting.getValsDerivatives(
 							//					null, // double [] zTxTy, // null - use mechanicalFocusingModel data
-							//FIXME: - ***************** here needs actual index ************************** 					
+							//FIXME: - ***************** here needs actual index **************************
 //							ms.measurementIndex, //-1, // <0 - use mechanicalFocusingModel z, tx, ty
 							ms.sampleIndex,
 							sagittalMaster,
@@ -2368,7 +2360,7 @@ public double [] createFXandJacobianMulti(
 				}
 			}
 			fx[n]=subData[selChanIndices[ms.channel]];
-			
+
 			if (createJacobian) {
 				double [] thisDerivs=derivs[selChanIndices[ms.channel]];
 				if (useZTxTy){
@@ -2423,7 +2415,7 @@ public double [] createFXandJacobianMulti(
 									for (int j=0;j<numSamples;j++){
 										jacobian[numRegPars+pindex+j][index]=fieldFitting.sampleCorrCrossWeights[chn][np][i][j];
 									}
-								}                         
+								}
 								index++;
 							}
 						}
@@ -2506,7 +2498,7 @@ public ArrayList<FocusingFieldMeasurement> singleMeasurement(FocusingFieldMeasur
 	 ArrayList<FocusingFieldMeasurement> sm=new ArrayList<FocusingFieldMeasurement>();
 	 sm.add(measurement);
 	 return sm;
-	
+
 }
 
 public MeasuredSample [] createDataVector(FocusingFieldMeasurement measurement){
@@ -2924,7 +2916,7 @@ d_s2/d_x0= 2*delta_x*delta_y^2/r2^2
     public double [] calcYminusFx(double [] fX){
         double [] result=this.dataValues.clone();
         for (int i=0;i<result.length;i++) result[i]-=fX[i];
-     return result;    
+     return result;
     }
     public double calcErrorDiffY(double [] fX, boolean pure){
         int len=pure?dataVector.length:fX.length;
@@ -2966,9 +2958,9 @@ d_s2/d_x0= 2*delta_x*delta_y^2/r2^2
         	System.out.println(numSet+" "+IJ.d2s(setRMA[numSet],3)+" "+
         			dataVector[indices[numSet]].motors[0]+":"+dataVector[indices[numSet]].motors[1]+":"+dataVector[indices[numSet]].motors[2]+" "+
         			dataVector[indices[numSet]].timestamp);
-        }        
+        }
     }
-    
+
     public double [] calcErrorsPerSet(double [] fX){
 //        int [] indices=getSetIndices();
     	Integer [] indices=getSetIndices().toArray(new Integer[0]); // uses dataVector;
@@ -2992,7 +2984,7 @@ d_s2/d_x0= 2*delta_x*delta_y^2/r2^2
         }
         return setRMS;
     }
-    
+
 
     public int [] getSetIndices_old(){
     	String lastTimestamp="";
@@ -3013,7 +3005,7 @@ d_s2/d_x0= 2*delta_x*delta_y^2/r2^2
     	}
     	return indices;
     }
-    
+
     public ArrayList<Integer> getSetSampleIndices(){ // indices of data with anything new but channel (maximum - 6 increment)
     	String prevTimeStamp="";
     	int prevMeasurementIndex=-1;
@@ -3049,7 +3041,7 @@ d_s2/d_x0= 2*delta_x*delta_y^2/r2^2
     	}
     	return measIndicesList;
     }
-    
+
     public boolean [] getMeasurementsMask(){
     	ArrayList<Integer> indices=getSetIndices(); // uses dataVector;
 		boolean [] en=dataWeightsToBoolean();
@@ -3063,13 +3055,13 @@ d_s2/d_x0= 2*delta_x*delta_y^2/r2^2
 		return measMask;
     }
 
-    
-    
+
+
     public LMAArrays calculateJacobianArrays(double [] fX){
     	if (multiJacobian && (threadsMax>0)) return  calculateJacobianArraysMulti(fX);
     	else return calculateJacobianArraysSingle(fX);
     }
-    
+
     public LMAArrays calculateJacobianArraysSingle(double [] fX){
     	// calculate JtJ
     	double [] diff=calcYminusFx(fX);
@@ -3109,15 +3101,16 @@ d_s2/d_x0= 2*delta_x*delta_y^2/r2^2
 //    	int length=diff.length; // should be the same as this.jacobian[0].length
     	final double [][] JtByJmod=new double [numPars][numPars]; //Transposed Jacobian multiplied by Jacobian
     	final double [] JtByDiff=new double [numPars];
-    	
+
     	final double [] fWeights=this.dataWeights;
 //    	final double [][] fJacobian=this.jacobian;
     	final AtomicInteger lineAtomic = new AtomicInteger(0);
     	final Thread[] threads = newThreadArray(threadsMax);
-    	
+
     	for (int ithread = 0; ithread < threads.length; ithread++) {
     		threads[ithread] = new Thread() {
-    			public void run() {
+    			@Override
+				public void run() {
     				for (int line=lineAtomic.getAndIncrement(); line<numPars;line=lineAtomic.getAndIncrement()){
     					double [] sLine=jacobian[line];
     					if (fWeights!=null){
@@ -3141,7 +3134,7 @@ d_s2/d_x0= 2*delta_x*delta_y^2/r2^2
     		};
     	}
     	startAndJoin(threads);
-/*   		
+/*
     	for (int i=0;i<numPars;i++) for (int j=i;j<numPars;j++){
     		JtByJmod[i][j]=0.0;
     		if (this.dataWeights!=null)
@@ -3149,11 +3142,11 @@ d_s2/d_x0= 2*delta_x*delta_y^2/r2^2
     		else
     			for (int k=0;k<length;k++) JtByJmod[i][j]+=this.jacobian[i][k]*this.jacobian[j][k];
     	}
-*/    	
+*/
     	for (int i=0;i<numPars;i++) { // subtract lambda*diagonal , fill the symmetrical half below the diagonal
     		for (int j=0;j<i;j++) JtByJmod[i][j]= JtByJmod[j][i]; // it is symmetrical matrix, just copy
     	}
-/*    	
+/*
     	for (int i=0;i<numPars;i++) {
     		JtByDiff[i]=0.0;
     		if (this.dataWeights!=null)
@@ -3169,8 +3162,8 @@ d_s2/d_x0= 2*delta_x*delta_y^2/r2^2
     	return lMAArrays;
     }
 
-    
-    
+
+
     public double [] solveLMA(
             LMAArrays lMAArrays,
             double lambda,
@@ -3241,7 +3234,7 @@ d_s2/d_x0= 2*delta_x*delta_y^2/r2^2
                 System.out.println(i+": "+pointName+" fx= "+fx[i]+" delta_fx= "+((fx_dp[i]-fx[i])/delta)+" df/dp= "+jacobian[debugParameter][i]);
             }
     	}
-/*   	
+/*
         boolean [] centerSelect=fieldFitting.getCenterSelect();
         if (!centerSelect[0] || !centerSelect[1]){
             System.out.println("compareDrDerivatives(): Both px0 and px1 parameters should be enabled, aborting");
@@ -3257,12 +3250,12 @@ d_s2/d_x0= 2*delta_x*delta_y^2/r2^2
      for (int i=0;i<fx.length;i++){
          System.out.println(i+" fx= "+fx[i]+" delta_fx= "+(fx_dx[i]-fx[i])+" delta_fy= "+(fx_dy[i]-fx[i]));
          System.out.println(" df/dx= "+jacobian[0][i]+" df/dy= "+jacobian[1][i]);
-         
+
      }
-*/     
+*/
     }
-    
-    
+
+
     /**
      * Calculates next parameters vector, holds some arrays
      * @param numSeries
@@ -3315,10 +3308,10 @@ d_s2/d_x0= 2*delta_x*delta_y^2/r2^2
         this.firstRMS=this.currentRMS;
         this.firstRMSPure=this.currentRMSPure;
     }
-    
-    
+
+
         deltas=solveLMA(this.lMAArrays,    this.lambda, debugLevel);
-        
+
     boolean matrixNonSingular=true;
     if (deltas==null) {
         deltas=new double[this.currentVector.length];
@@ -3331,12 +3324,12 @@ d_s2/d_x0= 2*delta_x*delta_y^2/r2^2
                 System.out.println(i+": "+ deltas[i]);
             }
         }
-// apply deltas     
+// apply deltas
     this.nextVector=this.currentVector.clone();
     for (int i=0;i<this.nextVector.length;i++) this.nextVector[i]+=deltas[i];
-// another option - do not calculate J now, just fX. and late - calculate both if it was improvement     
+// another option - do not calculate J now, just fX. and late - calculate both if it was improvement
 //     save current Jacobian
-    
+
         if (debugLevel>2) {
             System.out.println("this.nextVector");
             for (int i=0;i<this.nextVector.length;i++){
@@ -3369,7 +3362,7 @@ if (debugLevel>1) System.out.println("*** 10 @ "+ IJ.d2s(0.000000001*(System.nan
         boolean [] status={matrixNonSingular && (this.nextRMS<=this.currentRMS),!matrixNonSingular};
         // additional test if "worse" but the difference is too small, it was be caused by computation error, like here:
         //stepLevenbergMarquardtAction() step=27, this.currentRMS=0.17068403807026408, this.nextRMS=0.1706840380702647
-        
+
         if (!status[0] && matrixNonSingular) {
             if (this.nextRMS<(this.currentRMS+this.currentRMS*this.thresholdFinish*0.01)) {
                 this.nextRMS=this.currentRMS;
@@ -3385,7 +3378,7 @@ if (debugLevel>1) System.out.println("*** 10 @ "+ IJ.d2s(0.000000001*(System.nan
                             ", this.nextRMSPure="+this.nextRMSPure+
                             ", delta="+(this.currentRMS-this.nextRMS));
                 }
-                
+
             }
         }
     if (status[0] && matrixNonSingular) { //improved
@@ -3397,21 +3390,21 @@ if (debugLevel>1) System.out.println("*** 10 @ "+ IJ.d2s(0.000000001*(System.nan
     } else if (matrixNonSingular){
 //         this.jacobian=this.savedJacobian;// restore saved Jacobian
         this.lMAArrays=this.savedLMAArrays; // restore Jt*J and Jt*diff
-        
+
         status[1]=(this.iterationStepNumber>this.numIterations) || // failed
         ((this.lambda*this.lambdaStepUp)>this.maxLambda);
     }
-///this.currentRMS     
-//TODO: add other failures leading to result failure?     
+///this.currentRMS
+//TODO: add other failures leading to result failure?
         if (debugLevel>2) {
             System.out.println("stepLevenbergMarquardtFirst("+debugLevel+")=>"+status[0]+","+status[1]);
         }
         return status;
 }
-    
+
 public void stepLevenbergMarquardtAction(int debugLevel){//
 	this.iterationStepNumber++;
-	// apply/revert,modify lambda 
+	// apply/revert,modify lambda
 	String msg="currentRMS="+this.currentRMS+
 			", currentRMSPure="+this.currentRMSPure+
 			", nextRMS="+this.nextRMS+
@@ -3435,7 +3428,7 @@ public void stepLevenbergMarquardtAction(int debugLevel){//
 * Dialog to select Levenberg-Marquardt algorithm and related parameters
 * @param autoSel - disable default stop, suggest strategy 0
 * @return true if OK, false if canceled
-* 
+*
 */
 public boolean selectLMAParameters(boolean autoSel){
 	//     int numSeries=fittingStrategy.getNumSeries();
@@ -3551,10 +3544,10 @@ public void listData(String title, String path){
         gd.addCheckbox("Sample X"+j+"Y"+i+" (x="+sampleCoord[i][j][0]+
         " y="+sampleCoord[i][j][1]+")",showSamples[j+i*sampleCoord[0].length]);
     }
-    
+
         gd.addCheckbox("Show all samples", this.showAllSamples);
         gd.addCheckbox("Show ignored data", this.showIgnoredData);
-        
+
         gd.addCheckbox("Show sample distance fom the optical center", this.showRad);
         WindowTools.addScrollBars(gd);
      gd.showDialog();
@@ -3642,7 +3635,7 @@ public void listData(String title,
     				if (!first) header+="\t";
     				first=false;
     				header+="Y"+i+"X"+j+sColors[c]+sDirs[d]+sMeasCalc[m];
-    			}                 
+    			}
     		}
     	}
     }
@@ -3672,8 +3665,8 @@ public void listData(String title,
     		int dir = chn % 2;
     		samplesFull[sampleRow][sampleCol][color][dir]=dataVector[index].value;
         }
-// still needed if     showIgnoredData!    
-/*        
+// still needed if     showIgnoredData!
+/*
         if (showMeasCalc[0] && (samples!=null)) for (int i=0;i<sampleCoord.length;i++){
         	if ((i<samples.length) && (samples[i]!=null)) for (int j=0;j<sampleCoord[i].length;j++){
         		if ((j<samples[i].length) && (samples[i][j]!=null)) for (int c=0;c<numColors;c++){
@@ -3784,7 +3777,7 @@ public void listData(String title,
         				first=false;
         				if (m==0) sb.append(samplesFull[i][j][c][d]);
         				else sb.append(calcSamples[i][j][c][d]);
-        			}                 
+        			}
         		}
         	}
         }
@@ -3812,7 +3805,7 @@ public void listData(String title,
     					if (!first) sb.append("\t");
     					first=false;
     					sb.append(rad);
-    				}                 
+    				}
     			}
     		}
     	}
@@ -3841,7 +3834,7 @@ public void listCombinedResults(){
 // private double rslt_scan_step= 5.0;
 // private boolean rslt_mtf50_mode= true;
 // public double fwhm_to_mtf50=500.0; // put actual number
-    
+
     double [] center_z=fieldFitting.getZCenters(false); // do not solve, use z0 coefficient
     double [] centerFWHM={
     		fieldFitting.getCalcValuesForZ(center_z[0],0.0,null)[1],
@@ -3879,9 +3872,9 @@ public void listCombinedResults(){
     gd.addNumericField("Ring averaging radial sigma", this.rslt_show_smooth_sigma, 3,5,"mm");
     gd.addCheckbox("Show mtf50 (false - PSF FWHM)", this.rslt_mtf50_mode);
     gd.addCheckbox("Find z for minimum, unchecked - use parameter", this.rslt_solve);
-        
+
     gd.addCheckbox("Show focal distance relative to best composite focus (false - to center green )", this.z_relative);
-    
+
     gd.addMessage("Multiple section setup:");
         gd.addNumericField("Scan from (relative to green center)", this.rslt_scan_below, 3,7,"um");
         gd.addNumericField("Scan to (relative to green center)", this.rslt_scan_above, 3,7,"um");
@@ -3890,7 +3883,7 @@ public void listCombinedResults(){
     if (gd.wasCanceled()) {
          return;
      }
-    
+
     for (int i=0;i<rslt_show_chn.length;i++){
     	this.rslt_show_chn[i]=gd.getNextBoolean();
     }
@@ -3924,7 +3917,7 @@ public void listCombinedResults(){
     		(z_relative?best_qb_corr[0]:center_z[1])+rslt_scan_above, //double scan_above,
     		rslt_scan_step, //double scan_step,
     		rslt_mtf50_mode, //boolean freq_mode)
-    		rslt_solve); // currently if not using z^(>=2) no numeric solution is required - z0 is the minimum 
+    		rslt_solve); // currently if not using z^(>=2) no numeric solution is required - z0 is the minimum
 }
 
 public double [][] filterListSamples(
@@ -3936,7 +3929,7 @@ public double [][] filterListSamples(
 		double [] tangentialWeights){// numsamples long
 	double [][] data={saggital,tangential};
 	double [][] weights={saggitalWeights,tangentialWeights};
-	
+
 	int len=saggital.length+1;
 	double [][] result = new double[2][len];
 	double kexp=-0.5/(sigma*sigma);
@@ -3986,7 +3979,7 @@ public void listCombinedResults(
 		double scan_above,
 		double scan_step,
 		boolean freq_mode,
-		boolean solveZ){ // currently if not using z^(>=2) no numeric solution is required - z0 is the minimum 
+		boolean solveZ){ // currently if not using z^(>=2) no numeric solution is required - z0 is the minimum
 
 	String [] chnNames={"RS","RT","GS","GT","BS","BT"};
 	// Calculate weights of each channel/sample
@@ -4012,7 +4005,7 @@ public void listCombinedResults(
 			if (show_chn[i])header+="\tZ"+chnNames[i]+"~";
 		}
 	}
-	
+
 	if (show_z_individual){
 		for (int i=0;i<show_chn.length;i++){
 			if (show_chn[i])header+="\tZ"+chnNames[i]+"*";
@@ -4077,7 +4070,7 @@ public void listCombinedResults(
 			f_values[sect][1]=null;
 		}
 		if (show_f_smooth){
-			double [][] f=fieldFitting.getCalcValuesForZ(z, true,true); // corrected (individual), 
+			double [][] f=fieldFitting.getCalcValuesForZ(z, true,true); // corrected (individual),
 			f_values[sect][2]=new double [f.length][];
 			for (int chn=0;chn<f.length;chn+=2){
 				double [][] smooth=filterListSamples(
@@ -4107,7 +4100,7 @@ public void listCombinedResults(
 				for (int i=0;i<zai[chn].length;i++){
 					z_values[0][chn][i+1]=zai[chn][i];
 				}
-				
+
 			} else z_values[0][chn]=null;
 		}
 	} else z_values[0] = null;
@@ -4121,7 +4114,7 @@ public void listCombinedResults(
 				for (int i=0;i<zai[chn].length;i++){
 					z_values[1][chn][i+1]=zai[chn][i];
 				}
-				
+
 			} else z_values[1][chn]=null;
 		}
 	} else z_values[1] = null;
@@ -4142,11 +4135,11 @@ public void listCombinedResults(
 	} else {
 		z_values[2]=null;
 	}
-	
-	
-	
-	
-	
+
+
+
+
+
 	StringBuffer sb = new StringBuffer();
 	for (int n=0;n<radiuses.length;n++){
 		sb.append(IJ.d2s(radiuses[n],3));
@@ -4201,7 +4194,7 @@ public void listCombinedResults(
 
 
 public void listScanQB(){
-    
+
     double [] center_z=fieldFitting.getZCenters(false); // do not solve, use z0 coefficient
     double [] centerFWHM={
     		fieldFitting.getCalcValuesForZ(center_z[0],0.0,null)[1],
@@ -4235,7 +4228,7 @@ public void listScanQB(){
         gd.addCheckbox("Use per-sample location corrected data", this.qb_use_corrected);
         gd.addCheckbox("Show mtf50 (false - PSF FWHM)", this.qb_invert);
         gd.addCheckbox("Show focal distance relative to best composite focus (false - to center green )", this.z_relative);
-        
+
      gd.showDialog();
      if (gd.wasCanceled()) {
          return;
@@ -4248,8 +4241,8 @@ public void listScanQB(){
         this.qb_use_corrected= gd.getNextBoolean();
         this.qb_invert= gd.getNextBoolean();
         this.z_relative= gd.getNextBoolean();
-        
-        
+
+
         listScanQB(
              "Focus quality vs. distance", // String title,
              null, //String path,
@@ -4292,11 +4285,11 @@ public void listScanQB(
                 sb.append(IJ.d2s(z-z0,3)+"\t"+IJ.d2s(qb_w,3)+"\t"+IJ.d2s(qb_rgb[0],3)+"\t"+IJ.d2s(qb_rgb[1],3)+"\t"+IJ.d2s(qb_rgb[2],3) +"\n");
             }
         }
-        
+
 //        for (String s:this.fieldFitting.getParameterValueStrings(true,true)){ //this.showDisabledParams)){ //
 //         sb.append(s+"\n");
 //        }
-        
+
 // Add result to the bottom of the file
         double [] center_z=fieldFitting.getZCenters(false); // z0 coefficient, do not find minimum
         double [] centerFWHM={
@@ -4317,10 +4310,10 @@ public void listScanQB(
         sb.append("Green center"+"\t"+IJ.d2s(center_z[1],3)+"\t"+IJ.d2s(centerFWHM[1],3)+"\t"+IJ.d2s(fwhm_to_mtf50/centerFWHM[1],2)+"\t"+"lp/mm" +"\n");
         sb.append("Blue center"+"\t"+ IJ.d2s(center_z[2],3)+"\t"+IJ.d2s(centerFWHM[2],3)+"\t"+IJ.d2s(fwhm_to_mtf50/centerFWHM[2],2)+"\t"+"lp/mm" +"\n");
         sb.append("Composite ^4"+"\t"+ IJ.d2s(best_qb_corr[0],3)+"\t"+IJ.d2s(best_qb_corr[1],3)+"\t"+IJ.d2s(fwhm_to_mtf50/best_qb_corr[1],2)+"\t"+"lp/mm" +"\n");
-        
+
         sb.append("Lens center "+"\t"+  "used" +             "\t"+IJ.d2s(currentPX0,1)+"\t"+ IJ.d2s(currentPY0,1)+"\t"+"pix" +"\n");
         sb.append("Lens center "+"\t"+  "distortions" +      "\t"+IJ.d2s(pX0_distortions,1)+"\t"+IJ.d2s(pY0_distortions,1)+"\t"+"pix" +"\n");
-        
+
         if (path!=null) {
             CalibrationFileManagement.saveStringToFile (
                     path,
@@ -4344,10 +4337,10 @@ public boolean dialogLMAStep(boolean [] state){
     gd.addMessage("Current state="+states[iState]);
     gd.addMessage("Current series="+this.currentStrategyStep);
     gd.addMessage("Iteration step="+this.iterationStepNumber);
-    
+
     gd.addMessage("Initial RMS="+IJ.d2s(this.firstRMS,6)+", Current RMS="+IJ.d2s(this.currentRMS,6)+", new RMS="+IJ.d2s(this.nextRMS,6));
     gd.addMessage("Pure initial RMS="+IJ.d2s(this.firstRMSPure,6)+", Current RMS="+IJ.d2s(this.currentRMSPure,6)+", new RMS="+IJ.d2s(this.nextRMSPure,6));
-    
+
     if (this.showParams) {
         gd.addMessage("==== Current parameter values ===");
         for (String s:this.fieldFitting.getParameterValueStrings(this.showDisabledParams, this.showCorrectionParams)){ //
@@ -4356,7 +4349,7 @@ public boolean dialogLMAStep(boolean [] state){
         gd.addMessage("");
 
     }
-    
+
         gd.addNumericField("Lambda ", this.lambda, 5);
         gd.addNumericField("Multiply lambda on success", this.lambdaStepDown, 5);
         gd.addNumericField("Threshold RMS to exit LMA", this.thresholdFinish, 7,9,"pix");
@@ -4458,7 +4451,7 @@ public double getAdjustRMS(
 				false); // calib mode for debug print
 		maskDataWeights(en);
 	}
-/*	
+/*
 	if ((minCenterSamplesTotal>0) || (minCenterSamplesBest>0)){
 		boolean [] centerSampesMask= getCenterSamples(centerSamples);
 		boolean [] en=dataWeightsToBoolean();
@@ -4493,9 +4486,9 @@ public double getAdjustRMS(
 	}
 	int numEn=getNumEnabledSamples(dataWeightsToBoolean());
 	if ((numEn<minLeftSamples) || (numEn<1)) return Double.NaN;
-	
+
 //	double [] sv= fieldFitting.createParameterVector(sagittalMaster);
-	double [] sv= fieldFitting.createParameterVectorZTxTy(zTxTyAdjustMode); //0 - do not adjust, 1 - commonn adjust, 2 - individual adjust	
+	double [] sv= fieldFitting.createParameterVectorZTxTy(zTxTyAdjustMode); //0 - do not adjust, 1 - commonn adjust, 2 - individual adjust
 	double [] focusing_fx= createFXandJacobian(sv, false);
 	double rms_pure=       calcErrorDiffY(focusing_fx, true);
 	//	System.out.println("rms_pure="+rms_pure);
@@ -4506,7 +4499,7 @@ public double [] findAdjustZ( // Mode should already be set to adjustment!
 //		FocusingFieldMeasurement measurement,
 		ArrayList<FocusingFieldMeasurement> measurements,
 		boolean filterZ,
-		boolean filterByScanValue,  
+		boolean filterByScanValue,
 		double filterByValueScale,
 		int minNeib,
 		double zMin,
@@ -4521,7 +4514,7 @@ public double [] findAdjustZ( // Mode should already be set to adjustment!
 	double tYBest=Double.NaN;
 	double bestRMS=Double.NaN;
 	double tMinX=tMin,tMinY=tMin,tMaxX=tMax,tMaxY=tMax, tStepX=tStep,tStepY=tStep;
-	
+
 	// Disable scanning tilts according to zTxTyAdjustMode (null - old way)
 	if (zTxTyAdjustMode!=null){
 		double [] zTxTy=fieldFitting.mechanicalFocusingModel.getZTxTy(); // current values
@@ -4593,11 +4586,11 @@ public boolean LevenbergMarquardt(
 	double savedLambda=this.lambda;
 	this.debugLevel=debugLevel;
 	if (openDialog && !selectLMAParameters(autoSel)) return false;
-	
+
 	if (!openDialog && autoSel) {
 		this.stopEachStep= false;
 		this.stopEachSeries= false;
-		this.currentStrategyStep=0;		
+		this.currentStrategyStep=0;
 	}
 	this.startTime=System.nanoTime();
 	// create savedVector (it depends on parameter masks), restore from it if aborted
@@ -4625,13 +4618,13 @@ public boolean LevenbergMarquardt(
 
 //TODO: reset firstRMS here only if enabled channels or enabled correction parameters are different
 		this.firstRMS=-1; //undefined
-		
+
         if (this.currentStrategyStep>=0){
         	if (!getStrategy(this.currentStrategyStep)) break; //invalid strategy
         }
         if (!keepCorrectionParameters) fieldFitting.resetSampleCorr();
         if (resetVariableParameters) fieldFitting.resetSFEVariables();
-        
+
         if (resetCenter){
 			if (debugLevel>0) System.out.println("Resetting center: X "+IJ.d2s(currentPX0,2)+" -> "+IJ.d2s(pX0_distortions,2));
 			if (debugLevel>0) System.out.println("Resetting center: Y "+IJ.d2s(currentPY0,2)+" -> "+IJ.d2s(pY0_distortions,2));
@@ -4687,7 +4680,7 @@ public boolean LevenbergMarquardt(
        			prevEnable=en;
        	    	int numEn=getNumEnabledSamples(en);
        	    	if (numEn<minLeftSamples) return false;
-       		}       		
+       		}
        		if (filterByNeib>0){
        			boolean [] en=dataWeightsToBoolean();
        			en= filterLowNeighbors(
@@ -4730,32 +4723,32 @@ public boolean LevenbergMarquardt(
        				return false;
        			}
        		}
-*/       		
+*/
        		fieldFitting.initSampleCorrVector(
        				flattenSampleCoord(), //double [][] sampleCoordinates,
        				null); //getSeriesWeights()); //double [][] sampleSeriesWeights);
 //        	this.savedVector=this.fieldFitting.createParameterVector(sagittalMaster);
        		this.savedVector=this.fieldFitting.createParameterVectorZTxTy(zTxTyAdjustMode); //0 - do not adjust, 1 - commonn adjust, 2 - individual adjust
        		this.fieldFitting.commitParameterVectorZTxTy( // to populate fieldFitting.mechanicalFocusingModel.replaceParameters array
-       				this.savedVector); 
+       				this.savedVector);
        	}
 //    	this.savedVector=this.fieldFitting.createParameterVector(sagittalMaster);
     	if (debugDerivativesFxDxDy){
     		compareDrDerivatives(this.savedVector);
     	}
-       	
-    	
-    	
-    	
+
+
+
+
 		//     while (this.fittingStrategy.isSeriesValid(this.seriesNumber)){ // TODO: Add "stop" tag to series
 		this.currentVector=null; // invalidate for the new series
 		//         boolean wasLastSeries=false;
-		
+
 		int saveStopRequested=this.stopRequested.get(); // preserve from caller stop requested (like temp. scan)
 		this.stopRequested.set(0); // remove caller stop request
-		
+
 		while (true) { // loop for the same series
-	        
+
 			boolean [] state=stepLevenbergMarquardtFirst(debugLevel);
 			if (state==null) {
 				String msg="Calculation aborted by user request, restoring saved parameter vector";
@@ -4823,7 +4816,7 @@ public boolean LevenbergMarquardt(
 				this.stopRequested.set(saveStopRequested); // restore caller stop request
 				return this.saveSeries; // TODO: Maybe change result?
 			}
-			//stepLevenbergMarquardtAction();             
+			//stepLevenbergMarquardtAction();
 			if (state[1]) {
 				if (!state[0]) {
 					commitParameterVector(this.savedVector);
@@ -4871,7 +4864,7 @@ public boolean LevenbergMarquardt(
 		zRanges=calcZRanges(
 				true, // boolean scanOnly, // do not use non-scan samples
 				dataWeightsToBoolean());
-		calculateGoodSamples();		
+		calculateGoodSamples();
 	}
 	return true; // all series done
 }
@@ -4881,7 +4874,7 @@ public boolean LevenbergMarquardt(
         public double temperature;
         public int [] motors;
         double [][][][] samples = null; // last - psf radius in pixels: {x2,y2, xy}
-        
+
         public FocusingFieldMeasurement(
                 String timestamp,
                 double temperature,
@@ -4923,7 +4916,7 @@ public boolean LevenbergMarquardt(
             this.temperature=temperature;
             this.motors = new int[motors.length];
             for (int i=0;i<motors.length;i++) this.motors[i]= motors[i];
-            
+
 //            if ((sampleStrings!=null) && (sampleStrings.size()>0)) {
             if ((sampleStrings!=null) && (sampleStrings.length>0)) {
                 int maxi=0,maxj=0;
@@ -4950,7 +4943,7 @@ public boolean LevenbergMarquardt(
                         this.samples[i][j][c][1]=Double.parseDouble(ps[3*c+3]);
                         this.samples[i][j][c][2]=Double.parseDouble(ps[3*c+4]);
                     }
-                }                
+                }
             }
         }
 
@@ -5012,7 +5005,7 @@ public boolean LevenbergMarquardt(
         this.sensorHeight=sensorHeight;
         this.PIXEL_SIZE=PIXEL_SIZE; //=0.0022; // mm
     }
-    
+
     public FocusingField(
     		boolean smart, // do not open dialog if default matches
     		String defaultPath, //){
@@ -5057,11 +5050,11 @@ public boolean LevenbergMarquardt(
         hConfig.setThrowExceptionOnMissing(false); // default value, will return null on missing
         comment= hConfig.getString("comment","no comments");
 //        if ((comment.length()>10) && comment.substring(0,9).equals("<![CDATA[")) comment=comment.substring(9,comment.length()-3);
-        
+
         PIXEL_SIZE=Double.parseDouble(hConfig.getString("PIXEL_SIZE",PIXEL_SIZE+""));
         sensorWidth=Integer.parseInt(hConfig.getString("sensorWidth",sensorWidth+""));
         sensorHeight=Integer.parseInt(hConfig.getString("sensorHeight",sensorHeight+""));
-        
+
         serialNumber= hConfig.getString("serialNumber","???");
         lensSerial= hConfig.getString("lensSerial","???");
         pX0_distortions=Double.parseDouble(hConfig.getString("lens_center_x","0.0"));
@@ -5113,11 +5106,11 @@ public boolean LevenbergMarquardt(
     	if (lensSerial!=null) hConfig.addProperty("lensSerial",lensSerial);
     	hConfig.addProperty("lens_center_x",pX0_distortions); // distortions center, not aberrations!
     	hConfig.addProperty("lens_center_y",pY0_distortions);
-    	
+
     	hConfig.addProperty("PIXEL_SIZE",PIXEL_SIZE);
     	hConfig.addProperty("sensorWidth", sensorWidth);
     	hConfig.addProperty("sensorHeight",sensorHeight);
-    	
+
     	if ((sampleCoord!=null) && (sampleCoord.length>0) && (sampleCoord[0] != null) && (sampleCoord[0].length>0)){
     		hConfig.addProperty("samples_x",sampleCoord[0].length);
     		hConfig.addProperty("samples_y",sampleCoord.length);
@@ -5135,7 +5128,7 @@ public boolean LevenbergMarquardt(
     		hConfig.addProperty(prefix+"temperature",meas.temperature);
     		hConfig.addProperty(prefix+"motors",meas.motors[0]+sep+meas.motors[1]+sep+meas.motors[2]);
     		hConfig.addProperty(prefix+"sample",meas.asListString());
-    	}     
+    	}
     	File file=new File (path);
     	BufferedWriter writer;
     	try {
@@ -5163,12 +5156,12 @@ public boolean LevenbergMarquardt(
 //        double zStep=2.0;
 //        double targetTiltX=0.0; // for testing, normally should be 0 um/mm
 //        double targetTiltY=0.0; // for testing, normally should be 0 um/mm
-        
+
 //    	fieldFitting.mechanicalFocusingModel.setZTxTy(0.0,0.0,0.0); // to correctly find Z centers,
-        
-        
+
+
     	fieldFitting.mechanicalFocusingModel.setAdjustMode(false,null); // to correctly find Z centers,
-        
+
         double [] center_z=fieldFitting.getZCenters(false);
         double [] centerFWHM={
         		fieldFitting.getCalcValuesForZ(center_z[0],0.0,null)[1],
@@ -5189,17 +5182,17 @@ public boolean LevenbergMarquardt(
         		", FWHM="+IJ.d2s(centerFWHM[1],3)+"um, MTF50="+IJ.d2s(fwhm_to_mtf50/centerFWHM[1],2)+" lp/mm");
         gd.addMessage("Best center focus for Blue (relative to best composite) = "+ IJ.d2s(center_z[2]-best_qb_corr[0],3)+" um"+
         		", FWHM="+IJ.d2s(centerFWHM[2],3)+"um, MTF50="+IJ.d2s(fwhm_to_mtf50/centerFWHM[2],2)+" lp/mm");
-        
+
         gd.addNumericField("Measurement number",nMeas,0,5,"0.."+(measurements.size()-1));
     	if (fieldFitting.channelSelect==null) fieldFitting.channelSelect=fieldFitting.getDefaultMask();
     	for (int i=0;i<fieldFitting.channelSelect.length;i++) {
-    		gd.addCheckbox(fieldFitting.getDescription(i), fieldFitting.channelSelect[i]);                    
+    		gd.addCheckbox(fieldFitting.getDescription(i), fieldFitting.channelSelect[i]);
     	}
-        
+
 //    	filterZ=true;      // (adjustment mode)filter samples by Z
 //    	minLeftSamples=10;  // minimal number of samples (channel/dir/location) for adjustment
-        
-        
+
+
         gd.addCheckbox("Filter samples/channels by Z",filterZ);
         gd.addCheckbox("Filter by value (leave lower than maximal fwhm used in focal scan mode)",filterByScanValue);
         gd.addNumericField("Filter by value (remove samples above scaled best FWHM for channel/location)",filterByValueScale,2,5,"x");
@@ -5209,7 +5202,7 @@ public boolean LevenbergMarquardt(
         gd.addNumericField("... of them closest to the center, best channel",minCenterSamplesBest,0,3,"samples");
         gd.addNumericField("... of them closest to the center, total in all channels",minCenterSamplesTotal,0,3,"samples");
         gd.addNumericField("Number of closest samples to consider",centerSamples,0,3,"samples");
-        
+
         gd.addNumericField("Maximal accepted RMS",maxRMS,3,5,"");
 
         gd.addNumericField("Z min",zMin,2,5,"um");
@@ -5219,20 +5212,20 @@ public boolean LevenbergMarquardt(
         gd.addNumericField("Tilt min",tMin,2,5,"um/mm");
         gd.addNumericField("Tilt max",tMax,2,5,"um/mm");
         gd.addNumericField("Tilt step",tStep,2,5,"um/mm");
-        
+
         gd.addNumericField("Target focus (relative to best composirte)",targetRelFocalShift,2,5,"um");
-        
+
         gd.addNumericField("Target horizontal tilt (normally 0)",targetRelTiltX,2,5,"um/mm");
         gd.addNumericField("Target vertical tilt (normally 0)",targetRelTiltY,2,5,"um/mm");
         for (int n=0;n<this.zTxTyAdjustMode.length;n++){
         	gd.addChoice("Adjust "+zTxTyNames[n]+" mode",zTxTyAdjustModeNames,zTxTyAdjustModeNames[this.zTxTyAdjustMode[n]]);
         }
-        
-        
+
+
     	WindowTools.addScrollBars(gd);
     	gd.showDialog();
     	if (gd.wasCanceled()) return;
-    	
+
     	nMeas=(int)                   gd.getNextNumber();
 
     	for (int i=0;i<fieldFitting.channelSelect.length;i++) {
@@ -5242,9 +5235,9 @@ public boolean LevenbergMarquardt(
     	filterByScanValue=            gd.getNextBoolean();
     	filterByValueScale=           gd.getNextNumber();
 		filterByNeib=           (int) gd.getNextNumber();
-    	
+
         minLeftSamples=         (int) gd.getNextNumber();
-        minBestLeftSamples=     (int) gd.getNextNumber();        
+        minBestLeftSamples=     (int) gd.getNextNumber();
         minCenterSamplesBest=   (int) gd.getNextNumber();
         minCenterSamplesTotal=  (int) gd.getNextNumber();
         centerSamples=          (int) gd.getNextNumber();
@@ -5263,7 +5256,7 @@ public boolean LevenbergMarquardt(
         for (int n=0;n<this.zTxTyAdjustMode.length;n++){
         	this.zTxTyAdjustMode[n]=gd.getNextChoiceIndex();
         }
-       
+
         boolean OK;
     	fieldFitting.mechanicalFocusingModel.setAdjustMode(true,this.zTxTyAdjustMode); // to correctly find Z centers,
     	fieldFitting.mechanicalSelect=fieldFitting.mechanicalFocusingModel.maskSetZTxTy(null); // all: z, tx, ty
@@ -5284,17 +5277,17 @@ public boolean LevenbergMarquardt(
         boolean single= (nMeas>=0);
     	if (single){
     		if (debugLevel>0) System.out.print("======== testMeasurement("+nMeas+") ======== ");
-    		
+
     		OK=testMeasurement(
         			null, // FIXME: zTxTyAdjustMode
-    				singleMeasurement(measurements.get(nMeas)),    				
+    				singleMeasurement(measurements.get(nMeas)),
 //    				nMeas,
     				zMin, //+best_qb_corr[0],
 			        zMax, //+best_qb_corr[0],
-			        zStep, 
+			        zStep,
     				tMin,
 			        tMax,
-			        tStep 
+			        tStep
 			        );
     		if ((debugLevel>0)&& (dataVector.length>0)){
     			System.out.println("Motors= "+dataVector[0].motors[0]+" : "+ dataVector[0].motors[1]+" : "+dataVector[0].motors[2]+" timestamp= "+dataVector[0].timestamp);
@@ -5314,7 +5307,7 @@ public boolean LevenbergMarquardt(
     	        double [] zTilts=getCenterZTxTy(measurements.get(nMeas),-1); // common parameters
 
     			double [] dmz= getAdjustedMotors(
-    					null, // double [] zM0, //  current linearized motors (or null for full adjustment) 
+    					null, // double [] zM0, //  current linearized motors (or null for full adjustment)
     		            targetRelFocalShift+best_qb_corr[0],
     		            targetRelTiltX, // for testing, normally should be 0 um/mm
     		            targetRelTiltY,
@@ -5323,7 +5316,7 @@ public boolean LevenbergMarquardt(
     				System.out.println("Suggested motor linearized positions: "+IJ.d2s(dmz[0],2)+":"+IJ.d2s(dmz[1],2)+":"+IJ.d2s(dmz[2],2));
     			}
     			double [] dm= getAdjustedMotors(
-    					null, // double [] zM0, //  current linearized motors (or null for full adjustment) 
+    					null, // double [] zM0, //  current linearized motors (or null for full adjustment)
     		            targetRelFocalShift+best_qb_corr[0],
     		            targetRelTiltX, // for testing, normally should be 0 um/mm
     		            targetRelTiltY,
@@ -5347,12 +5340,12 @@ public boolean LevenbergMarquardt(
     				sb.append("\t---\t---\t---");
     			}
     			if (dmz!=null){
-    				for (int i=0;i<dmz.length;i++) sb.append("\t"+IJ.d2s(dmz[i],1)); 
+    				for (int i=0;i<dmz.length;i++) sb.append("\t"+IJ.d2s(dmz[i],1));
     			} else {
     				sb.append("\t---\t---\t---");
     			}
     			if (dm!=null){
-    				for (int i=0;i<dm.length;i++) sb.append("\t"+IJ.d2s(dm[i],1)); 
+    				for (int i=0;i<dm.length;i++) sb.append("\t"+IJ.d2s(dm[i],1));
     			} else {
     				sb.append("\t---\t---\t---");
     			}
@@ -5387,7 +5380,7 @@ public boolean LevenbergMarquardt(
         			}
         	        double [] zTilts=getCenterZTxTy(measurements.get(nMeas),-1); // <0 - common parameters
         			double [] dmz= getAdjustedMotors(
-        					null, // double [] zM0, //  current linearized motors (or null for full adjustment) 
+        					null, // double [] zM0, //  current linearized motors (or null for full adjustment)
         		            targetRelFocalShift+best_qb_corr[0],
         		            targetRelTiltX, // for testing, normally should be 0 um/mm
         		            targetRelTiltY,
@@ -5396,7 +5389,7 @@ public boolean LevenbergMarquardt(
         				System.out.println("Suggested motor linearized positions: "+IJ.d2s(dmz[0],2)+":"+IJ.d2s(dmz[1],2)+":"+IJ.d2s(dmz[2],2));
         			}
         			double [] dm= getAdjustedMotors(
-        					null, // double [] zM0, //  current linearized motors (or null for full adjustment) 
+        					null, // double [] zM0, //  current linearized motors (or null for full adjustment)
         		            targetRelFocalShift+best_qb_corr[0],
         		            targetRelTiltX, // for testing, normally should be 0 um/mm
         		            targetRelTiltY,
@@ -5404,7 +5397,7 @@ public boolean LevenbergMarquardt(
         			if ((dm!=null) && (debugLevel>0)){
         				System.out.println("Suggested motor positions: "+IJ.d2s(dm[0],0)+":"+IJ.d2s(dm[1],0)+":"+IJ.d2s(dm[2],0));
         			}
-        			
+
         			if (maxRMS>0.0){
         				if (currentRMSPure > maxRMS){
             				if (debugLevel>0) System.out.println("RMS too high, "+IJ.d2s(currentRMSPure,3)+" > "+ IJ.d2s(maxRMS,3));
@@ -5427,12 +5420,12 @@ public boolean LevenbergMarquardt(
         				sb.append("\t---\t---\t---");
         			}
         			if (dmz!=null){
-        				for (int i=0;i<dmz.length;i++) sb.append("\t"+IJ.d2s(dmz[i],1)); 
+        				for (int i=0;i<dmz.length;i++) sb.append("\t"+IJ.d2s(dmz[i],1));
         			} else {
         				sb.append("\t---\t---\t---");
         			}
         			if (dm!=null){
-        				for (int i=0;i<dm.length;i++) sb.append("\t"+IJ.d2s(dm[i],1)); 
+        				for (int i=0;i<dm.length;i++) sb.append("\t"+IJ.d2s(dm[i],1));
         			} else {
         				sb.append("\t---\t---\t---");
         			}
@@ -5452,7 +5445,7 @@ public boolean LevenbergMarquardt(
 //    	fieldFitting.mechanicalFocusingModel.setZTxTy(0.0,0.0,0.0); // restore zeros to correctly find Z centers,
     	fieldFitting.mechanicalFocusingModel.setAdjustMode(false,null); // to correctly find Z centers,
     }
-    
+
 //,
     public String showSamples(){
     	boolean [][] usedSamples=new boolean[getNumChannels()][getNumSamples()];
@@ -5479,7 +5472,7 @@ public boolean LevenbergMarquardt(
     	}
     	return s;
     }
-    
+
     public double [][] getAllZTT( // z, tx, ty, temperature - skips bad measurements - no, some may be null; have NaN
     		boolean noTiltScan,
     		FocusingField ff,
@@ -5512,7 +5505,7 @@ public boolean LevenbergMarquardt(
     	}
     	return result; // may contain bad measurements (NaN for Z)
     }
-    
+
     public double [] averageZTM(// results relative to optimal
     		boolean noTiltScan,
     		FocusingField ff,
@@ -5534,7 +5527,7 @@ public boolean LevenbergMarquardt(
 			System.out.println("averageZTM() FAILED");
 			return null;
 		}
-		
+
 		double [] result =new double[results.length];
 		for (int n=0;n<result.length;n++){
 			result[n]=results[n][0]-this.qualBOptimizationResults[n];
@@ -5542,7 +5535,7 @@ public boolean LevenbergMarquardt(
     	return result;
     }
 
-    
+
     public double [][] getZ0TxTyAbsRel(){ // z0, not zc!??
     	double [][]zTxTyAbsRel = new double[2][];
     	zTxTyAbsRel[0]=fieldFitting.mechanicalFocusingModel.getZTxTy();
@@ -5559,7 +5552,7 @@ public boolean LevenbergMarquardt(
 //    	for (int i=0;i<this.qualBOptimizationResults.length;i++) zTxTyAbsRel[1][i]-=this.qualBOptimizationResults[i];
     	return zcZ0TxTy;
     }
-    
+
     public double [][] matchSeriesAbsoluteLMA ( // result absolute (not relative to optimal)
     		int [] zTxTyAdjustMode, // z, tx, ty - 0 - fixed, 1 - common, 2 - individual
     		boolean noTiltScan,
@@ -5567,10 +5560,10 @@ public boolean LevenbergMarquardt(
     	if (measurements.size()<1) return null;
     	if (!testMeasurement(
     			zTxTyAdjustMode,
-    			measurements,    				
+    			measurements,
 				zMin, //+best_qb_corr[0],
 		        zMax, //+best_qb_corr[0],
-		        zStep, 
+		        zStep,
 		        (noTiltScan?0.0:tMin),
 		        (noTiltScan?0.0:tMax),
 		        tStep)) {
@@ -5581,7 +5574,7 @@ public boolean LevenbergMarquardt(
         double [][] zTiltsIndiv=null;
         boolean indiv=false;
         if (measurements.size()>1){
-        	for (int n=0;n<zTilts.length;n++) if (zTxTyAdjustMode[n]>1) indiv=true; 
+        	for (int n=0;n<zTilts.length;n++) if (zTxTyAdjustMode[n]>1) indiv=true;
         }
         if (indiv){
         	zTiltsIndiv=new double [measurements.size()][];
@@ -5590,8 +5583,8 @@ public boolean LevenbergMarquardt(
         	}
         }
         // May contain NaN !!
-// TODO: change order to skip nulls (bad measurements), and also - invert indices?        
-        
+// TODO: change order to skip nulls (bad measurements), and also - invert indices?
+
     	double [][] result=new double [3][];
     	for (int n=0;n<result.length;n++){
     		if (zTxTyAdjustMode[n]<=1){
@@ -5607,14 +5600,14 @@ public boolean LevenbergMarquardt(
     	}
     	return result;
     }
-    
-    
+
+
     public double [] adjustLMA ( // result relative to optimal
     		int [] zTxTyAdjustMode, // z, tx, ty - 0 - fixed, 1 - common, 2 - individual
     		boolean noTiltScan,
     		FocusingFieldMeasurement measurement,
     		boolean parallelMove,
-    		boolean noQualB,   // do not re-claculate testQualB 
+    		boolean noQualB,   // do not re-claculate testQualB
     		boolean noAdjust){ // do not calculate correction
     	System.out.println("adjustLMA(): mode="+zTxTyAdjustMode[0]+"/"+zTxTyAdjustMode[1]+"/"+zTxTyAdjustMode[2]+
     			", noTiltScan="+noTiltScan+", parallelMove="+parallelMove+", noQualB="+noQualB+", noAdjust="+noAdjust);
@@ -5629,10 +5622,10 @@ public boolean LevenbergMarquardt(
     	}
     	if (!testMeasurement(
     			zTxTyAdjustMode,
-    			singleMeasurement(measurement),    				
+    			singleMeasurement(measurement),
 				zMin, //+best_qb_corr[0],
 		        zMax, //+best_qb_corr[0],
-		        zStep, 
+		        zStep,
 		        (noTiltScan?0.0:tMin),
 		        (noTiltScan?0.0:tMax),
 		        tStep)) {
@@ -5640,7 +5633,7 @@ public boolean LevenbergMarquardt(
     		return null;
     	}
     	double [] result=new double [noAdjust?3:6];
-        
+
         double [] zTilts=getCenterZTxTy(measurement,-1);
         if (zTilts==null){
         	System.out.println("Failed to get getCenterZTxTy()");
@@ -5694,7 +5687,7 @@ public boolean LevenbergMarquardt(
         }
         return result;
     }
-    
+
     // add tx, ty?
     public double[] getCenterZTxTy(
     		FocusingFieldMeasurement measurement,
@@ -5714,13 +5707,13 @@ public boolean LevenbergMarquardt(
 //    	if (Double.isNaN(result[0])) return null;
     	return result; // may contain Double.NaN - no, all null
     }
-    
+
     public double [] getAdjustedMotors( // Target - absolute Zc, axial tilts
-    		double [] zM0, //  current linearized motors (or null for full adjustment) 
+    		double [] zM0, //  current linearized motors (or null for full adjustment)
             double targetRelFocalShift,
             double targetTiltX, // for testing, normally should be 0 um/mm
             double targetTiltY,  // for testing, normally should be 0 um/mm
-            boolean motorSteps){ 
+            boolean motorSteps){
     	double [] zM=fieldFitting.mechanicalFocusingModel.getZM(
     			zM0,
     			currentPX0, //fieldFitting.getCenterXY()[0],
@@ -5736,7 +5729,7 @@ public boolean LevenbergMarquardt(
     			System.out.println(i+": "+zM[i]+" um");
     		}
     	}
-    	
+
 //		if (debugLevel>0) System.out.println("Suggested motor linearized positions: "+IJ.d2s(zM[0],2)+":"+IJ.d2s(zM[1],2)+":"+IJ.d2s(zM[2],2));
     	double [] dm=new double[zM.length];
     	for (int index=0;index<dm.length;index++){
@@ -5752,7 +5745,7 @@ public boolean LevenbergMarquardt(
     	}
     	return dm;
     }
-    
+
     public boolean testMeasurement(
     		int [] zTxTyAdjustMode, // z, tx, ty - 0 - fixed, 1 - common, 2 - individual
 //    		FocusingFieldMeasurement measurement, // null in calibrate mode
@@ -5808,9 +5801,9 @@ public boolean LevenbergMarquardt(
     		wasPrevEnable=(prevEnable==null)?null:prevEnable.clone();
     		this.lambda=this.adjustmentInitialLambda;
     		boolean OK=LevenbergMarquardt(
-//    				measurement, 
+//    				measurement,
     	    		zTxTyAdjustMode, // z, tx, ty - 0 - fixed, 1 - common, 2 - individual
-    				measurements, 
+    				measurements,
     				false, // true, // open dialog
     				true,// boolean autoSel,
     				debugLevel);
@@ -5818,7 +5811,7 @@ public boolean LevenbergMarquardt(
         		if (debugLevel>1) System.out.println("testMeasurement() failed: LMA failed");
         		return false;
     		}
-/*    		
+/*
     		for (int i=0;i<fieldFitting.mechanicalFocusingModel.paramValues.length;i++){
     			if ((fieldFitting.mechanicalSelect==null) || fieldFitting.mechanicalSelect[i] ) {
     				System.out.println(
@@ -5827,7 +5820,7 @@ public boolean LevenbergMarquardt(
     								fieldFitting.mechanicalFocusingModel.getUnits(i));
     			}
     		}
-*/    		
+*/
     		if ((wasPrevEnable!=null) && (prevEnable!=null) && (wasPrevEnable.length==prevEnable.length)){
     			boolean changedEnable=false;
     			for (int i=0;i<prevEnable.length;i++) if (prevEnable[i]!=wasPrevEnable[i]){
@@ -5886,7 +5879,7 @@ public boolean LevenbergMarquardt(
 //    	private boolean lastInSeries=true;
 //    	private double lambda=0.001; // synchronize with top?
     	public FieldStrategies fieldStrategies;
-    	
+
 //    	private double [] sampleCorrRadius=null;
     	private double [][] sampleCoordinates=null;
     	private double [][][][] sampleCorrCrossWeights= new double[6][][][];
@@ -5911,7 +5904,7 @@ public boolean LevenbergMarquardt(
     	 // outer index - parameter [0..2], inner - number of measurement
     	// element may be null if this parameter is not used or [num] - common parameter
     	private int [][] zTMap=null;
-    	
+
     	public final String [] channelDescriptions={
     			"Red, sagittal","Red, tangential",
     			"Green, sagittal","Green, tangential",
@@ -5931,7 +5924,7 @@ public boolean LevenbergMarquardt(
     		} catch (Exception e){
     		}
     		try {
-    			return this.zTMap[parIndex][meas];	
+    			return this.zTMap[parIndex][meas];
     		} catch (Exception e){
     			return -1;
     		}
@@ -6024,7 +6017,7 @@ public boolean LevenbergMarquardt(
         		if (curvatureModel[i]!=null) curvatureModel[i].getProperties(prefix+"curvatureModel_"+i+".",properties);
         	}
         	if (channelSelect==null) {
-        		channelSelect=new boolean [6];            	 
+        		channelSelect=new boolean [6];
         		for (int i=0;i<channelSelect.length;i++)channelSelect[i]=true;
         	}
         	for (int i=0;i<channelSelect.length;i++) if (properties.getProperty(prefix+"channelSelect_"+i)!=null) {
@@ -6049,7 +6042,7 @@ public boolean LevenbergMarquardt(
         			curvatureSelect[chn][i]=Boolean.parseBoolean(properties.getProperty(prefix+"curvatureSelect_"+chn+"_"+i));
         		}
         	}
-        	
+
 // get correction setup parameters:
         	if (sampleCorrSelect==null){
         		sampleCorrSelect=new boolean [curvatureModel.length][];
@@ -6063,7 +6056,7 @@ public boolean LevenbergMarquardt(
         			sampleCorrSelect[chn][i]=Boolean.parseBoolean(properties.getProperty(prefix+"sampleCorrSelect_"+chn+"_"+i));
         		}
         	}
-        		
+
         	if (sampleCorrCost==null){
         		sampleCorrCost=new double[curvatureModel.length][];
         		for (int i=0;i<sampleCorrCost.length;i++) sampleCorrCost[i]=null;
@@ -6102,7 +6095,7 @@ public boolean LevenbergMarquardt(
         			sampleCorrPullZero[chn][i]=Double.parseDouble(properties.getProperty(prefix+"sampleCorrPullZero_"+chn+"_"+i));
         		}
         	}
-        	
+
         	//  read/restore correction parameters values
         	if (correctionParameters==null){
         		correctionParameters=new double[6][][];
@@ -6133,12 +6126,12 @@ public boolean LevenbergMarquardt(
 
             fieldStrategies= new FieldStrategies(); // reset old
             fieldStrategies.getProperties(prefix+"fieldStrategies.",properties);
-        }        
-        
+        }
+
 //        public double [] getSampleRadiuses(){ // distance from the current center to each each sample
 //            return sampleCorrRadius;
 //        }
-        
+
         public double [] getSampleRadiuses(){
             double [] sampleCorrRadius=new double [numberOfLocations];
             //pXY
@@ -6156,7 +6149,7 @@ public boolean LevenbergMarquardt(
         	return getPixelMM()*Math.sqrt(dx*dx+dy*dy);
         }
 
-        
+
         public void showCurvCorr(String title){
             int width=getSampleWidth();
             int numSamples=getNumSamples();
@@ -6196,7 +6189,7 @@ public boolean LevenbergMarquardt(
                      true, //boolean asStack,
                      title,
                      titles);
-            
+
         }
         public double [] getCalcValuesForZ(double z, double r, double [] corrPars){
         	double [] result=new double [6];
@@ -6214,7 +6207,7 @@ public boolean LevenbergMarquardt(
         	}
         	return result;
         }
-        
+
         /**
          * Calculate values (sagital and tangential PSF FWHM in um for each of color channels) for specified z
          * @param z distance from lens (from some zero point), image plane is perpendicular to the axis
@@ -6233,7 +6226,7 @@ public boolean LevenbergMarquardt(
 //if ((chn==3) &&  (sampleIndex==23)){
 //	System.out.println("getCalcValuesForZ(), chn="+chn+", sampleIndex="+sampleIndex);
 //}
-                    	
+
                         result[chn][sampleIndex]=curvatureModel[chn].getFdF(
                                 corrected?getCorrPar(chn,sampleIndex):null,
                                         sampleCorrRadius[sampleIndex], //px,
@@ -6247,11 +6240,11 @@ public boolean LevenbergMarquardt(
             }
             return result;
         }
-        
+
         public double getChannelBestFWHM(
         		int channel,
         		int sampleIndex, // -1 for center
-        		boolean corrected // 
+        		boolean corrected //
         		){
         	int r0Index=2; // index of "r0" parameter (fwhm is twice that)
         	double [] corrPars=corrected?getCorrPar(channel,sampleIndex):null;
@@ -6262,7 +6255,7 @@ public boolean LevenbergMarquardt(
         }
 
         public double [] getCalcZ(double r,
-        		boolean solve // currently if not using z^(>=2) no numeric solution is required - z0 is the minimum 
+        		boolean solve // currently if not using z^(>=2) no numeric solution is required - z0 is the minimum
         		){
             double [] result=new double [6];
             for (int chn=0;chn<result.length;chn++) {
@@ -6279,13 +6272,13 @@ public boolean LevenbergMarquardt(
         		int channel,
         		int sampleIndex, // -1 for center
         		boolean corrected,
-        		boolean solve // currently if not using z^(>=2) no numeric solution is required - z0 is the minimum 
+        		boolean solve // currently if not using z^(>=2) no numeric solution is required - z0 is the minimum
         		){
         	return findBestZ(
             		channel,
             		sampleIndex, // -1 for center
             		corrected, //
-            		solve, // currently if not using z^(>=2) no numeric solution is required - z0 is the minimum 
+            		solve, // currently if not using z^(>=2) no numeric solution is required - z0 is the minimum
                     1.0, // double iniStep,
                     0.0001); //double precision)
         }
@@ -6293,8 +6286,8 @@ public boolean LevenbergMarquardt(
         public double findBestZ(
         		int channel,
         		int sampleIndex, // -1 for center
-        		boolean corrected, // 
-        		boolean solve, // currently if not using z^(>=2) no numeric solution is required - z0 is the minimum 
+        		boolean corrected, //
+        		boolean solve, // currently if not using z^(>=2) no numeric solution is required - z0 is the minimum
                 double iniStep,
                 double precision){
             int maxSteps=100;
@@ -6347,7 +6340,7 @@ public boolean LevenbergMarquardt(
             }
             return z0;
         }
-        
+
         /**
          * calculate distance to "best focus" for each channel (color and S/T) for each sample
          * @param corrected when false - provide averaged (axial model) for radius, if true - with individual correction applied
@@ -6357,7 +6350,7 @@ public boolean LevenbergMarquardt(
         public double [][] getCalcZ(
         		boolean corrected,
         		boolean allChannels,
-        		boolean solve // currently if not using z^(>=2) no numeric solution is required - z0 is the minimum 
+        		boolean solve // currently if not using z^(>=2) no numeric solution is required - z0 is the minimum
         		){
         	double [] sampleCorrRadius=getSampleRadiuses();
             int numSamples=sampleCorrRadius.length;
@@ -6373,13 +6366,13 @@ public boolean LevenbergMarquardt(
                     for (int sampleIndex=0;sampleIndex<numSamples;sampleIndex++) {
                     	if ((goodCalibratedSamples==null) || ((goodCalibratedSamples[chn]!=null) && goodCalibratedSamples[chn][sampleIndex])) {
 //                    	if (goodSamples[chn][sampleIndex]) {
-/*                    		
+/*
                         result[chn][sampleIndex]=curvatureModel[chn].getAr(
                                 sampleCorrRadius[sampleIndex],
                                 corrected?getCorrPar(chn,sampleIndex):null
                                 )[0];
-//That was just the initial estimation, true only if z^1... are all 0                        
-*/                                
+//That was just the initial estimation, true only if z^1... are all 0
+*/
 
                         result[chn][sampleIndex]=findBestZ(
                         		chn,         // int channel,
@@ -6395,7 +6388,7 @@ public boolean LevenbergMarquardt(
                 }
             }
             return result;
-        }        
+        }
 
         /**
          * calculate FWHM of the  "best focus" for each channel (color and S/T) for each sample
@@ -6405,17 +6398,17 @@ public boolean LevenbergMarquardt(
          */
         public double [][] getFWHM(
         		boolean corrected,
-        		boolean allChannels 
+        		boolean allChannels
         		){
         	double [] sampleCorrRadius=getSampleRadiuses();
             int numSamples=sampleCorrRadius.length;
-/*            
+/*
             boolean [][] goodSamples=new boolean[getNumChannels()][getNumSamples()];
             for (int i=0;i<goodSamples.length;i++) for (int j=0;j<goodSamples[0].length;j++) goodSamples[i][j]=false;
             for (int n=0;n<dataVector.length;n++) if (dataWeights[n]>0.0){
             	goodSamples[dataVector[n].channel][dataVector[n].sampleIndex]=true;
             }
-*/            
+*/
             double [][] result=new double [6][];
             for (int chn=0;chn<result.length;chn++) {
                 if ((curvatureModel[chn]!=null) && (allChannels || channelSelect[chn])){
@@ -6436,8 +6429,8 @@ public boolean LevenbergMarquardt(
                 }
             }
             return result;
-        }        
-        
+        }
+
         public double getGreenZCenter(){
             int chn=3; // Green, Tangential
             return curvatureModel[chn].getCenterVector()[0];
@@ -6470,7 +6463,7 @@ public boolean LevenbergMarquardt(
             for (int n=0;n<dataVector.length;n++) if (dataWeights[n]>0.0){
             	goodSamples[dataVector[n].channel][dataVector[n].sampleIndex]=true;
             }
-*/            
+*/
             for (int c=0;c<3;c++) {
                 if ((data[2*c]!=null) && (data[2*c+1]!=null)){
                 	int nSamp=0;
@@ -6539,9 +6532,9 @@ public boolean LevenbergMarquardt(
                 double kb,
                 boolean corrected){
             return getBestQualB(kr,kb,corrected,1.0,0.001);
-            
+
         }
-        
+
         public double [] getBestQualB( // find minimum
                 double kr,
                 double kb,
@@ -6597,8 +6590,8 @@ public boolean LevenbergMarquardt(
             result[1]=qb0;
             		return result; // z0;
         }
-        
-        
+
+
         public String getDescription(int i){
             return channelDescriptions[i];
         }
@@ -6613,18 +6606,18 @@ public boolean LevenbergMarquardt(
             pXY[0]=px;
             pXY[1]=py;
         }
-        
+
         public void resetSFEVariables(){
         	if (mechanicalFocusingModel==null) return;
         	if (debugLevel>0) System.out.println("---Resetting lens-specific variable parameters---");
-        	mechanicalFocusingModel.setZTxTy(0.0,0.0,0.0); 
+        	mechanicalFocusingModel.setZTxTy(0.0,0.0,0.0);
         	for (int chn=0;chn<curvatureModel.length;chn++){
         		curvatureModel[chn].setDefaults();
         	}
         	resetSampleCorr(); // correction parameters should also be reset
         }
 
-        
+
         public void setDefaultSampleCorr(){
 //            int numPars= getNumCurvars()[0]; // number of Z parameters ( [1] - numbnr of radial parameters).
             for (int n=0;n<channelDescriptions.length;n++){
@@ -6742,7 +6735,7 @@ public boolean LevenbergMarquardt(
         	if (debugLevel>0) System.out.println("---resetSampleCorr()---");
             for (int i=0; i<correctionParameters.length;i++) correctionParameters[i]=null;
         }
-        
+
         public double [] getCorrVector(){
             //numberOfLocations
             int numPars=0;
@@ -6777,7 +6770,7 @@ public boolean LevenbergMarquardt(
             }
             return sampleCorrVector;
         }
-        
+
         public String [] getCorrNames(){
             //numberOfLocations
             int numPars=0;
@@ -6805,13 +6798,13 @@ public boolean LevenbergMarquardt(
             }
             return corrNames;
         }
-        
-        
+
+
         public void commitCorrVector(){
         	if (debugLevel>1) System.out.println("commitCorrVector()");
             commitCorrVector(sampleCorrVector);
         }
-        
+
         public void commitCorrVector(double [] vector){
             for (int nChn=0; nChn< sampleCorrChnParIndex.length;nChn++) {
                 if (sampleCorrChnParIndex[nChn]!=null){
@@ -6832,7 +6825,7 @@ public boolean LevenbergMarquardt(
                 }
             }
         }
-        
+
         public void setEstimatedZ0( // needs filterConcave() to work
         		double [] z0,
         		boolean force){
@@ -6857,7 +6850,7 @@ public boolean LevenbergMarquardt(
         		}
         	}
         }
-        
+
         /**
          * create matrix of weights of the other parameters influence
          * @param sampleCoordinates [sample number]{x,y} - flattened array of sample coordinates
@@ -6914,8 +6907,8 @@ public boolean LevenbergMarquardt(
             }
         	getCorrVector();
         }
-        
- 
+
+
         public void initSampleCorrChnParIndex(
         		double [][] sampleCoordinates){
         	numberOfLocations=sampleCoordinates.length;
@@ -6933,7 +6926,7 @@ public boolean LevenbergMarquardt(
         				} else {
         					sampleCorrChnParIndex[nChn][nPar]=-1;
         				}
-        			}                
+        			}
         		} else {
         			sampleCorrChnParIndex[nChn]=null;
         		}
@@ -6942,10 +6935,10 @@ public boolean LevenbergMarquardt(
         	// currently all correction parameters are initialized as zeros.
         	getCorrVector();
         }
-        
-        
-        
-        
+
+
+
+
         public double [][] getSampleCoordinates(){
         	return sampleCoordinates;
         }
@@ -6962,7 +6955,7 @@ public boolean LevenbergMarquardt(
 
             return corr;
         }
-        
+
         public double [][] getCorrPar(int sampleIndex){
             if (sampleCorrChnParIndex==null) return null;
             double [][] result=new double [sampleCorrChnParIndex.length][];
@@ -6973,7 +6966,7 @@ public boolean LevenbergMarquardt(
             }
             return non_null?result:null;
         }
-        
+
         /**
          * Generate correction parameter arrays for each sample
          * @return array of [chn][parameter] arrays or nulls when the particualr sample does not have corrections
@@ -6983,7 +6976,7 @@ public boolean LevenbergMarquardt(
         	for (int sampleIndex=0;sampleIndex<result.length;sampleIndex++) result[sampleIndex]=getCorrPar(sampleIndex);
         	return result;
         }
-        		
+
         public boolean[] getDefaultMask(){
             boolean [] mask = {true,true,true,true,true,true};
             return mask;
@@ -7014,7 +7007,7 @@ public boolean LevenbergMarquardt(
             }
             setDefaultSampleCorr(); // should be after curvatureModel
         }
-        
+
         public boolean [] getSelectedChannels(){
             return this.channelSelect;
         }
@@ -7038,14 +7031,14 @@ public boolean LevenbergMarquardt(
         	boolean setupCorrectionPars=false;
         	boolean commonCorrectionPars=true;
         	boolean disabledCorrectionPars=false;
-            gd.addCheckbox("Only use measurements acquired during parallel moves (false - use all)",parallelOnly); //parallelOnly - parent class 
+            gd.addCheckbox("Only use measurements acquired during parallel moves (false - use all)",parallelOnly); //parallelOnly - parent class
         	if (centerSelect==null) centerSelect=centerSelectDefault.clone();
         	gd.addCheckbox("Adjust aberration center (pX0)", centerSelect[0]);
         	gd.addCheckbox("Adjust aberration center (pY0)", centerSelect[1]);
 
         	if (channelSelect==null) channelSelect=getDefaultMask();
         	for (int i=0;i<channelSelect.length;i++) {
-        		gd.addCheckbox(getDescription(i), channelSelect[i]);                    
+        		gd.addCheckbox(getDescription(i), channelSelect[i]);
         	}
         	gd.addCheckbox("Edit mechanical parameters masks", editMechMask);
         	gd.addCheckbox("Edit curvature model parameters mask(s)", editCurvMask);
@@ -7056,7 +7049,7 @@ public boolean LevenbergMarquardt(
         	gd.addCheckbox("Apply same per-sample corrections to all channels", commonCorrectionPars);
         	gd.addCheckbox("Setup correction parameters when the parameter itself is disabled", disabledCorrectionPars);
         	gd.addMessage("---");
-        	
+
      		gd.addStringField("Strategy comment",strategyComment,60);
      		gd.addNumericField("Initial LMA lambda",lambda,3,5,"");
         	gd.addCheckbox("Reset optical center to distortions center", resetCenter);
@@ -7135,7 +7128,7 @@ public boolean LevenbergMarquardt(
         	initSampleCorrChnParIndex(flattenSampleCoord()); // run always regardless of configured or not (to create zero-length array of corr)
         	return true;
         }
-        
+
         public void selectZTilt(
         		boolean allChannels,
         		int [] zTxTyAdjustMode){ // z, tx, ty - 0 - fixed, 1 - common, 2 - individual
@@ -7153,7 +7146,7 @@ public boolean LevenbergMarquardt(
         	}
         	initSampleCorrChnParIndex(flattenSampleCoord());
         }
-        
+
         ArrayList<String> getParameterValueStrings(boolean showDisabled, boolean showCorrection){
             ArrayList<String> parList=new ArrayList<String>();
             parList.add("\t ===== Aberrations center =====\t\t");
@@ -7235,7 +7228,7 @@ public boolean LevenbergMarquardt(
                     gd.addNumericField("(disabled) "+centerDescriptions[i],pXY[i],5,10,"pix ("+IJ.d2s(distXY,1)+")");
                 }
             }
-         
+
          gd.addMessage("===== Mechanical model parameters =====");
             for (int i=0;i<mechanicalFocusingModel.paramValues.length;i++){
                 if ((mechanicalSelect==null) || mechanicalSelect[i] ) {
@@ -7270,7 +7263,7 @@ public boolean LevenbergMarquardt(
                     index++;
                 }
             }
-         
+
          gd.enableYesNoCancel("Apply","Keep"); // default OK (on enter) - "Apply"
      WindowTools.addScrollBars(gd);
     gd.showDialog();
@@ -7295,7 +7288,7 @@ public boolean LevenbergMarquardt(
                     }
                     index++;
                 }
-         }         
+         }
          return true;
         }
 
@@ -7303,11 +7296,11 @@ public boolean LevenbergMarquardt(
         	if (mechanicalFocusingModel.getZTxTyMode()!=null) return 0;
             return ((sampleCorrVector!=null) && (mechanicalFocusingModel.getZTxTyMode()==null))?sampleCorrVector.length:0;
         }
-        
+
         public int getNumberOfParameters(boolean sagittalMaster){
         	if (mechanicalFocusingModel.getZTxTyMode()!=null) return currentVectorLength;
             return getNumberOfRegularParameters(sagittalMaster)+getNumberOfCorrParameters();
-        }        
+        }
         /**
          * @return number of selected parameters (including center, mechanical and each selected - up to 6 - curvature)
          */
@@ -7330,26 +7323,26 @@ public boolean LevenbergMarquardt(
             }
             return np;
         }
-        
+
         /**
          * @return number of selected channels (up to 6 - colors and S/T)
          */
         public int getNumberOfChannels(){
-            int nc=0;    
+            int nc=0;
             for (int n=0;n<channelSelect.length;n++) if (channelSelect[n]) nc++;
             return nc;
         }
-        
+
         /**
          * @return vector of the current selected parameters values
          */
         public double [] createParameterVector(boolean sagittalMaster){
         	int debugThreshold=0;
         	int [] zTxTyMode=mechanicalFocusingModel.getZTxTyMode();
-        	
+
         	if (zTxTyMode!=null) return createParameterVectorZTxTy(zTxTyMode);
-        	
-        	
+
+
             double [] pars = new double [getNumberOfParameters(sagittalMaster)];
             int np=0;
             if (debugLevel>debugThreshold) debugParameterNames=new String [pars.length];
@@ -7378,7 +7371,7 @@ public boolean LevenbergMarquardt(
                 }
             }
             if (debugLevel>1) System.out.println("createParameterVector(): using sampleCorrVector - do we need to create it first?");
-            getCorrVector(); // do we need that?            
+            getCorrVector(); // do we need that?
             int nCorrPars=getNumberOfCorrParameters();
             String [] corrNames=(debugLevel>debugThreshold)?getCorrNames():null;
             for (int i=0;i<nCorrPars;i++) {
@@ -7393,7 +7386,7 @@ public boolean LevenbergMarquardt(
         	fieldFitting.setCurrentVectorLength(pars.length); // maybe not needed
             return pars;
         }
-        
+
         private int [] getNumSubPars(int [] zTxTyMode, int numMeas){
  //       	Integer [] indices=getSetIndices().toArray(new Integer[0]); // uses dataVector;
         	int [] numSubPars=new int[zTxTyMode.length];
@@ -7404,8 +7397,8 @@ public boolean LevenbergMarquardt(
         	}
         	return numSubPars;
         }
-        
-//TODO: create mask for measurements        
+
+//TODO: create mask for measurements
         public double [] createParameterVectorZTxTy(
         		//        		double [] zTxTy,
         		int [] zTxTyMode){ //0 - do not adjust, 1 - commonn adjust, 2 - individual adjust
@@ -7431,7 +7424,7 @@ public boolean LevenbergMarquardt(
         	}
         	int debugThreshold=0;
         	String [] dbgParNames={"Z","tX","tY"};
-        	
+
 //        	int [] numSubPars=getNumSubPars(zTxTyMode, numMeas);
         	int numPars=0;
         	for (int n=0;n<zTxTyMode.length;n++) {
@@ -7446,7 +7439,7 @@ public boolean LevenbergMarquardt(
         			}
         		}
         	}
-        	double [] pars=new double[numPars]; 
+        	double [] pars=new double[numPars];
         	if (debugLevel>debugThreshold) debugParameterNames=new String [pars.length];
         	double [] zTxTy=fieldFitting.mechanicalFocusingModel.getZTxTy();
         	int index=0;
@@ -7481,7 +7474,7 @@ public boolean LevenbergMarquardt(
         	}
         	fieldFitting.setCurrentVectorLength(pars.length);
         	fieldFitting.setZTMap(map);
-// create parameter map here        	
+// create parameter map here
         	return pars;
         }
 
@@ -7510,7 +7503,7 @@ public boolean LevenbergMarquardt(
         			double [] pars=new double [numSubParsAll[n]];
             		for (int i=0;i<pars.length;i++){
             			if (measMask[i]) {
-            			v+=vector[parIndex]; // not used? 
+            			v+=vector[parIndex]; // not used?
             			pars[i]=vector[parIndex++];
             			} else {
             				pars[i]=Double.NaN;
@@ -7527,9 +7520,9 @@ public boolean LevenbergMarquardt(
         	}
         	mechanicalFocusingModel.setZTxTy(zTxTy);
         }
-        
-        
-        
+
+
+
         /**
          * Apply (modified) parameter values to selected ones
          * @param pars vector corresponding to selected parameters
@@ -7563,14 +7556,14 @@ public boolean LevenbergMarquardt(
             commitCorrVector();
 
 // copy center parameters to dependent
-// copy if master is selected, regardless of is dependent selected or not            
+// copy if master is selected, regardless of is dependent selected or not
             for (int n=0;n<channelSelect.length;n++) if (channelSelect[n]){
                 boolean isMasterDir = (n%2) == (sagittalMaster?0:1);
                 if (isMasterDir){
                     curvatureModel[n ^ 1].setCenterVector(curvatureModel[n].getCenterVector());
                 }
             }
-// propagate pXY to each channel (even disabled)            
+// propagate pXY to each channel (even disabled)
             for (int n=0;n<curvatureModel.length;n++){
                 curvatureModel[n].setCenter(pXY[0],pXY[1]);
             }
@@ -7592,7 +7585,7 @@ public boolean LevenbergMarquardt(
                 double py) {// pixel y
             double pd=Math.sqrt((px-currentPX0)*(px-currentPX0)+(py-currentPY0)*(py-currentPY0));
             return pd*getPixelMM();
-            
+
         }
 
         public double getRadiusMM_distortions(
@@ -7604,8 +7597,8 @@ public boolean LevenbergMarquardt(
         /**
          * Generate vector of function values (up to 6 - 1 per selected channel), corresponding to motor positions and pixel
          * coordinates, optionally generate partial derivatives for each channel and parameter
-         * //@param zTxTy  - optional z0, tx, ty instead of mechanical model parameters (used when null)  
-         * @param measurementIndex  - <0 -use mechanical model regular parameters, >=0 - overwrite with per-measurement parameters  
+         * //@param zTxTy  - optional z0, tx, ty instead of mechanical model parameters (used when null)
+         * @param measurementIndex  - <0 -use mechanical model regular parameters, >=0 - overwrite with per-measurement parameters
          * @param motors array of 3 motors positions
          * @param px pixel X-coordinate of the sample center
          * @param py pixel Y-coordinate of the sample center
@@ -7657,7 +7650,7 @@ public boolean LevenbergMarquardt(
                 for (int i=0;i<2;i++){
                     dr_dxy[i]*=getPixelMM(); // radius in mm, dx, dy - in pixels
                 }
-                for (int c=0;c<channelSelect.length;c++) if (channelSelect[c]){ // c -full, nChn - disabled skipped - dependent COMPONET 
+                for (int c=0;c<channelSelect.length;c++) if (channelSelect[c]){ // c -full, nChn - disabled skipped - dependent COMPONET
                     boolean isMasterDir=(c%2) == (sagittalMaster?0:1);
                     int otherChannel= c ^ 1;
 //                    deriv[nChn]=new double [getNumberOfRegularParameters(sagittalMaster)]; //???????????
@@ -7757,7 +7750,7 @@ public boolean LevenbergMarquardt(
                 for (int i=0;i<2;i++){
                     dr_dxy[i]*=getPixelMM(); // radius in mm, dx, dy - in pixels
                 }
-                for (int c=0;c<channelSelect.length;c++) if (channelSelect[c]){ // c -full, nChn - disabled skipped - dependent COMPONET 
+                for (int c=0;c<channelSelect.length;c++) if (channelSelect[c]){ // c -full, nChn - disabled skipped - dependent COMPONET
                     deriv[nChn]=new double [3];
                     deriv[nChn][0]=-motorDerivs[mechanicalFocusingModel.getIndex(MECH_PAR.z0)]*deriv_curv[c][0]; // minus d/dz0 const part
                     deriv[nChn][1]=-motorDerivs[mechanicalFocusingModel.getIndex(MECH_PAR.tx)]*deriv_curv[c][0]; // minus d/dz0 const part
@@ -7767,10 +7760,10 @@ public boolean LevenbergMarquardt(
             }
             return chnValues;
         }
-    
-    
+
+
     }
-    
+
     public class MechanicalFocusingModel{
 
     	public final String [][] descriptions={
@@ -7910,7 +7903,7 @@ public boolean LevenbergMarquardt(
     		};
     		return names;
     	}
-    	
+
     	public void setVector(double[] vector, boolean [] mask){
     		for (int i=0;i<vector.length;i++) if (mask[i]) paramValues[i]=vector[i];
     	}
@@ -7919,7 +7912,8 @@ public boolean LevenbergMarquardt(
 
     	public int getNumPars(){return descriptions.length;}
     	public int getIndex(String parName){
-    		for (int i=0;i<descriptions.length;i++) if (descriptions[i].equals(parName)) return i;
+//    		for (int i=0;i<descriptions.length;i++) if (descriptions[i].equals(parName)) return i;
+    		for (int i=0;i<descriptions.length;i++) if (descriptions[i][0].equals(parName)) return i;
     		return -1;
     	}
     	public int getIndex(MECH_PAR mech_par){
@@ -7954,22 +7948,22 @@ public boolean LevenbergMarquardt(
     			double px,
     			double py){
     		double [] derivSteps ={
-    				0.001, // [0]	K0 843.6001052876973	
-    				0.001, // [1]	KD1 1600.0723700390713	
-    				0.001, // [2]	KD3 -2428.8998947123027	
-    				0.1,   // [3]	sM1 -1.1720600074585734	
-    				0.1,   // [4]	cM1 0.6081060292866338	
-    				0.1,   // [5]	sM2 -2.3717384278673035	
-    				0.1,   // [6]	cM2 1.2305414643438266	
-    				0.1,   // [7]	sM3 2.7345656468251707	
-    				0.1,   // [8]	cM3 1.4187890097199358	
-    				1.0,   // [9]	Lx -0.535718420298317	
-    				1.0,   // [10]  Ly 	0.0	
-    				10.0,  // [11]  mpX0	-2.816702366108815E-5	
-    				10.0,  // [12]  mpY0	-8.351458550253758E-5	
-    				1.0,   // [13]  z0	 1.0	
-    				0.1,   // [14]  tx -2.5168000000000004	
-    				0.1    // [15]  ty -1.76	
+    				0.001, // [0]	K0 843.6001052876973
+    				0.001, // [1]	KD1 1600.0723700390713
+    				0.001, // [2]	KD3 -2428.8998947123027
+    				0.1,   // [3]	sM1 -1.1720600074585734
+    				0.1,   // [4]	cM1 0.6081060292866338
+    				0.1,   // [5]	sM2 -2.3717384278673035
+    				0.1,   // [6]	cM2 1.2305414643438266
+    				0.1,   // [7]	sM3 2.7345656468251707
+    				0.1,   // [8]	cM3 1.4187890097199358
+    				1.0,   // [9]	Lx -0.535718420298317
+    				1.0,   // [10]  Ly 	0.0
+    				10.0,  // [11]  mpX0	-2.816702366108815E-5
+    				10.0,  // [12]  mpY0	-8.351458550253758E-5
+    				1.0,   // [13]  z0	 1.0
+    				0.1,   // [14]  tx -2.5168000000000004
+    				0.1    // [15]  ty -1.76
     		};
     		double [] initialVector=paramValues.clone();
     		double [] derivs=new double [paramValues.length];
@@ -8204,7 +8198,7 @@ public boolean LevenbergMarquardt(
     			double py,
     			double[] deriv){
     		int [] zeroMot={0,0,0};
-    		if (motors==null) motors=zeroMot.clone(); 
+    		if (motors==null) motors=zeroMot.clone();
 			double [] zTxTy=getZTxTy();
 			if (adjustMode && (measIndex>=0)){
 				for (int n=0;n<zTxTy.length;n++) if (replaceZTxTy[n]!=null) {
@@ -8433,7 +8427,7 @@ public boolean LevenbergMarquardt(
     				};
     		return result;
         }
-    	
+
         /**
          * Correction for z0,tx,ty to zc, tilt X (axial), tilt Y (axial) for the specified pixel (optical center)
          * and current parameters (including z0,tx,ty), motors are assumed all 0
@@ -8483,8 +8477,8 @@ public boolean LevenbergMarquardt(
     		double zy=dy*getValue(MECH_PAR.ty);
     		return zx+zy;
         }
-        
-        
+
+
     	/**
     	 * Calculate linearized mount (motor) displacement from motor position in steps
     	 * @param m motor position in steps
@@ -8512,7 +8506,7 @@ public boolean LevenbergMarquardt(
     		}
     		return kM*aM;
     	}
-    	
+
     	private double getDzmDm(
     			double m,
     			double kM,
@@ -8520,7 +8514,7 @@ public boolean LevenbergMarquardt(
     			double c) {
     		double p2pi= PERIOD/2/Math.PI;
     		return kM*(1.0+ s*Math.cos(m/p2pi)-c*Math.sin(m/p2pi));
-    		
+
     	}
 
     	/**
@@ -8606,7 +8600,7 @@ public boolean LevenbergMarquardt(
     	 *       5    2
     	 *  3    +
     	 *       4    1
-    	 * + - center      
+    	 * + - center
     	 * 1,2 M2x0.4 set screws (push)
     	 * 3 - M2x0.4 socket screw (push)
     	 * 4 - M2x0.4 socket screw (pull)
@@ -8632,7 +8626,7 @@ public boolean LevenbergMarquardt(
     	}
 
     	/**
-    	 * Post UV gluing fixture adjustment, screw numbers match motor numbers  
+    	 * Post UV gluing fixture adjustment, screw numbers match motor numbers
     	 * @param umPerTurn sensitivity of the 3 adjustment screws - microns of the uv-glued support movement per screw revolution
     	 * @param zErr  current focal distance error in microns, positive - away from lens
     	 * @param tXErr current horizontal tilt in microns/mm , positive - 1,2 away from lens, 3 - to the lens
@@ -8653,7 +8647,7 @@ public boolean LevenbergMarquardt(
     				{ -13.5,  6.5, -300.0}, //192.8}, // -2.908571735}, // 192.8, ... for proto push-away fixture
     				{ -13.5, -6.5, -300.0}, //202.6}, // -3.8198374024},
     				{  13.6, -3.5, -120.0}}; //83.4}}; // -2.4491867448}};
-    		
+
     		if (umPerTurn!=null) for (int i=0;i<umPerTurn.length;i++) screws[i][2]=umPerTurn[i];
     		double [] moveDownUm=new double [screws.length];
     		double [] turnCW=new double [screws.length];
@@ -8674,7 +8668,7 @@ public boolean LevenbergMarquardt(
 -2.4491867448
 
    */
-    	
+
     	/**
     	 * Calculate three linearized values of motor positions for current parameters, target center focal
     	 * shift and tilt (from the optic axis)
@@ -8684,11 +8678,11 @@ public boolean LevenbergMarquardt(
     	 * @param py lens center Y (pixels)
     	 * @param targetZ target focal shift in the center, microns, positive - away
     	 * @param targetTx target horizontal tilt from the optical axis
-    	 * @param targetTy target vertical tilt  from the optical axis 
-    	 * @return array of 3 linearized motor positions (microns) 
+    	 * @param targetTy target vertical tilt  from the optical axis
+    	 * @return array of 3 linearized motor positions (microns)
     	 */
     	public double [] getZM(
-        		double [] zMCurrent, //  current linearized motors (or null for full adjustment) 
+        		double [] zMCurrent, //  current linearized motors (or null for full adjustment)
     			double px,
     			double py,
     			double targetZ,
@@ -8709,7 +8703,7 @@ public boolean LevenbergMarquardt(
     		//    		double zc= 0.25* zM1+ 0.25* zM2+ 0.5 * zM3+getValue(MECH_PAR.z0);
     		//    		double zx=dx*(getValue(MECH_PAR.tx)+(2*zM3-zM1-zM2)/(4*getValue(MECH_PAR.Lx))) ;
     		//    		double zy=dy*(getValue(MECH_PAR.ty)-(zM2-zM1)/(2*getValue(MECH_PAR.Ly)));//!
-    		//          double z=zc+zx+zy    		
+    		//          double z=zc+zx+zy
     		//			A*{zM1,zM2,zM3}={targetZ,targetTx,targetTy}
     		//    		A*{zM1,zM2,zM3}={targetZ-getValue(MECH_PAR.z0),targetTx-dx*getValue(MECH_PAR.tx),targetTy-dy*getValue(MECH_PAR.ty)}
     		double [][] A={
@@ -8739,7 +8733,7 @@ public boolean LevenbergMarquardt(
     		Matrix S=MA.solve(MB);
     		return S.getColumnPackedCopy();
     	}
-    	
+
     	public boolean[] getDefaultMask(){
     		boolean [] mask = new boolean[this.paramValues.length];
     		for (int i=0;i<mask.length;i++) mask[i]=false;
@@ -8767,7 +8761,7 @@ public boolean LevenbergMarquardt(
     		if (currentMask==null) currentMask=getDefaultMask();
     		for (int i=0;i<mask.length;i++) {
     			mask[i]=currentMask[i];
-    			gd.addCheckbox(getDescription(i), mask[i]);                    
+    			gd.addCheckbox(getDescription(i), mask[i]);
     		}
     		gd.enableYesNoCancel("Apply","Keep"); // default OK (on enter) - "Apply"
     		gd.showDialog();
@@ -8790,7 +8784,7 @@ public boolean LevenbergMarquardt(
     			if (zTxTyAdjustMode[0]<=0) mask[getIndex(MECH_PAR.z0)]=false;
     			if (zTxTyAdjustMode[1]<=0) mask[getIndex(MECH_PAR.tx)]=false;
     			if (zTxTyAdjustMode[2]<=0) mask[getIndex(MECH_PAR.ty)]=false;
-    		}    		
+    		}
     		return mask;
     	}
     	public boolean showModifyParameterValues(String title, boolean showDisabled, boolean [] mask){
@@ -8812,11 +8806,11 @@ public boolean LevenbergMarquardt(
     					this.paramValues[i]=gd.getNextNumber();
     				}
     			}
-    		}         
-    		return true;    
-    	}        
+    		}
+    		return true;
+    	}
     }
-    
+
     public class CurvatureModel{
         private double dflt_na=Math.log(0.15); // um/um
         private double dflt_r0=Math.log(4.0); //3.3; // um (1.5 pix)
@@ -8876,8 +8870,8 @@ public boolean LevenbergMarquardt(
         }
     }
 
-    
-        
+
+
         public void setCenter(double pX, double pY){
             pX0=pX;
             pY0=pY;
@@ -8898,11 +8892,11 @@ public boolean LevenbergMarquardt(
         public boolean z0IsValid(){
         	return !Double.isNaN(this.modelParams[0][0]);
         }
-        
+
         public void set_z0(double z0){
             this.modelParams[0][0]=z0;
         }
-        
+
         public double [] getCenterVector(){
             double [] vector=new double [this.modelParams.length];
             for (int i=0;i<this.modelParams.length;i++){
@@ -9004,7 +8998,7 @@ f(z)=sqrt((a*(z-z_corr)^2+r^2)+k*(z-z_corr)-f_corr
 f'(x)=0 -> x=sqrt(1/r^2-a^2)
 z_corr=(kx*rc/a)/*sqrt(a^2-kx^2)
 f_corr=sqrt((a*z_corr)^2+r_eff^2)-kx*(z_corr) – r_eff
-k=a*func(tilt]), func(-inf)=-1, func(0)=0, func(+inf)=1 
+k=a*func(tilt]), func(-inf)=-1, func(0)=0, func(+inf)=1
 k=a*2/pi*atan(tilt);
 d_k/d_tilt = 2/pi*(1/tilt^2)
 
@@ -9023,7 +9017,7 @@ a1    - ar[4]
 kx=a*2/pi*atan(a1);
 z_corr=(kx*rc/a)/sqrt(a^2-kx^2)
 f_corr=sqrt((a*z_corr)^2+r_eff^2)-kx*(z_corr) – r_eff
-f=sqrt((a*(zin-z0-z_corr))^2 + (r0*(exp(-k))^2)+r0*(1-exp(-k))+ kx*(zin-z0-z_corr) {+...aN*(zin-z0-z_corr)^N} - {} are not likely to be ever used 
+f=sqrt((a*(zin-z0-z_corr))^2 + (r0*(exp(-k))^2)+r0*(1-exp(-k))+ kx*(zin-z0-z_corr) {+...aN*(zin-z0-z_corr)^N} - {} are not likely to be ever used
 
 dependence:
 kx: a,a1 (ar[1], ar[4]
@@ -9057,7 +9051,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
             double f_corr=Math.sqrt(exp_a2*z_corr2 + reff2)-kx*z_corr - reff;
             double z=z_in-ar[0]-z_corr;
             double sqrt=Math.sqrt(exp_a2*z*z + reff2);
-//            f=sqrt((a*(zin-z0-z_corr))^2 + (r0*(exp(-k))^2)+r0*(1-exp(-k))+ kx*(zin-z0-z_corr)-f_corr {+...aN*(zin-z0-z_corr)^N} - {} are not likely to be ever used 
+//            f=sqrt((a*(zin-z0-z_corr))^2 + (r0*(exp(-k))^2)+r0*(1-exp(-k))+ kx*(zin-z0-z_corr)-f_corr {+...aN*(zin-z0-z_corr)^N} - {} are not likely to be ever used
             double f=sqrt+exp_r*(1-exp_mk) +kx*z -f_corr;
             double zp=z;
             for (int i=5;i<ar.length;i++){
@@ -9066,9 +9060,9 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
             }
 
             if (deriv==null) return f; // only value, no derivatives
-            
-            
-// derivatives calculation independent of z - move to a separate function that can be called once for channel/sample, stored asnd then applied to multiple z measurements        
+
+
+// derivatives calculation independent of z - move to a separate function that can be called once for channel/sample, stored asnd then applied to multiple z measurements
 //  double kx=exp_a*2.0/Math.PI*Math.atan(a1);
             double dkx_dar1=kx; // exp_a*2.0/Math.PI*Math.atan(a1);
             double dkx_dar4=exp_a*2.0/Math.PI/(1.0+ a1*a1);
@@ -9077,12 +9071,12 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
             double kx2=kx*kx;
             double exp_a2_kx2=exp_a2-kx2;
             double sqrt_exp_a2_kx2=Math.sqrt(exp_a2_kx2);
-            
+
             double dzcorr_dkx=reff*exp_a/(exp_a2_kx2*sqrt_exp_a2_kx2); //(exp_a2-kx2)/Math.sqrt(exp_a2-kx2);
             double dzcorr_dar4=dzcorr_dkx*dkx_dar4; // d_tilt
 //d_zcorr/d_tilt=d_kx/d_tilt*rc*a/(a^2-kx^2)/sqrt(a^2-kx^2)
             double dzcorr_dar1=-z_corr; // Nice!
-// d_reff/dar2==reff; d_reff/dar3=-reff   
+// d_reff/dar2==reff; d_reff/dar3=-reff
 // d_zcorr/dar2=z_corr d_zcorr/dar3=-z_corr verified
 //z_corr: kx,r_eff,a - ar[1], ar[4], ar[2], ar[3]
             double sqr_azr=Math.sqrt(exp_a2*z_corr2+reff2);
@@ -9094,14 +9088,14 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
             double dfcorr_dar2=dfcorr_dreff*exp_r*exp_mk;
 //                 dfcorr_dar3=dfcorr_dar2
             double dfcorr_dar4=dfcorr_dkx*dkx_dar4;
-            
 
-            
+
+
 //            double z=z_in-ar[0]-z_corr;
 //            double sqrt=Math.sqrt(exp_a2*z*z + reff2);
-//            f=sqrt((a*(zin-z0-z_corr))^2 + (r0*(exp(-k))^2)+r0*(1-exp(-k))+ kx*(zin-z0-z_corr) -f_corr {+...aN*(zin-z0-z_corr)^N} - {} are not likely to be ever used 
-            
-            
+//            f=sqrt((a*(zin-z0-z_corr))^2 + (r0*(exp(-k))^2)+r0*(1-exp(-k))+ kx*(zin-z0-z_corr) -f_corr {+...aN*(zin-z0-z_corr)^N} - {} are not likely to be ever used
+
+
             // Dependent on z:
             double z2=z*z;
             double [] df_da=new double[this.modelParams.length]; // last element - derivative for dz
@@ -9115,15 +9109,15 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
             }
             double df_dz_corr=df_da[0];
 //            double df_df_corr=-1;//, so subtract each of dfcorr_dar* from df_dar*
-            
+
 //          double z=z_in-ar[0]-z_corr;
 //          double sqrt=Math.sqrt(exp_a2*z*z + reff2);
-//          f=sqrt((a*(zin-z0-z_corr))^2 + (r0*(exp(-k))^2) +r0*(1-exp(-k)) + kx*(zin-z0-z_corr) -f_corr{+...aN*(zin-z0-z_corr)^N} - {} are not likely to be ever used 
+//          f=sqrt((a*(zin-z0-z_corr))^2 + (r0*(exp(-k))^2) +r0*(1-exp(-k)) + kx*(zin-z0-z_corr) -f_corr{+...aN*(zin-z0-z_corr)^N} - {} are not likely to be ever used
 
-            
+
         // derivative for a (related to numeric aperture) - ar[1]
 //            df_da[1]=1.0/sqrt*exp_a*z*z  *exp_a; // d(f)/d(exp_a) *exp_a
-// first - calculate derivatives w/O f_corr, z_corr - then apply them            
+// first - calculate derivatives w/O f_corr, z_corr - then apply them
             df_da[1]=1.0/sqrt*exp_a2*z2; // d(f)/d(exp_a) *exp_a
        // derivative for a (related to lowest PSF radius) - ar[2]
             df_da[2]=(1.0/sqrt*reff*exp_mk + (1-exp_mk)) * exp_r; // d(f)/d(exp_r) *exp_r
@@ -9137,18 +9131,18 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
                 zp*=z;
                 df_da[i]=zp;
             }
-         // new extra term dependent on ar[1] f=...+ kx*(zin-z0-z_corr) +...            
+         // new extra term dependent on ar[1] f=...+ kx*(zin-z0-z_corr) +...
             df_da[1]+=dkx_dar1*z;
          // now apply corrections for z_corr and f_corr
-            df_da[1]+=df_dz_corr*dzcorr_dar1; // bad 
+            df_da[1]+=df_dz_corr*dzcorr_dar1; // bad
             df_da[2]+=df_dz_corr*z_corr;      // good
-            df_da[3]+=df_dz_corr*(-z_corr);   // good 
+            df_da[3]+=df_dz_corr*(-z_corr);   // good
             df_da[4]+=df_dz_corr*dzcorr_dar4; // good
-            
+
             df_da[2]-=dfcorr_dar2; // good
             df_da[3]+=dfcorr_dar2; // good
             df_da[4]-=dfcorr_dar4; // good
-            
+
             // derivative for z (to be combined with mechanical is just negative of derivative for z0, no need to calcualate separately
             // calculate even powers of radius
             double [] dar= new double [this.modelParams[0].length];
@@ -9198,7 +9192,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
             if (i==4) return "Tilt (asymmetry)";
             else return "Polynomial coefficient for z^"+(i-3);
         }
-        
+
         public boolean[] getDefaultMask(){
          boolean [] mask = new boolean[this.modelParams.length*this.modelParams[0].length];
         int index=0;
@@ -9227,7 +9221,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
          if (detailed){
              int index=0;
                 for (int i=0;i<this.modelParams.length;i++) for (int j=0;j<this.modelParams[0].length;j++){
-                    gd.addCheckbox(getZDescription(i)+", "+getRadialDecription(j), mask[index++]);                    
+                    gd.addCheckbox(getZDescription(i)+", "+getRadialDecription(j), mask[index++]);
                 }
          } else {
              int index=0;
@@ -9235,15 +9229,15 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
                     zMask[i] |=mask[index];
                     rMask[j] |=mask[index];
                     index++;
-             }            
-             
+             }
+
              gd.addMessage("===== Focal parameters =====");
                 for (int i=0;i<this.modelParams.length;i++){
-                    gd.addCheckbox(getZDescription(i), zMask[i]);                    
+                    gd.addCheckbox(getZDescription(i), zMask[i]);
                 }
              gd.addMessage("===== Radial dependence parameters =====");
                 for (int j=0;j<this.modelParams[0].length;j++){
-                    gd.addCheckbox(getRadialDecription(j), rMask[j]);                    
+                    gd.addCheckbox(getRadialDecription(j), rMask[j]);
                 }
 
          }
@@ -9267,12 +9261,12 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
                  int index=0;
                     for (int i=0;i<this.modelParams.length;i++) for (int j=0;j<this.modelParams[0].length;j++){
                         mask[index++]= zMask[i] && rMask[j];
-                 }            
-             }             
+                 }
+             }
          }
             return mask;
         }
-        
+
         public boolean showModifyParameterValues(String title, boolean showDisabled, boolean [] mask, boolean isMaster){
          GenericDialog gd = new GenericDialog(title);
         int index=0;
@@ -9303,11 +9297,11 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
                     }
                 }
                 index++;
-         }         
-         return true;    
+         }
+         return true;
         }
     }
-    
+
     public boolean getStrategy(int strategyIndex){
     	FieldStrategies fs=fieldFitting.fieldStrategies;
     	if ((strategyIndex>=0) && (strategyIndex<fs.getNumStrategies())) {
@@ -9358,7 +9352,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
         gd.addChoice("Index", indices,indices[selectedStrategyIndex]);
         gd.addMessage("=======================");
         gd.addCheckbox("Edit strategy",editStrategy);
-        
+
         gd.enableYesNoCancel("OK","Done");
         WindowTools.addScrollBars(gd);
         gd.showDialog();
@@ -9418,15 +9412,15 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
         		fs.setParallelOnly(selectedStrategyIndex,this.parallelOnly);
         		break;
         	}
-        	
+
         }
         if (gd.wasOKed()) return 0;
         return 1; // "Done" selected
     }
-    
-    
-    
-    
+
+
+
+
     public class FieldStrategies{
     	ArrayList<FieldSrategy> strategies=new ArrayList<FieldSrategy>();
         public void setProperties(String prefix,Properties properties){
@@ -9436,7 +9430,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
 				if (strategy!=null) strategy.setProperties(prefix+"strategy_"+i+"_",properties);
 			}
         }
-    	
+
         public void getProperties(String prefix,Properties properties){
         	strategies=new ArrayList<FieldSrategy>();
         	String s=properties.getProperty(prefix+"strategies_length");
@@ -9523,14 +9517,14 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
 				int strategyIndex) {
 			return strategies.get(strategyIndex).isParallelOnly();
 		}
-		
+
 		public boolean isLast(
 				int strategyIndex) {
 			if (strategyIndex < 0) return true;
 			if (strategyIndex>=(getNumStrategies()-1)) return true;// last
 			return isStopAfterThis(strategyIndex);
 		}
-		
+
 		public void setStopAfterThis(
 				int strategyIndex,
 				boolean stopAfterThis) {
@@ -9568,8 +9562,8 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
 				String comment){
 			strategies.get(strategyIndex).setComment(comment);
 		}
-		
-		
+
+
         public void insertStrategy(
         		int strategyIndex){
         	strategies.add(strategyIndex,new FieldSrategy());
@@ -9587,7 +9581,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
         		String directory ){
         	String [] patterns= {".fstg-xml",".xml"};
         	if (path==null) {
-        		path= CalibrationFileManagement.selectFile(true, // save  
+        		path= CalibrationFileManagement.selectFile(true, // save
         				"Save Field LMA Strategy selection", // title
         				"Select Field LMA Strategy file", // button
         				new CalibrationFileManagement.MultipleExtensionsFileFilter(patterns,
@@ -9626,7 +9620,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
         		String directory ){
         	String [] patterns= {".fstg-xml",".xml"};
         	if (path==null) {
-        		path= CalibrationFileManagement.selectFile(false, // save  
+        		path= CalibrationFileManagement.selectFile(false, // save
         				"Field LMA Strategy selection", // title
         				"Select Field LMA Strategy file", // button
         				new CalibrationFileManagement.MultipleExtensionsFileFilter(patterns,
@@ -9659,11 +9653,11 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
         	} catch (IOException e) {
         		// TODO Auto-generated catch block
         		e.printStackTrace();
-        	}      
+        	}
         	getProperties("",properties); // no prefix
         	if (debugLevel>0) System.out.println("Field LMA strategy parameters are restored from "+path);
         }
-        
+
     	class FieldSrategy{
     		private boolean [] centerSelect=null;
         	private boolean [] channelSelect=null;
@@ -9761,7 +9755,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
 				for (int i=0;i<result.length;i++) result[i]=Double.parseDouble(sa[i]);
 				return result;
 			}
-			
+
 			private boolean [] getPropBool(boolean[] arr, String name){
 				String s=properties.getProperty(prefix+name);
 				if (s!=null) return strToBool(s);
@@ -9787,7 +9781,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
 				if (s!=null) return strToDouble(s);
 				else return arr;
         	}
-			
+
 			private double[][] getPropDouble(double[][] arr, String name){
 				if (arr==null){
 					String s=properties.getProperty(prefix+name+"_length");
@@ -9954,18 +9948,18 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
             	if (s!=null){
             		strategyComment=s;
         			if ((strategyComment.length()>10) && strategyComment.substring(0,9).equals("<![CDATA[")) {
-        				strategyComment=strategyComment.substring(9,strategyComment.length()-3); 
+        				strategyComment=strategyComment.substring(9,strategyComment.length()-3);
         			}
             	}
             }
     	}
     }
 //		qualBOptimizeMode; // 0 - none, +1 - optimize Zc, +2 - optimize Tx, +4 - optimize Ty
-    
+
     public double[] testQualB(boolean interactive){
     	double [] targetZTxTy={0.0,0.0,0.0};
     	boolean debugScan=false;
-    	if (interactive){ 
+    	if (interactive){
     		GenericDialog gd = new GenericDialog("Calculate optimal focus/tilt");
     		gd.addNumericField("Initial focus (relative to best composirte)",targetZTxTy[0],2,5,"um");
     		gd.addNumericField("Initial tiltX",targetZTxTy[1],2,5,"um/mm");
@@ -9976,7 +9970,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
     		gd.addCheckbox("Optimize focal distance",(this.qualBOptimizeMode & 1) != 0);
     		gd.addCheckbox("Optimize tiltX",         (this.qualBOptimizeMode & 2) != 0);
     		gd.addCheckbox("Optimize tiltY",         (this.qualBOptimizeMode & 4) != 0);
-    		
+
     		gd.addNumericField("Relative (to green) weight of red channels",100* this.k_red, 1,7,"%");
     		gd.addNumericField("Relative (to green) weight of blue channels",100* this.k_blue, 1,7,"%");
     		gd.addNumericField("weight of sagittal channels",this.k_sag, 3,7,"");
@@ -10015,7 +10009,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
     			((this.qualBOptimizeMode & 2) != 0),
     			((this.qualBOptimizeMode & 4) != 0)};
 
-    	
+
     	double [] best_qb_corr= fieldFitting.getBestQualB(
     			this.k_red,
     			this.k_blue,
@@ -10025,7 +10019,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
         	this.qualBOptimizationResults=zTxTy;
     		return zTxTy; // no LMA, return zc for optimal  qualB, zero tilts
     	}
-    	
+
     	fieldFitting.mechanicalFocusingModel.setAdjustMode(true,null);
     	qualBOptimize.initCorrPars();
 
@@ -10050,10 +10044,10 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
     	if (interactive && (debugLevel>1)){
     		for (int i=0;i<sampleCoord.length;i++){
     			System.out.print(" "+IJ.d2s(sampleWeights[i],3));
-    			if (((i+1)%this.sampleCoord[0].length) == 0) System.out.println();  
+    			if (((i+1)%this.sampleCoord[0].length) == 0) System.out.println();
     		}
     	}
-    	
+
     	boolean [][] goodSamples=null;
     	if (this.qualBRemoveBadSamples){
     		goodSamples=new boolean[getNumChannels()][getNumSamples()];
@@ -10073,7 +10067,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
     	qualBOptimize.initQPars(
     			zTxTy,
     			selectQualBPars);
-// Set all 3 parameter values, even if some are not selected    	
+// Set all 3 parameter values, even if some are not selected
    		fieldFitting.mechanicalFocusingModel.setZTxTy(zTxTy);
    		if (debugScan){
    			qualBOptimize.runDebugScan(-20.0,20.0,1.0);
@@ -10097,7 +10091,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
     	    		 "zc="+IJ.d2s((zTxTy[0]),3)+"um ("+IJ.d2s((zTxTy[0]-best_qb_corr[0]),3)+"um from best_qb_corr)\n"+
     	    		 "tX axial="+IJ.d2s(zTxTy[1],3)+"um/mm\n"+
     	    		 "tY axial="+IJ.d2s(zTxTy[2],3)+"um/mm");
-    		
+
     	} else {
     		System.out.println("qualBOptimize LMA failed");
     	}
@@ -10105,7 +10099,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
     	this.qualBOptimizationResults=zTxTy.clone();
     	return zTxTy;
     }
-    
+
     public class QualBOptimize{
     	public double [] qCurrentVector=null;    // vector of 1..3 elements - parameters used in fitting (of Zc, Tx, Ty)
     	public int [] qIndices=null;      // parameter index for each of qCurrentVector elements (0 - Zc, 1 - Tx, 2 - Ty)
@@ -10134,13 +10128,13 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
     	private LMAArrays qLMAArrays=null;
     	private LMAArrays savedQLMAArrays=null;
     	private double [] qLastImprovements= {-1.0,-1.0}; // {last improvement, previous improvement}. If both >0 and < thresholdFinish - done
-    	
+
     	private boolean showQParams=true;
     	private boolean showDisabledQParams=true;
     	private boolean qSaveSeries=false; // just for the dialog
     	private boolean qStopEachStep=false; // stop after each series
     	private boolean qStopOnFailure=true; // open dialog when fitting series failed
-    	
+
     	private boolean debugQDerivatives=false;
     	private int     debugQPoint=-1;
     	private int     debugQParameter=-1;
@@ -10150,7 +10144,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
     	public void initCorrPars(){ // double [][][] corrPars){ // use getCorrPar() to provide corrPars
     		this.corrPars=fieldFitting.getCorrPar();
     	}
-    	
+
     	/**
     	 * Generate weighs array for samples
     	 * @param sampleCoord
@@ -10216,7 +10210,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
     		}
     		return qCurrentVector;
     	}
-    	
+
     	public double [] initQPars(
     			double zc,
     			double tx,
@@ -10226,31 +10220,31 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
     		for (int i=0;i<vector.length;i++) if (Double.isNaN(vector[i]))selectedPars[i]=false;
     		return initQPars(vector,selectedPars);
     	}
-    	
+
     	public void commitQPars(double [] vector){ // should not modify qCurrentVector
 //    		if (vector!=null) qCurrentVector=vector.clone();
     		if (vector==null) vector=qCurrentVector.clone();
     		double [] zTxTy=fieldFitting.mechanicalFocusingModel.getZTxTy(); // current values
     		for (int i=0;i<qIndices.length;i++){
     			zTxTy[qIndices[i]]=vector[i]; // overwrite selected
-    			
+
     		}
     		fieldFitting.mechanicalFocusingModel.setZTxTy(zTxTy);
     	}
-    	
-    	public void saveQPars(){ // may need to call  
+
+    	public void saveQPars(){ // may need to call
     		qSavedVector=qCurrentVector.clone();
     	}
-    	public void restoreQPars(){ // may need to call  
+    	public void restoreQPars(){ // may need to call
     		qCurrentVector=qSavedVector.clone();
     		commitQPars(null);
     	}
-    	
+
     	// fX here - FWHM^2, then instaed of rms will be weighted average qualB
     	public double [] createFXandJacobian(double [] vector, boolean createJacobian){
     		commitQPars(vector);
     		return createFXandJacobian(createJacobian);
-    		
+
     	}
 
     	public double [] createFXandJacobian(boolean createJacobian){
@@ -10280,7 +10274,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
                 	if (createJacobian){
                 		for (int i=0;i<qIndices.length;i++){
                 			// "-" because mot Z is opposite to z0,
-                			// 2*chnValues[chn] - because fX= chnValues ^ 2 
+                			// 2*chnValues[chn] - because fX= chnValues ^ 2
                 			this.qJacobian[i][chn+sampleIndex*numChannels]=-2*chnValues[chn]*zdZ[qIndices[i]+1]*deriv_curv[chn][0];
                 		}
                 	}
@@ -10288,11 +10282,11 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
     		}
     		return fX;
     	}
-    	
+
     	public double getQualB(){
     		return getQualB(createFXandJacobian(false));
     	}
-    	
+
     	public double getQualB(double [] fX){
     		double q=0;
     		for (int i=0;i<fX.length;i++){
@@ -10300,7 +10294,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
     		}
     		return Math.sqrt(Math.sqrt(q));
     	}
-    	
+
 
     	public LMAArrays calculateJacobianArrays(double [] fX){
     		// calculate JtJ
@@ -10328,7 +10322,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
     		lMAArrays.jTByDiff=JtByDiff;
     		return lMAArrays;
     	}
-    	
+
         public double [] solveLMA(
                 LMAArrays lMAArrays,
                 double lambda,
@@ -10371,7 +10365,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
 
         public void qStepLevenbergMarquardtAction(int debugLevel){//
         	this.iterationStepNumber++;
-        	// apply/revert,modify lambda 
+        	// apply/revert,modify lambda
         	String msg="currentQualB="+this.currentQualB+
         			", nextQualB="+this.nextQualB+
         			", delta="+(this.currentQualB-this.nextQualB)+
@@ -10390,7 +10384,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
         	}
         }
 
-        
+
         /**
          * Calculates next parameters vector, holds some arrays
          * @param numSeries
@@ -10445,10 +10439,10 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
         			System.out.println(i+": "+ deltas[i]);
         		}
         	}
-        	// apply deltas     
+        	// apply deltas
         	this.qNextVector=this.qCurrentVector.clone();
         	for (int i=0;i<this.qNextVector.length;i++) this.qNextVector[i]+=deltas[i];
-        	// another option - do not calculate J now, just fX. and late - calculate both if it was improvement     
+        	// another option - do not calculate J now, just fX. and late - calculate both if it was improvement
         	//         save current Jacobian
 
         	if (debugLevel>1) {
@@ -10502,8 +10496,8 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
         		status[1]=(this.iterationStepNumber>this.qNumIterations) || // failed
         				((this.qLambda*this.qLambdaStepUp)>this.qMaxLambda);
         	}
-        	///this.currentRMS     
-        	//TODO: add other failures leading to result failure?     
+        	///this.currentRMS
+        	//TODO: add other failures leading to result failure?
         	if (debugLevel>2) {
         		System.out.println("qLMA: stepLevenbergMarquardtFirst("+debugLevel+")=>"+status[0]+","+status[1]);
         	}
@@ -10564,7 +10558,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
         	this.qSaveSeries=true;
         	return gd.wasOKed();
         }
-        
+
         public boolean selectQLMAParameters(){
           GenericDialog gd = new GenericDialog("Levenberg-Marquardt algorithm parameters for finding the optimal tilt/distance");
              gd.addCheckbox("Debug derivatives", false);
@@ -10618,11 +10612,11 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
         		double qualB=getQualB();
         		sb.append(IJ.d2s(zTxTy[0],3)+"\t"+IJ.d2s(dz,3)+"\t"+IJ.d2s(qualB,5)+"\n");
         	}
-        	
+
         	fieldFitting.mechanicalFocusingModel.setZTxTy(saveZTxTy);
             new TextWindow("qualB scan, Tx="+IJ.d2s(zTxTy[1],3)+" Ty="+IJ.d2s(zTxTy[1],3), header, sb.toString(), 800,1000);
         }
-        
+
         public boolean qLevenbergMarquardt(
         		boolean openDialog,
         		int debugLevel){
@@ -10631,9 +10625,9 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
         	if (openDialog && !selectQLMAParameters()) return false;
         	this.qLambda=this.qInitialLambda;
         	this.qStartTime=System.nanoTime();
-        	// TODO: ASet ZTxTy, mask, 
+        	// TODO: ASet ZTxTy, mask,
         	//initCorrPars(double [][][] corrPars)
-        	// initWeights...        	
+        	// initWeights...
         	if (!openDialog) stopEachStep=false;
         	this.iterationStepNumber=0;
         	this.firstQualB=-1; //undefined
@@ -10653,7 +10647,7 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
         			restoreQPars();
         			//        				commitParameterVector(this.savedVector);
         			this.qLambda=savedLambda;
-        			stopRequested.set(saveStopRequested); // restore caller stop request        			
+        			stopRequested.set(saveStopRequested); // restore caller stop request
         			return false;
         		}
 
@@ -10703,16 +10697,16 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
         			//        				commitParameterVector(this.savedVector); // either new or original
         			commitQPars(this.qSavedVector);
         			this.qLambda=savedLambda;
-        			stopRequested.set(saveStopRequested); // restore caller stop request        			
+        			stopRequested.set(saveStopRequested); // restore caller stop request
         			return this.qSaveSeries; // TODO: Maybe change result?
         		}
-        		//stepLevenbergMarquardtAction();             
+        		//stepLevenbergMarquardtAction();
         		if (state[1]) {
         			if (!state[0]) {
         				//        					commitParameterVector(this.savedVector);
         				commitQPars(this.qSavedVector);
         				this.qLambda=savedLambda;
-        				stopRequested.set(saveStopRequested); // restore caller stop request        				
+        				stopRequested.set(saveStopRequested); // restore caller stop request
         				return false; // sequence failed
         			}
         			//        				this.savedVector=this.currentVector.clone();
@@ -10733,9 +10727,9 @@ f_corr: d_fcorr/d_zcorr=0, other: a, reff, kx ->  ar[1], ar[2], ar[3],  ar[4]
         	}
         	//        	this.savedVector=this.currentVector.clone();
         	//        	commitParameterVector(this.savedVector);
-        	saveQPars();        	
+        	saveQPars();
         	commitQPars(this.qSavedVector);
-        	stopRequested.set(saveStopRequested); // restore caller stop request        	
+        	stopRequested.set(saveStopRequested); // restore caller stop request
         	return true; // all series done
         }
         public void qCompareDrDerivatives(double [] vector){

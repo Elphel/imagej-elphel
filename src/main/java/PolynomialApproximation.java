@@ -76,12 +76,12 @@ public class PolynomialApproximation {
 			M.solve(B).print(10, 12);
 		}
 		double []result=new double [N+1];
-		
+
 		for (int i=0;i<=N;i++) result[i]=(i<=N1)?aR[i][0]:0.0;
 		return result;
 	}
 /**
- * Linear approximates each of 3 functions of 3 variables and finds where they are all zero	
+ * Linear approximates each of 3 functions of 3 variables and finds where they are all zero
  * @param data: for each sample (1-st index):
  *               0 - {x,y,z}
  *               1 - {f1, f2, f3},
@@ -91,7 +91,7 @@ public class PolynomialApproximation {
 	public double [] linear3d(double [][][] data){
 		/*
 		 * Approximating each of the 3 measured parameters (Far/near, tilt x and tilt y) with linear approximation in the vicinity of the last position
-		 * For each parameter F(x,y,z)=A*x + B*y +C*z + D, using Gaussian weight function with sigma= motorsSigma     	    		
+		 * For each parameter F(x,y,z)=A*x + B*y +C*z + D, using Gaussian weight function with sigma= motorsSigma
 		 */
 		double [][] aM3=new double [3][3];
 		double [][] aB3=new double [3][1];
@@ -164,7 +164,7 @@ public class PolynomialApproximation {
 		}
 		return result;
 
-		
+
 	}
 
 	  public double[] quadraticMax2d (double [][][] data){
@@ -196,6 +196,31 @@ public class PolynomialApproximation {
 		  return xy;
 	  }
 
+	  // returns maximum's coordinates, value, and coefficients for x2, y2 and xy
+	  public double[] quadraticMaxV2dX2Y2XY (double [][][] data,double thresholdQuad, int debugLevel){
+		  double [][] coeff=quadraticApproximation(data, false, 1.0E-20,  thresholdQuad,debugLevel);
+		  if (coeff==null) return null;
+		  if (coeff[0].length<6) return null;
+		  double [][] aM={
+				  {2*coeff[0][0],  coeff[0][2]},  // | 2A,  C |
+				  {  coeff[0][2],2*coeff[0][1]}}; // |  C, 2B |
+		   Matrix M=(new Matrix(aM));
+ 	   	   double nmQ=normMatix(aM);
+	   	   if (debugLevel>3) System.out.println("M.det()="+M.det()+" normMatix(aM)="+nmQ+" data.length="+data.length);
+		   if ((nmQ==0.0) || (Math.abs(M.det())/normMatix(aM)<thresholdQuad)) {
+			   if (debugLevel>3) System.out.println("quadraticMax2d() failed: M.det()="+M.det()+" normMatix(aM)="+normMatix(aM));
+			  return  null;
+		   }
+		  double [][] aB={
+				  {-coeff[0][3]},  // | - D |
+				  {-coeff[0][4]}}; // | - E |
+		  double [] xy=M.solve(new Matrix(aB)).getColumnPackedCopy();
+		  double vmax = coeff[0][0]*xy[0]*xy[0]+coeff[0][1]*xy[1]*xy[1]+coeff[0][2]*xy[0]*xy[1]+coeff[0][3]*xy[0]+coeff[0][4]*xy[1]+coeff[0][5];
+		  double [] xyx2y2 = {xy[0],xy[1], vmax, coeff[0][0], coeff[0][1],  coeff[0][2]};
+		  return xyx2y2;
+	  }
+
+
 	/* ======================================================================== */
 	  /**
 	   * See below, this version is for backward compatibility with no damping
@@ -210,13 +235,13 @@ public class PolynomialApproximation {
 		   return quadraticApproximation(
 				   data,
 				   forceLinear,
-				   null); 
+				   null);
 	   }
-	
-	  
+
+
 	  /**
 	   * Approximate function z(x,y) as a second degree polynomial (or just linear)
-	   * f(x,y)=A*x^2+B*y^2+C*x*y+D*x+E*y+F or f(x,y)=D*x+E*y+F 
+	   * f(x,y)=A*x^2+B*y^2+C*x*y+D*x+E*y+F or f(x,y)=D*x+E*y+F
 	   * @param data array consists of lines of either 2 or 3 vectors:
 	   *        2-element vector x,y
 	   *        variable length vector z (should be the same for all samples)
@@ -225,7 +250,7 @@ public class PolynomialApproximation {
 	   * @param damping optional (may be null) array of 3 (for linear) or 6 (quadratic) values that adds cost
 	   *        for corresponding coefficient be non-zero. This can be used to find reasonable solutions when
 	   *        data is insufficient. Just one data point would result in a plane of constant z, co-linear
-	   *        points will produce a plane with a gradient along this line  
+	   *        points will produce a plane with a gradient along this line
 	   * @return array of vectors or null
 	   * each vector (one per each z component) is either 6-element-  (A,B,C,D,E,F) if quadratic is possible and enabled
 	   * or 3-element - (D,E,F) if linear is possible and quadratic is not possible or disabled
@@ -242,7 +267,7 @@ public class PolynomialApproximation {
 				   damping,
 				   this.debugLevel);
 			   }
-	   
+
 	   public double [][] quadraticApproximation(
 			   double [][][] data,
 			   boolean forceLinear,  // use linear approximation
@@ -254,8 +279,8 @@ public class PolynomialApproximation {
 				   null,
 				   debugLevel);
 	   }
-	   
-	   
+
+
 	   public double [][] quadraticApproximation(
 			   double [][][] data,
 			   boolean forceLinear,  // use linear approximation
@@ -271,7 +296,7 @@ public class PolynomialApproximation {
 				   debugLevel);
 	   }
 
-	   
+
 	   public double [][] quadraticApproximation(
 			   double [][][] data,
 			   boolean forceLinear,  // use linear approximation
@@ -302,7 +327,7 @@ public class PolynomialApproximation {
 				   1.0E-15,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
 				   this.debugLevel);
 	   }
-	   
+
 	   public double [][] quadraticApproximation(
 			   double [][][] data,
 			   boolean forceLinear,  // use linear approximation
@@ -317,10 +342,10 @@ public class PolynomialApproximation {
 				   thresholdLin,  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail) 11.0E-10 failed where it shouldn't?
 				   thresholdQuad,  // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
 				   debugLevel);
-		   
+
 	   }
-	   
-	   
+
+
 	   public double [][] quadraticApproximation(
 				   double [][][] data,
 				   boolean forceLinear,  // use linear approximation
@@ -333,9 +358,9 @@ public class PolynomialApproximation {
 	/* ix, iy - the location of the point with maximal value. We'll approximate the vicinity of that maximum using a
 	 * second degree polynomial:
 	   Z(x,y)~=A*x^2+B*y^2+C*x*y+D*x+E*y+F
-	   by minimizing sum of squared differenceS00between the actual (Z(x,uy)) and approximated values. 
+	   by minimizing sum of squared differenceS00between the actual (Z(x,uy)) and approximated values.
 	   and then find the maximum on the approximated surface. Here iS00the math:
-	  	   		
+
 	Z(x,y)~=A*x^2+B*y^2+C*x*y+D*x+E*y+F
 	minimizing squared error, using W(x,y) aS00weight function
 
@@ -402,18 +427,18 @@ public class PolynomialApproximation {
 				   mDampingLin = new Matrix(3,3);
 				   for (int i = 0; i < 3; i++){
 					   int j = damping.length + i - 3;
-					   if (j >= 0) mDampingLin.set(i,i,damping[j]); 
+					   if (j >= 0) mDampingLin.set(i,i,damping[j]);
 				   }
 				   if (!forceLinear) {
 					   mDampingQuad = new Matrix(6,6);
 					   for (int i = 0; i < 6; i++){
 						   int j = damping.length + i - 6;
-						   if (j >= 0) mDampingQuad.set(i,i,damping[j]); 
+						   if (j >= 0) mDampingQuad.set(i,i,damping[j]);
 					   }
 				   }
 			   }
-			   
-			   int zDim=data[0][1].length;   
+
+			   int zDim=data[0][1].length;
 
 			   double w,z,x,x2,x3,x4,y,y2,y3,y4,wz;
 			   int i,j,n=0;
@@ -477,7 +502,7 @@ public class PolynomialApproximation {
 							   SZ02[j]+=wz*y2;
 						   }
 					   }
-					   
+
 				   }
 			   }
 			   //need to decide if there is enough data for linear and quadratic
@@ -486,7 +511,7 @@ public class PolynomialApproximation {
 					   {S11,S02,S01},
 					   {S10,S01,S00}};
 			   Matrix mLin=new Matrix (mAarrayL);
-			   
+
 			   if (mDampingLin != null){
 				   mLin.plusEquals(mDampingLin);
 			   }
@@ -516,7 +541,7 @@ public class PolynomialApproximation {
 			       ABCDEF[i]= mLin.solve(Z).getRowPackedCopy();
 			   }
 			   if (forceLinear) return ABCDEF;
-			   // quote try quadratic approximation            
+			   // quote try quadratic approximation
 			   double [][] mAarrayQ= {
 					   {S40,S22,S31,S30,S21,S20},
 					   {S22,S04,S13,S12,S03,S02},
@@ -528,7 +553,7 @@ public class PolynomialApproximation {
 			   if (mDampingQuad != null){
 				   mQuad.plusEquals(mDampingQuad);
 			   }
-			   
+
 	 	   	   if (debugLevel>3) {
 	 	   		   System.out.println("    n="+n+" det_quad="+mQuad.det()+" norm_quad="+normMatix(mAarrayQ)+" data.length="+data.length);
 	 	   		   mQuad.print(10,5);
@@ -557,7 +582,7 @@ public class PolynomialApproximation {
 			   return ABCDEF;
 		   }
 //			calcualte "volume" made of the matrix row-vectors, placed orthogonally
-		// to be compared to determinant	   
+		// to be compared to determinant
 			public double normMatix(double [][] a) {
 		        double d,norm=1.0;
 		        for (int i=0;i<a.length;i++) {

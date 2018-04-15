@@ -2358,8 +2358,8 @@ public class EyesisCorrectionParameters {
 
   		public double     max_corr_radius =   3.5;  // maximal distance from int max to consider
 
-  		public int        enhortho_width =    2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
-  		public double     enhortho_scale =    0.0; // 0.2;  // multiply center correlation pixels (inside enhortho_width)
+//  		public int        enhortho_width =    2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
+//  		public double     enhortho_scale =    0.0; // 0.2;  // multiply center correlation pixels (inside enhortho_width)
 
   		public boolean    max_corr_double =   false; // NOT USED double pass when masking center of mass to reduce preference for integer values
   		public int        corr_mode =         2;    // which correlation mode to use: 0 - integer max, 1 - center of mass, 2 - polynomial
@@ -2613,31 +2613,32 @@ public class EyesisCorrectionParameters {
   		public double     stStepNear        = 0.5;   // Disparity histogram step for near objects
   		public double     stStepThreshold   = 1.0;   // Disparity threshold to switch from linear to logarithmic steps
   		public double     stMinDisparity    = 0.0;   // Minimal disparity (center of a bin)
-//  		public double     stMaxDisparity    = 15.0;  // Maximal disparity (center of a bin)
-  		public double     stFloor           = 0.1;  // Subtract from strength, discard negative
-  		public double     stPow             = 1.0;   // raise strength to this power
+
+  		// moved to MeasuredLayersFilterParameters
+//  		public double     stFloor           = 0.1;  // Subtract from strength, discard negative
+//  		public double     stPow             = 1.0;   // raise strength to this power
   		public double     stSigma           = 1.5;   // Blur disparity histogram (sigma in bins)
   		public double     stMinBgDisparity  = 0.0;   // Minimal backgroubnd disparity to extract as a maximum from the supertiles
   		public double     stMinBgFract      = 0.1;   // Minimal fraction of the disparity histogram to use as background
   		public double     stUseDisp         = 0.12;  // Use background disparity from supertiles if tile strength is less
   		public double     stStrengthScale   = 50.0;  // Multiply st strength if used instead of regular strength
-
   		public boolean    stSmplMode        = true;   // Use sample mode (false - regular tile mode)
-  		public int        stSmplSide        = 3;      // Sample size (side of a square)
-  		public int        stSmplNum         = 5;      // Number after removing worst
-  		public double     stSmplRms         = 0.3;    // Maximal RMS of the remaining tiles in a sample
-		public boolean    stSmplWnd         = false;  // Use window function for the samples (TODO: change default to true after testing)
+
+//  		public int        stSmplSide        = 3;      // Sample size (side of a square)
+//  		public int        stSmplNum         = 5;      // Number after removing worst
+//  		public double     stSmplRms         = 0.3;    // Maximal RMS of the remaining tiles in a sample
+//		public boolean    stSmplWnd         = false;  // Use window function for the samples (TODO: change default to true after testing)
 
 		// Additional parameters to prevent increase of the  distance to far (small) objects. It happens because of averaging bg and fg disparities
 		// These parameters are also used when expanding tiles from the known ones.
 
-		public double     fs_max_abs_tilt  = 2.0; // Maximal absolute tilt in pixels/tile
-		public double     fs_max_rel_tilt  = 0.2; // Maximal relative tilt in pixels/tile/disparity
-		public double     fs_damp_tilt  =    0.001; // Tilt cost for damping insufficient plane data
-		public double     fs_min_tilt_disp = 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-		public double     fs_transition    = 1.0; // Mode transition range (between tilted and maximal disparity)
-		public int        fs_far_mode  =     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-		public double     fs_far_power =     3.0; // Raise disparity to this power before averaging for far objects
+//		public double     fs_max_abs_tilt  = 2.0; // Maximal absolute tilt in pixels/tile
+//		public double     fs_max_rel_tilt  = 0.2; // Maximal relative tilt in pixels/tile/disparity
+//		public double     fs_damp_tilt  =    0.001; // Tilt cost for damping insufficient plane data
+//		public double     fs_min_tilt_disp = 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
+//		public double     fs_transition    = 1.0; // Mode transition range (between tilted and maximal disparity)
+//		public int        fs_far_mode  =     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
+//		public double     fs_far_power =     3.0; // Raise disparity to this power before averaging for far objects
 
 
   		public int        stGrowSel         = 2;     // Grow initial selection before processing supertiles, odd - ortho. <0 - use all tiles
@@ -2994,7 +2995,8 @@ public class EyesisCorrectionParameters {
   		public boolean    show_planes =            false; // show planes
   		public double []  vertical_xyz =           {0.0,1.0,0.0}; // real world up unit vector in camera CS (x - right, y - up, z - to camera};
 
-  		public ImageDttParameters img_dtt = new ImageDttParameters();
+  		public ImageDttParameters             img_dtt = new ImageDttParameters();
+  		public MeasuredLayersFilterParameters mlfp =    new MeasuredLayersFilterParameters();
 
   		public HashMap<String,Double> z_corr_map = new HashMap<String,Double>();
   		public static String Z_CORR_PREFIX = "z_corr.";
@@ -3047,8 +3049,8 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"max_corr_sigma",   this.max_corr_sigma +"");
   			properties.setProperty(prefix+"max_corr_radius",  this.max_corr_radius +"");
 
-  			properties.setProperty(prefix+"enhortho_width",   this.enhortho_width +"");
-  			properties.setProperty(prefix+"enhortho_scale",   this.enhortho_scale +"");
+//  			properties.setProperty(prefix+"enhortho_width",   this.enhortho_width +"");
+//  			properties.setProperty(prefix+"enhortho_scale",   this.enhortho_scale +"");
 
 
   			properties.setProperty(prefix+"max_corr_double",  this.max_corr_double+"");
@@ -3276,28 +3278,29 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"stStepNear",       this.stStepNear +"");
 			properties.setProperty(prefix+"stStepThreshold",  this.stStepThreshold +"");
 			properties.setProperty(prefix+"stMinDisparity",   this.stMinDisparity +"");
-//			properties.setProperty(prefix+"stMaxDisparity",   this.stMaxDisparity +"");
-			properties.setProperty(prefix+"stFloor",          this.stFloor +"");
-			properties.setProperty(prefix+"stPow",            this.stPow +"");
-			properties.setProperty(prefix+"stSigma",          this.stSigma +"");
-			properties.setProperty(prefix+"stMinBgDisparity", this.stMinBgDisparity +"");
-			properties.setProperty(prefix+"stMinBgFract",     this.stMinBgFract +"");
-			properties.setProperty(prefix+"stUseDisp",        this.stUseDisp +"");
-			properties.setProperty(prefix+"stStrengthScale",  this.stStrengthScale +"");
 
-			properties.setProperty(prefix+"stSmplMode",       this.stSmplMode+"");
-  			properties.setProperty(prefix+"stSmplSide",       this.stSmplSide+"");
-  			properties.setProperty(prefix+"stSmplNum",        this.stSmplNum+"");
-			properties.setProperty(prefix+"stSmplRms",        this.stSmplRms +"");
-			properties.setProperty(prefix+"stSmplWnd",        this.stSmplWnd+"");
+///			properties.setProperty(prefix+"stFloor",          this.stFloor +"");   // mlfp.strength_floor
+///			properties.setProperty(prefix+"stPow",            this.stPow +"");     // mlfp.strength_pow
+			properties.setProperty(prefix+"stSigma",          this.stSigma +"");          // keep
+			properties.setProperty(prefix+"stMinBgDisparity", this.stMinBgDisparity +""); // keep
+			properties.setProperty(prefix+"stMinBgFract",     this.stMinBgFract +"");     // keep
+			properties.setProperty(prefix+"stUseDisp",        this.stUseDisp +"");        // keep
+			properties.setProperty(prefix+"stStrengthScale",  this.stStrengthScale +"");  // keep
 
-			properties.setProperty(prefix+"fs_max_abs_tilt",  this.fs_max_abs_tilt+"");
-			properties.setProperty(prefix+"fs_max_rel_tilt",  this.fs_max_rel_tilt+"");
-			properties.setProperty(prefix+"fs_damp_tilt",     this.fs_damp_tilt+"");
-			properties.setProperty(prefix+"fs_min_tilt_disp", this.fs_min_tilt_disp+"");
-			properties.setProperty(prefix+"fs_transition",    this.fs_transition+"");
-			properties.setProperty(prefix+"fs_far_mode",      this.fs_far_mode+"");
-			properties.setProperty(prefix+"fs_far_power",     this.fs_far_power+"");
+			properties.setProperty(prefix+"stSmplMode",       this.stSmplMode+"");        // keep
+
+///			properties.setProperty(prefix+"stSmplSide",       this.stSmplSide+"");        // mlfp.smplSide
+///			properties.setProperty(prefix+"stSmplNum",        this.stSmplNum+"");         // mlfp.smplNum
+///			properties.setProperty(prefix+"stSmplRms",        this.stSmplRms +"");        // mlfp.smplRms
+///			properties.setProperty(prefix+"stSmplWnd",        this.stSmplWnd+"");         // mlfp.smplWnd
+
+///			properties.setProperty(prefix+"fs_max_abs_tilt",  this.fs_max_abs_tilt+"");   // mlfp.max_abs_tilt
+///			properties.setProperty(prefix+"fs_max_rel_tilt",  this.fs_max_rel_tilt+"");   // mlfp.max_rel_tilt
+///			properties.setProperty(prefix+"fs_damp_tilt",     this.fs_damp_tilt+"");      // mlfp.damp_tilt
+///			properties.setProperty(prefix+"fs_min_tilt_disp", this.fs_min_tilt_disp+"");  // mlfp.min_tilt_disp
+///			properties.setProperty(prefix+"fs_transition",    this.fs_transition+"");     // mlfp.transition
+///			properties.setProperty(prefix+"fs_far_mode",      this.fs_far_mode+"");       // mlfp.far_mode
+///			properties.setProperty(prefix+"fs_far_power",     this.fs_far_power+"");      // mlfp.far_power
 
 			properties.setProperty(prefix+"stGrowSel",        this.stGrowSel+"");
 			properties.setProperty(prefix+"stMeasSel",        this.stMeasSel+"");
@@ -3624,7 +3627,9 @@ public class EyesisCorrectionParameters {
 					properties.setProperty(prefix+Z_CORR_PREFIX+entry.getKey(),   entry.getValue().toString());
 				}
 			}
-	  		img_dtt.setProperties(prefix+"_img_dtt", properties);
+	  		img_dtt.setProperties (prefix+"_img_dtt", properties);
+  	  		mlfp.setProperties    (prefix+"_mlfp",    properties);
+
   		}
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"transform_size")!=null) this.transform_size=Integer.parseInt(properties.getProperty(prefix+"transform_size"));
@@ -3672,8 +3677,10 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"max_corr_sigma")!=null) this.max_corr_sigma=Double.parseDouble(properties.getProperty(prefix+"max_corr_sigma"));
   			if (properties.getProperty(prefix+"max_corr_radius")!=null)this.max_corr_radius=Double.parseDouble(properties.getProperty(prefix+"max_corr_radius"));
 
-  			if (properties.getProperty(prefix+"enhortho_width")!=null) this.enhortho_width=Integer.parseInt(properties.getProperty(prefix+"enhortho_width"));
-  			if (properties.getProperty(prefix+"enhortho_scale")!=null) this.enhortho_scale=Double.parseDouble(properties.getProperty(prefix+"enhortho_scale"));
+// for compatibility with old settings
+  			if (properties.getProperty(prefix+"enhortho_width")!=null) this.img_dtt.enhortho_width=Integer.parseInt(properties.getProperty(prefix+"enhortho_width"));
+  			if (properties.getProperty(prefix+"enhortho_scale")!=null) this.img_dtt.enhortho_scale=Double.parseDouble(properties.getProperty(prefix+"enhortho_scale"));
+// for compatibility with old settings
 
   			if (properties.getProperty(prefix+"max_corr_double")!=null)this.max_corr_double=Boolean.parseBoolean(properties.getProperty(prefix+"max_corr_double"));
   			if (properties.getProperty(prefix+"corr_mode")!=null)      this.corr_mode=Integer.parseInt(properties.getProperty(prefix+"corr_mode"));
@@ -3902,8 +3909,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"stStepThreshold")!=null)   this.stStepThreshold=Double.parseDouble(properties.getProperty(prefix+"stStepThreshold"));
   			if (properties.getProperty(prefix+"stMinDisparity")!=null)    this.stMinDisparity=Double.parseDouble(properties.getProperty(prefix+"stMinDisparity"));
 //  			if (properties.getProperty(prefix+"stMaxDisparity")!=null)    this.stMaxDisparity=Double.parseDouble(properties.getProperty(prefix+"stMaxDisparity"));
-  			if (properties.getProperty(prefix+"stFloor")!=null)           this.stFloor=Double.parseDouble(properties.getProperty(prefix+"stFloor"));
-  			if (properties.getProperty(prefix+"stPow")!=null)             this.stPow=Double.parseDouble(properties.getProperty(prefix+"stPow"));
+
   			if (properties.getProperty(prefix+"stSigma")!=null)           this.stSigma=Double.parseDouble(properties.getProperty(prefix+"stSigma"));
   			if (properties.getProperty(prefix+"stMinBgDisparity")!=null)  this.stMinBgDisparity=Double.parseDouble(properties.getProperty(prefix+"stMinBgDisparity"));
   			if (properties.getProperty(prefix+"stMinBgFract")!=null)      this.stMinBgFract=Double.parseDouble(properties.getProperty(prefix+"stMinBgFract"));
@@ -3911,21 +3917,23 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"stStrengthScale")!=null)   this.stStrengthScale=Double.parseDouble(properties.getProperty(prefix+"stStrengthScale"));
 
   			if (properties.getProperty(prefix+"stSmplMode")!=null)        this.stSmplMode=Boolean.parseBoolean(properties.getProperty(prefix+"stSmplMode"));
-  			if (properties.getProperty(prefix+"stSmplSide")!=null)        this.stSmplSide=Integer.parseInt(properties.getProperty(prefix+"stSmplSide"));
-  			if (properties.getProperty(prefix+"stSmplNum")!=null)         this.stSmplNum=Integer.parseInt(properties.getProperty(prefix+"stSmplNum"));
-  			if (properties.getProperty(prefix+"stSmplRms")!=null)         this.stSmplRms=Double.parseDouble(properties.getProperty(prefix+"stSmplRms"));
-  			if (properties.getProperty(prefix+"stSmplWnd")!=null)         this.stSmplWnd=Boolean.parseBoolean(properties.getProperty(prefix+"stSmplWnd"));
 
 
-  			if (properties.getProperty(prefix+"fs_max_abs_tilt")!=null)   this.fs_max_abs_tilt=Double.parseDouble(properties.getProperty(prefix+"fs_max_abs_tilt"));
-  			if (properties.getProperty(prefix+"fs_max_rel_tilt")!=null)   this.fs_max_rel_tilt=Double.parseDouble(properties.getProperty(prefix+"fs_max_rel_tilt"));
-  			if (properties.getProperty(prefix+"fs_damp_tilt")!=null)      this.fs_damp_tilt=Double.parseDouble(properties.getProperty(prefix+"fs_damp_tilt"));
-
-
-  			if (properties.getProperty(prefix+"fs_min_tilt_disp")!=null)  this.fs_min_tilt_disp=Double.parseDouble(properties.getProperty(prefix+"fs_min_tilt_disp"));
-  			if (properties.getProperty(prefix+"fs_transition")!=null)     this.fs_transition=Double.parseDouble(properties.getProperty(prefix+"fs_transition"));
-  			if (properties.getProperty(prefix+"fs_far_mode")!=null)       this.fs_far_mode=Integer.parseInt(properties.getProperty(prefix+"fs_far_mode"));
-  			if (properties.getProperty(prefix+"fs_far_power")!=null)      this.fs_far_power=Double.parseDouble(properties.getProperty(prefix+"fs_far_power"));
+// next kept for compatibility with old configs
+  			if (properties.getProperty(prefix+"stFloor")!=null)           this.mlfp.strength_floor=Double.parseDouble(properties.getProperty(prefix+"stFloor"));
+  			if (properties.getProperty(prefix+"stPow")!=null)             this.mlfp.strength_pow=Double.parseDouble(properties.getProperty(prefix+"stPow"));
+  			if (properties.getProperty(prefix+"stSmplSide")!=null)        this.mlfp.smplSide=Integer.parseInt(properties.getProperty(prefix+"stSmplSide"));
+  			if (properties.getProperty(prefix+"stSmplNum")!=null)         this.mlfp.smplNum=Integer.parseInt(properties.getProperty(prefix+"stSmplNum"));
+  			if (properties.getProperty(prefix+"stSmplRms")!=null)         this.mlfp.smplRms=Double.parseDouble(properties.getProperty(prefix+"stSmplRms"));
+  			if (properties.getProperty(prefix+"stSmplWnd")!=null)         this.mlfp.smplWnd=Boolean.parseBoolean(properties.getProperty(prefix+"stSmplWnd"));
+  			if (properties.getProperty(prefix+"fs_max_abs_tilt")!=null)   this.mlfp.max_abs_tilt=Double.parseDouble(properties.getProperty(prefix+"fs_max_abs_tilt"));
+  			if (properties.getProperty(prefix+"fs_max_rel_tilt")!=null)   this.mlfp.max_rel_tilt=Double.parseDouble(properties.getProperty(prefix+"fs_max_rel_tilt"));
+  			if (properties.getProperty(prefix+"fs_damp_tilt")!=null)      this.mlfp.damp_tilt=Double.parseDouble(properties.getProperty(prefix+"fs_damp_tilt"));
+  			if (properties.getProperty(prefix+"fs_min_tilt_disp")!=null)  this.mlfp.min_tilt_disp=Double.parseDouble(properties.getProperty(prefix+"fs_min_tilt_disp"));
+  			if (properties.getProperty(prefix+"fs_transition")!=null)     this.mlfp.transition=Double.parseDouble(properties.getProperty(prefix+"fs_transition"));
+  			if (properties.getProperty(prefix+"fs_far_mode")!=null)       this.mlfp.far_mode=Integer.parseInt(properties.getProperty(prefix+"fs_far_mode"));
+  			if (properties.getProperty(prefix+"fs_far_power")!=null)      this.mlfp.far_power=Double.parseDouble(properties.getProperty(prefix+"fs_far_power"));
+// end of next kept for compatibility with old configs
 
 
   			if (properties.getProperty(prefix+"stGrowSel")!=null)         this.stGrowSel=Integer.parseInt(properties.getProperty(prefix+"stGrowSel"));
@@ -4258,7 +4266,8 @@ public class EyesisCorrectionParameters {
   					z_corr_map.put(s.substring(li), Double.parseDouble(properties.getProperty(s)));
   				}
   			}
-  	  		img_dtt.setProperties(prefix+"_img_dtt", properties);
+  	  		img_dtt.getProperties (prefix+"_img_dtt", properties);
+  	  		mlfp.getProperties    (prefix+"_mlfp", properties);
   		}
 
   		public boolean showJDialog() {
@@ -4293,7 +4302,8 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Value (max) in vignetting data to correspond to 1x in the kernel",        this.vignetting_max,      3);
   			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",      this.vignetting_range,  3);
   			gd.addNumericField("Kernel step in pixels (has 1 kernel margin on each side)",                this.kernel_step,            0);
-  			gd.addNumericField("Nominal (rectilinear) disparity between side of square cameras (pix)",    this.disparity,  3);
+  			gd.addNumericField("Nominal (rectilinear) disparity between side of square cameras (pix)",    this.disparity,  3,7,"pix",
+  					"Used when rendering 4 images");
   			gd.addNumericField("Inverse distance to infinity (misalignment correction)",                  this.z_correction,  6);
   			gd.addCheckbox    ("Perform correlation",                                                     this.correlate);
   			gd.addNumericField("Bitmask of pairs to combine in the composite (top, bottom, left,righth)", this.corr_mask,            0);
@@ -4313,18 +4323,12 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Select all-pair correlation type to use 0 - CM, 1 - poly",                this.corr_select,  0);
 
   			gd.addTab         ("imageDtt", "Setup extra ImageDtt parameters - eventually all will be set that way");
-  			gd.addCheckbox    ("Enable ImageDtt correlation debug layers",                                this.img_dtt.corr_mode_debug);
-  			gd.addCheckbox    ("Replace CM layer with mixed/new poly one",                                this.img_dtt.mix_corr_poly);
-  			gd.addNumericField("Use poly mode if strength is greater than",                               this.img_dtt.min_poly_strength,  3,6,"", "AND condition");
-  			gd.addNumericField("Use poly if it does not differ from CM more than by ",                    this.img_dtt.max_poly_diff,  3,6,"pix", "AND condition");
-  			gd.addNumericField("When calculating poly raise correlation value to this power",             this.img_dtt.poly_pwr,  3,6,"", "Trying to reduce sticking to integer values");
-  			gd.addCheckbox    ("When calculating poly multiply strength by correlation value (more important)", this.img_dtt.poly_value_to_weight);
 
+  			// moved
+  			this.img_dtt.dialogQuestions(gd);
   			gd.addTab         ("vert/hor", "Enhance detection of horizontal/vertical features (when enh_ortho is enabled for tile");
 
   			gd.addMessage("--- Enhance detection of horizontal/vertical features (when enh_ortho is enabled for tile ---");
-  			gd.addNumericField("Reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)",  this.enhortho_width,            0);
-  			gd.addNumericField("Multiply center correlation pixels (inside enhortho_width) (1.0 - disables enh_orttho)",  this.enhortho_scale,  3);
 
 
   			gd.addCheckbox    ("Double pass when masking center of mass to reduce preference for integer values", this.max_corr_double);
@@ -4335,7 +4339,7 @@ public class EyesisCorrectionParameters {
   			gd.addTab         ("tileTasks", "tiles tasks (current tile_task_op = "+this.tile_task_op+")");
 
   			gd.addMessage("--- tiles tasks (current tile_task_op = "+this.tile_task_op+") ---");
-  			gd.addCheckbox    ("Enhace ortho lines detection (enh_ortho)",                                               ImageDtt.getOrthoLines(this.tile_task_op));
+  			gd.addCheckbox    ("Enhance ortho lines detection (enh_ortho)",                                              ImageDtt.getOrthoLines(this.tile_task_op));
   			gd.addCheckbox    ("Force disparity for image rendering (false - use found from tile correlation)",          ImageDtt.getForcedDisparity(this.tile_task_op));
   			gd.addNumericField("Bitmask of used images (1 - top left, 2 - top right, 4 - bottom left, 8 bottom right)",  ImageDtt.getImgMask(this.tile_task_op),            0);
   			gd.addNumericField("Bitmask of used pairs  (1 - top, 2 - bottom, 4 - left, 8 - right)",                      ImageDtt.getPairMask(this.tile_task_op),            0);
@@ -4596,39 +4600,15 @@ public class EyesisCorrectionParameters {
   			gd.addTab         ("Supertiles", "Build supertiles (plates)");
 //  			gd.addNumericField("Maximal disparity (center of a bin)",                                          this.stMaxDisparity,  6);
   			gd.addMessage     ("Maximal disparity (center of a bin) - using grow_disp_max="+this.grow_disp_max);
-  			gd.addNumericField("Subtract from strength, discard negative",                                     this.stFloor,  6);
-  			gd.addNumericField("Raise strength to this power ",                                                this.stPow,  6);
+//  			gd.addNumericField("Subtract from strength, discard negative",                                     this.stFloor,  6);
+//  			gd.addNumericField("Raise strength to this power ",                                                this.stPow,  6);
   			gd.addNumericField("Blur disparity histogram (sigma in bins)",                                     this.stSigma,  6);
   			gd.addNumericField("Minimal backgroubnd disparity to extract as a maximum from the supertiles",    this.stMinBgDisparity,  6);
   			gd.addNumericField("Minimal fraction of the disparity histogram to use as background",             this.stMinBgFract,  6);
   			gd.addNumericField("Use background disparity from supertiles if tile strength is less",            this.stUseDisp,  6);
   			gd.addNumericField("Multiply st strength if used instead of regular strength ",                    this.stStrengthScale,  6);
 
-  			gd.addMessage     ("Sample filtering mode");
-  			gd.addCheckbox    ("Use sample mode (false - regular tile mode)",                                  this.stSmplMode);
-  			gd.addNumericField("Sample size (side of a square)",                                               this.stSmplSide,  0);
-  			gd.addNumericField("Number after removing worst",                                                  this.stSmplNum,  0);
-  			gd.addNumericField("Maximal RMS of the remaining tiles in a sample",                               this.stSmplRms,  6);
-  			gd.addCheckbox    ("Use window function for the samples",                                          this.stSmplWnd);
-
-  			gd.addMessage     ("Additional parameters to prevent increase of the  distance to far (small) objects",
-  					           "These parameters are also used when expanding tiles from the known ones");
-  			gd.addNumericField("Maximal absolute plane \"tilt\" in pixels/tile",                               this.fs_max_abs_tilt,  4, 6,
-  					"pix/tile", "difference between disparity of the neighbor tiles in disparity space image");
-  			gd.addNumericField("Maximal relative plane \"tilt\"",                                              this.fs_max_rel_tilt,  4, 6,
-  					"1/tile", "pixel/tile tilte divided by the full disparity of the tle");
-
-  			gd.addNumericField("Tilt cost for damping insufficient plane data",                                this.fs_damp_tilt,  6, 8,
-  					"", "Allows to find plane when there are not enough tiles to process");
-
-  			gd.addNumericField("Disparity switch between filtering modes",                                     this.fs_min_tilt_disp,  4,6,
-  					"pix","Objects that are closer (larger disparity) use tilted plane model, far objects use maximal amon neighbors disparity");
-  			gd.addNumericField("Mode transition range (between tilted and maximal disparity)",                 this.fs_transition,  4,6,
-  					"pix","Disparity range to gradually switch between maximal and tilted modes");
-  			gd.addNumericField("Far objects filtering mode (0 - off, 1,2 - power of disparity)",                 this.fs_far_mode,  0,3,
-  					"","So far only 2 far modes: 1 - remove outliers from both sides, 2 - only from far side, 0 - use tilted mode for all tiles");
-  			gd.addNumericField("Raise disparity to this power before averaging for far objects",               this.fs_far_power,  4,6,
-  					"", "Parameter to specify preference of the larger disparity when averaging");
+//  			gd.addMessage     ("Sample filtering mode");
 
   			gd.addMessage     ("Other supertile parameters");
   			gd.addNumericField("Grow initial selection before processing supertiles, odd - ortho. <0 - use all tiles",this.stGrowSel,  0);
@@ -4646,6 +4626,38 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Disregard weaker tiles when combining scans  for horizontal correlation",      this.combine_min_hor,  6);
   			gd.addNumericField("Disregard weaker tiles when combining scans  for vertical correlation",        this.combine_min_vert,  6);
 //  			gd.addNumericField("Do not re-measure correlation if target disparity differs from some previous by this",this.unique_tolerance,  6);
+
+  			gd.addTab         ("Tile Filter", "Filter for measured tile data");
+  			gd.addCheckbox    ("Use sample mode (false - regular tile mode)",                                  this.stSmplMode);
+  			gd.addNumericField("Sure strength",                                                                this.mlfp.strength_sure,  4,6,"",
+  					"Do not filter tile disparities above this strength level (on top of strength floor");
+  			gd.addNumericField("Strength floor",                                                               this.mlfp.strength_floor,  4,6,"",
+  					"Subtract from strength, discard negative");
+  			gd.addNumericField("Raise strength to this power ",                                                this.mlfp.strength_pow,  6);
+  			gd.addNumericField("Sample size (side of a square)",                                               this.mlfp.smplSide,  0);
+  			gd.addNumericField("Number after removing worst",                                                  this.mlfp.smplNum,  0);
+  			gd.addNumericField("Maximal RMS of the remaining tiles in a sample",                               this.mlfp.smplRms,  6);
+  			gd.addCheckbox    ("Use window function for the samples",                                          this.mlfp.smplWnd);
+
+  			gd.addMessage     ("Additional parameters to prevent increase of the  distance to far (small) objects",
+  					           "These parameters are also used when expanding tiles from the known ones");
+  			gd.addNumericField("Maximal absolute plane \"tilt\" in pixels/tile",                               this.mlfp.max_abs_tilt,  4, 6,
+  					"pix/tile", "difference between disparity of the neighbor tiles in disparity space image");
+  			gd.addNumericField("Maximal relative plane \"tilt\"",                                              this.mlfp.max_rel_tilt,  4, 6,
+  					"1/tile", "pixel/tile tilte divided by the full disparity of the tle");
+
+  			gd.addNumericField("Tilt cost for damping insufficient plane data",                                this.mlfp.damp_tilt,  6, 8,
+  					"", "Allows to find plane when there are not enough tiles to process");
+
+  			gd.addNumericField("Disparity switch between filtering modes",                                     this.mlfp.min_tilt_disp,  4,6,
+  					"pix","Objects that are closer (larger disparity) use tilted plane model, far objects use maximal amon neighbors disparity");
+  			gd.addNumericField("Mode transition range (between tilted and maximal disparity)",                 this.mlfp.transition,  4,6,
+  					"pix","Disparity range to gradually switch between maximal and tilted modes");
+  			gd.addNumericField("Far objects filtering mode (0 - off, 1,2 - power of disparity)",               this. mlfp.far_mode,  0,3,
+  					"","So far only 2 far modes: 1 - remove outliers from both sides, 2 - only from far side, 0 - use tilted mode for all tiles");
+  			gd.addNumericField("Raise disparity to this power before averaging for far objects",               this.mlfp.far_power,  4,6,
+  					"", "Parameter to specify preference of the larger disparity when averaging");
+
 
   			gd.addTab         ("Grow", "Growing disparity range to scan");
   			gd.addMessage     ("========= Growing disparity range to scan ========");
@@ -5034,16 +5046,7 @@ public class EyesisCorrectionParameters {
             this.corr_select =    (int) gd.getNextNumber();
 
 
-  			this.img_dtt.corr_mode_debug=      gd.getNextBoolean();
-  			this.img_dtt.mix_corr_poly=        gd.getNextBoolean();
-  			this.img_dtt.min_poly_strength=    gd.getNextNumber();
-  			this.img_dtt.max_poly_diff=        gd.getNextNumber();
-  			this.img_dtt.poly_pwr=             gd.getNextNumber();
-  			this.img_dtt.poly_value_to_weight= gd.getNextBoolean();
-
-
-  			this.enhortho_width= (int) gd.getNextNumber();
-  			this.enhortho_scale=        gd.getNextNumber();
+            this.img_dtt.dialogAnswers(gd);
 
   			this.max_corr_double=       gd.getNextBoolean();
   			this.corr_mode=       (int) gd.getNextNumber();
@@ -5275,27 +5278,11 @@ public class EyesisCorrectionParameters {
   			this.stStepThreshold=       gd.getNextNumber();
   			this.stMinDisparity=        gd.getNextNumber();
 //  			this.stMaxDisparity=        gd.getNextNumber();
-  			this.stFloor=               gd.getNextNumber();
-  			this.stPow=                 gd.getNextNumber();
   			this.stSigma=               gd.getNextNumber();
   			this.stMinBgDisparity=      gd.getNextNumber();
   			this.stMinBgFract=          gd.getNextNumber();
   			this.stUseDisp=             gd.getNextNumber();
   			this.stStrengthScale=       gd.getNextNumber();
-
-  			this.stSmplMode=            gd.getNextBoolean();
-  			this.stSmplSide=      (int) gd.getNextNumber();
-  			this.stSmplNum=       (int) gd.getNextNumber();
-  			this.stSmplRms=             gd.getNextNumber();
-  			this.stSmplWnd=             gd.getNextBoolean();
-
-  			this.fs_max_abs_tilt=       gd.getNextNumber();
-  			this.fs_max_rel_tilt=       gd.getNextNumber();
-  			this.fs_damp_tilt =         gd.getNextNumber();
-  			this.fs_min_tilt_disp=      gd.getNextNumber();
-  			this.fs_transition=         gd.getNextNumber();
-  			this.fs_far_mode=     (int) gd.getNextNumber();
-  			this.fs_far_power=          gd.getNextNumber();
 
   			this.stGrowSel=       (int) gd.getNextNumber();
   			this.stMeasSel=       (int) gd.getNextNumber();
@@ -5312,6 +5299,25 @@ public class EyesisCorrectionParameters {
   			this.combine_min_strength=  gd.getNextNumber();
   			this.combine_min_hor=       gd.getNextNumber();
   			this.combine_min_vert=      gd.getNextNumber();
+  			///--------------------
+  			this.stSmplMode=            gd.getNextBoolean();
+  			this.mlfp.strength_sure=    gd.getNextNumber();
+  			this.mlfp.strength_floor=   gd.getNextNumber();
+  			this.mlfp.strength_pow=     gd.getNextNumber();
+
+  			this.mlfp.smplSide=   (int) gd.getNextNumber();
+  			this.mlfp.smplNum=    (int) gd.getNextNumber();
+  			this.mlfp.smplRms=          gd.getNextNumber();
+  			this.mlfp.smplWnd=          gd.getNextBoolean();
+
+  			this.mlfp.max_abs_tilt=     gd.getNextNumber();
+  			this.mlfp.max_rel_tilt=     gd.getNextNumber();
+  			this.mlfp.damp_tilt =       gd.getNextNumber();
+  			this.mlfp.min_tilt_disp=    gd.getNextNumber();
+  			this.mlfp.transition=       gd.getNextNumber();
+  			this.mlfp.far_mode=   (int) gd.getNextNumber();
+  			this.mlfp.far_power=        gd.getNextNumber();
+
 //  			this.unique_tolerance=      gd.getNextNumber();
   			this.grow_sweep=      (int) gd.getNextNumber();
   			this.grow_disp_max=         gd.getNextNumber();
@@ -5615,7 +5621,6 @@ public class EyesisCorrectionParameters {
   			this.show_flaps_dirs=       gd.getNextBoolean();
   			this.show_first_clusters=   gd.getNextBoolean();
   			this.show_planes=           gd.getNextBoolean();
-/**/
   			return true;
   		}
 
@@ -5775,7 +5780,6 @@ public class EyesisCorrectionParameters {
   			this.taEnWeakFgnd=          gd.getNextBoolean();
   			this.taEnFlaps=             gd.getNextBoolean();
   			this.taEnMismatch=          gd.getNextBoolean();
-
   			return true;
   		}
     	public boolean modifyZCorr (String title) {
