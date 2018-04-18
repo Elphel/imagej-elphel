@@ -2350,13 +2350,13 @@ public class EyesisCorrectionParameters {
   		public double     corr_red =          0.5;  // Red to green correlation weight
   		public double     corr_blue =         0.2;  // Blue to green correlation weight
   		public boolean    corr_normalize =    false; // normalize each correlation tile by rms
-  		public double     min_corr =          0.001; // minimal correlation value to consider valid
+  		public double     min_corr =          0.02; // minimal correlation value to consider valid
   		public double     min_corr_normalized =  2.0; // minimal correlation value to consider valid when normalizing correlation results
-  		public double     max_corr_sigma =    1.5;  // weights of points around global max to find fractional
+  		public double     max_corr_sigma =    1.2;  // weights of points around global max to find fractional
   		                                            // pixel location by quadratic approximation
   		public double     corr_r2_offset =    0.0;  // 0.0 - for compatibility with old, normally should be 2.0 (or 1.0)
 
-  		public double     max_corr_radius =   3.5;  // maximal distance from int max to consider
+  		public double     max_corr_radius =   3.9;  // maximal distance from int max to consider
 
 //  		public int        enhortho_width =    2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
 //  		public double     enhortho_scale =    0.0; // 0.2;  // multiply center correlation pixels (inside enhortho_width)

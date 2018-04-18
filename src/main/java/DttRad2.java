@@ -432,6 +432,66 @@ public class DttRad2 {
 		}
 	}
 
+	/**
+	 * Unfolds 2d correlation tile in pixel domain
+	 * @param qdata 4-quadrant result of 2cd DCT2
+	 * @param transform_size DCT transformation size
+	 * @return packed array [(2*transform_size-1) * (2*transform_size-1)]
+	 */
+
+	public  double [] corr_unfold_tile(
+			double [][]  qdata, // [4][transform_size*transform_size] data after DCT2 (pixel domain)
+			int          transform_size
+			)
+	{
+		int corr_pixsize = transform_size * 2 - 1;
+		double corr_pixscale = 0.25;
+		double [] rslt = new double [corr_pixsize*corr_pixsize];
+		rslt[corr_pixsize*transform_size - transform_size] = corr_pixscale * qdata[0][0]; // center
+		for (int j = 1; j < transform_size; j++) { //  for i == 0
+			rslt[corr_pixsize*transform_size - transform_size + j] = corr_pixscale * (qdata[0][j] + qdata[1][j-1]);
+			rslt[corr_pixsize*transform_size - transform_size - j] = corr_pixscale * (qdata[0][j] - qdata[1][j-1]);
+		}
+		for (int i = 1; i < transform_size; i++) {
+			rslt[corr_pixsize*(transform_size + i) - transform_size] =
+					corr_pixscale * (qdata[0][i*transform_size] + qdata[2][(i-1)*transform_size]);
+			rslt[corr_pixsize*(transform_size - i) - transform_size] =
+					corr_pixscale * (qdata[0][i*transform_size] - qdata[2][(i-1)*transform_size]);
+			for (int j = 1; j < transform_size; j++) {
+				rslt[corr_pixsize*(transform_size + i) - transform_size + j] =
+						corr_pixscale * (qdata[0][i*    transform_size + j] +
+								 qdata[1][i*    transform_size + j - 1] +
+								 qdata[2][(i-1)*transform_size + j] +
+								 qdata[3][(i-1)*transform_size + j - 1]);
+
+				rslt[corr_pixsize*(transform_size + i) - transform_size - j] =
+						corr_pixscale * ( qdata[0][i*    transform_size + j] +
+								 -qdata[1][i*    transform_size + j - 1] +
+								  qdata[2][(i-1)*transform_size + j] +
+								 -qdata[3][(i-1)*transform_size + j - 1]);
+				rslt[corr_pixsize*(transform_size - i) - transform_size + j] =
+						corr_pixscale * (qdata[0][i*    transform_size + j] +
+								 qdata[1][i*    transform_size + j - 1] +
+								 -qdata[2][(i-1)*transform_size + j] +
+								 -qdata[3][(i-1)*transform_size + j - 1]);
+				rslt[corr_pixsize*(transform_size - i) - transform_size - j] =
+						corr_pixscale * (qdata[0][i*    transform_size + j] +
+								 -qdata[1][i*    transform_size + j - 1] +
+								 -qdata[2][(i-1)*transform_size + j] +
+								 qdata[3][(i-1)*transform_size + j - 1]);
+			}
+		}
+
+
+		return rslt;
+
+	}
+
+
+
+
+
+
 	public double [] dttt_iv(double [] x){
 		return dttt_iv(x, 0, 1 << (ilog2(x.length)/2));
 	}
@@ -1083,6 +1143,7 @@ public class DttRad2 {
 		}
 		return y;
 	}
+
 
 
 }

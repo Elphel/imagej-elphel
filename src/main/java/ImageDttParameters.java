@@ -51,6 +51,19 @@ public class ImageDttParameters {
 	public double  fo_overcorrection =      0.0;  // add scaled hor/vert difference to the largest of hor/vert disparity
 	public double  fo_lim_overcorr =        2.0;  // limit full correction with respect to largest - fullcorr difference
 
+	public double  corr_offset =            0.1; //0.1;  // add to pair correlation before multiplying by other pairs
+	public double  min_corr =               0.02; // minimal correlation value to consider valid
+
+	public int     dbg_pair_mask =          0x3ff; // which pairs to combine
+	public int     corr_strip_hight =       9;     // number of rows to calculate
+	public int     corr_wndy_size =         9;     // number of rows to calculate CM disparity
+	public double  corr_wndy_hwidth =       6.0;   // 50% window cutoff height
+	public double  corr_wndy_blur =         5.0;   // 100% to 0 % vertical transition range
+	public int     corr_wndx_size =         9;     // half number of columns to calculate CM disparity (each row has only odd/even columns, so disparity range is smaller
+	public double  corr_wndx_hwidth =       6.0;   // 50% window cutoff width
+	public double  corr_wndx_blur =         5.0;   // 100% to 0 % vertical transition range
+
+
 
 
 
@@ -90,6 +103,35 @@ public class ImageDttParameters {
 			gd.addNumericField("Limit overcorrection",                                            this.fo_lim_overcorr,  3,6,"",
 					"Limit full correction with respect to largest - fullcorr difference. 1.0 does not allow overcorrection, < 1.0 - the result will be closer to full correction");
 
+
+	  		gd.addNumericField("Add to pair correlation before multiplying by other pairs",       this.corr_offset,  6,8,"",
+	  				"0.0 - pure product (false-positive tolerant), higher the value - closer to the sum (linear, better S/N");
+
+		    gd.addNumericField("Extract disparity max/argmax if maximal value is above",          this.min_corr,  6,8,"",
+		    		"skip unreliable correlations");
+
+
+			gd.addNumericField("Debug: which pairs to combine",                                   this.dbg_pair_mask,  0, 3, "",
+					"Bits: 0, 1 - horizontal pairs, 2,3 - verical pairs, 4,5 - diagonal pairs");
+			gd.addNumericField("Number of correlation rows to combine (strip height)",            this.corr_strip_hight,  0, 3, "",
+					"Number of rows to combine/interpolate correlation results. Rows are twice denser than pixels correponding to largest baseline disparity");
+			gd.addNumericField("Number of rows to calculate CM disparity",                        this.corr_wndy_size,  0, 3, "",
+					"Number of rows to calculate maximum. Normally should be equal to the previous parameter");
+
+			gd.addNumericField("50% correlation window cutoff height",                            this.corr_wndy_hwidth,  3, 6, "",
+					"Correlation window height argument for 50% value");
+			gd.addNumericField("100% to 0 % correlation vertical window transition range",        this.corr_wndy_blur,  3,6,"",
+					"Transition range, shifted sine is used");
+
+			gd.addNumericField("Half-number of columns to calculate CM disparity",                this.corr_wndx_size,  0, 3, "",
+					"Horizontal size of the window (symmetrical around integer argmax, only odd/even values are used in odd/even rows");
+
+			gd.addNumericField("50% correlation window cutoff width",                             this.corr_wndx_hwidth,  3, 6, "",
+					"Correlation window width argument for 50% value");
+			gd.addNumericField("100% to 0 % correlation horizontal window transition range",      this.corr_wndx_blur,  3, 6, "",
+					"Transition range, shifted sine is used");
+
+
 	}
 	public void dialogAnswers(GenericJTabbedDialog gd) {
 			this.corr_mode_debug=        gd.getNextBoolean();
@@ -111,12 +153,30 @@ public class ImageDttParameters {
   			this.enhortho_width=   (int) gd.getNextNumber();
   			this.enhortho_scale=         gd.getNextNumber();
 
-  			this.far_object_correct =     gd.getNextBoolean();
-  			this.fo_min_strength =        gd.getNextNumber();
-  			this.fo_max_hwidth =          gd.getNextNumber();
-  			this.fo_overcorrection =      gd.getNextNumber();
-  			this.fo_lim_overcorr =        gd.getNextNumber();
+  			this.far_object_correct =    gd.getNextBoolean();
+  			this.fo_min_strength =       gd.getNextNumber();
+  			this.fo_max_hwidth =         gd.getNextNumber();
+  			this.fo_overcorrection =     gd.getNextNumber();
+  			this.fo_lim_overcorr =       gd.getNextNumber();
+
+	  		this.corr_offset =           gd.getNextNumber();
+		    this.min_corr =              gd.getNextNumber();
+
+
+  			this.dbg_pair_mask=    (int) gd.getNextNumber();
+  			this.corr_strip_hight= (int) gd.getNextNumber();
+  			this.corr_wndy_size=   (int) gd.getNextNumber();
+
+			this.corr_wndy_hwidth =      gd.getNextNumber();
+			this.corr_wndy_blur =        gd.getNextNumber();
+
+  			this.corr_wndx_size=   (int) gd.getNextNumber();
+
+			this.corr_wndx_hwidth =      gd.getNextNumber();
+			this.corr_wndx_blur =        gd.getNextNumber();
+
 	}
+
 
 	public void setProperties(String prefix,Properties properties){
 		properties.setProperty(prefix+"corr_mode_debug",      this.corr_mode_debug+"");
@@ -138,11 +198,27 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"enhortho_width",       this.enhortho_width +"");
 		properties.setProperty(prefix+"enhortho_scale",       this.enhortho_scale +"");
 
+		properties.setProperty(prefix+"corr_offset",          this.corr_offset +"");
+		properties.setProperty(prefix+"min_corr",             this.min_corr +"");
+
 		properties.setProperty(prefix+"far_object_correct",   this.far_object_correct +"");
 		properties.setProperty(prefix+"fo_min_strength",      this.fo_min_strength +"");
 		properties.setProperty(prefix+"fo_max_hwidth",        this.fo_max_hwidth +"");
 		properties.setProperty(prefix+"fo_overcorrection",    this.fo_overcorrection +"");
 		properties.setProperty(prefix+"fo_lim_overcorr",      this.fo_lim_overcorr +"");
+
+		properties.setProperty(prefix+"dbg_pair_mask",        this.dbg_pair_mask +"");
+		properties.setProperty(prefix+"corr_strip_hight",     this.corr_strip_hight +"");
+		properties.setProperty(prefix+"corr_wndy_size",       this.corr_wndy_size +"");
+
+		properties.setProperty(prefix+"corr_wndy_hwidth",     this.corr_wndy_hwidth +"");
+		properties.setProperty(prefix+"corr_wndy_blur",       this.corr_wndy_blur +"");
+
+		properties.setProperty(prefix+"corr_wndx_size",       this.corr_wndx_size +"");
+
+		properties.setProperty(prefix+"corr_wndx_hwidth",     this.corr_wndx_hwidth +"");
+		properties.setProperty(prefix+"corr_wndx_blur",       this.corr_wndx_blur +"");
+
 	}
 
 	public void getProperties(String prefix,Properties properties){
@@ -170,35 +246,68 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"fo_max_hwidth")!=null)         this.fo_max_hwidth=Double.parseDouble(properties.getProperty(prefix+"fo_max_hwidth"));
 		if (properties.getProperty(prefix+"fo_overcorrection")!=null)     this.fo_overcorrection=Double.parseDouble(properties.getProperty(prefix+"fo_overcorrection"));
 		if (properties.getProperty(prefix+"fo_lim_overcorr")!=null)       this.fo_lim_overcorr=Double.parseDouble(properties.getProperty(prefix+"fo_lim_overcorr"));
+
+
+		if (properties.getProperty(prefix+"corr_offset")!=null)           this.corr_offset=Double.parseDouble(properties.getProperty(prefix+"corr_offset"));
+		if (properties.getProperty(prefix+"min_corr")!=null)              this.min_corr=Double.parseDouble(properties.getProperty(prefix+"min_corr"));
+
+
+		if (properties.getProperty(prefix+"dbg_pair_mask")!=null)        this.dbg_pair_mask=Integer.parseInt(properties.getProperty(prefix+"dbg_pair_mask"));
+		if (properties.getProperty(prefix+"corr_strip_hight")!=null)     this.corr_strip_hight=Integer.parseInt(properties.getProperty(prefix+"corr_strip_hight"));
+		if (properties.getProperty(prefix+"corr_wndy_size")!=null)       this.corr_wndy_size=Integer.parseInt(properties.getProperty(prefix+"corr_wndy_size"));
+
+		if (properties.getProperty(prefix+"corr_wndy_hwidth")!=null)     this.corr_wndy_hwidth=Double.parseDouble(properties.getProperty(prefix+"corr_wndy_hwidth"));
+		if (properties.getProperty(prefix+"corr_wndy_blur")!=null)       this.corr_wndy_blur=Double.parseDouble(properties.getProperty(prefix+"corr_wndy_blur"));
+
+		if (properties.getProperty(prefix+"corr_wndx_size")!=null)       this.corr_wndx_size=Integer.parseInt(properties.getProperty(prefix+"corr_wndx_size"));
+
+		if (properties.getProperty(prefix+"corr_wndx_hwidth")!=null)     this.corr_wndx_hwidth=Double.parseDouble(properties.getProperty(prefix+"corr_wndx_hwidth"));
+		if (properties.getProperty(prefix+"corr_wndx_blur")!=null)       this.corr_wndx_blur=Double.parseDouble(properties.getProperty(prefix+"corr_wndx_blur"));
+
 	}
 
 	@Override
 	public ImageDttParameters clone() throws CloneNotSupportedException {
         ImageDttParameters idp =     new ImageDttParameters();
-		idp.corr_mode_debug =        corr_mode_debug;
-		idp.mix_corr_poly =          mix_corr_poly;
-		idp.min_poly_strength =      min_poly_strength;
-		idp.max_poly_hwidth =        max_poly_hwidth;
-		idp.poly_corr_scale =        poly_corr_scale;
+		idp.corr_mode_debug =        this.corr_mode_debug;
+		idp.mix_corr_poly =          this.mix_corr_poly;
+		idp.min_poly_strength =      this.min_poly_strength;
+		idp.max_poly_hwidth =        this.max_poly_hwidth;
+		idp.poly_corr_scale =        this.poly_corr_scale;
 
-		idp.poly_pwr =               poly_pwr;
-		idp.poly_vasw_pwr =          poly_vasw_pwr;
-		idp.corr_magic_scale_cm =    corr_magic_scale_cm;
-		idp.corr_magic_scale_poly =  corr_magic_scale_poly;
+		idp.poly_pwr =               this.poly_pwr;
+		idp.poly_vasw_pwr =          this.poly_vasw_pwr;
+		idp.corr_magic_scale_cm =    this.corr_magic_scale_cm;
+		idp.corr_magic_scale_poly =  this.corr_magic_scale_poly;
 
-		idp.ortho_height =           ortho_height;
-		idp.ortho_eff_height =       ortho_eff_height;
-		idp.ortho_nsamples =         ortho_nsamples;
-		idp.ortho_vasw_pwr =         ortho_vasw_pwr;
+		idp.ortho_height =           this.ortho_height;
+		idp.ortho_eff_height =       this.ortho_eff_height;
+		idp.ortho_nsamples =         this.ortho_nsamples;
+		idp.ortho_vasw_pwr =         this.ortho_vasw_pwr;
 
-		idp.enhortho_width =         enhortho_width;
-		idp.enhortho_scale =         enhortho_scale;
+		idp.enhortho_width =         this.enhortho_width;
+		idp.enhortho_scale =         this.enhortho_scale;
 
-		idp.far_object_correct =     far_object_correct;
-		idp.fo_min_strength =        fo_min_strength;
-		idp.fo_max_hwidth =          fo_max_hwidth;
-		idp.fo_overcorrection =      fo_overcorrection;
-		idp.fo_lim_overcorr =        fo_lim_overcorr;
+		idp.far_object_correct =     this.far_object_correct;
+		idp.fo_min_strength =        this.fo_min_strength;
+		idp.fo_max_hwidth =          this.fo_max_hwidth;
+		idp.fo_overcorrection =      this.fo_overcorrection;
+		idp.fo_lim_overcorr =        this.fo_lim_overcorr;
+
+		idp.corr_offset=             this.corr_offset;
+		idp.min_corr=                this.min_corr;
+
+		idp.dbg_pair_mask=           this.dbg_pair_mask;
+		idp.corr_strip_hight=        this.corr_strip_hight;
+		idp.corr_wndy_size=          this.corr_wndy_size;
+
+		idp.corr_wndy_hwidth =       this.corr_wndy_hwidth;
+		idp.corr_wndy_blur =         this.corr_wndy_blur;
+
+		idp.corr_wndx_size=          this.corr_wndx_size;
+
+		idp.corr_wndx_hwidth =       this.corr_wndx_hwidth;
+		idp.corr_wndx_blur =         this.corr_wndx_blur;
 
 		return idp;
 	}

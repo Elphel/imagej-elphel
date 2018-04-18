@@ -82,10 +82,16 @@ public class ImageDtt {
 	  static int  DBG10_INDEX =                   27; // index of dbg3 data (poly 3)
 	  static int  DBG11_INDEX =                   28; // index of dbg3 data (poly 3)
 	  static int  DBG12_INDEX =                   29; // index of dbg3 data (poly 3)
+	  static int  DBG13_INDEX =                   30; // index of dbg3 data (poly 3)
+	  static int  DBG14_INDEX =                   31; // index of dbg3 data (poly 3)
+	  static int  DBG15_INDEX =                   32; // index of dbg3 data (poly 3)
+	  static int  DBG16_INDEX =                   33; // index of dbg3 data (poly 3)
+	  static int  DBG17_INDEX =                   34; // index of dbg3 data (poly 3)
+	  static int  DBG18_INDEX =                   35; // index of dbg3 data (poly 3)
 	  static String [] DISPARITY_TITLES = {
 			  "int_disp","int_y_disp","cm_disp","cm_y_disp","hor_disp","hor_strength","vert_disp","vert_strength",
 			  "poly_disp", "poly_y_disp", "strength_disp", "vary_disp","diff0","diff1","diff2","diff3","overexp",
-			  "dbg0","dbg1","dbg2","dbg3","dbg4","dbg5","dbg6","dbg7","dbg8","dbg9","dbg10","dbg11","dbg12"};
+			  "dbg0","dbg1","dbg2","dbg3","dbg4","dbg5","dbg6","dbg7","dbg8","dbg9","dbg10","dbg11","dbg12","dbg13","dbg14","dbg15","dbg16","dbg17","dbg18"};
 
 	  static int  TCORR_COMBO_RSLT =  0; // normal combined correlation from all   selected pairs (mult/sum)
 	  static int  TCORR_COMBO_SUM =   1; // sum of channel correlations from all   selected pairs
@@ -1409,9 +1415,9 @@ public class ImageDtt {
 			final double              corr_blue,
 			final double              corr_sigma,
 			final boolean             corr_normalize,  // normalize correlation results by rms
-	  		final double              min_corr,        // 0.0001; // minimal correlation value to consider valid
-			final double              max_corr_sigma,  // 1.5;  // weights of points around global max to find fractional
-			final double              max_corr_radius, // 3.5;
+	  		final double              min_corr,        // 0.02; // minimal correlation value to consider valid
+			final double              max_corr_sigma,  // 1.2;  // weights of points around global max to find fractional
+			final double              max_corr_radius, // 3.9;
 
 //			final int                 enhortho_width,  // 2;    // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
 //			final double              enhortho_scale,  // 0.2;  // multiply center correlation pixels (inside enhortho_width)
@@ -1627,6 +1633,33 @@ public class ImageDtt {
 			}
 		}
 */
+//	Correlation2d corr2d = new Correlation2d(transform_size);
+
+		final double [] corr_wndy = (new Correlation2d(transform_size)).halfFlatTopWindow(
+				imgdtt_params.corr_wndy_size, // int     ihwidth,
+				imgdtt_params.corr_wndy_hwidth, //  double  hwidth,
+				imgdtt_params.corr_wndy_blur, // double  blur,
+				true, // boolean normalize,
+				1.0); // double  scale);
+
+		final double [] corr_wndx = (new Correlation2d(transform_size)).halfFlatTopWindow(
+				imgdtt_params.corr_wndx_size, // int     ihwidth,
+				imgdtt_params.corr_wndx_hwidth, //  double  hwidth,
+				imgdtt_params.corr_wndx_blur, // double  blur,
+				true, // boolean normalize,
+				2.0); // double  scale);
+		if (globalDebugLevel > -1) {
+			System.out.println("\ncorr_wndy:");
+			for (int i = 0; i <corr_wndy.length; i++) {
+				System.out.println(i+": "+corr_wndy[i]);
+			}
+			System.out.println("\ncorr_wnxy:");
+			for (int i = 0; i <corr_wndx.length; i++) {
+				System.out.println(i+": "+corr_wndx[i]);
+			}
+		}
+
+
 		final Matrix [] corr_rots = geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
@@ -2007,7 +2040,8 @@ public class ImageDtt {
 								}
 								// convert from 4 quadrants to 15x15 centered tiles (each color or only composite)
 								for (int chn = firstColor; chn <= numcol; chn++){
-									tcorr_partial[pair][chn] = corr_unfold_tile(
+//									tcorr_partial[pair][chn] = corr_unfold_tile(
+									tcorr_partial[pair][chn] = dtt.corr_unfold_tile(
 											tcorr_tpartial[pair][chn],
 											transform_size);
 								}
@@ -2244,14 +2278,14 @@ public class ImageDtt {
 												corr_size,                    // int       data_size,
 												imgdtt_params.ortho_nsamples, // int       num_samples,     // number of samples to keep (5?)
 												imgdtt_params.ortho_vasw_pwr, // double   value_as_weight, // use positive value as sample weight
-												(globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY)); // debugMax);
+												false); //(globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY)); // debugMax);
 										corr_max_ortho[1] =	getMaxXSOrtho2(   // get fractional center using a quadratic polynomial
 												tcorr_combo[TCORR_COMBO_VERT],// double [] data,            // [data_size * data_size]
 												ortho_weights,                // double [] enhortho_scales, // [data_size]
 												corr_size,                    // int       data_size,
 												imgdtt_params.ortho_nsamples, // int       num_samples,     // number of samples to keep (5?)
 												imgdtt_params.ortho_vasw_pwr, // double   value_as_weight, // use positive value as sample weight
-												(globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY)); // debugMax);
+												false); //(globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY)); // debugMax);
 //										(globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)); // debugMax);
  //										disparity_map[DISPARITY_INDEX_HOR][tIndex] = transform_size - 1 - corr_max_XS_hor[0];
 //										disparity_map[DISPARITY_INDEX_HOR_STRENGTH][tIndex] = corr_max_XS_hor[1];
@@ -2354,6 +2388,100 @@ public class ImageDtt {
 										}
 										// use poly only if half-width y < limit (now it is ~2.0 for good corr)
 
+// test new correlations
+										if (disparity_map[DBG12_INDEX] != null) {
+											Correlation2d corr2d = new Correlation2d(transform_size);
+											// recalculate correlations
+										    double [][]  corrs = corr2d.correlateCompositeFD(
+										    		clt_data,      // double [][][][][][] clt_data,
+										    		tileX,         // int                 tileX,
+										    		tileY,         // int                 tileY,
+										    		0x3f,          // int                 pairs_mask,
+										    		filter,        // double []           lpf,
+										    		col_weights,   // double []           col_weights,
+										    		corr_fat_zero);// double              fat_zero)
+
+										    double [][] strips = corr2d.scaleRotateInterpoateCorrelations(
+										    		corrs,                          // double [][] correlations,
+										    		0x3f,                           // int         pairs_mask,
+										    		imgdtt_params.corr_strip_hight, //);    // int         hwidth);
+										    		((globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY))?0x3f:0); // debugMax);
+
+										    double [] strip_ortho = corr2d.combineInterpolatedCorrelations(
+										    		strips,                         // double [][] strips,
+										    		0x0f,                           // int         pairs_mask,
+										    		imgdtt_params.corr_offset);     // double      offset);
+
+										    double [] strip_diag = corr2d.combineInterpolatedCorrelations(
+										    		strips,                         // double [][] strips,
+										    		0x30,                           // int         pairs_mask,
+										    		imgdtt_params.corr_offset);     // double      offset);
+
+										    double [] strip_all = corr2d.combineInterpolatedCorrelations(
+										    		strips,                         // double [][] strips,
+										    		0x3f,                           // int         pairs_mask,
+										    		imgdtt_params.corr_offset);     // double      offset);
+
+										    double [] strip_combo = corr2d.combineInterpolatedCorrelations(
+										    		strips,                        // double [][] strips,
+										    		imgdtt_params.dbg_pair_mask,   // int         pairs_mask,
+										    		imgdtt_params.corr_offset);  // double      offset);
+
+										    // reuse clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+										    if (clt_corr_partial != null) {
+										    	clt_corr_partial[tileY][tileX][0][0] = corrs[0];                        // 1
+										    	clt_corr_partial[tileY][tileX][0][1] = corrs[1];                        // 2
+										    	clt_corr_partial[tileY][tileX][0][2] = corrs[2];                        // 3
+										    	clt_corr_partial[tileY][tileX][0][3] = corrs[3];                        // 4
+										    	clt_corr_partial[tileY][tileX][1][0] = corrs[4];                        // 5
+										    	clt_corr_partial[tileY][tileX][1][1] = corrs[5];                        // 6
+										    	clt_corr_partial[tileY][tileX][1][2] = corr2d.debugStrip(strips[0]);    // 7
+										    	clt_corr_partial[tileY][tileX][1][3] = corr2d.debugStrip(strips[1]);    // 8
+										    	clt_corr_partial[tileY][tileX][2][0] = corr2d.debugStrip(strips[2]);    // 9
+										    	clt_corr_partial[tileY][tileX][2][1] = corr2d.debugStrip(strips[3]);    // 10
+										    	clt_corr_partial[tileY][tileX][2][2] = corr2d.debugStrip(strips[4]);    // 11
+										    	clt_corr_partial[tileY][tileX][2][3] = corr2d.debugStrip(strips[5]);    // 12
+										    	clt_corr_partial[tileY][tileX][3][0] = corr2d.debugStrip(strip_ortho);  // 13
+										    	clt_corr_partial[tileY][tileX][3][1] = corr2d.debugStrip(strip_diag);   // 14
+										    	clt_corr_partial[tileY][tileX][3][2] = corr2d.debugStrip(strip_all);    // 15
+										    	clt_corr_partial[tileY][tileX][3][3] = corr2d.debugStrip2(strip_combo);   // 16
+										    }
+										    if ((globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
+										    	System.out.println(String.format("tileX=%d, tileY=%d, dbg_pair_mask= 0x%x,corr_offset = %8.5f",
+										    			debug_tileX,debug_tileY,imgdtt_params.dbg_pair_mask, imgdtt_params.corr_offset ));
+										    }
+										    // find integer correlation center, relative to the center
+											int [] ixy =  corr2d.getMaxXYInt( // find integer pair or null if below threshold
+													strip_combo,              // double [] data,      // [data_size * data_size]
+													true,                     // boolean   axis_only,
+													imgdtt_params.min_corr,   //  double    minMax,    // minimal value to consider (at integer location, not interpolated)
+													((globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY))); // boolean   debug);
+											double [] corr_stat = null;
+											if (ixy != null) {
+												corr_stat = corr2d.getMaxXCm(   // get fractional center as a "center of mass" inside circle/square from the integer max
+														strip_combo,                      // double [] data,      // [data_size * data_size]
+														ixy[0],                           // int       ixcenter,  // integer center x
+														corr_wndy,                        // double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
+														corr_wndx,                        // double [] window_x,  // half of a window function in x (disparity) direction
+														((globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY))); // boolean   debug);
+											} else {
+												corr_stat = new double[3];
+												for (int i = 0; i < corr_stat.length; i++) corr_stat[i] = Double.NaN;
+											}
+											if (disparity_map[DBG18_INDEX] != null) {
+												disparity_map[DBG13_INDEX][tIndex] = -corr_stat[0]; // disparity is negative X
+												disparity_map[DBG14_INDEX][tIndex] = corr_stat[2]; // half-width
+												disparity_map[DBG15_INDEX][tIndex] = corr_stat[1]/corr_stat[2]; // height?
+												disparity_map[DBG16_INDEX][tIndex] = corr_stat[1]; // weight
+												if (ixy != null) {
+													disparity_map[DBG17_INDEX][tIndex] = strip_combo[ixy[0]+transform_size-1];
+													disparity_map[DBG18_INDEX][tIndex] = -ixy[0];
+												}else {
+													disparity_map[DBG17_INDEX][tIndex] = Double.NaN;
+													disparity_map[DBG18_INDEX][tIndex] = Double.NaN;
+												}
+											}
+										}
 
 										if (imgdtt_params.mix_corr_poly) { // regardless of debug
 											// apply
@@ -3943,6 +4071,7 @@ public class ImageDtt {
 		return rslt;
 	}
 
+/*
 	private double [] corr_unfold_tile(
 			double [][]  qdata, // [4][transform_size*transform_size] data after DCT2 (pixel domain)
 			int          transform_size
@@ -3991,7 +4120,7 @@ public class ImageDtt {
 
 	}
 
-
+*/
 	// extract correlation result  in linescan order (for visualization)
 	public double [] corr_dbg(
 			final double [][][] corr_data,
