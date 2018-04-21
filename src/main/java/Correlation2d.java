@@ -1,3 +1,5 @@
+import java.util.ArrayList;
+
 /**
  **
  ** Correlation2d - Handle 2-d (phase) correlations, combining multiple-pair data
@@ -6,7 +8,7 @@
  **
  ** -----------------------------------------------------------------------------**
  **
- **  ImageDtt.java is free software: you can redistribute it and/or modify
+ **  Correlation2d.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
  **  (at your option) any later version.
@@ -31,8 +33,10 @@ public class Correlation2d {
 	private final int transform_size;
 	private final int transform_len;
 	private final int corr_size;
-	private final int [][] transpose_indices_ortho;
-	private final int [][] transpose_indices_diagonal;
+//	private final int [][] transpose_indices_ortho;
+//	private final int [][] transpose_indices_diagonal;
+	private final int [] transpose_all_ortho;
+	private final int [] transpose_all_diagonal;
 
 	// configuration for 8-lens and 4-lens cameras. 8-lens has baseline = 1 for 1..4 and 1/2 for 4..7
 /*0        1
@@ -59,6 +63,13 @@ public class Correlation2d {
 			{2, 6, PAIR_DIAGONAL_OTHER, 4},
 			{5, 1, PAIR_DIAGONAL_OTHER, 4},
 			};
+	final static int [][] GROUPS = { // {diagonal, scale}
+			{0, 1},
+			{1, 1},
+			{0, 2},
+			{1, 2},
+			{0, 4},
+			{1, 4}};
 
 	final double[][] port_offsets = {
 			{-0.5, -0.5},
@@ -101,16 +112,46 @@ public class Correlation2d {
     	this.transform_len = transform_size * transform_size;
     	this.corr_size = transform_size * 2 -1;
     	// not initialized until needed
-    	this.transpose_indices_ortho =  new int [corr_size*(corr_size-1)/2][];
-    	this.transpose_indices_diagonal =  new int [corr_size*(corr_size-1)/2][];
+//    	this.transpose_indices_ortho =  new int [corr_size*(corr_size-1)/2][];
+//    	this.transpose_indices_diagonal =  new int [corr_size*(corr_size-1)/2][];
+    	this.transpose_all_ortho =     new int [corr_size*corr_size];
+    	this.transpose_all_diagonal =  new int [corr_size*corr_size];
 
       }
 
-      public int [][] getTransposeIndices(boolean diagonal){
-    	  if (diagonal) return getTransposeIndicesDiagonal();
-    	  else          return getTransposeIndicesOrtho();
+//      public int [][] getTransposeIndices(boolean diagonal){
+//    	  if (diagonal) return getTransposeIndicesDiagonal();
+//    	  else          return getTransposeIndicesOrtho();
+//      }
+
+      public int [] getTransposeAll(boolean diagonal){
+    	  if (diagonal) return getTransposeAllDiagonal();
+    	  else          return getTransposeAllOrtho();
       }
 
+      public int [] getTransposeAllOrtho(){
+    	  if (this.transpose_all_ortho[0] == this.transpose_all_ortho[1]) {
+    		  for (int i =0; i < corr_size; i++){
+    			  for (int j =0; j < corr_size; j++){
+    				  this.transpose_all_ortho[i * corr_size + j] = j * corr_size + i;
+    			  }
+    		  }
+    	  }
+    	  return this.transpose_all_ortho;
+      }
+
+      public int [] getTransposeAllDiagonal(){
+    	  if (this.transpose_all_diagonal[0] == this.transpose_all_diagonal[1]) {
+    		  for (int i =0; i < transform_size-1; i++){
+    			  for (int j = 0; j < corr_size; j++){
+    				  this.transpose_all_diagonal[i * corr_size + j] = (corr_size - i -1) * corr_size + j;
+    			  }
+    		  }
+    	  }
+    	  return this.transpose_all_diagonal;
+      }
+
+/*
       public int [][] getTransposeIndicesOrtho(){
     	  if (this.transpose_indices_ortho[0] == null) {
     		  int indx = 0;
@@ -139,7 +180,7 @@ public class Correlation2d {
     	  }
     	  return this.transpose_indices_diagonal;
       }
-
+*/
     /**
      * Multiply CLT data of two channels, normalize amplitude
      * @param clt_data1 first operand FD CLT data[4][transform_len]
@@ -330,11 +371,13 @@ public class Correlation2d {
     		if (isHorizontalPair(npair) || isDiagonalMainPair(npair)) {
     			for (int i = 0; i < combo.length; i++) combo[i]+= correlations[npair][i];
     		} else {
-    			int [][] transpose_indices = getTransposeIndices(isDiagonalOtherPair(npair));
+    			int [] transpose_indices = getTransposeAll(isDiagonalOtherPair(npair));
+//    			int [][] transpose_indices = getTransposeIndices(isDiagonalOtherPair(npair));
 				for (int i = 0; i < transpose_indices.length; i++) {
-					double d = correlations[npair][transpose_indices[i][0]];
-					correlations[npair][transpose_indices[i][0]] = correlations[npair][transpose_indices[i][1]];
-					correlations[npair][transpose_indices[i][1]] = d;
+		  			combo[i]+= correlations[npair][transpose_indices[i]];
+//					double d = correlations[npair][transpose_indices[i][0]];
+//					correlations[npair][transpose_indices[i][0]] = correlations[npair][transpose_indices[i][1]];
+//					correlations[npair][transpose_indices[i][1]] = d;
 				}
     		}
     		number_combined++;
@@ -355,9 +398,9 @@ public class Correlation2d {
      * @param diagonal use only pairs that are ortho (false) or diagonal (true)
      * @param baseline_scale use only pairs with this ortho (diagonals have the same scale as ortho) baseline scale
      *        (1 - largest, 2 - half, 4 - quarter)
-     * @return number of compatible pairs among the selection
+     * @return {number of compatible pairs among the selection, index of the base pair}
      */
-    public int getNumberOfCompatiblePairs(
+    public int [] getNumberBaseOfCompatiblePairs(
     		double [][] correlations,
     		int         pairs_mask,
         	boolean     diagonal,
@@ -365,11 +408,14 @@ public class Correlation2d {
     		) {
     	int number_combined = 0;
     	// find diagonal/ortho and scale that determine compatible correlations
+    	int base_pair = -1;
     	for (int npair = 0; npair < PAIRS.length; npair++) if ((((pairs_mask >> npair) & 1) != 0 ) && (correlations[npair]!=null) &&
     		(isDiagonalPair(npair) == diagonal) && (PAIRS[npair][3] == baseline_scale)){
     		number_combined++;
+    		if (base_pair < 0) base_pair = npair;
     	}
-    	return number_combined;
+    	int [] rslt = {number_combined, base_pair};
+    	return rslt;
     }
 
 
@@ -874,113 +920,184 @@ public class Correlation2d {
     	return padded_strip;
     }
 
-/*
-    public static int getPairMask (int data){ return ((data >> 8) & 0xffff);}
-      * Calculate color channels FD phase correlations, mix results with weights, apply optional low-pass filter
-     * and convert to the pixel domain  as [(2*transform_size-1) * (2*transform_size-1)] tiles (15x15)
-     * No transposing or rotation
-     * @param clt_data1 [3][4][transform_len] first operand data. First index - RBG color
-     * @param clt_data2 [3][4][transform_len] first operand data. First index - RBG color
-     * @param lpf   optional [transform_len] LPF filter data
-     * @param col_weights [3] - color weights {R, B, G} - green is last, normalized to sum =1.0
-     * @param fat_zero fat zero for phase correlation (0 seems to be OK)
-     * @return correlation result [(2*transform_size-1) * (2*transform_size-1)]
+    public void corrLMA(
+    		ImageDttParameters  imgdtt_params,
+    		double [][]         corrs,
+    		double    xcenter,   // preliminary center x in pixels for largest baseline
+    		double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
+    		double [] window_x,  // half of a window function in x (disparity) direction
+    		double    vasw_pwr,  // value as weight to this power,
+    		int                 debug_level,
+    		int                 tileX, // just for debug output
+    		int                 tileY
+    		)
+    {
+    	int [][] quad_signs = {{-1,-1},{1,-1},{-1,1},{1,1}}; // {sign_x, sign_y} per quadrant
+    	// for quad camera
+    	int [][] groups = new int [GROUPS.length][];
+    	int   [] scale_ind = new int  [GROUPS.length];
+    	// See which groups exist for current pairs mask
+    	int ng = 0;
+    	ArrayList<Integer> sl = new ArrayList<Integer>();
+    	for (int i = 0; i < GROUPS.length; i++) {
+    		groups[i] = getNumberBaseOfCompatiblePairs(
+    				corrs,                       // double [][] correlations,
+    				imgdtt_params.dbg_pair_mask, // int         pairs_mask,
+    				(GROUPS[i][0] > 0),          // boolean     diagonal,
+    				GROUPS[i][1]);               // int         baseline_scale
+    		if (groups[i][0] > 0) {
+    			ng++;
+    			if (!sl.contains(GROUPS[i][1])) {
+    				sl.add(GROUPS[i][1]);
+    			}
+    			scale_ind[i] = sl.indexOf(GROUPS[i][1]);
+    		}
+    	}
+    	if (debug_level > 1) {
+    		System.out.println("corrLMA(): found "+ng+" groups, "+sl.size()+" scales");
+    	}
+    	double [][] groups_LMA =      new double [ng][];
+    	int    [][] groups_pairs =    new int [ng][]; // number of combined pairs, index of base pair
+    	int    []   group_scale_ind = new int [ng]; // number of combined pairs, index of base pair
+    	{
+    		int ig = 0;
+    		for (int i = 0; i < groups.length; i++) if (groups[i][0] >0){
+    			groups_LMA[ig] = combineCompatiblePairs(
+    					corrs,                       // double [][] correlations,
+    					imgdtt_params.dbg_pair_mask, // int         pairs_mask,
+    					(GROUPS[i][0] > 0),          // boolean     diagonal,
+    					GROUPS[i][1]);               // int         baseline_scale
+    			groups_pairs[ig] = groups[i]; // {number, base_pair_index}
+    			group_scale_ind[ig] = scale_ind[i];
+    			ig++;
+    		}
+    	}
+    	double [] scales = new double [sl.size()];
+    	for (int i = 0; i < scales.length; i++) scales[i] = sl.get(i); // from int to double
 
-		final double [][][][][][] clt_data = new double[quad][nChn][tilesY][tilesX][][];
+    	String [] titles = {"ortho","diagonal"};
+    	(new showDoubleFloatArrays()).showArrays(
+    			groups_LMA,
+    			2* transform_size-1,
+    			2* transform_size-1,
+    			true, "groups_x"+tileX+"_y"+tileY, titles);
+    	for (int i = 0; i < groups_pairs.length; i++) {
+    		System.out.println("Group #"+i+" - "+groups_pairs[i][0]+", type:"+groups_pairs[i][1]);
+    	}
+    	Correlations2dLMA lma = new Correlations2dLMA(scales);
+    	int center = transform_size - 1;
+    	int width = 2 * center + 1;
+    	int center_index = (width + 1) * center; // in
+    	int hwindow_y = window_y.length; // should actually be the same?
+    	int hwindow_x = window_x.length;
+    	for (int ig = 0; ig < groups_pairs.length; ig++) if (groups_pairs[ig][0] > 0) {
+    		double scale = scales[group_scale_ind[ig]];
+    		double scale05 = scale/2.0;
+    		boolean diagonal = isDiagonalPair(groups_pairs[ig][1]);
+    		int ixcenter = (int) Math.round(xcenter / scale);
+    		double xcs = ixcenter*scale;
+    		if (debug_level > 0) {
+    			System.out.println("\nCombinded correlation data, diagonal = "+diagonal);
+    			for (int row = 0; row < width; row++) {
+        			System.out.print(String.format("%3d: ", row));
+        			for (int col = 0; col < width; col++) {
+        				if ((row == center) && (col == center)) {
+                			System.out.print(String.format("[%7.4f]", groups_LMA[ig][width * row + col]));
+        				} else {
+        					System.out.print(String.format(" %8.5f", groups_LMA[ig][width * row + col]));
+        				}
+        			}
+        			System.out.println();
+    			}
+    		}
+    		if (diagonal) {
+    			for (int arow =  0; arow < hwindow_y; arow ++) {
+    				int odd = arow & 1;
+    				double wy = window_y[arow] * groups_pairs[0][0]; // number of pair averaged
+    				for (int acol =  odd; acol < hwindow_x; acol +=2) {
+    					double wxy = window_x[acol] * wy;  // full weight before value as weight
+    					for (int quad = 0; quad < 4; quad ++) if (((arow > 0) || ((quad & 2) !=0 )) && ((acol > 0) || ((quad & 1) !=0 ))){
+    						int cx = (quad_signs[quad][0] * acol - quad_signs[quad][1] * arow)/2 + ixcenter; // ix0;
+    						int cy = (quad_signs[quad][0] * acol + quad_signs[quad][1] * arow)/2 + ixcenter; // ix0;
+    						// calculate coordinates in the correlation array
+    						if ((cx >= -center) && (cx <= center) && (cy >= -center) && (cy <= center)) {
+    							double w = wxy;  // full weight before value as weight
+    							double v = groups_LMA[ig][center_index + width * cy + cx];
+    							if (vasw_pwr != 0) {
+    								w *= Math.pow(Math.abs(v), vasw_pwr);
+    							}
+    							lma.addSample(
+    									quad_signs[quad][0] * acol * scale05 + xcs, // x * scale, // double x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
+    									quad_signs[quad][1] * arow * scale05,       // y * scale, // double y,      // y coordinate (0 - disparity axis)
+    									v,                   // double v,      // correlation value at that point
+    									w,                 // double w,
+    									group_scale_ind[ig], // int    si,     // baseline scale index
+    									ig);                 // int    gi);
+    						}
+    					}
+    				}
+    			}
+    		} else { // ortho
+    			for (int arow =  0; arow < hwindow_y; arow += 2) {
+    				double wy = window_y[arow] * groups_pairs[0][0]; // number of pair averaged
+    				for (int acol =  0; acol < hwindow_x; acol +=2) {
+    					double wxy = window_x[acol] * wy;  // full weight before value as weight
+    					for (int quad = 0; quad < 4; quad ++) if (((arow > 0) || ((quad & 2) !=0 )) && ((acol > 0) || ((quad & 1) !=0 ))){
+    						int cx = (quad_signs[quad][0] * acol)/2 + ixcenter; // ix0;
+    						int cy = (quad_signs[quad][1] * arow)/2;
+    						// calculate coordinates in the correlation array
+    						if ((cx >= -center) && (cx <= center) && (cy >= -center) && (cy <= center)) {
+    							double w = wxy;  // full weight before value as weight
+    							double v = groups_LMA[ig][center_index + width * cy + cx];
+    							if (vasw_pwr != 0) {
+    								w *= Math.pow(Math.abs(v), vasw_pwr);
+    							}
+    							lma.addSample(
+    									quad_signs[quad][0] * acol * scale05 + xcs, // x * scale, // double x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
+    									quad_signs[quad][1] * arow * scale05,       // y * scale, // double y,      // y coordinate (0 - disparity axis)
+    									v,                   // double v,      // correlation value at that point
+    									w,                 // double w,
+    									group_scale_ind[ig], // int    si,     // baseline scale index
+    									ig);                 // int    gi);
+    						}
+    					}
+    				}
+    			}
 
-								// transpose vertical pairs
-								if (corr_pairs[pair][2] != 0) {
-									for (int chn = firstColor; chn <= numcol; chn++){
-										for (int i = 0; i < transpose_indices.length; i++) {
-											double d = tcorr_partial[pair][chn][transpose_indices[i][0]];
-											tcorr_partial[pair][chn][transpose_indices[i][0]] = tcorr_partial[pair][chn][transpose_indices[i][1]];
-											tcorr_partial[pair][chn][transpose_indices[i][1]] = d;
-											//transpose_indices
-										}
-									}
-								}
-								// make symmetrical around the disparity direction (horizontal) (here using just average, not mul/sum mixture)
-								// symmetry can be added to result, not individual (if sum - yes, but with multiplication - not)
-								if (corr_sym && (clt_mismatch == null)){ // when measuring clt_mismatch symmetry should be off !
-									for (int chn = firstColor; chn <= numcol; chn++){
-										for (int i = 1 ; i < transform_size; i++){
-											int indx1 = (transform_size - 1 - i) * corr_size;
-											int indx2 = (transform_size - 1 + i) * corr_size;
-											for (int j = 0; j< corr_size; j++){
-												int indx1j = indx1 + j;
-												int indx2j = indx2 + j;
-												tcorr_partial[pair][chn][indx1j] =
-														0.5* (tcorr_partial[pair][chn][indx1j] + tcorr_partial[pair][chn][indx2j]);
-												tcorr_partial[pair][chn][indx2j] = tcorr_partial[pair][chn][indx1j];
-											}
-										}
-									}
-								}
+    		}
+    	}
+    	lma.initVector(
+    			imgdtt_params.lma_adjust_wm,   //  boolean adjust_wm,
+    			imgdtt_params.lma_adjust_wy,   // boolean adjust_wy,
+    			imgdtt_params.lma_adjust_wxy,  // boolean adjust_wxy,
+    			imgdtt_params.lma_adjust_ag,   // boolean adjust_Ag,
+    			xcenter,                       // double  x0,
+    			imgdtt_params.lma_half_width,  // double  half_width,
+    			imgdtt_params.lma_cost_wy,     // double  cost_wy,     // cost of non-zero this.all_pars[WYD_INDEX]
+    			imgdtt_params.lma_cost_wxy     //double  cost_wxy     // cost of non-zero this.all_pars[WXY_INDEX]
+    			);
+    	if (debug_level > 0) {
+    		System.out.println("Input data:");
+    		lma.printInputData();
+    	}
 
-------
-								for (int chn = 0; chn <numcol; chn++){
-									double [][] data1 = clt_data[corr_pairs[pair][0]][chn][tileY][tileX];
-									double [][] data2 = clt_data[corr_pairs[pair][1]][chn][tileY][tileX];
-									for (int i = 0; i < transform_len; i++) {
-										double s1 = 0.0, s2=0.0;
-										for (int n = 0; n< 4; n++){
-											s1+=data1[n][i] * data1[n][i];
-											s2+=data2[n][i] * data2[n][i];
-										}
-										double scale = 1.0 / (Math.sqrt(s1*s2) + corr_fat_zero*corr_fat_zero); // squared to match units
-										for (int n = 0; n<4; n++){
-											tcorr_tpartial[pair][chn][n][i] = 0;
-											for (int k=0; k<4; k++){
-												if (zi[n][k] < 0)
-													tcorr_tpartial[pair][chn][n][i] -=
-															data1[-zi[n][k]][i] * data2[k][i];
-												else
-													tcorr_tpartial[pair][chn][n][i] +=
-													data1[zi[n][k]][i] * data2[k][i];
-											}
-											tcorr_tpartial[pair][chn][n][i] *= scale;
-										}
-									}
-									// got transform-domain correlation for the pair, 1 color
-								}
+    	boolean lmaSuccess = 	lma.runLma(
+    			imgdtt_params.lma_lambda_initial,     // double lambda,           // 0.1
+    			imgdtt_params.lma_lambda_scale_good,  // double lambda_scale_good,// 0.5
+    			imgdtt_params.lma_lambda_scale_bad,   // double lambda_scale_bad, // 8.0
+    			imgdtt_params.lma_lambda_max,         // double lambda_max,       // 100
+    			imgdtt_params.lma_rms_diff,           // double rms_diff,         // 0.001
+    			imgdtt_params.lma_num_iter,           // int    num_iter,         // 20
+    			debug_level);       // int    debug_level)
 
-								// calculate composite color
-								for (int i = 0; i < transform_len; i++) {
-									for (int n = 0; n<4; n++) {
-										tcorr_tpartial[pair][numcol][n][i] =
-												col_weights[0]* tcorr_tpartial[pair][0][n][i] +
-												col_weights[1]* tcorr_tpartial[pair][1][n][i] +
-												col_weights[2]* tcorr_tpartial[pair][2][n][i];
-									}
-								}
-								// now lpf (only last/composite color if do not preserve intermediate
-								int firstColor = (clt_corr_partial == null)? numcol : 0;
-								if (corr_sigma >0) {
-									for (int chn = firstColor; chn <= numcol; chn++){
-										for (int i = 0; i < transform_len; i++) {
-											for (int n = 0; n<4; n++) {
-												tcorr_tpartial[pair][chn][n][i] *= filter[i];
-											}
-										}
-									}
-								}
-								// convert to pixel domain - all or just composite color
-								for (int chn = firstColor; chn <= numcol; chn++){
-									for (int quadrant = 0; quadrant < 4; quadrant++){
-										int mode = ((quadrant << 1) & 2) | ((quadrant >> 1) & 1); // transpose
-										tcorr_tpartial[pair][chn][quadrant] =
-												dtt.dttt_iie(tcorr_tpartial[pair][chn][quadrant], mode, transform_size);
-									}
-								}
-								// convert from 4 quadrants to 15x15 centered tiles (each color or only composite)
-								for (int chn = firstColor; chn <= numcol; chn++){
-									tcorr_partial[pair][chn] = corr_unfold_tile(
-											tcorr_tpartial[pair][chn],
-											transform_size);
-								}
+    	lma.updateFromVector();
+    	double [] rms = lma.getRMS();
+    	if (debug_level > 0) {
+    		System.out.println("LMA ->"+lmaSuccess+" RMS="+rms[0]+", pure RMS="+rms[1]);
+    		lma.printParams();
+    	}
+    }
 
-
- */
 
 
 }

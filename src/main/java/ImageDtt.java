@@ -2481,6 +2481,27 @@ public class ImageDtt {
 													disparity_map[DBG18_INDEX][tIndex] = Double.NaN;
 												}
 											}
+											// initially try LMA  for only the debug tile
+
+										    if ((corr_stat != null) && (globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
+										    	System.out.println(String.format("Testing correlation maximum LMA tileX=%d, tileY=%d, dbg_pair_mask= 0x%x,corr_offset = %8.5f",
+										    			debug_tileX,debug_tileY,imgdtt_params.dbg_pair_mask, imgdtt_params.corr_offset ));
+										    	// Create 2 groups: ortho & diag
+										    	corr2d.corrLMA(
+										    			imgdtt_params,                // ImageDttParameters  imgdtt_params,
+										    			corrs,                        // double [][]         corrs,
+										    			corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
+										    			corr_wndy,                    // double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
+										    			corr_wndx,                    // double [] window_x,  // half of a window function in x (disparity) direction
+										    			imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
+
+										    			imgdtt_params.lma_debug_level,// int                 debug_level,
+										        		tileX,         // int                 tileX, // just for debug output
+										        		tileY );       // int                 tileY
+										    }
+
+
+
 										}
 
 										if (imgdtt_params.mix_corr_poly) { // regardless of debug

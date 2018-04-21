@@ -63,9 +63,23 @@ public class ImageDttParameters {
 	public double  corr_wndx_hwidth =       6.0;   // 50% window cutoff width
 	public double  corr_wndx_blur =         5.0;   // 100% to 0 % vertical transition range
 
+// LMA parameters
+	public boolean lma_adjust_wm =          true;
+	public boolean lma_adjust_wy =          false;
+	public boolean lma_adjust_wxy =         true;
+	public boolean lma_adjust_ag =          true;
 
+	public double  lma_half_width =         2.0;   //
+	public double  lma_cost_wy =            0.1;   //
+	public double  lma_cost_wxy =           0.1;   //
 
-
+	public double  lma_lambda_initial =     0.1;   //
+	public double  lma_lambda_scale_good =  0.5;   //
+	public double  lma_lambda_scale_bad =   8.0;   //
+	public double  lma_lambda_max =       100.0;   //
+	public double  lma_rms_diff =           0.001; //
+	public int     lma_num_iter =          20;     //
+	public int     lma_debug_level =        3;     //
 
 	public void dialogQuestions(GenericJTabbedDialog gd) {
 			gd.addCheckbox    ("Enable ImageDtt correlation debug layers",                        this.corr_mode_debug);
@@ -131,6 +145,38 @@ public class ImageDttParameters {
 			gd.addNumericField("100% to 0 % correlation horizontal window transition range",      this.corr_wndx_blur,  3, 6, "",
 					"Transition range, shifted sine is used");
 
+			gd.addTab("Corr LMA","Parameters for LMA fitting of the correlation maximum parameters");
+			gd.addCheckbox    ("Fit correlation defined half-width",                              this.lma_adjust_wm,
+					"Allow fitting of the half-width common for all pairs, defined by the LPF filter of the phase correlation");
+			gd.addCheckbox    ("Fit extra vertical half-width",                                   this.lma_adjust_wy,
+					"Fit extra perpendicular to disparity half-width (not used? and only possible with multi-baseline cameras)");
+			gd.addCheckbox    ("Fit extra half-width along disparity direction",                  this.lma_adjust_wxy,
+					"Increased width in disparity direction caused by multi-distance objects in the tile");
+			gd.addCheckbox    ("Adjust per-group amplitudes",                                     this.lma_adjust_ag,
+					"Each correlation type's amplitude (now always needed)");
+
+			gd.addNumericField("Initial/expected half-width of the correlation maximum in both directions", this.lma_half_width,  3, 6, "pix",
+					"With LPF sigma = 0.9 it seems to be ~= 2.0. Used both as initial parameter and the fitted value difference from this may be penalized");
+			gd.addNumericField("Cost of the difference of the actual half-width from the expected one",  this.lma_cost_wy,  5, 8, "",
+					"The higher this cost, the more close the fitted half-width will be to the expected one");
+			gd.addNumericField("Cost of the difference between horizontal and vertical widths",  this.lma_cost_wxy,  5, 8, "",
+					"Tries to enforce equal width and hight of the correlation maximum");
+
+			gd.addNumericField("Initial value of LMA lambda",                                     this.lma_lambda_initial,  3, 6, "",
+					"The higher the lambda the more close it will be to the gradient descent (slower/safer)");
+			gd.addNumericField("Scale (decrease) LMA lambda on success (usually 0.5)",            this.lma_lambda_scale_good,  3, 6, "",
+					"Make it smaller for unsafe but faster converging (if all goes well)");
+			gd.addNumericField("Scale (increase) LMA lambda after failure (usually 8.0)",         this.lma_lambda_scale_bad,  3, 6, "",
+					"Bad convergence usually means errors in Jacobian (derivatives)");
+			gd.addNumericField("Lambda value to give up increasing it",                           this.lma_lambda_max,  3, 6, "",
+					"Gives up LMA if increased lambda still does not improve RMS");
+			gd.addNumericField("Relative RMS improvement to exit LMA",                            this.lma_rms_diff,  6, 8, "",
+					"LMA will report success when realtive RMS improvements fall below this value");
+
+			gd.addNumericField("LMA maximal iterations",                                          this.lma_num_iter,  0, 3, "",
+					"Limit LMA cycles, so it will exit after certain number of small improvements");
+			gd.addNumericField("LMA debug level",                                                 this.lma_debug_level,  0, 3, "",
+					"Debug/verbosity level for the LMA correaltion maximum fitting");
 
 	}
 	public void dialogAnswers(GenericJTabbedDialog gd) {
@@ -175,6 +221,24 @@ public class ImageDttParameters {
 			this.corr_wndx_hwidth =      gd.getNextNumber();
 			this.corr_wndx_blur =        gd.getNextNumber();
 
+//LMA tab
+			this.lma_adjust_wm=          gd.getNextBoolean();
+			this.lma_adjust_wy=          gd.getNextBoolean();
+			this.lma_adjust_wxy=         gd.getNextBoolean();
+			this.lma_adjust_ag=          gd.getNextBoolean();
+
+			this.lma_half_width =        gd.getNextNumber();
+			this.lma_cost_wy =           gd.getNextNumber();
+			this.lma_cost_wxy =          gd.getNextNumber();
+
+			this.lma_lambda_initial =    gd.getNextNumber();
+			this.lma_lambda_scale_good = gd.getNextNumber();
+			this.lma_lambda_scale_bad =  gd.getNextNumber();
+			this.lma_lambda_max =        gd.getNextNumber();
+			this.lma_rms_diff =          gd.getNextNumber();
+
+  			this.lma_num_iter=     (int) gd.getNextNumber();
+  			this.lma_debug_level=  (int) gd.getNextNumber();
 	}
 
 
@@ -219,6 +283,25 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"corr_wndx_hwidth",     this.corr_wndx_hwidth +"");
 		properties.setProperty(prefix+"corr_wndx_blur",       this.corr_wndx_blur +"");
 
+
+
+		properties.setProperty(prefix+"lma_adjust_wm",        this.lma_adjust_wm +"");
+		properties.setProperty(prefix+"lma_adjust_wy",        this.lma_adjust_wy +"");
+		properties.setProperty(prefix+"lma_adjust_wxy",       this.lma_adjust_wxy +"");
+		properties.setProperty(prefix+"lma_adjust_ag",        this.lma_adjust_ag +"");
+
+		properties.setProperty(prefix+"lma_half_width",       this.lma_half_width +"");
+		properties.setProperty(prefix+"lma_cost_wy",          this.lma_cost_wy +"");
+		properties.setProperty(prefix+"lma_cost_wxy",         this.lma_cost_wxy +"");
+
+		properties.setProperty(prefix+"lma_lambda_initial",   this.lma_lambda_initial +"");
+		properties.setProperty(prefix+"lma_lambda_scale_good",this.lma_lambda_scale_good +"");
+		properties.setProperty(prefix+"lma_lambda_scale_bad", this.lma_lambda_scale_bad +"");
+		properties.setProperty(prefix+"lma_lambda_max",       this.lma_lambda_max +"");
+		properties.setProperty(prefix+"lma_rms_diff",         this.lma_rms_diff +"");
+
+		properties.setProperty(prefix+"lma_num_iter",         this.lma_num_iter +"");
+		properties.setProperty(prefix+"lma_debug_level",      this.lma_debug_level +"");
 	}
 
 	public void getProperties(String prefix,Properties properties){
@@ -263,6 +346,26 @@ public class ImageDttParameters {
 
 		if (properties.getProperty(prefix+"corr_wndx_hwidth")!=null)     this.corr_wndx_hwidth=Double.parseDouble(properties.getProperty(prefix+"corr_wndx_hwidth"));
 		if (properties.getProperty(prefix+"corr_wndx_blur")!=null)       this.corr_wndx_blur=Double.parseDouble(properties.getProperty(prefix+"corr_wndx_blur"));
+
+
+
+		if (properties.getProperty(prefix+"lma_adjust_wm")!=null)        this.lma_adjust_wm=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_wm"));
+		if (properties.getProperty(prefix+"lma_adjust_wy")!=null)        this.lma_adjust_wy=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_wy"));
+		if (properties.getProperty(prefix+"lma_adjust_wxy")!=null)       this.lma_adjust_wxy=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_wxy"));
+		if (properties.getProperty(prefix+"lma_adjust_ag")!=null)        this.lma_adjust_ag=Boolean.parseBoolean(properties.getProperty(prefix+"lma_adjust_ag"));
+
+		if (properties.getProperty(prefix+"lma_half_width")!=null)       this.lma_half_width=Double.parseDouble(properties.getProperty(prefix+"lma_half_width"));
+		if (properties.getProperty(prefix+"lma_cost_wy")!=null)          this.lma_cost_wy=Double.parseDouble(properties.getProperty(prefix+"lma_cost_wy"));
+		if (properties.getProperty(prefix+"lma_cost_wxy")!=null)         this.lma_cost_wxy=Double.parseDouble(properties.getProperty(prefix+"lma_cost_wxy"));
+
+		if (properties.getProperty(prefix+"lma_lambda_initial")!=null)   this.lma_lambda_initial=Double.parseDouble(properties.getProperty(prefix+"lma_lambda_initial"));
+		if (properties.getProperty(prefix+"lma_lambda_scale_good")!=null)this.lma_lambda_scale_good=Double.parseDouble(properties.getProperty(prefix+"lma_lambda_scale_good"));
+		if (properties.getProperty(prefix+"lma_lambda_scale_bad")!=null) this.lma_lambda_scale_bad=Double.parseDouble(properties.getProperty(prefix+"lma_lambda_scale_bad"));
+		if (properties.getProperty(prefix+"lma_lambda_max")!=null)       this.lma_lambda_max=Double.parseDouble(properties.getProperty(prefix+"lma_lambda_max"));
+		if (properties.getProperty(prefix+"lma_rms_diff")!=null)         this.lma_rms_diff=Double.parseDouble(properties.getProperty(prefix+"lma_rms_diff"));
+
+		if (properties.getProperty(prefix+"lma_num_iter")!=null)         this.lma_num_iter=Integer.parseInt(properties.getProperty(prefix+"lma_num_iter"));
+		if (properties.getProperty(prefix+"lma_debug_level")!=null)      this.lma_debug_level=Integer.parseInt(properties.getProperty(prefix+"lma_debug_level"));
 
 	}
 
@@ -309,8 +412,24 @@ public class ImageDttParameters {
 		idp.corr_wndx_hwidth =       this.corr_wndx_hwidth;
 		idp.corr_wndx_blur =         this.corr_wndx_blur;
 
+		idp.lma_adjust_wm =          this.lma_adjust_wm;
+		idp.lma_adjust_wy =          this.lma_adjust_wy;
+		idp.lma_adjust_wxy =         this.lma_adjust_wxy;
+		idp.lma_adjust_ag =          this.lma_adjust_ag;
+
+		idp.lma_half_width =         this.lma_half_width;
+		idp.lma_cost_wy =            this.lma_cost_wy;
+		idp.lma_cost_wxy =           this.lma_cost_wxy;
+
+		idp.lma_lambda_initial =     this.lma_lambda_initial;
+		idp.lma_lambda_scale_good =  this.lma_lambda_scale_good;
+		idp.lma_lambda_scale_bad =   this.lma_lambda_scale_bad;
+		idp.lma_lambda_max =         this.lma_lambda_max;
+		idp.lma_rms_diff =           this.lma_rms_diff;
+
+		idp.lma_num_iter =           this.lma_num_iter;
+		idp.lma_debug_level =        this.lma_debug_level;
+
 		return idp;
 	}
-
-	// TODO move 2 dialog methods here
 }
