@@ -215,8 +215,8 @@ public class PolynomialApproximation {
 				  {-coeff[0][3]},  // | - D |
 				  {-coeff[0][4]}}; // | - E |
 		  double [] xy=M.solve(new Matrix(aB)).getColumnPackedCopy();
-		  double vmax = coeff[0][0]*xy[0]*xy[0]+coeff[0][1]*xy[1]*xy[1]+coeff[0][2]*xy[0]*xy[1]+coeff[0][3]*xy[0]+coeff[0][4]*xy[1]+coeff[0][5];
-		  double [] xyx2y2 = {xy[0],xy[1], vmax, coeff[0][0], coeff[0][1],  coeff[0][2]};
+		  double vmax = coeff[0][0]* xy[0]*xy[0]+coeff[0][1]*xy[1]*xy[1]+coeff[0][2]*xy[0]*xy[1]+coeff[0][3]*xy[0]+coeff[0][4]*xy[1]+coeff[0][5];
+		  double [] xyx2y2 = {xy[0], xy[1], vmax, coeff[0][0], coeff[0][1],  coeff[0][2], coeff[0][3], coeff[0][4], coeff[0][5]};
 		  return xyx2y2;
 	  }
 
@@ -355,6 +355,9 @@ public class PolynomialApproximation {
 				   int debugLevel
 				   ){
 			   if (debugLevel>3) System.out.println("quadraticApproximation(...), debugLevel="+debugLevel+":");
+			   if ((data == null) || (data.length == 0)) {
+				   return null;
+			   }
 	/* ix, iy - the location of the point with maximal value. We'll approximate the vicinity of that maximum using a
 	 * second degree polynomial:
 	   Z(x,y)~=A*x^2+B*y^2+C*x*y+D*x+E*y+F

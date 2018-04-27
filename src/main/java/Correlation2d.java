@@ -33,10 +33,11 @@ public class Correlation2d {
 	private final int transform_size;
 	private final int transform_len;
 	private final int corr_size;
-//	private final int [][] transpose_indices_ortho;
-//	private final int [][] transpose_indices_diagonal;
 	private final int [] transpose_all_ortho;
 	private final int [] transpose_all_diagonal;
+	private final double [] ortho_notch_filter;
+	private final double [] corr_wndx;
+	private final double [] corr_wndy;
 
 	// configuration for 8-lens and 4-lens cameras. 8-lens has baseline = 1 for 1..4 and 1/2 for 4..7
 /*0        1
@@ -100,29 +101,50 @@ public class Correlation2d {
     public static boolean isVerticalPair      (int npair) {return  PAIRS[npair][2]== PAIR_VERTICAL;}
     public static boolean isDiagonalMainPair  (int npair) {return  PAIRS[npair][2]== PAIR_DIAGONAL_MAIN;}
     public static boolean isDiagonalOtherPair (int npair) {return  PAIRS[npair][2]== PAIR_DIAGONAL_OTHER;}
+    public static int     getScaleOfPair      (int npair) {return  PAIRS[npair][3];}
 
-//    public final ImageDtt imagedtt;
+    public static int     getMaskHorizontal(int scale)    {return getMaskType(PAIR_HORIZONTAL, scale);}
+    public static int     getMaskVertical(int scale)      {return getMaskType(PAIR_VERTICAL, scale);}
+    public static int     getMaskDiagonalMain(int scale)  {return getMaskType(PAIR_DIAGONAL_MAIN, scale);}
+    public static int     getMaskDiagonalOther(int scale) {return getMaskType(PAIR_DIAGONAL_OTHER, scale);}
+    public static int     getMaskOrtho(int scale)         {return getMaskHorizontal(scale) | getMaskVertical(scale);}
+    public static int     getMaskDiagonal(int scale)      {return getMaskDiagonalMain(scale) | getMaskDiagonalOther(scale);}
 
-    // imagedtt.transform_size
-//    public Correlation2d (ImageDtt imagedtt, int transform_size) {
-      public Correlation2d (int transform_size) {
-//    	this.imagedtt = imagedtt;
+    private static int     getMaskType(int type, int scale) { // scale <0 = any
+    	int bm = 0;
+    	for (int i = 0; i <PAIRS.length; i++) if ((PAIRS[i][2]==type) && ((scale < 0) || (scale == PAIRS[i][3]))) bm |= 1 << i;
+    	return bm;
+    }
+
+
+
+    public Correlation2d (
+    		  ImageDttParameters  imgdtt_params,
+    		  int transform_size,
+    		  double wndx_scale, // (wndy scale is always 1.0)
+    		  boolean debug) {
     	this.dtt = new DttRad2(transform_size);
     	this.transform_size = transform_size;
     	this.transform_len = transform_size * transform_size;
     	this.corr_size = transform_size * 2 -1;
     	// not initialized until needed
-//    	this.transpose_indices_ortho =  new int [corr_size*(corr_size-1)/2][];
-//    	this.transpose_indices_diagonal =  new int [corr_size*(corr_size-1)/2][];
     	this.transpose_all_ortho =     new int [corr_size*corr_size];
     	this.transpose_all_diagonal =  new int [corr_size*corr_size];
-
+    	this.ortho_notch_filter = new double [corr_size];
+    	this.corr_wndy = halfFlatTopWindow(
+				imgdtt_params.corr_wndy_size,   // int     ihwidth,
+				imgdtt_params.corr_wndy_hwidth, //  double  hwidth,
+				imgdtt_params.corr_wndy_blur,   // double  blur,
+				true, // boolean normalize,
+				1.0); // double  scale);
+    	this.corr_wndx = halfFlatTopWindow(
+				imgdtt_params.corr_wndx_size,   // int     ihwidth,
+				imgdtt_params.corr_wndx_hwidth, //  double  hwidth,
+				imgdtt_params.corr_wndx_blur,   // double  blur,
+				true,                           // boolean normalize,
+				wndx_scale);                    // double  scale);
       }
 
-//      public int [][] getTransposeIndices(boolean diagonal){
-//    	  if (diagonal) return getTransposeIndicesDiagonal();
-//    	  else          return getTransposeIndicesOrtho();
-//      }
 
       public int [] getTransposeAll(boolean diagonal){
     	  if (diagonal) return getTransposeAllDiagonal();
@@ -142,7 +164,7 @@ public class Correlation2d {
 
       public int [] getTransposeAllDiagonal(){
     	  if (this.transpose_all_diagonal[0] == this.transpose_all_diagonal[1]) {
-    		  for (int i =0; i < transform_size-1; i++){
+    		  for (int i =0; i < corr_size; i++){
     			  for (int j = 0; j < corr_size; j++){
     				  this.transpose_all_diagonal[i * corr_size + j] = (corr_size - i -1) * corr_size + j;
     			  }
@@ -151,36 +173,6 @@ public class Correlation2d {
     	  return this.transpose_all_diagonal;
       }
 
-/*
-      public int [][] getTransposeIndicesOrtho(){
-    	  if (this.transpose_indices_ortho[0] == null) {
-    		  int indx = 0;
-    		  for (int i =0; i < corr_size-1; i++){
-    			  for (int j = i+1; j < corr_size; j++){
-    				  transpose_indices_ortho[indx  ] = new int[2];
-    				  transpose_indices_ortho[indx  ][0] = i * corr_size + j;
-    				  transpose_indices_ortho[indx++][1] = j * corr_size + i;
-    			  }
-    		  }
-    	  }
-    	  return this.transpose_indices_ortho;
-      }
-
-      public int [][] getTransposeIndicesDiagonal(){
-    	  if (this.transpose_indices_diagonal[0] == null) {
-
-    		  int indx = 0;
-    		  for (int i =0; i < transform_size-1; i++){
-    			  for (int j = 0; j < corr_size; j++){
-    				  transpose_indices_diagonal[indx  ] = new int[2];
-    				  transpose_indices_diagonal[indx  ][0] = i                  * corr_size + j;
-    				  transpose_indices_diagonal[indx++][1] = (corr_size - i -1) * corr_size + j;
-    			  }
-    		  }
-    	  }
-    	  return this.transpose_indices_diagonal;
-      }
-*/
     /**
      * Multiply CLT data of two channels, normalize amplitude
      * @param clt_data1 first operand FD CLT data[4][transform_len]
@@ -372,12 +364,8 @@ public class Correlation2d {
     			for (int i = 0; i < combo.length; i++) combo[i]+= correlations[npair][i];
     		} else {
     			int [] transpose_indices = getTransposeAll(isDiagonalOtherPair(npair));
-//    			int [][] transpose_indices = getTransposeIndices(isDiagonalOtherPair(npair));
 				for (int i = 0; i < transpose_indices.length; i++) {
 		  			combo[i]+= correlations[npair][transpose_indices[i]];
-//					double d = correlations[npair][transpose_indices[i][0]];
-//					correlations[npair][transpose_indices[i][0]] = correlations[npair][transpose_indices[i][1]];
-//					correlations[npair][transpose_indices[i][1]] = d;
 				}
     		}
     		number_combined++;
@@ -409,10 +397,13 @@ public class Correlation2d {
     	int number_combined = 0;
     	// find diagonal/ortho and scale that determine compatible correlations
     	int base_pair = -1;
-    	for (int npair = 0; npair < PAIRS.length; npair++) if ((((pairs_mask >> npair) & 1) != 0 ) && (correlations[npair]!=null) &&
-    		(isDiagonalPair(npair) == diagonal) && (PAIRS[npair][3] == baseline_scale)){
-    		number_combined++;
-    		if (base_pair < 0) base_pair = npair;
+    	for (int npair = 0; npair < PAIRS.length; npair++) {
+    		if ((isDiagonalPair(npair) == diagonal) && (PAIRS[npair][3] == baseline_scale)){
+    			if (base_pair < 0) base_pair = npair;
+    			if ((((pairs_mask >> npair) & 1) != 0 ) && (correlations[npair]!=null)){
+    				number_combined++;
+    			}
+    		}
     	}
     	int [] rslt = {number_combined, base_pair};
     	return rslt;
@@ -604,35 +595,75 @@ public class Correlation2d {
     /**
      * Combine calculated (rotated, scaled, interpolated) correlation half-strips
      * @param strips array of per-correlation
-     * @param pairs_mask
-     * @param offset
-     * @return
+     * @param pairs_mask which pairs to combine
+     * @param offset add before multiplication, subtract in the end. If negative - use averaging
+     *  instead of the shifted multiplication
+     * @param twice_diagonal diagonal pairs provide twice denser samples, when true it doubles
+     *  the weight of diagonal pairs
+     * @return combined correlation data
      */
     public double [] combineInterpolatedCorrelations(
     		double [][] strips,
     		int         pairs_mask,
-    		double      offset){
+    		double      offset,
+    		boolean     twice_diagonal){
 //    	int center = transform_size - 1;
  //   	int width = 2 * center + 1;
     	double [] combo = null;
     	int ncombined = 0;
-    	for (int npair = 0; npair < strips.length; npair++) if (((pairs_mask & (1 << npair)) != 0) && (strips[npair] != null)){
-    		if (combo == null) {
-    			combo = new double [strips[npair].length];
-    			for (int i = 0; i < combo.length; i++) combo[i] = 1.0;
+    	if (offset >= 0) { // use shifted multiplication
+    		for (int npair = 0; npair < strips.length; npair++) if (((pairs_mask & (1 << npair)) != 0) && (strips[npair] != null)){
+    			if (combo == null) {
+    				combo = new double [strips[npair].length];
+    				for (int i = 0; i < combo.length; i++) combo[i] = 1.0;
+    			}
+    			if (twice_diagonal) {
+    				for (int i = 0; i < combo.length; i++) {
+    					double d = strips[npair][i] + offset;
+    					if (d < 0.0) d = 0.0;
+    					combo[i] *= d * d;
+    				}
+    				ncombined++;
+    			} else {
+    				for (int i = 0; i < combo.length; i++) {
+    					double d = strips[npair][i] + offset;
+    					if (d < 0.0) d = 0.0;
+    					combo[i] *= d;
+    				}
+    			}
+    			ncombined++;
     		}
-			for (int i = 0; i < combo.length; i++) {
-				combo[i] *= (strips[npair][i] + offset);
-			}
-    		ncombined++;
+    		double pwr = 1.0/ncombined;
+    		if (combo != null) {
+    			for (int i = 0; i < combo.length; i++) {
+    				if (combo[i] > 0.0) combo[i] = Math.pow(combo[i], pwr) - offset;
+    			}
+    		}
+    	} else { // use addition
+    		for (int npair = 0; npair < strips.length; npair++) if (((pairs_mask & (1 << npair)) != 0) && (strips[npair] != null)){
+    			if (combo == null) {
+    				combo = new double [strips[npair].length];
+    			}
+    			if (twice_diagonal) {
+    				for (int i = 0; i < combo.length; i++) {
+    					combo[i] += 2 * strips[npair][i];
+    				}
+    				ncombined++;
+    			} else {
+    				for (int i = 0; i < combo.length; i++) {
+    					combo[i] += strips[npair][i];
+    				}
+    			}
+    			ncombined++;
+    		}
+    		double scale = 1.0/ncombined;
+    		for (int i = 0; i < combo.length; i++) {
+    			combo[i] *= scale;
+    		}
     	}
-    	double pwr = 1.0/ncombined;
-		for (int i = 0; i < combo.length; i++) {
-			combo[i] = Math.pow(combo[i], pwr) - offset;
-		}
     	return combo;
     }
-
+//isDiagonalPair
 /**
  * Find maximum correlation on the grid
  * @param data correlation data - full square or just a combined strip with axis at row 0
@@ -757,6 +788,17 @@ public class Correlation2d {
 	public double [] getMaxXCm( // get fractional center as a "center of mass" inside circle/square from the integer max
 			double [] data,      // [data_size * data_size]
 			int       ixcenter,  // integer center x
+			boolean   debug) {
+		return getMaxXCm( // get fractional center as a "center of mass" inside circle/square from the integer max
+				data,      // double [] data,      // [data_size * data_size]
+				ixcenter,  // int       ixcenter,  // integer center x
+				this.corr_wndy, // double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
+				this.corr_wndx, // double [] window_x,  // half of a window function in x (disparity) direction
+				debug);// boolean   debug);
+	}
+	public double [] getMaxXCm( // get fractional center as a "center of mass" inside circle/square from the integer max
+			double [] data,      // [data_size * data_size]
+			int       ixcenter,  // integer center x
 			double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
 			double [] window_x,  // half of a window function in x (disparity) direction
 			boolean   debug) {
@@ -799,7 +841,8 @@ public class Correlation2d {
 					if (debug)	System.out.print(String.format(" %2d:%2d:%d %3d", dy,adx,dir,x));
 					if ((x1 >= 0 ) && (x1 < data_width)) {
 						double d = data[indx0+x1];
-						if (!Double.isNaN(d)) {
+///						if (!Double.isNaN(d)) {
+						if (!Double.isNaN(d) && (d > 0.0)) { // with negative d s0 can get very low value (or even negative)
 							d*= wy*window_x[adx];
 							s0+= d;
 							sx +=  d * x; // result x is twice larger (corresponds to window_x)
@@ -879,6 +922,7 @@ public class Correlation2d {
 
     public double [] debugStrip(
     		double [] strip) {
+    	if (strip == null) return null;
     	int center = transform_size - 1;
     	int width = 2 * center + 1;
     	int height =  strip.length/width;
@@ -898,6 +942,7 @@ public class Correlation2d {
     // only show center part, but with correct shift
     public double [] debugStrip2(
     		double [] strip) {
+    	if (strip == null) return null;
     	int center = transform_size - 1;
     	int width = 2 * center + 1;
     	int height =  strip.length/width;
@@ -911,8 +956,6 @@ public class Correlation2d {
     			for (int j = 0; j<width; j++) {
     				int j1 = transform_size / 2 + ((j - odd) >> 1);
     				padded_strip[row * width + j] = strip[srow * width + j1];
-
-//    				padded_strip[row*width+j] = strip[srow*width+j];
     			}
     		}
     	}
@@ -920,19 +963,235 @@ public class Correlation2d {
     	return padded_strip;
     }
 
-    public void corrLMA(
+
+    // returns array 3*num_pairs long
+    // TODO: now works for small offsets. Maybe add re-calculate int argmax for each pair? xcenter is still needed to subtract Add switch? (small/large correction)
+    public double [] mismatchPairs( // returns x-xcenter, y, strength (sign same as disparity)
     		ImageDttParameters  imgdtt_params,
     		double [][]         corrs,
-    		double    xcenter,   // preliminary center x in pixels for largest baseline
-    		double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
-    		double [] window_x,  // half of a window function in x (disparity) direction
-    		double    vasw_pwr,  // value as weight to this power,
+    		int                 pair_mask, // which pairs to process
+    		double              xcenter,   // -disparity to compare
+    		double              vasw_pwr,  // value as weight to this power,
+    		int                 debug_level,
+    		int                 tileX, // just for debug output
+    		int                 tileY
+) {
+    	int num_pairs = 0;
+    	for (int i = 0; i <  corrs.length; i++)  if ((corrs[i] != null) && (((1 << i) & pair_mask) != 0)) {
+    		num_pairs++;
+    	}
+    	double [] rslt = new double[3 * num_pairs];
+
+    	int np= 0;
+    	for (int i = 0; i <  corrs.length; i++)  if ((corrs[i] != null) && (((1 << i) & pair_mask) != 0)) {
+//    	for (int np = 0; np < num_pairs; np++) {
+    		int this_mask = 1 << i;
+    		Correlations2dLMA lma=corrLMA(
+    				imgdtt_params, // ImageDttParameters  imgdtt_params,
+    				corrs,         // double [][]         corrs,
+    				this_mask,     // int                 pair_mask, // which pairs to process
+    				true,          // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
+    				xcenter,       // double              xcenter,   // preliminary center x in pixels for largest baseline
+    				vasw_pwr,      // double              vasw_pwr,  // value as weight to this power,
+//    				debug_level-3, // int                 debug_level,
+    				debug_level-1, // int                 debug_level,
+    				tileX,         // int                 tileX, // just for debug output
+    				tileY);        //int                 tileY
+    		if ((lma == null) || (lma.getPoly() == null)) {
+    			rslt[3 * np + 0] = Double.NaN;
+    			rslt[3 * np + 1] = Double.NaN;
+    			rslt[3 * np + 2] = Double.NaN;
+    		} else {
+    			double [] poly_xyvwh = lma.getPoly();
+    			rslt[3 * np + 0] = xcenter - poly_xyvwh[0];
+    			rslt[3 * np + 1] = -poly_xyvwh[1];
+    			rslt[3 * np + 2] = poly_xyvwh[2];
+    		}
+    		if (debug_level > 0) {
+    			System.out.println(String.format("mismatchPairs(), np = %d pairs mask = 0x%x, dx=%f, dy=%f, strength=%f", np, this_mask, rslt[3 * np + 0], rslt[3 * np + 1], rslt[3 * np + 2]));
+    		}
+    		np++;
+    	}
+    	return rslt;
+    }
+
+
+
+    public double [][] corr4dirsLMA(
+    		ImageDttParameters  imgdtt_params,
+    		double [][]         corrs,
+    		int                 pair_mask, // which pairs to process
+    		double              xcenter,   // preliminary center x in pixels for largest baseline
+    		double              vasw_pwr,  // value as weight to this power,
+    		int                 debug_level,
+    		int                 tileX, // just for debug output
+    		int                 tileY) {
+		if (debug_level > 0) {
+			System.out.println("corr4dirsLMA()");
+		}
+    	double [][] rslt = new double[4][];
+    	int [] types = {PAIR_HORIZONTAL, PAIR_VERTICAL, PAIR_DIAGONAL_MAIN, PAIR_DIAGONAL_OTHER};
+    	for (int dir = 0; dir < types.length; dir++) {
+    		int this_mask = 0;
+    		for (int i = 0; i < PAIRS.length; i++) if (((pair_mask & (1 << i)) != 0) && (PAIRS[i][2] == types[dir])) {
+    			this_mask |= (1 << i);
+    		}
+    		if (this_mask == 0) {
+    			rslt[dir] = null;
+    		} else {
+    			Correlations2dLMA lma=corrLMA(
+    					imgdtt_params, // ImageDttParameters  imgdtt_params,
+    					corrs,         // double [][]         corrs,
+    		    		this_mask,     // int                 pair_mask, // which pairs to process
+    		    		false,         // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
+    		    		xcenter,       // double              xcenter,   // preliminary center x in pixels for largest baseline
+    		    		vasw_pwr,      // double              vasw_pwr,  // value as weight to this power,
+    		    		debug_level-3, // int                 debug_level,
+    		    		tileX,         // int                 tileX, // just for debug output
+    		    		tileY);        //int                 tileY
+    			if (lma == null) {
+    				rslt[dir] = null;
+    			} else {
+    				rslt[dir] = lma.getDisparityStrengthWidth();
+    			}
+    		}
+    		if (debug_level > 0) {
+    			if (rslt[dir] != null) {
+
+    			System.out.println(String.format("corr4dirsLMA() dir = %d, pairs mask = 0x%2x, disparity = %8.5f, strength = %8.5f, width_d = %8.5f, width_y = %8.5f, eff_strength= %8.5f",
+    					dir,
+    					this_mask,
+    					rslt[dir][0],
+    					rslt[dir][1],
+    					rslt[dir][2] + rslt[dir][3],
+    					rslt[dir][2]- rslt[dir][3],
+    					rslt[dir][1] * (rslt[dir][2]- rslt[dir][3])/(rslt[dir][2]+ rslt[dir][3]) ));
+    			} else {
+        			System.out.println(String.format("corr4dirsLMA() rslt[%d] is null", dir));
+    			}
+    		}
+    	}
+    	return rslt;
+    }
+
+ // TODO: if max/min is strong enough, but the other is not (or not ortho) - just use with  overcorrection = 0.0
+ // should always return max-min (NaN OK)
+/*
+    		if (debug_level > 0) {
+    			System.out.println(String.format("corr4dirsLMA() dir = %d, pairs mask = 0x%2x, disparity = %8.5f, strength = %8.5f, width_d = %8.5f, width_y = %8.5f, eff_strength= %8.5f",
+    					dir,
+    					this_mask,
+    					rslt[dir][0],
+    					rslt[dir][1],
+    					rslt[dir][2] + rslt[dir][3],
+    					rslt[dir][2]- rslt[dir][3],
+    					rslt[dir][1] * (rslt[dir][2]- rslt[dir][3])/(rslt[dir][2]+ rslt[dir][3]) ));
+    		}
+// each element may be null, data may contain NaN
+ */
+    public double [] foregroundCorrect(
+    		boolean     bg,
+    		boolean     ortho,
+    		double [][] dir_disp_strength, //
+    		double      full_disp,
+    		double      min_strength,
+    		double      min_eff,
+    		double      min_eff_ratio,
+    		double      max_hwidth, //  =          3.0;  // maximal half-width disparity  direction to try to correct far objects
+    		double      min_diff,
+    		double      overcorrection,
+    		double      lim_overcorr,
+    		boolean debug) {
+    	double mn = Double.NaN, mx = Double.NaN;
+    	int imn = -1, imx = -1;
+    	double [] eff_strength = new double [4];
+    	double [] width_d =      new double [4];
+
+    	boolean [] strong = {false,false,false,false};
+    	for (int i = 0; i < dir_disp_strength.length; i++) {
+    		if (dir_disp_strength[i] != null){
+    			if (Double.isNaN(mn) || (dir_disp_strength[i][0] < mn)) {mn = dir_disp_strength[i][0]; imn = i;}
+    			if (Double.isNaN(mx) || (dir_disp_strength[i][0] > mx)) {mx = dir_disp_strength[i][0]; imx = i;}
+    			eff_strength[i] = dir_disp_strength[i][1] * (dir_disp_strength[i][2]- dir_disp_strength[i][3])/(dir_disp_strength[i][2]+ dir_disp_strength[i][3]);
+    			width_d[i] = dir_disp_strength[i][2] + dir_disp_strength[i][3]; // width in disparity direction
+    			strong[i] = (dir_disp_strength[i][1] >= min_strength) && (eff_strength[i] >= min_eff);
+    			// TODO what about strong ortho? yes, use - if not strong - overcorr = 0
+    		} else {
+    			eff_strength[i] = Double.NaN;
+    		}
+    	}
+    	boolean are_ortho = (imn ^ imx) == 1;
+		double corr = overcorrection * (mx - mn);
+
+		int isel =   bg ? imn : imx;
+		int iother = bg ? imx : imn;
+		int iortho = isel ^ 1;
+
+    	if (debug) {
+    		System.out.println("foregroundCorrect("+bg+", "+ortho+",...): full: "+full_disp+", min = "+mn+", mx = "+mx+", diff="+(mx-mn)+", are_ortho="+are_ortho);
+    		System.out.println("foregroundCorrect() min_strength="+min_strength+", min_diff="+min_diff+", overcorrection="+overcorrection+",lim_overcorr="+lim_overcorr);
+    		System.out.println("strong = ["+strong[0]+", "+strong[1]+", "+strong[2]+", "+strong[3]+"]");
+    		System.out.println(String.format("eff_strength = [%8.5f, %8.5f, %8.5f, %8.5f]", eff_strength[0], eff_strength[1], eff_strength[2], eff_strength[3]));
+    		System.out.println(String.format("width_d =      [%8.5f, %8.5f, %8.5f, %8.5f]", width_d[0],      width_d[1],      width_d[2],      width_d[3]));
+    	}
+		if (!strong[isel]) {
+			corr = Double.NaN;
+			if (debug) System.out.println("Direction with "+(bg?"min":"max")+" disparity is not strong enough -> no correction");
+		} else 		if (width_d[isel] > max_hwidth) {
+			corr = Double.NaN;
+			if (debug) System.out.println("Direction with "+(bg?"min":"max")+" has too wide correlation maximum in disparity direction -> no correction ("+
+					"width_d["+isel+"] = "+width_d[isel]+" > "+max_hwidth+")");
+		} else 		if ((eff_strength[isel]/eff_strength[iortho] < min_eff_ratio)) {
+			corr = Double.NaN;
+			if (debug) System.out.println("Direction with "+(bg?"min":"max")+" has effective strenbgth ratio too small -> no correction ("+
+					"(eff_strength["+isel+"] = "+eff_strength[isel]+")/(eff_strength["+iortho+"] = "+eff_strength[iortho]+") < "+min_eff_ratio+")");
+		} else {
+			if (ortho && !are_ortho) {
+				if (debug) System.out.println("Min/max orthogonal required, but they are not ("+imn+","+imx+") -> overcorrection = 0 (just using "+(bg?"min":"max") );
+				corr = 0.0;
+			} else { // see if min/max is strong enough
+				if (!strong[iother]) {
+					corr = 0.0;
+					if (debug) System.out.println("Orthogonal direction is not strong enough -> overcorrection = 0 (just using "+(bg?"min":"max") );
+				}
+			}
+			if (!(mx >= (mn + min_diff))) { // so NaN are OK
+				corr = Double.NaN;
+	    		if (debug) System.out.println("difference max - min="+(mx - mn)+" < "+min_diff+" -> no fo correction");
+			}
+		}
+    	double disp = full_disp;
+    	if (!Double.isNaN(corr)) {
+    		double lim;
+    		if (bg) {
+    			lim = full_disp - (full_disp - mn) * lim_overcorr;
+    			disp =  Math.max(mn - corr, lim);
+    		} else {
+    			lim = full_disp + (mx - full_disp) * lim_overcorr;
+    			disp =  Math.min(mx + corr, lim);
+    		}
+    		if (debug) System.out.println("lim =  "+lim+", disp = "+disp);
+    	}
+    	double [] rslt = {disp, eff_strength[isel], mx - mn, are_ortho ?1.0 : 0.0};
+		if (debug) System.out.println(String.format("foregroundCorrect() -> [%8.5f, %8.5f, %8.5f, %3.1f]", rslt[0], rslt[1], rslt[2], rslt[3]));
+
+    	return    rslt;
+    }
+
+
+
+    public Correlations2dLMA corrLMA(
+    		ImageDttParameters  imgdtt_params,
+    		double [][]         corrs,
+    		int                 pair_mask, // which pairs to process
+    		boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
+    		double              xcenter,   // preliminary center x in pixels for largest baseline
+    		double              vasw_pwr,  // value as weight to this power,
     		int                 debug_level,
     		int                 tileX, // just for debug output
     		int                 tileY
     		)
     {
-    	int [][] quad_signs = {{-1,-1},{1,-1},{-1,1},{1,1}}; // {sign_x, sign_y} per quadrant
     	// for quad camera
     	int [][] groups = new int [GROUPS.length][];
     	int   [] scale_ind = new int  [GROUPS.length];
@@ -942,7 +1201,7 @@ public class Correlation2d {
     	for (int i = 0; i < GROUPS.length; i++) {
     		groups[i] = getNumberBaseOfCompatiblePairs(
     				corrs,                       // double [][] correlations,
-    				imgdtt_params.dbg_pair_mask, // int         pairs_mask,
+    				pair_mask,                   // int         pairs_mask,
     				(GROUPS[i][0] > 0),          // boolean     diagonal,
     				GROUPS[i][1]);               // int         baseline_scale
     		if (groups[i][0] > 0) {
@@ -964,7 +1223,7 @@ public class Correlation2d {
     		for (int i = 0; i < groups.length; i++) if (groups[i][0] >0){
     			groups_LMA[ig] = combineCompatiblePairs(
     					corrs,                       // double [][] correlations,
-    					imgdtt_params.dbg_pair_mask, // int         pairs_mask,
+    					pair_mask,                   // int         pairs_mask,
     					(GROUPS[i][0] > 0),          // boolean     diagonal,
     					GROUPS[i][1]);               // int         baseline_scale
     			groups_pairs[ig] = groups[i]; // {number, base_pair_index}
@@ -974,91 +1233,462 @@ public class Correlation2d {
     	}
     	double [] scales = new double [sl.size()];
     	for (int i = 0; i < scales.length; i++) scales[i] = sl.get(i); // from int to double
-
-    	String [] titles = {"ortho","diagonal"};
-    	(new showDoubleFloatArrays()).showArrays(
-    			groups_LMA,
-    			2* transform_size-1,
-    			2* transform_size-1,
-    			true, "groups_x"+tileX+"_y"+tileY, titles);
-    	for (int i = 0; i < groups_pairs.length; i++) {
-    		System.out.println("Group #"+i+" - "+groups_pairs[i][0]+", type:"+groups_pairs[i][1]);
-    	}
     	Correlations2dLMA lma = new Correlations2dLMA(scales);
-    	int center = transform_size - 1;
-    	int width = 2 * center + 1;
+    	if (debug_level > 1) {
+    		for (int i = 0; i < groups_pairs.length; i++) {
+    			System.out.println("Group #"+i+" - "+groups_pairs[i][0]+", type:"+groups_pairs[i][1]);
+    		}
+    	}
+        addSamples(
+        		xcenter,         // double            xcenter,   // preliminary center x in pixels for largest baseline
+        		imgdtt_params.cnvx_hwnd_size, // int  hwindow_y, //  = window_y.length; // should actually be the same?
+        		imgdtt_params.cnvx_hwnd_size, //int   hwindow_x, // = window_x.length;
+        		vasw_pwr,                     // double            vasw_pwr,  // value as weight to this power,
+        		groups_LMA,                   // double [][]       groups_LMA,
+        		groups_pairs,                 // int    [][]       groups_pairs,
+        		scales,                       // double []         scales,
+        		group_scale_ind,              // int    []         group_scale_ind,
+        		lma,                          // Correlations2dLMA lma,
+        		imgdtt_params.cnvx_add3x3,    // boolean   add3x3,
+        		imgdtt_params.cnvx_weight,    // double    nc_cost,
+
+        		debug_level);    // int               debug_level
+        boolean lmaSuccess;
+        if (run_poly_instead) {
+        	lma.getMaxXYPoly( // get interpolated maximum coordinates using 2-nd degree polynomial
+        			debug_level>3); // boolean debug
+        	lmaSuccess = lma.getPolyFx() != null;
+        } else {
+        	lma.initVector(
+        			imgdtt_params.lma_adjust_wm,   //  boolean adjust_wm,
+        			imgdtt_params.lma_adjust_wy,   // boolean adjust_wy,
+        			imgdtt_params.lma_adjust_wxy,  // boolean adjust_wxy,
+        			imgdtt_params.lma_adjust_ag,   // boolean adjust_Ag,
+        			xcenter,                       // double  x0,
+        			imgdtt_params.lma_half_width,  // double  half_width,
+        			imgdtt_params.lma_cost_wy,     // double  cost_wy,     // cost of non-zero this.all_pars[WYD_INDEX]
+        			imgdtt_params.lma_cost_wxy     //double  cost_wxy     // cost of non-zero this.all_pars[WXY_INDEX]
+        			);
+        	if (debug_level > 1) {
+        		System.out.println("Input data:");
+        		lma.printInputDataFx(false);
+        	}
+
+        	lmaSuccess = 	lma.runLma(
+        			imgdtt_params.lma_lambda_initial,     // double lambda,           // 0.1
+        			imgdtt_params.lma_lambda_scale_good,  // double lambda_scale_good,// 0.5
+        			imgdtt_params.lma_lambda_scale_bad,   // double lambda_scale_bad, // 8.0
+        			imgdtt_params.lma_lambda_max,         // double lambda_max,       // 100
+        			imgdtt_params.lma_rms_diff,           // double rms_diff,         // 0.001
+        			imgdtt_params.lma_num_iter,           // int    num_iter,         // 20
+        			debug_level);       // int    debug_level)
+
+        	lma.updateFromVector();
+        	double [] rms = lma.getRMS();
+        	if (debug_level > 0) {
+        		System.out.println("LMA ->"+lmaSuccess+" RMS="+rms[0]+", pure RMS="+rms[1]);
+        		lma.printParams();
+        	}
+        }
+    	if ((debug_level > 1) && (groups_LMA !=null) && (groups_LMA.length > 0)) {
+    		double [][] y_and_fx = new double [groups_LMA.length * 2][];
+    		double [][] groups_fx =  getFitSamples( // just for debug to compare LMA-fitted fx with original data
+    				xcenter,                      // double            xcenter,   // preliminary center x in pixels for largest baseline
+            		imgdtt_params.cnvx_hwnd_size, // int  hwindow_y, //  = window_y.length; // should actually be the same?
+            		imgdtt_params.cnvx_hwnd_size, //int   hwindow_x, // = window_x.length;
+    				groups_pairs,                 // int    [][]       groups_pairs,
+    				scales,                       // double []         scales,
+    				group_scale_ind,              // int    []         group_scale_ind,
+    				lma,                          // Correlations2dLMA lma,
+            		groups_LMA,                   // double [][]       groups_LMA,
+            		imgdtt_params.cnvx_add3x3,    // boolean   add3x3,
+            		imgdtt_params.cnvx_weight,    // double    nc_cost,
+            		debug_level);    // int               debug_level
+
+    		String [] titles = new String [groups_LMA.length * 2];
+    		for (int i = 0; i < groups_LMA.length; i++) if (groups_pairs[i][0] > 0){
+    			int base_pair = groups_pairs[i][1];
+    			titles[2 * i] =     (isDiagonalPair(base_pair)?"diag":"ortho")+getScaleOfPair(base_pair);
+    			titles[2 * i + 1] = (isDiagonalPair(base_pair)?"diag":"ortho")+getScaleOfPair(base_pair)+"-fit";
+    			y_and_fx[2 * i] =     groups_LMA[i];
+    			y_and_fx[2 * i + 1] = groups_fx[i];
+    		}
+
+    		//    		String [] titles = {"ortho","diagonal"};
+    		(new showDoubleFloatArrays()).showArrays(
+    				y_and_fx,
+    				2 * transform_size-1,
+    				2 * transform_size-1,
+    				true, (run_poly_instead?("mismatch"+pair_mask):"groups")+"_x"+tileX+"_y"+tileY, titles);
+    	}
+    	if (debug_level > 1) {
+    		System.out.println("Input data and approximation:");
+    		lma.printInputDataFx(true);
+    	}
+    	return lmaSuccess? lma: null;
+    }
+
+    /**
+     * Create mask of usable points, allowing only first non bi-convex away from the center
+     * @param corr_data correlation data, packed in linescan order
+     * @param hwin half-window width, in pixels
+     * @param x0c start point x (-disparity)
+     * @param y0c start point y (for ortho == 0, for diagonal ==x0
+     * @param add3x3 always enable 3x3 points around start point
+     * @param nc_cost - cost of non-convex points
+     * @param debug
+     * @return cost packed array, corresponding to the input. selected convex points have weight
+     * 1.0, other selected - nc_cost
+     */
+    public double [] filterConvex(
+    		double [] corr_data,
+    		int       hwin,
+    		int       x0c,
+    		int       y0c,
+    		boolean   add3x3,
+    		double    nc_cost,
+    		boolean   debug) {
+
+    	int center =       transform_size - 1;
+    	int x0 =           x0c + center;
+    	int y0=            y0c +center;
+    	int width =        2 * center + 1;
+    	int dlen =         width * width;
+//    	int width_m1 =     width - 1;
+//    	int win = 2 * hwin -1;
+    	double [] weights = new double [dlen];
+    	boolean [] convex = new boolean[dlen];
+    	int min_row = y0 - hwin;
+    	if (min_row < 0) min_row = 0;
+    	int max_row = y0 + hwin;
+    	if (max_row >= width) max_row = width -1 ;
+    	int min_col = x0 - hwin;
+    	if (min_col < 0) min_col = 0;
+    	int max_col = x0 + hwin;
+    	if (max_col >= width) max_col = width -1 ;
+
+    	// modify
+
+//    	int [][] dirs8 = {
+    	for (int row = min_row + 1; row < max_row; row ++) {
+        	for (int col = min_col + 1; col < max_col; col ++) {
+        		int indx = row * width + col;
+        		convex[indx] = (2 * corr_data[indx] > (corr_data[indx - 1] + corr_data[indx + 1])) &&
+        				( 2 * corr_data[indx] > (corr_data[indx - width] + corr_data[indx + width]));
+        	}
+    	}
+    	boolean [] sel = new boolean [dlen];
+    	if ((y0 >= min_row) && (y0 <= max_row) && (x0 >= min_col) && (x0 <= max_col)) {
+    		sel [y0 * width + x0] = true; // start point
+    	}
+
+        if (debug) debug_convex(convex, sel,"initial");
+
+
+    	for (int istep = 0; istep < hwin; istep ++) {
+    		boolean [] sel_new = sel.clone();
+    		boolean first = (istep == 0); // consider initial cell as if convex
+    		int num_new = 0;
+        	int step_min_row = y0 - istep;
+        	if (step_min_row < 0) step_min_row = 0;
+        	int step_max_row = y0 + istep;
+        	if (step_max_row >= width) step_max_row = width -1 ;
+        	int step_min_col = x0 - istep;
+        	if (step_min_col < 0) step_min_col = 0;
+        	int step_max_col = x0 + istep;
+        	if (step_max_col >= width) step_max_col = width -1 ;
+    		// expand up
+    		if (istep < y0) {
+    			int row = y0 - istep;
+    			for (int col = step_min_col; col <= step_max_col; col++){
+    				int indx = row * width + col;
+    				if (sel[indx] && (convex[indx] || first)) {
+    					if (!sel_new[indx - width]) {
+    						sel_new[indx - width] = true;
+    						num_new++;
+    					}
+    					// try next/prev
+    					indx -= width;
+    					if (convex[indx]) {
+    						if ((col <= x0) && (col > min_col) && !sel_new[indx - 1]) {
+    	    					sel_new[indx - 1] = true;
+    	    					num_new++;
+    						}
+    						if ((col >= x0) && (col < max_col) && !sel_new[indx + 1]) {
+    	    					sel_new[indx + 1] = true;
+    	    					num_new++;
+    						}
+    					}
+    				}
+    			}
+    		}
+            if (debug) debug_convex(convex, sel_new,"expanded up, step="+istep+",  num_new="+num_new);
+    		// expand down
+    		if ((y0 + istep) < max_row) {
+    			int row = y0 + istep;
+    			for (int col = step_min_col; col <= step_max_col; col++){
+    				int indx = row * width + col;
+    				if (sel[indx] && (convex[indx] || first)) {
+    					if (!sel_new[indx + width]) {
+    						sel_new[indx + width] = true;
+    						num_new++;
+    					}
+    					// try next/prev
+    					indx += width;
+    					if (convex[indx]) {
+    						if ((col <= x0) && (col > min_col) && !sel_new[indx - 1]) {
+    	    					sel_new[indx - 1] = true;
+    	    					num_new++;
+    						}
+    						if ((col >= x0) && (col < max_col) && !sel_new[indx + 1]) {
+    	    					sel_new[indx + 1] = true;
+    	    					num_new++;
+    						}
+    					}
+    				}
+    			}
+    		}
+            if (debug) debug_convex(convex, sel_new,"expanded down, step="+istep+", num_new="+num_new);
+    		// expand left
+    		if (istep < x0) {
+    			int col = x0 - istep;
+    			for (int row = step_min_row; row <= step_max_row; row++){
+    				int indx = row * width + col;
+    				if (sel[indx] && (convex[indx] || first)) {
+    					if (!sel_new[indx - 1]) {
+    						sel_new[indx - 1] = true;
+    						num_new++;
+    					}
+    					// try next/prev
+    					indx -= 1;
+    					if (convex[indx]) {
+    						if ((row <= y0) && (row > min_row) && !sel_new[indx - width]) {
+    	    					sel_new[indx - width] = true;
+    	    					num_new++;
+    						}
+    						if ((row >= y0) && (row < max_row) && !sel_new[indx + width]) {
+    	    					sel_new[indx + width] = true;
+    	    					num_new++;
+    						}
+    					}
+    				}
+    			}
+    		}
+            if (debug) debug_convex(convex, sel_new,"expanded left, step="+istep+", num_new="+num_new);
+    		// expand right
+    		if ((x0 + istep) < max_col) {
+    			int col = x0 + istep;
+    			for (int row = step_min_row; row <= step_max_row; row++){
+    				int indx = row * width + col;
+    				if (sel[indx] && (convex[indx] || first)) {
+    					if (!sel_new[indx + 1]) {
+    						sel_new[indx + 1] = true;
+    						num_new++;
+    					}
+    					// try next/prev
+    					indx += 1;
+    					if (convex[indx]) {
+    						if ((row <= y0) && (row > min_row) && !sel_new[indx - width]) {
+    	    					sel_new[indx - width] = true;
+    	    					num_new++;
+    						}
+    						if ((row >= y0) && (row < max_row) && !sel_new[indx + width]) {
+    	    					sel_new[indx + width] = true;
+    	    					num_new++;
+    						}
+    					}
+    				}
+    			}
+    		}
+            if (debug) debug_convex(convex, sel_new,"expanded right, step="+istep+", num_new="+num_new);
+    		if (num_new == 0) break;
+    		sel = sel_new; // no need to clone
+    	}
+    	for (int i = 0; i < sel.length;i++) if (sel[i]){
+    		weights[i] = convex[i]? 1.0: nc_cost;
+    	}
+
+    	// add central square
+    	if (add3x3) {
+    		for (int row = y0 - 1; row <= y0+1; row++)     if ((row >= 0) && (row < width)) {
+        		for (int col = x0 - 1; col <= x0+1; col++) if ((col >= 0) && (col < width)) {
+        			int indx = row * width + col;
+        			if (weights[indx] == 0.0) weights[indx] = nc_cost; // non-connected convex should not matter
+//        			sel[row * width + col] = true;
+        		}
+    		}
+    	}
+    	return weights;
+    }
+
+    public void debug_convex(
+    		boolean [] convex,
+    		boolean [] sel,
+    		String title) {
+    	int center =       transform_size - 1;
+    	int width =        2 * center + 1;
+    	System.out.println(title);
+		for (int row = 0; row < width; row++) {
+			System.out.print(String.format("%3d: ", row));
+    		for (int col = 0; col < width; col++){
+    			int indx = row * width + col;
+    			String s = sel[indx]? "*": ".";
+    			if (convex[indx]) System.out.print(String.format("(%1s)", s));
+    			else              System.out.print(String.format(" %1s ", s));
+    		}
+    		System.out.println();
+		}
+
+    }
+
+    public void addSamples(
+    		double            xcenter,   // preliminary center x in pixels for largest baseline
+        	int               hwindow_y, //  = window_y.length; // should actually be the same?
+        	int               hwindow_x, // = window_x.length;
+    		double            vasw_pwr,  // value as weight to this power,
+    		double [][]       groups_LMA,
+    		int    [][]       groups_pairs,
+    		double []         scales,
+    		int    []         group_scale_ind,
+    		Correlations2dLMA lma,
+    		boolean           add3x3,
+    		double            nc_cost,
+    		int               debug_level
+    		) {
+    	int center =       transform_size - 1;
+    	int width =        2 * center + 1;
     	int center_index = (width + 1) * center; // in
-    	int hwindow_y = window_y.length; // should actually be the same?
-    	int hwindow_x = window_x.length;
-    	for (int ig = 0; ig < groups_pairs.length; ig++) if (groups_pairs[ig][0] > 0) {
+    	// convex filter expects half window in pixels, arow/acol - half-pixel grid
+    	int hwindow_y2 = 2 * hwindow_y + 1;
+    	int hwindow_x2 = 2 * hwindow_x + 1;
+    	int [][] quad_signs = {{-1,-1},{1,-1},{-1,1},{1,1}}; // {sign_x, sign_y} per quadrant
+       	for (int ig = 0; ig < groups_pairs.length; ig++) if (groups_pairs[ig][0] > 0) {
     		double scale = scales[group_scale_ind[ig]];
     		double scale05 = scale/2.0;
     		boolean diagonal = isDiagonalPair(groups_pairs[ig][1]);
     		int ixcenter = (int) Math.round(xcenter / scale);
     		double xcs = ixcenter*scale;
+
     		if (debug_level > 0) {
-    			System.out.println("\nCombinded correlation data, diagonal = "+diagonal);
+    			System.out.println("\nCombined correlation data, diagonal = "+diagonal);
     			for (int row = 0; row < width; row++) {
         			System.out.print(String.format("%3d: ", row));
         			for (int col = 0; col < width; col++) {
         				if ((row == center) && (col == center)) {
-                			System.out.print(String.format("[%7.4f]", groups_LMA[ig][width * row + col]));
+                			System.out.print(String.format("[%8.5f]", groups_LMA[ig][width * row + col]));
         				} else {
-        					System.out.print(String.format(" %8.5f", groups_LMA[ig][width * row + col]));
+        					System.out.print(String.format(" %8.5f ", groups_LMA[ig][width * row + col]));
         				}
         			}
         			System.out.println();
     			}
+    			System.out.println("\nAll convex");
+    			for (int row = 0; row < width; row++) {
+        			System.out.print(String.format("%3d: ", row));
+        			for (int col = 0; col < width; col++) {
+        				if ((col==0) || (row==0) || (row == (width -1)) || (col == (width -1))) {
+    						System.out.print(" - ");
+        				} else {
+        					boolean convex_x =  2 * groups_LMA[ig][width * row + col] > (groups_LMA[ig][width * row + col -1] +      groups_LMA[ig][width * row + col+1]);
+        					boolean convex_y =  2 * groups_LMA[ig][width * row + col] > (groups_LMA[ig][width * row + col - width] + groups_LMA[ig][width * row + col + width]);
+        					if ((row == center) && (col == center)) {
+        						System.out.print(String.format("[%1s]", (convex_x && convex_y)?"*":"."));
+        					} else {
+        						System.out.print(String.format(" %1s ", (convex_x && convex_y)?"*":"."));
+        					}
+        				}
+        			}
+        			System.out.println();
+    			}
+    			// test filter convex
     		}
+			double [] filtWeight =  filterConvex(
+					groups_LMA[ig],         // double [] corr_data,
+					hwindow_x,              // int       hwin,
+					ixcenter,               // int       x0,
+					(diagonal? ixcenter:0), // int       y0,
+					add3x3,                 // boolean   add3x3,
+					nc_cost,                // double    nc_cost,
+		    		(debug_level > 2));     // boolean   debug);
+			if (debug_level > 1) {
+				System.out.println("\nConvex weights");
+				for (int row = 0; row < width; row++) {
+					System.out.print(String.format("%3d: ", row));
+					for (int col = 0; col < width; col++) {
+						double d = filtWeight[width * row + col];
+						if ((row == center) && (col == center)) {
+							if (d == 0.0) {
+								System.out.print(String.format("[%5s]","."));
+							} else {
+								System.out.print(String.format("[%5.2f]",d));
+							}
+						} else {
+							if (d == 0.0) {
+								System.out.print(String.format(" %5s ","."));
+							} else {
+								System.out.print(String.format(" %5.2f ", d));
+							}
+						}
+					}
+					System.out.println();
+				}
+			}
+			lma.setDiag(diagonal);
     		if (diagonal) {
-    			for (int arow =  0; arow < hwindow_y; arow ++) {
+    			for (int arow =  0; arow < hwindow_y2; arow ++) {
     				int odd = arow & 1;
-    				double wy = window_y[arow] * groups_pairs[0][0]; // number of pair averaged
-    				for (int acol =  odd; acol < hwindow_x; acol +=2) {
-    					double wxy = window_x[acol] * wy;  // full weight before value as weight
+//    				double wy = window_y[arow] * groups_pairs[0][0]; // number of pair averaged
+    				for (int acol =  odd; acol < hwindow_x2; acol +=2) {
+//    					double wxy = window_x[acol] * wy;  // full weight before value as weight
     					for (int quad = 0; quad < 4; quad ++) if (((arow > 0) || ((quad & 2) !=0 )) && ((acol > 0) || ((quad & 1) !=0 ))){
     						int cx = (quad_signs[quad][0] * acol - quad_signs[quad][1] * arow)/2 + ixcenter; // ix0;
     						int cy = (quad_signs[quad][0] * acol + quad_signs[quad][1] * arow)/2 + ixcenter; // ix0;
     						// calculate coordinates in the correlation array
     						if ((cx >= -center) && (cx <= center) && (cy >= -center) && (cy <= center)) {
-    							double w = wxy;  // full weight before value as weight
-    							double v = groups_LMA[ig][center_index + width * cy + cx];
-    							if (vasw_pwr != 0) {
-    								w *= Math.pow(Math.abs(v), vasw_pwr);
+//    							double w = wxy;  // full weight before value as weight
+    							double w = filtWeight[center_index + width * cy + cx] * groups_pairs[ig][0]; // number of pair averaged
+    							if (w > 0.0) {
+    								double v = groups_LMA[ig][center_index + width * cy + cx];
+    								if (vasw_pwr != 0) {
+    									w *= Math.pow(Math.abs(v), vasw_pwr);
+    								}
+    								lma.addSample(
+    										quad_signs[quad][0] * acol * scale05 + xcs, // x * scale, // double x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
+    										quad_signs[quad][1] * arow * scale05,       // y * scale, // double y,      // y coordinate (0 - disparity axis)
+    										v,                   // double v,      // correlation value at that point
+    										w,                 // double w,
+    										group_scale_ind[ig], // int    si,     // baseline scale index
+    										ig);                 // int    gi);
     							}
-    							lma.addSample(
-    									quad_signs[quad][0] * acol * scale05 + xcs, // x * scale, // double x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
-    									quad_signs[quad][1] * arow * scale05,       // y * scale, // double y,      // y coordinate (0 - disparity axis)
-    									v,                   // double v,      // correlation value at that point
-    									w,                 // double w,
-    									group_scale_ind[ig], // int    si,     // baseline scale index
-    									ig);                 // int    gi);
     						}
     					}
     				}
     			}
     		} else { // ortho
-    			for (int arow =  0; arow < hwindow_y; arow += 2) {
-    				double wy = window_y[arow] * groups_pairs[0][0]; // number of pair averaged
-    				for (int acol =  0; acol < hwindow_x; acol +=2) {
-    					double wxy = window_x[acol] * wy;  // full weight before value as weight
+    			for (int arow =  0; arow < hwindow_y2; arow += 2) {
+//    				double wy = window_y[arow] * groups_pairs[0][0]; // number of pair averaged
+    				for (int acol =  0; acol < hwindow_x2; acol +=2) {
+//    					double wxy = window_x[acol] * wy;  // full weight before value as weight
     					for (int quad = 0; quad < 4; quad ++) if (((arow > 0) || ((quad & 2) !=0 )) && ((acol > 0) || ((quad & 1) !=0 ))){
     						int cx = (quad_signs[quad][0] * acol)/2 + ixcenter; // ix0;
     						int cy = (quad_signs[quad][1] * arow)/2;
     						// calculate coordinates in the correlation array
     						if ((cx >= -center) && (cx <= center) && (cy >= -center) && (cy <= center)) {
-    							double w = wxy;  // full weight before value as weight
-    							double v = groups_LMA[ig][center_index + width * cy + cx];
-    							if (vasw_pwr != 0) {
-    								w *= Math.pow(Math.abs(v), vasw_pwr);
+//    							double w = wxy;  // full weight before value as weight
+    							double w = filtWeight[center_index + width * cy + cx] * groups_pairs[ig][0]; // number of pair averaged;
+    							if (w > 0.0) {
+    								double v = groups_LMA[ig][center_index + width * cy + cx];
+    								if (vasw_pwr != 0) {
+    									w *= Math.pow(Math.abs(v), vasw_pwr);
+    								}
+    								lma.addSample(
+    										quad_signs[quad][0] * acol * scale05 + xcs, // x * scale, // double x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
+    										quad_signs[quad][1] * arow * scale05,       // y * scale, // double y,      // y coordinate (0 - disparity axis)
+    										v,                   // double v,      // correlation value at that point
+    										w,                 // double w,
+    										group_scale_ind[ig], // int    si,     // baseline scale index
+    										ig);                 // int    gi);
     							}
-    							lma.addSample(
-    									quad_signs[quad][0] * acol * scale05 + xcs, // x * scale, // double x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
-    									quad_signs[quad][1] * arow * scale05,       // y * scale, // double y,      // y coordinate (0 - disparity axis)
-    									v,                   // double v,      // correlation value at that point
-    									w,                 // double w,
-    									group_scale_ind[ig], // int    si,     // baseline scale index
-    									ig);                 // int    gi);
     						}
     					}
     				}
@@ -1066,37 +1696,297 @@ public class Correlation2d {
 
     		}
     	}
-    	lma.initVector(
-    			imgdtt_params.lma_adjust_wm,   //  boolean adjust_wm,
-    			imgdtt_params.lma_adjust_wy,   // boolean adjust_wy,
-    			imgdtt_params.lma_adjust_wxy,  // boolean adjust_wxy,
-    			imgdtt_params.lma_adjust_ag,   // boolean adjust_Ag,
-    			xcenter,                       // double  x0,
-    			imgdtt_params.lma_half_width,  // double  half_width,
-    			imgdtt_params.lma_cost_wy,     // double  cost_wy,     // cost of non-zero this.all_pars[WYD_INDEX]
-    			imgdtt_params.lma_cost_wxy     //double  cost_wxy     // cost of non-zero this.all_pars[WXY_INDEX]
-    			);
-    	if (debug_level > 0) {
-    		System.out.println("Input data:");
-    		lma.printInputData();
-    	}
-
-    	boolean lmaSuccess = 	lma.runLma(
-    			imgdtt_params.lma_lambda_initial,     // double lambda,           // 0.1
-    			imgdtt_params.lma_lambda_scale_good,  // double lambda_scale_good,// 0.5
-    			imgdtt_params.lma_lambda_scale_bad,   // double lambda_scale_bad, // 8.0
-    			imgdtt_params.lma_lambda_max,         // double lambda_max,       // 100
-    			imgdtt_params.lma_rms_diff,           // double rms_diff,         // 0.001
-    			imgdtt_params.lma_num_iter,           // int    num_iter,         // 20
-    			debug_level);       // int    debug_level)
-
-    	lma.updateFromVector();
-    	double [] rms = lma.getRMS();
-    	if (debug_level > 0) {
-    		System.out.println("LMA ->"+lmaSuccess+" RMS="+rms[0]+", pure RMS="+rms[1]);
-    		lma.printParams();
-    	}
     }
+
+    // Mimics addSamples, but reads f(x) values instead of setting them
+    public double [][] getFitSamples( // just for debug to compare LMA-fitted fx with original data
+    		double            xcenter,   // preliminary center x in pixels for largest baseline
+        	int hwindow_y, // should actually be the same?
+        	int hwindow_x,
+    		int    [][]       groups_pairs,
+    		double []         scales,
+    		int    []         group_scale_ind,
+    		Correlations2dLMA lma,
+    		double [][]       groups_LMA,
+    		boolean           add3x3,
+    		double            nc_cost,
+    		int               debug_level) {
+    	double [] fx = lma.getPolyFx();  // try if poly results are available, if not use LMA results
+    	if (fx == null) fx=lma.getFx(); // fx will be 2 samples longer because of the regularization terms.
+    	int center =       transform_size - 1;
+    	int width =        2 * center + 1;
+    	double [][] groups_fitted = new double [groups_pairs.length][width * width];
+
+    	int center_index = (width + 1) * center; // in
+    	// convex filter expects half window in pixels, arow/acol - half-pixel grid
+    	int hwindow_y2 = 2 * hwindow_y + 1;
+    	int hwindow_x2 = 2 * hwindow_x + 1;
+//    	int hwindow_y = window_y.length; // should actually be the same?
+//    	int hwindow_x = window_x.length;
+    	int [][] quad_signs = {{-1,-1},{1,-1},{-1,1},{1,1}}; // {sign_x, sign_y} per quadrant
+    	int numSample = 0;
+       	for (int ig = 0; ig < groups_pairs.length; ig++) if (groups_pairs[ig][0] > 0) {
+       		for (int i = 0; i < groups_fitted[ig].length; i++) {
+       			groups_fitted[ig][i] = Double.NaN;
+       		}
+    		double scale = scales[group_scale_ind[ig]];
+    		boolean diagonal = isDiagonalPair(groups_pairs[ig][1]);
+    		int ixcenter = (int) Math.round(xcenter / scale);
+			double [] filtWeight =  filterConvex(
+					groups_LMA[ig],       // double [] corr_data,
+					hwindow_x,            // int       hwin,
+					ixcenter,             // int       x0,
+					(diagonal? ixcenter:0), // int       y0,
+					add3x3, // false, // true,                 // boolean   add3x3,
+					nc_cost,                  // double    nc_cost,
+		    		false);// boolean   debug);
+
+    		if (diagonal) {
+    			for (int arow =  0; arow < hwindow_y2; arow ++) {
+    				int odd = arow & 1;
+    				for (int acol =  odd; acol < hwindow_x2; acol +=2) {
+    					for (int quad = 0; quad < 4; quad ++) if (((arow > 0) || ((quad & 2) !=0 )) && ((acol > 0) || ((quad & 1) !=0 ))){
+    						int cx = (quad_signs[quad][0] * acol - quad_signs[quad][1] * arow)/2 + ixcenter; // ix0;
+    						int cy = (quad_signs[quad][0] * acol + quad_signs[quad][1] * arow)/2 + ixcenter; // ix0;
+    						// calculate coordinates in the correlation array
+    						if ((cx >= -center) && (cx <= center) && (cy >= -center) && (cy <= center)) {
+    							double w = filtWeight[center_index + width * cy + cx];
+    							if (w > 0.0) {
+    								double v = fx[numSample++];
+    								if (v > 0.0) groups_fitted[ig][center_index + width * cy + cx] = v;
+    								//    							double v = groups_LMA[ig][center_index + width * cy + cx];
+    							}
+
+    						}
+    					}
+    				}
+    			}
+    		} else { // ortho
+    			for (int arow =  0; arow < hwindow_y2; arow += 2) {
+    				for (int acol =  0; acol < hwindow_x2; acol +=2) {
+    					for (int quad = 0; quad < 4; quad ++) if (((arow > 0) || ((quad & 2) !=0 )) && ((acol > 0) || ((quad & 1) !=0 ))){
+    						int cx = (quad_signs[quad][0] * acol)/2 + ixcenter; // ix0;
+    						int cy = (quad_signs[quad][1] * arow)/2;
+    						// calculate coordinates in the correlation array
+    						if ((cx >= -center) && (cx <= center) && (cy >= -center) && (cy <= center)) {
+    							double w = filtWeight[center_index + width * cy + cx];
+    							if (w > 0.0) {
+    								double v = fx[numSample++];
+    								if (v > 0.0) groups_fitted[ig][center_index + width * cy + cx] = v;
+    								//    							double v = groups_LMA[ig][center_index + width * cy + cx];
+    							}
+
+    						}
+    					}
+    				}
+    			}
+
+    		}
+    	}
+       	return groups_fitted;
+    }
+
+    public int [] listPairs(
+    		double [][] correlations,
+    		int         pairs_mask) {
+		ArrayList<Integer> pairs = new ArrayList<Integer>();
+		for (int np = 0; np < correlations.length; np++) if ((correlations[np] != null) && ((( 1 << np) & pairs_mask) != 0)){
+			pairs.add(np);
+		}
+    	int [] rslt = new int[pairs.size()];
+    	for (int i = 0; i < rslt.length; i++) {
+    		rslt[i] = pairs.get(i);
+    	}
+    	return rslt;
+    }
+
+    /**
+     * Reproducing original hor/vert feature detection using a notch filter. Will need to extend
+     * to use diagonals too, as well as variable baselines similar to LMA/poly
+     * Combines several (same-oriented) correlation arrays
+     * Uses 3-point polynomial interpolation
+     * @param correlations correlation data packed in linescan order, first index is for pairs
+     * @param pairs_mask bitmask of pairs to use (should only include same-scale, same orientation)
+     * enhortho_scales notch filter array is taken from this class global array
+     * @param radius positive - within that distance, negative - within 2*(-radius)+1 square
+     * @param debug
+     * @return {center, strength} pair (center is 0 for the correlation center)
+     */
+//  		public double     max_corr_radius =   3.9;  // maximal distance from int max to consider
+	public double [] getMaxXSOrtho( // // get fractional center using a quadratic polynomial
+    		double [][] correlations,
+    		int         pairs_mask,
+			double      offset,      // double      offset);
+			boolean     symmetric,   // for comparing with old implementation average with symmetrical before multiplication
+			boolean     is_vert,      // transpose X/Y
+			boolean     debug)
+	{
+		if (debug) {
+			System.out.println("getMaxXSOrtho()");
+		}
+		int corr_size = transform_size * 2 -1;
+		double [] corr_1d = new double [corr_size];
+		int [] pairs = listPairs(correlations,pairs_mask);
+		if (pairs.length==0) return null;
+		double w = 1.0/pairs.length;
+
+		if (debug){
+			System.out.println ("Before combining tiles");
+			for (int ip = 0; ip < pairs.length; ip++) {
+				int np = pairs[ip];
+				System.out.println("pair # "+np);
+				for (int i = 0; i < corr_size; i++) {
+					System.out.print(String.format("%2d:", i));
+					for (int j = 0; j < corr_size; j++) {
+						System.out.print(String.format(" %8.5f", correlations[np][i * corr_size + j]));
+					}
+					System.out.println();
+				}
+				System.out.println();
+			}
+		}
+
+
+
+		if (debug){
+			System.out.println ("combined tiles (transposed):");
+		}
+
+		if (is_vert) {
+			if (offset >= 0) { // use shifted multiplication (similar to combineInterpolatedCorrelations(), but no need to use twice_diagonal
+				for (int j = 0; j < corr_size; j++){
+					if (debug) System.out.print(String.format("transposed %2d:", j));
+					corr_1d[j] = 0;
+					for (int i = 0; i < corr_size; i++){
+						double combo = 1.0;
+						for (int ip = 0; ip < pairs.length; ip++) {
+							int np = pairs[ip];
+							double d = (symmetric ? (0.5*(correlations[np][j * corr_size + i] +  correlations[np][j * corr_size + (corr_size - i - 1)])): (correlations[np][j * corr_size + i])) + offset;
+							/// if (d < 0.0) d = 0.0; // It is how it was before, and for combining exactly 2 pairs it may be OK
+							combo *= d;
+							//combo += w * correlations[np][i * corr_size + j] * this.ortho_notch_filter[i];
+						}
+						if (combo > 0.0) {
+							combo = Math.pow(combo, w) - offset;
+						} else {
+							combo =  - offset; // how it was before, just to compare
+						}
+						corr_1d[j] += combo * this.ortho_notch_filter[i];
+						if (debug) System.out.print(String.format(" %8.5f", combo));
+					}
+					if (debug) System.out.println();
+				}
+			} else { // use averaging (linear)
+				for (int j = 0; j < corr_size; j++){
+					corr_1d[j] = 0;
+					for (int ip = 0; ip < pairs.length; ip++) {
+						int np = pairs[ip];
+						for (int i = 0; i < corr_size; i++){
+							corr_1d[j] += w * correlations[np][j * corr_size + i] * this.ortho_notch_filter[i];
+						}
+					}
+				}
+			}
+
+		} else {
+			if (offset >= 0) { // use shifted multiplication (similar to combineInterpolatedCorrelations(), but no need to use twice_diagonal
+				for (int j = 0; j < corr_size; j++){
+					if (debug) System.out.print(String.format("transposed %2d:", j));
+					corr_1d[j] = 0;
+					for (int i = 0; i < corr_size; i++){
+						double combo = 1.0;
+						for (int ip = 0; ip < pairs.length; ip++) {
+							int np = pairs[ip];
+							double d = (symmetric ? (0.5*(correlations[np][i * corr_size + j] +  correlations[np][(corr_size - i - 1) * corr_size + j])): (correlations[np][i * corr_size + j])) + offset;
+							/// if (d < 0.0) d = 0.0; // It is how it was before, and for combining exactly 2 pairs it may be OK
+							combo *= d;
+							//combo += w * correlations[np][i * corr_size + j] * this.ortho_notch_filter[i];
+						}
+						if (combo > 0.0) {
+							combo = Math.pow(combo, w) - offset;
+						} else {
+							combo =  - offset; // how it was before, just to compare
+						}
+						corr_1d[j] += combo * this.ortho_notch_filter[i];
+						if (debug) System.out.print(String.format(" %8.5f", combo));
+					}
+					if (debug) System.out.println();
+				}
+			} else { // use averaging (linear)
+				for (int j = 0; j < corr_size; j++){
+					corr_1d[j] = 0;
+					for (int ip = 0; ip < pairs.length; ip++) {
+						int np = pairs[ip];
+						for (int i = 0; i < corr_size; i++){
+							corr_1d[j] += w * correlations[np][i * corr_size + j] * this.ortho_notch_filter[i];
+						}
+					}
+				}
+			}
+		}
+
+
+
+
+		if (debug) {
+			System.out.println();
+			System.out.print ("corr_1d = ");
+			for (int j = 0; j < corr_size; j++){
+				if (debug) System.out.print(String.format(" %8.5f", corr_1d[j]));
+			}
+			System.out.println();
+		}
+
+		int icenter = 0;
+		for (int i = 1; i < corr_size; i++){
+			if (corr_1d[i] > corr_1d[icenter]) icenter = i;
+		}
+
+		double [] coeff = null;
+		double xcenter = icenter;
+		double [][] pa_data=null;
+		// try 3-point parabola
+		if ((icenter >0) && (icenter < (corr_size - 1))) {
+			PolynomialApproximation pa = new PolynomialApproximation(debug?5:0); // debugLevel
+			double [][] pa_data0 = {
+					{icenter - 1,  corr_1d[icenter - 1]},
+					{icenter,      corr_1d[icenter    ]},
+					{icenter + 1,  corr_1d[icenter + 1]}};
+			pa_data = pa_data0;
+			coeff = pa.polynomialApproximation1d(pa_data, 2);
+			if (coeff != null){
+				xcenter = - coeff[1]/(2* coeff[2]);
+			}
+		}
+		icenter = (int) Math.round(xcenter);
+		double strength = corr_1d[icenter] / ((corr_size+1) / 2);// scale to ~match regular strength
+		double [] rslt1 = {xcenter - (transform_size - 1), strength};
+		return rslt1;
+	}
+
+
+	public void createOrtoNotch(
+			double enhortho_width,
+			double enhortho_scale,
+			boolean debug) {
+//		int corr_size = transform_size * 2 -1;
+//		double [] ortho_notch = new double [corr_size];
+		for (int i = 0; i < corr_size; i++){
+			if ((i < (transform_size - enhortho_width)) || (i > (transform_size - 2 + enhortho_width))) {
+				this.ortho_notch_filter[i] = 1.0;
+			} else {
+				this.ortho_notch_filter[i] = enhortho_scale;
+			}
+			if (i == (transform_size-1)) this.ortho_notch_filter[i] = 0.0 ; // hardwired 0 in the center
+			this.ortho_notch_filter[i] *= Math.sin(Math.PI*(i+1.0)/(2*transform_size));
+		}
+		if (debug){
+			System.out.println("enhortho_width="+ enhortho_width+" enhortho_scale="+ enhortho_scale);
+			for (int i = 0; i < corr_size; i++){
+				System.out.println(" enh_ortho_scale["+i+"]="+ this.ortho_notch_filter[i]);
+			}
+		}
+	}
 
 
 

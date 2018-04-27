@@ -65,7 +65,8 @@ public class Correlations2dLMA {
 	double  [] vector;
 	double  [] scales = {1.0, 2.0, 4.0};
 	ArrayList<Sample> samples = new ArrayList<Sample>();
-	HashMap<Integer,Integer> groups = new HashMap<Integer,Integer>();
+	HashMap<Integer,NumDiag> groups = new HashMap<Integer,NumDiag>();
+	double  [] group_weights =   null; // per-group weights of samples sum == 1.0
 	double [] weights; // normalized so sum is 1.0 for all - samples and extra regularization terms
 	double    pure_weight; // weight of samples only
 	double [] values;
@@ -75,7 +76,18 @@ public class Correlations2dLMA {
 	double []   initial_rms =     null; // {rms, rms_pure}, first-calcualted rms
 	double []   last_ymfx =       null;
 	double [][] last_jt =         null;
+	boolean     input_diag =      false; // valid during adding samples, should be set before changing groups
+	double []   poly_coeff =      null;  // 6 elements - Xc, Yx, f(x,y), A, B, C (from A*x^2 + B*y^2 +C*x*y+...)
+	double []   poly_xyvwh =      null;  // result of 2-d polynomial approximation instead of the LMA - used for lazy eye correction
 
+	public class NumDiag{
+		int     num;
+		boolean diag;
+		public NumDiag(int num, boolean diag) {
+			this.num =  num;
+			this.diag = diag;
+		}
+	}
 
 	public class Sample{
 		double x;      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
@@ -111,12 +123,30 @@ public class Correlations2dLMA {
 		}
 	}
 
-	public void printInputData(){
-		int ns =0;
-		for (Sample s:samples){
-			System.out.println(String.format("%3d: x=%8.4f y=%8.4f v=%9.6f w=%9.7f si=%1d gi=%1d", ns++, s.x, s.y, s.v, s.w, s.si, s.gi ));
+	public void printInputDataFx(boolean show_fx){
+		if 	(show_fx) {
+			Sample s = null;
+			double [] fx = getPolyFx();
+			if (fx == null) fx = getFx();
+			if (fx == null) return;
+			for (int i = 0; i < fx.length; i++) {
+				double fx_pos = (fx[i] >= 0)? fx[i]: Double.NaN;
+				if (i < samples.size()) {
+					s = samples.get(i);
+					System.out.println(String.format("%3d: x=%8.4f y=%8.4f v=%9.6f fx=%9.6f w=%9.7f si=%1d gi=%1d", i, s.x, s.y, s.v, fx_pos, s.w, s.si, s.gi ));
+				}
+				else {
+					System.out.println(String.format("%3d: %10s %10s v=%9.6f fx=%9.6f w=%9.7f", i, "---", "---", this.values[i], fx_pos, this.weights[i]));
+				}
+			}
+		} else {
+			int ns =0;
+			for (Sample s:samples){
+				System.out.println(String.format("%3d: x=%8.4f y=%8.4f v=%9.6f w=%9.7f si=%1d gi=%1d", ns++, s.x, s.y, s.v, s.w, s.si, s.gi ));
+			}
 		}
 	}
+
 	public double [] getRMS() {
 		return last_rms;
 	}
@@ -124,6 +154,30 @@ public class Correlations2dLMA {
 		return good_or_bad_rms;
 	}
 
+	public double [] getAllPars() {
+		return all_pars;
+	}
+
+	public double [] getDisparityStrength() {
+		if (group_weights == null) return null;
+		double disparity = -all_pars[X0_INDEX];
+		double sum_amp = 0.0;
+		for (int i = 0; i < (all_pars.length - AG_INDEX); i++) {
+			sum_amp += group_weights[i]* all_pars[AG_INDEX + i]; // group_weights is normalized
+		}
+		// protect from weird fitting results
+		double max_amp = 0.0;
+		for (Sample s: samples) if (s.v > max_amp) max_amp = s.v;
+		if (sum_amp > 1.25 * max_amp) sum_amp = max_amp;
+		double [] ds = {disparity, sum_amp};
+		return ds;
+	}
+	public double [] getDisparityStrengthWidth() {
+		double [] ds = getDisparityStrength();
+		if (ds == null) return null;
+		double [] dsw = {ds[0], ds[1], all_pars[WM_INDEX], all_pars[WXY_INDEX]}; // asymmetry
+		return dsw;
+	}
 
 
 	public Correlations2dLMA (
@@ -132,6 +186,9 @@ public class Correlations2dLMA {
 		if (scales != null)	this.scales = scales.clone();
 	}
 
+	public void setDiag(boolean diag_in) {
+		this.input_diag = diag_in;
+	}
 	public void addSample(
 			double x,      // x coordinate on the common scale (corresponding to the largest baseline), along the disparity axis
 			double y,      // y coordinate (0 - disparity axis)
@@ -140,8 +197,12 @@ public class Correlations2dLMA {
 			int    si,     // baseline scale index
 			int    gi){     // baseline scale index
 		samples.add(new Sample(x,y,v,w,si,gi));
-	}
+		if (!groups.containsKey(gi)) {
+			groups.put(gi,new NumDiag(groups.size(),this.input_diag));
+		}
 
+	}
+//NumDiag
 // TODO: add auto x0, half-width?
 // should be called ater all samples are entered (to list groups)
 	public void initVector(
@@ -154,7 +215,7 @@ public class Correlations2dLMA {
 			double  cost_wm,     // cost of non-zero this.all_pars[WM_INDEX]
 			double  cost_wxy     // cost of non-zero this.all_pars[WXY_INDEX]
 			) {
-		for (Sample s:samples) if (!groups.containsKey(s.gi)) groups.put(s.gi,groups.size());
+//		for (Sample s:samples) if (!groups.containsKey(s.gi)) groups.put(s.gi,groups.size());
 		int num_groups = groups.size();
 		this.all_pars =        new double[AG_INDEX + num_groups];
 		this.all_pars[X0_INDEX] =  x0;
@@ -182,6 +243,7 @@ public class Correlations2dLMA {
 			double  cost_wm,     // cost of non-zero this.all_pars[WYD_INDEX]
 			double  cost_wxy) {  // cost of non-zero this.all_pars[WXY_INDEX]
 		int np = samples.size();
+		group_weights = new double[groups.size()];
 		weights = new double [np+2];
 		values =  new double [np+2];
 		weights[np] =   cost_wm;
@@ -190,8 +252,10 @@ public class Correlations2dLMA {
 		values[np+1] =  0.0;
 		double sw = 0;
 		for (int i = 0; i < np; i++) {
-			weights[i] = samples.get(i).w;
-			values[i] =  samples.get(i).v;
+			Sample s = samples.get(i);
+			weights[i] = s.w;
+			values[i] =  s.v;
+			group_weights[groups.get(s.gi).num] += s.w;
 			if (Double.isNaN(values[i]) || Double.isNaN(weights[i])) {
 				weights[i] = 0.0;
 				values[i] = 0.0;
@@ -199,11 +263,13 @@ public class Correlations2dLMA {
 			sw += weights[i];
 		}
 		pure_weight = sw;
-		sw += weights[np] + weights[np];
+		sw += weights[np] + weights[np+1];
 		if (sw != 0.0) {
 			sw = 1.0/sw;
 			for (int i = 0; i < weights.length; i++) weights[i] *= sw;
 		}
+
+		if (pure_weight > 0.0) for (int i = 0; i < group_weights.length; i++) group_weights[i] /= pure_weight;
 		pure_weight *= sw;
 	}
 
@@ -221,6 +287,7 @@ public class Correlations2dLMA {
 	}
 
 	public double [] fromVector(double [] vector) { // mix fixed and variable parameters
+		if ( all_pars == null) return null;
 		double [] ap = all_pars.clone();
 		int np = 0;
 		for (int i = 0; i < par_mask.length; i++) if (par_mask[i]) ap[i] = vector[np++];
@@ -258,9 +325,9 @@ public class Correlations2dLMA {
         	}
         	System.out.println();
     	}
-    	System.out.print(String.format("%15s ", "Maximal diff"));
+    	System.out.print(String.format("%15s ", "Maximal diff:"));
     	for (int np = 0; np < num_pars; np++) {
-        	System.out.print(String.format("%8s %8.5f ", "1000×",  1000*max_diff[np]));
+        	System.out.print(String.format("%8s %8.5f ", "1/1000×",  1000*max_diff[np]));
     	}
     	System.out.println();
 
@@ -290,29 +357,36 @@ public class Correlations2dLMA {
 
 
 
-
+	public double [] getFx() {
+		return getFxJt(this.vector, null);
+	}
 
 	public double [] getFxJt(
 			double []   vector,
 			double [][] jt) { // should be either [vector.length][samples.size()] or null - then only fx is calculated
+		if (vector == null) return null;
 		double [] av = fromVector(vector);
 		int num_samples = samples.size();
 		double [] fx= new double [num_samples + 2];
 		int num_groups = groups.size();
+		double sqrt2 = Math.sqrt(2.0);
 		for (int ns = 0; ns < num_samples; ns++) {
 			Sample s = samples.get(ns);
-			int grp = groups.get(s.gi);
+			int grp = groups.get(s.gi).num;
+			boolean diag = groups.get(s.gi).diag;
+			double wScale = diag?sqrt2:1.0;
 			double Wy = av[WM_INDEX] * scales[s.si] + av[WYD_INDEX];
 			double Wx = Wy + av[WXY_INDEX];
 			double dx = s.x - av[X0_INDEX];
 			double Ag = av[AG_INDEX+grp];
-			double dxw = dx/Wx;
-			double dyw = s.y/Wy;
+			double dxw = wScale*dx/Wx;
+			double dyw = wScale*s.y/Wy;
 			double d = (1.0 - dxw*dxw - dyw*dyw);
 			fx[ns] = d * Ag;
 			int np = 0;
 			if (jt != null) {
-				if (par_mask[X0_INDEX])  jt[np++][ns] = Ag * 2 * dxw/Wx; // d/dx0
+//				if (par_mask[X0_INDEX])  jt[np++][ns] = Ag * 2 * dxw/Wx; // d/dx0
+				if (par_mask[X0_INDEX])  jt[np++][ns] = wScale * Ag * 2 * dxw/Wx; // d/dx0
 				double dfdWx = Ag * 2 * dxw * dxw / Wx;
 				double dfdWy = Ag * 2 * dyw * dyw / Wy;
 				if (par_mask[WM_INDEX])  jt[np++][ns] =  scales[s.si] * (dfdWx + dfdWy); // d/dWm
@@ -567,8 +641,69 @@ public class Correlations2dLMA {
 		return rslt;
 	}
 
+// modify to reuse Samples and apply polynomial approximation to resolve x0,y0 and strength?
+	public double [] getMaxXYPoly( // get interpolated maximum coordinates using 2-nd degree polynomial
+			boolean debug
+     ) {
+		double [][][] mdata = new double[samples.size()][3][];
+		for (int i = 0; i < mdata.length; i++) {
+			Sample s = samples.get(i);
+			mdata[i][0] = new double [2];
+			mdata[i][0][0] =  s.x;
+			mdata[i][0][1] =  s.y;
+			mdata[i][1] = new double [1];
+			mdata[i][1][0] =  s.v;
+			mdata[i][2] = new double [1];
+			mdata[i][2][0] =  s.w;
+		}
+		double [] rslt = (new PolynomialApproximation()).quadraticMaxV2dX2Y2XY( // 9 elements - Xc, Yx, f(x,y), A, B, C, D, E, F (from A*x^2 + B*y^2 +C*x*y+...)
+				mdata,
+				1.0E-30,//25, // 1.0E-15,
+				debug? 4:0);
+		this.poly_coeff = rslt;
 
-//	public double [] getValues() {
+		if (rslt == null) {
+			this.poly_coeff = null;
+			this.poly_xyvwh = null;
+			return null;
+		}
+		// calculate width_x and width_y
+		double hwx = Double.NaN, hwy = Double.NaN;
+		if ((rslt[2] > 0.0) && (rslt[3] <0.0) && (rslt[4] <0.0)) {
+			hwx = Math.sqrt(-rslt[2]/rslt[3]);
+			hwy = Math.sqrt(-rslt[2]/rslt[4]);
+		}
+		double [] xyvwh = {rslt[0], rslt[1], rslt[2], hwx, hwy};
+		if (debug){
+			System.out.println("lma.getMaxXYPoly()");
+			for (int i = 0; i< mdata.length; i++){
+				System.out.println(i+": "+mdata[i][0][0]+"/"+mdata[i][0][1]+" z="+mdata[i][1][0]+" w="+mdata[i][2][0]);
+			}
+			System.out.println("quadraticMax2d(mdata) --> "+((rslt==null)?"null":(rslt[0]+"/"+rslt[1])));
+		}
+		this.poly_xyvwh = xyvwh;
+		return xyvwh; // rslt;
+	}
+	public double [] getPoly() {
+		return poly_xyvwh;
+	}
+	public double [] getPolyFx() {return getPolyFx(this.poly_coeff);}
+	public double [] getPolyFx(
+			double [] coeff) { // 6 elements - Xc, Yx, f(x,y), A, B, C (from A*x^2 + B*y^2 +C*x*y+...)
+		if (coeff == null) {
+			return null;
+		}
+		int num_samples = samples.size();
+		double [] fx= new double [num_samples];
+		for (int ns = 0; ns < num_samples; ns++) {
+			Sample s = samples.get(ns);
+			fx[ns]= coeff[3]*s.x*s.x + coeff[4]*s.y*s.y +  coeff[5]*s.x*s.y + coeff[6]*s.x + coeff[7]*s.y + + coeff[8];
+		}
+		return fx;
+	}
+
+
+//	public double [] getValues(xyvwh) {
 //		double [] values= new double [samples.size()];
 //		for (int i = 0; i < values.length; i++) values[i] = samples.get(i).v;
 //		return values;

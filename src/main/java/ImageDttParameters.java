@@ -26,7 +26,7 @@ import java.util.Properties;
 
 public class ImageDttParameters {
 	public boolean corr_mode_debug =        true;
-	public boolean mix_corr_poly =          false;
+	public boolean mix_corr_poly =          true;
 	public double  min_poly_strength =      0.2;
 	public double  max_poly_hwidth =        2.5; // Maximal polynomial approximation half-width (in both directions)
 	public double  poly_corr_scale =        2.0; // Shift value if correlation maximum is wide in X than in Y to detect near objects (negative - far ones)
@@ -40,22 +40,38 @@ public class ImageDttParameters {
 	public double  ortho_eff_height =         2.58; // effective correlation stripe height to match strengths
 
 	public int     ortho_nsamples =           5; // number of samples to fit parabola
-	public double  ortho_vasw_pwr =         2.0; // use data as weights when fitting parabola (high vale samples are more important (when false use 3 samples only)
+	public double  ortho_vasw_pwr =         2.0; // use data as weights when fitting parabola (high value samples are more important (when false use 3 samples only)
 
 	public int     enhortho_width =         2;   // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
 	public double  enhortho_scale =         0.0; // 0.2;  // multiply center correlation pixels (inside enhortho_width)
 
-	public boolean far_object_correct =     true; // correct far objects by comparing orthogonal correlations
-	public double  fo_min_strength =        0.3;  // minimal strength for all correlations (full, hor, vert) to try to correct
-	public double  fo_max_hwidth =          2.4;  // maximal half-width for all directions to try to correct far objects
+	public boolean fo_correct =             true; // correct far objects by comparing orthogonal correlations
+	public boolean fo_far =                 false;// Use smallest disparity (false - largest)
+	public double  fo_min_strength =        0.1;  // minimal strength for all correlations (full, hor, vert) to try to correct
+	public double  fo_min_eff =             0.25; // minimal effective strength (corrected for width/hight)
+	public double  fo_min_eff_ratio =       0.65; // minimal effective strength ration (this to orthogonal)
+	public double  fo_max_hwidth =          3.0;  // maximal half-width disparity  direction to try to correct far objects
+	public double  fo_min_diff =            0.2;  // minimal disparity difference to attempt extraction of foreground objects
+	public boolean fo_ortho =               true; // require min/max to be orthogonal
 	public double  fo_overcorrection =      0.0;  // add scaled hor/vert difference to the largest of hor/vert disparity
 	public double  fo_lim_overcorr =        2.0;  // limit full correction with respect to largest - fullcorr difference
 
+	public double  mismatch_max_diff =      1.0;  // maximal disparity difference to calculate mismatch. Too low value will disqualify
+	                                              // large mismatches, too high - treat multi-z disparity as mismatch
+
 	public double  corr_offset =            0.1; //0.1;  // add to pair correlation before multiplying by other pairs
+	public boolean twice_diagonal =         true;  // twice_diagonal diagonal pairs provide twice denser samples, when true it doubles the weight of diagonal pairs
 	public double  min_corr =               0.02; // minimal correlation value to consider valid
 
-	public int     dbg_pair_mask =          0x3ff; // which pairs to combine
+	public int     dbg_pair_mask =          0x3f;  // which pairs to combine
 	public int     corr_strip_hight =       9;     // number of rows to calculate
+
+	// Extracting bi-convex (convex in both orthogonal directions) cells and allowing non-convex on the selection border only
+	public int     cnvx_hwnd_size =         4;     // half window size (both horizontal and vertical to extract bi-convex cells
+	public double  cnvx_weight =            0.5;   // relative weight of non-convex (border) cell
+	public boolean cnvx_add3x3 =            true;  // always select 3x3 cells around integer maximum
+
+	// Used for common interpolated stripes
 	public int     corr_wndy_size =         9;     // number of rows to calculate CM disparity
 	public double  corr_wndy_hwidth =       6.0;   // 50% window cutoff height
 	public double  corr_wndy_blur =         5.0;   // 100% to 0 % vertical transition range
@@ -80,9 +96,11 @@ public class ImageDttParameters {
 	public double  lma_rms_diff =           0.001; //
 	public int     lma_num_iter =          20;     //
 	public int     lma_debug_level =        3;     //
+	public boolean corr_var_cam =           true;  // New correlation mode compatible with 8 subcameras
 
 	public void dialogQuestions(GenericJTabbedDialog gd) {
-			gd.addCheckbox    ("Enable ImageDtt correlation debug layers",                        this.corr_mode_debug);
+			gd.addCheckbox    ("Enable ImageDtt correlation debug layers",                        this.corr_mode_debug,
+					"false - return (old) per-coor correlations, true - replace them with more pairs correlation (new)");
 			gd.addCheckbox    ("Replace CM layer with mixed/new poly one",                        this.mix_corr_poly);
 			gd.addNumericField("Use poly mode if strength is greater than",                       this.min_poly_strength,  3,6,"", "AND condition");
 			gd.addNumericField("Maximal polynomial approximation half-width",                     this.max_poly_hwidth,  3,6,"pix", "Maximal polynomial approximation half-width (in both directions), Most now are ~2.0");
@@ -107,19 +125,36 @@ public class ImageDttParameters {
 			gd.addNumericField("Multiply center correlation pixels (inside enhortho_width) (1.0 - disables enh_orttho)",  this.enhortho_scale,  3);
 
 			gd.addMessage("Far objects correction");
-			gd.addCheckbox    ("Try to correct far objects (make them closer) by hor/vert comparison",      this.far_object_correct);
+			gd.addCheckbox    ("Try to correct far objects (make them closer) by hor/vert comparison",      this.fo_correct);
+			gd.addCheckbox    ("Use smallest disparity/foreground objects (false - largest)",               this.fo_far,
+					"When disparity is different for different directios, use smallest (longest distance)");
 			gd.addNumericField("Minimal strength for all correlations (full, hor, vert) to try to correct", this.fo_min_strength,  3,6,"",
 					"Do not correct if any of the full, hor or vert strength is lower than this");
-			gd.addNumericField("Maximal correlation half-width",                                            this.fo_max_hwidth,  3,6,"",
+
+			gd.addNumericField("Minimal effective strength (corrected for width/hight)",                    this.fo_min_eff,  3,6,"",
+					"Minimal strength for the direction divided by width in disparity direction and multiplied by width in orthogonal direction");
+			gd.addNumericField("Minimal ratio of the effective strength to that of the orthogonal one",     this.fo_min_eff_ratio,  3,6,"",
+					"Ratio of the effective strength in the disparity max/min direction to that of the orthogonal pair(s)");
+
+			gd.addNumericField("Maximal correlation half-width",                                            this.fo_max_hwidth,  3,6,"pix",
 					"Do not correct if any of the full, hor or vert half-width is above this");
+			gd.addNumericField("Minimal disparity difference to attempt extraction of foreground objects",  this.fo_min_diff,  3,6,"pix",
+					"Keep all-pair disparity if directional difference is below this value");
+			gd.addCheckbox    ("Require min/max to be orthogonal",                                          this.fo_ortho,
+					"Correct fore/background only if the smallest/largest disparity is for orthogonal directions");
 			gd.addNumericField("Overcorrection scale",                                            this.fo_overcorrection,  3,6,"",
 					"Add scaled hor/vert difference to the largest of hor/vert disparity. Use 0 to just select largest of disparities");
 			gd.addNumericField("Limit overcorrection",                                            this.fo_lim_overcorr,  3,6,"",
 					"Limit full correction with respect to largest - fullcorr difference. 1.0 does not allow overcorrection, < 1.0 - the result will be closer to full correction");
 
+			gd.addNumericField("Maximal disparity difference to calculate mismatch",             this.mismatch_max_diff,  3,6,"",
+					"Too low value will disqualify large mismatches, too high - treat multi-z disparity as mismatch");
 
 	  		gd.addNumericField("Add to pair correlation before multiplying by other pairs",       this.corr_offset,  6,8,"",
 	  				"0.0 - pure product (false-positive tolerant), higher the value - closer to the sum (linear, better S/N");
+
+			gd.addCheckbox    ("Double weight of diagonal pairs when combining",                  this.twice_diagonal,
+					"Diagonal pairs provide twice denser samples, when true it doubles the weight of diagonal pairs");
 
 		    gd.addNumericField("Extract disparity max/argmax if maximal value is above",          this.min_corr,  6,8,"",
 		    		"skip unreliable correlations");
@@ -129,6 +164,16 @@ public class ImageDttParameters {
 					"Bits: 0, 1 - horizontal pairs, 2,3 - verical pairs, 4,5 - diagonal pairs");
 			gd.addNumericField("Number of correlation rows to combine (strip height)",            this.corr_strip_hight,  0, 3, "",
 					"Number of rows to combine/interpolate correlation results. Rows are twice denser than pixels correponding to largest baseline disparity");
+
+
+			gd.addNumericField("Half window size to extract bi-convex cells",                     this.cnvx_hwnd_size,  0, 3, "pix",
+					"Create selection mask for quadratic approximation inside square around initial maximum position, specify distance from the center");
+		    gd.addNumericField("Relative weight of non-convex (border) cell",                     this.cnvx_weight,  6,8,"",
+		    		"Weight of the bi-convex points is 1.0, this value specifies reduced weight of the border (non-bi-convex) points");
+			gd.addCheckbox    ("Always select 3x3 cells around integer maximum",                                   this.cnvx_add3x3,
+					"Add 3x3 cells selection around the original argmax, regardless of bi-convex property");
+
+
 			gd.addNumericField("Number of rows to calculate CM disparity",                        this.corr_wndy_size,  0, 3, "",
 					"Number of rows to calculate maximum. Normally should be equal to the previous parameter");
 
@@ -177,6 +222,9 @@ public class ImageDttParameters {
 					"Limit LMA cycles, so it will exit after certain number of small improvements");
 			gd.addNumericField("LMA debug level",                                                 this.lma_debug_level,  0, 3, "",
 					"Debug/verbosity level for the LMA correaltion maximum fitting");
+			gd.addCheckbox    ("Use new correlation methods compatible with x8 camera",           this.corr_var_cam,
+					"Debug feature to compare old/new methods");
+
 
 	}
 	public void dialogAnswers(GenericJTabbedDialog gd) {
@@ -199,18 +247,32 @@ public class ImageDttParameters {
   			this.enhortho_width=   (int) gd.getNextNumber();
   			this.enhortho_scale=         gd.getNextNumber();
 
-  			this.far_object_correct =    gd.getNextBoolean();
+  			this.fo_correct =            gd.getNextBoolean();
+  			this.fo_far =                gd.getNextBoolean();
   			this.fo_min_strength =       gd.getNextNumber();
+  			this.fo_min_eff =            gd.getNextNumber();
+  			this.fo_min_eff_ratio =      gd.getNextNumber();
   			this.fo_max_hwidth =         gd.getNextNumber();
+  			this.fo_min_diff =           gd.getNextNumber();
+  			this.fo_ortho =              gd.getNextBoolean();
   			this.fo_overcorrection =     gd.getNextNumber();
   			this.fo_lim_overcorr =       gd.getNextNumber();
 
-	  		this.corr_offset =           gd.getNextNumber();
+  			this.mismatch_max_diff =     gd.getNextNumber();
+
+  			this.corr_offset =           gd.getNextNumber();
+  			this.twice_diagonal =        gd.getNextBoolean();
 		    this.min_corr =              gd.getNextNumber();
 
 
   			this.dbg_pair_mask=    (int) gd.getNextNumber();
   			this.corr_strip_hight= (int) gd.getNextNumber();
+
+
+  			this.cnvx_hwnd_size=   (int) gd.getNextNumber();
+			this.cnvx_weight =           gd.getNextNumber();
+  			this.cnvx_add3x3 =           gd.getNextBoolean();
+
   			this.corr_wndy_size=   (int) gd.getNextNumber();
 
 			this.corr_wndy_hwidth =      gd.getNextNumber();
@@ -239,6 +301,8 @@ public class ImageDttParameters {
 
   			this.lma_num_iter=     (int) gd.getNextNumber();
   			this.lma_debug_level=  (int) gd.getNextNumber();
+  			this.corr_var_cam =          gd.getNextBoolean();
+
 	}
 
 
@@ -263,18 +327,30 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"enhortho_scale",       this.enhortho_scale +"");
 
 		properties.setProperty(prefix+"corr_offset",          this.corr_offset +"");
+		properties.setProperty(prefix+"twice_diagonal",       this.twice_diagonal +"");
 		properties.setProperty(prefix+"min_corr",             this.min_corr +"");
 
-		properties.setProperty(prefix+"far_object_correct",   this.far_object_correct +"");
+		properties.setProperty(prefix+"fo_correct",           this.fo_correct +"");
+		properties.setProperty(prefix+"fo_far",               this.fo_far +"");
 		properties.setProperty(prefix+"fo_min_strength",      this.fo_min_strength +"");
+		properties.setProperty(prefix+"fo_min_eff",           this.fo_min_eff +"");
+		properties.setProperty(prefix+"fo_min_eff_ratio",     this.fo_min_eff_ratio +"");
 		properties.setProperty(prefix+"fo_max_hwidth",        this.fo_max_hwidth +"");
+		properties.setProperty(prefix+"fo_min_diff",          this.fo_min_diff +"");
+		properties.setProperty(prefix+"fo_ortho",             this.fo_ortho +"");
 		properties.setProperty(prefix+"fo_overcorrection",    this.fo_overcorrection +"");
 		properties.setProperty(prefix+"fo_lim_overcorr",      this.fo_lim_overcorr +"");
 
+		properties.setProperty(prefix+"mismatch_max_diff",    this.mismatch_max_diff +"");
+
 		properties.setProperty(prefix+"dbg_pair_mask",        this.dbg_pair_mask +"");
 		properties.setProperty(prefix+"corr_strip_hight",     this.corr_strip_hight +"");
-		properties.setProperty(prefix+"corr_wndy_size",       this.corr_wndy_size +"");
 
+		properties.setProperty(prefix+"cnvx_hwnd_size",       this.cnvx_hwnd_size +"");
+		properties.setProperty(prefix+"cnvx_weight",          this.cnvx_weight +"");
+		properties.setProperty(prefix+"cnvx_add3x3",          this.cnvx_add3x3 +"");
+
+		properties.setProperty(prefix+"corr_wndy_size",       this.corr_wndy_size +"");
 		properties.setProperty(prefix+"corr_wndy_hwidth",     this.corr_wndy_hwidth +"");
 		properties.setProperty(prefix+"corr_wndy_blur",       this.corr_wndy_blur +"");
 
@@ -302,6 +378,7 @@ public class ImageDttParameters {
 
 		properties.setProperty(prefix+"lma_num_iter",         this.lma_num_iter +"");
 		properties.setProperty(prefix+"lma_debug_level",      this.lma_debug_level +"");
+		properties.setProperty(prefix+"corr_var_cam",         this.corr_var_cam +"");
 	}
 
 	public void getProperties(String prefix,Properties properties){
@@ -324,19 +401,31 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"enhortho_width")!=null)        this.enhortho_width=Integer.parseInt(properties.getProperty(prefix+"enhortho_width"));
 		if (properties.getProperty(prefix+"enhortho_scale")!=null)        this.enhortho_scale=Double.parseDouble(properties.getProperty(prefix+"enhortho_scale"));
 
-		if (properties.getProperty(prefix+"far_object_correct")!=null)    this.far_object_correct=Boolean.parseBoolean(properties.getProperty(prefix+"far_object_correct"));
+		if (properties.getProperty(prefix+"fo_correct")!=null)            this.fo_correct=Boolean.parseBoolean(properties.getProperty(prefix+"fo_correct"));
+		if (properties.getProperty(prefix+"fo_far")!=null)                this.fo_far=Boolean.parseBoolean(properties.getProperty(prefix+"fo_far"));
 		if (properties.getProperty(prefix+"fo_min_strength")!=null)       this.fo_min_strength=Double.parseDouble(properties.getProperty(prefix+"fo_min_strength"));
+		if (properties.getProperty(prefix+"fo_min_eff")!=null)            this.fo_min_eff=Double.parseDouble(properties.getProperty(prefix+"fo_min_eff"));
+		if (properties.getProperty(prefix+"fo_min_eff_ratio")!=null)      this.fo_min_eff_ratio=Double.parseDouble(properties.getProperty(prefix+"fo_min_eff_ratio"));
 		if (properties.getProperty(prefix+"fo_max_hwidth")!=null)         this.fo_max_hwidth=Double.parseDouble(properties.getProperty(prefix+"fo_max_hwidth"));
+		if (properties.getProperty(prefix+"fo_min_diff")!=null)           this.fo_min_diff=Double.parseDouble(properties.getProperty(prefix+"fo_min_diff"));
+		if (properties.getProperty(prefix+"fo_ortho")!=null)              this.fo_ortho=Boolean.parseBoolean(properties.getProperty(prefix+"fo_ortho"));
 		if (properties.getProperty(prefix+"fo_overcorrection")!=null)     this.fo_overcorrection=Double.parseDouble(properties.getProperty(prefix+"fo_overcorrection"));
 		if (properties.getProperty(prefix+"fo_lim_overcorr")!=null)       this.fo_lim_overcorr=Double.parseDouble(properties.getProperty(prefix+"fo_lim_overcorr"));
 
+		if (properties.getProperty(prefix+"mismatch_max_diff")!=null)     this.mismatch_max_diff=Double.parseDouble(properties.getProperty(prefix+"mismatch_max_diff"));
 
 		if (properties.getProperty(prefix+"corr_offset")!=null)           this.corr_offset=Double.parseDouble(properties.getProperty(prefix+"corr_offset"));
+		if (properties.getProperty(prefix+"twice_diagonal")!=null)        this.twice_diagonal=Boolean.parseBoolean(properties.getProperty(prefix+"twice_diagonal"));
 		if (properties.getProperty(prefix+"min_corr")!=null)              this.min_corr=Double.parseDouble(properties.getProperty(prefix+"min_corr"));
 
 
 		if (properties.getProperty(prefix+"dbg_pair_mask")!=null)        this.dbg_pair_mask=Integer.parseInt(properties.getProperty(prefix+"dbg_pair_mask"));
 		if (properties.getProperty(prefix+"corr_strip_hight")!=null)     this.corr_strip_hight=Integer.parseInt(properties.getProperty(prefix+"corr_strip_hight"));
+
+		if (properties.getProperty(prefix+"cnvx_hwnd_size")!=null)       this.cnvx_hwnd_size=Integer.parseInt(properties.getProperty(prefix+"cnvx_hwnd_size"));
+		if (properties.getProperty(prefix+"cnvx_weight")!=null)          this.cnvx_weight=Double.parseDouble(properties.getProperty(prefix+"cnvx_weight"));
+		if (properties.getProperty(prefix+"cnvx_add3x3")!=null)          this.cnvx_add3x3=Boolean.parseBoolean(properties.getProperty(prefix+"cnvx_add3x3"));
+
 		if (properties.getProperty(prefix+"corr_wndy_size")!=null)       this.corr_wndy_size=Integer.parseInt(properties.getProperty(prefix+"corr_wndy_size"));
 
 		if (properties.getProperty(prefix+"corr_wndy_hwidth")!=null)     this.corr_wndy_hwidth=Double.parseDouble(properties.getProperty(prefix+"corr_wndy_hwidth"));
@@ -366,6 +455,7 @@ public class ImageDttParameters {
 
 		if (properties.getProperty(prefix+"lma_num_iter")!=null)         this.lma_num_iter=Integer.parseInt(properties.getProperty(prefix+"lma_num_iter"));
 		if (properties.getProperty(prefix+"lma_debug_level")!=null)      this.lma_debug_level=Integer.parseInt(properties.getProperty(prefix+"lma_debug_level"));
+		if (properties.getProperty(prefix+"corr_var_cam")!=null)         this.corr_var_cam=Boolean.parseBoolean(properties.getProperty(prefix+"corr_var_cam"));
 
 	}
 
@@ -391,17 +481,30 @@ public class ImageDttParameters {
 		idp.enhortho_width =         this.enhortho_width;
 		idp.enhortho_scale =         this.enhortho_scale;
 
-		idp.far_object_correct =     this.far_object_correct;
+		idp.fo_correct =             this.fo_correct;
+		idp.fo_far =                 this.fo_far;
 		idp.fo_min_strength =        this.fo_min_strength;
+		idp.fo_min_eff =             this.fo_min_eff;
+		idp.fo_min_eff_ratio =       this.fo_min_eff_ratio;
 		idp.fo_max_hwidth =          this.fo_max_hwidth;
+		idp.fo_min_diff =            this.fo_min_diff;
+		idp.fo_ortho =               this.fo_ortho;
 		idp.fo_overcorrection =      this.fo_overcorrection;
 		idp.fo_lim_overcorr =        this.fo_lim_overcorr;
 
+		idp.mismatch_max_diff =      this.mismatch_max_diff;
+
 		idp.corr_offset=             this.corr_offset;
+		idp.twice_diagonal=          this.twice_diagonal;
 		idp.min_corr=                this.min_corr;
 
 		idp.dbg_pair_mask=           this.dbg_pair_mask;
 		idp.corr_strip_hight=        this.corr_strip_hight;
+
+		idp.cnvx_hwnd_size=          this.cnvx_hwnd_size;
+		idp.cnvx_weight=             this.cnvx_weight;
+		idp.cnvx_add3x3=             this.cnvx_add3x3;
+
 		idp.corr_wndy_size=          this.corr_wndy_size;
 
 		idp.corr_wndy_hwidth =       this.corr_wndy_hwidth;
@@ -429,6 +532,7 @@ public class ImageDttParameters {
 
 		idp.lma_num_iter =           this.lma_num_iter;
 		idp.lma_debug_level =        this.lma_debug_level;
+		idp.corr_var_cam =           this.corr_var_cam;
 
 		return idp;
 	}
