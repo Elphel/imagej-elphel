@@ -5,7 +5,7 @@
  ** Copyright (C) 2016 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
- **  
+ **
  **  EyesisDCT.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
@@ -24,7 +24,6 @@
 
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
-
 
 import ij.CompositeImage;
 import ij.IJ;
@@ -48,7 +47,7 @@ public class EyesisDCT {
 ///	public int extra_items = 8; // number of extra items saved with kernels (center offset (partial, full, derivatives)
 	public ImagePlus eyesisKernelImage = null;
 	public long startTime;
-	
+
 	public EyesisDCT(
 			Properties                                      properties,
 			EyesisCorrections                               eyesisCorrections,
@@ -63,7 +62,7 @@ public class EyesisDCT {
 	}
 
 	// TODO:Add saving just calibration
-/***	
+/***
 	public void setProperties(){
 		for (int n = 0; n < fine_corr.length; n++){
 			for (int d = 0; d < fine_corr[n].length; d++){
@@ -73,7 +72,7 @@ public class EyesisDCT {
 				}
 			}
 		}
-	}	
+	}
 
 	public void getProperties(){
 		for (int n = 0; n < fine_corr.length; n++){
@@ -84,7 +83,7 @@ public class EyesisDCT {
 				}
 			}
 		}
-	}	
+	}
 */
 	public class DCTKernels{
 		// -- old --
@@ -94,26 +93,26 @@ public class EyesisDCT {
 		public double [][]   kern = null;  // kernel image in linescan order
 		// -- new --
 		public int           numHor =        164; // number of kernel tiles in a row
-		public int           dct_size =        8;  // DCT-II size, sym. kernel square side is 2*dct_size-1 
+		public int           dct_size =        8;  // DCT-II size, sym. kernel square side is 2*dct_size-1
 		public int           asym_size =      15; // asymmetrical convolution limits, odd
-		public int           asym_nonzero =   4; // maximal number of non-zero elements in the asymmetrical kernels 
+		public int           asym_nonzero =   4; // maximal number of non-zero elements in the asymmetrical kernels
 		public double [][]   sym_kernels =  null; // per-color channel, DCT kernels in linescan order
 		public double [][]   sym_direct =   null; // per-color channel, DCT kernels in linescan order (direct, not dct-iii transformed) - debug feature
 		public double [][]   asym_kernels = null; // per-color channel, asymmetrical kernels (all but asym_nonzero elements are strictly 0)
 		public double [][][][] st_kernels = null; // [color][tileY][tileX][pixel]
 		public double [][][][] st_direct =  null; // [color][tileY][tileX][pixel] - direct, not converted with DCT-III - debug feature
 		public double [][][][] asym_val =   null; // [color][tileY][tileX][index] // value - asym kernel for elements
-		public int    [][][][] asym_indx =  null; // [color][tileY][tileX][index] // value - index of non-zero elements in the list 
+		public int    [][][][] asym_indx =  null; // [color][tileY][tileX][index] // value - index of non-zero elements in the list
 	}
 
 	public void setKernelImageFile(ImagePlus img_kernels){
 		eyesisKernelImage = img_kernels;
 	}
-	
+
 	public boolean kernelImageSet(){
 		return eyesisKernelImage != null;
 	}
-	
+
 	public boolean DCTKernelsAvailable(){
 		return kernels != null;
 	}
@@ -122,7 +121,7 @@ public class EyesisDCT {
 			  final ImageStack kernelStack,  // first stack with 3 colors/slices convolution kernels
 			  final int          kernelSize, // 64
 			  final EyesisCorrectionParameters.DCTParameters dct_parameters,
-			  final int          threadsMax,  // maximal number of threads to launch                         
+			  final int          threadsMax,  // maximal number of threads to launch
 			  final boolean      updateStatus,
 			  final int          globalDebugLevel) // update status info
 	  {
@@ -142,22 +141,23 @@ public class EyesisDCT {
 		  final AtomicInteger ai = new AtomicInteger(0);
 		  final int numberOfKernels=     kernelNumHor*kernelNumVert*nChn;
 		  final int numberOfKernelsInChn=kernelNumHor*kernelNumVert;
-		  final int dct_size =      dct_parameters.dct_size; 
-		  final int preTargetSize = 4 * dct_size; 
+		  final int dct_size =      dct_parameters.dct_size;
+		  final int preTargetSize = 4 * dct_size;
 		  final int targetSize =    2 * dct_size; // normally 16
 		  final double [] anitperiodic_window = createAntiperiodicWindow(dct_size);
 		  final long startTime = System.nanoTime();
 		  System.out.println("calculateDCTKernel():numberOfKernels="+numberOfKernels);
 		  for (int ithread = 0; ithread < threads.length; ithread++) {
 			  threads[ithread] = new Thread() {
-				  public void run() {
+				  @Override
+				public void run() {
 					  DoubleGaussianBlur gb=null;
 					  if (dct_parameters.decimateSigma > 0)	 gb=new DoubleGaussianBlur();
 					  float [] kernelPixels= null; // will be initialized at first use NOT yet?
 					  double [] kernel=      new double[kernelSize*kernelSize];
-					  double [] pre_target_kernel= new double [preTargetSize * preTargetSize]; // before made antiperiodic 
+					  double [] pre_target_kernel= new double [preTargetSize * preTargetSize]; // before made antiperiodic
 					  double [] target_kernel = new double [targetSize * targetSize]; // strictly antiperiodic in both x and y directions
-					  
+
 					  FactorConvKernel factorConvKernel = new FactorConvKernel();
 					  factorConvKernel.setDebugLevel       (0); // globalDebugLevel);
 					  factorConvKernel.setTargetWindowMode (dct_parameters.centerWindowToTarget);
@@ -165,7 +165,7 @@ public class EyesisDCT {
 					  factorConvKernel.setAsymCompactness  (dct_parameters.compactness,	dct_parameters.asym_tax_free);
 					  factorConvKernel.setSymCompactness   (dct_parameters.sym_compactness);
 					  factorConvKernel.setDCWeight         (dct_parameters.dc_weight);
-					  
+
 					  int chn,tileY,tileX;
 					  for (int nTile = ai.getAndIncrement(); nTile < numberOfKernels; nTile = ai.getAndIncrement()) {
 						  chn=nTile/numberOfKernelsInChn;
@@ -176,15 +176,15 @@ public class EyesisDCT {
 							  if (globalDebugLevel>2) System.out.println("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+kernelNumVert+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 						  }
 						  kernelPixels=(float[]) kernelStack.getPixels(chn+1);
-						  
+
 						  /* read convolution kernel */
 						  extractOneKernel(
-								  kernelPixels, //  array of combined square kernels, each 
+								  kernelPixels, //  array of combined square kernels, each
 								  kernel, // will be filled, should have correct size before call
 								  kernelNumHor, // number of kernels in a row
 								  tileX, // horizontal number of kernel to extract
 								  tileY); // vertical number of kernel to extract
-						  
+
 						  if ((dct_parameters.decimation == 2) && (dct_parameters.decimateSigma<0)) {
 							  reformatKernel2( // averages by exactly 2 (decimate==2)
 									  kernel,
@@ -220,8 +220,8 @@ public class EyesisDCT {
 								  pre_target_kernel,   // 16*dct_zize*dct_zize
 								  anitperiodic_window, // 16*dct_zize*dct_zize
 								  target_kernel);      //  4*dct_zize*dct_zize
-						  
-						  
+
+
 						  factorConvKernel.calcKernels(
 								  target_kernel,
 								  dct_parameters.asym_size,
@@ -230,7 +230,7 @@ public class EyesisDCT {
 								  dct_parameters.asym_pixels,         // maximal number of non-zero pixels in asymmmetrical kernel
 								  dct_parameters.asym_distance,       // how far to seed a new pixel
 								  dct_parameters.seed_size);
-						  double [] sym_kernel =  factorConvKernel.getSymKernel(); 
+						  double [] sym_kernel =  factorConvKernel.getSymKernel();
 						  double [] asym_kernel = factorConvKernel.getAsymKernel();
 						  int sym_kernel_inc_index =   kernelNumHor * dct_parameters.dct_size;
 						  int sym_kernel_start_index = (sym_kernel_inc_index * tileY + tileX) * dct_parameters.dct_size;
@@ -255,7 +255,7 @@ public class EyesisDCT {
 					  }
 				  }
 			  };
-		  }		      
+		  }
 		  ImageDtt.startAndJoin(threads);
 		  if (globalDebugLevel > 1) System.out.println("Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 		  System.out.println("1.Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
@@ -263,11 +263,11 @@ public class EyesisDCT {
 		  return dct_kernel;
 	  }
 
-	
+
 	public boolean createDCTKernels(
 			EyesisCorrectionParameters.DCTParameters dct_parameters,
 			int          srcKernelSize,
-			int          threadsMax,  // maximal number of threads to launch                         
+			int          threadsMax,  // maximal number of threads to launch
 			boolean      updateStatus,
 			int          debugLevel
 			){
@@ -286,7 +286,7 @@ public class EyesisDCT {
 			}
 		}
 	    showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
-	    
+
 
 		for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
 			if (eyesisCorrections.usedChannels[chn] && (sharpKernelPaths[chn]!=null) && (kernels[chn]==null)){
@@ -303,7 +303,7 @@ public class EyesisDCT {
 						kernel_sharp_stack,            // final ImageStack kernelStack,  // first stack with 3 colors/slices convolution kernels
 						srcKernelSize,                 // final int          kernelSize, // 64
 						dct_parameters,                // final double       blurSigma,
-						threadsMax,  // maximal number of threads to launch                         
+						threadsMax,  // maximal number of threads to launch
 						updateStatus,
 						debugLevel); // update status info
 				int sym_width =  kernels.numHor * kernels.dct_size;
@@ -331,7 +331,7 @@ public class EyesisDCT {
 	    		}
         		FileSaver fs=new FileSaver(imp_sym);
         		fs.saveAsTiffStack(symPath);
-				
+
 //				sdfa_instance.showArrays(kernels.sym_kernels,  sym_width, sym_height, true, imp_kernel_sharp.getTitle()+"-sym");
 
 				int asym_width =  kernels.numHor * kernels.asym_size;
@@ -385,11 +385,11 @@ public class EyesisDCT {
 			  final int xTile, // horizontal number of kernel to extract
 			  final int yTile)  // vertical number of kernel to extract
 	  {
-	  
+
 		  final int kernelWidth=kernelStack.getWidth();
 		  final int kernelNumHor=kernelWidth/kernelSize;
 		  double [] kernel = new double [kernelSize*kernelSize];
-		  extractOneKernel((float[]) kernelStack.getPixels(chn+1), //  array of combined square kernels, each 
+		  extractOneKernel((float[]) kernelStack.getPixels(chn+1), //  array of combined square kernels, each
 				  kernel,        // will be filled, should have correct size before call
 				  kernelNumHor,  // number of kernels in a row
 				  xTile,         // horizontal number of kernel to extract
@@ -397,7 +397,7 @@ public class EyesisDCT {
 		  return kernel;
 	  }
 	  // to be used in threaded method
-	  private void extractOneKernel(float [] pixels, //  array of combined square kernels, each 
+	  private void extractOneKernel(float [] pixels, //  array of combined square kernels, each
 			  double [] kernel, // will be filled, should have correct size before call
 			  int numHor, // number of kernels in a row
 			  int xTile, // horizontal number of kernel to extract
@@ -490,7 +490,7 @@ public class EyesisDCT {
 		  double [] weights = {0.25,0.125,0.125,0.125,0.125,0.0625,0.0625,0.0625,0.0625};
 		  int src_center = src_size / 2; // 32
 		  int dst_center = dst_size / 2; // 7
-		  int src_len = src_size*src_size;  
+		  int src_len = src_size*src_size;
 		  for (int i = 0; i< dst_size; i++){
 			  int src_i = (i - dst_center)*decimation + src_center;
 			  if ((src_i >= 0) && (src_i < src_size)) {
@@ -513,7 +513,7 @@ public class EyesisDCT {
 			  }
 		  }
 	  }
-	  
+
 	  private double [] createAntiperiodicWindow(
 			  int dct_size)
 	  {
@@ -528,12 +528,12 @@ public class EyesisDCT {
 		  double [] window = new double [n4 * n4];
 		  for (int i =0; i < n4; i++){
 			  for (int j =0; j < n4; j++){
-				  window[i * n4 + j] = wnd[i]*wnd[j]; 
+				  window[i * n4 + j] = wnd[i]*wnd[j];
 			  }
 		  }
 		  return window;
 	  }
-	  
+
 	  public double []makeAntiperiodic(
 			  int       dct_size,
 			  double [] src_kernel) // 16*dct_zize*dct_zize
@@ -545,11 +545,11 @@ public class EyesisDCT {
 				  src_kernel, // 16*dct_zize*dct_zize
 				  window,     // 16*dct_zize*dct_zize
 				  antiperiodic_kernel); //  4*dct_zize*dct_zize
-		 
+
 		 return antiperiodic_kernel;
 	  }
 
-	  
+
 	  private void makeAntiperiodic(
 			  int       dct_size,
 			  double [] src_kernel,          // 16*dct_zize*dct_zize
@@ -569,12 +569,12 @@ public class EyesisDCT {
 				  int src_index1= (isrcp) * n4 + jsrc;
 				  int src_index2= (isrc) *  n4 + jsrcp;
 				  int src_index3= (isrcp) * n4 + jsrcp;
-				  
+
 				  antiperiodic_kernel[dst_index] =
 						    src_kernel[src_index0] * window[src_index0]
 						  - src_kernel[src_index1] * window[src_index1]
 						  - src_kernel[src_index2] * window[src_index2]
-						  + src_kernel[src_index3] * window[src_index3];				  
+						  + src_kernel[src_index3] * window[src_index3];
 			  }
 		  }
 	  }
@@ -586,7 +586,7 @@ public class EyesisDCT {
 	  public boolean readDCTKernels(
 			  EyesisCorrectionParameters.DCTParameters dct_parameters,
 			  int          srcKernelSize,
-			  int          threadsMax,  // maximal number of threads to launch                         
+			  int          threadsMax,  // maximal number of threads to launch
 			  boolean      updateStatus,
 			  int          debugLevel
 			  ){
@@ -649,12 +649,12 @@ public class EyesisDCT {
 
 				  for (int nc = 0; nc < nColors; nc++){
 					  float [] pixels = (float[]) kernel_sym_stack.getPixels(nc + 1);
-					  kernels[chn].sym_kernels[nc]= new double[pixels.length]; 
+					  kernels[chn].sym_kernels[nc]= new double[pixels.length];
 					  for (int i = 0; i<pixels.length; i++){
 						  kernels[chn].sym_kernels[nc][i] = pixels[i];
 					  }
 					  pixels = (float[]) kernel_asym_stack.getPixels(nc + 1);
-					  kernels[chn].asym_kernels[nc]= new double[pixels.length]; 
+					  kernels[chn].asym_kernels[nc]= new double[pixels.length];
 					  for (int i = 0; i<pixels.length; i++){
 						  kernels[chn].asym_kernels[nc][i] = pixels[i];
 					  }
@@ -745,7 +745,7 @@ public class EyesisDCT {
 								  //										kernels[chn].asym_val[nc][tileY][tileX][i] /= scale_asym;
 								  kernels[chn].asym_val[nc][tileY][tileX][i] *= k; // includes correction for different number of pixels in r,b(1/4) and G (2/4)
 							  }
-							  
+
 							  if ((debugLevel > 0) && (tileY==67) && (tileX==125)) {
 								  System.out.println("nc="+nc+" sum="+scale_asym+", k="+k +", k*scale_asym="+(k*scale_asym)+", normalized:");
 
@@ -770,13 +770,13 @@ public class EyesisDCT {
 							  // sym_kernel pre-compensation for window function
 							  if (dct_parameters.antiwindow) {
 								  for (int i=0; i < kernels[chn].st_kernels[nc][tileY][tileX].length;i++) {
-									  kernels[chn].st_kernels[nc][tileY][tileX][i] *= inv_window[i];  
+									  kernels[chn].st_kernels[nc][tileY][tileX][i] *= inv_window[i];
 								  }
 							  }
 
 							  if (scale_asym != 1.0){
 								  for (int i=0; i < kernels[chn].st_kernels[nc][tileY][tileX].length;i++) {
-									  kernels[chn].st_kernels[nc][tileY][tileX][i] *= scale_asym;  
+									  kernels[chn].st_kernels[nc][tileY][tileX][i] *= scale_asym;
 								  }
 							  }
 
@@ -789,7 +789,7 @@ public class EyesisDCT {
 									  scale_sym += norm_sym_weights[i]*kernels[chn].st_kernels[nc][tileY][tileX][i];
 								  }
 								  for (int i=0; i < kernels[chn].st_kernels[nc][tileY][tileX].length;i++) {
-									  kernels[chn].st_kernels[nc][tileY][tileX][i] /= scale_sym;  
+									  kernels[chn].st_kernels[nc][tileY][tileX][i] /= scale_sym;
 								  }
 								  if ((debugLevel > 0) && (tileY== dct_parameters.tileY) && (tileX==dct_parameters.tileX)) {
 									  System.out.println("chn="+chn+" tileY="+tileY+", tileX"+tileY+" scale_sym="+scale_sym);
@@ -806,7 +806,7 @@ public class EyesisDCT {
 							  }
 							  // scale so multiplication will not change normalization
 							  for (int i=0; i < kernels[chn].st_kernels[nc][tileY][tileX].length;i++) {
-								  kernels[chn].st_kernels[nc][tileY][tileX][i] *= dct_size;  
+								  kernels[chn].st_kernels[nc][tileY][tileX][i] *= dct_size;
 							  }
 
 							  //								kernels[chn].st_kernels[nc][tileY][tileX]= dtt.dttt_iii(kernels[chn].st_kernels[nc][tileY][tileX]);
@@ -826,7 +826,7 @@ public class EyesisDCT {
 		  }
 		  return true;
 	  }
-		
+
 	  public void showKernels(){
 		  //			System.out.println("showKernels(): kernels.length="+kernels.length);
 		  for (int chn=0;chn < kernels.length; chn++){
@@ -922,7 +922,7 @@ public class EyesisDCT {
 	  }
 
 	  //		public boolean isChannelEnabled(int channel){
-	  //			return ((channel>=0) && (channel<this.usedChannels.length) && this.usedChannels[channel]);  
+	  //			return ((channel>=0) && (channel<this.usedChannels.length) && this.usedChannels[channel]);
 	  //		}
 
 
@@ -936,7 +936,7 @@ public class EyesisDCT {
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
 			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-			  final int          threadsMax,  // maximal number of threads to launch                         
+			  final int          threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel)
 	  {
@@ -1011,8 +1011,8 @@ public class EyesisDCT {
 				  imp_src=eyesisCorrections.JP4_INSTANCE.demuxImage(imp_composite, subchannel);
 				  if (imp_src==null) imp_src=imp_composite; // not a composite image
 
-				  // do we need to add any properties?				  
-			  } else { 
+				  // do we need to add any properties?
+			  } else {
 				  imp_src=new ImagePlus(sourceFiles[nFile]);
 				  //					  (new JP46_Reader_camera(false)).decodeProperiesFromInfo(imp_src); // decode existent properties from info
 				  eyesisCorrections.JP4_INSTANCE.decodeProperiesFromInfo(imp_src); // decode existent properties from info
@@ -1039,7 +1039,7 @@ public class EyesisDCT {
 					  rgbParameters,
 					  convolveFFTSize, // 128 - fft size, kernel size should be size/2
 					  scaleExposure,
-					  threadsMax,  // maximal number of threads to launch                         
+					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
 			  // warp result (add support for different color modes)
@@ -1060,7 +1060,7 @@ public class EyesisDCT {
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 
-	  }		
+	  }
 
 	  public ImagePlus processDCTChannelImage(
 			  ImagePlus imp_src, // should have properties "name"(base for saving results), "channel","path"
@@ -1073,14 +1073,14 @@ public class EyesisDCT {
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
 			  double 		     scaleExposure,
-			  final int        threadsMax,  // maximal number of threads to launch                         
+			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel){
 		  boolean advanced=this.correctionsParameters.zcorrect || this.correctionsParameters.equirectangular;
-		  boolean crop=      advanced? true: this.correctionsParameters.crop; 
-		  boolean rotate=    advanced? false: this.correctionsParameters.rotate; 
+		  boolean crop=      advanced? true: this.correctionsParameters.crop;
+		  boolean rotate=    advanced? false: this.correctionsParameters.rotate;
 		  double JPEG_scale= advanced? 1.0: this.correctionsParameters.JPEG_scale;
-		  boolean toRGB=     advanced? true: this.correctionsParameters.toRGB; 
+		  boolean toRGB=     advanced? true: this.correctionsParameters.toRGB;
 
 		  // may use this.StartTime to report intermediate steps execution times
 		  String name=(String) imp_src.getProperty("name");
@@ -1134,7 +1134,7 @@ public class EyesisDCT {
 					  pixels[y*width+x+width  ] *= dct_parameters.scale_b;
 				  }
 			  }
-			  
+
 		  } else { // assuming GR/BG pattern
 			  System.out.println("Applying fixed color gain correction parameters: Gr="+
 					  dct_parameters.novignetting_r+", Gg="+dct_parameters.novignetting_g+", Gb="+dct_parameters.novignetting_b);
@@ -1168,9 +1168,9 @@ public class EyesisDCT {
 						  dct_parameters.dct_size/2, // addTop
 						  dct_parameters.dct_size/2, // addRight
 						  dct_parameters.dct_size/2  // addBottom
-				  );		   
+				  );
 
-		  // Split into Bayer components, oversample, increase canvas    		  
+		  // Split into Bayer components, oversample, increase canvas
 		  ImageStack stack= eyesisCorrections.bayerToStack(
 				  result, // source Bayer image, linearized, 32-bit (float))
 				  splitParameters);
@@ -1180,7 +1180,7 @@ public class EyesisDCT {
 			  float [] pixels;
 			  int width =  stack.getWidth();
 			  int height = stack.getHeight();
-			  
+
 			  for (int c = 0; c <3; c++){
 				  pixels = (float[]) stack.getPixels(c+1);
 				  for (int i = 0; i<pixels.length; i++){
@@ -1190,11 +1190,11 @@ public class EyesisDCT {
 			  chn_avg[0] /= width*height/4;
 			  chn_avg[1] /= width*height/4;
 			  chn_avg[2] /= width*height/2;
-			  System.out.println("Split channels averages: R="+chn_avg[0]+", G="+chn_avg[2]+", B="+chn_avg[1]); 
+			  System.out.println("Split channels averages: R="+chn_avg[0]+", G="+chn_avg[2]+", B="+chn_avg[1]);
 		  }
-		  
+
 		  if (!this.correctionsParameters.debayer) {
-			  result= new ImagePlus(titleFull, stack);    			  
+			  result= new ImagePlus(titleFull, stack);
 			  eyesisCorrections.saveAndShow(result, this.correctionsParameters);
 			  return result;
 		  }
@@ -1267,7 +1267,7 @@ public class EyesisDCT {
 			  double [][] idct_data = new double [dct_data.length][];
 			  for (int chn=0; chn<idct_data.length;chn++){
 				  idct_data[chn] = image_dtt.lapped_idct(
-						  dct_data[chn],                  // scanline representation of dcd data, organized as dct_size x dct_size tiles  
+						  dct_data[chn],                  // scanline representation of dcd data, organized as dct_size x dct_size tiles
 						  dct_parameters.dct_size,        // final int
 						  dct_parameters.dct_window,      //window_type
 						  threadsMax,
@@ -1296,7 +1296,7 @@ public class EyesisDCT {
 							  (dct_parameters.denoise? dct_parameters.denoise_c:0.0), // final double      denoise_c,        //  =        1.0;  // maximal total smoothing of the color differences post-kernel (will compete with edge emphasis)
 							  dct_parameters.denoise_y_corn,          // final double      denoise_y_corn,   // =   0.5;  // weight of the 4 corner pixels during denoise y (relative to 4 straight)
 							  dct_parameters.denoise_c_corn,          // final double      denoise_c_corn,   // =   0.5;  // weight of the 4 corner pixels during denoise y (relative to 4 straight)
-							  dct_parameters.dct_size,                //,                             // final int         threadsMax,       // maximal number of threads to launch                         
+							  dct_parameters.dct_size,                //,                             // final int         threadsMax,       // maximal number of threads to launch
 							  debugLevel);                            // final int         globalDebugLevel)
 					  if (debugLevel > 0) sdfa_instance.showArrays(
 							  idct_data,
@@ -1321,12 +1321,12 @@ public class EyesisDCT {
 							  (tilesY + 1) * dct_parameters.dct_size,
 							  true,
 							  result.getTitle()+"-rbg_before");
-					  
+
 					  idct_data = post_debayer( // debayer in pixel domain after aberration correction
 							  idct_data, // final double [][] rbg,    // yPrPb,
 							  (tilesX + 1) * dct_parameters.dct_size, // final int         width,
 							  dct_parameters.dct_size,                // final int         step,             // just for multi-threading efficiency?
-							  dct_parameters.dct_size,                // final int         threadsMax,       // maximal number of threads to launch                         
+							  dct_parameters.dct_size,                // final int         threadsMax,       // maximal number of threads to launch
 							  debugLevel);                            // final int         globalDebugLevel)
 					  // add here YPrPb conversion, then edge_emphasis
 					  if (debugLevel > -1) sdfa_instance.showArrays(
@@ -1370,7 +1370,7 @@ public class EyesisDCT {
 			  float [] pixels;
 			  int width =  stack.getWidth();
 			  int height = stack.getHeight();
-			  
+
 			  for (int c = 0; c <3; c++){
 				  pixels = (float[]) stack.getPixels(c+1);
 				  for (int i = 0; i<pixels.length; i++){
@@ -1380,11 +1380,11 @@ public class EyesisDCT {
 			  chn_avg[0] /= width*height;
 			  chn_avg[1] /= width*height;
 			  chn_avg[2] /= width*height;
-			  System.out.println("Processed channels averages: R="+chn_avg[0]+", G="+chn_avg[2]+", B="+chn_avg[1]); 
+			  System.out.println("Processed channels averages: R="+chn_avg[0]+", G="+chn_avg[2]+", B="+chn_avg[1]);
 		  }
-		  
+
 		  if (!this.correctionsParameters.colorProc){
-			  result= new ImagePlus(titleFull, stack);    			  
+			  result= new ImagePlus(titleFull, stack);
 			  eyesisCorrections.saveAndShow(
 					  result,
 					  this.correctionsParameters);
@@ -1409,7 +1409,7 @@ public class EyesisDCT {
 		  CorrectionColorProc correctionColorProc=new CorrectionColorProc(eyesisCorrections.stopRequested);
 		  double [][] yPrPb=new double [3][];
 		  //			if (dct_parameters.color_DCT){
-		  // need to get YPbPr - not RGB here				
+		  // need to get YPbPr - not RGB here
 		  //			} else {
 		  correctionColorProc.processColorsWeights(stack, // just gamma convert? TODO: Cleanup? Convert directly form the linear YPrPb
 				  //					  255.0/this.psfSubpixelShouldBe4/this.psfSubpixelShouldBe4, //  double scale,     // initial maximal pixel value (16))
@@ -1439,7 +1439,9 @@ public class EyesisDCT {
 		  }
 
 		  if (toRGB) {
-			  System.out.println("correctionColorProc.YPrPbToRGB");
+			  if (debugLevel > 0){
+				  System.out.println("correctionColorProc.YPrPbToRGB");
+			  }
 			  stack =  YPrPbToRGB(yPrPb,
 					  colorProcParameters.kr,        // 0.299;
 					  colorProcParameters.kb,        // 0.114;
@@ -1462,7 +1464,7 @@ public class EyesisDCT {
 			  if (debugLevel > 1) System.out.println("Using full stack, including YPbPr");
 		  }
 
-		  result= new ImagePlus(titleFull, stack);    			  
+		  result= new ImagePlus(titleFull, stack);
 		  // Crop image to match original one (scaled to oversampling)
 		  if (crop){ // always crop if equirectangular
 			  if (debugLevel > 1) System.out.println("cropping");
@@ -1474,7 +1476,7 @@ public class EyesisDCT {
 						  this.correctionsParameters);
 			  }
 		  }
-		  // rotate the result			  
+		  // rotate the result
 		  if (rotate){ // never rotate for equirectangular
 			  stack=eyesisCorrections.rotateStack32CW(stack);
 		  }
@@ -1494,7 +1496,7 @@ public class EyesisDCT {
 		  ImagePlus imp_RGB;
 		  stack=eyesisCorrections.convertRGB32toRGB16Stack(
 				  stack,
-				  rgbParameters); 
+				  rgbParameters);
 
 		  titleFull=title+"-RGB48";
 		  result= new ImagePlus(titleFull, stack);
@@ -1611,7 +1613,7 @@ public class EyesisDCT {
 			  final double [][] rbg, // yPrPb,
 			  final int         width,
 			  final int         step,             // just for multi-threading efficiency?
-			  final int         threadsMax,       // maximal number of threads to launch                         
+			  final int         threadsMax,       // maximal number of threads to launch
 			  final int         globalDebugLevel)
 	  {
 		  final double [][] rbg_new = new double [rbg.length][rbg[0].length];
@@ -1628,15 +1630,16 @@ public class EyesisDCT {
 				  0.125,   0.25,  0.125,
 				  0.0625,  0.125, 0.0625};
 		  final double [][] kerns = {kern_rb,kern_rb,kern_g};
-		  
-		  final int    []   neib_indices = {-width-1,-width,-width+1,-1,0,1,width-1,width,width+1};       
+
+		  final int    []   neib_indices = {-width-1,-width,-width+1,-1,0,1,width-1,width,width+1};
 
 		  final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		  final AtomicInteger ai = new AtomicInteger(0);
 
 		  for (int ithread = 0; ithread < threads.length; ithread++) {
 			  threads[ithread] = new Thread() {
-				  public void run() {
+				  @Override
+				public void run() {
 					  int tileY,tileX;
 					  double [] neibs =   new double[9]; // pixels around current, first Y, then each color diff
 					  for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
@@ -1665,7 +1668,7 @@ public class EyesisDCT {
 					  }
 				  }
 			  };
-		  }		      
+		  }
 		  ImageDtt.startAndJoin(threads);
 		  return rbg_new;
 	  }
@@ -1683,7 +1686,7 @@ public class EyesisDCT {
 			  final double      denoise_c,        //  =        1.0;  // maximal total smoothing of the color differences post-kernel (will compete with edge emphasis)
 			  final double      denoise_y_corn,   // =   0.3;  // weight of the 4 corner pixels during denoise y (relative to 4 straight)
 			  final double      denoise_c_corn,   // =   0.3;  // weight of the 4 corner pixels during denoise y (relative to 4 straight)
-			  final int         threadsMax,       // maximal number of threads to launch                         
+			  final int         threadsMax,       // maximal number of threads to launch
 			  final int         globalDebugLevel)
 	  {
 		  final double [][] yPrPb_new = new double [yPrPb.length][yPrPb[0].length];
@@ -1694,7 +1697,7 @@ public class EyesisDCT {
 		  final int    [][] probes =  {{1,7},{3,5},{2,6},{0,8}}; // indices in [012/345/678] 3x3 square to calculate squared sums of differences
 		  final int    [][] kerns =   {{ 1,  3,  5,   7},  {1,   3,   5,  7},  {0,   2,   6,  8},  {0,   2,  6,   8}};  // indices in [012/345/678] 3x3 square to convolve data
 		  final double [][] kernsw =  {{-1.0,1.0,1.0,-1.0},{1.0,-1.0,-1.0,1.0},{1.0,-1.0,-1.0,1.0},{-1.0,1.0,1.0,-1.0}}; // weights of kern elements
-		  final int    []   neib_indices = {-width-1,-width,-width+1,-1,0,1,width-1,width,width+1};       
+		  final int    []   neib_indices = {-width-1,-width,-width+1,-1,0,1,width-1,width,width+1};
 		  final double [][] kernsw_y = new double [kernsw.length][];
 		  final double [][] kernsw_c = new double [kernsw.length][];
 		  final double []   denoise_kern_y = {
@@ -1710,10 +1713,10 @@ public class EyesisDCT {
 			  kernsw_y[n] = new double [kernsw[n].length];
 			  kernsw_c[n] = new double [kernsw[n].length];
 			  for (int i = 0; i < kernsw[n].length; i++){
-				  double dy = nonlin_y * ((n>=2)? nonlin_corn: 1.0); 
-				  double dc = nonlin_c * ((n>=2)? nonlin_corn: 1.0); 
-				  kernsw_y[n][i] = kernsw[n][i] * dy* dy; 
-				  kernsw_c[n][i] = kernsw[n][i] * dc* dc; 
+				  double dy = nonlin_y * ((n>=2)? nonlin_corn: 1.0);
+				  double dc = nonlin_c * ((n>=2)? nonlin_corn: 1.0);
+				  kernsw_y[n][i] = kernsw[n][i] * dy* dy;
+				  kernsw_c[n][i] = kernsw[n][i] * dc* dc;
 			  }
 		  }
 		  if (globalDebugLevel > 0){
@@ -1749,7 +1752,8 @@ public class EyesisDCT {
 
 		  for (int ithread = 0; ithread < threads.length; ithread++) {
 			  threads[ithread] = new Thread() {
-				  public void run() {
+				  @Override
+				public void run() {
 					  int tileY,tileX;
 					  double [] neibs =   new double[9]; // pixels around current, first Y, then each color diff
 					  double [] kern_y =  new double[9]; // weights of neighbors to add to the current for Y
@@ -1830,11 +1834,11 @@ public class EyesisDCT {
 									  }
 
 									  for (int i = 0; i<kern_y.length; i++){
-										  yPrPb_new[0][indx] += neibs[i]*kern_y[i]; 
+										  yPrPb_new[0][indx] += neibs[i]*kern_y[i];
 									  }
 									  for (int n = 1;n < 3; n++){ //color components
 										  for (int i = 0; i < neibs.length; i++){
-											  yPrPb_new[n][indx] += yPrPb[0][indx+neib_indices[i]]*kern_c[i]; 
+											  yPrPb_new[n][indx] += yPrPb[0][indx+neib_indices[i]]*kern_c[i];
 										  }
 									  }
 								  }
@@ -1843,13 +1847,13 @@ public class EyesisDCT {
 					  }
 				  }
 			  };
-		  }		      
+		  }
 		  ImageDtt.startAndJoin(threads);
 		  return yPrPb_new;
 	  }
-	  
-	  
-	  
+
+
+
 	  public void debayer_rbg(
 			  ImageStack stack_rbg){
 		  debayer_rbg(stack_rbg, 1.0);
@@ -1893,10 +1897,10 @@ public class EyesisDCT {
 					  if (odd_col){ // GB site
 						  fpixels_r[indx] = 0.5f*(
 								  fpixels_r[indx+av_col[row_type][col_type][0]]+
-								  fpixels_r[indx+av_col[row_type][col_type][1]]); 
+								  fpixels_r[indx+av_col[row_type][col_type][1]]);
 						  fpixels_b[indx] = 0.5f*(
 								  fpixels_b[indx+av_row[row_type][col_type][0]]+
-								  fpixels_b[indx+av_row[row_type][col_type][1]]); 
+								  fpixels_b[indx+av_row[row_type][col_type][1]]);
 					  } else { // !odd col  // B site
 						  fpixels_r[indx] = 0.25f*(
 								  fpixels_r[indx+av_xcross[row_type][col_type][0]]+
@@ -1907,10 +1911,10 @@ public class EyesisDCT {
 								  fpixels_g[indx+av_plus[row_type][col_type][0]]+
 								  fpixels_g[indx+av_plus[row_type][col_type][1]]+
 								  fpixels_g[indx+av_plus[row_type][col_type][2]]+
-								  fpixels_g[indx+av_plus[row_type][col_type][3]]); 
+								  fpixels_g[indx+av_plus[row_type][col_type][3]]);
 					  }
 
-				  } else { // !odd_row 
+				  } else { // !odd_row
 					  if (odd_col){  // R site
 						  fpixels_b[indx] = 0.25f*(
 								  fpixels_b[indx+av_xcross[row_type][col_type][0]]+
@@ -1921,17 +1925,17 @@ public class EyesisDCT {
 								  fpixels_g[indx+av_plus[row_type][col_type][0]]+
 								  fpixels_g[indx+av_plus[row_type][col_type][1]]+
 								  fpixels_g[indx+av_plus[row_type][col_type][2]]+
-								  fpixels_g[indx+av_plus[row_type][col_type][3]]); 
+								  fpixels_g[indx+av_plus[row_type][col_type][3]]);
 					  } else { // !odd col  // G site
 						  fpixels_r[indx] = 0.5f*(
 								  fpixels_r[indx+av_row[row_type][col_type][0]]+
-								  fpixels_r[indx+av_row[row_type][col_type][1]]); 
+								  fpixels_r[indx+av_row[row_type][col_type][1]]);
 						  fpixels_b[indx] = 0.5f*(
 								  fpixels_b[indx+av_col[row_type][col_type][0]]+
-								  fpixels_b[indx+av_col[row_type][col_type][1]]); 
+								  fpixels_b[indx+av_col[row_type][col_type][1]]);
 					  }
 				  }
-			  }				
+			  }
 		  }
 		  if (scale !=1.0){
 			  for (int i = 0; i< fpixels_r.length; i++){
@@ -1941,6 +1945,6 @@ public class EyesisDCT {
 			  }
 		  }
 	  }
-	  
+
 
 }

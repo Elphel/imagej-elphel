@@ -663,9 +663,9 @@ public class SuperTiles{
 							int numMax = 0;
 							int lo = 0;
 							int hi = 1;
-							if ((globalDebugLevel > -1 ) && (nsTile == 795)) {
-								System.out.println(nsTile);
-							}
+//							if ((globalDebugLevel > -1 ) && (nsTile == 795)) {
+//								System.out.println("getMaxMinMax(): nsTile="+nsTile);
+//							}
 							while (hi < numBins) {
 								// looking for next max
 								while ((hi < numBins) && (dh[hi] >= dh[hi - 1])) hi++; // flat or higher - continue
@@ -949,9 +949,9 @@ public class SuperTiles{
 			}
 		}
 		for (int nsTile = 0; nsTile < sTiles; nsTile++){
-			if (nsTile == 795){
-				System.out.println("showMaxMinMax(), nsTile="+nsTile);
-			}
+//			if (nsTile == 795){
+//				System.out.println("showMaxMinMax(), nsTile="+nsTile);
+//			}
 			int stileY = nsTile / sTilesX;
 			int stileX = nsTile % sTilesX;
 			int x0 = stileX * (numBins + 1);
@@ -1580,6 +1580,9 @@ public class SuperTiles{
 		final double [][][][] plane_disp_strength = new double [nStiles][][][];
 		// DEBUG feature:
 		final double [][] zero_tilts = {{0.0,0.0}}; // set to null for float
+		if (debugLevel > -1) {
+			System.out.println("getPlaneDispStrengthsST(x): debugLevel == "+debugLevel);
+		}
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				@Override

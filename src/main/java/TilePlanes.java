@@ -3504,12 +3504,14 @@ public class TilePlanes {
 				System.out.println("mergePlaneToThisWorld()");
 			}
 			if (wvalues == null ) {
-				System.out.println("mergePlaneToThisWorld(): wvalues=null:\n"+toString());
+				if (debugLevel > -2) {
+					System.out.println("mergePlaneToThisWorld(): wvalues=null:\n"+toString());
+				}
 				return null;
 
 			}
 			if (otherPd.wvalues == null ) {
-				System.out.println("mergePlaneToThisWorld(): otherPd.wvalues=null:\n"+otherPd.toString());
+				if (debugLevel > -1) System.out.println("mergePlaneToThisWorld(): otherPd.wvalues=null:\n"+otherPd.toString());
 				return null;
 			}
 			double [][] this_eig_avals = {
@@ -4035,6 +4037,9 @@ public class TilePlanes {
 		{
 			if (debugLevel > 2) {
 				debugLevel += 0; // +=1 // no show all eigen stuff (debugLevel > 3)
+			}
+			if (debugLevel > 0) {
+				System.out.println("Debug debugLevel"); // +=1 // no show all eigen stuff (debugLevel > 3)
 			}
 
 			// first make a plane from all tiles

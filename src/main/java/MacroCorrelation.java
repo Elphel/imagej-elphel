@@ -269,7 +269,7 @@ public class MacroCorrelation {
 				clt_parameters.corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
 				clt_parameters.shift_x,       // final int               shiftX, // shift image horizontally (positive - right) - just for testing
 				clt_parameters.shift_y,       // final int               shiftY, // shift image vertically (positive - down)
-				31, // clt_parameters.tileX,         // final int               debug_tileX,
+				clt_parameters.batch_run? -1: 31, // clt_parameters.tileX,         // final int               debug_tileX,
 				10, // clt_parameters.tileY,         // final int               debug_tileY,
 				(clt_parameters.dbg_mode & 64) != 0, // no fract shift
 				true,                        // no convolve

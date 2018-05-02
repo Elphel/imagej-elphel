@@ -1668,7 +1668,9 @@ public class QuadCLT {
 		  }
 
 		  if (toRGB) {
-			  System.out.println("correctionColorProc.YPrPbToRGB");
+			  if (debugLevel > 0){
+				  System.out.println("correctionColorProc.YPrPbToRGB");
+			  }
 			  stack =  YPrPbToRGB(yPrPb,
 					  colorProcParameters.kr,        // 0.299;
 					  colorProcParameters.kb,        // 0.114;
@@ -2315,7 +2317,9 @@ public class QuadCLT {
 		  }
 
 		  if (toRGB) {
-			  System.out.println("correctionColorProc.YPrPbToRGB");
+			  if (debugLevel > 0){
+				  System.out.println("correctionColorProc.YPrPbToRGB");
+			  }
 			  stack =  YPrPbToRGB(yPrPb,
 					  colorProcParameters.kr,        // 0.299;
 					  colorProcParameters.kb,        // 0.114;
@@ -2890,7 +2894,9 @@ public class QuadCLT {
 			  }
 
 			  if (toRGB) {
-				  System.out.println("correctionColorProc.YPrPbToRGB");
+				  if (debugLevel > 0){
+					  System.out.println("correctionColorProc.YPrPbToRGB");
+				  }
 				  stack =  YPrPbToRGB(yPrPb,
 						  colorProcParameters.kr,        // 0.299;
 						  colorProcParameters.kb,        // 0.114;
@@ -3315,7 +3321,6 @@ public class QuadCLT {
 					  infinity_corr, // calculate and apply geometry correction at infinity
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
-					  false, // batch_mode
 					  debugLevel);
 			  Runtime.getRuntime().gc();
 			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+setNames.size()+") finished at "+
@@ -3562,8 +3567,8 @@ public class QuadCLT {
 			  final boolean    infinity_corr, // calculate and apply geometry correction at infinity
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
-			  final boolean    batch_mode, //no debug images
 			  final int        debugLevel){
+		  final boolean                       batch_mode = clt_parameters.batch_run; //disable any debug images
 		  boolean advanced=this.correctionsParameters.zcorrect || this.correctionsParameters.equirectangular;
 		  //		  boolean crop=      advanced? true: this.correctionsParameters.crop;
 //		  boolean rotate=    advanced? false: this.correctionsParameters.rotate;
@@ -3807,7 +3812,6 @@ public class QuadCLT {
 		  // visualize correlation results
 		  if (clt_corr_combo!=null){
 			  if (disparity_map != null){
-				  //				  if (!batch_mode && !infinity_corr && clt_parameters.show_map &&  (debugLevel > -1)){
 				  if (!batch_mode && clt_parameters.show_map &&  (debugLevel > -1)){
 					  sdfa_instance.showArrays(
 							  disparity_map,
@@ -4241,7 +4245,9 @@ public class QuadCLT {
 		  }
 		  String titleFull = "";
 		  if (toRGB) {
-			  System.out.println("correctionColorProc.YPrPbToRGB");
+			  if (debugLevel > 0){
+				  System.out.println("correctionColorProc.YPrPbToRGB");
+			  }
 			  stack =  YPrPbToRGB(yPrPb,
 					  colorProcParameters.kr,        // 0.299;
 					  colorProcParameters.kb,        // 0.114;
@@ -5223,7 +5229,7 @@ public class QuadCLT {
 				  geometryCorrection,
 				  threadsMax,
 				  updateStatus,
-				  false, // batch_mode
+//				  false, // batch_mode
 				  debugLevel);
 		  Runtime.getRuntime().gc();
 	      System.out.println("showCLTPlanes(): processing  finished at "+
@@ -5250,7 +5256,7 @@ public class QuadCLT {
 		  			geometryCorrection,
 		  			threadsMax,
 		  			updateStatus,
-		  			false, //  boolean batch_mode,
+//		  			false, //  boolean batch_mode,
 		  			debugLevel);
 		  	Runtime.getRuntime().gc();
 		  	System.out.println("assignCLTPlanes(): processing  finished at "+
@@ -5279,7 +5285,7 @@ public class QuadCLT {
 		  			geometryCorrection,
 		  			threadsMax,
 		  			updateStatus,
-		  			false, // batch_mode
+//		  			false, // batch_mode
 		  			debugLevel);
 //		  	CLTPass3d last_scan = tp.clt_3d_passes.get(tp.clt_3d_passes.size() -1); // get last one
 
@@ -5566,7 +5572,7 @@ public class QuadCLT {
 						  adjust_poly,
 						  threadsMax,  //final int        threadsMax,  // maximal number of threads to launch
 						  updateStatus,// final boolean    updateStatus,
-						  false,       // final boolean    batch_mode,
+//						  false,       // final boolean    batch_mode,
 						  debugLevel); // final int        debugLevel)
 
 
@@ -5581,7 +5587,6 @@ public class QuadCLT {
 						  rgbParameters,
 						  threadsMax,  // maximal number of threads to launch
 						  updateStatus,
-						  false,       // final boolean    batch_mode,
 						  debugLevel);
 			  }
 
@@ -6045,9 +6050,9 @@ public class QuadCLT {
 			  boolean 		   adjust_poly,
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
-			  final boolean    batch_mode,
 			  final int        debugLevel)
 	  {
+		  final boolean    batch_mode = clt_parameters.batch_run;
 		  int debugLevelInner =  batch_mode ? -5: debugLevel;
 		  boolean update_disp_from_latest = clt_parameters.lym_update_disp ; // true;
 		  int max_tries =                   clt_parameters.lym_iter; // 25;
@@ -6361,13 +6366,11 @@ public class QuadCLT {
 		  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 		  final int        threadsMax,  // maximal number of threads to launch
 		  final boolean    updateStatus,
-		  final boolean    batch_mode,
+//		  final boolean    batch_mode,
 		  final int        debugLevel)
 	  {
+		  final boolean                       batch_mode = clt_parameters.batch_run; //disable any debug images
 		  final int debugLevelInner =  batch_mode ? -3: debugLevel;
-
-//		  final int tilesX = tp.getTilesX();
-//		  final int tilesY = tp.getTilesY();
 		  final double     trustedCorrelation = tp.getTrustedCorrelation();
 		  final int        max_expand =  500; // 150; // 30;
   		  final boolean    show_retry_far =   clt_parameters.show_retry_far && false; // (max_expand <= 10);
@@ -6569,7 +6572,6 @@ public class QuadCLT {
 
 ///          int next_pass = tp.clt_3d_passes.size(); //
           tp.secondPassSetup( // prepare tile tasks for the second pass based on the previous one(s)
-        		  //				  final double [][][]       image_data, // first index - number of image in a quad
         		  clt_parameters,
         		  clt_parameters.stUsePass2, // use supertiles
         		  bg_pass,
@@ -6587,7 +6589,6 @@ public class QuadCLT {
 				  geometryCorrection,
 				  threadsMax,  // maximal number of threads to launch
 				  updateStatus,
-				  batch_mode,
 				  debugLevelInner);
 
 // Save tp.clt_3d_passes.size() to roll back without restarting the program
@@ -7035,9 +7036,9 @@ public class QuadCLT {
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
-			  final boolean    batch_mode,
 			  final int        debugLevel)
 	  {
+		  final boolean    batch_mode = clt_parameters.batch_run;
 		  this.startStepTime=System.nanoTime();
 		  final int tilesX = tp.getTilesX();
 		  final int tilesY = tp.getTilesY();
@@ -8155,9 +8156,9 @@ public class QuadCLT {
 			  final double []                     referenceExposures, // =eyesisCorrections.calcReferenceExposures(debugLevel); // multiply each image by this and divide by individual (if not NaN)
 			  final double []                     scaleExposures, //  = new double[channelFiles.length]; //
 			  final boolean [][]                  saturation_imp, //  = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
-			  final boolean                       batch_mode,     // disable any debug images
 			  final int                           debugLevel)
 	  {
+		  final boolean                       batch_mode = clt_parameters.batch_run; //disable any debug images
 		  String [] sourceFiles=correctionsParameters.getSourcePaths();
 		  int maxChn = 0;
 		  for (int i = 0; i < setFiles.get(nSet).size(); i++){
@@ -8410,6 +8411,7 @@ public class QuadCLT {
 			  final boolean    updateStatus,
 			  final int        debugLevel)
 	  {
+		  final int        debugLevelInner=clt_parameters.batch_run? -2: debugLevel;
 		  this.startTime=System.nanoTime();
 		  String [] sourceFiles=correctionsParameters.getSourcePaths();
 		  boolean [] enabledFiles=new boolean[sourceFiles.length];
@@ -8439,7 +8441,7 @@ public class QuadCLT {
 		  } else {
 			  if (debugLevel>0) System.out.println(numFilesToProcess+ " files to process (of "+sourceFiles.length+"), "+numImagesToProcess+" images to process");
 		  }
-		  double [] referenceExposures=eyesisCorrections.calcReferenceExposures(debugLevel); // multiply each image by this and divide by individual (if not NaN)
+		  double [] referenceExposures=eyesisCorrections.calcReferenceExposures(debugLevelInner); // multiply each image by this and divide by individual (if not NaN)
 		  int [][] fileIndices=new int [numImagesToProcess][2]; // file index, channel number
 		  int index=0;
 		  for (int nFile=0;nFile<enabledFiles.length;nFile++){
@@ -8469,7 +8471,11 @@ public class QuadCLT {
 			  }
 			  setFiles.get(setNames.indexOf(setName)).add(new Integer(nFile));
 		  }
-		  boolean batch_dbg = correctionsParameters.clt_batch_dbg1 && (setNames.size() < 2) ;
+
+		  // enable debug for single-image when clt_batch_dbg1 is on
+		  if (correctionsParameters.clt_batch_dbg1 && (setNames.size() < 2)) {
+			  clt_parameters.batch_run = false; // disable batch_run for single image if  clt_batch_dbg1 is on
+		  }
 
 		  // Do per 4-image set processing
 		  int nSet = 0;
@@ -8490,8 +8496,7 @@ public class QuadCLT {
 					  referenceExposures, //final double []                     referenceExposures, // =eyesisCorrections.calcReferenceExposures(debugLevel); // multiply each image by this and divide by individual (if not NaN)
 					  scaleExposures,     // final double []                     scaleExposures, //  = new double[channelFiles.length]; //
 					  saturation_imp,     // final boolean [][]                  saturation_imp, //  = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
-					  !batch_dbg,         // final boolean                       batch_mode,     // disable any debug images
-					  debugLevel);        // final int                           debugLevel)
+					  debugLevelInner);   // final int                           debugLevel)
 
 			  // once per quad here
 			  if (imp_srcs == null) continue;
@@ -8565,7 +8570,7 @@ public class QuadCLT {
 						  rgbParameters,
 						  threadsMax,  // maximal number of threads to launch
 						  updateStatus,
-						  debugLevel);
+						  debugLevelInner);
 				  if (ok) {
 					  System.out.println("Adjusting extrinsics");
 					  extrinsicsCLT(
@@ -8573,8 +8578,7 @@ public class QuadCLT {
 							  false,          // adjust_poly,
 							  threadsMax,     //final int        threadsMax,  // maximal number of threads to launch
 							  updateStatus,   // final boolean    updateStatus,
-							  !batch_dbg,     // final boolean    batch_mode,
-							  debugLevel);    // final int        debugLevel)
+							  debugLevelInner);    // final int        debugLevel)
 				  }
 			  }
 			  if (correctionsParameters.clt_batch_poly) {
@@ -8590,7 +8594,7 @@ public class QuadCLT {
 						  rgbParameters,
 						  threadsMax,  // maximal number of threads to launch
 						  updateStatus,
-						  debugLevel);
+						  debugLevelInner);
 				  if (ok) {
 					  System.out.println("Adjusting polynomial fine crorection");
 					  extrinsicsCLT(
@@ -8598,8 +8602,7 @@ public class QuadCLT {
 							  true,           // adjust_poly,
 							  threadsMax,     //final int        threadsMax,  // maximal number of threads to launch
 							  updateStatus,   // final boolean    updateStatus,
-							  !batch_dbg,     // final boolean    batch_mode,
-							  debugLevel);    // final int        debugLevel)
+							  debugLevelInner);    // final int        debugLevel)
 				  }
 
 			  }
@@ -8618,9 +8621,8 @@ public class QuadCLT {
 						  false, // apply_corr, // calculate and apply additional fine geometry correction
 						  false, // infinity_corr, // calculate and apply geometry correction at infinity
 						  threadsMax,  // maximal number of threads to launch
-						  !batch_dbg,  // batch_mode
 						  updateStatus,
-						  debugLevel);
+						  debugLevelInner);
 			  }
 			  if (correctionsParameters.clt_batch_explore) {
 				  if (tp != null) tp.resetCLTPasses();
@@ -8635,7 +8637,7 @@ public class QuadCLT {
 						  rgbParameters,
 						  threadsMax,  // maximal number of threads to launch
 						  updateStatus,
-						  debugLevel);
+						  debugLevelInner);
 				  if (ok) {
 					  System.out.println("Explore 3d space");
 					  expandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
@@ -8648,8 +8650,7 @@ public class QuadCLT {
 							  rgbParameters,
 							  threadsMax,  // maximal number of threads to launch
 							  updateStatus,
-							  !batch_dbg,  // final boolean    batch_mode,
-							  debugLevel);
+							  debugLevelInner);
 				  } else continue;
 
 			  } else continue; // if (correctionsParameters.clt_batch_explore)
@@ -8660,8 +8661,7 @@ public class QuadCLT {
 						  geometryCorrection,
 						  threadsMax,
 						  updateStatus,
-						  !batch_dbg,      // batch_mode
-						  debugLevel);
+						  debugLevelInner);
 
 			  } else continue; // if (correctionsParameters.clt_batch_surf)
 
@@ -8671,8 +8671,7 @@ public class QuadCLT {
 						  geometryCorrection,
 						  threadsMax,
 						  updateStatus,
-						  !batch_dbg, //  boolean batch_mode,
-						  debugLevel);
+						  debugLevelInner);
 				  if (!ok) continue;
 			  } else continue; // if (correctionsParameters.clt_batch_assign)
 
@@ -8683,8 +8682,8 @@ public class QuadCLT {
 						  rgbParameters,       // EyesisCorrectionParameters.RGBParameters             rgbParameters,
 						  threadsMax,          // final int        threadsMax,  // maximal number of threads to launch
 						  updateStatus,        // final boolean    updateStatus,
-						  !batch_dbg,          //   final boolean    batch_mode,
-						  debugLevel);         // final int        debugLevel)
+//						  !clt_parameters.batch_run, // !batch_dbg,          //   final boolean    batch_mode,
+						  debugLevelInner);         // final int        debugLevel)
 				  if (!ok) continue;
 			  } else continue; // if (correctionsParameters.clt_batch_gen3d)
 

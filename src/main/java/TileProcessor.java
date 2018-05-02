@@ -4572,9 +4572,10 @@ public class TileProcessor {
 			GeometryCorrection geometryCorrection,
 			final int         threadsMax,  // maximal number of threads to launch
 			final boolean     updateStatus,
-			final boolean     batch_mode,
+//			final boolean     batch_mode,
 			final int         debugLevel)
 	{
+		final boolean    batch_mode = clt_parameters.batch_run;
 		final int debugLevelInner =  batch_mode ? -5: debugLevel;
 		trimCLTPasses(); // make possible to run this method multiple times - remove extra passes added by it last time
 		CLTPass3d scan_prev = clt_3d_passes.get(clt_3d_passes.size() -1); // get last one
@@ -5140,9 +5141,9 @@ public class TileProcessor {
 			GeometryCorrection geometryCorrection,
 			final int         threadsMax,  // maximal number of threads to launch
 			final boolean     updateStatus,
-			final boolean     batch_mode,
 			final int         debugLevel)
 	{
+		final boolean                       batch_mode = clt_parameters.batch_run; //disable any debug images
 		trimCLTPasses(); // make possible to run this method multiple time - remove extra passes added by it last time
 		CLTPass3d scan_prev = clt_3d_passes.get(clt_3d_passes.size() -1); // get last one
 
@@ -5311,7 +5312,7 @@ public class TileProcessor {
 				clt_parameters.stHighMix,       // stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
 				world_hor,                      // final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
 				clt_parameters.show_histograms, // final boolean    show_histograms,
-				1, // -1,                       // debugLevel,                  // final int        debugLevel)
+				clt_parameters.batch_run?-1:1, // -1,                       // debugLevel,                  // final int        debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 //		showDoubleFloatArrays sdfa_instance = null;
@@ -5334,7 +5335,7 @@ public class TileProcessor {
 		lp.conditionSuperTiles(
 				st.planes,              // final TilePlanes.PlaneData [][] planes,
 				10,                 // final int   max_num_merge_try,
-				0); // 1); // debugLevel);        // final int         debugLevel);
+				clt_parameters.batch_run?-2:0); // 1); // debugLevel);        // final int         debugLevel);
 // Used only by conflicts (not processed currently)
 		lp.calcStarValueStrength(
 				true, // boolean set_start_planes,
@@ -5398,7 +5399,7 @@ public class TileProcessor {
 
 					clt_parameters.plDiscrXMedian,    // final double     plDiscrXMedian, //         = 1.5;   // Remove outliers from the final selection that have distance more than scaled median
 					debugLevel, // -1,                         // debugLevel,                  // final int        debugLevel)
-					clt_parameters.tileX,
+					clt_parameters.batch_run ? -1 : clt_parameters.tileX, // clt_parameters.tileX,
 					clt_parameters.tileY);
 
 			// condition the redefined planes
@@ -6064,9 +6065,9 @@ public class TileProcessor {
 			GeometryCorrection geometryCorrection,
 			final int         threadsMax,  // maximal number of threads to launch
 			final boolean     updateStatus,
-			final boolean     batch_mode,
 			final int         debugLevel)
 	{
+		final boolean                       batch_mode = clt_parameters.batch_run; //disable any debug images
 		int debugLevelInner = batch_mode ? -5: debugLevel;
 		CLTPass3d scan_bg =   clt_3d_passes.get(bg_scan_index); //
 		CLTPass3d scan_prev = clt_3d_passes.get(clt_3d_passes.size() -1); // get last one
@@ -6146,7 +6147,7 @@ public class TileProcessor {
 					true,  // final boolean     keep_raw_fg,  // do not replace raw tiles by the plates, if raw is closer (like poles)
 					0.0, // 					final double      scale_filtered_strength_pre, // scale plate_ds[1] before comparing to raw strength
 					0.0,// final double      scale_filtered_strength_post,// scale plate_ds[1] when replacing raw (generally plate_ds is more reliable if it exists)
-					true, // clt_parameters.show_filter_scan,
+					batch_mode, // true, // clt_parameters.show_filter_scan,
 					clt_parameters.min_clstr_seed, // clt_parameters.min_clstr_seed
 					clt_parameters.min_clstr_weight,  // double     min_weight // minimal total weight of the cluster
 					clt_parameters.min_clstr_max,    // double     min_max_weight // minimal value of the maximal strengh in the cluster

@@ -3004,6 +3004,9 @@ public class EyesisCorrectionParameters {
   		public HashMap<String,Double> z_corr_map = new HashMap<String,Double>();
   		public static String Z_CORR_PREFIX = "z_corr.";
 
+  		public boolean   batch_run =               false; // turned on only while running in batch mode
+
+
 
   		public CLTParameters(){}
   		public void setProperties(String prefix,Properties properties){

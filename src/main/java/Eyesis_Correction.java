@@ -776,7 +776,7 @@ private Panel panel1,
 	Runtime runtime = Runtime.getRuntime();
     runtime.gc();
 	if (DEBUG_LEVEL>0) System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
-
+	CLT_PARAMETERS.batch_run = false;
     if (label==null) return;
 /* ======================================================================== */
     if (label.equals("Configure spilt")) {
@@ -5051,7 +5051,6 @@ private Panel panel1,
         		RGB_PARAMETERS,  // EyesisCorrectionParameters.RGBParameters             rgbParameters,
         		THREADS_MAX,     // final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS,   // final boolean    updateStatus,
-        		false,           // final boolean    batch_mode,
         		DEBUG_LEVEL); //final int        debugLevel);
         if (!OK) {
         	String msg="Image data not initialized, run 'CLT 3D' command first";
@@ -5059,18 +5058,9 @@ private Panel panel1,
         	IJ.showMessage("Error",msg);
         }
 
-/*
-        if (configPath!=null) {
-        	saveTimestampedProperties( // save config again
-        			configPath,      // full path or null
-        			null, // use as default directory if path==null
-        			true,
-        			PROPERTIES);
-        }
-
-*/
     } else if (label.equals("CLT batch process")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+        CLT_PARAMETERS.batch_run = true;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (

@@ -3,12 +3,12 @@
 ** CorrectionColorProc.java
 **
 ** Color conversion methods used in aberration correction for Eyesis4pi
-** 
+**
 **
 ** Copyright (C) 2012 Elphel, Inc.
 **
 ** -----------------------------------------------------------------------------**
-**  
+**
 **  CorrectionColorProc.java is free software: you can redistribute it and/or modify
 **  it under the terms of the GNU General Public License as published by
 **  the Free Software Foundation, either version 3 of the License, or
@@ -25,11 +25,11 @@
 **
 */
 
-import ij.ImageStack;
-import ij.gui.GenericDialog;
-
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import ij.ImageStack;
+import ij.gui.GenericDialog;
 
 
 public class CorrectionColorProc {
@@ -46,7 +46,7 @@ public class CorrectionColorProc {
     int       getDenoiseMaskChromaWidth() {return this.denoiseMaskChromaWidth;}
     void setDebug(int debugLevel){this.debugLevel=debugLevel;}
 
-    
+
     public void  processColorsWeights(ImageStack stack, // does not like NaN (in GaussianBlur
   		  double scale,     // initial maximal pixel value (16))
   		  EyesisCorrectionParameters.ColorProcParameters  colorProcParameters,
@@ -108,9 +108,9 @@ public class CorrectionColorProc {
     	for (i=0;i<length;i++) {
     		double Y=Ar*fpixels_r[i]+Ag*fpixels_g[i]+Ab*fpixels_b[i];
     		Y= (Y !=0.0) ? (linGamma(colorProcParameters.gamma, gamma_a, gamma_linK, colorProcParameters.minLin, Y)/Y): 0.0;
-    		fpixels_r[i]*=Y*gain_red; 
-    		fpixels_g[i]*=Y*gain_green; 
-    		fpixels_b[i]*=Y*gain_blue; 
+    		fpixels_r[i]*=Y*gain_red;
+    		fpixels_g[i]*=Y*gain_green;
+    		fpixels_b[i]*=Y*gain_blue;
     	}
 
     	if (colorProcParameters.corrBlueLeak && blueProc) {
@@ -222,11 +222,11 @@ public class CorrectionColorProc {
     		gb.blurDouble(dpixels_pr_dark, width, height, colorProcParameters.chromaDarkSigma, colorProcParameters.chromaDarkSigma, 0.01);
     		gb.blurDouble(dpixels_pb_dark, width, height, colorProcParameters.chromaDarkSigma, colorProcParameters.chromaDarkSigma, 0.01);
     		if (debugLevel> 2) {
-    			SDFA_INSTANCE.showArrays(dmask, width, height,"dmask");          
-    			SDFA_INSTANCE.showArrays(dpixels_pr, width, height,"dpixels_pr");          
-    			SDFA_INSTANCE.showArrays(dpixels_pb, width, height,"dpixels_pb");          
-    			SDFA_INSTANCE.showArrays(dpixels_pr_dark, width, height,"dpixels_pr_dark");          
-    			SDFA_INSTANCE.showArrays(dpixels_pb_dark, width, height,"dpixels_pb_dark");          
+    			SDFA_INSTANCE.showArrays(dmask, width, height,"dmask");
+    			SDFA_INSTANCE.showArrays(dpixels_pr, width, height,"dpixels_pr");
+    			SDFA_INSTANCE.showArrays(dpixels_pb, width, height,"dpixels_pb");
+    			SDFA_INSTANCE.showArrays(dpixels_pr_dark, width, height,"dpixels_pr_dark");
+    			SDFA_INSTANCE.showArrays(dpixels_pb_dark, width, height,"dpixels_pb_dark");
     		}
     		double mp;
     		double k =1.0/(colorProcParameters.maskMax-colorProcParameters.maskMin);
@@ -241,7 +241,7 @@ public class CorrectionColorProc {
     		//TODO: null DENOISE_MASK if it is not calculated
     		if (colorProcParameters.combineWithSharpnessMask) {
     			if (denoiseMask==null) {
-    				System.out.println ( "Can not combine masks as denoiseMask is null (i.e. no denoise was performed)");
+    				System.out.println ( "Can not combine masks as denoiseMask is null (i.e. no denoise was performed)"); // here
     			} else if (denoiseMask.length!=dmask.length) {
     				System.out.println ( "Can not combine masks as denoiseMask length is different from that of dmask");
     			} else {
@@ -324,7 +324,7 @@ public class CorrectionColorProc {
             fpixels_g[i]=(float) linGamma(colorProcParameters.gamma, gamma_a, gamma_linK, colorProcParameters.minLin, fpixels_g[i]*gain_green);
             fpixels_b[i]=(float) linGamma(colorProcParameters.gamma, gamma_a, gamma_linK, colorProcParameters.minLin, fpixels_b[i]*gain_blue);
           }
-          
+
     /* Convert to YPbPr */
           double Y,Pb,Pr;
           double Kg=1.0-colorProcParameters.kr-colorProcParameters.kb;
@@ -411,11 +411,11 @@ public class CorrectionColorProc {
         	  gb.blurDouble(dpixels_pr_dark, width, height, colorProcParameters.chromaDarkSigma, colorProcParameters.chromaDarkSigma, 0.01);
         	  gb.blurDouble(dpixels_pb_dark, width, height, colorProcParameters.chromaDarkSigma, colorProcParameters.chromaDarkSigma, 0.01);
               if (debugLevel>2) {
-            	  SDFA_INSTANCE.showArrays(dmask, width, height,"dmask");          
-            	  SDFA_INSTANCE.showArrays(dpixels_pr, width, height,"dpixels_pr");          
-            	  SDFA_INSTANCE.showArrays(dpixels_pb, width, height,"dpixels_pb");          
-            	  SDFA_INSTANCE.showArrays(dpixels_pr_dark, width, height,"dpixels_pr_dark");          
-            	  SDFA_INSTANCE.showArrays(dpixels_pb_dark, width, height,"dpixels_pb_dark");          
+            	  SDFA_INSTANCE.showArrays(dmask, width, height,"dmask");
+            	  SDFA_INSTANCE.showArrays(dpixels_pr, width, height,"dpixels_pr");
+            	  SDFA_INSTANCE.showArrays(dpixels_pb, width, height,"dpixels_pb");
+            	  SDFA_INSTANCE.showArrays(dpixels_pr_dark, width, height,"dpixels_pr_dark");
+            	  SDFA_INSTANCE.showArrays(dpixels_pb_dark, width, height,"dpixels_pb_dark");
               }
               double mp;
               double k =1.0/(colorProcParameters.maskMax-colorProcParameters.maskMin);
@@ -439,7 +439,7 @@ public class CorrectionColorProc {
                     	  if (dmask[i]>1.0) dmask[i]=1.0;
                       }
             	  }
-            	  
+
               }
               for (i=0;i<dmask.length;i++) {
             	  mp=dmask[i];
@@ -469,7 +469,7 @@ public class CorrectionColorProc {
 
       }
 
-    
+
     /* ======================================================================== */
     public double linGamma(double gamma, double a, double k, double x0, double x) {
     	if (x<0) return 0.0;
@@ -518,25 +518,25 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     }
 
 
-    
-    
+
+
     public static class ColorGainsParameters {
     	public double[] gain={
     			1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,
     			1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,
     			1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,
-    			1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0}; 
+    			1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0};
     	public double[] balanceRed={
     			1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,
     			1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,
     			1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,
-    			1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0}; 
+    			1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0};
     	public double[] balanceBlue={
     			1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,
     			1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,
     			1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,
-    			1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0}; 
-    	
+    			1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0};
+
 
     	public ColorGainsParameters(){
     	}
@@ -561,7 +561,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
         		}
     		}
     	}
-    	
+
     	public void modifyNumChannels(int numChannels){
     		if ((numChannels>0) && (numChannels!=this.gain.length)) {
     			double [] gain1=this.gain;
@@ -579,7 +579,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     			}
     		}
     	}
-    	
+
     	public boolean showDialog() {
     		GenericDialog gd = new GenericDialog("Individual channels colors/gains");
     		for (int i =0; i<this.gain.length;i++){

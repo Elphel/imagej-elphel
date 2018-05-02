@@ -732,7 +732,7 @@ public class MeasuredLayers {
 		int st2 = 2 * superTileSize;
 		int st_half = superTileSize/2;
 		double [][] ds = new double [2][st2*st2];
-		final int dbg_tile = ((stX == 22) && (stY == 19)) ? (5 + 7*16) : -1;// 50397;
+		final int dbg_tile = -1; // = ((stX == 22) && (stY == 19)) ? (5 + 7*16) : -1;// 50397;
 
 		int num_selected = 0;
 		int smpl_center = mlfp.smplSide /2;
@@ -1023,7 +1023,7 @@ public class MeasuredLayers {
 		int st2 = 2 * superTileSize;
 		int st_half = superTileSize/2;
 		double [][] ds = new double [2][st2*st2];
-		final int dbg_tile = ((stX == 22) && (stY == 19)) ? (5 + 7*16) : -1;// 50397;
+		final int dbg_tile =-1; //  ((stX == 22) && (stY == 19)) ? (5 + 7*16) : -1;// 50397;
 
 		int num_selected = 0;
 		int smpl_center = mlfp.smplSide /2;
