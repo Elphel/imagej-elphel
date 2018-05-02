@@ -3807,7 +3807,8 @@ public class QuadCLT {
 		  // visualize correlation results
 		  if (clt_corr_combo!=null){
 			  if (disparity_map != null){
-				  if (!batch_mode && !infinity_corr && clt_parameters.show_map &&  (debugLevel > -1)){
+				  //				  if (!batch_mode && !infinity_corr && clt_parameters.show_map &&  (debugLevel > -1)){
+				  if (!batch_mode && clt_parameters.show_map &&  (debugLevel > -1)){
 					  sdfa_instance.showArrays(
 							  disparity_map,
 							  tilesX,
@@ -3821,14 +3822,32 @@ public class QuadCLT {
 			  if (infinity_corr && (disparity_map != null)){
 				  System.out.println("=== applying geometry correction coefficients to correct disparity at infinity ===");
 				  System.out.println("=== Set inf_repeat =0 to disable automatic correction and just generate a data image to correct in offline mode ===");
-				  double [][] inf_ds = {
+				  double [] mismatch_strength = disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX].clone();
+				  int [] strength_indices = {2,5,8,11};
+				  for (int nt = 0; nt < mismatch_strength.length; nt++) {
+					  if (Double.isNaN(mismatch_strength[nt])) {
+						  mismatch_strength[nt] = 0.0;
+					  } else {
+						  if (mismatch_strength[nt] > 0) {
+							  for (int i = 0; i < strength_indices.length; i++) {
+								  if (!(mismatch_strength[nt] < clt_mismatch[strength_indices[i]][nt])) {
+									  mismatch_strength[nt] = clt_mismatch[strength_indices[i]][nt];
+								  }
+								  //								  if (nt == 37005) {
+								  //									  System.out.println("breakpoint in processCLTQuadCorr()");
+								  //								  }
+							  }
+						  }
+					  }
+				  }
+				  double [][] inf_ds = { // when using with disparity, programmed disparity should be 0
 						  disparity_map[ImageDtt.DISPARITY_INDEX_CM],
-						  disparity_map[ ImageDtt.DISPARITY_STRENGTH_INDEX]};
+						  mismatch_strength}; // disparity_map[ ImageDtt.DISPARITY_STRENGTH_INDEX]};
 				  String [] titles = {"disp_cm", "strength"};
 				  if (!batch_mode && (clt_mismatch != null)){
 					  double [][] inf_ds1 = {
 							  disparity_map[ImageDtt.DISPARITY_INDEX_CM],
-							  disparity_map[ ImageDtt.DISPARITY_STRENGTH_INDEX],
+							  mismatch_strength, //disparity_map[ ImageDtt.DISPARITY_STRENGTH_INDEX],
 							  clt_mismatch[0], // dx0
 							  clt_mismatch[1], // dy0 +
 							  clt_mismatch[3], // dx1
@@ -3895,7 +3914,7 @@ public class QuadCLT {
 							  clt_parameters.corr_magic_scale,   // double      magic_coeff, // still not understood coefficent that reduces reported disparity value.  Seems to be around 8.5
 							  debugLevel + (clt_parameters.fine_dbg ? 1:0));                   // int debugLevel)
 
-					  if (debugLevel > -1){
+					  if ((new_corr != null) && (debugLevel > -1)){
 						  System.out.println("process_infinity_corr(): ready to apply infinity correction");
 						  show_fine_corr(
 								  new_corr, // double [][][] corr,
@@ -3965,7 +3984,7 @@ public class QuadCLT {
 			  for (int iQuad = 0; iQuad < clt_data.length; iQuad++){
 
 				  String title=name+"-"+String.format("%02d", iQuad);
-//				  String titleFull=title+"-SPLIT-D"+clt_parameters.disparity;
+				  //				  String titleFull=title+"-SPLIT-D"+clt_parameters.disparity;
 
 				  if (clt_parameters.corr_sigma > 0){ // no filter at all
 					  for (int chn = 0; chn < clt_data[iQuad].length; chn++) {
@@ -3978,8 +3997,6 @@ public class QuadCLT {
 					  }
 				  }
 
-				  //			  int tp.tilesY = imp_quad[iQuad].getHeight()/clt_parameters.transform_size;
-				  //			  int tp.tilesX = imp_quad[iQuad].getWidth()/clt_parameters.transform_size;
 				  if (debugLevel > 0){
 					  System.out.println("--tilesX="+tilesX);
 					  System.out.println("--tilesY="+tilesY);
@@ -4059,7 +4076,7 @@ public class QuadCLT {
 				  }
 				  //imp_stack.getProcessor().resetMinAndMax();
 				  //imp_stack.show();
-//				  eyesisCorrections.saveAndShow(imp_stack, this.correctionsParameters);
+				  //				  eyesisCorrections.saveAndShow(imp_stack, this.correctionsParameters);
 				  eyesisCorrections.saveAndShowEnable(
 						  imp_stack,  // ImagePlus             imp,
 						  this.correctionsParameters, // EyesisCorrectionParameters.CorrectionParameters  correctionsParameters,
@@ -4068,9 +4085,9 @@ public class QuadCLT {
 			  }
 			  if (clt_parameters.gen_4_img) {
 				  // Save as individual JPEG images in the model directory
-		 		  String x3d_path= correctionsParameters.selectX3dDirectory(
-		 				  name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
-		 				  correctionsParameters.x3dModelVersion,
+				  String x3d_path= correctionsParameters.selectX3dDirectory(
+						  name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+						  correctionsParameters.x3dModelVersion,
 						  true,  // smart,
 						  true);  //newAllowed, // save
 				  for (int sub_img = 0; sub_img < 4; sub_img++){
@@ -4855,6 +4872,7 @@ public class QuadCLT {
 
 				  double [][][] new_corr = ac.lazyEyeCorrection(
 						  clt_parameters.ly_poly,        // final boolean use_poly,
+						  true, // 	final boolean    restore_disp_inf, // Restore subtracted disparity for scan #0 (infinity)
 						  clt_parameters.fcorr_radius,       // 	final double fcorr_radius,
 						  clt_parameters.fcorr_inf_strength, //  final double min_strenth,
 						  clt_parameters.fcorr_inf_diff,     // final double max_diff,
@@ -4960,7 +4978,7 @@ public class QuadCLT {
 		  return results;
 	  }
 
-	  public void process_infinity_corr(
+	  public void process_infinity_corr( //from existing image
 			  EyesisCorrectionParameters.CLTParameters clt_parameters,
 			  int debugLevel
 			  ) {
@@ -5059,6 +5077,7 @@ public class QuadCLT {
 
 		    double [][][] new_corr = ac.lazyEyeCorrection(
 		    		clt_parameters.ly_poly,        // final boolean use_poly,
+					true, // final boolean    restore_disp_inf, // Restore subtracted disparity for scan #0 (infinity)
 				    clt_parameters.fcorr_radius,       // 	final double fcorr_radius,
 		    		clt_parameters.fcorr_inf_strength, //  final double min_strenth,
 		    		clt_parameters.fcorr_inf_diff,     // final double max_diff,
@@ -6037,6 +6056,7 @@ public class QuadCLT {
 		  int bg_scan = 0;
 		  int combo_scan= tp.clt_3d_passes.size()-1;
 		  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel >-1)) {
+//		  if (!batch_mode && (debugLevel >-1)) {
 			  tp.showScan(
 					  tp.clt_3d_passes.get(bg_scan),   // CLTPass3d   scan,
 					  "bg_scan"); //String title)
@@ -6179,7 +6199,7 @@ public class QuadCLT {
 			  double [] dbg_bg_use =   new double [bg_sel.length];
 			  double [] dbg_combo_use = new double [bg_sel.length];
 			  for (int i= 0; i < bg_sel.length; i++) {
-				  dbg_bg_sel[i] =    bg_sel[i]? 1.0:0.0;
+				  dbg_bg_sel[i] =    bg_sel[i]? 1.0:0.0; //only sky, no far mountains (too high disparity!)
 				  dbg_bg_use[i] =    bg_use[i]? 1.0:0.0;
 				  dbg_combo_use[i] = combo_use[i]? 1.0:0.0;
 			  }
@@ -6189,7 +6209,7 @@ public class QuadCLT {
 					  filtered_combo_scand_isp_strength[0],
 					  filtered_combo_scand_isp_strength[1],
 					  dbg_bg_sel,
-					  dbg_bg_use,
+					  dbg_bg_use, // too few
 					  dbg_combo_use};
     		  (new showDoubleFloatArrays()).showArrays(dbg_img,  tp.getTilesX(), tp.getTilesY(), true, "extrinsics_bgnd_combo",titles);
 		  }
@@ -6233,7 +6253,9 @@ public class QuadCLT {
 		    	  scans14[14 * 0 + 2 + i] =  bg_mismatch[i];
 		    	  scans14[14 * 1 + 2 + i] =  combo_mismatch[i];
 	    	  }
-//	  		(new showDoubleFloatArrays()).showArrays(scans14, tp.getTilesX(), tp.getTilesY(), true, "scans_14"); //  , titles);
+	    	  if (debugLevelInner > 0) {
+	    		  (new showDoubleFloatArrays()).showArrays(scans14, tp.getTilesX(), tp.getTilesY(), true, "scans_14"); //  , titles);
+	    	  }
 
 	    	  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel > 1)) {
 	    		  tp.showScan(
@@ -6247,6 +6269,7 @@ public class QuadCLT {
 	    	  double [][] target_disparity = {tp.clt_3d_passes.get(bg_scan).getDisparity(0), tp.clt_3d_passes.get(combo_scan).getDisparity(0)};
 			  double [][][] new_corr = ac.lazyEyeCorrection(
 					  adjust_poly,                       // final boolean use_poly,
+					  true, // final boolean    restore_disp_inf, // Restore subtracted disparity for scan #0 (infinity)
 					  clt_parameters.fcorr_radius,       // 	final double fcorr_radius,
 					  clt_parameters.fcorr_inf_strength, //  final double min_strenth,
 					  clt_parameters.fcorr_inf_diff,     // final double max_diff,

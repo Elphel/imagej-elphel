@@ -2459,6 +2459,7 @@ public class EyesisCorrectionParameters {
  		public double     ly_inf_frac =     0.5;     // Relative weight of infinity calibration data
   		public boolean    ly_on_scan =      true;    // Calculate and apply lazy eye correction after disparity scan (poly or extrinsic)
   		public boolean    ly_inf_en =       false; // true;    // Simultaneously correct disparity at infinity (both poly and extrinsic)
+  		public boolean    ly_inf_disp=      false;   // Correct disparity for infinity tiles
   		public boolean    ly_inf_force=     false;   // Force convergence correction during extrinsic, even with no infinity data
   		public boolean    ly_com_roll=      false;   // Enable common roll (valid for high disparity range only)
 
@@ -3140,6 +3141,8 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"ly_inf_frac",      this.ly_inf_frac +"");
 			properties.setProperty(prefix+"ly_on_scan",       this.ly_on_scan+"");
 			properties.setProperty(prefix+"ly_inf_en",        this.ly_inf_en+"");
+			properties.setProperty(prefix+"ly_inf_disp",      this.ly_inf_disp+"");
+
 			properties.setProperty(prefix+"ly_inf_force",     this.ly_inf_force+"");
 			properties.setProperty(prefix+"ly_com_roll",      this.ly_com_roll+"");
 			properties.setProperty(prefix+"ly_focalLength",   this.ly_focalLength+"");
@@ -3770,6 +3773,7 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"ly_inf_frac")!=null)       this.ly_inf_frac=Double.parseDouble(properties.getProperty(prefix+"ly_inf_frac"));
   			if (properties.getProperty(prefix+"ly_on_scan")!=null)        this.ly_on_scan=Boolean.parseBoolean(properties.getProperty(prefix+"ly_on_scan"));
   			if (properties.getProperty(prefix+"ly_inf_en")!=null)         this.ly_inf_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_en"));
+  			if (properties.getProperty(prefix+"ly_inf_disp")!=null)       this.ly_inf_disp=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_disp"));
   			if (properties.getProperty(prefix+"ly_inf_force")!=null)      this.ly_inf_force=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_force"));
   			if (properties.getProperty(prefix+"ly_com_roll")!=null)       this.ly_com_roll=Boolean.parseBoolean(properties.getProperty(prefix+"ly_com_roll"));
   			if (properties.getProperty(prefix+"ly_focalLength")!=null)    this.ly_focalLength=Boolean.parseBoolean(properties.getProperty(prefix+"ly_focalLength"));
@@ -4431,12 +4435,15 @@ public class EyesisCorrectionParameters {
   			gd.addMessage     ("Maximal measured relative disparity = "+ (0.8*disp_scan_step)+" (0.8 * disp_scan_step)");
 //			gd.addNumericField("Maximal measured relative disparity",                                     this.ly_meas_disp,  3);
 			gd.addNumericField("Maximal RMS of the remaining tiles in a sample",                          this.ly_smpl_rms,  5);
-			gd.addNumericField("Maximal full disparity difference to 8 neighbors",                        this.ly_disp_var,  5);
-			gd.addNumericField("Maximal relative full disparity difference to 8 neighbors",               this.ly_disp_rvar, 5);
+			gd.addNumericField("Maximal full disparity difference to 8 neighbors",                        this.ly_disp_var, 8,5,"pix",
+					"Full allowed mismatch is a sum of absolute and disparity times relative");
+			gd.addNumericField("Maximal relative full disparity difference to 8 neighbors",               this.ly_disp_rvar, 8,5,"",
+					"Full allowed mismatch is a sum of absolute and disparity times relative");
 			gd.addNumericField("Reduce weight of higher disparity tiles",                                 this.ly_norm_disp, 5);
 			gd.addNumericField("Relative weight of infinity calibration data",                            this.ly_inf_frac,  3);
   			gd.addCheckbox    ("Calculate and apply lazy eye correction after disparity scan (poly or extrinsic), may repeat",this.ly_on_scan);
   			gd.addCheckbox    ("Use infinity disparity (disable if there is not enough of infinity data), both poly and extrinsic", this.ly_inf_en);
+  			gd.addCheckbox    ("Correct disparity for infinity tiles )has to disable until code fixed)",  this.ly_inf_disp);
   			gd.addCheckbox    ("Force convergence correction during extrinsic, even with no infinity data", this.ly_inf_force);
   			gd.addCheckbox    ("Enable common roll adjustment (valid for high disparity range scans only)", this.ly_com_roll);
   			gd.addCheckbox    ("Correct scales (focal length temperature? variations)",                   this.ly_focalLength);
@@ -5139,6 +5146,7 @@ public class EyesisCorrectionParameters {
 			this.ly_inf_frac=           gd.getNextNumber();
   			this.ly_on_scan=            gd.getNextBoolean();
   			this.ly_inf_en=             gd.getNextBoolean();
+  			this.ly_inf_disp=           gd.getNextBoolean();
   			this.ly_inf_force=          gd.getNextBoolean();
   			this.ly_com_roll=           gd.getNextBoolean();
   			this.ly_focalLength=        gd.getNextBoolean();
@@ -5790,12 +5798,12 @@ public class EyesisCorrectionParameters {
     		if (z_corr_map.size() > 0) {
     			gd.addMessage("Edit infinity disparity correction (in 1/m), set >= 1.0 to remove for the following");
 				for (HashMap.Entry<String,Double> entry : z_corr_map.entrySet()){
-					gd.addNumericField(entry.getKey(),   entry.getValue(), 8);
+					gd.addNumericField(entry.getKey(),   entry.getValue(), 9,12, "m-1");
 				}
     		}
 			gd.addMessage("Add new infinity correction");
     		gd.addStringField ("Timestamp string (seconds_microseconds):",                              "", 40);
-			gd.addNumericField("Infinity correction (in 1/m)",                                          0,  8);
+			gd.addNumericField("Infinity correction (in 1/m)",                                          0,  9,12,"m-1");
     		gd.addCheckbox    ("Clear list",                                                            false);
     		WindowTools.addScrollBars(gd);
     		gd.showDialog();

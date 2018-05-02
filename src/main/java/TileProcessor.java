@@ -656,7 +656,7 @@ public class TileProcessor {
 			 final boolean               usePoly,  // use polynomial method to find max), valid if useCombo == false
 			 final int                   debugLevel)
 	{
-		final int dbg_tile = (debugLevel > 0)? 839: -1; // x = 122, y= 108; -1; // 27669;
+		final int dbg_tile = (debugLevel > 0)? -839: -1; // x = 122, y= 108; -1; // 27669;
 		CLTPass3d combo_pass =new CLTPass3d(this);
 		final int disparity_index = usePoly ? ImageDtt.DISPARITY_INDEX_POLY : ImageDtt.DISPARITY_INDEX_CM;
 		combo_pass.tile_op =              new int [tilesY][tilesX];
@@ -3514,12 +3514,15 @@ public class TileProcessor {
 	{
 //		final double super_trust = 1.6; // If strength exceeds ex_strength * super_trust, do not apply ex_nstrength
 
-		final int dbg_tile = 41030; // x = 206, y = 126 (324*126+206)
+		final int dbg_tile = -41030; // x = 206, y = 126 (324*126+206)
 		final boolean show_scan = show_filter_scan || (debugLevel > 1);
 		showDoubleFloatArrays sdfa_instance = null;
 		if ((debugLevel > -2) && ((debugLevel > -1) || show_scan)) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
-		if (debugLevel > -2){
-			System.out.println("FilterScan(,,"+disparity_far+", " +disparity_near+", "+ sure_smth);
+		if (debugLevel > -2){ //-2
+			if (debugLevel > -1){ //-2
+				System.out.print("FilterScan(,,"+disparity_far+", " +disparity_near+", "+ sure_smth+"... ");
+			}
+			System.out.print(".");
 		}
 		final int tlen = tilesY * tilesX;
 		double [] this_disparity     = scan.getDisparity(); // currently calculated, including ortho

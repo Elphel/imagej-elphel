@@ -44,6 +44,7 @@ public class ImageDttParameters {
 
 	public int     enhortho_width =         2;   // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
 	public double  enhortho_scale =         0.0; // 0.2;  // multiply center correlation pixels (inside enhortho_width)
+	public boolean ly_poly =                false; // Use polynomial when measuring mismatch (false - use center of mass)
 
 	public boolean fo_correct =             true; // correct far objects by comparing orthogonal correlations
 	public boolean fo_far =                 false;// Use smallest disparity (false - largest)
@@ -122,7 +123,9 @@ public class ImageDttParameters {
 					"Raise value to this power and apply as weight.  Reduce width to 3 samples if false, 5 OK when true");
 
 			gd.addNumericField("Reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)",  this.enhortho_width,            0);
-			gd.addNumericField("Multiply center correlation pixels (inside enhortho_width) (1.0 - disables enh_orttho)",  this.enhortho_scale,  3);
+			gd.addNumericField("Multiply center correlation pixels (inside enhortho_width) (1.0 - disables enh_ortho)",  this.enhortho_scale,  3);
+
+			gd.addCheckbox    ("Use polynomial when measuring mismatch (false - use center of mass)",      this.ly_poly);
 
 			gd.addMessage("Far objects correction");
 			gd.addCheckbox    ("Try to correct far objects (make them closer) by hor/vert comparison",      this.fo_correct);
@@ -247,6 +250,8 @@ public class ImageDttParameters {
   			this.enhortho_width=   (int) gd.getNextNumber();
   			this.enhortho_scale=         gd.getNextNumber();
 
+  			this.ly_poly =               gd.getNextBoolean();
+
   			this.fo_correct =            gd.getNextBoolean();
   			this.fo_far =                gd.getNextBoolean();
   			this.fo_min_strength =       gd.getNextNumber();
@@ -330,6 +335,8 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"twice_diagonal",       this.twice_diagonal +"");
 		properties.setProperty(prefix+"min_corr",             this.min_corr +"");
 
+		properties.setProperty(prefix+"ly_poly",              this.ly_poly +"");
+
 		properties.setProperty(prefix+"fo_correct",           this.fo_correct +"");
 		properties.setProperty(prefix+"fo_far",               this.fo_far +"");
 		properties.setProperty(prefix+"fo_min_strength",      this.fo_min_strength +"");
@@ -402,6 +409,8 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"enhortho_scale")!=null)        this.enhortho_scale=Double.parseDouble(properties.getProperty(prefix+"enhortho_scale"));
 
 		if (properties.getProperty(prefix+"fo_correct")!=null)            this.fo_correct=Boolean.parseBoolean(properties.getProperty(prefix+"fo_correct"));
+
+		if (properties.getProperty(prefix+"ly_poly")!=null)               this.ly_poly=Boolean.parseBoolean(properties.getProperty(prefix+"ly_poly"));
 		if (properties.getProperty(prefix+"fo_far")!=null)                this.fo_far=Boolean.parseBoolean(properties.getProperty(prefix+"fo_far"));
 		if (properties.getProperty(prefix+"fo_min_strength")!=null)       this.fo_min_strength=Double.parseDouble(properties.getProperty(prefix+"fo_min_strength"));
 		if (properties.getProperty(prefix+"fo_min_eff")!=null)            this.fo_min_eff=Double.parseDouble(properties.getProperty(prefix+"fo_min_eff"));
@@ -480,6 +489,8 @@ public class ImageDttParameters {
 
 		idp.enhortho_width =         this.enhortho_width;
 		idp.enhortho_scale =         this.enhortho_scale;
+
+		idp.ly_poly =                this.ly_poly;
 
 		idp.fo_correct =             this.fo_correct;
 		idp.fo_far =                 this.fo_far;

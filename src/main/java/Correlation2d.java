@@ -704,7 +704,7 @@ public class Correlation2d {
 				if (Double.isNaN(data[imx]) || (data[i] > data[imx])) imx = i;
 			}
 		}
-		if (data[imx] < minMax) {
+		if (!(data[imx] >= minMax)) {
 			if (debug){
 				System.out.println("getMaxXYInt() -> null (data["+imx+"] = "+data[imx]+" < "+minMax);
 			}
@@ -963,6 +963,101 @@ public class Correlation2d {
     	return padded_strip;
     }
 
+    public double [] mismatchPairsCM( // returns x-xcenter, y, strength (sign same as disparity)
+    		ImageDttParameters  imgdtt_params,
+    		double [][]         corrs,
+    		int                 pair_mask, // which pairs to process
+    		double              xcenter,   // -disparity to compare
+			double              radius,    // positive - within that distance, negative - within 2*(-radius)+1 square
+    		int                 debug_level,
+    		int                 tileX, // just for debug output
+    		int                 tileY)
+    {
+    	boolean debug = debug_level > 0;
+    	int width = 2 * transform_size - 1;
+    	int center = transform_size - 1;
+    	int center_index = (width + 1) * center; //
+    	int num_pairs = 0;
+    	for (int i = 0; i <  corrs.length; i++)  if ((corrs[i] != null) && (((1 << i) & pair_mask) != 0)) {
+    		num_pairs++;
+    	}
+    	double [] rslt = new double[3 * num_pairs];
+
+    	int np= 0;
+    	int [] icenter = new int[2];
+    	int ixcenter = (int) Math.round(xcenter);
+    	for (int pair = 0; pair <  corrs.length; pair++)  if ((corrs[pair] != null) && (((1 << pair) & pair_mask) != 0)) {
+//    		int this_mask = 1 << pair;
+			if (       isHorizontalPair(pair)) {
+				icenter[0] =  ixcenter;
+				icenter[1] = 0;
+			} else if (isVerticalPair(pair)) {
+				icenter[0] = 0;
+				icenter[1] =  ixcenter;
+			} else if (isDiagonalMainPair(pair)) {
+				icenter[0] =  ixcenter;
+				icenter[1] =  ixcenter;
+			} else if (isDiagonalOtherPair(pair)) {
+				icenter[0] =  ixcenter;
+				icenter[1] = -ixcenter;
+			} else {
+				System.out.println("************ BUG: illegal pair type for pair1"+pair);
+				return null;
+			}
+			//calculate as "center of mass"
+			int iradius = (int) Math.abs(radius);
+			int ir2 = (int) (radius*radius);
+			boolean square = radius <0;
+			double s0 = 0, sx=0, sy = 0;
+			for (int y = - iradius ; y <= iradius; y++){
+				int dataY = icenter[1] +y;
+				if ((dataY >= -center) && (dataY <= center)){
+					int y2 = y*y;
+					for (int x = - iradius ; x <= iradius; x++){
+						int dataX = icenter[0] +x;
+						double r2 = y2 + x * x;
+						if ((dataX >= -center) && (dataX <= center) && (square || (r2 <= ir2))){
+							double d =  corrs[pair][dataY * width + dataX + center_index];
+							if (d > 0.0) {
+								s0 += d;
+								sx += d * dataX;
+								sy += d * dataY;
+							}
+						}
+					}
+				}
+			}
+			double xm = sx / s0;
+			double ym = sy / s0;
+			int ixm = (int) Math.round(xm);
+			int iym = (int) Math.round(ym);
+			double s = corrs[pair][iym * width + ixm + center_index];
+			if (       isHorizontalPair(pair)) {
+				rslt[3 * np + 0] =  xcenter - xm;
+				rslt[3 * np + 1] = -ym;
+			} else if (isVerticalPair(pair)) {
+				rslt[3 * np + 0] = -xm;
+				rslt[3 * np + 1] =  xcenter - ym;
+			} else if (isDiagonalMainPair(pair)) {
+				rslt[3 * np + 0] =  xcenter - xm;
+				rslt[3 * np + 1] =  xcenter - ym;
+			} else if (isDiagonalOtherPair(pair)) {
+				rslt[3 * np + 0] =  xcenter - xm;
+				rslt[3 * np + 1] = -xcenter - ym;
+			} else {
+				System.out.println("************ BUG: illegal pair type for pair "+pair);
+				return null;
+			}
+
+			rslt[3 * np + 2] = s;
+			if (debug){
+				System.out.println("getMaxXYInt() -> "+rslt[0]+"/"+rslt[1]);
+			}
+
+    		np++;
+    	}
+    	return rslt;
+    }
 
     // returns array 3*num_pairs long
     // TODO: now works for small offsets. Maybe add re-calculate int argmax for each pair? xcenter is still needed to subtract Add switch? (small/large correction)
@@ -983,9 +1078,9 @@ public class Correlation2d {
     	double [] rslt = new double[3 * num_pairs];
 
     	int np= 0;
-    	for (int i = 0; i <  corrs.length; i++)  if ((corrs[i] != null) && (((1 << i) & pair_mask) != 0)) {
+    	for (int pair = 0; pair <  corrs.length; pair++)  if ((corrs[pair] != null) && (((1 << pair) & pair_mask) != 0)) {
 //    	for (int np = 0; np < num_pairs; np++) {
-    		int this_mask = 1 << i;
+    		int this_mask = 1 << pair;
     		Correlations2dLMA lma=corrLMA(
     				imgdtt_params, // ImageDttParameters  imgdtt_params,
     				corrs,         // double [][]         corrs,
@@ -1000,22 +1095,42 @@ public class Correlation2d {
     		if ((lma == null) || (lma.getPoly() == null)) {
     			rslt[3 * np + 0] = Double.NaN;
     			rslt[3 * np + 1] = Double.NaN;
-    			rslt[3 * np + 2] = Double.NaN;
+    			rslt[3 * np + 2] = 0.0;
     		} else {
     			double [] poly_xyvwh = lma.getPoly();
-    			rslt[3 * np + 0] = xcenter - poly_xyvwh[0];
-    			rslt[3 * np + 1] = -poly_xyvwh[1];
-    			rslt[3 * np + 2] = poly_xyvwh[2];
+    			if (       isHorizontalPair(pair)) {
+    				rslt[3 * np + 0] =  xcenter - poly_xyvwh[0];
+    				rslt[3 * np + 1] = -poly_xyvwh[1];
+    			} else if (isVerticalPair(pair)) {
+    				rslt[3 * np + 0] = -poly_xyvwh[1];
+    				rslt[3 * np + 1] =  xcenter - poly_xyvwh[0];
+    			} else if (isDiagonalMainPair(pair)) {
+//    				rslt[3 * np + 0] = xcenter - poly_xyvwh[0];
+//    				rslt[3 * np + 1] = -poly_xyvwh[1];
+    				rslt[3 * np + 0] =  xcenter - poly_xyvwh[0] + poly_xyvwh[1]; // x - y
+    				rslt[3 * np + 1] =  xcenter - poly_xyvwh[0] - poly_xyvwh[1]; // x + y
+    			} else if (isDiagonalOtherPair(pair)) {
+//    				rslt[3 * np + 0] = xcenter - poly_xyvwh[0];
+//    				rslt[3 * np + 1] =  poly_xyvwh[1];
+    				rslt[3 * np + 0] =  xcenter - poly_xyvwh[0] + poly_xyvwh[1]; // x - y
+    				rslt[3 * np + 1] = -xcenter + poly_xyvwh[0] + poly_xyvwh[1]; // x + y
+    			} else {
+    				System.out.println("************ BUG: illegal pair type for pair "+pair);
+    				return null;
+    			}
+    			rslt[3 * np + 2] = Double.isNaN(poly_xyvwh[2])?0.0: poly_xyvwh[2];
     		}
-    		if (debug_level > 0) {
-    			System.out.println(String.format("mismatchPairs(), np = %d pairs mask = 0x%x, dx=%f, dy=%f, strength=%f", np, this_mask, rslt[3 * np + 0], rslt[3 * np + 1], rslt[3 * np + 2]));
+    		if ((Double.isNaN(rslt[3 * np + 0]) || Double.isNaN(rslt[3 * np + 1])) && (rslt[3 * np + 2] > 0.0)) {
+    			System.out.println("************ mismatchPairs() Fix NaN!!!!! **************");
+    			System.out.println(String.format("(), np = %d pairs mask = 0x%x, dx=%f, dy=%f, strength=%f", np, this_mask, rslt[3 * np + 0], rslt[3 * np + 1], rslt[3 * np + 2]));
+    		}
+    		if (debug_level > -1) {
+    			System.out.println(String.format("(), np = %d pairs mask = 0x%x, dx=%f, dy=%f, strength=%f", np, this_mask, rslt[3 * np + 0], rslt[3 * np + 1], rslt[3 * np + 2]));
     		}
     		np++;
     	}
     	return rslt;
     }
-
-
 
     public double [][] corr4dirsLMA(
     		ImageDttParameters  imgdtt_params,

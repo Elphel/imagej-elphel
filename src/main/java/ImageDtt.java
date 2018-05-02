@@ -1493,7 +1493,7 @@ public class ImageDtt {
 			if (i == (transform_size-1)) enh_ortho_scale[i] = 0.0 ; // hardwired 0 in the center
 			enh_ortho_scale[i] *= Math.sin(Math.PI*(i+1.0)/(2*transform_size));
 		}
-		if (globalDebugLevel > 0){
+		if (globalDebugLevel > 1){
 			System.out.println("enhortho_width="+ imgdtt_params.enhortho_width+" enhortho_scale="+ imgdtt_params.enhortho_scale);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" enh_ortho_scale["+i+"]="+ enh_ortho_scale[i]);
@@ -1927,7 +1927,7 @@ public class ImageDtt {
 							}
 						}
 
-						int tile_lma_debug_level =  ((tileX == debug_tileX) && (tileY == debug_tileY))?imgdtt_params.lma_debug_level : -1;
+						int tile_lma_debug_level =  ((tileX == debug_tileX) && (tileY == debug_tileY))? imgdtt_params.lma_debug_level : -1;
 
 						// all color channels are done here
 						double extra_disparity = 0.0; // used for textures:  if allowed, shift images extra before trying to combine
@@ -1935,7 +1935,10 @@ public class ImageDtt {
 						// fill clt_corr_combo if it exists
 						if (disparity_map != null){ // not null - calculate correlations
 							for (int i = 0; i < disparity_map.length; i++) {
-								if (disparity_map[i] != null) disparity_map[i][nTile] = Double.NaN; // once and for all
+								if (disparity_map[i] != null) disparity_map[i][nTile] = (
+										(i == DISPARITY_STRENGTH_INDEX) ||
+										(i == DISPARITY_INDEX_HOR_STRENGTH) ||
+										(i == DISPARITY_INDEX_VERT_STRENGTH)) ? 0.0 : Double.NaN; // once and for all
 							}
 							//clt_mismatch should only be used with disparity_map != null;
 							if (clt_mismatch != null) {
@@ -2056,6 +2059,9 @@ public class ImageDtt {
 								disparity_map[DISPARITY_INDEX_INT][tIndex] =      -ixy[0];
 //								disparity_map[DISPARITY_INDEX_INT + 1][tIndex] =
 								disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] = strength;
+								if (Double.isNaN(disparity_map[DISPARITY_STRENGTH_INDEX][tIndex])) {
+									System.out.println("BUG: 1. disparity_map[DISPARITY_STRENGTH_INDEX]["+tIndex+"] should not be NaN");
+								}
 								corr_stat = corr2d.getMaxXCm(   // get fractional center as a "center of mass" inside circle/square from the integer max
 										strip_combo,                      // double [] data,      // [data_size * data_size]
 										ixy[0],                           // int       ixcenter,  // integer center x
@@ -2140,6 +2146,9 @@ public class ImageDtt {
 											strength =  lma_disparity_strength[1];
 											disparity_map[DISPARITY_INDEX_CM]       [tIndex] = disparity;
 											disparity_map[DISPARITY_STRENGTH_INDEX] [tIndex] = strength;
+											if (Double.isNaN(disparity_map[DISPARITY_STRENGTH_INDEX][tIndex])) {
+												System.out.println("BUG: 2. disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] should not be NaN");
+											}
 										}
 										// store debug data
 										// if strong enough and enabled - try to improve far objects
@@ -2203,20 +2212,38 @@ public class ImageDtt {
 
 
 										}
-
+										if (tile_lma_debug_level > -1) {
+											System.out.println("debug12348973591");
+										}
 										if (clt_mismatch != null) { // mod_disparity_diff should be calculated
 											// bypass difference or zero strength if disparity difference is too high (will influence mismatch correction)
 											// but setting it too low will make it impossible to correct larger mismatches. Maybe multi-pass?
 											if (mod_disparity_diff[2] <= imgdtt_params.mismatch_max_diff) { // may be NaN, will fail test as intended
-									    		double [] mismatch_result = corr2d.mismatchPairs( // returns x-xcenter, y, strength (sign same as disparity)
+												if (tile_lma_debug_level > -1) {
+													System.out.println("debug12348973590");
+												}
+									    		double [] mismatch_result;
+									    		if (imgdtt_params.ly_poly) {
+									    		mismatch_result = corr2d.mismatchPairs( // returns x-xcenter, y, strength (sign same as disparity)
 									    				imgdtt_params,                // ImageDttParameters  imgdtt_params,
 									    				corrs,                        // double [][]         corrs,
 									    				all_pairs,                    // int                 pair_mask, // which pairs to process
 									    				-disparity,                   // double    xcenter,   // preliminary center x in pixels for largest baseline
-									    				imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
+									    				max_corr_radius,              // double    vasw_pwr,  // value as weight to this power,
 									    				tile_lma_debug_level,// int                 debug_level,
 									    				tileX,         // int                 tileX, // just for debug output
 									    				tileY );       // int                 tileY
+									    		} else {
+										    		mismatch_result = corr2d.mismatchPairsCM( // returns x-xcenter, y, strength (sign same as disparity)
+										    				imgdtt_params,                // ImageDttParameters  imgdtt_params,
+										    				corrs,                        // double [][]         corrs,
+										    				all_pairs,                    // int                 pair_mask, // which pairs to process
+										    				-disparity,                   // double    xcenter,   // preliminary center x in pixels for largest baseline
+										    				imgdtt_params.ortho_vasw_pwr, // radius,    // positive - within that distance, negative - within 2*(-radius)+1 square
+										    				tile_lma_debug_level,// int                 debug_level,
+										    				tileX,         // int                 tileX, // just for debug output
+										    				tileY );       // int                 tileY
+									    		}
 									    		if (tile_lma_debug_level > 0) {
 									    			System.out.println("Lazy eye mismatch:");
 									    			for (int np = 0; np < mismatch_result.length/3; np++) {
@@ -2241,8 +2268,11 @@ public class ImageDtt {
 							else if (corr_mode == 3) extra_disparity = disparity_map[DISPARITY_INDEX_HOR][tIndex];
 							else if (corr_mode == 4) extra_disparity = disparity_map[DISPARITY_INDEX_VERT][tIndex];
 							if (Double.isNaN(extra_disparity)) extra_disparity = 0;
-						} // if (disparity_map != null){ // not null - calculate correlations
 
+							if (Double.isNaN(disparity_map[DISPARITY_STRENGTH_INDEX][tIndex])) {
+								System.out.println("BUG: 3. disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] should not be NaN");
+							}
+						} // if (disparity_map != null){ // not null - calculate correlations
 
 
 						// only debug is left
@@ -5617,7 +5647,7 @@ public class ImageDtt {
 			if (i == (transform_size-1)) enh_ortho_scale[i] = 0.0 ; // hardwired 0 in the center
 			enh_ortho_scale[i] *= Math.sin(Math.PI*(i+1.0)/(2*transform_size));
 		}
-		if (globalDebugLevel > 0){
+		if (globalDebugLevel > 1){
 			System.out.println("enhortho_width="+ imgdtt_params.enhortho_width+" enhortho_scale="+ imgdtt_params.enhortho_scale);
 			for (int i = 0; i < corr_size; i++){
 				System.out.println(" enh_ortho_scale["+i+"]="+ enh_ortho_scale[i]);
@@ -5797,7 +5827,7 @@ public class ImageDtt {
 					corr2d.createOrtoNotch(
 							imgdtt_params.enhortho_width, // double enhortho_width,
 							imgdtt_params.enhortho_scale, //double enhortho_scale,
-							true); // boolean debug);
+							false); // true); // boolean debug);
 //					public int     enhortho_width =         2;   // reduce weight of center correlation pixels from center (0 - none, 1 - center, 2 +/-1 from center)
 //					public double  enhortho_scale =         0.0; // 0.2;  // multiply center correlation pixels (inside enhortho_width)
 

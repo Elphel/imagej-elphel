@@ -101,11 +101,13 @@ public class GeometryCorrection {
 	}
 
 	public boolean [] getParMask(
+			boolean disparity_only,
 			boolean use_disparity,
 			boolean common_roll,
 			boolean corr_focalLength)
 	{
 		return (new CorrVector()).getParMask(
+				disparity_only,
 				use_disparity,
 				common_roll,
 				corr_focalLength);
@@ -378,7 +380,7 @@ public class GeometryCorrection {
 			s += "    |↘ ↙|     |↘ ↗|     |↗ ↘|     |↙ ↘|      |↙ ↗|     |↖  ↘| 6: common roll 7:(r0-r3)/2,           |- +|     |- -|     |- +|\n";
 			s += " 0: |↗ ↖|  1: |↙ ↖|  2: |↖ ↙|  3: |↖ ↗|  4:  |↗ ↙|  5: |↘  ↖| 8:(r1-r2)/2    9:(r0+r3-r1-r2)/4  10: |- +| 11: |+ +| 12: |+ -|\n";
 
-			s += String.format(" 0: %8.5f° 1:%8.5f° 2:%8.5f° 3:%8.5f° 4:%8.5f° 5:%8.5f° 6:%8.5f° 7:%8.5f° 8:%8.5f° 9:%8.5f° 10: %8.5f‰ 11:%8.5f‰ 12:%8.5f‰\n" ,
+			s += String.format(" 0:%9.6f° 1:%8.5f° 2:%8.5f° 3:%8.5f° 4:%8.5f° 5:%8.5f° 6:%8.5f° 7:%8.5f° 8:%8.5f° 9:%8.5f° 10: %8.5f‰ 11:%8.5f‰ 12:%8.5f‰\n" ,
 					sv[0], sv[1], sv[2], sv[3], sv[4], sv[5], sv[6], sv[7], sv[8], sv[9], 1000*sv[10], 1000*sv[11], 1000*sv[12] );
 
 			return s;
@@ -506,21 +508,25 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		}
 
 		public boolean [] getParMask(
+				boolean disparity_only,
 				boolean use_disparity,
 				boolean common_roll,
 				boolean corr_focalLength)
 		{
+			common_roll &=      !disparity_only;
+			corr_focalLength &= !disparity_only;
+			use_disparity |=     disparity_only;
 			boolean [] par_mask = {
 					use_disparity,    //sym0
-					true,             //sym1
-					true,             //sym2
-					true,             //sym3
-					true,             //sym4
-					true,             //sym5
+					!disparity_only,  //sym1
+					!disparity_only,  //sym2
+					!disparity_only,  //sym3
+					!disparity_only,  //sym4
+					!disparity_only,  //sym5
 					common_roll,      //sym6 // common roll
-					true,             //sym7
-					true,             //sym8
-					true,             //sym9
+					!disparity_only,  //sym7
+					!disparity_only,  //sym8
+					!disparity_only,  //sym9
 					corr_focalLength, //sym10
 					corr_focalLength, //sym11
 					corr_focalLength  //sym12
@@ -533,7 +539,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		 * Get partial transposed Jacobian as 2d array (for one measurement set) from partial Jacobian for each sample
 		 * with derivatives of port coordinates (all 4) by 3 tilts (ports 0..2), 3 azimuths (ports 0..2) and all 4 rolls
 		 * Tilt and azimuth for port 3 is calculated so center would not move. Tilt is positive up, azimuth - right and
-		 * roll - clockwise
+		 * roll - clockwise. Added zooms (difference from 1.0) for sensors 0..2
 		 *
 		 * Result is transposed Jacobian (rows (9 , 10,12 or 13) - parameters, columns - port coordinate components (8). Parameters
 		 * here are symmetrical, 0 is disparity-related (all to the center), remaining 9 preserve disparity and
@@ -1225,7 +1231,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				double dpYci_droll =    drvi_drl.get(1, 0) * norm_z - pYci * drvi_drl.get(2, 0) / rvi.get(2, 0);
 
 				double dpXci_dzoom =    drvi_dzm.get(0, 0) * norm_z - pXci * drvi_dzm.get(2, 0) / rvi.get(2, 0);
-				double dpYci_dzoom =    drvi_drl.get(1, 0) * norm_z - pYci * drvi_dzm.get(2, 0) / rvi.get(2, 0);
+				double dpYci_dzoom =    drvi_dzm.get(1, 0) * norm_z - pYci * drvi_dzm.get(2, 0) / rvi.get(2, 0);
 
 				double dri_dazimuth =  ri_scale / rNDi* (pXci * dpXci_dazimuth +  pYci * dpYci_dazimuth);
 				double dri_dtilt =     ri_scale / rNDi* (pXci * dpXci_dtilt +     pYci * dpYci_dtilt);
@@ -1258,22 +1264,22 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 
 				// verify that d/dsym are well, symmetrical
 				if (i < (numSensors - 1)){
-					pXYderiv[2 * i + 0][CorrVector.TILT_INDEX+i] =      dpXid_dtilt;
-					pXYderiv[2 * i + 1][CorrVector.TILT_INDEX+i] =      dpYid_dtilt;
-					pXYderiv[2 * i + 0][CorrVector.AZIMUTH_INDEX+i] =   dpXid_dazimuth;
-					pXYderiv[2 * i + 1][CorrVector.AZIMUTH_INDEX+i] =   dpYid_dazimuth;
+					pXYderiv[2 * i + 0][CorrVector.TILT_INDEX+i] =         dpXid_dtilt;
+					pXYderiv[2 * i + 1][CorrVector.TILT_INDEX+i] =         dpYid_dtilt;
+					pXYderiv[2 * i + 0][CorrVector.AZIMUTH_INDEX+i] =      dpXid_dazimuth;
+					pXYderiv[2 * i + 1][CorrVector.AZIMUTH_INDEX+i] =      dpYid_dazimuth;
 
-					pXYderiv[2 * i + 0][CorrVector.ZOOM_INDEX+i] =   dpXid_dzoom;
-					pXYderiv[2 * i + 1][CorrVector.ZOOM_INDEX+i] =   dpYid_dzoom;
+					pXYderiv[2 * i + 0][CorrVector.ZOOM_INDEX+i] =         dpXid_dzoom;
+					pXYderiv[2 * i + 1][CorrVector.ZOOM_INDEX+i] =         dpYid_dzoom;
 				} else {
 					for (int j = 0; j < (numSensors - 1); j++){
-						pXYderiv[2 * i + 0][CorrVector.TILT_INDEX+j] = -dpXid_dtilt;
-						pXYderiv[2 * i + 1][CorrVector.TILT_INDEX+j] = -dpYid_dtilt;
+						pXYderiv[2 * i + 0][CorrVector.TILT_INDEX+j] =    -dpXid_dtilt;
+						pXYderiv[2 * i + 1][CorrVector.TILT_INDEX+j] =    -dpYid_dtilt;
 						pXYderiv[2 * i + 0][CorrVector.AZIMUTH_INDEX+j] = -dpXid_dazimuth;
 						pXYderiv[2 * i + 1][CorrVector.AZIMUTH_INDEX+j] = -dpYid_dazimuth;
 
-						pXYderiv[2 * i + 0][CorrVector.ZOOM_INDEX+j] = -dpXid_dzoom;
-						pXYderiv[2 * i + 1][CorrVector.ZOOM_INDEX+j] = -dpYid_dzoom;
+						pXYderiv[2 * i + 0][CorrVector.ZOOM_INDEX+j] =    -dpXid_dzoom;
+						pXYderiv[2 * i + 1][CorrVector.ZOOM_INDEX+j] =    -dpYid_dzoom;
 					}
 				}
 				pXYderiv[2 * i + 0][CorrVector.ROLL_INDEX+i] = dpXid_droll;
