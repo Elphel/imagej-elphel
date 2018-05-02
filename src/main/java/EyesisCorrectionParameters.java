@@ -748,8 +748,9 @@ public class EyesisCorrectionParameters {
 
     	public boolean showCLTDialog(String title,
     			CLTParameters clt_parameters) {
-    		GenericDialog gd = new GenericDialog(title);
+    		GenericJTabbedDialog gd = new GenericJTabbedDialog(title,1000,800);
 
+    		gd.addTab         ("File paths", "Select files and directories pahs");
     		gd.addCheckbox    ("Save current settings with results",               this.saveSettings);           // 1
     		gd.addStringField ("Source files directory",                           this.sourceDirectory, 60);    // 2
     		gd.addCheckbox    ("Select source directory",                          false);                       // 3
@@ -780,7 +781,7 @@ public class EyesisCorrectionParameters {
     		gd.addStringField("CLT kernel files prefix",                           this.cltKernelPrefix, 40);    // 18
     		gd.addStringField("CLT kernel files suffix",                           this.cltSuffix, 40);          // 19
 
-    		gd.addMessage     ("============ batch parameters ============");
+  			gd.addTab         ("Batch", "Select Batch parameters");
     		gd.addCheckbox    ("Apply (and disable) manual pixel shift",                             this.clt_batch_apply_man); // 20
     		gd.addCheckbox    ("Calibrate extrinsic parameters for each set",                        this.clt_batch_extrinsic); // 21
     		gd.addCheckbox    ("Calculate fine polynomial correction for each set",                  this.clt_batch_poly);      // 22
@@ -791,7 +792,8 @@ public class EyesisCorrectionParameters {
     		gd.addCheckbox    ("Generate 3d output: x3d and/or obj+mtl",                             this.clt_batch_gen3d);     // 27
     		gd.addCheckbox    ("Generate debug images if a single set is selected",                  this.clt_batch_dbg1);      // 28
     		if (clt_parameters != null) {
-    			gd.addMessage     ("============ selected CLT parameters ============");
+//    			gd.addMessage     ("============ selected CLT parameters ============");
+      			gd.addTab         ("CLT", "Modify selected CLT parameters");
     			gd.addNumericField("Maximal disparity to try",                                                            clt_parameters.grow_disp_max,  6);
       			gd.addCheckbox    ("Equalize green channel gain of the individual cnannels (bug fix for exposure)",       clt_parameters.gain_equalize);
       			gd.addNumericField("Inverse distance to infinity (misalignment correction)",                              clt_parameters.z_correction,  6);
@@ -799,7 +801,7 @@ public class EyesisCorrectionParameters {
       			gd.addNumericField("Maximal number of output meshes to generate",                                         clt_parameters.max_clusters,   0);
 
     		}
-    		WindowTools.addScrollBars(gd);
+//    		WindowTools.addScrollBars(gd);
     		gd.showDialog();
     		if (gd.wasCanceled()) return false;
 
@@ -2449,6 +2451,16 @@ public class EyesisCorrectionParameters {
   		public boolean    ih_norm_center =  true;    // Replace samples with a single average with equal weight
 
   		// Lazy eye parameters
+  		public boolean    ly_on_scan =      true;    // Calculate and apply lazy eye correction after disparity scan (poly or extrinsic)
+  		public boolean    ly_inf_en =       true;    // Simultaneously correct disparity at infinity (both poly and extrinsic)
+  		public boolean    ly_combo_en =     true;    // Adjust other that disparity-related extrinsics
+  		public boolean    ly_focalLength=   true; // Correct scales (focal length temperature? variations)
+  		public boolean    ly_com_roll=      false;   // Enable common roll (valid for high disparity range only)
+ 		public double     ly_inf_frac =     0.5;     // Relative weight of infinity calibration data
+  		public boolean    ly_inf_disp=      false;   // Correct disparity for infinity tiles
+  		public boolean    ly_inf_force=     false;   // Force convergence correction during extrinsic, even with no infinity data
+  		public boolean    ly_poly =         false;   // Use polynomial correction, false - correct tilt/azimuth/roll of each sensor
+
   		public int        ly_smpl_side =    3;       // Sample size (side of a square) disp/strength filter
   		public int        ly_smpl_num =     5;       // Number after removing worst (should be >1)
 // 		public double     ly_meas_disp =    1.5;     // Maximal measured relative disparity - using  (0.8*disp_scan_step)
@@ -2456,16 +2468,6 @@ public class EyesisCorrectionParameters {
 		public double     ly_disp_var =     0.5;     // 2;     // Maximal full disparity difference to 8 neighbors
 		public double     ly_disp_rvar =    0.02;    // Maximal relative full disparity difference to 8 neighbors
 		public double     ly_norm_disp =    5.0;     // Reduce weight of higher disparity tiles
- 		public double     ly_inf_frac =     0.5;     // Relative weight of infinity calibration data
-  		public boolean    ly_on_scan =      true;    // Calculate and apply lazy eye correction after disparity scan (poly or extrinsic)
-  		public boolean    ly_inf_en =       false; // true;    // Simultaneously correct disparity at infinity (both poly and extrinsic)
-  		public boolean    ly_inf_disp=      false;   // Correct disparity for infinity tiles
-  		public boolean    ly_inf_force=     false;   // Force convergence correction during extrinsic, even with no infinity data
-  		public boolean    ly_com_roll=      false;   // Enable common roll (valid for high disparity range only)
-
-  		public boolean    ly_focalLength=   true; // Correct scales (focal length temperature? variations)
-
-  		public boolean    ly_poly =         false;   // Use polynomial correction, false - correct tilt/azimuth/roll of each sensor
 
   		// Lazy eye multi-step fitting
   		public double     lym_overexp     = 0.0001;  // Any (near) saturated pixels - discard tile (see sat_level also)
@@ -3131,23 +3133,23 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"ih_min_samples",   this.ih_min_samples+"");
 			properties.setProperty(prefix+"ih_norm_center",   this.ih_norm_center+"");
 
+			properties.setProperty(prefix+"ly_on_scan",       this.ly_on_scan+"");
+			properties.setProperty(prefix+"ly_inf_en",        this.ly_inf_en+"");
+			properties.setProperty(prefix+"ly_combo_en",      this.ly_combo_en+"");
+			properties.setProperty(prefix+"ly_focalLength",   this.ly_focalLength+"");
+			properties.setProperty(prefix+"ly_com_roll",      this.ly_com_roll+"");
+			properties.setProperty(prefix+"ly_inf_frac",      this.ly_inf_frac +"");
+
+			properties.setProperty(prefix+"ly_inf_disp",      this.ly_inf_disp+"");
+			properties.setProperty(prefix+"ly_inf_force",     this.ly_inf_force+"");
+			properties.setProperty(prefix+"ly_poly",          this.ly_poly+"");
+
 			properties.setProperty(prefix+"ly_smpl_side",     this.ly_smpl_side+"");
 			properties.setProperty(prefix+"ly_smpl_num",      this.ly_smpl_num+"");
-//			properties.setProperty(prefix+"ly_meas_disp",     this.ly_meas_disp +"");
 			properties.setProperty(prefix+"ly_smpl_rms",      this.ly_smpl_rms +"");
 			properties.setProperty(prefix+"ly_disp_var",      this.ly_disp_var +"");
 			properties.setProperty(prefix+"ly_disp_rvar",     this.ly_disp_rvar +"");
 			properties.setProperty(prefix+"ly_norm_disp",     this.ly_norm_disp +"");
-			properties.setProperty(prefix+"ly_inf_frac",      this.ly_inf_frac +"");
-			properties.setProperty(prefix+"ly_on_scan",       this.ly_on_scan+"");
-			properties.setProperty(prefix+"ly_inf_en",        this.ly_inf_en+"");
-			properties.setProperty(prefix+"ly_inf_disp",      this.ly_inf_disp+"");
-
-			properties.setProperty(prefix+"ly_inf_force",     this.ly_inf_force+"");
-			properties.setProperty(prefix+"ly_com_roll",      this.ly_com_roll+"");
-			properties.setProperty(prefix+"ly_focalLength",   this.ly_focalLength+"");
-			properties.setProperty(prefix+"ly_poly",          this.ly_poly+"");
-
 			properties.setProperty(prefix+"lym_overexp",      this.lym_overexp +"");
 			properties.setProperty(prefix+"lym_update_disp",  this.lym_update_disp+"");
 			properties.setProperty(prefix+"lym_iter",         this.lym_iter+"");
@@ -3763,24 +3765,26 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"ih_min_samples")!=null)    this.ih_min_samples=Integer.parseInt(properties.getProperty(prefix+"ih_min_samples"));
   			if (properties.getProperty(prefix+"ih_norm_center")!=null)    this.ih_norm_center=Boolean.parseBoolean(properties.getProperty(prefix+"ih_norm_center"));
 
-			if (properties.getProperty(prefix+"ly_smpl_side")!=null)      this.ly_smpl_side=Integer.parseInt(properties.getProperty(prefix+"ly_smpl_side"));
-			if (properties.getProperty(prefix+"ly_smpl_num")!=null)       this.ly_smpl_num=Integer.parseInt(properties.getProperty(prefix+"ly_smpl_num"));
-//			if (properties.getProperty(prefix+"ly_meas_disp")!=null)      this.ly_meas_disp=Double.parseDouble(properties.getProperty(prefix+"ly_meas_disp"));
-			if (properties.getProperty(prefix+"ly_smpl_rms")!=null)       this.ly_smpl_rms=Double.parseDouble(properties.getProperty(prefix+"ly_smpl_rms"));
-			if (properties.getProperty(prefix+"ly_disp_var")!=null)       this.ly_disp_var=Double.parseDouble(properties.getProperty(prefix+"ly_disp_var"));
-			if (properties.getProperty(prefix+"ly_disp_rvar")!=null)      this.ly_disp_rvar=Double.parseDouble(properties.getProperty(prefix+"ly_disp_rvar"));
-			if (properties.getProperty(prefix+"ly_norm_disp")!=null)      this.ly_norm_disp=Double.parseDouble(properties.getProperty(prefix+"ly_norm_disp"));
-			if (properties.getProperty(prefix+"ly_inf_frac")!=null)       this.ly_inf_frac=Double.parseDouble(properties.getProperty(prefix+"ly_inf_frac"));
   			if (properties.getProperty(prefix+"ly_on_scan")!=null)        this.ly_on_scan=Boolean.parseBoolean(properties.getProperty(prefix+"ly_on_scan"));
   			if (properties.getProperty(prefix+"ly_inf_en")!=null)         this.ly_inf_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_en"));
-  			if (properties.getProperty(prefix+"ly_inf_disp")!=null)       this.ly_inf_disp=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_disp"));
-  			if (properties.getProperty(prefix+"ly_inf_force")!=null)      this.ly_inf_force=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_force"));
-  			if (properties.getProperty(prefix+"ly_com_roll")!=null)       this.ly_com_roll=Boolean.parseBoolean(properties.getProperty(prefix+"ly_com_roll"));
+  			if (properties.getProperty(prefix+"ly_combo_en")!=null)       this.ly_combo_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_combo_en"));
   			if (properties.getProperty(prefix+"ly_focalLength")!=null)    this.ly_focalLength=Boolean.parseBoolean(properties.getProperty(prefix+"ly_focalLength"));
+  			if (properties.getProperty(prefix+"ly_com_roll")!=null)       this.ly_com_roll=Boolean.parseBoolean(properties.getProperty(prefix+"ly_com_roll"));
+			if (properties.getProperty(prefix+"ly_inf_frac")!=null)       this.ly_inf_frac=Double.parseDouble(properties.getProperty(prefix+"ly_inf_frac"));
+
+  			if (properties.getProperty(prefix+"ly_inf_disp")!=null)       this.ly_inf_disp=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_disp"));
+
+  			if (properties.getProperty(prefix+"ly_inf_force")!=null)      this.ly_inf_force=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_force"));
 
 
   			if (properties.getProperty(prefix+"ly_poly")!=null)           this.ly_poly=Boolean.parseBoolean(properties.getProperty(prefix+"ly_poly"));
 
+			if (properties.getProperty(prefix+"ly_smpl_side")!=null)      this.ly_smpl_side=Integer.parseInt(properties.getProperty(prefix+"ly_smpl_side"));
+			if (properties.getProperty(prefix+"ly_smpl_num")!=null)       this.ly_smpl_num=Integer.parseInt(properties.getProperty(prefix+"ly_smpl_num"));
+			if (properties.getProperty(prefix+"ly_smpl_rms")!=null)       this.ly_smpl_rms=Double.parseDouble(properties.getProperty(prefix+"ly_smpl_rms"));
+			if (properties.getProperty(prefix+"ly_disp_var")!=null)       this.ly_disp_var=Double.parseDouble(properties.getProperty(prefix+"ly_disp_var"));
+			if (properties.getProperty(prefix+"ly_disp_rvar")!=null)      this.ly_disp_rvar=Double.parseDouble(properties.getProperty(prefix+"ly_disp_rvar"));
+			if (properties.getProperty(prefix+"ly_norm_disp")!=null)      this.ly_norm_disp=Double.parseDouble(properties.getProperty(prefix+"ly_norm_disp"));
 			if (properties.getProperty(prefix+"lym_overexp")!=null)       this.lym_overexp=Double.parseDouble(properties.getProperty(prefix+"lym_overexp"));
   			if (properties.getProperty(prefix+"lym_update_disp")!=null)   this.lym_update_disp=Boolean.parseBoolean(properties.getProperty(prefix+"lym_update_disp"));
 			if (properties.getProperty(prefix+"lym_iter")!=null)          this.lym_iter=Integer.parseInt(properties.getProperty(prefix+"lym_iter"));
@@ -4428,8 +4432,19 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Minimal number of remaining samples",                                     this.ih_min_samples,  0);
   			gd.addCheckbox    ("Replace samples with a single average with equal weight",                 this.ih_norm_center);
 
-  			gd.addTab         ("Lazy eye", "Lazy eye parameters (disparity @ infinity should be adjusted first");
-  			gd.addMessage     ("--- Lazy eye parameters (disparity @ infinity should be adjusted first ---");
+  			gd.addTab         ("Lazy eye", "Lazy eye parameters");
+
+  			gd.addCheckbox    ("Calculate and apply lazy eye correction after disparity scan (poly or extrinsic), may repeat",this.ly_on_scan);
+  			gd.addCheckbox    ("Adjust disparity using objects at infinity by changing individual tilt and azimuth ", this.ly_inf_en," disable if there are no really far objects in the scene");
+  			gd.addCheckbox    ("Adjust other extrinsics that do not influence disparity",                 this.ly_combo_en,"disable if only disparity is critical");
+  			gd.addCheckbox    ("Correct scales (focal length temperature? variations)",                   this.ly_focalLength);
+  			gd.addCheckbox    ("Enable common roll adjustment (valid for high disparity range scans only)", this.ly_com_roll);
+			gd.addNumericField("Relative weight of infinity calibration data",                            this.ly_inf_frac,  3);
+  			gd.addCheckbox    ("Correct disparity for infinity tiles )has to disable until code fixed)",  this.ly_inf_disp);
+  			gd.addCheckbox    ("Force convergence correction during extrinsic, even with no infinity data", this.ly_inf_force);
+  			gd.addCheckbox    ("*Use polynomial correction, false - correct tilt/azimuth/roll of each sensor)", this.ly_poly);
+
+  			gd.addMessage     ("--- Lazy eye parameters ---");
 			gd.addNumericField("Sample size (side of a square)",                                          this.ly_smpl_side,  0);
 			gd.addNumericField("Number after removing worst (should be >1)",                              this.ly_smpl_num,  0);
   			gd.addMessage     ("Maximal measured relative disparity = "+ (0.8*disp_scan_step)+" (0.8 * disp_scan_step)");
@@ -4440,15 +4455,6 @@ public class EyesisCorrectionParameters {
 			gd.addNumericField("Maximal relative full disparity difference to 8 neighbors",               this.ly_disp_rvar, 8,5,"",
 					"Full allowed mismatch is a sum of absolute and disparity times relative");
 			gd.addNumericField("Reduce weight of higher disparity tiles",                                 this.ly_norm_disp, 5);
-			gd.addNumericField("Relative weight of infinity calibration data",                            this.ly_inf_frac,  3);
-  			gd.addCheckbox    ("Calculate and apply lazy eye correction after disparity scan (poly or extrinsic), may repeat",this.ly_on_scan);
-  			gd.addCheckbox    ("Use infinity disparity (disable if there is not enough of infinity data), both poly and extrinsic", this.ly_inf_en);
-  			gd.addCheckbox    ("Correct disparity for infinity tiles )has to disable until code fixed)",  this.ly_inf_disp);
-  			gd.addCheckbox    ("Force convergence correction during extrinsic, even with no infinity data", this.ly_inf_force);
-  			gd.addCheckbox    ("Enable common roll adjustment (valid for high disparity range scans only)", this.ly_com_roll);
-  			gd.addCheckbox    ("Correct scales (focal length temperature? variations)",                   this.ly_focalLength);
-  			gd.addCheckbox    ("*Use polynomial correction, false - correct tilt/azimuth/roll of each sensor)", this.ly_poly);
-
   			gd.addMessage     ("--- Lazy eye multi-step fitting ---");
 			gd.addNumericField("Any (near) saturated pixels - discard tile (see sat_level also)",         this.lym_overexp,  10);
   			gd.addCheckbox    ("Update target disparity after each step",                                 this.lym_update_disp);
@@ -5136,22 +5142,23 @@ public class EyesisCorrectionParameters {
   			this.ih_min_samples=  (int) gd.getNextNumber();
   			this.ih_norm_center=        gd.getNextBoolean();
 
+  			this.ly_on_scan=            gd.getNextBoolean();
+  			this.ly_inf_en=             gd.getNextBoolean();
+  			this.ly_combo_en=           gd.getNextBoolean();
+  			this.ly_focalLength=        gd.getNextBoolean();
+  			this.ly_com_roll=           gd.getNextBoolean();
+			this.ly_inf_frac=           gd.getNextNumber();
+
+			this.ly_inf_disp=           gd.getNextBoolean();
+  			this.ly_inf_force=          gd.getNextBoolean();
+  			this.ly_poly=               gd.getNextBoolean();
+
 			this.ly_smpl_side=    (int) gd.getNextNumber();
 			this.ly_smpl_num=     (int) gd.getNextNumber();
-//			this.ly_meas_disp=          gd.getNextNumber();
 			this.ly_smpl_rms=           gd.getNextNumber();
 			this.ly_disp_var=           gd.getNextNumber();
 			this.ly_disp_rvar=          gd.getNextNumber();
 			this.ly_norm_disp=          gd.getNextNumber();
-			this.ly_inf_frac=           gd.getNextNumber();
-  			this.ly_on_scan=            gd.getNextBoolean();
-  			this.ly_inf_en=             gd.getNextBoolean();
-  			this.ly_inf_disp=           gd.getNextBoolean();
-  			this.ly_inf_force=          gd.getNextBoolean();
-  			this.ly_com_roll=           gd.getNextBoolean();
-  			this.ly_focalLength=        gd.getNextBoolean();
-  			this.ly_poly=               gd.getNextBoolean();
-
 			this.lym_overexp=           gd.getNextNumber();
   			this.lym_update_disp=       gd.getNextBoolean();
 			this.lym_iter=        (int) gd.getNextNumber();

@@ -101,14 +101,18 @@ public class GeometryCorrection {
 	}
 
 	public boolean [] getParMask(
-			boolean disparity_only,
+//			boolean disparity_only,
+//			boolean use_disparity,
 			boolean use_disparity,
+			boolean use_other_extr,
+
 			boolean common_roll,
 			boolean corr_focalLength)
 	{
 		return (new CorrVector()).getParMask(
-				disparity_only,
-				use_disparity,
+				use_disparity, // disparity_only,
+				use_other_extr, // boolean use_other_extr,
+//				use_disparity,
 				common_roll,
 				corr_focalLength);
 	}
@@ -508,25 +512,28 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		}
 
 		public boolean [] getParMask(
-				boolean disparity_only,
 				boolean use_disparity,
+				boolean use_other_extr,
+
+//				boolean disparity_only,
+//				boolean use_disparity,
 				boolean common_roll,
 				boolean corr_focalLength)
 		{
-			common_roll &=      !disparity_only;
-			corr_focalLength &= !disparity_only;
-			use_disparity |=     disparity_only;
+//			common_roll &=      !disparity_only;
+//			corr_focalLength &= !disparity_only;
+//			use_disparity |=     disparity_only;
 			boolean [] par_mask = {
 					use_disparity,    //sym0
-					!disparity_only,  //sym1
-					!disparity_only,  //sym2
-					!disparity_only,  //sym3
-					!disparity_only,  //sym4
-					!disparity_only,  //sym5
+					use_other_extr,  //sym1
+					use_other_extr,  //sym2
+					use_other_extr,  //sym3
+					use_other_extr,  //sym4
+					use_other_extr,  //sym5
 					common_roll,      //sym6 // common roll
-					!disparity_only,  //sym7
-					!disparity_only,  //sym8
-					!disparity_only,  //sym9
+					use_other_extr,  //sym7
+					use_other_extr,  //sym8
+					use_other_extr,  //sym9
 					corr_focalLength, //sym10
 					corr_focalLength, //sym11
 					corr_focalLength  //sym12

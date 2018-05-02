@@ -2270,7 +2270,7 @@ B = |+dy0   -dy1      -2*dy3 |
 				true, // clt_parameters.fcorr_inf_vert,  // final boolean use_vertical,
 				// tool alte to restore disparity - should be dome earlier
 				false,                          // final boolean use_disparity, // for infinity
-				clt_parameters.ly_inf_disp,     //final boolean allow_dispatity,
+				true, // clt_parameters.ly_inf_disp,     //final boolean allow_dispatity,
 				clt_parameters,                 // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 				inf_and_ly,                     // double [][] disp_strength,
 				inf_samples_list,               // ArrayList<Sample> samples_list,
@@ -2292,11 +2292,11 @@ B = |+dy0   -dy1      -2*dy3 |
 			double [] old_new_rms = new double[1];
 			boolean apply_extrinsic = true;
 			GeometryCorrection.CorrVector corr_vector = solveCorr (
-					clt_parameters.ly_inf_en,    // boolean use_disparity,     // if true will ignore disparity data even if available (was false)
-					clt_parameters.ly_inf_force, // boolean force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
-					clt_parameters.ly_com_roll,  // boolean    common_roll,    // Enable common roll (valid for high disparity range only)
-					clt_parameters.ly_focalLength,// boolean    corr_focalLength,     // Correct scales (focal length temperature? variations)
-
+					clt_parameters.ly_inf_en,      // boolean use_disparity,     // if true will ignore disparity data even if available (was false)
+					clt_parameters.ly_combo_en,    // boolean use_other_extr,    // adjust other extrinsic parameters that do not influence disparity, common roll and zoom
+					clt_parameters.ly_inf_force,   // boolean force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
+					clt_parameters.ly_com_roll,    // boolean    common_roll,    // Enable common roll (valid for high disparity range only)
+					clt_parameters.ly_focalLength, // boolean    corr_focalLength,     // Correct scales (focal length temperature? variations)
 					mismatch_list,                          // ArrayList<Mismatch> mismatch_list,
 					qc.geometryCorrection,                  // GeometryCorrection geometryCorrection,
 					qc.geometryCorrection.getCorrVector(),  // GeometryCorrection.CorrVector corr_vector,
@@ -2811,7 +2811,8 @@ B = |+dy0   -dy1      -2*dy3 |
 	}
 
 	public GeometryCorrection.CorrVector  solveCorr (
-			boolean use_disparity,     // if true will ignore disparity data even if available
+			boolean use_disparity,     // adjust disparity-related extrinsics
+			boolean use_other_extr,    // adjust other extrinsic parameters that do not influence disparity, common roll and zoom
 			boolean force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
 			                           // data, using just radial distortions
 	  		boolean    common_roll,    // Enable common roll (valid for high disparity range only)
@@ -2835,8 +2836,10 @@ B = |+dy0   -dy1      -2*dy3 |
 
 		boolean [] par_mask = geometryCorrection.getParMask(
 // temporary - just for testing
-				force_convergence, // boolean disparity_only,
-				force_convergence && has_disparity, // boolean use_disparity,
+//				force_convergence, // boolean disparity_only,
+//				force_convergence && has_disparity, // boolean use_disparity,
+				has_disparity, // boolean use_disparity,
+				use_other_extr,    // boolean use_other_extr,
 				common_roll,// boolean common_roll,
 				corr_focalLength); // boolean corr_focalLength);
 
@@ -2970,8 +2973,9 @@ B = |+dy0   -dy1      -2*dy3 |
 
 		GeometryCorrection.CorrVector rslt = geometryCorrection.getCorrVector(drslt, par_mask);
 		if (debugLevel > -3){ // change to >0) {
-			System.out.println("solveCorr() rslt:");
+			System.out.println("solveCorr() rslt (increment):");
 			System.out.println(rslt.toString());
+			System.out.println("--- end of increment ---");
 		}
 
 		return rslt;
