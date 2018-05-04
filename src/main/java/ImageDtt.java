@@ -1400,6 +1400,7 @@ public class ImageDtt {
 
 			final double [][][][][]   clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
                                                        // [tilesY][tilesX] should be set by caller
+			// When clt_mismatch is non-zero, no far objects extraction will be attempted
 			final double [][]         clt_mismatch,    // [12][tilesY * tilesX] // ***** transpose unapplied ***** ?. null - do not calculate
 			                                           // values in the "main" directions have disparity (*_CM) subtracted, in the perpendicular - as is
 
@@ -2200,7 +2201,8 @@ public class ImageDtt {
 											if (dmExists(disparity_map, DBG2_INDEX)) disparity_map[DBG2_INDEX][tIndex] = mod_disparity_diff[0];
 											if (dmExists(disparity_map, DBG12_INDEX)) disparity_map[DBG12_INDEX][tIndex] = mod_disparity_diff[1];
 
-											if (mod_disparity_diff[0] != disparity) { // if it changed
+// Do not use modified far object distance when mismatch is measured
+											if ((mod_disparity_diff[0] != disparity) && (clt_mismatch == null)){ // if it changed
 												if (imgdtt_params.fo_correct && (strength > imgdtt_params.fo_min_strength)) { // always
 													disparity = mod_disparity_diff[0];
 													disparity_map[DISPARITY_INDEX_CM]       [tIndex] = disparity;
