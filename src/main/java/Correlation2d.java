@@ -1081,6 +1081,9 @@ public class Correlation2d {
     	for (int pair = 0; pair <  corrs.length; pair++)  if ((corrs[pair] != null) && (((1 << pair) & pair_mask) != 0)) {
 //    	for (int np = 0; np < num_pairs; np++) {
     		int this_mask = 1 << pair;
+    		if (debug_level > -1) {
+    			System.out.println(String.format("mismatchPairs(), np = %d pairs mask = 0x%x", np, this_mask));
+    		}
     		Correlations2dLMA lma=corrLMA(
     				imgdtt_params, // ImageDttParameters  imgdtt_params,
     				corrs,         // double [][]         corrs,
@@ -1089,7 +1092,7 @@ public class Correlation2d {
     				xcenter,       // double              xcenter,   // preliminary center x in pixels for largest baseline
     				vasw_pwr,      // double              vasw_pwr,  // value as weight to this power,
 //    				debug_level-3, // int                 debug_level,
-    				debug_level-1, // int                 debug_level,
+    				debug_level, // -1, // int                 debug_level,
     				tileX,         // int                 tileX, // just for debug output
     				tileY);        //int                 tileY
     		if ((lma == null) || (lma.getPoly() == null)) {
@@ -1238,7 +1241,7 @@ public class Correlation2d {
     	boolean are_ortho = (imn ^ imx) == 1;
 		double corr = overcorrection * (mx - mn);
 
-		int isel =   bg ? imn : imx;
+		int isel =   bg ? imn : imx; // isel may be -1 !!!
 		int iother = bg ? imx : imn;
 		int iortho = isel ^ 1;
 
@@ -1249,7 +1252,7 @@ public class Correlation2d {
     		System.out.println(String.format("eff_strength = [%8.5f, %8.5f, %8.5f, %8.5f]", eff_strength[0], eff_strength[1], eff_strength[2], eff_strength[3]));
     		System.out.println(String.format("width_d =      [%8.5f, %8.5f, %8.5f, %8.5f]", width_d[0],      width_d[1],      width_d[2],      width_d[3]));
     	}
-		if (!strong[isel]) {
+		if (!strong[isel] || (isel <0)) {
 			corr = Double.NaN;
 			if (debug) System.out.println("Direction with "+(bg?"min":"max")+" disparity is not strong enough -> no correction");
 		} else 		if (width_d[isel] > max_hwidth) {

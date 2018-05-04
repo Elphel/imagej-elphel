@@ -3852,14 +3852,31 @@ public class QuadCLT {
 					  double [][] inf_ds1 = {
 							  disparity_map[ImageDtt.DISPARITY_INDEX_CM],
 							  mismatch_strength, //disparity_map[ ImageDtt.DISPARITY_STRENGTH_INDEX],
-							  clt_mismatch[0], // dx0
-							  clt_mismatch[1], // dy0 +
-							  clt_mismatch[3], // dx1
-							  clt_mismatch[4], // dy1 +
-							  clt_mismatch[6], // dx2 +
-							  clt_mismatch[7], // dy2
-							  clt_mismatch[9], // dx3 +
-							  clt_mismatch[10]};// dy3
+							  clt_mismatch[0].clone(), // dx0
+							  clt_mismatch[1].clone(), // dy0 +
+							  clt_mismatch[3].clone(), // dx1
+							  clt_mismatch[4].clone(), // dy1 +
+							  clt_mismatch[6].clone(), // dx2 +
+							  clt_mismatch[7].clone(), // dy2
+							  clt_mismatch[9].clone(), // dx3 +
+							  clt_mismatch[10].clone()};// dy3
+					  // restore full d{xy}[i] with subtracted disparity - debugging (otherwise clone() above is not neded)
+						// Add disparity to dx0, dx1, dy2, dy3 pairs
+						if (clt_parameters.inf_restore_disp) {
+							if (debugLevel > -2) {
+								System.out.println("---- Adding disparity to  d{xy}[i] ---");
+							}
+							for (int nTile = 0; nTile < inf_ds1[0].length; nTile++) if (inf_ds1[1][nTile] > 0){ // strength
+								for (int i = 0; i < AlignmentCorrection.INDICES_10_DISP.length; i++) {
+									inf_ds1[AlignmentCorrection.INDICES_10_DISP[i]][nTile] += inf_ds1[AlignmentCorrection.INDEX_10_DISPARITY][nTile];
+								}
+							}
+						} else {
+							if (debugLevel > -2) {
+								System.out.println("---- d{xy}[i] have disparity canceled, xy_mismatch will only reflect residualvalues---");
+							}
+						}
+
 					  String [] titles1 = {"disp_cm", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
 					  inf_ds = inf_ds1;
 					  titles = titles1;
@@ -5010,6 +5027,10 @@ public class QuadCLT {
 		    }
 		    AlignmentCorrection ac = new AlignmentCorrection(this);
 		    // includes both infinity correction and mismatch correction for the same infinity tiles
+
+		    //FIXME: Here disparity now should be restored in dxy...
+
+
 		    double [][][] new_corr = ac.infinityCorrection(
 		    		clt_parameters.ly_poly,        // final boolean use_poly,
 		    		clt_parameters.fcorr_inf_strength, //  final double min_strenth,

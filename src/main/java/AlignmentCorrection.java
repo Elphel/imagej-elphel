@@ -39,6 +39,7 @@ public class AlignmentCorrection {
 	static final int    INDEX_10_WEIGHT = 1;
 	static final int    INDEX_10_DISPARITY = 0;
 	static final int    INDEX_14_DISPARITY = 0;
+	static final double DISP_SCALE = 2.0;
 
 	QuadCLT qc;
 
@@ -144,7 +145,7 @@ public class AlignmentCorrection {
 					0.5*(offsets[1][0] - offsets[0][0]), //(dx1 - dx0)/2; 0.5/magic is already applied
 					0.5*(offsets[3][1] - offsets[2][1]), //(dy3 - dy2)/2;
 					0.25* (offsets[0][0] + offsets[1][0] - offsets[2][1] - offsets[3][1]), //(dx0 + dx1 -dy2 - dy3)/4;
-					use_disparity ? (0.125* (offsets[0][0] + offsets[1][0] + offsets[2][1] + offsets[3][1])) : 0.0 // only when disparity is known to be 0
+					use_disparity ? (DISP_SCALE* 0.125* (offsets[0][0] + offsets[1][0] + offsets[2][1] + offsets[3][1])) : 0.0 // only when disparity is known to be 0
 			};
 			return y;
 		}
@@ -216,7 +217,7 @@ public class AlignmentCorrection {
 					{ 0.25,    0.0 ,  -0.25,   0.0 ,  -0.25,   0.0 ,   0.25,   0.0   }, // mv4 = (dx1 - dx0)/2 = (x3 - x2 + x0 - x1) / 2
 					{ 0.0 ,    0.25,   0.0 ,  -0.25,   0.0 ,  -0.25,   0.0 ,   0.25  }, // mv5 = (dy3 - dy2)/2 = (y3 - y1 + y0 - y2) / 2
 					{-0.125,   0.125,  0.125,  0.125, -0.125, -0.125,  0.125, -0.125 }, // mv6 = (dx0 + dx1 -dy2 - dy3)/4 = (x1 - x0 + x3 - x2 - y2 + y0 - y3 + y1)/4
-					{-0.0625, -0.0625, 0.0625,-0.0625,-0.0625, 0.0625, 0.0625, 0.0625}};// mv7 = (dx0 + dx1 +dy2 + dy3)/8=  (x1 - x0 + x3 - x2 + y2 - y0 + y3 - y1)/8
+					{-0.0625*DISP_SCALE, -0.0625*DISP_SCALE, 0.0625*DISP_SCALE,-0.0625*DISP_SCALE,-0.0625*DISP_SCALE, 0.0625*DISP_SCALE, 0.0625*DISP_SCALE, 0.0625*DISP_SCALE}};// mv7 = (dx0 + dx1 +dy2 + dy3)/8=  (x1 - x0 + x3 - x2 + y2 - y0 + y3 - y1)/8
 			return dMismatch_dXY;
 		}
 
@@ -397,7 +398,8 @@ public class AlignmentCorrection {
 				use_poly,                       // final boolean use_poly,
 				clt_parameters.fcorr_inf_quad,  // final boolean use_quadratic,
 				clt_parameters.fcorr_inf_vert,  // final boolean use_vertical,
-				clt_parameters.ly_inf_en,       // final boolean use_disparity, // for infinity - if true, restores differences in the direction of disparity that was subtracted during measurement)
+				// now disaprity is already restored
+				false, //clt_parameters.ly_inf_en,       // final boolean use_disparity, // for infinity - if true, restores differences in the direction of disparity that was subtracted during measurement)
 				// For ly_inf_en need to make sure that programmed disparity was 0.0, so
 				clt_parameters.ly_inf_disp,     //final boolean allow_dispatity,
 				clt_parameters,
@@ -913,7 +915,7 @@ public class AlignmentCorrection {
 		double [][] dbg_xy = null;
 		if (clt_parameters.show_extrinsic && (debugLevel > -2)) { // TODO: Add clt_parameters
 //			dbg_xy = new double [9][num_tiles];
-			dbg_xy = new double [10][num_tiles];
+			dbg_xy = new double [18][num_tiles];
 		}
 		for (Sample s: samples_list){
 			int tileX = s.tile % tilesX;
@@ -1045,6 +1047,10 @@ B = |+dy0   -dy1      -2*dy3 |
 				}
 				dbg_xy[9][s.tile] += s.weight*(-xy[0]-xy[1]+xy[2]-xy[3]-xy[4]+xy[5]+xy[6]+xy[7])/8;
 				dbg_xy[8][s.tile] += s.weight;
+				for (int i = 0; i < dxy.length;i++) {
+					dbg_xy[2* i +10][s.tile] += dxy[i][0] * s.weight;
+					dbg_xy[2* i +11][s.tile] += dxy[i][1] * s.weight;
+				}
 			}
 
 
@@ -1093,18 +1099,17 @@ B = |+dy0   -dy1      -2*dy3 |
 		if (dbg_xy != null){
 			for (int nTile = 0; nTile < num_tiles; nTile++){
 				if (dbg_xy[8][nTile] > 0.0){
-					for (int i = 0; i< 8; i++) {
+					for (int i = 0; i < dbg_xy.length; i++) if (i != 8){
 						dbg_xy[i][nTile] /= dbg_xy[8][nTile];
 					}
-					dbg_xy[9][nTile] /= dbg_xy[8][nTile];
 				} else {
-					for (int i = 0; i< 8; i++) {
+					for (int i = 0; i < dbg_xy.length; i++) if (i != 8){
 						dbg_xy[i][nTile] = Double.NaN;
 						dbg_xy[9][nTile] = Double.NaN;
 					}
 				}
 			}
-			String [] titles = {"x0", "y0", "x1", "y1", "x2", "y2", "x3","y3","weight","~disp"};
+			String [] titles = {"x0", "y0", "x1", "y1", "x2", "y2", "x3","y3","weight","~disp","dx0","dy0","dx1","dy1","dx2","dy2","dx3","dy3"};
 			(new showDoubleFloatArrays()).showArrays(
 					dbg_xy,
 					tilesX,
@@ -1730,44 +1735,6 @@ B = |+dy0   -dy1      -2*dy3 |
 		return scans;
 	}
 
-	public double [][][] lazyEyeCorrectionStep(
-			final boolean    use_poly, // Use polynomial correction, false - correct tilt/azimuth/roll of each sensor
-			final double     fcorr_radius,
-			final double     min_strength_in,
-			final double     max_diff,
-			//				final double comp_strength_var,
-			final int        max_iterations,
-			final double     max_coeff_diff,
-			final double     far_pull, //  = 0.2; // 1; //  0.5;
-			final double     strength_pow,
-			final double     lazyEyeCompDiff, // clt_parameters.fcorr_disp_diff
-			final int        lazyEyeSmplSide, //        = 2;      // Sample size (side of a square)
-			final int        lazyEyeSmplNum, //         = 3;      // Number after removing worst (should be >1)
-			final double     lazyEyeSmplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-			final double     lazyEyeDispVariation, // maximal full disparity difference between tgh tile and 8 neighborxs
-			final int        smplSide, //        = 2;      // Sample size (side of a square)
-			final int        smplNum, //         = 3;      // Number after removing worst (should be >1)
-			final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-			// histogram parameters
-			final int        hist_smpl_side, // 8 x8 masked, 16x16 sampled
-			final double     hist_disp_min,
-			final double     hist_disp_step,
-			final int        hist_num_bins,
-			final double     hist_sigma,
-			final double     hist_max_diff,
-			final int        hist_min_samples,
-			final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
-			final double     inf_fraction,    // fraction of the weight for the infinity tiles
-			EyesisCorrectionParameters.CLTParameters           clt_parameters,
-			double [][]      scans_14,
-			int              tilesX,
-			double           magic_coeff, // still not understood coefficient that reduces reported disparity value.  Seems to be around 8.5
-			int debugLevel)
-		{
-			return null;
-		}
-
-
 	public double [][][] lazyEyeCorrection(
 			final boolean    use_poly, // Use polynomial correction, false - correct tilt/azimuth/roll of each sensor
 			final boolean    restore_disp_inf, // Restore subtracted disparity for scan #0 (infinity)
@@ -1842,7 +1809,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		}
 
 		// Add disparity to dx0, dx1, dy2, dy3 pairs
-		if (restore_disp_inf) {
+		if (  restore_disp_inf) { // ==clt_parameters.inf_restore_disp
 			for (int nTile = 0; nTile < num_tiles; nTile++) if (scans[INDEX_10_WEIGHT][nTile] > 0){
 				for (int i = 0; i < INDICES_10_DISP.length; i++) {
 					scans[INDICES_10_DISP[i]][nTile] += scans[INDEX_10_DISPARITY][nTile];
@@ -2106,8 +2073,8 @@ B = |+dy0   -dy1      -2*dy3 |
 		}
 
 //	static final int    INDEX_10_WEIGHT = 1;
-
-		if (debugLevel > -1) { // 0) {
+		System.out.println("test123");
+		if ((debugLevel > -1) && (hist_smpl_side > 0)) { // 0) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
 			String [] titles = new String [2 * NUM_SLICES];
 			for (int i = 0; i < NUM_SLICES; i++){
@@ -2158,11 +2125,12 @@ B = |+dy0   -dy1      -2*dy3 |
 			}
 			(new showDoubleFloatArrays()).showArrays(dbg_img, tilesX1, tilesY1, true, "inf_and_ly8",titles);
 		}
-
+System.out.println("test1234");
 		// create list for infinity data
 //		/clt_parameters.ly_inf_en,
 		ArrayList<Sample> inf_samples_list;
-		if (clt_parameters.ly_inf_en) {
+//		if (clt_parameters.ly_inf_en) {
+		if (true) { //clt_parameters.ly_inf_en) {
 			inf_samples_list = selectInfinityTiles(
 					clt_parameters.fcorr_radius,       // 	final double fcorr_radius,
 					clt_parameters.fcorr_inf_vert,// final boolean use_vertical,
@@ -2211,8 +2179,8 @@ B = |+dy0   -dy1      -2*dy3 |
 			for (Sample s: inf_samples_list) {
 				s.weight *= weights[0];
 			}
-		} else {
-			inf_samples_list = new ArrayList<Sample>(); // do not use infinity at all
+//		} else {
+//			inf_samples_list = new ArrayList<Sample>(); // do not use infinity at all
 		}
 		///-----
 
@@ -2291,18 +2259,22 @@ B = |+dy0   -dy1      -2*dy3 |
 		if (!use_poly && (mismatch_list != null)){
 			double [] old_new_rms = new double[1];
 			boolean apply_extrinsic = true;
+			int solveCorr_debug =  ((clt_parameters.lym_iter == 1) && (clt_parameters.ly_par_sel != 0))? 2 : debugLevel;
 			GeometryCorrection.CorrVector corr_vector = solveCorr (
 					clt_parameters.ly_inf_en,      // boolean use_disparity,     // if true will ignore disparity data even if available (was false)
-					clt_parameters.ly_combo_en,    // boolean use_other_extr,    // adjust other extrinsic parameters that do not influence disparity, common roll and zoom
+//					clt_parameters.ly_combo_en,    // boolean use_other_extr,    // adjust other extrinsic parameters that do not influence disparity, common roll and zoom
+					clt_parameters.ly_aztilt_en,// boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
+					clt_parameters.ly_diff_roll_en,// boolean use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
 					clt_parameters.ly_inf_force,   // boolean force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
 					clt_parameters.ly_com_roll,    // boolean    common_roll,    // Enable common roll (valid for high disparity range only)
 					clt_parameters.ly_focalLength, // boolean    corr_focalLength,     // Correct scales (focal length temperature? variations)
+					clt_parameters.ly_par_sel,     //int     manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 					mismatch_list,                          // ArrayList<Mismatch> mismatch_list,
 					qc.geometryCorrection,                  // GeometryCorrection geometryCorrection,
 					qc.geometryCorrection.getCorrVector(),  // GeometryCorrection.CorrVector corr_vector,
 					old_new_rms,                            // double [] old_new_rms, // should be double[2]
 //					2); // debugLevel); // 2); // 1); // int debugLevel)
-			debugLevel); // 2); // 1); // int debugLevel)
+					solveCorr_debug); // debugLevel); // 2); // 1); // int debugLevel)
 //TODO: ** Put 2 here to debug derivative images (diff_dmv_dsym - does not match yet, probably different "addition" of angles)
 
 			if (debugLevel > -1){
@@ -2487,7 +2459,7 @@ B = |+dy0   -dy1      -2*dy3 |
 				double [] dbg_a_vector= null;
 				geometryCorrection.getPortsCoordinatesAndDerivatives(
 						dbg_a_vector, // double [] dbg_a_vector, // replace actual radial distortion coefficients
-						1E-8, //6,    // double delta, // 1e-6
+						1E-9, // 1E-8, //6,    // double delta, // 1e-6
 						corr_vector, // CorrVector corr_vector,
 						deriv_dbg, // j_partial_debug, //
 						pXY[0],      // double px,
@@ -2812,11 +2784,14 @@ B = |+dy0   -dy1      -2*dy3 |
 
 	public GeometryCorrection.CorrVector  solveCorr (
 			boolean use_disparity,     // adjust disparity-related extrinsics
-			boolean use_other_extr,    // adjust other extrinsic parameters that do not influence disparity, common roll and zoom
+//			boolean use_other_extr,    // adjust other extrinsic parameters that do not influence disparity, common roll and zoom
+			boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
+			boolean use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
 			boolean force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
 			                           // data, using just radial distortions
-	  		boolean    common_roll,    // Enable common roll (valid for high disparity range only)
-			boolean    corr_focalLength,     // Correct scales (focal length temperature? variations)
+	  		boolean common_roll,       // Enable common roll (valid for high disparity range only)
+			boolean corr_focalLength,  // Correct scales (focal length temperature? variations)
+	  		int     manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 
 
 			ArrayList<Mismatch> mismatch_list,
@@ -2825,6 +2800,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			double [] old_new_rms, // should be double[2]
 			int debugLevel)
 	{
+		boolean dbg_images = debugLevel > 0; // 1;
 		boolean has_disparity = force_convergence; // force false;
 		// See if at least some data has disparities to be adjusted
 		if (use_disparity) {
@@ -2839,9 +2815,14 @@ B = |+dy0   -dy1      -2*dy3 |
 //				force_convergence, // boolean disparity_only,
 //				force_convergence && has_disparity, // boolean use_disparity,
 				has_disparity, // boolean use_disparity,
-				use_other_extr,    // boolean use_other_extr,
+//				use_other_extr,    // boolean use_other_extr,
+				use_aztilts,       // Adjust azimuths and tilts excluding disparity
+				use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
+
 				common_roll,// boolean common_roll,
-				corr_focalLength); // boolean corr_focalLength);
+				corr_focalLength, // boolean corr_focalLength);
+		  		manual_par_sel);    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
+
 
 		double [][] jta = getJacobianTransposed( // gets transposed jacobian for 8*num_tiles points (port coordinates) and symmetrical parameters
 				par_mask,           // boolean [] par_mask,
@@ -2878,7 +2859,6 @@ B = |+dy0   -dy1      -2*dy3 |
 		Matrix y_minus_fx_weighted = new Matrix(y_minus_fx_a_weighted, y_minus_fx_a_weighted.length);
 		double [][] jtja = getJTJ(jta_mv, weights);
 		Matrix jtj = new Matrix(jtja); // getJTJ(jta, weights)); // less operations than jt.times(jt.transpose());
-		boolean dbg_images = debugLevel>1;
 		int dbg_decimate = 64; // just for the debug image
 		int dbg_width =  qc.tp.getTilesX()*qc.tp.getTileSize();
 		int dbg_height = qc.tp.getTilesY()*qc.tp.getTileSize();
@@ -2886,7 +2866,7 @@ B = |+dy0   -dy1      -2*dy3 |
 		int dbg_oheight = dbg_height/dbg_decimate;
 		int dbg_length = dbg_owidth*dbg_oheight;
 		String [] dbg_titles_sym= {"sym0","sym1","sym2","sym3","sym4","sym5","sroll0","sroll1","sroll2","sroll3", "zoom0", "zoom1", "zoom2"};
-		String [] dbg_titles_xy=  {"x0","y0","x1","y1","x2","y2","x3","y3"};
+		String [] dbg_titles_xy=  {"dx0","dy0","dx1","dy1","dx2","dy2","dx3","y3"};
 		String [] dbg_titles_mv=  {"dy0","dy1","dx2","dx3","dx1-dx0","dy3-dy2","dh-dv","dh+dv"};
 		double [][] dbg_xy = null;  // jacobian dmv/dsym
 		double [][] dbg_mv = null;  // jacobian dmv/dsym

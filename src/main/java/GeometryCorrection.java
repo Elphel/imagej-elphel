@@ -104,17 +104,25 @@ public class GeometryCorrection {
 //			boolean disparity_only,
 //			boolean use_disparity,
 			boolean use_disparity,
-			boolean use_other_extr,
+//			boolean use_other_extr,
+			boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
+			boolean use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
+
 
 			boolean common_roll,
-			boolean corr_focalLength)
+			boolean corr_focalLength,
+	  		int     manual_par_sel)    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
+
 	{
 		return (new CorrVector()).getParMask(
 				use_disparity, // disparity_only,
-				use_other_extr, // boolean use_other_extr,
-//				use_disparity,
+//				use_other_extr, // boolean use_other_extr,
+				use_aztilts,       // Adjust azimuths and tilts excluding disparity
+				use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
 				common_roll,
-				corr_focalLength);
+				corr_focalLength,
+		  		manual_par_sel);    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
+
 	}
 
 
@@ -366,6 +374,38 @@ public class GeometryCorrection {
 			double [] sym_vect = toSymArray(null);
 			double [] v = new double [vector.length];
 			double [] sv = new double [vector.length];
+			for (int i = 0; i < ROLL_INDEX; i++){
+				v[i] = vector[i]*1000.0*focalLength/pixelSize; // tilt and azimuth
+				sv[i] = sym_vect[i]*1000.0*focalLength/pixelSize; // all 3 angles
+			}
+			for (int i = ROLL_INDEX; i < LENGTH_ANGLES; i++){
+				v[i] = vector[i]*1000.0*distortionRadius/pixelSize; // rolls
+				sv[i] = sym_vect[i]*1000.0*distortionRadius/pixelSize; // combined rolls
+			}
+			for (int i = LENGTH_ANGLES; i < LENGTH; i++){
+				v[i] = vector[i]*1000.0*distortionRadius/pixelSize; // zooms
+				sv[i] = sym_vect[i]*1000.0*distortionRadius/pixelSize; // zooms
+			}
+
+			s  = String.format("tilt    (up):    %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift of he image center)\n" , v[0], v[1], v[2], -(v[0] + v[1] + v[2]) );
+			s += String.format("azimuth (right): %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift of he image center)\n" , v[3], v[4], v[5], -(v[3] + v[4] + v[5]) );
+			s += String.format("roll    (CW):    %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift at the imge half-width from the center)\n" , v[6], v[7], v[8], v[9] );
+			s += String.format("diff zoom (in):  %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift at the imge half-width from the center)\n" , v[10], v[11],  v[12], -(v[10] + v[11] + v[12]) );
+			s += "Symmetrical vector:\n";
+			s += "    |↘ ↙|     |↘ ↗|     |↗ ↘|     |↙ ↘|      |↙ ↗|     |↖  ↘| 6: common roll 7:(r0-r3)/2,           |- +|     |- -|     |- +|\n";
+			s += " 0: |↗ ↖|  1: |↙ ↖|  2: |↖ ↙|  3: |↖ ↗|  4:  |↗ ↙|  5: |↘  ↖| 8:(r1-r2)/2    9:(r0+r3-r1-r2)/4  10: |- +| 11: |+ +| 12: |+ -|\n";
+
+			s += String.format(" 0:%9.6fpx 1:%8.5fpx 2:%8.5fpx 3:%8.5fpx 4:%8.5fpx 5:%8.5fpx 6:%8.5fpx 7:%8.5fpx 8:%8.5fpx 9:%8.5fpx 10: %8.5fpx 11:%8.5fpx 12:%8.5fpx\n" ,
+					sv[0], sv[1], sv[2], sv[3], sv[4], sv[5], sv[6], sv[7], sv[8], sv[9], sv[10], sv[11], sv[12] );
+			return s;
+		}
+
+		public String toStringDegrees()
+		{
+			String s;
+			double [] sym_vect = toSymArray(null);
+			double [] v = new double [vector.length];
+			double [] sv = new double [vector.length];
 			for (int i = 0; i < LENGTH; i++){
 				if (i < LENGTH_ANGLES) {
 					v[i] =  vector[i]*180/Math.PI;
@@ -389,6 +429,10 @@ public class GeometryCorrection {
 
 			return s;
 		}
+
+
+
+
 		public void incrementVector(double [] incr,
 				double scale)
 		{
@@ -513,31 +557,43 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 
 		public boolean [] getParMask(
 				boolean use_disparity,
-				boolean use_other_extr,
-
+//				boolean use_other_extr,
+				boolean use_aztilts,       // Adjust azimuths and tilts excluding disparity
+				boolean use_diff_rolls,    // Adjust differential rolls (3 of 4 angles)
 //				boolean disparity_only,
 //				boolean use_disparity,
 				boolean common_roll,
-				boolean corr_focalLength)
+				boolean corr_focalLength,
+		  		int     manual_par_sel)    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
+
 		{
 //			common_roll &=      !disparity_only;
 //			corr_focalLength &= !disparity_only;
 //			use_disparity |=     disparity_only;
 			boolean [] par_mask = {
 					use_disparity,    //sym0
-					use_other_extr,  //sym1
-					use_other_extr,  //sym2
-					use_other_extr,  //sym3
-					use_other_extr,  //sym4
-					use_other_extr,  //sym5
+					use_aztilts,  //sym1
+					use_aztilts,  //sym2
+					use_aztilts,  //sym3
+					use_aztilts,  //sym4
+					use_aztilts,  //sym5
 					common_roll,      //sym6 // common roll
-					use_other_extr,  //sym7
-					use_other_extr,  //sym8
-					use_other_extr,  //sym9
+					use_diff_rolls,  //sym7
+					use_diff_rolls,  //sym8
+					use_diff_rolls,  //sym9
 					corr_focalLength, //sym10
 					corr_focalLength, //sym11
 					corr_focalLength  //sym12
 			};
+			if (manual_par_sel != 0) {
+				for (int i = 0; i < par_mask.length; i++) {
+					par_mask[i] = ((manual_par_sel >> i) & 1) != 0;
+				}
+				System.out.println("*** Using manual parameter mask, overwriting boolean flags:");
+				for (int i = 0; i < par_mask.length; i++) {
+					System.out.println("Sym"+i+": "+par_mask[i]);
+				}
+			}
 			return par_mask;
 		}
 
@@ -1178,6 +1234,13 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			double disparity)
 	{
 //		String dbg_s = corr_vector.toString();
+/* Starting with required tile center X, Y and nominal distortion, for each sensor port:
+ * 1) unapply common distortion
+ * 2) apply disparity
+ * 3) apply rotations and zoom
+ * 4) re-apply distortion
+ * 5) return port center X and Y
+ */
 
 		double [][] pXY = new double [numSensors][2];
 
@@ -1195,15 +1258,21 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			// non-distorted XY of the shifted location of the individual sensor
 			double pXci0 = pXc - disparity *  this.rXY[i][0]; // in pixels
 			double pYci0 = pYc - disparity *  this.rXY[i][1];
-			// TODO: convert to true rotations
 
+			// Convert a 2-d non-distorted vector to 3d at fl_pix distance in z direction
 			double [][] avi = {{pXci0}, {pYci0},{fl_pix}};
 			Matrix vi = new Matrix(avi); // non-distorted sensor channel view vector in pixels (z -along the common axis)
+
+			// Apply port-individual combined rotation/zoom matrix
+
 			Matrix rvi = rots[i].times(vi);
+
+			// get back to the projection plane by normalizing vector
 			double norm_z = fl_pix/rvi.get(2, 0);
 			double pXci =  rvi.get(0, 0) * norm_z;
 			double pYci =  rvi.get(1, 0) * norm_z;
-			// calculate back to distorted
+
+			// Re-apply distortion
 			double rNDi = Math.sqrt(pXci*pXci + pYci*pYci); // in pixels
 			//		Rdist/R=A8*R^7+A7*R^6+A6*R^5+A5*R^4+A*R^3+B*R^2+C*R+(1-A6-A7-A6-A5-A-B-C)");
 			double ri = rNDi* ri_scale; // relative to distortion radius
@@ -1214,11 +1283,17 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 				rri *= ri;
 				rD2rND += a[j]*(rri - 1.0); // Fixed
 			}
+
+			// Get port pixel coordiantes by scaling the 2d vector with Rdistorted/Dnondistorted coefficient)
 			double pXid = pXci * rD2rND;
 			double pYid = pYci * rD2rND;
 
+
+
 			pXY[i][0] =  pXid + this.pXY0[i][0];
 			pXY[i][1] =  pYid + this.pXY0[i][1];
+
+
 
 			if (pXYderiv != null) {
 				pXYderiv[2 * i] =   new double [CorrVector.LENGTH];
@@ -1329,7 +1404,6 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			Matrix []   corr_rots_m =  cv_delta_m.getRotMatrices(); // get array of per-sensor rotation matrices
 
 			double [][] rslt_p = getPortsCoordinatesAndDerivatives(
-//					dbg_a_vector, // double [] dbg_a_vector, // replace actual radial distortion coefficients
 					corr_rots_p, // Matrix []   rots,
 					null, // Matrix [][] deriv_rots,
 					null, // boolean calc_deriv,
@@ -1338,7 +1412,6 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					disparity // double disparity
 					);
 			double [][] rslt_m = getPortsCoordinatesAndDerivatives(
-//					dbg_a_vector, // double [] dbg_a_vector, // replace actual radial distortion coefficients
 					corr_rots_m, // Matrix []   rots,
 					null, // Matrix [][] deriv_rots,
 					null, // boolean calc_deriv,

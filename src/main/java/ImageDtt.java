@@ -2222,28 +2222,61 @@ public class ImageDtt {
 												if (tile_lma_debug_level > -1) {
 													System.out.println("debug12348973590");
 												}
-									    		double [] mismatch_result;
-									    		if (imgdtt_params.ly_poly) {
-									    		mismatch_result = corr2d.mismatchPairs( // returns x-xcenter, y, strength (sign same as disparity)
-									    				imgdtt_params,                // ImageDttParameters  imgdtt_params,
-									    				corrs,                        // double [][]         corrs,
-									    				all_pairs,                    // int                 pair_mask, // which pairs to process
-									    				-disparity,                   // double    xcenter,   // preliminary center x in pixels for largest baseline
-									    				max_corr_radius,              // double    vasw_pwr,  // value as weight to this power,
-									    				tile_lma_debug_level,// int                 debug_level,
-									    				tileX,         // int                 tileX, // just for debug output
-									    				tileY );       // int                 tileY
-									    		} else {
-										    		mismatch_result = corr2d.mismatchPairsCM( // returns x-xcenter, y, strength (sign same as disparity)
-										    				imgdtt_params,                // ImageDttParameters  imgdtt_params,
-										    				corrs,                        // double [][]         corrs,
-										    				all_pairs,                    // int                 pair_mask, // which pairs to process
-										    				-disparity,                   // double    xcenter,   // preliminary center x in pixels for largest baseline
-										    				imgdtt_params.ortho_vasw_pwr, // radius,    // positive - within that distance, negative - within 2*(-radius)+1 square
-										    				tile_lma_debug_level,// int                 debug_level,
-										    				tileX,         // int                 tileX, // just for debug output
-										    				tileY );       // int                 tileY
-									    		}
+												double [] mismatch_result = null;
+												boolean need_CM = true;
+												if (imgdtt_params.ly_poly) {
+													mismatch_result = corr2d.mismatchPairs( // returns x-xcenter, y, strength (sign same as disparity)
+															imgdtt_params,                // ImageDttParameters  imgdtt_params,
+															corrs,                        // double [][]         corrs,
+															all_pairs,                    // int                 pair_mask, // which pairs to process
+															-disparity,                   // double    xcenter,   // preliminary center x in pixels for largest baseline
+															max_corr_radius,              // double    vasw_pwr,  // value as weight to this power,
+															tile_lma_debug_level,// int                 debug_level,
+															tileX,         // int                 tileX, // just for debug output
+															tileY );       // int                 tileY
+													// check if got crazy poly, then retry with CM
+													boolean has_NaN = false;
+													boolean need_dbg = false;
+													for (int dir = 0; dir < (mismatch_result.length/3); dir ++) {
+														if (Double.isNaN(mismatch_result[3*dir + 0]) || Double.isNaN(mismatch_result[3*dir + 1])) {
+															has_NaN = true;
+														} else if ((mismatch_result[3*dir + 2] != 0.0) &&
+																((Math.abs(mismatch_result[3*dir + 0]) > imgdtt_params.ly_crazy_poly) ||
+																(Math.abs(mismatch_result[3*dir + 1]) > imgdtt_params.ly_crazy_poly))) {
+															mismatch_result[3*dir + 2] = 0;
+															has_NaN = true;
+															need_dbg = true;
+														}
+													}
+													need_CM = imgdtt_params.ly_poly_backup && has_NaN;
+													if (need_dbg && (imgdtt_params.lma_debug_level > 0)) {
+														System.out.println("Failed polynomial mismatch for tileX="+tileX+", tileY="+tileY);
+														for (int dir = 0; dir < (mismatch_result.length/3); dir ++) {
+															System.out.println(String.format("%d: dxy[%d]=%f8.5, dxy[%d]=%f8.5 strength=%7.5f",
+																	dir, (dir*2+0), mismatch_result[dir*3 + 0], (dir*2 + 1), mismatch_result[dir*3 + 1], mismatch_result[dir*3 + 2]));
+														}
+													}
+												}
+												// TODO: use magic_scale for CM?
+												if (need_CM) { // if poly was off or gave crazy poly
+													mismatch_result = corr2d.mismatchPairsCM( // returns x-xcenter, y, strength (sign same as disparity)
+															imgdtt_params,                // ImageDttParameters  imgdtt_params,
+															corrs,                        // double [][]         corrs,
+															all_pairs,                    // int                 pair_mask, // which pairs to process
+															-disparity,                   // double    xcenter,   // preliminary center x in pixels for largest baseline
+															max_corr_radius, // imgdtt_params.ortho_vasw_pwr, // radius,    // positive - within that distance, negative - within 2*(-radius)+1 square
+															tile_lma_debug_level,// int                 debug_level,
+															tileX,         // int                 tileX, // just for debug output
+															tileY );       // int                 tileY
+
+													if (imgdtt_params.ly_poly && (imgdtt_params.lma_debug_level > 0)) {
+														System.out.println("Corrected by CM failed polynomial mismatch for tileX="+tileX+", tileY="+tileY);
+														for (int dir = 0; dir < (mismatch_result.length/3); dir ++) {
+															System.out.println(String.format("%d: dxy[%d]=%f8.5, dxy[%d]=%f8.5 strength=%7.5f",
+																	dir, (dir*2+0), mismatch_result[dir*3 + 0], (dir*2 + 1), mismatch_result[dir*3 + 1], mismatch_result[dir*3 + 2]));
+														}
+													}
+												}
 									    		if (tile_lma_debug_level > 0) {
 									    			System.out.println("Lazy eye mismatch:");
 									    			for (int np = 0; np < mismatch_result.length/3; np++) {

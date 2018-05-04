@@ -2449,13 +2449,16 @@ public class EyesisCorrectionParameters {
   		public double     ih_max_diff =      0.1;    // Keep samples within this difference from farthest maximum
   		public int        ih_min_samples =  10;      // Minimal number of remaining samples
   		public boolean    ih_norm_center =  true;    // Replace samples with a single average with equal weight
-
+  		public boolean    inf_restore_disp = true;   // Add disparity back to d{x,y}[i] (debug feature)
   		// Lazy eye parameters
   		public boolean    ly_on_scan =      true;    // Calculate and apply lazy eye correction after disparity scan (poly or extrinsic)
   		public boolean    ly_inf_en =       true;    // Simultaneously correct disparity at infinity (both poly and extrinsic)
-  		public boolean    ly_combo_en =     true;    // Adjust other that disparity-related extrinsics
+  		public boolean    ly_aztilt_en =    true;    // Adjust azimuths and tilts
+  		public boolean    ly_diff_roll_en = true;    // Adjust differential rolls (3 of 4 angles)
   		public boolean    ly_focalLength=   true; // Correct scales (focal length temperature? variations)
   		public boolean    ly_com_roll=      false;   // Enable common roll (valid for high disparity range only)
+  		public int        ly_par_sel   =    0;       // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use checkbox selections above)
+
  		public double     ly_inf_frac =     0.5;     // Relative weight of infinity calibration data
   		public boolean    ly_inf_disp=      false;   // Correct disparity for infinity tiles
   		public boolean    ly_inf_force=     false;   // Force convergence correction during extrinsic, even with no infinity data
@@ -3135,12 +3138,17 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"ih_max_diff",      this.ih_max_diff +"");
   			properties.setProperty(prefix+"ih_min_samples",   this.ih_min_samples+"");
 			properties.setProperty(prefix+"ih_norm_center",   this.ih_norm_center+"");
+			properties.setProperty(prefix+"inf_restore_disp", this.inf_restore_disp+"");
 
 			properties.setProperty(prefix+"ly_on_scan",       this.ly_on_scan+"");
 			properties.setProperty(prefix+"ly_inf_en",        this.ly_inf_en+"");
-			properties.setProperty(prefix+"ly_combo_en",      this.ly_combo_en+"");
+			properties.setProperty(prefix+"ly_aztilt_en",     this.ly_aztilt_en+"");
+			properties.setProperty(prefix+"ly_diff_roll_en",  this.ly_diff_roll_en+"");
 			properties.setProperty(prefix+"ly_focalLength",   this.ly_focalLength+"");
 			properties.setProperty(prefix+"ly_com_roll",      this.ly_com_roll+"");
+
+			properties.setProperty(prefix+"ly_par_sel",        this.ly_par_sel+"");
+
 			properties.setProperty(prefix+"ly_inf_frac",      this.ly_inf_frac +"");
 
 			properties.setProperty(prefix+"ly_inf_disp",      this.ly_inf_disp+"");
@@ -3767,12 +3775,17 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"ih_max_diff")!=null)       this.ih_max_diff=Double.parseDouble(properties.getProperty(prefix+"ih_max_diff"));
   			if (properties.getProperty(prefix+"ih_min_samples")!=null)    this.ih_min_samples=Integer.parseInt(properties.getProperty(prefix+"ih_min_samples"));
   			if (properties.getProperty(prefix+"ih_norm_center")!=null)    this.ih_norm_center=Boolean.parseBoolean(properties.getProperty(prefix+"ih_norm_center"));
+  			if (properties.getProperty(prefix+"inf_restore_disp")!=null)  this.inf_restore_disp=Boolean.parseBoolean(properties.getProperty(prefix+"inf_restore_disp"));
 
   			if (properties.getProperty(prefix+"ly_on_scan")!=null)        this.ly_on_scan=Boolean.parseBoolean(properties.getProperty(prefix+"ly_on_scan"));
   			if (properties.getProperty(prefix+"ly_inf_en")!=null)         this.ly_inf_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_en"));
-  			if (properties.getProperty(prefix+"ly_combo_en")!=null)       this.ly_combo_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_combo_en"));
+  			if (properties.getProperty(prefix+"ly_aztilt_en")!=null)      this.ly_aztilt_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_aztilt_en"));
+  			if (properties.getProperty(prefix+"ly_diff_roll_en")!=null)   this.ly_diff_roll_en=Boolean.parseBoolean(properties.getProperty(prefix+"ly_diff_roll_en"));
   			if (properties.getProperty(prefix+"ly_focalLength")!=null)    this.ly_focalLength=Boolean.parseBoolean(properties.getProperty(prefix+"ly_focalLength"));
   			if (properties.getProperty(prefix+"ly_com_roll")!=null)       this.ly_com_roll=Boolean.parseBoolean(properties.getProperty(prefix+"ly_com_roll"));
+
+			if (properties.getProperty(prefix+"ly_par_sel")!=null)        this.ly_par_sel=Integer.parseInt(properties.getProperty(prefix+"ly_par_sel"));
+
 			if (properties.getProperty(prefix+"ly_inf_frac")!=null)       this.ly_inf_frac=Double.parseDouble(properties.getProperty(prefix+"ly_inf_frac"));
 
   			if (properties.getProperty(prefix+"ly_inf_disp")!=null)       this.ly_inf_disp=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_disp"));
@@ -4434,14 +4447,19 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Keep samples within this difference from farthest maximum",               this.ih_max_diff,     3);
   			gd.addNumericField("Minimal number of remaining samples",                                     this.ih_min_samples,  0);
   			gd.addCheckbox    ("Replace samples with a single average with equal weight",                 this.ih_norm_center);
+  			gd.addCheckbox    ("Add disparity back to d{x,y}[i] (debug feature)",                         this.inf_restore_disp);
 
   			gd.addTab         ("Lazy eye", "Lazy eye parameters");
 
   			gd.addCheckbox    ("Calculate and apply lazy eye correction after disparity scan (poly or extrinsic), may repeat",this.ly_on_scan);
   			gd.addCheckbox    ("Adjust disparity using objects at infinity by changing individual tilt and azimuth ", this.ly_inf_en," disable if there are no really far objects in the scene");
-  			gd.addCheckbox    ("Adjust other extrinsics that do not influence disparity",                 this.ly_combo_en,"disable if only disparity is critical");
+  			gd.addCheckbox    ("Adjust azimuths and tilts",                                               this.ly_aztilt_en,"Adjust azimuths and tilts excluding those that change disparity");
+  			gd.addCheckbox    ("Adjust differential rolls",                                               this.ly_diff_roll_en,"Adjust differential rolls (3 of 4 rolls, keeping average roll)");
   			gd.addCheckbox    ("Correct scales (focal length temperature? variations)",                   this.ly_focalLength);
   			gd.addCheckbox    ("Enable common roll adjustment (valid for high disparity range scans only)", this.ly_com_roll);
+
+			gd.addNumericField("Manual parameter mask selection (0 use checkboxes above)",                this.ly_par_sel,  0, 5,"",
+					"bit 0 - sym0, bit1 - sym1, ...");
 			gd.addNumericField("Relative weight of infinity calibration data",                            this.ly_inf_frac,  3);
   			gd.addCheckbox    ("Correct disparity for infinity tiles )has to disable until code fixed)",  this.ly_inf_disp);
   			gd.addCheckbox    ("Force convergence correction during extrinsic, even with no infinity data", this.ly_inf_force);
@@ -5144,12 +5162,16 @@ public class EyesisCorrectionParameters {
   			this.ih_max_diff=           gd.getNextNumber();
   			this.ih_min_samples=  (int) gd.getNextNumber();
   			this.ih_norm_center=        gd.getNextBoolean();
+  			this.inf_restore_disp=      gd.getNextBoolean();
 
   			this.ly_on_scan=            gd.getNextBoolean();
   			this.ly_inf_en=             gd.getNextBoolean();
-  			this.ly_combo_en=           gd.getNextBoolean();
+  			this.ly_aztilt_en=          gd.getNextBoolean();
+  			this.ly_diff_roll_en=       gd.getNextBoolean();
   			this.ly_focalLength=        gd.getNextBoolean();
   			this.ly_com_roll=           gd.getNextBoolean();
+			this.ly_par_sel=      (int) gd.getNextNumber();
+
 			this.ly_inf_frac=           gd.getNextNumber();
 
 			this.ly_inf_disp=           gd.getNextBoolean();

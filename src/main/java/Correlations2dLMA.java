@@ -643,9 +643,11 @@ public class Correlations2dLMA {
 
 // modify to reuse Samples and apply polynomial approximation to resolve x0,y0 and strength?
 	public double [] getMaxXYPoly( // get interpolated maximum coordinates using 2-nd degree polynomial
+///			double  outside, // how much solution may be outside of the samples
 			boolean debug
      ) {
 		double [][][] mdata = new double[samples.size()][3][];
+///		double min_x = Double.NaN, max_x = Double.NaN, min_y = Double.NaN, max_y =Double.NaN , min_v = Double.NaN;
 		for (int i = 0; i < mdata.length; i++) {
 			Sample s = samples.get(i);
 			mdata[i][0] = new double [2];
@@ -655,6 +657,21 @@ public class Correlations2dLMA {
 			mdata[i][1][0] =  s.v;
 			mdata[i][2] = new double [1];
 			mdata[i][2][0] =  s.w;
+			/*
+			if (i == 0) {
+				min_x = s.x;
+				max_x = min_x;
+				min_y = s.y;
+				max_y = min_y;
+				min_v = s.v;
+			} else {
+				if      (s.x > max_x) max_x = s.x;
+				else if (s.x < min_x) min_x = s.x;
+				if      (s.y > max_y) max_y = s.y;
+				else if (s.y < min_y) min_y = s.y;
+				if      (s.v < min_v) min_v = s.x;
+			}
+			*/
 		}
 		double [] rslt = (new PolynomialApproximation()).quadraticMaxV2dX2Y2XY( // 9 elements - Xc, Yx, f(x,y), A, B, C, D, E, F (from A*x^2 + B*y^2 +C*x*y+...)
 				mdata,
@@ -662,11 +679,15 @@ public class Correlations2dLMA {
 				debug? 4:0);
 		this.poly_coeff = rslt;
 
-		if (rslt == null) {
+		if ((rslt == null) || (rslt[2] < 0.0) || // negative strength
+				(rslt[3] >= 0.0) || // x: min, not max
+				(rslt[4] >= 0.0)) { // y: min, not max
 			this.poly_coeff = null;
 			this.poly_xyvwh = null;
 			return null;
 		}
+//		if ()
+
 		// calculate width_x and width_y
 		double hwx = Double.NaN, hwy = Double.NaN;
 		if ((rslt[2] > 0.0) && (rslt[3] <0.0) && (rslt[4] <0.0)) {
