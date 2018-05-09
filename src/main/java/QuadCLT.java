@@ -44,9 +44,11 @@ import ij.process.ImageProcessor;
 public class QuadCLT {
 	static String []                                       fine_corr_coeff_names = {"A","B","C","D","E","F"};
 	static String []                                       fine_corr_dir_names = {"X","Y"};
-	static String                                          prefix = "EYESIS_DCT."; // change later (first on save)
+	public static String                                   PREFIX =     "EYESIS_DCT.";    // change later (first on save)
+	public static String                                   PREFIX_AUX = "EYESIS_DCT_AUX."; // change later (first on save)
 	static int                                             QUAD =  4; // number of cameras
 	public Properties                                      properties = null;
+//	public String                                          properties_prefix = "EYESIS_DCT.";
 	public EyesisCorrections                               eyesisCorrections = null;
 	public EyesisCorrectionParameters.CorrectionParameters correctionsParameters=null;
 	double [][][][][][]                                    clt_kernels = null;
@@ -86,6 +88,7 @@ public class QuadCLT {
 	}
 
 	public QuadCLT(
+			String                                          prefix,
 			Properties                                      properties,
 			EyesisCorrections                               eyesisCorrections,
 			EyesisCorrectionParameters.CorrectionParameters correctionsParameters
@@ -93,11 +96,18 @@ public class QuadCLT {
 		this.eyesisCorrections=      eyesisCorrections;
 		this.correctionsParameters = correctionsParameters;
 		this.properties =            properties;
-		getProperties();
+//		this.properties_prefix =     prefix;
+//		System.out.println("new QuadCLT(), prefix = "+prefix);
+		getProperties(prefix);
 	}
 
 	// TODO:Add saving just calibration
-	public void setProperties(){ // save
+
+//	public void setProperties(){
+//		setProperties(this.properties_prefix);
+//	}
+	public void setProperties(String prefix){ // save
+//		System.out.println("setProperties("+prefix+")");
 		for (int n = 0; n < fine_corr.length; n++){
 			for (int d = 0; d < fine_corr[n].length; d++){
 				for (int i = 0; i < fine_corr[n][d].length; i++){
@@ -113,8 +123,44 @@ public class QuadCLT {
 		for (int i = 0; i < GeometryCorrection.CORR_NAMES.length; i++){
 			String name = prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
 			properties.setProperty(name,  gc.getCorrVector().toArray()[i]+"");
+//			System.out.println("setProperties():"+i+": setProperty("+name+","+gc.getCorrVector().toArray()[i]+"");
 		}
 	}
+
+
+	public void copyPropertiesFrom(Properties other_properties, String other_prefix, String this_prefix){ // save
+//		System.out.println("copyPropertiesFrom(other_properties, "+other_prefix+", this_prefix"+")");
+		for (int n = 0; n < fine_corr.length; n++){
+			for (int d = 0; d < fine_corr[n].length; d++){
+				for (int i = 0; i < fine_corr[n][d].length; i++){
+					String other_name = other_prefix+"fine_corr_"+n+fine_corr_dir_names[d]+fine_corr_coeff_names[i];
+					String this_name = this_prefix+"fine_corr_"+n+fine_corr_dir_names[d]+fine_corr_coeff_names[i];
+		  			if (other_properties.getProperty(other_name)!=null) {
+		  				this.fine_corr[n][d][i]=Double.parseDouble(other_properties.getProperty(other_name));
+						properties.setProperty(this_name,   this.fine_corr[n][d][i]+"");
+		  			}
+				}
+			}
+		}
+		GeometryCorrection gc = geometryCorrection;
+		if (gc == null) { // if it was not yet created
+			gc = new GeometryCorrection(this.extrinsic_corr);
+		}
+		for (int i = 0; i < GeometryCorrection.CORR_NAMES.length; i++){
+			String other_name = other_prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
+  			if (other_properties.getProperty(other_name)!=null) {
+  				this.extrinsic_corr[i] = Double.parseDouble(other_properties.getProperty(other_name));
+  				if (geometryCorrection != null){
+  					geometryCorrection.getCorrVector().toArray()[i] = this.extrinsic_corr[i];
+  				}
+  			}
+			String this_name =  this_prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
+			properties.setProperty(this_name,  gc.getCorrVector().toArray()[i]+"");
+//			System.out.println("copyPropertiesFrom():"+i+": setProperty("+this_name+","+gc.getCorrVector().toArray()[i]+"");
+		}
+//		System.out.println("Done copyPropertiesFrom");
+	}
+
 
 	public void listGeometryCorrection(boolean full){
 		GeometryCorrection gc = geometryCorrection;
@@ -124,7 +170,8 @@ public class QuadCLT {
 		gc.listGeometryCorrection(full);
 	}
 
-	public void getProperties(){ // restore
+	public void getProperties(String prefix){ // restore
+//		System.out.println("getProperties("+prefix+")");
 		for (int n = 0; n < fine_corr.length; n++){
 			for (int d = 0; d < fine_corr[n].length; d++){
 				for (int i = 0; i < fine_corr[n][d].length; i++){
@@ -138,6 +185,8 @@ public class QuadCLT {
 			String name = prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
   			if (properties.getProperty(name)!=null) {
   				this.extrinsic_corr[i] = Double.parseDouble(properties.getProperty(name));
+//  				System.out.println("getProperties():"+i+": getProperty("+name+") -> "+properties.getProperty(name)+"");
+
   				if (geometryCorrection != null){
   					geometryCorrection.getCorrVector().toArray()[i] = this.extrinsic_corr[i];
   				}
@@ -1180,7 +1229,7 @@ public class QuadCLT {
 	  public void processCLTChannelImages(
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
@@ -1282,7 +1331,7 @@ public class QuadCLT {
 					  imp_src, // should have properties "name"(base for saving results), "channel","path"
 					  clt_parameters,
 					  debayerParameters,
-					  nonlinParameters,
+//					  nonlinParameters,
 					  colorProcParameters,
 					  channelGainParameters,
 					  rgbParameters,
@@ -1314,7 +1363,7 @@ public class QuadCLT {
 //			  EyesisCorrectionParameters.DCTParameters           dct_parameters,
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
@@ -1768,7 +1817,7 @@ public class QuadCLT {
 	  public void processCLTSets(
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
@@ -2008,7 +2057,7 @@ public class QuadCLT {
 							  imp_srcs[srcChannel], // should have properties "name"(base for saving results), "channel","path"
 							  clt_parameters,
 							  debayerParameters,
-							  nonlinParameters,
+//							  nonlinParameters,
 							  colorProcParameters,
 							  channelGainParameters,
 							  rgbParameters,
@@ -2042,7 +2091,7 @@ public class QuadCLT {
 			  ImagePlus imp_src, // should have properties "name"(base for saving results), "channel","path"
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
@@ -2418,7 +2467,7 @@ public class QuadCLT {
 	  public void processCLTQuads(
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
@@ -2655,7 +2704,7 @@ public class QuadCLT {
 					  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
 					  clt_parameters,
 					  debayerParameters,
-					  nonlinParameters,
+//					  nonlinParameters,
 					  colorProcParameters,
 					  channelGainParameters,
 					  rgbParameters,
@@ -2680,7 +2729,7 @@ public class QuadCLT {
 			  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
@@ -2983,11 +3032,11 @@ public class QuadCLT {
 	  public void processCLTQuadCorrs(
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
-			  EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+//			  EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
 			  int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
 			  final boolean    apply_corr, // calculate and apply additional fine geometry correction
 			  final boolean    infinity_corr, // calculate and apply geometry correction at infinity
@@ -3015,7 +3064,7 @@ public class QuadCLT {
 				  if (correctionsParameters.isJP4()){
 					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
 					  // removeUnusedSensorData should be off!?
-					  channels=this.eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera);
+					  channels=this.eyesisCorrections.pixelMapping.channelsForSubCamera(subCamera); // limit here or disable Error
 				  }
 				  if (channels!=null){
 					  for (int i=0;i<channels.length;i++) if (eyesisCorrections.isChannelEnabled(channels[i])){
@@ -3035,7 +3084,7 @@ public class QuadCLT {
 		  double [] referenceExposures=eyesisCorrections.calcReferenceExposures(debugLevel); // multiply each image by this and divide by individual (if not NaN)
 		  int [][] fileIndices=new int [numImagesToProcess][2]; // file index, channel number
 		  int index=0;
-		  for (int nFile=0;nFile<enabledFiles.length;nFile++){
+		  for (int nFile=0;nFile<enabledFiles.length;nFile++){ // enabledFiles not used anymore?
 			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
 				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
 				  if (correctionsParameters.isJP4()){
@@ -3060,18 +3109,23 @@ public class QuadCLT {
 				  setNames.add(setName);
 				  setFiles.add(new ArrayList<Integer>());
 			  }
-			  setFiles.get(setNames.indexOf(setName)).add(new Integer(nFile));
+
+//FIXME - similar in other places, extract common code
+
+//			  setFiles.get(setNames.indexOf(setName)).add(new Integer(nFile));
+			  setFiles.get(setNames.indexOf(setName)).add(new Integer(iImage));
 		  }
 		  for (int nSet = 0; nSet < setNames.size(); nSet++){
 			  int maxChn = 0;
 			  for (int i = 0; i < setFiles.get(nSet).size(); i++){
-				  int chn = fileIndices[setFiles.get(nSet).get(i)][1];
+				  int chn = fileIndices[setFiles.get(nSet).get(i)][1]; // wrong,
 				  if (chn > maxChn) maxChn = chn;
 			  }
 			  int [] channelFiles = new int[maxChn+1];
 			  for (int i =0; i < channelFiles.length; i++) channelFiles[i] = -1;
 			  for (int i = 0; i < setFiles.get(nSet).size(); i++){
-				  channelFiles[fileIndices[setFiles.get(nSet).get(i)][1]] = setFiles.get(nSet).get(i);
+//				  channelFiles[fileIndices[setFiles.get(nSet).get(i)][1]] = setFiles.get(nSet).get(i);
+				  channelFiles[fileIndices[setFiles.get(nSet).get(i)][1]] = fileIndices[setFiles.get(nSet).get(i)][0];
 			  }
 
 			  ImagePlus [] imp_srcs = new ImagePlus[channelFiles.length];
@@ -3311,7 +3365,7 @@ public class QuadCLT {
 					  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 					  clt_parameters,
 					  debayerParameters,
-					  nonlinParameters,
+//					  nonlinParameters,
 					  colorProcParameters,
 					  channelGainParameters,
 					  rgbParameters,
@@ -3557,7 +3611,7 @@ public class QuadCLT {
 			  boolean [][] saturation_imp, // (near) saturated pixels or null
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
@@ -4377,7 +4431,11 @@ public class QuadCLT {
 	  }
 	  public void show_fine_corr()
 	  {
-		  show_fine_corr( this.fine_corr, "");
+		  show_fine_corr("");
+	  }
+	  public void show_fine_corr(String prefix)
+	  {
+		  show_fine_corr( this.fine_corr, prefix);
 	  }
 
 	  public void show_fine_corr(
@@ -4396,7 +4454,8 @@ public class QuadCLT {
 			  }
 		  }
 		  System.out.println();
-		  showExtrinsicCorr();
+		  String name = (sadd.length() == 0)?"":("("+sadd+")");
+		  showExtrinsicCorr(name);
 	  }
 
 
@@ -4405,9 +4464,9 @@ public class QuadCLT {
 		  this.fine_corr = new double [4][2][6]; // reset all coefficients to 0
 	  }
 
-	  public void showExtrinsicCorr()
+	  public void showExtrinsicCorr(String name)
 	  {
-		  System.out.println("Extrinsic corrections");
+		  System.out.println("Extrinsic corrections "+name);
 		  if (geometryCorrection == null){
 			  System.out.println("are not set, will be:");
 			  System.out.println(new GeometryCorrection(this.extrinsic_corr).getCorrVector().toString());
@@ -4430,7 +4489,7 @@ public class QuadCLT {
 	  public void cltDisparityScans(
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
@@ -4678,7 +4737,7 @@ public class QuadCLT {
 					  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 					  clt_parameters,
 					  debayerParameters,
-					  nonlinParameters,
+//					  nonlinParameters,
 					  colorProcParameters,
 					  channelGainParameters,
 					  rgbParameters,
@@ -4705,7 +4764,7 @@ public class QuadCLT {
 			  boolean [][] saturation_imp, // (near) saturated pixels or null
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
@@ -5319,7 +5378,7 @@ public class QuadCLT {
 			  boolean adjust_poly,
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
@@ -5576,9 +5635,9 @@ public class QuadCLT {
 					  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 					  clt_parameters,
 					  debayerParameters,
-					  nonlinParameters,
+//					  nonlinParameters,
 					  colorProcParameters,
-					  channelGainParameters,
+//					  channelGainParameters,
 					  rgbParameters,
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
@@ -5602,7 +5661,7 @@ public class QuadCLT {
 						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
 						  clt_parameters,
 						  debayerParameters,
-						  nonlinParameters,
+//						  nonlinParameters,
 						  colorProcParameters,
 						  channelGainParameters,
 						  rgbParameters,
@@ -5629,9 +5688,9 @@ public class QuadCLT {
 			  boolean [][]                                     saturation_imp,   // (near) saturated pixels or null
 			  EyesisCorrectionParameters.CLTParameters         clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-			  EyesisCorrectionParameters.NonlinParameters      nonlinParameters,
+//			  EyesisCorrectionParameters.NonlinParameters      nonlinParameters,
 			  EyesisCorrectionParameters.ColorProcParameters   colorProcParameters,
-			  CorrectionColorProc.ColorGainsParameters         channelGainParameters,
+//			  CorrectionColorProc.ColorGainsParameters         channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters         rgbParameters,
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
@@ -6381,7 +6440,7 @@ public class QuadCLT {
 		  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
 		  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 		  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-		  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+//		  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 		  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 		  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 		  EyesisCorrectionParameters.RGBParameters             rgbParameters,
@@ -8422,7 +8481,7 @@ public class QuadCLT {
 	  public void batchCLT3d(
 			  EyesisCorrectionParameters.CLTParameters          clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters      debayerParameters,
-			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  EyesisCorrectionParameters.ColorProcParameters    colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters          channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters          rgbParameters,
@@ -8585,9 +8644,9 @@ public class QuadCLT {
 						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						  clt_parameters,
 						  debayerParameters,
-						  nonlinParameters,
+//						  nonlinParameters,
 						  colorProcParameters,
-						  channelGainParameters,
+//						  channelGainParameters,
 						  rgbParameters,
 						  threadsMax,  // maximal number of threads to launch
 						  updateStatus,
@@ -8609,9 +8668,9 @@ public class QuadCLT {
 						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						  clt_parameters,
 						  debayerParameters,
-						  nonlinParameters,
+//						  nonlinParameters,
 						  colorProcParameters,
-						  channelGainParameters,
+//						  channelGainParameters,
 						  rgbParameters,
 						  threadsMax,  // maximal number of threads to launch
 						  updateStatus,
@@ -8633,7 +8692,7 @@ public class QuadCLT {
 						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						  clt_parameters,
 						  debayerParameters,
-						  nonlinParameters,
+//						  nonlinParameters,
 						  colorProcParameters,
 						  channelGainParameters,
 						  rgbParameters,
@@ -8652,9 +8711,9 @@ public class QuadCLT {
 						  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 						  clt_parameters,
 						  debayerParameters,
-						  nonlinParameters,
+//						  nonlinParameters,
 						  colorProcParameters,
-						  channelGainParameters,
+//						  channelGainParameters,
 						  rgbParameters,
 						  threadsMax,  // maximal number of threads to launch
 						  updateStatus,
@@ -8665,7 +8724,7 @@ public class QuadCLT {
 							  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
 							  clt_parameters,
 							  debayerParameters,
-							  nonlinParameters,
+//							  nonlinParameters,
 							  colorProcParameters,
 							  channelGainParameters,
 							  rgbParameters,

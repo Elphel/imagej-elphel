@@ -104,7 +104,8 @@ private Panel panel1,
          panelDct1,
          panelClt1,
          panelClt2,
-         panelClt3
+         panelClt3,
+         panelClt4
          ;
    JP46_Reader_camera JP4_INSTANCE=null;
 
@@ -139,6 +140,7 @@ private Panel panel1,
 
    public static EyesisDCT EYESIS_DCT = null;
    public static QuadCLT   QUAD_CLT =   null;
+   public static QuadCLT   QUAD_CLT_AUX =   null;
 
    public static EyesisCorrectionParameters.DebayerParameters DEBAYER_PARAMETERS = new EyesisCorrectionParameters.DebayerParameters(
 		   64,    // size //128;
@@ -250,6 +252,8 @@ private Panel panel1,
 
    //ColorCalibrationParameters
    public static CorrectionColorProc.ColorGainsParameters CHANNEL_GAINS_PARAMETERS=new CorrectionColorProc.ColorGainsParameters();
+   public static CorrectionColorProc.ColorGainsParameters CHANNEL_GAINS_PARAMETERS_AUX=null;
+/*
    public static EyesisCorrectionParameters.ColorCalibParameters COLOR_CALIB_PARAMETERS= new EyesisCorrectionParameters.ColorCalibParameters(
  			1.05, // gain_11,
   			1.05, // gain_12,
@@ -279,6 +283,7 @@ private Panel panel1,
   			1.0,  // balanceBlue_32,
   			0.96  // balanceBlue_33){
 		   );
+*/
    public static EyesisCorrectionParameters.RGBParameters RGB_PARAMETERS = new  EyesisCorrectionParameters.RGBParameters (
 		0.075, // r_min;
 		0.075, //  g_min;
@@ -327,6 +332,7 @@ private Panel panel1,
    SyncCommand SYNC_COMMAND=new SyncCommand();
    public static EyesisCorrectionParameters.CorrectionParameters CORRECTION_PARAMETERS = new EyesisCorrectionParameters.CorrectionParameters();
    public static EyesisCorrections EYESIS_CORRECTIONS=null;
+   public static EyesisCorrections EYESIS_CORRECTIONS_AUX=null;
    public static EyesisCorrectionParameters.EquirectangularParameters EQUIRECTANGULAR_PARAMETERS = new EyesisCorrectionParameters.EquirectangularParameters();
 
    public static int     CONVOLVE_FFT_SIZE= 128; // FFT size for sliding convolution with kernel
@@ -396,7 +402,7 @@ private Panel panel1,
 
 		instance = this;
 		addKeyListener(IJ.getInstance());
-		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0) + (DCT_MODE?4:0);
+		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0) + (DCT_MODE?5:0);
 		setLayout(new GridLayout(menuRows, 1));
 
 		panel6 = new Panel();
@@ -418,7 +424,7 @@ private Panel panel1,
 		addButton("Configure convolution", panel5a, color_configure);
 		addButton("Configure denoise", panel5a, color_configure);
 		addButton("Configure color", panel5a, color_configure);
-		addButton("Channel gains", panel5a, color_configure);
+//		addButton("Channel gains", panel5a, color_configure);
 		addButton("Configure RGB", panel5a, color_configure);
 		add(panel5a);
 
@@ -516,7 +522,6 @@ private Panel panel1,
 		if (DCT_MODE) {
 			panelClt1 = new Panel();
 			panelClt1.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
-//			addButton("Setup CLT parameters",      panelClt1, color_configure);
 			addButton("Select CLT image",          panelClt1, color_configure);
 			addButton("CLT stack",                 panelClt1, color_process);
 			addButton("Select second CLT image",   panelClt1, color_configure);
@@ -527,16 +532,6 @@ private Panel panel1,
 			addButton("CLT process files",         panelClt1, color_process);
 			addButton("CLT process sets",          panelClt1, color_process);
 			addButton("CLT process quads",         panelClt1, color_process);
-//			addButton("CLT 4 images",          panelClt1, color_conf_process);
-//			addButton("CLT disparity scan",        panelClt1, color_conf_process);
-//			addButton("CLT reset fine corr",       panelClt1, color_stop);
-//			addButton("CLT show fine corr",        panelClt1, color_configure);
-//			addButton("CLT apply fine corr",       panelClt1, color_process);
-//			addButton("CLT reset 3D",              panelClt1, color_stop);
-//			addButton("CLT 3D",                    panelClt1, color_process);
-//			addButton("CLT planes",                panelClt1, color_conf_process);
-//			addButton("CLT ASSIGN",                panelClt1, color_process);
-//			addButton("CLT OUT 3D",                panelClt1, color_process);
 
 			add(panelClt1);
 		}
@@ -573,11 +568,21 @@ private Panel panel1,
 			addButton("Setup CLT Batch parameters", panelClt3, color_configure);
 			addButton("CLT batch process",          panelClt3, color_process);
 			addButton("CM Test",                    panelClt3, color_stop);
-//			addButton("JTabbed",                    panelClt3, color_stop);
-//			addButton("Demo",                       panelClt3, color_process);
 
 			add(panelClt3);
 		}
+
+		if (DCT_MODE) {
+			panelClt4 = new Panel();
+			panelClt4.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
+			addButton("Import Aux",                 panelClt4, color_restore);
+			addButton("Setup CLT Batch parameters", panelClt4, color_configure);
+			addButton("CLT 2*4 images",             panelClt4, color_conf_process);
+			addButton("AUX show fine",              panelClt4, color_configure);
+
+			add(panelClt4);
+		}
+
 		pack();
 
 		GUI.center(this);
@@ -804,10 +809,10 @@ private Panel panel1,
         return;
     }
 /* ======================================================================== */
-    if (label.equals("Channel gains")) {
-    	showColorCalibDialog(COLOR_CALIB_PARAMETERS);
-        return;
-    }
+//    if (label.equals("Channel gains")) {
+//    	showColorCalibDialog(COLOR_CALIB_PARAMETERS);
+ //       return;
+ //   }
 /* ======================================================================== */
     if (label.equals("Configure RGB")) {
     	showRGBProcessDialog(RGB_PARAMETERS);
@@ -1112,12 +1117,44 @@ private Panel panel1,
 /* ======================================================================== */
 
     } else if (label.equals("Save")) {
+    	// If saved just after restore, QUAD_CLT==null and QUAD_CLT_AUX==null and are not saved
+
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+        if (QUAD_CLT_AUX == null){
+        	if (EYESIS_CORRECTIONS_AUX == null) {
+        		EYESIS_CORRECTIONS_AUX = new EyesisCorrections(SYNC_COMMAND.stopRequested,CORRECTION_PARAMETERS.getAux());
+        	}
+        	QUAD_CLT_AUX = new  QuadCLT (
+        			QuadCLT.PREFIX_AUX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS_AUX,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels for aux camera");
+        	}
+        }
+
     	saveProperties(null,CORRECTION_PARAMETERS.resultsDirectory,true, PROPERTIES);
     	return;
 /* ======================================================================== */
 
     } else if (label.equals("Restore")) {
-    	loadProperties(null,CORRECTION_PARAMETERS.resultsDirectory,true, PROPERTIES);
+    	String path= loadProperties(null,CORRECTION_PARAMETERS.resultsDirectory,true, PROPERTIES);
+    	if (path != null) {
+        	getAllProperties(PROPERTIES);
+    		if (DEBUG_LEVEL > -1) System.out.println("Configuration parameters are restored from "+path);
+    	} else {
+    		if (DEBUG_LEVEL > -10) System.out.println("Failed to restore configuration parameters");
+    	}
     	return;
 /* ======================================================================== */
     } else if (label.equals("RGB" )) {
@@ -1158,9 +1195,9 @@ private Panel panel1,
 
 /* ======================================================================== */
     } else  if (label.equals("Channel gains/colors")) {
-        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	CHANNEL_GAINS_PARAMETERS.showDialog();
-            return;
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	CHANNEL_GAINS_PARAMETERS.showDialog(CHANNEL_GAINS_PARAMETERS_AUX); // will only show CHANNEL_GAINS_PARAMETERS_AUX tab if used (non-null)
+    	return;
 /* ======================================================================== */
 
     } else  if (label.equals("Configure warping")) {
@@ -1186,33 +1223,8 @@ private Panel panel1,
     } else if (label.equals("Process files")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-    	String configPath=null;
-    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
-    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
-    				true,
-    				true);
-    		if (configPath==null){
-    			String msg="No results directory selected, command aborted";
-    			System.out.println("Warning: "+msg);
-    			IJ.showMessage("Warning",msg);
-    			return;
-    		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig";
-    		try {
-    			saveTimestampedProperties(
-    					configPath,      // full path or null
-    					null, // use as default directory if path==null
-    					true,
-    					PROPERTIES);
-
-    		} catch (Exception e){
-    			String msg="Failed to save configuration to "+configPath+", command aborted";
-    			System.out.println("Error: "+msg);
-    			IJ.showMessage("Error",msg);
-    			return;
-    		}
-    	}
-
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
         int numChannels=EYESIS_CORRECTIONS.getNumChannels();
         NONLIN_PARAMETERS.modifyNumChannels(numChannels);
@@ -2989,33 +3001,8 @@ private Panel panel1,
         		System.out.println("Created new EyesisDCT instance, will need to read DCT kernels");
         	}
         }
-    	String configPath=null;
-    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
-    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
-    				true,
-    				true);
-    		if (configPath==null){
-    			String msg="No results directory selected, command aborted";
-    			System.out.println("Warning: "+msg);
-    			IJ.showMessage("Warning",msg);
-    			return;
-    		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
-    		try {
-    			saveTimestampedProperties(
-    					configPath,      // full path or null
-    					null, // use as default directory if path==null
-    					true,
-    					PROPERTIES);
-
-    		} catch (Exception e){
-    			String msg="Failed to save configuration to "+configPath+", command aborted";
-    			System.out.println("Error: "+msg);
-    			IJ.showMessage("Error",msg);
-    			return;
-    		}
-    	}
-
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
         int numChannels=EYESIS_CORRECTIONS.getNumChannels();
         NONLIN_PARAMETERS.modifyNumChannels(numChannels);
@@ -3591,35 +3578,11 @@ private Panel panel1,
     } else if (label.equals("DCT test 4")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-    	String configPath=null;
-    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
-    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
-    				true,
-    				true);
-    		if (configPath==null){
-    			String msg="No results directory selected, command aborted";
-    			System.out.println("Warning: "+msg);
-    			IJ.showMessage("Warning",msg);
-    			return;
-    		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
-    		try {
-    			saveTimestampedProperties(
-    					configPath,      // full path or null
-    					null, // use as default directory if path==null
-    					true,
-    					PROPERTIES);
-
-    		} catch (Exception e){
-    			String msg="Failed to save configuration to "+configPath+", command aborted";
-    			System.out.println("Error: "+msg);
-    			IJ.showMessage("Error",msg);
-    			return;
-    		}
-    	}
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
 
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
-        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
+//        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
 
 
     } else if (label.equals("Select kernels image")) {
@@ -3640,6 +3603,7 @@ private Panel panel1,
 // set CLT image file too
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
         			PROPERTIES,
         			EYESIS_CORRECTIONS,
         			CORRECTION_PARAMETERS);
@@ -3657,32 +3621,8 @@ private Panel panel1,
         			CORRECTION_PARAMETERS,
         			DCT_PARAMETERS);
         }
-    	String configPath=null;
-    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
-    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
-    				true,
-    				true);
-    		if (configPath==null){
-    			String msg="No results directory selected, command aborted";
-    			System.out.println("Warning: "+msg);
-    			IJ.showMessage("Warning",msg);
-    			return;
-    		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
-    		try {
-    			saveTimestampedProperties(
-    					configPath,      // full path or null
-    					null, // use as default directory if path==null
-    					true,
-    					PROPERTIES);
-
-    		} catch (Exception e){
-    			String msg="Failed to save configuration to "+configPath+", command aborted";
-    			System.out.println("Error: "+msg);
-    			IJ.showMessage("Error",msg);
-    			return;
-    		}
-    	}
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
 
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
 
@@ -3707,35 +3647,9 @@ private Panel panel1,
         			CORRECTION_PARAMETERS,
         			DCT_PARAMETERS);
         }
-    	String configPath=null;
-    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
-    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
-    				true,
-    				true);
-    		if (configPath==null){
-    			String msg="No results directory selected, command aborted";
-    			System.out.println("Warning: "+msg);
-    			IJ.showMessage("Warning",msg);
-    			return;
-    		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
-    		try {
-    			saveTimestampedProperties(
-    					configPath,      // full path or null
-    					null, // use as default directory if path==null
-    					true,
-    					PROPERTIES);
-
-    		} catch (Exception e){
-    			String msg="Failed to save configuration to "+configPath+", command aborted";
-    			System.out.println("Error: "+msg);
-    			IJ.showMessage("Error",msg);
-    			return;
-    		}
-    	}
-
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
-
         EYESIS_DCT.readDCTKernels(
         		DCT_PARAMETERS,
         		CONVOLVE_FFT_SIZE/2,
@@ -3748,7 +3662,7 @@ private Panel panel1,
 /* ======================================================================== */
     } else if (label.equals("Setup CLT Batch parameters")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	CORRECTION_PARAMETERS.showCLTDialog("CLT Batch parameters",CLT_PARAMETERS);
+    	CORRECTION_PARAMETERS.showCLTBatchDialog("CLT Batch parameters",CLT_PARAMETERS);
     	return;
 
 /* ======================================================================== */
@@ -3766,176 +3680,1206 @@ private Panel panel1,
     	}
     	return;
 /* ======================================================================== */
-        //   public ImagePlus DBG_IMP = null;
     } else if (label.equals("Select CLT image")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	//            	IJ.showMessage("DCT test 1");
-    	if (!CLT_PARAMETERS.showJDialog()) return;
-    	// process selected image stack
-    	ImagePlus imp_src = WindowManager.getCurrentImage();
-    	if (imp_src==null){
-    		IJ.showMessage("Error","JP4 image or Bayer image stack required");
-    		return;
-    	}
-    	if (imp_src.getStackSize()<3){ // convert JP4 to image stack
-
-    		EyesisCorrectionParameters.SplitParameters split_parameters = new EyesisCorrectionParameters.SplitParameters(
-    				1,  // oversample;
-    				// Add just for mdct (N/2)
-    				CLT_PARAMETERS.transform_size/2, // addLeft
-    				CLT_PARAMETERS.transform_size/2, // addTop
-    				CLT_PARAMETERS.transform_size/2, // addRight
-    				CLT_PARAMETERS.transform_size/2  // addBottom
-    				);
-
-
-    		ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
-    				split_parameters);
-    		DBG_IMP = new ImagePlus(imp_src.getTitle()+"-SPIT", sourceStack);
-    		if (DEBUG_LEVEL > 1) {
-    			DBG_IMP.getProcessor().resetMinAndMax();
-    			DBG_IMP.show();
-    		}
-    	} else {
-    		DBG_IMP = imp_src;
-    	}
-
+    	ImagePlus imp_rslt = selectCLTImage();
+    	if (imp_rslt != null) DBG_IMP = imp_rslt;
+    	return;
+/* ======================================================================== */
     } else if (label.equals("Select second CLT image")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	//            	IJ.showMessage("DCT test 1");
-    	if (!CLT_PARAMETERS.showJDialog()) return;
-    	// process selected image stack
-    	ImagePlus imp_src = WindowManager.getCurrentImage();
-    	if (imp_src==null){
-    		IJ.showMessage("Error","JP4 image or Bayer image stack required");
-    		return;
-    	}
-    	if (imp_src.getStackSize()<3){ // convert JP4 to image stack
-
-    		EyesisCorrectionParameters.SplitParameters split_parameters = new EyesisCorrectionParameters.SplitParameters(
-    				1,  // oversample;
-    				// Add just for mdct (N/2)
-    				CLT_PARAMETERS.transform_size/2, // addLeft
-    				CLT_PARAMETERS.transform_size/2, // addTop
-    				CLT_PARAMETERS.transform_size/2, // addRight
-    				CLT_PARAMETERS.transform_size/2  // addBottom
-    				);
-
-
-    		ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
-    				split_parameters);
-    		CORRELATE_IMP = new ImagePlus(imp_src.getTitle()+"-SPIT_CORRELATE"
-    				+ "", sourceStack);
-    		if (DEBUG_LEVEL > 1) {
-    			CORRELATE_IMP.getProcessor().resetMinAndMax();
-    			CORRELATE_IMP.show();
-    		}
-    	} else {
-    		CORRELATE_IMP = imp_src;
-    	}
-
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	ImagePlus imp_rslt = selectCLTImage();
+    	if (imp_rslt != null) CORRELATE_IMP = imp_rslt;
+    	return;
 /* ======================================================================== */
     } else if (label.equals("CLT stack")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-//    	IJ.showMessage("DCT test 1");
-        if (!CLT_PARAMETERS.showJDialog()) return;
-// process selected image stack
-        if (DBG_IMP == null) {
-        	ImagePlus imp_src = WindowManager.getCurrentImage();
-        	if (imp_src==null){
-        		IJ.showMessage("Error","JP4 image or Bayer image stack required");
-        		return;
-        	}
-        	//        ImagePlus imp2;
-        	if (imp_src.getStackSize()<3){ // convert JP4 to image stack
-
-        		EyesisCorrectionParameters.SplitParameters split_parameters = new EyesisCorrectionParameters.SplitParameters(
-        				1,  // oversample;
-        				CLT_PARAMETERS.transform_size/2, // addLeft
-        				CLT_PARAMETERS.transform_size/2, // addTop
-        				CLT_PARAMETERS.transform_size/2, // addRight
-        				CLT_PARAMETERS.transform_size/2  // addBottom
-        				);
-
-
-        		ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
-        				split_parameters);
-        		DBG_IMP = new ImagePlus(imp_src.getTitle()+"-SPIT", sourceStack);
-        		DBG_IMP.getProcessor().resetMinAndMax();
-        		DBG_IMP.show();
-        	} else {
-        		DBG_IMP = imp_src;
-        	}
-        }
-
-        ImageDtt image_dtt = new ImageDtt();
-        double [][][][][] clt_data = image_dtt.cltStack(
-        		DBG_IMP.getStack(),
-        		0, // CLT_PARAMETERS.kernel_chn,
-        		CLT_PARAMETERS,
-        		CLT_PARAMETERS.ishift_x, //final int shiftX, // shift image horizontally (positive - right)
-        		CLT_PARAMETERS.ishift_y, //final int shiftY, // shift image vertically (positive - down)
-        		THREADS_MAX, DEBUG_LEVEL, UPDATE_STATUS);
-
-        int tilesY = DBG_IMP.getHeight()/CLT_PARAMETERS.transform_size - 1;
-        int tilesX = DBG_IMP.getWidth()/CLT_PARAMETERS.transform_size - 1;
-        System.out.println("'CLT stack': tilesX="+tilesX);
-        System.out.println("'CLT stack': tilesY="+tilesY);
-        double [][] clt = new double [clt_data.length*4][];
-        for (int chn = 0; chn < clt_data.length; chn++) {
-        	double [][] clt_set = image_dtt.clt_dbg(
-        			clt_data [chn],
-        			THREADS_MAX,
-        			DEBUG_LEVEL);
-        	for (int ii = 0; ii < clt_set.length; ii++) clt[chn*4+ii] = clt_set[ii];
-        }
-//        System.out.println("dct_dc.length="+dct_dc.length+" dct_ac.length="+dct_ac.length);
-        if (DEBUG_LEVEL > 0){
-        	SDFA_INSTANCE.showArrays(clt,
-        			tilesX*CLT_PARAMETERS.transform_size,
-        			tilesY*CLT_PARAMETERS.transform_size,
-        			true,
-        			DBG_IMP.getTitle()+"-CLT+"+CLT_PARAMETERS.iclt_mask);
-        }
-
-        if ((CLT_PARAMETERS.shift_x != 0) || (CLT_PARAMETERS.shift_y !=0)){
-            for (int chn = 0; chn < clt_data.length; chn++) {
-        	clt_data[chn] = image_dtt.clt_shiftXY(
-        			clt_data[chn],                  // final double [][][][] dct_data,  // array [tilesY][tilesX][4][dct_size*dct_size]
-        			CLT_PARAMETERS.transform_size,  // final int             dct_size,
-        			CLT_PARAMETERS.shift_x,         // final double          shiftX,
-        			CLT_PARAMETERS.shift_y,         // final double          shiftY,
-        			(CLT_PARAMETERS.dbg_mode >> 2) & 3, // swap order hor/vert
-        			THREADS_MAX,                    // maximal number of threads to launch
-        			DEBUG_LEVEL);                   // globalDebugLevel)
-            }
-        }
-
-
-
-        double [][] iclt_data = new double [clt_data.length][];
-        for (int chn=0; chn<iclt_data.length;chn++){
-        	iclt_data[chn] = image_dtt.iclt_2d(
-        			clt_data[chn],                  // scanline representation of dcd data, organized as dct_size x dct_size tiles
-        			CLT_PARAMETERS.transform_size,  // final int
-        			CLT_PARAMETERS.clt_window,      //window_type
-        			CLT_PARAMETERS.iclt_mask,       //which of 4 to transform back
-        			CLT_PARAMETERS.dbg_mode,        //which of 4 to transform back
-        			THREADS_MAX,                    // maximal number of threads to launch
-        			DEBUG_LEVEL);                   //        globalDebugLevel)
-        }
-        SDFA_INSTANCE.showArrays(
-        		iclt_data,
-        		(tilesX + 1) * CLT_PARAMETERS.transform_size,
-        		(tilesY + 1) * CLT_PARAMETERS.transform_size,
-        		true,
-        		DBG_IMP.getTitle()+"-ICLT-"+CLT_PARAMETERS.iclt_mask);
+    	CLTStack();
     	return;
 /* ======================================================================== */
     } else if (label.equals("CLT correlate")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 	    runtime.gc();
 		System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
+		CLTCorrelate();
+		return;
+//==============================================================================
+
+    } else if (label.equals("Create CLT kernels")) {
+        if (!CLT_PARAMETERS.showJDialog()) return;
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        }
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
+    	String cltPath=EYESIS_CORRECTIONS.correctionsParameters.selectCLTKernelDirectory( // create if it does not exist
+				true,
+				true);
+    	if (cltPath==null) {
+			String msg="No CLT kernels (results) directory selected, command aborted";
+			System.out.println("Warning: "+msg);
+			IJ.showMessage("Warning",msg);
+			return;
+    	}
+
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+
+        QUAD_CLT.createCLTKernels(
+        		CLT_PARAMETERS,
+        		CONVOLVE_FFT_SIZE/2,
+                THREADS_MAX,
+                UPDATE_STATUS, // update status info
+        		DEBUG_LEVEL);
+
+        //"Reset DCT kernels"
+    } else if (label.equals("Reset CLT kernels")) {
+        if (QUAD_CLT != null){
+        	QUAD_CLT.resetCLTKernels();
+        }
+        if (QUAD_CLT_AUX != null){
+        	QUAD_CLT.resetCLTKernels();
+        }
+
+    } else if (label.equals("Read CLT kernels")) {
+        if (!CLT_PARAMETERS.showJDialog()) return;
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        }
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+
+        QUAD_CLT.readCLTKernels(
+        		CLT_PARAMETERS,
+                THREADS_MAX,
+                UPDATE_STATUS, // update status info
+        		DEBUG_LEVEL);
+        if (DEBUG_LEVEL > -1){
+        	QUAD_CLT.showCLTKernels(
+        			THREADS_MAX,
+        			UPDATE_STATUS, // update status info
+        			DEBUG_LEVEL);
+        }
+
+        return;
+    } else if (label.equals("CLT process files")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
+//        NONLIN_PARAMETERS.modifyNumChannels(numChannels); // not used
+        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
+
+        if (!QUAD_CLT.CLTKernelsAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Reading CLT kernels");
+        	}
+        	QUAD_CLT.readCLTKernels(
+            		CLT_PARAMETERS,
+                    THREADS_MAX,
+                    UPDATE_STATUS, // update status info
+            		DEBUG_LEVEL);
+
+            if (DEBUG_LEVEL > 1){
+            	QUAD_CLT.showCLTKernels(
+            			THREADS_MAX,
+            			UPDATE_STATUS, // update status info
+            			DEBUG_LEVEL);
+        	}
+        }
+
+///========================================
+
+        QUAD_CLT.processCLTChannelImages(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+//        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+
+        if (configPath!=null) {
+        	saveTimestampedProperties( // save config again
+        			configPath,      // full path or null
+        			null, // use as default directory if path==null
+        			true,
+        			PROPERTIES);
+        }
+        return;
+
+    } else if (label.equals("CLT process sets")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
+
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
+//      NONLIN_PARAMETERS.modifyNumChannels(numChannels); // not used
+        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
+
+        if (!QUAD_CLT.CLTKernelsAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Reading CLT kernels");
+        	}
+        	QUAD_CLT.readCLTKernels(
+            		CLT_PARAMETERS,
+                    THREADS_MAX,
+                    UPDATE_STATUS, // update status info
+            		DEBUG_LEVEL);
+
+            if (DEBUG_LEVEL > 1){
+            	QUAD_CLT.showCLTKernels(
+            			THREADS_MAX,
+            			UPDATE_STATUS, // update status info
+            			DEBUG_LEVEL);
+        	}
+        }
+
+        if (!QUAD_CLT.geometryCorrectionAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Calculating geometryCorrection");
+        	}
+        	if (!QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2)){
+        		return;
+        	}
+        }
+
+///========================================
+
+        QUAD_CLT.processCLTSets(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+//        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+
+        if (configPath!=null) {
+        	saveTimestampedProperties( // save config again
+        			configPath,      // full path or null
+        			null, // use as default directory if path==null
+        			true,
+        			PROPERTIES);
+        }
+        return;
+
+    } else if (label.equals("CLT process quads")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
+
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
+//        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
+        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
+
+        if (!QUAD_CLT.CLTKernelsAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Reading CLT kernels");
+        	}
+        	QUAD_CLT.readCLTKernels(
+            		CLT_PARAMETERS,
+                    THREADS_MAX,
+                    UPDATE_STATUS, // update status info
+            		DEBUG_LEVEL);
+
+            if (DEBUG_LEVEL > 1){
+            	QUAD_CLT.showCLTKernels(
+            			THREADS_MAX,
+            			UPDATE_STATUS, // update status info
+            			DEBUG_LEVEL);
+        	}
+        }
+
+        if (!QUAD_CLT.geometryCorrectionAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Calculating geometryCorrection");
+        	}
+        	if (!QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2)){
+        		return;
+        	}
+        }
+
+///========================================
+
+        QUAD_CLT.processCLTQuads(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+//        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+
+        if (configPath!=null) {
+        	saveTimestampedProperties( // save config again
+        			configPath,      // full path or null
+        			null, // use as default directory if path==null
+        			true,
+        			PROPERTIES);
+        }
+        return;
+
+
+    } else if (label.equals("CLT 4 images") || label.equals("CLT apply fine corr") || label.equals("CLT infinity corr")) {
+    	boolean apply_corr = label.equals("CLT apply fine corr");
+    	boolean infinity_corr = label.equals("CLT infinity corr");
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
+
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
+//        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
+        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
+
+        if (!QUAD_CLT.CLTKernelsAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Reading CLT kernels");
+        	}
+        	QUAD_CLT.readCLTKernels(
+            		CLT_PARAMETERS,
+                    THREADS_MAX,
+                    UPDATE_STATUS, // update status info
+            		DEBUG_LEVEL);
+
+            if (DEBUG_LEVEL > 1){
+            	QUAD_CLT.showCLTKernels(
+            			THREADS_MAX,
+            			UPDATE_STATUS, // update status info
+            			DEBUG_LEVEL);
+        	}
+        }
+
+        if (!QUAD_CLT.geometryCorrectionAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Calculating geometryCorrection");
+        	}
+        	if (!QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2)){
+        		return;
+        	}
+        }
+
+///========================================
+        int num_infinity_corr = infinity_corr? CLT_PARAMETERS.inf_repeat : 1;
+        if ( num_infinity_corr < 1) num_infinity_corr = 1;
+        for (int i_infinity_corr = 0;  i_infinity_corr < num_infinity_corr; i_infinity_corr++) {
+        QUAD_CLT.processCLTQuadCorrs(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+//        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+//        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+        		apply_corr,
+        		infinity_corr, // calculate and apply geometry correction at infinity
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+        }
+        if (configPath!=null) {
+        	saveTimestampedProperties( // save config again
+        			configPath,      // full path or null
+        			null, // use as default directory if path==null
+        			true,
+        			PROPERTIES);
+        }
+        return;
+    } else if (label.equals("CLT reset fine corr")) {
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+        QUAD_CLT.reset_fine_corr();
+        return;
+    } else if (label.equals("CLT reset extrinsic corr")) {
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+        QUAD_CLT.resetExtrinsicCorr(CLT_PARAMETERS);
+        return;
+    } else if (label.equals("CLT show geometry")) {
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+        QUAD_CLT.listGeometryCorrection(true);
+        return;
+    } else if (label.equals("CLT show fine corr")) {
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+        QUAD_CLT.show_fine_corr();
+        return;
+
+    } else if (label.equals("CLT process fine corr") || label.equals("CLT test fine corr")) {
+    	boolean dry_run = label.equals("CLT test fine corr");
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+
+        QUAD_CLT.processLazyEye(
+        		dry_run, // boolean dry_run
+        		CLT_PARAMETERS,
+        		DEBUG_LEVEL);
+
+        return;
+
+    } else if (label.equals("CLT ext infinity corr")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+        QUAD_CLT.process_infinity_corr(
+        		CLT_PARAMETERS,
+        		DEBUG_LEVEL);
+        return;
+
+
+
+    } else if (label.equals("CLT disparity scan")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
+
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
+//        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
+        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
+
+        if (!QUAD_CLT.CLTKernelsAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Reading CLT kernels");
+        	}
+        	QUAD_CLT.readCLTKernels(
+            		CLT_PARAMETERS,
+                    THREADS_MAX,
+                    UPDATE_STATUS, // update status info
+            		DEBUG_LEVEL);
+
+            if (DEBUG_LEVEL > 1){
+            	QUAD_CLT.showCLTKernels(
+            			THREADS_MAX,
+            			UPDATE_STATUS, // update status info
+            			DEBUG_LEVEL);
+        	}
+        }
+
+        if (!QUAD_CLT.geometryCorrectionAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Calculating geometryCorrection");
+        	}
+        	if (!QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2)){
+        		return;
+        	}
+        }
+
+///========================================
+
+        QUAD_CLT.cltDisparityScans(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+//        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+
+        if (configPath!=null) {
+        	saveTimestampedProperties( // save config again
+        			configPath,      // full path or null
+        			null, // use as default directory if path==null
+        			true,
+        			PROPERTIES);
+        }
+        return;
+
+    } else if (label.equals("CLT reset 3D")) {
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+        QUAD_CLT.tp.resetCLTPasses();
+        QUAD_CLT.tp.setTrustedCorrelation(CLT_PARAMETERS.grow_disp_trust);
+
+        return;
+
+/// ============================================
+
+    } else if (label.equals("CLT 3D") || label.equals("CLT Extrinsics") || label.equals("CLT Poly corr")) {
+    	boolean adjust_extrinsics = label.equals("CLT Extrinsics") || label.equals("CLT Poly corr");
+    	boolean adjust_poly = label.equals("CLT Poly corr");
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
+
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
+//        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
+        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
+
+        if (!QUAD_CLT.CLTKernelsAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Reading CLT kernels");
+        	}
+        	QUAD_CLT.readCLTKernels(
+            		CLT_PARAMETERS,
+                    THREADS_MAX,
+                    UPDATE_STATUS, // update status info
+            		DEBUG_LEVEL);
+
+            if (DEBUG_LEVEL > 1){
+            	QUAD_CLT.showCLTKernels(
+            			THREADS_MAX,
+            			UPDATE_STATUS, // update status info
+            			DEBUG_LEVEL);
+        	}
+        }
+
+        if (!QUAD_CLT.geometryCorrectionAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Calculating geometryCorrection");
+        	}
+        	if (!QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2)){
+        		return;
+        	}
+        }
+
+        QUAD_CLT.processCLTQuads3d(
+        		adjust_extrinsics, // boolean adjust_extrinsics,
+        		adjust_poly,       // boolean adjust_poly,
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+//        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+//        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+
+
+
+
+        if (configPath!=null) {
+        	saveTimestampedProperties( // save config again
+        			configPath,      // full path or null
+        			null, // use as default directory if path==null
+        			true,
+        			PROPERTIES);
+        }
+        return;
+
+    } else if (label.equals("CLT planes")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        if (QUAD_CLT == null){
+       		System.out.println("QUAD_CLT is null, nothing to show");
+       		return;
+        }
+        QUAD_CLT.showCLTPlanes(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+        return;
+    } else if (label.equals("CLT ASSIGN")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        if (QUAD_CLT == null){
+       		System.out.println("QUAD_CLT is null, nothing to show");
+       		return;
+        }
+
+    	if (!CLT_PARAMETERS.showTsDialog()) return;
+
+        boolean OK = QUAD_CLT.assignCLTPlanes(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+        if (!OK){
+       		System.out.println("Could not assign tiles to surfaces, probably \"CLT planes\" command did not run");
+       		return;
+        }
+        return;
+
+    } else if (label.equals("CLT OUT 3D")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        if (QUAD_CLT == null){
+       		System.out.println("QUAD_CLT is null, nothing to show (will add previous steps)");
+       		return;
+        }
+
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
+        boolean OK = QUAD_CLT.output3d(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		RGB_PARAMETERS,  // EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        		THREADS_MAX,     // final int          threadsMax,  // maximal number of threads to launch
+        		UPDATE_STATUS,   // final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+        if (!OK) {
+        	String msg="Image data not initialized, run 'CLT 3D' command first";
+        	System.out.println("Error: "+msg);
+        	IJ.showMessage("Error",msg);
+        }
+
+    } else if (label.equals("CLT batch process")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+        CLT_PARAMETERS.batch_run = true;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
+
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
+//        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
+        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
+
+        if (!QUAD_CLT.CLTKernelsAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Reading CLT kernels");
+        	}
+        	QUAD_CLT.readCLTKernels(
+            		CLT_PARAMETERS,
+                    THREADS_MAX,
+                    UPDATE_STATUS, // update status info
+            		DEBUG_LEVEL);
+
+            if (DEBUG_LEVEL > 1){
+            	QUAD_CLT.showCLTKernels(
+            			THREADS_MAX,
+            			UPDATE_STATUS, // update status info
+            			DEBUG_LEVEL);
+        	}
+        }
+
+        if (!QUAD_CLT.geometryCorrectionAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Calculating geometryCorrection");
+        	}
+        	if (!QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2)){
+        		return;
+        	}
+        }
+
+///========================================
+        QUAD_CLT.batchCLT3d(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+//        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+
+        if (configPath!=null) {
+        	saveTimestampedProperties( // save config again
+        			configPath,      // full path or null
+        			null, // use as default directory if path==null
+        			true,
+        			PROPERTIES);
+        }
+        return;
+    } else if (label.equals("CM Test")) {
+    	cm_test();
+        return;
+/* ======================================================================== */
+
+    } else if (label.equals("Import Aux")) {
+    	importAux();
+    	return;
+/* ======================================================================== */
+    } else if (label.equals("CLT 2*4 images")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+    	getPairImages();
+    	return;
+/* ======================================================================== */
+    } else if (label.equals("AUX show fine")) {
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+        QUAD_CLT.showExtrinsicCorr("main");// show_fine_corr("main");
+        if (QUAD_CLT_AUX == null){
+        	if (EYESIS_CORRECTIONS_AUX == null) {
+        		EYESIS_CORRECTIONS_AUX = new EyesisCorrections(SYNC_COMMAND.stopRequested,CORRECTION_PARAMETERS.getAux());
+        	}
+        	QUAD_CLT_AUX = new  QuadCLT (
+        			QuadCLT.PREFIX_AUX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS_AUX,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels for aux camera");
+        	}
+        }
+        QUAD_CLT_AUX.showExtrinsicCorr("aux");// show_fine_corr("aux");
+        return;
+
+//JTabbedTest
+// End of buttons code
+    }
+    DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+  }
+
+	public String getSaveCongigPath() {
+    	String configPath=null;
+    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
+    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
+    				true,
+    				true);
+    		if (configPath==null){
+    			String msg="No results directory selected, command aborted";
+    			System.out.println("Warning: "+msg);
+    			IJ.showMessage("Warning",msg);
+    			return "ABORT";
+    		}
+    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
+    		try {
+    			saveTimestampedProperties(
+    					configPath,      // full path or null
+    					null, // use as default directory if path==null
+    					true,
+    					PROPERTIES);
+
+    		} catch (Exception e){
+    			String msg="Failed to save configuration to "+configPath+", command aborted";
+    			System.out.println("Error: "+msg);
+    			IJ.showMessage("Error",msg);
+    			return "ABORT";
+    		}
+    	}
+		return configPath;
+	}
+
+	public boolean importAux() {
+		Properties aux_properties = new Properties();
+		String path= loadProperties(null,CORRECTION_PARAMETERS.resultsDirectory,true, aux_properties);
+    	if (path != null) {
+
+    		EyesisCorrectionParameters.CorrectionParameters auxCorrectionParameters = new EyesisCorrectionParameters.CorrectionParameters();
+    		auxCorrectionParameters.getProperties("CORRECTION_PARAMETERS.", aux_properties);
+    		CORRECTION_PARAMETERS.auxFromExternal(auxCorrectionParameters);
+    		if (QUAD_CLT_AUX == null){
+    	    	if (EYESIS_CORRECTIONS_AUX == null) {
+    	    		EYESIS_CORRECTIONS_AUX = new EyesisCorrections(SYNC_COMMAND.stopRequested,CORRECTION_PARAMETERS.getAux());
+    	    	}
+    			QUAD_CLT_AUX = new  QuadCLT (
+    					QuadCLT.PREFIX, // _AUX, - not used
+    					PROPERTIES, // aux_properties,
+    					EYESIS_CORRECTIONS_AUX,
+    					CORRECTION_PARAMETERS.getAux());
+    			if (DEBUG_LEVEL > 0){
+    				System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+    			}
+    		}
+    		// import main properties.
+    		QUAD_CLT_AUX.copyPropertiesFrom(aux_properties, QuadCLT.PREFIX, QuadCLT.PREFIX_AUX);
+    		// copy color gains for channels (from main other file to this aux)
+    		if (CHANNEL_GAINS_PARAMETERS_AUX == null ) {
+    			CHANNEL_GAINS_PARAMETERS_AUX = new CorrectionColorProc.ColorGainsParameters();
+    		}
+    		CHANNEL_GAINS_PARAMETERS_AUX.getProperties("CHANNEL_GAINS_PARAMETERS.", aux_properties);
+//    		QUAD_CLT_AUX.getProperties(QuadCLT.PREFIX);
+//    		QUAD_CLT_AUX.setProperties(QuadCLT.PREFIX_AUX);
+/*
+ * 	public void copyPropertiesFrom(Properties other_properties, String other_prefix, String this_prefix){ // save
+
+       TODO: add some other parameters, like geometry
+       MASTER_DEBUG_LEVEL = Integer.parseInt(properties.getProperty("MASTER_DEBUG_LEVEL"));
+       UPDATE_STATUS= Boolean.parseBoolean(properties.getProperty("UPDATE_STATUS"));
+   	   SPLIT_PARAMETERS.getProperties("SPLIT_PARAMETERS.", properties);
+   	   DCT_PARAMETERS.getProperties("DCT_PARAMETERS.", properties);
+   	   CLT_PARAMETERS.getProperties("CLT_PARAMETERS.", properties);
+       DEBAYER_PARAMETERS.getProperties("DEBAYER_PARAMETERS.", properties);
+//   	   NONLIN_PARAMETERS.getProperties("NONLIN_PARAMETERS.", properties);
+       COLOR_PROC_PARAMETERS.getProperties("COLOR_PROC_PARAMETERS.", properties);
+//       COLOR_CALIB_PARAMETERS.getProperties("COLOR_CALIB_PARAMETERS.", properties);
+	   RGB_PARAMETERS.getProperties("RGB_PARAMETERS.", properties);
+   	   PROCESS_PARAMETERS.getProperties("PROCESS_PARAMETERS.", properties);
+   	   CORRECTION_PARAMETERS.getProperties("CORRECTION_PARAMETERS.", properties);
+   	   CHANNEL_GAINS_PARAMETERS.getProperties("CHANNEL_GAINS_PARAMETERS.", properties);
+       EQUIRECTANGULAR_PARAMETERS.getProperties("EQUIRECTANGULAR_PARAMETERS.", properties);
+       POST_PROCESSING.getProperties("", properties);
+   	   CONVOLVE_FFT_SIZE=Integer.parseInt(properties.getProperty("CONVOLVE_FFT_SIZE"));
+	   THREADS_MAX=Integer.parseInt(properties.getProperty("THREADS_MAX"));
+	   GAUSS_WIDTH=Double.parseDouble(properties.getProperty("GAUSS_WIDTH"));
+	   PSF_SUBPIXEL_SHOULD_BE_4=Integer.parseInt(properties.getProperty("PSF_SUBPIXEL_SHOULD_BE_4"));
+	   if (QUAD_CLT != null) QUAD_CLT.getProperties();
+
+ */
+    		if (DEBUG_LEVEL > -1) System.out.println("Importing auxiliary camera parameters for its configuration (where it is main): "+path);
+    	} else {
+    		if (DEBUG_LEVEL > -10) System.out.println("Failed to import auxiliary configuration parameters");
+    	}
+		return true;
+	}
+
+	public boolean getPairImages() {
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > -2){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+        if (QUAD_CLT_AUX == null){
+        	if (EYESIS_CORRECTIONS_AUX == null) {
+        		EYESIS_CORRECTIONS_AUX = new EyesisCorrections(SYNC_COMMAND.stopRequested,CORRECTION_PARAMETERS.getAux());
+        	}
+        	QUAD_CLT_AUX = new  QuadCLT (
+        			QuadCLT.PREFIX_AUX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS_AUX,
+        			CORRECTION_PARAMETERS.getAux());
+        	if (DEBUG_LEVEL > -2){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+        QuadCLT dbg_QUAD_CLT = QUAD_CLT;
+        QuadCLT dbg_QUAD_CLT_AUX = QUAD_CLT_AUX;
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return false;
+    	if (DEBUG_LEVEL > -2){
+    		System.out.println("++++++++++++++ Running initSensorFiles for the main camera ++++++++++++++");
+    	}
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL+2, true); // missing_ok
+    	if (DEBUG_LEVEL > -2){
+    		System.out.println("++++++++++++++ Running initSensorFiles for the auxiliary camera ++++++++++++++");
+    	}
+        EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL+2, true); // some files belong to oher cameras\
+
+
+        int numChannels=    EYESIS_CORRECTIONS.getNumChannels();
+        int numChannelsAux= EYESIS_CORRECTIONS_AUX.getNumChannels();
+    	if (DEBUG_LEVEL > -2){
+    		System.out.println("numChannels="+numChannels+", numChannelsAux="+numChannelsAux);
+    	}
+
+        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
+        if (CHANNEL_GAINS_PARAMETERS_AUX == null) {
+        	CHANNEL_GAINS_PARAMETERS_AUX = new CorrectionColorProc.ColorGainsParameters();
+        }
+        CHANNEL_GAINS_PARAMETERS_AUX.modifyNumChannels(numChannelsAux);
+        if (!QUAD_CLT.CLTKernelsAvailable()){
+        	if (DEBUG_LEVEL > -2){
+        		System.out.println("++++++++++++++ Reading CLT kernels for the main camera ++++++++++++++");
+        	}
+        	QUAD_CLT.readCLTKernels(
+            		CLT_PARAMETERS,
+                    THREADS_MAX,
+                    UPDATE_STATUS, // update status info
+            		DEBUG_LEVEL);
+
+            if (DEBUG_LEVEL > 1){
+            	QUAD_CLT.showCLTKernels(
+            			THREADS_MAX,
+            			UPDATE_STATUS, // update status info
+            			DEBUG_LEVEL);
+        	}
+        }
+        if (!QUAD_CLT_AUX.CLTKernelsAvailable()){
+        	if (DEBUG_LEVEL > -2){
+        		System.out.println("++++++++++++++ Reading CLT kernels for the auxiliary camera ++++++++++++++ ");
+        	}
+        	QUAD_CLT_AUX.readCLTKernels(
+            		CLT_PARAMETERS,
+                    THREADS_MAX,
+                    UPDATE_STATUS, // update status info
+            		DEBUG_LEVEL);
+
+            if (DEBUG_LEVEL > 1){
+            	QUAD_CLT_AUX.showCLTKernels(
+            			THREADS_MAX,
+            			UPDATE_STATUS, // update status info
+            			DEBUG_LEVEL);
+        	}
+        }
+        if (!QUAD_CLT.geometryCorrectionAvailable()){
+        	if (DEBUG_LEVEL > -2){
+        		System.out.println("++++++++++++++ Calculating geometryCorrection for the main camera ++++++++++++++" );
+        	}
+        	if (!QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2)){
+        		return false;
+        	}
+        }
+        if (!QUAD_CLT_AUX.geometryCorrectionAvailable()){
+        	if (DEBUG_LEVEL > -2){
+        		System.out.println("++++++++++++++ Calculating geometryCorrection for the auxiliary camera ++++++++++++++");
+        	}
+        	if (!QUAD_CLT_AUX.initGeometryCorrection(DEBUG_LEVEL+2)){
+        		return false;
+        	}
+        }
+
+        QUAD_CLT.processCLTQuadCorrs(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+        		false, // apply_corr,
+        		false, // infinity_corr, // calculate and apply geometry correction at infinity
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+        QUAD_CLT_AUX.processCLTQuadCorrs(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+        		false, // apply_corr,
+        		false, // infinity_corr, // calculate and apply geometry correction at infinity
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+
+
+/*
+        int num_infinity_corr = infinity_corr? CLT_PARAMETERS.inf_repeat : 1;
+        if ( num_infinity_corr < 1) num_infinity_corr = 1;
+        for (int i_infinity_corr = 0;  i_infinity_corr < num_infinity_corr; i_infinity_corr++) {
+        QUAD_CLT.processCLTQuadCorrs(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+//        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+//        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+        		apply_corr,
+        		infinity_corr, // calculate and apply geometry correction at infinity
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+        }
+        if (configPath!=null) {
+        	saveTimestampedProperties( // save config again
+        			configPath,      // full path or null
+        			null, // use as default directory if path==null
+        			true,
+        			PROPERTIES);
+        }
+        return;
+
+ */
+
+		return true;
+	}
+
+
+
+	public ImagePlus selectCLTImage() {
+    	if (!CLT_PARAMETERS.showJDialog()) return null;
+    	// process selected image stack
+    	ImagePlus imp_src = WindowManager.getCurrentImage();
+    	ImagePlus imp_rslt = null;
+    	if (imp_src==null){
+    		IJ.showMessage("Error","JP4 image or Bayer image stack required");
+    		return null;
+    	}
+    	if (imp_src.getStackSize()<3){ // convert JP4 to image stack
+
+    		EyesisCorrectionParameters.SplitParameters split_parameters = new EyesisCorrectionParameters.SplitParameters(
+    				1,  // oversample;
+    				// Add just for mdct (N/2)
+    				CLT_PARAMETERS.transform_size/2, // addLeft
+    				CLT_PARAMETERS.transform_size/2, // addTop
+    				CLT_PARAMETERS.transform_size/2, // addRight
+    				CLT_PARAMETERS.transform_size/2  // addBottom
+    				);
+
+
+    		ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
+    				split_parameters);
+    		imp_rslt = new ImagePlus(imp_src.getTitle()+"-SPIT", sourceStack);
+    		if (DEBUG_LEVEL > 1) {
+    			imp_rslt.getProcessor().resetMinAndMax();
+    			imp_rslt.show();
+    		}
+    	} else {
+    		imp_rslt = imp_src;
+    	}
+    	return imp_rslt;
+	}
+
+	public void CLTStack() {
+		//	IJ.showMessage("DCT test 1");
+		if (!CLT_PARAMETERS.showJDialog()) return;
+		//process selected image stack
+		if (DBG_IMP == null) {
+			ImagePlus imp_src = WindowManager.getCurrentImage();
+			if (imp_src==null){
+				IJ.showMessage("Error","JP4 image or Bayer image stack required");
+				return;
+			}
+			//        ImagePlus imp2;
+			if (imp_src.getStackSize()<3){ // convert JP4 to image stack
+
+				EyesisCorrectionParameters.SplitParameters split_parameters = new EyesisCorrectionParameters.SplitParameters(
+						1,  // oversample;
+						CLT_PARAMETERS.transform_size/2, // addLeft
+						CLT_PARAMETERS.transform_size/2, // addTop
+						CLT_PARAMETERS.transform_size/2, // addRight
+						CLT_PARAMETERS.transform_size/2  // addBottom
+						);
+
+
+				ImageStack sourceStack= bayerToStack(imp_src, // source Bayer image, linearized, 32-bit (float))
+						split_parameters);
+				DBG_IMP = new ImagePlus(imp_src.getTitle()+"-SPIT", sourceStack);
+				DBG_IMP.getProcessor().resetMinAndMax();
+				DBG_IMP.show();
+			} else {
+				DBG_IMP = imp_src;
+			}
+		}
+
+		ImageDtt image_dtt = new ImageDtt();
+		double [][][][][] clt_data = image_dtt.cltStack(
+				DBG_IMP.getStack(),
+				0, // CLT_PARAMETERS.kernel_chn,
+				CLT_PARAMETERS,
+				CLT_PARAMETERS.ishift_x, //final int shiftX, // shift image horizontally (positive - right)
+				CLT_PARAMETERS.ishift_y, //final int shiftY, // shift image vertically (positive - down)
+				THREADS_MAX, DEBUG_LEVEL, UPDATE_STATUS);
+
+		int tilesY = DBG_IMP.getHeight()/CLT_PARAMETERS.transform_size - 1;
+		int tilesX = DBG_IMP.getWidth()/CLT_PARAMETERS.transform_size - 1;
+		System.out.println("'CLT stack': tilesX="+tilesX);
+		System.out.println("'CLT stack': tilesY="+tilesY);
+		double [][] clt = new double [clt_data.length*4][];
+		for (int chn = 0; chn < clt_data.length; chn++) {
+			double [][] clt_set = image_dtt.clt_dbg(
+					clt_data [chn],
+					THREADS_MAX,
+					DEBUG_LEVEL);
+			for (int ii = 0; ii < clt_set.length; ii++) clt[chn*4+ii] = clt_set[ii];
+		}
+		//    System.out.println("dct_dc.length="+dct_dc.length+" dct_ac.length="+dct_ac.length);
+		if (DEBUG_LEVEL > 0){
+			SDFA_INSTANCE.showArrays(clt,
+					tilesX*CLT_PARAMETERS.transform_size,
+					tilesY*CLT_PARAMETERS.transform_size,
+					true,
+					DBG_IMP.getTitle()+"-CLT+"+CLT_PARAMETERS.iclt_mask);
+		}
+
+		if ((CLT_PARAMETERS.shift_x != 0) || (CLT_PARAMETERS.shift_y !=0)){
+			for (int chn = 0; chn < clt_data.length; chn++) {
+				clt_data[chn] = image_dtt.clt_shiftXY(
+						clt_data[chn],                  // final double [][][][] dct_data,  // array [tilesY][tilesX][4][dct_size*dct_size]
+						CLT_PARAMETERS.transform_size,  // final int             dct_size,
+						CLT_PARAMETERS.shift_x,         // final double          shiftX,
+						CLT_PARAMETERS.shift_y,         // final double          shiftY,
+						(CLT_PARAMETERS.dbg_mode >> 2) & 3, // swap order hor/vert
+						THREADS_MAX,                    // maximal number of threads to launch
+						DEBUG_LEVEL);                   // globalDebugLevel)
+			}
+		}
+
+
+
+		double [][] iclt_data = new double [clt_data.length][];
+		for (int chn=0; chn<iclt_data.length;chn++){
+			iclt_data[chn] = image_dtt.iclt_2d(
+					clt_data[chn],                  // scanline representation of dcd data, organized as dct_size x dct_size tiles
+					CLT_PARAMETERS.transform_size,  // final int
+					CLT_PARAMETERS.clt_window,      //window_type
+					CLT_PARAMETERS.iclt_mask,       //which of 4 to transform back
+					CLT_PARAMETERS.dbg_mode,        //which of 4 to transform back
+					THREADS_MAX,                    // maximal number of threads to launch
+					DEBUG_LEVEL);                   //        globalDebugLevel)
+		}
+		SDFA_INSTANCE.showArrays(
+				iclt_data,
+				(tilesX + 1) * CLT_PARAMETERS.transform_size,
+				(tilesY + 1) * CLT_PARAMETERS.transform_size,
+				true,
+				DBG_IMP.getTitle()+"-ICLT-"+CLT_PARAMETERS.iclt_mask);
+		return;
+	}
+/* ======================================================================== */
+
+	public void CLTCorrelate() {
 
 //    	IJ.showMessage("DCT test 1");
         if (!CLT_PARAMETERS.showJDialog()) return;
@@ -4188,981 +5132,9 @@ private Panel panel1,
         			true,
         			DBG_IMP.getTitle()+"-C"+suffix, titles_rbg);
         }
+	}
 
-//==============================================================================
 
-    } else if (label.equals("Create CLT kernels")) {
-        if (!CLT_PARAMETERS.showJDialog()) return;
-        if (QUAD_CLT == null){
-        	QUAD_CLT = new  QuadCLT (
-        			PROPERTIES,
-        			EYESIS_CORRECTIONS,
-        			CORRECTION_PARAMETERS);
-        }
-    	String configPath=null;
-    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
-    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
-    				true,
-    				true);
-    		if (configPath==null){
-    			String msg="No results directory selected, command aborted";
-    			System.out.println("Warning: "+msg);
-    			IJ.showMessage("Warning",msg);
-    			return;
-    		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
-    		try {
-    			saveTimestampedProperties(
-    					configPath,      // full path or null
-    					null, // use as default directory if path==null
-    					true,
-    					PROPERTIES);
-
-    		} catch (Exception e){
-    			String msg="Failed to save configuration to "+configPath+", command aborted";
-    			System.out.println("Error: "+msg);
-    			IJ.showMessage("Error",msg);
-    			return;
-    		}
-    	}
-    	String cltPath=EYESIS_CORRECTIONS.correctionsParameters.selectCLTKernelDirectory( // create if it does not exist
-				true,
-				true);
-    	if (cltPath==null) {
-			String msg="No CLT kernels (results) directory selected, command aborted";
-			System.out.println("Warning: "+msg);
-			IJ.showMessage("Warning",msg);
-			return;
-    	}
-
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
-
-        QUAD_CLT.createCLTKernels(
-        		CLT_PARAMETERS,
-        		CONVOLVE_FFT_SIZE/2,
-                THREADS_MAX,
-                UPDATE_STATUS, // update status info
-        		DEBUG_LEVEL);
-
-        //"Reset DCT kernels"
-    } else if (label.equals("Reset CLT kernels")) {
-        if (QUAD_CLT != null){
-        	QUAD_CLT.resetCLTKernels();
-        }
-
-    } else if (label.equals("Read CLT kernels")) {
-        if (!CLT_PARAMETERS.showJDialog()) return;
-        if (QUAD_CLT == null){
-        	QUAD_CLT = new  QuadCLT (
-        			PROPERTIES,
-        			EYESIS_CORRECTIONS,
-        			CORRECTION_PARAMETERS);
-        }
-    	String configPath=null;
-    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
-    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
-    				true,
-    				true);
-    		if (configPath==null){
-    			String msg="No results directory selected, command aborted";
-    			System.out.println("Warning: "+msg);
-    			IJ.showMessage("Warning",msg);
-    			return;
-    		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
-    		try {
-    			saveTimestampedProperties(
-    					configPath,      // full path or null
-    					null, // use as default directory if path==null
-    					true,
-    					PROPERTIES);
-
-    		} catch (Exception e){
-    			String msg="Failed to save configuration to "+configPath+", command aborted";
-    			System.out.println("Error: "+msg);
-    			IJ.showMessage("Error",msg);
-    			return;
-    		}
-    	}
-
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
-
-        QUAD_CLT.readCLTKernels(
-        		CLT_PARAMETERS,
-                THREADS_MAX,
-                UPDATE_STATUS, // update status info
-        		DEBUG_LEVEL);
-        if (DEBUG_LEVEL > -1){
-        	QUAD_CLT.showCLTKernels(
-        			THREADS_MAX,
-        			UPDATE_STATUS, // update status info
-        			DEBUG_LEVEL);
-        }
-
-        return;
-    } else if (label.equals("CLT process files")) {
-    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-        if (QUAD_CLT == null){
-        	QUAD_CLT = new  QuadCLT (
-        			PROPERTIES,
-        			EYESIS_CORRECTIONS,
-        			CORRECTION_PARAMETERS);
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
-        	}
-        }
-
-    	String configPath=null;
-    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
-    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
-    				true,
-    				true);
-    		if (configPath==null){
-    			String msg="No results directory selected, command aborted";
-    			System.out.println("Warning: "+msg);
-    			IJ.showMessage("Warning",msg);
-    			return;
-    		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
-    		try {
-    			saveTimestampedProperties(
-    					configPath,      // full path or null
-    					null, // use as default directory if path==null
-    					true,
-    					PROPERTIES);
-
-    		} catch (Exception e){
-    			String msg="Failed to save configuration to "+configPath+", command aborted";
-    			System.out.println("Error: "+msg);
-    			IJ.showMessage("Error",msg);
-    			return;
-    		}
-    	}
-
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
-        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
-        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
-        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
-
-        if (!QUAD_CLT.CLTKernelsAvailable()){
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Reading CLT kernels");
-        	}
-        	QUAD_CLT.readCLTKernels(
-            		CLT_PARAMETERS,
-                    THREADS_MAX,
-                    UPDATE_STATUS, // update status info
-            		DEBUG_LEVEL);
-
-            if (DEBUG_LEVEL > 1){
-            	QUAD_CLT.showCLTKernels(
-            			THREADS_MAX,
-            			UPDATE_STATUS, // update status info
-            			DEBUG_LEVEL);
-        	}
-        }
-
-///========================================
-
-        QUAD_CLT.processCLTChannelImages(
-        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
-        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        		UPDATE_STATUS, //final boolean    updateStatus,
-        		DEBUG_LEVEL); //final int        debugLevel);
-
-        if (configPath!=null) {
-        	saveTimestampedProperties( // save config again
-        			configPath,      // full path or null
-        			null, // use as default directory if path==null
-        			true,
-        			PROPERTIES);
-        }
-        return;
-
-    } else if (label.equals("CLT process sets")) {
-    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-        if (QUAD_CLT == null){
-        	QUAD_CLT = new  QuadCLT (
-        			PROPERTIES,
-        			EYESIS_CORRECTIONS,
-        			CORRECTION_PARAMETERS);
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
-        	}
-        }
-    	String configPath=null;
-    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
-    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
-    				true,
-    				true);
-    		if (configPath==null){
-    			String msg="No results directory selected, command aborted";
-    			System.out.println("Warning: "+msg);
-    			IJ.showMessage("Warning",msg);
-    			return;
-    		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
-    		try {
-    			saveTimestampedProperties(
-    					configPath,      // full path or null
-    					null, // use as default directory if path==null
-    					true,
-    					PROPERTIES);
-
-    		} catch (Exception e){
-    			String msg="Failed to save configuration to "+configPath+", command aborted";
-    			System.out.println("Error: "+msg);
-    			IJ.showMessage("Error",msg);
-    			return;
-    		}
-    	}
-
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
-        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
-        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
-        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
-
-        if (!QUAD_CLT.CLTKernelsAvailable()){
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Reading CLT kernels");
-        	}
-        	QUAD_CLT.readCLTKernels(
-            		CLT_PARAMETERS,
-                    THREADS_MAX,
-                    UPDATE_STATUS, // update status info
-            		DEBUG_LEVEL);
-
-            if (DEBUG_LEVEL > 1){
-            	QUAD_CLT.showCLTKernels(
-            			THREADS_MAX,
-            			UPDATE_STATUS, // update status info
-            			DEBUG_LEVEL);
-        	}
-        }
-
-        if (!QUAD_CLT.geometryCorrectionAvailable()){
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Calculating geometryCorrection");
-        	}
-        	if (!QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2)){
-        		return;
-        	}
-        }
-
-///========================================
-
-        QUAD_CLT.processCLTSets(
-        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
-        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        		UPDATE_STATUS, //final boolean    updateStatus,
-        		DEBUG_LEVEL); //final int        debugLevel);
-
-        if (configPath!=null) {
-        	saveTimestampedProperties( // save config again
-        			configPath,      // full path or null
-        			null, // use as default directory if path==null
-        			true,
-        			PROPERTIES);
-        }
-        return;
-
-    } else if (label.equals("CLT process quads")) {
-    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-        if (QUAD_CLT == null){
-        	QUAD_CLT = new  QuadCLT (
-        			PROPERTIES,
-        			EYESIS_CORRECTIONS,
-        			CORRECTION_PARAMETERS);
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
-        	}
-        }
-    	String configPath=null;
-    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
-    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
-    				true,
-    				true);
-    		if (configPath==null){
-    			String msg="No results directory selected, command aborted";
-    			System.out.println("Warning: "+msg);
-    			IJ.showMessage("Warning",msg);
-    			return;
-    		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
-    		try {
-    			saveTimestampedProperties(
-    					configPath,      // full path or null
-    					null, // use as default directory if path==null
-    					true,
-    					PROPERTIES);
-
-    		} catch (Exception e){
-    			String msg="Failed to save configuration to "+configPath+", command aborted";
-    			System.out.println("Error: "+msg);
-    			IJ.showMessage("Error",msg);
-    			return;
-    		}
-    	}
-
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
-        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
-        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
-        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
-
-        if (!QUAD_CLT.CLTKernelsAvailable()){
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Reading CLT kernels");
-        	}
-        	QUAD_CLT.readCLTKernels(
-            		CLT_PARAMETERS,
-                    THREADS_MAX,
-                    UPDATE_STATUS, // update status info
-            		DEBUG_LEVEL);
-
-            if (DEBUG_LEVEL > 1){
-            	QUAD_CLT.showCLTKernels(
-            			THREADS_MAX,
-            			UPDATE_STATUS, // update status info
-            			DEBUG_LEVEL);
-        	}
-        }
-
-        if (!QUAD_CLT.geometryCorrectionAvailable()){
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Calculating geometryCorrection");
-        	}
-        	if (!QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2)){
-        		return;
-        	}
-        }
-
-///========================================
-
-        QUAD_CLT.processCLTQuads(
-        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
-        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        		UPDATE_STATUS, //final boolean    updateStatus,
-        		DEBUG_LEVEL); //final int        debugLevel);
-
-        if (configPath!=null) {
-        	saveTimestampedProperties( // save config again
-        			configPath,      // full path or null
-        			null, // use as default directory if path==null
-        			true,
-        			PROPERTIES);
-        }
-        return;
-
-
-    } else if (label.equals("CLT 4 images") || label.equals("CLT apply fine corr") || label.equals("CLT infinity corr")) {
-    	boolean apply_corr = label.equals("CLT apply fine corr");
-    	boolean infinity_corr = label.equals("CLT infinity corr");
-    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-        if (QUAD_CLT == null){
-        	QUAD_CLT = new  QuadCLT (
-        			PROPERTIES,
-        			EYESIS_CORRECTIONS,
-        			CORRECTION_PARAMETERS);
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
-        	}
-        }
-    	String configPath=null;
-    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
-    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
-    				true,
-    				true);
-    		if (configPath==null){
-    			String msg="No results directory selected, command aborted";
-    			System.out.println("Warning: "+msg);
-    			IJ.showMessage("Warning",msg);
-    			return;
-    		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
-    		try {
-    			saveTimestampedProperties(
-    					configPath,      // full path or null
-    					null, // use as default directory if path==null
-    					true,
-    					PROPERTIES);
-
-    		} catch (Exception e){
-    			String msg="Failed to save configuration to "+configPath+", command aborted";
-    			System.out.println("Error: "+msg);
-    			IJ.showMessage("Error",msg);
-    			return;
-    		}
-    	}
-
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
-        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
-        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
-        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
-
-        if (!QUAD_CLT.CLTKernelsAvailable()){
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Reading CLT kernels");
-        	}
-        	QUAD_CLT.readCLTKernels(
-            		CLT_PARAMETERS,
-                    THREADS_MAX,
-                    UPDATE_STATUS, // update status info
-            		DEBUG_LEVEL);
-
-            if (DEBUG_LEVEL > 1){
-            	QUAD_CLT.showCLTKernels(
-            			THREADS_MAX,
-            			UPDATE_STATUS, // update status info
-            			DEBUG_LEVEL);
-        	}
-        }
-
-        if (!QUAD_CLT.geometryCorrectionAvailable()){
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Calculating geometryCorrection");
-        	}
-        	if (!QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2)){
-        		return;
-        	}
-        }
-
-///========================================
-        int num_infinity_corr = infinity_corr? CLT_PARAMETERS.inf_repeat : 1;
-        if ( num_infinity_corr < 1) num_infinity_corr = 1;
-        for (int i_infinity_corr = 0;  i_infinity_corr < num_infinity_corr; i_infinity_corr++) {
-        QUAD_CLT.processCLTQuadCorrs(
-        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
-        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-        		apply_corr,
-        		infinity_corr, // calculate and apply geometry correction at infinity
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        		UPDATE_STATUS, //final boolean    updateStatus,
-        		DEBUG_LEVEL); //final int        debugLevel);
-        }
-        if (configPath!=null) {
-        	saveTimestampedProperties( // save config again
-        			configPath,      // full path or null
-        			null, // use as default directory if path==null
-        			true,
-        			PROPERTIES);
-        }
-        return;
-    } else if (label.equals("CLT reset fine corr")) {
-        if (QUAD_CLT == null){
-        	QUAD_CLT = new  QuadCLT (
-        			PROPERTIES,
-        			EYESIS_CORRECTIONS,
-        			CORRECTION_PARAMETERS);
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
-        	}
-        }
-        QUAD_CLT.reset_fine_corr();
-        return;
-    } else if (label.equals("CLT reset extrinsic corr")) {
-        if (QUAD_CLT == null){
-        	QUAD_CLT = new  QuadCLT (
-        			PROPERTIES,
-        			EYESIS_CORRECTIONS,
-        			CORRECTION_PARAMETERS);
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
-        	}
-        }
-        QUAD_CLT.resetExtrinsicCorr(CLT_PARAMETERS);
-        return;
-    } else if (label.equals("CLT show geometry")) {
-        if (QUAD_CLT == null){
-        	QUAD_CLT = new  QuadCLT (
-        			PROPERTIES,
-        			EYESIS_CORRECTIONS,
-        			CORRECTION_PARAMETERS);
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
-        	}
-        }
-        QUAD_CLT.listGeometryCorrection(true);
-        return;
-    } else if (label.equals("CLT show fine corr")) {
-        if (QUAD_CLT == null){
-        	QUAD_CLT = new  QuadCLT (
-        			PROPERTIES,
-        			EYESIS_CORRECTIONS,
-        			CORRECTION_PARAMETERS);
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
-        	}
-        }
-        QUAD_CLT.show_fine_corr();
-        return;
-
-    } else if (label.equals("CLT process fine corr") || label.equals("CLT test fine corr")) {
-    	boolean dry_run = label.equals("CLT test fine corr");
-    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-        if (QUAD_CLT == null){
-        	QUAD_CLT = new  QuadCLT (
-        			PROPERTIES,
-        			EYESIS_CORRECTIONS,
-        			CORRECTION_PARAMETERS);
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
-        	}
-        }
-
-        QUAD_CLT.processLazyEye(
-        		dry_run, // boolean dry_run
-        		CLT_PARAMETERS,
-        		DEBUG_LEVEL);
-
-        return;
-
-    } else if (label.equals("CLT ext infinity corr")) {
-    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-        if (QUAD_CLT == null){
-        	QUAD_CLT = new  QuadCLT (
-        			PROPERTIES,
-        			EYESIS_CORRECTIONS,
-        			CORRECTION_PARAMETERS);
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
-        	}
-        }
-        QUAD_CLT.process_infinity_corr(
-        		CLT_PARAMETERS,
-        		DEBUG_LEVEL);
-        return;
-
-
-
-    } else if (label.equals("CLT disparity scan")) {
-    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-        if (QUAD_CLT == null){
-        	QUAD_CLT = new  QuadCLT (
-        			PROPERTIES,
-        			EYESIS_CORRECTIONS,
-        			CORRECTION_PARAMETERS);
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
-        	}
-        }
-    	String configPath=null;
-    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
-    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
-    				true,
-    				true);
-    		if (configPath==null){
-    			String msg="No results directory selected, command aborted";
-    			System.out.println("Warning: "+msg);
-    			IJ.showMessage("Warning",msg);
-    			return;
-    		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
-    		try {
-    			saveTimestampedProperties(
-    					configPath,      // full path or null
-    					null, // use as default directory if path==null
-    					true,
-    					PROPERTIES);
-
-    		} catch (Exception e){
-    			String msg="Failed to save configuration to "+configPath+", command aborted";
-    			System.out.println("Error: "+msg);
-    			IJ.showMessage("Error",msg);
-    			return;
-    		}
-    	}
-
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
-        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
-        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
-        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
-
-        if (!QUAD_CLT.CLTKernelsAvailable()){
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Reading CLT kernels");
-        	}
-        	QUAD_CLT.readCLTKernels(
-            		CLT_PARAMETERS,
-                    THREADS_MAX,
-                    UPDATE_STATUS, // update status info
-            		DEBUG_LEVEL);
-
-            if (DEBUG_LEVEL > 1){
-            	QUAD_CLT.showCLTKernels(
-            			THREADS_MAX,
-            			UPDATE_STATUS, // update status info
-            			DEBUG_LEVEL);
-        	}
-        }
-
-        if (!QUAD_CLT.geometryCorrectionAvailable()){
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Calculating geometryCorrection");
-        	}
-        	if (!QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2)){
-        		return;
-        	}
-        }
-
-///========================================
-
-        QUAD_CLT.cltDisparityScans(
-        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
-        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        		UPDATE_STATUS, //final boolean    updateStatus,
-        		DEBUG_LEVEL); //final int        debugLevel);
-
-        if (configPath!=null) {
-        	saveTimestampedProperties( // save config again
-        			configPath,      // full path or null
-        			null, // use as default directory if path==null
-        			true,
-        			PROPERTIES);
-        }
-        return;
-
-    } else if (label.equals("CLT reset 3D")) {
-        if (QUAD_CLT == null){
-        	QUAD_CLT = new  QuadCLT (
-        			PROPERTIES,
-        			EYESIS_CORRECTIONS,
-        			CORRECTION_PARAMETERS);
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
-        	}
-        }
-        QUAD_CLT.tp.resetCLTPasses();
-        QUAD_CLT.tp.setTrustedCorrelation(CLT_PARAMETERS.grow_disp_trust);
-
-        return;
-
-/// ============================================
-
-    } else if (label.equals("CLT 3D") || label.equals("CLT Extrinsics") || label.equals("CLT Poly corr")) {
-    	boolean adjust_extrinsics = label.equals("CLT Extrinsics") || label.equals("CLT Poly corr");
-    	boolean adjust_poly = label.equals("CLT Poly corr");
-    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-        if (QUAD_CLT == null){
-        	QUAD_CLT = new  QuadCLT (
-        			PROPERTIES,
-        			EYESIS_CORRECTIONS,
-        			CORRECTION_PARAMETERS);
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
-        	}
-        }
-    	String configPath=null;
-    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
-    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
-    				true,
-    				true);
-    		if (configPath==null){
-    			String msg="No results directory selected, command aborted";
-    			System.out.println("Warning: "+msg);
-    			IJ.showMessage("Warning",msg);
-    			return;
-    		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
-    		try {
-    			saveTimestampedProperties(
-    					configPath,      // full path or null
-    					null, // use as default directory if path==null
-    					true,
-    					PROPERTIES);
-
-    		} catch (Exception e){
-    			String msg="Failed to save configuration to "+configPath+", command aborted";
-    			System.out.println("Error: "+msg);
-    			IJ.showMessage("Error",msg);
-    			return;
-    		}
-    	}
-
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
-        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
-        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
-        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
-
-        if (!QUAD_CLT.CLTKernelsAvailable()){
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Reading CLT kernels");
-        	}
-        	QUAD_CLT.readCLTKernels(
-            		CLT_PARAMETERS,
-                    THREADS_MAX,
-                    UPDATE_STATUS, // update status info
-            		DEBUG_LEVEL);
-
-            if (DEBUG_LEVEL > 1){
-            	QUAD_CLT.showCLTKernels(
-            			THREADS_MAX,
-            			UPDATE_STATUS, // update status info
-            			DEBUG_LEVEL);
-        	}
-        }
-
-        if (!QUAD_CLT.geometryCorrectionAvailable()){
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Calculating geometryCorrection");
-        	}
-        	if (!QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2)){
-        		return;
-        	}
-        }
-
-        QUAD_CLT.processCLTQuads3d(
-        		adjust_extrinsics, // boolean adjust_extrinsics,
-        		adjust_poly,       // boolean adjust_poly,
-        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
-        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-//        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        		UPDATE_STATUS, //final boolean    updateStatus,
-        		DEBUG_LEVEL); //final int        debugLevel);
-
-
-
-
-        if (configPath!=null) {
-        	saveTimestampedProperties( // save config again
-        			configPath,      // full path or null
-        			null, // use as default directory if path==null
-        			true,
-        			PROPERTIES);
-        }
-        return;
-
-    } else if (label.equals("CLT planes")) {
-    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-        if (QUAD_CLT == null){
-       		System.out.println("QUAD_CLT is null, nothing to show");
-       		return;
-        }
-        QUAD_CLT.showCLTPlanes(
-        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        		UPDATE_STATUS, //final boolean    updateStatus,
-        		DEBUG_LEVEL); //final int        debugLevel);
-        return;
-    } else if (label.equals("CLT ASSIGN")) {
-    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-        if (QUAD_CLT == null){
-       		System.out.println("QUAD_CLT is null, nothing to show");
-       		return;
-        }
-
-    	if (!CLT_PARAMETERS.showTsDialog()) return;
-
-        boolean OK = QUAD_CLT.assignCLTPlanes(
-        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        		UPDATE_STATUS, //final boolean    updateStatus,
-        		DEBUG_LEVEL); //final int        debugLevel);
-        if (!OK){
-       		System.out.println("Could not assign tiles to surfaces, probably \"CLT planes\" command did not run");
-       		return;
-        }
-        return;
-
-    } else if (label.equals("CLT OUT 3D")) {
-    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-        if (QUAD_CLT == null){
-       		System.out.println("QUAD_CLT is null, nothing to show (will add previous steps)");
-       		return;
-        }
-
-    	String configPath=null;
-    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
-    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
-    				true,
-    				true);
-    		if (configPath==null){
-    			String msg="No results directory selected, command aborted";
-    			System.out.println("Warning: "+msg);
-    			IJ.showMessage("Warning",msg);
-    			return;
-    		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
-    		try {
-    			saveTimestampedProperties(
-    					configPath,      // full path or null
-    					null, // use as default directory if path==null
-    					true,
-    					PROPERTIES);
-
-    		} catch (Exception e){
-    			String msg="Failed to save configuration to "+configPath+", command aborted";
-    			System.out.println("Error: "+msg);
-    			IJ.showMessage("Error",msg);
-    			return;
-    		}
-    	}
-        boolean OK = QUAD_CLT.output3d(
-        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-        		RGB_PARAMETERS,  // EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        		THREADS_MAX,     // final int          threadsMax,  // maximal number of threads to launch
-        		UPDATE_STATUS,   // final boolean    updateStatus,
-        		DEBUG_LEVEL); //final int        debugLevel);
-        if (!OK) {
-        	String msg="Image data not initialized, run 'CLT 3D' command first";
-        	System.out.println("Error: "+msg);
-        	IJ.showMessage("Error",msg);
-        }
-
-    } else if (label.equals("CLT batch process")) {
-    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-        CLT_PARAMETERS.batch_run = true;
-    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-        if (QUAD_CLT == null){
-        	QUAD_CLT = new  QuadCLT (
-        			PROPERTIES,
-        			EYESIS_CORRECTIONS,
-        			CORRECTION_PARAMETERS);
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
-        	}
-        }
-    	String configPath=null;
-    	if (EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
-    		configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
-    				true,
-    				true);
-    		if (configPath==null){
-    			String msg="No results directory selected, command aborted";
-    			System.out.println("Warning: "+msg);
-    			IJ.showMessage("Warning",msg);
-    			return;
-    		}
-    		configPath+=Prefs.getFileSeparator()+"autoconfig"+Prefs.getFileSeparator()+"autoconfig";
-    		try {
-    			saveTimestampedProperties(
-    					configPath,      // full path or null
-    					null, // use as default directory if path==null
-    					true,
-    					PROPERTIES);
-
-    		} catch (Exception e){
-    			String msg="Failed to save configuration to "+configPath+", command aborted";
-    			System.out.println("Error: "+msg);
-    			IJ.showMessage("Error",msg);
-    			return;
-    		}
-    	}
-
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
-        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
-        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
-        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
-
-        if (!QUAD_CLT.CLTKernelsAvailable()){
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Reading CLT kernels");
-        	}
-        	QUAD_CLT.readCLTKernels(
-            		CLT_PARAMETERS,
-                    THREADS_MAX,
-                    UPDATE_STATUS, // update status info
-            		DEBUG_LEVEL);
-
-            if (DEBUG_LEVEL > 1){
-            	QUAD_CLT.showCLTKernels(
-            			THREADS_MAX,
-            			UPDATE_STATUS, // update status info
-            			DEBUG_LEVEL);
-        	}
-        }
-
-        if (!QUAD_CLT.geometryCorrectionAvailable()){
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Calculating geometryCorrection");
-        	}
-        	if (!QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2)){
-        		return;
-        	}
-        }
-
-///========================================
-        QUAD_CLT.batchCLT3d(
-        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
-        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        		UPDATE_STATUS, //final boolean    updateStatus,
-        		DEBUG_LEVEL); //final int        debugLevel);
-
-        if (configPath!=null) {
-        	saveTimestampedProperties( // save config again
-        			configPath,      // full path or null
-        			null, // use as default directory if path==null
-        			true,
-        			PROPERTIES);
-        }
-        return;
-    } else if (label.equals("CM Test")) {
-    	cm_test();
-        return;
-
-//JTabbedTest
-// End of buttons code
-    }
-    DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-
-//
-  }
 
 		public boolean getDCTShiftwDialog(double [] shiftXY) {
   			GenericDialog gd = new GenericDialog("Set DCT shift");
@@ -5271,42 +5243,6 @@ private Panel panel1,
 
 
 		return true;
-/*
-		double s0 = 0, sx=0,sy = 0;
-		for (int y = - iradius ; y <= iradius; y++){
-			int dataY = icenter[1] +y;
-			if ((dataY >= 0) && (dataY < data_size)){
-				int y2 = y*y;
-				for (int x = - iradius ; x <= iradius; x++){
-					int dataX = icenter[0] +x;
-					double r2 = y2 + x * x;
-//					if ((dataX >= 0) && (dataX < data_size) && (square || ((y2 + x * x) <= ir2))){
-					if ((dataX >= 0) && (dataX < data_size) && (square || (r2 <= ir2))){
-//						double w = max_corr_double? (1.0 - r2/ir2):1.0;
-//						double d =  w* data[dataY * data_size + dataX];
-						double d =  data[dataY * data_size + dataX];
-						s0 += d;
-						sx += d * dataX;
-						sy += d * dataY;
-					}
-				}
-			}
-		}
-		double [] rslt = {sx / s0, sy / s0};
- *
- * 		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
-
-			  sdfa_instance.showArrays(double_stack,  imp_src.getWidth(), imp_src.getHeight(), true, "BEFORE_CLT_PROC", rbg_titles);
- *
-			        	   gb.blurDouble(
-			        			   results[indexVar],
-			        			   size,
-			        			   size,
-			        			   blurVarianceSigma,
-			        			   blurVarianceSigma,
-			        			   0.01);
-
- */
 
   }
 
@@ -5852,7 +5788,7 @@ private Panel panel1,
 
 
 /* ======================================================================== */
-	public void loadProperties(
+	public String loadProperties(
 			String path,
 			String directory,
 			boolean useXML,
@@ -5867,13 +5803,13 @@ private Panel panel1,
 	 			  new MultipleExtensionsFileFilter(patterns,(useXML?"XML ":"")+"Configuration files ("+(useXML?"*.corr-xml":"*.conf")+")"), // filter
 	 			  directory); // may be ""
 	      }  else path+=patterns[0];
-	     if (path==null) return;
+	     if (path==null) return null;
 	     InputStream is;
 		try {
 			is = new FileInputStream(path);
 		} catch (FileNotFoundException e) {
         	 IJ.showMessage("Error","Failed to open configuration file: "+path);
-         	 return;
+         	 return null;
 		}
 
 	     if (useXML) {
@@ -5882,14 +5818,14 @@ private Panel panel1,
 
 	     	 } catch (IOException e) {
 	         	 IJ.showMessage("Error","Failed to read XML configuration file: "+path);
-	         	 return;
+	         	 return null;
 	     	 }
 	     } else {
 	         try {
 	      		properties.load(is);
 	      	 } catch (IOException e) {
 	          	 IJ.showMessage("Error","Failed to read configuration file: "+path);
-	          	 return;
+	          	 return null;
 	      	 }
 	     }
 	     try {
@@ -5898,32 +5834,39 @@ private Panel panel1,
 	 		// TODO Auto-generated catch block
 	 		e.printStackTrace();
 	 	 }
-	     getAllProperties(properties);
-		 if (DEBUG_LEVEL>0) System.out.println("Configuration parameters are restored from "+path);
+	     return path;
+//	     getAllProperties(properties);
+//		 if (DEBUG_LEVEL>0) System.out.println("Configuration parameters are restored from "+path);
 	}
 /* ======================================================================== */
     public void setAllProperties(Properties properties){
+//    	QuadCLT qc = QUAD_CLT;
+//    	QuadCLT aqc = QUAD_CLT_AUX;
     	properties.setProperty("MASTER_DEBUG_LEVEL",MASTER_DEBUG_LEVEL+"");
     	properties.setProperty("UPDATE_STATUS",     UPDATE_STATUS+     "");
     	SPLIT_PARAMETERS.setProperties("SPLIT_PARAMETERS.", properties);
     	DCT_PARAMETERS.setProperties("DCT_PARAMETERS.", properties);
     	CLT_PARAMETERS.setProperties("CLT_PARAMETERS.", properties);
     	DEBAYER_PARAMETERS.setProperties("DEBAYER_PARAMETERS.", properties);
-    	NONLIN_PARAMETERS.setProperties("NONLIN_PARAMETERS.", properties);
+    	NONLIN_PARAMETERS.setProperties("NONLIN_PARAMETERS.", properties); // keep for Eyesis, not used fro Quad CLT
     	COLOR_PROC_PARAMETERS.setProperties("COLOR_PROC_PARAMETERS.", properties);
-    	COLOR_CALIB_PARAMETERS.setProperties("COLOR_CALIB_PARAMETERS.", properties);
+//    	COLOR_CALIB_PARAMETERS.setProperties("COLOR_CALIB_PARAMETERS.", properties);
     	RGB_PARAMETERS.setProperties("RGB_PARAMETERS.", properties);
 //    	FILE_PARAMETERS.setProperties("FILE_PARAMETERS.", properties);
     	PROCESS_PARAMETERS.setProperties("PROCESS_PARAMETERS.", properties);
     	CORRECTION_PARAMETERS.setProperties("CORRECTION_PARAMETERS.", properties);
     	CHANNEL_GAINS_PARAMETERS.setProperties("CHANNEL_GAINS_PARAMETERS.", properties);
+    	if (CHANNEL_GAINS_PARAMETERS_AUX != null) {
+    		CHANNEL_GAINS_PARAMETERS_AUX.setProperties("CHANNEL_GAINS_PARAMETERS."+CorrectionColorProc.ColorGainsParameters.AUX_PREFIX, properties);
+    	}
     	EQUIRECTANGULAR_PARAMETERS.setProperties("EQUIRECTANGULAR_PARAMETERS.", properties);
     	POST_PROCESSING.setProperties("", properties);
     	properties.setProperty("CONVOLVE_FFT_SIZE",CONVOLVE_FFT_SIZE+""); //128,  FFT size for sliding convolution with kernel
     	properties.setProperty("THREADS_MAX",THREADS_MAX+""); // 100, testing multi-threading, limit maximal number of threads
     	properties.setProperty("GAUSS_WIDTH",GAUSS_WIDTH+""); // 0.4 (0 - use Hamming window)
     	properties.setProperty("PSF_SUBPIXEL_SHOULD_BE_4",PSF_SUBPIXEL_SHOULD_BE_4+""); // 4, sub-pixel decimation
-    	if (QUAD_CLT != null) QUAD_CLT.setProperties();
+    	if (QUAD_CLT != null)     QUAD_CLT.setProperties(QuadCLT.PREFIX);
+    	if (QUAD_CLT_AUX != null) QUAD_CLT_AUX.setProperties(QuadCLT.PREFIX_AUX);
     }
 /* ======================================================================== */
     public void getAllProperties(Properties properties){
@@ -5933,22 +5876,31 @@ private Panel panel1,
    	   DCT_PARAMETERS.getProperties("DCT_PARAMETERS.", properties);
    	   CLT_PARAMETERS.getProperties("CLT_PARAMETERS.", properties);
        DEBAYER_PARAMETERS.getProperties("DEBAYER_PARAMETERS.", properties);
-   	   NONLIN_PARAMETERS.getProperties("NONLIN_PARAMETERS.", properties);
+   	   NONLIN_PARAMETERS.getProperties("NONLIN_PARAMETERS.", properties); // keep for Eyesis, not used fro Quad CLT
        COLOR_PROC_PARAMETERS.getProperties("COLOR_PROC_PARAMETERS.", properties);
-       COLOR_CALIB_PARAMETERS.getProperties("COLOR_CALIB_PARAMETERS.", properties);
+//       COLOR_CALIB_PARAMETERS.getProperties("COLOR_CALIB_PARAMETERS.", properties);
 	   RGB_PARAMETERS.getProperties("RGB_PARAMETERS.", properties);
-//   	   FILE_PARAMETERS.getProperties("FILE_PARAMETERS.", properties);
    	   PROCESS_PARAMETERS.getProperties("PROCESS_PARAMETERS.", properties);
    	   CORRECTION_PARAMETERS.getProperties("CORRECTION_PARAMETERS.", properties);
    	   CHANNEL_GAINS_PARAMETERS.getProperties("CHANNEL_GAINS_PARAMETERS.", properties);
+   	   // try AUX parameters, if none - remove
+   	   if (CHANNEL_GAINS_PARAMETERS_AUX == null) {
+   		   CHANNEL_GAINS_PARAMETERS_AUX = new CorrectionColorProc.ColorGainsParameters();
+   		   if (!CHANNEL_GAINS_PARAMETERS_AUX.getProperties("CHANNEL_GAINS_PARAMETERS."+CorrectionColorProc.ColorGainsParameters.AUX_PREFIX, properties)) {
+   			   CHANNEL_GAINS_PARAMETERS_AUX = null;
+   		   }
+   	   } else { //read on top, do not remove
+   		   CHANNEL_GAINS_PARAMETERS_AUX.getProperties("CHANNEL_GAINS_PARAMETERS."+CorrectionColorProc.ColorGainsParameters.AUX_PREFIX, properties);
+   	   }
+
        EQUIRECTANGULAR_PARAMETERS.getProperties("EQUIRECTANGULAR_PARAMETERS.", properties);
        POST_PROCESSING.getProperties("", properties);
    	   CONVOLVE_FFT_SIZE=Integer.parseInt(properties.getProperty("CONVOLVE_FFT_SIZE"));
 	   THREADS_MAX=Integer.parseInt(properties.getProperty("THREADS_MAX"));
 	   GAUSS_WIDTH=Double.parseDouble(properties.getProperty("GAUSS_WIDTH"));
 	   PSF_SUBPIXEL_SHOULD_BE_4=Integer.parseInt(properties.getProperty("PSF_SUBPIXEL_SHOULD_BE_4"));
-   	if (QUAD_CLT != null) QUAD_CLT.getProperties();
-
+	   if (QUAD_CLT != null)     QUAD_CLT.getProperties(QuadCLT.PREFIX);
+	   if (QUAD_CLT_AUX != null) QUAD_CLT_AUX.getProperties(QuadCLT.PREFIX_AUX);
     }
 
 /* ======================================================================== */

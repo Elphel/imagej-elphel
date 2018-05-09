@@ -3,12 +3,12 @@
 ** EyesisCorrections.java
 **
 ** Aberration correction for Eyesis4pi
-** 
+**
 **
 ** Copyright (C) 2012 Elphel, Inc.
 **
 ** -----------------------------------------------------------------------------**
-**  
+**
 **  EyesisCorrections.java is free software: you can redistribute it and/or modify
 **  it under the terms of the GNU General Public License as published by
 **  the Free Software Foundation, either version 3 of the License, or
@@ -25,6 +25,11 @@
 **
 */
 
+import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import javax.swing.SwingUtilities;
+
 import ij.CompositeImage;
 import ij.IJ;
 import ij.ImagePlus;
@@ -35,12 +40,6 @@ import ij.io.FileSaver;
 import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
-
-import java.io.IOException;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import javax.swing.SwingUtilities;
-
 import loci.common.services.DependencyException;
 import loci.common.services.ServiceException;
 import loci.formats.FormatException;
@@ -58,7 +57,7 @@ public class EyesisCorrections {
 	public int [][][] defectsXY=null; // per each channel: pixel defects coordinates list (starting with worst)
 	public double [][] defectsDiff=null; // per each channel: pixel defects value (diff from average of neighbors), matching defectsXY
 
-	public int   [][] channelWidthHeight=null; 
+	public int   [][] channelWidthHeight=null;
 	public ImagePlus [] imageNoiseGains=null;
 	public String [] sharpKernelPaths=null;
 	public String [] smoothKernelPaths=null;
@@ -66,12 +65,12 @@ public class EyesisCorrections {
 	public String [] stackColorNames= {"Red","Green","Blue"};
 	public int psfSubpixelShouldBe4=4;         // sub-pixel decimation
 	public long   startTime=0;
-	
+
 //	public boolean BUG_subchannel=true; // top channel - 1, middle - 0, bottom - 2 (should be -0-1-2)
 //	public boolean BUG_subchannel=false; // top channel - 1, middle - 0, bottom - 2 (should be -0-1-2)
 
-	
-	
+
+
 	public EyesisCorrections (
 			AtomicInteger stopRequested,
 			EyesisCorrectionParameters.CorrectionParameters correctionsParameters
@@ -82,16 +81,45 @@ public class EyesisCorrections {
 	public void setDebug(int debugLevel){
 		this.debugLevel=debugLevel;
 	}
-	
+
 	public int getNumChannels(){return (this.usedChannels!=null)?this.usedChannels.length:0;}
+
+
 	// TODO: preserve some data when re-running with new source files
+	// FIXME: Make forgiving alien files
 	public void initSensorFiles(int debugLevel){
+		initSensorFiles(debugLevel, false);
+	}
+	public void initSensorFiles(int debugLevel, boolean missing_ok){
 		this.sharpKernelPaths=null;
 		this.smoothKernelPaths=null;
 		String [] sensorPaths=correctionsParameters.selectSensorFiles(this.debugLevel);
 		this.pixelMapping=new PixelMapping(sensorPaths,debugLevel);
+		this.usedChannels= usedChannels(correctionsParameters.getSourcePaths(),missing_ok);
+		// TODO: Combine with additional channel map to be able to select single image (of all 3)
+		if (correctionsParameters.removeUnusedSensorData){
+			for (int nChn=0;nChn< this.usedChannels.length; nChn++) if (!this.usedChannels[nChn]) this.pixelMapping.removeChannel(nChn);
+		}
+		int numUsedChannels=0;
+		for (int nChn=0;nChn< this.usedChannels.length; nChn++) if (this.usedChannels[nChn]) numUsedChannels++;
+		if (this.debugLevel>0) {
+			String sChannels="";
+			for (int nChn=0;nChn< this.usedChannels.length; nChn++) if (this.usedChannels[nChn]) sChannels+=" "+nChn;
+			System.out.println ("Number of used channels: "+numUsedChannels+" ("+sChannels+" )");
+		}
+		createChannelVignetting();
+		if ((this.debugLevel>101) && (correctionsParameters.sourcePaths!=null) && (correctionsParameters.sourcePaths.length>0)) {
+			testFF(correctionsParameters.sourcePaths[0]);
+		}
+	}
+
+	public void initSensorFilesAux(int debugLevel){
+//		this.sharpKernelPaths=null;
+//		this.smoothKernelPaths=null;
+		String [] sensorPaths=correctionsParameters.selectSensorFiles(this.debugLevel);
+		this.pixelMapping=new PixelMapping(sensorPaths,debugLevel);
 		this.usedChannels= usedChannels(correctionsParameters.getSourcePaths());
-// TODO: Combine with additional channel map to be able to select single image (of all 3) 		
+		// TODO: Combine with additional channel map to be able to select single image (of all 3)
 		if (correctionsParameters.removeUnusedSensorData){
 			for (int nChn=0;nChn< this.usedChannels.length; nChn++) if (!this.usedChannels[nChn]) this.pixelMapping.removeChannel(nChn);
 		}
@@ -108,8 +136,8 @@ public class EyesisCorrections {
 		if ((this.debugLevel>101) && (correctionsParameters.sourcePaths!=null) && (correctionsParameters.sourcePaths.length>0)) {
 			testFF(correctionsParameters.sourcePaths[0]);
 		}
-		
 	}
+
 	public double [] calcReferenceExposures(int debugLevel){
 		String [] paths=this.correctionsParameters.getSourcePaths();
 		double [] exposures=new double [paths.length];
@@ -161,20 +189,20 @@ public class EyesisCorrections {
 				int j=firstImageIndex[nFile];
 				if (Double.isNaN(minMaxExposure[j][0]) || (minMaxExposure[j][0]>exposures[nFile])) minMaxExposure[j][0]=exposures[nFile];
 				if (Double.isNaN(minMaxExposure[j][1]) || (minMaxExposure[j][1]<exposures[nFile])) minMaxExposure[j][1]=exposures[nFile];
-			}		
+			}
 			for (int nFile=0;nFile<paths.length;nFile++) if (!Double.isNaN(exposures[nFile])){
 				int j=firstImageIndex[nFile];
 				exposures[nFile]=(1.0-this.correctionsParameters.relativeExposure)*minMaxExposure[j][0]+
 				this.correctionsParameters.relativeExposure*minMaxExposure[j][1];
 			}
 		}
-		// apply modes		
-		return exposures;		
+		// apply modes
+		return exposures;
 	}
-	
+
 	public void rebuildEquirectangularMaps(
 			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-			int          threadsMax,  // maximal number of threads to launch                         
+			int          threadsMax,  // maximal number of threads to launch
 			boolean    updateStatus,
 			int        debugLevel){
 		this.sharpKernelPaths=null;
@@ -221,7 +249,7 @@ public class EyesisCorrections {
 			for (int i=0;i<channelMask.length;i++) if (channelMask[i]) channelList[iChannel++]=i;
 			String sChannels="";
 			for (int i=0;i<channelList.length;i++) sChannels+=" "+channelList[i];
-			
+
 			for (int i=0;i<channelList.length;i++) {
 				int channel=channelList[i];
 				if (!pixelMapping.isChannelAvailable(channel)){
@@ -246,7 +274,7 @@ public class EyesisCorrections {
 					pixelMapping.loadChannelEquirectangularMap(
 							channel,
 							path);
-					
+
 					if (!this.pixelMapping.isEquirectangularMapAvailable(channel)){
 						String msg="Failed to load equirectangular map for channel "+channel;
 						System.out.println("Error "+msg);
@@ -255,8 +283,8 @@ public class EyesisCorrections {
 					}
 				}
 			}
-			
-			
+
+
 
 			String title="Projection_plane_map";
 			ImagePlus imp_pixelmap= pixelMapping.getPlaneToSensorsMap( // need to re-load equirectangular maps?
@@ -292,7 +320,7 @@ public class EyesisCorrections {
         	} else {
            	 System.out.println("Failed to create pixel map for sensors "+sChannels);
         	}
-			
+
 		}
 	}
 
@@ -300,7 +328,7 @@ public class EyesisCorrections {
 	public boolean updateImageNoiseGains(
 			EyesisCorrectionParameters.NonlinParameters nonlinParameters,
 			int          fftSize, // 128 - fft size, kernel size should be size/2
-			int          threadsMax,  // maximal number of threads to launch                         
+			int          threadsMax,  // maximal number of threads to launch
 			boolean    updateStatus,
 			int        globalDebugLevel){
 		boolean removeUnused=this.correctionsParameters.removeUnusedSensorData;
@@ -329,8 +357,8 @@ public class EyesisCorrections {
 			if (this.usedChannels[chn] && (this.sharpKernelPaths[chn]!=null) && (!nonlinParameters.useDiffNoiseGains ||(this.smoothKernelPaths[chn]!=null))){
 				if (
 						(this.imageNoiseGains[chn]==null) ||
-						(!this.sharpKernelPaths[chn].equals((String) this.imageNoiseGains[chn].getProperty("sharpKernelPath"))) ||
-						(!this.smoothKernelPaths[chn].equals((String) this.imageNoiseGains[chn].getProperty("smoothKernelPath")))){
+						(!this.sharpKernelPaths[chn].equals(this.imageNoiseGains[chn].getProperty("sharpKernelPath"))) ||
+						(!this.smoothKernelPaths[chn].equals(this.imageNoiseGains[chn].getProperty("smoothKernelPath")))){
 
 					ImagePlus imp_kernel_sharp=new ImagePlus(this.sharpKernelPaths[chn]);
 					  if (imp_kernel_sharp.getStackSize()<3) {
@@ -339,7 +367,7 @@ public class EyesisCorrections {
 						  continue;
 					  }
 					  ImageStack kernel_sharp_stack= imp_kernel_sharp.getStack();
-					  ImageStack kernel_smooth_stack=null; 
+					  ImageStack kernel_smooth_stack=null;
 					  if (nonlinParameters.useDiffNoiseGains) {
 							ImagePlus imp_kernel_smooth=new ImagePlus(this.smoothKernelPaths[chn]);
 							  if (imp_kernel_smooth.getStackSize()<3) {
@@ -355,11 +383,11 @@ public class EyesisCorrections {
 								  kernel_smooth_stack, //final ImageStack kernelStack2, // second stack with 3 colors/slices convolution kernels (or null)
 								  fftSize, //size, // 128 - fft size, kernel size should be size/2
 								  nonlinParameters.blurSigma,
-								  threadsMax,  // maximal number of threads to launch                         
+								  threadsMax,  // maximal number of threads to launch
 								  updateStatus,
 								  globalDebugLevel);
 					  kernel_sharp_stack= null; // TODO: - maybe keep one set to speed-up single-channel processing?
-					  kernel_smooth_stack=null; 
+					  kernel_smooth_stack=null;
 					  Runtime.getRuntime().gc();
 			     	  String title="noiseGains_"+(nonlinParameters.useDiffNoiseGains?"diff_":"")+String.format("%02d",chn);
 					  imageNoiseGains[chn]= new ImagePlus(title, kernelsNoise);
@@ -371,7 +399,7 @@ public class EyesisCorrections {
 								  this.correctionsParameters.saveNoiseGains,
 								  this.correctionsParameters.showNoiseGains
 						  );
-					  }		  
+					  }
 				}
 			} else {
 				if (removeUnused) this.imageNoiseGains[chn]=null;
@@ -380,17 +408,17 @@ public class EyesisCorrections {
 				System.out.println("User requested stop");
 				return false;
 			}
-			
+
 		}
 		return true;
 	}
-	
+
 	public void createChannelVignetting(){
 		this.channelWidthHeight=new int [this.usedChannels.length][];
 		this.channelVignettingCorrection=new float [this.usedChannels.length][];
 		this.defectsXY=new int [this.usedChannels.length][][];
 		this.defectsDiff=new double [this.usedChannels.length][];
-		
+
 		for (int nChn=0;nChn< this.usedChannels.length; nChn++){
 			this.channelWidthHeight[nChn]=null;
 			this.channelVignettingCorrection[nChn]=null;
@@ -444,7 +472,7 @@ public class EyesisCorrections {
 							for (int i=0;i<this.usedChannels.length;i++) if (this.usedChannels[i]) {
 								System.out.println(i+": subCamera="+this.pixelMapping.sensors[i].subcamera);
 							}
-							
+
 						}
 						if (correctionsParameters.isJP4()) imp=JP4_INSTANCE.demuxImage(imp_composite, subChannel);
 						if (imp==null) imp=imp_composite; // not a composite image
@@ -478,14 +506,18 @@ public class EyesisCorrections {
 									if (((i%numInLine)==(numInLine-1)) || (i == (this.defectsXY[srcChannel].length-1))) System.out.println();
 								}
 							}
-						}						
+						}
 					}
 				}
 			}
 		}
 	}
-	
+
 	boolean [] usedChannels(String [] paths){
+		return usedChannels(paths, false);
+	}
+
+	boolean [] usedChannels(String [] paths, boolean missing_ok){
 		if (paths==null) paths=new String[0];
 		int numChannels=this.pixelMapping.getNumChannels();
 		boolean [] usedChannels=new boolean[numChannels];
@@ -498,13 +530,15 @@ public class EyesisCorrections {
 				if (channels!=null) for (int j=0;j<channels.length;j++) usedChannels[channels[j]]=true;
 			} else {
 				if (!this.pixelMapping.isChannelAvailable(srcChannel)){
-					if (debugLevel>0) System.out.println("No sensor data for channel "+srcChannel+", needed for source file "+paths[i]);
+					if ((debugLevel>0) && !missing_ok) {
+						System.out.println("No sensor data for channel "+srcChannel+", needed for source file "+paths[i]);
+					}
 				} else usedChannels[srcChannel] = true;
 			}
 		}
 		return usedChannels;
 	}
-	
+
 	public void testFF(String path){
 		ImagePlus imp=new ImagePlus(path);
 		imp.getProcessor().resetMinAndMax(); // imp_psf will be reused
@@ -534,9 +568,9 @@ public class EyesisCorrections {
 			SDFA_INSTANCE.showArrays(pixelsFlat, imp.getWidth(), imp.getHeight(), srcChannel+"-flat-"+imp.getTitle());
 		}
 	}
-	
+
 	public boolean isChannelEnabled(int channel){
-		return ((channel>=0) && (channel<this.usedChannels.length) && this.usedChannels[channel]);  
+		return ((channel>=0) && (channel<this.usedChannels.length) && this.usedChannels[channel]);
 	}
 	public void processChannelImages(
 			EyesisCorrectionParameters.SplitParameters         splitParameters,
@@ -547,7 +581,7 @@ public class EyesisCorrections {
 			EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
 			int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-			final int          threadsMax,  // maximal number of threads to launch                         
+			final int          threadsMax,  // maximal number of threads to launch
 			final boolean    updateStatus,
 			final int        debugLevel){
 		  this.startTime=System.nanoTime();
@@ -619,9 +653,9 @@ public class EyesisCorrections {
 								  false); // do not show
 				  imp_src=JP4_INSTANCE.demuxImage(imp_composite, subchannel);
 				  if (imp_src==null) imp_src=imp_composite; // not a composite image
-				  
-// do we need to add any properties?				  
-			  } else { 
+
+// do we need to add any properties?
+			  } else {
 				  imp_src=new ImagePlus(sourceFiles[nFile]);
 //				  (new JP46_Reader_camera(false)).decodeProperiesFromInfo(imp_src); // decode existent properties from info
 				  JP4_INSTANCE.decodeProperiesFromInfo(imp_src); // decode existent properties from info
@@ -647,7 +681,7 @@ public class EyesisCorrections {
 					  rgbParameters,
 					  convolveFFTSize, // 128 - fft size, kernel size should be size/2
 					  scaleExposure,
-					  threadsMax,  // maximal number of threads to launch                         
+					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
 					  debugLevel);
 // warp result (add support for different color modes)
@@ -665,7 +699,7 @@ public class EyesisCorrections {
 			  }
 		  }
 	}
-	
+
 	public void saveTiffWithAlpha(
 			ImagePlus imp,
 			EyesisCorrectionParameters.CorrectionParameters correctionsParameters)
@@ -675,7 +709,7 @@ public class EyesisCorrections {
 		if (cutTile){
 			fullWidth=Integer.parseInt((String) imp.getProperty("ImageFullWidth"));
 			x0=       Integer.parseInt((String) imp.getProperty("XPosition"));
-			cutTile=(x0+imp.getWidth()>fullWidth) ; 
+			cutTile=(x0+imp.getWidth()>fullWidth) ;
 		}
 		if (cutTile  ) {
 			if (this.debugLevel>0) System.out.println("Cutting result image in two parts to prevent roll-over");
@@ -698,7 +732,7 @@ public class EyesisCorrections {
 						path,
 						correctionsParameters.equirectangularFormat,
 						((correctionsParameters.equirectangularFormat==3)?correctionsParameters.outputRangeFP:correctionsParameters.outputRangeInt),
-						correctionsParameters.imageJTags,	
+						correctionsParameters.imageJTags,
 						debugLevel);
 			}
 		}
@@ -748,8 +782,8 @@ public class EyesisCorrections {
 		  (new JP46_Reader_camera(false)).encodeProperiesToInfo(imp_croped);
 		  return imp_croped;
 	}
-	
-	
+
+
 	public ImagePlus applyEquirectangular(
 			int channel,
 			ImagePlus imp,
@@ -777,7 +811,7 @@ public class EyesisCorrections {
 			pixelMapping.loadChannelEquirectangularMap(
 					channel,
 					path);
-			
+
 			if (!this.pixelMapping.isEquirectangularMapAvailable(channel)){
 				String msg="Failed to load equirectangular map for channel "+channel;
 				System.out.println("Error "+msg);
@@ -785,7 +819,7 @@ public class EyesisCorrections {
 				return null;
 			}
 		}
-		// apply warping here	
+		// apply warping here
 		//		  double sourceImageScale=2.0*this.correctionsParameters.JPEG_scale;
 		int sourceImageScale=2; // *this.correctionsParameters.JPEG_scale;
 		ImagePlus imp_warped= pixelMapping.resampleToEquirectangular( // will Add "_EQR"
@@ -823,7 +857,7 @@ public class EyesisCorrections {
 //					channel,
 					path,
 					debugLevel);
-			
+
 			if (!this.pixelMapping.isPlaneMapMapAvailable(channel)){
 				String msg="Failed to load a common plane projection map for channel "+channel+", or that file does not have this sensor data";
 				System.out.println("Error "+msg);
@@ -831,7 +865,7 @@ public class EyesisCorrections {
 				return null;
 			}
 		}
-		// apply warping here	
+		// apply warping here
 		//		  double sourceImageScale=2.0*this.correctionsParameters.JPEG_scale;
 		int sourceImageScale=2; // *this.correctionsParameters.JPEG_scale;
 		ImagePlus imp_warped= pixelMapping.applyPlaneMap(
@@ -876,8 +910,8 @@ public class EyesisCorrections {
 		}
 		return numApplied;
 	}
-	
-	
+
+
 	public ImagePlus processChannelImage(
 			ImagePlus imp_src, // should have properties "name"(base for saving results), "channel","path"
 			EyesisCorrectionParameters.SplitParameters         splitParameters,
@@ -888,14 +922,14 @@ public class EyesisCorrections {
 			EyesisCorrectionParameters.RGBParameters             rgbParameters,
 			int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
 			double 		     scaleExposure,
-			final int        threadsMax,  // maximal number of threads to launch                         
+			final int        threadsMax,  // maximal number of threads to launch
 			final boolean    updateStatus,
 			final int        debugLevel){
 		boolean advanced=this.correctionsParameters.zcorrect || this.correctionsParameters.equirectangular;
-		boolean crop=      advanced? true: this.correctionsParameters.crop; 
-		boolean rotate=    advanced? false: this.correctionsParameters.rotate; 
+		boolean crop=      advanced? true: this.correctionsParameters.crop;
+		boolean rotate=    advanced? false: this.correctionsParameters.rotate;
 		double JPEG_scale= advanced? 1.0: this.correctionsParameters.JPEG_scale;
-		boolean toRGB=     advanced? true: this.correctionsParameters.toRGB; 
+		boolean toRGB=     advanced? true: this.correctionsParameters.toRGB;
 
 		// may use this.StartTime to report intermediate steps execution times
 		String name=(String) imp_src.getProperty("name");
@@ -934,13 +968,13 @@ public class EyesisCorrections {
 			saveAndShow(result, this.correctionsParameters);
 			return result;
 		}
-		// Split into Bayer components, oversample, increase canvas    		  
+		// Split into Bayer components, oversample, increase canvas
 		ImageStack stack= bayerToStack(
 				result, // source Bayer image, linearized, 32-bit (float))
 				splitParameters);
 		String titleFull=title+"-SPLIT";
 		if (!this.correctionsParameters.debayer) {
-			result= new ImagePlus(titleFull, stack);    			  
+			result= new ImagePlus(titleFull, stack);
 			saveAndShow(result, this.correctionsParameters);
 			return result;
 		}
@@ -972,7 +1006,7 @@ public class EyesisCorrections {
 		result= new ImagePlus(titleFull, stack);
 		if (this.correctionsParameters.deconvolve) {
 			//Ask for the kernel directory if it is undefined
-			if (this.sharpKernelPaths==null){ // make sure the paths list is reset after changing parameters 
+			if (this.sharpKernelPaths==null){ // make sure the paths list is reset after changing parameters
 				this.sharpKernelPaths=correctionsParameters.selectKernelChannelFiles(
 						0,  // 0 - sharp, 1 - smooth
 						this.usedChannels.length, // number of channels
@@ -993,7 +1027,7 @@ public class EyesisCorrections {
 			ImageStack stackDeconvolvedSharp= convolveStackWithKernelStack( //  stack_d
 					stack,  // stack with 3 colors/slices with the image
 					convolutionSharpKernelStack, // stack with 3 colors/slices convolution kernels
-					convolveFFTSize, // 128 - fft size, kernel size should be size/2 
+					convolveFFTSize, // 128 - fft size, kernel size should be size/2
 					threadsMax,
 					updateStatus, // update status info
 					debugLevel);
@@ -1003,7 +1037,7 @@ public class EyesisCorrections {
 			titleFull=title+"-DECONV";
 			if (this.correctionsParameters.combine) {
 				// Read "smooth" kernels
-				if (this.smoothKernelPaths==null){ // make sure the paths list is reset after changing parameters 
+				if (this.smoothKernelPaths==null){ // make sure the paths list is reset after changing parameters
 					this.smoothKernelPaths=correctionsParameters.selectKernelChannelFiles(
 							1,  // 0 - sharp, 1 - smooth
 							this.usedChannels.length, // number of channels
@@ -1023,7 +1057,7 @@ public class EyesisCorrections {
 				ImageStack stackDeconvolvedSmooth = convolveStackWithKernelStack( //stack_g
 						stack,  // stack with 3 colors/slices with the image
 						convolutionSmoothKernelStack, // stack with 3 colors/slices convolution kernels
-						convolveFFTSize, // 128 - fft size, kernel size should be size/2 
+						convolveFFTSize, // 128 - fft size, kernel size should be size/2
 						threadsMax,
 						updateStatus, // update status info
 						debugLevel);
@@ -1040,7 +1074,7 @@ public class EyesisCorrections {
 						nonlinParameters.noiseGainPower
 				);
 
-				// show noise mask here?						  
+				// show noise mask here?
 				nonlinParameters.showMask=this.correctionsParameters.showDenoiseMask;
 				//		          if (DEBUG_LEVEL>1) System.out.println ( " noiseMask.length="+((noiseMask==null)?"null":(noiseMask.length+" noiseMask[0].length="+noiseMask[0].length)));
 //				CorrectionDenoise correctionDenoise=new CorrectionDenoise(stopRequested);
@@ -1066,7 +1100,7 @@ public class EyesisCorrections {
 						if (this.correctionsParameters.crop){
 							denoiseMask=cropImage32(denoiseMask,splitParameters);
 						}
-						//rotate the result			  
+						//rotate the result
 						if (this.correctionsParameters.rotate){
 							denoiseMask=rotateImage32CW(denoiseMask);
 						}
@@ -1078,7 +1112,7 @@ public class EyesisCorrections {
 							denoiseMask= new ImagePlus(denoiseMask.getTitle(),ip);
 							denoiseMask.updateAndDraw();
 						}
-						if (this.correctionsParameters.showDenoiseMask) denoiseMask.show(); 
+						if (this.correctionsParameters.showDenoiseMask) denoiseMask.show();
 						//public ImagePlus Image32toGreyRGB24(ImagePlus imp);
 						if (this.correctionsParameters.saveDenoiseMask) {
 							ImagePlus denoiseMaskRGB24=Image32toGreyRGB24(denoiseMask);
@@ -1104,7 +1138,7 @@ public class EyesisCorrections {
 		}  else if (this.correctionsParameters.combine) { // "combine" w/o "deconvolve" - just use convolution with smooth kernels
 			// Read smooth kernels
 			// Read "smooth" kernels
-			if (this.smoothKernelPaths==null){ // make sure the paths list is reset after changing parameters 
+			if (this.smoothKernelPaths==null){ // make sure the paths list is reset after changing parameters
 				this.smoothKernelPaths=correctionsParameters.selectKernelChannelFiles(
 						1,  // 0 - sharp, 1 - smooth
 						this.usedChannels.length, // number of channels
@@ -1124,7 +1158,7 @@ public class EyesisCorrections {
 			ImageStack stackDeconvolvedSmooth = convolveStackWithKernelStack( // stack_g
 					stack,  // stack with 3 colors/slices with the image
 					convolutionSmoothKernelStack, // stack with 3 colors/slices convolution kernels
-					convolveFFTSize, // 128 - fft size, kernel size should be size/2 
+					convolveFFTSize, // 128 - fft size, kernel size should be size/2
 					threadsMax,
 					updateStatus, // update status info
 					debugLevel);
@@ -1134,9 +1168,9 @@ public class EyesisCorrections {
 			Runtime.getRuntime().gc();
 			titleFull=title+"-LOWRES";
 		}// end of if (this.correctionsParameters.deconvolve)
-		//stack now has the result, titleFull - correct title for the image 
+		//stack now has the result, titleFull - correct title for the image
 		  if (!this.correctionsParameters.colorProc){
-			  result= new ImagePlus(titleFull, stack);    			  
+			  result= new ImagePlus(titleFull, stack);
 			  saveAndShow(
 					  result,
 					  this.correctionsParameters);
@@ -1156,7 +1190,7 @@ public class EyesisCorrections {
 					  imp_dbg,
 					  this.correctionsParameters);
 		  }
-		  
+
 		  correctionColorProc.processColorsWeights(stack,
 //				  255.0/this.psfSubpixelShouldBe4/this.psfSubpixelShouldBe4, //  double scale,     // initial maximal pixel value (16))
 				  255.0/this.psfSubpixelShouldBe4/this.psfSubpixelShouldBe4/scaleExposure, //  double scale,     // initial maximal pixel value (16))
@@ -1174,7 +1208,7 @@ public class EyesisCorrections {
 					  this.correctionsParameters);
 		  }
 
-		// Show/save color denoise mask				  
+		// Show/save color denoise mask
 		  if ((this.correctionsParameters.saveChromaDenoiseMask || this.correctionsParameters.showChromaDenoiseMask) && (correctionColorProc.getDenoiseMaskChroma()!=null)) {
 			  ImagePlus chromaDenoiseMask=SDFA_INSTANCE.makeArrays (correctionColorProc.getDenoiseMaskChroma(),
 					  correctionColorProc.getDenoiseMaskChromaWidth(),
@@ -1185,7 +1219,7 @@ public class EyesisCorrections {
 				  if (this.correctionsParameters.crop){
 					  chromaDenoiseMask=cropImage32(chromaDenoiseMask,splitParameters);
 				  }
-//rotate the result			  
+//rotate the result
 				  if (this.correctionsParameters.rotate){
 					  chromaDenoiseMask=rotateImage32CW(chromaDenoiseMask);
 				  }
@@ -1197,7 +1231,7 @@ public class EyesisCorrections {
 					  chromaDenoiseMask= new ImagePlus(chromaDenoiseMask.getTitle(),ip);
 					  chromaDenoiseMask.updateAndDraw();
 				  }
-				  if (this.correctionsParameters.showChromaDenoiseMask) chromaDenoiseMask.show(); 
+				  if (this.correctionsParameters.showChromaDenoiseMask) chromaDenoiseMask.show();
 //public ImagePlus Image32toGreyRGB24(ImagePlus imp);
 				  if (this.correctionsParameters.saveChromaDenoiseMask) {
 					  ImagePlus chromaDenoiseMaskRGB24=Image32toGreyRGB24(chromaDenoiseMask);
@@ -1241,7 +1275,7 @@ public class EyesisCorrections {
 			  titleFull=title+"-YPrPb"; // including "-DECONV" or "-COMBO"
 			  if (debugLevel>1) System.out.println("Using full stack, including YPbPr");
 		  }
-		  result= new ImagePlus(titleFull, stack);    			  
+		  result= new ImagePlus(titleFull, stack);
 		  // Crop image to match original one (scaled to oversampling)
 		  if (crop){ // always crop if equirectangular
 			  stack=cropStack32(stack,splitParameters);
@@ -1253,7 +1287,7 @@ public class EyesisCorrections {
 			  }
 
 		  }
-		  // rotate the result			  
+		  // rotate the result
 		  if (rotate){ // never rotate for equirectangular
 			  stack=rotateStack32CW(stack);
 		  }
@@ -1268,7 +1302,7 @@ public class EyesisCorrections {
 		  if (this.correctionsParameters.equirectangularFormat==0){
 			  stack=convertRGB32toRGB16Stack(
 					  stack,
-					  rgbParameters); 
+					  rgbParameters);
 
 			  titleFull=title+"-RGB48";
 			  result= new ImagePlus(titleFull, stack);
@@ -1348,7 +1382,7 @@ public class EyesisCorrections {
 							  this.correctionsParameters,
 							  this.correctionsParameters.save,
 							  this.correctionsParameters.show,
-							  this.correctionsParameters.JPEG_quality);		  
+							  this.correctionsParameters.JPEG_quality);
 
 				  } else {
 					  if (this.correctionsParameters.equirectangularFormat<4){
@@ -1377,10 +1411,10 @@ public class EyesisCorrections {
 		  }
 		  return result;
 	}
-	
+
 	 /* ======================================================================== */
-	  
-	  
+
+
 //	  private boolean fixSliceSequence (
 	public boolean fixSliceSequence ( // for EyesisDCT
 			  ImageStack stack,
@@ -1433,10 +1467,10 @@ public class EyesisCorrections {
 	    stack.setPixels   (stack.getPixels(slice2),      slice1);
 	    stack.setPixels   (pixels,                       slice2);
 	  }
-	 
 
-	
-	
+
+
+
 
 	/* ======================================================================== */
 	   public ImageStack cropStack32(
@@ -1483,7 +1517,7 @@ public class EyesisCorrections {
 			 stack_rot.addSlice(stack.getSliceLabel(i+1), opixels);
 		  }
 		  return stack_rot;
-		  
+
 	  }
 	  /* ======================================================================== */
 	  public ImagePlus cropImage32(
@@ -1564,9 +1598,9 @@ public class EyesisCorrections {
 			 stack16.addSlice(stack32.getSliceLabel(i+1), spixels);
 		  }
 		  return stack16;
-		  
+
 	  }
-	  
+
 	  public ImagePlus convertRGB48toRGB24(
 			  ImageStack stack16,
 			  String title,
@@ -1586,11 +1620,11 @@ public class EyesisCorrections {
 		  if (numSlices > 4) numSlices = 4;
 		  short [][] spixels=new short[numSlices][];
 		  int [] sliceSeq = new int [numSlices];
-		  for (int j = 0; j < numSlices; j++) sliceSeq[j] = (j + ((numSlices > 3)? 3:0)) % 4; 
-		  
+		  for (int j = 0; j < numSlices; j++) sliceSeq[j] = (j + ((numSlices > 3)? 3:0)) % 4;
+
 		  int [] pixels=new int[length];
 		  int c,d;
-		  
+
 		  double [] scale=new double[numSlices];
 		  for (c = 0; c < numSlices; c++) {
 			  scale[c]=256.0/(maxs[c]-mins[c]);
@@ -1614,7 +1648,7 @@ public class EyesisCorrections {
 
 	  public ImageStack convertRGB48toRGBA24Stack(
 			  ImageStack stack16,
-			  double [] dalpha, // alpha pixel array 0..1.0 or null 
+			  double [] dalpha, // alpha pixel array 0..1.0 or null
 //			  String title,
 			  int r_min,
 			  int r_max,
@@ -1652,7 +1686,7 @@ public class EyesisCorrections {
 		  }
 		  return stack8;
 	  }
-	  
+
 	/* ======================================================================== */
 	  public ImagePlus Image32toGreyRGB24(
 			  ImagePlus imp){
@@ -1681,10 +1715,10 @@ public class EyesisCorrections {
 	  }
 	  /* ======================================================================== */
 
-	  
+
 	  /* Combine 2 stacks and a mask */
 	  public ImageStack combineStacksWithMask (ImageStack stack_bg,
-			  ImageStack stack_fg, 
+			  ImageStack stack_fg,
 			  //                                                 float [] mask ) {
 			  double [] mask ) {
 
@@ -1703,10 +1737,10 @@ public class EyesisCorrections {
 		  return stack;
 	  }
 
-	
-	
-	
-	
+
+
+
+
  /* ======================================================================== */
     public double [] getSlidingMask(int size) { // duplicate with DebayerScissors
       double [] mask = new double [size*size];
@@ -1720,17 +1754,17 @@ public class EyesisCorrections {
     }
 
 	/* ======================================================================== */
-	  /* convolve image stack with the kernel stack using FHT. kernels should be (size/2)*(size/2) - currently 64x64, then image will be split into same 
+	  /* convolve image stack with the kernel stack using FHT. kernels should be (size/2)*(size/2) - currently 64x64, then image will be split into same
 	      (size/2)*(size/2) overlapping by step=size/4 segments. Both are zero-padded to size x size, so after convolution the result will not roll over, and
 	      processed 128x128 result arrays are accumulated in the output stack.
 	      The input image should be properly extended by size/4 in each direction (and so the kernel arrays should match it) - that would minimize border effects.*/
-	 
+
 	  /* ======================================================================== */
 	  public ImageStack convolveStackWithKernelStack (
 			  final ImageStack  imageStack,  // stack with 3 colors/slices with the image
 			  final ImageStack kernelStack, // stack with 3 colors/slices convolution kernels
-			  final int               size, // 128 - fft size, kernel size should be size/2 
-			  final int          threadsMax,  // maximal number of threads to launch                         
+			  final int               size, // 128 - fft size, kernel size should be size/2
+			  final int          threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus, // update status info
 			  final int globalDebugLevel)
 	  {
@@ -1755,7 +1789,7 @@ public class EyesisCorrections {
 		  final AtomicInteger ai = new AtomicInteger(0);
 		  final int numberOfKernels=     tilesY*tilesX*nChn;
 		  final int numberOfKernelsInChn=tilesY*tilesX;
-		  
+
 		  int ichn,indx,dx,dy,tx,ty,li;
 		  final int [] nonOverlapSeq = new int[numberOfKernels];
 		  int [] nextFirstFindex=new int[16*nChn];
@@ -1769,8 +1803,8 @@ public class EyesisCorrections {
 		  }
 		  final AtomicInteger aStopIndex = new AtomicInteger(0);
 		  final AtomicInteger tilesFinishedAtomic = new AtomicInteger(1); // first finished will be 1
-		  
-		  if (globalDebugLevel>1) 
+
+		  if (globalDebugLevel>1)
 			  System.out.println("Eyesis_Corrections:convolveStackWithKernelStack :\n"+
 				  "globalDebugLevel="+globalDebugLevel+"\n"+
 				  "imgWidth="+imgWidth+"\n"+
@@ -1784,7 +1818,7 @@ public class EyesisCorrections {
 				  "kernelWidth="+kernelWidth+"\n"+
 				  "kernelNumHor="+kernelNumHor+"\n"+
 				  "numberOfKernelsInChn="+numberOfKernelsInChn+"\n");
-		  
+
 		  if (updateStatus) IJ.showStatus("Convolving image with kernels, "+nChn+" channels, "+tilesY+" rows");
 		  final long startTime = System.nanoTime();
 		  for (li = 0; li < nextFirstFindex.length; li++){
@@ -1795,7 +1829,8 @@ public class EyesisCorrections {
 //			  System.out.println("\n=== nextFirstFindex["+li+"] =" + nextFirstFindex[li]+" === ");
 			  for (int ithread = 0; ithread < threads.length; ithread++) {
 				  threads[ithread] = new Thread() {
-					  public void run() {
+					  @Override
+					public void run() {
 						  float [] pixels=null;       // will be initialized at first use
 						  float [] kernelPixels=null; // will be initialized at first use
 						  double [] kernel=       new double[kernelSize*kernelSize];
@@ -1838,7 +1873,7 @@ public class EyesisCorrections {
 							  fht_instance.swapQuadrants(outTile);
 							  fht_instance.transform(    outTile);
 							  /* read convolution kernel */
-							  extractOneKernel(kernelPixels, //  array of combined square kernels, each 
+							  extractOneKernel(kernelPixels, //  array of combined square kernels, each
 									  kernel, // will be filled, should have correct size before call
 									  kernelNumHor, // number of kernels in a row
 									  //tileX*kernelSize, // horizontal number of kernel to extract
@@ -1880,17 +1915,18 @@ public class EyesisCorrections {
 							  final int numFinished=tilesFinishedAtomic.getAndIncrement();
 							  if (numFinished % (numberOfKernels/100+1) == 0) {
 								  SwingUtilities.invokeLater(new Runnable() {
-									  public void run() {
+									  @Override
+									public void run() {
 										  IJ.showProgress(numFinished,numberOfKernels);
 									  }
 								  });
 							  }
-							  
+
 							  //numberOfKernels
 						  }
 					  }
 				  };
-			  }		      
+			  }
 			  startAndJoin(threads);
 		  }
 		  if (updateStatus) IJ.showStatus("Convolution DONE");
@@ -1951,10 +1987,10 @@ public class EyesisCorrections {
 	    }
 	    return pixels;
 	  }
-	  
-	  
-	  
-// duplicates with DebayerScissors	  
+
+
+
+// duplicates with DebayerScissors
 
 	    /* ======================================================================== */
 	    /**extract and multiply by window function (same size as kernel itself) */
@@ -2006,7 +2042,7 @@ public class EyesisCorrections {
 	   	  }
 	     }
 
-	     
+
 	   /* ======================================================================== */
 	   /* accumulate square tile to the pixel array (tile may extend beyond the array, will be cropped) */
 	     synchronized void  accumulateSquareTile(
@@ -2056,8 +2092,8 @@ public class EyesisCorrections {
 		   		  }
 		   	  }
 		     }
-	     
-	     
+
+
 	     synchronized void  accumulateSquareTile(
 	   		  double [] pixels, //  float pixels array to accumulate tile
 	   		  double []  tile, // data to accumulate to the pixels array
@@ -2082,7 +2118,7 @@ public class EyesisCorrections {
 	   	  }
 	     }
 
-// end of duplicates with DebayerScissors	 
+// end of duplicates with DebayerScissors
 /* Convert source Bayer pattern (GR/BG) image to higher resolution, add margins by duplicating pattern around */
 	  public ImageStack  bayerToStack(ImagePlus imp, // source bayer image, linearized, 32-bit (float))
 			  EyesisCorrectionParameters.SplitParameters splitParameters){
@@ -2134,10 +2170,10 @@ public class EyesisCorrections {
 		  if (imp==null) return null;
 		  boolean adv = splitParameters != null;
 		  int oversample = adv? splitParameters.oversample : 1;
-		  int addTop=      adv?splitParameters.addTop:       0;  
-		  int addLeft=     adv?splitParameters.addLeft:      0;  
-		  int addBottom=   adv?splitParameters.addBottom:    0;  
-		  int addRight=    adv?splitParameters.addRight:     0;  
+		  int addTop=      adv?splitParameters.addTop:       0;
+		  int addLeft=     adv?splitParameters.addLeft:      0;
+		  int addBottom=   adv?splitParameters.addBottom:    0;
+		  int addRight=    adv?splitParameters.addRight:     0;
 		  String [] chnNames={"Red","Blue","Green"}; //Different sequence than RGB!!
 		  int nChn=chnNames.length;
 		  ImageProcessor ip=imp.getProcessor();
@@ -2171,14 +2207,14 @@ public class EyesisCorrections {
 		  }
 		  return outPixels;
 	  }
-	  
-	  
-	
-//double []  DENOISE_MASK=null; 	
-	
-	
-// TODO: do similar for JP4, using "subcamera" to "use" all channels for it	
-	/* ======================================================================== */ 
+
+
+
+//double []  DENOISE_MASK=null;
+
+
+// TODO: do similar for JP4, using "subcamera" to "use" all channels for it
+	/* ======================================================================== */
 	/* Calculate deconvolution kernel (or difference of the two) noise gain
 	 *  to be used when calculating mask that selects between deconvolved with
 	 *  different kernels
@@ -2188,7 +2224,7 @@ public class EyesisCorrections {
 			  final ImageStack kernelStack2, // second stack with 3 colors/slices convolution kernels (or null)
 			  final int               size, // 128 - fft size, kernel size should be size/2
 			  final double       blurSigma,
-			  final int          threadsMax,  // maximal number of threads to launch                         
+			  final int          threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        globalDebugLevel) // update status info
 	  {
@@ -2210,7 +2246,8 @@ public class EyesisCorrections {
 		  final long startTime = System.nanoTime();
 		  for (int ithread = 0; ithread < threads.length; ithread++) {
 			  threads[ithread] = new Thread() {
-				  public void run() {
+				  @Override
+				public void run() {
 					  DoubleGaussianBlur gb=null;
 					  if (blurSigma>0)	 gb=new DoubleGaussianBlur();
 					  float [] kernelPixels1= null; // will be initialized at first use
@@ -2229,20 +2266,20 @@ public class EyesisCorrections {
 							  if (updateStatus) IJ.showStatus("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+kernelNumVert);
 							  if (globalDebugLevel>2) System.out.println("Processing kernels, channel "+(chn+1)+" of "+nChn+", row "+(tileY+1)+" of "+kernelNumVert+" : "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 						  }
-						  
+
 						  if (chn!=chn0) {
 							  kernelPixels1=(float[]) kernelStack1.getPixels(chn+1);
 							  if (useDiff) kernelPixels2=(float[]) kernelStack2.getPixels(chn+1);
 							  chn0=chn;
 						  }
 						  /* read convolution kernel */
-						  extractOneKernel(kernelPixels1, //  array of combined square kernels, each 
+						  extractOneKernel(kernelPixels1, //  array of combined square kernels, each
 								  kernel1, // will be filled, should have correct size before call
 								  kernelNumHor, // number of kernels in a row
 								  tileX, // horizontal number of kernel to extract
 								  tileY); // vertical number of kernel to extract
 						  /* optionally read the second convolution kernel */
-						  if (useDiff) {extractOneKernel(kernelPixels2, //  array of combined square kernels, each 
+						  if (useDiff) {extractOneKernel(kernelPixels2, //  array of combined square kernels, each
 								  kernel2, // will be filled, should have correct size before call
 								  kernelNumHor, // number of kernels in a row
 								  tileX, // horizontal number of kernel to extract
@@ -2258,7 +2295,7 @@ public class EyesisCorrections {
 					  }
 				  }
 			  };
-		  }		      
+		  }
 		  startAndJoin(threads);
 		  if (globalDebugLevel > 1) System.out.println("Threads done at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 		  /* prepare result stack to return */
@@ -2268,8 +2305,8 @@ public class EyesisCorrections {
 		  }
 		  return outStack;
 	  }
-	  
-	  void extractOneKernel(float [] pixels, //  array of combined square kernels, each 
+
+	  void extractOneKernel(float [] pixels, //  array of combined square kernels, each
 			  double [] kernel, // will be filled, should have correct size before call
 			  int numHor, // number of kernels in a row
 			  int xTile, // horizontal number of kernel to extract
@@ -2290,7 +2327,7 @@ public class EyesisCorrections {
 	  }
 
 	  /* Extract noise mask (proportional to noise gain of the kernels), the denoise mask should be divided by this
-	   *  
+	   *
 	   */
 	   public double [][] extractNoiseMask(
 	 		     ImagePlus imp,// contains 3-slice stack (r,b,g)
@@ -2347,8 +2384,8 @@ public class EyesisCorrections {
 			   boolean               save,
 			   boolean               show){
 		   saveAndShow(imp, correctionsParameters,  save,  show, -1);
-	   } 
-	   
+	   }
+
 	   void saveAndShow(
 			   ImagePlus             imp,
 			   EyesisCorrectionParameters.CorrectionParameters  correctionsParameters,
@@ -2359,7 +2396,7 @@ public class EyesisCorrections {
 		   if (save) path= correctionsParameters.selectResultsDirectory(
 				   true,  // smart,
 				   true);  //newAllowed, // save
-		   
+
 		   saveAndShow(
 				   imp,
 				   path,
@@ -2382,8 +2419,8 @@ public class EyesisCorrections {
 				   jpegQuality,//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
 				   this.debugLevel);
 	   }
-	   
-	   
+
+
 	   void saveAndShow(
 			   ImagePlus             imp,
 			   String                path,
@@ -2403,7 +2440,7 @@ public class EyesisCorrections {
 					   }
 				   }
 			   }
-			   
+
 			   if (hasAlphaHighByte){
 				   if (png){
 					   if (debugLevel > 0) System.out.println("Saving RGBA result to "+path+".png");
@@ -2418,7 +2455,7 @@ public class EyesisCorrections {
 						   (new EyesisTiff()).saveTiffARGB32(
 								   imp,
 								   path+".tiff",
-								   false, // correctionsParameters.imageJTags,	
+								   false, // correctionsParameters.imageJTags,
 								   debugLevel);
 					   } catch (IOException e) {
 						   e.printStackTrace();
@@ -2430,7 +2467,7 @@ public class EyesisCorrections {
 						   e.printStackTrace();
 					   }
 				   }
-				   
+
 			   } else if (((imp.getStackSize()==1)) && (jpegQuality!=0) && ((imp.getFileInfo().fileType== FileInfo.RGB) || (jpegQuality>0))) {
 				   if (debugLevel>0) System.out.println("Saving result to "+path+".jpeg");
 				   FileSaver fs=new FileSaver(imp);
@@ -2452,7 +2489,7 @@ public class EyesisCorrections {
 								   path+".tiff",
 								   mode, //
 								   1.0, // full scale, absolute
-								   false, // correctionsParameters.imageJTags,	
+								   false, // correctionsParameters.imageJTags,
 								   debugLevel);
 					   } catch (IOException e) {
 						   e.printStackTrace();
@@ -2472,7 +2509,7 @@ public class EyesisCorrections {
 			   imp.show();
 		   }
 	   }
-	   
+
 	   private void saveAndShow(
 	 		  CompositeImage        compositeImage,
 	 		  EyesisCorrectionParameters.CorrectionParameters correctionsParameters,
@@ -2481,8 +2518,8 @@ public class EyesisCorrections {
 	 	  String path=null;
 	 	  if (save)  path= correctionsParameters.selectResultsDirectory(
 	 		    				true,  // smart,
-	 		    				true);  //newAllowed, // save  
-	 	 
+	 		    				true);  //newAllowed, // save
+
 	 	  if (path!=null) {
 	 		  path+=Prefs.getFileSeparator()+compositeImage.getTitle();
 	 		  if (debugLevel>0) System.out.println("Saving result to "+path+".tiff");
@@ -2496,7 +2533,7 @@ public class EyesisCorrections {
 	 	  }
 	   }
 
-	 
+
 		/* ======================================================================== */
 		/* Create a Thread[] array as large as the number of processors available.
 			 * From Stephan Preibisch's Multithreading.java class. See:
@@ -2520,7 +2557,7 @@ public class EyesisCorrections {
 				}
 
 				try
-				{   
+				{
 					for (int ithread = 0; ithread < threads.length; ++ithread)
 						threads[ithread].join();
 				} catch (InterruptedException ie)
@@ -2528,6 +2565,6 @@ public class EyesisCorrections {
 					throw new RuntimeException(ie);
 				}
 			}
-    
+
 
 }

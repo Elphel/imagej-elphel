@@ -37,6 +37,7 @@ import ij.gui.GenericDialog;
 
 public class EyesisCorrectionParameters {
     public static class CorrectionParameters{
+    	public static final String AUX_PREFIX = "AUX-";
     	public boolean swapSubchannels01=      true; // false; // (false: 0-1-2, true - 1-0-2)
   		public boolean split=                  true;
   		public boolean vignetting=             true;
@@ -75,46 +76,46 @@ public class EyesisCorrectionParameters {
   		public boolean zcorrect=               true;
   		public boolean saveSettings =          true;
 
-    	public String [] sourcePaths={};
-    	public String sourceDirectory="";
-    	public String sourcePrefix="";
-    	public String sourceSuffix=".tiff"; //".jp4"
-    	public int    firstSubCamera=1; // 0 or 1
-    	public String sensorDirectory="";
-    	public String sensorPrefix="sensor-";
-    	public String sensorSuffix=".calib-tiff"; // fixed in PixelMapping
+    	public String [] sourcePaths=          {};
+    	public String sourceDirectory=         "";
+    	public String sourcePrefix=            "";
+    	public String sourceSuffix=            ".tiff"; //".jp4"
+    	public int    firstSubCamera=          1; // channel index in source file names
+    	public int    numSubCameras=           4; // channel index in source file names
+    	public String sensorDirectory=         "";
+    	public String sensorPrefix=            "sensor-";
+    	public String sensorSuffix=            ".calib-tiff"; // fixed in PixelMapping
 
-    	public String sharpKernelDirectory="";
-    	public String sharpKernelPrefix="sharpKernel-";
-    	public String sharpKernelSuffix=".kernel-tiff";
-    	public String smoothKernelDirectory="";
-    	public String smoothKernelPrefix="smoothKernel-";
-    	public String smoothKernelSuffix=".kernel-tiff";
-    	public String dctKernelDirectory="";
-    	public String dctKernelPrefix="dct-";
-    	public String dctSymSuffix=".sym-tiff";
-    	public String dctAsymSuffix=".asym-tiff";
+    	public String sharpKernelDirectory=    "";
+    	public String sharpKernelPrefix=       "sharpKernel-";
+    	public String sharpKernelSuffix=       ".kernel-tiff";
+    	public String smoothKernelDirectory=   "";
+    	public String smoothKernelPrefix=      "smoothKernel-";
+    	public String smoothKernelSuffix=      ".kernel-tiff";
+    	public String dctKernelDirectory=      "";
+    	public String dctKernelPrefix=         "dct-";
+    	public String dctSymSuffix=            ".sym-tiff";
+    	public String dctAsymSuffix=           ".asym-tiff";
     	public String equirectangularDirectory="";
-    	public String equirectangularPrefix="";
-    	public String equirectangularSuffix=".eqr-tiff";
-    	public boolean equirectangularCut=true;
-    	public String planeMapPrefix="";
-    	public String planeMapSuffix=".plane-proj-tiff";
-    	public boolean usePlaneProjection=false;  //
-    	public boolean planeAsJPEG=       true;   // save de-warped image as JPEG (only if equirectangularFormat==0)
-//    	public String equirectangularSuffixA="A.eqr-tiff"; // or the roll-over part
-    	public String resultsDirectory="";
-    	public boolean removeUnusedSensorData=false;
-    	public int exposureCorrectionMode=2; // - 0 - none, 1 - absolute, 2 - relative
-    	public double referenceExposure=0.0003; // 3/10000 sec, used in absolute mode only
-    	public double relativeExposure=0.5; // 0.0 - use shortest (darken), 1.0 - use longest (brighten)
+    	public String equirectangularPrefix=   "";
+    	public String equirectangularSuffix=   ".eqr-tiff";
+    	public boolean equirectangularCut=     true;
+    	public String planeMapPrefix=          "";
+    	public String planeMapSuffix=          ".plane-proj-tiff";
+    	public boolean usePlaneProjection=     false;  //
+    	public boolean planeAsJPEG=            true;   // save de-warped image as JPEG (only if equirectangularFormat==0)
+    	public String resultsDirectory=        "";
+    	public boolean removeUnusedSensorData= false;
+    	public int exposureCorrectionMode=     2; // - 0 - none, 1 - absolute, 2 - relative
+    	public double referenceExposure=       0.0003; // 3/10000 sec, used in absolute mode only
+    	public double relativeExposure=        0.5; // 0.0 - use shortest (darken), 1.0 - use longest (brighten)
 
-    	public String cltKernelDirectory="";
-    	public String cltKernelPrefix="clt-";
-    	public String cltSuffix=".clt-tiff";
-  		public boolean use_x3d_subdirs =  true;
-    	public String x3dSubdirPrefix="";
-    	public String x3dSubdirSuffix="";
+    	public String cltKernelDirectory=      "";
+    	public String cltKernelPrefix=         "clt-";
+    	public String cltSuffix=               ".clt-tiff";
+  		public boolean use_x3d_subdirs =       true;
+    	public String x3dSubdirPrefix=         "";
+    	public String x3dSubdirSuffix=         "";
 
   		// CLT 3d batch parameters
 
@@ -132,6 +133,141 @@ public class EyesisCorrectionParameters {
 
     	public String x3dModelVersion="v01";
     	public String x3dDirectory="";
+
+
+    	public CorrectionParameters getAux() {
+    		return aux_camera;
+    	}
+    	public CorrectionParameters aux_camera = null; // auxiliarry camera parameters
+//  		public boolean use_aux =             true;  // Generate debug images if a single set is selected
+		public void updateAuxFromMain() { // from master to aux
+			if (aux_camera == null) {
+				aux_camera = new CorrectionParameters();
+				initAuxFromMain(aux_camera);
+			} else {
+				updateAuxFromMain(aux_camera);
+			}
+		}
+		public void updateAuxFromMain(CorrectionParameters cp) { // from master to aux
+  			cp.split =                  this.split;
+  			cp.vignetting=              this.vignetting;
+  			cp.pixelDefects=            this.pixelDefects;
+  			cp.pixelDefectsThreshold=   this.pixelDefectsThreshold;
+  			cp.debayer=                 this.debayer;
+  			cp.showDebayerEnergy =      this.showDebayerEnergy;
+  			cp.saveDebayerEnergy=  	    this.saveDebayerEnergy;
+  			cp.deconvolve=              this.deconvolve;
+  			cp.combine=                 this.combine;
+  			cp.showDenoiseMask=  	    this.showDenoiseMask;
+  			cp.saveDenoiseMask=         this.saveDenoiseMask;
+  			cp.showChromaDenoiseMask=   this.showChromaDenoiseMask;
+  			cp.saveChromaDenoiseMask=   this.saveChromaDenoiseMask;
+  			cp.showNoiseGains=          this.showNoiseGains;
+  			cp.saveNoiseGains=  	    this.saveNoiseGains;
+  			cp.colorProc=  			    this.colorProc;
+  			cp.blueProc=  			    this.blueProc;
+  			cp.toRGB=  			        this.toRGB;
+  			cp.rotate=  		        this.rotate;
+  			cp.crop=  			        this.crop;
+  			cp.equirectangularFormat=   this.equirectangularFormat;
+  			cp.outputRangeInt=          this.outputRangeInt;
+  			cp.outputRangeFP=  		    this.outputRangeFP;
+  			cp.imageJTags=  		    this.imageJTags;
+  			cp.jpeg=  			        this.jpeg;
+  			cp.png=  			        this.png;
+  			cp.save=  			        this.save;
+  			cp.save16=  			    this.save16;
+  			cp.save32=  			    this.save32;
+  			cp.show=  			        this.show;
+  			cp.JPEG_quality=            this.JPEG_quality;
+  			cp.JPEG_scale=  		    this.JPEG_scale;
+  			cp.equirectangular=  	    this.equirectangular;
+  			cp.zcorrect=  			    this.zcorrect;
+  			cp.saveSettings=  		    this.saveSettings;
+  			cp.sourceDirectory=    	    this.sourceDirectory;
+  			cp.sourcePrefix=    	    this.sourcePrefix;
+  			cp.sourceSuffix=    	    this.sourceSuffix;
+//  			cp.firstSubCamera=    	    this.firstSubCamera;
+//  			cp.numSubCameras=    	    this.numSubCameras;
+//  			cp.sensorDirectory=         this.sensorDirectory;
+//  			cp.sensorPrefix=            this.sensorPrefix;
+//  			cp.sensorSuffix=      	    this.sensorSuffix;
+  			cp.sharpKernelDirectory=    this.sharpKernelDirectory;
+  			cp.sharpKernelPrefix=       this.sharpKernelPrefix;
+  			cp.sharpKernelSuffix=       this.sharpKernelSuffix;
+  			cp.smoothKernelDirectory=   this.smoothKernelDirectory;
+  			cp.smoothKernelPrefix=      this.smoothKernelPrefix;
+  			cp.smoothKernelSuffix=      this.smoothKernelSuffix;
+  			cp.dctKernelDirectory=      this.dctKernelDirectory;
+  			cp.dctKernelPrefix=    	    this.dctKernelPrefix;
+  			cp.dctSymSuffix=    	    this.dctSymSuffix;
+  			cp.dctAsymSuffix=    	    this.dctAsymSuffix;
+  			cp.equirectangularDirectory=this.equirectangularDirectory;
+  			cp.equirectangularPrefix=   this.equirectangularPrefix;
+  			cp.equirectangularSuffix=   this.equirectangularSuffix;
+  			cp.equirectangularCut=      this.equirectangularCut;
+  			cp.planeMapPrefix=    		this.planeMapPrefix;
+  			cp.planeMapSuffix=          this.planeMapSuffix;
+  			cp.usePlaneProjection=    	this.usePlaneProjection;
+  			cp.planeAsJPEG=    		    this.planeAsJPEG;
+//  			cp.resultsDirectory=    	this.resultsDirectory;
+  			cp.removeUnusedSensorData=  this.removeUnusedSensorData;
+    		if (this.sourcePaths!=null) {
+    			cp.sourcePaths=new String[this.sourcePaths.length];
+        		for (int i=0;i<this.sourcePaths.length;i++){
+        			cp.sourcePaths[i] = this.sourcePaths[i];
+        		}
+    		}
+  			cp.exposureCorrectionMode=  this.exposureCorrectionMode;
+  			cp.referenceExposure=    	this.referenceExposure;
+  			cp.relativeExposure=    	this.relativeExposure;
+  			cp.swapSubchannels01=    	this.swapSubchannels01;
+//  			cp.cltKernelDirectory=    	this.cltKernelDirectory;
+//  			cp.cltKernelPrefix=    		this.cltKernelPrefix;
+//  			cp.cltSuffix=               this.cltSuffix;
+  			cp.x3dDirectory=    		this.x3dDirectory;
+  			cp.use_x3d_subdirs=    		this.use_x3d_subdirs;
+  			cp.x3dSubdirPrefix=    		this.x3dSubdirPrefix;
+  			cp.x3dSubdirSuffix=    		this.x3dSubdirSuffix;
+  			cp.x3dModelVersion=    		this.x3dModelVersion;
+  			cp.clt_batch_apply_man=		this.clt_batch_apply_man;
+  			cp.clt_batch_extrinsic=		this.clt_batch_extrinsic;
+  			cp.clt_batch_poly=    		this.clt_batch_poly;
+  			cp.clt_batch_4img=    		this.clt_batch_4img;
+  			cp.clt_batch_explore=       this.clt_batch_explore;
+  			cp.clt_batch_surf=    		this.clt_batch_surf;
+  			cp.clt_batch_assign=    	this.clt_batch_assign;
+  			cp.clt_batch_gen3d=    		this.clt_batch_gen3d;
+  			cp.clt_batch_dbg1=    		this.clt_batch_dbg1;
+    	}
+
+
+		public void initAuxFromMain(CorrectionParameters cp) { // from master to aux
+			updateAuxFromMain(cp); // common parameters
+			// empty to prevent accidental use of the wrong kernels/sesnor calibration files
+  			cp.sensorDirectory=         ""; // this.sensorDirectory;
+  			cp.cltKernelDirectory=    	""; // this.cltKernelDirectory;
+  			cp.resultsDirectory=    	this.resultsDirectory+"/aux";
+  			cp.firstSubCamera=    	    this.firstSubCamera + this.numSubCameras;
+  			cp.numSubCameras=    	    this.numSubCameras;
+  			cp.sensorPrefix=            ""; // this.sensorPrefix;
+  			cp.sensorSuffix=      	    this.sensorSuffix;
+  			cp.cltKernelPrefix=    		this.cltKernelPrefix;
+  			cp.cltSuffix=               this.cltSuffix;
+    	}
+
+		public void auxFromExternal(CorrectionParameters ecp) { // from master to aux
+			this.aux_camera.sensorDirectory=    ecp.sensorDirectory;
+			this.aux_camera.cltKernelDirectory= ecp.cltKernelDirectory;
+			this.aux_camera.resultsDirectory=   ecp.resultsDirectory+"/aux";
+			this.aux_camera.firstSubCamera=    	ecp.firstSubCamera;
+			this.aux_camera.numSubCameras=    	ecp.numSubCameras;
+			this.aux_camera.sensorPrefix=       ecp.sensorPrefix;
+			this.aux_camera.sensorSuffix=      	ecp.sensorSuffix;
+			this.aux_camera.cltKernelPrefix=    ecp.cltKernelPrefix;
+			this.aux_camera.cltSuffix=          ecp.cltSuffix;
+    	}
+
 
     	public void setProperties(String prefix,Properties properties){
   			properties.setProperty(prefix+"split",this.split+"");
@@ -174,6 +310,7 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"sourcePrefix",this.sourcePrefix);
     		properties.setProperty(prefix+"sourceSuffix",this.sourceSuffix);
     		properties.setProperty(prefix+"firstSubCamera",this.firstSubCamera+"");
+    		properties.setProperty(prefix+"numSubCameras", this.numSubCameras+"");
 
     		properties.setProperty(prefix+"sensorDirectory",this.sensorDirectory);
     		properties.setProperty(prefix+"sensorPrefix",this.sensorPrefix);
@@ -210,6 +347,7 @@ public class EyesisCorrectionParameters {
         			properties.setProperty(prefix+"sourcePath"+i,this.sourcePaths[i]);
         		}
     		}
+
     		properties.setProperty(prefix+"exposureCorrectionMode",this.exposureCorrectionMode+"");
     		properties.setProperty(prefix+"referenceExposure",     this.referenceExposure+"");
     		properties.setProperty(prefix+"relativeExposure",      this.relativeExposure+"");
@@ -237,6 +375,20 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"clt_batch_assign",      this.clt_batch_assign+"");
     		properties.setProperty(prefix+"clt_batch_gen3d",       this.clt_batch_gen3d+"");
     		properties.setProperty(prefix+"clt_batch_dbg1",        this.clt_batch_dbg1+"");
+    		if (aux_camera != null) { // always
+        		updateAuxFromMain();
+    			String aux_prefix = prefix + AUX_PREFIX;
+        		properties.setProperty(aux_prefix+"sensorDirectory",    this.aux_camera.sensorDirectory);
+        		properties.setProperty(aux_prefix+"cltKernelDirectory", this.aux_camera.cltKernelDirectory);
+        		properties.setProperty(aux_prefix+"resultsDirectory",   this.aux_camera.resultsDirectory);
+        		properties.setProperty(aux_prefix+"firstSubCamera",     this.aux_camera.firstSubCamera+"");
+        		properties.setProperty(aux_prefix+"numSubCameras",      this.aux_camera.numSubCameras+"");
+        		properties.setProperty(aux_prefix+"sensorPrefix",       this.aux_camera.sensorPrefix);
+        		properties.setProperty(aux_prefix+"sensorSuffix",       this.aux_camera.sensorSuffix);
+        		properties.setProperty(aux_prefix+"cltKernelPrefix",    this.aux_camera.cltKernelPrefix);
+        		properties.setProperty(aux_prefix+"cltSuffix",          this.aux_camera.cltSuffix);
+    		}
+
     	}
 
     	public void getProperties(String prefix,Properties properties){
@@ -278,7 +430,8 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"sourceDirectory")!=      null) this.sourceDirectory=properties.getProperty(prefix+"sourceDirectory");
 			if (properties.getProperty(prefix+"sourcePrefix")!=         null) this.sourcePrefix=properties.getProperty(prefix+"sourcePrefix");
 			if (properties.getProperty(prefix+"sourceSuffix")!=         null) this.sourceSuffix=properties.getProperty(prefix+"sourceSuffix");
-  		    if (properties.getProperty(prefix+"firstSubCamera")!=null) this.firstSubCamera=Integer.parseInt(properties.getProperty(prefix+"firstSubCamera"));
+  		    if (properties.getProperty(prefix+"firstSubCamera")!=       null) this.firstSubCamera=Integer.parseInt(properties.getProperty(prefix+"firstSubCamera"));
+  		    if (properties.getProperty(prefix+"numSubCameras")!=        null) this.numSubCameras=Integer.parseInt(properties.getProperty(prefix+"numSubCameras"));
 			if (properties.getProperty(prefix+"sensorDirectory")!=      null) this.sensorDirectory=properties.getProperty(prefix+"sensorDirectory");
 			if (properties.getProperty(prefix+"sensorPrefix")!=         null) this.sensorPrefix=properties.getProperty(prefix+"sensorPrefix");
 			if (properties.getProperty(prefix+"sensorSuffix")!=         null) this.sensorSuffix=properties.getProperty(prefix+"sensorSuffix");
@@ -346,202 +499,20 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"clt_batch_assign")!= null)    this.clt_batch_assign=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_assign"));
 			if (properties.getProperty(prefix+"clt_batch_gen3d")!= null)     this.clt_batch_gen3d=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_gen3d"));
 			if (properties.getProperty(prefix+"clt_batch_dbg1")!= null)      this.clt_batch_dbg1=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_dbg1"));
-    	}
 
-    	public boolean showDialog(String title) {
-    		GenericDialog gd = new GenericDialog(title);
-    		gd.addCheckbox ("Splt into Bayer stack (if false will exit)",       this.split);
-    		gd.addCheckbox ("Apply vignetting/color correction to source files",this.vignetting);
-    		gd.addCheckbox ("Replace hot/warm/cold pixels with average of neighbors",this.pixelDefects);
-    		gd.addNumericField("Pixel difference thershold to consider it \"bad\" on 255.0 scale (0 - use all)", this.pixelDefectsThreshold, 2,6,"8.0");
-			String [] choices={"none","absolute","relative"};
-			if (this.exposureCorrectionMode<0) this.exposureCorrectionMode=0;
-			else if (this.exposureCorrectionMode>=choices.length) this.exposureCorrectionMode=choices.length-1;
-			gd.addChoice      ("Exposure correction",choices, choices[this.exposureCorrectionMode]);
-    		gd.addNumericField("Reference exposure (effective only in \"absolute\" mode)", 1000.0*this.referenceExposure, 2,6,"ms");
-    		gd.addNumericField("Exposure scale (effective only in \"relative\" mode) 0 - darken, 1 - lighten", this.relativeExposure, 3,5,"");
-    		gd.addCheckbox ("De-mosaic (if false will exit)",                   this.debayer);
-    		gd.addCheckbox ("Show de-mosaic middle-frequency 'energy",          this.showDebayerEnergy);
-    		gd.addCheckbox ("Save de-mosaic middle-frequency 'energy",          this.saveDebayerEnergy);
-    		gd.addCheckbox ("Sharpen (convolve with calibration kernels)",      this.deconvolve);
-    		gd.addCheckbox ("Denoise (convolve with Gaussian in smooth areas)", this.combine);
-    		gd.addCheckbox ("Show denoise mask (white - use hi-res, black - low-res)", this.showDenoiseMask);
-    		gd.addCheckbox ("Save denoise mask (white - use hi-res, black - low-res)", this.saveDenoiseMask);
-    		gd.addCheckbox ("Show kernel noise gains",                          this.showNoiseGains);
-    		gd.addCheckbox ("Save kernel noise gains",                          this.saveNoiseGains);
-    		gd.addCheckbox ("Convert colors",                                   this.colorProc);
-    		gd.addCheckbox ("Fix blue leak",                                    this.blueProc);
-    		gd.addCheckbox ("Show chroma denoise mask (white - use hi-res, black - low-res)", this.showChromaDenoiseMask);
-    		gd.addCheckbox ("Save chroma denoise mask (white - use hi-res, black - low-res)", this.saveChromaDenoiseMask);
-    		gd.addCheckbox ("Rotate result image",                              this.rotate);
-    		gd.addCheckbox ("Crop result image to the original size",           this.crop);
-			String [] equirectangularFormatChoices={"RGBA 8-bit","RGBA 16-bit","RGBA 32-bit integer","RGBA 32-bit float","ImageJ stack"};
-			int [] equirectangularFormats={0,1,2,3,4};
-			int equirectangularFormatIndex=0;
-			for ( int i=0;i<equirectangularFormats.length;i++) if (equirectangularFormats[i]==this.equirectangularFormat){
-				equirectangularFormatIndex=i;
-				break;
-			}
-			gd.addChoice   ("Equirectangular output format",equirectangularFormatChoices, equirectangularFormatChoices[equirectangularFormatIndex]);
-    		gd.addNumericField("Map 1.0 intensity to this fraction of the full range 8/16/32-bit integer mode output", 100*this.outputRangeInt, 2,6,"%");
-    		gd.addNumericField("Map 1.0 intensity to this value in 32-bit floating point output mode", this.outputRangeFP, 2,6,"");
-    		gd.addCheckbox ("Encode ImageJ specific Info metadata to the output file TIFF header", this.imageJTags);
-
-			gd.addCheckbox ("Convert to RGB48",                                 this.toRGB);
-    		gd.addCheckbox ("Convert to 8 bit RGB (and save JPEG if save is enabled)", this.jpeg);
-    		gd.addCheckbox ("Use PNG instead of TIFF for 32 bit (8 per color) RGBA", this.png);
-    		gd.addCheckbox ("Save the result to file system",                   this.save);
-    		gd.addCheckbox ("Save 16-bit tiff if the result is 8 bit",          this.save16);
-    		gd.addCheckbox    ("Save 32-bit tiff if the result is 8 or 16 bit",    this.save32);
-    		gd.addCheckbox    ("Show the result image",                            this.show);
-    		gd.addNumericField("JPEG quality (%)",                                 this.JPEG_quality,0);
-    		gd.addNumericField("JPEG scale   (%)",                            100* this.JPEG_scale,0);
-    		gd.addCheckbox    ("Warp results to equirectangular",                  this.equirectangular);
-    		gd.addCheckbox    ("Calculate distances in overlapping areas",         this.zcorrect);
-    		gd.addCheckbox    ("Save current settings with results",               this.saveSettings);
-    		gd.addStringField ("Source files directory",                           this.sourceDirectory, 60);
-    		gd.addCheckbox    ("Select source directory",                          false);
-    		gd.addStringField ("Sensor calibration directory",                     this.sensorDirectory, 60);
-    		gd.addCheckbox    ("Select sensor calibration directory",              false);
-
-    		gd.addStringField ("Aberration kernels (sharp) directory",             this.sharpKernelDirectory, 60);
-    		gd.addCheckbox    ("Select aberration kernels (sharp) directory",      false);
-    		gd.addStringField ("Aberration kernels (smooth) directory",            this.smoothKernelDirectory, 60);
-    		gd.addCheckbox    ("Select aberration kernels (smooth) directory",     false);
-
-    		gd.addStringField ("Aberration kernels for DCT directory",             this.dctKernelDirectory, 60);
-    		gd.addCheckbox    ("Select aberration kernels for DCT directory",      false);
-
-    		gd.addStringField ("Aberration kernels for CLT directory",             this.cltKernelDirectory, 60);
-    		gd.addCheckbox    ("Select aberration kernels for CLT directory",      false);
-
-    		gd.addStringField ("x3d model version",                                this.x3dModelVersion, 20);    // 10a
-    		gd.addStringField ("x3d output directory",                             this.x3dDirectory, 60);
-    		gd.addCheckbox    ("Select x3d output directory",                      false);
-    		gd.addCheckbox    ("Use individual subdirectory for each 3d model (timestamp as name)", this.use_x3d_subdirs);
-
-    		gd.addStringField ("x3d subdirectory prefix",                          this.x3dSubdirPrefix, 10);
-    		gd.addStringField ("x3d subdirectory suffix",                          this.x3dSubdirSuffix, 10);
-
-    		gd.addStringField("Equirectangular maps directory (may be empty)",     this.equirectangularDirectory, 60);
-    		gd.addCheckbox("Select equirectangular maps directory",                false);
-    		gd.addStringField("Results directory",                                 this.resultsDirectory, 60);
-    		gd.addCheckbox("Select results directory",                             false);
-    		gd.addStringField("Source files prefix",                               this.sourcePrefix, 60);
-    		gd.addStringField("Source files suffix",                               this.sourceSuffix, 60);
-    		gd.addNumericField("First subcamera (in the source filename)",         this.firstSubCamera, 0);
-
-    		gd.addStringField("Sensor files prefix",                               this.sensorPrefix, 40);
-    		gd.addStringField("Sensor files suffix",                               this.sensorSuffix, 40);
-    		gd.addStringField("Kernel files (sharp) prefix",                       this.sharpKernelPrefix, 40);
-    		gd.addStringField("Kernel files (sharp) suffix",                       this.sharpKernelSuffix, 40);
-    		gd.addStringField("Kernel files (smooth) prefix",                      this.smoothKernelPrefix, 40);
-    		gd.addStringField("Kernel files (smooth) suffix",                      this.smoothKernelSuffix, 40);
-
-    		gd.addStringField("DCT kernel files  prefix",                          this.dctKernelPrefix, 40);
-    		gd.addStringField("DCT symmetical kernel files",                       this.dctSymSuffix, 40);
-    		gd.addStringField("DCT asymmetrical kernel files suffix",              this.dctAsymSuffix, 40);
-    		gd.addStringField("CLT kernel files prefix",                           this.cltKernelPrefix, 40);
-    		gd.addStringField("CLT kernel files suffix",                           this.cltSuffix, 40);
-
-    		gd.addStringField("Equirectangular maps prefix",     this.equirectangularPrefix, 40);
-    		gd.addStringField("Equirectangular maps suffix",     this.equirectangularSuffix, 40);
-    		gd.addCheckbox("Cut rolling-over equirectangular images in two", this.equirectangularCut);
-
-    		gd.addStringField("Plane projection map prefix",     this.planeMapPrefix, 40);
-    		gd.addStringField("Plane projection map suffix",     this.planeMapSuffix, 40);
-    		gd.addCheckbox("Use projection to a common plane instead of the  equirectangular", this.usePlaneProjection);
-    		gd.addCheckbox("Save de-warped images as JPEG instead of TIFF",  this.planeAsJPEG);
-
-
-//    		gd.addStringField("Suffix for the second part of rolled-over equirectangular images",  this.equirectangularSuffixA, 40);
-
-    		gd.addCheckbox   ("Remove unused sensor data",       this.removeUnusedSensorData);
-    		gd.addCheckbox   ("Swap top and equator images",     this.swapSubchannels01);
-    		WindowTools.addScrollBars(gd);
-    		gd.showDialog();
-    		if (gd.wasCanceled()) return false;
-    		this.split=                  gd.getNextBoolean();
-    		this.vignetting=             gd.getNextBoolean();
-    		this.pixelDefects=           gd.getNextBoolean();
-    		this.pixelDefectsThreshold=  gd.getNextNumber();
-			this.exposureCorrectionMode= gd.getNextChoiceIndex();
-    		this.referenceExposure=0.001*gd.getNextNumber();
-    		this.relativeExposure=       gd.getNextNumber();
-    		this.debayer=           gd.getNextBoolean();
-    		this.showDebayerEnergy= gd.getNextBoolean();
-    		this.saveDebayerEnergy= gd.getNextBoolean();
-    		this.deconvolve=        gd.getNextBoolean();
-    		this.combine=           gd.getNextBoolean();
-    		this.showDenoiseMask=   gd.getNextBoolean();
-    		this.saveDenoiseMask=   gd.getNextBoolean();
-    		this.showNoiseGains=    gd.getNextBoolean();
-    		this.saveNoiseGains=    gd.getNextBoolean();
-    		this.colorProc=         gd.getNextBoolean();
-    		this.blueProc=         gd.getNextBoolean();
-    		this.showChromaDenoiseMask=   gd.getNextBoolean();
-    		this.saveChromaDenoiseMask=   gd.getNextBoolean();
-    		this.rotate=            gd.getNextBoolean();
-    		this.crop=              gd.getNextBoolean();
-    		this.equirectangularFormat= equirectangularFormats[gd.getNextChoiceIndex()];
-    		this.outputRangeInt=0.01*gd.getNextNumber();
-    		this.outputRangeFP=     gd.getNextNumber();
-    		this.imageJTags=        gd.getNextBoolean();
-    		this.toRGB=             gd.getNextBoolean();
-    		this.jpeg=              gd.getNextBoolean();
-    		this.png=               gd.getNextBoolean();
-    		this.save=              gd.getNextBoolean();
-    		this.save16=            gd.getNextBoolean();
-    		this.save32=            gd.getNextBoolean();
-    		this.show=              gd.getNextBoolean();
-    		this.JPEG_quality=(int) gd.getNextNumber();
-    		this.JPEG_scale=   0.01*gd.getNextNumber();
-    		this.equirectangular=   gd.getNextBoolean();
-    		this.zcorrect=          gd.getNextBoolean();
-    		this.saveSettings=      gd.getNextBoolean();
-
-    		this.sourceDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSourceDirectory(false, false);
-    		this.sensorDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSensorDirectory(false, false);
-    		this.sharpKernelDirectory=   gd.getNextString(); if (gd.getNextBoolean()) selectSharpKernelDirectory(false, false);
-    		this.smoothKernelDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectSmoothKernelDirectory(false, true);
-    		this.dctKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectDCTKernelDirectory(false, true);
-    		this.cltKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectCLTKernelDirectory(false, true);
-    		this.x3dModelVersion=        gd.getNextString(); // 10a
-    		this.x3dDirectory=           gd.getNextString(); if (gd.getNextBoolean()) selectX3dDirectory(false, true);
-    		this.use_x3d_subdirs=        gd.getNextBoolean();
-
-    		this.x3dSubdirPrefix=        gd.getNextString();
-    		this.x3dSubdirSuffix=        gd.getNextString();
-
-    		this.equirectangularDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectEquirectangularDirectory(false, false);
-    		this.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) selectResultsDirectory(false, true);
-    		this.sourcePrefix=           gd.getNextString();
-    		this.sourceSuffix=           gd.getNextString();
-    		this.firstSubCamera=   (int) gd.getNextNumber();
-    		this.sensorPrefix=           gd.getNextString();
-    		this.sensorSuffix=           gd.getNextString();
-    		this.sharpKernelPrefix=      gd.getNextString();
-    		this.sharpKernelSuffix=      gd.getNextString();
-    		this.smoothKernelPrefix=     gd.getNextString();
-    		this.smoothKernelSuffix=     gd.getNextString();
-    		this.dctKernelPrefix=        gd.getNextString();
-    		this.dctSymSuffix=           gd.getNextString();
-    		this.dctAsymSuffix=          gd.getNextString();
-    		this.cltKernelPrefix=        gd.getNextString();
-    		this.cltSuffix=              gd.getNextString();
-    		this.equirectangularPrefix=  gd.getNextString();
-    		this.equirectangularSuffix=  gd.getNextString();
-    		this.equirectangularCut=     gd.getNextBoolean();
-    		this.planeMapPrefix=         gd.getNextString();
-    		this.planeMapSuffix=         gd.getNextString();
-    		this.usePlaneProjection=     gd.getNextBoolean();
-    		this.planeAsJPEG=            gd.getNextBoolean();
-//    		this.equirectangularSuffixA= gd.getNextString();
-    		this.removeUnusedSensorData= gd.getNextBoolean();
-    		this.swapSubchannels01= gd.getNextBoolean();
-    		return true;
-    	}
-
+    		// copy common parameters to the auxiliary camera ones
+    		updateAuxFromMain();
+			String aux_prefix = prefix + AUX_PREFIX;
+			if (properties.getProperty(aux_prefix+"sensorDirectory")!=    null) this.aux_camera.sensorDirectory=properties.getProperty(aux_prefix+"sensorDirectory");
+			if (properties.getProperty(aux_prefix+"cltKernelDirectory")!= null) this.aux_camera.cltKernelDirectory=properties.getProperty(aux_prefix+"cltKernelDirectory");
+			if (properties.getProperty(aux_prefix+"resultsDirectory")!=   null) this.aux_camera.resultsDirectory=properties.getProperty(aux_prefix+"resultsDirectory");
+  		    if (properties.getProperty(aux_prefix+"firstSubCamera")!=     null) this.aux_camera.firstSubCamera=Integer.parseInt(properties.getProperty(aux_prefix+"firstSubCamera"));
+  		    if (properties.getProperty(aux_prefix+"numSubCameras")!=      null) this.aux_camera.numSubCameras=Integer.parseInt(properties.getProperty(aux_prefix+"numSubCameras"));
+			if (properties.getProperty(aux_prefix+"sensorPrefix")!=       null) this.aux_camera.sensorPrefix=properties.getProperty(aux_prefix+"sensorPrefix");
+			if (properties.getProperty(aux_prefix+"sensorSuffix")!=       null) this.aux_camera.sensorSuffix=properties.getProperty(aux_prefix+"sensorSuffix");
+			if (properties.getProperty(aux_prefix+"cltKernelPrefix")!=    null) this.aux_camera.cltKernelPrefix=properties.getProperty(aux_prefix+"cltKernelPrefix");
+			if (properties.getProperty(aux_prefix+"cltSuffix")!=          null) this.aux_camera.cltSuffix=properties.getProperty(aux_prefix+"cltSuffix");
+		}
 
     	public boolean showJDialog(String title) {
 //    		GenericDialog gd = new GenericDialog(title);
@@ -632,7 +603,8 @@ public class EyesisCorrectionParameters {
             gd.addTab("Prefix/suffix","Prefixes and suffixes for various file types");
     		gd.addStringField("Source files prefix",                               this.sourcePrefix, 60);
     		gd.addStringField("Source files suffix",                               this.sourceSuffix, 60);
-    		gd.addNumericField("First subcamera (in the source filename)",         this.firstSubCamera, 0);
+    		gd.addNumericField("First subcamera (in the source filenames)",        this.firstSubCamera, 0);
+    		gd.addNumericField("Number of subcameras in this camera (in the source filenames)",  this.numSubCameras, 0);
 
     		gd.addStringField("Sensor files prefix",                               this.sensorPrefix, 40);
     		gd.addStringField("Sensor files suffix",                               this.sensorSuffix, 40);
@@ -721,6 +693,7 @@ public class EyesisCorrectionParameters {
     		this.sourcePrefix=           gd.getNextString();
     		this.sourceSuffix=           gd.getNextString();
     		this.firstSubCamera=   (int) gd.getNextNumber();
+    		this.numSubCameras=    (int) gd.getNextNumber();
     		this.sensorPrefix=           gd.getNextString();
     		this.sensorSuffix=           gd.getNextString();
     		this.sharpKernelPrefix=      gd.getNextString();
@@ -746,20 +719,18 @@ public class EyesisCorrectionParameters {
     	}
 
 
-    	public boolean showCLTDialog(String title,
+    	public boolean showCLTBatchDialog(String title,
     			CLTParameters clt_parameters) {
-    		GenericJTabbedDialog gd = new GenericJTabbedDialog(title,1000,800);
+    		GenericJTabbedDialog gd = new GenericJTabbedDialog(title,1000,1000);
+    		updateAuxFromMain();
 
-    		gd.addTab         ("File paths", "Select files and directories pahs");
+
+    		gd.addTab         ("File paths", "Select files and directories paths (common to main and optional auxilliary)");
+			gd.addMessage     ("============ Common to the main and optional auxiliary camera============");
+
     		gd.addCheckbox    ("Save current settings with results",               this.saveSettings);           // 1
     		gd.addStringField ("Source files directory",                           this.sourceDirectory, 60);    // 2
     		gd.addCheckbox    ("Select source directory",                          false);                       // 3
-    		gd.addStringField ("Sensor calibration directory",                     this.sensorDirectory, 60);    // 4
-    		gd.addCheckbox    ("Select sensor calibration directory",              false);                       // 5
-
-
-    		gd.addStringField ("Aberration kernels for CLT directory",             this.cltKernelDirectory, 60); // 6
-    		gd.addCheckbox    ("Select aberration kernels for CLT directory",      false);                       // 7
 
     		gd.addStringField ("x3d model version",                                this.x3dModelVersion, 60);    // 10a
     		gd.addStringField ("x3d output directory",                             this.x3dDirectory, 60);       // 8
@@ -767,30 +738,53 @@ public class EyesisCorrectionParameters {
 
     		gd.addCheckbox    ("Use individual subdirectory for each 3d model (timestamp as name)", this.use_x3d_subdirs); //10
 
-
-    		gd.addStringField ("Results directory",                                this.resultsDirectory, 60);   // 11
-    		gd.addCheckbox    ("Select results directory",                         false);                       // 12
-
     		gd.addStringField ("Source files prefix",                              this.sourcePrefix, 60);       // 13
     		gd.addStringField ("Source files suffix",                              this.sourceSuffix, 60);       // 14
+
+
+			gd.addMessage     ("============ Main camera============");
+
+    		gd.addStringField ("Sensor calibration directory",                     this.sensorDirectory, 60);    // 4
+    		gd.addCheckbox    ("Select sensor calibration directory",              false);                       // 5
+    		gd.addStringField ("Aberration kernels for CLT directory",             this.cltKernelDirectory, 60); // 6
+    		gd.addCheckbox    ("Select aberration kernels for CLT directory",      false);                       // 7
+    		gd.addStringField ("Results directory",                                this.resultsDirectory, 60);   // 11
+    		gd.addCheckbox    ("Select results directory",                         false);                       // 12
     		gd.addNumericField("First subcamera (in the source filename)",         this.firstSubCamera, 0);      // 15
+    		gd.addNumericField("Number of subcameras in this camera (in the source filenames)",  this.numSubCameras, 0); // 16
+    		gd.addStringField ("Sensor files prefix",                              this.sensorPrefix, 40);       // 17
+    		gd.addStringField ("Sensor files suffix",                              this.sensorSuffix, 40);       // 18
 
-    		gd.addStringField("Sensor files prefix",                               this.sensorPrefix, 40);       // 16
-    		gd.addStringField("Sensor files suffix",                               this.sensorSuffix, 40);       // 17
+    		gd.addStringField ("CLT kernel files prefix",                          this.cltKernelPrefix, 40);    // 19
+    		gd.addStringField ("CLT kernel files suffix",                          this.cltSuffix, 40);          // 20
 
-    		gd.addStringField("CLT kernel files prefix",                           this.cltKernelPrefix, 40);    // 18
-    		gd.addStringField("CLT kernel files suffix",                           this.cltSuffix, 40);          // 19
+			gd.addMessage     ("============ Auxiliary camera============");
+    		gd.addStringField ("Aux sensor calibration directory",                     this.aux_camera.sensorDirectory, 60);    // 4b
+    		gd.addCheckbox    ("Select aux sensor calibration directory",              false);                                  // 5b
+    		gd.addStringField ("Aberration kernels for aux CLT directory",             this.aux_camera.cltKernelDirectory, 60); // 6b
+    		gd.addCheckbox    ("Select aberration kernels for aux CLT directory",      false);                                  // 7b
+    		gd.addStringField ("Aux results directory",                                this.aux_camera.resultsDirectory, 60);   // 11b
+    		gd.addCheckbox    ("Select aux results directory",                         false);                                  // 12b
+    		gd.addNumericField("First aux subcamera (in the source filename)",         this.aux_camera.firstSubCamera, 0);      // 15b
+    		gd.addNumericField("Number of aux subcameras in this camera (in the source filenames)",  this.aux_camera.numSubCameras, 0); // 16b
+    		gd.addStringField ("Aux sensor files prefix",                              this.aux_camera.sensorPrefix, 40);       // 17b
+    		gd.addStringField ("Aux sensor files suffix",                              this.aux_camera.sensorSuffix, 40);       // 18b
+
+    		gd.addStringField ("Aux CLT kernel files prefix",                          this.aux_camera.cltKernelPrefix, 40);    // 19b
+    		gd.addStringField ("Aux CLT kernel files suffix",                          this.aux_camera.cltSuffix, 40);          // 20b
+
+
 
   			gd.addTab         ("Batch", "Select Batch parameters");
-    		gd.addCheckbox    ("Apply (and disable) manual pixel shift",                             this.clt_batch_apply_man); // 20
-    		gd.addCheckbox    ("Calibrate extrinsic parameters for each set",                        this.clt_batch_extrinsic); // 21
-    		gd.addCheckbox    ("Calculate fine polynomial correction for each set",                  this.clt_batch_poly);      // 22
-    		gd.addCheckbox    ("Create a set of 4 images, usually for disparity = 0",                this.clt_batch_4img);      // 23
-    		gd.addCheckbox    ("1-st step of 3d reconstruction - explore disparities for each tile", this.clt_batch_explore);   // 24
-    		gd.addCheckbox    ("Create super-tile 2.5d surfaces",                                    this.clt_batch_surf);      // 25
-    		gd.addCheckbox    ("Assign tiles to surfaces",                                           this.clt_batch_assign);    // 26
-    		gd.addCheckbox    ("Generate 3d output: x3d and/or obj+mtl",                             this.clt_batch_gen3d);     // 27
-    		gd.addCheckbox    ("Generate debug images if a single set is selected",                  this.clt_batch_dbg1);      // 28
+    		gd.addCheckbox    ("Apply (and disable) manual pixel shift",                             this.clt_batch_apply_man); // 21
+    		gd.addCheckbox    ("Calibrate extrinsic parameters for each set",                        this.clt_batch_extrinsic); // 22
+    		gd.addCheckbox    ("Calculate fine polynomial correction for each set",                  this.clt_batch_poly);      // 23
+    		gd.addCheckbox    ("Create a set of 4 images, usually for disparity = 0",                this.clt_batch_4img);      // 24
+    		gd.addCheckbox    ("1-st step of 3d reconstruction - explore disparities for each tile", this.clt_batch_explore);   // 25
+    		gd.addCheckbox    ("Create super-tile 2.5d surfaces",                                    this.clt_batch_surf);      // 26
+    		gd.addCheckbox    ("Assign tiles to surfaces",                                           this.clt_batch_assign);    // 27
+    		gd.addCheckbox    ("Generate 3d output: x3d and/or obj+mtl",                             this.clt_batch_gen3d);     // 28
+    		gd.addCheckbox    ("Generate debug images if a single set is selected",                  this.clt_batch_dbg1);      // 29
     		if (clt_parameters != null) {
 //    			gd.addMessage     ("============ selected CLT parameters ============");
       			gd.addTab         ("CLT", "Modify selected CLT parameters");
@@ -810,29 +804,43 @@ public class EyesisCorrectionParameters {
     		this.saveSettings=      gd.getNextBoolean(); // 1
 
     		this.sourceDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSourceDirectory(false, false);   // 3
-    		this.sensorDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSensorDirectory(false, false);   // 5
-    		this.cltKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectCLTKernelDirectory(false, true); // 7
     		this.x3dModelVersion=        gd.getNextString(); //  10a
     		this.x3dDirectory=           gd.getNextString(); if (gd.getNextBoolean()) selectX3dDirectory(false, true);       // 9
     		this.use_x3d_subdirs=        gd.getNextBoolean(); // 10
-    		this.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) selectResultsDirectory(false, true);   // 12
     		this.sourcePrefix=           gd.getNextString();  // 13
     		this.sourceSuffix=           gd.getNextString();  // 14
-    		this.firstSubCamera=   (int) gd.getNextNumber();  // 15
-    		this.sensorPrefix=           gd.getNextString();  // 16
-    		this.sensorSuffix=           gd.getNextString();  // 17
-    		this.cltKernelPrefix=        gd.getNextString();  // 18
-    		this.cltSuffix=              gd.getNextString();  // 19
 
-    		this.clt_batch_apply_man=    gd.getNextBoolean(); // 20
-    		this.clt_batch_extrinsic=    gd.getNextBoolean(); // 21
-    		this.clt_batch_poly=         gd.getNextBoolean(); // 22
-    		this.clt_batch_4img=         gd.getNextBoolean(); // 23
-    		this.clt_batch_explore=      gd.getNextBoolean(); // 24
-    		this.clt_batch_surf=         gd.getNextBoolean(); // 25
-    		this.clt_batch_assign=       gd.getNextBoolean(); // 26
-    		this.clt_batch_gen3d=        gd.getNextBoolean(); // 27
-    		this.clt_batch_dbg1=         gd.getNextBoolean(); // 28
+// main camera
+    		this.sensorDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSensorDirectory(false, false);   // 5
+    		this.cltKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectCLTKernelDirectory(false, true); // 7
+    		this.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) selectResultsDirectory(false, true);   // 12
+    		this.firstSubCamera=   (int) gd.getNextNumber();  // 15
+    		this.numSubCameras=    (int) gd.getNextNumber();  // 16
+    		this.sensorPrefix=           gd.getNextString();  // 17
+    		this.sensorSuffix=           gd.getNextString();  // 18
+    		this.cltKernelPrefix=        gd.getNextString();  // 19
+    		this.cltSuffix=              gd.getNextString();  // 20
+
+// aux camera
+    		this.aux_camera.sensorDirectory=        gd.getNextString(); if (gd.getNextBoolean()) aux_camera.selectSensorDirectory(false, false);   // 5b
+    		this.aux_camera.cltKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) aux_camera.selectCLTKernelDirectory(false, true); // 7b
+    		this.aux_camera.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) aux_camera.selectResultsDirectory(false, true);   // 12b
+    		this.aux_camera.firstSubCamera=   (int) gd.getNextNumber();  // 15b
+    		this.aux_camera.numSubCameras=    (int) gd.getNextNumber();  // 16b
+    		this.aux_camera.sensorPrefix=           gd.getNextString();  // 17b
+    		this.aux_camera.sensorSuffix=           gd.getNextString();  // 18b
+    		this.aux_camera.cltKernelPrefix=        gd.getNextString();  // 19b
+    		this.aux_camera.cltSuffix=              gd.getNextString();  // 20b
+
+    		this.clt_batch_apply_man=    gd.getNextBoolean(); // 21
+    		this.clt_batch_extrinsic=    gd.getNextBoolean(); // 22
+    		this.clt_batch_poly=         gd.getNextBoolean(); // 23
+    		this.clt_batch_4img=         gd.getNextBoolean(); // 24
+    		this.clt_batch_explore=      gd.getNextBoolean(); // 25
+    		this.clt_batch_surf=         gd.getNextBoolean(); // 26
+    		this.clt_batch_assign=       gd.getNextBoolean(); // 27
+    		this.clt_batch_gen3d=        gd.getNextBoolean(); // 28
+    		this.clt_batch_dbg1=         gd.getNextBoolean(); // 29
     		if (clt_parameters != null) {
     			clt_parameters.grow_disp_max = gd.getNextNumber();
     			clt_parameters.gain_equalize = gd.getNextBoolean();
@@ -1723,14 +1731,6 @@ public class EyesisCorrectionParameters {
   		public double alpha_min = 0.0;
   		public double alpha_max = 1.0;
 
-/*  		public RGBParameters(double r_min, double g_min, double b_min, double r_max, double g_max, double b_max) {
-  			this.r_min = r_min;
-  			this.g_min = g_min;
-  			this.b_min = b_min;
-  			this.r_max = r_max;
-  			this.g_max = g_max;
-  			this.b_max = b_max;
-  		} */
   		public RGBParameters(double r_min, double g_min, double b_min, double r_max, double g_max, double b_max, double alpha_min, double alpha_max) {
   			this.r_min = r_min;
   			this.g_min = g_min;

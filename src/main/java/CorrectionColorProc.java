@@ -521,6 +521,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 
 
     public static class ColorGainsParameters {
+    	public static final String AUX_PREFIX = "AUX-";
     	public double[] gain={
     			1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,
     			1.0,1.0,1.0,1.0,1.0,1.0,1.0,1.0,
@@ -548,7 +549,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     			properties.setProperty(prefix+"balanceBlue_"+i,this.balanceBlue[i]+"");
     		}
     	}
-    	public void getProperties(String prefix,Properties properties){
+    	public boolean getProperties(String prefix,Properties properties){
     		if (properties.getProperty(prefix+"channels")!=null) {
         		int numChannels=Integer.parseInt(properties.getProperty(prefix+"channels"));
         		this.gain=       new double[numChannels];
@@ -559,7 +560,9 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
         			this.balanceRed[i]= Double.parseDouble(properties.getProperty(prefix+"balanceRed_"+i));
         			this.balanceBlue[i]=Double.parseDouble(properties.getProperty(prefix+"balanceBlue_"+i));
         		}
+        		return true;
     		}
+    		return false;
     	}
 
     	public void modifyNumChannels(int numChannels){
@@ -596,6 +599,43 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
     			this.balanceRed[i]= gd.getNextNumber();
     			this.balanceBlue[i]=gd.getNextNumber();
     		}
+    		return true;
+    	}
+
+    	public boolean showDialog(ColorGainsParameters aux) {
+
+    		GenericJTabbedDialog gd = new GenericJTabbedDialog("Individual channels colors/gains", 600,1000);
+    		if (aux != null) gd.addTab("Main camera");
+    		for (int i =0; i<this.gain.length;i++){
+    			gd.addMessage(String.format("=== CHANNEL %02d ===",i));
+    			gd.addNumericField(String.format("%02d: Gain (brightness)",i), this.gain[i], 3);
+    			gd.addNumericField(String.format("%02d: Balance Red/Green",i), this.balanceRed[i], 3);
+    			gd.addNumericField(String.format("%02d: Balance Blue/Green",i), this.balanceBlue[i], 3);
+    		}
+    		if (aux != null) {
+    			gd.addTab("Auxiliary camera");
+        		for (int i =0; i<this.gain.length;i++){
+        			gd.addMessage(String.format("=== CHANNEL %02d ===",i));
+        			gd.addNumericField(String.format("%02d: Gain (brightness)",i), aux.gain[i], 3);
+        			gd.addNumericField(String.format("%02d: Balance Red/Green",i), aux.balanceRed[i], 3);
+        			gd.addNumericField(String.format("%02d: Balance Blue/Green",i), aux.balanceBlue[i], 3);
+        		}
+
+    		}
+    		gd.showDialog();
+    		if (gd.wasCanceled()) return false;
+    		for (int i =0; i<this.gain.length;i++){
+    			this.gain[i]=       gd.getNextNumber();
+    			this.balanceRed[i]= gd.getNextNumber();
+    			this.balanceBlue[i]=gd.getNextNumber();
+    		}
+       		if (aux != null) {
+        		for (int i =0; i<this.gain.length;i++){
+        			aux.gain[i]=       gd.getNextNumber();
+        			aux.balanceRed[i]= gd.getNextNumber();
+        			aux.balanceBlue[i]=gd.getNextNumber();
+        		}
+       		}
     		return true;
     	}
 
