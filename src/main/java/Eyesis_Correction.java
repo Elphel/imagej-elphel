@@ -141,6 +141,7 @@ private Panel panel1,
    public static EyesisDCT EYESIS_DCT = null;
    public static QuadCLT   QUAD_CLT =   null;
    public static QuadCLT   QUAD_CLT_AUX =   null;
+   public static TwoQuadCLT TWO_QUAD_CLT = null;
 
    public static EyesisCorrectionParameters.DebayerParameters DEBAYER_PARAMETERS = new EyesisCorrectionParameters.DebayerParameters(
 		   64,    // size //128;
@@ -578,6 +579,7 @@ private Panel panel1,
 			addButton("Import Aux",                 panelClt4, color_restore);
 			addButton("Setup CLT Batch parameters", panelClt4, color_configure);
 			addButton("CLT 2*4 images",             panelClt4, color_conf_process);
+			addButton("CLT 2*4 images - 2",         panelClt4, color_conf_process);
 			addButton("AUX show fine",              panelClt4, color_configure);
 
 			add(panelClt4);
@@ -1137,7 +1139,7 @@ private Panel panel1,
         			QuadCLT.PREFIX_AUX,
         			PROPERTIES,
         			EYESIS_CORRECTIONS_AUX,
-        			CORRECTION_PARAMETERS);
+        			CORRECTION_PARAMETERS.getAux());
         	if (DEBUG_LEVEL > 0){
         		System.out.println("Created new QuadCLT instance, will need to read CLT kernels for aux camera");
         	}
@@ -3820,7 +3822,6 @@ private Panel panel1,
         		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
         		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
         		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
@@ -3887,12 +3888,10 @@ private Panel panel1,
         QUAD_CLT.processCLTSets(
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-//        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
         		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
         		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
         		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
         		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
@@ -3959,12 +3958,10 @@ private Panel panel1,
         QUAD_CLT.processCLTQuads(
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-//        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
         		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
         		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
         		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
         		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
@@ -4036,12 +4033,9 @@ private Panel panel1,
         QUAD_CLT.processCLTQuadCorrs(
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-//        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
         		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
         		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-//        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
         		apply_corr,
         		infinity_corr, // calculate and apply geometry correction at infinity
         		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
@@ -4207,7 +4201,6 @@ private Panel panel1,
         		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
         		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
         		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
@@ -4431,7 +4424,6 @@ private Panel panel1,
         		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
         		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
         		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
@@ -4459,6 +4451,12 @@ private Panel panel1,
     	getPairImages();
     	return;
 /* ======================================================================== */
+    } else if (label.equals("CLT 2*4 images - 2")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+    	getPairImages2();
+    	return;
+/* ======================================================================== */
     } else if (label.equals("AUX show fine")) {
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (
@@ -4479,12 +4477,15 @@ private Panel panel1,
         			QuadCLT.PREFIX_AUX,
         			PROPERTIES,
         			EYESIS_CORRECTIONS_AUX,
-        			CORRECTION_PARAMETERS);
+        			CORRECTION_PARAMETERS.getAux());
         	if (DEBUG_LEVEL > 0){
         		System.out.println("Created new QuadCLT instance, will need to read CLT kernels for aux camera");
         	}
         }
         QUAD_CLT_AUX.showExtrinsicCorr("aux");// show_fine_corr("aux");
+//        QuadCLT dbg_QUAD_CLT = QUAD_CLT;
+//        QuadCLT dbg_QUAD_CLT_AUX = QUAD_CLT_AUX;
+
         return;
 
 //JTabbedTest
@@ -4610,8 +4611,8 @@ private Panel panel1,
         		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
         	}
         }
-        QuadCLT dbg_QUAD_CLT = QUAD_CLT;
-        QuadCLT dbg_QUAD_CLT_AUX = QUAD_CLT_AUX;
+//        QuadCLT dbg_QUAD_CLT = QUAD_CLT;
+//        QuadCLT dbg_QUAD_CLT_AUX = QUAD_CLT_AUX;
     	String configPath=getSaveCongigPath();
     	if (configPath.equals("ABORT")) return false;
     	if (DEBUG_LEVEL > -2){
@@ -4692,7 +4693,6 @@ private Panel panel1,
         		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
         		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
         		false, // apply_corr,
         		false, // infinity_corr, // calculate and apply geometry correction at infinity
         		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
@@ -4704,33 +4704,12 @@ private Panel panel1,
         		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
         		CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
         		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
         		false, // apply_corr,
         		false, // infinity_corr, // calculate and apply geometry correction at infinity
         		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
 
-
-/*
-        int num_infinity_corr = infinity_corr? CLT_PARAMETERS.inf_repeat : 1;
-        if ( num_infinity_corr < 1) num_infinity_corr = 1;
-        for (int i_infinity_corr = 0;  i_infinity_corr < num_infinity_corr; i_infinity_corr++) {
-        QUAD_CLT.processCLTQuadCorrs(
-        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-//        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
-        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-//        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-        		apply_corr,
-        		infinity_corr, // calculate and apply geometry correction at infinity
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        		UPDATE_STATUS, //final boolean    updateStatus,
-        		DEBUG_LEVEL); //final int        debugLevel);
-        }
         if (configPath!=null) {
         	saveTimestampedProperties( // save config again
         			configPath,      // full path or null
@@ -4738,9 +4717,165 @@ private Panel panel1,
         			true,
         			PROPERTIES);
         }
-        return;
 
- */
+		return true;
+	}
+
+
+
+	public boolean getPairImages2() {
+        if (QUAD_CLT == null){
+        	QUAD_CLT = new  QuadCLT (
+        			QuadCLT.PREFIX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS,
+        			CORRECTION_PARAMETERS);
+        	if (DEBUG_LEVEL > -2){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+        if (QUAD_CLT_AUX == null){
+        	if (EYESIS_CORRECTIONS_AUX == null) {
+        		EYESIS_CORRECTIONS_AUX = new EyesisCorrections(SYNC_COMMAND.stopRequested,CORRECTION_PARAMETERS.getAux());
+        	}
+        	QUAD_CLT_AUX = new  QuadCLT (
+        			QuadCLT.PREFIX_AUX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS_AUX,
+        			CORRECTION_PARAMETERS.getAux());
+        	if (DEBUG_LEVEL > -2){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+        	}
+        }
+//        QuadCLT dbg_QUAD_CLT = QUAD_CLT;
+//        QuadCLT dbg_QUAD_CLT_AUX = QUAD_CLT_AUX;
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return false;
+    	if (DEBUG_LEVEL > -2){
+    		System.out.println("++++++++++++++ Running initSensorFiles for the main camera ++++++++++++++");
+    	}
+        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL+2, true); // missing_ok
+    	if (DEBUG_LEVEL > -2){
+    		System.out.println("++++++++++++++ Running initSensorFiles for the auxiliary camera ++++++++++++++");
+    	}
+        EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL+2, true); // some files belong to oher cameras\
+
+
+        int numChannels=    EYESIS_CORRECTIONS.getNumChannels();
+        int numChannelsAux= EYESIS_CORRECTIONS_AUX.getNumChannels();
+    	if (DEBUG_LEVEL > -2){
+    		System.out.println("numChannels="+numChannels+", numChannelsAux="+numChannelsAux);
+    	}
+
+        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
+        if (CHANNEL_GAINS_PARAMETERS_AUX == null) {
+        	CHANNEL_GAINS_PARAMETERS_AUX = new CorrectionColorProc.ColorGainsParameters();
+        }
+        CHANNEL_GAINS_PARAMETERS_AUX.modifyNumChannels(numChannelsAux);
+        if (!QUAD_CLT.CLTKernelsAvailable()){
+        	if (DEBUG_LEVEL > -2){
+        		System.out.println("++++++++++++++ Reading CLT kernels for the main camera ++++++++++++++");
+        	}
+        	QUAD_CLT.readCLTKernels(
+            		CLT_PARAMETERS,
+                    THREADS_MAX,
+                    UPDATE_STATUS, // update status info
+            		DEBUG_LEVEL);
+
+            if (DEBUG_LEVEL > 1){
+            	QUAD_CLT.showCLTKernels(
+            			THREADS_MAX,
+            			UPDATE_STATUS, // update status info
+            			DEBUG_LEVEL);
+        	}
+        }
+        if (!QUAD_CLT_AUX.CLTKernelsAvailable()){
+        	if (DEBUG_LEVEL > -2){
+        		System.out.println("++++++++++++++ Reading CLT kernels for the auxiliary camera ++++++++++++++ ");
+        	}
+        	QUAD_CLT_AUX.readCLTKernels(
+            		CLT_PARAMETERS,
+                    THREADS_MAX,
+                    UPDATE_STATUS, // update status info
+            		DEBUG_LEVEL);
+
+            if (DEBUG_LEVEL > 1){
+            	QUAD_CLT_AUX.showCLTKernels(
+            			THREADS_MAX,
+            			UPDATE_STATUS, // update status info
+            			DEBUG_LEVEL);
+        	}
+        }
+        if (!QUAD_CLT.geometryCorrectionAvailable()){
+        	if (DEBUG_LEVEL > -2){
+        		System.out.println("++++++++++++++ Calculating geometryCorrection for the main camera ++++++++++++++" );
+        	}
+        	if (!QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2)){
+        		return false;
+        	}
+        }
+        if (!QUAD_CLT_AUX.geometryCorrectionAvailable()){
+        	if (DEBUG_LEVEL > -2){
+        		System.out.println("++++++++++++++ Calculating geometryCorrection for the auxiliary camera ++++++++++++++");
+        	}
+        	if (!QUAD_CLT_AUX.initGeometryCorrection(DEBUG_LEVEL+2)){
+        		return false;
+        	}
+        }
+
+        if (TWO_QUAD_CLT == null) {
+        	TWO_QUAD_CLT = new TwoQuadCLT();
+        }
+
+        try {
+			TWO_QUAD_CLT.processCLTQuadCorrs(
+					QUAD_CLT, // QuadCLT quadCLT_main,
+					QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+					CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+					DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+					COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+					CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+					CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters       channelGainParameters_aux,
+					RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+					THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+					UPDATE_STATUS, //final boolean    updateStatus,
+					DEBUG_LEVEL);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} //final int        debugLevel);
+
+/*
+        QUAD_CLT.processCLTQuadCorrs(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        		false, // apply_corr,
+        		false, // infinity_corr, // calculate and apply geometry correction at infinity
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+        QUAD_CLT_AUX.processCLTQuadCorrs(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        		false, // apply_corr,
+        		false, // infinity_corr, // calculate and apply geometry correction at infinity
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+*/
+        if (configPath!=null) {
+        	saveTimestampedProperties( // save config again
+        			configPath,      // full path or null
+        			null, // use as default directory if path==null
+        			true,
+        			PROPERTIES);
+        }
 
 		return true;
 	}

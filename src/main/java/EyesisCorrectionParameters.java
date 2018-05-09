@@ -228,7 +228,7 @@ public class EyesisCorrectionParameters {
   			cp.x3dDirectory=    		this.x3dDirectory;
   			cp.use_x3d_subdirs=    		this.use_x3d_subdirs;
   			cp.x3dSubdirPrefix=    		this.x3dSubdirPrefix;
-  			cp.x3dSubdirSuffix=    		this.x3dSubdirSuffix;
+// 			cp.x3dSubdirSuffix=    		this.x3dSubdirSuffix;
   			cp.x3dModelVersion=    		this.x3dModelVersion;
   			cp.clt_batch_apply_man=		this.clt_batch_apply_man;
   			cp.clt_batch_extrinsic=		this.clt_batch_extrinsic;
@@ -254,6 +254,8 @@ public class EyesisCorrectionParameters {
   			cp.sensorSuffix=      	    this.sensorSuffix;
   			cp.cltKernelPrefix=    		this.cltKernelPrefix;
   			cp.cltSuffix=               this.cltSuffix;
+  			cp.x3dSubdirSuffix=    		this.x3dSubdirSuffix+"-aux";
+
     	}
 
 		public void auxFromExternal(CorrectionParameters ecp) { // from master to aux
@@ -266,6 +268,7 @@ public class EyesisCorrectionParameters {
 			this.aux_camera.sensorSuffix=      	ecp.sensorSuffix;
 			this.aux_camera.cltKernelPrefix=    ecp.cltKernelPrefix;
 			this.aux_camera.cltSuffix=          ecp.cltSuffix;
+			this.aux_camera.x3dSubdirSuffix=    ecp.x3dSubdirSuffix + "-aux";
     	}
 
 
@@ -387,6 +390,7 @@ public class EyesisCorrectionParameters {
         		properties.setProperty(aux_prefix+"sensorSuffix",       this.aux_camera.sensorSuffix);
         		properties.setProperty(aux_prefix+"cltKernelPrefix",    this.aux_camera.cltKernelPrefix);
         		properties.setProperty(aux_prefix+"cltSuffix",          this.aux_camera.cltSuffix);
+        		properties.setProperty(aux_prefix+"x3dSubdirSuffix",    this.aux_camera.x3dSubdirSuffix);
     		}
 
     	}
@@ -512,6 +516,7 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(aux_prefix+"sensorSuffix")!=       null) this.aux_camera.sensorSuffix=properties.getProperty(aux_prefix+"sensorSuffix");
 			if (properties.getProperty(aux_prefix+"cltKernelPrefix")!=    null) this.aux_camera.cltKernelPrefix=properties.getProperty(aux_prefix+"cltKernelPrefix");
 			if (properties.getProperty(aux_prefix+"cltSuffix")!=          null) this.aux_camera.cltSuffix=properties.getProperty(aux_prefix+"cltSuffix");
+			if (properties.getProperty(aux_prefix+"x3dSubdirSuffix")!=    null) this.aux_camera.x3dSubdirSuffix=properties.getProperty(aux_prefix+"x3dSubdirSuffix");
 		}
 
     	public boolean showJDialog(String title) {
@@ -741,6 +746,9 @@ public class EyesisCorrectionParameters {
     		gd.addStringField ("Source files prefix",                              this.sourcePrefix, 60);       // 13
     		gd.addStringField ("Source files suffix",                              this.sourceSuffix, 60);       // 14
 
+    		gd.addStringField ("x3d subdirectory prefix",                          this.x3dSubdirPrefix, 10,    // 14a
+    				"When using timestamp as a subdirectory, add this prefix");
+
 
 			gd.addMessage     ("============ Main camera============");
 
@@ -757,6 +765,9 @@ public class EyesisCorrectionParameters {
 
     		gd.addStringField ("CLT kernel files prefix",                          this.cltKernelPrefix, 40);    // 19
     		gd.addStringField ("CLT kernel files suffix",                          this.cltSuffix, 40);          // 20
+    		gd.addStringField ("x3d subdirectory suffix",                          this.x3dSubdirSuffix, 10,     // 20a
+    				"When using timestamp as a subdirectory, add this suffix");
+
 
 			gd.addMessage     ("============ Auxiliary camera============");
     		gd.addStringField ("Aux sensor calibration directory",                     this.aux_camera.sensorDirectory, 60);    // 4b
@@ -772,6 +783,8 @@ public class EyesisCorrectionParameters {
 
     		gd.addStringField ("Aux CLT kernel files prefix",                          this.aux_camera.cltKernelPrefix, 40);    // 19b
     		gd.addStringField ("Aux CLT kernel files suffix",                          this.aux_camera.cltSuffix, 40);          // 20b
+    		gd.addStringField ("Aux x3d subdirectory suffix",                          this.aux_camera.x3dSubdirSuffix, 10,     // 20ba
+    				"When using timestamp as a subdirectory, add this suffix");
 
 
 
@@ -809,6 +822,7 @@ public class EyesisCorrectionParameters {
     		this.use_x3d_subdirs=        gd.getNextBoolean(); // 10
     		this.sourcePrefix=           gd.getNextString();  // 13
     		this.sourceSuffix=           gd.getNextString();  // 14
+    		this.x3dSubdirPrefix=        gd.getNextString();  // 14a
 
 // main camera
     		this.sensorDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSensorDirectory(false, false);   // 5
@@ -820,6 +834,7 @@ public class EyesisCorrectionParameters {
     		this.sensorSuffix=           gd.getNextString();  // 18
     		this.cltKernelPrefix=        gd.getNextString();  // 19
     		this.cltSuffix=              gd.getNextString();  // 20
+    		this.x3dSubdirSuffix=        gd.getNextString();  // 20a
 
 // aux camera
     		this.aux_camera.sensorDirectory=        gd.getNextString(); if (gd.getNextBoolean()) aux_camera.selectSensorDirectory(false, false);   // 5b
@@ -831,6 +846,7 @@ public class EyesisCorrectionParameters {
     		this.aux_camera.sensorSuffix=           gd.getNextString();  // 18b
     		this.aux_camera.cltKernelPrefix=        gd.getNextString();  // 19b
     		this.aux_camera.cltSuffix=              gd.getNextString();  // 20b
+    		this.aux_camera.x3dSubdirSuffix=        gd.getNextString();  // 20ba
 
     		this.clt_batch_apply_man=    gd.getNextBoolean(); // 21
     		this.clt_batch_extrinsic=    gd.getNextBoolean(); // 22
