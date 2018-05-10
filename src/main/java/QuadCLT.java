@@ -161,7 +161,12 @@ public class QuadCLT {
 //		System.out.println("Done copyPropertiesFrom");
 	}
 
-
+	public GeometryCorrection  getGeometryCorrection() {
+		return geometryCorrection;
+	}
+	public double [][][][][][] getCLTKernels(){
+		return clt_kernels;
+	}
 	public void listGeometryCorrection(boolean full){
 		GeometryCorrection gc = geometryCorrection;
 		if (gc == null) { // if it was not yet created

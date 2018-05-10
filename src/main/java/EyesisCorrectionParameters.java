@@ -2355,7 +2355,7 @@ public class EyesisCorrectionParameters {
   		public double     vignetting_range  = 5.0; // do not try to correct vignetting less than vignetting_max/vignetting_range
   		public int        kernel_step =       16;  // source kernels step in pixels (have 1 kernel margin on each side)
   		public double     disparity  =        0.0; // nominal disparity between side of square cameras (pix)
-  		public double     z_correction  =     0.0; // Inverse distance to infinity (misalignment cortrection)
+  		public double     z_correction  =     0.0; // Inverse distance to infinity (misalignment correction)
   		public boolean    correlate =         true; // calculate correlation
   		public int        corr_mask =         15;  // bitmask of pairs to combine in the composite
   		public boolean    corr_sym =          false; // combine correlation with mirrored around disparity direction

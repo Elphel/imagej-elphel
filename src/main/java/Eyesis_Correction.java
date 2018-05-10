@@ -580,6 +580,7 @@ private Panel panel1,
 			addButton("Setup CLT Batch parameters", panelClt4, color_configure);
 			addButton("CLT 2*4 images",             panelClt4, color_conf_process);
 			addButton("CLT 2*4 images - 2",         panelClt4, color_conf_process);
+			addButton("CLT 2*4 images - 3",         panelClt4, color_conf_process);
 			addButton("AUX show fine",              panelClt4, color_configure);
 
 			add(panelClt4);
@@ -4454,7 +4455,13 @@ private Panel panel1,
     } else if (label.equals("CLT 2*4 images - 2")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-    	getPairImages2();
+    	getPairImages2(false);
+    	return;
+/* ======================================================================== */
+    } else if (label.equals("CLT 2*4 images - 3")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+    	getPairImages2(true);
     	return;
 /* ======================================================================== */
     } else if (label.equals("AUX show fine")) {
@@ -4723,7 +4730,7 @@ private Panel panel1,
 
 
 
-	public boolean getPairImages2() {
+	public boolean getPairImages2( boolean new_mode) {
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (
         			QuadCLT.PREFIX,
@@ -4826,49 +4833,45 @@ private Panel panel1,
         if (TWO_QUAD_CLT == null) {
         	TWO_QUAD_CLT = new TwoQuadCLT();
         }
+        if (new_mode) {
+        	try {
+        		TWO_QUAD_CLT.processCLTQuadCorrPairs(
+        				QUAD_CLT, // QuadCLT quadCLT_main,
+        				QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+        				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        				DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+        				COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        				CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        				CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters       channelGainParameters_aux,
+        				RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        				UPDATE_STATUS, //final boolean    updateStatus,
+        				DEBUG_LEVEL);
+        	} catch (Exception e) {
+        		// TODO Auto-generated catch block
+        		e.printStackTrace();
+        	} //final int        debugLevel);
+        } else {
+        	try {
+        		TWO_QUAD_CLT.processCLTQuadCorrs(
+        				QUAD_CLT, // QuadCLT quadCLT_main,
+        				QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+        				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        				DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+        				COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        				CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        				CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters       channelGainParameters_aux,
+        				RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        				UPDATE_STATUS, //final boolean    updateStatus,
+        				DEBUG_LEVEL);
+        	} catch (Exception e) {
+        		// TODO Auto-generated catch block
+        		e.printStackTrace();
+        	} //final int        debugLevel);
 
-        try {
-			TWO_QUAD_CLT.processCLTQuadCorrs(
-					QUAD_CLT, // QuadCLT quadCLT_main,
-					QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
-					CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-					DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-					COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-					CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-					CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters       channelGainParameters_aux,
-					RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-					THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-					UPDATE_STATUS, //final boolean    updateStatus,
-					DEBUG_LEVEL);
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} //final int        debugLevel);
+        }
 
-/*
-        QUAD_CLT.processCLTQuadCorrs(
-        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        		false, // apply_corr,
-        		false, // infinity_corr, // calculate and apply geometry correction at infinity
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        		UPDATE_STATUS, //final boolean    updateStatus,
-        		DEBUG_LEVEL); //final int        debugLevel);
-        QUAD_CLT_AUX.processCLTQuadCorrs(
-        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-        		CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        		false, // apply_corr,
-        		false, // infinity_corr, // calculate and apply geometry correction at infinity
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        		UPDATE_STATUS, //final boolean    updateStatus,
-        		DEBUG_LEVEL); //final int        debugLevel);
-*/
         if (configPath!=null) {
         	saveTimestampedProperties( // save config again
         			configPath,      // full path or null
