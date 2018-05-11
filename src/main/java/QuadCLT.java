@@ -67,6 +67,7 @@ public class QuadCLT {
 	String                                                 image_name = null;
 	double [][][]                                          image_data = null;
     boolean [][]                                           saturation_imp = null; // (near) saturated pixels or null
+    boolean                                                is_aux = false;
 
 
 // magic scale should be set before using  TileProcessor (calculated disparities depend on it)
@@ -96,6 +97,7 @@ public class QuadCLT {
 		this.eyesisCorrections=      eyesisCorrections;
 		this.correctionsParameters = correctionsParameters;
 		this.properties =            properties;
+		is_aux =                     prefix.equals(PREFIX_AUX);
 //		this.properties_prefix =     prefix;
 //		System.out.println("new QuadCLT(), prefix = "+prefix);
 		getProperties(prefix);
@@ -124,6 +126,9 @@ public class QuadCLT {
 			String name = prefix+"extrinsic_corr_"+GeometryCorrection.CORR_NAMES[i];
 			properties.setProperty(name,  gc.getCorrVector().toArray()[i]+"");
 //			System.out.println("setProperties():"+i+": setProperty("+name+","+gc.getCorrVector().toArray()[i]+"");
+		}
+		if (is_aux && (gc.rigOffset != null)) {
+			gc.rigOffset.setProperties(prefix,properties);
 		}
 	}
 
@@ -197,8 +202,17 @@ public class QuadCLT {
   				}
   			}
 		}
-	}
+//		if (is_aux && (geometryCorrection != null)) {
+//			geometryCorrection.setRigOffsetFromProperies(prefix, properties);
+//		}
+		if (geometryCorrection == null) {
+			geometryCorrection = new GeometryCorrection(this.extrinsic_corr);
+		}
 
+		if (is_aux) {
+			geometryCorrection.setRigOffsetFromProperies(prefix, properties);
+		}
+	}
 
 	public void setKernelImageFile(ImagePlus img_kernels){
 		eyesisKernelImage = img_kernels;
@@ -212,10 +226,13 @@ public class QuadCLT {
 		return clt_kernels != null;
 	}
 	public boolean geometryCorrectionAvailable(){
-		return geometryCorrection != null;
+		return (geometryCorrection != null) && geometryCorrection.isInitialized();
 	}
 	public boolean initGeometryCorrection(int debugLevel){
-		geometryCorrection = new GeometryCorrection(extrinsic_corr);
+		// keep rig offsets if edited
+		if (geometryCorrection == null) {
+			geometryCorrection = new GeometryCorrection(extrinsic_corr);
+		}
 		PixelMapping.SensorData [] sensors =  eyesisCorrections.pixelMapping.sensors;
 		// verify that all sensors have the same distortion parameters
 		int numSensors = sensors.length;
@@ -4527,6 +4544,32 @@ public class QuadCLT {
 			  System.out.println(geometryCorrection.getCorrVector().toString());
 		  }
 	  }
+
+	  public boolean editRig()
+	  {
+		  if (!is_aux) {
+			  System.out.println("Rig offsets can only be edited for the auxiliary camera, not for the amin one");
+			  return false;
+		  }
+//		  GeometryCorrection gc = this.geometryCorrection;
+		  if (this.geometryCorrection == null){
+			  System.out.println("geometryCorrection is not set, creating one");
+			  this.geometryCorrection = new GeometryCorrection(this.extrinsic_corr);
+		  }
+		  boolean edited = this.geometryCorrection.editRig();
+//		  if (edited) {
+//			  gc.rigOffset.setProperties(prefix,properties);
+//		  }
+		  return edited;
+	  }
+/*
+		if (is_aux && (gc.rigOffset != null)) {
+			gc.rigOffset.setProperties(prefix,properties);
+		}
+
+ */
+
+
 	  public void resetExtrinsicCorr(
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters)
 	  {

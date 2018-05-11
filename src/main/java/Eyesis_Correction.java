@@ -578,6 +578,7 @@ private Panel panel1,
 			panelClt4.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
 			addButton("Import Aux",                 panelClt4, color_restore);
 			addButton("Setup CLT Batch parameters", panelClt4, color_configure);
+			addButton("CLT rig edit",               panelClt4, color_configure);
 			addButton("CLT 2*4 images",             panelClt4, color_conf_process);
 			addButton("CLT 2*4 images - 2",         panelClt4, color_conf_process);
 			addButton("CLT 2*4 images - 3",         panelClt4, color_conf_process);
@@ -4490,11 +4491,28 @@ private Panel panel1,
         	}
         }
         QUAD_CLT_AUX.showExtrinsicCorr("aux");// show_fine_corr("aux");
-//        QuadCLT dbg_QUAD_CLT = QUAD_CLT;
-//        QuadCLT dbg_QUAD_CLT_AUX = QUAD_CLT_AUX;
+        QuadCLT dbg_QUAD_CLT = QUAD_CLT;
+        QuadCLT dbg_QUAD_CLT_AUX = QUAD_CLT_AUX;
 
         return;
-
+        /* ======================================================================== */
+    } else if (label.equals("CLT rig edit")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+        if (QUAD_CLT_AUX == null){
+        	if (EYESIS_CORRECTIONS_AUX == null) {
+        		EYESIS_CORRECTIONS_AUX = new EyesisCorrections(SYNC_COMMAND.stopRequested,CORRECTION_PARAMETERS.getAux());
+        	}
+        	QUAD_CLT_AUX = new  QuadCLT (
+        			QuadCLT.PREFIX_AUX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS_AUX,
+        			CORRECTION_PARAMETERS.getAux());
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels for aux camera");
+        	}
+        }
+        QUAD_CLT_AUX.editRig();
+    	return;
 //JTabbedTest
 // End of buttons code
     }
@@ -4559,8 +4577,6 @@ private Panel panel1,
     			CHANNEL_GAINS_PARAMETERS_AUX = new CorrectionColorProc.ColorGainsParameters();
     		}
     		CHANNEL_GAINS_PARAMETERS_AUX.getProperties("CHANNEL_GAINS_PARAMETERS.", aux_properties);
-//    		QUAD_CLT_AUX.getProperties(QuadCLT.PREFIX);
-//    		QUAD_CLT_AUX.setProperties(QuadCLT.PREFIX_AUX);
 /*
  * 	public void copyPropertiesFrom(Properties other_properties, String other_prefix, String this_prefix){ // save
 
@@ -4834,6 +4850,9 @@ private Panel panel1,
         	TWO_QUAD_CLT = new TwoQuadCLT();
         }
         if (new_mode) {
+        	if (DEBUG_LEVEL > -2){
+        		System.out.println("++++++++++++++ Calculating combined correlations ++++++++++++++");
+        	}
         	try {
         		TWO_QUAD_CLT.processCLTQuadCorrPairs(
         				QUAD_CLT, // QuadCLT quadCLT_main,
@@ -4852,6 +4871,9 @@ private Panel panel1,
         		e.printStackTrace();
         	} //final int        debugLevel);
         } else {
+        	if (DEBUG_LEVEL > -2){
+        		System.out.println("++++++++++++++ Calculating per quad camera correlations ++++++++++++++");
+        	}
         	try {
         		TWO_QUAD_CLT.processCLTQuadCorrs(
         				QUAD_CLT, // QuadCLT quadCLT_main,

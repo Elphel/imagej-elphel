@@ -730,7 +730,7 @@ public class EyesisCorrectionParameters {
     		updateAuxFromMain();
 
 
-    		gd.addTab         ("File paths", "Select files and directories paths (common to main and optional auxilliary)");
+    		gd.addTab         ("File paths", "Select files and directories paths (common to main and optional auxiliary)");
 			gd.addMessage     ("============ Common to the main and optional auxiliary camera============");
 
     		gd.addCheckbox    ("Save current settings with results",               this.saveSettings);           // 1

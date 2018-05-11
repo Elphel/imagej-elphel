@@ -381,7 +381,7 @@ public class TwoQuadCLT {
 						  quadCLT_main.getGeometryCorrection(), // final GeometryCorrection  geometryCorrection_main,
 						  quadCLT_aux.getGeometryCorrection(),  // final GeometryCorrection  geometryCorrection_aux,
 						  quadCLT_main.getCLTKernels(),         // final double [][][][][][] clt_kernels_main, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
-						  quadCLT_main.getCLTKernels(),         // final double [][][][][][] clt_kernels_aux,  // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+						  quadCLT_aux.getCLTKernels(),          // final double [][][][][][] clt_kernels_aux,  // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 						  clt_parameters.corr_magic_scale,      // final double              corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
 						  true,                                 // 	final boolean             keep_clt_data,
 						  threadsMax,                           // final int                 threadsMax,  // maximal number of threads to launch
@@ -496,7 +496,7 @@ public class TwoQuadCLT {
 							  colorProcParameters,
 							  rgbParameters,
 							  name+"-texture", // String name,
-							  "-D"+clt_parameters.disparity, //String suffix, // such as disparity=...
+							  "-D"+clt_parameters.disparity+"-MAIN", //String suffix, // such as disparity=...
 							  toRGB,
 							  !quadCLT_main.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
 							  true, // boolean saveShowIntermediate, // save/show if set globally
@@ -511,7 +511,7 @@ public class TwoQuadCLT {
 							  colorProcParameters,
 							  rgbParameters,
 							  name+"-texture", // String name,
-							  "-D"+clt_parameters.disparity, //String suffix, // such as disparity=...
+							  "-D"+clt_parameters.disparity+"-AUX", //String suffix, // such as disparity=...
 							  toRGB,
 							  !quadCLT_aux.correctionsParameters.jpeg, // boolean bpp16, // 16-bit per channel color mode for result
 							  true, // boolean saveShowIntermediate, // save/show if set globally

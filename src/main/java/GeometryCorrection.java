@@ -1,3 +1,5 @@
+import java.util.Properties;
+
 import Jama.Matrix;
 import ij.IJ;
 
@@ -27,6 +29,7 @@ import ij.IJ;
  */
 
 public class GeometryCorrection {
+	public static String RIG_PREFIX =     "rig-";
 	static double SCENE_UNITS_SCALE = 0.001;
 	static String SCENE_UNITS_NAME = "m";
 	static final String [] CORR_NAMES = {"tilt0","tilt1","tilt2","azimuth0","azimuth1","azimuth2","roll0","roll1","roll2","roll3","zoom0","zoom1","zoom2"};
@@ -66,7 +69,7 @@ public class GeometryCorrection {
 	private double [][] rXY_ideal = {{-0.5, -0.5}, {0.5,-0.5}, {-0.5, 0.5}, {0.5,0.5}};
 
 	public double cameraRadius=0; // average distance from the "mass center" of the sensors to the sensors
-	public double disparityRadius=0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad camera (~=150mm)?
+	public double disparityRadius=150.0; // distance between cameras to normalize disparity units to. sqrt(2)*disparityRadius for quad camera (~=150mm)?
 
 	private double [] rByRDist=null;
 	private double    stepR=0.001;
@@ -74,11 +77,29 @@ public class GeometryCorrection {
 
 	public  CorrVector extrinsic_corr;
 
+	public RigOffset   rigOffset =    null;
+
+
 	public GeometryCorrection(double [] extrinsic_corr)
 	{
 		this.extrinsic_corr = 	new CorrVector(extrinsic_corr);
 	}
 
+	public boolean isInitialized() {
+		return roll != null;
+	}
+
+	public double [][] getRXY(boolean use_rig){
+		return (use_rig && (rigOffset != null)) ? rigOffset.rXY_aux: rXY ;
+	}
+
+	public Matrix getRotMatrix(boolean use_rig){
+		return (use_rig && (rigOffset != null)) ? rigOffset.getRotMatrix(): null ;
+	}
+
+	public double getDisparityRadius() {
+		return disparityRadius;
+	}
 	// correction of cameras mis-alignment
 	public CorrVector getCorrVector(double [] vector){
 		return new CorrVector(vector);
@@ -124,7 +145,182 @@ public class GeometryCorrection {
 		  		manual_par_sel);    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 
 	}
+	/**
+	 * Position of the auxiliary camera relative to the main one (uses main camera CS)
+	 */
+	public class RigOffset{
+		static final double ROT_AZ_SGN = -1.0; // sign of first sin for azimuth rotation
+		static final double ROT_TL_SGN =  1.0; // sign of first sin for tilt rotation
+		static final double ROT_RL_SGN =  1.0; // sign of first sin for roll rotation
+		public double baseline =   1256.0; // mm, distance between camera centers
+		public double aux_angle =     0.0; // radians, 0 - aux camera to the right of the main, pi/2 - up
+		// consider aux_z small enough for now, will need for SfM
+		public double aux_z     =     0.0; // mm auxiliary camera distance from the plane of the main one (positive towards the scene)
+		public double aux_azimuth =   0.0; // radians, azimuth of the auxiliary camera (positive - looks to the right)
+		public double aux_tilt =      0.0; // radians, tilt of the auxiliary camera (positive - looks up)
+		public double aux_roll =      0.0; // radians, roll of the auxiliary camera (positive - looks clockwise)
+		public double aux_zoom =      0.0; // relative global zoom of the aux camera relative to the main one, difference from 1.0
+		public double [][] rXY_aux = null; // XY pairs of the in a normal plane, relative to disparityRadius
 
+/*
+	private double [][] rXY =     null; // XY pairs of the in a normal plane, relative to disparityRadius
+	private double [][] rXY_ideal = {{-0.5, -0.5}, {0.5,-0.5}, {-0.5, 0.5}, {0.5,0.5}};
+
+ */
+		public RigOffset () {
+			System.out.println("created RigOffset");
+		}
+		public void recalcRXY() {
+			if (rXY != null) {
+				//			rXY_aux = rXY; // FIXME: put real stuff !!!
+				double xc_pix = baseline * Math.cos(aux_angle)/getDisparityRadius();
+				double yc_pix = baseline * Math.sin(aux_angle)/getDisparityRadius();
+				rXY_aux = new double [rXY.length][2];
+				double ssr = 1.0;
+				for (int i = 0; i <rXY.length;i++) {
+					rXY_aux[i][0] = xc_pix +     Math.cos(aux_roll)*rXY[i][0] + ssr*Math.sin(aux_roll)*rXY[i][1];
+					rXY_aux[i][1] = yc_pix - ssr*Math.sin(aux_roll)*rXY[i][0] +     Math.cos(aux_roll)*rXY[i][1];
+				}
+				if (debugLevel > -2) {
+					System.out.println("Auxiliary camera offsets per 1 nominal disparity pixel");
+					for (int i = 0; i <rXY_aux.length;i++) {
+						System.out.println(String.format("Camera %1d x = %8f y = %8f",i,rXY_aux[i][0],rXY_aux[i][1]));
+					}
+				}
+			}
+		}
+
+		public Matrix getRotMatrix()
+		{
+			//			Matrix [] rots = new Matrix [4];
+			//			double [] azimuths = getAzimuths();
+			//			double [] tilts =    getTilts();
+			//			double [] rolls =    getFullRolls();
+			//			double [] zooms =    getZooms();
+			double ca = Math.cos(aux_azimuth);
+			double sa = Math.sin(aux_azimuth);
+			double ct = Math.cos(aux_tilt);
+			double st = Math.sin(aux_tilt);
+			double zoom = (1.0 + aux_zoom);
+			double cr = Math.cos(aux_roll) * zoom;
+			double sr = Math.sin(aux_roll) * zoom;
+			double [][] a_az = { // inverted - OK
+					{ ca,               0.0,  sa * ROT_AZ_SGN },
+					{ 0.0,              1.0,  0.0},
+					{ -sa* ROT_AZ_SGN,  0.0,  ca}};
+
+			double [][] a_t =  { // inverted - OK
+					{ 1.0,  0.0, 0.0},
+					{ 0.0,  ct,               st * ROT_TL_SGN},
+					{ 0.0, -st * ROT_TL_SGN,  ct}};
+
+			double [][] a_r =  { // inverted OK
+					{ cr,                sr * ROT_RL_SGN,  0.0},
+					{ -sr * ROT_RL_SGN,  cr,               0.0},
+					{ 0.0,               0.0,              1.0}};
+
+			Matrix rot  = (new Matrix(a_r).times(new Matrix(a_t).times(new Matrix(a_az))));
+			return rot;
+		}
+
+
+		public void setProperties(String parent_prefix,Properties properties){
+			String prefix = parent_prefix + RIG_PREFIX;
+			properties.setProperty(prefix+"baseline",      this.baseline+"");
+			properties.setProperty(prefix+"aux_angle",     this.aux_angle+"");
+			properties.setProperty(prefix+"aux_z",         this.aux_z+"");
+			properties.setProperty(prefix+"aux_azimuth",   this.aux_azimuth+"");
+			properties.setProperty(prefix+"aux_tilt",      this.aux_tilt+"");
+			properties.setProperty(prefix+"aux_roll",      this.aux_roll+"");
+			properties.setProperty(prefix+"aux_zoom",      this.aux_zoom+"");
+		}
+		public boolean getProperties(String parent_prefix,Properties properties){
+			String prefix = parent_prefix + RIG_PREFIX;
+			boolean got_data = false;
+			if (properties.getProperty(prefix+"baseline")!=null)    {this.baseline=Double.parseDouble(properties.getProperty(prefix+"baseline")); got_data=true;}
+			if (properties.getProperty(prefix+"aux_angle")!=null)   {this.aux_angle=Double.parseDouble(properties.getProperty(prefix+"aux_angle"));got_data=true;}
+			if (properties.getProperty(prefix+"aux_z")!=null)       {this.aux_z=Double.parseDouble(properties.getProperty(prefix+"aux_z"));got_data=true;}
+			if (properties.getProperty(prefix+"aux_azimuth")!=null) {this.aux_azimuth=Double.parseDouble(properties.getProperty(prefix+"aux_azimuth"));got_data=true;}
+			if (properties.getProperty(prefix+"aux_tilt")!=null)    {this.aux_tilt=Double.parseDouble(properties.getProperty(prefix+"aux_tilt"));got_data=true;}
+			if (properties.getProperty(prefix+"aux_roll")!=null)    {this.aux_roll=Double.parseDouble(properties.getProperty(prefix+"aux_roll"));got_data=true;}
+			if (properties.getProperty(prefix+"aux_zoom")!=null)    {this.aux_zoom=Double.parseDouble(properties.getProperty(prefix+"aux_zoom"));got_data=true;}
+			recalcRXY();
+			return got_data;
+		}
+		// 9:%8.5f° 10: %8.5f‰
+		public boolean editOffsetsDegrees() {
+  			GenericJTabbedDialog gd = new GenericJTabbedDialog("Set CLT parameters",800,900);
+			gd.addNumericField("Baseline",                                                            this.baseline,  1,6,"mm",
+					"Distance between quad camera centers");
+			gd.addNumericField("Angle to the aux camera from the main",                               180.0/Math.PI*this.aux_angle,  4,9,"°",
+					"Directly to the right - 0°, directly up - 90°, ...");
+			gd.addNumericField("Auxilliary camera forward from the plane of the main one (not used)", this.aux_z,  3,6,"mm",
+					"Distance from the plane perpendicualr to the main camera axis to the auxiliary camera (positive for aux moved forward)");
+			gd.addNumericField("Auxilliary camera azimuth  (positive - to the right)",                180.0/Math.PI*this.aux_azimuth,  3,6,"°",
+					"Relative to the main camera axis");
+			gd.addNumericField("Auxilliary camera tilt (positive - looking up)",                      180.0/Math.PI*this.aux_tilt,  3,6,"°",
+					"Relative to the main camera");
+			gd.addNumericField("Auxilliary camera roll (positive - clockwise)",                       180.0/Math.PI*this.aux_roll,  3,6,"°",
+					"Roll of a camera as a whole relative to the main camera");
+			gd.addNumericField("Relative zoom",                                                       1000.0*this.aux_zoom,  3,6,"‰",
+					"Zoom ratio minus 1.0 multiplied by 1000.0");
+  			gd.showDialog();
+			if (gd.wasCanceled()) return false;
+			this.baseline=     gd.getNextNumber();
+			this.aux_angle=    gd.getNextNumber() * Math.PI/180;
+			this.aux_z=        gd.getNextNumber();
+			this.aux_azimuth=  gd.getNextNumber() * Math.PI/180;
+			this.aux_tilt=     gd.getNextNumber() * Math.PI/180;
+			this.aux_roll=     gd.getNextNumber() * Math.PI/180;
+			this.aux_zoom=     gd.getNextNumber()/1000.0;
+			recalcRXY();
+			return true;
+		}
+		public boolean editOffsetsPixels() {
+  			GenericJTabbedDialog gd = new GenericJTabbedDialog("Set dual camera rig parameters (auxiliary camera relative to the main one)",800,300);
+			gd.addNumericField("Baseline",                                                            this.baseline,  1,6,"mm",
+					"Distance between quad camera centers");
+			gd.addNumericField("Angle to the aux camera from the main",                               180.0/Math.PI*this.aux_angle,  4,9,"°",
+					"Directly to the right - 0°, directly up - 90°, ...");
+			gd.addNumericField("Auxilliary camera forward from the plane of the main one (not used)", this.aux_z,  3,6,"mm",
+					"Distance from the plane perpendicualr to the main camera axis to the auxiliary camera (positive for aux moved forward)");
+			gd.addNumericField("Auxilliary camera azimuth  (positive - to the right)",                1000.0*focalLength/pixelSize * this.aux_azimuth,  3,6,"pix",
+					"Relative to the main camera axis, shift of the center of the image in pixels");
+			gd.addNumericField("Auxilliary camera tilt (positive - looking up)",                      1000.0*focalLength/pixelSize * this.aux_tilt,  3,6,"pix",
+					"Relative to the main camera, shift of the center of the image in pixels");
+			gd.addNumericField("Auxilliary camera roll (positive - clockwise)",                       1000.0*distortionRadius/pixelSize * this.aux_roll,  3,6,"pix",
+					"Roll of a camera as a whole relative to the main camera, shift at the image half-width from the center");
+			gd.addNumericField("Relative zoom - difference from 1.0 in parts parts per 1/1000",       1000.0*distortionRadius/pixelSize * this.aux_zoom,  3,6,"pix",
+					"Zoom ratio, shift at the image half-width from the center");
+  			gd.showDialog();
+			if (gd.wasCanceled()) return false;
+			this.baseline=     gd.getNextNumber();
+			this.aux_angle=    gd.getNextNumber() * Math.PI/180;
+			this.aux_z=        gd.getNextNumber();
+			this.aux_azimuth=  gd.getNextNumber()/(1000.0*focalLength/pixelSize) ;
+			this.aux_tilt=     gd.getNextNumber()/(1000.0*focalLength/pixelSize);
+			this.aux_roll=     gd.getNextNumber()/(1000.0*distortionRadius/pixelSize);
+			this.aux_zoom=     gd.getNextNumber()/(1000.0*distortionRadius/pixelSize);
+			recalcRXY();
+			return true;
+		}
+	}
+
+	public boolean editRig() {
+		if (this.rigOffset == null) {
+			this.rigOffset = new RigOffset();
+		}
+		return this.rigOffset.editOffsetsPixels();
+	}
+
+	public boolean setRigOffsetFromProperies(String parent_prefix,Properties properties) {
+		RigOffset rigOffset = new RigOffset();
+		boolean gotit = rigOffset.getProperties(parent_prefix, properties);
+		if (gotit) {
+			this.rigOffset = rigOffset;
+		}
+		return gotit;
+	}
 
 
 	public class CorrVector{
@@ -139,6 +335,16 @@ public class GeometryCorrection {
 		static final double ROT_RL_SGN =  1.0; // sign of first sin for roll rotation
 		double [] vector;
 
+		public Matrix [] getRotMatrices(Matrix rigMatrix)
+		{
+			Matrix [] rots = getRotMatrices();
+			if (rigMatrix != null) {
+				for (int chn = 0; chn < rots.length; chn++) {
+					rots[chn] = rigMatrix.times(rots[chn]);
+				}
+			}
+			return rots;
+		}
 		public Matrix [] getRotMatrices()
 		{
 			Matrix [] rots = new Matrix [4];
@@ -389,8 +595,8 @@ public class GeometryCorrection {
 
 			s  = String.format("tilt    (up):    %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift of he image center)\n" , v[0], v[1], v[2], -(v[0] + v[1] + v[2]) );
 			s += String.format("azimuth (right): %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift of he image center)\n" , v[3], v[4], v[5], -(v[3] + v[4] + v[5]) );
-			s += String.format("roll    (CW):    %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift at the imge half-width from the center)\n" , v[6], v[7], v[8], v[9] );
-			s += String.format("diff zoom (in):  %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift at the imge half-width from the center)\n" , v[10], v[11],  v[12], -(v[10] + v[11] + v[12]) );
+			s += String.format("roll    (CW):    %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift at the image half-width from the center)\n" , v[6], v[7], v[8], v[9] );
+			s += String.format("diff zoom (in):  %8.5fpx %8.5fpx %8.5fpx %8.5fpx (shift at the image half-width from the center)\n" , v[10], v[11],  v[12], -(v[10] + v[11] + v[12]) );
 			s += "Symmetrical vector:\n";
 			s += "    |↘ ↙|     |↘ ↗|     |↗ ↘|     |↙ ↘|      |↙ ↗|     |↖  ↘| 6: common roll 7:(r0-r3)/2,           |- +|     |- -|     |- +|\n";
 			s += " 0: |↗ ↖|  1: |↙ ↖|  2: |↖ ↙|  3: |↖ ↗|  4:  |↗ ↙|  5: |↘  ↖| 8:(r1-r2)/2    9:(r0+r3-r1-r2)/4  10: |- +| 11: |+ +| 12: |+ -|\n";
@@ -859,6 +1065,9 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			for (int j = 0; j<3;j++) this.XYZ_her[i][j] = mXYZ_her.get(j, 0);
 			for (int j = 0; j<2;j++) this.rXY[i][j] = this.XYZ_her[i][j]/this.disparityRadius;
 		}
+		if (rigOffset != null) {
+			rigOffset.recalcRXY();
+		}
 	}
 
 	public void listGeometryCorrection(boolean showAll){
@@ -1217,6 +1426,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	/**
 	 * Calculate pixel coordinates for each of numSensors images, for a given (px,py) of the idealized "center" (still distorted) image
 	 * and generic disparity, measured in pixels
+	 * @param use_rig_offsets - for the auxiliary camera - use offsets from the main one
 	 * @param rots misalignment correction (now includes zoom in addition to rotations
 	 * @param deriv_rots derivatives by d_az, f_elev, d_rot, d_zoom
 	 * @param px pixel X coordinate
@@ -1226,6 +1436,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 	 */
 
 	public double [][] getPortsCoordinatesAndDerivatives(
+			boolean     use_rig_offsets,
 			Matrix []   rots,
 			Matrix [][] deriv_rots,
 			double [][] pXYderiv, // if not null, should be double[8][]
@@ -1241,6 +1452,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
  * 4) re-apply distortion
  * 5) return port center X and Y
  */
+		double [][] rXY = getRXY(use_rig_offsets); // may include rig offsets
 
 		double [][] pXY = new double [numSensors][2];
 
@@ -1256,8 +1468,8 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 
 		for (int i = 0; i < numSensors; i++){
 			// non-distorted XY of the shifted location of the individual sensor
-			double pXci0 = pXc - disparity *  this.rXY[i][0]; // in pixels
-			double pYci0 = pYc - disparity *  this.rXY[i][1];
+			double pXci0 = pXc - disparity *  rXY[i][0]; // in pixels
+			double pYci0 = pYc - disparity *  rXY[i][1];
 
 			// Convert a 2-d non-distorted vector to 3d at fl_pix distance in z direction
 			double [][] avi = {{pXci0}, {pYci0},{fl_pix}};
@@ -1373,6 +1585,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 
 
 	public double [][] getPortsCoordinatesAndDerivatives( // uses rotations - used in AlignmentCorrection class
+			boolean use_rig_offsets,
 			double [] dbg_a_vector, // replace actual radial distortion coefficients (not currently used)
 			double delta, // 1e-6
 			CorrVector corr_vector,
@@ -1384,6 +1597,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		// slower, will re-calculate matrices for each tile, but for debug - that is OK
 		Matrix []   corr_rots =  corr_vector.getRotMatrices(); // get array of per-sensor rotation matrices
 		double [][] rslt = getPortsCoordinatesAndDerivatives(
+				use_rig_offsets,
 				corr_rots, // Matrix []   rots,
 				null, // deriv_rots, // Matrix [][] deriv_rots,
 				null, // pXYderiv0, // null, // false, // boolean calc_deriv,
@@ -1404,6 +1618,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 			Matrix []   corr_rots_m =  cv_delta_m.getRotMatrices(); // get array of per-sensor rotation matrices
 
 			double [][] rslt_p = getPortsCoordinatesAndDerivatives(
+					use_rig_offsets,
 					corr_rots_p, // Matrix []   rots,
 					null, // Matrix [][] deriv_rots,
 					null, // boolean calc_deriv,
@@ -1412,6 +1627,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 					disparity // double disparity
 					);
 			double [][] rslt_m = getPortsCoordinatesAndDerivatives(
+					use_rig_offsets,
 					corr_rots_m, // Matrix []   rots,
 					null, // Matrix [][] deriv_rots,
 					null, // boolean calc_deriv,

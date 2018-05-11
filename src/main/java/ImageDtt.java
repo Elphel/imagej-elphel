@@ -971,6 +971,7 @@ public class ImageDtt {
 //								centerY,
 //								disparity);
 						double [][] centersXY = geometryCorrection.getPortsCoordinatesAndDerivatives(
+								false,          // boolean use_rig_offsets,
 								corr_rots, // Matrix []   rots,
 								null,      //  Matrix [][] deriv_rots,
 								null,      // double [][] pXYderiv, // if not null, should be double[8][]
@@ -1689,8 +1690,8 @@ public class ImageDtt {
 					double [][]     tcorr_combo =    null; // [15*15] pixel space
 					double [][][]   tcorr_partial =  null; // [quad][numcol+1][15*15]
 					double [][][][] tcorr_tpartial = null; // [quad][numcol+1][4][8*8]
-					PolynomialApproximation pa =     null;
-					if (corr_max_weights_poly !=null)   pa = new PolynomialApproximation(0); // debug level
+//					PolynomialApproximation pa =     null;
+//					if (corr_max_weights_poly !=null)   pa = new PolynomialApproximation(0); // debug level
 					Correlation2d corr2d = new Correlation2d(
 							imgdtt_params,              // ImageDttParameters  imgdtt_params,
 							transform_size,             // int transform_size,
@@ -1738,6 +1739,7 @@ public class ImageDtt {
 
 						} else {
 							centersXY = geometryCorrection.getPortsCoordinatesAndDerivatives(
+									false,          // boolean use_rig_offsets,
 									corr_rots, // Matrix []   rots,
 									null,      //  Matrix [][] deriv_rots,
 									null,      // double [][] pXYderiv, // if not null, should be double[8][]
@@ -5956,6 +5958,7 @@ public class ImageDtt {
 
 						} else {
 							centersXY = geometryCorrection.getPortsCoordinatesAndDerivatives(
+									false,          // boolean use_rig_offsets,
 									corr_rots, // Matrix []   rots,
 									null,      //  Matrix [][] deriv_rots,
 									null,      // double [][] pXYderiv, // if not null, should be double[8][]
@@ -7205,14 +7208,35 @@ public class ImageDtt {
 			    					dir_corr_strength[0][0],dir_corr_strength[0][1],dir_corr_strength[1][0],dir_corr_strength[1][1],
 			    					dir_corr_strength[2][0],dir_corr_strength[2][1],dir_corr_strength[3][0],dir_corr_strength[3][1]));
 			    		}
-			    		result[DISP_HOR_INDEX] =   dir_corr_strength[0][0];
-			    		result[STR_HOR_INDEX] =    dir_corr_strength[0][1];
-			    		result[DISP_VERT_INDEX] =  dir_corr_strength[1][0];
-			    		result[STR_VERT_INDEX] =   dir_corr_strength[1][1];
-			    		result[DISP_DIAGM_INDEX] = dir_corr_strength[2][0];
-			    		result[STR_DIAGM_INDEX] =  dir_corr_strength[2][1];
-			    		result[DISP_DIAGM_INDEX] = dir_corr_strength[3][0];
-			    		result[STR_DIAGO_INDEX] =  dir_corr_strength[3][1];
+			    		if (dir_corr_strength[0] != null) {
+			    			result[DISP_HOR_INDEX] =   dir_corr_strength[0][0];
+			    			result[STR_HOR_INDEX] =    dir_corr_strength[0][1];
+			    		} else {
+			    			result[DISP_HOR_INDEX] =   Double.NaN;
+			    			result[STR_HOR_INDEX] =    0.0;
+			    		}
+			    		if (dir_corr_strength[1] != null) {
+			    			result[DISP_VERT_INDEX] =  dir_corr_strength[1][0];
+			    			result[STR_VERT_INDEX] =   dir_corr_strength[1][1];
+			    		} else {
+			    			result[DISP_VERT_INDEX] =  Double.NaN;
+			    			result[STR_VERT_INDEX] =   0.0;
+			    		}
+			    		if (dir_corr_strength[2] != null) {
+			    			result[DISP_DIAGM_INDEX] = dir_corr_strength[2][0];
+			    			result[STR_DIAGM_INDEX] =  dir_corr_strength[2][1];
+			    		} else {
+			    			result[DISP_DIAGM_INDEX] = Double.NaN;
+			    			result[STR_DIAGM_INDEX] =  0.0;
+			    		}
+			    		if (dir_corr_strength[3] != null) {
+			    			result[DISP_DIAGO_INDEX] = dir_corr_strength[3][0];
+			    			result[STR_DIAGO_INDEX] =  dir_corr_strength[3][1];
+			    		} else {
+			    			result[DISP_DIAGO_INDEX] = Double.NaN;
+			    			result[STR_DIAGO_INDEX] =  0.0;
+
+			    		}
 
 			    		mod_disparity_diff =     corr2d.foregroundCorrect(
 			    				clt_parameters.img_dtt.fo_far,            // boolean   bg,
@@ -7385,8 +7409,6 @@ public class ImageDtt {
 
 	public double [][][][][][][]  clt_bi_quad(
 			final EyesisCorrectionParameters.CLTParameters       clt_parameters,
-//			final ImageDttParameters  imgdtt_params,   // Now just extra correlation parameters, later will include, most others
-//			final int                 macro_scale,     // to correlate tile data instead of the pixel data: 1 - pixels, 8 - tiles
 			final int [][]            tile_op_main,    // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 			final int [][]            tile_op_aux,     // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 			final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
@@ -7419,7 +7441,7 @@ public class ImageDtt {
 		final int                 debug_tileX = clt_parameters.tileX;
 		final int                 debug_tileY = clt_parameters.tileY;
 //		final boolean debug_ports_coordinates = (debug_tileX == -1234);
-		final double poly_corr = clt_parameters.img_dtt.poly_corr_scale; // maybe add per-tile task bits to select none/near/far
+//		final double poly_corr = clt_parameters.img_dtt.poly_corr_scale; // maybe add per-tile task bits to select none/near/far
 		final int quad_main = image_data_main.length;   // number of subcameras
 		final int quad_aux =  image_data_aux.length;   // number of subcameras
 		final int numcol = 3; // number of colors
@@ -7474,11 +7496,13 @@ public class ImageDtt {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+clt_parameters.transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
+/*
 		final int [][] zi =
 			{{ 0,  1,  2,  3},
 			 {-1,  0, -3,  2},
 			 {-2, -3,  0,  1},
 			 { 3, -2, -1,  0}};
+*/
 		final int [][] corr_pairs ={ // {first, second, rot} rot: 0 - as is, 1 - swap y,x
 				{0,1,0},
 				{2,3,0},
@@ -7543,8 +7567,8 @@ public class ImageDtt {
 			}
 		}
 
-		final double [] corr_max_weights_poly =(((clt_parameters.max_corr_sigma > 0) && (disparity_bimap != null))?
-				setMaxXYWeights(clt_parameters.max_corr_sigma,max_search_radius_poly): null); // here use square anyway
+//		final double [] corr_max_weights_poly =(((clt_parameters.max_corr_sigma > 0) && (disparity_bimap != null))?
+//				setMaxXYWeights(clt_parameters.max_corr_sigma,max_search_radius_poly): null); // here use square anyway
 
 		dtt.set_window(clt_parameters.clt_window);
 		final double [] lt_window = dtt.getWin2d();	// [256]
@@ -7558,7 +7582,9 @@ public class ImageDtt {
 		}
 
 		final Matrix [] corr_rots_main = geometryCorrection_main.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
-		final Matrix [] corr_rots_aux =  geometryCorrection_aux.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
+		final Matrix rigMatrix = geometryCorrection_aux.getRotMatrix(true);
+		final Matrix [] corr_rots_aux =  geometryCorrection_aux.getCorrVector().getRotMatrices(rigMatrix); // get array of per-sensor rotation matrices
+
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				@Override
@@ -7572,14 +7598,14 @@ public class ImageDtt {
 					double [][] fract_shiftsXY_main = new double[quad_main][];
 					double [][] fract_shiftsXY_aux =  new double[quad_aux][];
 					double [][]     tcorr_combo =     null; // [15*15] pixel space
-					double [][][]   tcorr_partial =   null; // [quad][numcol+1][15*15]
-					double [][][][] tcorr_tpartial =  null; // [quad][numcol+1][4][8*8]
+//					double [][][]   tcorr_partial =   null; // [quad][numcol+1][15*15]
+//					double [][][][] tcorr_tpartial =  null; // [quad][numcol+1][4][8*8]
 					double [][][][] clt_data_main =   new double[quad_main][nChn][][];
 					double [][][][] clt_data_aux =    new double[quad_aux][nChn][][];
 
 
-					PolynomialApproximation pa =      null;
-					if (corr_max_weights_poly !=null)   pa = new PolynomialApproximation(0); // debug level
+//					PolynomialApproximation pa =      null;
+//					if (corr_max_weights_poly !=null)   pa = new PolynomialApproximation(0); // debug level
 					Correlation2d corr2d = new Correlation2d(
 							clt_parameters.img_dtt,              // ImageDttParameters  imgdtt_params,
 							clt_parameters.transform_size,             // int transform_size,
@@ -7608,7 +7634,7 @@ public class ImageDtt {
 								corr_mask_aux &= ~ (1 << i);
 							}
 						}
-						boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY);
+//						boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY);
 
 						final int [] overexp_main = (saturation_main != null) ? ( new int [2]): null;
 						final int [] overexp_aux =  (saturation_aux != null) ? ( new int [2]): null;
@@ -7619,21 +7645,25 @@ public class ImageDtt {
 						// TODO: move port coordinates out of color channel loop
 						double [][] centersXY_main;
 						double [][] centersXY_aux;
+						double disparity_main = disparity_array[tileY][tileX];
+						double disparity_aux =  disparity_main * geometryCorrection_aux.getDisparityRadius()/geometryCorrection_main.getDisparityRadius();
 						centersXY_main = geometryCorrection_main.getPortsCoordinatesAndDerivatives(
+								false,          // boolean use_rig_offsets,
 								corr_rots_main, // Matrix []   rots,
-								null,      //  Matrix [][] deriv_rots,
-								null,      // double [][] pXYderiv, // if not null, should be double[8][]
+								null,           //  Matrix [][] deriv_rots,
+								null,           // double [][] pXYderiv, // if not null, should be double[8][]
 								centerX,
 								centerY,
-								disparity_array[tileY][tileX]); //  + disparity_corr);
+								disparity_main); //  + disparity_corr);
 
 						centersXY_aux =  geometryCorrection_aux.getPortsCoordinatesAndDerivatives(
-								corr_rots_aux, // Matrix []   rots,
-								null,      //  Matrix [][] deriv_rots,
-								null,      // double [][] pXYderiv, // if not null, should be double[8][]
+								true,            // boolean use_rig_offsets,
+								corr_rots_aux,   // Matrix []   rots,
+								null,            //  Matrix [][] deriv_rots,
+								null,            // double [][] pXYderiv, // if not null, should be double[8][]
 								centerX,
 								centerY,
-								disparity_array[tileY][tileX]); //  + disparity_corr);
+								disparity_aux); //  + disparity_corr);
 
 						if ((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
 							for (int i = 0; i < quad_main; i++) {

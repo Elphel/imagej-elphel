@@ -731,6 +731,7 @@ public class AlignmentCorrection {
 			double centerY = tileY * qc.tp.getTileSize() + qc.tp.getTileSize()/2;//- shiftY;
 
 			double [][] centersXY_disp = qc.geometryCorrection.getPortsCoordinatesAndDerivatives(
+					false,          // boolean use_rig_offsets,
 					corr_rots, // Matrix []   rots,
 					null,      //  Matrix [][] deriv_rots,
 					null,      // double [][] pXYderiv, // if not null, should be double[8][]
@@ -738,6 +739,7 @@ public class AlignmentCorrection {
 					centerY,
 					disp_strength[2 * s.series + 0][s.tile]/magic_coeff); // disparity
 			double [][] centersXY_inf = qc.geometryCorrection.getPortsCoordinatesAndDerivatives(
+					false,          // boolean use_rig_offsets,
 					corr_rots, // Matrix []   rots,
 					null,      //  Matrix [][] deriv_rots,
 					null,      // double [][] pXYderiv, // if not null, should be double[8][]
@@ -2434,6 +2436,7 @@ System.out.println("test1234");
 			double [][] deriv = new double [2 * NUM_SENSORS][];
 			int dbg_index =dbg_index (pXY, dbg_decimate);
 			geometryCorrection.getPortsCoordinatesAndDerivatives(
+					false,          // boolean use_rig_offsets,
 					corr_rots,   //  Matrix []   rots,
 					deriv_rots,  //  Matrix [][] deriv_rots,
 					deriv,       // 	boolean calc_deriv,
@@ -2458,6 +2461,7 @@ System.out.println("test1234");
 				double [][] deriv_dbg = new double [2 * NUM_SENSORS][];
 				double [] dbg_a_vector= null;
 				geometryCorrection.getPortsCoordinatesAndDerivatives(
+						false,          // boolean use_rig_offsets,
 						dbg_a_vector, // double [] dbg_a_vector, // replace actual radial distortion coefficients
 						1E-9, // 1E-8, //6,    // double delta, // 1e-6
 						corr_vector, // CorrVector corr_vector,
@@ -2596,6 +2600,7 @@ System.out.println("test1234");
 			Mismatch mm = mismatch_list.get(indx);
 			double [] pXY = mm.getPXY();
 			double [][] f = geometryCorrection.getPortsCoordinatesAndDerivatives( // 4x2
+					false,          // boolean use_rig_offsets,
 					corr_rots,    //  Matrix []   rots,
 					null, //  Matrix [][] deriv_rots,
 					null,        //	boolean calc_deriv,
