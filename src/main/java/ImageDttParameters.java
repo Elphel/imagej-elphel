@@ -6,7 +6,7 @@
  **
  ** -----------------------------------------------------------------------------**
  **
- **  ImageDtt.java is free software: you can redistribute it and/or modify
+ **  ImageDttParameters.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
  **  (at your option) any later version.
@@ -103,7 +103,7 @@ public class ImageDttParameters {
 
 	public void dialogQuestions(GenericJTabbedDialog gd) {
 			gd.addCheckbox    ("Enable ImageDtt correlation debug layers",                        this.corr_mode_debug,
-					"false - return (old) per-coor correlations, true - replace them with more pairs correlation (new)");
+					"false - return (old) per-coord correlations, true - replace them with more pairs correlation (new)");
 			gd.addCheckbox    ("Replace CM layer with mixed/new poly one",                        this.mix_corr_poly);
 			gd.addNumericField("Use poly mode if strength is greater than",                       this.min_poly_strength,  3,6,"", "AND condition");
 			gd.addNumericField("Maximal polynomial approximation half-width",                     this.max_poly_hwidth,  3,6,"pix", "Maximal polynomial approximation half-width (in both directions), Most now are ~2.0");

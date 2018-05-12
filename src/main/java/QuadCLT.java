@@ -76,6 +76,11 @@ public class QuadCLT {
 			EyesisCorrectionParameters.CLTParameters    clt_parameters,
 			int threadsMax
 			){
+		setTiles(clt_parameters,
+				imp.getWidth()/clt_parameters.transform_size,
+				imp.getHeight()/clt_parameters.transform_size,
+				threadsMax);
+		/*
 		if (tp == null){
 			tp = new TileProcessor(imp.getWidth()/clt_parameters.transform_size,
 					imp.getHeight()/clt_parameters.transform_size,
@@ -86,7 +91,28 @@ public class QuadCLT {
 					clt_parameters.max_overexposure, // double maxOverexposure,
 					threadsMax);
 		}
+		*/
 	}
+
+	public void setTiles (
+			EyesisCorrectionParameters.CLTParameters    clt_parameters,
+			int tilesX,
+			int tilesY,
+			int threadsMax
+			){
+		if (tp == null){
+			tp = new TileProcessor(
+					tilesX,
+					tilesY,
+					clt_parameters.transform_size,
+					clt_parameters.stSize,
+					clt_parameters.corr_magic_scale,
+					clt_parameters.grow_disp_trust,
+					clt_parameters.max_overexposure, // double maxOverexposure,
+					threadsMax);
+		}
+	}
+
 
 	public QuadCLT(
 			String                                          prefix,

@@ -307,7 +307,7 @@ public class Correlation2d {
 
     /**
      * Calculate all required image pairs phase correlation
-     * @param clt_data aberration-corrected FD CLT data [camera][color][quadrant][index]
+     * @param clt_data aberration-corrected FD CLT data for one tile [camera][color][quadrant][index]
      * @param pairs_mask bimask of required pairs
      * @param lpf optional low-pass filter
      * @param col_weights RBG color weights
@@ -336,6 +336,66 @@ public class Correlation2d {
     	}
     	return pairs_corr;
     }
+
+    /**
+     * Calculate FD phase correlation between averaged FD data from two quad (or octal/mixed)
+     * cameras, each should be pre-shifted the same disparity
+     * @param clt_data_tile_main aberration-corrected FD CLT data for one tile of the main quad camera  [sub-camera][color][quadrant][index]
+     * @param clt_data_tile_aux aberration-corrected FD CLT data for one tile of the auxiliary quad camera  [sub-camera][color][quadrant][index]
+     * @param lpf optional low-pass filter
+     * @param col_weights RBG color weights
+     * @param fat_zero fat zero for phase correlations
+     * @return 2-d correlation array in line scan order
+     */
+    public double []  correlateInterCamerasFD(
+    		double [][][][]     clt_data_tile_main,
+    		double [][][][]     clt_data_tile_aux,
+    		double []           lpf,
+    		double []           col_weights,
+    		double              fat_zero) {
+    	if ((clt_data_tile_main == null) || (clt_data_tile_aux == null)) return null;
+    	double [][][] clt_mix_main = cltMixCameras(clt_data_tile_main);
+    	double [][][] clt_mix_aux =  cltMixCameras(clt_data_tile_aux);
+    	double [] inter_cam_corr = correlateCompositeFD(
+    			clt_mix_main,         // double [][][] clt_data1,
+    			clt_mix_aux,          // double [][][] clt_data2,
+	    		lpf,                  // double []     lpf,
+	    		col_weights,          // double []     col_weights,
+	    		fat_zero);            // double        fat_zero)
+    	return inter_cam_corr;
+    }
+
+
+
+    /**
+     * Average FD data from 4 sub-cameras (rendered for the same specific disparity/distance),
+     * each color component separately. Used to correlate a pair of quad-camera composite images
+     * @param clt_data_tile aberration-corrected FD CLT data for one tile [camera][color][quadrant][index]
+     * @return averaged for all cameras FD data [color][quadrant][index]
+     */
+    public double [][][] cltMixCameras(
+    		double [][][][]     clt_data_tile){
+    	int tlen = transform_size * transform_size;
+    	double [][][] clt_mix = new double [clt_data_tile[0].length][4][tlen];
+    	for (int color = 0; color < clt_mix.length; color++) {
+    		for (int cltq = 0; cltq <4; cltq++) {
+    			for (int i = 0; i < tlen; i++) {
+    				for (int cam = 0; cam < clt_data_tile.length; cam++)
+    				clt_mix[color][cltq][i] += clt_data_tile[cam][color][cltq][i];
+    			}
+    		}
+    	}
+    	double k = 1.0/clt_data_tile.length;
+    	for (int color = 0; color < clt_mix.length; color++) {
+    		for (int cltq = 0; cltq <4; cltq++) {
+    			for (int i = 0; i < tlen; i++) {
+    				clt_mix[color][cltq][i] *= k;
+    			}
+    		}
+    	}
+    	return clt_mix;
+    }
+
 
    /**
     * Combine (average) several specified correlation pairs that have the same grid (ortho/diagonal, different baselines)
@@ -489,8 +549,22 @@ public class Correlation2d {
     		int         hwidth,
     		boolean     debug
     		) {
-    	int dir = PAIRS[npair][2]; // 0 - hor, 1 - vert, 2 - parallel to row = col (main) diagonal (0->3), 3 -2->1
-    	int ss =  PAIRS[npair][3]/sub_sampling;
+   return scaleRotateInterpoateSingleCorrelation(
+        		correlations[npair],
+        		hwidth,
+            	PAIRS[npair][2], // 0 - hor, 1 - vert, 2 - parallel to row = col (main) diagonal (0->3), 3 -2->1
+            	PAIRS[npair][3]/sub_sampling,
+        		debug);
+    }
+    public double [] scaleRotateInterpoateSingleCorrelation(
+    		double []   corr,
+    		int         hwidth,
+    		int         dir, // 0 - hor, 1 - vert, 2 - parallel to row = col (main) diagonal (0->3), 3 -2->1
+    		int         ss,
+    		boolean     debug
+    		) {
+//    	int dir = PAIRS[npair][2]; // 0 - hor, 1 - vert, 2 - parallel to row = col (main) diagonal (0->3), 3 -2->1
+//   	int ss =  PAIRS[npair][3]/sub_sampling;
     	int center = transform_size - 1;
     	int width = 2 * center + 1;
     	double [] strip = new double [hwidth * width];
@@ -498,9 +572,9 @@ public class Correlation2d {
     	int denom =  ss * ((dir > 1)?1:2);
     	double rdenom = denom;
     	int ilimit = center * denom;
-    	double [] corr = correlations[npair];
+//    	double [] corr = correlations[npair];
 		if (debug) {
-			System.out.println("\n============== scaleRotateInterpoateSingleCorrelation(),npair ="+ npair+", sub_sampling="+sub_sampling+" ===============");
+			System.out.println("\n============== scaleRotateInterpoateSingleCorrelation() ===============");
 		}
 
     	for (int row = 0; row < hwidth; row++) {
@@ -1135,6 +1209,88 @@ public class Correlation2d {
     	return rslt;
     }
 
+// run a single correlation poly
+    public double [] single2dPoly( // returns x-xcenter, y, strength (sign same as disparity)
+    		ImageDttParameters  imgdtt_params,
+    		double []           corr,
+    		double              xcenter,   // -disparity to compare. use 0?
+    		double              vasw_pwr,  // value as weight to this power,
+    		int                 debug_level,
+    		int                 tileX, // just for debug output
+    		int                 tileY
+    		) {
+    	double [] rslt = {Double.NaN,Double.NaN, 0.0};
+    	Correlations2dLMA lma=corrLMA(
+    			imgdtt_params, // ImageDttParameters  imgdtt_params,
+    			corr,          // double [][]         corrs,
+    			true,          // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
+    			xcenter,       // double              xcenter,   // preliminary center x in pixels for largest baseline
+    			vasw_pwr,      // double              vasw_pwr,  // value as weight to this power,
+    			debug_level,   // -1, // int                 debug_level,
+    			tileX,         // int                 tileX, // just for debug output
+    			tileY);        //int                 tileY
+    	if ((lma != null) && (lma.getPoly() != null)) {
+    		double [] poly_xyvwh = lma.getPoly();
+    		rslt[0] =  xcenter - poly_xyvwh[0];
+    		rslt[1] = -poly_xyvwh[1];
+    		rslt[2] = Double.isNaN(poly_xyvwh[2])?0.0: poly_xyvwh[2];
+    	}
+    	return rslt;
+    }
+
+    public double [] single2dCM( // returns x-xcenter, y, strength (sign same as disparity)
+    		ImageDttParameters  imgdtt_params,
+    		double []           corr,
+    		double              xcenter,   // -disparity to compare. use 0?
+			double              radius,    // positive - within that distance, negative - within 2*(-radius)+1 square
+    		int                 debug_level,
+    		int                 tileX, // just for debug output
+    		int                 tileY
+    		) {
+    	int width = 2 * transform_size - 1;
+    	int center = transform_size - 1;
+    	int center_index = (width + 1) * center; //
+    	double [] rslt = {Double.NaN,Double.NaN, 0.0};
+    	int ixcenter = (int) Math.round(xcenter);
+    	int [] icenter = {ixcenter, 0};
+
+		//calculate as "center of mass"
+		int iradius = (int) Math.abs(radius);
+		int ir2 = (int) (radius*radius);
+		boolean square = radius <0;
+		double s0 = 0, sx=0, sy = 0;
+		for (int y = - iradius ; y <= iradius; y++){
+			int dataY = icenter[1] +y;
+			if ((dataY >= -center) && (dataY <= center)){
+				int y2 = y*y;
+				for (int x = - iradius ; x <= iradius; x++){
+					int dataX = icenter[0] +x;
+					double r2 = y2 + x * x;
+					if ((dataX >= -center) && (dataX <= center) && (square || (r2 <= ir2))){
+						double d =  corr[dataY * width + dataX + center_index];
+						if (d > 0.0) {
+							s0 += d;
+							sx += d * dataX;
+							sy += d * dataY;
+						}
+					}
+				}
+			}
+		}
+		double xm = sx / s0;
+		double ym = sy / s0;
+		int ixm = (int) Math.round(xm);
+		int iym = (int) Math.round(ym);
+		double s = corr[iym * width + ixm + center_index];
+
+		rslt[0] =  xcenter - xm;
+		rslt[1] = -ym;
+		rslt[2] = s;
+    	return rslt;
+    }
+
+
+
     public double [][] corr4dirsLMA(
     		ImageDttParameters  imgdtt_params,
     		double [][]         corrs,
@@ -1445,6 +1601,121 @@ public class Correlation2d {
     	}
     	return lmaSuccess? lma: null;
     }
+
+// Run for a single horizontal 2d correlation array
+    public Correlations2dLMA corrLMA(
+    		ImageDttParameters  imgdtt_params,
+    		double []           corr,
+    		boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
+    		double              xcenter,   // preliminary center x in pixels for largest baseline
+    		double              vasw_pwr,  // value as weight to this power,
+    		int                 debug_level,
+    		int                 tileX, // just for debug output
+    		int                 tileY)
+    {
+    	double [][] groups_LMA =       {corr};     // new double [ng][];
+    	int    [][] groups_pairs =     {{1,0}};     // new int[ng][]; // number of combined pairs, index of base pair
+    	int    []   group_scale_ind =  {0}; // new int [ng]; // number of combined pairs, index of base pair
+
+    	double [] scales = {1.0};
+
+    	Correlations2dLMA lma = new Correlations2dLMA(scales);
+    	if (debug_level > 1) {
+    		for (int i = 0; i < groups_pairs.length; i++) {
+    			System.out.println("Group #"+i+" - "+groups_pairs[i][0]+", type:"+groups_pairs[i][1]);
+    		}
+    	}
+        addSamples(
+        		xcenter,         // double            xcenter,   // preliminary center x in pixels for largest baseline
+        		imgdtt_params.cnvx_hwnd_size, // int  hwindow_y, //  = window_y.length; // should actually be the same?
+        		imgdtt_params.cnvx_hwnd_size, //int   hwindow_x, // = window_x.length;
+        		vasw_pwr,                     // double            vasw_pwr,  // value as weight to this power,
+        		groups_LMA,                   // double [][]       groups_LMA,
+        		groups_pairs,                 // int    [][]       groups_pairs,
+        		scales,                       // double []         scales,
+        		group_scale_ind,              // int    []         group_scale_ind,
+        		lma,                          // Correlations2dLMA lma,
+        		imgdtt_params.cnvx_add3x3,    // boolean   add3x3,
+        		imgdtt_params.cnvx_weight,    // double    nc_cost,
+
+        		debug_level);    // int               debug_level
+        boolean lmaSuccess;
+        if (run_poly_instead) {
+        	lma.getMaxXYPoly( // get interpolated maximum coordinates using 2-nd degree polynomial
+        			debug_level>3); // boolean debug
+        	lmaSuccess = lma.getPolyFx() != null;
+        } else {
+        	lma.initVector(
+        			imgdtt_params.lma_adjust_wm,   //  boolean adjust_wm,
+        			imgdtt_params.lma_adjust_wy,   // boolean adjust_wy,
+        			imgdtt_params.lma_adjust_wxy,  // boolean adjust_wxy,
+        			imgdtt_params.lma_adjust_ag,   // boolean adjust_Ag,
+        			xcenter,                       // double  x0,
+        			imgdtt_params.lma_half_width,  // double  half_width,
+        			imgdtt_params.lma_cost_wy,     // double  cost_wy,     // cost of non-zero this.all_pars[WYD_INDEX]
+        			imgdtt_params.lma_cost_wxy     //double  cost_wxy     // cost of non-zero this.all_pars[WXY_INDEX]
+        			);
+        	if (debug_level > 1) {
+        		System.out.println("Input data:");
+        		lma.printInputDataFx(false);
+        	}
+
+        	lmaSuccess = 	lma.runLma(
+        			imgdtt_params.lma_lambda_initial,     // double lambda,           // 0.1
+        			imgdtt_params.lma_lambda_scale_good,  // double lambda_scale_good,// 0.5
+        			imgdtt_params.lma_lambda_scale_bad,   // double lambda_scale_bad, // 8.0
+        			imgdtt_params.lma_lambda_max,         // double lambda_max,       // 100
+        			imgdtt_params.lma_rms_diff,           // double rms_diff,         // 0.001
+        			imgdtt_params.lma_num_iter,           // int    num_iter,         // 20
+        			debug_level);       // int    debug_level)
+
+        	lma.updateFromVector();
+        	double [] rms = lma.getRMS();
+        	if (debug_level > 0) {
+        		System.out.println("LMA ->"+lmaSuccess+" RMS="+rms[0]+", pure RMS="+rms[1]);
+        		lma.printParams();
+        	}
+        }
+    	if ((debug_level > 1) && (groups_LMA !=null) && (groups_LMA.length > 0)) {
+    		double [][] y_and_fx = new double [groups_LMA.length * 2][];
+    		double [][] groups_fx =  getFitSamples( // just for debug to compare LMA-fitted fx with original data
+    				xcenter,                      // double            xcenter,   // preliminary center x in pixels for largest baseline
+            		imgdtt_params.cnvx_hwnd_size, // int  hwindow_y, //  = window_y.length; // should actually be the same?
+            		imgdtt_params.cnvx_hwnd_size, //int   hwindow_x, // = window_x.length;
+    				groups_pairs,                 // int    [][]       groups_pairs,
+    				scales,                       // double []         scales,
+    				group_scale_ind,              // int    []         group_scale_ind,
+    				lma,                          // Correlations2dLMA lma,
+            		groups_LMA,                   // double [][]       groups_LMA,
+            		imgdtt_params.cnvx_add3x3,    // boolean   add3x3,
+            		imgdtt_params.cnvx_weight,    // double    nc_cost,
+            		debug_level);    // int               debug_level
+
+    		String [] titles = new String [groups_LMA.length * 2];
+    		for (int i = 0; i < groups_LMA.length; i++) if (groups_pairs[i][0] > 0){
+    			int base_pair = groups_pairs[i][1];
+    			titles[2 * i] =     (isDiagonalPair(base_pair)?"diag":"ortho")+getScaleOfPair(base_pair);
+    			titles[2 * i + 1] = (isDiagonalPair(base_pair)?"diag":"ortho")+getScaleOfPair(base_pair)+"-fit";
+    			y_and_fx[2 * i] =     groups_LMA[i];
+    			y_and_fx[2 * i + 1] = groups_fx[i];
+    		}
+
+    		//    		String [] titles = {"ortho","diagonal"};
+    		(new showDoubleFloatArrays()).showArrays(
+    				y_and_fx,
+    				2 * transform_size-1,
+    				2 * transform_size-1,
+    				true, (run_poly_instead?"poly":"lma")+"_x"+tileX+"_y"+tileY, titles);
+    	}
+    	if (debug_level > 1) {
+    		System.out.println("Input data and approximation:");
+    		lma.printInputDataFx(true);
+    	}
+    	return lmaSuccess? lma: null;
+    }
+
+
+
 
     /**
      * Create mask of usable points, allowing only first non bi-convex away from the center

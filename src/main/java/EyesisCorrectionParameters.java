@@ -3018,6 +3018,7 @@ public class EyesisCorrectionParameters {
   		public double []  vertical_xyz =           {0.0,1.0,0.0}; // real world up unit vector in camera CS (x - right, y - up, z - to camera};
 
   		public ImageDttParameters             img_dtt = new ImageDttParameters();
+  		public BiQuadParameters               rig =     new BiQuadParameters();
   		public MeasuredLayersFilterParameters mlfp =    new MeasuredLayersFilterParameters();
 
   		public HashMap<String,Double> z_corr_map = new HashMap<String,Double>();
@@ -3661,6 +3662,7 @@ public class EyesisCorrectionParameters {
 			}
 	  		img_dtt.setProperties (prefix+"_img_dtt", properties);
   	  		mlfp.setProperties    (prefix+"_mlfp",    properties);
+  	  		rig.setProperties     (prefix+"_rig",    properties);
 
   		}
   		public void getProperties(String prefix,Properties properties){
@@ -4308,6 +4310,7 @@ public class EyesisCorrectionParameters {
   			}
   	  		img_dtt.getProperties (prefix+"_img_dtt", properties);
   	  		mlfp.getProperties    (prefix+"_mlfp", properties);
+  	  		rig.getProperties     (prefix+"_rig", properties);
   		}
 
   		public boolean showJDialog() {
@@ -4363,9 +4366,10 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Select all-pair correlation type to use 0 - CM, 1 - poly",                this.corr_select,  0);
 
   			gd.addTab         ("imageDtt", "Setup extra ImageDtt parameters - eventually all will be set that way");
-
-  			// moved
   			this.img_dtt.dialogQuestions(gd);
+  			gd.addTab         ("Rig", "Parameters for the wide baseline rig with two quad cameras");
+  			this.rig.dialogQuestions(gd);
+
   			gd.addTab         ("vert/hor", "Enhance detection of horizontal/vertical features (when enh_ortho is enabled for tile");
 
   			gd.addMessage("--- Enhance detection of horizontal/vertical features (when enh_ortho is enabled for tile ---");
@@ -5097,6 +5101,7 @@ public class EyesisCorrectionParameters {
 
 
             this.img_dtt.dialogAnswers(gd);
+            this.rig.dialogAnswers(gd);
 
   			this.max_corr_double=       gd.getNextBoolean();
   			this.corr_mode=       (int) gd.getNextNumber();

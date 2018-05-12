@@ -223,6 +223,70 @@ public class GeometryCorrection {
 			return rot;
 		}
 
+		/**
+		 * Get derivatives of the auxiliary camera rotation matrix, per axis (azimuth, tilt, roll, zoom)
+		 * d/dx and d/dy should be normalized by z-component of the vector (not derivative)
+		 * @return 2-d array array of derivatives matrices
+		 */
+//TODO: UPDATE to include scales
+		public Matrix [] getRotDeriveMatrices()
+		{
+			Matrix [] rot_derivs = new Matrix [4]; // channel, azimuth-tilt-roll-zoom
+
+				double ca = Math.cos(aux_azimuth);
+				double sa = Math.sin(aux_azimuth);
+				double ct = Math.cos(aux_tilt);
+				double st = Math.sin(aux_tilt);
+				double zoom = (1.0 + aux_zoom);
+				double cr = Math.cos(aux_roll);
+				double sr = Math.sin(aux_roll);
+				double [][] a_az = { // inverted - OK
+						{ ca,               0.0,  sa * ROT_AZ_SGN },
+						{ 0.0,              1.0,  0.0},
+						{ -sa* ROT_AZ_SGN,  0.0,  ca}};
+
+				double [][] a_t =  { // inverted - OK
+						{ 1.0,  0.0,              0.0},
+						{ 0.0,  ct,               st * ROT_TL_SGN},
+						{ 0.0, -st * ROT_TL_SGN,  ct}};
+
+				double [][] a_r =  { // inverted OK
+						{ cr,                sr * ROT_RL_SGN,  0.0},
+						{ -sr * ROT_RL_SGN,  cr,               0.0},
+						{ 0.0,               0.0,              1.0}};
+
+				double [][] a_daz = { // inverted - OK
+						{ -sa,              0.0,   ca * ROT_AZ_SGN },
+						{  0.0,             0.0,   0.0},
+						{ -ca* ROT_AZ_SGN,  0.0,  -sa}};
+
+				double [][] a_dt =  { // inverted - OK
+						{ 0.0,  0.0,               0.0},
+						{ 0.0, -st,                ct * ROT_TL_SGN},
+						{ 0.0, -ct * ROT_TL_SGN,  -st}};
+
+				double [][] a_dr =  { // inverted OK
+						{ -sr * zoom,               cr * zoom * ROT_RL_SGN,  0.0},
+						{ -cr * zoom *ROT_RL_SGN,  -sr * zoom,               0.0},
+						{ 0.0,               0.0,              0.0}};
+
+				double [][] a_dzoom =  { // inverted OK
+						{ cr,                sr * ROT_RL_SGN,  0.0},
+						{ -sr * ROT_RL_SGN,  cr,               0.0},
+						{ 0.0,               0.0,              0.0}};
+
+
+				// d/d_az
+				rot_derivs[0] = (new Matrix(a_r ).times(new Matrix(a_t ).times(new Matrix(a_daz))));
+				rot_derivs[1] = (new Matrix(a_r ).times(new Matrix(a_dt).times(new Matrix(a_az ))));
+				rot_derivs[2] = (new Matrix(a_dr).times(new Matrix(a_t ).times(new Matrix(a_az ))));
+				rot_derivs[3] = (new Matrix(a_dzoom).times(new Matrix(a_t ).times(new Matrix(a_az ))));
+			return rot_derivs;
+		}
+
+
+
+
 
 		public void setProperties(String parent_prefix,Properties properties){
 			String prefix = parent_prefix + RIG_PREFIX;

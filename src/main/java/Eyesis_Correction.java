@@ -582,6 +582,7 @@ private Panel panel1,
 			addButton("CLT 2*4 images",             panelClt4, color_conf_process);
 			addButton("CLT 2*4 images - 2",         panelClt4, color_conf_process);
 			addButton("CLT 2*4 images - 3",         panelClt4, color_conf_process);
+			addButton("Rig infinity calibration",         panelClt4, color_conf_process);
 			addButton("AUX show fine",              panelClt4, color_configure);
 
 			add(panelClt4);
@@ -4465,6 +4466,12 @@ private Panel panel1,
     	getPairImages2(true);
     	return;
 /* ======================================================================== */
+    } else if (label.equals("Rig infinity calibration")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+    	infinityRig();
+    	return;
+/* ======================================================================== */
     } else if (label.equals("AUX show fine")) {
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (
@@ -4744,9 +4751,7 @@ private Panel panel1,
 		return true;
 	}
 
-
-
-	public boolean getPairImages2( boolean new_mode) {
+	public boolean prepareRigImages() {
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (
         			QuadCLT.PREFIX,
@@ -4849,6 +4854,14 @@ private Panel panel1,
         if (TWO_QUAD_CLT == null) {
         	TWO_QUAD_CLT = new TwoQuadCLT();
         }
+        return true;
+	}
+
+	public boolean getPairImages2( boolean new_mode) {
+		if (!prepareRigImages()) return false;
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return false;
+
         if (new_mode) {
         	if (DEBUG_LEVEL > -2){
         		System.out.println("++++++++++++++ Calculating combined correlations ++++++++++++++");
@@ -4860,8 +4873,8 @@ private Panel panel1,
         				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         				DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
         				COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-        				CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-        				CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters       channelGainParameters_aux,
+//        				CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+//        				CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters       channelGainParameters_aux,
         				RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
         				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         				UPDATE_STATUS, //final boolean    updateStatus,
@@ -4901,11 +4914,40 @@ private Panel panel1,
         			true,
         			PROPERTIES);
         }
-
 		return true;
 	}
 
 
+	public boolean infinityRig() {
+		if (!prepareRigImages()) return false;
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return false;
+
+    	if (DEBUG_LEVEL > -2){
+    		System.out.println("++++++++++++++ Processing Infinity rig calibration ++++++++++++++");
+    	}
+    	try {
+    		TWO_QUAD_CLT.processInfinityRigs( // actually there is no sense to process multiple image sets. Combine with other processing?
+    				QUAD_CLT, // QuadCLT quadCLT_main,
+    				QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+    				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+    				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+    				UPDATE_STATUS, //final boolean    updateStatus,
+    				DEBUG_LEVEL);
+    	} catch (Exception e) {
+    		// TODO Auto-generated catch block
+    		e.printStackTrace();
+    	} //final int        debugLevel);
+
+    	if (configPath!=null) {
+    		saveTimestampedProperties( // save config again
+    				configPath,      // full path or null
+    				null, // use as default directory if path==null
+    				true,
+    				PROPERTIES);
+    	}
+    	return true;
+	}
 
 	public ImagePlus selectCLTImage() {
     	if (!CLT_PARAMETERS.showJDialog()) return null;
