@@ -117,6 +117,7 @@ public class ImageDtt {
 	  static int  BI_ASTR_DIAGM_INDEX =          21;  //21 - strength for main diagonal pair of the aux camera
 	  static int  BI_ASTR_DIAGO_INDEX =          22;  //22 - strength for main diagonal pair of the aux camera
 	  static int  BI_STR_CROSS_INDEX =           23;  //23 - strength between the main the aux camera
+	  static int  BI_TARGET_INDEX =              24;  //24 - target disparity
 
 	  static String [] BIDISPARITY_TITLES = {
 			  "disparity","disp_hor","disp_vert","disp_diagm","disp_diago",
@@ -124,7 +125,7 @@ public class ImageDtt {
 			  "bi-disparity","bi-disparity-dx","bi-disparity-dy",
 			  "strength", "str_hor", "str_vert", "str_diagm", "str_diago",
 			  "astrength", "astr_hor", "astr_vert", "astr_diagm", "astr_diago",
-			  "bi-strength"};
+			  "bi-strength", "target"};
 
 	  static int  DISP_FULL_INDEX =            0;  // 0 - disparity for all directions of the main camera
 	  static int  DISP_HOR_INDEX =             1;  // 1 - disparity for 2 horizontal pairs of the main camera
@@ -7572,8 +7573,9 @@ public class ImageDtt {
 
 	public double [][][][][][][]  clt_bi_quad(
 			final EyesisCorrectionParameters.CLTParameters       clt_parameters,
-			final int [][]            tile_op_main,    // [tilesY][tilesX] - what to do - 0 - nothing for this tile
-			final int [][]            tile_op_aux,     // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+//			final int [][]            tile_op_main,    // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+//			final int [][]            tile_op_aux,     // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 			final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 			final double [][][]       image_data_main, // first index - number of image in a quad
 			final double [][][]       image_data_aux,  // first index - number of image in a quad
@@ -7772,21 +7774,21 @@ public class ImageDtt {
 						tileY = nTile /tilesX;
 						tileX = nTile % tilesX;
 						tIndex = tileY * tilesX + tileX;
-						if ((tile_op_main[tileY][tileX] == 0) && (tile_op_main[tileY][tileX] == 0)) continue; // nothing to do for this tile
-						int                 img_mask_main =  getImgMask(tile_op_main[tileY][tileX]);         // which images to use
-						int                 corr_mask_main = getPairMask(tile_op_main[tileY][tileX]);       // which pairs to combine in the combo:  1 - top, 2 bottom, 4 - left, 8 - right
-						int                 img_mask_aux =   getImgMask(tile_op_aux[tileY][tileX]);         // which images to use
-						int                 corr_mask_aux =  getPairMask(tile_op_aux[tileY][tileX]);       // which pairs to combine in the combo:  1 - top, 2 bottom, 4 - left, 8 - right
+						if (tile_op[tileY][tileX] == 0) {
+							if (disparity_bimap != null){
+								disparity_bimap[BI_TARGET_INDEX][tIndex] = Double.NaN;
+							}
+							 continue; // nothing to do for this tile
+						}
+						int                 img_mask =       getImgMask(tile_op[tileY][tileX]);         // which images to use
+						int                 corr_mask =      getPairMask(tile_op[tileY][tileX]);       // which pairs to combine in the combo:  1 - top, 2 bottom, 4 - left, 8 - right
 						// mask out pairs that use missing channels
 
 // Is it currently used with diagonals?
 						// TODO: use masks from tile task
 						for (int i = 0; i< corr_pairs.length; i++){
-							if ((((1 << corr_pairs[i][0]) & img_mask_main) == 0) || (((1 << corr_pairs[i][1]) & img_mask_main) == 0)) {
-								corr_mask_main &= ~ (1 << i);
-							}
-							if ((((1 << corr_pairs[i][0]) & img_mask_aux) == 0) ||  (((1 << corr_pairs[i][1]) & img_mask_aux) == 0)) {
-								corr_mask_aux &= ~ (1 << i);
+							if ((((1 << corr_pairs[i][0]) & img_mask) == 0) || (((1 << corr_pairs[i][1]) & img_mask) == 0)) {
+								corr_mask &= ~ (1 << i);
 							}
 						}
 //						boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY);
@@ -7802,6 +7804,9 @@ public class ImageDtt {
 						double [][] centersXY_aux;
 						double disparity_main = disparity_array[tileY][tileX];
 						double disparity_aux =  disparity_main * geometryCorrection_aux.getDisparityRadius()/geometryCorrection_main.getDisparityRadius();
+						if (disparity_bimap != null){
+							disparity_bimap[BI_TARGET_INDEX][tIndex] = disparity_main;
+						}
 						centersXY_main = geometryCorrection_main.getPortsCoordinatesAndDerivatives(
 								false,          // boolean use_rig_offsets,
 								corr_rots_main, // Matrix []   rots,
@@ -8058,8 +8063,8 @@ public class ImageDtt {
 									extra_disparity_main,  // final double           extra_disparity,
 									quad_main,                  // final int              quad,      // number of subcameras
 									numcol,                // final int              numcol, // number of colors
-									img_mask_main,         // int                    img_mask,
-									tile_op_main,          // final int [][]         tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+									img_mask, // _main,         // int                    img_mask,
+									tile_op, // _main,          // final int [][]         tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 									clt_data_main,         // final double [][][][]  clt_data,
 									texture_tiles_main,    // final double [][][][]  texture_tiles,   // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 									filter,                // final double []        filter,
@@ -8077,8 +8082,8 @@ public class ImageDtt {
 									extra_disparity_aux,   // final double           extra_disparity,
 									quad_aux,              // final int              quad,      // number of subcameras
 									numcol,                // final int              numcol, // number of colors
-									img_mask_aux,         // int                    img_mask,
-									tile_op_aux,          // final int [][]         tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+									img_mask, // _aux,         // int                    img_mask,
+									tile_op, // _aux,          // final int [][]         tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 									clt_data_aux,         // final double [][][][]  clt_data,
 									texture_tiles_aux,    // final double [][][][]  texture_tiles,   // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 									filter,                // final double []        filter,

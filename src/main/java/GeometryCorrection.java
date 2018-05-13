@@ -100,6 +100,11 @@ public class GeometryCorrection {
 	public double getDisparityRadius() {
 		return disparityRadius;
 	}
+	public double getBaseline() {
+		return (rigOffset==null)?Double.NaN:rigOffset.baseline;
+	}
+
+
 	// correction of cameras mis-alignment
 	public CorrVector getCorrVector(double [] vector){
 		return new CorrVector(vector);
