@@ -61,7 +61,7 @@ public class BiQuadParameters {
 	public boolean rig_adjust_angle =          true;   //
 	public boolean rig_adjust_distance =       false;  // distance between camera centers
 	public boolean rig_adjust_forward =        false;  // aux camera forward from the principal plane (not implemented)
-	public double  rig_correction_scale=       1.0;    // scale calcualated correction
+	public double  rig_correction_scale=       1.0;    // scale calculaated correction
 
 
 

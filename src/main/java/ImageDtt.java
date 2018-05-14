@@ -981,6 +981,7 @@ public class ImageDtt {
 //								centerY,
 //								disparity);
 						double [][] centersXY = geometryCorrection.getPortsCoordinatesAndDerivatives(
+								geometryCorrection, //			GeometryCorrection gc_main,
 								false,          // boolean use_rig_offsets,
 								corr_rots, // Matrix []   rots,
 								null,      //  Matrix [][] deriv_rots,
@@ -1749,6 +1750,7 @@ public class ImageDtt {
 
 						} else {
 							centersXY = geometryCorrection.getPortsCoordinatesAndDerivatives(
+									geometryCorrection, //			GeometryCorrection gc_main,
 									false,          // boolean use_rig_offsets,
 									corr_rots, // Matrix []   rots,
 									null,      //  Matrix [][] deriv_rots,
@@ -5968,6 +5970,7 @@ public class ImageDtt {
 
 						} else {
 							centersXY = geometryCorrection.getPortsCoordinatesAndDerivatives(
+									geometryCorrection, //			GeometryCorrection gc_main,
 									false,          // boolean use_rig_offsets,
 									corr_rots, // Matrix []   rots,
 									null,      //  Matrix [][] deriv_rots,
@@ -7808,6 +7811,7 @@ public class ImageDtt {
 							disparity_bimap[BI_TARGET_INDEX][tIndex] = disparity_main;
 						}
 						centersXY_main = geometryCorrection_main.getPortsCoordinatesAndDerivatives(
+								geometryCorrection_main, //			GeometryCorrection gc_main,
 								false,          // boolean use_rig_offsets,
 								corr_rots_main, // Matrix []   rots,
 								null,           //  Matrix [][] deriv_rots,
@@ -7817,6 +7821,7 @@ public class ImageDtt {
 								disparity_main); //  + disparity_corr);
 
 						centersXY_aux =  geometryCorrection_aux.getPortsCoordinatesAndDerivatives(
+								geometryCorrection_main, //			GeometryCorrection gc_main,
 								true,            // boolean use_rig_offsets,
 								corr_rots_aux,   // Matrix []   rots,
 								null,            //  Matrix [][] deriv_rots,

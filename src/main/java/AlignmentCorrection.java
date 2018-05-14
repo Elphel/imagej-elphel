@@ -731,6 +731,7 @@ public class AlignmentCorrection {
 			double centerY = tileY * qc.tp.getTileSize() + qc.tp.getTileSize()/2;//- shiftY;
 
 			double [][] centersXY_disp = qc.geometryCorrection.getPortsCoordinatesAndDerivatives(
+					qc.geometryCorrection, //			GeometryCorrection gc_main,
 					false,          // boolean use_rig_offsets,
 					corr_rots, // Matrix []   rots,
 					null,      //  Matrix [][] deriv_rots,
@@ -739,6 +740,7 @@ public class AlignmentCorrection {
 					centerY,
 					disp_strength[2 * s.series + 0][s.tile]/magic_coeff); // disparity
 			double [][] centersXY_inf = qc.geometryCorrection.getPortsCoordinatesAndDerivatives(
+					qc.geometryCorrection, //			GeometryCorrection gc_main,
 					false,          // boolean use_rig_offsets,
 					corr_rots, // Matrix []   rots,
 					null,      //  Matrix [][] deriv_rots,
@@ -2436,6 +2438,7 @@ System.out.println("test1234");
 			double [][] deriv = new double [2 * NUM_SENSORS][];
 			int dbg_index =dbg_index (pXY, dbg_decimate);
 			geometryCorrection.getPortsCoordinatesAndDerivatives(
+					geometryCorrection, //			GeometryCorrection gc_main,
 					false,          // boolean use_rig_offsets,
 					corr_rots,   //  Matrix []   rots,
 					deriv_rots,  //  Matrix [][] deriv_rots,
@@ -2600,6 +2603,7 @@ System.out.println("test1234");
 			Mismatch mm = mismatch_list.get(indx);
 			double [] pXY = mm.getPXY();
 			double [][] f = geometryCorrection.getPortsCoordinatesAndDerivatives( // 4x2
+					geometryCorrection, //			GeometryCorrection gc_main,
 					false,          // boolean use_rig_offsets,
 					corr_rots,    //  Matrix []   rots,
 					null, //  Matrix [][] deriv_rots,

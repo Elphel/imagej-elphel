@@ -985,7 +985,20 @@ public class TwoQuadCLT {
 							 tilesX); // int tilesX
 
 				  // do actual adjustment step, update rig parameters
-
+				  quadCLT_aux.geometryCorrection.getRigCorrection(
+							clt_parameters.rig.rig_adjust_orientation,        // boolean            adjust_orientation,
+							clt_parameters.rig.rig_adjust_zoom,               // boolean            adjust_zoom,
+							clt_parameters.rig.rig_adjust_angle,              // boolean            adjust_angle,
+							clt_parameters.rig.rig_adjust_distance,           // boolean            adjust_distance,
+							clt_parameters.rig.rig_adjust_forward,            // boolean            adjust_forward, // not used
+							clt_parameters.rig.rig_correction_scale,          // double             scale_correction,
+							tile_list,                                        // ArrayList<Integer> tile_list,
+							quadCLT_main,                                     // QuadCLT            qc_main,
+							disparity_bimap[ImageDtt.BI_STR_CROSS_INDEX],     // double []          strength,
+							disparity_bimap[ImageDtt.BI_DISP_CROSS_DX_INDEX], // double []          diff_x, // used only with target_disparity == 0
+							disparity_bimap[ImageDtt.BI_DISP_CROSS_DY_INDEX], // double []          diff_y,
+							disparity_bimap[ImageDtt.BI_TARGET_INDEX],        // double []          target_disparity,
+							debugLevel+1);
 
 			  } // end of for (int num_short_cycle = 0; num_short_cycle < clt_parameters.rig.rig_adjust_short_cycles;num_short_cycle++) {
 
