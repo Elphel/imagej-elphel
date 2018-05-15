@@ -30,6 +30,9 @@ import ij.IJ;
  */
 
 public class GeometryCorrection {
+	static final double FOCAL_LENGTH = 4.5; // nominal focal length - used as default and to convert editable parameters to pixels
+	static final double DISTORTION_RADIUS = 2.8512; // nominal distortion radius - half width of the sensor
+	static final double PIXEL_SIZE = 2.2; //um
 	static final String[] RIG_PAR_NAMES = {"azimuth", "tilt", "roll", "zoom", "angle", "baseline"};
 	public static String RIG_PREFIX =     "rig-";
 	static double SCENE_UNITS_SCALE = 0.001;
@@ -39,9 +42,9 @@ public class GeometryCorrection {
 	public int    debugLevel = 0;
 	public int    pixelCorrectionWidth=2592;   // virtual camera center is at (pixelCorrectionWidth/2, pixelCorrectionHeight/2)
 	public int    pixelCorrectionHeight=1936;
-	public double focalLength=4.5;
-	public double pixelSize=  2.2; //um
-	public double distortionRadius=  2.8512; // mm - half width of the sensor
+	public double focalLength=FOCAL_LENGTH;
+	public double pixelSize=  PIXEL_SIZE; //um
+	public double distortionRadius=  DISTORTION_RADIUS; // mm - half width of the sensor
 	public double distortionA8=0.0; //r^8 (normalized to focal length or to sensor half width?)
 	public double distortionA7=0.0; //r^7 (normalized to focal length or to sensor half width?)
 	public double distortionA6=0.0; //r^6 (normalized to focal length or to sensor half width?)
@@ -127,21 +130,22 @@ public class GeometryCorrection {
 		return rigOffset.clone();
 	}
 
-	public void rigOffestSetPar(int index, double value) {
-		rigOffset.setPar(index, value);
+	public void rigOffestSetParNorm(int index, double value) {
+		rigOffset.setParNorm(index, value);
 	}
-	public void rigOffestSetPar(RigOffset ro, int index, double value) {
-		ro. setPar(index, value);
+	public void rigOffestSetParNorm(RigOffset ro, int index, double value) {
+		ro. setParNorm(index, value);
 	}
 
-	public double rigOffestGetPar(int index) {
-		return rigOffset.getPar(index);
+	public double rigOffestGetParNorm(int index) {
+		return rigOffset.getParNorm(index);
 	}
-	public double rigOffestGetPar(RigOffset ro, int index) {
-		return ro.getPar(index);
+	public double rigOffestGetParNorm(RigOffset ro, int index) {
+		return ro.getParNorm(index);
 	}
 
 	public double [] getRigCorrection(
+			double             infinity_importance, // of all measurements
 			boolean            adjust_orientation,
 			boolean            adjust_zoom,
 			boolean            adjust_angle,
@@ -157,6 +161,7 @@ public class GeometryCorrection {
 			int debugLevel) {
 		if (rigOffset == null) return null;
 		return rigOffset.getRigCorrection(
+				infinity_importance, // of all measurements
 				adjust_orientation, // boolean            adjust_orientation,
 				adjust_zoom,        // boolean            adjust_zoom,
 				adjust_angle,       // boolean            adjust_angle,
@@ -230,7 +235,8 @@ public class GeometryCorrection {
 		static final double ROT_AZ_SGN = -1.0; // sign of first sin for azimuth rotation
 		static final double ROT_TL_SGN =  1.0; // sign of first sin for tilt rotation
 		static final double ROT_RL_SGN =  1.0; // sign of first sin for roll rotation
-		public double baseline =   1256.0; // mm, distance between camera centers
+		static final double BASELINE =  1256.0; // default baseline value
+		public double baseline =   BASELINE; // mm, distance between camera centers
 		public double aux_angle =     0.0; // radians, 0 - aux camera to the right of the main, pi/2 - up
 		// consider aux_z small enough for now, will need for SfM
 		public double aux_z     =     0.0; // mm auxiliary camera distance from the plane of the main one (positive towards the scene)
@@ -246,25 +252,38 @@ public class GeometryCorrection {
 		double [] xy_vector = null;
 		double [] d_vector = null;
 		int    [] tile_vector = null; // just for debugging
+		double [] par_scales = null; // scale vector components to have similar derivatives values
+		int    [] full_par_index;
 
 		public RigOffset () {
 			System.out.println("created RigOffset");
+			par_scales = new double [VECTOR_LENGTH];
+			par_scales[AUX_AZIMUTH_INDEX] =  1000.0*FOCAL_LENGTH/PIXEL_SIZE;
+			par_scales[AUX_TILT_INDEX] =     1000.0*FOCAL_LENGTH/PIXEL_SIZE;
+			par_scales[AUX_ROLL_INDEX] =     1000.0*DISTORTION_RADIUS/PIXEL_SIZE;
+			par_scales[AUX_ZOOM_INDEX] =     1000.0*DISTORTION_RADIUS/PIXEL_SIZE;
+			par_scales[AUX_ANGLE_INDEX] =    1.0; // 1000.0*BASELINE/pixelSize;
+			par_scales[AUX_BASELINE_INDEX] = 1.0/DISTORTION_RADIUS; // pixels per disparity pixel
+
 		}
 
 		@Override
 		public RigOffset clone() {
-			RigOffset ro =   new RigOffset();
-			ro.baseline =    this.baseline;
-			ro.aux_angle =   this.aux_angle;
-			ro.aux_z =       this.aux_z;
-			ro.aux_azimuth = this.aux_azimuth;
-			ro.aux_tilt =    this.aux_tilt;
-			ro.aux_roll =    this.aux_roll;
-			ro.aux_zoom =    this.aux_zoom;
+			RigOffset ro =      new RigOffset();
+			ro.baseline =       this.baseline;
+			ro.aux_angle =      this.aux_angle;
+			ro.aux_z =          this.aux_z;
+			ro.aux_azimuth =    this.aux_azimuth;
+			ro.aux_tilt =       this.aux_tilt;
+			ro.aux_roll =       this.aux_roll;
+			ro.aux_zoom =       this.aux_zoom;
+			ro.full_par_index = this.full_par_index.clone();
+			ro.par_scales =     this.par_scales.clone();
 			return ro;
 		}
 
-		public void setPar(int index, double value) {
+		public void setParNorm(int index, double value) {
+			value /= par_scales[index];
 			switch (index) {
 			case AUX_AZIMUTH_INDEX:  aux_azimuth = value; break;
 			case AUX_TILT_INDEX:     aux_tilt =    value; break;
@@ -274,14 +293,14 @@ public class GeometryCorrection {
 			case AUX_BASELINE_INDEX: baseline =    value; break;
 			}
 		}
-		public double getPar(int index) {
+		public double getParNorm(int index) {
 			switch (index) {
-			case AUX_AZIMUTH_INDEX:  return aux_azimuth;
-			case AUX_TILT_INDEX:     return aux_tilt;
-			case AUX_ROLL_INDEX:     return aux_roll;
-			case AUX_ZOOM_INDEX:     return aux_zoom;
-			case AUX_ANGLE_INDEX:    return aux_angle;
-			case AUX_BASELINE_INDEX: return baseline;
+			case AUX_AZIMUTH_INDEX:  return aux_azimuth * par_scales[index];
+			case AUX_TILT_INDEX:     return aux_tilt *    par_scales[index];
+			case AUX_ROLL_INDEX:     return aux_roll *    par_scales[index];
+			case AUX_ZOOM_INDEX:     return aux_zoom *    par_scales[index];
+			case AUX_ANGLE_INDEX:    return aux_angle *   par_scales[index];
+			case AUX_BASELINE_INDEX: return baseline *    par_scales[index];
 			}
 			return Double.NaN;
 		}
@@ -307,35 +326,41 @@ public class GeometryCorrection {
 			int num_pars = 0;
 			for (int i = 0; i < par_select.length; i++) if (par_select[i]) num_pars++;
 			vector = new double[num_pars];
+			full_par_index = new int [num_pars];
+
 			int par_index = 0;
 			for (int i = 0; i < par_select.length; i++) if (par_select[i]) {
 				switch(i) {
-				case AUX_AZIMUTH_INDEX:  vector[par_index] = aux_azimuth; break;
-				case AUX_TILT_INDEX:     vector[par_index] = aux_tilt;    break;
-				case AUX_ROLL_INDEX:     vector[par_index] = aux_roll;    break;
-				case AUX_ZOOM_INDEX:     vector[par_index] = aux_zoom;    break;
-				case AUX_ANGLE_INDEX:    vector[par_index] = aux_angle;   break;
-				case AUX_BASELINE_INDEX: vector[par_index] = baseline;    break;
+				case AUX_AZIMUTH_INDEX:  vector[par_index] = aux_azimuth * par_scales[i]; break;
+				case AUX_TILT_INDEX:     vector[par_index] = aux_tilt    * par_scales[i]; break;
+				case AUX_ROLL_INDEX:     vector[par_index] = aux_roll    * par_scales[i]; break;
+				case AUX_ZOOM_INDEX:     vector[par_index] = aux_zoom    * par_scales[i]; break;
+				case AUX_ANGLE_INDEX:    vector[par_index] = aux_angle   * par_scales[i]; break;
+				case AUX_BASELINE_INDEX: vector[par_index] = baseline    * par_scales[i]; break;
 				}
+				full_par_index[par_index] = i;
 				par_index++;
 			}
+			//full_par_index
 		}
 		public void commitVector(double [] v) {
 			vector = v;
 			int par_index = 0;
 			for (int i = 0; i < par_select.length; i++) if (par_select[i]) {
 				switch(i) {
-				case AUX_AZIMUTH_INDEX:  aux_azimuth = vector[par_index]; break;
-				case AUX_TILT_INDEX:     aux_tilt = vector[par_index];    break;
-				case AUX_ROLL_INDEX:     aux_roll = vector[par_index];    break;
-				case AUX_ZOOM_INDEX:     aux_zoom = vector[par_index];    break;
-				case AUX_ANGLE_INDEX:    aux_angle = vector[par_index];   break;
-				case AUX_BASELINE_INDEX: baseline = vector[par_index];    break;
+				case AUX_AZIMUTH_INDEX:  aux_azimuth = vector[par_index]/par_scales[i]; break;
+				case AUX_TILT_INDEX:     aux_tilt =    vector[par_index]/par_scales[i]; break;
+				case AUX_ROLL_INDEX:     aux_roll =    vector[par_index]/par_scales[i]; break;
+				case AUX_ZOOM_INDEX:     aux_zoom =    vector[par_index]/par_scales[i]; break;
+				case AUX_ANGLE_INDEX:    aux_angle =   vector[par_index]/par_scales[i]; break;
+				case AUX_BASELINE_INDEX: baseline =    vector[par_index]/par_scales[i]; break;
 				}
 				par_index++;
 			}
+			recalcRXY();
 		}
 		public double setupYW(
+				double             infinity_importance, // of all measurements
 				ArrayList<Integer> tile_list,
 				QuadCLT            qc,
 				double []          strength,
@@ -347,8 +372,9 @@ public class GeometryCorrection {
 			xy_vector = new double[2*tile_list.size()];
 			d_vector =  new double[tile_list.size()];
 			tile_vector=  new int[tile_list.size()];
-			double sum_w = 0.0;
-			double sum2 = 0.0;
+			boolean [] is_inf = new boolean[tile_list.size()];
+			double sumw_inf = 0.0,sumw_near=0.0;
+			double sum2_inf = 0.0,sum2_near = 0.0;
 			int tilesX = qc.tp.getTilesX();
 			double tileSize = qc.tp.getTileSize();
 
@@ -360,22 +386,44 @@ public class GeometryCorrection {
 				if (target_disparity[nTile] == 0.0) { // only for infinity tiles
 					y_vector[2*i + 0] = diff_x[nTile];
 					w_vector[2*i + 0] = strength[nTile];
-					sum_w +=                strength[nTile];
-					sum2 += strength[nTile]*diff_x[nTile]*diff_x[nTile];
+					y_vector[2*i + 1] = diff_y[nTile];
+					w_vector[2*i + 1] = strength[nTile];
+					sumw_inf += 2*strength[nTile];
+					sum2_inf += strength[nTile]*(diff_x[nTile]*diff_x[nTile]+diff_y[nTile]*diff_y[nTile]);
+					is_inf[i] = true;
+				} else {
+					y_vector[2*i + 1] = diff_y[nTile];
+					w_vector[2*i + 1] = strength[nTile];
+					sumw_near +=        strength[nTile];
+					sum2_near += strength[nTile]*diff_y[nTile]*diff_y[nTile];
 				}
-				y_vector[2*i + 1] = diff_y[nTile];
-				w_vector[2*i + 1] = strength[nTile];
-				sum_w +=                strength[nTile];
-				sum2 += strength[nTile]*diff_y[nTile]*diff_y[nTile];
 				xy_vector[2*i + 0] = (tileX + 0.5) * tileSize;
 				xy_vector[2*i + 1] = (tileY + 0.5) * tileSize;
 				d_vector[i] = target_disparity[nTile];
 				tile_vector[i] = nTile;
 			}
-			if (sum_w > 0) {
-				double k = 1.0/sum_w;
-				sum2 *= k;
-				for (int i = 0; i < w_vector.length; i++) w_vector[i] *= k;
+			if (infinity_importance > 1.0) infinity_importance = 1.0;
+			else if (infinity_importance < 0.0) infinity_importance =0.0;
+			double k_inf = 0.0, k_near = 0.0;
+			if ((sumw_inf  > 0.0)  && (sumw_near > 0.0)){
+				k_inf =  infinity_importance/sumw_inf;
+				k_near =  (1.0 - infinity_importance)/sumw_near;
+			} else if (sumw_inf  > 0.0){
+				infinity_importance = 1.0;
+				k_inf =  infinity_importance/sumw_inf;
+			} else if (sumw_near > 0.0) {
+				infinity_importance = 0.0;
+				k_near = (1.0 - infinity_importance)/sumw_near;
+			}
+			double sum2 = k_inf*sum2_inf+k_near*sum2_near;
+
+			for (int i = 0; i < is_inf.length; i++) {
+				if (is_inf[i]) {
+					w_vector[2 * i + 0] *= k_inf;
+					w_vector[2 * i + 1] *= k_inf;
+				} else {
+					w_vector[2 * i + 1] *= k_near;
+				}
 			}
 			return Math.sqrt(sum2); // RMS
 		}
@@ -402,11 +450,10 @@ public class GeometryCorrection {
 						d_vector[i >> 1]); // double disparity);
 				int npar = 0;
 				for (int j = 0; j < VECTOR_LENGTH; j++) if (par_select[j]) {
-					jt[npar][i + 0] = pXYderiv[0][j];
-					jt[npar][i + 1] = pXYderiv[1][j];
+					jt[npar][i + 0] = pXYderiv[0][j]/par_scales[full_par_index[npar]];
+					jt[npar][i + 1] = pXYderiv[1][j]/par_scales[full_par_index[npar]];
 					npar++;
 				}
-
 			}
 			return jt;
 		}
@@ -424,10 +471,10 @@ public class GeometryCorrection {
 			double [][][] aux_offset_derivs_m = new double[RigOffset.VECTOR_LENGTH][][];
 			for (int npar = 0; npar < RigOffset.VECTOR_LENGTH; npar++ ) {
 				RigOffset ro = rigOffsetClone();
-				rigOffestSetPar(ro, npar, rigOffestGetPar(ro, npar) +delta);
+				rigOffestSetParNorm(ro, npar, rigOffestGetParNorm(ro, npar) +delta);
 				aux_offset_derivs_p[npar] = ro.getAuxOffsetAndDerivatives(gc_main);
 				aux_rot_p[npar]=            ro.getRotMatrix();
-				rigOffestSetPar(ro, npar, rigOffestGetPar(ro, npar) - 2 * delta);
+				rigOffestSetParNorm(ro, npar, rigOffestGetParNorm(ro, npar) - 2 * delta);
 				aux_offset_derivs_m[npar] = ro.getAuxOffsetAndDerivatives(gc_main);
 				aux_rot_m[npar]=            ro.getRotMatrix();
 			}
@@ -436,19 +483,19 @@ public class GeometryCorrection {
 				double [][] pXYderiv =          new double [2][RigOffset.VECTOR_LENGTH];
 				for (int npar = 0; npar < RigOffset.VECTOR_LENGTH; npar++ ) {
 					double [] xy_p = getRigAuxCoordinatesAndDerivatives(
-									gc_main,                   // GeometryCorrection gc_main,
-									aux_rot_p[npar],           // Matrix      aux_rot,
-									null,                      // Matrix []   aux_rot_derivs,
-									aux_offset_derivs_p[npar], // double [][] aux_offset_derivs,
-									null,                      // double [][] pXYderiv, // if not null, should be double[6][]
-									xy_vector[i + 0],  // double px,
-									xy_vector[i + 1],  // double py,
-									d_vector[i >> 1]); // double disparity);
-					double [] xy_m = getRigAuxCoordinatesAndDerivatives(
 							gc_main,                   // GeometryCorrection gc_main,
 							aux_rot_p[npar],           // Matrix      aux_rot,
 							null,                      // Matrix []   aux_rot_derivs,
 							aux_offset_derivs_p[npar], // double [][] aux_offset_derivs,
+							null,                      // double [][] pXYderiv, // if not null, should be double[6][]
+							xy_vector[i + 0],  // double px,
+							xy_vector[i + 1],  // double py,
+							d_vector[i >> 1]); // double disparity);
+					double [] xy_m = getRigAuxCoordinatesAndDerivatives(
+							gc_main,                   // GeometryCorrection gc_main,
+							aux_rot_m[npar],           // Matrix      aux_rot,
+							null,                      // Matrix []   aux_rot_derivs,
+							aux_offset_derivs_m[npar], // double [][] aux_offset_derivs,
 							null,                      // double [][] pXYderiv, // if not null, should be double[6][]
 							xy_vector[i + 0],  // double px,
 							xy_vector[i + 1],  // double py,
@@ -498,6 +545,7 @@ public class GeometryCorrection {
 		}
 
 		public double [] getRigCorrection(
+				double             infinity_importance, // of all measurements
 				boolean            adjust_orientation,
 				boolean            adjust_zoom,
 				boolean            adjust_angle,
@@ -518,7 +566,9 @@ public class GeometryCorrection {
 					adjust_distance,
 					adjust_forward); // not used
 
-			double rms = setupYW(tile_list,
+			double rms = setupYW(
+					infinity_importance, // of all measurements
+					tile_list,
 					qc_main,
 					strength,
 					diff_x, // used only with target_disparity == 0
@@ -530,7 +580,7 @@ public class GeometryCorrection {
 			double [][] jt = getJacobianTransposed( // npe
 					qc_main.geometryCorrection, // GeometryCorrection gc_main,
 					debugLevel);                // int debugLevel)
-			if (debugLevel > -2) {
+			if (debugLevel > 2) {
 				double [][] jt_delta = getJacobianTransposed(
 						1.0E-6,
 						qc_main.geometryCorrection, // GeometryCorrection gc_main,
@@ -645,6 +695,10 @@ public class GeometryCorrection {
 					{ xc_pix,      yc_pix},
 					{dxc_dangle,   dyc_dangle},
 					{dxc_baseline, dyc_baseline}};
+/*			double [][] rslt = {
+					{ -xc_pix,      -yc_pix},
+					{-dxc_dangle,   -dyc_dangle},
+					{-dxc_baseline, -dyc_baseline}}; */
 			return rslt;
 		}
 
@@ -806,23 +860,23 @@ public class GeometryCorrection {
 					"Directly to the right - 0°, directly up - 90°, ...");
 			gd.addNumericField("Auxilliary camera forward from the plane of the main one (not used)", this.aux_z,  3,6,"mm",
 					"Distance from the plane perpendicualr to the main camera axis to the auxiliary camera (positive for aux moved forward)");
-			gd.addNumericField("Auxilliary camera azimuth  (positive - to the right)",                1000.0*focalLength/pixelSize * this.aux_azimuth,  3,6,"pix",
+			gd.addNumericField("Auxilliary camera azimuth  (positive - to the right)",                par_scales[AUX_AZIMUTH_INDEX] * this.aux_azimuth,  3,6,"pix",
 					"Relative to the main camera axis, shift of the center of the image in pixels");
-			gd.addNumericField("Auxilliary camera tilt (positive - looking up)",                      1000.0*focalLength/pixelSize * this.aux_tilt,  3,6,"pix",
+			gd.addNumericField("Auxilliary camera tilt (positive - looking up)",                      par_scales[AUX_TILT_INDEX] * this.aux_tilt,  3,6,"pix",
 					"Relative to the main camera, shift of the center of the image in pixels");
-			gd.addNumericField("Auxilliary camera roll (positive - clockwise)",                       1000.0*distortionRadius/pixelSize * this.aux_roll,  3,6,"pix",
+			gd.addNumericField("Auxilliary camera roll (positive - clockwise)",                       par_scales[AUX_ROLL_INDEX] * this.aux_roll,  3,6,"pix",
 					"Roll of a camera as a whole relative to the main camera, shift at the image half-width from the center");
-			gd.addNumericField("Relative zoom - difference from 1.0 in parts parts per 1/1000",       1000.0*distortionRadius/pixelSize * this.aux_zoom,  3,6,"pix",
+			gd.addNumericField("Relative zoom - difference from 1.0 in parts parts per 1/1000",       par_scales[AUX_ZOOM_INDEX] * this.aux_zoom,  3,6,"pix",
 					"Zoom ratio, shift at the image half-width from the center");
   			gd.showDialog();
 			if (gd.wasCanceled()) return false;
 			this.baseline=     gd.getNextNumber();
 			this.aux_angle=    gd.getNextNumber() * Math.PI/180;
 			this.aux_z=        gd.getNextNumber();
-			this.aux_azimuth=  gd.getNextNumber()/(1000.0*focalLength/pixelSize) ;
-			this.aux_tilt=     gd.getNextNumber()/(1000.0*focalLength/pixelSize);
-			this.aux_roll=     gd.getNextNumber()/(1000.0*distortionRadius/pixelSize);
-			this.aux_zoom=     gd.getNextNumber()/(1000.0*distortionRadius/pixelSize);
+			this.aux_azimuth=  gd.getNextNumber()/par_scales[AUX_AZIMUTH_INDEX] ;
+			this.aux_tilt=     gd.getNextNumber()/par_scales[AUX_TILT_INDEX];
+			this.aux_roll=     gd.getNextNumber()/par_scales[AUX_ROLL_INDEX];
+			this.aux_zoom=     gd.getNextNumber()/par_scales[AUX_ZOOM_INDEX];
 			recalcRXY();
 			return true;
 		}

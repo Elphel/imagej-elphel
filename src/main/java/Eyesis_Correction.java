@@ -1156,7 +1156,7 @@ private Panel panel1,
     	String path= loadProperties(null,CORRECTION_PARAMETERS.resultsDirectory,true, PROPERTIES);
     	if (path != null) {
         	getAllProperties(PROPERTIES);
-    		if (DEBUG_LEVEL > -1) System.out.println("Configuration parameters are restored from "+path);
+    		if (DEBUG_LEVEL > -3) System.out.println("Configuration parameters are restored from "+path);
     	} else {
     		if (DEBUG_LEVEL > -10) System.out.println("Failed to restore configuration parameters");
     	}
@@ -5982,7 +5982,7 @@ private Panel panel1,
 		// TODO Auto-generated catch block
 		e.printStackTrace();
 	 }
-	 if (DEBUG_LEVEL>0) System.out.println("Configuration parameters are saved to "+path);
+	 if (DEBUG_LEVEL> -3) System.out.println("Configuration parameters are saved to "+path);
 
 	}
 

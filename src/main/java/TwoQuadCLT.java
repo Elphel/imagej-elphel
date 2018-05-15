@@ -967,6 +967,7 @@ public class TwoQuadCLT {
 						  disparity_bimap, // double [][]                    src_bimap,       // current state of measurements (or null for new measurement)
 						  null,            // double [][]                                    prev_bimap, // previous state of measurements or null
 						  2,               // int                            refine_mode,     // 0 - by main, 1 - by aux, 2 - by inter
+						  // will still re-measure infinity if refine_min_strength == 0.0
 						  true,            // boolean                        keep_inf,        // keep expected disparity 0.0 if it was so
 						  0.0,             // double refine_min_strength, // do not refine weaker tiles
 						  0.0,             // double refine_tolerance,    // do not refine if absolute disparity below
@@ -986,19 +987,20 @@ public class TwoQuadCLT {
 
 				  // do actual adjustment step, update rig parameters
 				  quadCLT_aux.geometryCorrection.getRigCorrection(
-							clt_parameters.rig.rig_adjust_orientation,        // boolean            adjust_orientation,
-							clt_parameters.rig.rig_adjust_zoom,               // boolean            adjust_zoom,
-							clt_parameters.rig.rig_adjust_angle,              // boolean            adjust_angle,
-							clt_parameters.rig.rig_adjust_distance,           // boolean            adjust_distance,
-							clt_parameters.rig.rig_adjust_forward,            // boolean            adjust_forward, // not used
-							clt_parameters.rig.rig_correction_scale,          // double             scale_correction,
-							tile_list,                                        // ArrayList<Integer> tile_list,
-							quadCLT_main,                                     // QuadCLT            qc_main,
-							disparity_bimap[ImageDtt.BI_STR_CROSS_INDEX],     // double []          strength,
-							disparity_bimap[ImageDtt.BI_DISP_CROSS_DX_INDEX], // double []          diff_x, // used only with target_disparity == 0
-							disparity_bimap[ImageDtt.BI_DISP_CROSS_DY_INDEX], // double []          diff_y,
-							disparity_bimap[ImageDtt.BI_TARGET_INDEX],        // double []          target_disparity,
-							debugLevel+1);
+						  clt_parameters.rig.inf_weight , // double             infinity_importance, // of all measurements
+						  clt_parameters.rig.rig_adjust_orientation,        // boolean            adjust_orientation,
+						  clt_parameters.rig.rig_adjust_zoom,               // boolean            adjust_zoom,
+						  clt_parameters.rig.rig_adjust_angle,              // boolean            adjust_angle,
+						  clt_parameters.rig.rig_adjust_distance,           // boolean            adjust_distance,
+						  clt_parameters.rig.rig_adjust_forward,            // boolean            adjust_forward, // not used
+						  clt_parameters.rig.rig_correction_scale,          // double             scale_correction,
+						  tile_list,                                        // ArrayList<Integer> tile_list,
+						  quadCLT_main,                                     // QuadCLT            qc_main,
+						  disparity_bimap[ImageDtt.BI_STR_CROSS_INDEX],     // double []          strength,
+						  disparity_bimap[ImageDtt.BI_DISP_CROSS_DX_INDEX], // double []          diff_x, // used only with target_disparity == 0
+						  disparity_bimap[ImageDtt.BI_DISP_CROSS_DY_INDEX], // double []          diff_y,
+						  disparity_bimap[ImageDtt.BI_TARGET_INDEX],        // double []          target_disparity,
+						  debugLevel+1);
 
 			  } // end of for (int num_short_cycle = 0; num_short_cycle < clt_parameters.rig.rig_adjust_short_cycles;num_short_cycle++) {
 
@@ -1066,16 +1068,17 @@ public class TwoQuadCLT {
 
 	  /**
 	   * Refine (re-measure with updated expected disparity) tiles. If refine_min_strength and refine_tolerance are both
-	   * set to 0.0, all (or listed) tiles will be re-measured, use camera extrinsics are changed
+	   * set to 0.0, all (or listed) tiles will be re-measured, use camera after extrinsics are changed
+	   * With refine_min_strength == 0, will re-measure infinity (have keep_inf == true)
 	   * @param quadCLT_main main camera QuadCLT instance (should have tp initialized)
 	   * @param quadCLT_aux auxiliary camera QuadCLT instance (should have tp initialized)
 	   * @param double_stacks image data from both cameras converted to double and conditioned
 	   * @param src_bimap results of the older measurements (now includes expected disparity)
 	   * @param prev_bimap results of the even older measurements to interpolate if there was an overshoot
 	   * @param refine_mode reference camera data: 0 - main camera, 1 - aux camera, 2 - cross-camera
-	   * @param keep_inf do not refine expected disparity for infinity
+	   * @param keep_inf do not refine expected disparity for infinity, unless  refine_min_strength == 0
 	   * @param refine_min_strength do not refine weaker tiles
-	   * @param refine_tolerance do not refine if residial disparity (after FD pre-shift by expected disparity) less than this
+	   * @param refine_tolerance do not refine if residual disparity (after FD pre-shift by expected disparity) less than this
 	   * @param tile_list list of selected tiles or null. If null - try to refine all tiles, otherwise - only listed tiles
 	   * @param saturation_main saturated pixels bitmaps for the main camera
 	   * @param saturation_aux saturated pixels bitmaps for the auxiliary camera
@@ -1324,7 +1327,14 @@ public class TwoQuadCLT {
 		  // check if it was measured (skip NAN)
 		  if (Double.isNaN(src_bimap[ImageDtt.BI_TARGET_INDEX][nTile])) return false;
 		  // check if it is infinity and change is prohibited
-		  if (keep_inf && (src_bimap[ImageDtt.BI_TARGET_INDEX][nTile] == 0.0)) return false;
+		  if (keep_inf && (src_bimap[ImageDtt.BI_TARGET_INDEX][nTile] == 0.0)) {
+			  if ((refine_min_strength == 0.0) || (refine_tolerance == 0.0)) {
+				  tile_op[tileY][tileX] = tile_op_all;
+				  disparity_array[tileY][tileX] = 0.0;
+				  return true;
+			  }
+			  return false;
+		  }
 		  double diff_disp, strength, disp_scale, diff_prev;
 		  switch (refine_mode) {
 		  case 0:
@@ -1429,12 +1439,17 @@ public class TwoQuadCLT {
 		  if (select_infinity) {
 			  for (int nTile = 0; nTile < numTiles; nTile++) {
 				  if (    (disparity_bimap[ImageDtt.BI_TARGET_INDEX][nTile] == 0.0 ) && // expected disparity was 0.0 (infinity)
-						  (disparity_bimap[ImageDtt.BI_STR_FULL_INDEX][nTile] >= clt_parameters.rig.inf_min_strength_main)&&
-						  (disparity_bimap[ImageDtt.BI_ASTR_FULL_INDEX][nTile] >= clt_parameters.rig.inf_min_strength_aux)&&
-						  (disparity_bimap[ImageDtt.BI_STR_CROSS_INDEX][nTile] >= clt_parameters.rig.inf_min_strength_rig)&&
-						  (Math.abs(disparity_bimap[ImageDtt.BI_DISP_FULL_INDEX][nTile]) <= clt_parameters.rig.inf_max_disp_main)&&
-						  (Math.abs(disparity_bimap[ImageDtt.BI_ADISP_FULL_INDEX][nTile]) <= clt_parameters.rig.inf_max_disp_aux)&&
-						  (Math.abs(disparity_bimap[ImageDtt.BI_DISP_CROSS_INDEX][nTile]) <= clt_parameters.rig.inf_max_disp_rig)) {
+						  (disparity_bimap[ImageDtt.BI_STR_FULL_INDEX][nTile] >= clt_parameters.rig.inf_min_strength_main) &&
+						  (disparity_bimap[ImageDtt.BI_ASTR_FULL_INDEX][nTile] >= clt_parameters.rig.inf_min_strength_aux) &&
+						  (disparity_bimap[ImageDtt.BI_STR_CROSS_INDEX][nTile] >= clt_parameters.rig.inf_min_strength_rig) &&
+
+						  (disparity_bimap[ImageDtt.BI_DISP_FULL_INDEX][nTile] <= clt_parameters.rig.inf_max_disp_main) &&
+						  (disparity_bimap[ImageDtt.BI_ADISP_FULL_INDEX][nTile] <= clt_parameters.rig.inf_max_disp_aux) &&
+						  (disparity_bimap[ImageDtt.BI_DISP_CROSS_INDEX][nTile] <= clt_parameters.rig.inf_max_disp_rig) &&
+
+						  (disparity_bimap[ImageDtt.BI_DISP_FULL_INDEX][nTile] >= -clt_parameters.rig.inf_max_disp_main) &&
+						  (disparity_bimap[ImageDtt.BI_ADISP_FULL_INDEX][nTile] >= -clt_parameters.rig.inf_max_disp_aux) &&
+						  (disparity_bimap[ImageDtt.BI_DISP_CROSS_INDEX][nTile] >= -clt_parameters.rig.inf_max_disp_rig * clt_parameters.rig.inf_neg_tolerance)) {
 					  tilesList.add(nTile);
 				  }
 			  }
@@ -1445,9 +1460,14 @@ public class TwoQuadCLT {
 						  (disparity_bimap[ImageDtt.BI_STR_FULL_INDEX][nTile] >= clt_parameters.rig.inf_min_strength_main)&&
 						  (disparity_bimap[ImageDtt.BI_ASTR_FULL_INDEX][nTile] >= clt_parameters.rig.inf_min_strength_aux)&&
 						  (disparity_bimap[ImageDtt.BI_STR_CROSS_INDEX][nTile] >= clt_parameters.rig.inf_min_strength_rig)&&
-						  (Math.abs(disparity_bimap[ImageDtt.BI_DISP_FULL_INDEX][nTile]) <= clt_parameters.rig.near_max_disp_main)&&
-						  (Math.abs(disparity_bimap[ImageDtt.BI_ADISP_FULL_INDEX][nTile]) <= clt_parameters.rig.near_max_disp_aux)&&
-						  (Math.abs(disparity_bimap[ImageDtt.BI_DISP_CROSS_INDEX][nTile]) <= clt_parameters.rig.near_max_disp_rig)) {
+
+						  (disparity_bimap[ImageDtt.BI_DISP_FULL_INDEX][nTile] <= clt_parameters.rig.inf_max_disp_main) &&
+						  (disparity_bimap[ImageDtt.BI_ADISP_FULL_INDEX][nTile] <= clt_parameters.rig.inf_max_disp_aux) &&
+						  (disparity_bimap[ImageDtt.BI_DISP_CROSS_INDEX][nTile] <= clt_parameters.rig.inf_max_disp_rig) &&
+
+						  (disparity_bimap[ImageDtt.BI_DISP_FULL_INDEX][nTile] >= -clt_parameters.rig.inf_max_disp_main) &&
+						  (disparity_bimap[ImageDtt.BI_ADISP_FULL_INDEX][nTile] >= -clt_parameters.rig.inf_max_disp_aux) &&
+						  (disparity_bimap[ImageDtt.BI_DISP_CROSS_INDEX][nTile] >= -clt_parameters.rig.inf_max_disp_rig * clt_parameters.rig.inf_neg_tolerance)) {
 					  tilesList.add(nTile);
 				  }
 			  }

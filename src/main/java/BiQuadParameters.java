@@ -36,7 +36,9 @@ public class BiQuadParameters {
 	public double  inf_min_strength_rig =      0.25;
 	public double  inf_max_disp_main =         0.15;
 	public double  inf_max_disp_aux =          0.15;
-	public double  inf_max_disp_rig =          0.5;    // maybe even higher (2.0) to lock to initially high mismatch
+	public double  inf_max_disp_rig =          0.2;    // maybe even higher (2.0) to lock to initially high mismatch
+	public double  inf_neg_tolerance =         2.5;    // increase negative disparity for infinity tolerance
+	public double  inf_weight =                0.7;    // weight of infinity measurements of all measurements
 
 	public double  first_max_disp_main =       0.5;    // before refinement
 	public double  first_max_disp_aux =        0.5;
@@ -86,6 +88,10 @@ public class BiQuadParameters {
 				"Do not use tile for infinity adjustment if absolute value of the main camera disparity is too high");
 		gd.addNumericField("Maximal absolute value of inter-camera disparity to use for infinity rig adjustment", this.inf_max_disp_rig,  3,6,"pix",
 				"Do not use tile for infinity adjustment if absolute value of the inter-camera disparity is too high");
+		gd.addNumericField("Loosen negative disparity tolerance for infinity",                                    this.inf_neg_tolerance,  3,6,"",
+				"Allow farther negative than positive disparity tiles for infinity (only for main/rig pair)");
+		gd.addNumericField("Weight of infinity measurements in all measurements",                                 this.inf_weight,  3,6,"",
+				"Set importance of infinity matching among all measurements");
 
 
 		gd.addNumericField("Maximal absolute value of main camera disparity difference near objects, before refinement", this.first_max_disp_main,  3,6,"pix",
@@ -143,7 +149,8 @@ public class BiQuadParameters {
 		this.inf_max_disp_main=             gd.getNextNumber();
 		this.inf_max_disp_aux=              gd.getNextNumber();
 		this.inf_max_disp_rig=              gd.getNextNumber();
-
+		this.inf_neg_tolerance=             gd.getNextNumber();
+		this.inf_weight=                    gd.getNextNumber();
 		this.first_max_disp_main=           gd.getNextNumber();
 		this.first_max_disp_aux=            gd.getNextNumber();
 		this.first_max_disp_rig=            gd.getNextNumber();
@@ -181,6 +188,9 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"inf_max_disp_main",         this.inf_max_disp_main+"");
 		properties.setProperty(prefix+"inf_max_disp_aux",          this.inf_max_disp_aux+"");
 		properties.setProperty(prefix+"inf_max_disp_rig",          this.inf_max_disp_rig+"");
+		properties.setProperty(prefix+"inf_neg_tolerance",         this.inf_neg_tolerance+"");
+		properties.setProperty(prefix+"inf_weight",                this.inf_weight+"");
+
 
 		properties.setProperty(prefix+"first_max_disp_main",       this.first_max_disp_main+"");
 		properties.setProperty(prefix+"first_max_disp_aux",        this.first_max_disp_aux+"");
@@ -219,6 +229,8 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"inf_max_disp_main")!=null)     this.inf_max_disp_main=Double.parseDouble(properties.getProperty(prefix+"inf_max_disp_main"));
 		if (properties.getProperty(prefix+"inf_max_disp_aux")!=null)      this.inf_max_disp_aux=Double.parseDouble(properties.getProperty(prefix+"inf_max_disp_aux"));
 		if (properties.getProperty(prefix+"inf_max_disp_rig")!=null)      this.inf_max_disp_rig=Double.parseDouble(properties.getProperty(prefix+"inf_max_disp_rig"));
+		if (properties.getProperty(prefix+"inf_neg_tolerance")!=null)     this.inf_neg_tolerance=Double.parseDouble(properties.getProperty(prefix+"inf_neg_tolerance"));
+		if (properties.getProperty(prefix+"inf_weight")!=null)            this.inf_weight=Double.parseDouble(properties.getProperty(prefix+"inf_weight"));
 
 		if (properties.getProperty(prefix+"first_max_disp_main")!=null)     this.first_max_disp_main=Double.parseDouble(properties.getProperty(prefix+"first_max_disp_main"));
 		if (properties.getProperty(prefix+"first_max_disp_aux")!=null)      this.first_max_disp_aux=Double.parseDouble(properties.getProperty(prefix+"first_max_disp_aux"));
@@ -257,6 +269,8 @@ public class BiQuadParameters {
 		bqp.inf_max_disp_main =         this.inf_max_disp_main;
 		bqp.inf_max_disp_aux =          this.inf_max_disp_aux;
 		bqp.inf_max_disp_rig =          this.inf_max_disp_rig;
+		bqp.inf_neg_tolerance =         this.inf_neg_tolerance;
+		bqp.inf_weight =                this.inf_weight;
 
 		bqp.first_max_disp_main=        this.first_max_disp_main;
 		bqp.first_max_disp_aux=         this.first_max_disp_aux;
@@ -279,7 +293,6 @@ public class BiQuadParameters {
 		bqp.rig_adjust_distance=        this.rig_adjust_distance;
 		bqp.rig_adjust_forward=         this.rig_adjust_forward;
 		bqp.rig_correction_scale=       this.rig_correction_scale;
-
 		return bqp;
 
 
