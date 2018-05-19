@@ -65,6 +65,25 @@ public class BiQuadParameters {
 	public boolean rig_adjust_forward =        false;  // aux camera forward from the principal plane (not implemented)
 	public double  rig_correction_scale=       1.0;    // scale calculaated correction
 
+	public int     min_new =                   100;    // Minimal number of he new tiles during rig refine
+	public int     num_inf_refine =            20;     // Number of infinity refine passes
+	public int     num_near_refine =           20;     // Number of non-infinity refine passes
+	public double  min_trusted_strength =      0.1;//14// Minimal trusted combo strength;
+	public double  trusted_tolerance  =        1.0;    // Trusted tolerance for small baseline camera(s)
+
+	public int     ml_hwidth =                 2;      // Half-width of the ML tiles to export (0-> 1x1, 1->3x3, 2 -> 5x5)
+	public double  ml_disparity_sweep  =       2.0;    // Disparity sweep around ground truth, each side
+	public int     ml_sweep_steps =            5;      // Number of disparity sweep steps
+
+	public boolean ml_keep_aux =               true; // include auxiliary camera data in the ML output
+	public boolean ml_keep_inter =             true; // include inter-camera correlation data in the ML output
+	public boolean ml_keep_hor_vert =          true; // include combined horizontal and vertical pairs data in the ML output
+	public boolean ml_keep_debug=              true; // include debug layer(s) data in the ML output
+	public boolean ml_8bit=                    true; // output in 8-bit format (default - 32-bit TIFF
+	public boolean ml_show_ml =                true; // show each generated MLoutput file
+
+
+
 
 
 	public void dialogQuestions(GenericJTabbedDialog gd) {
@@ -136,6 +155,39 @@ public class BiQuadParameters {
 		gd.addCheckbox    ("Adjust aux camera distance from the main principal plane",                            this.rig_adjust_forward,"Not implemented, assumed zero");
 		gd.addNumericField("Scale calculated correction before applying",                                         this.rig_correction_scale,  3,6,"",
 				"Debug feature");
+
+		gd.addNumericField("Minimal number of he new tiles during rig refine",                                    this.min_new,  0,3,"",
+				"Exit from refine infinity cycle if number of new refine candidates is less than this number");
+		gd.addNumericField("Number of infinity refine passes",                                                    this.num_inf_refine,  0,3,"",
+				"Exit from refine non- infinity cycle if number of new refine candidates is less than this number");
+		gd.addNumericField("Number of non-infinity refine passes",                                                this.num_near_refine,  0,3,"",
+				"Re-scan only previously selected tiles");
+		gd.addNumericField("Minimal trusted combo strength",                                                      this.min_trusted_strength,  3,6,"",
+				"Combo strength is cubic root of the product of main, aux and intyer correlation strengths");
+		gd.addNumericField("Trusted tolerance for small baseline camera(s)",                                      this.trusted_tolerance,  3,6,"",
+				"When downscaling valid residual disparity from the most sensitive inter-camera, do not reduce it to be lower than this");
+
+        gd.addTab("ML","Parameters related to the ML files generation for the dual-quad camera rig");
+
+		gd.addNumericField("Half-width of the ML tiles to export (0-> 1x1, 1->3x3, 2 -> 5x5)",                    this.ml_hwidth,  0,3,"",
+				"Amount of data to export to the ML system");
+		gd.addNumericField("Disparity sweep around ground truth, each side",                                      this.ml_disparity_sweep,  3,6,"",
+				"Sweep symmetrically target disparity around the ground truth disparity, each side");
+		gd.addNumericField("Number of target disparity sweep steps",                                                               this.ml_sweep_steps,  0,3,"",
+				"Generate this many files for each file set. Each tile results depend on the target disparity and this tile data, do not depend on other tiles target disparity");
+		gd.addCheckbox    ("Include auxiliary camera data in the ML output",                                      this.ml_keep_aux,
+				"ML output will have the second set of the layers for the auxiliary camera. Disparity values should be scaled for the camera baseline");
+		gd.addCheckbox    ("Keep inter-camera correlation data",                                                  this.ml_keep_inter,
+				"Inter-camera correlation data has only one layer (and one correlation pair). It is used to generate ground truth data. Usable disparity range (measured in the main camera pixels) is ~1/5 of teh main camera");
+		gd.addCheckbox    ("Keep combine horizonta/vertical pairs",                                               this.ml_keep_hor_vert,
+				"Each of these two layers per camera are calculated from a pair of top/bottom and left/right pairs. Can possibly be used instead of originals to reduce amount of input data");
+		gd.addCheckbox    ("Keep debug layer(s)",                                                                 this.ml_keep_debug,
+				"Keep additional (debug) layers that may change for different file versions");
+		gd.addCheckbox    ("Use 8 bpp TIFF (default - 32 bpp)",                                                   this.ml_8bit,
+				"Reduce file size by lowering bpp");
+		gd.addCheckbox    ("Show each generated ML file",                                                         this.ml_show_ml,
+				"Use only for small number of generated files to reduce memory usage");
+
 	}
 	public void dialogAnswers(GenericJTabbedDialog gd) {
 		this.rig_mode_debug=                gd.getNextBoolean();
@@ -160,8 +212,8 @@ public class BiQuadParameters {
 		this.near_max_disp_aux=             gd.getNextNumber();
 		this.near_max_disp_rig=             gd.getNextNumber();
 
-		this.refine_min_strength=             gd.getNextNumber();
-		this.refine_tolerance=             gd.getNextNumber();
+		this.refine_min_strength=           gd.getNextNumber();
+		this.refine_tolerance=              gd.getNextNumber();
 
 		this.rig_disp_range=                gd.getNextNumber();
 		this.rig_num_disp_steps=      (int) gd.getNextNumber();
@@ -174,6 +226,22 @@ public class BiQuadParameters {
 		this.rig_adjust_distance=           gd.getNextBoolean();
 		this.rig_adjust_forward=            gd.getNextBoolean();
 		this.rig_correction_scale=          gd.getNextNumber();
+
+		this.min_new=                 (int) gd.getNextNumber();
+		this.num_inf_refine=          (int) gd.getNextNumber();
+		this.num_near_refine=         (int) gd.getNextNumber();
+		this.min_trusted_strength=          gd.getNextNumber();
+		this.trusted_tolerance=             gd.getNextNumber();
+
+		this.ml_hwidth=               (int) gd.getNextNumber();
+		this.ml_disparity_sweep=            gd.getNextNumber();
+		this.ml_sweep_steps=          (int) gd.getNextNumber();
+		this.ml_keep_aux=                   gd.getNextBoolean();
+		this.ml_keep_inter=                 gd.getNextBoolean();
+		this.ml_keep_hor_vert=              gd.getNextBoolean();
+		this.ml_keep_debug=                 gd.getNextBoolean();
+		this.ml_8bit=                       gd.getNextBoolean();
+		this.ml_show_ml=                    gd.getNextBoolean();
 	}
 
 	public void setProperties(String prefix,Properties properties){
@@ -201,8 +269,8 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"near_max_disp_aux",         this.near_max_disp_aux+"");
 		properties.setProperty(prefix+"near_max_disp_rig",         this.near_max_disp_rig+"");
 
-		properties.setProperty(prefix+"refine_min_strength",         this.refine_min_strength+"");
-		properties.setProperty(prefix+"refine_tolerance",         this.refine_tolerance+"");
+		properties.setProperty(prefix+"refine_min_strength",       this.refine_min_strength+"");
+		properties.setProperty(prefix+"refine_tolerance",          this.refine_tolerance+"");
 
 		properties.setProperty(prefix+"rig_disp_range",            this.rig_disp_range+"");
 		properties.setProperty(prefix+"rig_num_disp_steps",        this.rig_num_disp_steps+"");
@@ -215,6 +283,23 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"rig_adjust_distance",       this.rig_adjust_distance+"");
 		properties.setProperty(prefix+"rig_adjust_forward",        this.rig_adjust_forward+"");
 		properties.setProperty(prefix+"rig_correction_scale",      this.rig_correction_scale+"");
+
+		properties.setProperty(prefix+"min_new",                   this.min_new+"");
+		properties.setProperty(prefix+"num_inf_refine",            this.num_inf_refine+"");
+		properties.setProperty(prefix+"num_near_refine",           this.num_near_refine+"");
+		properties.setProperty(prefix+"min_trusted_strength",      this.min_trusted_strength+"");
+		properties.setProperty(prefix+"trusted_tolerance",         this.trusted_tolerance+"");
+
+		properties.setProperty(prefix+"ml_hwidth",                 this.ml_hwidth+"");
+		properties.setProperty(prefix+"ml_disparity_sweep",        this.ml_disparity_sweep+"");
+		properties.setProperty(prefix+"ml_sweep_steps",            this.ml_sweep_steps+"");
+		properties.setProperty(prefix+"ml_keep_aux",               this.ml_keep_aux+"");
+		properties.setProperty(prefix+"ml_keep_inter",             this.ml_keep_inter+"");
+		properties.setProperty(prefix+"ml_keep_hor_vert",          this.ml_keep_hor_vert+"");
+		properties.setProperty(prefix+"ml_keep_debug",             this.ml_keep_debug+"");
+		properties.setProperty(prefix+"ml_8bit",                   this.ml_8bit+"");
+		properties.setProperty(prefix+"ml_show_ml",                this.ml_show_ml+"");
+
 
 	}
 	public void getProperties(String prefix,Properties properties){
@@ -246,14 +331,29 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"rig_num_disp_steps")!=null)      this.rig_num_disp_steps=Integer.parseInt(properties.getProperty(prefix+"rig_num_disp_steps"));
 		if (properties.getProperty(prefix+"rig_adjust_full_cycles")!=null)  this.rig_adjust_full_cycles=Integer.parseInt(properties.getProperty(prefix+"rig_adjust_full_cycles"));
 		if (properties.getProperty(prefix+"rig_adjust_short_cycles")!=null) this.rig_adjust_short_cycles=Integer.parseInt(properties.getProperty(prefix+"rig_adjust_short_cycles"));
-		if (properties.getProperty(prefix+"rig_adjust_short_threshold")!=null)   this.rig_adjust_short_threshold=Double.parseDouble(properties.getProperty(prefix+"rig_adjust_short_threshold"));
-		if (properties.getProperty(prefix+"rig_adjust_orientation")!=null)       this.rig_adjust_orientation=Boolean.parseBoolean(properties.getProperty(prefix+"rig_adjust_orientation"));
+		if (properties.getProperty(prefix+"rig_adjust_short_threshold")!=null) this.rig_adjust_short_threshold=Double.parseDouble(properties.getProperty(prefix+"rig_adjust_short_threshold"));
+		if (properties.getProperty(prefix+"rig_adjust_orientation")!=null)     this.rig_adjust_orientation=Boolean.parseBoolean(properties.getProperty(prefix+"rig_adjust_orientation"));
 		if (properties.getProperty(prefix+"rig_adjust_zoom")!=null)         this.rig_adjust_zoom=Boolean.parseBoolean(properties.getProperty(prefix+"rig_adjust_zoom"));
 		if (properties.getProperty(prefix+"rig_adjust_angle")!=null)        this.rig_adjust_angle=Boolean.parseBoolean(properties.getProperty(prefix+"rig_adjust_angle"));
 		if (properties.getProperty(prefix+"rig_adjust_distance")!=null)     this.rig_adjust_distance=Boolean.parseBoolean(properties.getProperty(prefix+"rig_adjust_distance"));
 		if (properties.getProperty(prefix+"rig_adjust_forward")!=null)      this.rig_adjust_forward=Boolean.parseBoolean(properties.getProperty(prefix+"rig_adjust_forward"));
 		if (properties.getProperty(prefix+"rig_correction_scale")!=null)    this.rig_correction_scale=Double.parseDouble(properties.getProperty(prefix+"rig_correction_scale"));
 
+		if (properties.getProperty(prefix+"min_new")!=null)                 this.min_new=Integer.parseInt(properties.getProperty(prefix+"min_new"));
+		if (properties.getProperty(prefix+"num_inf_refine")!=null)          this.num_inf_refine=Integer.parseInt(properties.getProperty(prefix+"num_inf_refine"));
+		if (properties.getProperty(prefix+"num_near_refine")!=null)         this.num_near_refine=Integer.parseInt(properties.getProperty(prefix+"num_near_refine"));
+		if (properties.getProperty(prefix+"min_trusted_strength")!=null)    this.min_trusted_strength=Double.parseDouble(properties.getProperty(prefix+"min_trusted_strength"));
+		if (properties.getProperty(prefix+"trusted_tolerance")!=null)       this.trusted_tolerance=Double.parseDouble(properties.getProperty(prefix+"trusted_tolerance"));
+		if (properties.getProperty(prefix+"ml_hwidth")!=null)               this.ml_hwidth=Integer.parseInt(properties.getProperty(prefix+"ml_hwidth"));
+
+		if (properties.getProperty(prefix+"ml_disparity_sweep")!=null)      this.ml_disparity_sweep=Double.parseDouble(properties.getProperty(prefix+"ml_disparity_sweep"));
+		if (properties.getProperty(prefix+"ml_sweep_steps")!=null)          this.ml_sweep_steps=Integer.parseInt(properties.getProperty(prefix+"ml_sweep_steps"));
+		if (properties.getProperty(prefix+"ml_keep_aux")!=null)             this.ml_keep_aux=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_aux"));
+		if (properties.getProperty(prefix+"ml_keep_inter")!=null)           this.ml_keep_inter=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_inter"));
+		if (properties.getProperty(prefix+"ml_keep_hor_vert")!=null)        this.ml_keep_hor_vert=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_hor_vert"));
+		if (properties.getProperty(prefix+"ml_keep_debug")!=null)           this.ml_keep_debug=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_debug"));
+		if (properties.getProperty(prefix+"ml_8bit")!=null)                 this.ml_8bit=Boolean.parseBoolean(properties.getProperty(prefix+"ml_8bit"));
+		if (properties.getProperty(prefix+"ml_show_ml")!=null)              this.ml_show_ml=Boolean.parseBoolean(properties.getProperty(prefix+"ml_show_ml"));
 	}
 	@Override
 	public BiQuadParameters clone() throws CloneNotSupportedException {
@@ -293,6 +393,22 @@ public class BiQuadParameters {
 		bqp.rig_adjust_distance=        this.rig_adjust_distance;
 		bqp.rig_adjust_forward=         this.rig_adjust_forward;
 		bqp.rig_correction_scale=       this.rig_correction_scale;
+
+		bqp.min_new=                    this.min_new;
+		bqp.num_inf_refine=             this.num_inf_refine;
+		bqp.num_near_refine=            this.num_near_refine;
+		bqp.min_trusted_strength=       this.min_trusted_strength;
+		bqp.trusted_tolerance=          this.trusted_tolerance;
+
+		bqp.ml_hwidth=                  this.ml_hwidth;
+		bqp.ml_disparity_sweep=         this.ml_disparity_sweep;
+		bqp.ml_sweep_steps=             this.ml_sweep_steps;
+		bqp.ml_keep_aux=                this.ml_keep_aux;
+		bqp.ml_keep_inter=              this.ml_keep_inter;
+		bqp.ml_keep_hor_vert=           this.ml_keep_hor_vert;
+		bqp.ml_keep_debug=              this.ml_keep_debug;
+		bqp.ml_8bit=                    this.ml_8bit;
+		bqp.ml_show_ml=                 this.ml_show_ml;
 		return bqp;
 
 

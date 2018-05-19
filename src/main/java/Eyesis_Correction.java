@@ -582,8 +582,10 @@ private Panel panel1,
 			addButton("CLT 2*4 images",             panelClt4, color_conf_process);
 			addButton("CLT 2*4 images - 2",         panelClt4, color_conf_process);
 			addButton("CLT 2*4 images - 3",         panelClt4, color_conf_process);
-			addButton("Rig infinity calibration",         panelClt4, color_conf_process);
+			addButton("Rig infinity calibration",   panelClt4, color_conf_process);
+			addButton("AUX Extrinsics",             panelClt4, color_process);
 			addButton("AUX show fine",              panelClt4, color_configure);
+			addButton("Rig enhance",                panelClt4, color_conf_process);
 
 			add(panelClt4);
 		}
@@ -4091,6 +4093,11 @@ private Panel panel1,
         	}
         }
         QUAD_CLT.listGeometryCorrection(true);
+        if (QUAD_CLT_AUX  != null) { // Only show auxiliary camera geometry if it is initialized
+        	System.out.println("\n === Auxiliary camera ===");
+            QUAD_CLT_AUX.listGeometryCorrection(true);
+        }
+
         return;
     } else if (label.equals("CLT show fine corr")) {
         if (QUAD_CLT == null){
@@ -4255,7 +4262,6 @@ private Panel panel1,
 
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
         int numChannels=EYESIS_CORRECTIONS.getNumChannels();
-//        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
         CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
 
         if (!QUAD_CLT.CLTKernelsAvailable()){
@@ -4301,6 +4307,80 @@ private Panel panel1,
         		DEBUG_LEVEL); //final int        debugLevel);
 
 
+
+
+        if (configPath!=null) {
+        	saveTimestampedProperties( // save config again
+        			configPath,      // full path or null
+        			null, // use as default directory if path==null
+        			true,
+        			PROPERTIES);
+        }
+        return;
+    } else if (label.equals("AUX Extrinsics") || label.equals("AUX Poly corr")) {
+    	boolean adjust_extrinsics = label.equals("AUX Extrinsics") || label.equals("AUX Poly corr");
+    	boolean adjust_poly = label.equals("AUX Poly corr");
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        if (QUAD_CLT_AUX == null){
+        	if (EYESIS_CORRECTIONS_AUX == null) {
+        		EYESIS_CORRECTIONS_AUX = new EyesisCorrections(SYNC_COMMAND.stopRequested,CORRECTION_PARAMETERS.getAux());
+        	}
+        	QUAD_CLT_AUX = new  QuadCLT (
+        			QuadCLT.PREFIX_AUX,
+        			PROPERTIES,
+        			EYESIS_CORRECTIONS_AUX,
+        			CORRECTION_PARAMETERS.getAux());
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Created new QuadCLT instance for AUX camera, will need to read CLT kernels for aux camera");
+        	}
+        }
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return;
+
+    	EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL);
+        int numChannelsAux=EYESIS_CORRECTIONS_AUX.getNumChannels();
+        CHANNEL_GAINS_PARAMETERS_AUX.modifyNumChannels(numChannelsAux);
+
+        if (!QUAD_CLT_AUX.CLTKernelsAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Reading AUX CLT kernels");
+        	}
+        	QUAD_CLT_AUX.readCLTKernels(
+            		CLT_PARAMETERS,
+                    THREADS_MAX,
+                    UPDATE_STATUS, // update status info
+            		DEBUG_LEVEL);
+
+            if (DEBUG_LEVEL > 1){
+            	QUAD_CLT_AUX.showCLTKernels(
+            			THREADS_MAX,
+            			UPDATE_STATUS, // update status info
+            			DEBUG_LEVEL);
+        	}
+        }
+
+        if (!QUAD_CLT_AUX.geometryCorrectionAvailable()){
+        	if (DEBUG_LEVEL > 0){
+        		System.out.println("Calculating geometryCorrection for AUX camera");
+        	}
+        	if (!QUAD_CLT_AUX.initGeometryCorrection(DEBUG_LEVEL+2)){
+        		return;
+        	}
+        }
+
+        QUAD_CLT_AUX.processCLTQuads3d(
+        		adjust_extrinsics, // boolean adjust_extrinsics,
+        		adjust_poly,       // boolean adjust_poly,
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+        		CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
 
 
         if (configPath!=null) {
@@ -4502,7 +4582,15 @@ private Panel panel1,
         QuadCLT dbg_QUAD_CLT_AUX = QUAD_CLT_AUX;
 
         return;
-        /* ======================================================================== */
+/* ======================================================================== */
+    } else if (label.equals("Rig enhance")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+    	enhanceByRig();
+
+    	return;
+
+/* ======================================================================== */
     } else if (label.equals("CLT rig edit")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
         if (QUAD_CLT_AUX == null){
@@ -4915,6 +5003,38 @@ private Panel panel1,
         			PROPERTIES);
         }
 		return true;
+	}
+
+
+	public boolean enhanceByRig() {
+		if (!prepareRigImages()) return false;
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return false;
+
+    	if (DEBUG_LEVEL > -2){
+    		System.out.println("++++++++++++++ Enhancing single-camera DSI by the dual-camera rig++++++++++++++");
+    	}
+    	try {
+    		TWO_QUAD_CLT.enhanceByRig( // actually there is no sense to process multiple image sets. Combine with other processing?
+    				QUAD_CLT, // QuadCLT quadCLT_main,
+    				QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+    				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+    				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+    				UPDATE_STATUS, //final boolean    updateStatus,
+    				DEBUG_LEVEL);
+    	} catch (Exception e) {
+    		// TODO Auto-generated catch block
+    		e.printStackTrace();
+    	} //final int        debugLevel);
+
+    	if (configPath!=null) {
+    		saveTimestampedProperties( // save config again
+    				configPath,      // full path or null
+    				null, // use as default directory if path==null
+    				true,
+    				PROPERTIES);
+    	}
+    	return true;
 	}
 
 

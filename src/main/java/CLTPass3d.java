@@ -512,7 +512,7 @@ public class CLTPass3d{
 		 *
 		 * Replace weak by a weighted average of non-weak. If there are none - use weak ones, including this one too.
 		 */
-		public boolean[] replaceWeakOutlayers(
+		public boolean[] replaceWeakOutliers(
 				final boolean [] selection,
 				final double weakStrength,    // strength to be considered weak, subject to this replacement
 				final double maxDiff,
@@ -546,7 +546,7 @@ public class CLTPass3d{
 									(disparity[nTile] < absMinDisparity) ||
 									(disparity[nTile] > absMaxDisparity))&& ((selection == null) || selection[nTile])) {
 								if (nTile == dbg_nTile){
-									System.out.println("replaceWeakOutlayers():1 nTile="+nTile);
+									System.out.println("replaceWeakOutliers():1 nTile="+nTile);
 								}
 								double [] dbg_disparity = disparity;
 								double dbg_disparity_nTile = disparity[nTile];
@@ -602,7 +602,7 @@ public class CLTPass3d{
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
 							if (nTile == dbg_nTile){
-								System.out.println("replaceWeakOutlayers():2 nTile="+nTile);
+								System.out.println("replaceWeakOutliers():2 nTile="+nTile);
 							}
 							if (weakOutlayers[nTile]) {
 								double sw = 0.0, sd = 0.0;

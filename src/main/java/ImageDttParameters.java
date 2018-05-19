@@ -75,9 +75,9 @@ public class ImageDttParameters {
 	public boolean cnvx_add3x3 =            true;  // always select 3x3 cells around integer maximum
 
 	// Used for common interpolated stripes
-	public int     corr_wndy_size =         9;     // number of rows to calculate CM disparity
-	public double  corr_wndy_hwidth =       6.0;   // 50% window cutoff height
-	public double  corr_wndy_blur =         5.0;   // 100% to 0 % vertical transition range
+	public int     corr_wndy_size =         2;   // 9;     // number of rows to calculate CM disparity
+	public double  corr_wndy_hwidth =       1.0; // 6.0;   // 50% window cutoff height
+	public double  corr_wndy_blur =         1.0; // 5.0;   // 100% to 0 % vertical transition range
 	public int     corr_wndx_size =         9;     // half number of columns to calculate CM disparity (each row has only odd/even columns, so disparity range is smaller
 	public double  corr_wndx_hwidth =       6.0;   // 50% window cutoff width
 	public double  corr_wndx_blur =         5.0;   // 100% to 0 % vertical transition range

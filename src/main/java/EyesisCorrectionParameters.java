@@ -134,11 +134,12 @@ public class EyesisCorrectionParameters {
     	public String x3dModelVersion="v01";
     	public String x3dDirectory="";
 
+    	public String mlDirectory="";
 
     	public CorrectionParameters getAux() {
     		return aux_camera;
     	}
-    	public CorrectionParameters aux_camera = null; // auxiliarry camera parameters
+    	public CorrectionParameters aux_camera = null; // auxiliary camera parameters
 //  		public boolean use_aux =             true;  // Generate debug images if a single set is selected
 		public void updateAuxFromMain() { // from master to aux
 			if (aux_camera == null) {
@@ -222,13 +223,10 @@ public class EyesisCorrectionParameters {
   			cp.referenceExposure=    	this.referenceExposure;
   			cp.relativeExposure=    	this.relativeExposure;
   			cp.swapSubchannels01=    	this.swapSubchannels01;
-//  			cp.cltKernelDirectory=    	this.cltKernelDirectory;
-//  			cp.cltKernelPrefix=    		this.cltKernelPrefix;
-//  			cp.cltSuffix=               this.cltSuffix;
   			cp.x3dDirectory=    		this.x3dDirectory;
+  			cp.mlDirectory=    	     	this.mlDirectory;
   			cp.use_x3d_subdirs=    		this.use_x3d_subdirs;
   			cp.x3dSubdirPrefix=    		this.x3dSubdirPrefix;
-// 			cp.x3dSubdirSuffix=    		this.x3dSubdirSuffix;
   			cp.x3dModelVersion=    		this.x3dModelVersion;
   			cp.clt_batch_apply_man=		this.clt_batch_apply_man;
   			cp.clt_batch_extrinsic=		this.clt_batch_extrinsic;
@@ -365,9 +363,9 @@ public class EyesisCorrectionParameters {
 
     		properties.setProperty(prefix+"x3dSubdirPrefix",       this.x3dSubdirPrefix+"");
     		properties.setProperty(prefix+"x3dSubdirSuffix",       this.x3dSubdirSuffix+"");
-
-
     		properties.setProperty(prefix+"x3dModelVersion",       this.x3dModelVersion);
+
+    		properties.setProperty(prefix+"mlDirectory",           this.mlDirectory);
 
     		properties.setProperty(prefix+"clt_batch_apply_man",   this.clt_batch_apply_man+"");
     		properties.setProperty(prefix+"clt_batch_extrinsic",   this.clt_batch_extrinsic+"");
@@ -494,6 +492,8 @@ public class EyesisCorrectionParameters {
 
 			if (properties.getProperty(prefix+"x3dModelVersion")!=      null) this.x3dModelVersion=properties.getProperty(prefix+"x3dModelVersion");
 
+			if (properties.getProperty(prefix+"mlDirectory")!=          null) this.mlDirectory=properties.getProperty(prefix+"mlDirectory");
+
 			if (properties.getProperty(prefix+"clt_batch_apply_man")!= null) this.clt_batch_apply_man=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_apply_man"));
 			if (properties.getProperty(prefix+"clt_batch_extrinsic")!= null) this.clt_batch_extrinsic=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_extrinsic"));
 			if (properties.getProperty(prefix+"clt_batch_poly")!= null)      this.clt_batch_poly=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_poly"));
@@ -599,6 +599,8 @@ public class EyesisCorrectionParameters {
     				"When using timestamp as a subdirectory, add this prefix");
     		gd.addStringField ("x3d subdirectory suffix",                          this.x3dSubdirSuffix, 10,
     				"When using timestamp as a subdirectory, add this suffix");
+    		gd.addStringField ("ML output directory",                              this.mlDirectory, 60);
+    		gd.addCheckbox    ("Select ML output directory",                      false);
 
     		gd.addStringField("Equirectangular maps directory (may be empty)",     this.equirectangularDirectory, 60);
     		gd.addCheckbox("Select equirectangular maps directory",                false);
@@ -693,6 +695,8 @@ public class EyesisCorrectionParameters {
     		this.x3dSubdirPrefix=        gd.getNextString();
     		this.x3dSubdirSuffix=        gd.getNextString();
 
+    		this.mlDirectory=            gd.getNextString(); if (gd.getNextBoolean()) selectMlDirectory(false, true);
+
     		this.equirectangularDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectEquirectangularDirectory(false, false);
     		this.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) selectResultsDirectory(false, true);
     		this.sourcePrefix=           gd.getNextString();
@@ -749,6 +753,8 @@ public class EyesisCorrectionParameters {
     		gd.addStringField ("x3d subdirectory prefix",                          this.x3dSubdirPrefix, 10,    // 14a
     				"When using timestamp as a subdirectory, add this prefix");
 
+    		gd.addStringField ("ML output directory",                              this.mlDirectory, 60);       // 8d
+    		gd.addCheckbox    ("Select ML output directory",                       false);                      // 8e
 
 			gd.addMessage     ("============ Main camera============");
 
@@ -823,6 +829,7 @@ public class EyesisCorrectionParameters {
     		this.sourcePrefix=           gd.getNextString();  // 13
     		this.sourceSuffix=           gd.getNextString();  // 14
     		this.x3dSubdirPrefix=        gd.getNextString();  // 14a
+    		this.mlDirectory=            gd.getNextString(); if (gd.getNextBoolean()) selectMlDirectory(false, true);       // 8d
 
 // main camera
     		this.sensorDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSensorDirectory(false, false);   // 5
@@ -1403,6 +1410,17 @@ public class EyesisCorrectionParameters {
     		return dir;
     	}
 
+    	public String selectMlDirectory(boolean smart, boolean newAllowed) {
+    		String dir= CalibrationFileManagement.selectDirectory(
+    				smart,
+    				newAllowed, // save
+    				"ML output directory", // title
+    				"Select ML output directory", // button
+    				null, // filter
+    				this.mlDirectory); //this.sourceDirectory);
+    		if (dir!=null) this.mlDirectory=dir;
+    		return dir;
+    	}
     	// add prefix/suffix to the model name
     	public String getModelName(String name) {
     		return this.x3dSubdirPrefix + name + this.x3dSubdirSuffix;
@@ -2988,7 +3006,7 @@ public class EyesisCorrectionParameters {
 
 
 
-  		public boolean    replaceWeakOutlayers =   true; // false;
+  		public boolean    replaceWeakOutliers =   true; // false;
 
   		public boolean    dbg_migrate =            true;
 

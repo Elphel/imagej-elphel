@@ -186,6 +186,42 @@ public class Correlation2d {
     		double [][] tcorr, // null or initialized to [4][transform_len]
     		double      fat_zero) {
     	if (tcorr == null) tcorr = new double [4][transform_len];
+    	double [] a2 = new double[transform_len];
+    	double sa2 = 0.0;
+		for (int i = 0; i < transform_len; i++) {
+			double s1 = 0.0, s2=0.0;
+			for (int n = 0; n< 4; n++){
+				s1+=clt_data1[n][i] * clt_data1[n][i];
+				s2+=clt_data2[n][i] * clt_data2[n][i];
+			}
+			a2[i] = Math.sqrt(s1*s2);
+			sa2 += a2[i];
+		}
+		double fz2 = sa2/transform_len * fat_zero * fat_zero; // fat_zero squared to match units
+		for (int i = 0; i < transform_len; i++) {
+			double scale = 1.0 / (a2[i] + fz2);
+			for (int n = 0; n<4; n++){
+				tcorr[n][i] = 0;
+				for (int k=0; k<4; k++){
+					if (ZI[n][k] < 0)
+						tcorr[n][i] -=
+								clt_data1[-ZI[n][k]][i] * clt_data2[k][i];
+					else
+						tcorr[n][i] +=
+								clt_data1[ZI[n][k]][i] * clt_data2[k][i];
+				}
+				tcorr[n][i] *= scale;
+			}
+		}
+		return tcorr;
+    }
+
+    public double[][] correlateSingleColorFD_old(
+    		double [][] clt_data1,
+    		double [][] clt_data2,
+    		double [][] tcorr, // null or initialized to [4][transform_len]
+    		double      fat_zero) {
+    	if (tcorr == null) tcorr = new double [4][transform_len];
 		for (int i = 0; i < transform_len; i++) {
 			double s1 = 0.0, s2=0.0;
 			for (int n = 0; n< 4; n++){
@@ -208,6 +244,7 @@ public class Correlation2d {
 		}
 		return tcorr;
     }
+
 
 
     /**
@@ -845,6 +882,7 @@ public class Correlation2d {
 	}
 	/**
 	 * Calculate 1-d maximum location, strength and half-width for the special strip (odd rows shifted by 0.5
+	 * Negative values are ignored!
 	 * Both x and y half-windows can be variable length (to reduce calculations with 0.0 elements), normalized
 	 * so sums of zero element and twice all others are 1.0
 	 * Window in Y direction corresponds to correlation stripe rows, corresponding to sqrt(2)/2 sensor pixels
@@ -990,6 +1028,140 @@ public class Correlation2d {
 		}
 		return wnd;
 	}
+
+
+	/**
+	 * Extract center 2-d correlation around zero from the full (now 15x15)
+	 * @param hwidth half width of the output tile (0 -> 1x1, 1-> 3x3, 2->5x5)
+	 * @param full_corr  full pixel-domain correlation (now 15x15=225 long)
+	 * @param center_corr - output array [(2*hwidth+1)*(2*hwidth+1)] or null
+	 * @return center_corr - center part of the correlation in linescan order
+	 */
+    public double [] corrCenterValues(
+    		int       hwidth,
+    		double [] full_corr,
+    		double [] center_corr) {
+    	if (full_corr == null) return null;
+    	int center = transform_size - 1;
+    	int width = 2 * center + 1;
+    	int owidth = 2*hwidth+1;
+    	if (center_corr == null) center_corr = new double [owidth*owidth];
+    	int indx = 0;
+    	int findx = (center - hwidth) * (width + 1); // top left corner
+    	for (int row = 0; row < owidth; row++) {
+        	for (int col = 0; col < owidth; col++) {
+        		center_corr[indx++] = full_corr[findx++];
+        	}
+        	findx += width-owidth;
+    	}
+    	return center_corr;
+    }
+
+    /**
+     * Extract center 2-d correlations around zero from the full (now 15x15) correlations
+     * for each of the 6 pairs and 2 combined directions (horizontal, vertical)
+     * @param hwidth half width of the output tile (0 -> 1x1, 1-> 3x3, 2->5x5)
+     * @param offset add before multiplication, subtract in the end. If negative - use averaging
+     *  instead of the shifted multiplication
+     * @param full_corr  full pixel-domain correlation (now 15x15=225 long)for each of 6 pairs
+     * @param center_corr - output array [(2*hwidth+1)*(2*hwidth+1)]. should be [8][]
+     */
+    public void corrCenterValues(
+    		int         hwidth,
+    		double      offset,
+    		double [][] full_corr,
+    		double [][] center_corr) {
+    	// first 6 layers - directly correspond to pairs (top, bottom, left, right, diagonal main, diagonal other)
+    	for (int i = 0; i < 6; i++) {
+    		center_corr[i] = corrCenterValues(
+    				hwidth,
+    				full_corr[i],
+    				center_corr[i]);
+    	}
+
+    	// combine vertical and horizontal pairs
+    	int center = transform_size - 1;
+    	int width =  2 * center + 1;
+    	int owidth = 2 * hwidth + 1;
+    	for (int ndir = 0; ndir < 2; ndir++) { // 0- hor, 1- vert
+    		if (center_corr[ndir] == null) center_corr[ndir] = new double [owidth*owidth];
+    		int indx = 0;
+    		int findx = (center - hwidth) * (width + 1); // top left corner
+    		for (int row = 0; row < owidth; row++) {
+    			for (int col = 0; col < owidth; col++) {
+    				double fc0 = full_corr[2 * ndir + 0][findx]; // 0 (top), 2 (left)
+    				double fc1 = full_corr[2 * ndir + 1][findx++]; // 1 - bottom, 3 (right)
+    				double cc = 0.0;
+    				if (offset >= 0.0) {
+    					if ((fc0 > 0.0) && (fc1 > 0.0)) {
+    						cc = Math.sqrt((fc0+offset)*(fc1+offset)) - offset;
+    					}
+    				} else {
+    					cc =  0.5*(fc0+fc1);
+    				}
+
+    				center_corr[ndir + 6][indx++] = cc; // save to 6-th and 7-th layer
+    			}
+    			findx += width-owidth;
+    		}
+    	}
+    }
+
+    /**
+     * Save 2d correlation data for one layer, one tile into the combined multi-layer ML array, viewable as an image
+     * @param tileX horizontal tile index
+     * @param tileY vertical tile index
+     * @param ml_hwidth half-width of the preserved 2d correlation (0 - single point, 1 -> 3x3, 2 -> 5x5, 7 - all data)
+     * @param ml_data multi-layer array, each layer matches an image of ((2 * ml_hwidth + 1) * tilesX) by ((2 * ml_hwidth + 1) * tilesY) in scanline order
+     * Each tile corresponds to  (2 * ml_hwidth + 1) * (2 * ml_hwidth + 1) square in the image. Only selected tiles will be updated, so it is good to initialize array
+     * with all Double.NaN values
+     * @param ml_layer layer to save tile data
+     * @param ml_tile (2 * ml_hwidth + 1) * (2 * ml_hwidth + 1) tile data to be saved
+     * @param tilesX image width in tiles
+     */
+    public void saveMlTile(
+    		int         tileX,
+    		int         tileY,
+    		int         ml_hwidth,
+    		double [][] ml_data,
+    		int         ml_layer,
+    		double []   ml_tile,
+    		int         tilesX) {
+    	int tile_width = 2 * ml_hwidth + 1;
+    	int full_width = tile_width * tilesX;
+    	int oindex = tileY *tile_width * full_width  + tileX * tile_width;
+    	for (int row = 0; row < tile_width; row++) {
+			System.arraycopy(ml_tile, row * tile_width, ml_data[ml_layer], oindex, tile_width);
+			oindex += full_width;
+    	}
+    }
+    /**
+     * Save a single value to the combined multi-layer ML array, viewable as an image
+     * @param tileX horizontal tile index
+     * @param tileY vertical tile index
+     * @param ml_hwidth half-width of the preserved 2d correlation (0 - single point, 1 -> 3x3, 2 -> 5x5, 7 - all data)
+     * @param ml_data multi-layer array, each layer matches an image of ((2 * ml_hwidth + 1) * tilesX) by ((2 * ml_hwidth + 1) * tilesY) in scanline order
+     * Each tile corresponds to  (2 * ml_hwidth + 1) * (2 * ml_hwidth + 1) square in the image. Only selected tiles will be updated, so it is good to initialize array
+     * with all Double.NaN values
+     * @param ml_layer layer to save tile data
+     * @param ml_index data index within tile
+     * @param ml_value value to set
+     * @param tilesX image width in tiles
+     */
+    public void saveMlTilePixel(
+    		int         tileX,
+    		int         tileY,
+    		int         ml_hwidth,
+    		double [][] ml_data,
+    		int         ml_layer,
+    		int         ml_index,
+    		double      ml_value,
+    		int         tilesX) {
+    	int tile_width = 2 * ml_hwidth + 1;
+    	int full_width = tile_width * tilesX;
+    	int oindex = tileY *tile_width * full_width  + tileX * tile_width + (ml_index/tile_width)*full_width + (ml_index%tile_width) ;
+    	ml_data[ml_layer][oindex] = ml_value;
+    }
 
 
 
@@ -1238,6 +1410,7 @@ public class Correlation2d {
     	return rslt;
     }
 
+    // ignores negative values
     public double [] single2dCM( // returns x-xcenter, y, strength (sign same as disparity)
     		ImageDttParameters  imgdtt_params,
     		double []           corr,
@@ -1408,7 +1581,7 @@ public class Correlation2d {
     		System.out.println(String.format("eff_strength = [%8.5f, %8.5f, %8.5f, %8.5f]", eff_strength[0], eff_strength[1], eff_strength[2], eff_strength[3]));
     		System.out.println(String.format("width_d =      [%8.5f, %8.5f, %8.5f, %8.5f]", width_d[0],      width_d[1],      width_d[2],      width_d[3]));
     	}
-		if (!strong[isel] || (isel <0)) {
+		if ((isel <0) || !strong[isel]) {
 			corr = Double.NaN;
 			if (debug) System.out.println("Direction with "+(bg?"min":"max")+" disparity is not strong enough -> no correction");
 		} else 		if (width_d[isel] > max_hwidth) {
@@ -1446,7 +1619,7 @@ public class Correlation2d {
     		}
     		if (debug) System.out.println("lim =  "+lim+", disp = "+disp);
     	}
-    	double [] rslt = {disp, eff_strength[isel], mx - mn, are_ortho ?1.0 : 0.0};
+    	double [] rslt = {disp, (isel >=0) ? eff_strength[isel]:0.0, mx - mn, are_ortho ?1.0 : 0.0};
 		if (debug) System.out.println(String.format("foregroundCorrect() -> [%8.5f, %8.5f, %8.5f, %3.1f]", rslt[0], rslt[1], rslt[2], rslt[3]));
 
     	return    rslt;

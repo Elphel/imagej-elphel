@@ -2584,6 +2584,8 @@ public class QuadCLT {
 			  }
 			  setFiles.get(setNames.indexOf(setName)).add(new Integer(nFile));
 		  }
+
+
 		  for (int nSet = 0; nSet < setNames.size(); nSet++){
 			  int maxChn = 0;
 			  for (int i = 0; i < setFiles.get(nSet).size(); i++){
@@ -3097,13 +3099,21 @@ public class QuadCLT {
 
 	  SetChannels [] setChannels(
 			  int debugLevel) {
+		  return setChannels(null, debugLevel);
+	  }
+
+
+
+	  SetChannels [] setChannels(
+			  String single_set_name, // process only files that contain specified series (timestamp) in the name
+			  int debugLevel) {
 		  String [] sourceFiles=correctionsParameters.getSourcePaths();
 		  boolean [] enabledFiles=new boolean[sourceFiles.length];
 		  for (int i=0;i<enabledFiles.length;i++) enabledFiles[i]=false;
 		  int numFilesToProcess=0;
 		  int numImagesToProcess=0;
 		  for (int nFile=0;nFile<enabledFiles.length;nFile++){
-			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
+			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1) && ((single_set_name == null) || (sourceFiles[nFile].contains(single_set_name)))) {
 				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
 				  if (correctionsParameters.isJP4()){
 					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
@@ -3129,7 +3139,7 @@ public class QuadCLT {
 		  int [][] fileIndices=new int [numImagesToProcess][2]; // file index, channel number
 		  int index=0;
 		  for (int nFile=0;nFile<enabledFiles.length;nFile++){ // enabledFiles not used anymore?
-			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1)) {
+			  if ((sourceFiles[nFile]!=null) && (sourceFiles[nFile].length()>1) && ((single_set_name == null) || (sourceFiles[nFile].contains(single_set_name)))) {
 				  int [] channels={correctionsParameters.getChannelFromSourceTiff(sourceFiles[nFile])};
 				  if (correctionsParameters.isJP4()){
 					  int subCamera= channels[0]- correctionsParameters.firstSubCamera; // to match those in the sensor files
@@ -3171,6 +3181,8 @@ public class QuadCLT {
 		  }
 		  return sc;
 	  }
+
+
 	  int getTotalFiles(SetChannels [] sc) {
 		  int nf = 0;
 		  for (int i = 0; i < sc.length; i++) nf+=sc[i].fileNumber().length;
@@ -5500,7 +5512,6 @@ public class QuadCLT {
 			  boolean adjust_poly,
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-//			  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 			  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
@@ -5511,6 +5522,13 @@ public class QuadCLT {
 	  {
 		  this.startTime=System.nanoTime();
 		  String [] sourceFiles=correctionsParameters.getSourcePaths();
+		  SetChannels [] set_channels=setChannels(debugLevel);
+		  if ((set_channels == null) || (set_channels.length==0)) {
+			  System.out.println("No files to process (of "+sourceFiles.length+")");
+			  return;
+		  }
+/*
+
 		  boolean [] enabledFiles=new boolean[sourceFiles.length];
 		  for (int i=0;i<enabledFiles.length;i++) enabledFiles[i]=false;
 		  int numFilesToProcess=0;
@@ -5568,6 +5586,10 @@ public class QuadCLT {
 			  }
 			  setFiles.get(setNames.indexOf(setName)).add(new Integer(nFile));
 		  }
+
+
+
+
 		  for (int nSet = 0; nSet < setNames.size(); nSet++){
 			  int maxChn = 0;
 			  for (int i = 0; i < setFiles.get(nSet).size(); i++){
@@ -5751,15 +5773,37 @@ public class QuadCLT {
 						  setNames.get(nSet), // just for debug messages == setNames.get(nSet)
 						  debugLevel);
 			  }
+
+*/
+		  double [] referenceExposures=eyesisCorrections.calcReferenceExposures(debugLevel); // multiply each image by this and divide by individual (if not NaN)
+		  for (int nSet = 0; nSet < set_channels.length; nSet++){
+			  int [] channelFiles = set_channels[nSet].fileNumber();
+			  boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
+			  double [] scaleExposures = new double[channelFiles.length];
+
+			  ImagePlus [] imp_srcs = conditionImageSet(
+					  clt_parameters,             // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+					  sourceFiles,                // String []                                 sourceFiles,
+					  set_channels[nSet].name(),  // String                                    set_name,
+					  referenceExposures,         // double []                                 referenceExposures,
+					  channelFiles,               // int []                                    channelFiles,
+					  scaleExposures,   //output  // double [] scaleExposures
+					  saturation_imp,   //output  // boolean [][]                              saturation_imp,
+					  debugLevel); // int                                       debugLevel);
+
+
+
+
+
+
+
 			  // once per quad here
 			  preExpandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
 					  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
 					  saturation_imp, // boolean [][] saturation_imp, // (near) saturated pixels or null
 					  clt_parameters,
 					  debayerParameters,
-//					  nonlinParameters,
 					  colorProcParameters,
-//					  channelGainParameters,
 					  rgbParameters,
 					  threadsMax,  // maximal number of threads to launch
 					  updateStatus,
@@ -5774,16 +5818,13 @@ public class QuadCLT {
 						  adjust_poly,
 						  threadsMax,  //final int        threadsMax,  // maximal number of threads to launch
 						  updateStatus,// final boolean    updateStatus,
-//						  false,       // final boolean    batch_mode,
 						  debugLevel); // final int        debugLevel)
 
 
 			  } else {
 				  expandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-						  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
 						  clt_parameters,
 						  debayerParameters,
-//						  nonlinParameters,
 						  colorProcParameters,
 						  channelGainParameters,
 						  rgbParameters,
@@ -5793,26 +5834,28 @@ public class QuadCLT {
 			  }
 
 			  Runtime.getRuntime().gc();
-			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+setNames.size()+") finished at "+
+
+//			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+setNames.size()+") finished at "+
+//					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+			  if (debugLevel >-1) System.out.println("Processing set "+(nSet+1)+" (of "+set_channels.length+") finished at "+
 					  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 			  if (eyesisCorrections.stopRequested.get()>0) {
 				  System.out.println("User requested stop");
 				  return;
 			  }
 		  }
-		  System.out.println("Processing "+fileIndices.length+" files finished at "+
+//		  System.out.println("Processing "+fileIndices.length+" files finished at "+
+//				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+		  System.out.println("Processing "+getTotalFiles(set_channels)+" files finished at "+
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 
-//	  public ImagePlus preExpandCLTQuad3d(
 	  public boolean preExpandCLTQuad3d(
 			  ImagePlus []                                     imp_quad, // should have properties "name"(base for saving results), "channel","path"
 			  boolean [][]                                     saturation_imp,   // (near) saturated pixels or null
 			  EyesisCorrectionParameters.CLTParameters         clt_parameters,
 			  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-//			  EyesisCorrectionParameters.NonlinParameters      nonlinParameters,
 			  EyesisCorrectionParameters.ColorProcParameters   colorProcParameters,
-//			  CorrectionColorProc.ColorGainsParameters         channelGainParameters,
 			  EyesisCorrectionParameters.RGBParameters         rgbParameters,
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
@@ -5845,12 +5888,7 @@ public class QuadCLT {
 
 		  tp.resetCLTPasses();
 		  tp.setTrustedCorrelation(clt_parameters.grow_disp_trust);
-//		  final int tilesX = tp.getTilesX();
-//		  final int tilesY = tp.getTilesY();
-//		  final double     trustedCorrelation = tp.getTrustedCorrelation();
 
-
-		  ///		  CLTPass3d bgnd_data = CLTBackgroundMeas( // measure background
 		  CLTPass3d bgnd_data = CLTBackgroundMeas( // measure background
 				  image_data, //
 				  saturation_imp,    // boolean [][] saturation_imp, // (near) saturated pixels or null
@@ -6559,7 +6597,7 @@ public class QuadCLT {
 
 
 	  public boolean expandCLTQuad3d(
-		  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
+//		  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
 		  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 		  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 //		  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
@@ -6973,7 +7011,7 @@ public class QuadCLT {
     				  tp.threadsMax,  // maximal number of threads to launch
     				  false, // updateStatus,
     				  debugLevel);
-    		  passes.add(refined);
+    		  passes.add(refined); // adding new scan, not yet measured
     		  refine_pass ++; // tp.refinePassSetup adds to the list
     		  if (show_expand || (clt_parameters.show_expand && dbg_pass)) {
     			  tp.showScan(
@@ -8825,7 +8863,7 @@ public class QuadCLT {
 				  if (ok) {
 					  System.out.println("Explore 3d space");
 					  expandCLTQuad3d( // returns ImagePlus, but it already should be saved/shown
-							  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
+//							  imp_srcs, // [srcChannel], // should have properties "name"(base for saving results), "channel","path"
 							  clt_parameters,
 							  debayerParameters,
 //							  nonlinParameters,
