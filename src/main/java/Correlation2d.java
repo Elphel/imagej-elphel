@@ -1162,7 +1162,54 @@ public class Correlation2d {
     	int oindex = tileY *tile_width * full_width  + tileX * tile_width + (ml_index/tile_width)*full_width + (ml_index%tile_width) ;
     	ml_data[ml_layer][oindex] = ml_value;
     }
+    /**
+     * Get a single value from the combined multi-layer ML array, viewable as an image
+     * @param tileX horizontal tile index
+     * @param tileY vertical tile index
+     * @param ml_hwidth half-width of the preserved 2d correlation (0 - single point, 1 -> 3x3, 2 -> 5x5, 7 - all data)
+     * @param ml_data multi-layer array, each layer matches an image of ((2 * ml_hwidth + 1) * tilesX) by ((2 * ml_hwidth + 1) * tilesY) in scanline order
+     * Each tile corresponds to  (2 * ml_hwidth + 1) * (2 * ml_hwidth + 1) square in the image. Only selected tiles will be updated, so it is good to initialize array
+     * with all Double.NaN values
+     * @param ml_layer layer to save tile data
+     * @param ml_index data index within tile
+     * @param tilesX image width in tiles
+     * @return value indexed by tileX, tileY, ml_layer and ml_index
+     */
+    public double restoreMlTilePixel(
+    		int         tileX,
+    		int         tileY,
+    		int         ml_hwidth,
+    		double [][] ml_data,
+    		int         ml_layer,
+    		int         ml_index,
+    		int         tilesX) {
+    	int tile_width = 2 * ml_hwidth + 1;
+    	int full_width = tile_width * tilesX;
+    	int oindex = tileY *tile_width * full_width  + tileX * tile_width + (ml_index/tile_width)*full_width + (ml_index%tile_width) ;
+    	return ml_data[ml_layer][oindex];
+    }
 
+    /**
+     * Get an index of the selected tile+index in a ML array layer
+     * @param tileX horizontal tile index
+     * @param tileY vertical tile index
+     * @param ml_hwidth half-width of the preserved 2d correlation (0 - single point, 1 -> 3x3, 2 -> 5x5, 7 - all data)
+     * @param ml_index data index within tile
+     * @param tilesX image width in tiles
+     * @return index of teh selected pixel in thye whole image (specified by  tileX, tileY, and ml_index)
+     */
+
+    public  int getMlTilePixelIndex(
+    		int         tileX,
+    		int         tileY,
+    		int         ml_hwidth,
+    		int         ml_index,
+    		int         tilesX) {
+    	int tile_width = 2 * ml_hwidth + 1;
+    	int full_width = tile_width * tilesX;
+    	int oindex = tileY *tile_width * full_width  + tileX * tile_width + (ml_index/tile_width)*full_width + (ml_index%tile_width) ;
+    	return oindex;
+    }
 
 
 

@@ -1400,6 +1400,11 @@ public class TwoQuadCLT {
 		  String ml_directory= quadCLT_main.correctionsParameters.selectMlDirectory(
 		  true,  // smart,
 		  true);  //newAllowed, // save
+			Correlation2d corr2d = new Correlation2d(
+					clt_parameters.img_dtt,              // ImageDttParameters  imgdtt_params,
+					clt_parameters.transform_size,             // int transform_size,
+					2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
+					(debugLevel > -1));   //   boolean debug)
 
 		  for (int sweep_step = 0; sweep_step < clt_parameters.rig.ml_sweep_steps; sweep_step++){
 			  double disparity_offset = 0; // clt_parameters.rig.ml_disparity_sweep * (2.0 * sweep_step/(clt_parameters.rig.ml_sweep_steps - 1.0) -1.0);
@@ -1422,6 +1427,9 @@ public class TwoQuadCLT {
 	    			  disparity_offset,                         // double               disp_offset,
 	    			  quadCLT_main,                             // QuadCLT              quadCLT_main,
 	    			  quadCLT_aux,                              // QuadCLT              quadCLT_aux,
+	    			  corr2d,                                   //Correlation2d        corr2d, // to access "other" layer
+	    			  clt_parameters.rig.ml_8bit,               // boolean              use8bpp,
+	    			  clt_parameters.rig.ml_limit_extrim,       // double               limit_extrim,
 	    			  clt_parameters.rig.ml_keep_aux,           // boolean              keep_aux,
 	    			  clt_parameters.rig.ml_keep_inter,         // boolean              keep_inter,
 	    			  clt_parameters.rig.ml_keep_hor_vert,      // boolean              keep_hor_vert,
@@ -1441,6 +1449,9 @@ public class TwoQuadCLT {
 			  double               disp_offset,
 			  QuadCLT              quadCLT_main,
 			  QuadCLT              quadCLT_aux,
+			  Correlation2d        corr2d, // to access "other" layer
+			  boolean              use8bpp,
+			  double               limit_extrim,
 			  boolean              keep_aux,
 			  boolean              keep_inter,
 			  boolean              keep_hor_vert,
@@ -1478,19 +1489,155 @@ public class TwoQuadCLT {
 		  int [] dbg_indices = {
 				  ImageDtt.ML_DBG1_INDEX        //18 - just debug data (first - auto phase correlation)
 		  };
+		  int [] non_corr_indices = {
+				  ImageDtt.ML_OTHER_INDEX,      //17 - other data: 0 (top left tile corner) - preset disparity of the tile, 1: (next element) - ground trouth data, 2:
+				  ImageDtt.ML_DBG1_INDEX        //18 - just debug data (first - auto phase correlation)
+		  };
+
 		  boolean [] skip_layers = new boolean [ImageDtt.ML_TITLES.length];
 		  if (!keep_aux)       for (int nl:aux_indices)      skip_layers[nl] = true;
 		  if (!keep_inter)     for (int nl:inter_indices)    skip_layers[nl] = true;
 		  if (!keep_hor_vert)  for (int nl:hor_vert_indices) skip_layers[nl] = true;
 		  if (!keep_debug)     for (int nl:dbg_indices)      skip_layers[nl] = true;
 
-	      float [] fpixels;
-	      ImageStack array_stack=new ImageStack(width,height);
-	      for (int nl = 0; nl< ml_data.length; nl++) if (!skip_layers[nl]) {
-	    	  fpixels=new float[ml_data[nl].length];
-	    	  for (int j=0;j<fpixels.length;j++) fpixels[j]=(float) ml_data[nl][j];
-	            array_stack.addSlice(ImageDtt.ML_TITLES[nl],    fpixels);
-	      }
+		  ImageStack array_stack=new ImageStack(width,height);
+		  double soft_mn = Double.NaN,soft_mx = Double.NaN;
+		  if (use8bpp) {
+			  int num_bins = 256;
+			  boolean [] skip_histogram =   skip_layers.clone();
+			  for (int nl:non_corr_indices) skip_histogram[nl] = true;
+			  double mn = 0.0, mx = 0.0; // data has both positive and negative values
+			  for (int nl = 0; nl < ml_data.length; nl++) if (!skip_histogram[nl]) {
+				  for (int i = 0; i < ml_data[nl].length; i++) if (!Double.isNaN(ml_data[nl][i])){
+					  if      (ml_data[nl][i] > mx) mx = ml_data[nl][i];
+					  else if (ml_data[nl][i] < mn) mn = ml_data[nl][i];
+				  }
+			  }
+			  if (debugLevel > -2) {
+				  System.out.println("saveMlFile(): min="+mn+", max="+mx);
+			  }
+			  int [] histogram = new int [num_bins];
+			  int num_values = 0;
+			  for (int nl = 0; nl < ml_data.length; nl++) if (!skip_histogram[nl]) {
+				  for (int i = 0; i < ml_data[nl].length; i++) if (!Double.isNaN(ml_data[nl][i])){
+					  int bin = (int) Math.round(num_bins*(ml_data[nl][i] - mn)/(mx-mn));
+					  // rounding errors?
+					  if (bin < 0) bin = 0;
+					  else if (bin >= num_bins) bin = num_bins-1;
+					  histogram[bin]++;
+					  num_values++;
+				  }
+			  }
+			  double ignore_vals = limit_extrim*num_values;
+			  soft_mn = mn;
+			  soft_mx = mx;
+			  {
+				  double sl = 0.0;
+				  int i = 0;
+				  while (sl < ignore_vals) {
+					  i++;
+					  sl+= histogram[i];
+					  soft_mn += (mx-mn)/num_bins;
+				  }
+				  double f = (sl - ignore_vals)/histogram[i];
+				  soft_mn -= (mx-mn)/num_bins*(1.0 - f);
+
+				  sl = 0.0;
+				  i = num_bins-1;
+				  while (sl < ignore_vals) {
+					  i--;
+					  sl+= histogram[i];
+					  soft_mx -= (mx-mn)/num_bins;
+				  }
+				  f = (sl - ignore_vals)/histogram[i];
+				  soft_mn += (mx-mn)/num_bins*(1.0 - f);
+				  if (debugLevel > -2) {
+					  System.out.println("saveMlFile(): soft min="+soft_mn+", soft max="+soft_mx);
+				  }
+			  }
+			  // convert double data  to byte, so v<=soft_mn -> 1; v>= soft_mx -> 255, NaN -> 0
+			  byte [][] iml_data = new byte [ml_data.length][];
+			  for (int nl = 0; nl < ml_data.length; nl++) if (!skip_layers[nl]) {
+				  iml_data[nl] = new byte [ml_data[nl].length];
+				  if (nl == ImageDtt.ML_OTHER_INDEX) {
+					  // special treatment - make 2 bytes of one disparity value
+					  for (int tileY = 0; tileY < tilesY; tileY++) {
+						  for (int tileX = 0; tileX < tilesX; tileX++) {
+							  int nTile = tileY * tilesX + tileX;
+							  double target_disparity = corr2d.restoreMlTilePixel(
+							    		tileX,                            // int         tileX,
+							    		tileY,                            // int         tileY,
+							    		ml_hwidth,                        // int         ml_hwidth,
+							    		ml_data,                          // double [][] ml_data,
+							    		ImageDtt.ML_OTHER_INDEX,          // int         ml_layer,
+							    		ImageDtt.ML_OTHER_TARGET ,        // int         ml_index,
+							    		tilesX);                          // int         tilesX);
+							  double gtruth_disparity = corr2d.restoreMlTilePixel(
+							    		tileX,                            // int         tileX,
+							    		tileY,                            // int         tileY,
+							    		ml_hwidth,                        // int         ml_hwidth,
+							    		ml_data,                          // double [][] ml_data,
+							    		ImageDtt.ML_OTHER_INDEX,          // int         ml_layer,
+							    		ImageDtt.ML_OTHER_GTRUTH ,        // int         ml_index,
+							    		tilesX);                          // int         tilesX);
+							  double gtruth_strength = corr2d.restoreMlTilePixel(
+							    		tileX,                            // int         tileX,
+							    		tileY,                            // int         tileY,
+							    		ml_hwidth,                        // int         ml_hwidth,
+							    		ml_data,                          // double [][] ml_data,
+							    		ImageDtt.ML_OTHER_INDEX,          // int         ml_layer,
+							    		ImageDtt.ML_OTHER_GTRUTH_STRENGTH ,     // int         ml_index,
+							    		tilesX);                          // int         tilesX);
+							  // converting disparity to 9.7 ( 1/128 pixel step, +/-256 pixels disparity range), 0x8000 - zero disparity
+							  // converting strength to 2 bytes 0.16 fixed point
+							  int itd = (int) Math.round(128 * target_disparity) + 0x8000;
+							  int [] itarget_disparity = {itd >> 8, itd & 0xff};
+							  int igt = (int) Math.round(128 * gtruth_disparity) + 0x8000;
+							  int [] igtruth_disparity = {igt >> 8, igt & 0xff};
+							  int igs = (int) Math.round(0x10000 * gtruth_strength);
+							  int [] igtruth_strength =  {igs >> 8, igs & 0xff};
+							  for (int nb = 0; nb<2; nb++) {
+								  if (!Double.isNaN(target_disparity)) {
+									  int indx =  corr2d.getMlTilePixelIndex(tileX,tileY, ml_hwidth, ImageDtt.ML_OTHER_TARGET + nb, tilesX);
+									  iml_data[nl][indx] = (byte) itarget_disparity[nb];
+								  }
+								  if (!Double.isNaN(gtruth_disparity)) {
+									  int indx =  corr2d.getMlTilePixelIndex(tileX,tileY, ml_hwidth, ImageDtt.ML_OTHER_GTRUTH + nb, tilesX);
+									  iml_data[nl][indx] = (byte) igtruth_disparity[nb];
+								  }
+								  if (gtruth_strength > 0.0) {
+									  int indx =  corr2d.getMlTilePixelIndex(tileX,tileY, ml_hwidth, ImageDtt.ML_OTHER_GTRUTH_STRENGTH + nb, tilesX);
+									  iml_data[nl][indx] = (byte) igtruth_strength[nb];
+								  }
+							  }
+						  }
+					  }
+				  } else {
+					  double k = 254.0/(soft_mx-soft_mn);
+					  for (int i = 0; i < ml_data[nl].length;i++) {
+						  if (Double.isNaN(ml_data[nl][i])){
+							  iml_data[nl][i] = 0; // -128;
+						  } else {
+							  int iv = (int) Math.round(k*(ml_data[nl][i]-soft_mn));
+							  if      (iv < 0) iv = 0;
+							  else if (iv > 254) iv = 254;
+							  iml_data[nl][i] = (byte) iv; //  (iv - 127); // NaN will stay 0;
+						  }
+					  }
+				  }
+			  }
+		      for (int nl = 0; nl< ml_data.length; nl++) if (!skip_layers[nl]) {
+		            array_stack.addSlice(ImageDtt.ML_TITLES[nl], iml_data[nl]);
+		      }
+		  } else {
+		      float [] fpixels;
+		      for (int nl = 0; nl< ml_data.length; nl++) if (!skip_layers[nl]) {
+		    	  fpixels=new float[ml_data[nl].length];
+		    	  for (int j=0;j<fpixels.length;j++) fpixels[j]=(float) ml_data[nl][j];
+		            array_stack.addSlice(ImageDtt.ML_TITLES[nl],    fpixels);
+		      }
+		  }
+
 	      double disparityRadiusMain =  quadCLT_main.geometryCorrection.getDisparityRadius();
 	      double disparityRadiusAux =   quadCLT_aux.geometryCorrection.getDisparityRadius();
 	      double intercameraBaseline =  quadCLT_aux.geometryCorrection.getBaseline();
@@ -1505,12 +1652,16 @@ public class TwoQuadCLT {
 	      imp_ml.setProperty("disparityRadiusMain",  ""+disparityRadiusMain);
 	      imp_ml.setProperty("disparityRadiusAux",  ""+disparityRadiusAux);
 	      imp_ml.setProperty("intercameraBaseline",  ""+intercameraBaseline);
+	      imp_ml.setProperty("data_min",  ""+soft_mn);
+	      imp_ml.setProperty("data_max",  ""+soft_mx);
 
 	      imp_ml.setProperty("comment_tileWidth",   "Square tile size for each 2d correlation, always odd");
 	      imp_ml.setProperty("comment_dispOffset",  "Tile target disparity minum ground truth disparity");
 	      imp_ml.setProperty("comment_ML_OTHER_TARGET",  "Offset of the target disparity in the \"other\" layer tile");
 	      imp_ml.setProperty("comment_ML_OTHER_GTRUTH",  "Offset of the ground truth disparity in the \"other\" layer tile");
 	      imp_ml.setProperty("comment_ML_OTHER_GTRUTH_STRENGTH",  "Offset of the ground truth strength in the \"other\" layer tile");
+	      imp_ml.setProperty("comment_data_min",  "Defined only for 8bpp mode - value, corresponding to -127 (-128 is NaN)");
+	      imp_ml.setProperty("comment_data_max",  "Defined only for 8bpp mode - value, corresponding to +127 (-128 is NaN)");
 
 	      imp_ml.setProperty("comment_disparityRadiusMain",  "Side of the square where 4 main camera subcameras are located (mm)");
 	      imp_ml.setProperty("comment_disparityRadiusAux",  "Side of the square where 4 main camera subcameras are located (mm). Disparity is specified for the main camera");

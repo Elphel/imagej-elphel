@@ -80,6 +80,7 @@ public class BiQuadParameters {
 	public boolean ml_keep_hor_vert =          true; // include combined horizontal and vertical pairs data in the ML output
 	public boolean ml_keep_debug=              true; // include debug layer(s) data in the ML output
 	public boolean ml_8bit=                    true; // output in 8-bit format (default - 32-bit TIFF
+	public double  ml_limit_extrim =           0.00001; // ignore lowest and highest values when converting to 8 bpp
 	public boolean ml_show_ml =                true; // show each generated MLoutput file
 
 
@@ -185,6 +186,8 @@ public class BiQuadParameters {
 				"Keep additional (debug) layers that may change for different file versions");
 		gd.addCheckbox    ("Use 8 bpp TIFF (default - 32 bpp)",                                                   this.ml_8bit,
 				"Reduce file size by lowering bpp");
+		gd.addNumericField("When converting to 8bpp, limit fraction of extreme values",                           1E6 * this.ml_limit_extrim,  1,8,"ppm",
+				"Use values histogram to find min/max values, ignoring(limiting) this fraction (parts per million) of pixels at both extremes");
 		gd.addCheckbox    ("Show each generated ML file",                                                         this.ml_show_ml,
 				"Use only for small number of generated files to reduce memory usage");
 
@@ -241,6 +244,7 @@ public class BiQuadParameters {
 		this.ml_keep_hor_vert=              gd.getNextBoolean();
 		this.ml_keep_debug=                 gd.getNextBoolean();
 		this.ml_8bit=                       gd.getNextBoolean();
+		this.ml_limit_extrim=               gd.getNextNumber() * 1E-6;
 		this.ml_show_ml=                    gd.getNextBoolean();
 	}
 
@@ -298,6 +302,7 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"ml_keep_hor_vert",          this.ml_keep_hor_vert+"");
 		properties.setProperty(prefix+"ml_keep_debug",             this.ml_keep_debug+"");
 		properties.setProperty(prefix+"ml_8bit",                   this.ml_8bit+"");
+		properties.setProperty(prefix+"ml_limit_extrim",           this.ml_limit_extrim+"");
 		properties.setProperty(prefix+"ml_show_ml",                this.ml_show_ml+"");
 
 
@@ -353,6 +358,7 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"ml_keep_hor_vert")!=null)        this.ml_keep_hor_vert=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_hor_vert"));
 		if (properties.getProperty(prefix+"ml_keep_debug")!=null)           this.ml_keep_debug=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_debug"));
 		if (properties.getProperty(prefix+"ml_8bit")!=null)                 this.ml_8bit=Boolean.parseBoolean(properties.getProperty(prefix+"ml_8bit"));
+		if (properties.getProperty(prefix+"ml_limit_extrim")!=null)         this.ml_limit_extrim=Double.parseDouble(properties.getProperty(prefix+"ml_limit_extrim"));
 		if (properties.getProperty(prefix+"ml_show_ml")!=null)              this.ml_show_ml=Boolean.parseBoolean(properties.getProperty(prefix+"ml_show_ml"));
 	}
 	@Override
@@ -408,9 +414,8 @@ public class BiQuadParameters {
 		bqp.ml_keep_hor_vert=           this.ml_keep_hor_vert;
 		bqp.ml_keep_debug=              this.ml_keep_debug;
 		bqp.ml_8bit=                    this.ml_8bit;
+		bqp.ml_limit_extrim=            this.ml_limit_extrim;
 		bqp.ml_show_ml=                 this.ml_show_ml;
 		return bqp;
-
-
 	}
 }
