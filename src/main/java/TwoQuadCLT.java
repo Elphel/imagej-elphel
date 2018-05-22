@@ -271,7 +271,7 @@ public class TwoQuadCLT {
 		  boolean infinity_corr = false;
 		  double [][] scaleExposures= {scaleExposures_main, scaleExposures_aux};
 		  boolean toRGB=     quadCLT_main.correctionsParameters.toRGB;
-		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging? - TODO - move whete it belongs
+		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging? - TODO - move where it belongs
 		  // may use this.StartTime to report intermediate steps execution times
 		  String name=quadCLT_main.correctionsParameters.getModelName((String) imp_quad_main[0].getProperty("name"));
 		  String path= (String) imp_quad_main[0].getProperty("path"); // Only for debug output
@@ -333,8 +333,6 @@ public class TwoQuadCLT {
 
 		  double [][] disparity_bimap  = new double [ImageDtt.BIDISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 
-		  double min_corr_selected = clt_parameters.min_corr;
-
 		  ImageDtt image_dtt = new ImageDtt();
 		  double [][] ml_data = null;
 
@@ -357,8 +355,6 @@ public class TwoQuadCLT {
 						  texture_tiles_main,                   // final double [][][][]     texture_tiles_main, // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 						  texture_tiles_aux,                    // final double [][][][]     texture_tiles_aux,  // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 						  imp_quad_main[0].getWidth(),          // final int                 width,
-
-						  min_corr_selected,                    // final double              min_corr,        // 0.02; // minimal correlation value to consider valid
 						  quadCLT_main.getGeometryCorrection(), // final GeometryCorrection  geometryCorrection_main,
 						  quadCLT_aux.getGeometryCorrection(),  // final GeometryCorrection  geometryCorrection_aux,
 						  quadCLT_main.getCLTKernels(),         // final double [][][][][][] clt_kernels_main, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
@@ -852,7 +848,112 @@ public class TwoQuadCLT {
 	  }
 
 
+	// use macro mode (strengths with limited disparity) to align at infinity if it is way off.
+	  public boolean prealignInfinityRig(
+			  QuadCLT                                        quadCLT_main,
+			  QuadCLT                                        quadCLT_aux,
+			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			  final int        threadsMax,  // maximal number of threads to launch
+			  final boolean    updateStatus,
+			  final int        debugLevel){
+		  double [][] disparity_bimap = measureNewRigDisparity(
+				  quadCLT_main,      // QuadCLT             quadCLT_main,    // tiles should be set
+				  quadCLT_aux,       // QuadCLT             quadCLT_aux,
+				  null,              // double [][]         src_bimap,       // current state of measurements (or null for new measurement)
+				  0.0,               // double              disparity,
+				  null,              // ArrayList<Integer>  tile_list,       // or null. If non-null - do not remeasure members of teh list
+				  clt_parameters,    // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+				  threadsMax,        // final int           threadsMax,      // maximal number of threads to launch
+				  updateStatus,      // final boolean       updateStatus,
+				  debugLevel);       // final int           debugLevel);
+		  // create two arrays of main and aux strengths and small disparity
+//	public double  inf_max_disp_main =         0.15;
+//	public double  inf_max_disp_aux =          0.15;
+		  final int tilesX = quadCLT_main.tp.getTilesX();
+		  final int tilesY = quadCLT_main.tp.getTilesY();
+		  final int tile_op_all = clt_parameters.tile_task_op; //FIXME Use some constant?
+		  double max_main_disparity = 3* clt_parameters.rig.inf_max_disp_main;
+		  double max_aux_disparity = 3* clt_parameters.rig.inf_max_disp_aux;
+		  double min_strength_main =0.2;
+		  double min_strength_aux =0.2;
 
+		  int numTiles = disparity_bimap[ImageDtt.BI_STR_FULL_INDEX].length;
+		  double [][][] macro_pair = new double[2][1][numTiles]; // second index for compatibility with multiple colors
+		  for (int nTile = 0; nTile < numTiles; nTile++) {
+			  double d_main= disparity_bimap[ImageDtt.BI_DISP_FULL_INDEX ][nTile];
+			  double d_aux=  disparity_bimap[ImageDtt.BI_ADISP_FULL_INDEX][nTile];
+			  double s_main= disparity_bimap[ImageDtt.BI_STR_FULL_INDEX ][nTile];
+			  double s_aux=  disparity_bimap[ImageDtt.BI_ASTR_FULL_INDEX][nTile];
+			  if ((Math.abs(d_main) <= max_main_disparity) && (s_main > min_strength_main)) macro_pair[0][0][nTile] = s_main-min_strength_main;
+			  if ((Math.abs(d_aux)  <= max_aux_disparity)  && (s_aux  > min_strength_aux))  macro_pair[1][0][nTile] = s_aux- min_strength_aux;
+//			  macro_pair[0][0][nTile] = s_main;
+//			  macro_pair[1][0][nTile] = s_aux;
+		  }
+		  if (debugLevel >-2) {
+			  double [][] dbg_macro = {macro_pair[0][0],macro_pair[1][0]};
+			  (new showDoubleFloatArrays()).showArrays(
+					  dbg_macro,
+					  tilesX,
+					  tilesY,
+					  true,
+					  "MACRO-INPUT");
+		  }
+
+		  int macro_scale = clt_parameters.transform_size;
+		  int mTilesX = tilesX/macro_scale;
+		  int mTilesY = tilesY/macro_scale;
+		  int [][] mtile_op = new int [mTilesY][mTilesX];
+		  for (int mTileY=0; mTileY < mTilesY; mTileY++) {
+			  for (int mTileX=0; mTileX < mTilesX; mTileX++) {
+				  mtile_op[mTileY][mTileX] = tile_op_all;
+			  }
+		  }
+		  double [][] mdisparity_array = new double [mTilesY][mTilesX]; // keep all zeros
+		  double [][] mdisparity_bimap = new double [ImageDtt.BIDISPARITY_TITLES.length][];
+		  ImageDtt image_dtt = new ImageDtt();
+		  image_dtt.clt_bi_macro(
+				  clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+				  macro_scale, // final int                 macro_scale,
+				  mtile_op, // final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+				  mdisparity_array, // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
+				  macro_pair, // 	final double [][][]       image_rig_data,  // [2][1][pixels] (single color channel)
+				  mdisparity_bimap, // final double [][]         disparity_bimap, // [23][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+				  tilesX, // 	final int                 width,
+				  quadCLT_main.getGeometryCorrection(), // final GeometryCorrection  geometryCorrection_main,
+				  quadCLT_aux.getGeometryCorrection(),  // final GeometryCorrection  geometryCorrection_aux,
+				  clt_parameters.corr_magic_scale,      //  final double              corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
+				  threadsMax,        // final int           threadsMax,      // maximal number of threads to launch
+				  debugLevel + 1);       // final int           debugLevel);
+		  // Display macro correlation results (later convert to a full size disparity_bimap for compatibility with infinity alignment
+		  if (debugLevel > -2) {
+		  (new showDoubleFloatArrays()).showArrays(
+				  mdisparity_bimap,
+				  mTilesX,
+				  mTilesY,
+				  true,
+				  "MACRO-DISP_MAP",
+				  ImageDtt.BIDISPARITY_TITLES);
+		  }
+
+/*
+ * ImageDtt.BIDISPARITY_TITLES.length
+	public void  clt_bi_macro(
+			final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			final int                 macro_scale,
+			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+			final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
+			final double [][][]       image_rig_data,  // [2][1][pixels] (single color channel)
+			final double [][]         disparity_bimap, // [23][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+			final int                 width,
+			final GeometryCorrection  geometryCorrection_main,
+			final GeometryCorrection  geometryCorrection_aux, // it has rig offset)
+			final double              corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
+			final int                 threadsMax,  // maximal number of threads to launch
+			final int                 debugLevel)
+
+ */
+		  return true;
+	  }
 
 
 	  public boolean processInfinityRig(
@@ -881,9 +982,17 @@ public class TwoQuadCLT {
 
  		  quadCLT_main.tp.resetCLTPasses();
  		  quadCLT_aux.tp.resetCLTPasses();
-
-
-
+/*
+FIXME - make it work
+ 		  prealignInfinityRig(
+ 				  quadCLT_main, // QuadCLT                                        quadCLT_main,
+ 				  quadCLT_aux, // QuadCLT                                        quadCLT_aux,
+ 				  clt_parameters,    // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+ 				  threadsMax,      // maximal number of threads to launch
+ 				  updateStatus,    // final boolean    updateStatus,
+ 				  debugLevel);     // final int        debugLevel);
+if (debugLevel > -100) return true; // temporarily !
+*/
 		  final int tilesX = quadCLT_main.tp.getTilesX();
 
 // perform full re-measure cycles
@@ -892,7 +1001,7 @@ public class TwoQuadCLT {
 		  for (int num_full_cycle = 0; num_full_cycle < clt_parameters.rig.rig_adjust_full_cycles;num_full_cycle++) {
 			  disparity_bimap = null;
 			  ArrayList<Integer> tile_list = new ArrayList<Integer>();
-			  // measuere and refine
+			  // measure and refine
 			  for (int disp_step = 0; disp_step < clt_parameters.rig.rig_num_disp_steps; disp_step++) {
 				  double disparity = 0.0;
 				  if (clt_parameters.rig.rig_num_disp_steps > 1) {
@@ -903,7 +1012,7 @@ public class TwoQuadCLT {
 						  quadCLT_aux,       // QuadCLT             quadCLT_aux,
 						  disparity_bimap,   // double [][]         src_bimap,       // current state of measurements (or null for new measurement)
 						  disparity,         // double              disparity,
-						  tile_list,         // ArrayList<Integer>  tile_list,       // or null. If non-null - do not remeasure members of teh list
+						  tile_list,         // ArrayList<Integer>  tile_list,       // or null. If non-null - do not remeasure members of the list
 						  clt_parameters,    // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 						  threadsMax,        // final int           threadsMax,      // maximal number of threads to launch
 						  updateStatus,      // final boolean       updateStatus,
@@ -1082,12 +1191,6 @@ public class TwoQuadCLT {
 			  final boolean                                  updateStatus,
 			  final int                                      debugLevel) throws Exception
 	  {
-//		  int min_new = 100; // make a parameter
-//		  int num_inf_refine =  20;
-//		  int num_near_refine = 20;
-//		  double min_trusted_strength = 0.1; // 14;
-//		  double trusted_tolerance  =   1.0;
-		  System.out.println("enhanceByRig()");
 		  System.out.println("enhanceByRig()");
 		  if ((quadCLT_main == null) || (quadCLT_aux == null)) {
 			  System.out.println("QuadCLT instances are not initilaized");
@@ -1422,7 +1525,7 @@ public class TwoQuadCLT {
 	    			  updateStatus,                             // final boolean        updateStatus,
 	    			  debugLevel);                              // final int            debugLevel);
 	    	  saveMlFile(
-	    			  quadCLT_main.image_name+"-ML_DATA-OFFS_", // String               ml_title,
+	    			  quadCLT_main.image_name+"-ML_DATA-", // String               ml_title,
 	    			  ml_directory,                             // String               ml_directory,
 	    			  disparity_offset,                         // double               disp_offset,
 	    			  quadCLT_main,                             // QuadCLT              quadCLT_main,
@@ -1433,6 +1536,7 @@ public class TwoQuadCLT {
 	    			  clt_parameters.rig.ml_keep_aux,           // boolean              keep_aux,
 	    			  clt_parameters.rig.ml_keep_inter,         // boolean              keep_inter,
 	    			  clt_parameters.rig.ml_keep_hor_vert,      // boolean              keep_hor_vert,
+	    			  clt_parameters.rig.ml_keep_tbrl,          // boolean              ml_keep_tbrl,
 	    			  clt_parameters.rig.ml_keep_debug,         // boolean              keep_debug,
 	    			  clt_parameters.rig.ml_hwidth,             // int                  ml_hwidth,
 	    			  ml_data,                                  // double [][]          ml_data,
@@ -1455,6 +1559,7 @@ public class TwoQuadCLT {
 			  boolean              keep_aux,
 			  boolean              keep_inter,
 			  boolean              keep_hor_vert,
+			  boolean              ml_keep_tbrl,
 			  boolean              keep_debug,
 			  int                  ml_hwidth,
 			  double [][]          ml_data,
@@ -1466,7 +1571,8 @@ public class TwoQuadCLT {
 		  int ml_width = 2 * ml_hwidth + 1;
 		  int width =  tilesX * ml_width;
 		  int height = tilesY * ml_width;
-		  String title = ml_title+(keep_aux?"A":"")+(keep_inter?"I":"")+(keep_hor_vert?"O":"")+(keep_debug?"D":"")+disp_offset;
+		  String title = ml_title+ (use8bpp?"08":"32")+"B-"+(keep_aux?"A":"")+(keep_inter?"I":"")+(keep_hor_vert?"O":"")+(ml_keep_tbrl?"T":"")+
+				  (keep_debug?"D":"")+"-OFFS"+disp_offset;
 		  int [] aux_indices = {
 				  ImageDtt.ML_TOP_AUX_INDEX,    // 8 - top pair 2d correlation center area (auxiliary camera)
 				  ImageDtt.ML_BOTTOM_AUX_INDEX, // 9 - bottom pair 2d correlation center area (auxiliary camera)
@@ -1486,6 +1592,17 @@ public class TwoQuadCLT {
 				  ImageDtt.ML_HOR_AUX_INDEX,    //14 - horizontal pairs combined 2d correlation center area (auxiliary camera)
 				  ImageDtt.ML_VERT_AUX_INDEX    //15 - vertical pairs combined 2d correlation center area (auxiliary camera)
 		  };
+
+		  int [] tbrl_indices = {
+				  ImageDtt.ML_TOP_INDEX,        // 0 - top pair 2d correlation center area
+				  ImageDtt.ML_BOTTOM_INDEX,     // 1 - bottom pair 2d correlation center area
+				  ImageDtt.ML_LEFT_INDEX,       // 2 - left pair 2d correlation center area
+				  ImageDtt.ML_RIGHT_INDEX,      // 3 - right pair 2d correlation center area
+				  ImageDtt.ML_TOP_AUX_INDEX,    // 8 - top pair 2d correlation center area (auxiliary camera)
+				  ImageDtt.ML_BOTTOM_AUX_INDEX, // 9 - bottom pair 2d correlation center area (auxiliary camera)
+				  ImageDtt.ML_LEFT_AUX_INDEX,   //10 - left pair 2d correlation center area (auxiliary camera)
+				  ImageDtt.ML_RIGHT_AUX_INDEX   //11 - right pair 2d correlation center area (auxiliary camera)
+		  };
 		  int [] dbg_indices = {
 				  ImageDtt.ML_DBG1_INDEX        //18 - just debug data (first - auto phase correlation)
 		  };
@@ -1498,6 +1615,8 @@ public class TwoQuadCLT {
 		  if (!keep_aux)       for (int nl:aux_indices)      skip_layers[nl] = true;
 		  if (!keep_inter)     for (int nl:inter_indices)    skip_layers[nl] = true;
 		  if (!keep_hor_vert)  for (int nl:hor_vert_indices) skip_layers[nl] = true;
+		  if (!ml_keep_tbrl)   for (int nl:tbrl_indices)     skip_layers[nl] = true;
+
 		  if (!keep_debug)     for (int nl:dbg_indices)      skip_layers[nl] = true;
 
 		  ImageStack array_stack=new ImageStack(width,height);
@@ -1936,7 +2055,7 @@ public class TwoQuadCLT {
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel){
-		  if (debugLevel > 0) {
+		  if ((debugLevel > 0) && (tile_list != null)) {
 			  System.out.println("measureNewRigDisparity(), disparity = "+disparity+", tile_list.size()="+tile_list.size());
 		  }
 		  int tile_op_all = clt_parameters.tile_task_op; //FIXME Use some constant?
@@ -2116,7 +2235,6 @@ public class TwoQuadCLT {
 
 		  double [][] disparity_bimap  = new double [ImageDtt.BIDISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 
-		  double min_corr_selected = clt_parameters.min_corr;
 		  image_dtt.clt_bi_quad (
 				  clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				  tile_op,                              // final int [][]            tile_op_main,    // [tilesY][tilesX] - what to do - 0 - nothing for this tile
@@ -2134,7 +2252,6 @@ public class TwoQuadCLT {
 				  null,                                 // final double [][][][]     texture_tiles_aux,  // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
 				  quadCLT_main.tp.getTilesX()*clt_parameters.transform_size, // final int                 width,
 
-				  min_corr_selected,                    // final double              min_corr,        // 0.02; // minimal correlation value to consider valid
 				  quadCLT_main.getGeometryCorrection(), // final GeometryCorrection  geometryCorrection_main,
 				  quadCLT_aux.getGeometryCorrection(),  // final GeometryCorrection  geometryCorrection_aux,
 				  quadCLT_main.getCLTKernels(),         // final double [][][][][][] clt_kernels_main, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)

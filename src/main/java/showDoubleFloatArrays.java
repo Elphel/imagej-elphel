@@ -1,9 +1,13 @@
 import java.awt.Rectangle;
 
-import ij.*;
+import ij.IJ;
+import ij.ImagePlus;
+import ij.ImageStack;
 import ij.gui.GenericDialog;
 import ij.gui.Roi;
-import ij.process.*;
+import ij.process.ColorProcessor;
+import ij.process.FloatProcessor;
+import ij.process.ImageProcessor;
 
   public class showDoubleFloatArrays {
 	  // defaults for color conversion
@@ -14,7 +18,7 @@ import ij.process.*;
 	  public double Kr=0.299;   // 0.299;
 	  public double Kb=0.114;   // 0.114;
 	  public double brightness=0.5;
-	  
+
 
 
 /* For square arrays */
@@ -75,7 +79,7 @@ import ij.process.*;
         for (j=0;j<fpixels.length;j++) fpixels[j]=(float)pixels[i][j];
         array_stack.addSlice("chn-"+i,    fpixels);
         if (pixels[i].length!=(width*height)){
-        	
+
         }
       }
       ImagePlus imp_stack = new ImagePlus(title, array_stack);
@@ -92,14 +96,18 @@ import ij.process.*;
 	    if (asStack) {
 	      float [] fpixels;
 	      ImageStack array_stack=new ImageStack(width,height);
+	      boolean not_empty = false;
 	      for (i=0;i<pixels.length;i++) if (pixels[i]!=null) {
-	        fpixels=new float[pixels[i].length];
-	        for (j=0;j<fpixels.length;j++) fpixels[j]=(float)pixels[i][j];
-	        array_stack.addSlice(titles[i], fpixels);
+	    	  not_empty = true;
+	    	  fpixels=new float[pixels[i].length];
+	    	  for (j=0;j<fpixels.length;j++) fpixels[j]=(float)pixels[i][j];
+	    	  array_stack.addSlice(titles[i], fpixels);
 	      }
-	      ImagePlus imp_stack = new ImagePlus(title, array_stack);
-	      imp_stack.getProcessor().resetMinAndMax();
-	      imp_stack.show();
+	      if (not_empty) {
+	    	  ImagePlus imp_stack = new ImagePlus(title, array_stack);
+	    	  imp_stack.getProcessor().resetMinAndMax();
+	    	  imp_stack.show();
+	      }
 	      return;
 	    } else showArrays(pixels, width, height, titles);
 	  }
@@ -111,7 +119,7 @@ import ij.process.*;
 	      ImageStack array_stack=new ImageStack(width,height);
 	      for (i=0;i<pixels.length;i++) if (pixels[i]!=null) {
 	        fpixels=new float[pixels[i].length];
-	        for (j=0;j<fpixels.length;j++) fpixels[j]=(float)pixels[i][j];
+	        for (j=0;j<fpixels.length;j++) fpixels[j]=pixels[i][j];
 	        array_stack.addSlice(titles[i], fpixels);
 	      }
 	      ImagePlus imp_stack = new ImagePlus(title, array_stack);
@@ -242,7 +250,7 @@ import ij.process.*;
 	  ImagePlus[]      imp=new ImagePlus[pixels.length];
 	  for (i=0;i<pixels.length;i++) if (pixels[i]!=null) {
 		  fpixels=new float[pixels[i].length];
-		  for (j=0;j<fpixels.length;j++) fpixels[j]=(float)pixels[i][j];
+		  for (j=0;j<fpixels.length;j++) fpixels[j]=pixels[i][j];
 		  ip[i]=new FloatProcessor(width,height);
 		  ip[i].setPixels(fpixels);
 		  ip[i].resetMinAndMax();
@@ -299,7 +307,7 @@ import ij.process.*;
 	  float [] fpixels;
 	  if (pixels!=null) {
 		  fpixels=new float[pixels.length];
-		  for (j=0;j<pixels.length;j++) fpixels[j]=(float)pixels[j];
+		  for (j=0;j<pixels.length;j++) fpixels[j]=pixels[j];
 		  ImageProcessor ip=new FloatProcessor(width,height);
 		  ip.setPixels(fpixels);
 		  ip.resetMinAndMax();
@@ -323,14 +331,14 @@ import ij.process.*;
 	  }
 	  return null;
   }
-  
-  
+
+
   public ImagePlus makeArrays(float[] pixels, int width, int height, String title) {
 	  int j;
 	  float [] fpixels;
 	  if (pixels!=null) {
 		  fpixels=new float[pixels.length];
-		  for (j=0;j<pixels.length;j++) fpixels[j]=(float)pixels[j];
+		  for (j=0;j<pixels.length;j++) fpixels[j]=pixels[j];
 		  ImageProcessor ip=new FloatProcessor(width,height);
 		  ip.setPixels(fpixels);
 		  ip.resetMinAndMax();
@@ -394,7 +402,7 @@ import ij.process.*;
       ImagePlus imp_stack = new ImagePlus(title, stack);
       imp_stack.getProcessor().resetMinAndMax();
       imp_stack.show();
-      return imp_stack; 
+      return imp_stack;
   }
   public void showImageStackThree(ImageStack stack, String title) {
 	  if (stack==null) return;
@@ -410,7 +418,7 @@ import ij.process.*;
       imp_stack.getProcessor().resetMinAndMax();
       imp_stack.show();
   }
-  
+
   // additional methods to show 2-d "flows" in color
   /*
   	  public int sliceRminusG=1;
@@ -436,7 +444,7 @@ import ij.process.*;
 		gd.addNumericField("Color conversion coefficient Kr (default =0.299) ", this.Kr, 3);
 		gd.addNumericField("Color conversion coefficient Kb (default =0.114) ", this.Kb, 3);
 		gd.addNumericField("Brightness (0..1.0)", this.brightness, 3);
-		
+
 	    gd.showDialog();
 	    if (gd.wasCanceled()) return null;
 	    this.sliceRminusG=     (int) gd.getNextNumber();
@@ -457,7 +465,7 @@ import ij.process.*;
 				  this.Kb);
   }
 	/**
-	 * 
+	 *
 	 * @param imp image containing at least 2 slices, rectangular selection will be used to find min/max
 	 * @param sliceRminusG slice number to be interpreted as R-G
 	 * @param sliceBminusG slice number to be interpreted as B-G
@@ -477,7 +485,7 @@ import ij.process.*;
 			  sliceBminusG,
 			  colorSpan,
 			  brightnessModulate,0.5,0.299,0.114);
-  
+
   }
   public ImagePlus showFlowFromSlices(
 		  ImagePlus imp,
@@ -519,7 +527,7 @@ import ij.process.*;
     	  if (maxB<Math.abs(pixels[1][index])) maxB=Math.abs(pixels[1][index]);
     	  double a=Math.sqrt(pixels[0][index]*pixels[0][index]+pixels[1][index]*pixels[1][index]);
     	  if (maxA<a) maxA=a;
-    	  
+
       }
       double maxRB=Math.max(maxR,maxB);
       double Kg=1.0-Kr-Kb;
@@ -572,7 +580,7 @@ G= Y  +Pr*(- 2*Kr*(1-Kr))/Kg + Pb*(-2*Kb*(1-Kb))/Kg
 	  return imp_color;
 
   }
-	  
-  
+
+
 }
 

@@ -201,25 +201,26 @@ public class PixelMapping {
 
 	public float [] getBayerFlatFieldFloat(
 			int channel,
-			int width,
-			int height,
+//			int width,
+//			int height,
 			int [][] bayer){ //{{1,0},{2,1}} GR/BG
 		if ((this.sensors == null) || (channel<0)  && (channel>=this.sensors.length))return null;
+//		width = this.sensors[channel]
 		return this.sensors[channel].getBayerFlatFieldFloat(
-				width,
-				height,
+//				width,
+//				height,
 				bayer);
 	}
 
 	public double [] getBayerFlatField(
 			int channel,
-			int width,
-			int height,
+//			int width,
+//			int height,
 			int [][] bayer){ //{{1,0},{2,1}} GR/BG
 		if ((this.sensors == null) || (channel<0)  && (channel>=this.sensors.length))return null;
 		return this.sensors[channel].getBayerFlatField(
-				width,
-				height,
+//				width,
+//				height,
 				bayer);
 	}
 
@@ -15645,8 +15646,8 @@ public class PixelMapping {
 	    public double [][] pixelCorrection=      null; // x,y, alpha, add flat, color, etc.
 //	    public double []   sensorMask=           null;
 	    public int    pixelCorrectionDecimation= 1;
-	    public int    pixelCorrectionWidth=      2592;
-	    public int    pixelCorrectionHeight=     1936;
+	    public int    pixelCorrectionWidth=      -1; // 2592;
+	    public int    pixelCorrectionHeight=     -1; // 1936;
 	    public double entrancePupilForward=      0.0;
 
 
@@ -15672,6 +15673,11 @@ public class PixelMapping {
 		public double [][] r_od=null; // ortho
 
 		public double [][] r_xyod=null; //{x0,y0,ortho, diagonal}
+
+		public int [] getSensorWH() {
+			int [] wh = {this.pixelCorrectionWidth, this.pixelCorrectionHeight};
+			return wh;
+		}
 
 
 	    public SensorData (String channelPath , boolean ok ){
@@ -15880,9 +15886,11 @@ public class PixelMapping {
 		}
 
 		public double [] getBayerFlatField(
-				int width,
-				int height,
+//				int width,
+//				int height,
 				int [][] bayer){ //{{1,0},{2,1}} GR/BG
+			int width = this.pixelCorrectionWidth; //  width,
+			int height= this.pixelCorrectionHeight; // int height,
 
 			double [] corrScale = new double [width*height];
 			for (int y=0;y<height;y++) for (int x=0;x<width;x++){
@@ -15908,6 +15916,13 @@ public class PixelMapping {
 			return corrScale;
 		}
 		public float [] getBayerFlatFieldFloat(
+				int [][] bayer){ //{{1,0},{2,1}} GR/BG
+			return _getBayerFlatFieldFloat(
+					this.pixelCorrectionWidth, //  width,
+					this.pixelCorrectionHeight, // int height,
+					bayer);
+		}
+		private float [] _getBayerFlatFieldFloat(
 				int width,
 				int height,
 				int [][] bayer){ //{{1,0},{2,1}} GR/BG

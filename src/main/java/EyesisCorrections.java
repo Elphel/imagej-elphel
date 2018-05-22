@@ -476,12 +476,14 @@ public class EyesisCorrections {
 						}
 						if (correctionsParameters.isJP4()) imp=JP4_INSTANCE.demuxImage(imp_composite, subChannel);
 						if (imp==null) imp=imp_composite; // not a composite image
-						int [] widthHeight={imp.getWidth(),imp.getHeight()};
-						this.channelWidthHeight[srcChannel]=widthHeight;
+
+//						int [] widthHeight={imp.getWidth(),imp.getHeight()};
+
+//						this.channelWidthHeight[srcChannel]=widthHeight;
 						this.channelVignettingCorrection[srcChannel]=this.pixelMapping.getBayerFlatFieldFloat(
 								srcChannel,
-								this.channelWidthHeight[srcChannel][0],
-								this.channelWidthHeight[srcChannel][1],
+//								this.channelWidthHeight[srcChannel][0],
+//								this.channelWidthHeight[srcChannel][1],
 								bayer);
 						if (this.debugLevel>0){
 							System.out.println("Created vignetting info for channel "+srcChannel+

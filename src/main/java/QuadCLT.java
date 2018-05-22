@@ -26,6 +26,7 @@
 import java.awt.Rectangle;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -38,6 +39,7 @@ import ij.WindowManager;
 //import ij.gui.Overlay;
 import ij.io.FileSaver;
 import ij.process.ColorProcessor;
+import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 
 
@@ -2629,6 +2631,10 @@ public class QuadCLT {
 						  eyesisCorrections.JP4_INSTANCE.decodeProperiesFromInfo(imp_srcs[srcChannel]); // decode existent properties from info
 						  if (debugLevel>0) System.out.println("Processing "+sourceFiles[nFile]);
 					  }
+					  imp_srcs[srcChannel] =  padBayerToFullSize(
+							  imp_srcs[srcChannel], // ImagePlus imp_src,
+							  eyesisCorrections.pixelMapping.sensors[srcChannel].getSensorWH(),
+							  true); // boolean replicate);
 					  scaleExposures[srcChannel] = 1.0;
 					  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
 						  scaleExposures[srcChannel] = referenceExposures[nFile]/Double.parseDouble((String) imp_srcs[srcChannel].getProperty("EXPOSURE"));
@@ -3189,6 +3195,81 @@ public class QuadCLT {
 		  return nf;
 	  }
 
+	  /**
+	   * Pad acquired Bayer image to the full sensor width/height. Used when optical center pixel coordinates do not match for channels
+	   * and WOI is adjusted during image capture to avoid ERS mismatch between horizontal pairs
+	   * @param imp_src source image with WOI specified as properties (sizes and offsets should be even)
+	   * @param wh {sesnor_width, sensor_height} in pixels
+	   * @param replicate fill gaps by replicating existing pixels
+	   * @return full size image
+	   */
+
+	  ImagePlus padBayerToFullSize(
+			  ImagePlus imp_src,
+			  int [] wh,
+			  boolean replicate) {
+		  int woi_top =    Integer.parseInt((String) imp_src.getProperty("WOI_TOP")); // enforce even
+		  int woi_left =   Integer.parseInt((String) imp_src.getProperty("WOI_LEFT"));
+		  int woi_width =  imp_src.getWidth(); // Integer.parseInt((String) imp_src.getProperty("WOI_WIDTH"));
+		  int woi_height = imp_src.getHeight(); // Integer.parseInt((String) imp_src.getProperty("WOI_HEIGHT"));
+		  Properties properties = imp_src.getProperties();
+
+
+		  if ((woi_top == 0) && (woi_left == 0) && (woi_width == wh[0])  && (woi_height == wh[1])){
+			  return imp_src; // good as is
+		  }
+		  float [] full_pixels = new float [wh[0]*wh[1]];
+		  float [] pixels=(float []) imp_src.getProcessor().getPixels();
+		  int dst_col = woi_left;
+		  int copy_width = woi_width;
+		  if ((dst_col + copy_width) > wh[0]) {
+			  copy_width = wh[0] - dst_col;
+		  }
+		  for (int src_row = 0; src_row < woi_height; src_row++) {
+			  int dst_row = src_row + woi_top;
+			  if (dst_row < wh[1]) {
+				  System.arraycopy( pixels,   src_row * woi_width,  full_pixels, dst_row * wh[0] + dst_col,  copy_width);
+			  }
+		  }
+		  if (replicate) {
+			  // replicate top
+			  for (int dst_row = 0; dst_row < woi_top; dst_row++) {
+				  int src_row = woi_top + (dst_row & 1);
+				  System.arraycopy( full_pixels,   src_row * wh[0] + dst_col,  full_pixels, dst_row * wh[0] + dst_col,  copy_width);
+			  }
+			  // replicate bottom
+			  for (int dst_row = woi_top + woi_height; dst_row < wh[1]; dst_row++) {
+				  int src_row = woi_top + woi_height - 2 + (dst_row & 1);
+				  System.arraycopy( full_pixels,   src_row * wh[0] + dst_col,  full_pixels, dst_row * wh[0] + dst_col,  copy_width);
+			  }
+			  // right and left are not likely, as there is no need to use them - horizontal mismatch does not influence ERS
+			  for (int col = 0; col < woi_left; col++) {
+				  for (int row = 0; row < wh[1]; row++) {
+					  full_pixels[row*wh[0] + col] = full_pixels[row*wh[0] + woi_left + (col & 1)];
+				  }
+			  }
+
+			  for (int col = woi_left + woi_width; col < wh[0]; col++) {
+				  for (int row = 0; row < wh[1]; row++) {
+					  full_pixels[row*wh[0] + col] = full_pixels[row*wh[0] + woi_left + woi_width - 2 +(col & 1)];
+				  }
+			  }
+		  }
+		  ImageProcessor ip = new FloatProcessor(wh[0],wh[1]);
+		  ip.setPixels(full_pixels);
+		  ip.resetMinAndMax(); // is it needed here?
+		  ImagePlus imp = new ImagePlus(imp_src.getTitle(),ip); // OK to have the same name?
+		  for (Map.Entry<?, ?> entry: properties.entrySet()) {
+			  String key = (String) entry.getKey();
+			  String value = (String) entry.getValue();
+			  imp.setProperty(key, value);
+		  }
+		  imp.setProperty("WOI_WIDTH", wh[0]+"");
+		  imp.setProperty("WOI_HEIGHTH", wh[1]+"");
+		  imp.setProperty("WOI_TOP", "0");
+		  imp.setProperty("WOI_LEFT", "0");
+		  return imp;
+	  }
 
 	  /**
 	   * Conditions images for a single image set
@@ -3215,6 +3296,7 @@ public class QuadCLT {
 		  ImagePlus [] imp_srcs = new ImagePlus[channelFiles.length];
 //		  double [] scaleExposures = new double[channelFiles.length]; //
 		  double [][] dbg_dpixels = new double [channelFiles.length][];
+//		  int [] fullWindowWH = geometryCorrection.getSensorWH();
 
 		  for (int srcChannel=0; srcChannel < channelFiles.length; srcChannel++){
 			  int nFile=channelFiles[srcChannel]; // channelFiles[srcChannel];
@@ -3246,7 +3328,12 @@ public class QuadCLT {
 					  eyesisCorrections.JP4_INSTANCE.decodeProperiesFromInfo(imp_srcs[srcChannel]); // decode existent properties from info
 					  if (debugLevel>0) System.out.println("Processing "+sourceFiles[nFile]);
 				  }
+// imp_srcs[srcChannel].show(); // REMOVE ME!
 
+				  imp_srcs[srcChannel] =  padBayerToFullSize(
+						  imp_srcs[srcChannel], // ImagePlus imp_src,
+						  eyesisCorrections.pixelMapping.sensors[srcChannel].getSensorWH(),
+						  true); // boolean replicate);
 				  scaleExposures[srcChannel] = 1.0;
 				  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
 					  scaleExposures[srcChannel] = referenceExposures[nFile]/Double.parseDouble((String) imp_srcs[srcChannel].getProperty("EXPOSURE"));
@@ -4736,6 +4823,10 @@ public class QuadCLT {
 						  eyesisCorrections.JP4_INSTANCE.decodeProperiesFromInfo(imp_srcs[srcChannel]); // decode existent properties from info
 						  if (debugLevel>0) System.out.println("Processing "+sourceFiles[nFile]);
 					  }
+					  imp_srcs[srcChannel] =  padBayerToFullSize(
+							  imp_srcs[srcChannel], // ImagePlus imp_src,
+							  eyesisCorrections.pixelMapping.sensors[srcChannel].getSensorWH(),
+							  true); // boolean replicate);
 					  scaleExposures[srcChannel] = 1.0;
 					  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
 						  scaleExposures[srcChannel] = referenceExposures[nFile]/Double.parseDouble((String) imp_srcs[srcChannel].getProperty("EXPOSURE"));
@@ -8373,7 +8464,7 @@ public class QuadCLT {
 	  }
 
 
-	  public ImagePlus [] conditionImageSet(
+	  public ImagePlus [] conditionImageSetBatch( // used in batchCLT3d
 			  final int                           nSet, // index of the 4-image set
 			  final EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  final int [][]                      fileIndices, // =new int [numImagesToProcess][2]; // file index, channel number
@@ -8431,7 +8522,10 @@ public class QuadCLT {
 					  eyesisCorrections.JP4_INSTANCE.decodeProperiesFromInfo(imp_srcs[srcChannel]); // decode existent properties from info
 					  if (debugLevel>0) System.out.println("Processing "+sourceFiles[nFile]);
 				  }
-
+				  imp_srcs[srcChannel] =  padBayerToFullSize(
+						  imp_srcs[srcChannel], // ImagePlus imp_src,
+						  eyesisCorrections.pixelMapping.sensors[srcChannel].getSensorWH(),
+						  true); // boolean replicate);
 				  scaleExposures[srcChannel] = 1.0;
 				  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
 					  scaleExposures[srcChannel] = referenceExposures[nFile]/Double.parseDouble((String) imp_srcs[srcChannel].getProperty("EXPOSURE"));
@@ -8712,7 +8806,7 @@ public class QuadCLT {
 			  this.startSetTime = System.nanoTime();
 			  boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[QUAD][] : null;
 			  double [] scaleExposures = new double[QUAD]; //
-			  ImagePlus [] imp_srcs = conditionImageSet(
+			  ImagePlus [] imp_srcs = conditionImageSetBatch(
 					  nSet,               // final int                           nSet, // index of the 4-image set
 					  clt_parameters,     // final EyesisCorrectionParameters.CLTParameters           clt_parameters,
 					  fileIndices,        // final int [][]                      fileIndices, // =new int [numImagesToProcess][2]; // file index, channel number

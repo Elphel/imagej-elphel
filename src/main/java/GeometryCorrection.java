@@ -85,6 +85,11 @@ public class GeometryCorrection {
 	public RigOffset   rigOffset =    null;
 
 
+	public int [] getSensorWH() {
+		int [] wh = {this.pixelCorrectionWidth, this.pixelCorrectionHeight};
+		return wh;
+	}
+
 	public GeometryCorrection(double [] extrinsic_corr)
 	{
 		this.extrinsic_corr = 	new CorrVector(extrinsic_corr);
@@ -97,6 +102,11 @@ public class GeometryCorrection {
 	public double [][] getRXY(boolean use_rig){
 		return (use_rig && (rigOffset != null)) ? rigOffset.rXY_aux: rXY ;
 	}
+
+//	public double [] getAuxOffset(boolean use_rig){
+//		double [] main_offset = {0.0,0.0};
+//		return (use_rig && (rigOffset != null)) ? rigOffset.getAuxOffset(): main_offset ;
+//	}
 
 	public Matrix getRotMatrix(boolean use_rig){
 		return (use_rig && (rigOffset != null)) ? rigOffset.getRotMatrix(): null ;
@@ -656,6 +666,10 @@ public class GeometryCorrection {
 			return vector;
 		}
 
+//		public double [] getAuxOffset() {
+//			double [] aux_offset= {baseline * Math.cos(aux_angle)/getDisparityRadius(), baseline * Math.sin(aux_angle)/getDisparityRadius()};
+//			return aux_offset;
+//		}
 		public void recalcRXY() {
 			if (rXY != null) {
 				//			rXY_aux = rXY; // FIXME: put real stuff !!!
@@ -695,10 +709,6 @@ public class GeometryCorrection {
 					{ xc_pix,      yc_pix},
 					{dxc_dangle,   dyc_dangle},
 					{dxc_baseline, dyc_baseline}};
-/*			double [][] rslt = {
-					{ -xc_pix,      -yc_pix},
-					{-dxc_dangle,   -dyc_dangle},
-					{-dxc_baseline, -dyc_baseline}}; */
 			return rslt;
 		}
 
@@ -2236,8 +2246,13 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		double  ri_scale = 0.001 * gc_main.pixelSize / gc_main.distortionRadius;
 
 		// non-distorted XY relative to the auxiliary camera center if it was parallel to the main one
-		double pXci0 = pXc - disparity *  aux_offset_derivs[0][0]; // in pixels
-		double pYci0 = pYc - disparity *  aux_offset_derivs[0][1]; // in pixels
+		// Allow aux_offset_derivs null only if disparity == 0.0;
+		double pXci0 = pXc; //  - disparity *  aux_offset_derivs[0][0]; // in pixels
+		double pYci0 = pYc; // - disparity *  aux_offset_derivs[0][1]; // in pixels
+		if (disparity != 0.0) { // aux_offset_derivs != null)
+			pXci0 -= disparity *  aux_offset_derivs[0][0]; // in pixels
+			pYci0 -= disparity *  aux_offset_derivs[0][1]; // in pixels
+		}
 		// rectilinear here
 
 		// Convert a 2-d non-distorted vector to 3d at fl_pix distance in z direction
@@ -2246,7 +2261,7 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 
 		// Apply port-individual combined rotation/zoom matrix
 
-		Matrix rvi = aux_rot.times(vi);
+		Matrix rvi = (aux_rot == null) ? vi: aux_rot.times(vi);
 
 
 		// get back to the projection plane by normalizing vector
@@ -2480,6 +2495,51 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		return pXY;
 	}
 
+	/*
+	public double [] getAuxCoordinatesRigIdeal( // used in macro mode
+			GeometryCorrection gc_main,
+			Matrix rots,
+			double px,
+			double py,
+			double disparity)
+	{
+		// reverse getPortsCoordinates
+		double c_roll = 1.0; // Math.cos(( - this.common_roll) * Math.PI/180.0);
+		double s_roll = 0.0; // Math.sin(( - this.common_roll) * Math.PI/180.0);
+		double pXcd0 = px -  0.5 * this.pixelCorrectionWidth;
+		double pYcd0 = py -  0.5 * this.pixelCorrectionWidth;
+		double pXcd = c_roll *  pXcd0 - s_roll* pYcd0;
+		double pYcd = s_roll *  pXcd0 + c_roll* pYcd0;
+		double rD = Math.sqrt(pXcd*pXcd + pYcd*pYcd)*0.001*this.pixelSize; // distorted radius in a virtual center camera
+		double rND2R=getRByRDist(rD/this.distortionRadius, (debugLevel > -1));
+		double pXc = pXcd * rND2R; // non-distorted coordinates relative to the (0.5 * this.pixelCorrectionWidth, 0.5 * this.pixelCorrectionHeight)
+		double pYc = pYcd * rND2R; // in pixels
+		double [] a={this.distortionC,this.distortionB,this.distortionA,this.distortionA5,this.distortionA6,this.distortionA7,this.distortionA8};
+		double [] pXY = new double[2];
+		// calculate for aux (this) camera
+		double [][] aux_offset = getAuxOffsetAndDerivatives(gc_main);
+			// non-distorted XY of the shifted location of the individual sensor
+			double pXci = pXc - disparity *  aux_offset[0][0]; // in pixels
+			double pYci = pYc - disparity *  aux_offset[0][1];
+
+			// calculate back to distorted
+			double rNDi = Math.sqrt(pXci*pXci + pYci*pYci); // in pixels
+			//		Rdist/R=A8*R^7+A7*R^6+A6*R^5+A5*R^4+A*R^3+B*R^2+C*R+(1-A8-A7-A6-A5-A-B-C)");
+			double ri = rNDi* 0.001 * this.pixelSize / this.distortionRadius; // relative to distortion radius
+			//    		double rD2rND = (1.0 - distortionA8 - distortionA7 - distortionA6 - distortionA5 - distortionA - distortionB - distortionC);
+			double rD2rND = 1.0;
+			double rri = 1.0;
+			for (int j = 0; j < a.length; j++){
+				rri *= ri;
+				rD2rND += a[j]*(rri - 1.0);
+			}
+			double pXid = pXci * rD2rND;
+			double pYid = pYci * rD2rND;
+			pXY[i][0] =  c_roll *  pXid + s_roll* pYid + 0.5 * this.pixelCorrectionWidth; // this.pXY0[i][0];
+			pXY[i][1] = -s_roll *  pXid + c_roll* pYid + 0.5 * this.pixelCorrectionWidth; // this.pXY0[i][1];
+		return pXY;
+	}
+*/
 
 
 	public double [][] getPortsCoordinatesIdeal(
@@ -2499,6 +2559,30 @@ matrix([[-0.125, -0.125,  0.125,  0.125, -0.125,  0.125, -0.   , -0.   ,   -0.  
 		}
 		return coords;
 	}
+
+	public double [] getRigAuxCoordinatesIdeal(
+			int                macro_scale, // 1 for pixels, 8 - for tiles when correlating tiles instead of the pixels
+			GeometryCorrection gc_main,
+			Matrix             aux_rot,
+			double             px,
+			double             py,
+			double             disparity)
+	{
+		double [] xy = getRigAuxCoordinatesAndDerivatives(
+				gc_main,           // GeometryCorrection gc_main,
+				aux_rot,           // Matrix      aux_rot,
+				null,              // Matrix []   aux_rot_derivs,
+				null,              // double [][] aux_offset_derivs,
+				null,              // double [][] pXYderiv, // if not null, should be double[6][]
+				px * macro_scale,  // double px,
+				py * macro_scale,  // double py,
+				disparity);        // double disparity);
+		double [] coords = {xy[0]/macro_scale,xy[1]/macro_scale};
+		return coords;
+	}
+
+
+
 
 
 	// Copied from PixelMapping

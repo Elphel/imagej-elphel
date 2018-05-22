@@ -78,6 +78,7 @@ public class BiQuadParameters {
 	public boolean ml_keep_aux =               true; // include auxiliary camera data in the ML output
 	public boolean ml_keep_inter =             true; // include inter-camera correlation data in the ML output
 	public boolean ml_keep_hor_vert =          true; // include combined horizontal and vertical pairs data in the ML output
+	public boolean ml_keep_tbrl =              true; // include individual top, bottom, right, left pairs
 	public boolean ml_keep_debug=              true; // include debug layer(s) data in the ML output
 	public boolean ml_8bit=                    true; // output in 8-bit format (default - 32-bit TIFF
 	public double  ml_limit_extrim =           0.00001; // ignore lowest and highest values when converting to 8 bpp
@@ -180,8 +181,11 @@ public class BiQuadParameters {
 				"ML output will have the second set of the layers for the auxiliary camera. Disparity values should be scaled for the camera baseline");
 		gd.addCheckbox    ("Keep inter-camera correlation data",                                                  this.ml_keep_inter,
 				"Inter-camera correlation data has only one layer (and one correlation pair). It is used to generate ground truth data. Usable disparity range (measured in the main camera pixels) is ~1/5 of teh main camera");
-		gd.addCheckbox    ("Keep combine horizonta/vertical pairs",                                               this.ml_keep_hor_vert,
+		gd.addCheckbox    ("Keep individual top, bottom, right, and left pairs",                                  this.ml_keep_tbrl,
 				"Each of these two layers per camera are calculated from a pair of top/bottom and left/right pairs. Can possibly be used instead of originals to reduce amount of input data");
+		gd.addCheckbox    ("Keep combined horizonta/vertical pairs",                                              this.ml_keep_hor_vert,
+				"Individual horizontal and vertical pairs (4 total). Can be replaced by two combined (horizontal+vertical) ones");
+
 		gd.addCheckbox    ("Keep debug layer(s)",                                                                 this.ml_keep_debug,
 				"Keep additional (debug) layers that may change for different file versions");
 		gd.addCheckbox    ("Use 8 bpp TIFF (default - 32 bpp)",                                                   this.ml_8bit,
@@ -241,6 +245,7 @@ public class BiQuadParameters {
 		this.ml_sweep_steps=          (int) gd.getNextNumber();
 		this.ml_keep_aux=                   gd.getNextBoolean();
 		this.ml_keep_inter=                 gd.getNextBoolean();
+		this.ml_keep_tbrl=                  gd.getNextBoolean();
 		this.ml_keep_hor_vert=              gd.getNextBoolean();
 		this.ml_keep_debug=                 gd.getNextBoolean();
 		this.ml_8bit=                       gd.getNextBoolean();
@@ -299,6 +304,7 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"ml_sweep_steps",            this.ml_sweep_steps+"");
 		properties.setProperty(prefix+"ml_keep_aux",               this.ml_keep_aux+"");
 		properties.setProperty(prefix+"ml_keep_inter",             this.ml_keep_inter+"");
+		properties.setProperty(prefix+"ml_keep_tbrl",              this.ml_keep_tbrl+"");
 		properties.setProperty(prefix+"ml_keep_hor_vert",          this.ml_keep_hor_vert+"");
 		properties.setProperty(prefix+"ml_keep_debug",             this.ml_keep_debug+"");
 		properties.setProperty(prefix+"ml_8bit",                   this.ml_8bit+"");
@@ -355,6 +361,7 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"ml_sweep_steps")!=null)          this.ml_sweep_steps=Integer.parseInt(properties.getProperty(prefix+"ml_sweep_steps"));
 		if (properties.getProperty(prefix+"ml_keep_aux")!=null)             this.ml_keep_aux=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_aux"));
 		if (properties.getProperty(prefix+"ml_keep_inter")!=null)           this.ml_keep_inter=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_inter"));
+		if (properties.getProperty(prefix+"ml_keep_tbrl")!=null)            this.ml_keep_tbrl=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_tbrl"));
 		if (properties.getProperty(prefix+"ml_keep_hor_vert")!=null)        this.ml_keep_hor_vert=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_hor_vert"));
 		if (properties.getProperty(prefix+"ml_keep_debug")!=null)           this.ml_keep_debug=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_debug"));
 		if (properties.getProperty(prefix+"ml_8bit")!=null)                 this.ml_8bit=Boolean.parseBoolean(properties.getProperty(prefix+"ml_8bit"));
@@ -411,6 +418,7 @@ public class BiQuadParameters {
 		bqp.ml_sweep_steps=             this.ml_sweep_steps;
 		bqp.ml_keep_aux=                this.ml_keep_aux;
 		bqp.ml_keep_inter=              this.ml_keep_inter;
+		bqp.ml_keep_tbrl=               this.ml_keep_tbrl;
 		bqp.ml_keep_hor_vert=           this.ml_keep_hor_vert;
 		bqp.ml_keep_debug=              this.ml_keep_debug;
 		bqp.ml_8bit=                    this.ml_8bit;
