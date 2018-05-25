@@ -1,11 +1,3 @@
-import java.util.ArrayList;
-
-import ij.IJ;
-import ij.ImagePlus;
-import ij.ImageStack;
-import ij.Prefs;
-import ij.io.FileSaver;
-
 /**
  ** TwoQuadCLT - Process images from a pair of Quad/Octal cameras
  **
@@ -28,6 +20,13 @@ import ij.io.FileSaver;
  ** -----------------------------------------------------------------------------**
  **
  */
+import java.util.ArrayList;
+
+import ij.IJ;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.Prefs;
+import ij.io.FileSaver;
 
 public class TwoQuadCLT {
 	public long                                            startTime;     // start of batch processing
@@ -339,6 +338,7 @@ public class TwoQuadCLT {
 		  final double [][][][][][][] clt_bidata = // new double[2][quad][nChn][tilesY][tilesX][][]; // first index - main/aux
 				  image_dtt.clt_bi_quad (
 						  clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+						  clt_parameters.fat_zero,              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 						  tile_op_main,                         // final int [][]            tile_op_main,    // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 //						  tile_op_aux,                          // final int [][]            tile_op_aux,     // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 						  disparity_array_main,                 // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
@@ -913,6 +913,7 @@ public class TwoQuadCLT {
 		  ImageDtt image_dtt = new ImageDtt();
 		  image_dtt.clt_bi_macro(
 				  clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+				  clt_parameters.fat_zero,              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 				  macro_scale, // final int                 macro_scale,
 				  mtile_op, // final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 				  mdisparity_array, // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
@@ -1191,6 +1192,7 @@ if (debugLevel > -100) return true; // temporarily !
 			  final boolean                                  updateStatus,
 			  final int                                      debugLevel) throws Exception
 	  {
+		  int refine_inter = 2; // 3; // 3 - dx, 2 - disparity
 		  System.out.println("enhanceByRig()");
 		  if ((quadCLT_main == null) || (quadCLT_aux == null)) {
 			  System.out.println("QuadCLT instances are not initilaized");
@@ -1249,6 +1251,7 @@ if (debugLevel > -100) return true; // temporarily !
 		  }
 		  //Re-measure background
 		  final int tilesX = quadCLT_main.tp.getTilesX();
+		  final int tilesY = quadCLT_main.tp.getTilesY();
 		  double [][] disparity_bimap_infinity = measureNewRigDisparity(
 				  quadCLT_main,      // QuadCLT             quadCLT_main,    // tiles should be set
 				  quadCLT_aux,       // QuadCLT             quadCLT_aux,
@@ -1271,7 +1274,7 @@ if (debugLevel > -100) return true; // temporarily !
     			  null,                                    // boolean []         was_trusted,
         		  disparity_bimap_infinity );              // double [][]        bimap // current state of measurements
 
-          if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
+          if (clt_parameters.show_map &&  (debugLevel > 0) && clt_parameters.rig.rig_mode_debug){
         	  (new showDoubleFloatArrays()).showArrays(
         			  disparity_bimap_infinity,
         			  tilesX,
@@ -1292,7 +1295,7 @@ if (debugLevel > -100) return true; // temporarily !
         			  disparity_bimap_infinity, // double [][]                    src_bimap,       // current state of measurements (or null for new measurement)
         			  prev_bimap,      // double [][]                    prev_bimap, // previous state of measurements or null
 					  scale_bad,       // double []                      scale_bad,
-        			  2,               // int                            refine_mode,     // 0 - by main, 1 - by aux, 2 - by inter
+					  refine_inter,    // int                            refine_mode,     // 0 - by main, 1 - by aux, 2 - by inter
         			  false,           // boolean                        keep_inf,        // keep expected disparity 0.0 if it was so
         			  0.0, // clt_parameters.rig.refine_min_strength , // double refine_min_strength, // do not refine weaker tiles
         			  clt_parameters.rig.refine_tolerance ,    // double refine_tolerance,    // do not refine if absolute disparity below
@@ -1320,7 +1323,7 @@ if (debugLevel > -100) return true; // temporarily !
 
           }
 
-          if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
+          if (clt_parameters.show_map &&  (debugLevel > 0) && clt_parameters.rig.rig_mode_debug){
 
         	  for (int layer = 0; layer < disparity_bimap_infinity.length; layer ++) if (disparity_bimap_infinity[layer] != null){
         		  for (int nTile = 0; nTile < disparity_bimap_infinity[layer].length; nTile++) {
@@ -1375,7 +1378,7 @@ if (debugLevel > -100) return true; // temporarily !
         		  clt_parameters.rig.trusted_tolerance,              // double             trusted_tolerance,
     			  null,                                              // boolean []         was_trusted,
         		  disparity_bimap); // double [][]        bimap // current state of measurements
-          if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
+          if (clt_parameters.show_map &&  (debugLevel > 0) && clt_parameters.rig.rig_mode_debug){
         	  (new showDoubleFloatArrays()).showArrays(
         			  disparity_bimap,
         			  tilesX,
@@ -1396,7 +1399,7 @@ if (debugLevel > -100) return true; // temporarily !
         			  disparity_bimap, // double [][]                    src_bimap,       // current state of measurements (or null for new measurement)
         			  prev_bimap,      // double [][]                    prev_bimap, // previous state of measurements or null
 					  scale_bad,       // double []                      scale_bad,
-        			  2,               // int                            refine_mode,     // 0 - by main, 1 - by aux, 2 - by inter
+					  refine_inter,    // int                            refine_mode,     // 0 - by main, 1 - by aux, 2 - by inter
         			  false,           // boolean                        keep_inf,        // keep expected disparity 0.0 if it was so
         			  0.0, // clt_parameters.rig.refine_min_strength , // double refine_min_strength, // do not refine weaker tiles
         			  clt_parameters.rig.refine_tolerance ,    // double refine_tolerance,    // do not refine if absolute disparity below
@@ -1422,7 +1425,7 @@ if (debugLevel > -100) return true; // temporarily !
         	  if (num_new[0] < clt_parameters.rig.min_new) break;
           }
 
-          if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
+          if (clt_parameters.show_map &&  (debugLevel > 0) && clt_parameters.rig.rig_mode_debug){
 
         	  for (int layer = 0; layer < disparity_bimap.length; layer ++) if (disparity_bimap[layer] != null){
         		  for (int nTile = 0; nTile < disparity_bimap[layer].length; nTile++) {
@@ -1468,7 +1471,7 @@ if (debugLevel > -100) return true; // temporarily !
     		  }
     	  }
 
-          if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
+          if (clt_parameters.show_map &&  (debugLevel > 0) && clt_parameters.rig.rig_mode_debug){
         	  (new showDoubleFloatArrays()).showArrays(
         			  disparity_bimap,
         			  tilesX,
@@ -1495,7 +1498,105 @@ if (debugLevel > -100) return true; // temporarily !
 						  ImageDtt.BIDISPARITY_TITLES);
           }
 
-          // grow around using all camera and inter-camera correlations (try to get low-textured,like our street)
+
+// repeat multiple times (need to compare added tiles (after cleanup? - return number of tiles after cleanu-up and compare improvements)
+          int num_trusted = 0;
+//		  final int tilesX = quadCLT_main.tp.getTilesX();
+//		  final int tilesY = quadCLT_main.tp.getTilesY();
+          // grow around using all camera and inter-camera correlations (try to get low-textured,like our street pavement)
+          BiCamDSI biCamDSI = new BiCamDSI( tilesX, tilesY);
+          int min_added_tiles = 100;
+
+          for (int num_fill = 0; num_fill < 10; num_fill++) {
+        	  int num_new_trusted = biCamDSI.removeLTUntrusted(
+        			  disparity_bimap,                           // double [][] disparity_bimap,
+        			  clt_parameters.rig.lt_min_disparity,       // double      min_disparity, //  =          0.0;    // apply low texture to near objects
+        			  clt_parameters.rig.lt_trusted_strength,    // double      trusted_strength, // =       0.2;    // strength sufficient without neighbors
+        			  clt_parameters.rig.lt_need_friends,        // double      need_friends, // =           0.4;    // strength sufficient with neighbors support, fraction of lt_trusted_strength
+        			  clt_parameters.rig.lt_friends_diff,        // double      friends_diff, // =           0.2;    // pix difference to neighbors to be considered a match (TODO: use tilted)
+        			  clt_parameters.rig.lt_friends_rdiff,       // double      friends_rdiff, // =          0.04;   // additional relative pix per pixel of disparity
+        			  clt_parameters.rig.lt_min_friends_any,     // int         min_friends_any, // =        2;      // minimal number of even weak friends
+        			  clt_parameters.rig.lt_min_friends_trusted, // int         min_friends_trusted, // =    2;      // minimal number of trusted (strong or already confirmed)
+        			  clt_parameters.rig.lt_friends_dist,        // int         friends_dist, // =           3;      // how far to look for friends
+        			  debugLevel); // int         debugLevel
+        	  if ((num_new_trusted - num_trusted) < min_added_tiles) {
+        		  if (debugLevel > -2) {
+        			  System.out.println("enhanceByRig(): pass="+num_fill+", number of added tiles = "+(num_new_trusted - num_trusted)+" < " +min_added_tiles+", done adding");
+        			  break;
+        		  }
+        	  } else {
+        		  if (debugLevel > -2) {
+        			  System.out.println("enhanceByRig(): pass="+num_fill+", number of added tiles = "+(num_new_trusted - num_trusted));
+        		  }
+        	  }
+        	  num_trusted = num_new_trusted;
+        	  disparity_bimap = fillPoorTextureByInter(
+        			  quadCLT_main,     // QuadCLT            quadCLT_main,  // tiles should be set
+        			  quadCLT_aux,      // QuadCLT            quadCLT_aux,
+        			  clt_parameters,   // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+        			  disparity_bimap,  //double [][]                                    disparity_bimap,
+        			  biCamDSI,          // BiCamDSI                                       biCamDSI,
+        			  threadsMax,       // final int                                      threadsMax,  // maximal number of threads to launch
+        			  updateStatus,     // final boolean                                  updateStatus,
+        			  debugLevel-2);      // final int                                      debugLevel)// throws Exception
+
+
+        	  if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){ //OK
+        		  (new showDoubleFloatArrays()).showArrays(
+        				  disparity_bimap,
+        				  tilesX,
+        				  disparity_bimap[0].length/tilesX,
+        				  true,
+        				  quadCLT_main.image_name+"DSI_LT-N"+num_fill,
+        				  ImageDtt.BIDISPARITY_TITLES);
+        		  /*
+
+        		  for (int layer = 0; layer < disparity_bimap.length; layer ++) if (disparity_bimap[layer] != null){
+        			  for (int nTile = 0; nTile < disparity_bimap[layer].length; nTile++) {
+        				  if (!trusted_near[nTile]) disparity_bimap[layer][nTile] = Double.NaN;
+        			  }
+        		  }
+        		  for (int layer:ImageDtt.BIDISPARITY_STRENGTHS) if (disparity_bimap[layer] != null){
+        			  for (int nTile = 0; nTile < disparity_bimap[layer].length; nTile++) {
+        				  if (!trusted_near[nTile]) disparity_bimap[layer][nTile] = 0.0;
+        			  }
+        		  }
+        		  (new showDoubleFloatArrays()).showArrays( //wrong
+        				  disparity_bimap,
+        				  tilesX,
+        				  disparity_bimap[0].length/tilesX,
+        				  true,
+        				  quadCLT_main.image_name+"-DSI-LT-TRUSTED-N"+num_fill,
+        				  ImageDtt.BIDISPARITY_TITLES);
+                  */
+        	  }
+          }
+    	  int num_new_trusted = biCamDSI.removeLTUntrusted(
+    			  disparity_bimap,                           // double [][] disparity_bimap,
+    			  clt_parameters.rig.lt_min_disparity,       // double      min_disparity, //  =          0.0;    // apply low texture to near objects
+    			  clt_parameters.rig.lt_trusted_strength,    // double      trusted_strength, // =       0.2;    // strength sufficient without neighbors
+    			  clt_parameters.rig.lt_need_friends,        // double      need_friends, // =           0.4;    // strength sufficient with neighbors support, fraction of lt_trusted_strength
+    			  clt_parameters.rig.lt_friends_diff,        // double      friends_diff, // =           0.2;    // pix difference to neighbors to be considered a match (TODO: use tilted)
+    			  clt_parameters.rig.lt_friends_rdiff,       // double      friends_rdiff, // =          0.04;   // additional relative pix per pixel of disparity
+    			  clt_parameters.rig.lt_min_friends_any,     // int         min_friends_any, // =        2;      // minimal number of even weak friends
+    			  clt_parameters.rig.lt_min_friends_trusted, // int         min_friends_trusted, // =    2;      // minimal number of trusted (strong or already confirmed)
+    			  clt_parameters.rig.lt_friends_dist,        // int         friends_dist, // =           3;      // how far to look for friends
+    			  debugLevel); // int         debugLevel
+
+    	  if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){ //OK
+    		  System.out.println("There are total "+num_new_trusted+" trusted tiles in ground truthe data");
+    		  (new showDoubleFloatArrays()).showArrays(
+    				  disparity_bimap,
+    				  tilesX,
+    				  disparity_bimap[0].length/tilesX,
+    				  true,
+    				  quadCLT_main.image_name+"DSI_LT-FINAL",
+    				  ImageDtt.BIDISPARITY_TITLES);
+    	  }
+
+
+//          if (debugLevel > -100) return null; // temporarily
+
 
           // re-measure with ML data output
 //		  int ml_hwidth =      2; // move to clt_parameters
@@ -1521,6 +1622,7 @@ if (debugLevel > -100) return true; // temporarily !
 	    			  disparity_bimap,                          // double [][]                                    src_bimap,
 	    			  clt_parameters,                           // EyesisCorrectionParameters.CLTParameters clt_parameters,
 	    			  clt_parameters.rig.ml_hwidth,             // int ml_hwidth
+	    			  clt_parameters.rig.ml_fatzero,            // double               fatzero,
 	    			  threadsMax,                               // final int            threadsMax,  // maximal number of threads to launch
 	    			  updateStatus,                             // final boolean        updateStatus,
 	    			  debugLevel);                              // final int            debugLevel);
@@ -1538,6 +1640,7 @@ if (debugLevel > -100) return true; // temporarily !
 	    			  clt_parameters.rig.ml_keep_hor_vert,      // boolean              keep_hor_vert,
 	    			  clt_parameters.rig.ml_keep_tbrl,          // boolean              ml_keep_tbrl,
 	    			  clt_parameters.rig.ml_keep_debug,         // boolean              keep_debug,
+	    			  clt_parameters.rig.ml_fatzero,            // double               ml_fatzero,
 	    			  clt_parameters.rig.ml_hwidth,             // int                  ml_hwidth,
 	    			  ml_data,                                  // double [][]          ml_data,
 	    			  clt_parameters.rig.ml_show_ml,            // boolean              show,
@@ -1546,6 +1649,144 @@ if (debugLevel > -100) return true; // temporarily !
           return null;
           //clt_3d_passes
 	  }
+
+	  public double [][] fillPoorTextureByInter(
+			  QuadCLT            quadCLT_main,  // tiles should be set
+			  QuadCLT            quadCLT_aux,
+			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			  double [][]                                    disparity_bimap,
+			  BiCamDSI                                       biCamDSI,
+			  final int                                      threadsMax,  // maximal number of threads to launch
+			  final boolean                                  updateStatus,
+			  final int                                      debugLevel)// throws Exception
+			  {
+		  final int refine_inter = 2; // use inter-cam disparity for refinement
+		  final int tilesX = quadCLT_main.tp.getTilesX();
+		  final int tilesY = quadCLT_main.tp.getTilesY();
+          // grow around using all camera and inter-camera correlations (try to get low-textured,like our street pavement)
+//          BiCamDSI biCamDSI = new BiCamDSI( tilesX, tilesY);
+          double [] suggestedLTMeasurements =  biCamDSI.suggestLTTiles(
+        		  disparity_bimap,                           // double [][] disparity_bimap,
+        		  null, // boolean []  trusted,       // may be null if disparity is alreasdy NaN-ed
+        		  clt_parameters.rig.lt_min_disparity,       // double      min_disparity, //  =          0.0;    // apply low texture to near objects
+        		  clt_parameters.rig.lt_trusted_strength,    // double      trusted_strength, // =       0.2;    // strength sufficient without neighbors
+        		  clt_parameters.rig.lt_need_friends,        // double      need_friends, // =           0.4;    // strength sufficient with neighbors support, fraction of lt_trusted_strength
+//        		  clt_parameters.rig.lt_friends_diff,        // double      friends_diff, // =           0.2;    // pix difference to neighbors to be considered a match (TODO: use tilted)
+//        		  clt_parameters.rig.lt_friends_rdiff,       // double      friends_rdiff, // =          0.04;   // additional relative pix per pixel of disparity
+//       		  clt_parameters.rig.lt_min_friends_any,     // int         min_friends_any, // =        2;      // minimal number of even weak friends
+//        		  clt_parameters.rig.lt_min_friends_trusted, // int         min_friends_trusted, // =    2;      // minimal number of trusted (strong or already confirmed)
+//        		  clt_parameters.rig.lt_friends_dist,        // int         friends_dist, // =           3;      // how far to look for friends
+//        		  clt_parameters.rig.lt_replace_lone,        // boolean     replace_lone, // =           true;   // try to overwrite lone weak
+        		  clt_parameters.rig.lt_extend_dist,         // int         extend_dist, // =            3;      // how far to extend around known tiles (probably should increase this value up to?
+      			// dealing with neighbors variance
+        		  clt_parameters.rig.lt_wsigma,              // double      wsigma,     //  = 1.0; // influence of far neighbors diminish as a Gaussian with this sigma
+        		  clt_parameters.rig.lt_max_asigma,          // double      max_asigma, // =             .15;     // Maximal acceptable standard deviation of the neighbors (remove, then add)
+        		  clt_parameters.rig.lt_max_rsigma,          // double      max_rsigma, // =             .05;     // Maximal acceptable standard deviation of the neighbors (remove, then add)
+        		  debugLevel);                               // int         debugLevel
+
+
+    	  double [][] disparity_bimap_lt = setBimapFromDisparityNaN(
+    			  suggestedLTMeasurements,      // double []                                      disparity,
+    			  quadCLT_main,         // QuadCLT                                  quadCLT_main,  // tiles should be set
+    			  quadCLT_aux,          // QuadCLT                                  quadCLT_aux,
+    			  clt_parameters,       // EyesisCorrectionParameters.CLTParameters clt_parameters,
+    			  threadsMax,           // final int        threadsMax,  // maximal number of threads to launch
+    			  updateStatus,         // final boolean    updateStatus,
+    			  debugLevel);          // final int        debugLevel);
+
+          if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
+        	  (new showDoubleFloatArrays()).showArrays(
+        			  disparity_bimap_lt,
+        			  tilesX,
+        			  disparity_bimap[0].length/tilesX,
+        			  true,
+        			  quadCLT_main.image_name+"NEW_LT_MEASURED",
+        			  ImageDtt.BIDISPARITY_TITLES);
+          }
+
+// refine just the new suggested measurements
+          double [][] prev_bimap = null;
+          int [] num_new =        new int[1];
+          double [] scale_bad = new double [suggestedLTMeasurements.length];
+          for (int i = 0; i < scale_bad.length; i++) scale_bad[i] = 1.0;
+          prev_bimap = null;
+          boolean [] trusted_lt = null;
+          for (int nref = 0; nref < clt_parameters.rig.num_near_refine; nref++) {
+        	  // refine infinity using inter correlation
+        	  double [][] disparity_bimap_new =  refineRigSel(
+        			  quadCLT_main,    // QuadCLT                        quadCLT_main,    // tiles should be set
+        			  quadCLT_aux,     // QuadCLT                        quadCLT_aux,
+        			  disparity_bimap_lt, // double [][]                    src_bimap,       // current state of measurements (or null for new measurement)
+        			  prev_bimap,      // double [][]                    prev_bimap, // previous state of measurements or null
+					  scale_bad,       // double []                      scale_bad,
+					  refine_inter,    // int                            refine_mode,     // 0 - by main, 1 - by aux, 2 - by inter
+        			  false,           // boolean                        keep_inf,        // keep expected disparity 0.0 if it was so
+        			  0.0, // clt_parameters.rig.refine_min_strength , // double refine_min_strength, // do not refine weaker tiles
+        			  clt_parameters.rig.refine_tolerance ,    // double refine_tolerance,    // do not refine if absolute disparity below
+        			  trusted_lt,      // null, // trusted_lt,    // tile_list,       // ArrayList<Integer>             tile_list,       // or null
+        			  num_new,         // int     []                                     num_new,
+        			  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
+        			  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
+        			  updateStatus,    // final boolean                  updateStatus,
+        			  debugLevel);     // final int                      debugLevel);
+        	  prev_bimap = disparity_bimap_lt;
+        	  disparity_bimap_lt = disparity_bimap_new;
+        	  //low texture may have very poor individual correlations, do not check them at all
+        	  trusted_lt = 	getTrustedDisparityInter(
+        			  0.0, // clt_parameters.rig.lt_trusted_strength*clt_parameters.rig.lt_need_friends, // double             min_inter_strength,    // check correlation strength combined for all 3 correlations
+        			  clt_parameters.grow_disp_trust,          // double             max_trusted_disparity,
+        			  trusted_lt, // boolean []         was_trusted,
+            		  disparity_bimap_lt );                       // double [][]        bimap // current state of measurements
+
+              if (debugLevel > -2) {
+            	  System.out.println("enhanceByRig(): refined (lt) "+num_new[0]+" tiles");
+              }
+        	  if (num_new[0] < clt_parameters.rig.min_new) break;
+          }
+    	  trusted_lt = 	getTrustedDisparityInter(
+    			  clt_parameters.rig.lt_trusted_strength*clt_parameters.rig.lt_need_friends, // double             min_inter_strength,    // check correlation strength combined for all 3 correlations
+    			  clt_parameters.grow_disp_trust,          // double             max_trusted_disparity,
+    			  trusted_lt, // boolean []         was_trusted,
+        		  disparity_bimap_lt );                       // double [][]        bimap // current state of measurements
+
+
+          if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
+        	  (new showDoubleFloatArrays()).showArrays(
+        			  disparity_bimap_lt,
+        			  tilesX,
+        			  disparity_bimap[0].length/tilesX,
+        			  true,
+        			  quadCLT_main.image_name+"NEW_LT_REFINED",
+        			  ImageDtt.BIDISPARITY_TITLES);
+          }
+
+          // combine new measured results with the previously known (new overwrites old
+    	  for (int nTile = 0; nTile < disparity_bimap_lt[0].length; nTile++) {
+//    		  if (trusted_lt[nTile] &&
+//   				  (!trusted_near[nTile] ||
+//    						  (disparity_bimap_infinity[ImageDtt.BI_STR_ALL_INDEX][nTile] > disparity_bimap[ImageDtt.BI_STR_ALL_INDEX][nTile]))) {
+    		  // start with unconditional use of new
+    		  if (trusted_lt[nTile]) {
+    			  for (int i = 0; i < disparity_bimap.length; i++) if (disparity_bimap!=null) {
+    				  disparity_bimap[i][nTile] = disparity_bimap_lt[i][nTile];
+    			  }
+//    			  trusted_near[nTile] = true;
+    		  }
+    	  }
+          if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
+        	  (new showDoubleFloatArrays()).showArrays(
+        			  disparity_bimap_lt,
+        			  tilesX,
+        			  disparity_bimap[0].length/tilesX,
+        			  true,
+        			  quadCLT_main.image_name+"DSI_ADDED",
+        			  ImageDtt.BIDISPARITY_TITLES);
+          }
+          return disparity_bimap;
+	  }
+
+
+
 
 	  public void saveMlFile(
 			  String               ml_title,
@@ -1561,6 +1802,7 @@ if (debugLevel > -100) return true; // temporarily !
 			  boolean              keep_hor_vert,
 			  boolean              ml_keep_tbrl,
 			  boolean              keep_debug,
+			  double               ml_fatzero,
 			  int                  ml_hwidth,
 			  double [][]          ml_data,
 			  boolean              show,
@@ -1572,7 +1814,7 @@ if (debugLevel > -100) return true; // temporarily !
 		  int width =  tilesX * ml_width;
 		  int height = tilesY * ml_width;
 		  String title = ml_title+ (use8bpp?"08":"32")+"B-"+(keep_aux?"A":"")+(keep_inter?"I":"")+(keep_hor_vert?"O":"")+(ml_keep_tbrl?"T":"")+
-				  (keep_debug?"D":"")+"-OFFS"+disp_offset;
+				  (keep_debug?"D":"")+"-FZ"+ml_fatzero+"-OFFS"+disp_offset;
 		  int [] aux_indices = {
 				  ImageDtt.ML_TOP_AUX_INDEX,    // 8 - top pair 2d correlation center area (auxiliary camera)
 				  ImageDtt.ML_BOTTOM_AUX_INDEX, // 9 - bottom pair 2d correlation center area (auxiliary camera)
@@ -1846,16 +2088,69 @@ if (debugLevel > -100) return true; // temporarily !
         		  disparity_array, // double [][]                              disparity_array,
     			  null, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
         		  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
+				  clt_parameters.fat_zero, // double                                         fatzero,
     			  threadsMax,      // final int        threadsMax,  // maximal number of threads to launch
     			  updateStatus,    // final boolean    updateStatus,
     			  debugLevel);     // final int        debugLevel);
 
 		  return disparity_bimap;
 	  }
+
+	  /**
+	   * Perform rig measurement from the new predicted disparity values
+	   * @param disparity array of predicted disparities, NaN - do not measure
+	   * @param quadCLT_main main camera QuadCLT instance (should have tp initialized)
+	   * @param quadCLT_aux auxiliary camera QuadCLT instance (should have tp initialized)
+	   * @param clt_parameters various configuration parameters
+	   * @param threadsMax maximal number of threads to use
+	   * @param updateStatus update IJ status bar
+	   * @param debugLevel debug level
+	   * @return rig measurement results
+	   */
+
+	  public double [][] setBimapFromDisparityNaN(
+			  double []                                      disparity,
+			  QuadCLT                                        quadCLT_main,  // tiles should be set
+			  QuadCLT                                        quadCLT_aux,
+			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			  final int                                      threadsMax,  // maximal number of threads to launch
+			  final boolean                                  updateStatus,
+			  final int                                      debugLevel){
+		  int tile_op_all = clt_parameters.tile_task_op; //FIXME Use some constant?
+		  final int tilesX = quadCLT_main.tp.getTilesX();
+		  final int tilesY = quadCLT_main.tp.getTilesY();
+		  int [][]                                           tile_op = new int[tilesY][tilesX]; // common for both amin and aux
+		  double [][]                                        disparity_array = new double[tilesY][tilesX];
+
+
+		  for (int nTile = 0; nTile < disparity.length; nTile++) {
+			  if (!Double.isNaN(disparity[nTile])) {
+				  int tileY = nTile / tilesX;
+				  int tileX = nTile % tilesX;
+				  tile_op[tileY][tileX] = tile_op_all;
+				  disparity_array[tileY][tileX] = disparity[nTile];
+			  }
+		  }
+          double [][] disparity_bimap = measureRig(
+        		  quadCLT_main,    // QuadCLT                                  quadCLT_main,  // tiles should be set
+        		  quadCLT_aux,     //QuadCLT                                   quadCLT_aux,
+        		  tile_op,         // int [][]                                 tile_op, // common for both amin and aux
+        		  disparity_array, // double [][]                              disparity_array,
+    			  null, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
+        		  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
+				  clt_parameters.fat_zero, // double                                         fatzero,
+    			  threadsMax,      // final int        threadsMax,  // maximal number of threads to launch
+    			  updateStatus,    // final boolean    updateStatus,
+    			  debugLevel);     // final int        debugLevel);
+
+		  return disparity_bimap;
+	  }
+
 	  /**
 	   * Select tiles that have small enough residual disparity to trust on each of the two cameras and the whole rig.
 	   * @param quadCLT_main main camera QuadCLT instance (should have tp initialized)
 	   * @param quadCLT_aux auxiliary camera QuadCLT instance (should have tp initialized)
+	   * @param min_combo_strength minimal combined correlation strength for each camera and the rig
 	   * @param max_trusted_disparity maximal disparity on a rig to trust (currently 4.0 pixels from zero each way)
 	   * @param trusted_tolerance allow other cameras with scaled disparity if their disparity is under this value (for small baselines)
 	   * @param bimap measured data
@@ -1881,6 +2176,28 @@ if (debugLevel > -100) return true; // temporarily !
 					  (Math.abs(bimap[ImageDtt.BI_DISP_FULL_INDEX][i])  <= trusted_main) &&
 					  (Math.abs(bimap[ImageDtt.BI_ADISP_FULL_INDEX][i]) <= trusted_aux) &&
 					  (bimap[ImageDtt.BI_STR_ALL_INDEX][i]              >= min_combo_strength) &&
+					  ((was_trusted == null) || was_trusted[i]);
+		  }
+		  return trusted;
+	  }
+	  /**
+	   * Select tiles that have small enough residual disparity and sufficient strength to trust for the whole rig only
+	   * @param min_inter_strength minimal inter-camera correlation strength
+	   * @param max_trusted_disparity maximal disparity on a rig to trust (currently 4.0 pixels from zero each way)
+	   * @param bimap measured data
+	   * @return per-tile array of trusted tiles
+	   */
+	  boolean [] getTrustedDisparityInter(
+			  double             min_inter_strength,    // check correlation strength combined for all 3 correlations
+			  double             max_trusted_disparity,
+			  boolean []         was_trusted,
+			  double [][]        bimap // current state of measurements
+			  ) {
+		  double trusted_inter =    max_trusted_disparity;
+		  boolean [] trusted = new boolean [bimap[ImageDtt.BI_DISP_CROSS_INDEX].length];
+		  for (int i = 0; i < trusted.length; i++) {
+			  trusted[i] = (Math.abs(bimap[ImageDtt.BI_DISP_CROSS_INDEX][i]) <= trusted_inter) &&
+					  (bimap[ImageDtt.BI_STR_CROSS_INDEX][i]              >= min_inter_strength) &&
 					  ((was_trusted == null) || was_trusted[i]);
 		  }
 		  return trusted;
@@ -2006,6 +2323,7 @@ if (debugLevel > -100) return true; // temporarily !
 				  disparity_array,     // double [][]                                    disparity_array,
     			  null, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 				  clt_parameters,      // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+				  clt_parameters.fat_zero, // double                                         fatzero,
 				  threadsMax,          //final int        threadsMax,  // maximal number of threads to launch
 				  updateStatus,        // final boolean    updateStatus,
 				  debugLevel);          // final int        debugLevel)
@@ -2086,6 +2404,7 @@ if (debugLevel > -100) return true; // temporarily !
 				  disparity_array,     // double [][]                                    disparity_array,
     			  null, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 				  clt_parameters,      // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+				  clt_parameters.fat_zero, // double                                         fatzero,
 				  threadsMax,          //final int        threadsMax,  // maximal number of threads to launch
 				  updateStatus,        // final boolean    updateStatus,
 				  debugLevel);          // final int        debugLevel)
@@ -2130,7 +2449,7 @@ if (debugLevel > -100) return true; // temporarily !
 			  double []                                      scale_bad,
 			  int [][]                                       tile_op, // common for both amin and aux
 			  double [][]                                    disparity_array,
-			  int                                            refine_mode, // 0 - by main, 1 - by aux, 2 - by inter
+			  int                                            refine_mode, // 0 - by main, 1 - by aux, 2 - by inter, 3 - inter-dx
 			  boolean                                        keep_inf,    // keep expected disparity 0.0 if it was so
 			  double                                         refine_min_strength, // do not refine weaker tiles
 			  double                                         refine_tolerance,    // do not refine if absolute disparity below
@@ -2168,9 +2487,15 @@ if (debugLevel > -100) return true; // temporarily !
 			  strength = src_bimap[ImageDtt.BI_ASTR_FULL_INDEX][nTile];
 			  disp_scale = disp_scale_aux;
 			  break;
-		  default:
+		  case 2:
 			  diff_disp = src_bimap[ImageDtt.BI_DISP_CROSS_INDEX][nTile];
 			  diff_prev= (prev_bimap == null)? Double.NaN:prev_bimap[ImageDtt.BI_DISP_CROSS_INDEX][nTile];
+			  strength = src_bimap[ImageDtt.BI_STR_CROSS_INDEX][nTile];
+			  disp_scale = disp_scale_inter;
+			  break;
+		  default: // case 3
+			  diff_disp = src_bimap[ImageDtt.BI_DISP_CROSS_DX_INDEX][nTile];
+			  diff_prev= (prev_bimap == null)? Double.NaN:prev_bimap[ImageDtt.BI_DISP_CROSS_DX_INDEX][nTile];
 			  strength = src_bimap[ImageDtt.BI_STR_CROSS_INDEX][nTile];
 			  disp_scale = disp_scale_inter;
 		  }
@@ -2213,7 +2538,8 @@ if (debugLevel > -100) return true; // temporarily !
 		  }
 		  if (debug_this) System.out.println("prepRefineTile():target_diff "+ src_bimap[ImageDtt.BI_TARGET_INDEX][nTile]+","+diff_disp+","+scale_bad[nTile]);
 
-		  if (Math.abs((new_disp - ref_target)/new_disp) < refine_tolerance) return false;
+//		  if (Math.abs((new_disp - ref_target)/new_disp) < refine_tolerance) return false;
+		  if (Math.abs(new_disp - ref_target) < refine_tolerance) return false;
 
 		  disparity_array[tileY][tileX] = new_disp;
 		  tile_op[tileY][tileX] = tile_op_all;
@@ -2228,6 +2554,7 @@ if (debugLevel > -100) return true; // temporarily !
 			  double [][]                                    disparity_array,
 			  double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			  double                                         fatzero,
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel){
@@ -2237,8 +2564,8 @@ if (debugLevel > -100) return true; // temporarily !
 
 		  image_dtt.clt_bi_quad (
 				  clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+				  fatzero,                              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 				  tile_op,                              // final int [][]            tile_op_main,    // [tilesY][tilesX] - what to do - 0 - nothing for this tile
-//				  tile_op,                              // final int [][]            tile_op_aux,     // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 				  disparity_array,                      // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 				  quadCLT_main.image_data,              // final double [][][]       image_data_main, // first index - number of image in a quad
 				  quadCLT_aux.image_data,               // final double [][][]       image_data_aux,  // first index - number of image in a quad
@@ -2270,6 +2597,7 @@ if (debugLevel > -100) return true; // temporarily !
 			  double [][]                                    src_bimap,
 			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
 			  int                                            ml_hwidth,
+			  double                                         fatzero,
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel){
@@ -2335,6 +2663,7 @@ if (debugLevel > -100) return true; // temporarily !
 				  disparity_array, // double [][]                                    disparity_array,
 				  ml_data, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 				  clt_parameters,   // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+				  fatzero,          // double                                         fatzero,
 				  threadsMax,       // maximal number of threads to launch // final int        threadsMax,  // maximal number of threads to launch
 				  updateStatus,     // final boolean    updateStatus,
 				  debugLevel);      // final int        debugLevel)

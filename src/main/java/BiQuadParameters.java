@@ -71,6 +71,23 @@ public class BiQuadParameters {
 	public double  min_trusted_strength =      0.1;//14// Minimal trusted combo strength;
 	public double  trusted_tolerance  =        1.0;    // Trusted tolerance for small baseline camera(s)
 
+	// rig LT (poor textured areas)
+	public double  lt_min_disparity =          0.0;    // apply low texture to near objects
+	public double  lt_trusted_strength =       0.2;    // strength sufficient without neighbors
+	public double  lt_need_friends =           0.4;    // strength sufficient with neighbors support, fraction of lt_trusted_strength
+	public double  lt_friends_diff =           0.15;   // pix difference to neighbors to be considered a match (TODO: use tilted)
+	public double  lt_friends_rdiff =          0.04;   // Add per each disparity pixel
+	public int     lt_min_friends_any =        2;      // minimal number of even weak friends
+	public int     lt_min_friends_trusted =    2;      // minimal number of trusted (strong or already confirmed)
+	public int     lt_friends_dist =           3;      // how far to look for friends
+	public boolean lt_replace_lone =           true;   // try to overwrite lone weak
+	public int     lt_extend_dist =            3;      // how far to extend around known tiles (probably should increase this value up to?
+	// dealing with neighbors variance
+	public double  lt_wsigma =                 1.0;    // Reduce influence of far neighbors with this Gaussian sigma
+	public double  lt_max_asigma =             .15;    // Maximal acceptable standard deviation of the neighbors (remove, then add)
+	public double  lt_max_rsigma =             .04;    // Additional standard deviation for each pixel of disparity (relative)
+
+
 	public int     ml_hwidth =                 2;      // Half-width of the ML tiles to export (0-> 1x1, 1->3x3, 2 -> 5x5)
 	public double  ml_disparity_sweep  =       2.0;    // Disparity sweep around ground truth, each side
 	public int     ml_sweep_steps =            5;      // Number of disparity sweep steps
@@ -83,6 +100,7 @@ public class BiQuadParameters {
 	public boolean ml_8bit=                    true; // output in 8-bit format (default - 32-bit TIFF
 	public double  ml_limit_extrim =           0.00001; // ignore lowest and highest values when converting to 8 bpp
 	public boolean ml_show_ml =                true; // show each generated MLoutput file
+	public double  ml_fatzero =                0.05; // Use this value for correlation
 
 
 
@@ -169,6 +187,38 @@ public class BiQuadParameters {
 		gd.addNumericField("Trusted tolerance for small baseline camera(s)",                                      this.trusted_tolerance,  3,6,"",
 				"When downscaling valid residual disparity from the most sensitive inter-camera, do not reduce it to be lower than this");
 
+        gd.addTab("Rig LT","Deal with the low textured areas");
+
+		gd.addNumericField("Apply low texture to near objects (disparity above)",                                 this.lt_min_disparity,  3,6,"pix",
+				"Handle low textured objects with disparity (main camera pixels) above this threshold");
+		gd.addNumericField("Inter-camera correlation strength sufficient without neighbors",                      this.lt_trusted_strength,  3,6,"",
+				"Consider such tiles valid regardless of surrounding tiles");
+		gd.addNumericField("Strength sufficient with neighbors support, fraction of the trusted (above)",         this.lt_need_friends,  3,6,"",
+				"Tiles above theis inter-camera strength may be valid if they have same disparity neighbors");
+		gd.addNumericField("Maximal disparity difference to neighbors to be considered a match",                  this.lt_friends_diff,  3,6,"pix",
+				"TODO: use non fronto parallel surfaces (e.g. horizontal) ");
+		gd.addNumericField("Add to allowed disparity difference per each pixel of dipsarity",                     this.lt_friends_rdiff,  3,6,"pix/pix",
+				"Additional relative disparity difference");
+
+		gd.addNumericField("Minimal number of even weak friends sufficient for support",                          this.lt_min_friends_any,  0,3,"",
+				"Tiles having this number of same-disparity neighbors with strength above minimal are considered trusted");
+		gd.addNumericField("Minimal number of trusted (strong or already confirmed)",                             this.lt_min_friends_trusted,  0,3,"",
+				"Tiles having this number of same-disparity neighbors with trusted strength or already confirmed by other neighbors are trusted too");
+		gd.addNumericField("How far to look for friends",                                                         this.lt_friends_dist,  0,3,"",
+				"Look for matching tiles inside a square of 2*<this value>+1 around this tile");
+		gd.addCheckbox    ("Discard lone weak",                                                                   this.lt_replace_lone,
+				"Discard lone (no matching neighbors) tiles that have strength below trusted");
+		gd.addNumericField("How far to extend around known tiles",                                                this.lt_extend_dist,  0,3,"",
+				"Try new tiles that have neighbors within a square around it");
+		gd.addNumericField("Reduce influence of far neighbors with this Gaussian sigma",                          this.lt_wsigma,  4,6,"pix",
+				"Neighbor weight is multipled by a Gaussian with this sigma around the new tile");
+
+
+		gd.addNumericField("Maximal acceptable standard deviation of the neighbors (remove, then add)",           this.lt_max_asigma,  4,6,"pix",
+				"When multiple neighbors have different disparity, try to remove outliers, then add some back");
+		gd.addNumericField("Additional standard deviation for each pixel of disparity (relative)",                this.lt_max_rsigma,  4,6,"pix/pix",
+				"Loosen sigma requirements for high disparity by adding this value for each 1 pixel of disparity");
+
         gd.addTab("ML","Parameters related to the ML files generation for the dual-quad camera rig");
 
 		gd.addNumericField("Half-width of the ML tiles to export (0-> 1x1, 1->3x3, 2 -> 5x5)",                    this.ml_hwidth,  0,3,"",
@@ -194,6 +244,8 @@ public class BiQuadParameters {
 				"Use values histogram to find min/max values, ignoring(limiting) this fraction (parts per million) of pixels at both extremes");
 		gd.addCheckbox    ("Show each generated ML file",                                                         this.ml_show_ml,
 				"Use only for small number of generated files to reduce memory usage");
+		gd.addNumericField("Use this phase correlation fat zero when generating ML files",                        this.ml_fatzero,  5,8,"",
+				"Replace normal fat zero value used elsethere");
 
 	}
 	public void dialogAnswers(GenericJTabbedDialog gd) {
@@ -240,6 +292,20 @@ public class BiQuadParameters {
 		this.min_trusted_strength=          gd.getNextNumber();
 		this.trusted_tolerance=             gd.getNextNumber();
 
+		this.lt_min_disparity=              gd.getNextNumber();
+		this.lt_trusted_strength=           gd.getNextNumber();
+		this.lt_need_friends=               gd.getNextNumber();
+		this.lt_friends_diff=               gd.getNextNumber();
+		this.lt_friends_rdiff=              gd.getNextNumber();
+		this.lt_min_friends_any=      (int) gd.getNextNumber();
+		this.lt_min_friends_trusted=  (int) gd.getNextNumber();
+		this.lt_friends_dist=         (int) gd.getNextNumber();
+		this.lt_replace_lone=               gd.getNextBoolean();
+		this.lt_extend_dist=          (int) gd.getNextNumber();
+		this.lt_wsigma=                     gd.getNextNumber();
+		this.lt_max_asigma=                 gd.getNextNumber();
+		this.lt_max_rsigma=                 gd.getNextNumber();
+
 		this.ml_hwidth=               (int) gd.getNextNumber();
 		this.ml_disparity_sweep=            gd.getNextNumber();
 		this.ml_sweep_steps=          (int) gd.getNextNumber();
@@ -251,6 +317,7 @@ public class BiQuadParameters {
 		this.ml_8bit=                       gd.getNextBoolean();
 		this.ml_limit_extrim=               gd.getNextNumber() * 1E-6;
 		this.ml_show_ml=                    gd.getNextBoolean();
+		this.ml_fatzero=                    gd.getNextNumber();
 	}
 
 	public void setProperties(String prefix,Properties properties){
@@ -299,6 +366,20 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"min_trusted_strength",      this.min_trusted_strength+"");
 		properties.setProperty(prefix+"trusted_tolerance",         this.trusted_tolerance+"");
 
+		properties.setProperty(prefix+"lt_min_disparity",          this.lt_min_disparity+"");
+		properties.setProperty(prefix+"lt_trusted_strength",       this.lt_trusted_strength+"");
+		properties.setProperty(prefix+"lt_need_friends",           this.lt_need_friends+"");
+		properties.setProperty(prefix+"lt_friends_diff",           this.lt_friends_diff+"");
+		properties.setProperty(prefix+"lt_friends_rdiff",          this.lt_friends_rdiff+"");
+		properties.setProperty(prefix+"lt_min_friends_any",        this.lt_min_friends_any+"");
+		properties.setProperty(prefix+"lt_min_friends_trusted",    this.lt_min_friends_trusted+"");
+		properties.setProperty(prefix+"lt_friends_dist",           this.lt_friends_dist+"");
+		properties.setProperty(prefix+"lt_replace_lone",           this.lt_replace_lone+"");
+		properties.setProperty(prefix+"lt_extend_dist",            this.lt_extend_dist+"");
+		properties.setProperty(prefix+"lt_wsigma",                 this.lt_wsigma+"");
+		properties.setProperty(prefix+"lt_max_asigma",             this.lt_max_asigma+"");
+		properties.setProperty(prefix+"lt_max_rsigma",             this.lt_max_rsigma+"");
+
 		properties.setProperty(prefix+"ml_hwidth",                 this.ml_hwidth+"");
 		properties.setProperty(prefix+"ml_disparity_sweep",        this.ml_disparity_sweep+"");
 		properties.setProperty(prefix+"ml_sweep_steps",            this.ml_sweep_steps+"");
@@ -310,8 +391,7 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"ml_8bit",                   this.ml_8bit+"");
 		properties.setProperty(prefix+"ml_limit_extrim",           this.ml_limit_extrim+"");
 		properties.setProperty(prefix+"ml_show_ml",                this.ml_show_ml+"");
-
-
+		properties.setProperty(prefix+"ml_fatzero",                this.ml_fatzero+"");
 	}
 	public void getProperties(String prefix,Properties properties){
 		if (properties.getProperty(prefix+"rig_mode_debug")!=null)        this.rig_mode_debug=Boolean.parseBoolean(properties.getProperty(prefix+"rig_mode_debug"));
@@ -357,6 +437,20 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"trusted_tolerance")!=null)       this.trusted_tolerance=Double.parseDouble(properties.getProperty(prefix+"trusted_tolerance"));
 		if (properties.getProperty(prefix+"ml_hwidth")!=null)               this.ml_hwidth=Integer.parseInt(properties.getProperty(prefix+"ml_hwidth"));
 
+		if (properties.getProperty(prefix+"lt_min_disparity")!=null)        this.lt_min_disparity=Double.parseDouble(properties.getProperty(prefix+"lt_min_disparity"));
+		if (properties.getProperty(prefix+"lt_trusted_strength")!=null)     this.lt_trusted_strength=Double.parseDouble(properties.getProperty(prefix+"lt_trusted_strength"));
+		if (properties.getProperty(prefix+"lt_need_friends")!=null)         this.lt_need_friends=Double.parseDouble(properties.getProperty(prefix+"lt_need_friends"));
+		if (properties.getProperty(prefix+"lt_friends_diff")!=null)         this.lt_friends_diff=Double.parseDouble(properties.getProperty(prefix+"lt_friends_diff"));
+		if (properties.getProperty(prefix+"lt_friends_rdiff")!=null)        this.lt_friends_rdiff=Double.parseDouble(properties.getProperty(prefix+"lt_friends_rdiff"));
+		if (properties.getProperty(prefix+"lt_min_friends_any")!=null)      this.lt_min_friends_any=Integer.parseInt(properties.getProperty(prefix+"lt_min_friends_any"));
+		if (properties.getProperty(prefix+"lt_min_friends_trusted")!=null)  this.lt_min_friends_trusted=Integer.parseInt(properties.getProperty(prefix+"lt_min_friends_trusted"));
+		if (properties.getProperty(prefix+"lt_friends_dist")!=null)         this.lt_friends_dist=Integer.parseInt(properties.getProperty(prefix+"lt_friends_dist"));
+		if (properties.getProperty(prefix+"lt_replace_lone")!=null)         this.lt_replace_lone=Boolean.parseBoolean(properties.getProperty(prefix+"lt_replace_lone"));
+		if (properties.getProperty(prefix+"lt_extend_dist")!=null)          this.lt_extend_dist=Integer.parseInt(properties.getProperty(prefix+"lt_extend_dist"));
+		if (properties.getProperty(prefix+"lt_wsigma")!=null)               this.lt_wsigma=Double.parseDouble(properties.getProperty(prefix+"lt_wsigma"));
+		if (properties.getProperty(prefix+"lt_max_asigma")!=null)           this.lt_max_asigma=Double.parseDouble(properties.getProperty(prefix+"lt_max_sigma"));
+		if (properties.getProperty(prefix+"lt_max_rsigma")!=null)           this.lt_max_rsigma=Double.parseDouble(properties.getProperty(prefix+"lt_max_sigma"));
+
 		if (properties.getProperty(prefix+"ml_disparity_sweep")!=null)      this.ml_disparity_sweep=Double.parseDouble(properties.getProperty(prefix+"ml_disparity_sweep"));
 		if (properties.getProperty(prefix+"ml_sweep_steps")!=null)          this.ml_sweep_steps=Integer.parseInt(properties.getProperty(prefix+"ml_sweep_steps"));
 		if (properties.getProperty(prefix+"ml_keep_aux")!=null)             this.ml_keep_aux=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_aux"));
@@ -367,6 +461,7 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"ml_8bit")!=null)                 this.ml_8bit=Boolean.parseBoolean(properties.getProperty(prefix+"ml_8bit"));
 		if (properties.getProperty(prefix+"ml_limit_extrim")!=null)         this.ml_limit_extrim=Double.parseDouble(properties.getProperty(prefix+"ml_limit_extrim"));
 		if (properties.getProperty(prefix+"ml_show_ml")!=null)              this.ml_show_ml=Boolean.parseBoolean(properties.getProperty(prefix+"ml_show_ml"));
+		if (properties.getProperty(prefix+"ml_fatzero")!=null)              this.ml_fatzero=Double.parseDouble(properties.getProperty(prefix+"ml_fatzero"));
 	}
 	@Override
 	public BiQuadParameters clone() throws CloneNotSupportedException {
@@ -413,6 +508,20 @@ public class BiQuadParameters {
 		bqp.min_trusted_strength=       this.min_trusted_strength;
 		bqp.trusted_tolerance=          this.trusted_tolerance;
 
+		bqp.lt_min_disparity=           this.lt_min_disparity;
+		bqp.lt_trusted_strength=        this.lt_trusted_strength;
+		bqp.lt_need_friends=            this.lt_need_friends;
+		bqp.lt_friends_diff=            this.lt_friends_diff;
+		bqp.lt_friends_rdiff=           this.lt_friends_rdiff;
+		bqp.lt_min_friends_any=         this.lt_min_friends_any;
+		bqp.lt_min_friends_trusted=     this.lt_min_friends_trusted;
+		bqp.lt_friends_dist=            this.lt_friends_dist;
+		bqp.lt_replace_lone=            this.lt_replace_lone;
+		bqp.lt_extend_dist=             this.lt_extend_dist;
+		bqp.lt_wsigma=                  this.lt_wsigma;
+		bqp.lt_max_asigma=              this.lt_max_asigma;
+		bqp.lt_max_rsigma=              this.lt_max_rsigma;
+
 		bqp.ml_hwidth=                  this.ml_hwidth;
 		bqp.ml_disparity_sweep=         this.ml_disparity_sweep;
 		bqp.ml_sweep_steps=             this.ml_sweep_steps;
@@ -424,6 +533,7 @@ public class BiQuadParameters {
 		bqp.ml_8bit=                    this.ml_8bit;
 		bqp.ml_limit_extrim=            this.ml_limit_extrim;
 		bqp.ml_show_ml=                 this.ml_show_ml;
+		bqp.ml_fatzero =                this.ml_fatzero;
 		return bqp;
 	}
 }

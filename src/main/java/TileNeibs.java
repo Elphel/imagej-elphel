@@ -7,7 +7,7 @@ import java.util.Arrays;
  ** Copyright (C) 2017 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
- **  
+ **
  **  TileNeibs.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
@@ -36,37 +36,37 @@ public class TileNeibs{
 		this.sizeX = sizeX;
 		this.sizeY = sizeY;
 	}
-	public int numNeibs() // TODO: make configurable to 
+	public int numNeibs() // TODO: make configurable to
 	{
 		return dirs;
 	}
 	public int opposite(int dir){
 		return (dir + dirs / 2) % dirs;
 	}
-	
+
 	int getLength(){
 		return sizeX * sizeY;
 	}
-	
+
 	/**
 	 * Get x,y pair from index
 	 * @param indx element index
 	 * @return array of {x,y}
 	 */
-	
+
 	int [] getXY(int indx)
 	{
 		int [] xy = {indx % sizeX ,indx / sizeX};
 		return xy;
 	}
-	
+
 	/**
 	 * Get element index from x and y
 	 * @param x horizontal position
 	 * @param y vertical position
 	 * @return element linescan index
 	 */
-	
+
 	int getIndex(int x, int y){
 		if ((x < 0) || (y < 0) || (x >= sizeX) || (y >= sizeY)) return -1;
 		return y * sizeX + x;
@@ -78,10 +78,25 @@ public class TileNeibs{
 	}
 
 	/**
-	 * Get 2d element index after step N, NE, ... NW. Returns -1 if leaving array   
+	 * Get 2d element index after step N, NE, ... NW. Returns -1 if leaving array
+	 * @param indx start index
+	 * @param dx offsett in x direction
+	 * @param dy offsett in y direction
+	 * @return new index or -1 if leaving
+	 */
+	int getNeibIndex(int indx, int dx, int dy) {
+		int y = indx / sizeX + dy;
+		int x = indx % sizeX + dx;
+		if ((x < 0) || (y < 0 ) || (x >= sizeX) || (y >= sizeY)) return -1;
+		return y * sizeX + x;
+	}
+
+
+	/**
+	 * Get 2d element index after step N, NE, ... NW. Returns -1 if leaving array
 	 * @param indx start index
 	 * @param dir step direction (CW from up)
-	 * @return new index or -1 if leaving 
+	 * @return new index or -1 if leaving
 	 */
 	int getNeibIndex(int indx, int dir)
 	{
@@ -93,23 +108,23 @@ public class TileNeibs{
 		}
 //		switch (dir % dirs){
 		switch (dir){
-		case 0: return (y == 0) ?                                    -1 : (indx - sizeX); 
-		case 1: return ((y == 0)           || ( x == (sizeX - 1))) ? -1 : (indx - sizeX + 1); 
-		case 2: return (                      ( x == (sizeX - 1))) ? -1 : (indx        + 1); 
-		case 3: return ((y == (sizeY - 1)) || ( x == (sizeX - 1))) ? -1 : (indx + sizeX + 1); 
-		case 4: return ((y == (sizeY - 1))                       ) ? -1 : (indx + sizeX); 
-		case 5: return ((y == (sizeY - 1)) || ( x == 0))           ? -1 : (indx + sizeX - 1); 
-		case 6: return (                      ( x == 0))           ? -1 : (indx        - 1); 
-		case 7: return ((y == 0)           || ( x == 0))           ? -1 : (indx - sizeX - 1); 
+		case 0: return (y == 0) ?                                    -1 : (indx - sizeX);
+		case 1: return ((y == 0)           || ( x == (sizeX - 1))) ? -1 : (indx - sizeX + 1);
+		case 2: return (                      ( x == (sizeX - 1))) ? -1 : (indx        + 1);
+		case 3: return ((y == (sizeY - 1)) || ( x == (sizeX - 1))) ? -1 : (indx + sizeX + 1);
+		case 4: return ((y == (sizeY - 1))                       ) ? -1 : (indx + sizeX);
+		case 5: return ((y == (sizeY - 1)) || ( x == 0))           ? -1 : (indx + sizeX - 1);
+		case 6: return (                      ( x == 0))           ? -1 : (indx        - 1);
+		case 7: return ((y == 0)           || ( x == 0))           ? -1 : (indx - sizeX - 1);
 		default: return indx;
 		}
 	}
 	/**
 	 * Get 2d element index after step N, NE, ... NW. Returns -1 if leaving array
-	 * And 2 steps for dir = 8(N), 9(NNE),..23(NNW)   
+	 * And 2 steps for dir = 8(N), 9(NNE),..23(NNW)
 	 * @param indx start index
 	 * @param dir step direction (CW from up)
-	 * @return new index or -1 if leaving 
+	 * @return new index or -1 if leaving
 	 */
 	int getNeibIndex2(int indx, int dir)
 	{
@@ -121,37 +136,37 @@ public class TileNeibs{
 		}
 //		switch (dir % dirs){
 		switch (dir){
-		case  0: return (y == 0) ?                                    -1 : (indx - sizeX); 
-		case  1: return ((y == 0)           || ( x == (sizeX - 1))) ? -1 : (indx - sizeX + 1); 
-		case  2: return (                      ( x == (sizeX - 1))) ? -1 : (indx        + 1); 
-		case  3: return ((y == (sizeY - 1)) || ( x == (sizeX - 1))) ? -1 : (indx + sizeX + 1); 
-		case  4: return ((y == (sizeY - 1))                       ) ? -1 : (indx + sizeX); 
-		case  5: return ((y == (sizeY - 1)) || ( x == 0))           ? -1 : (indx + sizeX - 1); 
-		case  6: return (                      ( x == 0))           ? -1 : (indx        - 1); 
+		case  0: return (y == 0) ?                                    -1 : (indx - sizeX);
+		case  1: return ((y == 0)           || ( x == (sizeX - 1))) ? -1 : (indx - sizeX + 1);
+		case  2: return (                      ( x == (sizeX - 1))) ? -1 : (indx        + 1);
+		case  3: return ((y == (sizeY - 1)) || ( x == (sizeX - 1))) ? -1 : (indx + sizeX + 1);
+		case  4: return ((y == (sizeY - 1))                       ) ? -1 : (indx + sizeX);
+		case  5: return ((y == (sizeY - 1)) || ( x == 0))           ? -1 : (indx + sizeX - 1);
+		case  6: return (                      ( x == 0))           ? -1 : (indx        - 1);
 		case  7: return ((y == 0)           || ( x == 0))           ? -1 : (indx - sizeX - 1);
-		
-		case  8: return ( y < 2) ?                                   -1 : (indx - 2 * sizeX); 
-		case  9: return ((y < 2)            || ( x > (sizeX - 2))) ? -1 : (indx - 2 * sizeX + 1); 
-		case 10: return ((y < 2)            || ( x > (sizeX - 3))) ? -1 : (indx - 2 * sizeX + 2); 
-		case 11: return ((y < 1)            || ( x > (sizeX - 3))) ? -1 : (indx - 1 * sizeX + 2); 
-		case 12: return (                      ( x > (sizeX - 3))) ? -1 : (indx             + 2); 
-		case 13: return ((y > (sizeY - 2))  || ( x > (sizeX - 3))) ? -1 : (indx + 1 * sizeX + 2); 
-		case 14: return ((y > (sizeY - 3))  || ( x > (sizeX - 3))) ? -1 : (indx + 2 * sizeX + 2); 
-		case 15: return ((y > (sizeY - 3))  || ( x > (sizeX - 2))) ? -1 : (indx + 2 * sizeX + 1); 
-		case 16: return ((y > (sizeY - 3))                       ) ? -1 : (indx + 2 * sizeX); 
-		case 17: return ((y > (sizeY - 3))  || ( x < 1))           ? -1 : (indx + 2 * sizeX - 1); 
-		case 18: return ((y > (sizeY - 3))  || ( x < 2))           ? -1 : (indx + 2 * sizeX - 2); 
-		case 19: return ((y > (sizeY - 2))  || ( x < 2))           ? -1 : (indx + 1 * sizeX - 2); 
-		case 20: return (                      ( x < 2))           ? -1 : (indx             - 2); 
-		case 21: return ((y < 1)            || ( x < 2))           ? -1 : (indx - 1 * sizeX - 2); 
-		case 22: return ((y < 2)            || ( x < 2))           ? -1 : (indx - 2 * sizeX - 2); 
-		case 23: return ((y < 2)            || ( x < 1))           ? -1 : (indx - 2 * sizeX - 1); 
+
+		case  8: return ( y < 2) ?                                   -1 : (indx - 2 * sizeX);
+		case  9: return ((y < 2)            || ( x > (sizeX - 2))) ? -1 : (indx - 2 * sizeX + 1);
+		case 10: return ((y < 2)            || ( x > (sizeX - 3))) ? -1 : (indx - 2 * sizeX + 2);
+		case 11: return ((y < 1)            || ( x > (sizeX - 3))) ? -1 : (indx - 1 * sizeX + 2);
+		case 12: return (                      ( x > (sizeX - 3))) ? -1 : (indx             + 2);
+		case 13: return ((y > (sizeY - 2))  || ( x > (sizeX - 3))) ? -1 : (indx + 1 * sizeX + 2);
+		case 14: return ((y > (sizeY - 3))  || ( x > (sizeX - 3))) ? -1 : (indx + 2 * sizeX + 2);
+		case 15: return ((y > (sizeY - 3))  || ( x > (sizeX - 2))) ? -1 : (indx + 2 * sizeX + 1);
+		case 16: return ((y > (sizeY - 3))                       ) ? -1 : (indx + 2 * sizeX);
+		case 17: return ((y > (sizeY - 3))  || ( x < 1))           ? -1 : (indx + 2 * sizeX - 1);
+		case 18: return ((y > (sizeY - 3))  || ( x < 2))           ? -1 : (indx + 2 * sizeX - 2);
+		case 19: return ((y > (sizeY - 2))  || ( x < 2))           ? -1 : (indx + 1 * sizeX - 2);
+		case 20: return (                      ( x < 2))           ? -1 : (indx             - 2);
+		case 21: return ((y < 1)            || ( x < 2))           ? -1 : (indx - 1 * sizeX - 2);
+		case 22: return ((y < 2)            || ( x < 2))           ? -1 : (indx - 2 * sizeX - 2);
+		case 23: return ((y < 2)            || ( x < 1))           ? -1 : (indx - 2 * sizeX - 1);
 		default: return indx;
 		}
 	}
 
-	
-	
+
+
 	/**
 	 * Return tile segment for 50% overlap. -1 - center, 0 N, 1 - NE,... 7 - NW
 	 * @param indx element index
@@ -210,7 +225,7 @@ public class TileNeibs{
 				{ 1,-1},
 				{ 0,-1},
 				{-1,-1}};
-		int dx = dxy[segm1 + 1][1] - dxy[segm + 1][1]; 
+		int dx = dxy[segm1 + 1][1] - dxy[segm + 1][1];
 		int dy = dxy[segm1 + 1][0] - dxy[segm + 1][0];
 		for (int dp1 = 0; dp1 <=8; dp1++) {
 			int sdx = (dx > 0) ? 1: ( (dx < 0) ? -1 : 0);
@@ -234,7 +249,7 @@ public class TileNeibs{
 				prohibit);
 		for (int i = 0; i < tiles.length; i++) tiles[i] = !itiles[i];
 	}
-	
+
 	public void growSelection(
 			int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 			boolean [] tiles,
@@ -255,7 +270,7 @@ public class TileNeibs{
 							if (!tiles[tindx + 1] && src_tiles[tindx]){
 								num_new++;
 							}
-							tiles[tindx + 1] |= src_tiles[tindx];  
+							tiles[tindx + 1] |= src_tiles[tindx];
 						}
 
 					}
@@ -299,14 +314,14 @@ public class TileNeibs{
 			}
 		}
 	}
-	
+
 	public boolean [] boundShape(
 			boolean [] selection,
 			boolean octo)
 	{
 		boolean [] bound_shape = new boolean [selection.length];
-		int min_x=-1, max_x=-1, min_y=-1, max_y=-1; 
-		int min_s=-1, max_s=-1, min_d=-1, max_d=-1; 
+		int min_x=-1, max_x=-1, min_y=-1, max_y=-1;
+		int min_s=-1, max_s=-1, min_d=-1, max_d=-1;
 		boolean is_set = false;
 		for (int i = 0; i < selection.length; i++) if (selection[i]){
 			int [] xy = getXY(i);
@@ -325,39 +340,39 @@ public class TileNeibs{
 				is_set = true;
 			} else {
 				if      (xy[0] < min_x) min_x = xy[0];
-				else if (xy[0] > max_x) max_x = xy[0]; 
+				else if (xy[0] > max_x) max_x = xy[0];
 				if      (xy[1] < min_y) min_y = xy[1];
 				else if (xy[1] > max_y) max_y = xy[1];
 				if (octo) {
 					if      (sd[0] < min_s) min_s = sd[0];
-					else if (sd[0] > max_s) max_s = sd[0]; 
+					else if (sd[0] > max_s) max_s = sd[0];
 					if      (sd[1] < min_d) min_d = sd[1];
 					else if (sd[1] > max_d) max_d = sd[1];
 				}
-				
+
 			}
 		}
 		for (int y = min_y; y <= max_y; y++){
 			for (int x = min_x; x <= max_x; x++){
 				if (!octo ||
 				(((x + y) >= min_s) && ((x + y) <= max_s) && ((x - y) >= min_d) && ((x - y) <= max_d))) {
-					bound_shape[getIndex(x,y)] = true; 
-					
+					bound_shape[getIndex(x,y)] = true;
+
 				}
 			}
 		}
 		return bound_shape;
 	}
-	
-	
+
+
 	/**
 	 * Enumerate clusters on rectangular area
 	 * @param tiles   selected tiles, size should be sizeX * sizeY
 	 * @param ordered if true, order tiles from largest to smallest5
 	 * @return integer array, where 0 is unused, 1+ cluster it belongs to
 	 */
-	
-	
+
+
 	public int [] enumerateClusters(
 			boolean [] tiles,
 			boolean ordered)
@@ -394,7 +409,7 @@ public class TileNeibs{
 		if (!ordered) {
 			return enum_clust;
 		}
-		
+
 		// count cluster
 		int []clustSizes = new int [numClust];
 		for (int i = 0; i < clustSizes.length; i++) clustSizes[i] = 0;
@@ -422,9 +437,9 @@ public class TileNeibs{
 		for (int i = 0; i < revIndex.length; i++) revIndex [pairs[i].index] = (numClust - i); // array was in accending order
 		int [] enum_clust_ordered = new int[tiles.length];
 		for (int i=0; i < enum_clust_ordered.length; i++){
-			enum_clust_ordered[i] = (enum_clust[i] > 0) ? revIndex[enum_clust[i] - 1] : 0; 
+			enum_clust_ordered[i] = (enum_clust[i] > 0) ? revIndex[enum_clust[i] - 1] : 0;
 		}
-		return enum_clust_ordered;  
+		return enum_clust_ordered;
 	}
 	public int getMax(
 			int [] data)

@@ -1,8 +1,3 @@
-import java.util.ArrayList;
-import java.util.HashMap;
-
-import Jama.Matrix;
-
 /**
  **
  ** Correlation2dLMA - Fit multi - baseline correaltion pairs to the model
@@ -52,6 +47,12 @@ import Jama.Matrix;
 
  *
  */
+import java.util.ArrayList;
+import java.util.HashMap;
+
+import Jama.Matrix;
+
+
 
 public class Correlations2dLMA {
 	final static int X0_INDEX =  0;
@@ -519,17 +520,11 @@ public class Correlations2dLMA {
 		}
 		if (debug_level > 0) {
 			System.out.println("LMA: full RMS="+last_rms[0]+" ("+initial_rms[0]+"), pure RMS="+last_rms[1]+" ("+initial_rms[1]+") + lambda="+lambda);
-//			System.out.println("LMA: full RMS="+good_or_bad_rms[0]+" ("+initial_rms[0]+"), pure RMS="+good_or_bad_rms[1]+" ("+initial_rms[1]+") + lambda="+lambda);
 		}
 
 		return rslt[0];
 	}
 
-/*
-	double []   last_rms =     null; // {rms, rms_pure}, matching this.vector
-	double []   initial_rms =  null; // {rms, rms_pure}, first-calcualted rms
-
- */
 
 	// returns {success, done}
 	public boolean [] lmaStep(
@@ -722,49 +717,5 @@ public class Correlations2dLMA {
 		}
 		return fx;
 	}
-
-
-//	public double [] getValues(xyvwh) {
-//		double [] values= new double [samples.size()];
-//		for (int i = 0; i < values.length; i++) values[i] = samples.get(i).v;
-//		return values;
-//	}
-
-	/*
-	 *
-		if (debugLevel>-1) {
-			jtj.print(18, 6);
-		}
-		Matrix jtj_inv = jtj.inverse();
-		Matrix jty = jt.times(y_minus_fx_weighted);
-		Matrix mrslt = jtj_inv.times(jty);
-		double []  drslt = mrslt.getColumnPackedCopy();
-	 *
-	 * Fitting parabola for multiple grids
-	 * Difference between ortho and diagonals - just point coordinates and extra overall scale (weight account for number averaged)
-	 * Each group of compatible is already averaged, so each group has a single individual variable - scale.
-	 *
-	 * Parabolas (1 for each group) are Ag * (1 - ((x-x0)/Wx) ^ 2 - (y/Wy)^2), where As is a per-group scale
-	 * Wy = Wm * scale +Wyd
-	 * Wx = Wm * scale +Wyd + Wxy
-	 *
-	 * Wm is a correlation measurement parameter, it does not depend on x/y and on particular pair, it depends on the LPF, so the
-	 * total contribution is proportional to the baseline reduction (scale)
-	 *
-	 * Wyd is widening caused the image itself - probably noise and other factors of poor correlation contrast. When multiple
-	 * orthogonal directions are combined it influences equally all directions (x,y) so Wx includes that term also
-	 *
-	 * Wxy widens maximum in disparity direction, it is caused by multiple overlapping maximums for different disparities and for
-	 * strong enough matches can indicate miz of disparities in the same tile
-	 *
-	 * Fitting of a single scale groups (1 or 2) has to have Wm constant.
-	 *
-	 *
-
-	 *
-	 */
-
-
-
 
 }

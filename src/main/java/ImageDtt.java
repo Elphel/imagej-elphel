@@ -117,8 +117,12 @@ public class ImageDtt {
 	  static int  BI_ASTR_DIAGM_INDEX =          21;  //21 - strength for main diagonal pair of the aux camera
 	  static int  BI_ASTR_DIAGO_INDEX =          22;  //22 - strength for main diagonal pair of the aux camera
 	  static int  BI_STR_CROSS_INDEX =           23;  //23 - strength between the main the aux camera
-	  static int  BI_STR_ALL_INDEX =             24;  //23 - average strength (product of strengths to 1/3 power), TODO: strength at cross disparity
-	  static int  BI_TARGET_INDEX =              25;  //24 - target disparity
+	  static int  BI_STR_ALL_INDEX =             24;  //24 - average strength (product of strengths to 1/3 power), TODO: strength at cross disparity
+	  static int  BI_TARGET_INDEX =              25;  //25 - target disparity
+	  static int  BI_DBG1_INDEX =                26;  //26 - debug layer 1
+	  static int  BI_DBG2_INDEX =                27;  //27 - debug layer 2
+	  static int  BI_DBG3_INDEX =                28;  //28 - debug layer 2
+	  static int  BI_DBG4_INDEX =                29;  //29 - debug layer 2
 
 	  static String [] BIDISPARITY_TITLES = {
 			  "disparity","disp_hor","disp_vert","disp_diagm","disp_diago",
@@ -126,7 +130,7 @@ public class ImageDtt {
 			  "bi-disparity","bi-disparity-dx","bi-disparity-dy",
 			  "strength", "str_hor", "str_vert", "str_diagm", "str_diago",
 			  "astrength", "astr_hor", "astr_vert", "astr_diagm", "astr_diago",
-			  "bi-strength", "all-strength", "target"};
+			  "bi-strength", "all-strength", "target", "dbg1", "dbg2", "dbg3", "dbg4"};
 	  static int [] BIDISPARITY_STRENGTHS= {
 			  BI_STR_FULL_INDEX,   BI_STR_VERT_INDEX,  BI_STR_DIAGM_INDEX,  BI_STR_DIAGO_INDEX,
 			  BI_ASTR_FULL_INDEX,  BI_ASTR_HOR_INDEX,  BI_ASTR_VERT_INDEX,  BI_ASTR_DIAGM_INDEX,
@@ -7175,6 +7179,7 @@ public class ImageDtt {
 	/**
 	 * Calculate disparity and strength for a inter-camera phase correlation of a pair of quad-cameras
 	 * @param clt_parameters various configuration parameters
+	 * @param fatzero - phase correlation fat zero (higher - ~LPF)
 	 * @param corr2d Instance of the 2d correlator class
      * @param clt_data_tile_main aberration-corrected FD CLT data for one tile of the main quad camera  [sub-camera][color][quadrant][index]
      * @param clt_data_tile_aux aberration-corrected FD CLT data for one tile of the auxiliary quad camera  [sub-camera][color][quadrant][index]
@@ -7190,6 +7195,7 @@ public class ImageDtt {
 	 */
 	public double [] tileInterCamCorrs(
 			final EyesisCorrectionParameters.CLTParameters  clt_parameters,
+			final double                                    fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 			final Correlation2d                             corr2d,
     		final double [][][][]                           clt_data_tile_main,
     		final double [][][][]                           clt_data_tile_aux,
@@ -7207,7 +7213,7 @@ public class ImageDtt {
 				clt_data_tile_aux,        // double [][][][]     clt_data_tile_aux,
 	    		filter,                   // double []           lpf,
 	    		col_weights,              // double []           col_weights,
-	    		clt_parameters.fat_zero); // double              fat_zero)
+	    		fatzero);                 // double              fat_zero)
 
 		double [] stripe_inter = corr2d. scaleRotateInterpoateSingleCorrelation(
 				inter_cam_corr,                           // double []   corr,
@@ -7334,6 +7340,7 @@ public class ImageDtt {
 	 * Calculate correlation/strength, start with center of mass (CM) for all available pairs, proceed with LMA
 	 * if strength is sufficient. Calculate 4 directional correlation/strengths if requested and strong enough
 	 * @param clt_parameters various configuration parameters
+	 * @param fatzero phaase correlation fat zero (higher ~LPF)
 	 * @param get4dirs request 4 directional correlations (horizontal, vertical main diagonal, other diagonal)
 	 * @param corr2d Instance of the 2d correlator class
 	 * @param clt_data aberration-corrected FD CLT data [camera][color][quadrant][index]
@@ -7349,6 +7356,7 @@ public class ImageDtt {
 	 */
 	public double [] tileCorrs(
 			final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			final double          fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 			final boolean         get4dirs, // calculate disparity/strength for each of the 4 directions
 			final Correlation2d   corr2d,
 			final double [][][][] clt_data,
@@ -7373,7 +7381,7 @@ public class ImageDtt {
 	    		all_pairs,      // int                 pairs_mask,
 	    		filter,         // double []           lpf,
 	    		col_weights,    // double []           col_weights,
-	    		clt_parameters.fat_zero); // double              fat_zero)
+	    		fatzero);       // double              fat_zero)
 
 	    // calculate interpolated "strips" to match different scales and orientations (ortho/diagonal) on the
 	    // fine (0.5 pix) grid. ortho for scale == 1 provide even/even samples (1/4 of all), diagonal ones -
@@ -7696,6 +7704,7 @@ public class ImageDtt {
 
 	public double [][][][][][][]  clt_bi_quad(
 			final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 			final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 			final double [][][]       image_data_main, // first index - number of image in a quad
@@ -7833,7 +7842,7 @@ public class ImageDtt {
 			System.out.println("max_corr_radius=       "+clt_parameters.max_corr_radius);
 			System.out.println("max_search_radius=     "+max_search_radius);
 			System.out.println("max_search_radius_poly="+max_search_radius_poly);
-			System.out.println("corr_fat_zero=         "+clt_parameters.fat_zero);
+			System.out.println("corr_fat_zero=         "+fatzero);
 			System.out.println("disparity_array[0][0]= "+disparity_array[0][0]);
 
 
@@ -8112,6 +8121,7 @@ public class ImageDtt {
 
 							double [] tile_corrs_main = tileCorrs(
 									clt_parameters,        // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+									fatzero,               // final double          fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 									true,                  // final boolean         get4dirs, // calculate disparity/strength for each of the 4 directions
 									corr2d,                // final Correlation2d  corr2d,
 									clt_data_main,         // final double [][][][] clt_data,
@@ -8125,6 +8135,7 @@ public class ImageDtt {
 
 							double [] tile_corrs_aux  = tileCorrs(
 									clt_parameters,        // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+									fatzero,               // final double          fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 									true,                  // final boolean         get4dirs, // calculate disparity/strength for each of the 4 directions
 									corr2d,                // final Correlation2d  corr2d,
 									clt_data_aux,          // final double [][][][] clt_data,
@@ -8162,6 +8173,7 @@ public class ImageDtt {
 
 							double [] inter_corrs_dxy = tileInterCamCorrs(
 									clt_parameters,    // final EyesisCorrectionParameters.CLTParameters  clt_parameters,
+									fatzero,           // final double          fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 									corr2d,            // final Correlation2d                             corr2d,
 									clt_data_main,     // double [][][][]                                 clt_data_tile_main,
 									clt_data_aux,      // double [][][][]                                 clt_data_tile_aux,
@@ -8240,6 +8252,8 @@ public class ImageDtt {
 								if (ml_data_dbg1 != null) {
 									tileInterCamCorrs(
 											clt_parameters,    // final EyesisCorrectionParameters.CLTParameters  clt_parameters,
+											fatzero,           // final double fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
+
 											corr2d,            // final Correlation2d                             corr2d,
 											clt_data_main,     // double [][][][]                                 clt_data_tile_main,
 											clt_data_main,     // double [][][][]                                 clt_data_tile_aux,
@@ -8335,6 +8349,7 @@ public class ImageDtt {
 
 	public void  clt_bi_macro(
 			final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 			final int                 macro_scale,
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 			final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
@@ -8616,6 +8631,7 @@ public class ImageDtt {
 
 							double [] inter_corrs_dxy = tileInterCamCorrs(
 									clt_parameters,    // final EyesisCorrectionParameters.CLTParameters  clt_parameters,
+									fatzero,           // final double                                    fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 									corr2d,            // final Correlation2d                             corr2d,
 									clt_data_main,     // double [][][][]                                 clt_data_tile_main,
 									clt_data_aux,      // double [][][][]                                 clt_data_tile_aux,
