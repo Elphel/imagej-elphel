@@ -31,6 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class TileProcessor {
 	public ArrayList <CLTPass3d> clt_3d_passes = null;
+	public double [][] rig_disparity_strength =  null; // Disparity and strength created by a two-camera rig, with disparity scale and distortions of the main camera
 	public int       clt_3d_passes_size = 0; //clt_3d_passes size after initial processing
 	private int      tilesX;
 	private int      tilesY;
@@ -2218,11 +2219,11 @@ public class TileProcessor {
 				block_propagate[tindx] = (disparity_map[ImageDtt.IMG_DIFF0_INDEX + imax2][tindx] > sure_smth);
 			}
 		}
-		// TODO: check if minimal cluster strengh should be limited here
+		// TODO: check if minimal cluster strength should be limited here
 		if (min_clstr_seed > 1){
 			removeSmallClusters(
 					true,            // boolean    diag_en,   // enable diagonal directions, false only up, dowm, right,left
-					bgnd_tiles,      // boolean [] tiles_src,    // selected tiles, will modified
+					bgnd_tiles,      // boolean [] tiles_src,    // selected tiles, will be modified
 					null,            // double []   weights_src,   // or null
 					min_clstr_seed,  // int        min_area,  // minimal number of pixels
 					0.0, //clt_parameters.min_clstr_weight,  // double     min_weight // minimal total weight of the cluster

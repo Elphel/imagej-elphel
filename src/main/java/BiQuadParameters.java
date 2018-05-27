@@ -74,6 +74,7 @@ public class BiQuadParameters {
 	// rig LT (poor textured areas)
 	public double  lt_min_disparity =          0.0;    // apply low texture to near objects
 	public double  lt_trusted_strength =       0.2;    // strength sufficient without neighbors
+	public double  lt_strength_rfloor =        0.28;   // fraction of trusted strength to subtract
 	public double  lt_need_friends =           0.4;    // strength sufficient with neighbors support, fraction of lt_trusted_strength
 	public double  lt_friends_diff =           0.15;   // pix difference to neighbors to be considered a match (TODO: use tilted)
 	public double  lt_friends_rdiff =          0.04;   // Add per each disparity pixel
@@ -87,6 +88,45 @@ public class BiQuadParameters {
 	public double  lt_max_asigma =             .15;    // Maximal acceptable standard deviation of the neighbors (remove, then add)
 	public double  lt_max_rsigma =             .04;    // Additional standard deviation for each pixel of disparity (relative)
 
+	public int     lt_repeat =                10;      // How many times repeat low texture expand
+	public int     lt_min_new =              100;      // Minimal new added tiles while repeating texture expand
+
+// removing false matches in low textured areas
+	public boolean lt_remove_stray =           true;   // Handle stray matches
+	public double  lt_stray_rstrength =        2.0;    // Relative to trusted strength - trust above that
+	public int     lt_stray_dist =             2;      // How far to look (and erase) around a potentially falsely matched tile
+	public double  lt_stray_over =             2.0;    // stray tile should be this stronger than the strongest neighbor to be recognized
+
+// Rig ltfar - recovering far objects that could not be resolved with just a single quad camera
+
+	public boolean ltfar_en =                 true;   // Enable recovering far objects over infinity area
+	public boolean ltfar_auto_floor =         true;   // Automatically detect strength floor (false - use (lt_trusted_strength*lt_strength_rfloor)
+	public double  ltfar_min_disparity =      0.04;   // Minimal tile disparity (in master camera pixels) to try to recover
+	public double  ltfar_min_mean =           0.04;   // Minimal tile neighbors mean disparity (in master camera pixels) to try to recover
+	public double  ltfar_max_disparity =      0.4;    // Maximal tile disparity (in master camera pixels) to try to recover
+	public double  ltfar_max_mean =           0.2;    // Maximal tile neighbors mean disparity (in master camera pixels) to try to recover
+	public double  ltfar_min_disp_to_rms =    1.8;    // Minimal ratio of mean disparity to disparity rms from the center to recover
+	public double  ltfar_min_rstrength =      0.0;    // Minimal tile relative (fraction of lt_trusted_strength) strength to recover
+	public int     ltfar_neib_dist =          3;      // Analyze this far around tiles when recovering
+	public double  ltfar_rsigma =             0.7;    // Reduce weight of far tiles: Gaussian sigma as a fraction of (ltfar_neib_dist+1),
+	public double  ltfar_frac =               0.7;    // Fraction of neighbors that should exist
+
+	// repeat after filtering to add lone strong tiles back
+	public double  ltfar_trusted_s =          0.4;    // Add even single tiles over infinity if strength (and disparity too) is sufficient
+	public double  ltfar_trusted_d =          0.2;    // Add even single tiles over infinity if disparity (and strength too) is sufficient
+
+
+	// rig selection filtering
+	public boolean rf_master_infinity =       true;    // Combine with master camera selection over infinity
+	public boolean rf_master_near =           false;   // Combine with master camera selection over non-infinity
+
+	public int     rf_pre_expand =            2;       // Expand selection before shrinking
+	public int     rf_shrink =                4;       // Shrink selection after expanding
+	public int     rf_post_expand =           2;       // Expand selection after shrinking
+
+	public int     rf_pre_expand_near =       4;       // Expand selection before shrinking
+	public int     rf_shrink_near =           8;       // Shrink selection after expanding
+	public int     rf_post_expand_near =      4;       // Expand selection after shrinking
 
 	public int     ml_hwidth =                 2;      // Half-width of the ML tiles to export (0-> 1x1, 1->3x3, 2 -> 5x5)
 	public double  ml_disparity_sweep  =       2.0;    // Disparity sweep around ground truth, each side
@@ -193,6 +233,8 @@ public class BiQuadParameters {
 				"Handle low textured objects with disparity (main camera pixels) above this threshold");
 		gd.addNumericField("Inter-camera correlation strength sufficient without neighbors",                      this.lt_trusted_strength,  3,6,"",
 				"Consider such tiles valid regardless of surrounding tiles");
+		gd.addNumericField("Relative strength floor",                                                             this.lt_strength_rfloor,  3,6,"",
+				"Fraction of tthe rusted strength to subtract from strengths when comparing");
 		gd.addNumericField("Strength sufficient with neighbors support, fraction of the trusted (above)",         this.lt_need_friends,  3,6,"",
 				"Tiles above theis inter-camera strength may be valid if they have same disparity neighbors");
 		gd.addNumericField("Maximal disparity difference to neighbors to be considered a match",                  this.lt_friends_diff,  3,6,"pix",
@@ -218,6 +260,70 @@ public class BiQuadParameters {
 				"When multiple neighbors have different disparity, try to remove outliers, then add some back");
 		gd.addNumericField("Additional standard deviation for each pixel of disparity (relative)",                this.lt_max_rsigma,  4,6,"pix/pix",
 				"Loosen sigma requirements for high disparity by adding this value for each 1 pixel of disparity");
+
+
+		gd.addNumericField("How many times repeat low texture expand",                                            this.lt_repeat,  0,3,"",
+				"Try new repeat low texture areas expanding this number of times (or until too few new tiles are added)");
+		gd.addNumericField("Minimal new added tiles while repeating texture expand",                              this.lt_min_new,  0,3,"",
+				"Exit from low textured tiles expand if thenumber of new added tiles falls below this number");
+
+		gd.addMessage("Dealing with false matches in low-textured areas");
+		gd.addCheckbox    ("Handle stray matches",                                                                this.lt_remove_stray,
+				"Erase realtively strong single tiles and surrounding ones if all tiles around are sufficiently weaker");
+		gd.addNumericField("Relative to trusted strength to definitely trust above that any tile",                this.lt_stray_rstrength,  4,6,"",
+				"Do not suspect false match if the tile strength exceeds this times scaled trusted strength (after subtracting strength floor");
+		gd.addNumericField("How far to look (and erase) around a potentially falsely matched tile",               this.lt_stray_dist,  0,3,"tiles",
+				"Look up to this number of tiles around the suspect for tha maximal neighbor strength, erase this many tiles around if confirmed");
+		gd.addNumericField("Stray tile should be this stronger than the strongest neighbor to be recognized",     this.lt_stray_over,  4,6,"pix/pix",
+				"Find the maximal strength of the neighbors, and consider a false match if the suspect is this times stronger");
+
+
+		gd.addTab("Rig Far","Parameters related to the ML files generation for the dual-quad camera rig");
+		gd.addCheckbox    ("Enable recovering far objects over infinity area",                                     this.ltfar_en,
+				"Try to use tiles that were treated as infinity by a single quad camera");
+		gd.addCheckbox    ("Automatically detect strength floor",                                                  this.ltfar_auto_floor,
+				"Use floor as the minimal non-zero strength in the image. I false - use (lt_trusted_strength*lt_strength_rfloor)");
+		gd.addNumericField("Minimal tile disparity to try to recover",                                             this.ltfar_min_disparity,  4,6,"pix",
+				"Minimal tile itself disparity (in master camera pixels) to recover over infinity");
+		gd.addNumericField("Minimal tile neighbors mean disparity (in master camera pixels) to try to recover",    this.ltfar_min_mean,  4,6,"pix",
+				"Minimal weighted average of the tile and its neighbors (in master camera pixels) to recover over infinity");
+		gd.addNumericField("Maximal tile disparity (in master camera pixels) to try to recover",                   this.ltfar_max_disparity,  4,6,"pix",
+				"Maximal tile itself disparity (in master camera pixels) to recover over infinity");
+		gd.addNumericField("Maximal tile neighbors mean disparity (in master camera pixels) to try to recover",    this.ltfar_max_mean,  4,6,"pix",
+				"Maximal weighted average of the tile and its neighbors (in master camera pixels) to recover over infinity");
+		gd.addNumericField("Minimal ratio of mean disparity to disparity rms from the center to recover",          this.ltfar_min_disp_to_rms,  4,6,"",
+				"Rationale: disparity should be reliably > 0");
+		gd.addNumericField("Minimal tile relative (fraction of lt_trusted_strength) strength to recover",          this.ltfar_min_rstrength,  4,6,"",
+				"May be not needed (use 0.0) and process all non-zero strength tiles");
+		gd.addNumericField("Analyze this far around tiles when recovering",                                        this.ltfar_neib_dist,  0,3,"",
+				"The square sample processed has side of 2*<this_number> + 1, the best of 8 half-squares and a smaller centered area will be used)");
+		gd.addNumericField("Reduce weight of far tiles: Gaussian sigma as a fraction of (ltfar_neib_dist+1)",      this.ltfar_rsigma,  4,6,"",
+				"Reduce wight tof far neighbors using Gaussian with sigma as a fraction of teh square half-size");
+		gd.addNumericField("Fraction of possible neighbors that should exist",                                     this.ltfar_frac,  4,6,"",
+				"For each of 9 windows calculate number of defined tiles and divide by a number of non-zero in the window");
+
+		gd.addMessage("Filtering selection of non-infinity tiles");
+		gd.addNumericField("Add even single tiles over infinity if STRENGTH (and disparity too) is sufficient",    this.ltfar_trusted_s,  4,6,"",
+				"Add strong tiles over infinity areas that have both strenth and disparity above respective thersholds (re-add them after filtering)");
+		gd.addNumericField("Add even single tiles over infinity if DISPARITY (and strength too) is sufficient",    this.ltfar_trusted_d,  4,6,"pix",
+				"Add strong tiles over infinity areas that have both strenth and disparity above respective thersholds (re-add them after filtering)");
+		gd.addCheckbox    ("Combine with master camera selection over infinity",                                   this.rf_master_infinity,
+				"'OR' selection with previos tile selection for master camera over infinity areas");
+		gd.addCheckbox    ("Combine with master camera selection over non-infinity",                               this.rf_master_near,
+				"'OR' selection with previos tile selection for master camera over non-infinity areas");
+		gd.addNumericField("Expand selection before shrinking",                                                    this.rf_pre_expand,  0,3,"",
+				"First step of expand-shrink-expand filtering (1 - only vert/hor, 2 -vert/hor/diagonal)");
+		gd.addNumericField("Shrink selection after expanding",                                                     this.rf_shrink,  0,3,"",
+				"Second step of expand-shrink-expand filtering (1 - only vert/hor, 2 -vert/hor/diagonal)");
+		gd.addNumericField("Expand selection after shrinking",                                                     this.rf_post_expand,  0,3,"",
+				"Last step of expand-shrink-expand filtering (1 - only vert/hor, 2 -vert/hor/diagonal)");
+
+		gd.addNumericField("Expand selection before shrinking (non-infinity regions only)",                        this.rf_pre_expand_near,  0,3,"",
+				"First step of expand-shrink-expand filtering (1 - only vert/hor, 2 -vert/hor/diagonal)");
+		gd.addNumericField("Shrink selection after expanding (non-infinity regions only)",                         this.rf_shrink_near,  0,3,"",
+				"Second step of expand-shrink-expand filtering (1 - only vert/hor, 2 -vert/hor/diagonal)");
+		gd.addNumericField("Expand selection after shrinking (non-infinity regions only)",                         this.rf_post_expand_near,  0,3,"",
+				"Last step of expand-shrink-expand filtering (1 - only vert/hor, 2 -vert/hor/diagonal)");
 
         gd.addTab("ML","Parameters related to the ML files generation for the dual-quad camera rig");
 
@@ -294,6 +400,7 @@ public class BiQuadParameters {
 
 		this.lt_min_disparity=              gd.getNextNumber();
 		this.lt_trusted_strength=           gd.getNextNumber();
+		this.lt_strength_rfloor=            gd.getNextNumber();
 		this.lt_need_friends=               gd.getNextNumber();
 		this.lt_friends_diff=               gd.getNextNumber();
 		this.lt_friends_rdiff=              gd.getNextNumber();
@@ -305,6 +412,36 @@ public class BiQuadParameters {
 		this.lt_wsigma=                     gd.getNextNumber();
 		this.lt_max_asigma=                 gd.getNextNumber();
 		this.lt_max_rsigma=                 gd.getNextNumber();
+
+		this.lt_repeat=               (int) gd.getNextNumber();
+		this.lt_min_new=              (int) gd.getNextNumber();
+		this.lt_remove_stray=               gd.getNextBoolean();
+		this.lt_stray_rstrength=            gd.getNextNumber();
+		this.lt_stray_dist=           (int) gd.getNextNumber();
+		this.lt_stray_over=                 gd.getNextNumber();
+
+		this.ltfar_en=                      gd.getNextBoolean();
+		this.ltfar_auto_floor=              gd.getNextBoolean();
+		this.ltfar_min_disparity=           gd.getNextNumber();
+		this.ltfar_min_mean=                gd.getNextNumber();
+		this.ltfar_max_disparity=           gd.getNextNumber();
+		this.ltfar_max_mean=                gd.getNextNumber();
+		this.ltfar_min_disp_to_rms=         gd.getNextNumber();
+		this.ltfar_min_rstrength=           gd.getNextNumber();
+		this.ltfar_neib_dist=        (int)  gd.getNextNumber();
+		this.ltfar_rsigma=                  gd.getNextNumber();
+		this.ltfar_frac=                    gd.getNextNumber();
+
+		this.ltfar_trusted_s=               gd.getNextNumber();
+		this.ltfar_trusted_d=               gd.getNextNumber();
+		this.rf_master_infinity=            gd.getNextBoolean();
+		this.rf_master_near=                gd.getNextBoolean();
+		this.rf_pre_expand=          (int)  gd.getNextNumber();
+		this.rf_shrink=              (int)  gd.getNextNumber();
+		this.rf_post_expand=         (int)  gd.getNextNumber();
+		this.rf_pre_expand_near=     (int)  gd.getNextNumber();
+		this.rf_shrink_near=         (int)  gd.getNextNumber();
+		this.rf_post_expand_near=    (int)  gd.getNextNumber();
 
 		this.ml_hwidth=               (int) gd.getNextNumber();
 		this.ml_disparity_sweep=            gd.getNextNumber();
@@ -368,6 +505,7 @@ public class BiQuadParameters {
 
 		properties.setProperty(prefix+"lt_min_disparity",          this.lt_min_disparity+"");
 		properties.setProperty(prefix+"lt_trusted_strength",       this.lt_trusted_strength+"");
+		properties.setProperty(prefix+"lt_strength_rfloor",        this.lt_strength_rfloor+"");
 		properties.setProperty(prefix+"lt_need_friends",           this.lt_need_friends+"");
 		properties.setProperty(prefix+"lt_friends_diff",           this.lt_friends_diff+"");
 		properties.setProperty(prefix+"lt_friends_rdiff",          this.lt_friends_rdiff+"");
@@ -379,6 +517,37 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"lt_wsigma",                 this.lt_wsigma+"");
 		properties.setProperty(prefix+"lt_max_asigma",             this.lt_max_asigma+"");
 		properties.setProperty(prefix+"lt_max_rsigma",             this.lt_max_rsigma+"");
+
+		properties.setProperty(prefix+"lt_repeat",                 this.lt_repeat+"");
+		properties.setProperty(prefix+"lt_min_new",                this.lt_min_new+"");
+		properties.setProperty(prefix+"lt_remove_stray",           this.lt_remove_stray+"");
+		properties.setProperty(prefix+"lt_stray_rstrength",        this.lt_stray_rstrength+"");
+		properties.setProperty(prefix+"lt_stray_dist",             this.lt_stray_dist+"");
+		properties.setProperty(prefix+"lt_stray_over",             this.lt_stray_over+"");
+
+		properties.setProperty(prefix+"ltfar_en",                  this.ltfar_en+"");
+		properties.setProperty(prefix+"ltfar_auto_floor",          this.ltfar_auto_floor+"");
+		properties.setProperty(prefix+"ltfar_min_disparity",       this.ltfar_min_disparity+"");
+		properties.setProperty(prefix+"ltfar_min_mean",            this.ltfar_min_mean+"");
+		properties.setProperty(prefix+"ltfar_max_disparity",       this.ltfar_max_disparity+"");
+		properties.setProperty(prefix+"ltfar_max_mean",            this.ltfar_max_mean+"");
+		properties.setProperty(prefix+"ltfar_min_disp_to_rms",     this.ltfar_min_disp_to_rms+"");
+		properties.setProperty(prefix+"ltfar_min_rstrength",       this.ltfar_min_rstrength+"");
+		properties.setProperty(prefix+"ltfar_neib_dist",           this.ltfar_neib_dist+"");
+		properties.setProperty(prefix+"ltfar_rsigma",              this.ltfar_rsigma+"");
+		properties.setProperty(prefix+"ltfar_frac",                this.ltfar_frac+"");
+
+		properties.setProperty(prefix+"ltfar_trusted_s",           this.ltfar_trusted_s+"");
+		properties.setProperty(prefix+"ltfar_trusted_d",           this.ltfar_trusted_d+"");
+		properties.setProperty(prefix+"rf_master_infinity",        this.rf_master_infinity+"");
+		properties.setProperty(prefix+"rf_master_near",            this.rf_master_near+"");
+		properties.setProperty(prefix+"rf_pre_expand",             this.rf_pre_expand+"");
+		properties.setProperty(prefix+"rf_shrink",                 this.rf_shrink+"");
+		properties.setProperty(prefix+"rf_post_expand",            this.rf_post_expand+"");
+
+		properties.setProperty(prefix+"rf_pre_expand_near",        this.rf_pre_expand_near+"");
+		properties.setProperty(prefix+"rf_shrink_near",            this.rf_shrink_near+"");
+		properties.setProperty(prefix+"rf_post_expand_near",       this.rf_post_expand_near+"");
 
 		properties.setProperty(prefix+"ml_hwidth",                 this.ml_hwidth+"");
 		properties.setProperty(prefix+"ml_disparity_sweep",        this.ml_disparity_sweep+"");
@@ -439,6 +608,7 @@ public class BiQuadParameters {
 
 		if (properties.getProperty(prefix+"lt_min_disparity")!=null)        this.lt_min_disparity=Double.parseDouble(properties.getProperty(prefix+"lt_min_disparity"));
 		if (properties.getProperty(prefix+"lt_trusted_strength")!=null)     this.lt_trusted_strength=Double.parseDouble(properties.getProperty(prefix+"lt_trusted_strength"));
+		if (properties.getProperty(prefix+"lt_strength_rfloor")!=null)      this.lt_strength_rfloor=Double.parseDouble(properties.getProperty(prefix+"lt_strength_rfloor"));
 		if (properties.getProperty(prefix+"lt_need_friends")!=null)         this.lt_need_friends=Double.parseDouble(properties.getProperty(prefix+"lt_need_friends"));
 		if (properties.getProperty(prefix+"lt_friends_diff")!=null)         this.lt_friends_diff=Double.parseDouble(properties.getProperty(prefix+"lt_friends_diff"));
 		if (properties.getProperty(prefix+"lt_friends_rdiff")!=null)        this.lt_friends_rdiff=Double.parseDouble(properties.getProperty(prefix+"lt_friends_rdiff"));
@@ -450,6 +620,39 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"lt_wsigma")!=null)               this.lt_wsigma=Double.parseDouble(properties.getProperty(prefix+"lt_wsigma"));
 		if (properties.getProperty(prefix+"lt_max_asigma")!=null)           this.lt_max_asigma=Double.parseDouble(properties.getProperty(prefix+"lt_max_sigma"));
 		if (properties.getProperty(prefix+"lt_max_rsigma")!=null)           this.lt_max_rsigma=Double.parseDouble(properties.getProperty(prefix+"lt_max_sigma"));
+
+		if (properties.getProperty(prefix+"lt_repeat")!=null)               this.lt_repeat=Integer.parseInt(properties.getProperty(prefix+"lt_repeat"));
+		if (properties.getProperty(prefix+"lt_min_new")!=null)              this.lt_min_new=Integer.parseInt(properties.getProperty(prefix+"lt_min_new"));
+		if (properties.getProperty(prefix+"lt_remove_stray")!=null)         this.lt_remove_stray=Boolean.parseBoolean(properties.getProperty(prefix+"lt_remove_stray"));
+		if (properties.getProperty(prefix+"lt_stray_rstrength")!=null)      this.lt_stray_rstrength=Double.parseDouble(properties.getProperty(prefix+"lt_stray_rstrength"));
+		if (properties.getProperty(prefix+"lt_stray_dist")!=null)           this.lt_stray_dist=Integer.parseInt(properties.getProperty(prefix+"lt_stray_dist"));
+		if (properties.getProperty(prefix+"lt_stray_over")!=null)           this.lt_stray_over=Double.parseDouble(properties.getProperty(prefix+"lt_stray_over"));
+
+
+
+		if (properties.getProperty(prefix+"ltfar_en")!=null)                this.ltfar_en=Boolean.parseBoolean(properties.getProperty(prefix+"ltfar_en"));
+		if (properties.getProperty(prefix+"ltfar_auto_floor")!=null)        this.ltfar_auto_floor=Boolean.parseBoolean(properties.getProperty(prefix+"ltfar_auto_floor"));
+		if (properties.getProperty(prefix+"ltfar_min_disparity")!=null)     this.ltfar_min_disparity=Double.parseDouble(properties.getProperty(prefix+"ltfar_min_disparity"));
+		if (properties.getProperty(prefix+"ltfar_min_mean")!=null)          this.ltfar_min_mean=Double.parseDouble(properties.getProperty(prefix+"ltfar_min_mean"));
+		if (properties.getProperty(prefix+"ltfar_max_disparity")!=null)     this.ltfar_max_disparity=Double.parseDouble(properties.getProperty(prefix+"ltfar_max_disparity"));
+		if (properties.getProperty(prefix+"ltfar_max_mean")!=null)          this.ltfar_max_mean=Double.parseDouble(properties.getProperty(prefix+"ltfar_max_mean"));
+		if (properties.getProperty(prefix+"ltfar_min_disp_to_rms")!=null)   this.ltfar_min_disp_to_rms=Double.parseDouble(properties.getProperty(prefix+"ltfar_min_disp_to_rms"));
+		if (properties.getProperty(prefix+"ltfar_min_rstrength")!=null)     this.ltfar_min_rstrength=Double.parseDouble(properties.getProperty(prefix+"ltfar_min_rstrength"));
+		if (properties.getProperty(prefix+"ltfar_neib_dist")!=null)         this.ltfar_neib_dist=Integer.parseInt(properties.getProperty(prefix+"ltfar_neib_dist"));
+		if (properties.getProperty(prefix+"ltfar_rsigma")!=null)            this.ltfar_rsigma=Double.parseDouble(properties.getProperty(prefix+"ltfar_rsigma"));
+		if (properties.getProperty(prefix+"ltfar_frac")!=null)              this.ltfar_frac=Double.parseDouble(properties.getProperty(prefix+"ltfar_frac"));
+
+		if (properties.getProperty(prefix+"ltfar_trusted_s")!=null)         this.ltfar_trusted_s=Double.parseDouble(properties.getProperty(prefix+"ltfar_trusted_s"));
+		if (properties.getProperty(prefix+"ltfar_trusted_d")!=null)         this.ltfar_trusted_d=Double.parseDouble(properties.getProperty(prefix+"ltfar_trusted_d"));
+		if (properties.getProperty(prefix+"rf_master_infinity")!=null)      this.rf_master_infinity=Boolean.parseBoolean(properties.getProperty(prefix+"rf_master_infinity"));
+		if (properties.getProperty(prefix+"rf_master_near")!=null)          this.rf_master_near=Boolean.parseBoolean(properties.getProperty(prefix+"rf_master_near"));
+		if (properties.getProperty(prefix+"rf_pre_expand")!=null)           this.rf_pre_expand=Integer.parseInt(properties.getProperty(prefix+"rf_pre_expand"));
+		if (properties.getProperty(prefix+"rf_shrink")!=null)               this.rf_shrink=Integer.parseInt(properties.getProperty(prefix+"rf_shrink"));
+		if (properties.getProperty(prefix+"rf_post_expand")!=null)          this.rf_post_expand=Integer.parseInt(properties.getProperty(prefix+"rf_post_expand"));
+
+		if (properties.getProperty(prefix+"rf_pre_expand_near")!=null)      this.rf_pre_expand_near=Integer.parseInt(properties.getProperty(prefix+"rf_pre_expand_near"));
+		if (properties.getProperty(prefix+"rf_shrink_near")!=null)          this.rf_shrink_near=Integer.parseInt(properties.getProperty(prefix+"rf_shrink_near"));
+		if (properties.getProperty(prefix+"rf_post_expand_near")!=null)     this.rf_post_expand_near=Integer.parseInt(properties.getProperty(prefix+"rf_post_expand_near"));
 
 		if (properties.getProperty(prefix+"ml_disparity_sweep")!=null)      this.ml_disparity_sweep=Double.parseDouble(properties.getProperty(prefix+"ml_disparity_sweep"));
 		if (properties.getProperty(prefix+"ml_sweep_steps")!=null)          this.ml_sweep_steps=Integer.parseInt(properties.getProperty(prefix+"ml_sweep_steps"));
@@ -510,6 +713,7 @@ public class BiQuadParameters {
 
 		bqp.lt_min_disparity=           this.lt_min_disparity;
 		bqp.lt_trusted_strength=        this.lt_trusted_strength;
+		bqp.lt_strength_rfloor=         this.lt_strength_rfloor;
 		bqp.lt_need_friends=            this.lt_need_friends;
 		bqp.lt_friends_diff=            this.lt_friends_diff;
 		bqp.lt_friends_rdiff=           this.lt_friends_rdiff;
@@ -521,6 +725,37 @@ public class BiQuadParameters {
 		bqp.lt_wsigma=                  this.lt_wsigma;
 		bqp.lt_max_asigma=              this.lt_max_asigma;
 		bqp.lt_max_rsigma=              this.lt_max_rsigma;
+
+		bqp.lt_repeat=                  this.lt_repeat;
+		bqp.lt_min_new=                 this.lt_min_new;
+		bqp.lt_remove_stray=            this.lt_remove_stray;
+		bqp.lt_stray_rstrength=         this.lt_stray_rstrength;
+		bqp.lt_stray_dist=              this.lt_stray_dist;
+		bqp.lt_stray_over=              this.lt_stray_over;
+
+		bqp.ltfar_en=                   this.ltfar_en;
+		bqp.ltfar_auto_floor=           this.ltfar_auto_floor;
+		bqp.ltfar_min_disparity=        this.ltfar_min_disparity;
+		bqp.ltfar_min_mean=             this.ltfar_min_mean;
+		bqp.ltfar_max_disparity=        this.ltfar_max_disparity;
+		bqp.ltfar_max_mean=             this.ltfar_max_mean;
+		bqp.ltfar_min_disp_to_rms=      this.ltfar_min_disp_to_rms;
+		bqp.ltfar_min_rstrength=        this.ltfar_min_rstrength;
+		bqp.ltfar_neib_dist=            this.ltfar_neib_dist;
+		bqp.ltfar_rsigma=               this.ltfar_rsigma;
+		bqp.ltfar_frac=                 this.ltfar_frac;
+
+		bqp.ltfar_trusted_s=            this.ltfar_trusted_s;
+		bqp.ltfar_trusted_d=            this.ltfar_trusted_d;
+		bqp.rf_master_infinity=         this.rf_master_infinity;
+		bqp.rf_master_near=             this.rf_master_near;
+		bqp.rf_pre_expand=              this.rf_pre_expand;
+		bqp.rf_shrink=                  this.rf_shrink;
+		bqp.rf_post_expand=             this.rf_post_expand;
+
+		bqp.rf_pre_expand_near=         this.rf_pre_expand_near;
+		bqp.rf_shrink_near=             this.rf_shrink_near;
+		bqp.rf_post_expand_near=        this.rf_post_expand_near;
 
 		bqp.ml_hwidth=                  this.ml_hwidth;
 		bqp.ml_disparity_sweep=         this.ml_disparity_sweep;

@@ -569,6 +569,7 @@ private Panel panel1,
 			addButton("Setup CLT Batch parameters", panelClt3, color_configure);
 			addButton("CLT batch process",          panelClt3, color_process);
 			addButton("CM Test",                    panelClt3, color_stop);
+			addButton("Show scan",                  panelClt3, color_configure);
 
 			add(panelClt3);
 		}
@@ -579,13 +580,16 @@ private Panel panel1,
 			addButton("Import Aux",                 panelClt4, color_restore);
 			addButton("Setup CLT Batch parameters", panelClt4, color_configure);
 			addButton("CLT rig edit",               panelClt4, color_configure);
-			addButton("CLT 2*4 images",             panelClt4, color_conf_process);
-			addButton("CLT 2*4 images - 2",         panelClt4, color_conf_process);
-			addButton("CLT 2*4 images - 3",         panelClt4, color_conf_process);
+//			addButton("CLT 2*4 images",             panelClt4, color_conf_process);
+//			addButton("CLT 2*4 images - 2",         panelClt4, color_conf_process);
+//			addButton("CLT 2*4 images - 3",         panelClt4, color_conf_process);
+			addButton("Rig8 images",                panelClt4, color_conf_process);
 			addButton("Rig infinity calibration",   panelClt4, color_conf_process);
 			addButton("AUX Extrinsics",             panelClt4, color_process);
 			addButton("AUX show fine",              panelClt4, color_configure);
-			addButton("Rig enhance",                panelClt4, color_conf_process);
+//			addButton("Rig enhance",                panelClt4, color_conf_process);
+			addButton("Ground truth",               panelClt4, color_conf_process);
+			addButton("ML export",                  panelClt4, color_conf_process);
 
 			add(panelClt4);
 		}
@@ -4519,8 +4523,13 @@ private Panel panel1,
         			PROPERTIES);
         }
         return;
+/* ======================================================================== */
     } else if (label.equals("CM Test")) {
     	cm_test();
+        return;
+/* ======================================================================== */
+    } else if (label.equals("Show scan")) {
+    	showScan();
         return;
 /* ======================================================================== */
 
@@ -4540,7 +4549,7 @@ private Panel panel1,
     	getPairImages2(false);
     	return;
 /* ======================================================================== */
-    } else if (label.equals("CLT 2*4 images - 3")) {
+    } else if (label.equals("Rig8 images")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
     	getPairImages2(true);
@@ -4583,11 +4592,17 @@ private Panel panel1,
 
         return;
 /* ======================================================================== */
-    } else if (label.equals("Rig enhance")) {
+    } else if (label.equals("Ground truth")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
     	enhanceByRig();
 
+    	return;
+/* ======================================================================== */
+    } else if (label.equals("ML export")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+    	exportMLData();
     	return;
 
 /* ======================================================================== */
@@ -5007,6 +5022,12 @@ private Panel panel1,
 
 
 	public boolean enhanceByRig() {
+		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
+			String msg = "DSI data is not available. Please run \"CLT 3D\" first";
+			IJ.showMessage("Error",msg);
+			System.out.println(msg);
+			return false;
+		}
 		if (!prepareRigImages()) return false;
     	String configPath=getSaveCongigPath();
     	if (configPath.equals("ABORT")) return false;
@@ -5037,6 +5058,43 @@ private Panel panel1,
     	return true;
 	}
 
+	public boolean exportMLData() {
+		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
+			String msg = "DSI data is not available. Please run \"CLT 3D\" first";
+			IJ.showMessage("Error",msg);
+			System.out.println(msg);
+			return false;
+		}
+		if (!prepareRigImages()) return false;
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return false;
+
+    	if (DEBUG_LEVEL > -2){
+    		System.out.println("++++++++++++++ Generating ML datasets ++++++++++++++");
+    	}
+    	try {
+    		TWO_QUAD_CLT.outputMLData( // actually there is no sense to process multiple image sets. Combine with other processing?
+    				QUAD_CLT, // QuadCLT quadCLT_main,
+    				QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+    				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+    				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+    				UPDATE_STATUS, //final boolean    updateStatus,
+    				DEBUG_LEVEL);
+    	} catch (Exception e) {
+    		// TODO Auto-generated catch block
+    		e.printStackTrace();
+    	} //final int        debugLevel);
+
+    	if (configPath!=null) {
+    		saveTimestampedProperties( // save config again
+    				configPath,      // full path or null
+    				null, // use as default directory if path==null
+    				true,
+    				PROPERTIES);
+    	}
+    	return true;
+	}
+
 
 	public boolean infinityRig() {
 		if (!prepareRigImages()) return false;
@@ -5044,7 +5102,7 @@ private Panel panel1,
     	if (configPath.equals("ABORT")) return false;
 
     	if (DEBUG_LEVEL > -2){
-    		System.out.println("++++++++++++++ Processing Infinity rig calibration ++++++++++++++");
+    		System.out.println("++++++++++++++ Processing infinity rig calibration ++++++++++++++");
     	}
     	try {
     		TWO_QUAD_CLT.processInfinityRigs( // actually there is no sense to process multiple image sets. Combine with other processing?
@@ -5472,6 +5530,27 @@ private Panel panel1,
   			}
   			return true;
   		}
+
+ public boolean showScan() {
+		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
+			String msg = "DSI data is not available. Please run \"CLT 3D\" first";
+			IJ.showMessage("Error",msg);
+			System.out.println(msg);
+			return false;
+		}
+	    int scan_index = 0;
+		GenericJTabbedDialog gd = new GenericJTabbedDialog("Set CLT parameters",400,100);
+		gd.addNumericField("Scan index (0..."+(QUAD_CLT.tp.clt_3d_passes.size()-1),  scan_index, 0, 2, "",
+				"Display scan by index");
+
+		gd.showDialog();
+		if (gd.wasCanceled()) return false;
+
+		scan_index = (int) gd.getNextNumber();
+		QUAD_CLT.tp.showScan(QUAD_CLT.tp.clt_3d_passes.get(scan_index),"Scan-"+scan_index);
+		return true;
+
+ }
 
   public boolean cm_test() {
 	    double hsize_x = 1.5;

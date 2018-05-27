@@ -73,7 +73,10 @@ public class QuadCLT {
 
 
 // magic scale should be set before using  TileProcessor (calculated disparities depend on it)
-
+    public double [][] getGroundTruthByRig(){
+    	if (tp == null) return null;
+    	return tp.rig_disparity_strength;
+    }
 	public void setTiles (ImagePlus imp, // set tp.tilesX, tp.tilesY
 			EyesisCorrectionParameters.CLTParameters    clt_parameters,
 			int threadsMax
