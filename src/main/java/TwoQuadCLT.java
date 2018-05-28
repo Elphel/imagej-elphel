@@ -1215,7 +1215,9 @@ if (debugLevel > -100) return true; // temporarily !
 			  }
 		  }
 		  CLTPass3d scan_bg =   quadCLT_main.tp.clt_3d_passes.get( 0); // get bg scan
-		  CLTPass3d scan_last = quadCLT_main.tp.clt_3d_passes.get(quadCLT_main.tp.clt_3d_passes.size()-1); // get last scan
+//		  quadCLT_main.tp.trimCLTPasses(false); // remove rig composite scan if any
+		  // last but not including any rid data
+          CLTPass3d scan_last = quadCLT_main.tp.clt_3d_passes.get( quadCLT_main.tp.clt_3d_passes_size -1); // get last one
 
 		  // TODO: combine in a single function to always call after groundTruthByRig. Or before use?
 		 boolean [] infinity_select = scan_bg.getSelected(); // null;
@@ -1357,6 +1359,110 @@ if (debugLevel > -100) return true; // temporarily !
 					  "Selections",
 					  titles);
 		 }
+		 // set composite scan
+
+		 boolean [] cond_sel = (clt_parameters.rig.rf_remove_unselected)? selection:null;
+		 double [][] f_rig_disparity_strength =  biCamDSI.filterDisparityStrength(
+				 clt_parameters.rig.rf_min_disp,     // double  min_disparity,
+				 rig_disparity_strength[0],          // double []  disparity,
+				 rig_disparity_strength[1],          // double []  strength)
+				 cond_sel);                          // 	boolean [] selected)
+// CLT ASSIGN needs best texture for each tile. Initially will just copy from teh previous master
+// composite scan, later - fill disparity gaps and re-measure
+
+
+/*
+ *  TODO: interpolate disaprities before measuring to fill gaps?
+	  public double [][][][][] getRigTextures(
+			  boolean                                  need_master,
+			  boolean                                  need_aux,
+			  double []                                disparity, // non-nan - measure
+			  QuadCLT                                  quadCLT_main,  // tiles should be set
+			  QuadCLT                                  quadCLT_aux,
+			  EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  final int                                threadsMax,  // maximal number of threads to launch
+			  final boolean                            updateStatus,
+			  final int                                debugLevel) // throws Exception
+
+ */
+
+
+
+
+		 quadCLT_main.tp.trimCLTPasses(false); // remove rig composite scan if any
+		 CLTPass3d rig_scan = quadCLT_main.tp.compositeScan(
+				 f_rig_disparity_strength[0],  // final double []             disparity,
+				 f_rig_disparity_strength[1],  // final double []             strength,
+				 selection,                  // final boolean []            selected,
+				 debugLevel);                // final int                   debugLevel)
+		 rig_scan.texture_tiles = scan_last.texture_tiles;
+
+// scan_last
+
+		 quadCLT_main.tp.clt_3d_passes.add(rig_scan);
+		 quadCLT_main.tp.saveCLTPasses(true);       // rig pass
+	  }
+
+	  public double [][][][][] getRigTextures(
+			  boolean                                  need_master,
+			  boolean                                  need_aux,
+			  double []                                disparity, // non-nan - measure
+			  QuadCLT                                  quadCLT_main,  // tiles should be set
+			  QuadCLT                                  quadCLT_aux,
+			  EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  final int                                threadsMax,  // maximal number of threads to launch
+			  final boolean                            updateStatus,
+			  final int                                debugLevel) // throws Exception
+			  {
+		  final int tile_op_all = clt_parameters.tile_task_op; //FIXME Use some constant?
+		  final int tilesX = quadCLT_main.tp.getTilesX();
+		  final int tilesY = quadCLT_main.tp.getTilesY();
+		  final int [][]     tile_op = new int [tilesY][tilesX];
+		  final double [][]  disparity_array = new double [tilesY][tilesX];
+		  boolean [] need_textures = {need_master, need_aux};
+		  final double [][][][][] texture_tiles = new double [need_textures.length][][][][];
+		  for (int ncam = 0; ncam < need_textures.length; ncam++) if (need_textures[ncam]) {
+			  texture_tiles[ncam] = new double [tilesY][tilesX][][];
+			  for (int tileY = 0; tileY < tilesY; tileY++){
+				  for (int tileX = 0; tileX < tilesX; tileX++){
+					  texture_tiles[ncam][tileY][tileX] = null;
+					  int nTile = tileY*tilesX + tileX;
+					  if (!Double.isNaN(disparity[nTile])) {
+						  tile_op[tileY][tileX] = tile_op_all;
+						  disparity_array[tileY][tileX] = disparity[nTile];
+					  }
+				  }
+			  }
+		  }
+		  ImageDtt image_dtt = new ImageDtt();
+		  image_dtt.clt_bi_quad (
+				  clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+				  clt_parameters.fat_zero,              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
+				  tile_op,                              // final int [][]            tile_op_main,    // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+				  disparity_array,                      // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
+				  quadCLT_main.image_data,              // final double [][][]       image_data_main, // first index - number of image in a quad
+				  quadCLT_aux.image_data,               // final double [][][]       image_data_aux,  // first index - number of image in a quad
+				  quadCLT_main.saturation_imp,          // final boolean [][]        saturation_main, // (near) saturated pixels or null
+				  quadCLT_aux.saturation_imp,           // final boolean [][]        saturation_aux,  // (near) saturated pixels or null
+				  // correlation results - combo will be for the correation between two quad cameras
+				  null,                                 // final double [][][][]     clt_corr_combo,  // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+				  null, // disparity_bimap,             // final double [][]    disparity_bimap, // [23][tilesY][tilesX]
+				  null, // ml_data,                     // 	final double [][]         ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
+				  texture_tiles[0],                     // final double [][][][]     texture_tiles_main, // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
+				  texture_tiles[1],                     // final double [][][][]     texture_tiles_aux,  // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
+				  quadCLT_main.tp.getTilesX()*clt_parameters.transform_size, // final int                 width,
+
+				  quadCLT_main.getGeometryCorrection(), // final GeometryCorrection  geometryCorrection_main,
+				  quadCLT_aux.getGeometryCorrection(),  // final GeometryCorrection  geometryCorrection_aux,
+				  quadCLT_main.getCLTKernels(),         // final double [][][][][][] clt_kernels_main, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+				  quadCLT_aux.getCLTKernels(),          // final double [][][][][][] clt_kernels_aux,  // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+				  clt_parameters.corr_magic_scale,      // final double              corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
+				  false, // true,                                 // 	final boolean             keep_clt_data,
+				  threadsMax,                           // final int                 threadsMax,  // maximal number of threads to launch
+				  debugLevel-2);                        // final int                 globalDebugLevel);
+
+		  return texture_tiles;
+
 	  }
 
 	  public void outputMLData(
@@ -1615,7 +1721,9 @@ if (debugLevel > -100) return true; // temporarily !
           }
 
           // Get DSI from the main camera
-          CLTPass3d scan_last = quadCLT_main.tp.clt_3d_passes.get( quadCLT_main.tp.clt_3d_passes.size() -1); // get last one
+		  quadCLT_main.tp.trimCLTPasses(false); // remove rig composite scan if any
+		  // last but not including any rid data
+          CLTPass3d scan_last = quadCLT_main.tp.clt_3d_passes.get( quadCLT_main.tp.clt_3d_passes_size -1); // get last one
     	  double [][] disparity_bimap = setBimapFromCLTPass3d(
     			  scan_last,      // CLTPass3d                                scan,
     			  quadCLT_main,   // QuadCLT                                  quadCLT_main,  // tiles should be set

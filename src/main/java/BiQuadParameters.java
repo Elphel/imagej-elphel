@@ -128,6 +128,9 @@ public class BiQuadParameters {
 	public int     rf_shrink_near =           8;       // Shrink selection after expanding
 	public int     rf_post_expand_near =      4;       // Expand selection after shrinking
 
+	public double  rf_min_disp =              0.02;    // Minimal tile disparity to keep in scan
+	public boolean rf_remove_unselected =     true;    // Remove tiles that are not selected
+
 	public int     ml_hwidth =                 2;      // Half-width of the ML tiles to export (0-> 1x1, 1->3x3, 2 -> 5x5)
 	public double  ml_disparity_sweep  =       2.0;    // Disparity sweep around ground truth, each side
 	public int     ml_sweep_steps =            5;      // Number of disparity sweep steps
@@ -325,6 +328,11 @@ public class BiQuadParameters {
 		gd.addNumericField("Expand selection after shrinking (non-infinity regions only)",                         this.rf_post_expand_near,  0,3,"",
 				"Last step of expand-shrink-expand filtering (1 - only vert/hor, 2 -vert/hor/diagonal)");
 
+		gd.addNumericField("Minimal usable disparity for tile to be preserved",                                    this.rf_min_disp,  4,6,"pix",
+				"Minimal disparity (in master camera pixels) for the tile to be saved for plane extraction");
+		gd.addCheckbox    ("Remove tiles that are not selected",                                                   this.rf_remove_unselected,
+				"Remove (set strength to 0.0, disparity to Double.NaN for all tiles that are not selected");
+
         gd.addTab("ML","Parameters related to the ML files generation for the dual-quad camera rig");
 
 		gd.addNumericField("Half-width of the ML tiles to export (0-> 1x1, 1->3x3, 2 -> 5x5)",                    this.ml_hwidth,  0,3,"",
@@ -443,6 +451,9 @@ public class BiQuadParameters {
 		this.rf_shrink_near=         (int)  gd.getNextNumber();
 		this.rf_post_expand_near=    (int)  gd.getNextNumber();
 
+		this.rf_min_disp=                   gd.getNextNumber();
+		this.rf_remove_unselected=          gd.getNextBoolean();
+
 		this.ml_hwidth=               (int) gd.getNextNumber();
 		this.ml_disparity_sweep=            gd.getNextNumber();
 		this.ml_sweep_steps=          (int) gd.getNextNumber();
@@ -549,6 +560,9 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"rf_shrink_near",            this.rf_shrink_near+"");
 		properties.setProperty(prefix+"rf_post_expand_near",       this.rf_post_expand_near+"");
 
+		properties.setProperty(prefix+"rf_min_disp",               this.rf_min_disp+"");
+		properties.setProperty(prefix+"rf_remove_unselected",      this.rf_remove_unselected+"");
+
 		properties.setProperty(prefix+"ml_hwidth",                 this.ml_hwidth+"");
 		properties.setProperty(prefix+"ml_disparity_sweep",        this.ml_disparity_sweep+"");
 		properties.setProperty(prefix+"ml_sweep_steps",            this.ml_sweep_steps+"");
@@ -654,6 +668,9 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"rf_shrink_near")!=null)          this.rf_shrink_near=Integer.parseInt(properties.getProperty(prefix+"rf_shrink_near"));
 		if (properties.getProperty(prefix+"rf_post_expand_near")!=null)     this.rf_post_expand_near=Integer.parseInt(properties.getProperty(prefix+"rf_post_expand_near"));
 
+		if (properties.getProperty(prefix+"rf_min_disp")!=null)             this.rf_min_disp=Double.parseDouble(properties.getProperty(prefix+"rf_min_disp"));
+		if (properties.getProperty(prefix+"rf_remove_unselected")!=null)    this.rf_remove_unselected=Boolean.parseBoolean(properties.getProperty(prefix+"rf_remove_unselected"));
+
 		if (properties.getProperty(prefix+"ml_disparity_sweep")!=null)      this.ml_disparity_sweep=Double.parseDouble(properties.getProperty(prefix+"ml_disparity_sweep"));
 		if (properties.getProperty(prefix+"ml_sweep_steps")!=null)          this.ml_sweep_steps=Integer.parseInt(properties.getProperty(prefix+"ml_sweep_steps"));
 		if (properties.getProperty(prefix+"ml_keep_aux")!=null)             this.ml_keep_aux=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_aux"));
@@ -756,6 +773,9 @@ public class BiQuadParameters {
 		bqp.rf_pre_expand_near=         this.rf_pre_expand_near;
 		bqp.rf_shrink_near=             this.rf_shrink_near;
 		bqp.rf_post_expand_near=        this.rf_post_expand_near;
+
+		bqp.rf_min_disp=                this.rf_min_disp;
+		bqp.rf_remove_unselected=       this.rf_remove_unselected;
 
 		bqp.ml_hwidth=                  this.ml_hwidth;
 		bqp.ml_disparity_sweep=         this.ml_disparity_sweep;

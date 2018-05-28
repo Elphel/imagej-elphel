@@ -1054,7 +1054,8 @@ public class TilePlanes {
 			Matrix normal_col = new Matrix(world_normal_xyz,3); // 3x1
 
 			// find world coordinates of the center of tile intersection with the plane
-			for (int lTile = 0; lTile < tile_disp_strengths[1].length; lTile++) if (tile_disp_strengths[1][lTile] > 0.0){
+			// disparity 0.0 is invalid, but it somehow got here
+			for (int lTile = 0; lTile < tile_disp_strengths[1].length; lTile++) if ((tile_disp_strengths[1][lTile] > 0.0) && (tile_disp_strengths[0][lTile] > 0.0)){
 				int tY = lTile / stSize2;
 				int tX = lTile % stSize2;
 				double px = px_py[0] + tX - stCenter;
@@ -1092,7 +1093,15 @@ public class TilePlanes {
 				double [] txty = {
 						-pn.get(1, 0)/pn.get(0, 0)*stSize,
 						-pn.get(2, 0)/pn.get(0, 0)*stSize};
-				tile_tilts[lTile] = txty;
+
+				if (Double.isNaN(txty[0]) || Double.isNaN(txty[1])){
+					System.out.println("**** this is a BUG in getDisparityTilts() ****");
+					System.out.println("txty= {"+txty[0]+","+txty[1]+"}");
+					jacobian.print(10, 5);
+					txty = null;
+				}
+				tile_tilts[lTile] = txty; // some are nulls?
+
 			}
 
 //			if (debugLevel > 1) {

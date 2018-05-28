@@ -392,7 +392,8 @@ public class CLTPass3d{
 		 * @return line-scan array of per-tile horizontal pairs correlation strength by reference (not a copy)
 		 */
 		public double [] getOriginalStrength(){
-			return disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX];
+			if (disparity_map != null) return disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX];
+			else return getStrength(); // after replacing with rig data
 		}
 		/**
 		 * Get horizontal pairs correlation strength for vertical features. Not a copy

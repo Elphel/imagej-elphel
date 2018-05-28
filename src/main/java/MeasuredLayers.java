@@ -1101,7 +1101,10 @@ public class MeasuredLayers {
 					if (weight[indxe_center] >= mlfp.strength_sure) { // tile does not need filtering
 						ds[0][indx] = disp[indxe_center];
 						ds[1][indx] = weight[indxe_center];
-
+						if (Double.isNaN(ds[0][indx])){
+							System.out.println("**** this is a BUG6 in getDisparityStrengthML() ****"); // all smpl_d are NaNs
+//							break;
+						}
 					} else {
 						int num_in_sample = 0;
 						double sum_wnd = 0.0;
@@ -1124,6 +1127,10 @@ public class MeasuredLayers {
 									int indxs = sy * mlfp.smplSide + sx;
 									smpl_sel[indxs] = true;
 									smpl_d[indxs] = disp[indxe];
+									if (Double.isNaN(smpl_d[indxs])){
+										System.out.println("**** this is a BUG5 in getDisparityStrengthML() ****"); // all smpl_d are NaNs
+//										break;
+									}
 									smpl_w[indxs] = weight[indxe] * smpl_weights[indxs];
 									sum_wnd += smpl_weights[indxs];
 									num_in_sample ++;
@@ -1292,15 +1299,27 @@ public class MeasuredLayers {
 										tiltXY = atiltXY[0]; // common for all tiles (such as constant disparity)
 									} else if (atiltXY[indx] != null){
 										tiltXY = atiltXY[indx];
+										if (Double.isNaN(tiltXY[0]) || Double.isNaN(tiltXY[1])){
+											System.out.println("**** this is a BUG4A in getDisparityStrengthML() ****");
+											System.out.println("atilt["+indx+"]= {"+tiltXY[0]+","+tiltXY[1]+"}");
+											tiltXY[0] = 0.0;
+											tiltXY[1] = 0.0;
+										}
+
 									}
 								}
 
-								if ((tiltXY != null) && (tiltXY[0] != 0.0) && (tiltXY[1] != 0.0)){
+								if ((tiltXY != null) && (tiltXY[0] != 0.0) && (tiltXY[1] != 0.0)){ // {NaN,NaN}
 									for (int sy = 0; sy < mlfp.smplSide; sy++){
 										for (int sx = 0; sx < mlfp.smplSide; sx++){
 											int indxs = sy * mlfp.smplSide + sx;
 											if (smpl_w[indxs] > 0.0) {
 												smpl_d[indxs] -= tiltXY[0]* (sx - smpl_dcenter) + tiltXY[1]* (sy - smpl_dcenter);
+												if (Double.isNaN(smpl_d[indxs])){
+													System.out.println("**** this is a BUG4 in getDisparityStrengthML() ****"); // all smpl_d are NaNs
+//													break;
+												}
+
 											}
 										}
 									}
@@ -1310,6 +1329,11 @@ public class MeasuredLayers {
 								// calculate
 								double sd=0.0, sd2 = 0.0, sw = 0.0;
 								for (int i = 0; i < smplLen; i++) if (smpl_sel[i]) {
+									if (Double.isNaN(smpl_d[i])){
+										System.out.println("**** this is a BUG3 in getDisparityStrengthML() ****"); // all smpl_d are NaNs
+//										break;
+									}
+
 									double dw = smpl_d[i] * smpl_w[i];
 									sd += dw;
 									sd2 += dw * smpl_d[i];
@@ -1330,7 +1354,7 @@ public class MeasuredLayers {
 										//remove_far_only
 									}
 									if (iworst < 0){
-										System.out.println("**** this is a BUG2 in getDisparityStrengthML() ****");
+										System.out.println("**** this is a BUG2 in getDisparityStrengthML() ****"); // all smpl_d are NaNs
 										break;
 									}
 									// remove worst sample

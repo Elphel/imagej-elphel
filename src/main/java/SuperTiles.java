@@ -1587,7 +1587,7 @@ public class SuperTiles{
 			threads[ithread] = new Thread() {
 				@Override
 				public void run() {
-					double [][][] plane_tilts = null; // used only forworld_plane_norm != null
+					double [][][] plane_tilts = null; // used only for world_plane_norm != null
 					// to get tile disparities needed to calculate tilts
 					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
 //						int dl =  (nsTile == debug_stile) ? 3 : 0;

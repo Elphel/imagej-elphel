@@ -590,6 +590,8 @@ private Panel panel1,
 //			addButton("Rig enhance",                panelClt4, color_conf_process);
 			addButton("Ground truth",               panelClt4, color_conf_process);
 			addButton("ML export",                  panelClt4, color_conf_process);
+			addButton("Rig planes",                 panelClt4, color_conf_process);
+
 
 			add(panelClt4);
 		}
@@ -4598,6 +4600,14 @@ private Panel panel1,
     	enhanceByRig();
 
     	return;
+    	/* ======================================================================== */
+    } else if (label.equals("CLT planes")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+    	rigPlanes();
+        return;
+
+
 /* ======================================================================== */
     } else if (label.equals("ML export")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
@@ -5020,8 +5030,32 @@ private Panel panel1,
 		return true;
 	}
 
+	public boolean rigPlanes() {
+		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
+			String msg = "DSI data is not available. Please run \"CLT 3D\" first";
+			IJ.showMessage("Error",msg);
+			System.out.println(msg);
+			return false;
+		}
+		if (!prepareRigImages()) return false;
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return false;
+
+    	if (DEBUG_LEVEL > -2){
+    		System.out.println("++++++++++++++ Extracting  planes using a dual-quad camera rig DSI data ++++++++++++++");
+    	}
+		QUAD_CLT.showCLTPlanes(
+				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+				UPDATE_STATUS, //final boolean    updateStatus,
+				DEBUG_LEVEL); //final int        debugLevel);
+		return true;
+
+	}
 
 	public boolean enhanceByRig() {
+		long startTime=System.nanoTime();
+
 		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
 			String msg = "DSI data is not available. Please run \"CLT 3D\" first";
 			IJ.showMessage("Error",msg);
@@ -5055,10 +5089,15 @@ private Panel panel1,
     				true,
     				PROPERTIES);
     	}
+		System.out.println("enhanceByRig(): Processing finished at "+
+				  IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec, --- Free memory="+
+				Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+
     	return true;
 	}
 
 	public boolean exportMLData() {
+		long startTime=System.nanoTime();
 		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
 			String msg = "DSI data is not available. Please run \"CLT 3D\" first";
 			IJ.showMessage("Error",msg);
@@ -5092,9 +5131,12 @@ private Panel panel1,
     				true,
     				PROPERTIES);
     	}
+		System.out.println("exportMLData(): Processing finished at "+
+				  IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec, --- Free memory="+
+				Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+
     	return true;
 	}
-
 
 	public boolean infinityRig() {
 		if (!prepareRigImages()) return false;

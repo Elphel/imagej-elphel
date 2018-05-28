@@ -32,7 +32,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TileProcessor {
 	public ArrayList <CLTPass3d> clt_3d_passes = null;
 	public double [][] rig_disparity_strength =  null; // Disparity and strength created by a two-camera rig, with disparity scale and distortions of the main camera
-	public int       clt_3d_passes_size = 0; //clt_3d_passes size after initial processing
+	public int       clt_3d_passes_size =     0; //clt_3d_passes size after initial processing
+	public int       clt_3d_passes_rig_size = 0; //clt_3d_passes size after initial processing and rig processing
 	private int      tilesX;
 	private int      tilesY;
 	private double   corr_magic_scale =    0.85;  // reported correlation offset vs. actual one (not yet understood)
@@ -103,23 +104,51 @@ public class TileProcessor {
 	public void resetCLTPasses(){
 		clt_3d_passes = new ArrayList<CLTPass3d>();
 		clt_3d_passes_size = 0;
+		clt_3d_passes_rig_size = 0;
 		Runtime runtime = Runtime.getRuntime();
 	    runtime.gc();
 		System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
 	}
 
-	public void saveCLTPasses(){
-		clt_3d_passes_size = clt_3d_passes.size();
+	public void saveCLTPasses(boolean rig){
+		if (rig) clt_3d_passes_rig_size = clt_3d_passes.size();
+		else {
+			rig_disparity_strength = null; // invalidate
+			clt_3d_passes_rig_size = 0;
+			clt_3d_passes_size = clt_3d_passes.size();
+		}
 	}
 
 	public void trimCLTPasses(int keep){
+		if (keep < clt_3d_passes_size) { // keep rig data if only rig scan is removed
+			rig_disparity_strength = null; // invalidate
+			clt_3d_passes_rig_size = 0;
+		}
 		clt_3d_passes_size = keep;
+		trimCLTPasses();
+	}
+
+	public void trimCLTPasses(boolean rig){
+		if (!rig) {
+//			rig_disparity_strength = null; // invalidate
+			clt_3d_passes_rig_size = 0;
+		}
 		trimCLTPasses();
 	}
 
 
 	public void trimCLTPasses(){
-		while (clt_3d_passes.size() > clt_3d_passes_size){
+		int keep_size = clt_3d_passes_size;
+		if (clt_3d_passes_rig_size > keep_size) {
+			keep_size = clt_3d_passes_rig_size;
+			System.out.println("trimCLTPasses(): using dual-quad camera rig data");
+		} else {
+//			rig_disparity_strength = null; // invalidate
+//			clt_3d_passes_rig_size = 0;
+			System.out.println("trimCLTPasses(): using master camera data");
+		}
+
+		while (clt_3d_passes.size() > keep_size){
 			clt_3d_passes.remove(clt_3d_passes_size);
 		}
 		Runtime runtime = Runtime.getRuntime();
@@ -127,10 +156,13 @@ public class TileProcessor {
 		System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
 	}
 
-	public void removeNonMeasurement(){
+	public void removeNonMeasurement(){ // executed during expansion (CLT 3D)
 		for (int i = clt_3d_passes.size()-1; i > 0; i--) if (!clt_3d_passes.get(i).isMeasured()){
 			clt_3d_passes.remove(i);
 		}
+		// just in case - invalidate (should be done anyway)
+		rig_disparity_strength = null; // invalidate
+		clt_3d_passes_rig_size = 0;
 	}
 
 
@@ -627,6 +659,46 @@ public class TileProcessor {
 		combo_pass.fixNaNDisparity(); // mostly for debug, measured disparity should be already fixed from NaN
 		return combo_pass;
 	}
+
+	/**
+	 * Create a minimal composite scan from provided data (dual-quad rig. So no Hor/Vert
+	 * @param disparity target disparity from the rig
+	 * @param strength correlation strength from the rig
+	 * @param selected filtered selected
+	 * @param debugLevel debug level
+	 * @return an instance of CLTPass3d to be added to the list and used instead of the master camera DSI
+	 */
+
+	public CLTPass3d compositeScan(
+			 final double []             disparity,
+			 final double []             strength,
+			 final boolean []            selected,
+			 final int                   debugLevel)
+	{
+		CLTPass3d combo_pass =new CLTPass3d(this);
+
+		final int tlen = tilesX * tilesY;
+//		final int disparity_index = usePoly ? ImageDtt.DISPARITY_INDEX_POLY : ImageDtt.DISPARITY_INDEX_CM;
+//		combo_pass.tile_op =              new int [tilesY][tilesX]; // for just non-zero
+//		combo_pass.disparity_map =        new double [ImageDtt.DISPARITY_TITLES.length][];
+//		for (int i = 0; i< ImageDtt.QUAD; i++) combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i] = new double[tlen];
+
+		// for now - will copy from the best full correlation measurement
+//		combo_pass.texture_tiles =        new double [tilesY][tilesX][][];
+//		combo_pass.max_tried_disparity =  new double [tilesY][tilesX];
+		combo_pass.is_combo =             true;
+		combo_pass.calc_disparity =       disparity.clone(); //new double [tlen];
+		combo_pass.calc_disparity_combo = disparity.clone(); //new double [tlen];
+		combo_pass.calc_disparity_hor =   new double [tlen];
+		combo_pass.calc_disparity_vert =  new double [tlen];
+		combo_pass.strength =             strength.clone(); // new double [tlen];
+		combo_pass.strength_hor =         new double [tlen];
+		combo_pass.strength_vert =        new double [tlen];
+
+		combo_pass.setSelected(selected);
+		return combo_pass;
+	}
+
 
 	/**
 	 * Create next measurement scan that can handle multiple disparities, using quad correlations only

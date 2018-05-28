@@ -197,6 +197,24 @@ public class BiCamDSI {
 		return selection;
 	}
 
+	public double [][] filterDisparityStrength(
+			double  min_disparity,
+			double [] disparity,
+			double [] strength,
+			boolean [] selected){
+		int num_tiles = disparity.length;
+		double [][] fds = new double [2][num_tiles];
+		for (int nTile = 0; nTile < num_tiles; nTile++) {
+			fds[0][nTile] = Double.NaN;
+			if ((strength[nTile] > 0.0) && (disparity[nTile] >= min_disparity) && ((selected == null) || selected[nTile])) {
+				fds[0][nTile] = disparity[nTile];
+				fds[1][nTile] = strength[nTile];
+			}
+		}
+		return fds;
+	}
+
+
 	/**
 	 * Filter selection by expending, then shrinking (fills small gaps) shrinking (combined with
 	 * previous step) and expanding again (removes small clusters)

@@ -6926,7 +6926,7 @@ public class QuadCLT {
 				  debugLevelInner);
 
 // Save tp.clt_3d_passes.size() to roll back without restarting the program
-          tp.saveCLTPasses();
+          tp.saveCLTPasses(false); // not rig, and reset rig data
           Runtime runtime = Runtime.getRuntime();
           runtime.gc();
           System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
