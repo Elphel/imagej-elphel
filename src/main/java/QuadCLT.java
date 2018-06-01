@@ -73,6 +73,9 @@ public class QuadCLT {
 
 
 // magic scale should be set before using  TileProcessor (calculated disparities depend on it)
+    public void resetGroundTruthByRig() {
+    	tp.rig_disparity_strength = null;
+    }
     public double [][] getGroundTruthByRig(){
     	if (tp == null) return null;
     	return tp.rig_disparity_strength;
@@ -116,6 +119,57 @@ public class QuadCLT {
 					clt_parameters.max_overexposure, // double maxOverexposure,
 					threadsMax);
 		}
+	}
+
+// used for aux camera
+	public boolean setupImageData(
+			String image_name,
+			String [] sourceFiles,
+			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			int threadsMax,
+			int debugLevel) {
+		  QuadCLT.SetChannels [] set_channels_aux =  setChannels(image_name, debugLevel);
+		  if ((set_channels_aux == null) || (set_channels_aux.length==0)) {
+			  System.out.println("No files for the auxiliary camera match series "+image_name);
+			  return false;
+		  }
+		  double [] referenceExposures_aux =  eyesisCorrections.calcReferenceExposures(debugLevel); // multiply each image by this and divide by individual (if not NaN)
+		  int [] channelFiles_aux =  set_channels_aux[0].fileNumber();
+		  // make single
+		  boolean [][] saturation_aux =  (clt_parameters.sat_level > 0.0)? new boolean[channelFiles_aux.length][] : null;
+		  double [] scaleExposures_aux =  new double[channelFiles_aux.length];
+		  ImagePlus [] imp_srcs_aux = conditionImageSet(
+				  clt_parameters,               // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+				  sourceFiles,                  // String []                                 sourceFiles,
+				  image_name,      // set_channels_aux[0].name(), // String                                    set_name,
+				  referenceExposures_aux,       // double []                                 referenceExposures,
+				  channelFiles_aux,             // int []                                    channelFiles,
+				  scaleExposures_aux,           //output  // double [] scaleExposures
+				  saturation_aux,               //output  // boolean [][]                              saturation_imp,
+				  debugLevel); // int                                       debugLevel);
+
+		  double [][][] double_stacks_aux = new double [imp_srcs_aux.length][][];
+		  for (int i = 0; i < double_stacks_aux.length; i++){
+			  double_stacks_aux[i] = eyesisCorrections.bayerToDoubleStack(
+					  imp_srcs_aux[i], // source Bayer image, linearized, 32-bit (float))
+					  null); // no margins, no oversample
+		  }
+
+		  for (int i = 0; i < double_stacks_aux.length; i++){
+			  for (int j =0 ; j < double_stacks_aux[i][0].length; j++){
+				  double_stacks_aux[i][2][j]*=0.5; // Scale green 0.5 to compensate more pixels than R,B
+			  }
+		  }
+		  setTiles (imp_srcs_aux[0], // set global tp.tilesX, tp.tilesY
+				  clt_parameters,
+				  threadsMax);
+		  this.image_name =      image_name;
+		  image_data =      double_stacks_aux;
+		  saturation_imp =  saturation_aux;
+		  tp.setTrustedCorrelation(clt_parameters.grow_disp_trust);
+		  tp.resetCLTPasses();
+		  return true;
+
 	}
 
 

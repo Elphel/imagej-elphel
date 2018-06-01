@@ -97,8 +97,49 @@ public class BiQuadParameters {
 	public int     lt_stray_dist =             2;      // How far to look (and erase) around a potentially falsely matched tile
 	public double  lt_stray_over =             2.0;    // stray tile should be this stronger than the strongest neighbor to be recognized
 
-// Rig ltfar - recovering far objects that could not be resolved with just a single quad camera
+	// Rig plane-based low texture filtering (may replace lt_*
 
+	//		int [] calcTrusted(
+	public boolean    pf_last_priority =          false;  // If true, copy last valid tile, false - strongest
+	public double     pf_trusted_strength =       0.25;   // strength sufficient without neighbors
+	public double     pf_strength_rfloor =        0.28;   // fraction of trusted strength to subtract
+	public double     pf_cond_rtrusted =          0.4;    // strength sufficient with neighbors support, fraction of lt_trusted_strength
+	public double     pf_strength_pow =           1.0;    // raise strength-floor to this power
+	public double     pf_disp_afloor =            0.1;    // When selecting the best fit from the alternative disparities, divide by difference increased by this
+	public double     pf_disp_rfloor =            0.02;   // Increase pf_disp_afloor for large disparities
+	public int        pf_smpl_radius =            5;      // how far to extend around known tiles (probably should increase this value up to?
+	public int        pf_smpl_num =               8;      // Number after removing worst (should be >1)
+	public int        pf_smpl_num_narrow =        5;      //         = 3;      // Number after removing worst (should be >1)
+	public double     pf_smpl_fract =             0.5;    // Number of friends among all neighbors
+	public double     pf_max_adiff =              0.15;   // Maximal absolute difference betweenthe center tile and friends
+	public double     pf_max_rdiff =              0.04;   // Maximal relative difference between the center tile and friends
+	public double     pf_max_atilt =              2.0;    // pix per tile
+	public double     pf_max_rtilt =              0.2;    // (pix / disparity) per tile
+	public double     pf_smpl_arms =              0.1;    // Maximal RMS of the remaining tiles in a sample
+	public double     pf_smpl_rrms =              0.005;  // Maximal RMS/disparity in addition to smplRms
+	public double     pf_damp_tilt =              0.001;  // Tilt cost for damping insufficient plane data
+	public double     pf_rwsigma =                0.7;    // influence of far neighbors diminish as a Gaussian with this sigma
+	public double     pf_rwsigma_narrow =         0.2;    // used to determine initial tilt ( 1/radius)
+	//		int  trimWeakFG(
+
+	public boolean    pf_en_trim_fg =             false;  // Trim weak FZG
+	public double     pf_atolerance =             0.2;    // When deciding closer/farther
+	public double     pf_rtolerance =             0.04;   // Same; scaled with disparity
+	public int        pf_num_dirs =               8;      // Number of directions to try when trimming hanging weak FG
+	public double     pf_blind_dist =             0.5;    // How far start tiles in selected direction
+	public boolean    pf_strong_only_far =        false;  // Only strong trusted far tiles make this FG "hanging" (false - any trusted)
+	public int        pf_num_strong_far =         1;      // Number strong trusted far tiles make this FG "hanging"
+	public int        pf_num_weak_far =           3;      // Number weak trusted far tiles make this FG "hanging"
+	//		int  suggestNewScan(
+	public boolean    pf_discard_cond =           true;   // Consider conditionally trusted tiles (not promoted to trusted) as empty,
+	public boolean    pf_discard_weak =           true;   // If true, suggest new disparities over even weak trusted tiles
+	public boolean    pf_discard_strong =         false;  // If true, suggest new disparities over even strong trusted tiles
+	public double     pf_new_diff =               0.5;    // Minimal disparity (in master camera pixels) difference between the new suggested and the already tried/measured one
+	public int        pf_min_new =                5;      // Minimal number of he new tiles during rig refine for plane filter
+
+
+
+// Rig ltfar - recovering far objects that could not be resolved with just a single quad camera
 	public boolean ltfar_en =                 true;   // Enable recovering far objects over infinity area
 	public boolean ltfar_auto_floor =         true;   // Automatically detect strength floor (false - use (lt_trusted_strength*lt_strength_rfloor)
 	public double  ltfar_min_disparity =      0.04;   // Minimal tile disparity (in master camera pixels) to try to recover
@@ -116,6 +157,7 @@ public class BiQuadParameters {
 	public double  ltfar_trusted_d =          0.2;    // Add even single tiles over infinity if disparity (and strength too) is sufficient
 
 
+
 	// rig selection filtering
 	public boolean rf_master_infinity =       true;    // Combine with master camera selection over infinity
 	public boolean rf_master_near =           false;   // Combine with master camera selection over non-infinity
@@ -130,6 +172,9 @@ public class BiQuadParameters {
 
 	public double  rf_min_disp =              0.02;    // Minimal tile disparity to keep in scan
 	public boolean rf_remove_unselected =     true;    // Remove tiles that are not selected
+
+
+
 
 	public int     ml_hwidth =                 2;      // Half-width of the ML tiles to export (0-> 1x1, 1->3x3, 2 -> 5x5)
 	public double  ml_disparity_sweep  =       2.0;    // Disparity sweep around ground truth, each side
@@ -281,6 +326,82 @@ public class BiQuadParameters {
 				"Find the maximal strength of the neighbors, and consider a false match if the suspect is this times stronger");
 
 
+		gd.addTab("Rig plane filter","Rig plane-based filtering of low-textured areas");
+
+		gd.addCheckbox    ("Copy tile from the last valid measurement, false - copy strongest",                   this.pf_last_priority,
+				"When copying data that was not measured in last scan, use the latest valid measurement. If unchecked - use the strongest disparity");
+
+		gd.addNumericField("Strength sufficient without neighbors",                                               this.pf_trusted_strength,  4,6,"",
+				"Unconditionally trusted tile. Other stength values are referenceds as fraction of this value (after strength floor subtraction)");
+		gd.addNumericField("Fraction of trusted strength to subtract",                                            this.pf_strength_rfloor,  4,6,"",
+				"Strength floor to subtract from all strength values");
+		gd.addNumericField("Strength sufficient with neighbors support, fraction of the trusted strength",        this.pf_cond_rtrusted,  4,6,"",
+				"Strength that may be valid for the tile if there are neighbors in the same possibly tilted plane of the DSI (floor corrected)");
+		gd.addNumericField("Raise strength-floor to this power",                                                  this.pf_strength_pow,  4,6,"",
+				"Currently just 1.0 - lenear");
+
+		gd.addNumericField("Add to disparity mismatch when looking for the best fit",                             this.pf_disp_afloor,  4,6,"pix",
+				"When selecting the best fit from the alternative disparities, divide by difference increased by this");
+		gd.addNumericField("Add to disparity mismatch when looking for the best fit, per disparity pixel",        this.pf_disp_rfloor,  4,6,"pix/pix",
+				"Add to the previous value proportionally to the absolute mdean disparity");
+
+		gd.addNumericField("How far to extend around known tiles (probably should increase this value up to?",    this.pf_smpl_radius,  0,3,"tiles",
+				"Process a aquare centered at the current tile withthe side of twice this value plus 1 (2*pf_smpl_radius + 1)");
+		gd.addNumericField("Number after remaining in the sample square after removing worst fitting tiles",      this.pf_smpl_num,  0,3,"",
+				"When fitting planes the outliers are removed until the number of remaining tiles equals this value");
+		gd.addNumericField("Number of remaining tiles when using narrow selection",                               this.pf_smpl_num_narrow,  0,3,"",
+				"Number of remaining tiles during initial palne fitting to the center pixels (it is later extended to include farther tiles)");
+		gd.addNumericField("Fraction of the reamining tiles of all non-zero tiles?",                              this.pf_smpl_fract,  4,6,"",
+				"This value is combined to the previous one (absilute). Maximal of absolute and relative times number of all non-empty tiles is used");
+		gd.addNumericField("Maximal absolute disparity difference between the plane and tiles that fit",          this.pf_max_adiff,  4,6,"pix",
+				"Maximal absolute disparity difference for fitting. Combined with the next one (relative) ");
+		gd.addNumericField("Maximal relative (to center disparity) difference between the plane and tiles that fit",this.pf_max_rdiff,  4,6,"pix/pix",
+				"This value is multipled by the tile disparity and added to the maximal absolute difference");
+		gd.addNumericField("Maximal absolute tile tilt in DSI space",                                             this.pf_max_atilt,  4,6,"pix/tile",
+				"Maximal disparity difference betweeing neighbor tiles for the tilted plane. Combined with the relative one (next), min of both limits applies");
+		gd.addNumericField("Maximal relative (per pixel of disparity) tile tilt in DSI space",                    this.pf_max_rtilt,  4,6,"1/tile",
+				"Maximal relative (to center disparity) tilt. Near tiles (larger disparity may have larger differnce.");
+		gd.addNumericField("Maximal absolute RMS of the remaining tiles in a sample",                             this.pf_smpl_arms,  4,6,"pix",
+				"After removing outliers RMS of the remaining tiles must be less than this value");
+		gd.addNumericField("Maximal relative (to center disparity) RMS of the remaining tiles in a sample",       this.pf_smpl_rrms,  4,6,"pix/pix",
+				"Relative RMS times disparity is added to the absolute one");
+		gd.addNumericField("Tilt cost for damping insufficient plane data",                                       this.pf_damp_tilt,  4,6,"",
+				"Regularisation to handle co-linear and even single-point planes, forcing fronto-parallel for single point, and minimal tilt for co-linear set");
+		gd.addNumericField("Influence of far neighbors is reduced as a Gaussian with this sigma",                 this.pf_rwsigma,  4,6,"",
+				"Sigma is relative to selection radius (square half-side)");
+		gd.addNumericField("Weight function Gaussian sigma (relative to radius) for initial plane fitting",       this.pf_rwsigma_narrow,  4,6,"",
+				"Weight function Gaussian sigma (relative to selection radius) for initial plane fitting. May be ~=1/radius");
+		gd.addCheckbox    ("Trim hanging FG",                                                                     this.pf_en_trim_fg,
+				"Try trimming hanging FG (need improvement)");
+		gd.addNumericField("Absolute tolerane to determine that a tile is a background one for the selected plane",this.pf_atolerance,  4,6,"pix",
+				"When a tile has disparity smaller than a plane by more than this value it is considered to be farther (in backgeround)");
+		gd.addNumericField("Relative (to center tile disaprity) disaprity tolerance to distinguish between FG and BG", this.pf_rtolerance,  4,6,"pix/pix",
+				"Product of this value by the center disparity is added to the absolute tolerance (above)?");
+		gd.addNumericField("How many directions to look into (evenly of all 360) when trimming weak FG",          this.pf_num_dirs,  0,3,"",
+				"Weak FG trimming (after more permissive bridging over gaps) assumes that the FG adge should be strong, it looks in specified number of directions");
+		gd.addNumericField("FG trimming blind disatance",                                                         this.pf_blind_dist,  4,6,"tiles",
+				"Do not count offenders closer than this to the center tile");
+		gd.addCheckbox    ("Only strong trusted far tiles make this FG \"hanging\"",                              this.pf_strong_only_far,
+				"When false, any BG tile without this plane strong tiles will trigger trimming, true - only strong trusted tiles");
+
+		gd.addNumericField("Number strong trusted far tiles make this FG \"hanging\"",                            this.pf_num_strong_far,  0,3,"",
+				"Number of strong trusted far tiles to make this plane hanging");
+		gd.addNumericField("Number weak trusted far tiles make this FG \"hanging\"",                              this.pf_num_weak_far,    0,3,"",
+				"Number of weak trusted far tiles to make this plane hanging");
+
+		gd.addCheckbox    ("Suggest new disparity over any but confirmed trusted tiles, false - only over empty", this.pf_discard_cond,
+				"When checked - disregard any conditionally trusted tiles that were not confirmed trusted by neighbors, false - only suggest for yet empty tiles");
+		gd.addCheckbox    ("Suggest new disparity over any but strong trusted tiles",                             this.pf_discard_weak,
+				"When checked - disregard any weak trusted tiles, even confirmed.Only keep strong ones");
+		gd.addCheckbox    ("Suggest new disparity over any tile, even strong trusted",                            this.pf_discard_strong,
+				"When checked - try new disparity even for strong tiles");
+
+		gd.addNumericField("Minimal diasparity difference between the new suggested and existing one",            this.pf_new_diff,  4,6,"pix",
+				"Minimal diasparity (in master camera pixels) difference between the new suggested and the already tried (set for measurement) or measured (refined) one");
+		gd.addNumericField("Minimal refined tiles during plane filter",                                           this.pf_min_new,  0,3,"",
+				"Repeat refine antill less tiles are updated");
+
+
 		gd.addTab("Rig Far","Parameters related to the ML files generation for the dual-quad camera rig");
 		gd.addCheckbox    ("Enable recovering far objects over infinity area",                                     this.ltfar_en,
 				"Try to use tiles that were treated as infinity by a single quad camera");
@@ -310,6 +431,10 @@ public class BiQuadParameters {
 				"Add strong tiles over infinity areas that have both strenth and disparity above respective thersholds (re-add them after filtering)");
 		gd.addNumericField("Add even single tiles over infinity if DISPARITY (and strength too) is sufficient",    this.ltfar_trusted_d,  4,6,"pix",
 				"Add strong tiles over infinity areas that have both strenth and disparity above respective thersholds (re-add them after filtering)");
+
+
+		gd.addTab("Rig selection","Rig tile selection filter");
+
 		gd.addCheckbox    ("Combine with master camera selection over infinity",                                   this.rf_master_infinity,
 				"'OR' selection with previos tile selection for master camera over infinity areas");
 		gd.addCheckbox    ("Combine with master camera selection over non-infinity",                               this.rf_master_near,
@@ -428,6 +553,44 @@ public class BiQuadParameters {
 		this.lt_stray_dist=           (int) gd.getNextNumber();
 		this.lt_stray_over=                 gd.getNextNumber();
 
+		this.pf_last_priority=              gd.getNextBoolean();
+		this.pf_trusted_strength=           gd.getNextNumber();
+		this.pf_strength_rfloor=            gd.getNextNumber();
+		this.pf_cond_rtrusted=              gd.getNextNumber();
+		this.pf_strength_pow=               gd.getNextNumber();
+		this.pf_disp_afloor=                gd.getNextNumber();
+		this.pf_disp_rfloor=                gd.getNextNumber();
+
+		this.pf_smpl_radius=          (int) gd.getNextNumber();
+		this.pf_smpl_num=             (int) gd.getNextNumber();
+		this.pf_smpl_num_narrow=      (int) gd.getNextNumber();
+		this.pf_smpl_fract=                 gd.getNextNumber();
+		this.pf_max_adiff=                  gd.getNextNumber();
+		this.pf_max_rdiff=                  gd.getNextNumber();
+		this.pf_max_atilt=                  gd.getNextNumber();
+		this.pf_max_rtilt=                  gd.getNextNumber();
+		this.pf_smpl_arms=                  gd.getNextNumber();
+		this.pf_smpl_rrms=                  gd.getNextNumber();
+		this.pf_damp_tilt=                  gd.getNextNumber();
+		this.pf_rwsigma=                    gd.getNextNumber();
+		this.pf_rwsigma_narrow=             gd.getNextNumber();
+		this.pf_en_trim_fg=                 gd.getNextBoolean();
+		this.pf_atolerance=                 gd.getNextNumber();
+		this.pf_rtolerance=                 gd.getNextNumber();
+		this.pf_num_dirs=             (int) gd.getNextNumber();
+		this.pf_blind_dist=                 gd.getNextNumber();
+		this.pf_strong_only_far=            gd.getNextBoolean();
+
+		this.pf_num_strong_far=       (int) gd.getNextNumber();
+		this.pf_num_weak_far=         (int) gd.getNextNumber();
+
+		this.pf_discard_cond=               gd.getNextBoolean();
+		this.pf_discard_weak=               gd.getNextBoolean();
+		this.pf_discard_strong=             gd.getNextBoolean();
+		this.pf_new_diff=                   gd.getNextNumber();
+		this.pf_min_new=              (int) gd.getNextNumber();
+
+
 		this.ltfar_en=                      gd.getNextBoolean();
 		this.ltfar_auto_floor=              gd.getNextBoolean();
 		this.ltfar_min_disparity=           gd.getNextNumber();
@@ -536,6 +699,41 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"lt_stray_dist",             this.lt_stray_dist+"");
 		properties.setProperty(prefix+"lt_stray_over",             this.lt_stray_over+"");
 
+		properties.setProperty(prefix+"pf_last_priority",          this.pf_last_priority+"");
+		properties.setProperty(prefix+"pf_trusted_strength",       this.pf_trusted_strength+"");
+		properties.setProperty(prefix+"pf_strength_rfloor",        this.pf_strength_rfloor+"");
+		properties.setProperty(prefix+"pf_cond_rtrusted",          this.pf_cond_rtrusted+"");
+		properties.setProperty(prefix+"pf_strength_pow",           this.pf_strength_pow+"");
+		properties.setProperty(prefix+"pf_disp_afloor",            this.pf_disp_afloor+"");
+		properties.setProperty(prefix+"pf_disp_rfloor",            this.pf_disp_rfloor+"");
+		properties.setProperty(prefix+"pf_smpl_radius",            this.pf_smpl_radius+"");
+		properties.setProperty(prefix+"pf_smpl_num",               this.pf_smpl_num+"");
+		properties.setProperty(prefix+"pf_smpl_num_narrow",        this.pf_smpl_num_narrow+"");
+		properties.setProperty(prefix+"pf_smpl_fract",             this.pf_smpl_fract+"");
+		properties.setProperty(prefix+"pf_max_adiff",              this.pf_max_adiff+"");
+		properties.setProperty(prefix+"pf_max_rdiff",              this.pf_max_rdiff+"");
+		properties.setProperty(prefix+"pf_max_atilt",              this.pf_max_atilt+"");
+		properties.setProperty(prefix+"pf_max_rtilt",              this.pf_max_rtilt+"");
+		properties.setProperty(prefix+"pf_smpl_arms",              this.pf_smpl_arms+"");
+		properties.setProperty(prefix+"pf_smpl_rrms",              this.pf_smpl_rrms+"");
+		properties.setProperty(prefix+"pf_damp_tilt",              this.pf_damp_tilt+"");
+		properties.setProperty(prefix+"pf_rwsigma",                this.pf_rwsigma+"");
+		properties.setProperty(prefix+"pf_rwsigma_narrow",         this.pf_rwsigma_narrow+"");
+		properties.setProperty(prefix+"pf_en_trim_fg",             this.pf_en_trim_fg+"");
+		properties.setProperty(prefix+"pf_atolerance",             this.pf_atolerance+"");
+		properties.setProperty(prefix+"pf_rtolerance",             this.pf_rtolerance+"");
+		properties.setProperty(prefix+"pf_num_dirs",               this.pf_num_dirs+"");
+		properties.setProperty(prefix+"pf_blind_dist",             this.pf_blind_dist+"");
+		properties.setProperty(prefix+"pf_strong_only_far",        this.pf_strong_only_far+"");
+
+		properties.setProperty(prefix+"pf_num_strong_far",         this.pf_num_strong_far+"");
+		properties.setProperty(prefix+"pf_num_weak_far",           this.pf_num_weak_far+"");
+
+		properties.setProperty(prefix+"pf_discard_cond",           this.pf_discard_cond+"");
+		properties.setProperty(prefix+"pf_discard_weak",           this.pf_discard_weak+"");
+		properties.setProperty(prefix+"pf_discard_strong",         this.pf_discard_strong+"");
+		properties.setProperty(prefix+"pf_new_diff",               this.pf_new_diff+"");
+		properties.setProperty(prefix+"pf_min_new",                this.pf_min_new+"");
 		properties.setProperty(prefix+"ltfar_en",                  this.ltfar_en+"");
 		properties.setProperty(prefix+"ltfar_auto_floor",          this.ltfar_auto_floor+"");
 		properties.setProperty(prefix+"ltfar_min_disparity",       this.ltfar_min_disparity+"");
@@ -642,8 +840,45 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"lt_stray_dist")!=null)           this.lt_stray_dist=Integer.parseInt(properties.getProperty(prefix+"lt_stray_dist"));
 		if (properties.getProperty(prefix+"lt_stray_over")!=null)           this.lt_stray_over=Double.parseDouble(properties.getProperty(prefix+"lt_stray_over"));
 
+		if (properties.getProperty(prefix+"pf_last_priority")!=null)         this.pf_last_priority=Boolean.parseBoolean(properties.getProperty(prefix+"pf_last_priority"));
+		if (properties.getProperty(prefix+"pf_trusted_strength")!=null)     this.pf_trusted_strength=Double.parseDouble(properties.getProperty(prefix+"pf_trusted_strength"));
+		if (properties.getProperty(prefix+"pf_strength_rfloor")!=null)      this.pf_strength_rfloor=Double.parseDouble(properties.getProperty(prefix+"pf_strength_rfloor"));
+		if (properties.getProperty(prefix+"pf_cond_rtrusted")!=null)        this.pf_cond_rtrusted=Double.parseDouble(properties.getProperty(prefix+"pf_cond_rtrusted"));
+		if (properties.getProperty(prefix+"pf_strength_pow")!=null)         this.pf_strength_pow=Double.parseDouble(properties.getProperty(prefix+"pf_strength_pow"));
+		if (properties.getProperty(prefix+"pf_disp_afloor")!=null)         this.pf_strength_pow=Double.parseDouble(properties.getProperty(prefix+"pf_disp_afloor"));
+		if (properties.getProperty(prefix+"pf_disp_rfloor")!=null)         this.pf_strength_pow=Double.parseDouble(properties.getProperty(prefix+"pf_disp_rfloor"));
+		if (properties.getProperty(prefix+"pf_smpl_radius")!=null)          this.pf_smpl_radius=Integer.parseInt(properties.getProperty(prefix+"pf_smpl_radius"));
+		if (properties.getProperty(prefix+"pf_smpl_num")!=null)             this.pf_smpl_num=Integer.parseInt(properties.getProperty(prefix+"pf_smpl_num"));
+		if (properties.getProperty(prefix+"pf_smpl_num_narrow")!=null)      this.pf_smpl_num_narrow=Integer.parseInt(properties.getProperty(prefix+"pf_smpl_num_narrow"));
+		if (properties.getProperty(prefix+"pf_smpl_fract")!=null)           this.pf_smpl_fract=Double.parseDouble(properties.getProperty(prefix+"pf_smpl_fract"));
+		if (properties.getProperty(prefix+"pf_max_adiff")!=null)            this.pf_max_adiff=Double.parseDouble(properties.getProperty(prefix+"pf_max_adiff"));
+		if (properties.getProperty(prefix+"pf_max_rdiff")!=null)            this.pf_max_rdiff=Double.parseDouble(properties.getProperty(prefix+"pf_max_rdiff"));
+		if (properties.getProperty(prefix+"pf_max_atilt")!=null)            this.pf_max_atilt=Double.parseDouble(properties.getProperty(prefix+"pf_max_atilt"));
+		if (properties.getProperty(prefix+"pf_max_rtilt")!=null)            this.pf_max_rtilt=Double.parseDouble(properties.getProperty(prefix+"pf_max_rtilt"));
+		if (properties.getProperty(prefix+"pf_smpl_arms")!=null)            this.pf_smpl_arms=Double.parseDouble(properties.getProperty(prefix+"pf_smpl_arms"));
+		if (properties.getProperty(prefix+"pf_smpl_rrms")!=null)            this.pf_smpl_rrms=Double.parseDouble(properties.getProperty(prefix+"pf_smpl_rrms"));
+		if (properties.getProperty(prefix+"pf_damp_tilt")!=null)            this.pf_damp_tilt=Double.parseDouble(properties.getProperty(prefix+"pf_damp_tilt"));
+		if (properties.getProperty(prefix+"pf_rwsigma")!=null)              this.pf_rwsigma=Double.parseDouble(properties.getProperty(prefix+"pf_rwsigma"));
+		if (properties.getProperty(prefix+"pf_rwsigma_narrow")!=null)       this.pf_rwsigma_narrow=Double.parseDouble(properties.getProperty(prefix+"pf_rwsigma_narrow"));
 
+		if (properties.getProperty(prefix+"pf_en_trim_fg")!=null)           this.pf_en_trim_fg=Boolean.parseBoolean(properties.getProperty(prefix+"pf_en_trim_fg"));
 
+		if (properties.getProperty(prefix+"pf_atolerance")!=null)           this.pf_atolerance=Double.parseDouble(properties.getProperty(prefix+"pf_atolerance"));
+		if (properties.getProperty(prefix+"pf_rtolerance")!=null)           this.pf_rtolerance=Double.parseDouble(properties.getProperty(prefix+"pf_rtolerance"));
+		if (properties.getProperty(prefix+"pf_num_dirs")!=null)             this.pf_num_dirs=Integer.parseInt(properties.getProperty(prefix+"pf_num_dirs"));
+
+		if (properties.getProperty(prefix+"pf_blind_dist")!=null)           this.pf_blind_dist=Double.parseDouble(properties.getProperty(prefix+"pf_blind_dist"));
+		if (properties.getProperty(prefix+"pf_strong_only_far")!=null)      this.pf_strong_only_far=Boolean.parseBoolean(properties.getProperty(prefix+"pf_strong_only_far"));
+
+		if (properties.getProperty(prefix+"pf_num_strong_far")!=null)       this.pf_num_strong_far=Integer.parseInt(properties.getProperty(prefix+"pf_num_strong_far"));
+		if (properties.getProperty(prefix+"pf_num_weak_far")!=null)         this.pf_num_weak_far=Integer.parseInt(properties.getProperty(prefix+"pf_num_weak_far"));
+
+		if (properties.getProperty(prefix+"pf_discard_cond")!=null)         this.pf_discard_cond=Boolean.parseBoolean(properties.getProperty(prefix+"pf_discard_cond"));
+		if (properties.getProperty(prefix+"pf_discard_weak")!=null)         this.pf_discard_weak=Boolean.parseBoolean(properties.getProperty(prefix+"pf_discard_weak"));
+		if (properties.getProperty(prefix+"pf_discard_strong")!=null)       this.pf_discard_strong=Boolean.parseBoolean(properties.getProperty(prefix+"pf_discard_strong"));
+
+		if (properties.getProperty(prefix+"pf_new_diff")!=null)             this.pf_new_diff=Double.parseDouble(properties.getProperty(prefix+"pf_new_diff"));
+		if (properties.getProperty(prefix+"pf_min_new")!=null)              this.pf_min_new=Integer.parseInt(properties.getProperty(prefix+"pf_min_new"));
 		if (properties.getProperty(prefix+"ltfar_en")!=null)                this.ltfar_en=Boolean.parseBoolean(properties.getProperty(prefix+"ltfar_en"));
 		if (properties.getProperty(prefix+"ltfar_auto_floor")!=null)        this.ltfar_auto_floor=Boolean.parseBoolean(properties.getProperty(prefix+"ltfar_auto_floor"));
 		if (properties.getProperty(prefix+"ltfar_min_disparity")!=null)     this.ltfar_min_disparity=Double.parseDouble(properties.getProperty(prefix+"ltfar_min_disparity"));
@@ -749,6 +984,42 @@ public class BiQuadParameters {
 		bqp.lt_stray_rstrength=         this.lt_stray_rstrength;
 		bqp.lt_stray_dist=              this.lt_stray_dist;
 		bqp.lt_stray_over=              this.lt_stray_over;
+
+		bqp.pf_last_priority=           this.pf_last_priority;
+		bqp.pf_trusted_strength=        this.pf_trusted_strength;
+		bqp.pf_strength_rfloor=         this.pf_strength_rfloor;
+		bqp.pf_cond_rtrusted=           this.pf_cond_rtrusted;
+		bqp.pf_strength_pow=            this.pf_strength_pow;
+		bqp.pf_disp_afloor=             this.pf_disp_afloor;
+		bqp.pf_disp_rfloor=             this.pf_disp_rfloor;
+		bqp.pf_smpl_radius=             this.pf_smpl_radius;
+		bqp.pf_smpl_num=                this.pf_smpl_num;
+		bqp.pf_smpl_num_narrow=         this.pf_smpl_num_narrow;
+		bqp.pf_smpl_fract=              this.pf_smpl_fract;
+		bqp.pf_max_adiff=               this.pf_max_adiff;
+		bqp.pf_max_rdiff=               this.pf_max_rdiff;
+		bqp.pf_max_atilt=               this.pf_max_atilt;
+		bqp.pf_max_rtilt=               this.pf_max_rtilt;
+		bqp.pf_smpl_arms=               this.pf_smpl_arms;
+		bqp.pf_smpl_rrms=               this.pf_smpl_rrms;
+		bqp.pf_damp_tilt=               this.pf_damp_tilt;
+		bqp.pf_rwsigma=                 this.pf_rwsigma;
+		bqp.pf_rwsigma_narrow=          this.pf_rwsigma_narrow;
+		bqp.pf_en_trim_fg =             this.pf_en_trim_fg;
+		bqp.pf_atolerance=              this.pf_atolerance;
+		bqp.pf_rtolerance=              this.pf_rtolerance;
+		bqp.pf_num_dirs=                this.pf_num_dirs;
+		bqp.pf_blind_dist=              this.pf_blind_dist;
+		bqp.pf_strong_only_far=         this.pf_strong_only_far;
+
+		bqp.pf_num_strong_far=          this.pf_num_strong_far;
+		bqp.pf_num_weak_far=            this.pf_num_weak_far;
+
+		bqp.pf_discard_cond=            this.pf_discard_cond;
+		bqp.pf_discard_weak=            this.pf_discard_weak;
+		bqp.pf_discard_strong=          this.pf_discard_strong;
+		bqp.pf_new_diff=                this.pf_new_diff;
+		bqp.pf_min_new=                 this.pf_min_new;
 
 		bqp.ltfar_en=                   this.ltfar_en;
 		bqp.ltfar_auto_floor=           this.ltfar_auto_floor;

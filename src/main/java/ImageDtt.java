@@ -2711,7 +2711,7 @@ public class ImageDtt {
 								for (int chn = 0; chn < numcol; chn++){
 
 									tiles_debayered[i][chn] =  tile_debayer_shot_corr(
-											(chn != 2), // red or blue (flase - green)
+											(chn != 2), // red or blue (false - green)
 											iclt_tile[i][chn],
 											2 * transform_size,
 											lt_window2, // squared lapping window
@@ -7098,12 +7098,12 @@ public class ImageDtt {
 							for (int i =0; i<quad; i++){
 								for (int chn = 0; chn < numcol; chn++){
 									//								tiles_debayered[i][chn] =  tile_debayer(
-									//										(chn != 2), // red or blue (flase - green)
+									//										(chn != 2), // red or blue (false - green)
 									//										iclt_tile[i][chn],
 									//										2 * transform_size);
 
 									tiles_debayered[i][chn] =  tile_debayer_shot_corr(
-											(chn != 2), // red or blue (flase - green)
+											(chn != 2), // red or blue (false - green)
 											iclt_tile[i][chn],
 											2 * transform_size,
 											lt_window2, // squared lapping window
@@ -7642,7 +7642,7 @@ public class ImageDtt {
 			for (int chn = 0; chn < numcol; chn++){
 
 				tiles_debayered[i][chn] =  tile_debayer_shot_corr(
-						(chn != 2),                 // red or blue (flase - green)
+						(chn != 2),                 // red or blue (false - green)
 						iclt_tile[i][chn],
 						2 * clt_parameters.transform_size,
 						lt_window2,                 // squared lapping window

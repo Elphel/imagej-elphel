@@ -5,7 +5,7 @@
  **
  ** -----------------------------------------------------------------------------**
  **
- **  TwoQuadCLT.java is free software: you can redistribute it and/or modify
+ **  BiCamDSI.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
  **  (at your option) any later version.
@@ -25,13 +25,52 @@ import java.util.ArrayList;
 
 
 public class BiCamDSI {
-//	public int tilesX;
-//	public int tilesY;
-	TileNeibs tnImage; //  = new TileNeibs(tilesX, tilesY)
+	TileNeibs         tnImage; //  = new TileNeibs(tilesX, tilesY)
+	int               threadsMax;
+	ArrayList<BiScan> biScans;
+
+
+
+	public int addBiScan(
+			double [] disparity,
+			double [] strength,
+			boolean [] trusted,
+			boolean [] disabled) {
+
+		if (biScans == null) biScans = new ArrayList<BiScan>();
+		biScans.add(new BiScan(this, biScans.size(), disparity, strength, trusted, disabled));
+		return biScans.size()-1;
+
+	}
+
+	public int addBiScan(
+			double [][] disparity_bimap) {
+		return addBiScan(
+				disparity_bimap[ImageDtt.BI_TARGET_INDEX], // double [] disparity,
+				disparity_bimap[ImageDtt.BI_STR_CROSS_INDEX], // double [] strength,
+				null, // boolean [] trusted,
+				null); // boolean [] disabled)
+	}
+
+	public BiScan getLastBiScan() {
+		return getBiScan(-1);
+	}
+	public BiScan getBiScan(int indx) {
+		if (biScans.isEmpty()) return null;
+		return biScans.get((indx>=0)? indx: (biScans.size() - 1));
+	}
+
+	public double [] getTargetDisparity(int indx) {
+		BiScan biScan = getBiScan(indx);
+		if (biScan == null) return null;
+		return biScan.target_disparity;
+	}
 
 	public BiCamDSI(
 			int tilesX,
-			int tilesY) {
+			int tilesY,
+			int threadsMax) {
+		this.threadsMax = threadsMax;
 		tnImage  = new TileNeibs(tilesX, tilesY);
 	}
 

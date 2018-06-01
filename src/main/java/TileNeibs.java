@@ -59,6 +59,12 @@ public class TileNeibs{
 		int [] xy = {indx % sizeX ,indx / sizeX};
 		return xy;
 	}
+	int getSizeX() {
+		return sizeX;
+	}
+	int getSizeY() {
+		return sizeY;
+	}
 
 	/**
 	 * Get element index from x and y

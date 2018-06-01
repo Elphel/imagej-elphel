@@ -588,6 +588,9 @@ private Panel panel1,
 			addButton("AUX Extrinsics",             panelClt4, color_process);
 			addButton("AUX show fine",              panelClt4, color_configure);
 //			addButton("Rig enhance",                panelClt4, color_conf_process);
+//			/"Reset GT"
+			addButton("Reset GT",                   panelClt4, color_stop);
+			addButton("Ground truth 0",             panelClt4, color_configure);
 			addButton("Ground truth",               panelClt4, color_conf_process);
 			addButton("ML export",                  panelClt4, color_conf_process);
 			addButton("Rig planes",                 panelClt4, color_conf_process);
@@ -4594,13 +4597,27 @@ private Panel panel1,
 
         return;
 /* ======================================================================== */
+    } else if (label.equals("Reset GT")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+    	resetGroundTruth();
+
+    	return;
+/* ======================================================================== */
+    } else if (label.equals("Ground truth 0")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+    	enhanceByRig(false);
+
+    	return;
+/* ======================================================================== */
     } else if (label.equals("Ground truth")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-    	enhanceByRig();
+    	enhanceByRig(true);
 
     	return;
-    	/* ======================================================================== */
+/* ======================================================================== */
     } else if (label.equals("CLT planes")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
@@ -5052,10 +5069,14 @@ private Panel panel1,
 		return true;
 
 	}
-
-	public boolean enhanceByRig() {
+//resetGroundTruthByRig()
+	public boolean resetGroundTruth() {
+		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null)) return false;
+		QUAD_CLT.resetGroundTruthByRig();
+		return true;
+	}
+	public boolean enhanceByRig( boolean use_planes) {
 		long startTime=System.nanoTime();
-
 		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
 			String msg = "DSI data is not available. Please run \"CLT 3D\" first";
 			IJ.showMessage("Error",msg);
@@ -5066,22 +5087,17 @@ private Panel panel1,
     	String configPath=getSaveCongigPath();
     	if (configPath.equals("ABORT")) return false;
 
-    	if (DEBUG_LEVEL > -2){
-    		System.out.println("++++++++++++++ Enhancing single-camera DSI by the dual-camera rig++++++++++++++");
-    	}
-    	try {
+        	if (DEBUG_LEVEL > -2){
+        		System.out.println("++++++++++++++ Enhancing single-camera DSI by the dual-camera rig using planes ++++++++++++++");
+        	}
     		TWO_QUAD_CLT.enhanceByRig( // actually there is no sense to process multiple image sets. Combine with other processing?
     				QUAD_CLT, // QuadCLT quadCLT_main,
     				QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
     				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+    				use_planes, //   final boolean                                  use_planes,
     				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
     				UPDATE_STATUS, //final boolean    updateStatus,
     				DEBUG_LEVEL);
-    	} catch (Exception e) {
-    		// TODO Auto-generated catch block
-    		e.printStackTrace();
-    	} //final int        debugLevel);
-
     	if (configPath!=null) {
     		saveTimestampedProperties( // save config again
     				configPath,      // full path or null
