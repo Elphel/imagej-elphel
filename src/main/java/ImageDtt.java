@@ -7188,6 +7188,7 @@ public class ImageDtt {
 	 * @param ml hwidth Optional to output data for ML: half width of the output tile (0 -> 1x1, 1-> 3x3, 2->5x5). Used only if center_corr != null
 	 * @param ml_center_corr Optional to output data for ML:  output array [(2*hwidth+1)*(2*hwidth+1)] or null
 	 * @param tcorr_combo if not null then tcorr_combo will contain full 2d correlation for debugging (now 15x15 in line scan order)
+	 * @param notch_mode - detect vertical poles, use a notch filter for Y, normal - for X
 	 * @param tileX debug tile X
 	 * @param tileY debug tile X
 	 * @param debugLevel debug level
@@ -7204,9 +7205,11 @@ public class ImageDtt {
     		final int                                       ml_hwidth,
     		final double []                                 ml_center_corr,
 			final double [][]                               tcorr_combo,
+			final boolean                                   notch_mode,
 			final int             							tileX, // only used in debug output
 			final int             							tileY,
 			final int             							debugLevel) {
+		int strip_hight = notch_mode? clt_parameters.img_dtt.corr_strip_notch : clt_parameters.img_dtt.corr_strip_hight;
 		double [] result = {Double.NaN,  0.0, Double.NaN, Double.NaN};
 		double [] inter_cam_corr = corr2d.correlateInterCamerasFD(
 				clt_data_tile_main,       // double [][][][]     clt_data_tile_main,
@@ -7217,7 +7220,7 @@ public class ImageDtt {
 
 		double [] stripe_inter = corr2d. scaleRotateInterpoateSingleCorrelation(
 				inter_cam_corr,                           // double []   corr,
-				clt_parameters.img_dtt.corr_strip_hight,  // int         hwidth,
+				strip_hight,                              // int         hwidth,
 				Correlation2d.PAIR_HORIZONTAL,            // int         dir, // 0 - hor, 1 - vert, 2 - parallel to row = col (main) diagonal (0->3), 3 -2->1
 				1,                                        // int         ss,
 				(debugLevel > 0));                        // boolean     debug
@@ -7240,6 +7243,7 @@ public class ImageDtt {
 
 
 	    // First get integer correlation center, relative to the center
+// TODO: multiply/acummulate by Y window?
 		int [] ixy =  corr2d.getMaxXYInt(            // find integer pair or null if below threshold
 				stripe_inter,                        // double [] data,
 				true,                                // boolean   axis_only, for strip it is always true
@@ -7259,19 +7263,39 @@ public class ImageDtt {
 			if (Double.isNaN(strength)) {
 				System.out.println("BUG: 1. strength should not be NaN");
 			}
-			corr_stat = corr2d.getMaxXCm(   // get fractional center as a "center of mass" inside circle/square from the integer max
-					stripe_inter,            // double [] data,      // [data_size * data_size]
-					ixy[0],                 // int       ixcenter,  // integer center x
-					// corr_wndy,           // double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
-					// corr_wndx,           // double [] window_x,  // half of a window function in x (disparity) direction
-					(debugLevel > 0));      // boolean   debug);
+//getMaxXCmNotch			if
+			if (notch_mode) {
+				corr_stat = corr2d.getMaxXCmNotch( // get fractional center as a "center of mass" inside circle/square from the integer max
+						stripe_inter,              // double [] data,      // [data_size * data_size]
+						ixy[0],                    // int       ixcenter,  // integer center x
+						// corr_wndy,              // double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
+						// corr_wndx,              // double [] window_x,  // half of a window function in x (disparity) direction
+						(debugLevel > 0));         // boolean   debug);
+			} else {
+				corr_stat = corr2d.getMaxXCm(      // get fractional center as a "center of mass" inside circle/square from the integer max
+						stripe_inter,              // double [] data,      // [data_size * data_size]
+						ixy[0],                    // int       ixcenter,  // integer center x
+						// corr_wndy,              // double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
+						// corr_wndx,              // double [] window_x,  // half of a window function in x (disparity) direction
+						(debugLevel > 0));         // boolean   debug);
+			}
 		}
 
 		if (corr_stat != null) {
+			if (debugLevel > 0){
+				System.out.println(String.format("Tile X/Y = %d/%d corr_stat= {%f, %f, %f} ",tileX, tileY,corr_stat[0],corr_stat[1],corr_stat[2]));
+				System.out.println("notch_mode ="+notch_mode);
+			}
+
+
 			disparity = -corr_stat[0];
 			result[INDEX_DISP] = disparity;
+			double eff_radius = corr_stat[2] * clt_parameters.img_dtt.cm_max_normalization;
+			strength = corr_stat[1]/(eff_radius * eff_radius); // total mass by square effective radius
+			result[INDEX_STRENGTH] = strength;
+
 			// see if strength is enough to proceed with LMA/poly (otherwise keep disp/strength
-			if (strength > clt_parameters.img_dtt.min_poly_strength) {
+			if ((strength > clt_parameters.img_dtt.min_poly_strength) &&  !notch_mode) {  // for now notch mode is only for CM
 				// create LMA instance, calculate LMA composite argmax
 		    	// Create 2 groups: ortho & diag
 		    	Correlations2dLMA lma = corr2d.corrLMA(
@@ -7705,6 +7729,7 @@ public class ImageDtt {
 	public double [][][][][][][]  clt_bi_quad(
 			final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 			final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
+			final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 			final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 			final double [][][]       image_data_main, // first index - number of image in a quad
@@ -7786,7 +7811,7 @@ public class ImageDtt {
 			}
 		}
 
-		if (globalDebugLevel > 0) {
+		if (globalDebugLevel > -2) {
 			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+clt_parameters.transform_size+
 					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
 		}
@@ -8182,6 +8207,7 @@ public class ImageDtt {
 									ml_hwidth,         // final int                                        ml_hwidth,
 						    		ml_data_inter,     // final double []                                 ml_center_corr,
 									tcorr_combo,       // double [][]                                     tcorr_combo,
+									notch_mode,        // final boolean                                   notch_mode,
 									tileX,                 // final int              tileX, // only used in debug output
 									tileY,                 // final int              tileY,
 									tile_lma_debug_level); // final int              debugLevel)
@@ -8262,6 +8288,7 @@ public class ImageDtt {
 											ml_hwidth,         // final int                                        ml_hwidth,
 											ml_data_dbg1,      // final double []                                 ml_center_corr,
 											null,              // double [][]                                     tcorr_combo,
+											false,             // final boolean                                   notch_mode,
 											tileX,                 // final int              tileX, // only used in debug output
 											tileY,                 // final int              tileY,
 											tile_lma_debug_level); // final int              debugLevel)
@@ -8640,6 +8667,7 @@ public class ImageDtt {
 									0, // ml_hwidth,         // final int                                        ml_hwidth,
 						    		null, // ml_data_inter,     // final double []                                 ml_center_corr,
 									null, // tcorr_combo,       // double [][]                                     tcorr_combo,
+									false,             // final boolean                                   notch_mode,
 									tileX,                 // final int              tileX, // only used in debug output
 									tileY,                 // final int              tileY,
 									tile_lma_debug_level); // final int              debugLevel)

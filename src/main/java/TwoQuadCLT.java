@@ -32,7 +32,7 @@ public class TwoQuadCLT {
 	public long                                            startTime;     // start of batch processing
 	public long                                            startSetTime;  // start of set processing
 	public long                                            startStepTime; // start of step processing
-
+	BiCamDSI                                               biCamDSI_persistent; // may be removed later to save memory, now to be able to continue
 
 	  public void processCLTQuadCorrs(
 			  QuadCLT quadCLT_main,
@@ -222,6 +222,7 @@ public class TwoQuadCLT {
 					  rgbParameters,              // EyesisCorrectionParameters.RGBParameters       rgbParameters,
 					  scaleExposures_main,        // double []	                                     scaleExposures_main, // probably not needed here - restores brightness of the final image
 					  scaleExposures_aux,         // double []	                                     scaleExposures_aux, // probably not needed here - restores brightness of the final image
+					  false,                       //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 					  //			  final boolean    apply_corr, // calculate and apply additional fine geometry correction
 					  //			  final boolean    infinity_corr, // calculate and apply geometry correction at infinity
 					  threadsMax,                 // final int        threadsMax,  // maximal number of threads to launch
@@ -260,8 +261,7 @@ public class TwoQuadCLT {
 			  EyesisCorrectionParameters.RGBParameters       rgbParameters,
 			  double []	                                     scaleExposures_main, // probably not needed here - restores brightness of the final image
 			  double []	                                     scaleExposures_aux, // probably not needed here - restores brightness of the final image
-			  //			  final boolean    apply_corr, // calculate and apply additional fine geometry correction
-			  //			  final boolean    infinity_corr, // calculate and apply geometry correction at infinity
+			  boolean                                        notch_mode, // use pole-detection mode for inter-camera correlation
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel){
@@ -339,6 +339,7 @@ public class TwoQuadCLT {
 				  image_dtt.clt_bi_quad (
 						  clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 						  clt_parameters.fat_zero,              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
+						  notch_mode,                          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 						  tile_op_main,                         // final int [][]            tile_op_main,    // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 //						  tile_op_aux,                          // final int [][]            tile_op_aux,     // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 						  disparity_array_main,                 // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
@@ -863,6 +864,7 @@ public class TwoQuadCLT {
 				  0.0,               // double              disparity,
 				  null,              // ArrayList<Integer>  tile_list,       // or null. If non-null - do not remeasure members of the list
 				  clt_parameters,    // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+				  false,             //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 				  threadsMax,        // final int           threadsMax,      // maximal number of threads to launch
 				  updateStatus,      // final boolean       updateStatus,
 				  debugLevel);       // final int           debugLevel);
@@ -1015,6 +1017,7 @@ if (debugLevel > -100) return true; // temporarily !
 						  disparity,         // double              disparity,
 						  tile_list,         // ArrayList<Integer>  tile_list,       // or null. If non-null - do not remeasure members of the list
 						  clt_parameters,    // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+						  false,             //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 						  threadsMax,        // final int           threadsMax,      // maximal number of threads to launch
 						  updateStatus,      // final boolean       updateStatus,
 						  debugLevel);       // final int           debugLevel);
@@ -1048,6 +1051,7 @@ if (debugLevel > -100) return true; // temporarily !
 								  null, // tile_list,       // ArrayList<Integer>             tile_list,       // or null
 								  num_new,         // int     []                                     num_new,
 								  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
+								  false,           //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 								  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
 								  updateStatus,    // final boolean                  updateStatus,
 								  debugLevel);     // final int                      debugLevel);
@@ -1082,6 +1086,7 @@ if (debugLevel > -100) return true; // temporarily !
 								  null, // tile_list,       // ArrayList<Integer>             tile_list,       // or null
 								  num_new,         // int     []                                     num_new,
 								  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
+								  false,             //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 								  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
 								  updateStatus,    // final boolean                  updateStatus,
 								  debugLevel);     // final int                      debugLevel);
@@ -1133,6 +1138,7 @@ if (debugLevel > -100) return true; // temporarily !
 						  tile_list,       // ArrayList<Integer>             tile_list,       // or null
 						  num_new,         // int     []                                     num_new,
 						  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
+						  false,             //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 						  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
 						  updateStatus,    // final boolean                  updateStatus,
 						  debugLevel);     // final int                      debugLevel);
@@ -1180,7 +1186,17 @@ if (debugLevel > -100) return true; // temporarily !
 
 		  return true;
 	  }
-
+	  public void processPoles(
+//			  QuadCLT            quadCLT_main,  // tiles should be set
+//			  QuadCLT            quadCLT_aux,
+			  BiCamDSI                                       biCamDSI,
+			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			  final int                                      threadsMax,  // maximal number of threads to launch
+			  final boolean                                  updateStatus,
+			  final int                                      debugLevel)// throws Exception
+	  {
+		  System.out.println("**** Nothing here yet ****");
+	  }
 
 	  //  improve DSI acquired for a single camera by use of a pair
 	  // Run this after "CLT 3D"
@@ -1204,6 +1220,7 @@ if (debugLevel > -100) return true; // temporarily !
 		  }
 
 		  double [][] rig_disparity_strength =  quadCLT_main.getGroundTruthByRig();
+
 		  if (rig_disparity_strength == null) {
 			  if (use_planes) {
 				  rig_disparity_strength = groundTruthByRigPlanes(
@@ -1450,6 +1467,7 @@ if (debugLevel > -100) return true; // temporarily !
 		  image_dtt.clt_bi_quad (
 				  clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				  clt_parameters.fat_zero,              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
+				  false,                                //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 				  tile_op,                              // final int [][]            tile_op_main,    // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 				  disparity_array,                      // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 				  quadCLT_main.image_data,              // final double [][][]       image_data_main, // first index - number of image in a quad
@@ -1599,6 +1617,7 @@ if (debugLevel > -100) return true; // temporarily !
 				  0,                 // double              disparity,
 				  null,              // ArrayList<Integer>  tile_list,       // or null. If non-null - do not remeasure members of the list
 				  clt_parameters,    // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+				  false,             //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 				  threadsMax,        // final int           threadsMax,      // maximal number of threads to launch
 				  updateStatus,      // final boolean       updateStatus,
 				  debugLevel);       // final int           debugLevel);
@@ -1642,6 +1661,7 @@ if (debugLevel > -100) return true; // temporarily !
         			  trusted_infinity, // tile_list,       // ArrayList<Integer>             tile_list,       // or null
         			  num_new,         // int     []                                     num_new,
         			  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
+    				  false,             //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
         			  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
         			  updateStatus,    // final boolean                  updateStatus,
         			  debugLevel);     // final int                      debugLevel);
@@ -1749,6 +1769,7 @@ if (debugLevel > -100) return true; // temporarily !
         			  trusted_near,    // tile_list,       // ArrayList<Integer>             tile_list,       // or null
         			  num_new,         // int     []                                     num_new,
         			  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
+    				  false,           //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
         			  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
         			  updateStatus,    // final boolean                  updateStatus,
         			  debugLevel);     // final int                      debugLevel);
@@ -1814,7 +1835,7 @@ if (debugLevel > -100) return true; // temporarily !
     		  }
     	  }
 
-          if (clt_parameters.show_map &&  (debugLevel > 0) && clt_parameters.rig.rig_mode_debug){
+          if (clt_parameters.show_map &&  (debugLevel > -3) && clt_parameters.rig.rig_mode_debug){
         	  (new showDoubleFloatArrays()).showArrays(
         			  disparity_bimap,
         			  tilesX,
@@ -1837,10 +1858,99 @@ if (debugLevel > -100) return true; // temporarily !
 						  tilesX,
 						  disparity_bimap[0].length/tilesX,
 						  true,
-						  quadCLT_main.image_name+"-DSI-ALL-TRUSTED"+clt_parameters.disparity,
+						  quadCLT_main.image_name+"-DSI-ALL-TRUSTED",
 						  ImageDtt.BIDISPARITY_TITLES);
           }
 
+          // just testing - copy and run in pole detection mode (TODO: Remove)
+          if (debugLevel > -100) return disparity_bimap;
+
+// need to re-measure
+          double [][] disparity_bimap_poles =  measureNewRigDisparity(
+        		  quadCLT_main,    // QuadCLT                        quadCLT_main,    // tiles should be set
+        		  quadCLT_aux,     // QuadCLT                        quadCLT_aux,
+        		  disparity_bimap[ImageDtt.BI_TARGET_INDEX], // double []                                      disparity, // Double.NaN - skip, ohers - measure
+        		  clt_parameters, // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+        		  true, // boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+        		  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
+        		  updateStatus,    // final boolean                  updateStatus,
+        		  debugLevel); // +4);     // final int                      debugLevel);
+
+		  (new showDoubleFloatArrays()).showArrays(
+				  disparity_bimap_poles,
+				  tilesX,
+				  disparity_bimap[0].length/tilesX,
+				  true,
+				  quadCLT_main.image_name+"-INITIAL-POLES",
+				  ImageDtt.BIDISPARITY_TITLES);
+
+          for (int i = 0; i < scale_bad.length; i++) scale_bad[i] = 1.0;
+          prev_bimap = null;
+          for (int nref = 0; nref < clt_parameters.rig.num_near_refine; nref++) {
+        	  // refine infinity using inter correlation
+        	  double [][] disparity_bimap_new =  refineRigSel(
+        			  quadCLT_main,    // QuadCLT                        quadCLT_main,    // tiles should be set
+        			  quadCLT_aux,     // QuadCLT                        quadCLT_aux,
+        			  disparity_bimap_poles, // double [][]                    src_bimap,       // current state of measurements (or null for new measurement)
+        			  prev_bimap,      // double [][]                    prev_bimap, // previous state of measurements or null
+					  scale_bad,       // double []                      scale_bad,
+					  refine_inter,    // int                            refine_mode,     // 0 - by main, 1 - by aux, 2 - by inter
+        			  false,           // boolean                        keep_inf,        // keep expected disparity 0.0 if it was so
+        			  0.0, // clt_parameters.rig.refine_min_strength , // double refine_min_strength, // do not refine weaker tiles
+        			  clt_parameters.rig.refine_tolerance ,    // double refine_tolerance,    // do not refine if absolute disparity below
+        			  trusted_near,    // tile_list,       // ArrayList<Integer>             tile_list,       // or null
+        			  num_new,         // int     []                                     num_new,
+        			  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
+    				  true,           //  final boolean                  notch_mode,      // use notch filter for inter-camera correlation to detect poles
+        			  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
+        			  updateStatus,    // final boolean                  updateStatus,
+        			  debugLevel);     // final int                      debugLevel);
+        	  prev_bimap = disparity_bimap_poles;
+        	  disparity_bimap_poles = disparity_bimap_new;
+              trusted_near = 	  getTrustedDisparity(
+            		  quadCLT_main,                            // QuadCLT            quadCLT_main,  // tiles should be set
+            		  quadCLT_aux,                             // QuadCLT            quadCLT_aux,
+            		  clt_parameters.rig.min_trusted_strength, // double             min_combo_strength,    // check correlation strength combined for all 3 correlations
+            		  clt_parameters.grow_disp_trust,          // double             max_trusted_disparity, // 4.0 -> change to rig_trust
+            		  clt_parameters.rig.trusted_tolerance,    // double             trusted_tolerance,
+            		  trusted_near, // null,                   // boolean []         was_trusted,
+            		  disparity_bimap_poles );                       // double [][]        bimap // current state of measurements
+              if (debugLevel > -2) {
+            	  System.out.println("enhanceByRig(): refined (poles) "+num_new[0]+" tiles");
+              }
+        	  if (num_new[0] < clt_parameters.rig.min_new) break;
+          }
+
+          if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
+
+        	  if (scale_bad!= null) {
+        		  int num_bad = 0, num_trusted = 0;
+        		  for (int nTile = 0; nTile < scale_bad.length; nTile++) {
+        			  if (!trusted_near[nTile]) scale_bad[nTile] = Double.NaN;
+        			  else {
+        				  if (scale_bad[nTile] < 1.0) num_bad++;
+        				  scale_bad[nTile] =  -scale_bad[nTile];
+        				  num_trusted ++;
+
+        			  }
+        		  }
+    			  System.out.println("num_trusted = "+num_trusted+", num_bad = "+num_bad);
+            	  (new showDoubleFloatArrays()).showArrays(
+            			  scale_bad,
+            			  tilesX,
+            			  disparity_bimap_poles[0].length/tilesX,
+            			  quadCLT_main.image_name+"-NEAR-SCALE_BAD_POLES"+clt_parameters.disparity);
+
+        	  }
+        	  (new showDoubleFloatArrays()).showArrays(
+        			  disparity_bimap_poles,
+        			  tilesX,
+        			  disparity_bimap_poles[0].length/tilesX,
+        			  true,
+        			  quadCLT_main.image_name+"-POLES-REFINED-TRUSTED",
+        			  ImageDtt.BIDISPARITY_TITLES);
+          }
+          // END OF just testing - copy and run in pole detection mode (TODO: Remove)
           return disparity_bimap;
 
 	  }
@@ -1853,7 +1963,8 @@ if (debugLevel > -100) return true; // temporarily !
 			  final boolean                                  updateStatus,
 			  final int                                      debugLevel) //  throws Exception
 	  {
-		  final int num_full_cycles =       3;  // Number of full low-texture cycles that include growing flat LT and trimmin weak FG over BG
+		  final int num_tries_strongest_by_fittest = 5;
+		  final int num_full_cycles =       clt_parameters.rig.pf_en_trim_fg? 3 : 1;  // Number of full low-texture cycles that include growing flat LT and trimmin weak FG over BG
 		  final int num_cross_gaps_cycles = 20; // maximalnumger of adding new tiles cycles while "crossing the gaps)
 		  final int min_cross_gaps_new =    20; // minimal number of the new added tiles
 		  final int refine_inter = 2; // 3; // 3 - dx, 2 - disparity
@@ -1948,6 +2059,7 @@ if (debugLevel > -100) return true; // temporarily !
 					   */
 
 					  num_added_tiles = last_scan.suggestNewScan(
+							  null,                                   // final double [][] disparityStrength,
 							  clt_parameters.rig.pf_trusted_strength, // final double     trusted_strength, // trusted correlation strength
 							  clt_parameters.rig.pf_strength_rfloor,  // final double     strength_rfloor,   // strength floor - relative to trusted
 							  clt_parameters.rig.pf_discard_cond,     // final boolean    discard_cond,      // consider conditionally trusted tiles (not promoted to trusted) as empty
@@ -1969,6 +2081,13 @@ if (debugLevel > -100) return true; // temporarily !
 							  clt_parameters.rig.pf_rwsigma_narrow,   // final double     rwsigma_narrow,    //  = used to determine initial tilt
 							  clt_parameters.rig.pf_new_diff,         // final double     new_diff,            // minimal difference between the new suggested and the already tried/measured one
 							  true,                                   // final boolean    remove_all_tried,  // remove from suggested - not only disabled, but all tried
+							  0.0,                                    // final double     center_weight,     // use center tile too (0.0 - do not use)
+							  clt_parameters.rig.pf_use_alt,          // final boolean    use_alt,           // use tiles from other scans if they fit better
+							  clt_parameters.rig.pf_goal_fraction_rms,// final double     goal_fraction_rms, // Try to make rms to be this fraction of maximal acceptable by removing outliers
+							  clt_parameters.rig.pf_boost_low_density,// NOT USED HERE, MAY BE 0,                                    // final double     boost_low_density, // 0 - strength is proportional to 1/density, 1.0 - same as remaining tiles
+							  null,                                   // final double []  smooth_strength,   // optionally fill strength array when used for smoothing DSI
+							  0,                                      // final int        fourq_min,         // each of the 4 corners should have at least this number of tiles.
+							  0,                                      // final int        fourq_gap,         // symmetrical vertical and horizontal center areas that do not belong to any corner
 							  clt_parameters.tileX,                   // final int        dbg_x,
 							  clt_parameters.tileY,                   // final int        dbg_y,
 							  debugLevel);                            // final int        debugLevel);
@@ -1980,7 +2099,7 @@ if (debugLevel > -100) return true; // temporarily !
 				  //num_cycle < num_cross_gaps_cycles;
 				  boolean last_cycle = (num_added_tiles < min_cross_gaps_new) || (num_cycle >= (num_cross_gaps_cycles-1));
 				  if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
-					 if (last_cycle || (num_cycle < 2 * dxy.length))
+					 if (last_cycle) //  || (num_cycle < 2 * dxy.length))
 						 biCamDSI.getLastBiScan().showScan(
 							  quadCLT_main.image_name+"-BISCAN_SUGGESTED"+num_fcycle+"-"+num_cycle);
 				  }
@@ -2039,6 +2158,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 					  // suggest again, after trimming
 					  int num_added_tiles_trimmed = last_scan.suggestNewScan(
+							  null,                                   // final double [][] disparityStrength,
 							  clt_parameters.rig.pf_trusted_strength, // final double     trusted_strength, // trusted correlation strength
 							  clt_parameters.rig.pf_strength_rfloor,  // final double     strength_rfloor,   // strength floor - relative to trusted
 							  clt_parameters.rig.pf_discard_cond,     // final boolean    discard_cond,      // consider conditionally trusted tiles (not promoted to trusted) as empty
@@ -2060,6 +2180,13 @@ if (debugLevel > -100) return true; // temporarily !
 							  clt_parameters.rig.pf_rwsigma_narrow,   // final double     rwsigma_narrow,    //  = used to determine initial tilt
 							  clt_parameters.rig.pf_new_diff,         // final double     new_diff,            // minimal difference between the new suggested and the already tried/measured one
 							  true,                                   // final boolean    remove_all_tried,  // remove from suggested - not only disabled, but all tried
+							  0.0,                                    // final double     center_weight,     // use center tile too (0.0 - do not use)
+							  clt_parameters.rig.pf_use_alt,          // final boolean    use_alt,           // use tiles from other scans if they fit better
+							  clt_parameters.rig.pf_goal_fraction_rms,// final double     goal_fraction_rms, // Try to make rms to be this fraction of maximal acceptable by removing outliers
+							  clt_parameters.rig.pf_boost_low_density,// NOT USED HERE, MAY BE 0,                                    // final double     boost_low_density, // 0 - strength is proportional to 1/density, 1.0 - same as remaining tiles
+							  null,                                   // final double []  smooth_strength,   // optionally fill strength array when used for smoothing DSI
+							  0,                                      // final int        fourq_min,         // each of the 4 corners should have at least this number of tiles.
+							  0,                                      // final int        fourq_gap,         // symmetrical vertical and horizontal center areas that do not belong to any corner
 							  clt_parameters.tileX,                   // final int        dbg_x,
 							  clt_parameters.tileY,                   // final int        dbg_y,
 							  debugLevel);                            // final int        debugLevel);
@@ -2084,6 +2211,7 @@ if (debugLevel > -100) return true; // temporarily !
 						  quadCLT_aux,       // QuadCLT             quadCLT_aux,
 						  target_disparity,  // double []                                      disparity, // Double.NaN - skip, ohers - measure
 						  clt_parameters,    // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+						  false,             //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 						  threadsMax,        // final int           threadsMax,      // maximal number of threads to launch
 						  updateStatus,      // final boolean       updateStatus,
 						  debugLevel);       // final int           debugLevel);
@@ -2127,6 +2255,7 @@ if (debugLevel > -100) return true; // temporarily !
 							  trusted_measurements, // tile_list,       // ArrayList<Integer>             tile_list,       // or null
 							  num_new,         // int     []                                     num_new,
 							  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
+							  false,           //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 							  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
 							  updateStatus,    // final boolean                  updateStatus,
 							  debugLevel);     // final int                      debugLevel);
@@ -2191,7 +2320,7 @@ if (debugLevel > -100) return true; // temporarily !
 				  double afloor = clt_parameters.rig.pf_trusted_strength * clt_parameters.rig.pf_strength_rfloor;
 
 				  // replace strongest by fittest
-				  for (int nfit = 0; nfit < 5; nfit++) {
+				  for (int nfit = 0; nfit < num_tries_strongest_by_fittest; nfit++) {
 					  int num_replaced = biCamDSI.getLastBiScan().copyFittestEnabled(
 							  afloor,                             // final double  str_floor,      // absolute strength floor
 							  clt_parameters.rig.pf_disp_afloor,  // final double  pf_disp_afloor, // =            0.1;    // When selecting the best fit from the alternative disparities, divide by difference increased by this
@@ -2224,10 +2353,267 @@ if (debugLevel > -100) return true; // temporarily !
 				    		false, // boolean only_trusted,
 				    		true); // boolean only_enabled,
 
+		  biCamDSI_persistent = biCamDSI; // save for pole detection
 		  return rig_disparity_strength;
 	  }
 
+	  public boolean showBiScan(
+			  QuadCLT            quadCLT_main,  // tiles should be set
+			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			  final int                                      debugLevel) //  throws Exception
+	  {
 
+		  if ((quadCLT_main == null) ||
+				  (quadCLT_main.tp == null) ||
+				  (quadCLT_main.tp.clt_3d_passes == null) ||
+				  (biCamDSI_persistent== null) ||
+				  (biCamDSI_persistent.biScans== null)) {
+			  String msg = "Data is not available. Please run \"Ground truth\" first";
+			  IJ.showMessage("Error",msg);
+			  System.out.println(msg);
+			  return false;
+		  }
+		  int scan_index = biCamDSI_persistent.biScans.size()-1;
+		  boolean show_smooth =     true;
+		  boolean keep_unreliable = false;
+		  boolean keep_weak =       false;
+		  boolean keep_strong =     false;
+		  double center_weight =    1.0;
+// from clt_parameters.rig
+		  double trusted_strength = clt_parameters.rig.pf_trusted_strength;
+		  double cond_rtrusted =    clt_parameters.rig.pf_cond_rtrusted;
+		  double strength_rfloor =  clt_parameters.rig.pf_strength_rfloor;
+		  double strength_pow =     clt_parameters.rig.pf_strength_pow;
+		  int smpl_radius =         clt_parameters.rig.pf_smpl_radius;
+		  int smpl_num =            clt_parameters.rig.pf_smpl_num;
+		  int smpl_num_narrow =     clt_parameters.rig.pf_smpl_num_narrow;
+		  double smpl_fract =       clt_parameters.rig.pf_smpl_fract;
+		  double max_adiff =        clt_parameters.rig.pf_max_adiff;
+		  double max_rdiff =        clt_parameters.rig.pf_max_rdiff;
+		  double max_atilt =        clt_parameters.rig.pf_max_atilt;
+		  double max_rtilt =        clt_parameters.rig.pf_max_rtilt;
+		  double smpl_arms =        clt_parameters.rig.pf_smpl_arms;
+		  double smpl_rrms =        clt_parameters.rig.pf_smpl_rrms;
+		  double damp_tilt =        clt_parameters.rig.pf_damp_tilt;
+		  double rwsigma =          clt_parameters.rig.pf_rwsigma;
+		  double rwsigma_narrow =   clt_parameters.rig.pf_rwsigma_narrow;
+
+		  boolean use_alt =         clt_parameters.rig.pf_use_alt;
+		  double goal_fraction_rms= clt_parameters.rig.pf_goal_fraction_rms;    // Try to make rms to be this fraction of maximal acceptable by removing outliers
+		  double boost_low_density= clt_parameters.rig.pf_boost_low_density;    // Strength assigned to fake tiles from neighbors (the lower - the higher)
+
+		  int        fourq_min =    clt_parameters.rig.pf_fourq_min;
+		  int        fourq_gap =    clt_parameters.rig.pf_fourq_gap;
+		  double min_disparity =    0.0;
+
+
+		  GenericJTabbedDialog gd = new GenericJTabbedDialog("Set CLT parameters",800,900);
+		  gd.addNumericField("Scan index (0..."+(biCamDSI_persistent.biScans.size()-1),  scan_index, 0, 2, "",  "Display scan by index");
+
+		  gd.addCheckbox    ("Show smooth disparity/strength for the selected scan",  show_smooth, 		"Unchecked - just as is");
+		  gd.addCheckbox    ("Keep unreliable tiles",                                 keep_unreliable, 	"Unchecked - overwrite with smooth data");
+		  gd.addCheckbox    ("Keep weak (but trusted) tiles",                         keep_weak,       	"Unchecked - overwrite with smooth data");
+		  gd.addCheckbox    ("Keep strng trusted tiles",                              keep_strong, 	    "Unchecked - overwrite with smooth data");
+		  gd.addNumericField("Center weight - relative weight of the existing tile ", center_weight,  4,6,"",
+				  "0.0 - suggest new disparity over existing tiles without ant regard to the original value, 1.0 - same influence as any other tile");
+		  gd.addNumericField("Minimal disparity to apply filter",                     min_disparity,  4,6,"pix",
+				  "Farther objects will not be filtered");
+
+		  gd.addMessage     ("Parameters that are copied from the CLT parameters");
+		  gd.addNumericField("Strength sufficient without neighbors",                                               trusted_strength,  4,6,"",
+				  "Unconditionally trusted tile. Other stength values are referenceds as fraction of this value (after strength floor subtraction)");
+			gd.addNumericField("Strength sufficient with neighbors support, fraction of the trusted strength",      cond_rtrusted,  4,6,"",
+					"Strength that may be valid for the tile if there are neighbors in the same possibly tilted plane of the DSI (floor corrected)");
+
+		  gd.addNumericField("Fraction of trusted strength to subtract",                                            strength_rfloor,  4,6,"",
+				  "Strength floor to subtract from all strength values");
+		  gd.addNumericField("Raise strength-floor to this power",                                                  strength_pow,  4,6,"",
+				  "Currently just 1.0 - lenear");
+		  gd.addNumericField("How far to extend around known tiles (probably should increase this value up to?",    smpl_radius,  0,3,"tiles",
+				  "Process a aquare centered at the current tile withthe side of twice this value plus 1 (2*pf_smpl_radius + 1)");
+		  gd.addNumericField("Number after remaining in the sample square after removing worst fitting tiles",      smpl_num,  0,3,"",
+				  "When fitting planes the outliers are removed until the number of remaining tiles equals this value");
+		  gd.addNumericField("Number of remaining tiles when using narrow selection",                               smpl_num_narrow,  0,3,"",
+				  "Number of remaining tiles during initial palne fitting to the center pixels (it is later extended to include farther tiles)");
+		  gd.addNumericField("Fraction of the reamining tiles of all non-zero tiles?",                              smpl_fract,  4,6,"",
+				  "This value is combined to the previous one (absilute). Maximal of absolute and relative times number of all non-empty tiles is used");
+		  gd.addNumericField("Maximal absolute disparity difference between the plane and tiles that fit",          max_adiff,  4,6,"pix",
+				  "Maximal absolute disparity difference for fitting. Combined with the next one (relative) ");
+		  gd.addNumericField("Maximal relative (to center disparity) difference between the plane and tiles that fit",max_rdiff,  4,6,"pix/pix",
+				  "This value is multipled by the tile disparity and added to the maximal absolute difference");
+		  gd.addNumericField("Maximal absolute tile tilt in DSI space",                                             max_atilt,  4,6,"pix/tile",
+				  "Maximal disparity difference betweeing neighbor tiles for the tilted plane. Combined with the relative one (next), min of both limits applies");
+		  gd.addNumericField("Maximal relative (per pixel of disparity) tile tilt in DSI space",                    max_rtilt,  4,6,"1/tile",
+				  "Maximal relative (to center disparity) tilt. Near tiles (larger disparity may have larger differnce.");
+		  gd.addNumericField("Maximal absolute RMS of the remaining tiles in a sample",                             smpl_arms,  4,6,"pix",
+				  "After removing outliers RMS of the remaining tiles must be less than this value");
+		  gd.addNumericField("Maximal relative (to center disparity) RMS of the remaining tiles in a sample",       smpl_rrms,  4,6,"pix/pix",
+				  "Relative RMS times disparity is added to the absolute one");
+		  gd.addNumericField("Tilt cost for damping insufficient plane data",                                       damp_tilt,  4,6,"",
+				  "Regularisation to handle co-linear and even single-point planes, forcing fronto-parallel for single point, and minimal tilt for co-linear set");
+		  gd.addNumericField("Influence of far neighbors is reduced as a Gaussian with this sigma",                 rwsigma,  4,6,"",
+				  "Sigma is relative to selection radius (square half-side)");
+		  gd.addNumericField("Weight function Gaussian sigma (relative to radius) for initial plane fitting",       rwsigma_narrow,  4,6,"",
+				  "Weight function Gaussian sigma (relative to selection radius) for initial plane fitting. May be ~=1/radius");
+		  gd.addCheckbox    ("When fitting planes, look for alternative measure tiles",use_alt, 	        "Unchecked - only use the latest (current) tile");
+		  gd.addNumericField("Try to make rms to be this fraction of maximal acceptable by removing outliers",      goal_fraction_rms,  4,6,"pix",
+				  "When removing outliers to fit planes, stop removing when the RMS of the remaining drops below this fraction of the maxium allowed RMS (should be < 1.0");
+		  gd.addNumericField("Strength assigned to fake tiles from neighbors (the lower - the higher)",             boost_low_density,  4,6,"pix",
+				  "Returned strength assigned to the tiles increases with this value - seems to be a bug");
+
+		  gd.addNumericField("Each of the 4 corners should have at least this number of tiles",                     fourq_min,  0,3,"",
+				  "Apply (>0) only for filling gaps, not during expansion. It requires that every of the 4 corners of the sample square has this number of tiles for a plane");
+		  gd.addNumericField("Four corners center gap half-width (1 - 1 tile, 2 - 3 tiles, 3 - 5 tiles, ...",       fourq_gap,  0,3,"",
+				  "Specifies corners of the sample square that should have tiles remain, after removing centre columns and center rows");
+
+		  gd.showDialog();
+		  if (gd.wasCanceled()) return false;
+		  scan_index =      (int) gd.getNextNumber();
+		  show_smooth =           gd.getNextBoolean();
+		  keep_unreliable =       gd.getNextBoolean();
+		  keep_weak =             gd.getNextBoolean();
+		  keep_strong  =          gd.getNextBoolean();
+		  center_weight =         gd.getNextNumber();
+		  min_disparity =         gd.getNextNumber();
+		  // from clt_parameters.rig
+		  trusted_strength =      gd.getNextNumber();
+		  cond_rtrusted =         gd.getNextNumber();
+		  strength_rfloor =       gd.getNextNumber();
+		  strength_pow =          gd.getNextNumber();
+		  smpl_radius  =    (int) gd.getNextNumber();
+		  smpl_num =        (int) gd.getNextNumber();
+		  smpl_num_narrow = (int) gd.getNextNumber();
+		  smpl_fract =            gd.getNextNumber();
+		  max_adiff =             gd.getNextNumber();
+		  max_rdiff =             gd.getNextNumber();
+		  max_atilt =             gd.getNextNumber();
+		  max_rtilt =             gd.getNextNumber();
+		  smpl_arms =             gd.getNextNumber();
+		  smpl_rrms =             gd.getNextNumber();
+		  damp_tilt =             gd.getNextNumber();
+		  rwsigma =               gd.getNextNumber();
+		  rwsigma_narrow =        gd.getNextNumber();
+
+		  use_alt =               gd.getNextBoolean();
+		  goal_fraction_rms=      gd.getNextNumber();
+		  boost_low_density=      gd.getNextNumber();
+
+		  fourq_min=        (int) gd.getNextNumber();
+		  fourq_gap=        (int) gd.getNextNumber();
+
+		  System.out.println(" === showBiScan( parameters : =====");
+		  System.out.println("       scan_index= "+scan_index);
+		  System.out.println("      show_smooth= "+show_smooth);
+		  System.out.println("  keep_unreliable= "+keep_unreliable);
+		  System.out.println("        keep_weak= "+keep_weak);
+		  System.out.println("      keep_strong= "+keep_strong);
+		  System.out.println("    center_weight= "+center_weight);
+		  System.out.println("    min_disparity= "+min_disparity);
+
+		  System.out.println(" trusted_strength= "+trusted_strength);
+		  System.out.println("    cond_rtrusted= "+cond_rtrusted);
+		  System.out.println("  strength_rfloor= "+strength_rfloor);
+		  System.out.println("     strength_pow= "+strength_pow);
+		  System.out.println("      smpl_radius= "+smpl_radius);
+		  System.out.println("         smpl_num= "+smpl_num);
+		  System.out.println("  smpl_num_narrow= "+smpl_num_narrow);
+		  System.out.println("       smpl_fract= "+smpl_fract);
+		  System.out.println("        max_adiff= "+max_adiff);
+		  System.out.println("        max_rdiff= "+max_rdiff);
+		  System.out.println("        max_atilt= "+max_atilt);
+		  System.out.println("        max_rtilt= "+max_rtilt);
+		  System.out.println("        smpl_arms= "+smpl_arms);
+		  System.out.println("        smpl_rrms= "+smpl_rrms);
+		  System.out.println("        damp_tilt= "+damp_tilt);
+		  System.out.println("          rwsigma= "+rwsigma);
+		  System.out.println("   rwsigma_narrow= "+rwsigma_narrow);
+
+		  System.out.println("          use_alt= "+use_alt);
+		  System.out.println("goal_fraction_rms= "+goal_fraction_rms);
+		  System.out.println("boost_low_density= "+boost_low_density);
+
+		  System.out.println("        fourq_min= "+fourq_min);
+		  System.out.println("        fourq_gap= "+fourq_gap);
+
+
+		  BiScan biScan =  biCamDSI_persistent.biScans.get(scan_index);
+		  double [][] ds = null;
+		  if (show_smooth) {
+			  // find strongest
+			  biCamDSI_persistent.getLastBiScan().copyLastStrongestEnabled(
+					  clt_parameters.rig.pf_last_priority); // final boolean last_priority)
+			  double afloor = trusted_strength * strength_rfloor;
+			  int num_tries_strongest_by_fittest = 5;
+			  // replace strongest by fittest
+			  for (int nfit = 0; nfit < num_tries_strongest_by_fittest; nfit++) {
+				  int num_replaced = biCamDSI_persistent.getLastBiScan().copyFittestEnabled(
+						  afloor,                             // final double  str_floor,      // absolute strength floor
+						  clt_parameters.rig.pf_disp_afloor,  // final double  pf_disp_afloor, // =            0.1;    // When selecting the best fit from the alternative disparities, divide by difference increased by this
+						  clt_parameters.rig.pf_disp_rfloor); // 	final double  pf_disp_rfloor) //  =            0.02;   // Increase pf_disp_afloor for large disparities
+				  if ((debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
+					  System.out.println("groundTruthByRigPlanes(): Replacing strongest by fittest: ntry = "+nfit+", replaced "+num_replaced+" tiles");
+				  }
+				  if (num_replaced == 0) {
+					  break;
+				  }
+			  }
+
+			  biScan.calcTrusted(   // finds strong trusted and validates week ones if they fit planes
+					  trusted_strength, // final double     trusted_strength, // trusted correlation strength
+					  strength_rfloor,  // final double     strength_rfloor,   // strength floor - relative to trusted
+					  cond_rtrusted,    // final double     cond_rtrusted,     // minimal strength to consider - fraction of trusted
+					  strength_pow,     // final double     strength_pow,      // raise strength-floor to this power
+					  smpl_radius,      // final int        smpl_radius,
+					  smpl_num,         // final int        smpl_num,   //         = 3;      // Number after removing worst (should be >1)
+					  smpl_fract,       // final double     smpl_fract, // Number of friends among all neighbors
+					  max_adiff,        // final double     max_adiff,  // Maximal absolute difference betweenthe center tile and friends
+					  max_rdiff,        // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
+					  max_atilt,        // final double     max_atilt, //  = 2.0; // pix per tile
+					  max_rtilt,        // final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
+					  smpl_arms,        // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+					  smpl_rrms,        // final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
+					  damp_tilt,        // final double     damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
+					  rwsigma,          // 						final double     rwsigma,           //  = 0.7; // influence of far neighbors diminish as a Gaussian with this sigma
+					  clt_parameters.tileX,                   // final int        dbg_x,
+					  clt_parameters.tileY,                   // final int        dbg_y,
+					  debugLevel);                            // final int        debugLevel);
+
+			  ds = biScan.getFilteredDisparityStrength(
+					  null,                 // final double [][] disparityStrength,
+					  min_disparity,        // final double     min_disparity,    // keep original disparity far tiles
+					  trusted_strength,     // final double     trusted_strength, // trusted correlation strength
+					  strength_rfloor,      // final double     strength_rfloor,   // strength floor - relative to trusted
+					  !keep_unreliable,     // final boolean    discard_unreliable,// replace v
+					  !keep_weak,           // final boolean    discard_weak,      // consider weak trusted tiles (not promoted to trusted) as empty
+					  !keep_strong,         // final boolean    discard_strong,    // suggest new disparitieas even for strong tiles
+					  strength_pow,         // final double     strength_pow,      // raise strength-floor to this power
+					  null,                 // final double []  smpl_radius_array, // space-variant radius
+					  smpl_radius,          // final int        smpl_radius,
+					  smpl_num,             // final int        smpl_num,   //         = 3;      // Number after removing worst (should be >1)
+					  smpl_fract,           // final double     smpl_fract, // Number of friends among all neighbors
+					  smpl_num_narrow,      // final int        smpl_num_narrow,   //         = 3;      // Number after removing worst (should be >1)
+					  max_adiff,            // final double     max_adiff,  // Maximal absolute difference betweenthe center tile and friends
+					  max_rdiff,            // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
+					  max_atilt,            // final double     max_atilt, //  = 2.0; // pix per tile
+					  max_rtilt,            // final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
+					  smpl_arms,            // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+					  smpl_rrms,            // final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
+					  damp_tilt,            // final double     damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
+					  rwsigma,              // final double     rwsigma,           //  = 0.7; // influence of far neighbors diminish as a Gaussian with this sigma
+					  rwsigma_narrow,       // final double     rwsigma_narrow,    //  = used to determine initial tilt
+					  center_weight,        // final double     center_weight,     // use center tile too (0.0 - do not use)
+					  use_alt,              // final boolean    use_alt,           // use tiles from other scans if they fit better
+					  goal_fraction_rms,    // final double     goal_fraction_rms, // Try to make rms to be this fraction of maximal acceptable by removing outliers
+					  boost_low_density,    //final double     boost_low_density, // 0 - strength is proportional to 1/density, 1.0 - same as remaining tiles
+					  fourq_min,            // final int        fourq_min,         // each of the 4 corners should have at least this number of tiles.
+					  fourq_gap,            // final int        fourq_gap,         // symmetrical vertical and horizontal center areas that do not belong to any corner
+					  clt_parameters.tileX, // final int        dbg_x,
+					  clt_parameters.tileY, // final int        dbg_y,
+					  debugLevel+2);          // final int        debugLevel
+		  }
+		  biScan.showScan("BiScan-"+scan_index,ds);
+		  return true;
+	  }
 
 
 	  public double [][] groundTruthByRig(
@@ -2305,6 +2691,8 @@ if (debugLevel > -100) return true; // temporarily !
 				  0,                 // double              disparity,
 				  null,              // ArrayList<Integer>  tile_list,       // or null. If non-null - do not remeasure members of the list
 				  clt_parameters,    // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+				  false,             //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+
 				  threadsMax,        // final int           threadsMax,      // maximal number of threads to launch
 				  updateStatus,      // final boolean       updateStatus,
 				  debugLevel);       // final int           debugLevel);
@@ -2348,6 +2736,7 @@ if (debugLevel > -100) return true; // temporarily !
         			  trusted_infinity, // tile_list,       // ArrayList<Integer>             tile_list,       // or null
         			  num_new,         // int     []                                     num_new,
         			  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
+    				  false,             //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
         			  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
         			  updateStatus,    // final boolean                  updateStatus,
         			  debugLevel);     // final int                      debugLevel);
@@ -2454,6 +2843,7 @@ if (debugLevel > -100) return true; // temporarily !
         			  trusted_near,    // tile_list,       // ArrayList<Integer>             tile_list,       // or null
         			  num_new,         // int     []                                     num_new,
         			  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
+    				  false,           //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
         			  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
         			  updateStatus,    // final boolean                  updateStatus,
         			  debugLevel);     // final int                      debugLevel);
@@ -2723,6 +3113,7 @@ if (debugLevel > -100) return true; // temporarily !
     			  quadCLT_main,         // QuadCLT                                  quadCLT_main,  // tiles should be set
     			  quadCLT_aux,          // QuadCLT                                  quadCLT_aux,
     			  clt_parameters,       // EyesisCorrectionParameters.CLTParameters clt_parameters,
+				  false,                //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
     			  threadsMax,           // final int        threadsMax,  // maximal number of threads to launch
     			  updateStatus,         // final boolean    updateStatus,
     			  debugLevel);          // final int        debugLevel);
@@ -2759,6 +3150,7 @@ if (debugLevel > -100) return true; // temporarily !
         			  trusted_lt,      // null, // trusted_lt,    // tile_list,       // ArrayList<Integer>             tile_list,       // or null
         			  num_new,         // int     []                                     num_new,
         			  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
+					  false,           //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
         			  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
         			  updateStatus,    // final boolean                  updateStatus,
         			  debugLevel);     // final int                      debugLevel);
@@ -3125,6 +3517,7 @@ if (debugLevel > -100) return true; // temporarily !
     			  null, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
         		  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
 				  clt_parameters.fat_zero, // double                                         fatzero,
+				  false,                   //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
     			  threadsMax,      // final int        threadsMax,  // maximal number of threads to launch
     			  updateStatus,    // final boolean    updateStatus,
     			  debugLevel);     // final int        debugLevel);
@@ -3149,6 +3542,7 @@ if (debugLevel > -100) return true; // temporarily !
 			  QuadCLT                                        quadCLT_main,  // tiles should be set
 			  QuadCLT                                        quadCLT_aux,
 			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			  boolean                                        notch_mode,      // use notch filter for inter-camera correlation to detect poles
 			  final int                                      threadsMax,  // maximal number of threads to launch
 			  final boolean                                  updateStatus,
 			  final int                                      debugLevel){
@@ -3175,6 +3569,7 @@ if (debugLevel > -100) return true; // temporarily !
     			  null, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
         		  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
 				  clt_parameters.fat_zero, // double                                         fatzero,
+				  notch_mode,                          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
     			  threadsMax,      // final int        threadsMax,  // maximal number of threads to launch
     			  updateStatus,    // final boolean    updateStatus,
     			  debugLevel);     // final int        debugLevel);
@@ -3272,6 +3667,8 @@ if (debugLevel > -100) return true; // temporarily !
 			  ArrayList<Integer>                             tile_list, // or null
 			  int     []                                     num_new,
 			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			  boolean                                        notch_mode,      // use notch filter for inter-camera correlation to detect poles
+
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel){
@@ -3293,6 +3690,7 @@ if (debugLevel > -100) return true; // temporarily !
 				  selection,
 				  num_new,
 				  clt_parameters,
+				  notch_mode,                          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 				  threadsMax,  // maximal number of threads to launch
 				  updateStatus,
 				  debugLevel);
@@ -3311,6 +3709,7 @@ if (debugLevel > -100) return true; // temporarily !
 			  boolean []                                     selection,
 			  int     []                                     num_new,
 			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel){
@@ -3360,6 +3759,7 @@ if (debugLevel > -100) return true; // temporarily !
     			  null, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 				  clt_parameters,      // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				  clt_parameters.fat_zero, // double                                         fatzero,
+				  notch_mode,                          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 				  threadsMax,          //final int        threadsMax,  // maximal number of threads to launch
 				  updateStatus,        // final boolean    updateStatus,
 				  debugLevel);          // final int        debugLevel)
@@ -3406,6 +3806,7 @@ if (debugLevel > -100) return true; // temporarily !
 			  double                                         disparity,
 			  ArrayList<Integer>                             tile_list, // or null. If non-null - do not remeasure members of the list
 			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			  boolean                                        notch_mode,      // use notch filter for inter-camera correlation to detect poles
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel){
@@ -3441,6 +3842,7 @@ if (debugLevel > -100) return true; // temporarily !
     			  null, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 				  clt_parameters,      // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				  clt_parameters.fat_zero, // double                                         fatzero,
+				  notch_mode,                          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 				  threadsMax,          //final int        threadsMax,  // maximal number of threads to launch
 				  updateStatus,        // final boolean    updateStatus,
 				  debugLevel);          // final int        debugLevel)
@@ -3493,6 +3895,7 @@ if (debugLevel > -100) return true; // temporarily !
 			  QuadCLT                                        quadCLT_aux,
 			  double []                                      disparity, // Double.NaN - skip, ohers - measure
 			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			  boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel){
@@ -3519,9 +3922,10 @@ if (debugLevel > -100) return true; // temporarily !
     			  null, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 				  clt_parameters,      // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				  clt_parameters.fat_zero, // double                                         fatzero,
+				  notch_mode,          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 				  threadsMax,          //final int        threadsMax,  // maximal number of threads to launch
 				  updateStatus,        // final boolean    updateStatus,
-				  debugLevel);          // final int        debugLevel)
+				  debugLevel);         // final int        debugLevel)
 		  return disparity_bimap;
 	  }
 
@@ -3642,6 +4046,7 @@ if (debugLevel > -100) return true; // temporarily !
 			  double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
 			  double                                         fatzero,
+			  boolean                                        notch_mode, // use pole-detection mode for inter-camera correlation
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel){
@@ -3652,6 +4057,7 @@ if (debugLevel > -100) return true; // temporarily !
 		  image_dtt.clt_bi_quad (
 				  clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				  fatzero,                              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
+				  notch_mode,                          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 				  tile_op,                              // final int [][]            tile_op_main,    // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 				  disparity_array,                      // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 				  quadCLT_main.image_data,              // final double [][][]       image_data_main, // first index - number of image in a quad
@@ -3753,6 +4159,7 @@ if (debugLevel > -100) return true; // temporarily !
 				  ml_data, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
 				  clt_parameters,   // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				  fatzero,          // double                                         fatzero,
+				  false,            //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
 				  threadsMax,       // maximal number of threads to launch // final int        threadsMax,  // maximal number of threads to launch
 				  updateStatus,     // final boolean    updateStatus,
 				  debugLevel);      // final int        debugLevel)

@@ -120,6 +120,15 @@ public class BiQuadParameters {
 	public double     pf_damp_tilt =              0.001;  // Tilt cost for damping insufficient plane data
 	public double     pf_rwsigma =                0.7;    // influence of far neighbors diminish as a Gaussian with this sigma
 	public double     pf_rwsigma_narrow =         0.2;    // used to determine initial tilt ( 1/radius)
+
+	public boolean    pf_use_alt =                false;  // When fitting for the best plane - look for alernative measured tiles too
+	public double     pf_goal_fraction_rms =      0.5;    // Try to make rms to be this fraction of maximal acceptable by removing outliers
+	public double     pf_boost_low_density =      0.8;    // Strength assigned to fake tiles from neighbors (the lower - the higher)
+
+	// Apply when filling gaps, not when growing
+	public int        pf_fourq_min =               1;      // Each of the 4 corners should have at least this number of tiles.
+	public int        pf_fourq_gap =               1;      // Symmetrical vertical and horizontal center areas that do not belong to any corner
+
 	//		int  trimWeakFG(
 
 	public boolean    pf_en_trim_fg =             false;  // Trim weak FZG
@@ -371,6 +380,20 @@ public class BiQuadParameters {
 				"Sigma is relative to selection radius (square half-side)");
 		gd.addNumericField("Weight function Gaussian sigma (relative to radius) for initial plane fitting",       this.pf_rwsigma_narrow,  4,6,"",
 				"Weight function Gaussian sigma (relative to selection radius) for initial plane fitting. May be ~=1/radius");
+
+		gd.addCheckbox    ("When fitting for the best plane - look for alernative measured tiles too",            this.pf_use_alt,
+				"When selecting tiles that fit best to the plane, try alternative (weaker) disparities too");
+		gd.addNumericField("Try to make rms to be this fraction of maximal acceptable by removing outliers",      this.pf_goal_fraction_rms,  4,6,"pix",
+				"When removing outliers to fit planes, stop removing when the RMS of the remaining drops below this fraction of the maxium allowed RMS (should be < 1.0");
+		gd.addNumericField("Strength assigned to fake tiles from neighbors (the lower - the higher)",             this.pf_boost_low_density,  4,6,"pix",
+				"Returned strength assigned to the tiles increases with this value - seems to be a bug");
+
+
+		gd.addNumericField("Each of the 4 corners should have at least this number of tiles",                     this.pf_fourq_min,  0,3,"",
+				"Apply (>0) only for filling gaps, not during expansion. It requires that every of the 4 corners of the sample square has this number of tiles for a plane");
+		gd.addNumericField("Four corners center gap half-width (1 - 1 tile, 2 - 3 tiles, 3 - 5 tiles, ...",       this.pf_fourq_gap,  0,3,"",
+				"Specifies corners of the sample square that should have tiles remain, after removing centre columns and center rows");
+
 		gd.addCheckbox    ("Trim hanging FG",                                                                     this.pf_en_trim_fg,
 				"Try trimming hanging FG (need improvement)");
 		gd.addNumericField("Absolute tolerane to determine that a tile is a background one for the selected plane",this.pf_atolerance,  4,6,"pix",
@@ -574,6 +597,14 @@ public class BiQuadParameters {
 		this.pf_damp_tilt=                  gd.getNextNumber();
 		this.pf_rwsigma=                    gd.getNextNumber();
 		this.pf_rwsigma_narrow=             gd.getNextNumber();
+
+		this.pf_use_alt=                    gd.getNextBoolean();
+		this.pf_goal_fraction_rms=          gd.getNextNumber();
+		this.pf_boost_low_density=          gd.getNextNumber();
+
+		this.pf_fourq_min=            (int) gd.getNextNumber();
+		this.pf_fourq_gap=            (int) gd.getNextNumber();
+
 		this.pf_en_trim_fg=                 gd.getNextBoolean();
 		this.pf_atolerance=                 gd.getNextNumber();
 		this.pf_rtolerance=                 gd.getNextNumber();
@@ -589,7 +620,6 @@ public class BiQuadParameters {
 		this.pf_discard_strong=             gd.getNextBoolean();
 		this.pf_new_diff=                   gd.getNextNumber();
 		this.pf_min_new=              (int) gd.getNextNumber();
-
 
 		this.ltfar_en=                      gd.getNextBoolean();
 		this.ltfar_auto_floor=              gd.getNextBoolean();
@@ -719,6 +749,13 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"pf_damp_tilt",              this.pf_damp_tilt+"");
 		properties.setProperty(prefix+"pf_rwsigma",                this.pf_rwsigma+"");
 		properties.setProperty(prefix+"pf_rwsigma_narrow",         this.pf_rwsigma_narrow+"");
+
+		properties.setProperty(prefix+"pf_use_alt",                this.pf_use_alt+"");
+		properties.setProperty(prefix+"pf_goal_fraction_rms",      this.pf_goal_fraction_rms+"");
+		properties.setProperty(prefix+"pf_boost_low_density",      this.pf_boost_low_density+"");
+
+		properties.setProperty(prefix+"pf_fourq_min",              this.pf_fourq_min+"");
+		properties.setProperty(prefix+"pf_fourq_gap",              this.pf_fourq_gap+"");
 		properties.setProperty(prefix+"pf_en_trim_fg",             this.pf_en_trim_fg+"");
 		properties.setProperty(prefix+"pf_atolerance",             this.pf_atolerance+"");
 		properties.setProperty(prefix+"pf_rtolerance",             this.pf_rtolerance+"");
@@ -845,8 +882,8 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"pf_strength_rfloor")!=null)      this.pf_strength_rfloor=Double.parseDouble(properties.getProperty(prefix+"pf_strength_rfloor"));
 		if (properties.getProperty(prefix+"pf_cond_rtrusted")!=null)        this.pf_cond_rtrusted=Double.parseDouble(properties.getProperty(prefix+"pf_cond_rtrusted"));
 		if (properties.getProperty(prefix+"pf_strength_pow")!=null)         this.pf_strength_pow=Double.parseDouble(properties.getProperty(prefix+"pf_strength_pow"));
-		if (properties.getProperty(prefix+"pf_disp_afloor")!=null)         this.pf_strength_pow=Double.parseDouble(properties.getProperty(prefix+"pf_disp_afloor"));
-		if (properties.getProperty(prefix+"pf_disp_rfloor")!=null)         this.pf_strength_pow=Double.parseDouble(properties.getProperty(prefix+"pf_disp_rfloor"));
+		if (properties.getProperty(prefix+"pf_disp_afloor")!=null)          this.pf_disp_afloor=Double.parseDouble(properties.getProperty(prefix+"pf_disp_afloor"));
+		if (properties.getProperty(prefix+"pf_disp_rfloor")!=null)          this.pf_disp_rfloor=Double.parseDouble(properties.getProperty(prefix+"pf_disp_rfloor"));
 		if (properties.getProperty(prefix+"pf_smpl_radius")!=null)          this.pf_smpl_radius=Integer.parseInt(properties.getProperty(prefix+"pf_smpl_radius"));
 		if (properties.getProperty(prefix+"pf_smpl_num")!=null)             this.pf_smpl_num=Integer.parseInt(properties.getProperty(prefix+"pf_smpl_num"));
 		if (properties.getProperty(prefix+"pf_smpl_num_narrow")!=null)      this.pf_smpl_num_narrow=Integer.parseInt(properties.getProperty(prefix+"pf_smpl_num_narrow"));
@@ -861,6 +898,12 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"pf_rwsigma")!=null)              this.pf_rwsigma=Double.parseDouble(properties.getProperty(prefix+"pf_rwsigma"));
 		if (properties.getProperty(prefix+"pf_rwsigma_narrow")!=null)       this.pf_rwsigma_narrow=Double.parseDouble(properties.getProperty(prefix+"pf_rwsigma_narrow"));
 
+		if (properties.getProperty(prefix+"pf_use_alt")!=null)              this.pf_use_alt=Boolean.parseBoolean(properties.getProperty(prefix+"pf_use_alt"));
+		if (properties.getProperty(prefix+"pf_goal_fraction_rms")!=null)    this.pf_goal_fraction_rms=Double.parseDouble(properties.getProperty(prefix+"pf_goal_fraction_rms"));
+		if (properties.getProperty(prefix+"pf_boost_low_density")!=null)    this.pf_boost_low_density=Double.parseDouble(properties.getProperty(prefix+"pf_boost_low_density"));
+
+		if (properties.getProperty(prefix+"pf_fourq_min")!=null)            this.pf_fourq_min=Integer.parseInt(properties.getProperty(prefix+"pf_fourq_min"));
+		if (properties.getProperty(prefix+"pf_fourq_gap")!=null)            this.pf_fourq_gap=Integer.parseInt(properties.getProperty(prefix+"pf_fourq_gap"));
 		if (properties.getProperty(prefix+"pf_en_trim_fg")!=null)           this.pf_en_trim_fg=Boolean.parseBoolean(properties.getProperty(prefix+"pf_en_trim_fg"));
 
 		if (properties.getProperty(prefix+"pf_atolerance")!=null)           this.pf_atolerance=Double.parseDouble(properties.getProperty(prefix+"pf_atolerance"));
@@ -1005,6 +1048,14 @@ public class BiQuadParameters {
 		bqp.pf_damp_tilt=               this.pf_damp_tilt;
 		bqp.pf_rwsigma=                 this.pf_rwsigma;
 		bqp.pf_rwsigma_narrow=          this.pf_rwsigma_narrow;
+
+		bqp.pf_use_alt=                 this.pf_use_alt;
+		bqp.pf_goal_fraction_rms =      this.pf_goal_fraction_rms;
+		bqp.pf_boost_low_density=       this.pf_boost_low_density;
+
+		bqp.pf_fourq_min=               this.pf_fourq_min;
+		bqp.pf_fourq_gap=               this.pf_fourq_gap;
+
 		bqp.pf_en_trim_fg =             this.pf_en_trim_fg;
 		bqp.pf_atolerance=              this.pf_atolerance;
 		bqp.pf_rtolerance=              this.pf_rtolerance;

@@ -148,47 +148,146 @@ public class BiScan {
     	return ds;
     }
 
-	public void showScan(String title) { // FIXME!
+    // trusted should be set, copied and replaced as needed
+    public double [][] getFilteredDisparityStrength( // FIXME
+			final double [][] disparityStrength,
+			final double     min_disparity,    // keep original disparity far tiles
+		    final double     trusted_strength, // trusted correlation strength
+			final double     strength_rfloor,   // strength floor - relative to trusted
+		    final boolean    discard_unreliable,// replace v
+		    final boolean    discard_weak,      // consider weak trusted tiles (not promoted to trusted) as empty
+		    final boolean    discard_strong,    // suggest new disparitieas even for strong tiles
+			final double     strength_pow,      // raise strength-floor to this power
+			final double []  smpl_radius_array, // space-variant radius
+			final int        smpl_radius,
+			final int        smpl_num,   //         = 3;      // Number after removing worst (should be >1)
+			final double     smpl_fract, // Number of friends among all neighbors
+			final int        smpl_num_narrow,   //         = 3;      // Number after removing worst (should be >1)
+			final double     max_adiff,  // Maximal absolute difference betweenthe center tile and friends
+			final double     max_rdiff, //  Maximal relative difference between the center tile and friends
+			final double     max_atilt, //  = 2.0; // pix per tile
+			final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
+			final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+			final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
+			final double     damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
+			final double     rwsigma,           //  = 0.7; // influence of far neighbors diminish as a Gaussian with this sigma
+			final double     rwsigma_narrow,    //  = used to determine initial tilt
+			final double     center_weight,     // use center tile too (0.0 - do not use)
+			final boolean    use_alt,           // use tiles from other scans if they fit better
+			final double     goal_fraction_rms, // Try to make rms to be this fraction of maximal acceptable by removing outliers
+			final double     boost_low_density, // 0 - strength is proportional to 1/density, 1.0 - same as remaining tiles
+			final int        fourq_min,         // each of the 4 corners should have at least this number of tiles.
+			final int        fourq_gap,         // symmetrical vertical and horizontal center areas that do not belong to any corner
+			final int        dbg_x,
+			final int        dbg_y,
+			final int        debugLevel
+    		){
+		final int num_tiles = biCamDSI.tnImage.getSizeX()*biCamDSI.tnImage.getSizeY();
+		double [][] ds0 = 	getDisparityStrength( // FIXME
+	    		false,   // final boolean only_strong,
+	    		false,   // final boolean only_trusted,
+	    		true) ;  // final boolean only_enabled);
+
+
+    	double [][] ds = new double[2][num_tiles];
+//    	double boost_low_density = 0.8; // 1.0; //0.2;
+		  suggestNewScan(
+				  disparityStrength, // final double [][] disparityStrength,
+				  trusted_strength,  // final double     trusted_strength, // trusted correlation strength
+				  strength_rfloor,   // final double     strength_rfloor,   // strength floor - relative to trusted
+				  true,              // final boolean    discard_cond,      // consider conditionally trusted tiles (not promoted to trusted) as empty
+				  true,              // final boolean    discard_weak,      // consider conditionally trusted tiles (not promoted to trusted) as empty
+				  true,              // final boolean    discard_strong,      // consider conditionally trusted tiles (not promoted to trusted) as empty
+				  strength_pow,      // final double     strength_pow,      // raise strength-floor to this power
+				  smpl_radius,       // final int        smpl_radius,
+				  smpl_num,          // final int        smpl_num,   //         = 3;      // Number after removing worst (should be >1)
+				  smpl_fract,        // final double     smpl_fract, // Number of friends among all neighbors
+				  smpl_num_narrow,   // final int        smpl_num_narrow,   //         = 3;      // Number after removing worst (should be >1)
+				  max_adiff,         // final double     max_adiff,  // Maximal absolute difference betweenthe center tile and friends
+				  max_rdiff,         // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
+				  max_atilt,         // final double     max_atilt, //  = 2.0; // pix per tile
+				  max_rtilt,         // final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
+				  smpl_arms,         // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				  smpl_rrms,         // final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
+				  damp_tilt,         // final double     damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
+				  rwsigma,           // final double     rwsigma,           //  = 0.7; // influence of far neighbors diminish as a Gaussian with this sigma
+				  rwsigma_narrow,    // final double     rwsigma_narrow,    //  = used to determine initial tilt
+				  0.0,               // final double     new_diff,            // minimal difference between the new suggested and the already tried/measured one
+				  false,             // final boolean    remove_all_tried,  // remove from suggested - not only disabled, but all tried
+				  center_weight,     // final double     center_weight,     // use center tile too (0.0 - do not use)
+				  use_alt,           // final boolean    use_alt,           // use tiles from other scans if they fit better
+				  boost_low_density, // final double     boost_low_density, // 0 - strength is proportional to 1/density, 1.0 - same as remaining tiles
+				  goal_fraction_rms, // final double     goal_fraction_rms, // Try to make rms to be this fraction of maximal acceptable by removing outliers
+				  ds,                // final double [][]  smooth_ds,   // optionally fill strength array when used for smoothing DSI
+				  fourq_min,         // final int        fourq_min,         // each of the 4 corners should have at least this number of tiles.
+				  fourq_gap,         // final int        fourq_gap,         // symmetrical vertical and horizontal center areas that do not belong to any corner
+				  dbg_x,             // final int        dbg_x,
+				  dbg_y,             // final int        dbg_y,
+				  debugLevel);       // final int        debugLevel);
+		for (int nTile = 0; nTile < num_tiles; nTile++) {
+			if ((ds0[1][nTile] > 0.0) && (
+					(ds[0][nTile] <= 0.0) ||
+					!discard_unreliable ||
+					(strong_trusted[nTile] && !discard_strong) ||
+					(trusted[nTile] && !discard_weak) ||
+					(ds[0][nTile] <  min_disparity))) {
+				ds[0][nTile] = ds0[0][nTile];
+				ds[1][nTile] = ds0[1][nTile];
+			}
+		}
+    	return ds;
+    }
+	public void showScan(String title) {
+		showScan(title,null);
+	}
+
+	public void showScan(String title, double [][] ext_ds) {
 		String [] titles= {
-				"all",               // 0
-				"enabled",           // 1
-				"cond_trusted",      // 2
-				"weak trusted",      // 3
-				"strong trusted",    // 4
-				"measured",          // 5
-				"suggested",         // 6
-				"measured strength", // 7
-				"strength" };        // 8
-		double [][] ds_all = getDisparityStrength( // FIXME
+				"ext_disp",          //    0
+				"all",               // 0  1
+				"enabled",           // 1  2
+				"cond_trusted",      // 2  3
+				"weak trusted",      // 3  4
+				"strong trusted",    // 4  5
+				"measured",          // 5  6
+				"suggested",         // 6  7
+				"ext strength",      //    8
+				"measured strength", // 7  9
+				"strength" };        // 8 10
+		double [][] ds_all = getDisparityStrength(
 	    		false,   // final boolean only_strong,
 	    		false,   // final boolean only_trusted,
 	    		false) ; // final boolean only_enabled);
-		double [][] ds = getDisparityStrength( // FIXME
+		double [][] ds = getDisparityStrength(
 	    		false,   // final boolean only_strong,
 	    		false,   // final boolean only_trusted,
 	    		true) ; // final boolean only_enabled);
 
 		double [][] dbg_data = new double[titles.length][];
-		dbg_data[5] = this.disparity_measured;
-		dbg_data[0] = ds_all[0];
-		dbg_data[7] = this.strength_measured;
-		dbg_data[8] = ds_all[1];
-		dbg_data[1] = ds[0];
+		dbg_data[ 6] = this.disparity_measured;
+		dbg_data[ 1] = ds_all[0];
+		dbg_data[ 9] = this.strength_measured;
+		dbg_data[10] = ds_all[1];
+		dbg_data[ 2] = ds[0];
+		if (ext_ds != null) {
+			dbg_data[ 0] = ext_ds[0];
+			dbg_data[ 8] = ext_ds[1];
+		}
 
 		if (this.cond_trusted != null) {
-			dbg_data[2] = ds[0].clone();
-			for (int i = 0; i < this.cond_trusted.length; i++) if (!cond_trusted[i]) dbg_data[2][i] = Double.NaN;
+			dbg_data[3] = ds[0].clone();
+			for (int i = 0; i < this.cond_trusted.length; i++) if (!cond_trusted[i]) dbg_data[3][i] = Double.NaN;
 		}
 		if (this.trusted != null) {
-			dbg_data[3] = ds[0].clone();
-			for (int i = 0; i < this.trusted.length; i++) if (!trusted[i]) dbg_data[3][i] = Double.NaN;
+			dbg_data[4] = ds[0].clone();
+			for (int i = 0; i < this.trusted.length; i++) if (!trusted[i]) dbg_data[4][i] = Double.NaN;
 		}
 		if (this.strong_trusted != null) {
-			dbg_data[4] =  ds[0].clone();
-			for (int i = 0; i < this.strong_trusted.length; i++) if (!strong_trusted[i]) dbg_data[4][i] = Double.NaN;
+			dbg_data[5] =  ds[0].clone();
+			for (int i = 0; i < this.strong_trusted.length; i++) if (!strong_trusted[i]) dbg_data[5][i] = Double.NaN;
 		}
 		if (this.target_disparity != null) {
-			dbg_data[6] = this.target_disparity.clone();
+			dbg_data[7] = this.target_disparity.clone();
 		}
 		(new showDoubleFloatArrays()).showArrays(
 				dbg_data,
@@ -380,6 +479,8 @@ public class BiScan {
 	 * 2) target disaprity that lead to the current measurement after refinement
 	 * 3) any other disable measurement
 	 * 4) any target disparity that lead to the disabled measurement
+	 * @param disparityStrength - a pair of array or null. If null, will calculate fro the current scan
+	 *        if not null - use as is
 	 * @param trusted_strength strength to trust unconditionally
 	 * @param strength_rfloor strength floor to subrtact as a fraction of the trusted strength
 	 * @param discard_cond if true may suggest new disparities for conditionally trusted tiles
@@ -401,6 +502,13 @@ public class BiScan {
 	 * @param rwsigma_narrow Gaussian sigma for the preliminary plain fitting using the closesttiles ~= 1/smpl_radius
 	 * @param new_diff minimal difference between the new suggested and the already tried/measured one
 	 * @param remove_all_tried remove from suggested - not only disabled, but all tried
+	 * @param center_weight weight of the tile itself (0.0 - do not use). Should be set to 0.0 for suggesting, >0 - for "smoothing"
+	 * @param use_alt use tiles from other scans if they fit better
+	 * @param goal_fraction_rms try to make rms to be this fraction of maximal acceptable by removing outliers
+	 * @param boost_low_density 0.0 - strength is proportional to 1/density, 1.0 - same as remaining tiles
+	 * @param smooth_ds optionally fill disaprity/strength  instead of the target_disparity
+	 * @param fourq_min each of the 4 corners should have at least this number of tiles.
+	 * @param fourq_gap symmetrical vertical and horizontal center areas that do not belong to any corner
 	 * @param dbg_x tileX to debug
 	 * @param dbg_y tileY to debug
 	 * @param debugLevel debug level
@@ -409,17 +517,18 @@ public class BiScan {
 	 */
 
 	int  suggestNewScan(
+			final double [][] disparityStrength,
 		    final double     trusted_strength, // trusted correlation strength
 			final double     strength_rfloor,   // strength floor - relative to trusted
 		    final boolean    discard_cond,      // consider conditionally trusted tiles (not promoted to trusted) as empty
 		    final boolean    discard_weak,      // consider weak trusted tiles (not promoted to trusted) as empty
-		    final boolean    discard_strong,    // suggest new disparitieas even for strong tiles
+		    final boolean    discard_strong,    // suggest new disparities even for strong tiles
 			final double     strength_pow,      // raise strength-floor to this power
 			final int        smpl_radius,
 			final int        smpl_num,   //         = 3;      // Number after removing worst (should be >1)
 			final double     smpl_fract, // Number of friends among all neighbors
 			final int        smpl_num_narrow,   //         = 3;      // Number after removing worst (should be >1)
-			final double     max_adiff,  // Maximal absolute difference betweenthe center tile and friends
+			final double     max_adiff,  // Maximal absolute difference between the center tile and friends
 			final double     max_rdiff, //  Maximal relative difference between the center tile and friends
 			final double     max_atilt, //  = 2.0; // pix per tile
 			final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
@@ -430,32 +539,75 @@ public class BiScan {
 			final double     rwsigma_narrow,    //  = used to determine initial tilt
 			final double     new_diff,          // minimal difference between the new suggested and the already tried/measured one
 			final boolean    remove_all_tried,  // remove from suggested - not only disabled, but all tried
+			final double     center_weight,     // use center tile too (0.0 - do not use)
+			final boolean    use_alt,           // use tiles from other scans if they fit better
+			final double     goal_fraction_rms, // Try to make rms to be this fraction of maximal acceptable by removing outliers
+			final double     boost_low_density, // 0 - strength is proportional to 1/density, 1.0 - same as remaining tiles
+			final double [][] smooth_ds,        // optionally fill disaprity/strength  instead of the target_disparity
+			final int        fourq_min,         // each of the 4 corners should have at least this number of tiles.
+			final int        fourq_gap,         // symmetrical vertical and horizontal center areas that do not belong to any corner
 			final int        dbg_x,
 			final int        dbg_y,
 			final int        debugLevel
 			) {
 		final TileNeibs  tnImage = biCamDSI.tnImage;
+		final int dbg_tile = (debugLevel > 0)?(dbg_y * tnImage.sizeX + dbg_x): -1;
 		final double     wsigma = rwsigma*smpl_radius;
 		final double     wsigma_narrow = rwsigma_narrow*smpl_radius;
+		final int        smpl_side = 2 * smpl_radius + 1; // Sample size (side of a square)
+		final int        smpl_len = smpl_side*smpl_side;
+		final int        smpl_center = (smpl_side + 1) * smpl_radius;
 		// prepare window
 		final double [][] weights =        new double [smpl_radius + 1][smpl_radius + 1];
 		final double [][] weights_narrow = new double [smpl_radius + 1][smpl_radius + 1];
-		for (int i = 0; i <weights.length; i++) {
-			for (int j = i; j <weights[i].length; j++) {
-				weights[i][j] = (wsigma >0.0) ?Math.exp(-(i*i+j*j)/(2*wsigma*wsigma)):1.0;
-				weights[j][i] = weights[i][j];
-				weights_narrow[i][j] = (wsigma_narrow >0.0) ?Math.exp(-(i*i+j*j)/(2*wsigma_narrow*wsigma_narrow)):1.0;
-				weights_narrow[j][i] = weights_narrow[i][j];
+		{ // normalize
+			for (int i = 0; i <= smpl_radius; i++) {
+				for (int j = i; j <= smpl_radius; j++) {
+					weights[i][j] = (wsigma >0.0) ?Math.exp(-(i*i+j*j)/(2*wsigma*wsigma)):1.0;
+					weights[j][i] = weights[i][j];
+					weights_narrow[i][j] = (wsigma_narrow >0.0) ?Math.exp(-(i*i+j*j)/(2*wsigma_narrow*wsigma_narrow)):1.0;
+					weights_narrow[j][i] = weights_narrow[i][j];
+				}
+			}
+			weights[0][0] *=        center_weight;
+			weights_narrow[0][0] *= center_weight;
+			double sw_full = 0.0, sw_narrow = 0.0;
+			for (int i = 0; i <= smpl_radius; i++) {
+				for (int j = i; j <= smpl_radius; j++) {
+					sw_full +=   weights[i][j];
+					sw_narrow += weights_narrow[i][j];
+				}
+			}
+			double k_full = 1.0/sw_full;
+			double k_narrow = 1.0/sw_narrow;
+			for (int i = 0; i <= smpl_radius; i++) {
+				for (int j = i; j <= smpl_radius; j++) {
+					weights[i][j] *=k_full;
+					weights_narrow[i][j]*=k_narrow;
+				}
 			}
 		}
-		final double [][] ds = getDisparityStrength( // FIXME
+		final int [] fourq_corner = new int[smpl_len];
+		for (int i = 0; i < smpl_side; i++) {
+			for (int j = 0; j < smpl_side; j++) {
+				int indx = i* smpl_side + j;
+				if     (((i > (smpl_radius - fourq_gap)) && (i < (smpl_radius + fourq_gap))) ||
+						((j > (smpl_radius - fourq_gap)) && (j < (smpl_radius + fourq_gap)))){
+					fourq_corner[indx] = 4; // will not be used
+
+				} else {
+					fourq_corner[indx] = ((i > smpl_radius) ? 2 : 0) + ((j > smpl_radius) ? 1 : 0); //122
+				}
+			}
+		}
+
+
+		final double [][] ds = (disparityStrength != null) ? disparityStrength: getDisparityStrength(
 	    		false,   // final boolean only_strong,
 	    		false,   // final boolean only_trusted,
 	    		true) ; // final boolean only_enabled);
 		final int num_tiles = tnImage.getSizeX()*tnImage.getSizeY();
 		final double     strength_floor = trusted_strength * strength_rfloor;
-		final int        smpl_side = 2 * smpl_radius + 1; // Sample size (side of a square)
-		final int        smpl_len = smpl_side*smpl_side;
 
 		final boolean [] trusted_sw = discard_weak ? (this.strong_trusted) : (discard_cond ? this.trusted: this.cond_trusted);
 
@@ -473,8 +625,12 @@ public class BiScan {
 			threads[ithread] = new Thread() {
 				@Override
 				public void run() {
-					int smpl_center = (smpl_side + 1) * smpl_radius;
 					for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) if (discard_strong || !trusted_sw[nTile]){
+						boolean debug = nTile == dbg_tile;
+						if (debug) {
+							System.out.println("suggestNewScan(): debbugging nTile="+nTile);
+							System.out.println("suggestNewScan(): debbugging nTile="+nTile);
+						}
 						// Select all neighbors, then filter
 						double [] smpl_d =           new double  [smpl_len];
 						double [] smpl_w =           new double  [smpl_len];
@@ -484,24 +640,29 @@ public class BiScan {
 						double sw = 0, swd = 0;
 						for (int dy = -smpl_radius; dy <= smpl_radius; dy++) {
 							int ady = (dy > 0)? dy:(-dy);
-							for (int dx = -smpl_radius; dx <= smpl_radius; dx++) if ((dx != 0) || (dy != 0)){
+							for (int dx = -smpl_radius; dx <= smpl_radius; dx++) { // if ((dx != 0) || (dy != 0)){
 								int nTile1 =  tnImage.getNeibIndex(nTile, dx, dy);
 								if ((nTile1 >= 0) && trusted[nTile1]) { // weak trusted OK
 									nall++;
 									int adx = (dx > 0)? dx:(-dx);
 									int smpl_indx = smpl_center + dy*smpl_side + dx;
 									double w = ds[1][nTile1]-strength_floor;
-									smpl_d[smpl_indx] =       ds[0][nTile1];
-									smpl_w[smpl_indx] =        w * weights[ady][adx];
-									smpl_w_narrow[smpl_indx] = w * weights_narrow[ady][adx];
-									if (strength_pow != 1.0) {
-										smpl_w[smpl_indx] = Math.pow(smpl_w[smpl_indx], strength_pow);
-										smpl_w_narrow[smpl_indx] = Math.pow(smpl_w_narrow[smpl_indx], strength_pow);
+									if ( w > 0) {
+										if (strength_pow != 1.0) {
+											w = Math.pow(w, strength_pow);
+										}
+
+										smpl_d[smpl_indx] =       ds[0][nTile1];
+										smpl_w[smpl_indx] =        w * weights[ady][adx];
+										smpl_w_narrow[smpl_indx] = w * weights_narrow[ady][adx];
+										sw += smpl_w_narrow[smpl_indx];
+										swd += smpl_w_narrow[smpl_indx]* smpl_d[smpl_indx];
 									}
-									sw += smpl_w_narrow[smpl_indx];
-									swd += smpl_w_narrow[smpl_indx]* smpl_d[smpl_indx];
 								}
 							}
+						}
+						if (debug) {
+							System.out.println("suggestNewScan(): sw="+sw);
 						}
 
 						if (sw == 0.0) {
@@ -523,6 +684,7 @@ public class BiScan {
 						if (nsmpls < smpl_num_narrow) { // no tiles even to start
 							continue; //
 						}
+						double max_rms = smpl_arms + smpl_rrms * disp_mean; // do not need to wait fro the final disparity for this estimate
 						double [] fit_rslt = fitPlaneRemoveOutliers(
 								smpl_radius,        // int                     smpl_radius,
 								max_tilt,           // double                  max_tilt,
@@ -532,11 +694,63 @@ public class BiScan {
 								smpl_w_narrow,      // double []               smpl_w, // will be modified,
 								smpl_p,             // double []               smpl_p, // will be set if provided
 								smpl_num_narrow,    // int                     fin_samples, // remove until this number remain
+								goal_fraction_rms*max_rms, // double                  fin_rms,
+								fourq_min,          // int                     fourq_min,         // each of the 4 corners should have at least this number of tiles.
+								fourq_corner,       // int [] 	               fourq_corner, //  array specifying corner number (0..3), -1 - gap. null when not used
 								debugLevel);        // int                     debugLevel)
-						if ( (fit_rslt == null) ||  (fit_rslt[0] > (smpl_arms + smpl_rrms * fit_rslt[1]))){
+//						if ( (fit_rslt == null) ||  (fit_rslt[0] > (smpl_arms + smpl_rrms * fit_rslt[1]))){
+						if ( (fit_rslt == null) ||  (fit_rslt[0] > max_rms)){
 							continue; // narrow selection - too high rms
 						}
+						max_rms = smpl_arms + smpl_rrms * fit_rslt[1]; // updated center disparity and so rms
 						disp_mean = fit_rslt[1]; // smpl_p[smpl_center]; // center of the fitted plane
+						// try to use alternatives for the discarded (not only) tiles
+						if (use_alt) {
+							int nnew = findBetterFitToPlane( // ; // new assignments
+									smpl_radius,     // int       smpl_radius,
+									nTile,           // int       nTile,
+									strength_floor,  // double    strength_floor,
+									strength_pow,    // double    strength_pow,
+									weights,         // double [][] weights,
+									weights_narrow,  // double [][] weights_narrow,
+									smpl_w,          // double [] smpl_w,
+									smpl_w_narrow,   // double [] smpl_w_narrow,
+									smpl_d,          // double [] smpl_d,
+									smpl_p);         // double [] smpl_p);
+
+							if (nnew > 0) { // there were some changes, recalculate narrow fit plane
+								fit_rslt = fitPlaneRemoveOutliers(
+										smpl_radius,        // int                     smpl_radius,
+										max_tilt,           // double                  max_tilt,
+										damp_tilt,          // double                  damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
+										true,               // boolean                 full_plane,
+										smpl_d,             // double []               smpl_d,
+										smpl_w_narrow,      // double []               smpl_w, // will be modified,
+										smpl_p,             // double []               smpl_p, // will be set if provided
+										smpl_num_narrow,    // int                     fin_samples, // remove until this number remain
+										goal_fraction_rms*max_rms,            // double                  fin_rms,
+										fourq_min,          // int                     fourq_min,         // each of the 4 corners should have at least this number of tiles.
+										fourq_corner,       // int [] 	               fourq_corner, //  array specifying corner number (0..3), -1 - gap. null when not used
+										debugLevel);        // int                     debugLevel)
+//								if ( (fit_rslt == null) ||  (fit_rslt[0] > (smpl_arms + smpl_rrms * fit_rslt[1]))){
+								if ( (fit_rslt == null) ||  (fit_rslt[0] > max_rms)){
+									continue; // narrow selection - too high rms
+								}
+								disp_mean = fit_rslt[1]; // smpl_p[smpl_center]; // center of the fitted plane
+							}
+// plane may have changed, look for the best fit in history again
+							 nnew = findBetterFitToPlane( // ; // new assignments
+										smpl_radius,     // int       smpl_radius,
+										nTile,           // int       nTile,
+										strength_floor,  // double    strength_floor,
+										strength_pow,    // double    strength_pow,
+										weights,         // double [][] weights,
+										weights_narrow,  // double [][] weights_narrow,
+										smpl_w,          // double [] smpl_w,
+										smpl_w_narrow,   // double [] smpl_w_narrow,
+										smpl_d,          // double [] smpl_d,
+										smpl_p);         // double [] smpl_p);
+						} //if (use_alt) {
 						// re-select tiles to fit the plane and use wide weights
 						double max_diff = max_adiff + max_rdiff * disp_mean; // no provisions for tilt (or add a fraction)?
 						nsmpls = 0;
@@ -547,6 +761,7 @@ public class BiScan {
 								smpl_w[indxs] = 0.0;
 							}
 						}
+
 						if (nsmpls < fin_samples) { // no tiles even to satrt
 							continue; //
 						}
@@ -559,40 +774,79 @@ public class BiScan {
 								smpl_w,             // double []               smpl_w, // will be modified,
 								smpl_p,             // double []               smpl_p, // will be set if provided
 								fin_samples,        // int                     fin_samples, // remove until this number remain
+								goal_fraction_rms*max_rms,            // double                  fin_rms,
+								fourq_min,          // int                     fourq_min,         // each of the 4 corners should have at least this number of tiles.
+								fourq_corner,       // int [] 	               fourq_corner, //  array specifying corner number (0..3), -1 - gap. null when not used
 								debugLevel);        // int                     debugLevel)
-						if ( (fit_rslt == null) ||  (fit_rslt[0] > (smpl_arms + smpl_rrms * fit_rslt[1]))){
+//						if ( (fit_rslt == null) ||  (fit_rslt[0] > (smpl_arms + smpl_rrms * fit_rslt[1]))){
+						if ( (fit_rslt == null) ||  (fit_rslt[0] > max_rms)){
 							continue; // narrow selection - too high rms
 						}
-						if (Math.abs(fit_rslt[1] - ds[0][nTile]) < new_diff) { // suggested is too close to already measured
-							continue; // already measured for this tile
-						}
-						// compare to the previous suggestion
-						int previous_indx = ((src_index[nTile] < 0)? list_index:src_index[nTile]) -1;
-						double previous_target = (previous_indx >= 0)? biCamDSI.getBiScan(previous_indx).target_disparity[nTile]:Double.NaN; // Nothing is known about the target of the 0-scan
-						if (Math.abs(fit_rslt[1] - previous_target) < new_diff) { // suggested is too close to already suggested and result - disabled
-							continue; // already measured for this tile
-						}
-						// see if close one was already disabled
-						// do not compare with the scans that were not disabled - re-try them?remove_all_tried
 						boolean valid_suggestion = true;
-						for (BiScan other_scan:biCamDSI.biScans) if (other_scan.disabled_measurement[nTile] || remove_all_tried) {
-//							int other_indx = (other_scan.src_index[nTile] < 0)? other_scan.list_index:other_scan.src_index[nTile];
-//							double other_disparity = biCamDSI.getBiScan(other_indx).disparity_measured[nTile];
-							double other_disparity = other_scan.disparity_measured[nTile];
-							if (Math.abs(fit_rslt[1] - other_disparity) < new_diff) { // suggested is too close to already measured and disabled
-								valid_suggestion = false;
-								break; // already measured for this tile
+						if ((disparityStrength == null) && (new_diff > 0.0)) {
+							if (Math.abs(fit_rslt[1] - ds[0][nTile]) < new_diff) { // suggested is too close to already measured
+								continue; // already measured for this tile
 							}
-							int other_indx = other_scan.list_index;
-							double other_target = (other_indx > 0)? biCamDSI.getBiScan(other_indx - 1).target_disparity[nTile]:Double.NaN; // Nothing is known about the target of the 0-scan
-							if (Math.abs(fit_rslt[1] - other_target) < new_diff) { // suggested is too close to already suggested and result - disabled
-								valid_suggestion = false;
-								break; // already measured for this tile
+							// compare to the previous suggestion
+							int previous_indx = ((src_index[nTile] < 0)? list_index:src_index[nTile]) -1;
+							double previous_target = (previous_indx >= 0)? biCamDSI.getBiScan(previous_indx).target_disparity[nTile]:Double.NaN; // Nothing is known about the target of the 0-scan
+							if (Math.abs(fit_rslt[1] - previous_target) < new_diff) { // suggested is too close to already suggested and result - disabled
+								continue; // already measured for this tile
+							}
+							// see if close one was already disabled
+							// do not compare with the scans that were not disabled - re-try them?remove_all_tried
+							// If disparityStrength[][] is provided, do not use history. If difference is <= 0 - also no sense to look there
+							//							for (BiScan other_scan:biCamDSI.biScans) if (other_scan.disabled_measurement[nTile] || remove_all_tried) {
+							for (BiScan other_scan:biCamDSI.biScans) if ( (other_scan.list_index <= list_index) && (other_scan.disabled_measurement[nTile] || remove_all_tried)) {
+
+								//							int other_indx = (other_scan.src_index[nTile] < 0)? other_scan.list_index:other_scan.src_index[nTile];
+								//							double other_disparity = biCamDSI.getBiScan(other_indx).disparity_measured[nTile];
+								double other_disparity = other_scan.disparity_measured[nTile];
+								if (Math.abs(fit_rslt[1] - other_disparity) < new_diff) { // suggested is too close to already measured and disabled
+									valid_suggestion = false;
+									break; // already measured for this tile
+								}
+								int other_indx = other_scan.list_index;
+								double other_target = (other_indx > 0)? biCamDSI.getBiScan(other_indx - 1).target_disparity[nTile]:Double.NaN; // Nothing is known about the target of the 0-scan
+								if (Math.abs(fit_rslt[1] - other_target) < new_diff) { // suggested is too close to already suggested and result - disabled
+									valid_suggestion = false;
+									break; // already measured for this tile
+								}
 							}
 						}
 						if (valid_suggestion) {
-							target_disparity[nTile] = fit_rslt[1];
 							num_new.getAndIncrement();
+							if (smooth_ds == null) { // fill target disparity
+								target_disparity[nTile] = fit_rslt[1];
+							} else { // this method is used to provide a filtered DSI - no changes to the target_disparity
+								smooth_ds[0][nTile] = fit_rslt[1];
+								double s0 = 0, s1 = 0;
+								for (int dy = -smpl_radius; dy <= smpl_radius; dy++) {
+									int ady = (dy > 0)? dy:(-dy);
+									for (int dx = -smpl_radius; dx <= smpl_radius; dx++) { // if ((dx != 0) || (dy != 0)){
+										int adx = (dx > 0)? dx:(-dx);
+										int smpl_indx = smpl_center + dy*smpl_side + dx;
+										if (smpl_w[smpl_indx] > 0.0) {
+											s0+= weights[ady][adx];
+											s1+= weights[ady][adx] * smpl_w[smpl_indx];
+										}
+									}
+								}
+								//boost_low_density, // false weight of low density tiles is reduced, true - boosted
+								double w = s1;
+								if (boost_low_density > 0.0) {
+									w/= Math.pow(s0, boost_low_density);
+								}
+								if (strength_pow != 1.0) {
+									w = Math.pow(w, 1.0 / strength_pow);
+								}
+								w += strength_floor;
+								smooth_ds[1][nTile] = w;
+								if (Double.isNaN(w)) {
+									System.out.println("suggestNewScan(): nTile="+nTile+" w="+w);
+									System.out.println("suggestNewScan(): nTile="+nTile+" w="+w);
+								}
+							}
 						}
 					}
 				}
@@ -602,6 +856,74 @@ public class BiScan {
 		// remove duplicates from what was suggested or measured before
 		return num_new.get();
 	}
+
+    private int findBetterFitToPlane(
+    		int       smpl_radius,
+    		int       nTile,
+    		double    strength_floor,
+    		double    strength_pow,
+    		double [][] weights,
+    		double [][] weights_narrow,
+    		double [] smpl_w,
+    		double [] smpl_w_narrow,
+    		double [] smpl_d,
+    		double [] smpl_p
+    		)
+    {
+		final TileNeibs  tnImage = biCamDSI.tnImage;
+		final int        smpl_side = 2 * smpl_radius + 1; // Sample size (side of a square)
+//		final int        smpl_len = smpl_side*smpl_side;
+		final int        smpl_center = (smpl_side + 1) * smpl_radius;
+		int nnew = 0; // new assignments
+		for (int dy = -smpl_radius; dy <= smpl_radius; dy++) {
+			int ady = (dy > 0)? dy:(-dy);
+			for (int dx = -smpl_radius; dx <= smpl_radius; dx++){
+				int adx = (dx > 0)? dx:(-dx);
+				int smpl_indx = smpl_center + dy*smpl_side + dx;
+				if  (smpl_w [smpl_indx] > 0.0) { // is in "untouched" weights
+					int nTile1 =  tnImage.getNeibIndex(nTile, dx, dy);
+//					if ((nTile1 >= 0) && trusted[nTile1]) { // weak trusted OK
+					if (nTile1 >= 0) { // will use any strength > 0
+						// see if there is a measurement that fits better to the plane
+						int best_indx=-1;
+						double best_diff = Math.abs(smpl_d[smpl_indx] - smpl_p[smpl_indx]);
+						for (int scan_indx = list_index; scan_indx >= 0; scan_indx--) { // include the latest measurement
+							BiScan scan = biCamDSI.getBiScan(scan_indx);
+							if (scan.disabled_measurement[nTile]) { //  || (scan.src_index[nTile] != indx)){ // skip all but enabled
+								continue;
+							}
+							double disp = scan.disparity_measured[nTile1];
+							if (Double.isNaN(disp)) {
+								continue;
+							}
+							if (scan.strength_measured[nTile1] <= strength_floor) {
+								continue;
+							}
+							double diff = Math.abs(disp - smpl_p[smpl_indx]);
+							if ((best_indx < 0) || (diff < best_diff)){
+								best_indx = scan_indx;
+								best_diff = diff;
+							}
+						}
+						if (best_indx >= 0) {
+							BiScan scan = biCamDSI.getBiScan(best_indx);
+							smpl_d[smpl_indx] = scan.disparity_measured[nTile1];
+							double w =          scan.strength_measured[nTile1] -strength_floor ;
+							if (w > 0.0) { // should be anyway
+								if (strength_pow != 1.0) {
+									w = Math.pow(w, strength_pow);
+								}
+								smpl_w[smpl_indx] =        w * weights[ady][adx];
+								smpl_w_narrow[smpl_indx] = w * weights_narrow[ady][adx];
+								nnew++;
+							}
+						}
+					}
+				}
+			}
+		}
+		return nnew;
+    }
 
 
 // Simple version for non-flat strong areas - try duplicating neighbor
@@ -653,7 +975,7 @@ public class BiScan {
 							}
 							// see if close one was already disabled
 							boolean valid_suggestion = true;
-							for (BiScan other_scan:biCamDSI.biScans) if (other_scan.disabled_measurement[nTile] || remove_all_tried) {
+							for (BiScan other_scan:biCamDSI.biScans) if ( (other_scan.list_index <= list_index) && (other_scan.disabled_measurement[nTile] || remove_all_tried)) {
 //								int other_indx = (other_scan.src_index[nTile] < 0)? other_scan.list_index:other_scan.src_index[nTile];
 //								double other_disparity = biCamDSI.getBiScan(other_indx).disparity_measured[nTile];
 								double other_disparity = other_scan.disparity_measured[nTile];
@@ -735,6 +1057,7 @@ public class BiScan {
 			final int        debugLevel
 
 			) {
+		final double goal_fraction_rms = 0.5;
 		final TileNeibs  tnImage = biCamDSI.tnImage;
 		final double     wsigma = rwsigma*smpl_radius;
 		final double [][] ds = getDisparityStrength( // already has disabled zeroed
@@ -754,6 +1077,25 @@ public class BiScan {
 				weights[j][i] = weights[i][j];
 			}
 		}
+		final boolean [][] halves = new boolean [8][smpl_len];
+		{
+			for (int i = 0; i < smpl_side; i++) {
+				for (int j = 0; j < smpl_side; j++) {
+					int indxs = i*smpl_side+ j;
+					halves[0][indxs] = (i <= smpl_radius);
+					halves[4][indxs] = (i >= smpl_radius);
+					halves[2][indxs] = (j >= smpl_radius);
+					halves[6][indxs] = (j <= smpl_radius);
+					halves[1][indxs] = (j >= i);
+					halves[5][indxs] = (j <= i);
+					halves[3][indxs] = ((i + j) >= (2 * smpl_radius));
+					halves[7][indxs] = ((i + j) <= (2 * smpl_radius));
+				}
+			}
+		}
+
+
+
 		final Thread[] threads = ImageDtt.newThreadArray(biCamDSI.threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final AtomicInteger num_non_weak = new AtomicInteger(0);
@@ -831,8 +1173,9 @@ public class BiScan {
 						}
 						int fin_samples= (int) ( nall * smpl_fract);
 						if (fin_samples < smpl_num) fin_samples = smpl_num;
-
+						double max_rms = smpl_arms + smpl_rrms * disp_center;
 						if (nsmpls >= fin_samples) {
+							double [] smpl_w_persistent = smpl_w.clone();
 							double [] fit_rslt = fitPlaneRemoveOutliers(
 									smpl_radius, // int                     smpl_radius,
 									max_tilt,    // double                  max_tilt,
@@ -842,13 +1185,22 @@ public class BiScan {
 									smpl_w,      // double []               smpl_w, // will be modified,
 									smpl_p,      // double []               smpl_p, // will be set if provided
 									fin_samples, // int                     fin_samples, // remove until this number remain
+									goal_fraction_rms*max_rms,    // double                  fin_rms,
+									0,           // int                     fourq_min,         // each of the 4 corners should have at least this number of tiles.
+									null,        // int [] 	                fourq_corner, //  array specifying corner number (0..3), -1 - gap. null when not used
 									debugLevel); // int                     debugLevel)
-							if ( (fit_rslt != null) && (fit_rslt[0] < (smpl_arms + smpl_rrms * fit_rslt[1]))){
+//							if ( (fit_rslt != null) && (fit_rslt[0] < (smpl_arms + smpl_rrms * fit_rslt[1]))){
+							if ( (fit_rslt != null) && (fit_rslt[0] < max_rms)){
 								// Trusted tile, save it
 								trusted[nTile] = true;
 								num_trusted_plane.getAndIncrement();
+								continue;
 							}
+							// try 8 "halves" around the tile - it may be weak background close to the strong foreground (or stray FG tile)
+
 						}
+
+
 					}
 				}
 			};
@@ -934,6 +1286,7 @@ public class BiScan {
 			final int        debugLevel
 
 			) {
+		final double goal_fraction_rms = 0.5;
 		final TileNeibs  tnImage = biCamDSI.tnImage;
 		final int dbg_tile = (debugLevel>-2)?(dbg_x + tnImage.sizeX*dbg_y):-1;
 		final double     wsigma = rwsigma*smpl_radius;
@@ -1021,6 +1374,8 @@ public class BiScan {
 							}
 							int fin_samples= (int) ( nall * smpl_fract);
 							if (fin_samples < smpl_num) fin_samples = smpl_num;
+							double max_rms = smpl_arms + smpl_rrms * disp_center;
+//		final double goal_fraction_rms = 0.5;
 
 							if (nsmpls >= fin_samples) {
 								double [] fit_rslt = fitPlaneRemoveOutliers(
@@ -1032,8 +1387,12 @@ public class BiScan {
 										smpl_w,      // double []               smpl_w, // will be modified,
 										smpl_p,      // double []               smpl_p, // will be set if provided
 										fin_samples, // int                     fin_samples, // remove until this number remain
+										goal_fraction_rms*max_rms,     // double                  fin_rms,
+										0,           // int                     fourq_min,         // each of the 4 corners should have at least this number of tiles.
+										null,        // int [] 	               fourq_corner, //  array specifying corner number (0..3), -1 - gap. null when not used
 										debugLevel); // int                     debugLevel)
-								if ( (fit_rslt != null) && (fit_rslt[0] < (smpl_arms + smpl_rrms * fit_rslt[1]))){
+//								if ( (fit_rslt != null) && (fit_rslt[0] < (smpl_arms + smpl_rrms * fit_rslt[1]))){
+								if ( (fit_rslt != null) && (fit_rslt[0] < max_rms)){
 									// check directions here, use smpl_w_all, smpl_d and smpl_p
 									//								int [] num_this_closer =        new int [num_dirs];
 									//								int [] num_this_closer_strong = new int [num_dirs];
@@ -1177,17 +1536,23 @@ public class BiScan {
 
 	/**
 	 * Remove worst outliers when fitting planes until the specified number of samples are left, re-fitting
-	 * plane after each iteration
+	 * plane after each iteration.
+	 * Additional mode for filling gaps (not extending) - "four quadrants" is activated when  fourq_min > 0
+	 * In this mode each of the four corners of the sample square (after removing center 2*fourq_gap -1 rows
+	 * and columns should have at least fourq_min remaining tiles
 	 * @param smpl_radius sample "radius", square side is  2 * smpl_radius + 1
 	 * @param max_tilt maximal DSI plane tilt (pixels/tile)
 	 * @param damp_tilt tilt cost for damping insufficient plane data
 	 * @param full_plane generate full tilted plane, not only for non-zero tiles
 	 * @param smpl_d  array of disparity values to approximate
 	 * @param smpl_w  weights - only >0.0 are processed
-	 * @param smpl_p approximated disparity values, amy be null. When provided (not null), will have calculated disparity approximation
-	 * @param fin_samples
+	 * @param smpl_p approximated disparity values, may be null. When provided (not null), will have calculated disparity approximation
+	 * @param fin_samples remove until this number of tiles remain
+	 * @param fin_rms - OK RMS - exit if it is below (set to 0.0 if unknown yet)
+	 * @param fourq_min each of the 4 corners should have at least this number of tiles.
+	 * @param fourq_corner array specifying corner number (0..3), -1 - gap. null when not used
 	 * @param debugLevel debug level
-	 * @return array of 4 values: rmas of the remaining samples,  average (center) disparity value, tiltX, tiltY
+	 * @return array of 4 values: rms of the remaining samples,  average (center) disparity value, tiltX, tiltY
 	 */
 	public double [] fitPlaneRemoveOutliers(
 			int                     smpl_radius,
@@ -1198,15 +1563,30 @@ public class BiScan {
 			double []               smpl_w, // will be modified,
 			double []               smpl_p, // will be set if provided
 			int                     fin_samples, // remove until this number remain
+			double                  fin_rms,
+			int                     fourq_min,
+			int []                  fourq_corner,
 			int                     debugLevel)
 	{
+		int [] num_in_corners = ((fourq_corner == null) || (fourq_min == 0)) ? null: new int [5]; // last is not used
 		double [] disp_tilts = null;
 		final int        smpl_side = 2 * smpl_radius + 1; // Sample size (side of a square)
 		int num_in_sample = 0;
-		for (int i = 0; i < smpl_w.length; i++) if (smpl_w[i]> 0.0) num_in_sample++;
+		for (int i = 0; i < smpl_w.length; i++) if (smpl_w[i]> 0.0) {
+			num_in_sample++;
+			if (num_in_corners != null) num_in_corners[fourq_corner[i]]++;
+		}
+
 		int smpl_len = smpl_w.length;
-		if (num_in_sample <fin_samples) {
+		if (num_in_sample < fin_samples) {
 			return null;
+		}
+		if (num_in_corners != null) {
+			for (int i = 0; i < 4; i++) {
+				if (num_in_corners[i] < fourq_min) {
+					return null;
+				}
+			}
 		}
 		double rms = Double.NaN;
 		if (smpl_p == null) smpl_p = new double [smpl_len];
@@ -1236,10 +1616,19 @@ public class BiScan {
 			rms = (sw > 0.0)? Math.sqrt(sd2/sw): Double.NaN;
 
 			// remove worst - it should not make remaining set
-			if (num_in_sample > fin_samples) { // remove worst if it is not the last run where only calculations are needed
+			if ((num_in_sample > fin_samples) && !(rms < fin_rms)) { // remove worst if it is not the last run where only calculations are needed
 				int iworst = -1;
 				double dworst2 = 0.0;
 				for (int indxs = 0; indxs < smpl_len; indxs++) if (smpl_w[indxs] > 0.0) {
+					// verify that the worst tile will not leave the corner too empty
+					int num_corner = 4; // unused, gap
+					if (num_in_corners != null) {
+						num_corner =  fourq_corner[indxs];
+						if ((num_corner < 4) && (num_in_corners[num_corner] <= fourq_min)) {
+							continue; // can not remove this tile
+						}
+					}
+
 					double d2 = smpl_d[indxs] - smpl_p[indxs];
 					d2 *=d2;
 					if (d2 > dworst2) {
@@ -1252,7 +1641,7 @@ public class BiScan {
 						}
 					}
 				}
-				if (iworst < 0){
+				if (iworst < 0){ // can happen if damp_tilt == 0.0 and will become colinear
 					if (debugLevel > 0) {
 						System.out.println("**** this may be BUG in fitPlaneRemoveOutliers() can not find the worst sample  - all tiles fit perfectly ****");
 					}
@@ -1260,6 +1649,9 @@ public class BiScan {
 					break;
 				}
 				// remove worst sample
+				if (num_in_corners != null) {
+					num_in_corners[fourq_corner[iworst]]--; // corner counter - can remove from the gap, but nobody count that
+				}
 				smpl_w[iworst] = 0.0;
 				num_in_sample --;
 			} else {

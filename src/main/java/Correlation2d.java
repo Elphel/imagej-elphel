@@ -38,6 +38,7 @@ public class Correlation2d {
 	private final double [] ortho_notch_filter;
 	private final double [] corr_wndx;
 	private final double [] corr_wndy;
+	private final double [] corr_wndy_notch;
 
 	// configuration for 8-lens and 4-lens cameras. 8-lens has baseline = 1 for 1..4 and 1/2 for 4..7
 /*0        1
@@ -133,16 +134,25 @@ public class Correlation2d {
     	this.ortho_notch_filter = new double [corr_size];
     	this.corr_wndy = halfFlatTopWindow(
 				imgdtt_params.corr_wndy_size,   // int     ihwidth,
-				imgdtt_params.corr_wndy_hwidth, //  double  hwidth,
+				imgdtt_params.corr_wndy_hwidth, // double  hwidth,
 				imgdtt_params.corr_wndy_blur,   // double  blur,
-				true, // boolean normalize,
+				true,                           // boolean normalize,
+				false,                          // boolean notch,
 				1.0); // double  scale);
     	this.corr_wndx = halfFlatTopWindow(
 				imgdtt_params.corr_wndx_size,   // int     ihwidth,
 				imgdtt_params.corr_wndx_hwidth, //  double  hwidth,
 				imgdtt_params.corr_wndx_blur,   // double  blur,
 				true,                           // boolean normalize,
+				false,                          // boolean notch,
 				wndx_scale);                    // double  scale);
+    	this.corr_wndy_notch = halfFlatTopWindow(
+				imgdtt_params.corr_strip_notch, // int     ihwidth,
+				imgdtt_params.corr_notch_hwidth,//  double  hwidth,
+				imgdtt_params.corr_notch_blur,  // double  blur,
+				true,                            // boolean normalize,
+				true,                            // boolean notch,
+				wndx_scale);                     // double  scale);
       }
 
 
@@ -908,8 +918,19 @@ public class Correlation2d {
 				this.corr_wndx, // double [] window_x,  // half of a window function in x (disparity) direction
 				debug);// boolean   debug);
 	}
-	public double [] getMaxXCm( // get fractional center as a "center of mass" inside circle/square from the integer max
+	public double [] getMaxXCmNotch( // get fractional center as a "center of mass" inside circle/square from the integer max
 			double [] data,      // [data_size * data_size]
+			int       ixcenter,  // integer center x
+			boolean   debug) {
+		return getMaxXCm(             // get fractional center as a "center of mass" inside circle/square from the integer max
+				data,                 // double [] data,      // [data_size * data_size]
+				ixcenter,             // int       ixcenter,  // integer center x
+				this.corr_wndy_notch, // double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
+				this.corr_wndx,       // double [] window_x,  // half of a window function in x (disparity) direction
+				debug);               // boolean   debug);
+	}
+	public double [] getMaxXCm( // get fractional center as a "center of mass" inside circle/square from the integer max
+			double [] data,      // rectangular strip of 1/2 of the correlation are with odd rows shifted by 1/2 pixels
 			int       ixcenter,  // integer center x
 			double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
 			double [] window_x,  // half of a window function in x (disparity) direction
@@ -926,7 +947,29 @@ public class Correlation2d {
 			wy_scale = 1.0/swy;
 		}
 
+		double [][]dbg_data = null;
 		if (debug) {
+			String [] dbg_titles = {"strip","*wnd_y"};
+			dbg_data = new double [2][];
+			dbg_data[0] =  debugStrip3(data);
+			double [] data_0 = data.clone();
+			for (int i = 0; i < data_height; i++) {
+				for (int j = 0; j <  data_width; j++) {
+					data_0[i * data_width + j] *= (i < window_y.length) ? (wy_scale * window_y[i]): 0.0;
+				}
+			}
+			dbg_data[1] =  debugStrip3(data_0);
+			int long_width = 2 * (2 * transform_size-1);
+			if (dbg_data[0] != null) {
+				(new showDoubleFloatArrays()).showArrays(
+						dbg_data,
+						long_width,
+						dbg_data[0].length/long_width,
+						true,
+						"Strip",
+						dbg_titles);
+			}
+
 			System.out.println("getMaxXCm(), ixcenter = "+ixcenter);
 			for (int dy = 0; dy < data_height; dy++) {
 				if ((dy & 1) != 0) System.out.print("    ");
@@ -937,7 +980,6 @@ public class Correlation2d {
 			}
 			System.out.println();
 		}
-
 		double s0=0.0, sx=0.0, sx2 = 0.0;
 		int x0 = center + ixcenter; // index of the argmax, starting with 0
 		for (int dy = 0; dy < data_height; dy++) {
@@ -993,6 +1035,7 @@ public class Correlation2d {
 	 * @param blur full width of transition from top value to zero
 	 * @param normalize: false - no normalization, [0] = 1.0 (blur permitting),
 	 *                   true  - sum of zero element and twice each other == 1.0
+	 * @param notch: true - make it a notch filter
 	 * @param scale  multiply each value
 	 * @return half-window array [ihwidth]
 	 */
@@ -1002,6 +1045,7 @@ public class Correlation2d {
 			double  hwidth,
 			double  blur,
 			boolean normalize,
+			boolean notch,
 			double  scale) {
 		double [] wnd = new double [ihwidth];
 		for (int i = 0; i < ihwidth; i++) {
@@ -1011,6 +1055,9 @@ public class Correlation2d {
 				if (i < hwidth - blur/2)       wnd[i] = 1.0;
 				 else if (i > hwidth + blur/2) wnd[i] = 0.0;
 				 else                          wnd[i] = 0.5*(1.0 - Math.sin(Math.PI * (i-hwidth)/blur));
+			}
+			if (notch) {
+				wnd[i] = 1.0 - wnd[i];
 			}
 		}
 		if (normalize) {
@@ -1251,6 +1298,32 @@ public class Correlation2d {
     				padded_strip[row * width + j] = strip[srow * width + j1];
     			}
     		}
+    	}
+
+    	return padded_strip;
+    }
+
+    // Full size/resolution.but on a larger rectangle
+    public double [] debugStrip3(
+    		double [] strip) {
+    	if (strip == null) return null;
+    	int center = transform_size - 1;
+    	int width = 2 * center + 1;// 2* transform_siza-1
+    	int long_width = 2 * width;
+    	int height =  strip.length/width;
+    	int long_height = 2 * height - 1;
+    	double [] padded_strip = new double [long_height * long_width];
+    	for (int row = 0; row < long_height; row++) {
+			int srow = (row >= height)? (row - height) : (height - row);
+       		int odd = srow & 1;
+       		for (int j = 0; j<width; j++) {
+       			int j1 = transform_size / 2 + ((j - odd) >> 1);
+       			if ((j1 < 0) || (j1 >- width)) {
+       				padded_strip[row * width + j] = Double.NaN;
+       			} else {
+       				padded_strip[row * width + j] = strip[srow * width + j1];
+       			}
+       		}
     	}
 
     	return padded_strip;

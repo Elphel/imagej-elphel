@@ -592,6 +592,8 @@ private Panel panel1,
 			addButton("Reset GT",                   panelClt4, color_stop);
 			addButton("Ground truth 0",             panelClt4, color_configure);
 			addButton("Ground truth",               panelClt4, color_conf_process);
+			addButton("Show biscan",                panelClt4, color_configure);
+			addButton("Poles GT",                   panelClt4, color_process);
 			addButton("ML export",                  panelClt4, color_conf_process);
 			addButton("Rig planes",                 panelClt4, color_conf_process);
 
@@ -4615,8 +4617,19 @@ private Panel panel1,
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
     	enhanceByRig(true);
-
     	return;
+/* ======================================================================== */
+    } else if (label.equals("Show biscan")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+    	showBiScan();
+        return;
+/* ======================================================================== */
+    } else if (label.equals("Poles GT")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+    	processPoles();
+        return;
 /* ======================================================================== */
     } else if (label.equals("CLT planes")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
@@ -5047,6 +5060,8 @@ private Panel panel1,
 		return true;
 	}
 
+
+
 	public boolean rigPlanes() {
 		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
 			String msg = "DSI data is not available. Please run \"CLT 3D\" first";
@@ -5069,6 +5084,70 @@ private Panel panel1,
 		return true;
 
 	}
+
+	 public boolean showBiScan() {
+			if ((QUAD_CLT == null) ||
+					(QUAD_CLT.tp == null) ||
+					(QUAD_CLT.tp.clt_3d_passes == null) ||
+					(TWO_QUAD_CLT == null) ||
+					(TWO_QUAD_CLT.biCamDSI_persistent== null) ||
+					(TWO_QUAD_CLT.biCamDSI_persistent.biScans== null)) {
+				String msg = "Data is not available. Please run \"Ground truth\" first";
+				IJ.showMessage("Error",msg);
+				System.out.println(msg);
+				return false;
+			}
+
+			TWO_QUAD_CLT.showBiScan(
+					QUAD_CLT,        // QuadCLT            quadCLT_main,  // tiles should be set
+					CLT_PARAMETERS,  //   EyesisCorrectionParameters.CLTParameters       clt_parameters,
+					DEBUG_LEVEL);    //  final int                                      debugLevel) //  throws Exception
+			return true;
+	 }
+	 public boolean processPoles() {
+			long startTime=System.nanoTime();
+			if ((QUAD_CLT == null) ||
+					(QUAD_CLT.tp == null) ||
+					(QUAD_CLT.tp.clt_3d_passes == null) ||
+					(TWO_QUAD_CLT == null) ||
+					(TWO_QUAD_CLT.biCamDSI_persistent== null) ||
+					(TWO_QUAD_CLT.biCamDSI_persistent.biScans== null)) {
+				String msg = "Data is not available. Please run \"Ground truth\" first";
+				IJ.showMessage("Error",msg);
+				System.out.println(msg);
+				return false;
+			}
+
+	    	String configPath=getSaveCongigPath();
+	    	if (configPath.equals("ABORT")) return false;
+
+	        	if (DEBUG_LEVEL > -2){
+	        		System.out.println("++++++++++++++ Enhancing single-camera DSI by the dual-camera rig using planes ++++++++++++++");
+	        	}
+	    		TWO_QUAD_CLT.processPoles( // actually there is no sense to process multiple image sets. Combine with other processing?
+//	    				QUAD_CLT, // QuadCLT quadCLT_main,
+//	    				QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+	    				TWO_QUAD_CLT.biCamDSI_persistent, // BiCamDSI                                       biCamDSI,
+	    				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+	    				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+	    				UPDATE_STATUS, //final boolean    updateStatus,
+	    				DEBUG_LEVEL);
+	    	if (configPath!=null) {
+	    		saveTimestampedProperties( // save config again
+	    				configPath,      // full path or null
+	    				null, // use as default directory if path==null
+	    				true,
+	    				PROPERTIES);
+	    	}
+			System.out.println("enhanceByRig(): Processing finished at "+
+					  IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec, --- Free memory="+
+					Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+
+
+			return true;
+	 }
+
+
 //resetGroundTruthByRig()
 	public boolean resetGroundTruth() {
 		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null)) return false;

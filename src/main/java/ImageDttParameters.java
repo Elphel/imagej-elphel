@@ -74,6 +74,12 @@ public class ImageDttParameters {
 	public double  cnvx_weight =            0.5;   // relative weight of non-convex (border) cell
 	public boolean cnvx_add3x3 =            true;  // always select 3x3 cells around integer maximum
 
+	// pole window will be inverted
+	public int     corr_strip_notch =       11;     // number of rows to calculate for vertical poles
+	public double  corr_notch_hwidth =      2.0; // 6.0;   // 50% window cutoff height
+	public double  corr_notch_blur =        2.0; // 5.0;   // 100% to 0 % vertical transition range
+
+
 	// Used for common interpolated stripes
 	public int     corr_wndy_size =         2;   // 9;     // number of rows to calculate CM disparity
 	public double  corr_wndy_hwidth =       1.0; // 6.0;   // 50% window cutoff height
@@ -100,6 +106,8 @@ public class ImageDttParameters {
 	public int     lma_num_iter =          20;     //
 	public int     lma_debug_level =        3;     //
 	public boolean corr_var_cam =           true;  // New correlation mode compatible with 8 subcameras
+	public double  cm_max_normalization =   0.55; // fraction of correlation maximum radius, being squared multiplied by maximum to have the same total mass
+
 
 	public void dialogQuestions(GenericJTabbedDialog gd) {
 			gd.addCheckbox    ("Enable ImageDtt correlation debug layers",                        this.corr_mode_debug,
@@ -178,10 +186,19 @@ public class ImageDttParameters {
 					"Create selection mask for quadratic approximation inside square around initial maximum position, specify distance from the center");
 		    gd.addNumericField("Relative weight of non-convex (border) cell",                     this.cnvx_weight,  6,8,"",
 		    		"Weight of the bi-convex points is 1.0, this value specifies reduced weight of the border (non-bi-convex) points");
-			gd.addCheckbox    ("Always select 3x3 cells around integer maximum",                                   this.cnvx_add3x3,
+			gd.addCheckbox    ("Always select 3x3 cells around integer maximum",                  this.cnvx_add3x3,
 					"Add 3x3 cells selection around the original argmax, regardless of bi-convex property");
 
+			gd.addMessage("Window for pole detection mode");
+			gd.addNumericField("Strip height for pole detection",                                 this.corr_strip_notch,  0, 3, "half-pix",
+					"Number of rows to combine/interpolate correlation results. Rows are twice denser than pixels correponding to largest baseline disparity");
 
+			gd.addNumericField("50% correlation window cutoff height for poles (0 in the center)",this.corr_notch_hwidth,  3, 6, "half-pix",
+					"Correlation window height argument for 50% value");
+			gd.addNumericField("0% to 100 % transition range for poles",                          this.corr_notch_blur,  3,6,"half-pix",
+					"Transition range, shifted sine is used");
+
+			gd.addMessage("Window for niormal correlations");
 			gd.addNumericField("Number of rows to calculate CM disparity",                        this.corr_wndy_size,  0, 3, "",
 					"Number of rows to calculate maximum. Normally should be equal to the previous parameter");
 
@@ -233,6 +250,9 @@ public class ImageDttParameters {
 			gd.addCheckbox    ("Use new correlation methods compatible with x8 camera",           this.corr_var_cam,
 					"Debug feature to compare old/new methods");
 
+			gd.addNumericField("Normalization for the CM correlation strength",                  this.cm_max_normalization,  6, 8, "",
+					"Fraction of correlation maximum radius, being squared multiplied by maximum to have the same total mass. ~= 0.5, the lower the value, the higher strength reported by the CM");
+//	public double  cm_max_normalization =   0.55; //
 
 	}
 	public void dialogAnswers(GenericJTabbedDialog gd) {
@@ -285,6 +305,10 @@ public class ImageDttParameters {
 			this.cnvx_weight =           gd.getNextNumber();
   			this.cnvx_add3x3 =           gd.getNextBoolean();
 
+  			this.corr_strip_notch= (int) gd.getNextNumber();
+  			this.corr_notch_hwidth=      gd.getNextNumber();
+  			this.corr_notch_blur=        gd.getNextNumber();
+
   			this.corr_wndy_size=   (int) gd.getNextNumber();
 
 			this.corr_wndy_hwidth =      gd.getNextNumber();
@@ -314,6 +338,7 @@ public class ImageDttParameters {
   			this.lma_num_iter=     (int) gd.getNextNumber();
   			this.lma_debug_level=  (int) gd.getNextNumber();
   			this.corr_var_cam =          gd.getNextBoolean();
+  			this.cm_max_normalization=   gd.getNextNumber();
 
 	}
 
@@ -366,6 +391,11 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"cnvx_weight",          this.cnvx_weight +"");
 		properties.setProperty(prefix+"cnvx_add3x3",          this.cnvx_add3x3 +"");
 
+
+		properties.setProperty(prefix+"corr_strip_notch",     this.corr_strip_notch +"");
+		properties.setProperty(prefix+"corr_notch_hwidth",    this.corr_notch_hwidth +"");
+		properties.setProperty(prefix+"corr_notch_blur",      this.corr_notch_blur +"");
+
 		properties.setProperty(prefix+"corr_wndy_size",       this.corr_wndy_size +"");
 		properties.setProperty(prefix+"corr_wndy_hwidth",     this.corr_wndy_hwidth +"");
 		properties.setProperty(prefix+"corr_wndy_blur",       this.corr_wndy_blur +"");
@@ -395,6 +425,9 @@ public class ImageDttParameters {
 		properties.setProperty(prefix+"lma_num_iter",         this.lma_num_iter +"");
 		properties.setProperty(prefix+"lma_debug_level",      this.lma_debug_level +"");
 		properties.setProperty(prefix+"corr_var_cam",         this.corr_var_cam +"");
+
+		properties.setProperty(prefix+"cm_max_normalization", this.cm_max_normalization +"");
+
 	}
 
 	public void getProperties(String prefix,Properties properties){
@@ -447,6 +480,12 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"cnvx_weight")!=null)          this.cnvx_weight=Double.parseDouble(properties.getProperty(prefix+"cnvx_weight"));
 		if (properties.getProperty(prefix+"cnvx_add3x3")!=null)          this.cnvx_add3x3=Boolean.parseBoolean(properties.getProperty(prefix+"cnvx_add3x3"));
 
+
+
+		if (properties.getProperty(prefix+"corr_strip_notch")!=null)     this.corr_strip_notch=Integer.parseInt(properties.getProperty(prefix+"corr_strip_notch"));
+		if (properties.getProperty(prefix+"corr_notch_hwidth")!=null)    this.corr_notch_hwidth=Double.parseDouble(properties.getProperty(prefix+"corr_notch_hwidth"));
+		if (properties.getProperty(prefix+"corr_notch_blur")!=null)      this.corr_notch_blur=Double.parseDouble(properties.getProperty(prefix+"corr_notch_blur"));
+
 		if (properties.getProperty(prefix+"corr_wndy_size")!=null)       this.corr_wndy_size=Integer.parseInt(properties.getProperty(prefix+"corr_wndy_size"));
 
 		if (properties.getProperty(prefix+"corr_wndy_hwidth")!=null)     this.corr_wndy_hwidth=Double.parseDouble(properties.getProperty(prefix+"corr_wndy_hwidth"));
@@ -478,6 +517,7 @@ public class ImageDttParameters {
 		if (properties.getProperty(prefix+"lma_debug_level")!=null)      this.lma_debug_level=Integer.parseInt(properties.getProperty(prefix+"lma_debug_level"));
 		if (properties.getProperty(prefix+"corr_var_cam")!=null)         this.corr_var_cam=Boolean.parseBoolean(properties.getProperty(prefix+"corr_var_cam"));
 
+		if (properties.getProperty(prefix+"cm_max_normalization")!=null) this.cm_max_normalization=Double.parseDouble(properties.getProperty(prefix+"cm_max_normalization"));
 	}
 
 	@Override
@@ -530,6 +570,10 @@ public class ImageDttParameters {
 		idp.cnvx_weight=             this.cnvx_weight;
 		idp.cnvx_add3x3=             this.cnvx_add3x3;
 
+		idp.corr_strip_notch=        this.corr_strip_notch;
+		idp.corr_notch_hwidth=       this.corr_notch_hwidth;
+		idp.corr_notch_blur=         this.corr_notch_blur;
+
 		idp.corr_wndy_size=          this.corr_wndy_size;
 
 		idp.corr_wndy_hwidth =       this.corr_wndy_hwidth;
@@ -558,6 +602,8 @@ public class ImageDttParameters {
 		idp.lma_num_iter =           this.lma_num_iter;
 		idp.lma_debug_level =        this.lma_debug_level;
 		idp.corr_var_cam =           this.corr_var_cam;
+
+		idp.cm_max_normalization=    this.cm_max_normalization;
 
 		return idp;
 	}
