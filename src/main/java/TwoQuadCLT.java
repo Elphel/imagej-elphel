@@ -2099,6 +2099,7 @@ if (debugLevel > -100) return true; // temporarily !
 					   */
 
 					  num_added_tiles = last_scan.suggestNewScan(
+							  null,                                   // final boolean [] area_of_interest,
 							  null,                                   // final double [][] disparityStrength,
 							  clt_parameters.rig.pf_trusted_strength, // final double     trusted_strength, // trusted correlation strength
 							  clt_parameters.rig.pf_strength_rfloor,  // final double     strength_rfloor,   // strength floor - relative to trusted
@@ -2198,6 +2199,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 					  // suggest again, after trimming
 					  int num_added_tiles_trimmed = last_scan.suggestNewScan(
+							  null,                                   // final boolean [] area_of_interest,
 							  null,                                   // final double [][] disparityStrength,
 							  clt_parameters.rig.pf_trusted_strength, // final double     trusted_strength, // trusted correlation strength
 							  clt_parameters.rig.pf_strength_rfloor,  // final double     strength_rfloor,   // strength floor - relative to trusted
@@ -2454,7 +2456,7 @@ if (debugLevel > -100) return true; // temporarily !
 		  int        fourq_min =    clt_parameters.rig.pf_fourq_min;
 		  int        fourq_gap =    clt_parameters.rig.pf_fourq_gap;
 
-		  boolean  run_avg =         false; //ltavg_en
+		  boolean  run_avg =         true; // false; //ltavg_en
 		  int      lt_radius =       clt_parameters.rig.ltavg_radius;
 		  boolean  strong_only =     clt_parameters.rig.ltavg_dens_strong;
 		  int      need_tiles =      clt_parameters.rig.ltavg_dens_tiles;
@@ -2463,13 +2465,23 @@ if (debugLevel > -100) return true; // temporarily !
 		  double   min_disparity =   clt_parameters.rig.ltavg_min_disparity;
 
 		  double   max_density =     clt_parameters.rig.ltavg_max_density;
-		  int      grow =            clt_parameters.rig.ltavg_grow;      // each 2 add 8 directions step. Odd have last step in 4 ortho directions only.
-		  int      shrink =          clt_parameters.rig.ltavg_shrink;      // shrink after expanding. Combination of both fills small gaps
+		  int      gap_hwidth =      clt_parameters.rig.ltavg_gap_hwidth;
+		  int      clust_hwidth =    clt_parameters.rig.ltavg_clust_hwidth;
+		  int      extra_grow =      clt_parameters.rig.ltavg_extra_grow;
 		  // smoothing parameters
 		  boolean  smooth_strength = clt_parameters.rig.ltavg_smooth_strength;  // provide tile strength when smoothing target disparity
 		  double   neib_pull =       clt_parameters.rig.ltavg_neib_pull;    // pull to weighted average relative to pull to the original disparity value. If 0.0 - will only update former NaN-s
 		  int      max_iter =        clt_parameters.rig.ltavg_max_iter;      //
 		  double   min_change =      clt_parameters.rig.ltavg_min_change;   //
+
+
+		  int ref_smpl_radius =  11;          // final int        smpl_radius,
+		  int ref_smpl_num =     50;          // final int        smpl_num_narrow,   //         = 3;      // Number after removing worst (should be >1)
+		  double ref_max_adiff = 0.15;        // final double     max_adiff,  // Maximal absolute difference between the center tile and friends
+		  double ref_max_rdiff = 0.04;        // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
+		  double ref_smpl_arms = 0.1;         // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+		  double ref_smpl_rrms = 0.01;        // final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
+
 
 
 		  GenericJTabbedDialog gd = new GenericJTabbedDialog("Set CLT parameters",900,1100);
@@ -2543,17 +2555,40 @@ if (debugLevel > -100) return true; // temporarily !
 
 		  gd.addNumericField("Maximal density to consider it to be low textured area",                              max_density,  4,6,"",
 				  "Select areas with lower density");
-		  gd.addNumericField("Grow selection, each two units get expanion in 8 directions",                         grow,  0,3,"",
-				  "Two steps give one-tile expansion in 8 directions, odd numbers expand only in 4 ortho directions on the last expansion");
-		  gd.addNumericField("Shrink selection after growing",                                                      shrink,  0,3,"",
-				  "Grow followed by shring fill small gaps");
+		  gd.addNumericField("Maximal radius of a void in low-texture selection to fill"  ,                         gap_hwidth,  0,3,"",
+				  "Low textured selection may have gaps that will be filled");
+		  gd.addNumericField("Minimal radius of a low-textured cluster to process",                                 clust_hwidth,  0,3,"",
+				  "Remove low-textured areas smaller that twice this size in each orthogonal directions");
+		  gd.addNumericField("Additionally grow low-textured areas selections",                                     extra_grow,  0,3,"",
+				  "Low textured areas will be grown by the radius of correlation averaging plus this value");
+
+
+
+
 		  gd.addCheckbox    ("Use tile strengths when filling gaps/smoothing",                                      smooth_strength,
 				  "Unchecked - consider all tiles to have the same strength");
-		  gd.addNumericField("Relative pull of the nieghbor tiles compared to the original disparity" ,             neib_pull,  4,6,"",
+		  gd.addNumericField("Relative pull of the nieghbor tiles compared to the original disparity" ,             neib_pull,   4,6,"",
 				  "If set to 0.0 - only gaps will be filled, defined disparities will not be modified");
-		  gd.addNumericField("Maximal number of smoothing / gap filling iterations to perform",                     max_iter,  0,3,"",
+		  gd.addNumericField("Maximal number of smoothing / gap filling iterations to perform",                     max_iter,    0,3,"",
 				  "Safety limit for smoothing iterations ");
 		  gd.addNumericField("Minimal disparity change to continue smoothing",                                      min_change,  4,6,"pix","");
+
+		  gd.addNumericField("How far to extend around a tile when refining averaging correlation measuremnts by planes ",    ref_smpl_radius,  0,3,"tiles",
+				  "Process a aquare centered at the current tile withthe side of twice this value plus 1 (2*pf_smpl_radius + 1)");
+		  gd.addNumericField("Number after remaining in the sample square after removing worst fitting tiles",      ref_smpl_num,  0,3,"",
+				  "When fitting planes the outliers are removed until the number of remaining tiles equals this value");
+		  gd.addNumericField("Maximal absolute disparity difference between the plane and tiles that fit",          ref_max_adiff,  4,6,"pix",
+				  "Maximal absolute disparity difference for fitting. Combined with the next one (relative) ");
+		  gd.addNumericField("Maximal relative (to center disparity) difference between the plane and tiles that fit",ref_max_rdiff,  4,6,"pix/pix",
+				  "This value is multipled by the tile disparity and added to the maximal absolute difference");
+		  gd.addNumericField("Maximal absolute RMS of the remaining tiles in a sample",                             ref_smpl_arms,  4,6,"pix",
+				  "After removing outliers RMS of the remaining tiles must be less than this value");
+		  gd.addNumericField("Maximal relative (to center disparity) RMS of the remaining tiles in a sample",       ref_smpl_rrms,  4,6,"pix/pix",
+				  "Relative RMS times disparity is added to the absolute one");
+
+
+
+
 
 //		  boolean run_avg = false;
 //		  int     lt_radius = 1;
@@ -2604,12 +2639,21 @@ if (debugLevel > -100) return true; // temporarily !
 		  min_disparity =         gd.getNextNumber();
 
 		  max_density =           gd.getNextNumber();
-		  grow=             (int) gd.getNextNumber();
-		  shrink=           (int) gd.getNextNumber();
+		  gap_hwidth=             (int) gd.getNextNumber();
+		  clust_hwidth=           (int) gd.getNextNumber();
+		  extra_grow=             (int) gd.getNextNumber();
+
 		  smooth_strength =       gd.getNextBoolean();
 		  neib_pull =             gd.getNextNumber();
 		  max_iter=         (int) gd.getNextNumber();
 		  min_change =            gd.getNextNumber();
+
+		  ref_smpl_radius=  (int) gd.getNextNumber();
+		  ref_smpl_num=     (int) gd.getNextNumber();
+		  ref_max_adiff=          gd.getNextNumber();
+		  ref_max_rdiff=          gd.getNextNumber();
+		  ref_smpl_arms=          gd.getNextNumber();
+		  ref_smpl_rrms=          gd.getNextNumber();
 
 		  System.out.println(" === showBiScan( parameters : =====");
 		  System.out.println("       scan_index= "+scan_index);
@@ -2652,12 +2696,21 @@ if (debugLevel > -100) return true; // temporarily !
 
 		  System.out.println("    min_disparity= "+min_disparity);
 		  System.out.println("      max_density= "+max_density);
-		  System.out.println("             grow= "+grow);
-		  System.out.println("           shrink= "+shrink);
+		  System.out.println("       gap_hwidth= "+gap_hwidth);
+		  System.out.println("       extra_grow= "+extra_grow);
+
+		  System.out.println("     clust_hwidth= "+clust_hwidth);
 		  System.out.println("  smooth_strength= "+smooth_strength);
 		  System.out.println("        neib_pull= "+neib_pull);
 		  System.out.println("         max_iter= "+max_iter);
 		  System.out.println("       min_change= "+min_change);
+
+		  System.out.println("  ref_smpl_radius= "+ref_smpl_radius);
+		  System.out.println("     ref_smpl_num= "+ref_smpl_num);
+		  System.out.println("    ref_max_adiff= "+ref_max_adiff);
+		  System.out.println("    ref_max_rdiff= "+ref_max_rdiff);
+		  System.out.println("    ref_smpl_arms= "+ref_smpl_arms);
+		  System.out.println("    ref_smpl_rrms= "+ref_smpl_rrms);
 
 		  BiScan biScan =  biCamDSI_persistent.biScans.get(scan_index);
 		  double [][] ds = null;
@@ -2701,7 +2754,28 @@ if (debugLevel > -100) return true; // temporarily !
 					  clt_parameters.tileY,                   // final int        dbg_y,
 					  debugLevel);                            // final int        debugLevel);
 
+			  double [] density = 		  biScan.getDensity(
+					  strong_only, // final boolean strong_only,
+					  need_tiles, // 20, // 10,    // final int need_tiles,
+					  max_radius, // 20, // 15,    // final int max_radius,
+					  clt_parameters.tileX, // final int        dbg_x,
+					  clt_parameters.tileY, // final int        dbg_y,
+					  debugLevel+2);        // final int        debugLevel
+			  boolean [] pre_select = biScan.selectLowTextures(
+					  min_disparity,        // double    min_disparity,
+					  max_density,          // double    max_density,
+					  lt_radius+extra_grow, // int       grow,
+					  gap_hwidth,           // int       max_gap_radius,
+					  clust_hwidth,         // int       min_clust_radius,
+					  density,              // double [] density,
+					  null);                // double [] src_disparity);
+			  double []   dbg_presel = new double [pre_select.length];
+			  for (int i = 0; i < pre_select.length; i++) dbg_presel[i] = pre_select[i]? 1.0:0.0;
+			  double [][] dbg_dens_str = {density, dbg_presel};
+			  biScan.showScan(quadCLT_main.image_name+"-density-"+scan_index,dbg_dens_str);
+
 			  ds = biScan.getFilteredDisparityStrength(
+					  pre_select,           // final boolean [] area_of_interest,
 					  null,                 // final double [][] disparityStrength,
 					  min_disparity,        // final double     min_disparity,    // keep original disparity far tiles
 					  trusted_strength,     // final double     trusted_strength, // trusted correlation strength
@@ -2734,23 +2808,15 @@ if (debugLevel > -100) return true; // temporarily !
 					  clt_parameters.tileY, // final int        dbg_y,
 					  debugLevel+2);          // final int        debugLevel
 			  biScan.showScan(quadCLT_main.image_name+"-BiScan-"+scan_index,ds);
-			  double [] density = 		  biScan.getDensity(
-					  strong_only, // final boolean strong_only,
-					  need_tiles, // 20, // 10,    // final int need_tiles,
-					  max_radius, // 20, // 15,    // final int max_radius,
-					  clt_parameters.tileX, // final int        dbg_x,
-					  clt_parameters.tileY, // final int        dbg_y,
-					  debugLevel+2);        // final int        debugLevel
-			  double [][] dbg_dens_str = {density, ds[1]};
-			  biScan.showScan(quadCLT_main.image_name+"-density-"+scan_index,dbg_dens_str);
 
 			  boolean [] lt_select = biScan.selectLowTextures(
-					  min_disparity, // double    min_disparity,
-					  max_density,   // double    max_density,
-					  grow,   // int       grow,
-					  shrink, // int       shrink,
-					  density, // double [] density,
-					  ds[0]); // double [] src_disparity);
+					  min_disparity,        // double    min_disparity,
+					  max_density,          // double    max_density,
+					  lt_radius+extra_grow, // 	int       grow,
+					  gap_hwidth,           // int       max_gap_radius,
+					  clust_hwidth,         // int       min_clust_radius,
+					  density,              // double [] density,
+					  ds[0]);               // double [] src_disparity);
 			  double [][] ds1 = {ds[0].clone(), ds[1].clone()} ;
 			  for (int i = 0; i < lt_select.length; i++) if (!lt_select[i]) {
 				  ds1[0][i] = Double.NaN;
@@ -2760,12 +2826,12 @@ if (debugLevel > -100) return true; // temporarily !
 			  double [] lt_strength = smooth_strength? ds1[1]:null;
 
 			  double [][] ds2 = biScan.fillAndSmooth(
-					  ds1[0], // final double [] src_disparity,
-					  lt_strength, // final double [] src_strength, // if not null will be used for weighted pull
-					  lt_select, // final boolean [] selection,
-					  neib_pull, // final double     neib_pull, // pull to weighted average relative to pull to the original disparity value. If 0.0 - will only update former NaN-s
-					  max_iter, // final int max_iterations,
-					  min_change, // final double min_change,
+					  ds1[0],               // final double [] src_disparity,
+					  lt_strength,          // final double [] src_strength, // if not null will be used for weighted pull
+					  lt_select,            // final boolean [] selection,
+					  neib_pull,            // final double     neib_pull, // pull to weighted average relative to pull to the original disparity value. If 0.0 - will only update former NaN-s
+					  max_iter,             // final int max_iterations,
+					  min_change,           // final double min_change,
 					  clt_parameters.tileX, // final int        dbg_x,
 					  clt_parameters.tileY, // final int        dbg_y,
 					  debugLevel+2);        // final int        debugLevel
@@ -2810,8 +2876,59 @@ if (debugLevel > -100) return true; // temporarily !
 				  final int refine_inter = 2; // 3; // 3 - dx, 2 - disparity
 				  double [] scale_bad = new double [ds2[0].length];
 				  for (int i = 0; i < scale_bad.length; i++) scale_bad[i] = 1.0;
-//				  for (int nref = 0; nref < 5; nref++) { // clt_parameters.rig.num_inf_refine; nref++) {
-				  for (int nref = 0; nref < clt_parameters.rig.num_inf_refine; nref++) {
+				  for (int nref = 0; nref < 7; nref++) { // clt_parameters.rig.num_inf_refine; nref++) {
+//				  for (int nref = 0; nref < clt_parameters.rig.num_inf_refine; nref++) {
+
+					  double [][] disparity_bimap_new =  refineRigAvg(
+							  quadCLT_main,    // QuadCLT                        quadCLT_main,    // tiles should be set
+							  quadCLT_aux,     // QuadCLT                        quadCLT_aux,
+							  disparity_bimap, // double [][]                    src_bimap,       // current state of measurements (or null for new measurement)
+							  prev_bimap,      // double [][]                    prev_bimap, // previous state of measurements or null
+							  scale_bad,       // double []                      scale_bad,
+							  lt_select,       // final boolean []  area_of_interest,
+							  num_new,         // int     []                               num_new,
+							  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
+							  lt_radius,          // final int                                lt_radius,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
+							  biScan,          // final BiScan                             biScan,
+							  min_disparity, // final double     min_disparity,    // keep original disparity far tiles
+							  trusted_strength, // final double     trusted_strength, // trusted correlation strength
+							  strength_rfloor,// final double     strength_rfloor,   // strength floor - relative to trusted
+							  strength_pow,      //final double     strength_pow,      // raise strength-floor to this power
+							  ref_smpl_radius,   // final int        smpl_radius,
+							  smpl_fract,     // final double     smpl_fract, // Number of friends among all neighbors
+							  ref_smpl_num,   // final int        ref_smpl_num,   //         = 3;      // Number after removing worst (should be >1)
+							  ref_max_adiff,      // final double     max_adiff,  // Maximal absolute difference betweenthe center tile and friends
+							  ref_max_rdiff,      // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
+							  max_atilt,      // final double     max_atilt, //  = 2.0; // pix per tile
+							  max_rtilt,      // final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
+							  ref_smpl_arms,  // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+							  ref_smpl_rrms,  // 							  final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
+							  damp_tilt,      // final double     damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
+							  rwsigma,        // final double     rwsigma,           //  = 0.7; // influence of far neighbors diminish as a Gaussian with this sigma
+							  goal_fraction_rms, //final double     goal_fraction_rms, // Try to make rms to be this fraction of maximal acceptable by removing outliers
+							  max_iter,       // final int        max_iterations,
+							  min_change, // final double     min_change,
+							  clt_parameters.tileX, // final int        dbg_x,
+							  clt_parameters.tileY, // final int        dbg_y,
+							  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
+							  updateStatus,    // final boolean                  updateStatus,
+							  debugLevel);     // final int                      debugLevel);
+
+					  prev_bimap = disparity_bimap;
+					  disparity_bimap = disparity_bimap_new;
+
+					  if (debugLevel > -10) {(new showDoubleFloatArrays()).showArrays(
+							  disparity_bimap,
+							  tilesX,
+							  disparity_bimap[0].length/tilesX,
+							  true,
+							  quadCLT_main.image_name+"RE-MEASURED_R"+lt_radius+"-N"+nref,
+							  ImageDtt.BIDISPARITY_TITLES);
+					  }
+
+
+/*
+
 					  // refine infinity using inter correlation
 					  double [][] disparity_bimap_new =  refineRigSel(
 							  quadCLT_main,    // QuadCLT                        quadCLT_main,    // tiles should be set
@@ -2836,7 +2953,7 @@ if (debugLevel > -100) return true; // temporarily !
 					  prev_bimap = disparity_bimap;
 					  disparity_bimap = disparity_bimap_new;
 // re-smooth target disparity
-					  if (debugLevel > 10) {(new showDoubleFloatArrays()).showArrays(
+					  if (debugLevel > -10) {(new showDoubleFloatArrays()).showArrays(
 							  disparity_bimap,
 							  tilesX,
 							  disparity_bimap[0].length/tilesX,
@@ -2844,31 +2961,74 @@ if (debugLevel > -100) return true; // temporarily !
 							  quadCLT_main.image_name+"RE-MEASURED,R"+lt_radius,
 							  ImageDtt.BIDISPARITY_TITLES);
 					  }
-					  double [][] ds3 = biScan.fillAndSmooth(
-							  disparity_bimap[ImageDtt.BI_TARGET_INDEX], // ds1[0], // final double [] src_disparity,
+					  double [][] ds30 = {
+					  disparity_bimap[ImageDtt.BI_TARGET_INDEX],
+					  disparity_bimap[ImageDtt.BI_STR_CROSS_INDEX]};
+
+
+					  double [][] ds3 = biScan.getFilteredDisparityStrength(
+							  lt_select,            // final boolean [] area_of_interest,
+							  ds30,                 // final double [][] disparityStrength,
+							  min_disparity,        // final double     min_disparity,    // keep original disparity far tiles
+							  trusted_strength,     // final double     trusted_strength, // trusted correlation strength
+							  0.5 * strength_rfloor,// final double     strength_rfloor,   // strength floor - relative to trusted
+							  true,     // final boolean    discard_unreliable,// replace v
+							  true,           // final boolean    discard_weak,      // consider weak trusted tiles (not promoted to trusted) as empty
+							  true,         // final boolean    discard_strong,    // suggest new disparities even for strong tiles
+							  strength_pow,         // final double     strength_pow,      // raise strength-floor to this power
+							  null,                 // final double []  smpl_radius_array, // space-variant radius
+							  ref_smpl_radius,      // final int        smpl_radius,
+							  0,                    // final int        smpl_num,   //         = 3;      // Number after removing worst (should be >1)
+							  smpl_fract,           // final double     smpl_fract, // Number of friends among all neighbors
+							  ref_smpl_num,         // final int        smpl_num_narrow,   //         = 3;      // Number after removing worst (should be >1)
+							  ref_max_adiff,            // final double     max_adiff,  // Maximal absolute difference between the center tile and friends
+							  ref_max_rdiff,            // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
+							  max_atilt,            // final double     max_atilt, //  = 2.0; // pix per tile
+							  max_rtilt,            // final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
+							  ref_smpl_arms,            // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+							  ref_smpl_rrms,            // final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
+
+							  damp_tilt,            // final double     damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
+							  0.0,                  // final double     rwsigma,           //  = 0.7; // influence of far neighbors diminish as a Gaussian with this sigma
+							  rwsigma,              // final double     rwsigma_narrow,    //  = used to determine initial tilt
+							  1.0,                  // final double     center_weight,     // use center tile too (0.0 - do not use)
+							  false,                // final boolean    use_alt,           // use tiles from other scans if they fit better
+							  goal_fraction_rms,    // final double     goal_fraction_rms, // Try to make rms to be this fraction of maximal acceptable by removing outliers
+							  0.8,                  // boost_low_density,    //final double     boost_low_density, // 0 - strength is proportional to 1/density, 1.0 - same as remaining tiles
+							  0,                    // final int        fourq_min,         // each of the 4 corners should have at least this number of tiles.
+							  0,                    // final int        fourq_gap,         // symmetrical vertical and horizontal center areas that do not belong to any corner
+							  clt_parameters.tileX, // final int        dbg_x,
+							  clt_parameters.tileY, // final int        dbg_y,
+							  debugLevel+2);          // final int        debugLevel
+
+					  biScan.showScan(quadCLT_main.image_name+"-BiScan-"+scan_index+"-"+nref,ds3);
+
+					  double [][] ds4 = biScan.fillAndSmooth(
+							  ds3[0], // disparity_bimap[ImageDtt.BI_TARGET_INDEX], // ds1[0], // final double [] src_disparity,
 							  null, // lt_strength, // final double [] src_strength, // if not null will be used for weighted pull
 							  lt_select, // final boolean [] selection,
-							  neib_pull, // final double     neib_pull, // pull to weighted average relative to pull to the original disparity value. If 0.0 - will only update former NaN-s
+							  0.0, // only gaps neib_pull, // final double     neib_pull, // pull to weighted average relative to pull to the original disparity value. If 0.0 - will only update former NaN-s
 							  max_iter, // final int max_iterations,
 							  min_change, // final double min_change,
 							  clt_parameters.tileX, // final int        dbg_x,
 							  clt_parameters.tileY, // final int        dbg_y,
 							  debugLevel+2);        // final int        debugLevel
-					  if (debugLevel > 10) {
-						  biScan.showScan(quadCLT_main.image_name+"-resmooth-"+nref,ds3);
+
+					  // Set disparity_bimap[ImageDtt.BI_TARGET_INDEX]from processed disparity
+					  disparity_bimap[ImageDtt.BI_TARGET_INDEX] = ds4[0];
+					  if (debugLevel > -10) {
+						  biScan.showScan(quadCLT_main.image_name+"-resmooth-"+nref,ds4);
 					  }
 
-/*
-					  trusted_measurements = 	  getTrustedDisparityInter(
-		        			  0.0, // clt_parameters.rig.lt_trusted_strength*clt_parameters.rig.lt_need_friends, // double             min_inter_strength,    // check correlation strength combined for all 3 correlations
-		        			  clt_parameters.grow_disp_trust,           // double             max_trusted_disparity,
-		        			  trusted_measurements,                     // boolean []         was_trusted,
-		        			  disparity_bimap );                        // double [][]        bimap // current state of measurements
 */
+
+
+
 					  if (debugLevel > -2) {
 						  System.out.println("groundTruthByRigPlanes():  refinement step="+nref+" num_new= "+num_new[0]+" tiles");
 					  }
 					  if (num_new[0] < clt_parameters.rig.pf_min_new) break;
+
 				  }
 
 				  (new showDoubleFloatArrays()).showArrays(
@@ -2878,7 +3038,6 @@ if (debugLevel > -100) return true; // temporarily !
 						  true,
 						  quadCLT_main.image_name+"CORR-AVG"+lt_radius,
 						  ImageDtt.BIDISPARITY_TITLES);
-
 			  }
 
 
@@ -2888,6 +3047,183 @@ if (debugLevel > -100) return true; // temporarily !
 
 		  return true;
 	  }
+
+	  public double [][] refineRigAvg(
+			  QuadCLT                                  quadCLT_main,  // tiles should be set
+			  QuadCLT                                  quadCLT_aux,
+			  double [][]                              src_bimap, // current state of measurements
+			  double [][]                              prev_bimap, // previous state of measurements or null
+			  double []                                scale_bad,
+			  final boolean []  area_of_interest,
+			  int     []                               num_new,
+			  EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  final int                                lt_radius,      // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
+			  final BiScan                             biScan,
+//			  final double [][] disparityStrength,
+			  final double     min_disparity,    // keep original disparity far tiles
+			  final double     trusted_strength, // trusted correlation strength
+			  final double     strength_rfloor,   // strength floor - relative to trusted
+			  final double     strength_pow,      // raise strength-floor to this power
+			  final int        smpl_radius,
+			  final double     smpl_fract, // Number of friends among all neighbors
+			  final int        ref_smpl_num,   //         = 3;      // Number after removing worst (should be >1)
+			  final double     max_adiff,  // Maximal absolute difference betweenthe center tile and friends
+			  final double     max_rdiff, //  Maximal relative difference between the center tile and friends
+			  final double     max_atilt, //  = 2.0; // pix per tile
+			  final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
+			  final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+			  final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
+			  final double     damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
+			  final double     rwsigma,           //  = 0.7; // influence of far neighbors diminish as a Gaussian with this sigma
+			  final double     goal_fraction_rms, // Try to make rms to be this fraction of maximal acceptable by removing outliers
+			  final int        max_iterations,
+			  final double     min_change,
+			  final int        dbg_x,
+			  final int        dbg_y,
+			  final int        threadsMax,  // maximal number of threads to launch
+			  final boolean    updateStatus,
+			  final int        debugLevel)
+			  {
+		  int tilesX =quadCLT_main.tp.getTilesX();
+		  int tilesY =quadCLT_main.tp.getTilesY();
+		  int [][] tile_op = new int [tilesY][tilesX];
+		  double [][] disparity_array = new double [tilesY][tilesX];
+		  double disp_scale_main =  1.0/clt_parameters.corr_magic_scale; // Is it needed?
+		  double disp_scale_aux =   disp_scale_main * quadCLT_main.geometryCorrection.getDisparityRadius()/quadCLT_aux.geometryCorrection.getDisparityRadius();
+		  double disp_scale_inter = disp_scale_main * quadCLT_main.geometryCorrection.getDisparityRadius()/quadCLT_aux.geometryCorrection.getBaseline();
+		  int tile_op_all = clt_parameters.tile_task_op; //FIXME Use some constant?
+		  int numMeas = 0;
+		  double [][] ds_ref = new double[2][];
+		  ds_ref[0] = new double [tilesX*tilesY];
+
+		  for (int tileY = 0; tileY<tilesY;tileY++) {
+			  for (int tileX = 0; tileX<tilesX;tileX++) {
+				  int nTile = tileY * tilesX + tileX;
+				  if (((area_of_interest == null) || area_of_interest[nTile]) && !Double.isNaN(src_bimap[ImageDtt.BI_TARGET_INDEX][nTile])) {
+					  if (prepRefineTile(
+							  (lt_radius > 0),
+							  clt_parameters, // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+							  tile_op_all,    // int                                            tile_op_all,
+							  src_bimap, // double [][]                                     src_bimap, // current state of measurements
+							  prev_bimap, // double [][]                                    prev_bimap, // previous state of measurements or null
+							  scale_bad,  // double []                                      scale_bad,
+							  tile_op, // int [][]                                          tile_op, // common for both amin and aux
+							  disparity_array, // double [][]                                    disparity_array,
+							  2, // int                                            refine_mode, // 0 - by main, 1 - by aux, 2 - by inter
+							 false,    // boolean                                        keep_inf,    // keep expected disparity 0.0 if it was so
+							  0.0, // double                                         refine_min_strength, // do not refine weaker tiles
+							  0.0,    // double                                         refine_tolerance,    // do not refine if absolute disparity below
+							  disp_scale_main,  // double                                         disp_scale_main,  // 1.0
+							  disp_scale_aux,   //double                                         disp_scale_aux,   // ~0.58
+							  disp_scale_inter, //double                                         disp_scale_inter, // ~4.86
+							  //								  scale_step,       // double                                         scale_step,  // scale for "unstable tiles"
+							  tileX, // int                                            tileX,
+							  tileY, // int                                            tileY,
+							  nTile )) {
+						  numMeas++; //int                                            nTile
+						  ds_ref[0][nTile] = disparity_array[tileY][tileX];
+					  }
+				  }
+			  }
+		  }
+		  ds_ref[1] = src_bimap[ImageDtt.BI_STR_CROSS_INDEX];
+		  if (debugLevel > -2) {
+			  System.out.println("refineRigAvg(): prepared "+numMeas+" to measure");
+		  }
+
+		  double [][] ds_planes = biScan.getFilteredDisparityStrength(
+				  area_of_interest,     // final boolean [] area_of_interest,
+				  ds_ref,                 // final double [][] disparityStrength,
+				  min_disparity,        // final double     min_disparity,    // keep original disparity far tiles
+				  trusted_strength,     // final double     trusted_strength, // trusted correlation strength
+				  0.5 * strength_rfloor,// final double     strength_rfloor,   // strength floor - relative to trusted
+				  true,     // final boolean    discard_unreliable,// replace v
+				  true,           // final boolean    discard_weak,      // consider weak trusted tiles (not promoted to trusted) as empty
+				  true,         // final boolean    discard_strong,    // suggest new disparities even for strong tiles
+				  strength_pow,         // final double     strength_pow,      // raise strength-floor to this power
+				  null,                 // final double []  smpl_radius_array, // space-variant radius
+				  smpl_radius,          // final int        smpl_radius,
+				  0,                    // final int        smpl_num,   //         = 3;      // Number after removing worst (should be >1)
+				  smpl_fract,           // final double     smpl_fract, // Number of friends among all neighbors
+				  ref_smpl_num,         // final int        smpl_num_narrow,   //         = 3;      // Number after removing worst (should be >1)
+				  max_adiff,            // final double     max_adiff,  // Maximal absolute difference between the center tile and friends
+				  max_rdiff,            // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
+				  max_atilt,            // final double     max_atilt, //  = 2.0; // pix per tile
+				  max_rtilt,            // final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
+				  smpl_arms,            // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				  smpl_rrms,            // final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
+				  damp_tilt,            // final double     damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
+				  0.0,                  // final double     rwsigma,           //  = 0.7; // influence of far neighbors diminish as a Gaussian with this sigma
+				  rwsigma,              // final double     rwsigma_narrow,    //  = used to determine initial tilt
+				  1.0,                  // final double     center_weight,     // use center tile too (0.0 - do not use)
+				  false,                // final boolean    use_alt,           // use tiles from other scans if they fit better
+				  goal_fraction_rms,    // final double     goal_fraction_rms, // Try to make rms to be this fraction of maximal acceptable by removing outliers
+				  0.8,                  // boost_low_density,    //final double     boost_low_density, // 0 - strength is proportional to 1/density, 1.0 - same as remaining tiles
+				  0,                    // final int        fourq_min,         // each of the 4 corners should have at least this number of tiles.
+				  0,                    // final int        fourq_gap,         // symmetrical vertical and horizontal center areas that do not belong to any corner
+				  clt_parameters.tileX, // final int        dbg_x,
+				  clt_parameters.tileY, // final int        dbg_y,
+				  debugLevel+2);          // final int        debugLevel
+
+		  // fill NaN gaps:
+		  double [][] ds_no_gaps = biScan.fillAndSmooth(
+				  ds_planes[0],         // disparity_bimap[ImageDtt.BI_TARGET_INDEX], // ds1[0], // final double [] src_disparity,
+				  null,                 // lt_strength, // final double [] src_strength, // if not null will be used for weighted pull
+				  area_of_interest,     // final boolean [] selection,
+				  0.0,                  // only gaps neib_pull, // final double     neib_pull, // pull to weighted average relative to pull to the original disparity value. If 0.0 - will only update former NaN-s
+				  max_iterations,       // final int max_iterations,
+				  min_change,           // final double min_change,
+				  clt_parameters.tileX, // final int        dbg_x,
+				  clt_parameters.tileY, // final int        dbg_y,
+				  debugLevel+2);        // final int        debugLevel
+
+		  // reformat back to disparity_array
+		  for (int tileY = 0; tileY<tilesY;tileY++) {
+			  for (int tileX = 0; tileX<tilesX;tileX++) {
+				  int nTile = tileY * tilesX + tileX;
+				  disparity_array[tileY][tileX] = ds_no_gaps[0][nTile];
+			  }
+		  }
+
+		  double [][] disparity_bimap  =  measureRig(
+				  quadCLT_main,        // QuadCLT                                        quadCLT_main,  // tiles should be set
+				  quadCLT_aux,         // QuadCLT                                        quadCLT_aux,
+				  tile_op,             // int [][]                                       tile_op, // common for both amin and aux
+				  disparity_array,     // double [][]                                    disparity_array,
+    			  null, // double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
+				  clt_parameters,      // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+				  clt_parameters.fat_zero, // double                                         fatzero,
+				  false,                          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+				  lt_radius,                       // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+				  true,                            // final boolean             no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
+				  threadsMax,          //final int        threadsMax,  // maximal number of threads to launch
+				  updateStatus,        // final boolean    updateStatus,
+				  debugLevel);          // final int        debugLevel)
+
+		  // combine with old results for tiles that were not re-measured
+		  // not needed here as so far everything selected is re-measured in the averaging mode)
+/*
+		  for (int tileY = 0; tileY<tilesY;tileY++) {
+			  for (int tileX = 0; tileX<tilesX;tileX++) {
+				  int nTile = tileY * tilesX + tileX;
+				  if ((selection == null) || selection[nTile]) {
+					  if (Double.isNaN(disparity_bimap[ImageDtt.BI_TARGET_INDEX][nTile]) && !Double.isNaN(src_bimap[ImageDtt.BI_TARGET_INDEX][nTile])) {
+						  for (int i = 0; i < disparity_bimap.length; i++) {
+							  disparity_bimap[i][nTile] = src_bimap[i][nTile];
+						  }
+					  }
+				  }
+			  }
+		  }
+*/
+		  if (num_new != null) {
+			  num_new[0] = numMeas;
+		  }
+		  return disparity_bimap;
+	  }
+
+
+
 
 
 	  public double [][] groundTruthByRig(

@@ -150,6 +150,7 @@ public class BiScan {
 
     // trusted should be set, copied and replaced as needed
     public double [][] getFilteredDisparityStrength( // FIXME
+			final boolean [] area_of_interest,
 			final double [][] disparityStrength,
 			final double     min_disparity,    // keep original disparity far tiles
 		    final double     trusted_strength, // trusted correlation strength
@@ -193,6 +194,7 @@ public class BiScan {
     	for (int i = 0; i < num_tiles; i++) ds[0][i] = Double.NaN;
 //    	double boost_low_density = 0.8; // 1.0; //0.2;
 		  suggestNewScan(
+				  area_of_interest,  // final boolean [] area_of_interest,
 				  disparityStrength, // final double [][] disparityStrength,
 				  trusted_strength,  // final double     trusted_strength, // trusted correlation strength
 				  strength_rfloor,   // final double     strength_rfloor,   // strength floor - relative to trusted
@@ -480,14 +482,15 @@ public class BiScan {
 	 * 2) target disaprity that lead to the current measurement after refinement
 	 * 3) any other disable measurement
 	 * 4) any target disparity that lead to the disabled measurement
+	 * @param area_of_interest - limit results to these tiles (if provided)
 	 * @param disparityStrength - a pair of array or null. If null, will calculate fro the current scan
 	 *        if not null - use as is
 	 * @param trusted_strength strength to trust unconditionally
-	 * @param strength_rfloor strength floor to subrtact as a fraction of the trusted strength
+	 * @param strength_rfloor strength floor to subtract as a fraction of the trusted strength
 	 * @param discard_cond if true may suggest new disparities for conditionally trusted tiles
 	 * @param discard_weak if true may suggest new disparities over trusted weak tiles
 	 * @param discard_stron if true may suggest new disparities over any tile
-	 * @param strength_pow raise strength to thyis power (normally just 1.0)
+	 * @param strength_pow raise strength to this power (normally just 1.0)
 	 * @param smpl_radius sample "radius", square side is  2 * smpl_radius + 1
 	 * @param smpl_num minimal absolute number of samples required to try fit a plane and validate a tile
 	 * If smpl_num == 0, faster calculation (single pass) using only *_narrow settings
@@ -501,7 +504,7 @@ public class BiScan {
 	 * @param smpl_rrms maximal relative (additional)rms of the weighted remaining samples for the successful plane fitting
 	 * @param damp_tilt regularization value to handle planes if the remaining samples are co-linear (or just a single tile)
 	 * @param rwsigma weight Gaussian sigma to reduce influence of far tiles relative to smpl_radius
-	 * @param rwsigma_narrow Gaussian sigma for the preliminary plain fitting using the closesttiles ~= 1/smpl_radius
+	 * @param rwsigma_narrow Gaussian sigma for the preliminary plain fitting using the closest tiles ~= 1/smpl_radius
 	 * @param new_diff minimal difference between the new suggested and the already tried/measured one
 	 * @param remove_all_tried remove from suggested - not only disabled, but all tried
 	 * @param center_weight weight of the tile itself (0.0 - do not use). Should be set to 0.0 for suggesting, >0 - for "smoothing"
@@ -519,6 +522,7 @@ public class BiScan {
 	 */
 
 	int  suggestNewScan(
+			final boolean [] area_of_interest,
 			final double [][] disparityStrength,
 		    final double     trusted_strength, // trusted correlation strength
 			final double     strength_rfloor,   // strength floor - relative to trusted
@@ -545,7 +549,7 @@ public class BiScan {
 			final boolean    use_alt,           // use tiles from other scans if they fit better
 			final double     goal_fraction_rms, // Try to make rms to be this fraction of maximal acceptable by removing outliers
 			final double     boost_low_density, // 0 - strength is proportional to 1/density, 1.0 - same as remaining tiles
-			final double [][] smooth_ds,        // optionally fill disaprity/strength  instead of the target_disparity
+			final double [][] smooth_ds,        // optionally fill disparity/strength  instead of the target_disparity
 			final int        fourq_min,         // each of the 4 corners should have at least this number of tiles.
 			final int        fourq_gap,         // symmetrical vertical and horizontal center areas that do not belong to any corner
 			final int        dbg_x,
@@ -627,7 +631,8 @@ public class BiScan {
 			threads[ithread] = new Thread() {
 				@Override
 				public void run() {
-					for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) if (discard_strong || !trusted_sw[nTile]){
+					for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) if (
+							((area_of_interest == null) || area_of_interest[nTile]) && (discard_strong || !trusted_sw[nTile])){
 						boolean debug = nTile == dbg_tile;
 						if (debug) {
 							System.out.println("suggestNewScan(): debbugging nTile="+nTile);
@@ -863,6 +868,8 @@ public class BiScan {
 		// remove duplicates from what was suggested or measured before
 		return num_new.get();
 	}
+
+
 
     private int findBetterFitToPlane(
     		int       smpl_radius,
@@ -1948,32 +1955,49 @@ public class BiScan {
 	 * Select low-textured tiles for averaging measurements
 	 * @param min_disparity minimal disparity to accept
 	 * @param max_density maximal trusted tile density (density varies from 0.0 to 1.0)
-	 * @param grow grow selection. When combined with shrink, fills small gaps. Both grow and shrink step
-	 * advances either horizontally or vertically (alternating), so to expand by 1 pixel in all directions
-	 *  the value should be set to 2,
-	 * @param shrink shrink selection after expanding to fill small gaps
+	 * @param grow how many layers of tiles should be added after filling gaps and removing small clusters
+	 * @param max_gap_radius maximal radius of a void to be filled
+	 * @param min_clust_radius minimal original cluster radius to survive
 	 * @param density per-tile values of the density of trusted tiles around it.
-	 * @param src_disparity - source disparity array
+	 * @param src_disparity - source disparity array. If null will only use density (that should be > 0)
 	 * @return selection of the low-textured tiles to be processed with averaging correlation (3x3 or 5x5 tiles)
 	 */
 	public boolean [] selectLowTextures(
 			double    min_disparity,
 			double    max_density,
 			int       grow,
-			int       shrink,
+			int       max_gap_radius,
+			int       min_clust_radius,
 			double [] density,
 			double [] src_disparity)
 	{
 		boolean [] selection = new boolean [density.length];
-		for (int nTile = 0; nTile < selection.length; nTile++) {
-			if ((src_disparity[nTile] >= min_disparity) && (density[nTile] <= max_density)) { // disparity has NaN-s, they will fail comparisons
-				selection[nTile] = true;
+		if (src_disparity == null) {
+			for (int nTile = 0; nTile < selection.length; nTile++) {
+				if ((density[nTile] <= max_density) && (density[nTile] <= max_density)) { // disparity has NaN-s, they will fail comparisons
+					selection[nTile] = true;
+				}
+			}
+		} else {
+			for (int nTile = 0; nTile < selection.length; nTile++) {
+				if ((src_disparity[nTile] >= min_disparity) && (density[nTile] <= max_density)) { // disparity has NaN-s, they will fail comparisons
+					selection[nTile] = true;
+				}
 			}
 		}
 		final TileNeibs  tnImage = biCamDSI.tnImage;
 
 		tnImage.growSelection(
-				grow, // int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				2* max_gap_radius, // int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				selection, // boolean [] tiles,
+				null); // boolean [] prohibit)
+
+		tnImage.shrinkSelection(
+				2*(max_gap_radius + min_clust_radius), // int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				selection, // boolean [] tiles,
+				null); // boolean [] prohibit)
+		tnImage.growSelection(
+				2 * (min_clust_radius + grow), // int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
 				selection, // boolean [] tiles,
 				null); // boolean [] prohibit)
 		return selection;
@@ -2023,6 +2047,7 @@ public class BiScan {
 		for (int num_iter = 0; num_iter < max_iterations; num_iter++) {
 			ai.set(0);
 			ai_numThread.set(0);
+			final AtomicInteger ai_count=new AtomicInteger(0);
 			for (int i = 0; i < max_changes.length; i++) max_changes[i] = 0.0;
 			final int fnum_iter = num_iter;
 			for (int ithread = 0; ithread < threads.length; ithread++) {
@@ -2070,6 +2095,7 @@ public class BiScan {
 											new_strength[nTile] =  (w_mean * neib_pull + src_strength[nTile])/(neib_pull + 1);
 										}
 									}
+									ai_count.getAndIncrement();
 									double adiff = Math.abs(new_disparity[nTile] - disparity[nTile]); // disparity[nTile] may be NaN then adiff will be NaN as intended
 									if (!(adiff < max_changes[numThread])) {
 										max_changes[numThread] = adiff; // NaN will be copied
@@ -2098,7 +2124,7 @@ public class BiScan {
 				}
 			}
 			if (debugLevel > -2) {
-				System.out.println("fillAndSmooth(): iteration "+fnum_iter+" change="+change+" (min_change="+min_change+")");
+				System.out.println("fillAndSmooth(): iteration "+fnum_iter+" change="+change+" (min_change="+min_change+")+ tiles updated="+ai_count.get());
 			}
 			if (change <= min_change) { // change may be NaN
 				break; // from the main loop

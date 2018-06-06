@@ -156,11 +156,12 @@ public class BiQuadParameters {
 	// filtering lt candidates
 	public double     ltavg_min_disparity =      -1.0;    // any
 	public double     ltavg_max_density =         0.1;
-	public int        ltavg_grow =                4;      // each 2 add 8 directions step. Odd have last step in 4 ortho directions only.
-	public int        ltavg_shrink =              2;      // shrink after expanding. Combination of both fills small gaps
+	public int        ltavg_gap_hwidth =          2;      // maximal radius of a void to be filled
+	public int        ltavg_clust_hwidth =        5;      // minimal radius of a cluster to keep
+	public int        ltavg_extra_grow =          1;      // additionally grow low-textured areas selections
 	// smoothing parameters
 	public boolean    ltavg_smooth_strength =     false;  // provide tile strength when smoothing target disparity
-	public double     ltavg_neib_pull =           0.2;    // pull to weighted average relative to pull to the original disparity value. If 0.0 - will only update former NaN-s
+	public double     ltavg_neib_pull =           1.0;    // pull to weighted average relative to pull to the original disparity value. If 0.0 - will only update former NaN-s
 	public int        ltavg_max_iter =           20;      //
 	public double     ltavg_min_change =          0.01;   //
 
@@ -461,10 +462,12 @@ public class BiQuadParameters {
 				"May be used to mask out infinity background");
 		gd.addNumericField("Maximal density to consider it to be low textured area",                              this.ltavg_max_density,  4,6,"",
 				"Select areas with lower density");
-		gd.addNumericField("Grow selection, each two units get expanion in 8 directions",                         this.ltavg_grow,  0,3,"",
-				"Two steps give one-tile expansion in 8 directions, odd numbers expand only in 4 ortho directions on the last expansion");
-		gd.addNumericField("Shrink selection after growing",                                                      this.ltavg_shrink,  0,3,"",
-				"Grow followed by shring fill small gaps");
+		gd.addNumericField("Maximal radius of a void in low-texture selection to fill"  ,                         this.ltavg_gap_hwidth,  0,3,"",
+				"Low textured selection may have gaps that will be filled");
+		gd.addNumericField("Minimal radius of a low-textured cluster to process",                                 this.ltavg_clust_hwidth,  0,3,"",
+				"Remove low-textured areas smaller that twice this size in each orthogonal directions");
+		gd.addNumericField("Additionally grow low-textured areas selections",                                     this.ltavg_extra_grow,  0,3,"",
+				"Low textured areas will be grown by the radius of correlation averaging plus this value");
 		gd.addCheckbox    ("Use tile strengths when filling gaps/smoothing",                                      this.ltavg_smooth_strength,
 				"Unchecked - consider all tiles to have the same strength");
 		gd.addNumericField("Relative pull of the nieghbor tiles compared to the original disparity" ,             this.ltavg_neib_pull,  4,6,"",
@@ -678,8 +681,9 @@ public class BiQuadParameters {
 		this.ltavg_dens_radius=       (int) gd.getNextNumber();
 		this.ltavg_min_disparity=           gd.getNextNumber();
 		this.ltavg_max_density=             gd.getNextNumber();
-		this.ltavg_grow=              (int) gd.getNextNumber();
-		this.ltavg_shrink=            (int) gd.getNextNumber();
+		this.ltavg_gap_hwidth=        (int) gd.getNextNumber();
+		this.ltavg_clust_hwidth=      (int) gd.getNextNumber();
+		this.ltavg_extra_grow=        (int) gd.getNextNumber();
 		this.ltavg_smooth_strength=         gd.getNextBoolean();
 		this.ltavg_neib_pull=               gd.getNextNumber();
 		this.ltavg_max_iter=          (int) gd.getNextNumber();
@@ -846,8 +850,10 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"ltavg_dens_radius",         this.ltavg_dens_radius+"");
 		properties.setProperty(prefix+"ltavg_min_disparity",       this.ltavg_min_disparity+"");
 		properties.setProperty(prefix+"ltavg_max_density",         this.ltavg_max_density+"");
-		properties.setProperty(prefix+"ltavg_grow",                this.ltavg_grow+"");
-		properties.setProperty(prefix+"ltavg_shrink",              this.ltavg_shrink+"");
+		properties.setProperty(prefix+"ltavg_gap_hwidth",          this.ltavg_gap_hwidth+"");
+		properties.setProperty(prefix+"ltavg_clust_hwidth",        this.ltavg_clust_hwidth+"");
+		properties.setProperty(prefix+"ltavg_extra_grow",          this.ltavg_extra_grow+"");
+
 		properties.setProperty(prefix+"ltavg_smooth_strength",     this.ltavg_smooth_strength+"");
 		properties.setProperty(prefix+"ltavg_neib_pull",           this.ltavg_neib_pull+"");
 		properties.setProperty(prefix+"ltavg_max_iter",            this.ltavg_max_iter+"");
@@ -1015,8 +1021,10 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"ltavg_dens_radius")!=null)       this.ltavg_dens_radius=Integer.parseInt(properties.getProperty(prefix+"ltavg_dens_radius"));
 		if (properties.getProperty(prefix+"ltavg_min_disparity")!=null)     this.ltavg_min_disparity=Double.parseDouble(properties.getProperty(prefix+"ltavg_min_disparity"));
 		if (properties.getProperty(prefix+"ltavg_max_density")!=null)       this.ltavg_max_density=Double.parseDouble(properties.getProperty(prefix+"ltavg_max_density"));
-		if (properties.getProperty(prefix+"ltavg_grow")!=null)              this.ltavg_grow=Integer.parseInt(properties.getProperty(prefix+"ltavg_grow"));
-		if (properties.getProperty(prefix+"ltavg_shrink")!=null)            this.ltavg_shrink=Integer.parseInt(properties.getProperty(prefix+"ltavg_shrink"));
+		if (properties.getProperty(prefix+"ltavg_gap_hwidth")!=null)        this.ltavg_gap_hwidth=Integer.parseInt(properties.getProperty(prefix+"ltavg_gap_hwidth"));
+		if (properties.getProperty(prefix+"ltavg_clust_hwidth")!=null)      this.ltavg_clust_hwidth=Integer.parseInt(properties.getProperty(prefix+"ltavg_clust_hwidth"));
+		if (properties.getProperty(prefix+"ltavg_extra_grow")!=null)        this.ltavg_extra_grow=Integer.parseInt(properties.getProperty(prefix+"ltavg_extra_grow"));
+
 		if (properties.getProperty(prefix+"ltavg_smooth_strength")!=null)   this.ltavg_smooth_strength=Boolean.parseBoolean(properties.getProperty(prefix+"ltavg_smooth_strength"));
 		if (properties.getProperty(prefix+"ltavg_neib_pull")!=null)         this.ltavg_neib_pull=Double.parseDouble(properties.getProperty(prefix+"ltavg_neib_pull"));
 		if (properties.getProperty(prefix+"ltavg_max_iter")!=null)          this.ltavg_max_iter=Integer.parseInt(properties.getProperty(prefix+"ltavg_max_iter"));
@@ -1182,8 +1190,9 @@ public class BiQuadParameters {
 		bqp.ltavg_dens_radius=          this.ltavg_dens_radius;
 		bqp.ltavg_min_disparity=        this.ltavg_min_disparity;
 		bqp.ltavg_max_density=          this.ltavg_max_density;
-		bqp.ltavg_grow=                 this.ltavg_grow;
-		bqp.ltavg_shrink=               this.ltavg_shrink;
+		bqp.ltavg_gap_hwidth=           this.ltavg_gap_hwidth;
+		bqp.ltavg_clust_hwidth=         this.ltavg_clust_hwidth;
+		bqp.ltavg_extra_grow=           this.ltavg_extra_grow;
 		bqp.ltavg_smooth_strength=      this.ltavg_smooth_strength;
 		bqp.ltavg_neib_pull=            this.ltavg_neib_pull;
 		bqp.ltavg_max_iter=             this.ltavg_max_iter;
