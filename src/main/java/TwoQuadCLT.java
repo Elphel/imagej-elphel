@@ -222,7 +222,10 @@ public class TwoQuadCLT {
 					  rgbParameters,              // EyesisCorrectionParameters.RGBParameters       rgbParameters,
 					  scaleExposures_main,        // double []	                                     scaleExposures_main, // probably not needed here - restores brightness of the final image
 					  scaleExposures_aux,         // double []	                                     scaleExposures_aux, // probably not needed here - restores brightness of the final image
-					  false,                       //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+					  false,                      //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+					  // averages measurements
+					  clt_parameters.rig.lt_avg_radius,// final int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+
 					  //			  final boolean    apply_corr, // calculate and apply additional fine geometry correction
 					  //			  final boolean    infinity_corr, // calculate and apply geometry correction at infinity
 					  threadsMax,                 // final int        threadsMax,  // maximal number of threads to launch
@@ -262,6 +265,7 @@ public class TwoQuadCLT {
 			  double []	                                     scaleExposures_main, // probably not needed here - restores brightness of the final image
 			  double []	                                     scaleExposures_aux, // probably not needed here - restores brightness of the final image
 			  boolean                                        notch_mode, // use pole-detection mode for inter-camera correlation
+			  final int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel){
@@ -339,9 +343,11 @@ public class TwoQuadCLT {
 				  image_dtt.clt_bi_quad (
 						  clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 						  clt_parameters.fat_zero,              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
-						  notch_mode,                          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+						  notch_mode,                           //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+						  lt_rad,                               // final int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+						  // first measurement - use default setting
+						  clt_parameters.rig.no_int_x0, // boolean   no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 						  tile_op_main,                         // final int [][]            tile_op_main,    // [tilesY][tilesX] - what to do - 0 - nothing for this tile
-//						  tile_op_aux,                          // final int [][]            tile_op_aux,     // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 						  disparity_array_main,                 // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 						  quadCLT_main.image_data,              // final double [][][]       image_data_main, // first index - number of image in a quad
 						  quadCLT_aux.image_data,               // final double [][][]       image_data_aux,  // first index - number of image in a quad
@@ -865,6 +871,9 @@ public class TwoQuadCLT {
 				  null,              // ArrayList<Integer>  tile_list,       // or null. If non-null - do not remeasure members of the list
 				  clt_parameters,    // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				  false,             //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+				  0,                              // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+				  // first measurement - use default setting
+				  clt_parameters.rig.no_int_x0, // boolean   no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 				  threadsMax,        // final int           threadsMax,      // maximal number of threads to launch
 				  updateStatus,      // final boolean       updateStatus,
 				  debugLevel);       // final int           debugLevel);
@@ -1018,6 +1027,9 @@ if (debugLevel > -100) return true; // temporarily !
 						  tile_list,         // ArrayList<Integer>  tile_list,       // or null. If non-null - do not remeasure members of the list
 						  clt_parameters,    // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 						  false,             //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+						  0,                 // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+						  // first measurement - use default setting
+						  clt_parameters.rig.no_int_x0, // boolean   no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 						  threadsMax,        // final int           threadsMax,      // maximal number of threads to launch
 						  updateStatus,      // final boolean       updateStatus,
 						  debugLevel);       // final int           debugLevel);
@@ -1052,6 +1064,9 @@ if (debugLevel > -100) return true; // temporarily !
 								  num_new,         // int     []                                     num_new,
 								  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
 								  false,           //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+								  0,                              // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+								  // refine mode - no window offset
+								  true,            // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 								  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
 								  updateStatus,    // final boolean                  updateStatus,
 								  debugLevel);     // final int                      debugLevel);
@@ -1087,6 +1102,9 @@ if (debugLevel > -100) return true; // temporarily !
 								  num_new,         // int     []                                     num_new,
 								  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
 								  false,             //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+								  0,                              // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+								  // refine mode - no window offset
+								  true,            // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 								  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
 								  updateStatus,    // final boolean                  updateStatus,
 								  debugLevel);     // final int                      debugLevel);
@@ -1139,6 +1157,9 @@ if (debugLevel > -100) return true; // temporarily !
 						  num_new,         // int     []                                     num_new,
 						  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
 						  false,             //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+						  0,                              // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+						  // refine mode - disable window offset
+						  true,            // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 						  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
 						  updateStatus,    // final boolean                  updateStatus,
 						  debugLevel);     // final int                      debugLevel);
@@ -1468,6 +1489,9 @@ if (debugLevel > -100) return true; // temporarily !
 				  clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				  clt_parameters.fat_zero,              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 				  false,                                //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+				  0,                                    // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+				  // does not matter here
+				  true,                                 // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 				  tile_op,                              // final int [][]            tile_op_main,    // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 				  disparity_array,                      // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 				  quadCLT_main.image_data,              // final double [][][]       image_data_main, // first index - number of image in a quad
@@ -1551,6 +1575,8 @@ if (debugLevel > -100) return true; // temporarily !
 	    			  clt_parameters,                           // EyesisCorrectionParameters.CLTParameters clt_parameters,
 	    			  clt_parameters.rig.ml_hwidth,             // int ml_hwidth
 	    			  clt_parameters.rig.ml_fatzero,            // double               fatzero,
+	    			  //change if needed?
+	    			  0, //  int              lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
 	    			  threadsMax,                               // final int            threadsMax,  // maximal number of threads to launch
 	    			  updateStatus,                             // final boolean        updateStatus,
 	    			  debugLevel);                              // final int            debugLevel);
@@ -1618,6 +1644,9 @@ if (debugLevel > -100) return true; // temporarily !
 				  null,              // ArrayList<Integer>  tile_list,       // or null. If non-null - do not remeasure members of the list
 				  clt_parameters,    // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				  false,             //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+				  0,                 // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+				  // first measurement - use as set in parameters
+				  clt_parameters.rig.no_int_x0,           // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 				  threadsMax,        // final int           threadsMax,      // maximal number of threads to launch
 				  updateStatus,      // final boolean       updateStatus,
 				  debugLevel);       // final int           debugLevel);
@@ -1662,6 +1691,9 @@ if (debugLevel > -100) return true; // temporarily !
         			  num_new,         // int     []                                     num_new,
         			  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
     				  false,             //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+    				  0,                 // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+    				  // refine - no window offset
+    				  true,           // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
         			  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
         			  updateStatus,    // final boolean                  updateStatus,
         			  debugLevel);     // final int                      debugLevel);
@@ -1770,6 +1802,9 @@ if (debugLevel > -100) return true; // temporarily !
         			  num_new,         // int     []                                     num_new,
         			  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
     				  false,           //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+    				  0,                 // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+    				  // refine - no window offset
+    				  true,           // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
         			  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
         			  updateStatus,    // final boolean                  updateStatus,
         			  debugLevel);     // final int                      debugLevel);
@@ -1872,6 +1907,9 @@ if (debugLevel > -100) return true; // temporarily !
         		  disparity_bimap[ImageDtt.BI_TARGET_INDEX], // double []                                      disparity, // Double.NaN - skip, ohers - measure
         		  clt_parameters, // EyesisCorrectionParameters.CLTParameters       clt_parameters,
         		  true, // boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+        		  0,                 // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+        		  // any - in notch mode it is disabled
+				  clt_parameters.rig.no_int_x0,           // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
         		  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
         		  updateStatus,    // final boolean                  updateStatus,
         		  debugLevel); // +4);     // final int                      debugLevel);
@@ -1901,7 +1939,9 @@ if (debugLevel > -100) return true; // temporarily !
         			  trusted_near,    // tile_list,       // ArrayList<Integer>             tile_list,       // or null
         			  num_new,         // int     []                                     num_new,
         			  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
-    				  true,           //  final boolean                  notch_mode,      // use notch filter for inter-camera correlation to detect poles
+    				  true,            //  final boolean                  notch_mode,      // use notch filter for inter-camera correlation to detect poles
+    				  0,               // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+    				  true,            // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
         			  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
         			  updateStatus,    // final boolean                  updateStatus,
         			  debugLevel);     // final int                      debugLevel);
@@ -2204,7 +2244,7 @@ if (debugLevel > -100) return true; // temporarily !
 				  // measure and refine
 				  double [] target_disparity = biCamDSI.getTargetDisparity(-1); // get last
 
-				  // Measure provided tiles (brdeak after, if it was the last cycle)
+				  // Measure provided tiles (break after, if it was the last cycle)
 
 				  disparity_bimap = measureNewRigDisparity(
 						  quadCLT_main,      // QuadCLT             quadCLT_main,    // tiles should be set
@@ -2212,6 +2252,9 @@ if (debugLevel > -100) return true; // temporarily !
 						  target_disparity,  // double []                                      disparity, // Double.NaN - skip, ohers - measure
 						  clt_parameters,    // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 						  false,             //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+						  0,                 // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+						  // first measurement - use default value:
+						  clt_parameters.rig.no_int_x0,           // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 						  threadsMax,        // final int           threadsMax,      // maximal number of threads to launch
 						  updateStatus,      // final boolean       updateStatus,
 						  debugLevel);       // final int           debugLevel);
@@ -2256,6 +2299,9 @@ if (debugLevel > -100) return true; // temporarily !
 							  num_new,         // int     []                                     num_new,
 							  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
 							  false,           //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+							  0,               // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+							  // disable window preset in refine mode
+							  true,            // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 							  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
 							  updateStatus,    // final boolean                  updateStatus,
 							  debugLevel);     // final int                      debugLevel);
@@ -2359,7 +2405,10 @@ if (debugLevel > -100) return true; // temporarily !
 
 	  public boolean showBiScan(
 			  QuadCLT            quadCLT_main,  // tiles should be set
+			  QuadCLT            quadCLT_aux,  // tiles should be set
 			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			  final int                                      threadsMax,  // maximal number of threads to launch
+			  final boolean                                  updateStatus,
 			  final int                                      debugLevel) //  throws Exception
 	  {
 
@@ -2378,13 +2427,13 @@ if (debugLevel > -100) return true; // temporarily !
 		  boolean keep_unreliable = false;
 		  boolean keep_weak =       false;
 		  boolean keep_strong =     false;
-		  double center_weight =    1.0;
+		  double  center_weight =   1.0;
 // from clt_parameters.rig
 		  double trusted_strength = clt_parameters.rig.pf_trusted_strength;
 		  double cond_rtrusted =    clt_parameters.rig.pf_cond_rtrusted;
 		  double strength_rfloor =  clt_parameters.rig.pf_strength_rfloor;
 		  double strength_pow =     clt_parameters.rig.pf_strength_pow;
-		  int smpl_radius =         clt_parameters.rig.pf_smpl_radius;
+		  int smpl_radius =         9; // clt_parameters.rig.pf_smpl_radius;
 		  int smpl_num =            clt_parameters.rig.pf_smpl_num;
 		  int smpl_num_narrow =     clt_parameters.rig.pf_smpl_num_narrow;
 		  double smpl_fract =       clt_parameters.rig.pf_smpl_fract;
@@ -2404,10 +2453,28 @@ if (debugLevel > -100) return true; // temporarily !
 
 		  int        fourq_min =    clt_parameters.rig.pf_fourq_min;
 		  int        fourq_gap =    clt_parameters.rig.pf_fourq_gap;
-		  double min_disparity =    0.0;
+
+		  boolean  run_avg =         false; //ltavg_en
+		  int      lt_radius =       clt_parameters.rig.ltavg_radius;
+		  boolean  strong_only =     clt_parameters.rig.ltavg_dens_strong;
+		  int      need_tiles =      clt_parameters.rig.ltavg_dens_tiles;
+		  int      max_radius =      clt_parameters.rig.ltavg_dens_radius;
+
+		  double   min_disparity =   clt_parameters.rig.ltavg_min_disparity;
+
+		  double   max_density =     clt_parameters.rig.ltavg_max_density;
+		  int      grow =            clt_parameters.rig.ltavg_grow;      // each 2 add 8 directions step. Odd have last step in 4 ortho directions only.
+		  int      shrink =          clt_parameters.rig.ltavg_shrink;      // shrink after expanding. Combination of both fills small gaps
+		  // smoothing parameters
+		  boolean  smooth_strength = clt_parameters.rig.ltavg_smooth_strength;  // provide tile strength when smoothing target disparity
+		  double   neib_pull =       clt_parameters.rig.ltavg_neib_pull;    // pull to weighted average relative to pull to the original disparity value. If 0.0 - will only update former NaN-s
+		  int      max_iter =        clt_parameters.rig.ltavg_max_iter;      //
+		  double   min_change =      clt_parameters.rig.ltavg_min_change;   //
 
 
-		  GenericJTabbedDialog gd = new GenericJTabbedDialog("Set CLT parameters",800,900);
+		  GenericJTabbedDialog gd = new GenericJTabbedDialog("Set CLT parameters",900,1100);
+		  gd.addTab("Genearl","Select bi-scan to show and process");
+
 		  gd.addNumericField("Scan index (0..."+(biCamDSI_persistent.biScans.size()-1),  scan_index, 0, 2, "",  "Display scan by index");
 
 		  gd.addCheckbox    ("Show smooth disparity/strength for the selected scan",  show_smooth, 		"Unchecked - just as is");
@@ -2416,8 +2483,6 @@ if (debugLevel > -100) return true; // temporarily !
 		  gd.addCheckbox    ("Keep strng trusted tiles",                              keep_strong, 	    "Unchecked - overwrite with smooth data");
 		  gd.addNumericField("Center weight - relative weight of the existing tile ", center_weight,  4,6,"",
 				  "0.0 - suggest new disparity over existing tiles without ant regard to the original value, 1.0 - same influence as any other tile");
-		  gd.addNumericField("Minimal disparity to apply filter",                     min_disparity,  4,6,"pix",
-				  "Farther objects will not be filtered");
 
 		  gd.addMessage     ("Parameters that are copied from the CLT parameters");
 		  gd.addNumericField("Strength sufficient without neighbors",                                               trusted_strength,  4,6,"",
@@ -2466,6 +2531,34 @@ if (debugLevel > -100) return true; // temporarily !
 		  gd.addNumericField("Four corners center gap half-width (1 - 1 tile, 2 - 3 tiles, 3 - 5 tiles, ...",       fourq_gap,  0,3,"",
 				  "Specifies corners of the sample square that should have tiles remain, after removing centre columns and center rows");
 
+		  gd.addTab("LT Avg","Low texture correlatinaveraging");
+		  gd.addCheckbox    ("Measure with tile averaging",                                                         run_avg, 	        "");
+		  gd.addNumericField("Averaging radius (1 - 3x3 square, 2  - 5x5, ...",                                     lt_radius,  0,3,"",  "");
+		  gd.addCheckbox    ("Calculate density of strong trusted only (false include weak trusted)",               strong_only, 	    "");
+		  gd.addNumericField("Minimal number tiles to calculate density)",                                          need_tiles,  0,3,"",  "");
+		  gd.addNumericField("Maximal radius for measuruing density)",                                              max_radius,  0,3,"",  "");
+
+		  gd.addNumericField("Minimal disparity to apply filter",                                                   min_disparity,  4,6,"pix",
+				  "Farther objects will not be filtered");
+
+		  gd.addNumericField("Maximal density to consider it to be low textured area",                              max_density,  4,6,"",
+				  "Select areas with lower density");
+		  gd.addNumericField("Grow selection, each two units get expanion in 8 directions",                         grow,  0,3,"",
+				  "Two steps give one-tile expansion in 8 directions, odd numbers expand only in 4 ortho directions on the last expansion");
+		  gd.addNumericField("Shrink selection after growing",                                                      shrink,  0,3,"",
+				  "Grow followed by shring fill small gaps");
+		  gd.addCheckbox    ("Use tile strengths when filling gaps/smoothing",                                      smooth_strength,
+				  "Unchecked - consider all tiles to have the same strength");
+		  gd.addNumericField("Relative pull of the nieghbor tiles compared to the original disparity" ,             neib_pull,  4,6,"",
+				  "If set to 0.0 - only gaps will be filled, defined disparities will not be modified");
+		  gd.addNumericField("Maximal number of smoothing / gap filling iterations to perform",                     max_iter,  0,3,"",
+				  "Safety limit for smoothing iterations ");
+		  gd.addNumericField("Minimal disparity change to continue smoothing",                                      min_change,  4,6,"pix","");
+
+//		  boolean run_avg = false;
+//		  int     lt_radius = 1;
+
+
 		  gd.showDialog();
 		  if (gd.wasCanceled()) return false;
 		  scan_index =      (int) gd.getNextNumber();
@@ -2474,7 +2567,6 @@ if (debugLevel > -100) return true; // temporarily !
 		  keep_weak =             gd.getNextBoolean();
 		  keep_strong  =          gd.getNextBoolean();
 		  center_weight =         gd.getNextNumber();
-		  min_disparity =         gd.getNextNumber();
 		  // from clt_parameters.rig
 		  trusted_strength =      gd.getNextNumber();
 		  cond_rtrusted =         gd.getNextNumber();
@@ -2501,6 +2593,24 @@ if (debugLevel > -100) return true; // temporarily !
 		  fourq_min=        (int) gd.getNextNumber();
 		  fourq_gap=        (int) gd.getNextNumber();
 
+		  //		  gd.addTab("LT Avg","Low texture correlatinaveraging");
+
+		  run_avg  =              gd.getNextBoolean();
+		  lt_radius=        (int) gd.getNextNumber();
+		  strong_only =           gd.getNextBoolean();
+		  need_tiles=       (int) gd.getNextNumber();
+		  max_radius=       (int) gd.getNextNumber();
+
+		  min_disparity =         gd.getNextNumber();
+
+		  max_density =           gd.getNextNumber();
+		  grow=             (int) gd.getNextNumber();
+		  shrink=           (int) gd.getNextNumber();
+		  smooth_strength =       gd.getNextBoolean();
+		  neib_pull =             gd.getNextNumber();
+		  max_iter=         (int) gd.getNextNumber();
+		  min_change =            gd.getNextNumber();
+
 		  System.out.println(" === showBiScan( parameters : =====");
 		  System.out.println("       scan_index= "+scan_index);
 		  System.out.println("      show_smooth= "+show_smooth);
@@ -2508,7 +2618,6 @@ if (debugLevel > -100) return true; // temporarily !
 		  System.out.println("        keep_weak= "+keep_weak);
 		  System.out.println("      keep_strong= "+keep_strong);
 		  System.out.println("    center_weight= "+center_weight);
-		  System.out.println("    min_disparity= "+min_disparity);
 
 		  System.out.println(" trusted_strength= "+trusted_strength);
 		  System.out.println("    cond_rtrusted= "+cond_rtrusted);
@@ -2535,6 +2644,20 @@ if (debugLevel > -100) return true; // temporarily !
 		  System.out.println("        fourq_min= "+fourq_min);
 		  System.out.println("        fourq_gap= "+fourq_gap);
 
+		  System.out.println("          run_avg= "+run_avg);
+		  System.out.println("        lt_radius= "+lt_radius);
+		  System.out.println("      strong_only= "+strong_only);
+		  System.out.println("       need_tiles= "+need_tiles);
+		  System.out.println("       max_radius= "+max_radius);
+
+		  System.out.println("    min_disparity= "+min_disparity);
+		  System.out.println("      max_density= "+max_density);
+		  System.out.println("             grow= "+grow);
+		  System.out.println("           shrink= "+shrink);
+		  System.out.println("  smooth_strength= "+smooth_strength);
+		  System.out.println("        neib_pull= "+neib_pull);
+		  System.out.println("         max_iter= "+max_iter);
+		  System.out.println("       min_change= "+min_change);
 
 		  BiScan biScan =  biCamDSI_persistent.biScans.get(scan_index);
 		  double [][] ds = null;
@@ -2585,14 +2708,14 @@ if (debugLevel > -100) return true; // temporarily !
 					  strength_rfloor,      // final double     strength_rfloor,   // strength floor - relative to trusted
 					  !keep_unreliable,     // final boolean    discard_unreliable,// replace v
 					  !keep_weak,           // final boolean    discard_weak,      // consider weak trusted tiles (not promoted to trusted) as empty
-					  !keep_strong,         // final boolean    discard_strong,    // suggest new disparitieas even for strong tiles
+					  !keep_strong,         // final boolean    discard_strong,    // suggest new disparities even for strong tiles
 					  strength_pow,         // final double     strength_pow,      // raise strength-floor to this power
 					  null,                 // final double []  smpl_radius_array, // space-variant radius
 					  smpl_radius,          // final int        smpl_radius,
 					  smpl_num,             // final int        smpl_num,   //         = 3;      // Number after removing worst (should be >1)
 					  smpl_fract,           // final double     smpl_fract, // Number of friends among all neighbors
 					  smpl_num_narrow,      // final int        smpl_num_narrow,   //         = 3;      // Number after removing worst (should be >1)
-					  max_adiff,            // final double     max_adiff,  // Maximal absolute difference betweenthe center tile and friends
+					  max_adiff,            // final double     max_adiff,  // Maximal absolute difference between the center tile and friends
 					  max_rdiff,            // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
 					  max_atilt,            // final double     max_atilt, //  = 2.0; // pix per tile
 					  max_rtilt,            // final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
@@ -2610,8 +2733,159 @@ if (debugLevel > -100) return true; // temporarily !
 					  clt_parameters.tileX, // final int        dbg_x,
 					  clt_parameters.tileY, // final int        dbg_y,
 					  debugLevel+2);          // final int        debugLevel
+			  biScan.showScan(quadCLT_main.image_name+"-BiScan-"+scan_index,ds);
+			  double [] density = 		  biScan.getDensity(
+					  strong_only, // final boolean strong_only,
+					  need_tiles, // 20, // 10,    // final int need_tiles,
+					  max_radius, // 20, // 15,    // final int max_radius,
+					  clt_parameters.tileX, // final int        dbg_x,
+					  clt_parameters.tileY, // final int        dbg_y,
+					  debugLevel+2);        // final int        debugLevel
+			  double [][] dbg_dens_str = {density, ds[1]};
+			  biScan.showScan(quadCLT_main.image_name+"-density-"+scan_index,dbg_dens_str);
+
+			  boolean [] lt_select = biScan.selectLowTextures(
+					  min_disparity, // double    min_disparity,
+					  max_density,   // double    max_density,
+					  grow,   // int       grow,
+					  shrink, // int       shrink,
+					  density, // double [] density,
+					  ds[0]); // double [] src_disparity);
+			  double [][] ds1 = {ds[0].clone(), ds[1].clone()} ;
+			  for (int i = 0; i < lt_select.length; i++) if (!lt_select[i]) {
+				  ds1[0][i] = Double.NaN;
+				  ds1[1][i] = 0.0;
+			  }
+			  biScan.showScan(quadCLT_main.image_name+"-selection-"+scan_index,ds1);
+			  double [] lt_strength = smooth_strength? ds1[1]:null;
+
+			  double [][] ds2 = biScan.fillAndSmooth(
+					  ds1[0], // final double [] src_disparity,
+					  lt_strength, // final double [] src_strength, // if not null will be used for weighted pull
+					  lt_select, // final boolean [] selection,
+					  neib_pull, // final double     neib_pull, // pull to weighted average relative to pull to the original disparity value. If 0.0 - will only update former NaN-s
+					  max_iter, // final int max_iterations,
+					  min_change, // final double min_change,
+					  clt_parameters.tileX, // final int        dbg_x,
+					  clt_parameters.tileY, // final int        dbg_y,
+					  debugLevel+2);        // final int        debugLevel
+			  biScan.showScan(quadCLT_main.image_name+"-smooth-"+scan_index,ds2);
+
+			  if (run_avg) {
+				  int tilesX = quadCLT_main.tp.getTilesX();
+				  double [][] disparity_bimap = measureNewRigDisparity(
+						  quadCLT_main,   // QuadCLT                                  quadCLT_main,  // tiles should be set
+						  quadCLT_aux,    // QuadCLT                                  quadCLT_aux,
+						  ds2[0],          // double []                                      disparity, // Double.NaN - skip, ohers - measure
+						  clt_parameters, // EyesisCorrectionParameters.CLTParameters clt_parameters,
+						  false, // boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+						  lt_radius,      // int                 lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
+						  // use set from parameters
+						  clt_parameters.rig.no_int_x0,    // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
+						  threadsMax,     // final int        threadsMax,  // maximal number of threads to launch
+						  updateStatus,  // updateStatus,   // final boolean    updateStatus,
+						  debugLevel);    // final int        debugLevel)
+
+				  (new showDoubleFloatArrays()).showArrays(
+						  disparity_bimap,
+						  tilesX,
+						  disparity_bimap[0].length/tilesX,
+						  true,
+						  quadCLT_main.image_name+"LPF"+lt_radius,
+						  ImageDtt.BIDISPARITY_TITLES);
+
+// try to refine
+				  int [] num_new = new int[1];
+/*
+				  boolean [] trusted_measurements = 	  getTrustedDisparity(
+						  quadCLT_main,                            // QuadCLT            quadCLT_main,  // tiles should be set
+						  quadCLT_aux,                             // QuadCLT            quadCLT_aux,
+						  clt_parameters.rig.min_trusted_strength, // double             min_combo_strength,    // check correlation strength combined for all 3 correlations
+						  clt_parameters.grow_disp_trust,          // double             max_trusted_disparity, // 4.0 -> change to rig_trust
+						  clt_parameters.rig.trusted_tolerance,    // double             trusted_tolerance,
+						  null,                                    // boolean []         was_trusted,
+						  disparity_bimap);              // double [][]        bimap // current state of measurements
+*/
+				  double [][] prev_bimap = null;
+				  final int refine_inter = 2; // 3; // 3 - dx, 2 - disparity
+				  double [] scale_bad = new double [ds2[0].length];
+				  for (int i = 0; i < scale_bad.length; i++) scale_bad[i] = 1.0;
+//				  for (int nref = 0; nref < 5; nref++) { // clt_parameters.rig.num_inf_refine; nref++) {
+				  for (int nref = 0; nref < clt_parameters.rig.num_inf_refine; nref++) {
+					  // refine infinity using inter correlation
+					  double [][] disparity_bimap_new =  refineRigSel(
+							  quadCLT_main,    // QuadCLT                        quadCLT_main,    // tiles should be set
+							  quadCLT_aux,     // QuadCLT                        quadCLT_aux,
+							  disparity_bimap, // double [][]                    src_bimap,       // current state of measurements (or null for new measurement)
+							  prev_bimap,      // double [][]                    prev_bimap, // previous state of measurements or null
+							  scale_bad,       // double []                      scale_bad,
+							  refine_inter,    // int                            refine_mode,     // 0 - by main, 1 - by aux, 2 - by inter
+							  false,           // boolean                        keep_inf,        // keep expected disparity 0.0 if it was so
+							  0.0, // clt_parameters.rig.refine_min_strength , // double refine_min_strength, // do not refine weaker tiles
+							  0.0, // clt_parameters.rig.refine_tolerance ,    // double refine_tolerance,    // do not refine if absolute disparity below
+							  lt_select, // trusted_measurements, // tile_list,       // ArrayList<Integer>             tile_list,       // or null
+							  num_new,         // int     []                                     num_new,
+							  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
+							  false,           //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+							  lt_radius,               // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+							  // disable window preset in refine mode
+							  true,            // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
+							  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
+							  updateStatus,    // final boolean                  updateStatus,
+							  debugLevel);     // final int                      debugLevel);
+					  prev_bimap = disparity_bimap;
+					  disparity_bimap = disparity_bimap_new;
+// re-smooth target disparity
+					  if (debugLevel > 10) {(new showDoubleFloatArrays()).showArrays(
+							  disparity_bimap,
+							  tilesX,
+							  disparity_bimap[0].length/tilesX,
+							  true,
+							  quadCLT_main.image_name+"RE-MEASURED,R"+lt_radius,
+							  ImageDtt.BIDISPARITY_TITLES);
+					  }
+					  double [][] ds3 = biScan.fillAndSmooth(
+							  disparity_bimap[ImageDtt.BI_TARGET_INDEX], // ds1[0], // final double [] src_disparity,
+							  null, // lt_strength, // final double [] src_strength, // if not null will be used for weighted pull
+							  lt_select, // final boolean [] selection,
+							  neib_pull, // final double     neib_pull, // pull to weighted average relative to pull to the original disparity value. If 0.0 - will only update former NaN-s
+							  max_iter, // final int max_iterations,
+							  min_change, // final double min_change,
+							  clt_parameters.tileX, // final int        dbg_x,
+							  clt_parameters.tileY, // final int        dbg_y,
+							  debugLevel+2);        // final int        debugLevel
+					  if (debugLevel > 10) {
+						  biScan.showScan(quadCLT_main.image_name+"-resmooth-"+nref,ds3);
+					  }
+
+/*
+					  trusted_measurements = 	  getTrustedDisparityInter(
+		        			  0.0, // clt_parameters.rig.lt_trusted_strength*clt_parameters.rig.lt_need_friends, // double             min_inter_strength,    // check correlation strength combined for all 3 correlations
+		        			  clt_parameters.grow_disp_trust,           // double             max_trusted_disparity,
+		        			  trusted_measurements,                     // boolean []         was_trusted,
+		        			  disparity_bimap );                        // double [][]        bimap // current state of measurements
+*/
+					  if (debugLevel > -2) {
+						  System.out.println("groundTruthByRigPlanes():  refinement step="+nref+" num_new= "+num_new[0]+" tiles");
+					  }
+					  if (num_new[0] < clt_parameters.rig.pf_min_new) break;
+				  }
+
+				  (new showDoubleFloatArrays()).showArrays(
+						  disparity_bimap,
+						  tilesX,
+						  disparity_bimap[0].length/tilesX,
+						  true,
+						  quadCLT_main.image_name+"CORR-AVG"+lt_radius,
+						  ImageDtt.BIDISPARITY_TITLES);
+
+			  }
+
+
+		  } else {
+			  biScan.showScan(quadCLT_main.image_name+"BiScan-"+scan_index,ds);
 		  }
-		  biScan.showScan("BiScan-"+scan_index,ds);
+
 		  return true;
 	  }
 
@@ -2692,7 +2966,9 @@ if (debugLevel > -100) return true; // temporarily !
 				  null,              // ArrayList<Integer>  tile_list,       // or null. If non-null - do not remeasure members of the list
 				  clt_parameters,    // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				  false,             //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
-
+				  0,                 // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+				  // use default mode:
+				  clt_parameters.rig.no_int_x0,           // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 				  threadsMax,        // final int           threadsMax,      // maximal number of threads to launch
 				  updateStatus,      // final boolean       updateStatus,
 				  debugLevel);       // final int           debugLevel);
@@ -2737,6 +3013,9 @@ if (debugLevel > -100) return true; // temporarily !
         			  num_new,         // int     []                                     num_new,
         			  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
     				  false,             //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+    				  0,                 // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+    				  // refine mode - disable window preset:
+    				  true,              // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
         			  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
         			  updateStatus,    // final boolean                  updateStatus,
         			  debugLevel);     // final int                      debugLevel);
@@ -2844,6 +3123,10 @@ if (debugLevel > -100) return true; // temporarily !
         			  num_new,         // int     []                                     num_new,
         			  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
     				  false,           //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+    				  0,               // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+    				  // disable window preset in refine mode
+    				  true,            // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
+
         			  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
         			  updateStatus,    // final boolean                  updateStatus,
         			  debugLevel);     // final int                      debugLevel);
@@ -3114,6 +3397,9 @@ if (debugLevel > -100) return true; // temporarily !
     			  quadCLT_aux,          // QuadCLT                                  quadCLT_aux,
     			  clt_parameters,       // EyesisCorrectionParameters.CLTParameters clt_parameters,
 				  false,                //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+				  0,                 // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+				  // first measurement - use default value:
+				  clt_parameters.rig.no_int_x0,           // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
     			  threadsMax,           // final int        threadsMax,  // maximal number of threads to launch
     			  updateStatus,         // final boolean    updateStatus,
     			  debugLevel);          // final int        debugLevel);
@@ -3151,6 +3437,10 @@ if (debugLevel > -100) return true; // temporarily !
         			  num_new,         // int     []                                     num_new,
         			  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
 					  false,           //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+					  0,                 // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+					  // in refine mode disable int preset of the window
+					  true,             // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
+
         			  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
         			  updateStatus,    // final boolean                  updateStatus,
         			  debugLevel);     // final int                      debugLevel);
@@ -3518,6 +3808,8 @@ if (debugLevel > -100) return true; // temporarily !
         		  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
 				  clt_parameters.fat_zero, // double                                         fatzero,
 				  false,                   //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+				  0,                          // final int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+				  clt_parameters.rig.no_int_x0, // final boolean             no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very
     			  threadsMax,      // final int        threadsMax,  // maximal number of threads to launch
     			  updateStatus,    // final boolean    updateStatus,
     			  debugLevel);     // final int        debugLevel);
@@ -3543,6 +3835,8 @@ if (debugLevel > -100) return true; // temporarily !
 			  QuadCLT                                        quadCLT_aux,
 			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
 			  boolean                                        notch_mode,      // use notch filter for inter-camera correlation to detect poles
+			  int                                            lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
+			  boolean                                        no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 			  final int                                      threadsMax,  // maximal number of threads to launch
 			  final boolean                                  updateStatus,
 			  final int                                      debugLevel){
@@ -3570,6 +3864,8 @@ if (debugLevel > -100) return true; // temporarily !
         		  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
 				  clt_parameters.fat_zero, // double                                         fatzero,
 				  notch_mode,                          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+				  lt_rad,                               // final int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+				  no_int_x0,       // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
     			  threadsMax,      // final int        threadsMax,  // maximal number of threads to launch
     			  updateStatus,    // final boolean    updateStatus,
     			  debugLevel);     // final int        debugLevel);
@@ -3655,23 +3951,24 @@ if (debugLevel > -100) return true; // temporarily !
 	   * @return results of the new measurements combined with the old results
 	   */
 	  public double [][] refineRig(
-			  QuadCLT                                        quadCLT_main,  // tiles should be set
-			  QuadCLT                                        quadCLT_aux,
-			  double [][]                                    src_bimap, // current state of measurements
-			  double [][]                                    prev_bimap, // previous state of measurements or null
-			  double []                                      scale_bad,
-			  int                                            refine_mode, // 0 - by main, 1 - by aux, 2 - by inter
-			  boolean                                        keep_inf,    // keep expected disparity 0.0 if it was so
-			  double                                         refine_min_strength, // do not refine weaker tiles
-			  double                                         refine_tolerance,    // do not refine if absolute disparity below
-			  ArrayList<Integer>                             tile_list, // or null
-			  int     []                                     num_new,
-			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
-			  boolean                                        notch_mode,      // use notch filter for inter-camera correlation to detect poles
-
-			  final int        threadsMax,  // maximal number of threads to launch
-			  final boolean    updateStatus,
-			  final int        debugLevel){
+			  QuadCLT                                  quadCLT_main,  // tiles should be set
+			  QuadCLT                                  quadCLT_aux,
+			  double [][]                              src_bimap, // current state of measurements
+			  double [][]                              prev_bimap, // previous state of measurements or null
+			  double []                                scale_bad,
+			  int                                      refine_mode, // 0 - by main, 1 - by aux, 2 - by inter
+			  boolean                                  keep_inf,    // keep expected disparity 0.0 if it was so
+			  double                                   refine_min_strength, // do not refine weaker tiles
+			  double                                   refine_tolerance,    // do not refine if absolute disparity below
+			  ArrayList<Integer>                       tile_list, // or null
+			  int     []                               num_new,
+			  EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  boolean                                  notch_mode,      // use notch filter for inter-camera correlation to detect poles
+			  int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
+			  final boolean                            no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
+			  final int                                threadsMax,  // maximal number of threads to launch
+			  final boolean                            updateStatus,
+			  final int                                debugLevel){
 		  boolean [] selection = null;
 		  if (tile_list != null) {
 			  selection = new boolean [quadCLT_main.tp.getTilesX() * quadCLT_main.tp.getTilesY()];
@@ -3691,6 +3988,8 @@ if (debugLevel > -100) return true; // temporarily !
 				  num_new,
 				  clt_parameters,
 				  notch_mode,                          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+				  lt_rad,                              // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+				  no_int_x0,           // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 				  threadsMax,  // maximal number of threads to launch
 				  updateStatus,
 				  debugLevel);
@@ -3709,7 +4008,9 @@ if (debugLevel > -100) return true; // temporarily !
 			  boolean []                                     selection,
 			  int     []                                     num_new,
 			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
-			  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+			  final boolean                                  notch_mode,      // use notch filter for inter-camera correlation to detect poles
+			  final int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
+			  final boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel){
@@ -3727,6 +4028,7 @@ if (debugLevel > -100) return true; // temporarily !
 				  int nTile = tileY * tilesX + tileX;
 				  if (((selection == null) || selection[nTile]) && !Double.isNaN(src_bimap[ImageDtt.BI_TARGET_INDEX][nTile])) {
 					  if (prepRefineTile(
+							  (lt_rad > 0),
 							  clt_parameters, // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 							  tile_op_all,    // int                                            tile_op_all,
 							  src_bimap, // double [][]                                     src_bimap, // current state of measurements
@@ -3760,6 +4062,8 @@ if (debugLevel > -100) return true; // temporarily !
 				  clt_parameters,      // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				  clt_parameters.fat_zero, // double                                         fatzero,
 				  notch_mode,                          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+				  lt_rad,                              // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+				  no_int_x0,                            // final boolean             no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 				  threadsMax,          //final int        threadsMax,  // maximal number of threads to launch
 				  updateStatus,        // final boolean    updateStatus,
 				  debugLevel);          // final int        debugLevel)
@@ -3807,6 +4111,8 @@ if (debugLevel > -100) return true; // temporarily !
 			  ArrayList<Integer>                             tile_list, // or null. If non-null - do not remeasure members of the list
 			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
 			  boolean                                        notch_mode,      // use notch filter for inter-camera correlation to detect poles
+			  int                                            lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
+			  boolean                                        no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel){
@@ -3843,6 +4149,8 @@ if (debugLevel > -100) return true; // temporarily !
 				  clt_parameters,      // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				  clt_parameters.fat_zero, // double                                         fatzero,
 				  notch_mode,                          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+				  lt_rad,                              // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+				  no_int_x0,           // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 				  threadsMax,          //final int        threadsMax,  // maximal number of threads to launch
 				  updateStatus,        // final boolean    updateStatus,
 				  debugLevel);          // final int        debugLevel)
@@ -3896,6 +4204,8 @@ if (debugLevel > -100) return true; // temporarily !
 			  double []                                      disparity, // Double.NaN - skip, ohers - measure
 			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
 			  boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+			  int                 lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
+			  boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel){
@@ -3923,6 +4233,8 @@ if (debugLevel > -100) return true; // temporarily !
 				  clt_parameters,      // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				  clt_parameters.fat_zero, // double                                         fatzero,
 				  notch_mode,          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+				  lt_rad,                              // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+				  no_int_x0,           // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 				  threadsMax,          //final int        threadsMax,  // maximal number of threads to launch
 				  updateStatus,        // final boolean    updateStatus,
 				  debugLevel);         // final int        debugLevel)
@@ -3933,6 +4245,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 
 	  private boolean prepRefineTile(
+			  boolean                                        remeasure_nan, // use old suggestion if result of the measurement was NaN
 			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
 			  int                                            tile_op_all,
 			  double [][]                                    src_bimap, // current state of measurements
@@ -3990,6 +4303,17 @@ if (debugLevel > -100) return true; // temporarily !
 			  strength = src_bimap[ImageDtt.BI_STR_CROSS_INDEX][nTile];
 			  disp_scale = disp_scale_inter;
 		  }
+		  if (Double.isNaN(diff_disp)) {
+			 if (remeasure_nan) {
+				  tile_op[tileY][tileX] = tile_op_all;
+				  disparity_array[tileY][tileX] = src_bimap[ImageDtt.BI_TARGET_INDEX][nTile]; // repeat previous - only makes sense with averaging
+				  return true;
+
+			 } else {
+				 return false;
+			 }
+		  }
+
 		  // strong enough?
 		  if (strength < refine_min_strength) return false;
 		  // residual disparity large enough to bother
@@ -4031,7 +4355,6 @@ if (debugLevel > -100) return true; // temporarily !
 
 //		  if (Math.abs((new_disp - ref_target)/new_disp) < refine_tolerance) return false;
 		  if (Math.abs(new_disp - ref_target) < refine_tolerance) return false;
-
 		  disparity_array[tileY][tileX] = new_disp;
 		  tile_op[tileY][tileX] = tile_op_all;
 		  return true;
@@ -4039,17 +4362,19 @@ if (debugLevel > -100) return true; // temporarily !
 
 
 	  private double [][] measureRig(
-			  QuadCLT                                        quadCLT_main,  // tiles should be set
-			  QuadCLT                                        quadCLT_aux,
-			  int [][]                                       tile_op, // common for both amin and aux
-			  double [][]                                    disparity_array,
-			  double [][]                                    ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
-			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
-			  double                                         fatzero,
-			  boolean                                        notch_mode, // use pole-detection mode for inter-camera correlation
-			  final int        threadsMax,  // maximal number of threads to launch
-			  final boolean    updateStatus,
-			  final int        debugLevel){
+			  QuadCLT                                  quadCLT_main,  // tiles should be set
+			  QuadCLT                                  quadCLT_aux,
+			  int [][]                                 tile_op, // common for both amin and aux
+			  double [][]                              disparity_array,
+			  double [][]                              ml_data,         // data for ML - 10 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
+			  EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  double                                   fatzero,
+			  boolean                                  notch_mode, // use pole-detection mode for inter-camera correlation
+			  int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
+			  boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
+			  final int                                threadsMax,  // maximal number of threads to launch
+			  final boolean                            updateStatus,
+			  final int                                debugLevel){
 		  ImageDtt image_dtt = new ImageDtt();
 
 		  double [][] disparity_bimap  = new double [ImageDtt.BIDISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
@@ -4057,7 +4382,9 @@ if (debugLevel > -100) return true; // temporarily !
 		  image_dtt.clt_bi_quad (
 				  clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				  fatzero,                              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
-				  notch_mode,                          //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+				  notch_mode,                           //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+				  lt_rad,                               // final int                                   lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+				  no_int_x0,                            // final boolean             no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 				  tile_op,                              // final int [][]            tile_op_main,    // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 				  disparity_array,                      // final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 				  quadCLT_main.image_data,              // final double [][][]       image_data_main, // first index - number of image in a quad
@@ -4093,6 +4420,7 @@ if (debugLevel > -100) return true; // temporarily !
 			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
 			  int                                            ml_hwidth,
 			  double                                         fatzero,
+			  int              lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel){
@@ -4160,6 +4488,8 @@ if (debugLevel > -100) return true; // temporarily !
 				  clt_parameters,   // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				  fatzero,          // double                                         fatzero,
 				  false,            //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+				  lt_rad,                              // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
+				  true,             // whatever here. final boolean             no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very
 				  threadsMax,       // maximal number of threads to launch // final int        threadsMax,  // maximal number of threads to launch
 				  updateStatus,     // final boolean    updateStatus,
 				  debugLevel);      // final int        debugLevel)

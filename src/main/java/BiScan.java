@@ -190,6 +190,7 @@ public class BiScan {
 
 
     	double [][] ds = new double[2][num_tiles];
+    	for (int i = 0; i < num_tiles; i++) ds[0][i] = Double.NaN;
 //    	double boost_low_density = 0.8; // 1.0; //0.2;
 		  suggestNewScan(
 				  disparityStrength, // final double [][] disparityStrength,
@@ -489,6 +490,7 @@ public class BiScan {
 	 * @param strength_pow raise strength to thyis power (normally just 1.0)
 	 * @param smpl_radius sample "radius", square side is  2 * smpl_radius + 1
 	 * @param smpl_num minimal absolute number of samples required to try fit a plane and validate a tile
+	 * If smpl_num == 0, faster calculation (single pass) using only *_narrow settings
 	 * @param smpl_fract minimal fraction number of the neighbor samples that fit the rms filter required to try fit a plane and validate a tile
 	 * @param smpl_num_narrow minimal absolute number of samples for preliminary fitting plane to trhe center area
 	 * @param max_adiff maximal absolute difference from the center tile for initial neighbors selection
@@ -675,9 +677,8 @@ public class BiScan {
 						}
 
 						int fin_samples= (int) ( nall * smpl_fract);
-						if (fin_samples < smpl_num) fin_samples = smpl_num;
-//						int fin_samples_narrow= (int) ( nall * smpl_fract_narrow);
-//						if (fin_samples_narrow < smpl_num) fin_samples_narrow = smpl_num_narrow;
+						// smpl_num == 0 - special (fast) case do not use wide selection at all
+						if ((smpl_num == 0) || (fin_samples < smpl_num)) fin_samples = smpl_num;
 
 						// fit plane to mostly centertiles
 						int nsmpls = nall;
@@ -695,6 +696,7 @@ public class BiScan {
 								smpl_p,             // double []               smpl_p, // will be set if provided
 								smpl_num_narrow,    // int                     fin_samples, // remove until this number remain
 								goal_fraction_rms*max_rms, // double                  fin_rms,
+								false,              // boolean                 keep_center, // do not remove center tile - it is the tile that should be verified by neighbors
 								fourq_min,          // int                     fourq_min,         // each of the 4 corners should have at least this number of tiles.
 								fourq_corner,       // int [] 	               fourq_corner, //  array specifying corner number (0..3), -1 - gap. null when not used
 								debugLevel);        // int                     debugLevel)
@@ -729,6 +731,7 @@ public class BiScan {
 										smpl_p,             // double []               smpl_p, // will be set if provided
 										smpl_num_narrow,    // int                     fin_samples, // remove until this number remain
 										goal_fraction_rms*max_rms,            // double                  fin_rms,
+										false,              // boolean                 keep_center, // do not remove center tile - it is the tile that should be verified by neighbors
 										fourq_min,          // int                     fourq_min,         // each of the 4 corners should have at least this number of tiles.
 										fourq_corner,       // int [] 	               fourq_corner, //  array specifying corner number (0..3), -1 - gap. null when not used
 										debugLevel);        // int                     debugLevel)
@@ -751,6 +754,7 @@ public class BiScan {
 										smpl_d,          // double [] smpl_d,
 										smpl_p);         // double [] smpl_p);
 						} //if (use_alt) {
+
 						// re-select tiles to fit the plane and use wide weights
 						double max_diff = max_adiff + max_rdiff * disp_mean; // no provisions for tilt (or add a fraction)?
 						nsmpls = 0;
@@ -761,26 +765,29 @@ public class BiScan {
 								smpl_w[indxs] = 0.0;
 							}
 						}
+						if (fin_samples > 0) {
 
-						if (nsmpls < fin_samples) { // no tiles even to satrt
-							continue; //
-						}
-						fit_rslt = fitPlaneRemoveOutliers(
-								smpl_radius,        // int                     smpl_radius,
-								max_tilt,           // double                  max_tilt,
-								damp_tilt,          // double                  damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
-								true,               // boolean                 full_plane,
-								smpl_d,             // double []               smpl_d,
-								smpl_w,             // double []               smpl_w, // will be modified,
-								smpl_p,             // double []               smpl_p, // will be set if provided
-								fin_samples,        // int                     fin_samples, // remove until this number remain
-								goal_fraction_rms*max_rms,            // double                  fin_rms,
-								fourq_min,          // int                     fourq_min,         // each of the 4 corners should have at least this number of tiles.
-								fourq_corner,       // int [] 	               fourq_corner, //  array specifying corner number (0..3), -1 - gap. null when not used
-								debugLevel);        // int                     debugLevel)
-//						if ( (fit_rslt == null) ||  (fit_rslt[0] > (smpl_arms + smpl_rrms * fit_rslt[1]))){
-						if ( (fit_rslt == null) ||  (fit_rslt[0] > max_rms)){
-							continue; // narrow selection - too high rms
+							if (nsmpls < fin_samples) { // no tiles even to satrt
+								continue; //
+							}
+							fit_rslt = fitPlaneRemoveOutliers(
+									smpl_radius,        // int                     smpl_radius,
+									max_tilt,           // double                  max_tilt,
+									damp_tilt,          // double                  damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
+									true,               // boolean                 full_plane,
+									smpl_d,             // double []               smpl_d,
+									smpl_w,             // double []               smpl_w, // will be modified,
+									smpl_p,             // double []               smpl_p, // will be set if provided
+									fin_samples,        // int                     fin_samples, // remove until this number remain
+									goal_fraction_rms*max_rms,            // double                  fin_rms,
+									false,              // boolean                 keep_center, // do not remove center tile - it is the tile that should be verified by neighbors
+									fourq_min,          // int                     fourq_min,         // each of the 4 corners should have at least this number of tiles.
+									fourq_corner,       // int [] 	               fourq_corner, //  array specifying corner number (0..3), -1 - gap. null when not used
+									debugLevel);        // int                     debugLevel)
+							//						if ( (fit_rslt == null) ||  (fit_rslt[0] > (smpl_arms + smpl_rrms * fit_rslt[1]))){
+							if ( (fit_rslt == null) ||  (fit_rslt[0] > max_rms)){
+								continue; // narrow selection - too high rms
+							}
 						}
 						boolean valid_suggestion = true;
 						if ((disparityStrength == null) && (new_diff > 0.0)) {
@@ -1139,6 +1146,7 @@ public class BiScan {
 						double [] smpl_d =    new double  [smpl_len];
 						double [] smpl_w =    new double  [smpl_len];
 						double [] smpl_p =    new double  [smpl_len]; // plane disparity,
+						boolean [] smpl_trusted = new boolean [smpl_len];
 						// copy neighbor tiles
 						double disp_center = ds[0][nTile];
 						double max_diff = max_adiff + max_rdiff * disp_center;
@@ -1155,10 +1163,11 @@ public class BiScan {
 							for (int dx = -smpl_radius; dx <= smpl_radius; dx++) {
 								int nTile1 =  tnImage.getNeibIndex(nTile, dx, dy);
 								if ((nTile1 >= 0) && cond_trusted[nTile1]) {
-									nall++;
 									int adx = (dx > 0)? dx:(-dx);
 									double max_fdiff = max_diff + (ady+adx) * max_tilt;
 									int smpl_indx = smpl_center + dy*smpl_side + dx;
+									smpl_trusted[smpl_indx] = true;
+									nall++;
 									if (Math.abs(ds[0][nTile1] - disp_center) <= max_fdiff) {
 //										smpl_sel[smpl_indx] = true;
 										smpl_d[smpl_indx] = ds[0][nTile1];
@@ -1186,6 +1195,7 @@ public class BiScan {
 									smpl_p,      // double []               smpl_p, // will be set if provided
 									fin_samples, // int                     fin_samples, // remove until this number remain
 									goal_fraction_rms*max_rms,    // double                  fin_rms,
+									true,        // boolean                 keep_center, // do not remove center tile - it is the tile that should be verified by neighbors
 									0,           // int                     fourq_min,         // each of the 4 corners should have at least this number of tiles.
 									null,        // int [] 	                fourq_corner, //  array specifying corner number (0..3), -1 - gap. null when not used
 									debugLevel); // int                     debugLevel)
@@ -1197,10 +1207,43 @@ public class BiScan {
 								continue;
 							}
 							// try 8 "halves" around the tile - it may be weak background close to the strong foreground (or stray FG tile)
-
+							for (int dir = 0; dir < halves.length; dir++) {
+								nsmpls = 0;
+								nall = 0;
+								smpl_w = new double [smpl_len];
+								for (int indxs = 0; indxs < smpl_len; indxs++) if (halves[dir][indxs]) {
+									if (smpl_trusted[indxs]) nall++;
+									if (smpl_w_persistent[indxs] > 0.0) {
+										smpl_w[indxs] = smpl_w_persistent[indxs];
+										nsmpls++;
+									}
+								}
+								fin_samples= (int) ( nall * smpl_fract);
+								if (fin_samples < smpl_num) fin_samples = smpl_num;
+								if (nsmpls >= fin_samples) {
+									fit_rslt = fitPlaneRemoveOutliers(
+											smpl_radius, // int                     smpl_radius,
+											max_tilt,    // double                  max_tilt,
+											damp_tilt,   // double                  damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
+											false,       // boolean                 full_plane,
+											smpl_d,      // double []               smpl_d,
+											smpl_w,      // double []               smpl_w, // will be modified,
+											smpl_p,      // double []               smpl_p, // will be set if provided
+											fin_samples, // int                     fin_samples, // remove until this number remain
+											goal_fraction_rms*max_rms,    // double                  fin_rms,
+											true,        // boolean                 keep_center, // do not remove center tile - it is the tile that should be verified by neighbors
+											0,           // int                     fourq_min,         // each of the 4 corners should have at least this number of tiles.
+											null,        // int [] 	                fourq_corner, //  array specifying corner number (0..3), -1 - gap. null when not used
+											debugLevel); // int                     debugLevel)
+									if ((fit_rslt != null) && (fit_rslt[0] < max_rms)){
+										// Trusted tile, save it
+										trusted[nTile] = true;
+										num_trusted_plane.getAndIncrement();
+										break; // from for (int dir = 0; dir < halves.length; dir++) {
+									}
+								}
+							}
 						}
-
-
 					}
 				}
 			};
@@ -1388,6 +1431,7 @@ public class BiScan {
 										smpl_p,      // double []               smpl_p, // will be set if provided
 										fin_samples, // int                     fin_samples, // remove until this number remain
 										goal_fraction_rms*max_rms,     // double                  fin_rms,
+										true,        // boolean                 keep_center, // do not remove center tile - it is the tile that should be verified by neighbors
 										0,           // int                     fourq_min,         // each of the 4 corners should have at least this number of tiles.
 										null,        // int [] 	               fourq_corner, //  array specifying corner number (0..3), -1 - gap. null when not used
 										debugLevel); // int                     debugLevel)
@@ -1549,6 +1593,7 @@ public class BiScan {
 	 * @param smpl_p approximated disparity values, may be null. When provided (not null), will have calculated disparity approximation
 	 * @param fin_samples remove until this number of tiles remain
 	 * @param fin_rms - OK RMS - exit if it is below (set to 0.0 if unknown yet)
+	 * @param keep_center do not remove center tile - it is the tile that should be verified by neighbors
 	 * @param fourq_min each of the 4 corners should have at least this number of tiles.
 	 * @param fourq_corner array specifying corner number (0..3), -1 - gap. null when not used
 	 * @param debugLevel debug level
@@ -1564,11 +1609,13 @@ public class BiScan {
 			double []               smpl_p, // will be set if provided
 			int                     fin_samples, // remove until this number remain
 			double                  fin_rms,
+			boolean                 keep_center, // do not remove center tile - it is the tile that should be verified by neighbors
 			int                     fourq_min,
 			int []                  fourq_corner,
 			int                     debugLevel)
 	{
 		int [] num_in_corners = ((fourq_corner == null) || (fourq_min == 0)) ? null: new int [5]; // last is not used
+		final int keep_tile = keep_center? (2*smpl_radius*(smpl_radius+1)): -1; // do not remove tile with this number
 		double [] disp_tilts = null;
 		final int        smpl_side = 2 * smpl_radius + 1; // Sample size (side of a square)
 		int num_in_sample = 0;
@@ -1620,6 +1667,9 @@ public class BiScan {
 				int iworst = -1;
 				double dworst2 = 0.0;
 				for (int indxs = 0; indxs < smpl_len; indxs++) if (smpl_w[indxs] > 0.0) {
+					if (indxs == keep_tile) { // it was the center tile disabled from removing
+						continue;
+					}
 					// verify that the worst tile will not leave the corner too empty
 					int num_corner = 4; // unused, gap
 					if (num_in_corners != null) {
@@ -1816,6 +1866,246 @@ public class BiScan {
 		}
 		double [] rslt = {approx2d[0][2], approx2d[0][0],approx2d[0][1]}; // {center, tiltX, tiltY
 		return rslt;
+	}
+
+	public double [] getDensity(
+			final boolean strong_only,
+			final int need_tiles,
+			final int max_radius,
+			final int dbg_x,
+			final int dbg_y,
+			final int debugLevel )
+	{
+		final int [][][] incr = {
+				{{ 1,-1},{ 0, 1}},  // top right corner, going down
+				{{ 1, 1},{-1, 0}},  // bottom right corner, going left
+				{{-1, 1},{ 0,-1}},  // bottom left corner, going up
+				{{-1,-1},{ 1, 0}}}; // top left corner, going right
+
+		final TileNeibs  tnImage = biCamDSI.tnImage;
+		final int dbg_tile = (debugLevel > -2)? (dbg_y * tnImage.sizeX + dbg_x):-1;
+		final boolean [] en = strong_only ? strong_trusted: trusted;
+    	final int num_tiles = en.length;
+    	final double [] density = new double[num_tiles];
+		final Thread[] threads = ImageDtt.newThreadArray(biCamDSI.threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) {
+						if (nTile == dbg_tile) {
+							System.out.println("getDensity(): nTile="+nTile);
+						}
+//						int num_tried = 0, num_found =0;
+						int sd = 0, sdr2 = 0, s0=0, sr2 = 0;
+						int dx = 0,dy = 0;
+						int r = 0;
+						label_snail: {
+							for (; r <= max_radius; r++) {
+								int nd = (r == 0) ? 1: 4;
+								int nl = (r == 0) ? 1: (2 * r);
+								for (int dir = 0; dir < nd; dir ++) {
+									for (int l = 0; l < nl; l++) {
+										dx = r * incr[dir][0][0] + l * incr[dir][1][0];
+										dy = r * incr[dir][0][1] + l * incr[dir][1][1];
+										int nTile1 = tnImage.getNeibIndex(nTile, dx,dy);
+										if (nTile1 >= 0) {
+											int r2 = dx*dx + dy*dy;
+											s0++;
+											sr2 += r2;
+											if (en[nTile1]) {
+												sd++;
+												sdr2 += r2;
+											}
+//											num_found++;
+											if (sd >= need_tiles) {
+												break label_snail;
+											}
+										}
+									}
+								}
+							}
+						}
+						int r02 = 2 * r * r;
+						int num = r02 * sd - sdr2;
+						int denom = r02 * s0 - sr2;
+//						int num = sd;
+//						int denom = s0;
+
+						if (denom > 0) {
+							density[nTile] = (1.0* num) / denom;
+						}
+					}
+				}
+			};
+		}
+		ImageDtt.startAndJoin(threads);
+		return density;
+	}
+
+	/**
+	 * Select low-textured tiles for averaging measurements
+	 * @param min_disparity minimal disparity to accept
+	 * @param max_density maximal trusted tile density (density varies from 0.0 to 1.0)
+	 * @param grow grow selection. When combined with shrink, fills small gaps. Both grow and shrink step
+	 * advances either horizontally or vertically (alternating), so to expand by 1 pixel in all directions
+	 *  the value should be set to 2,
+	 * @param shrink shrink selection after expanding to fill small gaps
+	 * @param density per-tile values of the density of trusted tiles around it.
+	 * @param src_disparity - source disparity array
+	 * @return selection of the low-textured tiles to be processed with averaging correlation (3x3 or 5x5 tiles)
+	 */
+	public boolean [] selectLowTextures(
+			double    min_disparity,
+			double    max_density,
+			int       grow,
+			int       shrink,
+			double [] density,
+			double [] src_disparity)
+	{
+		boolean [] selection = new boolean [density.length];
+		for (int nTile = 0; nTile < selection.length; nTile++) {
+			if ((src_disparity[nTile] >= min_disparity) && (density[nTile] <= max_density)) { // disparity has NaN-s, they will fail comparisons
+				selection[nTile] = true;
+			}
+		}
+		final TileNeibs  tnImage = biCamDSI.tnImage;
+
+		tnImage.growSelection(
+				grow, // int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				selection, // boolean [] tiles,
+				null); // boolean [] prohibit)
+		return selection;
+	}
+
+
+	/**
+	 * Fill the gaps (where provided src_disparity is NaN) and optionally smooth it using pull to the weighted average of 8 neighbors
+	 * @param src_disparity source disparity values, some may be undefined (Double.NaN)
+	 * @param src_strength optional strengths of the initial values (should be with floor subtracted)
+	 * @param selection tile selection to process
+	 * @param neib_pull pull of the average neighbor weight relative to the original disparity value of a tile. If 0 - only gaps
+	 *  (Double.NaN) values are filled, all the defined disparities remain as they were provided
+	 * @param max_iterations Maximal number of the iteration steps
+	 * @param min_change exit iterations when the maximal disparity change to a tile is less than this value
+	 * @param dbg_x debug tile X coordinate
+	 * @param dbg_y debug tile Y coordinate
+	 * @param debugLevel debug level
+	 * @return processed disparity and optional strength array. Normally only unselected tiles should remain Double.NaN, all other should be interpolated
+	 */
+	public double [][] fillAndSmooth(
+			final double [] src_disparity,
+			final double [] src_strength, // if not null will be used for weighted pull
+			final boolean [] selection,
+			final double     neib_pull, // pull to weighted average relative to pull to the original disparity value. If 0.0 - will only update former NaN-s
+			final int max_iterations,
+			final double min_change,
+			final int dbg_x,
+			final int dbg_y,
+			final int debugLevel) {
+		final double [] weights = {1.0, 0.7}; // {ortho, corners},
+		final boolean adjust_all = (neib_pull > 0.0);
+		final double fneib_pull = adjust_all ? neib_pull: 1.0;
+		final TileNeibs  tnImage = biCamDSI.tnImage;
+		final int dbg_tile = (debugLevel > -2)? (dbg_y * tnImage.sizeX + dbg_x):-1;
+    	final int num_tiles = src_disparity.length;
+		final Thread[] threads = ImageDtt.newThreadArray(biCamDSI.threadsMax);
+		// max_changes may have Double.NaN value (here meaning larger than any)
+		final double [] max_changes = new double [biCamDSI.threadsMax]; // Each thread provides its own maximal change, then they are combined
+		final double [] disparity = src_disparity.clone();
+		final double [] new_disparity = src_disparity.clone();
+		final double [] strength = (src_strength != null)? src_strength: null; // new double [src_disparity.length];
+		final double [] new_strength = (src_strength != null)? src_disparity.clone(): null;
+//		if (src_strength == null) for (int i = 0; i < strength.length; i++) if (selection[i] && !Double.isNaN(src_disparity[i])) strength[i] = 1.0;
+		final AtomicInteger ai = new AtomicInteger(0);
+		final AtomicInteger ai_numThread = new AtomicInteger(0);
+		for (int num_iter = 0; num_iter < max_iterations; num_iter++) {
+			ai.set(0);
+			ai_numThread.set(0);
+			for (int i = 0; i < max_changes.length; i++) max_changes[i] = 0.0;
+			final int fnum_iter = num_iter;
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					@Override
+					public void run() {
+						int numThread = ai_numThread.getAndIncrement(); // unique number of thread to write to max_changes[numThread]
+//						max_changes[numThread]
+						for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) if (selection[nTile]){
+							if (nTile == dbg_tile) {
+								System.out.println("fillAndSmooth(): iteration "+fnum_iter+" nTile="+nTile);
+							}
+							if (!adjust_all && !Double.isNaN(src_disparity[nTile])) {
+// nothing to do - new_disparity and new_strength are already same as new_*
+							} else {
+								double sw=0.0, swd =0.0, sww = 0.0;
+
+
+								for (int dir = 0; dir < 8; dir++) {
+									int nTile1 = tnImage.getNeibIndex(nTile, dir);
+									if (nTile1 >= 0) {
+										double w = weights[dir & 1];
+										double s = (strength == null) ? 1.0 : (Math.max(strength[nTile1], 0.0));
+										double d = disparity[nTile1];
+										double ww = w * s;
+										if ((ww > 0.0) && !Double.isNaN(d)) {
+											sw += w;
+											sww += ww;
+											swd += ww * d;
+										}
+									}
+								}
+								if (sww > 0.0) { // then sw
+									double d_mean = swd/sww;
+									double w_mean = sww/sw;
+									if (Double.isNaN(src_disparity[nTile])) {
+										new_disparity[nTile] =  d_mean;
+										if (strength != null) {
+											new_strength[nTile] = w_mean;
+										}
+									} else {
+										double pull_origin = (strength==null)? 1.0: strength[nTile];
+										new_disparity[nTile] =  (d_mean *(neib_pull * w_mean) + src_disparity[nTile] * pull_origin)/((neib_pull * w_mean) + pull_origin);
+										if (strength != null) {
+											new_strength[nTile] =  (w_mean * neib_pull + src_strength[nTile])/(neib_pull + 1);
+										}
+									}
+									double adiff = Math.abs(new_disparity[nTile] - disparity[nTile]); // disparity[nTile] may be NaN then adiff will be NaN as intended
+									if (!(adiff < max_changes[numThread])) {
+										max_changes[numThread] = adiff; // NaN will be copied
+									}
+								}
+							}
+						}
+					}
+				};
+			}
+			ImageDtt.startAndJoin(threads);
+			System.arraycopy(new_disparity, 0, disparity, 0, num_tiles);
+			if (strength != null) {
+				System.arraycopy(new_strength, 0, strength, 0, num_tiles);
+			}
+			double change = 0.0;
+			for (int i = 0; i < ai_numThread.get(); i++) {
+				if (Double.isNaN(max_changes[i]) || (change < max_changes[i])) { // max_changes[i] may be NaN
+					change = max_changes[i];
+					if (!(change <= min_change)) { // change may be NaN
+						if (debugLevel < -2) {
+							// may exit here, continue to get debug info
+							break;
+						}
+					}
+				}
+			}
+			if (debugLevel > -2) {
+				System.out.println("fillAndSmooth(): iteration "+fnum_iter+" change="+change+" (min_change="+min_change+")");
+			}
+			if (change <= min_change) { // change may be NaN
+				break; // from the main loop
+			}
+		}
+		double [][] ds = {disparity,strength}; // strength may be null
+		return ds;
 	}
 
 

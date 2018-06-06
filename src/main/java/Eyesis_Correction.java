@@ -5100,8 +5100,11 @@ private Panel panel1,
 
 			TWO_QUAD_CLT.showBiScan(
 					QUAD_CLT,        // QuadCLT            quadCLT_main,  // tiles should be set
+					QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
 					CLT_PARAMETERS,  //   EyesisCorrectionParameters.CLTParameters       clt_parameters,
-					DEBUG_LEVEL);    //  final int                                      debugLevel) //  throws Exception
+					THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+					UPDATE_STATUS, //final boolean    updateStatus,
+					DEBUG_LEVEL); //final int        debugLevel);
 			return true;
 	 }
 	 public boolean processPoles() {

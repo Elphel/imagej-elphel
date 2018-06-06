@@ -7194,7 +7194,9 @@ public class ImageDtt {
 	 * @param debugLevel debug level
 	 * @return
 	 */
+
 	public double [] tileInterCamCorrs(
+			final boolean                                   no_int_x0, // do not offset window to integer - used when averaging low textures to avoid "jumps" for very wide
 			final EyesisCorrectionParameters.CLTParameters  clt_parameters,
 			final double                                    fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 			final Correlation2d                             corr2d,
@@ -7209,8 +7211,6 @@ public class ImageDtt {
 			final int             							tileX, // only used in debug output
 			final int             							tileY,
 			final int             							debugLevel) {
-		int strip_hight = notch_mode? clt_parameters.img_dtt.corr_strip_notch : clt_parameters.img_dtt.corr_strip_hight;
-		double [] result = {Double.NaN,  0.0, Double.NaN, Double.NaN};
 		double [] inter_cam_corr = corr2d.correlateInterCamerasFD(
 				clt_data_tile_main,       // double [][][][]     clt_data_tile_main,
 				clt_data_tile_aux,        // double [][][][]     clt_data_tile_aux,
@@ -7218,12 +7218,76 @@ public class ImageDtt {
 	    		col_weights,              // double []           col_weights,
 	    		fatzero);                 // double              fat_zero)
 
+		return tileInterCamCorrs(
+				no_int_x0, // do not offset window to integer - used when averaging low textures to avoid "jumps" for very wide
+				clt_parameters, // final EyesisCorrectionParameters.CLTParameters  clt_parameters,
+				inter_cam_corr, // final double []                                 inter_cam_corr,
+				corr2d,         // final Correlation2d                             corr2d,
+				ml_hwidth,      // final int                                       ml_hwidth,
+				ml_center_corr, // final double []                                 ml_center_corr,
+				tcorr_combo,    // final double [][]                               tcorr_combo,
+				notch_mode,     // final boolean                                   notch_mode,
+				tileX,          // final int             							tileX, // only used in debug output
+				tileY,          // final int             							tileY,
+				debugLevel);    // final int             							debugLevel);
+
+	}
+
+	public double [] tileInterCamCorrs(
+			final boolean                                   no_int_x0, // do not offset window to integer - used when averaging low textures to avoid "jumps" for very wide
+			// maximums. That reduces the residual disparity, but works continuously when it is known the maximum should be near zero
+			final EyesisCorrectionParameters.CLTParameters  clt_parameters,
+			final double []                                 inter_cam_corr,
+			final Correlation2d                             corr2d,
+    		final int                                       ml_hwidth,
+    		final double []                                 ml_center_corr,
+			final double [][]                               tcorr_combo,
+			final boolean                                   notch_mode,
+			final int             							tileX, // only used in debug output
+			final int             							tileY,
+			final int             							debugLevel) {
+		int strip_hight = notch_mode? clt_parameters.img_dtt.corr_strip_notch : clt_parameters.img_dtt.corr_strip_hight;
+		double [] result = {Double.NaN,  0.0, Double.NaN, Double.NaN};
+
+// using exacltly as for main/aux
+
+		int all_pairs = 1;
+		double [][] corrs = { inter_cam_corr}; // single-channel
+	    double [][] strips = corr2d.scaleRotateInterpoateCorrelations(
+	    		corrs,                          // double [][] correlations,
+	    		all_pairs,                      // int         pairs_mask,
+	    		clt_parameters.img_dtt.corr_strip_hight, //);    // int         hwidth);
+	    		(debugLevel > 0) ? all_pairs:0); // debugMax);
+
+	    // Combine strips for selected pairs. Now using only for all available pairs.
+	    // Other combinations are used only if requested (clt_corr_partial != null)
+
+	    double [] stripe_combo = corr2d.combineInterpolatedCorrelations(
+	    		strips,                                 // double [][] strips,
+	    		all_pairs,                              // int         pairs_mask,
+	    		clt_parameters.img_dtt.corr_offset,     // double      offset);
+	    		clt_parameters.img_dtt.twice_diagonal); //    		boolean     twice_diagonal)
+
+
+	    // calculate CM maximums for all mixed channels
+	    // First get integer correlation center, relative to the center
+		int [] ixy_combo =  corr2d.getMaxXYInt( // find integer pair or null if below threshold
+				stripe_combo,              // double [] data,
+				true,                     // boolean   axis_only,
+// reduce minimal weight when averaging
+				(no_int_x0?0.5:1.0) * clt_parameters.img_dtt.min_corr,   //  double    minMax,    // minimal value to consider (at integer location, not interpolated)
+				debugLevel > 0); // boolean   debug);
+
+		double [] stripe_inter = stripe_combo;
+		int [] ixy =  ixy_combo;
+/*
 		double [] stripe_inter = corr2d. scaleRotateInterpoateSingleCorrelation(
 				inter_cam_corr,                           // double []   corr,
 				strip_hight,                              // int         hwidth,
 				Correlation2d.PAIR_HORIZONTAL,            // int         dir, // 0 - hor, 1 - vert, 2 - parallel to row = col (main) diagonal (0->3), 3 -2->1
 				1,                                        // int         ss,
 				(debugLevel > 0));                        // boolean     debug
+*/
 		if (ml_center_corr != null) {
 			corr2d.corrCenterValues(
 					ml_hwidth,
@@ -7244,11 +7308,13 @@ public class ImageDtt {
 
 	    // First get integer correlation center, relative to the center
 // TODO: multiply/acummulate by Y window?
+/*
 		int [] ixy =  corr2d.getMaxXYInt(            // find integer pair or null if below threshold
 				stripe_inter,                        // double [] data,
 				true,                                // boolean   axis_only, for strip it is always true
 				clt_parameters.img_dtt.min_corr,     //  double    minMax,    // minimal value to consider (at integer location, not interpolated)
 				debugLevel > 0); // boolean   debug);
+*/
 		double [] corr_stat = null;
 		// if integer argmax was strong enough, calculate CM argmax
 		// will not fill out DISPARITY_INDEX_INT+1, DISPARITY_INDEX_CM+1, DISPARITY_INDEX_POLY+1
@@ -7267,14 +7333,14 @@ public class ImageDtt {
 			if (notch_mode) {
 				corr_stat = corr2d.getMaxXCmNotch( // get fractional center as a "center of mass" inside circle/square from the integer max
 						stripe_inter,              // double [] data,      // [data_size * data_size]
-						ixy[0],                    // int       ixcenter,  // integer center x
+						0, // ixy[0],                    // int       ixcenter,  // integer center x
 						// corr_wndy,              // double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
 						// corr_wndx,              // double [] window_x,  // half of a window function in x (disparity) direction
 						(debugLevel > 0));         // boolean   debug);
 			} else {
 				corr_stat = corr2d.getMaxXCm(      // get fractional center as a "center of mass" inside circle/square from the integer max
 						stripe_inter,              // double [] data,      // [data_size * data_size]
-						ixy[0],                    // int       ixcenter,  // integer center x
+						(no_int_x0 ? 0:ixy[0]), // 0, // ixy[0],                    // int       ixcenter,  // integer center x
 						// corr_wndy,              // double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
 						// corr_wndx,              // double [] window_x,  // half of a window function in x (disparity) direction
 						(debugLevel > 0));         // boolean   debug);
@@ -7288,7 +7354,7 @@ public class ImageDtt {
 			}
 
 
-			disparity = -corr_stat[0];
+			disparity = -corr_stat[0]; // yes, uses this value
 			result[INDEX_DISP] = disparity;
 			double eff_radius = corr_stat[2] * clt_parameters.img_dtt.cm_max_normalization;
 			strength = corr_stat[1]/(eff_radius * eff_radius); // total mass by square effective radius
@@ -7342,7 +7408,7 @@ public class ImageDtt {
 								clt_parameters.img_dtt, //  ImageDttParameters  imgdtt_params,
 								inter_cam_corr, // double []           corr,
 								// See if -disparity should be here as in mismatch
-								0.0, // double              xcenter,   // -disparity to compare. use 0?
+								0.0, // double              xcenter,   // -disparity to compare. use 0? //-ixy[0], //
 								clt_parameters.max_corr_radius, // double              vasw_pwr,  // value as weight to this power,
 								debugLevel, // int                 debug_level,
 								tileX, // int                 tileX,
@@ -7730,6 +7796,8 @@ public class ImageDtt {
 			final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 			final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 			final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+			final int                 lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
+			final boolean             no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
 			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
 			final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
 			final double [][][]       image_data_main, // first index - number of image in a quad
@@ -7773,6 +7841,8 @@ public class ImageDtt {
 			clt_bidata[0] = new double[quad_main][nChn][tilesY][tilesX][][];
 			clt_bidata[1] = new double[quad_aux][nChn][tilesY][tilesX][][];
 		}
+
+		final double [][] lt_corr = (lt_rad > 0)? (new double [nTilesInChn][]):null; // will keep inter-camera combo correlation, later combined in a separate multi-thread run
 
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
@@ -8195,22 +8265,31 @@ public class ImageDtt {
 							if (clt_corr_combo != null) { // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
 								tcorr_combo = new double [TCORR_TITLES.length][corr_size * corr_size];
 							}
+							double [] inter_cam_corr = corr2d.correlateInterCamerasFD(
+									clt_data_main,       // double [][][][]     clt_data_tile_main,
+									clt_data_aux,        // double [][][][]     clt_data_tile_aux,
+						    		filter,                   // double []           lpf,
+						    		col_weights,              // double []           col_weights,
+						    		fatzero);                 // double              fat_zero)
 
 							double [] inter_corrs_dxy = tileInterCamCorrs(
-									clt_parameters,    // final EyesisCorrectionParameters.CLTParameters  clt_parameters,
-									fatzero,           // final double          fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
-									corr2d,            // final Correlation2d                             corr2d,
-									clt_data_main,     // double [][][][]                                 clt_data_tile_main,
-									clt_data_aux,      // double [][][][]                                 clt_data_tile_aux,
-									filter,            // final double []       							filter,
-									col_weights,       // final double []       							col_weights,
-									ml_hwidth,         // final int                                        ml_hwidth,
-						    		ml_data_inter,     // final double []                                 ml_center_corr,
-									tcorr_combo,       // double [][]                                     tcorr_combo,
-									notch_mode,        // final boolean                                   notch_mode,
+									no_int_x0,             // final boolean                                   no_int_x0, // do not offset window to integer - used when averaging low textures to avoid "jumps" for very wide
+									clt_parameters,        // final EyesisCorrectionParameters.CLTParameters  clt_parameters,
+									inter_cam_corr,        // final double []                                 inter_cam_corr,
+									corr2d,                // final Correlation2d                             corr2d,
+									ml_hwidth,             // final int                                       ml_hwidth,
+						    		ml_data_inter,         // final double []                                 ml_center_corr,
+									tcorr_combo,           // double [][]                                     tcorr_combo,
+									notch_mode,            // final boolean                                   notch_mode,
 									tileX,                 // final int              tileX, // only used in debug output
 									tileY,                 // final int              tileY,
 									tile_lma_debug_level); // final int              debugLevel)
+
+							if (lt_corr != null) {
+								lt_corr[tIndex] = inter_cam_corr;
+							}
+
+
 							if (inter_corrs_dxy != null) {
 								disparity_bimap[BI_DISP_CROSS_INDEX][nTile] =    inter_corrs_dxy[INDEX_DISP];
 								disparity_bimap[BI_STR_CROSS_INDEX][nTile] =     inter_corrs_dxy[INDEX_STRENGTH];
@@ -8254,7 +8333,7 @@ public class ImageDtt {
 							    		ML_INTER_INDEX,                // int         ml_layer,
 							    		ml_data_inter,                 // double []   ml_tile,
 							    		tilesX);                       // int         tilesX);
-								// save oter data (just 1 value)
+								// save other data (just 1 value)
 /*
 								corr2d.saveMlTile(
 							    		tileX,                         // int         tileX,
@@ -8277,6 +8356,7 @@ public class ImageDtt {
 
 								if (ml_data_dbg1 != null) {
 									tileInterCamCorrs(
+											false,             // final boolean                                   no_int_x0, // do not offset window to integer - used when averaging low textures to avoid "jumps" for very wide
 											clt_parameters,    // final EyesisCorrectionParameters.CLTParameters  clt_parameters,
 											fatzero,           // final double fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 
@@ -8365,16 +8445,116 @@ public class ImageDtt {
 			};
 		}
 		startAndJoin(threads);
-/*
-		if (dbg_ports_coords != null) {
-			(new showDoubleFloatArrays()).showArrays(dbg_ports_coords,  tilesX, tilesY, true, "ports_coordinates", dbg_titles);
+
+// If it was low-texture mode, 	use lt_corr to average bi-quad inter-correlation between neighbor tiles and then calculate disparity/strength
+		if (lt_corr != null) {
+			// prepare weights for neighbors
+			final double [][] neib_weights = new double[lt_rad+1][lt_rad+1];
+			for (int i = 0; i <= lt_rad; i++) {
+				for (int j = 0; j <= lt_rad; j++) {
+					neib_weights[i][j] = Math.cos(Math.PI * i /(2 * lt_rad + 1)) * Math.cos(Math.PI * j /(2 * lt_rad + 1)); // no need to normalize - it will need to skip empty tiles anyway
+				}
+			}
+			//		final int corr_size = clt_parameters.transform_size * 2 -1;
+
+			final TileNeibs tnImage  = new TileNeibs(tilesX, tilesY);
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					@Override
+					public void run() {
+						double []    ml_data_inter = (ml_data != null)? new double [(2*ml_hwidth +1)*(2*ml_hwidth +1)]:null;
+						double [][]  tcorr_combo =     null; // [15*15] pixel space
+
+						Correlation2d corr2d = new Correlation2d(
+								clt_parameters.img_dtt,              // ImageDttParameters  imgdtt_params,
+								clt_parameters.transform_size,             // int transform_size,
+								2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
+								(globalDebugLevel > -1));   //   boolean debug)
+						for (int nTile = ai.getAndIncrement(); nTile < nTilesInChn; nTile = ai.getAndIncrement()) if (lt_corr[nTile] != null){ // center must be non-null (from tile_op)
+							int tileX = nTile % tilesX;
+							int tileY = nTile / tilesX;
+							double [] tile_corrs = new double [corr_size * corr_size];
+							double sw = 0.0;
+							for (int dy = -lt_rad; dy <= lt_rad; dy++) {
+								int ady = (dy > 0)? dy:(-dy);
+								for (int dx = -lt_rad; dx <= lt_rad; dx++) {
+									int nTile1 =  tnImage.getNeibIndex(nTile, dx, dy);
+									if (nTile1 >= 0) {
+										double [] ot_corr = lt_corr[nTile1];
+										if (ot_corr != null) {
+											int adx = (dx > 0)? dx:(-dx);
+											double nw = neib_weights[ady][adx];
+											for (int i = 0; i < tile_corrs.length; i++) {
+												tile_corrs[i] += nw * ot_corr[i];
+											}
+											sw+=nw;
+										}
+									}
+								}
+							}
+							if (sw > 0.0) { // with the current window should always be so, as te center tile is non-null
+								double s = 1.0/sw;
+								for (int i = 0; i < tile_corrs.length; i++) {
+									tile_corrs[i] *= s;
+								}
+								if (clt_corr_combo != null) { // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+									tcorr_combo = new double [TCORR_TITLES.length][corr_size * corr_size];
+								}
+								int tile_lma_debug_level =  ((tileX == debug_tileX) && (tileY == debug_tileY))? clt_parameters.img_dtt.lma_debug_level : -1;
+
+	  							double [] inter_corrs_dxy = tileInterCamCorrs(
+										true,                  // final boolean                                   no_int_x0, // do not offset window to integer - used when averaging low textures to avoid "jumps" for very wide
+										clt_parameters,        // final EyesisCorrectionParameters.CLTParameters  clt_parameters,
+										tile_corrs,            // final double []                                 inter_cam_corr,
+										corr2d,                // final Correlation2d                             corr2d,
+										ml_hwidth,             // final int                                       ml_hwidth,
+							    		ml_data_inter,         // final double []                                 ml_center_corr,
+										tcorr_combo,           // double [][]                                     tcorr_combo,
+										notch_mode,            // final boolean                                   notch_mode,
+										tileX,                 // final int              tileX, // only used in debug output
+										tileY,                 // final int              tileY,
+										tile_lma_debug_level); // final int              debugLevel)
+								if (inter_corrs_dxy != null) {
+									disparity_bimap[BI_DISP_CROSS_INDEX][nTile] =    inter_corrs_dxy[INDEX_DISP];
+									disparity_bimap[BI_STR_CROSS_INDEX][nTile] =     inter_corrs_dxy[INDEX_STRENGTH];
+									disparity_bimap[BI_DISP_CROSS_DX_INDEX][nTile] = inter_corrs_dxy[INDEX_DX];
+									disparity_bimap[BI_DISP_CROSS_DY_INDEX][nTile] = inter_corrs_dxy[INDEX_DY];
+									// TODO: Use strength for the same residual disparity
+									disparity_bimap[BI_STR_ALL_INDEX][nTile] =
+											Math.pow(inter_corrs_dxy[INDEX_STRENGTH]*
+											disparity_bimap[BI_STR_FULL_INDEX][nTile]*
+											disparity_bimap[BI_ASTR_FULL_INDEX][nTile], 1.0/3);
+								}
+								if (tcorr_combo != null) { // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+									for (int i = 0; i < tcorr_combo.length; i++) {
+										clt_corr_combo[i][tileY][tileX] = tcorr_combo[i];
+									}
+								}
+								if (ml_data != null) {
+									// save inter-camera correlation
+									corr2d.saveMlTile(
+											tileX,                         // int         tileX,
+											tileY,                         // int         tileY,
+											ml_hwidth,                     // int         ml_hwidth,
+											ml_data,                       // double [][] ml_data,
+											ML_INTER_INDEX,                // int         ml_layer,
+											ml_data_inter,                 // double []   ml_tile,
+											tilesX);                       // int         tilesX);
+								}
+								// TODO: save ml_data_inter, tcorr_combo
+							}
+						}
+					}
+				};
+			}
+			startAndJoin(threads);
 		}
-*/
 		return  clt_bidata;
 	}
 
 
-	public void  clt_bi_macro(
+	public void  clt_bi_macro( // not yet operational
 			final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 			final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 			final int                 macro_scale,
@@ -8657,6 +8837,7 @@ public class ImageDtt {
 //     * @param clt_data_tile_main aberration-corrected FD CLT data for one tile of the main quad camera  [sub-camera][color][quadrant][index]
 
 							double [] inter_corrs_dxy = tileInterCamCorrs(
+									false,             // final boolean                                   no_int_x0, // do not offset window to integer - used when averaging low textures to avoid "jumps" for very wide
 									clt_parameters,    // final EyesisCorrectionParameters.CLTParameters  clt_parameters,
 									fatzero,           // final double                                    fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 									corr2d,            // final Correlation2d                             corr2d,

@@ -26,10 +26,11 @@ import java.util.Properties;
 
 public class BiQuadParameters {
 	public boolean rig_mode_debug =            true;
+	public boolean no_int_x0 =                 true; // do not offset window to integer maximum for the rig - used when averaging low textures to avoid "jumps" for very wide maximums
 	public boolean use_poly =                  true;
 	public boolean use_xy_poly =               true;
 
-	public double  min_poly_strength =         0.2;
+	public double  min_poly_strength =         0.2; // never
 	public double  min_xy_poly_strength =      1.0; // never
 	public double  inf_min_strength_main =     0.12;
 	public double  inf_min_strength_aux =      0.12;
@@ -72,6 +73,7 @@ public class BiQuadParameters {
 	public double  trusted_tolerance  =        1.0;    // Trusted tolerance for small baseline camera(s)
 
 	// rig LT (poor textured areas)
+	public int     lt_avg_radius =             0;      // average multiple tiles disparity (only used in certain modes)
 	public double  lt_min_disparity =          0.0;    // apply low texture to near objects
 	public double  lt_trusted_strength =       0.2;    // strength sufficient without neighbors
 	public double  lt_strength_rfloor =        0.28;   // fraction of trusted strength to subtract
@@ -146,7 +148,21 @@ public class BiQuadParameters {
 	public double     pf_new_diff =               0.5;    // Minimal disparity (in master camera pixels) difference between the new suggested and the already tried/measured one
 	public int        pf_min_new =                5;      // Minimal number of he new tiles during rig refine for plane filter
 
-
+	public boolean    ltavg_en =                  true;   // apply low texture correlation averaging
+	public int        ltavg_radius =              1;      // low texture averaging radius
+	public  boolean   ltavg_dens_strong =         true;   // density calculation - consider only strong tiles
+	public int        ltavg_dens_tiles =          20;     // density calculation - number of required tiles
+	public int        ltavg_dens_radius =         20;     // density calculation - maximal radius to look for occupied tiles
+	// filtering lt candidates
+	public double     ltavg_min_disparity =      -1.0;    // any
+	public double     ltavg_max_density =         0.1;
+	public int        ltavg_grow =                4;      // each 2 add 8 directions step. Odd have last step in 4 ortho directions only.
+	public int        ltavg_shrink =              2;      // shrink after expanding. Combination of both fills small gaps
+	// smoothing parameters
+	public boolean    ltavg_smooth_strength =     false;  // provide tile strength when smoothing target disparity
+	public double     ltavg_neib_pull =           0.2;    // pull to weighted average relative to pull to the original disparity value. If 0.0 - will only update former NaN-s
+	public int        ltavg_max_iter =           20;      //
+	public double     ltavg_min_change =          0.01;   //
 
 // Rig ltfar - recovering far objects that could not be resolved with just a single quad camera
 	public boolean ltfar_en =                 true;   // Enable recovering far objects over infinity area
@@ -205,6 +221,9 @@ public class BiQuadParameters {
 
 	public void dialogQuestions(GenericJTabbedDialog gd) {
 		gd.addCheckbox    ("Debug rig/bi-camera functionality ",                              this.rig_mode_debug,"Enable debugging of the methods related to dual camera rig");
+		gd.addCheckbox    ("Do not offset window to integer maximum for the rig (CM mode)",   this.no_int_x0,
+				"For the very wide/low strength maximums changing window from integer maximum causes \"jumps\" in the result, so this offset is automatically disabled in refine mode."+
+				" It is still useful for large offsets, and can be manually disabled with this parameter (rig only, not used for a single quad camera)");
 		gd.addCheckbox    ("Use poly for main/aux/rig correlations (false - CM)",             this.use_poly,"Use LMA/polynomial if correlation is strong enough");
 		gd.addCheckbox    ("Use poly for rig X/Y mismatch measurements",                      this.use_xy_poly,"Use polynomial forX/Y offset measurements if correlation is strong enough");
 
@@ -286,6 +305,8 @@ public class BiQuadParameters {
 
         gd.addTab("Rig LT","Deal with the low textured areas");
 
+		gd.addNumericField("Average multiple tiles disparity (only used in certain modes)",                       this.lt_avg_radius,  0,3,"",
+				"Replace bi-quad correlation/strength with average over a sample square : 0 - avg off, 1 - 3x3, 2 - 5x5, ...");
 		gd.addNumericField("Apply low texture to near objects (disparity above)",                                 this.lt_min_disparity,  3,6,"pix",
 				"Handle low textured objects with disparity (main camera pixels) above this threshold");
 		gd.addNumericField("Inter-camera correlation strength sufficient without neighbors",                      this.lt_trusted_strength,  3,6,"",
@@ -424,6 +445,33 @@ public class BiQuadParameters {
 		gd.addNumericField("Minimal refined tiles during plane filter",                                           this.pf_min_new,  0,3,"",
 				"Repeat refine antill less tiles are updated");
 
+		gd.addTab("LT Avg","Low texture correlatinaveraging");
+
+		gd.addCheckbox    ("Apply low texture correlation averaging",                                             this.ltavg_en,
+				"Improve low textures by averaging 2-d correlation results");
+		gd.addNumericField("Low texture correlation averaging radius",                                            this.ltavg_radius,  0,3,"tiles",
+				"Averaging will be over a square (2 * radius + 1) * (2 * radius + 1) tiles");
+		gd.addCheckbox    ("Consider only strong tiles during density calculation",                               this.ltavg_dens_strong,
+				"Low textured areas have low density of trusted disparities. Checked - consider only strong tiles, unchecked - any trusted tiles");
+		gd.addNumericField("Number of trusted tiles needed to calculate density",                                 this.ltavg_dens_tiles,  0,3,"",
+				"Density is calculated over a spiral around the processed tile until this number of trusted tiles are traversed");
+		gd.addNumericField("Maximal radius of a spiral to look for occupied tiles",                               this.ltavg_dens_radius,  0,3,"tiles",
+				"Abandon spiral if it grows to big");
+		gd.addNumericField("Only try to process low textures closer than certain disparity",                      this.ltavg_min_disparity,  4,6,"pix",
+				"May be used to mask out infinity background");
+		gd.addNumericField("Maximal density to consider it to be low textured area",                              this.ltavg_max_density,  4,6,"",
+				"Select areas with lower density");
+		gd.addNumericField("Grow selection, each two units get expanion in 8 directions",                         this.ltavg_grow,  0,3,"",
+				"Two steps give one-tile expansion in 8 directions, odd numbers expand only in 4 ortho directions on the last expansion");
+		gd.addNumericField("Shrink selection after growing",                                                      this.ltavg_shrink,  0,3,"",
+				"Grow followed by shring fill small gaps");
+		gd.addCheckbox    ("Use tile strengths when filling gaps/smoothing",                                      this.ltavg_smooth_strength,
+				"Unchecked - consider all tiles to have the same strength");
+		gd.addNumericField("Relative pull of the nieghbor tiles compared to the original disparity" ,             this.ltavg_neib_pull,  4,6,"",
+				"If set to 0.0 - only gaps will be filled, defined disparities will not be modified");
+		gd.addNumericField("Maximal number of smoothing / gap filling iterations to perform",                     this.ltavg_max_iter,  0,3,"",
+				"Safety limit for smoothing iterations ");
+		gd.addNumericField("Minimal disparity change to continue smoothing",                                      this.ltavg_min_change,  4,6,"pix","");
 
 		gd.addTab("Rig Far","Parameters related to the ML files generation for the dual-quad camera rig");
 		gd.addCheckbox    ("Enable recovering far objects over infinity area",                                     this.ltfar_en,
@@ -512,6 +560,7 @@ public class BiQuadParameters {
 	}
 	public void dialogAnswers(GenericJTabbedDialog gd) {
 		this.rig_mode_debug=                gd.getNextBoolean();
+		this.no_int_x0=                     gd.getNextBoolean();
 		this.use_poly=                      gd.getNextBoolean();
 		this.use_xy_poly=                   gd.getNextBoolean();
 		this.min_poly_strength=             gd.getNextNumber();
@@ -553,6 +602,7 @@ public class BiQuadParameters {
 		this.num_near_refine=         (int) gd.getNextNumber();
 		this.min_trusted_strength=          gd.getNextNumber();
 		this.trusted_tolerance=             gd.getNextNumber();
+		this.lt_avg_radius=           (int) gd.getNextNumber();
 
 		this.lt_min_disparity=              gd.getNextNumber();
 		this.lt_trusted_strength=           gd.getNextNumber();
@@ -621,6 +671,20 @@ public class BiQuadParameters {
 		this.pf_new_diff=                   gd.getNextNumber();
 		this.pf_min_new=              (int) gd.getNextNumber();
 
+		this.ltavg_en=                      gd.getNextBoolean();
+		this.ltavg_radius=            (int) gd.getNextNumber();
+		this.ltavg_dens_strong=             gd.getNextBoolean();
+		this.ltavg_dens_tiles=        (int) gd.getNextNumber();
+		this.ltavg_dens_radius=       (int) gd.getNextNumber();
+		this.ltavg_min_disparity=           gd.getNextNumber();
+		this.ltavg_max_density=             gd.getNextNumber();
+		this.ltavg_grow=              (int) gd.getNextNumber();
+		this.ltavg_shrink=            (int) gd.getNextNumber();
+		this.ltavg_smooth_strength=         gd.getNextBoolean();
+		this.ltavg_neib_pull=               gd.getNextNumber();
+		this.ltavg_max_iter=          (int) gd.getNextNumber();
+		this.ltavg_min_change=              gd.getNextNumber();
+
 		this.ltfar_en=                      gd.getNextBoolean();
 		this.ltfar_auto_floor=              gd.getNextBoolean();
 		this.ltfar_min_disparity=           gd.getNextNumber();
@@ -663,6 +727,7 @@ public class BiQuadParameters {
 
 	public void setProperties(String prefix,Properties properties){
 		properties.setProperty(prefix+"rig_mode_debug",            this.rig_mode_debug+"");
+		properties.setProperty(prefix+"no_int_x0",                 this.no_int_x0+"");
 		properties.setProperty(prefix+"use_poly",                  this.use_poly+"");
 		properties.setProperty(prefix+"use_xy_poly",               this.use_xy_poly+"");
 		properties.setProperty(prefix+"min_poly_strength",         this.min_poly_strength+"");
@@ -707,6 +772,7 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"min_trusted_strength",      this.min_trusted_strength+"");
 		properties.setProperty(prefix+"trusted_tolerance",         this.trusted_tolerance+"");
 
+		properties.setProperty(prefix+"lt_avg_radius",             this.lt_avg_radius+"");
 		properties.setProperty(prefix+"lt_min_disparity",          this.lt_min_disparity+"");
 		properties.setProperty(prefix+"lt_trusted_strength",       this.lt_trusted_strength+"");
 		properties.setProperty(prefix+"lt_strength_rfloor",        this.lt_strength_rfloor+"");
@@ -771,6 +837,22 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"pf_discard_strong",         this.pf_discard_strong+"");
 		properties.setProperty(prefix+"pf_new_diff",               this.pf_new_diff+"");
 		properties.setProperty(prefix+"pf_min_new",                this.pf_min_new+"");
+
+
+		properties.setProperty(prefix+"ltavg_en",                  this.ltavg_en+"");
+		properties.setProperty(prefix+"ltavg_radius",              this.ltavg_radius+"");
+		properties.setProperty(prefix+"ltavg_dens_strong",         this.ltavg_dens_strong+"");
+		properties.setProperty(prefix+"ltavg_dens_tiles",          this.ltavg_dens_tiles+"");
+		properties.setProperty(prefix+"ltavg_dens_radius",         this.ltavg_dens_radius+"");
+		properties.setProperty(prefix+"ltavg_min_disparity",       this.ltavg_min_disparity+"");
+		properties.setProperty(prefix+"ltavg_max_density",         this.ltavg_max_density+"");
+		properties.setProperty(prefix+"ltavg_grow",                this.ltavg_grow+"");
+		properties.setProperty(prefix+"ltavg_shrink",              this.ltavg_shrink+"");
+		properties.setProperty(prefix+"ltavg_smooth_strength",     this.ltavg_smooth_strength+"");
+		properties.setProperty(prefix+"ltavg_neib_pull",           this.ltavg_neib_pull+"");
+		properties.setProperty(prefix+"ltavg_max_iter",            this.ltavg_max_iter+"");
+		properties.setProperty(prefix+"ltavg_min_change",          this.ltavg_min_change+"");
+
 		properties.setProperty(prefix+"ltfar_en",                  this.ltfar_en+"");
 		properties.setProperty(prefix+"ltfar_auto_floor",          this.ltfar_auto_floor+"");
 		properties.setProperty(prefix+"ltfar_min_disparity",       this.ltfar_min_disparity+"");
@@ -813,6 +895,7 @@ public class BiQuadParameters {
 	}
 	public void getProperties(String prefix,Properties properties){
 		if (properties.getProperty(prefix+"rig_mode_debug")!=null)        this.rig_mode_debug=Boolean.parseBoolean(properties.getProperty(prefix+"rig_mode_debug"));
+		if (properties.getProperty(prefix+"no_int_x0")!=null)             this.no_int_x0=Boolean.parseBoolean(properties.getProperty(prefix+"no_int_x0"));
 		if (properties.getProperty(prefix+"use_poly")!=null)              this.use_poly=Boolean.parseBoolean(properties.getProperty(prefix+"use_poly"));
 		if (properties.getProperty(prefix+"use_xy_poly")!=null)           this.use_xy_poly=Boolean.parseBoolean(properties.getProperty(prefix+"use_xy_poly"));
 		if (properties.getProperty(prefix+"min_poly_strength")!=null)     this.min_poly_strength=Double.parseDouble(properties.getProperty(prefix+"min_poly_strength"));
@@ -853,8 +936,8 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"num_near_refine")!=null)         this.num_near_refine=Integer.parseInt(properties.getProperty(prefix+"num_near_refine"));
 		if (properties.getProperty(prefix+"min_trusted_strength")!=null)    this.min_trusted_strength=Double.parseDouble(properties.getProperty(prefix+"min_trusted_strength"));
 		if (properties.getProperty(prefix+"trusted_tolerance")!=null)       this.trusted_tolerance=Double.parseDouble(properties.getProperty(prefix+"trusted_tolerance"));
-		if (properties.getProperty(prefix+"ml_hwidth")!=null)               this.ml_hwidth=Integer.parseInt(properties.getProperty(prefix+"ml_hwidth"));
 
+		if (properties.getProperty(prefix+"lt_avg_radius")!=null)           this.lt_avg_radius=Integer.parseInt(properties.getProperty(prefix+"lt_avg_radius"));
 		if (properties.getProperty(prefix+"lt_min_disparity")!=null)        this.lt_min_disparity=Double.parseDouble(properties.getProperty(prefix+"lt_min_disparity"));
 		if (properties.getProperty(prefix+"lt_trusted_strength")!=null)     this.lt_trusted_strength=Double.parseDouble(properties.getProperty(prefix+"lt_trusted_strength"));
 		if (properties.getProperty(prefix+"lt_strength_rfloor")!=null)      this.lt_strength_rfloor=Double.parseDouble(properties.getProperty(prefix+"lt_strength_rfloor"));
@@ -922,6 +1005,23 @@ public class BiQuadParameters {
 
 		if (properties.getProperty(prefix+"pf_new_diff")!=null)             this.pf_new_diff=Double.parseDouble(properties.getProperty(prefix+"pf_new_diff"));
 		if (properties.getProperty(prefix+"pf_min_new")!=null)              this.pf_min_new=Integer.parseInt(properties.getProperty(prefix+"pf_min_new"));
+
+
+
+		if (properties.getProperty(prefix+"ltavg_en")!=null)                this.ltavg_en=Boolean.parseBoolean(properties.getProperty(prefix+"ltavg_en"));
+		if (properties.getProperty(prefix+"ltavg_radius")!=null)            this.ltavg_radius=Integer.parseInt(properties.getProperty(prefix+"ltavg_radius"));
+		if (properties.getProperty(prefix+"ltavg_dens_strong")!=null)       this.ltavg_dens_strong=Boolean.parseBoolean(properties.getProperty(prefix+"ltavg_dens_strong"));
+		if (properties.getProperty(prefix+"ltavg_dens_tiles")!=null)        this.ltavg_dens_tiles=Integer.parseInt(properties.getProperty(prefix+"ltavg_dens_tiles"));
+		if (properties.getProperty(prefix+"ltavg_dens_radius")!=null)       this.ltavg_dens_radius=Integer.parseInt(properties.getProperty(prefix+"ltavg_dens_radius"));
+		if (properties.getProperty(prefix+"ltavg_min_disparity")!=null)     this.ltavg_min_disparity=Double.parseDouble(properties.getProperty(prefix+"ltavg_min_disparity"));
+		if (properties.getProperty(prefix+"ltavg_max_density")!=null)       this.ltavg_max_density=Double.parseDouble(properties.getProperty(prefix+"ltavg_max_density"));
+		if (properties.getProperty(prefix+"ltavg_grow")!=null)              this.ltavg_grow=Integer.parseInt(properties.getProperty(prefix+"ltavg_grow"));
+		if (properties.getProperty(prefix+"ltavg_shrink")!=null)            this.ltavg_shrink=Integer.parseInt(properties.getProperty(prefix+"ltavg_shrink"));
+		if (properties.getProperty(prefix+"ltavg_smooth_strength")!=null)   this.ltavg_smooth_strength=Boolean.parseBoolean(properties.getProperty(prefix+"ltavg_smooth_strength"));
+		if (properties.getProperty(prefix+"ltavg_neib_pull")!=null)         this.ltavg_neib_pull=Double.parseDouble(properties.getProperty(prefix+"ltavg_neib_pull"));
+		if (properties.getProperty(prefix+"ltavg_max_iter")!=null)          this.ltavg_max_iter=Integer.parseInt(properties.getProperty(prefix+"ltavg_max_iter"));
+		if (properties.getProperty(prefix+"ltavg_min_change")!=null)        this.ltavg_min_change=Double.parseDouble(properties.getProperty(prefix+"ltavg_min_change"));
+
 		if (properties.getProperty(prefix+"ltfar_en")!=null)                this.ltfar_en=Boolean.parseBoolean(properties.getProperty(prefix+"ltfar_en"));
 		if (properties.getProperty(prefix+"ltfar_auto_floor")!=null)        this.ltfar_auto_floor=Boolean.parseBoolean(properties.getProperty(prefix+"ltfar_auto_floor"));
 		if (properties.getProperty(prefix+"ltfar_min_disparity")!=null)     this.ltfar_min_disparity=Double.parseDouble(properties.getProperty(prefix+"ltfar_min_disparity"));
@@ -949,6 +1049,7 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"rf_min_disp")!=null)             this.rf_min_disp=Double.parseDouble(properties.getProperty(prefix+"rf_min_disp"));
 		if (properties.getProperty(prefix+"rf_remove_unselected")!=null)    this.rf_remove_unselected=Boolean.parseBoolean(properties.getProperty(prefix+"rf_remove_unselected"));
 
+		if (properties.getProperty(prefix+"ml_hwidth")!=null)               this.ml_hwidth=Integer.parseInt(properties.getProperty(prefix+"ml_hwidth"));
 		if (properties.getProperty(prefix+"ml_disparity_sweep")!=null)      this.ml_disparity_sweep=Double.parseDouble(properties.getProperty(prefix+"ml_disparity_sweep"));
 		if (properties.getProperty(prefix+"ml_sweep_steps")!=null)          this.ml_sweep_steps=Integer.parseInt(properties.getProperty(prefix+"ml_sweep_steps"));
 		if (properties.getProperty(prefix+"ml_keep_aux")!=null)             this.ml_keep_aux=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_aux"));
@@ -965,6 +1066,7 @@ public class BiQuadParameters {
 	public BiQuadParameters clone() throws CloneNotSupportedException {
 		BiQuadParameters bqp =       new BiQuadParameters();
 		bqp.rig_mode_debug=             this.rig_mode_debug;
+		bqp.no_int_x0=                  this.no_int_x0;
 		bqp.use_poly=                   this.use_poly;
 		bqp.use_xy_poly=                this.use_xy_poly;
 		bqp.min_poly_strength =         this.min_poly_strength;
@@ -1006,6 +1108,7 @@ public class BiQuadParameters {
 		bqp.min_trusted_strength=       this.min_trusted_strength;
 		bqp.trusted_tolerance=          this.trusted_tolerance;
 
+		bqp.lt_avg_radius=              this.lt_avg_radius;
 		bqp.lt_min_disparity=           this.lt_min_disparity;
 		bqp.lt_trusted_strength=        this.lt_trusted_strength;
 		bqp.lt_strength_rfloor=         this.lt_strength_rfloor;
@@ -1071,6 +1174,20 @@ public class BiQuadParameters {
 		bqp.pf_discard_strong=          this.pf_discard_strong;
 		bqp.pf_new_diff=                this.pf_new_diff;
 		bqp.pf_min_new=                 this.pf_min_new;
+
+		bqp.ltavg_en=                   this.ltavg_en;
+		bqp.ltavg_radius=               this.ltavg_radius;
+		bqp.ltavg_dens_strong=          this.ltavg_dens_strong;
+		bqp.ltavg_dens_tiles=           this.ltavg_dens_tiles;
+		bqp.ltavg_dens_radius=          this.ltavg_dens_radius;
+		bqp.ltavg_min_disparity=        this.ltavg_min_disparity;
+		bqp.ltavg_max_density=          this.ltavg_max_density;
+		bqp.ltavg_grow=                 this.ltavg_grow;
+		bqp.ltavg_shrink=               this.ltavg_shrink;
+		bqp.ltavg_smooth_strength=      this.ltavg_smooth_strength;
+		bqp.ltavg_neib_pull=            this.ltavg_neib_pull;
+		bqp.ltavg_max_iter=             this.ltavg_max_iter;
+		bqp.ltavg_min_change=           this.ltavg_min_change;
 
 		bqp.ltfar_en=                   this.ltfar_en;
 		bqp.ltfar_auto_floor=           this.ltfar_auto_floor;
