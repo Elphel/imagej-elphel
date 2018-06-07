@@ -128,6 +128,9 @@ public class BiQuadParameters {
 	public double     pf_boost_low_density =      0.8;    // Strength assigned to fake tiles from neighbors (the lower - the higher)
 
 	// Apply when filling gaps, not when growing
+//	  9, // clt_parameters.rig.pf_smpl_radius, // smpl_radius,       // int         smpl_radius,
+
+	public int        pf_fourq_radius =            9;      // How far to look for a plane for the final pass with 4-corners support
 	public int        pf_fourq_min =               1;      // Each of the 4 corners should have at least this number of tiles.
 	public int        pf_fourq_gap =               1;      // Symmetrical vertical and horizontal center areas that do not belong to any corner
 
@@ -164,6 +167,25 @@ public class BiQuadParameters {
 	public double     ltavg_neib_pull =           1.0;    // pull to weighted average relative to pull to the original disparity value. If 0.0 - will only update former NaN-s
 	public int        ltavg_max_iter =           20;      //
 	public double     ltavg_min_change =          0.01;   //
+
+	public int        ltavg_ref_smpl_radius =    11;      // final int        smpl_radius,
+	public int        ltavg_ref_smpl_num =       40;      // final int        smpl_num_narrow,   //         = 3;      // Number after removing worst (should be >1)
+	public double     ltavg_ref_max_adiff =       0.15;   // final double     max_adiff,  // Maximal absolute difference between the center tile and friends
+	public double     ltavg_ref_max_rdiff =       0.04;   // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
+	public double     ltavg_ref_smpl_arms =       0.1;    // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+	public double     ltavg_ref_smpl_rrms =       0.01;   // final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
+
+	public int        ltavg_num_lt_refine =       20;     // Maximal number of iterations with averaged low textures
+
+	public double     ltavg_strong_tol =          0.3;    // When combining normal measurements with low texture/correlation averaging use strong normal if they are close to averaged
+	public double     ltavg_weak_tol =            0.1;    // When combining normal measurements with low texture/correlation averaging use weak normal if they are close to averaged
+	// expand lt horizontally if it ends with the same or nearer
+	public boolean    ltavg_expand_lt =           true;
+	public int        ltavg_expand_dist =         4;
+	public double     ltavg_expand_tol =          0.15;   // expand LT right and left if it ends with same or nearer tile
+	public double     ltavg_expand_floor =        0.5;    // multiply single-tile strength floor for correlation-average
+	public int        ltavg_expand_sample_num =   5;      // minimal number of samples in expansion mode
+
 
 // Rig ltfar - recovering far objects that could not be resolved with just a single quad camera
 	public boolean ltfar_en =                 true;   // Enable recovering far objects over infinity area
@@ -410,6 +432,8 @@ public class BiQuadParameters {
 		gd.addNumericField("Strength assigned to fake tiles from neighbors (the lower - the higher)",             this.pf_boost_low_density,  4,6,"pix",
 				"Returned strength assigned to the tiles increases with this value - seems to be a bug");
 
+		gd.addNumericField("How far to look for a plane for the final pass with 4-corners support",               this.pf_fourq_radius,  0,3,"",
+				"Plane fitting half-width during filling gaps with tiles required in four corners (to avoid extending areas, only fill inside)");
 
 		gd.addNumericField("Each of the 4 corners should have at least this number of tiles",                     this.pf_fourq_min,  0,3,"",
 				"Apply (>0) only for filling gaps, not during expansion. It requires that every of the 4 corners of the sample square has this number of tiles for a plane");
@@ -475,6 +499,38 @@ public class BiQuadParameters {
 		gd.addNumericField("Maximal number of smoothing / gap filling iterations to perform",                     this.ltavg_max_iter,  0,3,"",
 				"Safety limit for smoothing iterations ");
 		gd.addNumericField("Minimal disparity change to continue smoothing",                                      this.ltavg_min_change,  4,6,"pix","");
+
+		gd.addNumericField("How far to extend around a tile when refining averaging correlation measuremnts by planes ",    this.ltavg_ref_smpl_radius,  0,3,"tiles",
+				"Process a aquare centered at the current tile withthe side of twice this value plus 1 (2*pf_smpl_radius + 1)");
+		gd.addNumericField("Number after remaining in the sample square after removing worst fitting tiles",      this.ltavg_ref_smpl_num,  0,3,"",
+				"When fitting planes the outliers are removed until the number of remaining tiles equals this value");
+		gd.addNumericField("Maximal absolute disparity difference between the plane and tiles that fit",          this.ltavg_ref_max_adiff,  4,6,"pix",
+				"Maximal absolute disparity difference for fitting. Combined with the next one (relative) ");
+		gd.addNumericField("Maximal relative (to center disparity) difference between the plane and tiles that fit",this.ltavg_ref_max_rdiff,  4,6,"pix/pix",
+				"This value is multipled by the tile disparity and added to the maximal absolute difference");
+		gd.addNumericField("Maximal absolute RMS of the remaining tiles in a sample",                             this.ltavg_ref_smpl_arms,  4,6,"pix",
+				"After removing outliers RMS of the remaining tiles must be less than this value");
+		gd.addNumericField("Maximal relative (to center disparity) RMS of the remaining tiles in a sample",       this.ltavg_ref_smpl_rrms,  4,6,"pix/pix",
+				"Relative RMS times disparity is added to the absolute one");
+
+		gd.addNumericField("Maximal number of low texture/averaging correlation passes",                          this.ltavg_num_lt_refine,  0,3,"",
+				"Will also exit when maximal tile disparity change falls below ltavg_min_change (..continue smoothing above)");
+		gd.addNumericField("Strong tile difference to averaged to be accepted",                                   this.ltavg_strong_tol,  4,6,"pix",
+				"When combining normal measurements with low texture/correlation averaging use strong normal if they are close to averaged");
+		gd.addNumericField("Weak trusted tile difference to averaged to be accepted",                             this.ltavg_weak_tol,  4,6,"pix",
+				"When combining normal measurements with low texture/correlation averaging use weak normal if they are close to averaged");
+
+		gd.addCheckbox    ("Try to expand low-texture areas right and left if it borders with same or nearer",    this.ltavg_expand_lt,
+				"Slightly expand (mostly pavement) if there is FG object near");
+		gd.addNumericField("How far to extend LT area",                                                           this.ltavg_expand_dist,  0,3,"",
+				"Consider empty tiles within this distance from the LT processed area");
+		gd.addNumericField("The limit tiles should not be farther then extended by more than this value",         this.ltavg_expand_tol,  4,6,"pix",
+				"Expand LT area horizonatally until it meets non-empty tile if that tile is closer or at the same (to this tolerance) distance");
+		gd.addNumericField("Fraction of single-tile correlation strength floor for averaged correlation",         this.ltavg_expand_floor,  4,6,"",
+				"Strength floor for averaging corre;ation relative to the single-tile correlation");
+		gd.addNumericField("Number after remaining in the sample during final expansion of LT area",              this.ltavg_expand_sample_num,  0,3,"",
+				"Small absoute number is OK here (may overlap with just a quater of teh sample square. This nuber will be combined with fraction of all defined tiles in a sample square");
+
 
 		gd.addTab("Rig Far","Parameters related to the ML files generation for the dual-quad camera rig");
 		gd.addCheckbox    ("Enable recovering far objects over infinity area",                                     this.ltfar_en,
@@ -654,6 +710,7 @@ public class BiQuadParameters {
 		this.pf_use_alt=                    gd.getNextBoolean();
 		this.pf_goal_fraction_rms=          gd.getNextNumber();
 		this.pf_boost_low_density=          gd.getNextNumber();
+		this.pf_fourq_radius=         (int) gd.getNextNumber();
 
 		this.pf_fourq_min=            (int) gd.getNextNumber();
 		this.pf_fourq_gap=            (int) gd.getNextNumber();
@@ -688,6 +745,23 @@ public class BiQuadParameters {
 		this.ltavg_neib_pull=               gd.getNextNumber();
 		this.ltavg_max_iter=          (int) gd.getNextNumber();
 		this.ltavg_min_change=              gd.getNextNumber();
+
+		this.ltavg_ref_smpl_radius=   (int) gd.getNextNumber();
+		this.ltavg_ref_smpl_num=      (int) gd.getNextNumber();
+		this.ltavg_ref_max_adiff=           gd.getNextNumber();
+		this.ltavg_ref_max_rdiff=           gd.getNextNumber();
+		this.ltavg_ref_smpl_arms=           gd.getNextNumber();
+		this.ltavg_ref_smpl_rrms=           gd.getNextNumber();
+		this.ltavg_num_lt_refine=     (int) gd.getNextNumber();
+		this.ltavg_strong_tol=              gd.getNextNumber();
+		this.ltavg_weak_tol=                gd.getNextNumber();
+
+		this.ltavg_expand_lt=               gd.getNextBoolean();
+		this.ltavg_expand_dist=       (int) gd.getNextNumber();
+		this.ltavg_expand_tol=              gd.getNextNumber();
+
+		this.ltavg_expand_floor=            gd.getNextNumber();
+		this.ltavg_expand_sample_num= (int) gd.getNextNumber();
 
 		this.ltfar_en=                      gd.getNextBoolean();
 		this.ltfar_auto_floor=              gd.getNextBoolean();
@@ -824,6 +898,8 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"pf_goal_fraction_rms",      this.pf_goal_fraction_rms+"");
 		properties.setProperty(prefix+"pf_boost_low_density",      this.pf_boost_low_density+"");
 
+		properties.setProperty(prefix+"pf_fourq_radius",           this.pf_fourq_radius+"");
+
 		properties.setProperty(prefix+"pf_fourq_min",              this.pf_fourq_min+"");
 		properties.setProperty(prefix+"pf_fourq_gap",              this.pf_fourq_gap+"");
 		properties.setProperty(prefix+"pf_en_trim_fg",             this.pf_en_trim_fg+"");
@@ -858,6 +934,24 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"ltavg_neib_pull",           this.ltavg_neib_pull+"");
 		properties.setProperty(prefix+"ltavg_max_iter",            this.ltavg_max_iter+"");
 		properties.setProperty(prefix+"ltavg_min_change",          this.ltavg_min_change+"");
+
+
+		properties.setProperty(prefix+"ltavg_ref_smpl_radius",     this.ltavg_ref_smpl_radius+"");
+		properties.setProperty(prefix+"ltavg_ref_smpl_num",        this.ltavg_ref_smpl_num+"");
+		properties.setProperty(prefix+"ltavg_ref_max_adiff",       this.ltavg_ref_max_adiff+"");
+		properties.setProperty(prefix+"ltavg_ref_max_rdiff",       this.ltavg_ref_max_rdiff+"");
+		properties.setProperty(prefix+"ltavg_ref_smpl_arms",       this.ltavg_ref_smpl_arms+"");
+		properties.setProperty(prefix+"ltavg_ref_smpl_rrms",       this.ltavg_ref_smpl_rrms+"");
+		properties.setProperty(prefix+"ltavg_num_lt_refine",       this.ltavg_num_lt_refine+"");
+		properties.setProperty(prefix+"ltavg_strong_tol",          this.ltavg_strong_tol+"");
+		properties.setProperty(prefix+"ltavg_weak_tol",            this.ltavg_weak_tol+"");
+
+		properties.setProperty(prefix+"ltavg_expand_lt",           this.ltavg_expand_lt+"");
+		properties.setProperty(prefix+"ltavg_expand_dist",         this.ltavg_expand_dist+"");
+		properties.setProperty(prefix+"ltavg_expand_tol",          this.ltavg_expand_tol+"");
+
+		properties.setProperty(prefix+"ltavg_expand_floor",        this.ltavg_expand_floor+"");
+		properties.setProperty(prefix+"ltavg_expand_sample_num",   this.ltavg_expand_sample_num+"");
 
 		properties.setProperty(prefix+"ltfar_en",                  this.ltfar_en+"");
 		properties.setProperty(prefix+"ltfar_auto_floor",          this.ltfar_auto_floor+"");
@@ -991,6 +1085,7 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"pf_goal_fraction_rms")!=null)    this.pf_goal_fraction_rms=Double.parseDouble(properties.getProperty(prefix+"pf_goal_fraction_rms"));
 		if (properties.getProperty(prefix+"pf_boost_low_density")!=null)    this.pf_boost_low_density=Double.parseDouble(properties.getProperty(prefix+"pf_boost_low_density"));
 
+		if (properties.getProperty(prefix+"pf_fourq_radius")!=null)         this.pf_fourq_radius=Integer.parseInt(properties.getProperty(prefix+"pf_fourq_radius"));
 		if (properties.getProperty(prefix+"pf_fourq_min")!=null)            this.pf_fourq_min=Integer.parseInt(properties.getProperty(prefix+"pf_fourq_min"));
 		if (properties.getProperty(prefix+"pf_fourq_gap")!=null)            this.pf_fourq_gap=Integer.parseInt(properties.getProperty(prefix+"pf_fourq_gap"));
 		if (properties.getProperty(prefix+"pf_en_trim_fg")!=null)           this.pf_en_trim_fg=Boolean.parseBoolean(properties.getProperty(prefix+"pf_en_trim_fg"));
@@ -1029,6 +1124,23 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"ltavg_neib_pull")!=null)         this.ltavg_neib_pull=Double.parseDouble(properties.getProperty(prefix+"ltavg_neib_pull"));
 		if (properties.getProperty(prefix+"ltavg_max_iter")!=null)          this.ltavg_max_iter=Integer.parseInt(properties.getProperty(prefix+"ltavg_max_iter"));
 		if (properties.getProperty(prefix+"ltavg_min_change")!=null)        this.ltavg_min_change=Double.parseDouble(properties.getProperty(prefix+"ltavg_min_change"));
+
+		if (properties.getProperty(prefix+"ltavg_ref_smpl_radius")!=null)   this.ltavg_ref_smpl_radius=Integer.parseInt(properties.getProperty(prefix+"ltavg_ref_smpl_radius"));
+		if (properties.getProperty(prefix+"ltavg_ref_smpl_num")!=null)      this.ltavg_ref_smpl_num=Integer.parseInt(properties.getProperty(prefix+"ltavg_ref_smpl_num"));
+		if (properties.getProperty(prefix+"ltavg_ref_max_adiff")!=null)     this.ltavg_ref_max_adiff=Double.parseDouble(properties.getProperty(prefix+"ltavg_ref_max_adiff"));
+		if (properties.getProperty(prefix+"ltavg_ref_max_rdiff")!=null)     this.ltavg_ref_max_rdiff=Double.parseDouble(properties.getProperty(prefix+"ltavg_ref_max_rdiff"));
+		if (properties.getProperty(prefix+"ltavg_ref_smpl_arms")!=null)     this.ltavg_ref_smpl_arms=Double.parseDouble(properties.getProperty(prefix+"ltavg_ref_smpl_arms"));
+		if (properties.getProperty(prefix+"ltavg_ref_smpl_rrms")!=null)     this.ltavg_ref_smpl_rrms=Double.parseDouble(properties.getProperty(prefix+"ltavg_ref_smpl_rrms"));
+		if (properties.getProperty(prefix+"ltavg_num_lt_refine")!=null)     this.ltavg_num_lt_refine=Integer.parseInt(properties.getProperty(prefix+"ltavg_num_lt_refine"));
+		if (properties.getProperty(prefix+"ltavg_strong_tol")!=null)        this.ltavg_strong_tol=Double.parseDouble(properties.getProperty(prefix+"ltavg_strong_tol"));
+		if (properties.getProperty(prefix+"ltavg_weak_tol")!=null)          this.ltavg_weak_tol=Double.parseDouble(properties.getProperty(prefix+"ltavg_weak_tol"));
+
+		if (properties.getProperty(prefix+"ltavg_expand_lt")!=null)         this.ltavg_expand_lt=Boolean.parseBoolean(properties.getProperty(prefix+"ltavg_expand_lt"));
+		if (properties.getProperty(prefix+"ltavg_expand_dist")!=null)       this.ltavg_expand_dist=Integer.parseInt(properties.getProperty(prefix+"ltavg_expand_dist"));
+		if (properties.getProperty(prefix+"ltavg_expand_tol")!=null)        this.ltavg_expand_tol=Double.parseDouble(properties.getProperty(prefix+"ltavg_expand_tol"));
+
+		if (properties.getProperty(prefix+"ltavg_expand_floor")!=null)      this.ltavg_expand_floor=Double.parseDouble(properties.getProperty(prefix+"ltavg_expand_floor"));
+		if (properties.getProperty(prefix+"ltavg_expand_sample_num")!=null) this.ltavg_expand_sample_num=Integer.parseInt(properties.getProperty(prefix+"ltavg_expand_sample_num"));
 
 		if (properties.getProperty(prefix+"ltfar_en")!=null)                this.ltfar_en=Boolean.parseBoolean(properties.getProperty(prefix+"ltfar_en"));
 		if (properties.getProperty(prefix+"ltfar_auto_floor")!=null)        this.ltfar_auto_floor=Boolean.parseBoolean(properties.getProperty(prefix+"ltfar_auto_floor"));
@@ -1100,6 +1212,8 @@ public class BiQuadParameters {
 		bqp.refine_tolerance=           this.refine_tolerance;
 		bqp.rig_disp_range=             this.rig_disp_range;
 		bqp.rig_num_disp_steps=         this.rig_num_disp_steps;
+		bqp.pf_fourq_radius=            this.pf_fourq_radius;
+
 		bqp.rig_adjust_full_cycles=     this.rig_adjust_full_cycles;
 		bqp.rig_adjust_short_cycles=    this.rig_adjust_short_cycles;
 		bqp.rig_adjust_short_threshold= this.rig_adjust_short_threshold;
@@ -1164,6 +1278,7 @@ public class BiQuadParameters {
 		bqp.pf_goal_fraction_rms =      this.pf_goal_fraction_rms;
 		bqp.pf_boost_low_density=       this.pf_boost_low_density;
 
+
 		bqp.pf_fourq_min=               this.pf_fourq_min;
 		bqp.pf_fourq_gap=               this.pf_fourq_gap;
 
@@ -1197,6 +1312,23 @@ public class BiQuadParameters {
 		bqp.ltavg_neib_pull=            this.ltavg_neib_pull;
 		bqp.ltavg_max_iter=             this.ltavg_max_iter;
 		bqp.ltavg_min_change=           this.ltavg_min_change;
+
+		bqp.ltavg_ref_smpl_radius=      this.ltavg_ref_smpl_radius;
+		bqp.ltavg_ref_smpl_num=         this.ltavg_ref_smpl_num;
+		bqp.ltavg_ref_max_adiff=        this.ltavg_ref_max_adiff;
+		bqp.ltavg_ref_max_rdiff=        this.ltavg_ref_max_rdiff;
+		bqp.ltavg_ref_smpl_arms=        this.ltavg_ref_smpl_arms;
+		bqp.ltavg_ref_smpl_rrms=        this.ltavg_ref_smpl_rrms;
+		bqp.ltavg_num_lt_refine=        this.ltavg_num_lt_refine;
+		bqp.ltavg_strong_tol=           this.ltavg_strong_tol;
+		bqp.ltavg_weak_tol=             this.ltavg_weak_tol;
+
+		bqp.ltavg_expand_lt=            this.ltavg_expand_lt;
+		bqp.ltavg_expand_dist=          this.ltavg_expand_dist;
+		bqp.ltavg_expand_tol=           this.ltavg_expand_tol;
+
+		bqp.ltavg_expand_floor=         this.ltavg_expand_floor;
+		bqp.ltavg_expand_sample_num=    this.ltavg_expand_sample_num;
 
 		bqp.ltfar_en=                   this.ltfar_en;
 		bqp.ltfar_auto_floor=           this.ltfar_auto_floor;

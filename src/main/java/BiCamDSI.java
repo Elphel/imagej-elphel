@@ -35,25 +35,46 @@ public class BiCamDSI {
 			double [] disparity,
 			double [] strength,
 			boolean [] trusted,
-			boolean [] disabled) {
+			boolean [] disabled,
+			int        scan_type) {
 
 		if (biScans == null) biScans = new ArrayList<BiScan>();
-		biScans.add(new BiScan(this, biScans.size(), disparity, strength, trusted, disabled));
+		biScans.add(new BiScan(this, biScans.size(), disparity, strength, trusted, disabled, scan_type));
 		return biScans.size()-1;
 
 	}
 
 	public int addBiScan(
-			double [][] disparity_bimap) {
+			double [][] disparity_bimap,
+			int        scan_type
+			) {
 		return addBiScan(
 				disparity_bimap[ImageDtt.BI_TARGET_INDEX], // double [] disparity,
 				disparity_bimap[ImageDtt.BI_STR_CROSS_INDEX], // double [] strength,
 				null, // boolean [] trusted,
-				null); // boolean [] disabled)
+				null, // boolean [] disabled)
+				scan_type);
 	}
 
-	public BiScan getLastBiScan() {
-		return getBiScan(-1);
+	/**
+	 * Get last BiScan of specific type
+	 * @param scan_type -1 - any (returns last scan), >=0 must match type. If none of the type exists, returns null
+	 * @return
+	 */
+	public BiScan getLastBiScan( int scan_type) {
+		if (scan_type < 0) 	return getBiScan(-1);
+		if (biScans.isEmpty()) return null;
+		int last_index = -1;
+		for (int i = 0; i < biScans.size(); i++) {
+			if (biScans.get(i).scan_type == scan_type) {
+				last_index = i;
+			}
+		}
+		if (last_index >= 0) {
+			return biScans.get(last_index);
+		} else {
+			return null;
+		}
 	}
 	public BiScan getBiScan(int indx) {
 		if (biScans.isEmpty()) return null;

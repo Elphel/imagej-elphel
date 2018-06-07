@@ -2027,9 +2027,9 @@ if (debugLevel > -100) return true; // temporarily !
 			  return null;
 		  }
 
-		  biCamDSI.addBiScan(disparity_bimap);
+		  biCamDSI.addBiScan(disparity_bimap, BiScan.BISCAN_SINGLECORR);
 		  if (clt_parameters.show_map &&  (debugLevel > 0) && clt_parameters.rig.rig_mode_debug){
-			  biCamDSI.getLastBiScan().showScan(
+			  biCamDSI.getLastBiScan(BiScan.BISCAN_SINGLECORR).showScan(
 					  quadCLT_main.image_name+"-BISCAN_initial");
 		  }
 		  int [][] dxy = {{0, -1},{0,1},{-1,0},{1,0}};
@@ -2037,7 +2037,7 @@ if (debugLevel > -100) return true; // temporarily !
 			  // Grow tiles, cross gaps (do not trim yet
 			  //
 			  for (int num_cycle = 0; num_cycle < num_cross_gaps_cycles; num_cycle++) {
-				  BiScan last_scan = biCamDSI.getLastBiScan();
+				  BiScan last_scan = biCamDSI.getLastBiScan(BiScan.BISCAN_SINGLECORR);
 				  int [] trusted_stats = last_scan.calcTrusted(   // finds strong trusted and validates week ones if they fit planes
 						  clt_parameters.rig.pf_trusted_strength, // final double     trusted_strength, // trusted correlation strength
 						  clt_parameters.rig.pf_strength_rfloor,  // final double     strength_rfloor,   // strength floor - relative to trusted
@@ -2058,7 +2058,7 @@ if (debugLevel > -100) return true; // temporarily !
 						  clt_parameters.tileY,                   // final int        dbg_y,
 						  debugLevel);                            // final int        debugLevel);
 				  if (clt_parameters.show_map &&  (debugLevel > 0) && clt_parameters.rig.rig_mode_debug){
-					  biCamDSI.getLastBiScan().showScan(
+					  biCamDSI.getLastBiScan(BiScan.BISCAN_SINGLECORR).showScan(
 							  quadCLT_main.image_name+"-BISCAN_TRUSTED"+num_fcycle+"-"+num_cycle);
 				  }
 
@@ -2141,7 +2141,7 @@ if (debugLevel > -100) return true; // temporarily !
 				  boolean last_cycle = (num_added_tiles < min_cross_gaps_new) || (num_cycle >= (num_cross_gaps_cycles-1));
 				  if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
 					 if (last_cycle) //  || (num_cycle < 2 * dxy.length))
-						 biCamDSI.getLastBiScan().showScan(
+						 biCamDSI.getLastBiScan(BiScan.BISCAN_SINGLECORR).showScan(
 							  quadCLT_main.image_name+"-BISCAN_SUGGESTED"+num_fcycle+"-"+num_cycle);
 				  }
 
@@ -2193,7 +2193,7 @@ if (debugLevel > -100) return true; // temporarily !
 						  System.out.println("groundTruthByRigPlanes(): full cycle="+num_fcycle+" num_trimmed= "+num_trimmed+" tiles");
 					  }
 					  if (clt_parameters.show_map &&  (debugLevel > 0) && clt_parameters.rig.rig_mode_debug){
-						  biCamDSI.getLastBiScan().showScan(
+						  biCamDSI.getLastBiScan(BiScan.BISCAN_SINGLECORR).showScan(
 								  quadCLT_main.image_name+"-BISCAN_TRIMMED"+num_fcycle+"-"+num_cycle);
 					  }
 
@@ -2237,7 +2237,7 @@ if (debugLevel > -100) return true; // temporarily !
 								  " suggestNewScan() -> "+num_added_tiles_trimmed+"( after trimming)");
 					  }
 					  if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
-						  biCamDSI.getLastBiScan().showScan(
+						  biCamDSI.getLastBiScan(BiScan.BISCAN_SINGLECORR).showScan(
 								  quadCLT_main.image_name+"-BISCAN_TRIMMED_SUGGESTED"+num_fcycle+"-"+num_cycle);
 					  }
 
@@ -2360,16 +2360,16 @@ if (debugLevel > -100) return true; // temporarily !
 				  }
 
 				  // add refined data
-				  biCamDSI.addBiScan(disparity_bimap);
+				  biCamDSI.addBiScan(disparity_bimap, BiScan.BISCAN_SINGLECORR);
 				  // find strongest
-				  biCamDSI.getLastBiScan().copyLastStrongestEnabled(
+				  biCamDSI.getLastBiScan(BiScan.BISCAN_SINGLECORR).copyLastStrongestEnabled(
 						  clt_parameters.rig.pf_last_priority); // final boolean last_priority)
 
 				  double afloor = clt_parameters.rig.pf_trusted_strength * clt_parameters.rig.pf_strength_rfloor;
 
 				  // replace strongest by fittest
 				  for (int nfit = 0; nfit < num_tries_strongest_by_fittest; nfit++) {
-					  int num_replaced = biCamDSI.getLastBiScan().copyFittestEnabled(
+					  int num_replaced = biCamDSI.getLastBiScan(BiScan.BISCAN_SINGLECORR).copyFittestEnabled(
 							  afloor,                             // final double  str_floor,      // absolute strength floor
 							  clt_parameters.rig.pf_disp_afloor,  // final double  pf_disp_afloor, // =            0.1;    // When selecting the best fit from the alternative disparities, divide by difference increased by this
 							  clt_parameters.rig.pf_disp_rfloor); // 	final double  pf_disp_rfloor) //  =            0.02;   // Increase pf_disp_afloor for large disparities
@@ -2382,7 +2382,7 @@ if (debugLevel > -100) return true; // temporarily !
  				  }
 
 				  if (clt_parameters.show_map &&  (debugLevel > 0) && clt_parameters.rig.rig_mode_debug){
-					  biCamDSI.getLastBiScan().showScan(
+					  biCamDSI.getLastBiScan(BiScan.BISCAN_SINGLECORR).showScan(
 							  quadCLT_main.image_name+"-BISCAN_"+num_fcycle+"-"+num_cycle);
 				  }
 				  if (last_cycle) { // last cycle
@@ -2396,12 +2396,37 @@ if (debugLevel > -100) return true; // temporarily !
 		  }// 		  for (int num_fcycle = 0; num_fcycle < num_full_cycles; num_fcycle++) {
 
 
-		  double [][] rig_disparity_strength = biCamDSI.getLastBiScan().getDisparityStrength(
-				    		false, // boolean only_strong,
-				    		false, // boolean only_trusted,
-				    		true); // boolean only_enabled,
 
+		  // Fill in low-textured areas using averaged correlation
+		  double [][] rig_disparity_strength = null;
 		  biCamDSI_persistent = biCamDSI; // save for pole detection
+		  if (clt_parameters.rig.ltavg_en) {
+			  if (debugLevel > -2) {
+				  System.out.println("groundTruthByRigPlanes(): Pprocessing low-textured areas with multi-tile correlation averaging");
+			  }
+			  // next method adds to the list of BiScans
+//			  double [][] ds_avg =
+			  //requires biCamDSI_persistent
+			  measureLowTextureAreas(
+					  quadCLT_main,   // QuadCLT            quadCLT_main,  // tiles should be set
+					  quadCLT_aux,    // QuadCLT            quadCLT_aux,  // tiles should be set
+					  clt_parameters, // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+					  threadsMax,     // final int     threadsMax,  // maximal number of threads to launch
+					  updateStatus,   // final boolean updateStatus,
+					  debugLevel);    // final int    debugLevel) //
+			  // get last that was just added
+			  rig_disparity_strength = biCamDSI.getLastBiScan(BiScan.BISCAN_ANY).getDisparityStrength(
+			    		false, // boolean only_strong,
+			    		false, // boolean only_trusted,
+			    		true); // boolean only_enabled,
+
+		  } else {
+			  // ignore any added low-texture areas
+			  rig_disparity_strength = biCamDSI.getLastBiScan(BiScan.BISCAN_SINGLECORR).getDisparityStrength(
+			    		false, // boolean only_strong,
+			    		false, // boolean only_trusted,
+			    		true); // boolean only_enabled,
+		  }
 		  return rig_disparity_strength;
 	  }
 
@@ -2435,7 +2460,7 @@ if (debugLevel > -100) return true; // temporarily !
 		  double cond_rtrusted =    clt_parameters.rig.pf_cond_rtrusted;
 		  double strength_rfloor =  clt_parameters.rig.pf_strength_rfloor;
 		  double strength_pow =     clt_parameters.rig.pf_strength_pow;
-		  int smpl_radius =         9; // clt_parameters.rig.pf_smpl_radius;
+		  int smpl_radius =         clt_parameters.rig.pf_fourq_radius; // clt_parameters.rig.pf_smpl_radius;
 		  int smpl_num =            clt_parameters.rig.pf_smpl_num;
 		  int smpl_num_narrow =     clt_parameters.rig.pf_smpl_num_narrow;
 		  double smpl_fract =       clt_parameters.rig.pf_smpl_fract;
@@ -2475,14 +2500,15 @@ if (debugLevel > -100) return true; // temporarily !
 		  double   min_change =      clt_parameters.rig.ltavg_min_change;   //
 
 
-		  int ref_smpl_radius =  11;          // final int        smpl_radius,
-		  int ref_smpl_num =     50;          // final int        smpl_num_narrow,   //         = 3;      // Number after removing worst (should be >1)
-		  double ref_max_adiff = 0.15;        // final double     max_adiff,  // Maximal absolute difference between the center tile and friends
-		  double ref_max_rdiff = 0.04;        // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
-		  double ref_smpl_arms = 0.1;         // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-		  double ref_smpl_rrms = 0.01;        // final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
-
-
+		  int ref_smpl_radius =  clt_parameters.rig.ltavg_ref_smpl_radius; // 11;          // final int        smpl_radius,
+		  int ref_smpl_num =     clt_parameters.rig.ltavg_ref_smpl_num; // 40;          // final int        smpl_num_narrow,   //         = 3;      // Number after removing worst (should be >1)
+		  double ref_max_adiff = clt_parameters.rig.ltavg_ref_max_adiff; //0.15;        // final double     max_adiff,  // Maximal absolute difference between the center tile and friends
+		  double ref_max_rdiff = clt_parameters.rig.ltavg_ref_max_rdiff; //0.04;        // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
+		  double ref_smpl_arms = clt_parameters.rig.ltavg_ref_smpl_arms; //0.1;         // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+		  double ref_smpl_rrms = clt_parameters.rig.ltavg_ref_smpl_rrms; //0.01;        // final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
+		  int num_lt_refine =    clt_parameters.rig.ltavg_num_lt_refine; // 20; // make a parameter
+		  double strong_tol =    clt_parameters.rig.ltavg_strong_tol ; //
+		  double weak_tol =      clt_parameters.rig.ltavg_weak_tol ; //
 
 		  GenericJTabbedDialog gd = new GenericJTabbedDialog("Set CLT parameters",900,1100);
 		  gd.addTab("Genearl","Select bi-scan to show and process");
@@ -2587,6 +2613,12 @@ if (debugLevel > -100) return true; // temporarily !
 				  "Relative RMS times disparity is added to the absolute one");
 
 
+		  gd.addNumericField("Maximal number of low texture/averaging correlation passes",                          num_lt_refine,  0,3,"",
+				  "Will also exit when maximal tile disparity change falls below ltavg_min_change (..continue smoothing above)");
+		  gd.addNumericField("Strong tile difference to averaged to be accepted",                                   strong_tol,  4,6,"pix",
+				  "When combining normal measurements with low texture/correlation averaging use strong normal if they are close to averaged");
+		  gd.addNumericField("Weak trusted tile difference to averaged to be accepted",                             weak_tol,  4,6,"pix",
+				  "When combining normal measurements with low texture/correlation averaging use weak normal if they are close to averaged");
 
 
 
@@ -2655,398 +2687,727 @@ if (debugLevel > -100) return true; // temporarily !
 		  ref_smpl_arms=          gd.getNextNumber();
 		  ref_smpl_rrms=          gd.getNextNumber();
 
-		  System.out.println(" === showBiScan( parameters : =====");
-		  System.out.println("       scan_index= "+scan_index);
-		  System.out.println("      show_smooth= "+show_smooth);
-		  System.out.println("  keep_unreliable= "+keep_unreliable);
-		  System.out.println("        keep_weak= "+keep_weak);
-		  System.out.println("      keep_strong= "+keep_strong);
-		  System.out.println("    center_weight= "+center_weight);
-
-		  System.out.println(" trusted_strength= "+trusted_strength);
-		  System.out.println("    cond_rtrusted= "+cond_rtrusted);
-		  System.out.println("  strength_rfloor= "+strength_rfloor);
-		  System.out.println("     strength_pow= "+strength_pow);
-		  System.out.println("      smpl_radius= "+smpl_radius);
-		  System.out.println("         smpl_num= "+smpl_num);
-		  System.out.println("  smpl_num_narrow= "+smpl_num_narrow);
-		  System.out.println("       smpl_fract= "+smpl_fract);
-		  System.out.println("        max_adiff= "+max_adiff);
-		  System.out.println("        max_rdiff= "+max_rdiff);
-		  System.out.println("        max_atilt= "+max_atilt);
-		  System.out.println("        max_rtilt= "+max_rtilt);
-		  System.out.println("        smpl_arms= "+smpl_arms);
-		  System.out.println("        smpl_rrms= "+smpl_rrms);
-		  System.out.println("        damp_tilt= "+damp_tilt);
-		  System.out.println("          rwsigma= "+rwsigma);
-		  System.out.println("   rwsigma_narrow= "+rwsigma_narrow);
-
-		  System.out.println("          use_alt= "+use_alt);
-		  System.out.println("goal_fraction_rms= "+goal_fraction_rms);
-		  System.out.println("boost_low_density= "+boost_low_density);
-
-		  System.out.println("        fourq_min= "+fourq_min);
-		  System.out.println("        fourq_gap= "+fourq_gap);
-
-		  System.out.println("          run_avg= "+run_avg);
-		  System.out.println("        lt_radius= "+lt_radius);
-		  System.out.println("      strong_only= "+strong_only);
-		  System.out.println("       need_tiles= "+need_tiles);
-		  System.out.println("       max_radius= "+max_radius);
-
-		  System.out.println("    min_disparity= "+min_disparity);
-		  System.out.println("      max_density= "+max_density);
-		  System.out.println("       gap_hwidth= "+gap_hwidth);
-		  System.out.println("       extra_grow= "+extra_grow);
-
-		  System.out.println("     clust_hwidth= "+clust_hwidth);
-		  System.out.println("  smooth_strength= "+smooth_strength);
-		  System.out.println("        neib_pull= "+neib_pull);
-		  System.out.println("         max_iter= "+max_iter);
-		  System.out.println("       min_change= "+min_change);
-
-		  System.out.println("  ref_smpl_radius= "+ref_smpl_radius);
-		  System.out.println("     ref_smpl_num= "+ref_smpl_num);
-		  System.out.println("    ref_max_adiff= "+ref_max_adiff);
-		  System.out.println("    ref_max_rdiff= "+ref_max_rdiff);
-		  System.out.println("    ref_smpl_arms= "+ref_smpl_arms);
-		  System.out.println("    ref_smpl_rrms= "+ref_smpl_rrms);
+		  num_lt_refine=    (int) gd.getNextNumber();
+		  strong_tol=             gd.getNextNumber();
+		  weak_tol=               gd.getNextNumber();
 
 		  BiScan biScan =  biCamDSI_persistent.biScans.get(scan_index);
 		  double [][] ds = null;
 		  if (show_smooth) {
-			  // find strongest
-			  biCamDSI_persistent.getLastBiScan().copyLastStrongestEnabled(
-					  clt_parameters.rig.pf_last_priority); // final boolean last_priority)
-			  double afloor = trusted_strength * strength_rfloor;
-			  int num_tries_strongest_by_fittest = 5;
-			  // replace strongest by fittest
-			  for (int nfit = 0; nfit < num_tries_strongest_by_fittest; nfit++) {
-				  int num_replaced = biCamDSI_persistent.getLastBiScan().copyFittestEnabled(
-						  afloor,                             // final double  str_floor,      // absolute strength floor
-						  clt_parameters.rig.pf_disp_afloor,  // final double  pf_disp_afloor, // =            0.1;    // When selecting the best fit from the alternative disparities, divide by difference increased by this
-						  clt_parameters.rig.pf_disp_rfloor); // 	final double  pf_disp_rfloor) //  =            0.02;   // Increase pf_disp_afloor for large disparities
-				  if ((debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
-					  System.out.println("groundTruthByRigPlanes(): Replacing strongest by fittest: ntry = "+nfit+", replaced "+num_replaced+" tiles");
-				  }
-				  if (num_replaced == 0) {
-					  break;
-				  }
-			  }
-
-			  biScan.calcTrusted(   // finds strong trusted and validates week ones if they fit planes
-					  trusted_strength, // final double     trusted_strength, // trusted correlation strength
-					  strength_rfloor,  // final double     strength_rfloor,   // strength floor - relative to trusted
-					  cond_rtrusted,    // final double     cond_rtrusted,     // minimal strength to consider - fraction of trusted
-					  strength_pow,     // final double     strength_pow,      // raise strength-floor to this power
-					  smpl_radius,      // final int        smpl_radius,
-					  smpl_num,         // final int        smpl_num,   //         = 3;      // Number after removing worst (should be >1)
-					  smpl_fract,       // final double     smpl_fract, // Number of friends among all neighbors
-					  max_adiff,        // final double     max_adiff,  // Maximal absolute difference betweenthe center tile and friends
-					  max_rdiff,        // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
-					  max_atilt,        // final double     max_atilt, //  = 2.0; // pix per tile
-					  max_rtilt,        // final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
-					  smpl_arms,        // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-					  smpl_rrms,        // final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
-					  damp_tilt,        // final double     damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
-					  rwsigma,          // 						final double     rwsigma,           //  = 0.7; // influence of far neighbors diminish as a Gaussian with this sigma
-					  clt_parameters.tileX,                   // final int        dbg_x,
-					  clt_parameters.tileY,                   // final int        dbg_y,
-					  debugLevel);                            // final int        debugLevel);
-
-			  double [] density = 		  biScan.getDensity(
-					  strong_only, // final boolean strong_only,
-					  need_tiles, // 20, // 10,    // final int need_tiles,
-					  max_radius, // 20, // 15,    // final int max_radius,
-					  clt_parameters.tileX, // final int        dbg_x,
-					  clt_parameters.tileY, // final int        dbg_y,
-					  debugLevel+2);        // final int        debugLevel
-			  boolean [] pre_select = biScan.selectLowTextures(
-					  min_disparity,        // double    min_disparity,
-					  max_density,          // double    max_density,
-					  lt_radius+extra_grow, // int       grow,
-					  gap_hwidth,           // int       max_gap_radius,
-					  clust_hwidth,         // int       min_clust_radius,
-					  density,              // double [] density,
-					  null);                // double [] src_disparity);
-			  double []   dbg_presel = new double [pre_select.length];
-			  for (int i = 0; i < pre_select.length; i++) dbg_presel[i] = pre_select[i]? 1.0:0.0;
-			  double [][] dbg_dens_str = {density, dbg_presel};
-			  biScan.showScan(quadCLT_main.image_name+"-density-"+scan_index,dbg_dens_str);
-
-			  ds = biScan.getFilteredDisparityStrength(
-					  pre_select,           // final boolean [] area_of_interest,
-					  null,                 // final double [][] disparityStrength,
-					  min_disparity,        // final double     min_disparity,    // keep original disparity far tiles
-					  trusted_strength,     // final double     trusted_strength, // trusted correlation strength
-					  strength_rfloor,      // final double     strength_rfloor,   // strength floor - relative to trusted
-					  !keep_unreliable,     // final boolean    discard_unreliable,// replace v
-					  !keep_weak,           // final boolean    discard_weak,      // consider weak trusted tiles (not promoted to trusted) as empty
-					  !keep_strong,         // final boolean    discard_strong,    // suggest new disparities even for strong tiles
-					  strength_pow,         // final double     strength_pow,      // raise strength-floor to this power
-					  null,                 // final double []  smpl_radius_array, // space-variant radius
-					  smpl_radius,          // final int        smpl_radius,
-					  smpl_num,             // final int        smpl_num,   //         = 3;      // Number after removing worst (should be >1)
-					  smpl_fract,           // final double     smpl_fract, // Number of friends among all neighbors
-					  smpl_num_narrow,      // final int        smpl_num_narrow,   //         = 3;      // Number after removing worst (should be >1)
-					  max_adiff,            // final double     max_adiff,  // Maximal absolute difference between the center tile and friends
-					  max_rdiff,            // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
-					  max_atilt,            // final double     max_atilt, //  = 2.0; // pix per tile
-					  max_rtilt,            // final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
-					  smpl_arms,            // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-					  smpl_rrms,            // final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
-					  damp_tilt,            // final double     damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
-					  rwsigma,              // final double     rwsigma,           //  = 0.7; // influence of far neighbors diminish as a Gaussian with this sigma
-					  rwsigma_narrow,       // final double     rwsigma_narrow,    //  = used to determine initial tilt
-					  center_weight,        // final double     center_weight,     // use center tile too (0.0 - do not use)
-					  use_alt,              // final boolean    use_alt,           // use tiles from other scans if they fit better
-					  goal_fraction_rms,    // final double     goal_fraction_rms, // Try to make rms to be this fraction of maximal acceptable by removing outliers
-					  boost_low_density,    //final double     boost_low_density, // 0 - strength is proportional to 1/density, 1.0 - same as remaining tiles
-					  fourq_min,            // final int        fourq_min,         // each of the 4 corners should have at least this number of tiles.
-					  fourq_gap,            // final int        fourq_gap,         // symmetrical vertical and horizontal center areas that do not belong to any corner
-					  clt_parameters.tileX, // final int        dbg_x,
-					  clt_parameters.tileY, // final int        dbg_y,
-					  debugLevel+2);          // final int        debugLevel
-			  biScan.showScan(quadCLT_main.image_name+"-BiScan-"+scan_index,ds);
-
-			  boolean [] lt_select = biScan.selectLowTextures(
-					  min_disparity,        // double    min_disparity,
-					  max_density,          // double    max_density,
-					  lt_radius+extra_grow, // 	int       grow,
-					  gap_hwidth,           // int       max_gap_radius,
-					  clust_hwidth,         // int       min_clust_radius,
-					  density,              // double [] density,
-					  ds[0]);               // double [] src_disparity);
-			  double [][] ds1 = {ds[0].clone(), ds[1].clone()} ;
-			  for (int i = 0; i < lt_select.length; i++) if (!lt_select[i]) {
-				  ds1[0][i] = Double.NaN;
-				  ds1[1][i] = 0.0;
-			  }
-			  biScan.showScan(quadCLT_main.image_name+"-selection-"+scan_index,ds1);
-			  double [] lt_strength = smooth_strength? ds1[1]:null;
-
-			  double [][] ds2 = biScan.fillAndSmooth(
-					  ds1[0],               // final double [] src_disparity,
-					  lt_strength,          // final double [] src_strength, // if not null will be used for weighted pull
-					  lt_select,            // final boolean [] selection,
-					  neib_pull,            // final double     neib_pull, // pull to weighted average relative to pull to the original disparity value. If 0.0 - will only update former NaN-s
-					  max_iter,             // final int max_iterations,
-					  min_change,           // final double min_change,
-					  clt_parameters.tileX, // final int        dbg_x,
-					  clt_parameters.tileY, // final int        dbg_y,
-					  debugLevel+2);        // final int        debugLevel
-			  biScan.showScan(quadCLT_main.image_name+"-smooth-"+scan_index,ds2);
-
-			  if (run_avg) {
-				  int tilesX = quadCLT_main.tp.getTilesX();
-				  double [][] disparity_bimap = measureNewRigDisparity(
-						  quadCLT_main,   // QuadCLT                                  quadCLT_main,  // tiles should be set
-						  quadCLT_aux,    // QuadCLT                                  quadCLT_aux,
-						  ds2[0],          // double []                                      disparity, // Double.NaN - skip, ohers - measure
-						  clt_parameters, // EyesisCorrectionParameters.CLTParameters clt_parameters,
-						  false, // boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
-						  lt_radius,      // int                 lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
-						  // use set from parameters
-						  clt_parameters.rig.no_int_x0,    // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
-						  threadsMax,     // final int        threadsMax,  // maximal number of threads to launch
-						  updateStatus,  // updateStatus,   // final boolean    updateStatus,
-						  debugLevel);    // final int        debugLevel)
-
-				  (new showDoubleFloatArrays()).showArrays(
-						  disparity_bimap,
-						  tilesX,
-						  disparity_bimap[0].length/tilesX,
-						  true,
-						  quadCLT_main.image_name+"LPF"+lt_radius,
-						  ImageDtt.BIDISPARITY_TITLES);
-
-// try to refine
-				  int [] num_new = new int[1];
-/*
-				  boolean [] trusted_measurements = 	  getTrustedDisparity(
-						  quadCLT_main,                            // QuadCLT            quadCLT_main,  // tiles should be set
-						  quadCLT_aux,                             // QuadCLT            quadCLT_aux,
-						  clt_parameters.rig.min_trusted_strength, // double             min_combo_strength,    // check correlation strength combined for all 3 correlations
-						  clt_parameters.grow_disp_trust,          // double             max_trusted_disparity, // 4.0 -> change to rig_trust
-						  clt_parameters.rig.trusted_tolerance,    // double             trusted_tolerance,
-						  null,                                    // boolean []         was_trusted,
-						  disparity_bimap);              // double [][]        bimap // current state of measurements
-*/
-				  double [][] prev_bimap = null;
-				  final int refine_inter = 2; // 3; // 3 - dx, 2 - disparity
-				  double [] scale_bad = new double [ds2[0].length];
-				  for (int i = 0; i < scale_bad.length; i++) scale_bad[i] = 1.0;
-				  for (int nref = 0; nref < 7; nref++) { // clt_parameters.rig.num_inf_refine; nref++) {
-//				  for (int nref = 0; nref < clt_parameters.rig.num_inf_refine; nref++) {
-
-					  double [][] disparity_bimap_new =  refineRigAvg(
-							  quadCLT_main,    // QuadCLT                        quadCLT_main,    // tiles should be set
-							  quadCLT_aux,     // QuadCLT                        quadCLT_aux,
-							  disparity_bimap, // double [][]                    src_bimap,       // current state of measurements (or null for new measurement)
-							  prev_bimap,      // double [][]                    prev_bimap, // previous state of measurements or null
-							  scale_bad,       // double []                      scale_bad,
-							  lt_select,       // final boolean []  area_of_interest,
-							  num_new,         // int     []                               num_new,
-							  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
-							  lt_radius,          // final int                                lt_radius,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
-							  biScan,          // final BiScan                             biScan,
-							  min_disparity, // final double     min_disparity,    // keep original disparity far tiles
-							  trusted_strength, // final double     trusted_strength, // trusted correlation strength
-							  strength_rfloor,// final double     strength_rfloor,   // strength floor - relative to trusted
-							  strength_pow,      //final double     strength_pow,      // raise strength-floor to this power
-							  ref_smpl_radius,   // final int        smpl_radius,
-							  smpl_fract,     // final double     smpl_fract, // Number of friends among all neighbors
-							  ref_smpl_num,   // final int        ref_smpl_num,   //         = 3;      // Number after removing worst (should be >1)
-							  ref_max_adiff,      // final double     max_adiff,  // Maximal absolute difference betweenthe center tile and friends
-							  ref_max_rdiff,      // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
-							  max_atilt,      // final double     max_atilt, //  = 2.0; // pix per tile
-							  max_rtilt,      // final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
-							  ref_smpl_arms,  // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-							  ref_smpl_rrms,  // 							  final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
-							  damp_tilt,      // final double     damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
-							  rwsigma,        // final double     rwsigma,           //  = 0.7; // influence of far neighbors diminish as a Gaussian with this sigma
-							  goal_fraction_rms, //final double     goal_fraction_rms, // Try to make rms to be this fraction of maximal acceptable by removing outliers
-							  max_iter,       // final int        max_iterations,
-							  min_change, // final double     min_change,
-							  clt_parameters.tileX, // final int        dbg_x,
-							  clt_parameters.tileY, // final int        dbg_y,
-							  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
-							  updateStatus,    // final boolean                  updateStatus,
-							  debugLevel);     // final int                      debugLevel);
-
-					  prev_bimap = disparity_bimap;
-					  disparity_bimap = disparity_bimap_new;
-
-					  if (debugLevel > -10) {(new showDoubleFloatArrays()).showArrays(
-							  disparity_bimap,
-							  tilesX,
-							  disparity_bimap[0].length/tilesX,
-							  true,
-							  quadCLT_main.image_name+"RE-MEASURED_R"+lt_radius+"-N"+nref,
-							  ImageDtt.BIDISPARITY_TITLES);
-					  }
-
-
-/*
-
-					  // refine infinity using inter correlation
-					  double [][] disparity_bimap_new =  refineRigSel(
-							  quadCLT_main,    // QuadCLT                        quadCLT_main,    // tiles should be set
-							  quadCLT_aux,     // QuadCLT                        quadCLT_aux,
-							  disparity_bimap, // double [][]                    src_bimap,       // current state of measurements (or null for new measurement)
-							  prev_bimap,      // double [][]                    prev_bimap, // previous state of measurements or null
-							  scale_bad,       // double []                      scale_bad,
-							  refine_inter,    // int                            refine_mode,     // 0 - by main, 1 - by aux, 2 - by inter
-							  false,           // boolean                        keep_inf,        // keep expected disparity 0.0 if it was so
-							  0.0, // clt_parameters.rig.refine_min_strength , // double refine_min_strength, // do not refine weaker tiles
-							  0.0, // clt_parameters.rig.refine_tolerance ,    // double refine_tolerance,    // do not refine if absolute disparity below
-							  lt_select, // trusted_measurements, // tile_list,       // ArrayList<Integer>             tile_list,       // or null
-							  num_new,         // int     []                                     num_new,
-							  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
-							  false,           //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
-							  lt_radius,               // final int  // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using
-							  // disable window preset in refine mode
-							  true,            // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
-							  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
-							  updateStatus,    // final boolean                  updateStatus,
-							  debugLevel);     // final int                      debugLevel);
-					  prev_bimap = disparity_bimap;
-					  disparity_bimap = disparity_bimap_new;
-// re-smooth target disparity
-					  if (debugLevel > -10) {(new showDoubleFloatArrays()).showArrays(
-							  disparity_bimap,
-							  tilesX,
-							  disparity_bimap[0].length/tilesX,
-							  true,
-							  quadCLT_main.image_name+"RE-MEASURED,R"+lt_radius,
-							  ImageDtt.BIDISPARITY_TITLES);
-					  }
-					  double [][] ds30 = {
-					  disparity_bimap[ImageDtt.BI_TARGET_INDEX],
-					  disparity_bimap[ImageDtt.BI_STR_CROSS_INDEX]};
-
-
-					  double [][] ds3 = biScan.getFilteredDisparityStrength(
-							  lt_select,            // final boolean [] area_of_interest,
-							  ds30,                 // final double [][] disparityStrength,
-							  min_disparity,        // final double     min_disparity,    // keep original disparity far tiles
-							  trusted_strength,     // final double     trusted_strength, // trusted correlation strength
-							  0.5 * strength_rfloor,// final double     strength_rfloor,   // strength floor - relative to trusted
-							  true,     // final boolean    discard_unreliable,// replace v
-							  true,           // final boolean    discard_weak,      // consider weak trusted tiles (not promoted to trusted) as empty
-							  true,         // final boolean    discard_strong,    // suggest new disparities even for strong tiles
-							  strength_pow,         // final double     strength_pow,      // raise strength-floor to this power
-							  null,                 // final double []  smpl_radius_array, // space-variant radius
-							  ref_smpl_radius,      // final int        smpl_radius,
-							  0,                    // final int        smpl_num,   //         = 3;      // Number after removing worst (should be >1)
-							  smpl_fract,           // final double     smpl_fract, // Number of friends among all neighbors
-							  ref_smpl_num,         // final int        smpl_num_narrow,   //         = 3;      // Number after removing worst (should be >1)
-							  ref_max_adiff,            // final double     max_adiff,  // Maximal absolute difference between the center tile and friends
-							  ref_max_rdiff,            // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
-							  max_atilt,            // final double     max_atilt, //  = 2.0; // pix per tile
-							  max_rtilt,            // final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
-							  ref_smpl_arms,            // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-							  ref_smpl_rrms,            // final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
-
-							  damp_tilt,            // final double     damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
-							  0.0,                  // final double     rwsigma,           //  = 0.7; // influence of far neighbors diminish as a Gaussian with this sigma
-							  rwsigma,              // final double     rwsigma_narrow,    //  = used to determine initial tilt
-							  1.0,                  // final double     center_weight,     // use center tile too (0.0 - do not use)
-							  false,                // final boolean    use_alt,           // use tiles from other scans if they fit better
-							  goal_fraction_rms,    // final double     goal_fraction_rms, // Try to make rms to be this fraction of maximal acceptable by removing outliers
-							  0.8,                  // boost_low_density,    //final double     boost_low_density, // 0 - strength is proportional to 1/density, 1.0 - same as remaining tiles
-							  0,                    // final int        fourq_min,         // each of the 4 corners should have at least this number of tiles.
-							  0,                    // final int        fourq_gap,         // symmetrical vertical and horizontal center areas that do not belong to any corner
-							  clt_parameters.tileX, // final int        dbg_x,
-							  clt_parameters.tileY, // final int        dbg_y,
-							  debugLevel+2);          // final int        debugLevel
-
-					  biScan.showScan(quadCLT_main.image_name+"-BiScan-"+scan_index+"-"+nref,ds3);
-
-					  double [][] ds4 = biScan.fillAndSmooth(
-							  ds3[0], // disparity_bimap[ImageDtt.BI_TARGET_INDEX], // ds1[0], // final double [] src_disparity,
-							  null, // lt_strength, // final double [] src_strength, // if not null will be used for weighted pull
-							  lt_select, // final boolean [] selection,
-							  0.0, // only gaps neib_pull, // final double     neib_pull, // pull to weighted average relative to pull to the original disparity value. If 0.0 - will only update former NaN-s
-							  max_iter, // final int max_iterations,
-							  min_change, // final double min_change,
-							  clt_parameters.tileX, // final int        dbg_x,
-							  clt_parameters.tileY, // final int        dbg_y,
-							  debugLevel+2);        // final int        debugLevel
-
-					  // Set disparity_bimap[ImageDtt.BI_TARGET_INDEX]from processed disparity
-					  disparity_bimap[ImageDtt.BI_TARGET_INDEX] = ds4[0];
-					  if (debugLevel > -10) {
-						  biScan.showScan(quadCLT_main.image_name+"-resmooth-"+nref,ds4);
-					  }
-
-*/
-
-
-
-					  if (debugLevel > -2) {
-						  System.out.println("groundTruthByRigPlanes():  refinement step="+nref+" num_new= "+num_new[0]+" tiles");
-					  }
-					  if (num_new[0] < clt_parameters.rig.pf_min_new) break;
-
-				  }
-
-				  (new showDoubleFloatArrays()).showArrays(
-						  disparity_bimap,
-						  tilesX,
-						  disparity_bimap[0].length/tilesX,
-						  true,
-						  quadCLT_main.image_name+"CORR-AVG"+lt_radius,
-						  ImageDtt.BIDISPARITY_TITLES);
-			  }
-
-
+			  double [][] final_ds=  measureLowTextureAreas(
+					  quadCLT_main,      // QuadCLT            quadCLT_main,  // tiles should be set
+					  quadCLT_aux,       // QuadCLT            quadCLT_aux,  // tiles should be set
+					  clt_parameters,    // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+					  // from clt_parameters.rig
+					  trusted_strength,  // double      trusted_strength,
+					  cond_rtrusted,     // double      cond_rtrusted,
+					  strength_rfloor,   // double      strength_rfloor,
+					  strength_pow,      // double      strength_pow,
+					  smpl_radius,       // int         smpl_radius,
+					  smpl_num,          // int         smpl_num,
+					  smpl_num_narrow,   // int         smpl_num_narrow,
+					  smpl_fract,        // double      smpl_fract,
+					  max_adiff,         // double      max_adiff,
+					  max_rdiff,         // double      max_rdiff,
+					  max_atilt,         // double      max_atilt,
+					  max_rtilt,         // double      max_rtilt,
+					  smpl_arms,         // double      smpl_arms,
+					  smpl_rrms,         // double      smpl_rrms,
+					  damp_tilt,         // double      damp_tilt,
+					  rwsigma,           // double      rwsigma,
+					  rwsigma_narrow,    // double      rwsigma_narrow,
+					  use_alt,           // boolean     use_alt,
+					  goal_fraction_rms, // double      goal_fraction_rms,
+					  boost_low_density, // double      boost_low_density,
+					  fourq_min,         // int         fourq_min,
+					  fourq_gap,         // int         fourq_gap,
+					  lt_radius,         // int         lt_radius,
+					  strong_only,       // boolean     strong_only,
+					  need_tiles,        // int         need_tiles,
+					  max_radius,        // int         max_radius,
+					  min_disparity,     // double      min_disparity,
+					  max_density,       // double      max_density,
+					  gap_hwidth,        // int         gap_hwidth,
+					  clust_hwidth,      // int         clust_hwidth,
+					  extra_grow,        // int         extra_grow,
+					  // smoothing parameters
+					  smooth_strength,   // boolean     smooth_strength,
+					  neib_pull,         // double      neib_pull,
+					  max_iter,          // int         max_iter,
+					  min_change,        // double      min_change,
+					  ref_smpl_radius,   // int         ref_smpl_radius,
+					  ref_smpl_num,      // int         ref_smpl_num,
+					  ref_max_adiff,     // double      ref_max_adiff,
+					  ref_max_rdiff,     // double      ref_max_rdiff,
+					  ref_smpl_arms,     // double      ref_smpl_arms,
+					  ref_smpl_rrms,     // double      ref_smpl_rrms,
+					  num_lt_refine,     // int         num_lt_refine,
+					  strong_tol,        // double      strong_tol,
+					  weak_tol,          // double      weak_tol,
+					  clt_parameters.rig.ltavg_expand_lt,      // boolean    expand_lt, //  =           true;
+					  clt_parameters.rig.ltavg_expand_dist,    // int        expand_dist, //  =         4;
+					  clt_parameters.rig.ltavg_expand_tol,     // double     expand_tol, //  =          0.15;   // expand LT right and left if it ends with same or nearer tile
+					  clt_parameters.rig.ltavg_expand_floor,   // double      expand_floor, //  =      0.5;    // multiply single-tile strength floor for correlation-average
+					  clt_parameters.rig.ltavg_expand_sample_num,// int         expand_sample_num, //  =   5;      // minimal number of samples in expansion mode
+					  threadsMax,        // maximal number of threads to launch
+					  updateStatus,
+					  debugLevel);
 		  } else {
 			  biScan.showScan(quadCLT_main.image_name+"BiScan-"+scan_index,ds);
 		  }
 
 		  return true;
 	  }
+
+	  public double [][] measureLowTextureAreas(
+			  QuadCLT            quadCLT_main,  // tiles should be set
+			  QuadCLT            quadCLT_aux,  // tiles should be set
+			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			  final int     threadsMax,  // maximal number of threads to launch
+			  final boolean updateStatus,
+			  final int    debugLevel) //  throws Exception
+	  {
+		  return  measureLowTextureAreas(
+				  quadCLT_main,      // QuadCLT            quadCLT_main,  // tiles should be set
+				  quadCLT_aux,       // QuadCLT            quadCLT_aux,  // tiles should be set
+				  clt_parameters,    // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+				  // from clt_parameters.rig
+				  clt_parameters.rig.pf_trusted_strength,  // double      trusted_strength,
+				  clt_parameters.rig.pf_cond_rtrusted,     // double      cond_rtrusted,
+				  clt_parameters.rig.pf_strength_rfloor,   // double      strength_rfloor,
+				  clt_parameters.rig.pf_strength_pow,      // double      strength_pow,
+				  clt_parameters.rig.pf_fourq_radius,      // clt_parameters.rig.pf_smpl_radius, // smpl_radius,       // int         smpl_radius,
+				  clt_parameters.rig.pf_smpl_num,          // int         smpl_num,
+				  clt_parameters.rig.pf_smpl_num_narrow,   // int         smpl_num_narrow,
+				  clt_parameters.rig.pf_smpl_fract,        // double      smpl_fract,
+				  clt_parameters.rig.pf_max_adiff,         // double      max_adiff,
+				  clt_parameters.rig.pf_max_rdiff,         // double      max_rdiff,
+				  clt_parameters.rig.pf_max_atilt,         // double      max_atilt,
+				  clt_parameters.rig.pf_max_rtilt,         // double      max_rtilt,
+				  clt_parameters.rig.pf_smpl_arms,         // double      smpl_arms,
+				  clt_parameters.rig.pf_smpl_rrms,         // double      smpl_rrms,
+				  clt_parameters.rig.pf_damp_tilt,         // double      damp_tilt,
+				  clt_parameters.rig.pf_rwsigma,           // double      rwsigma,
+				  clt_parameters.rig.pf_rwsigma_narrow,    // double      rwsigma_narrow,
+				  clt_parameters.rig.pf_use_alt,           // boolean     use_alt,
+				  clt_parameters.rig.pf_goal_fraction_rms, // double      goal_fraction_rms, // Try to make rms to be this fraction of maximal acceptable by removing outliers
+				  clt_parameters.rig.pf_boost_low_density, // double      boost_low_density,// Strength assigned to fake tiles from neighbors (the lower - the higher)
+				  clt_parameters.rig.pf_fourq_min,         // int         fourq_min,
+				  clt_parameters.rig.pf_fourq_gap,         // int         fourq_gap,
+				  clt_parameters.rig.ltavg_radius,         // int         lt_radius,
+				  clt_parameters.rig.ltavg_dens_strong,    // boolean     strong_only,
+				  clt_parameters.rig.ltavg_dens_tiles,     // int         need_tiles,
+				  clt_parameters.rig.ltavg_dens_radius,    // int         max_radius,
+				  clt_parameters.rig.ltavg_min_disparity,  // double      min_disparity,
+				  clt_parameters.rig.ltavg_max_density,    // double      max_density,
+				  clt_parameters.rig.ltavg_gap_hwidth,     // int         gap_hwidth,
+				  clt_parameters.rig.ltavg_clust_hwidth,   // int         clust_hwidth,
+				  clt_parameters.rig.ltavg_extra_grow,     // int         extra_grow,
+				  // smoothing parameters
+				  clt_parameters.rig.ltavg_smooth_strength,// boolean     smooth_strength,
+				  clt_parameters.rig.ltavg_neib_pull,      // double      neib_pull,
+				  clt_parameters.rig.ltavg_max_iter,       // int         max_iter,
+				  clt_parameters.rig.ltavg_min_change,     // double      min_change,
+				  clt_parameters.rig.ltavg_ref_smpl_radius,// int         ref_smpl_radius,
+				  clt_parameters.rig.ltavg_ref_smpl_num,   // int         ref_smpl_num,
+				  clt_parameters.rig.ltavg_ref_max_adiff,  // double      ref_max_adiff,
+				  clt_parameters.rig.ltavg_ref_max_rdiff,  // double      ref_max_rdiff,
+				  clt_parameters.rig.ltavg_ref_smpl_arms,  // double      ref_smpl_arms,
+				  clt_parameters.rig.ltavg_ref_smpl_rrms,  // double      ref_smpl_rrms,
+				  clt_parameters.rig.ltavg_num_lt_refine,  // int         num_lt_refine,
+				  clt_parameters.rig.ltavg_strong_tol,     // double      strong_tol,
+				  clt_parameters.rig.ltavg_weak_tol,       // double      weak_tol,
+				  clt_parameters.rig.ltavg_expand_lt,      // boolean    expand_lt, //  =           true;
+				  clt_parameters.rig.ltavg_expand_dist,    // int        expand_dist, //  =         4;
+				  clt_parameters.rig.ltavg_expand_tol,     // double     expand_tol, //  =          0.15;   // expand LT right and left if it ends with same or nearer tile
+				  clt_parameters.rig.ltavg_expand_floor,   // double      expand_floor, //  =      0.5;    // multiply single-tile strength floor for correlation-average
+				  clt_parameters.rig.ltavg_expand_sample_num,// int         expand_sample_num, //  =   5;      // minimal number of samples in expansion mode
+				  threadsMax,        // maximal number of threads to launch
+				  updateStatus,
+				  debugLevel);
+	  }
+
+
+	  public double [][] measureLowTextureAreas(
+			  QuadCLT            quadCLT_main,  // tiles should be set
+			  QuadCLT            quadCLT_aux,  // tiles should be set
+			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
+	// from clt_parameters.rig
+			  double      trusted_strength,
+			  double      cond_rtrusted,
+			  double      strength_rfloor,
+			  double      strength_pow,
+			  int         smpl_radius,
+			  int         smpl_num,
+			  int         smpl_num_narrow,
+			  double      smpl_fract,
+			  double      max_adiff,
+			  double      max_rdiff,
+			  double      max_atilt,
+			  double      max_rtilt,
+			  double      smpl_arms,
+			  double      smpl_rrms,
+			  double      damp_tilt,
+			  double      rwsigma,
+			  double      rwsigma_narrow,
+			  boolean     use_alt,
+			  double      goal_fraction_rms,
+			  double      boost_low_density,
+			  int         fourq_min,
+			  int         fourq_gap,
+//			  boolean     run_avg,
+			  int         lt_radius,
+			  boolean     strong_only,
+			  int         need_tiles,
+			  int         max_radius,
+			  double      min_disparity,
+			  double      max_density,
+			  int         gap_hwidth,
+			  int         clust_hwidth,
+			  int         extra_grow,
+			  // smoothing parameters
+			  boolean     smooth_strength,
+			  double      neib_pull,
+			  int         max_iter,
+			  double      min_change,
+			  int         ref_smpl_radius,
+			  int         ref_smpl_num,
+			  double      ref_max_adiff,
+			  double      ref_max_rdiff,
+			  double      ref_smpl_arms,
+			  double      ref_smpl_rrms,
+			  int         num_lt_refine,
+			  double      strong_tol,
+			  double      weak_tol,
+			  boolean     expand_lt, //  =           true;
+			  int         expand_dist, //  =         4;
+			  double      expand_tol, //  =          0.15;   // expand LT right and left if it ends with same or nearer tile
+			  double      expand_floor, //  =      0.5;    // multiply single-tile strength floor for correlation-average
+			  int         expand_sample_num, //  =   5;      // minimal number of samples in expansion mode
+			  final int     threadsMax,  // maximal number of threads to launch
+			  final boolean updateStatus,
+			  final int    debugLevel) //  throws Exception
+			  {
+		  boolean show_smooth =     true;
+		  boolean keep_unreliable = false;
+		  boolean keep_weak =       false;
+		  boolean keep_strong =     false;
+		  double  center_weight =   1.0;
+
+		  if (debugLevel > -2){
+			  System.out.println(" === showBiScan( parameters : =====");
+//			  System.out.println("       scan_index= "+scan_index);
+			  System.out.println("      show_smooth= "+show_smooth);
+			  System.out.println("  keep_unreliable= "+keep_unreliable);
+			  System.out.println("        keep_weak= "+keep_weak);
+			  System.out.println("      keep_strong= "+keep_strong);
+			  System.out.println("    center_weight= "+center_weight);
+
+			  System.out.println(" trusted_strength= "+trusted_strength);
+			  System.out.println("    cond_rtrusted= "+cond_rtrusted);
+			  System.out.println("  strength_rfloor= "+strength_rfloor);
+			  System.out.println("     strength_pow= "+strength_pow);
+			  System.out.println("      smpl_radius= "+smpl_radius);
+			  System.out.println("         smpl_num= "+smpl_num);
+			  System.out.println("  smpl_num_narrow= "+smpl_num_narrow);
+			  System.out.println("       smpl_fract= "+smpl_fract);
+			  System.out.println("        max_adiff= "+max_adiff);
+			  System.out.println("        max_rdiff= "+max_rdiff);
+			  System.out.println("        max_atilt= "+max_atilt);
+			  System.out.println("        max_rtilt= "+max_rtilt);
+			  System.out.println("        smpl_arms= "+smpl_arms);
+			  System.out.println("        smpl_rrms= "+smpl_rrms);
+			  System.out.println("        damp_tilt= "+damp_tilt);
+			  System.out.println("          rwsigma= "+rwsigma);
+			  System.out.println("   rwsigma_narrow= "+rwsigma_narrow);
+
+			  System.out.println("          use_alt= "+use_alt);
+			  System.out.println("goal_fraction_rms= "+goal_fraction_rms);
+			  System.out.println("boost_low_density= "+boost_low_density);
+
+			  System.out.println("        fourq_min= "+fourq_min);
+			  System.out.println("        fourq_gap= "+fourq_gap);
+
+//			  System.out.println("          run_avg= "+run_avg);
+			  System.out.println("        lt_radius= "+lt_radius);
+			  System.out.println("      strong_only= "+strong_only);
+			  System.out.println("       need_tiles= "+need_tiles);
+			  System.out.println("       max_radius= "+max_radius);
+
+			  System.out.println("    min_disparity= "+min_disparity);
+			  System.out.println("      max_density= "+max_density);
+			  System.out.println("       gap_hwidth= "+gap_hwidth);
+			  System.out.println("       extra_grow= "+extra_grow);
+
+			  System.out.println("     clust_hwidth= "+clust_hwidth);
+			  System.out.println("  smooth_strength= "+smooth_strength);
+			  System.out.println("        neib_pull= "+neib_pull);
+			  System.out.println("         max_iter= "+max_iter);
+			  System.out.println("       min_change= "+min_change);
+
+			  System.out.println("  ref_smpl_radius= "+ref_smpl_radius);
+			  System.out.println("     ref_smpl_num= "+ref_smpl_num);
+			  System.out.println("    ref_max_adiff= "+ref_max_adiff);
+			  System.out.println("    ref_max_rdiff= "+ref_max_rdiff);
+			  System.out.println("    ref_smpl_arms= "+ref_smpl_arms);
+			  System.out.println("    ref_smpl_rrms= "+ref_smpl_rrms);
+
+			  System.out.println("    num_lt_refine= "+num_lt_refine);
+			  System.out.println("       strong_tol= "+strong_tol);
+			  System.out.println("         weak_tol= "+weak_tol);
+
+			  System.out.println("        expand_lt= "+expand_lt);
+			  System.out.println("      expand_dist= "+expand_dist);
+			  System.out.println("       expand_tol= "+expand_tol);
+
+			  System.out.println("     expand_floor= "+expand_floor);
+			  System.out.println("expand_sample_num= "+expand_sample_num);
+		  }
+		  BiScan biScan =  biCamDSI_persistent.getLastBiScan(BiScan.BISCAN_SINGLECORR); // biScans.get(scan_index);
+		  biCamDSI_persistent.getLastBiScan(BiScan.BISCAN_SINGLECORR).copyLastStrongestEnabled(
+				  clt_parameters.rig.pf_last_priority); // final boolean last_priority)
+		  double afloor = trusted_strength * strength_rfloor;
+		  int num_tries_strongest_by_fittest = 5;
+		  // replace strongest by fittest
+		  for (int nfit = 0; nfit < num_tries_strongest_by_fittest; nfit++) {
+			  int num_replaced = biCamDSI_persistent.getLastBiScan(BiScan.BISCAN_SINGLECORR).copyFittestEnabled(
+					  afloor,                             // final double  str_floor,      // absolute strength floor
+					  clt_parameters.rig.pf_disp_afloor,  // final double  pf_disp_afloor, // =            0.1;    // When selecting the best fit from the alternative disparities, divide by difference increased by this
+					  clt_parameters.rig.pf_disp_rfloor); // 	final double  pf_disp_rfloor) //  =            0.02;   // Increase pf_disp_afloor for large disparities
+			  if ((debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
+				  System.out.println("groundTruthByRigPlanes(): Replacing strongest by fittest: ntry = "+nfit+", replaced "+num_replaced+" tiles");
+			  }
+			  if (num_replaced == 0) {
+				  break;
+			  }
+		  }
+
+		  biScan.calcTrusted(   // finds strong trusted and validates week ones if they fit planes
+				  trusted_strength, // final double     trusted_strength, // trusted correlation strength
+				  strength_rfloor,  // final double     strength_rfloor,   // strength floor - relative to trusted
+				  cond_rtrusted,    // final double     cond_rtrusted,     // minimal strength to consider - fraction of trusted
+				  strength_pow,     // final double     strength_pow,      // raise strength-floor to this power
+				  smpl_radius,      // final int        smpl_radius,
+				  smpl_num,         // final int        smpl_num,   //         = 3;      // Number after removing worst (should be >1)
+				  smpl_fract,       // final double     smpl_fract, // Number of friends among all neighbors
+				  max_adiff,        // final double     max_adiff,  // Maximal absolute difference betweenthe center tile and friends
+				  max_rdiff,        // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
+				  max_atilt,        // final double     max_atilt, //  = 2.0; // pix per tile
+				  max_rtilt,        // final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
+				  smpl_arms,        // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				  smpl_rrms,        // final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
+				  damp_tilt,        // final double     damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
+				  rwsigma,          // 						final double     rwsigma,           //  = 0.7; // influence of far neighbors diminish as a Gaussian with this sigma
+				  clt_parameters.tileX,                   // final int        dbg_x,
+				  clt_parameters.tileY,                   // final int        dbg_y,
+				  debugLevel);                            // final int        debugLevel);
+
+		  double [] density = 		  biScan.getDensity(
+				  strong_only, // final boolean strong_only,
+				  need_tiles, // 20, // 10,    // final int need_tiles,
+				  max_radius, // 20, // 15,    // final int max_radius,
+				  clt_parameters.tileX, // final int        dbg_x,
+				  clt_parameters.tileY, // final int        dbg_y,
+				  debugLevel+2);        // final int        debugLevel
+		  boolean [] pre_select = biScan.selectLowTextures(
+				  min_disparity,        // double    min_disparity,
+				  max_density,          // double    max_density,
+				  lt_radius+extra_grow, // int       grow,
+				  gap_hwidth,           // int       max_gap_radius,
+				  clust_hwidth,         // int       min_clust_radius,
+				  density,              // double [] density,
+				  null);                // double [] src_disparity);
+		  double []   dbg_presel = new double [pre_select.length];
+		  for (int i = 0; i < pre_select.length; i++) dbg_presel[i] = pre_select[i]? 1.0:0.0;
+		  double [][] dbg_dens_str = {density, dbg_presel};
+//		  biScan.showScan(quadCLT_main.image_name+"-density-"+scan_index,dbg_dens_str); //list_index
+		  biScan.showScan(quadCLT_main.image_name+"-density-"+biScan.list_index,dbg_dens_str); //list_index
+
+		  double [][] ds = biScan.getFilteredDisparityStrength(
+				  pre_select,           // final boolean [] area_of_interest,
+				  null,                 // final double [][] disparityStrength,
+				  min_disparity,        // final double     min_disparity,    // keep original disparity far tiles
+				  trusted_strength,     // final double     trusted_strength, // trusted correlation strength
+				  strength_rfloor,      // final double     strength_rfloor,   // strength floor - relative to trusted
+				  !keep_unreliable,     // final boolean    discard_unreliable,// replace v
+				  !keep_weak,           // final boolean    discard_weak,      // consider weak trusted tiles (not promoted to trusted) as empty
+				  !keep_strong,         // final boolean    discard_strong,    // suggest new disparities even for strong tiles
+				  strength_pow,         // final double     strength_pow,      // raise strength-floor to this power
+				  null,                 // final double []  smpl_radius_array, // space-variant radius
+				  smpl_radius,          // final int        smpl_radius,
+				  smpl_num,             // final int        smpl_num,   //         = 3;      // Number after removing worst (should be >1)
+				  smpl_fract,           // final double     smpl_fract, // Number of friends among all neighbors
+				  smpl_num_narrow,      // final int        smpl_num_narrow,   //         = 3;      // Number after removing worst (should be >1)
+				  max_adiff,            // final double     max_adiff,  // Maximal absolute difference between the center tile and friends
+				  max_rdiff,            // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
+				  max_atilt,            // final double     max_atilt, //  = 2.0; // pix per tile
+				  max_rtilt,            // final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
+				  smpl_arms,            // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				  smpl_rrms,            // final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
+				  damp_tilt,            // final double     damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
+				  rwsigma,              // final double     rwsigma,           //  = 0.7; // influence of far neighbors diminish as a Gaussian with this sigma
+				  rwsigma_narrow,       // final double     rwsigma_narrow,    //  = used to determine initial tilt
+				  center_weight,        // final double     center_weight,     // use center tile too (0.0 - do not use)
+				  use_alt,              // final boolean    use_alt,           // use tiles from other scans if they fit better
+				  goal_fraction_rms,    // final double     goal_fraction_rms, // Try to make rms to be this fraction of maximal acceptable by removing outliers
+				  boost_low_density,    //final double     boost_low_density, // 0 - strength is proportional to 1/density, 1.0 - same as remaining tiles
+				  fourq_min,            // final int        fourq_min,         // each of the 4 corners should have at least this number of tiles.
+				  fourq_gap,            // final int        fourq_gap,         // symmetrical vertical and horizontal center areas that do not belong to any corner
+				  clt_parameters.tileX, // final int        dbg_x,
+				  clt_parameters.tileY, // final int        dbg_y,
+				  debugLevel+2);          // final int        debugLevel
+		  biScan.showScan(quadCLT_main.image_name+"-BiScan-"+biScan.list_index,ds);
+
+		  boolean [] lt_select = biScan.selectLowTextures(
+				  min_disparity,        // double    min_disparity,
+				  max_density,          // double    max_density,
+				  lt_radius+extra_grow, // 	int       grow,
+				  gap_hwidth,           // int       max_gap_radius,
+				  clust_hwidth,         // int       min_clust_radius,
+				  density,              // double [] density,
+				  ds[0]);               // double [] src_disparity);
+
+		  // compare iterations at lt_compare;
+		  boolean [] lt_compare = lt_select.clone();
+		  biCamDSI_persistent.tnImage.shrinkSelection(
+				  2*(lt_radius), // int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				  lt_compare, // boolean [] tiles,
+				  null); // boolean [] prohibit)
+
+
+		  double [][] ds1 = {ds[0].clone(), ds[1].clone()} ;
+		  for (int i = 0; i < lt_select.length; i++) if (!lt_select[i]) {
+			  ds1[0][i] = Double.NaN;
+			  ds1[1][i] = 0.0;
+		  }
+		  biScan.showScan(quadCLT_main.image_name+"-selection-"+biScan.list_index,ds1);
+		  double [] lt_strength = smooth_strength? ds1[1]:null;
+
+		  double [][] ds2 = biScan.fillAndSmooth(
+				  ds1[0],               // final double [] src_disparity,
+				  lt_strength,          // final double [] src_strength, // if not null will be used for weighted pull
+				  lt_select,            // final boolean [] selection,
+				  neib_pull,            // final double     neib_pull, // pull to weighted average relative to pull to the original disparity value. If 0.0 - will only update former NaN-s
+				  max_iter,             // final int max_iterations,
+				  min_change,           // final double min_change,
+				  clt_parameters.tileX, // final int        dbg_x,
+				  clt_parameters.tileY, // final int        dbg_y,
+				  debugLevel+2);        // final int        debugLevel
+		  biScan.showScan(quadCLT_main.image_name+"-smooth-"+biScan.list_index,ds2);
+
+//		  if (run_avg) {
+		  int tilesX = quadCLT_main.tp.getTilesX();
+		  double [][] disparity_bimap = measureNewRigDisparity(
+				  quadCLT_main,   // QuadCLT                                  quadCLT_main,  // tiles should be set
+				  quadCLT_aux,    // QuadCLT                                  quadCLT_aux,
+				  ds2[0],          // double []                                      disparity, // Double.NaN - skip, ohers - measure
+				  clt_parameters, // EyesisCorrectionParameters.CLTParameters clt_parameters,
+				  false, // boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+				  lt_radius,      // int                 lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
+				  // use set from parameters
+				  clt_parameters.rig.no_int_x0,    // boolean                                  no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
+				  threadsMax,     // final int        threadsMax,  // maximal number of threads to launch
+				  updateStatus,  // updateStatus,   // final boolean    updateStatus,
+				  debugLevel);    // final int        debugLevel)
+
+		  (new showDoubleFloatArrays()).showArrays(
+				  disparity_bimap,
+				  tilesX,
+				  disparity_bimap[0].length/tilesX,
+				  true,
+				  quadCLT_main.image_name+"LPF"+lt_radius,
+				  ImageDtt.BIDISPARITY_TITLES);
+
+		  //try to refine
+		  int [] num_new = new int[1];
+		  /*
+			  boolean [] trusted_measurements = 	  getTrustedDisparity(
+					  quadCLT_main,                            // QuadCLT            quadCLT_main,  // tiles should be set
+					  quadCLT_aux,                             // QuadCLT            quadCLT_aux,
+					  clt_parameters.rig.min_trusted_strength, // double             min_combo_strength,    // check correlation strength combined for all 3 correlations
+					  clt_parameters.grow_disp_trust,          // double             max_trusted_disparity, // 4.0 -> change to rig_trust
+					  clt_parameters.rig.trusted_tolerance,    // double             trusted_tolerance,
+					  null,                                    // boolean []         was_trusted,
+					  disparity_bimap);              // double [][]        bimap // current state of measurements
+		   */
+		  double [][] prev_bimap = null;
+		  double [] scale_bad = new double [ds2[0].length];
+		  for (int i = 0; i < scale_bad.length; i++) scale_bad[i] = 1.0;
+		  for (int nref = 0; nref < num_lt_refine; nref++) { // clt_parameters.rig.num_inf_refine; nref++) {
+			  //			  for (int nref = 0; nref < clt_parameters.rig.num_inf_refine; nref++) {
+
+			  double [][] disparity_bimap_new =  refineRigAvg(
+					  quadCLT_main,    // QuadCLT                        quadCLT_main,    // tiles should be set
+					  quadCLT_aux,     // QuadCLT                        quadCLT_aux,
+					  disparity_bimap, // double [][]                    src_bimap,       // current state of measurements (or null for new measurement)
+					  prev_bimap,      // double [][]                    prev_bimap, // previous state of measurements or null
+					  scale_bad,       // double []                      scale_bad,
+					  lt_select,       // final boolean []  area_of_interest,
+					  num_new,         // int     []                               num_new,
+					  clt_parameters,  // EyesisCorrectionParameters.CLTParameters clt_parameters,
+					  lt_radius,          // final int                                lt_radius,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
+					  biScan,          // final BiScan                             biScan,
+					  min_disparity, // final double     min_disparity,    // keep original disparity far tiles
+					  trusted_strength, // final double     trusted_strength, // trusted correlation strength
+					  expand_floor * strength_rfloor,// final double     strength_rfloor,   // strength floor - relative to trusted
+					  strength_pow,      //final double     strength_pow,      // raise strength-floor to this power
+					  ref_smpl_radius,   // final int        smpl_radius,
+					  smpl_fract,     // final double     smpl_fract, // Number of friends among all neighbors
+					  ref_smpl_num,   // final int        ref_smpl_num,   //         = 3;      // Number after removing worst (should be >1)
+					  ref_max_adiff,      // final double     max_adiff,  // Maximal absolute difference betweenthe center tile and friends
+					  ref_max_rdiff,      // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
+					  max_atilt,      // final double     max_atilt, //  = 2.0; // pix per tile
+					  max_rtilt,      // final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
+					  ref_smpl_arms,  // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+					  ref_smpl_rrms,  // 							  final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
+					  damp_tilt,      // final double     damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
+					  rwsigma,        // final double     rwsigma,           //  = 0.7; // influence of far neighbors diminish as a Gaussian with this sigma
+					  goal_fraction_rms, //final double     goal_fraction_rms, // Try to make rms to be this fraction of maximal acceptable by removing outliers
+					  max_iter,       // final int        max_iterations,
+					  min_change, // final double     min_change,
+					  clt_parameters.tileX, // final int        dbg_x,
+					  clt_parameters.tileY, // final int        dbg_y,
+					  threadsMax,      // final int                      threadsMax,      // maximal number of threads to launch
+					  updateStatus,    // final boolean                  updateStatus,
+					  debugLevel);     // final int                      debugLevel);
+
+			  prev_bimap = disparity_bimap;
+			  disparity_bimap = disparity_bimap_new;
+
+			  double max_diff =0.0, sw = 0.0, swd = 0.0, swd2 = 0.0;
+			  for (int nTile = 0; nTile < lt_compare.length; nTile++) if (lt_compare[nTile]){
+				  double w = disparity_bimap[ImageDtt.BI_STR_CROSS_INDEX][nTile]; // subtract floor?
+				  double d = disparity_bimap[ImageDtt.BI_TARGET_INDEX][nTile]-prev_bimap[ImageDtt.BI_TARGET_INDEX][nTile];
+				  if (Double.isNaN(d)) {
+					  System.out.println("showBiScan(): got NaN: disparity_bimap[ImageDtt.BI_TARGET_INDEX]["+nTile+"]="+disparity_bimap[ImageDtt.BI_TARGET_INDEX][nTile]+
+							  ", prev_bimap[ImageDtt.BI_TARGET_INDEX]["+nTile+"]="+prev_bimap[ImageDtt.BI_TARGET_INDEX][nTile]);
+				  } else {
+					  sw += w;
+					  swd += w*d;
+					  swd2 +=w*d*d;
+					  max_diff = Math.max(max_diff, Math.abs(d));
+				  }
+			  }
+			  double mean = swd / sw;
+			  double rms = Math.sqrt(swd2 / sw);
+			  if (debugLevel > 0) {
+				  System.out.println("showBiScan() iteration "+nref+": mean ="+mean+", rms = "+ rms+", max diff. = "+max_diff );
+			  }
+
+			  if (debugLevel > 10) {(new showDoubleFloatArrays()).showArrays(
+					  disparity_bimap,
+					  tilesX,
+					  disparity_bimap[0].length/tilesX,
+					  true,
+					  quadCLT_main.image_name+"RE-MEASURED_R"+lt_radius+"-N"+nref,
+					  ImageDtt.BIDISPARITY_TITLES);
+			  }
+
+
+
+			  if (debugLevel > 0) {
+				  System.out.println("groundTruthByRigPlanes():  refinement step="+nref+" num_new= "+num_new[0]+" tiles");
+			  }
+			  if (num_new[0] < clt_parameters.rig.pf_min_new) break; // currently will never happen
+			  if (( max_diff < min_change) || (nref == (num_lt_refine - 1))) {
+				  if (debugLevel > -2) {
+					  System.out.println("showBiScan() final iteration "+nref+": mean ="+mean+", rms = "+ rms+", max diff. = "+max_diff );
+				  }
+				  break;
+			  }
+
+		  }
+
+		  (new showDoubleFloatArrays()).showArrays(
+				  disparity_bimap,
+				  tilesX,
+				  disparity_bimap[0].length/tilesX,
+				  true,
+				  quadCLT_main.image_name+"CORR-AVG"+lt_radius,
+				  ImageDtt.BIDISPARITY_TITLES);
+
+		  double [][] avg_ds = {disparity_bimap[ImageDtt.BI_TARGET_INDEX],disparity_bimap[ImageDtt.BI_STR_CROSS_INDEX]};
+		  // maybe trim all previously added to the last BiScan.BISCAN_SINGLECORR?
+		  // so far just add
+		  for (int nTile = 0; nTile < lt_select.length; nTile++) if (!lt_select[nTile]){ // keep border tiles
+			  avg_ds[0][nTile] = Double.NaN;
+			  avg_ds[1][nTile] = 0.0;
+		  }
+
+/*
+ * 			  boolean     expand_lt, //  =           true;
+			  int         expand_dist, //  =         4;
+			  double      expand_tol, //  =          0.15;   // expand LT right and left if it ends with same or nearer tile
+
+		tnImage.growSelection(
+				2* max_gap_radius, // int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+				selection, // boolean [] tiles,
+				null); // boolean [] prohibit)
+		final TileNeibs  tnImage = biCamDSI.tnImage;
+
+ */
+		  boolean [] strong = biScan.strong_trusted;
+		  boolean [] weak =   biScan.trusted;
+		  double [][] ds_single = biScan.getDisparityStrength(
+				  false, // only_strong,
+				  false, // only_trusted,
+				  true); // only_enabled);
+		  if (expand_lt) {
+			  boolean [] expanded_lt = lt_select.clone();
+			  TileNeibs         tnImage =  biCamDSI_persistent.tnImage;
+			  tnImage.growSelection(
+					  2* expand_dist,   // int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
+					  expanded_lt,      // boolean [] tiles,
+					  null);            // boolean [] prohibit)
+			  for (int nTile = 0; nTile < expanded_lt.length; nTile++) {
+				  expanded_lt[nTile] &= ! lt_select[nTile] && !weak[nTile]; // Or just !Double.isNaN(ds_single[0][nTile]) ???
+			  }
+			  if (debugLevel > -2) {
+				  double [][] dbg_sel = new double [2][expanded_lt.length];
+				  for (int i = 0; i < expanded_lt.length; i++) {
+					  dbg_sel[0][i] = (lt_select[i]? 1:0) + (expanded_lt[i]? 2:0);
+					  dbg_sel[1][i] = (lt_select[i]? 1:0);
+				  }
+				  biScan.showScan(quadCLT_main.image_name+"-lt-selections"+biScan.list_index, dbg_sel);
+				  biScan.showScan(quadCLT_main.image_name+"-avg_ds"+biScan.list_index, avg_ds);
+
+			  }
+
+			  int expand_radius = 2*expand_dist; // where it looks for valid tiles
+			  double [][] ds_preexpanded =	biScan.getFilteredDisparityStrength(
+					  expanded_lt,          // final boolean [] area_of_interest,
+					  avg_ds,               // final double [][] disparityStrength,
+					  min_disparity,        // final double     min_disparity,    // keep original disparity far tiles
+					  trusted_strength,     // final double     trusted_strength, // trusted correlation strength
+					  expand_floor * strength_rfloor,// final double     strength_rfloor,   // strength floor - relative to trusted
+					  true,     // final boolean    discard_unreliable,// replace v
+					  true,           // final boolean    discard_weak,      // consider weak trusted tiles (not promoted to trusted) as empty
+					  true,         // final boolean    discard_strong,    // suggest new disparities even for strong tiles
+					  strength_pow,         // final double     strength_pow,      // raise strength-floor to this power
+					  null,                 // final double []  smpl_radius_array, // space-variant radius
+					  expand_radius,        // final int        smpl_radius,
+					  0,                    // final int        smpl_num,   //         = 3;      // Number after removing worst (should be >1)
+//					  0.5 * smpl_fract,        // final double     smpl_fract, // Number of friends among all neighbors
+					  smpl_fract,           // final double     smpl_fract, // Number of friends among all neighbors
+					  expand_sample_num,    // ref_smpl_num,         // final int        smpl_num_narrow,   //         = 3;      // Number after removing worst (should be >1)
+					  ref_max_adiff,        // final double     max_adiff,  // Maximal absolute difference between the center tile and friends
+					  ref_max_rdiff,        // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
+					  max_atilt,            // final double     max_atilt, //  = 2.0; // pix per tile
+					  max_rtilt,            // final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
+					  ref_smpl_arms,        // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+					  ref_smpl_rrms,        // final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
+					  damp_tilt,            // final double     damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
+					  0.0,                  // final double     rwsigma,           //  = 0.7; // influence of far neighbors diminish as a Gaussian with this sigma
+					  rwsigma,              // final double     rwsigma_narrow,    //  = used to determine initial tilt
+					  1.0,                  // final double     center_weight,     // use center tile too (0.0 - do not use)
+					  false,                // final boolean    use_alt,           // use tiles from other scans if they fit better
+					  goal_fraction_rms,    // final double     goal_fraction_rms, // Try to make rms to be this fraction of maximal acceptable by removing outliers
+					  0.8,                  // boost_low_density,    //final double     boost_low_density, // 0 - strength is proportional to 1/density, 1.0 - same as remaining tiles
+					  0,                    // final int        fourq_min,         // each of the 4 corners should have at least this number of tiles.
+					  0,                    // final int        fourq_gap,         // symmetrical vertical and horizontal center areas that do not belong to any corner
+					  clt_parameters.tileX, // final int        dbg_x,
+					  clt_parameters.tileY, // final int        dbg_y,
+					  debugLevel+0);          // final int        debugLevel
+			  if (debugLevel > -2) {
+				  biScan.showScan(quadCLT_main.image_name+"-preexpand"+biScan.list_index, ds_preexpanded);
+			  }
+
+			  for (int nTile = 0; nTile < expanded_lt.length; nTile++) {
+				  if (Double.isNaN(ds_preexpanded[0][nTile]) && !Double.isNaN(avg_ds[0][nTile])){
+					  ds_preexpanded[0][nTile] = avg_ds[0][nTile];
+					  ds_preexpanded[1][nTile] = avg_ds[1][nTile];
+				  }
+
+			  }
+			  if (debugLevel > -2) {
+				  biScan.showScan(quadCLT_main.image_name+"-combo-expand"+biScan.list_index, ds_preexpanded);
+			  }
+
+//			  double [][] ds_expanded =
+			  avg_ds = biScan.getLTExpanded(
+					  expand_tol,       // final double      tolerance, // should be not NaN over lt
+					  ds_preexpanded,   // final double [][] ds_lt, // should be not NaN over lt
+					  ds_single[0],     // final double []   d_single,
+					  lt_select,        // final boolean []  lt_sel,
+					  expanded_lt,      // final boolean []  exp_sel,
+					  weak);            // final boolean []  trusted);
+			  // TODO use fillAndSmooth() to calculate new weights (keeping disparity as it was)
+			  if (debugLevel > -2) {
+				  biScan.showScan(quadCLT_main.image_name+"-lt-expanded"+biScan.list_index, avg_ds);
+			  }
+
+		  }
+
+		  int new_index = biCamDSI_persistent.addBiScan(
+				  avg_ds[0], // double [] disparity, // this will be "measured"
+				  avg_ds[1], // double [] strength,
+				  null, // boolean [] trusted,
+				  null, // boolean [] disabled,
+				  BiScan.BISCAN_AVGCORR); //int        scan_type)
+		  BiScan newScan = biCamDSI_persistent.getBiScan(new_index);
+		  if (debugLevel > -2) {
+			  System.out.println("Added scan #new_index");
+		  }
+
+		  for (int nTile = 0; nTile < lt_compare.length; nTile++){
+			  if (!lt_compare[nTile]) {
+				  if (!Double.isNaN(ds_single[0][nTile])) { // keep border from low texture if there are no normal measurements for this tile
+					  newScan.src_index[nTile] = biScan.src_index[nTile]; // will use same disparity/strength
+				  }
+			  } else {
+				  if (
+						  (strong[nTile] && (Math.abs(ds_single[0][nTile] - avg_ds[0][nTile]) <= strong_tol)) ||
+						  (weak[nTile] &&   (Math.abs(ds_single[0][nTile] - avg_ds[0][nTile]) <= weak_tol))) {
+					  newScan.src_index[nTile] = biScan.src_index[nTile]; // will use same disparity/strength
+				  }
+			  }
+		  }
+
+		  double [][] merged_ds = newScan.getDisparityStrength(
+				  false, // only_strong,
+				  false, // only_trusted,
+				  true); // only_enabled);
+
+
+
+// TODO: strength floor with averaged
+		  double avg_rfloor =        0.8 * strength_rfloor;
+		  double avg_cond_rtrusted = 0.8 * cond_rtrusted;
+
+		  int [] trusted_stats = newScan.calcTrusted(   // finds strong trusted and validates week ones if they fit planes
+				  trusted_strength,       // final double     trusted_strength, // trusted correlation strength
+				  avg_rfloor,             // final double     strength_rfloor,   // strength floor - relative to trusted
+				  avg_cond_rtrusted,      // final double     cond_rtrusted,     // minimal strength to consider - fraction of trusted
+				  strength_pow,           // final double     strength_pow,      // raise strength-floor to this power
+				  smpl_radius,            // final int        smpl_radius,
+				  smpl_num,               // final int        smpl_num,   //         = 3;      // Number after removing worst (should be >1)
+				  smpl_fract,             // final double     smpl_fract, // Number of friends among all neighbors
+				  max_adiff,              // final double     max_adiff,  // Maximal absolute difference betweenthe center tile and friends
+				  max_rdiff,              // final double     max_rdiff, //  Maximal relative difference between the center tile and friends
+				  max_atilt,              // final double     max_atilt, //  = 2.0; // pix per tile
+				  max_rtilt,              // final double     max_rtilt, //  = 0.2; // (pix / disparity) per tile
+				  smpl_arms,              // final double     smpl_arms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
+				  smpl_rrms,              // final double     smpl_rrms,        //      = 0.005;  // Maximal RMS/disparity in addition to smplRms
+				  damp_tilt,              // final double     damp_tilt, //   =     0.001; // Tilt cost for damping insufficient plane data
+				  rwsigma,                // 						final double     rwsigma,           //  = 0.7; // influence of far neighbors diminish as a Gaussian with this sigma
+				  clt_parameters.tileX,                   // final int        dbg_x,
+				  clt_parameters.tileY,                   // final int        dbg_y,
+				  debugLevel);                            // final int        debugLevel);
+
+
+		  if (debugLevel > -2) {
+			  System.out.println("groundTruthByRigPlanes()  strong trusted: "+trusted_stats[0]+
+					  " neib trusted: "+trusted_stats[1]+" weak trusted: " + trusted_stats[2]);
+		  }
+
+		  if (debugLevel > -2) {
+			  newScan.showScan(quadCLT_main.image_name+"-smooth-"+newScan.list_index, avg_ds);
+		  }
+		  return merged_ds;
+	  }
+
+
+
 
 	  public double [][] refineRigAvg(
 			  QuadCLT                                  quadCLT_main,  // tiles should be set
@@ -3062,7 +3423,7 @@ if (debugLevel > -100) return true; // temporarily !
 //			  final double [][] disparityStrength,
 			  final double     min_disparity,    // keep original disparity far tiles
 			  final double     trusted_strength, // trusted correlation strength
-			  final double     strength_rfloor,   // strength floor - relative to trusted
+			  final double     avg_strength_rfloor,   // strength floor - relative to trusted
 			  final double     strength_pow,      // raise strength-floor to this power
 			  final int        smpl_radius,
 			  final double     smpl_fract, // Number of friends among all neighbors
@@ -3127,7 +3488,7 @@ if (debugLevel > -100) return true; // temporarily !
 			  }
 		  }
 		  ds_ref[1] = src_bimap[ImageDtt.BI_STR_CROSS_INDEX];
-		  if (debugLevel > -2) {
+		  if (debugLevel > 0) {
 			  System.out.println("refineRigAvg(): prepared "+numMeas+" to measure");
 		  }
 
@@ -3136,7 +3497,7 @@ if (debugLevel > -100) return true; // temporarily !
 				  ds_ref,                 // final double [][] disparityStrength,
 				  min_disparity,        // final double     min_disparity,    // keep original disparity far tiles
 				  trusted_strength,     // final double     trusted_strength, // trusted correlation strength
-				  0.5 * strength_rfloor,// final double     strength_rfloor,   // strength floor - relative to trusted
+				  avg_strength_rfloor,// final double     strength_rfloor,   // strength floor - relative to trusted
 				  true,     // final boolean    discard_unreliable,// replace v
 				  true,           // final boolean    discard_weak,      // consider weak trusted tiles (not promoted to trusted) as empty
 				  true,         // final boolean    discard_strong,    // suggest new disparities even for strong tiles
@@ -3163,7 +3524,7 @@ if (debugLevel > -100) return true; // temporarily !
 				  0,                    // final int        fourq_gap,         // symmetrical vertical and horizontal center areas that do not belong to any corner
 				  clt_parameters.tileX, // final int        dbg_x,
 				  clt_parameters.tileY, // final int        dbg_y,
-				  debugLevel+2);          // final int        debugLevel
+				  debugLevel+0);          // final int        debugLevel
 
 		  // fill NaN gaps:
 		  double [][] ds_no_gaps = biScan.fillAndSmooth(
@@ -3175,7 +3536,7 @@ if (debugLevel > -100) return true; // temporarily !
 				  min_change,           // final double min_change,
 				  clt_parameters.tileX, // final int        dbg_x,
 				  clt_parameters.tileY, // final int        dbg_y,
-				  debugLevel+2);        // final int        debugLevel
+				  debugLevel+0);        // final int        debugLevel
 
 		  // reformat back to disparity_array
 		  for (int tileY = 0; tileY<tilesY;tileY++) {

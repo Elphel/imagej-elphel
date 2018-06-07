@@ -25,6 +25,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class BiScan {
 	final static double THRESHOLD_LIN = 1.0E-20;  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
 	final static double THRESHOLD_QUAD = 1.0E-30; // threshold ratio of matrix determinant to norm for quadratic approximation (det too low - fail)
+	final static int    BISCAN_ANY =       -1;
+	final static int    BISCAN_SINGLECORR = 0;
+	final static int    BISCAN_AVGCORR =    1; // combined with low-texture averaging correlation
+	final static int    BISCAN_POLE =       2; // combined with low-texture averaging correlation
 
 	double []  disparity_measured;
 	double []  target_disparity;
@@ -35,6 +39,7 @@ public class BiScan {
 	boolean [] disabled_measurement; // should disable source also
 	int     [] src_index;       // index of the source scan which measured data is used here (applies to disparity_measured, strength_measured, disabled_measurement
 	int        list_index = -1;
+	int        scan_type = -1;
 	BiCamDSI biCamDSI;
 //	public BiScan(BiCamDSI biCamDSI) {
 //		this.biCamDSI = biCamDSI;
@@ -49,9 +54,11 @@ public class BiScan {
 			double []  disparity,
 			double []  strength,
 			boolean [] trusted,
-			boolean [] disabled) {
+			boolean [] disabled,
+			int scan_type) {
 		this.biCamDSI = biCamDSI;
 		this.list_index = indx;
+		this.scan_type = scan_type;
 		int num_tiles = biCamDSI.tnImage.getSizeX()*biCamDSI.tnImage.getSizeY();
 		if (disparity == null) {
 			disparity= new double[num_tiles];
@@ -1572,7 +1579,7 @@ public class BiScan {
 			}
 			ImageDtt.startAndJoin(threads);
 			if (debugLevel > -2) {
-				biCamDSI.getLastBiScan().showScan(
+				biCamDSI.getLastBiScan(BISCAN_ANY).showScan(
 						"trimWeakFG_"+npass);
 			}
 
@@ -2030,9 +2037,10 @@ public class BiScan {
 			final int debugLevel) {
 		final double [] weights = {1.0, 0.7}; // {ortho, corners},
 		final boolean adjust_all = (neib_pull > 0.0);
-		final double fneib_pull = adjust_all ? neib_pull: 1.0;
+//		final double fneib_pull = adjust_all ? neib_pull: 1.0;
 		final TileNeibs  tnImage = biCamDSI.tnImage;
-		final int dbg_tile = (debugLevel > -2)? (dbg_y * tnImage.sizeX + dbg_x):-1;
+//		final int dbg_tile = (debugLevel > -2)? (dbg_y * tnImage.sizeX + dbg_x):-1;
+		final int dbg_tile = (debugLevel > 0)? (dbg_y * tnImage.sizeX + dbg_x):-1;
     	final int num_tiles = src_disparity.length;
 		final Thread[] threads = ImageDtt.newThreadArray(biCamDSI.threadsMax);
 		// max_changes may have Double.NaN value (here meaning larger than any)
@@ -2123,7 +2131,7 @@ public class BiScan {
 					}
 				}
 			}
-			if (debugLevel > -2) {
+			if (debugLevel > 0) {
 				System.out.println("fillAndSmooth(): iteration "+fnum_iter+" change="+change+" (min_change="+min_change+")+ tiles updated="+ai_count.get());
 			}
 			if (change <= min_change) { // change may be NaN
@@ -2134,6 +2142,66 @@ public class BiScan {
 		return ds;
 	}
 
+	  public double [][] getLTExpanded(
+			  final double      tolerance,
+			  final double [][] ds_lt,
+			  final double []   d_single,
+			  final boolean []  lt_sel, // lt_sel and exp_sel do not intersect
+			  final boolean []  exp_sel,
+			  final boolean []  trusted)
+	  {
+//		final int dbg_tile = (debugLevel>-2)?(dbg_x + tnImage.sizeX*dbg_y):-1;
+		  final int num_tiles = exp_sel.length;
+		  final double [][] ds = new double [2][num_tiles];
+		  for (int i = 0; i < num_tiles; i++) ds[0][i] = Double.NaN;
+		  final Thread[] threads = ImageDtt.newThreadArray(biCamDSI.threadsMax);
+		  final AtomicInteger ai = new AtomicInteger(0);
+		  final TileNeibs         tnImage = biCamDSI.tnImage;
+		  for (int ithread = 0; ithread < threads.length; ithread++) {
+			  threads[ithread] = new Thread() {
+				  @Override
+				  public void run() {
+					  //						max_changes[numThread]
+					  for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement())  if (lt_sel[nTile]) {
+						  // is low texture = - just copy
+						  ds[0][nTile] = ds_lt[0][nTile];
+						  ds[1][nTile] = ds_lt[1][nTile];
+					  } else if (exp_sel[nTile]) {
+						  int dbg_tileX = nTile%tnImage.sizeX;
+						  int dbg_tileY = nTile/tnImage.sizeX;
+						  if ((dbg_tileY == 156) || (dbg_tileY == 157)) {
+							  System.out.println("getLTExpanded(): tileX="+dbg_tileX+", tileY="+dbg_tileY);
+							  System.out.println("getLTExpanded(): tileX="+dbg_tileX+", tileY="+dbg_tileY);
+						  }
+						  int nTile0= tnImage.getNeibIndex(nTile,-1,0);
+						  if ((nTile0 < 0) || !exp_sel[nTile0]){
+							  boolean OK0 = (nTile0 < 0) || lt_sel[nTile0] || (trusted[nTile0] && (d_single[nTile0] >= (ds_lt[0][nTile] - tolerance)));
+							  if (OK0) {
+								  int nTile1= tnImage.getNeibIndex(nTile,1,0);
+								  int l = 1;
+								  while ((nTile1 >= 0) && exp_sel[nTile1]) {
+									  nTile1= tnImage.getNeibIndex(nTile1,1,0);
+									  l++;
+								  }
+
+								  boolean OK1 = (nTile1 < 0) || lt_sel[nTile1] || (trusted[nTile1] && (d_single[nTile1] >= (ds_lt[0][nTile1-1] - tolerance)));
+								  if (OK1) {
+									  for (int i = 0; i < l; i++) {
+										  int nt = nTile+ i;
+										  ds[0][nt] = ds_lt[0][nt];
+										  ds[1][nt] = ds_lt[1][nt];
+									  }
+								  }
+							  }
+						  }
+					  }
+				  }
+			  };
+		  }
+		  ImageDtt.startAndJoin(threads);
+		  return ds;
+
+	  }
 
 
 }
