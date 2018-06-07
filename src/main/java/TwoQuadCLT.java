@@ -2413,7 +2413,7 @@ if (debugLevel > -100) return true; // temporarily !
 					  clt_parameters, // EyesisCorrectionParameters.CLTParameters       clt_parameters,
 					  threadsMax,     // final int     threadsMax,  // maximal number of threads to launch
 					  updateStatus,   // final boolean updateStatus,
-					  debugLevel);    // final int    debugLevel) //
+					  debugLevel-2);    // final int    debugLevel) //
 			  // get last that was just added
 			  rig_disparity_strength = biCamDSI.getLastBiScan(BiScan.BISCAN_ANY).getDisparityStrength(
 			    		false, // boolean only_strong,
@@ -3021,7 +3021,9 @@ if (debugLevel > -100) return true; // temporarily !
 		  for (int i = 0; i < pre_select.length; i++) dbg_presel[i] = pre_select[i]? 1.0:0.0;
 		  double [][] dbg_dens_str = {density, dbg_presel};
 //		  biScan.showScan(quadCLT_main.image_name+"-density-"+scan_index,dbg_dens_str); //list_index
-		  biScan.showScan(quadCLT_main.image_name+"-density-"+biScan.list_index,dbg_dens_str); //list_index
+		  if (debugLevel > 0) {
+			  biScan.showScan(quadCLT_main.image_name+"-density-"+biScan.list_index,dbg_dens_str); //list_index
+		  }
 
 		  double [][] ds = biScan.getFilteredDisparityStrength(
 				  pre_select,           // final boolean [] area_of_interest,
@@ -3055,8 +3057,10 @@ if (debugLevel > -100) return true; // temporarily !
 				  fourq_gap,            // final int        fourq_gap,         // symmetrical vertical and horizontal center areas that do not belong to any corner
 				  clt_parameters.tileX, // final int        dbg_x,
 				  clt_parameters.tileY, // final int        dbg_y,
-				  debugLevel+2);          // final int        debugLevel
-		  biScan.showScan(quadCLT_main.image_name+"-BiScan-"+biScan.list_index,ds);
+				  debugLevel+0);          // final int        debugLevel
+		  if (debugLevel > 0) {
+			  biScan.showScan(quadCLT_main.image_name+"-BiScan-"+biScan.list_index,ds);
+		  }
 
 		  boolean [] lt_select = biScan.selectLowTextures(
 				  min_disparity,        // double    min_disparity,
@@ -3080,7 +3084,9 @@ if (debugLevel > -100) return true; // temporarily !
 			  ds1[0][i] = Double.NaN;
 			  ds1[1][i] = 0.0;
 		  }
-		  biScan.showScan(quadCLT_main.image_name+"-selection-"+biScan.list_index,ds1);
+		  if (debugLevel > 0) {
+			  biScan.showScan(quadCLT_main.image_name+"-selection-"+biScan.list_index,ds1);
+		  }
 		  double [] lt_strength = smooth_strength? ds1[1]:null;
 
 		  double [][] ds2 = biScan.fillAndSmooth(
@@ -3092,8 +3098,10 @@ if (debugLevel > -100) return true; // temporarily !
 				  min_change,           // final double min_change,
 				  clt_parameters.tileX, // final int        dbg_x,
 				  clt_parameters.tileY, // final int        dbg_y,
-				  debugLevel+2);        // final int        debugLevel
-		  biScan.showScan(quadCLT_main.image_name+"-smooth-"+biScan.list_index,ds2);
+				  debugLevel+0);        // final int        debugLevel
+		  if (debugLevel > 0) {
+			  biScan.showScan(quadCLT_main.image_name+"-smooth-"+biScan.list_index,ds2);
+		  }
 
 //		  if (run_avg) {
 		  int tilesX = quadCLT_main.tp.getTilesX();
@@ -3109,14 +3117,15 @@ if (debugLevel > -100) return true; // temporarily !
 				  threadsMax,     // final int        threadsMax,  // maximal number of threads to launch
 				  updateStatus,  // updateStatus,   // final boolean    updateStatus,
 				  debugLevel);    // final int        debugLevel)
-
-		  (new showDoubleFloatArrays()).showArrays(
-				  disparity_bimap,
-				  tilesX,
-				  disparity_bimap[0].length/tilesX,
-				  true,
-				  quadCLT_main.image_name+"LPF"+lt_radius,
-				  ImageDtt.BIDISPARITY_TITLES);
+		  if (debugLevel > 0) {
+			  (new showDoubleFloatArrays()).showArrays(
+					  disparity_bimap,
+					  tilesX,
+					  disparity_bimap[0].length/tilesX,
+					  true,
+					  quadCLT_main.image_name+"LPF"+lt_radius,
+					  ImageDtt.BIDISPARITY_TITLES);
+		  }
 
 		  //try to refine
 		  int [] num_new = new int[1];
@@ -3217,14 +3226,15 @@ if (debugLevel > -100) return true; // temporarily !
 			  }
 
 		  }
-
-		  (new showDoubleFloatArrays()).showArrays(
-				  disparity_bimap,
-				  tilesX,
-				  disparity_bimap[0].length/tilesX,
-				  true,
-				  quadCLT_main.image_name+"CORR-AVG"+lt_radius,
-				  ImageDtt.BIDISPARITY_TITLES);
+		  if (debugLevel > 0) {
+			  (new showDoubleFloatArrays()).showArrays(
+					  disparity_bimap,
+					  tilesX,
+					  disparity_bimap[0].length/tilesX,
+					  true,
+					  quadCLT_main.image_name+"CORR-AVG"+lt_radius,
+					  ImageDtt.BIDISPARITY_TITLES);
+		  }
 
 		  double [][] avg_ds = {disparity_bimap[ImageDtt.BI_TARGET_INDEX],disparity_bimap[ImageDtt.BI_STR_CROSS_INDEX]};
 		  // maybe trim all previously added to the last BiScan.BISCAN_SINGLECORR?
@@ -3234,18 +3244,6 @@ if (debugLevel > -100) return true; // temporarily !
 			  avg_ds[1][nTile] = 0.0;
 		  }
 
-/*
- * 			  boolean     expand_lt, //  =           true;
-			  int         expand_dist, //  =         4;
-			  double      expand_tol, //  =          0.15;   // expand LT right and left if it ends with same or nearer tile
-
-		tnImage.growSelection(
-				2* max_gap_radius, // int        grow,           // grow tile selection by 1 over non-background tiles 1: 4 directions, 2 - 8 directions, 3 - 8 by 1, 4 by 1 more
-				selection, // boolean [] tiles,
-				null); // boolean [] prohibit)
-		final TileNeibs  tnImage = biCamDSI.tnImage;
-
- */
 		  boolean [] strong = biScan.strong_trusted;
 		  boolean [] weak =   biScan.trusted;
 		  double [][] ds_single = biScan.getDisparityStrength(
@@ -3262,7 +3260,7 @@ if (debugLevel > -100) return true; // temporarily !
 			  for (int nTile = 0; nTile < expanded_lt.length; nTile++) {
 				  expanded_lt[nTile] &= ! lt_select[nTile] && !weak[nTile]; // Or just !Double.isNaN(ds_single[0][nTile]) ???
 			  }
-			  if (debugLevel > -2) {
+			  if (debugLevel > 0) {
 				  double [][] dbg_sel = new double [2][expanded_lt.length];
 				  for (int i = 0; i < expanded_lt.length; i++) {
 					  dbg_sel[0][i] = (lt_select[i]? 1:0) + (expanded_lt[i]? 2:0);
@@ -3308,7 +3306,7 @@ if (debugLevel > -100) return true; // temporarily !
 					  clt_parameters.tileX, // final int        dbg_x,
 					  clt_parameters.tileY, // final int        dbg_y,
 					  debugLevel+0);          // final int        debugLevel
-			  if (debugLevel > -2) {
+			  if (debugLevel > 0) {
 				  biScan.showScan(quadCLT_main.image_name+"-preexpand"+biScan.list_index, ds_preexpanded);
 			  }
 
@@ -3319,7 +3317,7 @@ if (debugLevel > -100) return true; // temporarily !
 				  }
 
 			  }
-			  if (debugLevel > -2) {
+			  if (debugLevel > 0) {
 				  biScan.showScan(quadCLT_main.image_name+"-combo-expand"+biScan.list_index, ds_preexpanded);
 			  }
 

@@ -5179,7 +5179,7 @@ private Panel panel1,
     				use_planes, //   final boolean                                  use_planes,
     				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
     				UPDATE_STATUS, //final boolean    updateStatus,
-    				DEBUG_LEVEL);
+    				DEBUG_LEVEL -2);
     	if (configPath!=null) {
     		saveTimestampedProperties( // save config again
     				configPath,      // full path or null

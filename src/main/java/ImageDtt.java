@@ -8448,10 +8448,12 @@ public class ImageDtt {
 
 // If it was low-texture mode, 	use lt_corr to average bi-quad inter-correlation between neighbor tiles and then calculate disparity/strength
 		if (lt_corr != null) {
+			//notch_mode
 			// prepare weights for neighbors
-			final double [][] neib_weights = new double[lt_rad+1][lt_rad+1];
+			final int lt_rad_x = notch_mode? 0: lt_rad;
+			final double [][] neib_weights = new double[lt_rad+1][lt_rad_x+1];
 			for (int i = 0; i <= lt_rad; i++) {
-				for (int j = 0; j <= lt_rad; j++) {
+				for (int j = 0; j <= lt_rad_x; j++) {
 					neib_weights[i][j] = Math.cos(Math.PI * i /(2 * lt_rad + 1)) * Math.cos(Math.PI * j /(2 * lt_rad + 1)); // no need to normalize - it will need to skip empty tiles anyway
 				}
 			}
@@ -8478,7 +8480,7 @@ public class ImageDtt {
 							double sw = 0.0;
 							for (int dy = -lt_rad; dy <= lt_rad; dy++) {
 								int ady = (dy > 0)? dy:(-dy);
-								for (int dx = -lt_rad; dx <= lt_rad; dx++) {
+								for (int dx = -lt_rad_x; dx <= lt_rad_x; dx++) {
 									int nTile1 =  tnImage.getNeibIndex(nTile, dx, dy);
 									if (nTile1 >= 0) {
 										double [] ot_corr = lt_corr[nTile1];

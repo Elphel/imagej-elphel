@@ -336,7 +336,7 @@ public class BiScan {
 		final AtomicInteger num_changes = new AtomicInteger(0);
 		int dbg_x = 157;
 		int dbg_y = 212;
-		int debugLevel = -1;
+		int debugLevel = -10;
 		final int dbg_tile = (debugLevel>-2)?(dbg_x + tnImage.sizeX*dbg_y):-1;
 
 		ai.set(0);
@@ -2169,10 +2169,10 @@ public class BiScan {
 					  } else if (exp_sel[nTile]) {
 						  int dbg_tileX = nTile%tnImage.sizeX;
 						  int dbg_tileY = nTile/tnImage.sizeX;
-						  if ((dbg_tileY == 156) || (dbg_tileY == 157)) {
-							  System.out.println("getLTExpanded(): tileX="+dbg_tileX+", tileY="+dbg_tileY);
-							  System.out.println("getLTExpanded(): tileX="+dbg_tileX+", tileY="+dbg_tileY);
-						  }
+//						  if ((dbg_tileY == 156) || (dbg_tileY == 157)) {
+//							  System.out.println("getLTExpanded(): tileX="+dbg_tileX+", tileY="+dbg_tileY);
+//							  System.out.println("getLTExpanded(): tileX="+dbg_tileX+", tileY="+dbg_tileY);
+//						  }
 						  int nTile0= tnImage.getNeibIndex(nTile,-1,0);
 						  if ((nTile0 < 0) || !exp_sel[nTile0]){
 							  boolean OK0 = (nTile0 < 0) || lt_sel[nTile0] || (trusted[nTile0] && (d_single[nTile0] >= (ds_lt[0][nTile] - tolerance)));
