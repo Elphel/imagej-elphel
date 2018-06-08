@@ -151,6 +151,9 @@ public class BiQuadParameters {
 	public double     pf_new_diff =               0.5;    // Minimal disparity (in master camera pixels) difference between the new suggested and the already tried/measured one
 	public int        pf_min_new =                5;      // Minimal number of he new tiles during rig refine for plane filter
 
+	public double     lonefg_rstrength =          0.4;    // Minimal relative strength of the lone FG tiles
+	public double     lonefg_disp_incr =          1.0;    // Maximal disparity of the lone FG tile over maximum of its neighbors
+
 	public boolean    ltavg_en =                  true;   // apply low texture correlation averaging
 	public int        ltavg_radius =              1;      // low texture averaging radius
 	public  boolean   ltavg_dens_strong =         true;   // density calculation - consider only strong tiles
@@ -470,7 +473,14 @@ public class BiQuadParameters {
 		gd.addNumericField("Minimal refined tiles during plane filter",                                           this.pf_min_new,  0,3,"",
 				"Repeat refine antill less tiles are updated");
 
-		gd.addTab("LT Avg","Low texture correlatinaveraging");
+
+		gd.addMessage("Remove lone FG tiles, that have disparity exceeding maximal neighbor by a margin");
+		gd.addNumericField("Minimal relative strength of the lone FG tiles",                                      this.lonefg_rstrength,  4,6,"",
+				"Tile will be removed if it is closer than closest neighbor and is weaker than that neighbor or this value");
+		gd.addNumericField("Maximal disparity of the lone FG tile over maximum of its neighbors",                 this.lonefg_disp_incr,  4,6,"pix",
+				"Tile will be removed if it has disparity higher by this margin that highest neighbor and is weak enough");
+
+		gd.addTab("LT Avg","Low texture correlation averaging");
 
 		gd.addCheckbox    ("Apply low texture correlation averaging",                                             this.ltavg_en,
 				"Improve low textures by averaging 2-d correlation results");
@@ -731,6 +741,9 @@ public class BiQuadParameters {
 		this.pf_new_diff=                   gd.getNextNumber();
 		this.pf_min_new=              (int) gd.getNextNumber();
 
+		this.lonefg_rstrength=              gd.getNextNumber();
+		this.lonefg_disp_incr=              gd.getNextNumber();
+
 		this.ltavg_en=                      gd.getNextBoolean();
 		this.ltavg_radius=            (int) gd.getNextNumber();
 		this.ltavg_dens_strong=             gd.getNextBoolean();
@@ -918,6 +931,8 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"pf_new_diff",               this.pf_new_diff+"");
 		properties.setProperty(prefix+"pf_min_new",                this.pf_min_new+"");
 
+		properties.setProperty(prefix+"lonefg_rstrength",          this.lonefg_rstrength+"");
+		properties.setProperty(prefix+"lonefg_disp_incr",          this.lonefg_disp_incr+"");
 
 		properties.setProperty(prefix+"ltavg_en",                  this.ltavg_en+"");
 		properties.setProperty(prefix+"ltavg_radius",              this.ltavg_radius+"");
@@ -1107,7 +1122,8 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"pf_new_diff")!=null)             this.pf_new_diff=Double.parseDouble(properties.getProperty(prefix+"pf_new_diff"));
 		if (properties.getProperty(prefix+"pf_min_new")!=null)              this.pf_min_new=Integer.parseInt(properties.getProperty(prefix+"pf_min_new"));
 
-
+		if (properties.getProperty(prefix+"lonefg_rstrength")!=null)        this.lonefg_rstrength=Double.parseDouble(properties.getProperty(prefix+"lonefg_rstrength"));
+		if (properties.getProperty(prefix+"lonefg_disp_incr")!=null)        this.lonefg_disp_incr=Double.parseDouble(properties.getProperty(prefix+"lonefg_disp_incr"));
 
 		if (properties.getProperty(prefix+"ltavg_en")!=null)                this.ltavg_en=Boolean.parseBoolean(properties.getProperty(prefix+"ltavg_en"));
 		if (properties.getProperty(prefix+"ltavg_radius")!=null)            this.ltavg_radius=Integer.parseInt(properties.getProperty(prefix+"ltavg_radius"));
@@ -1297,6 +1313,9 @@ public class BiQuadParameters {
 		bqp.pf_discard_strong=          this.pf_discard_strong;
 		bqp.pf_new_diff=                this.pf_new_diff;
 		bqp.pf_min_new=                 this.pf_min_new;
+
+		bqp.lonefg_rstrength=           this.lonefg_rstrength;
+		bqp.lonefg_disp_incr=           this.lonefg_disp_incr;
 
 		bqp.ltavg_en=                   this.ltavg_en;
 		bqp.ltavg_radius=               this.ltavg_radius;

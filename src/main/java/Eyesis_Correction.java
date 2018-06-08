@@ -4254,10 +4254,14 @@ private Panel panel1,
 /// ============================================
 
     } else if (label.equals("CLT 3D") || label.equals("CLT Extrinsics") || label.equals("CLT Poly corr")) {
+
     	boolean adjust_extrinsics = label.equals("CLT Extrinsics") || label.equals("CLT Poly corr");
     	boolean adjust_poly = label.equals("CLT Poly corr");
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+
+    	clt3d(adjust_extrinsics, adjust_poly);
+/*
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (
         			QuadCLT.PREFIX,
@@ -4327,6 +4331,7 @@ private Panel panel1,
         			true,
         			PROPERTIES);
         }
+*/
         return;
     } else if (label.equals("AUX Extrinsics") || label.equals("AUX Poly corr")) {
     	boolean adjust_extrinsics = label.equals("AUX Extrinsics") || label.equals("AUX Poly corr");
@@ -5125,11 +5130,11 @@ private Panel panel1,
 	    	if (configPath.equals("ABORT")) return false;
 
 	        	if (DEBUG_LEVEL > -2){
-	        		System.out.println("++++++++++++++ Enhancing single-camera DSI by the dual-camera rig using planes ++++++++++++++");
+	        		System.out.println("++++++++++++++ Generating GT data for street poles ++++++++++++++");
 	        	}
 	    		TWO_QUAD_CLT.processPoles( // actually there is no sense to process multiple image sets. Combine with other processing?
-//	    				QUAD_CLT, // QuadCLT quadCLT_main,
-//	    				QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+	    				QUAD_CLT, // QuadCLT quadCLT_main,
+	    				QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
 	    				TWO_QUAD_CLT.biCamDSI_persistent, // BiCamDSI                                       biCamDSI,
 	    				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
 	    				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
@@ -5157,13 +5162,97 @@ private Panel panel1,
 		QUAD_CLT.resetGroundTruthByRig();
 		return true;
 	}
+
+//	boolean adjust_extrinsics = label.equals("CLT Extrinsics") || label.equals("CLT Poly corr");
+//	boolean adjust_poly = label.equals("CLT Poly corr");
+	public boolean clt3d(
+			boolean adjust_extrinsics,
+			boolean adjust_poly
+			) {
+		if (QUAD_CLT == null){
+			QUAD_CLT = new  QuadCLT (
+					QuadCLT.PREFIX,
+					PROPERTIES,
+					EYESIS_CORRECTIONS,
+					CORRECTION_PARAMETERS);
+			if (DEBUG_LEVEL > 0){
+				System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+			}
+		}
+		String configPath=getSaveCongigPath();
+		if (configPath.equals("ABORT")) return false;
+
+		EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+		int numChannels=EYESIS_CORRECTIONS.getNumChannels();
+		CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
+
+		if (!QUAD_CLT.CLTKernelsAvailable()){
+			if (DEBUG_LEVEL > 0){
+				System.out.println("Reading CLT kernels");
+			}
+			QUAD_CLT.readCLTKernels(
+					CLT_PARAMETERS,
+					THREADS_MAX,
+					UPDATE_STATUS, // update status info
+					DEBUG_LEVEL);
+
+			if (DEBUG_LEVEL > 1){
+				QUAD_CLT.showCLTKernels(
+						THREADS_MAX,
+						UPDATE_STATUS, // update status info
+						DEBUG_LEVEL);
+			}
+		}
+
+		if (!QUAD_CLT.geometryCorrectionAvailable()){
+			if (DEBUG_LEVEL > 0){
+				System.out.println("Calculating geometryCorrection");
+			}
+			if (!QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2)){
+				return false;
+			}
+		}
+
+		QUAD_CLT.processCLTQuads3d(
+				adjust_extrinsics, // boolean adjust_extrinsics,
+				adjust_poly,       // boolean adjust_poly,
+				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+				DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+				//        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+				COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+				CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+				RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+				EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+				//        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+				UPDATE_STATUS, //final boolean    updateStatus,
+				DEBUG_LEVEL); //final int        debugLevel);
+
+
+
+
+		if (configPath!=null) {
+			saveTimestampedProperties( // save config again
+					configPath,      // full path or null
+					null, // use as default directory if path==null
+					true,
+					PROPERTIES);
+		}
+		return true;
+	}
+
 	public boolean enhanceByRig( boolean use_planes) {
 		long startTime=System.nanoTime();
 		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
-			String msg = "DSI data is not available. Please run \"CLT 3D\" first";
-			IJ.showMessage("Error",msg);
-			System.out.println(msg);
-			return false;
+			boolean OK = clt3d(
+					false, // boolean adjust_extrinsics,
+					false); // boolean adjust_poly);
+			if (! OK) {
+				String msg = "DSI data is not available and \"CLT 3D\" failed";
+				IJ.showMessage("Error",msg);
+				System.out.println(msg);
+				return false;
+			}
 		}
 		if (!prepareRigImages()) return false;
     	String configPath=getSaveCongigPath();

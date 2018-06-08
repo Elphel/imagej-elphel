@@ -1,5 +1,5 @@
 /**
- ** BiCamScan - calss to represent bultiple bi-quad camera measurements
+ ** BiCamScan - class to represent multiple bi-quad camera measurements
  **
  ** Copyright (C) 2018 Elphel, Inc.
  **
@@ -36,7 +36,7 @@ public class BiScan {
 	boolean [] strong_trusted; // sufficient strength without neighbors
 	boolean [] trusted;
 	boolean [] cond_trusted;
-	boolean [] disabled_measurement; // should disable source also
+	boolean [] disabled_measurement; // should disable source, not this!
 	int     [] src_index;       // index of the source scan which measured data is used here (applies to disparity_measured, strength_measured, disabled_measurement
 	int        list_index = -1;
 	int        scan_type = -1;
@@ -100,7 +100,7 @@ public class BiScan {
 		//    	disabled[nTile] =       true;
 		//    	if ((src_index[nTile] >= 0) && (src_index[nTile] != list_index)) {
 		if (src_index[nTile] >= 0) {
-			biCamDSI.getBiScan(src_index[nTile]).disabled_measurement[nTile] = false; // may be source tile or this tile
+			biCamDSI.getBiScan(src_index[nTile]).disabled_measurement[nTile] = true; // false; // may be source tile or this tile
 		}
 	}
     /**
@@ -1265,6 +1265,71 @@ public class BiScan {
 		ImageDtt.startAndJoin(threads);
 		int [] numTrustedAll = {num_trusted_strong.get(), num_trusted_plane.get(), num_non_weak.get()};
 		return numTrustedAll;
+	}
+
+	/**
+	 * Remove stray tiles that are closer than closest neighbor and weaker than it or
+	 *  trusted_strength * min_rstrength
+	 * @param trusted_strength absolute raw strength to trust
+	 * @param min_rstrength minimal strength to allow lone FG, relative to trusted_strength
+	 * @param max_disp_inc maximal disparity difference between this tile and the nearest neighbor
+	 * @param dbg_x
+	 * @param dbg_y
+	 * @param debugLevel
+	 * @return number of disabled tiles
+	 */
+
+	int  trimWeakLoneFG(
+		    final double     trusted_strength, // trusted correlation strength
+			final double     min_rstrength,   // strength floor - relative to trusted
+			final double     max_disp_inc,
+			final int        dbg_x,
+			final int        dbg_y,
+			final int        debugLevel
+			) {
+		final AtomicInteger ai_trimmed = new AtomicInteger(0);
+		final double min_strength = trusted_strength * min_rstrength;
+		final TileNeibs  tnImage = biCamDSI.tnImage;
+		final int num_tiles = tnImage.sizeX * tnImage.sizeY;
+		final Thread[] threads = ImageDtt.newThreadArray(biCamDSI.threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final double [][] ds = getDisparityStrength( // already has disabled zeroed
+	    		false,   // final boolean only_strong,
+	    		false,   // final boolean only_trusted,
+	    		true) ;  // final boolean only_enabled);
+
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) if (!Double.isNaN(ds[0][nTile])){
+						double max_disp = 0;
+						double max_disp_w = 0;
+						double d_lim = ds[0][nTile] - max_disp_inc;
+						double w =     ds[1][nTile];
+						for (int dir = 0; dir < 8; dir++) {
+							int nTile1 = tnImage.getNeibIndex(nTile, dir);
+							if ((nTile1 >=0) && (ds[0][nTile1] > max_disp)){
+								 max_disp =   ds[0][nTile1];
+								 max_disp_w = ds[1][nTile1];
+							}
+							if (max_disp > d_lim) {
+								break;
+							}
+						}
+						if ((max_disp <= d_lim) && ((w < max_disp_w) || (w < min_strength))) {
+							disableTile(nTile);
+							ai_trimmed.getAndIncrement();
+							if (debugLevel > -4) {
+								System.out.println("trimWeakLoneFG: removing tile "+nTile+" ("+(nTile%tnImage.sizeX)+":"+(nTile/tnImage.sizeX));
+							}
+						}
+					}
+				}
+			};
+		}
+		ImageDtt.startAndJoin(threads);
+		return ai_trimmed.get();
 	}
 
 	// FG edge should be strong
