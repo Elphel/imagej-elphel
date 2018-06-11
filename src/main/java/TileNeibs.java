@@ -472,4 +472,44 @@ public class TileNeibs{
 		}
 		return mx;
 	}
+
+	public int removeFewNeibs(
+			boolean [] selection, // should be the same size
+			int min_neibs)
+	{
+		int num_total_removed=0;
+		int l = getLength();
+		while (true) {
+			int num_removed = 0;
+			boolean [] to_remove = new boolean[l];
+			for (int indx = 0; indx < l; indx++) if (selection[indx]){
+				int num_neibs = 0;
+				label_neibs: {
+					for (int dir = 0; dir < 8; dir++) {
+						int indx1 = getNeibIndex(indx, dir);
+						if ((indx1 >= 0) && selection[indx1]) {
+							num_neibs++;
+							if (num_neibs >= min_neibs) {
+								break label_neibs;
+							}
+
+						}
+					}
+					to_remove[indx] = true;
+					num_removed++;
+				}
+			}
+			if (num_removed > 0) {
+				for (int i = 0; i < l; i++) if (to_remove[i]) {
+					selection[i] = false;
+				}
+				num_total_removed += num_removed;
+			} else {
+				break;
+			}
+		}
+
+
+		return num_total_removed;
+	}
 }
