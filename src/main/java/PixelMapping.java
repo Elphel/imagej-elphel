@@ -155,7 +155,7 @@ public class PixelMapping {
     // as stored in "subcamera" field of the calibration file and "sensor_port". sensor_port may start from non-0, so we need to count all combinations
     //removeUnusedSensorData xshould be off!
     public int [] channelsForSubCamera(int subCamera){
-		System.out.println("channelsForSubCamera("+subCamera+"),this.sensors.length="+this.sensors.length);
+		  if (debugLevel>2) System.out.println("channelsForSubCamera("+subCamera+"),this.sensors.length="+this.sensors.length);
 //    	ArrayList<ArrayList<ArrayList<Integer>>> camera_IPs = new ArrayList<ArrayList<ArrayList<Integer>>>(); 
     	ArrayList<Point> cam_port = new ArrayList<Point>();
     	for (int i=0;i<this.sensors.length;i++)  if (this.sensors[i]!=null) {
@@ -173,7 +173,7 @@ public class PixelMapping {
 			}
 		});
 		// debugging:
-		System.out.println("----- This filename subcamera "+subCamera+": physical camera "+cam_port_arr[subCamera].x+", sensor_port "+cam_port_arr[subCamera].y);
+		if (debugLevel>2) System.out.println("----- This filename subcamera "+subCamera+": physical camera "+cam_port_arr[subCamera].x+", sensor_port "+cam_port_arr[subCamera].y);
 		if (subCamera >= cam_port_arr.length) {
 			System.out.println("Error: Subcamera "+subCamera+" > that total namera of sensor ports in the system = "+cam_port_arr.length);
 			return null; 
