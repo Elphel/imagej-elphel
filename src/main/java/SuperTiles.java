@@ -2634,7 +2634,7 @@ public class SuperTiles{
 	}
 
 
-	public TilePlanes.PlaneData [][] createPlanesFromSelections(
+	public TilePlanes.PlaneData [][] createPlanesFromSelections( // never finished?
 			final boolean [][][][] plane_selections, //  = new boolean [nStiles][][][]; // num_tiles
 			final double  [][][][] disp_strength,
 			final double     plDispNorm,
@@ -2854,7 +2854,7 @@ public class SuperTiles{
 				}
 			};
 		}
-		ImageDtt.startAndJoin(threads);
+		ImageDtt.startAndJoin(threads); // Never finished?
 		return result_planes;
 	}
 

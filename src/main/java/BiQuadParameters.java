@@ -1,5 +1,3 @@
-import java.util.Properties;
-
 /**
  **
  ** BiQuadParameters - parameters defining Operation of a two quad camera rig
@@ -23,6 +21,8 @@ import java.util.Properties;
  ** -----------------------------------------------------------------------------**
  **
  */
+
+import java.util.Properties;
 
 public class BiQuadParameters {
 	public boolean rig_mode_debug =            true;
@@ -447,7 +447,7 @@ public class BiQuadParameters {
 				"Try trimming hanging FG (need improvement)");
 		gd.addNumericField("Absolute tolerane to determine that a tile is a background one for the selected plane",this.pf_atolerance,  4,6,"pix",
 				"When a tile has disparity smaller than a plane by more than this value it is considered to be farther (in backgeround)");
-		gd.addNumericField("Relative (to center tile disaprity) disaprity tolerance to distinguish between FG and BG", this.pf_rtolerance,  4,6,"pix/pix",
+		gd.addNumericField("Relative (to center tile disparity) disparity tolerance to distinguish between FG and BG", this.pf_rtolerance,  4,6,"pix/pix",
 				"Product of this value by the center disparity is added to the absolute tolerance (above)?");
 		gd.addNumericField("How many directions to look into (evenly of all 360) when trimming weak FG",          this.pf_num_dirs,  0,3,"",
 				"Weak FG trimming (after more permissive bridging over gaps) assumes that the FG adge should be strong, it looks in specified number of directions");

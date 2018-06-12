@@ -584,7 +584,9 @@ public class TwoQuadCLT {
 				  int iAux = (iQuadComb >= quad_main) ? 1 : 0;
 				  int iSubCam= iQuadComb - iAux * quad_main;
 
-				  String title=name+"-"+String.format("%s%02d", ((iAux>0)?"A":"M"),iSubCam);
+				  // Uncomment to have master/aux names
+//				  String title=name+"-"+String.format("%s%02d", ((iAux>0)?"A":"M"),iSubCam);
+				  String title=name+"-"+String.format("%02d", iQuadComb);
 
 				  if (clt_parameters.corr_sigma > 0){ // no filter at all
 					  for (int chn = 0; chn < clt_bidata[iAux][iSubCam].length; chn++) {
@@ -1406,6 +1408,13 @@ if (debugLevel > -100) return true; // temporarily !
 				  pole_clusters); // final ArrayList<PoleCluster> clusters)
 
 
+		  if (debugLevel > -2) {
+			  System.out.println(" === unfiltered \"pole\" clusters ===");
+			  pp.printClusterStats(
+					  -1, // minimal filter value
+					  pole_clusters);
+		  }
+
 		  final double sep_min_strength = 0.07;
 		  final double sep_disp_adiff = 0.15;
 		  final double sep_disp_rdiff = 0.05;
@@ -1416,7 +1425,6 @@ if (debugLevel > -100) return true; // temporarily !
 				  sep_disp_rdiff, // final double disp_rdiff,
 				  norm_ds, // final double [][] norn_ds,
 				  pole_clusters); // 	final ArrayList<PoleCluster> clusters)
-
 		  int num_removed =pp.removeFilteredClusters(
 				  pole_clusters, // ArrayList<PoleCluster> clusters,
 				  debugLevel); // int debugLevel)
@@ -1430,20 +1438,20 @@ if (debugLevel > -100) return true; // temporarily !
 		  if (debugLevel > -2) {
 			  System.out.println("Reaasigned layers: "+num_layers);
 		  }
-		  final double disparity_scale =   0.3; // 2;  // target disaprity to differential disparity scale (baseline ratio)
+		  final double disparity_scale =   0.3; // 2;  // target disparity to differential disparity scale (baseline ratio)
 		  final double diff_power =        1.0;  // bias towards higher disparities - (disparity+offset) is raised to this power and applied to weight
 		  //                                      if 0.0 - do not apply value to weight
-		  final double diff_offset =       0.5;  // add to measured differential disaprity before raising to specified power
+		  final double diff_offset =       0.5;  // add to measured differential disparity before raising to specified power
 		  final int    cut_bottom =        2;    // cut few tile rows from the very bottom - they may be influenced by ground objects
-		  final double keep_bottom =       0.1;  // do not cut more that this fraction of the bounding bow height
+		  final double keep_bottom =       0.1;  // do not cut more that this fraction of the bounding box height
 
 		  double max_target_diff = pp.applyMeasuredDisparity(
 				  disparity_scale,  // final double disparity_scale, // target disparity to differential disparity scale (baseline ratio)
 				  diff_power,       // final double diff_power,      // bias towards higher disparities - (disparity+offset) is raised to this power and applied to weight
 				  //                                                    if 0.0 - do not apply value to weight
-				  diff_offset,      // final double diff_offset,     // add to measured differential disaprity before raising to specified power
+				  diff_offset,      // final double diff_offset,     // add to measured differential disparity before raising to specified power
 				  cut_bottom,       // final int    cut_bottom,      // cut few tile rows from the very bottom - they may be influenced by ground objects
-				  keep_bottom,      //final double keep_bottom,      // do not cut more that this fraction of the bounding bow height
+				  keep_bottom,      //final double keep_bottom,      // do not cut more that this fraction of the bounding box height
 				  pole_clusters,    // final ArrayList<PoleCluster> clusters,
 				  debugLevel);      // final int debugLevel)         // debug level
 		  if (debugLevel > -2) {
@@ -1609,8 +1617,10 @@ if (debugLevel > -100) return true; // temporarily !
 						  true,
 						  "MEAS-COMBO",
 						  titles);
-
-				  pp.printClusterStats(pole_clusters);
+				  System.out.println(" === filtered \"pole\" clusters ===");
+				  pp.printClusterStats(
+						  0, // minimal filter value
+						  pole_clusters);
 			  }
 		  }
 		  final int max_refines = 20;
@@ -1630,9 +1640,9 @@ if (debugLevel > -100) return true; // temporarily !
 					  disparity_scale,  // final double disparity_scale, // target disparity to differential disparity scale (baseline ratio)
 					  diff_power,       // final double diff_power,      // bias towards higher disparities - (disparity+offset) is raised to this power and applied to weight
 					  //                                                    if 0.0 - do not apply value to weight
-					  diff_offset,      // final double diff_offset,     // add to measured differential disaprity before raising to specified power
+					  diff_offset,      // final double diff_offset,     // add to measured differential disparity before raising to specified power
 					  cut_bottom,       // final int    cut_bottom,      // cut few tile rows from the very bottom - they may be influenced by ground objects
-					  keep_bottom,      //final double keep_bottom,      // do not cut more that this fraction of the bounding bow height
+					  keep_bottom,      //final double keep_bottom,      // do not cut more that this fraction of the bounding box height
 					  pole_clusters,    // final ArrayList<PoleCluster> clusters,
 					  debugLevel);      // final int debugLevel)         // debug level
 			  if (debugLevel > -2) {
@@ -1675,7 +1685,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 
 
-			  if (debugLevel > -2){
+			  if ((debugLevel > -2) && ((nRefine >= (max_refines -1)) || (debugLevel > -1))){
 				  boolean filter_poles = true;
 				  double [][] dbg_layers_meas = pp.dbgClusterLayers( // layer and eBox should be set
 						  false, // boolean show_bbox,
@@ -1752,15 +1762,68 @@ if (debugLevel > -100) return true; // temporarily !
 						  "MEAS-COMBO-REFINE_"+nRefine,
 						  titles);
 
-				  pp.printClusterStats(pole_clusters);
+				  pp.printClusterStats(
+						  0, // minimal filter value
+						  pole_clusters);
+
 			  }
-
-
-
-
 		  } // for (int nRefine = 0; nRefine < max_refines; nRefine ++) {
+		  double [][] poleDisparityStrength = pp.exportPoleDisparityStrength(
+					-1, // int filter_value,
+					pole_clusters); // ArrayList<PoleCluster> clusters)
+		  double [][] all_ds = 	biScan.getDisparityStrength(
+					false, // only_strong,
+					false, // only_trusted,
+					true); // only_enabled);
+
+/*		  Random rand = new Random();
+		  for (int nTile = 0; nTile < all_ds[0].length; nTile++) {
+			  if (!Double.isNaN(poleDisparityStrength[0][nTile]) && !(poleDisparityStrength[0][nTile] < all_ds[0][nTile])) {
+				  all_ds[0][nTile] = poleDisparityStrength[0][nTile] + 0.001*rand.nextDouble();
+				  all_ds[1][nTile] = poleDisparityStrength[1][nTile] + 0.001*rand.nextDouble();
+			  }
+		  }
+*/
+		  for (int nTile = 0; nTile < all_ds[0].length; nTile++) {
+			  if (!Double.isNaN(poleDisparityStrength[0][nTile]) && !(poleDisparityStrength[0][nTile] < all_ds[0][nTile])) {
+				  all_ds[0][nTile] = poleDisparityStrength[0][nTile];
+				  all_ds[1][nTile] = poleDisparityStrength[1][nTile];
+			  }
+		  }
+
+		  for (int nTile = 0; nTile < all_ds[0].length; nTile++) {
+			  if (Double.isNaN(all_ds[0][nTile]) || (all_ds[0][nTile] < 0.001)) {
+				  all_ds[0][nTile] = Double.NaN;
+				  all_ds[1][nTile] = 0.0;
+			  }
+		  }
 
 
+		  if (debugLevel> -2) {
+			  biScan.showScan(quadCLT_main.image_name+"-POLES-"+scan_index, poleDisparityStrength);
+			  biScan.showScan(quadCLT_main.image_name+"-ALL-AND-POLES-"+scan_index, all_ds);
+		  }
+		  System.out.println("quadCLT_main.tp.clt_3d_passes_size="+quadCLT_main.tp.clt_3d_passes_size+", quadCLT_main.tp.clt_3d_passes.size()="+quadCLT_main.tp.clt_3d_passes.size());
+//		  CLTPass3d scan_last = quadCLT_main.tp.clt_3d_passes.get( quadCLT_main.tp.clt_3d_passes_size -1); // get last one
+		  CLTPass3d scan_last = quadCLT_main.tp.clt_3d_passes.get( quadCLT_main.tp.clt_3d_passes.size() -1); // get really last one
+
+		  boolean [] selection = scan_last.getSelected();
+		  for (int nTile = 0; nTile < all_ds[0].length; nTile++) {
+			  if (!Double.isNaN(poleDisparityStrength[0][nTile])) {
+				  selection[nTile] = true;
+			  }
+		  }
+
+		  quadCLT_main.tp.trimCLTPasses(false); // remove rig composite scan if any
+		  CLTPass3d rig_scan = quadCLT_main.tp.compositeScan(
+				  all_ds[0],  // final double []             disparity,
+				  all_ds[1],  // final double []             strength,
+				  selection,                  // final boolean []            selected,
+				  debugLevel);                // final int                   debugLevel)
+		  rig_scan.texture_tiles = scan_last.texture_tiles;
+		  // scan_last
+		  quadCLT_main.tp.clt_3d_passes.add(rig_scan);
+		  quadCLT_main.tp.saveCLTPasses(true);       // rig pass
 		  return true;
 	  }
 
@@ -2896,7 +2959,7 @@ if (debugLevel > -100) return true; // temporarily !
 					   * calcTrusted should be called before to set up trusted/cond_trusted tiles
 					   * suggested tiles will be compared against and made sure they differ by more than a specified margin
 					   * 1) current measured (refined) disparity value
-					   * 2) target disaprity that lead to the current measurement after refinement
+					   * 2) target disparity that lead to the current measurement after refinement
 					   * 3) any other disable measurement
 					   * 4) any target disparity that lead to the disabled measurement
 					   * @return number of new tiles to measure in the  array of suggested disparities - Double.NaN - nothing suggested

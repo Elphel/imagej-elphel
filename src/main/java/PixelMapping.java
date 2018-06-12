@@ -6958,7 +6958,7 @@ public class PixelMapping {
     				int       debugColumn,
 
     				double    disparityMax,
-    				double    disaprityMin,
+    				double    disparityMin,
     				double    minAbsolute, // or NaN - will use enabled/disabled state of the tile
     				double    minRelative,
     				boolean   filterByForeground, // apply known certain masks
@@ -7000,7 +7000,7 @@ public class PixelMapping {
     	    				debugRow,
     	    				debugColumn,
     	    				disparityMax,
-    	    				disaprityMin,
+    	    				disparityMin,
     	    				minAbsolute, // or NaN - will use enabled/disabled state of the tile
     	    				minRelative,
     	    				filterByForeground, // apply known certain masks
@@ -7042,7 +7042,7 @@ public class PixelMapping {
     				final int debugColumn,
 
     				final double disparityMax,
-    				final double disaprityMin,
+    				final double disparityMin,
     				final double minAbsolute, // or NaN - will use enabled/disabled state of the tile
     				final double minRelative,
     				final boolean filterByForeground, // apply known certain masks
@@ -7115,7 +7115,7 @@ public class PixelMapping {
 //		   			    				refineWindow,
 //		   			    				refineFHT,
 		   			    				disparityMax,
-		   			    				disaprityMin,
+		   			    				disparityMin,
 		   			    				minAbsolute, // or NaN - will use enabled/disabled state of the tile
 		   			    				minRelative,
 		   			    				filterByForeground, // apply known certain masks
@@ -7181,7 +7181,7 @@ public class PixelMapping {
     				// new arguments
 //    				int combineMode, // different image pairs - 0
     				double disparityMax,
-    				double disaprityMin,
+    				double disparityMin,
     				double minAbsolute, // or NaN - will use enabled/disabled state of the tile
     				double minRelative,
     				boolean filterByForeground, // apply known certain masks
@@ -7253,7 +7253,7 @@ public class PixelMapping {
 
 
         			}
-        			if (!(zTile.getPlaneDisparity(plane)<disaprityMin) && !(zTile.getPlaneDisparity(plane)>disparityMax)){ // NaN is OK
+        			if (!(zTile.getPlaneDisparity(plane)<disparityMin) && !(zTile.getPlaneDisparity(plane)>disparityMax)){ // NaN is OK
         				double disparity= zTile.getPlaneDisparity(plane);
         				if (debugLevel>3) {
 //            				double testDisparityError=0.5;
@@ -7604,7 +7604,7 @@ public class PixelMapping {
     				int combineMode, // different image pairs - 0
 
     				double disparityMax,
-    				double disaprityMin,
+    				double disparityMin,
     				double minAbsolute, // or NaN - will use enabled/disabled state of the tile
     				double minRelative,
     				boolean filterByForeground, // apply known certain masks
@@ -7651,7 +7651,7 @@ public class PixelMapping {
     	    				combineMode, // different image pairs - 0
 
     	    				disparityMax,
-    	    				disaprityMin,
+    	    				disparityMin,
     	    				minAbsolute, // or NaN - will use enabled/disabled state of the tile
     	    				minRelative,
     	    				filterByForeground, // apply known certain masks
@@ -7697,7 +7697,7 @@ public class PixelMapping {
     				final int combineMode, // different image pairs - 0
 
     				final double disparityMax,
-    				final double disaprityMin,
+    				final double disparityMin,
     				final double minAbsolute, // or NaN - will use enabled/disabled state of the tile
     				final double minRelative,
     				final boolean filterByForeground, // apply known certain masks
@@ -7775,7 +7775,7 @@ public class PixelMapping {
 		   			    				subTileFHT,
 		   			    				combineMode, // different image pairs - 0
 		   			    				disparityMax,
-		   			    				disaprityMin,
+		   			    				disparityMin,
 		   			    				minAbsolute, // or NaN - will use enabled/disabled state of the tile
 		   			    				minRelative,
 		   			    				filterByForeground, // apply known certain masks
@@ -7843,7 +7843,7 @@ public class PixelMapping {
     				// new arguments
     				int combineMode, // different image pairs - 0
     				double disparityMax,
-    				double disaprityMin,
+    				double disparityMin,
     				double minAbsolute, // or NaN - will use enabled/disabled state of the tile
     				double minRelative,
     				boolean filterByForeground, // apply known certain masks
@@ -7923,7 +7923,7 @@ public class PixelMapping {
         						" disparity="+zTile.getPlaneDisparity(plane)+" strength="+zTile.getPlaneStrength(plane));
         			}
 
-        			if (!(zTile.getPlaneDisparity(plane)<disaprityMin) && !(zTile.getPlaneDisparity(plane)>disparityMax)){ // NaN is OK
+        			if (!(zTile.getPlaneDisparity(plane)<disparityMin) && !(zTile.getPlaneDisparity(plane)>disparityMax)){ // NaN is OK
         				planeStrength[plane]=new double [sImgSet.length][];
         				double disparity= zTile.getPlaneDisparity(plane);
         				if (debugLevel>3) {

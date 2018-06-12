@@ -2457,7 +2457,7 @@ private Panel panel1,
     			POST_PROCESSING.disparityCorrelationParameters.debugRow,
     			POST_PROCESSING.disparityCorrelationParameters.debugColumn,
     			POST_PROCESSING.disparityCorrelationParameters.filter2DisparityMax, //double    disparityMax,
-    			POST_PROCESSING.disparityCorrelationParameters.filter2DisaprityMin, //double    disaprityMin,
+    			POST_PROCESSING.disparityCorrelationParameters.filter2disparityMin, //double    disparityMin,
     			POST_PROCESSING.disparityCorrelationParameters.filter2UpdateMax?POST_PROCESSING.disparityCorrelationParameters.filter2MinAbsolute:Double.NaN, //double    minAbsolute, // or NaN - will use enabled/disabled state of the tile
     			POST_PROCESSING.disparityCorrelationParameters.filter2UpdateMax?POST_PROCESSING.disparityCorrelationParameters.filter2MinRelative:Double.NaN, //double    minRelative,
     			POST_PROCESSING.disparityCorrelationParameters.filter2ByForeground, //boolean   filterByForeground, // apply known certain masks
@@ -2668,7 +2668,7 @@ private Panel panel1,
     			POST_PROCESSING.disparityCorrelationParameters.debugColumn,
     			0 ,// int combineMode, // different image pairs - 0
     			POST_PROCESSING.disparityCorrelationParameters.filter2DisparityMax, //double    disparityMax,
-    			POST_PROCESSING.disparityCorrelationParameters.filter2DisaprityMin, //double    disaprityMin,
+    			POST_PROCESSING.disparityCorrelationParameters.filter2disparityMin, //double    disparityMin,
     			(POST_PROCESSING.disparityCorrelationParameters.filter2UpdateMax?POST_PROCESSING.disparityCorrelationParameters.filter2MinAbsolute:Double.NaN), //double    minAbsolute, // or NaN - will use enabled/disabled state of the tile
     			(POST_PROCESSING.disparityCorrelationParameters.filter2UpdateMax?POST_PROCESSING.disparityCorrelationParameters.filter2MinRelative:Double.NaN), //double    minRelative,
     			POST_PROCESSING.disparityCorrelationParameters.filter2ByForeground, //boolean   filterByForeground, // apply known certain masks

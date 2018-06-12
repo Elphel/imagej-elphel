@@ -1940,6 +1940,7 @@ public class TilePlanes {
 										y,
 										d,
 										this.correctDistortions);
+
 								tiles_xyzw[nl][indx][0] = wxyz[0];
 								tiles_xyzw[nl][indx][1] = wxyz[1];
 								tiles_xyzw[nl][indx][2] = wxyz[2];
@@ -1948,6 +1949,14 @@ public class TilePlanes {
 								swz += w * wxyz[2];
 								swx += w * wxyz[0];
 								swy += w * wxyz[1];
+								if (Double.isNaN(tiles_xyzw[nl][indx][0])) {
+									System.out.println("--*--BUG! tiles_xyzw[nl][indx][0] is NaN");
+								}
+								if (Double.isInfinite(swx) || Double.isInfinite(swz)  || Double.isInfinite(w)) {
+									System.out.println("BUG!!!: getPlaneFromMeas(): num_tiles="+num_tiles+", sw = "+sw +", swz = "+swz +", swx = "+swx +", swy = "+swy);
+								}
+
+
 								// end of difference from getPlaneFromMeas
 							}
 						}
@@ -1975,10 +1984,16 @@ public class TilePlanes {
 			if (sw == 0.0) {
 				return null; //
 			}
+			if (Double.isInfinite(swx)) {
+				System.out.println("BUG!!!: getPlaneFromMeas(): num_tiles="+num_tiles+", sw = "+sw +", swz = "+swz +", swx = "+swx +", swy = "+swy);
+			}
 			swz /= sw;
 			swx /= sw;
 			swy /= sw;
 			setWxyz(swx, swy, swz);
+			if (Double.isInfinite(swx)) {
+				System.out.println("BUG!!!: getPlaneFromMeas(): num_tiles="+num_tiles+", sw = "+sw +", swz = "+swz +", swx = "+swx +", swy = "+swy);
+			}
 
 //			double kz = ((dispNorm > 0.0) && (swz > dispNorm)) ? (dispNorm / swz) : 1.0;
 
@@ -2003,6 +2018,9 @@ public class TilePlanes {
 								acovar [1][1] += w * y * y;
 								acovar [1][2] += w * y * z;
 								acovar [2][2] += w * z * z;
+								if (Double.isNaN(acovar [0][0])) {
+									System.out.println("--*--BUG! acovar[0][0] is NaN");
+								}
 							}
 						}
 					}
@@ -2011,6 +2029,7 @@ public class TilePlanes {
 			acovar [1][0] = acovar [0][1];
 			acovar [2][0] = acovar [0][2];
 			acovar [2][1] = acovar [1][2];
+
 			Matrix covar = new Matrix(acovar);
 
 			EigenvalueDecomposition eig = covar.eig();

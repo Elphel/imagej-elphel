@@ -30,7 +30,7 @@ public class CLTPass3d{
 //	static double  max_overexposed = 0.8; // TODO: make parameter
 		public   double [][]    disparity; // per-tile disparity set for the pass[tileY][tileX]
 		public   int    [][]    tile_op;   // what was done in the current pass
-		private  double [][]    disparity_sav; // saved disaprity
+		private  double [][]    disparity_sav; // saved disparity
 		private  int    [][]    tile_op_sav;   // saved tile_op
 		public   double [][]    disparity_map =  null; // add 4 layers - worst difference for the port
 		double []               calc_disparity = null; // composite disparity, calculated from "disparity", and "disparity_map" fields

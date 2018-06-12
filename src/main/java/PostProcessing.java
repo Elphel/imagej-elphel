@@ -1102,7 +1102,7 @@ public class PostProcessing {
     	public int    fillFgGapNeib=           3;
     	
     	public double    filter2DisparityMax =100.0;
-    	public double    filter2DisaprityMin = 50.0;
+    	public double    filter2disparityMin = 50.0;
     	public boolean   filter2UpdateMax=     true;
     	public double    filter2MinAbsolute=    0.01;
     	public double    filter2MinRelative=    0.1;
@@ -1231,7 +1231,7 @@ public class PostProcessing {
   			properties.setProperty(prefix+"fillFgGapNeib",this.fillFgGapNeib+"");
   			
   			properties.setProperty(prefix+"filter2DisparityMax",this.filter2DisparityMax+"");
-  			properties.setProperty(prefix+"filter2DisaprityMin",this.filter2DisaprityMin+"");
+  			properties.setProperty(prefix+"filter2disparityMin",this.filter2disparityMin+"");
   			properties.setProperty(prefix+"filter2UpdateMax",this.filter2UpdateMax+"");
   			properties.setProperty(prefix+"filter2MinAbsolute",this.filter2MinAbsolute+"");
   			properties.setProperty(prefix+"filter2MinRelative",this.filter2MinRelative+"");
@@ -1375,7 +1375,7 @@ public class PostProcessing {
 		    if (properties.getProperty(prefix+"fillFgGapNeib")!=null) this.fillFgGapNeib=Integer.parseInt(properties.getProperty(prefix+"fillFgGapNeib"));
 		    
 		    if (properties.getProperty(prefix+"filter2DisparityMax")!=null) this.filter2DisparityMax=Double.parseDouble(properties.getProperty(prefix+"filter2DisparityMax"));
-  		    if (properties.getProperty(prefix+"filter2DisaprityMin")!=null) this.filter2DisaprityMin=Double.parseDouble(properties.getProperty(prefix+"filter2DisaprityMin"));
+  		    if (properties.getProperty(prefix+"filter2disparityMin")!=null) this.filter2disparityMin=Double.parseDouble(properties.getProperty(prefix+"filter2disparityMin"));
     		if (properties.getProperty(prefix+"filter2UpdateMax")!=null)this.filter2UpdateMax=Boolean.parseBoolean(properties.getProperty(prefix+"filter2UpdateMax"));
   		    if (properties.getProperty(prefix+"filter2MinAbsolute")!=null) this.filter2MinAbsolute=Double.parseDouble(properties.getProperty(prefix+"filter2MinAbsolute"));
   		    if (properties.getProperty(prefix+"filter2MinRelative")!=null) this.filter2MinRelative=Double.parseDouble(properties.getProperty(prefix+"filter2MinRelative"));
@@ -1537,7 +1537,7 @@ public class PostProcessing {
 			if ((mode & 512)!=0){
 				gd.addMessage(" -------------- filter2 parameters --------------");
 				gd.addNumericField("Maximal disparity to process",this.filter2DisparityMax,2,6,"pix");
-				gd.addNumericField("Minimal disparity to process",this.filter2DisaprityMin,2,6,"pix");
+				gd.addNumericField("Minimal disparity to process",this.filter2disparityMin,2,6,"pix");
 				gd.addCheckbox    ("Update abolute/relative maximums", this.filter2UpdateMax); // true;
 				gd.addNumericField("Absolute threshold for correlation vs. disparity maximums",this.filter2MinAbsolute,4,5,"");
 				gd.addNumericField("Relative threshold for correlation vs. disparity maximums",100*this.filter2MinRelative,2,6,"%");
@@ -1681,7 +1681,7 @@ public class PostProcessing {
 			}
 			if ((mode & 512)!=0){
 				this.filter2DisparityMax=       gd.getNextNumber();
-				this.filter2DisaprityMin=       gd.getNextNumber();
+				this.filter2disparityMin=       gd.getNextNumber();
 				this.filter2UpdateMax=          gd.getNextBoolean();
 				this.filter2MinAbsolute=        gd.getNextNumber();
 				this.filter2MinRelative=   0.01*gd.getNextNumber();

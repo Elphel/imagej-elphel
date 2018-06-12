@@ -486,7 +486,7 @@ public class BiScan {
 	 * calcTrusted should be called before to set up trusted/cond_trusted tiles
 	 * suggested tiles will be compared against and made sure they differ by more than a specified margin
 	 * 1) current measured (refined) disparity value
-	 * 2) target disaprity that lead to the current measurement after refinement
+	 * 2) target disparity that lead to the current measurement after refinement
 	 * 3) any other disable measurement
 	 * 4) any target disparity that lead to the disabled measurement
 	 * @param area_of_interest - limit results to these tiles (if provided)
@@ -518,7 +518,7 @@ public class BiScan {
 	 * @param use_alt use tiles from other scans if they fit better
 	 * @param goal_fraction_rms try to make rms to be this fraction of maximal acceptable by removing outliers
 	 * @param boost_low_density 0.0 - strength is proportional to 1/density, 1.0 - same as remaining tiles
-	 * @param smooth_ds optionally fill disaprity/strength  instead of the target_disparity
+	 * @param smooth_ds optionally fill disparity/strength  instead of the target_disparity
 	 * @param fourq_min each of the 4 corners should have at least this number of tiles.
 	 * @param fourq_gap symmetrical vertical and horizontal center areas that do not belong to any corner
 	 * @param dbg_x tileX to debug

@@ -3037,6 +3037,7 @@ public class EyesisCorrectionParameters {
 
   		public ImageDttParameters             img_dtt = new ImageDttParameters();
   		public BiQuadParameters               rig =     new BiQuadParameters();
+  		public PoleProcessorParameters        poles =   new PoleProcessorParameters();
   		public MeasuredLayersFilterParameters mlfp =    new MeasuredLayersFilterParameters();
 
   		public HashMap<String,Double> z_corr_map = new HashMap<String,Double>();
@@ -3680,7 +3681,9 @@ public class EyesisCorrectionParameters {
 			}
 	  		img_dtt.setProperties (prefix+"_img_dtt", properties);
   	  		mlfp.setProperties    (prefix+"_mlfp",    properties);
-  	  		rig.setProperties     (prefix+"_rig",    properties);
+  	  		rig.setProperties     (prefix+"_rig",     properties);
+  	  		poles.setProperties   (prefix+"_poles",   properties);
+
 
   		}
   		public void getProperties(String prefix,Properties properties){
@@ -4327,8 +4330,9 @@ public class EyesisCorrectionParameters {
   				}
   			}
   	  		img_dtt.getProperties (prefix+"_img_dtt", properties);
-  	  		mlfp.getProperties    (prefix+"_mlfp", properties);
-  	  		rig.getProperties     (prefix+"_rig", properties);
+  	  		mlfp.getProperties    (prefix+"_mlfp",    properties);
+  	  		rig.getProperties     (prefix+"_rig",     properties);
+  	  		poles.getProperties   (prefix+"_poles",   properties);
   		}
 
   		public boolean showJDialog() {
@@ -4387,6 +4391,8 @@ public class EyesisCorrectionParameters {
   			this.img_dtt.dialogQuestions(gd);
   			gd.addTab         ("Rig", "Parameters for the wide baseline rig with two quad cameras");
   			this.rig.dialogQuestions(gd);
+  			gd.addTab         ("Poles", "Parameters for processing vertical poles (such as street lights)");
+  			this.poles.dialogQuestions(gd);
 
   			gd.addTab         ("vert/hor", "Enhance detection of horizontal/vertical features (when enh_ortho is enabled for tile");
 
@@ -4760,7 +4766,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal relative RMS for the tiles to the tilted plate - multiply by disparity and add", this.fds_smpl_rel_rms,  6);
   			gd.addCheckbox    ("Use window function for the square sample plates",                                    this.fds_smpl_wnd);
   			gd.addNumericField("Maximal growing plate tilt in disparity pix per tile",                                this.fds_abs_tilt,  6);
-  			gd.addNumericField("Maximal relative growing plate tilt in disparity pix per tile per disaprity pixel",   this.fds_rel_tilt,  6);
+  			gd.addNumericField("Maximal relative growing plate tilt in disparity pix per tile per disparity pixel",   this.fds_rel_tilt,  6);
 
   			gd.addTab         ("Macro", "Macro tiles correlation parameters");
   			gd.addMessage     ("--- Macro correlation parameters ---");
@@ -5120,6 +5126,7 @@ public class EyesisCorrectionParameters {
 
             this.img_dtt.dialogAnswers(gd);
             this.rig.dialogAnswers(gd);
+            this.poles.dialogAnswers(gd);
 
   			this.max_corr_double=       gd.getNextBoolean();
   			this.corr_mode=       (int) gd.getNextNumber();

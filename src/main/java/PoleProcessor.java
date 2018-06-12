@@ -40,7 +40,7 @@ public class PoleProcessor {
 	class PoleCluster{
 		double mean_disparity =   0.0;
 		double target_disparity = 0.0;
-		double target_previous =  0.0;
+		double target_previous =  Double.NaN;
 		double mean_x =    0.0;
 		double mean_y =    0.0;
 		double strength =  0.0;
@@ -98,31 +98,21 @@ public class PoleProcessor {
 //			int min_mask = 10; // good - min 12
 			int min_height = 10; // good - min 12
 			boolean headlessOK = false;
-//			double min_fraction = 0.3;    // worst 0.3478
 			double min_fraction = 0.5;    // worst 0.3478 , next - 0.57
 			double min_frac_height = 0.5;    // worst 0.25 , next - 0.556
 			double min_frac_box =    0.7;    // worst 0.75 , next - 0.556
-
-/*
-				boolean unselected_only = true;
-				double bg_strength = cluster.getAverageBgStrength(unselected_only);
-				double meas_strength = cluster.getAverageStrength(true); // divided by measured tiles only
-				double mask_strength = cluster.getAverageStrength(false); // divided by a total number of pole tiles (by mask)
-				double rstrength = mask_strength/bg_strength;
- */
-
-
-
-//			if (getMaskSize() < min_mask) return false;
-
-// return 0;
+			double min_disparity = 0.3;
+			double max_disparity = 3.05; // (2.95 - 3.15)
 //			if (!disabled) return 0;
+
 			if (disabled)                            return -1;
 			if (eBox.height < min_height)            return -1;
 			if (!headlessOK && (getNumTiles() == 0)) return -1; // skip headless clusters
 			if (getFractSelected() < min_fraction)   return -1;
 			if (getFractHeight() < min_frac_height)  return -1;
 			if (getFractBoxHeight() < min_frac_box)  return -1;
+			if (getTargetDisparity() < min_disparity)return -1;
+			if (getTargetDisparity() > max_disparity)return -1;
 			return 0;
 		}
 
@@ -751,7 +741,6 @@ public class PoleProcessor {
 		}
 
 		public void createPoleMask( // shoud run copyNormDS before
-				//				double [][] norm_ds,
 				int         min_neibs,
 				boolean     use_seed,
 				double      width,
@@ -870,9 +859,9 @@ public class PoleProcessor {
 				double disparity_scale,  // target disparity to differential disparity scale (baseline ratio) (~0.2)
 				double diff_power,       // bias towards higher disparities - (disparity+offset) is raised to this power and applied to weight
 				                         // if 0.0 - do not apply value to weight
-				double diff_offset,      // add to measured differential disaprity before raising to specified power
+				double diff_offset,      // add to measured differential disparity before raising to specified power
 				int    cut_bottom,       // cut few tile rows from the very bottom - they may be influenced by ground objects
-				double keep_bottom,      // do not cut more that this fraction of the bounding bow height
+				double keep_bottom,      // do not cut more that this fraction of the bounding box height
 				int debugLevel)          // debug level
 		{
 			int cut = (int) Math.round(Math.min(eBox.height * keep_bottom, cut_bottom));
@@ -1016,14 +1005,17 @@ public class PoleProcessor {
 	}
 
 	public ArrayList<PoleCluster> initPoleClusters(
-			final double max_dx,
-			final double max_dy,
-			final double max_dd,
+			double max_dx,
+			double max_dy,
+			double max_dd,
 			boolean []   bseeds,
 			double [][]  norm_ds,
 			final int    debugLevel)
 	{
 		final TileNeibs  tnImage = biCamDSI.tnImage;
+		if (max_dx < 0) max_dx = Double.NaN;
+		if (max_dy < 0) max_dy = Double.NaN;
+		if (max_dd < 0) max_dd = Double.NaN;
 		ArrayList<PoleCluster> clusters = new ArrayList<PoleCluster>();
 		for (int nTile = 0; nTile < bseeds.length; nTile++) if (bseeds[nTile]){
 			double this_disp = norm_ds[0][nTile];
@@ -1247,7 +1239,37 @@ public class PoleProcessor {
 		return num_split;
 	}
 
+	double [][] exportPoleDisparityStrength(
+			int filter_value,
+			ArrayList<PoleCluster> clusters)
+	{
+		final TileNeibs  tnImage = biCamDSI.tnImage;
+		int num_tiles =  tilesY*tilesX;
+		double [][] ds = new double [2][num_tiles];
+		for (int i = 0; i < num_tiles; i++) ds[0][i]=Double.NaN;
+		for (PoleCluster cluster: clusters) {
+			if ((filter_value >= 0) && (cluster.poleFilter() < filter_value)) continue;
+			double disparity = cluster.getTargetDisparity(); // getMeanDisp();
+			double strength =  cluster.getAverageStrength(true);
 
+			Rectangle box = cluster.getEBox();
+			int nTile = box.y * tilesX + box.x;
+			for (int dy = 0; dy < box.height; dy++) {
+				for (int dx = 0; dx < box.width; dx++) {
+					if (cluster.getMask (dx, dy)) {
+						int nTile1 = tnImage.getNeibIndex(nTile, dx, dy);
+						if (nTile1 >= 0) {
+							if (!(ds[0][nTile1] > disparity)) { // Double.NaN OK also
+								ds[0][nTile1] = disparity;
+								ds[1][nTile1] = strength;
+							}
+						}
+					}
+				}
+			}
+		}
+		return ds;
+	}
 
 
 	double [][] dbgClusterLayers( // layer and eBox should be set
@@ -1520,7 +1542,6 @@ public class PoleProcessor {
 						PoleCluster cluster = clusters.get(nClust);
 						cluster.copyNormDS(norm_ds);
 						cluster.createPoleMask(
-//								norm_ds,     // double [][] norm_ds,
 								min_neibs,   // int         min_neibs,
 								use_seed,    // boolean     use_seed,
 								width,       // double      width,
@@ -1593,9 +1614,9 @@ public class PoleProcessor {
 			final double disparity_scale,  // target disparity to differential disparity scale (baseline ratio)
 			final double diff_power,       // bias towards higher disparities - (disparity+offset) is raised to this power and applied to weight
 			                         // if 0.0 - do not apply value to weight
-			final double diff_offset,      // add to measured differential disaprity before raising to specified power
+			final double diff_offset,      // add to measured differential disparity before raising to specified power
 			final int    cut_bottom,       // cut few tile rows from the very bottom - they may be influenced by ground objects
-			final double keep_bottom,      // do not cut more that this fraction of the bounding bow height
+			final double keep_bottom,      // do not cut more that this fraction of the bounding box height
 			final ArrayList<PoleCluster> clusters,
 			final int debugLevel)          // debug level
 	{
@@ -1612,9 +1633,9 @@ public class PoleProcessor {
 								disparity_scale,  // double disparity_scale,  // target disparity to differential disparity scale (baseline ratio)
 								diff_power,       // double diff_power,       // bias towards higher disparities - (disparity+offset) is raised to this power and applied to weight
 								//                                               if 0.0 - do not apply value to weight
-								diff_offset,      // double diff_offset,      // add to measured differential disaprity before raising to specified power
+								diff_offset,      // double diff_offset,      // add to measured differential disparity before raising to specified power
 								cut_bottom,       // int    cut_bottom,       // cut few tile rows from the very bottom - they may be influenced by ground objects
-								keep_bottom,      // double keep_bottom,      // do not cut more that this fraction of the bounding bow height
+								keep_bottom,      // double keep_bottom,      // do not cut more that this fraction of the bounding box height
 								debugLevel);      // int    debugLevel);      // debug level
 						if (debugLevel > -2) {
 							System.out.println("applyMeasuredDisparity() for cluster "+cluster.toString()+" -> target disparity change: "+diff);
@@ -1634,6 +1655,7 @@ public class PoleProcessor {
 	}
 
 	public void printClusterStats(
+			final int min_filter,
 			final ArrayList<PoleCluster> clusters)
 	{
 		int [][] real_poles = {
@@ -1652,7 +1674,7 @@ public class PoleProcessor {
 
 		for (int nClust = 0; nClust < clusters.size(); nClust++) {
 			PoleCluster cluster = clusters.get(nClust);
-			if (cluster.poleFilter() >= 0) {
+			if (cluster.poleFilter() >= min_filter) {
 				boolean real_pole = false;
 				for (int i = 0; i < real_poles.length; i++) {
 					if ((real_poles[i][0] == cluster.eBox.x) && (real_poles[i][1] == cluster.eBox.y)) {

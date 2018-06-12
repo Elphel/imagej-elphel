@@ -398,7 +398,7 @@ public class AlignmentCorrection {
 				use_poly,                       // final boolean use_poly,
 				clt_parameters.fcorr_inf_quad,  // final boolean use_quadratic,
 				clt_parameters.fcorr_inf_vert,  // final boolean use_vertical,
-				// now disaprity is already restored
+				// now disparity is already restored
 				false, //clt_parameters.ly_inf_en,       // final boolean use_disparity, // for infinity - if true, restores differences in the direction of disparity that was subtracted during measurement)
 				// For ly_inf_en need to make sure that programmed disparity was 0.0, so
 				clt_parameters.ly_inf_disp,     //final boolean allow_dispatity,
@@ -1933,7 +1933,7 @@ B = |+dy0   -dy1      -2*dy3 |
 			}
 		}
 
-		// reduce influence of high disparity,  using combined disaprity
+		// reduce influence of high disparity,  using combined disparity
 //		double norm_ly_disparity = 100.0; // disabling
 		for (int nTile = 0; nTile < num_tiles; nTile++) {
 			if ((combo_mismatch[0][nTile] > 0) && (combo_mismatch[0][nTile] > ly_norm_disp)) {
