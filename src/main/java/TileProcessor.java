@@ -32,6 +32,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class TileProcessor {
 	public ArrayList <CLTPass3d> clt_3d_passes = null;
 	public double [][] rig_disparity_strength =  null; // Disparity and strength created by a two-camera rig, with disparity scale and distortions of the main camera
+	public double [][] rig_pre_poles_ds =        null; // Rig disparity and strength before processing poles
+	public double [][] rig_post_poles_ds =       null; // Rig disparity and strength after processing poles
+	public boolean [] rig_pre_poles_sel =        null; // Rig tile selection before processing poles
+	public boolean [] rig_post_poles_sel =       null; // Rig tile selection after processing poles
+
 	public int       clt_3d_passes_size =     0; //clt_3d_passes size after initial processing
 	public int       clt_3d_passes_rig_size = 0; //clt_3d_passes size after initial processing and rig processing
 	private int      tilesX;
@@ -114,6 +119,11 @@ public class TileProcessor {
 		if (rig) clt_3d_passes_rig_size = clt_3d_passes.size();
 		else {
 			rig_disparity_strength = null; // invalidate
+			rig_pre_poles_ds =       null;
+			rig_post_poles_ds =      null;
+			rig_pre_poles_sel =      null;
+			rig_post_poles_sel =     null;
+
 			clt_3d_passes_rig_size = 0;
 			clt_3d_passes_size = clt_3d_passes.size();
 		}
@@ -122,6 +132,10 @@ public class TileProcessor {
 	public void trimCLTPasses(int keep){
 		if (keep < clt_3d_passes_size) { // keep rig data if only rig scan is removed
 			rig_disparity_strength = null; // invalidate
+			rig_pre_poles_ds =       null;
+			rig_post_poles_ds =      null;
+			rig_pre_poles_sel =      null;
+			rig_post_poles_sel =     null;
 			clt_3d_passes_rig_size = 0;
 		}
 		clt_3d_passes_size = keep;
@@ -162,6 +176,11 @@ public class TileProcessor {
 		}
 		// just in case - invalidate (should be done anyway)
 		rig_disparity_strength = null; // invalidate
+		rig_pre_poles_ds =       null;
+		rig_post_poles_ds =      null;
+		rig_pre_poles_sel =      null;
+		rig_post_poles_sel =     null;
+
 		clt_3d_passes_rig_size = 0;
 	}
 

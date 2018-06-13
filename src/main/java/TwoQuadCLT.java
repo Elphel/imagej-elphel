@@ -1217,13 +1217,17 @@ if (debugLevel > -100) return true; // temporarily !
 			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
 			  final int                                      threadsMax,  // maximal number of threads to launch
 			  final boolean                                  updateStatus,
-			  final int                                      debugLevel)
+			  final int                                      globalDebugLevel)
 	  {
+		  // -1 and above - follow clt_parameters.poles.poles_debug_level, -2 and below - follow global debug level
+		  final int debugLevel = (globalDebugLevel > -2) ? clt_parameters.poles.poles_debug_level:globalDebugLevel;
 		  if ((quadCLT_main == null) ||
 				  (quadCLT_main.tp == null) ||
 				  (quadCLT_main.tp.clt_3d_passes == null) ||
 				  (biCamDSI_persistent== null) ||
-				  (biCamDSI_persistent.biScans== null)) {
+				  (biCamDSI_persistent.biScans== null) ||
+				  (quadCLT_main.tp.rig_pre_poles_ds == null)
+				  ) {
 			  String msg = "Data is not available. Please run \"Ground truth\" first";
 			  IJ.showMessage("Error",msg);
 			  System.out.println(msg);
@@ -1237,587 +1241,38 @@ if (debugLevel > -100) return true; // temporarily !
 		  if (poleProcessor_persistent == null) {
 			  poleProcessor_persistent = new PoleProcessor(
 					  biCamDSI_persistent,
+					  this, //	TwoQuadCLT twoQuadCLT,
 					  quadCLT_main.tp.getTilesX(),
 					  quadCLT_main.tp.getTilesY());
 		  }
 		  PoleProcessor pp = poleProcessor_persistent;
-
-		  final double     seed_rsrength = 0.8;
-		  final int        seed_down =     5;
-		  final double     seed_aover =    0.2;
-		  final double     seed_rover =    0.05;
-		  final double     max_disparity = 5.0;
-		  double [][] norm_ds = pp.conditionDisparityStrength(
-				  biScan, // final BiScan biScan,
-				  clt_parameters.rig.pf_trusted_strength, // final double     trusted_strength, // trusted correlation strength
-				  clt_parameters.rig.pf_strength_rfloor, // final double     strength_rfloor,
-				  clt_parameters.rig.pf_strength_pow); // final double     strength_pow,
-		  double seed_min_strength = clt_parameters.rig.pf_trusted_strength* (1.0 - clt_parameters.rig.pf_strength_rfloor) * seed_rsrength;
-		  if (clt_parameters.rig.pf_strength_pow != 1.0) {
-			  seed_min_strength = Math.pow(seed_min_strength, clt_parameters.rig.pf_strength_pow);
-		  }
-
-		  boolean [] seeds =  pp.findSeeds(
-				  norm_ds,           // final double [][] norm_ds,
-				  seed_min_strength, // final double     min_strength,     // after subtracting floor and possible applying pow
-				  seed_down,         // final int        seed_down,
-				  seed_aover,        // final double     seed_aover,
-				  seed_rover,        // final double     seed_rover,
-				  max_disparity);     // final double     max_disparity);
-
-		  double max_dd = 0.1;
-		  double max_dx = 5;
-		  double max_dy = Double.NaN;
-
-		  int ext_side =  2;
-		  int ext_up =    2;
-		  int ext_down = 30;
-
-		  double      pedestal_strength =  0.15;
-		  double      pedestal_disp_over = 0.3;
-
-		  ArrayList<PoleProcessor.PoleCluster> pole_clusters= pp.initPoleClusters(
-				  max_dx, // final double max_dx,
-				  max_dy, // final double max_dy,
-				  max_dd, // final double max_dd,
-				  seeds, // boolean []   bseeds,
-				  norm_ds, // double [][]  norm_ds,
-				  debugLevel); //final int    debugLevel)
-
-		  pp.extendClusters(
-				  ext_side,       // int ext_left,
-				  ext_side,       // int ext_right,
-				  ext_up,         // int ext_up,
-				  ext_down,       // int ext_down,
-				  pole_clusters); // ArrayList<PoleCluster> clusters)
-
-		  pp.cutClusterBottoms(
-				  norm_ds, // final double [][] norm_ds,
-				  pedestal_strength, // final double      pedestal_strength,     // bottom tiles should be at least this strong (normalized strength)
-				  pedestal_disp_over, // final double      pedestal_disp_over,         // bottom tiles should have disparity at least by this above cluster
-				  pole_clusters); // final ArrayList<PoleCluster> clusters)
-		  boolean     extended = false; // merge if only original clusters intersect
-		  double      disp_tolerance = 1.5; // max_dd;
-
-
-		  int num_merged=pp.mergeOverlappingClusters(
-				  extended, // boolean     extended,
-				  disp_tolerance, // double      disp_tolerance,
-				  norm_ds, // double [][] norm_ds,
-				  pole_clusters, // ArrayList<PoleCluster> clusters,
-				  debugLevel); // int debugLevel)
-		  if (debugLevel > -2) {
-			  System.out.println("Merged "+num_merged+" clusters");
-		  }
-
-
-		  int num_layers = pp.assignClustersToLayers(
-				  pole_clusters); // ArrayList<PoleCluster> clusters)
-
-
-		  measurePoles(
+		  boolean [] selection =  quadCLT_main.tp.rig_pre_poles_sel.clone();
+		  double [][] poles_ds = pp.processPoles(
 				  quadCLT_main,  // QuadCLT            quadCLT_main,  // tiles should be set
-				  quadCLT_aux, // QuadCLT            quadCLT_aux,
-				  //				  BiCamDSI                                       biCamDSI,
+				  quadCLT_aux,   //QuadCLT            quadCLT_aux,
+//				  biScan, // BiScan                                         biScan,
+				  quadCLT_main.tp.rig_pre_poles_ds, //  double [][]                                    src_ds, // source disparity, strength pair
+				  selection, // boolean []                                     selection, // source tile selection, will be modified
 				  clt_parameters, // EyesisCorrectionParameters.CLTParameters       clt_parameters,
-				  pole_clusters, // ArrayList<PoleProcessor.PoleCluster> pole_clusters,
-				  threadsMax,    // final int                                      threadsMax,  // maximal number of threads to launch
+				  threadsMax,  // final int                                      threadsMax,  // maximal number of threads to launch
 				  updateStatus, // final boolean                                  updateStatus,
-				  debugLevel); //final int                                      debugLevel)
+				  debugLevel); // final int                                      globalDebugLevel)
 
-
-
-		  if (debugLevel > -2) {
-			  double [][] dbg_layers = pp.dbgClusterLayers( // layer and eBox should be set
-					  true,  // boolean show_bbox,
-					  true,  // boolean show_ebox,
-					  false, // boolean show_lines,
-					  false, // boolean show_masks,
-					  false, // boolean selected_only,
-					  true,  // boolean show_rdisparity,
-					  true,  // boolean show_strength,
-					  false, // boolean filter,
-					  pole_clusters); // ArrayList<PoleCluster> clusters)
-
-			  double [][] dbg_layers1 = new double [dbg_layers.length+2][];
-			  for (int i = 0; i <dbg_layers.length; i++) {
-				  dbg_layers1[i] = dbg_layers[i];
-			  }
-			  dbg_layers1[dbg_layers.length + 0] = norm_ds[0];
-			  dbg_layers1[dbg_layers.length + 1] = norm_ds[1];
-
-			  (new showDoubleFloatArrays()).showArrays(
-					  dbg_layers1,
-					  quadCLT_main.tp.getTilesX(),
-					  dbg_layers[0].length/quadCLT_main.tp.getTilesX(),
-					  true,
-					  "CLUSTER-BOX-MEAS");
-		  }
-		  // split clusters if measurements horizontal profile has multiple maximums
-		  final int split_min_dist = 3;   // minimal distance between local maximums to split
-		  final boolean must_zero = false; // true; // false; // there should be complete zero-strength on the profile to enable split
-		  for (int nTry = 0; nTry < 10; nTry++) {
-			  int num_split = pp.splitClusters(
-					  norm_ds,          // double [][] norm_ds,
-					  split_min_dist,   // int min_dist,          // minimal distance between local maximums
-					  must_zero,      // boolean must_zero,     // zero histogram should exist between local maximum to split
-					  pole_clusters,  // ArrayList<PoleCluster> clusters,
-					  debugLevel);    //  	int debugLevel)
-			  if (debugLevel > -2) {
-				  System.out.println("splitClusters() -> "+num_split+" clusters split in two");
-			  }
-			  if (num_split == 0) { // one pass splits only in two, what if there are more (unlikely, but still)
-				  break;
-			  }
-		  }
-
-
-		  final double max_diff =  2.0;
-		  final double max_tilt =  0.1;
-		  final double max_rms =   1.0;
-		  final int    min_tiles = 3;
-		  final double damp_tilt = 0.1;
-
-		  pp.calcPoleLines(
-				  max_diff,  // final double max_diff,
-				  max_tilt,  // final double max_tilt,
-				  max_rms,   // final double max_rms,
-				  min_tiles, // final int    min_tiles,
-				  damp_tilt, // final double damp_tilt,
-				  pole_clusters, // final ArrayList<PoleCluster> clusters,
-				  debugLevel); // final int debugLevel)
-
-		  final boolean     use_seed =   true;
-		  final double      hwidth =     0.75;
-		  final double      disp_aover = 0.2;
-		  final double      disp_rover = 0.05;
-		  final int         min_neibs =  3; // minimal number of neighbors to keep tile in the pole mask
-		  pp.createPoleMasks(
-				  norm_ds, // final double [][] norm_ds,
-				  min_neibs, // final int         min_neibs,
-
-				  use_seed, // final boolean     use_seed,
-				  hwidth, // final double      width,
-				  disp_aover, // final double      disp_aover,
-				  disp_rover, // final double      disp_rover,
-				  pole_clusters, // final ArrayList<PoleCluster> clusters,
-				  debugLevel); // final int debugLevel)
-		  final boolean trim_bottoms  = true; // false; // true;
-		  pp.filterByMask(
-				  trim_bottoms,   // final boolean trim_bottoms,
-				  pole_clusters); // final ArrayList<PoleCluster> clusters)
-
-
-		  if (debugLevel > -2) {
-			  System.out.println(" === unfiltered \"pole\" clusters ===");
-			  pp.printClusterStats(
-					  -1, // minimal filter value
-					  pole_clusters);
-		  }
-
-		  final double sep_min_strength = 0.07;
-		  final double sep_disp_adiff = 0.15;
-		  final double sep_disp_rdiff = 0.05;
-
-		  pp.filterByRightLeftSeparation(
-				  sep_min_strength, // final double min_strength,
-				  sep_disp_adiff, // final double disp_adiff,
-				  sep_disp_rdiff, // final double disp_rdiff,
-				  norm_ds, // final double [][] norn_ds,
-				  pole_clusters); // 	final ArrayList<PoleCluster> clusters)
-		  int num_removed =pp.removeFilteredClusters(
-				  pole_clusters, // ArrayList<PoleCluster> clusters,
-				  debugLevel); // int debugLevel)
-		  if (debugLevel > -2) {
-			  System.out.println("Removed "+num_removed+" filtered out pole clusters");
-		  }
-		  pp.sortClustersByDisparity(pole_clusters);
-		  // re-assign layers
-		  num_layers = pp.assignClustersToLayers(
-				  		pole_clusters); // ArrayList<PoleCluster> clusters)
-		  if (debugLevel > -2) {
-			  System.out.println("Reaasigned layers: "+num_layers);
-		  }
-		  final double disparity_scale =   0.3; // 2;  // target disparity to differential disparity scale (baseline ratio)
-		  final double diff_power =        1.0;  // bias towards higher disparities - (disparity+offset) is raised to this power and applied to weight
-		  //                                      if 0.0 - do not apply value to weight
-		  final double diff_offset =       0.5;  // add to measured differential disparity before raising to specified power
-		  final int    cut_bottom =        2;    // cut few tile rows from the very bottom - they may be influenced by ground objects
-		  final double keep_bottom =       0.1;  // do not cut more that this fraction of the bounding box height
-
-		  double max_target_diff = pp.applyMeasuredDisparity(
-				  disparity_scale,  // final double disparity_scale, // target disparity to differential disparity scale (baseline ratio)
-				  diff_power,       // final double diff_power,      // bias towards higher disparities - (disparity+offset) is raised to this power and applied to weight
-				  //                                                    if 0.0 - do not apply value to weight
-				  diff_offset,      // final double diff_offset,     // add to measured differential disparity before raising to specified power
-				  cut_bottom,       // final int    cut_bottom,      // cut few tile rows from the very bottom - they may be influenced by ground objects
-				  keep_bottom,      //final double keep_bottom,      // do not cut more that this fraction of the bounding box height
-				  pole_clusters,    // final ArrayList<PoleCluster> clusters,
-				  debugLevel);      // final int debugLevel)         // debug level
-		  if (debugLevel > -2) {
-			  System.out.println("applyMeasuredDisparity() -> "+max_target_diff+" (max_diff)");
-		  }
-		  if (debugLevel > -2) {
-			  if (debugLevel > -1) {
-				  {
-					  double [][] dbg_layers = pp.dbgClusterLayers( // layer and eBox should be set
-							  true,  // boolean show_bbox,
-							  true,  // boolean show_ebox,
-							  true,  // boolean show_lines,
-							  false, // boolean show_masks,
-							  true,  // boolean selected_only,
-							  true,  // boolean show_rdisparity,
-							  true,  // boolean show_strength,
-							  false, // boolean filter,
-							  pole_clusters); // ArrayList<PoleCluster> clusters)
-
-					  double [][] dbg_layers1 = new double [dbg_layers.length+2][];
-					  for (int i = 0; i <dbg_layers.length; i++) {
-						  dbg_layers1[i] = dbg_layers[i];
-					  }
-					  dbg_layers1[dbg_layers.length + 0] = norm_ds[0];
-					  dbg_layers1[dbg_layers.length + 1] = norm_ds[1];
-
-					  (new showDoubleFloatArrays()).showArrays(
-							  dbg_layers1,
-							  quadCLT_main.tp.getTilesX(),
-							  dbg_layers[0].length/quadCLT_main.tp.getTilesX(),
-							  true,
-							  "LINES-BOX-MEAS");
-				  }
-
-
-				  {
-					  double [][] dbg_layers = pp.dbgClusterLayers( // layer and eBox should be set
-							  false, // boolean show_bbox,
-							  false, // boolean show_ebox,
-							  true,  // boolean show_lines,
-							  false, // boolean show_masks,
-							  true,  // boolean selected_only,
-							  true,  // boolean show_rdisparity,
-							  true,  // boolean show_strength,
-							  false, // boolean filter,
-							  pole_clusters); // ArrayList<PoleCluster> clusters)
-
-					  double [][] dbg_layers1 = new double [dbg_layers.length+2][];
-					  for (int i = 0; i <dbg_layers.length; i++) {
-						  dbg_layers1[i] = dbg_layers[i];
-					  }
-					  dbg_layers1[dbg_layers.length + 0] = norm_ds[0];
-					  dbg_layers1[dbg_layers.length + 1] = norm_ds[1];
-
-					  (new showDoubleFloatArrays()).showArrays(
-							  dbg_layers1,
-							  quadCLT_main.tp.getTilesX(),
-							  dbg_layers[0].length/quadCLT_main.tp.getTilesX(),
-							  true,
-							  "LINES-MEAS");
-				  }
-
-				  {
-					  double [][] dbg_layers = pp.dbgClusterLayers( // layer and eBox should be set
-							  false, // boolean show_bbox,
-							  false, // boolean show_ebox,
-							  false, // boolean show_lines,
-							  false, // boolean show_masks,
-							  true,  // boolean selected_only,
-							  true,  // boolean show_rdisparity,
-							  true,  // boolean show_strength,
-							  false, // boolean filter,
-							  pole_clusters); // ArrayList<PoleCluster> clusters)
-
-					  double [][] dbg_layers1 = new double [dbg_layers.length+2][];
-					  for (int i = 0; i <dbg_layers.length; i++) {
-						  dbg_layers1[i] = dbg_layers[i];
-					  }
-					  dbg_layers1[dbg_layers.length + 0] = norm_ds[0];
-					  dbg_layers1[dbg_layers.length + 1] = norm_ds[1];
-
-					  (new showDoubleFloatArrays()).showArrays(
-							  dbg_layers1,
-							  quadCLT_main.tp.getTilesX(),
-							  dbg_layers[0].length/quadCLT_main.tp.getTilesX(),
-							  true,
-							  "MEAS-SEL");
-				  }
-			  }
-			  {
-				  boolean filter_poles = true;
-				  double [][] dbg_layers_meas = pp.dbgClusterLayers( // layer and eBox should be set
-						  false, // boolean show_bbox,
-						  false, // boolean show_ebox,
-						  false, // boolean show_lines,
-						  false, // boolean show_masks,
-						  false, // boolean selected_only,
-						  true,  // boolean show_rdisparity,
-						  true,  // boolean show_strength,
-						  filter_poles, // boolean filter,
-						  pole_clusters); // ArrayList<PoleCluster> clusters)
-
-				  double [][] dbg_layers_selected = pp.dbgClusterLayers( // layer and eBox should be set
-						  false, // boolean show_bbox,
-						  false, // boolean show_ebox,
-						  false, // boolean show_lines,
-						  false, // boolean show_masks,
-						  true,  // boolean selected_only,
-						  true,  // boolean show_rdisparity,
-						  true,  // boolean show_strength,
-						  filter_poles, // boolean filter,
-						  pole_clusters); // ArrayList<PoleCluster> clusters)
-				  double [][] dbg_layers_masks = pp.dbgClusterLayers( // layer and eBox should be set
-						  false,  // boolean show_bbox,
-						  false,  // boolean show_ebox,
-						  false,  // boolean show_lines,
-						  true,   // boolean show_masks,
-						  false,  // boolean selected_only,
-						  false,  // boolean show_rdisparity,
-						  false,  // boolean show_strength,
-						  filter_poles, // boolean filter,
-						  pole_clusters); // ArrayList<PoleCluster> clusters)
-				  double [][] dbg_layers_frames = pp.dbgClusterLayers( // layer and eBox should be set
-						  true, // boolean show_bbox,
-						  true, // boolean show_ebox,
-						  true, // boolean show_lines,
-						  false, // boolean show_masks,
-						  false,  // boolean selected_only,
-						  false,  // boolean show_rdisparity,
-						  false,  // boolean show_strength,
-						  filter_poles, // boolean filter,
-						  pole_clusters); // ArrayList<PoleCluster> clusters)
-
-				  double [][] dbg_layers1 = new double [4 * dbg_layers_meas.length+2][];
-				  String [] titles = new String [4 * dbg_layers_meas.length+2];
-				  int nl = dbg_layers_meas.length/2;
-				  for (int i = 0; i < dbg_layers_meas.length; i++) {
-					  dbg_layers1[4* i + 0] = dbg_layers_meas[i];
-					  dbg_layers1[4* i + 1] = dbg_layers_selected[i];
-					  dbg_layers1[4* i + 2] = dbg_layers_masks [i % dbg_layers_frames.length];
-					  dbg_layers1[4* i + 3] = dbg_layers_frames[i % dbg_layers_frames.length];
-					  if ( i < nl) {
-						  titles[4* i + 0] ="d_full-"+i;
-						  titles[4* i + 1] ="d_sel-"+i;
-						  titles[4* i + 2] ="sel-"+i;
-						  titles[4* i + 3] ="frames-"+i;
-					  } else {
-						  titles[4* i + 0] ="s_full-"+ (i%nl);
-						  titles[4* i + 1] ="s_sel-"+  (i%nl);
-						  titles[4* i + 2] ="sel-"+ (i%nl);
-						  titles[4* i + 3] ="frames-"+ (i%nl);
-					  }
-				  }
-				  dbg_layers1[4 * dbg_layers_meas.length + 0] = norm_ds[0];
-				  dbg_layers1[4 * dbg_layers_meas.length + 1] = norm_ds[1];
-				  titles[4 * dbg_layers_meas.length + 0] = "disparity";
-				  titles[4 * dbg_layers_meas.length + 1] = "str-norm";
-
-				  (new showDoubleFloatArrays()).showArrays(
-						  dbg_layers1,
-						  quadCLT_main.tp.getTilesX(),
-						  dbg_layers1[0].length/quadCLT_main.tp.getTilesX(),
-						  true,
-						  "MEAS-COMBO",
-						  titles);
-				  System.out.println(" === filtered \"pole\" clusters ===");
-				  pp.printClusterStats(
-						  0, // minimal filter value
-						  pole_clusters);
-			  }
-		  }
-		  final int max_refines = 20;
-
-		  for (int nRefine = 0; nRefine < max_refines; nRefine ++) {
-			  measurePoles(
-					  quadCLT_main,  // QuadCLT            quadCLT_main,  // tiles should be set
-					  quadCLT_aux, // QuadCLT            quadCLT_aux,
-					  //				  BiCamDSI                                       biCamDSI,
-					  clt_parameters, // EyesisCorrectionParameters.CLTParameters       clt_parameters,
-					  pole_clusters, // ArrayList<PoleProcessor.PoleCluster> pole_clusters,
-					  threadsMax,    // final int                                      threadsMax,  // maximal number of threads to launch
-					  updateStatus, // final boolean                                  updateStatus,
-					  debugLevel + 0); //final int                                      debugLevel)
-
-			  max_target_diff = pp.applyMeasuredDisparity(
-					  disparity_scale,  // final double disparity_scale, // target disparity to differential disparity scale (baseline ratio)
-					  diff_power,       // final double diff_power,      // bias towards higher disparities - (disparity+offset) is raised to this power and applied to weight
-					  //                                                    if 0.0 - do not apply value to weight
-					  diff_offset,      // final double diff_offset,     // add to measured differential disparity before raising to specified power
-					  cut_bottom,       // final int    cut_bottom,      // cut few tile rows from the very bottom - they may be influenced by ground objects
-					  keep_bottom,      //final double keep_bottom,      // do not cut more that this fraction of the bounding box height
-					  pole_clusters,    // final ArrayList<PoleCluster> clusters,
-					  debugLevel);      // final int debugLevel)         // debug level
-			  if (debugLevel > -2) {
-				  System.out.println("applyMeasuredDisparity() -> "+max_target_diff+" (max_diff)");
-			  }
-
-
-			  if (debugLevel > 0) {
-				  double [][] dbg_layers = pp.dbgClusterLayers( // layer and eBox should be set
-						  true,  // boolean show_bbox,
-						  true,  // boolean show_ebox,
-						  false, // boolean show_lines,
-						  false, // boolean show_masks,
-						  false, // boolean selected_only,
-						  true,  // boolean show_rdisparity,
-						  true,  // boolean show_strength,
-						  false, // boolean filter,
-						  pole_clusters); // ArrayList<PoleCluster> clusters)
-
-				  double [][] dbg_layers1 = new double [dbg_layers.length+2][];
-				  for (int i = 0; i <dbg_layers.length; i++) {
-					  dbg_layers1[i] = dbg_layers[i];
-				  }
-				  dbg_layers1[dbg_layers.length + 0] = norm_ds[0];
-				  dbg_layers1[dbg_layers.length + 1] = norm_ds[1];
-
-				  (new showDoubleFloatArrays()).showArrays(
-						  dbg_layers1,
-						  quadCLT_main.tp.getTilesX(),
-						  dbg_layers[0].length/quadCLT_main.tp.getTilesX(),
-						  true,
-						  "CLUSTER-BOX-MEAS-REFINE_"+nRefine);
-				  // select measured:
-				  pp.filterByMask(
-						  false,          // trim_bottoms,   // final boolean trim_bottoms,
-						  pole_clusters); // final ArrayList<PoleCluster> clusters)
-
-
-			  }
-
-
-
-			  if ((debugLevel > -2) && ((nRefine >= (max_refines -1)) || (debugLevel > -1))){
-				  boolean filter_poles = true;
-				  double [][] dbg_layers_meas = pp.dbgClusterLayers( // layer and eBox should be set
-						  false, // boolean show_bbox,
-						  false, // boolean show_ebox,
-						  false, // boolean show_lines,
-						  false, // boolean show_masks,
-						  false, // boolean selected_only,
-						  true,  // boolean show_rdisparity,
-						  true,  // boolean show_strength,
-						  filter_poles, // boolean filter,
-						  pole_clusters); // ArrayList<PoleCluster> clusters)
-
-				  double [][] dbg_layers_selected = pp.dbgClusterLayers( // layer and eBox should be set
-						  false, // boolean show_bbox,
-						  false, // boolean show_ebox,
-						  false, // boolean show_lines,
-						  false, // boolean show_masks,
-						  true,  // boolean selected_only,
-						  true,  // boolean show_rdisparity,
-						  true,  // boolean show_strength,
-						  filter_poles, // boolean filter,
-						  pole_clusters); // ArrayList<PoleCluster> clusters)
-				  double [][] dbg_layers_masks = pp.dbgClusterLayers( // layer and eBox should be set
-						  false,  // boolean show_bbox,
-						  false,  // boolean show_ebox,
-						  false,  // boolean show_lines,
-						  true,   // boolean show_masks,
-						  false,  // boolean selected_only,
-						  false,  // boolean show_rdisparity,
-						  false,  // boolean show_strength,
-						  filter_poles, // boolean filter,
-						  pole_clusters); // ArrayList<PoleCluster> clusters)
-				  double [][] dbg_layers_frames = pp.dbgClusterLayers( // layer and eBox should be set
-						  true, // boolean show_bbox,
-						  true, // boolean show_ebox,
-						  true, // boolean show_lines,
-						  false, // boolean show_masks,
-						  false,  // boolean selected_only,
-						  false,  // boolean show_rdisparity,
-						  false,  // boolean show_strength,
-						  filter_poles, // boolean filter,
-						  pole_clusters); // ArrayList<PoleCluster> clusters)
-
-				  double [][] dbg_layers1 = new double [4 * dbg_layers_meas.length+2][];
-				  String [] titles = new String [4 * dbg_layers_meas.length+2];
-				  int nl = dbg_layers_meas.length/2;
-				  for (int i = 0; i < dbg_layers_meas.length; i++) {
-					  dbg_layers1[4* i + 0] = dbg_layers_meas[i];
-					  dbg_layers1[4* i + 1] = dbg_layers_selected[i];
-					  dbg_layers1[4* i + 2] = dbg_layers_masks [i % dbg_layers_frames.length];
-					  dbg_layers1[4* i + 3] = dbg_layers_frames[i % dbg_layers_frames.length];
-					  if ( i < nl) {
-						  titles[4* i + 0] ="d_full-"+i;
-						  titles[4* i + 1] ="d_sel-"+i;
-						  titles[4* i + 2] ="sel-"+i;
-						  titles[4* i + 3] ="frames-"+i;
-					  } else {
-						  titles[4* i + 0] ="s_full-"+ (i%nl);
-						  titles[4* i + 1] ="s_sel-"+  (i%nl);
-						  titles[4* i + 2] ="sel-"+ (i%nl);
-						  titles[4* i + 3] ="frames-"+ (i%nl);
-					  }
-				  }
-				  dbg_layers1[4 * dbg_layers_meas.length + 0] = norm_ds[0];
-				  dbg_layers1[4 * dbg_layers_meas.length + 1] = norm_ds[1];
-				  titles[4 * dbg_layers_meas.length + 0] = "disparity";
-				  titles[4 * dbg_layers_meas.length + 1] = "str-norm";
-
-				  (new showDoubleFloatArrays()).showArrays(
-						  dbg_layers1,
-						  quadCLT_main.tp.getTilesX(),
-						  dbg_layers1[0].length/quadCLT_main.tp.getTilesX(),
-						  true,
-						  "MEAS-COMBO-REFINE_"+nRefine,
-						  titles);
-
-				  pp.printClusterStats(
-						  0, // minimal filter value
-						  pole_clusters);
-
-			  }
-		  } // for (int nRefine = 0; nRefine < max_refines; nRefine ++) {
-		  double [][] poleDisparityStrength = pp.exportPoleDisparityStrength(
-					-1, // int filter_value,
-					pole_clusters); // ArrayList<PoleCluster> clusters)
-		  double [][] all_ds = 	biScan.getDisparityStrength(
-					false, // only_strong,
-					false, // only_trusted,
-					true); // only_enabled);
-
-/*		  Random rand = new Random();
-		  for (int nTile = 0; nTile < all_ds[0].length; nTile++) {
-			  if (!Double.isNaN(poleDisparityStrength[0][nTile]) && !(poleDisparityStrength[0][nTile] < all_ds[0][nTile])) {
-				  all_ds[0][nTile] = poleDisparityStrength[0][nTile] + 0.001*rand.nextDouble();
-				  all_ds[1][nTile] = poleDisparityStrength[1][nTile] + 0.001*rand.nextDouble();
-			  }
-		  }
-*/
-		  for (int nTile = 0; nTile < all_ds[0].length; nTile++) {
-			  if (!Double.isNaN(poleDisparityStrength[0][nTile]) && !(poleDisparityStrength[0][nTile] < all_ds[0][nTile])) {
-				  all_ds[0][nTile] = poleDisparityStrength[0][nTile];
-				  all_ds[1][nTile] = poleDisparityStrength[1][nTile];
-			  }
-		  }
-
-		  for (int nTile = 0; nTile < all_ds[0].length; nTile++) {
-			  if (Double.isNaN(all_ds[0][nTile]) || (all_ds[0][nTile] < 0.001)) {
-				  all_ds[0][nTile] = Double.NaN;
-				  all_ds[1][nTile] = 0.0;
-			  }
-		  }
-
-
-		  if (debugLevel> -2) {
-			  biScan.showScan(quadCLT_main.image_name+"-POLES-"+scan_index, poleDisparityStrength);
-			  biScan.showScan(quadCLT_main.image_name+"-ALL-AND-POLES-"+scan_index, all_ds);
-		  }
-		  System.out.println("quadCLT_main.tp.clt_3d_passes_size="+quadCLT_main.tp.clt_3d_passes_size+", quadCLT_main.tp.clt_3d_passes.size()="+quadCLT_main.tp.clt_3d_passes.size());
-//		  CLTPass3d scan_last = quadCLT_main.tp.clt_3d_passes.get( quadCLT_main.tp.clt_3d_passes_size -1); // get last one
+//		  System.out.println("quadCLT_main.tp.clt_3d_passes_size="+quadCLT_main.tp.clt_3d_passes_size+", quadCLT_main.tp.clt_3d_passes.size()="+quadCLT_main.tp.clt_3d_passes.size());
 		  CLTPass3d scan_last = quadCLT_main.tp.clt_3d_passes.get( quadCLT_main.tp.clt_3d_passes.size() -1); // get really last one
-
-		  boolean [] selection = scan_last.getSelected();
-		  for (int nTile = 0; nTile < all_ds[0].length; nTile++) {
-			  if (!Double.isNaN(poleDisparityStrength[0][nTile])) {
-				  selection[nTile] = true;
-			  }
-		  }
+//
+//
+//		  boolean [] selection = scan_last.getSelected();
+//		  for (int nTile = 0; nTile < all_ds[0].length; nTile++) {
+//			  if (!Double.isNaN(poleDisparityStrength[0][nTile])) {
+//				  selection[nTile] = true;
+//			  }
+//		  }
 
 		  quadCLT_main.tp.trimCLTPasses(false); // remove rig composite scan if any
 		  CLTPass3d rig_scan = quadCLT_main.tp.compositeScan(
-				  all_ds[0],  // final double []             disparity,
-				  all_ds[1],  // final double []             strength,
+				  poles_ds[0],  // final double []             disparity,
+				  poles_ds[1],  // final double []             strength,
 				  selection,                  // final boolean []            selected,
 				  debugLevel);                // final int                   debugLevel)
 		  rig_scan.texture_tiles = scan_last.texture_tiles;
@@ -1826,256 +1281,6 @@ if (debugLevel > -100) return true; // temporarily !
 		  quadCLT_main.tp.saveCLTPasses(true);       // rig pass
 		  return true;
 	  }
-
-
-	  public void measurePoles(
-			  QuadCLT            quadCLT_main,  // tiles should be set
-			  QuadCLT            quadCLT_aux,
-//			  BiCamDSI                                       biCamDSI,
-			  EyesisCorrectionParameters.CLTParameters       clt_parameters,
-			  ArrayList<PoleProcessor.PoleCluster> pole_clusters,
-			  final int                                      threadsMax,  // maximal number of threads to launch
-			  final boolean                                  updateStatus,
-			  final int                                      debugLevel)
-	  {
-		  PoleProcessor pp = poleProcessor_persistent;
-		  double [][] layers_to_measure = pp.getClusterLayers(
-				  pole_clusters); // ArrayList<PoleCluster> clusters)
-	  /*
-		  if (debugLevel > -1) {
-			  double [][] disparity_strength = biScan.getDisparityStrength(
-					  false, // only_strong,
-					  false, // only_trusted,
-					  true); // only_enabled);
-			  double [][] dbg_seeds = new double [2][seeds.length];
-			  int num_seeds = 0;
-			  for (int i = 0; i < dbg_seeds[0].length; i++ ) {
-				  if (seeds[i]){
-					  dbg_seeds[0][i] = disparity_strength[0][i];
-					  dbg_seeds[1][i] = 1.0; // same contrast
-					  num_seeds++;
-				  } else {
-					  dbg_seeds[0][i] = Double.NaN;
-				  }
-			  }
-
-			  double [][] dbg_clust = new double [2][seeds.length];
-			  for (int i = 0; i < dbg_seeds[0].length; i++ ) {
-				  dbg_clust[0][i] = Double.NaN;
-				  dbg_clust[1][i] = Double.NaN;
-			  }
-			  for (int nclust = 0; nclust < pole_clusters.size(); nclust++) {
-				  PoleProcessor.PoleCluster cluster = pole_clusters.get(nclust);
-				  double d = cluster.getTargetDisparity();
-				  ArrayList<Integer> tiles = cluster.getTiles();
-				  for (int i: tiles) {
-					  dbg_clust[0][i] = d;
-					  dbg_clust[1][i] = 0.01*nclust;
-				  }
-			  }
-
-			  biScan.showScan(quadCLT_main.image_name+"-Seeds-"+scan_index, dbg_seeds);
-			  biScan.showScan(quadCLT_main.image_name+"-Clusters-"+scan_index, dbg_clust);
-			  biScan.showScan(quadCLT_main.image_name+"-norm_ds-"+scan_index, norm_ds);
-			  System.out.println("findSeeds() detected "+num_seeds+" tiles as poles seeds");
-			  System.out.println("initPoleClusters() detected "+pole_clusters.size()+" clusters as poles seeds");
-			  System.out.println("assignClustersToLayers() detected "+num_layers+" layers to probe poles seeds");
-			  int tilesX = quadCLT_main.tp.getTilesX();
-			  double [][] dbg_layers = pp.dbgClusterLayers( // layer and eBox should be set
-					  true, // boolean show_bbox,
-					  true, // boolean show_ebox,
-					  false, // boolean show_lines,
-					  false, // boolean show_masks,
-					  false, // boolean selected_only,
-					  false, // boolean show_rdisparity,
-					  false, // boolean show_strength,
-					  false, // boolean filter,
-					  pole_clusters); // ArrayList<PoleCluster> clusters)
-
-			  double [][] dbg_layers1 = new double [dbg_layers.length+2][];
-			  for (int i = 0; i <dbg_layers.length; i++) {
-				  dbg_layers1[i] = dbg_layers[i];
-			  }
-			  dbg_layers1[dbg_layers.length + 0] = norm_ds[0];
-			  dbg_layers1[dbg_layers.length + 1] = norm_ds[1];
-
-			  (new showDoubleFloatArrays()).showArrays(
-					  dbg_layers1,
-					  tilesX,
-					  dbg_layers[0].length/tilesX,
-					  true,
-					  "CLUSTER-BOXES");
-			  (new showDoubleFloatArrays()).showArrays(
-					  layers_to_measure,
-					  tilesX,
-					  layers_to_measure[0].length/tilesX,
-					  true,
-					  "LAYERS_TO_MEASURE");
-		  }
-		  */
-		  // Just measuring poles with different averaging
-		  double high_disp_tolerance = 0.3;
-		  double low_disp_tolerance =  0.3;
-		  double min_strength = 0.15;
-		  double [][][] measured_poles = measurePoles(
-				  quadCLT_main,        // QuadCLT                                        quadCLT_main,  // tiles should be set
-				  quadCLT_aux,         // QuadCLT                                        quadCLT_aux,
-				  layers_to_measure,   // double [][]                              poles_ds,
-				  clt_parameters,      // EyesisCorrectionParameters.CLTParameters clt_parameters,
-				  false,               // boolean                                  notch_mode, // use pole-detection mode for inter-camera correlation
-				  0,                   // int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
-				  threadsMax,          //final int        threadsMax,  // maximal number of threads to launch
-				  updateStatus,        // final boolean    updateStatus,
-				  debugLevel);         // final int        debugLevel);
-
-		  measured_poles = removeDisparityMismatch(
-				  measured_poles,      // double [][][] ds_src,
-				  high_disp_tolerance, // double high_disp_tolerance,
-				  low_disp_tolerance,  //double low_disp_tolerance );
-				  min_strength);       //double min_strength);//
-
-		  if (debugLevel > -1) {
-			  showMeasuredPoles(
-					  "MEASURED_POLES-CENTER", // String        title,
-					  quadCLT_main.tp.getTilesX(),  // tilesX, // int           tilesX,
-					  measured_poles);              // double [][][] measured_poles);
-		  }
-		  double [][][] measured_poles_strongest =  poleAddStrongest(
-				  measured_poles, // double [][][] ds_src,
-				  null); // double [][][] ds_other)
-		  double [][][] measured_poles_fittest =  poleAddFittest(
-				  measured_poles, // double [][][] ds_src,
-				  null); // double [][][] ds_other)
-
-
-		  for (int num_avg = 0; num_avg < 5; num_avg++) {
-			  measured_poles = measurePoles(
-					  quadCLT_main,        // QuadCLT                                        quadCLT_main,  // tiles should be set
-					  quadCLT_aux,         // QuadCLT                                        quadCLT_aux,
-					  layers_to_measure,   // double [][]                              poles_ds,
-					  clt_parameters,      // EyesisCorrectionParameters.CLTParameters clt_parameters,
-					  true,                // boolean                                  notch_mode, // use pole-detection mode for inter-camera correlation
-					  num_avg,             // int                                      lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
-					  threadsMax,          //final int        threadsMax,  // maximal number of threads to launch
-					  updateStatus,        // final boolean    updateStatus,
-					  debugLevel);         // final int        debugLevel);
-
-			  measured_poles = removeDisparityMismatch(
-					  measured_poles,      // double [][][] ds_src,
-					  high_disp_tolerance, // double high_disp_tolerance,
-					  low_disp_tolerance,  //double low_disp_tolerance );
-					  min_strength);       //double min_strength);//
-
-			  measured_poles_strongest =  poleAddStrongest(
-					  measured_poles_strongest, // double [][][] ds_src,
-					  measured_poles); // double [][][] ds_other)
-			  measured_poles_fittest =  poleAddFittest(
-					  measured_poles_fittest, // double [][][] ds_src,
-					  measured_poles); // double [][][] ds_other)
-
-			  if (debugLevel > 0) {
-				  showMeasuredPoles(
-						  "MEASURED_POLES-AVG"+num_avg, // String        title,
-						  quadCLT_main.tp.getTilesX(),  // tilesX, // int           tilesX,
-						  measured_poles);              // double [][][] measured_poles);
-			  }
-		  }
-
-		  if (debugLevel > -1) {
-			  showMeasuredPoles(
-					  "MEASURED_POLES-STRONGEST", // String        title,
-					  quadCLT_main.tp.getTilesX(),  // tilesX, // int           tilesX,
-					  measured_poles_strongest);              // double [][][] measured_poles);
-			  showMeasuredPoles(
-					  "MEASURED_POLES-FITTEST", // String        title,
-					  quadCLT_main.tp.getTilesX(),  // tilesX, // int           tilesX,
-					  measured_poles_fittest);              // double [][][] measured_poles);
-		  }
-
-		  pp.addMeasuredTiles(
-				  true,                   // final boolean       reset_data,
-				  measured_poles_fittest, // final double [][][] measured_layers,
-				  pole_clusters);         // final ArrayList<PoleCluster> clusters
-
-
-	  }
-
-
-
-	  public double [][][] removeDisparityMismatch(
-			  double [][][] ds_src,
-			  double high_disp_tolerance,
-			  double low_disp_tolerance,
-			  double min_strength)
-	  {
-		  double [][][] ds = new double [ds_src.length][2][];
-		  for (int i =0; i <ds.length; i++) {
-			  ds[i][0] = ds_src[i][0].clone();
-			  ds[i][1] = ds_src[i][1].clone();
-			  for (int nTile = 0; nTile < ds[i][0].length; nTile++) {
-				  if (    (ds_src[i][1][nTile] <  min_strength) ||
-						  (ds_src[i][0][nTile] >  high_disp_tolerance) ||
-						  (ds_src[i][0][nTile] < -low_disp_tolerance)) {
-					  ds[i][0][nTile] = Double.NaN;
-					  ds[i][1][nTile] = 0.0;
-				  }
-			  }
-
-		  }
-		  return ds;
-	  }
-
-	  public double [][][] poleAddStrongest(
-			  double [][][] ds_src,
-			  double [][][] ds_other)
-	  {
-		  int num_layers = (ds_src == null) ?  ds_other.length : ds_src.length;
-		  double [][][] ds = new double [num_layers][2][];
-		  boolean just_clone = (ds_src == null) || (ds_other == null);
-		  if (ds_src == null) {
-			  ds_src = ds_other;
-		  }
-		  for (int i =0; i <ds.length; i++) {
-			  ds[i][0] = ds_src[i][0].clone();
-			  ds[i][1] = ds_src[i][1].clone();
-			  if (!just_clone) {
-				  for (int nTile = 0; nTile < ds[i][0].length; nTile++) {
-					  if (ds_other[i][1][nTile] > ds[i][1][nTile]) {
-						  ds[i][0][nTile] = ds_other[i][0][nTile];
-						  ds[i][1][nTile] = ds_other[i][1][nTile];
-					  }
-				  }
-			  }
-		  }
-		  return ds;
-	  }
-
-	  public double [][][] poleAddFittest(
-			  double [][][] ds_src,
-			  double [][][] ds_other)
-	  {
-		  int num_layers = (ds_src == null) ?  ds_other.length : ds_src.length;
-		  double [][][] ds = new double [num_layers][2][];
-		  boolean just_clone = (ds_src == null) || (ds_other == null);
-		  if (ds_src == null) {
-			  ds_src = ds_other;
-		  }
-		  for (int i =0; i <ds.length; i++) {
-			  ds[i][0] = ds_src[i][0].clone();
-			  ds[i][1] = ds_src[i][1].clone();
-			  if (!just_clone) {
-				  for (int nTile = 0; nTile < ds[i][0].length; nTile++) {
-					  if (Double.isNaN(ds[i][0][nTile]) || (Math.abs(ds_other[i][0][nTile]) < Math.abs(ds[i][0][nTile]))) {
-						  ds[i][0][nTile] = ds_other[i][0][nTile];
-						  ds[i][1][nTile] = ds_other[i][1][nTile];
-					  }
-				  }
-			  }
-		  }
-		  return ds;
-	  }
-
-
 
 	  //  improve DSI acquired for a single camera by use of a pair
 	  // Run this after "CLT 3D"
@@ -2098,7 +1303,7 @@ if (debugLevel > -100) return true; // temporarily !
 			  return;
 		  }
 
-		  double [][] rig_disparity_strength =  quadCLT_main.getGroundTruthByRig();
+		  double [][] rig_disparity_strength =  quadCLT_main.getGroundTruthByRig(); // saved pair
 
 		  if (rig_disparity_strength == null) {
 			  if (use_planes) {
@@ -2128,16 +1333,16 @@ if (debugLevel > -100) return true; // temporarily !
           CLTPass3d scan_last = quadCLT_main.tp.clt_3d_passes.get( quadCLT_main.tp.clt_3d_passes_size -1); // get last one
 
 		  // TODO: combine in a single function to always call after groundTruthByRig. Or before use?
-		 boolean [] infinity_select = scan_bg.getSelected(); // null;
-		 boolean [] was_select = scan_last.getSelected(); // null;
-		 boolean[] selection = null;
-		  final int tilesX = quadCLT_main.tp.getTilesX();
-		  final int tilesY = quadCLT_main.tp.getTilesY();
-         BiCamDSI biCamDSI = new BiCamDSI( tilesX, tilesY, threadsMax);
-         boolean [][] dbg_sel = (debugLevel > -2)? new boolean [8][]:null;// was 4
-		 if (dbg_sel!=null) dbg_sel[0] = infinity_select;
-		 if (dbg_sel!=null) dbg_sel[1] = was_select;
-		 if (clt_parameters.rig.ltfar_en) {
+          boolean [] infinity_select = scan_bg.getSelected(); // null;
+          boolean [] was_select = scan_last.getSelected(); // null;
+          boolean[] selection = null;
+          final int tilesX = quadCLT_main.tp.getTilesX();
+          final int tilesY = quadCLT_main.tp.getTilesY();
+          BiCamDSI biCamDSI = new BiCamDSI( tilesX, tilesY, threadsMax);
+          boolean [][] dbg_sel = (debugLevel > -4)? new boolean [8][]:null;// was 4
+          if (dbg_sel!=null) dbg_sel[0] = infinity_select;
+          if (dbg_sel!=null) dbg_sel[1] = was_select;
+          if (clt_parameters.rig.ltfar_en) {
 			 double strength_floor = (clt_parameters.rig.ltfar_auto_floor)? Double.NaN: (clt_parameters.rig.lt_trusted_strength*clt_parameters.rig.lt_strength_rfloor);
 			 double ltfar_min_strength = clt_parameters.rig.ltfar_min_rstrength * clt_parameters.rig.lt_trusted_strength;
 
@@ -2231,7 +1436,7 @@ if (debugLevel > -100) return true; // temporarily !
 				 selection_lone,                     // boolean [] selection2,
 				 null,                               // boolean [] enable,
 				 false);                             // boolean    invert_enable)
-		 // restore master camera selections (poles may be remode by a filter
+		 // restore master camera selections (poles may be removed by a filter
 		 if (clt_parameters.rig.rf_master_infinity) {
 			 selection = biCamDSI.combineSelections(
 					 selection, // boolean [] selection1,
@@ -2251,8 +1456,8 @@ if (debugLevel > -100) return true; // temporarily !
 			 double [][] dbg_img = new double[7][selection.length];
 			 for (int nTile = 0; nTile < selection.length;nTile++) {
 				 dbg_img[0][nTile] = (dbg_sel[0][nTile]? 1.0:0.0) + (dbg_sel[1][nTile]?2.0:0.0);
-				 dbg_img[1][nTile] = (dbg_sel[2][nTile]? 1.0:0.0) + (dbg_sel[3][nTile]?1.0:0.0);
-				 dbg_img[2][nTile] = (dbg_sel[4][nTile]? 1.0:0.0) + (dbg_sel[5][nTile]?1.0:0.0);
+				 dbg_img[1][nTile] = (dbg_sel[2][nTile]? 1.0:0.0) + (dbg_sel[3][nTile]?2.0:0.0);
+				 dbg_img[2][nTile] = (dbg_sel[4][nTile]? 1.0:0.0) + (dbg_sel[5][nTile]?2.0:0.0);
 				 dbg_img[3][nTile] = (dbg_sel[6][nTile]? 1.0:0.0);
 				 dbg_img[4][nTile] = (dbg_sel[7][nTile]? 1.0:0.0);
 				 dbg_img[5][nTile] = (selection[nTile]? 1.0:0.0);
@@ -2280,7 +1485,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 
 /*
- *  TODO: interpolate disaprities before measuring to fill gaps?
+ *  TODO: interpolate disparities before measuring to fill gaps?
 	  public double [][][][][] getRigTextures(
 			  boolean                                  need_master,
 			  boolean                                  need_aux,
@@ -2294,10 +1499,53 @@ if (debugLevel > -100) return true; // temporarily !
 
  */
 
-
-
-
 		 quadCLT_main.tp.trimCLTPasses(false); // remove rig composite scan if any
+//		 quadCLT_main.tp.rig_pre_poles_ds =        f_rig_disparity_strength; // Rig disparity and strength before processing poles
+//		 quadCLT_main.tp.rig_pre_poles_sel =        selection; // Rig tile selection before processing poles
+		 quadCLT_main.tp.rig_pre_poles_ds =        rig_disparity_strength; // Rig disparity and strength before processing poles
+		 quadCLT_main.tp.rig_pre_poles_sel =        selection; // Rig tile selection before processing poles
+
+		 if (debugLevel > -4) {
+			 System.out.println("Saved quadCLT_main.tp.rig_pre_poles_ds and quadCLT_main.tp.rig_pre_poles_sel");
+		 }
+		 // process poles if enabled
+		 if (clt_parameters.poles.poles_en) {
+			 if (debugLevel > -4) {
+				 System.out.println("Processing poles");
+			 }
+
+			  if (poleProcessor_persistent == null) {
+				  poleProcessor_persistent = new PoleProcessor(
+						  biCamDSI_persistent,
+						  this, //	TwoQuadCLT twoQuadCLT,
+						  quadCLT_main.tp.getTilesX(),
+						  quadCLT_main.tp.getTilesY());
+			  }
+			  PoleProcessor pp = poleProcessor_persistent;
+			  selection =  quadCLT_main.tp.rig_pre_poles_sel.clone();
+			  double [][] poles_ds = pp.processPoles(
+					  quadCLT_main,  // QuadCLT            quadCLT_main,  // tiles should be set
+					  quadCLT_aux,   //QuadCLT            quadCLT_aux,
+//					  biScan, // BiScan                                         biScan,
+					  quadCLT_main.tp.rig_pre_poles_ds, //  double [][]                                    src_ds, // source disparity, strength pair
+					  selection, // boolean []                                     selection, // source tile selection, will be modified
+					  clt_parameters, // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+					  threadsMax,  // final int                                      threadsMax,  // maximal number of threads to launch
+					  updateStatus, // final boolean                                  updateStatus,
+					  debugLevel); // final int                                      globalDebugLevel)
+				 quadCLT_main.tp.rig_post_poles_ds =        poles_ds; // Rig disparity and strength before processing poles
+				 quadCLT_main.tp.rig_post_poles_sel =       selection; // Rig tile selection before processing poles
+				 if (debugLevel > -4) {
+					 System.out.println("Saved quadCLT_main.tp.rig_post_poles_ds and quadCLT_main.tp.rig_post_poles_sel");
+				 }
+
+				 f_rig_disparity_strength = poles_ds;
+		 } else {
+			 if (debugLevel > -4) {
+				 System.out.println("Skipped processing poles");
+			 }
+		 }
+
 		 CLTPass3d rig_scan = quadCLT_main.tp.compositeScan(
 				 f_rig_disparity_strength[0],  // final double []             disparity,
 				 f_rig_disparity_strength[1],  // final double []             strength,
@@ -2863,7 +2111,7 @@ if (debugLevel > -100) return true; // temporarily !
 	  {
 		  final int num_tries_strongest_by_fittest = 5;
 		  final int num_full_cycles =       clt_parameters.rig.pf_en_trim_fg? 3 : 1;  // Number of full low-texture cycles that include growing flat LT and trimmin weak FG over BG
-		  final int num_cross_gaps_cycles = 20; // maximalnumger of adding new tiles cycles while "crossing the gaps)
+		  final int num_cross_gaps_cycles = 20; // maximal number of adding new tiles cycles while "crossing the gaps)
 		  final int min_cross_gaps_new =    20; // minimal number of the new added tiles
 		  final int refine_inter = 2; // 3; // 3 - dx, 2 - disparity
 		  final int tilesX = quadCLT_main.tp.getTilesX();
@@ -3190,7 +2438,7 @@ if (debugLevel > -100) return true; // temporarily !
 				  }
 
 
-				  //FIXME: 	show only for 	last_cycle
+				  //FIXME: 	show only for the last_cycle
 				  if (clt_parameters.show_map &&  (debugLevel > 0) && clt_parameters.rig.rig_mode_debug){
 					  double [][] dbg_img = new double[disparity_bimap.length][];
 					  for (int layer = 0; layer < disparity_bimap.length; layer ++) if (disparity_bimap[layer] != null){
@@ -3270,7 +2518,7 @@ if (debugLevel > -100) return true; // temporarily !
 		  biCamDSI_persistent = biCamDSI; // save for pole detection
 		  if (clt_parameters.rig.ltavg_en) {
 			  if (debugLevel > -2) {
-				  System.out.println("groundTruthByRigPlanes(): Pprocessing low-textured areas with multi-tile correlation averaging");
+				  System.out.println("groundTruthByRigPlanes(): Processing low-textured areas with multi-tile correlation averaging");
 			  }
 			  // next method adds to the list of BiScans
 //			  double [][] ds_avg =
@@ -4174,7 +3422,7 @@ if (debugLevel > -100) return true; // temporarily !
 					  clt_parameters.tileX, // final int        dbg_x,
 					  clt_parameters.tileY, // final int        dbg_y,
 					  debugLevel+0);          // final int        debugLevel
-			  if (debugLevel > 0) {
+			  if (debugLevel > -4) {
 				  biScan.showScan(quadCLT_main.image_name+"-preexpand"+biScan.list_index, ds_preexpanded);
 			  }
 
@@ -4185,8 +3433,8 @@ if (debugLevel > -100) return true; // temporarily !
 				  }
 
 			  }
-			  if (debugLevel > 0) {
-				  biScan.showScan(quadCLT_main.image_name+"-combo-expand"+biScan.list_index, ds_preexpanded);
+			  if (debugLevel > -4) {// 0) {
+				  biScan.showScan(quadCLT_main.image_name+"-combo-expand"+biScan.list_index, ds_preexpanded); // already wrong strength
 			  }
 
 //			  double [][] ds_expanded =
@@ -4198,7 +3446,21 @@ if (debugLevel > -100) return true; // temporarily !
 					  expanded_lt,      // final boolean []  exp_sel,
 					  weak);            // final boolean []  trusted);
 			  // TODO use fillAndSmooth() to calculate new weights (keeping disparity as it was)
-			  if (debugLevel > -2) {
+/*
+			  double [][] avg_ds_strength = biScan.fillAndSmooth(
+					  ds_preexpanded[0],    // final double [] src_disparity,
+					  ds_preexpanded[1],    // final double [] src_strength, // if not null will be used for weighted pull
+					  lt_select,            // final boolean [] selection,
+					  0.0,                  // only gaps neib_pull, // final double     neib_pull, // pull to weighted average relative to pull to the original disparity value. If 0.0 - will only update former NaN-s
+					  max_iter,             // final int max_iterations,
+					  min_change,           // final double min_change,
+					  clt_parameters.tileX, // final int        dbg_x,
+					  clt_parameters.tileY, // final int        dbg_y,
+					  debugLevel+0);        // final int        debugLevel
+
+			  avg_ds[1] = avg_ds_strength[1];
+*/
+			  if (debugLevel > -4) { //-2) {
 				  biScan.showScan(quadCLT_main.image_name+"-lt-expanded"+biScan.list_index, avg_ds);
 			  }
 
@@ -5997,7 +5259,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 	  }
 
-	  private double [][] measureRig(
+	  double [][] measureRig(
 			  QuadCLT                                  quadCLT_main,  // tiles should be set
 			  QuadCLT                                  quadCLT_aux,
 			  int [][]                                 tile_op, // common for both amin and aux

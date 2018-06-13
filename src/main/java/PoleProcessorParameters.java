@@ -94,7 +94,8 @@ public class PoleProcessorParameters {
 
 
 	public void dialogQuestions(GenericJTabbedDialog gd) {
-		gd.addCheckbox    ("Enable poles detection and usage",                                                                   this.poles_en,"Enable poles detection and usege to improve DSI");
+		gd.addCheckbox    ("Enable poles detection and usage",                                                                   this.poles_en,
+				"Run automatically when creating ground truth data. If disable you may run it with \"Poles GT\" command button");
 		gd.addMessage("Creating initial pole seeds (tops need to be detected and available in the available DSI");
 		gd.addNumericField("Pole relative (to trusted tiles strength) to qualify for the pole seed",                             this.seed_rsrength,  3,6,"",
 				"Pole top seed relative strength (fraction of the strong trusted value that may change with correlation fat zero or other parameters");

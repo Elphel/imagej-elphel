@@ -650,6 +650,9 @@ public class BiScan {
 						double [] smpl_w =           new double  [smpl_len];
 						double [] smpl_w_narrow =    new double  [smpl_len];
 						double [] smpl_p =           new double  [smpl_len]; // plane disparity,
+						double [] smpl_wsw= smpl_w_narrow;
+						double [][] weights_sw = weights_narrow;
+
 						int nall = 0;
 						double sw = 0, swd = 0;
 						for (int dy = -smpl_radius; dy <= smpl_radius; dy++) {
@@ -796,6 +799,8 @@ public class BiScan {
 									fourq_min,          // int                     fourq_min,         // each of the 4 corners should have at least this number of tiles.
 									fourq_corner,       // int [] 	               fourq_corner, //  array specifying corner number (0..3), -1 - gap. null when not used
 									debugLevel);        // int                     debugLevel)
+							smpl_wsw = smpl_w;
+							weights_sw = weights;
 							//						if ( (fit_rslt == null) ||  (fit_rslt[0] > (smpl_arms + smpl_rrms * fit_rslt[1]))){
 							if ( (fit_rslt == null) ||  (fit_rslt[0] > max_rms)){
 								continue; // narrow selection - too high rms
@@ -845,17 +850,18 @@ public class BiScan {
 									for (int dx = -smpl_radius; dx <= smpl_radius; dx++) { // if ((dx != 0) || (dy != 0)){
 										int adx = (dx > 0)? dx:(-dx);
 										int smpl_indx = smpl_center + dy*smpl_side + dx;
-										if (smpl_w[smpl_indx] > 0.0) {
-											s0+= weights[ady][adx];
-											s1+= weights[ady][adx] * smpl_w[smpl_indx];
+										if (smpl_wsw[smpl_indx] > 0.0) { // either smpl_w_narrow or smpl_w
+											s0+= weights_sw[ady][adx];
+//											s1+= weights[ady][adx] * smpl_w[smpl_indx];
+											s1+= smpl_wsw[smpl_indx]; // already was multiplied by weights[ady][adx]
 										}
 									}
 								}
 								//boost_low_density, // false weight of low density tiles is reduced, true - boosted
-								double w = s1;
-								if (boost_low_density > 0.0) {
-									w/= Math.pow(s0, boost_low_density);
-								}
+								double w = s1/s0;
+//								if (boost_low_density > 0.0) {
+//									w/= Math.pow(s0, boost_low_density);
+//								}
 								if (strength_pow != 1.0) {
 									w = Math.pow(w, 1.0 / strength_pow);
 								}
@@ -865,6 +871,11 @@ public class BiScan {
 									System.out.println("suggestNewScan(): nTile="+nTile+" w="+w);
 									System.out.println("suggestNewScan(): nTile="+nTile+" w="+w);
 								}
+								if (nTile == 66945) {
+									System.out.println("suggestNewScan(): nTile="+nTile+" w="+w);
+									System.out.println("suggestNewScan(): nTile="+nTile+" w="+w);
+								}
+
 							}
 						}
 					}
@@ -2206,7 +2217,17 @@ public class BiScan {
 		double [][] ds = {disparity,strength}; // strength may be null
 		return ds;
 	}
-
+	/**
+	 * Extend low texture areas horizontally if both ends are OK: either belong to the low texture areas selection (lt_sel)
+	 * or are trusted and closer or the same (to the provided tolerance)
+	 * @param tolerance strong limit should not have disparity lower by more than tolerance than low textured area
+	 * @param ds_lt disparity/strength for the low textured area
+	 * @param d_single disparity measured for the single-tile correlation
+	 * @param lt_sel low -textured selection
+	 * @param exp_sel expanded selection (does not intersect with lt_sel
+	 * @param trusted trusted tiles selection
+	 * @return extended disparity/strength data
+	 */
 	  public double [][] getLTExpanded(
 			  final double      tolerance,
 			  final double [][] ds_lt,
