@@ -310,6 +310,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		boolean showDemux=showImage && demux;
 		if (demux) showImage=false;
 		double [] xtraExif=new double[1]; // ExposureTime
+		double [] lla = null;
 		try {
 			imp = openJpegOrGif(directory, fileName);
 			if (imp == null) {
@@ -320,6 +321,12 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 				if (ElphelMakerNote==null) ElphelMakerNote = readElphelMakerNote(directory, fileName, 14,xtraExif); /* after or 8.0.8.32 */
 				if (ElphelMakerNote==null) ElphelMakerNote = readElphelMakerNote(directory, fileName, 12,xtraExif); /* after or 8.0.7.3 */
 				if (ElphelMakerNote==null) ElphelMakerNote = readElphelMakerNote(directory, fileName, 8 ,xtraExif); /* before 8.0.7.3 */
+				lla = readGpsLLA(directory, fileName);
+				if (lla != null) {
+					imp.setProperty("LATITUDE",   String.format("%f",lla[0]));
+					imp.setProperty("LONGITUDE",  String.format("%f",lla[1]));
+					imp.setProperty("ALTITUDE",   String.format("%f",lla[2]));
+				}
 			}
 		} catch (IOException e) {
 			IJ.showStatus("");
@@ -848,6 +855,78 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 			}
 		}
 		return note;
+	}
+
+	double [] readGpsLLA(String directory, String fileName)  throws IOException
+	{
+		RandomAccessFile in = new RandomAccessFile(directory + fileName, "r");
+		byte[] head = new byte[4096]; /* just read the beginning of the file */
+		in.readFully(head);
+		in.close(); // was no close()! -? "too many open files"
+		if ((head[this.ExifOffset]!=0x4d) || (head[this.ExifOffset+1]!=0x4d)) {
+			IJ.showMessage("JP46 Reader", "Exif Header not found in " + directory + fileName);
+			return null;
+		}
+		// skip to gps header
+		byte [] sig = {0x2, 0x2, 0x0, 0x0};
+		int i = this.ExifOffset + 2;
+		boolean match=false;
+		for (i = this.ExifOffset + 2; i < (head.length - sig.length); i++ ) {
+			match=true;
+			for (int j=0;j<sig.length;j++)if (head[i+j]!=sig[j]){
+				match=false;
+				break;
+			}
+			if (match) break;
+		}
+		i += sig.length;
+		if (i >= (head.length-4)) {
+			/* IJ.showMessage("JP46 Reader", "MakerNote tag not found in "+directory + fileName+ ", finished at offset="+i); // re-enable with DEBUG_LEVEL*/
+			return null;
+		}
+//		System.out.println(String.format("offset=0x%04x", i));
+		double [] lla = new double[3];
+		boolean [] lla_sign = new boolean[3];
+		for (int ntag = 0; ntag < 10; ntag++) {
+			// read 2 big endian bytesof tag, and 2 - type
+			int tag =  ((head[i+0] << 8) & 0xff00) +     ((head[i+1] << 0) & 0x00ff);
+			int typ =  ((head[i+2] << 8) & 0xff00) +     ((head[i+3] << 0) & 0x00ff);
+			int len =  ((head[i+4] <<24) & 0xff000000) + ((head[i+5] <<16) & 0x00ff0000) + ((head[i+ 6] << 8) & 0x0000ff00) + ((head[i+ 7] << 0) & 0x000000ff);
+			int val =  ((head[i+8] <<24) & 0xff000000) + ((head[i+9] <<16) & 0x00ff0000) + ((head[i+10] << 8) & 0x0000ff00) + ((head[i+11] << 0) & 0x000000ff);
+//			System.out.println(String.format("ntag=%2d tag = 0x%04x type = 0x%04x len = 0x%08x value = 0x%08x", ntag, tag, typ, len, val));
+			i+=12;
+			switch (tag) {
+			case 1: lla_sign[0] = ((val >> 24) & 0xff) == 0x53; break; // S GPSLatitudeRef
+			case 2: int [] lat_arr = readExifBE(head, this.ExifOffset + val , 2 * len); //GPSLatitude
+			lla[0] = 1.0*lat_arr[0]/lat_arr[1] + (1.0/60)* lat_arr[2]/lat_arr[3] + (1.0/3600)* lat_arr[4]/lat_arr[5];
+			break;
+			case 3: lla_sign[1] = ((val >> 24) & 0xff) == 0x57; break; // W GPSLongitudeRef
+			case 4: int [] long_arr = readExifBE(head, this.ExifOffset + val , 2 * len); // GPSLongitude
+			lla[1] = 1.0*long_arr[0]/long_arr[1] + (1.0/60)* long_arr[2]/long_arr[3] + (1.0/3600)* long_arr[4]/long_arr[5];
+			break;
+			case 5: lla_sign[2] = ((val >> 24) & 0xff) != 0x0; break; // GPSAltitudeRef
+			case 6: int [] alt_arr = readExifBE(head, this.ExifOffset + val , 2 * len); // GPSLongitude
+			lla[2] = 1.0*alt_arr[0]/alt_arr[1];
+			break;
+			}
+		}
+		for (int j = 0; j < lla.length; j++) {
+			if (lla_sign[j]) lla[j] *= -1;
+		}
+//		System.out.println("Lat = "+lla[0]+" Long = "+lla[1]+ " alt = "+lla[2]+"m");
+		return lla;
+
+	}
+	int [] readExifBE(byte [] head, int offset, int len) {
+		int [] data = new int [len];
+		for (int i = 0; i < len; i++) {
+			int offs = offset + 4*i;
+			data[i] = ((head[offs + 0] << 24) & 0xff000000) +
+					  ((head[offs + 1] << 16) & 0x00ff0000) +
+					  ((head[offs + 2] <<  8) & 0x0000ff00) +
+					  ((head[offs + 3] <<  0) & 0x000000ff);
+		}
+		return data;
 	}
 
 	long[] readElphelMakerNoteURL(String url, int len, double [] xtraExif) throws IOException  {

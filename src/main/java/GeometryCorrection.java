@@ -890,6 +890,19 @@ public class GeometryCorrection {
 			recalcRXY();
 			return true;
 		}
+		public void showRigOffsets()
+		{
+			System.out.println("=== Inter-camera adjustments ===");
+			System.out.println("                                                           Baseline "+ this.baseline +"mm");
+			System.out.println("                              Angle to the aux camera from the main "+ (180.0/Math.PI*this.aux_angle)+"°");
+			System.out.println("Auxilliary camera forward from the plane of the main one (not used) "+ this.aux_z +"mm");
+			System.out.println("               Auxilliary camera azimuth  (positive - to the right) "+ (par_scales[AUX_AZIMUTH_INDEX] * this.aux_azimuth) + "pix");
+			System.out.println("                     Auxilliary camera tilt (positive - looking up) "+ (par_scales[AUX_TILT_INDEX] * this.aux_tilt)+"pix");
+			System.out.println("                      Auxilliary camera roll (positive - clockwise) "+ (par_scales[AUX_ROLL_INDEX] * this.aux_roll)+"pix");
+			System.out.println("      Relative zoom - difference from 1.0 in parts parts per 1/1000 "+ (par_scales[AUX_ZOOM_INDEX] * this.aux_zoom) +"pix");
+		}
+
+
 	}
 
 	public boolean editRig() {
@@ -897,6 +910,10 @@ public class GeometryCorrection {
 			this.rigOffset = new RigOffset();
 		}
 		return this.rigOffset.editOffsetsPixels();
+	}
+
+	public void showRig() {
+		this.rigOffset.showRigOffsets();
 	}
 
 	public boolean setRigOffsetFromProperies(String parent_prefix,Properties properties) {

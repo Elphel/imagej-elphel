@@ -1926,6 +1926,10 @@ public class TilePlanes {
 					for (int indx = 0; indx < disp_str[nl][0].length; indx++){
 						if (tile_sel[nl][indx]) {
 							double w = disp_str[nl][1][indx];
+							if ((w > 0.0) && !(disp_str[nl][0][indx] > 0.0)) {
+								System.out.println("BUG!!!: getPlaneFromMeas(): disp_str[nl][0]["+indx+"]="+disp_str[nl][0][indx]+", disp_str[nl][1]["+indx+"]="+disp_str[nl][1][indx]);
+								continue;
+							}
 							if (w > 0.0){
 								tiles_xyzw[nl][indx] = new double [4];
 								double d = disp_str[nl][0][indx];
@@ -2020,6 +2024,7 @@ public class TilePlanes {
 								acovar [2][2] += w * z * z;
 								if (Double.isNaN(acovar [0][0])) {
 									System.out.println("--*--BUG! acovar[0][0] is NaN");
+									return null;
 								}
 							}
 						}

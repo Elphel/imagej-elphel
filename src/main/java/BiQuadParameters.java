@@ -226,16 +226,19 @@ public class BiQuadParameters {
 
 
 
+	public boolean ml_generate =               false;  // Generate ML data automatically when running ground truth
+	public boolean ml_poles =                  true;   // Generate ML data from the DSI that includes extracted poles
+	public boolean ml_copyJP4 =                true;   // Copy source jp4 files when running "Ground truth" command
 
-	public int     ml_hwidth =                 2;      // Half-width of the ML tiles to export (0-> 1x1, 1->3x3, 2 -> 5x5)
-	public double  ml_disparity_sweep  =       2.0;    // Disparity sweep around ground truth, each side
-	public int     ml_sweep_steps =            5;      // Number of disparity sweep steps
+	public int     ml_hwidth =                 4;      // Half-width of the ML tiles to export (0-> 1x1, 1->3x3, 2 -> 5x5)
+	public double  ml_disparity_sweep  =       1.0;    // Disparity sweep around ground truth, each side
+	public int     ml_sweep_steps =            21;      // Number of disparity sweep steps
 
-	public boolean ml_keep_aux =               true; // include auxiliary camera data in the ML output
-	public boolean ml_keep_inter =             true; // include inter-camera correlation data in the ML output
+	public boolean ml_keep_aux =               false; // true; // include auxiliary camera data in the ML output
+	public boolean ml_keep_inter =             false; // true; // include inter-camera correlation data in the ML output
 	public boolean ml_keep_hor_vert =          true; // include combined horizontal and vertical pairs data in the ML output
-	public boolean ml_keep_tbrl =              true; // include individual top, bottom, right, left pairs
-	public boolean ml_keep_debug=              true; // include debug layer(s) data in the ML output
+	public boolean ml_keep_tbrl =              false; // true; // include individual top, bottom, right, left pairs
+	public boolean ml_keep_debug=              false; // true; // include debug layer(s) data in the ML output
 	public boolean ml_8bit=                    true; // output in 8-bit format (default - 32-bit TIFF
 	public double  ml_limit_extrim =           0.00001; // ignore lowest and highest values when converting to 8 bpp
 	public boolean ml_show_ml =                true; // show each generated MLoutput file
@@ -311,7 +314,7 @@ public class BiQuadParameters {
 		gd.addNumericField("Minimal RMS improvement after short cycle to exit",                                   this.rig_adjust_short_threshold,  3,6,"",
 				"Short cycle iteration finish after relative RMS improvement is less than this of maximal number of steps is exceeded");
 		gd.addCheckbox    ("Adjust orientation (azimuth, tilt, roll) of the auxiliary camera",                    this.rig_adjust_orientation,"3 angles, most basic adjustment");
-		gd.addCheckbox    ("Adjust orientation relative zoom of the auxiliary camera",                            this.rig_adjust_zoom,"Not likely to change, may be frozen");
+		gd.addCheckbox    ("Adjust relative zoom of the auxiliary camera",                                        this.rig_adjust_zoom,"Not likely to change, may be frozen");
 		gd.addCheckbox    ("Adjust position of the aux camera in the main camera pricipal plane",                 this.rig_adjust_angle,"0 - exactly  to the right, positive - higher than main");
 		gd.addCheckbox    ("Adjust aux camera distance from the main",                                            this.rig_adjust_distance,"Normally not practical, rely on direct measurement");
 		gd.addCheckbox    ("Adjust aux camera distance from the main principal plane",                            this.rig_adjust_forward,"Not implemented, assumed zero");
@@ -600,6 +603,13 @@ public class BiQuadParameters {
 
         gd.addTab("ML","Parameters related to the ML files generation for the dual-quad camera rig");
 
+		gd.addCheckbox    ("Generate ML data automatically",                                                       this.ml_generate,
+				"Generate ML data automatically when running ground truth (may run separately from a command button)");
+		gd.addCheckbox    ("Generate ML data from the DSI that includes extracted poles",                          this.ml_poles,
+				"If unchecked - use DSI w/o poles data");
+		gd.addCheckbox    ("Copy JP4 source images when generating ML data",                                       this.ml_copyJP4,
+				"Possible to run by a command button");
+
 		gd.addNumericField("Half-width of the ML tiles to export (0-> 1x1, 1->3x3, 2 -> 5x5)",                    this.ml_hwidth,  0,3,"",
 				"Amount of data to export to the ML system");
 		gd.addNumericField("Disparity sweep around ground truth, each side",                                      this.ml_disparity_sweep,  3,6,"",
@@ -802,6 +812,10 @@ public class BiQuadParameters {
 		this.rf_min_disp=                   gd.getNextNumber();
 		this.rf_remove_unselected=          gd.getNextBoolean();
 
+		this.ml_generate=                   gd.getNextBoolean();
+		this.ml_poles=                      gd.getNextBoolean();
+		this.ml_copyJP4=                    gd.getNextBoolean();
+
 		this.ml_hwidth=               (int) gd.getNextNumber();
 		this.ml_disparity_sweep=            gd.getNextNumber();
 		this.ml_sweep_steps=          (int) gd.getNextNumber();
@@ -995,6 +1009,9 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"rf_min_disp",               this.rf_min_disp+"");
 		properties.setProperty(prefix+"rf_remove_unselected",      this.rf_remove_unselected+"");
 
+		properties.setProperty(prefix+"ml_generate",               this.ml_generate+"");
+		properties.setProperty(prefix+"ml_poles",                  this.ml_poles+"");
+		properties.setProperty(prefix+"ml_copyJP4",                this.ml_copyJP4+"");
 		properties.setProperty(prefix+"ml_hwidth",                 this.ml_hwidth+"");
 		properties.setProperty(prefix+"ml_disparity_sweep",        this.ml_disparity_sweep+"");
 		properties.setProperty(prefix+"ml_sweep_steps",            this.ml_sweep_steps+"");
@@ -1185,6 +1202,9 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"rf_min_disp")!=null)             this.rf_min_disp=Double.parseDouble(properties.getProperty(prefix+"rf_min_disp"));
 		if (properties.getProperty(prefix+"rf_remove_unselected")!=null)    this.rf_remove_unselected=Boolean.parseBoolean(properties.getProperty(prefix+"rf_remove_unselected"));
 
+		if (properties.getProperty(prefix+"ml_generate")!=null)             this.ml_generate=Boolean.parseBoolean(properties.getProperty(prefix+"ml_generate"));
+		if (properties.getProperty(prefix+"ml_poles")!=null)                this.ml_poles=Boolean.parseBoolean(properties.getProperty(prefix+"ml_poles"));
+		if (properties.getProperty(prefix+"ml_copyJP4")!=null)              this.ml_copyJP4=Boolean.parseBoolean(properties.getProperty(prefix+"ml_copyJP4"));
 		if (properties.getProperty(prefix+"ml_hwidth")!=null)               this.ml_hwidth=Integer.parseInt(properties.getProperty(prefix+"ml_hwidth"));
 		if (properties.getProperty(prefix+"ml_disparity_sweep")!=null)      this.ml_disparity_sweep=Double.parseDouble(properties.getProperty(prefix+"ml_disparity_sweep"));
 		if (properties.getProperty(prefix+"ml_sweep_steps")!=null)          this.ml_sweep_steps=Integer.parseInt(properties.getProperty(prefix+"ml_sweep_steps"));
@@ -1376,6 +1396,9 @@ public class BiQuadParameters {
 		bqp.rf_min_disp=                this.rf_min_disp;
 		bqp.rf_remove_unselected=       this.rf_remove_unselected;
 
+		bqp.ml_generate=                this.ml_generate;
+		bqp.ml_poles=                   this.ml_poles;
+		bqp.ml_copyJP4=                 this.ml_copyJP4;
 		bqp.ml_hwidth=                  this.ml_hwidth;
 		bqp.ml_disparity_sweep=         this.ml_disparity_sweep;
 		bqp.ml_sweep_steps=             this.ml_sweep_steps;

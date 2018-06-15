@@ -871,10 +871,10 @@ public class BiScan {
 									System.out.println("suggestNewScan(): nTile="+nTile+" w="+w);
 									System.out.println("suggestNewScan(): nTile="+nTile+" w="+w);
 								}
-								if (nTile == 66945) {
-									System.out.println("suggestNewScan(): nTile="+nTile+" w="+w);
-									System.out.println("suggestNewScan(): nTile="+nTile+" w="+w);
-								}
+//								if (nTile == 66945) {
+//									System.out.println("suggestNewScan(): nTile="+nTile+" w="+w);
+//									System.out.println("suggestNewScan(): nTile="+nTile+" w="+w);
+//								}
 
 							}
 						}

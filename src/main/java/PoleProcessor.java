@@ -42,6 +42,7 @@ public class PoleProcessor {
 		double mean_disparity =   0.0;
 		double target_disparity = 0.0;
 		double target_previous =  Double.NaN;
+		boolean skip_update =     false; // disparity change is below threshold, no need to update
 		double mean_x =    0.0;
 		double mean_y =    0.0;
 		double strength =  0.0;
@@ -255,11 +256,11 @@ public class PoleProcessor {
 				double min_strength,
 				double disp_adiff,
 				double disp_rdiff,
-				double [][] norn_ds)
+				double [][] norn_ds,
+				int debugLevel)
 		{
 			int extra_margin = 2;
-			int debugLevel = -1;
-			int dbg_tileX = 128; // 221;// 128;
+			int dbg_tileX = -128; // 221;// 128;
 			int dbg_tileY = 87; // 130; // 87;
 			if (debugLevel > -2) {
 				if (eBox.contains(new Point(dbg_tileX, dbg_tileY))) {
@@ -289,8 +290,10 @@ public class PoleProcessor {
 			int x0 = (int) Math.round(x);
 			boolean sep = false;
 			if ((x0 < 0) || (x0 > hor_profile.length )) {
-				System.out.println(String.format("Disabling cluster {%d, %d, %d, %d} disp= %f as it is not separated on right or left. x0= %d",
-						eBox.x, eBox.y, eBox.width, eBox.height, target_disparity, x0));
+				if (debugLevel > -2) {
+					System.out.println(String.format("Disabling cluster {%d, %d, %d, %d} disp= %f as it is not separated on right or left. x0= %d",
+							eBox.x, eBox.y, eBox.width, eBox.height, target_disparity, x0));
+				}
 				return false;
 			}
 			for (int i = x0+extra_margin; i <  hor_profile.length; i++) {
@@ -300,8 +303,10 @@ public class PoleProcessor {
 				}
 			}
 			if (!sep) {
-				System.out.println(String.format("Disabling cluster {%d, %d, %d, %d} disp= %f as it is not separated on right. x0= %d",
-						eBox.x, eBox.y, eBox.width, eBox.height, target_disparity, x0));
+				if (debugLevel > -2) {
+					System.out.println(String.format("Disabling cluster {%d, %d, %d, %d} disp= %f as it is not separated on right. x0= %d",
+							eBox.x, eBox.y, eBox.width, eBox.height, target_disparity, x0));
+				}
 				return false;
 			}
 			sep = false;
@@ -312,11 +317,11 @@ public class PoleProcessor {
 				}
 			}
 			if (!sep) {
-				System.out.println(String.format("Disabling cluster {%d, %d, %d, %d} disp= %f as it is not separated on left. x0= %d",
-						eBox.x, eBox.y, eBox.width, eBox.height, target_disparity, x0));
-
+				if (debugLevel > -2) {
+					System.out.println(String.format("Disabling cluster {%d, %d, %d, %d} disp= %f as it is not separated on left. x0= %d",
+							eBox.x, eBox.y, eBox.width, eBox.height, target_disparity, x0));
+				}
 			}
-
 			return sep;
 		}
 
@@ -503,8 +508,9 @@ public class PoleProcessor {
 		public PoleCluster[]  checkAndSplit(
 				double [][] norm_ds,
 				int min_dist,          // minimal distance
-				boolean must_zero) {
-			if ((eBox.x == 61) && (eBox.y== 128)) {
+				boolean must_zero,
+				int debugLevel) {
+			if ((eBox.x == -61) && (eBox.y== 128)) {
 				System.out.println("Debugging "+this.toString());
 			}
 			if (eBox.width < 2) {
@@ -591,7 +597,9 @@ public class PoleProcessor {
 					int dx = dsp.nTile % tilesX - eBox.x;
 					two_clusters[(dx < cut)? 0 : 1].addDs(dsp);
 				}
-				System.out.println("Splitting cluster "+this.toString()+" into 2: "+two_clusters[0]+toString()+" and "+two_clusters[1].toString());
+				if (debugLevel > -2) {
+					System.out.println("Splitting cluster "+this.toString()+" into 2: "+two_clusters[0]+toString()+" and "+two_clusters[1].toString());
+				}
 
 			}
 			return two_clusters;
@@ -817,7 +825,8 @@ public class PoleProcessor {
 
 
 		public void filterByMask(
-				boolean trim_bottom)
+				boolean trim_bottom,
+				int debugLevel)
 		{
 
 			if (trim_bottom) {
@@ -827,8 +836,10 @@ public class PoleProcessor {
 				}
 				int height = indx/eBox.width + 1;
 				if (height < eBox.height) {
-					System.out.println(String.format("filterByMask() Trimming {%3d, %3d, %2d, %2d}:%7.5f to height %2d",
-							eBox.x, eBox.y, eBox.width,eBox.height, target_disparity, height));
+					if (debugLevel > -2) {
+						System.out.println(String.format("filterByMask() Trimming {%3d, %3d, %2d, %2d}:%7.5f to height %2d",
+								eBox.x, eBox.y, eBox.width,eBox.height, target_disparity, height));
+					}
 					xc_center -= 0.5 * slope * (eBox.height - height);
 					eBox.height = height;
 					boolean []  mask =      new boolean[eBox.width * eBox.height];
@@ -857,6 +868,7 @@ public class PoleProcessor {
 			return target_disparity - target_previous;
 		}
 		public double applyMeasuredDisparity(
+				double min_diff,         // do not update if last difference was smaller than requested
 				double disparity_scale,  // target disparity to differential disparity scale (baseline ratio) (~0.2)
 				double diff_power,       // bias towards higher disparities - (disparity+offset) is raised to this power and applied to weight
 				                         // if 0.0 - do not apply value to weight
@@ -865,6 +877,7 @@ public class PoleProcessor {
 				double keep_bottom,      // do not cut more that this fraction of the bounding box height
 				int debugLevel)          // debug level
 		{
+			if (skip_update) return getTargetDiff();
 			int cut = (int) Math.round(Math.min(eBox.height * keep_bottom, cut_bottom));
 			int height = eBox.height - cut;
 			double sw=0.0, swd = 0.0;
@@ -888,6 +901,7 @@ public class PoleProcessor {
 			double diff = disparity_scale * swd;
 			target_previous = target_disparity;
 			target_disparity += diff;
+			skip_update |= (Math.abs(diff) < min_diff);
 			if (debugLevel > 0) {
 				System.out.println("applyMeasuredDisparity() for cluster "+this.toString()+" target disparity change: "+diff);
 			}
@@ -1255,7 +1269,9 @@ public class PoleProcessor {
 			PoleCluster [] two_clusters = cluster.checkAndSplit(
 					norm_ds,
 					min_dist,
-					must_zero);
+					must_zero,
+					debugLevel);
+
 			if (two_clusters != null) {
 				num_split++;
 				clusters.remove(nClust);
@@ -1263,14 +1279,20 @@ public class PoleProcessor {
 				if (two_clusters[1].getNumTiles() > 0) {
 					clusters.add(nClust,two_clusters[1]);
 				} else {
-					System.out.println("Cluster 1 "+two_clusters[1]+ " has no tiles - discarding");
+					if (debugLevel > -2) {
+						System.out.println("Cluster 1 "+two_clusters[1]+ " has no tiles - discarding");
+					}
 				}
 				if (two_clusters[0].getNumTiles() > 0) {
 					clusters.add(nClust,two_clusters[0]);
 				} else {
-					System.out.println("Cluster 0 "+two_clusters[0]+ " has no tiles - discarding");
+					if (debugLevel > -2) {
+						System.out.println("Cluster 0 "+two_clusters[0]+ " has no tiles - discarding");
+					}
 				}
-				System.out.println("Number of clusters: "+clusters.size());
+				if (debugLevel > -2) {
+					System.out.println("Number of clusters: "+clusters.size());
+				}
 			}
 
 
@@ -1476,13 +1498,15 @@ public class PoleProcessor {
 			}
 		}
 		for (PoleCluster cluster: clusters){
-			int layer = cluster.getLayer();
-			double disp = cluster.getTargetDisparity(); // getMeanDisp();
-			Rectangle box = new Rectangle(cluster.getEBox());
-			int nTile = box.y * tilesX + box.x;
-			for (int dy = 0; dy < box.height; dy++) {
-				for (int dx = 0; dx < box.width;dx++) {
-					dbg_layers[layer][tnImage.getNeibIndex(nTile, dx, dy)] = disp; // should never be out of bounds
+			if (!cluster.skip_update) {
+				int layer = cluster.getLayer();
+				double disp = cluster.getTargetDisparity(); // getMeanDisp();
+				Rectangle box = new Rectangle(cluster.getEBox());
+				int nTile = box.y * tilesX + box.x;
+				for (int dy = 0; dy < box.height; dy++) {
+					for (int dx = 0; dx < box.width;dx++) {
+						dbg_layers[layer][tnImage.getNeibIndex(nTile, dx, dy)] = disp; // should never be out of bounds
+					}
 				}
 			}
 		}
@@ -1496,7 +1520,7 @@ public class PoleProcessor {
 			final ArrayList<PoleCluster> clusters
 			) {
 		final TileNeibs  tnImage = biCamDSI.tnImage;
-//		final int num_tiles = tnImage.sizeX * tnImage.sizeY;
+		//		final int num_tiles = tnImage.sizeX * tnImage.sizeY;
 		final int tilesX = tnImage.sizeX;
 		final Thread[] threads = ImageDtt.newThreadArray(biCamDSI.threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
@@ -1507,17 +1531,19 @@ public class PoleProcessor {
 				public void run() {
 					for (int nClust = ai.getAndIncrement(); nClust < num_clust; nClust = ai.getAndIncrement()) {
 						PoleCluster cluster = clusters.get(nClust);
-						Rectangle box = cluster.getEBox();
-						int layer = cluster.getLayer();
-						if (reset_data) {
-							cluster.resetDsPairs();
-						}
-						int nTile = box.x + tilesX * box.y;
-						for (int dy = 0; dy < box.height; dy++) {
-							for (int dx = 0; dx < box.width; dx++) {
-								int nTile1 = tnImage.getNeibIndex(nTile, dx, dy); // should always be inside image
-								if (!Double.isNaN(measured_layers[layer][0][nTile1])) {
-									cluster.addDs(nTile1, measured_layers[layer][0][nTile1], measured_layers[layer][1][nTile1]);
+						if (!cluster.skip_update) {
+							Rectangle box = cluster.getEBox();
+							int layer = cluster.getLayer();
+							if (reset_data) {
+								cluster.resetDsPairs();
+							}
+							int nTile = box.x + tilesX * box.y;
+							for (int dy = 0; dy < box.height; dy++) {
+								for (int dx = 0; dx < box.width; dx++) {
+									int nTile1 = tnImage.getNeibIndex(nTile, dx, dy); // should always be inside image
+									if (!Double.isNaN(measured_layers[layer][0][nTile1])) {
+										cluster.addDs(nTile1, measured_layers[layer][0][nTile1], measured_layers[layer][1][nTile1]);
+									}
 								}
 							}
 						}
@@ -1601,7 +1627,8 @@ public class PoleProcessor {
 
 	public void filterByMask(
 			final boolean trim_bottoms,
-			final ArrayList<PoleCluster> clusters)
+			final ArrayList<PoleCluster> clusters,
+			final int debugLevel)
 	{
 		final Thread[] threads = ImageDtt.newThreadArray(biCamDSI.threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
@@ -1612,7 +1639,7 @@ public class PoleProcessor {
 				public void run() {
 					for (int nClust = ai.getAndIncrement(); nClust < num_clust; nClust = ai.getAndIncrement()) {
 						PoleCluster cluster = clusters.get(nClust);
-						cluster.filterByMask(trim_bottoms);
+						cluster.filterByMask(trim_bottoms, debugLevel);
 					}
 				}
 			};
@@ -1625,7 +1652,8 @@ public class PoleProcessor {
 			final double disp_adiff,
 			final double disp_rdiff,
 			final double [][] norn_ds,
-			final ArrayList<PoleCluster> clusters)
+			final ArrayList<PoleCluster> clusters,
+			final int debugLevel)
 	{
 		final Thread[] threads = ImageDtt.newThreadArray(biCamDSI.threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
@@ -1638,12 +1666,15 @@ public class PoleProcessor {
 						PoleCluster cluster = clusters.get(nClust);
 						boolean sep = cluster.checkRightLeft(
 								min_strength, // double min_strength,
-								disp_adiff, // double disp_adiff,
-								disp_rdiff, // double disp_rdiff,
-								norn_ds); //  [][] norn_ds);
+								disp_adiff,   // double disp_adiff,
+								disp_rdiff,   // double disp_rdiff,
+								norn_ds,      // double  [][] norn_ds);
+								debugLevel);  // final int debugLevel
 						if (!sep) {
-							System.out.println(String.format("Disabling cluster {%d, %d, %d, %d} disp= %f as it is not separated on right or left",
-									cluster.eBox.x, cluster.eBox.y, cluster.eBox.width, cluster.eBox.height, cluster.target_disparity));
+							if (debugLevel > -2) {
+								System.out.println(String.format("Disabling cluster {%d, %d, %d, %d} disp= %f as it is not separated on right or left",
+										cluster.eBox.x, cluster.eBox.y, cluster.eBox.width, cluster.eBox.height, cluster.target_disparity));
+							}
 							cluster.disabled = true;
 						}
 					}
@@ -1654,6 +1685,7 @@ public class PoleProcessor {
 	}
 
 	public double applyMeasuredDisparity(
+			final double min_diff,         // do not update if last difference was smaller than requested
 			final double disparity_scale,  // target disparity to differential disparity scale (baseline ratio)
 			final double diff_power,       // bias towards higher disparities - (disparity+offset) is raised to this power and applied to weight
 			                         // if 0.0 - do not apply value to weight
@@ -1672,16 +1704,19 @@ public class PoleProcessor {
 				public void run() {
 					for (int nClust = ai.getAndIncrement(); nClust < num_clust; nClust = ai.getAndIncrement()) {
 						PoleCluster cluster = clusters.get(nClust);
-						double diff = cluster.applyMeasuredDisparity(
-								disparity_scale,  // double disparity_scale,  // target disparity to differential disparity scale (baseline ratio)
-								diff_power,       // double diff_power,       // bias towards higher disparities - (disparity+offset) is raised to this power and applied to weight
-								//                                               if 0.0 - do not apply value to weight
-								diff_offset,      // double diff_offset,      // add to measured differential disparity before raising to specified power
-								cut_bottom,       // int    cut_bottom,       // cut few tile rows from the very bottom - they may be influenced by ground objects
-								keep_bottom,      // double keep_bottom,      // do not cut more that this fraction of the bounding box height
-								debugLevel);      // int    debugLevel);      // debug level
-						if (debugLevel > -2) {
-							System.out.println("applyMeasuredDisparity() for cluster "+cluster.toString()+" -> target disparity change: "+diff);
+						if (!cluster.skip_update) {
+							double diff = cluster.applyMeasuredDisparity(
+									min_diff,         // double min_diff,         // do not update if last difference was smaller than requested
+									disparity_scale,  // double disparity_scale,  // target disparity to differential disparity scale (baseline ratio)
+									diff_power,       // double diff_power,       // bias towards higher disparities - (disparity+offset) is raised to this power and applied to weight
+									//                                               if 0.0 - do not apply value to weight
+									diff_offset,      // double diff_offset,      // add to measured differential disparity before raising to specified power
+									cut_bottom,       // int    cut_bottom,       // cut few tile rows from the very bottom - they may be influenced by ground objects
+									keep_bottom,      // double keep_bottom,      // do not cut more that this fraction of the bounding box height
+									debugLevel);      // int    debugLevel);      // debug level
+							if (debugLevel > -2) {
+								System.out.println("applyMeasuredDisparity() for cluster "+cluster.toString()+" -> target disparity change: "+diff); // + " skip_update="+cluster.skip_update);
+							}
 						}
 					}
 				}
@@ -1690,12 +1725,13 @@ public class PoleProcessor {
 		ImageDtt.startAndJoin(threads);
 		double max_diff = 0.0;
 		for (PoleCluster cluster: clusters) {
-			if (Math.abs(cluster.getTargetDiff()) > max_diff) {
+			if (!cluster.skip_update && (Math.abs(cluster.getTargetDiff()) > max_diff)) {
 				max_diff = Math.abs(cluster.getTargetDiff());
 			}
 		}
 		return max_diff;
 	}
+
 
 	public void printClusterStats(
 			PoleProcessorParameters poleProcessorParameters,
@@ -1903,7 +1939,9 @@ public class PoleProcessor {
 		  final boolean trim_bottoms  = true; // false; // true;
 		  filterByMask(
 				  trim_bottoms,   // final boolean trim_bottoms,
-				  pole_clusters); // final ArrayList<PoleCluster> clusters)
+				  pole_clusters,  // final ArrayList<PoleCluster> clusters)
+				  debugLevel);    // final int debugLevel)
+
 
 
 		  if (debugLevel > -2) {
@@ -1919,7 +1957,9 @@ public class PoleProcessor {
 				  clt_parameters.poles.sep_disp_adiff,   // final double disp_adiff,
 				  clt_parameters.poles.sep_disp_rdiff,   // final double disp_rdiff,
 				  norm_ds,                               // final double [][] norn_ds,
-				  pole_clusters);                        //	final ArrayList<PoleCluster> clusters)
+				  pole_clusters,                         //	final ArrayList<PoleCluster> clusters)
+				  debugLevel); // final int debugLevel)
+
 		  int num_removed =removeFilteredClusters(
 				  clt_parameters.poles, //PoleProcessorParameters poleProcessorParameters
 				  pole_clusters,                         // ArrayList<PoleCluster> clusters,
@@ -1936,6 +1976,7 @@ public class PoleProcessor {
 		  }
 
 		  double max_target_diff = applyMeasuredDisparity(
+				  clt_parameters.poles.min_refine_diff,  // double min_diff,         // do not update if last difference was smaller than requested
 				  clt_parameters.poles.disparity_scale,  // final double disparity_scale, // target disparity to differential disparity scale (baseline ratio)
 				  clt_parameters.poles.diff_power,       // final double diff_power,      // bias towards higher disparities - (disparity+offset) is raised to this power and applied to weight
 				  //                                                    if 0.0 - do not apply value to weight
@@ -1967,6 +2008,7 @@ public class PoleProcessor {
 					  debugLevel + 0); //final int                                      debugLevel)
 
 			  max_target_diff = applyMeasuredDisparity(
+					  clt_parameters.poles.min_refine_diff,  // double min_diff,         // do not update if last difference was smaller than requested
 					  clt_parameters.poles.disparity_scale,  // final double disparity_scale, // target disparity to differential disparity scale (baseline ratio)
 					  clt_parameters.poles.diff_power,       // final double diff_power,      // bias towards higher disparities - (disparity+offset) is raised to this power and applied to weight
 					  //                                                    if 0.0 - do not apply value to weight
@@ -1976,9 +2018,8 @@ public class PoleProcessor {
 					  pole_clusters,                         // final ArrayList<PoleCluster> clusters,
 					  debugLevel);                           // final int debugLevel)         // debug level
 			  if (debugLevel > -2) {
-				  System.out.println("applyMeasuredDisparity() -> "+max_target_diff+" (max_diff)");
+				  System.out.println("applyMeasuredDisparity():" +nRefine+ " -> "+max_target_diff+" (max_diff)");
 			  }
-
 
 			  if (debugLevel > 0) {
 				  double [][] dbg_layers = dbgClusterLayers( // layer and eBox should be set
@@ -2009,7 +2050,8 @@ public class PoleProcessor {
 				  // select measured:
 				  filterByMask(
 						  false,          // trim_bottoms,   // final boolean trim_bottoms,
-						  pole_clusters); // final ArrayList<PoleCluster> clusters)
+						  pole_clusters,  // final ArrayList<PoleCluster> clusters)
+						  debugLevel);    // final int debugLevel)
 
 
 			  }
@@ -2022,16 +2064,15 @@ public class PoleProcessor {
 	                      pole_clusters,                     // ArrayList<PoleProcessor.PoleCluster> pole_clusters,
 	                      norm_ds);                          // double [][]                          norm_ds
 			  }
+			  if (max_target_diff < clt_parameters.poles.min_refine_diff) {
+				  break;
+			  }
+
 		  } // for (int nRefine = 0; nRefine < max_refines; nRefine ++) {
 		  double [][] poleDisparityStrength = exportPoleDisparityStrength(
 				  clt_parameters.poles, //PoleProcessorParameters poleProcessorParameters
 					0, // -1, // int filter_value,
 					pole_clusters); // ArrayList<PoleCluster> clusters)
-/*		  double [][] all_ds = 	biScan.getDisparityStrength(
-					false, // only_strong,
-					false, // only_trusted,
-					false); // true); // only_enabled);
-*/
 		  double [][] all_ds = 	{src_ds[0].clone(),src_ds[1].clone()};
 
 		  for (int nTile = 0; nTile < all_ds[0].length; nTile++) {
@@ -2043,41 +2084,54 @@ public class PoleProcessor {
 			  }
 		  }
 
-//		  for (int nTile = 0; nTile < all_ds[0].length; nTile++) {
-//			  if (Double.isNaN(all_ds[0][nTile]) || (all_ds[0][nTile] < 0.001)) {
-//				  all_ds[0][nTile] = Double.NaN;
-//				  all_ds[1][nTile] = 0.0;
-//			  }
-//		  }
-
-
-//		  if (debugLevel> -2) {
-//			  biScan.showScan(quadCLT_main.image_name+"-POLES", poleDisparityStrength);
-//			  biScan.showScan(quadCLT_main.image_name+"-ALL-AND-POLES", all_ds);
-//		  }
-//		  System.out.println("quadCLT_main.tp.clt_3d_passes_size="+quadCLT_main.tp.clt_3d_passes_size+", quadCLT_main.tp.clt_3d_passes.size()="+quadCLT_main.tp.clt_3d_passes.size());
-//		  CLTPass3d scan_last = quadCLT_main.tp.clt_3d_passes.get( quadCLT_main.tp.clt_3d_passes.size() -1); // get really last one
-
-//		  boolean [] selection = scan_last.getSelected();
 		  for (int nTile = 0; nTile < all_ds[0].length; nTile++) {
 			  if (!Double.isNaN(poleDisparityStrength[0][nTile])) {
 				  selection[nTile] = true; // add to source selection
 			  }
 		  }
+		  if (debugLevel > -4) {
+		  System.out.println(" === final \"pole\" clusters ===");
+		  printClusterStats(
+				  clt_parameters.poles, //PoleProcessorParameters poleProcessorParameters
+				  0, // minimal filter value
+				  pole_clusters);
+		  }
+
+
+
 		  return all_ds;
-/*
-		  quadCLT_main.tp.trimCLTPasses(false); // remove rig composite scan if any
-		  CLTPass3d rig_scan = quadCLT_main.tp.compositeScan(
-				  all_ds[0],  // final double []             disparity,
-				  all_ds[1],  // final double []             strength,
-				  selection,                  // final boolean []            selected,
-				  debugLevel);                // final int                   debugLevel)
-		  rig_scan.texture_tiles = scan_last.texture_tiles;
-		  // scan_last
-		  quadCLT_main.tp.clt_3d_passes.add(rig_scan);
-		  quadCLT_main.tp.saveCLTPasses(true);       // rig pass
-		  return true;
-*/
+	  }
+	  public int zero_tiles_check(
+			  String title,
+			  double [][] ds,
+			  boolean debug)
+	  {
+		  double [][] zero_tiles = new double [2][ds[0].length];
+		  int num_strong_zeros = 0;
+		  for (int nTile = 0; nTile < zero_tiles.length;  nTile++) {
+			  zero_tiles[0][nTile] = Double.NaN;
+			  zero_tiles[1][nTile] = Double.NaN;
+			  if ((ds[1][nTile] != 0.0) && !(ds[0][nTile] > 0.0)) {
+				  zero_tiles[0][nTile] = ds[0][nTile];
+				  zero_tiles[1][nTile] = ds[1][nTile];
+				  ds[0][nTile] = Double.NaN;
+				  ds[1][nTile] = 0.0;
+				  num_strong_zeros++;
+			  }
+		  }
+		  if (debug && (num_strong_zeros > 0)) {
+			  String [] titles = {"disparity","zero_disparity", "strength", "zero_strength"};
+			  double [][] dbg_layers = {ds[0], zero_tiles[0], ds[1], zero_tiles[1]};
+			  (new showDoubleFloatArrays()).showArrays(
+					  dbg_layers,
+					  tilesX,
+					  tilesY,
+					  true,
+					  title+"-ZERO-STRONG-BUGS",
+					  titles);
+		  }
+		  return num_strong_zeros;
+
 	  }
 
 	  public void debugClusterRefineImages(

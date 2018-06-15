@@ -2443,7 +2443,7 @@ public class EyesisCorrections {
 				   }
 			   }
 
-			   if (hasAlphaHighByte){
+			   if (hasAlphaHighByte && (jpegQuality <= 0)){
 				   if (png){
 					   if (debugLevel > 0) System.out.println("Saving RGBA result to "+path+".png");
 					   (new EyesisTiff()).savePNG_ARGB32(

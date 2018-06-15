@@ -24,10 +24,19 @@
 
 //import java.awt.Polygon;
 import java.awt.Rectangle;
+import java.io.File;
 import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import ij.CompositeImage;
@@ -67,6 +76,7 @@ public class QuadCLT {
 	TileProcessor                                          tp = null;
 
 	String                                                 image_name = null;
+	double []                                              gps_lla =    null;
 	double [][][]                                          image_data = null;
     boolean [][]                                           saturation_imp = null; // (near) saturated pixels or null
     boolean                                                is_aux = false;
@@ -4730,7 +4740,7 @@ public class QuadCLT {
 	  public boolean editRig()
 	  {
 		  if (!is_aux) {
-			  System.out.println("Rig offsets can only be edited for the auxiliary camera, not for the amin one");
+			  System.out.println("Rig offsets can only be edited for the auxiliary camera, not for the main one");
 			  return false;
 		  }
 //		  GeometryCorrection gc = this.geometryCorrection;
@@ -7700,13 +7710,16 @@ public class QuadCLT {
 			  System.out.println("Wavefront object file saved to "+wfOutput.obj_path);
 			  System.out.println("Wavefront material file saved to "+wfOutput.mtl_path);
 		  }
+
+		  // Save KML and ratings files if they do not exist (so not to overwrite edited ones), make them world-writable
+		  writeKml        (debugLevel);
+		  writeRatingFile (debugLevel);
+
+
 		  Runtime.getRuntime().gc();
 		  System.out.println("output3d(): generating 3d output files  finished at "+
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startStepTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
-
-
 		  return true;
-//		  return imp_bgnd; // relative (to x3d directory) path - (String) imp_bgnd.getProperty("name");
 	  }
 
 
@@ -9078,6 +9091,161 @@ public class QuadCLT {
 		  System.out.println("Processing "+fileIndices.length+" files ("+setNames.size()+" file sets) finished in "+
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
+
+	  public void setGpsLla(
+			  String source_file)
+	  {
+		  ImagePlus imp=(new JP46_Reader_camera(false)).open(
+				  "", // path,
+				  source_file,
+				  "",  //arg - not used in JP46 reader
+				  true, // un-apply camera color gains
+				  null, // new window
+				  false); // do not show
+		  if (imp.getProperty("LATITUDE") != null){
+			  gps_lla = new double[3];
+			  for (int i = 0; i < 3; i++) {
+				  gps_lla[i] = Double.NaN;
+			  }
+				if (imp.getProperty("LATITUDE")  != null) gps_lla[0] =Double.parseDouble((String) imp.getProperty("LATITUDE"));
+				if (imp.getProperty("LONGITUDE") != null) gps_lla[1] =Double.parseDouble((String) imp.getProperty("LONGITUDE"));
+				if (imp.getProperty("ALTITUDE")  != null) gps_lla[2] =Double.parseDouble((String) imp.getProperty("ALTITUDE"));
+		  }
+	  }
+
+
+	  public boolean writeKml(
+			  int debugLevel )
+	  {
+		  String [] sourceFiles_main=correctionsParameters.getSourcePaths();
+		  //		  String [] sourceFiles_aux=quadCLT_main.correctionsParameters.getSourcePaths();
+		  setGpsLla(sourceFiles_main[0]);
+		  String set_name = image_name;
+		  if (set_name == null ) {
+			  QuadCLT.SetChannels [] set_channels=setChannels(debugLevel);
+			  set_name = set_channels[0].set_name;
+		  }
+		  if (gps_lla != null) {
+			  String kml_copy_dir= correctionsParameters.selectX3dDirectory(
+					  set_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+					  null,
+					  true,  // smart,
+					  true);  //newAllowed, // save
+			  double ts = Double.parseDouble(set_name.replace('_', '.'));
+			  (new X3dOutput()).generateKML(
+					  kml_copy_dir+ Prefs.getFileSeparator()+set_name+".kml", // String path,
+					  false, // boolean overwrite,
+					  "", // String icon_path, //<href>x3d/1487451413_967079.x3d</href> ?
+					  ts, // double timestamp,
+					  gps_lla); // double [] lla)
+		  } else {
+			  if (debugLevel > -2) {
+				  System.out.println("GPS data not available, skipping KML file generation (TODO: maybe make some default LLA?)");
+			  }
+		  }
+		  return true;
+	  }
+
+	  public boolean createThumbNailImage(
+			  ImagePlus imp,
+			  String dir,
+			  String name,
+			  int debugLevel)
+	  {
+		  String thumb_path = dir +  Prefs.getFileSeparator() + name+".jpeg";
+			if (new File(thumb_path).exists()) {
+				System.out.println("file "+thumb_path+" exists, skipping thumbnail generation");
+				return false;
+			}
+
+		  int image_width = imp.getWidth();
+		  int image_height = imp.getHeight();
+		  double scale_h = 1.0 * correctionsParameters.thumb_width/image_width;
+		  double scale_v = 1.0 * correctionsParameters.thumb_height/image_height;
+//		  double scale = Math.min(scale_h,  scale_v) /correctionsParameters.thumb_size;
+		  double scale = scale_h / correctionsParameters.thumb_size;
+
+//		  ImageProcessor ip = imp.getChannelProcessor();
+		  ImageProcessor ip = imp.getProcessor().duplicate();
+
+		  ip.setInterpolationMethod(ImageProcessor.BICUBIC);
+//		  ip.setInterpolationMethod(ImageProcessor.BILINEAR);
+		  ip.blurGaussian(2.0);
+		  ip.scale(scale, scale);
+//		  Rectangle rs = new Rectangle(
+//				  (int)Math.round(0.5*image_width*(1.0-scale)),
+//				  (int)Math.round(0.5*image_height*(1.0-scale)),
+//				  (int)Math.round(image_width*scale),
+//				  (int)Math.round(image_height*scale));
+
+//		  int scaled_width = rs.width; // ip.getWidth();
+//		  int scaled_height = rs.height; // ip.getHeight();
+//		  int lm = (int) Math.round ((scaled_width-correctionsParameters.thumb_width)* correctionsParameters.thumb_h_center);
+//		  int tm = (int) Math.round ((scaled_height-correctionsParameters.thumb_height)* correctionsParameters.thumb_v_center);
+		  int lm = (int) Math.round (((image_width*scale)-correctionsParameters.thumb_width)* correctionsParameters.thumb_h_center + (0.5*image_width*(1.0-scale)));
+		  int tm = (int) Math.round (((image_height*scale)-correctionsParameters.thumb_height)* correctionsParameters.thumb_v_center + (0.5*image_height*(1.0-scale)));
+		  Rectangle r = new Rectangle(lm,tm,correctionsParameters.thumb_width,correctionsParameters.thumb_height);
+		  ip.setRoi(r);
+		  ImageProcessor ip2 = ip.crop();
+		  ImagePlus ip_thumb = new ImagePlus(name,ip2);
+		  eyesisCorrections.saveAndShow(
+				  ip_thumb,
+				  dir,
+				  false,
+				  false,
+				  correctionsParameters.JPEG_quality, // jpegQuality); // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+				  (debugLevel > -2) ? debugLevel : 1); // int debugLevel (print what it saves)
+		  return true;
+	  }
+
+
+
+	  public boolean writeRatingFile(
+			  int debugLevel
+			  )
+	  {
+		  String set_name = image_name;
+		  if (set_name == null ) {
+			  QuadCLT.SetChannels [] set_channels = setChannels(debugLevel);
+			  set_name = set_channels[0].set_name;
+		  }
+
+		  String model_dir= correctionsParameters.selectX3dDirectory(
+				  set_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				  null,
+				  true,  // smart,
+				  true);  //newAllowed, // save
+		  String fname = model_dir+ Prefs.getFileSeparator()+"rating.txt";
+		  File rating_file = new File(fname);
+		  if (rating_file.exists()) {
+			  if (debugLevel > -2){
+				  System.out.println("file "+rating_file.getPath()+" exists, skipping overwrite");
+			  }
+			  return false;
+		  }
+		  List<String> lines = Arrays.asList(correctionsParameters.default_rating+"");
+		  Path path = Paths.get(fname);
+		  try {
+			  Files.write(path,lines, Charset.forName("UTF-8"));
+		  } catch (IOException e1) {
+			  // TODO Auto-generated catch block
+			  e1.printStackTrace();
+			  return false;
+		  }
+		  try {
+			  Path fpath = Paths.get(rating_file.getCanonicalPath());
+			  Set<PosixFilePermission> perms =  Files.getPosixFilePermissions(fpath);
+			  perms.add(PosixFilePermission.OTHERS_WRITE);
+			  Files.setPosixFilePermissions(fpath, perms);
+		  } catch (IOException e) {
+			  // TODO Auto-generated catch block
+			  e.printStackTrace();
+			  return false;
+		  }
+		  return true;
+	  }
+
+
 
 
 }

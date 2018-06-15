@@ -132,9 +132,20 @@ public class EyesisCorrectionParameters {
 
 
     	public String x3dModelVersion="v01";
+    	public String jp4SubDir="jp4";
+
     	public String x3dDirectory="";
 
-    	public String mlDirectory="";
+    	public String mlDirectory="ml";
+
+    	public int      thumb_width =         200;
+    	public int      thumb_height =        100;
+    	public double   thumb_h_center =      0.5;
+    	public double   thumb_v_center =      0.5;
+    	public double   thumb_size =          0.75;
+    	public int      default_rating =      5;
+
+
 
     	public CorrectionParameters getAux() {
     		return aux_camera;
@@ -228,6 +239,7 @@ public class EyesisCorrectionParameters {
   			cp.use_x3d_subdirs=    		this.use_x3d_subdirs;
   			cp.x3dSubdirPrefix=    		this.x3dSubdirPrefix;
   			cp.x3dModelVersion=    		this.x3dModelVersion;
+  			cp.jp4SubDir=    	     	this.jp4SubDir;
   			cp.clt_batch_apply_man=		this.clt_batch_apply_man;
   			cp.clt_batch_extrinsic=		this.clt_batch_extrinsic;
   			cp.clt_batch_poly=    		this.clt_batch_poly;
@@ -364,6 +376,7 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"x3dSubdirPrefix",       this.x3dSubdirPrefix+"");
     		properties.setProperty(prefix+"x3dSubdirSuffix",       this.x3dSubdirSuffix+"");
     		properties.setProperty(prefix+"x3dModelVersion",       this.x3dModelVersion);
+    		properties.setProperty(prefix+"jp4SubDir",             this.jp4SubDir);
 
     		properties.setProperty(prefix+"mlDirectory",           this.mlDirectory);
 
@@ -376,6 +389,15 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"clt_batch_assign",      this.clt_batch_assign+"");
     		properties.setProperty(prefix+"clt_batch_gen3d",       this.clt_batch_gen3d+"");
     		properties.setProperty(prefix+"clt_batch_dbg1",        this.clt_batch_dbg1+"");
+
+    		properties.setProperty(prefix+"thumb_width",           this.thumb_width+"");
+    		properties.setProperty(prefix+"thumb_height",          this.thumb_height+"");
+    		properties.setProperty(prefix+"thumb_h_center",        this.thumb_h_center+"");
+    		properties.setProperty(prefix+"thumb_v_center",        this.thumb_v_center+"");
+    		properties.setProperty(prefix+"thumb_size",            this.thumb_size+"");
+    		properties.setProperty(prefix+"default_rating",        this.default_rating+"");
+
+
     		if (aux_camera != null) { // always
         		updateAuxFromMain();
     			String aux_prefix = prefix + AUX_PREFIX;
@@ -491,6 +513,7 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"x3dSubdirSuffix")!=      null) this.x3dSubdirSuffix=properties.getProperty(prefix+"x3dSubdirSuffix");
 
 			if (properties.getProperty(prefix+"x3dModelVersion")!=      null) this.x3dModelVersion=properties.getProperty(prefix+"x3dModelVersion");
+			if (properties.getProperty(prefix+"jp4SubDir")!=            null) this.jp4SubDir=properties.getProperty(prefix+"jp4SubDir");
 
 			if (properties.getProperty(prefix+"mlDirectory")!=          null) this.mlDirectory=properties.getProperty(prefix+"mlDirectory");
 
@@ -503,6 +526,14 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"clt_batch_assign")!= null)    this.clt_batch_assign=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_assign"));
 			if (properties.getProperty(prefix+"clt_batch_gen3d")!= null)     this.clt_batch_gen3d=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_gen3d"));
 			if (properties.getProperty(prefix+"clt_batch_dbg1")!= null)      this.clt_batch_dbg1=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_dbg1"));
+
+  		    if (properties.getProperty(prefix+"thumb_width")!=null)          this.thumb_width=Integer.parseInt(properties.getProperty(prefix+"thumb_width"));
+  		    if (properties.getProperty(prefix+"thumb_height")!=null)         this.thumb_height=Integer.parseInt(properties.getProperty(prefix+"thumb_height"));
+  		    if (properties.getProperty(prefix+"thumb_h_center")!=null)       this.thumb_h_center=   Double.parseDouble(properties.getProperty(prefix+"thumb_h_center"));
+  		    if (properties.getProperty(prefix+"thumb_v_center")!=null)       this.thumb_v_center=   Double.parseDouble(properties.getProperty(prefix+"thumb_v_center"));
+  		    if (properties.getProperty(prefix+"thumb_size")   !=null)        this.thumb_size=   Double.parseDouble(properties.getProperty(prefix+"thumb_size"));
+  		    if (properties.getProperty(prefix+"default_rating") !=null)      this.default_rating=   Integer.parseInt(properties.getProperty(prefix+"default_rating"));
+
 
     		// copy common parameters to the auxiliary camera ones
     		updateAuxFromMain();
@@ -591,6 +622,7 @@ public class EyesisCorrectionParameters {
     		gd.addCheckbox    ("Select aberration kernels for CLT directory",      false);
 
     		gd.addStringField ("x3d model version",                                this.x3dModelVersion, 20);    // 10a
+    		gd.addStringField ("JP4 source image copy model subdirectory",         this.jp4SubDir, 20);    // 10b
     		gd.addStringField ("x3d output directory",                             this.x3dDirectory, 60);
     		gd.addCheckbox    ("Select x3d output directory",                      false);
     		gd.addCheckbox    ("Use individual subdirectory for each 3d model (timestamp as name)", this.use_x3d_subdirs);
@@ -599,8 +631,9 @@ public class EyesisCorrectionParameters {
     				"When using timestamp as a subdirectory, add this prefix");
     		gd.addStringField ("x3d subdirectory suffix",                          this.x3dSubdirSuffix, 10,
     				"When using timestamp as a subdirectory, add this suffix");
-    		gd.addStringField ("ML output directory",                              this.mlDirectory, 60);
-    		gd.addCheckbox    ("Select ML output directory",                      false);
+    		gd.addStringField ("ML output directory",                              this.mlDirectory, 60,
+    				"Non-empty directory with no \"/\" separator makes it a subdirectory of the model version directory");
+    		gd.addCheckbox    ("Select ML output directory", false,"Erase text field or use \"/\" in it to enable absolute directory path selection");
 
     		gd.addStringField("Equirectangular maps directory (may be empty)",     this.equirectangularDirectory, 60);
     		gd.addCheckbox("Select equirectangular maps directory",                false);
@@ -640,6 +673,22 @@ public class EyesisCorrectionParameters {
 
     		gd.addCheckbox   ("Remove unused sensor data",       this.removeUnusedSensorData);
     		gd.addCheckbox   ("Swap top and equator images",     this.swapSubchannels01);
+
+    		gd.addTab("Thumbnails","Thumbnail image generation");
+    		gd.addNumericField("Thumbnail image width",          this.thumb_width, 0,4,"pix",
+    				"");
+    		gd.addNumericField("Thumbnail image height",         this.thumb_height, 0,4,"pix",
+    				"");
+    		gd.addNumericField("Thumbnail image center horizontally", this.thumb_h_center, 2,6,"",
+    				"0.0 - touch left margin, 1.0 - touch right margin");
+    		gd.addNumericField("Thumbnail image center vertically", this.thumb_v_center, 2,6,"",
+    				"0.0 - touch top margin, 1.0 - touch bottom margin");
+    		gd.addNumericField("Thumbnail relative image size",  this.thumb_size, 2,6,"",
+    				"1.0 - maximal to fit frame");
+    		gd.addNumericField("Default scene rating",           this.default_rating, 0,2,"",
+    				"Determins scene filtering");
+
+
 //    		WindowTools.addScrollBars(gd);
     		gd.showDialog();
     		if (gd.wasCanceled()) return false;
@@ -689,13 +738,14 @@ public class EyesisCorrectionParameters {
     		this.dctKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectDCTKernelDirectory(false, true);
     		this.cltKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectCLTKernelDirectory(false, true);
     		this.x3dModelVersion=        gd.getNextString(); // 10a
+    		this.jp4SubDir=              gd.getNextString(); // 10b
     		this.x3dDirectory=           gd.getNextString(); if (gd.getNextBoolean()) selectX3dDirectory(false, true);
     		this.use_x3d_subdirs=        gd.getNextBoolean();
 
     		this.x3dSubdirPrefix=        gd.getNextString();
     		this.x3dSubdirSuffix=        gd.getNextString();
 
-    		this.mlDirectory=            gd.getNextString(); if (gd.getNextBoolean()) selectMlDirectory(false, true);
+    		this.mlDirectory=            gd.getNextString(); if (gd.getNextBoolean()) selectMlDirectory(null, false, true);
 
     		this.equirectangularDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectEquirectangularDirectory(false, false);
     		this.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) selectResultsDirectory(false, true);
@@ -723,7 +773,14 @@ public class EyesisCorrectionParameters {
     		this.planeAsJPEG=            gd.getNextBoolean();
 //    		this.equirectangularSuffixA= gd.getNextString();
     		this.removeUnusedSensorData= gd.getNextBoolean();
-    		this.swapSubchannels01= gd.getNextBoolean();
+    		this.swapSubchannels01=      gd.getNextBoolean();
+
+    		this.thumb_width=      (int) gd.getNextNumber();
+    		this.thumb_height=     (int) gd.getNextNumber();
+    		this.thumb_h_center=         gd.getNextNumber();
+    		this.thumb_v_center=         gd.getNextNumber();
+    		this.thumb_size=             gd.getNextNumber();
+    		this.default_rating=   (int) gd.getNextNumber();
     		return true;
     	}
 
@@ -742,6 +799,7 @@ public class EyesisCorrectionParameters {
     		gd.addCheckbox    ("Select source directory",                          false);                       // 3
 
     		gd.addStringField ("x3d model version",                                this.x3dModelVersion, 60);    // 10a
+    		gd.addStringField ("jp4 source copy subdirectory",                     this.jp4SubDir, 60);          // 10b
     		gd.addStringField ("x3d output directory",                             this.x3dDirectory, 60);       // 8
     		gd.addCheckbox    ("Select x3d output (top model) directory",          false);                       // 9
 
@@ -753,8 +811,9 @@ public class EyesisCorrectionParameters {
     		gd.addStringField ("x3d subdirectory prefix",                          this.x3dSubdirPrefix, 10,    // 14a
     				"When using timestamp as a subdirectory, add this prefix");
 
-    		gd.addStringField ("ML output directory",                              this.mlDirectory, 60);       // 8d
-    		gd.addCheckbox    ("Select ML output directory",                       false);                      // 8e
+    		gd.addStringField ("ML output directory",                              this.mlDirectory, 60,
+    				"Non-empty directory with no \"/\" separator makes it a subdirectory of the model version directory");
+    		gd.addCheckbox    ("Select ML output directory", false,"Erase text field or use \"/\" in it to enable absolute directory path selection");
 
 			gd.addMessage     ("============ Main camera============");
 
@@ -773,7 +832,6 @@ public class EyesisCorrectionParameters {
     		gd.addStringField ("CLT kernel files suffix",                          this.cltSuffix, 40);          // 20
     		gd.addStringField ("x3d subdirectory suffix",                          this.x3dSubdirSuffix, 10,     // 20a
     				"When using timestamp as a subdirectory, add this suffix");
-
 
 			gd.addMessage     ("============ Auxiliary camera============");
     		gd.addStringField ("Aux sensor calibration directory",                     this.aux_camera.sensorDirectory, 60);    // 4b
@@ -824,12 +882,13 @@ public class EyesisCorrectionParameters {
 
     		this.sourceDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSourceDirectory(false, false);   // 3
     		this.x3dModelVersion=        gd.getNextString(); //  10a
+    		this.jp4SubDir=              gd.getNextString(); //  10b
     		this.x3dDirectory=           gd.getNextString(); if (gd.getNextBoolean()) selectX3dDirectory(false, true);       // 9
     		this.use_x3d_subdirs=        gd.getNextBoolean(); // 10
     		this.sourcePrefix=           gd.getNextString();  // 13
     		this.sourceSuffix=           gd.getNextString();  // 14
     		this.x3dSubdirPrefix=        gd.getNextString();  // 14a
-    		this.mlDirectory=            gd.getNextString(); if (gd.getNextBoolean()) selectMlDirectory(false, true);       // 8d
+    		this.mlDirectory=            gd.getNextString(); if (gd.getNextBoolean()) selectMlDirectory(null,false, true);       // 8d
 
 // main camera
     		this.sensorDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSensorDirectory(false, false);   // 5
@@ -1410,7 +1469,14 @@ public class EyesisCorrectionParameters {
     		return dir;
     	}
 
-    	public String selectMlDirectory(boolean smart, boolean newAllowed) {
+    	public String selectMlDirectory(String name, boolean smart, boolean newAllowed) {
+    		if ((name != null) && (this.mlDirectory.length()>0) && (!this.mlDirectory.contains(Prefs.getFileSeparator()))) {
+    			// relative to the X3D model version
+    			String x3d_version_dir = selectX3dDirectory(name, this.x3dModelVersion, smart, newAllowed);
+    			if (x3d_version_dir != null) {
+    				return x3d_version_dir + Prefs.getFileSeparator() + this.mlDirectory;
+    			}
+    		}
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
     				newAllowed, // save

@@ -552,7 +552,7 @@ private Panel panel1,
 			addButton("CLT infinity corr",         panelClt2, color_conf_process);
 			addButton("CLT ext infinity corr",     panelClt2, color_conf_process);
 			addButton("CLT reset 3D",              panelClt2, color_stop);
-			addButton("CLT Extrinsics",            panelClt2, color_process);
+			addButton("MAIN extrinsics",           panelClt2, color_process);
 			addButton("CLT Poly corr",             panelClt2, color_process);
 			addButton("CLT 3D",                    panelClt2, color_process);
 			addButton("CLT planes",                panelClt2, color_conf_process);
@@ -583,19 +583,21 @@ private Panel panel1,
 //			addButton("CLT 2*4 images",             panelClt4, color_conf_process);
 //			addButton("CLT 2*4 images - 2",         panelClt4, color_conf_process);
 //			addButton("CLT 2*4 images - 3",         panelClt4, color_conf_process);
+			addButton("SHOW extrinsics",              panelClt4, color_configure);
+			addButton("MAIN extrinsics",            panelClt4, color_process);
+			addButton("RIG extrinsics",             panelClt4, color_conf_process);
+			addButton("AUX extrinsics",             panelClt4, color_process);
 			addButton("Rig8 images",                panelClt4, color_conf_process);
-			addButton("Rig infinity calibration",   panelClt4, color_conf_process);
-			addButton("AUX Extrinsics",             panelClt4, color_process);
-			addButton("AUX show fine",              panelClt4, color_configure);
-//			addButton("Rig enhance",                panelClt4, color_conf_process);
+
+			//			addButton("Rig enhance",                panelClt4, color_conf_process);
 //			/"Reset GT"
 			addButton("Reset GT",                   panelClt4, color_stop);
-			addButton("Ground truth 0",             panelClt4, color_configure);
+//			addButton("Ground truth 0",             panelClt4, color_configure);
 			addButton("Ground truth",               panelClt4, color_conf_process);
 			addButton("Show biscan",                panelClt4, color_configure);
 			addButton("Poles GT",                   panelClt4, color_process);
 			addButton("ML export",                  panelClt4, color_conf_process);
-			addButton("Rig planes",                 panelClt4, color_conf_process);
+			addButton("JP4 copy",                   panelClt4, color_conf_process);
 
 
 			add(panelClt4);
@@ -4253,9 +4255,9 @@ private Panel panel1,
 
 /// ============================================
 
-    } else if (label.equals("CLT 3D") || label.equals("CLT Extrinsics") || label.equals("CLT Poly corr")) {
+    } else if (label.equals("CLT 3D") || label.equals("MAIN extrinsics") || label.equals("CLT Poly corr")) {
 
-    	boolean adjust_extrinsics = label.equals("CLT Extrinsics") || label.equals("CLT Poly corr");
+    	boolean adjust_extrinsics = label.equals("MAIN extrinsics") || label.equals("CLT Poly corr");
     	boolean adjust_poly = label.equals("CLT Poly corr");
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
@@ -4333,8 +4335,8 @@ private Panel panel1,
         }
 */
         return;
-    } else if (label.equals("AUX Extrinsics") || label.equals("AUX Poly corr")) {
-    	boolean adjust_extrinsics = label.equals("AUX Extrinsics") || label.equals("AUX Poly corr");
+    } else if (label.equals("AUX extrinsics") || label.equals("AUX Poly corr")) {
+    	boolean adjust_extrinsics = label.equals("AUX extrinsics") || label.equals("AUX Poly corr");
     	boolean adjust_poly = label.equals("AUX Poly corr");
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
@@ -4567,13 +4569,13 @@ private Panel panel1,
     	getPairImages2(true);
     	return;
 /* ======================================================================== */
-    } else if (label.equals("Rig infinity calibration")) {
+    } else if (label.equals("RIG extrinsics")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
     	infinityRig();
     	return;
 /* ======================================================================== */
-    } else if (label.equals("AUX show fine")) {
+    } else if (label.equals("SHOW extrinsics")) {
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (
         			QuadCLT.PREFIX,
@@ -4599,6 +4601,8 @@ private Panel panel1,
         	}
         }
         QUAD_CLT_AUX.showExtrinsicCorr("aux");// show_fine_corr("aux");
+        QUAD_CLT_AUX.geometryCorrection.showRig();// show_fine_corr("aux");
+
         QuadCLT dbg_QUAD_CLT = QUAD_CLT;
         QuadCLT dbg_QUAD_CLT_AUX = QUAD_CLT_AUX;
 
@@ -4648,6 +4652,12 @@ private Panel panel1,
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
     	exportMLData();
+    	return;
+/* ======================================================================== */
+    } else if (label.equals("JP4 copy")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+    	copyJP4src();
     	return;
 
 /* ======================================================================== */
@@ -5163,7 +5173,7 @@ private Panel panel1,
 		return true;
 	}
 
-//	boolean adjust_extrinsics = label.equals("CLT Extrinsics") || label.equals("CLT Poly corr");
+//	boolean adjust_extrinsics = label.equals("MAIN extrinsics") || label.equals("CLT Poly corr");
 //	boolean adjust_poly = label.equals("CLT Poly corr");
 	public boolean clt3d(
 			boolean adjust_extrinsics,
@@ -5285,8 +5295,8 @@ private Panel panel1,
 
 	public boolean exportMLData() {
 		long startTime=System.nanoTime();
-		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
-			String msg = "DSI data is not available. Please run \"CLT 3D\" first";
+		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.rig_pre_poles_ds == null)) {
+			String msg = "DSI data is not available. Please run \"Ground truth\" first";
 			IJ.showMessage("Error",msg);
 			System.out.println(msg);
 			return false;
@@ -5324,6 +5334,94 @@ private Panel panel1,
 
     	return true;
 	}
+
+	public boolean copyJP4src() {
+		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
+			if (QUAD_CLT == null){
+				QUAD_CLT = new  QuadCLT (
+						QuadCLT.PREFIX,
+						PROPERTIES,
+						EYESIS_CORRECTIONS,
+						CORRECTION_PARAMETERS);
+				if (DEBUG_LEVEL > 0){
+					System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
+				}
+			}
+			String configPath=getSaveCongigPath();
+			if (configPath.equals("ABORT")) return false;
+
+			EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+			int numChannels=EYESIS_CORRECTIONS.getNumChannels();
+			CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
+
+			if (!QUAD_CLT.CLTKernelsAvailable()){
+				if (DEBUG_LEVEL > 0){
+					System.out.println("Reading CLT kernels");
+				}
+				QUAD_CLT.readCLTKernels(
+						CLT_PARAMETERS,
+						THREADS_MAX,
+						UPDATE_STATUS, // update status info
+						DEBUG_LEVEL);
+
+				if (DEBUG_LEVEL > 1){
+					QUAD_CLT.showCLTKernels(
+							THREADS_MAX,
+							UPDATE_STATUS, // update status info
+							DEBUG_LEVEL);
+				}
+			}
+
+			if (!QUAD_CLT.geometryCorrectionAvailable()){
+				if (DEBUG_LEVEL > 0){
+					System.out.println("Calculating geometryCorrection");
+				}
+				if (!QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2)){
+					return false;
+				}
+			}
+/*
+			boolean OK = clt3d(
+					false, // boolean adjust_extrinsics,
+					false); // boolean adjust_poly);
+			if (! OK) {
+				String msg = "DSI data is not available and \"CLT 3D\" failed";
+				IJ.showMessage("Error",msg);
+				System.out.println(msg);
+				return false;
+			}
+*/
+		}
+		if (!prepareRigImages()) return false;
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return false;
+
+    	if (DEBUG_LEVEL > -2){
+    		System.out.println("++++++++++++++ Copying JP4 source files ++++++++++++++");
+    	}
+    	try {
+    		TWO_QUAD_CLT.copyJP4src( // actually there is no sense to process multiple image sets. Combine with other processing?
+    				QUAD_CLT, // QuadCLT quadCLT_main,
+    				QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+    				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+    				DEBUG_LEVEL);
+    	} catch (Exception e) {
+    		// TODO Auto-generated catch block
+    		e.printStackTrace();
+    	} //final int        debugLevel);
+
+    	if (configPath!=null) {
+    		saveTimestampedProperties( // save config again
+    				configPath,      // full path or null
+    				null, // use as default directory if path==null
+    				true,
+    				PROPERTIES);
+    	}
+
+		return true;
+	}
+
+
 
 	public boolean infinityRig() {
 		if (!prepareRigImages()) return false;

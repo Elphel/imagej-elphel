@@ -20,6 +20,10 @@
  ** -----------------------------------------------------------------------------**
  **
  */
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 
 import ij.IJ;
@@ -708,6 +712,18 @@ public class TwoQuadCLT {
 							  quadCLT_main.correctionsParameters.JPEG_quality, // jpegQuality); // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
 							  (debugLevel > 0) ? debugLevel : 1); // int debugLevel (print what it saves)
 				  }
+				  String model_path= quadCLT_main.correctionsParameters.selectX3dDirectory(
+						  name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+						  null,
+						  true,  // smart,
+						  true);  //newAllowed, // save
+
+				  quadCLT_main.createThumbNailImage(
+						  imps_RGB[0],
+						  model_path,
+						  "thumb",
+						  debugLevel);
+
 			  }
 		  }
 
@@ -1210,6 +1226,8 @@ if (debugLevel > -100) return true; // temporarily !
 
 		  return true;
 	  }
+
+
 	  public boolean processPoles(
 			  QuadCLT            quadCLT_main,  // tiles should be set
 			  QuadCLT            quadCLT_aux,
@@ -1238,19 +1256,26 @@ if (debugLevel > -100) return true; // temporarily !
 		  if (debugLevel> -1) {
 			  biScan.showScan(quadCLT_main.image_name+"LastBiScan-"+scan_index, null);
 		  }
-		  if (poleProcessor_persistent == null) {
+//		  if (poleProcessor_persistent == null) {
 			  poleProcessor_persistent = new PoleProcessor(
 					  biCamDSI_persistent,
 					  this, //	TwoQuadCLT twoQuadCLT,
 					  quadCLT_main.tp.getTilesX(),
 					  quadCLT_main.tp.getTilesY());
-		  }
+//		  }
 		  PoleProcessor pp = poleProcessor_persistent;
 		  boolean [] selection =  quadCLT_main.tp.rig_pre_poles_sel.clone();
+		  int num_bugs_corrected= pp.zero_tiles_check(
+				  "pre-poles",
+				  quadCLT_main.tp.rig_pre_poles_ds, // double [][] ds,
+				  true); // boolean debug)
+		  if (num_bugs_corrected > 0) {
+			  System.out.println("Corrected "+num_bugs_corrected+" bugs, where disparity is <= 0 with non-zero strength before poles");
+		  }
+
 		  double [][] poles_ds = pp.processPoles(
 				  quadCLT_main,  // QuadCLT            quadCLT_main,  // tiles should be set
 				  quadCLT_aux,   //QuadCLT            quadCLT_aux,
-//				  biScan, // BiScan                                         biScan,
 				  quadCLT_main.tp.rig_pre_poles_ds, //  double [][]                                    src_ds, // source disparity, strength pair
 				  selection, // boolean []                                     selection, // source tile selection, will be modified
 				  clt_parameters, // EyesisCorrectionParameters.CLTParameters       clt_parameters,
@@ -1258,16 +1283,17 @@ if (debugLevel > -100) return true; // temporarily !
 				  updateStatus, // final boolean                                  updateStatus,
 				  debugLevel); // final int                                      globalDebugLevel)
 
-//		  System.out.println("quadCLT_main.tp.clt_3d_passes_size="+quadCLT_main.tp.clt_3d_passes_size+", quadCLT_main.tp.clt_3d_passes.size()="+quadCLT_main.tp.clt_3d_passes.size());
+		  num_bugs_corrected= pp.zero_tiles_check(
+				  "post-poles",
+				  poles_ds, // double [][] ds,
+				  true); // boolean debug)
+		  if (num_bugs_corrected > 0) {
+			  System.out.println("Corrected "+num_bugs_corrected+" bugs, where disparity is <= 0 with non-zero strength after poles");
+		  }
+		  quadCLT_main.tp.rig_post_poles_ds =        poles_ds; // Rig disparity and strength before processing poles
+		  quadCLT_main.tp.rig_post_poles_sel =       selection; // Rig tile selection before processing poles
+
 		  CLTPass3d scan_last = quadCLT_main.tp.clt_3d_passes.get( quadCLT_main.tp.clt_3d_passes.size() -1); // get really last one
-//
-//
-//		  boolean [] selection = scan_last.getSelected();
-//		  for (int nTile = 0; nTile < all_ds[0].length; nTile++) {
-//			  if (!Double.isNaN(poleDisparityStrength[0][nTile])) {
-//				  selection[nTile] = true;
-//			  }
-//		  }
 
 		  quadCLT_main.tp.trimCLTPasses(false); // remove rig composite scan if any
 		  CLTPass3d rig_scan = quadCLT_main.tp.compositeScan(
@@ -1339,7 +1365,8 @@ if (debugLevel > -100) return true; // temporarily !
           final int tilesX = quadCLT_main.tp.getTilesX();
           final int tilesY = quadCLT_main.tp.getTilesY();
           BiCamDSI biCamDSI = new BiCamDSI( tilesX, tilesY, threadsMax);
-          boolean [][] dbg_sel = (debugLevel > -4)? new boolean [8][]:null;// was 4
+//          boolean [][] dbg_sel = (debugLevel > -4)? new boolean [8][]:null;// was 4
+          boolean [][] dbg_sel = (debugLevel > -2)? new boolean [8][]:null;// was 4
           if (dbg_sel!=null) dbg_sel[0] = infinity_select;
           if (dbg_sel!=null) dbg_sel[1] = was_select;
           if (clt_parameters.rig.ltfar_en) {
@@ -1504,6 +1531,8 @@ if (debugLevel > -100) return true; // temporarily !
 //		 quadCLT_main.tp.rig_pre_poles_sel =        selection; // Rig tile selection before processing poles
 		 quadCLT_main.tp.rig_pre_poles_ds =        rig_disparity_strength; // Rig disparity and strength before processing poles
 		 quadCLT_main.tp.rig_pre_poles_sel =        selection; // Rig tile selection before processing poles
+		 quadCLT_main.tp.rig_post_poles_ds =        null;
+		 quadCLT_main.tp.rig_post_poles_sel =       null;
 
 		 if (debugLevel > -4) {
 			 System.out.println("Saved quadCLT_main.tp.rig_pre_poles_ds and quadCLT_main.tp.rig_pre_poles_sel");
@@ -1514,32 +1543,53 @@ if (debugLevel > -100) return true; // temporarily !
 				 System.out.println("Processing poles");
 			 }
 
-			  if (poleProcessor_persistent == null) {
-				  poleProcessor_persistent = new PoleProcessor(
-						  biCamDSI_persistent,
-						  this, //	TwoQuadCLT twoQuadCLT,
-						  quadCLT_main.tp.getTilesX(),
-						  quadCLT_main.tp.getTilesY());
-			  }
-			  PoleProcessor pp = poleProcessor_persistent;
-			  selection =  quadCLT_main.tp.rig_pre_poles_sel.clone();
-			  double [][] poles_ds = pp.processPoles(
-					  quadCLT_main,  // QuadCLT            quadCLT_main,  // tiles should be set
-					  quadCLT_aux,   //QuadCLT            quadCLT_aux,
-//					  biScan, // BiScan                                         biScan,
-					  quadCLT_main.tp.rig_pre_poles_ds, //  double [][]                                    src_ds, // source disparity, strength pair
-					  selection, // boolean []                                     selection, // source tile selection, will be modified
-					  clt_parameters, // EyesisCorrectionParameters.CLTParameters       clt_parameters,
-					  threadsMax,  // final int                                      threadsMax,  // maximal number of threads to launch
-					  updateStatus, // final boolean                                  updateStatus,
-					  debugLevel); // final int                                      globalDebugLevel)
-				 quadCLT_main.tp.rig_post_poles_ds =        poles_ds; // Rig disparity and strength before processing poles
-				 quadCLT_main.tp.rig_post_poles_sel =       selection; // Rig tile selection before processing poles
-				 if (debugLevel > -4) {
-					 System.out.println("Saved quadCLT_main.tp.rig_post_poles_ds and quadCLT_main.tp.rig_post_poles_sel");
-				 }
+			 //			  if (poleProcessor_persistent == null) {
+			 poleProcessor_persistent = new PoleProcessor(
+					 biCamDSI_persistent,
+					 this, //	TwoQuadCLT twoQuadCLT,
+					 quadCLT_main.tp.getTilesX(),
+					 quadCLT_main.tp.getTilesY());
+			 //			  }
+			 PoleProcessor pp = poleProcessor_persistent;
+			 selection =  quadCLT_main.tp.rig_pre_poles_sel.clone();
 
-				 f_rig_disparity_strength = poles_ds;
+			 int num_bugs_corrected= pp.zero_tiles_check(
+					 "pre-poles",
+					 quadCLT_main.tp.rig_pre_poles_ds, // double [][] ds,
+					 true); // boolean debug)
+			 if (num_bugs_corrected > 0) {
+				 System.out.println("Corrected "+num_bugs_corrected+" bugs, where disparity is <= 0 with non-zero strength before poles");
+			 }
+
+
+			 double [][] poles_ds = pp.processPoles(
+					 quadCLT_main,  // QuadCLT            quadCLT_main,  // tiles should be set
+					 quadCLT_aux,   //QuadCLT            quadCLT_aux,
+					 quadCLT_main.tp.rig_pre_poles_ds, //  double [][]                                    src_ds, // source disparity, strength pair
+					 selection, // boolean []                                     selection, // source tile selection, will be modified
+					 clt_parameters, // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+					 threadsMax,  // final int                                      threadsMax,  // maximal number of threads to launch
+					 updateStatus, // final boolean                                  updateStatus,
+
+					 (debugLevel > -2) ? clt_parameters.poles.poles_debug_level:debugLevel);//
+//					 (debugLevel > -4) ? clt_parameters.poles.poles_debug_level:debugLevel);//
+//					 debugLevel); // final int                                      globalDebugLevel)
+
+			 num_bugs_corrected= pp.zero_tiles_check(
+					 "post-poles",
+					 poles_ds, // double [][] ds,
+					 true); // boolean debug)
+			 if (num_bugs_corrected > 0) {
+				 System.out.println("Corrected "+num_bugs_corrected+" bugs, where disparity is <= 0 with non-zero strength after poles");
+			 }
+
+			 quadCLT_main.tp.rig_post_poles_ds =        poles_ds; // Rig disparity and strength before processing poles
+			 quadCLT_main.tp.rig_post_poles_sel =       selection; // Rig tile selection before processing poles
+			 if (debugLevel > -4) {
+				 System.out.println("Saved quadCLT_main.tp.rig_post_poles_ds and quadCLT_main.tp.rig_post_poles_sel");
+			 }
+
+			 f_rig_disparity_strength = poles_ds;
 		 } else {
 			 if (debugLevel > -4) {
 				 System.out.println("Skipped processing poles");
@@ -1557,6 +1607,24 @@ if (debugLevel > -100) return true; // temporarily !
 
 		 quadCLT_main.tp.clt_3d_passes.add(rig_scan);
 		 quadCLT_main.tp.saveCLTPasses(true);       // rig pass
+// generate ML data if enabled
+		 if (clt_parameters.rig.ml_generate) {
+			 outputMLData(
+					 quadCLT_main,   // QuadCLT                                  quadCLT_main,  // tiles should be set
+					 quadCLT_aux,    // QuadCLT                                  quadCLT_aux,
+					 clt_parameters, // EyesisCorrectionParameters.CLTParameters clt_parameters,
+					 threadsMax,     // final int                                threadsMax,  // maximal number of threads to launch
+					 updateStatus,   // final boolean                            updateStatus,
+					 debugLevel);    // final int                                debugLevel)
+			 if (clt_parameters.rig.ml_copyJP4) {
+
+				  copyJP4src(
+							 quadCLT_main,   // QuadCLT                                  quadCLT_main,  // tiles should be set
+							 quadCLT_aux,    // QuadCLT                                  quadCLT_aux,
+							 clt_parameters, // EyesisCorrectionParameters.CLTParameters clt_parameters,
+							 debugLevel);    // final int                                debugLevel)
+			 }
+		 }
 	  }
 
 	  public double [][][][][] getRigTextures(
@@ -1625,6 +1693,70 @@ if (debugLevel > -100) return true; // temporarily !
 
 	  }
 
+
+
+	  public void copyJP4src(
+			  QuadCLT                                  quadCLT_main,  // tiles should be set
+			  QuadCLT                                  quadCLT_aux,
+			  EyesisCorrectionParameters.CLTParameters clt_parameters,
+			  final int                                debugLevel) // throws Exception
+	  {
+//		  quadCLT_main.writeKml(debugLevel);
+//		  quadCLT_main.writeRatingFile(debugLevel);
+
+
+		  String [] sourceFiles_main=quadCLT_main.correctionsParameters.getSourcePaths();
+		  //		  String [] sourceFiles_aux=quadCLT_main.correctionsParameters.getSourcePaths();
+		  String set_name = quadCLT_main.image_name;
+		  if (set_name == null ) {
+			  QuadCLT.SetChannels [] set_channels=quadCLT_main.setChannels(debugLevel);
+			  set_name = set_channels[0].set_name;
+		  }
+		  if (quadCLT_main.gps_lla != null) {
+			  String kml_copy_dir= quadCLT_main.correctionsParameters.selectX3dDirectory(
+					  set_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+					  null,
+					  true,  // smart,
+					  true);  //newAllowed, // save
+			  double ts = Double.parseDouble(set_name.replace('_', '.'));
+			  (new X3dOutput()).generateKML(
+					  kml_copy_dir+ Prefs.getFileSeparator()+set_name+"-test"+".kml", // String path,
+					  false, // boolean overwrite,
+					  "", // String icon_path, //<href>x3d/1487451413_967079.x3d</href> ?
+					  ts, // double timestamp,
+					  quadCLT_main.gps_lla); // double [] lla)
+		  }
+//		  setGpsLla(quadCLT_aux, sourceFiles_aux[0]);
+
+		  String jp4_copy_path= quadCLT_main.correctionsParameters.selectX3dDirectory(
+				  set_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+				  quadCLT_main.correctionsParameters.jp4SubDir,
+				  true,  // smart,
+				  true);  //newAllowed, // save
+		  File dir = (new File(jp4_copy_path)); // .getParentFile();
+		  if (!dir.exists()){
+			  dir.mkdirs();
+			  System.out.println("Created "+dir);
+		  }
+		  for (String fname:sourceFiles_main) {
+			  File file = new File(fname);
+			  try {
+				Files.copy(
+						  (file).toPath(),
+						  (new File(jp4_copy_path + Prefs.getFileSeparator()+file.getName())).toPath(),
+						  StandardCopyOption.REPLACE_EXISTING);
+				System.out.println("Copied "+fname+" -> "+dir);
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				System.out.println("Failed to copy "+fname+" -> "+dir);
+			}
+		  }
+//		  System.out.println("jp4_copy_path = "+jp4_copy_path);
+//		  System.out.println("Do something useful here");
+	  }
+
+
+
 	  public void outputMLData(
 			  QuadCLT                                  quadCLT_main,  // tiles should be set
 			  QuadCLT                                  quadCLT_aux,
@@ -1633,32 +1765,28 @@ if (debugLevel > -100) return true; // temporarily !
 			  final boolean                            updateStatus,
 			  final int                                debugLevel) // throws Exception
 	  {
-		  if ((quadCLT_main.tp == null) || (quadCLT_main.tp.clt_3d_passes == null)) {
-			  String msg = "DSI data not available. Please run \"CLT 3D\" first";
+		  if ((quadCLT_main.tp == null) || (quadCLT_main.tp.rig_pre_poles_ds == null)) {
+			  String msg = "DSI data not available. Please run \"Ground truth\" first";
 			  IJ.showMessage("Error",msg);
 			  System.out.println(msg);
 			  return;
 		  }
-		  double [][] rig_disparity_strength =  quadCLT_main.getGroundTruthByRig();
+		  double [][] rig_disparity_strength = clt_parameters.rig.ml_poles?quadCLT_main.tp.rig_post_poles_ds : quadCLT_main.tp.rig_pre_poles_ds;
 		  if (rig_disparity_strength == null) {
-			  rig_disparity_strength = groundTruthByRig(
-					  quadCLT_main,   // QuadCLT            quadCLT_main,  // tiles should be set
-					  quadCLT_aux,    // QuadCLT            quadCLT_aux,
-					  clt_parameters, // EyesisCorrectionParameters.CLTParameters       clt_parameters,
-					  threadsMax,     // final int                                      threadsMax,  // maximal number of threads to launch
-					  updateStatus,   // final boolean                                  updateStatus,
-					  debugLevel-2);  // final int                                      debugLevel);
-			  if (rig_disparity_strength != null) {
-				  quadCLT_main.tp.rig_disparity_strength = rig_disparity_strength;
+			  System.out.println("DSI data for the scene after poles extraction is not available. You may enable it and re-run \"Ground truth\" command or run \"Poles GT\"");
+			  return;
+		  }
+		  if (debugLevel > -4) {
+			  if (clt_parameters.rig.ml_poles) {
+				  System.out.println("==== Generating ML data for the DSI that includes extracted vertical poles ====");
 			  } else {
-				  System.out.println("outputMLData(): failed to get ground truth data, aborting");
-				  return;
+				  System.out.println("==== Generating ML data for the DSI that DOES NOT include extracted vertical poles ====");
 			  }
 		  }
-
 		  String ml_directory= quadCLT_main.correctionsParameters.selectMlDirectory(
-		  true,  // smart,
-		  true);  //newAllowed, // save
+				  quadCLT_main.image_name,
+				  true,  // smart,
+				  true);  //newAllowed, // save
 			Correlation2d corr2d = new Correlation2d(
 					clt_parameters.img_dtt,              // ImageDttParameters  imgdtt_params,
 					clt_parameters.transform_size,             // int transform_size,
@@ -4354,7 +4482,7 @@ if (debugLevel > -100) return true; // temporarily !
 		  int width =  tilesX * ml_width;
 		  int height = tilesY * ml_width;
 		  String title = ml_title+ (use8bpp?"08":"32")+"B-"+(keep_aux?"A":"")+(keep_inter?"I":"")+(keep_hor_vert?"O":"")+(ml_keep_tbrl?"T":"")+
-				  (keep_debug?"D":"")+"-FZ"+ml_fatzero+"-OFFS"+disp_offset;
+				  (keep_debug?"D":"")+"-FZ"+ml_fatzero+"-OFFS"+String.format("%8.5f",disp_offset).trim();
 		  int [] aux_indices = {
 				  ImageDtt.ML_TOP_AUX_INDEX,    // 8 - top pair 2d correlation center area (auxiliary camera)
 				  ImageDtt.ML_BOTTOM_AUX_INDEX, // 9 - bottom pair 2d correlation center area (auxiliary camera)
@@ -4572,10 +4700,16 @@ if (debugLevel > -100) return true; // temporarily !
 	      if (show ) {
 			   imp_ml.show();
  	      }
+	      File dir = new File(ml_directory);
+		  if (!dir.exists()){
+			  dir.mkdirs();
+			  System.out.println("Created "+dir);
+		  }
+
 	      String path = ml_directory+=Prefs.getFileSeparator()+imp_ml.getTitle();
 	      FileSaver fs=new FileSaver(imp_ml);
 	      fs.saveAsTiff(path+".tiff");
-	      if (debugLevel > -2) {
+	      if (debugLevel > -4) {
 	    	  System.out.println("Saved ML data to "+path+".tiff");
 	      }
 	  }

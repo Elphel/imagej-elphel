@@ -1261,7 +1261,8 @@ public class MeasuredLayers {
 										}
 										if (iworst < 0){
 											if (debugLevel > 0) {
-												System.out.println("**** this may be BUG in getDisparityStrengthML() can not find the worst sample  - all tiles fit perfectly ****");
+												System.out.println("**** this may be BUG in getDisparityStrengthML() can not find the worst sample  - all tiles fit perfectly ****, num_in_sample="+
+														num_in_sample+", stX="+stX+", stY="+stY);
 											}
 											// this can happen if some samples are the same and all the pixels fit exactly - use all of them
 											break;
@@ -1354,7 +1355,8 @@ public class MeasuredLayers {
 										//remove_far_only
 									}
 									if (iworst < 0){
-										System.out.println("**** this is a BUG2 in getDisparityStrengthML() ****"); // all smpl_d are NaNs
+										System.out.println("**** this may be BUG2 in getDisparityStrengthML() can not find the worst sample  - all tiles fit perfectly ****, num_in_sample="+
+												num_in_sample+", stX="+stX+", stY="+stY);
 										break;
 									}
 									// remove worst sample
@@ -1378,7 +1380,7 @@ public class MeasuredLayers {
 									}
 								} else {
 									num_in_sample = 0;
-									System.out.println("**** this is a BUG in getDisparityStrengthML(), shoud not happen ? ****");
+									System.out.println("**** this is a BUG in getDisparityStrengthML(), should not happen ? ****");
 								}
 							}
 							}
@@ -1453,6 +1455,12 @@ public class MeasuredLayers {
 										}
 										ds[0][indx] = sd;
 										ds[1][indx] = sw * lapWeight[dy][dx] /sum_wnd; // average weights, multiply by window //** TODO: change
+
+										if ((ds[0][indx] ==0.0) && (ds[0][indx] ==0.0)) {
+											System.out.println("**** this may be BUG5 in getDisparityStrengthML()  ****, num_in_sample="+
+													num_in_sample+", stX="+stX+", stY="+stY+" ds[0]["+indx+"]="+ds[0][indx]+", ds[1]["+indx+"]="+ds[1][indx]);
+											ds[1][indx] = 0.0;
+										}
 									}
 								} else {
 									num_in_sample = 0;
