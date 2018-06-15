@@ -1191,7 +1191,9 @@ if (debugLevel > -100) return true; // temporarily !
 
 				  // do actual adjustment step, update rig parameters
 				  quadCLT_aux.geometryCorrection.getRigCorrection(
-						  clt_parameters.rig.inf_weight , // double             infinity_importance, // of all measurements
+						  clt_parameters.rig.inf_weight ,     // double             infinity_importance, // of all measurements
+						  clt_parameters.rig.inf_weight_disp, // double             dx_max, //  = 0.3;
+						  clt_parameters.rig.inf_weight_disp_pow,                                // double             dx_pow, //  = 1.0;
 						  clt_parameters.rig.rig_adjust_orientation,        // boolean            adjust_orientation,
 						  clt_parameters.rig.rig_adjust_zoom,               // boolean            adjust_zoom,
 						  clt_parameters.rig.rig_adjust_angle,              // boolean            adjust_angle,

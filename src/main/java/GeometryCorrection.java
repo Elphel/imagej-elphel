@@ -156,6 +156,8 @@ public class GeometryCorrection {
 
 	public double [] getRigCorrection(
 			double             infinity_importance, // of all measurements
+			double             dx_max, //  = 0.3;
+			double             dx_pow, //  = 1.0;
 			boolean            adjust_orientation,
 			boolean            adjust_zoom,
 			boolean            adjust_angle,
@@ -172,6 +174,8 @@ public class GeometryCorrection {
 		if (rigOffset == null) return null;
 		return rigOffset.getRigCorrection(
 				infinity_importance, // of all measurements
+				dx_max, // double             dx_max, //  = 0.3;
+				dx_pow, // double             dx_pow, //  = 1.0;
 				adjust_orientation, // boolean            adjust_orientation,
 				adjust_zoom,        // boolean            adjust_zoom,
 				adjust_angle,       // boolean            adjust_angle,
@@ -371,6 +375,8 @@ public class GeometryCorrection {
 		}
 		public double setupYW(
 				double             infinity_importance, // of all measurements
+				double             dx_max, //  = 0.3;
+				double             dx_pow, //  = 1.0;
 				ArrayList<Integer> tile_list,
 				QuadCLT            qc,
 				double []          strength,
@@ -387,25 +393,36 @@ public class GeometryCorrection {
 			double sum2_inf = 0.0,sum2_near = 0.0;
 			int tilesX = qc.tp.getTilesX();
 			double tileSize = qc.tp.getTileSize();
+//			double dx_max = 0.2;
+//			double dx_pow = 1.0;
 
 			for (int i = 0; i < tile_list.size(); i++) {
 				int nTile = tile_list.get(i);
 				int tileY = nTile / tilesX;
 				int tileX = nTile % tilesX;
-
+				double w = strength[nTile];
+				double inf_w_corr = 1.0;
+				if ((dx_max > 0) && (dx_pow > 0)){
+					inf_w_corr = (dx_max - diff_x[nTile])/dx_max;
+					if (inf_w_corr < 0.0) inf_w_corr = 0.0; // favor negative (more infinity)
+					if (dx_pow != 1.0) {
+						inf_w_corr = Math.pow(inf_w_corr,dx_pow);
+					}
+				}
 				if (target_disparity[nTile] == 0.0) { // only for infinity tiles
+					w *= inf_w_corr;
 					y_vector[2*i + 0] = diff_x[nTile];
-					w_vector[2*i + 0] = strength[nTile];
+					w_vector[2*i + 0] = w;
 					y_vector[2*i + 1] = diff_y[nTile];
-					w_vector[2*i + 1] = strength[nTile];
-					sumw_inf += 2*strength[nTile];
-					sum2_inf += strength[nTile]*(diff_x[nTile]*diff_x[nTile]+diff_y[nTile]*diff_y[nTile]);
+					w_vector[2*i + 1] = w;
+					sumw_inf += 2*w;
+					sum2_inf += w*(diff_x[nTile]*diff_x[nTile]+diff_y[nTile]*diff_y[nTile]);
 					is_inf[i] = true;
 				} else {
 					y_vector[2*i + 1] = diff_y[nTile];
-					w_vector[2*i + 1] = strength[nTile];
-					sumw_near +=        strength[nTile];
-					sum2_near += strength[nTile]*diff_y[nTile]*diff_y[nTile];
+					w_vector[2*i + 1] = w;
+					sumw_near +=        w;
+					sum2_near += w*diff_y[nTile]*diff_y[nTile];
 				}
 				xy_vector[2*i + 0] = (tileX + 0.5) * tileSize;
 				xy_vector[2*i + 1] = (tileY + 0.5) * tileSize;
@@ -556,6 +573,8 @@ public class GeometryCorrection {
 
 		public double [] getRigCorrection(
 				double             infinity_importance, // of all measurements
+				double             dx_max, //  = 0.3;
+				double             dx_pow, //  = 1.0;
 				boolean            adjust_orientation,
 				boolean            adjust_zoom,
 				boolean            adjust_angle,
@@ -578,6 +597,8 @@ public class GeometryCorrection {
 
 			double rms = setupYW(
 					infinity_importance, // of all measurements
+					dx_max, // double             dx_max, //  = 0.3;
+					dx_pow, // double             dx_pow, //  = 1.0;
 					tile_list,
 					qc_main,
 					strength,
