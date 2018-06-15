@@ -118,8 +118,11 @@ public class EyesisCorrectionParameters {
     	public String x3dSubdirSuffix=         "";
 
   		// CLT 3d batch parameters
+    	public int     rig_batch_adjust_main = 0;
+    	public int     rig_batch_adjust_aux =  0;
+    	public int     rig_batch_adjust_rig =  0;
 
-  		public boolean clt_batch_apply_man =  true;  // Apply (and disable) manual pixel shift
+  		public boolean clt_batch_apply_man =  false;  // Apply (and disable) manual pixel shift
   		public boolean clt_batch_extrinsic =  false; // Calibrate extrinsic parameters for each set
   		public boolean clt_batch_poly =       false; // Calculate fine polynomial correction for each set
   		public boolean clt_batch_4img =       true;  // Create a set of 4 images, usually for disparity = 0
@@ -240,6 +243,12 @@ public class EyesisCorrectionParameters {
   			cp.x3dSubdirPrefix=    		this.x3dSubdirPrefix;
   			cp.x3dModelVersion=    		this.x3dModelVersion;
   			cp.jp4SubDir=    	     	this.jp4SubDir;
+
+  			cp.rig_batch_adjust_main=   this.rig_batch_adjust_main;
+  			cp.rig_batch_adjust_aux=	this.rig_batch_adjust_aux;
+  			cp.rig_batch_adjust_rig=	this.rig_batch_adjust_rig;
+
+
   			cp.clt_batch_apply_man=		this.clt_batch_apply_man;
   			cp.clt_batch_extrinsic=		this.clt_batch_extrinsic;
   			cp.clt_batch_poly=    		this.clt_batch_poly;
@@ -380,6 +389,10 @@ public class EyesisCorrectionParameters {
 
     		properties.setProperty(prefix+"mlDirectory",           this.mlDirectory);
 
+    		properties.setProperty(prefix+"rig_batch_adjust_main", this.rig_batch_adjust_main+"");
+    		properties.setProperty(prefix+"rig_batch_adjust_aux",  this.rig_batch_adjust_aux+"");
+    		properties.setProperty(prefix+"rig_batch_adjust_rig",  this.rig_batch_adjust_rig+"");
+
     		properties.setProperty(prefix+"clt_batch_apply_man",   this.clt_batch_apply_man+"");
     		properties.setProperty(prefix+"clt_batch_extrinsic",   this.clt_batch_extrinsic+"");
     		properties.setProperty(prefix+"clt_batch_poly",        this.clt_batch_poly+"");
@@ -517,6 +530,10 @@ public class EyesisCorrectionParameters {
 
 			if (properties.getProperty(prefix+"mlDirectory")!=          null) this.mlDirectory=properties.getProperty(prefix+"mlDirectory");
 
+  		    if (properties.getProperty(prefix+"rig_batch_adjust_main")!=null) this.rig_batch_adjust_main=Integer.parseInt(properties.getProperty(prefix+"rig_batch_adjust_main"));
+  		    if (properties.getProperty(prefix+"rig_batch_adjust_aux")!=null)  this.rig_batch_adjust_aux=Integer.parseInt(properties.getProperty(prefix+"rig_batch_adjust_aux"));
+  		    if (properties.getProperty(prefix+"rig_batch_adjust_rig")!=null)  this.rig_batch_adjust_rig=Integer.parseInt(properties.getProperty(prefix+"rig_batch_adjust_rig"));
+
 			if (properties.getProperty(prefix+"clt_batch_apply_man")!= null) this.clt_batch_apply_man=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_apply_man"));
 			if (properties.getProperty(prefix+"clt_batch_extrinsic")!= null) this.clt_batch_extrinsic=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_extrinsic"));
 			if (properties.getProperty(prefix+"clt_batch_poly")!= null)      this.clt_batch_poly=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_poly"));
@@ -533,7 +550,6 @@ public class EyesisCorrectionParameters {
   		    if (properties.getProperty(prefix+"thumb_v_center")!=null)       this.thumb_v_center=   Double.parseDouble(properties.getProperty(prefix+"thumb_v_center"));
   		    if (properties.getProperty(prefix+"thumb_size")   !=null)        this.thumb_size=   Double.parseDouble(properties.getProperty(prefix+"thumb_size"));
   		    if (properties.getProperty(prefix+"default_rating") !=null)      this.default_rating=   Integer.parseInt(properties.getProperty(prefix+"default_rating"));
-
 
     		// copy common parameters to the auxiliary camera ones
     		updateAuxFromMain();
@@ -853,6 +869,10 @@ public class EyesisCorrectionParameters {
 
 
   			gd.addTab         ("Batch", "Select Batch parameters");
+			gd.addNumericField("Repeat main camera field adjustment",                                this.rig_batch_adjust_main,  0);
+			gd.addNumericField("Repeat aux camera field adjustment",                                 this.rig_batch_adjust_aux,   0);
+			gd.addNumericField("Repeat 2-quad camera rig field adjustment",                          this.rig_batch_adjust_rig,   0);
+
     		gd.addCheckbox    ("Apply (and disable) manual pixel shift",                             this.clt_batch_apply_man); // 21
     		gd.addCheckbox    ("Calibrate extrinsic parameters for each set",                        this.clt_batch_extrinsic); // 22
     		gd.addCheckbox    ("Calculate fine polynomial correction for each set",                  this.clt_batch_poly);      // 23
@@ -913,6 +933,10 @@ public class EyesisCorrectionParameters {
     		this.aux_camera.cltKernelPrefix=        gd.getNextString();  // 19b
     		this.aux_camera.cltSuffix=              gd.getNextString();  // 20b
     		this.aux_camera.x3dSubdirSuffix=        gd.getNextString();  // 20ba
+
+			this.rig_batch_adjust_main =      (int) gd.getNextNumber();
+			this.rig_batch_adjust_aux =       (int) gd.getNextNumber();
+			this.rig_batch_adjust_rig =       (int) gd.getNextNumber();
 
     		this.clt_batch_apply_man=    gd.getNextBoolean(); // 21
     		this.clt_batch_extrinsic=    gd.getNextBoolean(); // 22

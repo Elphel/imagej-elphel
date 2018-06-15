@@ -110,6 +110,13 @@ public class TileProcessor {
 		clt_3d_passes = new ArrayList<CLTPass3d>();
 		clt_3d_passes_size = 0;
 		clt_3d_passes_rig_size = 0;
+		rig_disparity_strength = null; // invalidate
+		rig_pre_poles_ds =       null;
+		rig_post_poles_ds =      null;
+		rig_pre_poles_sel =      null;
+		rig_post_poles_sel =     null;
+		clt_3d_passes_rig_size = 0;
+
 		Runtime runtime = Runtime.getRuntime();
 	    runtime.gc();
 		System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");

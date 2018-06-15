@@ -583,21 +583,21 @@ private Panel panel1,
 //			addButton("CLT 2*4 images",             panelClt4, color_conf_process);
 //			addButton("CLT 2*4 images - 2",         panelClt4, color_conf_process);
 //			addButton("CLT 2*4 images - 3",         panelClt4, color_conf_process);
-			addButton("SHOW extrinsics",              panelClt4, color_configure);
+			addButton("SHOW extrinsics",            panelClt4, color_configure);
 			addButton("MAIN extrinsics",            panelClt4, color_process);
-			addButton("RIG extrinsics",             panelClt4, color_conf_process);
 			addButton("AUX extrinsics",             panelClt4, color_process);
+			addButton("RIG extrinsics",             panelClt4, color_conf_process);
 			addButton("Rig8 images",                panelClt4, color_conf_process);
 
 			//			addButton("Rig enhance",                panelClt4, color_conf_process);
 //			/"Reset GT"
 			addButton("Reset GT",                   panelClt4, color_stop);
-//			addButton("Ground truth 0",             panelClt4, color_configure);
 			addButton("Ground truth",               panelClt4, color_conf_process);
 			addButton("Show biscan",                panelClt4, color_configure);
 			addButton("Poles GT",                   panelClt4, color_process);
 			addButton("ML export",                  panelClt4, color_conf_process);
 			addButton("JP4 copy",                   panelClt4, color_conf_process);
+			addButton("Rig batch",                  panelClt4, color_process);
 
 
 			add(panelClt4);
@@ -4557,16 +4557,10 @@ private Panel panel1,
     	getPairImages();
     	return;
 /* ======================================================================== */
-    } else if (label.equals("CLT 2*4 images - 2")) {
-        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-    	getPairImages2(false);
-    	return;
-/* ======================================================================== */
     } else if (label.equals("Rig8 images")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-    	getPairImages2(true);
+    	getPairImages2();
     	return;
 /* ======================================================================== */
     } else if (label.equals("RIG extrinsics")) {
@@ -4615,17 +4609,10 @@ private Panel panel1,
 
     	return;
 /* ======================================================================== */
-    } else if (label.equals("Ground truth 0")) {
-        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-    	enhanceByRig(false);
-
-    	return;
-/* ======================================================================== */
     } else if (label.equals("Ground truth")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-    	enhanceByRig(true);
+    	groundTruth();
     	return;
 /* ======================================================================== */
     } else if (label.equals("Show biscan")) {
@@ -4658,6 +4645,13 @@ private Panel panel1,
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
     	copyJP4src();
+    	return;
+/* ======================================================================== */
+    } else if (label.equals("Rig batch")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        CLT_PARAMETERS.batch_run = true;
+    	batchRig();
     	return;
 
 /* ======================================================================== */
@@ -5015,12 +5009,11 @@ private Panel panel1,
         return true;
 	}
 
-	public boolean getPairImages2( boolean new_mode) {
+	public boolean getPairImages2() {
 		if (!prepareRigImages()) return false;
     	String configPath=getSaveCongigPath();
     	if (configPath.equals("ABORT")) return false;
 
-        if (new_mode) {
         	if (DEBUG_LEVEL > -2){
         		System.out.println("++++++++++++++ Calculating combined correlations ++++++++++++++");
         	}
@@ -5041,29 +5034,6 @@ private Panel panel1,
         		// TODO Auto-generated catch block
         		e.printStackTrace();
         	} //final int        debugLevel);
-        } else {
-        	if (DEBUG_LEVEL > -2){
-        		System.out.println("++++++++++++++ Calculating per quad camera correlations ++++++++++++++");
-        	}
-        	try {
-        		TWO_QUAD_CLT.processCLTQuadCorrs(
-        				QUAD_CLT, // QuadCLT quadCLT_main,
-        				QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
-        				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        				DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-        				COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-        				CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-        				CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters       channelGainParameters_aux,
-        				RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        				UPDATE_STATUS, //final boolean    updateStatus,
-        				DEBUG_LEVEL);
-        	} catch (Exception e) {
-        		// TODO Auto-generated catch block
-        		e.printStackTrace();
-        	} //final int        debugLevel);
-
-        }
 
         if (configPath!=null) {
         	saveTimestampedProperties( // save config again
@@ -5157,7 +5127,7 @@ private Panel panel1,
 	    				true,
 	    				PROPERTIES);
 	    	}
-			System.out.println("enhanceByRig(): Processing finished at "+
+			System.out.println("processPoles(): Processing finished at "+
 					  IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec, --- Free memory="+
 					Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
@@ -5251,7 +5221,7 @@ private Panel panel1,
 		return true;
 	}
 
-	public boolean enhanceByRig( boolean use_planes) {
+	public boolean groundTruth() {
 		long startTime=System.nanoTime();
 		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
 			boolean OK = clt3d(
@@ -5271,11 +5241,10 @@ private Panel panel1,
         	if (DEBUG_LEVEL > -2){
         		System.out.println("++++++++++++++ Enhancing single-camera DSI by the dual-camera rig using planes ++++++++++++++");
         	}
-    		TWO_QUAD_CLT.enhanceByRig( // actually there is no sense to process multiple image sets. Combine with other processing?
+    		TWO_QUAD_CLT.groundTruth( // actually there is no sense to process multiple image sets. Combine with other processing?
     				QUAD_CLT, // QuadCLT quadCLT_main,
     				QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
     				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-    				use_planes, //   final boolean                                  use_planes,
     				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
     				UPDATE_STATUS, //final boolean    updateStatus,
     				DEBUG_LEVEL -2);
@@ -5286,12 +5255,67 @@ private Panel panel1,
     				true,
     				PROPERTIES);
     	}
-		System.out.println("enhanceByRig(): Processing finished at "+
+		System.out.println("groundTruth(): Processing finished at "+
 				  IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec, --- Free memory="+
 				Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
     	return true;
 	}
+
+	public boolean batchRig() {
+		long startTime=System.nanoTime();
+/*		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
+
+			boolean OK = clt3d(
+					false, // boolean adjust_extrinsics,
+					false); // boolean adjust_poly);
+			if (! OK) {
+				String msg = "DSI data is not available and \"CLT 3D\" failed";
+				IJ.showMessage("Error",msg);
+				System.out.println(msg);
+				return false;
+			}
+		}
+*/
+		// load needed sensor and kernels files
+		if (!prepareRigImages()) return false;
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return false;
+        	if (DEBUG_LEVEL > -2){
+        		System.out.println("++++++++++++++ Running batch processing of dual-quad camera rig ++++++++++++++");
+        	}
+        	try {
+				TWO_QUAD_CLT.batchRig(
+						QUAD_CLT, // QuadCLT quadCLT_main,
+						QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+						CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+						DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+						COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+						CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+						RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+						EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+						THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+						UPDATE_STATUS, //final boolean    updateStatus,
+						DEBUG_LEVEL);
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} //final int        debugLevel);
+    	if (configPath!=null) {
+    		saveTimestampedProperties( // save config again
+    				configPath,      // full path or null
+    				null, // use as default directory if path==null
+    				true,
+    				PROPERTIES);
+    	}
+		System.out.println("batchRig(): Processing finished at "+
+				  IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec, --- Free memory="+
+				Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+    	return true;
+	}
+
+
+
 
 	public boolean exportMLData() {
 		long startTime=System.nanoTime();
