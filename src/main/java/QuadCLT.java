@@ -8839,7 +8839,7 @@ public class QuadCLT {
 				  IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 
-	  public void setGpsLla(
+	  public boolean setGpsLla(
 			  String source_file)
 	  {
 		  ImagePlus imp=(new JP46_Reader_camera(false)).open(
@@ -8857,7 +8857,9 @@ public class QuadCLT {
 				if (imp.getProperty("LATITUDE")  != null) gps_lla[0] =Double.parseDouble((String) imp.getProperty("LATITUDE"));
 				if (imp.getProperty("LONGITUDE") != null) gps_lla[1] =Double.parseDouble((String) imp.getProperty("LONGITUDE"));
 				if (imp.getProperty("ALTITUDE")  != null) gps_lla[2] =Double.parseDouble((String) imp.getProperty("ALTITUDE"));
+				return true;
 		  }
+		  return false;
 	  }
 
 
@@ -8865,22 +8867,28 @@ public class QuadCLT {
 			  int debugLevel )
 	  {
 		  String [] sourceFiles_main=correctionsParameters.getSourcePaths();
-		  //		  String [] sourceFiles_aux=quadCLT_main.correctionsParameters.getSourcePaths();
-		  setGpsLla(sourceFiles_main[0]);
-		  String set_name = image_name;
-		  if (set_name == null ) {
-			  QuadCLT.SetChannels [] set_channels=setChannels(debugLevel);
-			  set_name = set_channels[0].set_name;
+		  SetChannels [] set_channels = setChannels(image_name,debugLevel); // only for specified image timestamp
+
+		  ArrayList<String> path_list = new ArrayList<String>();
+		  for (int i = 0; i < set_channels.length; i++) {
+			  for (int fn:set_channels[i].file_number) {
+				  path_list.add(sourceFiles_main[fn]);
+			  }
+		  }
+		  for (String fname:path_list) {
+			  if (setGpsLla(fname)) {
+				  break;
+			  }
 		  }
 		  if (gps_lla != null) {
 			  String kml_copy_dir= correctionsParameters.selectX3dDirectory(
-					  set_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
+					  image_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
 					  null,
 					  true,  // smart,
 					  true);  //newAllowed, // save
-			  double ts = Double.parseDouble(set_name.replace('_', '.'));
+			  double ts = Double.parseDouble(image_name.replace('_', '.'));
 			  (new X3dOutput()).generateKML(
-					  kml_copy_dir+ Prefs.getFileSeparator()+set_name+".kml", // String path,
+					  kml_copy_dir+ Prefs.getFileSeparator()+image_name+".kml", // String path,
 					  false, // boolean overwrite,
 					  "", // String icon_path, //<href>x3d/1487451413_967079.x3d</href> ?
 					  ts, // double timestamp,

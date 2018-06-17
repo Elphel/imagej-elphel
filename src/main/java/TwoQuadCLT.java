@@ -1724,7 +1724,13 @@ if (debugLevel > -100) return true; // temporarily !
 			  }
 		  }
 
-
+/*
+		  for (String fname:path_list) { // path is already fiiltered fro the current (not first) set
+			  if (quadCLT_main.setGpsLla(fname)) {
+				  break;
+			  }
+		  }
+//		  setGpsLla(quadCLT_main, )
 		  if (quadCLT_main.gps_lla != null) {
 			  String kml_copy_dir= quadCLT_main.correctionsParameters.selectX3dDirectory(
 					  set_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
@@ -1739,7 +1745,8 @@ if (debugLevel > -100) return true; // temporarily !
 					  ts, // double timestamp,
 					  quadCLT_main.gps_lla); // double [] lla)
 		  }
-//		  setGpsLla(quadCLT_aux, sourceFiles_aux[0]);
+*/
+		  quadCLT_main.writeKml(debugLevel ); // alos generated with x3d model
 
 		  String jp4_copy_path= quadCLT_main.correctionsParameters.selectX3dDirectory(
 				  set_name, // quad timestamp. Will be ignored if correctionsParameters.use_x3d_subdirs is false
