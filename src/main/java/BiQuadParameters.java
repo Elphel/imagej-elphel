@@ -63,6 +63,7 @@ public class BiQuadParameters {
 	public int     rig_adjust_short_cycles=    15;     // maximal number of full rig adjustment steps (with current tiles lists)
 	public double  rig_adjust_short_threshold= 0.00001;// rms relative improvement to exit short cycle
 	public boolean rig_adjust_orientation =    true;   //
+	public boolean rig_adjust_roll =           true;   //
 	public boolean rig_adjust_zoom =           true;   //
 	public boolean rig_adjust_angle =          true;   //
 	public boolean rig_adjust_distance =       false;  // distance between camera centers
@@ -321,7 +322,8 @@ public class BiQuadParameters {
 				"Re-scan only previously selected tiles");
 		gd.addNumericField("Minimal RMS improvement after short cycle to exit",                                   this.rig_adjust_short_threshold,  3,6,"",
 				"Short cycle iteration finish after relative RMS improvement is less than this of maximal number of steps is exceeded");
-		gd.addCheckbox    ("Adjust orientation (azimuth, tilt, roll) of the auxiliary camera",                    this.rig_adjust_orientation,"3 angles, most basic adjustment");
+		gd.addCheckbox    ("Adjust orientation (azimuth, tilt) of the auxiliary camera",                          this.rig_adjust_orientation,"2 angles, most basic adjustment");
+		gd.addCheckbox    ("Adjust roll of the auxiliary camera",                                                 this.rig_adjust_roll,"may be disabled if only a small area of infinity is visible");
 		gd.addCheckbox    ("Adjust relative zoom of the auxiliary camera",                                        this.rig_adjust_zoom,"Not likely to change, may be frozen");
 		gd.addCheckbox    ("Adjust position of the aux camera in the main camera pricipal plane",                 this.rig_adjust_angle,"0 - exactly  to the right, positive - higher than main");
 		gd.addCheckbox    ("Adjust aux camera distance from the main",                                            this.rig_adjust_distance,"Normally not practical, rely on direct measurement");
@@ -681,6 +683,7 @@ public class BiQuadParameters {
 		this.rig_adjust_short_cycles= (int) gd.getNextNumber();
 		this.rig_adjust_short_threshold=    gd.getNextNumber();
 		this.rig_adjust_orientation=        gd.getNextBoolean();
+		this.rig_adjust_roll=               gd.getNextBoolean();
 		this.rig_adjust_zoom=               gd.getNextBoolean();
 		this.rig_adjust_angle=              gd.getNextBoolean();
 		this.rig_adjust_distance=           gd.getNextBoolean();
@@ -878,6 +881,7 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"rig_adjust_short_cycles",   this.rig_adjust_short_cycles+"");
 		properties.setProperty(prefix+"rig_adjust_short_threshold",this.rig_adjust_short_threshold+"");
 		properties.setProperty(prefix+"rig_adjust_orientation",    this.rig_adjust_orientation+"");
+		properties.setProperty(prefix+"rig_adjust_roll",           this.rig_adjust_roll+"");
 		properties.setProperty(prefix+"rig_adjust_zoom",           this.rig_adjust_zoom+"");
 		properties.setProperty(prefix+"rig_adjust_angle",          this.rig_adjust_angle+"");
 		properties.setProperty(prefix+"rig_adjust_distance",       this.rig_adjust_distance+"");
@@ -1072,7 +1076,8 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"rig_adjust_full_cycles")!=null)  this.rig_adjust_full_cycles=Integer.parseInt(properties.getProperty(prefix+"rig_adjust_full_cycles"));
 		if (properties.getProperty(prefix+"rig_adjust_short_cycles")!=null) this.rig_adjust_short_cycles=Integer.parseInt(properties.getProperty(prefix+"rig_adjust_short_cycles"));
 		if (properties.getProperty(prefix+"rig_adjust_short_threshold")!=null) this.rig_adjust_short_threshold=Double.parseDouble(properties.getProperty(prefix+"rig_adjust_short_threshold"));
-		if (properties.getProperty(prefix+"rig_adjust_orientation")!=null)     this.rig_adjust_orientation=Boolean.parseBoolean(properties.getProperty(prefix+"rig_adjust_orientation"));
+		if (properties.getProperty(prefix+"rig_adjust_orientation")!=null)  this.rig_adjust_orientation=Boolean.parseBoolean(properties.getProperty(prefix+"rig_adjust_orientation"));
+		if (properties.getProperty(prefix+"rig_adjust_roll")!=null)         this.rig_adjust_roll=Boolean.parseBoolean(properties.getProperty(prefix+"rig_adjust_roll"));
 		if (properties.getProperty(prefix+"rig_adjust_zoom")!=null)         this.rig_adjust_zoom=Boolean.parseBoolean(properties.getProperty(prefix+"rig_adjust_zoom"));
 		if (properties.getProperty(prefix+"rig_adjust_angle")!=null)        this.rig_adjust_angle=Boolean.parseBoolean(properties.getProperty(prefix+"rig_adjust_angle"));
 		if (properties.getProperty(prefix+"rig_adjust_distance")!=null)     this.rig_adjust_distance=Boolean.parseBoolean(properties.getProperty(prefix+"rig_adjust_distance"));
@@ -1273,6 +1278,7 @@ public class BiQuadParameters {
 		bqp.rig_adjust_short_cycles=    this.rig_adjust_short_cycles;
 		bqp.rig_adjust_short_threshold= this.rig_adjust_short_threshold;
 		bqp.rig_adjust_orientation=     this.rig_adjust_orientation;
+		bqp.rig_adjust_roll=            this.rig_adjust_roll;
 		bqp.rig_adjust_zoom=            this.rig_adjust_zoom;
 		bqp.rig_adjust_angle=           this.rig_adjust_angle;
 		bqp.rig_adjust_distance=        this.rig_adjust_distance;

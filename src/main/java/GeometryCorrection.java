@@ -159,6 +159,7 @@ public class GeometryCorrection {
 			double             dx_max, //  = 0.3;
 			double             dx_pow, //  = 1.0;
 			boolean            adjust_orientation,
+			boolean            adjust_roll,
 			boolean            adjust_zoom,
 			boolean            adjust_angle,
 			boolean            adjust_distance,
@@ -177,6 +178,7 @@ public class GeometryCorrection {
 				dx_max, // double             dx_max, //  = 0.3;
 				dx_pow, // double             dx_pow, //  = 1.0;
 				adjust_orientation, // boolean            adjust_orientation,
+				adjust_roll,        // boolean            adjust_roll,
 				adjust_zoom,        // boolean            adjust_zoom,
 				adjust_angle,       // boolean            adjust_angle,
 				adjust_distance,    // boolean            adjust_distance,
@@ -322,6 +324,7 @@ public class GeometryCorrection {
 
 		public void setVector(
 				boolean adjust_orientation,
+				boolean adjust_roll,
 				boolean adjust_zoom,
 				boolean adjust_angle,
 				boolean adjust_distance,
@@ -330,7 +333,7 @@ public class GeometryCorrection {
 			par_select = new boolean [VECTOR_LENGTH];
 			par_select[AUX_AZIMUTH_INDEX] =  adjust_orientation;
 			par_select[AUX_TILT_INDEX] =     adjust_orientation;
-			par_select[AUX_ROLL_INDEX] =     adjust_orientation;
+			par_select[AUX_ROLL_INDEX] =     adjust_roll;
 			par_select[AUX_ZOOM_INDEX] =     adjust_zoom;
 			par_select[AUX_ANGLE_INDEX] =    adjust_angle;
 			par_select[AUX_BASELINE_INDEX] = adjust_distance;
@@ -576,6 +579,7 @@ public class GeometryCorrection {
 				double             dx_max, //  = 0.3;
 				double             dx_pow, //  = 1.0;
 				boolean            adjust_orientation,
+				boolean            adjust_roll,
 				boolean            adjust_zoom,
 				boolean            adjust_angle,
 				boolean            adjust_distance,
@@ -590,6 +594,7 @@ public class GeometryCorrection {
 				int debugLevel) {
 
 			setVector(adjust_orientation,
+					adjust_roll,
 					adjust_zoom,
 					adjust_angle,
 					adjust_distance,

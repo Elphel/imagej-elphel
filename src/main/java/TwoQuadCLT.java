@@ -1195,6 +1195,7 @@ if (debugLevel > -100) return true; // temporarily !
 						  clt_parameters.rig.inf_weight_disp, // double             dx_max, //  = 0.3;
 						  clt_parameters.rig.inf_weight_disp_pow,                                // double             dx_pow, //  = 1.0;
 						  clt_parameters.rig.rig_adjust_orientation,        // boolean            adjust_orientation,
+						  clt_parameters.rig.rig_adjust_roll,               // boolean            adjust_roll,
 						  clt_parameters.rig.rig_adjust_zoom,               // boolean            adjust_zoom,
 						  clt_parameters.rig.rig_adjust_angle,              // boolean            adjust_angle,
 						  clt_parameters.rig.rig_adjust_distance,           // boolean            adjust_distance,
