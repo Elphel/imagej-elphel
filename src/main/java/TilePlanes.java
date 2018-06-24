@@ -1225,21 +1225,6 @@ public class TilePlanes {
 										sTileXY[1], // int stY,
 										null, // measuredSelection[nl], // boolean [] sel_in,
 										this.mlfp,
-//										strength_floor,
-//										measured_strength_pow, //
-//										smplSide, //        = 2;      // Sample size (side of a square)
-//										smplNum,  //         = 3;      // Number after removing worst
-//										smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-//										smplWnd,  // use window functions for the samples
-
-//										max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//										max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//										damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//										min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//										transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//										far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//										far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
-
 										true,     // boolean null_if_none)
 										debugLevel);
 							}
@@ -1250,8 +1235,6 @@ public class TilePlanes {
 									sTileXY[1], // int stY,
 									null, // measuredSelection[nl], // boolean [] sel_in,
 									this.mlfp,
-//									strength_floor, //
-//									measured_strength_pow, //
 									true); // boolean null_if_none)
 						}
 					}
@@ -1259,7 +1242,6 @@ public class TilePlanes {
 			}
 			int numRemoved = 0;
 			boolean no_bugs = true;
-//			for (; (getValue() > targetEigen) && (numRemoved < maxRemoved); numRemoved++){
 			for (; (getNormValue() > targetEigen) && (numRemoved < maxRemoved); numRemoved++){
 				if (debugLevel > 2){
 					System.out.println("removePlaneOutliers("+sTileXY[0]+":"+sTileXY[1]+"): numRemoved = "+numRemoved+
@@ -1270,6 +1252,7 @@ public class TilePlanes {
 
 				double worst_d2 = 0.0;
 				int [] worst_layer_index = {-1,-1};
+				// TODO: Add vertical planes here set v[1] = 0.0;
 				double [] v = getVector();
 				double [] zxy0 = getZxy();
 				for (int nl = 0; nl < measuredSelection.length; nl++){
@@ -1313,22 +1296,8 @@ public class TilePlanes {
 						this.dispNorm,   // double       dispNorm,   //  Normalize disparities to the average if above
 						this.min_weight, // double       min_weight,
 						this.min_tiles,  // int          min_tiles,
-//						strength_floor,
-//						measured_strength_pow, // double       strength_pow,
 						this.smplMode,
 						this.mlfp,
-
-//						smplSide,
-//						smplNum,
-//						smplRms,
-//						smplWnd,  // use window functions for the samples
-//						max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//						max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//						damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//						min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//						transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//						far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//						far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 						debugLevel-1) != null);
 
 				if (!OK){ // restore last selection, re-run getPlaneFromMeas
@@ -1341,21 +1310,8 @@ public class TilePlanes {
 							this.dispNorm,   // double       dispNorm,   //  Normalize disparities to the average if above
 							this.min_weight, // double       min_weight,
 							this.min_tiles,  // int          min_tiles,
-//							strength_floor,
-//							measured_strength_pow, // double       strength_pow,
 							this.smplMode,
 							this.mlfp,
-//							smplSide,
-//							smplNum,
-//							smplRms,
-//							smplWnd,  // use window functions for the samples
-//							max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//							max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//							damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//							min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//							transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//							far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//							far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 							debugLevel-1) != null);
 					if (!OK) {
 						System.out.println("This is a BUG in removePlaneOutliers() - run with previous selection and failed");
@@ -1402,24 +1358,8 @@ public class TilePlanes {
 				double       dispNorm,   //  Normalize disparities to the average if above
 				double       min_weight,
 				int          min_tiles,
-//				double       strength_floor,
-//				double       strength_pow,
 				boolean      smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				MeasuredLayersFilterParameters mlfp,
-
-//				int          smplSide, //        = 2;      // Sample size (side of a square)
-//				int          smplNum, //         = 3;      // Number after removing worst
-//				double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-//				boolean      smplWnd,        // use window functions for the samples
-
-//	  			double       max_abs_tilt,  //  2.0;   // pix per tile
-//				double       max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-//				double       damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-//				double       min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//				double       transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-//				int          far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-//				double       far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
-
 				int          debugLevel)
 		{
 			double mindet = 1E-15;
@@ -1432,25 +1372,10 @@ public class TilePlanes {
 				tile_sel = this.measuredSelection;
 			}
 
-//			this.strength_floor =         strength_floor;
-//			this.measured_strength_pow =  strength_pow;
 			this.min_weight =             min_weight;
 			this.min_tiles =              min_tiles;
 			this.dispNorm =               dispNorm;
-//			this.smplWnd =                smplWnd;        // use window functions for the samples
 			this.smplMode =               smplMode; //        = true;   // Use sample mode (false - regular tile mode)
-//			this.smplSide =               smplSide; //        = 2;      // Sample size (side of a square)
-//			this.smplNum =                smplNum;    //         = 3;      // Number after removing worst
-//			this.smplRms =                smplRms;    //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-
-//			this.max_abs_tilt =  max_abs_tilt;
-//			this.max_rel_tilt =  max_rel_tilt;
-//			this.damp_tilt =     damp_tilt;
-//			this.min_tilt_disp = min_tilt_disp;
-//			this.transition =    transition;
-//			this.far_mode =      far_mode;
-//			this.far_power =     far_power;
-
 			this.mlfp =                   mlfp.clone();
 
 
@@ -1473,19 +1398,6 @@ public class TilePlanes {
 									((tile_sel[nl].length == 0)? null:tile_sel[nl]), // boolean [] sel_in,
 									//tile_sel[nl], // boolean [] sel_in,
 									mlfp,
-//									strength_floor,
-//									strength_pow, //
-//									smplSide, //        = 2;      // Sample size (side of a square)
-//									smplNum, //         = 3;      // Number after removing worst
-//									smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-//									smplWnd, // final boolean    smplWnd,        // use window functions fro the samples
-//									max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//									max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//									damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//									min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//									transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//									far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//									far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 									true, // boolean null_if_none)
 									debugLevel);
 						}
@@ -1580,8 +1492,6 @@ public class TilePlanes {
 							if (w > 0.0){
 								double d = disp_str[nl][0][indx];
 								// referencing samples to centers of pixels
-//								double x = ((indx % stSize2) - stSize + 0.5) * tileSize + 0.5; // in pixels, not in tiles
-//								double y = ((indx / stSize2) - stSize + 0.5) * tileSize + 0.5;
 								double x = ((indx % stSize2) - stSize + 0.5) * tileSize; // in pixels, not in tiles
 								double y = ((indx / stSize2) - stSize + 0.5) * tileSize;
 								sw  += w;
@@ -1600,8 +1510,6 @@ public class TilePlanes {
 			swx /= sw;
 			swy /= sw;
 
-//			double kz = ((dispNorm > 0.0) && (swz > dispNorm)) ? (dispNorm / swz) : 1.0;
-
 			if (debugLevel > 0){
 				System.out.println("getPlaneFromMeas(): num_tiles="+num_tiles+", sw = "+sw +", swz = "+swz +", swx = "+swx +", swy = "+swy); // +", kz="+kz);
 			}
@@ -1614,11 +1522,8 @@ public class TilePlanes {
 						if (tile_sel[nl][indx]) {
 							double w = disp_str[nl][1][indx] / sw;
 							if (w > 0.0){
-//								double d =  kz * (disp_str[nl][0][indx] - swz); // Not here!
 								double d =  disp_str[nl][0][indx] - swz;
 								double wd = w*d;
-//								double x = ((indx % stSize2) - stSize + 0.5) * tileSize + 0.5 - swx;
-//								double y = ((indx / stSize2) - stSize + 0.5) * tileSize + 0.5 - swy;
 								double x = ((indx % stSize2) - stSize + 0.5) * tileSize  - swx;
 								double y = ((indx / stSize2) - stSize + 0.5) * tileSize  - swy;
 								acovar [0][0] += wd * d;
@@ -1644,7 +1549,6 @@ public class TilePlanes {
 			}
 
 			if (debugLevel > 3){
-//				if (debugLevel > 0){
 				System.out.println("getCovar(): sw = "+sw +", swz = "+swz +", swx = "+swx +", swy = "+swy +", covar.det() = "+covar.det());
 				System.out.println("getCovar(): covarianvce matrix, number of used points:"+num_tiles);
 				covar.print(10, 6); // w,d
@@ -1742,27 +1646,8 @@ public class TilePlanes {
 				double       dispNorm,   //  Normalize disparities to the average if above
 				double       min_weight,
 				int          min_tiles,
-
-//				double       strength_floor,
-//				double       strength_pow,
-
 				boolean      smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				MeasuredLayersFilterParameters mlfp,
-
-//				int          smplSide, //        = 2;      // Sample size (side of a square)
-//				int          smplNum, //         = 3;      // Number after removing worst
-//				double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-
-///* was not here */boolean      smplWnd,        // use window functions for the samples
-
-//	  			double       max_abs_tilt,  //  2.0;   // pix per tile
-//				double       max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-//				double       damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-//				double       min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//				double       transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-//				int          far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-//				double       far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
-
 				int          debugLevel)
 		{
 			double mindet = 1E-15;
@@ -1775,25 +1660,10 @@ public class TilePlanes {
 				tile_sel = this.measuredSelection;
 			}
 
-//			this.strength_floor =         strength_floor;
-//			this.measured_strength_pow =  strength_pow;
 			this.min_weight =             min_weight;
 			this.min_tiles =              min_tiles;
 			this.dispNorm =               dispNorm;
 			this.smplMode =               smplMode; //        = true;   // Use sample mode (false - regular tile mode)
-//			this.smplSide =               smplSide; //        = 2;      // Sample size (side of a square)
-//			this.smplNum =                smplNum;    //         = 3;      // Number after removing worst
-//			this.smplRms =                smplRms;    //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-
-//			this.smplWnd =                smplWnd;    //        was not here !
-
-//			this.max_abs_tilt =           max_abs_tilt;
-//			this.max_rel_tilt =           max_rel_tilt;
-//			this.damp_tilt =              damp_tilt;
-//			this.min_tilt_disp =          min_tilt_disp;
-//			this.transition =             transition;
-//			this.far_mode =               far_mode;
-//			this.far_power =              far_power;
 			this.mlfp = mlfp.clone();
 
 			if (debugLevel > 2){
@@ -1816,19 +1686,6 @@ public class TilePlanes {
 									((tile_sel[nl].length == 0)? null:tile_sel[nl]), // boolean [] sel_in,
 									//tile_sel[nl], // boolean [] sel_in,
 									mlfp,
-//									strength_floor,
-//									strength_pow, //
-//									smplSide, //        = 2;      // Sample size (side of a square)
-//									smplNum,  //         = 3;      // Number after removing worst
-//									smplRms,  //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-///*was using this. */				smplWnd,  // use window functions for the samples
-//									max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//									max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//									damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//									min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//									transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//									far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//									far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 									true,     // boolean null_if_none)
 									debugLevel);
 						}
@@ -1878,8 +1735,6 @@ public class TilePlanes {
 									sTileXY[1], // int stY,
 									tile_sel[nl], // boolean [] sel_in,
 									mlfp,
-//									strength_floor,
-//									strength_pow, //
 									true); // boolean null_if_none)
 							sw += MeasuredLayers.getSumStrength(disp_str[nl]);
 						}
@@ -1887,7 +1742,6 @@ public class TilePlanes {
 
 
 					if ((debugLevel > 2) && (disp_str[nl] != null)){
-//					if ((debugLevel > 1) && (disp_str[nl] != null)){
 						  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
 						  double [][] dbg_img = new double [3][];
 						  dbg_img[0] = disp_str[nl][0];
@@ -4046,26 +3900,9 @@ public class TilePlanes {
 				double       plTargetEigen, //        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
 				double       plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
 				int          plMaxOutliers, //        =    20;  // Maximal number of outliers to remove
-//				double       strength_floor,
-//				double       strength_pow,
 				boolean      correct_distortions,
 				boolean      smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-
 				MeasuredLayersFilterParameters mlfp,
-
-//				int          smplSide, //        = 2;      // Sample size (side of a square)
-//				int          smplNum, //         = 3;      // Number after removing worst
-//				double       smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-//				boolean      smplWnd,  // use window functions for the samples
-
-//	  			double       max_abs_tilt,  //  2.0;   // pix per tile
-//				double       max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-//				double       damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-//				double       min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//				double       transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-//				int          far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-//				double       far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
-
 				int          debugLevel)
 		{
 			if (debugLevel > 2) {
@@ -4089,26 +3926,8 @@ public class TilePlanes {
 						dispNorm,    // 0.0,            // plDispNorm,  // double       dispNorm,   //  Normalize disparities to the average if above
 						0.0,            // double       min_weight,
 						min_tiles,    // int          min_tiles,
-
-//						strength_floor, //
-//						strength_pow,   // double       strength_pow,
-
-						// update !
 						smplMode,
 						mlfp,
-//						smplSide,
-//						smplNum,
-//						smplRms,
-//						smplWnd,  // use window functions for the samples
-
-//						max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//						max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//						damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//						min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//						transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//						far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//						far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
-
 						debugLevel) != null);            // int          debugLevel)
 				if (OK) {
 					if (debugLevel > 0) {
@@ -4133,7 +3952,6 @@ public class TilePlanes {
 						targetV *= dd * dd; // > original
 					}
 					*/
-//					if (pd.getValues()[0] > targetV) {
 					if (pd.getNormValue() > targetV) {
 						OK = pd.removeOutliers( // getPlaneFromMeas should already have run
 								disp_strength,
@@ -4172,27 +3990,8 @@ public class TilePlanes {
 							dispNorm,      // 0.0,            // plDispNorm,  // double       dispNorm,   //  Normalize disparities to the average if above
 							0.0,            // double       min_weight,
 							min_tiles,      // int          min_tiles,
-//							strength_floor, //
-//							strength_pow,   // double       strength_pow,
-							// update !
 							smplMode,
 							mlfp,
-
-//							smplSide,
-//							smplNum,
-//							smplRms,
-
-//							smplWnd,  // use window functions for the samples
-
-//							max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//							max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//							damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//							min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//							transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//							far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//							far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
-
-
 							debugLevel);
 				}
 			}
@@ -4217,20 +4016,6 @@ public class TilePlanes {
 
 				final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				final MeasuredLayersFilterParameters mlfp,
-
-//				final int        smplSide, //        = 2;      // Sample size (side of a square)
-//				final int        smplNum, //         = 3;      // Number after removing worst
-//				final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-//				final boolean    smplWnd,  // use window functions for the samples
-
-//				final double     max_abs_tilt,  //  2.0;   // pix per tile
-//				final double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-//				final double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-//				final double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//				final double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-//				final int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-//				final double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
-
 				final double     max_disp_diff,    // maximal disparity difference from the plane to consider tile
 				final double     disp_range,       // parallel move known planes around original know value for the best overall fit
 				final int        amplitude_steps,  // number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
@@ -4661,19 +4446,6 @@ public class TilePlanes {
 
 				final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				final MeasuredLayersFilterParameters mlfp,
-//				final int        smplSide, //        = 2;      // Sample size (side of a square)
-//				final int        smplNum, //         = 3;      // Number after removing worst
-//				final double     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-//				final boolean    smplWnd,  // use window functions for the samples
-
-//				final double     max_abs_tilt,  //  2.0;   // pix per tile
-//				final double     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-//				final double     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-//				final double     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//				final double     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-//				final int        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-//				final double     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
-
 				final double     disp_tolerance,   // maximal disparity difference from the plane to consider tile
 				final double     disp_var_floor,   // squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
 				final double     disp_sigma,       // G.sigma to compare how measured data is attracted to planes
@@ -4800,19 +4572,6 @@ public class TilePlanes {
 							getSTileXY()[1],        // int stY,
 							null,                   // boolean [] sel_in, - use all
 							mlfp,
-//							strength_floor,
-//							measured_strength_pow,  //
-//							smplSide,               // = 2;      // Sample size (side of a square)
-//							smplNum,                // = 3;      // Number after removing worst
-//							smplRms,                // = 0.1;    // Maximal RMS of the remaining tiles in a sample
-//							smplWnd,                // use window functions for the samples
-//							max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//							max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//							damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//							min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//							transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//							far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//							far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 							true,                  // boolean null_if_none)
 							debugLevel);
 				} else {
@@ -4822,8 +4581,6 @@ public class TilePlanes {
 							getSTileXY()[1],        // int stY,
 							null,                   // boolean [] sel_in, - use all
 							mlfp,
-//							strength_floor,         //  double strength_floor,
-//							measured_strength_pow,  // double strength_pow,
 							true);                  // boolean null_if_none);
 				}
 			}
@@ -4901,13 +4658,11 @@ public class TilePlanes {
 					num_cells[np][ml] = new int[size2];
 					for (int indx = 0; indx < size2; indx++) if (disp_strength[ml][1][indx] > 0.0){
 						double d0 = pds[np][0][indx]; // disp_strength[ml][0][indx];
-//						double sw = disp_strength[ml][1][indx], sd = 0.0, sd2 = 0.0;
 						double sw = disp_strength[ml][1][indx]/window[indx], sd = 0.0, sd2 = 0.0;
 						num_cells[np][ml][indx]++;
 						for (int dir = 0; dir<8; dir++){
 							int indx1 = tileNeibs.getNeibIndex(indx, dir);
 							if (indx1 >= 0){
-//								double w =  disp_strength[ml][1][indx1];
 								double w =  disp_strength[ml][1][indx1]/window[indx1];
 								if (w > 0.0){
 									double d = disp_strength[ml][0][indx1] - d0;
@@ -4925,8 +4680,6 @@ public class TilePlanes {
 						}
 						double rms = Math.sqrt(sd2);
 						flatness[np][ml][indx] = rms; // sd2; // will not be used
-//						norm_flatness[np][ml][indx] = num_cells[np][ml][indx]/(sd2 + floor2);
-//						norm_flatness[np][ml][indx] = (num_cells[np][ml][indx] > 1) ? (1.0/sd2): (1.0/floor2);
 						if (rms < disp_var_floor){
 							rms = disp_var_floor;
 						}
@@ -4951,7 +4704,6 @@ public class TilePlanes {
 							int bin = (int) Math.round (db);
 							if ((bin >= 0) && (bin < steps)) {
 								// combine correlation weight, variance between valid neighbors and number of valid neighbors
-//								double w = weight /(flatness[np][ml][indx] + floor2) * num_cells[np][ml][indx]; // TODO: tweak?
 								double w = weight * norm_flatness[np][ml][indx]; // TODO: tweak?
 								histograms[np][bin] += w;
 							}

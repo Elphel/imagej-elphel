@@ -8915,28 +8915,15 @@ public class QuadCLT {
 
 		  int image_width = imp.getWidth();
 		  int image_height = imp.getHeight();
-		  double scale_h = 1.0 * correctionsParameters.thumb_width/image_width;
-		  double scale_v = 1.0 * correctionsParameters.thumb_height/image_height;
-//		  double scale = Math.min(scale_h,  scale_v) /correctionsParameters.thumb_size;
-		  double scale = scale_h / correctionsParameters.thumb_size;
+		  double scale_h = 1.0 * (correctionsParameters.thumb_width + 1)/image_width;
+		  double scale_v = 1.0 * (correctionsParameters.thumb_height + 1)/image_height;
+		  double scale = ((scale_h > scale_v) ? scale_h : scale_v) / correctionsParameters.thumb_size;
 
-//		  ImageProcessor ip = imp.getChannelProcessor();
 		  ImageProcessor ip = imp.getProcessor().duplicate();
 
 		  ip.setInterpolationMethod(ImageProcessor.BICUBIC);
-//		  ip.setInterpolationMethod(ImageProcessor.BILINEAR);
 		  ip.blurGaussian(2.0);
 		  ip.scale(scale, scale);
-//		  Rectangle rs = new Rectangle(
-//				  (int)Math.round(0.5*image_width*(1.0-scale)),
-//				  (int)Math.round(0.5*image_height*(1.0-scale)),
-//				  (int)Math.round(image_width*scale),
-//				  (int)Math.round(image_height*scale));
-
-//		  int scaled_width = rs.width; // ip.getWidth();
-//		  int scaled_height = rs.height; // ip.getHeight();
-//		  int lm = (int) Math.round ((scaled_width-correctionsParameters.thumb_width)* correctionsParameters.thumb_h_center);
-//		  int tm = (int) Math.round ((scaled_height-correctionsParameters.thumb_height)* correctionsParameters.thumb_v_center);
 		  int lm = (int) Math.round (((image_width*scale)-correctionsParameters.thumb_width)* correctionsParameters.thumb_h_center + (0.5*image_width*(1.0-scale)));
 		  int tm = (int) Math.round (((image_height*scale)-correctionsParameters.thumb_height)* correctionsParameters.thumb_v_center + (0.5*image_height*(1.0-scale)));
 		  Rectangle r = new Rectangle(lm,tm,correctionsParameters.thumb_width,correctionsParameters.thumb_height);

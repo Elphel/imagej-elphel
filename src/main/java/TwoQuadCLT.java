@@ -4921,7 +4921,6 @@ if (debugLevel > -100) return true; // temporarily !
 			  double                                         disparity_offset,
 			  QuadCLT                                        quadCLT_main,  // tiles should be set
 			  QuadCLT                                        quadCLT_aux,
-//			  double [][]                                    src_bimap,
 			  double []                                      disparity,
 			  double []                                      strength,
 			  EyesisCorrectionParameters.CLTParameters       clt_parameters,

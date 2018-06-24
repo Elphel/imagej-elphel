@@ -5011,39 +5011,47 @@ private Panel panel1,
 
 	public boolean getPairImages2() {
 		if (!prepareRigImages()) return false;
-    	String configPath=getSaveCongigPath();
-    	if (configPath.equals("ABORT")) return false;
+		String configPath=getSaveCongigPath();
+		if (configPath.equals("ABORT")) return false;
 
-        	if (DEBUG_LEVEL > -2){
-        		System.out.println("++++++++++++++ Calculating combined correlations ++++++++++++++");
-        	}
-        	try {
-        		TWO_QUAD_CLT.processCLTQuadCorrPairs(
-        				QUAD_CLT, // QuadCLT quadCLT_main,
-        				QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
-        				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        				DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-        				COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-//        				CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-//        				CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters       channelGainParameters_aux,
-        				RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        				UPDATE_STATUS, //final boolean    updateStatus,
-        				DEBUG_LEVEL);
-        	} catch (Exception e) {
-        		// TODO Auto-generated catch block
-        		e.printStackTrace();
-        	} //final int        debugLevel);
-        	QUAD_CLT.tp.clt_3d_passes = null; // resetCLTPasses(); // so running "Ground truth" after would be OK
-        	QUAD_CLT_AUX.tp.clt_3d_passes = null; //.resetCLTPasses();
+		if (DEBUG_LEVEL > -2){
+			System.out.println("++++++++++++++ Calculating combined correlations ++++++++++++++");
+		}
+		// reset if ran after 3d model to save memory
+		if (QUAD_CLT.tp != null) {
+			QUAD_CLT.tp.clt_3d_passes = null; // resetCLTPasses();
+		}
+		if (QUAD_CLT_AUX.tp != null) {
+			QUAD_CLT_AUX.tp.clt_3d_passes = null; // resetCLTPasses();
+		}
 
-        if (configPath!=null) {
-        	saveTimestampedProperties( // save config again
-        			configPath,      // full path or null
-        			null, // use as default directory if path==null
-        			true,
-        			PROPERTIES);
-        }
+		try {
+			TWO_QUAD_CLT.processCLTQuadCorrPairs(
+					QUAD_CLT, // QuadCLT quadCLT_main,
+					QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+					CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+					DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+					COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+					//        				CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+					//        				CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters       channelGainParameters_aux,
+					RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+					THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+					UPDATE_STATUS, //final boolean    updateStatus,
+					DEBUG_LEVEL);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} //final int        debugLevel);
+		QUAD_CLT.tp.clt_3d_passes = null; // resetCLTPasses(); // so running "Ground truth" after would be OK
+		QUAD_CLT_AUX.tp.clt_3d_passes = null; //.resetCLTPasses();
+
+		if (configPath!=null) {
+			saveTimestampedProperties( // save config again
+					configPath,      // full path or null
+					null, // use as default directory if path==null
+					true,
+					PROPERTIES);
+		}
 		return true;
 	}
 

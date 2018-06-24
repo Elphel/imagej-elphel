@@ -5377,7 +5377,7 @@ public class TileProcessor {
 				clt_parameters.batch_run?-1:1, // -1,                       // debugLevel,                  // final int        debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
-//		showDoubleFloatArrays sdfa_instance = null;
+//		showDoubleFloatArrays sdfa_instance = null; - already no state capitol plane
 //		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 
 
