@@ -7,7 +7,7 @@
  ** Copyright (C) 2010 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
- **  
+ **
  **  JP46_Reader.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
@@ -30,6 +30,7 @@ import ij.process.*;
 import ij.gui.*;
 import ij.plugin.frame.*;
 import ij.text.*;
+import ij.plugin.PlugIn;
 
 import java.awt.*;
 import java.awt.event.*;
@@ -50,17 +51,17 @@ import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
 
-
 /* This plugin opens images in Elphel JP4/JP46 format (opens as JPEG, reads MakerNote and converts). */
-public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
+public class JP46_Reader_camera implements PlugIn,ActionListener {
 
 	/**
-	 * 
+	 *
 	 */
 	private static final long serialVersionUID = 390855361964415147L;
 	Panel panel1;
 	Panel confpanel;
 	Frame instance;
+	PlugInFrame plugInFrame;
 
 	String arg;
 
@@ -75,59 +76,48 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
         public boolean demux=true;
 	public String imageTitle="cameraImage";
 	private int ExifOffset=0x0c;
+	private Boolean headless=GraphicsEnvironment.getLocalGraphicsEnvironment().isHeadlessInstance();
+
+	public void run(String arg) {
+	}
+
+	public JP46_Reader_camera(Boolean showGui) {
+		if (showGui) initGui();
+	}
 
 	public JP46_Reader_camera() {
-		super("JP46 Reader Camera");
-		if (IJ.versionLessThan("1.39t")) return;
-		if (instance!=null) {
-			instance.toFront();
-			return;
-		}
-		instance = this;
-		addKeyListener(IJ.getInstance());
-
-		panel1 = new Panel();
-
-		panel1.setLayout(new GridLayout(6, 1, 50, 5));
-
-		addButton("Open JP4/JP46...",panel1);    
-		addButton("Open JP4/JP46 from camera",panel1);
-		addButton("Configure...",panel1);
-		addButton("Show image properties",panel1);
-		addButton("Decode image info to properties",panel1);
-		addButton("Split Bayer",panel1);
-		
-
-		add(panel1);
-
-		pack();
-		GUI.center(this);
-		setVisible(true);
+		initGui();
 	}
-	public JP46_Reader_camera(boolean showGUI) {
-		super("JP46 Reader Camera");
+
+	public void initGui() {
+		//super("JP46 Reader Camera");
+		if (headless) return;
+
 		if (IJ.versionLessThan("1.39t")) return;
 		if (instance!=null) {
 			instance.toFront();
 			return;
 		}
-		instance = this;
-		addKeyListener(IJ.getInstance());
+
+		plugInFrame=new PlugInFrame("JP46 Reader Camera");
+		instance = (Frame)plugInFrame;
+
+		plugInFrame.addKeyListener(IJ.getInstance());
 
 		panel1 = new Panel();
 
 		panel1.setLayout(new GridLayout(6, 1, 50, 5));
 
-		addButton("Open JP4/JP46...",panel1);    
+		addButton("Open JP4/JP46...",panel1);
 		addButton("Open JP4/JP46 from camera",panel1);
 		addButton("Configure...",panel1);
 		addButton("Show image properties",panel1);
 		addButton("Decode image info to properties",panel1);
 		addButton("Split Bayer",panel1);
-		add(panel1);
-		pack();
-		GUI.center(this);
-		setVisible(showGUI);
+		plugInFrame.add(panel1);
+		plugInFrame.pack();
+		GUI.center(plugInFrame);
+		plugInFrame.setVisible(true);
 	}
 
 	void addButton(String label, Panel panel) {
@@ -144,16 +134,16 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		if (label==null) return;
 
 		/* button */
-		if (label.equals("Open JP4/JP46...")) {   
+		if (label.equals("Open JP4/JP46...")) {
 			read_jp46(arg,true);
 		}else if (label.equals("Open JP4/JP46 (no scale)...")) {
 			read_jp46(arg,false);
 		}else if (label.equals("Configure...")) {
 			showConfigDialog(); // open configure dialog
 		}else if (label.equals("Open JP4/JP46 from camera")) {
-			openURL(camera_url + camera_img_new + camera_jp46settings, arg, true); 
+			openURL(camera_url + camera_img_new + camera_jp46settings, arg, true);
 		}else if (label.equals("Open JP4/JP46 from camera (no scale)")) {
-			openURL(camera_url + camera_img_new + camera_jp46settings, arg, false); 
+			openURL(camera_url + camera_img_new + camera_jp46settings, arg, false);
 		}else if (label.equals("Show image properties")) {
 			ImagePlus imp_sel = WindowManager.getCurrentImage();
 			if (imp_sel==null){
@@ -202,7 +192,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
         imp_stack.getProcessor().resetMinAndMax();
         imp_stack.show();
     }
-	
+
 	public void read_jp46(String arg, boolean scale) {
 		JFileChooser fc=null;
 		//try {fc = new JFileChooser();}
@@ -249,7 +239,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 
 		confpanel = new Panel();
 		gd.addPanel(confpanel);
-		addButton("Open JP4/JP46 (no scale)...", confpanel);        
+		addButton("Open JP4/JP46 (no scale)...", confpanel);
 		addButton("Open JP4/JP46 from camera (no scale)", confpanel);
 
 		//Vector textfields = gd.getStringFields();
@@ -310,7 +300,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 			if (reuse_imp) {
 				imp=imp_src;
 			} else if ((imp_src!=null)&& showImage) { /* tried to reuse, but wrong size */
-				imp.show(); /* never did that before */  
+				imp.show(); /* never did that before */
 			}
 			if ((xtraExif!=null) && !Double.isNaN(xtraExif[0])){
 				imp.setProperty("EXPOSURE",  String.format("%f",xtraExif[0]));
@@ -328,16 +318,16 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 
 			return imp;
 		}
-		return null; 
+		return null;
 	}
 
 	public ImagePlus openURL(ImagePlus imp_src) {
 		if (imp_src==null) return openURL(camera_url + camera_img_new + camera_jp46settings, arg, true);
-		return openURL(camera_url + camera_img_new + camera_jp46settings, arg, true, imp_src,true); 
+		return openURL(camera_url + camera_img_new + camera_jp46settings, arg, true, imp_src,true);
 	}
 
 	public ImagePlus openURL() {
-		return openURL(camera_url + camera_img_new + camera_jp46settings, arg, true); 
+		return openURL(camera_url + camera_img_new + camera_jp46settings, arg, true);
 	}
 
 	public ImagePlus openURL(String url, String arg, boolean scale) {
@@ -356,7 +346,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		boolean showDemux=showImage && demux;
 		if (demux) showImage=false;
 		double [] xtraExif=new double[1]; // ExposureTime
-		
+
 
 //		System.out.println("imp_src is "+((imp_src!=null)?"not ":"")+"null");
 		try {
@@ -389,7 +379,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 				imp=imp_src;
 			} else if ((imp_src!=null) && showImage) { /* tried to reuse, but wrong size */
 //				System.out.println("show() 2");
-				imp.show(); /* never did that before */  
+				imp.show(); /* never did that before */
 			}
 			if ((xtraExif!=null) && !Double.isNaN(xtraExif[0])){
 				imp.setProperty("EXPOSURE",  String.format("%f",xtraExif[0]));
@@ -564,7 +554,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 					if (i==0) info+="SYSTEM TEMPERATURE\t" +  temperature+"\t\t\t\n";
 					else  info+="SFE "+i+" TEMPERATURE\t" +  temperature+"\t\t\t\n";
 					imp.setProperty("TEMPERATURE_"+i,""+temperature);
-					
+
 				}
 			}
 			if (COMPOSITE) {
@@ -635,7 +625,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 			imp.setProperty("saturation_"+i,String.format("%f",satValue[i]));
 //			System.out.println("scaled gains["+i+"]="+gains[i]+" satValue["+i+"]="+satValue[i]);
 
-		}		
+		}
 // swap satValue to match FLIPH,FLIPV again
 		if (FLIPV!=0) {
 			swapArrayElements (satValue,       1, 3);
@@ -645,13 +635,13 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 			swapArrayElements (satValue,       1, 0);
 			swapArrayElements (satValue,       3, 2);
 		}
-	
-		
+
+
 		for (i=0;i<4;i++) {
 			imp.setProperty("saturation_"+i,String.format("%f",satValue[i]));
 //System.out.println("saturation_"+i+"\t"+String.format("%f",satValue[i]));
-		
-		}		
+
+		}
 
 
 		ImageProcessor ip = imp.getProcessor();
@@ -745,11 +735,11 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		}
 		if (FLIPH!=0) ip_src.flipHorizontal(); /* To correct Bayer */
 		if (FLIPV!=0) ip_src.flipVertical(); /* To correct Bayer */
-		
+
 		/* Is it needed here ? */
 		/*    imp.draw();
     imp.show(); **/
-		if (use_imp_src) copyProperties (imp, imp_src); 
+		if (use_imp_src) copyProperties (imp, imp_src);
 		return use_imp_src;
 	}
 
@@ -834,7 +824,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		try {
 			camURL  = new URL(url);
 			urlConn = camURL.openConnection();
-			int contentLength = 4096; /* just read the beginning of the file */ //urlConn.getContentLength();    
+			int contentLength = 4096; /* just read the beginning of the file */ //urlConn.getContentLength();
 			//inStream = new InputStreamReader(urlConn.getInputStream());
 
 			int bytesRead = 0;
@@ -852,7 +842,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		} catch(MalformedURLException e){
 			System.out.println("Please check the URL:" + e.toString() );
 		} catch(IOException  e1){
-			System.out.println("Can't read  from the Internet: "+ e1.toString() ); 
+			System.out.println("Can't read  from the Internet: "+ e1.toString() );
 		}
 		byte [] sig=  {(byte) 0x92 ,0x7c, /* MakerNote*/
 				0x00 ,0x04, /* type (long)*/
@@ -891,9 +881,9 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		return note;
 
 	}
-	
-	
-	
+
+
+
 	long [] getExifData (byte [] sig, byte [] head, int len){
 		/* search for sig array */
 		int i = this.ExifOffset + 2;
@@ -934,7 +924,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 				imp = new ImagePlus(name, img);
 			} catch (IllegalStateException e) {
 				return null; // error loading image
-			}				
+			}
 
 			if (imp.getType()==ImagePlus.COLOR_RGB) {
 				checkGrayJpegTo32Bits(imp);
@@ -964,8 +954,8 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		return camera_url;
 	}
 
-	ImagePlus openJpegOrGifUsingURL (String cameraurl) {   
-		URL url = null;  
+	ImagePlus openJpegOrGifUsingURL (String cameraurl) {
+		URL url = null;
 		ImagePlus imp = null;
 		Image img = null;
 
@@ -1062,7 +1052,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		for (i=y0;i<y1;i++) {
 			index=i*mapWidth+x0;
 			for (j=0;j<width;j++) if (map[index++]>0.0) over++;
-			
+
 		}
 		return (1.0*over)/width/height;
 	}
@@ -1086,7 +1076,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		if (noProperties) return null;
 	//0 - red, 1,2 - green (use Math.min()), 3 - blue
 		for (i=0;i<4;i++) satValues[i]*=relativeThreshold;
-		
+
 		ImageProcessor ip=imp.getProcessor();
 		int width=imp.getWidth();
 		float []pixels=(float[]) ip.getPixels();
@@ -1098,12 +1088,12 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 	    }
 		return overexposed;
 	}
-	
+
 	public ImagePlus demuxImageOrClone(ImagePlus imp, int numImg) {
 		ImagePlus imp_new=demuxImage(imp, numImg);
 		if (imp_new!=null) return imp_new;
 		return demuxClone(imp);
-	}	
+	}
 
 	public ImagePlus demuxClone(ImagePlus imp) {
 		ImageProcessor ip=imp.getProcessor().duplicate();
@@ -1122,9 +1112,9 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		  }
 		}
 		return imp_new;
-	}	
-	
-	
+	}
+
+
 	public ImagePlus demuxImage(ImagePlus imp, int numImg) {
 		int width= imp.getWidth();
 //		int height=imp.getHeight();
@@ -1147,8 +1137,8 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		}
 		timestamp=imp.getProperty("timestamp");
 		if (timestamp!=null);
-		
-/*		
+
+/*
 		System.out.println("FLIPV="+FLIPGV+" FLIPH="+FLIPGH);
 		for (i=0;i<3;i++) System.out.println("FLIPV["+i+"]=  "+FLIPV[i]+" FLIPH["+i+"]=  "+FLIPH[i]);
 		for (i=0;i<3;i++) System.out.println("HEIGHTS["+i+"]="+HEIGHTS[i]);
@@ -1178,9 +1168,9 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 //		for (i=0;i<3;i++) System.out.println("Final: FLIPV["+i+"]=  "+FLIPV[i]+" FLIPH["+i+"]=  "+FLIPH[i]);
 
 // if needed, we'll cut one pixel line. later can modify to add one extra, but then we need to duplicate the pre-last one (same Bayer),
-// not just add zeros - later before sliding FHT the two border lines are repeated for 16 times to reduce border effects.		
+// not just add zeros - later before sliding FHT the two border lines are repeated for 16 times to reduce border effects.
 		for (i=0;i<3;i++) {
-//			System.out.println("before r["+i+"].x=  "+r[i].x+" r["+i+"].width=  "+r[i].width);        	
+//			System.out.println("before r["+i+"].x=  "+r[i].x+" r["+i+"].width=  "+r[i].width);
 //			System.out.println("before r["+i+"].y=  "+r[i].y+" r["+i+"].height=  "+r[i].height);
 			if (((r[i].height & 1)==0 ) & (((r[i].y+FLIPV[i])&1)!=0)) r[i].height-=2;
 			r[i].height &=~1;
@@ -1190,10 +1180,10 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 			r[i].width &=~1;
 			if (((r[i].x+FLIPH[i])&1)!=0) r[i].x+=1;
 
-			
-			
-//			System.out.println("after r["+i+"].x=  "+r[i].x+" r["+i+"].width=  "+r[i].width);        	
-//			System.out.println("after r["+i+"].y=  "+r[i].y+" r["+i+"].height=  "+r[i].height);        	
+
+
+//			System.out.println("after r["+i+"].x=  "+r[i].x+" r["+i+"].width=  "+r[i].width);
+//			System.out.println("after r["+i+"].y=  "+r[i].y+" r["+i+"].height=  "+r[i].height);
 		}
 		if (r[numImg].height<=0) return null;
 //		ImageProcessor ip=imp.getProcessor();
@@ -1205,7 +1195,7 @@ Exception in thread "Thread-3564" java.lang.ArrayIndexOutOfBoundsException: 8970
         at ij.process.FloatProcessor.crop(FloatProcessor.java:706)
         at JP46_Reader_camera.demuxImage(JP46_Reader_camera.java:1104)
         at CalibrationHardwareInterface$CamerasInterface$4.run(CalibrationHardwareInterface.java:1101)
-		
+
  */
 //		ImageProcessor ip=imp.getProcessor();
 //		ip.setRoi(r[numImg]);
@@ -1241,7 +1231,7 @@ Exception in thread "Thread-3564" java.lang.ArrayIndexOutOfBoundsException: 8970
 		}
 		if (timestamp!=null)imp_result.setProperty("timestamp", timestamp);
 */
-		// fill in meta data        
+		// fill in meta data
 		return imp_result;
 	}
 	public void copyProperties (ImagePlus imp_src,ImagePlus imp_dst){
@@ -1260,8 +1250,8 @@ Exception in thread "Thread-3564" java.lang.ArrayIndexOutOfBoundsException: 8970
 			}
 		}
 	}
-	
-	
+
+
 	public ImagePlus encodeProperiesToInfo(ImagePlus imp){
 		String info="<?xml version=\"1.0\" encoding=\"UTF-8\"?><properties>";
 		Set<Object> jp4_set;
@@ -1285,7 +1275,7 @@ Exception in thread "Thread-3564" java.lang.ArrayIndexOutOfBoundsException: 8970
 	public boolean decodeProperiesFromInfo(ImagePlus imp){
 		if (imp.getProperty("Info")==null) return false;
 		String xml= (String) imp.getProperty("Info");
-		
+
 	    DocumentBuilder db=null;
 		try {
 			db = DocumentBuilderFactory.newInstance().newDocumentBuilder();
@@ -1307,9 +1297,9 @@ Exception in thread "Thread-3564" java.lang.ArrayIndexOutOfBoundsException: 8970
 	        String name= allNodes.item(i).getNodeName();
             String value=allNodes.item(i).getFirstChild().getNodeValue();
     		imp.setProperty(name, value);
-	    	
+
 	    }
-		
+
 		return true;
 	}
 	/**
@@ -1331,7 +1321,7 @@ Exception in thread "Thread-3564" java.lang.ArrayIndexOutOfBoundsException: 8970
 		// run the plugin
 		IJ.runPlugIn(clazz.getName(), "");
 	}
-    
+
 }
 
 

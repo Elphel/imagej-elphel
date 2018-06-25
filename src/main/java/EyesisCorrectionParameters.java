@@ -3,12 +3,12 @@
 ** EyesisCorrectionParameters.java
 **
 ** Parameter classes for aberration correction for Eyesis4pi
-** 
+**
 **
 ** Copyright (C) 2012 Elphel, Inc.
 **
 ** -----------------------------------------------------------------------------**
-**  
+**
 **  EyesisCorrectionParameters.java is free software: you can redistribute it and/or modify
 **  it under the terms of the GNU General Public License as published by
 **  the Free Software Foundation, either version 3 of the License, or
@@ -55,15 +55,15 @@ public class EyesisCorrectionParameters {
   		public boolean blueProc =              true;
   		public boolean toRGB =                 true;
   		public boolean rotate =                true;
-  		public boolean crop =                  true;  // crop to the sennor size 
+  		public boolean crop =                  true;  // crop to the sennor size
   		public int     equirectangularFormat=     0;  // 0 - 8 bit RGBA, 1 - 16 bit RGBA, 2 (32 int or 16 float!) ?, 3 - 32-bit FP RGBA. only 0, 1 and 3 currently supported
   		public double  outputRangeInt=          0.25;  // 1.0 intensity will be mapped to 65535*0.25
   		public double  outputRangeFP=          255.0; // 1.0 intensity will be saved as 255.0 (in float 32-bit mode)
-  		public boolean imageJTags=             false; // encode ImageJ info data to the TIFF output header 
-  		
+  		public boolean imageJTags=             false; // encode ImageJ info data to the TIFF output header
+
   		public boolean jpeg =                  true;  // convert to RGB and save JPEG (if save is true)
   		public boolean save =                  true;
-  		public boolean save16 =                false; // save 16-bit tiff also if the end result is 8 bit 
+  		public boolean save16 =                false; // save 16-bit tiff also if the end result is 8 bit
   		public boolean save32 =                false; // save 32-bit tiff also if the end result is 8 or 16 bit
   		public boolean show =                  false ;
   		public int     JPEG_quality =          95;
@@ -80,7 +80,7 @@ public class EyesisCorrectionParameters {
     	public String sensorDirectory="";
     	public String sensorPrefix="sensor-";
     	public String sensorSuffix=".calib-tiff"; // fixed in PixelMapping
-    	
+
     	public String sharpKernelDirectory="";
     	public String sharpKernelPrefix="sharpKernel-";
     	public String sharpKernelSuffix=".kernel-tiff";
@@ -97,7 +97,7 @@ public class EyesisCorrectionParameters {
     	public boolean equirectangularCut=true;
     	public String planeMapPrefix="";
     	public String planeMapSuffix=".plane-proj-tiff";
-    	public boolean usePlaneProjection=false;  // 
+    	public boolean usePlaneProjection=false;  //
     	public boolean planeAsJPEG=       true;   // save de-warped image as JPEG (only if equirectangularFormat==0)
 //    	public String equirectangularSuffixA="A.eqr-tiff"; // or the roll-over part
     	public String resultsDirectory="";
@@ -105,12 +105,12 @@ public class EyesisCorrectionParameters {
     	public int exposureCorrectionMode=2; // - 0 - none, 1 - absolute, 2 - relative
     	public double referenceExposure=0.0003; // 3/10000 sec, used in absolute mode only
     	public double relativeExposure=0.5; // 0.0 - use shortest (darken), 1.0 - use longest (brighten)
-    	
+
     	public String cltKernelDirectory="";
     	public String cltKernelPrefix="clt-";
     	public String cltSuffix=".clt-tiff";
 
-    	
+
     	public void setProperties(String prefix,Properties properties){
   			properties.setProperty(prefix+"split",this.split+"");
   			properties.setProperty(prefix+"vignetting",this.vignetting+"");
@@ -151,19 +151,19 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"sourcePrefix",this.sourcePrefix);
     		properties.setProperty(prefix+"sourceSuffix",this.sourceSuffix);
     		properties.setProperty(prefix+"firstSubCamera",this.firstSubCamera+"");
-    		
+
     		properties.setProperty(prefix+"sensorDirectory",this.sensorDirectory);
     		properties.setProperty(prefix+"sensorPrefix",this.sensorPrefix);
     		properties.setProperty(prefix+"sensorSuffix",this.sensorSuffix);
-    		
-    		
+
+
     		properties.setProperty(prefix+"sharpKernelDirectory",this.sharpKernelDirectory);
     		properties.setProperty(prefix+"sharpKernelPrefix",this.sharpKernelPrefix);
     		properties.setProperty(prefix+"sharpKernelSuffix",this.sharpKernelSuffix);
     		properties.setProperty(prefix+"smoothKernelDirectory",this.smoothKernelDirectory);
     		properties.setProperty(prefix+"smoothKernelPrefix",this.smoothKernelPrefix);
     		properties.setProperty(prefix+"smoothKernelSuffix",this.smoothKernelSuffix);
-    		
+
     		properties.setProperty(prefix+"dctKernelDirectory",this.dctKernelDirectory);
     		properties.setProperty(prefix+"dctKernelPrefix",this.dctKernelPrefix);
     		properties.setProperty(prefix+"dctSymSuffix",this.dctSymSuffix);
@@ -173,12 +173,12 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"equirectangularPrefix",this.equirectangularPrefix);
     		properties.setProperty(prefix+"equirectangularSuffix",this.equirectangularSuffix);
     		properties.setProperty(prefix+"equirectangularCut",this.equirectangularCut+"");
-    		
+
     		properties.setProperty(prefix+"planeMapPrefix",this.planeMapPrefix+"");
     		properties.setProperty(prefix+"planeMapSuffix",this.planeMapSuffix+"");
     		properties.setProperty(prefix+"usePlaneProjection",this.usePlaneProjection+"");
     		properties.setProperty(prefix+"planeAsJPEG",this.planeAsJPEG+"");
-    		
+
     		properties.setProperty(prefix+"resultsDirectory",this.resultsDirectory);
     		properties.setProperty(prefix+"removeUnusedSensorData",this.removeUnusedSensorData+"");
     		if (this.sourcePaths!=null) {
@@ -191,7 +191,7 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"referenceExposure",     this.referenceExposure+"");
     		properties.setProperty(prefix+"relativeExposure",      this.relativeExposure+"");
     		properties.setProperty(prefix+"swapSubchannels01",     this.swapSubchannels01+"");
-    		
+
     		properties.setProperty(prefix+"cltKernelDirectory",    this.cltKernelDirectory);
     		properties.setProperty(prefix+"cltKernelPrefix",       this.cltKernelPrefix);
     		properties.setProperty(prefix+"cltSuffix",             this.cltSuffix);
@@ -225,7 +225,7 @@ public class EyesisCorrectionParameters {
   		    if (properties.getProperty(prefix+"imageJTags")!=null) this.imageJTags=Boolean.parseBoolean(properties.getProperty(prefix+"imageJTags"));
   		    if (properties.getProperty(prefix+"jpeg")!=null) this.jpeg=Boolean.parseBoolean(properties.getProperty(prefix+"jpeg"));   // convert to RGB and save jpeg (if save is true)
   		    if (properties.getProperty(prefix+"save")!=null) this.save=Boolean.parseBoolean(properties.getProperty(prefix+"save"));
-  		    if (properties.getProperty(prefix+"save16")!=null) this.save16=Boolean.parseBoolean(properties.getProperty(prefix+"save16")); // save 16-bit tiff also if the end result is 8 bit 
+  		    if (properties.getProperty(prefix+"save16")!=null) this.save16=Boolean.parseBoolean(properties.getProperty(prefix+"save16")); // save 16-bit tiff also if the end result is 8 bit
   		    if (properties.getProperty(prefix+"save32")!=null) this.save32=Boolean.parseBoolean(properties.getProperty(prefix+"save32")); // save 32-bit tiff also if the end result is 8 or 16 bit
   		    if (properties.getProperty(prefix+"show")!=null) this.show=Boolean.parseBoolean(properties.getProperty(prefix+"show"));
   		    if (properties.getProperty(prefix+"JPEG_quality")!=null) this.JPEG_quality=Integer.parseInt(properties.getProperty(prefix+"JPEG_quality"));
@@ -240,7 +240,7 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"sensorDirectory")!=      null) this.sensorDirectory=properties.getProperty(prefix+"sensorDirectory");
 			if (properties.getProperty(prefix+"sensorPrefix")!=         null) this.sensorPrefix=properties.getProperty(prefix+"sensorPrefix");
 			if (properties.getProperty(prefix+"sensorSuffix")!=         null) this.sensorSuffix=properties.getProperty(prefix+"sensorSuffix");
-			
+
 			if (properties.getProperty(prefix+"sharpKernelDirectory")!= null) this.sharpKernelDirectory=properties.getProperty(prefix+"sharpKernelDirectory");
 			if (properties.getProperty(prefix+"sharpKernelPrefix")!=    null) this.sharpKernelPrefix=properties.getProperty(prefix+"sharpKernelPrefix");
 			if (properties.getProperty(prefix+"sharpKernelSuffix")!=    null) this.sharpKernelSuffix=properties.getProperty(prefix+"sharpKernelSuffix");
@@ -252,7 +252,7 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"dctKernelPrefix")!=      null) this.dctKernelPrefix=properties.getProperty(prefix+"dctKernelPrefix");
 			if (properties.getProperty(prefix+"dctSymSuffix")!=         null) this.dctSymSuffix=properties.getProperty(prefix+"dctSymSuffix");
 			if (properties.getProperty(prefix+"dctAsymSuffix")!=        null) this.dctAsymSuffix=properties.getProperty(prefix+"dctAsymSuffix");
-			
+
 			if (properties.getProperty(prefix+"equirectangularDirectory")!=null) this.equirectangularDirectory=properties.getProperty(prefix+"equirectangularDirectory");
 			if (properties.getProperty(prefix+"equirectangularPrefix")!=null) this.equirectangularPrefix=properties.getProperty(prefix+"equirectangularPrefix");
 			if (properties.getProperty(prefix+"equirectangularSuffix")!=null) this.equirectangularSuffix=properties.getProperty(prefix+"equirectangularSuffix");
@@ -281,15 +281,15 @@ public class EyesisCorrectionParameters {
   		    if (properties.getProperty(prefix+"referenceExposure")     !=null) this.referenceExposure=   Double.parseDouble(properties.getProperty(prefix+"referenceExposure"));
   		    if (properties.getProperty(prefix+"relativeExposure")      !=null) this.relativeExposure=    Double.parseDouble(properties.getProperty(prefix+"relativeExposure"));
   		    if (properties.getProperty(prefix+"swapSubchannels01")!=null) this.swapSubchannels01=Boolean.parseBoolean(properties.getProperty(prefix+"swapSubchannels01"));
-  		    
+
 			if (properties.getProperty(prefix+"cltKernelDirectory")!=   null) this.cltKernelDirectory=properties.getProperty(prefix+"cltKernelDirectory");
 			if (properties.getProperty(prefix+"cltKernelPrefix")!=      null) this.cltKernelPrefix=properties.getProperty(prefix+"cltKernelPrefix");
 			if (properties.getProperty(prefix+"cltSuffix")!=            null) this.cltSuffix=properties.getProperty(prefix+"cltSuffix");
-  		    
-  		    
+
+
     	}
 
-    	public boolean showDialog(String title) { 
+    	public boolean showDialog(String title) {
     		GenericDialog gd = new GenericDialog(title);
     		gd.addCheckbox ("Splt into Bayer stack (if false will exit)",       this.split);
     		gd.addCheckbox ("Apply vignetting/color correction to source files",this.vignetting);
@@ -327,7 +327,7 @@ public class EyesisCorrectionParameters {
     		gd.addNumericField("Map 1.0 intensity to this fraction of the full range 8/16/32-bit integer mode output", 100*this.outputRangeInt, 2,6,"%");
     		gd.addNumericField("Map 1.0 intensity to this value in 32-bit floating point output mode", this.outputRangeFP, 2,6,"");
     		gd.addCheckbox ("Encode ImageJ specific Info metadata to the output file TIFF header", this.imageJTags);
-   		
+
 			gd.addCheckbox ("Convert to RGB48",                                 this.toRGB);
     		gd.addCheckbox ("Convert to 8 bit RGB (and save JPEG if save is enabled)", this.jpeg);
     		gd.addCheckbox ("Save the result to file system",                   this.save);
@@ -348,13 +348,13 @@ public class EyesisCorrectionParameters {
     		gd.addCheckbox    ("Select aberration kernels (sharp) directory",      false);
     		gd.addStringField ("Aberration kernels (smooth) directory",            this.smoothKernelDirectory, 60);
     		gd.addCheckbox    ("Select aberration kernels (smooth) directory",     false);
-    		
+
     		gd.addStringField ("Aberration kernels for DCT directory",             this.dctKernelDirectory, 60);
     		gd.addCheckbox    ("Select aberration kernels for DCT directory",      false);
 
     		gd.addStringField ("Aberration kernels for CLT directory",             this.cltKernelDirectory, 60);
     		gd.addCheckbox    ("Select aberration kernels for CLT directory",      false);
-    		
+
     		gd.addStringField("Equirectangular maps directory (may be empty)",     this.equirectangularDirectory, 60);
     		gd.addCheckbox("Select equirectangular maps directory",                false);
     		gd.addStringField("Results directory",                                 this.resultsDirectory, 40);
@@ -362,7 +362,7 @@ public class EyesisCorrectionParameters {
     		gd.addStringField("Source files prefix",                               this.sourcePrefix, 40);
     		gd.addStringField("Source files suffix",                               this.sourceSuffix, 40);
     		gd.addNumericField("First subcamera (in the source filename)",         this.firstSubCamera, 0);
-    		
+
     		gd.addStringField("Sensor files prefix",                               this.sensorPrefix, 40);
     		gd.addStringField("Sensor files suffix",                               this.sensorSuffix, 40);
     		gd.addStringField("Kernel files (sharp) prefix",                       this.sharpKernelPrefix, 40);
@@ -375,19 +375,19 @@ public class EyesisCorrectionParameters {
     		gd.addStringField("DCT asymmetrical kernel files suffix",              this.dctAsymSuffix, 40);
     		gd.addStringField("CLT kernel files  prefix",                          this.cltKernelPrefix, 40);
     		gd.addStringField("CLT symmetical kernel files",                       this.cltSuffix, 40);
-    		
+
     		gd.addStringField("Equirectangular maps prefix",     this.equirectangularPrefix, 40);
     		gd.addStringField("Equirectangular maps suffix",     this.equirectangularSuffix, 40);
     		gd.addCheckbox("Cut rolling-over equirectangular images in two", this.equirectangularCut);
-    		
+
     		gd.addStringField("Plane projection map prefix",     this.planeMapPrefix, 40);
     		gd.addStringField("Plane projection map suffix",     this.planeMapSuffix, 40);
     		gd.addCheckbox("Use projection to a common plane instead of the  equirectangular", this.usePlaneProjection);
     		gd.addCheckbox("Save de-warped images as JPEG instead of TIFF",  this.planeAsJPEG);
 
-    		
+
 //    		gd.addStringField("Suffix for the second part of rolled-over equirectangular images",  this.equirectangularSuffixA, 40);
-			
+
     		gd.addCheckbox   ("Remove unused sensor data",       this.removeUnusedSensorData);
     		gd.addCheckbox   ("Swap top and equator images",     this.swapSubchannels01);
     		WindowTools.addScrollBars(gd);
@@ -431,14 +431,14 @@ public class EyesisCorrectionParameters {
     		this.zcorrect=          gd.getNextBoolean();
     		this.saveSettings=      gd.getNextBoolean();
 
-    		this.sourceDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSourceDirectory(false, false); 
-    		this.sensorDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSensorDirectory(false, false); 
-    		this.sharpKernelDirectory=   gd.getNextString(); if (gd.getNextBoolean()) selectSharpKernelDirectory(false, false); 
+    		this.sourceDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSourceDirectory(false, false);
+    		this.sensorDirectory=        gd.getNextString(); if (gd.getNextBoolean()) selectSensorDirectory(false, false);
+    		this.sharpKernelDirectory=   gd.getNextString(); if (gd.getNextBoolean()) selectSharpKernelDirectory(false, false);
     		this.smoothKernelDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectSmoothKernelDirectory(false, true);
     		this.dctKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectDCTKernelDirectory(false, true);
     		this.cltKernelDirectory=     gd.getNextString(); if (gd.getNextBoolean()) selectCLTKernelDirectory(false, true);
-    		this.equirectangularDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectEquirectangularDirectory(false, false); 
-    		this.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) selectResultsDirectory(false, true); 
+    		this.equirectangularDirectory=  gd.getNextString(); if (gd.getNextBoolean()) selectEquirectangularDirectory(false, false);
+    		this.resultsDirectory=       gd.getNextString(); if (gd.getNextBoolean()) selectResultsDirectory(false, true);
     		this.sourcePrefix=           gd.getNextString();
     		this.sourceSuffix=           gd.getNextString();
     		this.firstSubCamera=   (int) gd.getNextNumber();
@@ -466,7 +466,7 @@ public class EyesisCorrectionParameters {
     		return true;
     	}
 
-    	
+
 // TODO: extract timestamnp from JP4 or, at least combine movie timestamp+frame into a single filename string
     	public String [] getSourcePaths(){
     		String [] empty={};
@@ -477,8 +477,8 @@ public class EyesisCorrectionParameters {
     		int indexSuffix=path.length()-suffix.length();
     		int indexLastDash=indexSuffix-1; // in jp4 it will be underscore, not dash? Or should we change that?
     		while ((indexLastDash>0) &&
-    				(indexLastDash>(indexSuffix-3)) && 
-    				(path.charAt(indexLastDash)!='_') && 
+    				(indexLastDash>(indexSuffix-3)) &&
+    				(path.charAt(indexLastDash)!='_') &&
     				(path.charAt(indexLastDash)!='-')) indexLastDash--;
     		return Integer.parseInt(path.substring(indexLastDash+1,indexSuffix));
 
@@ -487,8 +487,8 @@ public class EyesisCorrectionParameters {
     		int indexSuffix=path.length()-suffix.length();
     		int indexLastDash=indexSuffix-1; // in jp4 it will be underscore, not dash? Or should we change that?
     		while ((indexLastDash>0) &&
-    				(indexLastDash>(indexSuffix-3)) && 
-    				(path.charAt(indexLastDash)!='_') && 
+    				(indexLastDash>(indexSuffix-3)) &&
+    				(path.charAt(indexLastDash)!='_') &&
     				(path.charAt(indexLastDash)!='-')) indexLastDash--;
     		int nameStart=path.lastIndexOf(Prefs.getFileSeparator())+1;
     		return path.substring(nameStart,indexLastDash);
@@ -498,16 +498,16 @@ public class EyesisCorrectionParameters {
     	}
     	public int getChannelFromSourceTiff(String path){ return getChannelFromTiff(path, this.sourceSuffix);	}
     	public String getNameFromSourceTiff(String path){ return getNameFromTiff(path, this.sourceSuffix);	}
-    	
+
     	public int getChannelFromKernelTiff(String path, int type){return getChannelFromTiff(path, (type==0)?this.sharpKernelSuffix:this.smoothKernelSuffix);}
     	public String getNameFromKernelTiff(String path, int type){return getNameFromTiff(path, (type==0)?this.sharpKernelSuffix:this.smoothKernelSuffix);}
-    	
+
     	public int getChannelFromDCTTiff(String path, int type){return getChannelFromTiff(path, (type==0)?this.dctSymSuffix:this.dctAsymSuffix);}
     	public String getNameFromDCTTiff(String path, int type){return getNameFromTiff(path, (type==0)?this.dctSymSuffix:this.dctAsymSuffix);}
-    	
+
     	public int getChannelFromCLTTiff(String path){return getChannelFromTiff(path, this.cltSuffix);}
     	public String getNameFromCLTTiff(String path){return getNameFromTiff(path, this.cltSuffix);}
-    	
+
     	public boolean selectSourceFiles(boolean allFiles) {
     		return selectSourceFiles(allFiles, 1); // debug level 1 - modify here
     	}
@@ -573,7 +573,7 @@ public class EyesisCorrectionParameters {
 			String [] sensorFiles=null;
 // try reading all matching files
 			File dir= new File (this.sensorDirectory);
-//			if (debugLevel>1) System.out.println("selectSensorFiles, dir="+this.sensorDirectory);
+			if (debugLevel>1) System.out.println("selectSensorFiles, dir="+this.sensorDirectory);
 			File [] fileList=null;
 			if (dir.exists()) {
 				fileList=dir.listFiles(sensorFilter);
@@ -592,7 +592,7 @@ public class EyesisCorrectionParameters {
     			}
 			}
 			if ((fileList==null) || (fileList.length==0)) return null;
-    		
+
 			if (debugLevel>1) System.out.println("Sensor directory "+this.sensorDirectory+" has "+fileList.length+" matching sensor files.");
 			sensorFiles = new String[fileList.length];
 			for (int i=0;i<sensorFiles.length;i++) sensorFiles[i]=fileList[i].getPath();
@@ -601,7 +601,7 @@ public class EyesisCorrectionParameters {
 			String prefix=sensorFiles[0].substring(directory.length()+1, sensorFiles[0].length()-extensions[0].length()-2); // all but NN
 			this.sensorDirectory=directory;
 			this.sensorPrefix=prefix;
-		
+
 			return sensorFiles;
     	}
 
@@ -697,9 +697,9 @@ public class EyesisCorrectionParameters {
 			if (debugLevel>1) System.out.println("selectPlaneMapFile() -> "+ planeMapFile);
 			return planeMapFile;
     	}
-    	
-    	
-    	
+
+
+
     	public String [] selectKernelChannelFiles(
     			int type,  // 0 - sharp, 1 - smooth
     			int numChannels, // number of channels
@@ -723,7 +723,7 @@ public class EyesisCorrectionParameters {
     		}
     		return channelPaths;
     	}
-    	
+
     	public String [] selectKernelFiles(
     			int type,  // 0 - sharp, 1 - smooth
     			int debugLevel) { // will only open dialog if directory or files are not found
@@ -776,7 +776,7 @@ public class EyesisCorrectionParameters {
 			else         this.smoothKernelPrefix=prefix;
 			return kernelFiles;
     	}
-    	
+
     	public String [] selectDCTChannelFiles(
     			int numChannels, // number of channels
     			int debugLevel) { // will only open dialog if directory or files are not found
@@ -798,7 +798,7 @@ public class EyesisCorrectionParameters {
     		}
     		return channelPaths;
     	}
-    	
+
     	public String [] selectDCTFiles(
     			int debugLevel) { // will only open dialog if directory or files are not found
     		String []defaultPaths = new String[1];
@@ -847,9 +847,9 @@ public class EyesisCorrectionParameters {
 			this.dctKernelPrefix=prefix;
 			return kernelFiles;
     	}
-    	
 
-    	
+
+
     	public String [] selectCLTChannelFiles(
     			int numChannels, // number of channels
     			int debugLevel) { // will only open dialog if directory or files are not found
@@ -871,7 +871,7 @@ public class EyesisCorrectionParameters {
     		}
     		return channelPaths;
     	}
-    	
+
     	public String [] selectCLTFiles(
     			int debugLevel) { // will only open dialog if directory or files are not found
     		String []defaultPaths = new String[1];
@@ -918,11 +918,11 @@ public class EyesisCorrectionParameters {
 			this.cltKernelPrefix=prefix;
 			return kernelFiles;
     	}
-    	
+
     	public String selectSourceDirectory(boolean smart, boolean newAllowed) { // normally newAllowed=false
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
-    				newAllowed, // save  
+    				newAllowed, // save
     				"Source (acquired from the camera) image directory", // title
     				"Select source directory", // button
     				null, // filter
@@ -933,7 +933,7 @@ public class EyesisCorrectionParameters {
     	public String selectSensorDirectory(boolean smart,  boolean newAllowed) {
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
-    				newAllowed, // save  
+    				newAllowed, // save
     				"Sensor calibration directory", // title
     				"Select sensor calibration directory", // button
     				null, // filter
@@ -944,7 +944,7 @@ public class EyesisCorrectionParameters {
     	public String selectSharpKernelDirectory(boolean smart, boolean newAllowed) {
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
-    				newAllowed, // save  
+    				newAllowed, // save
     				"Aberration kernels (sharp) directory", // title
     				"Select aberration kernels (sharp) directory", // button
     				null, // filter
@@ -952,11 +952,11 @@ public class EyesisCorrectionParameters {
     		if (dir!=null) this.sharpKernelDirectory=dir;
     		return dir;
     	}
-    	
+
     	public String selectSmoothKernelDirectory(boolean smart, boolean newAllowed) {
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
-    				newAllowed, // save  
+    				newAllowed, // save
     				"Aberration kernels (smooth) directory", // title
     				"Select aberration kernels (smooth) directory", // button
     				null, // filter
@@ -964,11 +964,11 @@ public class EyesisCorrectionParameters {
     		if (dir!=null) this.smoothKernelDirectory=dir;
     		return dir;
     	}
-    	
+
     	public String selectDCTKernelDirectory(boolean smart, boolean newAllowed) {
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
-    				newAllowed, // save  
+    				newAllowed, // save
     				"DCT aberration kernels directory (sym and asym files)", // title
     				"Select DCT aberration kernel sdirectory", // button
     				null, // filter
@@ -976,11 +976,11 @@ public class EyesisCorrectionParameters {
     		if (dir!=null) this.dctKernelDirectory=dir;
     		return dir;
     	}
-    	
+
     	public String selectCLTKernelDirectory(boolean smart, boolean newAllowed) {
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
-    				newAllowed, // save  
+    				newAllowed, // save
     				"CLT aberration kernels directory", // title
     				"Select CLT aberration kernels directory", // button
     				null, // filter
@@ -992,7 +992,7 @@ public class EyesisCorrectionParameters {
     	public String selectEquirectangularDirectory(boolean smart, boolean newAllowed) {
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
-    				newAllowed, // save  
+    				newAllowed, // save
     				"Equirectangular maps directory", // title
     				"Select equirectangular maps directory", // button
     				null, // filter
@@ -1003,7 +1003,7 @@ public class EyesisCorrectionParameters {
     	public String selectResultsDirectory(boolean smart, boolean newAllowed) {
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
-    				newAllowed, // save  
+    				newAllowed, // save
     				"Results directory", // title
     				"Select results directory", // button
     				null, // filter
@@ -1012,8 +1012,8 @@ public class EyesisCorrectionParameters {
     		return dir;
     	}
      }
-    
-    
+
+
     /* === Parameter classes === */
     public static class ProcessParameters {
   	    public int numEyesisChannels=3;
@@ -1039,10 +1039,10 @@ public class EyesisCorrectionParameters {
   		public boolean blueProc;
   		public boolean toRGB;
   		public boolean rotate;
-  		public boolean crop;   // crop to the sennor size 
+  		public boolean crop;   // crop to the sennor size
   		public boolean jpeg;   // convert to RGB and save jpeg (if save is true)
   		public boolean save;
-  		public boolean save16; // save 16-bit tiff also if the end result is 8 bit 
+  		public boolean save16; // save 16-bit tiff also if the end result is 8 bit
   		public boolean save32; // save 32-bit tiff also if the end result is 8 or 16 bit
   		public boolean show;
   		public int     JPEG_quality;
@@ -1050,7 +1050,7 @@ public class EyesisCorrectionParameters {
   		public boolean saveSettings;
 
   		public ProcessParameters(
-  			boolean eyesisMode,	
+  			boolean eyesisMode,
   			boolean frames_11,
   			boolean frames_12,
   			boolean frames_13,
@@ -1079,10 +1079,10 @@ public class EyesisCorrectionParameters {
   			boolean blueProc,
   			boolean toRGB,
   			boolean rotate,
-  			boolean crop,   // crop to the sennor size 
+  			boolean crop,   // crop to the sennor size
   			boolean jpeg,   // convert to RGB and save jpeg (if save is true)
   			boolean save,
-  			boolean save16, // save 16-bit tiff also if the end result is 8 bit 
+  			boolean save16, // save 16-bit tiff also if the end result is 8 bit
   			boolean save32, // save 32-bit tiff also if the end result is 8 or 16 bit
   			boolean show,
   			int     JPEG_quality,
@@ -1190,10 +1190,10 @@ public class EyesisCorrectionParameters {
   		    if (properties.getProperty(prefix+"blueProc")!=null) this.blueProc=Boolean.parseBoolean(properties.getProperty(prefix+"blueProc"));
   		    if (properties.getProperty(prefix+"toRGB")!=null) this.toRGB=Boolean.parseBoolean(properties.getProperty(prefix+"toRGB"));
   		    if (properties.getProperty(prefix+"rotate")!=null) this.rotate=Boolean.parseBoolean(properties.getProperty(prefix+"rotate"));
-  		    if (properties.getProperty(prefix+"crop")!=null) this.crop=Boolean.parseBoolean(properties.getProperty(prefix+"crop"));   // crop to the sensor size 
+  		    if (properties.getProperty(prefix+"crop")!=null) this.crop=Boolean.parseBoolean(properties.getProperty(prefix+"crop"));   // crop to the sensor size
   		    if (properties.getProperty(prefix+"jpeg")!=null) this.jpeg=Boolean.parseBoolean(properties.getProperty(prefix+"jpeg"));   // convert to RGB and save jpeg (if save is true)
   		    if (properties.getProperty(prefix+"save")!=null) this.save=Boolean.parseBoolean(properties.getProperty(prefix+"save"));
-  		    if (properties.getProperty(prefix+"save16")!=null) this.save16=Boolean.parseBoolean(properties.getProperty(prefix+"save16")); // save 16-bit tiff also if the end result is 8 bit 
+  		    if (properties.getProperty(prefix+"save16")!=null) this.save16=Boolean.parseBoolean(properties.getProperty(prefix+"save16")); // save 16-bit tiff also if the end result is 8 bit
   		    if (properties.getProperty(prefix+"save32")!=null) this.save32=Boolean.parseBoolean(properties.getProperty(prefix+"save32")); // save 32-bit tiff also if the end result is 8 or 16 bit
   		    if (properties.getProperty(prefix+"show")!=null) this.show=Boolean.parseBoolean(properties.getProperty(prefix+"show"));
   		    if (properties.getProperty(prefix+"JPEG_quality")!=null) this.JPEG_quality=Integer.parseInt(properties.getProperty(prefix+"JPEG_quality"));
@@ -1201,7 +1201,7 @@ public class EyesisCorrectionParameters {
   		    if (properties.getProperty(prefix+"saveSettings")!=null) this.saveSettings=Boolean.parseBoolean(properties.getProperty(prefix+"saveSettings"));
   		}
   	}
-    
+
   /* ======================================================================== */
     public static class FilesParameters {
   	  public String [][] rPSFNames=new String [3][3];
@@ -1259,11 +1259,11 @@ public class EyesisCorrectionParameters {
 //  			properties.setProperty(prefix+"",this.+"");
   			int i,j;
   			for (i=0;i<this.rPSFNames.length;i++) for (j=0;j<this.rPSFNames[i].length;j++)
-  				properties.setProperty(prefix+"rPSFNames_"+i+"_"+j,this.rPSFNames[i][j]);				
+  				properties.setProperty(prefix+"rPSFNames_"+i+"_"+j,this.rPSFNames[i][j]);
   			for (i=0;i<this.gaussianNames.length;i++) for (j=0;j<this.gaussianNames[i].length;j++)
   				properties.setProperty(prefix+"gaussianNames_"+i+"_"+j,this.gaussianNames[i][j]);
   			properties.setProperty(prefix+"kernelDirectory",this.kernelDirectory);
-  			properties.setProperty(prefix+"resultsDirectory",this.resultsDirectory);	
+  			properties.setProperty(prefix+"resultsDirectory",this.resultsDirectory);
   			properties.setProperty(prefix+"useXML",this.useXML+"");
   			j=(this.sourceFiles==null)?0:this.sourceFiles.length;
   			properties.setProperty(prefix+"sourceFiles_length",j+"");
@@ -1319,10 +1319,10 @@ public class EyesisCorrectionParameters {
   			this.g_max=Double.parseDouble(properties.getProperty(prefix+"g_max"));
   			this.b_max=Double.parseDouble(properties.getProperty(prefix+"b_max"));
   		}
-  		
+
   	}
   /* ======================================================================== */
-    
+
     public static class ColorProcParameters {
   		public double balanceRed;
   		public double balanceBlue;
@@ -1349,15 +1349,15 @@ public class EyesisCorrectionParameters {
   		public double satDetPartInside;  // Fraction of all pixels in the square to fit inside
   		public double satDetMinFrac;     // minimal value for average compared to average over the whole picture
   		public double satDetFinRelDiff;  // maximal difference from average for the saturated tile to be considered saturated
-  		public double satDetGrowRelDiff; // maximal difference from start tile average during growing of overexposed areas 
-  		public double satDetNewWeight;   // weight of new pixel when expanding overexposed areas 
-  		
+  		public double satDetGrowRelDiff; // maximal difference from start tile average during growing of overexposed areas
+  		public double satDetNewWeight;   // weight of new pixel when expanding overexposed areas
+
   		public int    satDetExpSym; // number of overexposure expand steps, not allowing any brighter
   		public int    satDetExpOver;// number of overexposure expand steps, limited under, any over
 
   		public int    satDetExpCleanUp; // number of overexposure expand steps, not allowing any brighter (final to clean up oscillations)
-  		public double satDetGrowRelDiffCleanUp; // maximal difference from start tile average during growing of overexposed areas (final to clean up oscillations) 
-  		
+  		public double satDetGrowRelDiffCleanUp; // maximal difference from start tile average during growing of overexposed areas (final to clean up oscillations)
+
   		public int    blueOverShrink; // shrink blue overexposed area by this number of pixels (to get to undisturbed R/G)
   		public int    blueOverGrow; // grow blue overexposed area by this number of pixels
   		public double blueBandWidth; // average amount of blue leak in pixels
@@ -1367,13 +1367,13 @@ public class EyesisCorrectionParameters {
   		public double blueSolutionRadius;   // How far to trust blue color ratio from the found solution (in pixels)
   		public boolean blueLeakNoHint;      // use blueNeutral in the small areas that do not have reliable color sample
   		public boolean blueLeakNoBrighten; // Do not brighten corrected areas, only darken
-  		
+
   		public boolean blueLeakFixWires; //Fix thin objects with saturated blue, but not R+G
   		public double  blueLeakWiresSize; //size (in pixels) of the small objects to fix blue
   		public double  blueLeakWiresThreshold; // relative to saturation level threshold of the small blue-flooded objects on red+green to process
-  		
+
   		public boolean use8; // use 8 neighbors (false - only 4)
-  		
+
   		public ColorProcParameters(
   				double balanceRed,
   				double balanceBlue,
@@ -1403,18 +1403,18 @@ public class EyesisCorrectionParameters {
   				double satDetMinFrac,    // minimal value for average compared to average over the whole picture
   				double satDetFinRelDiff, // maximal difference from average for the saturated tile to be considered saturated
   				double satDetGrowRelDiff, //maximal difference from start tile average during growing of overexposed areas
-  		  		double satDetNewWeight,   // weight of new pixel when expanding overexposed areas 
+  		  		double satDetNewWeight,   // weight of new pixel when expanding overexposed areas
 
   				int    satDetExpSym,     // number of overexposure expand steps, not allowing any brighter
   		  		int    satDetExpOver,     // number of overexposure expand steps, limited under, any over
   		  		int    satDetExpCleanUp, // number of overexposure expand steps, not allowing any brighter (final to clean up oscillations)
-  		  		double satDetGrowRelDiffCleanUp, // maximal difference from start tile average during growing of overexposed areas (final to clean up oscillations) 
+  		  		double satDetGrowRelDiffCleanUp, // maximal difference from start tile average during growing of overexposed areas (final to clean up oscillations)
   		  		int    blueOverShrink, // shrink blue overexposed area by this number of pixels (to get to undisturbed R/G)
   		  		int    blueOverGrow, // grow blue overexposed area by this number of pixels
   		  		double blueBandWidth,
   		  		double blueBandWidthDark, // average amount of blue leak in pixels (slope at dark)
   		  		double blueNeutral, // Value of Yb/Yrg ratio for the small areas where safe color c an not be found
-  		  		double blueSolutionRadius, // How far to trust blue color ratio from the found solution (in pixels) 
+  		  		double blueSolutionRadius, // How far to trust blue color ratio from the found solution (in pixels)
   		  		boolean blueLeakNoHint,    // use blueNeutral in the small areas that do not have reliable color sample
   		  		boolean blueLeakNoBrighten, // Do not brighten corrected areas, only darken
   		  		boolean blueLeakFixWires, //Fix thin objects with saturated blue, but not R+G
@@ -1448,7 +1448,7 @@ public class EyesisCorrectionParameters {
   			this.satDetMinFrac=satDetMinFrac;    // minimal value for average compared to average over the whole picture
   			this.satDetFinRelDiff=satDetFinRelDiff; // maximal difference from average for the saturated tile to be considered saturated
   			this.satDetGrowRelDiff=satDetGrowRelDiff; //maximal difference from start tile average during growing of overexposed areas
-  			this.satDetNewWeight=satDetNewWeight;   // weight of new pixel when expanding overexposed areas 
+  			this.satDetNewWeight=satDetNewWeight;   // weight of new pixel when expanding overexposed areas
   			this.satDetExpSym=satDetExpSym;     // number of overexposure expand steps, not allowing any brighter
   			this.satDetExpOver=satDetExpOver;    // number of overexposure expand steps, limited under, any over
   			this.satDetExpCleanUp=satDetExpCleanUp; // number of overexposure expand steps, not allowing any brighter (final to clean up oscillations)
@@ -1461,11 +1461,11 @@ public class EyesisCorrectionParameters {
   			this.blueSolutionRadius=blueSolutionRadius; // How far to trust blue color ratio from the found solution (in pixels)
   			this.blueLeakNoHint=blueLeakNoHint;    // use blueNeutral in the small areas that do not have reliable color sample
 		  	this.blueLeakNoBrighten=blueLeakNoBrighten; // Do not brighten corrected areas, only darken
-		  	
+
 		  	this.blueLeakFixWires=blueLeakFixWires; //Fix thin objects with saturated blue, but not R+G
 		  	this.blueLeakWiresSize=blueLeakWiresSize; //size (in pixels) of the small objects to fix blue
 		  	this.blueLeakWiresThreshold=blueLeakWiresThreshold; //size (in pixels) of the small objects to fix blue
-		  	
+
   			this.use8=use8; // use 8 neighbors (false - only 4)
   		}
   		public void setProperties(String prefix,Properties properties){
@@ -1495,10 +1495,10 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"satDetMinFrac",this.satDetMinFrac+"");
   			properties.setProperty(prefix+"satDetFinRelDiff",this.satDetFinRelDiff+"");
   			properties.setProperty(prefix+"satDetGrowRelDiff",this.satDetGrowRelDiff+"");
-  			
-  			
+
+
   			properties.setProperty(prefix+"satDetNewWeight",this.satDetNewWeight+"");
-  			
+
   			properties.setProperty(prefix+"satDetExpSym",this.satDetExpSym+"");
   			properties.setProperty(prefix+"satDetExpOver",this.satDetExpOver+"");
 
@@ -1508,19 +1508,19 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"blueOverGrow",this.blueOverGrow+"");
   			properties.setProperty(prefix+"blueBandWidth",this.blueBandWidth+"");
   			properties.setProperty(prefix+"blueBandWidthDark",this.blueBandWidthDark+"");
-  			
+
   			properties.setProperty(prefix+"blueNeutral",this.blueNeutral+"");
   			properties.setProperty(prefix+"blueSolutionRadius",this.blueSolutionRadius+"");
- 			
+
   			properties.setProperty(prefix+"blueLeakNoHint",this.blueLeakNoHint+"");
   			properties.setProperty(prefix+"blueLeakNoBrighten",this.blueLeakNoBrighten+"");
-  			
+
   			properties.setProperty(prefix+"blueLeakFixWires",this.blueLeakFixWires+"");
   			properties.setProperty(prefix+"blueLeakWiresSize",this.blueLeakWiresSize+"");
   			properties.setProperty(prefix+"blueLeakWiresThreshold",this.blueLeakWiresThreshold+"");
-  			
+
   			properties.setProperty(prefix+"use8",this.use8+"");
-  			
+
   		}
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"balanceRed")!=null) this.balanceRed=Double.parseDouble(properties.getProperty(prefix+"balanceRed"));
@@ -1556,10 +1556,10 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"satDetExpCleanUp")!=null) this.satDetExpCleanUp=Integer.parseInt(properties.getProperty(prefix+"satDetExpCleanUp"));
   			if (properties.getProperty(prefix+"satDetGrowRelDiffCleanUp")!=null) this.satDetGrowRelDiffCleanUp=Double.parseDouble(properties.getProperty(prefix+"satDetGrowRelDiffCleanUp"));
   			if (properties.getProperty(prefix+"blueOverShrink")!=null) this.blueOverShrink=Integer.parseInt(properties.getProperty(prefix+"blueOverShrink"));
-  			
+
 //  			if (properties.getProperty(prefix+"blueOverGrow")!=null) this.blueOverGrow=Integer.parseInt(properties.getProperty(prefix+"blueOverGrow"));
   			if (properties.getProperty(prefix+"blueOverGrow")!=null) this.blueOverGrow=(int) Double.parseDouble(properties.getProperty(prefix+"blueOverGrow"));
-  			
+
   			if (properties.getProperty(prefix+"blueBandWidth")!=null) this.blueBandWidth=Double.parseDouble(properties.getProperty(prefix+"blueBandWidth"));
   			if (properties.getProperty(prefix+"blueBandWidthDark")!=null) this.blueBandWidthDark=Double.parseDouble(properties.getProperty(prefix+"blueBandWidthDark"));
   			if (properties.getProperty(prefix+"blueNeutral")!=null) this.blueNeutral=Double.parseDouble(properties.getProperty(prefix+"blueNeutral"));
@@ -1567,21 +1567,21 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"blueLeakNoHint")!=null) this.blueLeakNoHint=Boolean.parseBoolean(properties.getProperty(prefix+"blueLeakNoHint"));
 
   			if (properties.getProperty(prefix+"blueLeakNoBrighten")!=null) this.blueLeakNoBrighten=Boolean.parseBoolean(properties.getProperty(prefix+"blueLeakNoBrighten"));
-  			
+
   			if (properties.getProperty(prefix+"blueLeakFixWires")!=null) this.blueLeakFixWires=Boolean.parseBoolean(properties.getProperty(prefix+"blueLeakFixWires"));
   			if (properties.getProperty(prefix+"blueLeakWiresSize")!=null) this.blueLeakWiresSize=Double.parseDouble(properties.getProperty(prefix+"blueLeakWiresSize"));
   			if (properties.getProperty(prefix+"blueLeakWiresThreshold")!=null) this.blueLeakWiresThreshold=Double.parseDouble(properties.getProperty(prefix+"blueLeakWiresThreshold"));
-  			
+
   			if (properties.getProperty(prefix+"use8")!=null) this.use8=Boolean.parseBoolean(properties.getProperty(prefix+"use8"));
   		}
   	}
     /* ======================================================================== */
   // individual per-channel color balance and gain
     public static class ColorCalibParameters {
-  		public double[][] gain=new double[3][3]; 
+  		public double[][] gain=new double[3][3];
   		public double[][] balanceRed=new double[3][3];
   		public double[][] balanceBlue=new double[3][3];
-  		
+
   	  	public ColorCalibParameters(
   	  			double gain_11,
   	  			double gain_12,
@@ -1669,7 +1669,7 @@ public class EyesisCorrectionParameters {
     /* ======================================================================== */
     public static class NonlinParameters {
     	public boolean useRejectBlocksFilter;
-    	public boolean combineBothModes; 
+    	public boolean combineBothModes;
    	public int    maskFFTSize; // 256
    	public int    blockPeriod; // 32
     	public double rejectFreqSigma; // 1.0, frequency domain
@@ -1685,18 +1685,18 @@ public class EyesisCorrectionParameters {
   	};
     	public double threshold;
   	public boolean useDiffNoiseGains;
-  	public double [] noiseGainWeights=new double[3]; 
-  	double blurSigma;     // blur sigma for mask calculation (blur convolution kernels for noise gain calculation 
+  	public double [] noiseGainWeights=new double[3];
+  	double blurSigma;     // blur sigma for mask calculation (blur convolution kernels for noise gain calculation
   	public double  noiseGainPower;
     	public boolean showMask;
   // ring filter
     	public boolean useRingFilter;    // filter out spots on denoise mask
       public double minMaxValue;       // minimal value (relative to filtMax) of the local maximum to be processed
-      public double overRingThreshold; // ratio of local max. and maximal value in the surrounding ring to trigger filter 
+      public double overRingThreshold; // ratio of local max. and maximal value in the surrounding ring to trigger filter
       public double overRingLimit;     // limit values in the center circle to scaled maximum in a ring
       public double ringIR;            // ring inner radius (center circle radius)
       public double ringOR;            // ring outer radius
-      
+
     	public NonlinParameters(
     			boolean useRejectBlocksFilter,
     			boolean combineBothModes,
@@ -1720,15 +1720,15 @@ public class EyesisCorrectionParameters {
   			double noiseGainWeights_0, // r
   			double noiseGainWeights_1, // b
   			double noiseGainWeights_2, // g
-  			double blurSigma,     // blur sigma for mask calculation (blur convolution kernels for noise gain calculation 
+  			double blurSigma,     // blur sigma for mask calculation (blur convolution kernels for noise gain calculation
   			double noiseGainPower,
   			boolean useRingFilter,    // filter out spots on denoise mask
     		    double minMaxValue,       // minimal value (relative to filtMax) of the local maximum to be processed
-    		    double overRingThreshold, // ratio of local max. and maximal value in the surrounding ring to trigger filter 
+    		    double overRingThreshold, // ratio of local max. and maximal value in the surrounding ring to trigger filter
     		    double overRingLimit,     // limit values in the center circle to scaled maximum in a ring
     		    double ringIR,            // ring inner radius (center circle radius)
     		    double ringOR             // ring outer radius
-  			
+
   ) {
     		this.useRejectBlocksFilter=useRejectBlocksFilter;
     		this.combineBothModes=combineBothModes;
@@ -1756,14 +1756,14 @@ public class EyesisCorrectionParameters {
   		this.noiseGainPower=noiseGainPower;
   		this.useRingFilter=useRingFilter;
   		this.minMaxValue=minMaxValue;
-  		this.overRingThreshold=overRingThreshold; 
+  		this.overRingThreshold=overRingThreshold;
   		this.overRingLimit=overRingLimit;
   		this.ringIR=ringIR;
   		this.ringOR=ringOR;
-  		
+
     	}
     	public void modifyNumChannels(int numChannels){
-    		if ((numChannels>0) && (numChannels!=this.thresholdCorr.length)){ 
+    		if ((numChannels>0) && (numChannels!=this.thresholdCorr.length)){
     			double [] thresholdCorr1=this.thresholdCorr;
     			this.thresholdCorr=  new double[numChannels];
     			for (int i=0;i<numChannels;i++) {
@@ -1786,8 +1786,8 @@ public class EyesisCorrectionParameters {
   		properties.setProperty(prefix+"filtMax",this.filtMax+"");
   		for (int i=0;i<this.thresholdCorrection.length;i++) for (int j=0;j<this.thresholdCorrection[i].length;j++)
   		  properties.setProperty(prefix+"thresholdCorrection_"+i+"_"+j,this.thresholdCorrection[i][j]+"");
-  		
-  		
+
+
   		properties.setProperty(prefix+"threshold",this.threshold+"");
   		properties.setProperty(prefix+"useDiffNoiseGains",this.useDiffNoiseGains+"");
   		for (int i=0;i<this.noiseGainWeights.length;i++)
@@ -1796,7 +1796,7 @@ public class EyesisCorrectionParameters {
   		properties.setProperty(prefix+"noiseGainPower",this.noiseGainPower+"");
   		properties.setProperty(prefix+"useRingFilter",this.useRingFilter+"");
   		properties.setProperty(prefix+"minMaxValue",this.minMaxValue+"");
-  		properties.setProperty(prefix+"overRingThreshold",this.overRingThreshold+""); 
+  		properties.setProperty(prefix+"overRingThreshold",this.overRingThreshold+"");
   		properties.setProperty(prefix+"overRingLimit",this.overRingLimit+"");
   		properties.setProperty(prefix+"ringIR",this.ringIR+"");
   		properties.setProperty(prefix+"ringOR",this.ringOR+"");
@@ -1807,7 +1807,7 @@ public class EyesisCorrectionParameters {
   		//  		this.oversample=Integer.parseInt(properties.getProperty(prefix+"oversample"));
   		String s;
   		this.useRejectBlocksFilter=Boolean.parseBoolean(properties.getProperty(prefix+"useRejectBlocksFilter"));
-  		this.combineBothModes=Boolean.parseBoolean(properties.getProperty(prefix+"combineBothModes")); 
+  		this.combineBothModes=Boolean.parseBoolean(properties.getProperty(prefix+"combineBothModes"));
   		this.maskFFTSize=Integer.parseInt(properties.getProperty(prefix+"maskFFTSize"));
   		this.blockPeriod=Integer.parseInt(properties.getProperty(prefix+"blockPeriod"));
   		this.rejectFreqSigma=Double.parseDouble(properties.getProperty(prefix+"rejectFreqSigma"));
@@ -1819,14 +1819,14 @@ public class EyesisCorrectionParameters {
   		this.threshold=Double.parseDouble(properties.getProperty(prefix+"threshold"));
   		this.useDiffNoiseGains=Boolean.parseBoolean(properties.getProperty(prefix+"useDiffNoiseGains"));
   		for (int i=0;i<this.noiseGainWeights.length;i++)
-  			this.noiseGainWeights[i]=Double.parseDouble(properties.getProperty(prefix+"noiseGainWeights_"+i)); 
+  			this.noiseGainWeights[i]=Double.parseDouble(properties.getProperty(prefix+"noiseGainWeights_"+i));
   		this.blurSigma=Double.parseDouble(properties.getProperty(prefix+"blurSigma"));
   		this.noiseGainPower=Double.parseDouble(properties.getProperty(prefix+"noiseGainPower"));
   		s=properties.getProperty(prefix+"useRingFilter");
   		if ((s==null) || (s=="")) return; // earlier revision
   		this.useRingFilter=Boolean.parseBoolean(properties.getProperty(prefix+"useRingFilter"));
   		this.minMaxValue=Double.parseDouble(properties.getProperty(prefix+"minMaxValue"));
-  		this.overRingThreshold=Double.parseDouble(properties.getProperty(prefix+"overRingThreshold")); 
+  		this.overRingThreshold=Double.parseDouble(properties.getProperty(prefix+"overRingThreshold"));
   		this.overRingLimit=Double.parseDouble(properties.getProperty(prefix+"overRingLimit"));
   		this.ringIR=Double.parseDouble(properties.getProperty(prefix+"ringIR"));
   		this.ringOR=Double.parseDouble(properties.getProperty(prefix+"ringOR"));
@@ -1874,7 +1874,7 @@ public class EyesisCorrectionParameters {
   		public double     shift_x =           0.0;
   		public double     shift_y =           0.0;
   		public int        iclt_mask =          15; // which transforms to combine
-  		public int        tileX =             258; // number of kernel tile (0..163) 
+  		public int        tileX =             258; // number of kernel tile (0..163)
   		public int        tileY =             133; // number of kernel tile (0..122)
   		public int        dbg_mode =            0; // 0 - normal, +1 - no DCT/IDCT
   		public int        ishift_x =            0; // debug feature - shift source image by this pixels left
@@ -1882,7 +1882,7 @@ public class EyesisCorrectionParameters {
   		public double     fat_zero =          0.0; // modify phase correlation to prevent division by very small numbers
   		public double     corr_sigma =        0.8; // LPF correlarion sigma
   		public boolean    norm_kern =         true; // normalize kernels
-  		
+
   		public double     novignetting_r    = 0.2644; // reg gain in the center of sensor calibration R (instead of vignetting)
   		public double     novignetting_g    = 0.3733; // green gain in the center of sensor calibration G
   		public double     novignetting_b    = 0.2034; // blue gain in the center of sensor calibration B
@@ -1891,8 +1891,8 @@ public class EyesisCorrectionParameters {
   		public double     scale_b =           1.0;
   		public double     vignetting_max    = 0.4; // value in vignetting data to correspond to 1x in the kernel
   		public double     vignetting_range  = 5.0; // do not try to correct vignetting less than vignetting_max/vignetting_range
-  		public int        kernel_step =       16;  // source kernels step in pixels (have 1 kernel margin on each side)  
-  		
+  		public int        kernel_step =       16;  // source kernels step in pixels (have 1 kernel margin on each side)
+
   		public CLTParameters(){}
   		public void setProperties(String prefix,Properties properties){
   			properties.setProperty(prefix+"transform_size",   this.transform_size+"");
@@ -1917,7 +1917,7 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"vignetting_max",   this.vignetting_max+"");
   			properties.setProperty(prefix+"vignetting_range", this.vignetting_range+"");
   			properties.setProperty(prefix+"kernel_step",      this.kernel_step+"");
-  			
+
   		}
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"transform_size")!=null) this.transform_size=Integer.parseInt(properties.getProperty(prefix+"transform_size"));
@@ -1943,7 +1943,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"vignetting_range")!=null) this.vignetting_range=Double.parseDouble(properties.getProperty(prefix+"vignetting_range"));
   			if (properties.getProperty(prefix+"kernel_step")!=null)    this.kernel_step=Integer.parseInt(properties.getProperty(prefix+"kernel_step"));
   		}
-  		
+
   		public boolean showDialog() {
   			GenericDialog gd = new GenericDialog("Set DCT parameters");
   			gd.addNumericField("Transform size (default 8)",                                              this.transform_size,            0);
@@ -1968,10 +1968,10 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Value (max) in vignetting data to correspond to 1x in the kernel",        this.vignetting_max,      3);
   			gd.addNumericField("Do not try to correct vignetting smaller than this fraction of max",      this.vignetting_range,  3);
   			gd.addNumericField("Kernel step in pixels (has 1 kernel margin on each side)",                this.kernel_step,            0);
-   			
+
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
-  			
+
   			if (gd.wasCanceled()) return false;
   			this.transform_size=  (int) gd.getNextNumber();
   			this.clt_window=      (int) gd.getNextNumber();
@@ -1995,7 +1995,7 @@ public class EyesisCorrectionParameters {
   			this.vignetting_max=        gd.getNextNumber();
   			this.vignetting_range=      gd.getNextNumber();
   			this.kernel_step=     (int) gd.getNextNumber();
-  			
+
   			return true;
   		}
     }
@@ -2004,7 +2004,7 @@ public class EyesisCorrectionParameters {
   		public int dct_size =            8; //
   		public int asym_size =          15; //
   		public int asym_pixels =         4; // maximal number of non-zero pixels in direct convolution kernel
-  		public int asym_distance =       1; // how far to try a new asym kernel pixel from existing ones 
+  		public int asym_distance =       1; // how far to try a new asym kernel pixel from existing ones
   		public int dct_window =          1; // currently only 3 types of windows - 0 (none), 1 and 2
   		public int LMA_steps =         100;
   		public double fact_precision=    0.003; // stop iterations if error rms less than this part of target kernel rms
@@ -2029,28 +2029,28 @@ public class EyesisCorrectionParameters {
   		// parameters to extract a kernel from the kernel image file
   		public int    color_channel =    2; // green (<0 - use simulated kernel, also will use simulated if kernels are not set)
   		public int    decimation =       2; // decimate original kernel this much in each direction
-  		public double decimateSigma =   -1.0; // special mode for 2:1 deciamtion 
-  		public int    tileX =            82;  // number of kernel tile (0..163) 
-  		public int    tileY =            62;  // number of kernel tile (0..122) 
+  		public double decimateSigma =   -1.0; // special mode for 2:1 deciamtion
+  		public int    tileX =            82;  // number of kernel tile (0..163)
+  		public int    tileY =            62;  // number of kernel tile (0..122)
   		public int    kernel_chn =      -1; // camera channel calibration to use for aberration correction ( < 0 - no correction)
   		public boolean normalize =       true; // normalize both sym and asym kernels (asym to have sum==1, sym to have sum = dct_size
   		public boolean normalize_sym =   true; // normalize sym kernels separately
   		public boolean antiwindow =      false; // divide symmetrical kernel by a window function
   		public boolean skip_sym =        false; // do not apply symmetrical correction
   		public boolean convolve_direct = false; // do not apply symmetrical correction
-  		
+
   		// colors should be balanced before DCT color conversion!
   		public double novignetting_r    = 0.2644; // reg gain in the center of sensor calibration R (instead of vignetting)
   		public double novignetting_g    = 0.3733; // green gain in the center of sensor calibration G
   		public double novignetting_b    = 0.2034; // blue gain in the center of sensor calibration B
-  		
+
   		public double scale_r =           1.0; // extra gain correction after vignetting or nonvignetting, before other processing
   		public double scale_g =           1.0;
   		public double scale_b =           1.0;
-  		
+
   		public double vignetting_max    = 0.4; // value in vignetting data to correspond to 1x in the kernel
   		public double vignetting_range  = 5.0; // do not try to correct vignetting less than vignetting_max/vignetting_range
-  		
+
   		public boolean post_debayer     = false; // perform de-bayer after aberrations in pixel domain
   		public boolean color_DCT        = true; // false - use old color processing mode
   		public double  sigma_rb =         0.9; // additional (to G) blur for R and B
@@ -2068,10 +2068,10 @@ public class EyesisCorrectionParameters {
   		public double  denoise_c =        1.0;  // maximal total smoothing of the color differences post-kernel (will compete with edge emphasis)
   		public double  denoise_y_corn =   0.3;  // weight of the 4 corner pixels during denoise y (straight - 1-denoise_y_corn)
   		public double  denoise_c_corn =   0.3;  // weight of the 4 corner pixels during denoise y (straight - 1-denoise_c_corn)
-  		
+
 
   		public DCTParameters(){}
-  		
+
   		public DCTParameters(
   				int dct_size,
   				int asym_size,
@@ -2152,9 +2152,9 @@ public class EyesisCorrectionParameters {
   			properties.setProperty(prefix+"denoise_c",          this.denoise_c+"");
   			properties.setProperty(prefix+"denoise_y_corn",     this.denoise_y_corn+"");
   			properties.setProperty(prefix+"denoise_c_corn",     this.denoise_c_corn+"");
-  			
-  			
-  			
+
+
+
   		}
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"dct_size")!=null) this.dct_size=Integer.parseInt(properties.getProperty(prefix+"dct_size"));
@@ -2218,7 +2218,7 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"denoise_c")!=null)      this.denoise_c=Double.parseDouble(properties.getProperty(prefix+"denoise_c"));
   			if (properties.getProperty(prefix+"denoise_y_corn")!=null) this.denoise_y_corn=Double.parseDouble(properties.getProperty(prefix+"denoise_y_corn"));
   			if (properties.getProperty(prefix+"denoise_c_corn")!=null) this.denoise_c_corn=Double.parseDouble(properties.getProperty(prefix+"denoise_c_corn"));
-  			
+
   		}
   		public boolean showDialog() {
   			GenericDialog gd = new GenericDialog("Set DCT parameters");
@@ -2284,10 +2284,10 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal total smoothing of the color differences post-kernel (will compete with edge emphasis)",  this.denoise_c,3);
   			gd.addNumericField("Weight of the 4 corner pixels during denoising y (straight - 1.0-denoise_y_corn)",  this.denoise_y_corn,3);
   			gd.addNumericField("Weight of the 4 corner pixels during denoising color ((straight - 1.0-denoise_c_corn))",  this.denoise_c_corn,3);
-  			
+
   			WindowTools.addScrollBars(gd);
   			gd.showDialog();
-  			
+
   			if (gd.wasCanceled()) return false;
   			this.dct_size=        (int) gd.getNextNumber();
   			this.asym_size=       (int) gd.getNextNumber();
@@ -2341,26 +2341,26 @@ public class EyesisCorrectionParameters {
   			this.sigma_y=               gd.getNextNumber();
   			this.sigma_color=           gd.getNextNumber();
   			this.line_thershold=        gd.getNextNumber();
-  			
+
   			this.nonlin=             gd.getNextBoolean();
   			this.nonlin_max_y=          gd.getNextNumber();
   			this.nonlin_max_c=          gd.getNextNumber();
   			this.nonlin_y=              gd.getNextNumber();
   			this.nonlin_c=              gd.getNextNumber();
   			this.nonlin_corn=           gd.getNextNumber();
-  			
+
   			this.denoise=             gd.getNextBoolean();
   			this.denoise_y=          gd.getNextNumber();
   			this.denoise_c=          gd.getNextNumber();
   			this.denoise_y_corn=          gd.getNextNumber();
   			this.denoise_c_corn=          gd.getNextNumber();
-  			
+
   			//  	    MASTER_DEBUG_LEVEL= (int) gd.getNextNumber();
   			return true;
-  		}  
+  		}
   	}
 
-    
+
     /* ======================================================================== */
     public static class DebayerParameters {
   		public int size;
@@ -2385,7 +2385,7 @@ public class EyesisCorrectionParameters {
   				double debayerRelativeWidthRedblueMain,
   				double debayerRelativeWidthRedblueClones, double debayerGamma,
   				double debayerBonus, double mainToAlias, double debayerMaskBlur,
-  				boolean debayerUseScissors, 
+  				boolean debayerUseScissors,
   				boolean debug, int xDebug, int yDebug,
   				boolean debayerStacks) {
   			this.size = size;
@@ -2445,7 +2445,7 @@ public class EyesisCorrectionParameters {
   	}
 
     public static class EquirectangularParameters {
-    	
+
 		public double longitudeLeft=    -180.0;
 		public double longitudeRight=    180.0;
 		public double latitudeTop=        90.0;
@@ -2459,14 +2459,14 @@ public class EyesisCorrectionParameters {
 		public int longitudeWidth=      3000; //pix
 		public boolean clearFullMap=      true;
 		public boolean clearAllMaps=      true;
-		
+
 		public boolean needRebuild=      false;
 // common plane parameters (dual camera, triclope camera)
 		public boolean generateCommonPlane =  false;
 		public double projectionElevation=     0.0;
 		public double projectionYaw=           0.0;
 		public double projectionRoll=          0.0;
-		
+
 		public boolean matchPixelSize=    true; // disregard next value, calculate projectionPixelSize from teh equirectangular map
 		public double projectionPixelSize=0.00044036902;
 		public int    projectionWidth=   2920;
@@ -2475,7 +2475,7 @@ public class EyesisCorrectionParameters {
 		public double projectionCenterY= 0.5*this.projectionHeight;
 		public double nominalHorizontalDisparity=60.0; // nominal distance between horizontal cameras, mm
 		public boolean [] channelSelection=null;
-    	
+
 
     	public EquirectangularParameters(){
     	}
@@ -2484,7 +2484,7 @@ public class EyesisCorrectionParameters {
     		this.needRebuild=false;
     		return result;
     	}
-    	
+
     	public boolean [] getChannelsToProcess(){ return this.channelSelection;}
 
     	public void setProperties(String prefix,Properties properties){
@@ -2492,17 +2492,17 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"longitudeRight",this.longitudeRight+"");
     		properties.setProperty(prefix+"latitudeTop",this.latitudeTop+"");
     		properties.setProperty(prefix+"latitudeBottom",this.latitudeBottom+"");
-    		
+
     		properties.setProperty(prefix+"pixelsHorizontal",this.pixelsHorizontal+"");
     		properties.setProperty(prefix+"imageWidth",this.imageWidth+"");
     		properties.setProperty(prefix+"imageHeight",this.imageHeight+"");
-    		
+
     		properties.setProperty(prefix+"resolutionScale",this.resolutionScale+"");
     		properties.setProperty(prefix+"x0",this.x0+"");
     		properties.setProperty(prefix+"y0",this.y0+"");
-    		
+
     		properties.setProperty(prefix+"longitudeWidth",this.longitudeWidth+"");
-    		
+
     		properties.setProperty(prefix+"clearFullMap",this.clearFullMap+"");
     		properties.setProperty(prefix+"clearAllMaps",this.clearAllMaps+"");
     		properties.setProperty(prefix+"generateCommonPlane",this.generateCommonPlane+"");
@@ -2522,7 +2522,7 @@ public class EyesisCorrectionParameters {
     				properties.setProperty(prefix+"projectedChannel"+i,this.channelSelection[i]+"");
     			}
     		}
-    		
+
     	}
     	public void getProperties(String prefix,Properties properties){
 
@@ -2538,12 +2538,12 @@ public class EyesisCorrectionParameters {
     		if (properties.getProperty(prefix+"resolutionScale")!=null)this.resolutionScale=       Double.parseDouble(properties.getProperty(prefix+"resolutionScale"));
     		if (properties.getProperty(prefix+"x0")!=null)this.x0=       Double.parseDouble(properties.getProperty(prefix+"x0"));
     		if (properties.getProperty(prefix+"y0")!=null)this.y0=       Double.parseDouble(properties.getProperty(prefix+"y0"));
-  			
+
     		if (properties.getProperty(prefix+"longitudeWidth")!=null)this.longitudeWidth=          Integer.parseInt(properties.getProperty(prefix+"longitudeWidth"));
-    		
+
     		if (properties.getProperty(prefix+"clearFullMap")!=null)this.clearFullMap=   Boolean.parseBoolean(properties.getProperty(prefix+"clearFullMap"));
     		if (properties.getProperty(prefix+"clearAllMaps")!=null)this.clearAllMaps=   Boolean.parseBoolean(properties.getProperty(prefix+"clearAllMaps"));
-      		
+
     		if (properties.getProperty(prefix+"generateCommonPlane")!=null)this.generateCommonPlane=       Boolean.parseBoolean(properties.getProperty(prefix+"generateCommonPlane"));
     		if (properties.getProperty(prefix+"projectionElevation")!=null)this.projectionElevation=       Double.parseDouble(properties.getProperty(prefix+"projectionElevation"));
     		if (properties.getProperty(prefix+"projectionYaw")!=null)this.projectionYaw=       Double.parseDouble(properties.getProperty(prefix+"projectionYaw"));
@@ -2553,7 +2553,7 @@ public class EyesisCorrectionParameters {
 
     		if (properties.getProperty(prefix+"projectionWidth")!=null)this.projectionWidth=          Integer.parseInt(properties.getProperty(prefix+"projectionWidth"));
     		if (properties.getProperty(prefix+"projectionHeight")!=null)this.projectionHeight=          Integer.parseInt(properties.getProperty(prefix+"projectionHeight"));
-    		
+
     		if (properties.getProperty(prefix+"projectionCenterX")!=null)this.projectionCenterX=       Double.parseDouble(properties.getProperty(prefix+"projectionCenterX"));
     		if (properties.getProperty(prefix+"projectionCenterY")!=null)this.projectionCenterY=       Double.parseDouble(properties.getProperty(prefix+"projectionCenterY"));
     		if (properties.getProperty(prefix+"nominalHorizontalDisparity")!=null)this.nominalHorizontalDisparity=       Double.parseDouble(properties.getProperty(prefix+"nominalHorizontalDisparity"));
@@ -2567,8 +2567,8 @@ public class EyesisCorrectionParameters {
     		}
 
     	}
-    	
-    	
+
+
     	public boolean showDialog() {
     		needRebuild=false;
 			GenericDialog gd=new GenericDialog("Select parameters for equirectangular->sensor pixel mapping");
@@ -2628,7 +2628,7 @@ public class EyesisCorrectionParameters {
 			this.projectionCenterX=      gd.getNextNumber();
 			this.projectionCenterY=      gd.getNextNumber();
 			this.nominalHorizontalDisparity=      gd.getNextNumber();
-			
+
 			if (!gd.wasOKed()) needRebuild=true;
     		return true;
     	}
@@ -2665,8 +2665,8 @@ public class EyesisCorrectionParameters {
 
     }
 
-    
-    
+
+
   /* ======================================================================== */
 
 }
