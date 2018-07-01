@@ -276,7 +276,7 @@ public class BiCamDSI {
 
 
 	/**
-	 * Filter selection by expending, then shrinking (fills small gaps) shrinking (combined with
+	 * Filter selection by expanding, then shrinking (fills small gaps) shrinking (combined with
 	 * previous step) and expanding again (removes small clusters)
 	 * @param pre_expand number of steps for initial expand (odd last is - only hor/vert, even - last step includes diagonals)
 	 * @param shrink number of shrink steps normally equals to pre_expand+post_expand

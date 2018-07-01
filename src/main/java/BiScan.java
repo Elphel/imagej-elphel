@@ -20,6 +20,9 @@
  ** -----------------------------------------------------------------------------**
  **
  */
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class BiScan {
@@ -154,6 +157,59 @@ public class BiScan {
 		ImageDtt.startAndJoin(threads);
     	return ds;
     }
+
+    class DSIndex{
+    	double disparity;
+    	double strength;
+    	int scan_index;
+    	DSIndex (
+    	    	double disparity,
+    	    	double strength,
+    	    	int scan_index)
+    	{
+        	this.disparity = disparity;
+        	this.strength = strength;
+        	this.scan_index = scan_index;
+
+    	}
+    }
+
+    ArrayList<DSIndex> getTileDSList(
+    		int           nTile,
+    		final boolean only_strong,
+    		final boolean only_trusted,
+    		final boolean only_enabled)
+    {
+    	ArrayList<DSIndex> ds_list = new ArrayList<DSIndex>();
+		for (int indx = list_index; indx >= 0; indx--) { // include the latest measurement
+			BiScan scan = biCamDSI.getBiScan(indx);
+			if (only_enabled && scan.disabled_measurement[nTile]) { //  || (scan.src_index[nTile] != indx)){ // skip all but enabled
+				continue;
+			}
+			if (only_strong && !scan.strong_trusted[nTile]) {
+				continue;
+			}
+			if	(only_trusted && !scan.trusted[nTile]) {
+				continue;
+			}
+			if ((scan.strength_measured[nTile] > 0.0) && !Double.isNaN(scan.disparity_measured[nTile])) {
+				ds_list.add(new DSIndex(scan.disparity_measured[nTile],scan.strength_measured[nTile],indx));
+			}
+
+		}
+		Collections.sort(ds_list, new Comparator<DSIndex>() {
+			@Override
+			public int compare(DSIndex lhs, DSIndex rhs) {
+				// -1 - less than, 1 - greater than, 0 - equal, all inverted for descending disparity
+				return lhs.disparity > rhs.disparity ? -1 : (lhs.disparity < rhs.disparity ) ? 1 : 0;
+			}
+		});
+    	return ds_list;
+
+
+    }
+
+
 
     // trusted should be set, copied and replaced as needed
     public double [][] getFilteredDisparityStrength( // FIXME
@@ -424,6 +480,127 @@ public class BiScan {
 		// will need trusted* recalculated
 		return num_changes.get();
 	}
+
+	/**
+	 * Prefer thin FG (like thin poles) over textured BG (at first not directional), just prefer "good enough" FG over even stronger BG
+	 * @param str_good_enough minimal strength for the FG tiles and neighbors
+	 * @param min_FGtoBG minimal FG to BG disparity difference
+	 * @param disp_atolerance absolute disparity difference for qualifying neighbors (in master camera pixels)
+	 * @param disp_rtolerance add to tolerance for each pixel of disparity
+	 * @param min_neib minimal number of neighbors that promoted tiles should have
+	 * @return number of promoted FG tiles
+	 */
+	public int copyStrongFGEnabled(
+			final double  str_good_enough, // absolute strength floor for good enough
+			final double  min_FGtoBG,      // minimal disparity difference over
+			final double  disp_atolerance, // =  0.1;    // Maximal absolute disparity difference to qualifying neighbor
+			final double  disp_rtolerance, // =  0.02;   // Maximal relative (to absolute disparity) disparity difference to qualifying neighbor
+			final int     min_neib)        // minimal number of qualifying neighbors to promote FG tile
+		{
+		final TileNeibs  tnImage = biCamDSI.tnImage;
+		final int num_tiles = biCamDSI.tnImage.getSizeX()*biCamDSI.tnImage.getSizeY();
+
+		final double [][] ds = getDisparityStrength( // used to comapre to see if re-arrangement is needed
+	    		false,   // final boolean only_strong,
+	    		false,   // final boolean only_trusted,
+	    		true) ; // final boolean only_enabled);
+
+		final Thread[] threads = ImageDtt.newThreadArray(biCamDSI.threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final int [] new_src = new int[num_tiles];
+		final AtomicInteger num_changes = new AtomicInteger(0); // number of tiles modified to FG
+		int dbg_x = 193;
+		int dbg_y = 162;
+		int debugLevel = -1;
+		final int dbg_tile = (debugLevel>-2)?(dbg_x + tnImage.sizeX*dbg_y):-1;
+
+		ai.set(0);
+		// find definitely trusted and conditionally trusted tiles
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) {
+						if (nTile == dbg_tile) {
+							System.out.println("copyStrongFGEnabled(): nTile="+nTile);
+						}
+						if (ds[1][nTile] < 0) { // no good d/s for this tile
+							continue;
+						}
+						// get list in descending disparity order
+						ArrayList<DSIndex> ds_list = getTileDSList(
+								nTile, // int           nTile,
+								false, // final boolean only_strong,
+								false, // final boolean only_trusted,
+								true); // final boolean only_enabled)
+						if (ds_list.size() < 1) {
+							continue;
+						}
+
+						// find strongest tile closer than default disparity
+						for (int indx = 0; indx < ds_list.size(); indx++) {
+							DSIndex dsi = ds_list.get(indx);
+							if (dsi.disparity < (ds[0][nTile] + min_FGtoBG)){
+								break; // not sufficiently closer than default;
+							}
+							if (dsi.strength > str_good_enough){
+								double  disp_tolerance = disp_atolerance + dsi.disparity * disp_rtolerance; // disparity tolerance
+								// see if it has strong enough neighbors with close disparity
+								int num_neib = 0;
+								for (int dir = 0; dir < 8; dir++) {
+									int nTile1 = tnImage.getNeibIndex(nTile, dir);
+									if (nTile1 > 0) {
+										ArrayList<DSIndex> ds_neib = getTileDSList(
+												nTile1, // int           nTile,
+												false, // final boolean only_strong,
+												false, // final boolean only_trusted,
+												true); // final boolean only_enabled)
+										for (DSIndex dsi_neib: ds_neib) {
+											if ((dsi_neib.strength > str_good_enough) &&
+													(Math.abs(dsi_neib.disparity - dsi.disparity ) <= disp_tolerance)) {
+												num_neib++;
+												break;
+											}
+										}
+									}
+								}
+								if (num_neib > 0) {
+									new_src[nTile] = dsi.scan_index + 1;
+									num_changes.getAndIncrement();
+									break; // for (int indx = 0; indx < ds_list.size(); indx++)
+								}
+							}
+						}
+					}
+				}
+			};
+		}
+		ImageDtt.startAndJoin(threads);
+		if (num_changes.get() > 0) {
+			ai.set(0);
+			// find definitely trusted and conditionally trusted tiles
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					@Override
+					public void run() {
+						for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) {
+							if (nTile == dbg_tile) {
+								System.out.println("copyStrongFGEnabled() 2 : nTile="+nTile);
+							}
+							if (new_src[nTile] > 0){
+								int best_indx = new_src[nTile]-1;
+								src_index[nTile] = best_indx;
+							}
+						}
+					}
+				};
+			}
+			ImageDtt.startAndJoin(threads);
+		}
+		// will need trusted* recalculated
+		return num_changes.get();
+	}
+
 
 	/**
 	 * Copy data (if the current was not measured) from one of the previous scans - strongest that is not disabled. If last_priority is true
@@ -970,6 +1147,11 @@ public class BiScan {
 			final int        dbg_y,
 			final int        debugLevel
 			) {
+//		int dbg_x = 193;
+//		int dbg_y = 162;
+//		int debugLevel = -1;
+//		final int dbg_tile = (debugLevel>-2)?(dbg_x + tnImage.sizeX*dbg_y):-1;
+
 		final TileNeibs  tnImage = biCamDSI.tnImage;
 		final double [][] ds = getDisparityStrength( // FIXME
 	    		false,   // final boolean only_strong,
@@ -993,8 +1175,13 @@ public class BiScan {
 				@Override
 				public void run() {
 					for (int nTile = ai.getAndIncrement(); nTile < num_tiles; nTile = ai.getAndIncrement()) if (discard_strong || !trusted_sw[nTile]){
+						if (nTile == 52681) {
+							System.out.println("suggestNewScan(), nTIle="+nTile+", dxy={"+dxy[0]+","+dxy[1]+"}");
+
+						}
 						int nTile1 =  tnImage.getNeibIndex(nTile, dxy[0], dxy[1]);
-						if ((nTile1 >= 0) && trusted_weak[nTile1]) { // weak trusted OK, maybe even any measured
+//						if ((nTile1 >= 0) && trusted_weak[nTile1]) { // weak trusted OK, maybe even any measured
+						if ((nTile1 >= 0) && (ds[0][nTile1] > 0)) { // weak trusted OK, maybe even any measured
 							double new_disp = ds[0][nTile1];
 							if (Math.abs(new_disp - ds[0][nTile]) < new_diff) { // suggested is too close to already measured
 								continue; // already measured for this tile
@@ -1331,8 +1518,8 @@ public class BiScan {
 						if ((max_disp <= d_lim) && ((w < max_disp_w) || (w < min_strength))) {
 							disableTile(nTile);
 							ai_trimmed.getAndIncrement();
-							if (debugLevel > -4) {
-								System.out.println("trimWeakLoneFG: removing tile "+nTile+" ("+(nTile%tnImage.sizeX)+":"+(nTile/tnImage.sizeX));
+							if (debugLevel > -1) {
+								System.out.println("trimWeakLoneFG: removing tile "+nTile+" ("+(nTile%tnImage.sizeX)+":"+(nTile/tnImage.sizeX)+")");
 							}
 						}
 					}

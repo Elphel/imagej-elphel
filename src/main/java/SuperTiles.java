@@ -1713,6 +1713,424 @@ public class SuperTiles{
 		return plane_disp_strength;
 	}
 
+	public boolean [][][][] dispClusterizeHighest(
+			final double [][][][] disparity_strengths, // either normal or tilted disparity/strengths
+			final boolean [][][] selected,   // tiles OK to be assigned [supertile][measurement layer] [tile index] or null (or null or per-measurement layer)
+			final boolean [][][] prohibited, // already assigned tiles [supertile][measurement layer] [tile index] or null
+			final boolean        search_min,
+			final int            stMeasSel,  //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+			final double         plDispNorm,         // to increase weight of nearer planes
+			final double         sigma,
+			final double         disp_arange,
+			final double         disp_rrange,
+			final double         tolerance_above,
+			final double         tolerance_below,
+			final int            plMinPoints, //          =     5;  // Minimal number of points for plane detection
+			final String         suffix,
+			final int            debugLevel,
+			final int            dbg_X,
+			final int            dbg_Y)
+	{
+		final int tilesX =        tileProcessor.getTilesX();
+		final int tilesY =        tileProcessor.getTilesY();
+		final int superTileSize = tileProcessor.getSuperTileSize();
+		final int stSize2 =       2 * superTileSize;
+		final int stLen2 =        stSize2 * stSize2;
+
+
+		final int stilesX = (tilesX + superTileSize -1)/superTileSize;
+		final int stilesY = (tilesY + superTileSize -1)/superTileSize;
+		final int nStiles = stilesX * stilesY;
+		final Thread[] threads = ImageDtt.newThreadArray((debugLevel > 1)? 1 :tileProcessor.threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		this.planes = new TilePlanes.PlaneData[nStiles][];
+		final int debug_stile = (debugLevel > -1)? (dbg_Y * stilesX + dbg_X):-1;
+//		final boolean [][][] enabled = (selected == null) ? (new boolean [nStiles][][]) : selected;
+
+		final boolean [][][][] plane_selections = new boolean [nStiles][][][]; // [supertile] [ plane number] [measurement layer] [tile index]
+		class Selections2{
+			boolean [][] sel;
+			Selections2(boolean [][] sel) {
+				this.sel = sel;
+			}
+			boolean [][] getSel(){
+				return this.sel;
+			}
+		}
+//		final double max_diff2 = Double.isNaN(max_diff)? Double.NaN: (max_diff*max_diff);
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
+						if (disparity_strengths[nsTile] != null){
+                            int dl = ((debugLevel > 0) && (nsTile == debug_stile)) ? (debugLevel + 2) : debugLevel;
+							if (dl > 2){
+								System.out.println("dispClusterizeHighest(): nsTile="+nsTile);
+							}
+//							int stileY = nsTile / stilesX;
+//							int stileX = nsTile % stilesX;
+							double[][][] disp_strength = new double[measuredLayers.getNumLayers()][][];
+							for (int ml = 0; ml < disp_strength.length; ml++) if ((stMeasSel & ( 1 << ml)) != 0){
+								disp_strength[ml] = disparity_strengths[nsTile][ml]; // will we change it  - no, no need to clone
+							}
+							boolean [][] enabled = (selected == null) ? (new boolean [disp_strength.length][]) : selected[nsTile];
+							for (int ml = 0; ml < disp_strength.length; ml++) if (disp_strength[ml] != null) {
+								if (selected != null) {
+									enabled[ml] = selected[nsTile][ml].clone();
+								}else {
+									enabled[ml] = new boolean [stLen2];
+									for (int i = 0; i < stLen2; i++) {
+										enabled[ml][i] = true;
+									}
+								}
+								if ((prohibited != null) && (prohibited[nsTile] != null) && (prohibited[nsTile][ml] != null)) {
+									for (int i = 0; i < stLen2; i++) {
+										enabled[ml][i] &= !prohibited[nsTile][ml][i];
+									}
+								}
+							}
+							ArrayList<Selections2> sel_list = new ArrayList<Selections2>();
+							for (int ntry = 0; ntry < 20; ntry++) {
+								boolean [][] new_sel = getHighestPlaneSelection(
+										enabled,         //boolean  [][]  enabled, // will not be modified
+										disp_strength,   // double [][][]  disp_str,
+										//FIXME: use this argument
+										search_min, // boolean        search_min,
+										2,     // int            grow,
+										sigma,           // double         sigma,
+										disp_arange,     // double         disp_arange,
+										disp_rrange,     // double         disp_rrange,
+										tolerance_above, // double         tolerance_above,
+										tolerance_below, // double         tolerance_below,
+										dl);             // int debugLevel)
+								int num_tiles = 0;
+								for (int ml = 0; ml < enabled.length; ml++) if (new_sel[ml] != null) {
+									for (int i = 0; i < new_sel[ml].length; i++) {
+										if (new_sel[ml][i]) {
+											num_tiles++;
+											enabled[ml][i]=false;
+										}
+									}
+								}
+								if (num_tiles < plMinPoints) {
+									break;
+								}
+								sel_list.add(new Selections2(new_sel));
+							}
+
+							plane_selections[nsTile] = new boolean [sel_list.size()][][]; //plane_sels;
+							for (int np = 0; np < plane_selections[nsTile].length; np++) {
+								plane_selections[nsTile][np] = sel_list.get(np).getSel();
+							}
+							if (dl > 2){
+								System.out.println("dispClusterizeHighest(): nsTile="+nsTile);
+								double [][]  dbg_img = new double [plane_selections[nsTile].length + 2][];
+								String []  dbg_titles = new String [plane_selections[nsTile].length + 2];
+								for (int ml = 0; ml < disp_strength.length; ml++) if (disp_strength[ml] != null){
+									dbg_img[0] =                disp_strength[ml][0];
+									dbg_img[dbg_img.length-1] = disp_strength[ml][1];
+									break;
+								}
+								dbg_titles[0] =                "disparity";
+								dbg_titles[dbg_img.length-1] = "strength";
+								for (int np = 0; np < plane_selections[nsTile].length; np++) {
+									double plane_strength = getSelectionStrength(
+											true, // mod_strength, // boolean mod_strength,
+											plDispNorm,          // double plDispNorm,
+											plane_selections[nsTile][np], // boolean [][] sels,
+											disp_strength); // double [][][] ds);
+									dbg_titles[1 + np] = ""+plane_strength;
+									dbg_img[1 + np] = new double [stLen2];
+									for (int i = 0; i < stLen2; i++) {
+										boolean has_tile = false;
+										for (int ml = 0; ml < plane_selections[nsTile][np].length; ml++) if (plane_selections[nsTile][np][ml] != null){
+											if (plane_selections[nsTile][np][ml][i]) {
+												dbg_img[1 + np][i] +=  disp_strength[ml][0][i];
+												has_tile = true;
+											}
+											if (!has_tile) {
+												dbg_img[1 + np][i] = Double.NaN;
+											}
+										}
+									}
+								}
+								(new showDoubleFloatArrays()).showArrays(dbg_img, stSize2, stSize2, true,
+										"sel-"+nsTile+"-"+suffix,dbg_titles);
+							}
+
+						}
+					}
+				}
+			};
+		}
+		ImageDtt.startAndJoin(threads);
+		return plane_selections;
+	}
+
+
+	public boolean [][] getHighestPlaneSelection(
+			boolean  [][]  enabled_ml, // will not be modified
+			double [][][]  disp_str,
+			boolean        search_min,
+			int            grow,
+			double         sigma,
+			double         disp_arange,
+			double         disp_rrange,
+			double         tolerance_above,
+			double         tolerance_below,
+			int debugLevel){
+		final int min_en_neib = 4;
+		final boolean [][] plane_selection = new boolean[disp_str.length][];
+		final double min_weight = 1.0E-20;
+		final int stSize2 = 2 * tileProcessor.getSuperTileSize();
+		final int stLen2 = stSize2 * stSize2;
+		DoubleGaussianBlur gb=new DoubleGaussianBlur();
+		TileNeibs tileNeibs = new TileNeibs(stSize2, stSize2);
+		int expand = (grow + 1) & (~1);
+		for (int ml = 0; ml < disp_str.length; ml++) if (disp_str[ml] != null) {
+			double [] disparity =   disp_str[ml][0].clone();
+			double [] strength =    disp_str[ml][1].clone();
+			boolean [] enabled = enabled_ml[ml].clone();
+			for (int i = 0; i < stLen2; i++) {
+				if ((strength [i] > 0.0) && enabled[i]) {
+					if (min_en_neib > 0) {
+						int nn = 0;
+						for (int dir = 0; dir < 8; dir++) {
+							int i1 = tileNeibs.getNeibIndex(i, dir);
+							if ((i1 >=0) && enabled_ml[ml][i1]) {
+								nn++;
+							}
+						}
+						if (nn < min_en_neib) {
+							enabled[i] = false;
+							strength[i] = 0.0;
+							disparity[i] = 0.0;
+						}
+					}
+					disparity[i] *= strength[i];
+				} else {
+					strength[i] = 0.0;
+					disparity[i] = 0.0;
+				}
+			}
+			gb.blurDouble(disparity,   stSize2, stSize2, sigma, sigma, 0.01);
+			gb.blurDouble(strength,    stSize2, stSize2, sigma, sigma, 0.01);
+			// TODO: handle large gaps with two sigmas?
+			for (int i = 0; i < stLen2; i++) {
+				if (strength [i] > min_weight) {
+					disparity[i] /= strength [i];
+				} else {
+					strength [i] = 0.0;
+					disparity[i] = 0.0;
+				}
+			}
+			if (debugLevel > 2){
+				System.out.println("getHighestPlaneSelection() debugLevel="+debugLevel);
+			}
+			boolean [] best_sel = null;
+			double best_weight = 0.0;
+			int best_height = 0;
+//			int best_bottom;
+			int bottom = stSize2 - 1;
+			for (; bottom >= (best_height - 1); bottom --) {
+				double line_max_max = 0.0, line_min_max= 0.0;
+				int [] tops = new int [stSize2];
+				int [][] line_se = new int [stSize2][2];
+				int top;
+				double disp_range = disp_arange;
+				for (top = bottom; top >= 0; top--) {
+					// find argmax for the top line;
+					tops[top] = -1; //top *  stSize2;
+					for (int ix = 0; ix < stSize2; ix++) {
+						int indx = top *  stSize2 + ix;
+						if (search_min) {
+							if ((strength[indx] > 0.0) && ((tops[top] < 0) || (disparity[indx] < disparity[tops[top]]))){
+								tops[top] = indx;
+							}
+						} else {
+							if ((strength[indx] > 0.0) && ((tops[top] < 0) || (disparity[indx] > disparity[tops[top]]))){
+								tops[top] = indx;
+							}
+						}
+					}
+					if (tops[top] > 0) {
+						if (line_max_max == 0.0) {
+							line_max_max = disparity[tops[top]]; // for search_min it will be line_max_min
+							line_min_max = disparity[tops[top]]; // for search_min it will be line_min_min
+							disp_range = disp_arange + 0.5 *(line_max_max + line_min_max) * disp_rrange;
+						} else {
+							if (disparity[tops[top]] > line_max_max) {
+								if (disparity[tops[top]] > (line_min_max + disp_range)) {
+									break; // difference more than allowed range
+								}
+								line_max_max = disparity[tops[top]];
+								disp_range = disp_arange + 0.5 *(line_max_max + line_min_max) * disp_rrange;
+							} else if (disparity[tops[top]] < line_min_max) {
+								if (disparity[tops[top]] < (line_max_max - disp_range)) {
+									break; // difference more than allowed range
+								}
+								line_min_max = disparity[tops[top]];
+								disp_range = disp_arange + 0.5 *(line_max_max + line_min_max) * disp_rrange;
+							}
+						}
+					} else { // no valid cells in a line (too far from enabled)
+						break;
+					}
+				}
+				if ((bottom - top) < (best_height - 2 - expand)) { //
+					continue; // no sense even to try
+				}
+				disp_range = disp_arange + 0.5 *(line_max_max + line_min_max) * disp_rrange;
+				double min_disp = line_max_max - disp_range; // used when looking for maximums
+				double max_disp = line_min_max + disp_range; // used when looking for minimums
+				// for each line set start and end, verify lines overlap
+				int line = bottom;
+				for (; line > top; line --) {
+					// do not check first in the row
+					for (line_se[line][0] = tops[line] ; line_se[line][0] >  stSize2 * line; line_se[line][0]--) {
+						if (search_min) {
+							if ((strength[line_se[line][0]] > 0.0) && (disparity[line_se[line][0]] > max_disp)) {
+								//line_se[line][0]++; allow one extra
+								break;
+							}
+						} else {
+							if ((strength[line_se[line][0]] > 0.0) && (disparity[line_se[line][0]] < min_disp)) {
+								//line_se[line][0]++; allow one extra
+								break;
+							}
+						}
+					}
+					// do not check last in the row
+					for (line_se[line][1] = tops[line] ; line_se[line][1] <  (stSize2 * (line + 1) -1); line_se[line][1]++) {
+						if (search_min) {
+							if ((strength[line_se[line][1]] > 0.0) && (disparity[line_se[line][1]] > max_disp)) {
+								//line_se[line][1]--;
+								break;
+							}
+						} else {
+							if ((strength[line_se[line][1]] > 0.0) && (disparity[line_se[line][1]] < min_disp)) {
+								//line_se[line][1]--;
+								break;
+							}
+						}
+					}
+					// verify the lines overlap with previous
+					if ((line < bottom) && (
+							(line_se[line][0] >= (line_se[line + 1][1] - stSize2)) ||
+							(line_se[line][1] <= (line_se[line + 1][0] - stSize2)))) {
+						break;
+					}
+				}
+
+				// now line - first invalid line
+				// calculate actual selection and weight
+				// duplicate first and last line to mitigate Gaussian blur - there may be some FG tiles cut off
+				int bottom_ext = bottom;
+				if (bottom_ext < (stSize2 - 1)) {
+					bottom_ext++;
+					line_se[bottom_ext][0] = line_se[bottom][0] + stSize2;
+					line_se[bottom_ext][1] = line_se[bottom][1] + stSize2;
+				}
+				if ((line >= 0) && (line < (stSize2 - 1))) {
+					line_se[line][0] = line_se[line + 1][0] - stSize2 ;
+					line_se[line][1] = line_se[line + 1][1] - stSize2 ;
+					line--;
+				}
+
+				if ((bottom_ext - line) < (best_height - expand)) {
+					continue; // no sense even to try
+				}
+
+				boolean [] this_sel = new boolean [stLen2];
+				double sw = 0.0;
+				double min_tile_disp = search_min ? (line_min_max - tolerance_below): (min_disp - tolerance_below);
+				double max_tile_disp = search_min ? (max_disp + tolerance_above) :    (line_max_max + tolerance_above);
+				int first = -1, last = -1;
+
+				for (int i = bottom_ext; i > line; i--) {
+					for (int j = line_se[i][0]; j <= line_se[i][1]; j++) {
+						if (  enabled[j] &&
+								(disp_str[ml][1][j] > 0.0) &&
+								(disp_str[ml][0][j] >= min_tile_disp) &&
+								(disp_str[ml][0][j] <= max_tile_disp)) {
+							sw += disp_str[ml][1][j];
+							this_sel[j] = true;
+							if (last < 0) last = i;
+							first = i;
+						}
+					}
+				}
+				int sel_height = last - first + 1;
+				if (sel_height < (best_height - expand)) {
+					continue;
+				}
+				if (expand > 0) {
+					boolean [] prohibit = new boolean [enabled.length];
+					for (int i = 0; i < prohibit.length; i++) {
+						prohibit[i] = !enabled[i];
+					}
+					boolean [] exp_sel = this_sel.clone();
+					tileNeibs.growSelection(
+							grow,
+							exp_sel,
+							prohibit);
+					int i0 = -1, i1 = -1;
+					for (int i = 0; i < stLen2; i++) if (exp_sel[i]){
+						if (!this_sel[i]) {
+							if ((disp_str[ml][1][i] > 0.0) &&
+							(disp_str[ml][0][i] >= min_tile_disp) &&
+							(disp_str[ml][0][i] <= max_tile_disp)) {
+								this_sel[i] = true;
+							}
+						}
+						if (this_sel[i]) {
+							sw += disp_str[ml][1][i];
+							if (i0 < 0) i0 = i;
+							i1 = i;
+						}
+					}
+					first = i0 / stSize2;
+					last =  i1 / stSize2;
+					sel_height = last - first + 1;
+					if (sel_height < (best_height - expand)) {
+						continue;
+					}
+				}
+				if ((sel_height > best_height) ||
+						(sw > best_weight)) {
+					best_sel = this_sel;
+					best_weight = sw;
+					best_height = sel_height;
+				}
+			} // bottom
+			plane_selection[ml] = best_sel;
+			// add debug image here
+			if ((debugLevel > 2) && (best_sel != null)) {
+				double [] disp_sel = disp_str[ml][0].clone();
+				for (int i = 0; i < plane_selection[ml].length; i++) {
+					if (!plane_selection[ml][i]) {
+						disp_sel[i] = Double.NaN;
+					}
+				}
+				String [] dbg_titles = {"disp_blur","disp_sel","disp","str_blur","str"};
+				double [][] dbg_img =
+					{   disparity,
+						disp_sel,
+						disp_str[ml][0],
+						strength,
+						disp_str[ml][1]};
+				(new showDoubleFloatArrays()).showArrays(dbg_img, stSize2, stSize2, true, "disp_blured",dbg_titles);
+				System.out.println("getHighestPlaneSelection() done");
+			}
+
+		} // ml
+		return plane_selection;
+	}
+
+
+
+
 	// use histogram data (min/max/strength) assign tiles to clusters
 	// returns [supertile] [ plane number] [measurement layer] [tile index]
 	public boolean [][][][] dispClusterize(
@@ -1864,10 +2282,7 @@ public class SuperTiles{
 											System.out.println();
 										}
 									}
-
-
-
-								}
+								} //for (int ml = 0; ml < num_ml; ml++) if (tile_en[ml] != null) {
 								// recalculate average disparities for each plane and show number of tiles in each in debug mode
 								for (int np = 0; np < num_p; np++) {
 									double sd = 0.0, sw = 0.0;
@@ -1917,7 +2332,7 @@ public class SuperTiles{
 									int remove_indx = -1;
 									for (int i = 1; i < num_p; i++)	if (num_sel[i] < num_sel[windx]) windx = i;
 									if (num_sel[windx] < plMinPoints) {
-										if ((debugLevel > 2) || (dl > 0)){
+										if ((debugLevel > 2) || (dl > 2)){
 											System.out.println ("dispClusterize(): stileX = "+stileX+" stileY="+stileY+
 													": removing plane "+windx+" with "+num_sel[windx]+" tiles ( <"+plMinPoints+")");
 										}
@@ -1941,7 +2356,7 @@ public class SuperTiles{
 											}
 										}
 										if (windx >=0 ) {
-											if ((debugLevel > 2) || (dl > 0)) {
+											if ((debugLevel > 2) || (dl > 2)) {
 												System.out.println ("dispClusterize(): stileX = "+stileX+" stileY="+stileY+
 														": merging plane "+windx+" with " + (windx + 1)+": "+
 														num_sel[windx] + " and "+num_sel[windx+1]+" tiles, "+
@@ -1982,7 +2397,7 @@ public class SuperTiles{
 										}
 									}
 								}
-							}
+							} // for (int iter = 0; iter < 2; iter ++){
 
 							if (dl > 3) {
 								String [] dbg_titles = showSupertileSeparationTitles( disp_strength, plane_sels);
@@ -2001,6 +2416,56 @@ public class SuperTiles{
 		ImageDtt.startAndJoin(threads);
 		return plane_selections;
 	}
+
+	private double getSelectionStrength(
+			boolean mod_strength,
+			double plDispNorm,
+			boolean [][] sels,
+			double [][][] ds)
+	{
+		int num_layers = ds.length;
+		int superTileSize = tileProcessor.getSuperTileSize();
+		if (sels == null) return 0.0;
+		double sw = 0.0;
+		int num_tiles = 0;
+		if (mod_strength) {
+			TileNeibs tileNeibs = new TileNeibs(2 * superTileSize, 2 * superTileSize);
+			for (int ml = 0; ml < num_layers; ml++) if (sels[ml] != null) {
+				for (int i = 0; i < sels[ml].length; i++) {
+					if (sels[ml][i]) {
+						int nn = 0;
+						for (int dir = 0; dir < 8; dir++) {
+							int i1 = tileNeibs.getNeibIndex(i, dir);
+							if ((i1 >=0) && sels[ml][i1]) {
+								nn++;
+							}
+						}
+						double w = ds[ml][1][i];
+						double d = ds[ml][0][i];
+						if ((plDispNorm > 0.0) && (d > 0.0) && (d < plDispNorm)) {
+							w *=  d / plDispNorm;
+						}
+						sw +=   w * nn;
+					}
+				}
+			}
+			// increasing weight of strong compact clusters - see if it improves results
+			if (num_tiles > 0) {
+				sw /= Math.sqrt(num_tiles);
+			}
+		} else { // old way
+
+			for (int ml = 0; ml < num_layers; ml++) if (sels[ml] != null) {
+				for (int i = 0; i < sels[ml].length; i++) {
+					if (sels[ml][i]) {
+						sw +=  ds[ml][1][i];
+					}
+				}
+			}
+		}
+		return sw;
+	}
+
 
 	/**
 	 * Use both horizontal and const disparity tiles to create tile clusters
@@ -2059,10 +2524,24 @@ public class SuperTiles{
 			final double     highMix,    //stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
 			final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
 			final boolean    show_histograms,
+			final boolean [][] hor_planes, // returns plane types (hor/vert)
 			final int        debugLevel,
 			final int        dbg_X,
 			final int        dbg_Y)
 	{
+		final int    used_companions =      5; // cell that has this many new used companions is considered used (borders and already use3d are considered used too)
+		final int    used_true_companions = 1; // there should be at least this many new selected tiles among neighbors.,
+		final double clust_sigma = 0.7;
+		final double disp_arange = 0.07;
+		final double disp_rrange = 0.01;
+		final double tolerance_above_near =  100.0; // 0.07; any?
+		final double tolerance_below_near =  -0.01;
+		final double tolerance_above_far =    0.07;
+		final double tolerance_below_far =    0.1; // 100.0; // any farther
+		final int    hor_vert_overlap =       2;
+		final boolean clusterize_by_highest = true;
+
+		final boolean             mod_strength = true; // FIXME: make a parameter. when set, multiply each tile strength by the number of selected neighbors
 		final int tilesX =        tileProcessor.getTilesX();
 		final int tilesY =        tileProcessor.getTilesY();
 		final int superTileSize = tileProcessor.getSuperTileSize();
@@ -2140,7 +2619,8 @@ public class SuperTiles{
 
 		String [] dbg_hist_titles = {"all","hor","mm_vert","mm_hor"};
 		double [][] dbg_hist = new double [dbg_hist_titles.length][];
-		final boolean [][][] used = new boolean [nStiles][num_layers][]; // num_tiles
+		final boolean [][][] used_hor = new boolean [nStiles][num_layers][]; // num_tiles
+		final boolean [][][] used_vert = (hor_vert_overlap == 0) ? used_hor : (new boolean [nStiles][num_layers][]);
 		final boolean [][][][] planes_selections = new boolean [nStiles][][][]; // num_tiles
 		for (int pass = 0; pass < max_tries; pass ++) {
 //			final int fpass = pass;
@@ -2174,43 +2654,80 @@ public class SuperTiles{
 			if (debugLevel > 0){
 				System.out.println("initialDiscriminateTiles(): before new_planes_hor, pass =" + (pass + 1) + " ( of "+max_tries+" )");
 			}
+//			if (clusterize_by_highest) {
+			final boolean [][][][] new_planes_hor = clusterize_by_highest ?
+					dispClusterizeHighest(
+							hor_disp_strength,  // final double [][][][] disparity_strengths, // either normal or tilted disparity/strengths
+							null,               // final boolean [][][] selected,   // tiles OK to be assigned [supertile][measurement layer] [tile index] or null (or null or per-measurement layer)
+							used_hor,           // final boolean [][][] prohibited, // already assigned tiles [supertile][measurement layer] [tile index] or null
+							true,               // final boolean        search_min,
+							stMeasSel,          // final int            stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+							plDispNorm,         // final double         plDispNorm,         // to increase weight of nearer planes
+							clust_sigma,        // final double         sigma,
+							0.5 * disp_arange,  // final double         disp_arange,
+							0.5 * disp_rrange,  // final double         disp_rrange,
+							tolerance_above_far,// final double         tolerance_above,
+							tolerance_below_far,// final double         tolerance_below,
+							plMinPoints,        // final int            plMinPoints, //          =     5;  // Minimal number of points for plane detection
+							"hor",              // final String         suffix,
+							debugLevel + 0,         // final int            debugLevel,
+							dbg_X,              // final int            dbg_X,
+							dbg_Y):             // final int            dbg_Y);
 
-			final boolean [][][][] new_planes_hor = dispClusterize(
-					hor_disp_strength, // final double [][][][] disparity_strengths, // either normal or tilted disparity/strengths
-					mmm_hor,           // final double [][][] hist_max_min_max, // histogram data: per tile array of odd number of disparity/strengths pairs, starting with first maximum
-					null,              // final boolean [][][] selected,   // tiles OK to be assigned [supertile][measurement layer] [tile index] or null (or null or per-measurement layer)
-					used,              // final boolean [][][] prohibited, // already assigned tiles [supertile][measurement layer] [tile index] or null
-					stMeasSel,         // final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
-					((pass < (max_tries - 1)) ? max_diff_hor : Double.NaN), // final double     max_diff,  // maximal disparity difference (to assign to a cluster (of Double.NaN)
-					plMinPoints,       // final int        plMinPoints, //          =     5;  // Minimal number of points for plane detection
-					smallDiff,         // final double     smallDiff,  //       = 0.4;   // Consider merging initial planes if disparity difference below
-					highMix,           // final double     highMix,    //stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
-					true,              // final boolean    norm_max_diff,   // scale  max_diff for large (> dispNorm) average disparities
-					true,              // final boolean    norm_small_diff, // scale  max_diff for large (> dispNorm) average disparities
-					plDispNorm,        // final double     dispNorm, // TODO: make a separate variable?
-					debugLevel, // 1, // debugLevel,
-					dbg_X,
-					dbg_Y);
+								dispClusterize(
+										hor_disp_strength, // final double [][][][] disparity_strengths, // either normal or tilted disparity/strengths
+										mmm_hor,           // final double [][][] hist_max_min_max, // histogram data: per tile array of odd number of disparity/strengths pairs, starting with first maximum
+										null,              // final boolean [][][] selected,   // tiles OK to be assigned [supertile][measurement layer] [tile index] or null (or null or per-measurement layer)
+										used_hor,          // final boolean [][][] prohibited, // already assigned tiles [supertile][measurement layer] [tile index] or null
+										stMeasSel,         // final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+										((pass < (max_tries - 1)) ? max_diff_hor : Double.NaN), // final double     max_diff,  // maximal disparity difference (to assign to a cluster (of Double.NaN)
+										plMinPoints,       // final int        plMinPoints, //          =     5;  // Minimal number of points for plane detection
+										smallDiff,         // final double     smallDiff,  //       = 0.4;   // Consider merging initial planes if disparity difference below
+										highMix,           // final double     highMix,    //stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
+										true,              // final boolean    norm_max_diff,   // scale  max_diff for large (> dispNorm) average disparities
+										true,              // final boolean    norm_small_diff, // scale  max_diff for large (> dispNorm) average disparities
+										plDispNorm,        // final double     dispNorm, // TODO: make a separate variable?
+										debugLevel, // 1, // debugLevel,
+										dbg_X,
+										dbg_Y);
 
 			if (debugLevel > 0){
 				System.out.println("initialDiscriminateTiles(): before new_planes_vert, pass =" + (pass + 1) + " ( of "+max_tries+" )");
 			}
-			final boolean [][][][] new_planes_vert = dispClusterize(
-					vert_disp_strength, // final double [][][][] disparity_strengths, // either normal or tilted disparity/strengths
-					mmm_vert,           // final double [][][] hist_max_min_max, // histogram data: per tile array of odd number of disparity/strengths pairs, starting with first maximum
-					null,              // final boolean [][][] selected,   // tiles OK to be assigned [supertile][measurement layer] [tile index] or null (or null or per-measurement layer)
-					used,              // final boolean [][][] prohibited, // already assigned tiles [supertile][measurement layer] [tile index] or null
-					stMeasSel,         // final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
-					((pass < (max_tries - 1)) ? max_diff_vert : Double.NaN), // final double     max_diff,  // maximal disparity difference (to assign to a cluster (of Double.NaN)
-					plMinPoints,       // final int        plMinPoints, //          =     5;  // Minimal number of points for plane detection
-					smallDiff,         // final double     smallDiff,  //       = 0.4;   // Consider merging initial planes if disparity difference below
-					highMix,          // final double     highMix,    //stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
-					true,              // final boolean    norm_max_diff,   // scale  max_diff for large (> dispNorm) average disparities
-					true,              // final boolean    norm_small_diff, // scale  max_diff for large (> dispNorm) average disparities
-					plDispNorm,        // final double     dispNorm, // TODO: make a separate variable?
-					debugLevel, // 2, // debugLevel,
-					dbg_X,
-					dbg_Y);
+			final boolean [][][][] new_planes_vert = clusterize_by_highest ?
+					dispClusterizeHighest(
+							vert_disp_strength, // final double [][][][] disparity_strengths, // either normal or tilted disparity/strengths
+							null,               // final boolean [][][] selected,   // tiles OK to be assigned [supertile][measurement layer] [tile index] or null (or null or per-measurement layer)
+							used_vert,          // final boolean [][][] prohibited, // already assigned tiles [supertile][measurement layer] [tile index] or null
+							false,               // final boolean        search_min,
+							stMeasSel,          // final int            stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+							plDispNorm,         // final double         plDispNorm,         // to increase weight of nearer planes
+							clust_sigma,        // final double         sigma,
+							disp_arange,        // final double         disp_arange,
+							disp_rrange,        // final double         disp_rrange,
+							tolerance_above_near,    // final double         tolerance_above,
+							tolerance_below_near,    // final double         tolerance_below,
+							plMinPoints,        // final int            plMinPoints, //          =     5;  // Minimal number of points for plane detection
+							"vert",             // final String         suffix,
+							debugLevel + 0,         // final int            debugLevel,
+							dbg_X,              // final int            dbg_X,
+							dbg_Y):             // final int            dbg_Y)
+								dispClusterize(
+										vert_disp_strength, // final double [][][][] disparity_strengths, // either normal or tilted disparity/strengths
+										mmm_vert,           // final double [][][] hist_max_min_max, // histogram data: per tile array of odd number of disparity/strengths pairs, starting with first maximum
+										null,              // final boolean [][][] selected,   // tiles OK to be assigned [supertile][measurement layer] [tile index] or null (or null or per-measurement layer)
+										used_vert,              // final boolean [][][] prohibited, // already assigned tiles [supertile][measurement layer] [tile index] or null
+										stMeasSel,         // final int        stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+										((pass < (max_tries - 1)) ? max_diff_vert : Double.NaN), // final double     max_diff,  // maximal disparity difference (to assign to a cluster (of Double.NaN)
+										plMinPoints,       // final int        plMinPoints, //          =     5;  // Minimal number of points for plane detection
+										smallDiff,         // final double     smallDiff,  //       = 0.4;   // Consider merging initial planes if disparity difference below
+										highMix,          // final double     highMix,    //stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
+										true,              // final boolean    norm_max_diff,   // scale  max_diff for large (> dispNorm) average disparities
+										true,              // final boolean    norm_small_diff, // scale  max_diff for large (> dispNorm) average disparities
+										plDispNorm,        // final double     dispNorm, // TODO: make a separate variable?
+										debugLevel, // 2, // debugLevel,
+										dbg_X,
+										dbg_Y);
 
 			// compare which vert or hor provide stronger clusters, add them to selections, recalculate "used"
 			ai.set(0);
@@ -2218,8 +2735,9 @@ public class SuperTiles{
 				threads[ithread] = new Thread() {
 					@Override
 					public void run() {
+						TileNeibs tnStile = new TileNeibs(2 * superTileSize, 2* superTileSize);
 						for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
-                            int dl = ((debugLevel > 0) && (nsTile == debug_stile)) ? 3: debugLevel;
+                            int dl = ((debugLevel > 0) && (nsTile == debug_stile)) ? (debugLevel + 2) : debugLevel;
 							if (dl > 2){
 								System.out.println("initialDiscriminateTiles() selecting: nsTile="+nsTile);
 							}
@@ -2240,18 +2758,17 @@ public class SuperTiles{
 								if (sels_all[pType] == null) sels_all[pType] = new boolean[0][][];
 								// calculate strength of each selection;
 								for (int np = 0; np < sels_all[pType].length; np ++) {
-									double sw = 0.0;
-									for (int ml = 0; ml < num_layers; ml++) if ((sels_all[pType][np] != null) && (sels_all[pType][np][ml] != null)){
-										for (int i = 0; i < num_tiles; i++) {
-											if (sels_all[pType][np][ml][i]) {
-												sw +=  ds[pType][ml][1][i];
-											}
-										}
-									}
+									double sw = getSelectionStrength(
+											mod_strength,        // boolean mod_strength,
+											plDispNorm,          // double plDispNorm,
+											sels_all[pType][np], // boolean [][] sels,
+											ds[pType]);          // double [][][] ds);
 									selStrengthList.add(new SelStrength(pType, np, sw));
 								}
 							}
-							if (dl > 1){
+
+
+							if (dl > 2){
 								System.out.println("initialDiscriminateTiles() got list of clusters for "+nsTile);
 								for (int i = 0; i < selStrengthList.size(); i++){
 									System.out.println(i+": type = "+selStrengthList.get(i).type+
@@ -2288,23 +2805,80 @@ public class SuperTiles{
 									System.out.println("initialDiscriminateTiles() num_old_planes= "+num_old_planes);
 								}
 								boolean [][][] new_planes_selections = new boolean [num_old_planes + num_planes][][];
+								boolean []     new_plane_types = new boolean [num_old_planes + num_planes];
 								int np = 0;
 								for (; np < num_old_planes; np++){
 									new_planes_selections[np] = planes_selections[nsTile][np];
+									new_plane_types[np] = hor_planes[nsTile][np];
 								}
 								for (int nnp = 0; nnp < num_planes; nnp++) { // SelStrength ss:selStrengthList){
 									SelStrength ss = selStrengthList.get(nnp);
-									new_planes_selections[np++] = sels_all[ss.type][ss.indx];
+									new_plane_types[np] =         ss.type != 0; // 0 - vert, 1 - hor;
+									new_planes_selections[np] =   sels_all[ss.type][ss.indx];
 									for (int ml = 0; ml < num_layers; ml++) if (sels_all[ss.type][ss.indx][ml] != null){
-										if (used[nsTile][ml] == null){
-											used[nsTile][ml] = new boolean[num_tiles];
+										if (used_hor[nsTile][ml] == null){
+											used_hor[nsTile][ml] = new boolean[num_tiles];
 										}
-										for (int i = 0; i < num_tiles; i++){
-											used[nsTile][ml][i] |= sels_all[ss.type][ss.indx][ml][i];
+										// used_vert may be the same array as used_hor
+										if (used_vert[nsTile][ml] == null){
+											used_vert[nsTile][ml] = new boolean[num_tiles];
+										}
+										// Filling small gaps in new selections before marking them as "used"
+										boolean [] used_before = (ss.type == 0) ? used_vert[nsTile][ml] : used_hor[nsTile][ml];
+										boolean [] this_used = sels_all[ss.type][ss.indx][ml].clone();
+										boolean [] this_used_expanded = this_used.clone();
+										tnStile.growSelection(
+												2,
+												this_used_expanded,
+												null);
+										for (int i = 0; i < num_tiles; i++) if (this_used_expanded[i] && !this_used[i]) {
+											int n_new_used = 0, n_blocked = 0;
+											for (int dir = 0; dir < 8; dir++) {
+												int i1 = tnStile.getNeibIndex(i, dir);
+												if (i1 < 0) {
+													n_blocked++;
+												} else if (sels_all[ss.type][ss.indx][ml][i1]) { // this_used is modified
+													n_new_used++;
+												} else if (used_before[i1]) {
+													n_blocked++;
+												}
+											}
+											if (((n_new_used + n_blocked) >= used_companions) && (n_new_used >= used_true_companions)) {
+												this_used[i] = true;
+											}
+										}
+
+										// first apply to the same direction (or both if it is the same array)
+										if (ss.type == 0) {
+											for (int i = 0; i < num_tiles; i++){
+												used_vert[nsTile][ml][i] |= this_used[i]; // sels_all[ss.type][ss.indx][ml][i];
+											}
+										} else {
+											for (int i = 0; i < num_tiles; i++){
+												used_hor[nsTile][ml][i] |= this_used[i]; // sels_all[ss.type][ss.indx][ml][i];
+											}
+										}
+										if (hor_vert_overlap > 0) { // shrink selection and apply to the other direction
+//											boolean [] newsel = sels_all[ss.type][ss.indx][ml].clone();
+											tnStile.shrinkSelection(
+													hor_vert_overlap,
+													this_used,
+													null);
+											if (ss.type != 0) {
+												for (int i = 0; i < num_tiles; i++){
+													used_vert[nsTile][ml][i] |= this_used[i];
+												}
+											} else {
+												for (int i = 0; i < num_tiles; i++){
+													used_hor[nsTile][ml][i] |= this_used[i];
+												}
+											}
 										}
 									}
+									np++;
 								}
 								planes_selections[nsTile] = new_planes_selections;
+								hor_planes[nsTile] =        new_plane_types;
 								if (dl > 2){
 									System.out.println("initialDiscriminateTiles() new_planes_selections.length= "+new_planes_selections.length);
 								}
@@ -2549,6 +3123,12 @@ public class SuperTiles{
 			final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 
 			final MeasuredLayersFilterParameters mlfp,
+			final double     fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
+			//FIXME: use following 2 parameters
+			final double     fronto_rms,    // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
+			final double     fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+			// now for regenerated planes - just null as it is not known if it is hor or vert
+			final boolean [][] hor_planes, // plane types (hor/vert)
 			final int        debugLevel,
 			final int        dbg_X,
 			final int        dbg_Y)
@@ -2598,6 +3178,7 @@ public class SuperTiles{
 							ArrayList<TilePlanes.PlaneData> st_planes = pd0.createTilePlanesFromSelections(
 											"" + nsTile, // String        suffix,
 											plane_selections[nsTile], // boolean [][][] plane_selections, //  = new boolean [nStiles][][][]; // num_tiles
+											((hor_planes == null)? null:hor_planes[nsTile]), // boolean []     hor_planes,
 											disp_strength[nsTile],    // double  [][][] disp_strength,
 											plDispNorm,               // double       dispNorm,   //  Normalize disparities to the average if above
 											plMinPoints,              // int          min_tiles,
@@ -2607,19 +3188,27 @@ public class SuperTiles{
 											correct_distortions,      // boolean      correct_distortions,
 											smplMode,                 // boolean      smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 											mlfp,
-											dl);                       // int          debugLevel);
+											fronto_tol,               // double       fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
+											fronto_rms,               // double       fronto_rms,  // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes. May be tighter
+											fronto_offs,              // double       fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+											dl);                      // int          debugLevel);
 
 							if ((st_planes != null) && (!st_planes.isEmpty())){
-								if (dl > 1){
+								if (dl > 2){
 									System.out.println("======= createPlanesFromSelections(): nsTile="+nsTile+" detecting bridges ==========");
 								}
+								boolean [][] hs = new boolean [1][];
 								boolean [][][] split_sels = pd0.filterBridges(
 										st_planes, // ArrayList<PlaneData> tilePlanes,
+										hs, // ((hor_planes == null)? null:hor_planes[nsTile]), // boolean []     hor_planes,
 										3, // int max_grow, // make configurable?
 										3, // int max_grow_far,
 										dl); // int debugLevel)
 								if (split_sels !=null){
-									if (dl > 1){
+									if (hor_planes != null) {
+										hor_planes[nsTile] = hs[0];
+									}
+									if (dl > 2){
 										System.out.println("======= createPlanesFromSelections(): nsTile="+nsTile+" removing bridges ==========");
 									}
 									if (dl > 2) {
@@ -2634,6 +3223,9 @@ public class SuperTiles{
 									st_planes = pd0.createTilePlanesFromSelections(
 											"" + nsTile+" bridges ",  // String        suffix,
 											split_sels,               // boolean [][][] plane_selections, //  = new boolean [nStiles][][][]; // num_tiles
+											// FIXME: replace null (from what type it was before detecting bridges)
+											((hor_planes == null)? null:hor_planes[nsTile]), // boolean []     hor_planes,
+//											null,                     // boolean []     hor_planes,
 											disp_strength[nsTile],    // double  [][][] disp_strength,
 											plDispNorm,               // double       dispNorm,   //  Normalize disparities to the average if above
 											plMinPoints,              // int          min_tiles,
@@ -2643,7 +3235,10 @@ public class SuperTiles{
 											correct_distortions,      // boolean      correct_distortions,
 											smplMode,                 // boolean      smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 											mlfp,
-											dl - 1);                       // int          debugLevel);
+											fronto_tol,               // double       fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
+											fronto_rms,               // double       fronto_rms,  // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes. May be tighter
+											fronto_offs,              // double       fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+											dl - 1);                  // int          debugLevel);
 								}
 
 							}
@@ -2661,10 +3256,10 @@ public class SuperTiles{
 								if (LOWEST_PLANE(2) > 0) st_planes.add(0, st_planes.get(0)); // insert dummy at pos 0;
 								result_planes[nsTile] = st_planes.toArray(new TilePlanes.PlaneData[0] );
 								if (LOWEST_PLANE(2) > 0) result_planes[nsTile][0] = null; // remove dummy
-								if (dl >1){
+								if (dl > 2){
 									System.out.println("createPlanesFromSelections(): nsTile="+nsTile);
 								}
-								if (dl > 2) {
+								if (dl > 3) { // 2) {
 									String [] dbg_titles = showSupertileSeparationTitles( disp_strength[nsTile], plane_selections[nsTile], result_planes[nsTile]);
 									double [][] dbg_img =  showSupertileSeparation(false, disp_strength[nsTile], plane_selections[nsTile], result_planes[nsTile]);
 									showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
@@ -2715,6 +3310,10 @@ public class SuperTiles{
 			final double     plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
 			final int        plMaxOutliers, //        =    20;  // Maximal number of outliers to remove
 			final boolean    plPreferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
+			final double     plFrontoTol,                       // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable
+			final double     plFrontoRms,                       // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
+			final double     plFrontoOffs,                      // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+
 			final GeometryCorrection geometryCorrection,
 			final boolean    correct_distortions,
 
@@ -2740,12 +3339,17 @@ public class SuperTiles{
 			final int        dbg_X,
 			final int        dbg_Y)
 	{
+		final boolean debug_initial_discriminate = true; // false; // true;
 		// use both horizontal and const disparity tiles to create tile clusters
 		// Add max_diff (maximal disparity difference while extracting initial tile selection) and max_tries (2..3) parameters
 
 		// Add separate method to create + remove outliers from all planes (2 different ones)?
 		// TODO later re-assign pixels according to existing plane parameters
 		// Sort plane data by center (plane or supertile) disparity
+		final int superTileSize = tileProcessor.getSuperTileSize();
+		final int nStiles = ((tileProcessor.getTilesX() + superTileSize -1)/superTileSize) * ((tileProcessor.getTilesY() + superTileSize -1)/superTileSize);
+
+		boolean [][] hor_planes = new boolean [nStiles][];
 
 		boolean [][][][]  plane_selections = initialDiscriminateTiles(
 				growSelection,        // final int        growSelection,                     // grow initial selection before processing
@@ -2767,7 +3371,9 @@ public class SuperTiles{
 				highMix,    //final double     highMix,    // stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
 				world_hor, // final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
 				show_histograms, // final boolean    show_histograms,
-				debugLevel+0, // final int        debugLevel,
+				hor_planes, // final boolean [][] hor_planes,
+
+				debugLevel+(debug_initial_discriminate? 2:0), // final int        debugLevel,
 				dbg_X, // final int        dbg_X,
 				dbg_Y); // final int        dbg_Y)
 
@@ -2804,7 +3410,11 @@ public class SuperTiles{
 
 				smplMode,            // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				mlfp,
-				debugLevel + 0, // 1, //  + 2, // 1,          // final int        debugLevel,
+				plFrontoTol,         // final double     plFrontoTol,         // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable
+				plFrontoRms,         // final double     plFrontoRms,                       // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
+				plFrontoOffs,        // final double     plFrontoOffs,                      // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+				hor_planes,          // final boolean [][] hor_planes, // returns plane types (hor/vert)
+				debugLevel + 1, // 0, // 1, //  + 2, // 1,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
 				dbg_Y);              // final int        dbg_Y)
 		this.planes = new_planes; // save as "measured" (as opposed to "smoothed" by neighbors) planes
@@ -2859,7 +3469,10 @@ public class SuperTiles{
 			final double     plTargetEigen, //        =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
 			final double     plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
 			final int        plMaxOutliers, //        =    20;  // Maximal number of outliers to remove
-			final boolean    plPreferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
+			final boolean    plPreferDisparity,                 // Always start with disparity-most axis (false - lowest eigenvalue)
+			final double     plFrontoTol,                       // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable
+			final double     plFrontoRms,                       // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
+			final double     plFrontoOffs,                      // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
 			final GeometryCorrection geometryCorrection,
 			final boolean    correct_distortions,
 
@@ -2960,6 +3573,10 @@ public class SuperTiles{
 
 				smplMode,            // final boolean    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				mlfp,
+				plFrontoTol,         // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable
+				plFrontoRms,         // final double     plFrontoRms,                       // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
+				plFrontoOffs,        // final double     plFrontoOffs,                      // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0
+				null,                // final boolean [][] hor_planes, // plane types (hor/vert)
 				debugLevel, //  + 2, // 1,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
 				dbg_Y);              // final int        dbg_Y)
@@ -5723,6 +6340,19 @@ public class SuperTiles{
 										}
 									}
 								}
+								//superTileSize
+								// mark fronto tiles with NaN - center 3x3 tiles
+								//superTileSize
+								if (planes[nsTile][np].fronto) {
+									plane[centerIndex + 0] =             Double.NaN;
+									plane[centerIndex + superTileSize] = Double.NaN;
+									plane[centerIndex - superTileSize] = Double.NaN;
+								}
+								if (planes[nsTile][np].horizontal) {
+									plane[centerIndex + 0] =             Double.NaN;
+									plane[centerIndex + 1] =             Double.NaN;
+									plane[centerIndex - 1] =             Double.NaN;
+								}
 								for (int y = 0; y < superTileSize; y++) {
 									if (data.length < (ns+1)){
 										System.out.println("BUG in getShowPlanes()!, ns = "+ns+", data.length="+data.length);
@@ -5733,6 +6363,7 @@ public class SuperTiles{
 								ns ++;
 							}
 						}
+
 					}
 				}
 				// fill same (nearest) plane or NaN if none was available
@@ -6199,7 +6830,6 @@ public class SuperTiles{
 	public int applyMergePlanes(
 			final TilePlanes.PlaneData[][]   planes,
 			final int [][][]                 merge_groups,
-
 			// parameters to generate ellipsoids
 			final double                     disp_far, // minimal disparity to select (or NaN)
 			final double                     disp_near, // maximal disparity to select (or NaN)
@@ -6208,8 +6838,12 @@ public class SuperTiles{
 			final int                        min_tiles,
 			// parameters to reduce outliers
 			final double                     targetEigen,   //     =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
-			final double                     fractOutliers, //     =   0.3;  // Maximal fraction of outliers to remove
+			final double                     inFractOutliers, //     =   0.3;  // Maximal fraction of outliers to remove
 			final int                        maxOutliers,   //     =   20;  // Maximal number of outliers to remove
+			final double                     fronto_tol,    // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
+// FIXME: the following 2 parameters are not yet used
+			final double                     fronto_rms,    // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
+			final double                     fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
 			final int                        debugLevel,
 			final int                        dbg_X,
 			final int                        dbg_Y)
@@ -6248,24 +6882,9 @@ public class SuperTiles{
 										dispNorm,       // double       dispNorm,   //  Normalize disparities to the average if above
 										min_weight,     // double       min_weight,
 										min_tiles,      // int          min_tiles,
-//										strength_floor, // double       strength_floor,
-//										strength_pow,   // double       strength_pow,
 //OK?
 										smplMode,
 										mlfp,
-//										smplSide,
-//										smplNum,
-//										smplRms,
-//										smplWnd,
-
-//										max_abs_tilt,             // 2.0; // Maximal absolute tilt in pixels/tile
-//										max_rel_tilt,             // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//										damp_tilt,                //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//										min_tilt_disp,            // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//										transition,               // 1.0; // Mode transition range (between tilted and maximal disparity)
-//										far_mode,                 //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//										far_power,                //    1.0; // Raise disparity to this power before averaging for far objects
-
 										dl - 2);            // int          debugLevel)
 								if (disp_strength == null) {
 									System.out.println("=== BUG in applyMergePlanes(): failed to getPlaneFromMeas() for merged planes");
@@ -6280,41 +6899,46 @@ public class SuperTiles{
 										dispNorm,       // double       dispNorm,   //  Normalize disparities to the average if above
 										min_weight,     // double       min_weight,
 										min_tiles,      // int          min_tiles,
-//										strength_floor, // double       strength_floor,
-//										strength_pow,   // double       strength_pow,
 //OK?
 										smplMode,
 										mlfp,
-//										smplSide,
-//										smplNum,
-//										smplRms,
-
-//										smplWnd, // was not here
-
-//										max_abs_tilt,             // 2.0; // Maximal absolute tilt in pixels/tile
-//										max_rel_tilt,             // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//										damp_tilt,                //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//										min_tilt_disp,            // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//										transition,               // 1.0; // Mode transition range (between tilted and maximal disparity)
-//										far_mode,                 //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//										far_power,                //    1.0; // Raise disparity to this power before averaging for far objects
-
 										dl - 2);            // int          debugLevel)
 
 
 
 								// remove outliers //removeOutliers
 								// now try to remove outliers
-								int max_outliers = (int) Math.round(this_pd.getNumPoints() * fractOutliers);
-								if (max_outliers > maxOutliers) max_outliers = maxOutliers;
 
 								double targetV = corrMaxEigen(
 										targetEigen,
 										dispNorm,
 										planes[nsTile][np0]);
+
+								boolean almost_fronto = this_pd.isFronto(
+										fronto_tol,    // double fronto_tol,
+										disp_strength,      // double [][][] disp_str,
+										debugLevel);   // int debugLevel);
+								// seems it is OK not to normalize fronto_rms, as it is only needed for far surfaces
+								double targetEigen = almost_fronto ? (fronto_rms*fronto_rms): targetV;
 //								if (this_pd.getValue() > targetV) {
-								if (this_pd.getNormValue() > targetV) {
+								// FIXME: temporary - make a configurable parameter
+								double fronto_fract_outliers = 0.8; // 2 * inFractOutliers;
+								double fractOutliers = almost_fronto ? (fronto_fract_outliers) : inFractOutliers;
+								int max_outliers = (int) Math.round(this_pd.getNumPoints() * fractOutliers);
+								if (max_outliers > maxOutliers) max_outliers = maxOutliers;
+								// in fronto mode - run at least once
+								if (almost_fronto) {
+									this_pd.growFrontoSelection(
+											5,              // int           min_neib,
+											0.1,            // double        max_over_avg,
+											0.00,           // double        max_under_avg,
+											disp_strength); // double [][][] disp_str)
+								}
+								if ((this_pd.getNormValue() > targetEigen) || almost_fronto) { // targetV) {
 									boolean OK = this_pd.removeOutliers( // getPlaneFromMeas should already have run
+											fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
+											fronto_rms,    // double        fronto_rms,  // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes. May be tighter
+											fronto_offs,   //double        fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight.
 											disp_strength,
 											targetV,      // double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
 											max_outliers, // int        maxRemoved,  // maximal number of tiles to remove (not a constant)
@@ -6323,6 +6947,9 @@ public class SuperTiles{
 										System.out.println("=== BUG in applyMergePlanes(): failed to removeOutliers() for merged planes");
 										break;
 									}
+								}
+								if (this_pd.fronto) {
+									//?
 								}
 							}
 // remove all null planes (but number zero - it may be null for historical reasons)
@@ -6425,25 +7052,14 @@ public class SuperTiles{
 			final int                        min_tiles,
 			// parameters to reduce outliers
 			final double                     targetEigen,   //     =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
-			final double                     fractOutliers, //     =   0.3;  // Maximal fraction of outliers to remove
+			final double                     inFractOutliers, //     =   0.3;  // Maximal fraction of outliers to remove
 			final int                        maxOutliers,   //     =   20;  // Maximal number of outliers to remove
-//			final double                     strength_floor,
-//			final double                     strength_pow,
-
 			final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 			final MeasuredLayersFilterParameters mlfp,
-//			final int                        smplSide, //        = 2;      // Sample size (side of a square)
-//			final int                        smplNum, //         = 3;      // Number after removing worst
-//			final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-//			final boolean                    smplWnd,  // use window functions for the samples
-
-//			final double                     max_abs_tilt,  //  2.0;   // pix per tile
-//			final double                     max_rel_tilt,  //  0.2;   // (pix / disparity) per tile
-//			final double                     damp_tilt,     //  0.001; // Damp tilt to handle insufficient  (co-linear)data
-//			final double                     min_tilt_disp, //  4.0;   // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//			final double                     transition,    //  1.0;   // Mode transition range (between tilted and maximal disparity)
-//			final int                        far_mode,      //  1;     // Far objects filtering mode (0 - off, 1 - power of disparity)
-//			final double                     far_power,     //  3.0;   // Raise disparity to this power before averaging for far objects
+			final double                     fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
+//FIXME: use following 2 parameters
+			final double                     fronto_rms,    // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
+			final double                     fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
 
 			final int                        debugLevel,
 			final int                        dbg_X,
@@ -6598,19 +7214,6 @@ public class SuperTiles{
 											use_other_planes, // boolean      use_other_planes,
 											smplMode,
 											mlfp,
-//											smplSide,
-//											smplNum,
-//											smplRms,
-//											smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
-
-//											max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//											max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//											damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//											min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//											transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//											far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//											far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
-
 											measSel,          // int          measSel, // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 											allow_parallel,   //boolean      allow_parallel,
 											dl); // int          debugLevel)
@@ -6642,37 +7245,46 @@ public class SuperTiles{
 												dispNorm,       // double       dispNorm,   //  Normalize disparities to the average if above
 												min_weight,     // double       min_weight,
 												min_tiles,      // int          min_tiles,
-//												strength_floor, // double       strength_floor,
-//												strength_pow,   // double       strength_pow,
 // OK?
 												smplMode,
 												mlfp,
-//												smplSide,
-//												smplNum,
-//												smplRms,
-//												smplWnd,           // final boolean    smplWnd,  // use window functions for the samples
-
-//												max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//												max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//												damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//												min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//												transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//												far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//												far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
-
 												dl);            // int          debugLevel)
 										if (disp_strength == null) break;
 										// remove outliers //removeOutliers
 										// now try to remove outliers
-										int max_outliers = (int) Math.round(bpd[np][npip].getNumPoints() * fractOutliers);
-										if (max_outliers > maxOutliers) max_outliers = maxOutliers;
 										double targetV = corrMaxEigen(
 												targetEigen,
 												dispNorm,
 												bpd[np][npip]);
 //										if (bpd[np][npip].getValue() > targetV) {
-										if (bpd[np][npip].getNormValue() > targetV) {
+										boolean almost_fronto = bpd[np][npip].isFronto(
+												fronto_tol,    // double fronto_tol,
+												disp_strength,      // double [][][] disp_str,
+												debugLevel);   // int debugLevel);
+										// seems it is OK not to normalize fronto_rms, as it is only needed for far surfaces
+										double targetEigen = almost_fronto ? (fronto_rms*fronto_rms): targetV;
+										// FIXME: temporary - make a configurable parameter
+										double fronto_fract_outliers = 0.8; // 2 * inFractOutliers;
+										double fractOutliers = almost_fronto ? (fronto_fract_outliers) : inFractOutliers;
+										int max_outliers = (int) Math.round(bpd[np][npip].getNumPoints() * fractOutliers);
+										if (max_outliers > maxOutliers) max_outliers = maxOutliers;
+
+
+//										if (bpd[np][npip].getNormValue() > targetV) {
+										// in fronto mode - run at least once
+										if (almost_fronto) {
+											bpd[np][npip].growFrontoSelection(
+													4,              // int           min_neib,
+													0.1,            // double        max_over_avg,
+													0.00,           // double        max_under_avg,
+													disp_strength); // double [][][] disp_str)
+										}
+
+										if ((bpd[np][npip].getNormValue() > targetEigen) || almost_fronto) { // targetV) {
 											OK = bpd[np][npip].removeOutliers( // getPlaneFromMeas should already have run
+													fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
+													fronto_rms,    // double        fronto_rms,  // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes. May be tighter
+													fronto_offs,   //double        fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced
 													disp_strength,
 													targetV,      // double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
 													max_outliers, // int        maxRemoved,  // maximal number of tiles to remove (not a constant)

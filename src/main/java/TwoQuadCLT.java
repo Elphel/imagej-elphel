@@ -535,7 +535,8 @@ public class TwoQuadCLT {
 							  ImageDtt.BIDISPARITY_TITLES);
 					  boolean [] trusted = 	  getTrustedDisparity(
 							  quadCLT_main,  // QuadCLT            quadCLT_main,  // tiles should be set
-							  quadCLT_aux,   //QuadCLT            quadCLT_aux,
+							  quadCLT_aux,   // QuadCLT            quadCLT_aux,
+							  true,          // boolean            use_individual,
 			    			  0.14,          // double             min_combo_strength,    // check correlation strength combined for all 3 correlations
 							  clt_parameters.grow_disp_trust,       // double             max_trusted_disparity, // 4.0 -> change to rig_trust
 							  1.0,           // double             trusted_tolerance,
@@ -1912,6 +1913,7 @@ if (debugLevel > -100) return true; // temporarily !
           boolean [] trusted_infinity = 	  getTrustedDisparity(
         		  quadCLT_main,                            // QuadCLT            quadCLT_main,  // tiles should be set
         		  quadCLT_aux,                             // QuadCLT            quadCLT_aux,
+				  true,                                    // boolean            use_individual,
         		  clt_parameters.rig.min_trusted_strength, // double             min_combo_strength,    // check correlation strength combined for all 3 correlations
         		  clt_parameters.grow_disp_trust,          // double             max_trusted_disparity, // 4.0 -> change to rig_trust
         		  clt_parameters.rig.trusted_tolerance,    // double             trusted_tolerance,
@@ -1958,6 +1960,7 @@ if (debugLevel > -100) return true; // temporarily !
               trusted_infinity = 	  getTrustedDisparity(
             		  quadCLT_main,                             // QuadCLT            quadCLT_main,  // tiles should be set
             		  quadCLT_aux,                              // QuadCLT            quadCLT_aux,
+					  true,                                     // boolean            use_individual,
             		  clt_parameters.rig.min_trusted_strength,  // double             min_combo_strength,    // check correlation strength combined for all 3 correlations
             		  clt_parameters.grow_disp_trust,           // double             max_trusted_disparity, // 4.0 -> change to rig_trust
             		  clt_parameters.rig.trusted_tolerance,     // double             trusted_tolerance,
@@ -2024,6 +2027,7 @@ if (debugLevel > -100) return true; // temporarily !
           boolean [] trusted_near = 	  getTrustedDisparity(
         		  quadCLT_main,                                      // QuadCLT            quadCLT_main,  // tiles should be set
         		  quadCLT_aux,                                       // QuadCLT            quadCLT_aux,
+				  true,                                              // boolean            use_individual,
         		  0.5*clt_parameters.rig.min_trusted_strength,       // double             min_combo_strength,    // check correlation strength combined for all 3 correlations
         		  clt_parameters.grow_disp_trust,                    // double             max_trusted_disparity, // 4.0 -> change to rig_trust
         		  clt_parameters.rig.trusted_tolerance,              // double             trusted_tolerance,
@@ -2069,6 +2073,7 @@ if (debugLevel > -100) return true; // temporarily !
               trusted_near = 	  getTrustedDisparity(
             		  quadCLT_main,                            // QuadCLT            quadCLT_main,  // tiles should be set
             		  quadCLT_aux,                             // QuadCLT            quadCLT_aux,
+					  true,                                     // boolean            use_individual,
             		  clt_parameters.rig.min_trusted_strength, // double             min_combo_strength,    // check correlation strength combined for all 3 correlations
             		  clt_parameters.grow_disp_trust,          // double             max_trusted_disparity, // 4.0 -> change to rig_trust
             		  clt_parameters.rig.trusted_tolerance,    // double             trusted_tolerance,
@@ -2206,6 +2211,7 @@ if (debugLevel > -100) return true; // temporarily !
               trusted_near = 	  getTrustedDisparity(
             		  quadCLT_main,                            // QuadCLT            quadCLT_main,  // tiles should be set
             		  quadCLT_aux,                             // QuadCLT            quadCLT_aux,
+					  true,                                    // boolean            use_individual,
             		  clt_parameters.rig.min_trusted_strength, // double             min_combo_strength,    // check correlation strength combined for all 3 correlations
             		  clt_parameters.grow_disp_trust,          // double             max_trusted_disparity, // 4.0 -> change to rig_trust
             		  clt_parameters.rig.trusted_tolerance,    // double             trusted_tolerance,
@@ -2261,7 +2267,7 @@ if (debugLevel > -100) return true; // temporarily !
 	  {
 		  final int num_tries_strongest_by_fittest = 5;
 		  final int num_full_cycles =       clt_parameters.rig.pf_en_trim_fg? 3 : 1;  // Number of full low-texture cycles that include growing flat LT and trimmin weak FG over BG
-		  final int num_cross_gaps_cycles = 20; // maximal number of adding new tiles cycles while "crossing the gaps)
+//		  final int num_cross_gaps_cycles = 12+ (num_simple_expand_cysles * dxy.length); // maximal number of adding new tiles cycles while "crossing the gaps)
 		  final int min_cross_gaps_new =    20; // minimal number of the new added tiles
 		  final int refine_inter = 2; // 3; // 3 - dx, 2 - disparity
 		  final int tilesX = quadCLT_main.tp.getTilesX();
@@ -2289,6 +2295,8 @@ if (debugLevel > -100) return true; // temporarily !
 					  quadCLT_main.image_name+"-BISCAN_initial");
 		  }
 		  int [][] dxy = {{0, -1},{0,1},{-1,0},{1,0}};
+		  int num_simple_expand_cysles = 8;
+		  final int num_cross_gaps_cycles = 12 + (num_simple_expand_cysles * dxy.length); // maximal number of adding new tiles cycles while "crossing the gaps)
 		  for (int num_fcycle = 0; num_fcycle < num_full_cycles; num_fcycle++) {
 			  // Grow tiles, cross gaps (do not trim yet
 			  //
@@ -2332,12 +2340,12 @@ if (debugLevel > -100) return true; // temporarily !
 				   * @return array of 3 numbers: number of trusted strong tiles, number of additional trusted by plane fitting, and number of all
 				   * somewhat strong tiles
 				   */
-				  if (debugLevel > -2) {
+				  if (debugLevel > -4) {
 					  System.out.println("groundTruthByRigPlanes() grow pass "+num_cycle+" of "+ num_cross_gaps_cycles+
 							  " strong trusted: "+trusted_stats[0]+ " neib trusted: "+trusted_stats[1]+" weak trusted: " + trusted_stats[2]);
 				  }
 				  int num_added_tiles =0;
-				  if (num_cycle < 2*dxy.length) {
+				  if (num_cycle < num_simple_expand_cysles * dxy.length) {
 					  // simple duplicating one step in 4 directions
 					  num_added_tiles = last_scan.suggestNewScan(
 							  dxy[num_cycle % dxy.length], // final int []     dxy,               //up,down,right,left
@@ -2349,6 +2357,8 @@ if (debugLevel > -100) return true; // temporarily !
 							  clt_parameters.tileX,                   // final int        dbg_x,
 							  clt_parameters.tileY,                   // final int        dbg_y,
 							  debugLevel);                            // final int        debugLevel);
+					  //TODO: add expanding FG over existing BG. Use "Strong enough" for FG to beat BG. Maybe expand by multiple steps?
+
 				  } else {
 
 					  // suggest new disparities, using plane surfaces (extending around that may cause false surfaces)
@@ -2399,28 +2409,29 @@ if (debugLevel > -100) return true; // temporarily !
 							  clt_parameters.tileY,                   // final int        dbg_y,
 							  debugLevel);                            // final int        debugLevel);
 				  }
-				  if (debugLevel > -2) {
+				  if (debugLevel > -4) {
 					  System.out.println("groundTruthByRigPlanes() full cycle = "+num_fcycle+", grow pass "+num_cycle+" of "+ num_cross_gaps_cycles+
 							  " suggestNewScan() -> "+num_added_tiles);
 				  }
 				  //num_cycle < num_cross_gaps_cycles;
-				  boolean last_cycle = (num_added_tiles < min_cross_gaps_new) || (num_cycle >= (num_cross_gaps_cycles-1));
+//				  boolean last_cycle = (num_added_tiles < min_cross_gaps_new) || (num_cycle >= (num_cross_gaps_cycles-1));
+				  boolean last_cycle = ((num_added_tiles < min_cross_gaps_new) && (num_cycle >= num_simple_expand_cysles * dxy.length)) || (num_cycle >= (num_cross_gaps_cycles-1));
 				  if (clt_parameters.show_map &&  (debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
-					 if (last_cycle) //  || (num_cycle < 2 * dxy.length))
-						 biCamDSI.getLastBiScan(BiScan.BISCAN_SINGLECORR).showScan(
-							  quadCLT_main.image_name+"-BISCAN_SUGGESTED"+num_fcycle+"-"+num_cycle);
+					  if (last_cycle) //  || (num_cycle < 2 * dxy.length))
+						  biCamDSI.getLastBiScan(BiScan.BISCAN_SINGLECORR).showScan(
+								  quadCLT_main.image_name+"-BISCAN_SUGGESTED"+num_fcycle+"-"+num_cycle);
 				  }
 
 				  if (last_cycle && clt_parameters.rig.pf_en_trim_fg) { // last cycle and trimming enabled
-					  if (debugLevel > -2) {
+					  if (debugLevel > -4) {
 						  //						  System.out.println("groundTruthByRigPlanes(): num_added_tiles= "+num_added_tiles+" > "+min_cross_gaps_new+", done growing over gaps");
 						  System.out.println("groundTruthByRigPlanes(): that was the last growing over gaps cycle, performing trimming hanging weak FG over BG");
 					  }
 
 					  /*
 					   * Disable low-textured tiles are not between strong tiles, but on one side of it.
-					   * This method relies on the assumption that FG edge should bave strong correlation, so it tries multiple directions
-					   * from the weak (not trusted strong) tiles and trims tiles that eithre do not have anything in that direction or have
+					   * This method relies on the assumption that FG edge should have strong correlation, so it tries multiple directions
+					   * from the weak (not trusted strong) tiles and trims tiles that either do not have anything in that direction or have
 					   * farther tiles.
 					   * Trimming(disabling) weak (trusted but not strong_trusted) tiles if on any one side:
 					   *   a) there are no same plane or closer tiles
@@ -2455,7 +2466,7 @@ if (debugLevel > -100) return true; // temporarily !
 							  clt_parameters.tileX,                   // final int        dbg_x,
 							  clt_parameters.tileY,                   // final int        dbg_y,
 							  debugLevel);                            // final int        debugLevel);
-					  if (debugLevel > -2) {
+					  if (debugLevel > -4) {
 						  System.out.println("groundTruthByRigPlanes(): full cycle="+num_fcycle+" num_trimmed= "+num_trimmed+" tiles");
 					  }
 					  if (clt_parameters.show_map &&  (debugLevel > 0) && clt_parameters.rig.rig_mode_debug){
@@ -2498,7 +2509,7 @@ if (debugLevel > -100) return true; // temporarily !
 							  clt_parameters.tileX,                   // final int        dbg_x,
 							  clt_parameters.tileY,                   // final int        dbg_y,
 							  debugLevel);                            // final int        debugLevel);
-					  if (debugLevel > -2) {
+					  if (debugLevel > -4) {
 						  System.out.println("groundTruthByRigPlanes() full cycle = "+num_fcycle+", grow pass "+num_cycle+" of "+ num_cross_gaps_cycles+
 								  " suggestNewScan() -> "+num_added_tiles_trimmed+"( after trimming)");
 					  }
@@ -2529,10 +2540,13 @@ if (debugLevel > -100) return true; // temporarily !
 
 				  // refine measurements
 				  int [] num_new = new int[1];
+				  // at least for small separation FG/BG individual cameras may not provide trusted results - ignore them only use rig
 				  boolean [] trusted_measurements = 	  getTrustedDisparity(
 						  quadCLT_main,                            // QuadCLT            quadCLT_main,  // tiles should be set
 						  quadCLT_aux,                             // QuadCLT            quadCLT_aux,
-						  clt_parameters.rig.min_trusted_strength, // double             min_combo_strength,    // check correlation strength combined for all 3 correlations
+//						  false,                                   // boolean            use_individual,
+						  true,                                   // boolean            use_individual,
+						  0.8*clt_parameters.rig.min_trusted_strength, // double             min_combo_strength,    // check correlation strength combined for all 3 correlations
 						  clt_parameters.grow_disp_trust,          // double             max_trusted_disparity, // 4.0 -> change to rig_trust
 						  clt_parameters.rig.trusted_tolerance,    // double             trusted_tolerance,
 						  null,                                    // boolean []         was_trusted,
@@ -2576,15 +2590,17 @@ if (debugLevel > -100) return true; // temporarily !
 					  prev_bimap = disparity_bimap;
 					  disparity_bimap = disparity_bimap_new;
 					  trusted_measurements = 	  getTrustedDisparityInter(
-		        			  0.0, // clt_parameters.rig.lt_trusted_strength*clt_parameters.rig.lt_need_friends, // double             min_inter_strength,    // check correlation strength combined for all 3 correlations
-		        			  clt_parameters.grow_disp_trust,           // double             max_trusted_disparity,
-		        			  trusted_measurements,                     // boolean []         was_trusted,
-		        			  disparity_bimap );                        // double [][]        bimap // current state of measurements
+							  0.0, // clt_parameters.rig.lt_trusted_strength*clt_parameters.rig.lt_need_friends, // double             min_inter_strength,    // check correlation strength combined for all 3 correlations
+							  clt_parameters.grow_disp_trust,           // double             max_trusted_disparity,
+							  trusted_measurements,                     // boolean []         was_trusted,
+							  disparity_bimap );                        // double [][]        bimap // current state of measurements
 
 					  if (debugLevel > -2) {
 						  System.out.println("groundTruthByRigPlanes(): cycle="+num_cycle+", refinement step="+nref+" num_new= "+num_new[0]+" tiles");
 					  }
-					  if (num_new[0] < clt_parameters.rig.pf_min_new) break;
+					  if (num_new[0] < clt_parameters.rig.pf_min_new) {
+						  break;
+					  }
 				  }
 
 
@@ -2627,7 +2643,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 				  // add refined data
 				  biCamDSI.addBiScan(disparity_bimap, BiScan.BISCAN_SINGLECORR);
-				  // find strongest
+				  // find strongest if FG over BG - not the strongest, but either strongest or just strong and nearer
 				  biCamDSI.getLastBiScan(BiScan.BISCAN_SINGLECORR).copyLastStrongestEnabled(
 						  clt_parameters.rig.pf_last_priority); // final boolean last_priority)
 
@@ -2645,7 +2661,25 @@ if (debugLevel > -100) return true; // temporarily !
 					  if (num_replaced == 0) {
 						  break;
 					  }
- 				  }
+				  }
+				  double  fg_str_good_enough =  clt_parameters.rig.pf_trusted_strength  * 0.6; // 4; // absolute strength floor for good enough
+				  double  fg_min_FGtoBG =      1.0;    // minimal disparity difference over
+				  double  fg_disp_atolerance = 0.1;    // Maximal absolute disparity difference to qualifying neighbor
+				  double  fg_disp_rtolerance = 0.02;   // Maximal relative (to absolute disparity) disparity difference to qualifying neighbor
+				  int     fg_min_neib =        2;      // minimal number of qualifying neighbors to promote FG tile
+
+				  // promote thin FG objects over even stronger BG ones (as thin stick in FG over textured BG)
+
+				  int num_replaced_fg = biCamDSI.getLastBiScan(BiScan.BISCAN_SINGLECORR).copyStrongFGEnabled(
+						  fg_str_good_enough, // final double  str_good_enough, // absolute strength floor for good enough
+						  fg_min_FGtoBG,      // final double  min_FGtoBG,      // minimal disparity difference over
+						  fg_disp_atolerance, // final double  disp_atolerance, // =  0.1;    // Maximal absolute disparity difference to qualifying neighbor
+						  fg_disp_rtolerance, // final double  disp_rtolerance, // =  0.02;   // Maximal relative (to absolute disparity) disparity difference to qualifying neighbor
+						  fg_min_neib);       // final int     min_neib)        // minimal number of qualifying neighbors to promote FG tile
+				  //				  if ((debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
+				  if ((debugLevel > -4)){
+					  System.out.println("groundTruthByRigPlanes(): Replacing BG with FG tiles,  replaced "+num_replaced_fg+" tiles");
+				  }
 
 				  if (clt_parameters.show_map &&  (debugLevel > 0) && clt_parameters.rig.rig_mode_debug){
 					  biCamDSI.getLastBiScan(BiScan.BISCAN_SINGLECORR).showScan(
@@ -2657,8 +2691,14 @@ if (debugLevel > -100) return true; // temporarily !
 					  }
 					  break;
 				  }
-//	public void showScan(String title) {
+				  //	public void showScan(String title) {
+				  if (debugLevel > -2){
+					  System.out.println("groundTruthByRigPlanes(): num_cycle="+num_cycle);
+				  }
 			  } // for (int num_cycle = 0; num_cycle < num_cross_gaps_cycles; num_cycle++) {
+			  if (debugLevel > -2){
+				  System.out.println("groundTruthByRigPlanes(): num_fcycle="+num_fcycle);
+			  }
 		  }// 		  for (int num_fcycle = 0; num_fcycle < num_full_cycles; num_fcycle++) {
 
 
@@ -3247,6 +3287,27 @@ if (debugLevel > -100) return true; // temporarily !
 				  break;
 			  }
 		  }
+
+		  double  fg_str_good_enough = trusted_strength * 0.4; // absolute strength floor for good enough
+		  double  fg_min_FGtoBG =      1.0;    // minimal disparity difference over
+		  double  fg_disp_atolerance = 0.1;    // Maximal absolute disparity difference to qualifying neighbor
+		  double  fg_disp_rtolerance = 0.02;   // Maximal relative (to absolute disparity) disparity difference to qualifying neighbor
+		  int     fg_min_neib =        2;      // minimal number of qualifying neighbors to promote FG tile
+
+		  // promote thin FG objects over even stronger BG ones (as thin stick in FG over textured BG)
+
+		  int num_replaced_fg = biCamDSI_persistent.getLastBiScan(BiScan.BISCAN_SINGLECORR).copyStrongFGEnabled(
+				  fg_str_good_enough, // final double  str_good_enough, // absolute strength floor for good enough
+				  fg_min_FGtoBG,      // final double  min_FGtoBG,      // minimal disparity difference over
+				  fg_disp_atolerance, // final double  disp_atolerance, // =  0.1;    // Maximal absolute disparity difference to qualifying neighbor
+				  fg_disp_rtolerance, // final double  disp_rtolerance, // =  0.02;   // Maximal relative (to absolute disparity) disparity difference to qualifying neighbor
+				  fg_min_neib);       // final int     min_neib)        // minimal number of qualifying neighbors to promote FG tile
+//		  if ((debugLevel > -2) && clt_parameters.rig.rig_mode_debug){
+		  if ((debugLevel > -2)){
+			  System.out.println("groundTruthByRigPlanes(): Replacing BG with FG tiles,  replaced "+num_replaced_fg+" tiles");
+		  }
+
+
 
 		  biScan.calcTrusted(   // finds strong trusted and validates week ones if they fit planes
 				  trusted_strength, // final double     trusted_strength, // trusted correlation strength
@@ -4393,6 +4454,7 @@ if (debugLevel > -100) return true; // temporarily !
 	  boolean [] getTrustedDisparity(
 			  QuadCLT            quadCLT_main,  // tiles should be set
 			  QuadCLT            quadCLT_aux,
+			  boolean            use_individual,
 			  double             min_combo_strength,    // check correlation strength combined for all 3 correlations
 			  double             max_trusted_disparity,
 			  double             trusted_tolerance,
@@ -4405,12 +4467,20 @@ if (debugLevel > -100) return true; // temporarily !
 		  if (trusted_main < trusted_tolerance) trusted_main = trusted_tolerance;
 		  if (trusted_aux  < trusted_tolerance) trusted_aux =  trusted_tolerance;
 		  boolean [] trusted = new boolean [bimap[ImageDtt.BI_DISP_CROSS_INDEX].length];
-		  for (int i = 0; i < trusted.length; i++) {
-			  trusted[i] = (Math.abs(bimap[ImageDtt.BI_DISP_CROSS_INDEX][i]) <= trusted_inter) &&
-					  (Math.abs(bimap[ImageDtt.BI_DISP_FULL_INDEX][i])  <= trusted_main) &&
-					  (Math.abs(bimap[ImageDtt.BI_ADISP_FULL_INDEX][i]) <= trusted_aux) &&
-					  (bimap[ImageDtt.BI_STR_ALL_INDEX][i]              >= min_combo_strength) &&
-					  ((was_trusted == null) || was_trusted[i]);
+		  if (use_individual) {
+			  for (int i = 0; i < trusted.length; i++) {
+				  trusted[i] = (Math.abs(bimap[ImageDtt.BI_DISP_CROSS_INDEX][i]) <= trusted_inter) &&
+						  (Math.abs(bimap[ImageDtt.BI_DISP_FULL_INDEX][i])  <= trusted_main) &&
+						  (Math.abs(bimap[ImageDtt.BI_ADISP_FULL_INDEX][i]) <= trusted_aux) &&
+						  (bimap[ImageDtt.BI_STR_ALL_INDEX][i]              >= min_combo_strength) &&
+						  ((was_trusted == null) || was_trusted[i]);
+			  }
+		  } else {
+			  for (int i = 0; i < trusted.length; i++) {
+				  trusted[i] = (Math.abs(bimap[ImageDtt.BI_DISP_CROSS_INDEX][i]) <= trusted_inter) &&
+						  (bimap[ImageDtt.BI_STR_CROSS_INDEX][i]                 >= min_combo_strength) &&
+						  ((was_trusted == null) || was_trusted[i]);
+			  }
 		  }
 		  return trusted;
 	  }

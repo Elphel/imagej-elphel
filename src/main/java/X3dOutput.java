@@ -224,7 +224,8 @@ public class X3dOutput {
 
 	public double [][] getBBox() // center: x,y,z, size:x,y,z
 	{
-		double depth =  geometry_correction.getZFromDisparity(clt_parameters.bgnd_range);
+//		double depth =  geometry_correction.getZFromDisparity(clt_parameters.bgnd_range);
+		double depth =  clt_parameters.infinityDistance;
 		double width  = depth * geometry_correction.getFOVWidth();
 		double height = depth * geometry_correction.getFOVHeight();
 		double [][] bbox = {{0, 0, -depth/2},{width,height,depth}};

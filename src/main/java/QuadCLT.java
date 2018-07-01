@@ -7190,6 +7190,7 @@ public class QuadCLT {
 		  if (this.image_data == null){
 			  return false;
 		  }
+		  double infinity_disparity = 	geometryCorrection.getDisparityFromZ(clt_parameters.infinityDistance);
 		  X3dOutput x3dOutput = null;
 		  WavefrontExport wfOutput = null;
 		  if (clt_parameters.remove_scans){
@@ -7202,7 +7203,8 @@ public class QuadCLT {
 		  int next_pass = tp.clt_3d_passes.size(); //
 		  tp.thirdPassSetupSurf( // prepare tile tasks for the second pass based on the previous one(s) // needs last scan
 				  clt_parameters,
-				  clt_parameters.bgnd_range, // double            disparity_far,
+				  //FIXME: make a special parameter?
+				  infinity_disparity, //0.25 * clt_parameters.bgnd_range, // double            disparity_far,
 				  clt_parameters.grow_disp_max, // other_range, //double            disparity_near,   //
 				  geometryCorrection,
 				  threadsMax,  // maximal number of threads to launch
@@ -7253,9 +7255,9 @@ public class QuadCLT {
 //		  int num_bgnd = 0;
 //		  for (int i = 0; i < bgnd_sel.length; i++) if (bgnd_sel[i]) num_bgnd++;
 //		  if (num_bgnd >= clt_parameters.min_bgnd_tiles) { // TODO: same for the backdrop too
+//		  double infinity_disparity = 	geometryCorrection.getDisparityFromZ(clt_parameters.infinityDistance);
 		  if (bgndScan.texture != null) { // TODO: same for the backdrop too
 			  if (clt_parameters.infinityDistance > 0.0){ // generate background as a billboard
-				  double infinity_disparity = 	geometryCorrection.getDisparityFromZ(clt_parameters.infinityDistance);
 				  // grow selection, then grow once more and create border_tiles
 				  // create/rstore, probably not needed
 				  boolean [] bg_sel_backup = bgndScan.getSelected().clone();
@@ -7434,7 +7436,8 @@ public class QuadCLT {
 						  clt_parameters.transform_size,
 						  clt_parameters.correct_distortions, // requires backdrop image to be corrected also
 						  showTri, // (scanIndex < next_pass + 1) && clt_parameters.show_triangles,
-						  clt_parameters.bgnd_range,  // 0.3
+						  // FIXME: make a separate parameter:
+						  infinity_disparity, //  0.25 * clt_parameters.bgnd_range,  // 0.3
 						  clt_parameters.grow_disp_max, // other_range, // 2.0 'other_range - difference from the specified (*_CM)
 						  clt_parameters.maxDispTriangle);
 			} catch (IOException e) {

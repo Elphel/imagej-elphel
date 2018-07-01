@@ -87,7 +87,9 @@ public class TilePlanes {
 		int          min_tiles =             10;
 		double       dispNorm =              5.0;  //  Normalize disparities to the average if above
 		boolean      smplMode =              true;   // Use sample mode (false - regular tile mode)
-
+		boolean      fronto =                false; // this plane is almost fronto
+		boolean      horizontal =            false; // plane created as horizontal, can not be fronto
+		double       fronto_rms =            Double.NaN; // temporary, for debugging
 		MeasuredLayersFilterParameters mlfp = new MeasuredLayersFilterParameters();     // filter parameters
 
 //		double       measured_strength_pow = 1.0;
@@ -207,7 +209,9 @@ public class TilePlanes {
 				pd.wvectors[1] = this.wvectors[1].clone();
 				pd.wvectors[2] = this.wvectors[2].clone();
 			}
-			pd.mark0 = this.mark0;
+			pd.mark0 =  this.mark0;
+			pd.fronto = this.fronto;
+			pd.horizontal = this.horizontal;
 			return pd;
 		}
 
@@ -296,6 +300,9 @@ public class TilePlanes {
 			s += getNeibString();
 			if (isHorizontal()){
 				s+= "HORIZONTAL ";
+			}
+			if (fronto){
+				s+= String.format("FRONTO (%6.4f)",fronto_rms);
 			}
 			s += String.format("2d=%4.1f ", get2dRatio());
 			s += String.format( "np=%3d weight= %8.5f", num_points, weight);
@@ -1192,9 +1199,144 @@ public class TilePlanes {
 			return eff_disp_str;
 		}
 
+		public boolean isFronto(
+				double fronto_tol,
+				double [][][] disp_str,
+				int debugLevel)
+		{
+			if (horizontal || isHorizontal()) {
+				this.fronto = false;
+				return this.fronto;
+			}
+			boolean almost_fronto = false;
+			double [] zxy0 = getZxy();
+			if (disp_str == null) {
+				disp_str =      new double [measuredSelection.length][][];
+				for (int nl = 0; nl < measuredSelection.length; nl++){
+					if (measuredSelection[nl] != null){
+						if (smplMode) {
+							disp_str[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
+									nl, // int num_layer,
+									sTileXY[0], // int stX,
+									sTileXY[1], // int stY,
+									null, // measuredSelection[nl], // boolean [] sel_in,
+									this.mlfp,
+									true,     // boolean null_if_none)
+									debugLevel);
+						} else {
+							disp_str[nl] = measuredLayers.getDisparityStrengthML(
+									nl, // int num_layer,
+									sTileXY[0], // int stX,
+									sTileXY[1], // int stY,
+									null, // measuredSelection[nl], // boolean [] sel_in,
+									this.mlfp,
+									true); // boolean null_if_none)
+						}
+					}
+				}
+			}
+
+			if (fronto_tol > 0) {
+				// see if the plane is almost fronto
+				double fronto_tol2 = fronto_tol*fronto_tol;
+				// do not use fronto for near tiles - at least do not increase tolerance
+//				if ((dispNorm > 0.0) && (zxy[0] > dispNorm)){
+//					fronto_tol2 *= zxy[0]/dispNorm;
+//				}
+				double sw = 0.0, swd2 = 0.0;
+				for (int nl = 0; nl < measuredSelection.length; nl++){
+					if (measuredSelection[nl] != null){
+						// already calculated, but not masked by selection!
+						if (disp_str[nl] != null) {
+							for (int indx = 0; indx < disp_str[nl][0].length; indx++){
+								double w = disp_str[nl][1][indx];
+								if (measuredSelection[nl][indx] && (w > 0.0)){
+									double d = disp_str[nl][0][indx]-zxy0[0];
+									double wd2 = w*d*d;
+									sw+=w;
+									swd2 += wd2;
+								}
+							}
+						}
+					}
+				}
+				if (sw> 0.0) {
+//					swd2 /= sw;
+					almost_fronto = (swd2 / sw) <= (getValue() + fronto_tol2);
+				}
+				if (debugLevel > 2){
+					System.out.println("isFronto("+sTileXY[0]+":"+sTileXY[1]+"): "+
+							" eigenValue = " + getValue()+" (swd2 / sw) = " + (swd2 / sw)+" fronto_tol2 = "+fronto_tol2+
+							" almost_fronto="+almost_fronto);
+				}
+				this.fronto_rms = Math.sqrt(swd2 / sw);
+
+			}
+			if ((dispNorm > 0.0) && (zxy[0] > dispNorm)) {
+				almost_fronto = false; // disable fronto for near objects completely
+			}
+			this.fronto = almost_fronto;
+			return almost_fronto;
+		}
+
+		/**
+		 * Grow measured selection (mostly fill gaps) for fronto planes
+		 * @param min_neib minimal number of previously selected neighbors
+		 * @param max_over_avg only add if new tile disparity is not higher than average of the neighbors plus this.
+		 * @param max_under_avg only add if new tile disparity is not lower than average of the neighbors minus this.
+		 */
+		public int growFrontoSelection(
+				int           min_neib,
+				double        max_over_avg,
+				double        max_under_avg,
+				double [][][] disp_str)
+		{
+			TileNeibs tn = new TileNeibs(2*superTileSize,2*superTileSize);
+			int num_new=0;
+			for (int nl = 0; nl < measuredSelection.length; nl++) if (measuredSelection[nl] != null){
+				boolean [] sel =      measuredSelection[nl].clone();
+				boolean [] was_sel =  measuredSelection[nl].clone();
+				tn.growSelection(2, sel, null);
+				double sw0=0.0, swd0=0.0;
+				for (int indx = 0; indx < sel.length; indx++) if (was_sel[indx] && (disp_str[nl][1][indx] > 0.0)) {
+					sw0+= disp_str[nl][1][indx];
+					swd0+=disp_str[nl][1][indx]*disp_str[nl][0][indx];
+				}
+				if (sw0 <=0.0) continue;
+				swd0 /= sw0; // average disparity for all tiles
+				for (int indx = 0; indx < sel.length; indx++) if (sel[indx] && !was_sel[indx] && (disp_str[nl][1][indx] > 0.0)) {
+					int num_neibs = 0;
+					double sw = 0.0, swd = 0.0;
+					for (int dir = 0; dir <8; dir++) {
+						int neib = tn.getNeibIndex(indx, dir);
+						if ((neib >= 0) && was_sel[neib] && (disp_str[nl][1][neib] > 0.0) ) {
+							num_neibs++;
+							sw += disp_str[nl][1][neib];
+							swd += disp_str[nl][1][neib] * disp_str[nl][0][neib];
+						}
+					}
+					if (num_neibs >= min_neib) {
+						swd /= sw;
+					}
+					if (	(disp_str[nl][0][indx] >= swd0) && // more than average
+							(disp_str[nl][0][indx] >= (swd - max_under_avg)) &&
+							(disp_str[nl][0][indx] <= (swd  + max_over_avg)) ){
+						measuredSelection[nl][indx] = true;
+						num_new++;
+					}
+				}
+			}
+			return num_new;
+		}
+
+
 		/**
 		 * Remove outliers from the set of tiles contributing to a single plane ellipsoid
 		 * Should run after getPlaneFromMeas as some parameter4s will be copied from that run
+		 * @param fronto_tol parameter to treat almost fronto planes as fronto (worst tiles are have extreme disparities,
+		 * not distance from the tilted planes). Tolerance is measured in disparity pixel and is scaled for high disparities
+		 * @param fronto_rms target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes. May be tighter
+		 * @param fronto_offs increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
 		 * @param disp_str - pre-calculated array or null (will be calculated). disp_str
 		 * has the same format as the output of getPlaneFromMeas - [measurement layer][2][tile index],
 		 * so it can be used for input.
@@ -1205,20 +1347,24 @@ public class TilePlanes {
 		 */
 
 		public boolean removeOutliers( // getPlaneFromMeas should already have run
-				double [][][] disp_str, // calculate just once when removing outliers (null - OK, will generate it)
-				double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
-				int        maxRemoved,  // maximal number of tiles to remove (not a constant)
-				int        debugLevel)
+				double        fronto_tol,  // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
+				double        fronto_rms,  // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes. May be tighter
+				double        fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+				double [][][] disp_str,    // calculate just once when removing outliers (null - OK, will generate it)
+				double        inTargetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
+				int           maxRemoved,  // maximal number of tiles to remove (not a constant)
+				int           debugLevel)
 		{
 			int stSize2 = 2 * stSize;
+			double fronto_bonus_near = 3.0;
 			if (maxRemoved > (getNumPoints() - this.min_tiles)) maxRemoved = getNumPoints() - this.min_tiles;
-			boolean need_disp_str = false;
+//			boolean need_disp_str = false;
 			if (disp_str == null) {
 				disp_str =      new double [measuredSelection.length][][];
 				for (int nl = 0; nl < measuredSelection.length; nl++){
 					if (measuredSelection[nl] != null){
 						if (smplMode) {
-							if (need_disp_str) {
+//							if (need_disp_str) {
 								disp_str[nl] = measuredLayers.getDisparityStrengthMLTilted( // expensive to calculate (improve removing outlayers
 										nl, // int num_layer,
 										sTileXY[0], // int stX,
@@ -1227,7 +1373,7 @@ public class TilePlanes {
 										this.mlfp,
 										true,     // boolean null_if_none)
 										debugLevel);
-							}
+//							}
 						} else {
 							disp_str[nl] = measuredLayers.getDisparityStrengthML(
 									nl, // int num_layer,
@@ -1242,19 +1388,38 @@ public class TilePlanes {
 			}
 			int numRemoved = 0;
 			boolean no_bugs = true;
+			// calculate if it is fronto, check after each pass if it was not
+			boolean almost_fronto = isFronto(
+					fronto_tol,    // double fronto_tol,
+					disp_str,      // double [][][] disp_str,
+					debugLevel);   // int debugLevel);
+			double targetEigen = almost_fronto ? (fronto_rms*fronto_rms): inTargetEigen;
+
 			for (; (getNormValue() > targetEigen) && (numRemoved < maxRemoved); numRemoved++){
-				if (debugLevel > 2){
-					System.out.println("removePlaneOutliers("+sTileXY[0]+":"+sTileXY[1]+"): numRemoved = "+numRemoved+
-							" eigenValue = " + getValue()+" norm eigenValue = " + getNormValue()+" target = "+targetEigen);
-				}
 				// make a plane and find the worst (largest disparity difference) tile
 				// z = -(x*Vx + y*Vy)/Vz
-
+// may become fronto after removing some tiles
 				double worst_d2 = 0.0;
 				int [] worst_layer_index = {-1,-1};
 				// TODO: Add vertical planes here set v[1] = 0.0;
 				double [] v = getVector();
 				double [] zxy0 = getZxy();
+				if (!almost_fronto ) {
+					almost_fronto = isFronto(
+							fronto_tol,    // double fronto_tol,
+							disp_str,      // double [][][] disp_str,
+							debugLevel);   // int debugLevel);
+					if (almost_fronto) {
+						targetEigen = fronto_rms*fronto_rms;
+					}
+				}
+
+				if (debugLevel > 2){
+					System.out.println("removePlaneOutliers("+sTileXY[0]+":"+sTileXY[1]+"): numRemoved = "+numRemoved+
+							" eigenValue = " + getValue()+" norm eigenValue = " + getNormValue()+" target = "+targetEigen+
+							" almost_fronto="+almost_fronto);
+				}
+
 				for (int nl = 0; nl < measuredSelection.length; nl++){
 					if (measuredSelection[nl] != null){
 						// already calculated, but not masked by selection!
@@ -1262,12 +1427,17 @@ public class TilePlanes {
 							for (int indx = 0; indx < disp_str[nl][0].length; indx++){
 								double w = disp_str[nl][1][indx];
 								if (measuredSelection[nl][indx] && (w > 0.0)){
-									double x = ((indx % stSize2) - stSize) - zxy0[1];
-									double y = ((indx / stSize2) - stSize) - zxy0[2];
 									double d = disp_str[nl][0][indx];
 									d -= zxy0[0];
-									d += (x * v[1]+y*v[2])/v[0];
+									if (!almost_fronto) { // compare to a distance from a tilted plane or to a constant disparity (almost_fronto)
+										double x = ((indx % stSize2) - stSize) - zxy0[1];
+										double y = ((indx / stSize2) - stSize) - zxy0[2];
+										d += (x * v[1]+y*v[2])/v[0];
+									}
 									double d2 = d*d;
+									if (almost_fronto && (d > 0)) {
+										d2 /= fronto_bonus_near; // if tile is nearer, decrease effective error
+									}
 									if (d2 > worst_d2){
 										worst_d2 = d2;
 										worst_layer_index[0] = nl;
@@ -1297,6 +1467,10 @@ public class TilePlanes {
 						this.min_weight, // double       min_weight,
 						this.min_tiles,  // int          min_tiles,
 						this.smplMode,
+
+						almost_fronto, // boolean      fronto_mode,
+						fronto_offs,   // double       fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+
 						this.mlfp,
 						debugLevel-1) != null);
 
@@ -1320,9 +1494,78 @@ public class TilePlanes {
 					break;
 				}
 			}
+			if (debugLevel > 2){
+				System.out.println("removePlaneOutliers("+sTileXY[0]+":"+sTileXY[1]+"): numRemoved = "+numRemoved+
+						" eigenValue = " + getValue()+" norm eigenValue = " + getNormValue()+" target = "+targetEigen+
+						" almost_fronto="+almost_fronto);
+			}
+// FIXME: May be removed, just to update fronto_rms:
+			almost_fronto = isFronto(
+					fronto_tol,    // double fronto_tol,
+					disp_str,      // double [][][] disp_str,
+					debugLevel);   // int debugLevel);
+			if (almost_fronto) {
+				boolean OK = (getPlaneFromMeas(
+						measuredSelection, // null,            // boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
+						disp_str,
+						Double.NaN,      // double       disp_far, // minimal disparity to select (or NaN)
+						Double.NaN,      // double       disp_near, // maximal disparity to select (or NaN)
+						this.dispNorm,   // double       dispNorm,   //  Normalize disparities to the average if above
+						this.min_weight, // double       min_weight,
+						this.min_tiles,  // int          min_tiles,
+						this.smplMode,
+						almost_fronto,   // boolean      fronto_mode,
+						fronto_offs,     //						double       fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+						this.mlfp,
+						debugLevel-0) != null); // will show image
+				if (!OK) { // restore how it was
+					getPlaneFromMeas(
+							measuredSelection, // null,            // boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
+							disp_str,
+							Double.NaN,      // double       disp_far, // minimal disparity to select (or NaN)
+							Double.NaN,      // double       disp_near, // maximal disparity to select (or NaN)
+							this.dispNorm,   // double       dispNorm,   //  Normalize disparities to the average if above
+							this.min_weight, // double       min_weight,
+							this.min_tiles,  // int          min_tiles,
+							this.smplMode,
+							this.mlfp,
+							debugLevel-0);
+				}
+			}
+
 			return no_bugs;
 		}
 
+		public double [][][] getPlaneFromMeas(
+				boolean [][] tile_sel, // null - do not use, {} use all (will be modified)
+				double [][][] disp_str, // calculate just once when removing outliers
+				double       disp_far, // minimal disparity to select (or NaN)
+				double       disp_near, // maximal disparity to select (or NaN)
+				double       dispNorm,   //  Normalize disparities to the average if above
+				double       min_weight,
+				int          min_tiles,
+				boolean      smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+//				boolean      fronto_mode,
+//				double       fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+				MeasuredLayersFilterParameters mlfp,
+				int          debugLevel)
+		{
+			return getPlaneFromMeas(
+					tile_sel, // null - do not use, {} use all (will be modified)
+					disp_str, // calculate just once when removing outliers
+					disp_far, // minimal disparity to select (or NaN)
+					disp_near, // maximal disparity to select (or NaN)
+					dispNorm,   //  Normalize disparities to the average if above
+					min_weight,
+					min_tiles,
+					smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+
+					false, // boolean      fronto_mode,
+					0.0,   //double       fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+					mlfp,
+					debugLevel);
+
+		}
 		/**
 		 * Get "plane" - ellipsoid from covariance matrix of measured data
 		 * @param tile_sel multi-layer selection of the tiles to use (first dimension should
@@ -1345,7 +1588,8 @@ public class TilePlanes {
 		 * @param smplNum number of averaged samples (should be <= smplSide * smplSide and > 1)
 		 * @param smplRms maximal square root of variance (in disparity pixels) to accept the result
 		 * @param smplWnd  use window functions for the samples
-		 *
+		 * @param fronto_mode  enforce plane orthogonal to disparity axis
+		 * @param fronto_offs increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
 		 * @param debugLevel debug level
 		 * @return per measurement layer : x,y,z, weight, or null if failed. This
 		 * value may be re-used in subsequent refinements (as removing outliers)
@@ -1359,6 +1603,10 @@ public class TilePlanes {
 				double       min_weight,
 				int          min_tiles,
 				boolean      smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+
+				boolean      fronto_mode,
+				double       fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+
 				MeasuredLayersFilterParameters mlfp,
 				int          debugLevel)
 		{
@@ -1380,7 +1628,7 @@ public class TilePlanes {
 
 
 			if (debugLevel > 2){
-				System.out.println("getPlaneFromMeas()");
+				System.out.println("getPlaneFromMeas(): fronto_mode="+fronto_mode+", fronto_offs="+fronto_offs);
 			}
 			boolean need_disp_str = false;
 			if (disp_str == null) {
@@ -1447,8 +1695,6 @@ public class TilePlanes {
 									sTileXY[1], // int stY,
 									tile_sel[nl], // boolean [] sel_in,
 									mlfp,
-//									strength_floor,
-//									strength_pow, //
 									true); // boolean null_if_none)
 							sw += MeasuredLayers.getSumStrength(disp_str[nl]);
 						}
@@ -1480,6 +1726,42 @@ public class TilePlanes {
 				return null; // too weak plane or too few tiles selected
 			}
 
+			double fronto_near_diff =   0.02; // edge tile has to have neib with disparity higher by this
+			double fronto_far_diff =    0.1;  // edge tile has to have neib with disparity lower by this
+			double fronto_edge_weight = 0.1;  // weight of edge tiles
+			boolean [][] edge_tiles = null; // new boolean[]
+			if (fronto_mode) {
+				edge_tiles =  new boolean[disp_str.length][];
+				TileNeibs tileNeibs = new TileNeibs(stSize2, stSize2);
+				for (int nl = 0; nl < edge_tiles.length; nl++) if (disp_str[nl] != null){
+					edge_tiles[nl] = new boolean [disp_str[nl][0].length];
+					for (int indx = 0; indx < edge_tiles[nl].length; indx++)  if (disp_str[nl][1][indx] > 0.0){
+						boolean has_near = false, has_far = false;
+						double high = disp_str[nl][0][indx];
+						double low = high - fronto_far_diff;
+						high += fronto_near_diff;
+						for (int dir = 0; dir < 8; dir++){
+							int indx1 = tileNeibs.getNeibIndex(indx, dir);
+							if ((indx1 >= 0) && (disp_str[nl][1][indx1] >0)) {
+								if (disp_str[nl][0][indx1] > high) {
+									has_near = true;
+									if (has_far) {
+										edge_tiles[nl][indx] = true;
+										break;
+									}
+								} else if (disp_str[nl][0][indx1] < low) {
+									has_far = true;
+									if (has_near) {
+										edge_tiles[nl][indx] = true;
+										break;
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+
 
 			double [][] acovar = new double [3][3];
 			double swz = 0.0, swx = 0.0, swy = 0.0;
@@ -1489,6 +1771,9 @@ public class TilePlanes {
 					for (int indx = 0; indx < disp_str[nl][0].length; indx++){
 						if (tile_sel[nl][indx]) {
 							double w = disp_str[nl][1][indx];
+							if (fronto_mode &&  edge_tiles[nl][indx]) {
+								w *= fronto_edge_weight;
+							}
 							if (w > 0.0){
 								double d = disp_str[nl][0][indx];
 								// referencing samples to centers of pixels
@@ -1510,8 +1795,86 @@ public class TilePlanes {
 			swx /= sw;
 			swy /= sw;
 
-			if (debugLevel > 0){
-				System.out.println("getPlaneFromMeas(): num_tiles="+num_tiles+", sw = "+sw +", swz = "+swz +", swx = "+swx +", swy = "+swy); // +", kz="+kz);
+			if (fronto_mode && (fronto_offs > 0.0)) {
+				// recalculate offset swz, set modified tiles weights
+				double [][][] disp_str_actual = disp_str;
+				disp_str = new double [disp_str_actual.length][][];
+				for (int nl = 0; nl < disp_str.length; nl++) {
+					if (disp_str_actual[nl] != null) {
+						disp_str[nl] = new double [2][];
+						disp_str[nl][0] = disp_str_actual[nl][0].clone();
+						disp_str[nl][1] = new double [disp_str_actual[nl][1].length];
+					}
+				}
+				double swz0 = swz;
+				double sw0 = sw;
+				swz = 0.0;
+				sw = 0.0;
+				double d0 = swz - fronto_offs;
+				for (int nl = 0; nl < tile_sel.length; nl++){
+					if (disp_str[nl] != null) {
+						for (int indx = 0; indx < disp_str[nl][0].length; indx++){
+							if (tile_sel[nl][indx]) {
+								double w = disp_str_actual[nl][1][indx];
+								if (fronto_mode &&  edge_tiles[nl][indx]) {
+									w *= fronto_edge_weight;
+								}
+
+								if (w > 0.0){
+									double d = disp_str[nl][0][indx];
+									if (d > d0) {
+										w *= (d-d0)/fronto_offs; // more weight of the near pixels, same weight of the centre pixels
+										disp_str[nl][1][indx] = w;
+										sw  += w;
+										swz += w * d;
+									}
+								}
+							}
+						}
+						if ((debugLevel > 2) && (disp_str[nl] != null)){
+							//						if ((debugLevel > 1) && (disp_str[nl] != null)){
+							showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+							double [][] dbg_img = new double [4][];
+							dbg_img[0] = disp_str[nl][0];
+							dbg_img[1] = disp_str[nl][1];
+							dbg_img[2] = disp_str_actual[nl][1];
+							dbg_img[3] = new double [stSize2*stSize2];
+							if (tile_sel[nl] != null) {
+								for (int i = 0; i < dbg_img[3].length; i++){
+									dbg_img[3][i] = tile_sel[nl][i]?(edge_tiles[nl][i]?0.5:1.0):0.0; // exception here?
+								}
+							}
+							sdfa_instance.showArrays(dbg_img,  stSize2, stSize2, true, "fronto-disp_str_x"+sTileXY[0]+"_y"+sTileXY[1]+"_"+nl);
+						}
+					}
+				}
+
+				if (sw == 0.0) {
+					return null;
+				}
+				swz /= sw; // new center (higher than older swz
+				if (debugLevel > 0){
+					System.out.println("getPlaneFromMeas(): Using fronto mode, num_tiles="+num_tiles+", sw0 = "+sw0 +", swz0 = "+swz0 +", swz = "+swz);
+				}
+			} else {
+				if (debugLevel > 2){
+					for (int nl = 0; nl < tile_sel.length; nl++) if (disp_str[nl] != null) {
+						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+						double [][] dbg_img = new double [3][];
+						dbg_img[0] = disp_str[nl][0];
+						dbg_img[1] = disp_str[nl][1];
+						dbg_img[2] = new double [stSize2*stSize2];
+						if (tile_sel[nl] != null) {
+							for (int i = 0; i < dbg_img[2].length; i++){
+								dbg_img[2][i] = tile_sel[nl][i]?1.0:0.0;
+							}
+						}
+						sdfa_instance.showArrays(dbg_img,  stSize2, stSize2, true, "non-fronto-disp_str_x"+sTileXY[0]+"_y"+sTileXY[1]+"_"+nl);
+					}
+				}
+				if (debugLevel > 2){
+					System.out.println("getPlaneFromMeas(): num_tiles="+num_tiles+", sw = "+sw +", swz = "+swz +", swx = "+swx +", swy = "+swy); // +", kz="+kz);
+				}
 			}
 
 			// TODO: scale disparity to make same scale for 3 axes?
@@ -1521,6 +1884,9 @@ public class TilePlanes {
 					for (int indx = 0; indx < disp_str[nl][0].length; indx++){
 						if (tile_sel[nl][indx]) {
 							double w = disp_str[nl][1][indx] / sw;
+							if (fronto_mode &&  edge_tiles[nl][indx]) {
+								w *= fronto_edge_weight;
+							}
 							if (w > 0.0){
 								double d =  disp_str[nl][0][indx] - swz;
 								double wd = w*d;
@@ -1537,6 +1903,11 @@ public class TilePlanes {
 					}
 				}
 			}
+			if (fronto_mode) { // enforce fronto
+				acovar [0][1] = 0.0; // wdx
+				acovar [0][2] = 0.0; // wdy
+			}
+
 			acovar [1][0] = acovar [0][1];
 			acovar [2][0] = acovar [0][2];
 			acovar [2][1] = acovar [1][2];
@@ -1740,8 +2111,8 @@ public class TilePlanes {
 						}
 					}
 
-
-					if ((debugLevel > 2) && (disp_str[nl] != null)){
+//					if ((debugLevel > 2) && (disp_str[nl] != null)){
+					if ((debugLevel > 3) && (disp_str[nl] != null)){
 						  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
 						  double [][] dbg_img = new double [3][];
 						  dbg_img[0] = disp_str[nl][0];
@@ -3276,8 +3647,9 @@ public class TilePlanes {
 				covar.print(8, 6);
 			}
 			if (Double.isNaN(covar.get(0, 0))){
-				System.out.println("covar is NaN !");
+				System.out.println("covar is NaN 1 !");
 				covar.print(8, 6);
+				return null;
 			}
 			// extract new eigenvalues, eigenvectors
 			EigenvalueDecomposition eig = covar.eig(); // verify NaN - it gets stuck
@@ -3387,7 +3759,7 @@ public class TilePlanes {
 				boolean   preferDisparity, // Always start with disparity-most axis (false - lowest eigenvalue)
 				int       debugLevel)
 		{
-			if (debugLevel > 0) {
+			if (debugLevel > 1) {
 				System.out.println("mergePlaneToThisWorld()");
 			}
 			if (wvalues == null ) {
@@ -3480,8 +3852,9 @@ public class TilePlanes {
 				covar.print(8, 6);
 			}
 			if (Double.isNaN(covar.get(0, 0))){
-				System.out.println("covar is NaN !");
+				System.out.println("covar is NaN 2!");
 				covar.print(8, 6);
+				return null;
 			}
 			// extract new eigenvalues, eigenvectors
 			EigenvalueDecomposition eig = covar.eig(); // verify NaN - it gets stuck
@@ -3894,6 +4267,7 @@ public class TilePlanes {
 		public ArrayList<PlaneData> createTilePlanesFromSelections(
 				String        suffix,
 				boolean [][][] plane_selections, //  = new boolean [nStiles][][][]; // num_tiles
+				boolean []     hor_planes,
 				double  [][][] disp_strength,
 				double       dispNorm,   //  Normalize disparities to the average if above
 				int          min_tiles,
@@ -3903,17 +4277,32 @@ public class TilePlanes {
 				boolean      correct_distortions,
 				boolean      smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				MeasuredLayersFilterParameters mlfp,
+				double       fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
+				double       fronto_rms,  // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes. May be tighter
+				double       fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
 				int          debugLevel)
 		{
 			if (debugLevel > 2) {
 				debugLevel += 0; // +=1 // no show all eigen stuff (debugLevel > 3)
 			}
 			if (debugLevel > 0) {
-				System.out.println("Debug debugLevel"); // +=1 // no show all eigen stuff (debugLevel > 3)
+				System.out.println("createTilePlanesFromSelections(): debugLevel="+debugLevel); // +=1 // no show all eigen stuff (debugLevel > 3)
 			}
 
 			// first make a plane from all tiles
 			ArrayList<PlaneData> st_planes = new ArrayList<PlaneData>();
+			if (debugLevel > 2) {
+				showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+				double [][] dbg_img = new double [plane_selections.length][];
+				for (int ps = 0; ps < plane_selections.length; ps++) {
+					dbg_img[ps] = new double [plane_selections[ps][0].length];
+					for (int i = 0; i < dbg_img[ps].length; i++) {
+						dbg_img[ps][i] = plane_selections[ps][0][i]? 1.0: 0.0;
+					}
+				}
+				sdfa_instance.showArrays(dbg_img,  stSize * 2, stSize * 2, true, "selections_x"+sTileXY[0]+"_y"+sTileXY[1]+"-"+suffix);
+			}
+
 
 			// iterate through all plane selections
 			for (int ps = 0; ps < plane_selections.length; ps++) {
@@ -3933,6 +4322,7 @@ public class TilePlanes {
 					if (debugLevel > 0) {
 						if (pd.getWeight() > 1.0) {
 							System.out.println("Processing subplane "+ suffix+
+									(((hor_planes == null) || !hor_planes[ps])?"(horizontal) ":"(vertical) ")+
 									", numPoints="+ pd.getNumPoints()+
 									", swc = "+pd.getWeight()+
 									", center=["+pd.getZxy()[0]+","+pd.getZxy()[1]+","+pd.getZxy()[2]+"]"+
@@ -3940,10 +4330,8 @@ public class TilePlanes {
 									", eig_vect[0] = {"+pd.getVector()[0]+","+pd.getVector()[1]+","+pd.getVector()[2]+"}");
 						}
 					}
-					// now try to remove outliers
-					int max_outliers = (int) Math.round(pd.getNumPoints() * plFractOutliers);
-					if (max_outliers > plMaxOutliers) max_outliers = plMaxOutliers;
-					double targetV = plTargetEigen;
+
+//					double targetV = plTargetEigen;
 
 					/* Does it needs to be twice?
 					double z0 = pd.getZxy()[0];
@@ -3952,10 +4340,39 @@ public class TilePlanes {
 						targetV *= dd * dd; // > original
 					}
 					*/
-					if (pd.getNormValue() > targetV) {
+					if ((hor_planes != null) && hor_planes[ps]) {
+						pd.horizontal = true;
+					}
+					boolean almost_fronto = pd.isFronto(
+							fronto_tol,    // double fronto_tol,
+							disp_strength,      // double [][][] disp_str,
+							debugLevel);   // int debugLevel);
+					double targetEigen = almost_fronto ? (fronto_rms*fronto_rms): plTargetEigen;
+					// now try to remove outliers
+					// FIXME: temporary - make a configurable parameter
+					double fronto_fract_outliers = 0.8; // 2 * inFractOutliers;
+					double fractOutliers = almost_fronto ? (fronto_fract_outliers) : plFractOutliers;
+
+					int max_outliers = (int) Math.round(pd.getNumPoints() * fractOutliers); // plFractOutliers);
+					if (max_outliers > plMaxOutliers) max_outliers = plMaxOutliers;
+					// in fronto mode - run at least once
+//					if ((this_pd.getNormValue() > targetEigen) || almost_fronto) { // targetV) {
+					if (almost_fronto) {
+						pd.growFrontoSelection(
+								5, // 4,              // int           min_neib,
+								0.1,            // double        max_over_avg,
+								0.00,           // double        max_under_avg,
+								disp_strength); // double [][][] disp_str)
+					}
+
+
+					if ((pd.getNormValue() > targetEigen) || almost_fronto) { // targetV) {
 						OK = pd.removeOutliers( // getPlaneFromMeas should already have run
+								fronto_tol,    // double        fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
+								fronto_rms,    // double        fronto_rms,  // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes. May be tighter
+								fronto_offs,   //double        fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
 								disp_strength,
-								targetV,      // double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
+								plTargetEigen, // targetV,      // double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
 								max_outliers, // int        maxRemoved,  // maximal number of tiles to remove (not a constant)
 								debugLevel); // int        debugLevel)
 						if (!OK) {
@@ -5117,6 +5534,7 @@ public class TilePlanes {
 		// return planes/selections (no remove outliers!)
 		boolean[][][] filterBridges(
 				ArrayList<PlaneData> tilePlanes,
+				boolean [][]     hor_planes,   // specify which selections correspond to horizontal planes
 				int max_grow_these,
 				int max_grow_far,
 				int debugLevel)
@@ -5265,10 +5683,17 @@ public class TilePlanes {
 			}
 			if (!split_planes.isEmpty()){
 				boolean [][][] split_selections = new boolean [old_planes.size() + split_planes.size()][][];
+				if (hor_planes != null) {
+					hor_planes[0] = new boolean[old_planes.size() + split_planes.size()];
+				}
 				int ns = 0;
 				for (Integer np: old_planes){
+					if (hor_planes != null) {
+						hor_planes[0][ns] = tilePlanes.get(np).horizontal || tilePlanes.get(np).isHorizontal();
+					}
 					split_selections[ns++] = tilePlanes.get(np).getMeasSelection();
 				}
+				// Split planes have unknown horizontal status
 				for (TileSelections ts: split_planes){
 //					PlaneData pd = tilePlanes.get(ts.np);
 					boolean [][] ms = tilePlanes.get(ts.np).getMeasSelection().clone();

@@ -2858,7 +2858,9 @@ public class EyesisCorrectionParameters {
 
   		public boolean    plPreferDisparity    =   false;// Always start with disparity-most axis (false - lowest eigenvalue)
   		public double     plDispNorm           =   5.0;  // Normalize disparities to the average if above (now only for eigenvalue comparison)
-
+  		public double     plFrontoTol          =   0.0;  // for compatibility with old //0.1;  // Fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable
+  		public double     plFrontoRms          =   0.05; // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
+  		public double     plFrontoOffs         =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
   		public double     plBlurBinVert        =   1.2;  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
   		public double     plBlurBinHor         =   0.8;  // Blur disparity histograms for horizontal clusters by this sigma (in bins)
   		public double     plMaxDiffVert        =   0.4;  // Maximal normalized disparity difference when initially assigning to vertical plane
@@ -2868,7 +2870,7 @@ public class EyesisCorrectionParameters {
   		public int        plMinPoints          =     5;  // Minimal number of points for plane detection
   		public double     plTargetEigen        =   0.02; // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
   		public double     plFractOutliers      =   0.3;  // Maximal fraction of outliers to remove
-  		public int        plMaxOutliers        =    20;  // Maximal number of outliers to remove
+  		public int        plMaxOutliers        =   200;  // Maximal number of outliers to remove
   		public double     plMinStrength        =   0.01; // Minimal total strength of a plane
   		public double     plMaxEigen           =   0.06; // Maximal eigenvalue of a plane
   		public double     plEigenFloor         =   0.005;// Add to eigenvalues of each participating plane and result to validate connections
@@ -3522,6 +3524,9 @@ public class EyesisCorrectionParameters {
 
 			properties.setProperty(prefix+"plPreferDisparity",this.plPreferDisparity+"");
 			properties.setProperty(prefix+"plDispNorm",       this.plDispNorm +"");
+			properties.setProperty(prefix+"plFrontoTol",      this.plFrontoTol +"");
+			properties.setProperty(prefix+"plFrontoRms",      this.plFrontoRms +"");
+			properties.setProperty(prefix+"plFrontoOffs",     this.plFrontoOffs +"");
 
 			properties.setProperty(prefix+"plBlurBinVert",    this.plBlurBinVert +"");
 			properties.setProperty(prefix+"plBlurBinHor",     this.plBlurBinHor +"");
@@ -4165,6 +4170,9 @@ public class EyesisCorrectionParameters {
 
   			if (properties.getProperty(prefix+"plPreferDisparity")!=null) this.plPreferDisparity=Boolean.parseBoolean(properties.getProperty(prefix+"plPreferDisparity"));
   			if (properties.getProperty(prefix+"plDispNorm")!=null)        this.plDispNorm=Double.parseDouble(properties.getProperty(prefix+"plDispNorm"));
+  			if (properties.getProperty(prefix+"plFrontoTol")!=null)       this.plFrontoTol=Double.parseDouble(properties.getProperty(prefix+"plFrontoTol"));
+  			if (properties.getProperty(prefix+"plFrontoRms")!=null)       this.plFrontoRms=Double.parseDouble(properties.getProperty(prefix+"plFrontoRms"));
+  			if (properties.getProperty(prefix+"plFrontoOffs")!=null)      this.plFrontoOffs=Double.parseDouble(properties.getProperty(prefix+"plFrontoOffs"));
 
   			if (properties.getProperty(prefix+"plBlurBinVert")!=null)     this.plBlurBinVert=Double.parseDouble(properties.getProperty(prefix+"plBlurBinVert"));
   			if (properties.getProperty(prefix+"plBlurBinHor")!=null)      this.plBlurBinHor=Double.parseDouble(properties.getProperty(prefix+"plBlurBinHor"));
@@ -4707,7 +4715,7 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Set new pole segment strength to max of horizontal correlation and this value",   this.poles_min_strength,  3);
   			gd.addCheckbox    ("Set disparity to that of the bottom of existing segment (false - use hor. disparity)",this.poles_force_disp);
 
-  			gd.addNumericField("Maximal number of output meshes to generate",                                 this.max_clusters,   0);
+  			gd.addNumericField("Maximal number of output meshes to generate",                                  this.max_clusters,   0);
   			gd.addCheckbox    ("Remove all unneeded scans when generating x3d output to save memory",          this.remove_scans);
   			gd.addCheckbox    ("Generate x3d output",                                                          this.output_x3d);
   			gd.addCheckbox    ("Generate Wavefront obj output",                                                this.output_obj);
@@ -4818,7 +4826,7 @@ public class EyesisCorrectionParameters {
   					"", "Allows to find plane when there are not enough tiles to process");
 
   			gd.addNumericField("Disparity switch between filtering modes",                                     this.mlfp.min_tilt_disp,  4,6,
-  					"pix","Objects that are closer (larger disparity) use tilted plane model, far objects use maximal amon neighbors disparity");
+  					"pix","Objects that are closer (larger disparity) use tilted plane model, far objects use maximal among neighbors disparity");
   			gd.addNumericField("Mode transition range (between tilted and maximal disparity)",                 this.mlfp.transition,  4,6,
   					"pix","Disparity range to gradually switch between maximal and tilted modes");
   			gd.addNumericField("Far objects filtering mode (0 - off, 1,2 - power of disparity)",               this. mlfp.far_mode,  0,3,
@@ -4900,8 +4908,13 @@ public class EyesisCorrectionParameters {
   			gd.addTab         ("Plane Det", "Planes detection");
   			gd.addMessage     ("--- Planes detection ---");
   			gd.addCheckbox    ("Always start with disparity-most axis (false - lowest eigenvalue)",            this.plPreferDisparity);
-  			gd.addNumericField("Normalize disparities to the average if above",                                this.plDispNorm,  6);
-
+  			gd.addNumericField("Normalize disparities to the average if above",                                this.plDispNorm,  4,6, "pix");
+  			gd.addNumericField("Fronto tolerance",                                                             this.plFrontoTol,  4,6,"pix",
+  					"Fronto tolerance (pix) - treat almost fronto planes as fronto (constant disparity). If <= 0 - disable this feature");
+  			gd.addNumericField("Fronto RMS",                                                                   this.plFrontoRms,  4,6,"pix",
+  					"Target half-thikness of the fronto planes. Similar to  sqrt(plMaxEigen) for other planes");
+  			gd.addNumericField("Fronto offset",                                                             this.plFrontoOffs,  4,6,"pix",
+  					"Increasing weights of the near tiles by using difference between tile disparity and reduced by this value average as weight. If <= 0 - disable feature");
   			gd.addNumericField("Blur disparity histograms for constant disparity clusters by this sigma (in bins)",   this.plBlurBinVert,  6);
   			gd.addNumericField("Blur disparity histograms for horizontal clusters by this sigma (in bins)",           this.plBlurBinHor,  6);
   			gd.addNumericField("Maximal normalized disparity difference when initially assigning to vertical plane",  this.plMaxDiffVert,  6);
@@ -5556,6 +5569,9 @@ public class EyesisCorrectionParameters {
 
   			this.plPreferDisparity=     gd.getNextBoolean();
   			this.plDispNorm=            gd.getNextNumber();
+  			this.plFrontoTol =          gd.getNextNumber();
+  			this.plFrontoRms =          gd.getNextNumber();
+  			this.plFrontoOffs =         gd.getNextNumber();
 
   			this.plBlurBinVert=         gd.getNextNumber();
   			this.plBlurBinHor=          gd.getNextNumber();

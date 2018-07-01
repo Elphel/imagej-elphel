@@ -5341,23 +5341,14 @@ public class TileProcessor {
 				clt_parameters.plFractOutliers, //      =   0.3;  // Maximal fraction of outliers to remove
 				clt_parameters.plMaxOutliers,   //      =    20;  // Maximal number of outliers to remove\
 				clt_parameters.plPreferDisparity,
+				clt_parameters.plFrontoTol,     //  final double     plFrontoTol,         // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable
+				clt_parameters.plFrontoRms,     // final double     plFrontoRms,                       // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
+				clt_parameters.plFrontoOffs,    // final double     plFrontoOffs,                      // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0
 				geometryCorrection,
 				clt_parameters.correct_distortions,
 
 				clt_parameters.stSmplMode ,     // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 				clt_parameters.mlfp,         // Filter parameters
-//				clt_parameters.stSmplSide ,     // final int                        smplSide, //        = 2;      // Sample size (side of a square)
-//				clt_parameters.stSmplNum ,      // final int                        smplNum, //         = 3;      // Number after removing worst
-//				clt_parameters.stSmplRms ,      // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-//				clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
-
-//				clt_parameters.fs_max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//				clt_parameters.fs_max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//				clt_parameters.fs_damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//				clt_parameters.fs_min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//				clt_parameters.fs_transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//				clt_parameters.fs_far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//				clt_parameters.fs_far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
 
 				clt_parameters.plBlurBinHor,    // final double     bin_blur_hor,   // Blur disparity histograms for horizontal clusters by this sigma (in bins)
 				clt_parameters.plBlurBinVert,   // final double     bin_blur_vert,  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
@@ -5374,7 +5365,7 @@ public class TileProcessor {
 				clt_parameters.stHighMix,       // stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
 				world_hor,                      // final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
 				clt_parameters.show_histograms, // final boolean    show_histograms,
-				clt_parameters.batch_run?-1:1, // -1,                       // debugLevel,                  // final int        debugLevel)
+				clt_parameters.batch_run?-3:debugLevel, // -1,                       // debugLevel,                  // final int        debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
 //		showDoubleFloatArrays sdfa_instance = null; - already no state capitol plane
@@ -5385,7 +5376,7 @@ public class TileProcessor {
 
 		// Trying new class
 		LinkPlanes lp = new LinkPlanes (clt_parameters, st);
-		if (!batch_mode && clt_parameters.show_planes && (debugLevel > -1)){
+		if (!batch_mode && clt_parameters.show_planes && (debugLevel > -2)){
 			showPlaneData(
 					"initial",
 					clt_parameters, // EyesisCorrectionParameters.CLTParameters           clt_parameters,
@@ -5412,7 +5403,7 @@ public class TileProcessor {
 				clt_parameters.plPreferDisparity, // preferDisparity,  // final boolean        preferDisparity)
 				debugLevel-2);
 
-		// re-generate planes in the supertiles using previously calculated planes (for tghe tiles and their neighbors)
+		// re-generate planes in the supertiles using previously calculated planes (for the tiles and their neighbors)
 		// as hints, new planes will be assumed parallel to the known and possibly slightly offset in disparity
 		if (clt_parameters.plDiscrEn) {
 			st.regeneratePlanes(
@@ -5424,30 +5415,17 @@ public class TileProcessor {
 					clt_parameters.plFractOutliers,   //      =   0.3;  // Maximal fraction of outliers to remove
 					clt_parameters.plMaxOutliers,     //      =    20;  // Maximal number of outliers to remove\
 					clt_parameters.plPreferDisparity,
+					clt_parameters.plFrontoTol,       //  final double     plFrontoTol,         // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable
+					clt_parameters.plFrontoRms,     // final double     plFrontoRms,                       // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
+					clt_parameters.plFrontoOffs,    // final double     plFrontoOffs,                      // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0
 					geometryCorrection,
 					clt_parameters.correct_distortions,
-
 					clt_parameters.stSmplMode,        // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-					clt_parameters.mlfp,         // Filter parameters
-//					clt_parameters.stSmplSide,        // final int                        smplSide, //        = 2;      // Sample size (side of a square)
-//					clt_parameters.stSmplNum,         // final int                        smplNum, //         = 3;      // Number after removing worst
-//					clt_parameters.stSmplRms,         // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-//					clt_parameters.stSmplWnd,         // final boolean                 smplWnd,  // use window functions for the samples
-
-//					clt_parameters.fs_max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//					clt_parameters.fs_max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//					clt_parameters.fs_damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//					clt_parameters.fs_min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//					clt_parameters.fs_transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//					clt_parameters.fs_far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//					clt_parameters.fs_far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
-
+					clt_parameters.mlfp,              // Filter parameters
 					clt_parameters.plDiscrTolerance,  // final double     plDiscrTolerance,     //     =   0.4;  // Maximal disparity difference from the plane to consider tile
 					clt_parameters.plDiscrDispRange,  // final double     plDiscrDispRange,     //     =   0.6;  // Parallel move known planes around original know value for the best overall fit
 					clt_parameters.plDiscrSteps,      // final int        plDiscrSteps,         //         =   3;    // Number of steps (each direction) for each plane to search for the best fit (0 - single, 1 - 1 each side)
-//					clt_parameters.plDiscrVariants,   // final int        plDiscrVariants,      //      =   100;  // Total number of variants to try (protect from too many planes)
 					clt_parameters.plDiscrMode,       // final int        plDiscrMode,          //          =   3;    // What plane to use as a hint: 0 - weighted, 1 - equalized, 2 - best, 3 - combined
-
 					clt_parameters.plDiscrVarFloor,   // final double     plDiscrVarFloor, //       =   0.03;  // Squared add to variance to calculate reverse flatness (used mostly for single-cell clusters)
 					clt_parameters.plDiscrSigma,      // final double     plDiscrSigma, //          =   0.05;  // Gaussian sigma to compare how measured data is attracted to planes
 					clt_parameters.plDiscrBlur,       // final double     plDiscrBlur, //           =   0.1;   // Sigma to blur histograms while re-discriminating
@@ -5548,24 +5526,11 @@ public class TileProcessor {
 					clt_parameters.plTargetEigen,    // final double                     targetEigen,   //     =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
 					clt_parameters.plFractOutliers,  // final double                     fractOutliers, //     =   0.3;  // Maximal fraction of outliers to remove
 					clt_parameters.plMaxOutliers,    // final int                        maxOutliers,   //     =   20;  // Maximal number of outliers to remove
-//					clt_parameters.stFloor,          // final double                     strength_floor,
-//					clt_parameters.stPow,            // final double                     strength_pow,
-					//					clt_parameters.dbg_migrate && clt_parameters.stSmplMode , // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-					clt_parameters.stSmplMode , // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-					clt_parameters.mlfp,         // Filter parameters
-//					clt_parameters.stSmplSide , // final int                        smplSide, //        = 2;      // Sample size (side of a square)
-//					clt_parameters.stSmplNum , // final int                        smplNum, //         = 3;      // Number after removing worst
-//					clt_parameters.stSmplRms , // final double                     smplRms, //         = 0.1;    // Maximal RMS of the remaining tiles in a sample
-//					clt_parameters.stSmplWnd,   // boolean                 smplWnd,  // use window functions for the samples
-
-//					clt_parameters.fs_max_abs_tilt,  // 2.0; // Maximal absolute tilt in pixels/tile
-//					clt_parameters.fs_max_rel_tilt,  // 0.2; // Maximal relative tilt in pixels/tile/disparity
-//					clt_parameters.fs_damp_tilt,     //    0.001; // Damp tilt to handle insufficient  (co-linear)data
-//					clt_parameters.fs_min_tilt_disp, // 4.0; // Disparity switch between filtering modes - near objects use tilts, far - use max disparity
-//					clt_parameters.fs_transition,    // 1.0; // Mode transition range (between tilted and maximal disparity)
-//					clt_parameters.fs_far_mode,      //     1;   // Far objects filtering mode (0 - off, 1 - power of disparity)
-//					clt_parameters.fs_far_power,     //    1.0; // Raise disparity to this power before averaging for far objects
-
+					clt_parameters.stSmplMode ,      // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
+					clt_parameters.mlfp,             // Filter parameters
+					clt_parameters.plFrontoTol,      //final double                     fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
+					clt_parameters.plFrontoRms,      // final double     plFrontoRms,                       // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
+					clt_parameters.plFrontoOffs,     // final double     plFrontoOffs,                      // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0
 					debugLevel, // 1,                               // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);

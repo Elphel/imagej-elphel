@@ -31,8 +31,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class LinkPlanes {
 	SuperTiles st;
 	public boolean    plPreferDisparity; //    =   false;// Always start with disparity-most axis (false - lowest eigenvalue)
-	public double     plDispNorm; //           =   3.0;  // Normalize disparities to the average if above (now only for eigenvalue comparison)
-	public double     plMinStrength; //        =   0.1;  // Minimal total strength of a plane
+	public double     plDispNorm;        //           =   3.0;  // Normalize disparities to the average if above (now only for eigenvalue comparison)
+	public double     plFrontoTol;       //  = 0.2;   plFrontoTol,         // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable
+	public double     plFrontoRms;       //         =   0.05; // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
+	public double     plFrontoOffs;      //   =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+	public double     plMinStrength;     //        =   0.1;  // Minimal total strength of a plane
 	public double     plMaxEigen; //           =   0.05; // Maximal eigenvalue of a plane
 	public double     plEigenFloor; //         =   0.01; // Add to eigenvalues of each participating plane and result to validate connections
 	public double     plEigenStick; //         =   25.0; // Consider plane to be a "stick" if second eigenvalue is below
@@ -132,6 +135,11 @@ public class LinkPlanes {
 		plEigenStick =      clt_parameters.plEigenStick;
 		plBadPlate =        clt_parameters.plBadPlate;
 		plMinStrength =     clt_parameters.plMinStrength;
+
+		plFrontoTol =       clt_parameters.plFrontoTol;
+		plFrontoRms =       clt_parameters.plFrontoRms;
+		plFrontoOffs =      clt_parameters.plFrontoOffs;
+
 		plMaxOverlap =      clt_parameters.plMaxOverlap;
 
 		plWeakWeight =      clt_parameters.plWeakWeight;
@@ -282,13 +290,14 @@ public class LinkPlanes {
 			String prefix,
 			int debugLevel)
 	{
+		double plFrontoDiff = 0.02; // FIXME- make a parameter
 		double plSumThick =   this.plSumThick * relax;
 		double plWeakEigen =  this.plWeakEigen * relax;
 		double plWeakEigen2 = this.plWeakEigen2 * relax;
 		merge_weak |= check_is_weak_only;
 		if ((plane1 == null) || (plane2 == null)) return false;
 		boolean dbg = debugLevel > 1;
-		if (debugLevel > 1){
+		if (debugLevel > 2){
 			System.out.println("planesFit() debug:");
 		}
 		TilePlanes.PlaneData merged_pd = null;
@@ -296,6 +305,23 @@ public class LinkPlanes {
 
 		double disp1 = plane1.getZxy()[0];
 		double disp2 = plane2.getZxy()[0];
+		if (plane1.fronto && plane2.fronto) {
+			if (Math.abs(disp1-disp2) > plFrontoDiff) {
+				if (debugLevel > 0)	System.out.println(prefix+" both planes are fronto and disparity difference Math.abs("+disp1+"-"+disp2+") > plFrontoDiff="+plFrontoDiff);
+				return false;
+			}
+		}
+
+		if (plane1.fronto && !plane2.fronto) {
+			if (debugLevel > 0)	System.out.println(prefix+" at plane1 is fronto and plane2 is not");
+			return false;
+		}
+
+		if (plane2.fronto && !plane1.fronto) {
+			if (debugLevel > 0)	System.out.println(prefix+" at plane2 is fronto and plane1 is not");
+			return false;
+		}
+
 		if ((disp1 <= 0) || (disp2 <= 0) || (((disp1 <= plMaxDisp) || (disp2 <= plMaxDisp)) && ((disp1/disp2 > plMaxZRatio)  || (disp2/disp1 > plMaxZRatio)))){
 			if (debugLevel > 0)	System.out.println(prefix+" planes have too high disparity ratio ("+disp1+":"+disp2+" > plMaxZRatio="+plMaxZRatio+
 					", at least one of them < plMaxDisp="+plMaxDisp);
@@ -795,9 +821,9 @@ public class LinkPlanes {
 				costs[4]/cost,
 				costs[5]/cost};
 
-		if (debugLevel > 0){
+		if (debugLevel > 1){
 			System.out.println(prefix+" cost="+cost);
-			if (debugLevel > 1){
+			if (debugLevel > 2){
 				System.out.println(prefix+ " cost contributions: "+
 						((int)(100*qualities[3]))+"%, "+
 						((int)(100*qualities[4]))+"%, "+
@@ -2544,7 +2570,7 @@ public class LinkPlanes {
 			final int                       dbg_Y)
 	{
 		if (debugLevel > 0) {
-			System.out.println("Debug debugLevel");
+			System.out.println("costSameTileConnections(): debugLevel="+debugLevel);
 		}
 		final int tilesX =        st.tileProcessor.getTilesX();
 		final int tilesY =        st.tileProcessor.getTilesY();
@@ -2563,7 +2589,7 @@ public class LinkPlanes {
 				public void run() {
 					for (int nsTile0 = ai.getAndIncrement(); nsTile0 < nStiles; nsTile0 = ai.getAndIncrement()) if ( merge_candidates[nsTile0] != null) {
 //						int dl = ((debugLevel > 0) && (nsTile0 == debug_stile)) ? 3: ((debugLevel > 1) ? 2:0);
-                        int dl = ((debugLevel > 1) && (nsTile0 == debug_stile)) ? 3: debugLevel;
+                        int dl = ((debugLevel > 1) && (nsTile0 == debug_stile)) ? 3: (debugLevel - 2);
 
 						if (dl > 2){
 							System.out.println("costSameTileConnections(): nsTile="+nsTile0);
@@ -2597,7 +2623,7 @@ public class LinkPlanes {
 											Double.NaN, // double merged_wev,    // if NaN will calculate assuming the same supertile - for world
 											Double.NaN, // double merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
 											prefix, // String prefix,
-											dl - 2); // int debugLevel)
+											dl); // - 2); // int debugLevel)
 									prefix = "costSameTileConnections() fit equal weight: nsTile0="+nsTile0+" np1="+np1+" np2="+np2;
 									boolean fit2 = 	planesFit(
 											planes[nsTile0][np1].getNonexclusiveStarEqFb(), // TilePlanes.PlaneData plane1, // should belong to the same supertile (or be converted for one)
@@ -2609,19 +2635,19 @@ public class LinkPlanes {
 											Double.NaN, // double merged_wev,    // if NaN will calculate assuming the same supertile - for world
 											Double.NaN, // double merged_wev_eq, // if NaN will calculate assuming the same supertile - for world
 											prefix, // String prefix,
-											dl - 2); // int debugLevel)
+											dl); //  - 2); // int debugLevel)
 									//										if (!fit1 || !fit2){
 									if (!fit1 && !fit2){
 										valid_candidates[nsTile0][np1][np2] = false;
 										valid_candidates[nsTile0][np2][np1] = false;
-										if (dl > 0){
+										if (dl > 2) { //0){
 											System.out.println("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+
 													(weak_fg[np1][np2]? " WEAK_FG_PAIR":"") +
 													" REMOVING PAIR, fit1="+fit1+" fit2="+fit2);
 										}
 
 									} else {
-										if (dl > 0){
+										if (dl >2) { //0){
 											System.out.println("costSameTileConnections(): nsTile="+nsTile0+":"+np1+":"+np2+
 													(weak_fg[np1][np2]? " WEAK_FG_PAIR":"") +
 													" KEEPING PAIR, fit1="+fit1+" fit2="+fit2);
@@ -3863,7 +3889,7 @@ public class LinkPlanes {
 					dbg_tileX,
 					dbg_tileY);
 
-			 // Verify merge candidates by evaluating overlaps. Close planes that have significant overlap on the image are mofre likely
+			 // Verify merge candidates by evaluating overlaps. Close planes that have significant overlap on the image are more likely
 			 // to be actually different planes, if they do not overlap it is likely to be the same one, just multiple separate parts of
 			 // it mistakenly discriminated during initial plane generation from the tiles data.
 			 //
@@ -3905,7 +3931,7 @@ public class LinkPlanes {
 					weak_pairs,       // final boolean [][]              weak_fg_pairs,
 					1.0,              // double                    relax,
 					plWeakFgRelax,    // final double                    relax_weak_fg,
-					1+ debugLevel,                  // final int        debugLevel)
+					2+ debugLevel,                  // final int        debugLevel)
 					dbg_tileX,
 					dbg_tileY);
 			// Calculate costs of merging planes of the same supertile and remove those that are exceed threshold
@@ -3965,7 +3991,10 @@ public class LinkPlanes {
 					plTargetEigen,    // final double                     targetEigen,   //     =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
 					plFractOutliers,  // final double                     fractOutliers, //     =   0.3;  // Maximal fraction of outliers to remove
 					plMaxOutliers,    // final int                        maxOutliers,   //     =   20;  // Maximal number of outliers to remove
-					debugLevel,                  // final int        debugLevel)
+					plFrontoTol,      // final double                     fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
+					plFrontoRms,      // final double                     fronto_rms,    // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
+					plFrontoOffs,     // final double                     fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+					debugLevel,       // final int        debugLevel)
 					dbg_tileX,
 					dbg_tileY);
 			if ( debugLevel > -1) {
@@ -4487,6 +4516,9 @@ public class LinkPlanes {
 					plTargetEigen,    // final double                     targetEigen,   //     =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
 					plFractOutliers,  // final double                     fractOutliers, //     =   0.3;  // Maximal fraction of outliers to remove
 					plMaxOutliers,    // final int                        maxOutliers,   //     =   20;  // Maximal number of outliers to remove
+					plFrontoTol,      // final double                     fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
+					plFrontoRms,      // final double                     fronto_rms,    // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
+					plFrontoOffs,     // final double                     fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
 					debugLevel,       // final int        debugLevel)
 					dbg_tileX,
 					dbg_tileY);
@@ -4578,6 +4610,9 @@ public class LinkPlanes {
 						plTargetEigen,    // final double                     targetEigen,   //     =   0.1;  // Remove outliers until main axis eigenvalue (possibly scaled by plDispNorm) gets below
 						plFractOutliers,  // final double                     fractOutliers, //     =   0.3;  // Maximal fraction of outliers to remove
 						plMaxOutliers,    // final int                        maxOutliers,   //     =   20;  // Maximal number of outliers to remove
+						plFrontoTol,      // final double                     fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
+						plFrontoRms,      // final double                     fronto_rms,    // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
+						plFrontoOffs,     // final double                     fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
 						debugLevel,             // final int        debugLevel)
 						dbg_tileX,
 						dbg_tileY);
