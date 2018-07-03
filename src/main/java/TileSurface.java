@@ -5,7 +5,7 @@
  ** Copyright (C) 2017 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
- **  
+ **
  **  TileSurface.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
@@ -31,7 +31,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 
 public class TileSurface {
-//	public 
+//	public
 //		private int tileSize;
 		private int superTileSize;
 		private int imageTilesX;
@@ -45,23 +45,23 @@ public class TileSurface {
 		private int [][] tileLayers = null;
 		private TileData [][] tileData = null;
 		private SurfaceData [] surfaceData = null; // result surfaces
-		
+
 		static int STAT_UNASSIGNED = 0; // index of number of unassigned tiles
 		static int STAT_ASSIGNED =   1; // index of number of assigned tiles
 		static int STAT_PROHIBITED = 2; // index of number of initially prohibited tiles
 		static int STAT_IMPOSSIBLE = 3; // index of number of impossible (like no surfaces at that location) tiles
 		static int STAT_NUM_ML =     4; // index of number of measurement layers used
 		static int STAT_LEN =        5; // number of stat entries
-		
+
 		static int UNASSIGNED =   0; //tile marked as invalid
 		static int PROHOBITED =  -1; //tile marked as invalid
-		static int IMPOSSIBLE =  -2; // give up on this tile (as no surface for it) 
-		
+		static int IMPOSSIBLE =  -2; // give up on this tile (as no surface for it)
+
 		static int NEW_ASSIGNED =     0; // successfully assigned to a surface
 		static int NO_SURF =          1; // no surfaces for this tile cell
 		static int TOO_WEAK =         2; // tile strength is too low
 		static int TOO_STRONG =       3; // tile strength is too high ( for that disparity difference)
-		static int TOO_FAR =          4; // no surface candidates within the allowed disparity range 
+		static int TOO_FAR =          4; // no surface candidates within the allowed disparity range
 		static int NOT_UNIQUE =       5; // multiple surfaces are within range
 		static int REMOVED_TILES =    6; // number of removed tiles in weak clusters
 		static int REMOVED_CLUSTERS = 7; // number of removed weak clusters
@@ -75,9 +75,9 @@ public class TileSurface {
 		static int CLUST_NUM_CONFLICTS_A = 5;
 		static int CLUST_NUM_CONFLICTS_B = 6;
 		static int CLUST_NUM_STATS =       7;
-		
-		
-		
+
+
+
 //		private int nsTilesstSize =   0; // 8;
 		GeometryCorrection   geometryCorrection = null;
 		public TileSurface(
@@ -100,10 +100,10 @@ public class TileSurface {
 			int [] dirs =  {-stilesX, -stilesX + 1, 1, stilesX + 1, stilesX, stilesX - 1, -1, -stilesX - 1};
 			this.st_dirs8 = dirs;
 
-			int tx = superTileSize * stilesX; 
+			int tx = superTileSize * stilesX;
 			int [] tdirs =  {-tx, -tx + 1, 1, tx + 1, tx, tx - 1, -1, -tx - 1};
 			this.t_dirs8 = tdirs;
-			
+
 		}
 		public int getThreadsMax(){
 			return this.threadsMax;
@@ -114,7 +114,7 @@ public class TileSurface {
 		public int getSTilesY(){
 			return stilesY;
 		}
-		
+
 		public int getSuperTileSize(){
 			return superTileSize;
 		}
@@ -130,12 +130,12 @@ public class TileSurface {
 		public int getImageTilesY(){
 			return imageTilesY;
 		}
-		
+
 		public 	TileData [][] getTileData(){
 			return this.tileData;
 		}
 
-		
+
 		public int [][] getTileLayersCopy()
 		{
 			if (this.tileLayers == null){
@@ -149,11 +149,11 @@ public class TileSurface {
 			}
 			return this.tileLayers;
 		}
-		
+
 		public void setTileLayers(int [][] tileLayers){
 			this.tileLayers = tileLayers;
 		}
-		
+
 		public class TileData{
 			double [] disp_strength;
 			int indx =         0;
@@ -169,7 +169,7 @@ public class TileSurface {
 			{
 				setDisparityStrength(disparity,strength);
 			}
-/*			
+/*
 			public void setParentPlane (TilePlanes.PlaneData parent_plane)
 			{
 				this.parent_plane = parent_plane;
@@ -190,21 +190,22 @@ public class TileSurface {
 				s+= "] ";
 				return s;
 			}
+			@Override
 			public String toString()
 			{
-				
+
 				String s = "          ";
 				s += getNeibString();
 				s += String.format( "index=%2d(%2d) parent = %3d:%1d disp=%8.5f weight=%8.5f",
 						new_index, indx,
 						parent_nsTile, parent_layer, disp_strength[0], disp_strength[1]);
-				
+
 
 				return s;
 			}
-			
-			
-			
+
+
+
 			public void setParentTileLayer (int parent_nsTile, int parent_layer)
 			{
 				this.parent_nsTile = parent_nsTile;
@@ -215,8 +216,8 @@ public class TileSurface {
 			{
 				return this.parent_layer;
 			}
-			
-			
+
+
 //			public void setParentNsTile(int parent_nsTile)
 //			{
 //				this.parent_nsTile = parent_nsTile;
@@ -236,37 +237,37 @@ public class TileSurface {
 			}
 			public int  getIndex()
 			{
-				return this.indx; 
+				return this.indx;
 			}
 
 
 			public void setNewIndex(int indx)
 			{
-				this.new_index = indx; 
+				this.new_index = indx;
 			}
 			public int  getNewIndex()
 			{
-				return this.new_index; 
+				return this.new_index;
 			}
-			
-			
+
+
 			public void setNeighbors(int [] neighbors)
 			{
-				this.neighbors = neighbors; 
+				this.neighbors = neighbors;
 			}
 			public int [] getNeighbors()
 			{
-				return this.neighbors; 
+				return this.neighbors;
 			}
 			public void setNeighbor(int dir,int neib)
 			{
 //				if (this.neighbors == null) this.neighbors = new int[8];
-				this.neighbors[dir] = neib; 
+				this.neighbors[dir] = neib;
 			}
 			public int getNeighbor(int dir)
 			{
 //				if (this.neighbors == null) this.neighbors = new int[8];
-				return this.neighbors[dir]; 
+				return this.neighbors[dir];
 			}
 			public void setEnable(boolean enable)
 			{
@@ -285,7 +286,7 @@ public class TileSurface {
 				this.disp_strength[0] = disparity;
 				this.disp_strength[1] =  strength;
 			}
-			
+
 			public void setDisparity(double disparity)
 			{
 				if (this.disp_strength == null){
@@ -314,7 +315,7 @@ public class TileSurface {
 			{
 				return getDisparity(true);
 			}
-			
+
 			public void setStrength(double strength)
 			{
 				if (this.disp_strength == null){
@@ -329,7 +330,7 @@ public class TileSurface {
 				}
 				return this.disp_strength[1];
 			}
-			
+
 		}
 
 		public int getNStileDir(
@@ -340,9 +341,9 @@ public class TileSurface {
 			int sty = nsTile / stilesX;
 			int stx = nsTile % stilesX;
 			if ((stx > 0) && (sty > 0) && (sty < (stilesY - 1)) && (stx < (stilesX - 1))) return nsTile + st_dirs8[dir]; // most likely case
-			if ((sty == 0)             && ((dir < 2) || (dir == 7))) return -1; 
-			if ((sty == (stilesY - 1)) &&  (dir > 2) && (dir < 6))   return -1; 
-			if ((stx == 0)            &&  (dir > 4))                 return -1; 
+			if ((sty == 0)             && ((dir < 2) || (dir == 7))) return -1;
+			if ((sty == (stilesY - 1)) &&  (dir > 2) && (dir < 6))   return -1;
+			if ((stx == 0)            &&  (dir > 4))                 return -1;
 			if ((stx == (stilesX - 1)) &&   (dir > 0) && (dir < 4))  return -1;
 			return nsTile + st_dirs8[dir];
 		}
@@ -357,24 +358,24 @@ public class TileSurface {
 			int ty = nTile / tilesX;
 			int tx = nTile % tilesX;
 			if ((tx > 0) && (ty > 0) && (ty < (tilesY - 1)) && (tx < (tilesX - 1))) return nTile + t_dirs8[dir]; // most likely case
-			if ((ty == 0)            && ((dir < 2) || (dir == 7))) return -1; 
-			if ((ty == (tilesY - 1)) &&  (dir > 2) && (dir < 6))   return -1; 
-			if ((tx == 0)            &&  (dir > 4))                 return -1; 
+			if ((ty == 0)            && ((dir < 2) || (dir == 7))) return -1;
+			if ((ty == (tilesY - 1)) &&  (dir > 2) && (dir < 6))   return -1;
+			if ((tx == 0)            &&  (dir > 4))                 return -1;
 			if ((tx == (tilesX - 1)) &&  (dir > 0) && (dir < 4))  return -1;
 			return nTile + t_dirs8[dir];
 		}
-		
-		
+
+
 		public int getDirToStile(
 				int nsTile,
 				int nsTile1)
 		{
-			
+
 			int sty =  nsTile / stilesX;
 			int stx =  nsTile % stilesX;
 			int sty1 = nsTile1 / stilesX;
 			int stx1 = nsTile1 % stilesX;
-			int dx = stx1 - stx; 
+			int dx = stx1 - stx;
 			int dy = sty1 - sty;
 //			int sdx = (dx > 0) ? 1: ( (dx < 0) ? -1 : 0);
 //			int sdy = (dy > 0) ? 1: ( (dy < 0) ? -1 : 0);
@@ -394,7 +395,7 @@ public class TileSurface {
 			return -1;
 		}
 
-		
+
 		/**
 		 * Get tile surface number from supertile number, direction (-1 same) and the supertile plane index
 		 * @param nsTile number of the supertile
@@ -417,7 +418,7 @@ public class TileSurface {
 				if (np >= tsn){
 					return -1;
 				}
-				return np; 
+				return np;
 			}
 			int nsTile1 = -1;
 			for (int d = 0; d < dir; d ++){
@@ -433,10 +434,10 @@ public class TileSurface {
 					return -1;
 				}
 			}
-			return tsn + np; 
+			return tsn + np;
 		}
 		/**
-		 * Get supertile direction and the plane number that contributeted to a specific tile surface 
+		 * Get supertile direction and the plane number that contributeted to a specific tile surface
 		 * @param nsTile supertile index
 		 * @param tp tile surface index (generated by getTileSurfaceNumber)
 		 * @param planes array of the per-supertile, per plane plane data (each level can be null)
@@ -460,7 +461,7 @@ public class TileSurface {
 					rslt[1] = tp;
 					return rslt;
 				}
-				tp -= num_planes; 
+				tp -= num_planes;
 			}
 			return null; // error - invalid input
 		}
@@ -471,7 +472,7 @@ public class TileSurface {
 			double [] wnd1d = new double [size];
 			for (int i = 0; i < size/2; i++){
 				wnd1d[i] = 0.5 * (1.0 - Math.cos(2*Math.PI*(i+0.5)/size));
-				wnd1d[size - i -1] = wnd1d[i]; 
+				wnd1d[size - i -1] = wnd1d[i];
 			}
 			double [] wnd = new double [size * size];
 			int indx = 0;
@@ -482,7 +483,7 @@ public class TileSurface {
 			}
 			return wnd;
 		}
-		
+
 		public double [] getWindow()
 		{
 			return window;
@@ -510,8 +511,8 @@ public class TileSurface {
 				final int                       dbg_X,
 				final int                       dbg_Y)
 		{
-			final int nStiles = stilesX * stilesY; 
-			final int nTiles =  nStiles * superTileSize * superTileSize; 
+			final int nStiles = stilesX * stilesY;
+			final int nTiles =  nStiles * superTileSize * superTileSize;
 			final double [][][][] fused_data = new double [nStiles][][][];
 //			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 			final Thread[] threads = ImageDtt.newThreadArray((debugLevel > 1)? 1 : threadsMax);
@@ -519,6 +520,7 @@ public class TileSurface {
 			final int dbg_tile = dbg_Y * stilesX + dbg_X;
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
 							if (planes[nsTile] != null) {
@@ -539,9 +541,9 @@ public class TileSurface {
 												fraction_uni, //				double    fraction_uni,
 												debugLevel-1);   // int       debugLevel)
 										// multiply disparities by strengths to calculate weighted averages
-										double [] disp0 = disp_strength[np][0].clone(); // to use where strength == 0 
+										double [] disp0 = disp_strength[np][0].clone(); // to use where strength == 0
 										for (int i = 0; i < disp_strength[np][1].length; i++){
-											disp_strength[np][0][i] *= disp_strength[np][1][i]; 
+											disp_strength[np][0][i] *= disp_strength[np][1][i];
 										}
 										//									}
 										for (int dir = 0; dir < st_dirs8.length; dir++){
@@ -560,17 +562,17 @@ public class TileSurface {
 															debugLevel-1);   // int       debugLevel)
 													for (int i = 0; i < disp_strength[np][1].length; i++){
 														if (ds[1][i] > 0.0){
-															disp_strength[np][1][i] += ds[1][i]; 
-															disp_strength[np][0][i] += ds[1][i] * ds[0][i]; 
+															disp_strength[np][1][i] += ds[1][i];
+															disp_strength[np][0][i] += ds[1][i] * ds[0][i];
 														}
 													}
-												}												
+												}
 											}
 										}
 										// calculate weighted average for each tile
-										for (int i = 0; i < disp_strength[np][1].length; i++){ 
+										for (int i = 0; i < disp_strength[np][1].length; i++){
 											if (disp_strength[np][1][i] > 0.0){
-												disp_strength[np][0][i] /= disp_strength[np][1][i]; 
+												disp_strength[np][0][i] /= disp_strength[np][1][i];
 											} else {
 												disp_strength[np][0][i] = disp0[i]; // may have discontinuity
 											}
@@ -580,10 +582,10 @@ public class TileSurface {
 											if (sel != null){
 												for (int i = 0; i < disp_strength[np][1].length; i++){
 													if (!sel[i]) disp_strength[np][1][i] = 0.0;
-												}												
+												}
 											}
 										}
-										
+
 										if ((debugLevel > -1) && (dl>0)){
 											String str_neib =  "fuseSupertilePlanes_"+nsTile+":"+np;
 											for (int dir = 0; dir < 8; dir++){
@@ -602,8 +604,8 @@ public class TileSurface {
 										titles [i + 1 * disp_strength.length] = "mdisp_" + i;
 										titles [i + 2 * disp_strength.length] = "str_" + i;
 										if (disp_strength[i] != null) {
-											dbg_img[i + 0 * disp_strength.length] = disp_strength[i][0]; 
-											dbg_img[i + 2 * disp_strength.length] = disp_strength[i][1]; 
+											dbg_img[i + 0 * disp_strength.length] = disp_strength[i][0];
+											dbg_img[i + 2 * disp_strength.length] = disp_strength[i][1];
 											dbg_img[i + 1 * disp_strength.length] = disp_strength[i][0].clone();
 											for (int j = 0; j < disp_strength[i][0].length; j++){
 												if (disp_strength[i][1][j] == 0.0){
@@ -615,12 +617,12 @@ public class TileSurface {
 									showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
 									sdfa_instance.showArrays(dbg_img,  2 * superTileSize, 2 * superTileSize, true, "surf_ds_"+nsTile, titles);
 								}
-								
+
 							}
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			return fused_data;
 		}
@@ -642,8 +644,8 @@ public class TileSurface {
 				final int                       dbg_X,
 				final int                       dbg_Y)
 		{
-			final int nStiles = stilesX * stilesY; 
-//			final int nTiles =  nStiles * superTileSize * superTileSize; 
+			final int nStiles = stilesX * stilesY;
+//			final int nTiles =  nStiles * superTileSize * superTileSize;
 			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 			final AtomicInteger ai = new AtomicInteger(0);
 			final int [][] dir_corn = {
@@ -651,12 +653,13 @@ public class TileSurface {
 					{ 0,  1, -1,  2},  // 1 (top right)
 					{ 6, -1,  5,  4},  // 2 (bottom left)
 					{-1,  2,  4,  3}}; // 3 (bottom right)
-			
+
 			final int [][][][] corners = new int [nStiles][][][];
 			final int dbg_tile = dbg_Y * stilesX + dbg_X;
 
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
 							if (planes[nsTile] != null) {
@@ -671,7 +674,7 @@ public class TileSurface {
 										int [] neibs = planes[nsTile][np].getNeibBest();
 										if (neibs == null) {
 											System.out.println("getSupertilesTopology(), nsTile = "+nsTile+" neibs= null");
-											
+
 										} else {
 											corners[nsTile][np]= new int [4][4];
 											for (int i= 0; i < 4; i++){
@@ -679,7 +682,7 @@ public class TileSurface {
 													if (dir_corn[i][j] < 0){
 														corners[nsTile][np][i][j] = np;
 													} else {
-														corners[nsTile][np][i][j] = neibs[dir_corn[i][j]]; 
+														corners[nsTile][np][i][j] = neibs[dir_corn[i][j]];
 													}
 												}
 											}
@@ -690,11 +693,11 @@ public class TileSurface {
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			return corners;
 		}
-		
+
 		/**
 		 * Calculate per-tile surface data (TileData) including disparity, strength, and 8 neighbors indices
 		 * @param planes array of the per-supertile, per plane plane data (each level can be null)
@@ -706,22 +709,22 @@ public class TileSurface {
 		 */
 		public int [][][][][] generateOverlappingMeshes (
 				final TilePlanes.PlaneData [][] planes,
-				final int [][][][]              corners, 
+				final int [][][][]              corners,
 				final int                       debugLevel,
 				final int                       dbg_X,
 				final int                       dbg_Y)
 		{
-			final int nStiles = stilesX * stilesY; 
-//			final int nTiles =  nStiles * superTileSize * superTileSize; 
+			final int nStiles = stilesX * stilesY;
+//			final int nTiles =  nStiles * superTileSize * superTileSize;
 			final int [][][][][] meshes = new int [nStiles][][][][];
-			
+
 			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 			final AtomicInteger ai = new AtomicInteger(0);
 			final int ss2 = 2 * superTileSize;
 			final int ss1 =  superTileSize;
 			final int sh  =  superTileSize/2;
 			final int len_st2 = ss2  * ss2 ;
-			
+
 			final int [][][] quad_check = { // [quadrant 01/23][dir: left, right, diagonal]{dir, quadrant}
 					{ // top left quadrant
 						{6, 1},  //left
@@ -760,13 +763,14 @@ public class TileSurface {
 						{3 * sh * ss2 + ss1, ss1, sh}
 					},
 			};
-			
+
 			final TileNeibs tileNeibs = new TileNeibs(2*superTileSize);
 
 			final int dbg_tile = dbg_Y * stilesX + dbg_X;
-			
+
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
 							if (planes[nsTile] != null) {
@@ -808,7 +812,7 @@ public class TileSurface {
 											// change diagonal first (add corner square later again
 											if (neib_id[2] != null){
 												switch (quadrant){
-												case 0: // top left 
+												case 0: // top left
 													for (int j = 0; j < (ss1 - 1); j++){
 														for (int i = ss1 - 2 - j; i>=0; i--){
 															pre_mesh[i * ss2 + j] = neib_id[2];
@@ -843,14 +847,14 @@ public class TileSurface {
 												for (int y = 0; y < cut_ortho[quadrant][arr][2]; y++){
 													for (int x = 0; x < cut_ortho[quadrant][arr][1]; x++){
 														int indx =  cut_ortho[quadrant][arr][0] + y * ss2 + x;
-														pre_mesh[indx] = neib_id[arr]; 
+														pre_mesh[indx] = neib_id[arr];
 													}
 												}
 											}
 											// add corner square corner on top of possible ortho
 											if (neib_id[2] != null){
 												switch (quadrant){
-												case 0: // top left 
+												case 0: // top left
 													for (int j = 0; j < sh; j++){
 														for (int i =  0 ; i < sh; i++){
 															pre_mesh[i * ss2 + j] = neib_id[2];
@@ -883,11 +887,11 @@ public class TileSurface {
 										}
 										// build mesh , then add cuts if needed
 										meshes[nsTile][np] = new int [len_st2][][];
-										int [][][] dbg_meshes = meshes[nsTile][np]; 
+										int [][][] dbg_meshes = meshes[nsTile][np];
 										if (dl > 0){
 											System.out.println("generateOverlappingMeshes(), dbg_meshes.length = "+dbg_meshes.length);
 										}
-										
+
 										for (int i = 0; i < len_st2; i ++){
 											if ((pre_mesh[i] != null) && (pre_mesh[i][0] == nsTile)){
 												meshes[nsTile][np][i] = new int [8][];
@@ -912,16 +916,16 @@ public class TileSurface {
 											case 6:	dir_go = 6; dir_start =  6;	cut_right = true;  break;
 											case 7:	dir_go = 6; dir_start =  7;	cut_right = false; break;
 											}
-											int dir_go45 =   (dir_go + (cut_right ? 1:7)) % 8; 
-											int dir_go90 =   (dir_go + (cut_right ? 2:6)) % 8; 
-											int dir_go135 =  (dir_go + (cut_right ? 3:5)) % 8; 
-											int dir_go180 =  (dir_go + 4) % 8; 
+											int dir_go45 =   (dir_go + (cut_right ? 1:7)) % 8;
+											int dir_go90 =   (dir_go + (cut_right ? 2:6)) % 8;
+											int dir_go135 =  (dir_go + (cut_right ? 3:5)) % 8;
+											int dir_go180 =  (dir_go + 4) % 8;
 
 											indx = ss1 * (ss2 + 1); // center point
-											
+
 											for (int i = 0; i < sh; i++) indx = tileNeibs.getNeibIndex(indx, dir_go);
 											if (dir_start >= 0) indx = tileNeibs.getNeibIndex(indx, dir_start);
-											
+
 											int indx1 = tileNeibs.getNeibIndex(indx, dir_go90);
 //											if ((pre_mesh[indx] != null) && (pre_mesh[indx1] == null)){ // there is a cut
 //											if ((pre_mesh[indx][0] == nsTile) && (pre_mesh[indx1][0] != nsTile)){ // there is a cut
@@ -937,7 +941,7 @@ public class TileSurface {
 													}
 													indx = tileNeibs.getNeibIndex(indx, dir_go);
 												}
-											}											
+											}
 										}
 									}
 								}
@@ -945,7 +949,7 @@ public class TileSurface {
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			return meshes;
 		}
@@ -960,16 +964,16 @@ public class TileSurface {
 		 * @param dbg_Y debug supertile Y coordinate
 		 * @return per-tile (rounded up to contain whole supertiles) sparse array of TileData instances
 		 */
-		
+
 		public TileData [][] createTileShells (
 				final TilePlanes.PlaneData [][] planes,
 				final double [][][][]           fusedSupertilePlanes,
-				final int [][][][][]            lappingMeshes,				
+				final int [][][][][]            lappingMeshes,
 				final int                       debugLevel,
 				final int                       dbg_X,
 				final int                       dbg_Y)
 		{
-			final int nStiles = stilesX * stilesY; 
+			final int nStiles = stilesX * stilesY;
 			final int tilesX = stilesX * superTileSize;
 			final int tilesY = stilesY * superTileSize;
 			final int nTiles =  nStiles * superTileSize * superTileSize;
@@ -980,12 +984,13 @@ public class TileSurface {
 			final int sh =  superTileSize/2;
 			final int len2 = ss2  * ss2 ;
 			final TileNeibs tileNeibs = new TileNeibs(2 * superTileSize);
-			
+
 			final int dbg_tile = dbg_Y * stilesX + dbg_X;
-			
+
 			// initialize result structure
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
 							int dl = ((debugLevel > -1) && (nsTile == dbg_tile)) ? 3:0;
@@ -996,29 +1001,30 @@ public class TileSurface {
 									nsTile, // int nsTile,
 									8, // int dir,              // direction, or -1 (same)
 									0, // int np,
-									planes); // TilePlanes.PlaneData [][] planes) 
-							if (num_surf > 0) { // 0 - nothing in this supertile, none around - remove 
-								if (num_surf > 0) { // 0 - nothing in this supertile, none around 
-									int stileY = nsTile / stilesX;  
+									planes); // TilePlanes.PlaneData [][] planes)
+							if (num_surf > 0) { // 0 - nothing in this supertile, none around - remove
+								if (num_surf > 0) { // 0 - nothing in this supertile, none around
+									int stileY = nsTile / stilesX;
 									int stileX = nsTile % stilesX;
 									for (int ty = 0; ty < superTileSize; ty++){
 										for (int tx = 0; tx < superTileSize; tx++){
-											int indx = ((stileY * superTileSize) + ty) * tilesX + ((stileX * superTileSize) + tx); 
+											int indx = ((stileY * superTileSize) + ty) * tilesX + ((stileX * superTileSize) + tx);
 											tile_data[indx] = new TileData[num_surf];
 										}
-										
+
 									}
 								}
 							}
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 
 			ai.set(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nsTile = ai.getAndIncrement(); nsTile < nStiles; nsTile = ai.getAndIncrement()) {
 							if (planes[nsTile] != null) {
@@ -1026,11 +1032,11 @@ public class TileSurface {
 								if (dl > 0){
 									System.out.println("createTileShells():2, nsTile = "+nsTile);
 								}
-								int stileY = nsTile / stilesX;  
+								int stileY = nsTile / stilesX;
 								int stileX = nsTile % stilesX;
 //								for (int np = 0; np < planes[nsTile].length; np++) if (planes[nsTile][np] != null){
 								for (int np = 0; np < planes[nsTile].length; np++) if ((planes[nsTile][np] != null) && (planes[nsTile][np].getWeight() > 0.0)){
-									
+
 									int [][][] src_mesh = lappingMeshes[nsTile][np];
 									double [][] disp_strength = fusedSupertilePlanes[nsTile][np];
 									TileData [] dual_mesh = new TileData [len2]; // full overlapping dual-sized mesh
@@ -1058,15 +1064,15 @@ public class TileSurface {
 //													dual_mesh[indx].setParentNsTile(nsTile);
 													dual_mesh[indx].setParentTileLayer(nsTile, np);
 //													dual_mesh[indx].setParentPlane(planes[nsTile][np]);
-													
+
 													int dirThisfrom0 = getDirToStile(nsTile0, nsTile); // can be -1;
 													int surf0 = getTileSurfaceNumber ( // Number of the surface for the tile itself
 															nsTile0,      // int nsTile,
 															dirThisfrom0, // int dir,              // direction, or -1 (same)
 															np,           // int np,
-															planes); 
+															planes);
 													dual_mesh[indx].setIndex(surf0);
-													
+
 													for (int dir = 0; dir < 8; dir++) {
 														if (src_neibs[dir] != null){
 															int nsTile1 = src_neibs[dir][0];
@@ -1085,7 +1091,7 @@ public class TileSurface {
 																	nsTile2,  // int nsTile,
 																	dir1from2, // int dir,              // direction, or -1 (same)
 																	np1, // int np,
-																	planes); 
+																	planes);
 															dual_mesh[indx].setNeighbor(dir, surf);
 														}
 													}
@@ -1114,10 +1120,10 @@ public class TileSurface {
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			return tile_data;
-		}		
+		}
 
 		public TileData [][]  compactSortShells (
 				final TileData [][]     tileData_src,
@@ -1125,8 +1131,8 @@ public class TileSurface {
 				final int               dbg_X,
 				final int               dbg_Y)
 		{
-			final int nStiles = stilesX * stilesY; 
-			final int nTiles =  nStiles * superTileSize * superTileSize; 
+			final int nStiles = stilesX * stilesY;
+			final int nTiles =  nStiles * superTileSize * superTileSize;
 			final TileData [][] tile_data = new TileData [nTiles][];
 			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 			final AtomicInteger ai = new AtomicInteger(0);
@@ -1135,9 +1141,10 @@ public class TileSurface {
 			final int dbg_tilesX = stilesX * superTileSize;
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
-							int dbg_stX = nTile % dbg_tilesX;   
+							int dbg_stX = nTile % dbg_tilesX;
 							int dbg_stY = nTile / dbg_tilesX;
 							int dbg_st = (dbg_stY / superTileSize) * stilesX + (dbg_stX / superTileSize);
 							int dl = ((debugLevel > -1) && (dbg_st == dbg_stile)) ? 3:0;
@@ -1175,16 +1182,17 @@ public class TileSurface {
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 
 			ai.set(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						TileData [][]  tileData_src_dbg= tileData_src;
 						for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
-							int dbg_stX = nTile % dbg_tilesX;   
+							int dbg_stX = nTile % dbg_tilesX;
 							int dbg_stY = nTile / dbg_tilesX;
 							int dbg_st = (dbg_stY / superTileSize) * stilesX + (dbg_stX / superTileSize);
 							int dl = ((debugLevel > -1) && (dbg_st == dbg_stile)) ? 3:0;
@@ -1200,13 +1208,13 @@ public class TileSurface {
 											if (nTile1 >= 0) {
 												if ((tile_data[nTile1] == null) || (tileData_src[nTile1][neibs[dir]] == null)){
 													int dbg_sstile = tile_data[nTile][i].getParentNsTile();
-													int dbg_stileX = dbg_sstile % stilesX; 
+													int dbg_stileX = dbg_sstile % stilesX;
 													int dbg_stileY = dbg_sstile / stilesX;
 													int dbg_tx = nTile % dbg_tilesX;
 													int dbg_ty = nTile / dbg_tilesX;
-													int dbg_dx = dbg_tx - (superTileSize * dbg_stileX + superTileSize/2); 
-													int dbg_dy = dbg_ty - (superTileSize * dbg_stileY + superTileSize/2); 
-													
+													int dbg_dx = dbg_tx - (superTileSize * dbg_stileX + superTileSize/2);
+													int dbg_dy = dbg_ty - (superTileSize * dbg_stileY + superTileSize/2);
+
 													System.out.println("Null tile: "+nTile1+ " from "+nTile+", i="+i+", dir = "+dir+
 															", dbg_stX="+dbg_stX+", dbg_stY="+dbg_stY+", dbg_st="+dbg_st+", neibs[dir]="+neibs[dir]+
 															" dbg_nsTile = "+dbg_sstile +" ("+dbg_stileX+":"+dbg_stileY+")"+
@@ -1217,7 +1225,7 @@ public class TileSurface {
 //													neibs[dir] = tile_data[nTile1][neibs[dir]].getNewIndex();
 													neibs[dir] = tileData_src[nTile1][neibs[dir]].getNewIndex();
 												}
-												
+
 											}
 										}
 									}
@@ -1226,20 +1234,20 @@ public class TileSurface {
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			return tile_data;
 		}
 
-	
+
 		public void  checkShellsConnections (
 				final TileData [][]     tileData,
 				final int               debugLevel,
 				final int               dbg_X,
 				final int               dbg_Y)
 		{
-			final int nStiles = stilesX * stilesY; 
-			final int nTiles =  nStiles * superTileSize * superTileSize; 
+			final int nStiles = stilesX * stilesY;
+			final int nTiles =  nStiles * superTileSize * superTileSize;
 //			final TileData [][] tile_data = new TileData [nTiles][];
 			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 			final AtomicInteger ai = new AtomicInteger(0);
@@ -1248,10 +1256,11 @@ public class TileSurface {
 			final int dbg_tilesX = stilesX * superTileSize;
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
-							
-							int dbg_stX = nTile % dbg_tilesX;   
+
+							int dbg_stX = nTile % dbg_tilesX;
 							int dbg_stY = nTile / dbg_tilesX;
 							int dbg_st = (dbg_stY / superTileSize) * stilesX + (dbg_stX / superTileSize);
 							int dl = ((debugLevel > -1) && (dbg_st == dbg_stile)) ? 3:0;
@@ -1269,12 +1278,12 @@ public class TileSurface {
 													if ((tileData[nTile1] == null) || (tileData[nTile1][neibs[dir]] == null)){
 														if (debugLevel > -1) {
 															int dbg_sstile = tileData[nTile][nl].getParentNsTile();
-															int dbg_stileX = dbg_sstile % stilesX; 
+															int dbg_stileX = dbg_sstile % stilesX;
 															int dbg_stileY = dbg_sstile / stilesX;
 															int dbg_tx = nTile % dbg_tilesX;
 															int dbg_ty = nTile / dbg_tilesX;
-															int dbg_dx = dbg_tx - (superTileSize * dbg_stileX + superTileSize/2); 
-															int dbg_dy = dbg_ty - (superTileSize * dbg_stileY + superTileSize/2); 
+															int dbg_dx = dbg_tx - (superTileSize * dbg_stileX + superTileSize/2);
+															int dbg_dy = dbg_ty - (superTileSize * dbg_stileY + superTileSize/2);
 
 															System.out.println("Broken link: "+nTile1+ " from "+nTile+", nl="+nl+", dir = "+dir+
 																	", dbg_stX="+dbg_stX+", dbg_stY="+dbg_stY+", dbg_st="+dbg_st+", neibs[dir]="+neibs[dir]+
@@ -1288,12 +1297,12 @@ public class TileSurface {
 														if (neibs_other[(dir + 4) % 8] != nl){
 															if (debugLevel > -1) {
 																int dbg_sstile = tileData[nTile][nl].getParentNsTile();
-																int dbg_stileX = dbg_sstile % stilesX; 
+																int dbg_stileX = dbg_sstile % stilesX;
 																int dbg_stileY = dbg_sstile / stilesX;
 																int dbg_tx = nTile % dbg_tilesX;
 																int dbg_ty = nTile / dbg_tilesX;
-																int dbg_dx = dbg_tx - (superTileSize * dbg_stileX + superTileSize/2); 
-																int dbg_dy = dbg_ty - (superTileSize * dbg_stileY + superTileSize/2); 
+																int dbg_dx = dbg_tx - (superTileSize * dbg_stileX + superTileSize/2);
+																int dbg_dy = dbg_ty - (superTileSize * dbg_stileY + superTileSize/2);
 
 																System.out.println("Link not mutual: "+nTile1+ " from "+nTile+", nl="+nl+", dir = "+dir+
 																		", dbg_stX="+dbg_stX+", dbg_stY="+dbg_stY+", dbg_st="+dbg_st+", neibs[dir]="+neibs[dir]+
@@ -1311,22 +1320,22 @@ public class TileSurface {
 										}
 									}
 								}
-							}			
+							}
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
-		}		
-		
+		}
+
 		public void  addBackShellsConnections (
 				final TileData [][]     tileData,
 				final int               debugLevel,
 				final int               dbg_X,
 				final int               dbg_Y)
 		{
-			final int nStiles = stilesX * stilesY; 
-			final int nTiles =  nStiles * superTileSize * superTileSize; 
+			final int nStiles = stilesX * stilesY;
+			final int nTiles =  nStiles * superTileSize * superTileSize;
 //			final TileData [][] tile_data = new TileData [nTiles][];
 			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 			final AtomicInteger ai = new AtomicInteger(0);
@@ -1335,10 +1344,11 @@ public class TileSurface {
 			final int dbg_tilesX = stilesX * superTileSize;
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
-							
-							int dbg_stX = nTile % dbg_tilesX;   
+
+							int dbg_stX = nTile % dbg_tilesX;
 							int dbg_stY = nTile / dbg_tilesX;
 							int dbg_st = (dbg_stY / superTileSize) * stilesX + (dbg_stX / superTileSize);
 							int dl = ((debugLevel > -1) && (dbg_st == dbg_stile)) ? 3:0;
@@ -1356,12 +1366,12 @@ public class TileSurface {
 													if ((tileData[nTile1] == null) || (tileData[nTile1][neibs[dir]] == null)){
 														if (debugLevel > 0) {
 															int dbg_sstile = tileData[nTile][nl].getParentNsTile();
-															int dbg_stileX = dbg_sstile % stilesX; 
+															int dbg_stileX = dbg_sstile % stilesX;
 															int dbg_stileY = dbg_sstile / stilesX;
 															int dbg_tx = nTile % dbg_tilesX;
 															int dbg_ty = nTile / dbg_tilesX;
-															int dbg_dx = dbg_tx - (superTileSize * dbg_stileX + superTileSize/2); 
-															int dbg_dy = dbg_ty - (superTileSize * dbg_stileY + superTileSize/2); 
+															int dbg_dx = dbg_tx - (superTileSize * dbg_stileX + superTileSize/2);
+															int dbg_dy = dbg_ty - (superTileSize * dbg_stileY + superTileSize/2);
 
 															System.out.println("Broken link: "+nTile1+ " from "+nTile+", nl="+nl+", dir = "+dir+
 																	", dbg_stX="+dbg_stX+", dbg_stY="+dbg_stY+", dbg_st="+dbg_st+", neibs[dir]="+neibs[dir]+
@@ -1375,12 +1385,12 @@ public class TileSurface {
 														if (neibs_other[(dir + 4) % 8] != nl){
 															if (debugLevel > 0) {
 																int dbg_sstile = tileData[nTile][nl].getParentNsTile();
-																int dbg_stileX = dbg_sstile % stilesX; 
+																int dbg_stileX = dbg_sstile % stilesX;
 																int dbg_stileY = dbg_sstile / stilesX;
 																int dbg_tx = nTile % dbg_tilesX;
 																int dbg_ty = nTile / dbg_tilesX;
-																int dbg_dx = dbg_tx - (superTileSize * dbg_stileX + superTileSize/2); 
-																int dbg_dy = dbg_ty - (superTileSize * dbg_stileY + superTileSize/2); 
+																int dbg_dx = dbg_tx - (superTileSize * dbg_stileX + superTileSize/2);
+																int dbg_dy = dbg_ty - (superTileSize * dbg_stileY + superTileSize/2);
 
 																System.out.println("Link not mutual: "+nTile1+ " from "+nTile+", nl="+nl+", dir = "+dir+
 																		", dbg_stX="+dbg_stX+", dbg_stY="+dbg_stY+", dbg_st="+dbg_st+", neibs[dir]="+neibs[dir]+
@@ -1407,26 +1417,26 @@ public class TileSurface {
 										}
 									}
 								}
-							}			
+							}
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
-		}		
+		}
 
-		
-		
-		
-		
-		
+
+
+
+
+
 		public int getTileLayersNumber (
 				final TileData [][] tileData)
 		{
 			int num = 0;
 			for (int i = 0; i < tileData.length; i++){
 				if ((tileData[i] != null) && (tileData[i].length > num )){
-					num  = tileData[i].length; 
+					num  = tileData[i].length;
 				}
 			}
 			return num;
@@ -1437,19 +1447,20 @@ public class TileSurface {
 			int [] wh = {stilesX*superTileSize, stilesY*superTileSize};
 			return wh;
 		}
-		
+
 		public double [][][] getTileDisparityStrengths (
 				final TileData [][] tileData,
 				final boolean useNaN)
 		{
-			final int nStiles = stilesX * stilesY; 
-			final int nTiles =  nStiles * superTileSize * superTileSize; 
+			final int nStiles = stilesX * stilesY;
+			final int nTiles =  nStiles * superTileSize * superTileSize;
 			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 			final AtomicInteger ai = new AtomicInteger(0);
 			final int numLayers = getTileLayersNumber(tileData);
 			final double [][][] disp_strength = new double [numLayers][2][tileData.length];
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
 							if (tileData[nTile] != null){
@@ -1470,21 +1481,22 @@ public class TileSurface {
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			return disp_strength;
 		}
 		public int [][][] getTileConnections (
 				final TileData [][] tileData)
 		{
-			final int nStiles = stilesX * stilesY; 
-			final int nTiles =  nStiles * superTileSize * superTileSize; 
+			final int nStiles = stilesX * stilesY;
+			final int nTiles =  nStiles * superTileSize * superTileSize;
 			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 			final AtomicInteger ai = new AtomicInteger(0);
 			final int numLayers = getTileLayersNumber(tileData);
 			final int [][][] connections = new int [numLayers][tileData.length][8];
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
 							if (tileData[nTile] != null) {
@@ -1501,7 +1513,7 @@ public class TileSurface {
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			return connections;
 		}
@@ -1509,14 +1521,15 @@ public class TileSurface {
 		public int [][] getTileGenerator (
 				final TileData [][] tileData)
 		{
-			final int nStiles = stilesX * stilesY; 
-			final int nTiles =  nStiles * superTileSize * superTileSize; 
+			final int nStiles = stilesX * stilesY;
+			final int nTiles =  nStiles * superTileSize * superTileSize;
 			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 			final AtomicInteger ai = new AtomicInteger(0);
 			final int numLayers = getTileLayersNumber(tileData);
 			final int [][] generators = new int [numLayers][tileData.length];
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
 							if (tileData[nTile] != null) {
@@ -1529,20 +1542,21 @@ public class TileSurface {
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			return generators;
 		}
 		public int [] getNumSurfaces (
 				final TileData [][] tileData)
 		{
-			final int nStiles = stilesX * stilesY; 
-			final int nTiles =  nStiles * superTileSize * superTileSize; 
+			final int nStiles = stilesX * stilesY;
+			final int nTiles =  nStiles * superTileSize * superTileSize;
 			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 			final AtomicInteger ai = new AtomicInteger(0);
 			final int [] surfaces = new int [tileData.length];
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < nTiles; nTile = ai.getAndIncrement()) {
 							if (tileData[nTile] != null) {
@@ -1553,12 +1567,12 @@ public class TileSurface {
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			return surfaces;
 		}
-		
-		
+
+
 		public void showSurfaceDS (
 				TileData [][] tileData,
 				String title)
@@ -1596,17 +1610,17 @@ public class TileSurface {
 			for (int j = 0; j < surfaces.length; j++){
 				img_data[5 * tds.length][j] =surfaces[j];
 			}
-			
+
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
 			sdfa_instance.showArrays(img_data,  wh[0], wh[1], true, title, titles);
 		}
-		
+
 		/**
 		 * Calculate per-tile surface data (TileData) including disparity, strength, and 8 neighbors indices
 		 * @param use_sel use plane selection (this.sel_mask) to select only some part of the plane
 		 * @param divide_by_area divide weights by ellipsoid area
 		 * @param scale_projection use plane ellipsoid projection for weight: 0 - do not use, > 0 linearly
-		 *                         scale ellipsoid (enlarge) 
+		 *                         scale ellipsoid (enlarge)
 		 * @param fraction_uni add fraction of the total weight to each tile
 		 * @param planes array of the per-supertile, per plane plane data (each level can be null)
 		 * @param debugLevel debug level
@@ -1634,7 +1648,7 @@ public class TileSurface {
 					debugLevel,        // final int                       debugLevel,
 					dbg_X,             // final int                       dbg_X,
 					dbg_Y);            // final int                       dbg_Y);
-			
+
 			int [][][][] surf_topology = getSupertilesTopology (
 					planes,            // final TilePlanes.PlaneData [][] planes,
 					debugLevel,        // final int                       debugLevel,
@@ -1642,14 +1656,14 @@ public class TileSurface {
 					dbg_Y);            // final int                       dbg_Y);
 			int [][][][][] overlapped_meshes = generateOverlappingMeshes (
 					planes,            // final TilePlanes.PlaneData [][] planes,
-					surf_topology ,    // final int [][][][]              corners, 
+					surf_topology ,    // final int [][][][]              corners,
 					debugLevel,        // final int                       debugLevel,
 					dbg_X,             // final int                       dbg_X,
 					dbg_Y);            // final int                       dbg_Y);
 			TileData [][] tileData = createTileShells (
 					planes,            // final TilePlanes.PlaneData [][] planes,
 					fused_planes,      // final double [][][][]           fusedSupertilePlanes,
-					overlapped_meshes, // final int [][][][][]            lappingMeshes,				
+					overlapped_meshes, // final int [][][][][]            lappingMeshes,
 					debugLevel,        // final int                       debugLevel,
 					dbg_X,             // final int                       dbg_X,
 					dbg_Y);            // final int                       dbg_Y);
@@ -1659,7 +1673,7 @@ public class TileSurface {
 					debugLevel,        // final int                       debugLevel,
 					dbg_X,             // final int                       dbg_X,
 					dbg_Y);            // final int                       dbg_Y);
-//			
+//
 			System.out.println("checkShellsConnections()");
 			checkShellsConnections (
 					tileData,          // final TileData [][]     tileData_src,
@@ -1671,13 +1685,13 @@ public class TileSurface {
 					debugLevel,        // final int                       debugLevel,
 					dbg_X,             // final int                       dbg_X,
 					dbg_Y);            // final int                       dbg_Y);
-			if (debugLevel >- 1) {
+			if (debugLevel >- 2) {
 				showSurfaceDS (tileData, "tileData");
 			}
 			this.tileData = tileData;
 			return tileData;
 		}
-		
+
 		public int [] getTilesAssignStats(
 				final int [][] tileLayers)
 		{
@@ -1693,25 +1707,26 @@ public class TileSurface {
 				ai.set(0);
 				for (int ithread = 0; ithread < threads.length; ithread++) {
 					threads[ithread] = new Thread() {
+						@Override
 						public void run() {
 							int numThread = ai_numThread.getAndIncrement(); // unique number of thread to write to rslt_diffs[numThread]
 							for (int nTile = ai.getAndIncrement(); nTile < tileLayers[fml].length; nTile = ai.getAndIncrement()) {
 								if (tileLayers[fml][nTile] > 0){ // index + 1
-									stats_all[numThread][STAT_ASSIGNED] ++; 		
+									stats_all[numThread][STAT_ASSIGNED] ++;
 								} else if (tileLayers[fml][nTile] == UNASSIGNED) {
-									stats_all[numThread][STAT_UNASSIGNED] ++;		
+									stats_all[numThread][STAT_UNASSIGNED] ++;
 								} else if (tileLayers[fml][nTile] == PROHOBITED) {
-									stats_all[numThread][STAT_PROHIBITED] ++;		
+									stats_all[numThread][STAT_PROHIBITED] ++;
 								} else if (tileLayers[fml][nTile] == IMPOSSIBLE) {
-									stats_all[numThread][STAT_IMPOSSIBLE] ++;		
+									stats_all[numThread][STAT_IMPOSSIBLE] ++;
 								} else {
 									System.out.println("Bug in getTilesAssignStats(): tileLayers["+fml+"]["+nTile+"]="+tileLayers[fml][nTile]);
-									stats_all[numThread][0] ++; // prohibited		
+									stats_all[numThread][0] ++; // prohibited
 								}
 							}
 						}
 					};
-				}		      
+				}
 				ImageDtt.startAndJoin(threads);
 				stats[STAT_NUM_ML]++; // number of non-null measurement layers
 			}
@@ -1722,7 +1737,7 @@ public class TileSurface {
 			}
 			return stats;
 		}
-		
+
 		public double getNormDispFromSurface(
 				double disp_tile,
 				double disp_surf,
@@ -1735,7 +1750,7 @@ public class TileSurface {
 				return (disp_tile - disp_surf) * disp_norm / disp_avg;
 			}
 		}
-		
+
 		/**
 		 * Convert from image tile index to the surface tile index (surface tiles are all
 		 * full superTileSize),
@@ -1770,8 +1785,8 @@ public class TileSurface {
 		}
 
 
-		
-		
+
+
 		/**
 		 * Convert from  surface tile index (surface tiles are all full superTileSize) to
 		 * the image tile index
@@ -1792,7 +1807,7 @@ public class TileSurface {
 			}
 			return imageTilesX * ty + tx;
 		}
-		
+
 		/**
 		 * Grow around surface tile, without going back. May still produce multi-layer result
 		 * that will need to be filtered. Used to fill large flat gaps
@@ -1889,9 +1904,9 @@ public class TileSurface {
 			}
 			return simple_surf;
 		}
-		
-		
-		
+
+
+
 		public double [][] getShowSimpleConnected(
 				int          nsTile0,
 				boolean [][] simple_surf)
@@ -1901,7 +1916,7 @@ public class TileSurface {
 				if (simple_surf[nsTile] != null){
 					int num_filled = 0;
 					for (int i = 0; i < simple_surf[nsTile].length; i++) if (simple_surf[nsTile][i]) num_filled++;
-					if (num_filled > numSurfaces) numSurfaces = num_filled; 
+					if (num_filled > numSurfaces) numSurfaces = num_filled;
 				}
 			}
 			double [][] img_data = new double [numSurfaces][tileData.length];
@@ -1930,7 +1945,7 @@ public class TileSurface {
 				if (simple_surf[nsTile] != null){
 					int num_filled = 0;
 					for (int i = 0; i < simple_surf[nsTile].length; i++) if (simple_surf[nsTile][i] !=0) num_filled++;
-					if (num_filled > numSurfaces) numSurfaces = num_filled; 
+					if (num_filled > numSurfaces) numSurfaces = num_filled;
 				}
 			}
 			double [][] img_data = new double [numSurfaces][tileData.length];
@@ -1960,7 +1975,7 @@ public class TileSurface {
 				if (simple_surf[nsTile] != null){
 					int num_filled = 0;
 					for (int i = 0; i < simple_surf[nsTile].length; i++) if (simple_surf[nsTile][i] !=0) num_filled++;
-					if (num_filled > numSurfaces) numSurfaces = num_filled; 
+					if (num_filled > numSurfaces) numSurfaces = num_filled;
 				}
 			}
 			double [][] img_data = new double [numSurfaces][tileData.length];
@@ -1968,7 +1983,7 @@ public class TileSurface {
 				if (simple_surf[nsTile] != null){
 					int ns = 0;
 					for (int nl = 0; nl < simple_surf[nsTile].length; nl++) if (simple_surf[nsTile][nl] != 0){
-						
+
 						img_data[ns][nsTile] = show_distance? simple_surf[nsTile][nl]: nl;
 						ns++;
 					}
@@ -1979,9 +1994,9 @@ public class TileSurface {
 			}
 			return img_data;
 		}
-		
 
-		
+
+
 		public void testSimpleConnected(
 				int tileX,
 				int tileY)
@@ -1994,10 +2009,10 @@ public class TileSurface {
 					15,        // int height,
 					1,         // int extraH,
 					1);        // int extraV)
-			
+
 		}
-		
-		
+
+
 		public void testSimpleConnected(
 				int nsTile)
 		{
@@ -2012,7 +2027,7 @@ public class TileSurface {
 				data[nl] =  getShowSimpleConnected(nsTile, simple_surf[nl]);
 				dist[nl] =  getShowSimpleConnectedDistanceLayer(true,simple_surf[nl]);
 				layer[nl] = getShowSimpleConnectedDistanceLayer(false,simple_surf[nl]);
-				num_layers += data[nl].length; 
+				num_layers += data[nl].length;
 			}
 			double [][] img_data = new double [num_layers * 3][];
 			String [] titles = new String [num_layers * 3];
@@ -2030,7 +2045,7 @@ public class TileSurface {
 			}
 			sdfa_instance.showArrays(img_data,   stilesX * superTileSize,  stilesY * superTileSize, true, "simple_"+nsTile, titles);
 		}
-		
+
 		public void printSurfaceConnections(
 				int left,
 				int top,
@@ -2045,7 +2060,7 @@ public class TileSurface {
 				for (int tileX = left; tileX < (left + width); tileX++) {
 					int nsTile = tileY * tilesX + tileX;
 					if (tileData[nsTile] != null){
-						if (tileData[nsTile].length > numSurfaces) numSurfaces = tileData[nsTile].length; 
+						if (tileData[nsTile].length > numSurfaces) numSurfaces = tileData[nsTile].length;
 					}
 				}
 			}
@@ -2093,7 +2108,7 @@ public class TileSurface {
  	 						} else {
  	 							System.out.println();
  	 						}
- 	 					} 	 					
+ 	 					}
  	 				}
  	 				if (tileY < (top + height -1)){
  	 					System.out.print(vert_gap);
@@ -2101,13 +2116,13 @@ public class TileSurface {
  	 			}
  			}
 		}
-		
+
 		/**
 		 * Assign tiles to a certain disparity surface if there is only one surface candidate
 		 * @param noEdge do not assign tiles to the surface edges (can not add border later)
 		 * @param maxDiff maximal (normalized) disparity difference
 		 * @param minDiffOther minimal disparity difference to closest 2-nd place candidate
-		 * @param minStrength minimal processed (floor subtracted) correlation strength of the candidate 
+		 * @param minStrength minimal processed (floor subtracted) correlation strength of the candidate
 		 * @param maxStrength maximal processed (floor subtracted) correlation strength of the candidate
 		 * @param moveDirs +1 - allow moving tile closer to the camera (increase disparity, +2 - allow moving away
 		 * @param dispNorm disparity normalization - disparity difference with average above it will be scaled down
@@ -2118,7 +2133,7 @@ public class TileSurface {
 		 * @param debugLevel debug level
 		 * @param dbg_X debug tile X coordinate
 		 * @param dbg_Y debug tile Y coordinate
-		 * @return 
+		 * @return
 		 */
 		public int [] assignTilesToSingleCandidate_old( // not used
 				final boolean       noEdge,
@@ -2133,7 +2148,7 @@ public class TileSurface {
 				final int           dbg_X,
 				final int           dbg_Y)
 		{
-			
+
 			int [] stats_new = new int [NUM_STATS];
 			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 			final int numThreads = threads.length;
@@ -2148,6 +2163,7 @@ public class TileSurface {
 				ai.set(0);
 				for (int ithread = 0; ithread < threads.length; ithread++) {
 					threads[ithread] = new Thread() {
+						@Override
 						public void run() {
 							int numThread = ai_numThread.getAndIncrement(); // unique number of thread to write to rslt_diffs[numThread]
 							for (int nTile = ai.getAndIncrement(); nTile < tileLayers[fml].length; nTile = ai.getAndIncrement()) {
@@ -2209,7 +2225,7 @@ public class TileSurface {
 							}
 						}
 					};
-				}		      
+				}
 				ImageDtt.startAndJoin(threads);
 			}
 			for (int nt = 0; nt < numThreads; nt ++){
@@ -2258,7 +2274,7 @@ public class TileSurface {
 				if (combo[nTile] != 1 ){
 					img_data[num_in][nTile] = Double.NaN;
 				}
-				
+
 				img_data[num_in+1][nTile] = combo[nTile];
 			}
 			if (debugLevel > -1) {
@@ -2266,7 +2282,7 @@ public class TileSurface {
 				sdfa_instance.showArrays(img_data,  imageTilesX, imageTilesY, true, "consensus",titles);
 			}
 		}
-		
+
 		public int [][] getConsensusAssignment(
 				final int        min_agree,
 				int [][][]       opinions_in, // options contain 1-based surface indices
@@ -2297,7 +2313,7 @@ public class TileSurface {
 						for (int n = 0; n < num_in; n++)if (tileAssignments[n] != null){
 							int surf1 = tileAssignments[n][ml][nTile];
 							if (surf1 != 0){
-								consensus[ml][nTile] = surf1; 
+								consensus[ml][nTile] = surf1;
 								if (surf1 < 0) { // prohibited
 									break;
 								} else { // surface
@@ -2320,13 +2336,13 @@ public class TileSurface {
 						}
 					}
 				}
-			}			
+			}
 			return consensus;
 		}
-		
-		
-		
-		
+
+
+
+
 		/**
 		 * Assign tiles that were used to generate planes. Only tiles in the center (non-overlapping) part of the supertile
 		 * @param force re-assign tile if it was already assigned
@@ -2337,7 +2353,7 @@ public class TileSurface {
 		 * @param dbg_Y
 		 * @return
 		 */
-		
+
 		public int [] assignPlanesTiles(
 				final boolean                  force,
 				final int [][]                 tileLayers,
@@ -2353,14 +2369,15 @@ public class TileSurface {
 //			final TileNeibs tnImage =   new TileNeibs(imageTilesX, imageTilesY);
 //			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 			final int debug_stile = dbg_Y * stilesX + dbg_X;
-			final Thread[] threads = ImageDtt.newThreadArray((debugLevel > 1)? 1 : threadsMax);			
+			final Thread[] threads = ImageDtt.newThreadArray((debugLevel > 1)? 1 : threadsMax);
 			final int numThreads = threads.length;
 			final int [][] stats_all = new int [numThreads][stats_new.length];
 			final AtomicInteger ai_numThread = new AtomicInteger(0);
 			final AtomicInteger ai = new AtomicInteger(0);
-			
+
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						int numThread = ai_numThread.getAndIncrement(); // unique number of thread to write to rslt_diffs[numThread]
 						for (int nsTile = ai.getAndIncrement(); nsTile < nsTiles; nsTile = ai.getAndIncrement()) if (planes[nsTile] != null){
@@ -2371,7 +2388,7 @@ public class TileSurface {
 							if (dl > 2){
 								System.out.println("assignPlanesTiles(): nsTile = " + nsTile);
 							}
-							
+
 							for (int np = 0; np < planes[nsTile].length; np++)  if (planes[nsTile][np] != null){
 								boolean [][] meas_sel = planes[nsTile][np].getMeasSelection();
 								// is it needed or is tileLayers already initialized?
@@ -2407,14 +2424,14 @@ public class TileSurface {
 																(superTileSize * sty + dy)+")" +
 																" dx:y="+dx+":"+dy+" nTile="+nTile+" nSurfTile="+nSurfTile+" ns="+ns);
 													}
-													
+
 													if (ns < 0) {
 														System.out.println("assignPlanesTiles(): BUG? Could not find a surface with parent supertile "+
 																nsTile+":"+np+" for image tile = "+nTile+" ("+ (superTileSize * stx + dx)+"/"+
 																(superTileSize * sty + dy)+")");
 													}
 												}
-												
+
 												if ((ns >= 0) && (force || (tileLayers[ml][nTile] == 0))) {
 													boolean bad_edge = noEdge;
 													if (bad_edge) {
@@ -2441,7 +2458,7 @@ public class TileSurface {
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			for (int nt = 0; nt < numThreads; nt ++){
 				for (int i = 0 ; i < stats_new.length; i++ ){
@@ -2450,7 +2467,7 @@ public class TileSurface {
 			}
 			return stats_new;
 		}
-		
+
 		/**
 		 * Assign tiles to a disparity surface if there is only one surface at all
 		 * @param tileLayers per measured layer, per tile: assigned index plus1, 0 - empty, or negative - prohibited
@@ -2467,7 +2484,7 @@ public class TileSurface {
 				final int           dbg_X,
 				final int           dbg_Y)
 		{
-			
+
 			int [] stats_new = new int [NUM_STATS];
 			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 			final int numThreads = threads.length;
@@ -2480,6 +2497,7 @@ public class TileSurface {
 				ai.set(0);
 				for (int ithread = 0; ithread < threads.length; ithread++) {
 					threads[ithread] = new Thread() {
+						@Override
 						public void run() {
 							int numThread = ai_numThread.getAndIncrement(); // unique number of thread to write to rslt_diffs[numThread]
 							for (int nTile = ai.getAndIncrement(); nTile < tileLayers[fml].length; nTile = ai.getAndIncrement()) {
@@ -2515,7 +2533,7 @@ public class TileSurface {
 							}
 						}
 					};
-				}		      
+				}
 				ImageDtt.startAndJoin(threads);
 			}
 			for (int nt = 0; nt < numThreads; nt ++){
@@ -2525,7 +2543,7 @@ public class TileSurface {
 			}
 			return stats_new;
 		}
-		
+
 		/**
 		 * Grow assigned tiles while strength is below maxStrength OR normalized (dispNorm) disparity error is below
 		 * maxDiff AND new tile is unassigned. Combines all measured layers, assumes same cell was not assigned to
@@ -2550,7 +2568,7 @@ public class TileSurface {
 		 * @param dbg_Y debug tile Y coordinate
 		 * @return statistics array
 		 */
-		
+
 		public int [] growWeakAssigned(
 				final int [][]      tileLayers,
 				final int [][]      conflicts,
@@ -2568,7 +2586,7 @@ public class TileSurface {
 //			final int tiles = stilesX * superTileSize * stilesY * superTileSize;
 			final boolean en_strong = (maxDiffFar != null) && (maxDiffNear != null); // both should be specified
 			final boolean en_continue = minStrengthContinue != null;
-			
+
 			final int img_tiles = imageTilesX * imageTilesY;
 //			final TileNeibs tnSurface = new TileNeibs(stilesX * superTileSize, stilesY * superTileSize);
 			final TileNeibs tnImage =   new TileNeibs(imageTilesX, imageTilesY);
@@ -2660,13 +2678,13 @@ public class TileSurface {
 									good_disparity = (surf_disp_diff <= maxDiffNear[ml]) && (surf_disp_diff >= -maxDiffFar[ml]);
 								}
 								// Strong tiles can only be near the end of expansion - should not go back to weak after strong
-								// if started from weak, can add any weak or with disparity  
+								// if started from weak, can add any weak or with disparity
 								if (is_weak_start) {
 									if (!is_weak_new && !good_disparity){
 										is_good_tile = false;
 										break;
 									}
-								// if started from not weak - disparity should match and the tile should be "really strong" ( > minStrengthContinue)	
+								// if started from not weak - disparity should match and the tile should be "really strong" ( > minStrengthContinue)
 								}else {
 									if (!good_disparity || !en_continue || (strength < minStrengthContinue[ml])) {
 										is_good_tile = false;
@@ -2677,7 +2695,7 @@ public class TileSurface {
 							if (is_good_tile) {
 								// here - OK to add a new tile
 								// is it a conflict?
-								if (flat_assign[nTile1] > 0) { // yes, a conflict 
+								if (flat_assign[nTile1] > 0) { // yes, a conflict
 									conflict[1] |= 1 << dir;
 								} else { // new empty cell - add it
 									flat_assign[nTile1] = ns1 + 1;
@@ -2722,9 +2740,9 @@ public class TileSurface {
 			}
 			return stats;
 		}
-		
-		
-		
+
+
+
 		public void printStats(int []stats)
 		{
 			boolean nothing = true;
@@ -2745,7 +2763,7 @@ public class TileSurface {
 			}
 			System.out.println();
 		}
-		
+
 		public boolean makesSensToTry(int [] stats)
 		{
 			return ((stats[NEW_ASSIGNED] > 0) && (stats[NOT_UNIQUE] > 0));
@@ -2754,7 +2772,7 @@ public class TileSurface {
 		{
 			return stats[NEW_ASSIGNED];
 		}
-		
+
 		public void showAssignment(
 				String title,
 				final double [][][] dispStrength)
@@ -2793,22 +2811,22 @@ public class TileSurface {
 						img_data[ng * ml + layer_index][nTile] = tileLayers[ml][nTile];
 					}
 				}
-			}			
+			}
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
 			sdfa_instance.showArrays(img_data,  imageTilesX, imageTilesY, true, title, titles);
 		}
-		
+
 		/**
 		 * Unassign tiles that have too few connected other tiles (or total weight of the cluster is too small)
 		 * This is a single-threaded method
 		 * @param tileLayers integer array of per measurement layer, per tile of assigned surface indices (modifiesd)
 		 * @param minSize minimal tiles in the cluster
-		 * @param minStrength minimal total strength of the cluster 
+		 * @param minStrength minimal total strength of the cluster
 		 * @param dispStrength per measurement layer, combined disparity and strength array ([num_ml][2][])
 		 * @param debugLevel debug level
 		 * @param dbg_X debug tile X coordinate
 		 * @param dbg_Y debug tile Y coordinate
-		 * @return {number of tiles, number of clusters} removed  
+		 * @return {number of tiles, number of clusters} removed
 		 */
 		public int [] removeSmallClusters(
 				final int [][]      tileLayers,
@@ -2832,7 +2850,7 @@ public class TileSurface {
 				for (int nTile0 = 0; nTile0 < tileLayers[ml].length; nTile0++) if ((tileLayers[ml][nTile0] > 0) && !wave_conf[ml][nTile0]){
 					ArrayList<Point> wave_list = new ArrayList<Point>();
 					double sum_weight = 0.0;
-					int tailp = 0; // do not remove elements from the list while building the cluster, just advance tail pointer 
+					int tailp = 0; // do not remove elements from the list while building the cluster, just advance tail pointer
 					Point p = new Point(nTile0, ml);
 					sum_weight += dispStrength[p.y][1][p.x];
 					wave_conf[p.y][p.x] = true;
@@ -2863,15 +2881,15 @@ public class TileSurface {
 							Point pt = wave_list.remove(0);
 							tileLayers[pt.y][pt.x] = 0;
 							wave_conf [pt.y][pt.x] = false; // not necessary
-							
+
 							stats_new[REMOVED_TILES]++;
 						}
 						stats_new[REMOVED_CLUSTERS]++;
 					} else { // it is a strong cluster, nothing to do here (it is already marked in wave_conf[][]
-						
+
 					}
 				}
-			}			
+			}
 			return stats_new;
 		}
 
@@ -2888,9 +2906,9 @@ public class TileSurface {
 		 * @param debugLevel debug level
 		 * @param dbg_X debug tile X coordinate
 		 * @param dbg_Y debug tile Y coordinate
-		 * @return {number of tiles, number of clusters} removed  
+		 * @return {number of tiles, number of clusters} removed
 		 */
-		
+
 		public int [] assignFromFarthest(
 				final int [][]      tileLayers,
 				final boolean       noEdge,
@@ -2916,17 +2934,18 @@ public class TileSurface {
 			final AtomicInteger ai = new AtomicInteger(0);
 			final TileNeibs tnImage =   new TileNeibs(imageTilesX, imageTilesY);
 			final TileNeibs tnSurface = new TileNeibs(stilesX * superTileSize, stilesY * superTileSize);
-			
+
 			for (int ml = 0; ml < tileLayers.length; ml++) if (tileLayers[ml] != null){
 				final int fml = ml;
 				ai_numThread.set(0);
 				ai.set(0);
 				for (int ithread = 0; ithread < threads.length; ithread++) {
 					threads[ithread] = new Thread() {
+						@Override
 						public void run() {
 							int numThread = ai_numThread.getAndIncrement(); // unique number of thread to write to rslt_diffs[numThread]
 							for (int nTile = ai.getAndIncrement(); nTile < tileLayers_src[fml].length; nTile = ai.getAndIncrement()) {
-								//nTile is in image, not surface coordinates 
+								//nTile is in image, not surface coordinates
 								int dbg_tileX = nTile % imageTilesX;
 								int dbg_tileY = nTile / imageTilesX;
 								int dl = ((debugLevel > -1) && (dbg_tileX == dbg_X ) && (dbg_tileY == dbg_Y ))?3:0;
@@ -2964,7 +2983,7 @@ public class TileSurface {
 																	break;
 																}
 															}
-															
+
 															if (!(disp >= min_disp) && !bad_surface) {
 																best_nSurf = nSurf;
 																min_disp = disp;
@@ -2973,7 +2992,7 @@ public class TileSurface {
 													}
 												}
 											} else {
-												neib_exists = includeImpossible; 
+												neib_exists = includeImpossible;
 											}
 											if (neib_exists){
 												numNeibs++;
@@ -2988,7 +3007,7 @@ public class TileSurface {
 							}
 						}
 					};
-				}		      
+				}
 				ImageDtt.startAndJoin(threads);
 			}
 			for (int nt = 0; nt < numThreads; nt ++){
@@ -2998,8 +3017,8 @@ public class TileSurface {
 			}
 			return stats_new;
 		}
-		
-		
+
+
 		/**
 		 * Assign tiles to a certain disparity surface if there is only one surface candidate
 		 * @param tileLayers integer array of per measurement layer, per tile of assigned surface indices (modifiesd)
@@ -3007,7 +3026,7 @@ public class TileSurface {
 		 * @param useCenter only assign outside of 8x8 center if no suitable alternative
 		 * @param maxDiff maximal (normalized) disparity difference
 		 * @param minDiffOther minimal disparity difference to closest 2-nd place candidate
-		 * @param minStrength minimal processed (floor subtracted) correlation strength of the candidate 
+		 * @param minStrength minimal processed (floor subtracted) correlation strength of the candidate
 		 * @param maxStrength maximal processed (floor subtracted) correlation strength of the candidate
 		 * @param minSurfStrength minimal surface strength at the tile location
 		 * @param moveDirs +1 - allow moving tile closer to the camera (increase disparity, +2 - allow moving away
@@ -3028,7 +3047,7 @@ public class TileSurface {
 		 * @param dbg_Y debug tile Y coordinate
 		 * @return statistics array
 		 */
-		
+
 		public int [] assignTilesToSurfaces(
 				final int [][]      tileLayers,
 				final boolean       noEdge,
@@ -3052,7 +3071,7 @@ public class TileSurface {
 				final int           dbg_X,
 				final int           dbg_Y)
 		{
-			
+
 			final int [][] tileLayers_src = tileLayers.clone();
 			for (int i = 0; i < tileLayers_src.length; i++){
 				if (tileLayers_src[i] != null){
@@ -3069,7 +3088,7 @@ public class TileSurface {
 			final boolean en_higher = (moveDirs & 2) != 0;
 			final double radius = sigma * nSigma;
 			final double rsigma2 = 1.0 / ( 2.0 * sigma * sigma);
-			final int iradius = (int) Math.round(radius + 0.001);  
+			final int iradius = (int) Math.round(radius + 0.001);
 			final int field_size = 2 * iradius + 1;
 			final int center_index = iradius * (field_size + 1);
 			final double cost_start = 1.0;
@@ -3084,22 +3103,23 @@ public class TileSurface {
 					field_size,
 					field_size - 1,
 					-1,
-					-field_size - 1}; 
-			
+					-field_size - 1};
+
 			for (int ml = 0; ml < tileLayers.length; ml++) if (tileLayers[ml] != null){
 				final int fml = ml;
 				ai_numThread.set(0);
 				ai.set(0);
 				for (int ithread = 0; ithread < threads.length; ithread++) {
 					threads[ithread] = new Thread() {
+						@Override
 						public void run() {
 							int numThread = ai_numThread.getAndIncrement(); // unique number of thread to write to rslt_diffs[numThread]
 							for (int nTile = ai.getAndIncrement(); nTile < tileLayers_src[fml].length; nTile = ai.getAndIncrement()) {
-								//nTile is in image, not surface coordinates 
+								//nTile is in image, not surface coordinates
 								int dbg_tileX = nTile % imageTilesX;
 								int dbg_tileY = nTile / imageTilesX;
 								int dl = ((debugLevel > -1) && (dbg_tileX == dbg_X ) && (dbg_tileY == dbg_Y ))?3:0;
-								
+
 								if (tileLayers_src[fml][nTile] == 0){ // unassigned only
 									if (dispStrength[fml][1][nTile] < minStrength){
 										stats_all[numThread][TOO_WEAK] ++;
@@ -3193,15 +3213,15 @@ public class TileSurface {
 												if (dl > 0) {
 													System.out.print("assignTilesToSurfaces(): nTile="+nTile+", candidates=");
 													for (int ii = 0; ii < candidates.length; ii++){
-														System.out.print(" "+candidates[ii]);	
+														System.out.print(" "+candidates[ii]);
 													}
-													System.out.println();	
+													System.out.println();
 												}
 												double [][][] distances = new double [num_fit_other][field_size  * field_size ][];
 												// for each local index get surface tile index
 												int [] surfIndices =  new int [field_size  * field_size];
 												int [] imageIndices = new int [field_size  * field_size];
-												int stx0 = (nTile % imageTilesX) - iradius; // 
+												int stx0 = (nTile % imageTilesX) - iradius; //
 												int sty0 = (nTile / imageTilesX) - iradius;
 												for (int iy = 0; iy < field_size; iy++){
 													for (int ix = 0; ix < field_size; ix++){
@@ -3280,7 +3300,7 @@ public class TileSurface {
 															}
 														}
 													}
-												}											
+												}
 												if (dl > 0) {
 													for (int cand = 0; cand < distances.length; cand ++){
 														int num_dist_layers = 0;
@@ -3306,8 +3326,8 @@ public class TileSurface {
 														}
 													}
 												}
-												
-												
+
+
 												// pulls belong to pairs, not individual surfaces (difference when they cross)
 												double [][] surface_pulls = new double [num_fit_other][num_fit_other];
 												// now calculate advantage of each one surface (close_enough) to each other (as a ratio)
@@ -3347,7 +3367,7 @@ public class TileSurface {
 																			if (good_pair){
 																				double r = distances[is1][lindx][nsurf] - cost_start;
 																				// pull to is1 when in pair with is2
-																				surface_pulls[is1][is2] += Math.exp(- r * r * rsigma2) * strength ; 
+																				surface_pulls[is1][is2] += Math.exp(- r * r * rsigma2) * strength ;
 																			}
 																		}
 																	}
@@ -3356,7 +3376,7 @@ public class TileSurface {
 														}
 													}
 												}
-												
+
 												double [][] advantages = new double [num_fit_other][num_fit_other];
 												for (int is1 = 0; is1 < num_fit_other; is1++){
 													for (int is2 = is1 + 1; is2 < num_fit_other; is2++){
@@ -3377,7 +3397,7 @@ public class TileSurface {
 														}
 														advantages[is1][is2] = ad1/ad2;
 														advantages[is2][is1] = ad2/ad1;
-														if (surfStrPow != 0.0){ // consider surface strength also 
+														if (surfStrPow != 0.0){ // consider surface strength also
 															double str1 = tileData[nSurfTile][candidates[is1]].getStrength();
 															double str2 = tileData[nSurfTile][candidates[is1]].getStrength();
 															if ((str1 > 0.0) && (str2 > 0.0)){
@@ -3385,13 +3405,13 @@ public class TileSurface {
 																advantages[is2][is1] = 1.0/advantages[is1][is2];
 															} else if (str1 > 0.0) {
 																advantages[is1][is2] = 2.0 * minAdvantage; // sure will win
-																advantages[is2][is1] = (minAdvantage > 0.0) ? (1.0/advantages[is1][is2]) : 0.0; 
+																advantages[is2][is1] = (minAdvantage > 0.0) ? (1.0/advantages[is1][is2]) : 0.0;
 																//minAdvantage
 															} else if (str2 > 0.0) {
 																advantages[is2][is1] = 2.0 * minAdvantage; // sure will win
-																advantages[is1][is2] = (minAdvantage > 0.0) ? (1.0/advantages[is2][is1]) : 0.0; 
+																advantages[is1][is2] = (minAdvantage > 0.0) ? (1.0/advantages[is2][is1]) : 0.0;
 															} else { // both zero - do nothing about surface strengths
-																
+
 															}
 														}
 													}
@@ -3402,7 +3422,7 @@ public class TileSurface {
 												fit = -1;
 												for (int is1 = 0; is1 < num_fit_other; is1++){
 													if (close_enough[is1]){ //
-														boolean is_a_winner = true; 
+														boolean is_a_winner = true;
 														for (int is2 = is1 + 1; is2 < num_fit_other; is2++){
 															if (advantages[is1][is2] < minAdvantage){
 																if (dl > 0) {
@@ -3414,7 +3434,7 @@ public class TileSurface {
 																}
 																break;
 															}
-														}														
+														}
 														if (is_a_winner){
 															fit = is1;
 															if (dl > 0) {
@@ -3437,7 +3457,7 @@ public class TileSurface {
 							}
 						}
 					};
-				}		      
+				}
 				ImageDtt.startAndJoin(threads);
 			}
 			for (int nt = 0; nt < numThreads; nt ++){
@@ -3453,7 +3473,7 @@ public class TileSurface {
 			return this.tileLayers != null;
 		}
 
-		
+
 		public int [][] combineTileLayers(
 				final boolean overwrite,
 				final int [][] dst,
@@ -3467,15 +3487,15 @@ public class TileSurface {
 						for (int i = 0; i < src[ml].length; i++) if ((src[ml][i] != 0) && (overwrite || (dst[ml][i] == 0))){
 								dst[ml][i] = src[ml][i];
 						}
-						
+
 					}
 				}
 			}
 			return dst;
-			
+
 		}
-		
-		
+
+
 		public int [][] newTileLayers(
 				final boolean [][]       tileSel
 			){
@@ -3484,14 +3504,14 @@ public class TileSurface {
 				if (tileSel[ml] != null){
 					tileLayers[ml] = new int [tileSel[ml].length];
 					for (int i = 0; i < tileSel[ml].length; i++){
-						tileLayers[ml][i] = tileSel[ml][i] ? 0: -1; // 0 - unassigned, -1 - prohibited	
+						tileLayers[ml][i] = tileSel[ml][i] ? 0: -1; // 0 - unassigned, -1 - prohibited
 					}
 				}
 			}
 			return tileLayers;
-			
+
 		}
-		
+
 		public int [] InitTilesAssignment(
 				final boolean            force,
 				final double [][][]      dispStrength,
@@ -3516,7 +3536,7 @@ public class TileSurface {
 				final int [][]      tileLayers,
 				final boolean [][]       tileSel,
 				final int                debugLevel)
-		{				
+		{
 			int []stats = getTilesAssignStats(tileLayers);
 			if (debugLevel >= -1) {
 				System.out.println("sortTilesToSurfaces(): using "+stats[STAT_NUM_ML] +" measurement layers"+
@@ -3527,8 +3547,8 @@ public class TileSurface {
 			}
 			return stats;
 		}
-		
-		
+
+
 		public boolean [][] extractSelection(
 				final int         debugLevel,
 				final int         dbg_X,
@@ -3552,9 +3572,9 @@ public class TileSurface {
 				}
 			}
 			return assigned_tiles;
-		}		
-		
-		
+		}
+
+
 		public int [][] enumerateClusters(
 				final boolean [][] selection,
 				final int          debugLevel,
@@ -3589,7 +3609,7 @@ public class TileSurface {
 							}
 						}
 					}
-					num_cluster ++; 
+					num_cluster ++;
 				}
 			}
 			num_cluster --;
@@ -3598,7 +3618,7 @@ public class TileSurface {
 			}
 			return enum_clust;
 		}
-		
+
 		public int getNumClusters(
 				int [][] clusters)
 		{
@@ -3611,9 +3631,9 @@ public class TileSurface {
 				}
 			}
 			return max_number;
-			
+
 		}
-		
+
 		public int [][] clusterStats(
 				int [][]           clusters,
 				final int          debugLevel,
@@ -3671,7 +3691,7 @@ public class TileSurface {
 							}
 						}
 					}
-				}			
+				}
 			}
 			// now sort tiles by the number of tiles in it
 			ArrayList<Point> sort_list = new ArrayList<Point>(max_number);
@@ -3704,7 +3724,7 @@ public class TileSurface {
 				System.out.print(i+": #"+ cluster_stats[i][CLUST_NUM_INDEX]);
 				System.out.print(  " tiles: "+          cluster_stats[i][CLUST_NUM_TILES]);
 				System.out.print(  " layers: "+         cluster_stats[i][CLUST_NUM_LAYERS]);
-				
+
 				System.out.print(  " overlaps: "+       cluster_stats[i][CLUST_NUM_OVERLAPS]);
 				System.out.print(  " multi-overlaps: "+ cluster_stats[i][CLUST_NUM_MULTI]);
 				System.out.print(  " coflicts A: "+ cluster_stats[i][CLUST_NUM_CONFLICTS_A]);
@@ -3743,7 +3763,7 @@ public class TileSurface {
 			for (int i = 0; i < cluster_stats.length; i ++){
 				rev_clust[cluster_stats[i][CLUST_NUM_INDEX] - 1] = i;
 			}
-			
+
 			String [] titles = new String [num_slices];
 			int [] slice_first = new int [num_slices];
 			int nslice = 0;
@@ -3753,7 +3773,7 @@ public class TileSurface {
 					titles[nslice++] = "cluster-"+i+((cluster_stats[i][CLUST_NUM_LAYERS]>1)?("_"+j):"");
 				}
 			}
-			
+
 			for (int nTile = 0; nTile < num_tiles; nTile++) if (clusters[nTile] != null){
 				int nSurfTile = getSurfaceTileIndex(nTile);
 				boolean [] rend = new boolean [clusters[nTile].length];
@@ -3781,12 +3801,12 @@ public class TileSurface {
 		public boolean [][] growClusterOnce( // used from inside threads
 				final boolean [][] cluster_local_pure,
 				final int []       window,
-				final int []       img_indices,				
-				final int []       surf_indices,				
+				final int []       img_indices,
+				final int []       surf_indices,
 				final int          debugLevel,
 				final int          dbg_X,
 				final int          dbg_Y)
-				
+
 		{
 			int num_tiles = img_indices.length;
 			int width =  window[2];
@@ -3815,10 +3835,10 @@ public class TileSurface {
 				for (int nl0 = 0; nl0 < cluster_local_pure[neTile0].length; nl0++){
 					if (cluster_local_pure[neTile0][nl0]){ // source should be single-layer, but ...
 						int nSurfTile0 = surf_indices[neTile0];
-						int [] neibs = tileData[nSurfTile0][nl0].getNeighbors(); 
+						int [] neibs = tileData[nSurfTile0][nl0].getNeighbors();
 
 						for (int dir = 0; dir <  tnWindow.dirs; dir++) {
-							int nl1 = neibs[dir]; 
+							int nl1 = neibs[dir];
 							if (nl1 < 0){
 								if (debugLevel >-1) {
 									System.out.println("growClusterOnce(): Expected 8 neighbors for tile nSurfTile0="+
@@ -3857,10 +3877,10 @@ public class TileSurface {
 				}
 				System.out.println("growClusterOnce(): new number of tiles = "+dbg_ntiles2+" (was "+dbg_ntiles1+")");
 			}
-			
+
 			return grown_cluster;
 		}
-		
+
 		public void setSurfaceData(
 				final int [][] cluster_groups,
 				final int [][] clusters_pure, // each tile/layer belongs to a single pure cluster
@@ -3877,19 +3897,20 @@ public class TileSurface {
 			final int [] tilesWH = {imageTilesX, imageTilesY};
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int iGClust = ai.getAndIncrement(); iGClust < sdata.length; iGClust = ai.getAndIncrement()) {
-							int dl = ((debugLevel > -1) && (iGClust == dbg_X)) ? 1:0; 
-						
+							int dl = ((debugLevel > -1) && (iGClust == dbg_X)) ? 1:0;
+
 							int [] window = getClusterBBox(
 									cluster_groups[iGClust], // final int []   nClust, // 1-based
 									1,                       // final int      border,
 									clusters_pure);          // final int [][] clusters)
-							
+
 							int [][] tile_indices =  getClusterBBoxIndices(
 									window,                  // final int [] window,
 									0);                      // border); // final int    border) // maybe 0, actual value just saves time
-							int [] img_tile_indices = tile_indices[0]; 
+							int [] img_tile_indices = tile_indices[0];
 							int [] surf_tile_indices = tile_indices[1];
 							boolean [][] combined = new boolean [img_tile_indices.length][];
 							if (dl > 0){
@@ -3907,7 +3928,7 @@ public class TileSurface {
 										cluster_groups[iGClust][indxClust],   // final int      numToSplit, // 1-based
 										clusters_pure,       // final int [][] clusters,
 										window,              // final int []   window,
-										img_tile_indices,    // final int []   bbox_indices,				
+										img_tile_indices,    // final int []   bbox_indices,
 										debugLevel,          // final int      debugLevel,
 										dbg_X,               // final int      dbg_X,
 										dbg_Y);              // final int      dbg_Y)
@@ -3931,14 +3952,14 @@ public class TileSurface {
 											pure_sel[neTile] = true;
 											break;
 										}
-									}									
+									}
 								}
 							}
 							boolean [][] grown_combined = growClusterOnce( // used from inside threads
 									combined,   // final boolean [][] cluster_local_pure,
 									window,            // final int []   window,
-									img_tile_indices,  // final int []   bbox_indices,				
-									surf_tile_indices, // final int []       surf_indices,				
+									img_tile_indices,  // final int []   bbox_indices,
+									surf_tile_indices, // final int []       surf_indices,
 									0, // dl, // debugLevel,       // final int      debugLevel,
 									dbg_X,            // final int      dbg_X,
 									dbg_Y);           // final int      dbg_Y)
@@ -3954,7 +3975,7 @@ public class TileSurface {
 											}
 											break;
 										}
-									}									
+									}
 								}
 							}
 							sdata[iGClust] = new 	SurfaceData(
@@ -3980,7 +4001,7 @@ public class TileSurface {
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			ArrayList<SurfaceData> sdata_list = new ArrayList<SurfaceData>();
 			for (int i = 0; i < sdata.length; i++){
@@ -4007,7 +4028,7 @@ public class TileSurface {
 				System.out.println("setSurfaceData(): DONE");
 			}
  		}
-		
+
 		public SurfaceData getSurfaceData(int indx){
 			return this.surfaceData[indx];
 		}
@@ -4015,7 +4036,7 @@ public class TileSurface {
 		public int getSurfaceDataLength(){
 			return this.surfaceData.length;
 		}
-		
+
 		public int [][] mergeNoConflict(
 				final int [][] matchedGrown,
 				final int [][] clusters_grown,
@@ -4029,11 +4050,12 @@ public class TileSurface {
 			}
 			final int num_grown = matchedGrown.length;
 			final int [][][] pre_merged_subs = new int [num_grown][][];
-			
+
 			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 			final AtomicInteger ai = new AtomicInteger(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int iGClust = ai.getAndIncrement(); iGClust < num_grown; iGClust = ai.getAndIncrement()) {
 							int num_subs = matchedGrown[iGClust].length;
@@ -4048,7 +4070,7 @@ public class TileSurface {
 								if (dl > 3){
 									System.out.println("mergeNoConflict(): nGClust: "+nGClust+" num_subs= "+num_subs);
 								}
-								
+
 								// create window for the grown cluster, it will include all subs
 								int [] window = getClusterBBox(
 										nGClust, // 1-based
@@ -4058,7 +4080,7 @@ public class TileSurface {
 								int [][] tile_indices =  getClusterBBoxIndices(
 										window,  // final int [] window,
 										0);      // border); // final int    border) // maybe 0, actual value just saves time
-								int [] img_tile_indices = tile_indices[0]; 
+								int [] img_tile_indices = tile_indices[0];
 								int [] surf_tile_indices = tile_indices[1];
 								int num_tiles = img_tile_indices.length;
 								int [] clust_sizes = new int [num_subs];
@@ -4069,16 +4091,16 @@ public class TileSurface {
 											matchedGrown[iGClust][nSub],   // final int      numToSplit, // 1-based
 											clusters_pure,    // final int [][] clusters,
 											window,           // final int []   window,
-											img_tile_indices, // final int []   bbox_indices,				
+											img_tile_indices, // final int []   bbox_indices,
 											debugLevel,       // final int      debugLevel,
 											dbg_X,            // final int      dbg_X,
 											dbg_Y);           // final int      dbg_Y)
-									
+
 									subs_grown[nSub] = growClusterOnce( // used from inside threads
 											subs_pure[nSub],   // final boolean [][] cluster_local_pure,
 											window,            // final int []   window,
-											img_tile_indices,  // final int []   bbox_indices,				
-											surf_tile_indices, // final int []       surf_indices,				
+											img_tile_indices,  // final int []   bbox_indices,
+											surf_tile_indices, // final int []       surf_indices,
 											0, // dl, // debugLevel,       // final int      debugLevel,
 											dbg_X,            // final int      dbg_X,
 											dbg_Y);           // final int      dbg_Y)
@@ -4086,7 +4108,7 @@ public class TileSurface {
 								// now build sets of clusters
 								// a) connected to current (and having higher number)
 								// b) conflicting with current (and having higher number)
-								ArrayList<HashSet<Integer>> touching_list = new ArrayList<HashSet<Integer>>(); 
+								ArrayList<HashSet<Integer>> touching_list = new ArrayList<HashSet<Integer>>();
 								ArrayList<HashSet<Integer>> conflict_list = new ArrayList<HashSet<Integer>>();
 								for (int nSub = 0; nSub < num_subs; nSub++){
 									touching_list.add(new HashSet<Integer>());
@@ -4116,7 +4138,7 @@ public class TileSurface {
 										}
 									}
 								}
-								
+
 								ArrayList<HashSet<Integer>> groups_list = new ArrayList<HashSet<Integer>>();
 								HashSet<Integer> clusters_left = new HashSet<Integer>();
 								for (int nSub = 0; nSub < num_subs; nSub++){
@@ -4127,7 +4149,7 @@ public class TileSurface {
 									HashSet<Integer> candidates = new HashSet<Integer>();
 									HashSet<Integer> conflicts = new HashSet<Integer>();
 //									HashSet<Integer> touching = new HashSet<Integer>();
-									
+
 									// start with the largest of the remaining clusters
 									Integer best_sub = -1;
 									for (Integer sc:clusters_left){
@@ -4142,7 +4164,7 @@ public class TileSurface {
 									conflicts.addAll(conflict_list.get(best_sub));    // keep track of all accumulated conflicts
 									candidates.addAll(touching_list.get(best_sub));   // add all clusters that are touching the current selection
 									candidates.removeAll(conflicts);                  // remove all conflicts
-									
+
 									while (!candidates.isEmpty()) { // add more clusters if possible
 										// Find the largest one
 										best_sub = -1;
@@ -4173,7 +4195,7 @@ public class TileSurface {
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			// "flatten" pre_merged_subs
 			int num_new_groups = 0;
@@ -4190,7 +4212,7 @@ public class TileSurface {
 					merged_subs[indx++] = pre_merged_subs[ng][nc];
 				}
 			}
-			
+
 			if (debugLevel > 0) {
 				for (int i = 0; i < num_new_groups; i++){
 					System.out.print("mergeNoConflict(): "+ (i+1)+" [");
@@ -4201,12 +4223,12 @@ public class TileSurface {
 					System.out.println(" ]");
 				}
 			}
-			
+
 			return merged_subs;
-			
+
 		}
-		
-		
+
+
 		/**
 		 * Grow each of the clusters (encoded as positive cluster numbers per tile per layer) by 1 in each
 		 * of 8 directions. As they now may overlap they are encoded in boolean array [cluster][tile][layer]
@@ -4230,6 +4252,7 @@ public class TileSurface {
 			final AtomicInteger ai = new AtomicInteger(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int iClust = ai.getAndIncrement(); iClust < num_clusters; iClust = ai.getAndIncrement()) {
 							int nClust = iClust + 1; // 1-based
@@ -4241,10 +4264,10 @@ public class TileSurface {
 										}
 										clusters[iClust][nTile0][nl0] = true;
 										int nSurfTile0 = getSurfaceTileIndex(nTile0);
-										int [] neibs = tileData[nSurfTile0][nl0].getNeighbors(); 
+										int [] neibs = tileData[nSurfTile0][nl0].getNeighbors();
 
 										for (int dir = 0; dir <  tnImage.dirs; dir++) {
-											int nl1 = neibs[dir]; 
+											int nl1 = neibs[dir];
 											if (nl1 < 0){
 												if (debugLevel >-1) {
 													System.out.println("growEachCluster(): Expected 8 neighbors for tile nSurfTile0="+
@@ -4269,14 +4292,14 @@ public class TileSurface {
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
-			
-			
+
+
 			return clusters;
 		}
-		
-		
+
+
 		/**
 		 * Match grown/merged clusters to the ones they were made of
 		 * @param clusters_grown per-tile, per layer array of positive merged cluster numbers (0 - empty)
@@ -4299,6 +4322,7 @@ public class TileSurface {
 			final AtomicInteger ai = new AtomicInteger(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int iparent = ai.getAndIncrement(); iparent < num_grown; iparent = ai.getAndIncrement()) {
 							int num_parent = iparent + 1; // 1-based
@@ -4322,7 +4346,7 @@ public class TileSurface {
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			if (debugLevel > 0) {
 				for (int i = 0; i < num_grown; i++){
@@ -4336,8 +4360,8 @@ public class TileSurface {
 			}
 			return grown_subs;
 		}
-		
-		
+
+
 		public int [] getClusterBBox(
 				final int      nClust, // 1-based
 				final int      border,
@@ -4351,7 +4375,7 @@ public class TileSurface {
 				for (int nl = 0; nl < clusters[nTile].length; nl++){
 					if (clusters[nTile][nl] == nClust){
 						int tX = nTile % imageTilesX;
-						
+
 						int tY = nTile / imageTilesX;
 						if (tX < x_min) x_min = tX;
 						if (tX > x_max) x_max = tX;
@@ -4362,11 +4386,11 @@ public class TileSurface {
 			}
 			int x0 = x_min - border; // may be negative
 			int y0 = y_min - border; // may be negative
-			int width = x_max +1 + border - x0; 
+			int width = x_max +1 + border - x0;
 			int height = y_max +1 + border - y0;
 			int [] bbox = {x0, y0, width, height};
 			return bbox;
-		}		
+		}
 		public int [] getClusterBBox(
 				final int []   nClust, // 1-based
 				final int      border,
@@ -4394,15 +4418,15 @@ public class TileSurface {
 			}
 			int x0 = x_min - border; // may be negative
 			int y0 = y_min - border; // may be negative
-			int width = x_max +1 + border - x0; 
+			int width = x_max +1 + border - x0;
 			int height = y_max +1 + border - y0;
 			int [] bbox = {x0, y0, width, height};
 			return bbox;
-		}		
+		}
 
-		
-		
-		
+
+
+
 		public int [][] getClusterBBoxIndices(
 				final int [] window,
 				final int    border) // maybe 0, actual value just saves time
@@ -4414,8 +4438,8 @@ public class TileSurface {
 			int [][] bbox_indices = new int [2][width*height]; // [0] - image index, [1] - surface index
 			int wb = width - border;
 			int hb = height - border;
-			
-			
+
+
 			for (int neTile = 0; neTile < bbox_indices[0].length; neTile++){
 				bbox_indices[0][neTile] = -1;
 				bbox_indices[1][neTile] = -1;
@@ -4427,19 +4451,19 @@ public class TileSurface {
 					if ((tx >= 0) && (ty >= 0) && (tx < imageTilesX) && (ty < imageTilesY)){
 						bbox_indices[0][neTile] = ty * imageTilesX + tx;
 						bbox_indices[1][neTile] = ty * stilesX *superTileSize + tx;
-					}				
+					}
 				}
 			}
 			return bbox_indices;
 		}
-		
-		
-		
+
+
+
 		public boolean [][] extractCluster(
 				final int      numToSplit, // 1-based
 				final int [][] clusters,
 				final int []   window,
-				final int []   bbox_indices,				
+				final int []   bbox_indices,
 				final int      debugLevel,
 				final int      dbg_X,
 				final int      dbg_Y)
@@ -4448,7 +4472,7 @@ public class TileSurface {
 			if (numToSplit == 74) { //177){
 				System.out.println("extractCluster() numToSplit="+numToSplit);
 			}
-			
+
 			for (int neTile = 0; neTile < extracted_cluster.length; neTile++){
 				int nTile = bbox_indices[neTile];
 				if (nTile >= 0){
@@ -4463,16 +4487,16 @@ public class TileSurface {
 						if (has_cluster){
 							extracted_cluster[neTile] = new boolean[clusters[nTile].length];
 							for (int nl = 0; nl< clusters[nTile].length; nl++){
-								extracted_cluster[neTile][nl] = (clusters[nTile][nl] == numToSplit); 
+								extracted_cluster[neTile][nl] = (clusters[nTile][nl] == numToSplit);
 							}
 						}
 					}
-					
+
 				}
 			}
 			return extracted_cluster;
 		}
-		
+
 
 		public int [][] spitConflictClusters(
 				final int [][] clusters,
@@ -4484,7 +4508,7 @@ public class TileSurface {
 			if (debugLevel > -1){
 				System.out.println("spitConflictClusters(): number of original clusters = " + num_clusters);
 			}
-//			final int [][]   split_windows =  new int [num_clusters][];   // x,y,w,h for the cluster that is split 
+//			final int [][]   split_windows =  new int [num_clusters][];   // x,y,w,h for the cluster that is split
 			final int [][][]   split_indices =  new int [num_clusters][2][];   // for each tile in the window - number of the corresponding image tile or -1
 			final int [][][] split_clusters = new int [num_clusters][][]; // for each tile in the window, a stack of layers, each number of a subcluster or 0
 			final int []     split_number =   new int [num_clusters];     // number of sublusters the parent was split to
@@ -4492,6 +4516,7 @@ public class TileSurface {
 			final AtomicInteger ai = new AtomicInteger(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int numToSplit = ai.getAndIncrement(); numToSplit < num_clusters; numToSplit = ai.getAndIncrement()) {
 							if ((numToSplit + 1) == 74) { //177){
@@ -4511,7 +4536,7 @@ public class TileSurface {
 									numToSplit + 1,   // final int      numToSplit, // 1-based
 									clusters,     // final int [][] clusters,
 									window,       // final int []   window,
-									split_indices[numToSplit][0], // final int []   bbox_indices,				
+									split_indices[numToSplit][0], // final int []   bbox_indices,
 									debugLevel,   // final int      debugLevel,
 									dbg_X,        // final int      dbg_X,
 									dbg_Y);       // final int      dbg_Y)
@@ -4520,18 +4545,18 @@ public class TileSurface {
 									numToSplit + 1,        // final int      numToSplit, // 1-based
 									clusters,          // final int [][] clusters,
 									window,            // final int []   window,
-									split_indices[numToSplit][0],      // final int []   bbox_indices,				
-									split_indices[numToSplit][1],      // final int []   bbox_surf_indices,		
+									split_indices[numToSplit][0],      // final int []   bbox_indices,
+									split_indices[numToSplit][1],      // final int []   bbox_surf_indices,
 									extracted_cluster, // final boolean [][] extracted_cluster,
 									debugLevel,        // final int      debugLevel,
 									dbg_X,             // final int      dbg_X,
 									dbg_Y);            // final int      dbg_Y)
-							
+
 							split_number[numToSplit] = 	getNumClusters(split_clusters[numToSplit]);
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			final int [] new_cluster_index = new int [num_clusters];
 			for (int i = 0; i < num_clusters; i++) {
@@ -4544,17 +4569,18 @@ public class TileSurface {
 			}
 			final int [][] new_clusters = new int [clusters.length][];
 			for (int i = 0; i < new_clusters.length; i++) if (clusters[i] != null) new_clusters[i] = new int [clusters[i].length];
-			
+
 			ai.set(0);
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int numToSplit = ai.getAndIncrement(); numToSplit < num_clusters; numToSplit = ai.getAndIncrement()) {
 							int numToSplit1 = numToSplit+1;
 							if (numToSplit1 == 74) { //177){
 								System.out.println("extractCluster() numToSplit1="+numToSplit1);
 							}
-							
+
 							for (int neTile = 0; neTile < split_indices[numToSplit][0].length; neTile++) {
 								int nTile = split_indices[numToSplit][0][neTile] ;
 								if ((nTile >= 0) && (clusters[nTile] != null)){
@@ -4568,16 +4594,16 @@ public class TileSurface {
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			if (debugLevel > -1){
 				System.out.println("spitConflictClusters(): DONE");
 			}
 			return new_clusters;
 		}
-		
+
 		/**
-		 * 
+		 *
 		 * @param numToSplit
 		 * @param clusters
 		 * @param window
@@ -4619,14 +4645,14 @@ public class TileSurface {
 						}
 					}
 				}
-				
+
 				System.out.println("splitCluster() numToSplit="+numToSplit+" num tiles = "+ num_tiles);
-				
+
 			}
-			
+
 			int num_cluster = 1;
 			while (true) {
-				
+
 				int neTile0 = 0;
 				int nl0 = 0;
 				label_loop : {
@@ -4655,7 +4681,7 @@ public class TileSurface {
 					int neTile = p.x;
 					int nl = p.y;
 					int nSurfTile = bbox_surf_indices[neTile]; // WRONG - fixed
-					int [] neibs = tileData[nSurfTile][nl].getNeighbors(); 
+					int [] neibs = tileData[nSurfTile][nl].getNeighbors();
 					for (int dir = 0; dir < tnCluster.numNeibs(); dir++) {
 						int neTile1 = tnCluster.getNeibIndex(neTile,dir);
 						if ((neTile1 >= 0) && (extracted_cluster[neTile1] != null)) { // it should have original tile there, not yet assigned to a new
@@ -4703,7 +4729,7 @@ public class TileSurface {
 							}
 						}
 					}
-					
+
 				}
 				if (numToSplit == 74) { //177){
 					System.out.println("splitCluster() numToSplit="+numToSplit+" num_cluster="+num_cluster+" num tiles="+dbg_size);
@@ -4724,12 +4750,12 @@ public class TileSurface {
 						}
 					}
 				}
-				
+
 				System.out.println("splitCluster() return  numToSplit="+numToSplit + " num tiles = "+ num_tiles+ " num tiles1 = "+ num_tiles1);
 			}
 			return split_cluster;
 		}
-		
+
 		public boolean [][] growSelectionOnce(
 //				int grow,
 				final boolean [][] sel_in,
@@ -4746,12 +4772,13 @@ public class TileSurface {
 			// make sure even empty tiles have surface selection arrays defined
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < sel_in.length; nTile = ai.getAndIncrement()) {
 							boolean not_empty = false;
 							boolean [] stack = null;
 							if (sel_in[nTile] != null) {
-								stack = sel_in[nTile].clone(); 
+								stack = sel_in[nTile].clone();
 							}
 							int nSurfTile = getSurfaceTileIndex(nTile);
 							if (tileData[nSurfTile] != null) {
@@ -4773,7 +4800,7 @@ public class TileSurface {
 											}
 										}
 									}
-								}								
+								}
 							}
 							if (not_empty){
 								selection[nTile] = stack;
@@ -4781,13 +4808,13 @@ public class TileSurface {
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			return selection;
 		}
 
-		
-		
+
+
 		public boolean [][] growSelection(
 				int grow,
 				final boolean [][] sel_in,
@@ -4799,7 +4826,7 @@ public class TileSurface {
 			final int DIR_LEFT =  6;
 			final int DIR_UP =    0;
 			final int DIR_DOWN =  4;
-			final int [] DIRS = {DIR_LEFT, DIR_RIGHT, DIR_UP, DIR_DOWN};  
+			final int [] DIRS = {DIR_LEFT, DIR_RIGHT, DIR_UP, DIR_DOWN};
 			final boolean [][] selection =   sel_in.clone();
 			final boolean [][] selection_tmp = sel_in.clone();
 			final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
@@ -4810,6 +4837,7 @@ public class TileSurface {
 			// make sure even empty tiles have surface selection arrays defined
 			for (int ithread = 0; ithread < threads.length; ithread++) {
 				threads[ithread] = new Thread() {
+					@Override
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < sel_in.length; nTile = ai.getAndIncrement()) {
 							int nSurfTile = getSurfaceTileIndex(nTile);
@@ -4820,11 +4848,11 @@ public class TileSurface {
 									selection[nTile] = new boolean[tileData[nSurfTile].length];
 								}
 								//								selection_tmp[nTile] = new boolean[tileData[nSurfTile].length];
-							}								
+							}
 						}
 					}
 				};
-			}		      
+			}
 			ImageDtt.startAndJoin(threads);
 			for (; grow > 0; grow -=2){
 				for (int dri = 0; dri < DIRS.length; dri++ ){
@@ -4833,6 +4861,7 @@ public class TileSurface {
 					// extend to the right
 					for (int ithread = 0; ithread < threads.length; ithread++) {
 						threads[ithread] = new Thread() {
+							@Override
 							public void run() {
 								for (int nTile = ai.getAndIncrement(); nTile < sel_in.length; nTile = ai.getAndIncrement()) {
 									if (selection[nTile] != null) {
@@ -4862,6 +4891,7 @@ public class TileSurface {
 						// extend to the left
 						for (int ithread = 0; ithread < threads.length; ithread++) {
 							threads[ithread] = new Thread() {
+								@Override
 								public void run() {
 									for (int nTile = ai.getAndIncrement(); nTile < sel_in.length; nTile = ai.getAndIncrement()) {
 										if (selection_tmp[nTile] != null){
@@ -4881,7 +4911,7 @@ public class TileSurface {
 			}
 			return selection;
 		}
-		
+
 		public void mergeAndGrow( // TODO: add result
 				final boolean [][] sel_in,
 				final int          debugLevel,
@@ -4893,7 +4923,7 @@ public class TileSurface {
 					debugLevel,
 					dbg_X,
 					dbg_Y);
-			
+
 			int [][] clusters_pure = enumerateClusters(
 					assigned_sel, //final boolean [][] selection,
 					debugLevel,
@@ -4922,7 +4952,7 @@ public class TileSurface {
 					debugLevel,
 					dbg_X,
 					dbg_Y);
-			
+
 			int [][] merged_no_conflict = mergeNoConflict(
 					grown_sub_clusters,
 					clusters_grown,
@@ -4937,11 +4967,11 @@ public class TileSurface {
 					0, // final int      debugLevel,
 					dbg_X,
 					dbg_Y);
-			
+
 			System.out.println("mergeAndGrow() done");
-			
+
 
 		}
-		
-		
+
+
 }

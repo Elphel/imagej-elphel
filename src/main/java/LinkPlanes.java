@@ -35,6 +35,8 @@ public class LinkPlanes {
 	public double     plFrontoTol;       //  = 0.2;   plFrontoTol,         // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable
 	public double     plFrontoRms;       //         =   0.05; // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
 	public double     plFrontoOffs;      //   =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+	public double     PlFrontoPow;       //          =   1.0;  // increase weight even more
+
 	public double     plMinStrength;     //        =   0.1;  // Minimal total strength of a plane
 	public double     plMaxEigen; //           =   0.05; // Maximal eigenvalue of a plane
 	public double     plEigenFloor; //         =   0.01; // Add to eigenvalues of each participating plane and result to validate connections
@@ -139,6 +141,7 @@ public class LinkPlanes {
 		plFrontoTol =       clt_parameters.plFrontoTol;
 		plFrontoRms =       clt_parameters.plFrontoRms;
 		plFrontoOffs =      clt_parameters.plFrontoOffs;
+		PlFrontoPow =       clt_parameters.PlFrontoPow;
 
 		plMaxOverlap =      clt_parameters.plMaxOverlap;
 
@@ -3994,6 +3997,7 @@ public class LinkPlanes {
 					plFrontoTol,      // final double                     fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
 					plFrontoRms,      // final double                     fronto_rms,    // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
 					plFrontoOffs,     // final double                     fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+					PlFrontoPow,     //  final double     PlFrontoPow,    //        =   1.0;  // increase weight even more
 					debugLevel,       // final int        debugLevel)
 					dbg_tileX,
 					dbg_tileY);
@@ -4519,6 +4523,7 @@ public class LinkPlanes {
 					plFrontoTol,      // final double                     fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
 					plFrontoRms,      // final double                     fronto_rms,    // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
 					plFrontoOffs,     // final double                     fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+					PlFrontoPow,     //  final double     PlFrontoPow,    //        =   1.0;  // increase weight even more
 					debugLevel,       // final int        debugLevel)
 					dbg_tileX,
 					dbg_tileY);
@@ -4613,6 +4618,7 @@ public class LinkPlanes {
 						plFrontoTol,      // final double                     fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
 						plFrontoRms,      // final double                     fronto_rms,    // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
 						plFrontoOffs,     // final double                     fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+						PlFrontoPow,     //  final double     PlFrontoPow,    //        =   1.0;  // increase weight even more
 						debugLevel,             // final int        debugLevel)
 						dbg_tileX,
 						dbg_tileY);

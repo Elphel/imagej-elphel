@@ -1350,6 +1350,7 @@ public class TilePlanes {
 				double        fronto_tol,  // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
 				double        fronto_rms,  // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes. May be tighter
 				double        fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+				double        fronto_pow,    //        =   1.0;  // increase weight even more
 				double [][][] disp_str,    // calculate just once when removing outliers (null - OK, will generate it)
 				double        inTargetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
 				int           maxRemoved,  // maximal number of tiles to remove (not a constant)
@@ -1470,7 +1471,7 @@ public class TilePlanes {
 
 						almost_fronto, // boolean      fronto_mode,
 						fronto_offs,   // double       fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
-
+						fronto_pow,      // double       fronto_pow,    //        =   1.0;  // increase weight even more
 						this.mlfp,
 						debugLevel-1) != null);
 
@@ -1516,6 +1517,8 @@ public class TilePlanes {
 						this.smplMode,
 						almost_fronto,   // boolean      fronto_mode,
 						fronto_offs,     //						double       fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+						fronto_pow,      // double       fronto_pow,    //        =   1.0;  // increase weight even more
+
 						this.mlfp,
 						debugLevel-0) != null); // will show image
 				if (!OK) { // restore how it was
@@ -1560,8 +1563,10 @@ public class TilePlanes {
 					min_tiles,
 					smplMode, //        = true;   // Use sample mode (false - regular tile mode)
 
-					false, // boolean      fronto_mode,
-					0.0,   //double       fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+					false,   // boolean      fronto_mode,
+					0.0,     // double       fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+					1.0,     // double       fronto_pow,    //        =   1.0;  // increase weight even more
+
 					mlfp,
 					debugLevel);
 
@@ -1606,6 +1611,7 @@ public class TilePlanes {
 
 				boolean      fronto_mode,
 				double       fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+				double       fronto_pow,    //        =   1.0;  // increase weight even more
 
 				MeasuredLayersFilterParameters mlfp,
 				int          debugLevel)
@@ -1823,7 +1829,11 @@ public class TilePlanes {
 								if (w > 0.0){
 									double d = disp_str[nl][0][indx];
 									if (d > d0) {
-										w *= (d-d0)/fronto_offs; // more weight of the near pixels, same weight of the centre pixels
+										double kw = (d-d0)/fronto_offs; // more weight of the near pixels, same weight of the centre pixels
+										if (fronto_pow != 1.00) {
+											kw = Math.pow(kw,  fronto_pow);
+										}
+										w *= kw; // increase influence of near pixels even more
 										disp_str[nl][1][indx] = w;
 										sw  += w;
 										swz += w * d;
@@ -4280,6 +4290,7 @@ public class TilePlanes {
 				double       fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
 				double       fronto_rms,  // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes. May be tighter
 				double       fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+				double       fronto_pow,    //        =   1.0;  // increase weight even more
 				int          debugLevel)
 		{
 			if (debugLevel > 2) {
@@ -4368,13 +4379,14 @@ public class TilePlanes {
 
 					if ((pd.getNormValue() > targetEigen) || almost_fronto) { // targetV) {
 						OK = pd.removeOutliers( // getPlaneFromMeas should already have run
-								fronto_tol,    // double        fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
-								fronto_rms,    // double        fronto_rms,  // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes. May be tighter
-								fronto_offs,   //double        fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+								fronto_tol,     // double        fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
+								fronto_rms,     // double        fronto_rms,  // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes. May be tighter
+								fronto_offs,    //double        fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+								fronto_pow,     // double       fronto_pow,    //        =   1.0;  // increase weight even more
 								disp_strength,
-								plTargetEigen, // targetV,      // double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
-								max_outliers, // int        maxRemoved,  // maximal number of tiles to remove (not a constant)
-								debugLevel); // int        debugLevel)
+								plTargetEigen,  // targetV,      // double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
+								max_outliers,   // int        maxRemoved,  // maximal number of tiles to remove (not a constant)
+								debugLevel);    // int        debugLevel)
 						if (!OK) {
 							continue;
 						}

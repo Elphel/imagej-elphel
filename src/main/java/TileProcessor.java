@@ -704,14 +704,6 @@ public class TileProcessor {
 		CLTPass3d combo_pass =new CLTPass3d(this);
 
 		final int tlen = tilesX * tilesY;
-//		final int disparity_index = usePoly ? ImageDtt.DISPARITY_INDEX_POLY : ImageDtt.DISPARITY_INDEX_CM;
-//		combo_pass.tile_op =              new int [tilesY][tilesX]; // for just non-zero
-//		combo_pass.disparity_map =        new double [ImageDtt.DISPARITY_TITLES.length][];
-//		for (int i = 0; i< ImageDtt.QUAD; i++) combo_pass.disparity_map[ImageDtt.IMG_DIFF0_INDEX + i] = new double[tlen];
-
-		// for now - will copy from the best full correlation measurement
-//		combo_pass.texture_tiles =        new double [tilesY][tilesX][][];
-//		combo_pass.max_tried_disparity =  new double [tilesY][tilesX];
 		combo_pass.is_combo =             true;
 		combo_pass.calc_disparity =       disparity.clone(); //new double [tlen];
 		combo_pass.calc_disparity_combo = disparity.clone(); //new double [tlen];
@@ -5344,11 +5336,12 @@ public class TileProcessor {
 				clt_parameters.plFrontoTol,     //  final double     plFrontoTol,         // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable
 				clt_parameters.plFrontoRms,     // final double     plFrontoRms,                       // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
 				clt_parameters.plFrontoOffs,    // final double     plFrontoOffs,                      // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0
+				clt_parameters.PlFrontoPow,     //  final double     PlFrontoPow,    //        =   1.0;  // increase weight even more
 				geometryCorrection,
 				clt_parameters.correct_distortions,
 
 				clt_parameters.stSmplMode ,     // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
-				clt_parameters.mlfp,         // Filter parameters
+				clt_parameters.mlfp,            // Filter parameters
 
 				clt_parameters.plBlurBinHor,    // final double     bin_blur_hor,   // Blur disparity histograms for horizontal clusters by this sigma (in bins)
 				clt_parameters.plBlurBinVert,   // final double     bin_blur_vert,  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
@@ -5365,6 +5358,24 @@ public class TileProcessor {
 				clt_parameters.stHighMix,       // stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
 				world_hor,                      // final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
 				clt_parameters.show_histograms, // final boolean    show_histograms,
+
+				clt_parameters.ft_mod_strength,          // final boolean mod_strength, // when set, multiply each tile strength by the number of selected neighbors
+				clt_parameters.ft_clusterize_by_highest, // final boolean clusterize_by_highest = true;
+				clt_parameters.ft_clust_sigma,           // final double  clust_sigma = 0.7;
+				clt_parameters.ft_disp_arange_vert,      // final double  disp_arange_vert = 0.07;
+				clt_parameters.ft_disp_rrange_vert,      // final double  disp_rrange_vert = 0.01;
+				clt_parameters.ft_disp_arange_hor,       // final double  disp_arange_hor =  0.035;
+				clt_parameters.ft_disp_rrange_hor,        // final double  disp_rrang_hor =   0.005;
+				clt_parameters.ft_tolerance_above_near,  // final double  tolerance_above_near =  100.0; // 0.07; any?
+				clt_parameters.ft_tolerance_below_near,  // final double  tolerance_below_near =  -0.01;
+				clt_parameters.ft_tolerance_above_far,   // final double  tolerance_above_far =    0.07;
+				clt_parameters.ft_tolerance_below_far,   // final double  tolerance_below_far =    0.1; // 100.0; // any farther
+				clt_parameters.ft_hor_vert_overlap,      // final int     hor_vert_overlap =       2;
+				clt_parameters.ft_used_companions,       // final int     used_companions =      5; // cell that has this many new used companions is considered used (borders and already use3d are considered used too)
+				clt_parameters.ft_used_true_companions,  // final int     used_true_companions = 1; // there should be at least this many new selected tiles among neighbors.,
+//clt_parameters.ft_
+				clt_parameters.debug_initial_discriminate, // final boolean    debug_initial_discriminate,
+
 				clt_parameters.batch_run?-3:debugLevel, // -1,                       // debugLevel,                  // final int        debugLevel)
 				clt_parameters.tileX,
 				clt_parameters.tileY);
@@ -5418,6 +5429,7 @@ public class TileProcessor {
 					clt_parameters.plFrontoTol,       //  final double     plFrontoTol,         // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable
 					clt_parameters.plFrontoRms,     // final double     plFrontoRms,                       // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
 					clt_parameters.plFrontoOffs,    // final double     plFrontoOffs,                      // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0
+					clt_parameters.PlFrontoPow,     //  final double     PlFrontoPow,    //        =   1.0;  // increase weight even more
 					geometryCorrection,
 					clt_parameters.correct_distortions,
 					clt_parameters.stSmplMode,        // final boolean                    smplMode, //        = true;   // Use sample mode (false - regular tile mode)
@@ -5531,6 +5543,7 @@ public class TileProcessor {
 					clt_parameters.plFrontoTol,      //final double                     fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
 					clt_parameters.plFrontoRms,      // final double     plFrontoRms,                       // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
 					clt_parameters.plFrontoOffs,     // final double     plFrontoOffs,                      // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0
+					clt_parameters.PlFrontoPow,     //  final double     PlFrontoPow,    //        =   1.0;  // increase weight even more
 					debugLevel, // 1,                               // final int debugLevel)
 					clt_parameters.tileX,
 					clt_parameters.tileY);
@@ -5859,7 +5872,7 @@ public class TileProcessor {
 				0, // int  nlayer, // over multi-layer - do not render more than nlayer on top of each other
 				st.getPlanesMod(),   // TilePlanes.PlaneData [][] planes,
 				st.getShellMap(), // shells,              // int [][] shells,
-				1000,                 // int max_shells,
+				5000,                 // int max_shells,
 				clt_parameters.plFuse,// boolean fuse,
 				false,               // boolean show_connections,
 				false,               // boolean use_NaN,

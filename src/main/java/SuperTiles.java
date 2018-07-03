@@ -2525,23 +2525,28 @@ public class SuperTiles{
 			final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
 			final boolean    show_histograms,
 			final boolean [][] hor_planes, // returns plane types (hor/vert)
+
+// Parameters for alternative initial planes that use lowest disparity for fronto planes, and farthest - for horizontal
+			final boolean    mod_strength,          //  = true; // FIXME: make a parameter. when set, multiply each tile strength by the number of selected neighbors
+			final boolean    clusterize_by_highest, //  = true;
+			final double     clust_sigma,           //  = 0.7;
+			final double     disp_arange_vert,      //  = 0.07;
+			final double     disp_rrange_vert,      //  = 0.01;
+			final double     disp_arange_hor,       //  =  0.035;
+			final double     disp_rrange_hor,       //  =   0.005;
+			final double     tolerance_above_near,  //  =  100.0; // 0.07; any?
+			final double     tolerance_below_near,  //  =  -0.01;
+			final double     tolerance_above_far,   //  =    0.07;
+			final double     tolerance_below_far,   //  =    0.1; // 100.0; // any farther
+			final int        hor_vert_overlap,      //  =       2;
+			final int        used_companions,       //  =      5; // cell that has this many new used companions is considered used (borders and already use3d are considered used too)
+			final int        used_true_companions,  //  = 1; // there should be at least this many new selected tiles among neighbors.,
+
 			final int        debugLevel,
 			final int        dbg_X,
 			final int        dbg_Y)
 	{
-		final int    used_companions =      5; // cell that has this many new used companions is considered used (borders and already use3d are considered used too)
-		final int    used_true_companions = 1; // there should be at least this many new selected tiles among neighbors.,
-		final double clust_sigma = 0.7;
-		final double disp_arange = 0.07;
-		final double disp_rrange = 0.01;
-		final double tolerance_above_near =  100.0; // 0.07; any?
-		final double tolerance_below_near =  -0.01;
-		final double tolerance_above_far =    0.07;
-		final double tolerance_below_far =    0.1; // 100.0; // any farther
-		final int    hor_vert_overlap =       2;
-		final boolean clusterize_by_highest = true;
 
-		final boolean             mod_strength = true; // FIXME: make a parameter. when set, multiply each tile strength by the number of selected neighbors
 		final int tilesX =        tileProcessor.getTilesX();
 		final int tilesY =        tileProcessor.getTilesY();
 		final int superTileSize = tileProcessor.getSuperTileSize();
@@ -2664,8 +2669,8 @@ public class SuperTiles{
 							stMeasSel,          // final int            stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
 							plDispNorm,         // final double         plDispNorm,         // to increase weight of nearer planes
 							clust_sigma,        // final double         sigma,
-							0.5 * disp_arange,  // final double         disp_arange,
-							0.5 * disp_rrange,  // final double         disp_rrange,
+							disp_arange_hor,  // final double         disp_arange,
+							disp_rrange_hor,  // final double         disp_rrange,
 							tolerance_above_far,// final double         tolerance_above,
 							tolerance_below_far,// final double         tolerance_below,
 							plMinPoints,        // final int            plMinPoints, //          =     5;  // Minimal number of points for plane detection
@@ -2696,22 +2701,22 @@ public class SuperTiles{
 			}
 			final boolean [][][][] new_planes_vert = clusterize_by_highest ?
 					dispClusterizeHighest(
-							vert_disp_strength, // final double [][][][] disparity_strengths, // either normal or tilted disparity/strengths
-							null,               // final boolean [][][] selected,   // tiles OK to be assigned [supertile][measurement layer] [tile index] or null (or null or per-measurement layer)
-							used_vert,          // final boolean [][][] prohibited, // already assigned tiles [supertile][measurement layer] [tile index] or null
-							false,               // final boolean        search_min,
-							stMeasSel,          // final int            stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
-							plDispNorm,         // final double         plDispNorm,         // to increase weight of nearer planes
-							clust_sigma,        // final double         sigma,
-							disp_arange,        // final double         disp_arange,
-							disp_rrange,        // final double         disp_rrange,
-							tolerance_above_near,    // final double         tolerance_above,
-							tolerance_below_near,    // final double         tolerance_below,
-							plMinPoints,        // final int            plMinPoints, //          =     5;  // Minimal number of points for plane detection
-							"vert",             // final String         suffix,
-							debugLevel + 0,         // final int            debugLevel,
-							dbg_X,              // final int            dbg_X,
-							dbg_Y):             // final int            dbg_Y)
+							vert_disp_strength,   // final double [][][][] disparity_strengths, // either normal or tilted disparity/strengths
+							null,                 // final boolean [][][] selected,   // tiles OK to be assigned [supertile][measurement layer] [tile index] or null (or null or per-measurement layer)
+							used_vert,            // final boolean [][][] prohibited, // already assigned tiles [supertile][measurement layer] [tile index] or null
+							false,                // final boolean        search_min,
+							stMeasSel,            // final int            stMeasSel, //            = 1;      // Select measurements for supertiles : +1 - combo, +2 - quad +4 - hor +8 - vert
+							plDispNorm,           // final double         plDispNorm,         // to increase weight of nearer planes
+							clust_sigma,          // final double         sigma,
+							disp_arange_vert,     // final double         disp_arange,
+							disp_rrange_vert,     // final double         disp_rrange,
+							tolerance_above_near, // final double         tolerance_above,
+							tolerance_below_near, // final double         tolerance_below,
+							plMinPoints,          // final int            plMinPoints, //          =     5;  // Minimal number of points for plane detection
+							"vert",               // final String         suffix,
+							debugLevel + 0,       // final int            debugLevel,
+							dbg_X,                // final int            dbg_X,
+							dbg_Y):               // final int            dbg_Y)
 								dispClusterize(
 										vert_disp_strength, // final double [][][][] disparity_strengths, // either normal or tilted disparity/strengths
 										mmm_vert,           // final double [][][] hist_max_min_max, // histogram data: per tile array of odd number of disparity/strengths pairs, starting with first maximum
@@ -3127,6 +3132,7 @@ public class SuperTiles{
 			//FIXME: use following 2 parameters
 			final double     fronto_rms,    // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
 			final double     fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+			final double     fronto_pow,    //        =   1.0;  // increase weight even more
 			// now for regenerated planes - just null as it is not known if it is hor or vert
 			final boolean [][] hor_planes, // plane types (hor/vert)
 			final int        debugLevel,
@@ -3191,6 +3197,7 @@ public class SuperTiles{
 											fronto_tol,               // double       fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
 											fronto_rms,               // double       fronto_rms,  // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes. May be tighter
 											fronto_offs,              // double       fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+											fronto_pow,               // double       fronto_pow,    //        =   1.0;  // increase weight even more
 											dl);                      // int          debugLevel);
 
 							if ((st_planes != null) && (!st_planes.isEmpty())){
@@ -3238,6 +3245,7 @@ public class SuperTiles{
 											fronto_tol,               // double       fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
 											fronto_rms,               // double       fronto_rms,  // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes. May be tighter
 											fronto_offs,              // double       fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+											fronto_pow,               // double       fronto_pow,    //        =   1.0;  // increase weight even more
 											dl - 1);                  // int          debugLevel);
 								}
 
@@ -3313,6 +3321,7 @@ public class SuperTiles{
 			final double     plFrontoTol,                       // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable
 			final double     plFrontoRms,                       // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
 			final double     plFrontoOffs,                      // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+			final double     PlFrontoPow,    //        =   1.0;  // increase weight even more
 
 			final GeometryCorrection geometryCorrection,
 			final boolean    correct_distortions,
@@ -3335,11 +3344,27 @@ public class SuperTiles{
 			final double     highMix,    //stHighMix         = 0.4;   // Consider merging initial planes if jumps between ratio above
 			final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
 			final boolean    show_histograms,
+
+			// Parameters for alternative initial planes that use lowest disparity for fronto planes, and farthest - for horizontal
+			final boolean    mod_strength,          //  = true; // FIXME: make a parameter. when set, multiply each tile strength by the number of selected neighbors
+			final boolean    clusterize_by_highest, //  = true;
+			final double     clust_sigma,           //  = 0.7;
+			final double     disp_arange_vert,      //  = 0.07;
+			final double     disp_rrange_vert,      //  = 0.01;
+			final double     disp_arange_hor,       //  =  0.035;
+			final double     disp_rrange_hor,       //  =   0.005;
+			final double     tolerance_above_near,  //  =  100.0; // 0.07; any?
+			final double     tolerance_below_near,  //  =  -0.01;
+			final double     tolerance_above_far,   //  =    0.07;
+			final double     tolerance_below_far,   //  =    0.1; // 100.0; // any farther
+			final int        hor_vert_overlap,      //  =       2;
+			final int        used_companions,       //  =      5; // cell that has this many new used companions is considered used (borders and already use3d are considered used too)
+			final int        used_true_companions,  //  = 1; // there should be at least this many new selected tiles among neighbors.,
+			final boolean    debug_initial_discriminate,
 			final int        debugLevel,
 			final int        dbg_X,
 			final int        dbg_Y)
 	{
-		final boolean debug_initial_discriminate = true; // false; // true;
 		// use both horizontal and const disparity tiles to create tile clusters
 		// Add max_diff (maximal disparity difference while extracting initial tile selection) and max_tries (2..3) parameters
 
@@ -3372,6 +3397,22 @@ public class SuperTiles{
 				world_hor, // final double []  world_hor, // horizontal plane normal (default [0.0, 1.0, 0.0])
 				show_histograms, // final boolean    show_histograms,
 				hor_planes, // final boolean [][] hor_planes,
+
+				// Parameters for alternative initial planes that use lowest disparity for fronto planes, and farthest - for horizontal
+				mod_strength,          // final boolean    mod_strength,          //  = true; // FIXME: make a parameter. when set, multiply each tile strength by the number of selected neighbors
+				clusterize_by_highest, // final boolean    clusterize_by_highest, //  = true;
+				clust_sigma,           // final double     clust_sigma,           //  = 0.7;
+				disp_arange_vert,      // final double     disp_arange_vert,      //  = 0.07;
+				disp_rrange_vert,      // final double     disp_rrange_vert,      //  = 0.01;
+				disp_arange_hor,       // final double     disp_arange_hor,       //  =  0.035;
+				disp_rrange_hor,       // final double     disp_rrange_hor,       //  =   0.005;
+				tolerance_above_near,  // final double     tolerance_above_near,  //  =  100.0; // 0.07; any?
+				tolerance_below_near,  // final double     tolerance_below_near,  //  =  -0.01;
+				tolerance_above_far,   // final double     tolerance_above_far,   //  =    0.07;
+				tolerance_below_far,   // final double     tolerance_below_far,   //  =    0.1; // 100.0; // any farther
+				hor_vert_overlap,      // final int        hor_vert_overlap,      //  =       2;
+				used_companions,       // final int        used_companions,       //  =      5; // cell that has this many new used companions is considered used (borders and already use3d are considered used too)
+				used_true_companions,  // final int        used_true_companions,  //  = 1; // there should be at least this many new selected tiles among neighbors.,
 
 				debugLevel+(debug_initial_discriminate? 2:0), // final int        debugLevel,
 				dbg_X, // final int        dbg_X,
@@ -3413,8 +3454,9 @@ public class SuperTiles{
 				plFrontoTol,         // final double     plFrontoTol,         // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable
 				plFrontoRms,         // final double     plFrontoRms,                       // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
 				plFrontoOffs,        // final double     plFrontoOffs,                      // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+				PlFrontoPow,      // double       fronto_pow,    //        =   1.0;  // increase weight even more
 				hor_planes,          // final boolean [][] hor_planes, // returns plane types (hor/vert)
-				debugLevel + 1, // 0, // 1, //  + 2, // 1,          // final int        debugLevel,
+				debugLevel + 0, // 1, // 0, // 1, //  + 2, // 1,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
 				dbg_Y);              // final int        dbg_Y)
 		this.planes = new_planes; // save as "measured" (as opposed to "smoothed" by neighbors) planes
@@ -3473,6 +3515,7 @@ public class SuperTiles{
 			final double     plFrontoTol,                       // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable
 			final double     plFrontoRms,                       // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
 			final double     plFrontoOffs,                      // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+			final double     PlFrontoPow,    //        =   1.0;  // increase weight even more
 			final GeometryCorrection geometryCorrection,
 			final boolean    correct_distortions,
 
@@ -3576,6 +3619,7 @@ public class SuperTiles{
 				plFrontoTol,         // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable
 				plFrontoRms,         // final double     plFrontoRms,                       // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
 				plFrontoOffs,        // final double     plFrontoOffs,                      // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0
+				PlFrontoPow,         // double       fronto_pow,    //        =   1.0;  // increase weight even more
 				null,                // final boolean [][] hor_planes, // plane types (hor/vert)
 				debugLevel, //  + 2, // 1,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
@@ -6844,6 +6888,7 @@ public class SuperTiles{
 // FIXME: the following 2 parameters are not yet used
 			final double                     fronto_rms,    // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
 			final double                     fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+			final double                     fronto_pow,    //        =   1.0;  // increase weight even more
 			final int                        debugLevel,
 			final int                        dbg_X,
 			final int                        dbg_Y)
@@ -6938,7 +6983,8 @@ public class SuperTiles{
 									boolean OK = this_pd.removeOutliers( // getPlaneFromMeas should already have run
 											fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
 											fronto_rms,    // double        fronto_rms,  // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes. May be tighter
-											fronto_offs,   //double        fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight.
+											fronto_offs,   // double        fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight.
+											fronto_pow,    // double        fronto_pow,    //        =   1.0;  // increase weight even more
 											disp_strength,
 											targetV,      // double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
 											max_outliers, // int        maxRemoved,  // maximal number of tiles to remove (not a constant)
@@ -7060,7 +7106,7 @@ public class SuperTiles{
 //FIXME: use following 2 parameters
 			final double                     fronto_rms,    // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
 			final double                     fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
-
+			final double                     fronto_pow,    //        =   1.0;  // increase weight even more
 			final int                        debugLevel,
 			final int                        dbg_X,
 			final int                        dbg_Y)
@@ -7284,7 +7330,8 @@ public class SuperTiles{
 											OK = bpd[np][npip].removeOutliers( // getPlaneFromMeas should already have run
 													fronto_tol, // fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable this feature
 													fronto_rms,    // double        fronto_rms,  // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes. May be tighter
-													fronto_offs,   //double        fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced
+													fronto_offs,   // double        fronto_offs,   //        =   0.2;  // increasing weight of the near tiles by using difference between the reduced
+													fronto_pow,    // double        fronto_pow,    //        =   1.0;  // increase weight even more
 													disp_strength,
 													targetV,      // double     targetEigen, // target eigenvalue for primary axis (is disparity-dependent, so is non-constant)
 													max_outliers, // int        maxRemoved,  // maximal number of tiles to remove (not a constant)

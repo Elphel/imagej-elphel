@@ -584,6 +584,7 @@ private Panel panel1,
 //			addButton("CLT 2*4 images - 2",         panelClt4, color_conf_process);
 //			addButton("CLT 2*4 images - 3",         panelClt4, color_conf_process);
 			addButton("SHOW extrinsics",            panelClt4, color_configure);
+			addButton("RIG DSI",                    panelClt4, color_conf_process);
 			addButton("MAIN extrinsics",            panelClt4, color_process);
 			addButton("AUX extrinsics",             panelClt4, color_process);
 			addButton("RIG extrinsics",             panelClt4, color_conf_process);
@@ -4263,83 +4264,14 @@ private Panel panel1,
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
 
     	clt3d(adjust_extrinsics, adjust_poly);
-/*
-        if (QUAD_CLT == null){
-        	QUAD_CLT = new  QuadCLT (
-        			QuadCLT.PREFIX,
-        			PROPERTIES,
-        			EYESIS_CORRECTIONS,
-        			CORRECTION_PARAMETERS);
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Created new QuadCLT instance, will need to read CLT kernels");
-        	}
-        }
-    	String configPath=getSaveCongigPath();
-    	if (configPath.equals("ABORT")) return;
-
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
-        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
-        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
-
-        if (!QUAD_CLT.CLTKernelsAvailable()){
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Reading CLT kernels");
-        	}
-        	QUAD_CLT.readCLTKernels(
-            		CLT_PARAMETERS,
-                    THREADS_MAX,
-                    UPDATE_STATUS, // update status info
-            		DEBUG_LEVEL);
-
-            if (DEBUG_LEVEL > 1){
-            	QUAD_CLT.showCLTKernels(
-            			THREADS_MAX,
-            			UPDATE_STATUS, // update status info
-            			DEBUG_LEVEL);
-        	}
-        }
-
-        if (!QUAD_CLT.geometryCorrectionAvailable()){
-        	if (DEBUG_LEVEL > 0){
-        		System.out.println("Calculating geometryCorrection");
-        	}
-        	if (!QUAD_CLT.initGeometryCorrection(DEBUG_LEVEL+2)){
-        		return;
-        	}
-        }
-
-        QUAD_CLT.processCLTQuads3d(
-        		adjust_extrinsics, // boolean adjust_extrinsics,
-        		adjust_poly,       // boolean adjust_poly,
-        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-//        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
-        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-//        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        		UPDATE_STATUS, //final boolean    updateStatus,
-        		DEBUG_LEVEL); //final int        debugLevel);
-
-
-
-
-        if (configPath!=null) {
-        	saveTimestampedProperties( // save config again
-        			configPath,      // full path or null
-        			null, // use as default directory if path==null
-        			true,
-        			PROPERTIES);
-        }
-*/
         return;
     } else if (label.equals("AUX extrinsics") || label.equals("AUX Poly corr")) {
     	boolean adjust_extrinsics = label.equals("AUX extrinsics") || label.equals("AUX Poly corr");
     	boolean adjust_poly = label.equals("AUX Poly corr");
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+    	clt3d_aux(adjust_extrinsics, adjust_poly);
+/*
         if (QUAD_CLT_AUX == null){
         	if (EYESIS_CORRECTIONS_AUX == null) {
         		EYESIS_CORRECTIONS_AUX = new EyesisCorrections(SYNC_COMMAND.stopRequested,CORRECTION_PARAMETERS.getAux());
@@ -4408,6 +4340,7 @@ private Panel panel1,
         			true,
         			PROPERTIES);
         }
+*/
         return;
 
     } else if (label.equals("CLT planes")) {
@@ -4518,6 +4451,7 @@ private Panel panel1,
 
 ///========================================
         QUAD_CLT.batchCLT3d(
+  			    TWO_QUAD_CLT,    // TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 //        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
@@ -4614,6 +4548,13 @@ private Panel panel1,
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
     	groundTruth();
     	return;
+/* ======================================================================== */
+    } else if (label.equals("RIG DSI")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+    	rigDSI();
+    	return;
+
 /* ======================================================================== */
     } else if (label.equals("Show biscan")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
@@ -5004,7 +4945,13 @@ private Panel panel1,
         }
 
         if (TWO_QUAD_CLT == null) {
-        	TWO_QUAD_CLT = new TwoQuadCLT();
+        	TWO_QUAD_CLT = new TwoQuadCLT(QUAD_CLT,QUAD_CLT_AUX);
+        } else {
+        	// is it needed to update main/aux? Or it never changes?
+        	TWO_QUAD_CLT.quadCLT_main=QUAD_CLT;
+        	TWO_QUAD_CLT.quadCLT_aux=QUAD_CLT_AUX;
+        	// will need to make sure that miScan image is not from the previous scene
+
         }
         return true;
 	}
@@ -5155,6 +5102,83 @@ private Panel panel1,
 
 //	boolean adjust_extrinsics = label.equals("MAIN extrinsics") || label.equals("CLT Poly corr");
 //	boolean adjust_poly = label.equals("CLT Poly corr");
+
+	public boolean clt3d_aux(
+			boolean adjust_extrinsics,
+			boolean adjust_poly
+			) {
+		if (QUAD_CLT_AUX == null){
+			if (EYESIS_CORRECTIONS_AUX == null) {
+				EYESIS_CORRECTIONS_AUX = new EyesisCorrections(SYNC_COMMAND.stopRequested,CORRECTION_PARAMETERS.getAux());
+			}
+			QUAD_CLT_AUX = new  QuadCLT (
+					QuadCLT.PREFIX_AUX,
+					PROPERTIES,
+					EYESIS_CORRECTIONS_AUX,
+					CORRECTION_PARAMETERS.getAux());
+			if (DEBUG_LEVEL > 0){
+				System.out.println("Created new QuadCLT instance for AUX camera, will need to read CLT kernels for aux camera");
+			}
+		}
+		String configPath=getSaveCongigPath();
+		if (configPath.equals("ABORT")) return false;
+
+		EYESIS_CORRECTIONS_AUX.initSensorFiles(DEBUG_LEVEL);
+		int numChannelsAux=EYESIS_CORRECTIONS_AUX.getNumChannels();
+		CHANNEL_GAINS_PARAMETERS_AUX.modifyNumChannels(numChannelsAux);
+
+		if (!QUAD_CLT_AUX.CLTKernelsAvailable()){
+			if (DEBUG_LEVEL > 0){
+				System.out.println("Reading AUX CLT kernels");
+			}
+			QUAD_CLT_AUX.readCLTKernels(
+					CLT_PARAMETERS,
+					THREADS_MAX,
+					UPDATE_STATUS, // update status info
+					DEBUG_LEVEL);
+
+			if (DEBUG_LEVEL > 1){
+				QUAD_CLT_AUX.showCLTKernels(
+						THREADS_MAX,
+						UPDATE_STATUS, // update status info
+						DEBUG_LEVEL);
+			}
+		}
+
+		if (!QUAD_CLT_AUX.geometryCorrectionAvailable()){
+			if (DEBUG_LEVEL > 0){
+				System.out.println("Calculating geometryCorrection for AUX camera");
+			}
+			if (!QUAD_CLT_AUX.initGeometryCorrection(DEBUG_LEVEL+2)){
+				return false;
+			}
+		}
+
+		QUAD_CLT_AUX.processCLTQuads3d(
+				adjust_extrinsics, // boolean adjust_extrinsics,
+				adjust_poly,       // boolean adjust_poly,
+  			    TWO_QUAD_CLT,    // TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
+				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+				DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+				COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+				CHANNEL_GAINS_PARAMETERS_AUX, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+				RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+				EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+				UPDATE_STATUS, //final boolean    updateStatus,
+				DEBUG_LEVEL); //final int        debugLevel);
+
+
+		if (configPath!=null) {
+			saveTimestampedProperties( // save config again
+					configPath,      // full path or null
+					null, // use as default directory if path==null
+					true,
+					PROPERTIES);
+		}
+		return true;
+	}
+
 	public boolean clt3d(
 			boolean adjust_extrinsics,
 			boolean adjust_poly
@@ -5206,6 +5230,7 @@ private Panel panel1,
 		QUAD_CLT.processCLTQuads3d(
 				adjust_extrinsics, // boolean adjust_extrinsics,
 				adjust_poly,       // boolean adjust_poly,
+  			    TWO_QUAD_CLT,    // TwoQuadCLT       twoQuadCLT, //maybe null in no-rig mode, otherwise may contain rig measurements to be used as infinity ground truth
 				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
 				DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
 				//        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
@@ -5217,9 +5242,6 @@ private Panel panel1,
 				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
 				UPDATE_STATUS, //final boolean    updateStatus,
 				DEBUG_LEVEL); //final int        debugLevel);
-
-
-
 
 		if (configPath!=null) {
 			saveTimestampedProperties( // save config again
@@ -5266,6 +5288,53 @@ private Panel panel1,
     				PROPERTIES);
     	}
 		System.out.println("groundTruth(): Processing finished at "+
+				  IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec, --- Free memory="+
+				Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+
+    	return true;
+	}
+
+	public boolean rigDSI() {
+		long startTime=System.nanoTime();
+		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
+			boolean OK = clt3d(
+					false, // boolean adjust_extrinsics,
+					false); // boolean adjust_poly);
+			if (! OK) {
+				String msg = "DSI data is not available and \"CLT 3D\" failed";
+				IJ.showMessage("Error",msg);
+				System.out.println(msg);
+				return false;
+			}
+		}
+		if (!prepareRigImages()) return false;
+    	String configPath=getSaveCongigPath();
+    	if (configPath.equals("ABORT")) return false;
+
+    	if (DEBUG_LEVEL > -2){
+    		System.out.println("++++++++++++++ Creating a dual camera rig DSI from a single camera DSI ++++++++++++++");
+    	}
+    	boolean OK = (TWO_QUAD_CLT.rigInitialScan( // actually there is no sense to process multiple image sets. Combine with other processing?
+    			QUAD_CLT, // QuadCLT quadCLT_main,
+    			QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+    			CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+    			THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+    			UPDATE_STATUS, //final boolean    updateStatus,
+    			DEBUG_LEVEL -2) != null);
+    	if (!OK) {
+    		System.out.println("rigDSI(): Processing FAILED at "+
+    				IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec, --- Free memory="+
+    				Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+    		return false;
+    	}
+    	if (configPath!=null) {
+    		saveTimestampedProperties( // save config again
+    				configPath,      // full path or null
+    				null, // use as default directory if path==null
+    				true,
+    				PROPERTIES);
+    	}
+		System.out.println("rigDSI(): Processing finished at "+
 				  IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec, --- Free memory="+
 				Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 

@@ -2856,11 +2856,29 @@ public class EyesisCorrectionParameters {
  		public double     gr_unique_tol        =   0.15; // Do not re-measure correlation if target disparity differs from some previous by this
 	 	public double     gr_unique_pretol     =   0.5;  // Larger tolerance for expanding (not refining)
 
+
+	 	public boolean    ft_mod_strength =          true;    // When set, multiply each tile strength by the number of selected neighbors
+	 	public boolean    ft_clusterize_by_highest = true;    // Clusterize using disparity horizontal maximums for fronto planes and minimums - for horizontal. False - use histograms
+	 	public double     ft_clust_sigma =             0.7;   // Blur disparity before argmax/argmin for initial clusterization
+	 	public double     ft_disp_arange_vert =        0.07;  // Absolute disparity range for fronto clusters
+	 	public double     ft_disp_rrange_vert =        0.01;  // Relative disparity range for fronto clusters
+	 	public double     ft_disp_arange_hor =         0.035; // Absolute disparity range for horizontal clusters
+	 	public double     ft_disp_rrange_hor =          0.005; // Relative disparity range for horizontal clusters
+	 	public double     ft_tolerance_above_near =  100.0;   // Actual disparity positive tolerance over blurred disparity argmax range
+	 	public double     ft_tolerance_below_near =   -0.01;  // Actual disparity negative tolerance under blurred disparity argmax range
+	 	public double     ft_tolerance_above_far =     0.07;  // Actual disparity positive tolerance over blurred disparity argmin range
+	 	public double     ft_tolerance_below_far =     0.1;   // Actual disparity negative tolerance under blurred disparity argmin range
+	 	public int        ft_hor_vert_overlap =        2;     // Allow clusters tile sharing between fronto and horizontal. 2 - 1 tile in 8 directions, 1 - 1 tile in 4 directions
+	 	public int        ft_used_companions =         5;     // Cell that has this many new used companions is considered used (borders and already use3d are considered used too)
+	 	public int        ft_used_true_companions =    1;     // There should be at least this many new selected tiles among neighbors.,
+
   		public boolean    plPreferDisparity    =   false;// Always start with disparity-most axis (false - lowest eigenvalue)
   		public double     plDispNorm           =   5.0;  // Normalize disparities to the average if above (now only for eigenvalue comparison)
   		public double     plFrontoTol          =   0.0;  // for compatibility with old //0.1;  // Fronto tolerance (pix) - treat almost fronto as fronto (constant disparity). <= 0 - disable
   		public double     plFrontoRms          =   0.05; // Target rms for the fronto planes - same as sqrt(plMaxEigen) for other planes
   		public double     plFrontoOffs         =   0.2;  // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
+  		public double     PlFrontoPow          =   1.0;  // increase weight even more
+
   		public double     plBlurBinVert        =   1.2;  // Blur disparity histograms for constant disparity clusters by this sigma (in bins)
   		public double     plBlurBinHor         =   0.8;  // Blur disparity histograms for horizontal clusters by this sigma (in bins)
   		public double     plMaxDiffVert        =   0.4;  // Maximal normalized disparity difference when initially assigning to vertical plane
@@ -3099,6 +3117,8 @@ public class EyesisCorrectionParameters {
 
 
   		public boolean    replaceWeakOutliers =   true; // false;
+
+  		public boolean    debug_initial_discriminate = false;
 
   		public boolean    dbg_migrate =            true;
 
@@ -3522,11 +3542,27 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"gr_unique_tol",    this.gr_unique_tol +"");
 			properties.setProperty(prefix+"gr_unique_pretol", this.gr_unique_pretol +"");
 
+			properties.setProperty(prefix+"ft_mod_strength",          this.ft_mod_strength +"");
+			properties.setProperty(prefix+"ft_clusterize_by_highest", this.ft_clusterize_by_highest +"");
+			properties.setProperty(prefix+"ft_clust_sigma",           this.ft_clust_sigma +"");
+			properties.setProperty(prefix+"ft_disp_arange_vert",      this.ft_disp_arange_vert +"");
+			properties.setProperty(prefix+"ft_disp_rrange_vert",      this.ft_disp_rrange_vert +"");
+			properties.setProperty(prefix+"ft_disp_arange_hor",       this.ft_disp_arange_hor +"");
+			properties.setProperty(prefix+"ft_disp_rrange_hor",        this.ft_disp_rrange_hor +"");
+			properties.setProperty(prefix+"ft_tolerance_above_near",  this.ft_tolerance_above_near +"");
+			properties.setProperty(prefix+"ft_tolerance_below_near",  this.ft_tolerance_below_near +"");
+			properties.setProperty(prefix+"ft_tolerance_above_far",   this.ft_tolerance_above_far +"");
+			properties.setProperty(prefix+"ft_tolerance_below_far",   this.ft_tolerance_below_far +"");
+			properties.setProperty(prefix+"ft_hor_vert_overlap",      this.ft_hor_vert_overlap +"");
+			properties.setProperty(prefix+"ft_used_companions",       this.ft_used_companions +"");
+			properties.setProperty(prefix+"ft_used_true_companions",  this.ft_used_true_companions +"");
+
 			properties.setProperty(prefix+"plPreferDisparity",this.plPreferDisparity+"");
 			properties.setProperty(prefix+"plDispNorm",       this.plDispNorm +"");
 			properties.setProperty(prefix+"plFrontoTol",      this.plFrontoTol +"");
 			properties.setProperty(prefix+"plFrontoRms",      this.plFrontoRms +"");
 			properties.setProperty(prefix+"plFrontoOffs",     this.plFrontoOffs +"");
+			properties.setProperty(prefix+"PlFrontoPow",      this.PlFrontoPow +"");
 
 			properties.setProperty(prefix+"plBlurBinVert",    this.plBlurBinVert +"");
 			properties.setProperty(prefix+"plBlurBinHor",     this.plBlurBinHor +"");
@@ -3741,7 +3777,8 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"taEnMismatch",     this.taEnMismatch +"");
 
 
-			properties.setProperty(prefix+"dbg_migrate",            this.dbg_migrate+"");
+			properties.setProperty(prefix+"debug_initial_discriminate", this.debug_initial_discriminate+"");
+			properties.setProperty(prefix+"dbg_migrate",                this.dbg_migrate+"");
 
 			properties.setProperty(prefix+"dbg_early_exit",         this.dbg_early_exit+"");
 			properties.setProperty(prefix+"show_first_bg",          this.show_first_bg+"");
@@ -4168,11 +4205,30 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"gr_unique_tol")!=null)     this.gr_unique_tol=Double.parseDouble(properties.getProperty(prefix+"gr_unique_tol"));
   			if (properties.getProperty(prefix+"gr_unique_pretol")!=null)  this.gr_unique_pretol=Double.parseDouble(properties.getProperty(prefix+"gr_unique_pretol"));
 
+
+  			if (properties.getProperty(prefix+"ft_mod_strength")!=null)          this.ft_mod_strength=Boolean.parseBoolean(properties.getProperty(prefix+"ft_mod_strength"));
+  			if (properties.getProperty(prefix+"ft_clusterize_by_highest")!=null) this.ft_clusterize_by_highest=Boolean.parseBoolean(properties.getProperty(prefix+"ft_clusterize_by_highest"));
+  			if (properties.getProperty(prefix+"ft_clust_sigma")!=null)           this.ft_clust_sigma=Double.parseDouble(properties.getProperty(prefix+"ft_clust_sigma"));
+  			if (properties.getProperty(prefix+"ft_disp_arange_vert")!=null)      this.ft_disp_arange_vert=Double.parseDouble(properties.getProperty(prefix+"ft_disp_arange_vert"));
+  			if (properties.getProperty(prefix+"ft_disp_rrange_vert")!=null)      this.ft_disp_rrange_vert=Double.parseDouble(properties.getProperty(prefix+"ft_disp_rrange_vert"));
+  			if (properties.getProperty(prefix+"ft_disp_arange_hor")!=null)       this.ft_disp_arange_hor=Double.parseDouble(properties.getProperty(prefix+"ft_disp_arange_hor"));
+  			if (properties.getProperty(prefix+"ft_disp_rrange_hor")!=null)       this.ft_disp_rrange_hor=Double.parseDouble(properties.getProperty(prefix+"ft_disp_rrange_hor"));
+  			if (properties.getProperty(prefix+"ft_tolerance_above_near")!=null)  this.ft_tolerance_above_near=Double.parseDouble(properties.getProperty(prefix+"ft_tolerance_above_near"));
+  			if (properties.getProperty(prefix+"ft_tolerance_below_near")!=null)  this.ft_tolerance_below_near=Double.parseDouble(properties.getProperty(prefix+"ft_tolerance_below_near"));
+  			if (properties.getProperty(prefix+"ft_tolerance_above_far")!=null)   this.ft_tolerance_above_far=Double.parseDouble(properties.getProperty(prefix+"ft_tolerance_above_far"));
+  			if (properties.getProperty(prefix+"ft_tolerance_below_far")!=null)   this.ft_tolerance_below_far=Double.parseDouble(properties.getProperty(prefix+"ft_tolerance_below_far"));
+  			if (properties.getProperty(prefix+"ft_hor_vert_overlap")!=null)      this.ft_hor_vert_overlap=Integer.parseInt(properties.getProperty(prefix+"ft_hor_vert_overlap"));
+  			if (properties.getProperty(prefix+"ft_used_companions")!=null)       this.ft_used_companions=Integer.parseInt(properties.getProperty(prefix+"ft_used_companions"));
+  			if (properties.getProperty(prefix+"ft_used_true_companions")!=null)  this.ft_used_true_companions=Integer.parseInt(properties.getProperty(prefix+"ft_used_true_companions"));
+
+
+
   			if (properties.getProperty(prefix+"plPreferDisparity")!=null) this.plPreferDisparity=Boolean.parseBoolean(properties.getProperty(prefix+"plPreferDisparity"));
   			if (properties.getProperty(prefix+"plDispNorm")!=null)        this.plDispNorm=Double.parseDouble(properties.getProperty(prefix+"plDispNorm"));
   			if (properties.getProperty(prefix+"plFrontoTol")!=null)       this.plFrontoTol=Double.parseDouble(properties.getProperty(prefix+"plFrontoTol"));
   			if (properties.getProperty(prefix+"plFrontoRms")!=null)       this.plFrontoRms=Double.parseDouble(properties.getProperty(prefix+"plFrontoRms"));
   			if (properties.getProperty(prefix+"plFrontoOffs")!=null)      this.plFrontoOffs=Double.parseDouble(properties.getProperty(prefix+"plFrontoOffs"));
+  			if (properties.getProperty(prefix+"PlFrontoPow")!=null)       this.PlFrontoPow=Double.parseDouble(properties.getProperty(prefix+"PlFrontoPow"));
 
   			if (properties.getProperty(prefix+"plBlurBinVert")!=null)     this.plBlurBinVert=Double.parseDouble(properties.getProperty(prefix+"plBlurBinVert"));
   			if (properties.getProperty(prefix+"plBlurBinHor")!=null)      this.plBlurBinHor=Double.parseDouble(properties.getProperty(prefix+"plBlurBinHor"));
@@ -4390,7 +4446,8 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"taEnMismatch")!=null)      this.taEnMismatch=Boolean.parseBoolean(properties.getProperty(prefix+"taEnMismatch"));
 
 
-  			if (properties.getProperty(prefix+"dbg_migrate")!=null)       this.dbg_migrate=Boolean.parseBoolean(properties.getProperty(prefix+"dbg_migrate"));
+  			if (properties.getProperty(prefix+"debug_initial_discriminate")!=null) this.debug_initial_discriminate=Boolean.parseBoolean(properties.getProperty(prefix+"debug_initial_discriminate"));
+  			if (properties.getProperty(prefix+"dbg_migrate")!=null)                this.dbg_migrate=Boolean.parseBoolean(properties.getProperty(prefix+"dbg_migrate"));
 
   			if (properties.getProperty(prefix+"dbg_early_exit")!=null)         this.dbg_early_exit=Integer.parseInt(properties.getProperty(prefix+"dbg_early_exit"));
   			if (properties.getProperty(prefix+"show_first_bg")!=null)          this.show_first_bg=Boolean.parseBoolean(properties.getProperty(prefix+"show_first_bg"));
@@ -4904,6 +4961,37 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Do not re-measure correlation if target disparity differs from some previous less",   this.gr_unique_tol,  6);
   			gd.addNumericField("Larger tolerance for expanding (not refining)",                                       this.gr_unique_pretol,  6);
 
+  			gd.addTab         ("Alt CLusterize", "Alternative initial tiles clusterization");
+
+  			gd.addCheckbox    ("Modify cluster strengths",                                                            this.ft_mod_strength,
+  					"Supplement sum of strengths with other parameters, such as density and height ");
+  			gd.addCheckbox    ("Enable alternative initial tile clusterization",                                      this.ft_clusterize_by_highest,
+  					"Clusterize using disparity horizontal maximums for fronto planes and minimums - for horizontal. False - use histograms");
+  			gd.addNumericField("Disparity blur sigma",                                                                this.ft_clust_sigma, 4, 6,"pix",
+  					"Blur disparity before finding each line max (for fronto planes ) or min (for horizontal planes) during initial clusterization");
+  			gd.addNumericField("Absolute disparity range for fronto clusters",                                        this.ft_disp_arange_vert, 4, 6,"pix",
+  					"Disparity range for blurred disparity (down from max disparity) for fronto planes");
+  			gd.addNumericField("Relative disparity range for fronto clusters",                                        this.ft_disp_rrange_vert, 4, 6,"pix/pix",
+  					"Increase disparity range for fronto clusters for each disparity pixel");
+  			gd.addNumericField("Absolute disparity range for horizontal clusters",                                    this.ft_disp_arange_hor, 4, 6,"pix",
+  					"Disparity range for blurred disparity (up from min disparity to horizontal difference) for horizontal planes");
+  			gd.addNumericField("Relative disparity range for horizontal clusters",                                    this.ft_disp_rrange_hor, 4, 6,"pix/pix",
+  					"Increase disparity range for horizontal clusters for each disparity pixel");
+  			gd.addNumericField("Actual disparity positive tolerance over blurred disparity max range",                this.ft_tolerance_above_near, 4, 6,"pix",
+  					"Allow measured tile disparity above cluster disparity range for fronto clusters");
+  			gd.addNumericField("Actual disparity negative tolerance over blurred disparity max range",                this.ft_tolerance_below_near, 4, 6,"pix",
+  					"Allow measured tile disparity below cluster disparity range for fronto planes");
+  			gd.addNumericField("Actual disparity positive tolerance over blurred disparity min range",                this.ft_tolerance_above_far, 4, 6,"pix",
+  					"Allow measured tile disparity above cluster disparity range for horizontal planes");
+  			gd.addNumericField("Actual disparity negative tolerance over blurred disparity min range",                this.ft_tolerance_below_far, 4, 6,"pix",
+  					"Allow measured tile disparity below cluster disparity range for horizontal planes");
+  			gd.addNumericField("Fronto/horizontal selections overlap",                                                this.ft_hor_vert_overlap,  0,6,"",
+  					"Allow clusters tile sharing between fronto and horizontal. 2 - 1 tile in 8 directions, 1 - 1 tile in 4 directions");
+  			gd.addNumericField("Mark as used if has used/disabled neighbors ",                                        this.ft_used_companions,  0,6,"",
+  					"Cell that has this many new used companions is considered used (borders and already use3d are considered used too)");
+  			gd.addNumericField("Minimal number of new used cells among new/old used and marginal tiles",              this.ft_used_true_companions,  0,6,"",
+  					"There should be at least this many new selected tiles among neighbors");
+
 
   			gd.addTab         ("Plane Det", "Planes detection");
   			gd.addMessage     ("--- Planes detection ---");
@@ -4913,8 +5001,10 @@ public class EyesisCorrectionParameters {
   					"Fronto tolerance (pix) - treat almost fronto planes as fronto (constant disparity). If <= 0 - disable this feature");
   			gd.addNumericField("Fronto RMS",                                                                   this.plFrontoRms,  4,6,"pix",
   					"Target half-thikness of the fronto planes. Similar to  sqrt(plMaxEigen) for other planes");
-  			gd.addNumericField("Fronto offset",                                                             this.plFrontoOffs,  4,6,"pix",
+  			gd.addNumericField("Fronto offset",                                                                this.plFrontoOffs,  4,6,"pix",
   					"Increasing weights of the near tiles by using difference between tile disparity and reduced by this value average as weight. If <= 0 - disable feature");
+  			gd.addNumericField("Fronto power",                                                                 this.PlFrontoPow,  4,6,"pix",
+  					"Increasing weights of the near tiles by even more (see previous parameter) by raising disparity difference to this power");
   			gd.addNumericField("Blur disparity histograms for constant disparity clusters by this sigma (in bins)",   this.plBlurBinVert,  6);
   			gd.addNumericField("Blur disparity histograms for horizontal clusters by this sigma (in bins)",           this.plBlurBinHor,  6);
   			gd.addNumericField("Maximal normalized disparity difference when initially assigning to vertical plane",  this.plMaxDiffVert,  6);
@@ -5144,6 +5234,8 @@ public class EyesisCorrectionParameters {
 
   			gd.addTab         ("Debug", "Other debug images");
   			gd.addMessage     ("--- Other debug images ---");
+  			//	clt_parameters.debug_initial_discriminate, // final boolean    debug_initial_discriminate,
+  			gd.addCheckbox    ("Debug initial clusterization of the supertile tiles",                          this.debug_initial_discriminate);
   			gd.addCheckbox    ("Test new mode after migration",                                                this.dbg_migrate);
 
   			gd.addNumericField("Temporay exit stage (0- normal execution)",                                    this.dbg_early_exit,  0,6,"","Temporary exit at intermediate stage (0 - normal)");
@@ -5567,11 +5659,27 @@ public class EyesisCorrectionParameters {
   			this.gr_unique_tol=         gd.getNextNumber();
   			this.gr_unique_pretol=      gd.getNextNumber();
 
+  			this.ft_mod_strength=               gd.getNextBoolean();
+  			this.ft_clusterize_by_highest=      gd.getNextBoolean();
+  			this.ft_clust_sigma=                gd.getNextNumber();
+  			this.ft_disp_arange_vert=           gd.getNextNumber();
+  			this.ft_disp_rrange_vert=           gd.getNextNumber();
+  			this.ft_disp_arange_hor=            gd.getNextNumber();
+  			this.ft_disp_rrange_hor=            gd.getNextNumber();
+  			this.ft_tolerance_above_near=       gd.getNextNumber();
+  			this.ft_tolerance_below_near=       gd.getNextNumber();
+  			this.ft_tolerance_above_far=        gd.getNextNumber();
+  			this.ft_tolerance_below_far=        gd.getNextNumber();
+  			this.ft_hor_vert_overlap=     (int) gd.getNextNumber();
+  			this.ft_used_companions=      (int) gd.getNextNumber();
+  			this.ft_used_true_companions= (int) gd.getNextNumber();
+
   			this.plPreferDisparity=     gd.getNextBoolean();
   			this.plDispNorm=            gd.getNextNumber();
   			this.plFrontoTol =          gd.getNextNumber();
   			this.plFrontoRms =          gd.getNextNumber();
   			this.plFrontoOffs =         gd.getNextNumber();
+  			this.PlFrontoPow =          gd.getNextNumber();
 
   			this.plBlurBinVert=         gd.getNextNumber();
   			this.plBlurBinHor=          gd.getNextNumber();
@@ -5790,7 +5898,8 @@ public class EyesisCorrectionParameters {
   			this.taEnFlaps=             gd.getNextBoolean();
   			this.taEnMismatch=          gd.getNextBoolean();
 
-  			this.dbg_migrate=           gd.getNextBoolean();
+  			this.debug_initial_discriminate= gd.getNextBoolean();
+  			this.dbg_migrate=                gd.getNextBoolean();
 
   			this.dbg_early_exit = (int) gd.getNextNumber();
   			this.show_first_bg=         gd.getNextBoolean();
