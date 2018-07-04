@@ -512,7 +512,7 @@ public class BiScan {
 		int dbg_x = 193;
 		int dbg_y = 162;
 		int debugLevel = -1;
-		final int dbg_tile = (debugLevel>-2)?(dbg_x + tnImage.sizeX*dbg_y):-1;
+		final int dbg_tile = (debugLevel>-1)?(dbg_x + tnImage.sizeX*dbg_y):-1;
 
 		ai.set(0);
 		// find definitely trusted and conditionally trusted tiles

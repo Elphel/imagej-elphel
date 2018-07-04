@@ -122,6 +122,10 @@ public class EyesisCorrectionParameters {
     	public int     rig_batch_adjust_aux =  0;
     	public int     rig_batch_adjust_rig =  0;
 
+    	public int     rig_batch_adjust_main_gt = 0; // adjust main camera using rig disparity as ground truth
+    	public int     rig_batch_adjust_aux_gt =  0; // adjust aux camera using rig disparity as ground truth (TODO: finish geometry in derivatives)
+    	public int     rig_batch_adjust_rig_gt =  0; // adjust rig after main and aux are adjusted with rig GT (late rig adjustment)
+
   		public boolean clt_batch_apply_man =  false;  // Apply (and disable) manual pixel shift
   		public boolean clt_batch_extrinsic =  false; // Calibrate extrinsic parameters for each set
   		public boolean clt_batch_poly =       false; // Calculate fine polynomial correction for each set
@@ -131,8 +135,6 @@ public class EyesisCorrectionParameters {
   		public boolean clt_batch_assign =     true;  // Assign tiles to surfaces
   		public boolean clt_batch_gen3d =      true;  // Generate 3d output: x3d and/or obj+mtl
   		public boolean clt_batch_dbg1 =       true;  // Generate debug images if a single set is selected
-
-
 
     	public String x3dModelVersion="v01";
     	public String jp4SubDir="jp4";
@@ -248,6 +250,9 @@ public class EyesisCorrectionParameters {
   			cp.rig_batch_adjust_aux=	this.rig_batch_adjust_aux;
   			cp.rig_batch_adjust_rig=	this.rig_batch_adjust_rig;
 
+  			cp.rig_batch_adjust_main_gt = this.rig_batch_adjust_main_gt;
+  			cp.rig_batch_adjust_aux_gt =  this.rig_batch_adjust_aux_gt;
+  			cp.rig_batch_adjust_rig_gt =  this.rig_batch_adjust_rig_gt;
 
   			cp.clt_batch_apply_man=		this.clt_batch_apply_man;
   			cp.clt_batch_extrinsic=		this.clt_batch_extrinsic;
@@ -393,6 +398,11 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"rig_batch_adjust_aux",  this.rig_batch_adjust_aux+"");
     		properties.setProperty(prefix+"rig_batch_adjust_rig",  this.rig_batch_adjust_rig+"");
 
+
+    		properties.setProperty(prefix+"rig_batch_adjust_main_gt", this.rig_batch_adjust_main_gt+"");
+    		properties.setProperty(prefix+"rig_batch_adjust_aux_gt",  this.rig_batch_adjust_aux_gt+"");
+    		properties.setProperty(prefix+"rig_batch_adjust_rig_gt",  this.rig_batch_adjust_rig_gt+"");
+
     		properties.setProperty(prefix+"clt_batch_apply_man",   this.clt_batch_apply_man+"");
     		properties.setProperty(prefix+"clt_batch_extrinsic",   this.clt_batch_extrinsic+"");
     		properties.setProperty(prefix+"clt_batch_poly",        this.clt_batch_poly+"");
@@ -533,6 +543,9 @@ public class EyesisCorrectionParameters {
   		    if (properties.getProperty(prefix+"rig_batch_adjust_main")!=null) this.rig_batch_adjust_main=Integer.parseInt(properties.getProperty(prefix+"rig_batch_adjust_main"));
   		    if (properties.getProperty(prefix+"rig_batch_adjust_aux")!=null)  this.rig_batch_adjust_aux=Integer.parseInt(properties.getProperty(prefix+"rig_batch_adjust_aux"));
   		    if (properties.getProperty(prefix+"rig_batch_adjust_rig")!=null)  this.rig_batch_adjust_rig=Integer.parseInt(properties.getProperty(prefix+"rig_batch_adjust_rig"));
+  		    if (properties.getProperty(prefix+"rig_batch_adjust_main_gt")!=null)  this.rig_batch_adjust_main_gt=Integer.parseInt(properties.getProperty(prefix+"rig_batch_adjust_main_gt"));
+  		    if (properties.getProperty(prefix+"rig_batch_adjust_aux_gt")!=null)  this.rig_batch_adjust_aux_gt=Integer.parseInt(properties.getProperty(prefix+"rig_batch_adjust_aux_gt"));
+  		    if (properties.getProperty(prefix+"rig_batch_adjust_rig_gt")!=null)  this.rig_batch_adjust_rig_gt=Integer.parseInt(properties.getProperty(prefix+"rig_batch_adjust_rig_gt"));
 
 			if (properties.getProperty(prefix+"clt_batch_apply_man")!= null) this.clt_batch_apply_man=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_apply_man"));
 			if (properties.getProperty(prefix+"clt_batch_extrinsic")!= null) this.clt_batch_extrinsic=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_extrinsic"));
@@ -869,9 +882,13 @@ public class EyesisCorrectionParameters {
 
 
   			gd.addTab         ("Batch", "Select Batch parameters");
-			gd.addNumericField("Repeat main camera field adjustment",                                this.rig_batch_adjust_main,  0);
-			gd.addNumericField("Repeat aux camera field adjustment",                                 this.rig_batch_adjust_aux,   0);
-			gd.addNumericField("Repeat 2-quad camera rig field adjustment",                          this.rig_batch_adjust_rig,   0);
+			gd.addNumericField("Repeat main camera field adjustment (early, before rig)",                  this.rig_batch_adjust_main,  0);
+			gd.addNumericField("Repeat aux camera field adjustment  (early, before rig)",                  this.rig_batch_adjust_aux,   0);
+			gd.addNumericField("Repeat 2-quad camera rig field adjustment  (early, before late main/aux)", this.rig_batch_adjust_rig,   0);
+
+			gd.addNumericField("Repeat main camera field adjustment (late, with GT disparity from rig)",   this.rig_batch_adjust_main_gt,  0);
+			gd.addNumericField("Repeat aux camera field adjustment (late, with GT disparity from rig)",    this.rig_batch_adjust_aux_gt,   0);
+			gd.addNumericField("Repeat 2-quad camera rig field adjustment (late, after all others)",       this.rig_batch_adjust_rig_gt,   0);
 
     		gd.addCheckbox    ("Apply (and disable) manual pixel shift",                             this.clt_batch_apply_man); // 21
     		gd.addCheckbox    ("Calibrate extrinsic parameters for each set",                        this.clt_batch_extrinsic); // 22
@@ -937,6 +954,10 @@ public class EyesisCorrectionParameters {
 			this.rig_batch_adjust_main =      (int) gd.getNextNumber();
 			this.rig_batch_adjust_aux =       (int) gd.getNextNumber();
 			this.rig_batch_adjust_rig =       (int) gd.getNextNumber();
+
+			this.rig_batch_adjust_main_gt =   (int) gd.getNextNumber();
+			this.rig_batch_adjust_aux_gt =    (int) gd.getNextNumber();
+			this.rig_batch_adjust_rig_gt =    (int) gd.getNextNumber();
 
     		this.clt_batch_apply_man=    gd.getNextBoolean(); // 21
     		this.clt_batch_extrinsic=    gd.getNextBoolean(); // 22
@@ -2610,6 +2631,9 @@ public class EyesisCorrectionParameters {
   		public int        lyf_min_samples = 5;       // Minimal number of tiles remaining in the sample
   		public boolean    lyf_norm_center = true;    // Replace samples with a single average with equal weight
   		public double     ly_corr_scale =   1.0;     // Scale calculated correction vector
+		public boolean    lyr_filter_ds =   false;   // true;
+		public boolean    lyr_filter_lyf =  false;   // ~clt_parameters.lyf_filter, but may be different, now off for a single cameras
+
 
   		// old fcorr parameters, reuse?
 // 		public int        fcorr_sample_size = 32;    // Use square this size side to detect outliers
@@ -2965,7 +2989,7 @@ public class EyesisCorrectionParameters {
   		// comparing merge quality for plane pairs
   		public double     plCostDist           =   4.0;  // Disparity (pix) - closer cost will use more of the real world, farther - disparity
   		public double     plCostKrq            =   0.8;  // Cost of merge quality sqrt(weighted*equal) in disparity space
-  		public double     plCostKrqEq          =   0.2;  // Cost of merge quality averaje of weighted and equal weight in disparity space
+  		public double     plCostKrqEq          =   0.2;  // Cost of merge quality average of weighted and equal weight in disparity space
   		public double     plCostWrq            =   0.8;  // Cost of merge quality sqrt(weighted*equal) in world space
   		public double     plCostWrqEq          =   0.2;  // Cost of merge quality average of weighted and equal weight in world space
   		public double     plCostSin2           =  10.0;  // Cost of sin squared between normals
@@ -3322,6 +3346,9 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"lyf_min_samples",  this.lyf_min_samples+"");
 			properties.setProperty(prefix+"lyf_norm_center",  this.lyf_norm_center+"");
 			properties.setProperty(prefix+"ly_corr_scale",    this.ly_corr_scale +"");
+
+			properties.setProperty(prefix+"lyr_filter_ds",    this.lyr_filter_ds +"");
+			properties.setProperty(prefix+"lyr_filter_lyf",   this.lyr_filter_lyf +"");
 
 			properties.setProperty(prefix+"corr_magic_scale", this.corr_magic_scale +"");
 			properties.setProperty(prefix+"corr_select",      this.corr_select +"");
@@ -3985,6 +4012,9 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"lyf_min_samples")!=null)   this.lyf_min_samples=Integer.parseInt(properties.getProperty(prefix+"lyf_min_samples"));
   			if (properties.getProperty(prefix+"lyf_norm_center")!=null)   this.lyf_norm_center=Boolean.parseBoolean(properties.getProperty(prefix+"lyf_norm_center"));
 			if (properties.getProperty(prefix+"ly_corr_scale")!=null)     this.ly_corr_scale=Double.parseDouble(properties.getProperty(prefix+"ly_corr_scale"));
+
+  			if (properties.getProperty(prefix+"lyr_filter_ds")!=null)     this.lyr_filter_ds=Boolean.parseBoolean(properties.getProperty(prefix+"lyr_filter_ds"));
+  			if (properties.getProperty(prefix+"lyr_filter_lyf")!=null)    this.lyr_filter_lyf=Boolean.parseBoolean(properties.getProperty(prefix+"lyr_filter_lyf"));
 
   			if (properties.getProperty(prefix+"corr_magic_scale")!=null)  this.corr_magic_scale=Double.parseDouble(properties.getProperty(prefix+"corr_magic_scale"));
   			if (properties.getProperty(prefix+"corr_select")!=null)       this.corr_select=Integer.parseInt(properties.getProperty(prefix+"corr_select"));
@@ -4690,7 +4720,14 @@ public class EyesisCorrectionParameters {
 			gd.addNumericField("Minimal number of tiles remaining in the sample",                         this.lyf_min_samples,  0);
   			gd.addCheckbox    ("Replace samples with a single average with equal weight",                 this.lyf_norm_center);
 			gd.addNumericField("Scale calculated correction vector",                                      this.ly_corr_scale,  3);
-  			gd.addMessage     ("---");
+  			gd.addMessage     ("--- Parameters specific to LY adjustments with dual-camera rig data (as ground truth ---");
+
+  			gd.addCheckbox    ("Use samples filter with rig data",                                        this.lyr_filter_ds,
+  					"Raw measured data may not need filtering when ground truth disparity is available");
+  			gd.addCheckbox    ("Filter lazy eye pairs by their values wen GT data is available",          this.lyr_filter_lyf,
+  					"Same as \"Filter lazy eye pairs by their values\" above, but for the rig-guided adjustments");
+
+
 //  			gd.addNumericField("Use square this size side to detect outliers",                            this.fcorr_sample_size,  0);
 //  			gd.addNumericField("Keep tiles only if there are more in each square",                        this.fcorr_mintiles,     0);
 //  			gd.addNumericField("Remove this fraction of tiles from each sample",                          this.fcorr_reloutliers,  3);
@@ -5090,7 +5127,7 @@ public class EyesisCorrectionParameters {
   			gd.addMessage     ("--- Planes merge costs ---");
   			gd.addNumericField(" Disparity (pix) - closer cost will use more of the real world, farther - disparity",this.plCostDist,  6);
   			gd.addNumericField("Cost of merge quality sqrt(weighted*equal) in disparity space",                this.plCostKrq,     6);
-  			gd.addNumericField("Cost of merge quality averaje of weighted and equal weight in disparity space",this.plCostKrqEq,   6);
+  			gd.addNumericField("Cost of merge quality average of weighted and equal weight in disparity space",this.plCostKrqEq,   6);
   			gd.addNumericField("Cost of merge quality sqrt(weighted*equal) in world space",                    this.plCostWrq,     6);
   			gd.addNumericField("Cost of merge quality average of weighted and equal weight in world space",    this.plCostWrqEq,   6);
   			gd.addNumericField("Cost of sin squared between normals",                                          this.plCostSin2,    6);
@@ -5438,6 +5475,10 @@ public class EyesisCorrectionParameters {
 			this.lyf_min_samples= (int) gd.getNextNumber();
   			this.lyf_norm_center=       gd.getNextBoolean();
 			this.ly_corr_scale=         gd.getNextNumber();
+
+  			this.lyr_filter_ds=         gd.getNextBoolean();
+  			this.lyr_filter_lyf=        gd.getNextBoolean();
+
 //  			this.fcorr_sample_size= (int)gd.getNextNumber();
 //  			this.fcorr_mintiles= (int)  gd.getNextNumber();
 //  			this.fcorr_reloutliers=     gd.getNextNumber();

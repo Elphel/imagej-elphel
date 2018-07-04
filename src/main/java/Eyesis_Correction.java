@@ -570,7 +570,7 @@ private Panel panel1,
 			addButton("CLT batch process",          panelClt3, color_process);
 			addButton("CM Test",                    panelClt3, color_stop);
 			addButton("Show scan",                  panelClt3, color_configure);
-
+			addButton("Show all scans",             panelClt3, color_configure);
 			add(panelClt3);
 		}
 
@@ -4480,6 +4480,10 @@ private Panel panel1,
     	showScan();
         return;
 /* ======================================================================== */
+    } else if (label.equals("Show all scans")) {
+    	showAllScans();
+        return;
+/* ======================================================================== */
 
     } else if (label.equals("Import Aux")) {
     	importAux();
@@ -5944,32 +5948,30 @@ private Panel panel1,
         }
 	}
 
+	public boolean getDCTShiftwDialog(double [] shiftXY) {
+		GenericDialog gd = new GenericDialog("Set DCT shift");
+		gd.addNumericField("X-shift",                                   shiftXY[0],     2); //2
+		if (shiftXY.length > 1) {
+			gd.addNumericField("Y-shift",                               shiftXY[1],     2); //2
+		}
+		gd.showDialog();
+		if (gd.wasCanceled()) return false;
+		shiftXY[0]=   gd.getNextNumber();
+		if (shiftXY.length > 1) {
+			shiftXY[1]=   gd.getNextNumber();
+		}
+		return true;
+	}
 
-
-		public boolean getDCTShiftwDialog(double [] shiftXY) {
-  			GenericDialog gd = new GenericDialog("Set DCT shift");
-  			gd.addNumericField("X-shift",                                   shiftXY[0],     2); //2
-  			if (shiftXY.length > 1) {
-  				gd.addNumericField("Y-shift",                               shiftXY[1],     2); //2
-  			}
-  			gd.showDialog();
-  			if (gd.wasCanceled()) return false;
-  			shiftXY[0]=   gd.getNextNumber();
-  			if (shiftXY.length > 1) {
-  				shiftXY[1]=   gd.getNextNumber();
-  			}
-  			return true;
-  		}
-
- public boolean showScan() {
+	public boolean showScan() {
 		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
 			String msg = "DSI data is not available. Please run \"CLT 3D\" first";
 			IJ.showMessage("Error",msg);
 			System.out.println(msg);
 			return false;
 		}
-	    int scan_index = 0;
-		GenericJTabbedDialog gd = new GenericJTabbedDialog("Set CLT parameters",400,100);
+		int scan_index = QUAD_CLT.tp.clt_3d_passes.size()-1;
+		GenericJTabbedDialog gd = new GenericJTabbedDialog("Select scan to show",400,100);
 		gd.addNumericField("Scan index (0..."+(QUAD_CLT.tp.clt_3d_passes.size()-1),  scan_index, 0, 2, "",
 				"Display scan by index");
 
@@ -5980,7 +5982,59 @@ private Panel panel1,
 		QUAD_CLT.tp.showScan(QUAD_CLT.tp.clt_3d_passes.get(scan_index),"Scan-"+scan_index);
 		return true;
 
- }
+	}
+
+	public boolean showAllScans() {
+		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
+			String msg = "DSI data is not available. Please run \"CLT 3D\" first";
+			IJ.showMessage("Error",msg);
+			System.out.println(msg);
+			return false;
+		}
+		int scan_index = 0;
+		String [] titles =  QUAD_CLT.tp.getScanTitles();
+
+		GenericJTabbedDialog gd = new GenericJTabbedDialog("Select scan slice to show",400,800);
+		gd.addMessage("Select scan types to show");
+		gd.addCheckbox("All scans",       true, "Include all types of scans");
+		gd.addCheckbox("Measured scans",  false,"Include measured scans");
+		gd.addCheckbox("Processed scans", false,"Include processed scans");
+		gd.addCheckbox("Combo scans",     false,"Include combo scans");
+		gd.addMessage("Select slice to show (only first selected will be shown)");
+		for (int i = 0; i < titles.length; i++ ) {
+			gd.addCheckbox(i+": "+titles[i], false); // 0
+		}
+
+		gd.showDialog();
+		if (gd.wasCanceled()) return false;
+		boolean all =       gd.getNextBoolean();
+		boolean measured =  gd.getNextBoolean();
+		boolean processed = gd.getNextBoolean();
+		boolean combo =     gd.getNextBoolean();
+		boolean [] bslice = new boolean  [titles.length];
+		for (int i = 0; i < titles.length;i++) {
+			bslice[i] =     gd.getNextBoolean();
+		}
+		int slice =-1;
+		for (int i = 0; i < bslice.length; i++) if (bslice[i]) {
+			slice = i;
+			break;
+		}
+
+		if (slice < 0) {
+			System.out.println("Slice not selected");
+			return false;
+		}
+		QUAD_CLT.tp.showAllScans(
+				"SCANS",   // String  title,
+				slice,     // int     slice,
+				all,       // boolean all,
+				measured,  // boolean measured,
+				processed, // boolean processed,
+				combo);    // boolean combo);
+		return true;
+	}
+
 
   public boolean cm_test() {
 	    double hsize_x = 1.5;

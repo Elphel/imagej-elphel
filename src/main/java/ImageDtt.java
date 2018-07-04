@@ -1538,11 +1538,12 @@ public class ImageDtt {
 			final double              scale_shot,      // 3.0;   // scale when dividing by sqrt ( <0 - disable correction)
 			final double              diff_sigma,      // 5.0;//RMS difference from average to reduce weights (~ 1.0 - 1/255 full scale image)
 			final double              diff_threshold,  // 5.0;   // RMS difference from average to discard channel (~ 1.0 - 1/255 full scale image)
-			final boolean             diff_gauss,      // true;  // when averaging images, use gaussian around average as weight (false - sharp all/nothing)
+			final boolean             diff_gauss,      // true;  // when averaging images, use Gaussian around average as weight (false - sharp all/nothing)
 			final double              min_agree,       // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
-			final boolean             dust_remove,     // Do not reduce average weight when only one image differes much from the average
+			final boolean             dust_remove,     // Do not reduce average weight when only one image differs much from the average
 			final boolean             keep_weights,    // Add port weights to RGBA stack (debug feature)
 			final GeometryCorrection  geometryCorrection,
+			final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 			final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 			final int                 kernel_step,
 			final int                 transform_size,
@@ -1729,7 +1730,13 @@ public class ImageDtt {
 			System.out.println("macro_mode="+macro_mode);
 		}
 
-		final Matrix [] corr_rots = geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
+		Matrix [] corr_rots_aux = null;
+		if (geometryCorrection_main != null) {
+			corr_rots_aux = geometryCorrection.getCorrVector().getRotMatrices(geometryCorrection.getRotMatrix(true));
+		}
+
+		final boolean use_main = corr_rots_aux != null;
+		final Matrix [] corr_rots = use_main ? corr_rots_aux : geometryCorrection.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
 				@Override
@@ -1794,15 +1801,29 @@ public class ImageDtt {
 									macro_scale* disparity_array[tileY][tileX] + disparity_corr);
 
 						} else {
-							centersXY = geometryCorrection.getPortsCoordinatesAndDerivatives(
-									geometryCorrection, //			GeometryCorrection gc_main,
-									false,          // boolean use_rig_offsets,
-									corr_rots, // Matrix []   rots,
-									null,      //  Matrix [][] deriv_rots,
-									null,      // double [][] pXYderiv, // if not null, should be double[8][]
-									centerX,
-									centerY,
-									disparity_array[tileY][tileX] + disparity_corr);
+							if (use_main) { // this is AUX camera that uses main coordinates
+								centersXY =  geometryCorrection.getPortsCoordinatesAndDerivatives(
+										geometryCorrection_main, //			GeometryCorrection gc_main,
+										true,            // boolean use_rig_offsets,
+										corr_rots,       // Matrix []   rots,
+										null,            //  Matrix [][] deriv_rots,
+										null,            // double [][] pXYderiv, // if not null, should be double[8][]
+										centerX,
+										centerY,
+										disparity_array[tileY][tileX] + disparity_corr); // _aux); //  + disparity_corr);
+
+
+							} else {
+								centersXY = geometryCorrection.getPortsCoordinatesAndDerivatives(
+										geometryCorrection, //			GeometryCorrection gc_main,
+										false,          // boolean use_rig_offsets,
+										corr_rots, // Matrix []   rots,
+										null,      //  Matrix [][] deriv_rots,
+										null,      // double [][] pXYderiv, // if not null, should be double[8][]
+										centerX,
+										centerY,
+										disparity_array[tileY][tileX] + disparity_corr);
+							}
 
 							if ((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
 								for (int i = 0; i < quad; i++) {
@@ -5567,6 +5588,7 @@ public class ImageDtt {
 			final boolean             dust_remove,     // Do not reduce average weight when only one image differes much from the average
 			final boolean             keep_weights,    // Add port weights to RGBA stack (debug feature)
 			final GeometryCorrection  geometryCorrection,
+			final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 			final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 			final int                 kernel_step,
 			final int                 transform_size,
@@ -5632,6 +5654,7 @@ public class ImageDtt {
 					dust_remove,     // Do not reduce average weight when only one image differes much from the average
 					keep_weights,    // Add port weights to RGBA stack (debug feature)
 					geometryCorrection,
+					geometryCorrection_main, // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 					clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 					kernel_step,
 					transform_size,

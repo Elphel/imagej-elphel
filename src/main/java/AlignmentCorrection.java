@@ -2056,7 +2056,7 @@ B = |+dy0   -dy1      -2*dy3 |
 				(new showDoubleFloatArrays()).showArrays(dbg_img, tilesX, tilesY, true, "hist_filt_ds"); // , titles);
 			}
 		}
-		// combine infinity and lasy eye scan data into a single array
+		// combine infinity and lazy eye scan data into a single array
 		double [][] inf_and_ly = new double [2 * NUM_SLICES][];
 		for (int i = 0; i < NUM_SLICES; i++){
 			inf_and_ly[i] = inf_scan[i];
@@ -2076,7 +2076,9 @@ B = |+dy0   -dy1      -2*dy3 |
 		}
 
 //	static final int    INDEX_10_WEIGHT = 1;
-		System.out.println("test123");
+		if (debugLevel > 0) {
+			System.out.println("test123");
+		}
 		if ((debugLevel > -1) && (hist_smpl_side > 0)) { // 0) {
 			String [] prefixes = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
 			String [] titles = new String [2 * NUM_SLICES];
@@ -2128,7 +2130,9 @@ B = |+dy0   -dy1      -2*dy3 |
 			}
 			(new showDoubleFloatArrays()).showArrays(dbg_img, tilesX1, tilesY1, true, "inf_and_ly8",titles);
 		}
-System.out.println("test1234");
+		if (debugLevel > 0) {
+			System.out.println("test1234");
+		}
 		// create list for infinity data
 //		/clt_parameters.ly_inf_en,
 		ArrayList<Sample> inf_samples_list;
@@ -2275,6 +2279,7 @@ System.out.println("test1234");
 					clt_parameters.ly_par_sel,     //int     manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 					mismatch_list,                          // ArrayList<Mismatch> mismatch_list,
 					qc.geometryCorrection,                  // GeometryCorrection geometryCorrection,
+					null, // GeometryCorrection geometryCorrection_main, // if is aux camera using main cameras' coordinates. Disparity is still in aux camera pixels
 					qc.geometryCorrection.getCorrVector(),  // GeometryCorrection.CorrVector corr_vector,
 					old_new_rms,                            // double [] old_new_rms, // should be double[2]
 //					2); // debugLevel); // 2); // 1); // int debugLevel)
@@ -2323,6 +2328,7 @@ System.out.println("test1234");
 
 
 	public double [][][] lazyEyeCorrectionFromGT(
+			final GeometryCorrection geometryCorrection_main, // if not null - this is an AUX camera of a rig
 			final boolean    use_poly, // Use polynomial correction, false - correct tilt/azimuth/roll of each sensor
 			final boolean    restore_disp_inf, // Restore subtracted disparity for scan #0 (infinity) always true
 			final double     fcorr_radius,
@@ -2360,7 +2366,7 @@ System.out.println("test1234");
 			int              debugLevel){
 
 //		final double lazyEyeDispRelVariation = 0.02;
-
+//geometryCorrection_main
 		final int dbg_nTile = -34145; // 37005; // -59038;
 		final int num_scans = scans_14.length/NUM_ALL_SLICES;
 		final int num_tiles = scans_14[0].length;
@@ -2368,6 +2374,8 @@ System.out.println("test1234");
 		final boolean []  center_mask = getCenterMask(fcorr_radius, tilesX, tilesY);
 		final double [][] scans = new double [num_scans * NUM_SLICES][];
 //		final double [][] comp_strength_rms = new double [num_scans][num_tiles];
+
+
 		for (int ns = 0; ns < num_scans; ns++){
 			final double [] min_weights = new double [num_tiles];
 			for (int nTile = 0; nTile < num_tiles; nTile++){
@@ -2478,7 +2486,7 @@ System.out.println("test1234");
 		double [][] combo_mismatch = new double [NUM_SLICES][num_tiles];
 		for (int ns = 0; ns < num_scans; ns++){
 			for (int nTile = 0; nTile < num_tiles; nTile++) {
-				if ((nTile == dbg_nTile) || (nTile == 24971)){
+				if (nTile == dbg_nTile) { // || (nTile == 24971)){
 					System.out.println("lazyEyeCorrectionFromGT().1: nTile="+nTile); // filtered_scans[2][37005] = NaN
 				}
 //				double w = filtered_scans[ns * NUM_SLICES + 1][nTile];
@@ -2588,7 +2596,9 @@ System.out.println("test1234");
 		}
 
 //	static final int    INDEX_10_WEIGHT = 1;
-		System.out.println("test123");
+		if (debugLevel > 0) {
+			System.out.println("test123");
+		}
 		if ((debugLevel > -1) && (hist_smpl_side > 0)) { // 0) {
 			String [] titles = {"disparity", "strength", "dx0", "dy0", "dx1", "dy1", "dx2", "dy2", "dx3", "dy3"};
 			(new showDoubleFloatArrays()).showArrays(combo_mismatch, tilesX, tilesY, true, "inf_and_ly",titles);
@@ -2628,7 +2638,9 @@ System.out.println("test1234");
 			}
 			(new showDoubleFloatArrays()).showArrays(dbg_img, tilesX1, tilesY1, true, "inf_and_ly8",titles);
 		}
-		System.out.println("test1234a");
+		if (debugLevel > 0) {
+			System.out.println("test1234a");
+		}
 		// create list for infinity data
 //		/clt_parameters.ly_inf_en,
 
@@ -2732,6 +2744,7 @@ System.out.println("test1234");
 				System.out.println("Are null - non-null are for poly correction only");
 			}
 		}
+		// TODO: use geometryCorrection_main (if not null)
 		if (!use_poly && (mismatch_list != null)){
 			double [] old_new_rms = new double[1];
 			boolean apply_extrinsic = true;
@@ -2743,9 +2756,10 @@ System.out.println("test1234");
 					clt_parameters.ly_inf_force,   // boolean force_convergence, // if true try to adjust convergence (disparity, symmetrical parameter 0) even with no disparity
 					clt_parameters.ly_com_roll,    // boolean    common_roll,    // Enable common roll (valid for high disparity range only)
 					clt_parameters.ly_focalLength, // boolean    corr_focalLength,     // Correct scales (focal length temperature? variations)
-					clt_parameters.ly_par_sel,     //int     manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
+					clt_parameters.ly_par_sel,     // int     manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
 					mismatch_list,                          // ArrayList<Mismatch> mismatch_list,
 					qc.geometryCorrection,                  // GeometryCorrection geometryCorrection,
+					geometryCorrection_main, //  GeometryCorrection geometryCorrection_main, // if is aux camera using main cameras' coordinates. Disparity is still in aux camera pixels
 					qc.geometryCorrection.getCorrVector(),  // GeometryCorrection.CorrVector corr_vector,
 					old_new_rms,                            // double [] old_new_rms, // should be double[2]
 //					2); // debugLevel); // 2); // 1); // int debugLevel)
@@ -3278,10 +3292,9 @@ System.out.println("test1234");
 	  		boolean common_roll,       // Enable common roll (valid for high disparity range only)
 			boolean corr_focalLength,  // Correct scales (focal length temperature? variations)
 	  		int     manual_par_sel,    // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use boolean flags, != 0 - ignore boolean flags)
-
-
 			ArrayList<Mismatch> mismatch_list,
 			GeometryCorrection geometryCorrection,
+			GeometryCorrection geometryCorrection_main, // if is aux camera using main cameras' coordinates. Disparity is still in aux camera pixels
 			GeometryCorrection.CorrVector corr_vector,
 			double [] old_new_rms, // should be double[2]
 			int debugLevel)

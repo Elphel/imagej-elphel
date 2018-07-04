@@ -30,6 +30,29 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 
 public class TileProcessor {
+	public static String [] SCAN_TITLES = {
+			"tile_op",       //  0
+			"final",         //  1 - calculated, filtered, combined disparity
+			"disparity",     //  2
+			"disp_cm",       //  3
+			"disp_hor",      //  4
+			"disp_vert",     //  5
+			"final_strength",//  6
+			"strength",      //  7
+			"strength_hor",  //  8
+			"strength_vert", //  9
+			"selection",     // 10
+			"border_tiles",  // 11
+			"max_tried",     // 12
+			"diff0",         // 13
+			"diff1",         // 14
+			"diff2",         // 15
+			"diff3",         // 16
+			"diff2max",      // 17
+			"diff2maxAvg",   // 18
+			"normStrength",  // 19
+			"overexp"};      // 20
+
 	public ArrayList <CLTPass3d> clt_3d_passes = null;
 	public double [][] rig_disparity_strength =  null; // Disparity and strength created by a two-camera rig, with disparity scale and distortions of the main camera
 	public double [][] rig_pre_poles_ds =        null; // Rig disparity and strength before processing poles
@@ -2163,44 +2186,68 @@ public class TileProcessor {
 		}
 		return num_op_tiles; // num_extended;
 	}
+	public void showAllScans(
+			String  in_title,
+			int     slice,
+			boolean all,
+			boolean measured,
+			boolean processed,
+			boolean combo)
+	{
+		String title = in_title+"_"+getScanTitles()[slice];
+		String [] titles = new String[clt_3d_passes.size()];
+		double [][] dbg_img = new double [titles.length][];
+		int num_slices=0;
+		for (int nscan = 0; nscan < titles.length; nscan++) {
+			CLTPass3d scan = clt_3d_passes.get(nscan);
+			if (all ||
+					(measured && scan.isMeasured()) ||
+					(processed && scan.isProcessed()) ||
+					(combo && scan.isCombo())) {
+				titles[nscan] = nscan+"_";
+				if (scan.isMeasured())            titles[nscan] += "+M"; else titles[nscan]+="-M";
+				if (scan.isProcessed())           titles[nscan] += "+P"; else titles[nscan]+="-P";
+				if (scan.isCombo())               titles[nscan] += "+C"; else titles[nscan]+="-C";
+				if (scan.getTextureTiles()!=null) titles[nscan] += "+T"; else titles[nscan]+="-T";
+				dbg_img[nscan] = getShowScan(scan)[slice];
+				if (dbg_img[nscan] != null) num_slices++;
+			}
+		}
+		if (num_slices > 0) {
+			(new showDoubleFloatArrays()).showArrays(dbg_img,  tilesX, tilesY, true, title, titles);
+		}
+//		QUAD_CLT.tp.showScan(QUAD_CLT.tp.clt_3d_passes.get(scan_index),"Scan-"+scan_index);
 
+	}
+
+	public String [] getScanTitles() {
+		return SCAN_TITLES;
+	}
 	public void showScan(
 			CLTPass3d   scan,
 			String in_title)
 	{
-		showDoubleFloatArrays sdfa_instance = null;
-		sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
-		String [] titles = {
-				"tile_op",       //  0
-				"final",         //  1 - calculated, filtered, combined disparity
-				"disparity",     //  2
-				"disp_cm",       //  3
-				"disp_hor",      //  4
-				"disp_vert",     //  5
-				"final_strength",//  6
-				"strength",      //  7
-				"strength_hor",  //  8
-				"strength_vert", //  9
-				"selection",     // 10
-				"border_tiles",  // 11
-				"max_tried",     // 12
-				"diff0",         // 13
-				"diff1",         // 14
-				"diff2",         // 15
-				"diff3",         // 16
-				"diff2max",      // 17
-				"diff2maxAvg",   // 18
-				"normStrength",  // 19
-				"overexp"};      // 20
+		String [] titles = getScanTitles();
 		String title=in_title;
 		if (scan.isMeasured())            title+="+M"; else title+="-M";
 		if (scan.isProcessed())           title+="+P"; else title+="-P";
 		if (scan.isCombo())               title+="+C"; else title+="-C";
 		if (scan.getTextureTiles()!=null) title+="+T"; else title+="-T";
 
+		double [][] dbg_img = getShowScan(scan);
+				(new showDoubleFloatArrays()).showArrays(dbg_img,  tilesX, tilesY, true, title,titles);
+		System.out.println("showScan("+title+"): isMeasured()="+scan.isMeasured()+", isProcessed()="+scan.isProcessed()+", isCombo()="+scan.isCombo());
+	}
+
+
+	public double [][] getShowScan(
+
+			CLTPass3d   scan)
+	{
+		int NUM_SLICES=getScanTitles().length;
 
 		int tlen = tilesX*tilesY;
-		double [][] dbg_img = new double[titles.length][];
+		double [][] dbg_img = new double[NUM_SLICES][];
 		if (scan.tile_op != null)              dbg_img[ 0] = new double[tlen];
 		if (scan.disparity !=  null)           dbg_img[ 2] = new double[tlen];
 		if (scan.selected != null)             dbg_img[10] = new double[tlen];
@@ -2247,15 +2294,9 @@ public class TileProcessor {
 				}
 			}
 		}
-
-//		title += "-";
-//		if (scan.isMeasured())  title += "M";
-//		if (scan.isProcessed()) title += "P";
-//		if (scan.isCombo())     title += "C";
-		sdfa_instance.showArrays(dbg_img,  tilesX, tilesY, true, title,titles);
-		System.out.println("showScan("+title+"): isMeasured()="+scan.isMeasured()+", isProcessed()="+scan.isProcessed()+", isCombo()="+scan.isCombo());
-
+		return dbg_img;
 	}
+
 
 
 

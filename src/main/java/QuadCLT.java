@@ -4034,8 +4034,9 @@ public class QuadCLT {
 				  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 				  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
 				  clt_parameters.keep_weights,   // Add port weights to RGBA stack (debug feature)
-				  geometryCorrection,           // final GeometryCorrection  geometryCorrection,
-				  clt_kernels,                  // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+				  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+				  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 				  clt_parameters.kernel_step,
 				  clt_parameters.transform_size,
 				  clt_parameters.clt_window,
@@ -5169,8 +5170,9 @@ public class QuadCLT {
 					  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 					  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
 					  clt_parameters.keep_weights,   // Add port weights to RGBA stack (debug feature)
-					  geometryCorrection,           // final GeometryCorrection  geometryCorrection,
-					  clt_kernels,                  // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+					  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+					  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+					  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 					  clt_parameters.kernel_step,
 					  clt_parameters.transform_size,
 					  clt_parameters.clt_window,
@@ -5836,7 +5838,10 @@ public class QuadCLT {
 		  }
 
 		  //TODO: Move away from here?
+		  boolean no_image_save = true;
+
     	  ImagePlus imp_bgnd = getBackgroundImage(
+    			  no_image_save, // boolean no_image,
     			  clt_parameters,
     			  colorProcParameters,
     			  rgbParameters,
@@ -5860,6 +5865,10 @@ public class QuadCLT {
     			  tp.clt_3d_passes);
 
 		  x3dOutput.generateBackground(clt_parameters.infinityDistance <= 0.0); // needs just first (background) scan
+
+/*		  */
+
+
     	  // refine first measurement
     	  int bg_pass = tp.clt_3d_passes.size() - 1; // 0
     	  int refine_pass = tp.clt_3d_passes.size(); // 1
@@ -6529,14 +6538,20 @@ public class QuadCLT {
 					  comp_diff += new_corr[0][0][i] * new_corr[0][0][i];
 				  }
 				  comp_diff = Math.sqrt(comp_diff);
+				  if (debugLevel > -10) { // should work even in batch mode
+					  System.out.println("#### extrinsicsCLT(): iteration step = "+(num_iter + 1) + " ( of "+max_tries+") change = "+
+							  comp_diff + " ("+min_sym_update+"), previous RMS = " + new_corr[0][1][0]+ " (debugLevel = "+debugLevel+")");
+				  }
+
 				  if (debugLevel > -2) {
 					  if ((debugLevel > -1) || (comp_diff < min_sym_update)) {
-						  System.out.println("#### extrinsicsCLT(): iteration step = "+(num_iter + 1) + " ( of "+max_tries+") change = "+
-								  comp_diff + " ("+min_sym_update+"), previous RMS = " + new_corr[0][1][0]);
+//						  System.out.println("#### extrinsicsCLT(): iteration step = "+(num_iter + 1) + " ( of "+max_tries+") change = "+
+//								  comp_diff + " ("+min_sym_update+"), previous RMS = " + new_corr[0][1][0]);
 						  System.out.println("New extrinsic corrections:");
 						  System.out.println(geometryCorrection.getCorrVector().toString());
 					  }
 				  }
+
 				  if (comp_diff < min_sym_update) {
 					  break;
 				  }
@@ -6554,9 +6569,12 @@ public class QuadCLT {
 			  final boolean    updateStatus,
 			  final int        debugLevel)
 	  {
+
+		  final boolean    filter_ds = clt_parameters.lyr_filter_ds;  //  = false; // true;
+		  final boolean    filter_lyf = clt_parameters.lyr_filter_lyf; //  = false; // ~clt_parameters.lyf_filter, but may be different, now off for a single cameras
+
 		  final boolean    batch_mode = clt_parameters.batch_run;
 		  int debugLevelInner =  batch_mode ? -5: debugLevel;
-//		  boolean update_disp_from_latest = clt_parameters.lym_update_disp ; // true;
 		  int max_tries =                   clt_parameters.lym_iter; // 25;
 		  double min_sym_update =           clt_parameters.lym_change; //  4e-6; // stop iterations if no angle changes more than this
 		  double min_poly_update =          clt_parameters.lym_poly_change; //  Parameter vector difference to exit from polynomial correction
@@ -6580,6 +6598,20 @@ public class QuadCLT {
 				  }
 			  }
 		  }
+		  GeometryCorrection geometryCorrection_main = null;
+		  if (geometryCorrection.getRotMatrix(true) != null) {
+			  geometryCorrection_main = twoQuadCLT.quadCLT_main.getGeometryCorrection();
+			  double disparityScale =  geometryCorrection.getDisparityRadius()/geometryCorrection_main.getDisparityRadius();
+			  for (int i = 0; i < rig_disp_strength[0].length; i++) {
+				  rig_disp_strength[0][i] *= disparityScale;
+			  }
+
+			  if (debugLevel > -2) {
+				  System.out.println("This is an AUX camera, using MAIN camera coordinates");
+			  }
+
+
+		  }
 
 		  CLTPass3d comboScan = tp.compositeScan(
 				  rig_disp_strength[0], // final double []             disparity,
@@ -6595,15 +6627,16 @@ public class QuadCLT {
 
 			  double [][] combo_mismatch = new double[12][];
 			  CLTMeasure( // perform single pass according to prepared tiles operations and disparity
-					  image_data,        // first index - number of image in a quad
-					  saturation_imp,    // boolean [][] saturation_imp, // (near) saturated pixels or null
+					  image_data,              // first index - number of image in a quad
+					  saturation_imp,          // boolean [][] saturation_imp, // (near) saturated pixels or null
 					  clt_parameters,
-					  comboScan,         // final CLTPass3d     scan,
-					  false,             // final boolean     save_textures,
-					  true,              // final boolean     save_corr,
-					  combo_mismatch,       // final double [][] mismatch,    // null or double [12][]
-					  tp.threadsMax,     // maximal number of threads to launch
-					  false,             // updateStatus,
+					  comboScan,               // final CLTPass3d     scan,
+					  false,                   // final boolean     save_textures,
+					  true,                    // final boolean     save_corr,
+					  combo_mismatch,          // final double [][] mismatch,    // null or double [12][]
+					  geometryCorrection_main, // final GeometryCorrection geometryCorrection_main, // If not null - covert to main camera coordinates
+					  tp.threadsMax,           // maximal number of threads to launch
+					  false,                   // updateStatus,
 					  debugLevelInner - 1);
 
 			  double [][] scans14 = new double [14][];
@@ -6623,11 +6656,10 @@ public class QuadCLT {
 			  }
 
 			  double [][][] new_corr;
-			  final boolean    filter_ds = false; // true;
-			  final boolean    filter_lyf = false; // ~clt_parameters.lyf_filter, but may be different, now off for a single cameras
 			  final double     inf_max_disparity = 2.0;
 			  double [][][]    gt_disparity_strength = {rig_disp_strength};
 			  new_corr = ac.lazyEyeCorrectionFromGT(
+					  geometryCorrection_main, //final GeometryCorrection geometryCorrection_main, // if not null - this is an AUX camera of a rig
 					  adjust_poly,                       // final boolean use_poly,
 					  true, // final boolean    restore_disp_inf, // Restore subtracted disparity for scan #0 (infinity)
 					  clt_parameters.fcorr_radius,       // 	final double fcorr_radius,
@@ -6693,10 +6725,15 @@ public class QuadCLT {
 					  comp_diff += new_corr[0][0][i] * new_corr[0][0][i];
 				  }
 				  comp_diff = Math.sqrt(comp_diff);
+				  if (debugLevel > -10) { // should work even in batch mode
+					  System.out.println("#### extrinsicsCLTfromGT(): iteration step = "+(num_iter + 1) + " ( of "+max_tries+") change = "+
+							  comp_diff + " ("+min_sym_update+"), previous RMS = " + new_corr[0][1][0]+ " (debugLevel = "+debugLevel+")");
+				  }
+
 				  if (debugLevel > -2) {
 					  if ((debugLevel > -1) || (comp_diff < min_sym_update)) {
-						  System.out.println("#### extrinsicsCLT(): iteration step = "+(num_iter + 1) + " ( of "+max_tries+") change = "+
-								  comp_diff + " ("+min_sym_update+"), previous RMS = " + new_corr[0][1][0]);
+//						  System.out.println("#### extrinsicsCLT(): iteration step = "+(num_iter + 1) + " ( of "+max_tries+") change = "+
+//								  comp_diff + " ("+min_sym_update+"), previous RMS = " + new_corr[0][1][0]);
 						  System.out.println("New extrinsic corrections:");
 						  System.out.println(geometryCorrection.getCorrVector().toString());
 					  }
@@ -6715,16 +6752,13 @@ public class QuadCLT {
 
 
 	  public boolean expandCLTQuad3d(
-//		  ImagePlus [] imp_quad, // should have properties "name"(base for saving results), "channel","path"
 		  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 		  EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-//		  EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
 		  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 		  CorrectionColorProc.ColorGainsParameters     channelGainParameters,
 		  EyesisCorrectionParameters.RGBParameters             rgbParameters,
 		  final int        threadsMax,  // maximal number of threads to launch
 		  final boolean    updateStatus,
-//		  final boolean    batch_mode,
 		  final int        debugLevel)
 	  {
 		  final boolean                       batch_mode = clt_parameters.batch_run; //disable any debug images
@@ -7774,6 +7808,7 @@ public class QuadCLT {
 
 
 	  public ImagePlus getBackgroundImage(
+			  boolean    no_image_save,
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
 			  EyesisCorrectionParameters.RGBParameters             rgbParameters,
@@ -7905,8 +7940,6 @@ public class QuadCLT {
 		  if (num_bgnd < clt_parameters.min_bgnd_tiles){
 			  return null; // no background to generate
 		  }
-
-
 		  ImageDtt image_dtt = new ImageDtt();
 		  double [][] texture_overlap = image_dtt.combineRGBATiles(
 				  texture_tiles_bgnd, // texture_tiles,               // array [tp.tilesY][tp.tilesX][4][4*transform_size] or [tp.tilesY][tp.tilesX]{null}
@@ -7969,12 +8002,14 @@ public class QuadCLT {
 					  clt_parameters.show_textures,
 					  jpegQuality); // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
 		  }
-		  eyesisCorrections.saveAndShow(
-				  imp_texture_bgnd_ext,
-				  path,
-				  correctionsParameters.png  && !clt_parameters.black_back,
-				  clt_parameters.show_textures,
-				  jpegQuality); // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+		  if (!no_image_save) {
+			  eyesisCorrections.saveAndShow(
+					  imp_texture_bgnd_ext,
+					  path,
+					  correctionsParameters.png  && !clt_parameters.black_back,
+					  clt_parameters.show_textures,
+					  jpegQuality); // jpegQuality){//  <0 - keep current, 0 - force Tiff, >0 use for JPEG
+		  }
 		  return imp_texture_bgnd_ext;
 	  }
 
@@ -8255,8 +8290,9 @@ public class QuadCLT {
 				  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 				  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
 				  clt_parameters.keep_weights,   // Add port weights to RGBA stack (debug feature)
-				  geometryCorrection,           // final GeometryCorrection  geometryCorrection,
-				  clt_kernels,                  // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+				  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+				  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 				  clt_parameters.kernel_step,
 				  clt_parameters.transform_size,
 				  clt_parameters.clt_window,
@@ -8469,8 +8505,9 @@ public class QuadCLT {
 				  clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 				  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
 				  clt_parameters.keep_weights,   // Add port weights to RGBA stack (debug feature)
-				  geometryCorrection,           // final GeometryCorrection  geometryCorrection,
-				  clt_kernels,                  // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+				  geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+				  null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
+				  clt_kernels,                   // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 				  clt_parameters.kernel_step,
 				  clt_parameters.transform_size,
 				  clt_parameters.clt_window,
@@ -8505,6 +8542,7 @@ public class QuadCLT {
 			  final boolean       save_textures,
 			  final boolean       save_corr,
 			  final double [][]   mismatch,    // null or double [12][]
+			  final GeometryCorrection geometryCorrection_main, // If not null - covert to main camera coordinates
 			  final int           threadsMax,  // maximal number of threads to launch
 			  final boolean       updateStatus,
 			  final int           debugLevel)
@@ -8599,6 +8637,7 @@ public class QuadCLT {
 				  clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
 				  clt_parameters.keep_weights,   // Add port weights to RGBA stack (debug feature)
 				  geometryCorrection,           // final GeometryCorrection  geometryCorrection,
+				  geometryCorrection_main, // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 				  clt_kernels,                  // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 				  clt_parameters.kernel_step,
 				  clt_parameters.transform_size,

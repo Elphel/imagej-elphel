@@ -610,8 +610,8 @@ public class GeometryCorrection {
 					diff_x, // used only with target_disparity == 0
 					diff_y,
 					target_disparity);
-			if (debugLevel>-1) {
-				System.out.println("getRigCorrection(): Current RMS = "+rms);
+			if (debugLevel>-4) {
+				System.out.println("getRigCorrection(): Current RMS = "+rms+ "(debugLevel= "+debugLevel+")");
 			};
 			double [][] jt = getJacobianTransposed( // npe
 					qc_main.geometryCorrection, // GeometryCorrection gc_main,
@@ -707,7 +707,7 @@ public class GeometryCorrection {
 					rXY_aux[i][0] = xc_pix +     Math.cos(aux_roll)*rXY[i][0] + ssr*Math.sin(aux_roll)*rXY[i][1];
 					rXY_aux[i][1] = yc_pix - ssr*Math.sin(aux_roll)*rXY[i][0] +     Math.cos(aux_roll)*rXY[i][1];
 				}
-				if (debugLevel > -2) {
+				if (debugLevel > 0) {
 					System.out.println("Auxiliary camera offsets per 1 nominal disparity pixel");
 					for (int i = 0; i <rXY_aux.length;i++) {
 						System.out.println(String.format("Camera %1d x = %8f y = %8f",i,rXY_aux[i][0],rXY_aux[i][1]));

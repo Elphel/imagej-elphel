@@ -113,6 +113,11 @@ public class MacroCorrelation {
 		final double [][][] input_data = new double [ImageDtt.QUAD][num_chn][mTiles*tileSize*tileSize];
 		//			double [][] tiles_tone = src_scan.getTileRBGA( No, we need individual subcameras
 		//					4); // int num_layers);
+		// TODO: add other channels (average tone)
+		// Maybe filter bright matching from infinity
+
+
+
 		for (int sub_cam =0; sub_cam < input_data.length; sub_cam++){
 			for (int pty = 0; pty < pTilesY; pty++){
 				for (int ptx = 0; ptx < pTilesX; ptx++){
@@ -258,7 +263,8 @@ public class MacroCorrelation {
 				clt_parameters.min_agree,      // 3.0;   // minimal number of channels to agree on a point (real number to work with fuzzy averages)
 				clt_parameters.dust_remove,    // Do not reduce average weight when only one image differes much from the average
 				clt_parameters.keep_weights,   // Add port weights to RGBA stack (debug feature)
-				geometryCorrection,           // final GeometryCorrection  geometryCorrection,
+				geometryCorrection,            // final GeometryCorrection  geometryCorrection,
+				null,                          // final GeometryCorrection  geometryCorrection_main, // if not null correct this camera (aux) to the coordinates of the main
 				null,     // clt_kernels,                  // final double [][][][][][] clt_kernels, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 				clt_parameters.kernel_step,
 				clt_parameters.transform_size,
