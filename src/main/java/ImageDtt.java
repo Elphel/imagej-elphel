@@ -1194,7 +1194,6 @@ public class ImageDtt {
 	
 	public void clt_dtt2( // transform dcct2, dsct2, dcst2, dsst2
 			final double [][][][] data,
-			final boolean         transpose, // when doing inverse transform, the data comes in transposed form, so CS <->SC
 			final int             threadsMax,     // maximal number of threads to launch                         
 			final int             globalDebugLevel)
 	{
@@ -1214,8 +1213,7 @@ public class ImageDtt {
 						tileY = nTile/tilesX;
 						tileX = nTile - tileY * tilesX;
 						for (int quadrant = 0; quadrant < 4; quadrant++){
-							int mode = transpose ? (((quadrant << 1) & 2) | ((quadrant >> 1) & 1)) : quadrant;
-							data[tileY][tileX][quadrant] = dtt.dttt_iie(data[tileY][tileX][quadrant], mode, dct_size);
+							data[tileY][tileX][quadrant] = dtt.dttt_iie(data[tileY][tileX][quadrant], quadrant, dct_size);
 						}
 					}
 				}
@@ -1223,7 +1221,7 @@ public class ImageDtt {
 		}		      
 		startAndJoin(threads);
 	}
-	
+		
 	public double [][][] clt_corr_quad( // combine 4 correlation quadrants after DTT2
 			final double [][][][] data,
 			final int             threadsMax,     // maximal number of threads to launch                         
