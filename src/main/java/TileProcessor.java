@@ -51,7 +51,13 @@ public class TileProcessor {
 			"diff2max",      // 17
 			"diff2maxAvg",   // 18
 			"normStrength",  // 19
-			"overexp"};      // 20
+			"overexp",       // 20
+			"r0","r1","r2","r3",
+			"b0","b1","b2","b3",
+			"g0","g1","g2","g3",
+			"y0","y1","y2","y3",
+			"d0","d1","d2","d3"
+	};
 
 	public ArrayList <CLTPass3d> clt_3d_passes = null;
 	public double [][] rig_disparity_strength =  null; // Disparity and strength created by a two-camera rig, with disparity scale and distortions of the main camera
@@ -2241,10 +2247,22 @@ public class TileProcessor {
 
 
 	public double [][] getShowScan(
-
 			CLTPass3d   scan)
 	{
 		int NUM_SLICES=getScanTitles().length;
+		int this_IMG_TONE_RGB = 21;
+  		double     corr_red =          0.5;  // Red to green correlation weight
+  		double     corr_blue =         0.2;  // Blue to green correlation weight
+  		double     scale_diff =        5.0; // scale 0.5*(r+b)-G to match Y
+  		double [] col_weights = new double[3];
+		col_weights[2] = 1.0/(1.0 + corr_red + corr_blue);    // green color
+		col_weights[0] = corr_red *  col_weights[2];
+		col_weights[1] = corr_blue * col_weights[2];
+		int this_IMG_TONE_RGB_R = this_IMG_TONE_RGB + 0;
+		int this_IMG_TONE_RGB_B = this_IMG_TONE_RGB + 4;
+		int this_IMG_TONE_RGB_G = this_IMG_TONE_RGB + 8;
+		int this_IMG_TONE_RGB_Y =  this_IMG_TONE_RGB+12;
+		int this_IMG_TONE_RGB_DIFF = this_IMG_TONE_RGB+16;
 
 		int tlen = tilesX*tilesY;
 		double [][] dbg_img = new double[NUM_SLICES][];
@@ -2272,6 +2290,9 @@ public class TileProcessor {
 			dbg_img[ 8] = scan.disparity_map[ImageDtt.DISPARITY_INDEX_HOR_STRENGTH];
 			dbg_img[ 9] = scan.disparity_map[ImageDtt.DISPARITY_INDEX_VERT_STRENGTH];
 			dbg_img[20] = scan.disparity_map[ImageDtt.OVEREXPOSED];
+			for (int i = 0; i < 12; i++) {
+				dbg_img[this_IMG_TONE_RGB+i] = scan.disparity_map[ImageDtt.IMG_TONE_RGB + i];
+			}
 		}
 		dbg_img[1] = scan.calc_disparity_combo;
 		dbg_img[6] = scan.strength;
@@ -2293,12 +2314,25 @@ public class TileProcessor {
 					}
 				}
 			}
+			if (dbg_img[this_IMG_TONE_RGB] != null) {
+				for (int np = 0; np < 4; np++) {
+					dbg_img[this_IMG_TONE_RGB_Y+np] = new double [tlen];
+					dbg_img[this_IMG_TONE_RGB_DIFF+np] = new double [tlen];
+					for (int i = 0; i < tlen; i++){
+						dbg_img[this_IMG_TONE_RGB_Y+np][i] =
+								col_weights[0]*dbg_img[this_IMG_TONE_RGB_R + np][i] +
+								col_weights[1]*dbg_img[this_IMG_TONE_RGB_B + np][i] +
+								col_weights[2]*dbg_img[this_IMG_TONE_RGB_G + np][i];
+						dbg_img[this_IMG_TONE_RGB_DIFF+np][i] =
+								scale_diff* 0.5 * dbg_img[this_IMG_TONE_RGB_R + np][i] +
+								scale_diff* 0.5 * dbg_img[this_IMG_TONE_RGB_B + np][i] -
+								scale_diff* 1.0 * dbg_img[this_IMG_TONE_RGB_G + np][i];
+					}
+				}
+			}
 		}
 		return dbg_img;
 	}
-
-
-
 
 	public boolean [] getBackgroundMask( // which tiles do belong to the background
 			double     bgnd_range,       // disparity range to be considered background

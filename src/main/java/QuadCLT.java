@@ -5883,15 +5883,26 @@ public class QuadCLT {
     				  "after_bg-"+tp.clt_3d_passes.size());
     	  }
 
-    	  // Test macro correlation and exit.
+//    	  final double     weight_var = 1.0; // 1.0;   // weight of variance data (old, detects thin wires?)
+ //   	  final double     weight_Y =   1.0;     // weight of average intensity
+ //   	  final double     weight_RBmG = 5.0;  // weight of average color difference (0.5*(R+B)-G), shoukld be ~5*weight_Y
+
+    	  // TODO: Make double pass - with only 	weight_var (thin wires) and weight_Y, weight_RBmG - larger objects
+    	  // just use two instances of MacroCorrelation, run one after another (move code to MacroCorrelation class)
+    	  // and then join
 
     	  MacroCorrelation mc = new MacroCorrelation(
     			  tp,
-    			  clt_parameters.mc_disp8_trust);
+    			  clt_parameters.mc_disp8_trust,
+    			  clt_parameters.mc_weight_var,   // final double     weight_var,   // weight of variance data (old, detects thin wires?)
+    			  clt_parameters.mc_weight_Y,     // final double     weight_Y,     // weight of average intensity
+    			  clt_parameters.mc_weight_RBmG   // final double     weight_RBmG,  // weight of average color difference (0.5*(R+B)-G), shoukld be ~5*weight_Y
+    			  );
+
 
     	  double [][][] input_data = mc.CLTMacroSetData( // perform single pass according to prepared tiles operations and disparity
-    			  bgnd_data,           // final CLTPass3d      src_scan, // results of the normal correlations (now expecting infinity)
-    			  null);               // final double [][][]  other_channels, // other channels to correlate, such as average RGB (first index - subcamera, 2-nd - channel, 3-rd - pixel)
+    			  bgnd_data);           // final CLTPass3d      src_scan, // results of the normal correlations (now expecting infinity)
+    	  //    			  null);               // final double [][][]  other_channels, // other channels to correlate, such as average RGB (first index - subcamera, 2-nd - channel, 3-rd - pixel)
 
 
     	  TileProcessor mtp =  mc.CLTMacroScan( // perform single pass according to prepared tiles operations and disparity

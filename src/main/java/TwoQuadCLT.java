@@ -1545,7 +1545,7 @@ if (debugLevel > -100) return true; // temporarily !
 				rig_disparity_strength[0],          // double []  disparity,
 				rig_disparity_strength[1],          // double []  strength)
 				cond_sel);                          // 	boolean [] selected)
-		// CLT ASSIGN needs best texture for each tile. Initially will just copy from teh previous master
+		// CLT ASSIGN needs best texture for each tile. Initially will just copy from the previous master
 		// composite scan, later - fill disparity gaps and re-measure
 
 

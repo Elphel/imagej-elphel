@@ -68,30 +68,16 @@ public class ImageDtt {
 	  static int  DISPARITY_VARIATIONS_INDEX =    11; // index of strength data in disparity map ==6
 	  static int  IMG_DIFF0_INDEX =               12; // index of noise- normalized image difference for port 0 in disparity map
 	  static int  OVEREXPOSED =                   16; // index of overexposed fraction of all pixels
+	  static int  IMG_TONE_RGB =                  17; // 12 entries of r0,r1,r2,r3,g0,g1,g2,g3,b0,b1,b2,b3
 // remove when not needed
-	  static int  DBG0_INDEX =                    17; // index of dbg0 data (copy of CM)
-	  static int  DBG1_INDEX =                    18; // index of dbg1 data (poly 1)
-	  static int  DBG2_INDEX =                    19; // index of dbg2 data (poly 2)
-	  static int  DBG3_INDEX =                    20; // index of dbg3 data (poly 3)
-	  static int  DBG4_INDEX =                    21; // index of dbg3 data (poly 3)
-	  static int  DBG5_INDEX =                    22; // index of dbg3 data (poly 3)
-	  static int  DBG6_INDEX =                    23; // index of dbg3 data (poly 3)
-	  static int  DBG7_INDEX =                    24; // index of dbg3 data (poly 3)
-	  static int  DBG8_INDEX =                    25; // index of dbg3 data (poly 3)
-	  static int  DBG9_INDEX =                    26; // index of dbg3 data (poly 3)
-	  static int  DBG10_INDEX =                   27; // index of dbg3 data (poly 3)
-	  static int  DBG11_INDEX =                   28; // index of dbg3 data (poly 3)
-	  static int  DBG12_INDEX =                   29; // index of dbg3 data (poly 3)
-	  static int  DBG13_INDEX =                   30; // index of dbg3 data (poly 3)
-	  static int  DBG14_INDEX =                   31; // index of dbg3 data (poly 3)
-	  static int  DBG15_INDEX =                   32; // index of dbg3 data (poly 3)
-	  static int  DBG16_INDEX =                   33; // index of dbg3 data (poly 3)
-	  static int  DBG17_INDEX =                   34; // index of dbg3 data (poly 3)
-	  static int  DBG18_INDEX =                   35; // index of dbg3 data (poly 3)
 	  static String [] DISPARITY_TITLES = {
 			  "int_disp","int_y_disp","cm_disp","cm_y_disp","hor_disp","hor_strength","vert_disp","vert_strength",
 			  "poly_disp", "poly_y_disp", "strength_disp", "vary_disp","diff0","diff1","diff2","diff3","overexp",
-			  "dbg0","dbg1","dbg2","dbg3","dbg4","dbg5","dbg6","dbg7","dbg8","dbg9","dbg10","dbg11","dbg12","dbg13","dbg14","dbg15","dbg16","dbg17","dbg18"};
+			  "r0","r1","r2","r3",
+			  "g0","g1","g2","g3",
+			  "b0","b1","b2","b3",
+			  };
+//			  "dbg0","dbg1","dbg2","dbg3","dbg4","dbg5","dbg6","dbg7","dbg8","dbg9","dbg10","dbg11","dbg12","dbg13","dbg14","dbg15","dbg16","dbg17","dbg18"};
 
 	  static int  BI_DISP_FULL_INDEX =            0;  // 0 - disparity for all directions of the main camera
 	  static int  BI_DISP_HOR_INDEX =             1;  // 1 - disparity for 2 horizontal pairs of the main camera
@@ -1564,6 +1550,7 @@ public class ImageDtt {
 //		final boolean debug_ports_coordinates = (debug_tileX == -1234);
 //		final double poly_corr = imgdtt_params.poly_corr_scale; // maybe add per-tile task bits to select none/near/far
 		final boolean macro_mode = macro_scale != 1;      // correlate tile data instead of the pixel data
+
 		final int quad = 4;   // number of subcameras
 		final int numcol = 3; // number of colors
 		final int nChn = image_data[0].length;
@@ -1575,9 +1562,17 @@ public class ImageDtt {
 		final Thread[] threads = newThreadArray(threadsMax);
 		final AtomicInteger ai = new AtomicInteger(0);
 		final double [] col_weights= new double [numcol]; // colors are RBG
-		col_weights[2] = 1.0/(1.0 + corr_red + corr_blue);    // green color
-		col_weights[0] = corr_red *  col_weights[2];
-		col_weights[1] = corr_blue * col_weights[2];
+		if (macro_mode) { // all the same as they now mean different
+			//compensating Bayer correction
+			col_weights[0] = 0.25; //  1.0/3;
+			col_weights[1] = 0.25; //  1.0/3;
+			col_weights[2] = 0.5; // 1.0/3;
+		} else {
+			col_weights[2] = 1.0/(1.0 + corr_red + corr_blue);    // green color
+			col_weights[0] = corr_red *  col_weights[2];
+			col_weights[1] = corr_blue * col_weights[2];
+		}
+
 		final int corr_size = transform_size * 2 -1;
 		final int [][] transpose_indices = new int [corr_size*(corr_size-1)/2][2];
 		int indx = 0;
@@ -1702,8 +1697,16 @@ public class ImageDtt {
 		// add optional initialization of debug layers here
 		if (disparity_map != null){
 			for (int i = 0; i<disparity_map.length;i++){
-				if ((i != OVEREXPOSED) || (saturation_imp!= null)){
+				if (i < OVEREXPOSED) {
 					disparity_map[i] = new double [tilesY*tilesX];
+				} else if (i == OVEREXPOSED) {
+					if (saturation_imp!= null) {
+					disparity_map[i] = new double [tilesY*tilesX];
+					}
+				} else if (i >= IMG_TONE_RGB) {
+					if (texture_tiles != null) { // for now - enable 12 tone layers only together with texture tiles
+						disparity_map[i] = new double [tilesY*tilesX];
+					}
 				}
 			}
 		}
@@ -1751,6 +1754,7 @@ public class ImageDtt {
 					double [][]     tcorr_combo =    null; // [15*15] pixel space
 					double [][][]   tcorr_partial =  null; // [quad][numcol+1][15*15]
 					double [][][][] tcorr_tpartial = null; // [quad][numcol+1][4][8*8]
+					double [] ports_rgb = null;
 //					PolynomialApproximation pa =     null;
 //					if (corr_max_weights_poly !=null)   pa = new PolynomialApproximation(0); // debug level
 					Correlation2d corr2d = new Correlation2d(
@@ -2199,7 +2203,6 @@ public class ImageDtt {
 										// corr_wndy,                        // double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
 										// corr_wndx,                        // double [] window_x,  // half of a window function in x (disparity) direction
 										(tile_lma_debug_level > 0)); // boolean   debug);
-								if (dmExists(disparity_map, DBG14_INDEX)) disparity_map[DBG14_INDEX][tIndex] = strength;
 							}
 
 							// for compatibility with old code executed unconditionally. TODO: Move to if (corr_stat != null) ... condition below
@@ -2236,9 +2239,6 @@ public class ImageDtt {
 								if (tile_lma_debug_level > 0) {
 									System.out.println("Will run getMaxXSOrtho( ) for tileX="+tileX+", tileY="+tileY);
 								}
-								if (disparity_map[DBG0_INDEX] != null) {
-									disparity_map[DBG0_INDEX][tIndex] =     disparity; // just a backup if [DISPARITY_INDEX_CM] will be replaced
-								}
 //								disparity_map[DISPARITY_INDEX_CM + 1][tIndex] = // y not available here
 								// calculate/fill out hor and vert
 								// convert to multi-baseline combining results from several integer scales
@@ -2268,8 +2268,6 @@ public class ImageDtt {
 							    						lma_disparity_strength[0],lma_disparity_strength[1]));
 							    		}
 										disparity_map[DISPARITY_INDEX_POLY]         [tIndex] = lma_disparity_strength[0];
-										if (dmExists(disparity_map, DBG1_INDEX)) disparity_map[DBG1_INDEX][tIndex] = lma_disparity_strength[0];
-										if (dmExists(disparity_map, DBG15_INDEX)) disparity_map[DBG15_INDEX][tIndex] = lma_disparity_strength[1];
 
 										// if enabled overwrite - replace  DISPARITY_INDEX_CM and DISPARITY_STRENGTH_INDEX
 										if (imgdtt_params.mix_corr_poly) {
@@ -2306,14 +2304,6 @@ public class ImageDtt {
 								    					dir_corr_strength[0][0],dir_corr_strength[0][1],dir_corr_strength[1][0],dir_corr_strength[1][1],
 								    					dir_corr_strength[2][0],dir_corr_strength[2][1],dir_corr_strength[3][0],dir_corr_strength[3][1]));
 								    		}
-											if (dmExists(disparity_map, DBG4_INDEX) && (dir_corr_strength[0] != null)) disparity_map[DBG4_INDEX][tIndex] = dir_corr_strength[0][0];
-											if (dmExists(disparity_map, DBG5_INDEX) && (dir_corr_strength[1] != null)) disparity_map[DBG5_INDEX][tIndex] = dir_corr_strength[1][0];
-											if (dmExists(disparity_map, DBG6_INDEX) && (dir_corr_strength[2] != null)) disparity_map[DBG6_INDEX][tIndex] = dir_corr_strength[2][0];
-											if (dmExists(disparity_map, DBG7_INDEX) && (dir_corr_strength[3] != null)) disparity_map[DBG7_INDEX][tIndex] = dir_corr_strength[3][0];
-											if (dmExists(disparity_map, DBG8_INDEX) && (dir_corr_strength[0] != null)) disparity_map[DBG8_INDEX][tIndex] = dir_corr_strength[0][1];
-											if (dmExists(disparity_map, DBG9_INDEX) && (dir_corr_strength[1] != null)) disparity_map[DBG9_INDEX][tIndex] = dir_corr_strength[1][1];
-											if (dmExists(disparity_map, DBG10_INDEX) && (dir_corr_strength[2] != null)) disparity_map[DBG10_INDEX][tIndex] = dir_corr_strength[2][1];
-											if (dmExists(disparity_map, DBG11_INDEX) && (dir_corr_strength[3] != null)) disparity_map[DBG11_INDEX][tIndex] = dir_corr_strength[3][1];
 
 								    		mod_disparity_diff =     corr2d.foregroundCorrect(
 								    				imgdtt_params.fo_far,            // boolean   bg,
@@ -2328,17 +2318,12 @@ public class ImageDtt {
 								    	    		imgdtt_params.fo_overcorrection, // double    fo_overcorrection,
 								    	    		imgdtt_params.fo_lim_overcorr,   // double    fo_lim_overcorr,
 								    	    		(tile_lma_debug_level > 0) );    // boolean debug);
-											if (dmExists(disparity_map, DBG2_INDEX)) disparity_map[DBG2_INDEX][tIndex] = mod_disparity_diff[0];
-											if (dmExists(disparity_map, DBG12_INDEX)) disparity_map[DBG12_INDEX][tIndex] = mod_disparity_diff[1];
 
 // Do not use modified far object distance when mismatch is measured
 											if ((mod_disparity_diff[0] != disparity) && (clt_mismatch == null)){ // if it changed
 												if (imgdtt_params.fo_correct && (strength > imgdtt_params.fo_min_strength)) { // always
 													disparity = mod_disparity_diff[0];
 													disparity_map[DISPARITY_INDEX_CM]       [tIndex] = disparity;
-													if (dmExists(disparity_map, DBG3_INDEX)) {
-														disparity_map[DBG3_INDEX][tIndex] = mod_disparity_diff[0];
-													}
 												}
 											}
 
@@ -2713,6 +2698,7 @@ public class ImageDtt {
 									}
 								}
 							}
+							// iclt here: [quad][color][256]
 							if ((globalDebugLevel > 0) && debugTile) {
 								showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 								String [] titles = {"red0","blue0","green0","red1","blue1","green1","red2","blue2","green2","red3","blue3","green3"};
@@ -2757,8 +2743,13 @@ public class ImageDtt {
 							if ((disparity_map != null) && (disparity_map.length >= (IMG_DIFF0_INDEX + quad))){
 								max_diff = new double[quad];
 							}
+							int ports_rgb_len = quad*numcol;  // 12
+							if ((disparity_map != null) && (disparity_map.length >= (IMG_TONE_RGB + ports_rgb_len))) {
+								ports_rgb = new double[ports_rgb_len];
+							}
 							texture_tiles[tileY][tileX] =  tile_combine_rgba(
 									tiles_debayered, // iclt_tile,      // [port][numcol][256]
+									ports_rgb, // double []     ports_rgb,      // average values of R,G,B for each camera (R0,R1,...,B2,B3)
 									max_diff,        // maximal (weighted) deviation of each channel from the average
 									lt_window2,      // [256]
 									port_offsets,    // [port]{x_off, y_off}
@@ -2791,6 +2782,11 @@ public class ImageDtt {
 									disparity_map[IMG_DIFF0_INDEX + i][tIndex] = max_diff[i];
 								}
 							}
+							if (ports_rgb != null) {
+								for (int i = 0; i < ports_rgb.length; i++){
+									disparity_map[IMG_TONE_RGB + i][tIndex] = ports_rgb[i];
+								}
+							}
 						}
 					}
 				}
@@ -2810,10 +2806,11 @@ public class ImageDtt {
 	}
 
 	public double [][] tile_combine_rgba(
-			double [][][] iclt_tile,    // [port][numcol][256]
-			double []     max_diff,       // maximal (weighted) deviation of each channel from the average
-			double []     lt_window,    // [256]
-			double [][]   port_offsets, // [port]{x_off, y_off} - just to scale pixel value differences
+			double [][][] iclt_tile,     // [port][numcol][256]
+			double []     ports_rgb,     // average values of R,G,B for each camera (R0,R1,...,B2,B3)
+			double []     max_diff,      // maximal (weighted) deviation of each channel from the average
+			double []     lt_window,     // [256]
+			double [][]   port_offsets,  // [port]{x_off, y_off} - just to scale pixel value differences
 			int           port_mask,      // which port to use, 0xf - all 4 (will modify as local variable)
 			double        diff_sigma,     // pixel value/pixel change
 			double        diff_threshold, // pixel value/pixel change
@@ -2921,49 +2918,6 @@ public class ImageDtt {
 					}
 				}
 
-/*
-
-				// remove outlayers (if any) here completely? diff_threshold
-				// threshold2
-				while ((d2[0] > threshold2) || (d2[1] > threshold2) || (d2[2] > threshold2) || (d2[3] > threshold2)){ // assuming ports==4!
-					// find worst channel
-					int iworst = 0;
-					for (int ip = 1; ip < ports; ip++) if (d2[ip] > d2[iworst]) iworst = ip;
-					port_mask &= ~ (1 << iworst); // remove worst port
-					port_weights[iworst][i] = 0.0;
-					// recalculate new average after worst is removed
-					k = 0.0;
-					for (int ip = 0; ip < ports; ip++) k+=port_weights[ip][i];
-					k = 1.0/k;
-					for (int chn = 0; chn < numcol; chn++){
-						color_avg[chn][i] = 0;
-						for (int ip = 0; ip < ports; ip++) {
-							color_avg[chn][i] += k* port_weights[ip][i] * iclt_tile[ip][chn][i];
-						}
-					}
-					// recalculate all weights using difference from this average of the best pair
-					d2 = new double [ports]; //weighted squared differences
-					for (int ip = 0; ip < ports; ip++) if ((port_mask & ( 1 << ip)) != 0){
-						d2[ip] = 0;
-						for (int chn = 0; chn < numcol; chn++){
-							double dc = iclt_tile[ip][chn][i] - color_avg[chn][i];
-							dc /= lt_window[i]; // to compensate fading near the edges
-							d2[ip]+= chn_weights[chn]*dc*dc;
-						}
-						port_weights[ip][i] = Math.exp(-ksigma * d2[ip]);
-					}
-				}
-				// one last time re-average? (weights will change)
-				k = 0.0;
-				for (int ip = 0; ip < ports; ip++) k+=port_weights[ip][i];
-				k = 1.0/k;
-				for (int chn = 0; chn < numcol; chn++){
-					color_avg[chn][i] = 0;
-					for (int ip = 0; ip < ports; ip++) {
-						color_avg[chn][i] += k* port_weights[ip][i] * iclt_tile[ip][chn][i];
-					}
-				}
-*/
 			} // or (int i = 0; i < tile_len; i++){
 
 		} else if (usedPorts > 0){ // just copy from a single channel
@@ -3008,7 +2962,18 @@ public class ImageDtt {
 				max_diff[ip] = Math.sqrt(max_diff[ip]);
 			}
 		}
-
+		if (ports_rgb != null) {
+			for (int ip = 0; ip < ports; ip++){
+				for (int chn = 0; chn < numcol; chn++){
+					int indx = chn*ports+ip;
+					ports_rgb[indx]=0;
+					for (int i = 0; i < tile_len; i++){
+						ports_rgb[indx] += iclt_tile[ip][chn][i];
+					}
+					ports_rgb[indx] /= tile_len;
+				}
+			}
+		}
 		return rgba;
 	}
 
@@ -3052,7 +3017,7 @@ public class ImageDtt {
 			for (int i = 0; i < tile.length; i++) tile_db[i] = scale_shot* ((tile_db[i] > min_shot)? Math.sqrt(tile_db[i]) : (k*tile_db[i]));
 		}
 		if (window_back != null) {
-			for (int i = 0; i < tile.length; i++) tile_db[i] = tile_db[i] * window_back[i]; // optionally re-apply window (may bve a different one)
+			for (int i = 0; i < tile.length; i++) tile_db[i] = tile_db[i] * window_back[i]; // optionally re-apply window (may be a different one)
 		}
 		return tile_db;
 	}
@@ -6625,10 +6590,6 @@ public class ImageDtt {
 												clt_mismatch[3*pair + 2 ][tIndex] = Double.NaN;
 											}
 										}
-										if (disparity_map[DBG0_INDEX] != null) disparity_map[DBG0_INDEX][tIndex] = Double.NaN;
-										if (disparity_map[DBG1_INDEX] != null) disparity_map[DBG1_INDEX][tIndex] = Double.NaN;
-										if (disparity_map[DBG2_INDEX] != null) disparity_map[DBG2_INDEX][tIndex] = Double.NaN;
-										if (disparity_map[DBG3_INDEX] != null) disparity_map[DBG3_INDEX][tIndex] = Double.NaN;
 
 									} else {
 										double [] corr_max_XYi = {icorr_max[0],icorr_max[1]};
@@ -6742,227 +6703,8 @@ public class ImageDtt {
 										disparity_map[DISPARITY_INDEX_POLY+1][tIndex] = corr_max_XY[1];
 
 										// just debug (up to 4 layers)
-										if (disparity_map[DBG0_INDEX] != null) {
-											disparity_map[DBG0_INDEX][tIndex] = transform_size - 1 -corr_max_XYm[0];
-										}
-										if (disparity_map[DBG2_INDEX] != null) {
-												disparity_map[DBG2_INDEX][tIndex] = corr_max_XY[0];
-										}
-										if (disparity_map[DBG1_INDEX] != null) {
-											disparity_map[DBG1_INDEX][tIndex] = disparity_map[DBG0_INDEX][tIndex];
-											disparity_map[DBG3_INDEX][tIndex] = Double.NaN;
-											if ((corr_max_XY.length > 4) &&
-													!Double.isNaN(corr_max_XY[3]) && !Double.isNaN(corr_max_XY[4]) &&
-													(corr_max_XY[3] < imgdtt_params.max_poly_hwidth) &&
-													(corr_max_XY[4] < imgdtt_params.max_poly_hwidth) &&
-													(disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] > imgdtt_params.min_poly_strength)) { // debug threshold
-												disparity_map[DBG1_INDEX][tIndex] = corr_max_XY[0];
-												disparity_map[DBG3_INDEX][tIndex] = corr_max_XY[0]; // Double.NaN;
-											}
-										}
-/*
-										if (disparity_map[DBG6_INDEX] != null) {
-											if ((corr_max_XY.length > 4) &&
-													(disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] > imgdtt_params.min_poly_strength)) {
-												//											disparity_map[DBG4_INDEX][tIndex] = corr_max_XY[2]; // value
-												disparity_map[DBG5_INDEX][tIndex] = corr_max_XY[3]; // half-width x
-												disparity_map[DBG6_INDEX][tIndex] = corr_max_XY[4]; // half-width y
-												disparity_map[DBG4_INDEX][tIndex] = (corr_max_XY[3]-corr_max_XY[4]); // value
-											} else {
-												disparity_map[DBG5_INDEX][tIndex] = Double.NaN;
-												disparity_map[DBG6_INDEX][tIndex] = Double.NaN;
-												disparity_map[DBG4_INDEX][tIndex] = Double.NaN;
-											}
-										}
-*/
-										if (disparity_map[DBG12_INDEX] != null) {
-											if ((corr_max_XY.length > 4) && // only show for strong enough poly correlation
-													(disparity_map[DISPARITY_STRENGTH_INDEX][tIndex] > imgdtt_params.min_poly_strength)) {
-												disparity_map[DBG4_INDEX ][tIndex] = corr_max_XY[0];  // argmax
-												disparity_map[DBG7_INDEX ][tIndex] = corr_max_XY[2];  // max
-												disparity_map[DBG10_INDEX][tIndex] = corr_max_XY[3]; // half-width x
-
-												disparity_map[DBG5_INDEX ][tIndex] = corr_max_ortho[0][0]; // argmax
-												disparity_map[DBG8_INDEX ][tIndex] = corr_max_ortho[0][1]; // max
-												disparity_map[DBG11_INDEX][tIndex] = corr_max_ortho[0][2]; // half-width x
-
-												disparity_map[DBG6_INDEX ][tIndex] = corr_max_ortho[1][0]; // argmax
-												disparity_map[DBG9_INDEX ][tIndex] = corr_max_ortho[1][1]; // max
-												disparity_map[DBG12_INDEX][tIndex] = corr_max_ortho[1][2]; // half-width x
-											} else {
-												disparity_map[DBG4_INDEX ][tIndex] = Double.NaN;
-												disparity_map[DBG5_INDEX ][tIndex] = Double.NaN;
-												disparity_map[DBG6_INDEX ][tIndex] = Double.NaN;
-												disparity_map[DBG7_INDEX ][tIndex] = Double.NaN;
-												disparity_map[DBG8_INDEX ][tIndex] = Double.NaN;
-												disparity_map[DBG9_INDEX ][tIndex] = Double.NaN;
-												disparity_map[DBG10_INDEX][tIndex] = Double.NaN;
-												disparity_map[DBG11_INDEX][tIndex] = Double.NaN;
-												disparity_map[DBG12_INDEX][tIndex] = Double.NaN;
-											}
-										}
 										// use poly only if half-width y < limit (now it is ~2.0 for good corr)
 
-// test new correlations
-										if (disparity_map[DBG12_INDEX] != null) {
-//											Correlation2d corr2d = new Correlation2d(transform_size);
-											// recalculate correlations
-										    double [][]  corrs = corr2d.correlateCompositeFD(
-										    		clt_data,      // double [][][][][][] clt_data,
-										    		tileX,         // int                 tileX,
-										    		tileY,         // int                 tileY,
-										    		0x3f,          // int                 pairs_mask,
-										    		filter,        // double []           lpf,
-										    		col_weights,   // double []           col_weights,
-										    		corr_fat_zero);// double              fat_zero)
-
-										    double [][] strips = corr2d.scaleRotateInterpoateCorrelations(
-										    		corrs,                          // double [][] correlations,
-										    		0x3f,                           // int         pairs_mask,
-										    		imgdtt_params.corr_strip_hight, //);    // int         hwidth);
-										    		((globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY))?0x3f:0); // debugMax);
-
-										    double [] strip_ortho = corr2d.combineInterpolatedCorrelations(
-										    		strips,                         // double [][] strips,
-										    		0x0f,                           // int         pairs_mask,
-										    		imgdtt_params.corr_offset,      // double      offset);
-										    		imgdtt_params.twice_diagonal);  //    		boolean     twice_diagonal)
-
-										    double [] strip_diag = corr2d.combineInterpolatedCorrelations(
-										    		strips,                         // double [][] strips,
-										    		0x30,                           // int         pairs_mask,
-										    		imgdtt_params.corr_offset,      // double      offset);
-										    		imgdtt_params.twice_diagonal);  //    		boolean     twice_diagonal)
-
-										    double [] strip_all = corr2d.combineInterpolatedCorrelations(
-										    		strips,                         // double [][] strips,
-										    		0x3f,                           // int         pairs_mask,
-										    		imgdtt_params.corr_offset,      // double      offset);
-										    		imgdtt_params.twice_diagonal);  //    		boolean     twice_diagonal)
-
-										    double [] strip_combo = corr2d.combineInterpolatedCorrelations(
-										    		strips,                        // double [][] strips,
-										    		imgdtt_params.dbg_pair_mask,   // int         pairs_mask,
-										    		imgdtt_params.corr_offset,      // double      offset);
-										    		imgdtt_params.twice_diagonal);  //    		boolean     twice_diagonal)
-
-										    // reuse clt_corr_partial,// [tilesY][tilesX][quad]color][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
-										    if (clt_corr_partial != null) {
-										    	clt_corr_partial[tileY][tileX][0][0] = corrs[0];                        // 1
-										    	clt_corr_partial[tileY][tileX][0][1] = corrs[1];                        // 2
-										    	clt_corr_partial[tileY][tileX][0][2] = corrs[2];                        // 3
-										    	clt_corr_partial[tileY][tileX][0][3] = corrs[3];                        // 4
-										    	clt_corr_partial[tileY][tileX][1][0] = corrs[4];                        // 5
-										    	clt_corr_partial[tileY][tileX][1][1] = corrs[5];                        // 6
-										    	clt_corr_partial[tileY][tileX][1][2] = corr2d.debugStrip(strips[0]);    // 7
-										    	clt_corr_partial[tileY][tileX][1][3] = corr2d.debugStrip(strips[1]);    // 8
-										    	clt_corr_partial[tileY][tileX][2][0] = corr2d.debugStrip(strips[2]);    // 9
-										    	clt_corr_partial[tileY][tileX][2][1] = corr2d.debugStrip(strips[3]);    // 10
-										    	clt_corr_partial[tileY][tileX][2][2] = corr2d.debugStrip(strips[4]);    // 11
-										    	clt_corr_partial[tileY][tileX][2][3] = corr2d.debugStrip(strips[5]);    // 12
-										    	clt_corr_partial[tileY][tileX][3][0] = corr2d.debugStrip(strip_ortho);  // 13
-										    	clt_corr_partial[tileY][tileX][3][1] = corr2d.debugStrip(strip_diag);   // 14
-										    	clt_corr_partial[tileY][tileX][3][2] = corr2d.debugStrip(strip_all);    // 15
-										    	clt_corr_partial[tileY][tileX][3][3] = corr2d.debugStrip2(strip_combo);   // 16
-										    }
-										    if ((globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
-										    	System.out.println(String.format("tileX=%d, tileY=%d, dbg_pair_mask= 0x%x,corr_offset = %8.5f",
-										    			debug_tileX,debug_tileY,imgdtt_params.dbg_pair_mask, imgdtt_params.corr_offset ));
-										    }
-										    // find integer correlation center, relative to the center
-											int [] ixy =  corr2d.getMaxXYInt( // find integer pair or null if below threshold
-													strip_combo,              // double [] data,      // [data_size * data_size]
-													true,                     // boolean   axis_only,
-													imgdtt_params.min_corr,   //  double    minMax,    // minimal value to consider (at integer location, not interpolated)
-													((globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY))); // boolean   debug);
-											double [] corr_stat = null;
-											if (ixy != null) {
-												corr_stat = corr2d.getMaxXCm(   // get fractional center as a "center of mass" inside circle/square from the integer max
-														strip_combo,                      // double [] data,      // [data_size * data_size]
-														ixy[0],                           // int       ixcenter,  // integer center x
-														// corr_wndy,                        // double [] window_y,  // (half) window function in y-direction(perpendicular to disparity: for row0  ==1
-														// corr_wndx,                        // double [] window_x,  // half of a window function in x (disparity) direction
-														((globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY))); // boolean   debug);
-											} else {
-												corr_stat = new double[3];
-												for (int i = 0; i < corr_stat.length; i++) corr_stat[i] = Double.NaN;
-											}
-											if (disparity_map[DBG18_INDEX] != null) {
-												disparity_map[DBG13_INDEX][tIndex] = -corr_stat[0]; // disparity is negative X
-												disparity_map[DBG14_INDEX][tIndex] = corr_stat[2]; // half-width
-												disparity_map[DBG15_INDEX][tIndex] = corr_stat[1]/corr_stat[2]; // height?
-												disparity_map[DBG16_INDEX][tIndex] = corr_stat[1]; // weight
-												if (ixy != null) {
-													disparity_map[DBG17_INDEX][tIndex] = strip_combo[ixy[0]+transform_size-1];
-													disparity_map[DBG18_INDEX][tIndex] = -ixy[0];
-												}else {
-													disparity_map[DBG17_INDEX][tIndex] = Double.NaN;
-													disparity_map[DBG18_INDEX][tIndex] = Double.NaN;
-												}
-											}
-											// initially try LMA  for only the debug tile
-											// if (imgdtt_params.corr_var_cam) // new mode
-
-										    if ((corr_stat != null) && (globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
-										    	System.out.println(String.format("Testing correlation maximum LMA tileX=%d, tileY=%d, dbg_pair_mask= 0x%x,corr_offset = %8.5f",
-										    			debug_tileX,debug_tileY,imgdtt_params.dbg_pair_mask, imgdtt_params.corr_offset ));
-										    	// Create 2 groups: ortho & diag
-										    	Correlations2dLMA lma = corr2d.corrLMA(
-										    			imgdtt_params,                // ImageDttParameters  imgdtt_params,
-										    			corrs,                        // double [][]         corrs,
-										    			imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
-										        		false,                        // boolean             run_poly_instead, // true - run LMA, false - run 2d polynomial approximation
-										    			corr_stat[0],                 // double    xcenter,   // preliminary center x in pixels for largest baseline
-										    			imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
-										    			imgdtt_params.lma_debug_level,// int                 debug_level,
-										        		tileX,         // int                 tileX, // just for debug output
-										        		tileY );       // int                 tileY
-										    	double [] lma_disparity_strength = (lma != null) ? lma.getDisparityStrength():null;
-										    	if (lma != null) {
-										    		if (imgdtt_params.lma_debug_level > 0) {
-										    				System.out.println(String.format("LMA disparity = %7.4f, strength = %7.4f",
-										    						lma_disparity_strength[0],lma_disparity_strength[1]));
-										    		}
-										    		// try all dirs:
-										    		double [][] dir_corr_strength = corr2d.corr4dirsLMA(
-										    				imgdtt_params,                // ImageDttParameters  imgdtt_params,
-										    				corrs,                        // double [][]         corrs,
-										    				imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
-										    				-lma_disparity_strength[0],   // double    xcenter,   // preliminary center x in pixels for largest baseline
-										    				imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
-										    				imgdtt_params.lma_debug_level,// int                 debug_level,
-										    				tileX,         // int                 tileX, // just for debug output
-										    				tileY );       // int                 tileY
-										    		if ((imgdtt_params.lma_debug_level > 0) && (dir_corr_strength != null)) {
-										    			double [] nan2 = {Double.NaN, Double.NaN};
-										    			for (int ii = 0; ii < dir_corr_strength.length; ii++) {
-										    				if (dir_corr_strength[ii] == null) dir_corr_strength[ii] = nan2;
-										    			}
-										    			System.out.println(String.format("corr4dirsLMA -> ↔: %7.4f (%7.4f) ↕:%7.4f (%7.4f) ⤡:%7.4f (%7.4f) ⤢:%7.4f (%7.4f)",
-										    					dir_corr_strength[0][0],dir_corr_strength[0][1],dir_corr_strength[1][0],dir_corr_strength[1][1],
-										    					dir_corr_strength[2][0],dir_corr_strength[2][1],dir_corr_strength[3][0],dir_corr_strength[3][1]));
-										    		}
-
-										    		// try mismatch (later
-										    		double [] mismatch_result = corr2d.mismatchPairs( // returns x-xcenter, y, strength (sign same as disparity)
-										    				imgdtt_params,                // ImageDttParameters  imgdtt_params,
-										    				corrs,                        // double [][]         corrs,
-										    				0x3f, // all pairs imgdtt_params.dbg_pair_mask,  // int                 pair_mask, // which pairs to process
-										    				-lma_disparity_strength[0],   // double    xcenter,   // preliminary center x in pixels for largest baseline
-										    				imgdtt_params.ortho_vasw_pwr, // double    vasw_pwr,  // value as weight to this power,
-										    				imgdtt_params.lma_debug_level,// int                 debug_level,
-										    				tileX,         // int                 tileX, // just for debug output
-										    				tileY );       // int                 tileY
-										    		if (imgdtt_params.lma_debug_level > 0) {
-										    			System.out.println("Lazy eye mismatch:");
-										    			for (int np = 0; np < mismatch_result.length/3; np++) {
-										    				System.out.println(String.format("%2d: dx = %7.4f, dy = %7.4f, strength = %7.4f,",
-										    						np, mismatch_result[3 * np + 0], mismatch_result[3 * np + 1], mismatch_result[3 * np + 2]));
-										    			}
-										    		}
-										    	}
-										    }
-										}
 
 										if (imgdtt_params.mix_corr_poly) { // regardless of debug
 											// apply
@@ -7153,6 +6895,8 @@ public class ImageDtt {
 							}
 							texture_tiles[tileY][tileX] =  tile_combine_rgba(
 									tiles_debayered, // iclt_tile,      // [port][numcol][256]
+									null, // double []     ports_rgb,      // average values of R,G,B for each camera (R0,R1,...,B2,B3)
+
 									max_diff,        // maximal (weighted) deviation of each channel from the average
 									lt_window2,      // [256]
 									port_offsets,    // [port]{x_off, y_off}
@@ -7782,6 +7526,7 @@ public class ImageDtt {
 //		}
 		texture_tiles[tileY][tileX] =  tile_combine_rgba(
 				tiles_debayered,                // iclt_tile,      // [port][numcol][256]
+				null,                           // double []     ports_rgb,      // average values of R,G,B for each camera (R0,R1,...,B2,B3)
 				null,                           // max_diff,        // maximal (weighted) deviation of each channel from the average
 				lt_window2,                     // [256]
 				port_offsets,                   // [port]{x_off, y_off}

@@ -32,9 +32,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class MacroCorrelation {
 	TileProcessor tp; // pixel tile processor
 	TileProcessor mtp; // macro tile processor
+	double     weight_var = 1.0;   // weight of variance data (old, detects thin wires?)
+	double     weight_Y =   1.0;     // weight of average intensity
+	double     weight_RBmG = 5.0;  // weight of average color difference (0.5*(R+B)-G), shoukld be ~5*weight_Y
+
 	public MacroCorrelation(
 			TileProcessor tp,
-			double trusted_correlation){
+			double trusted_correlation,
+	    	double     weight_var, //  = 1.0;   // weight of variance data (old, detects thin wires?)
+	    	double     weight_Y, //  =   1.0;     // weight of average intensity
+	    	double     weight_RBmG //  = 5.0;  // weight of average color difference (0.5*(R+B)-G), shoukld be ~5*weight_Y
+			){
+    	this.weight_var = weight_var;   // weight of variance data (old, detects thin wires?)
+    	this.weight_Y = weight_Y;     // weight of average intensity
+    	this.weight_RBmG = weight_RBmG; //  = 5.0;  // weight of average color difference (0.5*(R+B)-G), shoukld be ~5*weight_Y
+
 		this.tp = tp;
 		  final int pTilesX = tp.getTilesX();
 		  final int pTilesY = tp.getTilesY();
@@ -61,40 +73,102 @@ public class MacroCorrelation {
 			final double                             macro_disparity_step,
 			final int                                debugLevel){
 
-		double [][][] input_data = CLTMacroSetData( // perform single pass according to prepared tiles operations and disparity
-				src_scan,           // final CLTPass3d      src_scan, // results of the normal correlations (now expecting infinity)
-				null);               // final double [][][]  other_channels, // other channels to correlate, such as average RGB (first index - subcamera, 2-nd - channel, 3-rd - pixel)
 
+		double [][][] input_data = CLTMacroSetData( // perform single pass according to prepared tiles operations and disparity
+				src_scan);           // final CLTPass3d      src_scan, // results of the normal correlations (now expecting infinity)
+		if (debugLevel > 0) {
+			final int pTilesX = tp.getTilesX();
+			final int pTilesY = tp.getTilesY();
+			final int tileSize = tp.getTileSize(); //
+			final int mTilesX = (pTilesX + tileSize - 1) / tileSize;   // clt_aberrations_quad_corr truncates
+			final int mTilesY = (pTilesY + tileSize - 1) / tileSize;
+
+			String [] titles = {
+					"chn0-0","chn0-1","chn0-2",
+					"chn1-0","chn1-1","chn1-2",
+					"chn2-0","chn2-1","chn2-2",
+					"chn3-0","chn3-1","chn3-2"};
+			double [][] dbg_img = new double [input_data.length*input_data[0].length][];
+			for (int i=0; i < 12;i++) {
+				dbg_img[i] =  input_data[i /3][i%3];
+			}
+			(new showDoubleFloatArrays()).showArrays(dbg_img,  mTilesX*tileSize, mTilesY*tileSize, true, "input_data",titles);
+		}
 		mtp.resetCLTPasses();
 		for (double mdisp = macro_disparity_low; mdisp < (macro_disparity_high - macro_disparity_step); mdisp +=macro_disparity_step){
-			final CLTPass3d macro_scan = new CLTPass3d(mtp);
+			if (input_data != null) {
+				final CLTPass3d macro_scan = new CLTPass3d(mtp);
 
-			CLTMacroSetMeasure( // perform single pass according to prepared tiles operations and disparity
-					macro_scan,         // final CLTPass3d                          macro_scan, // new, will be filled out
-					clt_parameters,     // EyesisCorrectionParameters.CLTParameters clt_parameters,
-					geometryCorrection, // GeometryCorrection   geometryCorrection,
-					mdisp,              // final double         macro_disparity,
-					false,              // final boolean                            show_corr_partial,
-					false,              // final boolean                            show_corr_combo,
-					debugLevel);        // final int                                debugLevel)
+				CLTMacroSetMeasure( // perform single pass according to prepared tiles operations and disparity
+						macro_scan,         // final CLTPass3d                          macro_scan, // new, will be filled out
+						clt_parameters,     // EyesisCorrectionParameters.CLTParameters clt_parameters,
+						geometryCorrection, // GeometryCorrection   geometryCorrection,
+						mdisp,              // final double         macro_disparity,
+						false,              // final boolean                            show_corr_partial,
+						false,              // final boolean                            show_corr_combo,
+						debugLevel);        // final int                                debugLevel)
 
-			CLTMacroMeasure( // perform single pass according to prepared tiles operations and disparity
-					macro_scan, // final CLTPass3d                          macro_scan, //
-					input_data, // final double [][][]                      input_data,
-					clt_parameters,     // EyesisCorrectionParameters.CLTParameters clt_parameters,
-					geometryCorrection, // GeometryCorrection   geometryCorrection,
-					""+mdisp,           // final String                             suffix,
-					false,              // final boolean                            show_corr_partial,
-					false,              // final boolean                            show_corr_combo,
-					debugLevel);        // final int                                debugLevel)
-
-			mtp.clt_3d_passes.add(macro_scan);
+				CLTMacroMeasure( // perform single pass according to prepared tiles operations and disparity
+						macro_scan, // final CLTPass3d                          macro_scan, //
+						input_data, // final double [][][]                      input_data,
+						clt_parameters,     // EyesisCorrectionParameters.CLTParameters clt_parameters,
+						geometryCorrection, // GeometryCorrection   geometryCorrection,
+						""+mdisp,           // final String                             suffix,
+						false,              // final boolean                            show_corr_partial,
+						false,              // final boolean                            show_corr_combo,
+						debugLevel);        // final int                                debugLevel)
+				mtp.clt_3d_passes.add(macro_scan);
+			}
 		}
 		return mtp;
 
 	}
 
-	public double [][][] CLTMacroSetData( // perform single pass according to prepared tiles operations and disparity
+	public double [][][] CLTMacroSetData(  // perform single pass according to prepared tiles operations and disparity
+			final CLTPass3d  src_scan      // results of the normal correlations (now expecting infinity)
+			)
+	{
+		//		  final int dbg_x = 295;
+		//		  final int dbg_y = 160;
+		final int pTilesX = tp.getTilesX();
+		final int pTilesY = tp.getTilesY();
+		final int tileSize = tp.getTileSize(); //
+		final int mTilesX = (pTilesX + tileSize - 1) / tileSize;   // clt_aberrations_quad_corr truncates
+		final int mTilesY = (pTilesY + tileSize - 1) / tileSize;
+		final int mTiles = mTilesX * mTilesY;
+		final int num_chn = 3;
+  		double     corr_red =          0.5;  // Red to green correlation weight
+  		double     corr_blue =         0.2;  // Blue to green correlation weight
+  		double [] col_weights = new double[3];
+		col_weights[2] = 1.0/(1.0 + corr_red + corr_blue);    // green color
+		col_weights[0] = corr_red *  col_weights[2];
+		col_weights[1] = corr_blue * col_weights[2];
+
+
+		final double [][][] input_data = new double [ImageDtt.QUAD][num_chn][mTiles*tileSize*tileSize];
+		final int INDX_R0 = ImageDtt.IMG_TONE_RGB;
+		final int INDX_B0 = ImageDtt.IMG_TONE_RGB +     ImageDtt.QUAD;
+		final int INDX_G0 = ImageDtt.IMG_TONE_RGB + 2 * ImageDtt.QUAD;
+
+		for (int sub_cam =0; sub_cam < input_data.length; sub_cam++){
+			for (int pty = 0; pty < pTilesY; pty++){
+				for (int ptx = 0; ptx < pTilesX; ptx++){
+					int pTile = ptx + pty * pTilesX;
+					int mTile = ptx + pty * (mTilesX * tileSize);
+					input_data[sub_cam][0][mTile]= weight_var * src_scan.disparity_map[ImageDtt.IMG_DIFF0_INDEX + sub_cam][pTile];
+					double r = src_scan.disparity_map[INDX_R0 + sub_cam][pTile];
+					double b = src_scan.disparity_map[INDX_B0 + sub_cam][pTile];
+					double g = src_scan.disparity_map[INDX_G0 + sub_cam][pTile];
+
+					input_data[sub_cam][1][mTile]= weight_Y * (r * col_weights[0] + b * col_weights[1] + g * col_weights[2]);
+					input_data[sub_cam][2][mTile]= weight_RBmG * (0.5*(r + b) - g);
+				}
+			}
+		}
+		return input_data;
+	}
+
+	public double [][][] CLTMacroSetData_old( // perform single pass according to prepared tiles operations and disparity
 			final CLTPass3d                          src_scan, // results of the normal correlations (now expecting infinity)
 			final double [][][]                      other_channels // other channels to correlate, such as average RGB (first index - subcamera, 2-nd - channel, 3-rd - pixel)
 			)
@@ -138,6 +212,7 @@ public class MacroCorrelation {
 		}
 		return input_data;
 	}
+
 
 
 

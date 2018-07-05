@@ -2850,11 +2850,20 @@ public class EyesisCorrectionParameters {
 		public double     mc_disp8_trust       =   2.0;   //Trust measured disparity within +/- this value
 		public double     mc_strength          =   0.2;   // Minimal composite correlation to process (0.2..0.3)
  		public double     mc_unique_tol        =   0.05;  // Do not re-measure macro correlation if target disparity differs from some previous by this
+
  		public double     mc_trust_fin         =   0.3;   // When consolidating macro results, exclude high residual disparity
  		public double     mc_trust_sigma       =   0.2;   // Gaussian sigma to reduce weight of large residual disparity
  		public double     mc_ortho_weight      =   0.5;   // Weight from ortho neighbor supertiles
  		public double     mc_diag_weight       =   0.25;  // Weight from diagonal neighbor supertiles
  		public double     mc_gap               =   0.4;   // Do not remove measurements farther from the kept ones
+
+
+ 		public double     mc_weight_var        =   1.0;   // weight of variance data (old, detects thin wires?)
+ 		public double     mc_weight_Y          =   1.0;   // weight of average intensity
+ 		public double     mc_weight_RBmG       =   5.0;   // weight of average color difference (0.5*(R+B)-G), shoukld be ~5*weight_Y
+
+
+
 
 //		  0x1e, // 0x1f, // final int         variants_mask,
 		public int        gr_min_new           =  20;    // Discard variant if it requests too few tiles
@@ -3546,6 +3555,10 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"mc_diag_weight",   this.mc_diag_weight +"");
 			properties.setProperty(prefix+"mc_gap",           this.mc_gap +"");
 
+			properties.setProperty(prefix+"mc_weight_var",    this.mc_weight_var +"");
+			properties.setProperty(prefix+"mc_weight_Y",      this.mc_weight_Y +"");
+			properties.setProperty(prefix+"mc_weight_RBmG",   this.mc_weight_RBmG +"");
+
 			properties.setProperty(prefix+"gr_min_new",       this.gr_min_new+"");
 			properties.setProperty(prefix+"gr_var_new_sngl",  this.gr_var_new_sngl+"");
 			properties.setProperty(prefix+"gr_var_new_fg",    this.gr_var_new_fg+"");
@@ -4211,6 +4224,10 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"mc_ortho_weight")!=null)   this.mc_ortho_weight=Double.parseDouble(properties.getProperty(prefix+"mc_ortho_weight"));
   			if (properties.getProperty(prefix+"mc_diag_weight")!=null)    this.mc_diag_weight=Double.parseDouble(properties.getProperty(prefix+"mc_diag_weight"));
   			if (properties.getProperty(prefix+"mc_gap")!=null)            this.mc_gap=Double.parseDouble(properties.getProperty(prefix+"mc_gap"));
+
+  			if (properties.getProperty(prefix+"mc_weight_var")!=null)     this.mc_weight_var=Double.parseDouble(properties.getProperty(prefix+"mc_weight_var"));
+  			if (properties.getProperty(prefix+"mc_weight_Y")!=null)       this.mc_weight_Y=Double.parseDouble(properties.getProperty(prefix+"mc_weight_Y"));
+  			if (properties.getProperty(prefix+"mc_weight_RBmG")!=null)    this.mc_weight_RBmG=Double.parseDouble(properties.getProperty(prefix+"mc_weight_RBmG"));
 
   			if (properties.getProperty(prefix+"gr_min_new")!=null)        this.gr_min_new=Integer.parseInt(properties.getProperty(prefix+"gr_min_new"));
   			if (properties.getProperty(prefix+"gr_var_new_sngl")!=null)   this.gr_var_new_sngl=Boolean.parseBoolean(properties.getProperty(prefix+"gr_var_new_sngl"));
@@ -4973,6 +4990,15 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Weight from diagonal neighbor supertiles",                                            this.mc_diag_weight,  6);
   			gd.addNumericField("Do not remove measurements farther from the kept ones",                               this.mc_gap,  6);
 
+
+  			gd.addNumericField("weight of variance data ",                                                            this.mc_weight_var,  4, 6,"",
+  					"This is what was used before - can detect tin wires, probably");
+  			gd.addNumericField("Weight of average intensity",                                                         this.mc_weight_Y,  4, 6,"",
+  					"Combination of R,G,B fro the tile");
+  			gd.addNumericField("Weight of average color difference",                                                  this.mc_weight_RBmG,  4, 6,"",
+  					"0.5*(R+B)-G");
+
+
   			gd.addTab         ("Grow2", "More disparity range growing parameters");
   			gd.addMessage     ("--- more growing parameters ---");
   			gd.addNumericField("Discard variant if it requests too few tiles",                                        this.gr_min_new,  0);
@@ -5671,11 +5697,15 @@ public class EyesisCorrectionParameters {
   			this.mc_strength=           gd.getNextNumber();
   			this.mc_unique_tol=         gd.getNextNumber();
 
-  			this.mc_unique_tol=         gd.getNextNumber();
-  			this.mc_unique_tol=         gd.getNextNumber();
-  			this.mc_unique_tol=         gd.getNextNumber();
-  			this.mc_unique_tol=         gd.getNextNumber();
-  			this.mc_unique_tol=         gd.getNextNumber();
+  			this.mc_trust_fin=          gd.getNextNumber();
+  			this.mc_trust_sigma=        gd.getNextNumber();
+  			this.mc_ortho_weight=       gd.getNextNumber();
+  			this.mc_diag_weight=        gd.getNextNumber();
+  			this.mc_gap=                gd.getNextNumber();
+
+  			this.mc_weight_var=         gd.getNextNumber();
+  			this.mc_weight_Y=           gd.getNextNumber();
+  			this.mc_weight_RBmG=        gd.getNextNumber();
 
   			this.gr_min_new=      (int) gd.getNextNumber();
   			this.gr_var_new_sngl=       gd.getNextBoolean();
