@@ -211,6 +211,15 @@ public class BiQuadParameters {
 	public double  ltfar_trusted_s =          0.4;    // Add even single tiles over infinity if strength (and disparity too) is sufficient
 	public double  ltfar_trusted_d =          0.2;    // Add even single tiles over infinity if disparity (and strength too) is sufficient
 
+	// Parameters to select near (too near to be processed as poles) objects over infinity background
+	public double  ltgrp_min_strength =       0.2;    // Minimal strength of the tile and neighbors
+	public int     ltgrp_min_neibs =          2;      // minimal number of neighbors with close disparity
+	public double  ltgrp_gr_min_disparity =   0.5;    // Minimal group disparity
+	public double  ltgrp_gr_disp_atolerance = 0.2;    // Group disparity absolute tolerance (to qualify for a similar neighbor)
+	public double  ltgrp_gr_disp_rtolerance = 0.1;    // Group disparity relative tolerance (adds to absolute)
+
+
+
 
 
 	// rig selection filtering
@@ -581,10 +590,22 @@ public class BiQuadParameters {
 
 		gd.addMessage("Filtering selection of non-infinity tiles");
 		gd.addNumericField("Add even single tiles over infinity if STRENGTH (and disparity too) is sufficient",    this.ltfar_trusted_s,  4,6,"",
-				"Add strong tiles over infinity areas that have both strenth and disparity above respective thersholds (re-add them after filtering)");
+				"Add strong tiles over infinity areas that have both strenth and disparity above respective thresholds (re-add them after filtering)");
 		gd.addNumericField("Add even single tiles over infinity if DISPARITY (and strength too) is sufficient",    this.ltfar_trusted_d,  4,6,"pix",
-				"Add strong tiles over infinity areas that have both strenth and disparity above respective thersholds (re-add them after filtering)");
+				"Add strong tiles over infinity areas that have both strenth and disparity above respective thresholds (re-add them after filtering)");
 
+		gd.addMessage("Parameters to select near (too near to be processed as poles) objects over infinity background");
+
+		gd.addNumericField("Minimal strength of the tile and neighbors",                                           this.ltgrp_min_strength,  4,6,"",
+				"Tile will be added to selection if the tile over infinity selection is strong enough and has several neighbors (of 8) with similar disparity and also strong");
+		gd.addNumericField("Minimal number of neighbors with close disparity",                                     this.ltgrp_min_neibs,  0,3,"tiles",
+				"For thin objects (poles, wires) there may be just 2 neighbors");
+		gd.addNumericField("Minimal group disparity",                                                              this.ltgrp_gr_min_disparity,  4,6,"pix",
+				"Only process tiles that are close enough (and their qualifying neighbors too)");
+		gd.addNumericField("Group disparity absolute tolerance (to qualify for a similar neighbor)",               this.ltgrp_gr_disp_atolerance,  4,6,"pix",
+				"Neighbors should have disparity different by not more than this");
+		gd.addNumericField("Group disparity relative tolerance",                                                   this.ltgrp_gr_disp_rtolerance,  4,6,"pix/pix",
+				"Increase disparity tolerance by this for each absolute disparity pixel");
 
 		gd.addTab("Rig selection","Rig tile selection filter");
 
@@ -814,6 +835,13 @@ public class BiQuadParameters {
 
 		this.ltfar_trusted_s=               gd.getNextNumber();
 		this.ltfar_trusted_d=               gd.getNextNumber();
+
+		this.ltgrp_min_strength=            gd.getNextNumber();
+		this.ltgrp_min_neibs=         (int) gd.getNextNumber();
+		this.ltgrp_gr_min_disparity=        gd.getNextNumber();
+		this.ltgrp_gr_disp_atolerance=      gd.getNextNumber();
+		this.ltgrp_gr_disp_rtolerance=      gd.getNextNumber();
+
 		this.rf_master_infinity=            gd.getNextBoolean();
 		this.rf_master_near=                gd.getNextBoolean();
 		this.rf_pre_expand=          (int)  gd.getNextNumber();
@@ -1013,6 +1041,13 @@ public class BiQuadParameters {
 
 		properties.setProperty(prefix+"ltfar_trusted_s",           this.ltfar_trusted_s+"");
 		properties.setProperty(prefix+"ltfar_trusted_d",           this.ltfar_trusted_d+"");
+
+		properties.setProperty(prefix+"ltgrp_min_strength",        this.ltgrp_min_strength+"");
+		properties.setProperty(prefix+"ltgrp_min_neibs",           this.ltgrp_min_neibs+"");
+		properties.setProperty(prefix+"ltgrp_gr_min_disparity",    this.ltgrp_gr_min_disparity+"");
+		properties.setProperty(prefix+"ltgrp_gr_disp_atolerance",  this.ltgrp_gr_disp_atolerance+"");
+		properties.setProperty(prefix+"ltgrp_gr_disp_rtolerance",  this.ltgrp_gr_disp_rtolerance+"");
+
 		properties.setProperty(prefix+"rf_master_infinity",        this.rf_master_infinity+"");
 		properties.setProperty(prefix+"rf_master_near",            this.rf_master_near+"");
 		properties.setProperty(prefix+"rf_pre_expand",             this.rf_pre_expand+"");
@@ -1210,6 +1245,12 @@ public class BiQuadParameters {
 
 		if (properties.getProperty(prefix+"ltfar_trusted_s")!=null)         this.ltfar_trusted_s=Double.parseDouble(properties.getProperty(prefix+"ltfar_trusted_s"));
 		if (properties.getProperty(prefix+"ltfar_trusted_d")!=null)         this.ltfar_trusted_d=Double.parseDouble(properties.getProperty(prefix+"ltfar_trusted_d"));
+		if (properties.getProperty(prefix+"ltgrp_min_strength")!=null)      this.ltgrp_min_strength=Double.parseDouble(properties.getProperty(prefix+"ltgrp_min_strength"));
+		if (properties.getProperty(prefix+"ltgrp_min_neibs")!=null)         this.ltgrp_min_neibs=Integer.parseInt(properties.getProperty(prefix+"ltgrp_min_neibs"));
+		if (properties.getProperty(prefix+"ltgrp_gr_min_disparity")!=null)  this.ltgrp_gr_min_disparity=Double.parseDouble(properties.getProperty(prefix+"ltgrp_gr_min_disparity"));
+		if (properties.getProperty(prefix+"ltgrp_gr_disp_atolerance")!=null)this.ltgrp_gr_disp_atolerance=Double.parseDouble(properties.getProperty(prefix+"ltgrp_gr_disp_atolerance"));
+		if (properties.getProperty(prefix+"ltgrp_gr_disp_rtolerance")!=null)this.ltgrp_gr_disp_rtolerance=Double.parseDouble(properties.getProperty(prefix+"ltgrp_gr_disp_rtolerance"));
+
 		if (properties.getProperty(prefix+"rf_master_infinity")!=null)      this.rf_master_infinity=Boolean.parseBoolean(properties.getProperty(prefix+"rf_master_infinity"));
 		if (properties.getProperty(prefix+"rf_master_near")!=null)          this.rf_master_near=Boolean.parseBoolean(properties.getProperty(prefix+"rf_master_near"));
 		if (properties.getProperty(prefix+"rf_pre_expand")!=null)           this.rf_pre_expand=Integer.parseInt(properties.getProperty(prefix+"rf_pre_expand"));
@@ -1408,6 +1449,12 @@ public class BiQuadParameters {
 
 		bqp.ltfar_trusted_s=            this.ltfar_trusted_s;
 		bqp.ltfar_trusted_d=            this.ltfar_trusted_d;
+		bqp.ltgrp_min_strength =        this.ltgrp_min_strength;
+		bqp.ltgrp_min_neibs =           this.ltgrp_min_neibs;
+		bqp.ltgrp_gr_min_disparity =    this.ltgrp_gr_min_disparity;
+		bqp.ltgrp_gr_disp_atolerance =  this.ltgrp_gr_disp_atolerance;
+		bqp.ltgrp_gr_disp_rtolerance =  this.ltgrp_gr_disp_rtolerance;
+
 		bqp.rf_master_infinity=         this.rf_master_infinity;
 		bqp.rf_master_near=             this.rf_master_near;
 		bqp.rf_pre_expand=              this.rf_pre_expand;

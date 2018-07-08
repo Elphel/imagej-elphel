@@ -2245,6 +2245,24 @@ public class TileProcessor {
 		System.out.println("showScan("+title+"): isMeasured()="+scan.isMeasured()+", isProcessed()="+scan.isProcessed()+", isCombo()="+scan.isCombo());
 	}
 
+	public double [][] getShowDS(
+			CLTPass3d   scan,
+			boolean force_final)
+	{
+		double [][] dbg_img = getShowScan(scan);
+		double [][] ds = new double [2][];
+		if (!force_final && (dbg_img[2] != null)) {
+			ds[0] = dbg_img[2]; // disparity
+		} else {
+			ds[0] = dbg_img[1]; // final
+		}
+		if (!force_final && (dbg_img[7] != null)) {
+			ds[1] = dbg_img[7]; // strength
+		} else {
+			ds[1] = dbg_img[6]; // final strength
+		}
+		return ds;
+	}
 
 	public double [][] getShowScan(
 			CLTPass3d   scan)
@@ -4696,7 +4714,7 @@ public class TileProcessor {
 	}
 
 
-	public boolean assignTilesToSurfaces(
+	public double [][] assignTilesToSurfaces(
 			EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			GeometryCorrection geometryCorrection,
 			final int         threadsMax,  // maximal number of threads to launch
@@ -4712,7 +4730,7 @@ public class TileProcessor {
 		SuperTiles st = scan_prev.getSuperTiles();
 		TileSurface tileSurface = st.getTileSurface();
 		if (tileSurface == null){
-			return false;
+			return null; // false;
 		}
 		// show testure_tiles
 
@@ -5069,10 +5087,10 @@ public class TileProcessor {
 			(new showDoubleFloatArrays()).showArrays(dbg_tls, ta.getSurfTilesX(), ta.getSurfTilesY(), true, "tile_layers_surf");
 		}
 		if (!batch_mode && (debugLevel > -1)) {
-			ta.showTileCost("before_",tile_layers_surf);
-			ta.showTileCosts("before_",tile_layers_surf);
+			ta.showTileCost("before_",tile_layers_surf); // , true);
+			ta.showTileCosts("before_",tile_layers_surf); //, true);
 		}
-		TileAssignment.TACosts [] ta_stats = ta.statTileCosts(tile_layers_surf);
+		TileAssignment.TACosts [] ta_stats = ta.statTileCosts(tile_layers_surf);// ,(debugLevel > -1));
 
 		for (int i = 0; i < ta_stats.length; i++){
 			System.out.println(ta_stats[i].toString());
@@ -5097,12 +5115,12 @@ public class TileProcessor {
 			(new showDoubleFloatArrays()).showArrays(dbg_tls, ta.getSurfTilesX(), ta.getSurfTilesY(), true, "optimized_tile_layers_surf");
 		}
 		if (!batch_mode && (debugLevel > -2)) {
-			ta.showTileCost("after_",tile_layers_surf);
+			ta.showTileCost("after_",tile_layers_surf); // , true);
 		}
 		if (!batch_mode && (debugLevel > -1)) {
-			ta.showTileCosts("after_",tile_layers_surf);
+			ta.showTileCosts("after_",tile_layers_surf); // , true);
 		}
-		ta_stats = ta.statTileCosts(tile_layers_surf);
+		ta_stats = ta.statTileCosts(tile_layers_surf); // , (debugLevel > -1));
 		System.out.println("Optimized:");
 		for (int i = 0; i < ta_stats.length; i++){
 			System.out.println(ta_stats[i].toString());
@@ -5122,10 +5140,14 @@ public class TileProcessor {
 				tileSel,      // final boolean [][]                             tileSel,
                 debugLevel);    // final int                                    debugLevel,
 
+		double [][] assignments_dbg = tileSurface.getShowAssignment(dispStrength);
 		if (!batch_mode && clt_parameters.tsShow && (debugLevel > -2)){
-			tileSurface.showAssignment(
-					"assignments", // String title,
-					dispStrength); // final double [][][] dispStrength)
+			String title_asgn = "assignments";
+			String [] titles_asgn =  tileSurface.getTitlesAssignment(dispStrength);
+			(new showDoubleFloatArrays()).showArrays(assignments_dbg,  tilesX, tilesY, true, title_asgn, titles_asgn);
+///			tileSurface.showAssignment(
+///					"assignments", // String title,
+///					dispStrength); // final double [][][] dispStrength)
 		}
 		boolean [][] assigned_sel = tileSurface.extractSelection(
 				batch_mode ? -5: 0, // final int           debugLevel,
@@ -5261,7 +5283,7 @@ public class TileProcessor {
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 			sdfa_instance.showArrays(img_data, tilesX, tilesY, true, "final_surfaces",titles);
 		}
-		return true;
+		return assignments_dbg;
 	}
 
 //======================

@@ -926,7 +926,12 @@ public class LinkPlanes {
 													this_plane.initMergedValue(dir,other_planes.length); // filled with NaN
 													for (int np = 0; np < other_planes.length; np ++){
 														if (other_planes[np] != null) {
-															TilePlanes.PlaneData other_plane = this_plane.getPlaneToThis(
+if (nsTile0 == 790) {
+	System.out.println("?LinkPlanes.matchPlanes() DEBUG1:");
+	System.out.println("?LinkPlanes.matchPlanes() DEBUG1:");
+
+}
+															TilePlanes.PlaneData other_plane = this_plane.getPlaneToThis( // returns NaN with FRONTO
 																	other_planes[np],
 																	dl - 2); // debugLevel);
 															if (other_plane !=null) { // now always, but may add later

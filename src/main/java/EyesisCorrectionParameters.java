@@ -135,6 +135,12 @@ public class EyesisCorrectionParameters {
   		public boolean clt_batch_assign =     true;  // Assign tiles to surfaces
   		public boolean clt_batch_gen3d =      true;  // Generate 3d output: x3d and/or obj+mtl
   		public boolean clt_batch_dbg1 =       true;  // Generate debug images if a single set is selected
+  		public boolean clt_batch_dsi =        true;  // Create and save DSI combo image with the model
+  		public boolean clt_batch_dsi_aux =    false;  // Calculate and save aux camera DSI (currently it is offset from the main/rig data
+  		public boolean clt_batch_save_extrinsics =    true;  // Save cameras extrinsic parameters with the model
+  		public boolean clt_batch_save_all =    true;  // Save all parameters with the model
+
+
 
     	public String x3dModelVersion="v01";
     	public String jp4SubDir="jp4";
@@ -263,7 +269,12 @@ public class EyesisCorrectionParameters {
   			cp.clt_batch_assign=    	this.clt_batch_assign;
   			cp.clt_batch_gen3d=    		this.clt_batch_gen3d;
   			cp.clt_batch_dbg1=    		this.clt_batch_dbg1;
-    	}
+
+  			cp.clt_batch_dsi=    		  this.clt_batch_dsi;
+  			cp.clt_batch_dsi_aux=    	  this.clt_batch_dsi_aux;
+  			cp.clt_batch_save_extrinsics= this.clt_batch_save_extrinsics;
+  			cp.clt_batch_save_all=        this.clt_batch_save_all;
+		}
 
 
 		public void initAuxFromMain(CorrectionParameters cp) { // from master to aux
@@ -413,6 +424,11 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"clt_batch_gen3d",       this.clt_batch_gen3d+"");
     		properties.setProperty(prefix+"clt_batch_dbg1",        this.clt_batch_dbg1+"");
 
+    		properties.setProperty(prefix+"clt_batch_dsi",             this.clt_batch_dsi+"");
+    		properties.setProperty(prefix+"clt_batch_dsi_aux",         this.clt_batch_dsi_aux+"");
+    		properties.setProperty(prefix+"clt_batch_save_extrinsics", this.clt_batch_save_extrinsics+"");
+    		properties.setProperty(prefix+"clt_batch_save_all",        this.clt_batch_save_all+"");
+
     		properties.setProperty(prefix+"thumb_width",           this.thumb_width+"");
     		properties.setProperty(prefix+"thumb_height",          this.thumb_height+"");
     		properties.setProperty(prefix+"thumb_h_center",        this.thumb_h_center+"");
@@ -557,7 +573,12 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"clt_batch_gen3d")!= null)     this.clt_batch_gen3d=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_gen3d"));
 			if (properties.getProperty(prefix+"clt_batch_dbg1")!= null)      this.clt_batch_dbg1=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_dbg1"));
 
-  		    if (properties.getProperty(prefix+"thumb_width")!=null)          this.thumb_width=Integer.parseInt(properties.getProperty(prefix+"thumb_width"));
+			if (properties.getProperty(prefix+"clt_batch_dsi")!= null)             this.clt_batch_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_dsi"));
+			if (properties.getProperty(prefix+"clt_batch_dsi_aux")!= null)         this.clt_batch_dsi_aux=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_dsi_aux"));
+			if (properties.getProperty(prefix+"clt_batch_save_extrinsics")!= null) this.clt_batch_save_extrinsics=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_save_extrinsics"));
+			if (properties.getProperty(prefix+"clt_batch_save_all")!= null)        this.clt_batch_save_all=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_save_all"));
+
+			if (properties.getProperty(prefix+"thumb_width")!=null)          this.thumb_width=Integer.parseInt(properties.getProperty(prefix+"thumb_width"));
   		    if (properties.getProperty(prefix+"thumb_height")!=null)         this.thumb_height=Integer.parseInt(properties.getProperty(prefix+"thumb_height"));
   		    if (properties.getProperty(prefix+"thumb_h_center")!=null)       this.thumb_h_center=   Double.parseDouble(properties.getProperty(prefix+"thumb_h_center"));
   		    if (properties.getProperty(prefix+"thumb_v_center")!=null)       this.thumb_v_center=   Double.parseDouble(properties.getProperty(prefix+"thumb_v_center"));
@@ -899,6 +920,18 @@ public class EyesisCorrectionParameters {
     		gd.addCheckbox    ("Assign tiles to surfaces",                                           this.clt_batch_assign);    // 27
     		gd.addCheckbox    ("Generate 3d output: x3d and/or obj+mtl",                             this.clt_batch_gen3d);     // 28
     		gd.addCheckbox    ("Generate debug images if a single set is selected",                  this.clt_batch_dbg1);      // 29
+
+    		gd.addCheckbox    ("Create DSI combo image",                                             this.clt_batch_dsi,
+    				"Save main camera, dual-quad rig and optionally aux camera combo DSI image with the model");
+    		gd.addCheckbox    ("Include aux camera DSI data in the combo DSI",                       this.clt_batch_dsi_aux,
+    				"Currently DSI for the AUX camera is offset (by the rig baseline) from the main and rig DSI. Aux DSI requires extra processing time");
+    		gd.addCheckbox    ("Save field adjustment data with the model",                          this.clt_batch_save_extrinsics,
+    				"This data can be used to restore specific filed-adjusted cameras extrinsics used when the model was generated");
+    		gd.addCheckbox    ("Save all parameters with the model",                                 this.clt_batch_save_all,
+    				"Save a copy of all parameters with the model");
+
+
+
     		if (clt_parameters != null) {
 //    			gd.addMessage     ("============ selected CLT parameters ============");
       			gd.addTab         ("CLT", "Modify selected CLT parameters");
@@ -968,6 +1001,10 @@ public class EyesisCorrectionParameters {
     		this.clt_batch_assign=       gd.getNextBoolean(); // 27
     		this.clt_batch_gen3d=        gd.getNextBoolean(); // 28
     		this.clt_batch_dbg1=         gd.getNextBoolean(); // 29
+    		this.clt_batch_dsi=             gd.getNextBoolean();
+    		this.clt_batch_dsi_aux=         gd.getNextBoolean();
+    		this.clt_batch_save_extrinsics= gd.getNextBoolean();
+    		this.clt_batch_save_all=        gd.getNextBoolean();
     		if (clt_parameters != null) {
     			clt_parameters.grow_disp_max = gd.getNextNumber();
     			clt_parameters.gain_equalize = gd.getNextBoolean();

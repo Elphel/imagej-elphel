@@ -588,6 +588,8 @@ private Panel panel1,
 			addButton("MAIN extrinsics",            panelClt4, color_process);
 			addButton("AUX extrinsics",             panelClt4, color_process);
 			addButton("RIG extrinsics",             panelClt4, color_conf_process);
+			addButton("SAVE extrinsics",            panelClt4,color_process); //, "Save configuration");
+
 			addButton("Rig8 images",                panelClt4, color_conf_process);
 
 			//			addButton("Rig enhance",                panelClt4, color_conf_process);
@@ -598,6 +600,7 @@ private Panel panel1,
 			addButton("Poles GT",                   panelClt4, color_process);
 			addButton("ML export",                  panelClt4, color_conf_process);
 			addButton("JP4 copy",                   panelClt4, color_conf_process);
+			addButton("DSI show",                   panelClt4, color_process);
 			addButton("Rig batch",                  panelClt4, color_process);
 
 
@@ -4366,12 +4369,12 @@ private Panel panel1,
 
     	if (!CLT_PARAMETERS.showTsDialog()) return;
 
-        boolean OK = QUAD_CLT.assignCLTPlanes(
+    	double [][] assign_dbg = QUAD_CLT.assignCLTPlanes(
         		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
         		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
-        if (!OK){
+        if (assign_dbg == null){
        		System.out.println("Could not assign tiles to surfaces, probably \"CLT planes\" command did not run");
        		return;
         }
@@ -4507,6 +4510,11 @@ private Panel panel1,
     	infinityRig();
     	return;
 /* ======================================================================== */
+    } else if (label.equals("SAVE extrinsics")) {
+    	saveExtrinsics();
+    	return;
+
+/* ======================================================================== */
     } else if (label.equals("SHOW extrinsics")) {
         if (QUAD_CLT == null){
         	QUAD_CLT = new  QuadCLT (
@@ -4617,6 +4625,11 @@ private Panel panel1,
         }
         QUAD_CLT_AUX.editRig();
     	return;
+/* ======================================================================== */
+    } else if (label.equals("DSI show")) {
+    	showDSI();
+    	return;
+
 //JTabbedTest
 // End of buttons code
     }
@@ -5009,7 +5022,7 @@ private Panel panel1,
 
 
 	public boolean rigPlanes() {
-		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
+		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)  || (QUAD_CLT.tp.clt_3d_passes.size() == 0)) {
 			String msg = "DSI data is not available. Please run \"CLT 3D\" first";
 			IJ.showMessage("Error",msg);
 			System.out.println(msg);
@@ -5259,7 +5272,7 @@ private Panel panel1,
 
 	public boolean groundTruth() {
 		long startTime=System.nanoTime();
-		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
+		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)  || (QUAD_CLT.tp.clt_3d_passes.size() == 0)) {
 			boolean OK = clt3d(
 					false, // boolean adjust_extrinsics,
 					false); // boolean adjust_poly);
@@ -5300,7 +5313,7 @@ private Panel panel1,
 
 	public boolean rigDSI() {
 		long startTime=System.nanoTime();
-		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
+		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)  || (QUAD_CLT.tp.clt_3d_passes.size() == 0)) {
 			boolean OK = clt3d(
 					false, // boolean adjust_extrinsics,
 					false); // boolean adjust_poly);
@@ -5347,7 +5360,7 @@ private Panel panel1,
 
 	public boolean batchRig() {
 		long startTime=System.nanoTime();
-/*		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)) {
+/*		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)  || (QUAD_CLT.tp.clt_3d_passes.size() == 0)) {
 
 			boolean OK = clt3d(
 					false, // boolean adjust_extrinsics,
@@ -5362,39 +5375,41 @@ private Panel panel1,
 */
 		// load needed sensor and kernels files
 		if (!prepareRigImages()) return false;
-    	String configPath=getSaveCongigPath();
-    	if (configPath.equals("ABORT")) return false;
-        	if (DEBUG_LEVEL > -2){
-        		System.out.println("++++++++++++++ Running batch processing of dual-quad camera rig ++++++++++++++");
-        	}
-        	try {
-				TWO_QUAD_CLT.batchRig(
-						QUAD_CLT, // QuadCLT quadCLT_main,
-						QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
-						CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
-						DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-						COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-						CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-						RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-						EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-						THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-						UPDATE_STATUS, //final boolean    updateStatus,
-						DEBUG_LEVEL);
-			} catch (Exception e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} //final int        debugLevel);
-    	if (configPath!=null) {
-    		saveTimestampedProperties( // save config again
-    				configPath,      // full path or null
-    				null, // use as default directory if path==null
-    				true,
-    				PROPERTIES);
-    	}
+		String configPath=getSaveCongigPath();
+		if (configPath.equals("ABORT")) return false;
+		setAllProperties(PROPERTIES); // batchRig may save properties with the model. Extrinsics will be updated, others should be set here
+		if (DEBUG_LEVEL > -2){
+			System.out.println("++++++++++++++ Running batch processing of dual-quad camera rig ++++++++++++++");
+		}
+		try {
+			TWO_QUAD_CLT.batchRig(
+					QUAD_CLT, // QuadCLT quadCLT_main,
+					QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+					CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+					DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+					COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+					CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+					RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+					EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+					PROPERTIES,  // Properties                                           properties,
+					THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+					UPDATE_STATUS, //final boolean    updateStatus,
+					DEBUG_LEVEL);
+		} catch (Exception e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} //final int        debugLevel);
+		if (configPath!=null) {
+			saveTimestampedProperties( // save config again
+					configPath,      // full path or null
+					null, // use as default directory if path==null
+					true,
+					PROPERTIES);
+		}
 		System.out.println("batchRig(): Processing finished at "+
-				  IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec, --- Free memory="+
+				IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" sec, --- Free memory="+
 				Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
-    	return true;
+		return true;
 	}
 
 
@@ -5528,7 +5543,32 @@ private Panel panel1,
 		return true;
 	}
 
+	public boolean saveExtrinsics() {
+		String [] patterns= {".corr-xml",".xml"};
+		String path= selectFile(true, // save
+				"Save configuration selection", // title
+				"Select configuration file", // button
+				new MultipleExtensionsFileFilter(patterns, "XML Configuration files (*.corr-xml)"), // filter
+				CORRECTION_PARAMETERS.resultsDirectory); // may be ""
+		if (path==null) return false;
+		if (TWO_QUAD_CLT == null) {
+			return false;
+		}
+		TWO_QUAD_CLT.saveProperties(
+				path, // String path,                // full name with extension or w/o path to use x3d directory
+				null, // Properties properties,    // if null - will only save extrinsics)
+				DEBUG_LEVEL); // int debugLevel)
+		return true;
+	}
 
+	public boolean showDSI() {
+		if (TWO_QUAD_CLT == null) {
+			System.out.println("TWO_QUAD_CLT is not initialized");
+			return false;
+		}
+		TWO_QUAD_CLT.showDSI();
+		return true;
+	}
 
 	public boolean infinityRig() {
 		if (!prepareRigImages()) return false;
@@ -6725,8 +6765,6 @@ private Panel panel1,
 	}
 /* ======================================================================== */
     public void setAllProperties(Properties properties){
-//    	QuadCLT qc = QUAD_CLT;
-//    	QuadCLT aqc = QUAD_CLT_AUX;
     	properties.setProperty("MASTER_DEBUG_LEVEL",MASTER_DEBUG_LEVEL+"");
     	properties.setProperty("UPDATE_STATUS",     UPDATE_STATUS+     "");
     	SPLIT_PARAMETERS.setProperties("SPLIT_PARAMETERS.", properties);
@@ -6735,9 +6773,7 @@ private Panel panel1,
     	DEBAYER_PARAMETERS.setProperties("DEBAYER_PARAMETERS.", properties);
     	NONLIN_PARAMETERS.setProperties("NONLIN_PARAMETERS.", properties); // keep for Eyesis, not used fro Quad CLT
     	COLOR_PROC_PARAMETERS.setProperties("COLOR_PROC_PARAMETERS.", properties);
-//    	COLOR_CALIB_PARAMETERS.setProperties("COLOR_CALIB_PARAMETERS.", properties);
     	RGB_PARAMETERS.setProperties("RGB_PARAMETERS.", properties);
-//    	FILE_PARAMETERS.setProperties("FILE_PARAMETERS.", properties);
     	PROCESS_PARAMETERS.setProperties("PROCESS_PARAMETERS.", properties);
     	CORRECTION_PARAMETERS.setProperties("CORRECTION_PARAMETERS.", properties);
     	CHANNEL_GAINS_PARAMETERS.setProperties("CHANNEL_GAINS_PARAMETERS.", properties);
@@ -6750,8 +6786,8 @@ private Panel panel1,
     	properties.setProperty("THREADS_MAX",THREADS_MAX+""); // 100, testing multi-threading, limit maximal number of threads
     	properties.setProperty("GAUSS_WIDTH",GAUSS_WIDTH+""); // 0.4 (0 - use Hamming window)
     	properties.setProperty("PSF_SUBPIXEL_SHOULD_BE_4",PSF_SUBPIXEL_SHOULD_BE_4+""); // 4, sub-pixel decimation
-    	if (QUAD_CLT != null)     QUAD_CLT.setProperties(QuadCLT.PREFIX);
-    	if (QUAD_CLT_AUX != null) QUAD_CLT_AUX.setProperties(QuadCLT.PREFIX_AUX);
+    	if (QUAD_CLT != null)     QUAD_CLT.setProperties(QuadCLT.PREFIX, null);
+    	if (QUAD_CLT_AUX != null) QUAD_CLT_AUX.setProperties(QuadCLT.PREFIX_AUX, null);
     }
 /* ======================================================================== */
     public void getAllProperties(Properties properties){
@@ -6763,7 +6799,6 @@ private Panel panel1,
        DEBAYER_PARAMETERS.getProperties("DEBAYER_PARAMETERS.", properties);
    	   NONLIN_PARAMETERS.getProperties("NONLIN_PARAMETERS.", properties); // keep for Eyesis, not used fro Quad CLT
        COLOR_PROC_PARAMETERS.getProperties("COLOR_PROC_PARAMETERS.", properties);
-//       COLOR_CALIB_PARAMETERS.getProperties("COLOR_CALIB_PARAMETERS.", properties);
 	   RGB_PARAMETERS.getProperties("RGB_PARAMETERS.", properties);
    	   PROCESS_PARAMETERS.getProperties("PROCESS_PARAMETERS.", properties);
    	   CORRECTION_PARAMETERS.getProperties("CORRECTION_PARAMETERS.", properties);

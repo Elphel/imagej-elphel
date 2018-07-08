@@ -270,7 +270,9 @@ public class TilePlanes {
 		{
 			if (!force && (world_xyz == null)) return Double.NaN;
 			if (wvectors == null) return Double.NaN;
-			Matrix norm_disp =  new Matrix(this.getWorldXYZ(this.correctDistortions, 0),3); // normal to plane from disparity space
+			double [] anorm_disp = this.getWorldXYZ(this.correctDistortions, 0);
+			if (anorm_disp == null) return Double.NaN;
+			Matrix norm_disp =  new Matrix(anorm_disp,3); // normal to plane from disparity space
 			Matrix norm_world =  new Matrix(wvectors[0],3); // normal to plane from disparity space
 			Matrix cp = cross3d(norm_disp, norm_world);
 			double cp2 = cp.transpose().times(cp).get(0, 0);
@@ -1273,7 +1275,7 @@ public class TilePlanes {
 
 			}
 			if ((dispNorm > 0.0) && (zxy[0] > dispNorm)) {
-				almost_fronto = false; // disable fronto for near objects completely
+//				almost_fronto = false; // disable fronto for near objects completely
 			}
 			this.fronto = almost_fronto;
 			return almost_fronto;
@@ -2163,6 +2165,8 @@ public class TilePlanes {
 							double w = disp_str[nl][1][indx];
 							if ((w > 0.0) && !(disp_str[nl][0][indx] > 0.0)) {
 								System.out.println("BUG!!!: getPlaneFromMeas(): disp_str[nl][0]["+indx+"]="+disp_str[nl][0][indx]+", disp_str[nl][1]["+indx+"]="+disp_str[nl][1][indx]);
+								w = 0.0;
+								disp_str[nl][1][indx] = 0.0;
 								continue;
 							}
 							if (w > 0.0){
@@ -3995,6 +3999,23 @@ public class TilePlanes {
 					px_py[0],
 					px_py[1],
 					this.correctDistortions);
+			if (Double.isNaN(disp)) {
+				System.out.println("getPlaneToThis(), px_py = {"+px_py[0]+", "+px_py[1]+"}, px_py_other = {"+px_py_other[0]+", "+px_py_other[1]+"}");
+				System.out.println("getPlaneToThis(), disp = "+disp);
+				System.out.println("getPlaneToThis(), pd="+ pd.toString());
+				System.out.println("getPlaneToThis(), otherPd="+ otherPd.toString());
+				System.out.println("getPlaneToThis(), pd.getWorldXYZ(this.correctDistortions)="+ pd.getWorldXYZ(this.correctDistortions));
+				System.out.println("getPlaneToThis(), wv1 = {"+ wv1[0]+", "+ wv1[1]+", "+ wv1[2]+"}");
+				System.out.println("getPlaneToThis(), wv2 = {"+ wv2[0]+", "+ wv2[1]+", "+ wv2[2]+"}");
+				double [] norm_xyz = pd.getWorldXYZ(this.correctDistortions);
+				System.out.println("getPlaneToThis(),norm_xyz="+ norm_xyz);
+				disp = geometryCorrection.getPlaneDisparity( // disparity (at this center) for crossing other supertile plane
+						norm_xyz, // will calculate if not yet done so. Should it use otherPd, not pd? and then clone later?
+						px_py[0],
+						px_py[1],
+						this.correctDistortions);
+
+			}
 			if (debugLevel > 0) {
 				System.out.println("getPlaneToThis(), px_py = {"+px_py[0]+", "+px_py[1]+"}, px_py_other = {"+px_py_other[0]+", "+px_py_other[1]+"}");
 				System.out.println("getPlaneToThis(), disp = "+disp);
@@ -4178,6 +4199,15 @@ public class TilePlanes {
 				int debugLevel)
 		{
 			double delta = 0.0001;
+			// debugging:
+			if (world_xyz != null) {
+				double l2 = world_xyz[0]*world_xyz[0] + world_xyz[1]*world_xyz[1]+world_xyz[2]*world_xyz[2];
+				if (l2 < 0.5) {
+					System.out.println("getWorldXYZ(): l2="+l2); // +" this=\n"+this.toString());
+					world_xyz = null;
+				}
+			}
+
 			if (world_xyz != null) return world_xyz;
 			setCorrectDistortions(correct_distortions);
 			// get pixel coordinates of the plane origin point
@@ -4271,6 +4301,10 @@ public class TilePlanes {
 			// convert plane normal vector to world coordinates
 			//world_xyz
 			world_xyz = norm_xyz.times((xyz.transpose().times(norm_xyz).get(0,0))).getColumnPackedCopy();
+			double l2 = world_xyz[0]*world_xyz[0] + world_xyz[1]*world_xyz[1]+world_xyz[2]*world_xyz[2];
+			if (l2 < 0.5) {
+				System.out.println("getWorldXYZ(): l2="+l2); // +" this=\n"+this.toString());
+			}
 			return world_xyz;
 		}
 

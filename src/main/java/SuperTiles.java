@@ -1818,7 +1818,12 @@ public class SuperTiles{
 								}
 								sel_list.add(new Selections2(new_sel));
 							}
-
+							if (sel_list.isEmpty()) {
+								if (dl > 2){
+									System.out.println("dispClusterizeHighest(): nsTile="+nsTile+": nothing found");
+								}
+								continue;
+							}
 							plane_selections[nsTile] = new boolean [sel_list.size()][][]; //plane_sels;
 							for (int np = 0; np < plane_selections[nsTile].length; np++) {
 								plane_selections[nsTile][np] = sel_list.get(np).getSel();
@@ -2546,6 +2551,8 @@ public class SuperTiles{
 			final int        dbg_X,
 			final int        dbg_Y)
 	{
+		// TODO: Make a configurable parameters (0 should also work)
+		final int min_fresh_used = 1; // minimal number of new tiles not already used by the other direction (hor/vert)
 
 		final int tilesX =        tileProcessor.getTilesX();
 		final int tilesY =        tileProcessor.getTilesY();
@@ -2816,6 +2823,7 @@ public class SuperTiles{
 									new_planes_selections[np] = planes_selections[nsTile][np];
 									new_plane_types[np] = hor_planes[nsTile][np];
 								}
+								int planes_added = 0;
 								for (int nnp = 0; nnp < num_planes; nnp++) { // SelStrength ss:selStrengthList){
 									SelStrength ss = selStrengthList.get(nnp);
 									new_plane_types[np] =         ss.type != 0; // 0 - vert, 1 - hor;
@@ -2831,6 +2839,27 @@ public class SuperTiles{
 										// Filling small gaps in new selections before marking them as "used"
 										boolean [] used_before = (ss.type == 0) ? used_vert[nsTile][ml] : used_hor[nsTile][ml];
 										boolean [] this_used = sels_all[ss.type][ss.indx][ml].clone();
+										// See how many really new tiles has this_used;
+										int num_really_new = 0;
+										for (int i = 0; i < num_tiles; i++) if (this_used[i] && !used_vert[nsTile][ml][i] && !used_hor[nsTile][ml][i]) {
+											num_really_new++;
+										}
+										// see if is enough
+										if (num_really_new < min_fresh_used) {
+											for (int i = 0; i < num_tiles; i++){
+												used_before[i] |= this_used[i]; // Still mark them as used on this orientation
+											}
+											this_used = new boolean[this_used.length]; // unselect all
+
+											if (dl > 1){
+												System.out.println("initialDiscriminateTiles():"+nsTile+" selection does not provide enough previously unused tiles");
+											}
+											// disable these tiles in this orientation used
+
+										} else {
+											planes_added++;
+										}
+
 										boolean [] this_used_expanded = this_used.clone();
 										tnStile.growSelection(
 												2,
@@ -2882,6 +2911,13 @@ public class SuperTiles{
 									}
 									np++;
 								}
+								if (planes_added == 0) {
+									if (dl > 1){
+										System.out.println("initialDiscriminateTiles():"+nsTile+": No new planes added");
+									}
+									continue;
+								}
+
 								planes_selections[nsTile] = new_planes_selections;
 								hor_planes[nsTile] =        new_plane_types;
 								if (dl > 2){
@@ -3456,7 +3492,7 @@ public class SuperTiles{
 				plFrontoOffs,        // final double     plFrontoOffs,                      // increasing weight of the near tiles by using difference between the reduced average as weight. <= 0 - disable
 				PlFrontoPow,      // double       fronto_pow,    //        =   1.0;  // increase weight even more
 				hor_planes,          // final boolean [][] hor_planes, // returns plane types (hor/vert)
-				debugLevel + 0, // 1, // 0, // 1, //  + 2, // 1,          // final int        debugLevel,
+				debugLevel+(debug_initial_discriminate? 3:0), // 1, // 0, // 1, //  + 2, // 1,          // final int        debugLevel,
 				dbg_X,               // final int        dbg_X,
 				dbg_Y);              // final int        dbg_Y)
 		this.planes = new_planes; // save as "measured" (as opposed to "smoothed" by neighbors) planes

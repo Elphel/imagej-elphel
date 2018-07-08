@@ -228,6 +228,29 @@ import ij.process.ImageProcessor;
 	  } else imp[i]=null;
 	  return imp;
   }
+  public ImagePlus makeArrays(double[][] pixels, int width, int height,  String title, String [] titles) {
+	  int i,j;
+	  if (pixels==null) {
+		  System.out.println("showDoubleFloatArrays.makeArrays(): - pixel array is null");
+	  }
+	  float [] fpixels;
+	  ImageStack array_stack=new ImageStack(width,height);
+	  boolean not_empty = false;
+	  for (i=0;i<pixels.length;i++) if (pixels[i]!=null) {
+		  not_empty = true;
+		  fpixels=new float[pixels[i].length];
+		  for (j=0;j<fpixels.length;j++) fpixels[j]=(float)pixels[i][j];
+		  array_stack.addSlice(titles[i], fpixels);
+	  }
+	  if (not_empty) {
+		  ImagePlus imp_stack = new ImagePlus(title, array_stack);
+		  imp_stack.getProcessor().resetMinAndMax();
+//		  imp_stack.show();
+		  return imp_stack;
+	  }
+	  return null;
+  }
+
   public ImagePlus [] makeArrays(double[][] pixels, int width, int height, String [] titles) {
 	  int i,j;
 	  float [] fpixels;

@@ -203,7 +203,10 @@ public class QuadCLT {
 //	public void setProperties(){
 //		setProperties(this.properties_prefix);
 //	}
-	public void setProperties(String prefix){ // save
+	public void setProperties(String prefix, Properties properties){ // save
+		if (properties == null) {
+			properties = this.properties;
+		}
 //		System.out.println("setProperties("+prefix+")");
 		for (int n = 0; n < fine_corr.length; n++){
 			for (int d = 0; d < fine_corr[n].length; d++){
@@ -5610,7 +5613,7 @@ public class QuadCLT {
 			  IJ.d2s(0.000000001*(System.nanoTime()-this.startStepTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 	  }
 
-	  public boolean assignCLTPlanes(
+	  public double [][]  assignCLTPlanes(
 			  EyesisCorrectionParameters.CLTParameters           clt_parameters,
 			  final int          threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
@@ -5618,14 +5621,14 @@ public class QuadCLT {
 	  {
 		  	if (tp == null){
 		  		System.out.println("showCLTPlanes(): tp is null");
-		  		return false;
+		  		return null;
 		  	}
 		  	if (tp.clt_3d_passes == null){
 		  		System.out.println("showCLTPlanes(): tp.clt_3d_passes is null");
-		  		return false;
+		  		return null;
 		  	}
 		  	this.startStepTime=System.nanoTime();
-		  	boolean ok = tp.assignTilesToSurfaces(
+		  	double [][] assign_dbg = tp.assignTilesToSurfaces(
 		  			clt_parameters,
 		  			geometryCorrection,
 		  			threadsMax,
@@ -5635,7 +5638,7 @@ public class QuadCLT {
 		  	Runtime.getRuntime().gc();
 		  	System.out.println("assignCLTPlanes(): processing  finished at "+
 		  			IJ.d2s(0.000000001*(System.nanoTime()-this.startStepTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
-		  	return ok;
+		  	return assign_dbg;
 
 	  }
 
@@ -9199,13 +9202,13 @@ public class QuadCLT {
 			  } else continue; // if (correctionsParameters.clt_batch_surf)
 
 			  if (correctionsParameters.clt_batch_assign) {
-				  boolean ok = tp.assignTilesToSurfaces(
+				  double [][] assign_dbg = tp.assignTilesToSurfaces(
 						  clt_parameters,
 						  geometryCorrection,
 						  threadsMax,
 						  updateStatus,
 						  debugLevelInner);
-				  if (!ok) continue;
+				  if (assign_dbg == null) continue;
 			  } else continue; // if (correctionsParameters.clt_batch_assign)
 
 			  if (correctionsParameters.clt_batch_gen3d) {

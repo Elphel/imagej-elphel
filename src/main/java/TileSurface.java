@@ -76,6 +76,12 @@ public class TileSurface {
 		static int CLUST_NUM_CONFLICTS_B = 6;
 		static int CLUST_NUM_STATS =       7;
 
+		static int ASGN_DISP =     0;
+		static int ASGN_A_DISP =   1;
+		static int ASGN_A_NAN =    2;
+		static int ASGN_INDX =     3;
+		static int ASGN_STRENGTH = 4;
+		static int ASGN_NG =       5;
 
 
 //		private int nsTilesstSize =   0; // 8;
@@ -2777,6 +2783,57 @@ public class TileSurface {
 				String title,
 				final double [][][] dispStrength)
 		{
+			String [] titles =      getTitlesAssignment(dispStrength);
+			double [][] img_data =  getShowAssignment(dispStrength);
+			(new showDoubleFloatArrays()).showArrays(img_data,  imageTilesX, imageTilesY, true, title, titles);
+		}
+
+		public double [][] getShowAssignment(
+				final double [][][] dispStrength)
+		{
+			double [][] img_data = new double [ASGN_NG * tileLayers.length][];
+			for (int ml = 0; ml < tileLayers.length; ml ++){
+				if (dispStrength[ml] != null) {
+					img_data[ASGN_NG * ml + ASGN_DISP] =     dispStrength[ml][0];
+					img_data[ASGN_NG * ml + ASGN_STRENGTH] = dispStrength[ml][1];
+					img_data[ASGN_NG * ml + ASGN_A_DISP] =   new double [dispStrength[ml][0].length];
+					img_data[ASGN_NG * ml + ASGN_A_NAN] =    new double [dispStrength[ml][0].length];
+					img_data[ASGN_NG * ml + ASGN_INDX] =     new double [dispStrength[ml][0].length];
+					for (int nTile = 0;  nTile < dispStrength[ml][0].length; nTile++){
+						int nSurfTile = getSurfaceTileIndex(nTile);
+						if (tileLayers[ml][nTile] > 0){
+							img_data[ASGN_NG * ml + ASGN_A_DISP][nTile] = tileData[nSurfTile][tileLayers[ml][nTile]-1].getDisparity();
+							img_data[ASGN_NG * ml + ASGN_A_NAN][nTile] =  tileData[nSurfTile][tileLayers[ml][nTile]-1].getDisparity();
+						} else {
+							img_data[ASGN_NG * ml + ASGN_A_DISP][nTile] = dispStrength[ml][0][nTile];
+							img_data[ASGN_NG * ml + ASGN_A_NAN][nTile] =  Double.NaN;
+						}
+						img_data[ASGN_NG * ml + ASGN_INDX][nTile] = tileLayers[ml][nTile];
+					}
+				}
+			}
+			return img_data;
+		}
+
+		public String [] getTitlesAssignment(
+				final double [][][] dispStrength)
+		{
+			int ng = 5;
+			String [] titles = new String[ng * tileLayers.length];
+			for (int ml = 0; ml < tileLayers.length; ml ++){
+				titles[ng * ml + ASGN_DISP] =     "disp_"+ml;
+				titles[ng * ml + ASGN_A_DISP] =   "a_disp_"+ml;
+				titles[ng * ml + ASGN_A_NAN] =    "a_nan_"+ml;
+				titles[ng * ml + ASGN_INDX] =    "index_"+ml;
+				titles[ng * ml + ASGN_STRENGTH] = "strength_"+ml;
+			}
+			return titles;
+		}
+
+		public void showAssignment_old(
+				String title,
+				final double [][][] dispStrength)
+		{
 			int layer_disp =     0;
 			int layer_a_disp =   1;
 			int layer_a_nan =    2;
@@ -2815,6 +2872,7 @@ public class TileSurface {
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
 			sdfa_instance.showArrays(img_data,  imageTilesX, imageTilesY, true, title, titles);
 		}
+
 
 		/**
 		 * Unassign tiles that have too few connected other tiles (or total weight of the cluster is too small)

@@ -226,6 +226,66 @@ public class BiCamDSI {
 	}
 
 	/**
+	 * Select small/thin near objects over infinity
+	 * @param min_strength minimal strength of the tile and neighbors
+	 * @param min_neibs minimal number of neighbors with close disparity
+	 * @param min_disparity minimal disaparity
+	 * @param disp_atolerance disparity absolute tolerance (to qualify for a similar neighbor)
+	 * @param disp_rtolerance disparity relative tolerance (adds to absolute)
+	 * @param infinity_select tile, previously assigned to infinity (or null)
+	 * @param selection existing selection (to add to) or null
+	 * @param disparity array of tile disparity values (may have NaN-s)
+	 * @param strength array of tile strength values
+	 * @return new selection (new or added to existing)
+	 */
+	public boolean [] selectNearOverInfinity(
+			double     min_strength,
+			int        min_neibs,
+			double     min_disparity,
+			double     disp_atolerance,
+			double     disp_rtolerance,
+			boolean [] infinity_select,
+			boolean [] selection,
+			double []  disparity,
+			double []  strength) {
+		int num_tiles = disparity.length;
+		if (infinity_select == null) {
+			infinity_select = new boolean [num_tiles];
+			for (int nTile = 0; nTile < num_tiles; nTile++) infinity_select[nTile] = true;
+		}
+		if (selection == null) selection = new boolean [num_tiles];
+		boolean [] new_sel = selection.clone();
+		//tnImage
+		for (int nTile =0; nTile <num_tiles; nTile++)
+			if (     infinity_select[nTile] &&
+					!selection[nTile] &&
+					(strength[nTile] >=  min_strength ) &&
+					(disparity[nTile] >= min_disparity)){
+			int nn = 0;
+			double tolerance = disp_atolerance + disparity[nTile] * disp_rtolerance;
+			double min_d = Math.max(disparity[nTile] - tolerance, min_disparity);
+			double max_d = disparity[nTile] + tolerance;
+			for (int dir = 0; dir < 8; dir++) {
+				int nTile1 = tnImage.getNeibIndex(nTile, dir);
+				if (    (nTile1 >=0) &&
+						((strength [nTile1] >=  min_strength ) || selection[nTile1]) && // strong or already selected
+						(disparity[nTile1] >= min_d) &&
+						(disparity[nTile1] <= max_d)){
+					nn++;
+					/// if (selection[nTile]) nn++; // count selected as 2 ?
+				}
+			}
+			if (nn >= min_neibs) {
+				new_sel[nTile] = true;
+			}
+		}
+		for (int nTile =0; nTile <num_tiles; nTile++) {
+			selection[nTile] |= new_sel[nTile];
+		}
+		return selection;
+	}
+
+	/**
 	 * Select far tiles (even lone) over infinity areas that have sufficient disparity and strength
 	 * @param min_far_strength minimal tile strength (may be 0 as the tiles are already filtered)
 	 * @param min_far_disparity minimal tile disparity to accept lone strong tiles for far objects
