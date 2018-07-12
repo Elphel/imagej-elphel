@@ -134,6 +134,7 @@ public class EyesisCorrectionParameters {
   		public boolean clt_batch_surf =       true;  // Create super-tile 2.5d surfaces
   		public boolean clt_batch_assign =     true;  // Assign tiles to surfaces
   		public boolean clt_batch_gen3d =      true;  // Generate 3d output: x3d and/or obj+mtl
+  		public boolean clt_batch_genMl =      true;  // Generate ML output
   		public boolean clt_batch_dbg1 =       true;  // Generate debug images if a single set is selected
   		public boolean clt_batch_dsi =        true;  // Create and save DSI combo image with the model
   		public boolean clt_batch_dsi_aux =    false;  // Calculate and save aux camera DSI (currently it is offset from the main/rig data
@@ -268,6 +269,7 @@ public class EyesisCorrectionParameters {
   			cp.clt_batch_surf=    		this.clt_batch_surf;
   			cp.clt_batch_assign=    	this.clt_batch_assign;
   			cp.clt_batch_gen3d=    		this.clt_batch_gen3d;
+  			cp.clt_batch_genMl=    		this.clt_batch_genMl;
   			cp.clt_batch_dbg1=    		this.clt_batch_dbg1;
 
   			cp.clt_batch_dsi=    		  this.clt_batch_dsi;
@@ -422,6 +424,8 @@ public class EyesisCorrectionParameters {
     		properties.setProperty(prefix+"clt_batch_surf",        this.clt_batch_surf+"");
     		properties.setProperty(prefix+"clt_batch_assign",      this.clt_batch_assign+"");
     		properties.setProperty(prefix+"clt_batch_gen3d",       this.clt_batch_gen3d+"");
+    		properties.setProperty(prefix+"clt_batch_genMl",       this.clt_batch_genMl+"");
+
     		properties.setProperty(prefix+"clt_batch_dbg1",        this.clt_batch_dbg1+"");
 
     		properties.setProperty(prefix+"clt_batch_dsi",             this.clt_batch_dsi+"");
@@ -571,6 +575,8 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"clt_batch_surf")!= null)      this.clt_batch_surf=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_surf"));
 			if (properties.getProperty(prefix+"clt_batch_assign")!= null)    this.clt_batch_assign=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_assign"));
 			if (properties.getProperty(prefix+"clt_batch_gen3d")!= null)     this.clt_batch_gen3d=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_gen3d"));
+
+			if (properties.getProperty(prefix+"clt_batch_genMl")!= null)     this.clt_batch_genMl=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_genMl"));
 			if (properties.getProperty(prefix+"clt_batch_dbg1")!= null)      this.clt_batch_dbg1=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_dbg1"));
 
 			if (properties.getProperty(prefix+"clt_batch_dsi")!= null)             this.clt_batch_dsi=Boolean.parseBoolean(properties.getProperty(prefix+"clt_batch_dsi"));
@@ -919,6 +925,8 @@ public class EyesisCorrectionParameters {
     		gd.addCheckbox    ("Create super-tile 2.5d surfaces",                                    this.clt_batch_surf);      // 26
     		gd.addCheckbox    ("Assign tiles to surfaces",                                           this.clt_batch_assign);    // 27
     		gd.addCheckbox    ("Generate 3d output: x3d and/or obj+mtl",                             this.clt_batch_gen3d);     // 28
+    		gd.addCheckbox    ("Generate ML output files",                                           this.clt_batch_genMl);     // 28
+
     		gd.addCheckbox    ("Generate debug images if a single set is selected",                  this.clt_batch_dbg1);      // 29
 
     		gd.addCheckbox    ("Create DSI combo image",                                             this.clt_batch_dsi,
@@ -1000,6 +1008,7 @@ public class EyesisCorrectionParameters {
     		this.clt_batch_surf=         gd.getNextBoolean(); // 26
     		this.clt_batch_assign=       gd.getNextBoolean(); // 27
     		this.clt_batch_gen3d=        gd.getNextBoolean(); // 28
+    		this.clt_batch_genMl=        gd.getNextBoolean(); // 28
     		this.clt_batch_dbg1=         gd.getNextBoolean(); // 29
     		this.clt_batch_dsi=             gd.getNextBoolean();
     		this.clt_batch_dsi_aux=         gd.getNextBoolean();
@@ -2642,6 +2651,7 @@ public class EyesisCorrectionParameters {
   		public int        ly_par_sel   =    0;       // Manually select the parameter mask bit 0 - sym0, bit1 - sym1, ... (0 - use checkbox selections above)
 
  		public double     ly_inf_frac =     0.5;     // Relative weight of infinity calibration data
+ 		public double     ly_inf_max_disparity = 0.2;   // Maximal disparity to be treated as infinity when adjusting with rig data
   		public boolean    ly_inf_disp=      false;   // Correct disparity for infinity tiles
   		public boolean    ly_inf_force=     false;   // Force convergence correction during extrinsic, even with no infinity data
   		public boolean    ly_poly =         false;   // Use polynomial correction, false - correct tilt/azimuth/roll of each sensor
@@ -3222,8 +3232,10 @@ public class EyesisCorrectionParameters {
   		public PoleProcessorParameters        poles =   new PoleProcessorParameters();
   		public MeasuredLayersFilterParameters mlfp =    new MeasuredLayersFilterParameters();
 
-  		public HashMap<String,Double> z_corr_map = new HashMap<String,Double>();
+  		public HashMap<String,Double> z_corr_map = new HashMap<String,Double>(); //old one
+  		public HashMap<String,Double> infinity_distace_map = new HashMap<String,Double>(); //new one
   		public static String Z_CORR_PREFIX = "z_corr.";
+  		public static String INFINITY_DISTANCE_PREFIX = "infinity_distance.";
 
   		public boolean   batch_run =               false; // turned on only while running in batch mode
 
@@ -3369,6 +3381,7 @@ public class EyesisCorrectionParameters {
 
 			properties.setProperty(prefix+"ly_inf_frac",      this.ly_inf_frac +"");
 
+			properties.setProperty(prefix+"ly_inf_max_disparity",this.ly_inf_max_disparity +"");
 			properties.setProperty(prefix+"ly_inf_disp",      this.ly_inf_disp+"");
 			properties.setProperty(prefix+"ly_inf_force",     this.ly_inf_force+"");
 			properties.setProperty(prefix+"ly_poly",          this.ly_poly+"");
@@ -3888,13 +3901,29 @@ public class EyesisCorrectionParameters {
 					properties.setProperty(prefix+Z_CORR_PREFIX+entry.getKey(),   entry.getValue().toString());
 				}
 			}
+			setPropertiesInfinityDistance(prefix, properties);
+/*
+			if (infinity_distace_map != null) {
+				for (HashMap.Entry<String,Double> entry : infinity_distace_map.entrySet()){
+					properties.setProperty(prefix+INFINITY_DISTANCE_PREFIX+entry.getKey(),   entry.getValue().toString());
+				}
+			}
+*/
 	  		img_dtt.setProperties (prefix+"_img_dtt", properties);
   	  		mlfp.setProperties    (prefix+"_mlfp",    properties);
   	  		rig.setProperties     (prefix+"_rig",     properties);
   	  		poles.setProperties   (prefix+"_poles",   properties);
-
-
   		}
+
+  		public void setPropertiesInfinityDistance(String prefix,Properties properties){
+			if (infinity_distace_map != null) {
+				for (HashMap.Entry<String,Double> entry : infinity_distace_map.entrySet()){
+					properties.setProperty(prefix+INFINITY_DISTANCE_PREFIX+entry.getKey(),   entry.getValue().toString());
+				}
+			}
+  		}
+
+
   		public void getProperties(String prefix,Properties properties){
   			if (properties.getProperty(prefix+"transform_size")!=null) this.transform_size=Integer.parseInt(properties.getProperty(prefix+"transform_size"));
   			if (properties.getProperty(prefix+"clt_window")!=null)     this.clt_window=Integer.parseInt(properties.getProperty(prefix+"clt_window"));
@@ -4035,6 +4064,7 @@ public class EyesisCorrectionParameters {
 			if (properties.getProperty(prefix+"ly_par_sel")!=null)        this.ly_par_sel=Integer.parseInt(properties.getProperty(prefix+"ly_par_sel"));
 
 			if (properties.getProperty(prefix+"ly_inf_frac")!=null)       this.ly_inf_frac=Double.parseDouble(properties.getProperty(prefix+"ly_inf_frac"));
+			if (properties.getProperty(prefix+"ly_inf_max_disparity")!=null) this.ly_inf_max_disparity=Double.parseDouble(properties.getProperty(prefix+"ly_inf_max_disparity"));
 
   			if (properties.getProperty(prefix+"ly_inf_disp")!=null)       this.ly_inf_disp=Boolean.parseBoolean(properties.getProperty(prefix+"ly_inf_disp"));
 
@@ -4568,7 +4598,14 @@ public class EyesisCorrectionParameters {
   					z_corr_map.put(s.substring(li), Double.parseDouble(properties.getProperty(s)));
   				}
   			}
-  	  		img_dtt.getProperties (prefix+"_img_dtt", properties);
+  			String full_prefix_infinity_distance = prefix+INFINITY_DISTANCE_PREFIX;
+  			int lii = full_prefix_infinity_distance.length();
+  			for (String s:ss){
+  				if (s.indexOf(full_prefix_infinity_distance) == 0){
+  					infinity_distace_map.put(s.substring(lii), Double.parseDouble(properties.getProperty(s)));
+  				}
+  			}
+  			img_dtt.getProperties (prefix+"_img_dtt", properties);
   	  		mlfp.getProperties    (prefix+"_mlfp",    properties);
   	  		rig.getProperties     (prefix+"_rig",     properties);
   	  		poles.getProperties   (prefix+"_poles",   properties);
@@ -4744,6 +4781,10 @@ public class EyesisCorrectionParameters {
 			gd.addNumericField("Manual parameter mask selection (0 use checkboxes above)",                this.ly_par_sel,  0, 5,"",
 					"bit 0 - sym0, bit1 - sym1, ...");
 			gd.addNumericField("Relative weight of infinity calibration data",                            this.ly_inf_frac,  3);
+
+			gd.addNumericField("Maximal disparity to be treated as infinity when adjusting with the rig data", this.ly_inf_max_disparity,  8,3,"pix",
+					"Only used in guided (by rig data) mode");
+
   			gd.addCheckbox    ("Correct disparity for infinity tiles )has to disable until code fixed)",  this.ly_inf_disp);
   			gd.addCheckbox    ("Force convergence correction during extrinsic, even with no infinity data", this.ly_inf_force);
   			gd.addCheckbox    ("*Use polynomial correction, false - correct tilt/azimuth/roll of each sensor)", this.ly_poly);
@@ -5514,6 +5555,7 @@ public class EyesisCorrectionParameters {
 			this.ly_par_sel=      (int) gd.getNextNumber();
 
 			this.ly_inf_frac=           gd.getNextNumber();
+			this.ly_inf_max_disparity=  gd.getNextNumber();
 
 			this.ly_inf_disp=           gd.getNextBoolean();
   			this.ly_inf_force=          gd.getNextBoolean();
@@ -6225,6 +6267,44 @@ public class EyesisCorrectionParameters {
 			}
 			if(new_ts.length() > 0){
 				z_corr_map.put(new_ts, d);
+			}
+    		return true;
+    	}
+    	public boolean modifyInfCorr (String title) {
+    		if (infinity_distace_map == null){
+    			infinity_distace_map = new HashMap<String,Double>();
+    		}
+    		GenericDialog gd = new GenericDialog(title);
+    		if (infinity_distace_map.size() > 0) {
+    			gd.addMessage("Edit \"infinity\" (when mountains are too close) distance (in m), set == 0.0 to remove for the following");
+    			gd.addMessage("Press \"Cancel\" to exit");
+				for (HashMap.Entry<String,Double> entry : infinity_distace_map.entrySet()){
+					gd.addNumericField(entry.getKey(),   entry.getValue(), 1,6, "m");
+				}
+    		}
+			gd.addMessage("Add new infinity correction");
+    		gd.addStringField ("Timestamp string (seconds_microseconds):",                              "", 40);
+			gd.addNumericField("Infinity distance",                                          0,  1,6,"m");
+    		gd.addCheckbox    ("Clear list",                                                            false);
+    		WindowTools.addScrollBars(gd);
+    		gd.showDialog();
+    		if (gd.wasCanceled()) return false;
+    		HashMap<String,Double> new_map = new HashMap<String,Double>();
+			for (HashMap.Entry<String,Double> entry : infinity_distace_map.entrySet()){
+				double d = gd.getNextNumber();
+				if (d != 0.0) {
+					new_map.put(entry.getKey(),d);
+				}
+			}
+			String new_ts =  gd.getNextString();
+			double d =       gd.getNextNumber();
+			if (gd.getNextBoolean()){
+				infinity_distace_map = new HashMap<String,Double>();
+			} else {
+				infinity_distace_map = new_map;
+			}
+			if(new_ts.length() > 0){
+				infinity_distace_map.put(new_ts, d);
 			}
     		return true;
     	}

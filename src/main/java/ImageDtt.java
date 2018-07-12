@@ -7589,6 +7589,8 @@ public class ImageDtt {
 			final double [][][][][][] clt_kernels_aux,  // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 			final double              corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
 			final boolean             keep_clt_data,
+			final int [][]            woi_tops,
+			final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
 			final int                 threadsMax,  // maximal number of threads to launch
 			final int                 debugLevel)
 	{
@@ -7717,8 +7719,12 @@ public class ImageDtt {
 			}
 		}
 
-//		final double [] corr_max_weights_poly =(((clt_parameters.max_corr_sigma > 0) && (disparity_bimap != null))?
-//				setMaxXYWeights(clt_parameters.max_corr_sigma,max_search_radius_poly): null); // here use square anyway
+		if (ers_delay != null) {
+			ers_delay[0] = new double [quad_main][];
+			for (int i = 0; i < quad_main; i++) ers_delay[0][i] = new double [tilesX*tilesY];
+			ers_delay[1] = new double [quad_aux][];
+			for (int i = 0; i < quad_aux; i++)  ers_delay[1][i] = new double [tilesX*tilesY];
+		}
 
 		dtt.set_window(clt_parameters.clt_window);
 		final double [] lt_window = dtt.getWin2d();	// [256]
@@ -7820,6 +7826,11 @@ public class ImageDtt {
 								centerX,
 								centerY,
 								disparity_aux); //  + disparity_corr);
+						// acquisition time of the tiles centers in scanline times
+						if (ers_delay != null) {
+							for (int i = 0; i < quad_main; i++) ers_delay[0][i][nTile] = centersXY_main[i][1]-woi_tops[0][i];
+							for (int i = 0; i < quad_aux; i++)  ers_delay[1][i][nTile] = centersXY_aux[i][1]- woi_tops[1][i];
+						}
 
 						if ((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
 							for (int i = 0; i < quad_main; i++) {

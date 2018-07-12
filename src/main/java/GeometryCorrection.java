@@ -154,6 +154,7 @@ public class GeometryCorrection {
 		return ro.getParNorm(index);
 	}
 
+
 	public double [] getRigCorrection(
 			double             infinity_importance, // of all measurements
 			double             dx_max, //  = 0.3;
@@ -165,6 +166,7 @@ public class GeometryCorrection {
 			boolean            adjust_distance,
 			boolean            adjust_forward, // not used
 			double             scale_correction,
+			double             infinity_disparity,
 			ArrayList<Integer> tile_list,
 			QuadCLT            qc_main,
 			double []          strength,
@@ -184,6 +186,7 @@ public class GeometryCorrection {
 				adjust_distance,    // boolean            adjust_distance,
 				adjust_forward,     // boolean            adjust_forward, // not used
 				scale_correction,   // double             scale_correction,
+				infinity_disparity, // double             infinity_disparity,
 				tile_list,          // ArrayList<Integer> tile_list,
 				qc_main,            // QuadCLT            qc_main,
 				strength,           // double []          strength,
@@ -192,6 +195,7 @@ public class GeometryCorrection {
 				target_disparity,   // double []          target_disparity,
 				debugLevel);        // int debugLevel)
 	}
+
 	// correction of cameras mis-alignment
 	public CorrVector getCorrVector(double [] vector){
 		return new CorrVector(vector);
@@ -376,87 +380,6 @@ public class GeometryCorrection {
 			}
 			recalcRXY();
 		}
-		public double setupYW(
-				double             infinity_importance, // of all measurements
-				double             dx_max, //  = 0.3;
-				double             dx_pow, //  = 1.0;
-				ArrayList<Integer> tile_list,
-				QuadCLT            qc,
-				double []          strength,
-				double []          diff_x, // used only with target_disparity == 0
-				double []          diff_y,
-				double []          target_disparity) {
-			y_vector =  new double[2*tile_list.size()];
-			w_vector =  new double[2*tile_list.size()];
-			xy_vector = new double[2*tile_list.size()];
-			d_vector =  new double[tile_list.size()];
-			tile_vector=  new int[tile_list.size()];
-			boolean [] is_inf = new boolean[tile_list.size()];
-			double sumw_inf = 0.0,sumw_near=0.0;
-			double sum2_inf = 0.0,sum2_near = 0.0;
-			int tilesX = qc.tp.getTilesX();
-			double tileSize = qc.tp.getTileSize();
-//			double dx_max = 0.2;
-//			double dx_pow = 1.0;
-
-			for (int i = 0; i < tile_list.size(); i++) {
-				int nTile = tile_list.get(i);
-				int tileY = nTile / tilesX;
-				int tileX = nTile % tilesX;
-				double w = strength[nTile];
-				double inf_w_corr = 1.0;
-				if ((dx_max > 0) && (dx_pow > 0)){
-					inf_w_corr = (dx_max - diff_x[nTile])/dx_max;
-					if (inf_w_corr < 0.0) inf_w_corr = 0.0; // favor negative (more infinity)
-					if (dx_pow != 1.0) {
-						inf_w_corr = Math.pow(inf_w_corr,dx_pow);
-					}
-				}
-				if (target_disparity[nTile] == 0.0) { // only for infinity tiles
-					w *= inf_w_corr;
-					y_vector[2*i + 0] = diff_x[nTile];
-					w_vector[2*i + 0] = w;
-					y_vector[2*i + 1] = diff_y[nTile];
-					w_vector[2*i + 1] = w;
-					sumw_inf += 2*w;
-					sum2_inf += w*(diff_x[nTile]*diff_x[nTile]+diff_y[nTile]*diff_y[nTile]);
-					is_inf[i] = true;
-				} else {
-					y_vector[2*i + 1] = diff_y[nTile];
-					w_vector[2*i + 1] = w;
-					sumw_near +=        w;
-					sum2_near += w*diff_y[nTile]*diff_y[nTile];
-				}
-				xy_vector[2*i + 0] = (tileX + 0.5) * tileSize;
-				xy_vector[2*i + 1] = (tileY + 0.5) * tileSize;
-				d_vector[i] = target_disparity[nTile];
-				tile_vector[i] = nTile;
-			}
-			if (infinity_importance > 1.0) infinity_importance = 1.0;
-			else if (infinity_importance < 0.0) infinity_importance =0.0;
-			double k_inf = 0.0, k_near = 0.0;
-			if ((sumw_inf  > 0.0)  && (sumw_near > 0.0)){
-				k_inf =  infinity_importance/sumw_inf;
-				k_near =  (1.0 - infinity_importance)/sumw_near;
-			} else if (sumw_inf  > 0.0){
-				infinity_importance = 1.0;
-				k_inf =  infinity_importance/sumw_inf;
-			} else if (sumw_near > 0.0) {
-				infinity_importance = 0.0;
-				k_near = (1.0 - infinity_importance)/sumw_near;
-			}
-			double sum2 = k_inf*sum2_inf+k_near*sum2_near;
-
-			for (int i = 0; i < is_inf.length; i++) {
-				if (is_inf[i]) {
-					w_vector[2 * i + 0] *= k_inf;
-					w_vector[2 * i + 1] *= k_inf;
-				} else {
-					w_vector[2 * i + 1] *= k_near;
-				}
-			}
-			return Math.sqrt(sum2); // RMS
-		}
 
 		double [][] getJacobianTransposed(
 				GeometryCorrection gc_main,
@@ -585,6 +508,7 @@ public class GeometryCorrection {
 				boolean            adjust_distance,
 				boolean            adjust_forward, // not used
 				double             scale_correction,
+				double             infinity_disparity,
 				ArrayList<Integer> tile_list,
 				QuadCLT            qc_main,
 				double []          strength,
@@ -604,6 +528,7 @@ public class GeometryCorrection {
 					infinity_importance, // of all measurements
 					dx_max, // double             dx_max, //  = 0.3;
 					dx_pow, // double             dx_pow, //  = 1.0;
+					infinity_disparity, // double             infinity_disparity,
 					tile_list,
 					qc_main,
 					strength,
@@ -692,10 +617,91 @@ public class GeometryCorrection {
 			return vector;
 		}
 
-//		public double [] getAuxOffset() {
-//			double [] aux_offset= {baseline * Math.cos(aux_angle)/getDisparityRadius(), baseline * Math.sin(aux_angle)/getDisparityRadius()};
-//			return aux_offset;
-//		}
+		public double setupYW(
+				double             infinity_importance, // of all measurements
+				double             dx_max, //  = 0.3;
+				double             dx_pow, //  = 1.0;
+				double             infinity_disparity,
+				ArrayList<Integer> tile_list,
+				QuadCLT            qc,
+				double []          strength,
+				double []          diff_x, // used only with target_disparity == 0
+				double []          diff_y,
+				double []          target_disparity) {
+			y_vector =  new double[2*tile_list.size()];
+			w_vector =  new double[2*tile_list.size()];
+			xy_vector = new double[2*tile_list.size()];
+			d_vector =  new double[tile_list.size()];
+			tile_vector=  new int[tile_list.size()];
+			boolean [] is_inf = new boolean[tile_list.size()];
+			double sumw_inf = 0.0,sumw_near=0.0;
+			double sum2_inf = 0.0,sum2_near = 0.0;
+			int tilesX = qc.tp.getTilesX();
+			double tileSize = qc.tp.getTileSize();
+//			double dx_max = 0.2;
+//			double dx_pow = 1.0;
+
+			for (int i = 0; i < tile_list.size(); i++) {
+				int nTile = tile_list.get(i);
+				int tileY = nTile / tilesX;
+				int tileX = nTile % tilesX;
+				double w = strength[nTile];
+				double inf_w_corr = 1.0;
+				if ((dx_max > 0) && (dx_pow > 0)){
+					inf_w_corr = (dx_max - diff_x[nTile])/dx_max;
+					if (inf_w_corr < 0.0) inf_w_corr = 0.0; // favor negative (more infinity)
+					if (dx_pow != 1.0) {
+						inf_w_corr = Math.pow(inf_w_corr,dx_pow);
+					}
+				}
+				if (target_disparity[nTile] == infinity_disparity) { // only for infinity tiles
+					w *= inf_w_corr;
+					y_vector[2*i + 0] = diff_x[nTile];
+					w_vector[2*i + 0] = w;
+					y_vector[2*i + 1] = diff_y[nTile];
+					w_vector[2*i + 1] = w;
+					sumw_inf += 2*w;
+					sum2_inf += w*(diff_x[nTile]*diff_x[nTile]+diff_y[nTile]*diff_y[nTile]);
+					is_inf[i] = true;
+				} else {
+					y_vector[2*i + 1] = diff_y[nTile];
+					w_vector[2*i + 1] = w;
+					sumw_near +=        w;
+					sum2_near += w*diff_y[nTile]*diff_y[nTile];
+				}
+				xy_vector[2*i + 0] = (tileX + 0.5) * tileSize;
+				xy_vector[2*i + 1] = (tileY + 0.5) * tileSize;
+				d_vector[i] = target_disparity[nTile];
+				tile_vector[i] = nTile;
+			}
+			if (infinity_importance > 1.0) infinity_importance = 1.0;
+			else if (infinity_importance < 0.0) infinity_importance =0.0;
+			double k_inf = 0.0, k_near = 0.0;
+			if ((sumw_inf  > 0.0)  && (sumw_near > 0.0)){
+				k_inf =  infinity_importance/sumw_inf;
+				k_near =  (1.0 - infinity_importance)/sumw_near;
+			} else if (sumw_inf  > 0.0){
+				infinity_importance = 1.0;
+				k_inf =  infinity_importance/sumw_inf;
+			} else if (sumw_near > 0.0) {
+				infinity_importance = 0.0;
+				k_near = (1.0 - infinity_importance)/sumw_near;
+			}
+			System.out.println("setupYW(): k_inf="+k_inf+" k_near="+k_near);
+
+			double sum2 = k_inf*sum2_inf+k_near*sum2_near;
+
+			for (int i = 0; i < is_inf.length; i++) {
+				if (is_inf[i]) {
+					w_vector[2 * i + 0] *= k_inf;
+					w_vector[2 * i + 1] *= k_inf;
+				} else {
+					w_vector[2 * i + 1] *= k_near;
+				}
+			}
+			return Math.sqrt(sum2); // RMS
+		}
+
 		public void recalcRXY() {
 			if (rXY != null) {
 				//			rXY_aux = rXY; // FIXME: put real stuff !!!

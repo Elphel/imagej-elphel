@@ -237,9 +237,13 @@ public class BiQuadParameters {
 	public double  rf_min_disp =              0.02;    // Minimal tile disparity to keep in scan
 	public boolean rf_remove_unselected =     true;    // Remove tiles that are not selected
 
+	public boolean oc_fill_aux_occl =         true;    // Fill rig DSI gaps non-zero for the main camera
+	public double  oc_min_disparity =         15;      // Tile occlusions can only happen for near objects
+	public double  oc_min_strength =          0.1;     // Minimal main camera strength
 
 
-	public boolean ml_generate =               false;  // Generate ML data automatically when running ground truth
+
+//	public boolean ml_generate =               false;  // Generate ML data automatically when running ground truth - MOVED to BATCH parameters
 	public boolean ml_poles =                  true;   // Generate ML data from the DSI that includes extracted poles
 	public boolean ml_copyJP4 =                true;   // Copy source jp4 files when running "Ground truth" command
 
@@ -631,11 +635,17 @@ public class BiQuadParameters {
 				"Minimal disparity (in master camera pixels) for the tile to be saved for plane extraction");
 		gd.addCheckbox    ("Remove tiles that are not selected",                                                   this.rf_remove_unselected,
 				"Remove (set strength to 0.0, disparity to Double.NaN for all tiles that are not selected");
+		gd.addCheckbox    ("Fill rig gaps by the main camera",                                                     this.oc_fill_aux_occl,
+				"Areas where aux camera image is occluded");
+		gd.addNumericField("Minimal main camera disparity to use for rig DSI gaps",                                this.oc_min_disparity,  3,6,"pix",
+				"Legitimate full tile occlusions can happen for near objects only");
+		gd.addNumericField("Minimal main camera strength to fill rig DSI gaps",                                    this.oc_min_strength,  3,6,"",
+				"Filter out too weak replacements");
 
         gd.addTab("ML","Parameters related to the ML files generation for the dual-quad camera rig");
 
-		gd.addCheckbox    ("Generate ML data automatically",                                                       this.ml_generate,
-				"Generate ML data automatically when running ground truth (may run separately from a command button)");
+//		gd.addCheckbox    ("Generate ML data automatically",                                                       this.ml_generate,
+//				"Generate ML data automatically when running ground truth (may run separately from a command button)");
 		gd.addCheckbox    ("Generate ML data from the DSI that includes extracted poles",                          this.ml_poles,
 				"If unchecked - use DSI w/o poles data");
 		gd.addCheckbox    ("Copy JP4 source images when generating ML data",                                       this.ml_copyJP4,
@@ -853,8 +863,12 @@ public class BiQuadParameters {
 
 		this.rf_min_disp=                   gd.getNextNumber();
 		this.rf_remove_unselected=          gd.getNextBoolean();
+		this.oc_fill_aux_occl=              gd.getNextBoolean();
+		this.oc_min_disparity=              gd.getNextNumber();
+		this.oc_min_strength=               gd.getNextNumber();
 
-		this.ml_generate=                   gd.getNextBoolean();
+
+//		this.ml_generate=                   gd.getNextBoolean();
 		this.ml_poles=                      gd.getNextBoolean();
 		this.ml_copyJP4=                    gd.getNextBoolean();
 
@@ -1061,7 +1075,11 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"rf_min_disp",               this.rf_min_disp+"");
 		properties.setProperty(prefix+"rf_remove_unselected",      this.rf_remove_unselected+"");
 
-		properties.setProperty(prefix+"ml_generate",               this.ml_generate+"");
+		properties.setProperty(prefix+"oc_fill_aux_occl",          this.oc_fill_aux_occl+"");
+		properties.setProperty(prefix+"oc_min_disparity",          this.oc_min_disparity+"");
+		properties.setProperty(prefix+"oc_min_strength",           this.oc_min_strength+"");
+
+//		properties.setProperty(prefix+"ml_generate",               this.ml_generate+"");
 		properties.setProperty(prefix+"ml_poles",                  this.ml_poles+"");
 		properties.setProperty(prefix+"ml_copyJP4",                this.ml_copyJP4+"");
 		properties.setProperty(prefix+"ml_hwidth",                 this.ml_hwidth+"");
@@ -1264,7 +1282,11 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"rf_min_disp")!=null)             this.rf_min_disp=Double.parseDouble(properties.getProperty(prefix+"rf_min_disp"));
 		if (properties.getProperty(prefix+"rf_remove_unselected")!=null)    this.rf_remove_unselected=Boolean.parseBoolean(properties.getProperty(prefix+"rf_remove_unselected"));
 
-		if (properties.getProperty(prefix+"ml_generate")!=null)             this.ml_generate=Boolean.parseBoolean(properties.getProperty(prefix+"ml_generate"));
+		if (properties.getProperty(prefix+"oc_fill_aux_occl")!=null)        this.oc_fill_aux_occl=Boolean.parseBoolean(properties.getProperty(prefix+"oc_fill_aux_occl"));
+		if (properties.getProperty(prefix+"oc_min_disparity")!=null)        this.oc_min_disparity=Double.parseDouble(properties.getProperty(prefix+"oc_min_disparity"));
+		if (properties.getProperty(prefix+"oc_min_strength")!=null)         this.oc_min_strength=Double.parseDouble(properties.getProperty(prefix+"oc_min_strength"));
+
+//		if (properties.getProperty(prefix+"ml_generate")!=null)             this.ml_generate=Boolean.parseBoolean(properties.getProperty(prefix+"ml_generate"));
 		if (properties.getProperty(prefix+"ml_poles")!=null)                this.ml_poles=Boolean.parseBoolean(properties.getProperty(prefix+"ml_poles"));
 		if (properties.getProperty(prefix+"ml_copyJP4")!=null)              this.ml_copyJP4=Boolean.parseBoolean(properties.getProperty(prefix+"ml_copyJP4"));
 		if (properties.getProperty(prefix+"ml_hwidth")!=null)               this.ml_hwidth=Integer.parseInt(properties.getProperty(prefix+"ml_hwidth"));
@@ -1468,7 +1490,11 @@ public class BiQuadParameters {
 		bqp.rf_min_disp=                this.rf_min_disp;
 		bqp.rf_remove_unselected=       this.rf_remove_unselected;
 
-		bqp.ml_generate=                this.ml_generate;
+		bqp.oc_fill_aux_occl =          this.oc_fill_aux_occl;
+		bqp.oc_min_disparity =          this.oc_min_disparity;
+		bqp.oc_min_strength =           this.oc_min_strength;
+
+//		bqp.ml_generate=                this.ml_generate;
 		bqp.ml_poles=                   this.ml_poles;
 		bqp.ml_copyJP4=                 this.ml_copyJP4;
 		bqp.ml_hwidth=                  this.ml_hwidth;

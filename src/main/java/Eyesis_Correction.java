@@ -583,6 +583,8 @@ private Panel panel1,
 //			addButton("CLT 2*4 images",             panelClt4, color_conf_process);
 //			addButton("CLT 2*4 images - 2",         panelClt4, color_conf_process);
 //			addButton("CLT 2*4 images - 3",         panelClt4, color_conf_process);
+			addButton("Rig offset",                 panelClt4, color_configure);
+			addButton("Save offset",                panelClt4, color_process);
 			addButton("SHOW extrinsics",            panelClt4, color_configure);
 			addButton("RIG DSI",                    panelClt4, color_conf_process);
 			addButton("MAIN extrinsics",            panelClt4, color_process);
@@ -1168,6 +1170,12 @@ private Panel panel1,
         }
 
     	saveProperties(null,CORRECTION_PARAMETERS.resultsDirectory,true, PROPERTIES);
+    	return;
+/* ======================================================================== */
+
+    } else if (label.equals("Save offset")) {
+
+    	saveInfinityOffsets(null,CORRECTION_PARAMETERS.resultsDirectory);
     	return;
 /* ======================================================================== */
 
@@ -3704,6 +3712,12 @@ private Panel panel1,
     	}
     	return;
 /* ======================================================================== */
+    } else if (label.equals("Rig offset")) {
+    	while (true) {
+    		if (!CLT_PARAMETERS.modifyInfCorr("Modify infinity offset per image set disparity corrections")) break;
+    	}
+    	return;
+/* ======================================================================== */
     } else if (label.equals("Select CLT image")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	ImagePlus imp_rslt = selectCLTImage();
@@ -5360,19 +5374,6 @@ private Panel panel1,
 
 	public boolean batchRig() {
 		long startTime=System.nanoTime();
-/*		if ((QUAD_CLT == null) || (QUAD_CLT.tp == null) || (QUAD_CLT.tp.clt_3d_passes == null)  || (QUAD_CLT.tp.clt_3d_passes.size() == 0)) {
-
-			boolean OK = clt3d(
-					false, // boolean adjust_extrinsics,
-					false); // boolean adjust_poly);
-			if (! OK) {
-				String msg = "DSI data is not available and \"CLT 3D\" failed";
-				IJ.showMessage("Error",msg);
-				System.out.println(msg);
-				return false;
-			}
-		}
-*/
 		// load needed sensor and kernels files
 		if (!prepareRigImages()) return false;
 		String configPath=getSaveCongigPath();
@@ -6709,7 +6710,59 @@ private Panel panel1,
 
 	}
 
+	public void saveInfinityOffsets(
+			String path,      // full path or null
+			String directory) { // use as default directory if path==null
+		String [] patterns= {".corr-xml",".xml"};
+		if (path==null) {
+			path= selectFile(true, // save
+					"Save configuration selection", // title
+					"Select configuration file", // button
+					new MultipleExtensionsFileFilter(patterns, "XML Configuration files (*.corr-xml)"), // filter
+					directory); // may be ""
+		} else path+=patterns[0];
+		if (path==null) return;
+		Properties properties = new Properties();
 
+    	CLT_PARAMETERS.setPropertiesInfinityDistance("CLT_PARAMETERS.", properties);
+//		setAllProperties(properties);
+
+		OutputStream os;
+		try {
+			os = new FileOutputStream(path);
+		} catch (FileNotFoundException e1) {
+			// missing config directory
+			File dir = (new File(path)).getParentFile();
+			if (!dir.exists()){
+				dir.mkdirs();
+				try {
+					os = new FileOutputStream(path);
+				} catch (FileNotFoundException e2) {
+					IJ.showMessage("Error","Failed to create directory "+dir.getName()+" to save configuration file: "+path);
+					return;
+				}
+			} else {
+				IJ.showMessage("Error","Failed to open configuration file: "+path);
+				return;
+			}
+		}
+			try {
+				properties.storeToXML(os,
+						"last updated " + new java.util.Date(), "UTF8");
+
+			} catch (IOException e) {
+				IJ.showMessage("Error","Failed to write XML configuration file: "+path);
+				return;
+			}
+		try {
+			os.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		if (DEBUG_LEVEL> -3) System.out.println("Configuration parameters are saved to "+path);
+
+	}
 
 
 /* ======================================================================== */

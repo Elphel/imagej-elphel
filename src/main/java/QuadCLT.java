@@ -80,6 +80,7 @@ public class QuadCLT {
 	double [][][]                                          image_data = null;
     boolean [][]                                           saturation_imp = null; // (near) saturated pixels or null
     boolean                                                is_aux = false;
+    int []                                                 woi_tops; // used to calculate scanline timing
 
 
 // magic scale should be set before using  TileProcessor (calculated disparities depend on it)
@@ -2671,6 +2672,7 @@ public class QuadCLT {
 			  }
 
 			  ImagePlus [] imp_srcs = new ImagePlus[channelFiles.length];
+			  this.woi_tops = new int [channelFiles.length];
 			  double [] scaleExposures = new double[channelFiles.length];
 			  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
 				  int nFile=channelFiles[srcChannel];
@@ -2705,6 +2707,7 @@ public class QuadCLT {
 							  imp_srcs[srcChannel], // ImagePlus imp_src,
 							  eyesisCorrections.pixelMapping.sensors[srcChannel].getSensorWH(),
 							  true); // boolean replicate);
+			    	  woi_tops[srcChannel] = Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_TOP"));
 					  scaleExposures[srcChannel] = 1.0;
 					  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
 						  scaleExposures[srcChannel] = referenceExposures[nFile]/Double.parseDouble((String) imp_srcs[srcChannel].getProperty("EXPOSURE"));
@@ -3364,6 +3367,7 @@ public class QuadCLT {
 			  int                                       debugLevel)
 	  {
 		  ImagePlus [] imp_srcs = new ImagePlus[channelFiles.length];
+		  this.woi_tops = new int [channelFiles.length];
 //		  double [] scaleExposures = new double[channelFiles.length]; //
 		  double [][] dbg_dpixels = new double [channelFiles.length][];
 //		  int [] fullWindowWH = geometryCorrection.getSensorWH();
@@ -3400,10 +3404,12 @@ public class QuadCLT {
 				  }
 // imp_srcs[srcChannel].show(); // REMOVE ME!
 
+				  woi_tops[srcChannel] = Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_TOP"));
 				  imp_srcs[srcChannel] =  padBayerToFullSize(
 						  imp_srcs[srcChannel], // ImagePlus imp_src,
 						  eyesisCorrections.pixelMapping.sensors[srcChannel].getSensorWH(),
 						  true); // boolean replicate);
+
 				  scaleExposures[srcChannel] = 1.0;
 				  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
 					  scaleExposures[srcChannel] = referenceExposures[nFile]/Double.parseDouble((String) imp_srcs[srcChannel].getProperty("EXPOSURE"));
@@ -4863,6 +4869,7 @@ public class QuadCLT {
 			  }
 
 			  ImagePlus [] imp_srcs = new ImagePlus[channelFiles.length];
+			  this.woi_tops = new int [channelFiles.length];
 			  boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
 			  double [] scaleExposures = new double[channelFiles.length];
 			  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
@@ -4898,6 +4905,7 @@ public class QuadCLT {
 							  imp_srcs[srcChannel], // ImagePlus imp_src,
 							  eyesisCorrections.pixelMapping.sensors[srcChannel].getSensorWH(),
 							  true); // boolean replicate);
+			    	  woi_tops[srcChannel] = Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_TOP"));
 					  scaleExposures[srcChannel] = 1.0;
 					  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
 						  scaleExposures[srcChannel] = referenceExposures[nFile]/Double.parseDouble((String) imp_srcs[srcChannel].getProperty("EXPOSURE"));
@@ -6670,7 +6678,7 @@ public class QuadCLT {
 			  }
 
 			  double [][][] new_corr;
-			  final double     inf_max_disparity = 2.0;
+//			  final double     inf_max_disparity = 2.0;
 			  double [][][]    gt_disparity_strength = {rig_disp_strength};
 			  new_corr = ac.lazyEyeCorrectionFromGT(
 					  geometryCorrection_main, //final GeometryCorrection geometryCorrection_main, // if not null - this is an AUX camera of a rig
@@ -6700,7 +6708,7 @@ public class QuadCLT {
 					  clt_parameters.ih_min_samples,     // 10,   // final int        hist_min_samples,
 					  clt_parameters.ih_norm_center,     // true, // final boolean    hist_norm_center, // if there are more tiles that fit than min_samples, replace with
 					  clt_parameters.ly_inf_frac,        // 0.5, // final double     inf_fraction,    // fraction of the weight for the infinity tiles
-					  inf_max_disparity, // final double     inf_max_disparity, // use all smaller disparities as inf_fraction
+					  clt_parameters.ly_inf_max_disparity, // inf_max_disparity, // final double     inf_max_disparity, // use all smaller disparities as inf_fraction
 					  clt_parameters,  // EyesisCorrectionParameters.CLTParameters           clt_parameters,
 					  scans14, // disp_strength, // scans,   // double [][] disp_strength,
 					  gt_disparity_strength, // double [][][]    gt_disparity_strength, // 1 pair for each 14 entries of scans_14 (normally - just 1 scan
@@ -8706,8 +8714,7 @@ public class QuadCLT {
 		  }
 
 		  ImagePlus [] imp_srcs = new ImagePlus[channelFiles.length];
-///		  boolean [][] saturation_imp = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles.length][] : null;
-///		  double [] scaleExposures = new double[channelFiles.length]; //
+		  this.woi_tops = new int [channelFiles.length];
 		  double [][] dbg_dpixels =  batch_mode? null : (new double [channelFiles.length][]);
 
 		  for (int srcChannel=0; srcChannel<channelFiles.length; srcChannel++){
@@ -8743,6 +8750,7 @@ public class QuadCLT {
 						  imp_srcs[srcChannel], // ImagePlus imp_src,
 						  eyesisCorrections.pixelMapping.sensors[srcChannel].getSensorWH(),
 						  true); // boolean replicate);
+		    	  woi_tops[srcChannel] = Integer.parseInt((String) imp_srcs[srcChannel].getProperty("WOI_TOP"));
 				  scaleExposures[srcChannel] = 1.0;
 				  if (!Double.isNaN(referenceExposures[nFile]) && (imp_srcs[srcChannel].getProperty("EXPOSURE")!=null)){
 					  scaleExposures[srcChannel] = referenceExposures[nFile]/Double.parseDouble((String) imp_srcs[srcChannel].getProperty("EXPOSURE"));
