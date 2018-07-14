@@ -406,7 +406,7 @@ public class TwoQuadCLT {
 
 		ImageDtt image_dtt = new ImageDtt();
 		double [][] ml_data = null;
-		int [][] woi_tops = {quadCLT_main.woi_tops,quadCLT_aux.woi_tops};
+//		int [][] woi_tops = {quadCLT_main.woi_tops,quadCLT_aux.woi_tops};
 		final double [][][]       ers_delay = get_ers?(new double [2][][]):null;
 
 
@@ -439,7 +439,7 @@ public class TwoQuadCLT {
 						quadCLT_aux.getCLTKernels(),          // final double [][][][][][] clt_kernels_aux,  // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 						clt_parameters.corr_magic_scale,      // final double              corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
 						true,                                 // 	final boolean             keep_clt_data,
-						woi_tops,                             // final int [][]            woi_tops,
+//						woi_tops,                             // final int [][]            woi_tops,
 						ers_delay,                            // final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
 						threadsMax,                           // final int                 threadsMax,  // maximal number of threads to launch
 						debugLevel);                          // final int                 globalDebugLevel);
@@ -1946,7 +1946,7 @@ if (debugLevel > -100) return true; // temporarily !
 			}
 		}
 		ImageDtt image_dtt = new ImageDtt();
-		int [][] woi_tops = {quadCLT_main.woi_tops,quadCLT_aux.woi_tops};
+//		int [][] woi_tops = {quadCLT_main.woi_tops,quadCLT_aux.woi_tops};
 		image_dtt.clt_bi_quad (
 				clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				clt_parameters.fat_zero,              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
@@ -1974,7 +1974,7 @@ if (debugLevel > -100) return true; // temporarily !
 				quadCLT_aux.getCLTKernels(),          // final double [][][][][][] clt_kernels_aux,  // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 				clt_parameters.corr_magic_scale,      // final double              corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
 				false, // true,                                 // 	final boolean             keep_clt_data,
-				woi_tops,                             // final int [][]            woi_tops,
+//				woi_tops,                             // final int [][]            woi_tops,
 				null,                                 // final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
 				threadsMax,                           // final int                 threadsMax,  // maximal number of threads to launch
 				debugLevel-2);                        // final int                 globalDebugLevel);
@@ -2154,7 +2154,7 @@ if (debugLevel > -100) return true; // temporarily !
 					clt_parameters.rig.ml_show_ml,            // boolean              show,
 					debugLevel);                              // int                  debugLevel
 			Runtime.getRuntime().gc();
-					System.out.println("Generated ML data, offset = "+disparity_offset+", --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+					System.out.println("Generated ML data, offset = "+String.format("%8.5f",disparity_offset)+", --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 		}
 	}
 
@@ -5537,7 +5537,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 		double [][] disparity_bimap  = new double [ImageDtt.BIDISPARITY_TITLES.length][]; //[0] -residual disparity, [1] - orthogonal (just for debugging) last 4 - max pixel differences
 
-		int [][] woi_tops = {quadCLT_main.woi_tops,quadCLT_aux.woi_tops};
+//		int [][] woi_tops = {quadCLT_main.woi_tops,quadCLT_aux.woi_tops};
 		image_dtt.clt_bi_quad (
 				clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 				fatzero,                              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
@@ -5564,7 +5564,7 @@ if (debugLevel > -100) return true; // temporarily !
 				quadCLT_aux.getCLTKernels(),          // final double [][][][][][] clt_kernels_aux,  // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
 				clt_parameters.corr_magic_scale,      // final double              corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
 				false, // true,                                 // 	final boolean             keep_clt_data,
-				woi_tops,                             // final int [][]            woi_tops,
+//				woi_tops,                             // final int [][]            woi_tops,
 				null,                                 // final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
 				threadsMax,                           // final int                 threadsMax,  // maximal number of threads to launch
 				debugLevel-2);                        // final int                 globalDebugLevel);

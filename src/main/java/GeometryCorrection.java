@@ -83,6 +83,11 @@ public class GeometryCorrection {
 	public  CorrVector extrinsic_corr;
 
 	public RigOffset   rigOffset =    null;
+	int []             woi_tops; // used to calculate scanline timing
+
+	public int [] getWOITops() {
+		return woi_tops;
+	}
 
 
 	public int [] getSensorWH() {

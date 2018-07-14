@@ -2892,6 +2892,17 @@ public class EyesisCorrectionParameters {
 		public double     fds_abs_tilt         =   2.0; // pix per tile
 		public double     fds_rel_tilt         =   0.2; // (pix / disparity) per tile
 
+		public boolean    per_filter =             true; // detect and filter periodic structures
+		public double     per_trustedCorrelation = 2.0;
+		public double     per_initial_diff =       0.8;   // initial disparity difference to merge to maximum
+		public double     per_strength_floor =     0.1;   //
+		public double     per_strength_max_over =  0.03;  //
+		public double     per_min_period =         4.0;   //
+		public int        per_min_num_periods =    3; // minimal number of periods
+		public double     per_disp_tolerance =     1.0;   // maximal difference between the average of fundamental and
+		public double     per_disp_match =         1.0;   // disparity difference to match neighbors
+		public double     per_strong_match_inc =   0.02;  // extra strength to treat match as strong (for hysteresis)
+
 // Macro disparity scanning parameters
 		public double     mc_disp8_step        =   2.0;   // Macro disparity scan step (actual disparity step is 8x)
 		public double     mc_disp8_trust       =   2.0;   //Trust measured disparity within +/- this value
@@ -2908,9 +2919,6 @@ public class EyesisCorrectionParameters {
  		public double     mc_weight_var        =   1.0;   // weight of variance data (old, detects thin wires?)
  		public double     mc_weight_Y          =   1.0;   // weight of average intensity
  		public double     mc_weight_RBmG       =   5.0;   // weight of average color difference (0.5*(R+B)-G), shoukld be ~5*weight_Y
-
-
-
 
 //		  0x1e, // 0x1f, // final int         variants_mask,
 		public int        gr_min_new           =  20;    // Discard variant if it requests too few tiles
@@ -3593,6 +3601,17 @@ public class EyesisCorrectionParameters {
 			properties.setProperty(prefix+"fds_smpl_wnd",     this.fds_smpl_wnd+"");
 			properties.setProperty(prefix+"fds_abs_tilt",     this.fds_abs_tilt +"");
 			properties.setProperty(prefix+"fds_rel_tilt",     this.fds_rel_tilt +"");
+
+			properties.setProperty(prefix+"per_filter",             this.per_filter +"");
+			properties.setProperty(prefix+"per_trustedCorrelation", this.per_trustedCorrelation +"");
+			properties.setProperty(prefix+"per_initial_diff",       this.per_initial_diff +"");
+			properties.setProperty(prefix+"per_strength_floor",     this.per_strength_floor +"");
+			properties.setProperty(prefix+"per_strength_max_over",  this.per_strength_max_over +"");
+			properties.setProperty(prefix+"per_min_period",         this.per_min_period +"");
+			properties.setProperty(prefix+"per_min_num_periods",    this.per_min_num_periods +"");
+			properties.setProperty(prefix+"per_disp_tolerance",     this.per_disp_tolerance +"");
+			properties.setProperty(prefix+"per_disp_match",         this.per_disp_match +"");
+			properties.setProperty(prefix+"per_strong_match_inc",   this.per_strong_match_inc +"");
 
 			properties.setProperty(prefix+"mc_disp8_step",    this.mc_disp8_step +"");
 			properties.setProperty(prefix+"mc_disp8_trust",   this.mc_disp8_trust +"");
@@ -4281,6 +4300,18 @@ public class EyesisCorrectionParameters {
   			if (properties.getProperty(prefix+"fds_smpl_wnd")!=null)      this.fds_smpl_wnd=Boolean.parseBoolean(properties.getProperty(prefix+"fds_smpl_wnd"));
   			if (properties.getProperty(prefix+"fds_abs_tilt")!=null)      this.fds_abs_tilt=Double.parseDouble(properties.getProperty(prefix+"fds_abs_tilt"));
   			if (properties.getProperty(prefix+"fds_rel_tilt")!=null)      this.fds_rel_tilt=Double.parseDouble(properties.getProperty(prefix+"fds_rel_tilt"));
+
+  			if (properties.getProperty(prefix+"per_filter")!=null)             this.per_filter=Boolean.parseBoolean(properties.getProperty(prefix+"per_filter"));
+  			if (properties.getProperty(prefix+"per_trustedCorrelation")!=null) this.per_trustedCorrelation=Double.parseDouble(properties.getProperty(prefix+"per_trustedCorrelation"));
+  			if (properties.getProperty(prefix+"per_initial_diff")!=null)       this.per_initial_diff=Double.parseDouble(properties.getProperty(prefix+"per_initial_diff"));
+  			if (properties.getProperty(prefix+"per_strength_floor")!=null)     this.per_strength_floor=Double.parseDouble(properties.getProperty(prefix+"per_strength_floor"));
+  			if (properties.getProperty(prefix+"per_strength_max_over")!=null)  this.per_strength_max_over=Double.parseDouble(properties.getProperty(prefix+"per_strength_max_over"));
+  			if (properties.getProperty(prefix+"per_min_period")!=null)         this.per_min_period=Double.parseDouble(properties.getProperty(prefix+"per_min_period"));
+  			if (properties.getProperty(prefix+"per_min_num_periods")!=null)    this.per_min_num_periods=Integer.parseInt(properties.getProperty(prefix+"per_min_num_periods"));
+  			if (properties.getProperty(prefix+"per_disp_tolerance")!=null)     this.per_disp_tolerance=Double.parseDouble(properties.getProperty(prefix+"per_disp_tolerance"));
+  			if (properties.getProperty(prefix+"per_disp_match")!=null)         this.per_disp_match=Double.parseDouble(properties.getProperty(prefix+"per_disp_match"));
+  			if (properties.getProperty(prefix+"per_strong_match_inc")!=null)   this.per_strong_match_inc=Double.parseDouble(properties.getProperty(prefix+"per_strong_match_inc"));
+
 
   			if (properties.getProperty(prefix+"mc_disp8_step")!=null)     this.mc_disp8_step=Double.parseDouble(properties.getProperty(prefix+"mc_disp8_step"));
   			if (properties.getProperty(prefix+"mc_disp8_trust")!=null)    this.mc_disp8_trust=Double.parseDouble(properties.getProperty(prefix+"mc_disp8_trust"));
@@ -5055,6 +5086,29 @@ public class EyesisCorrectionParameters {
   			gd.addNumericField("Maximal growing plate tilt in disparity pix per tile",                                this.fds_abs_tilt,  6);
   			gd.addNumericField("Maximal relative growing plate tilt in disparity pix per tile per disparity pixel",   this.fds_rel_tilt,  6);
 
+  			gd.addTab         ("Periodic", "Detect and filter periodic features");
+  			gd.addCheckbox    ("Apply filter to remove false correlations of periodic structures",                    this.per_filter,
+  					"Detect repetitive features (such as windows grid) and remove false matches");
+  			gd.addNumericField("Maximal residual disparity difference to use for periodic features",                  this.per_trustedCorrelation,  4, 6,"pix",
+  					"do not trust correlation results with larger absolute value of residual disparity");
+  			gd.addNumericField("Initial half-width of the disparity range per cluster",                               this.per_initial_diff,  4, 6,"pix",
+  					"Select tiles this far from the local maximums");
+  			gd.addNumericField("Strength floor to detect periodic features",                                          this.per_strength_floor,  4, 6,"",
+  					"Only use stronger correlations, subtract this value for weighted averages");
+  			gd.addNumericField("Maximums seeds should have at least this much over strength floor",                   this.per_strength_max_over,  4, 6,"",
+  					"When growing clusters, only start with the correlations this much stronger than strength floor ");
+  			gd.addNumericField("Minimal feature period",                                                              this.per_min_period,  4, 6,"",
+  					"Only detect/filter feature that have period above this value");
+  			gd.addNumericField("Minimal number of periods in periodic structures",                                    this.per_min_num_periods,  0, 2,"",
+  					"Minimal number of full periods to be detected");
+  			gd.addNumericField("Maximal period variations",                                                           this.per_disp_tolerance,  4, 6,"pix",
+  					"The detected periods should be higher than this value");
+  			gd.addNumericField("Disparity difference to match neighbors",                                             this.per_disp_match,  0, 2,"",
+  					"Neighbor tiles should have smaller disparity difference from gthe center to qualify");
+  			gd.addNumericField("Extra strength to treat match as strong (for hysteresis)",                            this.per_strong_match_inc,  0, 2,"",
+  					"The layer that does not have any match in the direction where some other layer has a strong match will be removed");
+
+
   			gd.addTab         ("Macro", "Macro tiles correlation parameters");
   			gd.addMessage     ("--- Macro correlation parameters ---");
   			gd.addNumericField("Macro disparity scan step (actual disparity step is 8x)",                             this.mc_disp8_step,  6);
@@ -5770,6 +5824,17 @@ public class EyesisCorrectionParameters {
   			this.fds_smpl_wnd=          gd.getNextBoolean();
   			this.fds_abs_tilt=          gd.getNextNumber();
   			this.fds_rel_tilt=          gd.getNextNumber();
+
+  			this.per_filter=               gd.getNextBoolean();
+  			this.per_trustedCorrelation=   gd.getNextNumber();
+  			this.per_initial_diff=         gd.getNextNumber();
+  			this.per_strength_floor=       gd.getNextNumber();
+  			this.per_strength_max_over=    gd.getNextNumber();
+  			this.per_min_period=           gd.getNextNumber();
+  			this.per_min_num_periods=(int) gd.getNextNumber();
+  			this.per_disp_tolerance=       gd.getNextNumber();
+  			this.per_disp_match=           gd.getNextNumber();
+  			this.per_strong_match_inc=     gd.getNextNumber();
 
   			this.mc_disp8_step=         gd.getNextNumber();
   			this.mc_disp8_trust=        gd.getNextNumber();

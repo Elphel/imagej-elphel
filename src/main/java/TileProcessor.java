@@ -25,9 +25,10 @@
 import java.awt.Rectangle;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 //import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicInteger;
-
 
 public class TileProcessor {
 	public static String [] SCAN_TITLES = {
@@ -446,6 +447,8 @@ public class TileProcessor {
 		}
 	}
 
+
+
 	public void filterOverBackground(
 			final double [][]           ds,
 			final double []             bg_strength,
@@ -460,6 +463,422 @@ public class TileProcessor {
 			}
 		}
 	}
+
+	public double [][] getPeriodics(
+			final ArrayList <CLTPass3d> passes,
+			final int                   firstPass,
+			final int                   lastPassPlus1,
+			final double                trustedCorrelation,
+			final double                initial_diff, // initial disparity difference to merge to maximum
+			final double                strength_floor,
+			final double                strength_max_over, // maximum should have strength by this more than the floor
+			final double                min_period,
+			final int                   min_num_periods, // minimal number of periods
+			final double                disp_tolerance, // maximal difference between the average of fundamental and 2-nd and first
+			final double                disp_tol_center, // tolerance to match this (center) tile ds to that of the merged with neighbors - should be < min_period/2
+			final double                disp_match,     // disparity difference to match neighbors
+			final double                strong_match_inc,   // extra strength to treat match as strong (for hysteresis)
+			final boolean               usePoly,  // use polynomial method to find max), valid if useCombo == false
+			final int                   dbg_tileX,
+			final int                   dbg_tileY,
+			final int                   threadsMax,  // maximal number of threads to launch
+			final boolean               updateStatus,
+			final int                   debugLevel) // update status info
+	{
+		final int tilesX = getTilesX();
+		final int tilesY = getTilesY();
+		final int dbg_tile = (debugLevel>0) ? (dbg_tileX + tilesX * (dbg_tileY)): -1;
+		final int numTiles = tilesX*tilesY;
+		final TileNeibs         tnImage = new TileNeibs(tilesX,tilesY);
+		final double [][] fund_per = new double[4][numTiles];
+		final double [][][] layers =         new double [numTiles][][];
+		final double [][][] layers_initial = new double [numTiles][][];
+		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
+		final double [] dir_weights = {0.5, 0.25, 0.5, 0.25, 0.5, 0.25, 0.5, 0.25,1.0};
+		final AtomicInteger ai = new AtomicInteger(0);
+		final double                strong_match = strength_max_over+ strong_match_inc; // strength_max_over - minimal strength in layers[][1][]
+		final class DS {
+			int     num_sampes = 0;
+			boolean not_max = false;
+			double  disparity;
+			double  strength;
+			double  max_strength;
+			DS(double disparity, double strength){
+				this.disparity = disparity;
+				this.strength =  strength;
+				this.max_strength =  strength;
+				this.num_sampes ++;
+			}
+			void mergeDS(DS other){
+				this.disparity = this.disparity*this.strength + other.disparity * other.strength;
+				this.strength +=  other.strength;
+				this.disparity /= this.strength;
+				this.max_strength =  Math.max(this.max_strength, other.strength);
+				this.num_sampes ++;
+			}
+			@Override
+			protected DS clone()
+			{
+				DS ds =  new DS(this.disparity,this.strength);
+				ds.max_strength = this.max_strength;
+				ds.num_sampes =   this.num_sampes;
+				return ds;
+			}
+			@Override
+			public String toString() {
+				return String.format("d=%8.4f, s=%8.6f (%8.6f), N=%d %s", disparity, getAvgStrength(), getMaxStrength(), num_sampes, not_max? "NOT max":"");
+			}
+			double getAvgStrength() {
+				return strength/num_sampes;
+			}
+			double getMaxStrength() {
+				return max_strength;
+			}
+		}
+		final int disparity_index = usePoly ? ImageDtt.DISPARITY_INDEX_POLY : ImageDtt.DISPARITY_INDEX_CM;
+
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					for (int nTile = ai.getAndIncrement(); nTile < numTiles; nTile = ai.getAndIncrement()) {
+						int tileX = nTile % tilesX;
+						int tileY = nTile / tilesX;
+						boolean dt = nTile == dbg_tile;
+						if (dt) {
+							System.out.println("getPeriodics(): nTile="+nTile);
+							System.out.println();
+						}
+						ArrayList <DS> ds_list = new ArrayList<DS>(); // this and neighbors tiles
+						ArrayList <DS> ds_center_list = new ArrayList<DS>(); // only this tile DS
+						for (int ipass = firstPass;  ipass <lastPassPlus1; ipass++ ){
+							CLTPass3d pass = passes.get(ipass);
+							if ( pass.isMeasured()) {
+								for (int dir = 0; dir < 9; dir++) {
+									int nTile1 = tnImage.getNeibIndex(nTile, dir);
+									if (nTile1 >= 0) {
+										double disp = pass.disparity_map[disparity_index][nTile1]/corr_magic_scale + pass.disparity[tileY][tileX];
+										double w = pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nTile1] - strength_floor;
+										if (    (w > 0.0) &&
+												(Math.abs(pass.disparity_map[disparity_index][nTile1]) <= trustedCorrelation)){
+											ds_list.add(new DS(
+													disp,
+													(pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nTile1] - strength_floor)*dir_weights[dir]));
+											if (dir == 8) {
+												// have to be separate (cloned) instances
+												ds_center_list.add(new DS(
+														disp,
+														(pass.disparity_map[ImageDtt.DISPARITY_STRENGTH_INDEX][nTile1] - strength_floor)*dir_weights[dir]));
+											}
+										}
+									}
+								}
+							}
+						}
+						if (!ds_list.isEmpty()) {
+							Collections.sort(ds_list, new Comparator<DS>() {
+								@Override
+								public int compare(DS lhs, DS rhs) {
+									// -1 - less than, 1 - greater than, 0 - equal, not inverted for ascending disparity
+									//										return lhs.disparity > rhs.disparity ? -1 : (lhs.disparity < rhs.disparity ) ? 1 : 0;
+									return lhs.disparity < rhs.disparity ? -1 : (lhs.disparity > rhs.disparity ) ? 1 : 0;
+								}
+							});
+							if (dt) {
+								for (DS ds:ds_list) {
+									System.out.println(ds.toString());
+								}
+							}
+							ArrayList <DS> merged_list =    new ArrayList<DS>();
+							while (!ds_list.isEmpty()){
+								// find max strength
+								int strongest = -1;
+								for (int i = 1; i < ds_list.size(); i++) {
+									double w = ds_list.get(i).strength;
+									if (w >= strength_max_over ) {
+										if ((strongest < 0) || (ds_list.get(i).strength > ds_list.get(strongest).strength)) {
+											if (!ds_list.get(i).not_max) {
+												strongest = i;
+											}
+										}
+									}
+								}
+								if (strongest < 0) {
+									break; // none of the remaining DS can be a new cluster seed - all are too close to previous
+								}
+								DS sds = ds_list.remove(strongest);
+								merged_list.add(sds);
+								// scan other elements, join or mark as not max
+								int indx = 0;
+								for (; indx < ds_list.size(); indx++) {
+									double disp = ds_list.get(indx).disparity;
+									if (disp > (sds.disparity - min_period)) {
+										ds_list.get(indx).not_max = true;
+									}
+									if (disp >= (sds.disparity - initial_diff)) {
+										break;
+									}
+								}
+								// pointing to the first to merge
+								for (; indx < ds_list.size(); indx++) {
+									if (ds_list.get(indx).disparity <= (sds.disparity + initial_diff)) {
+										sds.mergeDS(ds_list.remove(indx));
+										indx --;
+									} else { // disparity is too high to be merged
+										break;
+									}
+								}
+								for (; indx < ds_list.size(); indx++) {
+									if (ds_list.get(indx).disparity < (sds.disparity + min_period)) {
+										ds_list.get(indx).not_max = true;
+									} else {
+										break;
+									}
+								}
+							}
+							// merge ds_center_list elements hinted by merged_list;
+							DS[] center_ds = new DS[merged_list.size()];
+							for (DS ds: ds_center_list) {
+								for (int i = 0; i < merged_list.size();i++) {
+									if (Math.abs(ds.disparity - merged_list.get(i).disparity) <= disp_tolerance) {
+										if (center_ds[i] == null) {
+											center_ds[i] = ds; // .clone();
+										} else {
+											center_ds[i].mergeDS(ds);
+										}
+										break;
+									}
+								}
+							}
+							ds_center_list = new ArrayList<DS>();
+							for (DS ds: center_ds) {
+								if (ds != null) ds_center_list.add(ds);
+							}
+
+							if (ds_center_list.size() > 0) {
+								Collections.sort(ds_center_list, new Comparator<DS>() {
+									@Override
+									public int compare(DS lhs, DS rhs) {
+										// -1 - less than, 1 - greater than, 0 - equal, not inverted for ascending disparity
+										//											return lhs.disparity > rhs.disparity ? -1 : (lhs.disparity < rhs.disparity ) ? 1 : 0;
+										return lhs.disparity < rhs.disparity ? -1 : (lhs.disparity > rhs.disparity ) ? 1 : 0;
+									}
+								});
+								if (dt) {
+									System.out.println("\n\nds_center_list (ordered by disparity)");
+									for (DS ds:ds_center_list) {
+										System.out.println(ds.toString());
+									}
+								}
+								layers[nTile] = new double[ds_center_list.size()][2];
+								layers_initial[nTile] = new double[ds_center_list.size()][2];
+								for (int n = 0; n< ds_center_list.size(); n++) {
+									layers[nTile][n][0] = ds_center_list.get(n).disparity;
+									layers[nTile][n][1] = ds_center_list.get(n).getMaxStrength();
+									layers_initial[nTile][n] = layers[nTile][n].clone();
+								}
+
+
+
+								if (dt) {
+									System.out.println("\n\nmerged_list (strongest first)");
+									for (DS ds:merged_list) {
+										System.out.println(ds.toString());
+									}
+									System.out.println("\n\nremaining ds_list");
+									for (DS ds:ds_list) {
+										System.out.println(ds.toString());
+									}
+								}
+
+
+								// now merged_list contains cluster centers
+								/*
+							if (merged_list.size() > 0) {
+								Collections.sort(merged_list, new Comparator<DS>() {
+									@Override
+									public int compare(DS lhs, DS rhs) {
+										// -1 - less than, 1 - greater than, 0 - equal, not inverted for ascending disparity
+										//											return lhs.disparity > rhs.disparity ? -1 : (lhs.disparity < rhs.disparity ) ? 1 : 0;
+										return lhs.disparity < rhs.disparity ? -1 : (lhs.disparity > rhs.disparity ) ? 1 : 0;
+									}
+								});
+								if (dt) {
+									System.out.println("\n\nmerged_list (ordered by disparity)");
+									for (DS ds:merged_list) {
+										System.out.println(ds.toString());
+									}
+								}
+								layers[nTile] = new double[merged_list.size()][2];
+								layers_initial[nTile] = new double[merged_list.size()][2];
+								for (int n = 0; n< merged_list.size(); n++) {
+									layers[nTile][n][0] = merged_list.get(n).disparity;
+									layers[nTile][n][1] = merged_list.get(n).getMaxStrength();
+									layers_initial[nTile][n] = layers[nTile][n].clone();
+								}
+							}
+								 */
+								if (merged_list.size() > min_num_periods) {
+									Collections.sort(merged_list, new Comparator<DS>() {
+										@Override
+										public int compare(DS lhs, DS rhs) {
+											// -1 - less than, 1 - greater than, 0 - equal, not inverted for ascending disparity
+											//											return lhs.disparity > rhs.disparity ? -1 : (lhs.disparity < rhs.disparity ) ? 1 : 0;
+											return lhs.disparity < rhs.disparity ? -1 : (lhs.disparity > rhs.disparity ) ? 1 : 0;
+										}
+									});
+									if (dt) {
+										System.out.println("\n\nmerged_list (ordered by disparity)");
+										for (DS ds:merged_list) {
+											System.out.println(ds.toString());
+										}
+									}
+									double period = (merged_list.get(min_num_periods).disparity - merged_list.get(0).disparity)/min_num_periods;
+									boolean periods_match = true;
+									for (int i = 1; i < min_num_periods; i++) {
+										if (Math.abs(merged_list.get(0).disparity + i*period - merged_list.get(i).disparity ) > disp_tolerance) {
+											periods_match = false;
+											break;
+										}
+									}
+
+									if (periods_match) {
+										fund_per[0][nTile] = merged_list.get(0).disparity;
+										fund_per[1][nTile] = 0.5*(merged_list.get(2).disparity - merged_list.get(0).disparity);
+
+										fund_per[2][nTile] = 0;
+										for (int i = 0; i <= min_num_periods; i++) {
+											fund_per[2][nTile] += merged_list.get(i).getMaxStrength();
+										}
+										fund_per[2][nTile] /= min_num_periods+1;
+										fund_per[3][nTile] =ds_center_list.size();
+									}
+									// remove later
+								} else if (merged_list.size() == 1) { // unambiguous - mark with period == 0
+									fund_per[0][nTile] = merged_list.get(0).disparity;
+									fund_per[1][nTile] = 0.0;
+									fund_per[2][nTile] = merged_list.get(0).getMaxStrength();
+								}
+							}
+						}
+					}
+				}
+			};
+		}
+		ImageDtt.startAndJoin(threads);
+
+
+
+		for (int nPass = 0; nPass < 1000; nPass++) {
+			ai.set(0);
+			final AtomicInteger mods_ai = new AtomicInteger(0);
+			final double [][][] new_layers = new double [numTiles][][];
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					@Override
+					public void run() {
+						for (int nTile = ai.getAndIncrement(); nTile < numTiles; nTile = ai.getAndIncrement()) { // periodic
+							new_layers[nTile] = layers[nTile]; // shallow copy
+							if ((fund_per[1][nTile] > 0.0) &&(layers[nTile] != null)){
+								int tileX = nTile % tilesX;
+								int tileY = nTile / tilesX;
+								boolean dt = nTile == dbg_tile;
+								if (dt) {
+									System.out.println("getPeriodics2(): nTile="+nTile+" tileX="+tileX+", tileY="+tileY);
+									System.out.println();
+								}
+								// find directions where at least one layer has a strong match (so those that do not have even weak should be eliminated)
+								boolean [] dir_strong = new boolean[8];
+								for (int nLayer = 0; nLayer < layers[nTile].length; nLayer++) {
+									double disp = layers[nTile][nLayer][0];
+									for (int dir = 0; dir < 8; dir++) if (!dir_strong[dir]){
+										int nTile1 = tnImage.getNeibIndex(nTile, dir);
+										if ((nTile1 >= 0) && (layers[nTile1] != null)){
+											for (int nl1 = 0; nl1 < layers[nTile1].length; nl1++) {
+												if ((Math.abs(disp - layers[nTile1][nl1][0]) <= disp_match) && (layers[nTile1][nl1][1] > strong_match)) {
+													dir_strong[dir] = true;
+													break;
+												}
+											}
+										}
+									}
+								}
+								boolean [] no_dir_match =        new boolean [layers[nTile].length];
+								for (int nLayer = 0; nLayer < layers[nTile].length; nLayer++) {
+									double disp = layers[nTile][nLayer][0];
+									for (int dir = 0; dir < 8; dir++) if (dir_strong[dir]){ // only directions that have some strong matches
+										int nTile1 = tnImage.getNeibIndex(nTile, dir);
+										boolean has_match = false;
+										if ((nTile1 >= 0) && (layers[nTile1] != null)){
+											for (int nl1 = 0; nl1 < layers[nTile1].length; nl1++) {
+												if (Math.abs(disp - layers[nTile1][nl1][0]) <= disp_match) { // any strength
+													has_match = true;
+													break;
+												}
+											}
+										}
+										if (!has_match) {
+											no_dir_match[nLayer] = true; // no matches for this direction,
+											break;
+										}
+									}
+								}
+								int num_remove = 0;
+								for (int i = 0; i < no_dir_match.length; i++) {
+									if (no_dir_match[i]) {
+										num_remove++;
+									}
+								}
+								if (num_remove > 0) {
+									new_layers[nTile] = new double [layers[nTile].length - num_remove][];
+									int indx = 0;
+									for (int i = 0; i < layers[nTile].length; i++) if (!no_dir_match[i]) {
+										new_layers[nTile][indx++] = layers[nTile][i];
+										mods_ai.getAndIncrement();
+									}
+									// update fund_per[3][nTile] = merged_list.size();
+									// todo: remove later
+									fund_per[3][nTile] = new_layers[nTile].length; // number of layers
+									if (new_layers[nTile].length > 0) {
+										fund_per[0][nTile] = new_layers[nTile][0][0]; // lowest disparity (keep period)
+										fund_per[2][nTile] = new_layers[nTile][0][1]; // strength
+									} else {
+										fund_per[0][nTile] = 0;
+										fund_per[1][nTile] = 0;
+										fund_per[2][nTile] = 0;
+									}
+								}
+							}
+						}
+					}
+				};
+			}
+
+			ImageDtt.startAndJoin(threads);
+
+			System.arraycopy(new_layers, 0, layers, 0, numTiles);
+			if (debugLevel > 0) {
+				System.out.println("Filtering periodics: pass="+nPass+", removed "+mods_ai.get() );
+				String [] dbg_titles= {"fundamental","period", "strength", "num_layers"};
+				(new showDoubleFloatArrays()).showArrays(
+						fund_per,
+						getTilesX(),
+						fund_per[0].length/getTilesX(),
+						true,
+						"PERIODIC-"+nPass,
+						dbg_titles);
+			}
+			if (mods_ai.get() == 0) {
+				break;
+			}
+		}
+
+
+
+
+		return fund_per;
+	}
+
 
 	/**
 	 * Calculates calc_disparity, calc_disparity_hor,  calc_disparity_vert, strength, strength_hor, strength_vert,

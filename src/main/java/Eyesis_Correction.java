@@ -571,6 +571,7 @@ private Panel panel1,
 			addButton("CM Test",                    panelClt3, color_stop);
 			addButton("Show scan",                  panelClt3, color_configure);
 			addButton("Show all scans",             panelClt3, color_configure);
+			addButton("Periodic",                   panelClt3, color_configure);
 			add(panelClt3);
 		}
 
@@ -4373,6 +4374,23 @@ private Panel panel1,
         		UPDATE_STATUS, //final boolean    updateStatus,
         		DEBUG_LEVEL); //final int        debugLevel);
         return;
+
+    } else if (label.equals("Periodic")) {
+    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+        if (QUAD_CLT == null){
+       		System.out.println("QUAD_CLT is null, nothing to show");
+       		return;
+        }
+        QUAD_CLT.showPeriodic(
+        		CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+        		UPDATE_STATUS, //final boolean    updateStatus,
+        		DEBUG_LEVEL); //final int        debugLevel);
+        return;
+
+
+
     } else if (label.equals("CLT ASSIGN")) {
     	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
