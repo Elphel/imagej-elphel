@@ -540,6 +540,10 @@ public class GeometryCorrection {
 					diff_x, // used only with target_disparity == 0
 					diff_y,
 					target_disparity);
+			if (Double.isNaN(rms)) {
+				System.out.println("rms= NaN");
+			}
+			
 			if (debugLevel>-4) {
 				System.out.println("getRigCorrection(): Current RMS = "+rms+ "(debugLevel= "+debugLevel+")");
 			};
@@ -651,6 +655,11 @@ public class GeometryCorrection {
 				int tileY = nTile / tilesX;
 				int tileX = nTile % tilesX;
 				double w = strength[nTile];
+				if (Double.isNaN(diff_y[nTile])) {
+					System.out.println("==== setupYW(): diff_y["+nTile+"]= NaN (can happen if the same tile is now measured differently)");
+					w = 0.0;
+					diff_y[nTile] = 0.0;
+				}
 				double inf_w_corr = 1.0;
 				if ((dx_max > 0) && (dx_pow > 0)){
 					inf_w_corr = (dx_max - diff_x[nTile])/dx_max;
@@ -661,6 +670,11 @@ public class GeometryCorrection {
 				}
 				if (target_disparity[nTile] == infinity_disparity) { // only for infinity tiles
 					w *= inf_w_corr;
+					if (Double.isNaN(diff_x[nTile])) {
+						System.out.println("==== setupYW(): diff_x["+nTile+"]= NaN (can happen if the same tile is now measured differently)");
+						w = 0.0;
+						diff_x[nTile] = 0.0;
+					}
 					y_vector[2*i + 0] = diff_x[nTile];
 					w_vector[2*i + 0] = w;
 					y_vector[2*i + 1] = diff_y[nTile];
@@ -692,7 +706,7 @@ public class GeometryCorrection {
 				infinity_importance = 0.0;
 				k_near = (1.0 - infinity_importance)/sumw_near;
 			}
-			System.out.println("setupYW(): k_inf="+k_inf+" k_near="+k_near);
+			System.out.println("setupYW(): k_inf="+k_inf+" k_near="+k_near+" (sum2_inf="+sum2_inf+", sum2_near="+sum2_near+")");
 
 			double sum2 = k_inf*sum2_inf+k_near*sum2_near;
 
