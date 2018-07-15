@@ -75,13 +75,19 @@ public class TileProcessor {
 	private double   trustedCorrelation =  4.0;   // trusted measured disparity difference (before scaling)
 	private double   maxOverexposure =     0.5;
 	private int      tileSize =            8; // number of linear pixels in a tile (tile is  square tileSize*tileSize)
-	int               superTileSize =      8; // number of linear tiles in a super-tile (supertile is  square superTileSize*superTileSize tiles
+	int              superTileSize =      8; // number of linear tiles in a super-tile (supertile is  square superTileSize*superTileSize tiles
 	                                        // or (superTileSize*tileSize) * (superTileSize*tileSize) pixels, currently 64x64 pixels)
+    double [][]      periodics = null;
+
 	public int       threadsMax =       100; // maximal number of frames to run
 	public int       globalDebugLevel = 0;
 
 	public double [][] dbg_filtered_disp_strength;
 
+	public double [][] getPeriodcs(){
+		// todo: add calculation (if null) and reset
+		return this.periodics;
+	}
 	// All parameters are set only once, during instantiation
 
 	public TileProcessor(
@@ -490,7 +496,8 @@ public class TileProcessor {
 		final int dbg_tile = (debugLevel>0) ? (dbg_tileX + tilesX * (dbg_tileY)): -1;
 		final int numTiles = tilesX*tilesY;
 		final TileNeibs         tnImage = new TileNeibs(tilesX,tilesY);
-		final double [][] fund_per = new double[4][numTiles];
+//		final double [][] fund_per = new double[4][numTiles];
+		final double [][] fund_per = new double[numTiles][];
 		final double [][][] layers =         new double [numTiles][][];
 		final double [][][] layers_initial = new double [numTiles][][];
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
@@ -743,21 +750,23 @@ public class TileProcessor {
 									}
 
 									if (periods_match) {
-										fund_per[0][nTile] = merged_list.get(0).disparity;
-										fund_per[1][nTile] = 0.5*(merged_list.get(2).disparity - merged_list.get(0).disparity);
+										fund_per[nTile]=new double[4];
+										fund_per[nTile][0] = merged_list.get(0).disparity;
+										fund_per[nTile][1] = 0.5*(merged_list.get(2).disparity - merged_list.get(0).disparity);
 
-										fund_per[2][nTile] = 0;
+										fund_per[nTile][2] = 0;
 										for (int i = 0; i <= min_num_periods; i++) {
-											fund_per[2][nTile] += merged_list.get(i).getMaxStrength();
+											fund_per[nTile][2] += merged_list.get(i).getMaxStrength();
 										}
-										fund_per[2][nTile] /= min_num_periods+1;
-										fund_per[3][nTile] =ds_center_list.size();
+										fund_per[nTile][2] /= min_num_periods+1;
+										fund_per[nTile][3] =ds_center_list.size();
 									}
 									// remove later
 								} else if (merged_list.size() == 1) { // unambiguous - mark with period == 0
-									fund_per[0][nTile] = merged_list.get(0).disparity;
-									fund_per[1][nTile] = 0.0;
-									fund_per[2][nTile] = merged_list.get(0).getMaxStrength();
+									//fund_per[nTile]=new double[4];
+									//fund_per[nTile][0] = merged_list.get(0).disparity;
+									//fund_per[nTile][1] = 0.0;
+									//fund_per[nTile][2] = merged_list.get(0).getMaxStrength();
 								}
 							}
 						}
@@ -779,7 +788,7 @@ public class TileProcessor {
 					public void run() {
 						for (int nTile = ai.getAndIncrement(); nTile < numTiles; nTile = ai.getAndIncrement()) { // periodic
 							new_layers[nTile] = layers[nTile]; // shallow copy
-							if ((fund_per[1][nTile] > 0.0) &&(layers[nTile] != null)){
+							if ((fund_per[nTile] != null) && (layers[nTile] != null)){
 								int tileX = nTile % tilesX;
 								int tileY = nTile / tilesX;
 								boolean dt = nTile == dbg_tile;
@@ -838,14 +847,14 @@ public class TileProcessor {
 									}
 									// update fund_per[3][nTile] = merged_list.size();
 									// todo: remove later
-									fund_per[3][nTile] = new_layers[nTile].length; // number of layers
+									fund_per[nTile][3] = new_layers[nTile].length; // number of layers
 									if (new_layers[nTile].length > 0) {
-										fund_per[0][nTile] = new_layers[nTile][0][0]; // lowest disparity (keep period)
-										fund_per[2][nTile] = new_layers[nTile][0][1]; // strength
+										fund_per[nTile][0] = new_layers[nTile][0][0]; // lowest disparity (keep period)
+										fund_per[nTile][2] = new_layers[nTile][0][1]; // strength
 									} else {
-										fund_per[0][nTile] = 0;
-										fund_per[1][nTile] = 0;
-										fund_per[2][nTile] = 0;
+										fund_per[nTile][0] = 0.0;
+										fund_per[nTile][1] = 0.0;
+										fund_per[nTile][2] = 0.0;
 									}
 								}
 							}
@@ -860,10 +869,16 @@ public class TileProcessor {
 			if (debugLevel > 0) {
 				System.out.println("Filtering periodics: pass="+nPass+", removed "+mods_ai.get() );
 				String [] dbg_titles= {"fundamental","period", "strength", "num_layers"};
+				double [][] dbg_img = new double [4][numTiles];
+				for (int n = 0; n < fund_per.length; n++) {
+					for (int i = 0; i < dbg_img.length; i++) {
+						dbg_img[i][n]= (fund_per[n] == null) ? Double.NaN : fund_per[n][i];
+					}
+				}
 				(new showDoubleFloatArrays()).showArrays(
-						fund_per,
+						dbg_img,
 						getTilesX(),
-						fund_per[0].length/getTilesX(),
+						dbg_img[0].length/getTilesX(),
 						true,
 						"PERIODIC-"+nPass,
 						dbg_titles);

@@ -7471,16 +7471,28 @@ public class QuadCLT {
 				  threadsMax,                           // final int                   threadsMax,  // maximal number of threads to launch
 				  updateStatus,                         // final boolean               updateStatus,
 				  debugLevel+3);                        // final int                   debugLevel) // update status info
+
+		  tp.periodics = periodics;
+
 		  String [] dbg_titles= {"fundamental","period", "strength", "num_layers"};
+			double [][] dbg_img = new double [4][tp.getTilesX()*tp.getTilesY()];
+			for (int n = 0; n < periodics.length; n++) {
+				for (int i = 0; i < dbg_img.length; i++) {
+					dbg_img[i][n]= (periodics[n] == null) ? Double.NaN : periodics[n][i];
+				}
+			}
+
 		  (new showDoubleFloatArrays()).showArrays(
-				  periodics,
+				  dbg_img,
 				  tp.getTilesX(),
-				  periodics[0].length/tp.getTilesX(),
+				  tp.getTilesY(),
 				  true,
 				  image_name+"-PERIODIC",
 				  dbg_titles);
 		  return true;
 	  }
+
+
 
 
 

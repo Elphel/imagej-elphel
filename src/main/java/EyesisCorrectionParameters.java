@@ -2900,8 +2900,8 @@ public class EyesisCorrectionParameters {
 		public double     per_min_period =         4.0;   //
 		public int        per_min_num_periods =    3; // minimal number of periods
 		public double     per_disp_tolerance =     1.0;   // maximal difference between the average of fundamental and
-		public double     per_disp_match =         1.0;   // disparity difference to match neighbors
-		public double     per_strong_match_inc =   0.02;  // extra strength to treat match as strong (for hysteresis)
+		public double     per_disp_match =         1.5;   // disparity difference to match neighbors
+		public double     per_strong_match_inc =   0.05;  // extra strength to treat match as strong (for hysteresis)
 
 // Macro disparity scanning parameters
 		public double     mc_disp8_step        =   2.0;   // Macro disparity scan step (actual disparity step is 8x)
