@@ -4003,12 +4003,12 @@ public class TilePlanes {
 				System.out.println("getPlaneToThis(), px_py = {"+px_py[0]+", "+px_py[1]+"}, px_py_other = {"+px_py_other[0]+", "+px_py_other[1]+"}");
 				System.out.println("getPlaneToThis(), disp = "+disp);
 				System.out.println("getPlaneToThis(), pd="+ pd.toString());
-				System.out.println("getPlaneToThis(), otherPd="+ otherPd.toString());
-				System.out.println("getPlaneToThis(), pd.getWorldXYZ(this.correctDistortions)="+ pd.getWorldXYZ(this.correctDistortions));
-				System.out.println("getPlaneToThis(), wv1 = {"+ wv1[0]+", "+ wv1[1]+", "+ wv1[2]+"}");
-				System.out.println("getPlaneToThis(), wv2 = {"+ wv2[0]+", "+ wv2[1]+", "+ wv2[2]+"}");
+//				System.out.println("getPlaneToThis(), otherPd="+ otherPd.toString()); 
+//				System.out.println("getPlaneToThis(), pd.getWorldXYZ(this.correctDistortions)="+ pd.getWorldXYZ(this.correctDistortions));
+//				System.out.println("getPlaneToThis(), wv1 = {"+ wv1[0]+", "+ wv1[1]+", "+ wv1[2]+"}");
+//				System.out.println("getPlaneToThis(), wv2 = {"+ wv2[0]+", "+ wv2[1]+", "+ wv2[2]+"}");
 				double [] norm_xyz = pd.getWorldXYZ(this.correctDistortions);
-				System.out.println("getPlaneToThis(),norm_xyz="+ norm_xyz);
+//				System.out.println("getPlaneToThis(),norm_xyz="+ norm_xyz);
 				disp = geometryCorrection.getPlaneDisparity( // disparity (at this center) for crossing other supertile plane
 						norm_xyz, // will calculate if not yet done so. Should it use otherPd, not pd? and then clone later?
 						px_py[0],
