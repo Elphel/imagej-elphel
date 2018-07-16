@@ -171,6 +171,10 @@ public class PoleProcessor {
 			// remove seed (original head) area
 			for (int nt:tiles) {
 				int dy = nt / tilesX - eBox.y;
+				if (dy >= eBox.height) {
+					System.out.println("getVertMasks() BUG: ArrayIndexOutOfBoundsException, nt = "+nt+", dy = "+dy+", eBox.y = "+eBox.y);
+					continue;
+				}
 				y_mask[dy] = false;
 			}
 
