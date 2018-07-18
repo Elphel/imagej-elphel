@@ -22,6 +22,7 @@
  **
  */
 import java.awt.Point;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -3498,13 +3499,21 @@ public class TilePlanes {
 				PlaneData otherPd,
 				boolean correct_distortions)
 		{
-			Matrix this_wv =  new Matrix(this.getWorldXYZ(correct_distortions, 0),3);
-			Matrix other_wv = new Matrix(otherPd.getWorldXYZ(correct_distortions, 0),3);
-			Matrix cp = cross3d(this_wv, other_wv);
-			double cp2 = cp.transpose().times(cp).get(0, 0);
-			double this_wv2 = this_wv.transpose().times(this_wv).get(0, 0);
-			double other_wv2 = other_wv.transpose().times(other_wv).get(0, 0);
-			return cp2/(this_wv2 * other_wv2);
+			try {
+				Matrix this_wv =  new Matrix(this.getWorldXYZ(correct_distortions, 0),3);
+				Matrix other_wv = new Matrix(otherPd.getWorldXYZ(correct_distortions, 0),3); // FIXME: this caused null pointer
+				Matrix cp = cross3d(this_wv, other_wv);
+				double cp2 = cp.transpose().times(cp).get(0, 0);
+				double this_wv2 = this_wv.transpose().times(this_wv).get(0, 0);
+				double other_wv2 = other_wv.transpose().times(other_wv).get(0, 0);
+				return cp2/(this_wv2 * other_wv2);
+			} catch (Exception e) {
+				System.out.println("Problem in getWorldSin2():");
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+				// do nothing, just keep
+				return 1.0;
+			}
 		}
 		public double getWorldSin2(
 				PlaneData otherPd)
