@@ -6390,6 +6390,7 @@ if (debugLevel > -100) return true; // temporarily !
 		String fmt =  "\t"+(inPixels ? "%8.4f":(inMrad?"%8.4f":"%8.2f"));
 		String fmt_angle =  "\t%8.3f";
 		String fmt_len =    "\t%8.3f";
+		int num_sym = showZooms? GeometryCorrection.CorrVector.LENGTH:GeometryCorrection.CorrVector.ZOOM_INDEX;
 		class ModVerString{
 			String model;
 			String version;
@@ -6423,10 +6424,10 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 
 		if (showSym) {
-			for (int i = 0; i < GeometryCorrection.CorrVector.LENGTH; i++) {
+			for (int i = 0; i < num_sym; i++) {
 				header+=String.format("\tsym%02d-m", i);
 			}
-			num_col+=GeometryCorrection.CorrVector.LENGTH;
+			num_col+=num_sym;
 
 		}
 
@@ -6442,10 +6443,10 @@ if (debugLevel > -100) return true; // temporarily !
 			num_col+=4;
 		}
 		if (showSym) {
-			for (int i = 0; i < GeometryCorrection.CorrVector.LENGTH; i++) {
+			for (int i = 0; i < num_sym; i++) {
 				header+=String.format("\tsym%02d-a", i);
 			}
-			num_col+=GeometryCorrection.CorrVector.LENGTH;
+			num_col+=num_sym;
 		}
 		if (showRigATR) {
 			header+=String.format("\trig azmth (%s)\trig tilt(%s)\trig roll (%s)", units, units, units);
@@ -6517,6 +6518,7 @@ if (debugLevel > -100) return true; // temporarily !
 //				double [] vect_main = qcm.geometryCorrection.getCorrVector().toArray();
 				StringBuffer sb = new StringBuffer();
 				int ncol = 0;
+
 //				sb.append(indx+"\t"+model+"\t"+version);
 				if (showATR) { // main camera
 					double [] v = new double[4];
@@ -6568,7 +6570,7 @@ if (debugLevel > -100) return true; // temporarily !
 				}
 
 				if (showSym) {
-					for (int i = 0; i < GeometryCorrection.CorrVector.LENGTH; i++) {
+					for (int i = 0; i < num_sym; i++) {
 						double v =  scale * cvm.getExtrinsicSymParameterValue(i, inPixels);
 						sb.append(String.format(fmt,v)); // sym parameters
 						fmts [ncol] = fmt;
@@ -6627,7 +6629,7 @@ if (debugLevel > -100) return true; // temporarily !
 					}
 				}
 				if (showSym) {
-					for (int i = 0; i < GeometryCorrection.CorrVector.LENGTH; i++) {
+					for (int i = 0; i < num_sym; i++) {
 						double v =  scale * cva.getExtrinsicSymParameterValue(i, inPixels);
 						sb.append(String.format(fmt,v)); // sym parameters
 						fmts [ncol] = fmt;
