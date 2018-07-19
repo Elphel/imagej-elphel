@@ -84,7 +84,6 @@ import loci.formats.FormatException;
 
 //import javax.swing.SwingUtilities;
 //import javax.swing.UIManager;
-
 public class Eyesis_Correction extends PlugInFrame implements ActionListener {
    /**
 	 *
@@ -587,6 +586,7 @@ private Panel panel1,
 			addButton("Rig offset",                 panelClt4, color_configure);
 			addButton("Save offset",                panelClt4, color_process);
 			addButton("SHOW extrinsics",            panelClt4, color_configure);
+			addButton("LIST extrinsics",            panelClt4, color_configure);
 			addButton("RIG DSI",                    panelClt4, color_conf_process);
 			addButton("MAIN extrinsics",            panelClt4, color_process);
 			addButton("AUX extrinsics",             panelClt4, color_process);
@@ -4580,6 +4580,11 @@ private Panel panel1,
 
         return;
 /* ======================================================================== */
+    } else if (label.equals("LIST extrinsics")) {
+    	listExtrinsics();
+    	return;
+
+/* ======================================================================== */
     } else if (label.equals("Reset GT")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
@@ -5578,6 +5583,25 @@ private Panel panel1,
 				null, // Properties properties,    // if null - will only save extrinsics)
 				DEBUG_LEVEL); // int debugLevel)
 		return true;
+	}
+
+//    	listExtrinsics();
+	public boolean listExtrinsics() {
+		String dir= CalibrationFileManagement.selectDirectory(
+				false, // true, // smart,
+				false, // newAllowed, // save
+				"Model directories to scan", // title
+				"Select", // button
+				null, // filter
+				CORRECTION_PARAMETERS.x3dDirectory); //this.sourceDirectory);
+		if (dir!=null) {
+			System.out.println("top directory = "+dir);
+		}
+//listExtrinsics(String dir, String mask)
+//		if (TWO_QUAD_CLT == null) {
+//			return false;
+//		}
+		return TwoQuadCLT.listExtrinsics(dir); // , mask);
 	}
 
 	public boolean showDSI() {

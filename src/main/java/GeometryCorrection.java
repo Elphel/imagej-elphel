@@ -543,7 +543,7 @@ public class GeometryCorrection {
 			if (Double.isNaN(rms)) {
 				System.out.println("rms= NaN");
 			}
-			
+
 			if (debugLevel>-4) {
 				System.out.println("getRigCorrection(): Current RMS = "+rms+ "(debugLevel= "+debugLevel+")");
 			};
@@ -953,6 +953,22 @@ public class GeometryCorrection {
 			System.out.println("      Relative zoom - difference from 1.0 in parts parts per 1/1000 "+ (par_scales[AUX_ZOOM_INDEX] * this.aux_zoom) +"pix");
 		}
 
+		public double getRigOffsetParameter(int indx, boolean inPix)
+		{
+			if ((indx <0.0) || (indx >=par_scales.length)){
+				return Double.NaN;
+			}
+			double k = inPix? par_scales[indx] : 1.0;
+			switch (indx) {
+			case AUX_AZIMUTH_INDEX:  return k * this.aux_azimuth;
+			case AUX_TILT_INDEX:     return k * this.aux_tilt;
+			case AUX_ROLL_INDEX:     return k * this.aux_roll;
+			case AUX_ZOOM_INDEX:     return k * this.aux_zoom;
+			case AUX_ANGLE_INDEX:    return k * this.aux_angle;
+			case AUX_BASELINE_INDEX: return k * this.baseline; // if inPix - show rig baseline/main baseline
+			}
+			return Double.NaN;
+		}
 
 	}
 
@@ -965,6 +981,10 @@ public class GeometryCorrection {
 
 	public void showRig() {
 		this.rigOffset.showRigOffsets();
+	}
+
+	public double getRigOffsetParameter(int indx, boolean inPix) {
+		return this.rigOffset.getRigOffsetParameter(indx,inPix);
 	}
 
 	public boolean setRigOffsetFromProperies(String parent_prefix,Properties properties) {
@@ -1247,6 +1267,27 @@ public class GeometryCorrection {
 		public double getFullRoll(int indx)
 		{
 			return vector[6 + indx] + roll[indx] * Math.PI/180.0;
+		}
+		/**
+		 * Return parameter value for reports
+		 * @param indx parameter index (use CorrVector.XXX static integers)
+		 * @param inPix show result in pixels , false - in radians (even for zooms)
+		 * @return parameter value
+		 */
+		public double getExtrinsicParameterValue(int indx, boolean inPix) {
+			if (indx <0) return Double.NaN;
+			if (indx <    ROLL_INDEX) return vector[indx]* (inPix? (1000.0*focalLength     /pixelSize): 1.0); // tilt and azimuth
+			if (indx < LENGTH_ANGLES) return vector[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); //  rolls
+			if (indx <        LENGTH) return vector[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); //  zooms
+			return Double.NaN;
+		}
+		public double getExtrinsicSymParameterValue(int indx, boolean inPix) {
+			double [] sym_vect = toSymArray(null);
+			if (indx <0) return Double.NaN;
+			if (indx <    ROLL_INDEX) return sym_vect[indx]* (inPix? (1000.0*focalLength     /pixelSize): 1.0); // tilt and azimuth
+			if (indx < LENGTH_ANGLES) return sym_vect[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); //  rolls
+			if (indx <        LENGTH) return sym_vect[indx]* (inPix? (1000.0*distortionRadius/pixelSize): 1.0); //  zooms
+			return Double.NaN;
 		}
 
 		@Override
