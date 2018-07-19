@@ -27,6 +27,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -37,6 +38,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Properties;
 
@@ -6408,7 +6410,7 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 
 		ArrayList<ModVerString> line_list = new ArrayList<ModVerString>();
-		String title = "Extrinsic parameters variations";
+		String title = "Extrinsic_parameters_variations_in_"+(inPixels ? "pixels":(inMrad?"mrad":"arcseconds"));
 		String header="#\tModel\tVersion";
 		int num_col = 0;
 		if (showATR) {
@@ -6471,8 +6473,13 @@ if (debugLevel > -100) return true; // temporarily !
 
 		final List<Path> files=new ArrayList<>();
 		final String fMask = mask;
+/*
+file.FileVisitResult.*;
+Files.walkFileTree(dir, EnumSet.of(FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>() { ... ))		
+ */
 		try {
-			Files.walkFileTree(path, new SimpleFileVisitor<Path>(){
+//			Files.walkFileTree(path, new SimpleFileVisitor<Path>(){
+			Files.walkFileTree(path, EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>(){
 				@Override
 				public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
 					if(!attrs.isDirectory()){
@@ -6695,7 +6702,7 @@ if (debugLevel > -100) return true; // temporarily !
 		sb_avg.append("--\tAverage\t");
 		sb_rms.append("--\tStandard deviation\t");
 		int nrows = indx -1;
-		if (indx > 0) {
+		if (indx > 1) {
 			for (int ncol = 0; ncol < num_col; ncol++) {
 				stats[ncol][0] /= nrows;
 				stats[ncol][1] /= nrows;
