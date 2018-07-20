@@ -921,10 +921,10 @@ public class GeometryCorrection {
 					"Directly to the right - 0°, directly up - 90°, ...");
 			gd.addNumericField("Auxilliary camera forward from the plane of the main one (not used)", this.aux_z,  3,6,"mm",
 					"Distance from the plane perpendicualr to the main camera axis to the auxiliary camera (positive for aux moved forward)");
-			gd.addNumericField("Auxilliary camera azimuth  (positive - to the right)",                par_scales[AUX_AZIMUTH_INDEX] * this.aux_azimuth,  3,6,"pix",
-					"Relative to the main camera axis, shift of the center of the image in pixels");
-			gd.addNumericField("Auxilliary camera tilt (positive - looking up)",                      par_scales[AUX_TILT_INDEX] * this.aux_tilt,  3,6,"pix",
-					"Relative to the main camera, shift of the center of the image in pixels");
+			gd.addNumericField("Auxilliary camera azimuth  (positive - image to the right)",                par_scales[AUX_AZIMUTH_INDEX] * this.aux_azimuth,  3,6,"pix",
+					"Positive - converge more: aux (right) camera to the left, image - to the right");
+			gd.addNumericField("Auxilliary camera tilt (positive - move aux image up)",                      par_scales[AUX_TILT_INDEX] * this.aux_tilt,  3,6,"pix",
+					"Positive: aux looks down, image moves up");
 			gd.addNumericField("Auxilliary camera roll (positive - clockwise)",                       par_scales[AUX_ROLL_INDEX] * this.aux_roll,  3,6,"pix",
 					"Roll of a camera as a whole relative to the main camera, shift at the image half-width from the center");
 			gd.addNumericField("Relative zoom - difference from 1.0 in parts parts per 1/1000",       par_scales[AUX_ZOOM_INDEX] * this.aux_zoom,  3,6,"pix",
@@ -947,8 +947,8 @@ public class GeometryCorrection {
 			System.out.println("                                                           Baseline "+ this.baseline +"mm");
 			System.out.println("                              Angle to the aux camera from the main "+ (180.0/Math.PI*this.aux_angle)+"°");
 			System.out.println("Auxilliary camera forward from the plane of the main one (not used) "+ this.aux_z +"mm");
-			System.out.println("               Auxilliary camera azimuth  (positive - to the right) "+ (par_scales[AUX_AZIMUTH_INDEX] * this.aux_azimuth) + "pix");
-			System.out.println("                     Auxilliary camera tilt (positive - looking up) "+ (par_scales[AUX_TILT_INDEX] * this.aux_tilt)+"pix");
+			System.out.println("Auxilliary camera azimuth  (positive: camera - left, image - right) "+ (par_scales[AUX_AZIMUTH_INDEX] * this.aux_azimuth) + "pix");
+			System.out.println("   Auxilliary camera tilt (positive: aux camera - down, image - up) "+ (par_scales[AUX_TILT_INDEX] * this.aux_tilt)+"pix");
 			System.out.println("                      Auxilliary camera roll (positive - clockwise) "+ (par_scales[AUX_ROLL_INDEX] * this.aux_roll)+"pix");
 			System.out.println("      Relative zoom - difference from 1.0 in parts parts per 1/1000 "+ (par_scales[AUX_ZOOM_INDEX] * this.aux_zoom) +"pix");
 		}

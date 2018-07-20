@@ -26,6 +26,9 @@
 */
 
 import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Properties;
 import java.util.Set;
@@ -6339,12 +6342,34 @@ public class EyesisCorrectionParameters {
     		if (infinity_distace_map == null){
     			infinity_distace_map = new HashMap<String,Double>();
     		}
+    		class StringDouble{
+    			String str;
+    			double dbl;
+    			StringDouble (String s, double d){
+    				this.str = s;
+    				this.dbl = d;
+    			}
+    		}
+    		ArrayList<StringDouble> sd_list = new ArrayList<StringDouble>();
+			for (HashMap.Entry<String,Double> entry : infinity_distace_map.entrySet()){
+				sd_list.add(new StringDouble(entry.getKey(),   entry.getValue()));
+			}
+			Collections.sort(sd_list, new Comparator<StringDouble>() {
+				@Override
+				public int compare(StringDouble lhs, StringDouble rhs) {
+					// -1 - less than, 1 - greater than, 0 - equal, not inverted for ascending disparity
+					return  lhs.str.compareTo(rhs.str);
+				}
+			});
+
+
     		GenericDialog gd = new GenericDialog(title);
     		if (infinity_distace_map.size() > 0) {
     			gd.addMessage("Edit \"infinity\" (when mountains are too close) distance (in m), set == 0.0 to remove for the following");
     			gd.addMessage("Press \"Cancel\" to exit");
-				for (HashMap.Entry<String,Double> entry : infinity_distace_map.entrySet()){
-					gd.addNumericField(entry.getKey(),   entry.getValue(), 1,6, "m");
+//				for (HashMap.Entry<String,Double> entry : infinity_distace_map.entrySet()){
+				for (StringDouble entry : sd_list){
+					gd.addNumericField(entry.str,   entry.dbl, 1,6, "m");
 				}
     		}
 			gd.addMessage("Add new infinity correction");
@@ -6355,12 +6380,28 @@ public class EyesisCorrectionParameters {
     		gd.showDialog();
     		if (gd.wasCanceled()) return false;
     		HashMap<String,Double> new_map = new HashMap<String,Double>();
+    		/*
 			for (HashMap.Entry<String,Double> entry : infinity_distace_map.entrySet()){
 				double d = gd.getNextNumber();
 				if (d != 0.0) {
 					new_map.put(entry.getKey(),d);
 				}
 			}
+
+				for (StringDouble entry : sd_list){
+
+					gd.addNumericField(entry.str,   entry.dbl, 1,6, "m");
+				}
+
+ */
+			for (StringDouble entry : sd_list){
+				double d = gd.getNextNumber();
+				if (d != 0.0) {
+					new_map.put(entry.str,d);
+				}
+			}
+
+
 			String new_ts =  gd.getNextString();
 			double d =       gd.getNextNumber();
 			if (gd.getNextBoolean()){
