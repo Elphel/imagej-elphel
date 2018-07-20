@@ -2086,9 +2086,10 @@ if (debugLevel > -100) return true; // temporarily !
 		double [][] rig_disparity_strength = clt_parameters.rig.ml_poles?quadCLT_main.tp.rig_post_poles_ds : quadCLT_main.tp.rig_pre_poles_ds;
 		if (rig_disparity_strength == null) {
 			System.out.println("DSI data for the scene after poles extraction is not available. You may enable it and re-run \"Ground truth\" command or run \"Poles GT\"");
-			return;
+			rig_disparity_strength = quadCLT_main.tp.rig_pre_poles_ds;
+			System.out.println("Using pre-poles data for ML output");
 		}
-		if (debugLevel > -4) {
+		if (debugLevel > -6) {
 			if (clt_parameters.rig.ml_poles) {
 				System.out.println("==== Generating ML data for the DSI that includes extracted vertical poles ====");
 			} else {

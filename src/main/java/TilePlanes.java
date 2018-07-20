@@ -3510,7 +3510,7 @@ public class TilePlanes {
 			} catch (Exception e) {
 				System.out.println("Problem in getWorldSin2():");
 				// TODO Auto-generated catch block
-				e.printStackTrace();
+//				e.printStackTrace();
 				// do nothing, just keep
 				return 1.0;
 			}

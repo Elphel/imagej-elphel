@@ -3366,6 +3366,7 @@ public class QuadCLT {
 			  boolean [][]                              saturation_imp,
 			  int                                       debugLevel)
 	  {
+		  this.image_name = set_name;
 		  ImagePlus [] imp_srcs = new ImagePlus[channelFiles.length];
 		  this.geometryCorrection.woi_tops = new int [channelFiles.length];
 //		  double [] scaleExposures = new double[channelFiles.length]; //
