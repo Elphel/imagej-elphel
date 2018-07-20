@@ -6415,7 +6415,7 @@ if (debugLevel > -100) return true; // temporarily !
 		String header="#\tModel\tVersion";
 		int num_col = 0;
 		if (showATR) {
-			header+=String.format("\taz m0 (%s)\taz  m1 (%s) \taz m2 (%s)\taz m3 (%s)"+
+			header+=String.format("\taz m0 (%s)\taz m1 (%s)\taz m2 (%s)\taz m3 (%s)"+
 					"\ttl m0 (%s)\ttl  m1 (%s) \ttl m2 (%s)\ttl m3 (%s)"+
 					"\trl m0 (%s)\trl  m1 (%s) \trl m2 (%s)\trl m3 (%s)",
 					units,units,units,units,units,units,units,units,units,units,units,units);
@@ -6435,8 +6435,8 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 
 		if (showATR) {
-			header+=String.format("\taz a0 (%s)\taz  a1 (%s) \taz a2 (%s)\taz a3 (%s)"+
-					"\ttl a0 (%s)\ttl  m1 (%s) \ttl m2 (%s)\ttl m3 (%s)"+
+			header+=String.format("\taz a0 (%s)\taz a1 (%s)\taz a2 (%s)\taz a3 (%s)"+
+					"\ttl a0 (%s)\ttl  a1 (%s) \ttl a2 (%s)\ttl a3 (%s)"+
 					"\trl a0 (%s)\trl  a1 (%s) \trl a2 (%s)\trl a3 (%s)",
 					units,units,units,units,units,units,units,units,units,units,units,units);
 			num_col+=12;
@@ -6474,12 +6474,7 @@ if (debugLevel > -100) return true; // temporarily !
 
 		final List<Path> files=new ArrayList<>();
 		final String fMask = mask;
-/*
-file.FileVisitResult.*;
-Files.walkFileTree(dir, EnumSet.of(FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>() { ... ))		
- */
 		try {
-//			Files.walkFileTree(path, new SimpleFileVisitor<Path>(){
 			Files.walkFileTree(path, EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>(){
 				@Override
 				public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
