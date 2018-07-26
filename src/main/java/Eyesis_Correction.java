@@ -104,7 +104,8 @@ private Panel panel1,
          panelClt1,
          panelClt2,
          panelClt3,
-         panelClt4
+         panelClt4,
+         panelClt5
          ;
    JP46_Reader_camera JP4_INSTANCE=null;
 
@@ -396,13 +397,14 @@ private Panel panel1,
 		Color color_configure=     new Color(200, 200,160);
 		Color color_process=       new Color(180, 180, 240);
 		Color color_conf_process=  new Color(180, 240, 240);
-		Color color_restore=       new Color(180, 240, 180);
+		Color color_restore=       new Color(160, 240, 160);
 		Color color_stop=          new Color(255, 160, 160);
+		Color color_report=        new Color(180, 220, 180);
 
 
 		instance = this;
 		addKeyListener(IJ.getInstance());
-		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0) + (DCT_MODE?5:0);
+		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0) + (DCT_MODE?6:0);
 		setLayout(new GridLayout(menuRows, 1));
 
 		panel6 = new Panel();
@@ -544,7 +546,7 @@ private Panel panel1,
 			addButton("CLT reset fine corr",       panelClt2, color_stop);
 			addButton("CLT reset extrinsic corr",  panelClt2, color_stop);
 			addButton("CLT show geometry",         panelClt2, color_configure);
-			addButton("CLT show fine corr",        panelClt2, color_configure);
+			addButton("CLT show fine corr",        panelClt2, color_report);
 			addButton("CLT apply fine corr",       panelClt2, color_process);
 			addButton("CLT test fine corr",        panelClt2, color_process);
 			addButton("CLT process fine corr",     panelClt2, color_conf_process);
@@ -568,8 +570,8 @@ private Panel panel1,
 			addButton("Setup CLT Batch parameters", panelClt3, color_configure);
 			addButton("CLT batch process",          panelClt3, color_process);
 			addButton("CM Test",                    panelClt3, color_stop);
-			addButton("Show scan",                  panelClt3, color_configure);
-			addButton("Show all scans",             panelClt3, color_configure);
+			addButton("Show scan",                  panelClt3, color_report);
+			addButton("Show all scans",             panelClt3, color_report);
 			addButton("Periodic",                   panelClt3, color_configure);
 			add(panelClt3);
 		}
@@ -585,8 +587,8 @@ private Panel panel1,
 //			addButton("CLT 2*4 images - 3",         panelClt4, color_conf_process);
 			addButton("Rig offset",                 panelClt4, color_configure);
 			addButton("Save offset",                panelClt4, color_process);
-			addButton("SHOW extrinsics",            panelClt4, color_configure);
-			addButton("LIST extrinsics",            panelClt4, color_configure);
+			addButton("SHOW extrinsics",            panelClt4, color_report);
+//			addButton("LIST extrinsics",            panelClt4, color_configure);
 			addButton("RIG DSI",                    panelClt4, color_conf_process);
 			addButton("MAIN extrinsics",            panelClt4, color_process);
 			addButton("AUX extrinsics",             panelClt4, color_process);
@@ -599,16 +601,23 @@ private Panel panel1,
 //			/"Reset GT"
 			addButton("Reset GT",                   panelClt4, color_stop);
 			addButton("Ground truth",               panelClt4, color_conf_process);
-			addButton("Show biscan",                panelClt4, color_configure);
+			addButton("Show biscan",                panelClt4, color_report);
 			addButton("Poles GT",                   panelClt4, color_process);
 			addButton("ML export",                  panelClt4, color_conf_process);
 			addButton("JP4 copy",                   panelClt4, color_conf_process);
-			addButton("DSI show",                   panelClt4, color_process);
+			addButton("DSI show",                   panelClt4, color_report);
 			addButton("Rig batch",                  panelClt4, color_process);
-
-
 			add(panelClt4);
 		}
+
+		if (DCT_MODE) {
+			panelClt5 = new Panel();
+			panelClt5.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
+			addButton("LIST extrinsics",            panelClt5, color_report);
+			addButton("DSI histogram",              panelClt5, color_report);
+			add(panelClt5);
+		}
+
 
 		pack();
 
@@ -4583,6 +4592,10 @@ private Panel panel1,
     } else if (label.equals("LIST extrinsics")) {
     	listExtrinsics();
     	return;
+/* ======================================================================== */
+    } else if (label.equals("DSI histogram")) {
+    	dsiHistogram();
+    	return;
 
 /* ======================================================================== */
     } else if (label.equals("Reset GT")) {
@@ -5597,11 +5610,22 @@ private Panel panel1,
 		if (dir!=null) {
 			System.out.println("top directory = "+dir);
 		}
-//listExtrinsics(String dir, String mask)
-//		if (TWO_QUAD_CLT == null) {
-//			return false;
-//		}
-		return TwoQuadCLT.listExtrinsics(dir); // , mask);
+//		return TwoQuadCLT.listExtrinsics(dir); // , mask);
+		return MLStats.listExtrinsics(dir); // , mask);
+		//(new MLStats).
+	}
+	public boolean dsiHistogram() {
+		String dir= CalibrationFileManagement.selectDirectory(
+				false, // true, // smart,
+				false, // newAllowed, // save
+				"Model directories to scan", // title
+				"Select", // button
+				null, // filter
+				CORRECTION_PARAMETERS.x3dDirectory); //this.sourceDirectory);
+		if (dir!=null) {
+			System.out.println("top directory = "+dir);
+		}
+		return MLStats.dsiHistogram(dir); // , mask);
 	}
 
 	public boolean showDSI() {

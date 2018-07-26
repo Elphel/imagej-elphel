@@ -21,34 +21,20 @@
  **
  */
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.FileVisitOption;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.EnumSet;
-import java.util.List;
 import java.util.Properties;
 
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.Prefs;
-import ij.gui.GenericDialog;
 import ij.io.FileSaver;
-import ij.text.TextWindow;
 
 public class TwoQuadCLT {
 	public static  int DSI_DISPARITY_MAIN = 0;
@@ -6350,6 +6336,7 @@ if (debugLevel > -100) return true; // temporarily !
 			System.out.println("Configuration parameters are saved to "+path);
 		}
 	}
+	/*
 	public static boolean listExtrinsics(String dir) // , String mask)
 	{
 		Path path= Paths.get(dir);
@@ -6756,5 +6743,5 @@ if (debugLevel > -100) return true; // temporarily !
 		//	     getAllProperties(properties);
 		//		 if (DEBUG_LEVEL>0) System.out.println("Configuration parameters are restored from "+path);
 	}
-
+*/
 }
