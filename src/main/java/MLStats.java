@@ -63,6 +63,7 @@ public class MLStats {
 		double strength_min_clip =    0.1;
 		double strength_max_drop =    1.0; //
 		double strength_max_clip =    0.9; //
+		boolean normalize =           true;
 
 		String mask = ".*-DSI_COMBO\\.tiff";
 
@@ -78,6 +79,8 @@ public class MLStats {
 		gd.addNumericField("Clip low strength with",             strength_min_clip,            3);
 		gd.addNumericField("Drop tiles with strength above",     strength_max_drop,            3);
 		gd.addNumericField("Clip high strength with",            strength_max_clip,            3);
+		gd.addCheckbox("Normalize histogram to average 1.0",    normalize);
+
 		gd.showDialog ();
 		if (gd.wasCanceled()) return false;
 		mask =             gd.getNextString();
@@ -91,6 +94,7 @@ public class MLStats {
 		strength_min_clip =    gd.getNextNumber();
 		strength_max_drop =    gd.getNextNumber();
 		strength_max_clip =    gd.getNextNumber();
+		normalize =            gd.getNextBoolean();
 		// get list of all files:
 		System.out.println("File mask = "+mask);
 
@@ -117,16 +121,10 @@ public class MLStats {
 		double strength_step =  (strength_max_clip -  strength_min_clip)  / strength_bins;
 		double disparity_offs = disparity_min_clip - disparity_step/2; // last and first bin that include clip will be 0.5 width
 		double strength_offs =  strength_min_clip -  strength_step/2; // last and first bin that include clip will be 0.5 width
-		int tnut = 0;
+		int total_tiles_used = 0;
 		for (Path p:files) {
-//			System.out.println(p.getFileName());
-//			System.out.println(p.normalize().toString());
 			ImagePlus imp_dsi=new ImagePlus(p.normalize().toString());
 			  ImageStack dsi_stack=  imp_dsi.getStack();
-//			  if (debugLevel>0){
-//				  System.out.println(" kernel_clt_stack.getWidth() = "+dsi_stack.getWidth()+
-//						  " kernel_clt_stack.getHeight() = "+dsi_stack.getHeight());
-//			  }
 			  float [][] dsi_float = new float [slices.length][];
 			  int nLayers = dsi_stack.getSize();
 			  for (int nl = 0; nl < nLayers; nl++){
@@ -161,21 +159,58 @@ public class MLStats {
 				  }
 			  }
 			  System.out.println(p.getFileName()+": "+nut+" useful tiles counted");
-			  tnut += nut;
+			  total_tiles_used += nut;
 		}
-	   System.out.println("Total number of useful tiles: "+tnut);
+	   System.out.println("Total number of useful tiles: "+total_tiles_used);
 		double [] hist_double = new double [disparity_bins*strength_bins];
+		double scale = 1.0;
+		if (normalize) {
+			scale *= (1.0* disparity_bins * strength_bins) / total_tiles_used;
+		}
 		for (int nTile = 0; nTile < hist_double.length; nTile++) {
 			int dbin = nTile % disparity_bins;
 			int sbin = nTile / disparity_bins;
-			hist_double[nTile] = hist[dbin][sbin];
+			hist_double[nTile] = scale * hist[dbin][sbin];
 		}
-		(new showDoubleFloatArrays()).showArrays(
+//		  ImagePlus imp= makeArrays(pixels, width, height, title);
+//		  if (imp!=null) imp.show();
+
+		ImagePlus imp = (new showDoubleFloatArrays()).makeArrays(
 				hist_double,
 				disparity_bins,
 				strength_bins,
 				"DSI_histogram");
+		imp.setProperty("disparity_bins",  disparity_bins+"");
+		imp.setProperty("comment_disparity_bins",  "Number of disparity bins");
+		imp.setProperty("strength_bins",  strength_bins+"");
+		imp.setProperty("comment_strength_bins",  "Number of strength (confidence) bins");
+
+		imp.setProperty("disparity_min_drop",  disparity_min_drop+"");
+		imp.setProperty("comment_disparity_min_drop",  "Drop tiles with disparities below");
+		imp.setProperty("disparity_min_clip",  disparity_min_clip+"");
+		imp.setProperty("comment_disparity_min_clip",  "Clip low disparities with");
+		imp.setProperty("disparity_max_drop",  disparity_max_drop+"");
+		imp.setProperty("comment_disparity_max_drop",  "Drop tiles with disparities above");
+		imp.setProperty("disparity_max_clip",  disparity_max_clip+"");
+		imp.setProperty("comment_disparity_max_clip",  "Clip high disparities with");
+
+		imp.setProperty("strength_min_drop",  strength_min_drop+"");
+		imp.setProperty("comment_strength_min_drop",  "Drop tiles with strength below");
+		imp.setProperty("strength_min_clip",  strength_min_clip+"");
+		imp.setProperty("comment_strength_min_clip",  "Clip low strength with");
+		imp.setProperty("strength_max_drop",  strength_max_drop+"");
+		imp.setProperty("comment_strength_max_drop",  "Drop tiles with strength above");
+		imp.setProperty("strength_max_clip",  strength_max_clip+"");
+		imp.setProperty("comment_strength_max_clip",  "Clip high strength with");
+
+		imp.setProperty("total_tiles_used",  total_tiles_used+"");
+		imp.setProperty("comment_total_tiles_used",  "Total number of tiles used");
+
+
+		(new JP46_Reader_camera(false)).encodeProperiesToInfo(imp);
+		imp.show();
 		return true;
+
 	}
 	public static boolean listExtrinsics(String dir) // , String mask)
 	{
