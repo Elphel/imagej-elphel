@@ -64,9 +64,15 @@ public class MLStats {
 		double strength_max_drop =    1.0; //
 		double strength_max_clip =    0.9; //
 		boolean normalize =           true;
-		double  master_weight_power = 1.0;
-		double  master_weight_floor = 0.08;
-		double  disparity_outlier =   1.0;
+		double master_weight_power =  1.0;
+		double master_weight_floor =  0.08;
+		double disparity_outlier =    1.0;
+		double pre_log_offs =         0.01; // add before log to avoid -infinity
+		double log_sigma =            2.00; // blur logarithm of the histogram (in bins)
+		double mask_threshold =       0.25; // relative tile population
+		double log_sigma_d =          2.00; // blur logarithm of the histogram in disparity pixels
+		double log_sigma_s =          0.01; // blur logarithm of the histogram in strength units
+		int    result_disparity_step =  10; // bins
 
 
 		String mask = ".*-DSI_COMBO\\.tiff";
@@ -88,6 +94,14 @@ public class MLStats {
 		gd.addNumericField("Master weight floor",                            master_weight_floor,          3);
 		gd.addNumericField("Ignore tiles with disparity difference higher",  disparity_outlier,            3);
 
+		gd.addNumericField("Mask: add before log to avoid -infinity",        pre_log_offs,                 3);
+		gd.addNumericField("Mask: blur logarithm of the histogram",          log_sigma,                    3);
+		gd.addNumericField("Mask: threshold (relative tile population)",     mask_threshold,               3);
+
+		gd.addNumericField("Blur logarithm of the histogram in disparity pixels", log_sigma_d,             3);
+		gd.addNumericField("Blur logarithm of the histogram in strength units",   log_sigma_s,             3);
+		gd.addNumericField("Report RMS for each disaprity bins",             result_disparity_step,        0);
+
 		gd.showDialog ();
 		if (gd.wasCanceled()) return false;
 		mask =             gd.getNextString();
@@ -105,6 +119,15 @@ public class MLStats {
 		master_weight_power =  gd.getNextNumber();
 		master_weight_floor =  gd.getNextNumber();
 		disparity_outlier =    gd.getNextNumber();
+
+		pre_log_offs =         gd.getNextNumber();
+		log_sigma =            gd.getNextNumber();
+		mask_threshold =       gd.getNextNumber();
+		log_sigma_d =          gd.getNextNumber();
+		log_sigma_s =          gd.getNextNumber();
+		result_disparity_step = (int) gd.getNextNumber();
+
+
 		// get list of all files:
 		System.out.println("File mask = "+mask);
 
@@ -135,6 +158,7 @@ public class MLStats {
 		double disparity_offs = disparity_min_clip - disparity_step/2; // last and first bin that include clip will be 0.5 width
 		double strength_offs =  strength_min_clip -  strength_step/2; // last and first bin that include clip will be 0.5 width
 		int total_tiles_used = 0;
+		int nfile = 0;
 		for (Path p:files) {
 			ImagePlus imp_dsi=new ImagePlus(p.normalize().toString());
 			  ImageStack dsi_stack=  imp_dsi.getStack();
@@ -219,11 +243,14 @@ public class MLStats {
 					  }
 				  }
 			  }
-			  System.out.println(p.getFileName()+": "+nut+" useful tiles counted");
+			  System.out.println((++nfile)+": "+p.getFileName()+": "+nut+" useful tiles counted");
 			  total_tiles_used += nut;
 		}
-	   System.out.println("Total number of useful tiles: "+total_tiles_used);
-		double [][] hist_double = new double [3][disparity_bins*strength_bins];
+		System.out.println("Total number of useful tiles: "+total_tiles_used+ " of "+nfile+" files");
+		String [] titles = {"histogram", "histogram_ideal", "disp_err","disp_err9", "masked_err","masked_err9"};
+
+		double [][] hist_double = new double [titles.length][disparity_bins*strength_bins];
+
 		double scale = 1.0;
 		if (normalize) {
 			scale *= (1.0* disparity_bins * strength_bins) / total_tiles_used;
@@ -233,18 +260,104 @@ public class MLStats {
 			int dbin = nTile % disparity_bins;
 			int sbin = nTile / disparity_bins;
 			hist_double[0][nTile] = scale * hist[dbin][sbin];
-			if (ds_error[dbin][sbin][1] > 0.0) {
-				hist_double[1][nTile] = Math.sqrt(ds_error[dbin][sbin][0]/ds_error[dbin][sbin][1]);
+		}
+		// create a mask of relatively frequent d/s cells
+//		double pre_log_offs =         0.01; // add before log to avoid -infinity
+//		double log_sigma =            2.00; // blur logarithm of the histogram
+//		double mask_threshold =       0.25; // relative tile population
+		double [] mask_calc = new double [disparity_bins*strength_bins]; // hist_double[0].clone();
+		for (int nTile = 0; nTile < mask_calc.length; nTile++ ) {
+			mask_calc[nTile] = Math.log( hist_double[0][nTile] + pre_log_offs);
+		}
+		if (log_sigma > 0.0) {
+			(new DoubleGaussianBlur()).blurDouble(
+					mask_calc,
+					disparity_bins, // int width,
+					strength_bins, // int height,
+					log_sigma, // double sigmaX,
+					log_sigma, // double sigmaY,
+					0.01); // double accuracy)
+		}
+		double log_threshold = Math.log(mask_threshold+pre_log_offs);
+		boolean [] ds_mask = new boolean [disparity_bins*strength_bins];
+		for (int nTile = 0; nTile < mask_calc.length; nTile++ ) {
+			ds_mask[nTile] = mask_calc[nTile] >= log_threshold;
+		}
+//		log_sigma_d =          gd.getNextNumber();
+//		log_sigma_s =          gd.getNextNumber();
+//		double disparity_step = (disparity_max_clip - disparity_min_clip) / disparity_bins;
+//		double strength_step =  (strength_max_clip -  strength_min_clip)  / strength_bins;
+		(new DoubleGaussianBlur()).blurDouble(
+				mask_calc,
+				disparity_bins,             // int width,
+				strength_bins,              // int height,
+				log_sigma_d/disparity_step, // double sigmaX,
+				log_sigma_s/disparity_step, // double sigmaY,
+				0.01);                      // double accuracy)
+		for (int nTile = 0; nTile < mask_calc.length; nTile++ ) {
+			if (!ds_mask[nTile]) {
+				mask_calc[nTile] = 0.0;
 			} else {
-				hist_double[1][nTile] = Double.NaN;
+				mask_calc[nTile] = Math.exp(mask_calc[nTile]) - log_threshold;
 			}
-			if (ds_error[dbin][sbin][3] > 0.0) {
-				hist_double[2][nTile] = Math.sqrt(ds_error[dbin][sbin][2]/ds_error[dbin][sbin][3]);
+		}
+
+
+		for (int nTile = 0; nTile < hist_double[0].length; nTile++) {
+			int dbin = nTile % disparity_bins;
+			int sbin = nTile / disparity_bins;
+
+			hist_double[1][nTile] =  mask_calc[nTile];
+
+			if (ds_error[dbin][sbin][2] > 0.0) {
+				hist_double[2][nTile] = Math.sqrt(ds_error[dbin][sbin][0]/ds_error[dbin][sbin][1]);
 			} else {
 				hist_double[2][nTile] = Double.NaN;
 			}
+
+
+			if (ds_error[dbin][sbin][3] > 0.0) {
+				hist_double[3][nTile] = Math.sqrt(ds_error[dbin][sbin][2]/ds_error[dbin][sbin][3]);
+			} else {
+				hist_double[3][nTile] = Double.NaN;
+			}
+
+
+			if (ds_mask[nTile] && (ds_error[dbin][sbin][2] > 0.0)) {
+				hist_double[4][nTile] = Math.sqrt(ds_error[dbin][sbin][0]/ds_error[dbin][sbin][1]);
+			} else {
+				hist_double[4][nTile] = Double.NaN;
+			}
+
+			if (ds_mask[nTile] && (ds_error[dbin][sbin][3] > 0.0)) {
+				hist_double[5][nTile] = Math.sqrt(ds_error[dbin][sbin][2]/ds_error[dbin][sbin][3]);
+			} else {
+				hist_double[5][nTile] = Double.NaN;
+			}
 		}
-		String [] titles = {"histogram", "disp_err","disp_err9"};
+
+//		result_disparity_step
+		// Calculate weighted by both master and strength bin (rig strength), report for each  result_disparity_step disparity bins (running totals)
+		double sew=0.0, sw=0.0, sew9 = 0.0, sw9 = 0.0;
+		for (int disp0 = 0; disp0 < disparity_bins; disp0 += result_disparity_step) {
+			int dbin = disp0;
+			for (; (dbin < (disp0 + result_disparity_step)) && (dbin < disparity_bins); dbin ++) {
+				for (int sbin = 0; sbin < strength_bins; sbin++) {
+					int nTile = dbin+sbin*disparity_bins;
+					if (ds_mask[nTile]) {
+						sew +=  ds_error[dbin][sbin][0];
+						sw +=   ds_error[dbin][sbin][1];
+						sew9 += ds_error[dbin][sbin][2];
+						sw9 +=  ds_error[dbin][sbin][3];
+					}
+				}
+			}
+			double run_disp = disparity_offs + disparity_step * dbin;
+			double rms = Math.sqrt(sew/sw);
+			double rms9 = Math.sqrt(sew9/sw9);
+			System.out.println(String.format("disparity: %7.3f pix rms= %5.3f  rms9= %5.3f", run_disp, rms, rms9));
+		}
+
 		ImagePlus imp = (new showDoubleFloatArrays()).makeArrays(
 				hist_double,
 				disparity_bins,
