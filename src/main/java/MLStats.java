@@ -52,7 +52,7 @@ public class MLStats {
 //	}
 	public static boolean dsiHistogram(String dir) {
 		Path path= Paths.get(dir);
-		int disparity_bins =         400;
+		int disparity_bins =        1000;
 		int strength_bins =          100;
 
 		double disparity_min_drop =  -0.1;
@@ -64,22 +64,29 @@ public class MLStats {
 		double strength_max_drop =    1.0; //
 		double strength_max_clip =    0.9; //
 		boolean normalize =           true;
+		double  master_weight_power = 1.0;
+		double  master_weight_floor = 0.08;
+		double  disparity_outlier =   1.0;
+
 
 		String mask = ".*-DSI_COMBO\\.tiff";
 
 		GenericDialog gd = new GenericDialog("Select file mask and histogram parameters");
-		gd.addStringField ("Combined DSI file mask: ",           mask, 40);
-		gd.addNumericField("Number of disparity bins",           disparity_bins,               0);
-		gd.addNumericField("Number of strength bins",            strength_bins,                0);
-		gd.addNumericField("Drop tiles with disparities below",  disparity_min_drop,           3);
-		gd.addNumericField("Clip low disparities with",          disparity_min_clip,           3);
-		gd.addNumericField("Drop tiles with disparities above",  disparity_max_drop,           3);
-		gd.addNumericField("Clip high disparities with",         disparity_max_clip,           3);
-		gd.addNumericField("Drop tiles with strength below",     strength_min_drop,            3);
-		gd.addNumericField("Clip low strength with",             strength_min_clip,            3);
-		gd.addNumericField("Drop tiles with strength above",     strength_max_drop,            3);
-		gd.addNumericField("Clip high strength with",            strength_max_clip,            3);
-		gd.addCheckbox("Normalize histogram to average 1.0",    normalize);
+		gd.addStringField ("Combined DSI file mask: ",                       mask,                        40);
+		gd.addNumericField("Number of disparity bins",                       disparity_bins,               0);
+		gd.addNumericField("Number of strength bins",                        strength_bins,                0);
+		gd.addNumericField("Drop tiles with disparities below",              disparity_min_drop,           3);
+		gd.addNumericField("Clip low disparities with",                      disparity_min_clip,           3);
+		gd.addNumericField("Drop tiles with disparities above",              disparity_max_drop,           3);
+		gd.addNumericField("Clip high disparities with",                     disparity_max_clip,           3);
+		gd.addNumericField("Drop tiles with strength below",                 strength_min_drop,            3);
+		gd.addNumericField("Clip low strength with",                         strength_min_clip,            3);
+		gd.addNumericField("Drop tiles with strength above",                 strength_max_drop,            3);
+		gd.addNumericField("Clip high strength with",                        strength_max_clip,            3);
+		gd.addCheckbox("Normalize histogram to average 1.0",                 normalize);
+		gd.addNumericField("Master weight power (after floor)",              master_weight_power,          3);
+		gd.addNumericField("Master weight floor",                            master_weight_floor,          3);
+		gd.addNumericField("Ignore tiles with disparity difference higher",  disparity_outlier,            3);
 
 		gd.showDialog ();
 		if (gd.wasCanceled()) return false;
@@ -95,6 +102,9 @@ public class MLStats {
 		strength_max_drop =    gd.getNextNumber();
 		strength_max_clip =    gd.getNextNumber();
 		normalize =            gd.getNextBoolean();
+		master_weight_power =  gd.getNextNumber();
+		master_weight_floor =  gd.getNextNumber();
+		disparity_outlier =    gd.getNextNumber();
 		// get list of all files:
 		System.out.println("File mask = "+mask);
 
@@ -116,7 +126,9 @@ public class MLStats {
 			e.printStackTrace();
 		}
 		int [][] hist = new int [disparity_bins][strength_bins];
-		int [] slices = {TwoQuadCLT.DSI_DISPARITY_RIG,TwoQuadCLT.DSI_STRENGTH_RIG};
+		int [] slices = {TwoQuadCLT.DSI_DISPARITY_RIG,TwoQuadCLT.DSI_STRENGTH_RIG, TwoQuadCLT.DSI_DISPARITY_MAIN,TwoQuadCLT.DSI_STRENGTH_MAIN};
+		double [][][] ds_error = new double [disparity_bins][strength_bins][2];
+		double disparity_outlier2 = disparity_outlier*disparity_outlier;
 		double disparity_step = (disparity_max_clip - disparity_min_clip) / disparity_bins;
 		double strength_step =  (strength_max_clip -  strength_min_clip)  / strength_bins;
 		double disparity_offs = disparity_min_clip - disparity_step/2; // last and first bin that include clip will be 0.5 width
@@ -155,31 +167,56 @@ public class MLStats {
 //					int [][] hist = new int [disparity_bins][strength_bins];
 					  hist[dbin][sbin]++;
 					  nut++;
-
+					  double dm = dsi_float[2][nTile];
+					  double sm = dsi_float[3][nTile] - master_weight_floor;
+					  double de2 = (dm - d);
+					  de2 *= de2;
+					  if ((de2 <= disparity_outlier2) && (sm > 0.0)) {
+						  double w = 1.0;
+						  if (master_weight_power > 0.0) {
+							  w = sm;
+							  if (master_weight_power != 1.0) {
+								w = Math.pow(w, master_weight_power);
+							  }
+							  ds_error[dbin][sbin][0] += w* de2;
+							  ds_error[dbin][sbin][1] += w;
+						  }
+					  }
 				  }
 			  }
 			  System.out.println(p.getFileName()+": "+nut+" useful tiles counted");
 			  total_tiles_used += nut;
 		}
 	   System.out.println("Total number of useful tiles: "+total_tiles_used);
-		double [] hist_double = new double [disparity_bins*strength_bins];
+		double [][] hist_double = new double [2][disparity_bins*strength_bins];
 		double scale = 1.0;
 		if (normalize) {
 			scale *= (1.0* disparity_bins * strength_bins) / total_tiles_used;
 		}
-		for (int nTile = 0; nTile < hist_double.length; nTile++) {
+//		  ds_error[dbin][sbin][0] += w* de2;
+//		  ds_error[dbin][sbin][1] += w;
+
+		for (int nTile = 0; nTile < hist_double[0].length; nTile++) {
 			int dbin = nTile % disparity_bins;
 			int sbin = nTile / disparity_bins;
-			hist_double[nTile] = scale * hist[dbin][sbin];
+			hist_double[0][nTile] = scale * hist[dbin][sbin];
+			if (ds_error[dbin][sbin][1] > 0.0) {
+				hist_double[1][nTile] = Math.sqrt(ds_error[dbin][sbin][0]/ds_error[dbin][sbin][1]);
+			} else {
+				hist_double[1][nTile] = Double.NaN;
+			}
 		}
 //		  ImagePlus imp= makeArrays(pixels, width, height, title);
 //		  if (imp!=null) imp.show();
-
+//		  ImagePlus imp = (new showDoubleFloatArrays()).makeArrays(dsi,quadCLT_main.tp.getTilesX(), quadCLT_main.tp.getTilesY(),  title, DSI_SLICES);
+		String [] titles = {"histogram", "disp_err"};
 		ImagePlus imp = (new showDoubleFloatArrays()).makeArrays(
 				hist_double,
 				disparity_bins,
 				strength_bins,
-				"DSI_histogram");
+				"DSI_histogram",
+				titles
+				);
 		imp.setProperty("disparity_bins",  disparity_bins+"");
 		imp.setProperty("comment_disparity_bins",  "Number of disparity bins");
 		imp.setProperty("strength_bins",  strength_bins+"");
@@ -206,6 +243,14 @@ public class MLStats {
 		imp.setProperty("total_tiles_used",  total_tiles_used+"");
 		imp.setProperty("comment_total_tiles_used",  "Total number of tiles used");
 
+		imp.setProperty("master_weight_power",  master_weight_power+"");
+		imp.setProperty("comment_master_weight_power",  "Master weight power (after floor)");
+
+		imp.setProperty("master_weight_floor",  master_weight_floor+"");
+		imp.setProperty("comment_master_weight_floor",  "Master weight floor");
+
+		imp.setProperty("disparity_outlier",  disparity_outlier+"");
+		imp.setProperty("comment_disparity_outlier",  "Ignore tiles with disparity difference higher");
 
 		(new JP46_Reader_camera(false)).encodeProperiesToInfo(imp);
 		imp.show();
