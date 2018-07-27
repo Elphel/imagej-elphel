@@ -127,7 +127,8 @@ public class MLStats {
 		}
 		int [][] hist = new int [disparity_bins][strength_bins];
 		int [] slices = {TwoQuadCLT.DSI_DISPARITY_RIG,TwoQuadCLT.DSI_STRENGTH_RIG, TwoQuadCLT.DSI_DISPARITY_MAIN,TwoQuadCLT.DSI_STRENGTH_MAIN};
-		double [][][] ds_error = new double [disparity_bins][strength_bins][2];
+		double [][][] ds_error = new double [disparity_bins][strength_bins][4]; // adding averaged with neighbors
+		double [] dir_weights = {0.7,0.5}; // center weight = 1.0
 		double disparity_outlier2 = disparity_outlier*disparity_outlier;
 		double disparity_step = (disparity_max_clip - disparity_min_clip) / disparity_bins;
 		double strength_step =  (strength_max_clip -  strength_min_clip)  / strength_bins;
@@ -137,6 +138,9 @@ public class MLStats {
 		for (Path p:files) {
 			ImagePlus imp_dsi=new ImagePlus(p.normalize().toString());
 			  ImageStack dsi_stack=  imp_dsi.getStack();
+			  int width = dsi_stack.getWidth();
+			  int height = dsi_stack.getHeight();
+			  TileNeibs         tnImage = new TileNeibs(width,height);
 			  float [][] dsi_float = new float [slices.length][];
 			  int nLayers = dsi_stack.getSize();
 			  for (int nl = 0; nl < nLayers; nl++){
@@ -169,8 +173,7 @@ public class MLStats {
 					  nut++;
 					  double dm = dsi_float[2][nTile];
 					  double sm = dsi_float[3][nTile] - master_weight_floor;
-					  double de2 = (dm - d);
-					  de2 *= de2;
+					  double de2 = (dm - d) * (dm - d);
 					  if ((de2 <= disparity_outlier2) && (sm > 0.0)) {
 						  double w = 1.0;
 						  if (master_weight_power > 0.0) {
@@ -178,9 +181,41 @@ public class MLStats {
 							  if (master_weight_power != 1.0) {
 								w = Math.pow(w, master_weight_power);
 							  }
-							  ds_error[dbin][sbin][0] += w* de2;
-							  ds_error[dbin][sbin][1] += w;
 						  }
+						  ds_error[dbin][sbin][0] += w* de2;
+						  ds_error[dbin][sbin][1] += w;
+						  // combine with neighbors
+						  double sw =  w;
+						  double sew = w * (dm - d);
+						  for (int direction = 0; direction < 8; direction++) {
+							  int nTile1 = tnImage.getNeibIndex(nTile, direction);
+							  if (nTile1 >= 0) {
+								  d =  dsi_float[0][nTile1];
+								  s =  dsi_float[1][nTile1] - strength_min_drop;
+								  if (s > 0.0) {
+									  sm = dsi_float[3][nTile1] - master_weight_floor;
+									  if (sm > 0.0) {
+										  double de = dsi_float[2][nTile1] - d;
+										  de2 = de*de;
+										  if (de2 < disparity_outlier2) {
+											  w = 1.0;
+											  if (master_weight_power > 0.0) {
+												  w = sm;
+												  if (master_weight_power != 1.0) {
+													w = Math.pow(w, master_weight_power);
+												  }
+											  }
+											  w *= dir_weights[direction & 1] * s; //
+											  sw  += w;
+											  sew += w * de;
+										  }
+									  }
+								  }
+							  }
+						  }
+//						  sew /= sw;
+						  ds_error[dbin][sbin][2] += sew * sew / sw;
+						  ds_error[dbin][sbin][3] += sw;
 					  }
 				  }
 			  }
@@ -188,13 +223,11 @@ public class MLStats {
 			  total_tiles_used += nut;
 		}
 	   System.out.println("Total number of useful tiles: "+total_tiles_used);
-		double [][] hist_double = new double [2][disparity_bins*strength_bins];
+		double [][] hist_double = new double [3][disparity_bins*strength_bins];
 		double scale = 1.0;
 		if (normalize) {
 			scale *= (1.0* disparity_bins * strength_bins) / total_tiles_used;
 		}
-//		  ds_error[dbin][sbin][0] += w* de2;
-//		  ds_error[dbin][sbin][1] += w;
 
 		for (int nTile = 0; nTile < hist_double[0].length; nTile++) {
 			int dbin = nTile % disparity_bins;
@@ -205,16 +238,18 @@ public class MLStats {
 			} else {
 				hist_double[1][nTile] = Double.NaN;
 			}
+			if (ds_error[dbin][sbin][3] > 0.0) {
+				hist_double[2][nTile] = Math.sqrt(ds_error[dbin][sbin][2]/ds_error[dbin][sbin][3]);
+			} else {
+				hist_double[2][nTile] = Double.NaN;
+			}
 		}
-//		  ImagePlus imp= makeArrays(pixels, width, height, title);
-//		  if (imp!=null) imp.show();
-//		  ImagePlus imp = (new showDoubleFloatArrays()).makeArrays(dsi,quadCLT_main.tp.getTilesX(), quadCLT_main.tp.getTilesY(),  title, DSI_SLICES);
-		String [] titles = {"histogram", "disp_err"};
+		String [] titles = {"histogram", "disp_err","disp_err9"};
 		ImagePlus imp = (new showDoubleFloatArrays()).makeArrays(
 				hist_double,
 				disparity_bins,
 				strength_bins,
-				"DSI_histogram",
+				"DSI_metrics",
 				titles
 				);
 		imp.setProperty("disparity_bins",  disparity_bins+"");
