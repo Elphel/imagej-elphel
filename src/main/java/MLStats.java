@@ -216,7 +216,7 @@ public class MLStats {
 							  if (nTile1 >= 0) {
 								  d =  dsi_float[0][nTile1];
 								  s =  dsi_float[1][nTile1] - strength_min_drop;
-								  if (s > 0.0) {
+								  if ((s > 0.0) && (s <= strength_max_drop)) { // s was infinity here!
 									  sm = dsi_float[3][nTile1] - master_weight_floor;
 									  if (sm > 0.0) {
 										  double de = dsi_float[2][nTile1] - d;
@@ -229,17 +229,29 @@ public class MLStats {
 													w = Math.pow(w, master_weight_power);
 												  }
 											  }
+											  if (! ((w >0.0) && (w < 1.0))){
+												  System.out.println("strange w="+w);
+											  }
 											  w *= dir_weights[direction & 1] * s; //
 											  sw  += w;
 											  sew += w * de;
+											  if (Double.isInfinite(w)){
+												  System.out.println(Double.isInfinite(w));
+											  }
+
 										  }
 									  }
 								  }
 							  }
 						  }
 //						  sew /= sw;
-						  ds_error[dbin][sbin][2] += sew * sew / sw;
-						  ds_error[dbin][sbin][3] += sw;
+						  if (sw > 0.0) {
+							  ds_error[dbin][sbin][2] += sew * sew / sw;
+							  ds_error[dbin][sbin][3] += sw;
+							  if (Double.isNaN(ds_error[dbin][sbin][2])) {
+								  System.out.println("Double.isNaN(ds_error[dbin][sbin][2])");
+							  }
+						  }
 					  }
 				  }
 			  }
@@ -345,10 +357,13 @@ public class MLStats {
 				for (int sbin = 0; sbin < strength_bins; sbin++) {
 					int nTile = dbin+sbin*disparity_bins;
 					if (ds_mask[nTile]) {
-						sew +=  ds_error[dbin][sbin][0];
-						sw +=   ds_error[dbin][sbin][1];
-						sew9 += ds_error[dbin][sbin][2];
-						sw9 +=  ds_error[dbin][sbin][3];
+						sew +=  ds_error[dbin][sbin][0] * sbin; //  * strength_step);
+						sw +=   ds_error[dbin][sbin][1] * sbin;
+						sew9 += ds_error[dbin][sbin][2] * sbin;
+						sw9 +=  ds_error[dbin][sbin][3] * sbin;
+						if (Double.isNaN(sew9)) {
+							System.out.println("Double.isNaN(sew9)");
+						}
 					}
 				}
 			}
