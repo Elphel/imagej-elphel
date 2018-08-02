@@ -4682,7 +4682,7 @@ if (debugLevel > -100) return true; // temporarily !
 		double intercameraBaseline =  quadCLT_aux.geometryCorrection.getBaseline();
 
 		ImagePlus imp_ml = new ImagePlus(title, array_stack);
-		imp_ml.setProperty("VERSION",  "1.0");
+		imp_ml.setProperty("VERSION",  "1.1");
 		imp_ml.setProperty("tileWidth",   ""+ml_width);
 		imp_ml.setProperty("dispOffset",  ""+disp_offset);
 		imp_ml.setProperty("ML_OTHER_TARGET",  ""+ImageDtt.ML_OTHER_TARGET);
