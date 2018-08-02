@@ -4660,7 +4660,7 @@ if (debugLevel > -100) return true; // temporarily !
 							int iv = (int) Math.round(k*(ml_data[nl][i]-soft_mn));
 							if      (iv < 0) iv = 0;
 							else if (iv > 254) iv = 254;
-							iml_data[nl][i] = (byte) iv; //  (iv - 127); // NaN will stay 0;
+							iml_data[nl][i] = (byte) (iv + 1); //  (iv - 127); // NaN will stay 0;
 						}
 					}
 				}
