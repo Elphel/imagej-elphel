@@ -29,6 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Properties;
+import java.util.Random;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -211,6 +212,9 @@ public class TwoQuadCLT {
 				IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3)+" sec, --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
 
 	}
+
+
+
 
 
 	public void processCLTQuadCorrPairs(
@@ -2059,30 +2063,34 @@ if (debugLevel > -100) return true; // temporarily !
 			QuadCLT                                  quadCLT_main,  // tiles should be set
 			QuadCLT                                  quadCLT_aux,
 			EyesisCorrectionParameters.CLTParameters clt_parameters,
+			String                                   ml_directory,       // full path or null (will use config one)
 			final int                                threadsMax,  // maximal number of threads to launch
 			final boolean                            updateStatus,
 			final int                                debugLevel) // throws Exception
 	{
+
 		if ((quadCLT_main.tp == null) || (quadCLT_main.tp.rig_pre_poles_ds == null)) {
 			String msg = "DSI data not available. Please run \"Ground truth\" first";
 			IJ.showMessage("Error",msg);
 			System.out.println(msg);
 			return;
 		}
+		boolean post_poles =  clt_parameters.rig.ml_poles;
 		double [][] rig_disparity_strength = clt_parameters.rig.ml_poles?quadCLT_main.tp.rig_post_poles_ds : quadCLT_main.tp.rig_pre_poles_ds;
 		if (rig_disparity_strength == null) {
 			System.out.println("DSI data for the scene after poles extraction is not available. You may enable it and re-run \"Ground truth\" command or run \"Poles GT\"");
 			rig_disparity_strength = quadCLT_main.tp.rig_pre_poles_ds;
 			System.out.println("Using pre-poles data for ML output");
+			post_poles = false;
 		}
 		if (debugLevel > -6) {
-			if (clt_parameters.rig.ml_poles) {
+			if (post_poles) {
 				System.out.println("==== Generating ML data for the DSI that includes extracted vertical poles ====");
 			} else {
 				System.out.println("==== Generating ML data for the DSI that DOES NOT include extracted vertical poles ====");
 			}
 		}
-		String ml_directory= quadCLT_main.correctionsParameters.selectMlDirectory(
+		if (ml_directory == null) ml_directory= quadCLT_main.correctionsParameters.selectMlDirectory(
 				quadCLT_main.image_name,
 				true,  // smart,
 				true);  //newAllowed, // save
@@ -2093,12 +2101,18 @@ if (debugLevel > -100) return true; // temporarily !
 				(debugLevel > -1));   //   boolean debug)
 
 		for (int sweep_step = 0; sweep_step < clt_parameters.rig.ml_sweep_steps; sweep_step++){
-			double disparity_offset = 0; // clt_parameters.rig.ml_disparity_sweep * (2.0 * sweep_step/(clt_parameters.rig.ml_sweep_steps - 1.0) -1.0);
+			double disparity_offset_low = 0;
+			double disparity_offset_high = Double.NaN;
 			if (clt_parameters.rig.ml_sweep_steps > 1) {
-				disparity_offset = clt_parameters.rig.ml_disparity_sweep * (2.0 * sweep_step/(clt_parameters.rig.ml_sweep_steps - 1.0) -1.0);
+				disparity_offset_low = clt_parameters.rig.ml_disparity_sweep * (2.0 * sweep_step/(clt_parameters.rig.ml_sweep_steps - 1.0) -1.0);
+				if (clt_parameters.rig.ml_randomize) {
+					disparity_offset_high = clt_parameters.rig.ml_disparity_sweep * (2.0 * (sweep_step + 1)/(clt_parameters.rig.ml_sweep_steps - 1.0) -1.0);
+				}
 			}
+			String img_name = clt_parameters.rig.ml_randomize ? quadCLT_main.image_name+"-ML_DATARND-" : quadCLT_main.image_name+"-ML_DATA-";
 			double [][] ml_data = remeasureRigML(
-					disparity_offset,                         // double               disparity_offset,
+					disparity_offset_low,                     // double               disparity_offset_low,
+					disparity_offset_high,                    // double               disparity_offset_high,
 					quadCLT_main,                             // QuadCLT              quadCLT_main,    // tiles should be set
 					quadCLT_aux,                              // QuadCLT              quadCLT_aux,
 					//	    			  disparity_bimap,                          // double [][]          src_bimap,
@@ -2114,9 +2128,10 @@ if (debugLevel > -100) return true; // temporarily !
 					updateStatus,                             // final boolean        updateStatus,
 					debugLevel);                              // final int            debugLevel);
 			saveMlFile(
-					quadCLT_main.image_name+"-ML_DATA-", // String               ml_title,
+					img_name,                                 // String               ml_title,
 					ml_directory,                             // String               ml_directory,
-					disparity_offset,                         // double               disp_offset,
+					disparity_offset_low,                     // double               disp_offset_low,
+					disparity_offset_high,                    // double               disp_offset_high,
 					quadCLT_main,                             // QuadCLT              quadCLT_main,
 					quadCLT_aux,                              // QuadCLT              quadCLT_aux,
 					corr2d,                                   //Correlation2d        corr2d, // to access "other" layer
@@ -2133,7 +2148,15 @@ if (debugLevel > -100) return true; // temporarily !
 					clt_parameters.rig.ml_show_ml,            // boolean              show,
 					debugLevel);                              // int                  debugLevel
 			Runtime.getRuntime().gc();
-					System.out.println("Generated ML data, offset = "+String.format("%8.5f",disparity_offset)+", --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+			if (clt_parameters.rig.ml_randomize) {
+				System.out.println("Generated ML data, randomized offset = "+String.format("%8.5f...%8.5f",disparity_offset_low,disparity_offset_high)+", --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+			} else {
+				System.out.println("Generated ML data, offset = "+String.format("%8.5f",disparity_offset_low)+", --- Free memory="+Runtime.getRuntime().freeMemory()+" (of "+Runtime.getRuntime().totalMemory()+")");
+			}
+			if (clt_parameters.rig.ml_randomize && (sweep_step == (clt_parameters.rig.ml_sweep_steps-2))) { // reduce by 1 for random
+				break;
+			}
+
 		}
 	}
 
@@ -4469,7 +4492,8 @@ if (debugLevel > -100) return true; // temporarily !
 	public void saveMlFile(
 			String               ml_title,
 			String               ml_directory,
-			double               disp_offset,
+			double               disp_offset_low,
+			double               disp_offset_high,
 			QuadCLT              quadCLT_main,
 			QuadCLT              quadCLT_aux,
 			Correlation2d        corr2d, // to access "other" layer
@@ -4492,7 +4516,10 @@ if (debugLevel > -100) return true; // temporarily !
 		int width =  tilesX * ml_width;
 		int height = tilesY * ml_width;
 		String title = ml_title+ (use8bpp?"08":"32")+"B-"+(keep_aux?"A":"")+(keep_inter?"I":"")+(keep_hor_vert?"O":"")+(ml_keep_tbrl?"T":"")+
-				(keep_debug?"D":"")+"-FZ"+ml_fatzero+"-OFFS"+String.format("%8.5f",disp_offset).trim();
+				(keep_debug?"D":"")+"-FZ"+ml_fatzero+"-OFFS"+String.format("%8.5f",disp_offset_low).trim();
+		if (disp_offset_high > disp_offset_low) {
+			title+=String.format("_%8.5f",disp_offset_high).trim();
+		}
 		int [] aux_indices = {
 				ImageDtt.ML_TOP_AUX_INDEX,    // 8 - top pair 2d correlation center area (auxiliary camera)
 				ImageDtt.ML_BOTTOM_AUX_INDEX, // 9 - bottom pair 2d correlation center area (auxiliary camera)
@@ -4602,7 +4629,7 @@ if (debugLevel > -100) return true; // temporarily !
 					// special treatment - make 2 bytes of one disparity value
 					for (int tileY = 0; tileY < tilesY; tileY++) {
 						for (int tileX = 0; tileX < tilesX; tileX++) {
-							int nTile = tileY * tilesX + tileX;
+//							int nTile = tileY * tilesX + tileX;
 							double target_disparity = corr2d.restoreMlTilePixel(
 									tileX,                            // int         tileX,
 									tileY,                            // int         tileY,
@@ -4684,7 +4711,11 @@ if (debugLevel > -100) return true; // temporarily !
 		ImagePlus imp_ml = new ImagePlus(title, array_stack);
 		imp_ml.setProperty("VERSION",  "1.1");
 		imp_ml.setProperty("tileWidth",   ""+ml_width);
-		imp_ml.setProperty("dispOffset",  ""+disp_offset);
+		imp_ml.setProperty("dispOffset",  ""+disp_offset_low);
+		if (disp_offset_high>disp_offset_low) {
+			imp_ml.setProperty("dispOffsetLow",  ""+disp_offset_low);
+			imp_ml.setProperty("dispOffsetHigh",  ""+disp_offset_high);
+		}
 		imp_ml.setProperty("ML_OTHER_TARGET",  ""+ImageDtt.ML_OTHER_TARGET);
 		imp_ml.setProperty("ML_OTHER_GTRUTH",  ""+ImageDtt.ML_OTHER_GTRUTH);
 		imp_ml.setProperty("ML_OTHER_GTRUTH_STRENGTH",  ""+ImageDtt.ML_OTHER_GTRUTH_STRENGTH);
@@ -4695,7 +4726,11 @@ if (debugLevel > -100) return true; // temporarily !
 		imp_ml.setProperty("data_max",  ""+soft_mx);
 
 		imp_ml.setProperty("comment_tileWidth",   "Square tile size for each 2d correlation, always odd");
-		imp_ml.setProperty("comment_dispOffset",  "Tile target disparity minum ground truth disparity");
+		imp_ml.setProperty("comment_dispOffset",  "Tile target disparity minus ground truth disparity");
+		if (disp_offset_high>disp_offset_low) {
+			imp_ml.setProperty("comment_dispOffsetLow",  "Tile target disparity minus ground truth disparity, low margin for random distribution");
+			imp_ml.setProperty("comment_dispOffsetHigh", "Tile target disparity minus ground truth disparity, high margin for random distribution");
+		}
 		imp_ml.setProperty("comment_ML_OTHER_TARGET",  "Offset of the target disparity in the \"other\" layer tile");
 		imp_ml.setProperty("comment_ML_OTHER_GTRUTH",  "Offset of the ground truth disparity in the \"other\" layer tile");
 		imp_ml.setProperty("comment_ML_OTHER_GTRUTH_STRENGTH",  "Offset of the ground truth strength in the \"other\" layer tile");
@@ -5551,7 +5586,8 @@ if (debugLevel > -100) return true; // temporarily !
 	}
 
 	public double [][] remeasureRigML(
-			double                                         disparity_offset,
+			double                                         disparity_offset_low,
+			double                                         disparity_offset_high,
 			QuadCLT                                        quadCLT_main,  // tiles should be set
 			QuadCLT                                        quadCLT_aux,
 			double []                                      disparity,
@@ -5585,7 +5621,7 @@ if (debugLevel > -100) return true; // temporarily !
 		for (int nTile = 0; nTile < selection.length; nTile++) {
 			selection[nTile] = strength[nTile] > 0.0;
 		}
-
+		Random rnd = new Random(System.nanoTime());
 		Correlation2d corr2d = new Correlation2d(
 				clt_parameters.img_dtt,              // ImageDttParameters  imgdtt_params,
 				clt_parameters.transform_size,             // int transform_size,
@@ -5597,6 +5633,10 @@ if (debugLevel > -100) return true; // temporarily !
 				int tileY = nTile / tilesX;
 				int tileX = nTile % tilesX;
 				tile_op[tileY][tileX] = tile_op_all;
+				double disparity_offset = disparity_offset_low;
+				if (disparity_offset_high > disparity_offset) { // will not happen if disparity_offset_high is NaN
+					disparity_offset = disparity_offset_low + (disparity_offset_high-disparity_offset_low)*rnd.nextDouble();
+				}
 				disparity_array[tileY][tileX] = disparity[nTile]+disparity_offset;
 				corr2d.saveMlTilePixel(
 						tileX,                         // int         tileX,
@@ -6194,6 +6234,7 @@ if (debugLevel > -100) return true; // temporarily !
 						quadCLT_main,   // QuadCLT                                  quadCLT_main,  // tiles should be set
 						quadCLT_aux,    // QuadCLT                                  quadCLT_aux,
 						clt_parameters, // EyesisCorrectionParameters.CLTParameters clt_parameters,
+	    				null,           //String                                   ml_directory,       // full path or null (will use config one)
 						threadsMax,     // final int                                threadsMax,  // maximal number of threads to launch
 						updateStatus,   // final boolean                            updateStatus,
 						debugLevel);    // final int                                debugLevel)
@@ -6275,6 +6316,120 @@ if (debugLevel > -100) return true; // temporarily !
 		  String title = quadCLT_main.image_name+"-DSI_COMBO";
 		  (new showDoubleFloatArrays()).showArrays(dsi,quadCLT_main.tp.getTilesX(), quadCLT_main.tp.getTilesY(), true, title, DSI_SLICES);
 	}
+
+	public double [][] getRigDSI(
+			String                                         path_DSI)   // Combo DSI path
+	{
+		int [] slices = {TwoQuadCLT.DSI_DISPARITY_RIG,TwoQuadCLT.DSI_STRENGTH_RIG};
+		double[][] dsi = new double [slices.length][];
+		ImagePlus imp_dsi=new ImagePlus(path_DSI);
+		ImageStack dsi_stack=  imp_dsi.getStack();
+		int nLayers = dsi_stack.getSize();
+		for (int nl = 0; nl < nLayers; nl++){
+			for (int i = 0; i < slices.length; i++) {
+				if (TwoQuadCLT.DSI_SLICES[slices[i]].equals(dsi_stack.getSliceLabel(nl + 1))) {
+					dsi[i] = new double [((float[]) dsi_stack.getPixels(nl + 1)).length];
+					for (int j = 0; j < dsi[i].length; j++) {
+						dsi[i][j] = ((float[]) dsi_stack.getPixels(nl + 1))[j];
+					}
+					break;
+				}
+			}
+		}
+		return dsi;
+
+	}
+	public void regenerateML(
+			String                                         path_DSI,   // Combo DSI path
+			String                                         model_dir,  // model/version directory
+			String                                         ml_subdir,  // new ML subdir (or null to use configuartion one)
+			QuadCLT                                        quadCLT_main,
+			QuadCLT                                        quadCLT_aux,
+			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
+			EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			EyesisCorrectionParameters.RGBParameters       rgbParameters,
+			final int                                      threadsMax,  // maximal number of threads to launch
+			final boolean                                  updateStatus,
+			final int                                      debugLevel) throws Exception
+	{
+
+		this.startTime=System.nanoTime();
+		double [][] rig_dsi = getRigDSI(path_DSI);
+		String [] sourceFiles=quadCLT_main.correctionsParameters.getSourcePaths();
+		QuadCLT.SetChannels [] set_channels_main = quadCLT_main.setChannels(debugLevel);
+		QuadCLT.SetChannels [] set_channels_aux =  quadCLT_aux.setChannels(debugLevel);
+		if ((set_channels_main == null) || (set_channels_main.length==0) || (set_channels_aux == null) || (set_channels_aux.length==0)) {
+			System.out.println("No files to process (of "+sourceFiles.length+")");
+			return;
+		}
+		double [] referenceExposures_main = quadCLT_main.eyesisCorrections.calcReferenceExposures(debugLevel); // multiply each image by this and divide by individual (if not NaN)
+		double [] referenceExposures_aux =  quadCLT_aux.eyesisCorrections.calcReferenceExposures(debugLevel); // multiply each image by this and divide by individual (if not NaN)
+		if ((set_channels_main.length != 1) || (set_channels_aux.length != 1)) {
+			System.out.println("Wrong number of source file sets, expecting 1, got "+set_channels_main.length+", "+set_channels_aux.length);
+		}
+		int nSet = 0;
+		if (set_channels_aux.length <= nSet ) {
+			throw new Exception ("Set names for cameras do not match: main camera: '"+set_channels_main[nSet].name()+"', aux. camera: nothing");
+		}
+		if (!set_channels_main[nSet].name().equals(set_channels_aux[nSet].name())) {
+			throw new Exception ("Set names for cameras do not match: main camera: '"+set_channels_main[nSet].name()+"', aux. camera: '"+set_channels_main[nSet].name()+"'");
+		}
+
+		int [] channelFiles_main = set_channels_main[nSet].fileNumber();
+		int [] channelFiles_aux =  set_channels_aux[nSet].fileNumber();
+		boolean [][] saturation_main = (clt_parameters.sat_level > 0.0)? new boolean[channelFiles_main.length][] : null;
+		boolean [][] saturation_aux =  (clt_parameters.sat_level > 0.0)? new boolean[channelFiles_main.length][] : null;
+		double [] scaleExposures_main = new double[channelFiles_main.length];
+		double [] scaleExposures_aux =  new double[channelFiles_main.length];
+
+		ImagePlus [] imp_quad_main = quadCLT_main.conditionImageSet(
+				clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+				sourceFiles,                    // String []                                 sourceFiles,
+				set_channels_main[nSet].name(), // String                                    set_name,
+				referenceExposures_main,        // double []                                 referenceExposures,
+				channelFiles_main,              // int []                                    channelFiles,
+				scaleExposures_main,            //output  // double [] scaleExposures
+				saturation_main,                //output  // boolean [][]                              saturation_imp,
+				debugLevel);                   // int                                       debugLevel);
+
+		ImagePlus [] imp_quad_aux = quadCLT_aux.conditionImageSet(
+				clt_parameters,                 // EyesisCorrectionParameters.CLTParameters  clt_parameters,
+				sourceFiles,                    // String []                                 sourceFiles,
+				set_channels_aux[nSet].name(),  // String                                    set_name,
+				referenceExposures_aux,         // double []                                 referenceExposures,
+				channelFiles_aux,               // int []                                    channelFiles,
+				scaleExposures_aux,             //output  // double [] scaleExposures
+				saturation_aux,                 //output  // boolean [][]                              saturation_imp,
+				debugLevel);                    // int                                       debugLevel);
+
+		getRigImageStacks(
+				clt_parameters,  // EyesisCorrectionParameters.CLTParameters       clt_parameters,
+				quadCLT_main,    // QuadCLT                                         quadCLT_main,
+				quadCLT_aux,     // QuadCLT                                          quadCLT_aux,
+				imp_quad_main,   // ImagePlus []                                   imp_quad_main,
+				imp_quad_aux,    // ImagePlus []                                    imp_quad_aux,
+				saturation_main, // boolean [][]        saturation_main, // (near) saturated pixels or null
+				saturation_aux, // boolean [][]        saturation_aux, // (near) saturated pixels or null
+				threadsMax,      // maximal number of threads to launch
+				debugLevel);     // final int        debugLevel);
+		// now tp is defined
+		quadCLT_main.tp.rig_pre_poles_ds = rig_dsi; // use rig data from the COMBO-DSI file
+
+//		quadCLT_main.tp.resetCLTPasses();
+//		quadCLT_aux.tp.resetCLTPasses();
+		String ml_dir = (ml_subdir == null)? null: (model_dir+Prefs.getFileSeparator()+ml_subdir);
+		outputMLData(
+				quadCLT_main,   // QuadCLT                                  quadCLT_main,  // tiles should be set
+				quadCLT_aux,    // QuadCLT                                  quadCLT_aux,
+				clt_parameters, // EyesisCorrectionParameters.CLTParameters clt_parameters,
+				ml_dir,         // String                                   ml_directory,       // full path or null (will use config one)
+				threadsMax,     // final int                                threadsMax,  // maximal number of threads to launch
+				updateStatus,   // final boolean                            updateStatus,
+				debugLevel);    // final int                                debugLevel)
+		System.out.println();
+	}
+
 
 	public void saveProperties(
 			String path,                // full name with extension or w/o path to use x3d directory

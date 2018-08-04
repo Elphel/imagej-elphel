@@ -251,6 +251,8 @@ public class BiQuadParameters {
 	public double  ml_disparity_sweep  =       1.0;    // Disparity sweep around ground truth, each side
 	public int     ml_sweep_steps =            21;      // Number of disparity sweep steps
 
+	public boolean ml_randomize =              true;    // randomize ofset within 1 step (reduces ml_sweep_steps by 1)
+
 	public boolean ml_keep_aux =               false; // true; // include auxiliary camera data in the ML output
 	public boolean ml_keep_inter =             false; // true; // include inter-camera correlation data in the ML output
 	public boolean ml_keep_hor_vert =          true; // include combined horizontal and vertical pairs data in the ML output
@@ -657,6 +659,10 @@ public class BiQuadParameters {
 				"Sweep symmetrically target disparity around the ground truth disparity, each side");
 		gd.addNumericField("Number of target disparity sweep steps",                                                               this.ml_sweep_steps,  0,3,"",
 				"Generate this many files for each file set. Each tile results depend on the target disparity and this tile data, do not depend on other tiles target disparity");
+
+		gd.addCheckbox    ("Randomize offset",                                                                    this.ml_randomize,
+				"Each tile will have individual offset, but it the range between the filename and next higher. Reduces sweep steps by 1");
+
 		gd.addCheckbox    ("Include auxiliary camera data in the ML output",                                      this.ml_keep_aux,
 				"ML output will have the second set of the layers for the auxiliary camera. Disparity values should be scaled for the camera baseline");
 		gd.addCheckbox    ("Keep inter-camera correlation data",                                                  this.ml_keep_inter,
@@ -875,6 +881,7 @@ public class BiQuadParameters {
 		this.ml_hwidth=               (int) gd.getNextNumber();
 		this.ml_disparity_sweep=            gd.getNextNumber();
 		this.ml_sweep_steps=          (int) gd.getNextNumber();
+		this.ml_randomize=                   gd.getNextBoolean();
 		this.ml_keep_aux=                   gd.getNextBoolean();
 		this.ml_keep_inter=                 gd.getNextBoolean();
 		this.ml_keep_tbrl=                  gd.getNextBoolean();
@@ -1085,6 +1092,7 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"ml_hwidth",                 this.ml_hwidth+"");
 		properties.setProperty(prefix+"ml_disparity_sweep",        this.ml_disparity_sweep+"");
 		properties.setProperty(prefix+"ml_sweep_steps",            this.ml_sweep_steps+"");
+		properties.setProperty(prefix+"ml_randomize",              this.ml_randomize+"");
 		properties.setProperty(prefix+"ml_keep_aux",               this.ml_keep_aux+"");
 		properties.setProperty(prefix+"ml_keep_inter",             this.ml_keep_inter+"");
 		properties.setProperty(prefix+"ml_keep_tbrl",              this.ml_keep_tbrl+"");
@@ -1292,6 +1300,8 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"ml_hwidth")!=null)               this.ml_hwidth=Integer.parseInt(properties.getProperty(prefix+"ml_hwidth"));
 		if (properties.getProperty(prefix+"ml_disparity_sweep")!=null)      this.ml_disparity_sweep=Double.parseDouble(properties.getProperty(prefix+"ml_disparity_sweep"));
 		if (properties.getProperty(prefix+"ml_sweep_steps")!=null)          this.ml_sweep_steps=Integer.parseInt(properties.getProperty(prefix+"ml_sweep_steps"));
+
+		if (properties.getProperty(prefix+"ml_randomize")!=null)            this.ml_randomize=Boolean.parseBoolean(properties.getProperty(prefix+"ml_randomize"));
 		if (properties.getProperty(prefix+"ml_keep_aux")!=null)             this.ml_keep_aux=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_aux"));
 		if (properties.getProperty(prefix+"ml_keep_inter")!=null)           this.ml_keep_inter=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_inter"));
 		if (properties.getProperty(prefix+"ml_keep_tbrl")!=null)            this.ml_keep_tbrl=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_tbrl"));
@@ -1501,6 +1511,7 @@ public class BiQuadParameters {
 		bqp.ml_disparity_sweep=         this.ml_disparity_sweep;
 		bqp.ml_sweep_steps=             this.ml_sweep_steps;
 		bqp.ml_keep_aux=                this.ml_keep_aux;
+		bqp.ml_randomize =              this.ml_randomize;
 		bqp.ml_keep_inter=              this.ml_keep_inter;
 		bqp.ml_keep_tbrl=               this.ml_keep_tbrl;
 		bqp.ml_keep_hor_vert=           this.ml_keep_hor_vert;

@@ -50,6 +50,18 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.EnumSet;
+import java.util.List;
 //import java.io.FileFilter;
 //import java.io.FilenameFilter;
 import java.util.Properties;
@@ -615,6 +627,7 @@ private Panel panel1,
 			panelClt5.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
 			addButton("LIST extrinsics",            panelClt5, color_report);
 			addButton("DSI histogram",              panelClt5, color_report);
+			addButton("ML recalc",                  panelClt5, color_process);
 			add(panelClt5);
 		}
 
@@ -4590,10 +4603,21 @@ private Panel panel1,
         return;
 /* ======================================================================== */
     } else if (label.equals("LIST extrinsics")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
     	listExtrinsics();
     	return;
 /* ======================================================================== */
+    } else if (label.equals("ML recalc")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+    	mlRecalc();
+    	return;
+//
+/* ======================================================================== */
     } else if (label.equals("DSI histogram")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
     	dsiHistogram();
     	return;
 
@@ -5472,6 +5496,7 @@ private Panel panel1,
     				QUAD_CLT, // QuadCLT quadCLT_main,
     				QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
     				CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+    				null,          //String                                   ml_directory,       // full path or null (will use config one)
     				THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
     				UPDATE_STATUS, //final boolean    updateStatus,
     				DEBUG_LEVEL);
@@ -5610,10 +5635,175 @@ private Panel panel1,
 		if (dir!=null) {
 			System.out.println("top directory = "+dir);
 		}
-//		return TwoQuadCLT.listExtrinsics(dir); // , mask);
 		return MLStats.listExtrinsics(dir); // , mask);
-		//(new MLStats).
 	}
+
+	public boolean mlRecalc() {
+		String dir= CalibrationFileManagement.selectDirectory(
+				false, // true, // smart,
+				false, // newAllowed, // save
+				"Model directories to scan", // title
+				"Select", // button
+				null, // filter
+				CORRECTION_PARAMETERS.x3dDirectory); //this.sourceDirectory);
+		if (dir!=null) {
+			System.out.println("top directory = "+dir);
+		}
+//		return MLStats.mlRecalc(dir); // , mask);
+		return mlRecalc(dir); // , mask);
+	}
+
+	public boolean mlRecalc(String dir)
+//			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+//			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
+//			EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+//			EyesisCorrectionParameters.RGBParameters       rgbParameters,
+//			final int                                      threadsMax,  // maximal number of threads to launch
+//			final boolean                                  updateStatus,
+//			final int                                      debugLevel) throws Exception
+
+	{
+		String mask = ".*EXTRINSICS\\.corr-xml";
+		String full_conf_suffix = ".corr-xml";
+		String dsi_suffix = "-DSI_COMBO.tiff";
+		String correction_parameters_prefix = "CORRECTION_PARAMETERS.";
+
+		System.out.println("File mask = "+mask);
+
+		final List<Path> files=new ArrayList<>();
+		final String fMask = mask;
+		Path path= Paths.get(dir);
+		try {
+			Files.walkFileTree(path, EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>(){
+				@Override
+				public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+					if(!attrs.isDirectory()){
+						if (file.toString().matches(fMask)) {
+							files.add(file);
+						}
+					}
+					return FileVisitResult.CONTINUE;
+				}
+			});
+		} catch (IOException e) {
+			e.printStackTrace();
+			return false;
+		}
+		int indx = 0;
+		for (Path p:files) {
+
+			int count =     p.getNameCount();
+			if (count >=3) {
+				String model =   p.getName(count-3).toString();
+				String version = p.getName(count-2).toString();
+				String name =    p.getName(count-1).toString();
+//				String root = p.getRoot().toString();
+				Path parent = p.getParent();
+//				System.out.println(indx+": model:"+model+", version:"+version+", name: "+name);
+				Path full_conf_path = p.resolveSibling(model+full_conf_suffix);
+				Path dsi_combo_path = p.resolveSibling(model+dsi_suffix);
+				System.out.println(indx+": model:"+model+", version:"+version+", name: "+name+ ", parent="+parent+", full_conf_path="+full_conf_path);
+				// See if there is a full configuration file and DSI combo
+				if (!full_conf_path.toFile().exists()) {
+					System.out.println("Full configuration file for the model:"+model+", version:"+version+": "+full_conf_path+" does not exist");
+					continue;
+				}
+				if (!dsi_combo_path.toFile().exists()) {
+					System.out.println("DSI combo file (GT data) for the model:"+model+", version:"+version+": "+dsi_combo_path+" does not exist");
+					continue;
+				}
+				// overwrite extrinsics in current properties form the model file
+				MLStats.loadProperties(
+						full_conf_path.toString(), // String path,
+						PROPERTIES); // Properties properties)
+
+				Properties full_properties = MLStats.loadProperties(
+						full_conf_path.toString(), // String path,
+						null); // Properties properties)
+//				String [] sourcePaths = null;
+				ArrayList<String> source_list = new ArrayList<String>();
+				if (full_properties.getProperty(correction_parameters_prefix+"sourcePaths")!=   null){
+					int numFiles=Integer.parseInt(full_properties.getProperty(correction_parameters_prefix+"sourcePaths"));
+//					sourcePaths=new String[numFiles];
+					for (int i = 0; i < numFiles; i++){
+						String src=full_properties.getProperty(correction_parameters_prefix+"sourcePath"+i);
+						Path src_path=Paths.get(src);
+						if (src_path.getName(src_path.getNameCount()-1).toString().contains(model)){
+							source_list.add(src);
+						}
+	        		}
+				} else {
+					System.out.println("Source files are not povided for the model:"+model+", version:"+version+" in "+full_conf_path);
+					continue;
+				}
+				Collections.sort(source_list, new Comparator<String>() {
+					@Override
+					public int compare(String lhs, String rhs) {
+						// -1 - less than, 1 - greater than, 0 - equal, not inverted for ascending disparity
+						return lhs.compareTo(rhs);
+					}
+				});
+
+
+
+
+//				String [] sourcePaths = source_list.toArray(new String[0]);
+				CORRECTION_PARAMETERS.sourcePaths= source_list.toArray(new String[0]);
+
+
+
+				System.out.println("Got "+ source_list.size() +" source files");
+				QUAD_CLT = null;
+				QUAD_CLT_AUX = null; // reset images
+
+				if (!prepareRigImages()) { // will use extrinsics properties
+					return false;
+				}
+//				QuadCLT qcm = QUAD_CLT; // just to debug
+//				QuadCLT qca = QUAD_CLT_AUX;
+				String mldir=CORRECTION_PARAMETERS.mlDirectory;
+				if (mldir.equals("ml")) {
+					mldir = "ml"; // not to overwrite original data
+				}
+				try {
+					TWO_QUAD_CLT.regenerateML(
+							dsi_combo_path.toString(), // String                                         path_DSI,   // Combo DSI path
+							parent.toString(),         // String                                         model_dir,  // model/version directory
+							mldir, // "ml1",                     // String                                         ml_subdir,  // new ML subdir (or null to use configuartion one)
+							QUAD_CLT, // QuadCLT quadCLT_main,
+							QUAD_CLT_AUX, // QuadCLT quadCLT_aux,
+							CLT_PARAMETERS,  // EyesisCorrectionParameters.DCTParameters           dct_parameters,
+							DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+							COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+							RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+							THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+							UPDATE_STATUS, //final boolean    updateStatus,
+							DEBUG_LEVEL);
+
+
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				} //final int        debugLevel);
+
+
+
+				if (indx > 0) { //-1) {
+					return true; // temporarily
+				}
+				indx++;
+			}
+		}
+
+
+
+		return true;
+	}
+
+
+
+
+
 	public boolean dsiHistogram() {
 		String dir= CalibrationFileManagement.selectDirectory(
 				false, // true, // smart,
