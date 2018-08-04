@@ -70,7 +70,7 @@ public class MLStats {
 		double pre_log_offs =         0.01; // add before log to avoid -infinity
 		double log_sigma =            2.00; // blur logarithm of the histogram (in bins)
 		double mask_threshold =       0.25; // relative tile population
-		double log_sigma_d =          2.00; // blur logarithm of the histogram in disparity pixels
+		double log_sigma_d =          0.5;  // blur logarithm of the histogram in disparity pixels
 		double log_sigma_s =          0.01; // blur logarithm of the histogram in strength units
 		int    result_disparity_step =  10; // bins
 
@@ -259,7 +259,7 @@ public class MLStats {
 			  total_tiles_used += nut;
 		}
 		System.out.println("Total number of useful tiles: "+total_tiles_used+ " of "+nfile+" files");
-		String [] titles = {"histogram", "histogram_ideal", "disp_err","disp_err9", "masked_err","masked_err9"};
+		String [] titles = {"histogram", "histogram_masked", "histogram_ideal", "disp_err","disp_err9", "masked_err","masked_err9"};
 
 		double [][] hist_double = new double [titles.length][disparity_bins*strength_bins];
 
@@ -319,32 +319,34 @@ public class MLStats {
 			int dbin = nTile % disparity_bins;
 			int sbin = nTile / disparity_bins;
 
-			hist_double[1][nTile] =  mask_calc[nTile];
+			hist_double[1][nTile] =  ds_mask[nTile] ? hist_double[0][nTile]: 0.0;
+
+			hist_double[2][nTile] =  mask_calc[nTile];
 
 			if (ds_error[dbin][sbin][2] > 0.0) {
-				hist_double[2][nTile] = Math.sqrt(ds_error[dbin][sbin][0]/ds_error[dbin][sbin][1]);
-			} else {
-				hist_double[2][nTile] = Double.NaN;
-			}
-
-
-			if (ds_error[dbin][sbin][3] > 0.0) {
-				hist_double[3][nTile] = Math.sqrt(ds_error[dbin][sbin][2]/ds_error[dbin][sbin][3]);
+				hist_double[3][nTile] = Math.sqrt(ds_error[dbin][sbin][0]/ds_error[dbin][sbin][1]);
 			} else {
 				hist_double[3][nTile] = Double.NaN;
 			}
 
 
-			if (ds_mask[nTile] && (ds_error[dbin][sbin][2] > 0.0)) {
-				hist_double[4][nTile] = Math.sqrt(ds_error[dbin][sbin][0]/ds_error[dbin][sbin][1]);
+			if (ds_error[dbin][sbin][3] > 0.0) {
+				hist_double[4][nTile] = Math.sqrt(ds_error[dbin][sbin][2]/ds_error[dbin][sbin][3]);
 			} else {
 				hist_double[4][nTile] = Double.NaN;
 			}
 
-			if (ds_mask[nTile] && (ds_error[dbin][sbin][3] > 0.0)) {
-				hist_double[5][nTile] = Math.sqrt(ds_error[dbin][sbin][2]/ds_error[dbin][sbin][3]);
+
+			if (ds_mask[nTile] && (ds_error[dbin][sbin][2] > 0.0)) {
+				hist_double[5][nTile] = Math.sqrt(ds_error[dbin][sbin][0]/ds_error[dbin][sbin][1]);
 			} else {
 				hist_double[5][nTile] = Double.NaN;
+			}
+
+			if (ds_mask[nTile] && (ds_error[dbin][sbin][3] > 0.0)) {
+				hist_double[6][nTile] = Math.sqrt(ds_error[dbin][sbin][2]/ds_error[dbin][sbin][3]);
+			} else {
+				hist_double[6][nTile] = Double.NaN;
 			}
 		}
 
