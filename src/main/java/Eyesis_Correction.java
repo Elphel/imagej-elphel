@@ -5654,13 +5654,6 @@ private Panel panel1,
 	}
 
 	public boolean mlRecalc(String dir)
-//			EyesisCorrectionParameters.CLTParameters       clt_parameters,
-//			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
-//			EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-//			EyesisCorrectionParameters.RGBParameters       rgbParameters,
-//			final int                                      threadsMax,  // maximal number of threads to launch
-//			final boolean                                  updateStatus,
-//			final int                                      debugLevel) throws Exception
 
 	{
 		String mask = ".*EXTRINSICS\\.corr-xml";
@@ -5697,9 +5690,7 @@ private Panel panel1,
 				String model =   p.getName(count-3).toString();
 				String version = p.getName(count-2).toString();
 				String name =    p.getName(count-1).toString();
-//				String root = p.getRoot().toString();
 				Path parent = p.getParent();
-//				System.out.println(indx+": model:"+model+", version:"+version+", name: "+name);
 				Path full_conf_path = p.resolveSibling(model+full_conf_suffix);
 				Path dsi_combo_path = p.resolveSibling(model+dsi_suffix);
 				System.out.println(indx+": model:"+model+", version:"+version+", name: "+name+ ", parent="+parent+", full_conf_path="+full_conf_path);
@@ -5720,11 +5711,9 @@ private Panel panel1,
 				Properties full_properties = MLStats.loadProperties(
 						full_conf_path.toString(), // String path,
 						null); // Properties properties)
-//				String [] sourcePaths = null;
 				ArrayList<String> source_list = new ArrayList<String>();
 				if (full_properties.getProperty(correction_parameters_prefix+"sourcePaths")!=   null){
 					int numFiles=Integer.parseInt(full_properties.getProperty(correction_parameters_prefix+"sourcePaths"));
-//					sourcePaths=new String[numFiles];
 					for (int i = 0; i < numFiles; i++){
 						String src=full_properties.getProperty(correction_parameters_prefix+"sourcePath"+i);
 						Path src_path=Paths.get(src);
@@ -5744,14 +5733,7 @@ private Panel panel1,
 					}
 				});
 
-
-
-
-//				String [] sourcePaths = source_list.toArray(new String[0]);
 				CORRECTION_PARAMETERS.sourcePaths= source_list.toArray(new String[0]);
-
-
-
 				System.out.println("Got "+ source_list.size() +" source files");
 				QUAD_CLT = null;
 				QUAD_CLT_AUX = null; // reset images
@@ -5759,8 +5741,6 @@ private Panel panel1,
 				if (!prepareRigImages()) { // will use extrinsics properties
 					return false;
 				}
-//				QuadCLT qcm = QUAD_CLT; // just to debug
-//				QuadCLT qca = QUAD_CLT_AUX;
 				String mldir=CORRECTION_PARAMETERS.mlDirectory;
 				if (mldir.equals("ml")) {
 					mldir = "ml"; // not to overwrite original data
@@ -5784,13 +5764,11 @@ private Panel panel1,
 				} catch (Exception e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
-				} //final int        debugLevel);
-
-
-
-				if (indx > 0) { //-1) {
-					return true; // temporarily
 				}
+
+//				if (indx > 0) { //-1) {
+//					return true; // temporarily
+//				}
 				indx++;
 			}
 		}
