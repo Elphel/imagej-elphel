@@ -5656,6 +5656,9 @@ private Panel panel1,
 	public boolean mlRecalc(String dir)
 
 	{
+		Runtime runtime = Runtime.getRuntime();
+		long 	  startTime=System.nanoTime();
+		
 		String mask = ".*EXTRINSICS\\.corr-xml";
 		String full_conf_suffix = ".corr-xml";
 		String dsi_suffix = "-DSI_COMBO.tiff";
@@ -5770,11 +5773,16 @@ private Panel panel1,
 //					return true; // temporarily
 //				}
 				indx++;
+				if (DEBUG_LEVEL>0) System.out.println("Finished scene "+indx+" of "+files.size() + " at "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+
+						" seconds  Free memory="+IJ.d2s(runtime.freeMemory()/(1024.0*1024.0*1024.0),3)+" GB (of "+
+						IJ.d2s(runtime.totalMemory()/(1024.0*1024.0*1024.0),3)+" GB), used "+
+						IJ.d2s((runtime.totalMemory()-runtime.freeMemory())/(1024.0*1024.0*1024.0),3)+" GB");
+				
+				
+				
 			}
 		}
-
-
-
+		System.out.println("Re-processing ML files ("+files.size()+") done in "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+ " seconds");
 		return true;
 	}
 
