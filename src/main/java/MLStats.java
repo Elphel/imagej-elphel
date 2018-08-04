@@ -422,6 +422,129 @@ public class MLStats {
 		return true;
 
 	}
+
+	public static boolean mlRecalc(String dir,
+			EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			EyesisCorrectionParameters.DebayerParameters   debayerParameters,
+			EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+			EyesisCorrectionParameters.RGBParameters       rgbParameters,
+			final int                                      threadsMax,  // maximal number of threads to launch
+			final boolean                                  updateStatus,
+			final int                                      debugLevel) throws Exception
+
+	{
+		String mask = ".*EXTRINSICS\\.corr-xml";
+		String full_conf_suffix = ".corr-xml";
+		String dsi_suffix = "-DSI_COMBO.tiff";
+		String correction_parameters_prefix = "CORRECTION_PARAMETERS.";
+
+		System.out.println("File mask = "+mask);
+
+		final List<Path> files=new ArrayList<>();
+		final String fMask = mask;
+		Path path= Paths.get(dir);
+		try {
+			Files.walkFileTree(path, EnumSet.of(FileVisitOption.FOLLOW_LINKS), Integer.MAX_VALUE, new SimpleFileVisitor<Path>(){
+				@Override
+				public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+					if(!attrs.isDirectory()){
+						if (file.toString().matches(fMask)) {
+							files.add(file);
+						}
+					}
+					return FileVisitResult.CONTINUE;
+				}
+			});
+		} catch (IOException e) {
+			e.printStackTrace();
+			return false;
+		}
+		int indx = 0;
+		for (Path p:files) {
+
+			int count =     p.getNameCount();
+			if (count >=3) {
+				String model =   p.getName(count-3).toString();
+				String version = p.getName(count-2).toString();
+				String name =    p.getName(count-1).toString();
+//				String root = p.getRoot().toString();
+				Path parent = p.getParent();
+//				System.out.println(indx+": model:"+model+", version:"+version+", name: "+name);
+				Path full_conf_path = p.resolveSibling(model+full_conf_suffix);
+				Path dsi_combo_path = p.resolveSibling(model+dsi_suffix);
+				System.out.println(indx+": model:"+model+", version:"+version+", name: "+name+ ", parent="+parent+", full_conf_path="+full_conf_path);
+				// See if there is a full configuration file and DSI combo
+				if (!full_conf_path.toFile().exists()) {
+					System.out.println("Full configuration file for model:"+model+", version:"+version+": "+full_conf_path+" does not exist");
+					continue;
+				}
+				if (!dsi_combo_path.toFile().exists()) {
+					System.out.println("DSI combo file (GT data) for model:"+model+", version:"+version+": "+dsi_combo_path+" does not exist");
+					continue;
+				}
+				Properties full_properties = loadProperties(
+						full_conf_path.toString(), // String path,
+						null); // Properties properties)
+//				String [] sourcePaths = null;
+				ArrayList<String> source_list = new ArrayList<String>();
+				if (full_properties.getProperty(correction_parameters_prefix+"sourcePaths")!=   null){
+					int numFiles=Integer.parseInt(full_properties.getProperty(correction_parameters_prefix+"sourcePaths"));
+//					sourcePaths=new String[numFiles];
+					for (int i = 0; i < numFiles; i++){
+						String src=full_properties.getProperty(correction_parameters_prefix+"sourcePath"+i);
+						Path src_path=Paths.get(src);
+						if (src_path.getName(src_path.getNameCount()-1).toString().contains(model)){
+							source_list.add(src);
+						}
+	        		}
+				} else {
+					System.out.println("Source files are not povided for model:"+model+", version:"+version+" in "+full_conf_path);
+					continue;
+				}
+				System.out.println("Got "+ source_list.size() +" source files");
+
+				if (indx > -1) {
+					return true; // temporarily
+				}
+
+				/*
+				 *
+				this.sourcePaths=new String[numFiles];
+				for (int i=0;i<this.sourcePaths.length;i++){
+					this.sourcePaths[i]=properties.getProperty(prefix+"sourcePath"+i);
+        		}
+
+				 *
+				 *
+				Properties properties = loadProperties(
+						p.toString(), // String path,
+						null); // Properties properties)
+				QuadCLT qcm = new QuadCLT(
+						QuadCLT.PREFIX, // String                                          prefix,
+						properties, // Properties                                      properties,
+						null, // EyesisCorrections                               eyesisCorrections,
+						null // EyesisCorrectionParameters.CorrectionParameters correctionsParameters
+						);
+				QuadCLT qca = new QuadCLT(
+						QuadCLT.PREFIX_AUX, // String                                          prefix,
+						properties, // Properties                                      properties,
+						null, // EyesisCorrections                               eyesisCorrections,
+						null // EyesisCorrectionParameters.CorrectionParameters correctionsParameters
+						);
+				System.out.println(indx+": model:"+model+", version:"+version+", name: "+name);
+				GeometryCorrection.CorrVector cvm = qcm.geometryCorrection.getCorrVector();
+				GeometryCorrection.CorrVector cva = qca.geometryCorrection.getCorrVector();
+				*/
+				indx++;
+			}
+		}
+
+
+
+		return true;
+	}
+
+
 	public static boolean listExtrinsics(String dir) // , String mask)
 	{
 		Path path= Paths.get(dir);
