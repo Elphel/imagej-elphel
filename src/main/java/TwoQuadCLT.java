@@ -4518,7 +4518,8 @@ if (debugLevel > -100) return true; // temporarily !
 		String title = ml_title+ (use8bpp?"08":"32")+"B-"+(keep_aux?"A":"")+(keep_inter?"I":"")+(keep_hor_vert?"O":"")+(ml_keep_tbrl?"T":"")+
 				(keep_debug?"D":"")+"-FZ"+ml_fatzero+"-OFFS"+String.format("%8.5f",disp_offset_low).trim();
 		if (disp_offset_high > disp_offset_low) {
-			title+=String.format("_%8.5f",disp_offset_high).trim();
+			title+="_";
+			title+=String.format("%8.5f",disp_offset_high).trim();
 		}
 		int [] aux_indices = {
 				ImageDtt.ML_TOP_AUX_INDEX,    // 8 - top pair 2d correlation center area (auxiliary camera)
