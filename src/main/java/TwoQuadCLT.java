@@ -2101,7 +2101,7 @@ if (debugLevel > -100) return true; // temporarily !
 				(debugLevel > -1));   //   boolean debug)
 
 // Create test data that does not rely on the rig measurements
-		String img_name_main =quadCLT_main.image_name+"-ML_DATA_MAIN-";
+		String img_name_main =quadCLT_main.image_name+"-ML_DATA-";
 		double [][] ml_data_main = remeasureRigML(
 				0.0,                     // double               disparity_offset_low,
 				0.0,                    // double               disparity_offset_high,
@@ -4559,13 +4559,15 @@ if (debugLevel > -100) return true; // temporarily !
 		int width =  tilesX * ml_width;
 		int height = tilesY * ml_width;
 		String title = ml_title+ (use8bpp?"08":"32")+"B-"+(keep_aux?"A":"")+(keep_inter?"I":"")+(keep_hor_vert?"O":"")+(ml_keep_tbrl?"T":"")+
-				(keep_debug?"D":"")+"-FZ"+ml_fatzero+"-OFFS";
+				(keep_debug?"D":"")+"-FZ"+ml_fatzero;
 		if (!Double.isNaN(disp_offset_low)) {
-			title += String.format("%8.5f",disp_offset_low).trim();
+			title += "-OFFS" + String.format("%8.5f",disp_offset_low).trim();
 			if (disp_offset_high > disp_offset_low) {
 				title+="_";
 				title+=String.format("%8.5f",disp_offset_high).trim();
 			}
+		} else {
+			title += "-MAIN";
 		}
 		int [] aux_indices = {
 				ImageDtt.ML_TOP_AUX_INDEX,    // 8 - top pair 2d correlation center area (auxiliary camera)
