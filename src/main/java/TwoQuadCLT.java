@@ -2068,7 +2068,6 @@ if (debugLevel > -100) return true; // temporarily !
 			final boolean                            updateStatus,
 			final int                                debugLevel) // throws Exception
 	{
-
 		if ((quadCLT_main.tp == null) || (quadCLT_main.tp.rig_pre_poles_ds == null)) {
 			String msg = "DSI data not available. Please run \"Ground truth\" first";
 			IJ.showMessage("Error",msg);
@@ -2077,6 +2076,7 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 		boolean post_poles =  clt_parameters.rig.ml_poles;
 		double [][] rig_disparity_strength = clt_parameters.rig.ml_poles?quadCLT_main.tp.rig_post_poles_ds : quadCLT_main.tp.rig_pre_poles_ds;
+		double [][] main_disparity_strength = quadCLT_main.tp.main_ds_ml;
 		if (rig_disparity_strength == null) {
 			System.out.println("DSI data for the scene after poles extraction is not available. You may enable it and re-run \"Ground truth\" command or run \"Poles GT\"");
 			rig_disparity_strength = quadCLT_main.tp.rig_pre_poles_ds;
@@ -2100,6 +2100,47 @@ if (debugLevel > -100) return true; // temporarily !
 				2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
 				(debugLevel > -1));   //   boolean debug)
 
+// Create test data that does not rely on the rig measurements
+		String img_name_main =quadCLT_main.image_name+"-ML_DATA_MAIN-";
+		double [][] ml_data_main = remeasureRigML(
+				0.0,                     // double               disparity_offset_low,
+				0.0,                    // double               disparity_offset_high,
+				quadCLT_main,                             // QuadCLT              quadCLT_main,    // tiles should be set
+				quadCLT_aux,                              // QuadCLT              quadCLT_aux,
+				//	    			  disparity_bimap,                          // double [][]          src_bimap,
+				main_disparity_strength[0],               // double []            disparity_main, // main camera disparity to use - if null, calculate from the rig one
+				rig_disparity_strength[0],                // double []            disparity,
+				rig_disparity_strength[1],                // double []            strength,
+
+				clt_parameters,                           // EyesisCorrectionParameters.CLTParameters clt_parameters,
+				clt_parameters.rig.ml_hwidth,             // int ml_hwidth
+				clt_parameters.rig.ml_fatzero,            // double               fatzero,
+				//change if needed?
+				0, //  int              lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
+				threadsMax,                               // final int            threadsMax,  // maximal number of threads to launch
+				updateStatus,                             // final boolean        updateStatus,
+				debugLevel);                              // final int            debugLevel);
+		saveMlFile(
+				img_name_main,                                 // String               ml_title,
+				ml_directory,                             // String               ml_directory,
+				Double.NaN,                               // double               disp_offset_low,
+				Double.NaN,                               // double               disp_offset_high,
+				quadCLT_main,                             // QuadCLT              quadCLT_main,
+				quadCLT_aux,                              // QuadCLT              quadCLT_aux,
+				corr2d,                                   //Correlation2d        corr2d, // to access "other" layer
+				clt_parameters.rig.ml_8bit,               // boolean              use8bpp,
+				clt_parameters.rig.ml_limit_extrim,       // double               limit_extrim,
+				clt_parameters.rig.ml_keep_aux,           // boolean              keep_aux,
+				clt_parameters.rig.ml_keep_inter,         // boolean              keep_inter,
+				clt_parameters.rig.ml_keep_hor_vert,      // boolean              keep_hor_vert,
+				clt_parameters.rig.ml_keep_tbrl,          // boolean              ml_keep_tbrl,
+				clt_parameters.rig.ml_keep_debug,         // boolean              keep_debug,
+				clt_parameters.rig.ml_fatzero,            // double               ml_fatzero,
+				clt_parameters.rig.ml_hwidth,             // int                  ml_hwidth,
+				ml_data_main,                             // double [][]          ml_data,
+				clt_parameters.rig.ml_show_ml,            // boolean              show,
+				debugLevel);                              // int                  debugLevel
+
 		for (int sweep_step = 0; sweep_step < clt_parameters.rig.ml_sweep_steps; sweep_step++){
 			double disparity_offset_low = 0;
 			double disparity_offset_high = Double.NaN;
@@ -2109,6 +2150,7 @@ if (debugLevel > -100) return true; // temporarily !
 					disparity_offset_high = clt_parameters.rig.ml_disparity_sweep * (2.0 * (sweep_step + 1)/(clt_parameters.rig.ml_sweep_steps - 1.0) -1.0);
 				}
 			}
+
 			String img_name = clt_parameters.rig.ml_randomize ? quadCLT_main.image_name+"-ML_DATARND-" : quadCLT_main.image_name+"-ML_DATA-";
 			double [][] ml_data = remeasureRigML(
 					disparity_offset_low,                     // double               disparity_offset_low,
@@ -2116,6 +2158,7 @@ if (debugLevel > -100) return true; // temporarily !
 					quadCLT_main,                             // QuadCLT              quadCLT_main,    // tiles should be set
 					quadCLT_aux,                              // QuadCLT              quadCLT_aux,
 					//	    			  disparity_bimap,                          // double [][]          src_bimap,
+					null, // double []                                      disparity_main, // main camera disparity to use - if null, calculate from the rig one
 					rig_disparity_strength[0],                // double []            disparity,
 					rig_disparity_strength[1],                // double []            strength,
 
@@ -4516,10 +4559,13 @@ if (debugLevel > -100) return true; // temporarily !
 		int width =  tilesX * ml_width;
 		int height = tilesY * ml_width;
 		String title = ml_title+ (use8bpp?"08":"32")+"B-"+(keep_aux?"A":"")+(keep_inter?"I":"")+(keep_hor_vert?"O":"")+(ml_keep_tbrl?"T":"")+
-				(keep_debug?"D":"")+"-FZ"+ml_fatzero+"-OFFS"+String.format("%8.5f",disp_offset_low).trim();
-		if (disp_offset_high > disp_offset_low) {
-			title+="_";
-			title+=String.format("%8.5f",disp_offset_high).trim();
+				(keep_debug?"D":"")+"-FZ"+ml_fatzero+"-OFFS";
+		if (!Double.isNaN(disp_offset_low)) {
+			title += String.format("%8.5f",disp_offset_low).trim();
+			if (disp_offset_high > disp_offset_low) {
+				title+="_";
+				title+=String.format("%8.5f",disp_offset_high).trim();
+			}
 		}
 		int [] aux_indices = {
 				ImageDtt.ML_TOP_AUX_INDEX,    // 8 - top pair 2d correlation center area (auxiliary camera)
@@ -5591,6 +5637,7 @@ if (debugLevel > -100) return true; // temporarily !
 			double                                         disparity_offset_high,
 			QuadCLT                                        quadCLT_main,  // tiles should be set
 			QuadCLT                                        quadCLT_aux,
+			double []                                      disparity_main, // main camera disparity to use - if null, calculate from the rig one
 			double []                                      disparity,
 			double []                                      strength,
 			EyesisCorrectionParameters.CLTParameters       clt_parameters,
@@ -5638,6 +5685,11 @@ if (debugLevel > -100) return true; // temporarily !
 				if (disparity_offset_high > disparity_offset) { // will not happen if disparity_offset_high is NaN
 					disparity_offset = disparity_offset_low + (disparity_offset_high-disparity_offset_low)*rnd.nextDouble();
 				}
+				if ((disparity_main != null) && !Double.isNaN(disparity_main[nTile])) {
+					// Use actuall disparity from the main camera
+					disparity_offset = disparity_main[nTile] - disparity[nTile];
+				}
+
 				disparity_array[tileY][tileX] = disparity[nTile]+disparity_offset;
 				corr2d.saveMlTilePixel(
 						tileX,                         // int         tileX,
@@ -6319,9 +6371,12 @@ if (debugLevel > -100) return true; // temporarily !
 	}
 
 	public double [][] getRigDSI(
-			String                                         path_DSI)   // Combo DSI path
+			String                                         path_DSI,   // Combo DSI path
+			boolean                                        main) // false - rig
 	{
-		int [] slices = {TwoQuadCLT.DSI_DISPARITY_RIG,TwoQuadCLT.DSI_STRENGTH_RIG};
+		int [] slices_rig =  {TwoQuadCLT.DSI_DISPARITY_RIG,  TwoQuadCLT.DSI_STRENGTH_RIG};
+		int [] slices_main = {TwoQuadCLT.DSI_DISPARITY_MAIN, TwoQuadCLT.DSI_STRENGTH_MAIN};
+		int [] slices = main? slices_main:slices_rig;
 		double[][] dsi = new double [slices.length][];
 		ImagePlus imp_dsi=new ImagePlus(path_DSI);
 		ImageStack dsi_stack=  imp_dsi.getStack();
@@ -6338,8 +6393,8 @@ if (debugLevel > -100) return true; // temporarily !
 			}
 		}
 		return dsi;
-
 	}
+
 	public void regenerateML(
 			String                                         path_DSI,   // Combo DSI path
 			String                                         model_dir,  // model/version directory
@@ -6356,7 +6411,8 @@ if (debugLevel > -100) return true; // temporarily !
 	{
 
 		this.startTime=System.nanoTime();
-		double [][] rig_dsi = getRigDSI(path_DSI);
+		double [][] rig_dsi =  getRigDSI(path_DSI, false);
+		double [][] main_dsi = getRigDSI(path_DSI, true);
 		String [] sourceFiles=quadCLT_main.correctionsParameters.getSourcePaths();
 		QuadCLT.SetChannels [] set_channels_main = quadCLT_main.setChannels(debugLevel);
 		QuadCLT.SetChannels [] set_channels_aux =  quadCLT_aux.setChannels(debugLevel);
@@ -6415,7 +6471,8 @@ if (debugLevel > -100) return true; // temporarily !
 				threadsMax,      // maximal number of threads to launch
 				debugLevel);     // final int        debugLevel);
 		// now tp is defined
-		quadCLT_main.tp.rig_pre_poles_ds = rig_dsi; // use rig data from the COMBO-DSI file
+		quadCLT_main.tp.rig_pre_poles_ds = rig_dsi;  // use rig data from the COMBO-DSI file
+		quadCLT_main.tp.main_ds_ml =       main_dsi; // use rig data from the COMBO-DSI file
 
 //		quadCLT_main.tp.resetCLTPasses();
 //		quadCLT_aux.tp.resetCLTPasses();

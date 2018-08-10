@@ -64,8 +64,9 @@ public class TileProcessor {
 	public double [][] rig_disparity_strength =  null; // Disparity and strength created by a two-camera rig, with disparity scale and distortions of the main camera
 	public double [][] rig_pre_poles_ds =        null; // Rig disparity and strength before processing poles
 	public double [][] rig_post_poles_ds =       null; // Rig disparity and strength after processing poles
-	public boolean [] rig_pre_poles_sel =        null; // Rig tile selection before processing poles
-	public boolean [] rig_post_poles_sel =       null; // Rig tile selection after processing poles
+	public boolean []  rig_pre_poles_sel =       null; // Rig tile selection before processing poles
+	public boolean []  rig_post_poles_sel =      null; // Rig tile selection after processing poles
+	public double [][] main_ds_ml =              null; // main camera DSI restored from the COMBO-DSI file to generate ML test files
 
 	public int       clt_3d_passes_size =     0; //clt_3d_passes size after initial processing
 	public int       clt_3d_passes_rig_size = 0; //clt_3d_passes size after initial processing and rig processing
