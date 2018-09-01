@@ -248,11 +248,23 @@ public class BiQuadParameters {
 	public boolean ml_copyJP4 =                true;   // Copy source jp4 files when running "Ground truth" command
 
 	public int     ml_hwidth =                 4;      // Half-width of the ML tiles to export (0-> 1x1, 1->3x3, 2 -> 5x5)
-	public double  ml_disparity_sweep  =       1.0;    // Disparity sweep around ground truth, each side
-	public int     ml_sweep_steps =            21;      // Number of disparity sweep steps
+	public double  ml_disparity_sweep  =       2.0;    // Disparity sweep around ground truth, each side
+	public int     ml_sweep_steps =            1;      // Number of disparity sweep steps
 
-	public boolean ml_randomize =              true;    // randomize ofset within 1 step (reduces ml_sweep_steps by 1)
+	public boolean ml_randomize =              true;    // randomize offset within 1 step (reduces ml_sweep_steps by 1)
 
+// enhancing main camera dsi for generation of the ml files
+	public double  ml_rig_tolerance =          2.0;     // replace main camera disparity if it differs from rig by more than this     
+	public double  ml_rnd_offset =             0.5;     // add random offset to rig disparity if there is no suitable data from main camera neighbors
+	public double  ml_main_tolerance =         1.0;     // look for neighbors within this disparity difference from the rig disparity
+	public int     ml_grow_steps =             2;       // measure correlation for the tiles in the undefined areas around known (to match 5x5 clusters
+	public int     ml_grow_mode =              2;       // -1 - prefer background, 0 - use average. 1 - prefer foreground, 2 - auto (closest to rig )
+	public double  ml_new_strength =           0.5;     // assign this fraction of known strengths average to the tiles where strength is unknown (expanded tiles with extrapolated target)
+
+	public boolean ml_main =                   true;    // generate ML from main camera DSI
+	public boolean ml_main_rnd =               true;    // generate ML from main camera DSI with random offset
+	public boolean ml_rig_rnd =                true;    // generate ML from rig DSI (GT) with random offset
+	
 	public boolean ml_keep_aux =               false; // true; // include auxiliary camera data in the ML output
 	public boolean ml_keep_inter =             false; // true; // include inter-camera correlation data in the ML output
 	public boolean ml_keep_hor_vert =          true; // include combined horizontal and vertical pairs data in the ML output
@@ -656,13 +668,36 @@ public class BiQuadParameters {
 		gd.addNumericField("Half-width of the ML tiles to export (0-> 1x1, 1->3x3, 2 -> 5x5)",                    this.ml_hwidth,  0,3,"",
 				"Amount of data to export to the ML system");
 		gd.addNumericField("Disparity sweep around ground truth, each side",                                      this.ml_disparity_sweep,  3,6,"",
-				"Sweep symmetrically target disparity around the ground truth disparity, each side");
+				"Sweep symmetrically target disparity around the ground truth disparity, each side. If 0 sweep_steps == 0 - use as random offset amplitude");
 		gd.addNumericField("Number of target disparity sweep steps",                                                               this.ml_sweep_steps,  0,3,"",
 				"Generate this many files for each file set. Each tile results depend on the target disparity and this tile data, do not depend on other tiles target disparity");
 
 		gd.addCheckbox    ("Randomize offset",                                                                    this.ml_randomize,
 				"Each tile will have individual offset, but it the range between the filename and next higher. Reduces sweep steps by 1");
+		
+		gd.addMessage("Enhancing main camera dsi for generation of the ml files");
 
+		gd.addNumericField("Max disparity difference between rig and main camera",                                this.ml_rig_tolerance,  3,6,"",
+				"Replace main camera disparity if it differs from rig by more than this");
+		gd.addNumericField("Random disparity offset amplitude",                                                   this.ml_rnd_offset,  3,6,"",
+				"Add random offset to rig disparity if there is no suitable data from main camera neighbors");
+		gd.addNumericField("Maximal neighbor difference from rig disparity to estimate missing main camera disparity",this.ml_main_tolerance,  3,6,"",
+				"Look for neighbors within this disparity difference from the rig disparity");
+		gd.addNumericField("Extrapolate around defined tiles (2 for 5x5 clusters)",                               this.ml_grow_steps,  0,3,"",
+				"Measure correlation for the tiles in the undefined areas around known (to match 5x5 clusters");
+		gd.addNumericField("Extrapolation mode: -1 - BG, +1-FG, 0 - average, 2 -auto",                            this.ml_grow_mode,  0,3,"",
+				"-1 - prefer background, 0 - use average. 1 - prefer foreground");
+		gd.addNumericField("Extrapolated tile strength",                                                          this.ml_new_strength,  3,6,"",
+				"Assign this fraction of average neighbors strength strength to the tiles where strength is unknown (expanded tiles with extrapolated target)");
+		
+		
+		gd.addCheckbox    ("Generate ML 2d correlations from main camera DSI",                                    this.ml_main,
+				"Target disparity/convergence extracted from the main camera DSI, filtered and expanded");
+		gd.addCheckbox    ("Generate ML from main camera DSI with random offset",                                 this.ml_main_rnd,
+				"Same as above, random offset is added to the target disparity/convergence");
+		gd.addCheckbox    ("Generate ML from rig DSI (GT) with random offset",                                    this.ml_rig_rnd,
+				"Main camera data is not used, offset is just random from the rig (ground truth)");
+		
 		gd.addCheckbox    ("Include auxiliary camera data in the ML output",                                      this.ml_keep_aux,
 				"ML output will have the second set of the layers for the auxiliary camera. Disparity values should be scaled for the camera baseline");
 		gd.addCheckbox    ("Keep inter-camera correlation data",                                                  this.ml_keep_inter,
@@ -881,7 +916,19 @@ public class BiQuadParameters {
 		this.ml_hwidth=               (int) gd.getNextNumber();
 		this.ml_disparity_sweep=            gd.getNextNumber();
 		this.ml_sweep_steps=          (int) gd.getNextNumber();
-		this.ml_randomize=                   gd.getNextBoolean();
+		this.ml_randomize=                  gd.getNextBoolean();
+		
+		this.ml_rig_tolerance=              gd.getNextNumber();
+		this.ml_rnd_offset=                 gd.getNextNumber();
+        this.ml_main_tolerance=             gd.getNextNumber();
+        this.ml_grow_steps=           (int) gd.getNextNumber();        
+		this.ml_grow_mode=            (int) gd.getNextNumber();
+		this.ml_new_strength=               gd.getNextNumber();
+
+		this.ml_main=                       gd.getNextBoolean();
+		this.ml_main_rnd=                   gd.getNextBoolean();
+		this.ml_rig_rnd=                    gd.getNextBoolean();
+		
 		this.ml_keep_aux=                   gd.getNextBoolean();
 		this.ml_keep_inter=                 gd.getNextBoolean();
 		this.ml_keep_tbrl=                  gd.getNextBoolean();
@@ -1093,6 +1140,18 @@ public class BiQuadParameters {
 		properties.setProperty(prefix+"ml_disparity_sweep",        this.ml_disparity_sweep+"");
 		properties.setProperty(prefix+"ml_sweep_steps",            this.ml_sweep_steps+"");
 		properties.setProperty(prefix+"ml_randomize",              this.ml_randomize+"");
+		
+		properties.setProperty(prefix+"ml_rig_tolerance",          this.ml_rig_tolerance+"");
+		properties.setProperty(prefix+"ml_rnd_offset",             this.ml_rnd_offset+"");
+		properties.setProperty(prefix+"ml_main_tolerance",         this.ml_main_tolerance+"");
+		properties.setProperty(prefix+"ml_grow_steps",             this.ml_grow_steps+"");
+		properties.setProperty(prefix+"ml_grow_mode",              this.ml_grow_mode+"");
+		properties.setProperty(prefix+"ml_new_strength",           this.ml_new_strength+"");
+		
+		properties.setProperty(prefix+"ml_main",                   this.ml_main+"");
+		properties.setProperty(prefix+"ml_main_rnd",               this.ml_main_rnd+"");
+		properties.setProperty(prefix+"ml_rig_rnd",                this.ml_rig_rnd+"");
+		
 		properties.setProperty(prefix+"ml_keep_aux",               this.ml_keep_aux+"");
 		properties.setProperty(prefix+"ml_keep_inter",             this.ml_keep_inter+"");
 		properties.setProperty(prefix+"ml_keep_tbrl",              this.ml_keep_tbrl+"");
@@ -1302,6 +1361,19 @@ public class BiQuadParameters {
 		if (properties.getProperty(prefix+"ml_sweep_steps")!=null)          this.ml_sweep_steps=Integer.parseInt(properties.getProperty(prefix+"ml_sweep_steps"));
 
 		if (properties.getProperty(prefix+"ml_randomize")!=null)            this.ml_randomize=Boolean.parseBoolean(properties.getProperty(prefix+"ml_randomize"));
+		
+		
+		if (properties.getProperty(prefix+"ml_rig_tolerance")!=null)        this.ml_rig_tolerance=Double.parseDouble(properties.getProperty(prefix+"ml_rig_tolerance"));
+		if (properties.getProperty(prefix+"ml_rnd_offset")!=null)           this.ml_rnd_offset=Double.parseDouble(properties.getProperty(prefix+"ml_rnd_offset"));
+		if (properties.getProperty(prefix+"ml_main_tolerance")!=null)       this.ml_main_tolerance=Double.parseDouble(properties.getProperty(prefix+"ml_main_tolerance"));
+		if (properties.getProperty(prefix+"ml_grow_steps")!=null)           this.ml_grow_steps=Integer.parseInt(properties.getProperty(prefix+"ml_grow_steps"));
+		if (properties.getProperty(prefix+"ml_grow_mode")!=null)            this.ml_grow_mode=Integer.parseInt(properties.getProperty(prefix+"ml_grow_mode"));
+		if (properties.getProperty(prefix+"ml_new_strength")!=null)         this.ml_new_strength=Double.parseDouble(properties.getProperty(prefix+"ml_new_strength"));
+
+		if (properties.getProperty(prefix+"ml_main")!=null)                 this.ml_main=Boolean.parseBoolean(properties.getProperty(prefix+"ml_main"));
+		if (properties.getProperty(prefix+"ml_main_rnd")!=null)             this.ml_main_rnd=Boolean.parseBoolean(properties.getProperty(prefix+"ml_main_rnd"));
+		if (properties.getProperty(prefix+"ml_rig_rnd")!=null)              this.ml_rig_rnd=Boolean.parseBoolean(properties.getProperty(prefix+"ml_rig_rnd"));
+		
 		if (properties.getProperty(prefix+"ml_keep_aux")!=null)             this.ml_keep_aux=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_aux"));
 		if (properties.getProperty(prefix+"ml_keep_inter")!=null)           this.ml_keep_inter=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_inter"));
 		if (properties.getProperty(prefix+"ml_keep_tbrl")!=null)            this.ml_keep_tbrl=Boolean.parseBoolean(properties.getProperty(prefix+"ml_keep_tbrl"));
@@ -1510,8 +1582,21 @@ public class BiQuadParameters {
 		bqp.ml_hwidth=                  this.ml_hwidth;
 		bqp.ml_disparity_sweep=         this.ml_disparity_sweep;
 		bqp.ml_sweep_steps=             this.ml_sweep_steps;
+		
+		bqp.ml_main =                   this.ml_main;
+		bqp.ml_main_rnd =               this.ml_main_rnd;
+		bqp.ml_rig_rnd =                this.ml_rig_rnd;
+		
 		bqp.ml_keep_aux=                this.ml_keep_aux;
 		bqp.ml_randomize =              this.ml_randomize;
+		
+		bqp.ml_rig_tolerance=           this.ml_rig_tolerance;
+		bqp.ml_rnd_offset=              this.ml_rnd_offset;
+		bqp.ml_main_tolerance=          this.ml_main_tolerance;
+		bqp.ml_grow_steps= 	            this.ml_grow_steps;		
+        bqp.ml_grow_mode=               this.ml_grow_mode;
+        bqp.ml_new_strength=            this.ml_new_strength;
+		
 		bqp.ml_keep_inter=              this.ml_keep_inter;
 		bqp.ml_keep_tbrl=               this.ml_keep_tbrl;
 		bqp.ml_keep_hor_vert=           this.ml_keep_hor_vert;
