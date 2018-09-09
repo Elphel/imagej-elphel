@@ -2056,12 +2056,16 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 		boolean post_poles =  clt_parameters.rig.ml_poles;
 		double [][] rig_disparity_strength = clt_parameters.rig.ml_poles?quadCLT_main.tp.rig_post_poles_ds : quadCLT_main.tp.rig_pre_poles_ds;
+		if ((quadCLT_main.tp.main_ds_ml == null) && (this.dsi != null) &&  (this.dsi[DSI_DISPARITY_MAIN] != null) &&  (this.dsi[DSI_STRENGTH_MAIN] != null)){
+			quadCLT_main.tp.main_ds_ml = new double[2][];
+			quadCLT_main.tp.main_ds_ml[0] = this.dsi[DSI_DISPARITY_MAIN];
+			quadCLT_main.tp.main_ds_ml[1] = this.dsi[DSI_STRENGTH_MAIN];
+		}
 		double [][] main_disparity_strength = quadCLT_main.tp.main_ds_ml;
 		if (rig_disparity_strength == null) {
 			System.out.println("DSI data for the scene after poles extraction is not available. You may enable it and re-run \"Ground truth\" command or run \"Poles GT\"");
 			rig_disparity_strength = quadCLT_main.tp.rig_pre_poles_ds;
 			System.out.println("Using pre-poles data for ML output");
-			post_poles = false;
 		}
 		if (debugLevel > -6) {
 			if (post_poles) {
@@ -2071,7 +2075,10 @@ if (debugLevel > -100) return true; // temporarily !
 			}
 		}
 		// Create filtered/expanded min and rig DSI
-		double [][] main_dsi = enhanceMainDSI(
+		// FIXME: Make quadCLT_main.tp.main_ds_ml dusing COMBO_DSI write (too late) or just write earlier?
+		double [][] main_dsi = null;
+		if (main_disparity_strength != null) {
+			main_dsi = enhanceMainDSI(
 				main_disparity_strength,              // double [][] main_dsi,
 				rig_disparity_strength,               // double [][] rig_dsi,
 				clt_parameters.rig.ml_rig_tolerance,  // double      rig_tolerance,
@@ -2082,6 +2089,7 @@ if (debugLevel > -100) return true; // temporarily !
 				clt_parameters.rig.ml_new_strength,   // double      new_strength)
 //				debugLevel + 3);                        // int         debugLevel);
 				debugLevel + 0);                        // int         debugLevel);
+		}
 		double [][] rig_dsi = enhanceMainDSI(
 				rig_disparity_strength,              // double [][] main_dsi,
 				rig_disparity_strength,               // double [][] rig_dsi,
@@ -2107,7 +2115,7 @@ if (debugLevel > -100) return true; // temporarily !
 // Create test data that does not rely on the rig measurements
 		String img_name_main =quadCLT_main.image_name+"-ML_DATA-";
 		// zero random offset:
-		if ( clt_parameters.rig.ml_main) {
+		if ( clt_parameters.rig.ml_main && (main_dsi != null)) {
 			double [][] ml_data_main = remeasureRigML(
 					0.0,                     // double               disparity_offset_low,
 					Double.NaN, // 0.0,                    // double               disparity_offset_high,
@@ -2149,7 +2157,7 @@ if (debugLevel > -100) return true; // temporarily !
 			
 		}
 		// Create images from main cameras, but adding random disparity offset
-		if ( clt_parameters.rig.ml_main_rnd) {
+		if ( clt_parameters.rig.ml_main_rnd && (main_dsi != null)) {
 			double [][] ml_data_main = remeasureRigML(
 					0.0,                     // double               disparity_offset_low,
 					clt_parameters.rig.ml_disparity_sweep, // 0.0,                    // double               disparity_offset_high,
@@ -2192,7 +2200,7 @@ if (debugLevel > -100) return true; // temporarily !
 		}
 
 		// Create images from main cameras, but adding random disparity offset
-		if ( clt_parameters.rig.ml_rig_rnd) {
+		if ( clt_parameters.rig.ml_rig_rnd && (rig_dsi != null)) {
 			double [][] ml_data_main = remeasureRigML(
 					0.0,                     // double               disparity_offset_low,
 					clt_parameters.rig.ml_disparity_sweep, // 0.0,                    // double               disparity_offset_high,
@@ -6413,14 +6421,22 @@ if (debugLevel > -100) return true; // temporarily !
 						threadsMax,     // final int                                threadsMax,  // maximal number of threads to launch
 						updateStatus,   // final boolean                            updateStatus,
 						debugLevel);    // final int                                debugLevel)
+				/*
 				if (clt_parameters.rig.ml_copyJP4) {
-
 					copyJP4src(
 							quadCLT_main,   // QuadCLT                                  quadCLT_main,  // tiles should be set
 							quadCLT_aux,    // QuadCLT                                  quadCLT_aux,
 							clt_parameters, // EyesisCorrectionParameters.CLTParameters clt_parameters,
 							debugLevel);    // final int                                debugLevel)
-				}
+				}*/
+			}
+			// copy regardless of ML generation
+			if (clt_parameters.rig.ml_copyJP4) {
+				copyJP4src(
+						quadCLT_main,   // QuadCLT                                  quadCLT_main,  // tiles should be set
+						quadCLT_aux,    // QuadCLT                                  quadCLT_aux,
+						clt_parameters, // EyesisCorrectionParameters.CLTParameters clt_parameters,
+						debugLevel);    // final int                                debugLevel)
 			}
 
 			if (quadCLT_main.correctionsParameters.clt_batch_gen3d) {

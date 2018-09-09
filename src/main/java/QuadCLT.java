@@ -336,7 +336,7 @@ public class QuadCLT {
 		// verify that all sensors have the same distortion parameters
 		int numSensors = sensors.length;
 		for (int i = 1; i < numSensors; i++){
-			if (	(sensors[0].focalLength !=           sensors[i].focalLength) ||
+			if (	(sensors[0].focalLength !=           sensors[i].focalLength) || // null pointer
 					(sensors[0].distortionC !=           sensors[i].distortionC) ||
 					(sensors[0].distortionB !=           sensors[i].distortionB) ||
 					(sensors[0].distortionA !=           sensors[i].distortionA) ||

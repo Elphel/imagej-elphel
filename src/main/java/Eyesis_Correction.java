@@ -5030,7 +5030,7 @@ private Panel panel1,
         	if (DEBUG_LEVEL > -2){
         		System.out.println("++++++++++++++ Calculating geometryCorrection for the auxiliary camera ++++++++++++++");
         	}
-        	if (!QUAD_CLT_AUX.initGeometryCorrection(DEBUG_LEVEL+2)){
+        	if (!QUAD_CLT_AUX.initGeometryCorrection(DEBUG_LEVEL+2)){//java.lang.NullPointerException
         		return false;
         	}
         }
