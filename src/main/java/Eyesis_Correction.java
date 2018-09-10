@@ -4731,6 +4731,12 @@ private Panel panel1,
     		ImageProcessor impr = impl.getProcessor();
         	
         	JCuda_ImageJ_Example_Plugin jcuda = new JCuda_ImageJ_Example_Plugin();
+        	
+        	/*
+        	 * In a standalone test JCUDA plugin it's unknown where .setup() is called from...
+        	 * As well as .run(). But it works like this.
+        	 */
+        	
         	jcuda.setup(null,impl);
         	jcuda.run(impr);
         	
