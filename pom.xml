@@ -22,40 +22,42 @@
 
 	<version>1.0.0-SNAPSHOT</version>
 
- 	<name>plugins/imagej_elphel.jar</name>
+        <name>plugins/imagej_elphel.jar</name>
 <!-- 	<name>plugins/Aberration_Calibration.jar</name> -->
-    <description>A Maven project implementing imagej-elphel plugin</description>
+        <description>A Maven project implementing imagej-elphel plugin</description>
 
-
-	<dependencies>
-		<dependency>
-                         <groupId>net.imagej</groupId>
-                         <artifactId>ij</artifactId>
-                         <version>1.52e</version>
-                         <!-- <version>${imagej1.version}</version> -->
-                </dependency>
-                <dependency>
-                          <groupId>org.jcuda</groupId>
-                          <artifactId>jcuda</artifactId>
-                          <version>0.9.2</version>
-                </dependency>
-		<dependency>
-			<groupId>commons-configuration</groupId>
-			<artifactId>commons-configuration</artifactId>
-			<version>1.8</version>
-		</dependency>
-                <!-- https://mvnrepository.com/artifact/gov.nist.math/jama -->
-                <dependency>
-                    <groupId>gov.nist.math</groupId>
-                    <artifactId>jama</artifactId>
-                    <version>1.0.3</version>
-                </dependency>
-
+        <dependencies>
+            <dependency>
+                <groupId>net.imagej</groupId>
+                <artifactId>ij</artifactId>
+                <version>1.52e</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jcuda</groupId>
+                <artifactId>jcuda</artifactId>
+                <version>0.9.2</version>
+            </dependency>
+            <dependency>
+                <groupId>org.tensorflow</groupId>
+                <artifactId>tensorflow</artifactId>
+                <version>1.10.0</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-configuration</groupId>
+                <artifactId>commons-configuration</artifactId>
+                <version>1.8</version>
+            </dependency>
+            <!-- https://mvnrepository.com/artifact/gov.nist.math/jama -->
+            <dependency>
+                <groupId>gov.nist.math</groupId>
+                <artifactId>jama</artifactId>
+                <version>1.0.3</version>
+            </dependency>
 		<!--
 		<dependency>
-  			<groupId>jama</groupId>
-  			<artifactId>jama</artifactId>
-  			<version>1.0.3</version>
+			<groupId>jama</groupId>
+			<artifactId>jama</artifactId>
+			<version>1.0.3</version>
 		</dependency>
 		-->
 		<dependency>
@@ -65,8 +67,8 @@
 		</dependency>
 		<dependency>
 			<groupId>ome</groupId>
-  			<artifactId>loci_tools</artifactId>
-  			<version>5.0.0</version>
+			<artifactId>loci_tools</artifactId>
+			<version>5.0.0</version>
 		</dependency>
 	</dependencies>
 
