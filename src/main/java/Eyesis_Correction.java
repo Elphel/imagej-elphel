@@ -4747,6 +4747,9 @@ private Panel panel1,
 /* ======================================================================== */
     } else if (label.equals("TF TEST")) {
     	
+    	// link 1 (general): https://www.tensorflow.org/api_docs/java/reference/org/tensorflow/package-summary
+    	// link 2 (example of an TF & IJ plugin): https://github.com/google/microscopeimagequality/blob/main/microscopeimagequality/data/imagej/src/main/java/MicroscopeImageFocusQualityClassifier.java
+    	
     	TensorflowExamplePlugin t = new TensorflowExamplePlugin();
     	t.run();
     	
