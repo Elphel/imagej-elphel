@@ -4721,7 +4721,17 @@ private Panel panel1,
     } else if (label.equals("DSI show")) {
     	showDSI();
     	return;
-
+    	
+/* ======================================================================== */
+    } else if (label.equals("JCUDA TEST")) {
+    	System.out.println("JCUDA TEST");
+    	JCuda_ImageJ_Example_Plugin jcuda = new JCuda_ImageJ_Example_Plugin();
+    	//jcuda.run();
+    	return;
+/* ======================================================================== */
+    } else if (label.equals("TF TEST")) {
+    	System.out.println("TF TEST");
+    	return;
 //JTabbedTest
 // End of buttons code
     }
