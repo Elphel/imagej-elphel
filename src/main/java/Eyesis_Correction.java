@@ -4725,7 +4725,7 @@ private Panel panel1,
 /* ======================================================================== */
     } else if (label.equals("JCUDA TEST")) {
     	
-    	ImagePlus      impl = WindowManager.getCurrentImage();
+    	ImagePlus impl = WindowManager.getCurrentImage();
     	if (impl!=null) {
         	
     		ImageProcessor impr = impl.getProcessor();
@@ -4736,7 +4736,6 @@ private Panel panel1,
         	 * In a standalone test JCUDA plugin it's unknown where .setup() is called from...
         	 * As well as .run(). But it works like this.
         	 */
-        	
         	jcuda.setup(null,impl);
         	jcuda.run(impr);
         	
@@ -4747,7 +4746,10 @@ private Panel panel1,
     	return;
 /* ======================================================================== */
     } else if (label.equals("TF TEST")) {
-    	System.out.println("TF TEST");
+    	
+    	TensorflowExamplePlugin t = new TensorflowExamplePlugin();
+    	t.run();
+    	
     	return;
 //JTabbedTest
 // End of buttons code
