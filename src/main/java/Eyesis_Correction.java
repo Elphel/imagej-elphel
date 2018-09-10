@@ -4724,9 +4724,20 @@ private Panel panel1,
     	
 /* ======================================================================== */
     } else if (label.equals("JCUDA TEST")) {
-    	System.out.println("JCUDA TEST");
-    	JCuda_ImageJ_Example_Plugin jcuda = new JCuda_ImageJ_Example_Plugin();
-    	//jcuda.run();
+    	
+    	ImagePlus      impl = WindowManager.getCurrentImage();
+    	if (impl!=null) {
+        	
+    		ImageProcessor impr = impl.getProcessor();
+        	
+        	JCuda_ImageJ_Example_Plugin jcuda = new JCuda_ImageJ_Example_Plugin();
+        	jcuda.setup(null,impl);
+        	jcuda.run(impr);
+        	
+    	}else {
+    		System.out.println("Missing the current image. Open one.");
+    	}
+    	
     	return;
 /* ======================================================================== */
     } else if (label.equals("TF TEST")) {
