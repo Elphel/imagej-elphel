@@ -117,7 +117,8 @@ private Panel panel1,
          panelClt2,
          panelClt3,
          panelClt4,
-         panelClt5
+         panelClt5,
+         panelClt_GPU
          ;
    JP46_Reader_camera JP4_INSTANCE=null;
 
@@ -381,6 +382,7 @@ private Panel panel1,
    public static boolean ADVANCED_MODE=false; //true; // show all buttons
    public static boolean DCT_MODE=false; //true; // show all buttons
    public static boolean MODE_3D=false; // 3D-related commands
+   public static boolean GPU_MODE=false; // 3D-related commands
    public PixelMapping.InterSensor.DisparityTiles DISPARITY_TILES=null;
    public ImagePlus DBG_IMP = null;
    public ImagePlus CORRELATE_IMP = null;
@@ -416,7 +418,7 @@ private Panel panel1,
 
 		instance = this;
 		addKeyListener(IJ.getInstance());
-		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0) + (DCT_MODE?6:0);
+		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0) + (DCT_MODE?6:0) + (GPU_MODE?1:0);
 		setLayout(new GridLayout(menuRows, 1));
 
 		panel6 = new Panel();
@@ -631,7 +633,14 @@ private Panel panel1,
 			add(panelClt5);
 		}
 
-
+		if (GPU_MODE) {
+			panelClt_GPU = new Panel();
+			panelClt_GPU.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
+			addButton("JCUDA TEST", panelClt_GPU);
+			addButton("TF TEST", panelClt_GPU);
+			add(panelClt_GPU);
+		}
+				
 		pack();
 
 		GUI.center(this);
@@ -716,6 +725,15 @@ private Panel panel1,
 //			String msg="DCT_MODE is undefined in "+this.prefsPath;
 //			IJ.showMessage("Error",msg);
 //			throw new IOException (msg);
+		}
+		sValue=	this.prefsProperties.getProperty("GPU_MODE");
+		if (sValue!=null) {
+			GPU_MODE=Boolean.parseBoolean(sValue);
+			System.out.println("Read GPU_MODE="+GPU_MODE);
+		} else {
+			String msg="GPU_MODE is undefined in "+this.prefsPath;
+			IJ.showMessage("Error",msg);
+			throw new IOException (msg);
 		}
     }
 
