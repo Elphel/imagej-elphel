@@ -20,6 +20,7 @@ Note 0: articles & examples:
 - https://divis.io/2018/01/enterprise-tensorflow-4-executing-a-tensorflow-session-in-java/
 - https://www.programcreek.com/java-api-examples/?api=org.tensorflow.SavedModelBundle
 - https://github.com/imagej/imagej-tensorflow
+- simple: http://www.riptutorial.com/tensorflow/example/32154/load-and-use-the-model-in-java-
 
 Note 1: How to feed:
  a. https://divis.io/2018/01/enterprise-tensorflow-4-executing-a-tensorflow-session-in-java/
