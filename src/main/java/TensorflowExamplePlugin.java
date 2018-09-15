@@ -69,8 +69,20 @@ public class TensorflowExamplePlugin
         }
 
         try (SavedModelBundle b = SavedModelBundle.load(EXPORTDIR,PB_TAG)){
-            System.out.println("Alright");
+            System.out.println("OK");
             smpb = b.graph();
+           
+            /*
+            try (
+            	final Session s = new Session(g);
+        			@SuppressWarnings("unchecked")
+        			final Tensor<Float> result = (Tensor<Float>) s.runner().feed("input", image)//
+        				.fetch("output").run().get(0)
+        		){
+            	...
+            }
+            */
+            
         }
 
         try (Graph g = new Graph()) {
