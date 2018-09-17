@@ -157,7 +157,12 @@ public class PixelMapping {
     	if (subCamera < 0) {
     		return null;
     	}
-		System.out.println("channelsForSubCamera("+subCamera+"),this.sensors.length="+this.sensors.length);
+    	if (this.debugLevel>1) {
+    		System.out.print("channelsForSubCamera("+subCamera+"),this.sensors.length="+this.sensors.length+": ");
+//    	} else if (this.debugLevel > -2) {
+//    		System.out.print(".");
+    	}
+    		
 //    	ArrayList<ArrayList<ArrayList<Integer>>> camera_IPs = new ArrayList<ArrayList<ArrayList<Integer>>>();
     	ArrayList<Point> cam_port = new ArrayList<Point>();
     	for (int i=0;i<this.sensors.length;i++)  if (this.sensors[i]!=null) {
@@ -176,10 +181,16 @@ public class PixelMapping {
 		});
 		// debugging:
 		if (subCamera >= cam_port_arr.length) {
-			System.out.println("Error: Subcamera "+subCamera+" > that total number of sensor ports in the system = "+cam_port_arr.length);
+			if (this.debugLevel>1) {
+				System.out.println("Error: Subcamera "+subCamera+" > that total number of sensor ports in the system = "+cam_port_arr.length);
+			}
 			return null;
 		}
-		System.out.println("----- This filename subcamera "+subCamera+": physical camera "+cam_port_arr[subCamera].x+", sensor_port "+cam_port_arr[subCamera].y);
+		if (this.debugLevel>1) {
+			System.out.println("----- This filename subcamera "+subCamera+": physical camera "+cam_port_arr[subCamera].x+", sensor_port "+cam_port_arr[subCamera].y);
+		} else if (this.debugLevel > -2) {
+    		System.out.print(".");
+		}
     	if (this.sensors == null) return null;
     	int numChannels=0;
     	for (int i=0;i<this.sensors.length;i++) if (this.sensors[i]!=null) {
