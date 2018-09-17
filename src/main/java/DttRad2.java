@@ -1144,6 +1144,337 @@ public class DttRad2 {
 		return y;
 	}
 
+// ======================= preparing for GPU code, replacing *_recurs ===========================
+// tested
+	public double [] dttt_ivn(double [] x, int mode, int n, boolean gpu){ // mode 0 - dct,dct 1:dst,dct, 2: dct, dst, 3: dst,dst
+		double [] y = new double [n*n];
+		double [] line = new double[n];
+		// first (horizontal) pass
+		for (int i = 0; i<n; i++){
+			System.arraycopy(x, n*i, line, 0, n);
+			line = ((mode & 1)!=0)? dst_ivn(line, gpu):dct_ivn(line, gpu);
+			for (int j=0; j < n;j++) y[j*n+i] =line[j]; // transpose
+		}
+		// second (vertical) pass
+		for (int i = 0; i<n; i++){
+			System.arraycopy(y, n*i, line, 0, n);
+			line = ((mode & 2)!=0)? dst_ivn(line, gpu):dct_ivn(line, gpu);
+			System.arraycopy(line, 0, y, n*i, n);
+		}
+		return y;
+	}
+
+
+	public double [] dct_iin(double[] x, boolean gpu){
+		if (x.length > N){
+			N = x.length;
+		}
+		double [] y;
+		if (gpu) {
+			y=  new double[8];
+			_dctii_nrecurs8(x,y);
+		} else {
+			y=  _dctii_nrecurs8(x);
+		}
+
+		double scale = 1.0/Math.sqrt(x.length);
+		for (int i = 0; i < y.length ; i++) y[i] *= scale;
+		return y;
+	}
+
+	public double [] dct_ivn(double[] x, boolean gpu){
+		double [] y;
+		if (gpu) {
+			y=  new double[8];
+			_dctiv_nrecurs8(x,y);
+		} else {
+			y=  _dctiv_nrecurs8(x);
+		}
+
+		double scale = 1.0/Math.sqrt(x.length);
+		for (int i = 0; i < y.length ; i++) y[i] *= scale;
+		return y;
+	}
+
+	public double [] dst_ivn(double[] x, boolean gpu){
+		double [] xr= new double[x.length];
+		int j= x.length-1;
+		for (int i=0; i < x.length;i++) xr[i] = x[j--];
+
+		double [] y;
+		if (gpu) {
+			y=  new double[8];
+			_dctiv_nrecurs8(xr,y);
+		} else {
+			y=  _dctiv_nrecurs8(xr);
+		}
+
+		double scale = 1.0/Math.sqrt(x.length);
+		for (int i = 0; i < y.length ; i++) {
+			y[i] *= scale;
+			scale = -scale;
+		}
+		return y;
+	}
+
+
+
+
+	private double [] _dctii_nrecurs2(double[] x){
+//		int n = x.length; == 2
+		double [] y= {x[0]+x[1],x[0]-x[1]};
+		return y;
+	}
+
+	private double [] _dctii_nrecurs4(double[] x){
+//		int n = x.length; // 4
+//		int n1 = n >> 1; // 2
+		double [] u0 = new double [2];
+		double [] u1 = new double [2];
+		for (int j = 0; j < 2; j++){
+			u0[j]=            (x[j] +    x[3-j]);
+			u1[j]=            (x[j] -    x[3-j]);
+		}
+		double [] v0 = _dctii_nrecurs2(u0);
+		double [] v1 = _dctiv_nrecurs2(u1);
+		double [] y = new double[4];
+		for (int j = 0; j< 2; j++){
+			y[2*j] =     v0[j];
+			y[2*j+1] =   v1[j];
+		}
+		return y;
+	}
+
+	private double [] _dctii_nrecurs8(double[] x){
+//		int n = x.length; // = 8
+//		int n1 = n >> 1; // 4
+		double [] u0 = new double [4];
+		double [] u1 = new double [4];
+		for (int j = 0; j< 4; j++){
+			u0[j]=            (x[j] +    x[7-j]);
+			u1[j]=            (x[j] -    x[7-j]);
+		}
+		double [] v0 = _dctii_nrecurs4(u0);
+		double [] v1 = _dctiv_nrecurs4(u1);
+		double [] y = new double[8];
+		for (int j = 0; j< 4; j++){
+			y[2*j] =     v0[j];
+			y[2*j+1] =   v1[j];
+		}
+		return y;
+	}
+
+
+	private double [] _dctiv_nrecurs2(double[] x){
+//		int n = x.length; == 2
+		double [] y= {COSPI_1_8_SQRT2*x[0] + COSPI_3_8_SQRT2*x[1],
+				      COSPI_3_8_SQRT2*x[0] - COSPI_1_8_SQRT2*x[1]};
+		return y;
+	}
+
+	private double [] _dctiv_nrecurs4(double[] x){
+//		int n = x.length; // 4
+//		int n1 = n >> 1; // 2
+//		int t = ilog2(n1)-1; // 0
+
+		double [] u0 = new double [2];
+		double [] u1 = new double [2];
+		for (int j = 0; j< 2; j++){
+			u0[j]=                             ( CN1[0][j] *   x[j] +   SN1[0][j] *   x[3 - j]);
+			u1[j]=            ( 1 - 2*(j & 1))*(-SN1[0][1-j] * x[1-j] + CN1[0][1-j] * x[2 + j]);
+		}
+		double [] v0 = _dctii_nrecurs2(u0);
+		double [] v1 = _dctii_nrecurs2(u1); //both cos-II
+
+
+		double [] w0 = new double [2];
+		double [] w1 = new double [2];
+
+		w0[0] =     sqrt2 * v0[0];
+		w1[1] =     sqrt2 * v1[0];
+		for (int j = 0; j< 2; j++){
+			int sgn = (1 - 2* (j & 1));
+			if (j > 0)	    w0[j] = v0[j]   - sgn * v1[2 - j];
+			if (j < (1))	w1[j] = v0[j+1] - sgn * v1[2 - j -1];
+		}
+
+		double [] y = new double[4];
+		for (int j = 0; j< 2; j++){
+			y[2*j] =     w0[j];
+			y[2*j+1] =   w1[j];
+		}
+		return y;
+	}
+
+	private double [] _dctiv_nrecurs8(double[] x){
+//		int n = x.length; // 8
+//		int n1 = n >> 1; // 4
+//		int t = ilog2(n1)-1; // 1
+
+		double [] u0 = new double [4];
+		double [] u1 = new double [4];
+		// u = sqrt(2)*Tn(1) * x
+		for (int j = 0; j< 4; j++){
+			u0[j]=                             ( CN1[1][j] *   x[j] +     SN1[1][j] *     x[7 - j]);
+			u1[j]=            ( 1 - 2*(j & 1))*(-SN1[1][3-j] * x[3 - j] + CN1[1][3 - j] * x[4 + j]);
+		}
+//		double [] v0 = _dctii_recurs(u0);
+//		double [] v1 = _dctii_recurs(u1); //both cos-II
+
+		double [] v0 = _dctii_nrecurs4(u0);
+		double [] v1 = _dctii_nrecurs4(u1); //both cos-II
+
+		double [] w0 = new double [4];
+		double [] w1 = new double [4];
+
+		w0[0] =     sqrt2 * v0[0];
+		w1[3] =     sqrt2 * v1[0];
+		for (int j = 0; j< 4; j++){
+			int sgn = (1 - 2* (j & 1)); //TODO:  optimize it out
+			if (j > 0)	w0[j] = v0[j]   - sgn * v1[4 - j];
+			if (j < 3)	w1[j] = v0[j+1] - sgn * v1[3 - j];
+		}
+
+		double [] y = new double[8];
+		for (int j = 0; j< 4; j++){
+			y[2*j] =     w0[j];
+			y[2*j+1] =   w1[j];
+		}
+		return y;
+	}
+
+
+// ++++++++++++++++++++++++++++ More comparison with GPU ++++++++++++++++++++++++++++++++++
+//
+//	double COSPI_1_8_SQRT2 = 1.306563;
+//	double COSPI_3_8_SQRT2 = 0.541196;
+	double SQRT_2 = 1.414214;
+	double SQRT1_2 = 0.707107;
+	double SQRT1_8 = 0.353553;
+	double [] COSN1 = {0.980785,0.831470};
+	double [] COSN2 = {0.995185,0.956940,0.881921,0.773010};
+	double [] SINN1 = {0.195090,0.555570};
+	double [] SINN2 = {0.098017,0.290285,0.471397,0.634393};
+
+
+	void _dctii_nrecurs8( double [] x, double [] y) // x,y point to 8-element arrays each
+	{
+		double u00= (x[0] + x[7]);
+		double u10= (x[0] - x[7]);
+
+		double u01= (x[1] + x[6]);
+		double u11= (x[1] - x[6]);
+
+		double u02= (x[2] + x[5]);
+		double u12= (x[2] - x[5]);
+
+		double u03= (x[3] + x[4]);
+		double u13= (x[3] - x[4]);
+
+//		double v00, v01, v02, v03, v10, v11, v12, v13;
+//		_dctii_nrecurs4(u00, u01, u02, u03, &v00, &v01, &v02, &v03);
+
+		double w00= u00 + u03;
+		double w10= u00 - u03;
+
+		double w01= (u01 + u02);
+		double w11= (u01 - u02);
+
+		double v00= w00 + w01;
+		double v02= w00 - w01;
+		double v01= COSPI_1_8_SQRT2 * w10 + COSPI_3_8_SQRT2 * w11;
+		double v03= COSPI_3_8_SQRT2 * w10 - COSPI_1_8_SQRT2 * w11;
+
+//		_dctiv_nrecurs4(u10, u11, u12, u13, &v10, &v11, &v12, &v13);
+		double w20=            ( COSN1[0] * u10 + SINN1[0] * u13);
+		double w30=            (-SINN1[1] * u11 + COSN1[1] * u12);
+
+		double w21=            ( COSN1[1] * u11 + SINN1[1] * u12);
+		double w31=           -(-SINN1[0] * u10 + COSN1[0] * u13);
+	//u->t, v ->z, t0->w2, t1->w3
+//		double z00, z01, z10,z11;
+
+//		_dctii_nrecurs2(u00, u01, &v00, &v01);
+		double z00= w20 + w21;
+		double z01= w20 - w21;
+
+//		_dctii_nrecurs2(u10, u11, &v10, &v11);
+		double z10= w30 + w31;
+		double z11= w30 - w31;
+
+		double v10 = SQRT_2 * z00;
+		double v11 = z01 - z11;
+
+		double v12 = z01 + z11;
+		double v13 = SQRT_2 * z10;
+
+		y[0] =   v00;
+		y[1] =   v10;
+
+		y[2] =   v01;
+		y[3] =   v11;
+
+		y[4] =   v02;
+		y[5] =   v12;
+
+		y[6] =   v03;
+		y[7] =   v13;
+	}
+
+	void _dctiv_nrecurs8( double [] x, double [] y) // x,y point to 8-element arrays each
+	{
+		double u00=            ( COSN2[0] * x[0] + SINN2[0] * x[7]);
+		double u10=            (-SINN2[3] * x[3] + COSN2[3] * x[4]);
+
+		double u01=            ( COSN2[1] * x[1] + SINN2[1] * x[6]);
+		double u11=           -(-SINN2[2] * x[2] + COSN2[2] * x[5]);
+
+		double u02=            ( COSN2[2] * x[2] + SINN2[2] * x[5]);
+		double u12=           -(-SINN2[1] * x[1] + COSN2[1] * x[6]);
+
+		double u03=            ( COSN2[3] * x[3] + SINN2[3] * x[4]);
+		double u13=           -(-SINN2[0] * x[0] + COSN2[0] * x[7]);
+
+//		_dctii_nrecurs4(u00, u01, u02, u03, &v00, &v01, &v02, &v03);
+		double w00= u00 + u03;
+		double w10= u00 - u03;
+
+		double w01= u01 + u02;
+		double w11= u01 - u02;
+
+		double v00= w00 + w01;
+		double v02= w00 - w01;
+
+		double v01= COSPI_1_8_SQRT2*w10 + COSPI_3_8_SQRT2*w11;
+		double v03= COSPI_3_8_SQRT2*w10 - COSPI_1_8_SQRT2*w11;
+
+//		_dctii_nrecurs4(u10, u11, u12, u13, &v10, &v11, &v12, &v13);
+
+		double w20= u10 + u13; // t0x-> w2x, gt1x-> w3x
+		double w30= u10 - u13;
+
+		double w21= u11 + u12;
+		double w31= u11 - u12;
+
+		double v10= w20 + w21;
+		double v12= w20 - w21;
+		double v11= COSPI_1_8_SQRT2*w30 + COSPI_3_8_SQRT2*w31;
+		double v13= COSPI_3_8_SQRT2*w30 - COSPI_1_8_SQRT2*w31;
+
+		// j == 0
+		y[0] =  SQRT_2 * v00;    // w0[0];
+		y[1] =  v01 -  v13;    // w1[0];
+		// j == 1
+		y[2] =  v01 +  v13;    // w0[1];
+		y[3] =  v02 +  v12;    // w1[1];
+		// j == 2
+		y[4] =  v02 -  v12;    // w0[2];
+		y[5] =  v02 +  v12;    // w1[2];
+		// j == 3
+		y[6] =  v03 +  v11;    // w0[3];
+		y[7] =  SQRT_2 * v10;    // w1[3];
+	}
+
 
 
 }
