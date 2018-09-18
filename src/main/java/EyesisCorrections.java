@@ -111,6 +111,9 @@ public class EyesisCorrections {
 		if ((this.debugLevel>101) && (correctionsParameters.sourcePaths!=null) && (correctionsParameters.sourcePaths.length>0)) {
 			testFF(correctionsParameters.sourcePaths[0]);
 		}
+		if (debugLevel > -2) {
+			System.out.println();
+		}
 	}
 
 	public void initSensorFilesAux(int debugLevel){

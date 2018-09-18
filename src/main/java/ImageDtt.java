@@ -2684,7 +2684,22 @@ public class ImageDtt {
 										}
 										// IDCT-IV should be in reversed order: CC->CC, SC->CS, CS->SC, SS->SS
 										int idct_mode = ((dct_mode << 1) & 2) | ((dct_mode >> 1) & 1);
-										clt_tile = dtt.dttt_iv  (clt_tile, idct_mode, transform_size);
+
+										if ((globalDebugLevel > 0) && debugTile) {
+											double [] clt_tile_dbg =  clt_tile.clone();
+											double [] clt_tile_dbg1 = clt_tile.clone();
+											clt_tile_dbg = dtt.dttt_ivn   (clt_tile_dbg,  idct_mode, transform_size, false);
+											clt_tile_dbg1 = dtt.dttt_ivn  (clt_tile_dbg1, idct_mode, transform_size, true);
+											clt_tile = dtt.dttt_iv  (clt_tile, idct_mode, transform_size);
+											System.out.println("\n-------- tileX="+tileX+", tileY="+tileY+", idct_mode="+idct_mode+" ---#, standard, good, bad, diff---");
+											for (int nt = 0; nt < clt_tile_dbg.length; nt++) {
+												System.out.println(String.format("%2d: %8f %8f %8f %8f %8f",
+														clt_tile[nt],clt_tile_dbg[nt],clt_tile_dbg1[nt],clt_tile_dbg[nt] - clt_tile_dbg[nt],clt_tile_dbg1[nt] - clt_tile_dbg[nt]));
+											}
+										} else {
+											clt_tile = dtt.dttt_iv  (clt_tile, idct_mode, transform_size);
+										}
+
 										// iclt_tile[i][chn] = dtt.dttt_iv  (clt_data[i][chn][tileY][tileX][dct_mode], idct_mode, transform_size);
 										double [] tile_mdct = dtt.unfold_tile(clt_tile, transform_size, dct_mode); // mode=0 - DCCT 16x16
 										// accumulate partial mdct results
@@ -4989,7 +5004,25 @@ public class ImageDtt {
 				} else {
 					clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode); // DCCT, DSCT, DCST, DSST
 				}
-				clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size);
+//				clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size);
+				if (bdebug) {
+					double [] clt_tile_dbg = clt_tile[dct_mode].clone();
+					double [] clt_tile_dbg1 = clt_tile[dct_mode].clone();
+					clt_tile_dbg1 =      dtt.dttt_ivn  (clt_tile_dbg1, dct_mode, transform_size,true);
+					clt_tile_dbg =       dtt.dttt_ivn  (clt_tile_dbg, dct_mode, transform_size,false);
+
+					clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size);
+					System.out.println("\n-------- 2: dct_mode="+dct_mode+" ---#, standard, good, bad, diff---");
+					for (int nt = 0; nt < clt_tile_dbg.length; nt++) {
+						System.out.println(String.format("%2d: %8f %8f %8f %8f %8f",
+								nt, clt_tile[dct_mode][nt],clt_tile_dbg[nt], clt_tile_dbg1[nt],clt_tile_dbg[nt] - clt_tile_dbg[nt], clt_tile_dbg1[nt] - clt_tile_dbg[nt]));
+					}
+					System.out.println("done debug");
+				} else {
+					clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size);
+				}
+
+
 			}
 		}
 
@@ -7887,7 +7920,7 @@ public class ImageDtt {
 										chn,
 										centersXY_main[i][0], // centerX, // center of aberration-corrected (common model) tile, X
 										centersXY_main[i][1], // centerY, //
-										 0, // external tile compare
+										(globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY)? 2:0, // external tile compare
 										false,// no_deconvolution,
 										false, // ); // transpose);
 										((saturation_main != null) ? saturation_main[i] : null), //final boolean [][]        saturation_imp, // (near) saturated pixels or null

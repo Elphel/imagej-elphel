@@ -5,7 +5,7 @@
 ** Parameter classes for aberration correction for Eyesis4pi
 **
 **
-** Copyright (C) 2012 Elphel, Inc.
+** Copyright (C) 2012-2018 Elphel, Inc.
 **
 ** -----------------------------------------------------------------------------**
 **
