@@ -163,24 +163,20 @@ public class TensorflowExamplePlugin
         	
         	// init variable via constant
         	Tensor<Float> t = toTensor2DFloat(rv_stage1_out, tensorsToClose);
-        	//Output builder_init = bundle.graph().opBuilder("Const", "rv_stage1_out_init").setAttr("dtype", t.dataType()).setAttr("value", t).build().output(0);
+        	Output builder_init = bundle.graph().opBuilder("Const", "rv_stage1_out_init").setAttr("dtype", t.dataType()).setAttr("value", t).build().output(0);
         	
         	// variable
-        	//OperationBuilder builder2 = bundle.graph().opBuilder("Variable", "rv_stage1_out");
-        	//builder2.addInput(builder_init);
+        	OperationBuilder builder2 = bundle.graph().opBuilder("Variable", "rv_stage1_out");
+        	builder2.addInput(builder_init);
         	
         	//Tensor<Float> tensorVal = t;
-        	//Output oValue = graph.opBuilder("Const", name).setAttr("dtype", tensorVal.dataType()).setAttr("value", tensorVal).build().output(0);
+        	//Output oValue = graph.opBuilder("Const", "rv_stage1_out").setAttr("dtype", tensorVal.dataType()).setAttr("value", tensorVal).build().output(0);
         	
         	//bundle.graph().opBuilder("Assign", "Assign/rv_stage1_out").setAttr("value", t).build();
         	
-        	Operation oprahWinfrey = bundle.graph().operation("rv_stage1_out");
-        	System.out.println(oprahWinfrey.toString());
-        	System.out.println(oprahWinfrey.type());
-
-        	//Operation oprahWinfrey2 = bundle.graph().operation("rv_stage1_out_nonexistant");
-        	//System.out.println(oprahWinfrey2.toString());
-        	//System.out.println(oprahWinfrey2.type());
+        	Operation ooyoo = bundle.graph().operation("rv_stage1_out");
+        	System.out.println(ooyoo.toString());
+        	System.out.println(ooyoo.type());
         	
         	System.out.println("DONE");
         	
@@ -210,9 +206,9 @@ public class TensorflowExamplePlugin
         	
         	System.out.println("DONE");
         	
-        } catch (final IllegalStateException ise) {
-        	System.out.println("Very Bad Error (VBE): "+ise);
-        	closeTensors(tensorsToClose);
+        //} catch (final IllegalStateException ise) {
+        //	System.out.println("Very Bad Error (VBE): "+ise);
+        //	closeTensors(tensorsToClose);
         } catch (final NumberFormatException nfe) {
 			//just skip unparsable lines ?!
 		} finally {
