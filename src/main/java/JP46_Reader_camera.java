@@ -94,7 +94,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 	public String camera_jp46settings = "";
 	public boolean IS_SILENT=true;
 	public boolean ABSOLUTELY_SILENT=false;
-        public boolean demux=true;
+    public boolean demux=true;
 	public String imageTitle="cameraImage";
 	private int ExifOffset=0x0c;
 
@@ -150,6 +150,9 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		pack();
 		GUI.center(this);
 		setVisible(showGUI);
+		if (!showGUI) {
+			this.ABSOLUTELY_SILENT = true;
+		}
 	}
 
 	void addButton(String label, Panel panel) {
@@ -648,14 +651,14 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		min_gain=2.0*gains[0];
 		for (i=0;i<4;i++) {
 			if (min_gain > gains[i]*(1.0-blacks[i])) min_gain = gains[i]*(1.0-blacks[i]);
-			System.out.println("gains["+i+"]="+gains[i]+" min_gain="+min_gain);
+			if (!this.ABSOLUTELY_SILENT) System.out.println("gains["+i+"]="+gains[i]+" min_gain="+min_gain);
 		}
 		imp.setProperty("GAIN",String.format("%f",min_gain)); // common gain
 
 		for (i=0;i<4;i++) gains[i]/=min_gain;
 		for (i=0;i<4;i++) blacks256[i]=256.0*blacks[i];
 		for (i=0;i<4;i++) {
-			System.out.println("scaled gains["+i+"]="+gains[i]);
+			if (!this.ABSOLUTELY_SILENT) System.out.println("scaled gains["+i+"]="+gains[i]);
 		}
 
 
@@ -665,7 +668,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 				else       satValue[i]=((rgammas[i][255])-blacks256[i]);
 			}   else       satValue[i]=255.0;
 			imp.setProperty("saturation_"+i,String.format("%f",satValue[i]));
-			System.out.println("scaled gains["+i+"]="+gains[i]+" satValue["+i+"]="+satValue[i]);
+			if (!this.ABSOLUTELY_SILENT) System.out.println("scaled gains["+i+"]="+gains[i]+" satValue["+i+"]="+satValue[i]);
 
 		}
 // swap satValue to match FLIPH,FLIPV again
