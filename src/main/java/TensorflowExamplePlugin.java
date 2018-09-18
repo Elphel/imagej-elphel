@@ -12,6 +12,7 @@ import org.tensorflow.SavedModelBundle;
 import org.tensorflow.OperationBuilder;
 import org.tensorflow.Shape;
 import org.tensorflow.Output;
+import org.tensorflow.Operation;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -51,7 +52,9 @@ public class TensorflowExamplePlugin
 {
 
     public final static String EXPORTDIR = "/home/oleg/GIT/python3-imagej-tiff/data_sets/tf_data_5x5_main_13_heur/exportdir";
-    public final static String PB_TAG = "model_pb";
+    // tf.saved_model.tag_constants.SERVING = "serve"
+    public final static String PB_TAG = "serve";
+    
 
     public static void run()
     {
@@ -155,13 +158,31 @@ public class TensorflowExamplePlugin
         
         try {
 
+        	//bundle.session().runner().fetch("Disparity_net/stage1done:0").run();
+        	
+        	
         	// init variable via constant
         	Tensor<Float> t = toTensor2DFloat(rv_stage1_out, tensorsToClose);
-        	Output builder_init = bundle.graph().opBuilder("Const", "rv_stage1_out_init").setAttr("dtype", t.dataType()).setAttr("value", t).build().output(0);
+        	//Output builder_init = bundle.graph().opBuilder("Const", "rv_stage1_out_init").setAttr("dtype", t.dataType()).setAttr("value", t).build().output(0);
         	
         	// variable
-        	OperationBuilder builder2 = bundle.graph().opBuilder("Variable", "rv_stage1_out");
-        	builder2.addInput(builder_init);
+        	//OperationBuilder builder2 = bundle.graph().opBuilder("Variable", "rv_stage1_out");
+        	//builder2.addInput(builder_init);
+        	
+        	//Tensor<Float> tensorVal = t;
+        	//Output oValue = graph.opBuilder("Const", name).setAttr("dtype", tensorVal.dataType()).setAttr("value", tensorVal).build().output(0);
+        	
+        	//bundle.graph().opBuilder("Assign", "Assign/rv_stage1_out").setAttr("value", t).build();
+        	
+        	Operation oprahWinfrey = bundle.graph().operation("rv_stage1_out");
+        	System.out.println(oprahWinfrey.toString());
+        	System.out.println(oprahWinfrey.type());
+
+        	//Operation oprahWinfrey2 = bundle.graph().operation("rv_stage1_out_nonexistant");
+        	//System.out.println(oprahWinfrey2.toString());
+        	//System.out.println(oprahWinfrey2.type());
+        	
+        	System.out.println("DONE");
         	
         	//Tensor<Float> t = toTensor2DFloat(rv_stage1_out, tensorsToClose);
         	//builder.setAttr("dtype", t.dataType()).setAttr("shape",t.shape()).build().output(0);
@@ -185,6 +206,7 @@ public class TensorflowExamplePlugin
         	tensorsToClose.add(result);
         	
         	float [] resultValues = (float[]) result.copyTo(new float[78408]);
+        	
         	
         	System.out.println("DONE");
         	
