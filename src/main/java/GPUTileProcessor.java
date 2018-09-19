@@ -42,6 +42,7 @@ import static jcuda.nvrtc.JNvrtc.nvrtcDestroyProgram;
 import static jcuda.nvrtc.JNvrtc.nvrtcGetPTX;
 import static jcuda.nvrtc.JNvrtc.nvrtcGetProgramLog;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -62,7 +63,8 @@ import jcuda.nvrtc.JNvrtc;
 import jcuda.nvrtc.nvrtcProgram;
 
 public class GPUTileProcessor {
-	static String  GPU_DTT24_NAME = "GPU_DTT24_DRV";       // this.kernelFunction = createFunction(sourceCode, "GPU_DTT24_DRV"); // "invert");
+	static String GPU_KERNEL_FILE = "dtt8x8.cuh";
+	static String GPU_DTT24_NAME =  "GPU_DTT24_DRV";       // this.kernelFunction = createFunction(sourceCode, "GPU_DTT24_DRV"); // "invert");
     int DTTTEST_BLOCK_WIDTH =        32; // may be read from the source code
     int DTTTEST_BLOCK_HEIGHT =       16; // may be read from the source code
     int DTT_SIZE =                    8; // may be read from the source code
@@ -172,7 +174,13 @@ public class GPUTileProcessor {
         cuCtxCreate(context, 0, device);
 
         // Obtain the CUDA source code from the CUDA file
-        String cuFileName = "/home/eyesis/workspace-python3/nvidia_dct8x8/src/dtt8x8.cuh";// "dtt8x8.cuh";
+
+        ClassLoader classLoader = getClass().getClassLoader();
+        File file = new File(classLoader.getResource(GPU_KERNEL_FILE).getFile());
+        System.out.println(file.getAbsolutePath());
+
+
+        String cuFileName = file.getAbsolutePath(); // /home/eyesis/workspace-python3/nvidia_dct8x8/src/dtt8x8.cuh";// "dtt8x8.cuh";
         String sourceCode = readFileAsString(cuFileName); // readResourceAsString(cuFileName);
         if (sourceCode == null)
         {
