@@ -145,20 +145,24 @@ public class TensorflowExamplePlugin
         	System.out.println(opr.toString());
         	
         	System.out.println("S1:");
+
+        	//opr = bundle.graph().operation("rv_stageY_out");
+        	//System.out.println(opr.toString());
         	
         	// init variable via constant?
-        	Tensor<Float> tsr = toTensor2DFloat(rv_stage1_out, tensorsToClose);
+        	//Tensor<Float> tsr = toTensor2DFloat(rv_stage1_out, tensorsToClose);
+        	/*
         	Output builder_init = bundle.graph()
         			                    .opBuilder("Const", "rv_stage1_out_init")
         			                    .setAttr  ("dtype", tsr.dataType())
         			                    .setAttr  ("value", tsr)
         			                    .build()
         			                    .output(0);
-        	
-        	System.out.println(builder_init);
+        	*/
+        	//System.out.println(builder_init);
         	
         	// variable
-        	OperationBuilder builder2 = bundle.graph().opBuilder("Variable", "rv_stage1_out_extra_variable");
+        	//OperationBuilder builder2 = bundle.graph().opBuilder("Variable", "rv_stage1_out_extra_variable");
         											  //.addInput(builder_init);
         	
         	//builder2.
@@ -169,9 +173,13 @@ public class TensorflowExamplePlugin
         	//System.out.println(oValue);
         	//Output oValue = bundle.graph().opBuilder("Variable", "rv_stage1_out").setAttr("value", tensorVal).build().output(0);
         	//bundle.graph().opBuilder("Assign", "Assign/rv_stage1_out").setAttr("value", tsr).build();
-        	        	
-        	System.out.println("DONE");
-        	        	
+        	
+        	System.out.println("Stage 0.1");
+        	//bundle.session().runner().fetch("rv_stageY_out").run();
+        	System.out.println("Stage 0.2");
+        	bundle.session().runner().fetch("rv_stage1_out").run();
+        	System.out.println("Stage 1");
+        	
         	// stage 1        	
         	bundle.session().runner()
 	                  .feed("ph_corr2d",toTensor2DFloat(img_corr2d, tensorsToClose))
@@ -181,17 +189,23 @@ public class TensorflowExamplePlugin
 	                  .run()
 	                  .get(0);
         	
+        	System.out.println("Stage 1 DONE");
+        	
+        	System.out.println("Stage 2");
+        	
         	// stage 2
         	final Tensor<?> result = bundle.session().runner()
-	                  .feed("ph_ntile",toTensor1DInt(img_ntile, tensorsToClose))
+	                  .feed("ph_ntile_out",toTensor1DInt(img_ntile, tensorsToClose))
 	                  .fetch("Disparity_net/stage2_out_sparse:0")
 	                  .run()
 	                  .get(0);
         	
+        	System.out.println("Stage 2 DONE: "+result.shape());
+        	
         	tensorsToClose.add(result);
         	
-        	float [] resultValues = (float[]) result.copyTo(new float[78408]);
-        	
+        	System.out.println("Copy result to variable");
+        	float [][] resultValues = (float[][]) result.copyTo(new float[78408][1]);
         	
         	System.out.println("DONE");
         	
