@@ -43,6 +43,7 @@
 #define DTTTEST_BLK_STRIDE     (DTTTEST_BLOCK_WIDTH+1)
 #define DTT_SIZE                      8
 
+//#define CUDART_INF_F            __int_as_float(0x7f800000)
 /*
  Python code to generate constant coefficients:
 def dct_constants():

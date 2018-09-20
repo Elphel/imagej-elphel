@@ -7,3 +7,4 @@ NC393I
 attic
 *.log
 FOCUS-PSF*
+src/main/resources/trained_model

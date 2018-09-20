@@ -20,6 +20,7 @@
  ** -----------------------------------------------------------------------------**
  **
  */
+import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
@@ -907,7 +908,80 @@ public class TwoQuadCLT {
 		return results;
 	}
 
+	public void saveFloatKernels(String file_prefix,
+			                     double [][][][][][] clt_kernels,
+			                     double [][][]       image_data,
+			                     double [][][]       port_xy,
+			                     boolean transpose) throws IOException {
+		if (clt_kernels != null) {
+			for (int chn = 0; chn < clt_kernels.length; chn++) {
+				String kern_path = file_prefix+"_chn"+chn+(transpose?"_transposed":"")+".kernel";
+				String offs_path = file_prefix+"_chn"+chn+(transpose?"_transposed":"")+".kernel_offsets";
+				FileOutputStream fos = new FileOutputStream(kern_path);
+				DataOutputStream dos = new DataOutputStream(fos);
+				for (int ty = 0; ty <  clt_kernels[chn][0].length; ty++) {
+					for (int tx = 0; tx <  clt_kernels[chn][0][ty].length; tx++) {
+						for (int col = 0; col <  clt_kernels[chn].length; col++) {
+							for (int p = 0; p < 4; p++) {
+								double [] pa = clt_kernels[chn][col][ty][tx][p];
+								for (int i0 = 0; i0 < 64; i0++) {
+									int i;
+									if (transpose) {
+										i = ((i0 & 7) << 3) + ((i0 >>3) & 7);
+									} else {
+										i = i0;
+									}
+									dos.writeFloat((float)pa[i]);
+								}
+							}
+						}
+					}
+				}
+				dos.close();
+				fos = new FileOutputStream(offs_path);
+				dos = new DataOutputStream(fos);
 
+				for (int ty = 0; ty <  clt_kernels[chn][0].length; ty++) {
+					for (int tx = 0; tx <  clt_kernels[chn][0][ty].length; tx++) {
+						for (int col = 0; col <  clt_kernels[chn].length; col++) {
+							double [] pa = clt_kernels[chn][col][ty][tx][4];
+							for (int i = 0; i < pa.length; i++) {
+								dos.writeFloat((float)pa[i]);
+							}
+						}
+					}
+				}
+
+				dos.close();
+			}
+		}
+
+		if (image_data != null) {
+			for (int chn = 0; chn < image_data.length; chn++) {
+				String img_path =  file_prefix+"_chn"+chn+".bayer";
+				FileOutputStream fos = new FileOutputStream(img_path);
+				DataOutputStream dos = new DataOutputStream(fos);
+				for (int i = 0; i <  image_data[chn][0].length; i++) {
+					dos.writeFloat((float) (image_data[chn][0][i] + image_data[chn][1][i] + image_data[chn][2][i]));
+				}
+				dos.close();
+			}
+		}
+		if (port_xy != null) {
+			for (int chn = 0; chn < port_xy[0].length; chn++) {
+				String img_path =  file_prefix+"_chn"+chn+".portsxy";
+				FileOutputStream fos = new FileOutputStream(img_path);
+				DataOutputStream dos = new DataOutputStream(fos);
+				for (int i = 0; i <  port_xy.length; i++) {
+					dos.writeFloat((float) (port_xy[i][chn][0])); // x-offset
+					dos.writeFloat((float) (port_xy[i][chn][1])); // y-offset
+				}
+				dos.close();
+			}
+
+		}
+
+	}
 
 	public ImagePlus [] processCLTQuadCorrPairGpu(
 			GPUTileProcessor                               gPUTileProcessor,
@@ -1003,6 +1077,8 @@ public class TwoQuadCLT {
 		double [][][][][][] clt_kernels_main = quadCLT_main.getCLTKernels(); // [4][3][123][164]{[64],[64],[64],[64],[8]}
 		double [][][][][][] clt_kernels_aux =  quadCLT_aux.getCLTKernels();
 
+
+		//[4][3][123][164][5][]
 		double [][] dbg_kern = clt_kernels_main[0][0][0][0];
 		// here all data is ready (images, kernels) to try GPU code
 
@@ -1033,13 +1109,12 @@ public class TwoQuadCLT {
 				"converted",
 				dbg_titles);
 
-		if (debugLevel < 1000) {
-			return null;
-		}
 
+		double [][][]       port_xy_main_dbg = new double [tilesX*tilesY][][];
+		double [][][]       port_xy_aux_dbg = new double [tilesX*tilesY][][];
 
 		final double [][][][][][][] clt_bidata = // new double[2][quad][nChn][tilesY][tilesX][][]; // first index - main/aux
-				image_dtt.clt_bi_quad (
+				image_dtt.clt_bi_quad_dbg (
 						clt_parameters,                       // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 						clt_parameters.fat_zero,              // final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
 						notch_mode,                           //  final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
@@ -1070,8 +1145,43 @@ public class TwoQuadCLT {
 //						woi_tops,                             // final int [][]            woi_tops,
 						ers_delay,                            // final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
 						threadsMax,                           // final int                 threadsMax,  // maximal number of threads to launch
-						debugLevel);                          // final int                 globalDebugLevel);
+						debugLevel,                           // final int                 globalDebugLevel);
+						port_xy_main_dbg,                     // final double [][][]       port_xy_main_dbg, // for each tile/port save x,y pixel coordinates (gpu code development)
+						port_xy_aux_dbg);                     // final double [][][]       port_xy_aux_dbg) // for each tile/port save x,y pixel coordinates (gpu code development)
 
+		String kernel_dir = "/home/eyesis/workspace-python3/nvidia_dct8x8/clt/";
+		boolean [][] what_to_save = {{false,false,true}, {false,false,true}};
+		try {
+			saveFloatKernels(
+					kernel_dir +"main", // String file_prefix,
+					(what_to_save[0][0]?clt_kernels_main:null), // double [][][][][][] clt_kernels, // null
+					(what_to_save[0][1]?quadCLT_main.image_data:null),
+					(what_to_save[0][2]?port_xy_main_dbg:null), // double [][][]       port_xy,
+					true);
+		} catch (IOException e) {
+			System.out.println("Failed to save flattened kernels tp "+kernel_dir);
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} // boolean transpose);
+
+		try {
+			saveFloatKernels(
+					kernel_dir +"aux", // String file_prefix,
+					(what_to_save[1][0]?clt_kernels_aux:null), // double [][][][][][] clt_kernels, // null
+					(what_to_save[1][1]?quadCLT_aux.image_data:null),
+					(what_to_save[1][2]?port_xy_aux_dbg:null), // double [][][]       port_xy,
+			        true);
+		} catch (IOException e) {
+			System.out.println("Failed to save flattened kernels tp "+kernel_dir);
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} // boolean transpose);
+
+
+
+		if (debugLevel < 1000) {
+			return null;
+		}
 
 		if (ers_delay !=null) {
 			showERSDelay(ers_delay);

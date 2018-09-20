@@ -4696,6 +4696,7 @@ public class ImageDtt {
 			else if (ktileY >= clt_kernels[chn].length)         ktileY = clt_kernels[chn].length-1;
 			if      (ktileX < 0)                                ktileX = 0;
 			else if (ktileX >= clt_kernels[chn][ktileY].length) ktileX = clt_kernels[chn][ktileY].length-1;
+			// extract center offset data stored with each kernel tile
 			CltExtra ce = new CltExtra (clt_kernels[chn][ktileY][ktileX][4]);
 			// 2. calculate correction for center of the kernel offset
 			double kdx = centerX - (ktileX -1 +0.5) *  kernel_step; // difference in pixel
@@ -5005,6 +5006,7 @@ public class ImageDtt {
 					clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode); // DCCT, DSCT, DCST, DSST
 				}
 //				clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size);
+				/*
 				if (bdebug) {
 					double [] clt_tile_dbg = clt_tile[dct_mode].clone();
 					double [] clt_tile_dbg1 = clt_tile[dct_mode].clone();
@@ -5019,8 +5021,11 @@ public class ImageDtt {
 					}
 					System.out.println("done debug");
 				} else {
+				*/
 					clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size);
+					/*
 				}
+				*/
 
 
 			}
@@ -7593,6 +7598,787 @@ public class ImageDtt {
 
 //	public double [][][][][][] clt_bi_quad(
 
+	public double [][][][][][][]  clt_bi_quad_dbg(
+			final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+			final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
+			final boolean             notch_mode,      // use notch filter for inter-camera correlation to detect poles
+			final int                 lt_rad,          // low texture mode - inter-correlation is averaged between the neighbors before argmax-ing, using (2*notch_mode+1)^2 square
+			final boolean             no_int_x0,       // do not offset window to integer maximum - used when averaging low textures to avoid "jumps" for very wide
+			final int [][]            tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+			final double [][]         disparity_array, // [tilesY][tilesX] - individual per-tile expected disparity
+			final double [][][]       image_data_main, // first index - number of image in a quad
+			final double [][][]       image_data_aux,  // first index - number of image in a quad
+		    final boolean [][]        saturation_main, // (near) saturated pixels or null
+		    final boolean [][]        saturation_aux,  // (near) saturated pixels or null
+			 // correlation results - combo will be for the correlation between two quad cameras
+			final double [][][][]     clt_corr_combo,  // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+			                                           // [type][tilesY][tilesX] should be set by caller
+													   // types: 0 - selected correlation (product+offset), 1 - sum
+			final double [][]         disparity_bimap, // [23][tilesY][tilesX], only [6][] is needed on input or null - do not calculate
+			                                           // last 2 - contrast, avg/ "geometric average)
+			final double [][]         ml_data,         // data for ML - 18 layers - 4 center areas (3x3, 5x5,..) per camera-per direction, 1 - composite, and 1 with just 1 data (target disparity)
+			final double [][][][]     texture_tiles_main, // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
+			final double [][][][]     texture_tiles_aux,  // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
+			final int                 width,           // may be not multiple of 8, same for the height
+
+			final GeometryCorrection  geometryCorrection_main,
+			final GeometryCorrection  geometryCorrection_aux,
+			final double [][][][][][] clt_kernels_main, // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+			final double [][][][][][] clt_kernels_aux,  // [channel_in_quad][color][tileY][tileX][band][pixel] , size should match image (have 1 tile around)
+			final double              corr_magic_scale, // still not understood coefficient that reduces reported disparity value.  Seems to be around 0.85
+			final boolean             keep_clt_data,
+//			final int [][]            woi_tops,
+			final double [][][]       ers_delay,        // if not null - fill with tile center acquisition delay
+			final int                 threadsMax,  // maximal number of threads to launch
+			final int                 debugLevel,
+			final double [][][]       port_xy_main_dbg, // for each tile/port save x,y pixel coordinates (gpu code development)
+			final double [][][]       port_xy_aux_dbg) // for each tile/port save x,y pixel coordinates (gpu code development)
+	{
+		final int                 globalDebugLevel = clt_parameters.rig.rig_mode_debug?debugLevel:-2;
+		final int                 debug_tileX = clt_parameters.tileX;
+		final int                 debug_tileY = clt_parameters.tileY;
+		final int quad_main = image_data_main.length;   // number of subcameras
+		final int quad_aux =  image_data_aux.length;   // number of subcameras
+		final int numcol = 3; // number of colors
+		final int nChn = image_data_main[0].length;
+		final int height=image_data_main[0][0].length/width;
+		final int tilesX=width/clt_parameters.transform_size;
+		final int tilesY=height/clt_parameters.transform_size;
+		final int nTilesInChn=tilesX*tilesY;
+		// clt_data does not need to be for the whole image (no, it is used for textures)
+		final double [][][][][][][] clt_bidata = (keep_clt_data)? (new double[2][][][][][][]):null;
+		if (clt_bidata != null) {
+			clt_bidata[0] = new double[quad_main][nChn][tilesY][tilesX][][];
+			clt_bidata[1] = new double[quad_aux][nChn][tilesY][tilesX][][];
+		}
+
+		final double [][] lt_corr = (lt_rad > 0)? (new double [nTilesInChn][]):null; // will keep inter-camera combo correlation, later combined in a separate multi-thread run
+
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final double [] col_weights= new double [numcol]; // colors are RBG
+		col_weights[2] = 1.0/(1.0 + clt_parameters.corr_red + clt_parameters.corr_blue);    // green color
+		col_weights[0] = clt_parameters.corr_red *  col_weights[2];
+		col_weights[1] = clt_parameters.corr_blue * col_weights[2];
+		final int corr_size = clt_parameters.transform_size * 2 -1;
+		final int [][] transpose_indices = new int [corr_size*(corr_size-1)/2][2];
+		int indx = 0;
+		for (int i =0; i < corr_size-1; i++){
+			for (int j = i+1; j < corr_size; j++){
+				transpose_indices[indx  ][0] = i * corr_size + j;
+				transpose_indices[indx++][1] = j * corr_size + i;
+			}
+		}
+
+		// get ml_data half width
+		final int ml_hwidth = (ml_data != null)?(((int) Math.round(Math.sqrt(ml_data[0].length/nTilesInChn)) - 1) / 2):0;
+
+		// Create window  to select center correlation strip using
+		// ortho_height - full width of non-zero elements
+		// ortho_eff_height - effective height (ration of the weighted column sum to the center value)
+		int wcenter = clt_parameters.transform_size - 1;
+		final double [] ortho_weights = new double [corr_size]; // [15]
+		for (int i = 0; i < corr_size; i++){
+			if ((i >= wcenter - clt_parameters.img_dtt.ortho_height/2) && (i <= wcenter + clt_parameters.img_dtt.ortho_height/2)) {
+				double dx = 1.0*(i-wcenter)/(clt_parameters.img_dtt.ortho_height/2 + 1);
+				ortho_weights[i] = 0.5*(1.0+Math.cos(Math.PI*dx))/clt_parameters.img_dtt.ortho_eff_height;
+			}
+		}
+		if (globalDebugLevel > 0){
+			System.out.println("ortho_height="+ clt_parameters.img_dtt.ortho_height+" ortho_eff_height="+ clt_parameters.img_dtt.ortho_eff_height);
+			for (int i = 0; i < corr_size; i++){
+				System.out.println(" ortho_weights["+i+"]="+ ortho_weights[i]);
+			}
+		}
+
+		if (globalDebugLevel > -2) {
+			System.out.println("clt_aberrations_quad_corr(): width="+width+" height="+height+" transform_size="+clt_parameters.transform_size+
+					" debug_tileX="+debug_tileX+" debug_tileY="+debug_tileY+" globalDebugLevel="+globalDebugLevel);
+		}
+		final int [][] corr_pairs ={ // {first, second, rot} rot: 0 - as is, 1 - swap y,x
+				{0,1,0},
+				{2,3,0},
+				{0,2,1},
+				{1,3,1}};
+
+		final double[][] port_offsets = {
+				{-0.5, -0.5},
+				{ 0.5, -0.5},
+				{-0.5,  0.5},
+				{ 0.5,  0.5}};
+		final int transform_len = clt_parameters.transform_size * clt_parameters.transform_size;
+
+
+
+		final double [] filter_direct= new double[transform_len];
+		if (clt_parameters.corr_sigma == 0) {
+			filter_direct[0] = 1.0;
+			for (int i= 1; i<filter_direct.length;i++) filter_direct[i] =0;
+		} else {
+			for (int i = 0; i < clt_parameters.transform_size; i++){
+				for (int j = 0; j < clt_parameters.transform_size; j++){
+					filter_direct[i * clt_parameters.transform_size+j] = Math.exp(-(i*i+j*j)/(2*clt_parameters.corr_sigma)); // FIXME: should be sigma*sigma !
+				}
+			}
+		}
+		// normalize
+		double sum = 0;
+		for (int i = 0; i < clt_parameters.transform_size; i++){
+			for (int j = 0; j < clt_parameters.transform_size; j++){
+				double d = 	filter_direct[i*clt_parameters.transform_size+j];
+				d*=Math.cos(Math.PI*i/(2*clt_parameters.transform_size))*Math.cos(Math.PI*j/(2*clt_parameters.transform_size));
+				if (i > 0) d*= 2.0;
+				if (j > 0) d*= 2.0;
+				sum +=d;
+			}
+		}
+		for (int i = 0; i<filter_direct.length; i++){
+			filter_direct[i] /= sum;
+		}
+
+		DttRad2 dtt = new DttRad2(clt_parameters.transform_size);
+		final double [] filter= dtt.dttt_iiie(filter_direct);
+		for (int i=0; i < filter.length;i++) filter[i] *= 2*clt_parameters.transform_size;
+
+		// prepare disparity maps and weights
+		final int max_search_radius = (int) Math.abs(clt_parameters.max_corr_radius); // use negative max_corr_radius for squares instead of circles?
+		final int max_search_radius_poly = 1;
+		if (globalDebugLevel > 0){
+			System.out.println("max_corr_radius=       "+clt_parameters.max_corr_radius);
+			System.out.println("max_search_radius=     "+max_search_radius);
+			System.out.println("max_search_radius_poly="+max_search_radius_poly);
+			System.out.println("corr_fat_zero=         "+fatzero);
+			System.out.println("disparity_array[0][0]= "+disparity_array[0][0]);
+
+
+		}
+		// add optional initialization of debug layers here
+		if (disparity_bimap != null){
+			for (int i = 0; i < disparity_bimap.length;i++){
+				disparity_bimap[i] = new double [tilesY*tilesX];
+			}
+		}
+
+		if (ers_delay != null) {
+			ers_delay[0] = new double [quad_main][];
+			for (int i = 0; i < quad_main; i++) ers_delay[0][i] = new double [tilesX*tilesY];
+			ers_delay[1] = new double [quad_aux][];
+			for (int i = 0; i < quad_aux; i++)  ers_delay[1][i] = new double [tilesX*tilesY];
+		}
+
+		dtt.set_window(clt_parameters.clt_window);
+		final double [] lt_window = dtt.getWin2d();	// [256]
+		final double [] lt_window2 = new double [lt_window.length]; // squared
+		for (int i = 0; i < lt_window.length; i++) lt_window2[i] = lt_window[i] * lt_window[i];
+
+
+		if (globalDebugLevel > 1) {
+			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			sdfa_instance.showArrays(lt_window,  2*clt_parameters.transform_size, 2*clt_parameters.transform_size, "lt_window");
+		}
+
+		final Matrix [] corr_rots_main = geometryCorrection_main.getCorrVector().getRotMatrices(); // get array of per-sensor rotation matrices
+		final Matrix rigMatrix = geometryCorrection_aux.getRotMatrix(true);
+		final Matrix [] corr_rots_aux =  geometryCorrection_aux.getCorrVector().getRotMatrices(rigMatrix); // get array of per-sensor rotation matrices
+
+		for (int ithread = 0; ithread < threads.length; ithread++) {
+			threads[ithread] = new Thread() {
+				@Override
+				public void run() {
+					DttRad2 dtt = new DttRad2(clt_parameters.transform_size);
+					dtt.set_window(clt_parameters.clt_window);
+					int tileY,tileX,tIndex; // , chn;
+					//						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+					double centerX; // center of aberration-corrected (common model) tile, X
+					double centerY; //
+					double [][] fract_shiftsXY_main = new double[quad_main][];
+					double [][] fract_shiftsXY_aux =  new double[quad_aux][];
+					double [][]     tcorr_combo =     null; // [15*15] pixel space
+					double [][][][] clt_data_main =   new double[quad_main][nChn][][];
+					double [][][][] clt_data_aux =    new double[quad_aux][nChn][][];
+					double [][] ml_data_main =  (ml_data != null)? new double [ML_TOP_AUX_INDEX][(2*ml_hwidth +1)*(2*ml_hwidth +1)]:null;
+					double [][] ml_data_aux =   (ml_data != null)? new double [ML_TOP_AUX_INDEX][(2*ml_hwidth +1)*(2*ml_hwidth +1)]:null;
+					double []   ml_data_inter = (ml_data != null)? new double [(2*ml_hwidth +1)*(2*ml_hwidth +1)]:null;
+//					double []   ml_data_other = (ml_data != null)? new double [(2*ml_hwidth +1)*(2*ml_hwidth +1)]:null;
+					double []   ml_data_dbg1 =  (ml_data != null)? new double [(2*ml_hwidth +1)*(2*ml_hwidth +1)]:null;
+
+
+					Correlation2d corr2d = new Correlation2d(
+							clt_parameters.img_dtt,              // ImageDttParameters  imgdtt_params,
+							clt_parameters.transform_size,             // int transform_size,
+							2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
+							(globalDebugLevel > -1));   //   boolean debug)
+
+					for (int nTile = ai.getAndIncrement(); nTile < nTilesInChn; nTile = ai.getAndIncrement()) {
+
+						tileY = nTile /tilesX;
+						tileX = nTile % tilesX;
+						tIndex = tileY * tilesX + tileX;
+						if (tile_op[tileY][tileX] == 0) {
+							if (disparity_bimap != null){
+								disparity_bimap[BI_TARGET_INDEX][tIndex] = Double.NaN;
+							}
+							 continue; // nothing to do for this tile
+						}
+						int                 img_mask =       getImgMask(tile_op[tileY][tileX]);         // which images to use
+						int                 corr_mask =      getPairMask(tile_op[tileY][tileX]);       // which pairs to combine in the combo:  1 - top, 2 bottom, 4 - left, 8 - right
+						// mask out pairs that use missing channels
+
+// Is it currently used with diagonals?
+						// TODO: use masks from tile task
+						for (int i = 0; i< corr_pairs.length; i++){
+							if ((((1 << corr_pairs[i][0]) & img_mask) == 0) || (((1 << corr_pairs[i][1]) & img_mask) == 0)) {
+								corr_mask &= ~ (1 << i);
+							}
+						}
+//						boolean debugTile =(tileX == debug_tileX) && (tileY == debug_tileY);
+
+						final int [] overexp_main = (saturation_main != null) ? ( new int [2]): null;
+						final int [] overexp_aux =  (saturation_aux != null) ? ( new int [2]): null;
+
+						// Moved from inside chn loop
+						centerX = tileX * clt_parameters.transform_size + clt_parameters.transform_size/2; //  - shiftX;
+						centerY = tileY * clt_parameters.transform_size + clt_parameters.transform_size/2; //  - shiftY;
+						// TODO: move port coordinates out of color channel loop
+						double [][] centersXY_main;
+						double [][] centersXY_aux;
+						double disparity_main = disparity_array[tileY][tileX];
+						double disparity_aux =  disparity_main * geometryCorrection_aux.getDisparityRadius()/geometryCorrection_main.getDisparityRadius();
+						if (disparity_bimap != null){
+							disparity_bimap[BI_TARGET_INDEX][tIndex] = disparity_main;
+						}
+						centersXY_main = geometryCorrection_main.getPortsCoordinatesAndDerivatives(
+								geometryCorrection_main, //			GeometryCorrection gc_main,
+								false,          // boolean use_rig_offsets,
+								corr_rots_main, // Matrix []   rots,
+								null,           //  Matrix [][] deriv_rots,
+								null,           // double [][] pXYderiv, // if not null, should be double[8][]
+								centerX,
+								centerY,
+								disparity_main); //  + disparity_corr);
+
+						centersXY_aux =  geometryCorrection_aux.getPortsCoordinatesAndDerivatives(
+								geometryCorrection_main, //			GeometryCorrection gc_main,
+								true,            // boolean use_rig_offsets,
+								corr_rots_aux,   // Matrix []   rots,
+								null,            //  Matrix [][] deriv_rots,
+								null,            // double [][] pXYderiv, // if not null, should be double[8][]
+								centerX,
+								centerY,
+								disparity_aux); //  + disparity_corr);
+						// acquisition time of the tiles centers in scanline times
+						if (ers_delay != null) {
+							for (int i = 0; i < quad_main; i++) ers_delay[0][i][nTile] = centersXY_main[i][1]-geometryCorrection_main.woi_tops[i];
+							for (int i = 0; i < quad_aux; i++)  ers_delay[1][i][nTile] = centersXY_aux[i][1]- geometryCorrection_aux.woi_tops[i];
+						}
+
+						if ((globalDebugLevel > 0) && (tileX == debug_tileX) && (tileY == debug_tileY)) {
+							for (int i = 0; i < quad_main; i++) {
+								System.out.println("clt_aberrations_quad_corr():  tileX="+tileX+", tileY="+tileY+
+										" centerX="+centerX+" centerY="+centerY+" disparity="+disparity_array[tileY][tileX]+
+										" centersXY_main["+i+"][0]="+centersXY_main[i][0]+" centersXY_main["+i+"][1]="+centersXY_main[i][1]);
+							}
+							for (int i = 0; i < quad_aux; i++) {
+								System.out.println("clt_aberrations_quad_corr():  tileX="+tileX+", tileY="+tileY+
+										" centerX="+centerX+" centerY="+centerY+" disparity="+disparity_array[tileY][tileX]+
+										" centersXY_aux["+i+"][0]="+centersXY_aux[i][0]+" centersXY_aux["+i+"][1]="+centersXY_aux[i][1]);
+							}
+						}
+						if (port_xy_main_dbg != null) {
+							port_xy_main_dbg[nTile] = centersXY_main;
+						}
+						if (port_xy_aux_dbg != null) {
+							port_xy_aux_dbg [nTile] = centersXY_main;
+						}
+						if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY)) { // before correction
+							System.out.print(disparity_array[tileY][tileX]+"\t"+
+									centersXY_main[0][0]+"\t"+centersXY_main[0][1]+"\t"+
+									centersXY_main[1][0]+"\t"+centersXY_main[1][1]+"\t"+
+									centersXY_main[2][0]+"\t"+centersXY_main[2][1]+"\t"+
+									centersXY_main[3][0]+"\t"+centersXY_main[3][1]+"\t");
+							System.out.print(disparity_array[tileY][tileX]+"\t"+
+									centersXY_aux[0][0]+"\t"+centersXY_aux[0][1]+"\t"+
+									centersXY_aux[1][0]+"\t"+centersXY_aux[1][1]+"\t"+
+									centersXY_aux[2][0]+"\t"+centersXY_aux[2][1]+"\t"+
+									centersXY_aux[3][0]+"\t"+centersXY_aux[3][1]+"\t");
+						}
+
+						for (int chn = 0; chn <numcol; chn++) {
+							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) {
+								System.out.println("\nMain camera, centerX="+centerX+", centerY="+centerY);
+								System.out.println(disparity_array[tileY][tileX]+"\t"+
+							    centersXY_main[0][0]+"\t"+centersXY_main[0][1]+"\t"+
+							    centersXY_main[1][0]+"\t"+centersXY_main[1][1]+"\t"+
+							    centersXY_main[2][0]+"\t"+centersXY_main[2][1]+"\t"+
+							    centersXY_main[3][0]+"\t"+centersXY_main[3][1]+"\t");
+								System.out.println("\nAux camera, centerX="+centerX+", centerY="+centerY);
+								System.out.println(disparity_array[tileY][tileX]+"\t"+
+							    centersXY_aux[0][0]+"\t"+centersXY_aux[0][1]+"\t"+
+							    centersXY_aux[1][0]+"\t"+centersXY_aux[1][1]+"\t"+
+							    centersXY_aux[2][0]+"\t"+centersXY_aux[2][1]+"\t"+
+							    centersXY_aux[3][0]+"\t"+centersXY_aux[3][1]+"\t");
+							}
+
+							for (int i = 0; i < quad_main; i++) {
+								clt_data_main[i][chn] = new double [4][];
+								fract_shiftsXY_main[i] = extract_correct_tile( // return a pair of residual offsets
+										image_data_main[i],
+										width,       // image width
+										(clt_kernels_main == null) ? null : clt_kernels_main[i], // [color][tileY][tileX][band][pixel]
+										clt_data_main[i][chn], //double  [][]        clt_tile,    // should be double [4][];
+										clt_parameters.kernel_step,
+										clt_parameters.transform_size,
+										dtt,
+										chn,
+										centersXY_main[i][0], // centerX, // center of aberration-corrected (common model) tile, X
+										centersXY_main[i][1], // centerY, //
+										(globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY)? 2:0, // external tile compare
+										false,// no_deconvolution,
+										false, // ); // transpose);
+										((saturation_main != null) ? saturation_main[i] : null), //final boolean [][]        saturation_imp, // (near) saturated pixels or null
+										((saturation_main != null) ? overexp_main: null)); // final double [] overexposed)
+
+
+							}
+							for (int i = 0; i < quad_aux; i++) {
+								clt_data_aux[i][chn] = new double [4][];
+								fract_shiftsXY_aux[i] = extract_correct_tile( // return a pair of residual offsets
+										image_data_aux[i],
+										width,       // image width
+										(clt_kernels_aux == null) ? null : clt_kernels_aux[i], // [color][tileY][tileX][band][pixel]
+										clt_data_aux[i][chn], //double  [][]        clt_tile,    // should be double [4][];
+										clt_parameters.kernel_step,
+										clt_parameters.transform_size,
+										dtt,
+										chn,
+										centersXY_aux[i][0], // centerX, // center of aberration-corrected (common model) tile, X
+										centersXY_aux[i][1], // centerY, //
+										 0, // external tile compare
+										false,// no_deconvolution,
+										false, // ); // transpose);
+										((saturation_aux != null) ? saturation_aux[i] : null), //final boolean [][]        saturation_imp, // (near) saturated pixels or null
+										((saturation_aux != null) ? overexp_aux: null)); // final double [] overexposed)
+
+
+							}
+							if ((globalDebugLevel > -1) && (tileX == debug_tileX) && (tileY == debug_tileY) && (chn == 2)) {
+								System.out.println();
+							}
+							if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)  && (chn == 2)) {
+								showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+								String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
+								double [][] dbg_tile = new double [16][];
+								for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data_main[i>>2][chn][i & 3];
+								sdfa_instance.showArrays(dbg_tile,  clt_parameters.transform_size, clt_parameters.transform_size, true, "MAIN_pre-shifted_x"+tileX+"_y"+tileY, titles);
+
+								double [][] dbg_tile_aux = new double [16][];
+								for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data_aux[i>>2][chn][i & 3];
+								sdfa_instance.showArrays(dbg_tile_aux,  clt_parameters.transform_size, clt_parameters.transform_size, true, "AUX_pre-shifted_x"+tileX+"_y"+tileY, titles);
+							}
+
+							if ((globalDebugLevel > 0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
+									(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)) {
+								for (int i = 0; i < quad_main; i++) {
+									System.out.println("clt_bi_quad(): color="+chn+", tileX="+tileX+", tileY="+tileY+
+											" fract_shiftsXY_main["+i+"][0]="+fract_shiftsXY_main[i][0]+" fract_shiftsXY_main["+i+"][1]="+fract_shiftsXY_main[i][1]);
+								}
+								for (int i = 0; i < quad_aux; i++) {
+									System.out.println("clt_bi_quad(): color="+chn+", tileX="+tileX+", tileY="+tileY+
+											" fract_shiftsXY_aux["+i+"][0]="+fract_shiftsXY_aux[i][0]+" fract_shiftsXY_aux["+i+"][1]="+fract_shiftsXY_aux[i][1]);
+								}
+							}
+
+							// apply residual shift
+							for (int i = 0; i < quad_main; i++) {
+								fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
+										clt_data_main[i][chn], // double  [][]  clt_tile,
+										clt_parameters.transform_size,
+										fract_shiftsXY_main[i][0],            // double        shiftX,
+										fract_shiftsXY_main[i][1],            // double        shiftY,
+										((globalDebugLevel > 1) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
+												(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
+							}
+							for (int i = 0; i < quad_aux; i++) {
+								fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
+										clt_data_aux[i][chn], // double  [][]  clt_tile,
+										clt_parameters.transform_size,
+										fract_shiftsXY_aux[i][0],            // double        shiftX,
+										fract_shiftsXY_aux[i][1],            // double        shiftY,
+										((globalDebugLevel > 1) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
+												(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
+							}
+
+
+
+							if ((globalDebugLevel > 0) && (debug_tileX == tileX) && (debug_tileY == tileY)) {
+								showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+								String [] titles = {"CC0","SC0","CS0","SS0","CC1","SC1","CS1","SS1","CC2","SC2","CS2","SS2","CC3","SC3","CS3","SS3"};
+								double [][] dbg_tile = new double [16][];
+								for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data_main[i>>2][chn][i & 3];
+								sdfa_instance.showArrays(dbg_tile,  clt_parameters.transform_size, clt_parameters.transform_size, true, "MAIN_shifted_x"+tileX+"_y"+tileY+"-z", titles);
+								double [][] dbg_tile_aux = new double [16][];
+								for (int i = 0; i < 16; i++) dbg_tile[i]=clt_data_aux[i>>2][chn][i & 3];
+								sdfa_instance.showArrays(dbg_tile_aux,  clt_parameters.transform_size, clt_parameters.transform_size, true, "AUX_shifted_x"+tileX+"_y"+tileY+"-z", titles);
+							}
+
+						}
+
+						int tile_lma_debug_level =  ((tileX == debug_tileX) && (tileY == debug_tileY))? clt_parameters.img_dtt.lma_debug_level : -1;
+
+						// all color channels are done here
+						double extra_disparity_main = 0.0; // used for textures:  if allowed, shift images extra before trying to combine
+						double extra_disparity_aux = 0.0; // used for textures:  if allowed, shift images extra before trying to combine
+
+						// fill clt_corr_combo if it exists
+						if (disparity_bimap != null){ // not null - calculate correlations
+
+							// calculate overexposed fraction - remove ?
+//							if (saturation_imp != null){
+//								disparity_map[OVEREXPOSED][nTile] = (1.0 * overexp_all[0]) / overexp_all[1];
+//							}
+
+
+							double [] tile_corrs_main = tileCorrs(
+									clt_parameters,        // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+									fatzero,               // final double          fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
+									true,                  // final boolean         get4dirs, // calculate disparity/strength for each of the 4 directions
+									corr2d,                // final Correlation2d  corr2d,
+									clt_data_main,         // final double [][][][] clt_data,
+									filter,                // final double []       filter,
+									col_weights,           // final double []        col_weights,
+									ml_hwidth,             // final int             ml_hwidth,
+						    		ml_data_main,          // final double [][]     ml_center_corr,
+									tileX,                 // final int              tileX, // only used in debug output
+									tileY,                 // final int              tileY,
+									tile_lma_debug_level); // final int              debugLevel)
+
+							double [] tile_corrs_aux  = tileCorrs(
+									clt_parameters,        // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+									fatzero,               // final double          fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
+									true,                  // final boolean         get4dirs, // calculate disparity/strength for each of the 4 directions
+									corr2d,                // final Correlation2d  corr2d,
+									clt_data_aux,          // final double [][][][] clt_data,
+									filter,                // final double []       filter,
+									col_weights,           // final double []        col_weights,
+									ml_hwidth,             // final int             ml_hwidth,
+						    		ml_data_aux,          // final double [][]     ml_center_corr,
+									tileX,                 // final int              tileX, // only used in debug output
+									tileY,                 // final int              tileY,
+									tile_lma_debug_level); // final int              debugLevel)
+
+							extra_disparity_main = tile_corrs_main[DISP_FULL_INDEX];
+							extra_disparity_aux =  tile_corrs_aux[DISP_FULL_INDEX];
+							if (Double.isNaN(extra_disparity_main)) extra_disparity_main = 0;
+							if (Double.isNaN(extra_disparity_aux))  extra_disparity_aux = 0;
+
+							for (int i = 0; i < tile_corrs_main.length; i++) {
+								int dest = SNGL_TO_BI[0][i];
+								if (disparity_bimap[dest] != null) disparity_bimap[dest][nTile] = tile_corrs_main[i];
+							}
+							for (int i = 0; i < tile_corrs_aux.length; i++) {
+								int dest = SNGL_TO_BI[1][i];
+								if (disparity_bimap[dest] != null) disparity_bimap[dest][nTile] = tile_corrs_aux[i];
+							}
+							if (Double.isNaN(disparity_bimap[BI_STR_FULL_INDEX][tIndex])) {
+								System.out.println("BUG: 3. disparity_map[BI_STR_FULL_INDEX][tIndex] should not be NaN");
+							}
+							if (Double.isNaN(disparity_bimap[BI_ASTR_FULL_INDEX][tIndex])) {
+								System.out.println("BUG: 3a. disparity_map[BI_ASTR_FULL_INDEX][tIndex] should not be NaN");
+							}
+
+							if (clt_corr_combo != null) { // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+								tcorr_combo = new double [TCORR_TITLES.length][corr_size * corr_size];
+							}
+							double [] inter_cam_corr = corr2d.correlateInterCamerasFD(
+									clt_data_main,       // double [][][][]     clt_data_tile_main,
+									clt_data_aux,        // double [][][][]     clt_data_tile_aux,
+						    		filter,                   // double []           lpf,
+						    		col_weights,              // double []           col_weights,
+						    		fatzero);                 // double              fat_zero)
+
+							double [] inter_corrs_dxy = tileInterCamCorrs(
+									no_int_x0,             // final boolean                                   no_int_x0, // do not offset window to integer - used when averaging low textures to avoid "jumps" for very wide
+									clt_parameters,        // final EyesisCorrectionParameters.CLTParameters  clt_parameters,
+									inter_cam_corr,        // final double []                                 inter_cam_corr,
+									corr2d,                // final Correlation2d                             corr2d,
+									ml_hwidth,             // final int                                       ml_hwidth,
+						    		ml_data_inter,         // final double []                                 ml_center_corr,
+									tcorr_combo,           // double [][]                                     tcorr_combo,
+									notch_mode,            // final boolean                                   notch_mode,
+									tileX,                 // final int              tileX, // only used in debug output
+									tileY,                 // final int              tileY,
+									tile_lma_debug_level); // final int              debugLevel)
+
+							if (lt_corr != null) {
+								lt_corr[tIndex] = inter_cam_corr;
+							}
+
+
+							if (inter_corrs_dxy != null) {
+								disparity_bimap[BI_DISP_CROSS_INDEX][nTile] =    inter_corrs_dxy[INDEX_DISP];
+								disparity_bimap[BI_STR_CROSS_INDEX][nTile] =     inter_corrs_dxy[INDEX_STRENGTH];
+								disparity_bimap[BI_DISP_CROSS_DX_INDEX][nTile] = inter_corrs_dxy[INDEX_DX];
+								disparity_bimap[BI_DISP_CROSS_DY_INDEX][nTile] = inter_corrs_dxy[INDEX_DY];
+								// TODO: Use strength for the same residual disparity
+								disparity_bimap[BI_STR_ALL_INDEX][nTile] =
+										Math.pow(inter_corrs_dxy[INDEX_STRENGTH]*
+										disparity_bimap[BI_STR_FULL_INDEX][nTile]*
+										disparity_bimap[BI_ASTR_FULL_INDEX][nTile], 1.0/3);
+							}
+							// finalize ML stuff
+							if (ml_data != null) {
+								// save data for the main camera
+								for (int nlayer = 0; nlayer <  ML_TOP_AUX_INDEX; nlayer++) {
+									// save main camera data
+									corr2d.saveMlTile(
+								    		tileX,                     // int         tileX,
+								    		tileY,                     // int         tileY,
+								    		ml_hwidth,                 // int         ml_hwidth,
+								    		ml_data,                   // double [][] ml_data,
+								    		nlayer + 0,                // int         ml_layer,
+								    		ml_data_main[nlayer],      // double []   ml_tile,
+								    		tilesX);                   // int         tilesX);
+									// save aux_camera data
+									corr2d.saveMlTile(
+								    		tileX,                     // int         tileX,
+								    		tileY,                     // int         tileY,
+								    		ml_hwidth,                 // int         ml_hwidth,
+								    		ml_data,                   // double [][] ml_data,
+								    		nlayer + ML_TOP_AUX_INDEX, // int         ml_layer,
+								    		ml_data_aux[nlayer],       // double []   ml_tile,
+								    		tilesX);                   // int         tilesX);
+								}
+								// save inter-camera correlation
+								corr2d.saveMlTile(
+							    		tileX,                         // int         tileX,
+							    		tileY,                         // int         tileY,
+							    		ml_hwidth,                     // int         ml_hwidth,
+							    		ml_data,                       // double [][] ml_data,
+							    		ML_INTER_INDEX,                // int         ml_layer,
+							    		ml_data_inter,                 // double []   ml_tile,
+							    		tilesX);                       // int         tilesX);
+								// save other data (just 1 value)
+/*
+								corr2d.saveMlTile(
+							    		tileX,                         // int         tileX,
+							    		tileY,                         // int         tileY,
+							    		ml_hwidth,                     // int         ml_hwidth,
+							    		ml_data,                       // double [][] ml_data,
+							    		ML_OTHER_INDEX,                // int         ml_layer,
+							    		ml_data_other,                 // double []   ml_tile,
+							    		tilesX);                       // int         tilesX);
+*/
+								corr2d.saveMlTilePixel(
+							    		tileX,                         // int         tileX,
+							    		tileY,                         // int         tileY,
+							    		ml_hwidth,                     // int         ml_hwidth,
+							    		ml_data,                       // double [][] ml_data,
+							    		ML_OTHER_INDEX,                // int         ml_layer,
+							    		ML_OTHER_TARGET ,              // int         ml_index,
+							    		disparity_main,                // target disparitydouble      ml_value,
+							    		tilesX);                       // int         tilesX);
+
+								if (ml_data_dbg1 != null) {
+									tileInterCamCorrs(
+											false,             // final boolean                                   no_int_x0, // do not offset window to integer - used when averaging low textures to avoid "jumps" for very wide
+											clt_parameters,    // final EyesisCorrectionParameters.CLTParameters  clt_parameters,
+											fatzero,           // final double fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
+
+											corr2d,            // final Correlation2d                             corr2d,
+											clt_data_main,     // double [][][][]                                 clt_data_tile_main,
+											clt_data_main,     // double [][][][]                                 clt_data_tile_aux,
+											filter,            // final double []       							filter,
+											col_weights,       // final double []       							col_weights,
+											ml_hwidth,         // final int                                        ml_hwidth,
+											ml_data_dbg1,      // final double []                                 ml_center_corr,
+											null,              // double [][]                                     tcorr_combo,
+											false,             // final boolean                                   notch_mode,
+											tileX,                 // final int              tileX, // only used in debug output
+											tileY,                 // final int              tileY,
+											tile_lma_debug_level); // final int              debugLevel)
+									corr2d.saveMlTile(
+								    		tileX,                         // int         tileX,
+								    		tileY,                         // int         tileY,
+								    		ml_hwidth,                     // int         ml_hwidth,
+								    		ml_data,                       // double [][] ml_data,
+								    		ML_DBG1_INDEX,                 // int         ml_layer,
+								    		ml_data_dbg1,                  // double []   ml_tile,
+								    		tilesX);                       // int         tilesX);
+								}
+
+							}
+
+
+						} // if (disparity_map != null){ // not null - calculate correlations
+
+						if (tcorr_combo != null) { // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+							for (int i = 0; i < tcorr_combo.length; i++) {
+								clt_corr_combo[i][tileY][tileX] = tcorr_combo[i];
+							}
+						}
+
+						if (texture_tiles_main !=null) {
+							generateTextureTiles (
+									clt_parameters,        // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+									extra_disparity_main,  // final double           extra_disparity,
+									quad_main,                  // final int              quad,      // number of subcameras
+									numcol,                // final int              numcol, // number of colors
+									img_mask, // _main,         // int                    img_mask,
+									tile_op, // _main,          // final int [][]         tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+									clt_data_main,         // final double [][][][]  clt_data,
+									texture_tiles_main,    // final double [][][][]  texture_tiles,   // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
+									filter,                // final double []        filter,
+									lt_window2,            // final double []        lt_window2,
+									port_offsets,          // final double[][]       port_offsets,
+									col_weights,           // final double []        col_weights,
+									dtt,                   // final DttRad2          dtt,
+									tileX,                 // final int              tileX, // only used in debug output
+									tileY,                 // final int              tileY,
+									tile_lma_debug_level); // final int              debugLevel);
+						}
+						if (texture_tiles_aux !=null) {
+							generateTextureTiles (
+									clt_parameters,        // final EyesisCorrectionParameters.CLTParameters       clt_parameters,
+									extra_disparity_aux,   // final double           extra_disparity,
+									quad_aux,              // final int              quad,      // number of subcameras
+									numcol,                // final int              numcol, // number of colors
+									img_mask, // _aux,         // int                    img_mask,
+									tile_op, // _aux,          // final int [][]         tile_op,         // [tilesY][tilesX] - what to do - 0 - nothing for this tile
+									clt_data_aux,         // final double [][][][]  clt_data,
+									texture_tiles_aux,    // final double [][][][]  texture_tiles,   // [tilesY][tilesX]["RGBA".length()][];  null - will skip images combining
+									filter,                // final double []        filter,
+									lt_window2,            // final double []        lt_window2,
+									port_offsets,          // final double[][]       port_offsets,
+									col_weights,           // final double []        col_weights,
+									dtt,                   // final DttRad2          dtt,
+									tileX,                 // final int              tileX, // only used in debug output
+									tileY,                 // final int              tileY,
+									tile_lma_debug_level); // final int              debugLevel);
+						}
+						// Save channel tiles to result
+						if (clt_bidata != null) {
+							for (int i = 0; i < quad_main; i++) for (int j = 0; j < numcol; j++){
+								clt_bidata[0][i][j][tileY][tileX] = clt_data_main[i][j];
+							}
+							for (int i = 0; i < quad_aux; i++) for (int j = 0; j < numcol; j++){
+								clt_bidata[1][i][j][tileY][tileX] = clt_data_aux[i][j];
+							}
+						}
+					}
+				}
+			};
+		}
+		startAndJoin(threads);
+
+// If it was low-texture mode, 	use lt_corr to average bi-quad inter-correlation between neighbor tiles and then calculate disparity/strength
+		if (lt_corr != null) {
+			//notch_mode
+			// prepare weights for neighbors
+			final int lt_rad_x = notch_mode? 0: lt_rad;
+			final double [][] neib_weights = new double[lt_rad+1][lt_rad_x+1];
+			for (int i = 0; i <= lt_rad; i++) {
+				for (int j = 0; j <= lt_rad_x; j++) {
+					neib_weights[i][j] = Math.cos(Math.PI * i /(2 * lt_rad + 1)) * Math.cos(Math.PI * j /(2 * lt_rad + 1)); // no need to normalize - it will need to skip empty tiles anyway
+				}
+			}
+			//		final int corr_size = clt_parameters.transform_size * 2 -1;
+
+			final TileNeibs tnImage  = new TileNeibs(tilesX, tilesY);
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					@Override
+					public void run() {
+						double []    ml_data_inter = (ml_data != null)? new double [(2*ml_hwidth +1)*(2*ml_hwidth +1)]:null;
+						double [][]  tcorr_combo =     null; // [15*15] pixel space
+
+						Correlation2d corr2d = new Correlation2d(
+								clt_parameters.img_dtt,              // ImageDttParameters  imgdtt_params,
+								clt_parameters.transform_size,             // int transform_size,
+								2.0,                        //  double wndx_scale, // (wndy scale is always 1.0)
+								(globalDebugLevel > -1));   //   boolean debug)
+						for (int nTile = ai.getAndIncrement(); nTile < nTilesInChn; nTile = ai.getAndIncrement()) if (lt_corr[nTile] != null){ // center must be non-null (from tile_op)
+							int tileX = nTile % tilesX;
+							int tileY = nTile / tilesX;
+							double [] tile_corrs = new double [corr_size * corr_size];
+							double sw = 0.0;
+							for (int dy = -lt_rad; dy <= lt_rad; dy++) {
+								int ady = (dy > 0)? dy:(-dy);
+								for (int dx = -lt_rad_x; dx <= lt_rad_x; dx++) {
+									int nTile1 =  tnImage.getNeibIndex(nTile, dx, dy);
+									if (nTile1 >= 0) {
+										double [] ot_corr = lt_corr[nTile1];
+										if (ot_corr != null) {
+											int adx = (dx > 0)? dx:(-dx);
+											double nw = neib_weights[ady][adx];
+											for (int i = 0; i < tile_corrs.length; i++) {
+												tile_corrs[i] += nw * ot_corr[i];
+											}
+											sw+=nw;
+										}
+									}
+								}
+							}
+							if (sw > 0.0) { // with the current window should always be so, as te center tile is non-null
+								double s = 1.0/sw;
+								for (int i = 0; i < tile_corrs.length; i++) {
+									tile_corrs[i] *= s;
+								}
+								if (clt_corr_combo != null) { // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+									tcorr_combo = new double [TCORR_TITLES.length][corr_size * corr_size];
+								}
+								int tile_lma_debug_level =  ((tileX == debug_tileX) && (tileY == debug_tileY))? clt_parameters.img_dtt.lma_debug_level : -1;
+
+	  							double [] inter_corrs_dxy = tileInterCamCorrs(
+										true,                  // final boolean                                   no_int_x0, // do not offset window to integer - used when averaging low textures to avoid "jumps" for very wide
+										clt_parameters,        // final EyesisCorrectionParameters.CLTParameters  clt_parameters,
+										tile_corrs,            // final double []                                 inter_cam_corr,
+										corr2d,                // final Correlation2d                             corr2d,
+										ml_hwidth,             // final int                                       ml_hwidth,
+							    		ml_data_inter,         // final double []                                 ml_center_corr,
+										tcorr_combo,           // double [][]                                     tcorr_combo,
+										notch_mode,            // final boolean                                   notch_mode,
+										tileX,                 // final int              tileX, // only used in debug output
+										tileY,                 // final int              tileY,
+										tile_lma_debug_level); // final int              debugLevel)
+								if (inter_corrs_dxy != null) {
+									disparity_bimap[BI_DISP_CROSS_INDEX][nTile] =    inter_corrs_dxy[INDEX_DISP];
+									disparity_bimap[BI_STR_CROSS_INDEX][nTile] =     inter_corrs_dxy[INDEX_STRENGTH];
+									disparity_bimap[BI_DISP_CROSS_DX_INDEX][nTile] = inter_corrs_dxy[INDEX_DX];
+									disparity_bimap[BI_DISP_CROSS_DY_INDEX][nTile] = inter_corrs_dxy[INDEX_DY];
+									// TODO: Use strength for the same residual disparity
+									disparity_bimap[BI_STR_ALL_INDEX][nTile] =
+											Math.pow(inter_corrs_dxy[INDEX_STRENGTH]*
+											disparity_bimap[BI_STR_FULL_INDEX][nTile]*
+											disparity_bimap[BI_ASTR_FULL_INDEX][nTile], 1.0/3);
+								}
+								if (tcorr_combo != null) { // [type][tilesY][tilesX][(2*transform_size-1)*(2*transform_size-1)] // if null - will not calculate
+									for (int i = 0; i < tcorr_combo.length; i++) {
+										clt_corr_combo[i][tileY][tileX] = tcorr_combo[i];
+									}
+								}
+								if (ml_data != null) {
+									// save inter-camera correlation
+									corr2d.saveMlTile(
+											tileX,                         // int         tileX,
+											tileY,                         // int         tileY,
+											ml_hwidth,                     // int         ml_hwidth,
+											ml_data,                       // double [][] ml_data,
+											ML_INTER_INDEX,                // int         ml_layer,
+											ml_data_inter,                 // double []   ml_tile,
+											tilesX);                       // int         tilesX);
+								}
+								// TODO: save ml_data_inter, tcorr_combo
+							}
+						}
+					}
+				};
+			}
+			startAndJoin(threads);
+		}
+		return  clt_bidata;
+	}
+
 	public double [][][][][][][]  clt_bi_quad(
 			final EyesisCorrectionParameters.CLTParameters       clt_parameters,
 			final double              fatzero,         // May use correlation fat zero from 2 different parameters - fat_zero and rig.ml_fatzero
@@ -8366,7 +9152,6 @@ public class ImageDtt {
 		}
 		return  clt_bidata;
 	}
-
 
 	public void  clt_bi_macro( // not yet operational
 			final EyesisCorrectionParameters.CLTParameters       clt_parameters,

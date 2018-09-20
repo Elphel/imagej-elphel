@@ -117,7 +117,7 @@ public class GPUTileProcessor {
         copyH2D.WidthInBytes =    width_in_bytes;
         copyH2D.Height =          height; // /4;
 
-// for copying results back to host
+// for copying results to host
         CUDA_MEMCPY2D copyD2H =   new CUDA_MEMCPY2D();
         copyD2H.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
         copyD2H.srcDevice =       dst_dpointer; // ((test & 1) ==0) ? src_dpointer : dst_dpointer; // copy same data
@@ -130,8 +130,7 @@ public class GPUTileProcessor {
         copyD2H.WidthInBytes =    width_in_bytes;
         copyD2H.Height =          height; // /2;
 
-        // Set up the kernel parameters: A pointer to an array
-        // of pointers which point to the actual values.
+        // kernel parameters: pointer to pointers
         Pointer kernelParameters = Pointer.to(
             Pointer.to(dst_dpointer),
             Pointer.to(src_dpointer),
@@ -152,16 +151,16 @@ public class GPUTileProcessor {
     			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
     			kernelParameters, null);   // Kernel- and extra parameters
 
-        // Copy the data from the device back to the host
+        // Copy the data from the device to the host
         cuMemcpy2D(copyD2H);
         // clean up
         cuMemFree(src_dpointer);
         cuMemFree(dst_dpointer);
     }
 
-    public int setup() throws IOException // String arg, ImagePlus imagePlus)
+    public int setup() throws IOException
     {
-
+    	// From code by Marco Hutter - http://www.jcuda.org
         // Enable exceptions and omit all subsequent error checks
         JCudaDriver.setExceptionsEnabled(true);
         JNvrtc.setExceptionsEnabled(true);
@@ -174,7 +173,9 @@ public class GPUTileProcessor {
         cuCtxCreate(context, 0, device);
 
         // Obtain the CUDA source code from the CUDA file
-
+        // Get absolute path to the file in resource foldder, then read it as a normal file.
+        // When using just Eclipse resources - it does not notice that the file
+        // was edited (happens frequently during kernel development).
         ClassLoader classLoader = getClass().getClassLoader();
         File file = new File(classLoader.getResource(GPU_KERNEL_FILE).getFile());
         System.out.println(file.getAbsolutePath());
@@ -196,9 +197,7 @@ public class GPUTileProcessor {
     }
 
     /**
-     * Create the CUDA function object for the kernel function with the
-     * given name that is contained in the given source code
-     *
+     * Create the kernel function by its name in the  source code
      * @param sourceCode The source code
      * @param kernelName The kernel function name
      * @return
