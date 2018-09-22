@@ -3,20 +3,17 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import org.tensorflow.Graph;
-import org.tensorflow.Session;
-import org.tensorflow.Tensor;
-import org.tensorflow.Tensors;
-import org.tensorflow.TensorFlow;
-import org.tensorflow.SavedModelBundle;
-import org.tensorflow.OperationBuilder;
-import org.tensorflow.Shape;
-import org.tensorflow.Output;
-import org.tensorflow.Operation;
-
+import java.nio.FloatBuffer;
+import java.nio.IntBuffer;
 import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+
+import org.tensorflow.SavedModelBundle;
+import org.tensorflow.Tensor;
+
+import ij.IJ;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.WindowManager;
 
 /**
 
@@ -48,222 +45,296 @@ Sessions and Tensors
 
 */
 
-public class TensorflowExamplePlugin
+public class TensorflowInferModel
 {
 
-    public final static String EXPORTDIR = "/home/oleg/GIT/python3-imagej-tiff/data_sets/tf_data_5x5_main_13_heur/exportdir";
-    // tf.saved_model.tag_constants.SERVING = "serve"
-    public final static String SERVING = "serve";
-    
+    final static String TRAINED_MODEL = "trained_model"; // /home/oleg/GIT/python3-imagej-tiff/data_sets/tf_data_5x5_main_13_heur/exportdir";
+    final static String SERVING = "serve";
+    final int         tilesX, tilesY, num_tiles, num_layers;
+    final int         corr_side, corr_side2;
+//    final long []     shape_corr2d;
+//    final long []     shape_target_disparity;
+//    final long []     shape_tiles_stage1;
+//    final long []     shape_tiles_stage2;
+    final FloatBuffer fb_corr2d;
+    final FloatBuffer fb_target_disparity;
+    final IntBuffer   fb_tiles_stage1;
+    final IntBuffer   fb_tiles_stage2;
+    final FloatBuffer fb_predicted;
 
-    public static void run()
+/*
+long[] shape = new long[] {batch, imageSize};
+ */
+//    public
+    final SavedModelBundle bundle;
+
+    public TensorflowInferModel(int tilesX, int tilesY, int corr_side, int num_layers)
     {
-        System.out.println("TensorflowExamplePlugin run");
-        try {
-            main();
-        } catch (Exception e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
+    	this.tilesX = tilesX;
+    	this.tilesY = tilesY;
+    	this.num_tiles = tilesX*tilesY;
+    	this.num_layers = num_layers;
+    	this.corr_side = corr_side;
+    	this.corr_side2 = corr_side * corr_side;
+    	// allocate buffers to be used for tensors
+    	this.fb_corr2d =           FloatBuffer.allocate(num_tiles * corr_side2*num_layers);
+    	this.fb_target_disparity = FloatBuffer.allocate(num_tiles );
+    	this.fb_tiles_stage1 =     IntBuffer.allocate(num_tiles );
+    	this.fb_tiles_stage2 =     IntBuffer.allocate(num_tiles );
+    	this.fb_predicted =        FloatBuffer.allocate(num_tiles );
+
+    	String abs_model_path = getClass().getClassLoader().getResource(TRAINED_MODEL).getFile();
+        System.out.println("TensorflowInferModel model path: "+abs_model_path);
+        // this will load graph/data and open a session that does not need to be closed until the program is closed
+////        bundle = null;
+        bundle = SavedModelBundle.load(abs_model_path,SERVING);
+
+//    	Operation opr = bundle.graph().operation("rv_stage1_out");
     }
 
-    /** 
-     * From https://github.com/DIVSIO/tensorflow_java_cli_example/blob/master/src/main/java/divisio/example/tensorflow/cli/RunRegression.java
-     */
-    
-	/**
-	 * wraps a single float in a tensor
-	 * @param f the float to wrap
-	 * @return a tensor containing the float
-	 */
-	private static Tensor<Float> toTensor(final float f, final Collection<Tensor<?>> tensorsToClose) {
-		final Tensor<Float> t = Tensors.create(f);
-		if (tensorsToClose != null) {
-			tensorsToClose.add(t);
-		}
-		return t;
+
+	public void run_stage1(
+			 FloatBuffer fb_corr2d,
+			 FloatBuffer fb_target_disparity,
+			 IntBuffer   fb_tiles_stage1)
+	{
+	    int ntiles = fb_tiles_stage1.limit(); // actual number of entries
+	    long []     shape_corr2d =           new long [] {ntiles, corr_side2*num_layers};
+	    long []     shape_target_disparity = new long [] {ntiles, 1};
+	    long []     shape_tiles_stage1 =     new long [] {ntiles};
+
+		final Tensor<Float>   t_corr2d =         Tensor.create(shape_corr2d,           fb_corr2d);
+		final Tensor<Float>   target_disparity = Tensor.create(shape_target_disparity, fb_target_disparity);
+		final Tensor<Integer> t_tiles_stage1 =   Tensor.create(shape_tiles_stage1,fb_tiles_stage1);
+
+		// this run does not output any data, but maybe it should still be captured and disposed of?
+		final Tensor<?> t_result_stage1 = bundle.session().runner()
+        .feed("ph_corr2d",           t_corr2d)
+        .feed("ph_target_disparity", target_disparity)
+        .feed("ph_ntile",            t_tiles_stage1)
+        .fetch("Disparity_net/stage1done:0")
+        .run()
+        .get(0);
+
+		t_result_stage1.  close();
+		t_corr2d.         close();
+    	target_disparity. close();
+    	t_tiles_stage1.   close();
 	}
 
-	private static Tensor<Float> toTensor2DFloat(final float [][] f, final Collection<Tensor<?>> tensorsToClose) {
-		final Tensor<Float> t = Tensors.create(f);
-		if (tensorsToClose != null) {
-			tensorsToClose.add(t);
-		}
-		return t;
+	public void run_stage2(
+			 IntBuffer   fb_tiles_stage2,
+			 FloatBuffer fb_disparity) {
+	    int ntiles = fb_tiles_stage2.limit(); // actual number of entries
+	    long []     shape_tiles_stage2 =         new long [] {ntiles};
+		final Tensor<Integer> t_tiles_stage2 =   Tensor.create(shape_tiles_stage2, fb_tiles_stage2);
+    	final Tensor<?> t_result_disparity = bundle.session().runner()
+                .feed("ph_ntile_out",t_tiles_stage2)
+                .fetch("Disparity_net/stage2_out_sparse:0")
+                .run()
+                .get(0);
+    	fb_disparity.rewind();
+    	t_result_disparity.writeTo(fb_disparity);
+
+    	t_result_disparity. close();
+    	t_tiles_stage2.     close();
 	}
-	
-	private static Tensor<Integer> toTensor1DInt(final int [] f, final Collection<Tensor<?>> tensorsToClose) {
-		final Tensor<Integer> t = Tensors.create(f);
-		if (tensorsToClose != null) {
-			tensorsToClose.add(t);
-		}
-		return t;
-	}
-	
-	private static void closeTensors(final Collection<Tensor<?>> ts) {		
-		for (final Tensor<?> t : ts) {
-			try {
-				t.close();
-			} catch (final Exception e) {
-				System.err.println("Error closing Tensor.");
-				e.printStackTrace();
+
+
+    //**************************
+    // helper class to prepare TileProcessor task
+	class TfInTile{
+		float [] corr2d;
+		float target_disparity;
+		float gt_disparity;
+		float gt_strength;
+		int   tile;
+		public void setFromCorr2d(
+				float [][] data,
+				int  tileX,
+				int  tileY,
+				int  corr_side,
+				int  tilesX
+				) {
+			int corr_side2 = corr_side*corr_side;
+			int layers = data.length -1;
+			this.corr2d = new float [layers * corr_side2];
+			float [] other = new float [corr_side2];
+
+			int width = tilesX * corr_side;
+			int tl = tileY * corr_side * width + tileX * corr_side; // index to the
+			for (int nl = 0; nl <= layers; nl++) {
+				if (nl < layers) {
+					for (int row = 0; row < corr_side; row++) {
+						System.arraycopy(data[nl], tl+width*row, corr2d, nl*corr_side2 + row*corr_side, corr_side);
+					}
+				} else {
+					for (int row = 0; row < corr_side; row++) {
+						System.arraycopy(data[layers], tl+width*row, other, row*corr_side, corr_side);
+					}
+					this.target_disparity = other[ImageDtt.ML_OTHER_TARGET];
+					this.gt_disparity =     other[ImageDtt.ML_OTHER_GTRUTH];
+					this.gt_strength =      other[ImageDtt.ML_OTHER_GTRUTH_STRENGTH];
+				}
 			}
+			if (Float.isNaN(this.target_disparity)) {
+				corr2d = new float[corr2d.length]; // zero them all
+			}
+			this.tile = tileY*tilesX + tileX;
+
 		}
-		ts.clear();
+//System.arraycopy(sym_conv, 0, tile_in, 0, n2*n2)
+
 	}
-	
-	
-	
-    public static void main() throws Exception {
+	public int test_tensorflow(
+			boolean keep_empty) {
 
-        final Graph smpb;
+		int dbgX = 162;
+		int dbgY = 121;
+//		int dbgT = tilesX ^ dbgY + dbgX;
 
-        // init for variable?
-        float [][] rv_stage1_out = new float[78408][32];
-        
-        // from infer_qcds_01.py
-        float [][] img_corr2d = new float[78408][324];
-        float [][] img_target = new float[78408][  1];
-        int     [] img_ntile  = new   int[78408];
-        
-        // init ntile for testing?
-        for(int i=0;i<img_ntile.length;i++){
-        	img_ntile[i] = i;
-        }
-        
-        final SavedModelBundle bundle = SavedModelBundle.load(EXPORTDIR,SERVING); 
-        
-        final List<Tensor<?>> tensorsToClose = new ArrayList<Tensor<?>>(5);
-        
-        System.out.println("OK");
-        
-        try {
-        	
-        	System.out.println("S0:");
-        	// read Variable info test
-        	Operation opr = bundle.graph().operation("rv_stage1_out");
-        	System.out.println(opr.toString());
-        	
-        	System.out.println("S1:");
+		int corr_side = 9;
+		String [] slices = {"hor-pairs","vert-pairs","diagm-pair","vert-pairs","other"};
+    	ImagePlus imp_src = WindowManager.getCurrentImage();
+    	if (imp_src==null){
+    		IJ.showMessage("Error","2D Correlation image stack required");
+    		return -1;
+    	}
+    	ImageStack corr_stack = imp_src.getStack();
+    	String [] labels =  corr_stack.getSliceLabels();
+//    	for (int ii = 0; ii < labels.length; ii++) {
+//    		System.out.println(ii+": "+labels[ii]);
+//    	}
+    	int tilesX= corr_stack.getWidth()  /  corr_side;
+    	int tilesY= corr_stack.getHeight() /  corr_side;
 
-        	//opr = bundle.graph().operation("rv_stageY_out");
-        	//System.out.println(opr.toString());
-        	
-        	// init variable via constant?
-        	//Tensor<Float> tsr = toTensor2DFloat(rv_stage1_out, tensorsToClose);
-        	/*
-        	Output builder_init = bundle.graph()
-        			                    .opBuilder("Const", "rv_stage1_out_init")
-        			                    .setAttr  ("dtype", tsr.dataType())
-        			                    .setAttr  ("value", tsr)
-        			                    .build()
-        			                    .output(0);
-        	*/
-        	//System.out.println(builder_init);
-        	
-        	// variable
-        	//OperationBuilder builder2 = bundle.graph().opBuilder("Variable", "rv_stage1_out_extra_variable");
-        											  //.addInput(builder_init);
-        	
-        	//builder2.
-        	//bundle.graph().opBuilder("Assign", "Assign/" + builder2.op().name()).addInput(variable).addInput(value).build().output(0);
-        	
-        	//Tensor<Float> tensorVal = tsr;
-        	//Output oValue = bundle.graph().opBuilder("Const", "rv_stage1_out_2").setAttr("dtype", tensorVal.dataType()).setAttr("value", tensorVal).build().output(0);
-        	//System.out.println(oValue);
-        	//Output oValue = bundle.graph().opBuilder("Variable", "rv_stage1_out").setAttr("value", tensorVal).build().output(0);
-        	//bundle.graph().opBuilder("Assign", "Assign/rv_stage1_out").setAttr("value", tsr).build();
-        	
-        	System.out.println("Stage 0.1");
-        	//bundle.session().runner().fetch("rv_stageY_out").run();
-        	System.out.println("Stage 0.2");
-        	bundle.session().runner().fetch("rv_stage1_out").run();
-        	System.out.println("Stage 1");
-        	
-        	// stage 1        	
-        	bundle.session().runner()
-	                  .feed("ph_corr2d",toTensor2DFloat(img_corr2d, tensorsToClose))
-	                  .feed("ph_target_disparity",toTensor2DFloat(img_target, tensorsToClose))
-	                  .feed("ph_ntile",toTensor1DInt(img_ntile, tensorsToClose))
-	                  .fetch("Disparity_net/stage1done:0")
-	                  .run()
-	                  .get(0);
-        	
-        	System.out.println("Stage 1 DONE");
-        	
-        	System.out.println("Stage 2");
-        	
-        	// stage 2
-        	final Tensor<?> result = bundle.session().runner()
-	                  .feed("ph_ntile_out",toTensor1DInt(img_ntile, tensorsToClose))
-	                  .fetch("Disparity_net/stage2_out_sparse:0")
-	                  .run()
-	                  .get(0);
-        	
-        	System.out.println("Stage 2 DONE: "+result.shape());
-        	
-        	tensorsToClose.add(result);
-        	
-        	System.out.println("Copy result to variable");
-        	float [][] resultValues = (float[][]) result.copyTo(new float[78408][1]);
-        	
-        	System.out.println("DONE");
-        	
-        //} catch (final IllegalStateException ise) {
-        //	System.out.println("Very Bad Error (VBE): "+ise);
-        //	closeTensors(tensorsToClose);
-        } catch (final NumberFormatException nfe) {
-			//just skip unparsable lines ?!
-		} finally {
-			closeTensors(tensorsToClose);
-		}
-        
-        //try (){
-            
-            //smpb = b.graph();
-           
-            //Session sess = b.session();
-            //System.out.println(b.metaGraphDef());
-            
-            //final List<String> labels = tensorFlowService.loadLabels(source,
-    		//		MODEL_NAME, "imagenet_comp_graph_label_strings.txt");
-            //System.out.println("Loaded graph and " + labels.size() + " labels");
-            
-            //output = sess.runner().feed(o, t).fetch().run().get(0).copyTo()
-            
-            /*
-            try (
-            	final Session s = new Session(g);
-        			@SuppressWarnings("unchecked")
-        			final Tensor<Float> result = (Tensor<Float>) s.runner().feed("input", image)//
-        				.fetch("output").run().get(0)
-        		){
-            	...
-            }
-            */
-            
-        //}
+    	float [][] corr_data = new float [slices.length][];
+    	for (int nslice = 0; nslice < slices.length; nslice++ ) {
+    		int ns = -1;
+    		for (int i = 0; i < labels.length; i++) {
+    			if (slices[nslice].equals(labels[i])) {
+    				ns = i;
+    				break;
+    			}
+    		}
+    		if (ns < 0) {
+    			System.out.println("Slice "+slices[nslice]+" is not found in the image");
+    			return -1;
+    		} else {
+    			corr_data[nslice] = (float[]) corr_stack.getPixels(ns + 1) ;
+    		}
+    	}
+    	ArrayList<TfInTile> tf_tiles = new ArrayList<TfInTile>();
+    	for (int tileY = 0; tileY < tilesY; tileY++) {
+    		for (int tileX = 0; tileX < tilesX; tileX++) {
+    			if ((tileY==dbgY) && (tileX==dbgX)) {
+    				System.out.println("tileY = "+tileY+", tileX = "+tileX+" tile = "+(tileY*tilesX + tileX));
+    			}
+    			TfInTile tf_tile = new TfInTile();
+    			tf_tile.setFromCorr2d(
+    					corr_data, // float [][] data,
+    					tileX,     // int  tileX,
+    					tileY,     // int  tileY,
+    					corr_side, // int  corr_side,
+    					tilesX);   // int  tilesX
+    			if (keep_empty || !Float.isNaN(tf_tile.target_disparity)) {
+//    				if (Float.isNaN(tf_tile.target_disparity)) {
+//    					tf_tile.target_disparity = 0.0f;
+//    					tf_tile.gt_strength =      0.0f;
+//    				}
+    				tf_tiles.add(tf_tile);
+    			}
+    		}
+    	}
 
-        try (Graph g = new Graph()) {
-            final String value = "Hello from " + TensorFlow.version();
+    	// sets the limit to the capacity and the position to zero.
+    	fb_corr2d.clear();
+    	fb_target_disparity.clear();
+    	fb_tiles_stage1.clear();
+    	fb_tiles_stage2.clear();
+    	for (int i = 0; i < tf_tiles.size(); i++) {
+    		TfInTile tf_tile = tf_tiles.get(i);
+    		fb_corr2d.put          (tf_tile.corr2d);
+    		float td = tf_tile.target_disparity;
+    		if (Float.isNaN(td)) td = 0.0f;
+    		fb_target_disparity.put(i, td);
+    		fb_tiles_stage1.put(tf_tile.tile);
+    		fb_tiles_stage2.put(tf_tile.tile);
+    	}
+//    	fb_target_disparity.limit(tf_tiles.size()); // put float absolute does not movew the pointer
+    	fb_target_disparity.position(tf_tiles.size()); // put float absolute does not movew the pointer
+    	fb_tiles_stage1.    position(tf_tiles.size()); // put float absolute does not movew the pointer
+    	fb_tiles_stage2.    position(tf_tiles.size()); // put float absolute does not movew the pointer
+    	//sets the limit to the current position and then sets the position to zero.
+    	fb_corr2d.          flip();
+    	fb_target_disparity.flip();
+    	fb_tiles_stage1.    flip();
+    	fb_tiles_stage2.    flip();
+    	String [] titles = {"predicted", "target", "gt_disparity", "gt_strength", "nn_out", "nn_error","abs_err","abs_heur","clean_nn"};
+    	fb_predicted.rewind(); // not needed for absolute get();
+    	float [][] result = new float [titles.length][tilesX*tilesY];
+/*
+    	for (int i = 0; i < tf_tiles.size(); i++) {
+    		TfInTile tf_tile = tf_tiles.get(i);
+//    		result[0][i] = tf_tile.target_disparity + fb_predicted.get(i);
+    		result[1][i] = tf_tile.target_disparity;
+    		result[2][i] = tf_tile.gt_disparity;
+    		result[3][i] = tf_tile.gt_strength;
+    	}
 
-            // Construct the computation graph with a single operation, a constant
-            // named "MyConst" with a value "value".
-            try (Tensor t = Tensor.create(value.getBytes("UTF-8"))) {
-              // The Java API doesn't yet include convenience functions for adding operations.
-              g.opBuilder("Const", "MyConst").setAttr("dtype", t.dataType()).setAttr("value", t).build();
-            }
+		(new showDoubleFloatArrays()).showArrays(
+				result,
+				tilesX,
+				tilesY,
+				true,
+				"NN_disparity-pre",
+				titles);
+*/
 
-            // Execute the "MyConst" operation in a Session.
-            try (Session s = new Session(g);
-                // Generally, there may be multiple output tensors, all of them must be closed to prevent resource leaks.
-                Tensor output = s.runner().fetch("MyConst").run().get(0)) {
-                    System.out.println(new String(output.bytesValue(), "UTF-8"));
-                    s.close();
-                    output.close();
-            }
-        }
-    }
+
+//if (corr_side > 0) return 0; // always
+    	run_stage1(
+    			fb_corr2d,           // FloatBuffer fb_corr2d,
+    			fb_target_disparity, // FloatBuffer fb_target_disparity,
+    			fb_tiles_stage1);    // IntBuffer   fb_tiles_stage1);
+    	run_stage2(
+    			fb_tiles_stage2, // IntBuffer   fb_tiles_stage2,
+    			fb_predicted); // FloatBuffer fb_disparity)
+
+
+    	if (!keep_empty) {
+    		for (int i =0; i < result[0].length; i++) {
+    			result[0][i]=Float.NaN;
+    			result[1][i]=Float.NaN;
+    			result[2][i]=Float.NaN;
+    		}
+    	}
+
+    	fb_predicted.rewind(); // not needed for absolute get();
+    	for (int i = 0; i < tf_tiles.size(); i++) {
+    		TfInTile tf_tile = tf_tiles.get(i);
+    		result[0][i] = tf_tile.target_disparity + fb_predicted.get(i);
+    		result[1][i] = tf_tile.target_disparity;
+    		result[2][i] = tf_tile.gt_disparity;
+    		result[3][i] = tf_tile.gt_strength;
+    		result[4][i] = fb_predicted.get(i);
+    		result[5][i] = (result[3][i] > 0)?(result[0][i]-result[2][i]):Float.NaN;
+    		result[6][i] = (result[3][i] > 0)?Math.abs(result[5][i]):Float.NaN;
+    		result[7][i] = (result[3][i] > 0)?Math.abs(result[1][i] - result[2][i]):Float.NaN;
+    		result[8][i] = (result[3][i] > 0)?result[0][i]:Float.NaN;
+
+    	}
+		(new showDoubleFloatArrays()).showArrays(
+				result,
+				tilesX,
+				tilesY,
+				true,
+				"NN_disparity",
+				titles);
+
+    	return 0;
+	}
+
 
 }
 

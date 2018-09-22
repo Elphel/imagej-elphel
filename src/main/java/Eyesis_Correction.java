@@ -387,6 +387,7 @@ private Panel panel1,
    public PixelMapping.InterSensor.DisparityTiles DISPARITY_TILES=null;
    public ImagePlus DBG_IMP = null;
    public ImagePlus CORRELATE_IMP = null;
+   public TensorflowInferModel TENSORFLOW_INFER_MODEL = null;
 
 	public class SyncCommand{
 	    public boolean isRunning=      false;
@@ -4754,18 +4755,21 @@ private Panel panel1,
     	return;
 /* ======================================================================== */
     } else if (label.equals("TF TEST")) {
-
-    	// link 1 (general): https://www.tensorflow.org/api_docs/java/reference/org/tensorflow/package-summary
-    	// link 2 (example of an TF & IJ plugin): https://github.com/google/microscopeimagequality/blob/main/microscopeimagequality/data/imagej/src/main/java/MicroscopeImageFocusQualityClassifier.java
-
-    	TensorflowExamplePlugin t = new TensorflowExamplePlugin();
-    	t.run();
-
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+        boolean keep_empty = true;
+    	if (TENSORFLOW_INFER_MODEL == null) {
+    		TENSORFLOW_INFER_MODEL = new TensorflowInferModel(
+    				   324, // int tilesX,
+    				   242, // int tilesY,
+    				     9, // int corr_side,
+    				     4  //int num_layers
+    				);
+    	}
+    	TENSORFLOW_INFER_MODEL.test_tensorflow(keep_empty);
     	return;
 //JTabbedTest
 // End of buttons code
     }
-    DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
   }
 
 	public String getSaveCongigPath() {
