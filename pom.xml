@@ -57,6 +57,11 @@
                 <artifactId>libtensorflow_jni_gpu</artifactId>
                 <version>1.10.0</version>
             </dependency>
+			<dependency>
+			    <groupId>org.apache.ant</groupId>
+			    <artifactId>ant-compress</artifactId>
+			    <version>1.5</version>
+			</dependency>
             <dependency>
                 <groupId>commons-configuration</groupId>
                 <artifactId>commons-configuration</artifactId>
