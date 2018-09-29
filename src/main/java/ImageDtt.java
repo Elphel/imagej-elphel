@@ -4672,7 +4672,8 @@ public class ImageDtt {
 			int []              overexp_all ) // {number of overexposed,  number of all tiles} or null
 
 	{
-		boolean debug_fpga = debugLevel < -9;
+//		boolean debug_fpga = debugLevel < -9;
+		boolean debug_fpga = (debugLevel < -9) || (debugLevel == 2);
 		if (debug_fpga) debugLevel = 1;
 
 		boolean use_kernels = (clt_kernels != null) && !dbg_no_deconvolution;

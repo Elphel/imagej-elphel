@@ -26,6 +26,10 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.Channels;
+import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
@@ -919,6 +923,111 @@ public class TwoQuadCLT {
 				String offs_path = file_prefix+"_chn"+chn+(transpose?"_transposed":"")+".kernel_offsets";
 				FileOutputStream fos = new FileOutputStream(kern_path);
 				DataOutputStream dos = new DataOutputStream(fos);
+				WritableByteChannel channel = Channels.newChannel(dos);
+				int float_buffer_size = clt_kernels[chn].length * clt_kernels[chn][0].length* clt_kernels[chn][0][0].length * 4 * 64;
+				ByteBuffer bb = ByteBuffer.allocate(float_buffer_size * 4);
+				bb.order(ByteOrder.LITTLE_ENDIAN);
+				bb.clear();
+				for (int ty = 0; ty <  clt_kernels[chn][0].length; ty++) {
+					for (int tx = 0; tx <  clt_kernels[chn][0][ty].length; tx++) {
+						for (int col = 0; col <  clt_kernels[chn].length; col++) {
+							for (int p = 0; p < 4; p++) {
+								double [] pa = clt_kernels[chn][col][ty][tx][p];
+								for (int i0 = 0; i0 < 64; i0++) {
+									int i;
+									if (transpose) {
+										i = ((i0 & 7) << 3) + ((i0 >>3) & 7);
+									} else {
+										i = i0;
+									}
+//									dos.writeFloat((float)pa[i]);
+									bb.putFloat((float)pa[i]);
+								}
+							}
+						}
+					}
+				}
+				bb.flip();
+				channel.write(bb);
+				dos.close();
+
+				fos = new FileOutputStream(offs_path);
+				dos = new DataOutputStream(fos);
+				channel = Channels.newChannel(dos);
+				float_buffer_size = clt_kernels[chn][0].length * clt_kernels[chn][0].length* clt_kernels[chn][0][0].length * 4 * clt_kernels[chn][0][0][0][4].length;
+				bb = ByteBuffer.allocate(float_buffer_size * 4);
+				bb.order(ByteOrder.LITTLE_ENDIAN);
+				bb.clear();
+				for (int ty = 0; ty <  clt_kernels[chn][0].length; ty++) {
+					for (int tx = 0; tx <  clt_kernels[chn][0][ty].length; tx++) {
+						for (int col = 0; col <  clt_kernels[chn].length; col++) {
+							double [] pa = clt_kernels[chn][col][ty][tx][4];
+							for (int i = 0; i < pa.length; i++) {
+//								dos.writeFloat((float)pa[i]);
+								bb.putFloat((float)pa[i]);
+							}
+						}
+					}
+				}
+				bb.flip();
+				channel.write(bb);
+				dos.close();
+			}
+		}
+
+		if (image_data != null) {
+			for (int chn = 0; chn < image_data.length; chn++) {
+				String img_path =  file_prefix+"_chn"+chn+".bayer";
+				FileOutputStream fos = new FileOutputStream(img_path);
+				DataOutputStream dos = new DataOutputStream(fos);
+				WritableByteChannel channel = Channels.newChannel(dos);
+				ByteBuffer bb = ByteBuffer.allocate(image_data[chn][0].length * 4);
+				bb.order(ByteOrder.LITTLE_ENDIAN);
+				bb.clear();
+				for (int i = 0; i <  image_data[chn][0].length; i++) {
+//					dos.writeFloat((float) (image_data[chn][0][i] + image_data[chn][1][i] + image_data[chn][2][i]));
+					bb.putFloat((float) (image_data[chn][0][i] + image_data[chn][1][i] + image_data[chn][2][i]));
+				}
+				bb.flip();
+				channel.write(bb);
+				dos.close();
+			}
+		}
+		if (port_xy != null) {
+			for (int chn = 0; chn < port_xy[0].length; chn++) {
+				String img_path =  file_prefix+"_chn"+chn+".portsxy";
+				FileOutputStream fos = new FileOutputStream(img_path);
+				DataOutputStream dos = new DataOutputStream(fos);
+				WritableByteChannel channel = Channels.newChannel(dos);
+				ByteBuffer bb = ByteBuffer.allocate(port_xy.length * 2 * 4);
+				bb.order(ByteOrder.LITTLE_ENDIAN);
+				bb.clear();
+				for (int i = 0; i <  port_xy.length; i++) {
+//					dos.writeFloat((float) (port_xy[i][chn][0])); // x-offset
+//					dos.writeFloat((float) (port_xy[i][chn][1])); // y-offset
+					bb.putFloat((float) (port_xy[i][chn][0])); // x-offset
+					bb.putFloat((float) (port_xy[i][chn][1])); // y-offset
+				}
+				bb.flip();
+				channel.write(bb);
+				dos.close();
+			}
+		}
+	}
+
+
+
+	public void saveFloatKernelsBigEndian(String file_prefix,
+			double [][][][][][] clt_kernels,
+			double [][][]       image_data,
+			double [][][]       port_xy,
+			boolean transpose) throws IOException {
+		if (clt_kernels != null) {
+			for (int chn = 0; chn < clt_kernels.length; chn++) {
+				String kern_path = file_prefix+"_chn"+chn+(transpose?"_transposed":"")+".kernel";
+				String offs_path = file_prefix+"_chn"+chn+(transpose?"_transposed":"")+".kernel_offsets";
+				FileOutputStream fos = new FileOutputStream(kern_path);
+				DataOutputStream dos = new DataOutputStream(fos);
 				for (int ty = 0; ty <  clt_kernels[chn][0].length; ty++) {
 					for (int tx = 0; tx <  clt_kernels[chn][0][ty].length; tx++) {
 						for (int col = 0; col <  clt_kernels[chn].length; col++) {
@@ -982,6 +1091,7 @@ public class TwoQuadCLT {
 		}
 
 	}
+
 
 	public ImagePlus [] processCLTQuadCorrPairGpu(
 			GPUTileProcessor                               gPUTileProcessor,
@@ -1091,8 +1201,10 @@ public class TwoQuadCLT {
 				dst_bayer[nc][i]= nc*main_bayer[nc].length + i;
 			}
 		}
+/*
 		int iwidth = imp_quad_main[0].getWidth();
 		String [] dbg_titles= {"src0","dst0","src1","dst1","src2","dst2","src3","dst3"};
+
 		for (int nc = 0; nc < main_bayer.length; nc++) {
 			gPUTileProcessor.exec_dtt24(
 					main_bayer[nc], // float src_pixels[],
@@ -1109,7 +1221,7 @@ public class TwoQuadCLT {
 				"converted",
 				dbg_titles);
 
-
+*/
 		double [][][]       port_xy_main_dbg = new double [tilesX*tilesY][][];
 		double [][][]       port_xy_aux_dbg = new double [tilesX*tilesY][][];
 
@@ -1149,8 +1261,13 @@ public class TwoQuadCLT {
 						port_xy_main_dbg,                     // final double [][][]       port_xy_main_dbg, // for each tile/port save x,y pixel coordinates (gpu code development)
 						port_xy_aux_dbg);                     // final double [][][]       port_xy_aux_dbg) // for each tile/port save x,y pixel coordinates (gpu code development)
 
+		if (debugLevel < -1000) {
+			return null;
+		}
+
 		String kernel_dir = "/home/eyesis/workspace-python3/nvidia_dct8x8/clt/";
-		boolean [][] what_to_save = {{false,false,true}, {false,false,true}};
+//		boolean [][] what_to_save = {{false,false,true}, {false,false,true}};
+		boolean [][] what_to_save = {{true,true,true}, {true,true,true}};
 		try {
 			saveFloatKernels(
 					kernel_dir +"main", // String file_prefix,
