@@ -39,20 +39,17 @@
 
 #pragma once
 #include "dtt8x8.cuh"
-// Using 1 tile per block with 32 threads per tile.
-// some subtasks use 8 threads per 2d DTT
-//#define TILES_PER_BLOCK    1
+// Not enough shared memory to have more threads per block,even just for the result clt tiles
+#define TILES_PER_BLOCK    2
 #define THREADS_PER_TILE  32
 #define IMG_WIDTH       2592
 #define IMG_HEIGHT      1936
 #define NUM_CAMS           4
 #define NUM_COLORS         3
-//#define KERNELS_STEP      16
 #define KERNELS_LSTEP      4
 #define KERNELS_HOR      164
 #define KERNELS_VERT     123
 #define IMAGE_TILE_SIDE  18
-//#define KERNEL_OFFSETS  8
 #define KERNELS_STEP  (1 << KERNELS_LSTEP)
 #define TILESX        (IMG_WIDTH / DTT_SIZE)
 #define TILESY        (IMG_HEIGHT / DTT_SIZE)
@@ -219,7 +216,10 @@ __device__ void convertCorrectTile(
 		float clt_kernels     [NUM_COLORS][4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
 		//		float bayer_tiles  [IMAGE_TILE_SIDE][IMAGE_TILE_SIDE],
 		int   int_topleft    [NUM_COLORS][2],
-		float residual_shift [NUM_COLORS][2]);
+		float residual_shift [NUM_COLORS][2],
+	    float window_hor_cos  [NUM_COLORS][2*DTT_SIZE],
+	    float window_hor_sin  [NUM_COLORS][2*DTT_SIZE],
+	    float window_vert_cos [NUM_COLORS][2*DTT_SIZE]);
 
 // Fractional pixel shift (phase rotation), horizontal. In-place.
 __device__ void shiftTileHor(
@@ -250,28 +250,29 @@ __global__ void tileProcessor(
 //    struct CltExtra * dbg_ce_h1= &gpu_kernel_offsets[0][14328 +    (164*123)];
 //    struct CltExtra * dbg_ce_h2= &gpu_kernel_offsets[0][14328 + 2* (164*123)];
 
-	int task_num = blockIdx.x; //  * TILES_PER_BLOCK + threadIdx.y;
+	int tile_in_block = threadIdx.z;
+	int task_num = blockIdx.x * TILES_PER_BLOCK + tile_in_block;
 	if (task_num >= num_tiles) return; // nothing to do
 	struct tp_task  * gpu_task = &gpu_tasks[task_num];
 	if (!gpu_task->task)       return; // NOP tile
-	__shared__ struct tp_task tt; //  [TILES_PER_BLOCK];
+	__shared__ struct tp_task tt [TILES_PER_BLOCK];
 	// Copy task data to shared memory
 	int nc = (threadIdx.x >> 1) + (threadIdx.y << 2) - 1;
 	if (nc < 0) {
-		tt.task =  gpu_task -> task;
-		tt.tx =    gpu_task -> tx;
-		tt.ty =    gpu_task -> ty;
+		tt[tile_in_block].task =          gpu_task -> task;
+		tt[tile_in_block].tx =            gpu_task -> tx;
+		tt[tile_in_block].ty =            gpu_task -> ty;
 	} else {
 		if (nc < NUM_CAMS) {
-			tt.xy[nc][0] =    gpu_task -> xy[nc][0];
-			tt.xy[nc][1] =    gpu_task -> xy[nc][1];
+			tt[tile_in_block].xy[nc][0] = gpu_task -> xy[nc][0];
+			tt[tile_in_block].xy[nc][1] = gpu_task -> xy[nc][1];
 		}
 	}
 	if (NUM_CAMS > 31){ // unlikely
 		nc += 32;
 		while (nc < NUM_CAMS){
-			tt.xy[nc][0] =    gpu_task -> xy[nc][0];
-			tt.xy[nc][1] =    gpu_task -> xy[nc][1];
+			tt[tile_in_block].xy[nc][0] = gpu_task -> xy[nc][0];
+			tt[tile_in_block].xy[nc][1] = gpu_task -> xy[nc][1];
 			nc += 32;
 		}
 	}
@@ -282,29 +283,35 @@ __global__ void tileProcessor(
 	// clt_tile[][0] - before rotation, [][0][0] - R:DCT/DCT, [][0][1] - B:DCT/DCT, [][0][2] - G:DCT/DCT, [][0][3] - G:DST/DCT,
 	// clt_tile[][1], clt_tile[][2], and clt_tile[][3] - after rotation, 4 quadrants each
     // changed, above is wrong now
-    __shared__ float clt_tile        [NUM_CAMS][NUM_COLORS][4][DTT_SIZE][DTT_SIZE1];
-    // sharing for cameras as they are corrected one after another
-    __shared__ float clt_kernels     [NUM_COLORS][4][DTT_SIZE][DTT_SIZE1]; // +1 to alternate column ports
-    __shared__ int   int_topleft     [NUM_COLORS][2];
-    __shared__ float residual_shift  [NUM_COLORS][2];
-//    __shared__ float window_hor_cos  [NUM_COLORS][2*DTT_SIZE];
-//    __shared__ float window_hor_sin  [NUM_COLORS][2*DTT_SIZE];
-//    __shared__ float window_vert_cos [NUM_COLORS][2*DTT_SIZE];
+    __shared__ float clt_tile        [TILES_PER_BLOCK][NUM_CAMS][NUM_COLORS][4][DTT_SIZE][DTT_SIZE1];
+    // sharing shared memory for cameras as they are corrected one after another
+    // TODO: evaluate total shared memory usage, maybe this sharing is not needed
+
+    __shared__ float clt_kernels     [TILES_PER_BLOCK][NUM_COLORS][4][DTT_SIZE][DTT_SIZE1]; // +1 to alternate column ports
+    __shared__ int   int_topleft     [TILES_PER_BLOCK][NUM_COLORS][2];
+    __shared__ float residual_shift  [TILES_PER_BLOCK][NUM_COLORS][2];
+
+    __shared__ float window_hor_cos  [TILES_PER_BLOCK][NUM_COLORS][2*DTT_SIZE];
+    __shared__ float window_hor_sin  [TILES_PER_BLOCK][NUM_COLORS][2*DTT_SIZE];
+    __shared__ float window_vert_cos [TILES_PER_BLOCK][NUM_COLORS][2*DTT_SIZE];
+
 //IMAGE_TILE_SIDE
     // process each camera in series
     for (int ncam = 0; ncam <  NUM_CAMS; ncam++){
     	convertCorrectTile(
-    			gpu_kernel_offsets[ncam],     // float           * gpu_kernel_offsets,
-				gpu_kernels[ncam],            // float           * gpu_kernels,
-				gpu_images[ncam],             // float           * gpu_images,
-//				&tt[threadIdx.y],             // struct tp_task  * tt,
-				tt.xy[ncam][0],  // float             centerX,
-				tt.xy[ncam][1],  // float             centerY,
-				dstride,                      // size_t            dstride, // in floats (pixels)
-				clt_tile [ncam], // float clt_tile [TILES_PER_BLOCK][NUM_CAMS][NUM_COLORS][4][DTT_SIZE][DTT_SIZE])
-				clt_kernels,     // float clt_tile    [NUM_COLORS][4][DTT_SIZE][DTT_SIZE],
-				int_topleft,     // int   int_topleft  [NUM_COLORS][2],
-				residual_shift);  // float frac_topleft [NUM_COLORS][2],
+    			gpu_kernel_offsets[ncam],        // float           * gpu_kernel_offsets,
+				gpu_kernels[ncam],               // float           * gpu_kernels,
+				gpu_images[ncam],                // float           * gpu_images,
+				tt[tile_in_block].xy[ncam][0],   // float             centerX,
+				tt[tile_in_block].xy[ncam][1],   // float             centerY,
+				dstride,                         // size_t            dstride, // in floats (pixels)
+				clt_tile [tile_in_block][ncam],  // float clt_tile [TILES_PER_BLOCK][NUM_CAMS][NUM_COLORS][4][DTT_SIZE][DTT_SIZE])
+				clt_kernels[tile_in_block],      // float clt_tile    [NUM_COLORS][4][DTT_SIZE][DTT_SIZE],
+				int_topleft[tile_in_block],      // int   int_topleft  [NUM_COLORS][2],
+				residual_shift[tile_in_block],   // float frac_topleft [NUM_COLORS][2],
+				window_hor_cos[tile_in_block],   // float window_hor_cos  [NUM_COLORS][2*DTT_SIZE],
+				window_hor_sin[tile_in_block],   //float window_hor_sin  [NUM_COLORS][2*DTT_SIZE],
+				window_vert_cos[tile_in_block]); //float window_vert_cos [NUM_COLORS][2*DTT_SIZE]);
     }
 }
 
@@ -438,16 +445,16 @@ __device__ void convertCorrectTile(
 		float clt_tile        [NUM_COLORS][4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
 		float clt_kernels     [NUM_COLORS][4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
 		int   int_topleft     [NUM_COLORS][2],
-		float residual_shift  [NUM_COLORS][2])
-{
-//    struct CltExtra * dbg_ce0= &gpu_kernel_offsets[14328];
-//    struct CltExtra * dbg_ce1= &gpu_kernel_offsets[14328 +    (164*123)];
-//    struct CltExtra * dbg_ce2= &gpu_kernel_offsets[14328 + 2* (164*123)];
+		float residual_shift  [NUM_COLORS][2],
+	    float window_hor_cos  [NUM_COLORS][2*DTT_SIZE],
+	    float window_hor_sin  [NUM_COLORS][2*DTT_SIZE],
+	    float window_vert_cos [NUM_COLORS][2*DTT_SIZE])
 
-    __shared__ float window_hor_cos  [NUM_COLORS][2*DTT_SIZE];
-    __shared__ float window_hor_sin  [NUM_COLORS][2*DTT_SIZE];
-    __shared__ float window_vert_cos [NUM_COLORS][2*DTT_SIZE];
-//    __shared__ float rot_hvcs        [NUM_COLORS][4][DTT_SIZE1]; // rotation cosine/sines: CH,SH,CV,SV for each color
+{
+
+///    __shared__ float window_hor_cos  [NUM_COLORS][2*DTT_SIZE];
+///    __shared__ float window_hor_sin  [NUM_COLORS][2*DTT_SIZE];
+///    __shared__ float window_vert_cos [NUM_COLORS][2*DTT_SIZE];
 	// get correct kernel tile, then use 2 threads per kernel and image
 	int   ktileX, ktileY;
 	int   kernel_index; // common for all coors
