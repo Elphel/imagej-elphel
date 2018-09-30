@@ -1261,7 +1261,7 @@ public class TwoQuadCLT {
 						port_xy_main_dbg,                     // final double [][][]       port_xy_main_dbg, // for each tile/port save x,y pixel coordinates (gpu code development)
 						port_xy_aux_dbg);                     // final double [][][]       port_xy_aux_dbg) // for each tile/port save x,y pixel coordinates (gpu code development)
 
-		if (debugLevel < -1000) {
+		if (debugLevel < 1000) {
 			return null;
 		}
 

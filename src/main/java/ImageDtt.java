@@ -4662,7 +4662,7 @@ public class ImageDtt {
 			int                 kernel_step,
 			int                 transform_size,
 			DttRad2             dtt,
-			int                 chn,
+			int                 chn,     // color channel
 			double              centerX, // center of aberration-corrected (common model) tile, X
 			double              centerY, //
 			int                 debugLevel,
@@ -4673,8 +4673,10 @@ public class ImageDtt {
 
 	{
 //		boolean debug_fpga = debugLevel < -9;
-		boolean debug_fpga = (debugLevel < -9) || (debugLevel == 2);
+		boolean debug_fpga = (debugLevel < -9); //  || (debugLevel == 2);
+		boolean debug_gpu = (debugLevel == 2);
 		if (debug_fpga) debugLevel = 1;
+		if (debug_gpu) debugLevel = 0; // 1; // skip too many images
 
 		boolean use_kernels = (clt_kernels != null) && !dbg_no_deconvolution;
 		boolean bdebug0 = debugLevel > 0;
@@ -4707,6 +4709,17 @@ public class ImageDtt {
 			// same with extra shift
 			px = centerX - transform_size - (ce.data_x + ce.dxc_dx * kdx + ce.dxc_dy * kdy) ; // fractional left corner
 			py = centerY - transform_size - (ce.data_y + ce.dyc_dx * kdx + ce.dyc_dy * kdy) ; // fractional top corner
+			if (debug_gpu) {
+				System.out.println("========= Color channel "+chn+" =============");
+				System.out.println("ce.data_x="+ce.data_x+", ce.data_y="+ce.data_y);
+				System.out.println("ce.center_x="+ce.center_x+", ce.center_y="+ce.center_y);
+				System.out.println("ce.dxc_dx="+ce.dxc_dx+", ce.dxc_dy="+ce.dxc_dy);
+				System.out.println("ce.dyc_dx="+ce.dyc_dx+", ce.dyc_dy="+ce.dyc_dy);
+				System.out.println("centerX="+centerX+", centerY="+centerY);
+				System.out.println("px="+px+", py="+py);
+				System.out.println("ktileX="+ktileX+", ktileY="+ktileY);
+				System.out.println("kdx="+kdx+", kdy="+kdy);
+			}
 		}else {
 //			System.out.println("Skipping kernels!!!"); // Happens when using macro_mode, should not happen otherwise
 		}
@@ -4718,6 +4731,13 @@ public class ImageDtt {
 		int ctile_top =  (int) -Math.round(-py);
 		residual_shift[0] = -(px - ctile_left);
 		residual_shift[1] = -(py - ctile_top);
+
+		if (debug_gpu) {
+			System.out.println("ctile_left="+ctile_left+", ctile_top="+ctile_top);
+			System.out.println("residual_shift[0]="+residual_shift[0]+", residual_shift[1]="+residual_shift[1]);
+		}
+
+
 		// 4. Verify the tile fits in image and use System.arraycopy(sym_conv, 0, tile_in, 0, n2*n2) to copy data to tile_in
 		// if does not fit - extend by duplication? Or just use 0?
 		if ((ctile_left >= 0) && (ctile_left < (width - transform_size2)) &&
@@ -4738,6 +4758,17 @@ public class ImageDtt {
 				}
 			}
 		}
+		if (debug_gpu) {
+			System.out.println("---Image tile for color="+chn+"---");
+			for (int i = 0; i < transform_size2; i++) {
+				for (int j = 0; j < transform_size2; j++) {
+					System.out.print(String.format("%10.5f ", tile_in[transform_size2 * i + j]));
+				}
+				System.out.println();
+			}
+		}
+
+
 		if (debug_fpga){ // show extended tile, all colors
 //		//FPGA_TILE_SIZE
 			System.out.println("\nFull Bayer fpga tile data");
@@ -5000,12 +5031,24 @@ public class ImageDtt {
 
 
 		if (!debug_fpga) {
-			for (int dct_mode = 0; dct_mode <4; dct_mode++) {
+			for (int dct_mode = 0; dct_mode < 4; dct_mode++) {
 				if (fold_coeff != null){
 					clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode, fold_coeff); // DCCT, DSCT, DCST, DSST
 				} else {
 					clt_tile[dct_mode] = dtt.fold_tile (tile_in, transform_size, dct_mode); // DCCT, DSCT, DCST, DSST
 				}
+				if (debug_gpu) {
+					System.out.println("=== Image tile folded for color="+chn+", dct_mode="+dct_mode+" ===");
+					for (int i = 0; i < transform_size; i++) {
+						for (int j = 0; j < transform_size; j++) {
+							System.out.print(String.format("%10.5f ", clt_tile[dct_mode][transform_size * i + j]));
+						}
+						System.out.println();
+					}
+				}
+
+
+
 //				clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size);
 				/*
 				if (bdebug) {
@@ -5023,12 +5066,19 @@ public class ImageDtt {
 					System.out.println("done debug");
 				} else {
 				*/
-					clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size);
+				clt_tile[dct_mode] = dtt.dttt_iv   (clt_tile[dct_mode], dct_mode, transform_size);
 					/*
 				}
 				*/
-
-
+				if (debug_gpu) {
+					System.out.println("=== Image tile DTT converted for color="+chn+", dct_mode="+dct_mode+" ===");
+					for (int i = 0; i < transform_size; i++) {
+						for (int j = 0; j < transform_size; j++) {
+							System.out.print(String.format("%10.5f ", clt_tile[dct_mode][transform_size * i + j]));
+						}
+						System.out.println();
+					}
+				}
 			}
 		}
 
@@ -5127,12 +5177,35 @@ public class ImageDtt {
 		// deconvolve with kernel
 		if (use_kernels) {
 			double [][] ktile = clt_kernels[chn][ktileY][ktileX];
+			if (debug_gpu) {
+				System.out.println("=== kernel tile for color="+chn+" ===");
+				for (int dct_mode = 0; dct_mode < 4; dct_mode++) {
+					System.out.println("dct_mode="+dct_mode);
+					for (int i = 0; i < transform_size; i++) {
+						for (int j = 0; j < transform_size; j++) {
+							System.out.print(String.format("%10.5f ", ktile[dct_mode][transform_size * i + j]));
+						}
+						System.out.println();
+					}
+				}
+			}
 			convolve_tile(
 					clt_tile,        // double [][]     data,    // array [transform_size*transform_size], will be updated  DTT4 converted
 					ktile,           // double [][]     kernel,  // array [4][transform_size*transform_size]  DTT3 converted
 					transform_size,
 					bdebug);
-//					dbg_transpose);
+			if (debug_gpu) {
+				System.out.println("=== convolved tile for color="+chn+" ===");
+				for (int dct_mode = 0; dct_mode < 4; dct_mode++) {
+					System.out.println("dct_mode="+dct_mode);
+					for (int i = 0; i < transform_size; i++) {
+						for (int j = 0; j < transform_size; j++) {
+							System.out.print(String.format("%10.5f ", clt_tile[dct_mode][transform_size * i + j]));
+						}
+						System.out.println();
+					}
+				}
+			}
 		}
 		if (bdebug) {
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
@@ -5211,6 +5284,7 @@ public class ImageDtt {
 		double        shiftY,
 		boolean       bdebug)
 	{
+        boolean debug_images = false;
 		int transform_len = transform_size*transform_size;
 		double [] cos_hor =  new double [transform_len];
 		double [] sin_hor =  new double [transform_len];
@@ -5230,7 +5304,38 @@ public class ImageDtt {
 				sin_vert[iv] = sv;
 			}
 		}
-		if (bdebug){
+		if (bdebug) {
+			System.out.println("cos_hor , shift_hor = "+shiftX);
+			for (int irow = 0; irow < transform_size; irow++) {
+				for (int jcol = 0; jcol < transform_size; jcol++) {
+					System.out.print(String.format("%10.5f ", cos_hor[transform_size * irow + jcol]));
+				}
+				System.out.println();
+			}
+			System.out.println("\nsin_hor , shift_hor = "+shiftX);
+			for (int irow = 0; irow < transform_size; irow++) {
+				for (int jcol = 0; jcol < transform_size; jcol++) {
+					System.out.print(String.format("%10.5f ", sin_hor[transform_size * irow + jcol]));
+				}
+				System.out.println();
+			}
+			System.out.println("cos_vert , shift_vert = "+shiftY);
+			for (int irow = 0; irow < transform_size; irow++) {
+				for (int jcol = 0; jcol < transform_size; jcol++) {
+					System.out.print(String.format("%10.5f ", cos_vert[transform_size * irow + jcol]));
+				}
+				System.out.println();
+			}
+			System.out.println("\nsin_vert , shift_vert = "+shiftY);
+			for (int irow = 0; irow < transform_size; irow++) {
+				for (int jcol = 0; jcol < transform_size; jcol++) {
+					System.out.print(String.format("%10.5f ", sin_vert[transform_size * irow + jcol]));
+				}
+				System.out.println();
+			}
+			System.out.println();
+		}
+		if (bdebug && debug_images){
 			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 			String [] titles = {"cos_hor","sin_hor","cos_vert","sin_vert"};
 			double [][] cs_dbg = {cos_hor, sin_hor, cos_vert, sin_vert};
@@ -5244,6 +5349,19 @@ public class ImageDtt {
 
 			tmp_tile[2][i] = clt_tile[2][i] * cos_hor[i]  - clt_tile[3][i] * sin_hor[i];
 			tmp_tile[3][i] = clt_tile[3][i] * cos_hor[i]  + clt_tile[2][i] * sin_hor[i] ;
+		}
+		if (bdebug) {
+			System.out.println("---Shifted image tile horizontally, shift_hor = "+shiftX);
+			for (int dct_mode=0; dct_mode < 4; dct_mode++ ) {
+				System.out.println("dct_mode="+dct_mode);
+				for (int irow = 0; irow < transform_size; irow++) {
+					for (int jcol = 0; jcol < transform_size; jcol++) {
+						System.out.print(String.format("%10.5f ", tmp_tile[dct_mode][transform_size * irow + jcol]));
+					}
+					System.out.println();
+				}
+				System.out.println();
+			}
 		}
 		// Vertical shift (back to original array)
 		for (int i = 0; i < cos_hor.length; i++) {
@@ -7933,7 +8051,9 @@ public class ImageDtt {
 										chn,
 										centersXY_main[i][0], // centerX, // center of aberration-corrected (common model) tile, X
 										centersXY_main[i][1], // centerY, //
+//										0, // (globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY)? 2:0, // external tile compare
 										(globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY)? 2:0, // external tile compare
+//										(globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY) && (i == 0)? 2:0, // external tile compare
 										false,// no_deconvolution,
 										false, // ); // transpose);
 										((saturation_main != null) ? saturation_main[i] : null), //final boolean [][]        saturation_imp, // (near) saturated pixels or null
@@ -7990,15 +8110,33 @@ public class ImageDtt {
 							}
 
 							// apply residual shift
+							boolean debug_gpu = (globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY);
 							for (int i = 0; i < quad_main; i++) {
 								fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 										clt_data_main[i][chn], // double  [][]  clt_tile,
 										clt_parameters.transform_size,
 										fract_shiftsXY_main[i][0],            // double        shiftX,
 										fract_shiftsXY_main[i][1],            // double        shiftY,
-										((globalDebugLevel > 1) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
-												(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2)));
+//										((globalDebugLevel > 1) && (chn==0) && (tileX >= debug_tileX - 2) && (tileX <= debug_tileX + 2) &&
+//												(tileY >= debug_tileY - 2) && (tileY <= debug_tileY+2))
+										false //debug_gpu
+										);
+								// (globalDebugLevel > -2) && (tileX == debug_tileX) && (tileY == debug_tileY)? 2:0, // external tile compare
+								if (debug_gpu) {
+									System.out.println("---Shifted image tile for quad="+i+" color="+chn+", shift_hor = "+fract_shiftsXY_main[i][0]+", shift_vert = "+fract_shiftsXY_main[i][1]+"---");
+									for (int dct_mode=0; dct_mode < 4; dct_mode++ ) {
+										System.out.println("dct_mode="+dct_mode);
+										for (int irow = 0; irow < clt_parameters.transform_size; irow++) {
+											for (int jcol = 0; jcol < clt_parameters.transform_size; jcol++) {
+												System.out.print(String.format("%10.5f ", clt_data_main[i][chn][dct_mode][clt_parameters.transform_size * irow + jcol]));
+											}
+											System.out.println();
+										}
+										System.out.println();
+									}
+								}
 							}
+
 							for (int i = 0; i < quad_aux; i++) {
 								fract_shift(    // fractional shift in transform domain. Currently uses sin/cos - change to tables with 2? rotations
 										clt_data_aux[i][chn], // double  [][]  clt_tile,
