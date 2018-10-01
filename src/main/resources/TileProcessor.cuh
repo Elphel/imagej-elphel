@@ -40,7 +40,13 @@
 #pragma once
 #include "dtt8x8.cuh"
 // Not enough shared memory to have more threads per block,even just for the result clt tiles
-#define TILES_PER_BLOCK    2
+// What to do:
+// 1) make single image aberration correction: 1/4 of the result tiles
+// With 4 cameras = calculate correlations (9x9), reusing kernel or just clt ones after color reducing, then output them to device memory
+//Average run time =12502.638672 - with 2 tiles/block it is longer!
+//#define TILES_PER_BLOCK    2
+//Average run time =9656.743164 ms
+#define TILES_PER_BLOCK    1
 #define THREADS_PER_TILE  32
 #define IMG_WIDTH       2592
 #define IMG_HEIGHT      1936
@@ -70,9 +76,9 @@
 #define DBG_TILE_X     174
 #define DBG_TILE_Y     118
 
-#define DBG_TILE     (DBG_TILE_Y * 324 + DBG_TILE_X)
-#define DEBUG1 1
-#undef  DEBUG2
+//#define DBG_TILE     (DBG_TILE_Y * 324 + DBG_TILE_X)
+//#define DEBUG1 1
+//#undef  DEBUG2
 //56494
 // struct tp_task
 //#define TASK_SIZE      12
@@ -312,6 +318,7 @@ __global__ void tileProcessor(
 				window_hor_cos[tile_in_block],   // float window_hor_cos  [NUM_COLORS][2*DTT_SIZE],
 				window_hor_sin[tile_in_block],   //float window_hor_sin  [NUM_COLORS][2*DTT_SIZE],
 				window_vert_cos[tile_in_block]); //float window_vert_cos [NUM_COLORS][2*DTT_SIZE]);
+    	__syncthreads();
     }
 }
 
@@ -593,6 +600,7 @@ __device__ void convertCorrectTile(
     			py = centerY - DTT_SIZE - (clt_extra->data_y + clt_extra->dyc_dx * kdx + clt_extra->dyc_dy * kdy) ; // fractional top corner
     			int itly = (int) floorf(py +0.5f);
     			int_topleft[bayer_color][1] = itly;
+
 ///    			float shift_vert =  py - itly;
     			float shift_vert =  itly - py;
     			residual_shift[bayer_color][1] = shift_vert;
@@ -635,27 +643,42 @@ __device__ void convertCorrectTile(
     // prepare, fold and write data to DTT buffers
     int dstride2 = dstride <<1; // in floats (pixels)
     int bayer_color =  min((NUM_COLORS-1),threadIdx.y);
+    // TODO: Make a special case for border tiles
     if (bayer_color < BAYER_GREEN){	// process R and B (2 * 8 threads) threads 0..15
     	// Find correct column and start row for each of the 8 participating threads
     	int col_tl = int_topleft[bayer_color][0]; //  + (threadIdx.x << 1);
     	int row_tl = int_topleft[bayer_color][1];
-    	int local_col = ((col_tl & 1) ^ BAYER_RED_COL ^ bayer_color) + (threadIdx.x << 1);
-    	int local_row = ((row_tl & 1) ^ BAYER_RED_ROW ^ bayer_color);
-    	float *image_p = gpu_images + dstride * (row_tl + local_row)+ col_tl + local_col;
-    	float hwind_cos = window_hor_cos[bayer_color][local_col];
-    	int dtt_offset =     fold_indx2[local_row][local_col];
-    	int dtt_offset_inc = fold_inc[local_row];
-    	float *dtt_buf = (float *) clt_tile[bayer_color][0];
+		int local_col = ((col_tl & 1) ^ BAYER_RED_COL ^ bayer_color) + (threadIdx.x << 1);
+		int local_row = ((row_tl & 1) ^ BAYER_RED_ROW ^ bayer_color);
+		float hwind_cos = window_hor_cos[bayer_color][local_col];
+		int dtt_offset =     fold_indx2[local_row][local_col];
+		int dtt_offset_inc = fold_inc[local_row];
+		float *dtt_buf = (float *) clt_tile[bayer_color][0];
+    	if ((col_tl >= 0) && ((col_tl < (IMG_WIDTH - DTT_SIZE * 2))) && (row_tl >= 0) && ((row_tl < (IMG_HEIGHT - DTT_SIZE * 2)))) {
+    		float *image_p = gpu_images + dstride * (row_tl + local_row)+ col_tl + local_col;
 #pragma unroll
-    	for (int i = 0; i < 8; i++) {
-    		//			dtt_buf[dtt_offset]	= (*image_p) * hwind_cos * window_vert_cos[bayer_color][local_row];
-    		int dtt_offset1 = dtt_offset + (dtt_offset >> 3); // converting for 9-long rows (DTT_SIZE1)
-    		float dbg_pix = (*image_p);
-    		dtt_buf[dtt_offset1]	= (*image_p) * hwind_cos * window_vert_cos[bayer_color][local_row];
-    		dtt_offset = ( dtt_offset + ((dtt_offset_inc & 0xf) << 3)) & 0x3f;
-    		dtt_offset_inc >>= 4;
-    		local_row += 2;
-    		image_p += dstride2;
+    		for (int i = 0; i < 8; i++) {
+    			int dtt_offset1 = dtt_offset + (dtt_offset >> 3); // converting for 9-long rows (DTT_SIZE1)
+    			dtt_buf[dtt_offset1]	= (*image_p) * hwind_cos * window_vert_cos[bayer_color][local_row];
+    			dtt_offset = ( dtt_offset + ((dtt_offset_inc & 0xf) << 3)) & 0x3f;
+    			dtt_offset_inc >>= 4;
+    			local_row += 2;
+    			image_p += dstride2;
+    		}
+    	} else { // handling border tiles
+			int eff_col = (min(IMG_HEIGHT/2 -1, max(0, col_tl >> 1)) << 1) + (col_tl & 1);
+    		int row_lsb =  row_tl & 1;
+    		int row_pair = row_tl >> 1;
+    		float *image_p = gpu_images + dstride * local_row+ (eff_col + local_col);
+#pragma unroll
+    		for (int i = 0; i < 8; i++) {
+    			int eff_row = (min(IMG_WIDTH/2 - 1, max(0, row_pair + i)) << 1) + row_lsb;
+    			int dtt_offset1 = dtt_offset + (dtt_offset >> 3); // converting for 9-long rows (DTT_SIZE1)
+    			dtt_buf[dtt_offset1]	= image_p[dstride * eff_row] * hwind_cos * window_vert_cos[bayer_color][local_row];
+    			dtt_offset = ( dtt_offset + ((dtt_offset_inc & 0xf) << 3)) & 0x3f;
+    			dtt_offset_inc >>= 4;
+    			local_row += 2;
+    		}
     	}
     } else { // process green color threads 16..31
     	// no need to sync here
@@ -664,30 +687,43 @@ __device__ void convertCorrectTile(
     	// Find correct column and start row for each of the 8 participating threads
     	int col_tl = int_topleft[BAYER_GREEN][0]; //  + (threadIdx.x << 1);
     	int row_tl = int_topleft[BAYER_GREEN][1];
-    	int local_col = ((col_tl & 1) ^ (BAYER_RED_COL ^ 1) ^ ipass) + (threadIdx.x << 1); // green red row: invert column from red
-    	int local_row = ((row_tl & 1) ^ BAYER_RED_ROW ^ ipass);                            // use red row
-    	int dbg_image_offset = dstride * (row_tl + local_row)+ col_tl + local_col;
-    	float *image_p = gpu_images + dstride * (row_tl + local_row)+ col_tl + local_col;
-    	float dbg_pix1 = gpu_images[dbg_image_offset];
-    	float *dbg_pix2_p = gpu_images + dbg_image_offset;
-    	float dbg_pix2 = *dbg_pix2_p;
-    	float hwind_cos = window_hor_cos[BAYER_GREEN][local_col];
-    	float hwind_sin = window_hor_sin[BAYER_GREEN][local_col];
-    	int dtt_offset =     fold_indx2[local_row][local_col];
-    	int dtt_offset_inc = fold_inc[local_row];
-    	float *dct_buf = (float *) clt_tile[BAYER_GREEN][ ipass << 1]; // use 2 buffers, second - borrowing from rotated DTT
-    	float *dst_buf = (float *) clt_tile[BAYER_GREEN][(ipass << 1) + 1];
+		int local_col = ((col_tl & 1) ^ (BAYER_RED_COL ^ 1) ^ ipass) + (threadIdx.x << 1); // green red row: invert column from red
+		int local_row = ((row_tl & 1) ^ BAYER_RED_ROW ^ ipass);                            // use red row
+		float hwind_cos = window_hor_cos[BAYER_GREEN][local_col];
+		float hwind_sin = window_hor_sin[BAYER_GREEN][local_col];
+		int dtt_offset =     fold_indx2[local_row][local_col];
+		int dtt_offset_inc = fold_inc[local_row];
+		float *dct_buf = (float *) clt_tile[BAYER_GREEN][ ipass << 1]; // use 2 buffers, second - borrowing from rotated DTT
+		float *dst_buf = (float *) clt_tile[BAYER_GREEN][(ipass << 1) + 1];
+    	if ((col_tl >= 0) && ((col_tl < (IMG_WIDTH - DTT_SIZE * 2))) && (row_tl >= 0) && ((row_tl < (IMG_HEIGHT - DTT_SIZE * 2)))) {
+    		float *image_p = gpu_images + dstride * (row_tl + local_row)+ col_tl + local_col;
 #pragma unroll
-    	for (int i = 0; i < 8; i++) {
-    		float d = (*image_p) * window_vert_cos[BAYER_GREEN][local_row];
-    		float dbg_pix = (*image_p);
-    		int dtt_offset1 = dtt_offset + (dtt_offset >> 3); // converting for 9-long rows
-    		dct_buf[dtt_offset1] = d * hwind_cos; // was +=
-    		dst_buf[dtt_offset1] = d * hwind_sin; // was +=
-    		dtt_offset = ( dtt_offset + ((dtt_offset_inc & 0xf) << 3)) & 0x3f;
-    		dtt_offset_inc >>= 4;
-    		local_row += 2;
-    		image_p += dstride2;
+    		for (int i = 0; i < 8; i++) {
+    			float d = (*image_p) * window_vert_cos[BAYER_GREEN][local_row]; //warp illegal address (0,2,1)
+    			int dtt_offset1 = dtt_offset + (dtt_offset >> 3); // converting for 9-long rows
+    			dct_buf[dtt_offset1] = d * hwind_cos; // was +=
+    			dst_buf[dtt_offset1] = d * hwind_sin; // was +=
+    			dtt_offset = ( dtt_offset + ((dtt_offset_inc & 0xf) << 3)) & 0x3f;
+    			dtt_offset_inc >>= 4;
+    			local_row += 2;
+    			image_p += dstride2;
+    		}
+    	} else { // handling border tiles
+			int eff_col = (min(IMG_HEIGHT/2 -1, max(0, col_tl >> 1)) << 1) + (col_tl & 1);
+    		int row_lsb =  row_tl & 1;
+    		int row_pair = row_tl >> 1;
+    		float *image_p = gpu_images + dstride * local_row+ (eff_col + local_col);
+#pragma unroll
+    		for (int i = 0; i < 8; i++) {
+    			int eff_row = (min(IMG_WIDTH/2 - 1, max(0, row_pair + i)) << 1) + row_lsb;
+    			float d =  image_p[dstride * eff_row] * window_vert_cos[BAYER_GREEN][local_row];
+    			int dtt_offset1 = dtt_offset + (dtt_offset >> 3); // converting for 9-long rows
+    			dct_buf[dtt_offset1] = d * hwind_cos; // was +=
+    			dst_buf[dtt_offset1] = d * hwind_sin; // was +=
+    			dtt_offset = ( dtt_offset + ((dtt_offset_inc & 0xf) << 3)) & 0x3f;
+    			dtt_offset_inc >>= 4;
+    			local_row += 2;
+    		}
     	}
     }
     __syncthreads();
