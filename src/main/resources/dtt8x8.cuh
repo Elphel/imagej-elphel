@@ -85,6 +85,10 @@ __constant__ float SINN2[] = {0.098017f,0.290285f,0.471397f,0.634393f};
 
 inline __device__ void dttii_shared_mem(float * x0,  int inc, int dst_not_dct);
 inline __device__ void dttiv_shared_mem(float * x0,  int inc, int dst_not_dct);
+inline __device__ void dttiv_nodiverg(float * x,  int inc, int dst_not_dct);
+inline __device__ void dctiv_nodiverg(float * x0,  int inc);
+inline __device__ void dstiv_nodiverg(float * x0,  int inc);
+
 inline __device__ void dct_ii8         ( float x[8], float y[8]); // x,y point to 8-element arrays each
 inline __device__ void dct_iv8         ( float x[8], float y[8]); // x,y point to 8-element arrays each
 inline __device__ void dst_iv8         ( float x[8], float y[8]); // x,y point to 8-element arrays each
@@ -453,6 +457,207 @@ inline __device__ void dttiv_shared_mem(float * x0,  int inc, int dst_not_dct)
 		*x7 =  vb00 * 0.5f;             // w1[3];
 	}
 }
+
+inline __device__ void dttiv_nodiverg(float * x,  int inc, int dst_not_dct)
+{
+	float sgn = 1 - 2* dst_not_dct;
+	float *y0 = x;
+	float *y1 = y0 + inc;
+	float *y2 = y1 + inc;
+	float *y3 = y2 + inc;
+	float *y4 = y3 + inc;
+	float *y5 = y4 + inc;
+	float *y6 = y5 + inc;
+	float *y7 = y6 + inc;
+
+	float *x0 =  x + dst_not_dct * 7 * inc;
+	// negate inc, replace
+	inc *= sgn;
+	float *x1 = x0 + inc;
+	float *x2 = x1 + inc;
+	float *x3 = x2 + inc;
+	float *x4 = x3 + inc;
+	float *x5 = x4 + inc;
+	float *x6 = x5 + inc;
+	float *x7 = x6 + inc;
+	float u00, u01, u02, u03, u10, u11, u12, u13;
+	u00=  ( COSN2[0] * (*x0) + SINN2[0] * (*x7));
+	u10=  (-SINN2[3] * (*x3) + COSN2[3] * (*x4));
+
+	u01=  ( COSN2[1] * (*x1) + SINN2[1] * (*x6));
+	u11= -(-SINN2[2] * (*x2) + COSN2[2] * (*x5));
+
+	u02=  ( COSN2[2] * (*x2) + SINN2[2] * (*x5));
+	u12=  (-SINN2[1] * (*x1) + COSN2[1] * (*x6));
+
+	u03=  ( COSN2[3] * (*x3) + SINN2[3] * (*x4));
+	u13= -(-SINN2[0] * (*x0) + COSN2[0] * (*x7));
+
+//	_dctii_nrecurs4(u00, u01, u02, u03, &v00, &v01, &v02, &v03);
+
+	float ua00= u00 + u03;
+	float ua10= u00 - u03;
+
+	float ua01= u01 + u02;
+	float ua11= u01 - u02;
+
+	float v00= ua00 + ua01;
+	float v02= ua00 - ua01;
+
+	float v01= COSPI_1_8_SQRT2 * ua10 + COSPI_3_8_SQRT2 * ua11;
+	float v03= COSPI_3_8_SQRT2 * ua10 - COSPI_1_8_SQRT2 * ua11;
+
+//	_dctii_nrecurs4(u10, u11, u12, u13, &v10, &v11, &v12, &v13);
+
+	float ub00= u10 + u13;
+	float ub10= u10 - u13;
+
+	float ub01= u11 + u12;
+	float ub11= u11 - u12;
+
+	float vb00= ub00 + ub01;
+	float vb01= ub00 - ub01;
+
+	float vb10= COSPI_1_8_SQRT2*ub10 + COSPI_3_8_SQRT2*ub11;
+	float vb11= COSPI_3_8_SQRT2*ub10 - COSPI_1_8_SQRT2*ub11;
+
+
+	*y0 =  v00 * 0.5f;              // w0[0];
+	*y2 =  (v01 +  vb11) * SQRT1_8; // w0[1];
+	*y4 =  (v02 -  vb01) * SQRT1_8; // w0[2];
+	*y6 =  (v03 +  vb10) * SQRT1_8; // w0[3];
+	*y1 =  sgn * (v01 -  vb11) * SQRT1_8; // w1[0];
+	*y3 =  sgn * (v02 +  vb01) * SQRT1_8; // w1[1];
+	*y5 =  sgn * (v03 -  vb10) * SQRT1_8; // w1[2]; - same as y[3]
+	*y7 =  sgn * vb00 * 0.5f;             // w1[3];
+}
+
+inline __device__ void dctiv_nodiverg(float * x0,  int inc)
+{
+	float *x1 = x0 + inc;
+	float *x2 = x1 + inc;
+	float *x3 = x2 + inc;
+	float *x4 = x3 + inc;
+	float *x5 = x4 + inc;
+	float *x6 = x5 + inc;
+	float *x7 = x6 + inc;
+	float u00, u01, u02, u03, u10, u11, u12, u13;
+	u00=  ( COSN2[0] * (*x0) + SINN2[0] * (*x7));
+	u10=  (-SINN2[3] * (*x3) + COSN2[3] * (*x4));
+
+	u01=  ( COSN2[1] * (*x1) + SINN2[1] * (*x6));
+	u11= -(-SINN2[2] * (*x2) + COSN2[2] * (*x5));
+
+	u02=  ( COSN2[2] * (*x2) + SINN2[2] * (*x5));
+	u12=  (-SINN2[1] * (*x1) + COSN2[1] * (*x6));
+
+	u03=  ( COSN2[3] * (*x3) + SINN2[3] * (*x4));
+	u13= -(-SINN2[0] * (*x0) + COSN2[0] * (*x7));
+
+//	_dctii_nrecurs4(u00, u01, u02, u03, &v00, &v01, &v02, &v03);
+
+	float ua00= u00 + u03;
+	float ua10= u00 - u03;
+
+	float ua01= u01 + u02;
+	float ua11= u01 - u02;
+
+	float v00= ua00 + ua01;
+	float v02= ua00 - ua01;
+
+	float v01= COSPI_1_8_SQRT2 * ua10 + COSPI_3_8_SQRT2 * ua11;
+	float v03= COSPI_3_8_SQRT2 * ua10 - COSPI_1_8_SQRT2 * ua11;
+
+//	_dctii_nrecurs4(u10, u11, u12, u13, &v10, &v11, &v12, &v13);
+
+	float ub00= u10 + u13;
+	float ub10= u10 - u13;
+
+	float ub01= u11 + u12;
+	float ub11= u11 - u12;
+
+	float vb00= ub00 + ub01;
+	float vb01= ub00 - ub01;
+
+	float vb10= COSPI_1_8_SQRT2*ub10 + COSPI_3_8_SQRT2*ub11;
+	float vb11= COSPI_3_8_SQRT2*ub10 - COSPI_1_8_SQRT2*ub11;
+
+
+	*x0 =  v00 * 0.5f;              // w0[0];
+	*x2 =  (v01 +  vb11) * SQRT1_8; // w0[1];
+	*x4 =  (v02 -  vb01) * SQRT1_8; // w0[2];
+	*x6 =  (v03 +  vb10) * SQRT1_8; // w0[3];
+	*x1 =  (v01 -  vb11) * SQRT1_8; // w1[0];
+	*x3 =  (v02 +  vb01) * SQRT1_8; // w1[1];
+	*x5 =  (v03 -  vb10) * SQRT1_8; // w1[2]; - same as y[3]
+	*x7 =   vb00 * 0.5f;             // w1[3];
+}
+
+inline __device__ void dstiv_nodiverg(float * x,  int inc)
+{
+	float *x0 =  x +  7 * inc;
+	// negate inc, replace
+	inc = -inc;
+	float *x1 = x0 + inc;
+	float *x2 = x1 + inc;
+	float *x3 = x2 + inc;
+	float *x4 = x3 + inc;
+	float *x5 = x4 + inc;
+	float *x6 = x5 + inc;
+	float *x7 = x6 + inc;
+	float u00, u01, u02, u03, u10, u11, u12, u13;
+	u00=  ( COSN2[0] * (*x0) + SINN2[0] * (*x7));
+	u10=  (-SINN2[3] * (*x3) + COSN2[3] * (*x4));
+
+	u01=  ( COSN2[1] * (*x1) + SINN2[1] * (*x6));
+	u11= -(-SINN2[2] * (*x2) + COSN2[2] * (*x5));
+
+	u02=  ( COSN2[2] * (*x2) + SINN2[2] * (*x5));
+	u12=  (-SINN2[1] * (*x1) + COSN2[1] * (*x6));
+
+	u03=  ( COSN2[3] * (*x3) + SINN2[3] * (*x4));
+	u13= -(-SINN2[0] * (*x0) + COSN2[0] * (*x7));
+
+//	_dctii_nrecurs4(u00, u01, u02, u03, &v00, &v01, &v02, &v03);
+
+	float ua00= u00 + u03;
+	float ua10= u00 - u03;
+
+	float ua01= u01 + u02;
+	float ua11= u01 - u02;
+
+	float v00= ua00 + ua01;
+	float v02= ua00 - ua01;
+
+	float v01= COSPI_1_8_SQRT2 * ua10 + COSPI_3_8_SQRT2 * ua11;
+	float v03= COSPI_3_8_SQRT2 * ua10 - COSPI_1_8_SQRT2 * ua11;
+
+//	_dctii_nrecurs4(u10, u11, u12, u13, &v10, &v11, &v12, &v13);
+
+	float ub00= u10 + u13;
+	float ub10= u10 - u13;
+
+	float ub01= u11 + u12;
+	float ub11= u11 - u12;
+
+	float vb00= ub00 + ub01;
+	float vb01= ub00 - ub01;
+
+	float vb10= COSPI_1_8_SQRT2*ub10 + COSPI_3_8_SQRT2*ub11;
+	float vb11= COSPI_3_8_SQRT2*ub10 - COSPI_1_8_SQRT2*ub11;
+
+
+	*x7 =  v00 * 0.5f;              // w0[0];
+	*x5 =  (v01 +  vb11) * SQRT1_8; // w0[1];
+	*x3 =  (v02 -  vb01) * SQRT1_8; // w0[2];
+	*x1 =  (v03 +  vb10) * SQRT1_8; // w0[3];
+
+	*x6 =  (vb11 - v01)  * SQRT1_8; // w1[0];
+	*x4 = -(v02 +  vb01) * SQRT1_8; // w1[1];
+	*x2 =  (vb10 - v03)  * SQRT1_8; // w1[2]; - same as y[3]
+	*x0 = -vb00 * 0.5f;             // w1[3];
+}
+
 
 
 inline __device__ void _dctii_nrecurs8( float x[8], float y[8]) // x,y point to 8-element arrays each

@@ -43,11 +43,25 @@
 // What to do:
 // 1) make single image aberration correction: 1/4 of the result tiles
 // With 4 cameras = calculate correlations (9x9), reusing kernel or just clt ones after color reducing, then output them to device memory
-//Average run time =12502.638672 - with 2 tiles/block it is longer!
+//Average run time =1308.124146 ms
 //#define TILES_PER_BLOCK    2
+//Average run time =12502.638672 - with 2 tiles/block it is longer!
+///12129.268555 ms
+//Average run time =4704.506348 ms (syncwarp)
+//Average run time =4705.612305 ms (syncthreads)
+//Average run time =1051.411255 ms
+//Average run time =861.866577 ms
+//Average run time =850.871277 ms had bugs
+//Average run time =857.947632 ms fixed bugs
+#define TILES_PER_BLOCK    4
+//Average run time =5155.922852 ms
+//Average run time =1166.388306 ms
+//Average run time =988.750977 ms
+//#define TILES_PER_BLOCK    8
 //Average run time =9656.743164 ms
-#define TILES_PER_BLOCK    1
-#define THREADS_PER_TILE  32
+// Average run time =9422.057617 ms (reducing divergence)
+//#define TILES_PER_BLOCK    1
+#define THREADS_PER_TILE   8
 #define IMG_WIDTH       2592
 #define IMG_HEIGHT      1936
 #define NUM_CAMS           4
@@ -78,6 +92,7 @@
 
 //#define DBG_TILE     (DBG_TILE_Y * 324 + DBG_TILE_X)
 //#define DEBUG1 1
+//#define DEBUG2 1
 //#undef  DEBUG2
 //56494
 // struct tp_task
@@ -169,27 +184,6 @@ def get_fold_rindices(n=8):
 */
 
 
-//#define DTTTEST_BLOCK_WIDTH          32
-//#define DTTTEST_BLOCK_HEIGHT         16
-//#define DTTTEST_BLK_STRIDE     (DTTTEST_BLOCK_WIDTH+1)
-//#define DTT_SIZE                      8
-
-/*
-     int OffsThreadInRow = threadIdx.y * DTT_SIZE + threadIdx.x;
-    int OffsThreadInCol = threadIdx.z * DTT_SIZE;
-    src += ((blockIdx.y * DTTTEST_BLOCK_HEIGHT + OffsThreadInCol) * src_stride) + blockIdx.x * DTTTEST_BLOCK_WIDTH + OffsThreadInRow;
-    dst += ((blockIdx.y * DTTTEST_BLOCK_HEIGHT + OffsThreadInCol) * src_stride) + blockIdx.x * DTTTEST_BLOCK_WIDTH + OffsThreadInRow;
-    float *bl_ptr = block + OffsThreadInCol * DTTTEST_BLK_STRIDE + OffsThreadInRow;
- *
-     // GPU memory pointers
-    float * gpu_kernels        [NUM_CAMS];
-    float * gpu_kernel_offsets [NUM_CAMS];
-    float * gpu_images         [NUM_CAMS];
-    float * gpu_tasks;
-    size_t  dstride;
-
- */
-
 __constant__ float HWINDOW[] = {0.098017f, 0.290285f, 0.471397f, 0.634393f,
                                 0.773010f, 0.881921f, 0.956940f, 0.995185f};
 
@@ -207,37 +201,60 @@ __constant__ int zi[4][4] =  {{ 0, -1, -2,  3},
 							  { 2, -3,  0, -1},
 							  { 3,  2,  1,  0}};
 
+__constant__ int za[4][4] =  {{ 0,  1,  2,  3},
+							  { 1,  0,  3,  2},
+							  { 2,  3,  0,  1},
+							  { 3,  2,  1,  0}};
+__constant__ int zs[4][4] =  {{ 0, -1, -1,  1},
+							  { 1,  0, -1, -1},
+							  { 1, -1,  0, -1},
+							  { 1,  1,  1,  0}};
+
 
 
 __device__ void convertCorrectTile(
-		struct CltExtra   * gpu_kernel_offsets,
-		float             * gpu_kernels,
-		float             * gpu_images,
-//		struct tp_task  * tt,
-		float               centerX,
-		float               centerY,
-		size_t              dstride, // in floats (pixels)
-
-		float clt_tile        [NUM_COLORS][4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
-		float clt_kernels     [NUM_COLORS][4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
-		//		float bayer_tiles  [IMAGE_TILE_SIDE][IMAGE_TILE_SIDE],
-		int   int_topleft    [NUM_COLORS][2],
-		float residual_shift [NUM_COLORS][2],
-	    float window_hor_cos  [NUM_COLORS][2*DTT_SIZE],
-	    float window_hor_sin  [NUM_COLORS][2*DTT_SIZE],
-	    float window_vert_cos [NUM_COLORS][2*DTT_SIZE]);
+		struct CltExtra     * gpu_kernel_offsets, // [tileY][tileX][color]
+		float               * gpu_kernels,        // [tileY][tileX][color]
+		float               * gpu_images,
+		float               * gpu_clt,
+		const int             color,
+		const float           centerX,
+		const float           centerY,
+		const size_t          dstride, // in floats (pixels)
+		// clt_tile[0] - before rotation, [0][0] - R:DCT/DCT, [0][1] - B:DCT/DCT, [0][2] - G:DCT/DCT, [0][3] - G:DST/DCT,
+		// clt_tile[1], clt_tile[2], and clt_tile[3] - after rotation, 4 quadrants each
+	    // changed, above is wrong now
+		//		float clt_tile        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
+		float               * clt_tile, //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
+		//		float clt_kernels     [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
+		float               * clt_kernels, //      [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
+		int   int_topleft     [2],
+		float residual_shift  [2],
+	    float window_hor_cos  [2*DTT_SIZE],
+	    float window_hor_sin  [2*DTT_SIZE],
+	    float window_vert_cos [2*DTT_SIZE]);
 
 // Fractional pixel shift (phase rotation), horizontal. In-place.
 __device__ void shiftTileHor(
+		float * clt_tile, //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
+		float residual_shift                         );
+__device__ void shiftTileHor1(
 		float clt_tile       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
 		float residual_shift                         );
 
 // Fractional pixel shift (phase rotation), vertical. In-place.
 __device__ void shiftTileVert(
+		float *clt_tile, //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
+		float residual_shift                         );
+__device__ void shiftTileVert1(
 		float clt_tile       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
 		float residual_shift                         );
 
 __device__ void convolveTiles(
+		float* clt_tile, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
+		float* kernel); //      [4][DTT_SIZE][DTT_SIZE1]) // 4 quadrants of the CLT kernel (DTT3 converted)
+
+__device__ void convolveTiles0(
 		float clt_tile   [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
 		float kernel     [4][DTT_SIZE][DTT_SIZE1]); // 4 quadrants of the CLT kernel (DTT3 converted)
 
@@ -248,82 +265,229 @@ __global__ void tileProcessor(
 		float           ** gpu_kernels,        // [NUM_CAMS],
 		float           ** gpu_images,         // [NUM_CAMS],
 		struct tp_task  * gpu_tasks,
+		float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
 		size_t            dstride, // // in floats (pixels)
 		int               num_tiles) // number of tiles in task
 
 {
-//    struct CltExtra * dbg_ce_h0= &gpu_kernel_offsets[0][14328];
-//    struct CltExtra * dbg_ce_h1= &gpu_kernel_offsets[0][14328 +    (164*123)];
-//    struct CltExtra * dbg_ce_h2= &gpu_kernel_offsets[0][14328 + 2* (164*123)];
-
-	int tile_in_block = threadIdx.z;
+	dim3 t = threadIdx;
+	int tile_in_block = threadIdx.y;
 	int task_num = blockIdx.x * TILES_PER_BLOCK + tile_in_block;
 	if (task_num >= num_tiles) return; // nothing to do
 	struct tp_task  * gpu_task = &gpu_tasks[task_num];
 	if (!gpu_task->task)       return; // NOP tile
 	__shared__ struct tp_task tt [TILES_PER_BLOCK];
 	// Copy task data to shared memory
-	int nc = (threadIdx.x >> 1) + (threadIdx.y << 2) - 1;
-	if (nc < 0) {
-		tt[tile_in_block].task =          gpu_task -> task;
-		tt[tile_in_block].tx =            gpu_task -> tx;
-		tt[tile_in_block].ty =            gpu_task -> ty;
-	} else {
+	tt[tile_in_block].task =          gpu_task -> task;
+	tt[tile_in_block].tx =            gpu_task -> tx;
+	tt[tile_in_block].ty =            gpu_task -> ty;
+	int thread0 =  threadIdx.x & 1;
+	int thread12 = threadIdx.x >>1;
+	if (thread12 < NUM_CAMS) {
+		tt[tile_in_block].xy[thread12][thread0] = gpu_task -> xy[thread12][thread0];
+	}
+	if (NUM_CAMS > 4){ // unlikely
+#pragma unroll
+		for (int nc0 = 4; nc0 < NUM_CAMS; nc0 += 4){
+			int nc = nc0 + thread12;
+			if (nc < NUM_CAMS) {
+				tt[tile_in_block].xy[nc][thread0] = gpu_task -> xy[nc][thread0];
+			}
+		}
+	}
+#pragma unroll
+	for (int i = 0; i < (NUM_CAMS / 4); i++){
+		int nc = (threadIdx.x >> 1) + (i << 2);
 		if (nc < NUM_CAMS) {
 			tt[tile_in_block].xy[nc][0] = gpu_task -> xy[nc][0];
 			tt[tile_in_block].xy[nc][1] = gpu_task -> xy[nc][1];
 		}
+
 	}
-	if (NUM_CAMS > 31){ // unlikely
-		nc += 32;
-		while (nc < NUM_CAMS){
-			tt[tile_in_block].xy[nc][0] = gpu_task -> xy[nc][0];
-			tt[tile_in_block].xy[nc][1] = gpu_task -> xy[nc][1];
-			nc += 32;
-		}
-	}
-    __syncthreads();
+     __syncthreads();// __syncwarp();
 
 
     // set memory for CLT result (per tile, per camera, per color, per clt, per row, per column
 	// clt_tile[][0] - before rotation, [][0][0] - R:DCT/DCT, [][0][1] - B:DCT/DCT, [][0][2] - G:DCT/DCT, [][0][3] - G:DST/DCT,
 	// clt_tile[][1], clt_tile[][2], and clt_tile[][3] - after rotation, 4 quadrants each
     // changed, above is wrong now
-    __shared__ float clt_tile        [TILES_PER_BLOCK][NUM_CAMS][NUM_COLORS][4][DTT_SIZE][DTT_SIZE1];
+///    __shared__ float clt_tile        [TILES_PER_BLOCK][NUM_CAMS][NUM_COLORS][4][DTT_SIZE][DTT_SIZE1];
+    __shared__ float clt_tile        [TILES_PER_BLOCK][4][DTT_SIZE][DTT_SIZE1];
     // sharing shared memory for cameras as they are corrected one after another
     // TODO: evaluate total shared memory usage, maybe this sharing is not needed
 
-    __shared__ float clt_kernels     [TILES_PER_BLOCK][NUM_COLORS][4][DTT_SIZE][DTT_SIZE1]; // +1 to alternate column ports
-    __shared__ int   int_topleft     [TILES_PER_BLOCK][NUM_COLORS][2];
-    __shared__ float residual_shift  [TILES_PER_BLOCK][NUM_COLORS][2];
+    __shared__ float clt_kernels     [TILES_PER_BLOCK][4][DTT_SIZE][DTT_SIZE1]; // +1 to alternate column ports
+    __shared__ int   int_topleft     [TILES_PER_BLOCK][2];
+    __shared__ float residual_shift  [TILES_PER_BLOCK][2];
 
-    __shared__ float window_hor_cos  [TILES_PER_BLOCK][NUM_COLORS][2*DTT_SIZE];
-    __shared__ float window_hor_sin  [TILES_PER_BLOCK][NUM_COLORS][2*DTT_SIZE];
-    __shared__ float window_vert_cos [TILES_PER_BLOCK][NUM_COLORS][2*DTT_SIZE];
+    __shared__ float window_hor_cos  [TILES_PER_BLOCK][2*DTT_SIZE];
+    __shared__ float window_hor_sin  [TILES_PER_BLOCK][2*DTT_SIZE];
+    __shared__ float window_vert_cos [TILES_PER_BLOCK][2*DTT_SIZE];
 
 //IMAGE_TILE_SIDE
     // process each camera in series
     for (int ncam = 0; ncam <  NUM_CAMS; ncam++){
-    	convertCorrectTile(
-    			gpu_kernel_offsets[ncam],        // float           * gpu_kernel_offsets,
-				gpu_kernels[ncam],               // float           * gpu_kernels,
-				gpu_images[ncam],                // float           * gpu_images,
-				tt[tile_in_block].xy[ncam][0],   // float             centerX,
-				tt[tile_in_block].xy[ncam][1],   // float             centerY,
-				dstride,                         // size_t            dstride, // in floats (pixels)
-				clt_tile [tile_in_block][ncam],  // float clt_tile [TILES_PER_BLOCK][NUM_CAMS][NUM_COLORS][4][DTT_SIZE][DTT_SIZE])
-				clt_kernels[tile_in_block],      // float clt_tile    [NUM_COLORS][4][DTT_SIZE][DTT_SIZE],
-				int_topleft[tile_in_block],      // int   int_topleft  [NUM_COLORS][2],
-				residual_shift[tile_in_block],   // float frac_topleft [NUM_COLORS][2],
-				window_hor_cos[tile_in_block],   // float window_hor_cos  [NUM_COLORS][2*DTT_SIZE],
-				window_hor_sin[tile_in_block],   //float window_hor_sin  [NUM_COLORS][2*DTT_SIZE],
-				window_vert_cos[tile_in_block]); //float window_vert_cos [NUM_COLORS][2*DTT_SIZE]);
-    	__syncthreads();
+    	for (int color = 0; color <  NUM_COLORS; color++){
+    		convertCorrectTile(
+    				gpu_kernel_offsets[ncam],        // float           * gpu_kernel_offsets,
+					gpu_kernels[ncam],               // float           * gpu_kernels,
+					gpu_images[ncam],                // float           * gpu_images,
+					gpu_clt[ncam],                   // float           * gpu_clt,
+					color,                           // const int         color,
+					tt[tile_in_block].xy[ncam][0],   // const float       centerX,
+					tt[tile_in_block].xy[ncam][1],   // const float       centerY,
+					dstride,                         // size_t            dstride, // in floats (pixels)
+					(float * )(clt_tile [tile_in_block]),        // float clt_tile [TILES_PER_BLOCK][NUM_CAMS][NUM_COLORS][4][DTT_SIZE][DTT_SIZE])
+					(float * )(clt_kernels[tile_in_block]),      // float clt_tile    [NUM_COLORS][4][DTT_SIZE][DTT_SIZE],
+					int_topleft[tile_in_block],      // int   int_topleft  [NUM_COLORS][2],
+					residual_shift[tile_in_block],   // float frac_topleft [NUM_COLORS][2],
+					window_hor_cos[tile_in_block],   // float window_hor_cos  [NUM_COLORS][2*DTT_SIZE],
+					window_hor_sin[tile_in_block],   //float window_hor_sin  [NUM_COLORS][2*DTT_SIZE],
+					window_vert_cos[tile_in_block]); //float window_vert_cos [NUM_COLORS][2*DTT_SIZE]);
+    		 __syncthreads();// __syncwarp();
+    	}
     }
 }
 
 // Fractional pixel shift (phase rotation), horizontal. In-place. uses 8 threads (.x)
 __device__ void shiftTileHor(
+		float * clt_tile, //       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
+		float residual_shift )
+{
+	int joffs = threadIdx.x; // * DTT_SIZE1;
+	float * clt_tile_j0 = clt_tile +    joffs;                // ==&clt_tile[0][j][0]
+	float * clt_tile_j1 = clt_tile_j0 + (DTT_SIZE1*DTT_SIZE); // ==&clt_tile[1][j][0]
+	float * clt_tile_j2 = clt_tile_j1 + (DTT_SIZE1*DTT_SIZE); // ==&clt_tile[2][j][0]
+	float * clt_tile_j3 = clt_tile_j2 + (DTT_SIZE1*DTT_SIZE); // ==&clt_tile[3][j][0]
+	float x = residual_shift * ((threadIdx.x << 1 ) +1) * (0.5f/ DTT_SIZE);
+	float ch =  cospif(x);
+	float sh =  sinpif(x);
+#pragma unroll
+	for (int i = 0; i < DTT_SIZE; i++) {
+		float clt_tile_a = *clt_tile_j0;
+		float clt_tile_b = *clt_tile_j1;
+		*clt_tile_j0 =  clt_tile_a * ch - clt_tile_b * sh;
+		*clt_tile_j1 =  clt_tile_a * sh + clt_tile_b * ch;
+
+		clt_tile_a = *clt_tile_j2;
+		clt_tile_b = *clt_tile_j3;
+		*clt_tile_j2 =  clt_tile_a * ch - clt_tile_b * sh;
+		*clt_tile_j3 =  clt_tile_a * sh + clt_tile_b * ch;
+
+		clt_tile_j0 +=DTT_SIZE1;
+		clt_tile_j1 +=DTT_SIZE1;
+		clt_tile_j2 +=DTT_SIZE1;
+		clt_tile_j3 +=DTT_SIZE1;
+	}
+}
+
+
+__device__ void shiftTileVert(
+		float * clt_tile, //       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
+		float residual_shift)
+{
+	int joffs = threadIdx.x * DTT_SIZE1;
+	float * clt_tile_j0 = clt_tile +    joffs;                // ==&clt_tile[0][j][0]
+	float * clt_tile_j1 = clt_tile_j0 + (DTT_SIZE1*DTT_SIZE); // ==&clt_tile[1][j][0]
+	float * clt_tile_j2 = clt_tile_j1 + (DTT_SIZE1*DTT_SIZE); // ==&clt_tile[2][j][0]
+	float * clt_tile_j3 = clt_tile_j2 + (DTT_SIZE1*DTT_SIZE); // ==&clt_tile[3][j][0]
+	float x = residual_shift * ((threadIdx.x << 1 ) +1) * (0.5f/ DTT_SIZE);
+	float ch =  cospif(x);
+	float sh =  sinpif(x);
+#pragma unroll
+	for (int i = 0; i < DTT_SIZE; i++) {
+		float clt_tile_a = *clt_tile_j0;
+		float clt_tile_b = *clt_tile_j2;
+		*clt_tile_j0 =  clt_tile_a * ch - clt_tile_b * sh;
+		*clt_tile_j2 =  clt_tile_a * sh + clt_tile_b * ch;
+
+		clt_tile_a = *clt_tile_j1;
+		clt_tile_b = *clt_tile_j3;
+		*clt_tile_j1 =  clt_tile_a * ch - clt_tile_b * sh;
+		*clt_tile_j3 =  clt_tile_a * sh + clt_tile_b * ch;
+
+		clt_tile_j0 ++;
+		clt_tile_j1 ++;
+		clt_tile_j2 ++;
+		clt_tile_j3 ++;
+	}
+}
+
+__device__ void convolveTiles(
+		float* clt_tile, //    [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
+		float* kernel) //      [4][DTT_SIZE][DTT_SIZE1]) // 4 quadrants of the CLT kernel (DTT3 converted)
+{
+	int joffs = threadIdx.x * DTT_SIZE1;
+	float * kernel_j; //  =   kernel +      joffs;                // ==&kernel[0][j][0]
+	float * clt_tile_j0 = clt_tile +    joffs;                // ==&clt_tile[0][j][0]
+	float * clt_tile_j1 = clt_tile_j0 + (DTT_SIZE1*DTT_SIZE); // ==&clt_tile[1][j][0]
+	float * clt_tile_j2 = clt_tile_j1 + (DTT_SIZE1*DTT_SIZE); // ==&clt_tile[2][j][0]
+	float * clt_tile_j3 = clt_tile_j2 + (DTT_SIZE1*DTT_SIZE); // ==&clt_tile[3][j][0]
+//#pragma unroll
+	for (int i = 0; i < DTT_SIZE; i++){
+		// k=0
+		kernel_j =   kernel + joffs + i;
+		float krn = *(kernel_j);
+		float r0 =  *(clt_tile_j0) * krn;
+		float r1 =  *(clt_tile_j1) * krn;
+		float r2 =  *(clt_tile_j2) * krn;
+		float r3 =  *(clt_tile_j3) * krn;
+		// k = 1
+		kernel_j += (DTT_SIZE1*DTT_SIZE);
+		krn = *(kernel_j);
+		r0 -=  *(clt_tile_j1) * krn;
+		r1 +=  *(clt_tile_j0) * krn;
+		r2 -=  *(clt_tile_j3) * krn;
+		r3 +=  *(clt_tile_j2) * krn;
+		// k=2
+		kernel_j += (DTT_SIZE1*DTT_SIZE);
+		krn = *(kernel_j);
+		r0 -=  *(clt_tile_j2) * krn;
+		r1 -=  *(clt_tile_j3) * krn;
+		r2 +=  *(clt_tile_j0) * krn;
+		r3 +=  *(clt_tile_j1) * krn;
+		// k=3
+		kernel_j += (DTT_SIZE1*DTT_SIZE);
+		krn = *(kernel_j);
+		r0 +=  *(clt_tile_j3) * krn;
+		r1 -=  *(clt_tile_j2) * krn;
+		r2 -=  *(clt_tile_j1) * krn;
+		r3 +=  *(clt_tile_j0) * krn;
+		*(clt_tile_j0)= r0;
+		*(clt_tile_j1)= r1;
+		*(clt_tile_j2)= r2;
+		*(clt_tile_j3)= r3;
+		clt_tile_j0 ++;
+		clt_tile_j1 ++;
+		clt_tile_j2 ++;
+		clt_tile_j3 ++;
+	}
+}
+
+
+
+__device__ void shiftTileHor2(
+		float *fclt_tile, //   [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
+		float residual_shift )
+{
+	float (*clt_tile) [4][DTT_SIZE][DTT_SIZE1] =  (float(*)[4][DTT_SIZE][DTT_SIZE1]) fclt_tile;
+	int j =   threadIdx.x;
+	float x = residual_shift * ((j << 1 ) +1) * (0.5f/ DTT_SIZE);
+	float ch =  cospif(x);
+	float sh =  sinpif(x);
+#pragma unroll
+	for (int i = 0; i < DTT_SIZE; i++) {
+		float t =           (*clt_tile)[0][i][j] * ch - (*clt_tile)[1][i][j] * sh;
+		(*clt_tile)[1][i][j] = (*clt_tile)[0][i][j] * sh + (*clt_tile)[1][i][j] * ch;
+		(*clt_tile)[0][i][j] = t;
+
+		t =                 (*clt_tile)[2][i][j] * ch - (*clt_tile)[3][i][j] * sh;
+		(*clt_tile)[3][i][j] = (*clt_tile)[2][i][j] * sh + (*clt_tile)[3][i][j] * ch;
+		(*clt_tile)[2][i][j] = t;
+	}
+}
+
+__device__ void shiftTileHor1(
 		float clt_tile       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
 		float residual_shift )
 {
@@ -341,8 +505,14 @@ __device__ void shiftTileHor(
 		clt_tile[3][i][j] = clt_tile[2][i][j] * sh + clt_tile[3][i][j] * ch;
 		clt_tile[2][i][j] = t;
 	}
-
 }
+
+
+
+
+
+
+
 // Fractional pixel shift (phase rotation), vertical. In-place.
 __device__ void shiftTileVert0(
 		float clt_tile       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
@@ -364,7 +534,7 @@ __device__ void shiftTileVert0(
 	}
 }
 
-__device__ void shiftTileVert(
+__device__ void shiftTileVert1(
 		float clt_tile       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
 		float residual_shift)
 {
@@ -384,9 +554,55 @@ __device__ void shiftTileVert(
 	}
 }
 
+__device__ void shiftTileVert2(
+		float *fclt_tile, //   [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
+		float residual_shift)
+{
+	float (*clt_tile) [4][DTT_SIZE][DTT_SIZE1] =  (float(*)[4][DTT_SIZE][DTT_SIZE1]) fclt_tile;
+	int j =   threadIdx.x;
+	float x = residual_shift * ((j << 1 ) +1) * (0.5f/ DTT_SIZE);
+	float ch =  cospif(x);
+	float sh =  sinpif(x);
+#pragma unroll
+	for (int i = 0; i < DTT_SIZE; i++) {
+		float t =           (*clt_tile)[0][j][i] * ch - (*clt_tile)[2][j][i] * sh;
+		(*clt_tile)[2][j][i] = (*clt_tile)[0][j][i] * sh + (*clt_tile)[2][j][i] * ch;
+		(*clt_tile)[0][j][i] = t;
+
+		t =                 (*clt_tile)[1][j][i] * ch - (*clt_tile)[3][j][i] * sh;
+		(*clt_tile)[3][j][i] = (*clt_tile)[1][j][i] * sh + (*clt_tile)[3][j][i] * ch;
+		(*clt_tile)[1][j][i] = t;
+	}
+}
+
 
 // Fractional pixel shift (phase rotation), vertical. In-place.
-__device__ void convolveTiles(
+
+
+__device__ void convolveTiles1(
+		float clt_tile   [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
+		float kernel     [4][DTT_SIZE][DTT_SIZE1]) // 4 quadrants of the CLT kernel (DTT3 converted)
+{
+	int j = threadIdx.x;
+	for (int i = 0; i < DTT_SIZE; i++){
+		float r0 = 0;
+		float r1 = 0;
+		float r2 = 0;
+		float r3 = 0;
+		for (int k = 0; k < 4; k++){
+			r0 += zs[0][k]*clt_tile[za[0][k]][j][i] * kernel[k][j][i];
+			r1 += zs[1][k]*clt_tile[za[1][k]][j][i] * kernel[k][j][i];
+			r2 += zs[2][k]*clt_tile[za[2][k]][j][i] * kernel[k][j][i];
+			r3 += zs[3][k]*clt_tile[za[3][k]][j][i] * kernel[k][j][i];
+		}
+		clt_tile[0][j][i]= r0;
+		clt_tile[1][j][i]= r1;
+		clt_tile[2][j][i]= r2;
+		clt_tile[3][j][i]= r3;
+	}
+}
+
+__device__ void convolveTiles0(
 		float clt_tile   [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
 		float kernel     [4][DTT_SIZE][DTT_SIZE1]) // 4 quadrants of the CLT kernel (DTT3 converted)
 {
@@ -416,46 +632,104 @@ __device__ void convolveTiles(
 	}
 }
 
+__device__ void convolveTiles2(
+		float *fclt_tile, //   [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
+		float *fkernel) //      [4][DTT_SIZE][DTT_SIZE1]) // 4 quadrants of the CLT kernel (DTT3 converted)
+{
+	float (*clt_tile) [4][DTT_SIZE][DTT_SIZE1] =  (float(*)[4][DTT_SIZE][DTT_SIZE1]) fclt_tile;
+	float (*kernel)    [4][DTT_SIZE][DTT_SIZE1] = (float(*)[4][DTT_SIZE][DTT_SIZE1]) fkernel;
+	int j = threadIdx.x;
+	for (int i = 0; i < DTT_SIZE; i++){
+		float r0 = 0;
+		float r1 = 0;
+		float r2 = 0;
+		float r3 = 0;
+		for (int k = 0; k < 4; k++){
+			if (zi[0][k] < 0) r0 -= (*clt_tile)[-zi[0][k]][j][i] * (*kernel)[k][j][i];
+			else			  r0 += (*clt_tile)[ zi[0][k]][j][i] * (*kernel)[k][j][i];
+
+			if (zi[1][k] < 0) r1 -= (*clt_tile)[-zi[1][k]][j][i] * (*kernel)[k][j][i];
+			else			  r1 += (*clt_tile)[ zi[1][k]][j][i] * (*kernel)[k][j][i];
+
+			if (zi[2][k] < 0) r2 -= (*clt_tile)[-zi[2][k]][j][i] * (*kernel)[k][j][i];
+			else			  r2 += (*clt_tile)[ zi[2][k]][j][i] * (*kernel)[k][j][i];
+
+			if (zi[3][k] < 0) r3 -= (*clt_tile)[-zi[3][k]][j][i] * (*kernel)[k][j][i];
+			else			  r3 += (*clt_tile)[ zi[3][k]][j][i] * (*kernel)[k][j][i];
+		}
+		(*clt_tile)[0][j][i]= r0;
+		(*clt_tile)[1][j][i]= r1;
+		(*clt_tile)[2][j][i]= r2;
+		(*clt_tile)[3][j][i]= r3;
+	}
+}
+
+
+
+
 __device__ void debug_print_clt(
-		float clt_tile        [NUM_COLORS][4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
+		float clt_tile        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
+		const int color,
 		int mask)
 {
-	for (int dbg_color = 0; dbg_color < NUM_COLORS; dbg_color++){
-		printf("----------- Color = %d -----------\n",dbg_color);
+		printf("----------- Color = %d -----------\n",color);
 		for (int dbg_quadrant = 0; dbg_quadrant < 4; dbg_quadrant++){
 			printf("----------- Quadrant (c(h)-c(v), s-c, c-s, s-s) = %d -----------\n",dbg_quadrant);
-			if ((mask >> (dbg_color * 4 + dbg_quadrant)) & 1) {
+			if ((mask >> dbg_quadrant) & 1) {
 				for (int dbg_row = 0; dbg_row < DTT_SIZE; dbg_row++){
 					for (int dbg_col = 0; dbg_col < DTT_SIZE; dbg_col++){
-						printf ("%10.5f ", clt_tile[dbg_color][dbg_quadrant][dbg_row][dbg_col]);
+						printf ("%10.5f ", clt_tile[dbg_quadrant][dbg_row][dbg_col]);
 					}
 					printf("\n");
 				}
 			}
 			printf("\n");
 		}
-	}
 }
+__device__ void debug_print_clt1(
+		float * clt_tile, //         [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports)
+		const int color,
+		int mask)
+{
+		printf("----------- Color = %d -----------\n",color);
+		for (int dbg_quadrant = 0; dbg_quadrant < 4; dbg_quadrant++){
+			printf("----------- Quadrant (c(h)-c(v), s-c, c-s, s-s) = %d -----------\n",dbg_quadrant);
+			if ((mask >> dbg_quadrant) & 1) {
+				for (int dbg_row = 0; dbg_row < DTT_SIZE; dbg_row++){
+					for (int dbg_col = 0; dbg_col < DTT_SIZE; dbg_col++){
+						printf ("%10.5f ", clt_tile[(dbg_quadrant*DTT_SIZE + dbg_row)*DTT_SIZE1 + dbg_col]);
+					}
+					printf("\n");
+				}
+			}
+			printf("\n");
+		}
+}
+
+
 
 // Uses 32 threads
 __device__ void convertCorrectTile(
 		struct CltExtra     * gpu_kernel_offsets, // [tileY][tileX][color]
 		float               * gpu_kernels,        // [tileY][tileX][color]
 		float               * gpu_images,
-		//		struct tp_task  * tt,
-		float                 centerX,
-		float                 centerY,
-		size_t                dstride, // in floats (pixels)
+		float               * gpu_clt,
+		const int             color,
+		const float           centerX,
+		const float           centerY,
+		const size_t          dstride, // in floats (pixels)
 		// clt_tile[0] - before rotation, [0][0] - R:DCT/DCT, [0][1] - B:DCT/DCT, [0][2] - G:DCT/DCT, [0][3] - G:DST/DCT,
 		// clt_tile[1], clt_tile[2], and clt_tile[3] - after rotation, 4 quadrants each
 	    // changed, above is wrong now
-		float clt_tile        [NUM_COLORS][4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
-		float clt_kernels     [NUM_COLORS][4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
-		int   int_topleft     [NUM_COLORS][2],
-		float residual_shift  [NUM_COLORS][2],
-	    float window_hor_cos  [NUM_COLORS][2*DTT_SIZE],
-	    float window_hor_sin  [NUM_COLORS][2*DTT_SIZE],
-	    float window_vert_cos [NUM_COLORS][2*DTT_SIZE])
+//		float clt_tile        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
+		float               * clt_tile, //        [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
+//		float clt_kernels     [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
+		float               * clt_kernels, //      [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
+		int   int_topleft     [2],
+		float residual_shift  [2],
+	    float window_hor_cos  [2*DTT_SIZE],
+	    float window_hor_sin  [2*DTT_SIZE],
+	    float window_vert_cos [2*DTT_SIZE])
 
 {
 
@@ -466,504 +740,378 @@ __device__ void convertCorrectTile(
 	int   ktileX, ktileY;
 	int   kernel_index; // common for all coors
 	float kdx, kdy;
-	switch (threadIdx.x){
-	case 0:
-//		ktileX = min(KERNELS_HOR-1, max(0, (((int) lrintf(centerX))+ (1<< (KERNELS_LSTEP-1)) >> KERNELS_LSTEP)+1));
-		ktileX = min(KERNELS_HOR-1, max(0, ((int) lrintf(centerX * (1.0/KERNELS_STEP)+1))));
-//		kdx = centerX - (ktileX -1 +0.5) *  KERNELS_STEP; // difference in pixel
+	if (threadIdx.x == 0){
+		ktileX = min(KERNELS_HOR-1,  max(0, ((int) lrintf(centerX * (1.0/KERNELS_STEP)+1))));
+		ktileY = min(KERNELS_VERT-1, max(0, ((int) lrintf(centerY * (1.0/KERNELS_STEP)+1))));
 		kdx =    centerX - (ktileX << KERNELS_LSTEP) + (1 << (KERNELS_LSTEP -1)); // difference in pixel
-		break;
-	case 1:
-//		ktileY = min(KERNELS_HOR-1, max(0, (((int) lrintf(centerY))+ (1<< (KERNELS_LSTEP-1)) >> KERNELS_LSTEP)+1));
-		ktileY = min(KERNELS_HOR-1, max(0, ((int) lrintf(centerY * (1.0/KERNELS_STEP)+1))));
 		kdy =    centerY - (ktileY << KERNELS_LSTEP) + (1 << (KERNELS_LSTEP -1)); // difference in pixel
-		break;
-	}
-    __syncthreads();
-    // thread0 gets  ktileY from thread 1
-    ktileY =  __shfl_sync(
-    		0x00000001,        // unsigned mask,
-			ktileY,            // T var,
-			1,                 // int srcLane,
-			THREADS_PER_TILE); // int width=warpSize);
-    switch (threadIdx.x){
-    case 0:
-//    	kernel_index = ktileX + ktileY * KERNELS_HOR;
     	kernel_index = (ktileX + ktileY * KERNELS_HOR) * NUM_COLORS;
-    	break;
-    }
-    __syncthreads();
+	}
+////     __syncthreads();// __syncwarp();
     // broadcast kernel_index
     kernel_index =  __shfl_sync(
     		0xffffffff,        // unsigned mask,
 			kernel_index,      // T var,
 			0,                 // int srcLane,
 			THREADS_PER_TILE); // int width=warpSize);
-    __syncthreads(); // is it needed?
+////     __syncthreads();// __syncwarp(); // is it needed?
     kdx =  __shfl_sync(
     		0xffffffff,        // unsigned mask,
 			kdx,               // T var,
 			0,                 // int srcLane,
 			THREADS_PER_TILE); // int width=warpSize);
-    __syncthreads(); // is it needed?
     kdy =  __shfl_sync(
     		0xffffffff,        // unsigned mask,
 			kdy,               // T var,
-			1,                 // int srcLane,
+			0,                 // int srcLane,
 			THREADS_PER_TILE); // int width=warpSize);
 
-    __syncthreads(); // is it needed?
-    int color = threadIdx.y;
+     __syncthreads();// __syncwarp(); // is it needed?
     float px, py;
-//    int dbg_y = threadIdx.y;
-//    int dbg_x = threadIdx.x;
-    if (color < 3){ // 3*8 threads cooperating on this
-//    	float * kernel_src = &gpu_kernels[ (kernel_index + color * (KERNELS_HOR * KERNELS_VERT))* (DTT_SIZE * DTT_SIZE * 4)];
-    	float * kernel_src = &gpu_kernels[ (kernel_index + color )* (DTT_SIZE * DTT_SIZE * 4)];
-    	float * kernelp = (float *) clt_kernels[color];
-    	kernel_src += threadIdx.x; // lsb;
-    	kernelp +=    threadIdx.x; // lsb;
-    	for (int j = 0; j < DTT_SIZE * 4; j++){ // all 4 components, 8 rows
-    		// shared memory kernels use DTT_SIZE1 (same as image data)
-    		    		*kernelp = *kernel_src; kernelp+=DTT_SIZE1; kernel_src+=THREADSX;
-    		    		*kernelp = *kernel_src; kernelp+=DTT_SIZE1; kernel_src+=THREADSX;
-    		    		*kernelp = *kernel_src; kernelp+=DTT_SIZE1; kernel_src+=THREADSX;
-    		    		*kernelp = *kernel_src; kernelp+=DTT_SIZE1; kernel_src+=THREADSX;
-    	}
-    } else { // if (color < 3){  calculate offsets and copy bayer image (with individual shifts)
-    	// calculate offsets and prepare windows
-    	int bayer_color =  min((NUM_COLORS-1),threadIdx.x >> 1);
-    	int bayer_g2 = threadIdx.x >= (NUM_COLORS << 1); // second pass of green
-    	int lsb = threadIdx.x & 1;
-//    	int kernel_full_index = kernel_index + bayer_color*(KERNELS_HOR * KERNELS_VERT);
-    	int kernel_full_index = kernel_index + bayer_color;
-//    	struct CltExtra * clt_extra = &gpu_kernel_offsets[kernel_index + bayer_color*(KERNELS_HOR * KERNELS_VERT)];
-//    	struct CltExtra * clt_extra = &gpu_kernel_offsets[kernel_index + bayer_color];
-    	struct CltExtra * clt_extra = &gpu_kernel_offsets[kernel_full_index];
-    	// both threads will calculate same x,y components - dont'y know how to sync just them not with other copying kernels
-    	if (bayer_g2){ // threads 30,31
-    		if (lsb){
-    			px = centerX - DTT_SIZE - (clt_extra->data_x + clt_extra->dxc_dx * kdx + clt_extra->dxc_dy * kdy) ; // fractional left corner  Warp Illegal Address
-    			int itlx = (int) floorf(px +0.5f);
-    			int_topleft   [bayer_color][0] = itlx;
-///    			float shift_hor =  px - itlx;
-    			float shift_hor =  itlx - px;
-    			residual_shift[bayer_color][0] = shift_hor;
-    			float x = shift_hor *(1.0f/16);
-    			float ahc = cospif(x);
-    			float ahs = sinpif(x);
-    			int i1 = DTT_SIZE;
-    			int i = 0;
-    			// embed sign for cosine and sine branches into window coefficients
-    			for (; i < (DTT_SIZE/2); i++ ){
-    				int ri = (DTT_SIZE-1) - i;
-    				window_hor_sin[bayer_color][i] =    HWINDOW[i ]*ahc + HWINDOW[ri]*ahs; // bayer_color== 2
-    				window_hor_sin[bayer_color][i1] =   HWINDOW[ri]*ahc - HWINDOW[ i]*ahs;
-    				i1++;
-    			}
-    			// embed sign for cosine and sine branches into window coefficients
-    			for (; i < DTT_SIZE; i++ ){
-    				int ri = (DTT_SIZE-1) - i;
-    				window_hor_sin[bayer_color][i] =    HWINDOW[i ]*ahc + HWINDOW[ri]*ahs;
-    				window_hor_sin[bayer_color][i1] =   HWINDOW[ i]*ahs - HWINDOW[ri]*ahc;
-    				i1++;
-    			}
-    		}
-    	} else { //if (bayer_g2){ // threads 24..29
-    		if (lsb){
-    			px = centerX - DTT_SIZE - (clt_extra->data_x + clt_extra->dxc_dx * kdx + clt_extra->dxc_dy * kdy) ; // fractional left corner
-    			int itlx = (int) floorf(px +0.5f);
-    			int_topleft   [bayer_color][0] = itlx;
-///    			float shift_hor =  px - itlx;
-    			float shift_hor =  itlx - px;
-    			residual_shift[bayer_color][0] = shift_hor;
-    			float x = shift_hor *(1.0f/16);
-    			float ahc = cospif(x);
-    			float ahs = sinpif(x);
-    			int i1 = DTT_SIZE;
-    			int i = 0;
-    			// embed sign for cosine and sine branches into window coefficients
-    			for (; i < (DTT_SIZE/2); i++ ){
-    				int ri = (DTT_SIZE-1) - i;
-    				window_hor_cos[bayer_color][i] =   HWINDOW[i ]*ahc + HWINDOW[ri]*ahs;
-    				window_hor_cos[bayer_color][i1] =  HWINDOW[ i]*ahs - HWINDOW[ri]*ahc;
-    				i1++;
-    			}
-    			// embed sign for cosine and sine branches into window coefficients
-    			for (; i < DTT_SIZE; i++ ){
-    				int ri = (DTT_SIZE-1) - i;
-    				window_hor_cos[bayer_color][i] =   -HWINDOW[i ]*ahc - HWINDOW[ri]*ahs;
-    				window_hor_cos[bayer_color][i1] =   HWINDOW[ i]*ahs - HWINDOW[ri]*ahc;
-    				i1++;
-    			}
-    		} else { //if (lsb){
-    			py = centerY - DTT_SIZE - (clt_extra->data_y + clt_extra->dyc_dx * kdx + clt_extra->dyc_dy * kdy) ; // fractional top corner
-    			int itly = (int) floorf(py +0.5f);
-    			int_topleft[bayer_color][1] = itly;
+    // copy kernel
+	int kernel_full_index = kernel_index + color;
+    float * kernel_src = gpu_kernels + kernel_full_index* (DTT_SIZE * DTT_SIZE * 4);
+    float * kernelp =  clt_kernels;
 
-///    			float shift_vert =  py - itly;
-    			float shift_vert =  itly - py;
-    			residual_shift[bayer_color][1] = shift_vert;
-    			float x = shift_vert *(1.0f/16);
-    			float avc = cospif(x);
-    			float avs = sinpif(x);
-    			int i1 = DTT_SIZE;
-    			// embed sign for cosine branch only into window coefficients (for R,B only CC is needed, for G - CC and SC
-    			int i = 0;
-    			for (; i < DTT_SIZE/2; i++ ){
-    				int ri = (DTT_SIZE-1) - i;
-    				window_vert_cos[bayer_color][i] =    HWINDOW[i ]*avc + HWINDOW[ri]*avs;
-    				window_vert_cos[bayer_color][i1++] = HWINDOW[ i]*avs - HWINDOW[ri]*avc;
-    			}
-    			for (; i < DTT_SIZE; i++ ){
-    				int ri = (DTT_SIZE-1) - i;
-    				window_vert_cos[bayer_color][i] =  -(HWINDOW[i ]*avc + HWINDOW[ri]*avs);
-    				window_vert_cos[bayer_color][i1++] = HWINDOW[ i]*avs - HWINDOW[ri]*avc;
-    			}
-    		}
-    	}
-    } //  if (color < 3) else
-    __syncthreads();
+    kernel_src += threadIdx.x; // lsb;
+    kernelp +=    threadIdx.x; // lsb;
+#pragma unroll
+    for (int j = 0; j < DTT_SIZE * 4; j++){ // all 4 components, 8 rows
+    	// shared memory kernels use DTT_SIZE1 (same as image data)
+    	*kernelp = *kernel_src;
+    	kernelp+=DTT_SIZE1;
+    	kernel_src+=THREADSX;
+/*
+    	*kernelp = *kernel_src;
+    	kernelp+=DTT_SIZE1;
+    	kernel_src+=THREADSX;
+    	*kernelp = *kernel_src;
+    	kernelp+=DTT_SIZE1;
+    	kernel_src+=THREADSX;
+    	*kernelp = *kernel_src;
+    	kernelp+=DTT_SIZE1;
+    	kernel_src+=THREADSX;
+    	*/
+    }
+
+    // Calculate offsets and prepare windows (all colors):
+//	int kernel_full_index = kernel_index + color;
+	struct CltExtra * clt_extra = &gpu_kernel_offsets[kernel_full_index];
+
+	px = centerX - DTT_SIZE - (clt_extra->data_x + clt_extra->dxc_dx * kdx + clt_extra->dxc_dy * kdy) ; // fractional left corner
+	int itlx = (int) floorf(px +0.5f);
+	int_topleft [0] = itlx;
+	float shift_hor =  itlx - px;
+	residual_shift[0] = shift_hor;
+	float x = shift_hor *(1.0f/16);
+	float ahc = cospif(x);
+	float ahs = sinpif(x);
+	int i1 = DTT_SIZE;
+	int i = 0;
+	// embed sign for cosine and sine branches into window coefficients
+#pragma unroll
+	for (; i < (DTT_SIZE/2); i++ ){
+		int ri = (DTT_SIZE-1) - i;
+		window_hor_cos[i] =   HWINDOW[i ]*ahc + HWINDOW[ri]*ahs;
+		window_hor_cos[i1] =  HWINDOW[ i]*ahs - HWINDOW[ri]*ahc;
+		if (color == BAYER_GREEN){
+			window_hor_sin[i] =    HWINDOW[i ]*ahc + HWINDOW[ri]*ahs; // bayer_color== 2
+			window_hor_sin[i1] =   HWINDOW[ri]*ahc - HWINDOW[ i]*ahs;
+		}
+		i1++;
+	}
+	// embed sign for cosine and sine branches into window coefficients
+#pragma unroll
+	for (; i < DTT_SIZE; i++ ){
+		int ri = (DTT_SIZE-1) - i;
+		window_hor_cos[i] =   -HWINDOW[i ]*ahc - HWINDOW[ri]*ahs;
+		window_hor_cos[i1] =   HWINDOW[ i]*ahs - HWINDOW[ri]*ahc;
+		if (color == BAYER_GREEN){
+			window_hor_sin[i] =    HWINDOW[i ]*ahc + HWINDOW[ri]*ahs;
+			window_hor_sin[i1] =   HWINDOW[ i]*ahs - HWINDOW[ri]*ahc;
+		}
+		i1++;
+	}
+
+	py = centerY - DTT_SIZE - (clt_extra->data_y + clt_extra->dyc_dx * kdx + clt_extra->dyc_dy * kdy) ; // fractional top corner
+	int itly = (int) floorf(py +0.5f);
+	int_topleft[1] = itly;
+
+	float shift_vert =  itly - py;
+	residual_shift[1] = shift_vert;
+	x = shift_vert *(1.0f/16);
+	float avc = cospif(x);
+	float avs = sinpif(x);
+	i1 = DTT_SIZE; //**** Was commented out
+	// embed sign for cosine branch only into window coefficients (for R,B only CC is needed, for G - CC and SC
+	i = 0;
+#pragma unroll
+	for (; i < DTT_SIZE/2; i++ ){
+		int ri = (DTT_SIZE-1) - i;
+		window_vert_cos[i] =    HWINDOW[i ]*avc + HWINDOW[ri]*avs;
+		window_vert_cos[i1++] = HWINDOW[ i]*avs - HWINDOW[ri]*avc;
+	}
+#pragma unroll
+	for (; i < DTT_SIZE; i++ ){
+		int ri = (DTT_SIZE-1) - i;
+		window_vert_cos[i] =  -(HWINDOW[i ]*avc + HWINDOW[ri]*avs);
+		window_vert_cos[i1++] = HWINDOW[ i]*avs - HWINDOW[ri]*avc;
+	}
+
+
+//    } //  if (color < 3) else
+     __syncthreads();// __syncwarp();
 #ifdef DEBUG1
-    if ((threadIdx.x + threadIdx.y) == 0){
+    if ((threadIdx.x) == 0){
+		printf("COLOR=%d\n",color);
 		printf("centerX=%f,    centerY=%f\n",centerX, centerY);
 		printf("ktileX=%d,     ktileY=%d\n", ktileX,  ktileY);
 		printf("kdx=%f,        kdy=%f\n",    kdx, kdy);
-    	for (int i = 0; i < NUM_COLORS; i++){
-    		printf("int_topleft[%d][0]=%d,    int_topleft[%d][1]=%d\n",i,int_topleft[i][0],i,int_topleft[i][1]);
-    		printf("residual_shift[%d][0]=%f, residual_shift[%d][1]=%f\n",i,residual_shift[i][0],i,residual_shift[i][1]);
-    	}
+		printf("int_topleft[%d][0]=%d,    int_topleft[%d][1]=%d\n",i,int_topleft[0],i,int_topleft[1]);
+		printf("residual_shift[%d][0]=%f, residual_shift[%d][1]=%f\n",i,residual_shift[0],i,residual_shift[1]);
     }
-    __syncthreads();
+     __syncthreads();// __syncwarp();
 #endif
 
 
 
     // threads 0..23 loaded 3 color kernels, threads 24-27 - prepared hor and vert windows for R and B, threads 28..31 - for G
     // prepare, fold and write data to DTT buffers
-    int dstride2 = dstride <<1; // in floats (pixels)
-    int bayer_color =  min((NUM_COLORS-1),threadIdx.y);
-    // TODO: Make a special case for border tiles
-    if (bayer_color < BAYER_GREEN){	// process R and B (2 * 8 threads) threads 0..15
-    	// Find correct column and start row for each of the 8 participating threads
-    	int col_tl = int_topleft[bayer_color][0]; //  + (threadIdx.x << 1);
-    	int row_tl = int_topleft[bayer_color][1];
-		int local_col = ((col_tl & 1) ^ BAYER_RED_COL ^ bayer_color) + (threadIdx.x << 1);
-		int local_row = ((row_tl & 1) ^ BAYER_RED_ROW ^ bayer_color);
-		float hwind_cos = window_hor_cos[bayer_color][local_col];
-		int dtt_offset =     fold_indx2[local_row][local_col];
-		int dtt_offset_inc = fold_inc[local_row];
-		float *dtt_buf = (float *) clt_tile[bayer_color][0];
+    int dstride2 = dstride << 1; // in floats (pixels)
+    int color0 = color & 1;
+    int color1 = (color >>1) & 1;
+
+    for (int gpass = 0; gpass < (color0 + 1); gpass++) { // Only once for R, B, twice - for G
+    	int col_tl = int_topleft[0]; //  + (threadIdx.x << 1);
+    	int row_tl = int_topleft[1];
+    	//	int local_col = ((col_tl & 1) ^ BAYER_RED_COL ^ color0) + (threadIdx.x << 1);
+    	//	int local_row = ((row_tl & 1) ^ BAYER_RED_ROW ^ color0);
+
+    	// for red, blue and green, pass 0
+    	int local_col = ((col_tl & 1) ^ (BAYER_RED_COL ^ color0 ^ color1 ^ gpass)) + (threadIdx.x << 1); // green red row: invert column from red
+    	int local_row = ((row_tl & 1) ^ BAYER_RED_ROW ^ gpass);                            // use red row
+    	float hwind_cos = window_hor_cos[local_col];
+    	float hwind_sin = window_hor_sin[local_col]; // **** only used for green
+
+    	int dtt_offset =     fold_indx2[local_row][local_col];
+    	int dtt_offset_inc = fold_inc[local_row];
+//    	float *dct_buf = (float *) clt_tile[ gpass << 1];
+//    	float *dst_buf = (float *) clt_tile[(gpass << 1)+1];            // **** only used for green
+    	float *dct_buf = clt_tile + ((gpass << 1) * (DTT_SIZE * DTT_SIZE1));
+    	float *dst_buf = clt_tile + (((gpass << 1) + 1) * (DTT_SIZE * DTT_SIZE1));   // **** only used for green
+
     	if ((col_tl >= 0) && ((col_tl < (IMG_WIDTH - DTT_SIZE * 2))) && (row_tl >= 0) && ((row_tl < (IMG_HEIGHT - DTT_SIZE * 2)))) {
     		float *image_p = gpu_images + dstride * (row_tl + local_row)+ col_tl + local_col;
 #pragma unroll
     		for (int i = 0; i < 8; i++) {
+//    			float d = (*image_p) * window_vert_cos[local_row]; //warp illegal address (0,2,1)
+    			float d = (*image_p);
+    			d *= window_vert_cos[local_row]; //warp illegal address (0,2,1)
+
     			int dtt_offset1 = dtt_offset + (dtt_offset >> 3); // converting for 9-long rows (DTT_SIZE1)
-    			dtt_buf[dtt_offset1]	= (*image_p) * hwind_cos * window_vert_cos[bayer_color][local_row];
+    			dct_buf[dtt_offset1] = d * hwind_cos;
+    			dst_buf[dtt_offset1] = d * hwind_sin; // **** only used for green
     			dtt_offset = ( dtt_offset + ((dtt_offset_inc & 0xf) << 3)) & 0x3f;
     			dtt_offset_inc >>= 4;
     			local_row += 2;
     			image_p += dstride2;
     		}
-    	} else { // handling border tiles
-			int eff_col = (min(IMG_HEIGHT/2 -1, max(0, col_tl >> 1)) << 1) + (col_tl & 1);
+    	} else { // handling border tiles (slower)
+    		int eff_col = (min(IMG_HEIGHT/2 -1, max(0, col_tl >> 1)) << 1) + (col_tl & 1);
     		int row_lsb =  row_tl & 1;
     		int row_pair = row_tl >> 1;
     		float *image_p = gpu_images + dstride * local_row+ (eff_col + local_col);
 #pragma unroll
     		for (int i = 0; i < 8; i++) {
     			int eff_row = (min(IMG_WIDTH/2 - 1, max(0, row_pair + i)) << 1) + row_lsb;
+    			float d =  image_p[dstride * eff_row] * window_vert_cos[local_row];
+
     			int dtt_offset1 = dtt_offset + (dtt_offset >> 3); // converting for 9-long rows (DTT_SIZE1)
-    			dtt_buf[dtt_offset1]	= image_p[dstride * eff_row] * hwind_cos * window_vert_cos[bayer_color][local_row];
-    			dtt_offset = ( dtt_offset + ((dtt_offset_inc & 0xf) << 3)) & 0x3f;
-    			dtt_offset_inc >>= 4;
-    			local_row += 2;
-    		}
-    	}
-    } else { // process green color threads 16..31
-    	// no need to sync here
-    	// process green color - temporarily use two buffers instead of one, then - reduce
-    	int ipass = 	threadIdx.y & 1;
-    	// Find correct column and start row for each of the 8 participating threads
-    	int col_tl = int_topleft[BAYER_GREEN][0]; //  + (threadIdx.x << 1);
-    	int row_tl = int_topleft[BAYER_GREEN][1];
-		int local_col = ((col_tl & 1) ^ (BAYER_RED_COL ^ 1) ^ ipass) + (threadIdx.x << 1); // green red row: invert column from red
-		int local_row = ((row_tl & 1) ^ BAYER_RED_ROW ^ ipass);                            // use red row
-		float hwind_cos = window_hor_cos[BAYER_GREEN][local_col];
-		float hwind_sin = window_hor_sin[BAYER_GREEN][local_col];
-		int dtt_offset =     fold_indx2[local_row][local_col];
-		int dtt_offset_inc = fold_inc[local_row];
-		float *dct_buf = (float *) clt_tile[BAYER_GREEN][ ipass << 1]; // use 2 buffers, second - borrowing from rotated DTT
-		float *dst_buf = (float *) clt_tile[BAYER_GREEN][(ipass << 1) + 1];
-    	if ((col_tl >= 0) && ((col_tl < (IMG_WIDTH - DTT_SIZE * 2))) && (row_tl >= 0) && ((row_tl < (IMG_HEIGHT - DTT_SIZE * 2)))) {
-    		float *image_p = gpu_images + dstride * (row_tl + local_row)+ col_tl + local_col;
-#pragma unroll
-    		for (int i = 0; i < 8; i++) {
-    			float d = (*image_p) * window_vert_cos[BAYER_GREEN][local_row]; //warp illegal address (0,2,1)
-    			int dtt_offset1 = dtt_offset + (dtt_offset >> 3); // converting for 9-long rows
-    			dct_buf[dtt_offset1] = d * hwind_cos; // was +=
-    			dst_buf[dtt_offset1] = d * hwind_sin; // was +=
-    			dtt_offset = ( dtt_offset + ((dtt_offset_inc & 0xf) << 3)) & 0x3f;
-    			dtt_offset_inc >>= 4;
-    			local_row += 2;
-    			image_p += dstride2;
-    		}
-    	} else { // handling border tiles
-			int eff_col = (min(IMG_HEIGHT/2 -1, max(0, col_tl >> 1)) << 1) + (col_tl & 1);
-    		int row_lsb =  row_tl & 1;
-    		int row_pair = row_tl >> 1;
-    		float *image_p = gpu_images + dstride * local_row+ (eff_col + local_col);
-#pragma unroll
-    		for (int i = 0; i < 8; i++) {
-    			int eff_row = (min(IMG_WIDTH/2 - 1, max(0, row_pair + i)) << 1) + row_lsb;
-    			float d =  image_p[dstride * eff_row] * window_vert_cos[BAYER_GREEN][local_row];
-    			int dtt_offset1 = dtt_offset + (dtt_offset >> 3); // converting for 9-long rows
-    			dct_buf[dtt_offset1] = d * hwind_cos; // was +=
-    			dst_buf[dtt_offset1] = d * hwind_sin; // was +=
+    			dct_buf[dtt_offset1] = d * hwind_cos;
+    			dst_buf[dtt_offset1] = d * hwind_sin; // **** only used for green
+
     			dtt_offset = ( dtt_offset + ((dtt_offset_inc & 0xf) << 3)) & 0x3f;
     			dtt_offset_inc >>= 4;
     			local_row += 2;
     		}
     	}
     }
-    __syncthreads();
+     __syncthreads();// __syncwarp();
 #ifdef DEBUG2
-    if ((threadIdx.x + threadIdx.y) == 0){
+    if ((threadIdx.x == 0) && (color == BAYER_GREEN)){
         printf("\nFOLDED DTT Tiles Green before reduction\n");
-    	debug_print_clt(clt_tile, 0xf00); // all quadrants for green only
+    	debug_print_clt1(clt_tile, color, 0xf); // all quadrants for green only
     }
-    __syncthreads();
+     __syncthreads();// __syncwarp();
 #endif
 
+    if (color == BAYER_GREEN) {
+    	// reduce 4 green DTT buffers into 2 (so free future rotated green that were borrowed)
+//    	float *dtt_buf =  ((float *) clt_tile[0]) + threadIdx.x;
+//    	float *dtt_buf1 = ((float *) clt_tile[2]) + threadIdx.x;
+    	float *dtt_buf =  clt_tile + threadIdx.x;
+    	float *dtt_buf1 = dtt_buf+ (2 * DTT_SIZE1 * DTT_SIZE); // ((float *) clt_tile[2]) + threadIdx.x;
+    	(*dtt_buf) += (*dtt_buf1);
+    	dtt_buf +=    (4 * DTT_SIZE1);
+    	dtt_buf1 +=   (4 * DTT_SIZE1);
+    	(*dtt_buf) += (*dtt_buf1);
 
-
-    // reduce 4 green DTT buffers into 2 (so free future rotated green that were borrowed)
-    // Uses all 32 threads.
-	float *dtt_buf =  ((float *) clt_tile[BAYER_GREEN][0][threadIdx.y]) + threadIdx.x;
-	float *dtt_buf1 = ((float *) clt_tile[BAYER_GREEN][2][threadIdx.y]) + threadIdx.x;
-	(*dtt_buf) += (*dtt_buf1); dtt_buf += (4 * DTT_SIZE1); dtt_buf1 += (4 * DTT_SIZE1);
-	(*dtt_buf) += (*dtt_buf1);
-
-	dtt_buf =         ((float *) clt_tile[BAYER_GREEN][1][threadIdx.y]) + threadIdx.x;
-	dtt_buf1 =        ((float *) clt_tile[BAYER_GREEN][3][threadIdx.y]) + threadIdx.x;
-	(*dtt_buf) += (*dtt_buf1); dtt_buf += (4 * DTT_SIZE1); dtt_buf1 += (4 * DTT_SIZE1);
-	(*dtt_buf) += (*dtt_buf1);
-    __syncthreads();
+    	dtt_buf =         clt_tile + (DTT_SIZE1 * DTT_SIZE) + threadIdx.x; // ((float *) clt_tile[1]) + threadIdx.x;
+    	dtt_buf1 =        dtt_buf +  (2 * DTT_SIZE1 * DTT_SIZE);           // ((float *) clt_tile[3]) + threadIdx.x;
+    	(*dtt_buf) += (*dtt_buf1); dtt_buf += (4 * DTT_SIZE1); dtt_buf1 += (4 * DTT_SIZE1);
+    	(*dtt_buf) += (*dtt_buf1);
+    	 __syncthreads();// __syncwarp();
+    }
 
 #ifdef DEBUG2
-    if ((threadIdx.x + threadIdx.y) == 0){
-        printf("\nFOLDED DTT Tiles\n");
-    	debug_print_clt(clt_tile, 0x311); // only 1 quadrant for R,B and 2 - for G
+    if ((threadIdx.x) == 0){
+        printf("\nFOLDED DTT Tiles,color=%d\n", color);
+    	debug_print_clt1(clt_tile, color, (color== BAYER_GREEN)?3:1); // only 1 quadrant for R,B and 2 - for G
     }
-    __syncthreads();
+     __syncthreads();// __syncwarp();
 #endif
 
-    // Run DCT-IV/DCT-IV for all colors, DST-IV/DCT-IV for green only
-    if (threadIdx.y < NUM_COLORS) { // run DCTIV for all colors
-    	// horizontal pass float clt_tile        [NUM_COLORS][4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
-    	dttiv_shared_mem(
-    			clt_tile[threadIdx.y][0][threadIdx.x], // pointer to start of row
-				1, // int inc,
-				0); // int dst_not_dct)
-    	// vertical pass
-    } else { // if (threadIdx.y < NUM_COLORS) { // run DSTIV for green only
-        dttiv_shared_mem(
-        		clt_tile[BAYER_GREEN][1][threadIdx.x], // pointer to start of row
-    			1, // int inc,
-    			1); // int dst_not_dct)
+    dctiv_nodiverg( // all colors
+//    		clt_tile[0][threadIdx.x], // pointer to start of row
+    		clt_tile + (DTT_SIZE1 * threadIdx.x), // [0][threadIdx.x], // pointer to start of row
+			1); //int inc);
+    if (color == BAYER_GREEN){
+        dstiv_nodiverg( // all colors
+        		clt_tile + DTT_SIZE1 * (threadIdx.x + DTT_SIZE), // clt_tile[1][threadIdx.x], // pointer to start of row
+    			1); //int inc);
 
     }
-  	__syncthreads();
+  	 __syncthreads();// __syncwarp();
+
 #ifdef DEBUG2
-    if ((threadIdx.x + threadIdx.y) == 0){
-        printf("\nDTT Tiles after horizontal pass\n");
-    	debug_print_clt(clt_tile, 0x311); // only 1 quadrant for R,B and 2 - for G
+    if ((threadIdx.x) == 0){
+        printf("\nDTT Tiles after horizontal pass, color=%d\n",color);
+    	debug_print_clt1(clt_tile, color, (color== BAYER_GREEN)?3:1); // only 1 quadrant for R,B and 2 - for G
     }
-    __syncthreads();
+     __syncthreads();// __syncwarp();
+#endif
+    dctiv_nodiverg( // all colors
+    		clt_tile + threadIdx.x, //  &clt_tile[0][0][threadIdx.x], // pointer to start of column
+			DTT_SIZE1); // int inc,
+    if (color == BAYER_GREEN){
+        dstiv_nodiverg( // all colors
+        		clt_tile + threadIdx.x + (DTT_SIZE1 * DTT_SIZE), // &clt_tile[1][0][threadIdx.x], // pointer to start of column
+    			DTT_SIZE1); // int inc,
+    }
+  	 __syncthreads();// __syncwarp();
+
+#ifdef DEBUG2
+    if ((threadIdx.x) == 0){
+        printf("\nDTT Tiles after vertical pass (both passes), color = %d\n",color);
+    	debug_print_clt1(clt_tile, color, (color== BAYER_GREEN)?3:1); // only 1 quadrant for R,B and 2 - for G
+    }
+     __syncthreads();// __syncwarp();
 #endif
 
-    if (threadIdx.y < NUM_COLORS) { // run DCTIV for all colors
-    	// vertical pass // common for all 4 (DCT/DCT of RGB, and DST/DCT of G)
-    	dttiv_shared_mem(
-    			&clt_tile[threadIdx.y][0][0][threadIdx.x], // pointer to start of column
-				DTT_SIZE1, // int inc,
-				0); // int dst_not_dct)
-    } else {
-    	dttiv_shared_mem(
-    			&clt_tile[BAYER_GREEN][1][0][threadIdx.x], // pointer to start of column
-				DTT_SIZE1, // int inc,
-				0); // int dst_not_dct)
-    }
-  	__syncthreads();
-#ifdef DEBUG2
-    if ((threadIdx.x + threadIdx.y) == 0){
-        printf("\nDTT Tiles after vertical pass (both passes)\n");
-    	debug_print_clt(clt_tile, 0x311); // only 1 quadrant for R,B and 2 - for G
-    }
-    __syncthreads();
-#endif
 
 // Replicate DTT, so non-bayer can still use same in-place rotation code
     float *src, *dst;
-    int   negate, dst_inc;
-    switch 	(threadIdx.y) {
-    case 0:// Red  CC -> SC
-    	negate = (int_topleft[BAYER_RED][0] & 1) ^ BAYER_RED_COL; // 1 - invert
-    	src = &clt_tile[BAYER_RED][0][0][threadIdx.x    ];
-    	dst = &clt_tile[BAYER_RED][1][0][threadIdx.x ^ 7];
-    	dst_inc = DTT_SIZE1;
-    	break;
-    case 1:// Blue CC -> SC
-    	negate = (int_topleft[BAYER_BLUE][0] & 1) ^ (BAYER_RED_COL ^ 1); // 1 - invert
-    	src = &clt_tile[BAYER_BLUE][0][0][threadIdx.x    ];
-    	dst = &clt_tile[BAYER_BLUE][1][0][threadIdx.x ^ 7];
-    	dst_inc = DTT_SIZE1;
-    	break;
-    case 2:// Green CC -> SS
-    	negate = (int_topleft[BAYER_GREEN][0] & 1) ^ (int_topleft[2][1] & 1) ^ (BAYER_RED_COL ^ BAYER_RED_ROW ^ 1); // 1 - invert (had to invert - verify)
-    	src = &clt_tile[BAYER_GREEN][0][0][threadIdx.x    ];
-    	dst = &clt_tile[BAYER_GREEN][3][7][threadIdx.x ^ 7];
-    	dst_inc = -DTT_SIZE1;
-    	break;
-    case 3:// Green SC -> CS
-    	negate = (int_topleft[BAYER_GREEN][0] & 1) ^ (int_topleft[2][1] & 1) ^ (BAYER_RED_COL ^ BAYER_RED_ROW ^ 1); // 1 - invert (had to invert - verify)
-    	src = &clt_tile[BAYER_GREEN][1][0][threadIdx.x    ];
-    	dst = &clt_tile[BAYER_GREEN][2][7][threadIdx.x ^ 7];
-    	dst_inc = -DTT_SIZE1;
-    	break;
-    }
-    if (negate){
+    int   negate; // , dst_inc;
+
+    // Replicate horizontally (for R and B only):
+    if (color != BAYER_GREEN) {
+    	negate = 1-(((int_topleft[0] & 1) ^ (BAYER_RED_COL ^ color)) << 1); // +1/-1
+    	src = clt_tile + threadIdx.x; // &clt_tile[0][0][threadIdx.x    ];
+    	dst = clt_tile + (DTT_SIZE1 * DTT_SIZE) + (threadIdx.x ^ 7); // &clt_tile[1][0][threadIdx.x ^ 7];
 #pragma unroll
     	for (int i = 0; i < DTT_SIZE; i++){
-    		*dst = -(*src);
+    		*dst = negate*(*src);
     		src += DTT_SIZE1;
-    		dst += dst_inc;
+    		dst += DTT_SIZE1;
     	}
-    } else {
+    	 __syncthreads();// __syncwarp();
+#ifdef DEBUG2
+    	if ((threadIdx.x) == 0){
+    		printf("\nDTT Tiles after first replicating, color = %d\n",color);
+    		debug_print_clt1(clt_tile, color, 0x3);
+    	}
+    	 __syncthreads();// __syncwarp();
+#endif
+
+    }
+    // replicate all colors down diagonal
+	negate = 1-(((int_topleft[0] & 1) ^ (int_topleft[1] & 1) ^ (BAYER_RED_COL ^ BAYER_RED_ROW ^ (color >> 1))) << 1); // +1/-1 // 1 -
+	// CC -> SS
+	src = clt_tile + threadIdx.x; // &clt_tile[0][0][threadIdx.x    ];
+	dst = clt_tile + (DTT_SIZE1 * (DTT_SIZE * 3 + 7)) +  (threadIdx.x ^ 7); // &clt_tile[3][7][threadIdx.x ^ 7];
 #pragma unroll
-    	for (int i = 0; i < DTT_SIZE; i++){
-    		*dst = (*src);
-    		src += DTT_SIZE1;
-    		dst += dst_inc;
-    	}
+    for (int i = 0; i < DTT_SIZE; i++){
+    	*dst = negate*(*src);
+    	src += DTT_SIZE1;
+    	dst -= DTT_SIZE1;
     }
-  	__syncthreads();
-
-#ifdef DEBUG2
-    if ((threadIdx.x + threadIdx.y) == 0){
-        printf("\nDTT Tiles after first replicating\n");
-    	debug_print_clt(clt_tile, 0xf33); // only 1 quadrant for R,B and 2 - for G
-    }
-    __syncthreads();
-#endif
-
-
-    switch 	(threadIdx.y) {
-    case 0:// Red  CC -> CS
-    	negate = (int_topleft[BAYER_RED][1] & 1) ^ BAYER_RED_ROW; // 1 - invert
-    	src = &clt_tile[BAYER_RED][0][0][threadIdx.x    ];
-    	dst = &clt_tile[BAYER_RED][2][7][threadIdx.x    ];
-    	dst_inc = -DTT_SIZE1;
-    	break;
-    case 1:// Red  SC -> SS
-    	negate = (int_topleft[BAYER_RED][1] & 1) ^ BAYER_RED_ROW; // 1 - invert
-    	src = &clt_tile[BAYER_RED][1][0][threadIdx.x    ];
-    	dst = &clt_tile[BAYER_RED][3][7][threadIdx.x    ];
-    	dst_inc = -DTT_SIZE1;
-    	break;
-    case 2:// Blue CC -> CS
-    	negate = (int_topleft[BAYER_BLUE][1] & 1) ^ (BAYER_RED_ROW ^ 1); // 1 - invert
-    	src = &clt_tile[BAYER_BLUE][0][0][threadIdx.x    ];
-    	dst = &clt_tile[BAYER_BLUE][2][7][threadIdx.x    ];
-    	dst_inc = -DTT_SIZE1;
-    	break;
-    case 3:// Blue SC -> SS
-    	negate = (int_topleft[BAYER_BLUE][1] & 1) ^ (BAYER_RED_ROW ^ 1); // 1 - invert
-    	src = &clt_tile[BAYER_BLUE][1][0][threadIdx.x    ];
-    	dst = &clt_tile[BAYER_BLUE][3][7][threadIdx.x    ];
-    	dst_inc = -DTT_SIZE1;
-    	break;
-    }
-    if (negate){
+    //SC -> CS
+	src = clt_tile + (DTT_SIZE1 * DTT_SIZE) + threadIdx.x; // &clt_tile[1][0][threadIdx.x    ];
+	dst = clt_tile + (DTT_SIZE1 * (DTT_SIZE * 2 + 7)) +  (threadIdx.x ^ 7); // &clt_tile[2][7][threadIdx.x    ];
 #pragma unroll
-    	for (int i = 0; i < DTT_SIZE; i++){
-    		*dst = -(*src);
-    		src += DTT_SIZE1;
-    		dst += dst_inc;
+    for (int i = 0; i < DTT_SIZE; i++){
+    	*dst = negate*(*src);
+    	src += DTT_SIZE1;
+    	dst -= DTT_SIZE1;
+    }
+#ifdef DEBUG2
+    	if ((threadIdx.x) == 0){
+    		printf("\nDTT Tiles after all replicating, color = %d\n",color);
+    		debug_print_clt1(clt_tile, color, 0xf);
     	}
-    } else {
-#pragma unroll
-    	for (int i = 0; i < DTT_SIZE; i++){
-    		*dst = (*src);
-    		src += DTT_SIZE1;
-    		dst += dst_inc;
-    	}
-    }
-  	__syncthreads();
-
-#ifdef DEBUG2
-    if ((threadIdx.x + threadIdx.y) == 0){
-        printf("\nDTT Tiles after second replicating\n");
-    	debug_print_clt(clt_tile, 0xfff); // only 1 quadrant for R,B and 2 - for G
-    }
-    __syncthreads();
+    	 __syncthreads();// __syncwarp();
 #endif
 
 
+
 #ifdef DEBUG2
-    if ((threadIdx.x + threadIdx.y) == 0){
-        printf("\nKernel tiles to convolve\n");
-    	debug_print_clt(clt_kernels, 0xfff); // all colors, all quadrants
+    if ((threadIdx.x) == 0){
+        printf("\nKernel tiles to convolve, color = %d\n",color);
+    	debug_print_clt1(clt_kernels, color, 0xf); // all colors, all quadrants
     }
-    __syncthreads();
+     __syncthreads();// __syncwarp();
 #endif
 
 
-    if (threadIdx.y < NUM_COLORS) {
-    	// convolve first, then rotate to match Java and make it easier to verify
-    	convolveTiles(
-    			clt_tile[threadIdx.y],           // float clt_tile   [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
-				clt_kernels[threadIdx.y]); // float kernel     [4][DTT_SIZE][DTT_SIZE1]); // 4 quadrants of the CLT kernel (DTT3 converted)
-    	__syncthreads();
-    }
+    // convolve first, then rotate to match Java and make it easier to verify
+    convolveTiles(
+    		clt_tile,      // float clt_tile   [4][DTT_SIZE][DTT_SIZE1], // 4 quadrants of the clt data, rows extended to optimize shared ports
+			clt_kernels); // float kernel     [4][DTT_SIZE][DTT_SIZE1]); // 4 quadrants of the CLT kernel (DTT3 converted)
+     __syncthreads();// __syncwarp();
 #ifdef DEBUG2
-    if ((threadIdx.x + threadIdx.y) == 0){
-        printf("\nDTT Tiles after convolution\n");
-    	debug_print_clt(clt_tile, 0xfff); // all colors, all quadrants
+    if ((threadIdx.x) == 0){
+        printf("\nDTT Tiles after convolution, color = %d\n",color);
+    	debug_print_clt1(clt_tile, color, 0xf); // all colors, all quadrants
     }
-    __syncthreads();
+     __syncthreads();// __syncwarp();
 #endif
 
 
-    if (threadIdx.y < NUM_COLORS) {
-    	// rotate phases: first horizontal, then vertical
-    	shiftTileHor(
-    			clt_tile[threadIdx.y],           // float clt_tile       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
-				residual_shift[threadIdx.y][0]); // float residual_shift);
-    	__syncthreads();
-    }
+    // rotate phases: first horizontal, then vertical
+    shiftTileHor(
+    		clt_tile,           // float clt_tile       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
+			residual_shift[0]); // float residual_shift);
+     __syncthreads();// __syncwarp();
 #ifdef DEBUG2
-    if ((threadIdx.x + threadIdx.y) == 0){
-        printf("\nDTT Tiles after horizontal shift\n");
-    	debug_print_clt(clt_tile, 0xfff); // only 1 quadrant for R,B and 2 - for G
+    if ((threadIdx.x) == 0){
+        printf("\nDTT Tiles after horizontal shift, color = %d\n",color);
+    	debug_print_clt1(clt_tile, color,  0xf); // only 1 quadrant for R,B and 2 - for G
     }
-    __syncthreads();
+     __syncthreads();// __syncwarp();
 #endif
 
-    if (threadIdx.y < NUM_COLORS) {
 
-    	shiftTileVert(
-    			clt_tile[threadIdx.y],           // float clt_tile       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
-				residual_shift[threadIdx.y][1]); // float residual_shift);
-    	__syncthreads();
-    }
+    shiftTileVert(
+    		clt_tile,           // float clt_tile       [4][DTT_SIZE][DTT_SIZE1], // +1 to alternate column ports
+			residual_shift[1]); // float residual_shift);
+     __syncthreads();// __syncwarp();
 #ifdef DEBUG1
-    if ((threadIdx.x + threadIdx.y) == 0){
-        printf("\nDTT Tiles after vertical shift\n");
-    	debug_print_clt(clt_tile, 0xfff); // only 1 quadrant for R,B and 2 - for G
+    if ((threadIdx.x) == 0){
+        printf("\nDTT Tiles after vertical shift, color = %d\n",color);
+    	debug_print_clt1(clt_tile, color,  0xf); // only 1 quadrant for R,B and 2 - for G
         printf("\nDTT All done\n");
     }
-    __syncthreads();
+     __syncthreads();// __syncwarp();
 #endif
 
 
