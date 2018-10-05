@@ -1260,7 +1260,7 @@ public class TwoQuadCLT {
 						debugLevel,                           // final int                 globalDebugLevel);
 						port_xy_main_dbg,                     // final double [][][]       port_xy_main_dbg, // for each tile/port save x,y pixel coordinates (gpu code development)
 						port_xy_aux_dbg);                     // final double [][][]       port_xy_aux_dbg) // for each tile/port save x,y pixel coordinates (gpu code development)
-
+/*
 		if (debugLevel < 1000) {
 			return null;
 		}
@@ -1299,11 +1299,10 @@ public class TwoQuadCLT {
 		if (debugLevel < 1000) {
 			return null;
 		}
-
 		if (ers_delay !=null) {
 			showERSDelay(ers_delay);
 		}
-
+*/
 		double [][] texture_nonoverlap_main = null;
 		double [][] texture_nonoverlap_aux = null;
 		double [][] texture_overlap_main = null;
@@ -1554,14 +1553,16 @@ public class TwoQuadCLT {
 				}
 				double [][] iclt_data = new double [clt_bidata[iAux][iSubCam].length][];
 				for (int chn=0; chn<iclt_data.length;chn++){
-					iclt_data[chn] = image_dtt.iclt_2d(
+					iclt_data[chn] = image_dtt.iclt_2d_debug_gpu(
 							clt_bidata[iAux][iSubCam][chn], // scanline representation of dcd data, organized as dct_size x dct_size tiles
 							clt_parameters.transform_size,  // final int
 							clt_parameters.clt_window,      // window_type
 							15,                             // clt_parameters.iclt_mask,       //which of 4 to transform back
 							0,                              // clt_parameters.dbg_mode,        //which of 4 to transform back
 							threadsMax,
-							debugLevel);
+							debugLevel,
+							clt_parameters.tileX,           // final int                 debug_tileX
+							clt_parameters.tileY);          // final int                 debug_tileY
 
 				}
 

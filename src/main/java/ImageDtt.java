@@ -3658,6 +3658,196 @@ public class ImageDtt {
 		return dpixels;
 	}
 
+	public double [] iclt_2d_debug_gpu(
+			final double [][][][] dct_data,  // array [tilesY][tilesX][4][dct_size*dct_size]
+			final int             dct_size,
+			final int             window_type,
+			final int             debug_mask, // which transforms to combine
+			final int             debug_mode, // skip idct - just unfold
+			final int             threadsMax,  // maximal number of threads to launch
+			final int             globalDebugLevel,
+			final int             debug_tileX,
+			final int             debug_tileY)
+	{
+		final int tilesY=dct_data.length;
+		final int tilesX=dct_data[0].length;
+		final double [][] dbg_tile = dct_data[debug_tileY][debug_tileX];
+
+//		final int width=  (tilesX+1)*dct_size;
+//		final int height= (tilesY+1)*dct_size;
+		final int width=  tilesX * dct_size;
+		final int height= tilesY * dct_size;
+		final double debug_scale = 1.0 /((debug_mask & 1) + ((debug_mask >> 1) & 1) + ((debug_mask >> 2) & 1) + ((debug_mask >> 3) & 1));
+		if (globalDebugLevel > 0) {
+			System.out.println("iclt_2d():tilesX=        "+tilesX);
+			System.out.println("iclt_2d():tilesY=        "+tilesY);
+			System.out.println("iclt_2d():width=         "+width);
+			System.out.println("iclt_2d():height=        "+height);
+			System.out.println("iclt_2d():debug_mask=    "+debug_mask);
+			System.out.println("iclt_2d():debug_scale=   "+debug_scale);
+		}
+		final double [] dpixels = new double[width*height];
+		final Thread[] threads = newThreadArray(threadsMax);
+		final AtomicInteger ai = new AtomicInteger(0);
+		final AtomicInteger nser = new AtomicInteger(0);
+		final int [][][] tiles_list = new int[4][][];
+		for (int n=0; n<4; n++){
+			int nx = (tilesX + 1 - (n &1)) / 2;
+			int ny = (tilesY + 1 - ((n>>1) & 1)) / 2;
+			tiles_list[n] = new int [nx*ny][2];
+			int indx = 0;
+			for (int i = 0;i < ny; i++) for (int j = 0; j < nx; j++){
+				tiles_list[n][indx][0]=2*j+(n &1);
+				tiles_list[n][indx++][1]=2*i+((n>>1) & 1);
+			}
+		}
+		for (int i=0; i<dpixels.length;i++) dpixels[i]= 0;
+		for (int n=0; n<4; n++){
+			nser.set(n);
+			ai.set(0);
+			for (int ithread = 0; ithread < threads.length; ithread++) {
+				threads[ithread] = new Thread() {
+					@Override
+					public void run() {
+						DttRad2 dtt = new DttRad2(dct_size);
+						dtt.set_window(window_type);
+						double [] tile_in =   new double [dct_size * dct_size];
+						double [] tile_dct;
+						double [] tile_mdct;
+						int tileY,tileX;
+						int n2 = dct_size * 2;
+						int n_half = dct_size / 2;
+						int lastY = tilesY-1;
+						int lastX = tilesX-1;
+						int offset = n_half * (dct_size * tilesX) + n_half;
+						for (int nTile = ai.getAndIncrement(); nTile < tiles_list[nser.get()].length; nTile = ai.getAndIncrement()) {
+							if (nTile == 9645) {
+								System.out.println("--- nTile="+nTile+", nser.get()="+nser.get());
+							}
+							tileX = tiles_list[nser.get()][nTile][0];
+							tileY = tiles_list[nser.get()][nTile][1];
+
+							boolean dbg_tile =
+									(tileX == debug_tileX) && (tileY == debug_tileY) &&
+//									(tileX < (debug_tileX+2)) && (tileY < (debug_tileY+2)) &&
+									(globalDebugLevel > -10);
+							if (dbg_tile) {
+								//								unfold_index = new int[4*n*n];
+								//								unfold_k = new double[4][4*n*n];
+								System.out.println("--- unfold_index:");
+								for (int i = 0; i < n2; i++) {
+									for (int j = 0; j < n2; j++) {
+										System.out.print(String.format("%02x ", dtt.unfold_index[n2 * j + i]));
+									}
+									System.out.println();
+								}
+								System.out.println();
+								for (int dct_mode = 0; dct_mode < 4; dct_mode++) {
+									System.out.println("--- unfold_k["+dct_mode+"]:");
+									for (int i = 0; i < n2; i++) {
+										for (int j = 0; j < n2; j++) {
+											System.out.print(String.format("%8.5f ", dtt.unfold_k[dct_mode][n2 * j + i]));
+										}
+										System.out.println();
+									}
+								}
+							}
+
+
+							if (dct_data[tileY][tileX] != null){
+								for (int dct_mode = 0; dct_mode < 4; dct_mode++) if (((1 << dct_mode) & debug_mask) != 0) {
+									System.arraycopy(dct_data[tileY][tileX][dct_mode], 0, tile_in, 0, tile_in.length);
+
+									if ((debug_mode & 1) != 0) {
+										tile_dct = tile_in;
+									} else {
+										// IDCT-IV should be in reversed order: CC->CC, SC->CS, CS->SC, SS->SS
+										int idct_mode = ((dct_mode << 1) & 2) | ((dct_mode >> 1) & 1);
+
+										if (dbg_tile) {
+											System.out.println("--- BEFORE idct: dct_mode="+dct_mode+", idct_mode="+idct_mode+" tile_in (trasposed):");
+											for (int i = 0; i < dct_size; i++) {
+												for (int j = 0; j < dct_size; j++) {
+													System.out.print(String.format("%11.5f ", tile_in[dct_size * j + i]));
+												}
+												System.out.println();
+											}
+											System.out.println();
+										}
+										tile_dct = dtt.dttt_iv  (tile_in, idct_mode, dct_size);
+										if (dbg_tile) {
+											System.out.println("--- AFTER idct: dct_mode="+dct_mode+", idct_mode="+idct_mode+" tile_dct (not transposed):");
+											for (int i = 0; i < dct_size; i++) {
+												for (int j = 0; j < dct_size; j++) {
+													System.out.print(String.format("%11.5f ", tile_dct[dct_size * i + j]));
+												}
+												System.out.println();
+											}
+											System.out.println();
+										}
+									}
+									tile_mdct = dtt.unfold_tile(tile_dct, dct_size, dct_mode); // mode=0 - DCCT
+
+									if (dbg_tile) {
+										System.out.println("--- MDCT: ");
+										for (int i = 0; i < dct_size * 2; i++) {
+											for (int j = 0; j < dct_size * 2; j++) {
+												System.out.print(String.format("%11.5f ", tile_mdct[dct_size * 2 * i + j]));
+											}
+											System.out.println();
+										}
+										System.out.println();
+									}
+
+
+									if ((tileY >0) && (tileX > 0) && (tileY < lastY) && (tileX < lastX)) { // fast, no extra checks
+										for (int i = 0; i < n2;i++){
+											int start_line = ((tileY*dct_size + i) * tilesX + tileX)*dct_size - offset;
+											for (int j = 0; j<n2;j++) {
+												dpixels[start_line + j] += debug_scale * tile_mdct[n2 * i + j]; // add (cc+sc+cs+ss)/4
+											}
+										}
+									} else { // be careful with margins
+										for (int i = 0; i < n2;i++){
+											if (	((tileY > 0) && (tileY < lastY)) ||
+													((tileY == 0) && (i >= n_half)) ||
+													((tileY == lastY) && (i < (n2 - n_half)))) {
+												int start_line = ((tileY*dct_size + i) * tilesX + tileX)*dct_size  - offset;
+												for (int j = 0; j<n2;j++) {
+													if (	((tileX > 0) && (tileX < lastX)) ||
+															((tileX == 0) && (j >= n_half)) ||
+															((tileX == lastX) && (j < (n2 - n_half)))) {
+														dpixels[start_line + j] += debug_scale * tile_mdct[n2 * i + j]; // add (cc+sc+cs+ss)/4
+													}
+												}
+											}
+										}
+									}
+								}
+								if (dbg_tile) {
+									System.out.println("--- MDCT, channels combined: ");
+									for (int i = 0; i < n2;i++){
+										int start_line = ((tileY*dct_size + i) * tilesX + tileX)*dct_size - offset;
+										for (int j = 0; j<n2;j++) {
+											System.out.print(String.format("%11.5f ", dpixels[start_line + j]));
+										}
+										System.out.println();
+									}
+									System.out.println();
+								}
+							}
+						}
+					}
+				};
+			}
+			startAndJoin(threads);
+		}
+		return dpixels;
+	}
+
+
+
+
 	public double [][] combineRGBATiles(
 			final double [][][][] texture_tiles,  // array [tilesY][tilesX][4][4*transform_size] or [tilesY][tilesX]{null}
 			final int             transform_size,
