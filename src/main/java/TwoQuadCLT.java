@@ -1517,15 +1517,15 @@ public class TwoQuadCLT {
 				// Uncomment to have master/aux names
 				//				  String title=name+"-"+String.format("%s%02d", ((iAux>0)?"A":"M"),iSubCam);
 				String title=name+"-"+String.format("%02d", iQuadComb);
-
 				if (clt_parameters.corr_sigma > 0){ // no filter at all
 					for (int chn = 0; chn < clt_bidata[iAux][iSubCam].length; chn++) {
+		                int debug_lpf = ((iQuadComb ==0) && (chn==0))?3: debugLevel;
 						image_dtt.clt_lpf(
 								clt_parameters.corr_sigma,
 								clt_bidata[iAux][iSubCam][chn],
 								clt_parameters.transform_size,
 								threadsMax,
-								debugLevel);
+								debug_lpf);
 					}
 				}
 
