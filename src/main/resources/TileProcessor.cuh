@@ -254,7 +254,36 @@ __constant__ float idct_signs[4][4][4] ={
 				{ 1, 1, 1,-1},
 				{-1,-1,-1, 1}
 		}};
-
+// LPF for sigma 0.9 each color (modify through cudaMemcpyToSymbol() or similar in Driver API
+__constant__ float lpf_data[3][64]={
+		{
+				1.00000000f, 0.87041007f, 0.65943687f, 0.43487258f, 0.24970076f, 0.12518080f, 0.05616371f, 0.02728573f,
+				0.87041007f, 0.75761368f, 0.57398049f, 0.37851747f, 0.21734206f, 0.10895863f, 0.04888546f, 0.02374977f,
+				0.65943687f, 0.57398049f, 0.43485698f, 0.28677101f, 0.16466189f, 0.08254883f, 0.03703642f, 0.01799322f,
+				0.43487258f, 0.37851747f, 0.28677101f, 0.18911416f, 0.10858801f, 0.05443770f, 0.02442406f, 0.01186582f,
+				0.24970076f, 0.21734206f, 0.16466189f, 0.10858801f, 0.06235047f, 0.03125774f, 0.01402412f, 0.00681327f,
+				0.12518080f, 0.10895863f, 0.08254883f, 0.05443770f, 0.03125774f, 0.01567023f, 0.00703062f, 0.00341565f,
+				0.05616371f, 0.04888546f, 0.03703642f, 0.02442406f, 0.01402412f, 0.00703062f, 0.00315436f, 0.00153247f,
+				0.02728573f, 0.02374977f, 0.01799322f, 0.01186582f, 0.00681327f, 0.00341565f, 0.00153247f, 0.00074451f
+		},{
+				1.00000000f, 0.87041007f, 0.65943687f, 0.43487258f, 0.24970076f, 0.12518080f, 0.05616371f, 0.02728573f,
+				0.87041007f, 0.75761368f, 0.57398049f, 0.37851747f, 0.21734206f, 0.10895863f, 0.04888546f, 0.02374977f,
+				0.65943687f, 0.57398049f, 0.43485698f, 0.28677101f, 0.16466189f, 0.08254883f, 0.03703642f, 0.01799322f,
+				0.43487258f, 0.37851747f, 0.28677101f, 0.18911416f, 0.10858801f, 0.05443770f, 0.02442406f, 0.01186582f,
+				0.24970076f, 0.21734206f, 0.16466189f, 0.10858801f, 0.06235047f, 0.03125774f, 0.01402412f, 0.00681327f,
+				0.12518080f, 0.10895863f, 0.08254883f, 0.05443770f, 0.03125774f, 0.01567023f, 0.00703062f, 0.00341565f,
+				0.05616371f, 0.04888546f, 0.03703642f, 0.02442406f, 0.01402412f, 0.00703062f, 0.00315436f, 0.00153247f,
+				0.02728573f, 0.02374977f, 0.01799322f, 0.01186582f, 0.00681327f, 0.00341565f, 0.00153247f, 0.00074451f
+		},{
+				1.00000000f, 0.87041007f, 0.65943687f, 0.43487258f, 0.24970076f, 0.12518080f, 0.05616371f, 0.02728573f,
+				0.87041007f, 0.75761368f, 0.57398049f, 0.37851747f, 0.21734206f, 0.10895863f, 0.04888546f, 0.02374977f,
+				0.65943687f, 0.57398049f, 0.43485698f, 0.28677101f, 0.16466189f, 0.08254883f, 0.03703642f, 0.01799322f,
+				0.43487258f, 0.37851747f, 0.28677101f, 0.18911416f, 0.10858801f, 0.05443770f, 0.02442406f, 0.01186582f,
+				0.24970076f, 0.21734206f, 0.16466189f, 0.10858801f, 0.06235047f, 0.03125774f, 0.01402412f, 0.00681327f,
+				0.12518080f, 0.10895863f, 0.08254883f, 0.05443770f, 0.03125774f, 0.01567023f, 0.00703062f, 0.00341565f,
+				0.05616371f, 0.04888546f, 0.03703642f, 0.02442406f, 0.01402412f, 0.00703062f, 0.00315436f, 0.00153247f,
+				0.02728573f, 0.02374977f, 0.01799322f, 0.01186582f, 0.00681327f, 0.00341565f, 0.00153247f, 0.00074451f
+		}};
 
 __device__ void convertCorrectTile(
 		struct CltExtra     * gpu_kernel_offsets, // [tileY][tileX][color]
@@ -262,6 +291,7 @@ __device__ void convertCorrectTile(
 		float               * gpu_images,
 		float               * gpu_clt,
 		const int             color,
+		const int             lpf_mask,
 		const float           centerX,
 		const float           centerY,
 		const short          tx,
@@ -300,8 +330,9 @@ __global__ void tileProcessor(
 		float           ** gpu_images,         // [NUM_CAMS],
 		struct tp_task  * gpu_tasks,
 		float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-		size_t            dstride, // // in floats (pixels)
-		int               num_tiles) // number of tiles in task
+		size_t            dstride,             // in floats (pixels)
+		int               num_tiles,           // number of tiles in task
+		int               lpf_mask)            // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green
 
 {
 	dim3 t = threadIdx;
@@ -356,6 +387,7 @@ __global__ void tileProcessor(
 					gpu_images[ncam],                // float           * gpu_images,
 					gpu_clt[ncam],                   // float           * gpu_clt,
 					color,                           // const int         color,
+					lpf_mask,                        // const int         lpf_mask,
 					tt[tile_in_block].xy[ncam][0],   // const float       centerX,
 					tt[tile_in_block].xy[ncam][1],   // const float       centerY,
 					tt[tile_in_block].tx,            // const short          tx,
@@ -529,6 +561,7 @@ __device__ void convertCorrectTile(
 		float               * gpu_images,
 		float               * gpu_clt,
 		const int             color,
+		const int             lpf_mask,
 		const float           centerX,
 		const float           centerY,
 		const short          tx,
@@ -902,7 +935,7 @@ __device__ void convertCorrectTile(
 
 
 #ifdef DBG_TILE
-#ifdef DEBUG1
+#ifdef DEBUG3
     if ((threadIdx.x) == 0){
         printf("\nDTT Tiles after vertical shift, color = %d\n",color);
     	debug_print_clt1(clt_tile, color,  0xf); // only 1 quadrant for R,B and 2 - for G
@@ -911,6 +944,33 @@ __device__ void convertCorrectTile(
      __syncthreads();// __syncwarp();
 #endif
 #endif
+     // optionally apply LF
+     if ((lpf_mask >> color) & 1){
+    	 float * clt = clt_tile + threadIdx.x;
+#pragma unroll
+    	 for (int q = 0; q < 4; q++) {
+    		 float *lpf = lpf_data[color] + threadIdx.x;
+#pragma unroll
+    		 for (int i = 0; i <8; i++){
+    			 (*clt) *= (*lpf);
+    			 clt   += DTT_SIZE1;
+    			 lpf   += DTT_SIZE;
+    		 }
+    	 }
+         __syncthreads();// __syncwarp();
+#ifdef DBG_TILE
+#ifdef DEBUG3
+         if ((threadIdx.x) == 0){
+        	 printf("\nDTT Tiles after LPF, color = %d\n",color);
+        	 debug_print_clt1(clt_tile, color,  0xf); // only 1 quadrant for R,B and 2 - for G
+        	 printf("\nDTT All done\n");
+         }
+     __syncthreads();// __syncwarp();
+#endif
+#endif
+     }
+
+
 
 
      int offset_src = threadIdx.x;
@@ -919,7 +979,7 @@ __device__ void convertCorrectTile(
      float * clt_dst = gpu_clt +  offset_dst; // ((ty * TILESX + tx)*NUM_COLORS + color)* ( 4 * DTT_SIZE * DTT_SIZE1) + threadIdx.x; // gpu_kernels + kernel_full_index* (DTT_SIZE * DTT_SIZE * 4);
 
 #ifdef DBG_TILE
-#ifdef DEBUG1
+#ifdef DEBUG3
     if ((threadIdx.x) == 0){
         printf("clt_src = 0x%lx\n",clt_src);
         printf("clt_dst = 0x%lx\n",clt_dst);

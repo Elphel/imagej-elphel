@@ -4216,7 +4216,20 @@ public class ImageDtt {
 		final double [] dbg_filter= dtt.dttt_ii(filter);
 		for (int i=0; i < filter.length;i++) filter[i] *= 2*dct_size;
 
-		if (globalDebugLevel > 1) {
+		if (globalDebugLevel > 2) {
+			System.out.print("__constant__ float lpf_data[64]={");
+			for (int i=0; i<filter.length;i++){
+				System.out.print(String.format("%5.8ff", filter[i]));
+				if (i == 63) {
+					System.out.println("};");
+				} else {
+					System.out.print(", ");
+					if ((i % 8) == 7) {
+						System.out.print("\n                                 ");
+					}
+				}
+			}
+		} else	if (globalDebugLevel > 1) {
 			for (int i=0; i<filter.length;i++){
 				System.out.println("dct_lpf_psf() "+i+": "+filter[i]);
 			}
