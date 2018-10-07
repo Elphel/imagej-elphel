@@ -641,6 +641,7 @@ private Panel panel1,
 			addButton("JCUDA TEST",                 panelClt_GPU);
 			addButton("TF TEST",                    panelClt_GPU);
 			addButton("Rig8 gpu",                   panelClt_GPU, color_conf_process);
+			addButton("ShowGPU",                    panelClt_GPU, color_conf_process);
 			add(panelClt_GPU);
 		}
 
@@ -4585,6 +4586,13 @@ private Panel panel1,
     	getPairImages2Gpu();
     	return;
 /* ======================================================================== */
+    } else if (label.equals("ShowGPU")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+    	showImageFromGPU();
+    	return;
+//
+/* ======================================================================== */
     } else if (label.equals("RIG extrinsics")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
@@ -5126,6 +5134,12 @@ private Panel panel1,
 					true,
 					PROPERTIES);
 		}
+		return true;
+	}
+
+	public boolean showImageFromGPU(){
+//		TWO_QUAD_CLT.showImageFromGPU();
+		TwoQuadCLT.showImageFromGPU();
 		return true;
 	}
 

@@ -22,13 +22,16 @@
  */
 import java.io.DataOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.FloatBuffer;
 import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -910,6 +913,57 @@ public class TwoQuadCLT {
 		}
 
 		return results;
+	}
+
+	public static void showImageFromGPU() {
+		int width =  2592+8;
+		int height = 1936+8;
+		int l = width*height;
+		String path = "/home/eyesis/workspace-python3/nvidia_dct8x8/clt/main_chn0.rbg";
+		String [] titles= {"R","B","G"};
+		float [] img_rbg = getFloatsFromFile(path);
+		float [][] img = new float [3][l];
+		for(int nc = 0; nc < 3; nc++) {
+			System.arraycopy(img_rbg, l * nc, img[nc], 0 ,l);
+		}
+
+		(new showDoubleFloatArrays()).showArrays(
+				img,
+				width,
+				height,
+				true,
+				"RBG",
+				titles);
+
+	}
+
+	public static float [] getFloatsFromFile(String filepath) {
+		float [] fdata  = null;
+		try {
+			FileInputStream inFile = new FileInputStream(filepath);
+//			DataInputStream din = new DataInputStream(inFile);
+			FileChannel inChannel = inFile.getChannel();
+			int cl = (int) inChannel.size();
+			ByteBuffer buffer = ByteBuffer.allocateDirect(cl); //1024*1024*60);
+			buffer.order(ByteOrder.LITTLE_ENDIAN);
+			buffer.clear();
+			inChannel.read(buffer);
+			buffer.flip();
+			FloatBuffer fb = buffer.asFloatBuffer();
+			fdata = new float[fb.limit()];
+			fb.get(fdata);
+//			fdata = fb.array();
+			inFile.close();
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		return fdata;
+
 	}
 
 	public void saveFloatKernels(String file_prefix,
