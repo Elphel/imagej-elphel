@@ -36,9 +36,24 @@
 * \brief Top level of the Tile Processor for frequency domain
 
 */
-
+// Avoiding includes in jcuda, all source files will be merged
+#ifndef JCUDA
 #pragma once
 #include "dtt8x8.cuh"
+#define THREADSX         (DTT_SIZE)
+#define IMG_WIDTH       2592
+#define IMG_HEIGHT      1936
+#define KERNELS_HOR      164
+#define KERNELS_VERT     123
+#define NUM_CAMS           4
+#define NUM_COLORS         3
+#define KERNELS_LSTEP      4
+#define THREADS_PER_TILE   8
+#define TILES_PER_BLOCK    4
+#define IMCLT_THREADS_PER_TILE 16
+#define IMCLT_TILES_PER_BLOCK   4
+
+#endif
 //#define IMCLT14
 //#define NOICLT 1
 //#define TEST_IMCLT
@@ -70,7 +85,7 @@
 // Removed rest of NOICLT : Average run time =943.456177 ms
 // Added lpf: Average run time =1046.101318 ms (0.1 sec, 10%) - can be combined with the PSF kernel
 //#define USE_UMUL24
-#define TILES_PER_BLOCK    4
+////#define TILES_PER_BLOCK    4
 //Average run time =5155.922852 ms
 //Average run time =1166.388306 ms
 //Average run time =988.750977 ms
@@ -78,25 +93,16 @@
 //Average run time =9656.743164 ms
 // Average run time =9422.057617 ms (reducing divergence)
 //#define TILES_PER_BLOCK    1
-#define THREADS_PER_TILE   8
-#define IMG_WIDTH       2592
-#define IMG_HEIGHT      1936
-#define NUM_CAMS           4
-#define NUM_COLORS         3
-#define KERNELS_LSTEP      4
-#define KERNELS_HOR      164
-#define KERNELS_VERT     123
-#define IMAGE_TILE_SIDE  18
 
-#define IMCLT_THREADS_PER_TILE 16
-#define IMCLT_TILES_PER_BLOCK   4
+//#define THREADS_PER_TILE   8
+//#define IMCLT_THREADS_PER_TILE 16
+//#define IMCLT_TILES_PER_BLOCK   4
 
 
 #define KERNELS_STEP  (1 << KERNELS_LSTEP)
 #define TILESX        (IMG_WIDTH / DTT_SIZE)
 #define TILESY        (IMG_HEIGHT / DTT_SIZE)
 // increase row length by 1 so vertical passes will use different ports
-#define THREADSX         (DTT_SIZE)
 #define DTT_SIZE1        (DTT_SIZE + 1)
 #define DTT_SIZE2        (2 * DTT_SIZE)
 #define DTT_SIZE21       (DTT_SIZE2 + 1)
@@ -124,9 +130,10 @@
 // struct tp_task
 //#define TASK_SIZE      12
 struct tp_task {
-	long task;
-	short ty;
-	short tx;
+	int   task;
+	int   txy;
+//	short ty;
+//	short tx;
 	float xy[NUM_CAMS][2];
 };
 struct CltExtra{
@@ -350,8 +357,9 @@ __device__ void imclt_plane(
 		const size_t      dstride);            // in floats (pixels)
 
 extern "C"
-__global__ void tileProcessor(
-		struct CltExtra ** gpu_kernel_offsets, // [NUM_CAMS],
+__global__ void convert_correct_tiles(
+//		struct CltExtra ** gpu_kernel_offsets, // [NUM_CAMS], // changed for jcuda to avoid struct paraeters
+		float           ** gpu_kernel_offsets, // [NUM_CAMS],
 		float           ** gpu_kernels,        // [NUM_CAMS],
 		float           ** gpu_images,         // [NUM_CAMS],
 		struct tp_task  * gpu_tasks,
@@ -361,6 +369,7 @@ __global__ void tileProcessor(
 		int               lpf_mask)            // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green
 
 {
+//	struct CltExtra* gpu_kernel_offsets = (struct CltExtra*) vgpu_kernel_offsets;
 	dim3 t = threadIdx;
 	int tile_in_block = threadIdx.y;
 	int task_num = blockIdx.x * TILES_PER_BLOCK + tile_in_block;
@@ -370,8 +379,9 @@ __global__ void tileProcessor(
 	__shared__ struct tp_task tt [TILES_PER_BLOCK];
 	// Copy task data to shared memory
 	tt[tile_in_block].task =          gpu_task -> task;
-	tt[tile_in_block].tx =            gpu_task -> tx;
-	tt[tile_in_block].ty =            gpu_task -> ty;
+//	tt[tile_in_block].tx =            gpu_task -> tx;
+//	tt[tile_in_block].ty =            gpu_task -> ty;
+	tt[tile_in_block].txy =           gpu_task -> txy;
 	int thread0 =  threadIdx.x & 1;
 	int thread12 = threadIdx.x >>1;
 	if (thread12 < NUM_CAMS) {
@@ -408,7 +418,7 @@ __global__ void tileProcessor(
     for (int ncam = 0; ncam <  NUM_CAMS; ncam++){
     	for (int color = 0; color <  NUM_COLORS; color++){
     		convertCorrectTile(
-    				gpu_kernel_offsets[ncam],        // float           * gpu_kernel_offsets,
+    				(struct CltExtra*)(gpu_kernel_offsets[ncam]),        // struct CltExtra* gpu_kernel_offsets,
 					gpu_kernels[ncam],               // float           * gpu_kernels,
 					gpu_images[ncam],                // float           * gpu_images,
 					gpu_clt[ncam],                   // float           * gpu_clt,
@@ -416,7 +426,8 @@ __global__ void tileProcessor(
 					lpf_mask,                        // const int         lpf_mask,
 					tt[tile_in_block].xy[ncam][0],   // const float       centerX,
 					tt[tile_in_block].xy[ncam][1],   // const float       centerY,
-					tt[tile_in_block].tx | (tt[tile_in_block].ty <<16), //  const int txy,
+//					tt[tile_in_block].tx | (tt[tile_in_block].ty <<16), //  const int txy,
+					tt[tile_in_block].txy,           //  const int txy,
 					dstride,                         // size_t            dstride, // in floats (pixels)
 					(float * )(clt_tile [tile_in_block]),        // float clt_tile [TILES_PER_BLOCK][NUM_CAMS][NUM_COLORS][4][DTT_SIZE][DTT_SIZE])
 					(float * )(clt_kernels[tile_in_block]),      // float clt_tile    [NUM_COLORS][4][DTT_SIZE][DTT_SIZE],

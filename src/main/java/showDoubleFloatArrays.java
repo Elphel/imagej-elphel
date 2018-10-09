@@ -213,6 +213,30 @@ import ij.process.ImageProcessor;
       return array_stack;
   }
 
+  public ImageStack makeStack(float[][] pixels, int width, int height, String [] titles, boolean noNaN) {
+      float [] fpixels;
+      ImageStack array_stack=new ImageStack(width,height);
+      for (int i=0;i<pixels.length;i++) if (pixels[i]!=null) {
+          if (pixels[i].length!=(width*height)){
+        	  System.out.println("showArrays(): pixels["+i+"].length="+pixels[i].length+" != width (+"+width+") * height("+height+")="+(width*height));
+        	  return null;
+          }
+        if (noNaN){
+            fpixels=new float[pixels[i].length];
+        	for (int j=0;j<fpixels.length;j++) fpixels[j]= Float.isNaN(pixels[i][j])? 0.0F: ((float)pixels[i][j]);
+        } else {
+        	fpixels=pixels[i];
+        }
+        if (titles!=null){
+            array_stack.addSlice(titles[i],    fpixels);
+        } else {
+        	array_stack.addSlice("chn-"+i,    fpixels);
+        }
+      }
+      return array_stack;
+  }
+
+
   public ImagePlus [] makeArrays(double[][] pixels, int width, int height, String title) {
 	  int i,j;
 	  float [] fpixels;

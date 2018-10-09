@@ -4489,6 +4489,56 @@ public class QuadCLT {
 		  return rslt;
 	  }
 
+	  // float
+	  public ImagePlus linearStackToColor(
+			  EyesisCorrectionParameters.CLTParameters         clt_parameters,
+			  EyesisCorrectionParameters.ColorProcParameters   colorProcParameters,
+			  EyesisCorrectionParameters.RGBParameters         rgbParameters,
+			  String name,
+			  String suffix, // such as disparity=...
+			  boolean toRGB,
+			  boolean bpp16, // 16-bit per channel color mode for result
+			  boolean saveShowIntermediate, // save/show if set globally
+			  boolean saveShowFinal,        // save/show result (color image?)
+			  float [][] iclt_data,
+			  int width, // int tilesX,
+			  int height, // int tilesY,
+			  double scaleExposure,
+			  int debugLevel
+			  )
+	  {
+		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		  // convert to ImageStack of 3 slices
+		  String [] sliceNames = {"red", "blue", "green"};
+		  float []   alpha = null; // (0..1.0)
+		  float [][] rgb_in = {iclt_data[0],iclt_data[1],iclt_data[2]};
+		  if (iclt_data.length > 3) alpha = iclt_data[3];
+		  ImageStack stack = sdfa_instance.makeStack(
+				  rgb_in, // iclt_data,
+				  width,  // (tilesX + 0) * clt_parameters.transform_size,
+				  height, // (tilesY + 0) * clt_parameters.transform_size,
+				  sliceNames,  // or use null to get chn-nn slice names
+				  true); // replace NaN with 0.0
+		  return linearStackToColor(
+				  clt_parameters, // EyesisCorrectionParameters.CLTParameters         clt_parameters,
+				  colorProcParameters, // EyesisCorrectionParameters.ColorProcParameters   colorProcParameters,
+				  rgbParameters, // EyesisCorrectionParameters.RGBParameters         rgbParameters,
+				  name,   // String name,
+				  suffix, // String suffix, // such as disparity=...
+				  toRGB, // boolean toRGB,
+				  bpp16, // boolean bpp16, // 16-bit per channel color mode for result
+				  saveShowIntermediate, // boolean saveShowIntermediate, // save/show if set globally
+				  saveShowFinal, // boolean saveShowFinal,        // save/show result (color image?)
+				  stack, // ImageStack stack,
+				  alpha, // float [] alpha_pixels,
+				  width, // int width, // int tilesX,
+				  height, // int height, // int tilesY,
+				  scaleExposure, // double scaleExposure,
+				  debugLevel); //int debugLevel
+
+
+	  }
+	  // double data
 	  public ImagePlus linearStackToColor(
 			  EyesisCorrectionParameters.CLTParameters         clt_parameters,
 			  EyesisCorrectionParameters.ColorProcParameters   colorProcParameters,
@@ -4511,19 +4561,64 @@ public class QuadCLT {
 		  String [] sliceNames = {"red", "blue", "green"};
 		  double []   alpha = null; // (0..1.0)
 		  double [][] rgb_in = {iclt_data[0],iclt_data[1],iclt_data[2]};
-		  if (iclt_data.length > 3) alpha = iclt_data[3];
+		  float [] alpha_pixels = null;
+		  if (iclt_data.length > 3) {
+			  alpha = iclt_data[3];
+			  if (alpha != null){
+				  alpha_pixels = new float [alpha.length];
+				  for (int i = 0; i <alpha.length; i++){
+					  alpha_pixels[i] = (float) alpha[i];
+				  }
+			  }
+		  }
 		  ImageStack stack = sdfa_instance.makeStack(
 				  rgb_in, // iclt_data,
 				  width,  // (tilesX + 0) * clt_parameters.transform_size,
 				  height, // (tilesY + 0) * clt_parameters.transform_size,
 				  sliceNames,  // or use null to get chn-nn slice names
 				  true); // replace NaN with 0.0
+
+		  return linearStackToColor(
+				  clt_parameters, // EyesisCorrectionParameters.CLTParameters         clt_parameters,
+				  colorProcParameters, // EyesisCorrectionParameters.ColorProcParameters   colorProcParameters,
+				  rgbParameters, // EyesisCorrectionParameters.RGBParameters         rgbParameters,
+				  name,   // String name,
+				  suffix, // String suffix, // such as disparity=...
+				  toRGB, // boolean toRGB,
+				  bpp16, // boolean bpp16, // 16-bit per channel color mode for result
+				  saveShowIntermediate, // boolean saveShowIntermediate, // save/show if set globally
+				  saveShowFinal, // boolean saveShowFinal,        // save/show result (color image?)
+				  stack, // ImageStack stack,
+				  alpha_pixels, // float [] alpha_pixels,
+				  width, // int width, // int tilesX,
+				  height, // int height, // int tilesY,
+				  scaleExposure, // double scaleExposure,
+				  debugLevel); //int debugLevel
+	  }
+
+
+	  public ImagePlus linearStackToColor(
+			  EyesisCorrectionParameters.CLTParameters         clt_parameters,
+			  EyesisCorrectionParameters.ColorProcParameters   colorProcParameters,
+			  EyesisCorrectionParameters.RGBParameters         rgbParameters,
+			  String name,
+			  String suffix, // such as disparity=...
+			  boolean toRGB,
+			  boolean bpp16, // 16-bit per channel color mode for result
+			  boolean saveShowIntermediate, // save/show if set globally
+			  boolean saveShowFinal,        // save/show result (color image?)
+			  ImageStack stack,
+			  float [] alpha_pixels,
+			  int width, // int tilesX,
+			  int height, // int tilesY,
+			  double scaleExposure,
+			  int debugLevel
+			  )
+	  {
+//		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
 		  if (debugLevel > -1) { // 0){
 			  double [] chn_avg = {0.0,0.0,0.0};
 			  float [] pixels;
-//			  int width =  stack.getWidth();
-//			  int height = stack.getHeight();
-
 			  for (int c = 0; c <3; c++){
 				  pixels = (float[]) stack.getPixels(c+1);
 				  for (int i = 0; i<pixels.length; i++){
@@ -4610,11 +4705,7 @@ public class QuadCLT {
 			  titleFull=name+"-YPrPb"+suffix;
 			  if (debugLevel > 1) System.out.println("Using full stack, including YPbPr");
 		  }
-		  if (alpha != null){
-			  float [] alpha_pixels = new float [alpha.length];
-			  for (int i = 0; i <alpha.length; i++){
-				  alpha_pixels[i] = (float) alpha[i];
-			  }
+		  if (alpha_pixels != null){
 			  stack.addSlice("alpha",alpha_pixels);
 		  }
 
@@ -4673,6 +4764,8 @@ public class QuadCLT {
 		  return result;
 
 	  }
+
+
 
 	  public void apply_fine_corr(
 			  double [][][] corr,

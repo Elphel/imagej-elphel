@@ -44,12 +44,13 @@
 * This file is cpompatible with both runtime and driver API, runtime is used for development
 * with Nvidia Nsight, driver API when calling these kernels from Java
 */
-
+#ifndef JCUDA
+#define DTT_SIZE                      8
+#endif
 #pragma once
 #define DTTTEST_BLOCK_WIDTH          32
 #define DTTTEST_BLOCK_HEIGHT         16
 #define DTTTEST_BLK_STRIDE     (DTTTEST_BLOCK_WIDTH+1)
-#define DTT_SIZE                      8
 
 //#define CUDART_INF_F            __int_as_float(0x7f800000)
 /*
