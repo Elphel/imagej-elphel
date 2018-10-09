@@ -1,2 +1,2 @@
-*.cu gitlab-language=c
-*.cuh gitlab-language=c
+*.cu gitlab-language=cpp
+*.cuh gitlab-language=cpp
