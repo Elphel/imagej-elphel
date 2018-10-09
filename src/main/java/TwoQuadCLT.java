@@ -1355,27 +1355,7 @@ public class TwoQuadCLT {
 				dst_bayer[nc][i]= nc*main_bayer[nc].length + i;
 			}
 		}
-/*
-		int iwidth = imp_quad_main[0].getWidth();
-		String [] dbg_titles= {"src0","dst0","src1","dst1","src2","dst2","src3","dst3"};
 
-		for (int nc = 0; nc < main_bayer.length; nc++) {
-			gPUTileProcessor.exec_dtt24(
-					main_bayer[nc], // float src_pixels[],
-					dst_bayer[nc], // float dst_pixels[],
-					iwidth, // int width,
-					0); // int dtt_mode);
-		}
-		float [][] both_bayer = {main_bayer[0],dst_bayer[0],main_bayer[1],dst_bayer[1],main_bayer[2],dst_bayer[2],main_bayer[3],dst_bayer[3]};
-		(new showDoubleFloatArrays()).showArrays(
-				both_bayer,
-				iwidth,
-				main_bayer[0].length / iwidth,
-				true,
-				"converted",
-				dbg_titles);
-
-*/
 		double [][][]       port_xy_main_dbg = new double [tilesX*tilesY][][];
 		double [][][]       port_xy_aux_dbg = new double [tilesX*tilesY][][];
 
@@ -1832,6 +1812,12 @@ public class TwoQuadCLT {
 			final boolean    updateStatus,
 			final int        debugLevel){
 
+		gPUTileProcessor.setLpfRbg(
+				1.1f,  // float sigma_r,
+				1.1f,  // float sigma_b,
+				0.7f); // float sigma_g)
+
+
 		final boolean use_aux = false; // currently GPU is configured for a single quad camera
 
 		final boolean      batch_mode = clt_parameters.batch_run; //disable any debug images
@@ -1889,9 +1875,17 @@ public class TwoQuadCLT {
 				use_aux); // boolean use_aux)
 
 		// All set, run kernel (correct and convert)
-		gPUTileProcessor.execConverCorrectTiles();
+		int NREPEAT = 1; // 00;
+		System.out.println("\n------------ Running GPU "+NREPEAT+" times ----------------");
+		long startGPU=System.nanoTime();
+		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execConverCorrectTiles();
 		// run imclt;
-		gPUTileProcessor.execImcltRbg();
+		long firstGPUTime= (System.nanoTime() - startGPU)/NREPEAT;
+		for (int i = 0; i < NREPEAT; i++ ) gPUTileProcessor.execImcltRbg();
+		long runGPUTime = (System.nanoTime() - startGPU)/NREPEAT;
+		System.out.println("\n------------ End of running GPU "+NREPEAT+" times ----------------");
+		System.out.println("GPU run time ="+(runGPUTime * 1.0e-6)+"ms, (direct conversion: "+(firstGPUTime*1.0e-6)+"ms, imclt: "+
+				((runGPUTime - firstGPUTime)*1.0e-6)+"ms)");
 
 		float [][][] iclt_fimg = new float [GPUTileProcessor.NUM_CAMS][][];
 		for (int ncam = 0; ncam < iclt_fimg.length; ncam++) {

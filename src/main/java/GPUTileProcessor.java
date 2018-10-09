@@ -33,10 +33,10 @@ import static jcuda.driver.JCudaDriver.cuInit;
 import static jcuda.driver.JCudaDriver.cuLaunchKernel;
 import static jcuda.driver.JCudaDriver.cuMemAlloc;
 import static jcuda.driver.JCudaDriver.cuMemAllocPitch;
-import static jcuda.driver.JCudaDriver.cuMemFree;
 import static jcuda.driver.JCudaDriver.cuMemcpy2D;
 import static jcuda.driver.JCudaDriver.cuMemcpyHtoD;
 import static jcuda.driver.JCudaDriver.cuModuleGetFunction;
+import static jcuda.driver.JCudaDriver.cuModuleGetGlobal;
 import static jcuda.driver.JCudaDriver.cuModuleLoadData;
 import static jcuda.nvrtc.JNvrtc.nvrtcCompileProgram;
 import static jcuda.nvrtc.JNvrtc.nvrtcCreateProgram;
@@ -69,8 +69,8 @@ import jcuda.nvrtc.nvrtcProgram;
 public class GPUTileProcessor {
 	static String GPU_KERNEL_FILE = "dtt8x8.cuh";
 	static String [] GPU_KERNEL_FILES = {"dtt8x8.cuh","TileProcessor.cuh"};
-	static String GPU_DTT24_NAME =  "GPU_DTT24_DRV";       // this.kernelFunction = createFunction(sourceCode, "GPU_DTT24_DRV"); // "invert");
 	static String GPU_CONVERT_CORRECT_TILES_NAME = "convert_correct_tiles";
+	static String GPU_IMCLT_RBG_NAME = "imclt_rbg";
 //  pass some defines to gpu source code with #ifdef JCUDA
 	static int DTT_SIZE =                8;
 	static int THREADSX =         DTT_SIZE;
@@ -92,38 +92,12 @@ public class GPUTileProcessor {
 	static int KERN_SIZE =  KERN_TILES * 4 * 64;
 
 
-	/*
-extern "C"
-__global__ void convert_correct_tiles(
-		struct CltExtra ** gpu_kernel_offsets, // [NUM_CAMS],
-		float           ** gpu_kernels,        // [NUM_CAMS],
-		float           ** gpu_images,         // [NUM_CAMS],
-		struct tp_task  * gpu_tasks,
-		float           ** gpu_clt,            // [NUM_CAMS][TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-		size_t            dstride,             // in floats (pixels)
-		int               num_tiles,           // number of tiles in task
-		int               lpf_mask)            // apply lpf to colors : bit 0 - red, bit 1 - blue, bit2 - green
-	 */
-	static String GPU_IMCLT_RBG_NAME = "imclt_rbg";
-	/*
-extern "C"
-__global__ void imclt_rbg(
-		float           * gpu_clt,            // [TILESY][TILESX][NUM_COLORS][DTT_SIZE*DTT_SIZE]
-		float           * gpu_rbg,            // WIDTH, 3 * HEIGHT
-		int               color,
-		int               v_offset,
-		int               h_offset,
-		const size_t      dstride)            // in floats (pixels)
-
-	 */
-
     int DTTTEST_BLOCK_WIDTH =        32; // may be read from the source code
     int DTTTEST_BLOCK_HEIGHT =       16; // may be read from the source code
 
     public boolean kernels_set = false;
     public boolean bayer_set =   false;
 
-    private CUfunction GPU_DTT24_kernel =                 null;
     private CUfunction GPU_CONVERT_CORRECT_TILES_kernel = null;
     private CUfunction GPU_IMCLT_RBG_kernel =             null;
     // CPU arrays of pointers to GPU memory
@@ -143,18 +117,17 @@ __global__ void imclt_rbg(
     private CUdeviceptr gpu_tasks =               new CUdeviceptr();
 
     private CUdeviceptr gpu_clt =                 new CUdeviceptr();
+//    private
+    CUmodule    module; // to access constants memory
 //    private CUdeviceptr gpu_lpf =            new CUdeviceptr();
     private int mclt_stride;
     private int imclt_stride;
     public int num_task_tiles;
 
-    /*
-    */
     public class TpTask {
     	public int   task;
     	public float target_disparity;
 
-//    	int   txy;
     	public int ty;
     	public int tx;
     	public float[][] xy = null;
@@ -167,27 +140,13 @@ __global__ void imclt_rbg(
     		this.target_disparity = target_disparity;
     		this.task = task;
     	}
-    	/*
-    	public TpTask(int main, int aux, float [] flt, int indx) {
-    		if (main > 0) xy =     new float[main][2];
-    		if (aux > 0)  xy_aux = new float[main][2];
-    		task =     Float.floatToRawIntBits(flt[indx++]);
-    		int txy =  Float.floatToRawIntBits(flt[indx++]);
-    		tx = txy & 0xffff;
-    		ty = txy >> 16;
-    		for (int i = 0; i < xy.length; i++) {
-    			xy[i][0] = flt[indx++];
-    			xy[i][1] = flt[indx++];
-    		}
-    	}
-    	*/
 
-    	// convert this class to float array to match layout of the C struct
+    	// convert this class instance to float array to match layout of the C struct
     	public float [] asFloatArray(boolean use_aux) {
     		float [] flt = new float [NUM_CAMS * 2 + 2];
     		return asFloatArray(flt, 0, use_aux);
     	}
-    	// convert this class to float array to match layout of the C struct,
+    	// convert this class instance to float array to match layout of the C struct,
     	// fill existing float array from the specified index
     	public float [] asFloatArray(float [] flt, int indx, boolean use_aux) {
     		flt[indx++] = Float.intBitsToFloat(task);
@@ -258,8 +217,6 @@ __global__ void imclt_rbg(
     	}
     };
 
-
-
     private static long getPointerAddress(CUdeviceptr p)
 
     {
@@ -277,50 +234,6 @@ __global__ void imclt_rbg(
         }
         return new PointerWithAddress(p).getAddress();
     }
-
-/*
- *
-struct tp_task {
-	int   task;
-	int   txy;
-//	short ty;
-//	short tx;
-	float xy[NUM_CAMS][2];
-};
-struct CltExtra{
-	float data_x;   // kernel data is relative to this displacement X (0.5 pixel increments)
-	float data_y;   // kernel data is relative to this displacement Y (0.5 pixel increments)
-	float center_x; // actual center X (use to find derivatives)
-	float center_y; // actual center X (use to find derivatives)
-	float dxc_dx;   // add this to data_x per each pixel X-shift relative to the kernel center location
-	float dxc_dy;   // same per each Y-shift pixel
-	float dyc_dx;
-	float dyc_dy;
-};
- *
- *
- intBitsToFloat(int)
-public static int floatToRawIntBits(float value)
-public static float intBitsToFloat(int bits)
-    // host array of pointers to GPU memory
-    float            * gpu_kernels_h        [NUM_CAMS];
-    struct CltExtra  * gpu_kernel_offsets_h [NUM_CAMS];
-    float            * gpu_images_h         [NUM_CAMS];
-    float              tile_coords_h        [NUM_CAMS][TILESX * TILESY][2];
-    float            * gpu_clt_h            [NUM_CAMS];
-    float            * gpu_lpf_h            [NUM_COLORS];
-#ifndef NOICLT
-    float            * gpu_corr_images_h    [NUM_CAMS];
-#endif
-
-    // GPU pointers to GPU pointers to memory
-    float           ** gpu_kernels; //           [NUM_CAMS];
-    struct CltExtra ** gpu_kernel_offsets; //    [NUM_CAMS];
-    float           ** gpu_images; //            [NUM_CAMS];
-    float           ** gpu_clt;    //           [NUM_CAMS];
-    float           ** gpu_lpf;    //           [NUM_CAMS];
-
- */
 
     public GPUTileProcessor() throws IOException
     {
@@ -356,21 +269,7 @@ public static float intBitsToFloat(int bits)
         				"#define TILES_PER_BLOCK " +        TILES_PER_BLOCK+"\n"+
         				"#define IMCLT_THREADS_PER_TILE " + IMCLT_THREADS_PER_TILE+"\n"+
         				"#define IMCLT_TILES_PER_BLOCK " +  IMCLT_TILES_PER_BLOCK+"\n";
-/*
-#define THREADSX         (DTT_SIZE)
-#define IMG_WIDTH       2592
-#define IMG_HEIGHT      1936
-#define KERNELS_HOR      164
-#define KERNELS_VERT     123
-#define NUM_CAMS           4
-#define NUM_COLORS         3
-#define KERNELS_LSTEP      4
-#define THREADS_PER_TILE   8
-#define TILES_PER_BLOCK    4
-#define IMCLT_THREADS_PER_TILE 16
-#define IMCLT_TILES_PER_BLOCK   4
 
- */
         for (String src_file:GPU_KERNEL_FILES) {
         	File file = new File(classLoader.getResource(src_file).getFile());
         	System.out.println(file.getAbsolutePath());
@@ -385,14 +284,10 @@ public static float intBitsToFloat(int bits)
 
         }
         // Create the kernel functions (first - just test)
-//        this.GPU_DTT24_kernel = createFunction(kernelSource, GPU_DTT24_NAME);
-        String [] func_names = {GPU_DTT24_NAME, GPU_CONVERT_CORRECT_TILES_NAME, GPU_IMCLT_RBG_NAME};
+        String [] func_names = {GPU_CONVERT_CORRECT_TILES_NAME, GPU_IMCLT_RBG_NAME};
         CUfunction[] functions = createFunctions(kernelSource, func_names);
-        this.GPU_DTT24_kernel =                 functions[0];
-        this.GPU_CONVERT_CORRECT_TILES_kernel = functions[1];
-        this.GPU_IMCLT_RBG_kernel =             functions[2];
-//        this.GPU_CONVERT_CORRECT_TILES = createFunction(kernelSource, GPU_CONVERT_CORRECT_TILES_NAME);
- //       this.GPU_IMCLT_RBG =             createFunction(kernelSource, GPU_IMCLT_RBG_NAME);
+        this.GPU_CONVERT_CORRECT_TILES_kernel = functions[0];
+        this.GPU_IMCLT_RBG_kernel =             functions[1];
         System.out.println("GPU kernel functions initialized");
         System.out.println("Sizeof.POINTER="+Sizeof.POINTER);
         System.out.println(GPU_IMCLT_RBG_kernel.toString());
@@ -426,7 +321,6 @@ public static float intBitsToFloat(int bits)
             gpu_clt_h[ncam] = new CUdeviceptr();
         	cuMemAlloc(gpu_clt_h[ncam],tilesY * tilesX * NUM_COLORS * 4 * DTT_SIZE * DTT_SIZE * Sizeof.FLOAT ); //     public static int cuMemAlloc(CUdeviceptr dptr, long bytesize)
 
-            //gpu_clt_h
         }
         // now create device arrays pointers
         if (Sizeof.POINTER != Sizeof.LONG) {
@@ -455,11 +349,9 @@ public static float intBitsToFloat(int bits)
         for (int ncam = 0; ncam < NUM_CAMS; ncam++) gpu_clt_l[ncam] =            getPointerAddress(gpu_clt_h[ncam]);
         cuMemcpyHtoD(gpu_clt, Pointer.to(gpu_clt_l),                             NUM_CAMS * Sizeof.POINTER);
 
-
         // Set task array
     	cuMemAlloc(gpu_tasks,       tilesX * tilesY * TPTASK_SIZE * Sizeof.POINTER);
 
-//TPTASK_SIZE
     }
 
 
@@ -551,7 +443,6 @@ public static float intBitsToFloat(int bits)
         copyH2D.Height =          IMG_HEIGHT; // /4;
         cuMemcpy2D(copyH2D);
     }
-
     // combines 3 bayer channels into one and transfers to GPU memory
     public void setBayerImages(
 			double [][][]       bayer_data,
@@ -570,9 +461,6 @@ public static float intBitsToFloat(int bits)
 		}
 		bayer_set = true;
     }
-
-
-
 
     // prepare tasks for full frame, same dispaity.
     // need to run setTasks(TpTask [] tile_tasks, boolean use_aux) to format/transfer to GPU memory
@@ -661,6 +549,7 @@ public static float intBitsToFloat(int bits)
     			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
     			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
     			kernelParameters, null);   // Kernel- and extra parameters
+    	cuCtxSynchronize(); // remove later
     }
 
     public void execImcltRbg() {
@@ -695,11 +584,11 @@ public static float intBitsToFloat(int bits)
 								ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
 								0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
 								kernelParameters, null);   // Kernel- and extra parameters
-//						System.out.println("ncam = "+ncam+", color="+color+", v_offs="+v_offs+", h_offs="+h_offs);
     				}
     			}
     		}
     	}
+    	cuCtxSynchronize();
     }
 
     float [][] getRBG (int ncam){
@@ -731,159 +620,8 @@ public static float intBitsToFloat(int bits)
         return fimg;
     }
 
-
-
-
-    /*
-    for (int ncam = 0; ncam < NUM_CAMS; ncam++) {
-    	checkCudaErrors(cudaMemcpy2D( // segfault
-    			cpu_corr_image,
-				(IMG_WIDTH + DTT_SIZE) * sizeof(float),
-				gpu_corr_images_h[ncam],
-				dstride_rslt,
-				(IMG_WIDTH + DTT_SIZE) * sizeof(float),
-				3* (IMG_HEIGHT + DTT_SIZE),
-    			cudaMemcpyDeviceToHost));
-        printf("Writing RBG data to %s\n",  result_rbg_file[ncam]);
-    	writeFloatsToFile( // will have margins
-    			cpu_corr_image, // float *       data, // allocated array
-				rslt_img_size, // int           size, // length in elements
-				result_rbg_file[ncam]); // 			   const char *  path) // file path
-    }
-
-     */
-
-    // run kernel with dttx
-    public void exec_dtt24(float src_pixels[],float dst_pixels[], int width, int dtt_mode)
-    {
-        if (GPU_DTT24_kernel == null)
-        {
-            IJ.showMessage("Error", "No GPU kernel");
-            return;
-        }
-        int height = src_pixels.length / width;
-        long width_in_bytes = width * Sizeof.FLOAT;
-        CUdeviceptr src_dpointer = new CUdeviceptr();
-        CUdeviceptr dst_dpointer = new CUdeviceptr();
-        long [] device_stride = new long [1];
-        cuMemAllocPitch (
-        		src_dpointer,   // CUdeviceptr dptr,
-        		device_stride,  // long[] pPitch,
-        		width_in_bytes, // long WidthInBytes,
-        		height,         // long Height,
-                Sizeof.FLOAT);  // int ElementSizeBytes)
-        int pitchInElements = (int)(device_stride[0] / Sizeof.FLOAT);
-        cuMemAllocPitch (
-        		dst_dpointer,   // CUdeviceptr dptr,
-        		device_stride,  // long[] pPitch,
-        		width_in_bytes, // long WidthInBytes,
-        		height,         // long Height,
-                Sizeof.FLOAT);  // int ElementSizeBytes)
-        CUDA_MEMCPY2D copyH2D =   new CUDA_MEMCPY2D();
-        copyH2D.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
-        copyH2D.srcHost =         Pointer.to(src_pixels);
-        copyH2D.srcPitch =        width_in_bytes;
-
-        copyH2D.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
-        copyH2D.dstDevice =       src_dpointer;
-        copyH2D.dstPitch =        device_stride[0];
-
-        copyH2D.WidthInBytes =    width_in_bytes;
-        copyH2D.Height =          height; // /4;
-
-// for copying results to host
-        CUDA_MEMCPY2D copyD2H =   new CUDA_MEMCPY2D();
-        copyD2H.srcMemoryType =   CUmemorytype.CU_MEMORYTYPE_DEVICE;
-        copyD2H.srcDevice =       dst_dpointer; // ((test & 1) ==0) ? src_dpointer : dst_dpointer; // copy same data
-        copyD2H.srcPitch =        device_stride[0];
-
-        copyD2H.dstMemoryType =   CUmemorytype.CU_MEMORYTYPE_HOST;
-        copyD2H.dstHost =         Pointer.to(dst_pixels);
-        copyD2H.dstPitch =        width_in_bytes;
-
-        copyD2H.WidthInBytes =    width_in_bytes;
-        copyD2H.Height =          height; // /2;
-
-        // kernel parameters: pointer to pointers
-        Pointer kernelParameters = Pointer.to(
-            Pointer.to(dst_dpointer),
-            Pointer.to(src_dpointer),
-            Pointer.to(new int[] { pitchInElements }),
-            Pointer.to(new int[] { dtt_mode })
-        );
-
-        int [] GridFullWarps =    {width / DTTTEST_BLOCK_WIDTH, height / DTTTEST_BLOCK_HEIGHT, 1};
-        int [] ThreadsFullWarps = {DTT_SIZE, DTTTEST_BLOCK_WIDTH/DTT_SIZE, DTTTEST_BLOCK_HEIGHT/DTT_SIZE};
-
-        // Actual work starts here:
-        cuMemcpy2D(copyH2D);
-        cuCtxSynchronize();
-        	// Call the kernel function
-    	cuLaunchKernel(GPU_DTT24_kernel,
-    			GridFullWarps[0],    GridFullWarps[1],   GridFullWarps[2],  // Grid dimension
-    			ThreadsFullWarps[0], ThreadsFullWarps[1],ThreadsFullWarps[2],// Block dimension
-    			0, null,                 // Shared memory size and stream (shared - only dynamic, static is in code)
-    			kernelParameters, null);   // Kernel- and extra parameters
-
-        // Copy the data from the device to the host
-        cuMemcpy2D(copyD2H);
-        // clean up
-        cuMemFree(src_dpointer);
-        cuMemFree(dst_dpointer);
-    }
-
-    /**
-     * Create the kernel function by its name in the  source code
-     * @param sourceCode The source code
-     * @param kernelName The kernel function name
-     * @return
-     * @throws IOException
-     */
-    /*
-    private static CUfunction createFunction(
-        String sourceCode, String kernelName) throws IOException
-    {
-    	boolean OK = false;
-        // Use the NVRTC to create a program by compiling the source code
-        nvrtcProgram program = new nvrtcProgram();
-        nvrtcCreateProgram(
-            program, sourceCode, null, 0, null, null);
-        try {
-        	nvrtcCompileProgram(program, 0, null);
-        	OK = true;
-    	} catch (Exception e) {
-    		System.out.println("nvrtcCompileProgram() FAILED");
-    	}
-        // Compilation log with errors/warnongs
-        String programLog[] = new String[1];
-        nvrtcGetProgramLog(program, programLog);
-        String log = programLog[0].trim();
-        if (!log.isEmpty())
-        {
-            System.err.println("Program compilation log:\n" + log);
-        }
-        if (!OK) {
-        	throw new IOException("Could not compile program");
-        }
-
-        // Get the PTX code of the compiled program (not the binary)
-        String[] ptx = new String[1];
-        nvrtcGetPTX(program, ptx);
-        nvrtcDestroyProgram(program);
-
-        // Create a CUDA module from the PTX code
-        CUmodule module = new CUmodule();
-        cuModuleLoadData(module, ptx[0]);
-
-        // Find the function in the source by name, get its pointer
-        CUfunction function = new CUfunction();
-        cuModuleGetFunction(function, module, kernelName);
-
-        return function;
-    }
-*/
-
-    private static CUfunction [] createFunctions(
+//    private static CUfunction [] createFunctions(
+      private CUfunction [] createFunctions(
             String sourceCode, String [] kernelNames) throws IOException
         {
     	CUfunction [] functions = new CUfunction [kernelNames.length];
@@ -916,7 +654,8 @@ public static float intBitsToFloat(int bits)
             nvrtcDestroyProgram(program);
 
             // Create a CUDA module from the PTX code
-            CUmodule module = new CUmodule();
+//            CUmodule
+            module = new CUmodule();
             cuModuleLoadData(module, ptx[0]);
 
             for (int i = 0; i < kernelNames.length; i++) {
@@ -927,9 +666,6 @@ public static float intBitsToFloat(int bits)
 
             return functions;
         }
-
-
-
 
     static String readFileAsString(String path)
     {
@@ -1036,6 +772,75 @@ public static float intBitsToFloat(int bits)
 		ImageDtt.startAndJoin(threads);
 	}
 
+	public void setLpfRbg(
+			float sigma_r,
+			float sigma_b,
+			float sigma_g)
+	{
+		int dct_size = DTT_SIZE;
+		DttRad2 dtt = new DttRad2(dct_size);
+
+		double [][] lpf_rbg = {
+				dtt.dttt_iiie(setCltLpf(sigma_r)),
+				dtt.dttt_iiie(setCltLpf(sigma_b)),
+				dtt.dttt_iiie(setCltLpf(sigma_g))};
+		int l = dct_size*dct_size;
+		float []   lpf_flat = new float [3 * l];
+		for (int i = 0; i < 3;i++) {
+//			System.arraycopy(lpf_rbg[i], 0, lpf_flat, l* i, l);
+			for (int j = 0; j < l; j++) {
+				lpf_flat[j+i*l] = (float) (lpf_rbg[i][j]*2*dct_size);
+			}
+		}
+
+		CUdeviceptr constantMemoryPointer = new CUdeviceptr();
+		long constantMemorySizeArray[] = { 0 };
+		cuModuleGetGlobal(constantMemoryPointer, constantMemorySizeArray,  module, "lpf_data");
+		int constantMemorySize = (int)constantMemorySizeArray[0];
+//__constant__ float lpf_data[3][64]={
+
+		System.out.println("constantMemoryPointer: " + constantMemoryPointer);
+		System.out.println("constantMemorySize: " + constantMemorySize);
+        cuMemcpyHtoD(constantMemoryPointer, Pointer.to(lpf_flat), constantMemorySize);
+		System.out.println();
+
+	}
+
+	public double [] setCltLpf(
+			double   sigma)
+	{
+			int dct_size = DTT_SIZE;
+
+		double [] lpf = new double [dct_size*dct_size];
+		int dct_len = dct_size * dct_size;
+		if (sigma == 0.0f) {
+			lpf[0] = 1.0f;
+			for (int i = 1; i < dct_len; i++){
+				lpf[i] = 0.0f;
+			}
+		} else {
+			for (int i = 0; i < dct_size; i++){
+				for (int j = 0; j < dct_size; j++){
+					lpf[i*dct_size+j] = (float) Math.exp(-(i*i+j*j)/(2*sigma));
+				}
+			}
+			// normalize
+			double sum = 0;
+			for (int i = 0; i < dct_size; i++){
+				for (int j = 0; j < dct_size; j++){
+					double d = 	lpf[i*dct_size+j];
+					d*=Math.cos(Math.PI*i/(2*dct_size))*Math.cos(Math.PI*j/(2*dct_size));
+					if (i > 0) d*= 2.0;
+					if (j > 0) d*= 2.0;
+					sum +=d;
+				}
+			}
+			for (int i = 0; i< dct_len; i++){
+				lpf[i] /= sum;
+			}
+		}
+		return lpf;
+	}
 
 
 
