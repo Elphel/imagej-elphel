@@ -78,8 +78,12 @@ class Escher_Pattern:
     plt.autoscale(tight=True)
     plt.axis('off')
     plt.margins(0.0)
+    #plt.rcParams["figure.figsize"] = [60,120]
 
     self.fig, self.ax = plt.subplots()
+
+    # when save the pdf size is a little less?!!
+    self.fig.set_size_inches(self.width/72, self.height/72)
 
     self.ax.get_xaxis().set_visible(False)
     self.ax.get_yaxis().set_visible(False)
@@ -95,6 +99,7 @@ class Escher_Pattern:
 
     print("init done")
 
+
   # rotate clock-wise
   def rotate(self,deg):
 
@@ -105,12 +110,13 @@ class Escher_Pattern:
       x.set_transform(t_end)
 
 
-  def test1(self):
+  def generate(self):
 
-    side = int(500/self.lpm*self.MM2PT)
+    side = 500/self.lpm*self.MM2PT
 
     if (self.escher>0):
 
+      # no rounding
       Size = side
       qSize = Size/4
       hSize = Size/2
@@ -135,7 +141,7 @@ class Escher_Pattern:
         ]
 
       template = [
-        Rectangle( tpts[0],  side, side,                    facecolor="k",linewidth=0,edgecolor="r"),
+        Rectangle( tpts[0],  Size, Size,                    facecolor="k",linewidth=0,edgecolor="r"),
         Wedge(     tpts[1],  r,   0-halfAngle,  0+halfAngle,facecolor="w",linewidth=0,edgecolor="r"),
         Wedge(     tpts[2],  r, 180-halfAngle,180+halfAngle,facecolor="k",linewidth=0,edgecolor="r"),
         Wedge(     tpts[3],  r, 270-halfAngle,270+halfAngle,facecolor="w",linewidth=0,edgecolor="r"),
@@ -156,25 +162,34 @@ class Escher_Pattern:
         Rectangle(tpts[0],side,side,facecolor="k",linewidth=0,edgecolor="r")
       ]
 
+    # calc how much more is needed for the rotation
     abs_angle_rad = math.radians(abs(self.angle))
+    extra_w = self.height*math.tan(abs_angle_rad) + side
+    extra_h = self.width *math.tan(abs_angle_rad) + side
 
-    extra_w = int(self.height*math.tan(abs_angle_rad)/side+1)*side
-    extra_h = int(self.width*math.tan(abs_angle_rad)/side+1)*side
-
-    a = range(-extra_w,self.width+extra_w,side)
-    b = range(-extra_h,self.height+extra_h,side)
+    a = np.arange(-extra_w, self.width +extra_w, 2*side)
+    b = np.arange(-extra_h, self.height+extra_h, 2*side)
 
     for x, y in [(x,y) for x in a for y in b]:
-      # both even or both odd
-      if (x+y)/side%2==0:
-        for k,v in enumerate(template):
-          vcp = copy.copy(v)
-          if   (type(v)==Wedge):
-            vcp.set_center((tpts[k][0]+x,tpts[k][1]+y))
-          elif (type(v)==Rectangle):
-            vcp.set_xy((tpts[k][0]+x,tpts[k][1]+y))
-          self.ax.add_patch(vcp)
-          
+
+      for k,v in enumerate(template):
+
+        # even-even black cell
+        vcp = copy.copy(v)
+        if   (type(v)==Wedge):
+          vcp.set_center((tpts[k][0]+x,tpts[k][1]+y))
+        elif (type(v)==Rectangle):
+          vcp.set_xy((tpts[k][0]+x,tpts[k][1]+y))
+        self.ax.add_patch(vcp)
+
+        # odd-odd black cell
+        vcp = copy.copy(v)
+        if   (type(v)==Wedge):
+          vcp.set_center((tpts[k][0]+x+side,tpts[k][1]+y+side))
+        elif (type(v)==Rectangle):
+          vcp.set_xy((tpts[k][0]+x+side,tpts[k][1]+y+side))
+        self.ax.add_patch(vcp)
+
     # now rotate
     self.rotate(self.angle)
 
@@ -217,7 +232,7 @@ if __name__ == "__main__":
   #ep = Escher_Pattern("test.pdf", escher=2.0, lpm=50, rotate=10)
   #http://192.168.0.137/escher/escher_pattern.php?PAGE_WIDTH=1524&PAGE_HEIGHT=3048&LPM=2.705449885575893&ROTATE=14.036243467
   ep = Escher_Pattern("test.pdf", width= 1524, height= 3048, escher=2.0, lpm=2.705449885575893, rotate=14.036243467)
-  ep.test1()
+  ep.generate()
   ep.save()
 
 
