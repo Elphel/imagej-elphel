@@ -30,6 +30,7 @@ from matplotlib.patches import Circle
 from matplotlib.patches import Rectangle
 from matplotlib.patches import Polygon
 from matplotlib.patches import Wedge
+from matplotlib.patches import PathPatch
 
 import matplotlib as mpl
 
@@ -38,6 +39,8 @@ from matplotlib.path import Path
 
 import copy
 import math
+
+import sys
 
 '''
 requirements:
@@ -56,10 +59,13 @@ class Escher_Pattern:
 
   # units are mms but coordinates are in pt to compare with php script
   MM2PT = 72.0/25.4
+  opts_k = {'facecolor':'black','edgecolor':'r','linewidth':0}
+  opts_w = {'facecolor':'white','edgecolor':'r','linewidth':0}
+  opts_b = {'facecolor':'blue', 'edgecolor':'r','linewidth':0}
+  opts_r = {'facecolor':'red', 'edgecolor':'r','linewidth':0}
 
   # init
   def __init__(self,
-               filename = "pattern.pdf",
                width    = 270,  # width in units
                height   = 210,  # height in units
                lpm      = 50,   # lines per meter
@@ -67,13 +73,22 @@ class Escher_Pattern:
                rotate   = 5,    # degrees
                units    = 'mm',
                ):
-    self.filename = filename
+
     self.width    = int(width*self.MM2PT)
     self.height   = int(height*self.MM2PT)
     self.lpm      = lpm
     self.escher   = escher
     self.angle   = rotate
     self.units = units
+
+    self.basename = 'escher-pattern'
+    self.basename += '-ESCHER'+str(self.escher)
+    self.basename += '-LPM'+str(self.lpm)
+    self.basename += '-ROT'+str(self.angle)
+    self.basename += '-PAGE_WIDTH'+str(width)
+    self.basename += '-PAGE_HEIGHT'+str(height)
+
+    self.pdf_name = self.basename+".pdf"
 
     plt.autoscale(tight=True)
     plt.axis('off')
@@ -95,23 +110,88 @@ class Escher_Pattern:
     self.ax.set_ylim([0,self.height])
     self.ax.set_xlim([0,self.width])
 
+    self.rotation = mpl.transforms.Affine2D().rotate_deg(-self.angle) + self.ax.transData
+
     print("init done")
 
 
-  # rotate clock-wise
-  def rotate(self,deg):
+  # generate and place a patch
+  def generate_cell(self,x,y,tpts,template,halfAngle,r,ba):
 
-    t_start = self.ax.transData
-    t = mpl.transforms.Affine2D().rotate_deg(-deg)
-    t_end = t_start + t
-    for x in self.ax.patches + self.ax.collections:
-      x.set_transform(t_end)
+    for k,v in enumerate(template):
+
+      # even-even black cell
+      vcp = copy.copy(v)
+      if   (type(v)==Wedge):
+        vcp.set_center((tpts[k][0]+x,tpts[k][1]+y))
+      elif (type(v)==Rectangle):
+        vcp.set_xy((tpts[k][0]+x,tpts[k][1]+y))
+
+      self.ax.add_patch(vcp)
+      vcp.set_transform(self.rotation)
+
+      # do clipping
+      if   (type(v)==Wedge):
+
+        sin0 = math.sin(math.radians(halfAngle))
+        cos0 = math.cos(math.radians(halfAngle))
+
+        if ba[k]==0:
+          w0 = r - r*cos0
+          h0 = 2*r*sin0
+          x0 = tpts[k][0] + r - w0
+          y0 = tpts[k][1] - h0/2
+        if ba[k]==180:
+          w0 = r - r*cos0
+          h0 = 2*r*sin0
+          x0 = tpts[k][0] - r
+          y0 = tpts[k][1] - h0/2
+        if ba[k]==270:
+          w0 = 2*r*sin0
+          h0 = r - r*cos0
+          x0 = tpts[k][0] - w0/2
+          y0 = tpts[k][1] - r
+        if ba[k]==90:
+          w0 = 2*r*sin0
+          h0 = r - r*cos0
+          x0 = tpts[k][0] - w0/2
+          y0 = tpts[k][1] + r - h0
 
 
+        # correction, so the shadow line from Rectange is not seen
+        if ba[k]==0:
+          x0 -= w0
+          w0 *= 2
+        if ba[k]==180:
+          w0 *= 2
+        if ba[k]==270:
+          h0 *= 2
+        if ba[k]==90:
+          y0 -= h0
+          h0 *= 2
+
+        cp = Rectangle((x0,y0),w0,h0,**self.opts_w, lw=0)
+        vcp2 = copy.copy(cp)
+
+        xy = vcp2.get_xy()
+        vcp2.set_xy((xy[0]+x,xy[1]+y))
+        path = vcp2.get_path()
+        transform = vcp2.get_transform()
+        path = transform.transform_path(path)
+        vcp2 = PathPatch(path, fc='none', ec='none', lw=0)
+        self.ax.add_patch(vcp2)
+        # rotate here
+        vcp2.set_transform(self.rotation)
+
+        vcp.set_clip_path(vcp2)
+
+
+  # generate the whole pattern
   def generate(self):
 
     side = 500/self.lpm*self.MM2PT
 
+    # escher pattern
     if (self.escher>0):
 
       # no rounding
@@ -126,6 +206,18 @@ class Escher_Pattern:
       halfAngle = math.degrees(math.atan(qSize/h))
       center = dc+r
 
+      ba = [
+        None,
+        0,
+        180,
+        270,
+        90,
+        180,
+        0,
+        90,
+        270
+      ]
+
       tpts = [
           [center-hSize,   center-hSize],
           [center-Size+dc, center-qSize],
@@ -139,57 +231,49 @@ class Escher_Pattern:
         ]
 
       template = [
-        Rectangle( tpts[0],  Size, Size,                    facecolor="k",linewidth=0,edgecolor="r"),
-        Wedge(     tpts[1],  r,   0-halfAngle,  0+halfAngle,facecolor="w",linewidth=0,edgecolor="r"),
-        Wedge(     tpts[2],  r, 180-halfAngle,180+halfAngle,facecolor="k",linewidth=0,edgecolor="r"),
-        Wedge(     tpts[3],  r, 270-halfAngle,270+halfAngle,facecolor="w",linewidth=0,edgecolor="r"),
-        Wedge(     tpts[4],  r,  90-halfAngle, 90+halfAngle,facecolor="k",linewidth=0,edgecolor="r"),
-        Wedge(     tpts[5],  r, 180-halfAngle,180+halfAngle,facecolor="w",linewidth=0,edgecolor="r"),
-        Wedge(     tpts[6],  r,   0-halfAngle,  0+halfAngle,facecolor="k",linewidth=0,edgecolor="r"),
-        Wedge(     tpts[7],  r,  90-halfAngle, 90+halfAngle,facecolor="w",linewidth=0,edgecolor="r"),
-        Wedge(     tpts[8],  r, 270-halfAngle,270+halfAngle,facecolor="k",linewidth=0,edgecolor="r")
+        Rectangle( tpts[0],  Size, Size, **self.opts_k),
+        Wedge(     tpts[1],  r, ba[1]-halfAngle, ba[1]+halfAngle, **self.opts_w),
+        Wedge(     tpts[2],  r, ba[2]-halfAngle, ba[2]+halfAngle, **self.opts_k),
+        Wedge(     tpts[3],  r, ba[3]-halfAngle, ba[3]+halfAngle, **self.opts_w),
+        Wedge(     tpts[4],  r, ba[4]-halfAngle, ba[4]+halfAngle, **self.opts_k),
+        Wedge(     tpts[5],  r, ba[5]-halfAngle, ba[5]+halfAngle, **self.opts_w),
+        Wedge(     tpts[6],  r, ba[6]-halfAngle, ba[6]+halfAngle, **self.opts_k),
+        Wedge(     tpts[7],  r, ba[7]-halfAngle, ba[7]+halfAngle, **self.opts_w),
+        Wedge(     tpts[8],  r, ba[8]-halfAngle, ba[8]+halfAngle, **self.opts_k)
       ]
 
+    # checker board
     else:
+
+      halfAngle = 0
+      r = 0
+
+      ba = [
+        None
+      ]
 
       tpts = [
         [0,0]
       ]
 
       template = [
-        Rectangle(tpts[0],side,side,facecolor="k",linewidth=0,edgecolor="r")
+        Rectangle(tpts[0],side,side, **self.opts_k)
       ]
 
     # calc how much more is needed for the rotation
     abs_angle_rad = math.radians(abs(self.angle))
-    extra_w = self.height*math.tan(abs_angle_rad) + side
-    extra_h = self.width *math.tan(abs_angle_rad) + side
+    extra_w = self.height*math.tan(abs_angle_rad) # + side
+    extra_h = self.width *math.tan(abs_angle_rad) # + side
+    # would like to pass (0,0)
+    extra_w = int(extra_w/(2*side)+1)*2*side
+    extra_h = int(extra_h/(2*side)+1)*2*side
 
     a = np.arange(-extra_w, self.width +extra_w, 2*side)
     b = np.arange(-extra_h, self.height+extra_h, 2*side)
 
     for x, y in [(x,y) for x in a for y in b]:
-
-      for k,v in enumerate(template):
-
-        # even-even black cell
-        vcp = copy.copy(v)
-        if   (type(v)==Wedge):
-          vcp.set_center((tpts[k][0]+x,tpts[k][1]+y))
-        elif (type(v)==Rectangle):
-          vcp.set_xy((tpts[k][0]+x,tpts[k][1]+y))
-        self.ax.add_patch(vcp)
-
-        # odd-odd black cell
-        vcp = copy.copy(v)
-        if   (type(v)==Wedge):
-          vcp.set_center((tpts[k][0]+x+side,tpts[k][1]+y+side))
-        elif (type(v)==Rectangle):
-          vcp.set_xy((tpts[k][0]+x+side,tpts[k][1]+y+side))
-        self.ax.add_patch(vcp)
-
-    # now rotate
-    self.rotate(self.angle)
+      self.generate_cell(x     ,y     ,tpts,template,halfAngle,r,ba)
+      self.generate_cell(x+side,y+side,tpts,template,halfAngle,r,ba)
 
 
   # test 
@@ -215,7 +299,7 @@ class Escher_Pattern:
   # save function
   def save(self):
 
-    pp = PdfPages(self.filename)
+    pp = PdfPages(self.pdf_name)
     self.fig.tight_layout(pad=0)
 
     #plt.show()
@@ -230,7 +314,9 @@ if __name__ == "__main__":
 
   #ep = Escher_Pattern("test.pdf", escher=2.0, lpm=50, rotate=10)
   #http://192.168.0.137/escher/escher_pattern.php?PAGE_WIDTH=1524&PAGE_HEIGHT=3048&LPM=2.705449885575893&ROTATE=14.036243467
-  ep = Escher_Pattern("test.pdf", width= 1524, height= 3048, escher=2.0, lpm=2.705449885575893, rotate=14.036243467)
+  #ep = Escher_Pattern(width= 1524, height= 3048, escher=0, lpm=2.705449885575893, rotate=10)
+  ep = Escher_Pattern(width= 1524, height= 3048, escher=2, lpm=2.705449885575893, rotate=14.036243467)
+  #ep = Escher_Pattern(width= 160, height= 320, escher=2, lpm=50, rotate=13)
   ep.generate()
   ep.save()
 
