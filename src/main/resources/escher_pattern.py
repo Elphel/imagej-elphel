@@ -110,6 +110,8 @@ class Escher_Pattern:
     self.ax.set_ylim([0,self.height])
     self.ax.set_xlim([0,self.width])
 
+    self.ax.set_facecolor('white')
+
     self.rotation = mpl.transforms.Affine2D().rotate_deg(-self.angle) + self.ax.transData
 
     print("init done")
@@ -319,13 +321,3 @@ if __name__ == "__main__":
   #ep = Escher_Pattern(width= 160, height= 320, escher=2, lpm=50, rotate=13)
   ep.generate()
   ep.save()
-
-
-
-
-
-
-
-
-
-
