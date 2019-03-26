@@ -81,8 +81,6 @@ class Escher_Pattern:
     #plt.rcParams["figure.figsize"] = [60,120]
 
     self.fig, self.ax = plt.subplots()
-
-    # when save the pdf size is a little less?!!
     self.fig.set_size_inches(self.width/72, self.height/72)
 
     self.ax.get_xaxis().set_visible(False)
