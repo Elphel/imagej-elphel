@@ -218,11 +218,12 @@ class Escher_Pattern:
   def save(self):
 
     pp = PdfPages(self.filename)
-    self.fig.tight_layout()
+    self.fig.tight_layout(pad=0)
 
     #plt.show()
 
     self.fig.savefig(pp,format='pdf',bbox_inches='tight',pad_inches=0)
+    #self.fig.savefig(pp,format='pdf',pad_inches=0)
     pp.close()
 
 
