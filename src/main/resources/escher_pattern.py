@@ -98,6 +98,8 @@ def application(environ,start_response):
     with open(pdf_name,'rb') as f:
       contents = f.read()
 
+    os.remove(pdf_name)
+
     filesize = str(len(contents))
     filesize = filesize.encode('utf-8')
 
