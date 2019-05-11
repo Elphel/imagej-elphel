@@ -4,12 +4,12 @@
 **
 ** Writes Tiff files suitable for Emblend, preserve ImageJ Info data
 ** Uses bioformat library
-** 
+**
 **
 ** Copyright (C) 2012 Elphel, Inc.
 **
 ** -----------------------------------------------------------------------------**
-**  
+**
 **  EyesisTiff.java is free software: you can redistribute it and/or modify
 **  it under the terms of the GNU General Public License as published by
 **  the Free Software Foundation, either version 3 of the License, or
@@ -31,13 +31,21 @@ import java.awt.image.ColorModel;
 import java.awt.image.DataBufferInt;
 import java.awt.image.Raster;
 import java.awt.image.WritableRaster;
+import java.io.DataInputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Array;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 
 import javax.imageio.ImageIO;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 //import org.apache.log4j.Logger;
 
@@ -45,10 +53,23 @@ import ij.IJ;
 import ij.ImagePlus;
 import ij.WindowManager;
 import ij.io.FileInfo;
+import ij.process.FloatProcessor;
+import ij.process.ImageProcessor;
+import loci.common.ByteArrayHandle;
+import loci.common.Location;
 import loci.common.RandomAccessInputStream;
 import loci.common.services.DependencyException;
 import loci.common.services.ServiceException;
+import loci.common.services.ServiceFactory;
+import loci.formats.ClassList;
+import loci.formats.CoreMetadata;
 import loci.formats.FormatException;
+import loci.formats.IFormatReader;
+import loci.formats.ImageReader;
+//import loci.formats.in.TiffReader;
+import loci.formats.meta.IMetadata;
+import loci.formats.meta.MetadataStore;
+import loci.formats.services.OMEXMLService;
 import loci.formats.tiff.IFD;
 import loci.formats.tiff.IFDList;
 import loci.formats.tiff.TiffParser;
@@ -56,13 +77,206 @@ import loci.formats.tiff.TiffRational;
 import loci.formats.tiff.TiffSaver;
 
 public class EyesisTiff {
-	//	private static org.apache.log4j.Logger log= Logger.getLogger(EyesisTiff.class); 
+	  private static ClassList<IFormatReader> defaultClasses;
+	  private static final Logger LOGGER = LoggerFactory.getLogger(ClassList.class);
+	  public static ClassList<IFormatReader> getCustomReaderClasses() {
+			defaultClasses = null;
+		    if (defaultClasses == null) {
+		      try {
+		        defaultClasses =
+		          new ClassList<IFormatReader>(
+		        		  EyesisTiff.class.getClassLoader().getResource("readers.txt").getFile(), // @param file Configuration file containing the list of classes.
+		        		  IFormatReader.class, // @param base Base class to which all classes are assignable.
+		        		  null); // @param location Class indicating which package to search for the file.
+		      }
+		      catch (IOException exc) {
+		        defaultClasses = new ClassList<IFormatReader>(IFormatReader.class);
+		        LOGGER.info("Could not parse class list; using default classes", exc);
+		      }
+		    }
+//		    ClassList<IFormatReader> dc = defaultClasses;
+	        LOGGER.info("Loaded "+defaultClasses.getClasses().length+" classes");
+		    return defaultClasses;
+		  }
+
+
+
+	//	private static org.apache.log4j.Logger log= Logger.getLogger(EyesisTiff.class);
 
 	public EyesisTiff(){
 		//	Please initialize the log4j system properly
 
 
 	}
+	public ImagePlus readTiff(String path) {
+//		TiffReader tiffReader = new TiffReader();
+//		tiffReader.initFile(path);
+		   // read in entire file
+		// TODO: add option to get URL
+		//https://docs.openmicroscopy.org/bio-formats/5.9.2/developers/in-memory.html
+	    System.out.println("Reading file into memory from disk: "+path);
+	    File inputFile = new File(path);
+	    int fileSize = (int) inputFile.length();
+	    DataInputStream in = null;
+		try {
+			in = new DataInputStream(new FileInputStream(inputFile));
+		} catch (FileNotFoundException e) {
+		    System.out.println("File not found: "+path);
+		}
+	    byte[] inBytes = new byte[fileSize];
+	    try {
+			in.readFully(inBytes);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	    System.out.println(fileSize + " bytes read.");
+
+	    // determine input file suffix
+	    String fileName = inputFile.getName();
+	    int dot = fileName.lastIndexOf(".");
+	    String suffix = dot < 0 ? "" : fileName.substring(dot);
+
+
+	    // map input id string to input byte array
+	    String inId = "inBytes" + suffix;
+	    Location.mapFile(inId, new ByteArrayHandle(inBytes));
+
+	 // read data from byte array using ImageReader
+	    System.out.println();
+	    System.out.println("Reading image data from memory...");
+	    //
+	    ServiceFactory factory = null;
+		try {
+			factory = new ServiceFactory();
+		} catch (DependencyException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	    OMEXMLService service = null;
+		try {
+			service = factory.getInstance(OMEXMLService.class);
+		} catch (DependencyException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+	    IMetadata omeMeta = null;
+		try {
+			omeMeta = service.createOMEXMLMetadata();
+		} catch (ServiceException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+//		final Class<? extends IFormatReader>[] defaultClasses =
+//				ImageReader.getDefaultReaderClasses().getClasses();
+//			final int currentHash = Arrays.hashCode(defaultClasses);
+//https://www.javatips.net/api/libbio-formats-java-master/components/scifio/src/loci/formats/in/BaseTiffReader.java
+//https://docs.openmicroscopy.org/bio-formats/5.7.2/developers/reader-guide.html
+		//https://docs.openmicroscopy.org/bio-formats/5.9.2/developers/java-library.html#file-reading-and-performance
+	    ImageReader reader = new ImageReader(getCustomReaderClasses());
+//		BaseTiffReader reader = new BaseTiffReader("Base_tiff_reader","tiff");
+	    reader.setMetadataStore(omeMeta);
+	    try {
+			reader.setId(inId);
+		} catch (FormatException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// a lot of output for each unmatched format
+			//e.printStackTrace();
+		}
+	    /* read-end */
+	    int seriesCount = reader.getSeriesCount();
+	    int imageCount = reader.getImageCount();
+	    int sizeX = reader.getSizeX();
+	    int sizeY = reader.getSizeY();
+	    int sizeZ = reader.getSizeZ();
+	    int sizeC = reader.getSizeC();
+	    int sizeT = reader.getSizeT();
+	    int bpp =   reader.getBitsPerPixel();
+	    int pixelType = reader.getPixelType();
+	    java.util.List<CoreMetadata> cmd = reader.getCoreMetadataList();
+	    java.util.Hashtable<java.lang.String,java.lang.Object> 	gmd = reader.getGlobalMetadata();
+	    MetadataStore mtds = reader.getMetadataStore();
+	    IFormatReader ifr = reader.getReader();
+	    IFormatReader[] ifrs = reader.getReaders(); // all available readers?
+	    // output some details
+	    System.out.println("Series count: " + seriesCount);
+	    System.out.println("First series:");
+	    System.out.println("\tImage count = " + imageCount);
+	    System.out.println("\tSizeX = " + sizeX);
+	    System.out.println("\tSizeY = " + sizeY);
+	    System.out.println("\tSizeZ = " + sizeZ);
+	    System.out.println("\tSizeC = " + sizeC);
+	    System.out.println("\tSizeT = " + sizeT);
+	    System.out.println("\tbppT = " +  bpp);
+	    System.out.println("\treader = " +  ifr.toString());
+	    System.out.println("\tpixelType = " +  pixelType); // 3
+	    byte [] bytes = null;
+	    ImagePlus imp=  null;
+	    try {
+			bytes = reader.openBytes(0);
+		} catch (FormatException e1) {
+	        LOGGER.warn("Invalid image format, error "+e1);
+		} catch (IOException e1) {
+	        LOGGER.warn("I/O error "+e1);
+		}
+	    if (bytes != null) {
+		    boolean is_le = reader.isLittleEndian();
+		    int bytes_per_pixel =  (bpp + 7) / 9;
+		    float [] pixels = new float [bytes.length/bytes_per_pixel];
+		    if (bytes_per_pixel == 1) {
+			    for (int i = 0; i < pixels.length; i++) {
+			    	pixels[i] = ((bytes[i])) & 0xff;
+			    }
+		    } else {
+		    	ByteBuffer bb = ByteBuffer.wrap(bytes);
+		    	if (is_le) {
+		    		bb.order( ByteOrder.LITTLE_ENDIAN);
+		    	} else {
+		    		bb.order( ByteOrder.BIG_ENDIAN);
+		    	}
+			    for (int i = 0; i < pixels.length; i++) {
+			    	pixels[i] = ((bb.getShort())) & 0xffff;
+			    }
+		    }
+
+		    ImageProcessor ip=new FloatProcessor(reader.getSizeX(), reader.getSizeY());
+			ip.setPixels(pixels);
+			ip.resetMinAndMax();
+//			imp =  new ImagePlus(fileName, ip); // original jp46 reader had full path as title
+			imp =  new ImagePlus(path, ip); // original jp46 reader had full path as title
+	    }
+
+//	    ImagePlus imp= makeArrays(pixels, width, height, title);
+	    try {
+			reader.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return imp;
+	}
+
+/*
+ * image width 	getSizeX()
+image height 	getSizeY()
+number of series per file 	getSeriesCount()
+total number of images per series 	getImageCount()
+number of slices in the current series 	getSizeZ()
+number of timepoints in the current series 	getSizeT()
+number of actual channels in the current series 	getSizeC()
+number of channels per image 	getRGBChannelCount()
+the ordering of the images within the current series 	getDimensionOrder()
+whether each image is RGB 	isRGB()
+whether the pixel bytes are in little-endian order 	isLittleEndian()
+whether the channels in an image are interleaved 	isInterleaved()
+the type of pixel data in this file 	getPixelType()
+
+
+ */
+
 	public void savePNG_ARGB32(
 			ImagePlus imp,
 			String path
@@ -71,12 +285,12 @@ public class EyesisTiff {
 		int height = imp.getHeight();
 		int [] pixels = (int []) imp.getProcessor().getPixels();
 		System.out.println("savePNG_ARGB32("+path+"): width="+width+", height="+height+" length="+pixels.length);
-		
+
 		DataBufferInt buffer = new DataBufferInt(pixels, pixels.length);
 
 		int[] bandMasks = {0xFF0000, 0xFF00, 0xFF, 0xFF000000}; // ARGB (yes, ARGB, as the masks are R, G, B, A always) order
 		WritableRaster raster = Raster.createPackedRaster(buffer, width, height, width, bandMasks, null);
-		
+
 		ColorModel cm = ColorModel.getRGBdefault();
 		BufferedImage bimage = new BufferedImage(cm, raster, cm.isAlphaPremultiplied(), null);
 		try{
@@ -124,7 +338,7 @@ public class EyesisTiff {
 
 		int IFDImageJByteCounts= 0xc696; // was array {12( if no slices, roi, etc.), bytes in info}
 		int IFDImageJInfo=       0xc697; // ImageJ info, starting with magic IJIJinfo,
-		byte [] ImageJInfoMagic={73,74,73,74,105,110,102,111,0,0,0,1}; 
+		byte [] ImageJInfoMagic={73,74,73,74,105,110,102,111,0,0,0,1};
 
 		int pixelsDenominator=1000;
 		String description=(imp.getProperty("description")!=null)?((String) imp.getProperty("description")):"Elphel Eyesis4pi";
@@ -152,7 +366,7 @@ public class EyesisTiff {
 			}
 		}
 		//		for (int i = 0; i < imagePixels[3].length; i++){
-		//			imagePixels[3][i] = 1.0f - imagePixels[3][i]; 
+		//			imagePixels[3][i] = 1.0f - imagePixels[3][i];
 		//		}
 		int bw;
 		byte [] bytes;
@@ -221,7 +435,7 @@ public class EyesisTiff {
 		default:
 			IJ.error("saveTiffARGBFloat32", "Unsupported output format mode ="+mode);
 			return;
-		} 
+		}
 		//        System.out.println("saveTiffARGBFloat32(): mode="+mode+" pixelType="+pixelType+" bw="+bw);
 		IFD ifd=new IFD();
 		ifd.put(new Integer(IFD.LITTLE_ENDIAN), new Boolean(false));
@@ -229,7 +443,7 @@ public class EyesisTiff {
 		ifd.put(new Integer(IFD.IMAGE_WIDTH), imp.getWidth());
 		ifd.put(new Integer(IFD.IMAGE_LENGTH), imp.getHeight());
 		ifd.put(new Integer(IFD.SAMPLES_PER_PIXEL), 4);
-		ifd.putIFDValue(IFD.SOFTWARE, "Elphel Eyesis"); 
+		ifd.putIFDValue(IFD.SOFTWARE, "Elphel Eyesis");
 		ifd.putIFDValue(IFD.IMAGE_DESCRIPTION, description);
 		// copy some other data?
 		ifd.putIFDValue(IFD.COMPRESSION, 1); //TiffCompression.UNCOMPRESSED);
@@ -251,7 +465,7 @@ public class EyesisTiff {
 		if (imp.getProperty("ImageFullLength")!=null){
 			ifd.putIFDValue(IFDImageFullLength, (long) Integer.parseInt((String) imp.getProperty("ImageFullLength")));
 		}
-		//TODO: Seems to match ImageJ Info, but it is not recognized :-(  
+		//TODO: Seems to match ImageJ Info, but it is not recognized :-(
 		if (imageJTags && (imp.getProperty("Info")!=null) && (imp.getProperty("Info") instanceof String)){
 			int skipFirstBytes=2;
 			String info=(String) imp.getProperty("Info");
@@ -269,7 +483,7 @@ public class EyesisTiff {
 		TiffSaver tiffSaver = new TiffSaver(path);
 		tiffSaver.setWritingSequentially(true);
 		tiffSaver.setLittleEndian(false);
-		tiffSaver.writeHeader(); 
+		tiffSaver.writeHeader();
 		//        tiffSaver.writeIFD(ifd,0); //* SHould not write here, some fields are calculated during writeImage, that writes IFD too
 		//        System.out.println("bytes.length="+bytes.length);
 		tiffSaver.writeImage(bytes,
@@ -292,7 +506,7 @@ public class EyesisTiff {
 
 		int IFDImageJByteCounts= 0xc696; // was array {12( if no slices, roi, etc.), bytes in info}
 		int IFDImageJInfo=       0xc697; // ImageJ info, starting with magic IJIJinfo,
-		byte [] ImageJInfoMagic={73,74,73,74,105,110,102,111,0,0,0,1}; 
+		byte [] ImageJInfoMagic={73,74,73,74,105,110,102,111,0,0,0,1};
 
 		int pixelsDenominator=1000;
 		String description=(imp.getProperty("description")!=null)?((String) imp.getProperty("description")):"Elphel Eyesis4pi";
@@ -311,7 +525,7 @@ public class EyesisTiff {
 		ifd.put(new Integer(IFD.IMAGE_WIDTH), imp.getWidth());
 		ifd.put(new Integer(IFD.IMAGE_LENGTH), imp.getHeight());
 		ifd.put(new Integer(IFD.SAMPLES_PER_PIXEL), 4);
-		ifd.putIFDValue(IFD.SOFTWARE, "Elphel Eyesis"); 
+		ifd.putIFDValue(IFD.SOFTWARE, "Elphel Eyesis");
 		ifd.putIFDValue(IFD.IMAGE_DESCRIPTION, description);
 		// copy some other data?
 		ifd.putIFDValue(IFD.COMPRESSION, 1); //TiffCompression.UNCOMPRESSED);
@@ -334,7 +548,7 @@ public class EyesisTiff {
 		if (imp.getProperty("ImageFullLength")!=null){
 			ifd.putIFDValue(IFDImageFullLength, (long) Integer.parseInt((String) imp.getProperty("ImageFullLength")));
 		}
-		//TODO: Seems to match ImageJ Info, but it is not recognized :-(  
+		//TODO: Seems to match ImageJ Info, but it is not recognized :-(
 		if (imageJTags &&  (imp.getProperty("Info")!=null) && (imp.getProperty("Info") instanceof String)){
 			int skipFirstBytes=2;
 			String info=(String) imp.getProperty("Info");
@@ -343,7 +557,7 @@ public class EyesisTiff {
 			int index=0;
 			for (int i=0;i<ImageJInfoMagic.length;i++) bInfo[index++]=ImageJInfoMagic[i];
 			for (int i=skipFirstBytes;i<bInfoBody.length;      i++) bInfo[index++]=bInfoBody[i]; // first 2 bytes {-2, -1} ???
-			/*        	
+			/*
         	StringBuffer sb=new StringBuffer("bInfo: ");
         	for (int i=0;i<bInfo.length;i++) sb.append(bInfo[i]+" ");
         	System.out.println(sb.toString());
@@ -366,7 +580,7 @@ public class EyesisTiff {
 		TiffSaver tiffSaver = new TiffSaver(path);
 		tiffSaver.setWritingSequentially(true);
 		tiffSaver.setLittleEndian(false);
-		tiffSaver.writeHeader(); 
+		tiffSaver.writeHeader();
 		//        tiffSaver.writeIFD(ifd,0); //* SHould not write here, some fields are calculated during writeImage, that writes IFD too
 		System.out.println("bytes.length="+bytes.length);
 		tiffSaver.writeImage(bytes,

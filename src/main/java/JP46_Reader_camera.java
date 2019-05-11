@@ -39,9 +39,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.io.StringReader;
+import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Array;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.Properties;
 import java.util.Set;
@@ -66,10 +69,15 @@ import ij.gui.GUI;
 import ij.gui.GenericDialog;
 import ij.io.FileInfo;
 import ij.io.OpenDialog;
+import ij.io.Opener;
 import ij.plugin.frame.PlugInFrame;
 import ij.process.ImageConverter;
 import ij.process.ImageProcessor;
 import ij.text.TextWindow;
+import loci.common.RandomAccessInputStream;
+import loci.formats.tiff.IFD;
+import loci.formats.tiff.IFDList;
+import loci.formats.tiff.TiffParser;
 
 
 
@@ -1035,12 +1043,18 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 	/* Modified from Opener.java */
 	ImagePlus openJpegOrGif(String dir, String name) {
 		ImagePlus imp = null;
+		boolean isTiff = false;
 		Image img = Toolkit.getDefaultToolkit().createImage(dir+name);
 		if (img!=null) {
 			try {
 				imp = new ImagePlus(name, img);
 			} catch (IllegalStateException e) {
-				return null; // error loading image
+				//java.lang.IllegalStateException: Error loading image
+				// Try TIFF
+				Opener opener=new Opener(); // Reads Tiff images
+				imp=opener.openImage("", dir+name);
+				if (imp == null) return null; // error loading image
+				isTiff = true;
 			}
 
 			if (imp.getType()==ImagePlus.COLOR_RGB) {
@@ -1049,15 +1063,100 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 
 			IJ.showStatus("Converting to 32-bits");
 			new ImageConverter(imp).convertToGray32();
-
-			FileInfo fi = new FileInfo();
-			fi.fileFormat = FileInfo.GIF_OR_JPG;
+			FileInfo fi = imp.getFileInfo();
 			fi.fileName = name;
 			fi.directory = dir;
+			fi.fileFormat = isTiff?FileInfo.TIFF: FileInfo.GIF_OR_JPG; // even if set originally, it is lost after convertToGray32
 			imp.setFileInfo(fi);
+
+			FileInfo ofi = imp.getOriginalFileInfo();
+			fi = imp.getFileInfo();
+
+// testing
+
+			if ((ofi!=null) && (ofi.directory!=null) &&  (ofi.fileFormat ==FileInfo.TIFF)) {
+				String path = ofi.directory + ofi.fileName;
+				EyesisTiff ET = new EyesisTiff();
+				ImagePlus imptiff = ET.readTiff(path);
+				if (imptiff!=null) {
+					imptiff.show();
+				}
+
+//				IJ.error("TIFF Dumper", "File path not available or not TIFF file");
+				IJ.log("\\Clear");
+				IJ.log("PATH = "+path);
+				try {
+					dumpIFDs(path);
+				} catch(IOException e) {
+					IJ.error("Tiff Dumper", ""+e);
+				}
+				Frame log = WindowManager.getFrame("Log");
+				if (log!=null) log.toFront();
+			}
 		}
+
+
 		return imp;
 	}
+
+	public static void dumpIFDs(String path) throws IOException {
+		IJ.showStatus("Parsing IFDs");
+		RandomAccessInputStream in = new RandomAccessInputStream(path);
+
+		//TiffParser parser = new TiffParser(in);
+		TiffParser parser = new TiffParser(in);
+		IFDList ifdList = parser.getIFDs();
+		IJ.showStatus("");
+		for (IFD ifd : ifdList) {
+			for (Integer key : ifd.keySet()) {
+				int k = key.intValue();
+				String name = IFD.getIFDTagName(k)+String.format("(%d [0x%x])", k,k);
+				String value = prettyValue(ifd.getIFDValue(k), 0);
+				IJ.log(name + " = " + value);
+			}
+		}
+		in.close();
+	}
+
+	private static String prettyValue(Object value, int indent) {
+		if (!value.getClass().isArray()) return value.toString()+" ("+value.getClass().toString()+")";
+		char[] spaceChars = new char[indent];
+		Arrays.fill(spaceChars, ' ');
+		String spaces = new String(spaceChars);
+		StringBuilder sb = new StringBuilder();
+		sb.append("{\n");
+		for (int i=0; i<Array.getLength(value); i++) {
+			sb.append(spaces);
+			sb.append(" ");
+			Object component = Array.get(value, i);
+			sb.append(prettyValue(component, indent + 2));
+			sb.append("\n");
+		}
+		sb.append(spaces);
+		sb.append("}");
+		byte [] bstring=new byte [Array.getLength(value)];
+		for (int i=0;i<bstring.length;i++) {
+			try {
+				bstring[i]= (byte) Integer.parseInt(Array.get(value, i).toString());
+			} catch (NumberFormatException e) {
+				bstring[i] = 0;
+			}
+		}
+		//   String astring=new String((byte []) value);
+		String astring="";
+		try {
+			astring = new String(bstring,"UTF-16");
+		} catch (UnsupportedEncodingException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		sb.append("\n\""+astring+"\"");
+		return sb.toString();
+	}
+
+
+
+
 	@Override
 	public void setTitle (String title) {
 		imageTitle=title;

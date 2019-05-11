@@ -88,7 +88,7 @@
 		<dependency>
 			<groupId>ome</groupId>
 			<artifactId>loci_tools</artifactId>
-			<version>5.0.0</version>
+			<version>5.9.0</version>
 		</dependency>
 	</dependencies>
 
