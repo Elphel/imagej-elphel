@@ -29,74 +29,59 @@ import java.util.Hashtable;
 
 //import ij.IJ;
 import loci.formats.FormatException;
-import loci.formats.tiff.IFD;
-import loci.formats.tiff.IFDList;
-import loci.formats.tiff.TiffParser;
-import loci.formats.tiff.TiffRational;
 
 
 public class ElphelMeta {
-	private Hashtable<String, String> property_table = null;
-	public ElphelMeta (TiffParser tiffParser, boolean scale) throws FormatException, IOException {
-		IFDList exifIFDs = tiffParser.getExifIFDs();
-		property_table = new Hashtable<String, String> ();
-		long[] maker_note = null;
-		if (exifIFDs.size() > 0) {
-			IFD exifIFD = exifIFDs.get(0);
-	    	tiffParser.fillInIFD(exifIFD);
-			if (exifIFD.containsKey(IFD.MAKER_NOTE)) {
-				maker_note = (long[]) exifIFD.get(IFD.MAKER_NOTE);
-			}
-			if (exifIFD.containsKey(IFD.EXPOSURE_TIME)) {
-				Object exp = exifIFD.get(IFD.EXPOSURE_TIME);
-				if (exp instanceof TiffRational) {
-					TiffRational texp = (TiffRational) exp;
-					double d = 1.0*texp.getNumerator()/texp.getDenominator();
-					property_table.put("EXPOSURE",  String.format("%f",d));
-				}
-			}
-			if (exifIFD.containsKey(IFD.DATE_TIME_ORIGINAL)) {
-				String dt = exifIFD.get(IFD.DATE_TIME_ORIGINAL).toString();
-				if (exifIFD.containsKey(IFD.SUB_SEC_TIME_ORIGINAL)) {
-					dt += "."+exifIFD.get(IFD.SUB_SEC_TIME_ORIGINAL).toString();
-				}
-				property_table.put("DATE_TIME",  dt);
-			}
+//	private Hashtable<String, String> property_table = null;
+
+	public static Hashtable<String, String> getMeta (Hashtable<String, String> property_table,
+			long[] maker_note,
+			double exposure,
+			String date_time,
+			boolean scale) throws FormatException, IOException {
+		if (property_table == null) {
+			property_table = new Hashtable<String, String> ();
 		}
-		// copied from JP4_Reader_cam
-		// Add GPS tags when there will be images to experiment (or while reimplementing JP4 reader)
-		double[] gains= new double[4];
-		double[] blacks= new double[4];
-		double[] blacks256= new double[4];
-		double[] gammas= new double[4];
-		long []   gamma_scales= new long[4]; /* now not used, was scale _after_ gamma is applied, 0x400(default) corresponds to 1.0 */
-		int i;
-		double[][] rgammas=new double[4][];
-		double min_gain;
-		long WOI_LEFT,WOI_WIDTH,WOI_TOP,WOI_HEIGHT,BAYER_MODE,DCM_HOR,DCM_VERT,BIN_HOR,BIN_VERT;
-		long COLOR_MODE=0;
-		long FLIPH=0;
-		long FLIPV=0;
-		long  HEIGHT1=0;
-		long  HEIGHT2=0;
-		long  HEIGHT3=0;
-		long  BLANK1=0;
-		long  BLANK2=0;
-		boolean FLIPH1=false;
-		boolean FLIPV1=false;
-		boolean FLIPH2=false;
-		boolean FLIPV2=false;
-		boolean FLIPH3=false;
-		boolean FLIPV3=false;
-		boolean COMPOSITE=false;
-		boolean PORTRAIT=false;
-		boolean YTABLEFORC=false;
-		long     QUALITY=0;
-		long     CQUALITY=0;
-		long     CORING_INDEX_Y=0;
-		long     CORING_INDEX_C=0;
-		double []   satValue={255.0, 255.0, 255.0, 255.0};
-		if  (maker_note !=null) {
+		if (!Double.isNaN(exposure)) {
+			property_table.put("EXPOSURE",  String.format("%f",exposure));
+		}
+		if (date_time == null) {
+			property_table.put("DATE_TIME",  date_time);
+		}
+		if (maker_note != null) {
+			// copied from JP4_Reader_cam
+			// Add GPS tags when there will be images to experiment (or while reimplementing JP4 reader)
+			double[] gains= new double[4];
+			double[] blacks= new double[4];
+			double[] blacks256= new double[4];
+			double[] gammas= new double[4];
+			long []   gamma_scales= new long[4]; /* now not used, was scale _after_ gamma is applied, 0x400(default) corresponds to 1.0 */
+			int i;
+			double[][] rgammas=new double[4][];
+			double min_gain;
+			long WOI_LEFT,WOI_WIDTH,WOI_TOP,WOI_HEIGHT,BAYER_MODE,DCM_HOR,DCM_VERT,BIN_HOR,BIN_VERT;
+			long COLOR_MODE=0;
+			long FLIPH=0;
+			long FLIPV=0;
+			long  HEIGHT1=0;
+			long  HEIGHT2=0;
+			long  HEIGHT3=0;
+			long  BLANK1=0;
+			long  BLANK2=0;
+			boolean FLIPH1=false;
+			boolean FLIPV1=false;
+			boolean FLIPH2=false;
+			boolean FLIPV2=false;
+			boolean FLIPH3=false;
+			boolean FLIPV3=false;
+			boolean COMPOSITE=false;
+			boolean PORTRAIT=false;
+			boolean YTABLEFORC=false;
+			long     QUALITY=0;
+			long     CQUALITY=0;
+			long     CORING_INDEX_Y=0;
+			long     CORING_INDEX_C=0;
+			double []   satValue={255.0, 255.0, 255.0, 255.0};
 			for (i=0;i<4;i++) { /* r,g,gb,b */
 				gains[i]= maker_note[i]/65536.0;
 				blacks[i]=(maker_note[i+4]>>24)/256.0;
@@ -193,7 +178,7 @@ public class ElphelMeta {
 				property_table.put("FLIPV2",FLIPV2?"1":"0");
 				property_table.put("FLIPV3",FLIPV3?"1":"0");
 			}
-// If there are FLIPH, FLIPV - swap gains, gammas, blacks accordingly. later the images will be also flipped
+			// If there are FLIPH, FLIPV - swap gains, gammas, blacks accordingly. later the images will be also flipped
 			if (FLIPV!=0) {
 				swapArrayElements (gains,       1, 3);
 				swapArrayElements (gains,       0, 2);
@@ -215,54 +200,57 @@ public class ElphelMeta {
 				swapArrayElements (gamma_scales,3, 2);
 			}
 			for (i=0;i<4;i++) rgammas[i]=elphel_gamma_calc (gammas[i], blacks[i], gamma_scales[i]);
-		} else {
-			return; // No MakerNote, return with nothing done
-		}
-		/**adjusting gains to have the result picture in the range 0..256 */
-		min_gain=2.0*gains[0];
-		for (i=0;i<4;i++) {
-			if (min_gain > gains[i]*(1.0-blacks[i])) min_gain = gains[i]*(1.0-blacks[i]);
-		}
-		property_table.put("GAIN",String.format("%f",min_gain)); // common gain
+			/**adjusting gains to have the result picture in the range 0..256 */
+			min_gain=2.0*gains[0];
+			for (i=0;i<4;i++) {
+				if (min_gain > gains[i]*(1.0-blacks[i])) min_gain = gains[i]*(1.0-blacks[i]);
+			}
+			property_table.put("GAIN",String.format("%f",min_gain)); // common gain
 
-		for (i=0;i<4;i++) gains[i]/=min_gain;
-		for (i=0;i<4;i++) blacks256[i]=256.0*blacks[i];
+			for (i=0;i<4;i++) gains[i]/=min_gain;
+			for (i=0;i<4;i++) blacks256[i]=256.0*blacks[i];
 
 
-		for (i=0;i<4;i++) {
-			if  (maker_note !=null) {
-				if (scale) satValue[i]=((rgammas[i][255])-blacks256[i])/gains[i];
-				else       satValue[i]=((rgammas[i][255])-blacks256[i]);
-			}   else       satValue[i]=255.0;
-			property_table.put("saturation_"+i,String.format("%f",satValue[i]));
+			for (i=0;i<4;i++) {
+				if  (maker_note !=null) {
+					if (scale) satValue[i]=((rgammas[i][255])-blacks256[i])/gains[i];
+					else       satValue[i]=((rgammas[i][255])-blacks256[i]);
+				}   else       satValue[i]=255.0;
+				property_table.put("saturation_"+i,String.format("%f",satValue[i]));
 
+			}
+			// swap satValue to match FLIPH,FLIPV again
+			if (FLIPV!=0) {
+				swapArrayElements (satValue,       1, 3);
+				swapArrayElements (satValue,       0, 2);
+			}
+			if (FLIPH!=0) {
+				swapArrayElements (satValue,       1, 0);
+				swapArrayElements (satValue,       3, 2);
+			}
+			for (i=0;i<4;i++) {
+				property_table.put("saturation_"+i,String.format("%f",satValue[i]));
+			}
 		}
-// swap satValue to match FLIPH,FLIPV again
-		if (FLIPV!=0) {
-			swapArrayElements (satValue,       1, 3);
-			swapArrayElements (satValue,       0, 2);
-		}
-		if (FLIPH!=0) {
-			swapArrayElements (satValue,       1, 0);
-			swapArrayElements (satValue,       3, 2);
-		}
-		for (i=0;i<4;i++) {
-			property_table.put("saturation_"+i,String.format("%f",satValue[i]));
-		}
-	}
-
-	public Hashtable<String, String> getPropertyTable(){
 		return property_table;
 	}
 
-	  // -- Helper methods --
 
-	void swapArrayElements (double[]arr,int i, int j) {
+
+
+
+	//	public Hashtable<String, String> getPropertyTable(){
+	//		return property_table;
+	//	}
+
+	// -- Helper methods --
+
+	static void swapArrayElements (double[]arr,int i, int j) {
 		double tmp=arr[i];
 		arr[i]=arr[j];
 		arr[j]=tmp;
 	}
-	void swapArrayElements (long[]arr,int i, int j) {
+	static void swapArrayElements (long[]arr,int i, int j) {
 		long tmp=arr[i];
 		arr[i]=arr[j];
 		arr[j]=tmp;
@@ -270,7 +258,7 @@ public class ElphelMeta {
 	/* reverses gamma calculations in the camera
     returns double[] table , in the range 0.0..255.996
 	 */
-	double [] elphel_gamma_calc (double gamma, double black, long gamma_scale) {
+	static double [] elphel_gamma_calc (double gamma, double black, long gamma_scale) {
 		int i;
 		double x, black256 ,k;
 		int[] gtable = new int[257];

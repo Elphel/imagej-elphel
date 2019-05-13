@@ -8,4 +8,5 @@ attic
 *.log
 FOCUS-PSF*
 src/main/resources/trained_model
-bioformats
+bioformats*.*
+metadata*.*

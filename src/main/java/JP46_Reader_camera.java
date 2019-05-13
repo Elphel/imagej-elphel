@@ -59,6 +59,8 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
+import com.elphel.imagej.readers.ImagejJp4Tiff;
+
 import ij.IJ;
 import ij.ImageJ;
 import ij.ImagePlus;
@@ -75,6 +77,7 @@ import ij.process.ImageConverter;
 import ij.process.ImageProcessor;
 import ij.text.TextWindow;
 import loci.common.RandomAccessInputStream;
+import loci.formats.FormatException;
 import loci.formats.tiff.IFD;
 import loci.formats.tiff.IFDList;
 import loci.formats.tiff.TiffParser;
@@ -96,7 +99,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 
 	static File dir;
 
-	public String camera_url = "http://192.168.0.236:8081/";
+	public String camera_url = "http://192.168.0.36:2323/";
 	public String camera_img = "bimg";
 	public String camera_img_new = "towp/wait/bimg"; // will always wait for the next image (repetitive acquisitions get new images)
 	public String camera_jp46settings = "";
@@ -322,6 +325,10 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		if (demux) showImage=false;
 		double [] xtraExif=new double[1]; // ExposureTime
 		double [] lla = null;
+
+		imp = openJpegOrGif(directory, fileName);
+		imp.show();
+		if (imp != null) return imp;
 		try {
 			imp = openJpegOrGif(directory, fileName);
 			if (imp == null) {
@@ -390,7 +397,35 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 			String arg,
 			boolean scale,
 			ImagePlus imp_src,
-			boolean showImage) {
+			boolean showImage)
+	{
+//		ImagePlus imptiff = (new EyesisTiff()).readTiff(url);
+		ImagePlus imptiff = null;
+		try {
+			imptiff = (new ImagejJp4Tiff()).readTiffJp4(url);
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		} catch (FormatException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		if (imptiff!=null) {
+			imptiff.show();
+			if (imptiff.getType()==ImagePlus.COLOR_RGB) {
+				checkGrayJpegTo32Bits(imptiff);
+			}
+
+			IJ.showStatus("Converting to 32-bits");
+			new ImageConverter(imptiff).convertToGray32();
+			FileInfo fi = imptiff.getFileInfo();
+			//			fi.fileName = name;
+			//			fi.directory = dir;
+			fi.fileFormat = FileInfo.TIFF;
+			imptiff.setFileInfo(fi);
+			return imptiff;
+		}
+
 		long[] ElphelMakerNote=null;
 		ImagePlus imp = null;
 		boolean reuse_imp=false;
@@ -399,14 +434,14 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		double [] xtraExif=new double[1]; // ExposureTime
 
 
-//		System.out.println("imp_src is "+((imp_src!=null)?"not ":"")+"null");
+		//		System.out.println("imp_src is "+((imp_src!=null)?"not ":"")+"null");
 		try {
 			imp = openJpegOrGifUsingURL(url);
 			if (imp == null) {
 				IJ.showMessage("JP46 Reader Error", "Could not open the URL: " + url + " as JPEG/JP46");
 			} else {
 				if ((imp_src==null) && showImage) {
-//					System.out.println("show() 1");
+					//					System.out.println("show() 1");
 					imp.show(); /* Shows before re-ordering*/
 				}
 				/// get rid of the "/towp/wait" if any - there is a chance to re-read the same image
@@ -429,7 +464,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 			if (reuse_imp) {
 				imp=imp_src;
 			} else if ((imp_src!=null) && showImage) { /* tried to reuse, but wrong size */
-//				System.out.println("show() 2");
+				//				System.out.println("show() 2");
 				imp.show(); /* never did that before */
 			}
 			if ((xtraExif!=null) && !Double.isNaN(xtraExif[0])){
@@ -1042,6 +1077,35 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 
 	/* Modified from Opener.java */
 	ImagePlus openJpegOrGif(String dir, String name) {
+		// Testing new readers
+		ImagePlus imptiff = null;
+//		imptiff = (new EyesisTiff()).readTiff(dir+name);
+		try {
+			imptiff = (new ImagejJp4Tiff()).readTiffJp4(dir+name);
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		} catch (FormatException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+
+		if (imptiff!=null) {
+			imptiff.show();
+			if (imptiff.getType()==ImagePlus.COLOR_RGB) {
+				checkGrayJpegTo32Bits(imptiff);
+			}
+
+			IJ.showStatus("Converting to 32-bits");
+			new ImageConverter(imptiff).convertToGray32();
+			FileInfo fi = imptiff.getFileInfo();
+			fi.fileName = name;
+			fi.directory = dir;
+			fi.fileFormat = FileInfo.TIFF;
+			imptiff.setFileInfo(fi);
+			return imptiff;
+		}
+
 		ImagePlus imp = null;
 		boolean isTiff = false;
 		Image img = Toolkit.getDefaultToolkit().createImage(dir+name);
@@ -1073,8 +1137,8 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 			fi = imp.getFileInfo();
 
 // testing
-
-			if ((ofi!=null) && (ofi.directory!=null) &&  (ofi.fileFormat ==FileInfo.TIFF)) {
+/*
+			if ((ofi!=null) && (ofi.directory!=null) &&  (ofi.fileFormat == FileInfo.TIFF)) {
 				String path = ofi.directory + ofi.fileName;
 				EyesisTiff ET = new EyesisTiff();
 				ImagePlus imptiff = ET.readTiff(path);
@@ -1093,6 +1157,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 				Frame log = WindowManager.getFrame("Log");
 				if (log!=null) log.toFront();
 			}
+*/
 		}
 
 

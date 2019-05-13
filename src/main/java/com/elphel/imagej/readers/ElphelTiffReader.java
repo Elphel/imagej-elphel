@@ -27,15 +27,25 @@
  */
 package com.elphel.imagej.readers;
 import java.io.IOException;
+import java.io.InputStream;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLConnection;
 import java.util.Hashtable;
 
+import org.apache.commons.compress.utils.IOUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import loci.common.ByteArrayHandle;
+import loci.common.Location;
 import loci.formats.FormatException;
 import loci.formats.in.MetadataLevel;
 import loci.formats.in.TiffReader;
 import loci.formats.meta.MetadataStore;
+import loci.formats.tiff.IFD;
+import loci.formats.tiff.IFDList;
+import loci.formats.tiff.TiffRational;
 
 /*
   // non-IFD tags (for internal use)
@@ -72,7 +82,9 @@ IFD.java  public static final int MAKER_NOTE = 37500;
 public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 
 	// -- Constants --
+
 	public static final String ELPHEL_PROPERTY_PREFIX = "ELPHEL_";
+	public static final String CONTENT_FILENAME = "CONTENT_FILENAME";
 
 	  /** Merge SubIFDs into the main IFD list. */
 //	  protected transient boolean mergeSubIFDs = true; // false;
@@ -89,7 +101,10 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 	//	  public static final int IMAGEJ_TAG = 50839;
 
 	// -- Fields --
-
+//	private String inId = null; // to close Location.mapFile
+	private URL url = null; // save here actual URL when reading file to memory
+	private String content_fileName = null; // from Content-disposition
+	private boolean file_initialized = false;
 	//	  private String companionFile;
 	//	  private String description;
 	//	  private String calibrationUnit;
@@ -102,12 +117,75 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 	/** Constructs a new Tiff reader. */
 	public ElphelTiffReader() {
 		super(); // "Tagged Image File Format", ELPHEL_TIFF_SUFFIXES); // See if we can use TiffReader without its parent
-		mergeSubIFDs = true; // false;
+///		mergeSubIFDs = true; // false;
 		LOGGER.info("ElphelTiffReader(), after supper(), mergeSubIFDs = true;");
 	}
 
 	// -- IFormatReader API methods --
 
+	  @Override
+	  public void setId(String id) throws FormatException, IOException {
+		  LOGGER.debug("setId("+id+"). before super" );
+		  file_initialized = false;
+		  if (Location.getIdMap().containsKey(id)) {
+			  LOGGER.debug("id '"+id+"' is already mapped" );
+			  content_fileName = null; // id; // maybe set to null to handle externally?
+			  LOGGER.info("Starting initFile() method, read file directly");
+			  super.setId(id);
+		  } else {
+			  // If URL, then read to memory, if normal file - use direct access
+			  //	 		String cameraURL = "http://192.168.0.36:2323/img"; // for testing
+			  // just testing - ignore file name and use camera URL
+			  //	 		id = cameraURL;
+			  url = null;
+			  //	 		String mime = null; // use to select jp4/tiff later? Or to check it is correct
+			  content_fileName = null;
+			  try {
+				  url = new URL(id);
+			  } catch (MalformedURLException e) {
+				  LOGGER.warn("Bad URL: " + id);
+			  }
+			  if (url != null) {
+				  LOGGER.info("Starting initFile() method, read "+ id +" to memory first");
+				  //https://www.rgagnon.com/javadetails/java-0487.html
+				  URLConnection connection = url.openConnection();
+
+				  String content_disposition = connection.getHeaderField("Content-Disposition");
+				  // raw = "attachment; filename=abc.jpg"
+				  if(content_disposition != null && content_disposition.indexOf("=") != -1) {
+					  content_fileName = content_disposition.split("=")[1]; //getting value after '='
+					  // trim quotes
+					  content_fileName= content_fileName.substring(1, content_fileName.length()-1);
+				  } else {
+					  String mime =  connection.getContentType();
+					  int slash = mime.lastIndexOf("/");
+					  String suffix = slash < 0 ? "" : mime.substring(slash+1);
+					  content_fileName = "unknown." + suffix;
+				  }
+				  //	 			currentId = fileName; //???
+				  //	 			LOGGER.info("Mime type = "+mime);
+				  // https://stackoverflow.com/questions/2793150/how-to-use-java-net-urlconnection-to-fire-and-handle-http-requests
+
+				  //https://stackoverflow.com/questions/2295221/java-net-url-read-stream-to-byte
+				  InputStream is =    url.openStream (); //
+				  byte[] inBytes = IOUtils.toByteArray(is);
+				  if (is != null) is.close();
+				  LOGGER.info("Bytes read: "+ inBytes.length);
+				  Location.mapFile(content_fileName, new ByteArrayHandle(inBytes));
+//				  HashMap<String,Object> dbg_loc = Location.getIdMap();
+				  super.setId(content_fileName);
+			  } else { // read file normally
+				  content_fileName = id;
+				  LOGGER.info("read file directly");
+				  super.setId(id);
+			  }
+		  }
+
+		  //getReader
+		  //	    super.setId(id);
+		  LOGGER.debug("setId("+id+"). after super" );
+		  file_initialized = true;
+	  }
 
 	@Override
 	protected void initFile(java.lang.String id)
@@ -117,6 +195,8 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 		LOGGER.info("Starting initFile() method");
 		super.initFile(id);
 		LOGGER.info("Ending initFile() method");
+
+
     }
 
 	/* @see loci.formats.IFormatReader#getSeriesUsedFiles(boolean) */
@@ -134,8 +214,14 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 	@Override
 	public void close(boolean fileOnly) throws IOException {
 		LOGGER.info("close("+fileOnly+") before super");
-		super.close(fileOnly);
+		super.close(fileOnly); // curerent_id == null only during actual close?
 		LOGGER.info("close("+fileOnly+") after super");
+		if ((content_fileName != null) && file_initialized){
+			Location.mapFile(content_fileName, null);
+			file_initialized = false;
+		}
+//	    HashMap<String,Object> dbg_loc = Location.getIdMap();
+
 		if (!fileOnly) {
 			//	      companionFile = null;
 			//	      description = null;
@@ -156,8 +242,35 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 		super.initStandardMetadata();
 		String comment = ifds.get(0).getComment(); // IMAGE_DESCRIPTION
 		LOGGER.info("initStandardMetadata() - after super()");
-		ElphelMeta elphelMeta = new ElphelMeta(tiffParser, true);
-		Hashtable<String, String> property_table = elphelMeta.getPropertyTable();
+		long[] maker_note = null;
+		double exposure = Double.NaN;
+		String date_time = null;
+		IFDList exifIFDs = tiffParser.getExifIFDs();
+		if (exifIFDs.size() > 0) {
+			IFD exifIFD = exifIFDs.get(0);
+			tiffParser.fillInIFD(exifIFD);
+			if (exifIFD.containsKey(IFD.MAKER_NOTE)) {
+				maker_note = (long[]) exifIFD.get(IFD.MAKER_NOTE);
+			}
+			if (exifIFD.containsKey(IFD.EXPOSURE_TIME)) {
+				Object exp = exifIFD.get(IFD.EXPOSURE_TIME);
+				if (exp instanceof TiffRational) {
+					TiffRational texp = (TiffRational) exp;
+					exposure = 1.0*texp.getNumerator()/texp.getDenominator();
+				}
+			}
+			if (exifIFD.containsKey(IFD.DATE_TIME_ORIGINAL)) {
+				date_time = exifIFD.get(IFD.DATE_TIME_ORIGINAL).toString();
+				if (exifIFD.containsKey(IFD.SUB_SEC_TIME_ORIGINAL)) {
+					date_time += "."+exifIFD.get(IFD.SUB_SEC_TIME_ORIGINAL).toString();
+				}
+			}
+		}
+
+		Hashtable<String, String> property_table = ElphelMeta.getMeta(
+				null, maker_note, exposure, date_time, true );
+
+
 		LOGGER.info("Created elphelMeta table, size="+property_table.size());
 		for (String key:property_table.keySet()) {
 			addGlobalMeta(ELPHEL_PROPERTY_PREFIX+key,property_table.get(key));
@@ -167,6 +280,7 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 			Integer[] tags = ifds.get(0).keySet().toArray(new Integer[0]);
 			LOGGER.info("initStandardMetadata() - got "+tags.length+" tags");
 	    }
+		addGlobalMeta(ELPHEL_PROPERTY_PREFIX+CONTENT_FILENAME,content_fileName);
 		// check for ImageJ-style TIFF comment
 		boolean ij = checkCommentImageJ(comment);
 //		if (ij) parseCommentImageJ(comment);
@@ -219,6 +333,22 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 //	    }
 	    populateMetadataStoreImageJ(store);
 	  }
+
+	  /**
+	   * @see loci.formats.IFormatReader#openBytes(int, byte[], int, int, int, int)
+	   */
+	  @Override
+	  public byte[] openBytes(int no, byte[] buf, int x, int y, int w, int h)
+	    throws FormatException, IOException
+	  {
+		LOGGER.info("openBytes() - before super()");
+	    super.openBytes(no, buf, x, y, w, h);
+		LOGGER.info("openBytes() - after super()");
+	    return buf;
+	  }
+
+
+
 
 	  // -- Helper methods --
 

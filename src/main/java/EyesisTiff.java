@@ -31,21 +31,32 @@ import java.awt.image.ColorModel;
 import java.awt.image.DataBufferInt;
 import java.awt.image.Raster;
 import java.awt.image.WritableRaster;
-import java.io.DataInputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.StringReader;
 import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Arrays;
+import java.util.Hashtable;
+import java.util.Iterator;
+import java.util.Properties;
+import java.util.Set;
 
 import javax.imageio.ImageIO;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+
+import com.elphel.imagej.readers.ElphelTiffReader;
 
 //import org.apache.log4j.Logger;
 
@@ -55,20 +66,15 @@ import ij.WindowManager;
 import ij.io.FileInfo;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
-import loci.common.ByteArrayHandle;
-import loci.common.Location;
 import loci.common.RandomAccessInputStream;
 import loci.common.services.DependencyException;
 import loci.common.services.ServiceException;
 import loci.common.services.ServiceFactory;
 import loci.formats.ClassList;
-import loci.formats.CoreMetadata;
 import loci.formats.FormatException;
 import loci.formats.IFormatReader;
 import loci.formats.ImageReader;
-//import loci.formats.in.TiffReader;
 import loci.formats.meta.IMetadata;
-import loci.formats.meta.MetadataStore;
 import loci.formats.services.OMEXMLService;
 import loci.formats.tiff.IFD;
 import loci.formats.tiff.IFDList;
@@ -86,6 +92,7 @@ public class EyesisTiff {
 		        defaultClasses =
 		          new ClassList<IFormatReader>(
 		        		  EyesisTiff.class.getClassLoader().getResource("readers.txt").getFile(), // @param file Configuration file containing the list of classes.
+//		        		  EyesisTiff.class.getClassLoader().getResource("readers1.txt").getFile(), // @param file Configuration file containing the list of classes.
 		        		  IFormatReader.class, // @param base Base class to which all classes are assignable.
 		        		  null); // @param location Class indicating which package to search for the file.
 		      }
@@ -109,43 +116,14 @@ public class EyesisTiff {
 
 	}
 	public ImagePlus readTiff(String path) {
-//		TiffReader tiffReader = new TiffReader();
-//		tiffReader.initFile(path);
-		   // read in entire file
-		// TODO: add option to get URL
-		//https://docs.openmicroscopy.org/bio-formats/5.9.2/developers/in-memory.html
-	    System.out.println("Reading file into memory from disk: "+path);
-	    File inputFile = new File(path);
-	    int fileSize = (int) inputFile.length();
-	    DataInputStream in = null;
-		try {
-			in = new DataInputStream(new FileInputStream(inputFile));
-		} catch (FileNotFoundException e) {
-		    System.out.println("File not found: "+path);
-		}
-	    byte[] inBytes = new byte[fileSize];
-	    try {
-			in.readFully(inBytes);
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	    System.out.println(fileSize + " bytes read.");
+		return readTiff(path, 	"STD_"); // null);
+	}
 
-	    // determine input file suffix
-	    String fileName = inputFile.getName();
-	    int dot = fileName.lastIndexOf(".");
-	    String suffix = dot < 0 ? "" : fileName.substring(dot);
+	public ImagePlus readTiff(String path, String std ) { // std - include non-elphel properties with prefix std
 
+		String inId = null;
+		inId = path;
 
-	    // map input id string to input byte array
-	    String inId = "inBytes" + suffix;
-	    Location.mapFile(inId, new ByteArrayHandle(inBytes));
-
-	 // read data from byte array using ImageReader
-	    System.out.println();
-	    System.out.println("Reading image data from memory...");
-	    //
 	    ServiceFactory factory = null;
 		try {
 			factory = new ServiceFactory();
@@ -153,13 +131,15 @@ public class EyesisTiff {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-	    OMEXMLService service = null;
+
+		OMEXMLService service = null;
 		try {
 			service = factory.getInstance(OMEXMLService.class);
 		} catch (DependencyException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+
 	    IMetadata omeMeta = null;
 		try {
 			omeMeta = service.createOMEXMLMetadata();
@@ -174,8 +154,13 @@ public class EyesisTiff {
 //https://www.javatips.net/api/libbio-formats-java-master/components/scifio/src/loci/formats/in/BaseTiffReader.java
 //https://docs.openmicroscopy.org/bio-formats/5.7.2/developers/reader-guide.html
 		//https://docs.openmicroscopy.org/bio-formats/5.9.2/developers/java-library.html#file-reading-and-performance
+
+		//defaultClasses = new ClassList<IFormatReader>(IFormatReader.class);
+//		ClassList<IFormatReader> cl0 = getCustomReaderClasses(); // new ClassList<IFormatReader>(IFormatReader.class);
+		ClassList<IFormatReader> classList =  new ClassList<IFormatReader>(IFormatReader.class);
+		classList.addClass(com.elphel.imagej.readers.ElphelTiffReader.class);
 	    ImageReader reader = new ImageReader(getCustomReaderClasses());
-//		BaseTiffReader reader = new BaseTiffReader("Base_tiff_reader","tiff");
+//	    ImageReader reader = new ImageReader(classList);
 	    reader.setMetadataStore(omeMeta);
 	    try {
 			reader.setId(inId);
@@ -187,32 +172,10 @@ public class EyesisTiff {
 			//e.printStackTrace();
 		}
 	    /* read-end */
-	    int seriesCount = reader.getSeriesCount();
-	    int imageCount = reader.getImageCount();
-	    int sizeX = reader.getSizeX();
-	    int sizeY = reader.getSizeY();
-	    int sizeZ = reader.getSizeZ();
-	    int sizeC = reader.getSizeC();
-	    int sizeT = reader.getSizeT();
+
+
+
 	    int bpp =   reader.getBitsPerPixel();
-	    int pixelType = reader.getPixelType();
-	    java.util.List<CoreMetadata> cmd = reader.getCoreMetadataList();
-	    java.util.Hashtable<java.lang.String,java.lang.Object> 	gmd = reader.getGlobalMetadata();
-	    MetadataStore mtds = reader.getMetadataStore();
-	    IFormatReader ifr = reader.getReader();
-	    IFormatReader[] ifrs = reader.getReaders(); // all available readers?
-	    // output some details
-	    System.out.println("Series count: " + seriesCount);
-	    System.out.println("First series:");
-	    System.out.println("\tImage count = " + imageCount);
-	    System.out.println("\tSizeX = " + sizeX);
-	    System.out.println("\tSizeY = " + sizeY);
-	    System.out.println("\tSizeZ = " + sizeZ);
-	    System.out.println("\tSizeC = " + sizeC);
-	    System.out.println("\tSizeT = " + sizeT);
-	    System.out.println("\tbppT = " +  bpp);
-	    System.out.println("\treader = " +  ifr.toString());
-	    System.out.println("\tpixelType = " +  pixelType); // 3
 	    byte [] bytes = null;
 	    ImagePlus imp=  null;
 	    try {
@@ -245,11 +208,26 @@ public class EyesisTiff {
 		    ImageProcessor ip=new FloatProcessor(reader.getSizeX(), reader.getSizeY());
 			ip.setPixels(pixels);
 			ip.resetMinAndMax();
-//			imp =  new ImagePlus(fileName, ip); // original jp46 reader had full path as title
-			imp =  new ImagePlus(path, ip); // original jp46 reader had full path as title
+		    Hashtable<String, Object> meta_hash = reader.getGlobalMetadata();
+		    String prefix = ElphelTiffReader.ELPHEL_PROPERTY_PREFIX;
+		    String imageName = path;
+		    String imageNameKey = prefix+ElphelTiffReader.CONTENT_FILENAME;
+		    if (meta_hash.containsKey(imageNameKey)) {
+		    	imageName = meta_hash.get(imageNameKey).toString();
+		    }
+			imp =  new ImagePlus(imageName, ip); // original jp46 reader had full path as title
+
+		    // first - save all as properties, later - only ELPHEL_*
+			for (String key:meta_hash.keySet()) {
+				if (key.startsWith(prefix)) {
+					imp.setProperty(key.substring(prefix.length()), meta_hash.get(key).toString());
+				} else if (std != null) {
+					imp.setProperty(std+(key.replace(" ","_")), meta_hash.get(key).toString());
+				}
+			}
+			encodeProperiesToInfo(imp);
 	    }
 
-//	    ImagePlus imp= makeArrays(pixels, width, height, title);
 	    try {
 			reader.close();
 		} catch (IOException e) {
@@ -661,5 +639,59 @@ the type of pixel data in this file 	getPixelType()
 		sb.append("\n\""+astring+"\"");
 		return sb.toString();
 	}
+
+// copied from JP46_Reader_camera.java
+	public ImagePlus encodeProperiesToInfo(ImagePlus imp){
+		String info="<?xml version=\"1.0\" encoding=\"UTF-8\"?><properties>";
+		Set<Object> jp4_set;
+		Properties jp4_prop;
+		Iterator<Object> itr;
+		String str;
+		jp4_prop=imp.getProperties();
+		if (jp4_prop!=null) {
+			jp4_set=jp4_prop.keySet();
+			itr=jp4_set.iterator();
+			while(itr.hasNext()) {
+				str = (String) itr.next();
+				//				if (!str.equals("Info")) info+="<"+str+">\""+jp4_prop.getProperty(str)+"\"</"+str+">";
+				if (!str.equals("Info")) info+="<"+str+">"+jp4_prop.getProperty(str)+"</"+str+">";
+			}
+		}
+		info+="</properties>\n";
+		imp.setProperty("Info", info);
+		return imp;
+	}
+
+	public boolean decodeProperiesFromInfo(ImagePlus imp){
+		if (imp.getProperty("Info")==null) return false;
+		String xml= (String) imp.getProperty("Info");
+
+	    DocumentBuilder db=null;
+		try {
+			db = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+		} catch (ParserConfigurationException e) {
+			return false;
+		}
+	    InputSource is = new InputSource();
+	    is.setCharacterStream(new StringReader(xml));
+    	Document doc = null;
+	    try {
+	    	doc = db.parse(is);
+	    } catch (SAXException e) {
+	    	return false;
+	    } catch (IOException e) {
+	    	return false;
+	    }
+	    NodeList allNodes=doc.getDocumentElement().getElementsByTagName("*");
+	    for (int i=0;i<allNodes.getLength();i++) {
+	        String name= allNodes.item(i).getNodeName();
+            String value=allNodes.item(i).getFirstChild().getNodeValue();
+    		imp.setProperty(name, value);
+
+	    }
+
+		return true;
+	}
+
 
 }
