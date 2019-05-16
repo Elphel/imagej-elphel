@@ -88,7 +88,8 @@
 		<dependency>
 			<groupId>ome</groupId>
 			<artifactId>loci_tools</artifactId>
-			<version>6.0.1</version>
+			<version>6.1.0-SNAPSHOT</version>
+			<type>java-source</type>
 		</dependency>
 	<dependency>
 		  <groupId>com.drewnoakes</groupId>
