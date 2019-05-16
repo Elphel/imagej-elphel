@@ -70,6 +70,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileFilter;
 
+import com.elphel.imagej.lwir.LwirReader;
+
 import ij.CompositeImage;
 import ij.IJ;
 import ij.ImageJ;
@@ -118,7 +120,8 @@ private Panel panel1,
          panelClt3,
          panelClt4,
          panelClt5,
-         panelClt_GPU
+         panelClt_GPU,
+         panelLWIR
          ;
    JP46_Reader_camera JP4_INSTANCE=null;
 
@@ -384,6 +387,7 @@ private Panel panel1,
    public static boolean DCT_MODE=false; //true; // show all buttons
    public static boolean MODE_3D=false; // 3D-related commands
    public static boolean GPU_MODE=false; // 3D-related commands
+   public static boolean LWIR_MODE = false; // LWIR-related commands
    public PixelMapping.InterSensor.DisparityTiles DISPARITY_TILES=null;
    public ImagePlus DBG_IMP = null;
    public ImagePlus CORRELATE_IMP = null;
@@ -420,7 +424,7 @@ private Panel panel1,
 
 		instance = this;
 		addKeyListener(IJ.getInstance());
-		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0) + (DCT_MODE?6:0) + (GPU_MODE?1:0);
+		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0) + (DCT_MODE?6:0) + (GPU_MODE?1:0) +(LWIR_MODE?1:0);
 		setLayout(new GridLayout(menuRows, 1));
 
 		panel6 = new Panel();
@@ -645,7 +649,13 @@ private Panel panel1,
 			addButton("ShowGPU",                    panelClt_GPU, color_conf_process);
 			add(panelClt_GPU);
 		}
-
+		if (LWIR_MODE) {
+			panelLWIR = new Panel();
+			panelLWIR.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
+			addButton("LWIR_ACQUIRE",                   panelLWIR, color_conf_process);
+			add(panelLWIR);
+		}
+//
 		pack();
 
 		GUI.center(this);
@@ -737,6 +747,15 @@ private Panel panel1,
 			System.out.println("Read GPU_MODE="+GPU_MODE);
 		} else {
 			String msg="GPU_MODE is undefined in "+this.prefsPath;
+			IJ.showMessage("Error",msg);
+			throw new IOException (msg);
+		}
+		sValue=	this.prefsProperties.getProperty("LWIR_MODE");
+		if (sValue!=null) {
+			LWIR_MODE=Boolean.parseBoolean(sValue);
+			System.out.println("Read LWIR_MODE="+LWIR_MODE);
+		} else {
+			String msg="LWIR_MODE is undefined in "+this.prefsPath;
 			IJ.showMessage("Error",msg);
 			throw new IOException (msg);
 		}
@@ -4783,6 +4802,29 @@ private Panel panel1,
     	}
     	TENSORFLOW_INFER_MODEL.test_tensorflow(keep_empty);
     	return;
+/* ======================================================================== */
+    } else if (label.equals("LWIR_ACQUIRE")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+		loci.common.DebugTools.enableLogging("ERROR"); // INFO"); // ERROR");
+        LwirReader lwirReader = new LwirReader();
+        ImagePlus [][] imps = lwirReader.readAllMultiple(
+    			10, // final int     num_frames,
+    			true, // final boolean show,
+    			false); // true); // final boolean scale)
+		for (ImagePlus imp: imps[0]) {
+			imp.show();
+		}
+
+		System.out.println("LWIR_ACQUIRE: got "+imps.length+" image sets");
+		ImagePlus [][] imps_sync =  lwirReader.matchSets(imps, 0.001, 3); // double max_mismatch)
+		if (imps_sync != null) {
+			ImagePlus [] imps_avg = lwirReader.averageMultiFrames(imps_sync);
+			for (ImagePlus imp: imps_avg) {
+				imp.show();
+			}
+		}
+
+
 //JTabbedTest
 // End of buttons code
     }

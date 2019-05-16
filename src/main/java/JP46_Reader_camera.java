@@ -1133,34 +1133,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 			fi.fileFormat = isTiff?FileInfo.TIFF: FileInfo.GIF_OR_JPG; // even if set originally, it is lost after convertToGray32
 			imp.setFileInfo(fi);
 
-			FileInfo ofi = imp.getOriginalFileInfo();
-			fi = imp.getFileInfo();
-
-// testing
-/*
-			if ((ofi!=null) && (ofi.directory!=null) &&  (ofi.fileFormat == FileInfo.TIFF)) {
-				String path = ofi.directory + ofi.fileName;
-				EyesisTiff ET = new EyesisTiff();
-				ImagePlus imptiff = ET.readTiff(path);
-				if (imptiff!=null) {
-					imptiff.show();
-				}
-
-//				IJ.error("TIFF Dumper", "File path not available or not TIFF file");
-				IJ.log("\\Clear");
-				IJ.log("PATH = "+path);
-				try {
-					dumpIFDs(path);
-				} catch(IOException e) {
-					IJ.error("Tiff Dumper", ""+e);
-				}
-				Frame log = WindowManager.getFrame("Log");
-				if (log!=null) log.toFront();
-			}
-*/
 		}
-
-
 		return imp;
 	}
 
@@ -1421,16 +1394,11 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		timestamp=imp.getProperty("timestamp");
 		if (timestamp!=null);
 
-/*
-		System.out.println("FLIPV="+FLIPGV+" FLIPH="+FLIPGH);
-		for (i=0;i<3;i++) System.out.println("FLIPV["+i+"]=  "+FLIPV[i]+" FLIPH["+i+"]=  "+FLIPH[i]);
-		for (i=0;i<3;i++) System.out.println("HEIGHTS["+i+"]="+HEIGHTS[i]);
-		for (i=0;i<2;i++) System.out.println("BLANKS["+i+"]= "+BLANKS[i]);
-*/
 		Rectangle [] r = new Rectangle[3];
 		r[0]=new Rectangle(0, 0,                                        width,HEIGHTS[0]);
 		r[1]=new Rectangle(0, HEIGHTS[0]+BLANKS[0],                     width,HEIGHTS[1]);
 		r[2]=new Rectangle(0, HEIGHTS[0]+BLANKS[0]+HEIGHTS[1]+BLANKS[1],width,HEIGHTS[2]);
+
 // assuming that 		(HEIGHTS[1]==0) && (HEIGHTS[2]!=0) == false
 		if (FLIPGV!=0){
 			if (HEIGHTS[1]>0) {
@@ -1448,13 +1416,10 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		if (FLIPGV>0) for (i=0;i<3;i++) FLIPV[i]=1-FLIPV[i];
 		if (FLIPGH>0) for (i=0;i<3;i++) FLIPH[i]=1-FLIPH[i];
 
-//		for (i=0;i<3;i++) System.out.println("Final: FLIPV["+i+"]=  "+FLIPV[i]+" FLIPH["+i+"]=  "+FLIPH[i]);
 
 // if needed, we'll cut one pixel line. later can modify to add one extra, but then we need to duplicate the pre-last one (same Bayer),
 // not just add zeros - later before sliding FHT the two border lines are repeated for 16 times to reduce border effects.
 		for (i=0;i<3;i++) {
-//			System.out.println("before r["+i+"].x=  "+r[i].x+" r["+i+"].width=  "+r[i].width);
-//			System.out.println("before r["+i+"].y=  "+r[i].y+" r["+i+"].height=  "+r[i].height);
 			if (((r[i].height & 1)==0 ) & (((r[i].y+FLIPV[i])&1)!=0)) r[i].height-=2;
 			r[i].height &=~1;
 			if (((r[i].y+FLIPV[i])&1)!=0) r[i].y+=1;
@@ -1462,16 +1427,8 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 			if (((r[i].width & 1)==0 ) & (((r[i].x+FLIPH[i])&1)!=0)) r[i].width-=2;
 			r[i].width &=~1;
 			if (((r[i].x+FLIPH[i])&1)!=0) r[i].x+=1;
-
-
-
-//			System.out.println("after r["+i+"].x=  "+r[i].x+" r["+i+"].width=  "+r[i].width);
-//			System.out.println("after r["+i+"].y=  "+r[i].y+" r["+i+"].height=  "+r[i].height);
 		}
 		if (r[numImg].height<=0) return null;
-//		ImageProcessor ip=imp.getProcessor();
-//		ip.setRoi(r[numImg]);
-//		ImageProcessor ip_individual=ip.crop().duplicate(); //java.lang.NegativeArraySizeException
 /*
  * When using in multithreaded with (probably) the same composite image
 Exception in thread "Thread-3564" java.lang.ArrayIndexOutOfBoundsException: 8970912

@@ -39,7 +39,9 @@ import org.slf4j.LoggerFactory;
 
 import loci.common.ByteArrayHandle;
 import loci.common.Location;
+import loci.common.RandomAccessInputStream;
 import loci.formats.FormatException;
+import loci.formats.FormatTools;
 import loci.formats.in.MetadataLevel;
 import loci.formats.in.TiffReader;
 import loci.formats.meta.MetadataStore;
@@ -85,6 +87,10 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 
 	public static final String ELPHEL_PROPERTY_PREFIX = "ELPHEL_";
 	public static final String CONTENT_FILENAME = "CONTENT_FILENAME";
+    public static final int    TAG_IMAGE_NUMBER          = 0x9211; //com.drew.metadata.exif.ExifDirectoryBase
+    public static final int    TAG_SERIAL_NUMBER         = 0xc62f;
+    public static final int    TAG_IMAGE_DESCRIPTION     = 0x010e;
+
 
 	  /** Merge SubIFDs into the main IFD list. */
 //	  protected transient boolean mergeSubIFDs = true; // false;
@@ -104,6 +110,7 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 //	private String inId = null; // to close Location.mapFile
 	private URL url = null; // save here actual URL when reading file to memory
 	private String content_fileName = null; // from Content-disposition
+	private boolean mapped_externally = false; // file is read/mapped externally, do not close it here
 	private boolean file_initialized = false;
 	//	  private String companionFile;
 	//	  private String description;
@@ -117,20 +124,60 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 	/** Constructs a new Tiff reader. */
 	public ElphelTiffReader() {
 		super(); // "Tagged Image File Format", ELPHEL_TIFF_SUFFIXES); // See if we can use TiffReader without its parent
+		//		mergeSubIFDs = true; // false;
+		// TODO: See if the selection is just between 2 readers (jp4 and tiff - just Elphel cameras),
+		// or these readers are combined with all other readers in readers.txt
+		suffixNecessary = true; // false
+		suffixSufficient = true; // false;
 ///		mergeSubIFDs = true; // false;
 		LOGGER.info("ElphelTiffReader(), after supper(), mergeSubIFDs = true;");
 	}
 
 	// -- IFormatReader API methods --
 
+	/* @see loci.formats.IFormatReader#isThisType(String, boolean) */
+	@Override
+	public boolean isThisType(String name, boolean open) {
+		if (open) {
+			return super.isThisType(name, open);
+		}
+		return checkSuffix(name, getSuffixes());
+	}
+
+	/* @see loci.formats.IFormatReader#isThisType(RandomAccessInputStream) */
+	/*
+	 * Check the first few bytes of a file to determine if the file can be read
+	 * by this reader. You can assume that index 0 in the stream corresponds to
+	 * the index 0 in the file. Return true if the file can be read; false if not
+	 * (or if there is no way of checking).
+	 */
+	@Override
+	public boolean isThisType(RandomAccessInputStream stream) throws IOException
+	{
+		final int blockLen = 4;
+		if (!FormatTools.validStream(stream, blockLen, false)) return false;
+
+		byte[] signature = new byte[blockLen];
+		stream.read(signature);
+
+		if (signature[0] != (byte) 0xff || signature[1] != (byte) 0xd8 ||
+				signature[2] != (byte) 0xff || (signature[3] & 0xf0) == 0)
+		{
+			return false;
+		}
+		return true;
+	}
+
 	  @Override
 	  public void setId(String id) throws FormatException, IOException {
 		  LOGGER.debug("setId("+id+"). before super" );
 		  file_initialized = false;
+		  mapped_externally = false;
 		  if (Location.getIdMap().containsKey(id)) {
 			  LOGGER.debug("id '"+id+"' is already mapped" );
-			  content_fileName = null; // id; // maybe set to null to handle externally?
-			  LOGGER.info("Starting initFile() method, read file directly");
+			  content_fileName = id; // id; // maybe set to null to handle externally?
+			  mapped_externally = true;
+			  LOGGER.info("Starting setId() method, read file directly");
 			  super.setId(id);
 		  } else {
 			  // If URL, then read to memory, if normal file - use direct access
@@ -192,6 +239,8 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
             throws FormatException,
                    java.io.IOException
     {
+		// Trying ServiceFactory before it is going to be initialized, so static defaultFactory will be initialized
+		// with small set of services - only needed for Elphel
 		LOGGER.info("Starting initFile() method");
 		super.initFile(id);
 		LOGGER.info("Ending initFile() method");
@@ -216,7 +265,8 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 		LOGGER.info("close("+fileOnly+") before super");
 		super.close(fileOnly); // curerent_id == null only during actual close?
 		LOGGER.info("close("+fileOnly+") after super");
-		if ((content_fileName != null) && file_initialized){
+//		if ((content_fileName != null) && file_initialized){
+		if (!mapped_externally && file_initialized){ // will try to unmap non-mapped file, OK
 			Location.mapFile(content_fileName, null);
 			file_initialized = false;
 		}
@@ -246,6 +296,14 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 		double exposure = Double.NaN;
 		String date_time = null;
 		IFDList exifIFDs = tiffParser.getExifIFDs();
+		//ifds.get(0) has 37393=297894 (ImageNumbder), but not exifIFD
+		IFD ifd0 = ifds.get(0);
+		if (ifd0.containsKey(TAG_IMAGE_NUMBER))  addGlobalMeta("Image_Number",          ifd0.get(TAG_IMAGE_NUMBER));
+		if (ifd0.containsKey(TAG_SERIAL_NUMBER)) addGlobalMeta("Serial_Number",         ifd0.get(TAG_SERIAL_NUMBER));
+		if (ifd0.containsKey(TAG_IMAGE_DESCRIPTION)) addGlobalMeta("Image_Description", ifd0.get(TAG_IMAGE_DESCRIPTION));
+
+		//TAG_SERIAL_NUMBER
+
 		if (exifIFDs.size() > 0) {
 			IFD exifIFD = exifIFDs.get(0);
 			tiffParser.fillInIFD(exifIFD);
@@ -266,9 +324,10 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 				}
 			}
 		}
-
+		int bpp =   getBitsPerPixel();
+		int bytes_per_pixel =  (bpp + 7) / 9;
 		Hashtable<String, String> property_table = ElphelMeta.getMeta(
-				null, maker_note, exposure, date_time, true );
+				null, maker_note, exposure, date_time, bytes_per_pixel, true );
 
 
 		LOGGER.info("Created elphelMeta table, size="+property_table.size());
@@ -281,6 +340,16 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 			LOGGER.info("initStandardMetadata() - got "+tags.length+" tags");
 	    }
 		addGlobalMeta(ELPHEL_PROPERTY_PREFIX+CONTENT_FILENAME,content_fileName);
+		// convert MAKER_NOTE to the same text format as in com.drew.metadata
+		if (maker_note != null) {
+			StringBuffer sb_maker_note = new StringBuffer();
+			for (int i = 0; i < maker_note.length; i++) {
+				if (i > 0) sb_maker_note.append(" ");
+				sb_maker_note.append(maker_note[i]);
+			}
+			addGlobalMeta("MAKER_NOTE", sb_maker_note.toString());
+		}
+
 		// check for ImageJ-style TIFF comment
 		boolean ij = checkCommentImageJ(comment);
 //		if (ij) parseCommentImageJ(comment);

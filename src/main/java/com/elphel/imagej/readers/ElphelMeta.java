@@ -38,6 +38,7 @@ public class ElphelMeta {
 			long[] maker_note,
 			double exposure,
 			String date_time,
+			int bytesPerPixel,
 			boolean scale) throws FormatException, IOException {
 		if (property_table == null) {
 			property_table = new Hashtable<String, String> ();
@@ -45,7 +46,7 @@ public class ElphelMeta {
 		if (!Double.isNaN(exposure)) {
 			property_table.put("EXPOSURE",  String.format("%f",exposure));
 		}
-		if (date_time == null) {
+		if (date_time != null) {
 			property_table.put("DATE_TIME",  date_time);
 		}
 		if (maker_note != null) {
@@ -138,7 +139,7 @@ public class ElphelMeta {
 				property_table.put("FLIPH",     String.format("%d",FLIPH));
 				property_table.put("FLIPV",     String.format("%d",FLIPV));
 				property_table.put("BAYER_MODE",String.format("%d",BAYER_MODE));
-				property_table.put("COLOR_MODE",((COLOR_MODE==2)?"JP46":((COLOR_MODE==5)?"JP4":((COLOR_MODE==0)?"MONO":"OTHER"))));
+				property_table.put("COLOR_MODE",((COLOR_MODE==2)?"JP46":((COLOR_MODE==5)?"JP4":((COLOR_MODE==0)?"MONO":((COLOR_MODE==15)?"RAW":"OTHER")))));
 				property_table.put("DCM_HOR",   String.format("%d",DCM_HOR));
 				property_table.put("DCM_VERT",  String.format("%d",DCM_VERT));
 				property_table.put("BIN_HOR",   String.format("%d",BIN_HOR));
@@ -203,7 +204,12 @@ public class ElphelMeta {
 			/**adjusting gains to have the result picture in the range 0..256 */
 			min_gain=2.0*gains[0];
 			for (i=0;i<4;i++) {
-				if (min_gain > gains[i]*(1.0-blacks[i])) min_gain = gains[i]*(1.0-blacks[i]);
+				if (bytesPerPixel == 1) {
+					if (min_gain > gains[i]*(1.0-blacks[i])) min_gain = gains[i]*(1.0-blacks[i]);
+				} else {
+					if (min_gain > gains[i]) min_gain = gains[i];
+
+				}
 			}
 			property_table.put("GAIN",String.format("%f",min_gain)); // common gain
 
