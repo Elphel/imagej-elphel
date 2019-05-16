@@ -9,7 +9,7 @@
  **
  ** -----------------------------------------------------------------------------**
  **
- **  ElphelTiffReader.java is free software: you can redistribute it and/or modify
+ **  ElphelJp4Reader.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
  **  (at your option) any later version.
@@ -40,17 +40,20 @@ import org.joda.time.DateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.drew.imaging.ImageMetadataReader;
+import com.drew.metadata.Metadata;
+import com.drew.metadata.Tag;
+import com.drew.metadata.exif.ExifIFD0Directory;
+import com.drew.metadata.exif.ExifSubIFDDirectory;
+
 import loci.common.ByteArrayHandle;
 import loci.common.Location;
 import loci.common.RandomAccessInputStream;
-import loci.common.services.DependencyException;
 import loci.common.services.ServiceException;
-import loci.common.services.ServiceFactory;
 import loci.formats.FormatException;
 import loci.formats.FormatTools;
 import loci.formats.in.ImageIOReader;
 import loci.formats.in.MetadataLevel;
-import loci.formats.services.EXIFService;
 //import loci.formats.services.EXIFService;
 import ome.xml.meta.MetadataStore;
 import ome.xml.model.primitives.Timestamp;
@@ -59,12 +62,23 @@ import ome.xml.model.primitives.Timestamp;
 public class ElphelJp4Reader  extends ImageIOReader{
 	// -- Constants --
 	public static final String MAKER_NOTE =            "Makernote";
-	public static final String SUB_SEC_TIME_ORIGINAL = "Sub-Sec Time Original";
+	public static final String SUB_SEC_TIME_ORIGINAL = "SUBSEC_TIME_ORIGINAL"; // "Sub-Sec Time Original";
 	public static final String EXPOSURE_TIME =         "Exposure Time";
-	public static final String DATE_TIME_ORIGINAL =    "Date/Time Original";
+	public static final String DATE_TIME_ORIGINAL =    "DATE_TIME_ORIGINAL"; // "Date/Time Original";
 
 	public static final String ELPHEL_PROPERTY_PREFIX = "ELPHEL_";
-	public static final String CONTENT_FILENAME = "CONTENT_FILENAME";
+	public static final String CONTENT_FILENAME =       "CONTENT_FILENAME";
+	public static final boolean REORDER = true; // false;
+	public static final String[][] REPLACEMENT_TAGS = // to/from!
+		   {{"SUBSEC_TIME_ORIGINAL",      "Sub-Sec Time Original"},
+			{"DATE_TIME_ORIGINAL",        "Date/Time Original"},
+			{"Instrument_Make",           "Make"},
+			{"Serial_Number",             "Unknown tag (0xc62f)"},
+			{"Instrument_Model",          "Model"}};
+
+
+
+
 
 	/** Logger for this class. */
 	private static final Logger LOGGER =
@@ -73,9 +87,12 @@ public class ElphelJp4Reader  extends ImageIOReader{
 	// -- Fields --
 	private URL url = null; // save here actual URL when reading file to memory
 	private String content_fileName = null; // from Content-disposition
+	private boolean mapped_externally = false; // file is read/mapped externally, do not close it here
 	private boolean file_initialized = false;
-	private ElphelTiffReader elphelTiffReader = null;
-//	private ImageReader helperReader;
+	private byte [] image_bytes = null;
+	private ExifSubIFDDirectory directory;
+	private ExifIFD0Directory directory_ifd0;
+	private HashMap<String,String> REPLACEMENT_TAG_MAP = null; // per instance
 
 
 	// -- Constructor --
@@ -84,11 +101,17 @@ public class ElphelJp4Reader  extends ImageIOReader{
 	public ElphelJp4Reader() {
 		super("JP4", new String[] {"jp4"});
 		//		mergeSubIFDs = true; // false;
+		// TODO: See if the selection is just between 2 readers (jp4 and tiff - just Elphel cameras),
+		// or these readers are combined with all other readers in readers.txt
 		suffixNecessary = true; // false
 		suffixSufficient = true; // false;
-
 		LOGGER.info("ElphelTiffReader(), after super()");
-		elphelTiffReader = new ElphelTiffReader();
+		if (REPLACEMENT_TAG_MAP == null) {
+			REPLACEMENT_TAG_MAP = new HashMap<String,String>();
+			for (String [] line: REPLACEMENT_TAGS) {
+				REPLACEMENT_TAG_MAP.put(line[1], line[0]);
+			}
+		}
 	}
 	// -- IFormatReader API methods --
 
@@ -102,6 +125,13 @@ public class ElphelJp4Reader  extends ImageIOReader{
 	}
 
 	/* @see loci.formats.IFormatReader#isThisType(RandomAccessInputStream) */
+	/* https://docs.openmicroscopy.org/bio-formats/5.7.2/developers/reader-guide.html
+	 * Check the first few bytes of a file to determine if the file can be read
+	 * by this reader. You can assume that index 0 in the stream corresponds to
+	 * the index 0 in the file. Return true if the file can be read; false if not
+	 * (or if there is no way of checking).
+	 */
+
 	@Override
 	public boolean isThisType(RandomAccessInputStream stream) throws IOException
 	{
@@ -116,18 +146,22 @@ public class ElphelJp4Reader  extends ImageIOReader{
 		{
 			return false;
 		}
-
 		return true;
 	}
 
 
 	@Override
 	public void setId(String id) throws FormatException, IOException { // same as for tiff?
+		image_bytes = null;
+//		buffered_data = null;
 		LOGGER.debug("setId("+id+"). before super" );
 		file_initialized = false;
+		mapped_externally = false;
+
 		if (Location.getIdMap().containsKey(id)) {
 			LOGGER.debug("id '"+id+"' is already mapped" );
-			content_fileName = null; // id; // maybe set to null to handle externally?
+			content_fileName = id; // id; // maybe set to null to handle externally?
+			mapped_externally = true;
 			LOGGER.info("Starting initFile() method, read file directly");
 			super.setId(id);
 		} else {
@@ -167,7 +201,7 @@ public class ElphelJp4Reader  extends ImageIOReader{
 				if (is != null) is.close();
 				LOGGER.info("Bytes read: "+ inBytes.length);
 				Location.mapFile(content_fileName, new ByteArrayHandle(inBytes));
-				HashMap<String,Object> dbg_loc = Location.getIdMap();
+//				HashMap<String,Object> dbg_loc = Location.getIdMap();
 				super.setId(content_fileName);
 			} else { // read file normally
 				content_fileName = id;
@@ -193,38 +227,61 @@ public class ElphelJp4Reader  extends ImageIOReader{
 			throw new FormatException(e);
 		}
 		LOGGER.debug("initFile("+id+"), currentId="+currentId+",  after super" );
-
-//		elphelTiffReader.setId(id); //error here - invalid tiff file
-
-
 		// Below needs to be modified - EXIFService does not work with mapFile
-
 		MetadataStore store = makeFilterMetadata();
 		LOGGER.info("Parsing JPEG EXIF data");
 		HashMap<String, String> tags = null;
 		try {
-	        EXIFService exif = new ServiceFactory().getInstance(EXIFService.class);
-	        if (exif == null) {
-				return;
-			}
-			exif.initialize(id);
+			// Reimplementing ExifServiceImpl as original does not have ExifIFD0Directory
+		    try (RandomAccessInputStream jpegFile = new RandomAccessInputStream(id)) {
+		        try {
+		          Metadata metadata = ImageMetadataReader.readMetadata(jpegFile);
+		          directory =      metadata.getFirstDirectoryOfType(ExifSubIFDDirectory.class);
+		          directory_ifd0 = metadata.getFirstDirectoryOfType(ExifIFD0Directory.class);
+		        }
+		        catch (Throwable e) {
+		          throw new ServiceException("Could not read EXIF data", e);
+		        }
+		      }
+		    Date date =  directory.getDate(ExifSubIFDDirectory.TAG_DATETIME_ORIGINAL);
 
-			// Set the acquisition date
-			Date date = exif.getCreationDate();
-			if (date != null) {
+		    if (date != null) {
 				Timestamp timestamp = new Timestamp(new DateTime(date));
 				store.setImageAcquisitionDate(timestamp, 0);
 			}
 
-			tags = exif.getTags();
+			tags = new HashMap<String, String>();
+			if (directory != null) {
+				for (Tag tag : directory.getTags()) {
+					String tag_name = tag.getTagName();
+					if (REPLACEMENT_TAG_MAP.containsKey(tag_name)) {
+						tags.put(REPLACEMENT_TAG_MAP.get(tag_name), tag.getDescription());
+					} else {
+						tags.put(tag.getTagName(), tag.getDescription());
+					}
+				}
+			}
+			if (directory_ifd0 != null) {
+				for (Tag tag : directory_ifd0.getTags()) {
+					String tag_name = tag.getTagName();
+					if (REPLACEMENT_TAG_MAP.containsKey(tag_name)) {
+						tags.put(REPLACEMENT_TAG_MAP.get(tag_name), tag.getDescription());
+					} else {
+						tags.put(tag.getTagName(), tag.getDescription());
+					}
+				}
+			}
+			// remove "sec" from exposure
+			if (tags.containsKey(EXPOSURE_TIME)){
+				tags.put(EXPOSURE_TIME, tags.get(EXPOSURE_TIME).split(" ")[0]);
+			}
+
 			for (String tagName : tags.keySet()) {
 				addGlobalMeta(tagName, tags.get(tagName));
 			} //{Makernote=105455 131072 127570 300581 171508736 171508736 171508736 171508736 169869312 124780556 1118544 0 0 327779 648 1296, Sub-Sec Time Original=560439, Exposure Time=11167/500000 sec, Date/Time Original=2019:05:13 04:30:26}
+
 		}
 		catch (ServiceException e) {
-			LOGGER.debug("Could not parse EXIF data", e);
-		}
-		catch (DependencyException e) {
 			LOGGER.debug("Could not parse EXIF data", e);
 		}
 		long [] maker_note = null;
@@ -244,20 +301,21 @@ public class ElphelJp4Reader  extends ImageIOReader{
 		if (tags.containsKey(DATE_TIME_ORIGINAL)){
 			date_time = tags.get(DATE_TIME_ORIGINAL);
 			if (tags.containsKey(SUB_SEC_TIME_ORIGINAL)){
-				date_time += tags.get(SUB_SEC_TIME_ORIGINAL);
+				date_time += "."+tags.get(SUB_SEC_TIME_ORIGINAL);
 			}
 		}
+		int bytes_per_pixel =  1;
 		Hashtable<String, String> property_table = ElphelMeta.getMeta(
-				null, maker_note, exposure, date_time, true );
+				null, maker_note, exposure, date_time, bytes_per_pixel, true );
 		LOGGER.info("Created elphelMeta table, size="+property_table.size());
 		for (String key:property_table.keySet()) {
 			addGlobalMeta(ELPHEL_PROPERTY_PREFIX+key,property_table.get(key));
 		}
 		MetadataLevel level = getMetadataOptions().getMetadataLevel();
 		if (level != MetadataLevel.MINIMUM) {
-//			Integer[] tags = ifds.get(0).keySet().toArray(new Integer[0]);
-//			LOGGER.info("initStandardMetadata() - got "+tags.length+" tags");
-	    }
+			//			Integer[] tags = ifds.get(0).keySet().toArray(new Integer[0]);
+			//			LOGGER.info("initStandardMetadata() - got "+tags.length+" tags");
+		}
 		addGlobalMeta(ELPHEL_PROPERTY_PREFIX+CONTENT_FILENAME,content_fileName);
 
 
@@ -267,18 +325,19 @@ public class ElphelJp4Reader  extends ImageIOReader{
 	/* @see loci.formats.IFormatReader#close(boolean) */
 	@Override
 	public void close(boolean fileOnly) throws IOException {
-		HashMap<String,Object> dbg_loc = Location.getIdMap();
+//		HashMap<String,Object> dbg_loc = Location.getIdMap();
 		String saveCurrentId = currentId;
 		currentId = null;
 		LOGGER.info("close("+fileOnly+") before super");
 		super.close(fileOnly); // curerent_id == null only during actual close?
 		LOGGER.info("close("+fileOnly+") after super");
 		currentId = saveCurrentId;
-		if ((content_fileName != null) && file_initialized){
+//		if ((content_fileName != null) && file_initialized){
+		if (!mapped_externally && file_initialized){ // will try to unmap non-mapped file, OK
 			Location.mapFile(content_fileName, null);
 			file_initialized = false;
 		}
-		dbg_loc = Location.getIdMap();
+//		dbg_loc = Location.getIdMap();
 
 		if (!fileOnly) {
 			//	      companionFile = null;
@@ -291,9 +350,78 @@ public class ElphelJp4Reader  extends ImageIOReader{
 		}
 	}
 
+	/**
+	 * @see loci.formats.IFormatReader#openBytes(int, byte[], int, int, int, int)
+	 *
+	 * openBytes(int, byte[], int, int, int, int) Returns a byte array containing
+	 * the pixel data for a specified subimage from the given file. The dimensions
+	 * of the subimage (upper left X coordinate, upper left Y coordinate, width,
+	 * and height) are specified in the final four int parameters.
+	 * This should throw a FormatException if the image number is invalid (less than
+	 * 0 or >= the number of images). The ordering of the array returned by openBytes
+	 * should correspond to the values returned by isLittleEndian and isInterleaved.
+	 * Also, the length of the byte array should be
+	 * [image_width * image height * bytes_per_pixel]. Extra bytes will generally
+	 * be truncated. It is recommended that the first line of this method be
+	 * FormatTools.checkPlaneParameters(this, no, buf.length, x, y, w, h) - this ensures
+	 * that all of the parameters are valid.
+	 */
+	@Override
+	public byte[] openBytes(int no, byte[] buf, int x, int y, int w, int h)
+			throws FormatException, IOException
+	{
+		LOGGER.info("openBytes() - before super()");
+		FormatTools.checkPlaneParameters(this, no, buf.length, x, y, w, h);
+		if (image_bytes == null) {
+			jp4Decode(no);
+		}
+		int width =  getSizeX();
+		int y1 = y + h;
+		int dest=0;
+		for (int line = y; line < y1; line++) {
+			System.arraycopy(image_bytes,
+					         line*width+x,
+					         buf,
+					         dest,
+					         w);
+			dest += w;
+		}
+		LOGGER.info("openBytes() - after super()");
+		return buf;
+	}
+	public void jp4Decode(int no) throws FormatException, IOException {
+		int width =  getSizeX();
+		int height = getSizeY();
+		image_bytes = new byte[width*height];
+		byte [] ib =  new byte [width*height];
+		byte [][]     macroblock=new byte[16][16];
 
-
-
-
+		super.openBytes(no, ib, 0, 0, width, height);
+		if (REORDER) {
+			int yb,y,xb,x,offset,nb,xbyr,ybyr; //,i;
+			for (yb=0;yb<(height>>4); yb++) for (xb=0;xb<(width>>4); xb++) { /* iterating macroblocks */
+				for (nb=0; nb<4;nb++) {
+					xbyr=nb & 1;
+					ybyr=(nb>>1) & 1;
+					for (y=0;y<8;y++) {
+						offset=((yb<<4)+y)*width+ (nb<<3) +((xb>=(width>>5))?(((xb<<5)-width)+(width<<3)):(xb<<5));
+						for (x=0;x<8;x++) {
+							macroblock[(y<<1) | ybyr][(x<<1) | xbyr]=ib[offset+x];
+						}
+					}
+				}
+				for (y=0;y<16;y++) {
+					System.arraycopy(macroblock[y],
+					                 0,
+					                 image_bytes,
+					                 ((yb<<4)+y)*width + (xb<<4),
+					                 16);
+				}
+			}
+		} else {
+			image_bytes = ib; // temporary
+		}
+		LOGGER.info("jp4Decode()");
+	}
 
 }
