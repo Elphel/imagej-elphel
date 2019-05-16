@@ -88,8 +88,7 @@
 		<dependency>
 			<groupId>ome</groupId>
 			<artifactId>loci_tools</artifactId>
-			<version>6.1.0-SNAPSHOT</version>
-			<type>java-source</type>
+			<version>6.0.1</version>
 		</dependency>
 	</dependencies>
 
