@@ -1,4 +1,4 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.calibration;
 /*
  **
  ** Distortions.java - Calculate lens distortion parameters from the pattern image
@@ -35,11 +35,13 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.SwingUtilities;
 
-import com.elphel.imagej.calibration.FittingStrategy;
-import com.elphel.imagej.calibration.MatchSimulatedPattern;
-import com.elphel.imagej.calibration.PatternParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
+import com.elphel.imagej.dp.EyesisCameraParameters;
+import com.elphel.imagej.dp.EyesisSubCameraParameters;
+import com.elphel.imagej.dp.LensDistortionParameters;
+import com.elphel.imagej.dp.PolynomialApproximation;
+import com.elphel.imagej.dp.WindowTools;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 import Jama.LUDecomposition;

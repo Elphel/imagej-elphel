@@ -71,6 +71,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileFilter;
 
+import com.elphel.imagej.calibration.CalibrationFileManagement;
 import com.elphel.imagej.calibration.DeBayerScissors;
 import com.elphel.imagej.calibration.PixelMapping;
 import com.elphel.imagej.common.DoubleFHT;

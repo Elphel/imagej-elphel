@@ -1,4 +1,4 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.calibration;
 /**
 ** -----------------------------------------------------------------------------**
 ** target_points.java
@@ -38,7 +38,6 @@ import ij.plugin.frame.*;
 
 import java.util.List;
 
-import com.elphel.imagej.calibration.Aberration_Calibration;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 import java.util.ArrayList;

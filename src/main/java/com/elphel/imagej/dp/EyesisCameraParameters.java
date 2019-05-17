@@ -1152,7 +1152,7 @@ import ij.gui.GenericDialog;
         	EyesisSubCameraParameters subCam=this.eyesisSubCameras[stationNumber][subCamNumber];
         	return subCam.lensDistortionModel;
     	}
-    	boolean getEnableNoLaser(int stationNumber,int subCamNumber){
+    	public boolean getEnableNoLaser(int stationNumber,int subCamNumber){
         	if (
         			(this.eyesisSubCameras==null) ||
         			(this.numStations<=stationNumber) ||

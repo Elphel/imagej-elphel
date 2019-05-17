@@ -19,16 +19,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.SwingUtilities;
 
+import com.elphel.imagej.calibration.CalibrationFileManagement.MultipleExtensionsFileFilter;
+import com.elphel.imagej.calibration.SimulationPattern.SimulParameters;
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
-import com.elphel.imagej.dp.CalibrationFileManagement;
-import com.elphel.imagej.dp.DistortionCalibrationData;
-import com.elphel.imagej.dp.Distortions;
-import com.elphel.imagej.dp.SimulationPattern;
 import com.elphel.imagej.dp.WindowTools;
-import com.elphel.imagej.dp.CalibrationFileManagement.MultipleExtensionsFileFilter;
-import com.elphel.imagej.dp.SimulationPattern.SimulParameters;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 public class EyesisAberrations {

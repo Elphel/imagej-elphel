@@ -25,10 +25,9 @@ package com.elphel.imagej.calibration;
 import java.awt.Rectangle;
 import java.util.Properties;
 
+import com.elphel.imagej.calibration.SimulationPattern.SimulParameters;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
-import com.elphel.imagej.dp.SimulationPattern;
 import com.elphel.imagej.dp.WindowTools;
-import com.elphel.imagej.dp.SimulationPattern.SimulParameters;
 
 import ij.IJ;
 import ij.ImagePlus;

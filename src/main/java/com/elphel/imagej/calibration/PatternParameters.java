@@ -32,8 +32,7 @@ import ij.io.Opener;
 import java.awt.Rectangle;
 import java.util.Properties;
 
-import com.elphel.imagej.dp.CalibrationFileManagement;
-import com.elphel.imagej.dp.CalibrationFileManagement.MultipleExtensionsFileFilter;
+import com.elphel.imagej.calibration.CalibrationFileManagement.MultipleExtensionsFileFilter;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 	/* gridGeometry:
 	 * [v][u][0] - x(mm) of the node(u,v), right (looking to the wall) - positive

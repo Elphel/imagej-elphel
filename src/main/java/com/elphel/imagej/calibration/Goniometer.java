@@ -29,17 +29,12 @@ package com.elphel.imagej.calibration;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.elphel.imagej.calibration.CalibrationHardwareInterface.CamerasInterface;
+import com.elphel.imagej.calibration.CalibrationHardwareInterface.GoniometerMotors;
+import com.elphel.imagej.calibration.SimulationPattern.SimulParameters;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
-import com.elphel.imagej.dp.CalibrationHardwareInterface;
-import com.elphel.imagej.dp.DistortionCalibrationData;
-import com.elphel.imagej.dp.DistortionProcessConfiguration;
-import com.elphel.imagej.dp.Distortions;
 import com.elphel.imagej.dp.EyesisCameraParameters;
-import com.elphel.imagej.dp.SimulationPattern;
 import com.elphel.imagej.dp.WindowTools;
-import com.elphel.imagej.dp.CalibrationHardwareInterface.CamerasInterface;
-import com.elphel.imagej.dp.CalibrationHardwareInterface.GoniometerMotors;
-import com.elphel.imagej.dp.SimulationPattern.SimulParameters;
 
 import ij.IJ;
 import ij.ImagePlus;

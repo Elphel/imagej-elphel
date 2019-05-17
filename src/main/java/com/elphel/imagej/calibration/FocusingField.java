@@ -43,10 +43,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.XMLConfiguration;
 
+import com.elphel.imagej.calibration.CalibrationFileManagement.MultipleExtensionsFileFilter;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
-import com.elphel.imagej.dp.CalibrationFileManagement;
 import com.elphel.imagej.dp.WindowTools;
-import com.elphel.imagej.dp.CalibrationFileManagement.MultipleExtensionsFileFilter;
 
 //import Distortions.LMAArrays; // may still reuse?
 import Jama.LUDecomposition;

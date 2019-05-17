@@ -1,4 +1,4 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.calibration;
 /*
  **
  ** DistortionProcessConfiguration.java
@@ -29,6 +29,8 @@ import ij.gui.GenericDialog;
 
 import java.io.File;
 import java.util.Properties;
+
+import com.elphel.imagej.dp.WindowTools;
 
     
     public class DistortionProcessConfiguration{

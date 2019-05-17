@@ -1,11 +1,10 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.calibration;
 import java.awt.Rectangle;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.SwingUtilities;
 
-import com.elphel.imagej.calibration.MatchSimulatedPattern;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 

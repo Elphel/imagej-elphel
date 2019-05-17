@@ -1,4 +1,4 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.calibration;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
