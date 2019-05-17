@@ -84,6 +84,7 @@ import com.elphel.imagej.gpu.GPUTileProcessor;
 import com.elphel.imagej.gpu.JCuda_ImageJ_Example_Plugin;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 import com.elphel.imagej.lwir.LwirReader;
+import com.elphel.imagej.readers.EyesisTiff;
 import com.elphel.imagej.tensorflow.TensorflowInferModel;
 
 import ij.CompositeImage;

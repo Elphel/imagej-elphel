@@ -1,4 +1,4 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.readers;
 /**
 ** -----------------------------------------------------------------------------**
 ** EyesisTiff.java
@@ -56,8 +56,6 @@ import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
-
-import com.elphel.imagej.readers.ElphelTiffReader;
 
 //import org.apache.log4j.Logger;
 

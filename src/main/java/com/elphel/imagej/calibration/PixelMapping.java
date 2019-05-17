@@ -42,8 +42,8 @@ import com.elphel.imagej.calibration.CalibrationFileManagement.MultipleExtension
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
-import com.elphel.imagej.dp.EyesisTiff;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
+import com.elphel.imagej.readers.EyesisTiff;
 
 import Jama.Matrix;
 import ij.IJ;
