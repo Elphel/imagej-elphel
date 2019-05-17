@@ -80,8 +80,11 @@ import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.GenericJTabbedDialog;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.common.WindowTools;
+import com.elphel.imagej.gpu.GPUTileProcessor;
+import com.elphel.imagej.gpu.JCuda_ImageJ_Example_Plugin;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 import com.elphel.imagej.lwir.LwirReader;
+import com.elphel.imagej.tensorflow.TensorflowInferModel;
 
 import ij.CompositeImage;
 import ij.IJ;

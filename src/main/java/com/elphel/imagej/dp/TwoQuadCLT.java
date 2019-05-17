@@ -43,6 +43,7 @@ import java.util.Random;
 import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.GenericJTabbedDialog;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
+import com.elphel.imagej.gpu.GPUTileProcessor;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 import ij.IJ;

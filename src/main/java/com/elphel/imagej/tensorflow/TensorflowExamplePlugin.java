@@ -1,4 +1,4 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.tensorflow;
 /**
  * Copyright (C) 2018 Elphel, Inc.
  * SPDX-License-Identifier: GPL-3.0-or-later

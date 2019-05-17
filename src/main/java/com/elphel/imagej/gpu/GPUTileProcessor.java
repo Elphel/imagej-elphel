@@ -1,4 +1,4 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.gpu;
 /**
 ** -----------------------------------------------------------------------------**
 ** GPUTileProcessor.java
@@ -52,6 +52,10 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.elphel.imagej.dp.DttRad2;
+import com.elphel.imagej.dp.GeometryCorrection;
+import com.elphel.imagej.dp.ImageDtt;
+
 import Jama.Matrix;
 import ij.IJ;
 import jcuda.Pointer;
@@ -73,12 +77,12 @@ public class GPUTileProcessor {
 	static String GPU_CONVERT_CORRECT_TILES_NAME = "convert_correct_tiles";
 	static String GPU_IMCLT_RBG_NAME = "imclt_rbg";
 //  pass some defines to gpu source code with #ifdef JCUDA
-	static int DTT_SIZE =                8;
+	public static int DTT_SIZE =                8;
 	static int THREADSX =         DTT_SIZE;
-	static int NUM_CAMS =                4;
+	public static int NUM_CAMS =                4;
 	static int NUM_COLORS =              3;
-	static int IMG_WIDTH =            2592;
-	static int IMG_HEIGHT =           1936;
+	public static int IMG_WIDTH =            2592;
+	public static int IMG_HEIGHT =           1936;
 	static int KERNELS_HOR =           164;
 	static int KERNELS_VERT =          123;
 	static int KERNELS_LSTEP =           4;
@@ -592,7 +596,7 @@ public class GPUTileProcessor {
     	cuCtxSynchronize();
     }
 
-    float [][] getRBG (int ncam){
+    public float [][] getRBG (int ncam){
         int height = (IMG_HEIGHT + DTT_SIZE);
         int width =  (IMG_WIDTH + DTT_SIZE);
         int rslt_img_size =      width * height;

@@ -1,4 +1,4 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.tensorflow;
 /**
  * Copyright (C) 2018 Elphel, Inc.
  * SPDX-License-Identifier: GPL-3.0-or-later
@@ -19,6 +19,7 @@ import org.tensorflow.SavedModelBundle;
 import org.tensorflow.Tensor;
 
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
+import com.elphel.imagej.dp.ImageDtt;
 
 import ij.IJ;
 import ij.ImagePlus;

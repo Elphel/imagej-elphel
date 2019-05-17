@@ -1,4 +1,4 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.gpu;
 /**
  * ImageJ Plugin using JCuda
  * 
