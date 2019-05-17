@@ -26,7 +26,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 public class BiScan {
 	final static double THRESHOLD_LIN = 1.0E-20;  // threshold ratio of matrix determinant to norm for linear approximation (det too low - fail)
@@ -358,7 +358,7 @@ public class BiScan {
 		if (this.target_disparity != null) {
 			dbg_data[7] = this.target_disparity.clone();
 		}
-		(new showDoubleFloatArrays()).showArrays(
+		(new ShowDoubleFloatArrays()).showArrays(
 				dbg_data,
 				biCamDSI.tnImage.getSizeX(),
 				biCamDSI.tnImage.getSizeY(),
@@ -1798,7 +1798,7 @@ public class BiScan {
 										}
 									}
 									if (dbg_this) {
-									(new showDoubleFloatArrays()).showArrays(
+									(new ShowDoubleFloatArrays()).showArrays(
 											dbg_data,
 											smpl_side,
 											smpl_side,

@@ -38,7 +38,7 @@ import javax.swing.SwingUtilities;
 
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 import Jama.LUDecomposition;
@@ -54,7 +54,7 @@ import ij.process.ImageProcessor;
 
 
 public class MatchSimulatedPattern {
-	private showDoubleFloatArrays SDFA_INSTANCE= new showDoubleFloatArrays(); // just for debugging?
+	private ShowDoubleFloatArrays SDFA_INSTANCE= new ShowDoubleFloatArrays(); // just for debugging?
 	public int debugLevel=2;
 	public int FFT_SIZE=256;
 	public double [][][][] PATTERN_GRID=null; // global to be used with threads? TODO: Same as DIST_ARRAY - merge?
@@ -1220,7 +1220,7 @@ public class MatchSimulatedPattern {
 			}
 			double [][] dbgPixels={pixels,maskedPixels,u_value,v_value};
 			String [] titles={"all","masked","u","v"};
-			(new showDoubleFloatArrays()).showArrays(
+			(new ShowDoubleFloatArrays()).showArrays(
 					dbgPixels,
 					size,
 					size,
@@ -1294,7 +1294,7 @@ public class MatchSimulatedPattern {
 			System.out.println("Correlation contrast is: relative="+rContrast+" absolute="+aContrast);
 			double [][] dbgPixels={pixels,dbgMask};
 			String [] titles={"all","mask"};
-			(new showDoubleFloatArrays()).showArrays(
+			(new ShowDoubleFloatArrays()).showArrays(
 					dbgPixels,
 					size,
 					size,
@@ -1391,7 +1391,7 @@ public class MatchSimulatedPattern {
 			System.out.println("Correlation contrast is "+contrast);
 			double [][] dbgPixels={pixels,dbgMask};
 			String [] titles={"all","mask"};
-			(new showDoubleFloatArrays()).showArrays(
+			(new ShowDoubleFloatArrays()).showArrays(
 					dbgPixels,
 					size,
 					size,
@@ -6646,7 +6646,7 @@ public class MatchSimulatedPattern {
         			   }
         			   index++;
         		   }
-        		   (new showDoubleFloatArrays()).showArrays(pixels, measuredUV[0].length, measuredUV.length,  true, "measuredUV", titles);
+        		   (new ShowDoubleFloatArrays()).showArrays(pixels, measuredUV[0].length, measuredUV.length,  true, "measuredUV", titles);
 
         	   }
 
@@ -11465,9 +11465,9 @@ error=Sum(W(x,y)*(F^2 +  2*F*(A*x^2+B*y^2+C*x*y+D*x+E*y-Z(x,y)) +(...) )
 	    			int radius,
 	    			int debugLevel){
 	    		int height=pixels.length/width;
-	    		showDoubleFloatArrays sdfra_instance= null;
+	    		ShowDoubleFloatArrays sdfra_instance= null;
 	    		if (debugLevel>1) {
-	    			sdfra_instance= new showDoubleFloatArrays(); // just for debugging?
+	    			sdfra_instance= new ShowDoubleFloatArrays(); // just for debugging?
 	    		}
 
 	    		boolean [] bmax=new boolean[pixels.length];
@@ -11524,8 +11524,8 @@ error=Sum(W(x,y)*(F^2 +  2*F*(A*x^2+B*y^2+C*x*y+D*x+E*y-Z(x,y)) +(...) )
 					double [] pixels,
 					int width
 					){
-	    		showDoubleFloatArrays sdfra_instance= null;
-	    		if (this.debugLevel>1) sdfra_instance= new showDoubleFloatArrays(); // just for debugging?
+	    		ShowDoubleFloatArrays sdfra_instance= null;
+	    		if (this.debugLevel>1) sdfra_instance= new ShowDoubleFloatArrays(); // just for debugging?
 	    		DoubleGaussianBlur gb=new DoubleGaussianBlur();
 				double initialScale=0.5;
 				int height=pixels.length/width;
@@ -11750,8 +11750,8 @@ error=Sum(W(x,y)*(F^2 +  2*F*(A*x^2+B*y^2+C*x*y+D*x+E*y-Z(x,y)) +(...) )
 					boolean bordersOK
 					){
 				int height=pixels.length/width;
-	    		showDoubleFloatArrays sdfra_instance= null;
-	    		if (this.debugLevel>1) sdfra_instance= new showDoubleFloatArrays(); // just for debugging?
+	    		ShowDoubleFloatArrays sdfra_instance= null;
+	    		if (this.debugLevel>1) sdfra_instance= new ShowDoubleFloatArrays(); // just for debugging?
 				
 				int [] distLeft= new int [pixels.length]; 
 				int [] distRight=new int [pixels.length]; // also used for down 
@@ -11816,8 +11816,8 @@ error=Sum(W(x,y)*(F^2 +  2*F*(A*x^2+B*y^2+C*x*y+D*x+E*y-Z(x,y)) +(...) )
 	    			String title,
 	    			int debugLevel   // debug level (normal == 1)
 	    			){
-	    		showDoubleFloatArrays sdfra_instance= null;
-	    		if (debugLevel>1) sdfra_instance= new showDoubleFloatArrays(); // just for debugging?
+	    		ShowDoubleFloatArrays sdfra_instance= null;
+	    		if (debugLevel>1) sdfra_instance= new ShowDoubleFloatArrays(); // just for debugging?
 // As high precision is not needed we can map Bayer pixels to the same grid of half resolution of the image
 // 0,3 - green 1 - red (laser)
 	    		int bayerG1=0;
@@ -11891,11 +11891,11 @@ error=Sum(W(x,y)*(F^2 +  2*F*(A*x^2+B*y^2+C*x*y+D*x+E*y-Z(x,y)) +(...) )
 
 	    		double [][] greens=headLaserMode?null:pre_greens;
 	    		int startIndex=skipFirst?1:0;
-	    		showDoubleFloatArrays sdfra_instance= null;
+	    		ShowDoubleFloatArrays sdfra_instance= null;
 	    		String [] subtitles_all= null;
 	    		String [] subtitles= null;
 	    		if (debugLevel>1) {
-	    			sdfra_instance= new showDoubleFloatArrays(); // just for debugging?
+	    			sdfra_instance= new ShowDoubleFloatArrays(); // just for debugging?
 	    			subtitles_all= new String [reds.length];
 	    			for (int i=0;i<reds.length;i++){
 	    				subtitles_all[i]="";

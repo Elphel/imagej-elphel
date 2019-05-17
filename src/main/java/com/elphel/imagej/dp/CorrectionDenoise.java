@@ -33,11 +33,11 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 
 public class CorrectionDenoise {
-	showDoubleFloatArrays SDFA_INSTANCE=   new showDoubleFloatArrays();
+	ShowDoubleFloatArrays SDFA_INSTANCE=   new ShowDoubleFloatArrays();
     public AtomicInteger stopRequested=null; // 1 - stop now, 2 - when convenient
     double [] denoiseMask;
     int       denoiseMaskWidth;

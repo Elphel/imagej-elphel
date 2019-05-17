@@ -25,7 +25,7 @@ package com.elphel.imagej.dp;
 import java.awt.Rectangle;
 import java.util.Properties;
 
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -33,7 +33,7 @@ import ij.gui.GenericDialog;
 
 // Started to move methods from Aberration_Calibration
 public class LensAdjustment {
-	private showDoubleFloatArrays sdfaInstance =new showDoubleFloatArrays(); // just for debugging?
+	private ShowDoubleFloatArrays sdfaInstance =new ShowDoubleFloatArrays(); // just for debugging?
 //	public int debugLevel=2;
 	
 	public int updateFocusGrid(

@@ -45,7 +45,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.SwingUtilities;
 
 import com.elphel.imagej.common.DoubleGaussianBlur;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 import Jama.LUDecomposition;
@@ -56,7 +56,7 @@ import Jama.Matrix;
 // 2 - in Eclipse project properties -> Build Path -> Libraries -> Add External jar
 public class Distortions {
 	final public double hintedMaxRelativeRadius=1.2; // make adjustable?
-	private showDoubleFloatArrays SDFA_INSTANCE=new showDoubleFloatArrays(); // just for debugging?
+	private ShowDoubleFloatArrays SDFA_INSTANCE=new ShowDoubleFloatArrays(); // just for debugging?
 //    int numInputs=27; // with A8...// 24;   // parameters in subcamera+...
 //    int numOutputs=16; // with A8...//13;  // parameters in a single camera
 	public PatternParameters patternParameters;
@@ -801,7 +801,7 @@ public class Distortions {
 	    	for (int nChn=0;nChn<masks.length;nChn++) if ((nChn<selectedChannels.length)&&!selectedChannels[nChn]) masks[nChn]=null;
 	    }
 		 */	    
-		if (enableShow && this.refineParameters.flatFieldShowSensorMasks) (new showDoubleFloatArrays()).showArrays( //java.lang.ArrayIndexOutOfBoundsException: 313632
+		if (enableShow && this.refineParameters.flatFieldShowSensorMasks) (new ShowDoubleFloatArrays()).showArrays( //java.lang.ArrayIndexOutOfBoundsException: 313632
 				masks,
 				this.pixelCorrectionWidth/ this.pixelCorrectionDecimation,
 				this.pixelCorrectionHeight/this.pixelCorrectionDecimation,
@@ -821,7 +821,7 @@ public class Distortions {
 		if (enableShow && this.refineParameters.flatFieldShowIndividual){
 			for (int station=0;station<sensorGrids.length;station++) if (sensorGrids[station]!=null){
 				for (int i=0;i<sensorGrids[station].length;i++) if (sensorGrids[station][i]!=null){
-					(new showDoubleFloatArrays()).showArrays(
+					(new ShowDoubleFloatArrays()).showArrays(
 							sensorGrids[station][i],
 							geometry[0].length,
 							geometry.length,
@@ -842,7 +842,7 @@ public class Distortions {
 			String [] titles={"Alpha","Red","Green","Blue","Number of images used"};
 			for (int station=0;station<patternArray.length;station++) if (patternArray[station]!=null){
 				for (int nView=0;nView<patternArray[station].length;nView++) if (patternArray[station][nView]!=null){
-					(new showDoubleFloatArrays()).showArrays(
+					(new ShowDoubleFloatArrays()).showArrays(
 							patternArray[station][nView],
 							geometry[0].length,
 							geometry.length,
@@ -1099,7 +1099,7 @@ public class Distortions {
 						worstImageNumber,
 						savedMask};
 				 Rectangle gridDimensions=patternParameters.getUVDimensions();
-				(new showDoubleFloatArrays()).showArrays(
+				(new ShowDoubleFloatArrays()).showArrays(
 						debugData,
 						gridDimensions.width,
 						gridDimensions.height,
@@ -1408,14 +1408,14 @@ public class Distortions {
    										margin); //mask; // replace with 0.0 .. 1.0 mask
    								if (extraShowDebug) debugMasks2[1]=gridPCorr[sensorNum][alphaIndex].clone();
    								if (extraShowDebug) {
-   									(new showDoubleFloatArrays()).showArrays(
+   									(new ShowDoubleFloatArrays()).showArrays(
    											debugMasks1,
    											width1,
    											height1,
    											true,
    											"M1-"+sensorNum,
    											debugMaskTitles);
-   									(new showDoubleFloatArrays()).showArrays(
+   									(new ShowDoubleFloatArrays()).showArrays(
    											debugMasks2,
    											width,
    											height,
@@ -1735,7 +1735,7 @@ public class Distortions {
 					extrapolated[4],
 					extrapolated[5],
 					debugMask};
-			(new showDoubleFloatArrays()).showArrays(
+			(new ShowDoubleFloatArrays()).showArrays(
 					debugData,
 					width,
 					height,
@@ -1813,7 +1813,7 @@ public class Distortions {
 				debugLevel);
 		if (showIntermediate){
 			String [] dbgTitles={"dPX","dPY","alpha","R","G","B"};
-			(new showDoubleFloatArrays()).showArrays(
+			(new ShowDoubleFloatArrays()).showArrays(
 					additionalCorrection,
 					sensorWidth/decimation,
 					sensorHeight/decimation,
@@ -1951,7 +1951,7 @@ public class Distortions {
 				}
 
 			}
-			(new showDoubleFloatArrays()).showArrays(
+			(new ShowDoubleFloatArrays()).showArrays(
 					debugData,
 					width,
 					height,
@@ -1959,7 +1959,7 @@ public class Distortions {
 					"PRE_EXP-"+imgNum+"-"+chnNum,
 					dbgTitles);
 			String [] dbgTitles1={"R-tar","R-grid","R-corr","R-FF","G-tar","G-grid","G-corr","G-FF","B-tar","B-grid","B-corr","B-FF",};//
-			(new showDoubleFloatArrays()).showArrays(
+			(new ShowDoubleFloatArrays()).showArrays(
 					debugRGB,
 					width,
 					height,
@@ -2031,7 +2031,7 @@ public class Distortions {
 						debugData[7][i]=     this.mask[i];
 					}
 				}
-				(new showDoubleFloatArrays()).showArrays(
+				(new ShowDoubleFloatArrays()).showArrays(
 						debugData,
 						this.uv0.width,
 						this.uv0.height,
@@ -2511,7 +2511,7 @@ For each point in the image
 				}
 				index++;
 			}
-			(new showDoubleFloatArrays()).showArrays(pixels, hintGrid[0].length, hintGrid.length,  true, "hintGrid", titles);
+			(new ShowDoubleFloatArrays()).showArrays(pixels, hintGrid[0].length, hintGrid.length,  true, "hintGrid", titles);
 			
 		}
 
@@ -2881,7 +2881,7 @@ For each point in the image
 			pixels[3][index]=grid.pixelsUV_extra[i][1];
 			pixels[4][index]=1000.0;
 		}
-		(new showDoubleFloatArrays()).showArrays(pixels, width, height,  true, "grid-"+numGridImage, titles);
+		(new ShowDoubleFloatArrays()).showArrays(pixels, width, height,  true, "grid-"+numGridImage, titles);
 	}
 	public void showGridAndHint(){
 		GenericDialog gd=new GenericDialog("Show selected grid and/or hint grid");
@@ -2950,7 +2950,7 @@ For each point in the image
 			}
 			index++;
 		}
-		(new showDoubleFloatArrays()).showArrays(pixels, hintGrid[0].length, hintGrid.length,  true, title, titles);
+		(new ShowDoubleFloatArrays()).showArrays(pixels, hintGrid[0].length, hintGrid.length,  true, title, titles);
 	}
 	
 	/**
@@ -3245,7 +3245,7 @@ For each point in the image
 				int uv=u+v*result[v].length;
 				debugPixels[5][uv]=(result[v][u]!=null)?3000:-3000; // masked
 			}
-			(new showDoubleFloatArrays()).showArrays(
+			(new ShowDoubleFloatArrays()).showArrays(
 					debugPixels,
 					result[0].length,
 					result.length,
@@ -4603,7 +4603,7 @@ List calibration
 	    String title="RPRJ";
 	    int maxNumInTitle=10;
 	    for (int i=0;(i<imageNumbers.length) && (i<maxNumInTitle); i++) title+="-"+imageNumbers[i];
-		(new showDoubleFloatArrays()).showArrays(
+		(new ShowDoubleFloatArrays()).showArrays(
 				imgData,
 				width,
 				height,
@@ -6958,7 +6958,7 @@ List calibration
 	        			}
 	        		}
 	        	}
-	        	(new showDoubleFloatArrays()).showArrays(
+	        	(new ShowDoubleFloatArrays()).showArrays(
 	        			debugData,
 	        			width,
 	        			height,
@@ -6976,14 +6976,14 @@ List calibration
 	        			debugLowpassDiffGreen[n]=lowPassDiff[station][nView][1];
 	        		}
 	        	}
-	        	if (this.debugLevel>=(debugThreshold+1)) (new showDoubleFloatArrays()).showArrays(
+	        	if (this.debugLevel>=(debugThreshold+1)) (new ShowDoubleFloatArrays()).showArrays(
 	        			debugDiffGreen,
 	        			width,
 	        			height,
 	        			true,
 	        			"DiffGreen"+nIter,
 	        			titles);
-	        	if (this.debugLevel>=(debugThreshold+1)) (new showDoubleFloatArrays()).showArrays(
+	        	if (this.debugLevel>=(debugThreshold+1)) (new ShowDoubleFloatArrays()).showArrays(
 	        			debugHighpassDiffGreen,
 	        			width,
 	        			height,
@@ -6991,7 +6991,7 @@ List calibration
 	        			"HighpassGreen"+nIter,
 	        			titles);
 	        	
-	        	(new showDoubleFloatArrays()).showArrays(
+	        	(new ShowDoubleFloatArrays()).showArrays(
 	        			debugLowpassDiffGreen,
 	        			width,
 	        			height,
@@ -7000,7 +7000,7 @@ List calibration
 	        			titles);
 	        	
 	        	String [] averageTitles={"Red","Green","Blue","Weight"};
-	        	(new showDoubleFloatArrays()).showArrays(
+	        	(new ShowDoubleFloatArrays()).showArrays(
 	        			average,
 	        			width,
 	        			height,
@@ -7846,7 +7846,7 @@ D2=
 						} // end scanning pixels
 						if (showIndividual) {
 							String [] titles={"diff-X","diff-Y","pX","pY","alpha","X-correction(mm)","Y-correction(mm)","Z-correction(mm)"};
-							(new showDoubleFloatArrays()).showArrays(imgData, width, height,  true, "Grid"+imgNum, titles);
+							(new ShowDoubleFloatArrays()).showArrays(imgData, width, height,  true, "Grid"+imgNum, titles);
 						}
    						final int numFinished=imageFinishedAtomic.getAndIncrement();
 //						IJ.showProgress(progressValues[numFinished]);

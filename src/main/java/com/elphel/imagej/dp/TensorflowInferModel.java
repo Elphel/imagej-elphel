@@ -18,7 +18,7 @@ import org.apache.ant.compress.taskdefs.Unzip;
 import org.tensorflow.SavedModelBundle;
 import org.tensorflow.Tensor;
 
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -386,7 +386,7 @@ long[] shape = new long[] {batch, imageSize};
     		result[8][i] = (result[3][i] > 0)?result[0][i]:Float.NaN;
 
     	}
-		(new showDoubleFloatArrays()).showArrays(
+		(new ShowDoubleFloatArrays()).showArrays(
 				result,
 				tilesX,
 				tilesY,

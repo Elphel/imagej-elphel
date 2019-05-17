@@ -31,7 +31,7 @@ import java.util.Iterator;
 import java.util.List;
 
 import com.elphel.imagej.common.DoubleGaussianBlur;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 public class BlueLeak {
 	private double [][] rgb_in;
@@ -41,7 +41,7 @@ public class BlueLeak {
 	private int height;
 	private int length;
 	EyesisCorrectionParameters.ColorProcParameters  colorProcParameters;
-	private showDoubleFloatArrays SDFA_INSTANCE;
+	private ShowDoubleFloatArrays SDFA_INSTANCE;
 	private int [] dirs20;
 	private double [] weights20;
 	private int [] dirs8;
@@ -55,7 +55,7 @@ public class BlueLeak {
 			EyesisCorrectionParameters.ColorProcParameters  colorProcParameters,
 			double [][] rgb,
 			int width,
-			showDoubleFloatArrays SDFA_INSTANCE,
+			ShowDoubleFloatArrays SDFA_INSTANCE,
 			String dbgImgTitle,
 			int debugLevel){
 		length=rgb[0].length;

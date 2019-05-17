@@ -29,7 +29,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 
 public class PoleProcessor {
@@ -1902,7 +1902,7 @@ public class PoleProcessor {
 			  dbg_layers1[dbg_layers.length + 0] = norm_ds[0];
 			  dbg_layers1[dbg_layers.length + 1] = norm_ds[1];
 
-			  (new showDoubleFloatArrays()).showArrays(
+			  (new ShowDoubleFloatArrays()).showArrays(
 					  dbg_layers1,
 					  quadCLT_main.tp.getTilesX(),
 					  dbg_layers[0].length/quadCLT_main.tp.getTilesX(),
@@ -2048,7 +2048,7 @@ public class PoleProcessor {
 				  dbg_layers1[dbg_layers.length + 0] = norm_ds[0];
 				  dbg_layers1[dbg_layers.length + 1] = norm_ds[1];
 
-				  (new showDoubleFloatArrays()).showArrays(
+				  (new ShowDoubleFloatArrays()).showArrays(
 						  dbg_layers1,
 						  quadCLT_main.tp.getTilesX(),
 						  dbg_layers[0].length/quadCLT_main.tp.getTilesX(),
@@ -2129,7 +2129,7 @@ public class PoleProcessor {
 		  if (debug && (num_strong_zeros > 0)) {
 			  String [] titles = {"disparity","zero_disparity", "strength", "zero_strength"};
 			  double [][] dbg_layers = {ds[0], zero_tiles[0], ds[1], zero_tiles[1]};
-			  (new showDoubleFloatArrays()).showArrays(
+			  (new ShowDoubleFloatArrays()).showArrays(
 					  dbg_layers,
 					  tilesX,
 					  tilesY,
@@ -2220,7 +2220,7 @@ public class PoleProcessor {
 		  titles[4 * dbg_layers_meas.length + 0] = "disparity";
 		  titles[4 * dbg_layers_meas.length + 1] = "str-norm";
 
-		  (new showDoubleFloatArrays()).showArrays(
+		  (new ShowDoubleFloatArrays()).showArrays(
 				  dbg_layers1,
 				  quadCLT_main.tp.getTilesX(),
 				  dbg_layers1[0].length/quadCLT_main.tp.getTilesX(),
@@ -2263,7 +2263,7 @@ public class PoleProcessor {
 				  dbg_layers1[dbg_layers.length + 0] = norm_ds[0];
 				  dbg_layers1[dbg_layers.length + 1] = norm_ds[1];
 
-				  (new showDoubleFloatArrays()).showArrays(
+				  (new ShowDoubleFloatArrays()).showArrays(
 						  dbg_layers1,
 						  quadCLT_main.tp.getTilesX(),
 						  dbg_layers[0].length/quadCLT_main.tp.getTilesX(),
@@ -2292,7 +2292,7 @@ public class PoleProcessor {
 				  dbg_layers1[dbg_layers.length + 0] = norm_ds[0];
 				  dbg_layers1[dbg_layers.length + 1] = norm_ds[1];
 
-				  (new showDoubleFloatArrays()).showArrays(
+				  (new ShowDoubleFloatArrays()).showArrays(
 						  dbg_layers1,
 						  quadCLT_main.tp.getTilesX(),
 						  dbg_layers[0].length/quadCLT_main.tp.getTilesX(),
@@ -2320,7 +2320,7 @@ public class PoleProcessor {
 				  dbg_layers1[dbg_layers.length + 0] = norm_ds[0];
 				  dbg_layers1[dbg_layers.length + 1] = norm_ds[1];
 
-				  (new showDoubleFloatArrays()).showArrays(
+				  (new ShowDoubleFloatArrays()).showArrays(
 						  dbg_layers1,
 						  quadCLT_main.tp.getTilesX(),
 						  dbg_layers[0].length/quadCLT_main.tp.getTilesX(),
@@ -2401,7 +2401,7 @@ public class PoleProcessor {
 			  titles[4 * dbg_layers_meas.length + 0] = "disparity";
 			  titles[4 * dbg_layers_meas.length + 1] = "str-norm";
 
-			  (new showDoubleFloatArrays()).showArrays(
+			  (new ShowDoubleFloatArrays()).showArrays(
 					  dbg_layers1,
 					  quadCLT_main.tp.getTilesX(),
 					  dbg_layers1[0].length/quadCLT_main.tp.getTilesX(),
@@ -2676,7 +2676,7 @@ public class PoleProcessor {
 			  dbg_img[i] =            measured_poles[i][0];
 			  dbg_img[i+num_layers] = measured_poles[i][1];
 		  }
-		  (new showDoubleFloatArrays()).showArrays(
+		  (new ShowDoubleFloatArrays()).showArrays(
 				  dbg_img,
 				  tilesX,
 				  dbg_img[0].length/tilesX,

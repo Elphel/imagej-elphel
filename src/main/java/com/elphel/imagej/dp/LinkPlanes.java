@@ -29,7 +29,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 public class LinkPlanes {
 	SuperTiles st;
@@ -2085,7 +2085,7 @@ if (nsTile0 == 790) {
 						}
 						if ((dl > 1) && (nsTile == debug_stile)){
 							System.out.println("filterMergeSameTileCandidates().2: nsTile="+nsTile);
-							showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+							ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 							sdfa_instance.showArrays(plane_strengths, 2 * superTileSize, 2* superTileSize, true, "filterMergeSameTileCandidates_"+nsTile);
 						}
 
@@ -2213,7 +2213,7 @@ if (nsTile0 == 790) {
 						}
 						if ((dl > 1) && (nsTile == debug_stile)){
 							System.out.println("overlapSameTileCandidates().2: nsTile="+nsTile);
-							showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+							ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 							sdfa_instance.showArrays(plane_strengths, 2 * superTileSize, 2* superTileSize, true, "overlapSameTileCandidates_"+nsTile);
 						}
 						for (int np1 = 0; np1 < planes[nsTile].length; np1++) if (planes[nsTile][np1] != null){
@@ -4349,7 +4349,7 @@ if (nsTile0 == 790) {
 
 									}
 									if ((dl > 0) && (debugLevel > 0)){
-										showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+										ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 										sdfa_instance.showArrays(dbg_img, superTileSize, superTileSize, true, "smooth_step_x"+stx0+"_y"+sty0, titles);
 									}
 								} else { // if (this_new_plane != null)

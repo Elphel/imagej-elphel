@@ -32,7 +32,7 @@ import java.util.Comparator;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.elphel.imagej.common.DoubleGaussianBlur;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 public class TileProcessor {
 	public static String [] SCAN_TITLES = {
@@ -268,12 +268,12 @@ public class TileProcessor {
 		combo_pass.texture_tiles =        new double [tilesY][tilesX][][];
 		combo_pass.max_tried_disparity =  new double [tilesY][tilesX];
 		combo_pass.is_combo =             true;
-		showDoubleFloatArrays sdfa_instance = null;
+		ShowDoubleFloatArrays sdfa_instance = null;
 		String[] titles = null;
 		int dbg_tile = -1; // 27669;
 		double [][] dbg_data = null;
 		if (show_combined) {
-			sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			int numScans = lastPassPlus1 - firstPass;
 			titles = new String [3 * (numScans + 1) + 1];
 			dbg_data = new double [titles.length][tlen];
@@ -880,7 +880,7 @@ public class TileProcessor {
 						dbg_img[i][n]= (fund_per[n] == null) ? Double.NaN : fund_per[n][i];
 					}
 				}
-				(new showDoubleFloatArrays()).showArrays(
+				(new ShowDoubleFloatArrays()).showArrays(
 						dbg_img,
 						getTilesX(),
 						dbg_img[0].length/getTilesX(),
@@ -1860,7 +1860,7 @@ public class TileProcessor {
 			}
 		}
 		if (show_unique){
-			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 			double [] dbg_data = new double [tilesY*tilesX];
 			for (int ty = 0; ty < tilesY; ty ++) for (int tx = 0; tx < tilesX; tx ++){
 				dbg_data[ty * tilesX + tx] = (dbg_tile_op[ty][tx] == 0) ? 0: ((new_scan.tile_op[ty][tx] == 0.0) ? 1.0 : 2.0 );
@@ -2333,7 +2333,7 @@ public class TileProcessor {
 				}
 			}
 
-			(new showDoubleFloatArrays()).showArrays(dbg_img,  tilesX, tilesY, true, "setupExpand",titles);
+			(new ShowDoubleFloatArrays()).showArrays(dbg_img,  tilesX, tilesY, true, "setupExpand",titles);
 		}
 
 		return num_op;
@@ -2367,7 +2367,7 @@ public class TileProcessor {
 
 		double [][] dbg_img = null;
 		String [] dbg_titles = null;
-		showDoubleFloatArrays sdfa_instance = null;
+		ShowDoubleFloatArrays sdfa_instance = null;
 		DisparityProcessor dp = new DisparityProcessor(this, clt_parameters.transform_size * geometryCorrection.getScaleDzDx());
 		double [] disparity = scan.getDisparity(); // to modify in-place
 		boolean [] these_no_border = new boolean [tlen];
@@ -2626,7 +2626,7 @@ public class TileProcessor {
 			dbg_img[12] = diff2max;
 			dbg_img[13] = diff2maxAvg;
 
-			sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			sdfa_instance.showArrays(dbg_img,  tilesX, tilesY, true, "extend_disparity-"+clt_3d_passes.size(),dbg_titles);
 		}
 		return num_op_tiles; // num_extended;
@@ -2659,7 +2659,7 @@ public class TileProcessor {
 			}
 		}
 		if (num_slices > 0) {
-			(new showDoubleFloatArrays()).showArrays(dbg_img,  tilesX, tilesY, true, title, titles);
+			(new ShowDoubleFloatArrays()).showArrays(dbg_img,  tilesX, tilesY, true, title, titles);
 		}
 //		QUAD_CLT.tp.showScan(QUAD_CLT.tp.clt_3d_passes.get(scan_index),"Scan-"+scan_index);
 
@@ -2680,7 +2680,7 @@ public class TileProcessor {
 		if (scan.getTextureTiles()!=null) title+="+T"; else title+="-T";
 
 		double [][] dbg_img = getShowScan(scan);
-				(new showDoubleFloatArrays()).showArrays(dbg_img,  tilesX, tilesY, true, title,titles);
+				(new ShowDoubleFloatArrays()).showArrays(dbg_img,  tilesX, tilesY, true, title,titles);
 		System.out.println("showScan("+title+"): isMeasured()="+scan.isMeasured()+", isProcessed()="+scan.isProcessed()+", isCombo()="+scan.isCombo());
 	}
 
@@ -2806,9 +2806,9 @@ public class TileProcessor {
 		boolean [] nonbgnd_tiles =    new boolean [tilesY * tilesX];
 		boolean [] block_propagate =  new boolean [tilesY * tilesX];
 		int quad = 4;
-		showDoubleFloatArrays sdfa_instance = null;
+		ShowDoubleFloatArrays sdfa_instance = null;
 		if (debugLevel > -1)
-			sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 		//		  boolean [] new_tiles =        new boolean [tilesY * tilesX]; // grow selection by 1 tile over non-background?
 		CLTPass3d bgnd_data = clt_3d_passes.get(0);
@@ -2949,9 +2949,9 @@ public class TileProcessor {
 		boolean [] nonbgnd_tiles =    new boolean [tilesY * tilesX];
 		boolean [] block_propagate =  new boolean [tilesY * tilesX];
 		int quad = 4;
-		showDoubleFloatArrays sdfa_instance = null;
+		ShowDoubleFloatArrays sdfa_instance = null;
 		if (debugLevel > -1)
-			sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 		//		  boolean [] new_tiles =        new boolean [tilesY * tilesX]; // grow selection by 1 tile over non-background?
 		CLTPass3d bgnd_data = clt_3d_passes.get(0);
@@ -3010,8 +3010,8 @@ public class TileProcessor {
 				block_propagate, // tiles,
 				null); // prohibit);
 		if ((debugLevel > -1) && show_bgnd_nonbgnd){
-			 new showDoubleFloatArrays().showArrays(bgnd_data.disparity_map,  tilesX, tilesY, true, "bgnd_map",ImageDtt.DISPARITY_TITLES);
-			 new showDoubleFloatArrays().showArrays(dbg_worst2,  tilesX, tilesY, "worst2");
+			 new ShowDoubleFloatArrays().showArrays(bgnd_data.disparity_map,  tilesX, tilesY, true, "bgnd_map",ImageDtt.DISPARITY_TITLES);
+			 new ShowDoubleFloatArrays().showArrays(dbg_worst2,  tilesX, tilesY, "worst2");
 		}
 		// TODO: check if minimal cluster strengh should be limited here
 		if (min_clstr_seed > 1){
@@ -3145,8 +3145,8 @@ public class TileProcessor {
 			int       debugLevel)
 	{
 		final int maxrep=1000;
-		showDoubleFloatArrays sdfa_instance = null;
-		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		ShowDoubleFloatArrays sdfa_instance = null;
+		if (debugLevel > -1) sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		int tilesX2 = tilesX + 2;
 		int tilesY2 = tilesY + 2;
 		int tlen2 = tilesX2*tilesY2;
@@ -3401,8 +3401,8 @@ public class TileProcessor {
 			double    maxDisparity,
 			int       debugLevel)
 	{
-		showDoubleFloatArrays sdfa_instance = null;
-		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		ShowDoubleFloatArrays sdfa_instance = null;
+		if (debugLevel > -1) sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 		// adding 1-tile frame around to avoid checking for the borders
 		int tilesX4 = tilesX + 4;
@@ -4143,8 +4143,8 @@ public class TileProcessor {
 
 		final int dbg_tile = -41030; // x = 206, y = 126 (324*126+206)
 		final boolean show_scan = show_filter_scan || (debugLevel > 1);
-		showDoubleFloatArrays sdfa_instance = null;
-		if ((debugLevel > -2) && ((debugLevel > -1) || show_scan)) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		ShowDoubleFloatArrays sdfa_instance = null;
+		if ((debugLevel > -2) && ((debugLevel > -1) || show_scan)) sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		if (debugLevel > -2){ //-2
 			if (debugLevel > -1){ //-2
 				System.out.print("FilterScan(,,"+disparity_far+", " +disparity_near+", "+ sure_smth+"... ");
@@ -4494,7 +4494,7 @@ public class TileProcessor {
 			for (int i = 0; i < replaced.length; i++) {
 				dbg_img[12][i] = replaced[i];
 			}
-			(new showDoubleFloatArrays()).showArrays(dbg_img, tilesX, tilesY, true, "ortho_internal",dbg_titles);
+			(new ShowDoubleFloatArrays()).showArrays(dbg_img, tilesX, tilesY, true, "ortho_internal",dbg_titles);
 		}
 		return replaced;
 	}
@@ -4513,8 +4513,8 @@ public class TileProcessor {
 			final int         debugLevel
 	)
 	{
-		showDoubleFloatArrays sdfa_instance = null;
-		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		ShowDoubleFloatArrays sdfa_instance = null;
+		if (debugLevel > -1) sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 		// scale and shift all 3 disparities - combo, vert and hor
 		final int tlen = tilesY * tilesX;
@@ -4817,8 +4817,8 @@ public class TileProcessor {
 		CLTPass3d scan_bg =   clt_3d_passes.get(bg_scan_index); //
 		CLTPass3d scan_lm =   getLastMeasured(-1);
 //		boolean [] border_tiles = (scan_lm != null) ? scan_lm.getBorderTiles() : null;
-		showDoubleFloatArrays sdfa_instance = null;
-		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		ShowDoubleFloatArrays sdfa_instance = null;
+		if (debugLevel > -1) sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		//TODO: for next passes - combine all selected for previous passes (all passes with smaller disparity)
 		int [] replaced =  null; // +1 - hor, +2 - vert
 		int [] replaced0 = null; // +1 - hor, +2 - vert
@@ -5184,7 +5184,7 @@ public class TileProcessor {
 
 
 		if (texture_tiles != null){
-			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			double [][] texture_nonoverlap = null;
 			double [][] texture_overlap = null;
 			String [] rgba_titles = {"red","blue","green","alpha"};
@@ -5523,7 +5523,7 @@ public class TileProcessor {
 					dbg_tls[ml][i] = tile_layers_surf[ml][i];
 				}
 			}
-			(new showDoubleFloatArrays()).showArrays(dbg_tls, ta.getSurfTilesX(), ta.getSurfTilesY(), true, "tile_layers_surf");
+			(new ShowDoubleFloatArrays()).showArrays(dbg_tls, ta.getSurfTilesX(), ta.getSurfTilesY(), true, "tile_layers_surf");
 		}
 		if (!batch_mode && (debugLevel > -1)) {
 			ta.showTileCost("before_",tile_layers_surf); // , true);
@@ -5551,7 +5551,7 @@ public class TileProcessor {
 					dbg_tls[ml][i] = tile_layers_surf[ml][i];
 				}
 			}
-			(new showDoubleFloatArrays()).showArrays(dbg_tls, ta.getSurfTilesX(), ta.getSurfTilesY(), true, "optimized_tile_layers_surf");
+			(new ShowDoubleFloatArrays()).showArrays(dbg_tls, ta.getSurfTilesX(), ta.getSurfTilesY(), true, "optimized_tile_layers_surf");
 		}
 		if (!batch_mode && (debugLevel > -2)) {
 			ta.showTileCost("after_",tile_layers_surf); // , true);
@@ -5583,7 +5583,7 @@ public class TileProcessor {
 		if (!batch_mode && clt_parameters.tsShow && (debugLevel > -2)){
 			String title_asgn = "assignments";
 			String [] titles_asgn =  tileSurface.getTitlesAssignment(dispStrength);
-			(new showDoubleFloatArrays()).showArrays(assignments_dbg,  tilesX, tilesY, true, title_asgn, titles_asgn);
+			(new ShowDoubleFloatArrays()).showArrays(assignments_dbg,  tilesX, tilesY, true, title_asgn, titles_asgn);
 ///			tileSurface.showAssignment(
 ///					"assignments", // String title,
 ///					dispStrength); // final double [][][] dispStrength)
@@ -5719,7 +5719,7 @@ public class TileProcessor {
 				img_data[2 * i + 1] = tileSurface.getSurfaceData(i).getDisparityNaN(false);
 
 			}
-			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			sdfa_instance.showArrays(img_data, tilesX, tilesY, true, "final_surfaces",titles);
 		}
 		return assignments_dbg;
@@ -5826,7 +5826,7 @@ public class TileProcessor {
 		if (show_st){
 			int hist_width0 =  scan_prev.getSuperTiles().showDisparityHistogramWidth();
 			int hist_height0 = dbg_hist[0].length/hist_width0;
-			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			sdfa_instance.showArrays(dbg_hist, hist_width0, hist_height0, true, "disparity_supertiles_histograms",dbg_st_titles);
 		}
 
@@ -6376,7 +6376,7 @@ public class TileProcessor {
 
 				}
 			}
-			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			sdfa_instance.showArrays(plane_data, wh[0], wh[1], true, "plane_data-"+suffix);
 	}
 
@@ -6420,7 +6420,7 @@ public class TileProcessor {
 
 
 		if (clt_parameters.show_planes){
-			showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			int [] wh = st.getShowPlanesWidthHeight();
 			double [][] plane_data = st.getShowShells(
 					0, // int  nlayer, // over multi-layer - do not render more than nlayer on top of each other
@@ -6621,8 +6621,8 @@ public class TileProcessor {
 		CLTPass3d scan_prev = clt_3d_passes.get(clt_3d_passes.size() -1); // get last one
 		CLTPass3d scan_lm =   getLastMeasured(-1);
 
-		showDoubleFloatArrays sdfa_instance = null;
-		if (!batch_mode && (debugLevel > -1)) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		ShowDoubleFloatArrays sdfa_instance = null;
+		if (!batch_mode && (debugLevel > -1)) sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		//TODO: for next passes - combine all selected for previous passes (all passes with smaller disparity)
 		boolean show_st =   !batch_mode && ( clt_parameters.stShow || (debugLevel > 1));
 
@@ -6795,8 +6795,8 @@ public class TileProcessor {
 			final int         debugLevel)
 	{
 		CLTPass3d scan_prev = clt_3d_passes.get(clt_3d_passes.size() -1); // get last one
-		showDoubleFloatArrays sdfa_instance = null;
-		if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		ShowDoubleFloatArrays sdfa_instance = null;
+		if (debugLevel > -1) sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		boolean [] these_tiles = scan_prev.getSelected();
 		double [] this_disparity     = scan_prev.getDisparity().clone(); // returns a copy of the FPGA-generated disparity combined with the target one
 		double [] this_strength =      scan_prev.getStrength().clone(); // cloned, can be modified/ read back
@@ -7619,7 +7619,7 @@ public class TileProcessor {
 			int [][]  indices,
 			int [][]  triangles)
 	{
-		showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+		ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 		String [] titles = {"disparity","triangles"};
 		double [][] dbg_img = new double [titles.length][tilesX*tilesY*tile_size*tile_size];
 		for (int i = 0; i < selected.length; i++ ){

@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.SwingUtilities;
 
 import com.elphel.imagej.common.DoubleFHT;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 
 public class DebayerScissors {
@@ -134,7 +134,7 @@ public class DebayerScissors {
   					  int chn,tileY,tileX,i;
   					  for (chn=0;chn<nChn;chn++) pixels[chn]= (float[]) imageStack.getPixels(chn+1);
   					  DoubleFHT       fht_instance =   new DoubleFHT(); // provide DoubleFHT instance to save on initializations (or null)
-  					  showDoubleFloatArrays SDFA_instance=null; // just for debugging?
+  					  ShowDoubleFloatArrays SDFA_instance=null; // just for debugging?
 
   					  deBayerScissors debayer_instance=new deBayerScissors( debayerParameters.size, // size of the square array, centar is at size/2, size/2, only top half+line will be used
   							  debayerParameters.polarStep, // maximal step in pixels on the maxRadius for 1 angular step (i.e. 0.5)
@@ -167,7 +167,7 @@ public class DebayerScissors {
   						  /* Scale green channel x0.5 as there are twice more pixels there as in red or blue. Or move it somewhere else and multiply to original range ? */
   						  for (i=0;i<tile[greenChn].length;i++) tile[greenChn][i]*=0.5;
   						  if ((tileY==yTileDebug) && (tileX==xTileDebug)) {
-  							  if (SDFA_instance==null) SDFA_instance=      new showDoubleFloatArrays();
+  							  if (SDFA_instance==null) SDFA_instance=      new ShowDoubleFloatArrays();
   							  SDFA_instance.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "x"+(tileX*step)+"_y"+(tileY*step));
   						  }
   						  for (chn=0;chn<nChn;chn++){

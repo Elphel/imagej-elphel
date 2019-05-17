@@ -61,7 +61,7 @@ public class DoubleFHT  {
 	private double [] translateFHTdXY=null;
 	private int translateFHTN=0;
 	public boolean debug=false;
-	private showDoubleFloatArrays SDFA_INSTANCE= new showDoubleFloatArrays(); // just for debugging?
+	private ShowDoubleFloatArrays SDFA_INSTANCE= new ShowDoubleFloatArrays(); // just for debugging?
 	public DoubleFHT() {
 	  this.C = null;
 	  this.S = null;

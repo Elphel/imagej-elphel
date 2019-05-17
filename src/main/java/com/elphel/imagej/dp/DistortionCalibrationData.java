@@ -36,7 +36,7 @@ import org.apache.commons.configuration.HierarchicalConfiguration;
 import org.apache.commons.configuration.XMLConfiguration;
 
 import com.elphel.imagej.common.DoubleGaussianBlur;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 import ij.IJ;
@@ -80,7 +80,7 @@ import ij.text.TextWindow;
     	//pixelsXY, pixelsUV should match, second dimension is variable
     	public boolean updateStatus=true;
     	public int     debugLevel=2;
-    	private showDoubleFloatArrays SDFA_INSTANCE=null; // just for debugging
+    	private ShowDoubleFloatArrays SDFA_INSTANCE=null; // just for debugging
     	public int getNumStations(){
     		return (eyesisCameraParameters==null)?0:eyesisCameraParameters.getNumStations();
     	}
@@ -2795,7 +2795,7 @@ import ij.text.TextWindow;
 			    }
 
 				String [] dbgTitles={"diff20","diff2Mod","localWorst", "old-X", "old-Y", "new-X", "new-Y","old-new-X","old-new-Y"};
-				if (dbgTitle!=null) (new showDoubleFloatArrays()).showArrays(dbgData, width, height, true,  dbgTitle, dbgTitles);
+				if (dbgTitle!=null) (new ShowDoubleFloatArrays()).showArrays(dbgData, width, height, true,  dbgTitle, dbgTitles);
 			}
         	return numBad;
         }
@@ -3364,7 +3364,7 @@ import ij.text.TextWindow;
         	int numChannels=getNumChannels();
         	this.sensorMasks=new double [numChannels][];
         	DoubleGaussianBlur gb=new DoubleGaussianBlur();
-        	if ((this.debugLevel>1) && (SDFA_INSTANCE==null)) SDFA_INSTANCE=new showDoubleFloatArrays();
+        	if ((this.debugLevel>1) && (SDFA_INSTANCE==null)) SDFA_INSTANCE=new ShowDoubleFloatArrays();
 			if (this.debugLevel>2)System.out.println("calculateSensorMasks("+width+","+height+","+shrinkGridForMask+","+sigmaUV+")");
         	for (int chNum=0;chNum<numChannels; chNum++){
         		this.sensorMasks[chNum]=new double[dWidth*dHeight];
@@ -3466,7 +3466,7 @@ import ij.text.TextWindow;
         	int dWidth=  (width -1)/decimate+1;
         	int dHeight= (height-1)/decimate+1;
         	DoubleGaussianBlur gb=new DoubleGaussianBlur();
-        	if ((this.debugLevel>1) && (SDFA_INSTANCE==null)) SDFA_INSTANCE=new showDoubleFloatArrays();
+        	if ((this.debugLevel>1) && (SDFA_INSTANCE==null)) SDFA_INSTANCE=new ShowDoubleFloatArrays();
         	if (this.debugLevel>2)System.out.println("calculateSensorMasks("+width+","+height+","+shrinkGridForMask+","+sigmaUV+")");
         	double [][] preMask=preCalculateSingleImageMask(imgNum, decimate, width, height, shrinkGridForMask);
         	if (preMask==null) return null; //nothing in this channel

@@ -41,7 +41,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.elphel.imagej.common.DoubleGaussianBlur;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 import com.elphel.imagej.x3d.export.WavefrontExport;
 import com.elphel.imagej.x3d.export.X3dOutput;
@@ -481,8 +481,8 @@ public class QuadCLT {
 					  ImageDtt image_dtt = new ImageDtt();
 					  int chn,tileY,tileX;
 					  DttRad2 dtt = new DttRad2(dtt_size);
-					  showDoubleFloatArrays sdfa_instance = null;
-					  if (globalDebugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+					  ShowDoubleFloatArrays sdfa_instance = null;
+					  if (globalDebugLevel > -1) sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 					  for (int nTile = ai.getAndIncrement(); nTile < numberOfKernels; nTile = ai.getAndIncrement()) {
 						  chn=nTile/numberOfKernelsInChn;
@@ -772,7 +772,7 @@ public class QuadCLT {
 		  int dtt_len = clt_kernels[chn][0][0][0][0].length;
 		  int dtt_size= (int)Math.sqrt(dtt_len);
 		  String [] titles = {"red", "blue", "green"};
-		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 		  sdfa_instance.showArrays(
 				  flat_kernels,
 				  clt_kernels[chn][0][0].length*(2*dtt_size),
@@ -877,7 +877,7 @@ public class QuadCLT {
 					clt_kernels[chn] = null;
 				}
 			}
-		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 
 		  for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
 			  if (eyesisCorrections.usedChannels[chn] && (sharpKernelPaths[chn]!=null) && (clt_kernels[chn]==null)){
@@ -964,9 +964,9 @@ public class QuadCLT {
 				  clt_kernels[chn] = null;
 			  }
 		  }
-		  showDoubleFloatArrays sdfa_instance = null;
+		  ShowDoubleFloatArrays sdfa_instance = null;
 		  if (debugLevel>0){
-			  sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			  sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		  }
 
 		  for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
@@ -1505,7 +1505,7 @@ public class QuadCLT {
 		  boolean rotate=    advanced? false: this.correctionsParameters.rotate;
 		  double JPEG_scale= advanced? 1.0: this.correctionsParameters.JPEG_scale;
 		  boolean toRGB=     advanced? true: this.correctionsParameters.toRGB;
-		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 		  // may use this.StartTime to report intermediate steps execution times
 		  String name=(String) imp_src.getProperty("name");
@@ -2233,7 +2233,7 @@ public class QuadCLT {
 		  boolean rotate=    advanced? false: this.correctionsParameters.rotate;
 		  double JPEG_scale= advanced? 1.0: this.correctionsParameters.JPEG_scale;
 		  boolean toRGB=     advanced? true: this.correctionsParameters.toRGB;
-		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 		  // may use this.StartTime to report intermediate steps execution times
 		  String name=(String) imp_src.getProperty("name");
@@ -2879,7 +2879,7 @@ public class QuadCLT {
 		  boolean rotate=    advanced? false: this.correctionsParameters.rotate;
 		  double JPEG_scale= advanced? 1.0: this.correctionsParameters.JPEG_scale;
 		  boolean toRGB=     advanced? true: this.correctionsParameters.toRGB;
-		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 		  // may use this.StartTime to report intermediate steps execution times
 		  String name=(String) imp_quad[0].getProperty("name");
@@ -3564,7 +3564,7 @@ public class QuadCLT {
 			  }
 			  int width =  imp_srcs[0].getWidth();
 			  int height = imp_srcs[0].getHeight();
-			  (new showDoubleFloatArrays()).showArrays(dbg_satur, width, height, true, "Saturated" , titles);
+			  (new ShowDoubleFloatArrays()).showArrays(dbg_satur, width, height, true, "Saturated" , titles);
 
 			  if (debugLevel > -1) { // 0){
 				  double [][] dbg_dpixels_norm = new double [channelFiles.length][];
@@ -3575,8 +3575,8 @@ public class QuadCLT {
 						  dbg_dpixels_norm[srcChannel][i] = pixels[i];
 					  }
 				  }
-				  (new showDoubleFloatArrays()).showArrays(dbg_dpixels, width, height, true, "dpixels" , titles);
-				  (new showDoubleFloatArrays()).showArrays(dbg_dpixels_norm, width, height, true, "dpixels_norm" , titles);
+				  (new ShowDoubleFloatArrays()).showArrays(dbg_dpixels, width, height, true, "dpixels" , titles);
+				  (new ShowDoubleFloatArrays()).showArrays(dbg_dpixels_norm, width, height, true, "dpixels_norm" , titles);
 				  double [][] dbg_dpixels_split = new double [4 * dbg_dpixels.length][dbg_dpixels[0].length / 4];
 				  String [] dbg_titles = {"g1_0","r_0","b_0","g2_0","g1_2","r_1","b_1","g2_1","g1_2","r_2","b_2","g2_2","g1_3","r_3","b_3","g2_3"};
 				  for (int srcChn = 0; srcChn < 4; srcChn++) {
@@ -3589,7 +3589,7 @@ public class QuadCLT {
 						  }
 					  }
 				  }
-				  (new showDoubleFloatArrays()).showArrays(dbg_dpixels_split, width/2, height/2, true, "dpixels_split" , dbg_titles);
+				  (new ShowDoubleFloatArrays()).showArrays(dbg_dpixels_split, width/2, height/2, true, "dpixels_split" , dbg_titles);
 			  }
 
 		  }
@@ -3922,7 +3922,7 @@ public class QuadCLT {
 		  final boolean      batch_mode = clt_parameters.batch_run; //disable any debug images
 		  boolean advanced=  this.correctionsParameters.zcorrect || this.correctionsParameters.equirectangular;
 		  boolean toRGB=     advanced? true: this.correctionsParameters.toRGB;
-		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 		  // may use this.StartTime to report intermediate steps execution times
 		  String name=this.correctionsParameters.getModelName((String) imp_quad[0].getProperty("name"));
@@ -4514,7 +4514,7 @@ public class QuadCLT {
 			  int debugLevel
 			  )
 	  {
-		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		  // convert to ImageStack of 3 slices
 		  String [] sliceNames = {"red", "blue", "green"};
 		  float []   alpha = null; // (0..1.0)
@@ -4563,7 +4563,7 @@ public class QuadCLT {
 			  int debugLevel
 			  )
 	  {
-		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		  // convert to ImageStack of 3 slices
 		  String [] sliceNames = {"red", "blue", "green"};
 		  double []   alpha = null; // (0..1.0)
@@ -5178,7 +5178,7 @@ public class QuadCLT {
 			  final int        threadsMax,  // maximal number of threads to launch
 			  final boolean    updateStatus,
 			  final int        debugLevel){
-		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 		  // may use this.StartTime to report intermediate steps execution times
 		  String name=(String) imp_quad[0].getProperty("name");
@@ -6531,7 +6531,7 @@ public class QuadCLT {
 					  dbg_bg_sel,
 					  dbg_bg_use, // too few
 					  dbg_combo_use};
-			  (new showDoubleFloatArrays()).showArrays(dbg_img,  tp.getTilesX(), tp.getTilesY(), true, "extrinsics_bgnd_combo",titles);
+			  (new ShowDoubleFloatArrays()).showArrays(dbg_img,  tp.getTilesX(), tp.getTilesY(), true, "extrinsics_bgnd_combo",titles);
 		  }
 		  AlignmentCorrection ac = new AlignmentCorrection(this);
 		  // iteration steps
@@ -6574,7 +6574,7 @@ public class QuadCLT {
 				  scans14[14 * 1 + 2 + i] =  combo_mismatch[i];
 			  }
 			  if (debugLevelInner > 0) {
-				  (new showDoubleFloatArrays()).showArrays(scans14, tp.getTilesX(), tp.getTilesY(), true, "scans_14"); //  , titles);
+				  (new ShowDoubleFloatArrays()).showArrays(scans14, tp.getTilesX(), tp.getTilesY(), true, "scans_14"); //  , titles);
 			  }
 
 			  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel > 1)) {
@@ -6769,7 +6769,7 @@ public class QuadCLT {
 				  scans14[14 * 0 + 2 + i] =  combo_mismatch[i];
 			  }
 			  if (debugLevelInner > 0) {
-				  (new showDoubleFloatArrays()).showArrays(scans14, tp.getTilesX(), tp.getTilesY(), true, "scans_14"); //  , titles);
+				  (new ShowDoubleFloatArrays()).showArrays(scans14, tp.getTilesX(), tp.getTilesY(), true, "scans_14"); //  , titles);
 			  }
 
 			  if (!batch_mode && clt_parameters.show_extrinsic && (debugLevel > 1)) {
@@ -7368,7 +7368,7 @@ public class QuadCLT {
     			  }
     		  }
 
-    		  (new showDoubleFloatArrays()).showArrays(dbg_img,  tilesX, tilesY, true, title,titles);
+    		  (new ShowDoubleFloatArrays()).showArrays(dbg_img,  tilesX, tilesY, true, title,titles);
     	  }
     	  int [] numLeftRemoved = {0, 0};
     	  int num_extended = 0;
@@ -7583,7 +7583,7 @@ public class QuadCLT {
 				}
 			}
 
-		  (new showDoubleFloatArrays()).showArrays(
+		  (new ShowDoubleFloatArrays()).showArrays(
 				  dbg_img,
 				  tp.getTilesX(),
 				  tp.getTilesY(),
@@ -8005,11 +8005,11 @@ public class QuadCLT {
 
 		  final int tilesX = tp.getTilesX();
 		  final int tilesY = tp.getTilesY();
-		  showDoubleFloatArrays sdfa_instance = null;
+		  ShowDoubleFloatArrays sdfa_instance = null;
 
 		  if (clt_parameters.debug_filters && (debugLevel > -1))
 //		  if ((debugLevel > -1))
-			  sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+			  sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 		  CLTPass3d bgnd_data = tp.clt_3d_passes.get(0);
 		  double [][][][] texture_tiles = bgnd_data.texture_tiles;
@@ -8207,8 +8207,8 @@ public class QuadCLT {
 		 final int tilesX = tp.getTilesX();
 		 final int tilesY = tp.getTilesY();
 
-		  showDoubleFloatArrays sdfa_instance = null;
-    	  if (debugLevel > -1) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		  ShowDoubleFloatArrays sdfa_instance = null;
+    	  if (debugLevel > -1) sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		  CLTPass3d scan = tp.clt_3d_passes.get(scanIndex);
 		  boolean [] borderTiles = scan.border_tiles;
 		  double [][][][] texture_tiles = scan.texture_tiles;
@@ -9068,7 +9068,7 @@ public class QuadCLT {
 			  }
 			  int width =  imp_srcs[0].getWidth();
 			  int height = imp_srcs[0].getHeight();
-			  (new showDoubleFloatArrays()).showArrays(dbg_satur, width, height, true, "Saturated" , titles);
+			  (new ShowDoubleFloatArrays()).showArrays(dbg_satur, width, height, true, "Saturated" , titles);
 
 			  if (debugLevel > -1) { // 0){
 				  double [][] dbg_dpixels_norm = new double [channelFiles.length][];
@@ -9079,8 +9079,8 @@ public class QuadCLT {
 						  dbg_dpixels_norm[srcChannel][i] = pixels[i];
 					  }
 				  }
-				  (new showDoubleFloatArrays()).showArrays(dbg_dpixels, width, height, true, "dpixels" , titles);
-				  (new showDoubleFloatArrays()).showArrays(dbg_dpixels_norm, width, height, true, "dpixels_norm" , titles);
+				  (new ShowDoubleFloatArrays()).showArrays(dbg_dpixels, width, height, true, "dpixels" , titles);
+				  (new ShowDoubleFloatArrays()).showArrays(dbg_dpixels_norm, width, height, true, "dpixels_norm" , titles);
 				  double [][] dbg_dpixels_split = new double [4 * dbg_dpixels.length][dbg_dpixels[0].length / 4];
 				  String [] dbg_titles = {"g1_0","r_0","b_0","g2_0","g1_2","r_1","b_1","g2_1","g1_2","r_2","b_2","g2_2","g1_3","r_3","b_3","g2_3"};
 				  for (int srcChn = 0; srcChn < 4; srcChn++) {
@@ -9093,7 +9093,7 @@ public class QuadCLT {
 						  }
 					  }
 				  }
-				  (new showDoubleFloatArrays()).showArrays(dbg_dpixels_split, width/2, height/2, true, "dpixels_split" , dbg_titles);
+				  (new ShowDoubleFloatArrays()).showArrays(dbg_dpixels_split, width/2, height/2, true, "dpixels_split" , dbg_titles);
 			  }
 		  }
 

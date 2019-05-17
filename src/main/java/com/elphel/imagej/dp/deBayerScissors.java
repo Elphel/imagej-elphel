@@ -31,13 +31,13 @@ import ij.plugin.filter.GaussianBlur;
 import java.util.HashSet;
 
 import com.elphel.imagej.common.DoubleFHT;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 public class deBayerScissors {
 	private PolarSpectrums        pol_instace=null;
 	private double [][][]         lopass=null;
 	private int                   size;
 	private double                lastMidEnergy; // last midrange spectral energy
-	private showDoubleFloatArrays SDFA_instance; // just for debugging?
+	private ShowDoubleFloatArrays SDFA_instance; // just for debugging?
 	private DoubleFHT             fht_instance;
 	private int [][] aliasMapRedBlue={
 			{-2,-2},{-2,-1},{-2,0},{-2,1},
@@ -56,7 +56,7 @@ public class deBayerScissors {
 			double debayer_width_redblue_clones){// green mask when applied to red/blue, clones 
 		size=isize;
 		fht_instance=       new DoubleFHT();
-		SDFA_instance=      new showDoubleFloatArrays();
+		SDFA_instance=      new ShowDoubleFloatArrays();
 		pol_instace=new PolarSpectrums(size, // size of the square array, centar is at size/2, size/2, only top half+line will be used
 				Math.PI,
 				size/2-2, // width of the polar array - should be <= size/2-2

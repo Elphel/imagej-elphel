@@ -30,7 +30,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 
 import com.elphel.imagej.common.DoubleGaussianBlur;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 import Jama.EigenvalueDecomposition;
 import Jama.Matrix;
@@ -1716,7 +1716,7 @@ public class TilePlanes {
 
 					if ((debugLevel > 3) && (disp_str[nl] != null)){
 //					if ((debugLevel > 1) && (disp_str[nl] != null)){
-						  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+						  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 						  double [][] dbg_img = new double [3][];
 						  dbg_img[0] = disp_str[nl][0];
 						  dbg_img[1] = disp_str[nl][1];
@@ -1850,7 +1850,7 @@ public class TilePlanes {
 						}
 						if ((debugLevel > 2) && (disp_str[nl] != null)){
 							//						if ((debugLevel > 1) && (disp_str[nl] != null)){
-							showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+							ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 							double [][] dbg_img = new double [4][];
 							dbg_img[0] = disp_str[nl][0];
 							dbg_img[1] = disp_str[nl][1];
@@ -1876,7 +1876,7 @@ public class TilePlanes {
 			} else {
 				if (debugLevel > 2){
 					for (int nl = 0; nl < tile_sel.length; nl++) if (disp_str[nl] != null) {
-						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+						ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 						double [][] dbg_img = new double [3][];
 						dbg_img[0] = disp_str[nl][0];
 						dbg_img[1] = disp_str[nl][1];
@@ -2130,7 +2130,7 @@ public class TilePlanes {
 
 //					if ((debugLevel > 2) && (disp_str[nl] != null)){
 					if ((debugLevel > 3) && (disp_str[nl] != null)){
-						  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+						  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 						  double [][] dbg_img = new double [3][];
 						  dbg_img[0] = disp_str[nl][0];
 						  dbg_img[1] = disp_str[nl][1];
@@ -2210,7 +2210,7 @@ public class TilePlanes {
 						}
 					}
 					if ((debugLevel > 3) && (disp_str[nl] != null)){
-						showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+						ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 						double [][] dbg_img = new double [4][stSize2*stSize2];
 						for (int indx = 0; indx < dbg_img[0].length; indx++){
 							if (tiles_xyzw[nl][indx] != null) {
@@ -4350,7 +4350,7 @@ public class TilePlanes {
 			// first make a plane from all tiles
 			ArrayList<PlaneData> st_planes = new ArrayList<PlaneData>();
 			if (debugLevel > 2) {
-				showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+				ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 				double [][] dbg_img = new double [plane_selections.length][];
 				for (int ps = 0; ps < plane_selections.length; ps++) {
 					dbg_img[ps] = new double [plane_selections[ps][0].length];
@@ -4718,7 +4718,7 @@ public class TilePlanes {
 						}
 					}
 				}
-				showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+				ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 				sdfa_instance.showArrays(dbg_img,     2 * superTileSize, 2 * superTileSize, true, "refine-"+prefix,dbg_titles);
 			}
 
@@ -5545,7 +5545,7 @@ public class TilePlanes {
 						}
 					}
 				}
-				showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+				ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 				sdfa_instance.showArrays(dbg_img,     2 * superTileSize, 2 * superTileSize, true, "refine-"+prefix,dbg_titles);
 			}
 			if (debugLevel > 1)	{
@@ -5732,7 +5732,7 @@ public class TilePlanes {
 									dbg_img[8][i] = selections[np][i] ? clusters[i] : 0.0;
 								}
 
-								showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays();
+								ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays();
 								sdfa_instance.showArrays(dbg_img, 2 * superTileSize, 2* superTileSize, true, "bridges-"+np+"-"+debugLevel,dbg_titles);
 								sdfa_instance.showArrays(pds,     2 * superTileSize, 2* superTileSize, true, "pds-bridges-"+np+"-"+debugLevel,dbg_titles);
 							}

@@ -24,7 +24,7 @@ package com.elphel.imagej.dp;
 
 import java.util.ArrayList;
 
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 
 public class BiCamDSI {
@@ -434,7 +434,7 @@ public class BiCamDSI {
 					double [][] weight_mask =  get9weightMasks(
 							nd, // >=1int        neib_dist, // >=1
 							rs);
-					(new showDoubleFloatArrays()).showArrays(
+					(new ShowDoubleFloatArrays()).showArrays(
 							weight_mask,
 							2*nd+1,
 							2*nd+1,
@@ -565,7 +565,7 @@ public class BiCamDSI {
 
 		}
 		if (debugLevel > 0) {
-			(new showDoubleFloatArrays()).showArrays(
+			(new ShowDoubleFloatArrays()).showArrays(
 					weight_mask,
 					2*neib_dist+1,
 					2*neib_dist+1,
@@ -576,7 +576,7 @@ public class BiCamDSI {
 		if (mean_to_rms != null) {
 			double [][] dbg_img = {disparity, strength, mean_to_rms[0], mean_to_rms[1], mean_to_rms[2], mean_to_rms[3]};
 			String [] titles = {"disparity", "strength", "mean_to_rms","mean","rms", "dir/10"};
-			(new showDoubleFloatArrays()).showArrays(
+			(new ShowDoubleFloatArrays()).showArrays(
 					dbg_img,
 					tilesX,
 					mean_to_rms[0].length/tilesX,
@@ -589,7 +589,7 @@ public class BiCamDSI {
 					"dr0","dr1","dr2","dr3","dr4","dr5","dr6","dr7","dr8",
 					"m0","m1","m2","m3","m4","m5","m6","m7","m8",
 					"r0","r1","r2","r3","r4","r5","r6","r7","r8"};
-			(new showDoubleFloatArrays()).showArrays(
+			(new ShowDoubleFloatArrays()).showArrays(
 					dbg_dirs,
 					tilesX,
 					mean_to_rms[0].length/tilesX,
@@ -940,7 +940,7 @@ public class BiCamDSI {
 			System.out.println ("Updated sigma in tiles:"+num_sigma+" (sigma = "+sigma+", sigma2 = "+sigma2);
 			System.out.println ("Tiles to meaure:"+num_to_measure);
 			disparity_bimap[ImageDtt.BI_DBG3_INDEX] = to_measure; // overwrites old debug data
-			(new showDoubleFloatArrays()).showArrays(
+			(new ShowDoubleFloatArrays()).showArrays(
 					disparity_bimap,
 					tnImage.sizeX,
 					tnImage.sizeY,

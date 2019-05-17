@@ -62,7 +62,7 @@ import javax.swing.JFileChooser;
 
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 import Jama.Matrix;  // Download here: http://math.nist.gov/javanumerics/jama/
@@ -96,7 +96,7 @@ public class Aberration_Calibration extends PlugInFrame implements ActionListene
 	private Panel panelGoniometer;
 	private Panel panelPixelMapping, panelStereo,panelStereo1;
 
-	private showDoubleFloatArrays SDFA_INSTANCE; // just for debugging?
+	private ShowDoubleFloatArrays SDFA_INSTANCE; // just for debugging?
 	JP46_Reader_camera JP4_INSTANCE;
 	static Frame instance;
 	static Properties PROPERTIES=new Properties();
@@ -975,7 +975,7 @@ if (MORE_BUTTONS) {
 		GUI.center(this);
 		setVisible(true);
 		JP4_INSTANCE=       new JP46_Reader_camera(false);
-		SDFA_INSTANCE=      new showDoubleFloatArrays();
+		SDFA_INSTANCE=      new ShowDoubleFloatArrays();
 // main loop
 		while (true){
 			synchronized (this.SYNC_COMMAND) {
@@ -15167,7 +15167,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
 			EyesisAberrations.MultiFilePSF           multiFilePSF ,         // MULTIFILE_PSF = new EyesisAberrations.MultiFilePSF(
 			String []              filenames,
 			String                 resultPath,
-			showDoubleFloatArrays  sdfa_instance,        // SDFA_INSTANCE
+			ShowDoubleFloatArrays  sdfa_instance,        // SDFA_INSTANCE
 			ImagePlus              imp_sel,
 			boolean                saveResult,
 			boolean                showResult,

@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.SwingUtilities;
 
 import com.elphel.imagej.common.DoubleGaussianBlur;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 import ij.IJ;
 
@@ -45,7 +45,7 @@ public class SimulationPattern {
 	public double barraySigma=0.0;
 	public  int         debugLevel=2;
 	private DoubleGaussianBlur gb = new DoubleGaussianBlur();
-	private showDoubleFloatArrays SDFA_INSTANCE= new showDoubleFloatArrays(); // just for debugging?
+	private ShowDoubleFloatArrays SDFA_INSTANCE= new ShowDoubleFloatArrays(); // just for debugging?
 
 	public SimulationPattern (){
 		this.bPattern=null;

@@ -31,14 +31,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.GenericJTabbedDialog;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 import ij.ImageStack;
 import ij.gui.GenericDialog;
 
 
 public class CorrectionColorProc {
-	showDoubleFloatArrays SDFA_INSTANCE=   new showDoubleFloatArrays();
+	ShowDoubleFloatArrays SDFA_INSTANCE=   new ShowDoubleFloatArrays();
     public AtomicInteger stopRequested=null; // 1 - stop now, 2 - when convenient
     double [] denoiseMaskChroma;
     int       denoiseMaskChromaWidth;

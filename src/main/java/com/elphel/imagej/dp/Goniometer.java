@@ -29,7 +29,7 @@ package com.elphel.imagej.dp;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -44,7 +44,7 @@ horizontal axis:
 64 - pulses per revolution
 5682.48889 per degree
 	 */
-	private showDoubleFloatArrays sdfaInstance = new showDoubleFloatArrays(); // just
+	private ShowDoubleFloatArrays sdfaInstance = new ShowDoubleFloatArrays(); // just
 																				// for
 																				// debugging
 	public CalibrationHardwareInterface.CamerasInterface cameras = null;

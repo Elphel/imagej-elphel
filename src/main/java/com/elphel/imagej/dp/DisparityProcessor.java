@@ -26,7 +26,7 @@ package com.elphel.imagej.dp;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 public class DisparityProcessor {
 	static int [] corn_side_neib = { // of +1 - up (N), +2 - up-right - NE, ... +0x80 - NW
@@ -276,8 +276,8 @@ public class DisparityProcessor {
 			final int         debugLevel)
 	{
 		final int dbg_tile = -1; // 28643; // x=131, y=88
-		showDoubleFloatArrays sdfa_instance = null;
-		if (debugLevel > 0) sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		ShowDoubleFloatArrays sdfa_instance = null;
+		if (debugLevel > 0) sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		final Thread[] threads = ImageDtt.newThreadArray(threadsMax);
 		final int numThreads = threads.length;
 		if (debugLevel > 0) System.out.println("smoothDisparity(): using "+numThreads+" threads");

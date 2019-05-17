@@ -28,7 +28,7 @@ import java.util.ArrayList;
 import java.util.Random;
 
 import com.elphel.imagej.common.DoubleGaussianBlur;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 import Jama.LUDecomposition;
 import Jama.Matrix;
@@ -1803,7 +1803,7 @@ public class FactorConvKernel {
 			System.out.println("sym_kernel.length="+sym_kernel.length);
 			System.out.println("asym_kernel.length="+asym_kernel.length);
 			System.out.println("target_kernel.length="+target_kernel.length);
-		    showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		    ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 			sdfa_instance.showArrays(sym_kernel,  sym_radius, sym_radius, "init-sym_kernel");
 			sdfa_instance.showArrays(asym_kernel, asym_size, asym_size, "init-asym_kernel");
 			sdfa_instance.showArrays(target_kernel, conv_size, conv_size, "target_kernel");

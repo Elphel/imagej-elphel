@@ -41,7 +41,7 @@ import java.util.List;
 import java.util.Properties;
 
 import com.elphel.imagej.common.DoubleGaussianBlur;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 import ij.IJ;
@@ -380,7 +380,7 @@ public class MLStats {
 			System.out.println(String.format("disparity: %7.3f pix rms= %5.3f  rms9= %5.3f", run_disp, rms, rms9));
 		}
 
-		ImagePlus imp = (new showDoubleFloatArrays()).makeArrays(
+		ImagePlus imp = (new ShowDoubleFloatArrays()).makeArrays(
 				hist_double,
 				disparity_bins,
 				strength_bins,

@@ -43,7 +43,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.XMLConfiguration;
 
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 //import Distortions.LMAArrays; // may still reuse?
 import Jama.LUDecomposition;
@@ -6185,7 +6185,7 @@ public boolean LevenbergMarquardt(
                         }
                         index++;
                     }
-             (new showDoubleFloatArrays()). showArrays(
+             (new ShowDoubleFloatArrays()). showArrays(
                      pixels,
                      width,
                      numSamples/width,

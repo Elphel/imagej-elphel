@@ -3,7 +3,7 @@ import java.util.ArrayList;
 import java.util.Properties;
 
 import com.elphel.imagej.common.GenericJTabbedDialog;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 import Jama.Matrix;
 import ij.IJ;
@@ -584,7 +584,7 @@ public class GeometryCorrection {
 					}
 					npar++;
 				}
-				(new showDoubleFloatArrays()).showArrays(
+				(new ShowDoubleFloatArrays()).showArrays(
 						dbg_data,
 						tilesX,
 						tilesY,

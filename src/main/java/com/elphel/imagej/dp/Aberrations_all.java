@@ -23,7 +23,7 @@ import java.lang.Integer;
 import javax.swing.*;
 
 import com.elphel.imagej.common.DoubleFHT;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 
@@ -35,7 +35,7 @@ public class Aberrations_all extends PlugInFrame implements ActionListener {
 Panel panel1,panel2;
 //  Panel panel;
   JP46_Reader_camera jp4_instance;
-  showDoubleFloatArrays SDFA_instance;
+  ShowDoubleFloatArrays SDFA_instance;
   DoubleFHT fht_instance;
   static Frame instance;
  public static int DEBUG_LEVEL = 2;
@@ -339,7 +339,7 @@ Panel panel1,panel2;
     setVisible(true);
     jp4_instance=       new JP46_Reader_camera();
     fht_instance=       new DoubleFHT();
-    SDFA_instance=      new showDoubleFloatArrays();
+    SDFA_instance=      new ShowDoubleFloatArrays();
 
 
     Hamming=initHamming(FFTSize);

@@ -26,7 +26,7 @@ package com.elphel.imagej.dp;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 
 public class ExtendSurfaces {
@@ -510,7 +510,7 @@ public class ExtendSurfaces {
 				dbg_img[2][i] = expanding[i] ? 50.0: 0.0;
 			}
 			
-			(new showDoubleFloatArrays()).showArrays(dbg_img,  tilesX, tilesY, true, "startExpanding",titles);
+			(new ShowDoubleFloatArrays()).showArrays(dbg_img,  tilesX, tilesY, true, "startExpanding",titles);
 
 		}
 		

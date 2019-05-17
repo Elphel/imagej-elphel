@@ -21,13 +21,13 @@ import javax.swing.SwingUtilities;
 
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 public class EyesisAberrations {
 	public double [][][][] pdfKernelMap=null;
 	JP46_Reader_camera JP4_INSTANCE=       new JP46_Reader_camera(false);
-	showDoubleFloatArrays SDFA_INSTANCE=   new showDoubleFloatArrays();
+	ShowDoubleFloatArrays SDFA_INSTANCE=   new ShowDoubleFloatArrays();
     public AtomicInteger stopRequested=null; // 1 - stop now, 2 - when convenient
 	public Distortions distortions=null;
 	public AberrationParameters aberrationParameters=null;
@@ -1410,7 +1410,7 @@ public class EyesisAberrations {
     		}
     	}
 	
-		showDoubleFloatArrays sdfa_instance=new showDoubleFloatArrays();
+		ShowDoubleFloatArrays sdfa_instance=new ShowDoubleFloatArrays();
 	
 		
 		ImagePlus              impShow=new ImagePlus("CombinedKernels");              // just to show in the same window?
@@ -1445,7 +1445,7 @@ public class EyesisAberrations {
 			EyesisAberrations.MultiFilePSF           multiFilePSF ,         // MULTIFILE_PSF = new EyesisAberrations.MultiFilePSF(
 			String []              filenames,
 			String                 resultPath,
-			showDoubleFloatArrays  sdfa_instance,        // SDFA_INSTANCE
+			ShowDoubleFloatArrays  sdfa_instance,        // SDFA_INSTANCE
 			ImagePlus              imp_sel, // just to show in the same window?
 			boolean                saveResult,
 			boolean                showResult,

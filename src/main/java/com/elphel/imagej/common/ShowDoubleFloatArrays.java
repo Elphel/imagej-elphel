@@ -10,7 +10,7 @@ import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 
-  public class showDoubleFloatArrays {
+  public class ShowDoubleFloatArrays {
 	  // defaults for color conversion
 	  public int sliceRminusG=1;
 	  public int sliceBminusG=2;

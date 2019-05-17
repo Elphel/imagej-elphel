@@ -3,7 +3,7 @@ import java.util.Arrays;
 import java.util.Random;
 
 import com.elphel.imagej.common.DoubleFHT;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 import ij.ImagePlus;
 import ij.WindowManager;
@@ -171,14 +171,14 @@ public class WavePatternGenerator {
 				mask[base+ix]=Math.exp(kLong*cLong*cLong+kLat*cLat*cLat);
 			}
 		}
-		(new showDoubleFloatArrays()).showArrays(data, "input data");
-		(new showDoubleFloatArrays()).showArrays(mask, "mask");
+		(new ShowDoubleFloatArrays()).showArrays(data, "input data");
+		(new ShowDoubleFloatArrays()).showArrays(mask, "mask");
 		DoubleFHT fht =new DoubleFHT();
 		fht.swapQuadrants(data);
 		fht.transform(    data);
-		(new showDoubleFloatArrays()).showArrays(data, "FHT data");
+		(new ShowDoubleFloatArrays()).showArrays(data, "FHT data");
 		for (int i=0;i<data.length;i++) data[i]*=mask[i];
-		(new showDoubleFloatArrays()).showArrays(data, "masked FHT data");
+		(new ShowDoubleFloatArrays()).showArrays(data, "masked FHT data");
 		fht.inverseTransform(data);
 		fht.swapQuadrants   (data);
 //		(new showDoubleFloatArrays()).showArrays(data, "restored data");

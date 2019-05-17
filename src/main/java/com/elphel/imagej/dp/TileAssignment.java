@@ -28,7 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.elphel.imagej.common.DoubleGaussianBlur;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 //import ij.IJ;
 
@@ -466,7 +466,7 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 			img_data[2][nSurfTile3] = sdw;
 			img_data[3][nSurfTile3] = sw;
 		}
-		(new showDoubleFloatArrays()).showArrays(img_data,  3 * surfTilesX, 3 * surfTilesY, true, prefix+"tone_diffs3", titles);
+		(new ShowDoubleFloatArrays()).showArrays(img_data,  3 * surfTilesX, 3 * surfTilesY, true, prefix+"tone_diffs3", titles);
 	}
 
 	public void showToneDiffWeights1(String prefix){
@@ -489,7 +489,7 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 			img_data[1][nSurfTile] = sw;
 		}
 		String [] titles = {"diffs","weights"};
-		(new showDoubleFloatArrays()).showArrays(img_data,  surfTilesX, surfTilesY, true, prefix+"tone_diffs1", titles);
+		(new ShowDoubleFloatArrays()).showArrays(img_data,  surfTilesX, surfTilesY, true, prefix+"tone_diffs1", titles);
 	}
 
 
@@ -716,7 +716,7 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 			int [][]  tileLayers)
 	{
 		double [] composite_costs = calcTileCosts(tileLayers);
-		(new showDoubleFloatArrays()).showArrays(composite_costs, surfTilesX, surfTilesY, prefix+"composite_costs");
+		(new ShowDoubleFloatArrays()).showArrays(composite_costs, surfTilesX, surfTilesY, prefix+"composite_costs");
 	}
 
 	public void showTileCosts(
@@ -753,7 +753,7 @@ diff_best= 0.06731 diff9=  1.09087 weak_fgnd= 0.22250 flaps= 0.07229 ml_mismatch
 				cost_components[i][nSurfTile] = costs[i];
 			}
 		}
-		(new showDoubleFloatArrays()).showArrays(cost_components, surfTilesX, surfTilesY, true, prefix+"cost_components", titles);
+		(new ShowDoubleFloatArrays()).showArrays(cost_components, surfTilesX, surfTilesY, true, prefix+"cost_components", titles);
 	}
 
 

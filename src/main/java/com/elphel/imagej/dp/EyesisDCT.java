@@ -27,7 +27,7 @@ import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.elphel.imagej.common.DoubleGaussianBlur;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 import ij.CompositeImage;
 import ij.IJ;
@@ -289,7 +289,7 @@ public class EyesisDCT {
 				kernels[chn] = null;
 			}
 		}
-	    showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+	    ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 
 
 		for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
@@ -617,7 +617,7 @@ public class EyesisDCT {
 		  }
 
 
-		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		  DttRad2 dtt = new DttRad2(dct_parameters.dct_size);
 
 		  for (int chn=0;chn<eyesisCorrections.usedChannels.length;chn++){
@@ -859,7 +859,7 @@ public class EyesisDCT {
 		  kernels[chn].asym_kernels = new double [nColors][asym_width*asym_height];
 		  int sym_kernel_inc_index =   numHor * dct_size;
 		  int asym_kernel_inc_index =   numHor * asym_size;
-		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		  for (int nc = 0; nc < nColors; nc++){
 			  for (int tileY = 0; tileY < numVert; tileY++){
 				  for (int tileX = 0; tileX < numHor; tileX++){
@@ -1203,7 +1203,7 @@ public class EyesisDCT {
 			  return result;
 		  }
 		  // =================
-		  showDoubleFloatArrays sdfa_instance = new showDoubleFloatArrays(); // just for debugging?
+		  ShowDoubleFloatArrays sdfa_instance = new ShowDoubleFloatArrays(); // just for debugging?
 		  if (debugLevel > 0) {
 			  System.out.println("Showing image BEFORE_PROC");
 			  ImagePlus imp_dbg= new ImagePlus("BEFORE_PROC",stack);

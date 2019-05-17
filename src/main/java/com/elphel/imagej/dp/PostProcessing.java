@@ -37,7 +37,7 @@ import java.util.Properties;
 
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 //import javax.swing.SwingUtilities;
@@ -69,7 +69,7 @@ public class PostProcessing {
 	public PixelMapping                   pixelMapping=new PixelMapping(debugLevel); // just to access PixelMapping.InterSensor
 //	public double [][][] aYCbCr=null;
 	public int [] channels;
-	private showDoubleFloatArrays sdfaInstance=new showDoubleFloatArrays(); // just for debugging?
+	private ShowDoubleFloatArrays sdfaInstance=new ShowDoubleFloatArrays(); // just for debugging?
 	public PixelMapping.InterSensor       interSensor=null;
 	public void setProperties(String prefix,Properties properties){ // currently prefix ==""
     	this.postProcessingParameters.setProperties(prefix+"POST_PROCESSING_PARAMETERS.", properties);
@@ -433,7 +433,7 @@ public class PostProcessing {
 			titlesSlices[i]=img[i%img.length]+channelNames[channels[i/img.length]];
 		}
 		if (debugLevel>1){
-			(new showDoubleFloatArrays()).showArrays(
+			(new ShowDoubleFloatArrays()).showArrays(
 					slices,
 					size,
 					size,
@@ -583,7 +583,7 @@ public class PostProcessing {
 			String title="DSH";
 			for (int i=0;i<numImg;i++) titleSlices+="-"+img[i];
 			titleSlices+="_D"+IJ.d2s(dd,2)+"_X"+IJ.d2s(dX,2)+"_Y"+IJ.d2s(dY,2);
-			(new showDoubleFloatArrays()).showArrays(
+			(new ShowDoubleFloatArrays()).showArrays(
 					results,
 					size,
 					size,

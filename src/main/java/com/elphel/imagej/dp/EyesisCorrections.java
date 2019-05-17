@@ -33,7 +33,7 @@ import javax.swing.SwingUtilities;
 
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 import ij.CompositeImage;
@@ -53,7 +53,7 @@ import loci.formats.FormatException;
 
 public class EyesisCorrections {
 	JP46_Reader_camera JP4_INSTANCE=       new JP46_Reader_camera(false);
-	showDoubleFloatArrays SDFA_INSTANCE=   new showDoubleFloatArrays();
+	ShowDoubleFloatArrays SDFA_INSTANCE=   new ShowDoubleFloatArrays();
 	DebayerScissors debayerScissors=null;
     public AtomicInteger stopRequested=null; // 1 - stop now, 2 - when convenient
 	public PixelMapping pixelMapping=null;

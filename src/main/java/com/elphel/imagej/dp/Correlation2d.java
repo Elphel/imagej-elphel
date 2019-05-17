@@ -1,7 +1,7 @@
 package com.elphel.imagej.dp;
 import java.util.ArrayList;
 
-import com.elphel.imagej.common.showDoubleFloatArrays;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 /**
  **
@@ -964,7 +964,7 @@ public class Correlation2d {
 			dbg_data[1] =  debugStrip3(data_0);
 			int long_width = 2 * (2 * transform_size-1);
 			if (dbg_data[0] != null) {
-				(new showDoubleFloatArrays()).showArrays(
+				(new ShowDoubleFloatArrays()).showArrays(
 						dbg_data,
 						long_width,
 						dbg_data[0].length/long_width,
@@ -1885,7 +1885,7 @@ public class Correlation2d {
     		}
 
     		//    		String [] titles = {"ortho","diagonal"};
-    		(new showDoubleFloatArrays()).showArrays(
+    		(new ShowDoubleFloatArrays()).showArrays(
     				y_and_fx,
     				2 * transform_size-1,
     				2 * transform_size-1,
@@ -1997,7 +1997,7 @@ public class Correlation2d {
     		}
 
     		//    		String [] titles = {"ortho","diagonal"};
-    		(new showDoubleFloatArrays()).showArrays(
+    		(new ShowDoubleFloatArrays()).showArrays(
     				y_and_fx,
     				2 * transform_size-1,
     				2 * transform_size-1,
