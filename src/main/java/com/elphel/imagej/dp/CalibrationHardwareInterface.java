@@ -70,6 +70,9 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.xml.sax.SAXException;
 
+import com.elphel.imagej.calibration.FocusingField;
+import com.elphel.imagej.calibration.LensAdjustment;
+import com.elphel.imagej.calibration.MatchSimulatedPattern;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 import Jama.LUDecomposition;

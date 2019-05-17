@@ -1,4 +1,4 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.calibration;
 /**
  ** -----------------------------------------------------------------------------**
  ** Aberration_Calibration.java
@@ -63,6 +63,29 @@ import javax.swing.JFileChooser;
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
+import com.elphel.imagej.dp.CalibrationFileManagement;
+import com.elphel.imagej.dp.CalibrationHardwareInterface;
+import com.elphel.imagej.dp.DistortionCalibrationData;
+import com.elphel.imagej.dp.DistortionProcessConfiguration;
+import com.elphel.imagej.dp.Distortions;
+import com.elphel.imagej.dp.EyesisCameraParameters;
+import com.elphel.imagej.dp.LensDistortionParameters;
+import com.elphel.imagej.dp.PolynomialApproximation;
+import com.elphel.imagej.dp.SFEPhases;
+import com.elphel.imagej.dp.SimulationPattern;
+import com.elphel.imagej.dp.WavePatternGenerator;
+import com.elphel.imagej.dp.WindowTools;
+import com.elphel.imagej.dp.CalibrationFileManagement.MultipleExtensionsFileFilter;
+import com.elphel.imagej.dp.CalibrationHardwareInterface.CamerasInterface;
+import com.elphel.imagej.dp.CalibrationHardwareInterface.FocusingMotors;
+import com.elphel.imagej.dp.CalibrationHardwareInterface.GoniometerMotors;
+import com.elphel.imagej.dp.CalibrationHardwareInterface.LaserPointers;
+import com.elphel.imagej.dp.CalibrationHardwareInterface.PowerControl;
+import com.elphel.imagej.dp.CalibrationHardwareInterface.UVLEDandLasers;
+import com.elphel.imagej.dp.Distortions.RefineParameters;
+import com.elphel.imagej.dp.SFEPhases.Defect;
+import com.elphel.imagej.dp.SFEPhases.SensorDefects;
+import com.elphel.imagej.dp.SimulationPattern.SimulParameters;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 import Jama.Matrix;  // Download here: http://math.nist.gov/javanumerics/jama/

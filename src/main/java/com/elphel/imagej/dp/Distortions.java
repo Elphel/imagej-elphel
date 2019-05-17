@@ -6,7 +6,7 @@ package com.elphel.imagej.dp;
  ** Copyright (C) 2011-2014 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
- **  
+ **
  **  Distortions.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
@@ -23,7 +23,31 @@ package com.elphel.imagej.dp;
  **
  */
 
-import ij.*;
+import java.awt.Rectangle;
+import java.awt.geom.Point2D;
+import java.util.ArrayList;
+//import java.util.Arrays;
+//import java.io.StringWriter;
+import java.util.List;
+import java.util.Properties;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import javax.swing.SwingUtilities;
+
+import com.elphel.imagej.calibration.FittingStrategy;
+import com.elphel.imagej.calibration.MatchSimulatedPattern;
+import com.elphel.imagej.calibration.PatternParameters;
+import com.elphel.imagej.common.DoubleGaussianBlur;
+import com.elphel.imagej.common.ShowDoubleFloatArrays;
+import com.elphel.imagej.jp4.JP46_Reader_camera;
+
+import Jama.LUDecomposition;
+import Jama.Matrix;
+import ij.IJ;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.Prefs;
 //import ij.process.*;
 import ij.gui.GenericDialog;
 import ij.io.FileSaver;
@@ -31,25 +55,6 @@ import ij.io.Opener;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ij.text.TextWindow;
-
-import java.awt.Rectangle;
-import java.awt.geom.Point2D;
-//import java.util.Arrays;
-//import java.io.StringWriter;
-import java.util.List;
-import java.util.ArrayList;
-import java.util.Properties;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-
-import javax.swing.SwingUtilities;
-
-import com.elphel.imagej.common.DoubleGaussianBlur;
-import com.elphel.imagej.common.ShowDoubleFloatArrays;
-import com.elphel.imagej.jp4.JP46_Reader_camera;
-
-import Jama.LUDecomposition;
-import Jama.Matrix;
 //import src.java.org.apache.commons.configuration.*;
 // to work both in Eclipse and ImageJ:
 // 1 - put commons-configuration-1.7.jar under ImageJ plugins directory (I used ImageJ-Elphel)
@@ -71,7 +76,7 @@ public class Distortions {
     public double []   weightFunction=null; //  array of weights for pixels (to fade values near borders), corresponding to Y array
 
     public double      sumWeights;
-    public double [][] targetXYZ=null; // array of target {x,y,z} matching each image each grid point 
+    public double [][] targetXYZ=null; // array of target {x,y,z} matching each image each grid point
     public double [][] jacobian=null; // partial derivatives of fX (above) by parameters to be adjusted (rows)
     public double []   nextVector; // next variable parameter vector
     public double []   currentfX=null; // array of "f(x)" - simulated data for all images, combining pixel-X and pixel-Y (odd/even)
@@ -84,13 +89,13 @@ public class Distortions {
     public double      currentRMSPure=-1.0; // calculated RMS for the currentVector->currentfX
     public double      nextRMSPure=-1.0; // calculated RMS for the nextVector->nextfX
     public double      firstRMSPure=-1.0; // RMS before current series of LMA started
-    
+
     public double lambdaStepUp=   8.0; // multiply lambda by this if result is worse
     public double lambdaStepDown= 0.5; // multiply lambda by this if result is better
-    public double thresholdFinish=0.001; // (copied from series) stop iterations if 2 last steps had less improvement (but not worsening ) 
+    public double thresholdFinish=0.001; // (copied from series) stop iterations if 2 last steps had less improvement (but not worsening )
     public int    numIterations=  100; // maximal number of iterations
     public double maxLambda=      100.0;  // max lambda to fail
-    
+
     public double lambda=0.001;        // copied from series
     public double [] lastImprovements= {-1.0,-1.0}; // {last improvement, previous improvement}. If both >0 and < thresholdFinish - done
     public int    iterationStepNumber=0;
@@ -101,11 +106,11 @@ public class Distortions {
     public boolean showThisImages=false; // show debug images for the current ("this" state,before correction) state of parameters
     public boolean showNextImages=false; // show debug images for the current (after correction) state of parameters
     public boolean askFilter=     false; // show debug images for the current (after correction) state of parameters
-    
+
  //   public boolean showGridCorr=  true;  // show grid correction
  //   public boolean showIndividual=true;  // show individual image residuals
  //   public double  corrScale=     1.0;   // scale grid correction before applying
-    
+
     public int     seriesNumber=0; // just for the dialog
     public boolean saveSeries=false;   // just for the dialog
     public double [][][] pixelCorrection=null; // for each sensor: corr-X, corr-Y, mask, flat-field-Red, flat-field-Green, flat-field-Blue
@@ -114,7 +119,7 @@ public class Distortions {
     public int        pixelCorrectionWidth=2592;
     public int        pixelCorrectionHeight=1936;
     public double     RMSscale=Math.sqrt(2.0); // errors for x and y are calculated separately, so actual error is larger
-    
+
     public boolean  showIndex=true;
     public boolean  showRMS=true;
     public boolean  showPoints=true;
@@ -124,7 +129,7 @@ public class Distortions {
     public boolean  showExtrinsicParameters=true;
     public int      extraDecimals=0;
 
-    public boolean   threadedLMA=true; // use threaded/partial method to solve LMA 
+    public boolean   threadedLMA=true; // use threaded/partial method to solve LMA
     public LMAArrays lMAArrays=null;
     public LMAArrays  savedLMAArrays=null;
     public long startTime=0;
@@ -132,8 +137,8 @@ public class Distortions {
     public boolean updateStatus=true;
     public int threadsMax=100;
     public AtomicInteger stopRequested=null; // 1 - stop now, 2 - when convenient
-    
-    public String [] status ={"",""};  
+
+    public String [] status ={"",""};
 /*
     public void showStatus (String msg, int slot){
     	String separator = " | ";
@@ -150,11 +155,12 @@ public class Distortions {
     public void showProgress(int currentIndex, int finalIndex){
     	showProgress((currentIndex+1.0)/(double)finalIndex);
     }
- */  
+ */
     public class LMAArrays {
         public double [][] jTByJ=  null; // jacobian multiplied by Jacobian transposed
         public double []   jTByDiff=null; // jacobian multiplied difference vector
-        public LMAArrays clone() {
+        @Override
+		public LMAArrays clone() {
         	LMAArrays lma=new LMAArrays();
         	lma.jTByJ = this.jTByJ.clone();
         	for (int i=0;i<this.jTByJ.length;i++) lma.jTByJ[i]=this.jTByJ[i].clone();
@@ -178,21 +184,21 @@ public class Distortions {
 		if (this.lensDistortionParameters!=null) {
 			interParameterDerivatives=new double[this.lensDistortionParameters.getNumInputs()][];
 		}
-		
+
 	}
 //	public int getNumInputs(){return numInputs;}
 //	public int getNumOutputs(){return numOutputs;}
 /**
  * Prerequisites:
  * this.patternParameters, this.fittingStrategy are already initialized
- * 
+ *
  */
 	/*
 	private void initImageSetAndGrids(){  // never used??
 // Calculate patter x,y,z==0 and alpha (1.0 - inside, 0.0 - outside) for the grid
 // TODO: and save/restore to file to account for non-perfect grid
 		patternParameters.calculateGridGeometry();
-//  Read all grid data files (4-slice TIFF images) and create  pixelsXY and  pixelsUV arrays		
+//  Read all grid data files (4-slice TIFF images) and create  pixelsXY and  pixelsUV arrays
 		fittingStrategy.distortionCalibrationData.readAllGrids(patternParameters);
 		if (this.debugLevel>3) {
 			for (int n=0;n<fittingStrategy.distortionCalibrationData.pixelsXY.length;n++) {
@@ -208,7 +214,7 @@ public class Distortions {
 		}
 	}
 	*/
-	
+
 	public void resetGridImageMasks(){
 		int numImg=fittingStrategy.distortionCalibrationData.getNumImages();
 		System.out.println("resetGridImageMasks()");
@@ -235,7 +241,8 @@ public class Distortions {
    		final Thread[] threads = newThreadArray(threadsMax);
    		for (int ithread = 0; ithread < threads.length; ithread++) {
    			threads[ithread] = new Thread() {
-   				public void run() {
+   				@Override
+				public void run() {
    					for (int imgNum=imageNumberAtomic.getAndIncrement(); imgNum<numImg;imgNum=imageNumberAtomic.getAndIncrement()){
    						distortionCalibrationData[imgNum].calculateMask(
    			        			minContrast,
@@ -243,7 +250,8 @@ public class Distortions {
    			        			shrinkBlurLevel);
 							final int numFinished=imageFinishedAtomic.getAndIncrement();
    							SwingUtilities.invokeLater(new Runnable() {
-   								public void run() {
+   								@Override
+								public void run() {
    									if (updateStatus) IJ.showProgress(numFinished,numImg);
    								}
    							});
@@ -259,25 +267,25 @@ public class Distortions {
 
 	}
 
-	
+
 /**
  * once per fitting strategy series:
  *   1) repeat for each image/point patternParameters.getXYZM(int u, int v) and create
  *      this.targetXYZ;
- *   
- *   2)fittingStrategy.buildParameterMap (int numSeries) 
+ *
+ *   2)fittingStrategy.buildParameterMap (int numSeries)
  *   Creates map from the parameter vector index to the {grid image number, parameter number}
  *   When the parameter is shared by several images, the map points to the one which value will be used
- *   (they might be different). Timestamp of the masterImages[] is used to determine which image to use.  
+ *   (they might be different). Timestamp of the masterImages[] is used to determine which image to use.
  *   Simultaneously creates this.reverseParameterMap that maps each of the image/parameter to the parameter vector
  *   Needs to be run for each new strategy series
- *   
+ *
  * 	 3)this.currentVector=fittingStrategy.getSeriesVector(); // and save it in the class instance
  *   Calculate vector of the parameters used in LMA algorithm, extracted from the
  *   individual data, using parameter map (calculated once after changing series)
  *
  *    public double []   currentVector; // current variable parameter vector
- *    
+ *
  */
 	final public int filterMulti=            1;
 	final public int filterContrast=         2;
@@ -286,9 +294,9 @@ public class Distortions {
 	final public int filterTargetAlpha=     16;
 	final public int filterTargetErrors=    32;
 	final public int filterMaskBadNodes=    64;
-	final public int filterDiameter=       128; // use measured grid "diameter" to change image weight 
-	final public int filterChannelWeights= 256; // different weights for channels (higher weight for bottom sensors) 
-	final public int filterYtoX=           512; // different weights for channels (higher weight for bottom sensors) 
+	final public int filterDiameter=       128; // use measured grid "diameter" to change image weight
+	final public int filterChannelWeights= 256; // different weights for channels (higher weight for bottom sensors)
+	final public int filterYtoX=           512; // different weights for channels (higher weight for bottom sensors)
 
 	final public int filterForAll=             filterMulti+filterContrast+filterSensor+filterTargetMask+filterTargetAlpha+filterTargetErrors+filterMaskBadNodes+
 	filterDiameter+filterChannelWeights+filterYtoX;
@@ -307,12 +315,12 @@ public class Distortions {
 		gd.addCheckbox("filterTargetAlpha",   (filterForAll & filterTargetAlpha)!=0);
 		gd.addCheckbox("filterTargetErrors",  (filterForAll & filterTargetErrors)!=0);
 		gd.addCheckbox("filterMaskBadNodes",  (filterForAll & filterMaskBadNodes)!=0);
-		gd.addCheckbox("filterDiameter",      (filterForAll & filterDiameter)!=0); 
-		gd.addCheckbox("filterChannelWeights",(filterForAll & filterChannelWeights)!=0); 
-		gd.addCheckbox("filterYtoX",          (filterForAll & filterYtoX)!=0); 
-		
-		
-		
+		gd.addCheckbox("filterDiameter",      (filterForAll & filterDiameter)!=0);
+		gd.addCheckbox("filterChannelWeights",(filterForAll & filterChannelWeights)!=0);
+		gd.addCheckbox("filterYtoX",          (filterForAll & filterYtoX)!=0);
+
+
+
 		gd.showDialog();
 		if (gd.wasCanceled()) return filter;
 		filter=0;
@@ -323,13 +331,13 @@ public class Distortions {
 		if (gd.getNextBoolean()) filter |= filterTargetAlpha;
 		if (gd.getNextBoolean()) filter |= filterTargetErrors;
 		if (gd.getNextBoolean()) filter |= filterMaskBadNodes;
-		if (gd.getNextBoolean()) filter |= filterDiameter; 
-		if (gd.getNextBoolean()) filter |= filterChannelWeights; 
-		if (gd.getNextBoolean()) filter |= filterYtoX; 
+		if (gd.getNextBoolean()) filter |= filterDiameter;
+		if (gd.getNextBoolean()) filter |= filterChannelWeights;
+		if (gd.getNextBoolean()) filter |= filterYtoX;
 		if (this.debugLevel>1) System.out.println("Using filter bitmap: "+filter);
 		return filter;
     }
-	
+
 	public void initFittingSeries(
 			boolean justSelection, // use series to get selection only
 			int filter,
@@ -345,7 +353,7 @@ public class Distortions {
 					numSeries,
 					2);
 		}
-		
+
 	}
 	//returns true if some images were disabled and re-calculation is needed
 	public boolean initFittingSeries(
@@ -365,7 +373,7 @@ public class Distortions {
 		} else{
 			fittingStrategy.currentSeriesNumber=numSeries;
 		}
-		int numXYPairs=0; 
+		int numXYPairs=0;
 		int numImg=fittingStrategy.distortionCalibrationData.getNumImages();
 		if (this.debugLevel>3)	System.out.println("initFittingSeries("+numSeries+"), numImg="+numImg);
 		if ((pass==1) && (numSeries>=0) && !skipMinVal) fittingStrategy.initSelectedValidImages(numSeries); // copy from selected images
@@ -384,8 +392,8 @@ public class Distortions {
 		this.pixelCorrectionDecimation=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.decimateMasks;
 		this.pixelCorrectionWidth=   fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth;
 		this.pixelCorrectionHeight=  fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorHeight;
-	
-		
+
+
 		int sensorCorrWidth= (this.pixelCorrectionWidth-1)/this.pixelCorrectionDecimation+1;
 		double [] multiWeight=new double [numImg];
 		for (int imgNum=0;imgNum<numImg;imgNum++) multiWeight[imgNum]=0.0;
@@ -400,11 +408,11 @@ public class Distortions {
     			true //final boolean updateStatus
     			);
 //        this.imageSetWeight=new double[this.fittingStrategy.distortionCalibrationData.gIS.length];
-        
+
         if ((filter & this.filterChannelWeights)!=0) calculateChannelsWeights(
         		this.fittingStrategy.currentSeriesNumber,
         		fittingStrategy.distortionCalibrationData.eyesisCameraParameters.balanceChannelWeightsMode);
-        
+
         for (int imgSet=0;imgSet<this.fittingStrategy.distortionCalibrationData.gIS.length;imgSet++){
         	this.fittingStrategy.distortionCalibrationData.gIS[imgSet].setWeight=0.0;
         	int numUsed=0;
@@ -423,13 +431,13 @@ public class Distortions {
         		switch (fittingStrategy.distortionCalibrationData.eyesisCameraParameters.weightMultiImageMode){
         		case 0: d=1.0; break;
         		case 1: d=Math.pow(numUsed,fittingStrategy.distortionCalibrationData.eyesisCameraParameters.weightMultiExponent);
-        		break; 
+        		break;
         		case 2: d=(numUsed>1)?(Math.pow(numUsed,fittingStrategy.distortionCalibrationData.eyesisCameraParameters.weightMultiExponent)):0.001; break; // virtually eliminate single-image sets, but prevent errors
         		case 3: d=numUsed*numUsed; break;
         		default: d=1.0;
         		}
         		d*=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.stationWeight[stationNumber];
-//        		set weight will be calculated as sum of all points weights 
+//        		set weight will be calculated as sum of all points weights
 //        		this.fittingStrategy.distortionCalibrationData.gIS[imgSet].setWeight=d;
         		for (int i=0;i<numInSet;i++){
         			if (this.fittingStrategy.distortionCalibrationData.gIS[imgSet].imageSet[i]!=null) {
@@ -466,14 +474,14 @@ public class Distortions {
 				for (int pointNumber=0;pointNumber<fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV.length;pointNumber++){
 
 					double [] XYZMP=patternParameters.getXYZMPE(
-							fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV[pointNumber][0], 
+							fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV[pointNumber][0],
 							fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV[pointNumber][1],
 							station,
 							chnNum,
 							false);
 //		 * @return null if out of grid, otherwise X,Y,Z,mask (binary),R (~0.5..1.2),G,B,alpha (0.0..1.0)
 /*					double [] XYZM=patternParameters.getXYZM( // will throw if outside or masked out
-							fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV[pointNumber][0], 
+							fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV[pointNumber][0],
 							fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV[pointNumber][1]);*/
 					this.targetXYZ[index][0]=XYZMP[0];
 					this.targetXYZ[index][1]=XYZMP[1];
@@ -509,27 +517,27 @@ public class Distortions {
 					if ((filter & this.filterMulti)!=0) {
 						weight*=multiWeight[imgNum];
 						if (Double.isNaN(multiWeight[imgNum]) && (this.debugLevel>1)) System.out.println("multiWeight["+imgNum+"]=NaN, imgNum="+imgNum);
-					}				
+					}
 					if ((filter & this.filterMaskBadNodes)!=0) {
 						if (fittingStrategy.distortionCalibrationData.gIP[imgNum].isNodeBad(pointNumber)) weight=0.0;
 					}
-					
+
 					//fittingStrategy.distortionCalibrationData.eyesisCameraParameters.weightMultiExponent)
 					if (((filter & this.filterDiameter)!=0) && (fittingStrategy.distortionCalibrationData.eyesisCameraParameters.weightDiameterExponent>0.0)) {
 						weight*=gridImageWeight;
 						if (Double.isNaN(gridImageWeight) && (this.debugLevel>1)) System.out.println("gridImageWeight=NaN, imgNum="+imgNum);
 
 					}
-					
-					
-					
-					
+
+
+
+
 					if (Double.isNaN(weight)) {
 						weight=0.0; // find who makes it NaN
 						if (Double.isNaN(multiWeight[imgNum])) System.out.println("weight is null, imgNum="+imgNum);
 					}
 
-					
+
 					this.weightFunction[2*index]=  weight*weightScaleX;
 					this.weightFunction[2*index+1]=weight*weightScaleY;
 					this.sumWeights+=              weight*weightSumXY;
@@ -538,25 +546,25 @@ public class Distortions {
 						this.Y[2*index]=  fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsXY[pointNumber][0];
 						this.Y[2*index+1]=fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsXY[pointNumber][1];
 					} else {
-// TODO: remove and use new code (if tested OK)						
+// TODO: remove and use new code (if tested OK)
 						double [] pXY={
 								fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsXY[pointNumber][0],
 								fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsXY[pointNumber][1]
 						};
-// TODO: Should it be interpolated? Correction is normally small/smooth, so it may be not important						
+// TODO: Should it be interpolated? Correction is normally small/smooth, so it may be not important
 						int indexXY=((int) Math.floor(pXY[0]/this.pixelCorrectionDecimation)) +
 						((int) Math.floor(pXY[1]/this.pixelCorrectionDecimation))*sensorCorrWidth;
 						if (this.pixelCorrection[chnNum][0].length<=indexXY){
 							System.out.println("initFittingSeries("+numSeries+") bug:");
 							System.out.println("this.pixelCorrection["+chnNum+"][0].length="+this.pixelCorrection[chnNum][0].length);
 							System.out.println("indexXY="+indexXY+" pXY[0]="+pXY[0]+", pXY[1]="+pXY[1]+" sensorCorrWidth="+sensorCorrWidth);
-							
+
 						} else {
 							this.Y[2*index]=  pXY[0]-this.pixelCorrection[chnNum][0][indexXY]; //java.lang.ArrayIndexOutOfBoundsException: 3204663
 							this.Y[2*index+1]=pXY[1]-this.pixelCorrection[chnNum][1][indexXY];
 						}
-// TODO: remove above and un-comment below	(after testing)					
-/*						
+// TODO: remove above and un-comment below	(after testing)
+/*
 						double [] vector=interpolateCorrectionVector(
 								chnNum,
 								fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsXY[pointNumber][0],
@@ -570,7 +578,7 @@ public class Distortions {
 //				numXYPairs+=fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV.length; ??
 			}
 		}
-		this.imageStartIndex[numImg]=index; // one after last 
+		this.imageStartIndex[numImg]=index; // one after last
 		if ((pass==1) && (numSeries>=0) && !skipMinVal){
     		// count non-zero weight nodes for each image, disable image if this number uis less than
     		int needReCalc=0;
@@ -583,7 +591,7 @@ public class Distortions {
     							" pointNumber="+pointNumber+" imgNum="+imgNum+" pixelsUV.length="+
     							fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV.length+
     							" numXYPairs="+numXYPairs);
-    					
+
     					continue;
     				}
     				if (this.weightFunction[2*(index+pointNumber)]>0.0) numValidNodes++; //OOB 5064
@@ -623,8 +631,8 @@ public class Distortions {
             	}
             }
         }
-// last? not here!        
-//		this.imageStartIndex[numImg]=index; 
+// last? not here!
+//		this.imageStartIndex[numImg]=index;
 		if (justSelection) {
 			this.currentVector = null;
 			this.lambda=0.0;
@@ -643,11 +651,11 @@ public class Distortions {
     	this.iterationStepNumber=0;
     	// should be calculated after series weights are set
 //    public int    []   imageStartIndex=null; // elements containing index of the start point of the selected image, first element 0, last - total number of points.
-// TODO: add copying  lambdaStepUp,lambdaStepDown? 
+// TODO: add copying  lambdaStepUp,lambdaStepDown?
     	return false;
 	}
-	
-	
+
+
 	public void calculateChannelsWeights(
 			int numSeries,
 			double balanceChannelWeightsMode){
@@ -694,11 +702,11 @@ public class Distortions {
 							weight);
 				}
 			}
-			
+
 		}
-		
+
 	}
-	
+
 	public double setImageDiameter(int imgNum){
 		int debugThreshold=2;
 		int chnNum=this.fittingStrategy.distortionCalibrationData.gIP[imgNum].channel; // number of sub-camera
@@ -714,7 +722,7 @@ public class Distortions {
     			(this.debugLevel>debugThreshold)?imgNum:-1);
         return this.fittingStrategy.distortionCalibrationData.gIP[imgNum].getGridDiameter();
 	}
-	
+
 	public void listImageSets(){ // TODO: use series -1 - should work now
 //		boolean [] oldSelection=this.fittingStrategy.selectAllImages(0); // enable all images in series 0
 		if (this.fittingStrategy.distortionCalibrationData.gIS!=null){
@@ -749,7 +757,7 @@ public class Distortions {
 		this.currentfX=calculateFxAndJacobian(this.currentVector, false); // is it always true here (this.jacobian==null)
 		double [] errors=calcErrors(calcYminusFx(this.currentfX));
 		int [] numPairs=calcNumPairs();
-		
+
 	    int [][] imageSets=this.fittingStrategy.distortionCalibrationData.listImages(false); // true - only enabled images
 	    int [] numSetPoints=new int [imageSets.length];
 	    double [] rmsPerSet=new double[imageSets.length];
@@ -774,8 +782,8 @@ public class Distortions {
 	    this.fittingStrategy.distortionCalibrationData.listImageSet(numSetPoints, rmsPerSet,hasNaNInSet );
 //		this.fittingStrategy.setImageSelection(0, oldSelection); // restore original selection in series 0
 	}
-	
-	
+
+
 	public void updateSensorMasks(){
 		int alphaIndex=2;
 		if (this.pixelCorrection==null){
@@ -786,7 +794,7 @@ public class Distortions {
 		for (int i=0;(i<this.fittingStrategy.distortionCalibrationData.sensorMasks.length) && (i<this.pixelCorrection.length);i++){
 			this.pixelCorrection[i][alphaIndex]=this.fittingStrategy.distortionCalibrationData.sensorMasks[i].clone();
 		}
-		
+
 	}
 
 	public boolean correctPatternFlatField(boolean enableShow){
@@ -800,7 +808,7 @@ public class Distortions {
 		/*	    if (selectedChannels!=null){
 	    	for (int nChn=0;nChn<masks.length;nChn++) if ((nChn<selectedChannels.length)&&!selectedChannels[nChn]) masks[nChn]=null;
 	    }
-		 */	    
+		 */
 		if (enableShow && this.refineParameters.flatFieldShowSensorMasks) (new ShowDoubleFloatArrays()).showArrays( //java.lang.ArrayIndexOutOfBoundsException: 313632
 				masks,
 				this.pixelCorrectionWidth/ this.pixelCorrectionDecimation,
@@ -855,7 +863,7 @@ public class Distortions {
 		if (this.refineParameters.flatFieldApplyResult) applyGridFlatField(patternArray); // {alpha, red,green,blue, number of images used}[pixel_index]
 		return true;
 	}
-	
+
 	public boolean modifyPixelCorrection(
 			boolean   enableShow,
 			int       threadsMax,
@@ -905,7 +913,7 @@ public class Distortions {
     	if (!this.refineParameters.sensorExtrapolateDiff) { // add current correction BEFORE extrapolating/blurring
     		addOldXYCorrectionToCurrent(
     				this.refineParameters.correctionScale,
-    				sensorXYRGBCorr 
+    				sensorXYRGBCorr
     		);
     	}
     	if (this.refineParameters.extrapolate) {
@@ -917,7 +925,7 @@ public class Distortions {
     				this.refineParameters.sensorAlphaThreshold,
     				this.refineParameters.sensorStep,
     				this.refineParameters.sensorInterpolationSigma,
-    				this.refineParameters.sensorTangentialRadius, 
+    				this.refineParameters.sensorTangentialRadius,
     				this.refineParameters.sensorScanDistance,
     				this.refineParameters.sensorResultDistance,
     				this.refineParameters.sensorInterpolationDegree,
@@ -945,7 +953,7 @@ public class Distortions {
     		}
     		IJ.showProgress(1.0);
     	}
-    	
+
     	if (enableShow && this.refineParameters.showThisCorrection ) {
     		for (int numChn=0;numChn<sensorXYRGBCorr.length;numChn++) if (sensorXYRGBCorr[numChn]!=null){
 //    		   this.SDFA_INSTANCE.showArrays(sensorXYRGBCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_filtered", titles);
@@ -962,7 +970,7 @@ public class Distortions {
     	if (this.refineParameters.sensorExtrapolateDiff) { // add current correction AFTER extrapolationg/bluring
     		addOldXYCorrectionToCurrent(
     				this.refineParameters.correctionScale,
-    				sensorXYRGBCorr 
+    				sensorXYRGBCorr
     		);
     	}
 
@@ -973,7 +981,7 @@ public class Distortions {
     			this.refineParameters.applyCorrection,
     			this.refineParameters.applyFlatField,
     			this.refineParameters.correctionScale,
-    			sensorXYRGBCorr, //sensorXYCorr, // modified to accept both 7(old) and 6(new) entries 
+    			sensorXYRGBCorr, //sensorXYCorr, // modified to accept both 7(old) and 6(new) entries
     			fittingStrategy.distortionCalibrationData);
     	if (enableShow && this.refineParameters.showCumulativeCorrection) {
     		for (int numChn=0;numChn<sensorXYRGBCorr.length;numChn++) if (sensorXYRGBCorr[numChn]!=null){
@@ -995,7 +1003,7 @@ public class Distortions {
 		IJ.showStatus("");
     	return result;
     }
-	
+
 	public void showWithRadialTangential(
 			String [] preTitles,
 			String title,
@@ -1036,7 +1044,7 @@ public class Distortions {
 		}
 	   this.SDFA_INSTANCE.showArrays(data, width, height,  true, title, titles);
 	}
-	
+
 
 	public void addOldXYCorrectionToCurrent(
     		double scale,
@@ -1047,12 +1055,12 @@ public class Distortions {
 			for (int j=0;j<sensorXYCorr[i][0].length;j++){
 				sensorXYCorr[i][0][j]=this.pixelCorrection[i][0][j]+scale*sensorXYCorr[i][0][j];
 				sensorXYCorr[i][1][j]=this.pixelCorrection[i][1][j]+scale*sensorXYCorr[i][1][j];
-			}    	
+			}
 		}
 	}
-	
-	
-  
+
+
+
 	public void patternErrors(
 			final int       threadsMax,
 			final boolean   updateStatus,
@@ -1061,7 +1069,7 @@ public class Distortions {
 		GenericDialog gd=new GenericDialog("Setup pattern errors map");
 		gd.addNumericField("Series number", this.seriesNumber, 0,2,"");
 		gd.addCheckbox    ("Show map", true);
-		
+
 		gd.addNumericField("Minimal RMS", .07, 3,6,"pix");
 		gd.addNumericField("Maximal RMS", 0.12, 3,6,"pix");
 		gd.addNumericField("Expand EMS mask", 1, 0,2,"nodes");
@@ -1077,7 +1085,7 @@ public class Distortions {
 
 		boolean updateMap=              gd.getNextBoolean();
 		boolean resetMap=              gd.getNextBoolean();
-		
+
 		if (resetMap){
 			this.patternParameters.resetPatternErrorMask();
 			return;
@@ -1114,8 +1122,8 @@ public class Distortions {
 		}
 	}
 
-	
-	
+
+
 	public double []  calculatePatterErrorRMS( // returns worst image number array
 			final int       series,
 			final int       threadsMax,
@@ -1133,11 +1141,11 @@ public class Distortions {
     		IJ.showMessage("Error",msg);
     		throw new IllegalArgumentException (msg);
     	}
-    	//	fittingStrategy.distortionCalibrationData.readAllGrids(); 
+    	//	fittingStrategy.distortionCalibrationData.readAllGrids();
 //    	if (! selectGridEnhanceParameters()) return false;
 //    	if (series<0) return null; // false; // make "all " later?
     	this.seriesNumber=series;
-    	
+
     	initFittingSeries(true,this.filterForTargetGeometry,this.seriesNumber); // first step in series now uses pattern alpha
     	this.currentfX=calculateFxAndJacobian(this.currentVector, false);
     	//        	this.currentRMS= calcError(calcYminusFx(this.currentfX));
@@ -1164,7 +1172,8 @@ public class Distortions {
    		final Thread[] threads = newThreadArray(threadsMax);
    		for (int ithread = 0; ithread < threads.length; ithread++) {
    			threads[ithread] = new Thread() {
-   				public void run() {
+   				@Override
+				public void run() {
    					double [][] partialGridErrors=new double [4][width*height];
    					for (int n=0;n<partialGridErrors.length;n++) for (int i=0;i<partialGridErrors[n].length;i++) partialGridErrors[n][i]=0.0;
    					for (int imgNum=imageNumberAtomic.getAndIncrement(); imgNum<selectedImages.length;imgNum=imageNumberAtomic.getAndIncrement()){
@@ -1175,7 +1184,8 @@ public class Distortions {
    									gridDimensions);
    							final int numFinished=imageFinishedAtomic.getAndIncrement();
    							SwingUtilities.invokeLater(new Runnable() {
-   								public void run() {
+   								@Override
+								public void run() {
    									if (updateStatus) IJ.showProgress(numFinished,finalSelected);
    								}
    							});
@@ -1188,12 +1198,12 @@ public class Distortions {
    		startAndJoin(threads);
    		for (int i=0;i<gridErrors[0].length;i++){
    			gridErrors[0][i]=(gridErrors[0][i]>0.0)?Math.sqrt(gridErrors[0][i]/gridErrors[1][i]):Double.NaN;
-   			
+
    		}
    		patternParameters.setPatternErrors(gridErrors[0]);
    		return gridErrors[2]; // worst image number for target grid nodes
 	}
-	
+
 	public void accumulatePatternErrors(
 			double [][] errorMap,
 			int imgNum,
@@ -1218,7 +1228,7 @@ public class Distortions {
 			}
 		}
 	}
-	
+
 	public synchronized void combinePatternErrors(
 			double [][] partialErrorMap,
 			double [][] fullErrorMap ){
@@ -1230,22 +1240,22 @@ public class Distortions {
 				fullErrorMap[2][i]=partialErrorMap[2][i];
 				fullErrorMap[3][i]=partialErrorMap[3][i];
 			}
-			
+
 		}
 
 	}
 
-	
-	
-	
+
+
+
 	/**
 	 * Calculate each sensor correction increment for geometry and photometry contributed by all images selected in a series
-	 * @param selectedImages process only selected images 
+	 * @param selectedImages process only selected images
 	 * @param showIndividual show per-image intermediate results
 	 * @param threadsMax maximal number of concurrent threads
 	 * @param updateStatus update IJ status/progress
 	 * @param debugLevel debug level
-	 * @return [sensor]{dpX,dpY,alpha,R,G,B}[pixelIndex] . dpX, dpY - correction to previous, RGB - total FF, not increment! 
+	 * @return [sensor]{dpX,dpY,alpha,R,G,B}[pixelIndex] . dpX, dpY - correction to previous, RGB - total FF, not increment!
 	 */
 
 	public double [][][]  allImagesCorrectionMapped(
@@ -1272,7 +1282,8 @@ public class Distortions {
 
    		for (int ithread = 0; ithread < threads.length; ithread++) {
    			threads[ithread] = new Thread() {
-   				public void run() {
+   				@Override
+				public void run() {
    					for (int imgNum=imageNumberAtomic.getAndIncrement(); (imgNum<selectedImages.length) && !interruptedAtomic.get();imgNum=imageNumberAtomic.getAndIncrement()){
    						if (selectedImages[imgNum]){
    							int chnNum=fittingStrategy.distortionCalibrationData.gIP[imgNum].channel; // number of sub-camera
@@ -1288,7 +1299,8 @@ public class Distortions {
    							);
    							final int numFinished=imageFinishedAtomic.getAndIncrement();
    							SwingUtilities.invokeLater(new Runnable() {
-   								public void run() {
+   								@Override
+								public void run() {
    									if (updateStatus) IJ.showProgress(numFinished,finalSelected);
    								}
    							});
@@ -1309,11 +1321,11 @@ public class Distortions {
    						if (gridPCorr[nChn][alphaIndex][j]>0) gridPCorr[nChn][i][j]/=gridPCorr[nChn][alphaIndex][j];
    					}
    				}
-   			}   								
+   			}
    		}
-   		
+
 		if (updateStatus) IJ.showProgress(0);
-		
+
    		if (interruptedAtomic.get()) {
    			System.out.println("allImagesCorrection() aborted by user request");
    			return null;
@@ -1329,7 +1341,7 @@ public class Distortions {
 			final double alphaThreshold,
 			final double step,
 			final double interpolationSigma,
-			final double tangentialRadius, 
+			final double tangentialRadius,
 			final int    scanDistance,
 			final int resultDistance,
 			final int interpolationDegree,
@@ -1358,7 +1370,8 @@ public class Distortions {
 
    		for (int ithread = 0; ithread < threads.length; ithread++) {
    			threads[ithread] = new Thread() {
-   				public void run() {
+   				@Override
+				public void run() {
    					DoubleGaussianBlur gb=null;
    					double [][] debugMasks1=null;
    					double [][] debugMasks2=null;
@@ -1435,7 +1448,7 @@ public class Distortions {
  									step,
  									centerPXY,
    									interpolationSigma,
-   									tangentialRadius, 
+   									tangentialRadius,
    									scanDistance,
    									resultDistance,
    									interpolationDegree,
@@ -1444,7 +1457,8 @@ public class Distortions {
    									debugLevel);
    							final int numFinished=sensorFinishedAtomic.getAndIncrement();
    							SwingUtilities.invokeLater(new Runnable() {
-   								public void run() {
+   								@Override
+								public void run() {
    									if (updateStatus) IJ.showProgress(numFinished,gridPCorr.length);
    								}
    							});
@@ -1523,7 +1537,7 @@ public class Distortions {
 		}
 		return result;
 	}
-	
+
 	public void singleSensorExtrapolationMapped(
 			int sensoNum,
 			double [][] gridPCorr,
@@ -1534,7 +1548,7 @@ public class Distortions {
 			double step,
 			double [] centerPXY,
 			double interpolationSigma, // sensor pixels
-			double tangentialRadius, 
+			double tangentialRadius,
 			int    scanDistance,       // sensor pixels
 			int resultDistance,
 			int interpolationDegree,
@@ -1597,7 +1611,7 @@ public class Distortions {
 					waveList.remove(n);
 				}
 			}
-			
+
 		} //while (waveList.size()>0)
 		// debug show waves?
 		Rectangle full=new Rectangle (0,0,width,height);
@@ -1622,7 +1636,7 @@ public class Distortions {
 			}
 			double [][][] data = new double [5][waveList.size()][3]; // x,y,w
 			double sumWeights=0.0;
-			double rScaleTangSigma=1.0/(1.0+r0/tangR0); // 
+			double rScaleTangSigma=1.0/(1.0+r0/tangR0); //
 			for (int i=0;i<data[0].length;i++){
 				int index=waveList.get(i);
 				int x=index%width;
@@ -1641,8 +1655,8 @@ public class Distortions {
 
 				double distRad= ddCxy[0]*uRadVect[0]+ddCxy[1]*uRadVect[1]; // radial distance form the center (seed point)
 				double distTan=-ddCxy[0]*uRadVect[1]+ddCxy[1]*uRadVect[0]; // tangential distance form the center (seed point)
-				distTan*=rScaleTangSigma; // // for the center (seed point). was  distTan/=(1.0+rc/tangR0);  
-				double w=Math.exp(gaussianK*(distRad*distRad+distTan*distTan))*gridPCorr[alphaIndex][index]; 
+				distTan*=rScaleTangSigma; // // for the center (seed point). was  distTan/=(1.0+rc/tangR0);
+				double w=Math.exp(gaussianK*(distRad*distRad+distTan*distTan))*gridPCorr[alphaIndex][index];
 				sumWeights+=w;
 
 				double dRad= gridPCorr[dxIndex+0][index]*uRadVect[0]+gridPCorr[dxIndex+1][index]*uRadVect[1]; // radial component
@@ -1685,7 +1699,7 @@ public class Distortions {
 
 				double distRad= ddCxy[0]*uRadVect[0]+ddCxy[1]*uRadVect[1]; // radial distance form the center (seed point)
 				double distTan=-ddCxy[0]*uRadVect[1]+ddCxy[1]*uRadVect[0]; // tangential distance form the center (seed point)
-				distTan*=rScaleTangSigma; 
+				distTan*=rScaleTangSigma;
 				double w=Math.exp(gaussianK*(distRad*distRad+distTan*distTan)); //*gridPCorr[alphaIndex][index];
 				w*=sumWeights; // more points were used in coefficients calculation, more trust to that extrapolation
 				// extrapolate each value using polynomial coefficients
@@ -1746,7 +1760,7 @@ public class Distortions {
 		}
 		// mix interpolated with original data
 // double [] sensorMask,
-//gridPCorr		
+//gridPCorr
 		for (int index=0;index<length;index++) if (extrapolated[alphaIndex][index]>0.0){
 			for (int i=0;i<extrapolated.length;i++) if (i!=alphaIndex){
 				double w=useAlpha?(gridPCorr[alphaIndex][index]):((gridPCorr[alphaIndex][index]>0.0)?sensorMask[index]:0.0);
@@ -1754,12 +1768,12 @@ public class Distortions {
 			}
 		}
 	}
-	
-	
-	
-	
-	
-	
+
+
+
+
+
+
 	public synchronized void combineImageCorrection(
 			int chnNum,
 			double [][][] gridPCorr,
@@ -1770,7 +1784,7 @@ public class Distortions {
 		if (gridPCorr[chnNum]==null){
 			gridPCorr[chnNum]=new double [singleCorr.length][singleCorr[0].length];
 			for (int i=0;i<singleCorr.length;i++) for (int j=0; j<singleCorr[i].length;j++){
-				gridPCorr[chnNum][i][j]=0.0;	
+				gridPCorr[chnNum][i][j]=0.0;
 			}
 		}
 		for (int i=0;i<singleCorr.length;i++) {
@@ -1779,13 +1793,13 @@ public class Distortions {
 			} else {
 				for (int j=0; j<singleCorr[i].length;j++) gridPCorr[chnNum][i][j]+=singleCorr[i][j]*singleCorr[alphaIndex][j];
 			}
-		}   								
+		}
 	}
 
 	/**
-	 * Calculate sensor correction increment for geometry and photometry contributed by a single image 
+	 * Calculate sensor correction increment for geometry and photometry contributed by a single image
 	 * @param imgNum  number of image
-	 * @param maxSensorMask maximal value of the sensor mask for this sensor to start extrapolating 
+	 * @param maxSensorMask maximal value of the sensor mask for this sensor to start extrapolating
 	 * @param minContrast minimal measured grid contrast to seed extrapolating  - to prevent expansion in the areas where this particular sensor has bad data
 	 * @param minTargetAlpha - minimal alpha of the target node
 	 * @param useTargetAlpha   false - only use contrast of the detected grid, true - multiply contrast by grid alpha
@@ -1821,18 +1835,18 @@ public class Distortions {
 					"AC-"+imgNum,
 					dbgTitles);
 		}
-		
+
 		return additionalCorrection;
 	}
 
-	
+
 	/**
 	 * @param imgNum  number of image
 	 * @param showIntermediate - show intermediate images
 	 * @param debugLevel debug level
 	 * @return CorrectionInNodes data correction, image and grid data for some target grid nodes
 	 */
-	
+
 	public CorrectionInNodes extractNodeCorrections(
 			int imgNum, // image number
 			boolean showIntermediate,
@@ -1845,7 +1859,7 @@ public class Distortions {
 		LensDistortionParameters lensDistortionParameters= setupLensDistortionParameters(
 				imgNum,
 				debugLevel);     // Axial - may be Double.NaN
-		
+
 		int [][] imgUV=	  fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV;
 		double [][] imgXY=fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsXY; // for each image, each grid node - a set of of {px,py,contrast,vignR,vignG,vignB} vign* is in the 0..1.0 range
 		if ((imgUV==null) || (imgUV.length==0)) {
@@ -1869,7 +1883,7 @@ public class Distortions {
 		double [][] stagePXY= new double [width*height][]; //reprojected {px,py}
 		double [][] stageDiffPXY=   new double [width*height][]; // difference between corrected measured and reprojected (to add to correction)
 		double [][] stageDiffRGB=   new double [width*height][]; // difference (measured RGB)/(grid RGB) and current correction RGB (pixel sensitivity RGB)
-		double [] stageMask=        new double [width*height];   // weight 
+		double [] stageMask=        new double [width*height];   // weight
 		for (int i=0;i<stagePXY.length;i++) {
 			stagePXY[i]=null;
 			stageDiffPXY[i]  =null;
@@ -1908,7 +1922,7 @@ public class Distortions {
 				continue; // out of grid - should not happen here (now - also: target point behind the camera sensor)?
 			}
 //			double [] reprojPXY={reprojectedNode[0],reprojectedNode[1]};
-			double [] nodePXY={this.Y[doublePairIndex],this.Y[doublePairIndex+1]};	
+			double [] nodePXY={this.Y[doublePairIndex],this.Y[doublePairIndex+1]};
 			stagePXY[index]=nodePXY;// measured pixels Px,Py with correction applied  // reprojPXY;
 //			double [] diffPXY= {imgXY[i][0]-corrVector[0]-reprojectedNode[0],imgXY[i][1]-debugCorrVector[1]-reprojectedNode[1]};
 			double [] diffPXY= {diff[2*i],diff[2*i+1]};
@@ -1922,14 +1936,14 @@ public class Distortions {
 			}
 			stageDiffRGB[index]=diffRGB;
 			stageMask[index]=this.weightFunction[2*(this.imageStartIndex[imgNum]+i)];
-			
+
 			if (showIntermediate) for (int c=0;c<3;c++){
 				debugRGB[4*c+0][index]=photometrics[c][targetGridIndex];
 				debugRGB[4*c+1][index]=imgXY[i][imgRGBIndex+c];
 				debugRGB[4*c+2][index]=debugCorrVector[corrRIndex+c];
 				debugRGB[4*c+3][index]=imgXY[i][imgRGBIndex+c]/photometrics[c][targetGridIndex];
 			}
-			
+
 		}
 		if (showIntermediate){
 			double [][] debugData = new double [8][width*height];
@@ -1981,7 +1995,7 @@ public class Distortions {
 				);
 		return correctionInNodes;
 	}
-	
+
 	class CorrectionInNodes{
 		public int numImg;
 		public Rectangle uv0;
@@ -2009,7 +2023,7 @@ public class Distortions {
 			this.mask=mask; //=     new double [width*height][]; // {sensor mask, target mask, measured contrast}
 		}
 
-		
+
 		public void show(
 				String title
 				){
@@ -2042,7 +2056,7 @@ public class Distortions {
 		/**
 		 * Convert correction for grid nodes (detected and extrapolated) into decimated pixel array
 		 * result should be added to the current (prior) correction. Use alpha as weight when accumulating for multiple images
-		 * @param decimation decimate correction pixels from sensor pixels 
+		 * @param decimation decimate correction pixels from sensor pixels
 		 * @param sensorWidth sensor width in pixels (2592)
 		 * @param sensorHeight sensor height in pixels (1936)
 		 * @param debugLevel debug level (verbose if >3)
@@ -2085,7 +2099,7 @@ public class Distortions {
                 		}
                 	}
                 }
-                boolean [] cycleFits=new boolean[cycles.length];  
+                boolean [] cycleFits=new boolean[cycles.length];
                 boolean anyFits=false;
                 for (int i=0;i<cycles.length;i++){
                 	cycleFits[i]=true;
@@ -2132,7 +2146,7 @@ public class Distortions {
 				boolean debugHadPixels=false;
 //TODO: scan X,Y in this rectangle, for points in defined squares/triangles find if the point is inside (accurate not to loose any).
 				for (int idY=iMinY; idY<=iMaxY;idY++){
-					
+
 					double pY=idY*decimation; // in sensor pixels
 					for (int idX=iMinX; idX<=iMaxX;idX++){
 						double pX=idX*decimation; // in sensor pixels
@@ -2161,11 +2175,11 @@ public class Distortions {
 								System.out.println(debugString1);
 							}
 
-							/* interpolate: 
+							/* interpolate:
 							1. taking cycles[0] as origin and two (non co-linear) edge vectors - V1:from 0 to 1 and V2 from 1 to 2
 							    find a1 and a2  so that vector V  (from 0  to pXY) = a1*V1+ a2*V2
 							2. if F0 is the value of the interpolated function at cycles[0], F1 and F2 - at cycles[1] and cycles2
-							   then F=F0+(F1-F0)*a1 +(F2-F1)*a2    
+							   then F=F0+(F1-F0)*a1 +(F2-F1)*a2
 							 */
 							double [] XY0={this.reprojPXY[vu+uvInc[cycle[0]]][0],this.reprojPXY[vu+uvInc[cycle[0]]][1]};
 							double [] XY1={this.reprojPXY[vu+uvInc[cycle[1]]][0],this.reprojPXY[vu+uvInc[cycle[1]]][1]};
@@ -2260,7 +2274,7 @@ public class Distortions {
 //					}
 //					if (!debugExit) debugCntr--;
 //					if (debugCntr==0) debugExit=true; // exit after first non-empty tile
-					
+
 				}
 			} //for (int v=0;v<(this.uv0.height-1); v++) for (int u=0; u<(this.uv0.width-1);u++){
             for (int i=0;i<thisCounted.length;i++) if (thisCounted[i]>1) {
@@ -2269,7 +2283,7 @@ public class Distortions {
             return thisPCorr;
 		}
 	}
-	 
+
 	class DirInc{
 		private int top=   1 | 2 | 4 | 8 | 16;
 		private int bottom=1 |             16 | 32 | 64 | 128;
@@ -2301,7 +2315,7 @@ public class Distortions {
 				this.validDirs[i*width]&=left;
 				this.validDirs[i*width + width-1]&=right;
 			}
-			
+
 		}
 		public int newIndex(int oldIndex, int dir){
 			if ((validDirs[oldIndex] & (1<<dir))==0) return -1; // invalid dir for this location (border)
@@ -2319,16 +2333,16 @@ public class Distortions {
 		double [][]dxy=null;
 		public PixXYUV(){}
 		public PixXYUV(int len){
-			this.uv=new int [len][2];	
-			this.xy=new double [len][2];	
-			this.alpha=new double [len];	
-			this.dxy=new double [len][2];	
+			this.uv=new int [len][2];
+			this.xy=new double [len][2];
+			this.alpha=new double [len];
+			this.dxy=new double [len][2];
 		}
 	}
-	
-	
-	
-	
+
+
+
+
 	/**
 	 * Interpolate (bi-linear) X/Y corrections and flat-field data for the sensor
 	 * @param chnNum - sensor (channel) number
@@ -2368,7 +2382,7 @@ public class Distortions {
 		if ((py>iy[0])&& (py<iy[1])) corrDY=py-iy[0];
 		double [] vector=new double [this.pixelCorrection[chnNum].length];
 		for (int n=0;n<vector.length;n++){
-			// bilinear interpolation			
+			// bilinear interpolation
 			vector[n]=
 				(1-corrDX)* (1-corrDY)* this.pixelCorrection[chnNum][n][index00]+
 				corrDX * (1-corrDY)* this.pixelCorrection[chnNum][n][indexX0]+
@@ -2417,10 +2431,10 @@ public class Distortions {
 				corrDX *    corrDY * mask[indexXY];
 		return result;
 	}
-	
-	
+
+
 /**
- *   after fitting finished and accepted - 	fittingStrategy.saveSeriesVector(double [] vector)	
+ *   after fitting finished and accepted - 	fittingStrategy.saveSeriesVector(double [] vector)
  */
 	public void saveFittingSeries() {
 		fittingStrategy.saveSeriesVector(this.currentVector);
@@ -2459,11 +2473,11 @@ For each point in the image
     public double [][] interParameterDerivatives=null; //partial derivative matrix from subcamera-camera-goniometer to single camera (12x21)
     public double []   currentVector; // current variable parameter vector
     public double []   Y=null; // array of "y" - for each grid image, each defined grid node - 2 elements
-    public double [][] targetXYZ=null; // array of target {x,y,z} matching each image each grid point 
+    public double [][] targetXYZ=null; // array of target {x,y,z} matching each image each grid point
     public double []   fX=null; // array of "f(x)" - simulated data for all images, combining pixel-X and pixel-Y (odd/even)
     public double [][] jacobian=null; // partial derivatives of fX (above) by parameters to be adjusted (rows)
 	 */
-	
+
 	public ImagePlus simulatePatternOnSensor(
 			int stationNumber,
 			int subCam,
@@ -2512,7 +2526,7 @@ For each point in the image
 				index++;
 			}
 			(new ShowDoubleFloatArrays()).showArrays(pixels, hintGrid[0].length, hintGrid.length,  true, "hintGrid", titles);
-			
+
 		}
 
 		if (global_debug_level>0){
@@ -2551,7 +2565,7 @@ For each point in the image
 		return imp_simGrid;
 	}
 
-//TODO: add additional parameter - process all, but with matched pointers less than 2	
+//TODO: add additional parameter - process all, but with matched pointers less than 2
 	public int applyHintedGrids(
 			MatchSimulatedPattern.LaserPointer laserPointer, // LaserPointer object that specifies actual laser pointers on the target
 			boolean removeOutOfGridPointers,
@@ -2631,7 +2645,7 @@ For each point in the image
 						}
 					}
 				}
-				
+
 				double [][][] pixelsXYSet={
 							dcd.gIP[numGridImage].pixelsXY,
 							dcd.gIP[numGridImage].pixelsXY_extra};
@@ -2639,13 +2653,13 @@ For each point in the image
 						dcd.gIP[numGridImage].pixelsUV,
 						dcd.gIP[numGridImage].pixelsUV_extra};
 // shifts pixelsUV to have minimal u,v of 0 (stores shift in this.minUV), sets PATTERN_GRID
-				matchSimulatedPattern.restorePatternGridFromGridList( 
+				matchSimulatedPattern.restorePatternGridFromGridList(
 						pixelsXYSet, //double [][] pixelsXY,
 						pixelsUVSet, // int [][] pixelsUV,
 						dcd.gIP[numGridImage].intensityRange
 				); // width and height will be calculated from maximal of pixelsXY
 				boolean OK=matchSimulatedPattern.createUV_INDEX( /// **** fails here
-						null, //imp, // or null - just to determine WOI (when getWOI matches image size) 
+						null, //imp, // or null - just to determine WOI (when getWOI matches image size)
 						xy0, // add to patterGrid xy, null OK
 						threadsMax,
 						updateStatus,
@@ -2699,7 +2713,7 @@ For each point in the image
 					if (rslt<0) { // failed hinting
 						dcd.gIP[numGridImage].hintedMatch =0;
 					} else {
-// re-create pixelsXY, pixelsXY_extra, pixelsUV, pixelsUV_extra	
+// re-create pixelsXY, pixelsXY_extra, pixelsUV, pixelsUV_extra
 		            	int size=0;
 		            	int size_extra=0;
 /*	            		System.out.println("numGridImage="+numGridImage+" matchSimulatedPattern.getHeight()="+matchSimulatedPattern.getHeight()+
@@ -2748,7 +2762,7 @@ For each point in the image
 		            		System.out.println(" + matchSimulatedPattern.pixelsUV[v][u] is "+((matchSimulatedPattern.pixelsUV[v][u]==null)?"null":"not null"));*/
 		            		if ((matchSimulatedPattern.targetUV[v][u]!=null) &&(matchSimulatedPattern.pXYUV[v][u]!=null) ) {
 //			            		System.out.println("++ v="+v+", u="+u+" index="+index+" ("+size+"), index_extra="+index_extra+" ("+size_extra+")");
-		            		
+
 		            			if ((matchSimulatedPattern.targetUV[v][u]!=null) &&(matchSimulatedPattern.pXYUV[v][u]!=null) &&
 		            					(matchSimulatedPattern.pXYUV[v][u][0]>=0.0) || (matchSimulatedPattern.pXYUV[v][u][1]>=0.0)) { // disregard negative sensor pixels
 		            				if (
@@ -2807,15 +2821,15 @@ For each point in the image
 			}
 		return numSuccess;
 	}
-	
+
 	public void showGridImage(int numGridImage){
 		DistortionCalibrationData.GridImageParameters grid=fittingStrategy.distortionCalibrationData.gIP[numGridImage];
 /*
     		public double [][] pixelsXY=  null; // for each image, each grid node - a pair of {px,py}
     		public int    [][] pixelsUV=  null; // for each image, each grid node - a pair of {gridU, gridV}
     		public double [][] pixelsXY_extra=  null; // extra data, for nodes that are out of the physical grid (may be needed after re-calibration)
-    		public int    [][] pixelsUV_extra=  null; 
-		
+    		public int    [][] pixelsUV_extra=  null;
+
 */
 		boolean valid=false;
 		int minU=0,maxU=0,minV=0,maxV=0;
@@ -2898,13 +2912,13 @@ For each point in the image
 		boolean useSetData=gd.getNextBoolean();
 		IJ.showStatus("grid: "+((fittingStrategy.distortionCalibrationData.gIP[numGridImage].path==null)?"":fittingStrategy.distortionCalibrationData.gIP[numGridImage].path));
 //		showStatus("grid: "+((fittingStrategy.distortionCalibrationData.gIP[numGridImage].path==null)?"":fittingStrategy.distortionCalibrationData.gIP[numGridImage].path),0);
-	
-        if (showGrid)	showGridImage(numGridImage);	
-        if (showHint)	calcAndShowHintGrid(numGridImage,useSetData);	
+
+        if (showGrid)	showGridImage(numGridImage);
+        if (showHint)	calcAndShowHintGrid(numGridImage,useSetData);
 	}
 
-	
-	
+
+
 	public void calcAndShowHintGrid(int numGridImage, boolean useSetData){
 		double [] goniometerTiltAxial=fittingStrategy.distortionCalibrationData.getImagesetTiltAxial(numGridImage);
 		if ((goniometerTiltAxial==null) || Double.isNaN(goniometerTiltAxial[0])  || Double.isNaN(goniometerTiltAxial[1])){
@@ -2937,7 +2951,7 @@ For each point in the image
 	public void showHintGrid(double [][][] hintGrid){
 		showHintGrid(hintGrid,"hintGrid");
 	}
-	
+
 	public void showHintGrid(double [][][] hintGrid, String title){
 		double [][] pixels=new double[4][hintGrid.length*hintGrid[0].length];
 		int index=0;
@@ -2952,11 +2966,11 @@ For each point in the image
 		}
 		(new ShowDoubleFloatArrays()).showArrays(pixels, hintGrid[0].length, hintGrid.length,  true, title, titles);
 	}
-	
+
 	/**
 	 * Calculate grid on sensor using current camera parameters (including goniometer angles), sub-camera number
 	 * @param subCamera
-	 * @return grid array [v][u][0- x,  1 - y, 2 - u, 3 - v] 
+	 * @return grid array [v][u][0- x,  1 - y, 2 - u, 3 - v]
 	 */
 	/*
 	 // wrong, orientation depends on timestamp
@@ -2970,13 +2984,13 @@ For each point in the image
 	}
 	*/
 
-	
+
 	public LensDistortionParameters setupLensDistortionParameters(
 			int numImg,
 //			int stationNumber,
 //			int subCamera,
 			int debugLevel){     // Axial - may be Double.NaN
-		
+
 //		double [] parVector=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getParametersVector(stationNumber,subCamera);
 //		System.out.println("setupLensDistortionParameters(): subCamera="+subCamera+", goniometerHorizontal="+goniometerHorizontal+", goniometerAxial="+goniometerAxial);
     	boolean isTripod=this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod;
@@ -2992,11 +3006,11 @@ For each point in the image
 				);
 		return lensDistortionParameters;
 	}
-	
+
 	public LensDistortionParameters setupLensDistortionParameters(
 			int stationNumber,
 			int subCamera,
-			double goniometerHorizontal, // Tilt - may be Double.NaN 
+			double goniometerHorizontal, // Tilt - may be Double.NaN
 			double goniometerAxial,
 			int debugLevel){     // Axial - may be Double.NaN
 		double [] parVector=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getParametersVector(stationNumber,subCamera);
@@ -3040,7 +3054,7 @@ For each point in the image
 				u, // grid signed u,v
 				v,
 		       	maxRelativeRadius);
-	}	
+	}
 	public double [] reprojectGridNode(
 			LensDistortionParameters lensDistortionParameters,
 			int numImg,
@@ -3061,7 +3075,7 @@ For each point in the image
 					nChn,
 					false);
 			if (XYZMP==null) return null;
-			// project the target point to this sensor	
+			// project the target point to this sensor
 			double [][]pXY=  lensDistortionParameters.calcPartialDerivatives(
 					XYZMP[0], // target point horizontal, positive - right,  mm
 					XYZMP[1], // target point vertical,   positive - down,  mm
@@ -3082,13 +3096,13 @@ For each point in the image
 			result[5]=XYZMP[6]; // B
 			result[6]=XYZMP[7]; // alpha
 // get photometrics here
-			
+
 		return result;
 	}
 
 	/**
-	 * Apply sensor correction to the projected grid (generated by estimateGridOnSensor()) 
-	 * @param gridOnSensor array [v][u][0- x,  1 - y, 2 - targetAbsolute-u, 3 - targetAbsolute-v] 
+	 * Apply sensor correction to the projected grid (generated by estimateGridOnSensor())
+	 * @param gridOnSensor array [v][u][0- x,  1 - y, 2 - targetAbsolute-u, 3 - targetAbsolute-v]
 	 * @param subCamera channel number
 	 * @return true if the correction was applied (in-place) false if no correction is available
 	 */
@@ -3107,7 +3121,7 @@ For each point in the image
 //		System.out.println("================== Added +0.0 to pixel y for debugging purposes! =====================");
 		return true;
 	}
-	
+
 	/**
 	 * Calculate grid on sensor using current Camera parameters, sub-camera number and the two goniometer angles
 	 * @param stationNumber
@@ -3115,21 +3129,21 @@ For each point in the image
 	 * @param goniometerHorizontal
 	 * @param goniometerAxial
 	 * @param imageSet - if >=0 - use this set number data  instead of the camera data)
-	 * @return grid array [v][u][0- x,  1 - y, 2 - u, 3 - v] 
+	 * @return grid array [v][u][0- x,  1 - y, 2 - u, 3 - v]
 	 */
-	
+
 	// TODO:calcInterParamers() -> lensDistortionParameters.lensCalcInterParamers
 	public double [][][] estimateGridOnSensor( // not yet thread safe
 			int stationNumber,
 			int subCamera,
-			double goniometerHorizontal, // Tilt 
+			double goniometerHorizontal, // Tilt
 			double goniometerAxial,     // Axial
 			double goniometerInterAxis,     // interAxisAngle
 			int  imageSet,
 			boolean filterBorder){
 		double maxRelativeRadius=this.hintedMaxRelativeRadius; // make adjustable
 		int debugThreshold=2;
-		// Get parameter vector (22) for the selected sensor, current Eyesisparameters and specified orientation angles 		
+		// Get parameter vector (22) for the selected sensor, current Eyesisparameters and specified orientation angles
 		double [] parVector=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getParametersVector(stationNumber,subCamera);
 		if ((imageSet>=0) &&
 				(this.fittingStrategy.distortionCalibrationData.gIS!=null) &&
@@ -3157,7 +3171,7 @@ For each point in the image
 				null, // this.interParameterDerivatives, // [22][]
 				parVector,
 				null); // if no derivatives, null is OK
-*/		
+*/
 		this.lensDistortionParameters.lensCalcInterParamers(
 				this.lensDistortionParameters, // 22-long parameter vector for the image
 				this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
@@ -3165,8 +3179,8 @@ For each point in the image
 				null, // this.interParameterDerivatives, // [22][]
 				parVector,
 				null); // if no derivatives, null is OK
-		
-		
+
+
 		if (!lensDistortionParameters.isTargetVisible(this.debugLevel>0)) {
 			if (this.debugLevel>debugThreshold) System.out.println("Camera is looking away from the target");
 //			return null; // camera is looking away from the target (does not mean target is in FOV)
@@ -3182,15 +3196,15 @@ For each point in the image
 		}
 		// was bug cased by +/- infinity (and sometimes numbers falling into the sensor range) when the image plane intersected target
 		// simple fix - remove pixels with too few neighbors (maybe just all border pixels?
-		
-		
+
+
 		for (int v=0;v<result.length;v++) for (int u=0;u<result[v].length;u++){
 			int [] iUV=this.patternParameters.uvIndicesToUV (u, v);
 			if (iUV==null) {
 				result[v][u]=null;
 			} else {
 				double [] XYZM=this.patternParameters.getXYZM(iUV[0],iUV[1],stationNumber);
-// project the target point to this sensor	
+// project the target point to this sensor
 				double [][]pXY=  this.lensDistortionParameters.calcPartialDerivatives(
 						XYZM[0], // target point horizontal, positive - right,  mm
 						XYZM[1], // target point vertical,   positive - down,  mm
@@ -3202,7 +3216,7 @@ For each point in the image
 				if (Double.isNaN(pXY[0][0]) || (pXY[0][0]<0) || (pXY[0][0]>=sensorWidth) || (pXY[0][1]<0) || (pXY[0][1]>=sensorHeight)){
 					if (this.debugLevel>debugThreshold){
 						System.out.println("--- estimateGridOnSensor():v="+v+" u="+u+" X="+XYZM[0]+" Y="+XYZM[1]+" Z="+XYZM[2]+" M="+XYZM[3]+
-								" pXY[0][0]="+pXY[0][0]+", pXY[0][1]="+pXY[0][1]+", iUV[0]="+iUV[0]+", iUV[1]="+iUV[1]); 
+								" pXY[0][0]="+pXY[0][0]+", pXY[0][1]="+pXY[0][1]+", iUV[0]="+iUV[0]+", iUV[1]="+iUV[1]);
 					}
 					result[v][u]=null;
 				} else {
@@ -3210,7 +3224,7 @@ For each point in the image
 					result[v][u]=resultCell;
 					if (this.debugLevel>debugThreshold){
 						System.out.println("+++ estimateGridOnSensor():v="+v+" u="+u+" X="+XYZM[0]+" Y="+XYZM[1]+" Z="+XYZM[2]+" M="+XYZM[3]+
-								" pXY[0][0]="+pXY[0][0]+", pXY[0][1]="+pXY[0][1]+", iUV[0]="+iUV[0]+", iUV[1]="+iUV[1]); 
+								" pXY[0][0]="+pXY[0][0]+", pXY[0][1]="+pXY[0][1]+", iUV[0]="+iUV[0]+", iUV[1]="+iUV[1]);
 					}
 					visibleCells++;
 				}
@@ -3252,7 +3266,7 @@ For each point in the image
 					true,
 					"Hinted-All",
 					debugTitles);
-		}		
+		}
 		if (this.debugLevel>1) {
 			System.out.println("Grid in the FOV of the subcamera "+subCamera+
 					" tilt="+goniometerHorizontal+" axial="+goniometerAxial+" has "+visibleCells+" cells");
@@ -3260,7 +3274,7 @@ For each point in the image
 		if (visibleCells==0) return null; // no grid cells in FOV
 		return result;
 	}
-	
+
     public void debugCompareInterparameterDerivatives(
     		double [] vector,
     		int imgNum,
@@ -3277,7 +3291,7 @@ For each point in the image
 		}
 		if (imgNum>=numImg){
 			IJ.showMessage("No images found for this fitting strategy");
-			return; // no images found 
+			return; // no images found
 		}
 		double [] imgVector=fittingStrategy.getImageParametersVector(imgNum, vector); //this.currentVector);
 //		boolean [] imgMask= fittingStrategy.getImageParametersVectorMask(imgNum);
@@ -3312,12 +3326,12 @@ For each point in the image
 					this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
 					this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.cartesian,
 					null, // this.interParameterDerivatives, // just values, no derivatives
-					vector_delta, 
+					vector_delta,
 					imgMask);
 //					false); // just values, no derivatives
 			double [] values_delta=lensDistortionParameters.getExtrinsicVector();
-			for (int j=0;j<derivatives_delta[i].length;j++) derivatives_delta[i][j]=(values_delta[j]-values[j])/delta; 
-		}		
+			for (int j=0;j<derivatives_delta[i].length;j++) derivatives_delta[i][j]=(values_delta[j]-values[j])/delta;
+		}
 		String [] lensParNames = lensDistortionParameters.getExtrinsicNames();
 	    String header="#\tphysical/lens\t ";
 	    for (int i=0;i<lensParNames.length;i++)header+="\t"+lensParNames[i];
@@ -3340,7 +3354,7 @@ For each point in the image
     }
 // after stepping back - no need to rerun calculateFxAndJacobian(false), just keep
 	/**
-	 *  Calculates f(X) and optionally Jacobian for the current parameters 
+	 *  Calculates f(X) and optionally Jacobian for the current parameters
 	 *  @parameter vector - parameter vector to be used
 	 *  @parameter calcJacobian  if true, calculates Jacobian as this.jacobian
 	 *  @return  f(X) - pixel coordinates for each (visible) grid pattern node for current parameters this.currentVector
@@ -3355,7 +3369,7 @@ For each point in the image
 //			vector = new double[0];
 		}
 		// TODO: verify classes/arrays exist?
-        int doubleNumAllPoints=this.Y.length; // all points in all images multiplied by 2 (x and y error are separate)		
+        int doubleNumAllPoints=this.Y.length; // all points in all images multiplied by 2 (x and y error are separate)
 		int fittedParNumber=(vector==null)?0:vector.length; //this.currentVector.length;
 		double [] vectorFX=new double[doubleNumAllPoints];
 //		this.fX=new double[doubleNumAllPoints];
@@ -3406,7 +3420,7 @@ For each point in the image
 			if (this.debugLevel>2) {
 				System.out.println("calculateFxAndJacobian(), numPoints="+numPoints+" (imgNum="+imgNum+")");
 			}
-// iterate through points, for each calculate pixelx, pixely and derivatives			
+// iterate through points, for each calculate pixelx, pixely and derivatives
 			for (int pointNum=0;pointNum<numPoints;pointNum++){
 				int fullIndex=index+pointNum;
 				if (fullIndex>=this.targetXYZ.length){
@@ -3426,7 +3440,7 @@ For each point in the image
 	    			for (int ii=0;ii<derivatives15.length;ii++) all+=" "+ii+":"+IJ.d2s(derivatives15[ii][0],3)+"/"+IJ.d2s(derivatives15[ii][1],3);
 	    			System.out.println(all);
 	    		}
-				vectorFX[2*fullIndex]=  derivatives15[0][0];			
+				vectorFX[2*fullIndex]=  derivatives15[0][0];
 				vectorFX[2*fullIndex+1]=derivatives15[0][1];
 				if (calcJacobian) {
 					double [][]derivatives = lensDistortionParameters.reorderPartialDerivatives(derivatives15);
@@ -3461,12 +3475,12 @@ For each point in the image
 	 * @param patternXYZ  X,Y,Z of the physical target for each node of each image (TODO: memory may be reduced)
 	 * @param vectorFX    Vector to be filled here , twice length as patternXYZ (x and y alternating)
 	 * @param imageStartIndex  start index in patternXYZ array (length - difference to the next, includes extra last element)
-	 * @param lensDistortionParameters LensDistortionParameters class instance (may be reused between calls) 
+	 * @param lensDistortionParameters LensDistortionParameters class instance (may be reused between calls)
 	 * @param calcJacobian calculate Jacobian matrix (if false - only FX)
 	 * @return partial Jacobian matrix, number of rows= vector.length, number of columns - 2*indexCount
 	 *   NOTE: this one is thread safe
 	 */
-	
+
 	public double [][] calculatePartialFxAndJacobian(
 			final int numImage,      // number of grid image
 			final double [] vector,  // parameters vector
@@ -3521,7 +3535,7 @@ For each point in the image
 						imgVector,
 						imgMask); // calculate only selected derivatives (all parVect values are still
 
-		// iterate through points, for each calculate pixelx, pixely and derivatives			
+		// iterate through points, for each calculate pixelx, pixely and derivatives
 		for (int pointNum=0;pointNum<indexCount;pointNum++){
 			int fullIndex=indexStart+pointNum;
 			double [][]derivatives15=  lensDistortionParameters.calcPartialDerivatives(
@@ -3538,7 +3552,7 @@ For each point in the image
 				for (int ii=0;ii<derivatives15.length;ii++) all+=" "+ii+":"+IJ.d2s(derivatives15[ii][0],3)+"/"+IJ.d2s(derivatives15[ii][1],3);
 				System.out.println(all);
 			}
-			vectorFX[2*fullIndex]=  derivatives15[0][0];			
+			vectorFX[2*fullIndex]=  derivatives15[0][0];
 			vectorFX[2*fullIndex+1]=derivatives15[0][1];
 			if (calcJacobian) {
 				double [][]derivatives = lensDistortionParameters.reorderPartialDerivatives(derivatives15);
@@ -3560,10 +3574,10 @@ For each point in the image
 		}
 		return jacobian;
 	}
-	
-	
+
+
 	/**
-	 * 
+	 *
 	 * @param vector - parameter vector to be used
 	 * @param imgNumber - number of image to process or -1 - use the first of selected in this strategy
 	 * @return return Jacobian matrix for the selected image and individual parameters
@@ -3574,17 +3588,17 @@ For each point in the image
 			double [] vector,
 			int imgNumber,
 			double delta){ // these parameters can work for one image only
-        int doubleNumAllPoints=this.Y.length; // all points in all images multiplied by 2 (x and y error are separate)		
+        int doubleNumAllPoints=this.Y.length; // all points in all images multiplied by 2 (x and y error are separate)
 		double [][] jacobian16=new double[lensDistortionParameters.getNumOutputs()][doubleNumAllPoints];
 		double []   values=    new double[doubleNumAllPoints];
-		
+
 		for (int i=0;i<jacobian16.length;i++) for (int j=0;j<doubleNumAllPoints;j++) jacobian16[i][j]=0.0;
 		int numImg=fittingStrategy.distortionCalibrationData.getNumImages();
 		boolean [] selectedImages=fittingStrategy.selectedImages();
 		int index=0;
 		for (int imgNum=0;imgNum<numImg;imgNum++) if (selectedImages[imgNum]) {
 			int numPoints=fittingStrategy.distortionCalibrationData.getImageNumPoints(imgNum);
-			if (imgNumber<0) imgNumber=imgNum; // -1 - use the first image in the list 
+			if (imgNumber<0) imgNumber=imgNum; // -1 - use the first image in the list
 			if (imgNum==imgNumber) {
 				double [] imgVector=fittingStrategy.getImageParametersVector(imgNum, vector); //this.currentVector);
 				boolean [] imgMask= fittingStrategy.getImageParametersVectorMask(imgNum);
@@ -3609,7 +3623,7 @@ For each point in the image
 					System.out.println("calculateJacobian16(), numPoints="+numPoints+" (imgNum="+imgNum+")");
 				}
 				if (delta<=0) {
-					// iterate through points, for each calculate pixelx, pixely and derivatives			
+					// iterate through points, for each calculate pixelx, pixely and derivatives
 					for (int pointNum=0;pointNum<numPoints;pointNum++){
 						int fullIndex=index+pointNum;
 						double [][]derivatives15=  lensDistortionParameters.calcPartialDerivatives(
@@ -3672,10 +3686,10 @@ For each point in the image
 		}
 		return null; // should normally return from inside the for loop
 	}
-	
-	
+
+
 /*
-List calibration	
+List calibration
  */
     public boolean listImageParameters(boolean silent){
     	if (this.fittingStrategy==null) {
@@ -3685,7 +3699,7 @@ List calibration
     	}
     	int numSeries=fittingStrategy.getNumSeries();
     	if (silent) {
-    		this.seriesNumber=0; 
+    		this.seriesNumber=0;
     	} else {
     		GenericDialog gd = new GenericDialog("Settings for the parameter list");
     		gd.addNumericField("Iteration number to start (0.."+(numSeries-1)+")", this.seriesNumber, 0);
@@ -3719,7 +3733,7 @@ List calibration
 
 
 		boolean [] selectedImages=fittingStrategy.selectedImages();
-//TODO: add display of per-image RMS		
+//TODO: add display of per-image RMS
 	    listImageParameters (
 	    		selectedImages,
 	    		rms,
@@ -3736,7 +3750,7 @@ List calibration
 	    		this.extraDecimals);
     	return true;
     }
-    
+
     public void markBadNodces(int seriesNumber,
     		int debugLevel){
     	int oldSeries=this.seriesNumber;
@@ -3778,7 +3792,7 @@ List calibration
     	}
     	return true;
     }
-    
+
     public boolean removeOutLayers(
     		int series,
     		int numOutLayers,
@@ -3827,7 +3841,7 @@ List calibration
 				if ((chn<0) || (chn>=selectedChannels.length) || !selectedChannels[chn]){
 					selectedImages[i]=false;
 				}
-			}			
+			}
 		}
 		int numSelectedNotNaNImages=0;
 		int numNaN=0;
@@ -3843,8 +3857,8 @@ List calibration
 		int [] indices=new int [numOutLayers];
 		boolean [] availableImages=selectedImages.clone();
 		for (int i=0;i<selectedImages.length;i++) if (selectedImages[i] && Double.isNaN(errors[i])) availableImages[i]=false;
-		
-		
+
+
 		if ((this.debugLevel>0) && (numNaN>0)){
 			System.out.println("removeOutLayers(): Number of empty (rms=NaN) images="+numNaN+":");
 			int n=0;
@@ -3863,7 +3877,7 @@ List calibration
 			}
 
 		}
-		
+
 		System.out.println("removeOutLayers(): availableImages.length="+availableImages.length+" numSelectedNotNaNImages="+numSelectedNotNaNImages);
 		for (int n=0;n<numOutLayers;n++){
 			double maxRMS=-1.0;
@@ -3878,7 +3892,7 @@ List calibration
 			}
 			availableImages[indices[n]]=false; // java.lang.ArrayIndexOutOfBoundsException: -1
 		}
-		
+
 		GenericDialog gd = new GenericDialog("Select images to remove (RMS="+IJ.d2s(rms,3)+")");
 		if (this.debugLevel>0) System.out.println("Listing "+numOutLayers+" worst images:");
 		for (int n=0;n<indices.length;n++){
@@ -3887,7 +3901,7 @@ List calibration
 			this.fittingStrategy.distortionCalibrationData.gIP[indices[n]].path+
 			" ("+this.fittingStrategy.distortionCalibrationData.gIP[indices[n]].pixelsXY.length+
 			" points) "+selectedImages[indices[n]];
-			
+
 			if (this.debugLevel>0) System.out.println(
 					msg);
 			gd.addCheckbox(msg, true);
@@ -3949,7 +3963,7 @@ List calibration
 	    		} else {
 	    			error2+=errors[imgNum]*errors[imgNum]*num;
 	    			numInSet+=num;
-	    			
+
 	    		}
 	    	}
     		allNaNInSet[setNum]=(numInSet==0);
@@ -3987,7 +4001,7 @@ List calibration
 	    		}
 			}
 		}
-		
+
 		System.out.println("removeOutLayerSets(): availableSets.length="+availableSets.length+" numSelectedSets="+numSelectedSets);
 		for (int n=0;n<numOutLayers;n++){
 			double maxRMS=-1.0;
@@ -4002,7 +4016,7 @@ List calibration
 			}
 			availableSets[indices[n]]=false; // java.lang.ArrayIndexOutOfBoundsException: -1
 		}
-		
+
 		GenericDialog gd = new GenericDialog("Select image Sets to remove (RMS="+IJ.d2s(rms,3)+")");
 		if (this.debugLevel>0) System.out.println("Listing "+numOutLayers+" worst image sets");
 		for (int n=0;n<indices.length;n++){
@@ -4015,10 +4029,10 @@ List calibration
 				int numImg=imageSets[numSet][i];
 				double diameter=this.fittingStrategy.distortionCalibrationData.gIP[numImg].getGridDiameter();
 				gd.addMessage(i+":"+numImg+": "+IJ.d2s(errors[numImg],3)+" "+
-						" ("+this.fittingStrategy.distortionCalibrationData.gIP[numImg].pixelsXY.length+" points, diameter="+diameter+") "+		
+						" ("+this.fittingStrategy.distortionCalibrationData.gIP[numImg].pixelsXY.length+" points, diameter="+diameter+") "+
 						this.fittingStrategy.distortionCalibrationData.gIP[numImg].path);
 				if (this.debugLevel>0) System.out.println("  --- "+numImg+": "+IJ.d2s(errors[numImg],3)+" "+
-						" ("+this.fittingStrategy.distortionCalibrationData.gIP[numImg].pixelsXY.length+" points, diameter="+diameter+") "+		
+						" ("+this.fittingStrategy.distortionCalibrationData.gIP[numImg].pixelsXY.length+" points, diameter="+diameter+") "+
 						this.fittingStrategy.distortionCalibrationData.gIP[numImg].path);
 			}
 		}
@@ -4047,7 +4061,7 @@ List calibration
 //		this.fittingStrategy.setImageSelection(0, oldSelection); // restore original selection in series 0
 		return true;
     }
-    
+
     public boolean removeOutLayersJunk(int series, int numOutLayers){
     	int numSeries=fittingStrategy.getNumSeries();
     	if ((series<0) || (numOutLayers<0)) {
@@ -4104,14 +4118,14 @@ List calibration
 		}
 		return true;
     }
-    
+
 	/**
 	 * Opens a text window with the parameter table
 	 * @param imageSelection which images include in the output
 	 * @param showEyesisParameters show physical location/attitude based on Eyesis
 	 * @param showIntrinsicParameters show lens distortion/alignment parameters)
 	 * @param showExtrinsicParameters show position/attitude of the individual cameras
-	 * @param extraDecimals add this many decimals to data 
+	 * @param extraDecimals add this many decimals to data
 	 */
 	public void listImageParameters (boolean [] imageSelection,
     		double rms,
@@ -4157,7 +4171,7 @@ List calibration
 			extrinsic[imgIndex]=      lensDistortionParameters.getExtrinsicVector().clone();
 			lensCoordinates[imgIndex]=lensDistortionParameters.getLensCenterCoordinates();
 		}
-	
+
 	    String header="Name\tUnits";
 		for (int imgIndex=0;imgIndex<numImages;imgIndex++)
 			header+="\t"+IJ.d2s(fittingStrategy.distortionCalibrationData.getImageTimestamp(imgIndices[imgIndex]),6);
@@ -4168,7 +4182,7 @@ List calibration
 				sb.append("\t"+imgIndices[imgIndex]);
 			}
 			sb.append("\n");
-	    	
+
 	    }
 	    if (showGridMatch){
 			sb.append("Grid Match"+"\tX/Y:ROT");
@@ -4178,11 +4192,11 @@ List calibration
 				sb.append("\t"+shiftRot[0]+"/"+shiftRot[1]+":"+shiftRot[2]);
 			}
 			sb.append("\n");
-			
+
 			sb.append("Lasers(matched)"+"\t");
 			for (int imgIndex=0;imgIndex<numImages;imgIndex++){
 				int imgNum=imgIndices[imgIndex]; // image number
-				
+
     			int numPointers=0; // count number of laser pointers
     	        DistortionCalibrationData.GridImageParameters gip=fittingStrategy.distortionCalibrationData.getGridImageParameters(imgNum);
     			if (gip.laserPixelCoordinates!=null){
@@ -4229,7 +4243,7 @@ List calibration
 				sb.append("\t"+fittingStrategy.distortionCalibrationData.getImageSubcamera(imgNum));
 			}
 			sb.append("\n");
-			
+
 			for (int parNumber=0;parNumber<fittingStrategy.distortionCalibrationData.getNumDescriptions();parNumber++){
 				sb.append(
 						fittingStrategy.distortionCalibrationData.descrField(parNumber,0)+"\t"+
@@ -4294,7 +4308,7 @@ List calibration
 		}
 	    new TextWindow("Camera/lens parameters", header, sb.toString(), 500,900);
 	}
-	
+
 	/**
 	 * Calculate differences vector
 	 * @param fX vector of calculated pixelX,pixelY on the sensors
@@ -4303,14 +4317,14 @@ List calibration
 	public double [] calcYminusFx(double [] fX){
 		double [] result=this.Y.clone();
 		for (int i=0;i<result.length;i++) result[i]-=fX[i];
-	    return result;	
+	    return result;
 	}
 	/**
-	 * Calcualte partial differences vector 
+	 * Calcualte partial differences vector
 	 * @param fX vector of reprojected pixelX,pixelY on the sensors (number of elements - double number of points
 	 * @param startIndex start index to extract (even number, twice point index)
 	 * @param endIndex end index (1 greater than the last to extract)
-	 * @return partial differences (measured/corrected -reprojected), twice number of points long 
+	 * @return partial differences (measured/corrected -reprojected), twice number of points long
 	 */
 	public double [] calcYminusFx(double [] fX, int startIndex, int endIndex){
 		double [] result=new double [endIndex-startIndex];
@@ -4318,14 +4332,14 @@ List calibration
 			int index=startIndex+i;
 			result[i]=this.Y[index]-fX[index];
 		}
-		return result;	
+		return result;
 	}
 
-	
+
 	/**
 	 * Calculate the RMS from the differences vector
 	 * @param diff - differences vector
-	 * @return RMS for the mean error (in sensor pixels) 
+	 * @return RMS for the mean error (in sensor pixels)
 	 */
 	public double calcError(double [] diff){
 		double result=0;
@@ -4339,7 +4353,7 @@ List calibration
 		return Math.sqrt(result)*this.RMSscale;
 	}
 
-	
+
 	public double calcErrorDiffY(double [] fX){
 		double result=0;
 		if (this.weightFunction!=null) {
@@ -4401,7 +4415,7 @@ List calibration
     	int debugThreshold=2;
 //		this.seriesNumber=series;
     	resetBadNodes(); // before calculating weight function
-	    initFittingSeries(false,this.filterForAll,this.seriesNumber); // recalculate 
+	    initFittingSeries(false,this.filterForAll,this.seriesNumber); // recalculate
 		this.currentfX=calculateFxAndJacobian(this.currentVector, false); // is it always true here (this.jacobian==null)
     	int totalBadNodes=0;
 		boolean [] selectedImages=fittingStrategy.selectedImages();
@@ -4526,9 +4540,9 @@ List calibration
 	    		filter, //weightFunctionFilter,
 	    		debugLevel);
 	    return true;
-		
+
 	}
-    
+
     public void showImageReprojectionErrors(
     		int [] imageNumbers, // if null - use all images in a series
     		int filter,
@@ -4542,7 +4556,7 @@ List calibration
         		System.out.println("imageNumbers is NULL");
     		}
     	}
-	    initFittingSeries(false, filter,this.seriesNumber); // recalculate 
+	    initFittingSeries(false, filter,this.seriesNumber); // recalculate
 		this.currentfX=calculateFxAndJacobian(this.currentVector, false); // is it always true here (this.jacobian==null)
 		boolean [] tmpSelectedImages=fittingStrategy.selectedImages();
 		boolean [] selectedImages;
@@ -4611,10 +4625,10 @@ List calibration
 				title,
 				titles);
     }
-    
-    
-    
-    
+
+
+
+
 	public double [] calcErrors(double [] diff){
 		boolean [] selectedImages=fittingStrategy.selectedImages();
 		double [] errors=new double [selectedImages.length];
@@ -4663,7 +4677,7 @@ List calibration
 		return numPairs;
 	}
 	/**
-	 * Calculate corrections to the current parameter values 
+	 * Calculate corrections to the current parameter values
 	 * @param fX calculated grid pixelX, PixelY for current parameter values
 	 * @param lambda damping parameter
 	 * @return array of deltas to be applied to the coefficients
@@ -4672,7 +4686,7 @@ List calibration
 		// calculate JtJ
 		double [] diff=calcYminusFx(fX);
 		int numPars=this.jacobian.length; // number of parameters to be adjusted
-		int length=diff.length; // should be the same as this.jacobian[0].length 
+		int length=diff.length; // should be the same as this.jacobian[0].length
 	    double [][] JtByJmod=new double [numPars][numPars]; //Transposed Jacobian multiplied by Jacobian
 	    double [] JtByDiff=new double [numPars];
 	    for (int i=0;i<numPars;i++) for (int j=i;j<numPars;j++){
@@ -4710,9 +4724,9 @@ List calibration
 				}
 			}
 		}
-	    
+
  */
-	    
+
 		if (this.debugLevel>3) {
 //		if (this.debugLevel>1) {
 			System.out.println("Jt*J -lambda* diag(Jt*J), lambda="+lambda+":");
@@ -4737,24 +4751,24 @@ List calibration
 //			M.print(10, 5);
 	    	return null;
 	    }
-	    
+
 //	    Matrix Ma=M.solve(Mb); // singular
 	    if (this.debugLevel>0) System.out.print("Running Cholesky decomposition...");
 	    long decompositionTime=System.nanoTime();
 	    Matrix Ma=M.chol().solve(Mb); // singular
 	    decompositionTime=System.nanoTime()-decompositionTime;
 	    if (this.debugLevel>0) System.out.println("done in "+(decompositionTime/1E9)+" sec");
-	    
+
 	    return Ma.getColumnPackedCopy();
 	}
 
-	
-	
+
+
 	public LMAArrays calculateJacobianArrays(double [] fX){
 		// calculate JtJ
 		double [] diff=calcYminusFx(fX);
 		int numPars=this.jacobian.length; // number of parameters to be adjusted
-		int length=diff.length; // should be the same as this.jacobian[0].length 
+		int length=diff.length; // should be the same as this.jacobian[0].length
 	    double [][] JtByJmod=new double [numPars][numPars]; //Transposed Jacobian multiplied by Jacobian
 	    double [] JtByDiff=new double [numPars];
 	    for (int i=0;i<numPars;i++) for (int j=i;j<numPars;j++){
@@ -4776,17 +4790,17 @@ List calibration
 		    	for (int k=0;k<length;k++) JtByDiff[i]+=this.jacobian[i][k]*diff[k];
 
 	    }
-	    
+
    		LMAArrays lMAArrays = new LMAArrays();
    		lMAArrays.jTByJ=JtByJmod;
    		lMAArrays.jTByDiff=JtByDiff;
    		return lMAArrays;
-/*	    
-	    
+/*
+
 //	    M*Ma=Mb
 	    Matrix M=new Matrix(JtByJmod);
 //  public Matrix (double vals[], int m) {
-	    
+
 		if (this.debugLevel>2) {
 //		if (this.debugLevel>1) {
 			System.out.println("Jt*J -lambda* diag(Jt*J), lambda="+lambda+":");
@@ -4801,14 +4815,14 @@ List calibration
 	    }
 	    Matrix Ma=M.solve(Mb); // singular
 	    return Ma.getColumnPackedCopy();
-*/	    
+*/
 	}
-	
-	
-	
+
+
+
 	public LMAArrays calculateJacobianArrays (
 			final boolean [] selectedImages, // selected images to process
-			final double [] Y,  // should be initialized 
+			final double [] Y,  // should be initialized
 			final double [] fX, // should be initialized to correct length, data is not needed
 			final double [] vector,  // parameters vector
 			final int    [] imageStartIndex, // index of the first point of each image (including extra element in the end so n+1 is always valid)
@@ -4818,13 +4832,13 @@ List calibration
 //			final double lambda,
 			int threadsMax,
 			boolean updateStatus){
-		
+
 		// calculate JtJ
 //		double [] diff=calcYminusFx(fX);
 //		int numPars=this.jacobian.length; // number of parameters to be adjusted
 		final int numPars=vector.length; // number of parameters to be adjusted
-//		int length=diff.length; // should be the same as this.jacobian[0].length 
-//		final int length=fX.length; // should be the same as this.jacobian[0].length 
+//		int length=diff.length; // should be the same as this.jacobian[0].length
+//		final int length=fX.length; // should be the same as this.jacobian[0].length
 		final double [][] JtByJmod=new double [numPars][numPars]; //Transposed Jacobian multiplied by Jacobian
 		final double [] JtByDiff=new double [numPars];
 	    for (int i=0;i<numPars;i++){
@@ -4848,7 +4862,8 @@ List calibration
 		final AtomicBoolean interruptedAtomic=new AtomicBoolean();
    		for (int ithread = 0; ithread < threads.length; ithread++) {
    			threads[ithread] = new Thread() {
-   				public void run() {
+   				@Override
+				public void run() {
    					LensDistortionParameters lensDistortionParameters=lensDistortionParametersProto.clone(); // see - if that is needed - maybe new is OK
    					//   					LensDistortionParameters lensDistortionParameters= new LensDistortionParameters();
    					for (int numImage=imageNumberAtomic.getAndIncrement(); (numImage<selectedImages.length) && !interruptedAtomic.get();numImage=imageNumberAtomic.getAndIncrement()){
@@ -4866,7 +4881,7 @@ List calibration
 
    						double [][] partialJtByJmod=new double [numPars][numPars]; // out of heap space
    						double []   partialJtByDiff=new double [numPars];
- 
+
    						for (int i=0;i<numPars;i++) if (partialJacobian[i]!=null) {
    							for (int j=i;j<numPars;j++) if (partialJacobian[j]!=null) {
    								partialJtByJmod[i][j]=0.0;
@@ -4875,7 +4890,7 @@ List calibration
    								} else {
    									for (int k=0;k<length;k++) partialJtByJmod[i][j]+=partialJacobian[i][k]*partialJacobian[j][k];
    								}
-   							}	
+   							}
    						}
 
    						double [] partialDiff=new double[length];
@@ -4890,14 +4905,14 @@ List calibration
 
    						}
    						// wrong! fix it
-/*   						
+/*
    						synchronized(this){
    							for (int i=0;i<numPars;i++) if (partialJacobian[i]!=null){
    								JtByDiff[i]+=partialJtByDiff[i];
    								for (int j=i;j<numPars;j++) JtByJmod[i][j]+=partialJtByJmod[i][j];
    							}
    						}
- */  						
+ */
    						synchronizedCombinePartialJacobians(
    								JtByJmod, //Transposed Jacobian multiplied by Jacobian
    								JtByDiff,
@@ -4905,11 +4920,12 @@ List calibration
    								partialJtByDiff,
    								partialJtByJmod,
    								numPars	);
-   						
+
    						final int numFinished=imageFinishedAtomic.getAndIncrement();
 //   						IJ.showProgress(progressValues[numFinished]);
    						SwingUtilities.invokeLater(new Runnable() {
-   							public void run() {
+   							@Override
+							public void run() {
    								// Here, we can safely update the GUI
    								// because we'll be called from the
    								// event dispatch thread
@@ -4966,9 +4982,9 @@ List calibration
 		}
 	}
 
-	
-	
-	
+
+
+
 	public double [] solveLMA(
 			LMAArrays lMAArrays,
 			double lambda){
@@ -4981,7 +4997,7 @@ List calibration
 //	    M*Ma=Mb
 	    Matrix M=new Matrix(JtByJmod);
 //  public Matrix (double vals[], int m) {
-	    
+
 		if (this.debugLevel>2) {
 //		if (this.debugLevel>1) {
 			System.out.println("Jt*J -lambda* diag(Jt*J), lambda="+lambda+":");
@@ -5008,10 +5024,10 @@ List calibration
 	    }
 	    Matrix Ma=M.solve(Mb); // singular
 	    return Ma.getColumnPackedCopy();
-		
+
 	}
-	
-	
+
+
 	/**
 	 * Calculates  next parameters vector, holds some arrays
 	 * @param numSeries
@@ -5052,7 +5068,7 @@ List calibration
     			//    			deltas=solveLevenbergMarquardtThreaded(
     			this.lMAArrays=calculateJacobianArrays(
     					this.fittingStrategy.selectedImages(), // selected images to process
-    					this.Y,  // should be initialized 
+    					this.Y,  // should be initialized
     					this.currentfX, // should be initialized to correct length, data is not needed
     					this.currentVector,  // parameters vector
     					this.imageStartIndex, // index of the first point of each image (including extra element in the end so n+1 is always valid)
@@ -5120,7 +5136,7 @@ List calibration
     	   	} else {
         		this.currentRMS= this.currentRMSPure;
     	   	}
-    		
+
     	}
 //		this.currentRMS= calcError(calcYminusFx(this.currentfX));
     	if (this.firstRMS<0) {
@@ -5129,9 +5145,9 @@ List calibration
     	}
 // calculate deltas
 //    	double [] deltas=solveLevenbergMarquardt(this.currentfX,fittingStrategy.getLambda());
-    	
+
 		deltas=solveLMA(this.lMAArrays,	this.lambda	);
-		
+
     	boolean matrixNonSingular=true;
     	if (deltas==null) {
     		deltas=new double[this.currentVector.length];
@@ -5144,10 +5160,10 @@ List calibration
 				System.out.println(i+": "+ deltas[i]);
 			}
 		}
-// apply deltas    	
+// apply deltas
     	this.nextVector=this.currentVector.clone();
     	for (int i=0;i<this.nextVector.length;i++) this.nextVector[i]+=deltas[i];
-// another option - do not calculate J now, just fX. and late - calculate both if it was improvement    	
+// another option - do not calculate J now, just fX. and late - calculate both if it was improvement
 //    	save current Jacobian
 		if (this.debugLevel>2) {
 			System.out.println("this.nextVector");
@@ -5159,15 +5175,15 @@ List calibration
 //        this.savedJacobian=this.jacobian;
         this.savedLMAArrays=lMAArrays.clone();
         this.jacobian=null; // not needed, just to catch bugs
-// calculate next vector and Jacobian  (this.jacobian)  	
+// calculate next vector and Jacobian  (this.jacobian)
 //    	this.nextfX=calculateFxAndJacobian(this.nextVector,true); //=========== OLD
-    	
+
 		if (this.threadedLMA) {
 			this.nextfX=new double[this.Y.length];
 			//    			deltas=solveLevenbergMarquardtThreaded(
 			this.lMAArrays=calculateJacobianArrays(
 					this.fittingStrategy.selectedImages(), // selected images to process
-					this.Y,  // should be initialized 
+					this.Y,  // should be initialized
 					this.nextfX, // should be initialized to correct length, data is not needed
 					this.nextVector,  // parameters vector
 					this.imageStartIndex, // index of the first point of each image (including extra element in the end so n+1 is always valid)
@@ -5185,7 +5201,7 @@ List calibration
 			this.lMAArrays=calculateJacobianArrays(this.nextfX);
 		}
 //		this.nextRMS=calcErrorDiffY(this.nextfX);
-		
+
 		this.nextRMSPure= calcErrorDiffY(this.nextfX);
 	   	if ((this.fittingStrategy.varianceModes!=null) && (this.fittingStrategy.varianceModes[numSeries]!=this.fittingStrategy.varianceModeDisabled)) {
 	   		this.fittingStrategy.addVarianceToLMA(
@@ -5214,7 +5230,7 @@ List calibration
 		boolean [] status={matrixNonSingular && (this.nextRMS<=this.currentRMS),!matrixNonSingular};
 		// additional test if "worse" but the difference is too small, it was be caused by computation error, like here:
 		//stepLevenbergMarquardtAction() step=27, this.currentRMS=0.17068403807026408,   this.nextRMS=0.1706840380702647
-		
+
 		if (!status[0] && matrixNonSingular) {
 			if (this.nextRMS<(this.currentRMS+this.currentRMS*this.thresholdFinish*0.01)) {
 				this.nextRMS=this.currentRMS;
@@ -5232,7 +5248,7 @@ List calibration
 							", delta="+(this.currentRMS-this.nextRMS)+
 							", deltaPure="+(this.currentRMSPure-this.nextRMSPure));
 				}
-				
+
 			}
 		}
     	if (status[0] && matrixNonSingular) { //improved
@@ -5244,23 +5260,23 @@ List calibration
     	} else if (matrixNonSingular){
 //    		this.jacobian=this.savedJacobian;// restore saved Jacobian
     		this.lMAArrays=this.savedLMAArrays; // restore Jt*J and Jt*diff
-    		
+
     		status[1]=(this.iterationStepNumber>this.numIterations) || // failed
     		((this.lambda*this.lambdaStepUp)>this.maxLambda);
     	}
-///this.currentRMS    	
-//TODO: add other failures leading to result failure?    	
+///this.currentRMS
+//TODO: add other failures leading to result failure?
 		if (this.debugLevel>2) {
 			System.out.println("stepLevenbergMarquardtFirst("+numSeries+")=>"+status[0]+","+status[1]);
 		}
 		return status;
     }
     /**
-     * Apply fitting step 
+     * Apply fitting step
      */
-    public void stepLevenbergMarquardtAction(){// 
+    public void stepLevenbergMarquardtAction(){//
     	this.iterationStepNumber++;
-// apply/revert,modify lambda    	
+// apply/revert,modify lambda
 		if (this.debugLevel>1) {
 			System.out.println(
 					"stepLevenbergMarquardtAction() step="+this.iterationStepNumber+
@@ -5282,7 +5298,7 @@ List calibration
     		this.lMAArrays=this.savedLMAArrays; // restore Jt*J and Jt*diff
     	}
     }
-    
+
     /**
      * Dialog to select Levenberg-Marquardt algorithm and related parameters
      * @return true if OK, false if canceled
@@ -5302,7 +5318,7 @@ List calibration
 		gd.addCheckbox("Dialog after each iteration series", this.stopEachSeries);
 		gd.addCheckbox("Dialog after each failure",          this.stopOnFailure);
 		gd.addCheckbox("Ask for weight function filter",     this.askFilter);
-		
+
 		gd.addCheckbox("Show modified parameters",           this.showParams);
 		gd.addCheckbox("Show debug images before correction",this.showThisImages);
 		gd.addCheckbox("Show debug images after correction", this.showNextImages);
@@ -5328,8 +5344,8 @@ List calibration
 		this.threadedLMA=            gd.getNextBoolean();
 	    return true;
     }
-    
-    
+
+
     public boolean dialogLMAStep(boolean [] state){
     	String [] states={
     			"Worse, increase lambda",
@@ -5337,12 +5353,12 @@ List calibration
     			"Failed to fit",
     			"Fitting Successful"};
     	int iState=(state[0]?1:0)+(state[1]?2:0);
-    
+
 	    GenericDialog gd = new GenericDialog("Levenberg-Marquardt algorithm step");
 //    	String [][] parameterDescriptions=fittingStrategy.distortionCalibrationData.parameterDescriptions;
     	gd.addMessage("Current state="+states[iState]);
     	gd.addMessage("Iteration step="+this.iterationStepNumber);
-    	
+
     	gd.addMessage("Initial RMS="+IJ.d2s(this.firstRMS,6)+", Current RMS="+IJ.d2s(this.currentRMS,6)+", new RMS="+IJ.d2s(this.nextRMS,6));
     	gd.addMessage("Pure initial RMS="+IJ.d2s(this.firstRMSPure,6)+", Current RMS="+IJ.d2s(this.currentRMSPure,6)+", new RMS="+IJ.d2s(this.nextRMSPure,6));
     	if (this.showParams) {
@@ -5395,7 +5411,7 @@ List calibration
 	    this.saveSeries=true;
 	    return gd.wasOKed();
     }
-  
+
     public boolean modifyGrid(
     		DistortionCalibrationData distortionCalibrationData,
 			int threadsMax,
@@ -5418,18 +5434,18 @@ List calibration
 //    	if (! selectGridEnhanceParameters()) return false;
 //    	int series=refineParameters.showDialog("Select Grid Tuning Parameters", 0xdc0, fittingStrategy.getNumSeries());
 //    	int series=refineParameters.showDialog("Select Grid Tuning Parameters", 0x31cc0, (this.seriesNumber>=0)?this.seriesNumber:0); // 0x1dco with show result, but we can not show it easily
-// todo - add and implement 0x10000 to show just one individual image    	
+// todo - add and implement 0x10000 to show just one individual image
 //    	int series=refineParameters.showDialog("Select Grid Tuning Parameters", 0x21cc0, (this.seriesNumber>=0)?this.seriesNumber:0); // 0x1dco with show result, but we can not show it easily
     	int series=refineParameters.showDialog(
     			"Select Grid Tuning Parameters",
     			0x61000,
     			((this.seriesNumber>=0)?this.seriesNumber:0),
     			null); // averageRGB - only for target flat-field correction
-    	
-    	
+
+
     	if (series<0) return false;
     	this.seriesNumber=series;
-		
+
 		int filter=this.filterForTargetGeometry;
 		if (this.askFilter) filter=selectFilter(filter);
     	initFittingSeries(true,filter,this.seriesNumber); // first step in series
@@ -5478,7 +5494,7 @@ List calibration
     	}
 
 
-// TODO: make configurable and optional		
+// TODO: make configurable and optional
 		shrinkExtrapolateGridCorrection(
 				gridXYZCorr, // dx,dy,dz, mask >0
 				gridZCorr3d,
@@ -5487,11 +5503,11 @@ List calibration
 				5, // expand,
 				3.0, //  sigma,
 				2.0); //double ksigma
-		
+
     	if (this.refineParameters.targetShowThisCorrection) {
     		this.SDFA_INSTANCE.showArrays(gridXYZCorr, getGridWidth(), getGridHeight(),  true, "Grid corrections", titles);
     		if (this.debugLevel>1){
-    			
+
     		}
     	}
     	if (!this.refineParameters.targetApplyCorrection) return false;
@@ -5519,20 +5535,20 @@ List calibration
 //    	if (! selectGridEnhanceParameters()) return false;
 //    	int series=refineParameters.showDialog("Select Grid Tuning Parameters", 0xdc0, fittingStrategy.getNumSeries());
 //    	int series=refineParameters.showDialog("Select Grid Tuning Parameters", 0x31cc0, (this.seriesNumber>=0)?this.seriesNumber:0); // 0x1dco with show result, but we can not show it easily
-// todo - add and implement 0x10000 to show just one individual image    	
+// todo - add and implement 0x10000 to show just one individual image
 //    	int series=refineParameters.showDialog("Select Grid Tuning Parameters", 0x21cc0, (this.seriesNumber>=0)?this.seriesNumber:0); // 0x1dco with show result, but we can not show it easily
     	int series=refineParameters.showDialog(
     			"Select Grid Tuning Parameters",
     			0x61000,
     			((this.seriesNumber>=0)?this.seriesNumber:0),
     			null); // averageRGB - only for target flat-field correction
-    	
-    	
+
+
     	if (series<0) return false;
     	this.seriesNumber=series;
-    	
-    	
-    	
+
+
+
 		int filter=this.filterForTargetGeometry;
 		if (this.askFilter) filter=selectFilter(filter);
     	initFittingSeries(true,filter,this.seriesNumber); // first step in series
@@ -5546,7 +5562,7 @@ List calibration
     		}
     	}
     	if (this.showThisImages) showDiff (this.currentfX, "residual-series-"+this.seriesNumber);
-    	
+
     	double [][] gridXYZCorr=null;
 		gridXYZCorr=	calculateGridXYZCorr3D(
 //				distortionCalibrationData,
@@ -5555,7 +5571,7 @@ List calibration
 				this.refineParameters.grid3DMaximalZCorr, //20.0,
 				this.refineParameters.targetShowPerImage);
 
-// TODO: make configurable and optional		
+// TODO: make configurable and optional
 		shrinkExtrapolateGridCorrection(
 				gridXYZCorr, // dx,dy,dz, mask >0
 				null,
@@ -5564,7 +5580,7 @@ List calibration
 				5, // expand,
 				3.0, //  sigma,
 				2.0); //double ksigma
-		
+
     	String [] titles={"X-correction(mm)","Y-correction(mm)","Z-correction","Weight"};
     	if (this.refineParameters.targetShowThisCorrection) {
     		this.SDFA_INSTANCE.showArrays(gridXYZCorr, getGridWidth(), getGridHeight(),  true, "Grid corrections", titles);
@@ -5585,9 +5601,9 @@ List calibration
     		IJ.showMessage("Error",msg);
     		throw new IllegalArgumentException (msg);
     	}
-    	//	fittingStrategy.distortionCalibrationData.readAllGrids(); 
+    	//	fittingStrategy.distortionCalibrationData.readAllGrids();
 //    	if (! selectGridEnhanceParameters()) return false;
-    	
+
     	int series=refineParameters.showDialog(
     			"Select Lens Distrortion Residual Compensation Parameters",
     			0x1efff,
@@ -5595,7 +5611,7 @@ List calibration
     			null); // averageRGB - only for target flat-field correction
     	if (series<0) return false;
     	this.seriesNumber=series;
-    	
+
 		int filter=this.filterForSensor;
 		if (this.askFilter) filter=selectFilter(filter);
     	initFittingSeries(true,filter,this.seriesNumber); // first step in series now uses pattern alpha
@@ -5647,7 +5663,7 @@ List calibration
      		}
 			IJ.showProgress(1.0);
     	}
-    	
+
     	if (this.refineParameters.showExtrapolationCorrection && this.refineParameters.extrapolate && this.refineParameters.smoothCorrection) {
     		for (int numChn=0;numChn<sensorXYCorr.length;numChn++) if (sensorXYCorr[numChn]!=null){
     		   this.SDFA_INSTANCE.showArrays(sensorXYCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_extrapolated", titles);
@@ -5670,7 +5686,7 @@ List calibration
     			IJ.showProgress(numChn+1, sensorXYCorr.length);
      		}
 			IJ.showProgress(1.0);
-    	}    	
+    	}
     	if (this.refineParameters.showThisCorrection ) {
     		for (int numChn=0;numChn<sensorXYCorr.length;numChn++) if (sensorXYCorr[numChn]!=null){
     		   this.SDFA_INSTANCE.showArrays(sensorXYCorr[numChn], sWidth, sHeight,  true, "chn_"+numChn+"_filtered", titles);
@@ -5679,12 +5695,12 @@ List calibration
 //   	if (!selectCorrectionScale()) return false;
 		IJ.showStatus("Applying corrections:"+((!this.refineParameters.applyCorrection && !this.refineParameters.applyFlatField)?
 				"none ":((this.refineParameters.applyCorrection?"geometry ":"")+(this.refineParameters.applyFlatField?"flat field":""))));
-		
-		
+
+
 		addOldXYCorrectionToCurrent(
     			this.refineParameters.correctionScale,
     			sensorXYCorr);
-		
+
     	boolean result=applySensorCorrection(
     			this.refineParameters.applyCorrection,
     			this.refineParameters.applyFlatField,
@@ -5698,7 +5714,7 @@ List calibration
     	}
     	if (result) {
 //    		updateCameraParametersFromCalculated();
-    		
+
     		// NEED to update from all?
 //			updateCameraParametersFromCalculated(true); // update camera parameters from all (even disabled) images
 			updateCameraParametersFromCalculated(false); // update camera parameters from enabled only images (may overwrite some of the above)
@@ -5708,11 +5724,11 @@ List calibration
 
     	return result;
     }
-    
+
     public void resetSensorCorrection(){
     	this.pixelCorrection=null;
     	this.pathNames=null;
-    }   
+    }
     public void resetSensorCorrection(int sensorNum){
     	if ((this.pixelCorrection!=null) && (sensorNum<this.pixelCorrection.length) && (sensorNum>=0)) {
     		this.pixelCorrection[sensorNum]=null;
@@ -5739,7 +5755,7 @@ List calibration
     		}
     	}
     }
-    
+
     /*
      * Adds new correction to the current one with the result to the new one. If update, the old arrays are also modified/created
      */
@@ -5772,7 +5788,7 @@ List calibration
         		this.pathNames[i]=null;
         	}
         }
-        
+
         if (this.pixelCorrection.length<sensorXYCorr.length){ // OK to update even if !update
         	if (this.debugLevel>1) System.out.println("Increasing number of sensors in pixelCorrection array");
         	double [][][] tmp=new double[sensorXYCorr.length][][];
@@ -5796,7 +5812,7 @@ List calibration
         	int indxG=in6?4:5;
         	int indxB=in6?5:6;
  //       	System.out.println("applySensorCorrection(): in6="+in6+" indxR="+indxR+" indxG="+indxG+" indxB="+indxB);
-        	double [] sensorMask=in6?((fittingStrategy.distortionCalibrationData.sensorMasks==null)?null:fittingStrategy.distortionCalibrationData.sensorMasks[i]):sensorXYCorr[i][2];      	
+        	double [] sensorMask=in6?((fittingStrategy.distortionCalibrationData.sensorMasks==null)?null:fittingStrategy.distortionCalibrationData.sensorMasks[i]):sensorXYCorr[i][2];
         	if (this.pixelCorrection[i]==null) {
         		if (update || updateFlatField) {
         			this.pixelCorrection[i]=new double [numLayers][];
@@ -5834,7 +5850,7 @@ List calibration
             			sensorXYCorr[i][indxR][j]=this.pixelCorrection[i][3][j]+scale*(sensorXYCorr[i][indxR][j]-this.pixelCorrection[i][3][j]);
             			sensorXYCorr[i][indxG][j]=this.pixelCorrection[i][4][j]+scale*(sensorXYCorr[i][indxG][j]-this.pixelCorrection[i][4][j]);
             			sensorXYCorr[i][indxB][j]=this.pixelCorrection[i][5][j]+scale*(sensorXYCorr[i][indxB][j]-this.pixelCorrection[i][5][j]);
-        				
+
         			}
         		}
         		if (update){
@@ -5852,7 +5868,7 @@ List calibration
         	}
         }
         return true;
-    	
+
     }
     public String getSensorPath(int numSensor){ //<0 - first available;
     	if ((this.pathNames == null) || (numSensor>=this.pathNames.length)) return null;
@@ -5882,7 +5898,7 @@ List calibration
     				emptyOK);
     	}
     }
-    
+
     public ImagePlus saveDistortionAsImageStack(
     		CalibrationHardwareInterface.CamerasInterface camerasInterface, // to save channel map
     		String title,
@@ -5903,14 +5919,14 @@ List calibration
     	fs.saveAsTiffStack(path);
     	if (this.pathNames==null){
     		this.pathNames=new String[this.fittingStrategy.distortionCalibrationData.getNumChannels()];
-    		for (int i=0;i<this.pathNames.length;i++) this.pathNames[i]=null; 
+    		for (int i=0;i<this.pathNames.length;i++) this.pathNames[i]=null;
     	}
     	this.pathNames[numSensor]=path;
     	return imp;
     }
 
 //  /    	int numChannels=this.fittingStrategy.distortionCalibrationData.getNumChannels(); // number of used channels
-// TODO: Currently saves data from Station 0  
+// TODO: Currently saves data from Station 0
     public ImagePlus getDistortionAsImageStack(
     		CalibrationHardwareInterface.CamerasInterface camerasInterface, // to save channel map
     		String title,
@@ -5934,7 +5950,7 @@ List calibration
     	int height=this.pixelCorrectionHeight/this.pixelCorrectionDecimation;
 //    	int length=this.pixelCorrection[numSensor][0].length; // should be == width*height
     	int length=width*height;
-    	
+
     	float [][]pixels=new float [titles.length][length]; // dx, dy, sensor mask,v-r,v-g,v-b
     	// assuming all sensors have the same dimension
     	double [] mask=null;
@@ -5956,7 +5972,7 @@ List calibration
     		}
     		// get sensor mask here
     		pixels[2][index]=  (mask==null)? 1.0f:((float) mask[index]);
-    		
+
     	}
     	ImagePlus imp=null;
   		ImageStack stack=new ImageStack(width,height);
@@ -6020,17 +6036,17 @@ List calibration
     	imp.setProperty("channel",  ""+numSensor);
     	imp.setProperty("comment_subcamera", "number of the subcamera with individual IP, starting with 0");
     	imp.setProperty("subcamera",  ""+camerasInterface.getSubCamera(numSensor));
-		imp.setProperty("sensor_port",""+camerasInterface.getSensorPort(numSensor)); 
-    	
+		imp.setProperty("sensor_port",""+camerasInterface.getSensorPort(numSensor));
+
     	imp.setProperty("comment_subchannel", "number of the sensor port on a subcamera (0..2)");
     	imp.setProperty("subchannel",  ""+camerasInterface.getSubChannel(numSensor));
     	imp.setProperty("comment_entrancePupilForward",  "entrance pupil distance from the azimuth/radius/height, outwards in mm");
     	imp.setProperty("entrancePupilForward",  ""+entrancePupilForward); // currently global, decoders will use per-sensor
        	imp.setProperty("comment_defects", "Sensor hot/cold pixels list as x:y:difference");
-       	
+
        	imp.setProperty("comment_lensDistortionModel", "Integer specifying lens distrotion model (0 - radial)");
        	imp.setProperty("lensDistortionModel", ""+subCam.lensDistortionModel);
-       	
+
 		for (int i=0;i<subCam.r_xy.length;i++){
 			imp.setProperty("r_xy_"+i+"_x",subCam.r_xy[i][0]+"");
 			imp.setProperty("r_xy_"+i+"_y",subCam.r_xy[i][1]+"");
@@ -6049,14 +6065,14 @@ List calibration
 //       	} else {
 //    		imp.setProperty("defects", null);
        	}
-    	
+
     	//camerasInterface, numSensor
     	(new JP46_Reader_camera(false)).encodeProperiesToInfo(imp);
     	imp.getProcessor().resetMinAndMax();
     	return imp;
     }
-    
-    
+
+
     public void setDistortionFromImageStack(
     		String path,
     		boolean overwriteExtrinsic,
@@ -6073,7 +6089,7 @@ List calibration
     		}
     	}
     }
-    
+
     public void setDistortionFromImageStack(
     		String path,
     		int numSensor,
@@ -6094,7 +6110,7 @@ List calibration
     	setDistortionFromImageStack(imp, numSensor, overwriteExtrinsic, overwriteDistortion);
     	this.pathNames[numSensor]=path;
     }
-    
+
     //TODO: look more after testing. Currently all station parameters are set from the sensor images, may be minor differences
     public void setDistortionFromImageStack(
     		ImagePlus imp,
@@ -6134,13 +6150,13 @@ List calibration
     		IJ.showMessage("Error",msg);
     		throw new IllegalArgumentException (msg);
         }
-        
+
     	if (imp.getStackSize()<3){
     		String msg="Expecting >=3 slices, got "+imp.getStackSize();
     		IJ.showMessage("Error",msg);
     		throw new IllegalArgumentException (msg);
     	}
-		
+
 		ImageStack stack = imp.getStack();
 		float [][] pixels =new float[stack.getSize()][];
     	for (int i=0;i<pixels.length;i++) pixels[i]= (float[]) stack.getPixels(i+1);
@@ -6153,13 +6169,13 @@ List calibration
     		throw new IllegalArgumentException (msg);
         }
 //		System.out.println("setDistortionFromImageStack(): processing channel channel "+numSensor);
-      
+
     	EyesisSubCameraParameters subCam;
     	EyesisCameraParameters cam=     fittingStrategy.distortionCalibrationData.eyesisCameraParameters;
         this.pixelCorrectionWidth=      Integer.parseInt  ((String) imp.getProperty("pixelCorrectionWidth"));
         this.pixelCorrectionHeight=     Integer.parseInt  ((String) imp.getProperty("pixelCorrectionHeight"));
         this.pixelCorrectionDecimation= Integer.parseInt  ((String) imp.getProperty("pixelCorrectionDecimation"));
-        
+
         if ((this.fittingStrategy!=null) && (this.fittingStrategy.distortionCalibrationData!=null) && (this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters!=null)){
     		this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.decimateMasks=this.pixelCorrectionDecimation;
     		this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth=  this.pixelCorrectionWidth;
@@ -6193,19 +6209,19 @@ List calibration
         	if (imp.getProperty("heading")  !=null) subCam.phi=     Double.parseDouble((String) imp.getProperty("heading"));
         	if (imp.getProperty("elevation")!=null) subCam.theta=   Double.parseDouble((String) imp.getProperty("elevation"));
         	if (imp.getProperty("roll")!=null) subCam.psi=          Double.parseDouble((String) imp.getProperty("roll"));
-        	
+
         	if (imp.getProperty("forward")  !=null) subCam.forward=  Double.parseDouble((String) imp.getProperty("forward"));
         	if (imp.getProperty("right")    !=null) subCam.right=    Double.parseDouble((String) imp.getProperty("right"));
         	if (imp.getProperty("aheading") !=null) subCam.heading= Double.parseDouble((String) imp.getProperty("aheading"));
-        	
+
         	if (imp.getProperty("cartesian") !=null) {
         		subCam.cartesian= Boolean.parseBoolean((String) imp.getProperty("cartesian"));
         		subCam.updateCartesian(); // recalculate other parameters (they may or may nort be provided
         	} else {
         		subCam.cartesian = false;
         	}
-       	
-        	// Update intrinsic image parameters        
+
+        	// Update intrinsic image parameters
         	this.lensDistortionParameters.pixelSize=subCam.pixelSize;
         	this.lensDistortionParameters.distortionRadius=subCam.distortionRadius;
         	if (imp.getProperty("defects")!=null) {
@@ -6245,7 +6261,7 @@ List calibration
         		else  if (overwriteDistortion) fittingStrategy.distortionCalibrationData.setIntrinsicParameters(parVector,imgNum);
         	}
         }
-        
+
         // now read the calibration data and mask
     	if (this.pixelCorrection==null) {
     		this.pixelCorrection=new double [numSubCameras][][];
@@ -6281,7 +6297,7 @@ List calibration
             	for (int n=pixels.length;n<numLayers;n++)	this.pixelCorrection[numSensor][n][i]=1.0; // default ff if no data is available
             }
         }
-        // now mask    
+        // now mask
         boolean defined=false;
 		for (int i=0;i<pixels[2].length;i++) if ((pixels[2][i]!=0.0) && (pixels[2][i]!=1.0)){
 			defined=true;
@@ -6312,18 +6328,18 @@ List calibration
     }
     /**
      * Accumulate per-sensor grid R,G,B intensities using current sensor flat-field values
-     * @param serNumber - fitting series number to select images (-1 - all enabled) 
+     * @param serNumber - fitting series number to select images (-1 - all enabled)
      * @param sensorMasks "pessimistic" masks to use only center (low-vignetting) part of each sensor (at least on the first runs?)
      * @param minContrast - minimal contrast to consider a node
      * @param threshold - not yet used - disregard grid nodes with low data - in the end
      * @param interpolate - interpolate sensor data
      * @param maskThresholdOcclusion suspect occlusion only if grid is missing in the area where sensor mask is above this threshold
      * @param expandOcclusion - shrink defined grid on image by this steps - to handle occlusion by rollers
-     * @param fadeOcclusion - fade shrank occlusion border 
+     * @param fadeOcclusion - fade shrank occlusion border
      * @param ignoreSensorFlatField - ignorfe previously calculated sensors flat-field calibration
      * @return
      */
-    
+
     public double [][][][] calculateGridFlatField(
     		int serNumber,
     		double [][] sensorMasks,
@@ -6387,7 +6403,7 @@ List calibration
     		}
     		for (int i=0;i<pixelsXY.length;i++){
     			double [] xyzmrgb=patternParameters.getXYZM(
-    					pixelsUV[i][0], 
+    					pixelsUV[i][0],
     					pixelsUV[i][1],
     					false,
     					station);
@@ -6396,7 +6412,7 @@ List calibration
     	   			bMask[index]=(pixelsXY[i][indexContrast]>=minContrast);
     	   			mask[index]=interpolateMask (
         					sensorMasks[channel],
-        					pixelsXY[i][0], 
+        					pixelsXY[i][0],
         					pixelsXY[i][1]);
     			}
     		}
@@ -6425,7 +6441,7 @@ List calibration
     			for (int n=0;n<expandOcclusion;n++){ // expand
     				boolean [] bMaskPrevious=occlusionMask.clone();
     				for (int i=1;i<(gridHeight-1);i++){
-    					for (int j=1;j<(gridWidth-1);j++){	
+    					for (int j=1;j<(gridWidth-1);j++){
     						if (!occlusionMask[i*gridHeight+j]){
     							if (
     									bMaskPrevious[(i-1)*gridWidth+j] ||
@@ -6456,7 +6472,7 @@ List calibration
     		}
     		for (int i=0;i<pixelsXY.length;i++){
     			double [] xyzmrgb=patternParameters.getXYZM(
-    					pixelsUV[i][0], 
+    					pixelsUV[i][0],
     					pixelsUV[i][1],
     					false,
     					station);
@@ -6465,15 +6481,15 @@ List calibration
     				((interpolate)?
     					interpolateCorrectionVector (
     							channel,
-    							pixelsXY[i][0], 
+    							pixelsXY[i][0],
     							pixelsXY[i][1]):
  						getCorrectionVector (
  								channel,
- 								pixelsXY[i][0], 
+ 								pixelsXY[i][0],
  								pixelsXY[i][1]))	;
     			int index=patternParameters.getGridIndex(pixelsUV[i][0], pixelsUV[i][1]);
     			double weight=mask[index];
-    			
+
     			sensorGrids[station][channel][0][index]+=weight;
     			for (int c=0;c<3;c++)if (vector[c+3]>0.0){
     				sensorGrids[station][channel][c+1][index]+=weight*pixelsXY[i][c+3]/vector[c+3];
@@ -6497,7 +6513,7 @@ List calibration
     	}
     	return sensorGrids;
     }
-    
+
     public double [] getCorrectionVector(
 			int chnNum,
 			double px,
@@ -6509,7 +6525,7 @@ List calibration
 		for (int i=0;i<vector.length;i++) vector[i]=this.pixelCorrection[chnNum][i][indexXY];
         return vector;
     }
-    
+
     /**
      * Calculate color flat-field data for the pattern grid, calculate pattern grid mask (alpha)
      * @param referenceStation - station number for unity target brightness
@@ -6521,7 +6537,7 @@ List calibration
      * @param fadeMask smooth fade the alpha on the pattern edge, keep zeros zeros
      * @return {alpha, r,g,b,number of images used} for each view group separately
      */
-    
+
     public double [][][][] combineGridFlatField(
     		int referenceStation,
     		double [][][][] flatFields,
@@ -6530,7 +6546,7 @@ List calibration
     		double maxDiffNeighb,  // maximal allowed relative difference between neighbour nodes (relative), 0 - do not  filter any
     		int shrinkMask, // shrink result mask
     		double fadeMask
-    		){  
+    		){
     	int maskIndex=3;
 //    	if (resetMask) patternParameters.calculateGridGeometry(false);
     	if (resetMask) patternParameters.calculateGridGeometryAndPhotometric(false);
@@ -6608,7 +6624,7 @@ List calibration
     					sumWeights+=weight;
     					for (int c=0;c<weightedSums.length;c++) weightedSums[c]+=weight*flatFields[station][numSensor][c+1][i]*scaleIndividual[numSensor][c];
     				}
-    				combinedPattern[4][i]=sumWeights; // just for debugging - no, actually used? - number of images used for this grid node 
+    				combinedPattern[4][i]=sumWeights; // just for debugging - no, actually used? - number of images used for this grid node
     				for (int c=0;c<weightedSums.length;c++){
     					combinedPattern[c+1][i]=(sumWeights>0.0)?(weightedSums[c]/sumWeights):0.0;
     				}
@@ -6621,7 +6637,7 @@ List calibration
     		for (int numView=0;numView<viewPatterns[station].length;numView++){
 
     			double [][] combinedPattern=viewPatterns[station][numView];
-    	*/		
+    	*/
     			//    	double [] gridMask[station][numView]= new double[gridWidth*gridHeight];
     			// calculate final mask
     			for (int v=0;v<gridHeight;v++) for (int u=0;u<gridWidth;u++) gridMask[station][numView][u+v*gridWidth]=(gridGeometry[v][u]!=null)?gridGeometry[v][u][maskIndex]:0.0;
@@ -6652,7 +6668,7 @@ List calibration
     					numBadOnTheBorder=0;
     					int numBad=0;
     					double [] diffs = new double [8];
-    					int [] indices=new int [8]; 
+    					int [] indices=new int [8];
     					for (int i=0;i<8;i++) {
     						diffs[i]=  -1.0; // diff==0 on isolated pair?
     						indices[i]=-1;
@@ -6740,11 +6756,11 @@ List calibration
      * Applies calculated [][] pattern alpha, r,g,b to the current grid geometry
      * @param patternFlatField
      */
-    void applyGridFlatField(
+    public void applyGridFlatField(
     		double [][][][] patternFlatField // {alpha, red,green,blue, number of images used}[pixel_index] for each view of the pattern
     ){
     	for (int station=0;station<patternParameters.getNumStations();station++){
-    		for (int nView=0;nView<patternParameters.getNumViews();nView++) 
+    		for (int nView=0;nView<patternParameters.getNumViews();nView++)
     			if ((patternFlatField[station]!=null) && (patternFlatField[station][nView]!=null)) {
     				double [][] photometrics=patternParameters.getPhotometricByView(station,nView);
     				photometrics[0]=patternFlatField[station][nView][1].clone(); // red
@@ -6753,7 +6769,7 @@ List calibration
     				photometrics[3]=patternFlatField[station][nView][0].clone(); // alpha
     			}
     	}
-    	/*    	
+    	/*
     	double [][][] gridGeometry= patternParameters.getGeometry();
     	int gridHeight=gridGeometry.length;
     	int gridWidth=gridGeometry[0].length;
@@ -6784,7 +6800,7 @@ List calibration
     		int debugShowMode){ // 0 - none, 1 - last iteration, 2 - all iterations
     	int debugThreshold=1;
     	int length=0;
-    	
+
     	double [][][] weights=new double [patternParameters.getNumStations()][patternParameters.getNumViews()][];
 		double [][][][] photometrics=new double [patternParameters.getNumStations()][patternParameters.getNumViews()][][];
 		double [][][][] highPassDiff=new double [patternParameters.getNumStations()][patternParameters.getNumViews()][][];
@@ -6793,7 +6809,7 @@ List calibration
 		int width=  patternParameters.gridGeometry[0].length;
 		int height= patternParameters.gridGeometry.length;
     	for (int station=0;station<patternParameters.getNumStations();station++){
-    		for (int nView=0;nView<patternParameters.getNumViews();nView++) { 
+    		for (int nView=0;nView<patternParameters.getNumViews();nView++) {
     			photometrics[station][nView]=patternParameters.getPhotometricByView(station,nView);
     			if (photometrics[station][nView]!=null){
     				length=photometrics[0][0][3].length; // should all be the same length (or null)
@@ -6845,7 +6861,7 @@ List calibration
     	    				sfg+=w*(photometrics[station][nView][0][nPix]*average[0][nPix]+
     	    						photometrics[station][nView][1][nPix]*average[1][nPix]+
     	    						photometrics[station][nView][2][nPix]*average[2][nPix]);
-	    					
+
 	    				}
 	    				scale=sfg/sf2;
 	    				if ((this.debugLevel>=debugThreshold) && showDebug){
@@ -6872,10 +6888,10 @@ List calibration
 	    					highPassDiff[station][nView]=new double [3][];
 	    					for (int c=0;c<3;c++){
 	    	    				highPassDiff[station][nView][c]=diffFromAverage[station][nView][c].clone(); // deep
-	    						
+
 	    						for (int nPix=0;nPix<length;nPix++){
 	    							highPassDiff[station][nView][c][nPix]*=weightsHighLowPass[nPix];
-	    						}	    				
+	    						}
 		    					(new DoubleGaussianBlur()).blurDouble(
 		    							highPassDiff[station][nView][c],
 		    							width,
@@ -6887,12 +6903,12 @@ List calibration
 	    							highPassDiff[station][nView][c][nPix]=
 	    								diffFromAverage[station][nView][c][nPix]-
 	    								((weightsHighPass[nPix]>0)?(highPassDiff[station][nView][c][nPix]/weightsHighPass[nPix]):0.0);
-	    						}	    				
+	    						}
 	    					}
 	    				} else {
     	    				highPassDiff[station][nView]=diffFromAverage[station][nView].clone(); // shallow
 	    				}
-	    				
+
 	    				if (lowPassSigma>0.0){
 	    					double [] weightsLowPass=weightsHighLowPass.clone();
 	    					(new DoubleGaussianBlur()).blurDouble(
@@ -6907,7 +6923,7 @@ List calibration
 	    						lowPassDiff[station][nView][c]=highPassDiff[station][nView][c].clone();
 	    						for (int nPix=0;nPix<length;nPix++){
 	    							lowPassDiff[station][nView][c][nPix]*=weightsHighLowPass[nPix];
-	    						}	    				
+	    						}
 		    					(new DoubleGaussianBlur()).blurDouble(
 		    							lowPassDiff[station][nView][c],
 		    							width,
@@ -6918,15 +6934,15 @@ List calibration
 	    						for (int nPix=0;nPix<length;nPix++){
 	    							lowPassDiff[station][nView][c][nPix]=
 	    								(weightsLowPass[nPix]>0)?(lowPassDiff[station][nView][c][nPix]/weightsLowPass[nPix]):0.0;
-	    						}	    				
+	    						}
 	    					}
 	    				} else {
     	    				lowPassDiff[station][nView]=highPassDiff[station][nView].clone(); // shallow
     					}
 
-	    				
-	    				
-// TODO: display, calculate new weight from filtered difference.	    				
+
+
+// TODO: display, calculate new weight from filtered difference.
 // Calculate new weight
 	    				for (int nPix=0;nPix<length;nPix++){
 	    					if (photometrics[station][nView][3][nPix]>0.0){
@@ -6942,7 +6958,7 @@ List calibration
 	    						weights[station][nView][nPix]=0.0;
 	    					}
 	    				}
-	    				
+
 	    			}
 	    		}
 	    	}
@@ -6990,7 +7006,7 @@ List calibration
 	        			true,
 	        			"HighpassGreen"+nIter,
 	        			titles);
-	        	
+
 	        	(new ShowDoubleFloatArrays()).showArrays(
 	        			debugLowpassDiffGreen,
 	        			width,
@@ -6998,7 +7014,7 @@ List calibration
 	        			true,
 	        			"LowpassGreen"+nIter,
 	        			titles);
-	        	
+
 	        	String [] averageTitles={"Red","Green","Blue","Weight"};
 	        	(new ShowDoubleFloatArrays()).showArrays(
 	        			average,
@@ -7007,7 +7023,7 @@ List calibration
 	        			true,
 	        			"Average-"+nIter,
 	        			averageTitles);
-	        	
+
 	    	}
     	} // for (int nIter=0;nIter<numIterations;nIter++){
     	// Apply new weights
@@ -7020,15 +7036,15 @@ List calibration
     			}
     		}
     	}
-    	
+
     }
 
     /**
-     * 
+     *
      * @param shrink sensor mask by this amount (sensor, non-decimated pixels)
-     * @param radius radial mask - zero if farther than radius, 0.5*(cos(pi*r/radius)+1.0) if less 
-     * @param minimalAlpha - zero mask below this threshold 
-     * @return returns arrray with the same size as sensorMask that corresponds to low-vignetting areas of the sensor/lens 
+     * @param radius radial mask - zero if farther than radius, 0.5*(cos(pi*r/radius)+1.0) if less
+     * @param minimalAlpha - zero mask below this threshold
+     * @return returns arrray with the same size as sensorMask that corresponds to low-vignetting areas of the sensor/lens
      */
     // Using station 0 - should be not much difference
     public double [][] nonVignettedMasks(
@@ -7056,16 +7072,16 @@ List calibration
     		}
     	}
     	return masks;
-    }   
-    
-    
+    }
+
+
     public boolean LevenbergMarquardt(boolean openDialog){
     	if (this.fittingStrategy==null) {
         		String msg="Fitting strategy does not exist, exiting";
         		IJ.showMessage("Error",msg);
         		throw new IllegalArgumentException (msg);
     	}
-//    	fittingStrategy.distortionCalibrationData.readAllGrids(); 
+//    	fittingStrategy.distortionCalibrationData.readAllGrids();
     	if (openDialog && !selectLMAParameters()) return false;
     	this.startTime=System.nanoTime();
 //    	while (this.seriesNumber<fittingStrategy.getNumSeries()){ // TODO: Add "stop" tag to series
@@ -7075,7 +7091,7 @@ List calibration
     		this.currentVector=null; // invalidate for the new series
     		boolean wasLastSeries=false;
     		while (true) { // loop for the same series
-    			
+
     			boolean [] state=stepLevenbergMarquardtFirst(this.seriesNumber);
     			if (!this.fittingStrategy.isSeriesValid(this.seriesNumber)){
     				System.out.println("Series "+this.seriesNumber+" is invalid when weight function filters are applied (probably removed some images)");
@@ -7085,9 +7101,9 @@ List calibration
     				String msg="Calculation aborted by user request";
     				IJ.showMessage(msg);
     				System.out.println(msg);
-    				return false; 
+    				return false;
     			}
-    			
+
     			if (this.debugLevel>1) System.out.println(this.seriesNumber+":"+this.iterationStepNumber+": stepLevenbergMarquardtFirst("+this.seriesNumber+")==>"+state[1]+":"+state[0]);
 				boolean cont=true;
 				// Make it success if this.currentRMS<this.firstRMS even if LMA failed to converge
@@ -7100,7 +7116,7 @@ List calibration
     					(this.stopEachStep) ||
     					(this.stopEachSeries && state[1]) ||
     					(this.stopOnFailure && state[1] && !state[0])){
-    				
+
     				if (this.debugLevel>0){
     					if (this.stopRequested.get()>0) System.out.println("User requested stop");
     					System.out.println("LevenbergMarquardt(): series:step ="+this.seriesNumber+":"+this.iterationStepNumber+
@@ -7148,10 +7164,10 @@ List calibration
 						updateCameraParametersFromCalculated(true); // update camera parameters from all (even disabled) images
 						updateCameraParametersFromCalculated(false); // update camera parameters from enabled only images (may overwrite some of the above)
 					}
-					// if RMS was decreased. this.saveSeries==false after dialogLMAStep(state) only if "cancel" was pressed 
+					// if RMS was decreased. this.saveSeries==false after dialogLMAStep(state) only if "cancel" was pressed
 					return this.saveSeries; // TODO: Maybe change result?
 				}
-//stepLevenbergMarquardtAction();    			
+//stepLevenbergMarquardtAction();
     			if (state[1]) {
     				if (!state[0]) return false; // sequence failed
     				saveFittingSeries();
@@ -7164,7 +7180,7 @@ List calibration
     		}
 //    		if (this.fittingStrategy.isLastSeries(this.seriesNumber)) break;
     		if (wasLastSeries) break;
-//    		this.seriesNumber++;		
+//    		this.seriesNumber++;
     	} // while (this.fittingStrategy.isSeriesValid(this.seriesNumber)){ // TODO: Add "stop" tag to series
 		if (this.debugLevel>0) System.out.println("LevenbergMarquardt(): series="+this.seriesNumber+
 				", RMS="+this.currentRMS+
@@ -7173,10 +7189,10 @@ List calibration
 				" ("+this.firstRMSPure+
 				") at "+ IJ.d2s(0.000000001*(System.nanoTime()-this.startTime),3));
     	return true; // all series done
-    	
+
     }
-    
-    
+
+
     /**
      * Show debug image (see showDiff (int imgNumber, double [] fX, String title ) above)
      * for each image used in the current fitting series
@@ -7198,7 +7214,7 @@ List calibration
 	 * 4 - calculated pixel-X
 	 * 5 - calculated pixel-Y
 	 * 6 - measured   pixel-X
-	 * 7 - measured   pixel-Y 
+	 * 7 - measured   pixel-Y
 	 * @param imgNumber - number of image
 	 * @param fX - calculated data for all images (use with this.Y)
 	 * @param title - Image title
@@ -7219,7 +7235,7 @@ List calibration
 		}
 		double [][] imgData=new double[7][getGridHeight() * width];
 		for (int i=0;i<imgData.length;i++) for (int j=0;j<imgData[i].length;j++)imgData[i][j]=0.0;
-		
+
 		for (int i=0;i<fittingStrategy.distortionCalibrationData.gIP[imgNumber].pixelsUV.length;i++){
 			int u=fittingStrategy.distortionCalibrationData.gIP[imgNumber].pixelsUV[i][0]+patternParameters.U0;
 			int v=fittingStrategy.distortionCalibrationData.gIP[imgNumber].pixelsUV[i][1]+patternParameters.V0;
@@ -7239,7 +7255,7 @@ List calibration
 	 * @param variationPenalty - cost of different Z for different stations
 	 * @param fixXY - if true, do not adjust X,Y - only Z
 	 * @param stationGroupsIn - consider some stations have the same pattern - assign them the same number. Negative - do not process the station
-	 * @param grid3DCorrection - if true - calculate 3d correction, false - slow 3d (2d perpendicular to view) 
+	 * @param grid3DCorrection - if true - calculate 3d correction, false - slow 3d (2d perpendicular to view)
 	 * @param maxZCorr - maximal allowed correction in Z-direction (if wants more, will fall back to 2-d correction (perpendicular to the view)
 	 * @param showIndividual - show individual images
 	 * @return  combination of 3 arrays: 1 (original) - first index - 0 - correction x (mm), 1 - correction y(mm), 2 - correction z(mm)  3 - weight (number of images used)
@@ -7300,11 +7316,11 @@ List calibration
 				showIndividual,
 				threadsMax,
 				updateStatus);
-		
-		
+
+
 		IJ.showStatus("Calculating pattern 3d correction...");
 // now using gridCorr2d[imgNum], cameraXYZ[imgNum] and patternParameters.gridGeometry[v][u] find the 3d correction     public double [][][] gridGeometry=null; // [v][u]{x,y,z,"alpha"} alpha=0 - no ghrid, 1 - grid
-		double [][] gridCorr3d=  new double [4][width*height]; 
+		double [][] gridCorr3d=  new double [4][width*height];
 		double [][] gridZCorr3d =new double [numStations][width*height];
 		double [][] gridZCorr3dWeight =new double [numStations][width*height];
 		for (int n=0;n<gridCorr3d.length;n++) for (int i=0;i<gridCorr3d[0].length;i++) gridCorr3d[n][i]=0.0;
@@ -7330,7 +7346,7 @@ List calibration
 			if (thisDebug) System.out.println("calculateGridXYZCorr3D() debug("+this.debugLevel+"): index="+index+" v="+v+" u="+u);
 			for (int i=0;i<numVariables;i++){
 				aB[i][0]=0.0;
-				for (int j=0;j<numVariables;j++) aM[i][j]=0.0; 
+				for (int j=0;j<numVariables;j++) aM[i][j]=0.0;
 			}
 			for (int i=0;i<numStations;i++) alphaStation[i]=0.0;
 			double alpha=0.0;
@@ -7352,8 +7368,8 @@ List calibration
 						for (int i=0;i<V.length;i++) V2[i]=V[i]*V[i];
 						if (thisDebug) System.out.println(" imgNum="+imgNum+" V[0]="+IJ.d2s(V[0],4)+" V[1]="+IJ.d2s(V[1],4)+" V[2]="+IJ.d2s(V[2],4)+
 								" V2[0]="+IJ.d2s(V2[0],4)+" V2[1]="+IJ.d2s(V2[1],4)+" V2[2]="+IJ.d2s(V2[2],4));
-						// When performin 3-d correction (X,Y,Z) the result point has to have minimal weighted sum of squared distances to all rays 
-// when summing for different stations, multiply W by sign(image belongs to station) 	
+						// When performin 3-d correction (X,Y,Z) the result point has to have minimal weighted sum of squared distances to all rays
+// when summing for different stations, multiply W by sign(image belongs to station)
 /*
 Px, Py - calculated correction for individual image
 V={Vx,Vy,Vz} unity vector from the camera lens center to the {Px,Py,0}
@@ -7371,7 +7387,7 @@ A(.)V=      (X-Px)*Vx + (Y-Py)*Vy + Z*Vz
 
 D2=
   +X^2 - X^2*Vx^2
-  +Y^2 - Y^2*Vy^2 
+  +Y^2 - Y^2*Vy^2
   +Z^2 - Z^2*Vz^2
 -2*X*Y* Vx*Vy
 -2*X*Z* Vx*Vz
@@ -7390,17 +7406,17 @@ D2=
  X*(Vx*Vy)  + Y* (Vy^2-1) + Z* (Vy*Vz)   =  Px * (Vx*Vy)   + Py * (Vy^2-1)
  X*(Vx*Vz)  + Y* (Vy*Vz)  + Z* (Vz^2-1)  =  Px * (Vx*Vz)   + Py* (Vy*Vz)
 
-						
+
  */
-				
+
 //   | sum(Wi*Cxi),  sum(Wi*Cxyi), sum(Wi*Cxzi) |
 //M= | sum(Wi*Cxyi), sum(Wi*Cyi ), sum(Wi*Cyzi) |
 //   | sum(Wi*Cxzi), sum(Wi*Cyzi), sum(Wi*Czi ) |
-				
+
 //   | sum(Wi*(P0xi*Cxi + P0yi*Cxyi + P0zi*Cxzi)) |
 //B= | sum(Wi*(P0yi*Cyi + P0xi*Cyxi + P0zi*Cyzi)) |
 //   | sum(Wi*(P0zi*Czi + P0yi*Czyi + P0xi*Czxi)) |
-/*				
+/*
 	X*(Vxi^2-1) + Y*(Vxi*Vyi) + Z*(Vxi*Vzi) = P0xi*(Vxi^2-1) +P0yi*(Vxi*Vyi) + P0zi*(Vxi*Vzi)
 	X*(Vxi*Vyi) + Y*(Vyi^2-1) + Z*(Vyi*Vzi) = P0xi*(Vxi*Vyi) +P0yi*(Vyi^2-1) + P0zi*(Vyi*Vzi)
 	X*(Vxi*Vzi) + Y*(Vxi*Vyi) + Z*(Vzi^2-1) = P0xi*(Vxi*Vzi) +P0yi*(Vxi*Vyi) + P0zi*(Vzi^2-1)
@@ -7481,7 +7497,7 @@ D2=
 						zAverage/=sumW;
 						gridCorr3d[2][index]=zAverage; // weighted average of grid Z correction (from current pattern Z)
 						gridCorr3d[3][index]=alpha; // same as sumW?
-// second pass - calculate per-station Z corrections - referenced to existent current values						
+// second pass - calculate per-station Z corrections - referenced to existent current values
 //zPerStation[station]
 						for (int station=0;station<numStations;station++){
 							int zGroup=stationGroups[station];
@@ -7490,7 +7506,7 @@ D2=
 						}
 					}
 					fallBack2D=false; //TODO:  make sure delta Z (Math.abs(gridCorr3d[2][index])) is not too big!!
-					
+
 					if (Math.abs(gridCorr3d[2][index])>maxZCorr) {
 						fallBack2D=true; // temporary limit
 					}
@@ -7518,7 +7534,7 @@ D2=
 				}
 				for (int i=0;i<numberOfZGroups;i++) if (gridZcorrWeightPerGroup[i]>0.0) gridZcorrPerGroup[i]/=gridZcorrWeightPerGroup[i];
 				for (int i=0;i<gridCorr3d.length;i++) gridCorr3d[i][index]=0.0;
-				
+
 				double s=0;
 				for (int imgNum=0;imgNum<selectedImages.length;imgNum++) {
 					int station=fittingStrategy.distortionCalibrationData.gIP[imgNum].getStationNumber(); // number of sub-camera
@@ -7540,7 +7556,7 @@ D2=
 						gridCorr3d[0][index]+=w*(gridCorr2d[imgNum][0][index]-cv[0]*kv);
 						gridCorr3d[1][index]+=w*(gridCorr2d[imgNum][1][index]-cv[1]*kv);
 						gridZcorrAddPerGroup[zGroup]+=w*(                            -cv[2]*kv);
-// not finished per station/per group 2d correction, will just use corerction average						
+// not finished per station/per group 2d correction, will just use corerction average
 						gridCorr3d[2][index]+=w*(                            -cv[2]*kv);
 						s+=w;
 					}
@@ -7582,7 +7598,7 @@ D2=
 
 		}
 		double corrAverage;
-		for (int c=0;c<3;c++){ 
+		for (int c=0;c<3;c++){
 			corrAverage=0.0;
 			double s=0.0;
 			for (int i=0;i<gridCorr3d[0].length;i++) if (reliable[i]) {
@@ -7653,9 +7669,9 @@ D2=
     		}
     	}
     	IJ.showStatus("");
-    	
-// combine in a single array?    	
-    	
+
+// combine in a single array?
+
     	double [][][] result={gridCorr3d,gridZCorr3d,gridZCorr3dWeight};
 		return  result;
 	}
@@ -7709,6 +7725,7 @@ D2=
 		IJ.showStatus("Calculating pattern geometry correction...");
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					LensDistortionParameters lensDistortionParameters=lensDistortionParametersProto.clone(); // see - if that is needed - maybe new is OK
 					//   					LensDistortionParameters lensDistortionParameters= new LensDistortionParameters();
@@ -7807,7 +7824,7 @@ D2=
 								}
 								if (variants[duv]<0) { // could not find any variant to calculate derivatives for this direction
 									variantsExist=false;
-									break; 
+									break;
 								}
 							}
 							if (!variantsExist){
@@ -7834,7 +7851,7 @@ D2=
 								/*
 								 * MdpXY= MdpXY_dUV* MdUV
 								 * MdXY=  MdXY_dUV * MdUV
-								 * MdUV=  MdpXY_dUV.solve(MdpXY); 			
+								 * MdUV=  MdpXY_dUV.solve(MdpXY);
 								 * MdXY=  MdXY_dUV * MdpXY_dUV.solve(MdpXY);
 								 */
 								Matrix MdXY=MdXY_dUV.times(MdpXY_dUV.solve(MdpXY));
@@ -7851,6 +7868,7 @@ D2=
    						final int numFinished=imageFinishedAtomic.getAndIncrement();
 //						IJ.showProgress(progressValues[numFinished]);
 						SwingUtilities.invokeLater(new Runnable() {
+							@Override
 							public void run() {
 								// Here, we can safely update the GUI
 								// because we'll be called from the
@@ -7869,13 +7887,13 @@ D2=
 	}
 
 
-	
-	
-	
+
+
+
 	/**
 	 * Calculates corrections to X and Y coordinates of the grid nodes
 	 * //@param distortionCalibrationData - used to receive sensor mask(s)
-	 * @param grid3DCorrection - if true - calculate 3d correction, false - slow 3d (2d perpendicular to view) 
+	 * @param grid3DCorrection - if true - calculate 3d correction, false - slow 3d (2d perpendicular to view)
 	 * @param maxZCorr - maximal allowed correction in Z-direction (if wants more, will fall back to 2-d correction (perpendicular to the view)
 	 * @param showIndividual - show individual images
 	 * @return first index - 0 - correction x (mm), 1 - correction y(mm), 2 - correction z(mm)  3 - weight (number of images used)
@@ -7902,7 +7920,7 @@ D2=
 					{-1.0, 0.0, 0.0, 0.0, 1.0}}};
 		boolean [] selectedImages=fittingStrategy.selectedImages();
 		double [][][] gridCorr2d=new double [selectedImages.length][][]; // per-image grid {dx,dy,weight} corrections
-		
+
 		double [][] cameraXYZ=new double [selectedImages.length][];
 		for (int i=0;i<gridCorr2d.length;i++) {
 			gridCorr2d[i]=null;
@@ -7938,7 +7956,7 @@ D2=
 /*
 			int index=0;
 			int numImg=fittingStrategy.distortionCalibrationData.getNumImages();
-			
+
 			for (int iNum=0;(iNum<imgNum) && (iNum<numImg) ;iNum++) if (selectedImages[iNum]) //
 				index+=fittingStrategy.distortionCalibrationData.gIP[iNum].pixelsUV.length;
 			//System.out.println ("+++++++++++++imgNum="+imgNum+" index="+index);
@@ -8006,7 +8024,7 @@ D2=
 					}
 					if (variants[duv]<0) { // could not find any variant to calculate derivatives for this direction
 						variantsExist=false;
-						break; 
+						break;
 					}
 				}
 				if (!variantsExist){
@@ -8024,7 +8042,7 @@ D2=
 							dpXY_dUV[nom][denom]+=gpXY[dir][nom]*derivatives[denom][variants[denom]][dir];
 						}
 					}
-					
+
 				}
 				double [] dpXY={imgData[0][vu],imgData[1][vu]};
 				Matrix MdpXY=    new Matrix(dpXY,2); // 2 rows
@@ -8034,7 +8052,7 @@ D2=
 					/*
 					 * MdpXY= MdpXY_dUV* MdUV
 					 * MdXY=  MdXY_dUV * MdUV
-					 * MdUV=  MdpXY_dUV.solve(MdpXY); 			
+					 * MdUV=  MdpXY_dUV.solve(MdpXY);
 					 * MdXY=  MdXY_dUV * MdpXY_dUV.solve(MdpXY);
 					 */
 					Matrix MdXY=MdXY_dUV.times(MdpXY_dUV.solve(MdpXY));
@@ -8082,8 +8100,8 @@ D2=
 						for (int i=0;i<V.length;i++) V2[i]=V[i]*V[i];
 						if (thisDebug) System.out.println(" imgNum="+imgNum+" V[0]="+IJ.d2s(V[0],4)+" V[1]="+IJ.d2s(V[1],4)+" V[2]="+IJ.d2s(V[2],4)+
 								" V2[0]="+IJ.d2s(V2[0],4)+" V2[1]="+IJ.d2s(V2[1],4)+" V2[2]="+IJ.d2s(V2[2],4));
-						// When performin 3-d correction (X,Y,Z) the result point has to have minimal weighted sum of squared distances to all rays 
-// when summing for different stations, multiply W by sign(image belongs to station) 	
+						// When performin 3-d correction (X,Y,Z) the result point has to have minimal weighted sum of squared distances to all rays
+// when summing for different stations, multiply W by sign(image belongs to station)
 /*
 Px, Py - calculated correction for individual image
 V={Vx,Vy,Vz} unity vector from the camera lens center to the {Px,Py,0}
@@ -8101,7 +8119,7 @@ A(.)V=      (X-Px)*Vx + (Y-Py)*Vy + Z*Vz
 
 D2=
   +X^2 - X^2*Vx^2
-  +Y^2 - Y^2*Vy^2 
+  +Y^2 - Y^2*Vy^2
   +Z^2 - Z^2*Vz^2
 -2*X*Y* Vx*Vy
 -2*X*Z* Vx*Vz
@@ -8120,17 +8138,17 @@ D2=
  X*(Vx*Vy)  + Y* (Vy^2-1) + Z* (Vy*Vz)   =  Px * (Vx*Vy)   + Py * (Vy^2-1)
  X*(Vx*Vz)  + Y* (Vy*Vz)  + Z* (Vz^2-1)  =  Px * (Vx*Vz)   + Py* (Vy*Vz)
 
-						
+
  */
-				
+
 //   | sum(Wi*Cxi),  sum(Wi*Cxyi), sum(Wi*Cxzi) |
 //M= | sum(Wi*Cxyi), sum(Wi*Cyi ), sum(Wi*Cyzi) |
 //   | sum(Wi*Cxzi), sum(Wi*Cyzi), sum(Wi*Czi ) |
-				
+
 //   | sum(Wi*(P0xi*Cxi + P0yi*Cxyi + P0zi*Cxzi)) |
 //B= | sum(Wi*(P0yi*Cyi + P0xi*Cyxi + P0zi*Cyzi)) |
 //   | sum(Wi*(P0zi*Czi + P0yi*Czyi + P0xi*Czxi)) |
-/*				
+/*
 	X*(Vxi^2-1) + Y*(Vxi*Vyi) + Z*(Vxi*Vzi) = P0xi*(Vxi^2-1) +P0yi*(Vxi*Vyi) + P0zi*(Vxi*Vzi)
 	X*(Vxi*Vyi) + Y*(Vyi^2-1) + Z*(Vyi*Vzi) = P0xi*(Vxi*Vyi) +P0yi*(Vyi^2-1) + P0zi*(Vyi*Vzi)
 	X*(Vxi*Vzi) + Y*(Vxi*Vyi) + Z*(Vzi^2-1) = P0xi*(Vxi*Vzi) +P0yi*(Vxi*Vyi) + P0zi*(Vzi^2-1)
@@ -8169,7 +8187,7 @@ D2=
 						aB[0][0]+=W*(Px*Cx  + Py*Cxy);// Pz==0.0
 						aB[1][0]+=W*(Px*Cxy + Py*Cy);// Pz==0.0
 						aB[2][0]+=W*(Px*Cxz + Py*Cyz);// Pz==0.0
-					}			
+					}
 				aM[1][0]+=aM[0][1];
 				aM[2][0]+=aM[0][2];
 				aM[2][1]+=aM[1][2];
@@ -8242,10 +8260,10 @@ D2=
 					(gridCorr3d[3][index+width]>wThreshold) ){
 				reliable[index]=true;
 			}
-			
+
 		}
 		double corrAverage;
-		for (int c=0;c<3;c++){ 
+		for (int c=0;c<3;c++){
 			corrAverage=0.0;
 			double s=0.0;
 			for (int i=0;i<gridCorr3d[0].length;i++) if (reliable[i]) {
@@ -8319,13 +8337,13 @@ D2=
 		return  gridCorr3d;
 	}
 /**
- * 
+ *
  * @param gridCorr3D Array of grid corrections (1-st index: dx, dy, dz, mask (>0 - valid point)
  * @param gridZCorr Optional per-station z-correction (or null)
  * @param width // width of the grid array
  * @param preShrink // shrink input array by this number of pixels (hor/vert) befere extrapolating (remove bad border nodes)
  * @param expand    // expand/extrapolate this number of steps after shrinking (or until no pixels left
- * @param sigma     // effective radius for fitting the extrapolation plane, in nodes 
+ * @param sigma     // effective radius for fitting the extrapolation plane, in nodes
  * @param ksigma    // size if square to consider (measured in ksigma-s). 2.0 means square is 4*sigma by 4*sigma
  * @return true if OK, false if error
  */
@@ -8357,7 +8375,7 @@ D2=
 		// create initial wave
 		int debugThreshold=2;
 		if (this.debugLevel>debugThreshold) System.out.println("shrinkExtrapolateGridCorrection width="+width+" height="+height);
-		
+
 		for (int iy=0;iy<height;iy++) for (int ix=0;ix<width;ix++) {
 			Index=iy*width+ix;
 			if (fMask[Index]) {
@@ -8374,7 +8392,7 @@ D2=
 			}
 		}
 		if (this.debugLevel>debugThreshold) System.out.println("Initial wave length="+extList.size());
-		// now shrink 
+		// now shrink
 		// unmask current wave
 		for (int i=extList.size()-1; i>=0;i--) fMask[extList.get(i)]=false;
 		if (extList.size()==0) return false; // no points
@@ -8391,7 +8409,7 @@ D2=
 				for (int dir=0;dir<dirs.length;dir++){
 					int ix1=ix+dirs[dir][0];
 					int iy1=iy+dirs[dir][1];
-					if ((ix1>=0) && (iy1>=0) && (ix1<width) && (iy1<height)){ 
+					if ((ix1>=0) && (iy1>=0) && (ix1<width) && (iy1<height)){
 						Index=iy1*width+ix1;
 						if (fMask[Index]){
 							extList.add(Index);
@@ -8403,14 +8421,14 @@ D2=
 		}
 		// restore mask on the front
 		for (int i=extList.size()-1; i>=0;i--) fMask[extList.get(i)]=true;
-		
+
 		   // repeat with the wave until there is place to move, but not more than "expand" steps
 		   int [] dirs2=new int [2];
 		   for (int n=0; (n<expand) && (extList.size()>0); n++ ){
 			   if (this.updateStatus) IJ.showStatus("Expanding, step="+(n+1)+" (of "+expand+"), extList.size()="+extList.size());
 //			   if (this.updateStatus) showStatus("Expanding, step="+(n+1)+" (of "+expand+"), extList.size()="+extList.size(),0);
 			   if (this.debugLevel>debugThreshold) System.out.println("Expanding, step="+n+", extList.size()="+extList.size());
-			   // move wave front 1 pixel hor/vert        	
+			   // move wave front 1 pixel hor/vert
 			   for (int i=extList.size();i>0;i--){ // repeat current size times
 				   Index=extList.get(0);
 				   extList.remove(0);
@@ -8419,7 +8437,7 @@ D2=
 				   for (int dir=0;dir<dirs.length;dir++){
 					   int ix1=ix+dirs[dir][0];
 					   int iy1=iy+dirs[dir][1];
-					   if ((ix1>=0) && (iy1>=0) && (ix1<width) && (iy1<height)){ 
+					   if ((ix1>=0) && (iy1>=0) && (ix1<width) && (iy1<height)){
 						   Index=iy1*width+ix1;
 						   if (!fMask[Index]){
 							   // verify it has neighbors in the perpendicular direction to dir
@@ -8428,7 +8446,7 @@ D2=
 							   for (int dir2=0;dir2<dirs2.length;dir2++){
 								   int ix2=ix+dirs[dirs2[dir2]][0]; // from the old, not the new point!
 								   int iy2=iy+dirs[dirs2[dir2]][1];
-								   if ((ix2>=0) && (iy2>=0) && (ix2<width) && (iy2<height)){ 
+								   if ((ix2>=0) && (iy2>=0) && (ix2<width) && (iy2<height)){
 									   Index2=iy2*width+ix2;
 									   if (fMask[Index2]){ // has orthogonal neighbor, OK to add
 										   extList.add(Index);
@@ -8451,7 +8469,7 @@ D2=
 Err = sum (W(x,y)*(f(x,y)-F0-Ax*(x-X0)-Ay*(y-Y0))^2)=
 sum (Wxy*(Fxy^2+F0^2+Ax^2*(x-X0)^2+Ay^2*(y-Y0)^2
 -2*Fxy*F0 -2*Fxy*Ax*(x-X0) - 2*Fxy*Ay*(y-Y0)
-+2*F0*Ax*(x-X0) + 2*F0*Ay*(y-Y0) 
++2*F0*Ax*(x-X0) + 2*F0*Ay*(y-Y0)
 +2*Ax*(x-X0)*Ay*(y-Y0))
 (1)0=dErr/dF0= 2*sum (Wxy*(F0-Fxy+Ax*(x-X0)+Ay(y-Y0)))
 (2)0=dErr/dAx= 2*sum (Wxy*(Ax*(x-X0)^2-Fxy*(x-X0) +F0*(x-X0)+Ay*(x-x0)*(y-Y0)))
@@ -8485,7 +8503,7 @@ B =  | SFX |
      | SFY |
 
      | S0  SX   SY  |
-M =  | SX  SX2  SXY | 
+M =  | SX  SX2  SXY |
      | SY  SXY  SY2 |
 
 M * V = B
@@ -8528,7 +8546,7 @@ M * V = B
         					SXY[m]+=w*(ix1-ix)*(iy1-iy);
         				}
         			}
-        			
+
         		}
         		for (int m=0;m<S0.length;m++){
         			double [][] aB={{SF[m]},{SFX[m]},{SFY[m]}};
@@ -8546,16 +8564,16 @@ M * V = B
     			if (this.debugLevel>debugThreshold) System.out.println("updated v="+(Index/width)+" u="+(Index%width)+" {"+
     					IJ.d2s(gridCorr3D[0][Index],2)+","+IJ.d2s(gridCorr3D[1][Index],2)+","+IJ.d2s(gridCorr3D[2][Index],2)+"}");
 			}
-			
-// set mask again for the new calculated layer of pixels			
+
+// set mask again for the new calculated layer of pixels
 			for (int i =0;i<extList.size();i++){
         		Index=extList.get(i);
 				fMask[Index]=true;
 			}
         }
-	   return true;	
+	   return true;
 	}
-	
+
 	public void logScale(
 			double [] data,
 			double fatZero){
@@ -8572,12 +8590,12 @@ M * V = B
 			if (data[i]<0.0) data[i]=0.0;
 		}
 	}
-	
+
 	/**
-	 * Extrapolates sensor correction beyond known data (in-place) 
+	 * Extrapolates sensor correction beyond known data (in-place)
 	 * @param fieldXY [2][nPixels] vector field to extrapolate
-	 * @param sMask [nPixels] alpha (0.0 .. 1.0) "reliability" mask to apply to vector field 
-	 * @param alphaThreshold start with pixels with alpha above this value (disregard border unreliable pixels) 
+	 * @param sMask [nPixels] alpha (0.0 .. 1.0) "reliability" mask to apply to vector field
+	 * @param alphaThreshold start with pixels with alpha above this value (disregard border unreliable pixels)
 	 * @param nsigma when fitting plane through new point use Gaussian weight function for the neighbors
 	 *  (normalized to non-decimated points)
 	 * @param ksigma Process pixels in a square with the side 2*sigma*ksigma
@@ -8590,7 +8608,7 @@ M * V = B
 			double alphaThreshold,
 			double nsigma,
 			double ksigma){
-		
+
 		int decimate=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.decimateMasks;
 		int sWidth= (fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth-1)/decimate+1;
 		int sHeight=(fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorHeight-1)/decimate+1;
@@ -8627,8 +8645,8 @@ M * V = B
 		if (extList.size()==0) return false;
         while (extList.size()>0){
     		if (this.debugLevel>2) System.out.println("extList.size()="+extList.size());
-        	
-        	// move wave front 1 pixel hor/vert        	
+
+        	// move wave front 1 pixel hor/vert
         	for (int i=extList.size();i>0;i--){ // repeat current size times
         		Index=extList.get(0);
         		extList.remove(0);
@@ -8637,7 +8655,7 @@ M * V = B
 				for (int dir=0;dir<dirs.length;dir++){
 					int ix1=ix+dirs[dir][0];
 					int iy1=iy+dirs[dir][1];
-					if ((ix1>=0) && (iy1>=0) && (ix1<sWidth) && (iy1<sHeight)){ 
+					if ((ix1>=0) && (iy1>=0) && (ix1<sWidth) && (iy1<sHeight)){
 						Index=iy1*sWidth+ix1;
 						if (!fMask[Index]){
 							extList.add(Index);
@@ -8656,7 +8674,7 @@ M * V = B
 Err = sum (W(x,y)*(f(x,y)-F0-Ax*(x-X0)-Ay*(y-Y0))^2)=
 sum (Wxy*(Fxy^2+F0^2+Ax^2*(x-X0)^2+Ay^2*(y-Y0)^2
 -2*Fxy*F0 -2*Fxy*Ax*(x-X0) - 2*Fxy*Ay*(y-Y0)
-+2*F0*Ax*(x-X0) + 2*F0*Ay*(y-Y0) 
++2*F0*Ax*(x-X0) + 2*F0*Ay*(y-Y0)
 +2*Ax*(x-X0)*Ay*(y-Y0))
 (1)0=dErr/dF0= 2*sum (Wxy*(F0-Fxy+Ax*(x-X0)+Ay(y-Y0)))
 (2)0=dErr/dAx= 2*sum (Wxy*(Ax*(x-X0)^2-Fxy*(x-X0) +F0*(x-X0)+Ay*(x-x0)*(y-Y0)))
@@ -8690,7 +8708,7 @@ B =  | SFX |
      | SFY |
 
      | S0  SX   SY  |
-M =  | SX  SX2  SXY | 
+M =  | SX  SX2  SXY |
      | SY  SXY  SY2 |
 
 M * V = B
@@ -8730,7 +8748,7 @@ M * V = B
         					SXY[m]+=w*(ix1-ix)*(iy1-iy);
         				}
         			}
-        			
+
         		}
         		for (int m=0;m<whichExtrapolate.length;m++) if(whichExtrapolate[m]){
         			double [][] aB={{SF[m]},{SFX[m]},{SFY[m]}};
@@ -8746,24 +8764,24 @@ M * V = B
         		}
 
 			}
-			
-// set mask again for the new calculated layer of pixels			
+
+// set mask again for the new calculated layer of pixels
 			for (int i =0;i<extList.size();i++){
         		Index=extList.get(i);
 				fMask[Index]=true;
 			}
         }
 		return true;
-		
+
 	}
-	
-	
+
+
 	/**
 	 * Calculates residual correction from  the measured sensor pX, pY to the calculated {pixel X, pixel Y}
 	 * @param distortionCalibrationData
 	 * @param showIndividual - show individual images
 	 * @param showIndividualNumber - which image to show (-1 - all)
-	 * @return 
+	 * @return
 	 */
 	public double [][][] calculateSensorXYCorr(
 			DistortionCalibrationData distortionCalibrationData,
@@ -8778,7 +8796,7 @@ M * V = B
 		int width=getGridWidth();
 		int height=getGridHeight();
     	int imgRGBIndex=   3;
-    	
+
 		int [] uvInc={0,1,width,width+1}; // four corners as vu index
 		int [][] cycles={ // counter-clockwise corners bounding the area  (only orthogonal sides?)
 				{1,0,2},
@@ -8786,7 +8804,7 @@ M * V = B
 				{0,2,3},
 				{3,1,0}};
 		double [][][] gridPCorr=new double [numChannels][][];
-		for (int chnNum=0;chnNum<gridPCorr.length;chnNum++) gridPCorr[chnNum]=null; 
+		for (int chnNum=0;chnNum<gridPCorr.length;chnNum++) gridPCorr[chnNum]=null;
 		boolean [] selectedImages=fittingStrategy.selectedImages();
 		boolean debugExit=false;
 		int debugCntr=2;
@@ -8799,20 +8817,20 @@ M * V = B
 			int chnNum=fittingStrategy.distortionCalibrationData.gIP[imgNum].channel; // number of sub-camera
 			int station=fittingStrategy.distortionCalibrationData.gIP[imgNum].getStationNumber(); // number of sub-camera
 			double [][] photometrics=patternParameters.getPhotometricBySensor(station,chnNum); // head/bottom grid intensity/alpha
-			
+
 			if (showIndividual && ((showIndividualNumber<0) || (showIndividualNumber==chnNum))) {
 				String [] titles={"R","G","B","A"};
 				this.SDFA_INSTANCE.showArrays(photometrics, width, height,  true, "Photometrics"+chnNum+"-"+imgNum, titles);
 			}
 
-			
+
 			// initialize this array if it is needed, leave unused null
 			if (gridPCorr[chnNum]==null){
 				 gridPCorr[chnNum]=new double [7][sWidth*sHeight];
 				for (int n=0;n<gridPCorr[chnNum].length;n++) for (int i=0;i<gridPCorr[chnNum][0].length;i++) gridPCorr[chnNum][n][i]=0.0;
 			}
 			double [][] thisPCorr=null;
-			
+
 			thisPCorr=new double [7][sWidth*sHeight]; // calculate for a single (this) image, accumulate in the end
 			for (int n=0;n<thisPCorr.length;n++) for (int i=0;i<thisPCorr[0].length;i++) thisPCorr[n][i]=0.0;
 			double [] diff=calcYminusFx(this.currentfX);
@@ -8826,7 +8844,7 @@ M * V = B
 			}
 			double [][] imgData=new double[8][height * width]; // dPX, dPY, Px, Py, alpha,R,G,B
 			for (int i=0;i<imgData.length;i++) for (int j=0;j<imgData[i].length;j++)imgData[i][j]=0.0;
-			
+
 			for (int i=0;i<fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV.length;i++){
 				int u=fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV[i][0]+patternParameters.U0; // starting from 0
 				int v=fittingStrategy.distortionCalibrationData.gIP[imgNum].pixelsUV[i][1]+patternParameters.V0; // starting from 0
@@ -8836,7 +8854,7 @@ M * V = B
 				imgData[2][vu]= this.Y[2*(index+i)];  // measured pixel x
 				imgData[3][vu]= this.Y[2*(index+i)+1];// measured pixel y
 				imgData[4][vu]= this.weightFunction[2*(index+i)];
-				
+
 				for (int c=0;c<3;c++){
 //					double g=gridGeometry[v][u][gridRGBIndex+c];
 					double g=photometrics[c][vu];
@@ -8846,7 +8864,7 @@ M * V = B
 			if (showIndividual && ((showIndividualNumber<0) || (showIndividualNumber==chnNum))) {
 				String [] titles={"dPx","dPy","Px","Py","A","R","G","B"};// dPX, dPY, Px, Py, alpha,R,G,B - rgb - full, not incremental
 				this.SDFA_INSTANCE.showArrays(imgData, width, height,  true, "imgData"+imgNum, titles);
-				
+
 			}
 
 			// now use imgData array to fill thisPCorr by linear interpolation
@@ -8855,7 +8873,7 @@ M * V = B
 				int vu=u+width*v;
                 double [][] cornerXY =new double[4][];
                 for (int i=0;i<uvInc.length;i++){
-                	int vu1=vu+uvInc[i];	
+                	int vu1=vu+uvInc[i];
                 	if (imgData[4][vu1]>0.0){
                 		cornerXY[i]=new double[2];
                 		cornerXY[i][0]=imgData[2][vu1];
@@ -8909,7 +8927,7 @@ M * V = B
 				boolean debugHadPixels=false;
 //TODO: scan X,Y in this rectangle, for points in defined squares/triangles find if the point is inside (accurate not to loose any).
 				for (int idY=iMinY; idY<=iMaxY;idY++){
-					
+
 					double pY=idY*decimate; // in sensor pixels
 					for (int idX=iMinX; idX<=iMaxX;idX++){
 						double pX=idX*decimate; // in sensor pixels
@@ -8931,7 +8949,7 @@ M * V = B
 									System.out.println("--- pY="+IJ.d2s(pY,1)+" originXY[1]="+IJ.d2s(originXY[1],1)+
 											" endXY[0]="+IJ.d2s(endXY[0],1)+" originXY[0]="+IJ.d2s(originXY[0],1));
 									System.out.println("Cross-product="+IJ.d2s(((pX-originXY[0])*(endXY[1]-originXY[1]) - (pY-originXY[1])*(endXY[0]-originXY[0])),1));
-									
+
 								}
 							}
 
@@ -8957,11 +8975,11 @@ M * V = B
 								System.out.println(debugString1);
 							}
 
-							/* interpolate: 
+							/* interpolate:
 							1. taking cycles[0] as origin and two (non co-linear) edge vectors - V1:from 0 to 1 and V2 from 1 to 2
 							    find a1 and a2  so that vector V  (from 0  to pXY) = a1*V1+ a2*V2
 							2. if F0 is the value of the interpolated function at cycles[0], F1 and F2 - at cycles[1] and cycles2
-							   then F=F0+(F1-F0)*a1 +(F2-F1)*a2    
+							   then F=F0+(F1-F0)*a1 +(F2-F1)*a2
 							 */
 							double [] XY0={imgData[2][vu+uvInc[cycle[0]]],imgData[3][vu+uvInc[cycle[0]]]};
 							double [] XY1={imgData[2][vu+uvInc[cycle[1]]],imgData[3][vu+uvInc[cycle[1]]]};
@@ -9000,11 +9018,11 @@ M * V = B
 									 imgData[0][vu+uvInc[cycle[0]]]+ // dPx
 									(imgData[0][vu+uvInc[cycle[1]]]-imgData[0][vu+uvInc[cycle[0]]])*a12[0]+
 									(imgData[0][vu+uvInc[cycle[2]]]-imgData[0][vu+uvInc[cycle[1]]])*a12[1],
-									
+
 									 imgData[1][vu+uvInc[cycle[0]]]+ // dPy
 									(imgData[1][vu+uvInc[cycle[1]]]-imgData[1][vu+uvInc[cycle[0]]])*a12[0]+
 									(imgData[1][vu+uvInc[cycle[2]]]-imgData[1][vu+uvInc[cycle[1]]])*a12[1],
-									
+
 									 imgData[4][vu+uvInc[cycle[0]]]+ // alpha
 									(imgData[4][vu+uvInc[cycle[1]]]-imgData[4][vu+uvInc[cycle[0]]])*a12[0]+
 									(imgData[4][vu+uvInc[cycle[2]]]-imgData[4][vu+uvInc[cycle[1]]])*a12[1],
@@ -9025,7 +9043,7 @@ M * V = B
 	 System.out.println("imgNum=" + imgNum+": "+	fittingStrategy.distortionCalibrationData.gIP[imgNum].path);
 	 System.out.println("thisPCorr[0].length="+thisPCorr[0].length+" pCorrIndex="+pCorrIndex+" sWidth="+sWidth+" idY="+idY+" idX="+idX);
  }
-							thisPCorr[0][pCorrIndex]+= corr[0];// dPx							
+							thisPCorr[0][pCorrIndex]+= corr[0];// dPx
 							thisPCorr[1][pCorrIndex]+= corr[1];// dPy
 							thisPCorr[2][pCorrIndex]+= corr[2];// alpha
 							thisPCorr[3][pCorrIndex]+= 1.0;    // number of times accumulated
@@ -9061,17 +9079,17 @@ M * V = B
 					}
 					if (!debugExit) debugCntr--;
 					if (debugCntr==0) debugExit=true; // exit after first non-empty tile
-					
+
 				}
 			} // finished image
-			
-			
+
+
 /*			if (showIndividual) {
 				String [] titles={"dPx","dPy","alpha","Multiple","Red","Green","Blue"};
 				this.SDFA_INSTANCE.showArrays(thisPCorr, sWidth, sHeight,  true, "thisPCorr_pre"+imgNum, titles);
 			}
-*/			
-			// some points may be calculated multiple times 
+*/
+			// some points may be calculated multiple times
 			for (int i=0;i<gridPCorr[chnNum][0].length;i++) if (thisPCorr[3][i]>=1.0){
 				thisPCorr[0][i]/=thisPCorr[3][i]; // dPx
 				thisPCorr[1][i]/=thisPCorr[3][i]; // dPy
@@ -9097,12 +9115,12 @@ M * V = B
 			}
 			IJ.showProgress(++numProcessed, numSelected);
 		}
-/*		
+/*
 		if (showIndividual) {
 			String [] titles={"dPx","dPy","alpha","Multiple","Red","Green","Blue"};
 			for (int chnNum=0;chnNum<gridPCorr.length;chnNum++) if (gridPCorr[chnNum]!=null) this.SDFA_INSTANCE.showArrays(gridPCorr[chnNum], sWidth, sHeight,  true, "gridPCorr1"+chnNum, titles);
 		}
-*/		
+*/
 		for (int chnNum=0;chnNum<gridPCorr.length;chnNum++) if (gridPCorr[chnNum]!=null){
 			for (int i=0;i<gridPCorr[chnNum][0].length;i++) if (gridPCorr[chnNum][2][i]>0){ //null pointer
 				gridPCorr[chnNum][0][i]/=gridPCorr[chnNum][3][i];
@@ -9112,15 +9130,15 @@ M * V = B
 				gridPCorr[chnNum][6][i]/=gridPCorr[chnNum][3][i];
 			}
 		}
-/*		
+/*
 		if (showIndividual) {
 			String [] titles={"dPx","dPy","alpha","Multiple","Red","Green","Blue"};
 			for (int chnNum=0;chnNum<gridPCorr.length;chnNum++) if (gridPCorr[chnNum]!=null) this.SDFA_INSTANCE.showArrays(gridPCorr[chnNum], sWidth, sHeight,  true, "gridPCorr2"+chnNum, titles);
 		}
-*/		
+*/
 		return gridPCorr;
 	}
-		
+
 	public double [][][] calculateSensorXYCorrOld(
 			DistortionCalibrationData distortionCalibrationData,
 			boolean showIndividual
@@ -9133,19 +9151,19 @@ M * V = B
 		int height=getGridHeight();
 		int [] uvInc={0,1,width,width+1}; // four corners as vu index
 		int [][] cycles={ // counter-clockwise corners bounding the area  (only orthogonal sides?)
-//				{0,2,3,1}, // 
+//				{0,2,3,1}, //
 				{1,0,2},
 				{2,3,1},
 				{0,2,3},
 				{3,1,0}};
-		
+
 		// prepare grid correction arrays
 //		if ((decimate!=)
 //	    public double [][][] pixelCorrection=null;
 //	    public int        pixelCorrectionDecimation=1;
 
 		double [][][] gridPCorr=new double [numChannels][][];
-		for (int chnNum=0;chnNum<gridPCorr.length;chnNum++) gridPCorr[chnNum]=null; 
+		for (int chnNum=0;chnNum<gridPCorr.length;chnNum++) gridPCorr[chnNum]=null;
 		boolean [] selectedImages=fittingStrategy.selectedImages();
 		boolean debugExit=false;
 		int debugCntr=2;
@@ -9158,7 +9176,7 @@ M * V = B
 				for (int n=0;n<gridPCorr[chnNum].length;n++) for (int i=0;i<gridPCorr[chnNum][0].length;i++) gridPCorr[chnNum][n][i]=0.0;
 			}
 			double [][] thisPCorr=null;
-			
+
 			thisPCorr=new double [4][sWidth*sHeight]; // calculate for a single (this) image, accumulate in the end
 			for (int n=0;n<thisPCorr.length;n++) for (int i=0;i<thisPCorr[0].length;i++) thisPCorr[n][i]=0.0;
 			double [] diff=calcYminusFx(this.currentfX);
@@ -9185,7 +9203,7 @@ M * V = B
 //				imgData[2][vu]= this.currentfX[2*(index+i)];  // calculated pixel x
 //				imgData[3][vu]= this.currentfX[2*(index+i)+1];// calculated pixel y
 // next line not needed? - no, let it stay, 0.0 / >0 will be needed
-// TODO: Use grid alpha				
+// TODO: Use grid alpha
 				imgData[4][vu]= fittingStrategy.distortionCalibrationData.getMask(mask, imgData[2][vu], imgData[3][vu]); // will decimate
 			}
 			// now use imgData array to fill thisPCorr by linear interpolation
@@ -9194,14 +9212,14 @@ M * V = B
 				int vu=u+width*v;
                 double [][] cornerXY =new double[4][];
                 for (int i=0;i<uvInc.length;i++){
-                	int vu1=vu+uvInc[i];	
+                	int vu1=vu+uvInc[i];
                 	if (imgData[4][vu1]>0.0){
                 		cornerXY[i]=new double[2];
                 		cornerXY[i][0]=imgData[2][vu1];
                 		cornerXY[i][1]=imgData[3][vu1];
                 	} else cornerXY[i]=null;
                 }
-                boolean [] cycleFits=new boolean[cycles.length];   
+                boolean [] cycleFits=new boolean[cycles.length];
                 boolean anyFits=false;
                 for (int i=0;i<cycles.length;i++){
                 	cycleFits[i]=true;
@@ -9242,7 +9260,7 @@ M * V = B
 				boolean debugHadPixels=false;
 //TODO: scan X,Y in this rectangle, for points in defined squares/triangles find if the point is inside (accurate not to loose any).
 				for (int idY=iMinY; idY<=iMaxY;idY++){
-					
+
 					double pY=idY*decimate; // in sensor pixels
 					for (int idX=iMinX; idX<=iMaxX;idX++){
 						double pX=idX*decimate; // in sensor pixels
@@ -9264,7 +9282,7 @@ M * V = B
 									System.out.println("--- pY="+IJ.d2s(pY,1)+" originXY[1]="+IJ.d2s(originXY[1],1)+
 											" endXY[0]="+IJ.d2s(endXY[0],1)+" originXY[0]="+IJ.d2s(originXY[0],1));
 									System.out.println("Cross-product="+IJ.d2s(((pX-originXY[0])*(endXY[1]-originXY[1]) - (pY-originXY[1])*(endXY[0]-originXY[0])),1));
-									
+
 								}
 							}
 
@@ -9290,11 +9308,11 @@ M * V = B
 								System.out.println(debugString1);
 							}
 
-							/* interpolate: 
+							/* interpolate:
 							1. taking cycles[0] as origin and two (non co-linear) edge vectors - V1:from 0 to 1 and V2 from 1 to 2
 							    find a1 and a2  so that vector V  (from 0  to pXY) = a1*V1+ a2*V2
 							2. if F0 is the value of the interpolated function at cycles[0], F1 and F2 - at cycles[1] and cycles2
-							   then F=F0+(F1-F0)*a1 +(F2-F1)*a2    
+							   then F=F0+(F1-F0)*a1 +(F2-F1)*a2
 							 */
 							double [] XY0={imgData[2][vu+uvInc[cycle[0]]],imgData[3][vu+uvInc[cycle[0]]]};
 							double [] XY1={imgData[2][vu+uvInc[cycle[1]]],imgData[3][vu+uvInc[cycle[1]]]};
@@ -9376,10 +9394,10 @@ M * V = B
 					}
 					if (!debugExit) debugCntr--;
 					if (debugCntr==0) debugExit=true; // exit after first non-empty tile
-					
+
 				}
 			} // finished image
-			// some points may be calculated multiple times 
+			// some points may be calculated multiple times
 			for (int i=0;i<gridPCorr[chnNum][0].length;i++) if (thisPCorr[3][i]>=1.0){
 				thisPCorr[0][i]/=thisPCorr[3][i];
 				thisPCorr[1][i]/=thisPCorr[3][i];
@@ -9397,7 +9415,7 @@ M * V = B
 				if (gridPCorr[chnNum][2][i]<thisPCorr[2][i]) gridPCorr[chnNum][2][i]=thisPCorr[2][i]; // best alpha
 				gridPCorr[chnNum][3][i]+=                thisPCorr[2][i]; // sum of weights from all images
 			}
-			
+
 		}
 		for (int chnNum=0;chnNum<gridPCorr.length;chnNum++){
 			for (int i=0;i<gridPCorr[chnNum][0].length;i++) if (gridPCorr[chnNum][2][i]>0){ //null pointer
@@ -9407,7 +9425,7 @@ M * V = B
 		}
 		return gridPCorr;
 	}
-	
+
 /**
  * Calculate partial derivative analytically (as the Jacobian calculation) and by difference divided by delta and compare
  * Done to debug derivatives calculation
@@ -9436,7 +9454,7 @@ M * V = B
 		int numPars=this.currentVector.length;
     	String [] parameterNames;
     	String [] parameterUnits;
-    	
+
     	if (useActualParameters) {
     		parameterNames=new String[fittingStrategy.distortionCalibrationData.getNumDescriptions()];
     		parameterUnits=new String[fittingStrategy.distortionCalibrationData.getNumDescriptions()];
@@ -9519,16 +9537,16 @@ M * V = B
 	    	System.out.println("Image "+i+", "+title+"derivative RMS="+sumWeight[i]);
 	    }
 	}
-	
-	
+
+
 	/**
 	 * Show comparison of the calculated partial derivatives in Jacobian and approximated by difference
-	 * for incremented parameters 
+	 * for incremented parameters
 	 * @param imgNumber - number of image in series to show
 	 * @param d_derivative vector array of "true" derivatives (from Jacobian)
 	 * @param d_delta approximated derivatives from varying parameter
 	 * @param title image title
-	 * @return rms 
+	 * @return rms
 	 */
 	public double showCompareDerivatives(int imgNumber, double [] d_derivative, double [] d_delta, boolean applySensorMask, String title ){
 		String [] titlesDebug={"dX-derivative","dY-derivative","abs-derivative","diff-X (should be 0)","diff-Y (should be 0)","dX-delta/delta","dY-delta/delta","dX-delta","dY-delta"};
@@ -9537,7 +9555,7 @@ M * V = B
 		double [] d_diff=new double [d_derivative.length];
 		double [] r_diff=new double [d_derivative.length];
 		double [] aDeriv=new double [d_derivative.length/2];
-		
+
 		if (d_delta!=null) for (int i=0;i<d_diff.length;i++){
 			d_diff[i]=d_derivative[i]-d_delta[i];
 			r_diff[i]=d_diff[i]/d_delta[i];
@@ -9560,13 +9578,13 @@ M * V = B
 			d_derivative[i]*=sqrtW; // for display
 			if (d_delta!=null) d_delta[i]*=sqrtW;
 			if ((i&1)==0) aDeriv[i>>1]=Math.sqrt(d_derivative[i]*d_derivative[i]+d_derivative[i+1]*d_derivative[i+1]);
-		}		
+		}
 		sumDerivatives2=Math.sqrt(sumDerivatives2/sumWeights*2.0); // 2.0 because x,y pair should not be averaged, just added
 		titles[2]+=":rms="+sumDerivatives2;
 		int width=getGridWidth();
 		double [][] imgData=new double[titles.length][getGridHeight() * width];
 		for (int i=0;i<imgData.length;i++) for (int j=0;j<imgData[i].length;j++)imgData[i][j]=0.0;
-		
+
 		for (int i=0;i<fittingStrategy.distortionCalibrationData.gIP[imgNumber].pixelsUV.length;i++){
 			int u=fittingStrategy.distortionCalibrationData.gIP[imgNumber].pixelsUV[index+i][0]+patternParameters.U0;
 			int v=fittingStrategy.distortionCalibrationData.gIP[imgNumber].pixelsUV[index+i][1]+patternParameters.V0;
@@ -9588,7 +9606,7 @@ M * V = B
 	}
 	/**
 	 * Show comparison of the calculated partial derivatives in Jacobian and approximated by difference
-	 * for incremented parameters (for all selected images in the series) 
+	 * for incremented parameters (for all selected images in the series)
 	 * @param d_derivative vector array of "true" derivatives (from Jacobian)
 	 * @param d_delta approximated derivatives form varying parameter
 	 * @param applySensorMask Multiply by sensor mask (fade near edges)
@@ -9609,7 +9627,7 @@ M * V = B
 	}
 
 	/**
-	 * 
+	 *
 	 * @param delta if 0 - actual derivatives, >0 - approximate derivatives by deltas
 	 * @return for each v,u - values and derivatives
 	 */
@@ -9651,7 +9669,7 @@ M * V = B
         }
         LensDistortionParameters ldp=this.lensDistortionParameters.clone();
 //		public void setLensDistortionParameters(LensDistortionParameters ldp
-       
+
         for (int v=0; v<gridHeight; v++) for (int u=0; u<gridWidth; u++) if (patternParameters.gridGeometry[v][u][3]>0) {
         	this.lensDistortionParameters.setLensDistortionParameters(ldp); // restore
         	node=this.lensDistortionParameters.calcPartialDerivatives(
@@ -9667,8 +9685,8 @@ M * V = B
         				IJ.d2s(node[0][0],2)+"/"+IJ.d2s(node[0][1],2));
         	}
         	if (dMode) {
-//        		double []pXY=node[0]; // px,py values 
-        		this.gridOnSensor[v][u][0][0]=node[0][0]; 
+//        		double []pXY=node[0]; // px,py values
+        		this.gridOnSensor[v][u][0][0]=node[0][0];
         		this.gridOnSensor[v][u][1][0]=node[0][1];
         		for (int j=1;j<15;j++) {  // was 14
         			this.lensDistortionParameters.setLensDistortionParameters(ldp, j, delta); // set one of the parameters (j) with added delta to ldp
@@ -9677,12 +9695,12 @@ M * V = B
                 			patternParameters.gridGeometry[v][u][1],//double yp, // target point vertical,   positive - down,  mm
                 			patternParameters.gridGeometry[v][u][2],//double zp, // target point horizontal, positive - away from camera,  mm
                 			false);
-            		this.gridOnSensor[v][u][0][j]=(node[0][0]-this.gridOnSensor[v][u][0][0])/delta; 
+            		this.gridOnSensor[v][u][0][j]=(node[0][0]-this.gridOnSensor[v][u][0][0])/delta;
             		this.gridOnSensor[v][u][1][j]=(node[0][1]-this.gridOnSensor[v][u][1][0])/delta;
         		}
 
         	} else for (int i=0;i<2;i++) for (int j=0;j<15;j++){ // was 14
-        		this.gridOnSensor[v][u][i][j]=node[j][i]; 
+        		this.gridOnSensor[v][u][i][j]=node[j][i];
         	}
 
         } else {
@@ -9696,7 +9714,7 @@ M * V = B
     public int getGridHeight() {
     	return patternParameters.gridGeometry.length;
     }
-    
+
     public double [][] prepareDisplayGrid(){
     	int gridHeight=this.patternParameters.gridGeometry.length;
     	int gridWidth=this.patternParameters.gridGeometry[0].length;
@@ -9773,7 +9791,7 @@ M * V = B
      * @param distortionCalibrationData grid distortionCalibrationData
      * @param eyesisCameraParameters deafault camera parameters
      */
-    
+
     // Used in Aberration_Calibration
     public void initImageSet(
     		DistortionCalibrationData distortionCalibrationData,
@@ -9791,7 +9809,7 @@ M * V = B
     		this.lensDistortionParameters.pixelSize=eyesisCameraParameters.getPixelSize(0);
     		this.lensDistortionParameters.distortionRadius=eyesisCameraParameters.getDistortionRadius(0);
     }
-    
+
     /**
      * Update per-image parameters from those of the camera and those that have the same timestamp. Usually needed after adding or
      * enabling new images.
@@ -9799,7 +9817,7 @@ M * V = B
      * @param eyesisCameraParameters - camera parameters (common and per sub-camera)
      * @return true if dialog was not canceled and programs ran
      */
-    
+
     public boolean interactiveUpdateImageSet(
     		DistortionCalibrationData distortionCalibrationData,
     		EyesisCameraParameters eyesisCameraParameters
@@ -9848,7 +9866,7 @@ M * V = B
     		parameterMask[distortionCalibrationData.getParameterIndexByName("subcamHeight")] = true;
     	}
 
-		
+
 //		boolean updateDisabled=       gd.getNextBoolean();
     	updateImageSetFromCamera(
     			resetParametersToZero,
@@ -9865,13 +9883,13 @@ M * V = B
     				null, // boolean [] selectedImages,
     				null, //boolean [] parameterMask,
     				allowClosest
-    				//,updateDisabled	
+    				//,updateDisabled
     		);
     		distortionCalibrationData.updateSetOrientation(null); // update orientation of image sets
     	}
     	return true;
     }
-    
+
     public boolean setSetFromClosestAndEstimateOrientation(
     		int numSet,
     		boolean [] selectedImages,
@@ -9908,7 +9926,7 @@ M * V = B
 	    if ((ta==null) || Double.isNaN(ta[0]) || Double.isNaN(ta[1])) return false;
 	    return true;
     }
-    
+
 
     public boolean interactiveUpdateImageSetOld(
     		DistortionCalibrationData distortionCalibrationData,
@@ -9931,14 +9949,14 @@ M * V = B
     	boolean updateFromTimestamps= gd.getNextBoolean();
     	boolean allowClosest=         gd.getNextBoolean();
 //		boolean updateDisabled=       gd.getNextBoolean();
-   	
+
     	boolean [] parameterMask= new boolean[distortionCalibrationData.getNumParameters()];
     	for (int i=0;i<parameterMask.length;i++) {
     		parameterMask[i]=true;
     		if (distortionCalibrationData.isLocationParameter(i)    && !copyLocation)    	parameterMask[i]=false;
     		if (distortionCalibrationData.isOrientationParameter(i) && !copyOrientation)	parameterMask[i]=false;
     	}
-    	
+
     	if (updateFromCamera) updateImageSetFromCamera(
     			false, //resetParametersToZero
     			distortionCalibrationData,
@@ -9960,8 +9978,8 @@ M * V = B
     	}
     	return true;
     }
-    
-    
+
+
     /**
      * Copies selected parameters from the camera parameters to per-image parameters (i.e. for new/previously disabled images)
      * @param distortionCalibrationData grid distortionCalibrationData
@@ -9977,7 +9995,7 @@ M * V = B
     		boolean [] parameterMask,
     		boolean [] channelMask,
     		boolean [] stationMask
-    		) { 
+    		) {
 //    	DistortionCalibrationData distortionCalibrationData= new DistortionCalibrationData(filenames);
     	for (int i=0;i<distortionCalibrationData.getNumImages();i++){
     		int stationNumber=distortionCalibrationData.getImageStation(i);
@@ -10035,7 +10053,7 @@ M * V = B
 // find enabled image for this set
     		int enabledImage=-1;
     		// look for enabled image in the same imageSet
-    		
+
     		for (int nChn=0;nChn<distortionCalibrationData.gIS[numSet].imageSet.length;nChn++) if (distortionCalibrationData.gIS[numSet].imageSet[nChn]!=null){
     			int img=distortionCalibrationData.gIS[numSet].imageSet[nChn].imgNumber;
     			if (selectedImages[img]){
@@ -10060,7 +10078,7 @@ M * V = B
     	}
 
     }
-    
+
     public int getClosestImage(
     		DistortionCalibrationData distortionCalibrationData,
     		boolean [] selectedImages,
@@ -10077,7 +10095,7 @@ M * V = B
     		if ((numOtherSet!=numSet) &&
     				(distortionCalibrationData.gIS[numOtherSet].stationNumber==distortionCalibrationData.gIS[numSet].stationNumber) &&
     				(distortionCalibrationData.gIS[numOtherSet].motors!=null) &&
-    				(distortionCalibrationData.gIS[numOtherSet].imageSet!=null) 
+    				(distortionCalibrationData.gIS[numOtherSet].imageSet!=null)
     		) {
     			enabledChannel=-1;
     			int otherImage=-1;
@@ -10113,7 +10131,7 @@ M * V = B
 		int numEnabledSet=distortionCalibrationData.gIP[enabledImage].getSetNumber();
 		distortionCalibrationData.gIS[numSet].setSetVector(distortionCalibrationData.gIS[numEnabledSet].getSetVector());
 		System.out.println("getClosestSetChannelImage(): imageSet "+numSet+" set orientationEstimated=true, updated from imageSet "+numEnabledSet);
-		distortionCalibrationData.gIS[numSet].orientationEstimated=(numSet!=numEnabledSet); 
+		distortionCalibrationData.gIS[numSet].orientationEstimated=(numSet!=numEnabledSet);
 		double [] newVector=distortionCalibrationData.getParameters(enabledImage);
 		for (int nChn=0;nChn<distortionCalibrationData.gIS[numSet].imageSet.length;nChn++)
 			if (distortionCalibrationData.gIS[numSet].imageSet[nChn]!=null){ // will copy back to itself, OK
@@ -10123,7 +10141,7 @@ M * V = B
 				distortionCalibrationData.setParameters(oldVector, targetImage);
 			}
     }
-    
+
     // TODO: Add updating to all Stations depending on type of adjustment. Initially only teh same station as image will be updated
     // Not needed - for "super" unselected images are also updated
     /**
@@ -10157,11 +10175,11 @@ M * V = B
     		for (int i=0;i<update.length;i++) update[i]=true;
     		int stationNumber=fittingStrategy.distortionCalibrationData.getImageStation(numImg);
     		// TODO: maybe determine - which parameters to be updated, not all - i.e. "super-common", or having the same value, etc.
-    		// but all those intrinsic are required to match calibration files saved 
+    		// but all those intrinsic are required to match calibration files saved
 			fittingStrategy.distortionCalibrationData.eyesisCameraParameters.setParametersVector(par, update, stationNumber, subCam);
 			if (debugThis || ((selectedImagesDebug!=null) && selectedImagesDebug[numImg])){
 				System.out.println ("Updating from image #"+numImg+" (subCam="+subCam+" stationNumber="+stationNumber+"):");
-//getParameterName				
+//getParameterName
 				for (int i=0;i<par.length;i++){
 					System.out.println(i+": "+fittingStrategy.distortionCalibrationData.getParameterName(i)+" = "+par[i]);
 				}
@@ -10193,7 +10211,7 @@ M * V = B
 		}
 
 		try
-		{   
+		{
 			for (int ithread = 0; ithread < threads.length; ++ithread)
 				threads[ithread].join();
 		} catch (InterruptedException ie)
@@ -10208,7 +10226,7 @@ M * V = B
      	  public double fatZero=0.01;        // when extrapolatging color transfer coefficients (flat field) use this for logariphm
      	  public double extrapolationSigma=30.0; // sigmna for Gaussian weight function when fittinga plane to known pixels
      	                                         // calculated for non-decimated pixels
-     	  public double extrapolationKSigma=2.0; // consider pixels in 2*extrapolationSigma*extrapolationKSigma square when fitting 
+     	  public double extrapolationKSigma=2.0; // consider pixels in 2*extrapolationSigma*extrapolationKSigma square when fitting
      	  public boolean smoothCorrection=true;  // apply Gaussian blur to calculated pixel correction field
      	  public double smoothSigma=50.0; // sigma for Gaussian weight function when fittinga plane to known pixels
      	  public double correctionScale=1.0; // scale correction when accumulating;
@@ -10223,16 +10241,16 @@ M * V = B
      	  public boolean grid3DCorrection=true; // Correct patetrn grid node locations in 3d (false - in 2d only)
      	  public boolean rotateCorrection=true; // old value - did not yet understand why is it needed
      	  public double  grid3DMaximalZCorr=20.0; // Maximal Z-axis correc tion (if more will fall back to 2d correction algorithm)
-     	  
+
      	  public boolean  useVariations=  false; // allow different Z for different stations (for not a wall/stable pattern)
      	  public double  variationPenalty=0.001; // "stiffness" of individual (per-station) Z-values of the target pattern
      	  public boolean  fixXY=          false; // adjust only Z of the target pattern, keep X and Y
      	  public boolean  resetVariations=false;
      	  public boolean  noFallBack=     true; // may have bugs - not tested yet
-     	  
-     	  
-     	  public boolean usePatternAlpha= true;  // use pattern grid alpha data, false - old calculation 
-     	  
+
+
+     	  public boolean usePatternAlpha= true;  // use pattern grid alpha data, false - old calculation
+
 // New individual parameters for modify pattern grid
      	 public boolean  targetShowPerImage=false;
      	 public boolean  targetShowThisCorrection=false;
@@ -10255,7 +10273,7 @@ M * V = B
     	 public double flatFieldShrink=              100.0;
     	 public double flatFieldNonVignettedRadius = 1000.0;
     	 public double flatFieldMinimalAlpha =       0.01; // use %
-    	 public double flatFieldMinimalContrast=     0.1; 
+    	 public double flatFieldMinimalContrast=     0.1;
     	 public double flatFieldMinimalAccumulate =  0.01; // use %
     	 public double flatFieldShrinkForMatching =  2.0;
     	 public double flatFieldMaxRelDiff =         0.1;  // use %
@@ -10277,9 +10295,9 @@ M * V = B
 
     	 public boolean flatFieldIgnoreSensorFlatField= false;
 //    	 public boolean flatFieldUseSelectedChannels= false;
-// Other 
+// Other
     	 public int    repeatFlatFieldSensor=10; // TODO: add stop !
-    	 
+
     	 public double  specularHighPassSigma=            10.0;
     	 public double  specularLowPassSigma=              2.0;
     	 public double  specularDiffFromAverageThreshold= 0.01;
@@ -10288,14 +10306,14 @@ M * V = B
     	 public boolean specularPositiveDiffOnly=         true;
     	 public int     specularShowDebug=                1; // 0 - do not show, 1 - show on last iteration only, 2 - show always
 
-     	  
+
      	  public RefineParameters(){}
      	  public RefineParameters(
      			  boolean extrapolate,
      			  double alphaThreshold,
      	     	  double fatZero,
      			  double extrapolationSigma,
-     			  double extrapolationKSigma, 
+     			  double extrapolationKSigma,
      			  boolean smoothCorrection,
      			  double smoothSigma,
      	     	  double correctionScale,
@@ -10363,7 +10381,7 @@ M * V = B
      		  this.alphaThreshold=alphaThreshold;
          	  this.fatZero=fatZero;        // when extrapolatging color transfer coefficients (flat field) use this for logariphm
      		  this.extrapolationSigma=extrapolationSigma;
-     		  this.extrapolationKSigma=extrapolationKSigma; 
+     		  this.extrapolationKSigma=extrapolationKSigma;
      		  this.smoothCorrection=smoothCorrection;
      		  this.smoothSigma=smoothSigma;
      		  this.correctionScale=correctionScale;
@@ -10430,13 +10448,14 @@ M * V = B
          	  this.specularPositiveDiffOnly=specularPositiveDiffOnly;
          	  this.specularShowDebug=specularShowDebug;
      	  }
-     	  public RefineParameters clone(){
+     	  @Override
+		public RefineParameters clone(){
      		  return new RefineParameters(
      				  this.extrapolate,
      				  this.alphaThreshold,
      	         	  this.fatZero,
      				  this.extrapolationSigma,
-     				  this.extrapolationKSigma, 
+     				  this.extrapolationKSigma,
      				  this.smoothCorrection,
      				  this.smoothSigma,
      				  this.correctionScale,
@@ -10452,7 +10471,7 @@ M * V = B
          	    	  this.rotateCorrection, // not clear
      	        	  this.grid3DMaximalZCorr, // Maximal Z-axis correc tion (if more will fall back to 2d correction algorithm)
      	        	  this.useVariations,
-     	         	  this.variationPenalty, // "stiffness" of individual (per-station) Z-values of the target pattern 
+     	         	  this.variationPenalty, // "stiffness" of individual (per-station) Z-values of the target pattern
      	         	  this.fixXY,
      	         	  this.resetVariations,
      	         	  this.noFallBack, // may have bugs - not tested yet
@@ -10502,7 +10521,7 @@ M * V = B
          	    	  this.specularShowDebug);
      	  }
      	   	public void setProperties(String prefix,Properties properties){
-        		
+
         		properties.setProperty(prefix+"extrapolate",this.extrapolate+"");
         		properties.setProperty(prefix+"alphaThreshold",this.alphaThreshold+"");
         		properties.setProperty(prefix+"fatZero",this.fatZero+"");
@@ -10522,21 +10541,21 @@ M * V = B
         		properties.setProperty(prefix+"grid3DCorrection",this.grid3DCorrection+"");
         		properties.setProperty(prefix+"rotateCorrection",this.rotateCorrection+"");
         		properties.setProperty(prefix+"grid3DMaximalZCorr",this.grid3DMaximalZCorr+"");
-        		
+
         		properties.setProperty(prefix+"useVariations",this.useVariations+"");
         		properties.setProperty(prefix+"variationPenalty",this.variationPenalty+"");
         		properties.setProperty(prefix+"fixXY",this.fixXY+"");
-        		
+
         		properties.setProperty(prefix+"resetVariations",this.resetVariations+"");
         		properties.setProperty(prefix+"noFallBack",this.noFallBack+"");
-        		
+
         		properties.setProperty(prefix+"usePatternAlpha",this.usePatternAlpha+"");
-        		
+
         		properties.setProperty(prefix+"targetShowPerImage",this.targetShowPerImage+"");
         		properties.setProperty(prefix+"targetShowThisCorrection",this.targetShowThisCorrection+"");
         		properties.setProperty(prefix+"targetApplyCorrection",this.targetApplyCorrection+"");
         		properties.setProperty(prefix+"targetCorrectionScale",this.targetCorrectionScale+"");
-        		
+
         		properties.setProperty(prefix+"sensorExtrapolateDiff",this.sensorExtrapolateDiff+"");
         		properties.setProperty(prefix+"sensorShrinkBlurComboSigma",this.sensorShrinkBlurComboSigma+"");
 
@@ -10545,21 +10564,21 @@ M * V = B
         		properties.setProperty(prefix+"sensorStep",this.sensorStep+"");
         		properties.setProperty(prefix+"sensorInterpolationSigma",this.sensorInterpolationSigma+"");
         		properties.setProperty(prefix+"sensorTangentialRadius",this.sensorTangentialRadius+"");
-        		
+
         		properties.setProperty(prefix+"sensorScanDistance",this.sensorScanDistance+"");
         		properties.setProperty(prefix+"sensorResultDistance",this.sensorResultDistance+"");
         		properties.setProperty(prefix+"sensorInterpolationDegree",this.sensorInterpolationDegree+"");
         		properties.setProperty(prefix+"flatFieldSerNumber",this.flatFieldSerNumber+"");
         		properties.setProperty(prefix+"flatFieldReferenceStation",this.flatFieldReferenceStation+"");
-        		
+
         		properties.setProperty(prefix+"flatFieldShrink",this.flatFieldShrink+"");
         		properties.setProperty(prefix+"flatFieldNonVignettedRadius",this.flatFieldNonVignettedRadius+"");
         		properties.setProperty(prefix+"flatFieldMinimalAlpha",this.flatFieldMinimalAlpha+"");
-        		
+
         		properties.setProperty(prefix+"flatFieldMinimalContrast",this.flatFieldMinimalContrast+"");
         		properties.setProperty(prefix+"flatFieldMinimalAccumulate",this.flatFieldMinimalAccumulate+"");
         		properties.setProperty(prefix+"flatFieldShrinkForMatching",this.flatFieldShrinkForMatching+"");
-        		
+
         		properties.setProperty(prefix+"flatFieldMaxRelDiff",this.flatFieldMaxRelDiff+"");
         		properties.setProperty(prefix+"flatFieldShrinkMask",this.flatFieldShrinkMask+"");
         		properties.setProperty(prefix+"flatFieldFadeBorder",this.flatFieldFadeBorder+"");
@@ -10625,7 +10644,7 @@ M * V = B
         			this.rotateCorrection=Boolean.parseBoolean(properties.getProperty(prefix+"rotateCorrection"));
         		if (properties.getProperty(prefix+"grid3DMaximalZCorr")!=null)
         			this.grid3DMaximalZCorr=Double.parseDouble(properties.getProperty(prefix+"grid3DMaximalZCorr"));
-        		
+
         		if (properties.getProperty(prefix+"useVariations")!=null)
         			this.useVariations=Boolean.parseBoolean(properties.getProperty(prefix+"useVariations"));
         		if (properties.getProperty(prefix+"variationPenalty")!=null)
@@ -10733,8 +10752,8 @@ M * V = B
         		GenericDialog gd = new GenericDialog(title);
         		if (numSeries>=0) gd.addNumericField("Fitting strategy series number (selects images to process) ", numSeries,0);
     			if ((parMask&0x200000)!=0) gd.addNumericField("Repeat target/sensor flat-field calculation", this.repeatFlatFieldSensor,0,3,"times");
-    			
-    			
+
+
     			//sensorExtrapolateDiff
     			if ((parMask&0x80000)!=0) gd.addCheckbox("Extrapolate incremetal (not checked - cumulative) correction",  this.sensorExtrapolateDiff);
         		if ((parMask&0x80000) !=0) gd.addNumericField("Shrink-blur combined sigma", this.sensorShrinkBlurComboSigma, 2,6,"sensor pixels"); // 20
@@ -10746,13 +10765,13 @@ M * V = B
         		if ((parMask&0x80000) !=0) gd.addNumericField("Extrapolation half-square side for polynomial approximation", this.sensorScanDistance, 0,3,"sensor pixels");
         		if ((parMask&0x80000) !=0) gd.addNumericField("Extrapolation half-square side for extrapolation", this.sensorResultDistance, 0,3,"sensor pixels");
         		if ((parMask&0x80000) !=0) gd.addNumericField("Extrapolation polynomial degree", this.sensorInterpolationDegree, 0,1,"");
-        		
+
     			if ((parMask&0x100000)!=0) gd.addNumericField("Fitting series number (to select images), negative - use all enabled images", this.flatFieldSerNumber,0);
     			if ((parMask&0x100000)!=0) gd.addNumericField("Reference station number (unity target brightness)", this.flatFieldReferenceStation,0);
     			if ((parMask&0x100000)!=0) gd.addNumericField("Shrink sensor mask",    this.flatFieldShrink, 1,6,"sensor pix");
     			if ((parMask&0x100000)!=0) gd.addNumericField("Non-vignetted radius", this.flatFieldNonVignettedRadius, 1,6,"sensor pix");
     			if ((parMask&0x100000)!=0) gd.addNumericField("Minimal alpha",        100.0*this.flatFieldMinimalAlpha, 3,7,"%");
-    			
+
     			if ((parMask&0x100000)!=0) gd.addNumericField("Minimal contrast (occlusion detection)", this.flatFieldMinimalContrast, 3,7,"(0 .. ~0.8");
     			if ((parMask&0x100000)!=0) gd.addNumericField("Minimal alpha for accumulation", 100.0*this.flatFieldMinimalAccumulate, 3,7,"%");
     			if ((parMask&0x100000)!=0) gd.addNumericField("Shrink pattern for matching", this.flatFieldShrinkForMatching, 3,7,"grid nodes");
@@ -10773,18 +10792,18 @@ M * V = B
     			if ((parMask&0x100000)!=0) gd.addNumericField("Expand suspected occlusion  area", this.flatFieldShrinkOcclusion, 0,3,"grid nodes");
     			if ((parMask&0x100000)!=0) gd.addNumericField("Fade grid on image (occlusion handling)", this.flatFieldFadeOcclusion, 3,7,"grid nodes");
     			if ((parMask&0x100000)!=0) gd.addCheckbox("Ignore existent sensor flat-field calibration",this.flatFieldIgnoreSensorFlatField);
-    			
+
     			if ((parMask&0x400000)!=0) gd.addMessage("Specular reflections removal parameters:");
     			if ((parMask&0x400000)!=0) gd.addCheckbox("Apply new (after removal of specular reflections) weights",           this.specularApplyNewWeights);
     			if ((parMask&0x400000)!=0) gd.addCheckbox("Process only positive difference from average",                       this.specularPositiveDiffOnly);
     			if ((parMask&0x400000)!=0) gd.addNumericField("High-pass sigma for difference from average (to detect specular)",this.specularHighPassSigma, 3,7,"pix");
     			if ((parMask&0x400000)!=0) gd.addNumericField("Low-pass sigma for difference from average (to detect specular)",this.specularLowPassSigma, 3,7,"pix");
-    			
+
     			if ((parMask&0x400000)!=0) gd.addNumericField("Difference from average threshold",                          100.0*this.specularDiffFromAverageThreshold, 3,7,"%");
     			if ((parMask&0x400000)!=0) gd.addNumericField("Number of iterations for calculating average",                    this.specularNumIter, 0);
 
     			if ((parMask&0x400000)!=0) gd.addNumericField("Debug show mode (0 - off, 1 - last iteration only, 2 - all iterations)",this.specularShowDebug, 0);
-    			
+
 
         		if ((parMask &     1) !=0) gd.addCheckbox    ("Extrapolate correction results", this.extrapolate);
         		if ((parMask &     2) !=0) gd.addNumericField("Threshold alpha (discard pixels with mask below that value)", this.alphaThreshold,3);
@@ -10821,7 +10840,7 @@ M * V = B
         		int selectedSeries=0;
         		if (numSeries>=0)          selectedSeries=          (int) gd.getNextNumber();
     			if ((parMask&0x200000)!=0) this.repeatFlatFieldSensor=  (int) gd.getNextNumber();
-    			
+
         		if ((parMask&0x80000) !=0) this.sensorExtrapolateDiff=          gd.getNextBoolean();
         		if ((parMask&0x80000) !=0) this.sensorShrinkBlurComboSigma=     gd.getNextNumber();
         		if ((parMask&0x80000) !=0) this.sensorShrinkBlurComboLevel=     gd.getNextNumber();
@@ -10901,5 +10920,5 @@ M * V = B
         		return selectedSeries;
         	}
     }
-}   
+}
 

@@ -1,4 +1,4 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.calibration;
 /**
 **
 ** FocusingField.jave - save/restore/process sagittal/tangential PSF width
@@ -44,6 +44,9 @@ import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.XMLConfiguration;
 
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
+import com.elphel.imagej.dp.CalibrationFileManagement;
+import com.elphel.imagej.dp.WindowTools;
+import com.elphel.imagej.dp.CalibrationFileManagement.MultipleExtensionsFileFilter;
 
 //import Distortions.LMAArrays; // may still reuse?
 import Jama.LUDecomposition;

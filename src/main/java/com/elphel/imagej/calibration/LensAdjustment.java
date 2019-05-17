@@ -1,4 +1,4 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.calibration;
 /**
  **
  ** LensAdjustment.jave - processing related to focus measurement/adjustment machine 
@@ -26,6 +26,9 @@ import java.awt.Rectangle;
 import java.util.Properties;
 
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
+import com.elphel.imagej.dp.SimulationPattern;
+import com.elphel.imagej.dp.WindowTools;
+import com.elphel.imagej.dp.SimulationPattern.SimulParameters;
 
 import ij.IJ;
 import ij.ImagePlus;

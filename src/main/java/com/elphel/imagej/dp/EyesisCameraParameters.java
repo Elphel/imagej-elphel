@@ -1,4 +1,8 @@
 package com.elphel.imagej.dp;
+import java.util.Properties;
+
+import org.apache.commons.configuration.XMLConfiguration;
+
 /*
  **
  ** EyesisCameraParameters.java
@@ -6,7 +10,7 @@ package com.elphel.imagej.dp;
  ** Copyright (C) 2011-2014 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
- **  
+ **
  **  EyesisCameraParameters.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
@@ -24,10 +28,6 @@ package com.elphel.imagej.dp;
  */
 import ij.gui.GenericDialog;
 
-import java.util.Properties;
-
-import org.apache.commons.configuration.XMLConfiguration;
-
 
     public  class EyesisCameraParameters{
     	final public String [] distortionModelDescriptions= {
@@ -39,7 +39,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     	final int [] distortionModels={0,100,101,200};
     	public int defaultLensDistortionModel=200;
     	public double [] goniometerHorizontal; // goniometer rotation around "horizontal" axis (tilting from the target - positive)
-    	public double [] goniometerAxial; // goniometer rotation around Eyesis axis (clockwise in plan - positive 
+    	public double [] goniometerAxial; // goniometer rotation around Eyesis axis (clockwise in plan - positive
     	public EyesisSubCameraParameters [][] eyesisSubCameras=null;
     	public double [] interAxisDistance; // distance in mm between two goniometer axes
     	public double [] interAxisAngle;    // angle in degrees between two goniometer axes minus 90. negative if "vertical" axis is rotated
@@ -53,8 +53,8 @@ import org.apache.commons.configuration.XMLConfiguration;
     	// non-adjustable parameters, not parts of vector
     	public int     numStations;
     	public double [] stationWeight; // reprojection error weights (close station - relax errors)
-    	public boolean isTripod= false; // when true - make goniometerHorizontal rotation around "vertical" axis and "goniometerAxial" - around 
-    	public boolean cartesian=false; //  
+    	public boolean isTripod= false; // when true - make goniometerHorizontal rotation around "vertical" axis and "goniometerAxial" - around
+    	public boolean cartesian=false; //
         // rotated horizontal.
     	public int sensorWidth=      2592;
     	public int sensorHeight=     1936;
@@ -63,7 +63,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     	public int    decimateMasks=     1;
     	public double badNodeThreshold=0.1; // filter out grid nodes with difference from quadratically predicted from 8 neighbors in pixels
     	public int    maxBadNeighb=      1; // maximal number of bad nodes around the corrected one to fix
-    	public int    minimalValidNodes=50; // do not use images with less than this number of non-zero nodes (after all applicable weight masks) 
+    	public int    minimalValidNodes=50; // do not use images with less than this number of non-zero nodes (after all applicable weight masks)
     	public int    weightMultiImageMode=1; // increase weight for multi-image sets (0 - do not increase, 1 - multiply by number of images in a set to weightMultiExponent power)
     	public double weightMultiExponent= 1.0;
     	public double weightDiameterExponent=1.0; // if( >0) use grid diameter to scale weights of this image
@@ -71,7 +71,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     	public double minimalGridContrast=0.4; // (normally max ~0.8)
     	public double shrinkBlurSigma = 4.0;
     	public double shrinkBlurLevel = 0.5;
-    	public double balanceChannelWeightsMode=-1.0; // <0 - use defaults, 0 - keep, >0 balance by number of points to this power 
+    	public double balanceChannelWeightsMode=-1.0; // <0 - use defaults, 0 - keep, >0 balance by number of points to this power
     	public double removeOverRMS=2.0;            // error is multiplied by weight function before comparison (more permissive on the borders
     	public double removeOverRMSNonweighted=4.0; // error is not multiplied (no more permissions on tyhe borders
         public int [] extrinsicIndices={6,7,8,9,10,11,12,13,14,15,16}; //support variations
@@ -96,7 +96,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         };
         public int    tiltIndex=6;
         private ParameterVariationCosts []  parameterVariationCosts=null;
-        
+
         public boolean isExtrinsic (int index){
         	for (int i=0;i<this.extrinsicIndices.length; i++) if (this.extrinsicIndices[i]==index) return true;
         	return false;
@@ -138,9 +138,9 @@ import org.apache.commons.configuration.XMLConfiguration;
     		if (!isExtrinsic(index)) return false; // does not have varaince parameters
     		getVariationCosts();
     		if (parameterVariationCosts[index]==null) parameterVariationCosts[index]=new ParameterVariationCosts(
-					this.variationsDefaults[index][0],	
-					this.variationsDefaults[index][1],	
-					this.variationsDefaults[index][2],	
+					this.variationsDefaults[index][0],
+					this.variationsDefaults[index][1],
+					this.variationsDefaults[index][2],
 					this.variationsDefaults[index][3]);
     		return parameterVariationCosts[index].showVarianceDialog(
            			parameterName,
@@ -164,15 +164,15 @@ import org.apache.commons.configuration.XMLConfiguration;
             		if (hConfig.configurationsAt(prefix+"varianceCosts_"+index).size()!=0){
 //    				System.out.println("hConfig.configurationAt(prefix+\"varianceCosts_\"+index).isEmpty()=false");
     				this.parameterVariationCosts[index]=new ParameterVariationCosts(
-    						this.variationsDefaults[index][0],	
-    						this.variationsDefaults[index][1],	
-    						this.variationsDefaults[index][2],	
+    						this.variationsDefaults[index][0],
+    						this.variationsDefaults[index][1],
+    						this.variationsDefaults[index][2],
     						this.variationsDefaults[index][3]);
     				boolean isSet= this.parameterVariationCosts[index].getPropertiesXML(prefix+"varianceCosts_"+index+".", hConfig);
     				if (!isSet) this.parameterVariationCosts[index]=null;
     			}
     		}
-    	}      
+    	}
         public void setCostsPropertiesXML(String prefix,XMLConfiguration hConfig){
     		if (this.parameterVariationCosts==null) return;
     		for (int i=0;i<this.extrinsicIndices.length;i++){
@@ -182,7 +182,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     				this.parameterVariationCosts[index].setPropertiesXML(prefix+"varianceCosts_"+index+".", hConfig);
     			}
     		}
-    	}      
+    	}
         private class ParameterVariationCosts{
     		public double scale = 1.0; // 1 pixel
     		public double variationAbs  =0.0; // variation of the parameter to cost 1 pixel
@@ -212,7 +212,8 @@ import org.apache.commons.configuration.XMLConfiguration;
 				this.variationDiff=variationDiff;
 				this.exponent=exponent;
     		}
-    		public ParameterVariationCosts clone(){
+    		@Override
+			public ParameterVariationCosts clone(){
     			return new ParameterVariationCosts(
     					this.scale,
     					this.variationAbs,
@@ -231,7 +232,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	public boolean getPropertiesXML(String prefix,XMLConfiguration hConfig){
 //    			System.out.println("getPropertiesXML("+prefix+",hconfig)");
         		boolean isSet=false;
-        		
+
         		if (hConfig.getString(prefix+"scale")!=null){
 //        			System.out.println("getPropertiesXML("+prefix+",hconfig), hConfig.getString(prefix+\"scale\")!=null");
         			this.scale=Double.parseDouble(hConfig.getString(prefix+"scale"));
@@ -297,7 +298,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     			boolean isTripod,
     			boolean cartesian,
     	    	double goniometerHorizontal, // goniometer rotation around "horizontal" axis (tilting from the target - positive)
-    	    	double goniometerAxial, // goniometer rotation around Eyesis axis (clockwise in plan - positive 
+    	    	double goniometerAxial, // goniometer rotation around Eyesis axis (clockwise in plan - positive
     			int numSubCameras,
     	    	double interAxisDistance, // distance in mm between two goniometer axes, positive if the vertical axis (when Eyesis is head up) is closer to the target
     	    	double interAxisAngle,    // angle in degrees between two goniometer axes minus 90. negative if "vertical" axis is rotated
@@ -305,7 +306,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     	    	double horAxisErrPhi,   // angle in degrees "horizontal" goniometer axis is rotated around target Y axis from target X axis (CW)
     	    	double horAxisErrPsi,   // angle in degrees "horizontal" goniometer axis is rotated around moving Z axis (CW looking at target)
     	    	double entrancePupilForward, // common to all lenses - distance from the sensor to the lens entrance pupil
-    	    	double centerAboveHorizontal, // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each 
+    	    	double centerAboveHorizontal, // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
     	    	double GXYZ_0, // coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
     	    	double GXYZ_1, // coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
     	    	double GXYZ_2, // coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
@@ -318,7 +319,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     	    	int    maxBadNeighb, // maximal number of bad nodes around the corrected one to fix
     	    	int minimalValidNodes,
     	    	int    weightMultiImageMode, // increase weight for multi-image sets (0 - do not increase, 1 - multiply by number of images in a set)
-    	    	double  weightMultiExponent, 
+    	    	double  weightMultiExponent,
     	    	double  weightDiameterExponent, // if( >0) use grid diameter to scale weights of this image
     	    	double weightYtoX,
     	    	double minimalGridContrast,
@@ -334,7 +335,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     				isTripod,
     				cartesian,
     				goniometerHorizontal, // goniometer rotation around "horizontal" axis (tilting from the target - positive)
-    				goniometerAxial, // goniometer rotation around Eyesis axis (clockwise in plan - positive 
+    				goniometerAxial, // goniometer rotation around Eyesis axis (clockwise in plan - positive
     				numSubCameras,
     				interAxisDistance, // distance in mm between two goniometer axes
     				interAxisAngle,    // angle in degrees between two goniometer axes minus 90. negative if "vertical" axis is rotated
@@ -342,7 +343,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     				horAxisErrPhi,   // angle in degrees "horizontal" goniometer axis is rotated around target Y axis from target X axis (CW)
     				horAxisErrPsi,   // angle in degrees "horizontal" goniometer axis is rotated moving Z axis (CW looking at target)
     				entrancePupilForward, // common to all lenses - distance from the sensor to the lens entrance pupil
-    				centerAboveHorizontal, // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each 
+    				centerAboveHorizontal, // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
     				GXYZ, // coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
     				sensorWidth,
     				sensorHeight,
@@ -353,7 +354,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     				maxBadNeighb, // maximal number of bad nodes around the corrected one to fix
     				minimalValidNodes,
     				weightMultiImageMode, // increase weight for multi-image sets (0 - do not increase, 1 - multiply by number of images in a set)
-        	    	weightMultiExponent, 
+        	    	weightMultiExponent,
         	    	weightDiameterExponent, // if( >0) use grid diameter to scale weights of this image
         	    	weightYtoX,
         	    	minimalGridContrast,
@@ -369,7 +370,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     			boolean isTripod,
     			boolean cartesiam,
     	    	double goniometerHorizontal, // goniometer rotation around "horizontal" axis (tilting from the target - positive)
-    	    	double goniometerAxial, // goniometer rotation around Eyesis axis (clockwise in plan - positive 
+    	    	double goniometerAxial, // goniometer rotation around Eyesis axis (clockwise in plan - positive
     			int numSubCameras,
     	    	double interAxisDistance, // distance in mm between two goniometer axes
     	    	double interAxisAngle,    // angle in degrees between two goniometer axes minus 90. negative if "vertical" axis is rotated
@@ -377,7 +378,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     	    	double horAxisErrPhi,   // angle in degrees "horizontal" goniometer axis is rotated around target Y axis from target X axis (CW)
     	    	double horAxisErrPsi,   // angle in degrees "horizontal" goniometer axis is rotated moving Z axis (CW looking at target)
     	    	double entrancePupilForward, // common to all lenses - distance from the sensor to the lens entrance pupil
-    	    	double centerAboveHorizontal, // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each 
+    	    	double centerAboveHorizontal, // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
     	    	double [] GXYZ, // coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
     	    	int sensorWidth,
     	    	int sensorHeight,
@@ -388,7 +389,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     	    	int    maxBadNeighb, // maximal number of bad nodes around the corrected one to fix
     	    	int    minimalValidNodes,
     	    	int    weightMultiImageMode, // increase weight for multi-image sets (0 - do not increase, 1 - multiply by number of images in a set)
-    	    	double  weightMultiExponent, 
+    	    	double  weightMultiExponent,
     	    	double  weightDiameterExponent, // if( >0) use grid diameter to scale weights of this image
     	    	double weightYtoX,
     	    	double minimalGridContrast,
@@ -403,7 +404,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     				isTripod,
     				cartesian,
     				goniometerHorizontal, // goniometer rotation around "horizontal" axis (tilting from the target - positive)
-    				goniometerAxial, // goniometer rotation around Eyesis axis (clockwise in plan - positive 
+    				goniometerAxial, // goniometer rotation around Eyesis axis (clockwise in plan - positive
     				numSubCameras,
     				interAxisDistance, // distance in mm between two goniometer axes
     				interAxisAngle,    // angle in degrees between two goniometer axes minus 90. negative if "vertical" axis is rotated
@@ -411,7 +412,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     				horAxisErrPhi,   // angle in degrees "horizontal" goniometer axis is rotated around target Y axis from target X axis (CW)
     				horAxisErrPsi,   // angle in degrees "horizontal" goniometer axis is rotated moving Z axis (CW looking at target)
     				entrancePupilForward, // common to all lenses - distance from the sensor to the lens entrance pupil
-    				centerAboveHorizontal, // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each 
+    				centerAboveHorizontal, // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
     				GXYZ, // coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
     				sensorWidth,
     				sensorHeight,
@@ -422,7 +423,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     				maxBadNeighb, // maximal number of bad nodes around the corrected one to fix
     				minimalValidNodes,
     				weightMultiImageMode, // increase weight for multi-image sets (0 - do not increase, 1 - multiply by number of images in a set)
-        	    	weightMultiExponent, 
+        	    	weightMultiExponent,
         	    	weightDiameterExponent, // if( >0) use grid diameter to scale weights of this image
         	    	weightYtoX,
         	    	minimalGridContrast,
@@ -438,7 +439,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     			boolean isTripod,
     			boolean cartesian,
     	    	double goniometerHorizontal, // goniometer rotation around "horizontal" axis (tilting from the target - positive)
-    	    	double goniometerAxial, // goniometer rotation around Eyesis axis (clockwise in plan - positive 
+    	    	double goniometerAxial, // goniometer rotation around Eyesis axis (clockwise in plan - positive
     			int numSubCameras,
     	    	double interAxisDistance, // distance in mm between two goniometer axes
     	    	double interAxisAngle,    // angle in degrees between two goniometer axes minus 90. negative if "vertical" axis is rotated
@@ -446,7 +447,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     	    	double horAxisErrPhi,   // angle in degrees "horizontal" goniometer axis is rotated around target Y axis from target X axis (CW)
     	    	double horAxisErrPsi,   // angle in degrees "horizontal" goniometer axis is rotated moving Z axis (CW looking at target)
     	    	double entrancePupilForward, // common to all lenses - distance from the sensor to the lens entrance pupil
-    	    	double centerAboveHorizontal, // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each 
+    	    	double centerAboveHorizontal, // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
     	    	double [] GXYZ, // coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
     	    	int sensorWidth,
     	    	int sensorHeight,
@@ -457,7 +458,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     	    	int    maxBadNeighb, // maximal number of bad nodes around the corrected one to fix
     	    	int    minimalValidNodes,
     	    	int    weightMultiImageMode, // increase weight for multi-image sets (0 - do not increase, 1 - multiply by number of images in a set)
-    	    	double  weightMultiExponent, 
+    	    	double  weightMultiExponent,
     	    	double  weightDiameterExponent, // if( >0) use grid diameter to scale weights of this image
     	    	double weightYtoX,
     	    	double minimalGridContrast,
@@ -479,25 +480,25 @@ import org.apache.commons.configuration.XMLConfiguration;
 	    	this.maxBadNeighb=maxBadNeighb; // maximal number of bad nodes around the corrected one to fix
 	    	this.minimalValidNodes=minimalValidNodes;
 	    	this.weightMultiImageMode=weightMultiImageMode; // increase weight for multi-image sets (0 - do not increase, 1 - multiply by number of images in a set)
-	    	this.weightMultiExponent=weightMultiExponent; 
+	    	this.weightMultiExponent=weightMultiExponent;
 	    	this.weightDiameterExponent=weightDiameterExponent; // if( >0) use grid diameter to scale weights of this image
 	    	this.weightYtoX=weightYtoX;
 	    	this.minimalGridContrast=minimalGridContrast;
 	    	this.goniometerHorizontal=new double[numStations];
-    		this.goniometerAxial=new double[numStations]; 
+    		this.goniometerAxial=new double[numStations];
 	    	this.interAxisDistance=new double[numStations];
 	    	this.interAxisAngle=new double[numStations];
 	    	this.horAxisErrPhi=new double[numStations];
 	    	this.horAxisErrPsi=new double[numStations];
 	    	this.entrancePupilForward=new double[numStations]; // common to all lenses - distance from the sensor to the lens entrance pupil
-	    	this.centerAboveHorizontal=new double[numStations]; // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each 
+	    	this.centerAboveHorizontal=new double[numStations]; // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
 	    	this.GXYZ=new double[numStations][];
 	    	if (numSubCameras>0) this.eyesisSubCameras=new EyesisSubCameraParameters[numStations][];
 	    	this.stationWeight=new double[numStations];
 	    	for (int numStation=0;numStation<numStations;numStation++) {
 	    		this.stationWeight[numStation]=1.0;
 	    		this.goniometerHorizontal[numStation]=goniometerHorizontal;
-	    		this.goniometerAxial[numStation]=goniometerAxial; 
+	    		this.goniometerAxial[numStation]=goniometerAxial;
 		    	this.interAxisDistance[numStation]=interAxisDistance;
 		    	this.interAxisAngle[numStation]=interAxisAngle;
 		    	this.horAxisErrPhi[numStation]=horAxisErrPhi;
@@ -509,8 +510,9 @@ import org.apache.commons.configuration.XMLConfiguration;
 		    	if (numSubCameras>0) initSubCameras(numStation,numSubCameras);
 	    	}
     	}
-    	
-    	public EyesisCameraParameters clone() {
+
+    	@Override
+		public EyesisCameraParameters clone() {
     		EyesisCameraParameters result= new EyesisCameraParameters ();
     		copyData(
         			this.numStations,
@@ -519,7 +521,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     		return result;
     	}
 
-    	
+
     	/**
     	 * Copy parameters from source EysesisCamerParameters to destination, trimming/expanding number of stations
     	 * @param newNumStations new number of stations
@@ -550,13 +552,13 @@ import org.apache.commons.configuration.XMLConfiguration;
 	    	destination.balanceChannelWeightsMode=source.balanceChannelWeightsMode;
 	    	destination.removeOverRMSNonweighted=source.removeOverRMSNonweighted;
     		destination.goniometerHorizontal=new double[destination.numStations];
-    		destination.goniometerAxial=new double[destination.numStations]; 
+    		destination.goniometerAxial=new double[destination.numStations];
     		destination.interAxisDistance=new double[destination.numStations];
     		destination.interAxisAngle=new double[destination.numStations];
     		destination.horAxisErrPhi=new double[destination.numStations];
     		destination.horAxisErrPsi=new double[destination.numStations];
     		destination.entrancePupilForward=new double[destination.numStations]; // common to all lenses - distance from the sensor to the lens entrance pupil
-    		destination.centerAboveHorizontal=new double[destination.numStations]; // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each 
+    		destination.centerAboveHorizontal=new double[destination.numStations]; // camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
     		destination.GXYZ=new double[destination.numStations][];
     		if (source.eyesisSubCameras!=null) destination.eyesisSubCameras=new EyesisSubCameraParameters[destination.numStations][];
     		else destination.eyesisSubCameras=null;
@@ -565,7 +567,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     			int srcNumStation=(numStation<source.numStations)?numStation:(source.numStations-1);
     			destination.stationWeight[numStation]=source.stationWeight[srcNumStation];
     			destination.goniometerHorizontal[numStation]=source.goniometerHorizontal[srcNumStation];
-    			destination.goniometerAxial[numStation]=source.goniometerAxial[srcNumStation]; 
+    			destination.goniometerAxial[numStation]=source.goniometerAxial[srcNumStation];
     			destination.interAxisDistance[numStation]=source.interAxisDistance[srcNumStation];
     			destination.interAxisAngle[numStation]=source.interAxisAngle[srcNumStation];
     			destination.horAxisErrPhi[numStation]=source.horAxisErrPhi[srcNumStation];
@@ -581,9 +583,9 @@ import org.apache.commons.configuration.XMLConfiguration;
     				}
     			}
     		}
-    		destination.cartesian = source.cartesian; 
+    		destination.cartesian = source.cartesian;
     	}
-    	
+
     	public void setProperties(String prefix,Properties properties){
     		properties.setProperty(prefix+"isTripod",this.isTripod+"");
     		properties.setProperty(prefix+"cartesian",this.cartesian+"");
@@ -677,10 +679,10 @@ import org.apache.commons.configuration.XMLConfiguration;
     		}else {
     			multiStation=false; // old config format
     		}
-// TODO: trim/expand stations    		
+// TODO: trim/expand stations
     		updateNumstations (newNumStations);
 //    		this.numStations
-    		
+
 // read old/new format data
 //    		this.numStations=newNumStations;
     		if (multiStation){
@@ -750,7 +752,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     		}
 //    		getCostsProperties(prefix,properties);
     	}
-    	void  updateNumstations (int newNumStations){
+    	public void  updateNumstations (int newNumStations){
 //    		System.out.println("updateNumstations("+newNumStations+"), was "+this.numStations);
     		if (newNumStations==this.numStations) return;
     		System.out.println("updateNumstations("+newNumStations+"), was "+this.numStations);
@@ -761,13 +763,13 @@ import org.apache.commons.configuration.XMLConfiguration;
         			this);
     		System.out.println("updateNumstations() after copyData() this.numStations="+this.numStations);
     	}
-    	
+
     	// returns -1 - canceled, 0 - done, >0 - number of sub-camera to edit
 
     	private int subShowDialog(String title, int nextSubCamera) {
     		GenericDialog gd = new GenericDialog(title);
 //        	public double goniometerHorizontal; // goniometer rotation around "horizontal" axis (tilting from the target - positive)
-//        	public double goniometerAxial; // goniometer rotation around Eyesis axis (clockwise in plan - positive 
+//        	public double goniometerAxial; // goniometer rotation around Eyesis axis (clockwise in plan - positive
 //this.isTripod
     		gd.addCheckbox("Cartesian coordinates for subcamera (false - cylindrical)",                     this.cartesian);
     		String [] modelChoice=new String [distortionModelDescriptions.length+1];
@@ -892,7 +894,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     			this.cartesian = newCartesian;
     			updateCartesian();
     		}
-    		
+
     		return gd.wasOKed()?numSubCam:-1;
     	}
 
@@ -919,7 +921,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					gd.addNumericField("Subcamera distance from the axis",          subCam.radius,  5,9,"mm");
     				}
     				gd.addNumericField("Subcamera height from the 'equator'",           subCam.height,  5,9,"mm");
-    				
+
     				if (subCam.cartesian) {
     					gd.addNumericField("Optical axis heading (absulute, CW positive)", subCam.heading,     5,9,"degrees");
     				} else {
@@ -939,7 +941,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     				gd.addNumericField("Distortion C (r^2)",              subCam.distortionC, 8,10,"");
     				gd.addNumericField("Lens axis on the sensor (horizontal, from left edge)", subCam.px0, 4,9,"pixels");
     				gd.addNumericField("Lens axis on the sensor (vertical, from top  edge)",   subCam.py0, 4,9,"pixels");
-    				
+
     				gd.addMessage("=== non-radial model parameters ===");
     				gd.addMessage("For r^2 (Distortion C):");
     				gd.addNumericField("Orthogonal elongation for r^2",   100*subCam.r_od[0][0], 8,10,"%");
@@ -974,7 +976,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     				gd.addNumericField("Distortion center shift Y for r^8", 100*subCam.r_xy[5][1], 8,10,"%");
     				gd.addNumericField("Orthogonal elongation for r^8",  100*subCam.r_od[6][0], 8,10,"%");
     				gd.addNumericField("Diagonal elongation for r^8",    100*subCam.r_od[6][1], 8,10,"%");
-    				
+
     			}
     		}
    	        gd.enableYesNoCancel("OK", "Done");
@@ -996,7 +998,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     				if (subCam.cartesian) {
     					subCam.right=       gd.getNextNumber();
     					subCam.forward=     gd.getNextNumber();
-    				} else {    				
+    				} else {
     					subCam.azimuth=     gd.getNextNumber();
     					subCam.radius=      gd.getNextNumber();
     				}
@@ -1020,7 +1022,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     				subCam.distortionC=     gd.getNextNumber();
     				subCam.px0=             gd.getNextNumber();
     				subCam.py0=             gd.getNextNumber();
-    				
+
     				subCam.r_od[0][0]= 0.01*gd.getNextNumber();
     				subCam.r_od[0][1]= 0.01*gd.getNextNumber();
     				subCam.r_xy[0][0]= 0.01*gd.getNextNumber();
@@ -1058,7 +1060,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     	    				if (subCam.cartesian) {
     	    					subCam.right=       first.right;
     	    					subCam.forward=     first.forward;
-    	    				} else {    				
+    	    				} else {
     	    					subCam.azimuth=     first.azimuth;
     	    					subCam.radius=      first.radius;
     	    				}
@@ -1082,7 +1084,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     	    				subCam.distortionC=     first.distortionC;
     	    				subCam.px0=             first.px0;
     	    				subCam.py0=             first.py0;
-    	    				
+
     	    				subCam.r_od[0][0]= subCam.r_od[0][0];
     	    				subCam.r_od[0][1]= subCam.r_od[0][1];
     	    				subCam.r_xy[0][0]= subCam.r_xy[0][0];
@@ -1161,7 +1163,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	return subCam.enableNoLaser;
     	}
         /**
-         * 
+         *
          * @param eyesisCameraParameters current parameters of the Eyesis camera, subcameras and goniometer
          * @param subCamNumber number of sub-camera (from 0)
          * @return array of the parameters (both individual sub-camera and common to all sub-cameras)
@@ -1169,7 +1171,7 @@ import org.apache.commons.configuration.XMLConfiguration;
          */
         public double [] getParametersVector(
         		int stationNumber,
-        		int subCamNumber // 
+        		int subCamNumber //
                 ){
         	if (
         			(this.eyesisSubCameras==null) ||
@@ -1177,7 +1179,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         			(this.eyesisSubCameras.length<=stationNumber) ||
         			(this.eyesisSubCameras[stationNumber].length<=subCamNumber)) throw new IllegalArgumentException
             ("Nonexistent subcamera "+subCamNumber+ " and/or station number="+stationNumber+" this.numStations="+this.numStations+" this.eyesisSubCameras.length="+this.eyesisSubCameras.length);
-        	
+
         	EyesisSubCameraParameters subCam=this.eyesisSubCameras[stationNumber][subCamNumber];
 //        	System.out.println("getParametersVector("+stationNumber+","+subCamNumber+"), subCam is "+((subCam==null)?"null":"NOT null"));
         	double [] parVect={
@@ -1188,15 +1190,15 @@ import org.apache.commons.configuration.XMLConfiguration;
         			subCam.theta,                                                // 4 degrees, optical axis from the eyesis horizon, positive - up
         			subCam.psi,                                                  // 5 degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
         			this.goniometerHorizontal[stationNumber], // 6 goniometer rotation around "horizontal" axis (tilting from the target - positive)
-        			this.goniometerAxial[stationNumber],      // 7 goniometer rotation around Eyesis axis (clockwise in plan - positive 
+        			this.goniometerAxial[stationNumber],      // 7 goniometer rotation around Eyesis axis (clockwise in plan - positive
         			this.interAxisDistance[stationNumber],    // 8 distance in mm between two goniometer axes
         			this.interAxisAngle[stationNumber],       // 9 angle in degrees between two goniometer axes minus 90. negative if "vertical" axis is rotated
         			this.horAxisErrPhi[stationNumber],        //10 angle in degrees "horizontal" goniometer axis is rotated around target Y axis from target X axis (CW)
         			this.horAxisErrPsi[stationNumber],        //11 angle in degrees "horizontal" goniometer axis is rotated around moving X axis (up)
             		this.entrancePupilForward[stationNumber], //12 common to all lenses - distance from the sensor to the lens entrance pupil
             		this.centerAboveHorizontal[stationNumber],//13 camera center distance along camera axis above the closest point to horizontal rotation axis (adds to height of each
-        			
-        			this.GXYZ[stationNumber][0],              //14 (12) coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system 
+
+        			this.GXYZ[stationNumber][0],              //14 (12) coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
         			this.GXYZ[stationNumber][1],              //15 (13)  y
         			this.GXYZ[stationNumber][2],              //16 (14)  z
         			subCam.focalLength,        //17 (15)  lens focal length
@@ -1237,12 +1239,12 @@ import org.apache.commons.configuration.XMLConfiguration;
         			subCam.r_od[6][1]
         	};
         	// Global parameters, not adjusted - just copied once when camera is selected
-    // or should they stay fixed and not copied at all?    	
+    // or should they stay fixed and not copied at all?
 //    		this.lensDistortionParameters.pixelSize=subCam.pixelSize; // has to be set separately
 //    		this.lensDistortionParameters.distortionRadius=subCam.distortionRadius;
         	return parVect;
         }
-        
+
  //       public int getNumSubCameras (){return (this.eyesisSubCameras==null)?0:this.eyesisSubCameras.length;}
         public int getGoniometerHorizontalIndex(){return 6;}
         public int getGoniometerAxialIndex(){return 7;}
@@ -1257,7 +1259,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         public void setParametersVectorAllStations(
         		double [] parVect,
         		boolean [] update,
-        		int subCamNumber // 
+        		int subCamNumber //
                 ){
         	for (int stationNumber=0;stationNumber<this.numStations;stationNumber++){
         		setParametersVector(
@@ -1266,7 +1268,7 @@ import org.apache.commons.configuration.XMLConfiguration;
                 		stationNumber,
                 		subCamNumber );
         	}
-        	
+
         }
 
         /**
@@ -1280,7 +1282,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		double [] parVect,
         		boolean [] update,
         		int stationNumber,
-        		int subCamNumber // 
+        		int subCamNumber //
                 ){
 //        	if (parVect.length!=27) throw new IllegalArgumentException ("Wrong length of the parameters vector: "+parVect.length+"(should be 27)");
         	if (parVect.length!=53) throw new IllegalArgumentException ("Wrong length of the parameters vector: "+parVect.length+"(should be 53)");
@@ -1307,14 +1309,14 @@ import org.apache.commons.configuration.XMLConfiguration;
         	if (update[4]) subCam.theta=parVect[4];              // 4 degrees, optical axis from the eyesis horizon, positive - up
         	if (update[5]) subCam.psi=parVect[5];                // 5 degrees, rotation (of the sensor) around the optical axis. Positive if camera is rotated clockwise looking to the target
         	if (update[6]) this.goniometerHorizontal[stationNumber]=parVect[6]; // 6 goniometer rotation around "horizontal" axis (tilting from the target - positive)
-        	if (update[7]) this.goniometerAxial[stationNumber]=parVect[7];      // 7 goniometer rotation around Eyesis axis (clockwise in plan - positive 
+        	if (update[7]) this.goniometerAxial[stationNumber]=parVect[7];      // 7 goniometer rotation around Eyesis axis (clockwise in plan - positive
         	if (update[8]) this.interAxisDistance[stationNumber]=parVect[8];    // 8 distance in mm between two goniometer axes
         	if (update[9]) this.interAxisAngle[stationNumber]=parVect[9];       // 9 angle in degrees between two goniometer axes minus 90. negative if "vertical" axis is rotated
         	if (update[10]) this.horAxisErrPhi[stationNumber]=parVect[10];       //10 angle in degrees "horizontal" goniometer axis is rotated around target Y axis from target X axis (CW)
         	if (update[11]) this.horAxisErrPsi[stationNumber]=parVect[11];       //11 angle in degrees "horizontal" goniometer axis is rotated around moving X axis (up)
-        	if (update[12]) this.entrancePupilForward[stationNumber]=parVect[12];             //12 coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system 
+        	if (update[12]) this.entrancePupilForward[stationNumber]=parVect[12];             //12 coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
         	if (update[13]) this.centerAboveHorizontal[stationNumber]=parVect[13];             //13  y
-        	if (update[14]) this.GXYZ[stationNumber][0]=parVect[14];             //14 coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system 
+        	if (update[14]) this.GXYZ[stationNumber][0]=parVect[14];             //14 coordinates (in mm) of the goniometer horizontal axis closest to the moving one in target system
         	if (update[15]) this.GXYZ[stationNumber][1]=parVect[15];             //15  y
         	if (update[16]) this.GXYZ[stationNumber][2]=parVect[16];             //16  z
         	if (update[17]) subCam.focalLength=parVect[17];       //17  lens focal length
@@ -1354,7 +1356,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         	if (update[51]) subCam.r_od[6][0]= parVect[51];
         	if (update[52]) subCam.r_od[6][1]= parVect[52];
         }
-        
+
         public void updateCartesian(){
         	for (int numStation = 0; numStation < this.eyesisSubCameras.length; numStation++){
         		for (int numSub = 0; numSub < this.eyesisSubCameras[numStation].length; numSub++){
@@ -1362,7 +1364,7 @@ import org.apache.commons.configuration.XMLConfiguration;
         		}
         	}
         }
-        
+
     	public void initSubCameras(
     			int numStation,
     			int numSubCameras){
@@ -1375,7 +1377,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					0.0, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					52.53, // double radius,  // mm, distance from the rotation axis
     					34.64, // double height,  // mm, up (was downwards) - from the origin point
@@ -1401,7 +1403,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					30.0, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					60.0, // double radius,  // mm, distance from the rotation axis
     					-17.32, // double height,  // mm, up (was downwards) - from the origin point
@@ -1427,7 +1429,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					-30.0, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					60.0, // double radius,  // mm, distance from the rotation axis
     					-17.32, // double height,  // mm, up (was downwards) - from the origin point
@@ -1455,7 +1457,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					0.0, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					0.0, // double radius,  // mm, distance from the rotation axis
     					0.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1486,7 +1488,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					0.0, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					46.57, // double radius,  // mm, distance from the rotation axis
     					0.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1512,7 +1514,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					21.0, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					50.36, // double radius,  // mm, distance from the rotation axis
     					-15.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1538,7 +1540,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					-21.0, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					50.36, // double radius,  // mm, distance from the rotation axis
     					-15.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1564,7 +1566,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					0.0, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					46.57, // double radius,  // mm, distance from the rotation axis
     					70.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1590,7 +1592,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					21.0, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					50.36, // double radius,  // mm, distance from the rotation axis
     					55.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1616,7 +1618,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					-21.0, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					50.36, // double radius,  // mm, distance from the rotation axis
     					55.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1642,7 +1644,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					52.47, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					76.45, // double radius,  // mm, distance from the rotation axis
     					35.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1668,7 +1670,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					59.13, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					91.65, // double radius,  // mm, distance from the rotation axis
     					20.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1694,7 +1696,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					42.16, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					63.43, // double radius,  // mm, distance from the rotation axis
     					20.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1720,7 +1722,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					52.47, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					76.45, // double radius,  // mm, distance from the rotation axis
     					-35.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1746,7 +1748,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					59.13, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					91.65, // double radius,  // mm, distance from the rotation axis
     					-50.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1772,7 +1774,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					42.16, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					63.43, // double radius,  // mm, distance from the rotation axis
     					-50.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1798,7 +1800,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					0.0, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					46.57, // double radius,  // mm, distance from the rotation axis
     					-70.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1824,7 +1826,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					21.0, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					50.36, // double radius,  // mm, distance from the rotation axis
     					-85.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1850,7 +1852,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					-21.0, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					50.36, // double radius,  // mm, distance from the rotation axis
     					-85.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1876,7 +1878,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					-52.47, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					76.45, // double radius,  // mm, distance from the rotation axis
     					-35.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1902,7 +1904,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					-42.16, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					63.43, // double radius,  // mm, distance from the rotation axis
     					-50.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1928,7 +1930,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					-59.13, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					91.65, // double radius,  // mm, distance from the rotation axis
     					-50.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1954,7 +1956,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					-52.47, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					76.45, // double radius,  // mm, distance from the rotation axis
     					35.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -1980,7 +1982,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					-42.16, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					63.43, // double radius,  // mm, distance from the rotation axis
     					20.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -2006,7 +2008,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					-59.13, // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					91.65, // double radius,  // mm, distance from the rotation axis
     					20.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -2032,12 +2034,12 @@ import org.apache.commons.configuration.XMLConfiguration;
     			// end of PHG21 parameters
     			// =======================
     			} else {
-    			// default setup for the 26 sub-cameras	    		
+    			// default setup for the 26 sub-cameras
     			for (int i=0;i<8;i++) if (i<numSubCameras) 	this.eyesisSubCameras[numStation][i]=new EyesisSubCameraParameters( // top 8 cameras
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					45.0*i,      // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					41.540,      // double radius,  // mm, distance from the rotation axis
     					42.883,      // double height,  // mm, up (was downwards?) - from the origin point
@@ -2063,7 +2065,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					45.0*(i-8),  // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					54.525,      // double radius,  // mm, distance from the rotation axis
     					0.0, // double height,  // mm, up (was downwards) - from the origin point
@@ -2089,7 +2091,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					true,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					45.0*(i-16), // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					41.540,      // double radius,  // mm, distance from the rotation axis
     					-42.883,     // double height,  // mm, up (was downwards?) - from the origin point
@@ -2115,7 +2117,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					false,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					90,      // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					12.025,  // double radius,  // mm, distance from the rotation axis
     					-807.0,  // double height,  // mm, up - from the origin point
@@ -2141,7 +2143,7 @@ import org.apache.commons.configuration.XMLConfiguration;
     					this.cartesian,
     					defaultLensDistortionModel,
     					false,
-    					0.0, 0.0, 0.0, // cartesian righ/forward/heading 
+    					0.0, 0.0, 0.0, // cartesian righ/forward/heading
     					270,     // double azimuth, // azimuth of the lens entrance pupil center, degrees, clockwise looking from top
     					12.025,  // double radius,  // mm, distance from the rotation axis
     					-841.0,  // double height,  // mm, up - from the origin point
@@ -2180,13 +2182,13 @@ import org.apache.commons.configuration.XMLConfiguration;
     		}
     		System.out.println("centerAboveHorizontal "+
     		(sameCenterAboveHorizontal?"is common for all stations":"differs between stations"));
-    		
+
     		if (sameCenterAboveHorizontal){
     	   		System.out.println("Re-centering vertically for centerAboveHorizontal common for all stations ");
-	
+
     			double sumWeightedHeights=0.0;
     			double sumWeights=0.0;
-    					
+
     			for (int i=0;i<stations.length;i++) if (stations[i]) {
     				for (int subIndex=0; subIndex<subcams.length;subIndex++) if (subcams[subIndex]){
     					System.out.println("Averaging station "+i+", subcamera "+subIndex);
@@ -2229,5 +2231,4 @@ import org.apache.commons.configuration.XMLConfiguration;
     		}
     	}
     }
- 
-    
+

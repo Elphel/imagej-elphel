@@ -1,4 +1,4 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.calibration;
 /**
  **
  ** MatchSimulatedPattern.java - Determine simulation pattern parameters to match
@@ -39,6 +39,10 @@ import javax.swing.SwingUtilities;
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
+import com.elphel.imagej.dp.PolynomialApproximation;
+import com.elphel.imagej.dp.SimulationPattern;
+import com.elphel.imagej.dp.WindowTools;
+import com.elphel.imagej.dp.SimulationPattern.SimulParameters;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 import Jama.LUDecomposition;

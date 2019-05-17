@@ -35,6 +35,9 @@ import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.HierarchicalConfiguration;
 import org.apache.commons.configuration.XMLConfiguration;
 
+import com.elphel.imagej.calibration.EyesisAberrations;
+import com.elphel.imagej.calibration.MatchSimulatedPattern;
+import com.elphel.imagej.calibration.PatternParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
@@ -115,7 +118,7 @@ import ij.text.TextWindow;
     		public double      diameter=0.0;
     		public int []      UVShiftRot={0,0,0}; // shift and rotation of the grid
     		final int contrastIndex=2;
-    		int getSetNumber(){return this.setNumber;}
+    		public int getSetNumber(){return this.setNumber;}
         	public GridImageParameters(int index){
         		this.imgNumber=index;
         	}
@@ -1521,7 +1524,7 @@ import ij.text.TextWindow;
     		IJ.showMessage("Error",msg);
     		throw new IllegalArgumentException (msg);
         }
-        int getNumberOfEstimated(boolean enabledOnly) {
+        public int getNumberOfEstimated(boolean enabledOnly) {
         	int numEstimated=0;
         	if (this.gIS==null) return 0;
         	for (int i=0;i<this.gIS.length;i++)	if (this.gIS[i].imageSet!=null){
@@ -1533,7 +1536,7 @@ import ij.text.TextWindow;
         	return numEstimated;
         }
 
-        int [] getNumberOfEstimatedPerStation(boolean enabledOnly) {
+        public int [] getNumberOfEstimatedPerStation(boolean enabledOnly) {
         	int [] numEstimated=new int [this.eyesisCameraParameters.numStations];
         	for (int i=0;i<numEstimated.length;i++) numEstimated[i]=0;
         	if (this.gIS!=null){
@@ -1547,59 +1550,59 @@ import ij.text.TextWindow;
         }
 
 
-        int getNumEnabled(){
+        public int getNumEnabled(){
         	int num=0;
         	for (int i=0;i<this.gIP.length;i++) if ((this.gIP[i]!=null) && this.gIP[i].enabled) num++;
         	return num;
         }
 
-        int getNumNewEnabled(){
+        public int getNumNewEnabled(){
         	int num=0;
         	for (int i=0;i<this.gIP.length;i++) if ((this.gIP[i]!=null) && this.gIP[i].enabled && this.gIP[i].newEnabled) num++;
         	return num;
         }
 
-        int [] getNumNewEnabledPerStation(){
+        public int [] getNumNewEnabledPerStation(){
         	int [] numEnabled=new int [this.eyesisCameraParameters.numStations];
         	for (int i=0;i<numEnabled.length;i++) numEnabled[i]=0;
         	for (int i=0;i<this.gIP.length;i++) if ((this.gIP[i]!=null) && this.gIP[i].enabled && this.gIP[i].newEnabled) numEnabled[this.gIP[i].getStationNumber()]++;//  OOB 837
         	return numEnabled;
         }
 
-        int [] getStations(){
+        public int [] getStations(){
         	int [] result = new int [this.gIP.length];
         	for (int i=0;i<result.length;i++) result[i]=(this.gIP[i]!=null)?this.gIP[i].stationNumber:-1;
         	return result;
         }
-        int [] getChannels(){
+        public int [] getChannels(){
         	int [] result = new int [this.gIP.length];
         	for (int i=0;i<result.length;i++) result[i]=(this.gIP[i]!=null)?this.gIP[i].channel:-1;
         	return result;
         }
-        int [] getMatchedPointers(){
+        public int [] getMatchedPointers(){
         	int [] result = new int [this.gIP.length];
         	for (int i=0;i<result.length;i++) result[i]=(this.gIP[i]!=null)?this.gIP[i].matchedPointers:0;
         	return result;
         }
-        int [] getHintedMatch(){
+        public int [] getHintedMatch(){
         	int [] result = new int [this.gIP.length];
         	for (int i=0;i<result.length;i++) result[i]=(this.gIP[i]!=null)?this.gIP[i].hintedMatch:-1;
         	return result;
         }
 
-        boolean [] selectNewEnabled () {
+        public boolean [] selectNewEnabled () {
         	boolean [] newEnabled=new boolean [this.gIP.length] ;
         	for (int i=0;i<this.gIP.length;i++) newEnabled[i]= (this.gIP[i]!=null) && this.gIP[i].enabled && this.gIP[i].newEnabled;
         	return newEnabled;
         }
 
-        boolean [] selectEnabled () {
+        public boolean [] selectEnabled () {
         	boolean [] enabled=new boolean [this.gIP.length] ;
         	for (int i=0;i<this.gIP.length;i++) enabled[i]= (this.gIP[i]!=null) && this.gIP[i].enabled;
         	return enabled;
         }
 
-        boolean [] selectEstimated (boolean enabledOnly) {
+        public boolean [] selectEstimated (boolean enabledOnly) {
         	boolean [] estimated=new boolean [getNumImages()];
         	if (this.gIS==null) {
             	String msg="Image sets are not initialized";

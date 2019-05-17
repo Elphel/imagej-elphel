@@ -1,4 +1,4 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.calibration;
 /**
  ** -----------------------------------------------------------------------------**
  ** deBayerScissors.java
@@ -32,7 +32,7 @@ import java.util.HashSet;
 
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
-public class deBayerScissors {
+public class DeBayerScissors {
 	private PolarSpectrums        pol_instace=null;
 	private double [][][]         lopass=null;
 	private int                   size;
@@ -47,7 +47,7 @@ public class deBayerScissors {
     private int [][][][] speedTable = null;
 
 	public double getMidEnergy() {return lastMidEnergy; } // instead of the  DOUBLE_DEBUG_RESULT
-	public deBayerScissors(
+	public DeBayerScissors(
 			int isize, // size of the square array, centar is at size/2, size/2, only top half+line will be used
 			double polarStep, // maximal step in pixels on the maxRadius for 1 angular step (i.e. 0.5)
 			double debayer_width_green, // result green mask mpy by scaled default (diamond)

@@ -1,15 +1,15 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.calibration;
 /**
 ** -----------------------------------------------------------------------------**
 ** DebayerScissors.java
 **
 ** Frequency-domain debosaic methods for aberration correction for Eyesis4pi
-** 
+**
 **
 ** Copyright (C) 2012 Elphel, Inc.
 **
 ** -----------------------------------------------------------------------------**
-**  
+**
 **  DebayerScissors.java is free software: you can redistribute it and/or modify
 **  it under the terms of the GNU General Public License as published by
 **  the Free Software Foundation, either version 3 of the License, or
@@ -26,31 +26,32 @@ package com.elphel.imagej.dp;
 **
 */
 
-import ij.IJ;
-import ij.ImageStack;
-
 import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.SwingUtilities;
 
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
+import com.elphel.imagej.dp.EyesisCorrectionParameters;
+
+import ij.IJ;
+import ij.ImageStack;
 
 
-public class DebayerScissors {
+public class DebayerScissorsClass {
 //	showDoubleFloatArrays SDFA_INSTANCE=   new showDoubleFloatArrays();
     public AtomicInteger stopRequested=null; // 1 - stop now, 2 - when convenient
     double [] debayerEnergy;
     int       debayerEnergyWidth;
-    
+
     int debugLevel=1;
-    
-    public DebayerScissors(AtomicInteger stopRequested){
+
+    public DebayerScissorsClass(AtomicInteger stopRequested){
     	this.stopRequested=stopRequested;
     }
-    double [] getDebayerEnergy() {return this.debayerEnergy;}
-    int       getDebayerEnergyWidth() {return this.debayerEnergyWidth;}
-    void setDebug(int debugLevel){this.debugLevel=debugLevel;}
+    public double [] getDebayerEnergy() {return this.debayerEnergy;}
+    public int       getDebayerEnergyWidth() {return this.debayerEnergyWidth;}
+    public void setDebug(int debugLevel){this.debugLevel=debugLevel;}
     // uses global OUT_PIXELS to accumulate results
     public ImageStack aliasScissorsStack (
   		  final ImageStack                        imageStack,  // stack with 3 colors/slices with the image
@@ -102,13 +103,13 @@ public class DebayerScissors {
   	  final Thread[] threads = newThreadArray(threadsMax);
   	  final AtomicInteger ai = new AtomicInteger(0);
   	  final int numberOfKernels=tilesY*tilesX;
-  	  
+
 	  int indx,dx,dy,tx,ty,li;
 	  final int [] nonOverlapSeq = new int[numberOfKernels];
 	  int [] nextFirstFindex=new int[4];
 	  indx = 0;
 	  li=0;
-	  
+
 	  for (dy=0;dy<2;dy++) for (dx=0;dx<2;dx++) {
 		  for (ty=dy; ty < tilesY; ty+=2) for (tx=dx; tx < tilesX; tx+=2){
 			  nonOverlapSeq[indx++] = ty*tilesX + tx;
@@ -127,7 +128,8 @@ public class DebayerScissors {
   		  }
   		  for (int ithread = 0; ithread < threads.length; ithread++) {
   			  threads[ithread] = new Thread() {
-  				  public void run() {
+  				  @Override
+				public void run() {
   					  double [][] tile=        new double[nChn][debayerParameters.size * debayerParameters.size ];
   					  double [][] both_masks;
   					  float [][] pixels=       new float[nChn][];
@@ -136,15 +138,15 @@ public class DebayerScissors {
   					  DoubleFHT       fht_instance =   new DoubleFHT(); // provide DoubleFHT instance to save on initializations (or null)
   					  ShowDoubleFloatArrays SDFA_instance=null; // just for debugging?
 
-  					  deBayerScissors debayer_instance=new deBayerScissors( debayerParameters.size, // size of the square array, centar is at size/2, size/2, only top half+line will be used
+  					  DeBayerScissors debayer_instance=new DeBayerScissors( debayerParameters.size, // size of the square array, centar is at size/2, size/2, only top half+line will be used
   							  debayerParameters.polarStep, // maximal step in pixels on the maxRadius for 1 angular step (i.e. 0.5)
   							  debayerParameters.debayerRelativeWidthGreen, // result green mask mpy by scaled default (diamond)
   							  debayerParameters.debayerRelativeWidthRedblue, // result red/blue mask mpy by scaled default (square)
   							  debayerParameters.debayerRelativeWidthRedblueMain, // green mask when applied to red/blue, main (center)
-  							  debayerParameters.debayerRelativeWidthRedblueClones);// green mask when applied to red/blue, clones 
+  							  debayerParameters.debayerRelativeWidthRedblueClones);// green mask when applied to red/blue, clones
   					  //  					  for (int nTile0 = ai.getAndIncrement(); nTile0 < numberOfKernels; nTile0 = ai.getAndIncrement()) {
   					  for (int nTile0 = ai.getAndIncrement(); nTile0 < aStopIndex.get(); nTile0 = ai.getAndIncrement()) {
- 						  
+
   						  int nTile = nonOverlapSeq[nTile0];
   						  tileY = nTile /tilesX;
   						  tileX = nTile % tilesX;
@@ -209,13 +211,14 @@ public class DebayerScissors {
   									  tileY*step); // top corner Y
   						  }
   						  if ((tileY==yTileDebug) && (tileX==xTileDebug) && (SDFA_instance!=null)) SDFA_instance.showArrays (tile.clone(),debayerParameters.size,debayerParameters.size, "B00");
-  						  
+
   						  final int numFinished=tilesFinishedAtomic.getAndIncrement();
 //  						  final double dprogr= (1.0+numFinished)/numberOfKernels;
   						  if (numFinished % (numberOfKernels/50+1) == 0) {
 //  							  System.out.print(numFinished);
   							  SwingUtilities.invokeLater(new Runnable() {
-  								  public void run() {
+  								  @Override
+								public void run() {
 //  									  System.out.println(" --- "+numFinished+"("+numberOfKernels+"): "+dprogr);
   									  IJ.showProgress(numFinished, numberOfKernels);
   								  }
@@ -224,7 +227,7 @@ public class DebayerScissors {
   					  }
   				  }
   			  };
-  		  }		      
+  		  }
   		  startAndJoin(threads);
  	      IJ.showProgress(tilesFinishedAtomic.get(), numberOfKernels);
   	  }
@@ -236,7 +239,7 @@ public class DebayerScissors {
   	  for (chn=0;chn<nChn;chn++) {
   		  outStack.addSlice(imageStack.getSliceLabel(chn+1), outPixles[chn]);
   	  }
-  	  debayerEnergyWidth=	 (debayerEnergy!=null)?tilesX:0; // for the image to be displayed externally 
+  	  debayerEnergyWidth=	 (debayerEnergy!=null)?tilesX:0; // for the image to be displayed externally
 	  if (globalDebugLevel>0) System.out.println("Reducing sampling aliases done in "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
   	  return outStack;
     }
@@ -291,7 +294,7 @@ public class DebayerScissors {
    	  }
      }
 
-     
+
    /* ======================================================================== */
    /* accumulate square tile to the pixel array (tile may extend beyond the array, will be cropped) */
      synchronized void  accumulateSquareTile(
@@ -341,7 +344,7 @@ public class DebayerScissors {
       		  }
       	  }
         }
-     
+
      synchronized void  accumulateSquareTile(
    		  double [] pixels, //  float pixels array to accumulate tile
    		  double []  tile, // data to accumulate to the pixels array
@@ -378,10 +381,10 @@ public class DebayerScissors {
        return mask;
      }
    /* ======================================================================== */
-    
-    
-    
-    
+
+
+
+
 	/* ======================================================================== */
 	/* Create a Thread[] array as large as the number of processors available.
 		 * From Stephan Preibisch's Multithreading.java class. See:
@@ -405,7 +408,7 @@ public class DebayerScissors {
 			}
 
 			try
-			{   
+			{
 				for (int ithread = 0; ithread < threads.length; ++ithread)
 					threads[ithread].join();
 			} catch (InterruptedException ie)

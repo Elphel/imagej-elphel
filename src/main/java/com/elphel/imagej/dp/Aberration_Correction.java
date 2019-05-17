@@ -52,6 +52,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileFilter;
 
+import com.elphel.imagej.calibration.Aberration_Calibration;
+import com.elphel.imagej.calibration.DeBayerScissors;
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
@@ -644,7 +646,7 @@ private Panel panel1,panel2,panel3,panel4,panel5,panel5a, panel6;
         if (amps!=null) amps[i]=FHT_INSTANCE.calculateAmplitude(pixels_debayer[i]);
 
       }
-      deBayerScissors debayer_instance=new deBayerScissors(DEBAYER_PARAMETERS.size, // size of the square array, center is at size/2, size/2, only top half+line will be used
+      DeBayerScissors debayer_instance=new DeBayerScissors(DEBAYER_PARAMETERS.size, // size of the square array, center is at size/2, size/2, only top half+line will be used
                                                          DEBAYER_PARAMETERS.polarStep, // maximal step in pixels on the maxRadius for 1 angular step (i.e. 0.5)
                                                         DEBAYER_PARAMETERS.debayerRelativeWidthGreen, // result green mask mpy by scaled default (diamond)
                                                       DEBAYER_PARAMETERS.debayerRelativeWidthRedblue, // result red/blue mask mpy by scaled default (square)
@@ -2517,7 +2519,7 @@ if (PROCESS_PARAMETERS.saveSettings) saveProperties(FILE_PARAMETERS.resultsDirec
 				  DoubleFHT       fht_instance =   new DoubleFHT(); // provide DoubleFHT instance to save on initializations (or null)
 				  ShowDoubleFloatArrays SDFA_instance=null; // just for debugging?
 
-				  deBayerScissors debayer_instance=new deBayerScissors( debayerParameters.size, // size of the square array, centar is at size/2, size/2, only top half+line will be used
+				  DeBayerScissors debayer_instance=new DeBayerScissors( debayerParameters.size, // size of the square array, centar is at size/2, size/2, only top half+line will be used
 						  debayerParameters.polarStep, // maximal step in pixels on the maxRadius for 1 angular step (i.e. 0.5)
 						  debayerParameters.debayerRelativeWidthGreen, // result green mask mpy by scaled default (diamond)
 						  debayerParameters.debayerRelativeWidthRedblue, // result red/blue mask mpy by scaled default (square)

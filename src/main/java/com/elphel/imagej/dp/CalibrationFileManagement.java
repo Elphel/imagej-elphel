@@ -1,7 +1,4 @@
 package com.elphel.imagej.dp;
-import ij.IJ;
-import ij.io.OpenDialog;
-
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -10,6 +7,9 @@ import java.io.IOException;
 
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileFilter;
+
+import ij.IJ;
+import ij.io.OpenDialog;
 
 
 public class CalibrationFileManagement {
@@ -23,9 +23,9 @@ public class CalibrationFileManagement {
 			System.out.println("Error: "+msg);
 			return null;
 		}
-		File [] files=dFile.listFiles(filter); 
+		File [] files=dFile.listFiles(filter);
 
-		
+
 	}
 	*/
 /* ======================================================================== */
@@ -33,7 +33,7 @@ public class CalibrationFileManagement {
 		  return selectDirectoryOrFile(false, save,true, title, button, filter,defaultPath);  // always open dialog
 	  }
 	  /**
-	   * 
+	   *
 	   * @param smart        if true, and defaultPath matches criteria, return it and do not open dialog
 	   * @param save         file/directory for writing, new OK
 	   * @param title        Dialog title
@@ -90,7 +90,7 @@ public class CalibrationFileManagement {
 		  }
 		  if ((dir==null) || (!dir.exists())) {
 			  if (DEFAULT_DIRECTORY!=null) {
-				  defaultPath = DEFAULT_DIRECTORY; 
+				  defaultPath = DEFAULT_DIRECTORY;
 				  dir = new File(defaultPath);
 			  }
 		  }
@@ -107,9 +107,9 @@ public class CalibrationFileManagement {
 		  JFileChooser fc= new JFileChooser();
 		  fc.setFileSelectionMode(directory?JFileChooser.DIRECTORIES_ONLY:JFileChooser.FILES_ONLY);
 		  fc.setMultiSelectionEnabled(true);
-		  if ((title!=null)  && (title.length()>0)) fc.setDialogTitle(title); 
-		  if ((button!=null) && (button.length()>0)) fc.setApproveButtonText(button); 
-		  if (filter!=null) fc.setFileFilter(filter) ; 
+		  if ((title!=null)  && (title.length()>0)) fc.setDialogTitle(title);
+		  if ((button!=null) && (button.length()>0)) fc.setApproveButtonText(button);
+		  if (filter!=null) fc.setFileFilter(filter) ;
 		  if (dir!=null) 	fc.setCurrentDirectory(dir);
 		  fc.setSelectedFiles(files);
 		  int returnVal = save?(fc.showSaveDialog(IJ.getInstance())):(fc.showOpenDialog(IJ.getInstance()));
@@ -142,8 +142,8 @@ public class CalibrationFileManagement {
 				  (defaultPath.length()>1) && // skip "/"
 				  save &&
 				  !dir.exists()) dir.mkdirs();
-		  
-		  
+
+
 		  // see if defaultPath matches
 		  if (smart &&
 				  (dir!=null) &&
@@ -156,7 +156,7 @@ public class CalibrationFileManagement {
 
 		  if ((dir==null) || (!dir.exists())) {
 			  if (DEFAULT_DIRECTORY!=null) {
-				  defaultPath = DEFAULT_DIRECTORY; 
+				  defaultPath = DEFAULT_DIRECTORY;
 				  dir = new File(defaultPath);
 			  }
 		  }
@@ -173,17 +173,17 @@ public class CalibrationFileManagement {
 		  JFileChooser fc= new JFileChooser();
 		  fc.setFileSelectionMode(directory?JFileChooser.DIRECTORIES_ONLY:JFileChooser.FILES_ONLY);
 		  fc.setMultiSelectionEnabled(false);
-		  if ((title!=null)  && (title.length()>0)) fc.setDialogTitle(title); 
-		  if ((button!=null) && (button.length()>0)) fc.setApproveButtonText(button); 
-		  if (filter!=null) fc.setFileFilter(filter) ; 
+		  if ((title!=null)  && (title.length()>0)) fc.setDialogTitle(title);
+		  if ((button!=null) && (button.length()>0)) fc.setApproveButtonText(button);
+		  if (filter!=null) fc.setFileFilter(filter) ;
 		  if (dir!=null) 	fc.setCurrentDirectory(dir);
 		  int returnVal = save?(fc.showSaveDialog(IJ.getInstance())):(fc.showOpenDialog(IJ.getInstance()));
 		  if (returnVal!=JFileChooser.APPROVE_OPTION)	return null;
 		  DEFAULT_DIRECTORY=fc.getCurrentDirectory().getPath();
 		  return fc.getSelectedFile().getPath();
 	  }
-	  
-	  public static void saveStringToFile (String path,String data){ 
+
+	  public static void saveStringToFile (String path,String data){
 		  BufferedWriter writer = null;
 		  try  {
 			  writer = new BufferedWriter( new FileWriter( path));
@@ -192,7 +192,7 @@ public class CalibrationFileManagement {
 		  }  catch ( IOException e)  {
 				String msg = e.getMessage();
 				if (msg==null || msg.equals(""))  msg = ""+e;
-				IJ.showMessage("Error",msg); 
+				IJ.showMessage("Error",msg);
 				throw new IllegalArgumentException (msg);
 		  }
 		  finally  {
@@ -206,7 +206,7 @@ public class CalibrationFileManagement {
 	  }
 
 /* ======================================================================== */
-	  static class MultipleExtensionsFileFilter extends FileFilter implements FilenameFilter {
+	  public static class MultipleExtensionsFileFilter extends FileFilter implements FilenameFilter {
 		  protected String [] patterns; // case insensitive
 		  protected String    description="JP4 files";
 		  protected String    prefix=""; // case sensitive
@@ -223,25 +223,28 @@ public class CalibrationFileManagement {
 		  public MultipleExtensionsFileFilter (String [] patterns) {
 			  this.patterns=patterns.clone();
 		  }
-		  public boolean accept (File file) {
-			  int i;  
+		  @Override
+		public boolean accept (File file) {
+			  int i;
 			  String name=file.getName();
 			  if (file.isDirectory()) return true;
 			  if (!name.startsWith(this.prefix)) return false; // empty prefix OK
 			  for (i=0;i<patterns.length;i++) {
 				  if (name.toLowerCase().endsWith(patterns[i].toLowerCase())) return true;
 			  }
-			  return false; 
+			  return false;
 		  }
-		  public boolean accept (File dir, String name) { // directory - don't care here, only name
+		  @Override
+		public boolean accept (File dir, String name) { // directory - don't care here, only name
 			  if (!name.startsWith(this.prefix)) return false; // empty prefix OK
 			  for (int i=0;i<patterns.length;i++) {
 				  if (name.toLowerCase().endsWith(patterns[i].toLowerCase())) return true;
 			  }
-			  return false; 
+			  return false;
 		  }
 
-		  public String getDescription() {
+		  @Override
+		public String getDescription() {
 			  return description;
 		  }
 	  }

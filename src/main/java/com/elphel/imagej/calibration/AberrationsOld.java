@@ -1,4 +1,4 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.calibration;
 /**
 ** -----------------------------------------------------------------------------**
 ** aberrations.java
@@ -53,7 +53,7 @@ import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 
-public class aberrations extends PlugInFrame implements ActionListener {
+public class AberrationsOld extends PlugInFrame implements ActionListener {
   /**
 	 * 
 	 */
@@ -321,7 +321,7 @@ Panel panel1,panel2;
  public static double DOUBLE_DEBUG_RESULT; // just for temporary passing results from inside the functions
 
  public static ImageStack convolutionKernelStack=null; // select to use for image convolution
-  public aberrations() {
+  public AberrationsOld() {
     super("Aberrations");
     if (IJ.versionLessThan("1.39t")) return;
     if (instance!=null) {

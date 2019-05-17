@@ -1,4 +1,4 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.calibration;
 /**
 ** -----------------------------------------------------------------------------**
 ** MTF_Bayer.java

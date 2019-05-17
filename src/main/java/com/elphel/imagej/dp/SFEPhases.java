@@ -43,6 +43,8 @@ import ij.process.ImageProcessor;
 
 import javax.swing.SwingUtilities;
 
+import com.elphel.imagej.calibration.EyesisAberrations;
+import com.elphel.imagej.calibration.MatchSimulatedPattern;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 

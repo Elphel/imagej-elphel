@@ -31,6 +31,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.SwingUtilities;
 
+import com.elphel.imagej.calibration.DebayerScissorsClass;
+import com.elphel.imagej.calibration.PixelMapping;
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
@@ -54,7 +56,7 @@ import loci.formats.FormatException;
 public class EyesisCorrections {
 	JP46_Reader_camera JP4_INSTANCE=       new JP46_Reader_camera(false);
 	ShowDoubleFloatArrays SDFA_INSTANCE=   new ShowDoubleFloatArrays();
-	DebayerScissors debayerScissors=null;
+	DebayerScissorsClass debayerScissors=null;
     public AtomicInteger stopRequested=null; // 1 - stop now, 2 - when convenient
 	public PixelMapping pixelMapping=null;
 	public EyesisCorrectionParameters.CorrectionParameters correctionsParameters=null;
@@ -990,7 +992,7 @@ public class EyesisCorrections {
 			return result;
 		}
 		// Demosaic image
-		if (debayerScissors==null) debayerScissors=new DebayerScissors(this.stopRequested);
+		if (debayerScissors==null) debayerScissors=new DebayerScissorsClass(this.stopRequested);
 		debayerScissors.setDebug(debugLevel);
 		stack= debayerScissors.aliasScissorsStack(stack,  // stack with 3 colors/slices with the image
 				debayerParameters,
