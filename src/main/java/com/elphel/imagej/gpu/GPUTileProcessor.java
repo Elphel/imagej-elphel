@@ -52,9 +52,9 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.elphel.imagej.dp.DttRad2;
-import com.elphel.imagej.dp.GeometryCorrection;
-import com.elphel.imagej.dp.ImageDtt;
+import com.elphel.imagej.tileprocessor.DttRad2;
+import com.elphel.imagej.tileprocessor.GeometryCorrection;
+import com.elphel.imagej.tileprocessor.ImageDtt;
 
 import Jama.Matrix;
 import ij.IJ;

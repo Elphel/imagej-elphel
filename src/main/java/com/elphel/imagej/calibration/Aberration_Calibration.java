@@ -78,8 +78,6 @@ import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.common.WindowTools;
-import com.elphel.imagej.dp.LensDistortionParameters;
-import com.elphel.imagej.dp.WavePatternGenerator;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 import Jama.Matrix;  // Download here: http://math.nist.gov/javanumerics/jama/

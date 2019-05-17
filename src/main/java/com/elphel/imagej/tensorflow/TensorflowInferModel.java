@@ -19,7 +19,7 @@ import org.tensorflow.SavedModelBundle;
 import org.tensorflow.Tensor;
 
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
-import com.elphel.imagej.dp.ImageDtt;
+import com.elphel.imagej.tileprocessor.ImageDtt;
 
 import ij.IJ;
 import ij.ImagePlus;

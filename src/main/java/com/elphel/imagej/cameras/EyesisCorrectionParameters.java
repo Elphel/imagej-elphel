@@ -37,11 +37,11 @@ import java.util.Set;
 import com.elphel.imagej.calibration.CalibrationFileManagement;
 import com.elphel.imagej.common.GenericJTabbedDialog;
 import com.elphel.imagej.common.WindowTools;
-import com.elphel.imagej.dp.BiQuadParameters;
-import com.elphel.imagej.dp.ImageDtt;
-import com.elphel.imagej.dp.ImageDttParameters;
-import com.elphel.imagej.dp.MeasuredLayersFilterParameters;
-import com.elphel.imagej.dp.PoleProcessorParameters;
+import com.elphel.imagej.tileprocessor.BiQuadParameters;
+import com.elphel.imagej.tileprocessor.ImageDtt;
+import com.elphel.imagej.tileprocessor.ImageDttParameters;
+import com.elphel.imagej.tileprocessor.MeasuredLayersFilterParameters;
+import com.elphel.imagej.tileprocessor.PoleProcessorParameters;
 
 import ij.IJ;
 import ij.Prefs;
