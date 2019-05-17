@@ -39,6 +39,8 @@ import java.util.ArrayList;
 import java.util.Properties;
 import java.util.Random;
 
+import com.elphel.imagej.common.GenericJTabbedDialog;
+
 import ij.IJ;
 import ij.ImagePlus;
 import ij.ImageStack;

@@ -24,6 +24,8 @@
 
 import java.util.Properties;
 
+import com.elphel.imagej.common.GenericJTabbedDialog;
+
 public class ImageDttParameters {
 	public boolean corr_mode_debug =        true;
 	public boolean mix_corr_poly =          true;

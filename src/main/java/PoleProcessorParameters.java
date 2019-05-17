@@ -1,5 +1,7 @@
 import java.util.Properties;
 
+import com.elphel.imagej.common.GenericJTabbedDialog;
+
 /**
  **
  ** PoleProcessorParameters - parameters for PoleProcessor class that identifies

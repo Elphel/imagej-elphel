@@ -70,6 +70,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import javax.swing.JFileChooser;
 import javax.swing.filechooser.FileFilter;
 
+import com.elphel.imagej.common.GenericJTabbedDialog;
 import com.elphel.imagej.lwir.LwirReader;
 
 import ij.CompositeImage;
@@ -159,6 +160,7 @@ private Panel panel1,
    public static QuadCLT          QUAD_CLT_AUX =   null;
    public static TwoQuadCLT       TWO_QUAD_CLT = null;
    public static GPUTileProcessor GPU_TILE_PROCESSOR = null;
+   public static LwirReader       LWIR_READER = null;
 
    public static EyesisCorrectionParameters.DebayerParameters DEBAYER_PARAMETERS = new EyesisCorrectionParameters.DebayerParameters(
 		   64,    // size //128;
@@ -4805,9 +4807,12 @@ private Panel panel1,
 /* ======================================================================== */
     } else if (label.equals("LWIR_ACQUIRE")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-		loci.common.DebugTools.enableLogging("ERROR"); // INFO"); // ERROR");
-        LwirReader lwirReader = new LwirReader();
-        ImagePlus [][] imps = lwirReader.readAllMultiple(
+		loci.common.DebugTools.enableLogging((DEBUG_LEVEL > 1)?"DEBUG":((DEBUG_LEVEL > 0)?"INFO":"ERROR")); // INFO"); // ERROR");
+		//   public static LwirReader       LWIR_READER = null;
+		if (LWIR_READER == null) {
+			LWIR_READER =  new LwirReader();
+		}
+        ImagePlus [][] imps = LWIR_READER.readAllMultiple(
     			10, // final int     num_frames,
     			true, // final boolean show,
     			false); // true); // final boolean scale)
@@ -4816,14 +4821,13 @@ private Panel panel1,
 		}
 
 		System.out.println("LWIR_ACQUIRE: got "+imps.length+" image sets");
-		ImagePlus [][] imps_sync =  lwirReader.matchSets(imps, 0.001, 3); // double max_mismatch)
+		ImagePlus [][] imps_sync =  LWIR_READER.matchSets(imps, 0.001, 3); // double max_mismatch)
 		if (imps_sync != null) {
-			ImagePlus [] imps_avg = lwirReader.averageMultiFrames(imps_sync);
+			ImagePlus [] imps_avg = LWIR_READER.averageMultiFrames(imps_sync);
 			for (ImagePlus imp: imps_avg) {
 				imp.show();
 			}
 		}
-
 
 //JTabbedTest
 // End of buttons code

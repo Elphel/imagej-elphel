@@ -33,6 +33,8 @@ import java.util.HashMap;
 import java.util.Properties;
 import java.util.Set;
 
+import com.elphel.imagej.common.GenericJTabbedDialog;
+
 import ij.IJ;
 import ij.Prefs;
 import ij.gui.GenericDialog;

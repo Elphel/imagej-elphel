@@ -1,3 +1,4 @@
+package com.elphel.imagej.common;
 /*
  * TabbedPaneDemo.java requires one additional file:
  *   images/middle.gif.

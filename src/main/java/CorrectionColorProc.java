@@ -28,6 +28,8 @@
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.elphel.imagej.common.GenericJTabbedDialog;
+
 import ij.ImageStack;
 import ij.gui.GenericDialog;
 

@@ -32,7 +32,6 @@ import java.util.Properties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.elphel.imagej.readers.ElphelTiffReader;
 import com.elphel.imagej.readers.ImagejJp4TiffMulti;
 
 import ij.ImagePlus;
@@ -51,10 +50,6 @@ public class LwirReader {
 			"http://192.168.0.38:2325/bchn4",
 			"http://192.168.0.38:2326/bchn4",
 			};
-//	public static String IMAGE_URL_FIRST="/towp/wait/img/next/save";
-//	public static String IMAGE_URL_NEXT= "/torp/wait/img/next/save";
-//	public static String IMAGE_URL_FIRST="/towp/wait/img/save"; // next image name, same image number/time
-//	public static String IMAGE_URL_NEXT= "/torp/wait/img/save"; // same image name, same image number/time
 
 	public static String IMAGE_URL_FIRST="/towp/wait/img/save";     // next image name, same image number/time
 	public static String IMAGE_URL_NEXT= "/torp/next/wait/img/save"; // same image name, same image number/time
@@ -64,9 +59,13 @@ public class LwirReader {
 
 	/** Logger for this class. */
 	private static final Logger LOGGER =
-			LoggerFactory.getLogger(ElphelTiffReader.class);
+			LoggerFactory.getLogger(LwirReader.class);
 
 	private ImagejJp4TiffMulti imagejJp4TiffMulti;
+
+
+
+
 
 	public LwirReader() {
 		imagejJp4TiffMulti = null;
@@ -103,7 +102,7 @@ public class LwirReader {
 				} catch (FormatException e) {
 					LOGGER.error("readAllMultiple0:FormatException, priming");
 				}
-				LOGGER.error("priming..."+(i+1));
+				LOGGER.info("priming..."+(i+1));
 				try {
 					Thread.sleep(1000);
 				} catch (InterruptedException e) {
@@ -113,7 +112,7 @@ public class LwirReader {
 			}
 		}
 		for (int n = 0; n < num_frames; n++) {
-			LOGGER.error("---- Acquiring frame set "+n);
+			LOGGER.info("---- Acquiring frame set "+n);
 			try {
 				imagejJp4TiffMulti.getMultiImages( (n==0)? urls0:urls1, imps[n],  scale,  std);
 			} catch (IOException e) {
@@ -141,7 +140,7 @@ public class LwirReader {
 					img_numbers[n][i] = -1;
 				}
 				img_names[n][i] = (String) imps[n][i].getProperty("CONTENT_FILENAME");
-				LOGGER.error("Seconds for" + n+":"+i+" - "+img_seconds[n][i]+", number"+img_numbers[n][i]+", name "+img_names[n][i]);
+				LOGGER.info("Seconds for" + n+":"+i+" - "+img_seconds[n][i]+", number"+img_numbers[n][i]+", name "+img_names[n][i]);
 			}
 		}
 
@@ -251,7 +250,7 @@ public class LwirReader {
 		}
 		for (int i = 0; i < num_channels; i++) {
 			// change to info later:
-			LOGGER.error("Channel "+ i+" frame offset="+frame_offsets[i]+ ", time offset = "+time_offsets[i]+" sec");
+			LOGGER.info("Channel "+ i+" frame offset="+frame_offsets[i]+ ", time offset = "+time_offsets[i]+" sec");
 		}
 		ImagePlus [][] imps_synced = new ImagePlus [num_frames - fr_max + fr_min][num_channels];
 		for (int n = 0; n < imps_synced.length; n++) {

@@ -1,6 +1,8 @@
 import java.util.ArrayList;
 import java.util.Properties;
 
+import com.elphel.imagej.common.GenericJTabbedDialog;
+
 import Jama.Matrix;
 import ij.IJ;
 
