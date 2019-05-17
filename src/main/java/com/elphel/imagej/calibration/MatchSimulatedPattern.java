@@ -39,9 +39,9 @@ import javax.swing.SwingUtilities;
 import com.elphel.imagej.calibration.SimulationPattern.SimulParameters;
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
+import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
-import com.elphel.imagej.dp.PolynomialApproximation;
-import com.elphel.imagej.dp.WindowTools;
+import com.elphel.imagej.common.WindowTools;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 import Jama.LUDecomposition;

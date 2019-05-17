@@ -26,6 +26,7 @@ package com.elphel.imagej.dp;
 import java.util.ArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 public class DisparityProcessor {

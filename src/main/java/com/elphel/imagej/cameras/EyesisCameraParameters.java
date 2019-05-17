@@ -1,7 +1,9 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.cameras;
 import java.util.Properties;
 
 import org.apache.commons.configuration.XMLConfiguration;
+
+import com.elphel.imagej.common.WindowTools;
 
 /*
  **

@@ -44,11 +44,11 @@ import javax.xml.transform.stream.StreamResult;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 
+import com.elphel.imagej.cameras.EyesisCorrectionParameters;
+import com.elphel.imagej.cameras.EyesisCorrectionParameters.CLTParameters;
+import com.elphel.imagej.cameras.EyesisCorrectionParameters.CorrectionParameters;
 import com.elphel.imagej.dp.CLTPass3d;
-import com.elphel.imagej.dp.EyesisCorrectionParameters;
 import com.elphel.imagej.dp.GeometryCorrection;
-import com.elphel.imagej.dp.EyesisCorrectionParameters.CLTParameters;
-import com.elphel.imagej.dp.EyesisCorrectionParameters.CorrectionParameters;
 
 // Will use 1m units
 

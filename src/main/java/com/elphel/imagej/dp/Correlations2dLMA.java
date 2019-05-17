@@ -51,6 +51,8 @@ package com.elphel.imagej.dp;
 import java.util.ArrayList;
 import java.util.HashMap;
 
+import com.elphel.imagej.common.PolynomialApproximation;
+
 import Jama.Matrix;
 
 

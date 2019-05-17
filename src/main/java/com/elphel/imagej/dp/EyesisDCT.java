@@ -26,6 +26,7 @@ package com.elphel.imagej.dp;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 

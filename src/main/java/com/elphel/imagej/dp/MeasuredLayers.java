@@ -1,4 +1,7 @@
 package com.elphel.imagej.dp;
+
+import com.elphel.imagej.common.PolynomialApproximation;
+
 /**
  ** MeasuredLayer - per-tile measured disparity/strength pairs,
  ** multiple layers can be used for 4-disparity and 2 (hor/vert) pairs

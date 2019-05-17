@@ -38,7 +38,7 @@ import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.XMLConfiguration;
 
 import com.elphel.imagej.calibration.CalibrationFileManagement.MultipleExtensionsFileFilter;
-import com.elphel.imagej.dp.WindowTools;
+import com.elphel.imagej.common.WindowTools;
 
 import ij.IJ;
 import ij.gui.GenericDialog;

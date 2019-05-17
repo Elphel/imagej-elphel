@@ -74,10 +74,12 @@ import javax.swing.filechooser.FileFilter;
 import com.elphel.imagej.calibration.CalibrationFileManagement;
 import com.elphel.imagej.calibration.DeBayerScissors;
 import com.elphel.imagej.calibration.PixelMapping;
+import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.GenericJTabbedDialog;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
+import com.elphel.imagej.common.WindowTools;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 import com.elphel.imagej.lwir.LwirReader;
 

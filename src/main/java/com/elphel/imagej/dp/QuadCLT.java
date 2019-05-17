@@ -41,6 +41,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.elphel.imagej.calibration.PixelMapping;
+import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.jp4.JP46_Reader_camera;

@@ -27,7 +27,7 @@ import java.util.Properties;
 
 import com.elphel.imagej.calibration.SimulationPattern.SimulParameters;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
-import com.elphel.imagej.dp.WindowTools;
+import com.elphel.imagej.common.WindowTools;
 
 import ij.IJ;
 import ij.ImagePlus;

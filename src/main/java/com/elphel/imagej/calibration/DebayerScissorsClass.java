@@ -30,9 +30,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.SwingUtilities;
 
+import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
-import com.elphel.imagej.dp.EyesisCorrectionParameters;
 
 import ij.IJ;
 import ij.ImageStack;

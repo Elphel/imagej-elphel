@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Properties;
 import java.util.Random;
 
+import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.GenericJTabbedDialog;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.jp4.JP46_Reader_camera;

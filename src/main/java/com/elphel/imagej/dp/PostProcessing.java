@@ -40,6 +40,7 @@ import com.elphel.imagej.calibration.PixelMapping;
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
+import com.elphel.imagej.common.WindowTools;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 //import javax.swing.SwingUtilities;

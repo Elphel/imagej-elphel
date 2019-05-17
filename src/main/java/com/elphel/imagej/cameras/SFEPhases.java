@@ -1,4 +1,4 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.cameras;
 /**
 ** -----------------------------------------------------------------------------**
 ** SFEPhases.java
@@ -48,6 +48,7 @@ import com.elphel.imagej.calibration.DistortionProcessConfiguration;
 import com.elphel.imagej.calibration.EyesisAberrations;
 import com.elphel.imagej.calibration.MatchSimulatedPattern;
 import com.elphel.imagej.common.DoubleGaussianBlur;
+import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 public class SFEPhases {

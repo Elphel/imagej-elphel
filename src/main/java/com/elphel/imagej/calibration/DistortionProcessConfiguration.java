@@ -30,7 +30,7 @@ import ij.gui.GenericDialog;
 import java.io.File;
 import java.util.Properties;
 
-import com.elphel.imagej.dp.WindowTools;
+import com.elphel.imagej.common.WindowTools;
 
     
     public class DistortionProcessConfiguration{

@@ -33,6 +33,7 @@ import javax.swing.SwingUtilities;
 
 import com.elphel.imagej.calibration.DebayerScissorsClass;
 import com.elphel.imagej.calibration.PixelMapping;
+import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;

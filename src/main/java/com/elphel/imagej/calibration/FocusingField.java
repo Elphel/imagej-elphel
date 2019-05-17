@@ -45,7 +45,7 @@ import org.apache.commons.configuration.XMLConfiguration;
 
 import com.elphel.imagej.calibration.CalibrationFileManagement.MultipleExtensionsFileFilter;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
-import com.elphel.imagej.dp.WindowTools;
+import com.elphel.imagej.common.WindowTools;
 
 //import Distortions.LMAArrays; // may still reuse?
 import Jama.LUDecomposition;

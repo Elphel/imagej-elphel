@@ -24,7 +24,9 @@ package com.elphel.imagej.dp;
  */
 import java.util.ArrayList;
 
+import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
+import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 //import GeometryCorrection.CorrVector;

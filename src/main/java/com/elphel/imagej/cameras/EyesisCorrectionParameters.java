@@ -1,4 +1,4 @@
-package com.elphel.imagej.dp;
+package com.elphel.imagej.cameras;
 /**
 ** -----------------------------------------------------------------------------**
 ** EyesisCorrectionParameters.java
@@ -36,6 +36,12 @@ import java.util.Set;
 
 import com.elphel.imagej.calibration.CalibrationFileManagement;
 import com.elphel.imagej.common.GenericJTabbedDialog;
+import com.elphel.imagej.common.WindowTools;
+import com.elphel.imagej.dp.BiQuadParameters;
+import com.elphel.imagej.dp.ImageDtt;
+import com.elphel.imagej.dp.ImageDttParameters;
+import com.elphel.imagej.dp.MeasuredLayersFilterParameters;
+import com.elphel.imagej.dp.PoleProcessorParameters;
 
 import ij.IJ;
 import ij.Prefs;
@@ -2326,7 +2332,7 @@ public class EyesisCorrectionParameters {
     	public double threshold;
   	public boolean useDiffNoiseGains;
   	public double [] noiseGainWeights=new double[3];
-  	double blurSigma;     // blur sigma for mask calculation (blur convolution kernels for noise gain calculation
+  	public double blurSigma;     // blur sigma for mask calculation (blur convolution kernels for noise gain calculation
   	public double  noiseGainPower;
     	public boolean showMask;
   // ring filter

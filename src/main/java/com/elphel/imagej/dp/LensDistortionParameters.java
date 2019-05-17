@@ -2,6 +2,9 @@ package com.elphel.imagej.dp;
 import java.util.Arrays;
 import java.util.Properties;
 
+import com.elphel.imagej.cameras.EyesisSubCameraParameters;
+import com.elphel.imagej.common.WindowTools;
+
 import ij.IJ;
 import ij.gui.GenericDialog;
 import Jama.Matrix;

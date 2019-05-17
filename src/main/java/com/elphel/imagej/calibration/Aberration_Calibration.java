@@ -69,17 +69,17 @@ import com.elphel.imagej.calibration.CalibrationHardwareInterface.PowerControl;
 import com.elphel.imagej.calibration.CalibrationHardwareInterface.UVLEDandLasers;
 import com.elphel.imagej.calibration.Distortions.RefineParameters;
 import com.elphel.imagej.calibration.SimulationPattern.SimulParameters;
+import com.elphel.imagej.cameras.EyesisCameraParameters;
+import com.elphel.imagej.cameras.SFEPhases;
+import com.elphel.imagej.cameras.SFEPhases.Defect;
+import com.elphel.imagej.cameras.SFEPhases.SensorDefects;
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
+import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
-import com.elphel.imagej.dp.EyesisCameraParameters;
+import com.elphel.imagej.common.WindowTools;
 import com.elphel.imagej.dp.LensDistortionParameters;
-import com.elphel.imagej.dp.PolynomialApproximation;
-import com.elphel.imagej.dp.SFEPhases;
 import com.elphel.imagej.dp.WavePatternGenerator;
-import com.elphel.imagej.dp.WindowTools;
-import com.elphel.imagej.dp.SFEPhases.Defect;
-import com.elphel.imagej.dp.SFEPhases.SensorDefects;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 
 import Jama.Matrix;  // Download here: http://math.nist.gov/javanumerics/jama/

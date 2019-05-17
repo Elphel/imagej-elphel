@@ -29,6 +29,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 
 public class LinkPlanes {

@@ -40,6 +40,7 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Properties;
 
+import com.elphel.imagej.cameras.EyesisCorrectionParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
