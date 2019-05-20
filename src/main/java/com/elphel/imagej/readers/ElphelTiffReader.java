@@ -130,7 +130,7 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 		suffixNecessary = true; // false
 		suffixSufficient = true; // false;
 ///		mergeSubIFDs = true; // false;
-		LOGGER.info("ElphelTiffReader(), after supper(), mergeSubIFDs = true;");
+		LOGGER.debug("ElphelTiffReader(), after supper(), mergeSubIFDs = true;");
 	}
 
 	// -- IFormatReader API methods --
@@ -177,7 +177,7 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 			  LOGGER.debug("id '"+id+"' is already mapped" );
 			  content_fileName = id; // id; // maybe set to null to handle externally?
 			  mapped_externally = true;
-			  LOGGER.info("Starting setId() method, read file directly");
+			  LOGGER.debug("Starting setId() method, read file directly");
 			  super.setId(id);
 		  } else {
 			  // If URL, then read to memory, if normal file - use direct access
@@ -193,7 +193,7 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 				  LOGGER.warn("Bad URL: " + id);
 			  }
 			  if (url != null) {
-				  LOGGER.info("Starting initFile() method, read "+ id +" to memory first");
+				  LOGGER.debug("Starting initFile() method, read "+ id +" to memory first");
 				  //https://www.rgagnon.com/javadetails/java-0487.html
 				  URLConnection connection = url.openConnection();
 
@@ -210,20 +210,20 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 					  content_fileName = "unknown." + suffix;
 				  }
 				  //	 			currentId = fileName; //???
-				  //	 			LOGGER.info("Mime type = "+mime);
+				  //	 			LOGGER.debug("Mime type = "+mime);
 				  // https://stackoverflow.com/questions/2793150/how-to-use-java-net-urlconnection-to-fire-and-handle-http-requests
 
 				  //https://stackoverflow.com/questions/2295221/java-net-url-read-stream-to-byte
 				  InputStream is =    url.openStream (); //
 				  byte[] inBytes = IOUtils.toByteArray(is);
 				  if (is != null) is.close();
-				  LOGGER.info("Bytes read: "+ inBytes.length);
+				  LOGGER.debug("Bytes read: "+ inBytes.length);
 				  Location.mapFile(content_fileName, new ByteArrayHandle(inBytes));
 //				  HashMap<String,Object> dbg_loc = Location.getIdMap();
 				  super.setId(content_fileName);
 			  } else { // read file normally
 				  content_fileName = id;
-				  LOGGER.info("read file directly");
+				  LOGGER.debug("read file directly");
 				  super.setId(id);
 			  }
 		  }
@@ -241,9 +241,9 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
     {
 		// Trying ServiceFactory before it is going to be initialized, so static defaultFactory will be initialized
 		// with small set of services - only needed for Elphel
-		LOGGER.info("Starting initFile() method");
+		LOGGER.debug("Starting initFile() method");
 		super.initFile(id);
-		LOGGER.info("Ending initFile() method");
+		LOGGER.debug("Ending initFile() method");
 
 
     }
@@ -262,9 +262,9 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 	/* @see loci.formats.IFormatReader#close(boolean) */
 	@Override
 	public void close(boolean fileOnly) throws IOException {
-		LOGGER.info("close("+fileOnly+") before super");
+		LOGGER.debug("close("+fileOnly+") before super");
 		super.close(fileOnly); // curerent_id == null only during actual close?
-		LOGGER.info("close("+fileOnly+") after super");
+		LOGGER.debug("close("+fileOnly+") after super");
 //		if ((content_fileName != null) && file_initialized){
 		if (!mapped_externally && file_initialized){ // will try to unmap non-mapped file, OK
 			Location.mapFile(content_fileName, null);
@@ -288,10 +288,10 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 	/* @see BaseTiffReader#initStandardMetadata() */
 	@Override
 	protected void initStandardMetadata() throws FormatException, IOException {
-		LOGGER.info("initStandardMetadata() - before super()");
+		LOGGER.debug("initStandardMetadata() - before super()");
 		super.initStandardMetadata();
 		String comment = ifds.get(0).getComment(); // IMAGE_DESCRIPTION
-		LOGGER.info("initStandardMetadata() - after super()");
+		LOGGER.debug("initStandardMetadata() - after super()");
 		long[] maker_note = null;
 		double exposure = Double.NaN;
 		String date_time = null;
@@ -330,14 +330,14 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 				null, maker_note, exposure, date_time, bytes_per_pixel, true );
 
 
-		LOGGER.info("Created elphelMeta table, size="+property_table.size());
+		LOGGER.debug("Created elphelMeta table, size="+property_table.size());
 		for (String key:property_table.keySet()) {
 			addGlobalMeta(ELPHEL_PROPERTY_PREFIX+key,property_table.get(key));
 		}
 		MetadataLevel level = getMetadataOptions().getMetadataLevel();
 		if (level != MetadataLevel.MINIMUM) {
 			Integer[] tags = ifds.get(0).keySet().toArray(new Integer[0]);
-			LOGGER.info("initStandardMetadata() - got "+tags.length+" tags");
+			LOGGER.debug("initStandardMetadata() - got "+tags.length+" tags");
 	    }
 		addGlobalMeta(ELPHEL_PROPERTY_PREFIX+CONTENT_FILENAME,content_fileName);
 		// convert MAKER_NOTE to the same text format as in com.drew.metadata
@@ -410,9 +410,9 @@ public class ElphelTiffReader extends TiffReader{ // BaseTiffReader {
 	  public byte[] openBytes(int no, byte[] buf, int x, int y, int w, int h)
 	    throws FormatException, IOException
 	  {
-		LOGGER.info("openBytes() - before super()");
+		LOGGER.debug("openBytes() - before super()");
 	    super.openBytes(no, buf, x, y, w, h);
-		LOGGER.info("openBytes() - after super()");
+		LOGGER.debug("openBytes() - after super()");
 	    return buf;
 	  }
 

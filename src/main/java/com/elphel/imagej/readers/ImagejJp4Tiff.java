@@ -66,6 +66,7 @@ public class ImagejJp4Tiff {
 	private static final Logger LOGGER = LoggerFactory.getLogger(ClassList.class);
 	private static final boolean BYPASS_SERVICES = false; //  true;
 	private static final String SERVICES_PATH = "services.properties.forelphel";
+	private static final boolean KEEP_EXTENSION = false; // remove extension for ImagePlus title
 
 	// -- Fields --
 
@@ -151,7 +152,7 @@ public class ImagejJp4Tiff {
 		if (url != null) {
 			LOGGER.error("Read "+ path_url +" to memory first");
 			URLConnection connection = url.openConnection();
-
+// Wrong - waits forever
 			String content_disposition = connection.getHeaderField("Content-Disposition"); // reads file
 			// raw = "attachment; filename=abc.jpg"
 			if(content_disposition != null && content_disposition.indexOf("=") != -1) {
@@ -216,6 +217,12 @@ public class ImagejJp4Tiff {
 		String imageNameKey = prefix+ElphelTiffReader.CONTENT_FILENAME;
 		if (meta_hash.containsKey(imageNameKey)) {
 			imageName = meta_hash.get(imageNameKey).toString();
+		}
+		if (!KEEP_EXTENSION) {
+			int dot_indx = imageName.lastIndexOf(".");
+			if (dot_indx >= 0) {
+				imageName = imageName.substring(0, dot_indx);
+			}
 		}
 		imp =  new ImagePlus(imageName, ip); // original jp46 reader had full path as title
 

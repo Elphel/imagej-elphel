@@ -27,10 +27,18 @@
 package com.elphel.imagej.lwir;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
 import java.util.Properties;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.w3c.dom.Document;
+import org.xml.sax.SAXException;
 
 import com.elphel.imagej.readers.ImagejJp4TiffMulti;
 
@@ -51,26 +59,47 @@ public class LwirReader {
 			"http://192.168.0.38:2326/bchn4",
 			};
 
-	public static String IMAGE_URL_FIRST="/towp/wait/img/save";     // next image name, same image number/time
-	public static String IMAGE_URL_NEXT= "/torp/next/wait/img/save"; // same image name, same image number/time
-
-//	public static String IMAGE_URL_FIRST="/towp/wait/bimg/save";     // next image name, same image number/time
-//	public static String IMAGE_URL_NEXT= "/torp/next/wait/bimg/save"; // same image name, same image number/time
+	public static final int [] IMGSRV_PORTS = {2323,2324,2325,2326};
+	public static final String IMAGE_URL_FIRST="/towp/wait/img/save";     // next image name, same image number/time
+	public static final String IMAGE_URL_NEXT= "/torp/next/wait/img/save"; // same image name, same image number/time
+	public static final String SKIP_FRAME_URL= "/towp/wait/meta";          // Wit for the next frame, return meta data
+	public static final int COLOR_JP4 = 5;
+	public static final int COLOR_RAW = 15;
+	public static final int FRAMES_SKIP = 3;
+	public static final int MAX_THREADS = 100; // combine from all classes?
 
 	/** Logger for this class. */
 	private static final Logger LOGGER =
 			LoggerFactory.getLogger(LwirReader.class);
 
 	private ImagejJp4TiffMulti imagejJp4TiffMulti;
+	private boolean out_of_sync = false;
 
+	/** Configuration parameters */
+	private LwirReaderParameters lwirReaderParameters = null;
+	private LwirReaderParameters last_programmed = null;
 
-
-
+	// -- constructors
 
 	public LwirReader() {
+		this.lwirReaderParameters = new LwirReaderParameters(); // default
 		imagejJp4TiffMulti = null;
 	}
 
+	public LwirReader(LwirReaderParameters lwirReaderParameters) {
+		if (lwirReaderParameters == null) {
+			this.lwirReaderParameters = new LwirReaderParameters(); // default
+		} else {
+			this.lwirReaderParameters = lwirReaderParameters;
+		}
+		imagejJp4TiffMulti = null;
+	}
+
+
+	// TODO: create
+	public boolean reSyncNeeded() {
+		return out_of_sync;
+	}
 
 	public ImagePlus[][] readAllMultiple(
 			final int     num_frames,
@@ -181,14 +210,17 @@ public class LwirReader {
 			for (String key:properties0.stringPropertyNames()) {
 				imps_avg[chn].setProperty(key, properties0.getProperty(key));
 			}
+			imps_avg[chn].setProperty("average", ""+num_frames);
 			// TODO: Overwrite some properties?
 		}
 
 		return imps_avg;
 	}
 
-
 	public ImagePlus [][] matchSets(ImagePlus [][] sets, double max_mismatch, int max_frame_diff){
+		return matchSets(sets, max_mismatch, max_frame_diff, null);
+	}
+	public ImagePlus [][] matchSets(ImagePlus [][] sets, double max_mismatch, int max_frame_diff, int [] lags){
 		int num_frames = sets.length;
 		int num_channels = sets[0].length;
 		double [][] img_seconds = new double [num_frames][num_channels];
@@ -196,6 +228,7 @@ public class LwirReader {
 		double [] time_offsets = new double [num_channels];
 		boolean some_notsynced = false;
 		int fr_min = 0, fr_max = 0;
+		frame_offsets[0] = 0;
 		for (int n = 0; n < num_frames; n++) {
 			for (int i = 0; i < num_channels; i++) {
 				String dt = (String) sets[n][i].getProperty("DATE_TIME");
@@ -208,7 +241,7 @@ public class LwirReader {
 			time_offsets[i] = secOffs(img_seconds[0][0], img_seconds[0][i]);
 			if (num_frames > max_frame_diff) {
 				if (time_offsets[i] > max_mismatch) {
-					for (int fr_diff = 1; fr_diff < max_frame_diff; fr_diff++) {
+					for (int fr_diff = 1; fr_diff <= max_frame_diff; fr_diff++) {
 						double aoff = secOffs(img_seconds[fr_diff][0], img_seconds[0][i]);
 						if (aoff < time_offsets[i]) {
 							time_offsets[i] = aoff;
@@ -227,36 +260,49 @@ public class LwirReader {
 			if (time_offsets[i] > max_mismatch) {
 				some_notsynced = true;
 			}
-			if (frame_offsets[i] > 0) {
-				fr_max = frame_offsets[i];
-			}
-			if (frame_offsets[i] < 0) {
-				fr_min = frame_offsets[i];
-			}
+			if (frame_offsets[i] > fr_max) 	fr_max = frame_offsets[i];
+			if (frame_offsets[i] < fr_min)  fr_min = frame_offsets[i];
 		}
 		if (some_notsynced) {
 			LOGGER.error("*** Some channels are not synchronized, reboot or sensors re-start is needed ***");
+			out_of_sync = true;
 			for (int i = 0; i < num_channels; i++) {
 				LOGGER.error("Channel "+ i+" frame offset="+frame_offsets[i]+ ", time offset = "+time_offsets[i]+" sec");
 			}
 			return null;
 		}
+
 		if (((fr_max - fr_min) > max_frame_diff) || ((fr_max - fr_min) > (num_frames - 1))) {
-			LOGGER.error("*** Earliest/latest channels differ by more than 1 frame, that should not happen! ***");
+			out_of_sync = true;
+			LOGGER.error("*** Earliest/latest channels differ by more than "+max_frame_diff+" frames, that should not happen! ***");
 			for (int i = 0; i < num_channels; i++) {
 				LOGGER.error("Channel "+ i+" frame offset="+frame_offsets[i]+ ", time offset = "+time_offsets[i]+" sec");
 			}
 			return null;
 		}
+		out_of_sync = false;
 		for (int i = 0; i < num_channels; i++) {
 			// change to info later:
 			LOGGER.info("Channel "+ i+" frame offset="+frame_offsets[i]+ ", time offset = "+time_offsets[i]+" sec");
 		}
-		ImagePlus [][] imps_synced = new ImagePlus [num_frames - fr_max + fr_min][num_channels];
+		// 		if (lags == null) lags = new int [num_channels];
+
+		// recalculate  frame_offsets, fr_max, fr_min considering provided lags (>0 - channel images are acquired later)
+		if (lags != null) {
+			fr_max = lags[0];
+			fr_min = lags[0];
+			for (int i = 0; i < num_channels; i++ ) {
+				frame_offsets[i] += lags[i];
+				if (frame_offsets[i] > fr_max) 	fr_max = frame_offsets[i];
+				if (frame_offsets[i] < fr_min)  fr_min = frame_offsets[i];
+			}
+		}
+		ImagePlus [][] imps_synced = null;
+
+		imps_synced = new ImagePlus [num_frames - fr_max + fr_min][num_channels];
 		for (int n = 0; n < imps_synced.length; n++) {
-			imps_synced[n][0]= sets[n+fr_max][0];
-			for (int i = 1; i < num_channels; i++) {
-				imps_synced[n][i]= sets[n - fr_min][i];
+			for (int i = 0; i < num_channels; i++) {
+				imps_synced[n][i]= sets[n + fr_max -frame_offsets[i]][i];
 			}
 		}
 		return imps_synced;
@@ -269,5 +315,272 @@ public class LwirReader {
 		}
 		return aoff;
 	}
+	public boolean skipFrame() {
+		return skipFrame(lwirReaderParameters);
+	}
+
+	public boolean skipFrame(LwirReaderParameters lrp) {
+		if (lrp.lwir_channels.length == 0) {
+			LOGGER.error("skipFrame(): No LWIR channels are configured");
+			return false;
+		}
+		int chn = lrp.lwir_channels[0];
+		String url =  "http://"+lrp.lwir_ip+":"+IMGSRV_PORTS[chn]+SKIP_FRAME_URL;
+			Document dom=null;
+			try {
+				DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+				DocumentBuilder db = dbf.newDocumentBuilder();
+				dom = db.parse(url);
+				if (!dom.getDocumentElement().getNodeName().equals("meta")) {
+					LOGGER.error("skipFrame() in " + url+
+							": Root element: expected 'me3ta', got \"" + dom.getDocumentElement().getNodeName()+"\"");
+						return false;
+				}
+	   		} catch(MalformedURLException e){
+				LOGGER.error("skipFrame() in " + url+ ": " + e.toString());
+				return false;
+	   		} catch(IOException  e1){
+			LOGGER.error("skipFrame() in " + url+ " - camera did not respond: " + e1.toString());
+			return false;
+	   		}catch(ParserConfigurationException pce) {
+			LOGGER.error("skipFrame() in " + url+ " - PCE error: " + pce.toString());
+			return false;
+	   		}catch(SAXException se) {
+			LOGGER.error("skipFrame() in " + url+ " - SAX error: " + se.toString());
+			return false;
+	   		}
+		return true;
+	}
+
+	public ImagePlus [] acquire() {
+		return acquire(lwirReaderParameters);
+	}
+
+
+	public ImagePlus [] acquire(LwirReaderParameters lrp) {
+		if (!condProgramLWIRCamera(lrp)) {
+			LOGGER.error("acquire(): failed to program cameras");
+			return null;
+		}
+		int num_frames = lrp.avg_number + lrp.vnir_lag + 2 * lrp.max_frame_diff;
+		ImagePlus [][] imps = readAllMultiple(
+				num_frames,
+				false, // final boolean show,
+				lrp.vnir_scale);
+		if (imps == null) {
+			LOGGER.error("acquire(): failed to acquire images");
+			return null;
+		}
+		LOGGER.debug("LWIR_ACQUIRE: got "+imps.length+" image sets");
+		int [] lags = new int [lrp.lwir_channels.length + lrp.vnir_channels.length];
+		for (int i = 0; i < lags.length; i++) {
+			lags[i] = (i >= lrp.lwir_channels.length) ? lrp.vnir_lag : 0;
+		}
+		ImagePlus [][] imps_sync =  matchSets(
+				imps,
+				lrp.max_mismatch_ms * 0.001, // 0.001,
+				lrp.max_frame_diff,// 3); // double max_mismatch)
+				lags);
+		if (imps_sync == null) {
+			return null;
+		}
+        int num_keep = imps_sync.length;
+        if (!lrp.avg_all && (lrp.avg_number < imps_sync.length)) {
+        	num_keep = lrp.avg_number;
+        }
+		LOGGER.debug("LWIR_ACQUIRE: got "+imps_sync.length+", requested "+lrp.avg_number+", keeping " + num_keep);
+		if (num_keep < imps_sync.length) {
+			ImagePlus [][] imps_sync0 = imps_sync;
+			imps_sync = new ImagePlus[num_keep][];
+			for (int i = 0; i < num_keep; i++) {
+				imps_sync[i] = imps_sync0[i];
+			}
+		}
+		ImagePlus [] imps_avg = averageMultiFrames(imps_sync);
+		return imps_avg;
+	}
+
+	// TODO: Implement LWIR restart
+
+	// Program cameras only if parameters had changed (including those, that do not actually need to be programmed)
+	public boolean condProgramLWIRCamera() {
+		return condProgramLWIRCamera(lwirReaderParameters);
+	}
+
+
+	public boolean condProgramLWIRCamera(LwirReaderParameters lrp) {
+		boolean ok = true;
+		if ((last_programmed == null) || !last_programmed.equals(lrp)) {
+			ok = programLWIRCamera(lrp);
+			if (ok) {
+				last_programmed = lrp.clone();
+			}
+		}
+		return ok;
+	}
+
+	//actually (unconditionally) program cameras parameters
+	public boolean programLWIRCamera() {
+		return programLWIRCamera(lwirReaderParameters);
+	}
+
+	public boolean programLWIRCamera(LwirReaderParameters lrp) {
+		int lwir_master_port = 0;
+		int vnir_master_port = 0;
+		int num_lwir = lrp.lwir_channels.length;
+		int num_vnir = lrp.vnir_channels.length;
+		final String [] urls = new String [num_lwir + num_vnir];
+		for (int chn:lrp.lwir_channels) {
+			urls[chn] = "http://"+lrp.lwir_ip+"/parsedit.php?immediate&sensor_port="+chn+
+					"&BITS=16"+
+					"&COLOR="+COLOR_RAW; // +"*0"; // raw mode - delay 0 - breaks compressor
+			if (chn == lwir_master_port) {
+				urls[chn] +="&TRIG=0*0"+
+						"&TRIG_DELAY="+lrp.lwir_trig_dly+"*0"+
+						"&TRIG_OUT=419157*0"+
+						"&TRIG_BITLENGTH=31*0"+
+						"&EXTERN_TIMESTAMP=1*0"+
+						"&XMIT_TIMESTAMP=1*0";
+			}
+		}
+		for (int chn:lrp.vnir_channels) {
+	   		int minExposure=10; // usec
+	   		int maxExposure=1000000; //usec
+	   		int minGain=(int) (0x10000*1.0);
+	   		int maxGain=(int) (0x10000*15.75);
+	   		int minScale=0;
+	   		int maxScale=(int) (0x10000*4.0);
+	   		int exposure= (int) (Math.round(1000*lrp.vnir_exposure_ms * lrp.vnir_exp_corr[chn]));
+	   		int autoExposureMax= (int) (Math.round(1000*lrp.vnir_max_autoexp_ms));
+	   		int gain=     (int) (Math.round(0x10000*lrp.vnir_gain_g));
+	   		int rScale=   (int) (Math.round(0x10000*lrp.vnir_gain_rg*lrp.vnir_gcorr_rbgb[3*chn+0]));
+	   		int bScale=   (int) (Math.round(0x10000*lrp.vnir_gain_bg*lrp.vnir_gcorr_rbgb[3*chn+1]));
+	   		int gScale=   (int) (Math.round(0x10000*                 lrp.vnir_gcorr_rbgb[3*chn+2]));
+	   		int autoExp=  lrp.vnir_autoexp?1:0;
+	   		int autoWB=   lrp.vnir_whitebal?1:0;
+	   		if (exposure<minExposure) exposure=minExposure; else if (exposure>maxExposure) exposure=maxExposure;
+	   		if (autoExposureMax<minExposure) autoExposureMax=minExposure; else if (autoExposureMax>maxExposure) autoExposureMax=maxExposure;
+	   		if (gain<minGain) gain= minGain ; else if (gain> maxGain) gain= maxGain;
+	   		if (rScale<minScale) rScale= minScale ; else if (rScale> maxScale) rScale= maxScale;
+	   		if (bScale<minScale) bScale= minScale ; else if (bScale> maxScale) bScale= maxScale;
+	   		if (gScale<minScale) gScale= minScale ; else if (gScale> maxScale) gScale= maxScale;
+
+	   		urls[num_lwir+chn] = "http://"+lrp.vnir_ip+"/parsedit.php?immediate&sensor_port="+chn+
+	   				"&COLOR="+COLOR_JP4+ // "*1"+ // JP4 always
+	   				"&QUALITY="+lrp.vnir_quality+ // "*0"+
+	   				"&EXPOS="+exposure+ // "*0"+
+		   			"&AUTOEXP_EXP_MAX="+autoExposureMax+//"*0"+
+		   			"&AUTOEXP_ON="+autoExp+//"*0"+
+		   			"&GAING="+gain+//"*0"+
+		   			"&RSCALE="+rScale+//"*0"+
+		   			"&BSCALE="+bScale+//"*0"+
+		   			"&GSCALE="+gScale+//"*0"+ // GB/G ratio
+		   			"&WB_EN="+autoWB+//"*0"+
+	   				"&DAEMON_EN_TEMPERATURE=1";//"*0";
+
+
+	   		if (chn == vnir_master_port) {
+	   			urls[num_lwir+chn] += "&TRIG=4*0"+
+	   					"&TRIG_CONDITION=611669*0"+ // external input
+	   					"&TRIG_BITLENGTH=31*0"+
+	   					"&EXTERN_TIMESTAMP=1*0";
+	   		}
+
+
+		}
+		for (int i = 0; i < urls.length; i++) {
+				LOGGER.debug("programLWIRCamera(): reading url " + urls[i]);
+		}
+// multithreaded camera access:
+   		final Thread[] threads = newThreadArray(MAX_THREADS);
+   		final AtomicInteger indxAtomic = new AtomicInteger(0);
+   		final boolean [] get_success = new boolean [urls.length];
+   		for (int ithread = 0; ithread < threads.length; ithread++) {
+   			threads[ithread] = new Thread() {
+   				@Override
+				public void run() {
+   					for (int indx = indxAtomic.getAndIncrement(); indx < urls.length; indx = indxAtomic.getAndIncrement()) {
+   						Document dom=null;
+   						try {
+   							DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+   							DocumentBuilder db = dbf.newDocumentBuilder();
+   							dom = db.parse(urls[indx]);
+   							if (!dom.getDocumentElement().getNodeName().equals("parameters")) {
+   								LOGGER.error("programLWIRCamera() in " + urls[indx]+
+   										": Root element: expected 'parameters', got \"" + dom.getDocumentElement().getNodeName()+"\"");
+   	   							get_success[indx] = false;
+   	   							continue;
+   							}
+   				   		} catch(MalformedURLException e){
+								LOGGER.error("programLWIRCamera() in " + urls[indx]+ ": " + e.toString());
+	   							get_success[indx] = false;
+	   							continue;
+   				   		} catch(IOException  e1){
+							LOGGER.error("programLWIRCamera() in " + urls[indx]+ " - camera did not respond: " + e1.toString());
+   							get_success[indx] = false;
+   							continue;
+   				   		}catch(ParserConfigurationException pce) {
+							LOGGER.error("programLWIRCamera() in " + urls[indx]+ " - PCE error: " + pce.toString());
+   							get_success[indx] = false;
+   							continue;
+   				   		}catch(SAXException se) {
+							LOGGER.error("programLWIRCamera() in " + urls[indx]+ " - SAX error: " + se.toString());
+   							get_success[indx] = false;
+   							continue;
+   				   		}
+   						get_success[indx] = true;
+   					}
+   				}
+   			};
+   		}
+   		startAndJoin(threads);
+// See if there are any errors
+   		boolean allOK = true;
+   		for (boolean OK:get_success) {
+   			allOK &= OK;
+   		}
+   		if (allOK){
+   			lrp.reset_updated();
+
+   			for (int i = 0; i < FRAMES_SKIP; i++) {
+   				if (!skipFrame(lrp)) {
+					LOGGER.error("programLWIRCamera():Failed to skip frame");
+   				}
+   			}
+   		}
+		return allOK;
+	}
+
+	/* Create a Thread[] array as large as the number of processors available.
+	 * From Stephan Preibisch's Multithreading.java class. See:
+	 * http://repo.or.cz/w/trakem2.git?a=blob;f=mpi/fruitfly/general/MultiThreading.java;hb=HEAD
+	 */
+	private Thread[] newThreadArray(int maxCPUs) {
+		int n_cpus = Runtime.getRuntime().availableProcessors();
+		if (n_cpus>maxCPUs)n_cpus=maxCPUs;
+		return new Thread[n_cpus];
+	}
+/* Start all given threads and wait on each of them until all are done.
+	 * From Stephan Preibisch's Multithreading.java class. See:
+	 * http://repo.or.cz/w/trakem2.git?a=blob;f=mpi/fruitfly/general/MultiThreading.java;hb=HEAD
+	 */
+	private static void startAndJoin(Thread[] threads)
+	{
+		for (int ithread = 0; ithread < threads.length; ++ithread)
+		{
+			threads[ithread].setPriority(Thread.NORM_PRIORITY);
+			threads[ithread].start();
+		}
+
+		try
+		{
+			for (int ithread = 0; ithread < threads.length; ++ithread)
+				threads[ithread].join();
+		} catch (InterruptedException ie)
+		{
+			throw new RuntimeException(ie);
+		}
+	}
+
 
 }

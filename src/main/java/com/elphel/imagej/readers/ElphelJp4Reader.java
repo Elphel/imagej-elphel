@@ -105,7 +105,7 @@ public class ElphelJp4Reader  extends ImageIOReader{
 		// or these readers are combined with all other readers in readers.txt
 		suffixNecessary = true; // false
 		suffixSufficient = true; // false;
-		LOGGER.info("ElphelTiffReader(), after super()");
+		LOGGER.debug("ElphelTiffReader(), after super()");
 		if (REPLACEMENT_TAG_MAP == null) {
 			REPLACEMENT_TAG_MAP = new HashMap<String,String>();
 			for (String [] line: REPLACEMENT_TAGS) {
@@ -162,7 +162,7 @@ public class ElphelJp4Reader  extends ImageIOReader{
 			LOGGER.debug("id '"+id+"' is already mapped" );
 			content_fileName = id; // id; // maybe set to null to handle externally?
 			mapped_externally = true;
-			LOGGER.info("Starting initFile() method, read file directly");
+			LOGGER.debug("Starting initFile() method, read file directly");
 			super.setId(id);
 		} else {
 			// If URL, then read to memory, if normal file - use direct access
@@ -175,7 +175,7 @@ public class ElphelJp4Reader  extends ImageIOReader{
 				LOGGER.warn("Bad URL: " + id);
 			}
 			if (url != null) {
-				LOGGER.info("Starting initFile() method, read "+ id +" to memory first");
+				LOGGER.debug("Starting initFile() method, read "+ id +" to memory first");
 				//https://www.rgagnon.com/javadetails/java-0487.html
 				URLConnection connection = url.openConnection();
 
@@ -192,20 +192,20 @@ public class ElphelJp4Reader  extends ImageIOReader{
 					content_fileName = "unknown." + suffix;
 				}
 				//	 			currentId = fileName; //???
-				//	 			LOGGER.info("Mime type = "+mime);
+				//	 			LOGGER.debug("Mime type = "+mime);
 				// https://stackoverflow.com/questions/2793150/how-to-use-java-net-urlconnection-to-fire-and-handle-http-requests
 
 				//https://stackoverflow.com/questions/2295221/java-net-url-read-stream-to-byte
 				InputStream is =    url.openStream (); //
 				byte[] inBytes = IOUtils.toByteArray(is);
 				if (is != null) is.close();
-				LOGGER.info("Bytes read: "+ inBytes.length);
+				LOGGER.debug("Bytes read: "+ inBytes.length);
 				Location.mapFile(content_fileName, new ByteArrayHandle(inBytes));
 //				HashMap<String,Object> dbg_loc = Location.getIdMap();
 				super.setId(content_fileName);
 			} else { // read file normally
 				content_fileName = id;
-				LOGGER.info("read file directly");
+				LOGGER.debug("read file directly");
 				super.setId(id);
 			}
 		}
@@ -229,7 +229,7 @@ public class ElphelJp4Reader  extends ImageIOReader{
 		LOGGER.debug("initFile("+id+"), currentId="+currentId+",  after super" );
 		// Below needs to be modified - EXIFService does not work with mapFile
 		MetadataStore store = makeFilterMetadata();
-		LOGGER.info("Parsing JPEG EXIF data");
+		LOGGER.debug("Parsing JPEG EXIF data");
 		HashMap<String, String> tags = null;
 		try {
 			// Reimplementing ExifServiceImpl as original does not have ExifIFD0Directory
@@ -307,14 +307,14 @@ public class ElphelJp4Reader  extends ImageIOReader{
 		int bytes_per_pixel =  1;
 		Hashtable<String, String> property_table = ElphelMeta.getMeta(
 				null, maker_note, exposure, date_time, bytes_per_pixel, true );
-		LOGGER.info("Created elphelMeta table, size="+property_table.size());
+		LOGGER.debug("Created elphelMeta table, size="+property_table.size());
 		for (String key:property_table.keySet()) {
 			addGlobalMeta(ELPHEL_PROPERTY_PREFIX+key,property_table.get(key));
 		}
 		MetadataLevel level = getMetadataOptions().getMetadataLevel();
 		if (level != MetadataLevel.MINIMUM) {
 			//			Integer[] tags = ifds.get(0).keySet().toArray(new Integer[0]);
-			//			LOGGER.info("initStandardMetadata() - got "+tags.length+" tags");
+			//			LOGGER.debug("initStandardMetadata() - got "+tags.length+" tags");
 		}
 		addGlobalMeta(ELPHEL_PROPERTY_PREFIX+CONTENT_FILENAME,content_fileName);
 
@@ -328,9 +328,9 @@ public class ElphelJp4Reader  extends ImageIOReader{
 //		HashMap<String,Object> dbg_loc = Location.getIdMap();
 		String saveCurrentId = currentId;
 		currentId = null;
-		LOGGER.info("close("+fileOnly+") before super");
+		LOGGER.debug("close("+fileOnly+") before super");
 		super.close(fileOnly); // curerent_id == null only during actual close?
-		LOGGER.info("close("+fileOnly+") after super");
+		LOGGER.debug("close("+fileOnly+") after super");
 		currentId = saveCurrentId;
 //		if ((content_fileName != null) && file_initialized){
 		if (!mapped_externally && file_initialized){ // will try to unmap non-mapped file, OK
@@ -370,7 +370,7 @@ public class ElphelJp4Reader  extends ImageIOReader{
 	public byte[] openBytes(int no, byte[] buf, int x, int y, int w, int h)
 			throws FormatException, IOException
 	{
-		LOGGER.info("openBytes() - before super()");
+		LOGGER.debug("openBytes() - before super()");
 		FormatTools.checkPlaneParameters(this, no, buf.length, x, y, w, h);
 		if (image_bytes == null) {
 			jp4Decode(no);
@@ -386,7 +386,7 @@ public class ElphelJp4Reader  extends ImageIOReader{
 					         w);
 			dest += w;
 		}
-		LOGGER.info("openBytes() - after super()");
+		LOGGER.debug("openBytes() - after super()");
 		return buf;
 	}
 	public void jp4Decode(int no) throws FormatException, IOException {
@@ -421,7 +421,7 @@ public class ElphelJp4Reader  extends ImageIOReader{
 		} else {
 			image_bytes = ib; // temporary
 		}
-		LOGGER.info("jp4Decode()");
+		LOGGER.debug("jp4Decode()");
 	}
 
 }

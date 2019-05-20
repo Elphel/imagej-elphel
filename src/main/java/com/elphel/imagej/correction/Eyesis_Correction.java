@@ -1,4 +1,4 @@
-package com.elphel.imagej.tileprocessor;
+package com.elphel.imagej.correction;
 /**
 ** -----------------------------------------------------------------------------**
 ** Eyesis_Correction.java
@@ -80,12 +80,6 @@ import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.GenericJTabbedDialog;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.common.WindowTools;
-import com.elphel.imagej.correction.BlueLeak;
-import com.elphel.imagej.correction.CorrectionColorProc;
-import com.elphel.imagej.correction.EyesisCorrections;
-import com.elphel.imagej.correction.EyesisDCT;
-import com.elphel.imagej.correction.PostProcessing;
-import com.elphel.imagej.correction.CorrectionColorProc.ColorGainsParameters;
 import com.elphel.imagej.dct.FactorConvKernel;
 import com.elphel.imagej.gpu.GPUTileProcessor;
 import com.elphel.imagej.gpu.JCuda_ImageJ_Example_Plugin;
@@ -93,6 +87,11 @@ import com.elphel.imagej.jp4.JP46_Reader_camera;
 import com.elphel.imagej.lwir.LwirReader;
 import com.elphel.imagej.readers.EyesisTiff;
 import com.elphel.imagej.tensorflow.TensorflowInferModel;
+import com.elphel.imagej.tileprocessor.DttRad2;
+import com.elphel.imagej.tileprocessor.ImageDtt;
+import com.elphel.imagej.tileprocessor.MLStats;
+import com.elphel.imagej.tileprocessor.QuadCLT;
+import com.elphel.imagej.tileprocessor.TwoQuadCLT;
 
 import ij.CompositeImage;
 import ij.IJ;
@@ -675,7 +674,8 @@ private Panel panel1,
 		if (LWIR_MODE) {
 			panelLWIR = new Panel();
 			panelLWIR.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
-			addButton("LWIR_ACQUIRE",                   panelLWIR, color_conf_process);
+			addButton("LWIR_TEST",                  panelLWIR, color_conf_process);
+			addButton("LWIR_ACQUIRE",               panelLWIR, color_conf_process);
 			add(panelLWIR);
 		}
 //
@@ -897,6 +897,9 @@ private Panel panel1,
 	if (DEBUG_LEVEL>0) System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
 	CLT_PARAMETERS.batch_run = false;
     if (label==null) return;
+    System.out.println("DEBUG_LEVEL = "+DEBUG_LEVEL+", MASTER_DEBUG_LEVEL = "+MASTER_DEBUG_LEVEL);
+	loci.common.DebugTools.enableLogging((MASTER_DEBUG_LEVEL > 1)?"DEBUG":((MASTER_DEBUG_LEVEL > 0)?"INFO":"ERROR")); // INFO"); // ERROR");
+
 /* ======================================================================== */
     if (label.equals("Configure spilt")) {
       showSplitBayerToStackDialog(SPLIT_PARAMETERS);
@@ -4826,12 +4829,12 @@ private Panel panel1,
     	TENSORFLOW_INFER_MODEL.test_tensorflow(keep_empty);
     	return;
 /* ======================================================================== */
-    } else if (label.equals("LWIR_ACQUIRE")) {
+    } else if (label.equals("LWIR_TEST")) {
         DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-		loci.common.DebugTools.enableLogging((DEBUG_LEVEL > 1)?"DEBUG":((DEBUG_LEVEL > 0)?"INFO":"ERROR")); // INFO"); // ERROR");
+//		loci.common.DebugTools.enableLogging((DEBUG_LEVEL > 1)?"DEBUG":((DEBUG_LEVEL > 0)?"INFO":"ERROR")); // INFO"); // ERROR");
 		//   public static LwirReader       LWIR_READER = null;
 		if (LWIR_READER == null) {
-			LWIR_READER =  new LwirReader();
+			LWIR_READER =  new LwirReader(CLT_PARAMETERS.lwir);
 		}
         ImagePlus [][] imps = LWIR_READER.readAllMultiple(
     			10, // final int     num_frames,
@@ -4841,11 +4844,25 @@ private Panel panel1,
 			imp.show();
 		}
 
-		System.out.println("LWIR_ACQUIRE: got "+imps.length+" image sets");
+		System.out.println("LWIR_TEST: got "+imps.length+" image sets");
 		ImagePlus [][] imps_sync =  LWIR_READER.matchSets(imps, 0.001, 3); // double max_mismatch)
 		if (imps_sync != null) {
 			ImagePlus [] imps_avg = LWIR_READER.averageMultiFrames(imps_sync);
 			for (ImagePlus imp: imps_avg) {
+				imp.show();
+			}
+		}
+/* ======================================================================== */
+    } else if (label.equals("LWIR_ACQUIRE")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+//		loci.common.DebugTools.enableLogging((DEBUG_LEVEL > 1)?"DEBUG":((DEBUG_LEVEL > 0)?"INFO":"ERROR")); // INFO"); // ERROR");
+		//   public static LwirReader       LWIR_READER = null;
+		if (LWIR_READER == null) {
+			LWIR_READER =  new LwirReader(CLT_PARAMETERS.lwir);
+		}
+        ImagePlus [] imps = LWIR_READER.acquire();
+		if (imps != null) {
+			for (ImagePlus imp: imps) {
 				imp.show();
 			}
 		}
@@ -7675,6 +7692,7 @@ private Panel panel1,
 	   PSF_SUBPIXEL_SHOULD_BE_4=Integer.parseInt(properties.getProperty("PSF_SUBPIXEL_SHOULD_BE_4"));
 	   if (QUAD_CLT != null)     QUAD_CLT.getProperties(QuadCLT.PREFIX);
 	   if (QUAD_CLT_AUX != null) QUAD_CLT_AUX.getProperties(QuadCLT.PREFIX_AUX);
+
     }
 
 /* ======================================================================== */

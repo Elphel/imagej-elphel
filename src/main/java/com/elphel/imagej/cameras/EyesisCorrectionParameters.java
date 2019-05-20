@@ -37,6 +37,7 @@ import java.util.Set;
 import com.elphel.imagej.calibration.CalibrationFileManagement;
 import com.elphel.imagej.common.GenericJTabbedDialog;
 import com.elphel.imagej.common.WindowTools;
+import com.elphel.imagej.lwir.LwirReaderParameters;
 import com.elphel.imagej.tileprocessor.BiQuadParameters;
 import com.elphel.imagej.tileprocessor.ImageDtt;
 import com.elphel.imagej.tileprocessor.ImageDttParameters;
@@ -3252,6 +3253,8 @@ public class EyesisCorrectionParameters {
   		public BiQuadParameters               rig =     new BiQuadParameters();
   		public PoleProcessorParameters        poles =   new PoleProcessorParameters();
   		public MeasuredLayersFilterParameters mlfp =    new MeasuredLayersFilterParameters();
+  		public LwirReaderParameters           lwir =    new LwirReaderParameters();
+
 
   		public HashMap<String,Double> z_corr_map = new HashMap<String,Double>(); //old one
   		public HashMap<String,Double> infinity_distace_map = new HashMap<String,Double>(); //new one
@@ -3945,6 +3948,7 @@ public class EyesisCorrectionParameters {
   	  		mlfp.setProperties    (prefix+"_mlfp",    properties);
   	  		rig.setProperties     (prefix+"_rig",     properties);
   	  		poles.setProperties   (prefix+"_poles",   properties);
+  	  		lwir.setProperties    (prefix+"_lwir",   properties);
   		}
 
   		public void setPropertiesInfinityDistance(String prefix,Properties properties){
@@ -4653,6 +4657,7 @@ public class EyesisCorrectionParameters {
   	  		mlfp.getProperties    (prefix+"_mlfp",    properties);
   	  		rig.getProperties     (prefix+"_rig",     properties);
   	  		poles.getProperties   (prefix+"_poles",   properties);
+  	  		lwir.getProperties    (prefix+"_lwir",   properties);
   		}
 
   		public boolean showJDialog() {
@@ -5467,8 +5472,12 @@ public class EyesisCorrectionParameters {
   			gd.addCheckbox    ("Show 'flaps-dirs'",                                                            this.show_flaps_dirs);
   			gd.addCheckbox    ("Show 'first_N_clusters'",                                                      this.show_first_clusters);
   			gd.addCheckbox    ("Show planes",                                                                  this.show_planes);
+
   			gd.addMessage     ("Unity up vector in camera coordinate system (x - right, y - up, z - to camera): {"+
   			this.vertical_xyz[0]+","+this.vertical_xyz[1]+","+this.vertical_xyz[2]+"}");
+
+  			gd.addTab         ("LWIR", "parameters for LWIR/VNIR 8-camera rig");
+  			this.lwir.dialogQuestions(gd);
 
 //  			gd.buildDialog();
   			gd.showDialog();
@@ -6150,6 +6159,9 @@ public class EyesisCorrectionParameters {
   			this.show_flaps_dirs=       gd.getNextBoolean();
   			this.show_first_clusters=   gd.getNextBoolean();
   			this.show_planes=           gd.getNextBoolean();
+
+            this.lwir.dialogAnswers(gd);
+
   			return true;
   		}
 

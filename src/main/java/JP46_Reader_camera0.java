@@ -1,6 +1,6 @@
 /**
  ** -----------------------------------------------------------------------------**
- ** JP46_Reader_camera.java
+ ** JP46_Reader_camera0.java
  **
  ** Reads Elphel Camera JP46 files into ImageJ, un-applying gamma and gains
  **
@@ -23,7 +23,6 @@
  ** -----------------------------------------------------------------------------**
  **
  */
-package com.elphel.imagej.jp4;
 import java.awt.Button;
 import java.awt.Frame;
 import java.awt.GridLayout;
@@ -74,7 +73,7 @@ import ij.text.TextWindow;
 
 
 /* This plugin opens images in Elphel JP4/JP46 format (opens as JPEG, reads MakerNote and converts). */
-public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
+public class JP46_Reader_camera0 extends PlugInFrame implements ActionListener {
 
 	/**
 	 *
@@ -98,7 +97,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 	public String imageTitle="cameraImage";
 	private int ExifOffset=0x0c;
 
-	public JP46_Reader_camera() {
+	public JP46_Reader_camera0() {
 		super("JP46 Reader Camera");
 		if (IJ.versionLessThan("1.39t")) return;
 		if (instance!=null) {
@@ -126,7 +125,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		GUI.center(this);
 		setVisible(true);
 	}
-	public JP46_Reader_camera(boolean showGUI) {
+	public JP46_Reader_camera0(boolean showGUI) {
 		super("JP46 Reader Camera");
 		if (IJ.versionLessThan("1.39t")) return;
 		if (instance!=null) {
@@ -1312,7 +1311,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
  * When using in multithreaded with (probably) the same composite image
 Exception in thread "Thread-3564" java.lang.ArrayIndexOutOfBoundsException: 8970912
         at ij.process.FloatProcessor.crop(FloatProcessor.java:706)
-        at JP46_Reader_camera.demuxImage(JP46_Reader_camera.java:1104)
+        at JP46_Reader_camera0.demuxImage(JP46_Reader_camera0.java:1104)
         at CalibrationHardwareInterface$CamerasInterface$4.run(CalibrationHardwareInterface.java:1101)
 
  */
@@ -1431,7 +1430,7 @@ Exception in thread "Thread-3564" java.lang.ArrayIndexOutOfBoundsException: 8970
 	 */
 	public static void main(String[] args) {
 		// set the plugins.dir property to make the plugin appear in the Plugins menu
-		Class<?> clazz = JP46_Reader_camera.class;
+		Class<?> clazz = JP46_Reader_camera0.class;
 		String url = clazz.getResource("/" + clazz.getName().replace('.', '/') + ".class").toString();
 		String pluginsDir = url.substring(5, url.length() - clazz.getName().length() - 6);
 		System.out.println(System.getProperty("plugins.dir"));

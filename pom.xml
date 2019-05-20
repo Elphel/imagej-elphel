@@ -107,6 +107,17 @@
 			<resource>
 				<directory>${project.build.sourceDirectory}</directory>
 			</resource>
+<!-- trying to copy deep classes to top for the imageJ to see as plugins-->
+<!-- 
+		    <resource>
+		      <filtering>true</filtering>
+		      <directory>${basedir}/target/classes/com/elphel/imagej/jp4</directory>
+		      <targetPath>${basedir}/target/classes</targetPath>
+		      <includes>
+		        <include>JP46_Reader_camera.class</include>
+		      </includes>
+		    </resource>
+ -->			
 		</resources>
 		<testResources>
 			<testResource>
