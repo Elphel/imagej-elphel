@@ -32,21 +32,22 @@ import com.elphel.imagej.common.GenericJTabbedDialog;
 
 public class LwirReaderParameters {
 	private boolean parameters_updated = false;
-	protected int    avg_number =            4; // number of measurements to average
-	public boolean   avg_all =               true;
-	protected String lwir_ip =               "192.168.0.36";
-	protected String vnir_ip =               "192.168.0.38";
-	protected int [] lwir_channels =         {0, 1, 2 ,3};
-	protected int [] vnir_channels =         {0, 1, 2 ,3};
-	protected double vnir_quality =          98.0;
+	protected int     avg_number =            4; // number of measurements to average
+	protected boolean avg_all =               true;
+	protected String  lwir_ip =               "192.168.0.36";
+	protected String  vnir_ip =               "192.168.0.38";
+	protected int []  lwir_channels =         {0, 1, 2 ,3};
+	protected int []  vnir_channels =         {0, 1, 2 ,3};
+	protected boolean lwir_telemetry =        true;
+	protected double  vnir_quality =          98.0;
 	protected boolean vnir_scale =           false; // restore sensor pixel values, undo camera white balancing
 	protected boolean vnir_autoexp =         false;
-	protected double vnir_max_autoexp_ms =  20.0;
-	protected double vnir_exposure_ms =      5.0;
+	protected double  vnir_max_autoexp_ms =  20.0;
+	protected double  vnir_exposure_ms =      5.0;
 	protected boolean vnir_whitebal =        false;
-	protected double vnir_gain_g =           2.0;
-	protected double vnir_gain_rg =          0.7705; // 1.116; halogen/fluorescent
-	protected double vnir_gain_bg =          2.401;  // 1.476;
+	protected double  vnir_gain_g =           2.0;
+	protected double  vnir_gain_rg =          0.7705; // 1.116; halogen/fluorescent
+	protected double  vnir_gain_bg =          2.401;  // 1.476;
 /*
 	protected double [] vnir_exp_corr = {1.0, 1.0, 1.0, 1.0};
 	protected double [] vnir_gcorr_rbgb = {
@@ -63,10 +64,10 @@ public class LwirReaderParameters {
 			1.0668, 1.1055, 1.0006,
 			1.1533, 1.0780, 1.0015,
 			0.9966, 1.0445, 1.0023};
-	protected int    lwir_trig_dly   =     1000; //in 100MHz clock cycle, current FPGA requires >0 (used 1000)
-	protected int    vnir_lag   =          1; // frames
-	protected double max_mismatch_ms =     0.05;
-	protected int    max_frame_diff =      1; // 2;
+	protected int     lwir_trig_dly   =     1000; //in 100MHz clock cycle, current FPGA requires >0 (used 1000)
+	protected int     vnir_lag   =          1; // frames
+	protected double  max_mismatch_ms =     0.05;
+	protected int     max_frame_diff =      1; // 2;
 
 
 	// --- interface methods
@@ -77,6 +78,7 @@ public class LwirReaderParameters {
 		properties.setProperty(prefix+"vnir_ip",             this.vnir_ip+"");
 		properties.setProperty(prefix+"lwir_channels",       arr_to_str(this.lwir_channels));
 		properties.setProperty(prefix+"vnir_channels",       arr_to_str(this.vnir_channels));
+		properties.setProperty(prefix+"lwir_telemetry",      this.lwir_telemetry+"");
 		properties.setProperty(prefix+"vnir_quality",        this.vnir_quality+"");
 		properties.setProperty(prefix+"vnir_scale",          this.vnir_scale+"");
 		properties.setProperty(prefix+"vnir_autoexp",        this.vnir_autoexp+"");
@@ -101,6 +103,7 @@ public class LwirReaderParameters {
 		if (properties.getProperty(prefix+"vnir_ip")!=null)             this.vnir_ip=      properties.getProperty(prefix+"vnir_ip");
 		if (properties.getProperty(prefix+"lwir_channels")!=null)       this.lwir_channels=str_to_iarr(properties.getProperty(prefix+"lwir_channels"));
 		if (properties.getProperty(prefix+"vnir_channels")!=null)       this.vnir_channels=str_to_iarr(properties.getProperty(prefix+"vnir_channels"));
+		if (properties.getProperty(prefix+"lwir_telemetry")!=null)      this.lwir_telemetry= Boolean.parseBoolean(properties.getProperty(prefix+"lwir_telemetry"));
 		if (properties.getProperty(prefix+"vnir_quality")!=null)        this.vnir_quality=Double.parseDouble(properties.getProperty(prefix+"vnir_quality"));
 		if (properties.getProperty(prefix+"vnir_scale")!=null)          this.vnir_scale= Boolean.parseBoolean(properties.getProperty(prefix+"vnir_scale"));
 		if (properties.getProperty(prefix+"vnir_autoexp")!=null)        this.vnir_autoexp= Boolean.parseBoolean(properties.getProperty(prefix+"vnir_autoexp"));
@@ -127,6 +130,7 @@ public class LwirReaderParameters {
 		lrp.vnir_ip=                   this.vnir_ip;
 		lrp.lwir_channels=             this.lwir_channels.clone();
 		lrp.vnir_channels=             this.vnir_channels.clone();
+		lrp.lwir_telemetry=            this.lwir_telemetry;
 		lrp.vnir_quality=              this.vnir_quality;
 		lrp.vnir_scale=                this.vnir_scale;
 		lrp.vnir_autoexp=              this.vnir_autoexp;
@@ -160,6 +164,7 @@ public class LwirReaderParameters {
 				(lrp.vnir_ip.equals(this.vnir_ip)) &&
 				(java.util.Arrays.equals(lrp.lwir_channels, this.lwir_channels)) &&
 				(java.util.Arrays.equals(lrp.vnir_channels, this.vnir_channels)) &&
+				(lrp.lwir_telemetry == this.lwir_telemetry) &&
 				(lrp.vnir_quality == this.vnir_quality) &&
 				(lrp.vnir_scale == this.vnir_scale) &&
 				(lrp.vnir_autoexp == this.vnir_autoexp) &&
@@ -187,6 +192,7 @@ public class LwirReaderParameters {
 		result = prime * result + vnir_ip.hashCode();
 		result = prime * result + arr_to_str(lwir_channels).hashCode();
 		result = prime * result + arr_to_str(vnir_channels).hashCode();
+		result = prime * result + (lwir_telemetry?1:0);
 		result = prime * result + (new Double(vnir_quality)).hashCode();
 		result = prime * result + (vnir_scale?1:0);
 		result = prime * result + (vnir_autoexp?1:0);
@@ -213,6 +219,7 @@ public class LwirReaderParameters {
 		gd.addStringField ("VNIR IP",       this.vnir_ip, 20, "Visible range high resolution camera IP address");
 		gd.addStringField ("LWIR channels", arr_to_str(this.lwir_channels), 20, "Space-separated list of used LWIR camera channels, such as '0 1 2 3'");
 		gd.addStringField ("VNIR channels", arr_to_str(this.vnir_channels), 20, "Space-separated list of used visible range camera channels, such as '0 1 2 3'");
+		gd.addCheckbox    ("LWIR telemetry",    this.lwir_telemetry, "Set LWIR sesnors to provide telemetry data in the last 2 lines (may become mandatory later)");
 		gd.addNumericField("VNIR quality",  this.vnir_quality,  3,6,"ms", "Visible range camera JPEG compression quality (all channels)");
 		gd.addCheckbox    ("VNIR undo white balance",    this.vnir_scale, "Undo in-camera white balancing");
 		gd.addCheckbox    ("VNIR autoexposure", this.vnir_autoexp, "Enable autoexposure for the visible range camera");
@@ -237,6 +244,7 @@ public class LwirReaderParameters {
 		this.vnir_ip =                      gd.getNextString();
 		this.lwir_channels =                str_to_iarr(gd.getNextString());
 		this.vnir_channels =                str_to_iarr(gd.getNextString());
+		this.lwir_telemetry =               gd.getNextBoolean();
 		this.vnir_quality =                 gd.getNextNumber();
 		this.vnir_scale =                   gd.getNextBoolean();
 		this.vnir_autoexp =                 gd.getNextBoolean();

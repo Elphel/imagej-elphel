@@ -47,6 +47,7 @@ public class ImagejJp4TiffMulti {
 	public ImagePlus [] getMultiImages(
 			final String [] urls,
 			final ImagePlus [] imps,
+//			final boolean telemetry,
 			final boolean scale,
 			final String std) throws IOException, FormatException  // std - include non-elphel properties with prefix std
 	{

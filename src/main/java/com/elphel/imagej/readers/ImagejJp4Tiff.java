@@ -35,6 +35,7 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.Properties;
@@ -65,8 +66,10 @@ public class ImagejJp4Tiff {
 
 	private static final Logger LOGGER = LoggerFactory.getLogger(ClassList.class);
 	private static final boolean BYPASS_SERVICES = false; //  true;
+	private static final String TELEMETRY_PREFIX = "TLM_";
 	private static final String SERVICES_PATH = "services.properties.forelphel";
 	private static final boolean KEEP_EXTENSION = false; // remove extension for ImagePlus title
+	private static final boolean BOTTOM_TELEMETRY = true; // telemetry (if present) is at the bottom of the image
 
 	// -- Fields --
 
@@ -186,12 +189,13 @@ public class ImagejJp4Tiff {
 		boolean is_le = reader.isLittleEndian();
 		int bytes_per_pixel =  (bpp + 7) / 9;
 		float [] pixels = new float [bytes.length/bytes_per_pixel];
+		ByteBuffer bb = null;
 		if (bytes_per_pixel == 1) {
 			for (int i = 0; i < pixels.length; i++) {
 				pixels[i] = ((bytes[i])) & 0xff;
 			}
 		} else {
-			ByteBuffer bb = ByteBuffer.wrap(bytes);
+			bb = ByteBuffer.wrap(bytes);
 			if (is_le) {
 				bb.order( ByteOrder.LITTLE_ENDIAN);
 			} else {
@@ -208,9 +212,20 @@ public class ImagejJp4Tiff {
 			LOGGER.error("Problem degamma/scaling of "+content_fileName);
 
 		}
-
-		ImageProcessor ip=new FloatProcessor(reader.getSizeX(), reader.getSizeY());
-		ip.setPixels(pixels);
+		boolean telemetry = (bytes_per_pixel == 2);
+		Lepton3Telemetry lepton3Telemetry = null;
+		if (telemetry) {
+			lepton3Telemetry = new Lepton3Telemetry(bb,pixels, true); // bottom
+			telemetry = lepton3Telemetry.hasTelemetry();
+		}
+		ImageProcessor ip = null;
+		if (telemetry) {
+			ip=new FloatProcessor(Lepton3Telemetry.LEPTON3_IMAGE_WIDTH, Lepton3Telemetry.LEPTON3_IMAGE_HEIGHT);
+			ip.setPixels(lepton3Telemetry.getPixels()); // bo
+		} else {
+			ip=new FloatProcessor(reader.getSizeX(), reader.getSizeY());
+			ip.setPixels(pixels);
+		}
 		ip.resetMinAndMax();
 		String prefix = ElphelTiffReader.ELPHEL_PROPERTY_PREFIX;
 		String imageName = content_fileName; // path;
@@ -232,6 +247,12 @@ public class ImagejJp4Tiff {
 				imp.setProperty(key.substring(prefix.length()), meta_hash.get(key).toString());
 			} else if (std != null) {
 				imp.setProperty(std+(key.replace(" ","_").replace("/","_")), meta_hash.get(key).toString());
+			}
+		}
+		if (telemetry) {
+			HashMap<String, String> telemetryMap = lepton3Telemetry.parseTelemetry();
+			for (String key:telemetryMap.keySet()) {
+				imp.setProperty(TELEMETRY_PREFIX+key, telemetryMap.get(key));
 			}
 		}
 		encodeProperiesToInfo(imp);

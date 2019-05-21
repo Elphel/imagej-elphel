@@ -65,6 +65,9 @@ public class LwirReader {
 	public static final String SKIP_FRAME_URL= "/towp/wait/meta";          // Wit for the next frame, return meta data
 	public static final int COLOR_JP4 = 5;
 	public static final int COLOR_RAW = 15;
+	public static final int LWIR_HEIGHT = 120;
+	public static final int LWIR_TELEMETRY_LINES = 2;
+
 	public static final int FRAMES_SKIP = 3;
 	public static final int MAX_THREADS = 100; // combine from all classes?
 
@@ -103,13 +106,16 @@ public class LwirReader {
 
 	public ImagePlus[][] readAllMultiple(
 			final int     num_frames,
+//			final boolean telemetry,
 			final boolean show,
 			final boolean scale) {
 		return readAllMultiple(num_frames, show, scale, "STD_");
+//		return readAllMultiple(num_frames, telemetry, show, scale, "STD_");
 	}
 
 	public ImagePlus[][] readAllMultiple(
 			final int     num_frames,
+//			final boolean telemetry,
 			final boolean show,
 			final boolean scale,
 			final String  std)
@@ -125,6 +131,7 @@ public class LwirReader {
 			imagejJp4TiffMulti = new ImagejJp4TiffMulti();
 			for (int i = 0; i < 2; i++) {
 				try {
+//					imagejJp4TiffMulti.getMultiImages(urls0, imps[0],  telemetry, scale,  std);
 					imagejJp4TiffMulti.getMultiImages(urls0, imps[0],  scale,  std);
 				} catch (IOException e) {
 					LOGGER.error("readAllMultiple0: IOException, priming" );
@@ -143,6 +150,7 @@ public class LwirReader {
 		for (int n = 0; n < num_frames; n++) {
 			LOGGER.info("---- Acquiring frame set "+n);
 			try {
+//				imagejJp4TiffMulti.getMultiImages( (n==0)? urls0:urls1, imps[n], telemetry,  scale,  std);
 				imagejJp4TiffMulti.getMultiImages( (n==0)? urls0:urls1, imps[n],  scale,  std);
 			} catch (IOException e) {
 				LOGGER.error("readAllMultiple0: IOException, n = " + n);
@@ -365,6 +373,7 @@ public class LwirReader {
 		int num_frames = lrp.avg_number + lrp.vnir_lag + 2 * lrp.max_frame_diff;
 		ImagePlus [][] imps = readAllMultiple(
 				num_frames,
+//				lrp.lwir_telemetry,
 				false, // final boolean show,
 				lrp.vnir_scale);
 		if (imps == null) {
@@ -433,7 +442,8 @@ public class LwirReader {
 		for (int chn:lrp.lwir_channels) {
 			urls[chn] = "http://"+lrp.lwir_ip+"/parsedit.php?immediate&sensor_port="+chn+
 					"&BITS=16"+
-					"&COLOR="+COLOR_RAW; // +"*0"; // raw mode - delay 0 - breaks compressor
+					"&COLOR="+COLOR_RAW+ // +"*0"; // raw mode - delay 0 - breaks compressor
+					"&WOI_HEIGHT="+(LWIR_HEIGHT + (lrp.lwir_telemetry?LWIR_TELEMETRY_LINES:0));
 			if (chn == lwir_master_port) {
 				urls[chn] +="&TRIG=0*0"+
 						"&TRIG_DELAY="+lrp.lwir_trig_dly+"*0"+

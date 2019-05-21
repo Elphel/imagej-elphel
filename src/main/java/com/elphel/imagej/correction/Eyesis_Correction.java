@@ -4838,6 +4838,7 @@ private Panel panel1,
 		}
         ImagePlus [][] imps = LWIR_READER.readAllMultiple(
     			10, // final int     num_frames,
+//    			true, // use LWIR telemetry
     			true, // final boolean show,
     			false); // true); // final boolean scale)
 		for (ImagePlus imp: imps[0]) {
