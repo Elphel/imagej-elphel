@@ -52,6 +52,7 @@ public class ImagejJp4TiffMulti {
 			final String std) throws IOException, FormatException  // std - include non-elphel properties with prefix std
 	{
 //		final ImagePlus [] imps = new ImagePlus [urls.length];
+		LOGGER.error("Please ignore 'File has length 0 and may be corrupt' - caused by bioformat reading memory file");
    		final Thread[] threads = newThreadArray(MAX_THREADS);
    		final AtomicInteger indxAtomic = new AtomicInteger(0);
    		final AtomicInteger threadAtomic = new AtomicInteger(0);
