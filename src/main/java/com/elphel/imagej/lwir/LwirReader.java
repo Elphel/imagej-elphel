@@ -318,6 +318,7 @@ public class LwirReader {
 	}
 
 	public boolean calibrate(LwirReaderParameters lrp) {
+		// FFC takes 15 frames that are not output (so no need to check operation is over)
 		if (lrp.lwir_channels.length == 0) {
 			LOGGER.error("calibrate(): No LWIR channels are configured");
 			return false;
@@ -328,7 +329,6 @@ public class LwirReader {
 			channels |= 1 << c;
 		}
 		String hex_chan = String.format("%x", channels);
-		System.out.println("Channels = "+channels+" (0x"+hex_chan);
 
 		String url = "http://"+lrp.lwir_ip+"/parsedit.php?immediate&sensor_port="+chn+
 				"&SENSOR_REGS67=0!"+hex_chan;

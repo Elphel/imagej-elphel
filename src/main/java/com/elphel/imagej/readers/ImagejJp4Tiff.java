@@ -91,8 +91,6 @@ public class ImagejJp4Tiff {
 		//URL u = this.getClass().getResource(SERVICES_PATH);
 //		URL u = this.getClass().getResource("/"+SERVICES_PATH);
 
-//		loci.common.DebugTools.enableLogging("ERROR");
-
 		if (!BYPASS_SERVICES) {
 			ServiceFactory factory = null;
 
@@ -153,7 +151,7 @@ public class ImagejJp4Tiff {
 		}
 		//https://stackoverflow.com/questions/39086500/read-http-response-header-and-body-from-one-http-request-in-java
 		if (url != null) {
-			LOGGER.error("Read "+ path_url +" to memory first");
+			LOGGER.info("Read "+ path_url +" to memory first");
 			URLConnection connection = url.openConnection();
 // Wrong - waits forever
 			String content_disposition = connection.getHeaderField("Content-Disposition"); // reads file
