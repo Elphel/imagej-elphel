@@ -177,7 +177,7 @@ public class LwirReader {
 					img_numbers[n][i] = -1;
 				}
 				img_names[n][i] = (String) imps[n][i].getProperty("CONTENT_FILENAME");
-				LOGGER.info("Seconds for" + n+":"+i+" - "+img_seconds[n][i]+", number"+img_numbers[n][i]+", name "+img_names[n][i]);
+				LOGGER.warn("Seconds for" + n+":"+i+" - "+img_seconds[n][i]+", number"+img_numbers[n][i]+", name "+img_names[n][i]);
 			}
 		}
 
@@ -292,7 +292,7 @@ public class LwirReader {
 		out_of_sync = false;
 		for (int i = 0; i < num_channels; i++) {
 			// change to info later:
-			LOGGER.info("Channel "+ i+" frame offset="+frame_offsets[i]+ ", time offset = "+time_offsets[i]+" sec");
+			LOGGER.warn("Channel "+ i+" frame offset="+frame_offsets[i]+ ", time offset = "+time_offsets[i]+" sec");
 		}
 		// 		if (lags == null) lags = new int [num_channels];
 
@@ -323,6 +323,11 @@ public class LwirReader {
 			LOGGER.error("calibrate(): No LWIR channels are configured");
 			return false;
 		}
+		// Skipping frame to synchronize setting calibration command
+		if (!skipFrame(lrp)) {
+			LOGGER.error("programLWIRCamera():Failed to skip frame");
+		}
+
 		int chn = lrp.lwir_channels[0];
 		int channels = 0;
 		for (int c : lrp.lwir_channels) {
@@ -333,6 +338,7 @@ public class LwirReader {
 		String url = "http://"+lrp.lwir_ip+"/parsedit.php?immediate&sensor_port="+chn+
 				"&SENSOR_REGS67=0!"+hex_chan;
 		Document dom=null;
+		LOGGER.warn("calibrate(): Perform calibration (instead of 15 frames), url="+url);
 		try {
 			DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
 			DocumentBuilder db = dbf.newDocumentBuilder();
