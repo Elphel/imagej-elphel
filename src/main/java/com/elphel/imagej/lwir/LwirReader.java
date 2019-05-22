@@ -191,6 +191,7 @@ public class LwirReader {
 	}
 
 	public ImagePlus [] averageMultiFrames(ImagePlus [][] sets) {
+		//TODO: convert to multithreaded !
 		int num_frames = sets.length;
 		int num_channels = sets[0].length;
 		ImagePlus [] imps_avg = new ImagePlus [num_channels];
@@ -316,6 +317,54 @@ public class LwirReader {
 		return imps_synced;
 	}
 
+	public boolean calibrate(LwirReaderParameters lrp) {
+		if (lrp.lwir_channels.length == 0) {
+			LOGGER.error("calibrate(): No LWIR channels are configured");
+			return false;
+		}
+		int chn = lrp.lwir_channels[0];
+		int channels = 0;
+		for (int c : lrp.lwir_channels) {
+			channels |= 1 << c;
+		}
+		String hex_chan = String.format("%x", channels);
+		System.out.println("Channels = "+channels+" (0x"+hex_chan);
+
+		String url = "http://"+lrp.lwir_ip+"/parsedit.php?immediate&sensor_port="+chn+
+				"&SENSOR_REGS67=0!"+hex_chan;
+		Document dom=null;
+		try {
+			DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
+			DocumentBuilder db = dbf.newDocumentBuilder();
+			dom = db.parse(url);
+			if (!dom.getDocumentElement().getNodeName().equals("parameters")) {
+				LOGGER.error("programLWIRCamera() in " + url+
+						": Root element: expected 'parameters', got \"" + dom.getDocumentElement().getNodeName()+"\"");
+				return false;
+			}
+		} catch(MalformedURLException e){
+			LOGGER.error("programLWIRCamera() in " + url+ ": " + e.toString());
+			return false;
+		} catch(IOException  e1){
+			LOGGER.error("programLWIRCamera() in " + url+ " - camera did not respond: " + e1.toString());
+			return false;
+		}catch(ParserConfigurationException pce) {
+			LOGGER.error("programLWIRCamera() in " + url+ " - PCE error: " + pce.toString());
+			return false;
+		}catch(SAXException se) {
+			LOGGER.error("programLWIRCamera() in " + url+ " - SAX error: " + se.toString());
+			return false;
+		}
+		for (int i = 0; i < FRAMES_SKIP; i++) {
+			if (!skipFrame(lrp)) {
+				LOGGER.error("programLWIRCamera():Failed to skip frame");
+			}
+		}
+
+		return true;
+	}
+
+
 	private double secOffs(double sec1, double sec2) {
 		double aoff = Math.abs(sec2 - sec1);
 		if (aoff > 30) {
@@ -369,6 +418,9 @@ public class LwirReader {
 		if (!condProgramLWIRCamera(lrp)) {
 			LOGGER.error("acquire(): failed to program cameras");
 			return null;
+		}
+		if (lrp.lwir_ffc) {
+			calibrate(lrp); // seems to work. test calibration duration and if any images are sent during calibration
 		}
 		int num_frames = lrp.avg_number + lrp.vnir_lag + 2 * lrp.max_frame_diff;
 		ImagePlus [][] imps = readAllMultiple(

@@ -38,6 +38,7 @@ public class LwirReaderParameters {
 	protected String  vnir_ip =               "192.168.0.38";
 	protected int []  lwir_channels =         {0, 1, 2 ,3};
 	protected int []  vnir_channels =         {0, 1, 2 ,3};
+	protected boolean lwir_ffc =              true;
 	protected boolean lwir_telemetry =        true;
 	protected double  vnir_quality =          98.0;
 	protected boolean vnir_scale =           false; // restore sensor pixel values, undo camera white balancing
