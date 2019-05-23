@@ -9453,7 +9453,7 @@ if (MORE_BUTTONS) {
 	}
 
     /* ======================================================================== */
-	if       (label.equals("Goniometer LWIR")) {
+	if       (label.equals("LWIR Goniometer")) {
 		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
 
 //		CAMERAS.setNumberOfThreads(THREADS_MAX);
