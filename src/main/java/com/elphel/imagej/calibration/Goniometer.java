@@ -3,13 +3,13 @@ package com.elphel.imagej.calibration;
  ** -----------------------------------------------------------------------------**
  ** Goniometer.java
  **
- ** Measurements in the "goniometer" machine 
- ** 
+ ** Measurements in the "goniometer" machine
+ **
  **
  ** Copyright (C) 2010 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
- **  
+ **
  **  Goniometer.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
@@ -29,12 +29,10 @@ package com.elphel.imagej.calibration;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import com.elphel.imagej.calibration.CalibrationHardwareInterface.CamerasInterface;
-import com.elphel.imagej.calibration.CalibrationHardwareInterface.GoniometerMotors;
-import com.elphel.imagej.calibration.SimulationPattern.SimulParameters;
 import com.elphel.imagej.cameras.EyesisCameraParameters;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.common.WindowTools;
+import com.elphel.imagej.lwir.LwirReader;
 
 import ij.IJ;
 import ij.ImagePlus;
@@ -53,6 +51,7 @@ horizontal axis:
 																				// for
 																				// debugging
 	public CalibrationHardwareInterface.CamerasInterface cameras = null;
+	LwirReader lwirReader = null;
 	// public CalibrationHardwareInterface.LaserPointers lasers = null;
 	// public static CalibrationHardwareInterface.FocusingMotors motorsS=null;
 	// public DistortionProcessConfiguration
@@ -81,7 +80,6 @@ horizontal axis:
 
 	public Goniometer(CalibrationHardwareInterface.CamerasInterface cameras,
 			MatchSimulatedPattern.DistortionParameters distortionParametersDefault,
-//			MatchSimulatedPattern.DistortionParameters distortion,
 			MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
 			EyesisCameraParameters eyesisCameraParameters,
 			MatchSimulatedPattern.LaserPointer laserPointers,
@@ -98,8 +96,33 @@ horizontal axis:
 		this.simulParametersDefault=simulParametersDefault;
 		this.goniometerParameters=goniometerParameters;
 		this.distortionProcessConfiguration=distortionProcessConfiguration;
-
 	}
+
+	public Goniometer(
+			LwirReader lwirReader,
+//			CalibrationHardwareInterface.CamerasInterface cameras,
+			MatchSimulatedPattern.DistortionParameters distortionParametersDefault,
+			MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
+			EyesisCameraParameters eyesisCameraParameters,
+			MatchSimulatedPattern.LaserPointer laserPointers,
+			SimulationPattern.SimulParameters simulParametersDefault,
+			Goniometer.GoniometerParameters goniometerParameters,
+			DistortionProcessConfiguration distortionProcessConfiguration
+			) {
+		this.lwirReader= lwirReader;
+//		this.cameras = cameras;
+		this.distortionParametersDefault = distortionParametersDefault;
+//		this.distortion = distortion;
+		this.patternDetectParameters=patternDetectParameters;
+		this.eyesisCameraParameters = eyesisCameraParameters;
+		this.laserPointers = laserPointers;
+		this.simulParametersDefault=simulParametersDefault;
+		this.goniometerParameters=goniometerParameters;
+		this.distortionProcessConfiguration=distortionProcessConfiguration;
+	}
+
+
+
 
 	//goniometerMotors
 	private enum MOT_ACT {
@@ -118,7 +141,7 @@ horizontal axis:
 			"Rotate to clockwise 200 degrees",
 			"Rotate to counter-clockwise 200 degrees",
 			"set current position as new home"};
-	
+
 
 	public boolean manualMove(
 			AtomicInteger stopRequested, // 1 - stop now, 2 - when convenient
@@ -126,7 +149,7 @@ horizontal axis:
 		int tiltMotor=2;  // 0-1-2
 		int axialMotor=1; // 0-1-2
 		boolean needsInit=false;
-		
+
 		int [] currentMotors=this.goniometerParameters.goniometerMotors.getCurrentPositions();
 		double currentTilt=currentMotors[tiltMotor]/this.goniometerParameters.goniometerMotors.stepsPerDegreeTilt;
 		double currentAxial=currentMotors[axialMotor]/this.goniometerParameters.goniometerMotors.stepsPerDegreeAxial;
@@ -137,7 +160,7 @@ horizontal axis:
 				"Current position:\n"+
 				"Tilt:  "+IJ.d2s(currentTilt,1)+" degrees ("+currentMotors[tiltMotor]+" steps)\n"+
 				"Axial: "+IJ.d2s(currentAxial,1)+" degrees ("+currentMotors[axialMotor]+" steps)\n");
-		
+
 		GenericDialog gd = new GenericDialog("User interrupt");
 
 		gd.addRadioButtonGroup("Select action", options, 7, 1, options[0]);
@@ -222,13 +245,15 @@ horizontal axis:
 		if (!OK) System.out.println("motorsMove()->false");
 		return true; // OK; // So will re-open dialog even after abort
 	}
+
+
 	public boolean scanAndAcquire(
 			double targetAngleHorizontal,
 			double targetAngleVertical,
 		    AtomicInteger stopRequested, // 1 - stop now, 2 - when convenient
 			boolean updateStatus
 			){
-		
+
 		int tiltMotor=2;  // 0-1-2
 		int axialMotor=1; // 0-1-2
 		int [] motors=this.goniometerParameters.goniometerMotors.updateMotorsPosition();
@@ -236,28 +261,28 @@ horizontal axis:
 		double thisAxial=motors[axialMotor]/this.goniometerParameters.goniometerMotors.stepsPerDegreeAxial;
 		double scanOverlapVertical=this.goniometerParameters.scanOverlapVertical;
 		double scanOverlapHorizontal=this.goniometerParameters.scanOverlapHorizontal;
-		
+
 		boolean  reverseAxial=(this.goniometerParameters.scanLimitAxialStart>this.goniometerParameters.scanLimitAxialEnd);
-        double scanLimitAxialLow= reverseAxial?this.goniometerParameters.scanLimitAxialEnd:this.goniometerParameters.scanLimitAxialStart;		
-        double scanLimitAxialHigh=   reverseAxial?this.goniometerParameters.scanLimitAxialStart:this.goniometerParameters.scanLimitAxialEnd;		
-		
+        double scanLimitAxialLow= reverseAxial?this.goniometerParameters.scanLimitAxialEnd:this.goniometerParameters.scanLimitAxialStart;
+        double scanLimitAxialHigh=   reverseAxial?this.goniometerParameters.scanLimitAxialStart:this.goniometerParameters.scanLimitAxialEnd;
+
 
 		boolean zenithToNadir=this.goniometerParameters.scanLatitudeHigh<this.goniometerParameters.scanLatitudeLow;
 		double scanLatitudeHigh=zenithToNadir? this.goniometerParameters.scanLatitudeLow: this.goniometerParameters.scanLatitudeHigh;
 		double scanLatitudeLow= zenithToNadir? this.goniometerParameters.scanLatitudeHigh:this.goniometerParameters.scanLatitudeLow;
-		
+
 		double scanStepTilt= targetAngleVertical*  (1.0-scanOverlapVertical);
 		double scanStepAxial=targetAngleHorizontal*(1.0-scanOverlapHorizontal); // valid at equator
 		if (this.debugLevel>1) System.out.println("scanStepTilt="+IJ.d2s(scanStepTilt,2)+", scanStepAxial="+IJ.d2s(scanStepAxial,2));
 
 		int numTiltSteps=(int) Math.ceil((scanLatitudeHigh-scanLatitudeLow)/scanStepTilt); // includes first and last
-		
+
 		if (numTiltSteps>0){ // increase vertical overlap to make it same for all images
 		   scanStepTilt=(scanLatitudeHigh-scanLatitudeLow)/numTiltSteps;
 		   scanOverlapVertical=1.0-(scanStepTilt/targetAngleVertical);
 		}
 		if (this.debugLevel>1) System.out.println("Updated scanStepTilt="+IJ.d2s(scanStepTilt,2)+", scanOverlapVertical="+IJ.d2s(scanOverlapVertical,2));
-		
+
 
 		double [] tilts=new double [numTiltSteps];
 		double [][] rots= new double [numTiltSteps][];
@@ -276,11 +301,10 @@ horizontal axis:
 			double cosMinAbsTilt=Math.cos(minAbsTilt*Math.PI/180.0);
 			if (this.debugLevel>2) System.out.println("tilt="+IJ.d2s(tilt,2)+"tiltL="+IJ.d2s(tiltL,2)+", tiltH="+IJ.d2s(tiltH,2)+
 					", minAbsTilt="+IJ.d2s(minAbsTilt,2)+", cosMinAbsTilt="+IJ.d2s(cosMinAbsTilt,2));
-//			double axialRange=
 			double scanStep=scanStepAxial;
 			double overlap=scanOverlapHorizontal;
 			int numAxialSteps=(int) Math.ceil((scanLimitAxialHigh-scanLimitAxialLow)*cosMinAbsTilt/scanStepAxial);
-			
+
 // Correction for bottom rollers that block view - if tilt is above 60degrees (positive - looking higher). The clear angle is ~36%
 			if (tilts[i]>this.bottomRollerTilt){
 				int numForRollers=(int) Math.ceil((scanLimitAxialHigh-scanLimitAxialLow)/(this.bottomRollersClearance*(1.0-scanOverlapHorizontal)));
@@ -292,12 +316,10 @@ horizontal axis:
 					numAxialSteps=numForRollers;
 				}
 			}
-			
-			
+
+
 			// spread evenly
 			if (numAxialSteps>0){ // increase vertical overlap to make it same for all images
-//				scanStep=(scanLimitAxialHigh-scanLimitAxialLow)*cosMinAbsTilt/numAxialSteps;
-//				overlap=1.0-(scanStep/targetAngleHorizontal);
 				scanStep=(scanLimitAxialHigh-scanLimitAxialLow)/numAxialSteps;
 				overlap=1.0-(scanStep*cosMinAbsTilt/targetAngleHorizontal);
 			}
@@ -322,14 +344,8 @@ horizontal axis:
 			  System.out.println();
 		  }
 		}
-//		return true;
-		
-//	motorsSimultaneous	
-// show current tilt/axial
-//		double absTiltRange=Math.abs(this.goniometerParameters.scanLimitTiltStart-this.goniometerParameters.scanLimitTiltStart);
-		
+
 		GenericDialog gd = new GenericDialog("Start scanning");
-		//	    		this.serialNumber, // camera serial number string
 		gd.addMessage("About to start scanning and recording images, parameters are set in the \"Configure Goniometer\" dialog");
 		gd.addMessage("Please make sure goniometer motors are set that 0,0 corresponds to the camera in the initial position -");
 		gd.addMessage("vertical and cables are not entangled, camera exposure is set correctly.");
@@ -343,7 +359,7 @@ horizontal axis:
 		if (this.lastScanStep>=0){
 			gd.addMessage("Last scan finished at stop "+this.lastScanStep);
 			if (this.lastScanStep<(numStops-1)) startStep= this.lastScanStep+1;
-			
+
 		}
 		gd.addMessage("");
 		gd.addMessage("Current position is:");
@@ -364,7 +380,7 @@ horizontal axis:
 		}
 		// overwrite some distortionProcessConfiguration parameters (show, save, ...?) from GoniometerParameters
 		this.distortionProcessConfiguration.sourceDirectory=src_dir;
-// just for now - setting motor debug 1 higher than this		
+// just for now - setting motor debug 1 higher than this
 		this.goniometerParameters.goniometerMotors.debugLevel=this.debugLevel+1;
 		long startTime = System.nanoTime();
 		String status;
@@ -389,7 +405,6 @@ horizontal axis:
 			if (this.debugLevel>0) System.out.println(status);
 			if (updateStatus) IJ.showStatus(status);
 			this.goniometerParameters.motorsSimultaneous=false; // not yet implemented
-			//			if (!this.goniometerParameters.motorsSimultaneous){
 			OK= this.goniometerParameters.goniometerMotors.moveMotorSetETA(tiltMotor, tiltMotorPosition);
 			if (!OK) {
 				String msg="Could not set motor "+(tiltMotor+1)+" to move to "+tiltMotorPosition+" - may be out of limit";
@@ -432,11 +447,20 @@ horizontal axis:
 					return false;
 				}
 				// update motor positions in the image properties, acquire and save images.
-				// TODO: Make acquisition/decoding/laser identification multi-threaded				
-				this.cameras.setMotorsPosition(this.goniometerParameters.goniometerMotors.getTargetPositions()); // Used target, not current to prevent minor variations
-				this.cameras.reportTiming=debugTiming;
+				// TODO: Make acquisition/decoding/laser identification multi-threaded
 
-				this.cameras.acquire(this.distortionProcessConfiguration.sourceDirectory,true, updateStatus); // true - use lasers, updateStatus - make false?
+				if (cameras != null) {
+					this.cameras.setMotorsPosition(this.goniometerParameters.goniometerMotors.getTargetPositions()); // Used target, not current to prevent minor variations
+					this.cameras.reportTiming=debugTiming;
+					this.cameras.acquire(this.distortionProcessConfiguration.sourceDirectory,true, updateStatus); // true - use lasers, updateStatus - make false?
+				} else if (lwirReader != null) {
+					this.lwirReader.setMotorsPosition(this.goniometerParameters.goniometerMotors.getTargetPositions()); // Used target, not current to prevent minor variations
+					this.lwirReader.reportTiming=debugTiming;
+					this.lwirReader.acquire(this.distortionProcessConfiguration.sourceDirectory); // true - use lasers, updateStatus - make false?
+				} else {
+					System.out.println("Neignter traditional camera/rig, no LWIR rig are initialized, dry run");
+				}
+
 				this.lastScanStep++;
 				if (stopRequested.get()>1){
 					if (this.debugLevel>0) System.out.println("User interrupt");
@@ -523,7 +547,7 @@ horizontal axis:
 		return true;
 	}
 
-	
+
 	public boolean testHintedTarget (
 			ImagePlus[] images,
 			Distortions lensDistortions, // should not be null
@@ -551,7 +575,7 @@ horizontal axis:
 //			String imgTitle=images[nImg].getTitle();
 			pointersArray[nImg]=0;
 			if (images[nImg].getProperty("POINTERS")!=null) pointersArray[nImg]=Integer.parseInt((String) (images[nImg].getProperty("POINTERS")));
-			
+
 			choices[index]=index+" sub-camera:"+subCam+" "+images[nImg].getTitle()+" - "+pointersArray[nImg]+" pointers";
 //			if (this.debugLevel>1)System.out.println ("Adding image, nImg="+nImg);
 //			if (this.debugLevel>1)System.out.println ("Adding image "+images[nImg].getTitle()+": "+choices[index]);
@@ -564,7 +588,7 @@ horizontal axis:
 		if (distortionCalibrationData.getNumStations()>1) {
 			gd.addNumericField("Station number (0.."+(distortionCalibrationData.getNumStations()-1)+")", stationNumber, 0);
 		}
-		
+
 		gd.showDialog();
 		if (gd.wasCanceled()) return false;
 		index= gd.getNextChoiceIndex();
@@ -576,7 +600,7 @@ horizontal axis:
 		}
 
 		int nImg=indices[index];
-		
+
 		int subCam=        distortionCalibrationData.getImageChannel(images[nImg]);
 //		int stationNumber= distortionCalibrationData.getImageStation(numGridImage), // station number
 		double timeStamp=  distortionCalibrationData.getImageTimestamp(images[nImg]);
@@ -600,7 +624,7 @@ horizontal axis:
 			IJ.showMessage("Warning",msg);
 		}
 		if ((Double.isNaN(goniometerTiltAxial[0])) || (Double.isNaN(goniometerTiltAxial[1]))) return false;
-		
+
 		double [][][] hintGrid=lensDistortions.estimateGridOnSensor(
 				stationNumber, // station number
 				subCam,
@@ -617,8 +641,8 @@ horizontal axis:
 			return false;
 		}
 		if (this.debugLevel>1) lensDistortions.showHintGrid(hintGrid);
-		
-		
+
+
 		MatchSimulatedPattern matchSimulatedPattern = new MatchSimulatedPattern(this.distortionParametersDefault.FFTSize); // new instance, all reset
 		// next 2 lines are not needed for the new instance, but can be
 		// used alternatively if keeping it
@@ -626,8 +650,8 @@ horizontal axis:
 		matchSimulatedPattern.invalidateFocusMask();
 		matchSimulatedPattern.debugLevel = debug_level;
 		ImagePlus imp_eq = matchSimulatedPattern.applyFlatField(images[nImg]); // current image with grid flat-field  correction
-		
-//TODO: it shows always 4 pointers (if>0) - the array is sparse	
+
+//TODO: it shows always 4 pointers (if>0) - the array is sparse
 //	   	public int getNumberOfPointers (int sensorNum){
 //	   	public int getNumberOfPointers (ImagePlus imp){
 
@@ -667,11 +691,11 @@ horizontal axis:
 			if (debug_level > 0) System.out.println("Warning: " + msg);
 			if (debug_level > 2) IJ.showMessage("Warning", msg);
 		}
-		
+
 		return true;
 
 	}
-	
+
 	/*
 	 * 	private showDoubleFloatArrays SDFA_INSTANCE= new showDoubleFloatArrays(); // just for debugging?
    		this.SDFA_INSTANCE.showArrays(gridXYZCorr, getGridWidth(), getGridHeight(),  true, "Grid corrections", titles);
@@ -684,7 +708,7 @@ horizontal axis:
 							(this.distortionCalibrationData.isSubcameraParameter(parIndex)?(" s"+subCam):"com "),
 							this.definedModes, this.definedModes[this.parameterMode[numSeries][i]]);
 
-	 * 
+	 *
 	 * 					this.parameterMode[numSeries][i]=gd.getNextChoiceIndex();
 			PatternParameters patternParameters, // should not be  null
 			boolean equalizeGreens,
@@ -692,7 +716,7 @@ horizontal axis:
 			boolean updateStatus,
 			int debug_level) {// debug level used inside loops
 
-	 * 
+	 *
 	 *
 	 */
 	public MatchSimulatedPattern.DistortionParameters modifyDistortionParameters(){
@@ -715,7 +739,7 @@ horizontal axis:
 		distortionParameters.searchOverlap=this.goniometerParameters.searchOverlap;
 		return distortionParameters;
 	}
-	
+
 	public SimulationPattern.SimulParameters modifySimulParameters(){
 		SimulationPattern.SimulParameters simulParameters = this.simulParametersDefault.clone();
 		simulParameters.smallestSubPix = this.goniometerParameters.smallestSubPix;
@@ -723,7 +747,7 @@ horizontal axis:
 		simulParameters.subdiv = this.goniometerParameters.subdiv;
 		return simulParameters;
 	}
-	
+
 	public double[] estimateOrientation(
 			ImagePlus[] images, // last acquire images with number of pointers
 								// detected>0
@@ -799,8 +823,8 @@ horizontal axis:
 				}
 				this.matchSimulatedPatterns[numSensor].debugLevel = debug_level;
 				ImagePlus imp_eq = this.matchSimulatedPatterns[numSensor].applyFlatField(images[numSensor]); // current image with grid flat-field  correction
-				
-//TODO: it shows always 4 pointers (if>0) - the array is sparse	
+
+//TODO: it shows always 4 pointers (if>0) - the array is sparse
 //			   	public int getNumberOfPointers (int sensorNum){
 //			   	public int getNumberOfPointers (ImagePlus imp){
 				numPointers[numSensor]=0;
@@ -812,7 +836,7 @@ horizontal axis:
 							", initial number of pointers was "+numPointers[numSensor]);
 				}
 //	matchSimulatedPatterns[numSensor].getChannel(images[numSensor])+" ");
-				
+
 				int numAbsolutePoints = this.matchSimulatedPatterns[numSensor].calculateDistortions(
 								// allow more of grid around pointers?
 								distortionParameters, //
@@ -825,7 +849,7 @@ horizontal axis:
 								true, // don't care -removeOutOfGridPointers
 								null, //   double [][][] hintGrid, // predicted grid array (or null)
 								0,    //   double  hintGridTolerance, // allowed mismatch (fraction of period) or 0 - orientation only
-								
+
 								threadsMax,
 								updateStatus,
 								debug_level,
@@ -906,14 +930,14 @@ horizontal axis:
 		distortionCalibrationData.setImages(imp_calibrated, // ImagePlus [] images, // imagesin the memory
 				patternParameters); // PatternParameters patternParameters);
 		distortionCalibrationData.initImageSet(eyesisCameraParameters);
-		
+
 		// Set initial azimuth and elevation
 		// Set initial heading and elevation
 		double [] initialHeadEl=distortionCalibrationData.getHeadEl(imgWithMaxPointers);
-        // set goniometer horizontal axis angle and goniometer axial angles in all images 
+        // set goniometer horizontal axis angle and goniometer axial angles in all images
 		distortionCalibrationData.setGHGA(-initialHeadEl[1], -initialHeadEl[0]);
-		if (debug_level > 1) System.out.println("Initial Heading and Elevation are set to heading="+IJ.d2s(-initialHeadEl[0],2)+", elvation="+IJ.d2s(-initialHeadEl[1],2)); 
-		
+		if (debug_level > 1) System.out.println("Initial Heading and Elevation are set to heading="+IJ.d2s(-initialHeadEl[0],2)+", elvation="+IJ.d2s(-initialHeadEl[1],2));
+
 		lensDistortions.copySensorConstants(eyesisCameraParameters); // copy from the first channel
 		// lensDistortions.fittingStrategy will be defined later, no need to
 		// update it with a reference to distortionCalibrationData now
@@ -932,19 +956,19 @@ horizontal axis:
 			IJ.showMessage("Error", "Failed to open fitting strategy file: "+this.goniometerParameters.strategyFile);
 			return null;
 		}
-		if (debug_level > 1) System.out.println("Using fitting strategy template file: "+ lensDistortions.fittingStrategy.pathName); 
-		
+		if (debug_level > 1) System.out.println("Using fitting strategy template file: "+ lensDistortions.fittingStrategy.pathName);
+
 		// TODO: modify fitting strategy to include all grid images
 		lensDistortions.fittingStrategy.adjustNumberOfImages(imp_calibrated.length);
 		this.goniometerParameters.strategyFile = lensDistortions.fittingStrategy.pathName;
 		// saved fitting strategy maybe for different number of subcameras.
 		// it will be adjusted here - that works only for simple strategies that use all subcameras at each step.
-		
-		
+
+
 		// TODO: fix repeating subcamera parameters for all subcameras in each strategy
 		lensDistortions.fittingStrategy.updateNumberOfSubcameras();
-// enable azimuth adjust for all but the first camera? not here, later		
-		
+// enable azimuth adjust for all but the first camera? not here, later
+
 		// Calculate Sensor Masks
 		distortionCalibrationData.debugLevel = debug_level;
 		distortionCalibrationData.updateStatus = updateStatus;
@@ -1001,24 +1025,24 @@ horizontal axis:
         public double psf_cutoffLevel= 0.2; // disregard pixels below this fraction of the maximal value
         public int    psf_minArea    = 10;  // continue increasing the selected area, even if beyound psf_cutoffEnergy and psf_cutoffLevel,
         public double psf_blurSigma  = 0.0; // optionally blur the calculated mask
-        
+
     	// the following  overwrite SimulParameters members
-//TODO: Make initial pattern search more robust - if it first gets false positive, and number of detected cells is too low - increase threshold and re-try        
+//TODO: Make initial pattern search more robust - if it first gets false positive, and number of detected cells is too low - increase threshold and re-try
 		public double correlationMinInitialContrast=3.0;   // minimal contrast for the pattern of the center (initial point)
 		public int    minimalPatternCluster=150;          //    minimal pattern cluster size (0 - disable retries)
 		public double scaleMinimalInitialContrast=2.0;   // increase/decrease minimal contrast if initial cluster is >0 but less than minimalPatternCluster
 		public double searchOverlap=0.25;         // when searching for grid, step this amount of the FFTSize
     	public double smallestSubPix=0.3; // subdivide pixels down to that fraction when simulating
     	public double bitmapNonuniforityThreshold=0.1	; // subdivide pixels until difference between the corners is below this value
-    	public int    subdiv=4; 
+    	public int    subdiv=4;
     	// overwrites  	public static class MultiFilePSF.overexposedMaxFraction
-    	public double overexposedMaxFraction=0.1; // allowed fraction of the overexposed pixels in the PSF kernel measurement area 
+    	public double overexposedMaxFraction=0.1; // allowed fraction of the overexposed pixels in the PSF kernel measurement area
     	// overwrites	public static class PSFParameters.minDefinedArea
     	public double minDefinedArea=0.75;    // minimal (weighted) fraction of the defined patter pixels in the FFT area
         public int PSFKernelSize=32;          // size of the detected PSF kernel
-		public boolean approximateGrid=true; // approximate grid with polynomial 
+		public boolean approximateGrid=true; // approximate grid with polynomial
 		public boolean centerPSF=true;       // Center PSF by modifying phase
-		
+
 		public double mask1_sigma=    1.0;
 		public double mask1_threshold=0.25;
 		public double gaps_sigma=     1.0;
@@ -1031,8 +1055,8 @@ horizontal axis:
         public double minUVSpan;           // Minimal u/v span in correlation window that triggers increase of the correlation FFT size
         public boolean flatFieldCorrection=true;
         public double flatFieldExpand=4.0;
-        
-        public double thresholdFinish=0.001; // Stop iterations if 2 last steps had less improvement (but not worsening ) 
+
+        public double thresholdFinish=0.001; // Stop iterations if 2 last steps had less improvement (but not worsening )
 
         public int    numIterations=  100; // maximal number of iterations
 
@@ -1044,7 +1068,7 @@ horizontal axis:
         64 - pulses per revolution
         5682.48889 per degree
         	 */
-        // motors rotate positive - look down, positive - CCW 
+        // motors rotate positive - look down, positive - CCW
         CalibrationHardwareInterface.GoniometerMotors goniometerMotors=null;
 //        public double stepsPerDegreeTilt=-5682.48889; // minus that positive steps make negative elevation
 //        public double stepsPerDegreeAxial=-36.0; // minus that positive steps make rotate CCW when looking from Eyesis top
@@ -1053,26 +1077,26 @@ horizontal axis:
 //        public double scanLimitTiltStart= 30.0;  // scan around horizontal axis from  that angle
 //        public double scanLimitTiltEnd= -80.0;  // scan around horizontal axis to  that angle
         public double targetDistance=  5817; //mm - foer overlap calculation
-        
+
         public double scanLatitudeLow=-90;   // lowest camera latitude to calibrate (nadir=-90)
         public double scanLatitudeHigh=90;  // highest camera latitude to calibrate (zenith=90)
-        
+
         public double scanOverlapHorizontal= 0.5;
         public double scanOverlapVertical=   0.5;
 
-        
+
         public double scanLimitAxialStart=     -200.0;  // scan around camera axis from  that angle
         public double scanLimitAxialEnd=     200.0;  // scan around camera axis  to  that angle
-        public boolean scanBidirectional=     true;  // false - always move axial in the same direction, true - optimize movements           
-        public boolean motorsSimultaneous=     true;  // true - move motors simultaneously, false - one at a time           
-        
-        
-        
+        public boolean scanBidirectional=     true;  // false - always move axial in the same direction, true - optimize movements
+        public boolean motorsSimultaneous=     true;  // true - move motors simultaneously, false - one at a time
+
+
+
     	public GoniometerParameters(CalibrationHardwareInterface.GoniometerMotors goniometerMotors){
     		    		this.goniometerMotors=goniometerMotors;
     	}
     	public GoniometerParameters(
-    			CalibrationHardwareInterface.GoniometerMotors goniometerMotors,		
+    			CalibrationHardwareInterface.GoniometerMotors goniometerMotors,
     	    	String gridGeometryFile,
     	    	String initialCalibrationFile, // not needed
     	    	String strategyFile,
@@ -1099,8 +1123,8 @@ horizontal axis:
         		double searchOverlap,         // when searching for grid, step this amount of the FFTSize
     	    	double smallestSubPix, // subdivide pixels down to that fraction when simulating
     	    	double bitmapNonuniforityThreshold, // subdivide pixels until difference between the corners is below this value
-    	    	int    subdiv, 
-    	    	double overexposedMaxFraction, // allowed fraction of the overexposed pixels in the PSF kernel measurement area 
+    	    	int    subdiv,
+    	    	double overexposedMaxFraction, // allowed fraction of the overexposed pixels in the PSF kernel measurement area
     	    	double minDefinedArea, // minimal (weighted) fraction of the defined patter pixels in the FFT area
     	    	int PSFKernelSize,
 				boolean approximateGrid, // approximate grid with polynomial
@@ -1115,7 +1139,7 @@ horizontal axis:
                 double minUVSpan,           // Minimal u/v span in correlation window that triggers increase of the correlation FFT size
                 boolean flatFieldCorrection,
                 double flatFieldExpand,
-                double thresholdFinish,// (copied from series) stop iterations if 2 last steps had less improvement (but not worsening ) 
+                double thresholdFinish,// (copied from series) stop iterations if 2 last steps had less improvement (but not worsening )
                 int    numIterations, // maximal number of iterations
 //                double stepsPerDegreeTilt, // minus that positive steps make negative elevation
 //    	        double stepsPerDegreeAxial,      // minus that positive steps make rotate CCW when looking from Eyesis top
@@ -1154,12 +1178,12 @@ horizontal axis:
 			this.searchOverlap=searchOverlap;         // when searching for grid, step this amount of the FFTSize
 			this.smallestSubPix=smallestSubPix;
 			this.bitmapNonuniforityThreshold=bitmapNonuniforityThreshold;
-			this.subdiv=subdiv; 
-			this.overexposedMaxFraction=overexposedMaxFraction; 
+			this.subdiv=subdiv;
+			this.overexposedMaxFraction=overexposedMaxFraction;
 			this.minDefinedArea=minDefinedArea;
 			this.PSFKernelSize=PSFKernelSize;
 			this.approximateGrid = approximateGrid; // approximate grid with polynomial
-			this.centerPSF = centerPSF; // approximate grid with polynomial 
+			this.centerPSF = centerPSF; // approximate grid with polynomial
 			this.mask1_sigma = mask1_sigma;
 			this.mask1_threshold = mask1_threshold;
 			this.gaps_sigma=gaps_sigma;
@@ -1170,7 +1194,7 @@ horizontal axis:
 			this.minUVSpan=minUVSpan;
 			this.flatFieldCorrection=flatFieldCorrection;
 			this.flatFieldExpand=flatFieldExpand;
-			this.thresholdFinish=thresholdFinish;// (copied from series) stop iterations if 2 last steps had less improvement (but not worsening ) 
+			this.thresholdFinish=thresholdFinish;// (copied from series) stop iterations if 2 last steps had less improvement (but not worsening )
 			this.numIterations=numIterations; // maximal number of iterations
 			this.goniometerMotors=goniometerMotors;
 //			this.goniometerMotors.stepsPerDegreeTilt=stepsPerDegreeTilt; // minus that positive steps make negative elevation
@@ -1185,7 +1209,8 @@ horizontal axis:
 			this.scanBidirectional=scanBidirectional;
 			this.motorsSimultaneous=motorsSimultaneous;
     	}
-    	public GoniometerParameters clone(){
+    	@Override
+		public GoniometerParameters clone(){
     		return new GoniometerParameters(
     				this.goniometerMotors,
     	    		this.gridGeometryFile,
@@ -1213,8 +1238,8 @@ horizontal axis:
     				this.searchOverlap,         // when searching for grid, step this amount of the FFTSize
     				this.smallestSubPix,
     				this.bitmapNonuniforityThreshold,
-    				this.subdiv, 
-    				this.overexposedMaxFraction, 
+    				this.subdiv,
+    				this.overexposedMaxFraction,
     				this.minDefinedArea,
     				this.PSFKernelSize,
     				this.approximateGrid,
@@ -1229,7 +1254,7 @@ horizontal axis:
     				this.minUVSpan,
     				this.flatFieldCorrection,
     				this.flatFieldExpand,
-    				this.thresholdFinish, 
+    				this.thresholdFinish,
     				this.numIterations,
     				this.targetDistance,
     				this.scanLatitudeLow,
@@ -1290,20 +1315,20 @@ horizontal axis:
 			properties.setProperty(prefix+"goniometerMotors_stepsPerSecond",     this.goniometerMotors.stepsPerSecond+"");
 			properties.setProperty(prefix+"goniometerMotors_stepsPerDegreeTilt", this.goniometerMotors.stepsPerDegreeTilt+"");
 			properties.setProperty(prefix+"goniometerMotors_stepsPerDegreeAxial",this.goniometerMotors.stepsPerDegreeAxial+"");
-			
+
 			properties.setProperty(prefix+"targetDistance",this.targetDistance+"");
 			properties.setProperty(prefix+"scanLatitudeLow",this.scanLatitudeLow+"");
 			properties.setProperty(prefix+"scanLatitudeHigh",this.scanLatitudeHigh+"");
 			properties.setProperty(prefix+"scanOverlapHorizontal",this.scanOverlapHorizontal+"");
 			properties.setProperty(prefix+"scanOverlapVertical",this.scanOverlapVertical+"");
-			
+
 			properties.setProperty(prefix+"scanLimitAxialStart",this.scanLimitAxialStart+"");
 			properties.setProperty(prefix+"scanLimitAxialEnd",this.scanLimitAxialEnd+"");
 			properties.setProperty(prefix+"scanBidirectional",this.scanBidirectional+"");
 			properties.setProperty(prefix+"motorsSimultaneous",this.motorsSimultaneous+"");
-			
-			
-		}    	
+
+
+		}
 		public void getProperties(String prefix,Properties properties){
 			if (properties.getProperty(prefix+"gridGeometryFile")!=null)
 				this.gridGeometryFile=properties.getProperty(prefix+"gridGeometryFile");
@@ -1316,7 +1341,7 @@ horizontal axis:
 			if (properties.getProperty(prefix+"serialNumber")!=null)
 				this.serialNumber=properties.getProperty(prefix+"serialNumber");
 			//	this.serialNumber is only written, but never read from the configuration file (only from device)
-			
+
 			if (properties.getProperty(prefix+"sensorTemperature")!=null) this.sensorTemperature=Double.parseDouble(properties.getProperty(prefix+"sensorTemperature"));
 			else this.sensorTemperature=Double.NaN;
 			if (properties.getProperty(prefix+"EEPROM_channel")!=null)
@@ -1327,7 +1352,7 @@ horizontal axis:
 				this.showResults=Boolean.parseBoolean(properties.getProperty(prefix+"showResults"));
 			if (properties.getProperty(prefix+"comment")!=null)
 				this.comment=properties.getProperty(prefix+"comment");
-			if ((this.comment.length()>10) && this.comment.substring(0,9).equals("<![CDATA[")) this.comment=this.comment.substring(9,this.comment.length()-3); 
+			if ((this.comment.length()>10) && this.comment.substring(0,9).equals("<![CDATA[")) this.comment=this.comment.substring(9,this.comment.length()-3);
 			if (properties.getProperty(prefix+"maxCorr")!=null)
 				this.maxCorr=Double.parseDouble(properties.getProperty(prefix+"maxCorr"));
 			if (properties.getProperty(prefix+"showHistoryDetails")!=null)
@@ -1402,7 +1427,7 @@ horizontal axis:
 				this.goniometerMotors.stepsPerDegreeTilt=Double.parseDouble(properties.getProperty(prefix+"goniometerMotors_stepsPerDegreeTilt"));
 			if (properties.getProperty(prefix+"goniometerMotors_stepsPerDegreeAxial")!=null)
 				this.goniometerMotors.stepsPerDegreeAxial=Double.parseDouble(properties.getProperty(prefix+"goniometerMotors_stepsPerDegreeAxial"));
-			
+
 			if (properties.getProperty(prefix+"targetDistance")!=null)
 				this.targetDistance=Double.parseDouble(properties.getProperty(prefix+"targetDistance"));
 			if (properties.getProperty(prefix+"scanLatitudeLow")!=null)
@@ -1421,9 +1446,9 @@ horizontal axis:
 				this.scanBidirectional=Boolean.parseBoolean(properties.getProperty(prefix+"scanBidirectional"));
 			if (properties.getProperty(prefix+"motorsSimultaneous")!=null)
 				this.motorsSimultaneous=Boolean.parseBoolean(properties.getProperty(prefix+"motorsSimultaneous"));
-					
-		}    	
-    	public boolean showDialog(String title) { 
+
+		}
+    	public boolean showDialog(String title) {
     		GenericDialog gd = new GenericDialog(title);
     		//	    		this.serialNumber, // camera serial number string
     		gd.addMessage("Sensor board serial number is "+(((this.serialNumber==null)||(this.serialNumber==""))?"not specified":this.serialNumber));
@@ -1453,7 +1478,7 @@ horizontal axis:
     		gd.addNumericField("Smallest fraction to subdivide pixels at simulation", this.smallestSubPix, 3,5,"sensor pix");
     		gd.addNumericField("Maximal difference of the pattern value in the corners that triggers subdivision", this.bitmapNonuniforityThreshold, 3);
     		gd.addNumericField("Subdivide simulated pattern by:",         this.subdiv, 0);
-    		gd.addNumericField("Allowed overexposed pixels (fraction of the area) ",this.overexposedMaxFraction,3); //  0.005; // allowed fraction of the overexposed pixels in the PSF kernel measurement area 
+    		gd.addNumericField("Allowed overexposed pixels (fraction of the area) ",this.overexposedMaxFraction,3); //  0.005; // allowed fraction of the overexposed pixels in the PSF kernel measurement area
     		gd.addNumericField("Min fraction of the FFT square (weighted) to have defined pattern",  this.minDefinedArea, 3);
     		gd.addNumericField ("PSF kernel size",                        this.PSFKernelSize, 0);
     		gd.addCheckbox    ("Approximate pattern grid with a polynomial",this.approximateGrid); // true; // ignore lateral chromatic aberration (center OTF to 0,0)
@@ -1470,19 +1495,19 @@ horizontal axis:
 			gd.addNumericField("Expand during extrapolation (relative to the average grid period)", this.flatFieldExpand, 3);
 			gd.addNumericField("Threshold RMS to exit LMA",                this.thresholdFinish, 7,9,"pix");
 			gd.addNumericField("Maximal number of LMA iterations per series",this.numIterations, 0);
-			gd.addMessage("Parameters for scanning/acquisition"); 
-			
+			gd.addMessage("Parameters for scanning/acquisition");
+
 			gd.addStringField ("Goniometer motors IP address",             this.goniometerMotors.ipAddress,40);
 			gd.addNumericField("Motors rotation speed ",                   this.goniometerMotors.stepsPerSecond,6,12,"steps/second");
 			gd.addNumericField("Motor steps per tilt angular degree (currently negative) ",this.goniometerMotors.stepsPerDegreeTilt,6,12,"steps");
 			gd.addNumericField("Motor steps per axial angular degree (currently negative) ",this.goniometerMotors.stepsPerDegreeAxial,6,12,"steps");
 //			gd.addNumericField("Tilt scan step (not larger than)",         this.scanStepTilt,2,6,"degrees");
 //			gd.addNumericField("Axial scan step (not larger than)",        this.scanStepAxial,2,6,"degrees");
-			
-			
-			
+
+
+
 			gd.addNumericField("Distance to target (for overlap calculation)", this.targetDistance,2,7,"mm");
-			
+
 			gd.addNumericField("Horizontal overlap",                   100*this.scanOverlapHorizontal,2,5,"%");
 			gd.addNumericField("Vertical overlap",                     100*this.scanOverlapVertical,2,5,"%");
 			gd.addNumericField("Lowest camera view latitude to calibrate (nadir=-90)", this.scanLatitudeLow,2,6,"degrees");
@@ -1491,10 +1516,10 @@ horizontal axis:
 //			gd.addNumericField("Tilt scan end angle",                      this.scanLimitTiltEnd,2,6,"degrees");
 			gd.addNumericField("Axial scan start angle",                   this.scanLimitAxialStart,2,6,"degrees");
 			gd.addNumericField("Axial scan end angle",                     this.scanLimitAxialEnd,2,6,"degrees");
-	        gd.addCheckbox    ("Axial scan bidirectional",                 this.scanBidirectional);     
-	        gd.addCheckbox    ("Allow simultaneous operation of motors",   this.motorsSimultaneous);     
-	        
-			
+	        gd.addCheckbox    ("Axial scan bidirectional",                 this.scanBidirectional);
+	        gd.addCheckbox    ("Allow simultaneous operation of motors",   this.motorsSimultaneous);
+
+
     		if (!Double.isNaN(this.sensorTemperature)) gd.addMessage("Last measured sensor temperature is "+this.sensorTemperature+" C");
     		WindowTools.addScrollBars(gd);
     		gd.showDialog();
@@ -1524,7 +1549,7 @@ horizontal axis:
     		this.smallestSubPix=             gd.getNextNumber();
     		this.bitmapNonuniforityThreshold=gd.getNextNumber();
     		this.subdiv=               (int) gd.getNextNumber();
-    		this.overexposedMaxFraction=     gd.getNextNumber(); 
+    		this.overexposedMaxFraction=     gd.getNextNumber();
     		this.minDefinedArea=             gd.getNextNumber();
     		this.PSFKernelSize=        (int) gd.getNextNumber();
     		this.approximateGrid=            gd.getNextBoolean();

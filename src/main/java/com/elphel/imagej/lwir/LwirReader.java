@@ -26,6 +26,7 @@
  */
 package com.elphel.imagej.lwir;
 
+import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.util.Properties;
@@ -40,9 +41,13 @@ import org.slf4j.LoggerFactory;
 import org.w3c.dom.Document;
 import org.xml.sax.SAXException;
 
+import com.elphel.imagej.readers.ImagejJp4Tiff;
 import com.elphel.imagej.readers.ImagejJp4TiffMulti;
 
+import ij.IJ;
 import ij.ImagePlus;
+import ij.Prefs;
+import ij.io.FileSaver;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import loci.formats.FormatException;
@@ -68,7 +73,7 @@ public class LwirReader {
 	public static final int LWIR_HEIGHT = 120;
 	public static final int LWIR_TELEMETRY_LINES = 2;
 
-	public static final int FRAMES_SKIP = 3;
+	public static final int FRAMES_SKIP = 4;
 	public static final int MAX_THREADS = 100; // combine from all classes?
 
 	/** Logger for this class. */
@@ -81,6 +86,10 @@ public class LwirReader {
 	/** Configuration parameters */
 	private LwirReaderParameters lwirReaderParameters = null;
 	private LwirReaderParameters last_programmed = null;
+
+
+	private int [] motorsPosition = null;
+	public boolean reportTiming=false;
 
 	// -- constructors
 
@@ -97,6 +106,15 @@ public class LwirReader {
 		}
 		imagejJp4TiffMulti = null;
 	}
+
+
+   	public void setMotorsPosition (int [] position) {
+   		this.motorsPosition=position;
+   	}
+
+   	public int [] getMotorsPosition() {
+   		return this.motorsPosition;  // may be null
+   	}
 
 
 	// TODO: create
@@ -220,6 +238,10 @@ public class LwirReader {
 				imps_avg[chn].setProperty(key, properties0.getProperty(key));
 			}
 			imps_avg[chn].setProperty("average", ""+num_frames);
+			if (motorsPosition!=null) for (int m=0;m<motorsPosition.length;m++ ) {
+				imps_avg[chn].setProperty("MOTOR"+(m+1), ""+motorsPosition[m]);
+			}
+			ImagejJp4Tiff.encodeProperiesToInfo(imps_avg[chn]);
 			// TODO: Overwrite some properties?
 		}
 
@@ -333,10 +355,12 @@ public class LwirReader {
 		for (int c : lrp.lwir_channels) {
 			channels |= 1 << c;
 		}
-		String hex_chan = String.format("%x", channels);
+		String hex_chan = String.format("0x%x", channels);
 
 		String url = "http://"+lrp.lwir_ip+"/parsedit.php?immediate&sensor_port="+chn+
 				"&SENSOR_REGS67=0!"+hex_chan;
+//		String url = "http://"+lrp.lwir_ip+"/parsedit.php?immediate&sensor_port="+chn+
+//				"&SENSOR_REGS67=0&*SENSOR_REGS67="+hex_chan;
 		Document dom=null;
 		LOGGER.warn("calibrate(): Perform calibration (instead of 15 frames), url="+url);
 		try {
@@ -415,12 +439,12 @@ public class LwirReader {
 		return true;
 	}
 
-	public ImagePlus [] acquire() {
-		return acquire(lwirReaderParameters);
+	public ImagePlus [] acquire(String dirpath) {
+		return acquire(lwirReaderParameters, dirpath);
 	}
 
 
-	public ImagePlus [] acquire(LwirReaderParameters lrp) {
+	public ImagePlus [] acquire(LwirReaderParameters lrp, String dirpath) {
 		if (!condProgramLWIRCamera(lrp)) {
 			LOGGER.error("acquire(): failed to program cameras");
 			return null;
@@ -439,6 +463,20 @@ public class LwirReader {
 			return null;
 		}
 		LOGGER.debug("LWIR_ACQUIRE: got "+imps.length+" image sets");
+// Verify fresh FFC for all channels
+		double [] after_ffc = new double [lrp.lwir_channels.length];
+		for (int chn = 0; chn < after_ffc.length; chn++) {
+			double uptime = Double.NaN, ffctime = Double.NaN;
+			try {
+				uptime =  Double.parseDouble(((String) imps[0][chn].getProperty("TLM_UPTIME")));
+				ffctime = Double.parseDouble(((String) imps[0][chn].getProperty("TLM_FFC_TIME")));
+				after_ffc[chn] = uptime-ffctime;
+			} catch (Exception e) {
+				LOGGER.warn("acquire(): TLM_UPTIME and/or TLM_FFC_TIME properties are not available for"+imps[0][chn].getTitle());
+			}
+			LOGGER.warn(String.format("LWIR channel %d time from FFC: %.3f", chn, after_ffc[chn]));
+		}
+
 		int [] lags = new int [lrp.lwir_channels.length + lrp.vnir_channels.length];
 		for (int i = 0; i < lags.length; i++) {
 			lags[i] = (i >= lrp.lwir_channels.length) ? lrp.vnir_lag : 0;
@@ -464,6 +502,27 @@ public class LwirReader {
 			}
 		}
 		ImagePlus [] imps_avg = averageMultiFrames(imps_sync);
+
+
+
+		if (dirpath != null) {
+			File  f_dir = new File(dirpath);
+			// get series path from the first channel file title
+			String first_name = imps_sync[0][0].getTitle();
+			String set_name = first_name.substring(0, first_name.lastIndexOf('_'));
+			String set_path = dirpath+Prefs.getFileSeparator()+set_name;
+			File  set_dir = new File(set_path);
+			set_dir.mkdirs(); // including parent
+			for (ImagePlus imp:imps_avg) {
+				String fname = imp.getTitle();
+				fname = fname.substring(0, fname.lastIndexOf('_')) + ".tiff"; // remove _average
+   				FileSaver fs=new FileSaver(imp);
+   				String path=set_path+Prefs.getFileSeparator()+fname;
+   				IJ.showStatus("Saving "+path);
+   				LOGGER.debug("LWIR_ACQUIRE: 'Saving "+path+ " (and other with the same timestamp)" );
+   				fs.saveAsTiff(path);
+			}
+		}
 		return imps_avg;
 	}
 

@@ -4873,10 +4873,10 @@ private Panel panel1,
 		if (LWIR_READER == null) {
 			LWIR_READER =  new LwirReader(CLT_PARAMETERS.lwir);
 		}
-        ImagePlus [] imps = LWIR_READER.acquire();
+        ImagePlus [] imps = LWIR_READER.acquire("/data_ssd/imagej-elphel/attic/camera_img/test"); // directory to save
 		if (imps != null) {
 			for (ImagePlus imp: imps) {
-				imp.show();
+//				imp.show();
 			}
 		}
 

@@ -60,25 +60,16 @@ import java.util.regex.Pattern;
 // TODO: modify methods that depend on it, use class CalibrationFileManagement
 import javax.swing.JFileChooser;
 
-import com.elphel.imagej.calibration.CalibrationFileManagement.MultipleExtensionsFileFilter;
-import com.elphel.imagej.calibration.CalibrationHardwareInterface.CamerasInterface;
-import com.elphel.imagej.calibration.CalibrationHardwareInterface.FocusingMotors;
-import com.elphel.imagej.calibration.CalibrationHardwareInterface.GoniometerMotors;
-import com.elphel.imagej.calibration.CalibrationHardwareInterface.LaserPointers;
-import com.elphel.imagej.calibration.CalibrationHardwareInterface.PowerControl;
-import com.elphel.imagej.calibration.CalibrationHardwareInterface.UVLEDandLasers;
-import com.elphel.imagej.calibration.Distortions.RefineParameters;
-import com.elphel.imagej.calibration.SimulationPattern.SimulParameters;
 import com.elphel.imagej.cameras.EyesisCameraParameters;
 import com.elphel.imagej.cameras.SFEPhases;
-import com.elphel.imagej.cameras.SFEPhases.Defect;
-import com.elphel.imagej.cameras.SFEPhases.SensorDefects;
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.PolynomialApproximation;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.common.WindowTools;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
+import com.elphel.imagej.lwir.LwirReader;
+import com.elphel.imagej.lwir.LwirReaderParameters;
 
 import Jama.Matrix;  // Download here: http://math.nist.gov/javanumerics/jama/
 import ij.IJ;
@@ -110,6 +101,7 @@ public class Aberration_Calibration extends PlugInFrame implements ActionListene
 	private Panel panelCurvature;
 	private Panel panelGoniometer;
 	private Panel panelPixelMapping, panelStereo,panelStereo1;
+	private Panel panelLWIR;
 
 	private ShowDoubleFloatArrays SDFA_INSTANCE; // just for debugging?
 	JP46_Reader_camera JP4_INSTANCE;
@@ -270,6 +262,9 @@ public class Aberration_Calibration extends PlugInFrame implements ActionListene
 			false  // fill missing PSF kernels from nearest existent ones
 
 	);
+
+    public static LwirReader       LWIR_READER = null;
+
 
 	public static ProcessCalibrationFilesParameters PROCESS_PARAMETERS = new ProcessCalibrationFilesParameters(
 		"jp46",              // sourceFileExtension,
@@ -614,6 +609,11 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 	public static EyesisAberrations EYESIS_ABERRATIONS; // need Distortions to be set up
 
 	public static Goniometer GONIOMETER=null;
+
+	public static LwirReaderParameters LWIR_PARAMETERS=new LwirReaderParameters();
+
+
+
 //	new CalibrationHardwareInterface.LaserPointers();
 	public class SyncCommand{
 	    public boolean isRunning=      false;
@@ -634,7 +634,7 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 		addKeyListener(IJ.getInstance());
 //		setLayout(new GridLayout(ADVANCED_MODE?8:5, 1));
 //		setLayout(new GridLayout(ADVANCED_MODE?9:6, 1));
-		setLayout(new GridLayout(ADVANCED_MODE?20:20, 1));
+		setLayout(new GridLayout(ADVANCED_MODE?21:21, 1));
 		Color color_configure=     new Color(200, 200,160);
 		Color color_process=       new Color(180, 180, 240);
 		Color color_conf_process=  new Color(180, 240, 240);
@@ -983,9 +983,19 @@ if (MORE_BUTTONS) {
 		addButton("Create Ambiguity",panelStereo1);
 		addButton("Initial Resolve",panelStereo1);
 		addButton("Ambiguity Resolve",panelStereo1);
-
 		add(panelStereo1);
 
+
+		panelLWIR= new Panel();
+		panelLWIR.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
+		addButton("LWIR Configure",             panelLWIR,color_configure);
+		addButton("LWIR_TEST",                  panelLWIR, color_conf_process);
+		addButton("LWIR_ACQUIRE",               panelLWIR, color_conf_process);
+		addButton("Configure Goniometer",       panelLWIR,color_configure);
+		addButton("Goniometer Move",            panelLWIR,color_debug);
+		addButton("LWIR Goniometer",            panelLWIR,color_conf_process);
+
+		add(panelLWIR);
 		pack();
 		GUI.center(this);
 		setVisible(true);
@@ -1094,6 +1104,23 @@ if (MORE_BUTTONS) {
 		if (DEBUG_LEVEL>0) System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
 
 		if (label==null) return;
+	    String LOG_LEVEL;
+	    switch (MASTER_DEBUG_LEVEL) {
+	    case -2: LOG_LEVEL = "FATAL"; break;
+	    case -1: LOG_LEVEL = "ERROR"; break;
+	    case  0: LOG_LEVEL = "WARN";  break;
+	    case  1: LOG_LEVEL = "INFO";  break;
+	    case  2: LOG_LEVEL = "DEBUG"; break;
+	    default: LOG_LEVEL = "OFF";
+	    }
+
+		boolean LOG_LEVEL_SET = loci.common.DebugTools.enableLogging(LOG_LEVEL);
+		if (!LOG_LEVEL_SET) { // only first time true
+			loci.common.DebugTools.setRootLevel(LOG_LEVEL);
+		}
+	    System.out.println("DEBUG_LEVEL = "+DEBUG_LEVEL+", MASTER_DEBUG_LEVEL = "+MASTER_DEBUG_LEVEL+
+	    		" LOG_LEVEL="+LOG_LEVEL+"LOG_LEVEL_SET="+LOG_LEVEL_SET);
+
 		if (FOCUSING_FIELD!=null) FOCUSING_FIELD.setThreads(THREADS_MAX);
 /* ======================================================================== */
 		if       (label.equals("Configure Globals")) {
@@ -1172,334 +1199,11 @@ if (MORE_BUTTONS) {
 	    	return;
 /* ======================================================================== */
 	    } else if (label.equals("Restore") || label.equals("Restore no autoload")) {
-	    	boolean noAuto=label.equals("Restore no autoload");
-	    	ABERRATIONS_PARAMETERS.autoRestore=false;
-	    	String confPath=loadProperties(null,PROCESS_PARAMETERS.kernelsDirectory,PROCESS_PARAMETERS.useXML, PROPERTIES);
-			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-	    	if (ABERRATIONS_PARAMETERS.autoRestore && !noAuto){
-	    		if (DEBUG_LEVEL>0)System.out.println("Auto-loading configuration files");
-	    		if (LENS_DISTORTIONS==null) {
-	    			LENS_DISTORTIONS=new Distortions(LENS_DISTORTION_PARAMETERS,PATTERN_PARAMETERS,REFINE_PARAMETERS,this.SYNC_COMMAND.stopRequested);
-	    		}
-	    		LENS_DISTORTIONS.debugLevel=DEBUG_LEVEL;
-	    		boolean dcdUpdated=autoLoadFiles(
-	    				ABERRATIONS_PARAMETERS,
-	    				LENS_DISTORTIONS, // should be initialized, after update DISTORTION_CALIBRATION_DATA from this
-	    				PATTERN_PARAMETERS,
-	    				EYESIS_CAMERA_PARAMETERS, //EyesisCameraParameters eyesisCameraParameters,
-	    				UPDATE_STATUS,
-	    				DEBUG_LEVEL
-	    		);
-	    		if (dcdUpdated) DISTORTION_CALIBRATION_DATA=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData;
-		    	if (ABERRATIONS_PARAMETERS.autoReCalibrate){
-					if (LENS_DISTORTIONS.fittingStrategy==null) {
-						IJ.showMessage("Can not recalibrate grids - LENS_DISTORTION.fittingStrategy is not set");
-						return;
-					}
-		    		if (DEBUG_LEVEL>0)System.out.println("=== Re-calibrating grids ===");
-		    		int numMatched=LENS_DISTORTIONS.applyHintedGrids(
-		    				LASER_POINTERS, // MatchSimulatedPattern.LaserPointer laserPointer, // LaserPointer object that specifies actual laser poiners on the target
-		    				DISTORTION_PROCESS_CONFIGURATION.removeOutOfGridPointers, // boolean removeOutOfGridPointers,
-		    				5.0,                   //double  hintGridTolerance, // alllowed mismatch (fraction of period) or 0 - orientation only
-		    				true, //boolean processAll, // if true - process all images, false - only disabeld
-		    				false, //?
-		    				false, //processBlind,
-		    				-1,    //       imageNumber,
-		    				true, // useSetData - use imageSets data if available (false - use camera data)
-		    				THREADS_MAX,                 //int threadsMax,
-		    				UPDATE_STATUS,               // boolean updateStatus,
-		    				DISTORTION.loop_debug_level, // int mspDebugLevel,
-		    				MASTER_DEBUG_LEVEL,          //int global_debug_level, // DEBUG_LEVEL
-		    				MASTER_DEBUG_LEVEL           //int debug_level // debug level used inside loops
-		    		);
-		    		System.out.println("Number of matched images: "+numMatched);
-
-					LENS_DISTORTIONS.debugLevel=DEBUG_LEVEL;
-					LENS_DISTORTIONS.updateStatus=UPDATE_STATUS;
-					LENS_DISTORTIONS.fittingStrategy.debugLevel=DEBUG_LEVEL;
-					LENS_DISTORTIONS.markBadNodces(
-							-1,// series - all images
-							DEBUG_LEVEL);
-
-
-		    	}
-				if ((LENS_DISTORTIONS.fittingStrategy != null) && ABERRATIONS_PARAMETERS.autoFilter) { // trying to fix restore
-	    			if (DEBUG_LEVEL>0) System.out.println("LENS_DISTORTIONS.fittingStrategy != null -> Extra after loading");
-	    			int minGridsNoPointer=1000;
-	        		int [] numImages=DISTORTION_CALIBRATION_DATA.filterImages(
-	        				false, // resetHinted,
-	        				0, // 2, // minPointers,
-	        				0.4, // minGridPeriod,
-	        				true, // disableNoVignetting,
-	        				minGridsNoPointer); //minGridsNoPointer);
-	        		System.out.println("Number of enabled grid images: "+numImages[0]+
-	        				", of them new: "+numImages[1]+
-	        				", disabled without vignetting info: "+numImages[2]+
-	        				", disabled having less than "+minGridsNoPointer+" nodes and no matched pointers: "+numImages[3]+
-	        				", disabled with no lasers and enableNoLaser==false (like 2 bottom cameras - check all stations):" +numImages[4]);
-
-		    		if (DISTORTION_CALIBRATION_DATA.gIS==null) {
-		    			int numImageSets=DISTORTION_CALIBRATION_DATA.buildImageSets(false); // from scratch
-		    			if (DEBUG_LEVEL>0) System.out.println("Image set was empty, built a new one with "+numImageSets+" image sets (\"panoramas\"): ");
-		    			DISTORTION_CALIBRATION_DATA.updateSetOrientation(null); // restore orientation from (enabled) image files
-		    			if (DEBUG_LEVEL>0) System.out.println("Setting sets orientation from per-grid image data");
-		    		}
-				}
-		    	restoreFocusingHistory(false);
-
-	    	}
+	    	restore(label.equals("Restore no autoload"));
 	    	return;
-
 /* ======================================================================== */
 		} else if (label.equals("Process Calibration Files")) {
-			if (!showProcessCalibrationFilesDialog(PROCESS_PARAMETERS)) return;
-			boolean noMessageBoxes=false; //TODO: move to configuration
-			long 	  startTime=System.nanoTime();
-			long      tmpTime;
-			String resultPath;
-			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-			int loop_debug_level=1;
-			String [][][] filePaths=null;
-			int dirNum, fileNum;
-			ImageStack stack;
-			ImagePlus imp_psf;
-			File file;
-			String fileName;
-			if (PROCESS_PARAMETERS.processSourceImages) {
-				if ((PROCESS_PARAMETERS.sourceSuperDirectory==null) || (PROCESS_PARAMETERS.sourceSuperDirectory.length()==0)) {
-			    	fileName= selectSourceDirectory(PROCESS_PARAMETERS.sourceSuperDirectory);
-			        if (fileName!=null) PROCESS_PARAMETERS.sourceSuperDirectory=fileName;
-				}
-				if ((PROCESS_PARAMETERS.partialKernelsSuperDirectory==null) || (PROCESS_PARAMETERS.partialKernelsSuperDirectory.length()==0)) {
-			    	fileName= selectPartialKernelsDirectory(PROCESS_PARAMETERS.partialKernelsSuperDirectory);
-			        if (fileName!=null) PROCESS_PARAMETERS.partialKernelsSuperDirectory=fileName;
-				}
-				filePaths=prepareCalibrationFilesList(PROCESS_PARAMETERS);
-				if (filePaths==null) {
-					IJ.showMessage("Error","No files to process\nProcess canceled");
-					return;
-				}
-				startTime=System.nanoTime(); // restart timer after possible interactive dialogs
-				for (dirNum=0;dirNum<filePaths.length; dirNum++) {
-					if (filePaths[dirNum]!=null){
-						if (DEBUG_LEVEL>1) System.out.println("======= directory number="+dirNum+", number of files="+filePaths[dirNum].length+" ========");
-						for (fileNum=0;fileNum<filePaths[dirNum].length; fileNum++) {
-							if (DEBUG_LEVEL>1) System.out.println(filePaths[dirNum][fileNum][0] +" ==> "+filePaths[dirNum][fileNum][1]);
-							imp_sel=JP4_INSTANCE.open(
-									"", // path,
-									filePaths[dirNum][fileNum][0],
-									"",  //arg - not used in JP46 reader
-									true, // un-apply camera color gains
-									imp_sel); // reuse the same image window
-// Remove for old method?
-							matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize);
-
-							matchSimulatedPattern.calculateDistortions(
-									DISTORTION, //
-									PATTERN_DETECT,
-									SIMUL,
-									COMPONENTS.equalizeGreens,
-									imp_sel,
-									null, // LaserPointer laserPointer, // LaserPointer object or null
-									true, // don't care -removeOutOfGridPointers
-									null, //   double [][][] hintGrid, // predicted grid array (or null)
-									0,    //   double  hintGridTolerance, // alllowed mismatch (fraction of period) or 0 - orientation only
-
-									THREADS_MAX,
-									UPDATE_STATUS,
-									DEBUG_LEVEL,
-									DISTORTION.loop_debug_level, // debug level
-									noMessageBoxes);
-
-							SIM_ARRAY=	(new SimulationPattern(SIMUL)).simulateGridAll (
-									imp_sel.getWidth(),
-									imp_sel.getHeight(),
-									matchSimulatedPattern,
-									2, // gridFrac, // number of grid steps per pattern full period
-									SIMUL,
-									THREADS_MAX,
-									UPDATE_STATUS,
-									DEBUG_LEVEL,
-									DISTORTION.loop_debug_level); // debug level
-
-							createPSFMap(
-									matchSimulatedPattern,
-									matchSimulatedPattern.applyFlatField (imp_sel), // if grid is flat-field calibrated, apply it
-									null,     //  int [][][] sampleList, // optional (or null) 2-d array: list of coordinate pairs (2d - to match existent  PSF_KERNEL_MAP structure)
-									MULTIFILE_PSF.overexposedMaxFraction,
-									SIMUL, //simulation parameters
-									MAP_FFT_SIZE, // scanImageForPatterns:FFT size
-									PATTERN_DETECT,
-									FFT_OVERLAP, // scanImageForPatterns:high-pass gaussian filter sigma when correlating power spectrum
-									FFT_SIZE, // maximal distance between maximum on spectrum and predicted maximum on autocorrelation of gamma(|spectrum|)
-									COMPONENTS,
-									PSF_SUBPIXEL, // maximal iterations when looking for local maximum
-									OTF_FILTER,
-									PSF_PARS, // step of the new map (should be multiple of map step)
-									PSF_PARS.minDefinedArea,
-									INVERSE.dSize, // size of square used in the new map (should be multiple of map step)
-									THREADS_MAX,
-									UPDATE_STATUS,
-									loop_debug_level);// debug level used inside loops
-							DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-							stack=mergeKernelsToStack(PSF_KERNEL_MAP);
-							if (stack!=null) {
-								imp_psf = new ImagePlus(filePaths[dirNum][fileNum][1], stack);
-								//							if (DEBUG_LEVEL>1) imp_psf.show();
-								if (DEBUG_LEVEL>1) System.out.println("Saving result to"+filePaths[dirNum][fileNum][1]+ " at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
-								FileSaver fs=new FileSaver(imp_psf);
-								fs.saveAsTiffStack(filePaths[dirNum][fileNum][1]);
-							} else {
-								System.out.println("File "+filePaths[dirNum][fileNum][1]+ " has no useful PSF kernels - at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
-							}
-						}
-					}
-				}
-			}
-
-			if (PROCESS_PARAMETERS.combinePSFfiles) {
-				tmpTime=System.nanoTime();
-				if ((PROCESS_PARAMETERS.partialKernelsSuperDirectory==null) || (PROCESS_PARAMETERS.partialKernelsSuperDirectory.length()==0)) {
-			    	fileName= selectPartialKernelsDirectory(PROCESS_PARAMETERS.partialKernelsSuperDirectory);
-			        if (fileName!=null) PROCESS_PARAMETERS.partialKernelsSuperDirectory=fileName;
-				}
-				filePaths=preparePartialKernelsFilesList(PROCESS_PARAMETERS);
-				startTime-=(System.nanoTime()-tmpTime); // do not count time used for selection of files
-				if (filePaths==null) {
-					IJ.showMessage("Error","No partila kernel files to process, finished in "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+ " seconds");
-					return;
-				}
-				String [] filenames;
-				for (dirNum=0;dirNum<filePaths.length; dirNum++) {
-					if ((filePaths[dirNum]!=null) && (filePaths[dirNum].length!=0)){
-						resultPath=filePaths[dirNum][0][1];
-						filenames=new String[filePaths[dirNum].length];
-						for (fileNum=0;fileNum<filenames.length;fileNum++) filenames[fileNum]=filePaths[dirNum][fileNum][0];
-						if (!combinePSFKernels (
-								INTERPOLATE,
-								MULTIFILE_PSF,
-								filenames,
-								resultPath,
-								SDFA_INSTANCE,
-								imp_sel,         // re-use global
-								true,            // saveResult,
-								false,           // showResult,
-								UPDATE_STATUS,
-								DEBUG_LEVEL)) continue; // return; // no overlap, bad result kernel
-					}
-
-				}
-			}
-			if (PROCESS_PARAMETERS.interpolatePSFkernel) {
-				tmpTime=System.nanoTime();
-				if ((PROCESS_PARAMETERS.partialKernelsSuperDirectory==null) || (PROCESS_PARAMETERS.partialKernelsSuperDirectory.length()==0)) {
-			    	fileName= selectPartialKernelsDirectory(PROCESS_PARAMETERS.partialKernelsSuperDirectory);
-			        if (fileName!=null) PROCESS_PARAMETERS.partialKernelsSuperDirectory=fileName;
-				}
-				IJ.showMessage("Notice","partialKernelsSuperDirectory="+PROCESS_PARAMETERS.partialKernelsSuperDirectory);
-				startTime-=(System.nanoTime()-tmpTime); // do not count time used for selection of files
-				filePaths=prepareInterpolateKernelsList(PROCESS_PARAMETERS);
-				for (fileNum=0;fileNum<filePaths.length;fileNum++) if ((filePaths[fileNum]!=null) && (filePaths[fileNum].length>0)) {
-					file=new File(filePaths[fileNum][0][0]);
-					if (!file.exists()) {
-						if (DEBUG_LEVEL>1) System.out.println("Raw PSF kernel stack file "+filePaths[fileNum][0][0]+" does not exist");
-						continue;
-					}
-					imp_psf=new ImagePlus(filePaths[fileNum][0][0]);
-					if (imp_psf.getStackSize()<3) {
-						System.out.println("Need a 3-layer stack with raw PSF kernels");
-						continue;
-					}
-					stack= interpolateKernelStack(imp_psf.getStack(), // Image stack, each slice consists of square kernels of one channel
-							INTERPOLATE,
-							UPDATE_STATUS); // update status info
-
-					imp_psf = new ImagePlus(filePaths[fileNum][0][1], stack);
-					if (DEBUG_LEVEL>2) {
-					  imp_psf.getProcessor().resetMinAndMax(); // imp_psf will be reused
-					  imp_psf.show();
-					}
-					if (DEBUG_LEVEL>1) System.out.println("Saving interpolation result to"+filePaths[fileNum][0][1]+ " at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
-					FileSaver fs=new FileSaver(imp_psf);
-					fs.saveAsTiffStack(filePaths[fileNum][0][1]);
-				}
-			}
-			if (PROCESS_PARAMETERS.invertKernels) {
-				tmpTime=System.nanoTime();
-				if ((PROCESS_PARAMETERS.partialKernelsSuperDirectory==null) || (PROCESS_PARAMETERS.partialKernelsSuperDirectory.length()==0)) {
-			    	fileName= selectPartialKernelsDirectory(PROCESS_PARAMETERS.partialKernelsSuperDirectory);
-			        if (fileName!=null) PROCESS_PARAMETERS.partialKernelsSuperDirectory=fileName;
-				}
-				if ((PROCESS_PARAMETERS.kernelsDirectory==null) || (PROCESS_PARAMETERS.kernelsDirectory.length()==0)) {
-			    	fileName= selectKernelsDirectory(PROCESS_PARAMETERS.kernelsDirectory);
-			        if (fileName!=null) PROCESS_PARAMETERS.kernelsDirectory=fileName;
-				}
-				startTime-=(System.nanoTime()-tmpTime); // do not count time used fro selection of files
-				filePaths=prepareInvertGaussianKernelsList(PROCESS_PARAMETERS, PROCESS_PARAMETERS.rpsfPrefix );
-
-				for (fileNum=0;fileNum<filePaths.length;fileNum++) if ((filePaths[fileNum]!=null) && (filePaths[fileNum].length>0)) {
-					file=new File(filePaths[fileNum][0][0]);
-					if (!file.exists()) {
-						if (DEBUG_LEVEL>0) System.out.println("Interpolated PSF kernel stack file "+filePaths[fileNum][0][0]+" does not exist");
-						continue;
-					}
-					imp_psf=new ImagePlus(filePaths[fileNum][0][0]);
-					if (imp_psf.getStackSize()<3) {
-						System.out.println("Need a 3-layer stack with interpolated PSF kernels");
-						continue;
-					}
-					stack= reversePSFKernelStack(imp_psf.getStack(), //  stack of 3 32-bit (float) images, made of square kernels
-							INVERSE,
-							THREADS_MAX,   // size (side of square) of reverse PSF kernel
-							UPDATE_STATUS);         // update status info
-					imp_psf = new ImagePlus(filePaths[fileNum][0][1], stack);
-					if (DEBUG_LEVEL>2) {
-					  imp_psf.getProcessor().resetMinAndMax(); // imp_psf will be reused
-					  imp_psf.show();
-					}
-					if (DEBUG_LEVEL>0) System.out.println("Saving PSF inversion result to"+filePaths[fileNum][0][1]+ " at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
-					FileSaver fs=new FileSaver(imp_psf);
-					fs.saveAsTiffStack(filePaths[fileNum][0][1]);
-				}
-			}
-			if (PROCESS_PARAMETERS.gaussianKernels) {
-				tmpTime=System.nanoTime();
-				if ((PROCESS_PARAMETERS.partialKernelsSuperDirectory==null) || (PROCESS_PARAMETERS.partialKernelsSuperDirectory.length()==0)) {
-			    	fileName= selectPartialKernelsDirectory(PROCESS_PARAMETERS.partialKernelsSuperDirectory);
-			        if (fileName!=null) PROCESS_PARAMETERS.partialKernelsSuperDirectory=fileName;
-				}
-				if ((PROCESS_PARAMETERS.kernelsDirectory==null) || (PROCESS_PARAMETERS.kernelsDirectory.length()==0)) {
-			    	fileName= selectKernelsDirectory(PROCESS_PARAMETERS.kernelsDirectory);
-			        if (fileName!=null) PROCESS_PARAMETERS.kernelsDirectory=fileName;
-				}
-				startTime-=(System.nanoTime()-tmpTime); // do not count time used fro selection of files
-				filePaths=prepareInvertGaussianKernelsList(PROCESS_PARAMETERS, PROCESS_PARAMETERS.gaussianPrefix);
-				for (fileNum=0;fileNum<filePaths.length;fileNum++) if ((filePaths[fileNum]!=null) && (filePaths[fileNum].length>0)) {
-					file=new File(filePaths[fileNum][0][0]);
-					if (!file.exists()) {
-						if (DEBUG_LEVEL>0) System.out.println("Interpolated PSF kernel stack file "+filePaths[fileNum][0][0]+" does not exist");
-						continue;
-					}
-					imp_psf=new ImagePlus(filePaths[fileNum][0][0]);
-					if (imp_psf.getStackSize()<3) {
-						System.out.println("Need a 3-layer stack with interpolated PSF kernels");
-						continue;
-					}
-					stack= generateGaussianStackFromDirect(imp_psf.getStack(), // stack of 3 32-bit (float) images, made of square kernels
-							INVERSE,
-							UPDATE_STATUS);  // update status info
-					imp_psf = new ImagePlus(filePaths[fileNum][0][1], stack);
-					if (DEBUG_LEVEL>2) {
-					  imp_psf.getProcessor().resetMinAndMax(); // imp_psf will be reused
-					  imp_psf.show();
-					}
-					if (DEBUG_LEVEL>0) System.out.println("Saving Gaussian kernels result to"+filePaths[fileNum][0][1]+ " at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
-					FileSaver fs=new FileSaver(imp_psf);
-					fs.saveAsTiffStack(filePaths[fileNum][0][1]);
-				}
-			}
-			System.out.println("Processing done in "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+ " seconds");
-			if (PROCESS_PARAMETERS.saveSettings) saveProperties(PROCESS_PARAMETERS.kernelsDirectory+Prefs.getFileSeparator()+"calibration_settings",null,PROCESS_PARAMETERS.useXML, PROPERTIES);
+			processCalibrationFiles();
 			return;
 /* ======================================================================== */
 
@@ -9697,6 +9401,110 @@ if (MORE_BUTTONS) {
 			}
 			return;
 		}
+/* ======================================================================== */
+		if (label.equals("LWIR Configure")) {
+			LWIR_PARAMETERS.showJDialog();
+			return;
+		}
+
+/* ======================================================================== */
+//
+		if (label.equals("LWIR_TEST")) {
+			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+			//   public static LwirReader       LWIR_READER = null;
+			if (LWIR_READER == null) {
+				LWIR_READER =  new LwirReader(LWIR_PARAMETERS);
+			}
+			ImagePlus [][] imps = LWIR_READER.readAllMultiple(
+					10, // final int     num_frames,
+					//    			true, // use LWIR telemetry
+					true, // final boolean show,
+					false); // true); // final boolean scale)
+			for (ImagePlus imp: imps[0]) {
+				imp.show();
+			}
+
+			System.out.println("LWIR_TEST: got "+imps.length+" image sets");
+			ImagePlus [][] imps_sync =  LWIR_READER.matchSets(imps, 0.001, 3); // double max_mismatch)
+			if (imps_sync != null) {
+				ImagePlus [] imps_avg = LWIR_READER.averageMultiFrames(imps_sync);
+				for (ImagePlus imp: imps_avg) {
+					imp.show();
+				}
+			}
+			return;
+		}
+/* ======================================================================== */
+    if (label.equals("LWIR_ACQUIRE")) {
+        DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+		//   public static LwirReader       LWIR_READER = null;
+		if (LWIR_READER == null) {
+			LWIR_READER =  new LwirReader(LWIR_PARAMETERS);
+		}
+        ImagePlus [] imps = LWIR_READER.acquire("/data_ssd/imagej-elphel/attic/camera_img/test-calib"); // directory to save
+		if (imps != null) {
+//			for (ImagePlus imp: imps) {
+//				imp.show();
+//			}
+		}
+		return;
+	}
+
+    /* ======================================================================== */
+	if       (label.equals("Goniometer LWIR")) {
+		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+
+//		CAMERAS.setNumberOfThreads(THREADS_MAX);
+//		CAMERAS.debugLevel=DEBUG_LEVEL;
+
+		if (GONIOMETER==null) {
+			GONIOMETER= new Goniometer(
+					LWIR_READER,
+//					CAMERAS, // CalibrationHardwareInterface.CamerasInterface cameras,
+					DISTORTION, //MatchSimulatedPattern.DistortionParameters distortion,
+					PATTERN_DETECT, //MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
+					EYESIS_CAMERA_PARAMETERS, //EyesisCameraParameters eyesisCameraParameters,
+					LASER_POINTERS, // MatchSimulatedPattern.LaserPointer laserPointers
+					SIMUL,                       //SimulationPattern.SimulParameters  simulParametersDefault,
+					GONIOMETER_PARAMETERS, //LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
+					DISTORTION_PROCESS_CONFIGURATION
+			);
+			if (DEBUG_LEVEL>1){
+				System.out.println("Initiaslizing Goniometer class");
+			}
+		} else if (DEBUG_LEVEL>1){
+			System.out.println("GONIOMETER was initialized");
+		}
+
+		// calculate angular size of the target as visible from the camera
+		double distanceToTarget=GONIOMETER_PARAMETERS.targetDistance;
+		double patternWidth= PATTERN_PARAMETERS.patternWidth;
+		double patternHeight=PATTERN_PARAMETERS.patternHeight;
+		double targetAngleHorizontal=360*Math.atan(patternWidth/2/distanceToTarget)/Math.PI;
+		double targetAngleVertical=  360*Math.atan(patternHeight/2/distanceToTarget)/Math.PI;
+		if (DEBUG_LEVEL>0) System.out.println(
+				"Using:\n"+
+				"Distance from target:          "+IJ.d2s(distanceToTarget,1)+" mm\n"+
+				"         Taget width:          "+IJ.d2s(patternWidth,1)+" mm\n"+
+				"         Taget height:         "+IJ.d2s(patternHeight,1)+" mm\n"+
+				"Taget angular size horizontal: "+IJ.d2s(targetAngleHorizontal,1)+" degrees\n"+
+				"Taget angular size vertical:   "+IJ.d2s(targetAngleVertical,1)+" degrees\n"
+		);
+		GONIOMETER.debugLevel=DEBUG_LEVEL;
+///		POWER_CONTROL.lightsOnWithDelay();
+		boolean goniometerScanOK=GONIOMETER.scanAndAcquire(
+				targetAngleHorizontal,
+				targetAngleVertical,
+				this.SYNC_COMMAND.stopRequested,
+				UPDATE_STATUS);
+		System.out.println ("GONIOMETER.scanAndAcquireI() "+(goniometerScanOK?"finished OK":"failed"));
+///		POWER_CONTROL.lightsOff();
+		return;
+	}
+
+
+
+
 
 /* ======================================================================== */
 
@@ -9706,6 +9514,347 @@ if (MORE_BUTTONS) {
 	}
 
 /* ===== Other methods ==================================================== */
+
+/* ======================================================================== */
+/* ======================================================================== */
+/* ======================================================================== */
+/* ======================================================================== */
+	public void processCalibrationFiles() {
+		if (!showProcessCalibrationFilesDialog(PROCESS_PARAMETERS)) return;
+		boolean noMessageBoxes=false; //TODO: move to configuration
+		long 	  startTime=System.nanoTime();
+		long      tmpTime;
+		String resultPath;
+		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+		int loop_debug_level=1;
+		String [][][] filePaths=null;
+		int dirNum, fileNum;
+		ImageStack stack;
+		ImagePlus imp_psf;
+		File file;
+		String fileName;
+		if (PROCESS_PARAMETERS.processSourceImages) {
+			if ((PROCESS_PARAMETERS.sourceSuperDirectory==null) || (PROCESS_PARAMETERS.sourceSuperDirectory.length()==0)) {
+		    	fileName= selectSourceDirectory(PROCESS_PARAMETERS.sourceSuperDirectory);
+		        if (fileName!=null) PROCESS_PARAMETERS.sourceSuperDirectory=fileName;
+			}
+			if ((PROCESS_PARAMETERS.partialKernelsSuperDirectory==null) || (PROCESS_PARAMETERS.partialKernelsSuperDirectory.length()==0)) {
+		    	fileName= selectPartialKernelsDirectory(PROCESS_PARAMETERS.partialKernelsSuperDirectory);
+		        if (fileName!=null) PROCESS_PARAMETERS.partialKernelsSuperDirectory=fileName;
+			}
+			filePaths=prepareCalibrationFilesList(PROCESS_PARAMETERS);
+			if (filePaths==null) {
+				IJ.showMessage("Error","No files to process\nProcess canceled");
+				return;
+			}
+			startTime=System.nanoTime(); // restart timer after possible interactive dialogs
+			for (dirNum=0;dirNum<filePaths.length; dirNum++) {
+				if (filePaths[dirNum]!=null){
+					if (DEBUG_LEVEL>1) System.out.println("======= directory number="+dirNum+", number of files="+filePaths[dirNum].length+" ========");
+					for (fileNum=0;fileNum<filePaths[dirNum].length; fileNum++) {
+						if (DEBUG_LEVEL>1) System.out.println(filePaths[dirNum][fileNum][0] +" ==> "+filePaths[dirNum][fileNum][1]);
+						imp_sel=JP4_INSTANCE.open(
+								"", // path,
+								filePaths[dirNum][fileNum][0],
+								"",  //arg - not used in JP46 reader
+								true, // un-apply camera color gains
+								imp_sel); // reuse the same image window
+//Remove for old method?
+						matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize);
+
+						matchSimulatedPattern.calculateDistortions(
+								DISTORTION, //
+								PATTERN_DETECT,
+								SIMUL,
+								COMPONENTS.equalizeGreens,
+								imp_sel,
+								null, // LaserPointer laserPointer, // LaserPointer object or null
+								true, // don't care -removeOutOfGridPointers
+								null, //   double [][][] hintGrid, // predicted grid array (or null)
+								0,    //   double  hintGridTolerance, // alllowed mismatch (fraction of period) or 0 - orientation only
+
+								THREADS_MAX,
+								UPDATE_STATUS,
+								DEBUG_LEVEL,
+								DISTORTION.loop_debug_level, // debug level
+								noMessageBoxes);
+
+						SIM_ARRAY=	(new SimulationPattern(SIMUL)).simulateGridAll (
+								imp_sel.getWidth(),
+								imp_sel.getHeight(),
+								matchSimulatedPattern,
+								2, // gridFrac, // number of grid steps per pattern full period
+								SIMUL,
+								THREADS_MAX,
+								UPDATE_STATUS,
+								DEBUG_LEVEL,
+								DISTORTION.loop_debug_level); // debug level
+
+						createPSFMap(
+								matchSimulatedPattern,
+								matchSimulatedPattern.applyFlatField (imp_sel), // if grid is flat-field calibrated, apply it
+								null,     //  int [][][] sampleList, // optional (or null) 2-d array: list of coordinate pairs (2d - to match existent  PSF_KERNEL_MAP structure)
+								MULTIFILE_PSF.overexposedMaxFraction,
+								SIMUL, //simulation parameters
+								MAP_FFT_SIZE, // scanImageForPatterns:FFT size
+								PATTERN_DETECT,
+								FFT_OVERLAP, // scanImageForPatterns:high-pass gaussian filter sigma when correlating power spectrum
+								FFT_SIZE, // maximal distance between maximum on spectrum and predicted maximum on autocorrelation of gamma(|spectrum|)
+								COMPONENTS,
+								PSF_SUBPIXEL, // maximal iterations when looking for local maximum
+								OTF_FILTER,
+								PSF_PARS, // step of the new map (should be multiple of map step)
+								PSF_PARS.minDefinedArea,
+								INVERSE.dSize, // size of square used in the new map (should be multiple of map step)
+								THREADS_MAX,
+								UPDATE_STATUS,
+								loop_debug_level);// debug level used inside loops
+						DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+						stack=mergeKernelsToStack(PSF_KERNEL_MAP);
+						if (stack!=null) {
+							imp_psf = new ImagePlus(filePaths[dirNum][fileNum][1], stack);
+							//							if (DEBUG_LEVEL>1) imp_psf.show();
+							if (DEBUG_LEVEL>1) System.out.println("Saving result to"+filePaths[dirNum][fileNum][1]+ " at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+							FileSaver fs=new FileSaver(imp_psf);
+							fs.saveAsTiffStack(filePaths[dirNum][fileNum][1]);
+						} else {
+							System.out.println("File "+filePaths[dirNum][fileNum][1]+ " has no useful PSF kernels - at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+						}
+					}
+				}
+			}
+		}
+
+		if (PROCESS_PARAMETERS.combinePSFfiles) {
+			tmpTime=System.nanoTime();
+			if ((PROCESS_PARAMETERS.partialKernelsSuperDirectory==null) || (PROCESS_PARAMETERS.partialKernelsSuperDirectory.length()==0)) {
+		    	fileName= selectPartialKernelsDirectory(PROCESS_PARAMETERS.partialKernelsSuperDirectory);
+		        if (fileName!=null) PROCESS_PARAMETERS.partialKernelsSuperDirectory=fileName;
+			}
+			filePaths=preparePartialKernelsFilesList(PROCESS_PARAMETERS);
+			startTime-=(System.nanoTime()-tmpTime); // do not count time used for selection of files
+			if (filePaths==null) {
+				IJ.showMessage("Error","No partila kernel files to process, finished in "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+ " seconds");
+				return;
+			}
+			String [] filenames;
+			for (dirNum=0;dirNum<filePaths.length; dirNum++) {
+				if ((filePaths[dirNum]!=null) && (filePaths[dirNum].length!=0)){
+					resultPath=filePaths[dirNum][0][1];
+					filenames=new String[filePaths[dirNum].length];
+					for (fileNum=0;fileNum<filenames.length;fileNum++) filenames[fileNum]=filePaths[dirNum][fileNum][0];
+					if (!combinePSFKernels (
+							INTERPOLATE,
+							MULTIFILE_PSF,
+							filenames,
+							resultPath,
+							SDFA_INSTANCE,
+							imp_sel,         // re-use global
+							true,            // saveResult,
+							false,           // showResult,
+							UPDATE_STATUS,
+							DEBUG_LEVEL)) continue; // return; // no overlap, bad result kernel
+				}
+
+			}
+		}
+		if (PROCESS_PARAMETERS.interpolatePSFkernel) {
+			tmpTime=System.nanoTime();
+			if ((PROCESS_PARAMETERS.partialKernelsSuperDirectory==null) || (PROCESS_PARAMETERS.partialKernelsSuperDirectory.length()==0)) {
+		    	fileName= selectPartialKernelsDirectory(PROCESS_PARAMETERS.partialKernelsSuperDirectory);
+		        if (fileName!=null) PROCESS_PARAMETERS.partialKernelsSuperDirectory=fileName;
+			}
+			IJ.showMessage("Notice","partialKernelsSuperDirectory="+PROCESS_PARAMETERS.partialKernelsSuperDirectory);
+			startTime-=(System.nanoTime()-tmpTime); // do not count time used for selection of files
+			filePaths=prepareInterpolateKernelsList(PROCESS_PARAMETERS);
+			for (fileNum=0;fileNum<filePaths.length;fileNum++) if ((filePaths[fileNum]!=null) && (filePaths[fileNum].length>0)) {
+				file=new File(filePaths[fileNum][0][0]);
+				if (!file.exists()) {
+					if (DEBUG_LEVEL>1) System.out.println("Raw PSF kernel stack file "+filePaths[fileNum][0][0]+" does not exist");
+					continue;
+				}
+				imp_psf=new ImagePlus(filePaths[fileNum][0][0]);
+				if (imp_psf.getStackSize()<3) {
+					System.out.println("Need a 3-layer stack with raw PSF kernels");
+					continue;
+				}
+				stack= interpolateKernelStack(imp_psf.getStack(), // Image stack, each slice consists of square kernels of one channel
+						INTERPOLATE,
+						UPDATE_STATUS); // update status info
+
+				imp_psf = new ImagePlus(filePaths[fileNum][0][1], stack);
+				if (DEBUG_LEVEL>2) {
+				  imp_psf.getProcessor().resetMinAndMax(); // imp_psf will be reused
+				  imp_psf.show();
+				}
+				if (DEBUG_LEVEL>1) System.out.println("Saving interpolation result to"+filePaths[fileNum][0][1]+ " at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+				FileSaver fs=new FileSaver(imp_psf);
+				fs.saveAsTiffStack(filePaths[fileNum][0][1]);
+			}
+		}
+		if (PROCESS_PARAMETERS.invertKernels) {
+			tmpTime=System.nanoTime();
+			if ((PROCESS_PARAMETERS.partialKernelsSuperDirectory==null) || (PROCESS_PARAMETERS.partialKernelsSuperDirectory.length()==0)) {
+		    	fileName= selectPartialKernelsDirectory(PROCESS_PARAMETERS.partialKernelsSuperDirectory);
+		        if (fileName!=null) PROCESS_PARAMETERS.partialKernelsSuperDirectory=fileName;
+			}
+			if ((PROCESS_PARAMETERS.kernelsDirectory==null) || (PROCESS_PARAMETERS.kernelsDirectory.length()==0)) {
+		    	fileName= selectKernelsDirectory(PROCESS_PARAMETERS.kernelsDirectory);
+		        if (fileName!=null) PROCESS_PARAMETERS.kernelsDirectory=fileName;
+			}
+			startTime-=(System.nanoTime()-tmpTime); // do not count time used fro selection of files
+			filePaths=prepareInvertGaussianKernelsList(PROCESS_PARAMETERS, PROCESS_PARAMETERS.rpsfPrefix );
+
+			for (fileNum=0;fileNum<filePaths.length;fileNum++) if ((filePaths[fileNum]!=null) && (filePaths[fileNum].length>0)) {
+				file=new File(filePaths[fileNum][0][0]);
+				if (!file.exists()) {
+					if (DEBUG_LEVEL>0) System.out.println("Interpolated PSF kernel stack file "+filePaths[fileNum][0][0]+" does not exist");
+					continue;
+				}
+				imp_psf=new ImagePlus(filePaths[fileNum][0][0]);
+				if (imp_psf.getStackSize()<3) {
+					System.out.println("Need a 3-layer stack with interpolated PSF kernels");
+					continue;
+				}
+				stack= reversePSFKernelStack(imp_psf.getStack(), //  stack of 3 32-bit (float) images, made of square kernels
+						INVERSE,
+						THREADS_MAX,   // size (side of square) of reverse PSF kernel
+						UPDATE_STATUS);         // update status info
+				imp_psf = new ImagePlus(filePaths[fileNum][0][1], stack);
+				if (DEBUG_LEVEL>2) {
+				  imp_psf.getProcessor().resetMinAndMax(); // imp_psf will be reused
+				  imp_psf.show();
+				}
+				if (DEBUG_LEVEL>0) System.out.println("Saving PSF inversion result to"+filePaths[fileNum][0][1]+ " at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+				FileSaver fs=new FileSaver(imp_psf);
+				fs.saveAsTiffStack(filePaths[fileNum][0][1]);
+			}
+		}
+		if (PROCESS_PARAMETERS.gaussianKernels) {
+			tmpTime=System.nanoTime();
+			if ((PROCESS_PARAMETERS.partialKernelsSuperDirectory==null) || (PROCESS_PARAMETERS.partialKernelsSuperDirectory.length()==0)) {
+		    	fileName= selectPartialKernelsDirectory(PROCESS_PARAMETERS.partialKernelsSuperDirectory);
+		        if (fileName!=null) PROCESS_PARAMETERS.partialKernelsSuperDirectory=fileName;
+			}
+			if ((PROCESS_PARAMETERS.kernelsDirectory==null) || (PROCESS_PARAMETERS.kernelsDirectory.length()==0)) {
+		    	fileName= selectKernelsDirectory(PROCESS_PARAMETERS.kernelsDirectory);
+		        if (fileName!=null) PROCESS_PARAMETERS.kernelsDirectory=fileName;
+			}
+			startTime-=(System.nanoTime()-tmpTime); // do not count time used fro selection of files
+			filePaths=prepareInvertGaussianKernelsList(PROCESS_PARAMETERS, PROCESS_PARAMETERS.gaussianPrefix);
+			for (fileNum=0;fileNum<filePaths.length;fileNum++) if ((filePaths[fileNum]!=null) && (filePaths[fileNum].length>0)) {
+				file=new File(filePaths[fileNum][0][0]);
+				if (!file.exists()) {
+					if (DEBUG_LEVEL>0) System.out.println("Interpolated PSF kernel stack file "+filePaths[fileNum][0][0]+" does not exist");
+					continue;
+				}
+				imp_psf=new ImagePlus(filePaths[fileNum][0][0]);
+				if (imp_psf.getStackSize()<3) {
+					System.out.println("Need a 3-layer stack with interpolated PSF kernels");
+					continue;
+				}
+				stack= generateGaussianStackFromDirect(imp_psf.getStack(), // stack of 3 32-bit (float) images, made of square kernels
+						INVERSE,
+						UPDATE_STATUS);  // update status info
+				imp_psf = new ImagePlus(filePaths[fileNum][0][1], stack);
+				if (DEBUG_LEVEL>2) {
+				  imp_psf.getProcessor().resetMinAndMax(); // imp_psf will be reused
+				  imp_psf.show();
+				}
+				if (DEBUG_LEVEL>0) System.out.println("Saving Gaussian kernels result to"+filePaths[fileNum][0][1]+ " at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+				FileSaver fs=new FileSaver(imp_psf);
+				fs.saveAsTiffStack(filePaths[fileNum][0][1]);
+			}
+		}
+		System.out.println("Processing done in "+IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+ " seconds");
+		if (PROCESS_PARAMETERS.saveSettings) saveProperties(PROCESS_PARAMETERS.kernelsDirectory+Prefs.getFileSeparator()+"calibration_settings",null,PROCESS_PARAMETERS.useXML, PROPERTIES);
+		return;
+	}
+
+
+	public void restore(boolean noAuto)
+	{
+//    	boolean noAuto=label.equals("Restore no autoload");
+    	ABERRATIONS_PARAMETERS.autoRestore=false;
+    	String confPath=loadProperties(null,PROCESS_PARAMETERS.kernelsDirectory,PROCESS_PARAMETERS.useXML, PROPERTIES);
+		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+    	if (ABERRATIONS_PARAMETERS.autoRestore && !noAuto){
+    		if (DEBUG_LEVEL>0)System.out.println("Auto-loading configuration files");
+    		if (LENS_DISTORTIONS==null) {
+    			LENS_DISTORTIONS=new Distortions(LENS_DISTORTION_PARAMETERS,PATTERN_PARAMETERS,REFINE_PARAMETERS,this.SYNC_COMMAND.stopRequested);
+    		}
+    		LENS_DISTORTIONS.debugLevel=DEBUG_LEVEL;
+    		boolean dcdUpdated=autoLoadFiles(
+    				ABERRATIONS_PARAMETERS,
+    				LENS_DISTORTIONS, // should be initialized, after update DISTORTION_CALIBRATION_DATA from this
+    				PATTERN_PARAMETERS,
+    				EYESIS_CAMERA_PARAMETERS, //EyesisCameraParameters eyesisCameraParameters,
+    				UPDATE_STATUS,
+    				DEBUG_LEVEL
+    		);
+    		if (dcdUpdated) DISTORTION_CALIBRATION_DATA=LENS_DISTORTIONS.fittingStrategy.distortionCalibrationData;
+	    	if (ABERRATIONS_PARAMETERS.autoReCalibrate){
+				if (LENS_DISTORTIONS.fittingStrategy==null) {
+					IJ.showMessage("Can not recalibrate grids - LENS_DISTORTION.fittingStrategy is not set");
+					return;
+				}
+	    		if (DEBUG_LEVEL>0)System.out.println("=== Re-calibrating grids ===");
+	    		int numMatched=LENS_DISTORTIONS.applyHintedGrids(
+	    				LASER_POINTERS, // MatchSimulatedPattern.LaserPointer laserPointer, // LaserPointer object that specifies actual laser poiners on the target
+	    				DISTORTION_PROCESS_CONFIGURATION.removeOutOfGridPointers, // boolean removeOutOfGridPointers,
+	    				5.0,                   //double  hintGridTolerance, // alllowed mismatch (fraction of period) or 0 - orientation only
+	    				true, //boolean processAll, // if true - process all images, false - only disabeld
+	    				false, //?
+	    				false, //processBlind,
+	    				-1,    //       imageNumber,
+	    				true, // useSetData - use imageSets data if available (false - use camera data)
+	    				THREADS_MAX,                 //int threadsMax,
+	    				UPDATE_STATUS,               // boolean updateStatus,
+	    				DISTORTION.loop_debug_level, // int mspDebugLevel,
+	    				MASTER_DEBUG_LEVEL,          //int global_debug_level, // DEBUG_LEVEL
+	    				MASTER_DEBUG_LEVEL           //int debug_level // debug level used inside loops
+	    		);
+	    		System.out.println("Number of matched images: "+numMatched);
+
+				LENS_DISTORTIONS.debugLevel=DEBUG_LEVEL;
+				LENS_DISTORTIONS.updateStatus=UPDATE_STATUS;
+				LENS_DISTORTIONS.fittingStrategy.debugLevel=DEBUG_LEVEL;
+				LENS_DISTORTIONS.markBadNodces(
+						-1,// series - all images
+						DEBUG_LEVEL);
+
+
+	    	}
+			if ((LENS_DISTORTIONS.fittingStrategy != null) && ABERRATIONS_PARAMETERS.autoFilter) { // trying to fix restore
+    			if (DEBUG_LEVEL>0) System.out.println("LENS_DISTORTIONS.fittingStrategy != null -> Extra after loading");
+    			int minGridsNoPointer=1000;
+        		int [] numImages=DISTORTION_CALIBRATION_DATA.filterImages(
+        				false, // resetHinted,
+        				0, // 2, // minPointers,
+        				0.4, // minGridPeriod,
+        				true, // disableNoVignetting,
+        				minGridsNoPointer); //minGridsNoPointer);
+        		System.out.println("Number of enabled grid images: "+numImages[0]+
+        				", of them new: "+numImages[1]+
+        				", disabled without vignetting info: "+numImages[2]+
+        				", disabled having less than "+minGridsNoPointer+" nodes and no matched pointers: "+numImages[3]+
+        				", disabled with no lasers and enableNoLaser==false (like 2 bottom cameras - check all stations):" +numImages[4]);
+
+	    		if (DISTORTION_CALIBRATION_DATA.gIS==null) {
+	    			int numImageSets=DISTORTION_CALIBRATION_DATA.buildImageSets(false); // from scratch
+	    			if (DEBUG_LEVEL>0) System.out.println("Image set was empty, built a new one with "+numImageSets+" image sets (\"panoramas\"): ");
+	    			DISTORTION_CALIBRATION_DATA.updateSetOrientation(null); // restore orientation from (enabled) image files
+	    			if (DEBUG_LEVEL>0) System.out.println("Setting sets orientation from per-grid image data");
+	    		}
+			}
+	    	restoreFocusingHistory(false);
+
+    	}
+    	return;
+
+	}
+
+
 	public void viewCSVFile(){
 		String [] extensions={".csv","CSV"};
 		CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"CSV table *.csv files");
@@ -14819,6 +14968,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
     	boolean select_ABERRATIONS_PARAMETERS=!select;
     	boolean select_FOCUSING_FIELD=!select;
     	boolean select_POWER_CONTROL=!select;
+    	boolean select_LWIR=!select;
     	if (select) {
     		GenericDialog gd = new GenericDialog("Select parameters to save");
     		gd.addMessage("===== Individual parameters ======");
@@ -14859,6 +15009,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
         	gd.addCheckbox("ABERRATIONS_PARAMETERS",select_ABERRATIONS_PARAMETERS);
         	gd.addCheckbox("FOCUSING_FIELD",select_FOCUSING_FIELD);
         	gd.addCheckbox("POWER_CONTROL",select_POWER_CONTROL);
+        	gd.addCheckbox("LWIR",select_LWIR);
 
             WindowTools.addScrollBars(gd);
             gd.showDialog();
@@ -14900,6 +15051,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
         	select_ABERRATIONS_PARAMETERS=gd.getNextBoolean();
         	select_FOCUSING_FIELD=gd.getNextBoolean();
         	select_POWER_CONTROL=gd.getNextBoolean();
+        	select_LWIR=gd.getNextBoolean();
     	}
 
        	if (select_MASTER_DEBUG_LEVEL) properties.setProperty("MASTER_DEBUG_LEVEL", MASTER_DEBUG_LEVEL+"");
@@ -14939,6 +15091,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
         if (select_ABERRATIONS_PARAMETERS) ABERRATIONS_PARAMETERS.setProperties("ABERRATIONS_PARAMETERS.", properties);
         if ((select_FOCUSING_FIELD) && (FOCUSING_FIELD!=null)) FOCUSING_FIELD.setProperties("FOCUSING_FIELD.", properties);
         if (select_POWER_CONTROL) POWER_CONTROL.setProperties("POWER_CONTROL.", properties);
+        if (select_LWIR) LWIR_PARAMETERS.setProperties("LWIR.", properties);
 
     	if (select) properties.remove("selected");
     }
@@ -14981,6 +15134,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
        ABERRATIONS_PARAMETERS.getProperties("ABERRATIONS_PARAMETERS.", properties);
        if (FOCUSING_FIELD!=null) FOCUSING_FIELD.getProperties("FOCUSING_FIELD.", properties,false); // false -> overwrite distortions center
        POWER_CONTROL.getProperties("POWER_CONTROL.", properties);
+       LWIR_PARAMETERS.getProperties("LWIR.", properties);
     }
 
 	  private String selectSourceDirectory(String defaultPath) {
