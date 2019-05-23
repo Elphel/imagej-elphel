@@ -208,12 +208,54 @@ public class LwirReader {
 		return imps;
 	}
 
-	public ImagePlus [] averageMultiFrames(ImagePlus [][] sets) {
-		//TODO: convert to multithreaded !
-		int num_frames = sets.length;
-		int num_channels = sets[0].length;
-		ImagePlus [] imps_avg = new ImagePlus [num_channels];
+	public ImagePlus [] averageMultiFrames(
+			final ImagePlus [][] sets) {
+		final int num_frames = sets.length;
+		final int num_channels = sets[0].length;
+		final ImagePlus [] imps_avg = new ImagePlus [num_channels];
+   		final Thread[] threads = newThreadArray(MAX_THREADS);
+   		final AtomicInteger indxAtomic = new AtomicInteger(0);
 
+   		for (int ithread = 0; ithread < threads.length; ithread++) {
+   			threads[ithread] = new Thread() {
+   				@Override
+				public void run() {
+   					for (int chn = indxAtomic.getAndIncrement(); chn < num_channels; chn = indxAtomic.getAndIncrement())
+   					{
+   						int width =  sets[0][chn].getWidth();
+   						int height = sets[0][chn].getHeight();
+   						String title = sets[0][chn].getTitle()+"_average"+num_frames;
+   						float [] pixels_avg = (float []) sets[0][chn].getProcessor().getPixels(); //null pointer
+   						for (int n = 1; n < num_frames; n++) {
+   							float [] pixels = (float []) sets[n][chn].getProcessor().getPixels();
+   							for (int i = 0; i < pixels_avg.length; i++) {
+   								pixels_avg[i] += pixels[i];
+   							}
+   						}
+   						double scale = 1.0/num_frames;
+   						for (int i = 0; i < pixels_avg.length; i++) {
+   							pixels_avg[i] *= scale;
+   						}
+   						ImageProcessor ip=new FloatProcessor(width,height);
+   						ip.setPixels(pixels_avg);
+   						ip.resetMinAndMax();
+   						imps_avg[chn]=  new ImagePlus(title, ip);
+   						Properties properties0 = sets[0][chn].getProperties();
+   						for (String key:properties0.stringPropertyNames()) {
+   							imps_avg[chn].setProperty(key, properties0.getProperty(key));
+   						}
+   						imps_avg[chn].setProperty("average", ""+num_frames);
+   						if (motorsPosition!=null) for (int m=0;m<motorsPosition.length;m++ ) {
+   							imps_avg[chn].setProperty("MOTOR"+(m+1), ""+motorsPosition[m]);
+   						}
+   						ImagejJp4Tiff.encodeProperiesToInfo(imps_avg[chn]);
+   					}
+   				}
+   			};
+   		}
+   		startAndJoin(threads);
+
+   		/*
 		for (int chn = 0; chn < num_channels; chn++) {
 			int width =  sets[0][chn].getWidth();
 			int height = sets[0][chn].getHeight();
@@ -244,7 +286,7 @@ public class LwirReader {
 			ImagejJp4Tiff.encodeProperiesToInfo(imps_avg[chn]);
 			// TODO: Overwrite some properties?
 		}
-
+   		 */
 		return imps_avg;
 	}
 
@@ -513,13 +555,14 @@ public class LwirReader {
 			String set_path = dirpath+Prefs.getFileSeparator()+set_name;
 			File  set_dir = new File(set_path);
 			set_dir.mkdirs(); // including parent
+			LOGGER.warn("Saving image set to: "+set_dir.getAbsolutePath());
 			for (ImagePlus imp:imps_avg) {
 				String fname = imp.getTitle();
 				fname = fname.substring(0, fname.lastIndexOf('_')) + ".tiff"; // remove _average
    				FileSaver fs=new FileSaver(imp);
    				String path=set_path+Prefs.getFileSeparator()+fname;
    				IJ.showStatus("Saving "+path);
-   				LOGGER.debug("LWIR_ACQUIRE: 'Saving "+path+ " (and other with the same timestamp)" );
+   				LOGGER.info("LWIR_ACQUIRE: 'Saving "+path );
    				fs.saveAsTiff(path);
 			}
 		}

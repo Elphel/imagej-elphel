@@ -897,22 +897,24 @@ private Panel panel1,
 	if (DEBUG_LEVEL>0) System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
 	CLT_PARAMETERS.batch_run = false;
     if (label==null) return;
-    String LOG_LEVEL;
-    switch (MASTER_DEBUG_LEVEL) {
-    case -2: LOG_LEVEL = "FATAL"; break;
-    case -1: LOG_LEVEL = "ERROR"; break;
-    case  0: LOG_LEVEL = "WARN";  break;
-    case  1: LOG_LEVEL = "INFO";  break;
-    case  2: LOG_LEVEL = "DEBUG"; break;
-    default: LOG_LEVEL = "OFF";
-    }
+    if ((CLT_PARAMETERS !=null) && (CLT_PARAMETERS.lwir !=null)) {
+    	String LOG_LEVEL;
+    	switch (CLT_PARAMETERS.lwir.getDebugLevel()) {
+    	case -2: LOG_LEVEL = "FATAL"; break;
+    	case -1: LOG_LEVEL = "ERROR"; break;
+    	case  0: LOG_LEVEL = "WARN";  break;
+    	case  1: LOG_LEVEL = "INFO";  break;
+    	case  2: LOG_LEVEL = "DEBUG"; break;
+    	default: LOG_LEVEL = "OFF";
+    	}
 
-	boolean LOG_LEVEL_SET = loci.common.DebugTools.enableLogging(LOG_LEVEL);
-	if (!LOG_LEVEL_SET) { // only first time true
-		loci.common.DebugTools.setRootLevel(LOG_LEVEL);
-	}
-    System.out.println("DEBUG_LEVEL = "+DEBUG_LEVEL+", MASTER_DEBUG_LEVEL = "+MASTER_DEBUG_LEVEL+
-    		" LOG_LEVEL="+LOG_LEVEL+"LOG_LEVEL_SET="+LOG_LEVEL_SET);
+    	boolean LOG_LEVEL_SET = loci.common.DebugTools.enableLogging(LOG_LEVEL);
+    	if (!LOG_LEVEL_SET) { // only first time true
+    		loci.common.DebugTools.setRootLevel(LOG_LEVEL);
+    	}
+    	System.out.println("DEBUG_LEVEL = "+DEBUG_LEVEL+", CLT_PARAMETERS.lwir.getDebugLevel() = "+CLT_PARAMETERS.lwir.getDebugLevel()+
+    			" LOG_LEVEL="+LOG_LEVEL+"LOG_LEVEL_SET="+LOG_LEVEL_SET);
+    }
 
 /* ======================================================================== */
     if (label.equals("Configure spilt")) {
@@ -4873,7 +4875,7 @@ private Panel panel1,
 		if (LWIR_READER == null) {
 			LWIR_READER =  new LwirReader(CLT_PARAMETERS.lwir);
 		}
-        ImagePlus [] imps = LWIR_READER.acquire("/data_ssd/imagej-elphel/attic/camera_img/test"); // directory to save
+        ImagePlus [] imps = LWIR_READER.acquire("attic/lwir_test_images"); // directory to save
 		if (imps != null) {
 			for (ImagePlus imp: imps) {
 //				imp.show();
