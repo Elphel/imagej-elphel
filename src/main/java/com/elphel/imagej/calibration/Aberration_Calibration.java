@@ -9459,7 +9459,10 @@ if (MORE_BUTTONS) {
 //		CAMERAS.setNumberOfThreads(THREADS_MAX);
 //		CAMERAS.debugLevel=DEBUG_LEVEL;
 
-		if (GONIOMETER==null) {
+		if ((GONIOMETER==null) || (GONIOMETER.lwirReader ==  null)) {
+			if (LWIR_READER == null) {
+				LWIR_READER =  new LwirReader(LWIR_PARAMETERS);
+			}
 			GONIOMETER= new Goniometer(
 					LWIR_READER,
 //					CAMERAS, // CalibrationHardwareInterface.CamerasInterface cameras,

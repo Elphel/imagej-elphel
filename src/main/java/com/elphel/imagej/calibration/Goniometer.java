@@ -51,7 +51,7 @@ horizontal axis:
 																				// for
 																				// debugging
 	public CalibrationHardwareInterface.CamerasInterface cameras = null;
-	LwirReader lwirReader = null;
+	public LwirReader lwirReader = null;
 	// public CalibrationHardwareInterface.LaserPointers lasers = null;
 	// public static CalibrationHardwareInterface.FocusingMotors motorsS=null;
 	// public DistortionProcessConfiguration
@@ -289,7 +289,7 @@ horizontal axis:
 		boolean dirAxial=reverseAxial;
 		int numStops=0;
 		for (int i=0;i<numTiltSteps;i++){
-			int tiltIndex= zenithToNadir?(numTiltSteps-i):i;
+			int tiltIndex= zenithToNadir?(numTiltSteps-i -1):i;
 			double tilt=-(scanLatitudeLow+tiltIndex*scanStepTilt+ 0.5*(1.0-scanOverlapVertical)*targetAngleVertical);
 			tilts [i]=tilt;
 			double tiltL=tilt-0.5*targetAngleVertical;
@@ -325,7 +325,7 @@ horizontal axis:
 			}
 			rots[i]=new double[numAxialSteps];
 			for (int j=0;j<numAxialSteps;j++){
-				int axialIndex= dirAxial?(numAxialSteps-j):j;
+				int axialIndex= dirAxial?(numAxialSteps-j-1):j;
 				double axial=(scanLimitAxialLow+axialIndex*scanStep+ 0.5*(1.0-overlap)*targetAngleHorizontal/cosMinAbsTilt);
 				rots[i][j]=axial;
 			}
