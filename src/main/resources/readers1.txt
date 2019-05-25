@@ -1,0 +1,7 @@
+# This document is a configuration file identifying all file format readers
+# available to Bio-Formats, and the order in which they should be used.
+# Please do not edit unless you know what you are doing, see
+# https://docs.openmicroscopy.org/latest/bio-formats/developers/reader-guide.html
+
+#Elphel readers
+com.elphel.imagej.readers.ElphelTiffJp4Reader # tiff,jp4
