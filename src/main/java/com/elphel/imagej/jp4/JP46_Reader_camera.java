@@ -23,30 +23,26 @@
  ** -----------------------------------------------------------------------------**
  **
  */
+//from main
 package com.elphel.imagej.jp4;
-import java.awt.Button;
-import java.awt.Frame;
-import java.awt.GridLayout;
-import java.awt.Image;
-import java.awt.Panel;
-import java.awt.Rectangle;
-import java.awt.Toolkit;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
-import java.io.BufferedInputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.RandomAccessFile;
-import java.io.StringReader;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.net.URLConnection;
+
+import ij.*;
+import ij.io.*;
+import ij.process.*;
+import ij.gui.*;
+import ij.plugin.frame.*;
+import ij.text.*;
+import ij.plugin.PlugIn;
+
+import java.awt.*;
+import java.awt.event.*;
+import java.net.*;
 import java.util.Iterator;
 import java.util.Properties;
 import java.util.Set;
+import java.io.*;
 
-import javax.swing.JFileChooser;
+import javax.swing.*;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -56,25 +52,11 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
-import ij.IJ;
-import ij.ImageJ;
-import ij.ImagePlus;
-import ij.ImageStack;
-import ij.Prefs;
-import ij.WindowManager;
-import ij.gui.GUI;
-import ij.gui.GenericDialog;
-import ij.io.FileInfo;
-import ij.io.OpenDialog;
-import ij.plugin.frame.PlugInFrame;
-import ij.process.ImageConverter;
-import ij.process.ImageProcessor;
-import ij.text.TextWindow;
 
 
 
 /* This plugin opens images in Elphel JP4/JP46 format (opens as JPEG, reads MakerNote and converts). */
-public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
+public class JP46_Reader_camera implements PlugIn, ActionListener {
 
 	/**
 	 *
@@ -83,6 +65,7 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 	Panel panel1;
 	Panel confpanel;
 	Frame instance;
+	PlugInFrame plugInFrame; 
 
 	String arg;
 
@@ -97,16 +80,31 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
     public boolean demux=true;
 	public String imageTitle="cameraImage";
 	private int ExifOffset=0x0c;
+	private Boolean headless=GraphicsEnvironment.getLocalGraphicsEnvironment().isHeadlessInstance(); 
+
+	public void run(String arg) {
+		}
+
+	public JP46_Reader_camera(Boolean showGui) {
+		if (showGui) initGui();
+	}
 
 	public JP46_Reader_camera() {
-		super("JP46 Reader Camera");
+		initGui();
+	}
+
+	private void initGui() {
+		if (headless) return;
+
 		if (IJ.versionLessThan("1.39t")) return;
 		if (instance!=null) {
 			instance.toFront();
 			return;
 		}
-		instance = this;
-		addKeyListener(IJ.getInstance());
+		plugInFrame=new PlugInFrame("JP46 Reader Camera");
+		instance = (Frame)plugInFrame;
+
+		plugInFrame.addKeyListener(IJ.getInstance());
 
 		panel1 = new Panel();
 
@@ -120,41 +118,12 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		addButton("Split Bayer",panel1);
 
 
-		add(panel1);
+		plugInFrame.add(panel1);
 
-		pack();
-		GUI.center(this);
-		setVisible(true);
+		plugInFrame.pack();
+		GUI.center(plugInFrame);
+		plugInFrame.setVisible(true);
 	}
-	public JP46_Reader_camera(boolean showGUI) {
-		super("JP46 Reader Camera");
-		if (IJ.versionLessThan("1.39t")) return;
-		if (instance!=null) {
-			instance.toFront();
-			return;
-		}
-		instance = this;
-		addKeyListener(IJ.getInstance());
-
-		panel1 = new Panel();
-
-		panel1.setLayout(new GridLayout(6, 1, 50, 5));
-
-		addButton("Open JP4/JP46...",panel1);
-		addButton("Open JP4/JP46 from camera",panel1);
-		addButton("Configure...",panel1);
-		addButton("Show image properties",panel1);
-		addButton("Decode image info to properties",panel1);
-		addButton("Split Bayer",panel1);
-		add(panel1);
-		pack();
-		GUI.center(this);
-		setVisible(showGUI);
-		if (!showGUI) {
-			this.ABSOLUTELY_SILENT = true;
-		}
-	}
-
 	void addButton(String label, Panel panel) {
 		Button b = new Button(label);
 		b.addActionListener(this);
@@ -162,7 +131,6 @@ public class JP46_Reader_camera extends PlugInFrame implements ActionListener {
 		panel.add(b);
 	}
 
-	@Override
 	public void actionPerformed(ActionEvent e) {
 		String label = e.getActionCommand();
 
@@ -1434,13 +1402,7 @@ Exception in thread "Thread-3564" java.lang.ArrayIndexOutOfBoundsException: 8970
 		Class<?> clazz = JP46_Reader_camera.class;
 		String url = clazz.getResource("/" + clazz.getName().replace('.', '/') + ".class").toString();
 		String pluginsDir = url.substring(5, url.length() - clazz.getName().length() - 6);
-		System.out.println(System.getProperty("plugins.dir"));
-
 		System.setProperty("plugins.dir", pluginsDir);
-//		System.setProperty("plugins.dir", "/data_ssd/imagej-elphel/ijplugins");
-//		System.setProperty("plugins.dir", "/data_ssd/imagej-elphel/target/classes/com/elphel/imagej/jp4/");
-		System.out.println(System.getProperty("plugins.dir"));
-
 		// start ImageJ
 		new ImageJ();
 		// run the plugin

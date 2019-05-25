@@ -28,20 +28,16 @@ package com.elphel.imagej.correction;
 
 import java.awt.Button;
 import java.awt.Color;
-import java.awt.Component;
-import java.awt.Dialog;
+
 import java.awt.Frame;
+import java.awt.GraphicsEnvironment;
 import java.awt.GridLayout;
-import java.awt.Label;
-import java.awt.MouseInfo;
 import java.awt.Panel;
-import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -63,8 +59,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.List;
-//import java.io.FileFilter;
-//import java.io.FilenameFilter;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -98,6 +92,8 @@ import ij.IJ;
 import ij.ImageJ;
 import ij.ImagePlus;
 import ij.ImageStack;
+import ij.Macro;
+
 import ij.Prefs;
 import ij.WindowManager;
 import ij.gui.GUI;
@@ -109,7 +105,9 @@ import ij.io.FileInfo;
 import ij.io.FileSaver;
 import ij.io.OpenDialog;
 import ij.io.Opener;
-import ij.plugin.frame.PlugInFrame;
+
+import ij.plugin.PlugIn;
+
 import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
@@ -117,12 +115,14 @@ import loci.common.services.DependencyException;
 import loci.common.services.ServiceException;
 import loci.formats.FormatException;
 
-//import javax.swing.SwingUtilities;
-//import javax.swing.UIManager;
-public class Eyesis_Correction extends PlugInFrame implements ActionListener {
+public class Eyesis_Correction implements PlugIn, ActionListener {
    /**
 	 *
 	 */
+	private Boolean headless=GraphicsEnvironment.getLocalGraphicsEnvironment().isHeadlessInstance();
+	private PlugInFrame plugInFrame;
+	String prefsPath;
+
 	private static final long serialVersionUID = -1507307664341265263L;
 private Panel panel1,
          panel2,
@@ -421,9 +421,14 @@ private Panel panel1,
 	    public String  buttonLabel="";
 	}
 
-
-	public Eyesis_Correction() {
-		super("Eyesis_Correction");
+	@Override
+	public void run(String arg) {
+		String options=Macro.getOptions();
+		try {
+			prefsPath=Macro.getValue(options, "prefs", Prefs.getPrefsDir()+Prefs.getFileSeparator()+"Eyesis_Correction.xml");
+		} catch(Exception e) {
+			prefsPath=Prefs.getPrefsDir()+Prefs.getFileSeparator()+"Eyesis_Correction.xml";
+		}
 		if (IJ.versionLessThan("1.43q")) return;
 		if (instance!=null) {
 			instance.toFront();
@@ -436,19 +441,34 @@ private Panel panel1,
 //			e1.printStackTrace();
 		}
 		EYESIS_CORRECTIONS =       new EyesisCorrections(SYNC_COMMAND.stopRequested,CORRECTION_PARAMETERS);
+		if (options!=null || headless) {
+			processFiles();
+		} else {
+			initGui();
+		}
+	}
+
+	public void initGui()  {
 		Color color_configure=     new Color(200, 200,160);
 		Color color_process=       new Color(180, 180, 240);
 		Color color_conf_process=  new Color(180, 240, 240);
 		Color color_restore=       new Color(160, 240, 160);
 		Color color_stop=          new Color(255, 160, 160);
 		Color color_report=        new Color(180, 220, 180);
-
-
-		instance = this;
-		addKeyListener(IJ.getInstance());
+		plugInFrame=new PlugInFrame("Eyesis_Correction") {
+			private static final long serialVersionUID = -4138832568507690332L;
+			@Override
+			public void processWindowEvent(WindowEvent e) {
+				super.processWindowEvent(e);
+				if (e.getID()==WindowEvent.WINDOW_CLOSING) {
+					instance = null;
+				}
+			}
+		};
+		instance=plugInFrame;
+		plugInFrame.addKeyListener(IJ.getInstance());
 		int menuRows=4 + (ADVANCED_MODE?4:0) + (MODE_3D?3:0) + (DCT_MODE?6:0) + (GPU_MODE?1:0) +(LWIR_MODE?1:0);
-		setLayout(new GridLayout(menuRows, 1));
-
+		plugInFrame.setLayout(new GridLayout(menuRows, 1));
 		panel6 = new Panel();
 		panel6.setLayout(new GridLayout(1, 0, 5, 5));
 		addButton("Save",    panel6,color_process); //, "Save configuration");
@@ -456,13 +476,13 @@ private Panel panel1,
 		addButton("Stop",    panel6,color_stop);
 		addButton("Abort",   panel6,color_stop);
 
-		add(panel6);
+		plugInFrame.add(panel6);
 
 		panel5 = new Panel();
 		panel5.setLayout(new GridLayout(1, 0, 5, 5));
 		addButton("Configure spilt",    panel5, color_configure);
 		addButton("Configure demosaic", panel5, color_configure);
-		add(panel5);
+		plugInFrame.add(panel5);
 		panel5a = new Panel();
 		panel5a.setLayout(new GridLayout(1, 0, 5, 5));
 		addButton("Configure convolution", panel5a, color_configure);
@@ -470,7 +490,7 @@ private Panel panel1,
 		addButton("Configure color", panel5a, color_configure);
 //		addButton("Channel gains", panel5a, color_configure);
 		addButton("Configure RGB", panel5a, color_configure);
-		add(panel5a);
+		plugInFrame.add(panel5a);
 
 
 		// Debug/development options
@@ -480,13 +500,13 @@ private Panel panel1,
 			panel1.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
 			addButton("Split Image",panel1);
 			addButton("Debayer Image",panel1);
-			add(panel1);
+			plugInFrame.add(panel1);
 
 			panel2 = new Panel();
 			panel2.setLayout(new GridLayout(1, 0, 5, 5));
 			addButton("Select kernel stack",panel2);
 			addButton("Convolve with stack",panel2);
-			add(panel2);
+			plugInFrame.add(panel2);
 
 			panel3 = new Panel();
 			panel3.setLayout(new GridLayout(1, 0, 5, 5));
@@ -494,14 +514,14 @@ private Panel panel1,
 			addButton("Combine pair",panel3);
 			addButton("Colors",panel3);
 			addButton("RGB",panel3);
-			add(panel3);
+			plugInFrame.add(panel3);
 
 
 			panel4 = new Panel();
 			panel4.setLayout(new GridLayout(1, 0, 5, 5));
 			addButton("Test",panel4);
 			addButton("Test Debayer",panel4);
-			add(panel4);
+			plugInFrame.add(panel4);
 		}
 		panel7 = new Panel();
 		panel7.setLayout(new GridLayout(1, 0, 5, 5));
@@ -514,7 +534,7 @@ private Panel panel1,
 			addButton("Tiff Writer", panel7);
 			addButton("Tiff Properties", panel7);
 		}
-		add(panel7);
+		plugInFrame.add(panel7);
 
 		if (MODE_3D){
 			panelPostProcessing1 = new Panel();
@@ -524,7 +544,7 @@ private Panel panel1,
 			addButton("ConvertPP", panelPostProcessing1,color_process);
 			addButton("Linear Features", panelPostProcessing1);
 			addButton("Intercam correlations", panelPostProcessing1);
-			add(panelPostProcessing1);
+			plugInFrame.add(panelPostProcessing1);
 
 			panelPostProcessing2 = new Panel();
 			panelPostProcessing2.setLayout(new GridLayout(1, 0, 5, 5));
@@ -535,14 +555,14 @@ private Panel panel1,
 			addButton("Fill FG gaps", panelPostProcessing2);
 			addButton("Filter Z-map", panelPostProcessing2);
 			addButton("Occluding FG", panelPostProcessing2);
-			add(panelPostProcessing2);
+			plugInFrame.add(panelPostProcessing2);
 
 			panelPostProcessing3 = new Panel();
 			panelPostProcessing3.setLayout(new GridLayout(1, 0, 5, 5));
 			addButton("Refine Disparities", panelPostProcessing3);
 			addButton("Init Photometry", panelPostProcessing3);
 			addButton("Plane Likely", panelPostProcessing3);
-			add(panelPostProcessing3);
+			plugInFrame.add(panelPostProcessing3);
 		}
 		if (DCT_MODE) {
 			panelDct1 = new Panel();
@@ -561,7 +581,7 @@ private Panel panel1,
 			addButton("Reset DCT kernels",         panelDct1, color_stop);
 			addButton("Setup DCT parameters",      panelDct1, color_configure);
 			addButton("DCT process files",         panelDct1, color_process);
-			add(panelDct1);
+			plugInFrame.add(panelDct1);
 		}
 		if (DCT_MODE) {
 			panelClt1 = new Panel();
@@ -577,7 +597,7 @@ private Panel panel1,
 			addButton("CLT process sets",          panelClt1, color_process);
 			addButton("CLT process quads",         panelClt1, color_process);
 
-			add(panelClt1);
+			plugInFrame.add(panelClt1);
 		}
 		if (DCT_MODE) {
 			panelClt2 = new Panel();
@@ -602,7 +622,7 @@ private Panel panel1,
 			addButton("CLT ASSIGN",                panelClt2, color_process);
 			addButton("CLT OUT 3D",                panelClt2, color_process);
 
-			add(panelClt2);
+			plugInFrame.add(panelClt2);
 		}
 		if (DCT_MODE) {
 			panelClt3 = new Panel();
@@ -615,7 +635,7 @@ private Panel panel1,
 			addButton("Show scan",                  panelClt3, color_report);
 			addButton("Show all scans",             panelClt3, color_report);
 			addButton("Periodic",                   panelClt3, color_configure);
-			add(panelClt3);
+			plugInFrame.add(panelClt3);
 		}
 
 		if (DCT_MODE) {
@@ -624,13 +644,9 @@ private Panel panel1,
 			addButton("Import Aux",                 panelClt4, color_restore);
 			addButton("Setup CLT Batch parameters", panelClt4, color_configure);
 			addButton("CLT rig edit",               panelClt4, color_configure);
-//			addButton("CLT 2*4 images",             panelClt4, color_conf_process);
-//			addButton("CLT 2*4 images - 2",         panelClt4, color_conf_process);
-//			addButton("CLT 2*4 images - 3",         panelClt4, color_conf_process);
 			addButton("Rig offset",                 panelClt4, color_configure);
 			addButton("Save offset",                panelClt4, color_process);
 			addButton("SHOW extrinsics",            panelClt4, color_report);
-//			addButton("LIST extrinsics",            panelClt4, color_configure);
 			addButton("RIG DSI",                    panelClt4, color_conf_process);
 			addButton("MAIN extrinsics",            panelClt4, color_process);
 			addButton("AUX extrinsics",             panelClt4, color_process);
@@ -639,8 +655,6 @@ private Panel panel1,
 
 			addButton("Rig8 images",                panelClt4, color_conf_process);
 
-			//			addButton("Rig enhance",                panelClt4, color_conf_process);
-//			/"Reset GT"
 			addButton("Reset GT",                   panelClt4, color_stop);
 			addButton("Ground truth",               panelClt4, color_conf_process);
 			addButton("Show biscan",                panelClt4, color_report);
@@ -649,7 +663,7 @@ private Panel panel1,
 			addButton("JP4 copy",                   panelClt4, color_conf_process);
 			addButton("DSI show",                   panelClt4, color_report);
 			addButton("Rig batch",                  panelClt4, color_process);
-			add(panelClt4);
+			plugInFrame.add(panelClt4);
 		}
 
 		if (DCT_MODE) {
@@ -658,7 +672,7 @@ private Panel panel1,
 			addButton("LIST extrinsics",            panelClt5, color_report);
 			addButton("DSI histogram",              panelClt5, color_report);
 			addButton("ML recalc",                  panelClt5, color_process);
-			add(panelClt5);
+			plugInFrame.add(panelClt5);
 		}
 
 		if (GPU_MODE) {
@@ -669,20 +683,19 @@ private Panel panel1,
 			addButton("GPU files",                  panelClt_GPU, color_conf_process);
 			addButton("Rig8 gpu",                   panelClt_GPU, color_conf_process);
 			addButton("ShowGPU",                    panelClt_GPU, color_conf_process);
-			add(panelClt_GPU);
+			plugInFrame.add(panelClt_GPU);
 		}
 		if (LWIR_MODE) {
 			panelLWIR = new Panel();
 			panelLWIR.setLayout(new GridLayout(1, 0, 5, 5)); // rows, columns, vgap, hgap
 			addButton("LWIR_TEST",                  panelLWIR, color_conf_process);
 			addButton("LWIR_ACQUIRE",               panelLWIR, color_conf_process);
-			add(panelLWIR);
+			plugInFrame.add(panelLWIR);
 		}
-//
-		pack();
+		plugInFrame.pack();
 
-		GUI.center(this);
-		setVisible(true);
+		GUI.center(plugInFrame);
+		plugInFrame.setVisible(true);
 		FHT_INSTANCE=       new DoubleFHT();
 		SDFA_INSTANCE=      new ShowDoubleFloatArrays();
 		// main loop
@@ -711,7 +724,6 @@ private Panel panel1,
 		}
 
 	}
-	private String prefsPath=Prefs.getPrefsDir()+Prefs.getFileSeparator()+"Eyesis_Correction.xml";
     private Properties prefsProperties=new Properties();
 
     public void loadPrefs() throws IOException{
@@ -725,6 +737,9 @@ private Panel panel1,
     	}
     	try {
     		prefsProperties.loadFromXML(is);
+    		System.out.println("Skipping getAllProperties(prefsProperties)");
+//    		getAllProperties(prefsProperties);
+//   		if (DEBUG_LEVEL>0) System.out.println("Configuration parameters are restored from "+this.prefsPath);
 
     	} catch (IOException e) {
     		String msg="Failed to read XML configuration file: "+this.prefsPath;
@@ -737,7 +752,7 @@ private Panel panel1,
     		// TODO Auto-generated catch block
     		e.printStackTrace();
     	}
-		String sValue=	this.prefsProperties.getProperty("ADVANCED_MODE");
+		String sValue = this.prefsProperties.getProperty("ADVANCED_MODE");
 		if (sValue!=null) {
 			ADVANCED_MODE=Boolean.parseBoolean(sValue);
 			System.out.println("Read ADVANCED_MODE="+ADVANCED_MODE);
@@ -855,14 +870,6 @@ private Panel panel1,
 		panel.add(b);
 	}
 	@Override
-	public void processWindowEvent(WindowEvent e) {
-		super.processWindowEvent(e);
-		if (e.getID()==WindowEvent.WINDOW_CLOSING) {
-			instance = null;
-		}
-	}
-
-	@Override
 	public void actionPerformed(ActionEvent e) {
 		String label = e.getActionCommand();
 		if        (label.equals("Abort")) {
@@ -889,6 +896,70 @@ private Panel panel1,
 		}
 		//		matchSimulatedPattern.FFT_SIZE=FFT_SIZE;
 	}
+
+	public void processFiles() {
+		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+		EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
+		String configPath=null;
+		if (!headless && EYESIS_CORRECTIONS.correctionsParameters.saveSettings) {
+			configPath=EYESIS_CORRECTIONS.correctionsParameters.selectResultsDirectory(
+					true,
+					true);
+			if (configPath==null){
+				String msg="No results directory selected, command aborted";
+				System.out.println("Warning: "+msg);
+				IJ.showMessage("Warning",msg);
+				return;
+			}
+			configPath+=Prefs.getFileSeparator()+"autoconfig";
+			try {
+				saveTimestampedProperties(
+						configPath,      // full path or null
+						null, // use as default directory if path==null
+						true,
+						PROPERTIES);
+			} catch (Exception e){
+				String msg="Failed to save configuration to "+configPath+", command aborted";
+				System.out.println("Error: "+msg);
+				IJ.showMessage("Error",msg);
+				return;
+			}
+		}
+	    EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+	    int numChannels=EYESIS_CORRECTIONS.getNumChannels();
+	    NONLIN_PARAMETERS.modifyNumChannels(numChannels);
+	    CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
+
+	    if (CORRECTION_PARAMETERS.deconvolve && (NONLIN_PARAMETERS.noiseGainPower!=0)) {
+	    EYESIS_CORRECTIONS.updateImageNoiseGains(
+	    		NONLIN_PARAMETERS,     //EyesisCorrectionParameters.NonlinParameters nonlinParameters,
+	    		CONVOLVE_FFT_SIZE,     //int          fftSize, // 128 - fft size, kernel size should be size/2
+				THREADS_MAX,           // int          threadsMax,  // maximal number of threads to launch
+				UPDATE_STATUS,         // boolean    updateStatus,
+				DEBUG_LEVEL);           //int        globalDebugLevel){
+	    }
+
+	    EYESIS_CORRECTIONS.processChannelImages(
+	    		SPLIT_PARAMETERS, // EyesisCorrectionParameters.SplitParameters         splitParameters,
+	    		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
+	    		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
+	    		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
+	    		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
+	    		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
+	    		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
+	    		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
+	    		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
+	    		UPDATE_STATUS, //final boolean    updateStatus,
+	    		DEBUG_LEVEL); //final int        debugLevel);
+	    if (configPath!=null) {
+	    	saveTimestampedProperties( // save config again
+	    			configPath,      // full path or null
+	    			null, // use as default directory if path==null
+	    			true,
+	    			PROPERTIES);
+	    }
+	}
+
 	public void runMenuCommand(String label){
     int i, j; //,l,iq;
 //    String label = e.getActionCommand();
@@ -1279,13 +1350,11 @@ private Panel panel1,
     	saveProperties(null,CORRECTION_PARAMETERS.resultsDirectory,true, PROPERTIES);
     	return;
 /* ======================================================================== */
-
     } else if (label.equals("Save offset")) {
 
     	saveInfinityOffsets(null,CORRECTION_PARAMETERS.resultsDirectory);
     	return;
 /* ======================================================================== */
-
     } else if (label.equals("Restore")) {
     	String path= loadProperties(null,CORRECTION_PARAMETERS.resultsDirectory,true, PROPERTIES);
     	if (path != null) {
@@ -1360,44 +1429,7 @@ private Panel panel1,
     	return;
 /* ======================================================================== */
     } else if (label.equals("Process files")) {
-    	DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-    	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
-    	String configPath=getSaveCongigPath();
-    	if (configPath.equals("ABORT")) return;
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
-        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
-        NONLIN_PARAMETERS.modifyNumChannels(numChannels);
-        CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
-
-        if (CORRECTION_PARAMETERS.deconvolve && (NONLIN_PARAMETERS.noiseGainPower!=0)) {
-        EYESIS_CORRECTIONS.updateImageNoiseGains(
-        		NONLIN_PARAMETERS,     //EyesisCorrectionParameters.NonlinParameters nonlinParameters,
-        		CONVOLVE_FFT_SIZE,     //int          fftSize, // 128 - fft size, kernel size should be size/2
-    			THREADS_MAX,           // int          threadsMax,  // maximal number of threads to launch
-    			UPDATE_STATUS,         // boolean    updateStatus,
-    			DEBUG_LEVEL);           //int        globalDebugLevel){
-        }
-
-        EYESIS_CORRECTIONS.processChannelImages(
-        		SPLIT_PARAMETERS, // EyesisCorrectionParameters.SplitParameters         splitParameters,
-        		DEBAYER_PARAMETERS, //EyesisCorrectionParameters.DebayerParameters     debayerParameters,
-        		NONLIN_PARAMETERS, //EyesisCorrectionParameters.NonlinParameters       nonlinParameters,
-        		COLOR_PROC_PARAMETERS, //EyesisCorrectionParameters.ColorProcParameters colorProcParameters,
-        		CHANNEL_GAINS_PARAMETERS, //CorrectionColorProc.ColorGainsParameters     channelGainParameters,
-        		RGB_PARAMETERS, //EyesisCorrectionParameters.RGBParameters             rgbParameters,
-        		EQUIRECTANGULAR_PARAMETERS, // EyesisCorrectionParameters.EquirectangularParameters equirectangularParameters,
-        		CONVOLVE_FFT_SIZE, //int          convolveFFTSize, // 128 - fft size, kernel size should be size/2
-        		THREADS_MAX, //final int          threadsMax,  // maximal number of threads to launch
-        		UPDATE_STATUS, //final boolean    updateStatus,
-        		DEBUG_LEVEL); //final int        debugLevel);
-        if (configPath!=null) {
-        	saveTimestampedProperties( // save config again
-        			configPath,      // full path or null
-        			null, // use as default directory if path==null
-        			true,
-        			PROPERTIES);
-        }
-
+    	processFiles();
         return;
 /* ======================================================================== */
     } else if (label.equals("Tiff Writer")) {
@@ -3146,7 +3178,6 @@ private Panel panel1,
         int numChannels=EYESIS_CORRECTIONS.getNumChannels();
         NONLIN_PARAMETERS.modifyNumChannels(numChannels);
         CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
-
         if (!EYESIS_DCT.DCTKernelsAvailable()){
         	if (DEBUG_LEVEL > 0){
         		System.out.println("Reading/converting DCT kernels");
@@ -3719,10 +3750,7 @@ private Panel panel1,
     	EYESIS_CORRECTIONS.setDebug(DEBUG_LEVEL);
     	String configPath=getSaveCongigPath();
     	if (configPath.equals("ABORT")) return;
-
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
-//        int numChannels=EYESIS_CORRECTIONS.getNumChannels();
-
 
     } else if (label.equals("Select kernels image")) {
         if (!DCT_PARAMETERS.showDialog()) return;
@@ -3749,8 +3777,6 @@ private Panel panel1,
         }
         QUAD_CLT.setKernelImageFile( imp_src);
 
-
-
     } else if (label.equals("Create DCT kernels")) {
         if (!DCT_PARAMETERS.showDialog()) return;
         if (EYESIS_DCT == null){
@@ -3763,7 +3789,7 @@ private Panel panel1,
     	String configPath=getSaveCongigPath();
     	if (configPath.equals("ABORT")) return;
 
-        EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
+    	EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
 
         EYESIS_DCT.createDCTKernels(
         		DCT_PARAMETERS,
@@ -3786,7 +3812,8 @@ private Panel panel1,
         			CORRECTION_PARAMETERS,
         			DCT_PARAMETERS);
         }
-    	String configPath=getSaveCongigPath();
+
+        String configPath=getSaveCongigPath();
     	if (configPath.equals("ABORT")) return;
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
         EYESIS_DCT.readDCTKernels(
@@ -3934,7 +3961,6 @@ private Panel panel1,
     	if (configPath.equals("ABORT")) return;
         EYESIS_CORRECTIONS.initSensorFiles(DEBUG_LEVEL);
         int numChannels=EYESIS_CORRECTIONS.getNumChannels();
-//        NONLIN_PARAMETERS.modifyNumChannels(numChannels); // not used
         CHANNEL_GAINS_PARAMETERS.modifyNumChannels(numChannels);
 
         if (!QUAD_CLT.CLTKernelsAvailable()){
@@ -3946,7 +3972,6 @@ private Panel panel1,
                     THREADS_MAX,
                     UPDATE_STATUS, // update status info
             		DEBUG_LEVEL);
-
             if (DEBUG_LEVEL > 1){
             	QUAD_CLT.showCLTKernels(
             			THREADS_MAX,
@@ -6544,8 +6569,6 @@ private Panel panel1,
 			}
 		}
 
-
-
 		double [][] iclt_data = new double [clt_data.length][];
 		for (int chn=0; chn<iclt_data.length;chn++){
 			iclt_data[chn] = image_dtt.iclt_2d(
@@ -6565,6 +6588,7 @@ private Panel panel1,
 				DBG_IMP.getTitle()+"-ICLT-"+CLT_PARAMETERS.iclt_mask);
 		return;
 	}
+
 /* ======================================================================== */
 
 	public void CLTCorrelate() {
@@ -7646,8 +7670,6 @@ private Panel panel1,
 	 		e.printStackTrace();
 	 	 }
 	     return path;
-//	     getAllProperties(properties);
-//		 if (DEBUG_LEVEL>0) System.out.println("Configuration parameters are restored from "+path);
 	}
 /* ======================================================================== */
     public void setAllProperties(Properties properties){
@@ -7707,7 +7729,6 @@ private Panel panel1,
 	   PSF_SUBPIXEL_SHOULD_BE_4=Integer.parseInt(properties.getProperty("PSF_SUBPIXEL_SHOULD_BE_4"));
 	   if (QUAD_CLT != null)     QUAD_CLT.getProperties(QuadCLT.PREFIX);
 	   if (QUAD_CLT_AUX != null) QUAD_CLT_AUX.getProperties(QuadCLT.PREFIX_AUX);
-
     }
 
 /* ======================================================================== */
