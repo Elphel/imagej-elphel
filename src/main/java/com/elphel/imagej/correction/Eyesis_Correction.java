@@ -1,4 +1,3 @@
-package com.elphel.imagej.correction;
 /**
 ** -----------------------------------------------------------------------------**
 ** Eyesis_Correction.java
@@ -25,19 +24,24 @@ package com.elphel.imagej.correction;
 ** -----------------------------------------------------------------------------**
 **
 */
-
+package com.elphel.imagej.correction;
 import java.awt.Button;
 import java.awt.Color;
-
+import java.awt.Component;
+import java.awt.Dialog;
 import java.awt.Frame;
 import java.awt.GraphicsEnvironment;
 import java.awt.GridLayout;
+import java.awt.Label;
+import java.awt.MouseInfo;
 import java.awt.Panel;
+import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.event.WindowEvent;
-
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -93,7 +97,6 @@ import ij.ImageJ;
 import ij.ImagePlus;
 import ij.ImageStack;
 import ij.Macro;
-
 import ij.Prefs;
 import ij.WindowManager;
 import ij.gui.GUI;
@@ -105,9 +108,8 @@ import ij.io.FileInfo;
 import ij.io.FileSaver;
 import ij.io.OpenDialog;
 import ij.io.Opener;
-
 import ij.plugin.PlugIn;
-
+import ij.plugin.frame.PlugInFrame;
 import ij.process.ColorProcessor;
 import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;

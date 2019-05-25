@@ -742,7 +742,7 @@ public class EyesisCorrections {
 			if (path!=null){
 				path+=Prefs.getFileSeparator()+imp.getTitle()+".tiff";
 	 			 if (this.debugLevel>0) System.out.println("Saving equirectangular result to "+path);
-				(new EyesisTiff(correctionsParameters.tiffCompression)).saveTiff(
+				(new EyesisTiff()).saveTiff(
 						imp,
 						path,
 						correctionsParameters.equirectangularFormat,

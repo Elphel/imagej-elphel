@@ -26,23 +26,30 @@
 //from main
 package com.elphel.imagej.jp4;
 
-import ij.*;
-import ij.io.*;
-import ij.process.*;
-import ij.gui.*;
-import ij.plugin.frame.*;
-import ij.text.*;
-import ij.plugin.PlugIn;
-
-import java.awt.*;
-import java.awt.event.*;
-import java.net.*;
+import java.awt.Button;
+import java.awt.Frame;
+import java.awt.GraphicsEnvironment;
+import java.awt.GridLayout;
+import java.awt.Image;
+import java.awt.Panel;
+import java.awt.Rectangle;
+import java.awt.Toolkit;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.RandomAccessFile;
+import java.io.StringReader;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLConnection;
 import java.util.Iterator;
 import java.util.Properties;
 import java.util.Set;
-import java.io.*;
 
-import javax.swing.*;
+import javax.swing.JFileChooser;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -51,6 +58,22 @@ import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
+
+import ij.IJ;
+import ij.ImageJ;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.Prefs;
+import ij.WindowManager;
+import ij.gui.GUI;
+import ij.gui.GenericDialog;
+import ij.io.FileInfo;
+import ij.io.OpenDialog;
+import ij.plugin.PlugIn;
+import ij.plugin.frame.PlugInFrame;
+import ij.process.ImageConverter;
+import ij.process.ImageProcessor;
+import ij.text.TextWindow;
 
 
 
@@ -65,7 +88,7 @@ public class JP46_Reader_camera implements PlugIn, ActionListener {
 	Panel panel1;
 	Panel confpanel;
 	Frame instance;
-	PlugInFrame plugInFrame; 
+	PlugInFrame plugInFrame;
 
 	String arg;
 
@@ -80,8 +103,9 @@ public class JP46_Reader_camera implements PlugIn, ActionListener {
     public boolean demux=true;
 	public String imageTitle="cameraImage";
 	private int ExifOffset=0x0c;
-	private Boolean headless=GraphicsEnvironment.getLocalGraphicsEnvironment().isHeadlessInstance(); 
+	private Boolean headless=GraphicsEnvironment.getLocalGraphicsEnvironment().isHeadlessInstance();
 
+	@Override
 	public void run(String arg) {
 		}
 
@@ -102,7 +126,7 @@ public class JP46_Reader_camera implements PlugIn, ActionListener {
 			return;
 		}
 		plugInFrame=new PlugInFrame("JP46 Reader Camera");
-		instance = (Frame)plugInFrame;
+		instance = plugInFrame;
 
 		plugInFrame.addKeyListener(IJ.getInstance());
 
@@ -131,6 +155,7 @@ public class JP46_Reader_camera implements PlugIn, ActionListener {
 		panel.add(b);
 	}
 
+	@Override
 	public void actionPerformed(ActionEvent e) {
 		String label = e.getActionCommand();
 
@@ -1026,11 +1051,11 @@ public class JP46_Reader_camera implements PlugIn, ActionListener {
 		}
 		return imp;
 	}
-	@Override
+
 	public void setTitle (String title) {
 		imageTitle=title;
 	}
-	@Override
+
 	public String getTitle () {
 		return imageTitle;
 	}
