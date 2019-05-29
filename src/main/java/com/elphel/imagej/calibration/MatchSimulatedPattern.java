@@ -9262,7 +9262,8 @@ dbgThis=true;
 						   " numOfNeib="+numOfNeib+" (distortionParameters.correlationAverageOnRefine="+distortionParameters.correlationAverageOnRefine);
 			   }
 
-			   double [][] modelCorrs=new double[numOfNeib][];
+			   double [][] modelCorrs=     new double[numOfNeib][];
+			   double [][] modelCorrs_new= new double[numOfNeib][];
 			   double [][] debugGreens=new double[numOfNeib][0];
 			   for (numNeib=0;numNeib<numOfNeib;numNeib++) {
 				   neibCenter[0]=diffBeforeXY[0]+0.5*(greenNeib[numNeib][0]+greenNeib[numNeib][1]);
@@ -9309,14 +9310,24 @@ dbgThis=true;
 				   debugGreens[numNeib]=simGreensCentered.clone();
 
 				   // testing if phase reversal would exactly inverse result pattern - tested, perfect
+				   double [] simGreensCenteredClone = simGreensCentered.clone();
 
 				   modelCorrs[numNeib]=fht_instance.correlate (greens.clone(),  // measured pixel array
 						   //						 modelCorr=fht_instance.correlate (greens,  // measured pixel array
 						   simGreensCentered,  // simulated (model) pixel array)
 						   //	                     distortionParameters.correlationHighPassSigma);
 						   distortionParameters.correlationHighPassSigma,
-						   fast?distortionParameters.correlationLowPassSigma:0.0,// moved to decimation via FFT
-								   distortionParameters.phaseCorrelationFraction);
+						   (fast ? distortionParameters.correlationLowPassSigma : 0.0),// moved to decimation via FFT
+						   distortionParameters.phaseCorrelationFraction);
+				   modelCorrs_new[numNeib]=fht_instance.phaseCorrelate (
+						   greens.clone(),
+						   simGreensCenteredClone,
+						   patternDetectParameters.phaseCoeff,
+						   0,//   distortionParameters.correlationHighPassSigma,
+						   patternDetectParameters.lowpass_sigma, // (fast?distortionParameters.correlationLowPassSigma:0.0),// moved to decimation via FFT
+						   null,
+						   null);
+
 				   if (dbgStr!=null) {
 					   double dbgSumWindow=0.0;
 					   for (double[] dbgSlice:modelCorrs) for (double dbgD:dbgSlice) dbgSumWindow+=dbgD;
@@ -9333,6 +9344,7 @@ dbgThis=true;
 			   if (debug_level > (debug_threshold + 0)){
 				   System.out.println(">=========Showing modelCorrs, passNumber="+passNumber);
 				   SDFA_INSTANCE.showArrays(modelCorrs, true, "modelCorrs:"+numOfNeib);
+				   SDFA_INSTANCE.showArrays(modelCorrs_new, true, "modelCorrs_new:"+numOfNeib);
 			   }
 
 			   // combine 4 correlations into the double resolution, same output size (so half input size) array

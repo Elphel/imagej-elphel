@@ -303,7 +303,7 @@ public class DoubleFHT  {
     	else return phaseCorrelate (first, second, phaseCoeff,filter);
      }
      //asymmetrical - will divide by squared second amplitude (pattern to match)
-     public double [] phaseCorrelate (
+     public double [] phaseCorrelate ( // old
  			double [] first,
  			double [] second,
  			double    phaseCoeff,
@@ -371,6 +371,56 @@ public class DoubleFHT  {
     	 swapQuadrants(first);
     	 return first;
      }
+     public double [] phaseCorrelate (
+    		 double [] first,
+    		 double [] second,
+    		 double    phaseCoeff,
+    		 double    highPassSigma,
+    		 double    lowPassSigma,
+    		 double [] first_save,
+    		 double [] second_save ){  //null-OK
+    	 updateMaxN(first);
+    	 double [] filter = null;
+    	 if ((highPassSigma >0) || (lowPassSigma > 0)) {
+    		 filter = createFrequencyFilter(highPassSigma, lowPassSigma);
+    	 }
+    	 return phaseCorrelate (
+        		 first,
+        		 second,
+        		 phaseCoeff,
+        		 filter,     //  high/low pass filtering
+        		 first_save,
+        		 second_save );
+
+     }
+     public double [] phaseCorrelate ( // new
+    		 double [] first,
+    		 double [] second,
+    		 double    phaseCoeff,
+    		 double [] filter,     //  high/low pass filtering
+    		 double [] first_save,
+    		 double [] second_save ){  //null-OK
+    	 if (first.length!=second.length) {
+    		 IJ.showMessage("Error","Correlation arrays should be the same size");
+    		 return null;
+    	 }
+    	 updateMaxN(first);
+    	 swapQuadrants(first);
+    	 swapQuadrants(second);
+    	 if (!transform(first,false))  return null; // direct FHT
+    	 if (!transform(second,false)) return null; // direct FHT
+    	 if (first_save != null) System.arraycopy(first, 0, first_save, 0, first.length);
+    	 if (second_save != null) System.arraycopy(second, 0, second_save, 0, second.length);
+
+    	 first= phaseMultiplyNorm(first, second, phaseCoeff); // correlation, not convolution
+    	 if (filter!=null) multiplyByReal(first, filter);
+    	 transform(first,true) ; // inverse transform
+    	 swapQuadrants(first);
+    	 return first;
+     }
+
+
+
 //
      public double [] applyFreqFilter(
     		 double [] first,
