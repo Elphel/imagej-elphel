@@ -1,14 +1,4 @@
 package com.elphel.imagej.calibration;
-import ij.IJ;
-import ij.ImagePlus;
-import ij.ImageStack;
-import ij.Prefs;
-import ij.gui.GenericDialog;
-import ij.io.FileSaver;
-import ij.io.Opener;
-import ij.process.FloatProcessor;
-import ij.process.ImageProcessor;
-
 import java.awt.Rectangle;
 import java.io.File;
 import java.util.ArrayList;
@@ -19,13 +9,21 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.SwingUtilities;
 
-import com.elphel.imagej.calibration.CalibrationFileManagement.MultipleExtensionsFileFilter;
-import com.elphel.imagej.calibration.SimulationPattern.SimulParameters;
 import com.elphel.imagej.common.DoubleFHT;
 import com.elphel.imagej.common.DoubleGaussianBlur;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.common.WindowTools;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
+
+import ij.IJ;
+import ij.ImagePlus;
+import ij.ImageStack;
+import ij.Prefs;
+import ij.gui.GenericDialog;
+import ij.io.FileSaver;
+import ij.io.Opener;
+import ij.process.FloatProcessor;
+import ij.process.ImageProcessor;
 
 public class EyesisAberrations {
 	public double [][][][] pdfKernelMap=null;
@@ -34,7 +32,7 @@ public class EyesisAberrations {
     public AtomicInteger stopRequested=null; // 1 - stop now, 2 - when convenient
 	public Distortions distortions=null;
 	public AberrationParameters aberrationParameters=null;
-    
+
     public EyesisAberrations (AtomicInteger stopRequested,
     		AberrationParameters aberrationParameters){
     	this.stopRequested=stopRequested;
@@ -43,7 +41,7 @@ public class EyesisAberrations {
    	public void setDistortions(Distortions distortions){
 		this.distortions=distortions;
 	}
-   	
+
    	int countExistentFiles(String directory,String [] paths, boolean remove){
    		int numFiles=0;
    		for (int i=0;i<paths.length;i++) if (paths[i]!=null){
@@ -127,7 +125,7 @@ public class EyesisAberrations {
    					inverseParameters, // size (side of square) of direct PSF kernel
    					threadsMax, // size (side of square) of reverse PSF kernel
    					updateStatus,
-   					globalDebugLevel); 
+   					globalDebugLevel);
 
    			ImagePlus impInvertedPSF = new ImagePlus("interpolated kernel stack", stack);
    			JP46_Reader_camera jp4_instance= new JP46_Reader_camera(false);
@@ -139,14 +137,14 @@ public class EyesisAberrations {
    			if (showResult) {
    				impInvertedPSF.getProcessor().resetMinAndMax(); // imp_psf will be reused
    				impInvertedPSF.show();
-   			} 
+   			}
    			if (saveResult){
    				if (globalDebugLevel>0) System.out.println((numProcessed+1)+" of "+numToProcess+": saving invered (of the file"+srcPaths[nChn]+") kernel to "+resultPaths[nChn]+ " at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
    				FileSaver fs=new FileSaver(impInvertedPSF);
    				fs.saveAsTiffStack(resultPaths[nChn]);
    			}
    			numProcessed++;
-    		if 	(stopRequested.get()>0) {				
+    		if 	(stopRequested.get()>0) {
 				if (globalDebugLevel>0) System.out.println("User requested stop");
 				break;
     		}
@@ -162,7 +160,7 @@ public class EyesisAberrations {
    		}
    		return true;
    	}
-   	
+
 	public ImageStack  reversePSFKernelStack(
 			final ImageStack            PSFStack, // stack of 3 32-bit (float) images, made of square kernels
 			final EyesisAberrations.InverseParameters inverseParameters, // size (side of square) of direct PSF kernel
@@ -181,6 +179,7 @@ public class EyesisAberrations {
 		final int numberOfKernelsInChn=tilesY*tilesX;
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 					float [] pixels=null;
 					double [] kernel= new double[inverseParameters.dSize*inverseParameters.dSize];
@@ -200,7 +199,7 @@ public class EyesisAberrations {
 							pixels=(float[]) PSFStack.getPixels(chn+1);
 							chn0=chn;
 						}
-						extractOneKernel( pixels, //  array of combined square kernels, each 
+						extractOneKernel( pixels, //  array of combined square kernels, each
 								kernel, // will be filled, should have correct size before call
 								tilesX, // number of kernels in a row
 								tileX, // horizontal number of kernel to extract
@@ -221,12 +220,12 @@ public class EyesisAberrations {
 									variableSigmas, // array of sigmas to be used for each pixel, matches pixels[]
 									3.5, // drop calculatin if farther then nSigma
 									0, // int WOICenterX, // window of interest in pixels[] array - do not generate data outside it
-									0, // int WOICenterY, // 
+									0, // int WOICenterY, //
 									inverseParameters.rSize, //int WOIWidth, reduce later
 									inverseParameters.rSize, //int WOIHeight)
 									globalDebugLevel);
 						}
-						
+
 /* reverse PSF kernel */
 						rKernel= cleanupAndReversePSF (rKernel,  // input pixels
 								inverseParameters,
@@ -252,7 +251,7 @@ public class EyesisAberrations {
 									variableSigmas, // array of sigmas to be used for each pixel, matches pixels[]
 									3.5, // drop calculation if farther then nSigma
 									0, // int WOICenterX, // window of interest in pixels[] array - do not generate data outside it
-									0, // int WOICenterY, // 
+									0, // int WOICenterY, //
 									inverseParameters.rSize, //int WOIWidth, reduce later
 									inverseParameters.rSize,
 									globalDebugLevel); //int WOIHeight)
@@ -280,7 +279,7 @@ public class EyesisAberrations {
 		}
 		return outStack;
 	}
-  	
+
 	/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 	private double [] maskReversePSFKernel( double []rpsf_pixels, // reversed psf, square array
 			double [] ellipse_coeff, // ellipse coefficients from _direct_ kernel
@@ -308,8 +307,8 @@ public class EyesisAberrations {
 	}
 
 	/* ======================================================================== */
-	
-	
+
+
 	private  double [] createSigmasFromCenter(
 			int               size, // side of square
 			double sigma_to_radius, // variable blurring - sigma will be proportional distance from the center
@@ -329,8 +328,8 @@ public class EyesisAberrations {
 		return sigmas;
 	}
 
-	
-	
+
+
 	/* ======================================================================== */
 	public double [] cleanupAndReversePSF (double []   psf_pixels,  // input pixels
 			EyesisAberrations.InverseParameters inverseParameters, // size (side of square) of direct PSF kernel
@@ -430,7 +429,7 @@ public class EyesisAberrations {
 
 		double [] pixels=null;
 /* convert back original dimension array if there was no decimation or debug is set (in that case both sizes arrays will be converted) */
-/* Convert fft array back to fht array and 
+/* Convert fft array back to fht array and
     set fht pixels with new values */
 	    pixels=FFTHalf2FHT (fft_complex,size);
 /* optionally show the result FHT*/
@@ -440,7 +439,7 @@ public class EyesisAberrations {
 /*   return inverted psf pixels */
 		return pixels;
 	}
-	
+
 	/* ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++ */
 
 	/* finds cluster (with the center at DC)  by flooding from DC, so total energy is cutoff_energy fraction
@@ -555,7 +554,7 @@ public class EyesisAberrations {
 						iy=-iy;
 					}
 					ix= (ix+size) % size;
-					floatPixels[i]=(float) clusterMap[iy][ix];
+					floatPixels[i]=clusterMap[iy][ix];
 				}
 				ip.setPixels(floatPixels);
 				ip.resetMinAndMax();
@@ -609,9 +608,9 @@ public class EyesisAberrations {
 			return result;
 		}
 
-	
-	
-	
+
+
+
 	/* ======================================================================== */
 	/* TODO: REPLACE doubleFHT  */
 	/* converts FHT results (frequency space) to complex numbers of [fftsize/2+1][fftsize] */
@@ -639,20 +638,20 @@ public class EyesisAberrations {
 				row2=(fftsize-row1) %fftsize;
 				for (col1=0;col1 < fftsize;col1++) {
 					col2=(fftsize-col1) %fftsize;
-					fht_pixels[row1*fftsize+col1]=(double) (fft[row1][col1][0]-fft[row1][col1][1]);
-					fht_pixels[row2*fftsize+col2]=(double) (fft[row1][col1][0]+fft[row1][col1][1]);
+					fht_pixels[row1*fftsize+col1]=fft[row1][col1][0]-fft[row1][col1][1];
+					fht_pixels[row2*fftsize+col2]=fft[row1][col1][0]+fft[row1][col1][1];
 				}
 			}
 			return fht_pixels;
 		}
 
 
-	
-   	
+
+
    	/* interpolate kernels minimizing memory image - use directly the image stack (32-bit, float) with kernels.
    	  Add kernels around by either replication or extrapolation to compensate for "margins" in the original; kernels */
  //TODO: FIXME: Does not work if overwrite is disabled
-   	public boolean interpolateKernels( 
+   	public boolean interpolateKernels(
 		    AtomicInteger stopRequested, // 1 - stop now, 2 - when convenient
 			EyesisAberrations.InterpolateParameters  interpolateParameters, // INTERPOLATE
 			EyesisAberrations.MultiFilePSF           multiFilePSF ,         // MULTIFILE_PSF = new EyesisAberrations.MultiFilePSF(
@@ -734,7 +733,7 @@ public class EyesisAberrations {
    			if (showResult) {
    				impInterpolatedPSF.getProcessor().resetMinAndMax(); // imp_psf will be reused
    				impInterpolatedPSF.show();
-   			} 
+   			}
    			if (saveResult){
    				if (globalDebugLevel>0) System.out.println((numProcessed+1)+" of "+numToProcess+": saving interpolation result (of the file"+srcPaths[nChn]+") to "+
    						resultPaths[nChn]+ " at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
@@ -742,7 +741,7 @@ public class EyesisAberrations {
    				fs.saveAsTiffStack(resultPaths[nChn]);
    			}
    			numProcessed++;
-    		if 	(stopRequested.get()>0) {				
+    		if 	(stopRequested.get()>0) {
 				if (globalDebugLevel>0) System.out.println("User requested stop");
 				break;
     		}
@@ -798,7 +797,7 @@ public class EyesisAberrations {
    			int [] inTopLeft=new int [2]; // top left kernel in the input array
    			double [][] firstFHTColumn=null;
    			double [][] secondFHTColumn=null;
-   			double [][][] cornerFHT=new double[2][2][interpolateParameters.size*interpolateParameters.size]; //[y][x][pixel] 
+   			double [][][] cornerFHT=new double[2][2][interpolateParameters.size*interpolateParameters.size]; //[y][x][pixel]
    			double [] swapArray=null;
 
    			for (chn=0;chn<nChn;chn++) {
@@ -870,12 +869,12 @@ public class EyesisAberrations {
    								" outTopLeft[0]="+outTopLeft[0]+" outTopLeft[1]="+outTopLeft[1]);
 
    						if (firstFHTColumn==null) { /* First colum needs to be input and calculated*/
-   							extractOneKernel(          pixels, //  array of combined square kernels, each 
+   							extractOneKernel(          pixels, //  array of combined square kernels, each
    									cornerFHT[0][0], // will be filled, should have correct size before call
    									inTilesX, // number of kernels in a row
    									inTopLeft[0], // horizontal number of kernel to extract
    									inTopLeft[1]); // vertical number of kernel to extract
-   							extractOneKernel(          pixels, //  array of combined square kernels, each 
+   							extractOneKernel(          pixels, //  array of combined square kernels, each
    									cornerFHT[1][0], // will be filled, should have correct size before call
    									inTilesX, // number of kernels in a row
    									inTopLeft[0], // horizontal number of kernel to extract
@@ -893,12 +892,12 @@ public class EyesisAberrations {
    							if (globalDebugLevel>2)  System.out.println(" firstFHTColumn.length="+firstFHTColumn.length);
    						}
    						if (secondFHTColumn==null) { /* Last colum needs to be input and calculated*/
-   							extractOneKernel(          pixels, //  array of combined square kernels, each 
+   							extractOneKernel(          pixels, //  array of combined square kernels, each
    									cornerFHT[0][1], // will be filled, should have correct size before call
    									inTilesX, // number of kernels in a row
    									inTopLeft[0]+1, // horizontal number of kernel to extract
    									inTopLeft[1]); // vertical number of kernel to extract
-   							extractOneKernel(          pixels, //  array of combined square kernels, each 
+   							extractOneKernel(          pixels, //  array of combined square kernels, each
    									cornerFHT[1][1], // will be filled, should have correct size before call
    									inTilesX, // number of kernels in a row
    									inTopLeft[0]+1, // horizontal number of kernel to extract
@@ -953,7 +952,7 @@ public class EyesisAberrations {
    						}
    					}
    				}
-   			}    
+   			}
    	/* prepare result stack to return */
    			ImageStack outStack=new ImageStack(outTilesX*interpolateParameters.size,outTilesY*interpolateParameters.size);
    			for (chn=0;chn<nChn;chn++) {
@@ -962,7 +961,7 @@ public class EyesisAberrations {
    			return outStack;
    		}
    	/* ======================================================================== */
-   	/* Used in interpolateKernelStack() */  
+   	/* Used in interpolateKernelStack() */
    		private void storeOneKernel(
    				float []  pixels, // float [] array of combined square kernels - will be filled
    				double [] kernel, // square kernel to store
@@ -978,8 +977,8 @@ public class EyesisAberrations {
    		}
 
    	/* ======================================================================== */
-   	
-   	
+
+
    	public String [][]  preparePartialKernelsFilesList(
    			int debugLevel){
    		DistortionCalibrationData distortionCalibrationData= distortions.fittingStrategy.distortionCalibrationData;
@@ -1003,7 +1002,7 @@ public class EyesisAberrations {
    				partialKernelPaths[imgNum]=this.aberrationParameters.partialPrefix+IJ.d2s(distortionCalibrationData.gIP[imgNum].timestamp,6).replace('.','_')+
    				String.format("-%02d"+this.aberrationParameters.partialSuffix, distortionCalibrationData.gIP[imgNum].channel); // sensor number
    				//   			partialKernelPaths[imgNum]=this.aberrationParameters.sourceDirectory+Prefs.getFileSeparator()+filename;
-   				
+
    		   		if (debugLevel>2) System.out.println("preparePartialKernelsFilesList() "+imgNum+": "+partialKernelPaths[imgNum]);
 
    			}
@@ -1022,8 +1021,8 @@ public class EyesisAberrations {
    			IJ.showMessage("Warning",msg);
    			return null;
    		}
-   		
-   		
+
+
    		int numChannels=distortions.fittingStrategy.distortionCalibrationData.getNumChannels(); // number of used channels
    		String [][] fileList=new String[numChannels][];
    		for (int numChn=0;numChn<numChannels;numChn++){
@@ -1059,14 +1058,14 @@ public class EyesisAberrations {
    	}
 /*
     	int numChannels=this.fittingStrategy.distortionCalibrationData.getNumChannels(); // number of used channels
-  
+
  */
 	public boolean createPartialKernels(
 		    AtomicInteger stopRequested, // 1 - stop now, 2 - when convenient
 			int             mapFFTsize, // scanImageForPatterns:FFT size
 			int            fft_overlap,
 			int               fft_size,
-			int           PSF_subpixel, 
+			int           PSF_subpixel,
 			OTFFilterParameters otfFilterParameters,
 			PSFParameters psfParameters,
 			int          PSFKernelSize, // size of square used in the new map (should be multiple of map step)
@@ -1116,7 +1115,7 @@ public class EyesisAberrations {
     		int numChannel=distortionCalibrationData.gIP[imgNum].channel;
         	if (debugLevel>2){
         		System.out.println("Image "+imgNum+" channel "+numChannel+" is "+(selectedChannels[numChannel]?"ENABLED":"DISABLED"));
-        	}    		
+        	}
     		if (!selectedChannels[numChannel]){
     			selectedImages[imgNum]=false;
     			numDeselected++;
@@ -1139,7 +1138,7 @@ public class EyesisAberrations {
     			String filename=this.aberrationParameters.sourcePrefix+IJ.d2s(distortionCalibrationData.gIP[imgNum].timestamp,6).replace('.','_')+
     			String.format("-%02d"+this.aberrationParameters.sourceSuffix, distortionCalibrationData.gIP[imgNum].channel); // sensor number
     			sourcePaths[imgNum]=this.aberrationParameters.sourceDirectory+Prefs.getFileSeparator()+filename;
-    			File srcFile=new File(sourcePaths[imgNum]);	
+    			File srcFile=new File(sourcePaths[imgNum]);
     			if (!srcFile.exists()){
     				if (skipMissing) {
     					if (debugLevel>0) System.out.println("Skipping missing file: "+sourcePaths[imgNum]);
@@ -1252,13 +1251,13 @@ public class EyesisAberrations {
         	int iRetry=0;
         	for (iRetry=0;iRetry<MaxRetries;iRetry++){ // is this retry needed?
         		try {
-        			
+
         			double [][][] projectedGrid=null;
-        			double hintTolerance=0.0; 
+        			double hintTolerance=0.0;
         			if (partialToReprojected){ // replace px, py with projected values form the grid
         				// this.distortions is set to the global LENS_DISTORTIONS
         				int numGridImage=fileIndices[imgNum];
-        				projectedGrid=distortions.estimateGridOnSensor( // return grid array [v][u][0- x,  1 - y, 2 - u, 3 - v] 
+        				projectedGrid=distortions.estimateGridOnSensor( // return grid array [v][u][0- x,  1 - y, 2 - u, 3 - v]
         						distortions.fittingStrategy.distortionCalibrationData.getImageStation(numGridImage), // station number,
         						distortions.fittingStrategy.distortionCalibrationData.gIP[numGridImage].channel, // subCamera,
         						Double.NaN, // goniometerHorizontal, - not used
@@ -1277,10 +1276,12 @@ public class EyesisAberrations {
                 			}
         				}
         			}
-        			
+
         			int rslt=matchSimulatedPattern.calculateDistortions(
         					distortionParameters, //
         					patternDetectParameters,
+        					patternDetectParameters.minGridPeriod/2,
+        		            patternDetectParameters.maxGridPeriod/2,
         					simulParameters,
         					colorComponents.equalizeGreens,
         					imp,
@@ -1313,11 +1314,11 @@ public class EyesisAberrations {
         					updateStatus,
         					debugLevel,
         					loopDebugLevel); // debug level
-        			
+
         			createPSFMap(
         					matchSimulatedPattern,
         					matchSimulatedPattern.applyFlatField (imp), // if grid is flat-field calibrated, apply it (may throw here)
-        					null,     //  int [][][] sampleList, // optional (or null) 2-d array: list of coordinate pairs (2d - to match existent  PSF_KERNEL_MAP structure)  
+        					null,     //  int [][][] sampleList, // optional (or null) 2-d array: list of coordinate pairs (2d - to match existent  PSF_KERNEL_MAP structure)
         					multiFilePSF.overexposedMaxFraction, //MULTIFILE_PSF.overexposedMaxFraction,
         					simulParameters, //SIMUL, //simulation parameters
         					mapFFTsize, // MAP_FFT_SIZE, // scanImageForPatterns:FFT size int             mapFFTsize, // scanImageForPatterns:FFT size
@@ -1325,7 +1326,7 @@ public class EyesisAberrations {
         					fft_overlap, //FFT_OVERLAP, // int            fft_overlap,
         					fft_size, // FFT_SIZE, // int               fft_size,
         					colorComponents, //COMPONENTS,   // ColorComponents colorComponents,
-        					PSF_subpixel, //PSF_SUBPIXEL, // int           PSF_subpixel, 
+        					PSF_subpixel, //PSF_SUBPIXEL, // int           PSF_subpixel,
         					otfFilterParameters, // OTF_FILTER, // OTFFilterParameters otfFilterParameters,
         					psfParameters, //PSF_PARS, // final PSFParameters psfParameters
         					psfParameters.minDefinedArea , //PSF_PARS.minDefinedArea, // final double       minDefinedArea,
@@ -1347,20 +1348,20 @@ public class EyesisAberrations {
         	}
         	if (iRetry==MaxRetries) {
 				System.out.println("File "+files[imgNum][1]+ " has problems - finished at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
-	    		if 	(stopRequested.get()>0) {				
+	    		if 	(stopRequested.get()>0) {
 					if (debugLevel>0) System.out.println("User requested stop");
 					break;
 	    		}
         		continue;
         	}
-        	
-			
+
+
 			ImageStack stack=mergeKernelsToStack(this.pdfKernelMap);
-			
+
 			// TODO: Add properties,
 			// Save configuration (filename with timestamp?) before files from the top class, test directory is writable
-			
-			
+
+
 			if (stack!=null) {
 				if (debugLevel>0) System.out.println("Saving result to"+files[imgNum][1]+ " at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 				 savePartialKernelStack(
@@ -1370,11 +1371,11 @@ public class EyesisAberrations {
 							psfParameters,
 							correlationSizesUsed);
 			} else {
-				System.out.println("File "+files[imgNum][1]+ " has no useful PSF kernels - at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)); 
+				System.out.println("File "+files[imgNum][1]+ " has no useful PSF kernels - at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
 				distortions.fittingStrategy.setNoUsefulPSFKernels(fileIndices[imgNum], true); // mark (need to save configuration) not to try them next time
-// todo - write a placeholder file (different suffix/prefix) instead of using		setNoUsefulPSFKernels()?		
+// todo - write a placeholder file (different suffix/prefix) instead of using		setNoUsefulPSFKernels()?
 			}
-    		if 	(stopRequested.get()>0) {				
+    		if 	(stopRequested.get()>0) {
 				if (debugLevel>0) System.out.println("User requested stop");
 				break;
     		}
@@ -1412,14 +1413,14 @@ public class EyesisAberrations {
     	    	}
     		}
     	}
-	
+
 		ShowDoubleFloatArrays sdfa_instance=new ShowDoubleFloatArrays();
-	
-		
+
+
 		ImagePlus              impShow=new ImagePlus("CombinedKernels");              // just to show in the same window?
 		long 	  startTime=System.nanoTime();
 		for (int nChn=0; nChn<fileList.length;nChn++) if (fileList[nChn]!=null){
-			// TODO: add parameters to kernel files			
+			// TODO: add parameters to kernel files
 			boolean OK=combinePSFKernels (
 					interpolateParameters, // INTERPOLATE
 					multiFilePSF ,         // MULTIFILE_PSF = new EyesisAberrations.MultiFilePSF(
@@ -1433,7 +1434,7 @@ public class EyesisAberrations {
 					thisDebugLevel,
 					globalDebugLevel);
 			if (OK && (globalDebugLevel>0)) System.out.println("Saved combined kernel for channel "+nChn+" to"+resultPaths[nChn]+ " at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
-    		if 	(stopRequested.get()>0) {				
+    		if 	(stopRequested.get()>0) {
 				if (globalDebugLevel>0) System.out.println("User requested stop");
 				break;
     		}
@@ -1441,8 +1442,8 @@ public class EyesisAberrations {
 		}
 		return true;
 	}
-	
-	
+
+
 	public boolean combinePSFKernels(
 			EyesisAberrations.InterpolateParameters  interpolateParameters, // INTERPOLATE
 			EyesisAberrations.MultiFilePSF           multiFilePSF ,         // MULTIFILE_PSF = new EyesisAberrations.MultiFilePSF(
@@ -1455,7 +1456,7 @@ public class EyesisAberrations {
 			boolean                updateStatus,          // UPDATE_STATUS
 			int                    thisDebugLevel,
 			int                    globalDebugLevel
-	){	
+	){
 		double [][][][] psfKernelMap; // will be lost - do we need it outside
 		double [][][][][] kernelsElllipsePars = new double[filenames.length][][][][]; //x0,y0,a,b,c,area
 		if (thisDebugLevel>0){
@@ -1500,7 +1501,7 @@ public class EyesisAberrations {
 //		int chn, tileY,tileX;
 		boolean [] channels=new boolean[nChn];
 		double a;
-		if (thisDebugLevel>1) { 
+		if (thisDebugLevel>1) {
 			System.out.println("nFiles="+nFiles);
 			System.out.println("kWidth="+kWidth);
 			System.out.println("kHeight="+kHeight);
@@ -1536,7 +1537,7 @@ public class EyesisAberrations {
 
 			}
 		}
-		/* 
+		/*
 		 * Combine files - now just average all that are not NaN
 		 */
 		int [][] dirs={{-1,-1},{-1,0},{-1,1},{0,1},{1,1},{1,0},{1,-1},{0,-1}};
@@ -1551,7 +1552,7 @@ public class EyesisAberrations {
 					if (D.isNaN()) weights[nFile+1][i]=0.0;
 				}
 			}
-			// Set weight to 0.5 if it has zero cells around        	
+			// Set weight to 0.5 if it has zero cells around
 			for (int tileY=0;tileY<kHeight;tileY++) for (int tileX=0;tileX<kWidth;tileX++) {
 				int index=tileY*kWidth+tileX;
 				if ( weights[nFile+1][index]>0.0){
@@ -1562,8 +1563,8 @@ public class EyesisAberrations {
 							weights[nFile+1][index]=0.5; // multiFilePSF.weightOnBorder; //0.5->0.01;
 						}
 					}
-				}  
-				weights[0][index]+=weights[nFile+1][index]; 
+				}
+				weights[0][index]+=weights[nFile+1][index];
 			}
 		}
 		if (thisDebugLevel>1) sdfa_instance.showArrays(weights, kWidth, kHeight,  true, "weights0");
@@ -1581,7 +1582,7 @@ public class EyesisAberrations {
 			for (int nFile=0;nFile<nFiles;nFile++)  weightsMasked[0][i]+=weightsMasked[nFile+1][i];
 		}
 		if (thisDebugLevel>1) sdfa_instance.showArrays(weightsMasked, kWidth, kHeight,  true, "weightsMasked");
-		
+
 		double [][][] psfRadius=c[5]; // later may remove all other calculations for c[i]?
 		double [][][] pxfCenterX=c[0]; // some outlayer kernels have large x/y shift with normal radius - remove them too
 		double [][][] pxfCenterY=c[1];
@@ -1599,7 +1600,7 @@ public class EyesisAberrations {
 			int samplesAfterAll=  totalNumSamples - ((int) Math.floor(multiFilePSF.maxFracDiscardAll*totalNumSamples));
 
 			int numSamples=totalNumSamples;
-			
+
 			while (numSamples>samplesAfterAll){ // calculate and remove worst sample until it is close enough to the average or too few samples are left
 				boolean removeOnlyWorse=numSamples>samplesAfterWorse;
 				for (int color=0;color<nChn;color++){
@@ -1634,9 +1635,9 @@ public class EyesisAberrations {
 					" sumWeights="+IJ.d2s(sumWeights,3));
 				 */
 				if (sumWeights>0.0) for (int color=0;color<nChn;color++) {
-					radiusRatio[color][0][index]/=sumWeights; // average radius, without border-over-non-border cells 
-					pxfCenterX[color][0][index]/=sumWeights; 
-					pxfCenterY[color][0][index]/=sumWeights; 
+					radiusRatio[color][0][index]/=sumWeights; // average radius, without border-over-non-border cells
+					pxfCenterX[color][0][index]/=sumWeights;
+					pxfCenterY[color][0][index]/=sumWeights;
 				}
 				double [] diffs=new double[nFiles];
 				double [] diffsXY2=new double[nFiles];
@@ -1703,18 +1704,18 @@ public class EyesisAberrations {
 						" worstDiff="+IJ.d2s(worstDiff,3)+
 						" removeOnlyWorse="+removeOnlyWorse+
 						" worstFile="+worstFile+" ("+filenames[worstFile]+")");
-				
+
 				System.out.println(
 						" this radius  ={"+psfRadius[0][worstFile+1][index]+","+psfRadius[1][worstFile+1][index]+","+psfRadius[2][worstFile+1][index]+"}\n"+
 						" mean radius  ={"+radiusRatio[0][0][index]+","+radiusRatio[1][0][index]+","+radiusRatio[2][0][index]+"}\n"+
-						
+
 						" this center X={"+pxfCenterX[0][worstFile+1][index]+","+pxfCenterX[1][worstFile+1][index]+","+pxfCenterX[2][worstFile+1][index]+"}\n"+
 						" mean center X={"+pxfCenterX[0][0][index]+","+pxfCenterX[1][0][index]+","+pxfCenterX[2][0][index]+"}\n"+
-						
+
 						" this center Y={"+pxfCenterY[0][worstFile+1][index]+","+pxfCenterY[1][worstFile+1][index]+","+pxfCenterY[2][worstFile+1][index]+"}\n"+
 						" mean center Y={"+pxfCenterY[0][0][index]+","+pxfCenterY[1][0][index]+","+pxfCenterY[2][0][index]+"}");
 				}
-				if (numSamples<1) break; // nothing left 
+				if (numSamples<1) break; // nothing left
 				if (worstDiff>multiFilePSF.radiusDiffHigh){
 					if ( (numSamples==1) && (globalDebugLevel>0)){
 						System.out.println("PSF size for the cell "+tileX+":"+tileY+", file# "+worstFile+" varies too much from the neighbor cells, so it is removed, creating a gap");
@@ -1733,14 +1734,14 @@ public class EyesisAberrations {
 				weights[0][index]+=weights[nFile+1][index];
 			}
 		}
-		
-		
+
+
 		// for each channel, each cell - compare radius calculated for neighbors (use masked weights) and the cell
-		
-		
+
+
 		// TODO: Filter out outlayers: Add bonus to cells surrounded by others?
-		
-		
+
+
 		//    	double [][][][] c= new double[numResults][nChn][nFiles+1][kLength];
 		//     	double [][][] numVals=new double[numResults][nChn][kLength];
 		for (int chn=0;chn<nChn;chn++) {
@@ -1767,9 +1768,9 @@ public class EyesisAberrations {
 					for (int i=0;i<kLength;i++){
 						if (numVals[nOut][chn][i]==0.0 )c[nOut][chn][0][i]=Double.NaN;
 						//    			  else c[nOut][chn][0][i]/=numVals[nOut][chn][i];
-					}       	    	
+					}
 				}
-				
+
 				if (multiFilePSF.validateShowEllipse) {
 						sdfa_instance.showArrays(radiusRatio[chn], kWidth, kHeight,  true, "ratio-"+chn);
 						sdfa_instance.showArrays(c[5][chn],kWidth, kHeight,  true, "radius-"+chn);
@@ -1780,7 +1781,7 @@ public class EyesisAberrations {
 						sdfa_instance.showArrays(c[3][chn], kWidth, kHeight,  true, "y2-"+chn);
 						sdfa_instance.showArrays(c[4][chn], kWidth, kHeight,  true, "xy-"+chn);
 						sdfa_instance.showArrays(c[6][chn], kWidth, kHeight,  true, "area-"+chn);
-					}  
+					}
 				}
 			}
 
@@ -1813,7 +1814,7 @@ public class EyesisAberrations {
 		int filledMissing=0;
 		//Finalize accumulated kernels - transform them from frequency to space domain
 		inverseTransformKernels(psfKernelMap);
-// should be done after inversion, because filled in kernels are just pointers to original ones		
+// should be done after inversion, because filled in kernels are just pointers to original ones
 		if (multiFilePSF.fillMissing) filledMissing=fillMissingKernels (psfKernelMap);
 		int numMissing=0;
 		ImageStack mergedStack= mergeKernelsToStack(psfKernelMap,originalSliceLabels);
@@ -1831,9 +1832,9 @@ public class EyesisAberrations {
 
 		for (int tileY=0;tileY<kHeight;tileY++) for (int tileX=0;tileX<kWidth;tileX++) if ((psfKernelMap[tileY][tileX]==null) || (psfKernelMap[tileY][tileX][0]==null)) numMissing++;
         ImagePlus imp_psf = new ImagePlus(resultPath, mergedStack);
-        
+
         if (impProtoIndex>=0){
-			imp_sel=opener.openImage("", filenames[impProtoIndex]); 
+			imp_sel=opener.openImage("", filenames[impProtoIndex]);
 			jp4_instance.decodeProperiesFromInfo(imp_sel);
 			// copy properties from the source image
 			jp4_instance.copyProperties (imp_sel,imp_psf);
@@ -1889,7 +1890,7 @@ public class EyesisAberrations {
 		}
 		return true;
 	}
-	
+
 	private int fillMissingKernels(double [][][][] kernels){
 		int [][] dirs={{-1,0},{1,0},{0,-1},{0,1}};
 		List <Integer> kernelList=new ArrayList<Integer>(100);
@@ -1908,7 +1909,7 @@ public class EyesisAberrations {
 							(kernels[newTileY][newTileX]!=null) && (kernels[newTileY][newTileX][0]!=null) ) {
 						kernelList.add(Index);
 					}
-				}				
+				}
 				numMissing++;
 			}
 		}
@@ -1930,7 +1931,7 @@ public class EyesisAberrations {
 							Index=newTileY*width+newTileX;
 							kernelList.add(Index);
 						} else if ((kernels[tileY][tileX]==null) || (kernels[tileY][tileX][0]==null)) { // may be already added
-// need to copy - they will be subject to reverse fht	?						
+// need to copy - they will be subject to reverse fht	?
 							kernels[tileY][tileX]=kernels[newTileY][newTileX];
 							System.out.println("fillMissingKernels: filled "+tileX+"/"+tileY);
 						}
@@ -1940,9 +1941,9 @@ public class EyesisAberrations {
 		}
 		return numMissing;
 	}
-	
-	
-	
+
+
+
 	/* ======================================================================== */
 	//Finalize accumulated kernels - transform them from frequency to space domain
 	public void inverseTransformKernels(
@@ -1960,9 +1961,9 @@ public class EyesisAberrations {
 	}
 
 
-	
-	
-	
+
+
+
 	// Will build global PSF_KERNEL_MAP (each [][][]element should be set to null?
 	// kernels are supposed to be normalized?
 	public void accumulatePartialKernelStack(
@@ -1993,7 +1994,7 @@ public class EyesisAberrations {
 				boolean debugThis= (index==debugIndex) && (debugLevel>1);
 				if (theseWeights[index]>0.0){
 					extractOneKernel(
-							pixels, //  array of combined square kernels, each 
+							pixels, //  array of combined square kernels, each
 							kernel, // will be filled, should have correct size before call
 							tilesX, // number of kernels in a row
 							tileX, // horizontal number of kernel to extract
@@ -2025,8 +2026,8 @@ public class EyesisAberrations {
 		}
 	}
 
-	
-	
+
+
 	public double [][][][] kernelStackToEllipseCoefficients(
 			ImageStack kernelStack, // Image stack, each slice consists of square kernels of one channel
 			int               size, // size of each kernel (should be square)
@@ -2044,7 +2045,7 @@ public class EyesisAberrations {
 		int tileY,tileX, chn; //,subTileY,subTileX;
 		double [][][][] ellipseCoeffs=new double [tilesY][tilesX][nChn][];
 		int length=size*size;
-		double [] kernel=new double[length]; 
+		double [] kernel=new double[length];
 		double max;
 		int  [][]selection;
 		double [] ec;
@@ -2053,7 +2054,7 @@ public class EyesisAberrations {
 			pixels=(float[]) kernelStack.getPixels(chn+1);
 			for (tileY=0;tileY<tilesY;tileY++) for (tileX=0;tileX<tilesX;tileX++) {
 				extractOneKernel(
-						pixels, //  array of combined square kernels, each 
+						pixels, //  array of combined square kernels, each
 						kernel, // will be filled, should have correct size before call
 						tilesX, // number of kernels in a row
 						tileX, // horizontal number of kernel to extract
@@ -2080,11 +2081,11 @@ public class EyesisAberrations {
 		}
 		return ellipseCoeffs;
 
-	} 
-	
+	}
+
 	/* ======================================================================== */
 	private void extractOneKernel(
-			float []  pixels, //  array of combined square kernels, each 
+			float []  pixels, //  array of combined square kernels, each
 			double [] kernel, // will be filled, should have correct size before call
 			int       numHor, // number of kernels in a row
 			int        xTile, // horizontal number of kernel to extract
@@ -2104,12 +2105,12 @@ public class EyesisAberrations {
 		for (i=0;i<size;i++) for (j=0;j<size;j++) kernel [i*size+j]=pixels[base+i*pixelsWidth+j];
 	}
 
-	
-	
-	
-	
-	
-//=======================================================	
+
+
+
+
+
+//=======================================================
 	public void savePartialKernelStack(
 			String path,
 			ImageStack stack,
@@ -2148,9 +2149,9 @@ public class EyesisAberrations {
 		FileSaver fs=new FileSaver(impPsf);
 		fs.saveAsTiffStack(path);
 	}
-	
-	
-	
+
+
+
 	private  ImageStack mergeKernelsToStack(double [][][][] kernels) {
 		return mergeKernelsToStack(kernels,null);
 
@@ -2223,7 +2224,7 @@ public class EyesisAberrations {
 	public double [][][][] createPSFMap(
 			final MatchSimulatedPattern commonMatchSimulatedPattern, // to be cloned in threads, using common data
 			final ImagePlus          imp_sel, // linearized Bayer mosaic image from the camera, GR/BG
-			final int [][][]        sampleList, // optional (or null) 2-d array: list of coordinate pairs (2d - to match existent  pdfKernelMap structure)  
+			final int [][][]        sampleList, // optional (or null) 2-d array: list of coordinate pairs (2d - to match existent  pdfKernelMap structure)
 			final double  overexposedAllowed, // fraction of pixels OK to be overexposed
 			final SimulationPattern.SimulParameters simulParameters,
 			final int             mapFFTsize, // scanImageForPatterns:FFT size
@@ -2231,7 +2232,7 @@ public class EyesisAberrations {
 			final int            fft_overlap,
 			final int               fft_size,
 			final ColorComponents colorComponents,
-			final int           PSF_subpixel, 
+			final int           PSF_subpixel,
 			final OTFFilterParameters otfFilterParameters,
 			final PSFParameters psfParameters,
 			final double       minDefinedArea,
@@ -2250,7 +2251,7 @@ public class EyesisAberrations {
 		  runtime.gc();
 		  if (globalDebugLevel>1) System.out.println("--- Free memory="+runtime.freeMemory()+" (of "+runtime.totalMemory()+")");
 
-		// Generate hi-res pattern bitmap (one cell)	
+		// Generate hi-res pattern bitmap (one cell)
 		SimulationPattern simulationPattern= new SimulationPattern();
 		simulationPattern.debugLevel=globalDebugLevel;
 		final double [] bitmaskPattern= simulationPattern.patternGenerator(simulParameters);
@@ -2285,7 +2286,7 @@ public class EyesisAberrations {
 //		globalDebugLevel=debug_level;
 		simulationPattern.debugLevel=globalDebugLevel;
 		int ncell=0;
-/* Create array of coordinates of cells to process, fill result array with zeros (to be actually written by threads */       
+/* Create array of coordinates of cells to process, fill result array with zeros (to be actually written by threads */
 		final int [][] tilesToProcessXY=new int [numPatternCells][4];
 
 		for (nTileY=0;nTileY<PSFBooleanMap.length;nTileY++) for (nTileX=0;nTileX<PSFBooleanMap[0].length;nTileX++){
@@ -2309,16 +2310,17 @@ public class EyesisAberrations {
 		final double [] overexposed=(overexposedAllowed>0)?JP4_INSTANCE.overexposedMap (imp_sel):null;
 		final int mapWidth=imp_sel.getWidth();
    		final AtomicInteger tilesFinishedAtomic = new AtomicInteger(1); // first finished will be 1
-   		final int debugNumColors=6; 
+   		final int debugNumColors=6;
 		for (int ithread = 0; ithread < threads.length; ithread++) {
 			// Concurrently run in as many threads as CPUs
 			threads[ithread] = new Thread() {
+				@Override
 				public void run() {
 
 					// Each thread processes a few items in the total list
 					// Each loop iteration within the run method has a unique 'i' number to work with
 					// and to use as index in the results array:
-					//	double [] sum_kern_el=new double[6]; // just testing					
+					//	double [] sum_kern_el=new double[6]; // just testing
 					int x0,y0,nTX,nTY,nChn;
 					double [][] kernels;
 					// change to true (first 2 only?) to separate memory arrays for threads
@@ -2336,7 +2338,7 @@ public class EyesisAberrations {
 					double [] windowFullFFTSize=matchSimulatedPattern.initWindowFunction(fft_size*PSF_subpixel,gaussWidth); //=initHamming( fft_size*subpixel);
 					DoubleFHT fht_instance =new DoubleFHT(); // provide DoubleFHT instance to save on initializations (or null)
 					double over;
-// individual per-thread - will be needed when converted to doubleFHT					
+// individual per-thread - will be needed when converted to doubleFHT
 //				    MatchSimulatedPattern matchSimulatedPattern=new MatchSimulatedPattern(FFT_SIZE);
 					for (int nTile = ai.getAndIncrement(); nTile < patternCells; nTile = ai.getAndIncrement()) {
 						nTX=tilesToProcessXY[nTile][0];
@@ -2360,7 +2362,7 @@ public class EyesisAberrations {
 						} else {
 							if (debugLateralShifts) {
 								debugLateral[nTY][nTX]= new double [debugNumColors][];    // X/Y shift of the PSF array, in Bayer component pixel coordinates (same as PSF arrays)
-							} 
+							}
 							kernels=getPSFKernels(imp_sel,
 									simArray, //simulation image, scaled PSF_subpixel/2
 									2*fft_size,       // size in pixels (twice fft_size)
@@ -2371,7 +2373,7 @@ public class EyesisAberrations {
 									patternDetectParameters,
 									windowFFTSize,    //=initHamming( fft_size) calculate once
 									windowFullFFTSize,//=initHamming( fft_size*subpixel);
-									PSF_subpixel,     // use finer grid than actual pixels 
+									PSF_subpixel,     // use finer grid than actual pixels
 									simulParameters,
 									colorComponents,  // color channels to process, equalizeGreens
 									otfFilterParameters,
@@ -2399,7 +2401,8 @@ public class EyesisAberrations {
 						}
    						final int numFinished=tilesFinishedAtomic.getAndIncrement();
    						SwingUtilities.invokeLater(new Runnable() {
-   							public void run() {
+   							@Override
+							public void run() {
    								IJ.showProgress(numFinished,patternCells);
    							}
    						});
@@ -2436,7 +2439,7 @@ public class EyesisAberrations {
 					for (nTileY=0;nTileY<debugLateral.length;nTileY++) for (nTileX=0;nTileX<debugLateral[0].length;nTileX++) if (debugLateral[nTileY][nTileX]!=null){
 						if (debugLateral[nTileY][nTileX][cIndex[j]]!=null) dbgLat[layer][nTileY*debugLateral[0].length+nTileX]=debugLateral[nTileY][nTileX][cIndex[j]][i];
 					} layer++;
-				}				
+				}
 				SDFA_INSTANCE.showArrays(dbgLat, debugLateral[0].length, debugLateral.length, true, "lateral"+imp_sel.getTitle(), debugTitles);
 				/*
 					debugLateralTile[i][0]=lateralChromatic[i][0];
@@ -2485,7 +2488,7 @@ public class EyesisAberrations {
 		}
 		return pixels;
 	}
-/*	
+/*
 	private  double [] combineDiagonalGreens (double [] green0, double []green3, int half_width, int half_height) {
 		int y,x,base;
 		int base_b=0;
@@ -2534,7 +2537,7 @@ public class EyesisAberrations {
 		return pixels;
 	}
 
-	/* inserts zeros between pixels */ 
+	/* inserts zeros between pixels */
 	private  double [][] oversampleFFTInput (double[][] input_pixels,
 			int ratio) {
 		double [][] pixels=new double[input_pixels.length][];
@@ -2640,7 +2643,7 @@ public class EyesisAberrations {
 			MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
 			double [] Hamming, //=initHamming( fft_size) calculate once
 			double [] fullHamming, //=initHamming( fft_size*subpixel);
-			int subpixel, // use finer grid than actual pixels 
+			int subpixel, // use finer grid than actual pixels
 			SimulationPattern.SimulParameters  simulParameters,
 			EyesisAberrations.ColorComponents colorComponents,
 			EyesisAberrations.OTFFilterParameters otfFilterParameters,
@@ -2654,7 +2657,7 @@ public class EyesisAberrations {
 	){
 		boolean debugThis=false; //(y0==384) && ((x0==448) || (x0==512));
 		if (globalDebugLevel>1){
-			System.out.println("getPSFKernels(), simArray is "+((simArray==null)?"":"not ")+"null"); 
+			System.out.println("getPSFKernels(), simArray is "+((simArray==null)?"":"not ")+"null");
 		}
 
 		if (imp==null) return null; // Maybe convert to double pixel array once to make it faster?
@@ -2669,16 +2672,18 @@ public class EyesisAberrations {
 		double [][] simul_pixels;
 		double [][]wVectors=new double[2][2];
 		int imgWidth=imp.getWidth();
-		
+
 		double [][] dbgSimPix=null;
-		
+
 		double [] localBarray;
-		
+
 		if ((simArray==null) || (psfParameters.approximateGrid)){ // just for testing
 			/* Calculate pattern parameters, including distortion */
 			if (matchSimulatedPattern.PATTERN_GRID==null) {
 				double[][] distortedPattern= matchSimulatedPattern.findPatternDistorted(input_bayer, // pixel array to process (no windowing!)
 						patternDetectParameters,
+						patternDetectParameters.minGridPeriod/2,
+			            patternDetectParameters.maxGridPeriod/2,
 						true, //(greensToProcess==4), // boolean greens, // this is a pattern for combined greens (diagonal), adjust results accordingly
 						title); // title prefix to use for debug  images
 
@@ -2765,10 +2770,10 @@ public class EyesisAberrations {
 				if (!colorComponents.colorsToCorrect[i]) simul_pixels[i]=null; // removed unused
 			}
 			simul_pixels= normalizeAndWindow (simul_pixels, fullHamming);
-			
+
 		} else {
 			Rectangle PSFCellSim=new Rectangle (x0*subpixel/2,y0*subpixel/2,size*subpixel/2,size*subpixel/2);
-			
+
 			simul_pixels=new double[6][];
 // simulationPattern.debugLevel=globalDebugLevel;
 			for (i=0;i<simul_pixels.length; i++) {
@@ -2783,7 +2788,7 @@ public class EyesisAberrations {
 //System.out.println("PSFCell.y="+PSFCell.y+" PSFCell.height="+PSFCell.height+" imgWidth="+imgWidth+" PSFCell.x="+PSFCell.x+" PSFCell.width="+PSFCell.width+" matchSimulatedPattern.UV_INDEX.length="+matchSimulatedPattern.UV_INDEX.length);
 			int index=matchSimulatedPattern.getUVIndex((PSFCell.y+PSFCell.height/2)*imgWidth+(PSFCell.x+PSFCell.width/2));
 //			int index=matchSimulatedPattern.getUVIndex((PSFCell.y+PSFCell.height/2)*matchSimulatedPattern.getWOI().width+(PSFCell.x+PSFCell.width/2));
-			
+
 			if (index<0) {
 				System.out.println ("Error, No UV pattern @ x="+(PSFCell.x+PSFCell.width/2)+", y="+(PSFCell.y+PSFCell.height/2));
 				return null;
@@ -2806,7 +2811,7 @@ public class EyesisAberrations {
 			//TODO:  Need to define wave vectors here - how?
 			wVectors[0]=matchSimulatedPattern.getDArray(iUV[1],iUV[0],1); //null pointer
 			wVectors[1]=matchSimulatedPattern.getDArray(iUV[1],iUV[0],2);
-			// should it be averaged WV?			
+			// should it be averaged WV?
 			if (globalDebugLevel>2) System.out.println ( " x0="+x0+" y0="+y0);
 			if (globalDebugLevel>2) SDFA_INSTANCE.showArrays(input_bayer, true, title+"-in");
 			if (globalDebugLevel>2) SDFA_INSTANCE.showArrays(simul_pixels, true, title+"-S");
@@ -2820,7 +2825,7 @@ public class EyesisAberrations {
 			}
 			simul_pixels= normalizeAndWindow (simul_pixels, fullHamming);
 		}
-		
+
 		input_bayer= normalizeAndWindow (input_bayer, Hamming);
 		if (subpixel>1) {
 			input_bayer= oversampleFFTInput (input_bayer,subpixel);
@@ -2902,7 +2907,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			System.out.println(x0+":"+y0+"1-PSF_shifts.length= "+PSF_shifts.length+" i="+i+" input_bayer.length="+input_bayer.length);
 			System.out.println("Before: color Component "+i+" PSF_shifts["+i+"][0]="+IJ.d2s(PSF_shifts[i][0],3)+
 					" PSF_shifts["+i+"][1]="+IJ.d2s(PSF_shifts[i][1],3));
-		}  
+		}
 
 
 		kernels[i]=combinePSF (inverted[i], // Square array of pixels with multiple repeated PSF (alternating sign)
@@ -2938,7 +2943,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 
 				System.out.println(x0+":"+y0+"Before: color Component "+i+" PSF_shifts["+i+"][0]="+IJ.d2s(PSF_shifts[i][0],3)+
 						" PSF_shifts["+i+"][1]="+IJ.d2s(PSF_shifts[i][1],3));
-			}  
+			}
 			kernels[i]=combinePSF (inverted[i], // Square array of pixels with multiple repeated PSF (alternating sign)
 					false, // !master, use ignoreChromatic
 					PSF_shifts[i],  // centerXY[] - will be modified inside combinePSF() if psfParameters.ignoreChromatic is true
@@ -2992,8 +2997,8 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			} else {
 				debugLateralTile[i]=null;
 			}
-			
-			
+
+
 		}
 		if (debugThis && (kernels!=null)){
 			int debugSize=0;
@@ -3116,7 +3121,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			int debug,
 			int globalDebugLevel,
 			String title){
-        
+
 		double [] denominatorPixels= forward_OTF? modelPixels.clone():    measuredPixels.clone();
 		double [] nominatorPixels=   forward_OTF? measuredPixels.clone(): modelPixels.clone();
 		if (fht_instance==null) fht_instance=new DoubleFHT(); // move upstream to reduce number of initializations
@@ -3170,7 +3175,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 				SDFA_INSTANCE.showArrays(mask1, "M1A-"+title);
 			}
 		}
-/* Mask already includes zeros on ps, so we can just use divisions of FHT*/		  
+/* Mask already includes zeros on ps, so we can just use divisions of FHT*/
 		//Swapping quadrants of the nominator, so the center will be 0,0
 		fht_instance.swapQuadrants(nominatorPixels);
 		//get to frequency domain
@@ -3178,11 +3183,11 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 		if ((debug>2) ||((globalDebugLevel>2) && (title!=""))) { /* Increase debug evel later */ // was 3
 			SDFA_INSTANCE.showArrays(nominatorPixels, title+"-NOM-FHT");
 			SDFA_INSTANCE.showArrays(denominatorPixels, title+"-DENOM-FHT");
-		}			    
+		}
 		double [] pixels=fht_instance.divide(nominatorPixels,denominatorPixels);
 		if ((debug>2) ||((globalDebugLevel>2) && (title!=""))) { /* Increase debug evel later */ // was 3
 			SDFA_INSTANCE.showArrays(pixels, title+"-DECONV");
-		}			    
+		}
 		for (i=0;i<pixels.length;i++) {
 			if (mask[i]==0.0) pixels[i]=0.0; // preventing NaN*0.0
 			else pixels[i]*=mask[i];
@@ -3191,7 +3196,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			SDFA_INSTANCE.showArrays(pixels, title+"-MASKED");
 			double [][] aphase=fht_instance.fht2AmpHase(pixels,true);
 			SDFA_INSTANCE.showArrays(aphase, true,"AP="+title+"-MASKED");
-			
+
 		}
 		if (gaps_sigma>0.0){
 			double [][] fft_reIm_centered=fht_instance.fht2ReIm(pixels, true); //0 in the center, full square
@@ -3210,7 +3215,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			fht_instance.swapQuadrants(fft_reIm_centered[0]); // zero in the corner
 			fht_instance.swapQuadrants(fft_reIm_centered[1]); // zero in the corner
 			pixels=fht_instance.FFTHalf2FHT(fft_reIm_centered, size);
-		//mask_denoise	
+		//mask_denoise
 		}
 		/// transform to space
 		fht_instance.inverseTransform(pixels);
@@ -3278,7 +3283,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 						cloneY=(iy+cloneNy*cloneStep)%size;
 						cloneX=(ix+cloneNx*cloneStep)%size;
 						mask[cloneY*size+cloneX]+=psWithZero[iy*size+ix];
-					}			
+					}
 			}
 	/* debug show the mask */
 			if (globalDebugLevel>2) SDFA_INSTANCE.showArrays(mask, "PS-cloned");
@@ -3300,14 +3305,14 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 					a=(2.0 * mask[i] - th - tl)/(th - tl);
 					mask[i]=0.5*(1.0-a*a*a);
 				}
-				// now mask out zeros on the ps		
+				// now mask out zeros on the ps
 				if (ps[i]<min) mask[i]=0.0;
 				else {
 					mask[i]*=ps[i]/(ps[i]+k2);
 				}
 			}
 			if (globalDebugLevel>2) SDFA_INSTANCE.showArrays(mask, "mask-all");
-			/* zeros are now for FHT - in the top left corner */	
+			/* zeros are now for FHT - in the top left corner */
 			fht_instance.swapQuadrants(mask);
 			return mask;
 		}
@@ -3335,7 +3340,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 		for (index=0;index<len;index++) absThresh+=windowFunction[index];
 		absThresh*=threshold;
 		if (debugLevel>1) System.out.println(" threshold="+threshold+" absThresh="+absThresh);
-		
+
 		int y,x,y0,x0;
 		for (int tileY=0;tileY<tileHeight;tileY++) for (int tileX=0;tileX<tileWidth;tileX++) {
 			y0=-tileSize/2+margin+tileStep*tileY;
@@ -3353,19 +3358,19 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 		}
 		return result;
 	}
-	
-	/* ======================================================================== 
+
+	/* ========================================================================
 	/**
 	 * Mostly done, need to move where szis\
 	 * TODO: currently the shift of the PSF during binning is done with the integer steps. If ignoreChromatic - to all colors
 	 * independently, if it is false - all components are moved in sync, but again - with integer steps. That causes
 	 * mis-match between the PSF calculated in nearly identical runs (i.e. use the data shifted by 2 pixels) caused by 1 pixel shift.
-	 * That can be improved if PSF are shifted smoothly (not so easy though). It is probably already handled when averaging PSF - 
+	 * That can be improved if PSF are shifted smoothly (not so easy though). It is probably already handled when averaging PSF -
 	 * amplitude and phase is handled separately so shift should be OK.
-	 * 	
+	 *
 	 */
-		
-		
+
+
 		double [] combinePSF (double []pixels,         // Square array of pixels with multiple repeated PSF (alternating sign)
 				boolean   master,          // force ignoreChromatic
 				double[] centerXY,         // coordinates (x,y) of the center point (will update if ignoreChromatic is true)
@@ -3439,17 +3444,17 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 					debug,
 					debugLevel);
 			//                   true);
-			
+
 			if (!master && !psfParameters.ignoreChromatic && !psfParameters.absoluteCenter && psfParameters.centerPSF && (centerXY!=null)){
 //				System.out.println("1:pixelsPSF.length="+pixelsPSF.length+" outSize+"+outSize);
 
-				// TODO: Shift +/- 0.5 Pix here {centerXY[0]-Math.round(centerXY[0]),centerXY[1]-Math.round(centerXY[1])}	
+				// TODO: Shift +/- 0.5 Pix here {centerXY[0]-Math.round(centerXY[0]),centerXY[1]-Math.round(centerXY[1])}
 				if (fht_instance==null) fht_instance=new DoubleFHT();
 //				fht_instance.debug=(centerXY[0]-Math.round(centerXY[0]))<-0.4; // just reducing number
 //				double dx=centerXY[0]-Math.round(centerXY[0]);
 //				double dy=centerXY[1]-Math.round(centerXY[1]);
 //				if (dx<-0.4) SDFA_INSTANCE.showArrays(pixelsPSF.clone(), "before:"+dx+":"+dy);
-	        
+
 				pixelsPSF=fht_instance.translateSubPixel (
 						 pixelsPSF,
 						 -(centerXY[0]-Math.round(centerXY[0])),
@@ -3515,7 +3520,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 								debugLevel);
 				if (psfParameters.centerPSF && (centerXY!=null)){
 //					System.out.println("2:pixelsPSF.length="+pixelsPSF.length+" outSize+"+outSize);
-					// TODO: Shift +/- 0.5 Pix here {centerXY[0]-Math.round(centerXY[0]),centerXY[1]-Math.round(centerXY[1])}	
+					// TODO: Shift +/- 0.5 Pix here {centerXY[0]-Math.round(centerXY[0]),centerXY[1]-Math.round(centerXY[1])}
 					if (fht_instance==null) fht_instance=new DoubleFHT();
 //					fht_instance.debug=(centerXY[0]-Math.round(centerXY[0]))<-0.4; // just reducing number
 					pixelsPSF=fht_instance.translateSubPixel (
@@ -3549,14 +3554,14 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 				if (debugLevel>2) System.out.println("Centroid after second binPSF: x="+IJ.d2s(centroidXY[0],3)+" y="+IJ.d2s(centroidXY[1],3)+" center was at x="+IJ.d2s(centerXY[0],3)+" y="+IJ.d2s(centerXY[1],3));
 
 			}
-			
-			
-			
+
+
+
 	/* compensate center point and/or add center-symmetrical points if enabled */
 			double [] rejectedClonesPixels=null;
 			double [][] modelPSFVectors={{0.5*(g[0][0]+g[1][0]),0.5*(g[0][1]+g[1][1])},
 					{0.5*(g[0][0]-g[1][0]),0.5*(g[0][1]-g[1][1])}};
-	/********* removed subtraction of clones *****************************************************************/		
+	/********* removed subtraction of clones *****************************************************************/
 			rejectedClonesPixels=pixelsPSF; // Maybe fo the opposite?
 			maskClonesPSF(rejectedClonesPixels, // square pixel array where the model PSF is added
 					psfParameters.windowFrac, // multiply window by this value
@@ -3578,7 +3583,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 					centroidXY[0], // model PSF center X-coordinate (in pixels[] units, from the center of the array )
 					centroidXY[1], // same for Y
 					0, // int WOICenterX, // window of interest in pixels[] array - do not generate data outside it
-					0, // int WOICenterY, // 
+					0, // int WOICenterY, //
 					outSize, //int WOIWidth, reduce later
 					outSize); //int WOIHeight)
 
@@ -3590,14 +3595,14 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 
 			for (i=0;i<sigmas.length;i++) {
 				kk=smoothPixelsPSF[i]/max1;
-				if (kk>varSigmaTop) sigmas[i]=minSigma;  
+				if (kk>varSigmaTop) sigmas[i]=minSigma;
 				else                sigmas[i] = minSigma+ sigmas[i]*((varSigmaTop-kk)*(varSigmaTop-kk)/varSigmaTop/varSigmaTop);
 			}
 			double [] varFilteredPSF=variableGaussBlurr(rejectedClonesPixels, // input square pixel array, preferrably having many exact zeros (they will be skipped)
 					sigmas, // array of sigmas to be used for each pixel, matches pixels[]
 					3.5, // drop calculatin if farther then nSigma
 					0, // int WOICenterX, // window of interest in pixels[] array - do not generate data outside it
-					0, // int WOICenterY, // 
+					0, // int WOICenterY, //
 					outSize, //int WOIWidth, reduce later
 					outSize,
 					debugLevel); //int WOIHeight)
@@ -3655,13 +3660,13 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			double [] rslt={a[0]+b[0], a[1]+b[1]};
 			return rslt;
 		}
-		
+
 		public double [][] matrix2x2_transp(double [][] m ){
 			double [][] rslt= {{ m[0][0],  m[1][0]},
 			            	   { m[0][1],  m[1][1]}};
 			return rslt;
 		}
-		
+
 		/* ======================================================================== */
 		/* zeroes out area outside of the area bound by 4 negative clones (or a fraction of it), either sharp or with Hamming */
 			private double [] maskClonesPSF(double [] pixels, // square pixel array where the model PSF is added
@@ -3697,7 +3702,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 					double []sigmas, // array of sigmas to be used for each pixel, matches pixels[]
 					double nSigma, // drop calculatin if farther then nSigma
 					int WOICenterX, // window of interest in pixels[] array - do not generate data outside it
-					int WOICenterY, // 
+					int WOICenterY, //
 					int WOIWidth, //
 					int WOIHeight,
 					int globalDebugLevel){ //
@@ -3760,9 +3765,9 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 				}
 				return result;
 			}
-			
-			
-			
+
+
+
 		/* ======================================================================== */
 		/* find ellipse approximating section of the PSF, scale ellipse and use it as a mask to remove PSF far wings */
 			private double [] cutPSFWings (double [] psf_pixels, // direct PSF function, square array, may be proportionally larger than reversed
@@ -3866,7 +3871,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 					double xc, // model PSF center X-coordinate (in pixels[] units, from the center of the array )
 					double yc, // same for Y
 					int WOICenterX, // window of interest in pixels[] array - do not generate data outside it
-					int WOICenterY, // 
+					int WOICenterY, //
 					int WOIWidth, //
 					int WOIHeight) {
 				int size = (int) Math.sqrt(pixels.length);
@@ -4000,11 +4005,11 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 					return result;
 				}
 
-		
+
 		/* ======================================================================== */
 		/* finds cluster on the PSF (with the center at specidfied point)  by flooding from the specified center, so total energy is cutoff_energy fraction
 		returns integer array (same dimensions as input) with 1 - selected, 0 - not selected
-		cutoff_energy: if positive - specifies fraction of total energy, if negative -cutoff_energy is the minimal value of the pixel to be included 
+		cutoff_energy: if positive - specifies fraction of total energy, if negative -cutoff_energy is the minimal value of the pixel to be included
 		UPDATE: follows gradient from the start point to a local maximum if "cutoff_energy" is negative" */
 			private int [][] findClusterOnPSF(
 					double []        psf, // PSF function, square array
@@ -4148,7 +4153,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 					ImageProcessor ip = new FloatProcessor(size,size);
 					float [] floatPixels = new float [size*size];
 					for (i=0;i<floatPixels.length;i++) {
-						floatPixels[i]=(float) clusterMap[i/size][i%size];
+						floatPixels[i]=clusterMap[i/size][i%size];
 					}
 					ip.setPixels(floatPixels);
 					ip.resetMinAndMax();
@@ -4219,7 +4224,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 		private double [] binPSF(double [] pixels,
 				double [][] g,
 				int outSize,
-				//		int      decimate,     // sub-pixel decimation 
+				//		int      decimate,     // sub-pixel decimation
 				double minContrast,
 				double [] centerXY,    // coordinates (x,y) of the center point (will be alway subtracted)
 				double[] symmXY,       // coordinates (x,y) of the center of symmetry (to combine with 180 if enabled by symm180)
@@ -4242,9 +4247,9 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			double [][] xy2uv= {{-2.0*g[0][1]/det_g,  2.0*g[0][0]/det_g},
 					{-2.0*g[1][1]/det_g,  2.0*g[1][0]/det_g}};
 			double [][] uv2xy= matrix2x2_scale(matrix2x2_invert(xy2uv),2); // real pixels are twice
-			double [] pixelsPSF       =new double [outSize*outSize];  
+			double [] pixelsPSF       =new double [outSize*outSize];
 			int    [] pixelsPSFCount  =new int    [outSize*outSize];
-			double [] pixelsPSFWeight =new double [outSize*outSize];  
+			double [] pixelsPSFWeight =new double [outSize*outSize];
 			double [] center=centerXY;
 			for (i=0;i<contrastCache.length;i++) {
 				contrastCache[i]=-1.0;
@@ -4305,7 +4310,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 	/* Do binning itself here */
 					d=PSF_sign*PSFAtXY(pixels, pixelSize, x,y);
 
-	/* map to the segment around 0,0 */        
+	/* map to the segment around 0,0 */
 					dp=p/2-Math.round(p/2);
 					dq=q/2-Math.round(q/2);
 	/* dp, dq are between +/- 0.5 - use them for Hamming windowing -NOT HERE, moved later*/
@@ -4404,20 +4409,20 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			if (debug) {
 				SDFA_INSTANCE.showArrays(debugPixels, title+"_mask_PSF");
 				double [] doublePixelsPSFCount=new double [pixelsPSF.length];
-				for (j=0;j<doublePixelsPSFCount.length;j++) doublePixelsPSFCount[j]=(double)pixelsPSFCount[j];
+				for (j=0;j<doublePixelsPSFCount.length;j++) doublePixelsPSFCount[j]=pixelsPSFCount[j];
 				SDFA_INSTANCE.showArrays(doublePixelsPSFCount, title+"_PSF_bin_count");
 				SDFA_INSTANCE.showArrays(pixelsPSFWeight,      title+"_PSF_bin_weight");
 				double [] doubleContrastCache=new double [contrastCache.length];
-				for (j=0;j<doubleContrastCache.length;j++) doubleContrastCache[j]=(double)((contrastCache[j]>=0.0)?contrastCache[j]:-0.00001);
+				for (j=0;j<doubleContrastCache.length;j++) doubleContrastCache[j]=(contrastCache[j]>=0.0)?contrastCache[j]:-0.00001;
 				SDFA_INSTANCE.showArrays(doubleContrastCache,  title+"_ContrastCache");
 			}
 			return pixelsPSF;
 		}
 
-	
-	
-	
-	
+
+
+
+
 	/* ======================================================================== */
 	/* Create a Thread[] array as large as the number of processors available.
 		 * From Stephan Preibisch's Multithreading.java class. See:
@@ -4441,7 +4446,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			}
 
 			try
-			{   
+			{
 				for (int ithread = 0; ithread < threads.length; ++ithread)
 					threads[ithread].join();
 			} catch (InterruptedException ie)
@@ -4466,7 +4471,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			public boolean fillMissing;            // replace missing kernels with neighbors
 			public MultiFilePSF (
 					double  overexposedMaxFraction,
-					double  weightOnBorder,          
+					double  weightOnBorder,
 					double  radiusDiffLow, // do not remove partial kernel cell if radius differs from average less than by this fraction
 					double  radiusDiffHigh,  // remove this cell even if it is the only one
 					double  shiftToRadiusContrib, // Center shift (in pixels) addition to the difference relative to radius difference (in pixels)
@@ -4480,7 +4485,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 					boolean fillMissing
 			) {
 				this.overexposedMaxFraction=overexposedMaxFraction;
-				this.weightOnBorder=weightOnBorder;          
+				this.weightOnBorder=weightOnBorder;
 				this.radiusDiffLow=radiusDiffLow; // do not remove partial kernel cell if radius differs from average less than by this fraction
 				this.radiusDiffHigh=radiusDiffHigh;  // remove this cell even if it is the only one
 				this.shiftToRadiusContrib=shiftToRadiusContrib; // Center shift (in pixels) addition to the difference relative to radius difference (in pixels)
@@ -4525,7 +4530,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 				properties.setProperty(prefix+"showWeights",this.showWeights+"");
 				properties.setProperty(prefix+"fillMissing",this.fillMissing+"");
 			}
-			
+
 			public void getProperties(String prefix,Properties properties){
 				if (properties.getProperty(prefix+"overexposedMaxFraction")!=null) this.overexposedMaxFraction=Double.parseDouble(properties.getProperty(prefix+"overexposedMaxFraction"));
 				if (properties.getProperty(prefix+"weightOnBorder")!=null) this.weightOnBorder=Double.parseDouble(properties.getProperty(prefix+"weightOnBorder"));
@@ -4544,7 +4549,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 				if (properties.getProperty(prefix+"validateShowEllipse")!=null)this.validateShowEllipse=Boolean.parseBoolean(properties.getProperty(prefix+"validateShowEllipse"));
 				if (properties.getProperty(prefix+"showWeights")!=null)this.showWeights=Boolean.parseBoolean(properties.getProperty(prefix+"showWeights"));
 				if (properties.getProperty(prefix+"fillMissing")!=null)this.fillMissing=Boolean.parseBoolean(properties.getProperty(prefix+"fillMissing"));
-				
+
 			}
 
 		}
@@ -4582,15 +4587,15 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
     	public String aberrationsPrefix="kernel-";
     	public String aberrationsSuffix=".kernel-tiff";
     	public boolean [] selectedChannels=null;
-    	
-    	
-    	
+
+
+
 		public void setProperties(String prefix,Properties properties){
 			properties.setProperty(prefix+"sourceDirectory",this.sourceDirectory);
 			properties.setProperty(prefix+"partialKernelDirectory",this.partialKernelDirectory);
 			properties.setProperty(prefix+"psfKernelDirectory",this.psfKernelDirectory);
 			properties.setProperty(prefix+"aberrationsKernelDirectory",this.aberrationsKernelDirectory);
-			
+
 			properties.setProperty(prefix+"autoRestore",this.autoRestore+"");
 			properties.setProperty(prefix+"calibrationPath",this.calibrationPath);
 			properties.setProperty(prefix+"strategyPath",this.strategyPath);
@@ -4606,8 +4611,8 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			properties.setProperty(prefix+"overwriteResultFiles",this.overwriteResultFiles+"");
 			properties.setProperty(prefix+"partialToReprojected",this.partialToReprojected+"");
 			properties.setProperty(prefix+"partialCorrectSensor",this.partialCorrectSensor+"");
-			
-			
+
+
 			properties.setProperty(prefix+"seriesNumber",this.seriesNumber+"");
 			properties.setProperty(prefix+"allImages",this.allImages+"");
 
@@ -4627,14 +4632,14 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 				properties.setProperty(prefix+"selectedChannels",sSelectedChannels);
 			}
 
-		
+
 		}
 		public void getProperties(String prefix,Properties properties){
 			if (properties.getProperty(prefix+"sourceDirectory")!=null)	           this.sourceDirectory=properties.getProperty(prefix+"sourceDirectory");
 			if (properties.getProperty(prefix+"partialKernelDirectory")!=null)     this.partialKernelDirectory=properties.getProperty(prefix+"partialKernelDirectory");
 			if (properties.getProperty(prefix+"psfKernelDirectory")!=null)         this.psfKernelDirectory=properties.getProperty(prefix+"psfKernelDirectory");
 			if (properties.getProperty(prefix+"aberrationsKernelDirectory")!=null) this.aberrationsKernelDirectory=properties.getProperty(prefix+"aberrationsKernelDirectory");
-			
+
 			if (properties.getProperty(prefix+"autoRestore")!=null)                this.autoRestore=Boolean.parseBoolean(properties.getProperty(prefix+"autoRestore"));
 			if (properties.getProperty(prefix+"calibrationPath")!=null)            this.calibrationPath=properties.getProperty(prefix+"calibrationPath");
 			if (properties.getProperty(prefix+"strategyPath")!=null)               this.strategyPath=properties.getProperty(prefix+"strategyPath");
@@ -4644,7 +4649,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 				this.autoRestoreSensorOverwriteOrientation=Boolean.parseBoolean(properties.getProperty(prefix+"autoRestoreSensorOverwriteOrientation"));
 			if (properties.getProperty(prefix+"autoRestoreSensorOverwriteDistortion")!=null)
 				this.autoRestoreSensorOverwriteDistortion=Boolean.parseBoolean(properties.getProperty(prefix+"autoRestoreSensorOverwriteDistortion"));
-			
+
 			if (properties.getProperty(prefix+"autoReCalibrate")!=null)            this.autoReCalibrate=Boolean.parseBoolean(properties.getProperty(prefix+"autoReCalibrate"));
 			if (properties.getProperty(prefix+"autoReCalibrateIgnoreLaser")!=null) this.autoReCalibrateIgnoreLaser=Boolean.parseBoolean(properties.getProperty(prefix+"autoReCalibrateIgnoreLaser"));
 			if (properties.getProperty(prefix+"autoFilter")!=null)                 this.autoFilter=Boolean.parseBoolean(properties.getProperty(prefix+"autoFilter"));
@@ -4653,8 +4658,8 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			if (properties.getProperty(prefix+"overwriteResultFiles")!=null)       this.overwriteResultFiles=Boolean.parseBoolean(properties.getProperty(prefix+"overwriteResultFiles"));
 			if (properties.getProperty(prefix+"partialToReprojected")!=null)       this.partialToReprojected=Boolean.parseBoolean(properties.getProperty(prefix+"partialToReprojected"));
 			if (properties.getProperty(prefix+"partialCorrectSensor")!=null)       this.partialCorrectSensor=Boolean.parseBoolean(properties.getProperty(prefix+"partialCorrectSensor"));
-			
-			
+
+
 			if (properties.getProperty(prefix+"seriesNumber")!=null)               this.seriesNumber=Integer.parseInt(properties.getProperty(prefix+"seriesNumber"));
 			if (properties.getProperty(prefix+"allImages")!=null)                  this.allImages=Boolean.parseBoolean(properties.getProperty(prefix+"allImages"));
 			if (properties.getProperty(prefix+"sourcePrefix")!=null)	      this.sourcePrefix=properties.getProperty(prefix+"sourcePrefix");
@@ -4667,8 +4672,8 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			if (properties.getProperty(prefix+"interpolatedPSFSuffix")!=null) this.interpolatedPSFSuffix=properties.getProperty(prefix+"interpolatedPSFSuffix");
 			if (properties.getProperty(prefix+"aberrationsPrefix")!=null)     this.aberrationsPrefix=properties.getProperty(prefix+"aberrationsPrefix");
 			if (properties.getProperty(prefix+"aberrationsSuffix")!=null)     this.aberrationsSuffix=properties.getProperty(prefix+"aberrationsSuffix");
-			
-			
+
+
 			if (properties.getProperty(prefix+"selectedChannels")!=null){
 				String sSelectedChannels=properties.getProperty(prefix+"selectedChannels");
 				this.selectedChannels=new boolean[sSelectedChannels.length()];
@@ -4682,7 +4687,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 		 *  for the paths that are not set or did not change from configured
 		 * @return array of 4 paths
 		 */
-		
+
 		public String [] currentConfigPaths(Distortions distortions, boolean combine){
     		String currentCalibrationPath=null;
     		String currentStrategyPath=null;
@@ -4699,7 +4704,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
         			}
     			} else {
 //        			System.out.println("currentConfigPaths():distortions.fittingStrategy==null");
-    				
+
     			}
     			currentGridPath=distortions.patternParameters.pathName;
 //    			System.out.println("currentConfigPaths():currentGridPath="+((currentGridPath==null)?"null":currentGridPath));
@@ -4748,7 +4753,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
     			}
     		}
     		return this.selectedChannels;
-			
+
 		}
 		public boolean selectChannelsToProcess(String title, Distortions distortions) {
     		boolean [] newSelecttion=getChannelSelection(distortions).clone(); //java.lang.NullPointerException
@@ -4771,7 +4776,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
     		}
 		}
 
-    	public boolean showDialog(String title, Distortions distortions) { 
+    	public boolean showDialog(String title, Distortions distortions) {
     		String [] currentConfigs;
     		String []nulls={null,null,null,null};
     		currentConfigs=(distortions!=null)?currentConfigPaths(distortions, false):nulls;
@@ -4788,19 +4793,19 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
     		gd.addCheckbox("Overwrite result files if they exist", this.overwriteResultFiles);
     		gd.addCheckbox("Use reprojected grids for partial kernel calculation (false - extracted grids)", this.partialToReprojected);
     		gd.addCheckbox("Apply sensor correction during for partial kernel calculation", this.partialCorrectSensor);
-    		    		
+
     		gd.addNumericField("Fitting series number to use for image selection", this.seriesNumber,0);
     		gd.addCheckbox("Process all enabled image files (false - use selected fitting series)", this.allImages);
     		gd.addMessage("===== Autoload options (when restoring configuration) =====");
     		gd.addCheckbox("Autoload additional files on \"Restore\"", this.autoRestore);
     		gd.addCheckbox("Overwrite all (including position/orientation) SFE parameters from the sensor calibration files (at auto-load) DANGEROUS!", this.autoRestoreSensorOverwriteOrientation);
     		gd.addCheckbox("Overwrite SFE distortion parameters from the sensor calibration files (at auto-load) DANGEROUS!", this.autoRestoreSensorOverwriteDistortion);
-    		
+
     		gd.addCheckbox("Re-calibrate grids on autoload", this.autoReCalibrate);
     		gd.addCheckbox("Ignore laser pointers on recalibrate", this.autoReCalibrateIgnoreLaser);
     		gd.addCheckbox("Filter grids after restore", this.autoFilter);
     		gd.addCheckbox("Trust enabled images on input (mark as hintedGrid=2)", this.trustEnabled);
-   		
+
     		gd.addMessage("Calibration: "+(((this.calibrationPath==null) || (this.calibrationPath.length()==0))?"not configured ":(this.calibrationPath+" "))+
     				((currentConfigs[0]!=null)?("(current: "+currentConfigs[0]+")"):("") ));
     		gd.addMessage("Strategy: "+(((this.strategyPath==null) || (this.strategyPath.length()==0))?"not configured ":(this.strategyPath+" "))+
@@ -4821,18 +4826,18 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
     		gd.addStringField("Interpolated kernels suffix",     this.interpolatedPSFSuffix, 40);
     		gd.addStringField("Inverted (final) kernels prefix", this.aberrationsPrefix, 40);
     		gd.addStringField("Inverted (final) kernels suffix", this.aberrationsSuffix, 40);
-    		
+
     		gd.addCheckbox("Select channels to process", true);
-    		
+
     		WindowTools.addScrollBars(gd);
     		gd.showDialog();
     		if (gd.wasCanceled()) return false;
     		this.sourceDirectory=       gd.getNextString();
-    		if (gd.getNextBoolean()) selectSourceDirectory(false, this.sourceDirectory, false); 
+    		if (gd.getNextBoolean()) selectSourceDirectory(false, this.sourceDirectory, false);
     		this.partialKernelDirectory=gd.getNextString();
-    		if (gd.getNextBoolean()) selectPartialKernelDirectory(false, this.partialKernelDirectory, false); 
+    		if (gd.getNextBoolean()) selectPartialKernelDirectory(false, this.partialKernelDirectory, false);
     		this.psfKernelDirectory=gd.getNextString();
-    		if (gd.getNextBoolean()) selectPSFKernelDirectory(false, this.psfKernelDirectory, false); 
+    		if (gd.getNextBoolean()) selectPSFKernelDirectory(false, this.psfKernelDirectory, false);
     		this.aberrationsKernelDirectory=gd.getNextString();
     		if (gd.getNextBoolean()) selectAberrationsKernelDirectory(false, this.aberrationsKernelDirectory, false);
     		this.noMessageBoxes=        gd.getNextBoolean();
@@ -4848,14 +4853,14 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
     		this.autoReCalibrateIgnoreLaser=gd.getNextBoolean();
     		this.autoFilter=            gd.getNextBoolean();
     		this.trustEnabled=          gd.getNextBoolean();
-    		
+
     		if (gd.getNextBoolean()) {
     			if (currentConfigs[0]!=null) this.calibrationPath=currentConfigs[0];
     			if (currentConfigs[1]!=null) this.strategyPath=   currentConfigs[1];
     			if (currentConfigs[2]!=null) this.gridPath=       currentConfigs[2];
     			if (currentConfigs[3]!=null) this.sensorsPath=    currentConfigs[3];
     		}
-    		
+
     		this.sourcePrefix=          gd.getNextString();
     		this.sourceSuffix=          gd.getNextString();
     		this.partialPrefix=         gd.getNextString();
@@ -4872,7 +4877,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
     	public String selectSourceDirectory(boolean smart, String defaultPath, boolean newAllowed) { // normally newAllowed=false
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
-    				newAllowed, // save  
+    				newAllowed, // save
     				"Source (acquired from the camera) image directory", // title
     				"Select source directory", // button
     				null, // filter
@@ -4883,7 +4888,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
     	public String selectPartialKernelDirectory(boolean smart, String defaultPath, boolean newAllowed) {
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
-    				newAllowed, // save  
+    				newAllowed, // save
     				"Partial PSF directory", // title
     				"Select partial PSF files directory", // button
     				null, // filter
@@ -4894,7 +4899,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
     	public String selectPSFKernelDirectory(boolean smart, String defaultPath, boolean newAllowed) {
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
-    				newAllowed, // save  
+    				newAllowed, // save
     				"Combined direct PSF kernel directory", // title
     				"Select combined kernel directory", // button
     				null, // filter
@@ -4905,7 +4910,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
     	public String selectAberrationsKernelDirectory(boolean smart, String defaultPath, boolean newAllowed) {
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
-    				newAllowed, // save  
+    				newAllowed, // save
     				"Aberrations kernel directory", // title
     				"Select aberrations kernel directory", // button
     				null, // filter
@@ -4914,11 +4919,11 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
     		return dir;
     	}
 
-    	
+
     }
-	
-	
-	
+
+
+
 	public static class ColorComponents {
 		public boolean [] colorsToCorrect=    new boolean[6];
 		public int        referenceComponent; // component to calculate lateral chromatic from (0 - G1, 1 - R, 2 - B, 3 - G2,4 - diagonal greens, 5 - checker greens)
@@ -4933,7 +4938,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 				boolean red,
 				boolean blue,
 				boolean green2,
-				boolean diagonal, // both greens combined in a 45-degree rotated array 
+				boolean diagonal, // both greens combined in a 45-degree rotated array
 				boolean checker,   // both greens combined in a checkerboard pattern
 				int        referenceComponent,
 				boolean    equalizeGreens
@@ -4988,7 +4993,8 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			this.thresholdHigh = thresholdHigh;
 			this.thresholdLow = thresholdLow;
 		}
-        public OTFFilterParameters clone() {
+        @Override
+		public OTFFilterParameters clone() {
         	return new OTFFilterParameters(
         			this.deconvInvert,
         			this.zerofreqSize,
@@ -5027,13 +5033,13 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 		public double wingsEnergy;
 		public double wingsEllipseScale;
 		public double minDefinedArea;   // minimal (weighted) fraction of the defined patter pixels in the FFT area
-		public boolean approximateGrid; // approximate grid with polynomial 
-		public boolean centerPSF;       // Center PSF by modifying phase 
+		public boolean approximateGrid; // approximate grid with polynomial
+		public boolean centerPSF;       // Center PSF by modifying phase
 		public double mask1_sigma;
 		public double mask1_threshold;
 		public double gaps_sigma;
 		public double mask_denoise;
-		
+
 
 		public PSFParameters(double minContrast,
 				double windowFrac,
@@ -5067,8 +5073,8 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			this.wingsEnergy = wingsEnergy;
 			this.wingsEllipseScale = wingsEllipseScale;
 			this.minDefinedArea = minDefinedArea; // minimal (weighted) fraction of the defined patter pixels in the FFT area
-			this.approximateGrid = approximateGrid; // approximate grid with polynomial 
-			this.centerPSF = centerPSF; // approximate grid with polynomial 
+			this.approximateGrid = approximateGrid; // approximate grid with polynomial
+			this.centerPSF = centerPSF; // approximate grid with polynomial
 			this.mask1_sigma = mask1_sigma;
 			this.mask1_threshold = mask1_threshold;
 			this.gaps_sigma=gaps_sigma;
@@ -5076,7 +5082,8 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 
 
 		}
-        public PSFParameters clone(){
+        @Override
+		public PSFParameters clone(){
         	return new PSFParameters(
         			this.minContrast,
         			this.windowFrac,
@@ -5288,8 +5295,8 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			this.sigmaToRadiusDirect=Double.parseDouble(properties.getProperty(prefix+"sigmaToRadiusDirect"));
 		}
 	}
-	
-	
+
+
 	public static class InterpolateParameters {
 		public int    size;        // size of each kernel (should be square)
 		public int    step;        // number of subdivisions from input to output
@@ -5334,7 +5341,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			properties.setProperty(prefix+"add_bottom",this.add_bottom+"");
 			properties.setProperty(prefix+"extrapolate",this.extrapolate+"");
 		}
-		
+
 		public void getProperties(String prefix,Properties properties){
 			this.size=Integer.parseInt(properties.getProperty(prefix+"size"));
 			this.step=Integer.parseInt(properties.getProperty(prefix+"step"));
@@ -5344,10 +5351,10 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			this.add_bottom=Integer.parseInt(properties.getProperty(prefix+"add_bottom"));
 			this.extrapolate=Double.parseDouble(properties.getProperty(prefix+"extrapolate"));
 		}
-		
+
 	}
 
-	
-	
+
+
 
 }

@@ -1413,9 +1413,13 @@ Exception in thread "Thread-3564" java.lang.ArrayIndexOutOfBoundsException: 8970
 	    NodeList allNodes=doc.getDocumentElement().getElementsByTagName("*");
 	    for (int i=0;i<allNodes.getLength();i++) {
 	        String name= allNodes.item(i).getNodeName();
-            String value=allNodes.item(i).getFirstChild().getNodeValue();
-    		imp.setProperty(name, value);
+	        String value="";
+	        try {
+	        	value=allNodes.item(i).getFirstChild().getNodeValue();
+	        } catch(Exception e) {
 
+	        }
+    		imp.setProperty(name, value);
 	    }
 
 		return true;

@@ -6,7 +6,7 @@ package com.elphel.imagej.calibration;
  ** Copyright (C) 2011-2014 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
- **  
+ **
  **  DistortionProcessConfiguration.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
@@ -23,16 +23,17 @@ package com.elphel.imagej.calibration;
  **
  */
 
-import ij.IJ;
-import ij.Prefs;
-import ij.gui.GenericDialog;
-
 import java.io.File;
+import java.io.FilenameFilter;
 import java.util.Properties;
 
 import com.elphel.imagej.common.WindowTools;
 
-    
+import ij.IJ;
+import ij.Prefs;
+import ij.gui.GenericDialog;
+
+
     public class DistortionProcessConfiguration{
     	public String  sourceDirectory="";
     	public String  gridDirectory=  "";
@@ -50,7 +51,7 @@ import com.elphel.imagej.common.WindowTools;
     	public String selectSourceDirectory(boolean smart, String defaultPath, boolean newAllowed) {
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
-    				newAllowed, // save  
+    				newAllowed, // save
     				"Source (acquired from the camera) image directory", // title
     				"Select source directory", // button
     				null, // filter
@@ -61,7 +62,7 @@ import com.elphel.imagej.common.WindowTools;
     	public String selectGridFileDirectory(boolean smart, String defaultPath, boolean newAllowed) {
     		String dir= CalibrationFileManagement.selectDirectory(
     				smart,
-    				newAllowed, // save  
+    				newAllowed, // save
     				"Grid files directory (grid patterns extracted from the images)", // title
     				"Select grid files directory", // button
     				null, // filter
@@ -69,7 +70,7 @@ import com.elphel.imagej.common.WindowTools;
     		if (dir!=null) this.gridDirectory=dir;
     		return dir;
     	}
-    	
+
     	public void setProperties(String prefix,Properties properties){
     		properties.setProperty(prefix+"sourceDirectory",        this.sourceDirectory);
     		properties.setProperty(prefix+"gridDirectory",          this.gridDirectory);
@@ -123,9 +124,9 @@ import com.elphel.imagej.common.WindowTools;
     		gd.addCheckbox   ("Show grid files as images",            this.showGridImages);
     		gd.addCheckbox   ("Save grid files",                      this.saveGridImages);
     		gd.addCheckbox   ("Overwrite existing result files",      this.overwriteResultFiles);
-    		
-    		
-    		
+
+
+
     		gd.addNumericField("Debug level",                         this.debugLevel,0);
     	    WindowTools.addScrollBars(gd);
     	    gd.showDialog();
@@ -144,7 +145,7 @@ import com.elphel.imagej.common.WindowTools;
     	    this.debugLevel=       (int) gd.getNextNumber();
     	    System.out.println("1.newSourceDirectory = "+newSourceDirectory);
     	    System.out.println("1.newGridDirectory = "+  newGridDirectory);
-    	    if ((newSourceDirectory.length()==0) || (newSourceDirectory.indexOf('?')>=0)) 
+    	    if ((newSourceDirectory.length()==0) || (newSourceDirectory.indexOf('?')>=0))
     	    	newSourceDirectory= selectSourceDirectory(false, this.sourceDirectory, true);
     	    else
     	    	newSourceDirectory= selectSourceDirectory(true, newSourceDirectory, true); // if matches, no dialog
@@ -174,7 +175,7 @@ import com.elphel.imagej.common.WindowTools;
 			if (this.sourceDirectory.length()==0){
 				defaultPaths[0]="";
 			}
-			
+
 			CalibrationFileManagement.MultipleExtensionsFileFilter sourceFilter =
 				new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"Source files");
 			String [] sourceFiles=null;
@@ -206,5 +207,26 @@ import com.elphel.imagej.common.WindowTools;
     		}
 	       	return sourceFiles;
     	}
-    	
+
+        public String[] selectSourceSets() {
+			File dir= new File (this.sourceDirectory);
+			if (this.debugLevel>1) System.out.println("selectSourceSets, dir="+this.sourceDirectory);
+			if (!dir.exists()) {
+				String error="Source directory "+this.sourceDirectory+" does not exist.";
+        		IJ.showMessage("No files selected");
+				if (this.debugLevel>1) System.out.println("selectSourceFiles() ERROR:"+error);
+				return null;
+			}
+			File [] sourceFileSets = dir.listFiles(new FilenameFilter() {
+			  @Override
+			  public boolean accept(File current, String name) {
+			    return new File(current, name).isDirectory();
+			  }
+			});
+			String [] sourceSets = new String[sourceFileSets.length];
+			for (int i=0;i<sourceSets.length;i++) sourceSets[i]=sourceFileSets[i].getPath();
+			return sourceSets;
+        }
+
     }
+

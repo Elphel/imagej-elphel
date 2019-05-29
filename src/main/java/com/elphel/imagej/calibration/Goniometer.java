@@ -668,6 +668,8 @@ horizontal axis:
 						// allow more of grid around pointers?
 						distortionParameters, //
 						this.patternDetectParameters,
+						this.patternDetectParameters.minGridPeriod/2,
+						this.patternDetectParameters.maxGridPeriod/2,
 						simulParameters,
 						equalizeGreens, imp_eq,
 						this.laserPointers, // null, //LASER_POINTERS, //
@@ -841,6 +843,8 @@ horizontal axis:
 								// allow more of grid around pointers?
 								distortionParameters, //
 								this.patternDetectParameters,
+								this.patternDetectParameters.minGridPeriod/2,
+								this.patternDetectParameters.maxGridPeriod/2,
 								simulParameters,
 								equalizeGreens, imp_eq,
 								this.laserPointers, // null, //LASER_POINTERS, //

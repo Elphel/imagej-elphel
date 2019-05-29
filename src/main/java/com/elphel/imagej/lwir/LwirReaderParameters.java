@@ -26,9 +26,13 @@
  */
 package com.elphel.imagej.lwir;
 
+import java.io.File;
+import java.io.FilenameFilter;
 import java.util.Properties;
 
 import com.elphel.imagej.common.GenericJTabbedDialog;
+
+import ij.Prefs;
 
 public class LwirReaderParameters {
 	private boolean parameters_updated = false;
@@ -49,6 +53,7 @@ public class LwirReaderParameters {
 	protected double  vnir_gain_g =           2.0;
 	protected double  vnir_gain_rg =          0.7705; // 1.116; halogen/fluorescent
 	protected double  vnir_gain_bg =          2.401;  // 1.476;
+	protected boolean [] selected_channels =  {true, true, true, true, true, true, true, true};
 
 /*
 	protected double [] vnir_exp_corr = {1.0, 1.0, 1.0, 1.0};
@@ -70,7 +75,7 @@ public class LwirReaderParameters {
 	protected int     vnir_lag   =          1; // frames
 	protected double  max_mismatch_ms =     0.05;
 	protected int     max_frame_diff =      1; // 2;
-	protected int     debug_level =           0;//-3: OFF, -2:Fatal, -1:ERROR, 0:WARN, 1:INFO,2:DEBUG
+	protected int     debug_level =         0;//-3: OFF, -2:Fatal, -1:ERROR, 0:WARN, 1:INFO,2:DEBUG
 
 
 	// --- interface methods
@@ -106,6 +111,7 @@ public class LwirReaderParameters {
 		properties.setProperty(prefix+"max_mismatch_ms",     this.max_mismatch_ms+"");
 		properties.setProperty(prefix+"max_frame_diff",      this.max_frame_diff+"");
 		properties.setProperty(prefix+"debug_level",         this.debug_level+"");
+		properties.setProperty(prefix+"selected_channels",   arr_to_str(this.selected_channels));
 
 	}
 
@@ -134,6 +140,7 @@ public class LwirReaderParameters {
 		if (properties.getProperty(prefix+"max_mismatch_ms")!=null)     this.max_mismatch_ms=Double.parseDouble(properties.getProperty(prefix+"max_mismatch_ms"));
 		if (properties.getProperty(prefix+"max_frame_diff")!=null)      this.max_frame_diff=Integer.parseInt(properties.getProperty(prefix+"max_frame_diff"));
 		if (properties.getProperty(prefix+"debug_level")!=null)         this.debug_level=Integer.parseInt(properties.getProperty(prefix+"debug_level"));
+		if (properties.getProperty(prefix+"selected_channels")!=null)   this.selected_channels=str_to_barr(properties.getProperty(prefix+"selected_channels"));
 		parameters_updated = true;
 	}
 	@Override
@@ -163,6 +170,7 @@ public class LwirReaderParameters {
 		lrp.max_mismatch_ms=           this.max_mismatch_ms;
 		lrp.max_frame_diff=            this.max_frame_diff;
 		lrp.debug_level=               this.debug_level;
+		lrp.selected_channels =        this.selected_channels.clone();
 		return lrp;
 	}
 
@@ -198,7 +206,8 @@ public class LwirReaderParameters {
 				(lrp.vnir_lag == this.vnir_lag) &&
 				(lrp.max_mismatch_ms == this.max_mismatch_ms) &&
 				(lrp.max_frame_diff == this.max_frame_diff) &&
-				(lrp.debug_level ==    this.debug_level);
+				(lrp.debug_level ==    this.debug_level) &&
+				(java.util.Arrays.equals(lrp.selected_channels, this.selected_channels));
 	}
 
 	@Override
@@ -225,6 +234,7 @@ public class LwirReaderParameters {
 		result = prime * result + arr_to_str(vnir_exp_corr).hashCode();
 		result = prime * result + arr_to_str(vnir_gcorr_rbgb).hashCode();
 		result = prime * result + (new Integer(lwir_trig_dly)).hashCode();
+		result = prime * result + arr_to_str(selected_channels).hashCode();
 		// next are not needed to be programmed to the cameras
 //		result = prime * result + (new Integer(vnir_lag)).hashCode();
 //		result = prime * result + (new Double(max_mismatch_ms)).hashCode();
@@ -241,7 +251,7 @@ public class LwirReaderParameters {
 		gd.addStringField ("LWIR channels", arr_to_str(this.lwir_channels), 20, "Space-separated list of used LWIR camera channels, such as '0 1 2 3'");
 		gd.addStringField ("VNIR channels", arr_to_str(this.vnir_channels), 20, "Space-separated list of used visible range camera channels, such as '0 1 2 3'");
 		gd.addCheckbox    ("LWIR telemetry",    this.lwir_telemetry, "Set LWIR sesnors to provide telemetry data in the last 2 lines (may become mandatory later)");
-		gd.addNumericField("VNIR quality",  this.vnir_quality,  3,6,"ms", "Visible range camera JPEG compression quality (all channels)");
+		gd.addNumericField("VNIR quality",  this.vnir_quality,  3,6,"%", "Visible range camera JPEG compression quality (all channels)");
 		gd.addCheckbox    ("VNIR undo white balance",    this.vnir_scale, "Undo in-camera white balancing");
 		gd.addCheckbox    ("VNIR autoexposure", this.vnir_autoexp, "Enable autoexposure for the visible range camera");
 		gd.addNumericField("VNIR vnir_max_autoexp_ms", this.vnir_max_autoexp_ms,  3,6,"ms", "Visible range camera maximal exposure in autoexposure mode");
@@ -256,12 +266,13 @@ public class LwirReaderParameters {
 		gd.addNumericField("VNIR lag",      this.vnir_lag,     0,3,"","Visible camera lag (in frames) relative to LWIR one");
 		gd.addNumericField("Max mismatch",  this.max_mismatch_ms,    3,6,"ms","Maximal mismatch between image timestamps. Larger mismatch requires LWIR sinsor reinitialization");
 		gd.addNumericField("Max frame diff",this.max_frame_diff,     0,3,"","Maximal difference in frames between simultaneously acquired channels as calculated from the timestamps");
-		gd.addNumericField("Debug level",   this.debug_level,         0,3,"","Image acquisition log level: -3: OFF, -2:FATAL, -1:ERROR, 0:WARN, 1:INFO, 2:DEBUG");
+		gd.addNumericField("Debug level",   this.debug_level,        0,3,"","Image acquisition log level: -3: OFF, -2:FATAL, -1:ERROR, 0:WARN, 1:INFO, 2:DEBUG");
+		gd.addStringField ("Selected channels", arr_to_str(this.selected_channels), 20, "Space-separated channel selection (1 - selected, 0 - unselected)");
 	}
 
 	public void dialogAnswers(GenericJTabbedDialog gd) {
 		this.avg_number =             (int) gd.getNextNumber();
-		this.lwir_ffc =                      gd.getNextBoolean();
+		this.lwir_ffc =                     gd.getNextBoolean();
 		this.avg_all =                      gd.getNextBoolean();
 		this.lwir_ip =                      gd.getNextString();
 		this.vnir_ip =                      gd.getNextString();
@@ -284,6 +295,7 @@ public class LwirReaderParameters {
 		this.max_mismatch_ms =              gd.getNextNumber();
 		this.max_frame_diff =         (int) gd.getNextNumber();
 		this.debug_level =            (int) gd.getNextNumber();
+		this.selected_channels =            str_to_barr(gd.getNextString());
 		parameters_updated = true;
 	}
 
@@ -307,6 +319,80 @@ public class LwirReaderParameters {
 		parameters_updated = false;
 	}
 
+	public boolean [] getSelected(){
+		return  selected_channels;
+	}
+
+	public boolean [] getSelectedLwir(){
+		boolean [] sel = selected_channels.clone();
+		for (int i = lwir_channels.length; i < sel.length; i++ ) {
+			sel[i] = false;
+		}
+		return  sel;
+	}
+
+	public boolean [] getSelectedVnir(){
+		boolean [] sel = selected_channels.clone();
+		for (int i = 0; i < lwir_channels.length; i++ ) {
+			sel[i] = false;
+		}
+		return  sel;
+	}
+
+	public String [] getSourceFilesFlat(String [] sets, boolean[] channels) {
+		int num_sel = 0;
+		for (boolean s: channels) if (s) num_sel++;
+		String [] files = new String [sets.length * num_sel];
+		int indx = 0;
+		for (String set:sets) {
+			for (int i = 0; i < channels.length; i++) if (channels[i]) {
+				String file_base = set;
+				if (set.indexOf(Prefs.getFileSeparator()) >=0) {
+					file_base = set.substring(set.lastIndexOf(Prefs.getFileSeparator())+1);
+				}
+			files[indx++] =set + Prefs.getFileSeparator()+ file_base+"_"+i+".tiff";
+			}
+		}
+		return files;
+	}
+
+
+	// Image set may have different timestamps, only lwir0 matches
+	public String [][] getSourceFiles(String [] sets, boolean[] channels) {
+		String [][] files = new String [sets.length][channels.length];
+		for (int nset= 0; nset < sets.length; nset++) {
+			// read all files in the directory
+			File  set_dir = new File(sets[nset]);
+			File [] channel_files = set_dir.listFiles(new FilenameFilter() {
+				@Override
+				public boolean accept(File current, String name) {
+					if (!(new File(current, name).isFile()) || !name.endsWith(".tiff")) return false;
+					String base = name.substring(0, name.lastIndexOf(".tiff"));
+					int undr = base.lastIndexOf("_");
+					if (undr < 0) return false;
+					int chn = -1;
+					try {
+						chn = Integer.parseInt(base.substring(undr + 1));
+					} catch (Exception e) {
+
+					}
+					return chn >= 0;
+				}
+			});
+			for (File f: channel_files) {
+				String base = f.getName().substring(0, f.getName().lastIndexOf(".tiff"));
+				int undr = base.lastIndexOf("_");
+				int chn =  Integer.parseInt(base.substring(undr + 1));
+				if ((chn >= 0) && (chn < channels.length) && channels[chn]) {
+					files[nset][chn] = f.getPath();
+				}
+			}
+		}
+		return files;
+	}
+
+
+
 	// --- internal methods
 
 	private String arr_to_str(int [] arr) {
@@ -319,6 +405,23 @@ public class LwirReaderParameters {
 		String s = "";
 		for (double c:arr) s+=c+" ";
 		return s.trim();
+	}
+
+
+	private String arr_to_str(boolean [] arr) {
+		String s = "";
+		for (boolean c:arr) s+= (c?1:0)+" ";
+		return s.trim();
+	}
+
+	private boolean [] str_to_barr(String s) {
+		int [] iarr = str_to_iarr(s);
+		if (iarr == null) return null;
+		boolean [] barr = new boolean [iarr.length];
+		for (int i = 0; i < barr.length; i++) {
+			barr[i] = iarr[i] != 0;
+		}
+		return barr;
 	}
 
 	private int [] str_to_iarr(String s) {
@@ -348,5 +451,23 @@ public class LwirReaderParameters {
 		}
 		return darr;
 	}
+
+
+	public boolean [] selectSourceChannels(){
+		return selectSourceChannels(selected_channels);
+	}
+
+	public boolean [] selectSourceChannels(boolean [] sel) {
+		GenericJTabbedDialog gd = new GenericJTabbedDialog("Set CLT parameters",300,500);
+		for (int i = 0; i < sel.length; i++) {
+			gd.addCheckbox    ("Channel "+i,       sel[i], "Enable processing camera channel "+i);
+		}
+		gd.showDialog();
+		if (gd.wasCanceled()) return null;
+		for (int i = 0; i < sel.length; i++) {
+			sel[i] = gd.getNextBoolean();
+		}
+    	return sel;
+    }
 
 }

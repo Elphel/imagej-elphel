@@ -124,15 +124,7 @@ public class DoubleFHT  {
 	public boolean transform(double [] data, boolean inverse) {
 		//IJ.log("transform: "+maxN+" "+inverse);
 		updateMaxN(data);
-//		maxN = (int) Math.sqrt(data.length);
-//		if ((S==null) || (S.length!=(maxN/4))) {
-//			makeSinCosTables(maxN);
-//			makeBitReverseTable(maxN);
-//			tempArr = new double[maxN];
-//		}
-//		float[] fht = (float[])getPixels();
 	 	rc2DFHT(data, inverse, this.maxN);
-//		isFrequencyDomain = !inverse;
 		return true;
 	}
 
@@ -141,21 +133,15 @@ public class DoubleFHT  {
    		 double lowPass){
     	return createFrequencyFilter(null,highPass,lowPass);
     }
-/*    public double []createFrequencyFilter(
-    		double [] data,
-      		 double highPass,
-      		 double lowPass){
-       	return createFrequencyFilter(data.length,highPass,lowPass);
-       }
-*/
-	public double [] createFrequencyFilter(
+
+    public double [] createFrequencyFilter(
     		 double [] data, //int n,
     		 double highPass,
     		 double lowPass){
 		 if (data !=null) updateMaxN(data);
 //		 int n;
 
-		 if ((this.freqMask!=null) && (this.freqPass[0]==highPass)  && (this.freqPass[0]==lowPass)) return this.freqMask;
+		 if ((this.freqMask!=null) && (this.freqPass[0]==highPass)  && (this.freqPass[1]==lowPass)) return this.freqMask;
 		 this.freqMask= new double [(this.maxN+1)*this.maxN/2+1];
     	 double [] lo=new double[this.maxN];
     	 double [] hi=new double[this.maxN];
@@ -177,12 +163,9 @@ public class DoubleFHT  {
     		 if (j>this.maxN/2) j=this.maxN-j;
     		 this.freqMask[index]=(1.0-hi[i]*hi[j])*lo[i]*lo[j];
     	 }
-//    	 this.freqMaskN=n;
     	 this.freqPass=new double[2];
     	 this.freqPass[0]=highPass;
     	 this.freqPass[1]=lowPass;
-//    	 this.freqMask_cache[this.ln2]=this.freqMask;
-//    	 this.freqPass_cache[this.ln2]=this.freqPass;
     	 return this.freqMask;
      }
 	/**
@@ -195,49 +178,6 @@ public class DoubleFHT  {
 	 */
 	public double [] shift(double [] data, double dx, double dy){
 		return shift(data, 1, dx, dy);
-		/*
-		updateMaxN(data);
-		double sX=2*Math.PI*dx/this.maxN;
-		double sY=2*Math.PI*dy/this.maxN;
-		int halfN=this.maxN/2;
-		double [] cosDX = new double[this.maxN];
-		double [] sinDX = new double[this.maxN];
-		double [] cosDY = new double[halfN+1];
-		double [] sinDY = new double[halfN+1];
-		for (int i=0;i<=halfN;i++){ // need less?
-			cosDX[i]=Math.cos(sX*i);
-			sinDX[i]=Math.sin(sX*i);
-			cosDY[i]=Math.cos(sY*i);
-			sinDY[i]=Math.sin(sY*i);
-		}
-		for (int i=1;i<halfN;i++){ // need less?
-			cosDX[this.maxN-i]= cosDX[i];
-			sinDX[this.maxN-i]=-sinDX[i];
-		}
-		swapQuadrants(data);
-		if (!transform(data,false)) return null; // direct FHT
-		for (int row =0; row<=halfN; row++) {
-			int rowMod = (this.maxN - row) % this.maxN;
-			int maxCol=(row<halfN)?(this.maxN-1):halfN;
-			for (int col=0; col<=maxCol; col++) {
-				int colMod = (this.maxN - col) % this.maxN;
-				int index=   row * this.maxN + col;
-				int indexMod=rowMod * this.maxN + colMod;
-				double re=0.5*(data[index]+data[indexMod]);
-				double im=0.5*(data[index]-data[indexMod]);
-				if ((col==halfN) || (row==halfN)) im=0;
-				double cosDelta= cosDX[col]*cosDY[row] - sinDX[col]*sinDY[row]; // cos(deltaX)*cos(deltaY)-sin(deltaX)*sin(deltaY)
-				double sinDelta= sinDX[col]*cosDY[row] + cosDX[col]*sinDY[row]; // sin(deltaX)*cos(deltaY)+cos(deltaX)*sin(deltaY)
-				double reMod=re*cosDelta-im*sinDelta;
-				double imMod=re*sinDelta+im*cosDelta;
-				data[index]=   reMod+imMod;
-				data[indexMod]=reMod-imMod;
-			}
-		}
-		if (!transform(data,true)) return null; // inverse FHT
-		swapQuadrants(data);
-		return data;
-		*/
 	}
 	/**
 	 * Upsample input array by padding in the frequency domain
@@ -247,30 +187,6 @@ public class DoubleFHT  {
 	 */
 	public double [] upsample( double [] first, int scale){
 		return shift (first, scale, 0.0, 0.0);
-/*
-		 if (scale <=1) return first.clone();
-		 updateMaxN(first);
-    	 swapQuadrants(first);
-    	 if (!transform(first,false)) return null; // direct FHT
-    	 int halfN=this.maxN/2;
-    	 int shift=this.maxN*(scale-1);
-    	 int scaledN=this.maxN*scale;
-    	 double [] result =new double [first.length*scale*scale];
-    	 for (int i=0;i<result.length;i++) result [i]=0.0;
-    	 double scale2=scale*scale;
-    	 for (int i=0;i<first.length;i++){
-    		 int iy=i/this.maxN;
-    		 int ix=i%this.maxN;
-    		 if (ix>halfN) ix+=shift;
-    		 if (iy>halfN) iy+=shift;
-    		 result[scaledN*iy+ix]=scale2*first[i];
-    	 }
-		 updateMaxN(result);
-    	 if (!transform(result,true)) return null; // inverse FHT
-    	 swapQuadrants(result);
-    	 return result;
-    	 */
-
 	}
 
 	/**
@@ -408,6 +324,54 @@ public class DoubleFHT  {
  	    	 swapQuadrants(first);
  	    	 return first;
  	     }
+
+     public double [] phaseCorrelate (
+    		 double [] first,
+    		 double    phaseCoeff,
+    		 double    high_pass,
+    		 double    low_pass) { //  high/low pass filtering
+    	 return phaseCorrelate(first, phaseCoeff, high_pass, low_pass, null);
+     }
+
+     public double [] phaseCorrelate (
+    		 double [] first,
+    		 double    phaseCoeff,
+    		 double    high_pass,
+    		 double    low_pass, //  high/low pass filtering
+    		 double [] fht_save){ //null-OK
+    	 updateMaxN(first);
+    	 double [] filter = null;
+    	 if ((high_pass >0) || (low_pass > 0)) {
+    		 filter = createFrequencyFilter(high_pass, low_pass);
+    	 }
+    	 return phaseCorrelate(first, phaseCoeff, filter,fht_save);
+     }
+
+     public double [] phaseCorrelate (
+    		 double [] first,
+    		 double    phaseCoeff,
+    		 double [] filter) {     //  high/low pass filtering
+    	 return phaseCorrelate(first, phaseCoeff, filter, null);
+     }
+
+     public double [] phaseCorrelate (
+    		 double [] first,
+    		 double    phaseCoeff,
+    		 double [] filter,     //  high/low pass filtering
+    		 double [] fht_save){  //null-OK
+    	 updateMaxN(first);
+    	 swapQuadrants(first);
+    	 if (!transform(first,false)) return null; // direct FHT
+    	 if (fht_save != null) {
+    		 System.arraycopy(first, 0, fht_save, 0, first.length);
+    	 }
+    	 first= phaseMultiplyNorm(first, first, phaseCoeff); // correlation, not convolution
+    	 if (filter!=null) multiplyByReal(first, filter);
+    	 transform(first,true) ; // inverse transform
+    	 swapQuadrants(first);
+    	 return first;
+     }
+//
      public double [] applyFreqFilter(
     		 double [] first,
     		 double [] filter
@@ -2024,6 +1988,7 @@ public class DoubleFHT  {
 		return product;
 	}
 
+
 	public double [] phaseMultiply(double [] h1, double [] h2, double phaseCoeff) {
 		int rowMod, colMod;
 		double h2e, h2o,d;
@@ -2040,6 +2005,54 @@ public class DoubleFHT  {
 		}
 		return product;
 	}
+
+	public double [] phaseMultiplyNorm(double [] h1, double [] h2, double phaseCoeff) {
+		int size = maxN;
+		int size2 = size >> 1;
+		int size21 = size*size2;
+		int rowMod, colMod, base, baseMod;
+		double h2e, h2o;
+		double[] product = new double[size*size];
+		for (int r =0; r<size; r++) {
+			rowMod = (size - r) % size;
+			for (int c=0; c<size; c++) {
+				colMod = (size - c) % size;
+				h2e = (h2[r * size + c] + h2[rowMod * size + colMod]) / 2;
+				h2o = (h2[r * size + c] - h2[rowMod * size + colMod]) / 2;
+				product[r * size + c] = (h1[r * size + c] * h2e - h1[rowMod * size + colMod] * h2o);
+			}
+		}
+		double [] amplitude = calculateAmplitudeHalf(product);
+		double avg_ampl = 0.0;
+		for (int row = 1; row < size2; row++) {
+			base = row*size;
+			for (int col = 0; col < size; col++) {
+				avg_ampl += amplitude[col+base];
+			}
+		}
+		avg_ampl *= 2;
+		for (int col = 0; col < size; col++) {
+			avg_ampl += amplitude[col] + amplitude[col + size21];
+		}
+		avg_ampl /= size*size;
+		double aoffs = (1.0 - phaseCoeff) * avg_ampl;
+		double ampl;
+		for (int row = 0; row <= size2; row++) {
+			base = row*size;
+			rowMod = (size - row) % size;
+			baseMod = rowMod * size;
+			for (int col = 0; col < size; col++) {
+				ampl = phaseCoeff * amplitude[col+base] + aoffs;
+				product[col+base] /= ampl;
+				if ((row > 0) && (row < size2)) {
+					colMod = (size - col) % size;
+					product[colMod + baseMod] /= ampl;
+				}
+			}
+		}
+		return product;
+	}
+
 
 
 // Multiply by real array (i.e. filtering in frequency domain). Array m length should be at least maxN*maxN/2+1
@@ -2094,6 +2107,17 @@ public class DoubleFHT  {
     swapQuadrants(amp);
     return amp;
   }
+
+  public double [] calculateAmplitudeHalf(double [] fht) {
+	  int size=(int) Math.sqrt(fht.length);
+	  int size2 = (size >>1) +1;
+	  double[] amp = new double[size* size2];
+	  for (int row=0; row<size2; row++) {
+		  amplitude(row, size, fht, amp);
+	  }
+	  return amp;
+  }
+
   public double [] calculateAmplitude2(double [] fht) {
 	    int size=(int) Math.sqrt(fht.length);
 	    double[] amp = new double[size*size];
@@ -2133,8 +2157,6 @@ public class DoubleFHT  {
        row2=(fftsize-row1) %fftsize;
        for (col1=0;col1<fftsize;col1++) {
          col2=(fftsize-col1) %fftsize;
-//         fftHalf[row1][col1]=   complex( 0.5*(fht_pixels[row1*fftsize+col1] + fht_pixels[row2*fftsize+col2]),
-//                                         0.5*(fht_pixels[row2*fftsize+col2] - fht_pixels[row1*fftsize+col1]));
          fftHalf[row1][col1][0]=   0.5*(fht_pixels[row1*fftsize+col1] + fht_pixels[row2*fftsize+col2]);
          fftHalf[row1][col1][1]=   0.5*(fht_pixels[row2*fftsize+col2] - fht_pixels[row1*fftsize+col1]);
        }
