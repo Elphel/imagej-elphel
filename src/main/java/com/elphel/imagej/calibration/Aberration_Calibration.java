@@ -9356,9 +9356,9 @@ if (MORE_BUTTONS) {
 //        ImagePlus [] imps = LWIR_READER.acquire(DISTORTION_PROCESS_CONFIGURATION.sourceDirectory); // directory to save
         ImagePlus [] imps = LWIR_READER.acquire("attic/lwir_test_images"); // directory to save
 		if (imps != null) {
-//			for (ImagePlus imp: imps) {
-//				imp.show();
-//			}
+			for (ImagePlus imp: imps) {
+				imp.show();
+			}
 		}
 		return;
 	}
