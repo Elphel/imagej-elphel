@@ -66,10 +66,10 @@ public class LwirReaderParameters {
 			1.0668, 1.1055, 1.0006,
 			1.1533, 1.0780, 1.0015,
 			0.9966, 1.0445, 1.0023};
-	protected int     lwir_trig_dly   =     1000; //in 100MHz clock cycle, current FPGA requires >0 (used 1000)
-	protected int     vnir_lag   =          1; // frames
+	protected int     lwir_trig_dly   =     9000000; //in 100MHz clock cycle, current FPGA requires >0 (used 1000)
+	protected int     vnir_lag   =          2;//1; // frames
 	protected double  max_mismatch_ms =     0.05;
-	protected int     max_frame_diff =      1; // 2;
+	protected int     max_frame_diff =      2;// 1; // 2;
 	protected int     debug_level =           0;//-3: OFF, -2:Fatal, -1:ERROR, 0:WARN, 1:INFO,2:DEBUG
 
 
@@ -252,7 +252,7 @@ public class LwirReaderParameters {
 		gd.addNumericField("VNIR gain B/G", this.vnir_gain_bg, 3,6,"","Blue to green gain ratio for all visible range camera channels");
 		gd.addStringField ("VNIR exposuere corrections", arr_to_str(this.vnir_exp_corr), 50, "Fine corrections of channel exposures (4 channel relative exposures)");
 		gd.addStringField ("VNIR gain corrections", arr_to_str(this.vnir_gcorr_rbgb), 100, "Fine corrections to per channel, per color gains:'r0 b0 gb0 r1 b1 gb1 ...'");
-		gd.addNumericField("LWIR trig dly", this.lwir_trig_dly,     0,3,"x10ns","Output trigger delay, should eventually match Lepton+FPGA latency to trigger VNIR exactly 1 frame after LWIR. 0 does not work with current FPGA - usec do not match sec in transmitted timestamp");
+		gd.addNumericField("LWIR trig dly", this.lwir_trig_dly,     0,10,"x10ns","Output trigger delay, should eventually match Lepton+FPGA latency to trigger VNIR exactly 1 frame after LWIR. 0 does not work with current FPGA - usec do not match sec in transmitted timestamp");
 		gd.addNumericField("VNIR lag",      this.vnir_lag,     0,3,"","Visible camera lag (in frames) relative to LWIR one");
 		gd.addNumericField("Max mismatch",  this.max_mismatch_ms,    3,6,"ms","Maximal mismatch between image timestamps. Larger mismatch requires LWIR sinsor reinitialization");
 		gd.addNumericField("Max frame diff",this.max_frame_diff,     0,3,"","Maximal difference in frames between simultaneously acquired channels as calculated from the timestamps");
