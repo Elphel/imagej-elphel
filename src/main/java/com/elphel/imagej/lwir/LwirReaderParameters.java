@@ -76,6 +76,7 @@ public class LwirReaderParameters {
 	protected double  max_mismatch_ms =     0.05;
 	protected int     max_frame_diff =      2;// 1; // 2;
 	protected int     debug_level =           0;//-3: OFF, -2:Fatal, -1:ERROR, 0:WARN, 1:INFO,2:DEBUG
+	protected boolean show_images = false;
 
 	// --- interface methods
 	public int getDebugLevel() {
@@ -85,6 +86,9 @@ public class LwirReaderParameters {
 		this.debug_level = level;
 	}
 
+	public boolean isShowImages() {
+		return show_images;
+	}
 	public void setProperties(String prefix,Properties properties){
 		properties.setProperty(prefix+"avg_number",          this.avg_number+"");
 		properties.setProperty(prefix+"lwir_ffc",            this.lwir_ffc+"");
@@ -111,6 +115,7 @@ public class LwirReaderParameters {
 		properties.setProperty(prefix+"max_frame_diff",      this.max_frame_diff+"");
 		properties.setProperty(prefix+"debug_level",         this.debug_level+"");
 		properties.setProperty(prefix+"selected_channels",   arr_to_str(this.selected_channels));
+		properties.setProperty(prefix+"show_images",         this.show_images+"");
 
 	}
 
@@ -140,6 +145,7 @@ public class LwirReaderParameters {
 		if (properties.getProperty(prefix+"max_frame_diff")!=null)      this.max_frame_diff=Integer.parseInt(properties.getProperty(prefix+"max_frame_diff"));
 		if (properties.getProperty(prefix+"debug_level")!=null)         this.debug_level=Integer.parseInt(properties.getProperty(prefix+"debug_level"));
 		if (properties.getProperty(prefix+"selected_channels")!=null)   this.selected_channels=str_to_barr(properties.getProperty(prefix+"selected_channels"));
+		if (properties.getProperty(prefix+"show_images")!=null)         this.show_images= Boolean.parseBoolean(properties.getProperty(prefix+"show_images"));
 		parameters_updated = true;
 	}
 	@Override
@@ -170,6 +176,7 @@ public class LwirReaderParameters {
 		lrp.max_frame_diff=            this.max_frame_diff;
 		lrp.debug_level=               this.debug_level;
 		lrp.selected_channels =        this.selected_channels.clone();
+		lrp.show_images =              this.show_images;
 		return lrp;
 	}
 
@@ -207,6 +214,7 @@ public class LwirReaderParameters {
 				(lrp.max_frame_diff == this.max_frame_diff) &&
 				(lrp.debug_level ==    this.debug_level) &&
 				(java.util.Arrays.equals(lrp.selected_channels, this.selected_channels));
+				(lrp.show_images ==    this.show_images);
 	}
 
 	@Override
@@ -267,6 +275,7 @@ public class LwirReaderParameters {
 		gd.addNumericField("Max frame diff",this.max_frame_diff,     0,3,"","Maximal difference in frames between simultaneously acquired channels as calculated from the timestamps");
 		gd.addNumericField("Debug level",   this.debug_level,        0,3,"","Image acquisition log level: -3: OFF, -2:FATAL, -1:ERROR, 0:WARN, 1:INFO, 2:DEBUG");
 		gd.addStringField ("Selected channels", arr_to_str(this.selected_channels), 20, "Space-separated channel selection (1 - selected, 0 - unselected)");
+		gd.addCheckbox    ("Show images",   this.show_images, "Show acquired images after averaging)");
 	}
 
 	public void dialogAnswers(GenericJTabbedDialog gd) {
@@ -295,6 +304,7 @@ public class LwirReaderParameters {
 		this.max_frame_diff =         (int) gd.getNextNumber();
 		this.debug_level =            (int) gd.getNextNumber();
 		this.selected_channels =            str_to_barr(gd.getNextString());
+		this.show_images =                  gd.getNextBoolean();
 		parameters_updated = true;
 	}
 
