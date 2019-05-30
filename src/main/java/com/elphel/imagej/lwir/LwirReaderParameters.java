@@ -71,6 +71,7 @@ public class LwirReaderParameters {
 	protected double  max_mismatch_ms =     0.05;
 	protected int     max_frame_diff =      2;// 1; // 2;
 	protected int     debug_level =           0;//-3: OFF, -2:Fatal, -1:ERROR, 0:WARN, 1:INFO,2:DEBUG
+	protected boolean show_images = false;
 
 
 	// --- interface methods
@@ -106,6 +107,8 @@ public class LwirReaderParameters {
 		properties.setProperty(prefix+"max_mismatch_ms",     this.max_mismatch_ms+"");
 		properties.setProperty(prefix+"max_frame_diff",      this.max_frame_diff+"");
 		properties.setProperty(prefix+"debug_level",         this.debug_level+"");
+		properties.setProperty(prefix+"show_images",         this.show_images+"");
+
 
 	}
 
@@ -134,6 +137,8 @@ public class LwirReaderParameters {
 		if (properties.getProperty(prefix+"max_mismatch_ms")!=null)     this.max_mismatch_ms=Double.parseDouble(properties.getProperty(prefix+"max_mismatch_ms"));
 		if (properties.getProperty(prefix+"max_frame_diff")!=null)      this.max_frame_diff=Integer.parseInt(properties.getProperty(prefix+"max_frame_diff"));
 		if (properties.getProperty(prefix+"debug_level")!=null)         this.debug_level=Integer.parseInt(properties.getProperty(prefix+"debug_level"));
+		if (properties.getProperty(prefix+"show_images")!=null)         this.show_images= Boolean.parseBoolean(properties.getProperty(prefix+"show_images"));
+		
 		parameters_updated = true;
 	}
 	@Override
@@ -163,6 +168,7 @@ public class LwirReaderParameters {
 		lrp.max_mismatch_ms=           this.max_mismatch_ms;
 		lrp.max_frame_diff=            this.max_frame_diff;
 		lrp.debug_level=               this.debug_level;
+		lrp.show_images =              this.show_images;
 		return lrp;
 	}
 
@@ -198,7 +204,8 @@ public class LwirReaderParameters {
 				(lrp.vnir_lag == this.vnir_lag) &&
 				(lrp.max_mismatch_ms == this.max_mismatch_ms) &&
 				(lrp.max_frame_diff == this.max_frame_diff) &&
-				(lrp.debug_level ==    this.debug_level);
+				(lrp.debug_level ==    this.debug_level) &&
+				(lrp.show_images ==    this.show_images);
 	}
 
 	@Override
@@ -257,11 +264,12 @@ public class LwirReaderParameters {
 		gd.addNumericField("Max mismatch",  this.max_mismatch_ms,    3,6,"ms","Maximal mismatch between image timestamps. Larger mismatch requires LWIR sinsor reinitialization");
 		gd.addNumericField("Max frame diff",this.max_frame_diff,     0,3,"","Maximal difference in frames between simultaneously acquired channels as calculated from the timestamps");
 		gd.addNumericField("Debug level",   this.debug_level,         0,3,"","Image acquisition log level: -3: OFF, -2:FATAL, -1:ERROR, 0:WARN, 1:INFO, 2:DEBUG");
+		gd.addCheckbox    ("Show images",   this.show_images, "Show acquired images after averaging)");
 	}
 
 	public void dialogAnswers(GenericJTabbedDialog gd) {
 		this.avg_number =             (int) gd.getNextNumber();
-		this.lwir_ffc =                      gd.getNextBoolean();
+		this.lwir_ffc =                     gd.getNextBoolean();
 		this.avg_all =                      gd.getNextBoolean();
 		this.lwir_ip =                      gd.getNextString();
 		this.vnir_ip =                      gd.getNextString();
@@ -284,6 +292,8 @@ public class LwirReaderParameters {
 		this.max_mismatch_ms =              gd.getNextNumber();
 		this.max_frame_diff =         (int) gd.getNextNumber();
 		this.debug_level =            (int) gd.getNextNumber();
+		this.show_images =                  gd.getNextBoolean();
+		
 		parameters_updated = true;
 	}
 
