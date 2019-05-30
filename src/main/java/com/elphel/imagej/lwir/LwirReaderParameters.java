@@ -213,7 +213,7 @@ public class LwirReaderParameters {
 				(lrp.max_mismatch_ms == this.max_mismatch_ms) &&
 				(lrp.max_frame_diff == this.max_frame_diff) &&
 				(lrp.debug_level ==    this.debug_level) &&
-				(java.util.Arrays.equals(lrp.selected_channels, this.selected_channels));
+				(java.util.Arrays.equals(lrp.selected_channels, this.selected_channels)) &&
 				(lrp.show_images ==    this.show_images);
 	}
 
