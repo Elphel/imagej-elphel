@@ -82,6 +82,9 @@ public class LwirReaderParameters {
 		this.debug_level = level;
 	}
 
+	public boolean isShowImages() {
+		return show_images;
+	}
 	public void setProperties(String prefix,Properties properties){
 		properties.setProperty(prefix+"avg_number",          this.avg_number+"");
 		properties.setProperty(prefix+"lwir_ffc",            this.lwir_ffc+"");

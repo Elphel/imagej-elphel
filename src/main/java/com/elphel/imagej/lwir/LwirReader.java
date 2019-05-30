@@ -567,7 +567,7 @@ public class LwirReader {
 			}
 		}
 		
-		if (lrp.show_images) {
+		if (lrp.isShowImages()) {
 			if (imps_avg != null) {
 				for (ImagePlus imp: imps_avg) {
 					imp.show();
