@@ -1358,7 +1358,11 @@ Exception in thread "Thread-3564" java.lang.ArrayIndexOutOfBoundsException: 8970
 			itr=set.iterator();
 			while(itr.hasNext()) {
 				str = (String) itr.next();
-				imp_dst.setProperty(str,prop.getProperty(str));
+				try {
+					imp_dst.setProperty(str,prop.getProperty(str));
+				} catch (Exception e) {
+					imp_dst.setProperty(str,"");
+				}
 			}
 		}
 	}

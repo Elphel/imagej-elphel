@@ -375,11 +375,13 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 		  8.0, // 3.0, //  correlationMaxOffset,     // maximal distance between predicted and actual pattern node
 		  3.0, // 2.0, // increase back to .5? was needed with fisheye. 5.0, //	double correlationMinContrast,   // minimal contrast for the pattern to pass
 		  3.5, // 2.5, // correlationMinInitialContrast,   // minimal contrast for the pattern of the center (initial point)
-		  1.0, //this.correlationMinAbsoluteContrast,   // minimal contrast for the pattern to pass, does not compensate for low ligt
+		  // Absolute contrast is broken (05.29.2019), disabling it
+		  0.0, // 1.0, //this.correlationMinAbsoluteContrast,   // minimal contrast for the pattern to pass, does not compensate for low ligt
 		  // TODO: adjust to a reasonable number
-		  1.0, //this.correlationMinAbsoluteInitialContrast,   // minimal contrast for the pattern of the center (initial point)
+		  0.0, // 1.0, //this.correlationMinAbsoluteInitialContrast,   // minimal contrast for the pattern of the center (initial point)
 
 		  0.8, //	scaleFirstPassContrast, // Decrease contrast of cells that are too close to the border to be processed in refinement pass
+		  2.0, // public double contrastSelectSigmaCenter; // Gaussian sigma to select correlation centers (fraction of UV period), 0.02 (center spot)
 		  0.1, // contrastSelectSigma, // Gaussian sigma to select correlation centers (fraction of UV period), 0.1
 		  0.5, //contrastAverageSigma, // Gaussian sigma to average correlation variations (as contrast reference) 0.5
 
@@ -9486,14 +9488,16 @@ if (MORE_BUTTONS) {
         	for (int nfile = 0; nfile < sourceFilesList[nset].length; nfile++) if (sourceFilesList[nset][nfile] != null){
         		long 	  startFileTime=System.nanoTime();
         		if (DEBUG_LEVEL>0){
-        			System.out.println(IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+"s: Processing file # "+(this_file+1)+
-        					" (of "+ sourceFilesList.length+"): " + numFiles);
+        			System.out.println(IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+"s: Processing set "+(nset+1) +" (of "+
+        					sourceFilesList.length+"), channel # "+(nfile + 1)+
+        					" (of "+ sourceFilesList[nset].length+"), file " +(this_file + 1)+" (of "+ numFiles+ ") - "+sourceFilesList[nset][nfile]);
         		}
+        		String grid_path = null;
         		if (saveGrids && !overwriteGrids){ // check if result already exists
         			i = sourceFilesList[nset][nfile].lastIndexOf('/');
         			if (i>0){
         				String grid_name = prefix+sourceFilesList[nset][nfile].substring(i+1);
-        				String grid_path = gridSetPath + Prefs.getFileSeparator() + grid_name;
+        				grid_path = gridSetPath + Prefs.getFileSeparator() + grid_name;
     					if ((new File(grid_path)).exists()){
     						if (DEBUG_LEVEL>0) System.out.println("-->>> Skipping existing "+grid_path+" (as requested in \"Configure Process Distortions\")");
     						continue;
@@ -9543,6 +9547,10 @@ if (MORE_BUTTONS) {
         					imp_sel, // image to process
         					THREADS_MAX);
         			ImagePlus imp_calibrated=matchSimulatedPattern.getCalibratedPatternAsImage(imp_sel,prefix, numAbsolutePoints);
+        			if (imp_calibrated == null) {
+        				if (DEBUG_LEVEL> -1) System.out.println("Grid is empty !");
+        				continue;
+        			}
         			if (DISTORTION_PROCESS_CONFIGURATION.showGridImages) imp_calibrated.show();
         			if (saveGrids){
         				FileSaver fs=new FileSaver(imp_calibrated);
@@ -9550,10 +9558,11 @@ if (MORE_BUTTONS) {
         				if (srcDir==null){
         					saveGrids=false; // do not ask about the next ones too
         				} else {
-        					String path=DISTORTION_PROCESS_CONFIGURATION.gridDirectory+Prefs.getFileSeparator()+imp_calibrated.getTitle();
-        					if (UPDATE_STATUS) IJ.showStatus("Saving "+path);
-        					if (DEBUG_LEVEL>0) System.out.println("-->>> Saving "+path+" - using "+numAbsolutePoints+" laser pointer references");
-        					fs.saveAsTiffStack(path);
+//        					String path=DISTORTION_PROCESS_CONFIGURATION.gridDirectory+Prefs.getFileSeparator()+imp_calibrated.getTitle();
+//        					String path = gridDir + Prefs.getFileSeparator() + set_name+Prefs.getFileSeparator()+imp_calibrated.getTitle();
+        					if (UPDATE_STATUS) IJ.showStatus("Saving "+grid_path);
+        					if (DEBUG_LEVEL>0) System.out.println("-->>> Saving "+grid_path+" - using "+numAbsolutePoints+" laser pointer references");
+        					fs.saveAsTiffStack(grid_path);
         				}
         			}
         		}
@@ -9657,7 +9666,7 @@ if (MORE_BUTTONS) {
         					COMPONENTS.equalizeGreens,
         					imp_sel, // image to process
         					THREADS_MAX);
-            		ImagePlus imp_calibrated=matchSimulatedPattern.getCalibratedPatternAsImage(imp_sel,prefix, numAbsolutePoints);
+            		ImagePlus imp_calibrated=matchSimulatedPattern.getCalibratedPatternAsImage(imp_sel,prefix, numAbsolutePoints); //----
             		if (DISTORTION_PROCESS_CONFIGURATION.showGridImages) imp_calibrated.show();
             		if (saveGrids){
             			FileSaver fs=new FileSaver(imp_calibrated);
@@ -17224,8 +17233,10 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
 							pixels[4],
 							WVgreens,    // wave vectors (same units as the pixels array)
 //							patternDetectParameters.corrRingWidth,   // ring (around r=0.5 dist to opposite corr) width
-							0.1, // contrastSelectSigma
-							0.5, // contrastAverageSigma
+							2.0, // distortionParameters.contrastSelectSigmaCenter, // Gaussian sigma to select correlation centers (fraction of UV period), 0.1
+							0.1, // distortionParameters.contrastSelectSigma, // Gaussian sigma to select correlation centers (fraction of UV period), 0.1
+//							0.1, // contrastSelectSigma
+//							0.5, // contrastAverageSigma
 							0.0,    //  x0,              // center coordinates
 							0.0,    //y0,
 							title)[0];   // title base for optional plots names
@@ -20320,7 +20331,8 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 			gd.addNumericField("Correlation minimal contrast for initial search (absolute)", distortionParameters.correlationMinAbsoluteInitialContrast, 3);
 
 			gd.addNumericField("Decrease contrast of cells that are too close to the border to be processed in refinement pass", distortionParameters.scaleFirstPassContrast, 3);
-			gd.addNumericField("Gaussian sigma to select correlation centers (fraction of UV period), 0.1", distortionParameters.contrastSelectSigma, 3);
+			gd.addNumericField("Gaussian sigma to select correlation center in pixels, 2.0", distortionParameters.contrastSelectSigmaCenter, 3);
+			gd.addNumericField("Gaussian sigma to select correlation off-centers (fraction of UV period), 0.1", distortionParameters.contrastSelectSigma, 3);
 			gd.addNumericField("Gaussian sigma to average correlation variations (as contrast reference), 0.5", distortionParameters.contrastAverageSigma, 3);
 
 			gd.addNumericField("Minimal initial pattern cluster size (0 - disable retries)", distortionParameters.minimalPatternCluster, 0);
@@ -20401,13 +20413,14 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 			distortionParameters.correlationMinAbsoluteContrast=  gd.getNextNumber();
 			distortionParameters.correlationMinAbsoluteInitialContrast=  gd.getNextNumber();
 
-			distortionParameters.scaleFirstPassContrast=  gd.getNextNumber();
-			distortionParameters.contrastSelectSigma=  gd.getNextNumber();
-			distortionParameters.contrastAverageSigma=  gd.getNextNumber();
+			distortionParameters.scaleFirstPassContrast=     gd.getNextNumber();
+			distortionParameters.contrastSelectSigmaCenter=  gd.getNextNumber();
+			distortionParameters.contrastSelectSigma=        gd.getNextNumber();
+			distortionParameters.contrastAverageSigma=       gd.getNextNumber();
 
 			distortionParameters.minimalPatternCluster=(int) gd.getNextNumber();
 			distortionParameters.scaleMinimalInitialContrast=gd.getNextNumber();
-			distortionParameters.searchOverlap=           gd.getNextNumber();
+			distortionParameters.searchOverlap=              gd.getNextNumber();
 
 			distortionParameters.patternSubdiv=     (int) gd.getNextNumber();
 			distortionParameters.bPatternSigma=           gd.getNextNumber();
