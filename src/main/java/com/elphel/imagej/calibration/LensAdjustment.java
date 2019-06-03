@@ -99,6 +99,7 @@ public class LensAdjustment {
 		ImagePlus imp_eq=matchSimulatedPattern.applyFlatField (imp); // will throw if image size mismatch
 		if (updating) {
 			double maxActualCorr= matchSimulatedPattern.refineDistortionCorrelation (
+					null,                 // LwirReaderParameters lwirReaderParameters, // null is OK
 					distortionParameters, //
 					patternDetectParameters,
 					simulParameters,
@@ -132,7 +133,8 @@ public class LensAdjustment {
 				System.out.println("updateFocusGrid(), number of already defined grid cells (before distortions()) = "+matchSimulatedPattern.numDefinedCells());
 			}
 			matchSimulatedPattern.distortions(
-					null, // is not used in update mode
+					null, //LwirReaderParameters lwirReaderParameters, // null is OK
+					null, // final boolean [] triedIndices, // is not used in update mode
 					distortionParameters, //
 					patternDetectParameters,
 					patternDetectParameters.minGridPeriod/2,
@@ -157,10 +159,11 @@ public class LensAdjustment {
 //			   matchSimulatedPattern.invalidateFlatFieldForGrid(); //Keep these!
 //			   matchSimulatedPattern.invalidateFocusMask();
 			numAbsolutePoints=matchSimulatedPattern.calculateDistortions( // allow more of grid around pointers?
+			        null, // LwirReaderParameters lwirReaderParameters, // null is OK
 					distortionParameters, //
 					patternDetectParameters,
-					patternDetectParameters.minGridPeriod/2,
-					patternDetectParameters.maxGridPeriod/2,
+//					patternDetectParameters.minGridPeriod/2,
+//					patternDetectParameters.maxGridPeriod/2,
 					simulParameters,
 					equalizeGreens,
 					imp_eq,

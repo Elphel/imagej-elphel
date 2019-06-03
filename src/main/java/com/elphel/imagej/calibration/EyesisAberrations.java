@@ -1278,10 +1278,11 @@ public class EyesisAberrations {
         			}
 
         			int rslt=matchSimulatedPattern.calculateDistortions(
+    				        null, // LwirReaderParameters lwirReaderParameters, // null is OK
         					distortionParameters, //
         					patternDetectParameters,
-        					patternDetectParameters.minGridPeriod/2,
-        		            patternDetectParameters.maxGridPeriod/2,
+//        					patternDetectParameters.minGridPeriod/2,
+//        		            patternDetectParameters.maxGridPeriod/2,
         					simulParameters,
         					colorComponents.equalizeGreens,
         					imp,
@@ -2709,7 +2710,8 @@ public class EyesisAberrations {
 						distortedPattern[2], //
 						simulParameters.subdiv,
 						fft_size,
-						simulParameters.center_for_g2);
+						simulParameters.center_for_g2,
+						false);//boolean mono
 				wVectors[0][0]=2.0*distortedPattern[0][0]/subpixel;
 				wVectors[0][1]=2.0*distortedPattern[0][1]/subpixel;
 				wVectors[1][0]=2.0*distortedPattern[1][0]/subpixel;
@@ -2752,7 +2754,8 @@ public class EyesisAberrations {
 						simCorr, //
 						simulParameters.subdiv,
 						fft_size,
-						simulParameters.center_for_g2);
+						simulParameters.center_for_g2,
+						false);//boolean mono
 			}
 //			simul_pixels= simulationPattern.extractSimulPatterns (
 			simul_pixels= simulationPattern.extractSimulPatterns (

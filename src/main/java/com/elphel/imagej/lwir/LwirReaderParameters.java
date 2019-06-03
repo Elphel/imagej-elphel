@@ -32,6 +32,7 @@ import java.util.Properties;
 
 import com.elphel.imagej.common.GenericJTabbedDialog;
 
+import ij.ImagePlus;
 import ij.Prefs;
 
 public class LwirReaderParameters {
@@ -54,6 +55,7 @@ public class LwirReaderParameters {
 	protected double  vnir_gain_rg =          0.7705; // 1.116; halogen/fluorescent
 	protected double  vnir_gain_bg =          2.401;  // 1.476;
 	protected boolean [] selected_channels =  {true, true, true, true, true, true, true, true};
+	protected int     max_lwir_width =        1024; //
 
 /*
 	protected double [] vnir_exp_corr = {1.0, 1.0, 1.0, 1.0};
@@ -79,9 +81,18 @@ public class LwirReaderParameters {
 	protected boolean show_images = false;
 
 	// --- interface methods
+	public boolean is_LWIR(int width) {
+		return width <= max_lwir_width;
+	}
+
+	public boolean is_LWIR(ImagePlus imp){
+		return is_LWIR(imp.getWidth());
+	}
+
 	public int getDebugLevel() {
 		return this.debug_level;
 	}
+
 	public void setDebugLevel(int level) {
 		this.debug_level = level;
 	}
