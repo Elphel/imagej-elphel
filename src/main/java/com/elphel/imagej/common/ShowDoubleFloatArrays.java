@@ -112,6 +112,30 @@ import ij.process.ImageProcessor;
 	      return;
 	    } else showArrays(pixels, width, height, titles);
 	  }
+  public void showComplex(double[][][] cpixels, String title) {
+	  int height = cpixels.length;
+	  int width =  cpixels[0].length;
+	  double [][]pixels = new double [height*width][];
+	  int indx = 0;
+	  for (int y = 0; y < height; y++) {
+		  for (int x = 0; x < width; x++) {
+			  pixels[indx++] = cpixels[y][x];
+		  }
+	  }
+	  showComplex(pixels, width, title);
+  }
+  public void showComplex(double[][] cpixels, int width, String title) {
+	  int height = cpixels.length/width;
+	  double [][]pixels = new double [2][cpixels.length];
+	  for (int i = 0; i< cpixels.length; i++) {
+		  pixels[0][i]= cpixels[i][0];
+		  pixels[1][i]= cpixels[i][1];
+	  }
+	  String [] titles = {"Re", "Im"};
+	  showArrays(pixels, width, height,  true, title, titles);
+  }
+
+
 
   public void showArrays(float[][] pixels, int width, int height,  boolean asStack, String title, String [] titles) {
 	    int i,j;

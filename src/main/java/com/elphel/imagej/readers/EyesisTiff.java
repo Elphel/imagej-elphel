@@ -640,7 +640,7 @@ the type of pixel data in this file 	getPixelType()
 	}
 
 // copied from JP46_Reader_camera.java
-	public ImagePlus encodeProperiesToInfo(ImagePlus imp){
+	public static ImagePlus encodeProperiesToInfo(ImagePlus imp){
 		String info="<?xml version=\"1.0\" encoding=\"UTF-8\"?><properties>";
 		Set<Object> jp4_set;
 		Properties jp4_prop;
@@ -661,7 +661,7 @@ the type of pixel data in this file 	getPixelType()
 		return imp;
 	}
 
-	public boolean decodeProperiesFromInfo(ImagePlus imp){
+	public static  boolean decodeProperiesFromInfo(ImagePlus imp){
 		if (imp.getProperty("Info")==null) return false;
 		String xml= (String) imp.getProperty("Info");
 
@@ -684,11 +684,15 @@ the type of pixel data in this file 	getPixelType()
 	    NodeList allNodes=doc.getDocumentElement().getElementsByTagName("*");
 	    for (int i=0;i<allNodes.getLength();i++) {
 	        String name= allNodes.item(i).getNodeName();
-            String value=allNodes.item(i).getFirstChild().getNodeValue();
-    		imp.setProperty(name, value);
-
+//            System.out.print(name+" -> ");
+            String value = "";
+            try {
+            	value=allNodes.item(i).getFirstChild().getNodeValue();
+            } catch (Exception e) {
+            }
+//            System.out.println(value);
+            imp.setProperty(name, value);
 	    }
-
 		return true;
 	}
 

@@ -665,9 +665,12 @@ horizontal axis:
 
 		boolean noMessageBoxes=true;
 		int numAbsolutePoints = matchSimulatedPattern.calculateDistortions(
+				        null, // LwirReaderParameters lwirReaderParameters, // null is OK
 						// allow more of grid around pointers?
 						distortionParameters, //
 						this.patternDetectParameters,
+//						this.patternDetectParameters.minGridPeriod/2,
+//						this.patternDetectParameters.maxGridPeriod/2,
 						simulParameters,
 						equalizeGreens, imp_eq,
 						this.laserPointers, // null, //LASER_POINTERS, //
@@ -838,23 +841,26 @@ horizontal axis:
 //	matchSimulatedPatterns[numSensor].getChannel(images[numSensor])+" ");
 
 				int numAbsolutePoints = this.matchSimulatedPatterns[numSensor].calculateDistortions(
-								// allow more of grid around pointers?
-								distortionParameters, //
-								this.patternDetectParameters,
-								simulParameters,
-								equalizeGreens, imp_eq,
-								this.laserPointers, // null, //LASER_POINTERS, //
-												// LaserPointer laserPointer, //
-												// LaserPointer object or null
-								true, // don't care -removeOutOfGridPointers
-								null, //   double [][][] hintGrid, // predicted grid array (or null)
-								0,    //   double  hintGridTolerance, // allowed mismatch (fraction of period) or 0 - orientation only
+						null, // LwirReaderParameters lwirReaderParameters, // null is OK
+						// allow more of grid around pointers?
+						distortionParameters, //
+						this.patternDetectParameters,
+//						this.patternDetectParameters.minGridPeriod/2,
+//						this.patternDetectParameters.maxGridPeriod/2,
+						simulParameters,
+						equalizeGreens, imp_eq,
+						this.laserPointers, // null, //LASER_POINTERS, //
+						// LaserPointer laserPointer, //
+						// LaserPointer object or null
+						true, // don't care -removeOutOfGridPointers
+						null, //   double [][][] hintGrid, // predicted grid array (or null)
+						0,    //   double  hintGridTolerance, // allowed mismatch (fraction of period) or 0 - orientation only
 
-								threadsMax,
-								updateStatus,
-								debug_level,
-								distortionParameters.loop_debug_level, // debug level
-								noMessageBoxes);
+						threadsMax,
+						updateStatus,
+						debug_level,
+						distortionParameters.loop_debug_level, // debug level
+						noMessageBoxes);
 				if (numAbsolutePoints <= 0) { // no pointers in this image
 					String msg = "*** No laser pointers matched for " + images[numSensor].getTitle() + " - they are needed for absolute grid positioning";
 					if (debug_level > 0) System.out.println("Warning: " + msg);

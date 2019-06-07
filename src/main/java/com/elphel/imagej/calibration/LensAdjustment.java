@@ -1,12 +1,12 @@
 package com.elphel.imagej.calibration;
 /**
  **
- ** LensAdjustment.jave - processing related to focus measurement/adjustment machine 
+ ** LensAdjustment.jave - processing related to focus measurement/adjustment machine
  **
  ** Copyright (C) 2011 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
- **  
+ **
  **  LensAdjustment.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
@@ -25,7 +25,6 @@ package com.elphel.imagej.calibration;
 import java.awt.Rectangle;
 import java.util.Properties;
 
-import com.elphel.imagej.calibration.SimulationPattern.SimulParameters;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.common.WindowTools;
 
@@ -37,7 +36,7 @@ import ij.gui.GenericDialog;
 public class LensAdjustment {
 	private ShowDoubleFloatArrays sdfaInstance =new ShowDoubleFloatArrays(); // just for debugging?
 //	public int debugLevel=2;
-	
+
 	public int updateFocusGrid(
 			double x0,   // lens center on the sensor
 			double y0,  // lens center on the sensor
@@ -75,18 +74,18 @@ public class LensAdjustment {
 		distortionParameters.minUVSpan=focusMeasurementParameters.minUVSpan;
 		distortionParameters.flatFieldCorrection=focusMeasurementParameters.flatFieldCorrection;
 		distortionParameters.flatFieldExpand=focusMeasurementParameters.flatFieldExpand;
-		
+
 		distortionParameters.correlationMinContrast=focusMeasurementParameters.correlationMinContrast;
 		distortionParameters.correlationMinInitialContrast=focusMeasurementParameters.correlationMinInitialContrast;
 		distortionParameters.correlationMinAbsoluteContrast=focusMeasurementParameters.correlationMinAbsoluteContrast;
 		distortionParameters.correlationMinAbsoluteInitialContrast=focusMeasurementParameters.correlationMinAbsoluteInitialContrast;
-		
+
 		if (maskNonPSF) {
 			distortionParameters.numberExtrapolated=0; //1; //3; // measuring PSF - extrapolate
 		} else {
 			distortionParameters.numberExtrapolated=1; // measuring distortions - do not extrapolate
 		}
-		
+
 //System.out.println("distortionParameters.correlationSize="+distortionParameters.correlationSize);
 		// add more overwrites
 //		boolean updating=(matchSimulatedPattern.PATTERN_GRID!=null) &&
@@ -100,6 +99,7 @@ public class LensAdjustment {
 		ImagePlus imp_eq=matchSimulatedPattern.applyFlatField (imp); // will throw if image size mismatch
 		if (updating) {
 			double maxActualCorr= matchSimulatedPattern.refineDistortionCorrelation (
+					null,                 // LwirReaderParameters lwirReaderParameters, // null is OK
 					distortionParameters, //
 					patternDetectParameters,
 					simulParameters,
@@ -118,7 +118,7 @@ public class LensAdjustment {
 			//Bad:	NaN (no cells),	maxActualCorr<0 -number of new empty nodes, >focusMeasurementParameters.maxCorr - also bad (no correction)
 			if (!((maxActualCorr>=0) && (maxActualCorr<=focusMeasurementParameters.maxCorr))) {
 				if (debug_level>0) System.out.println("updateFocusGrid() failed, refineDistortionCorrelation() ->"+maxActualCorr+ " (maxCorr="+focusMeasurementParameters.maxCorr+")");
-				// Do full 			
+				// Do full
 
 
 				updating=false;
@@ -127,15 +127,18 @@ public class LensAdjustment {
 			}
 		}
 		int numAbsolutePoints=0;
-		if (updating) {		
+		if (updating) {
 			// add new nodes if the appeared after shift of the pattern
 			if (debug_level>0) { // calculate/print number of defined nodes in the grid
 				System.out.println("updateFocusGrid(), number of already defined grid cells (before distortions()) = "+matchSimulatedPattern.numDefinedCells());
 			}
 			matchSimulatedPattern.distortions(
-					null, // is not used in update mode
+					null, //LwirReaderParameters lwirReaderParameters, // null is OK
+					null, // final boolean [] triedIndices, // is not used in update mode
 					distortionParameters, //
 					patternDetectParameters,
+					patternDetectParameters.minGridPeriod/2,
+		            patternDetectParameters.maxGridPeriod/2,
 					simulParameters,
 					equalizeGreens,
 					imp_eq, // image to process
@@ -156,8 +159,11 @@ public class LensAdjustment {
 //			   matchSimulatedPattern.invalidateFlatFieldForGrid(); //Keep these!
 //			   matchSimulatedPattern.invalidateFocusMask();
 			numAbsolutePoints=matchSimulatedPattern.calculateDistortions( // allow more of grid around pointers?
+			        null, // LwirReaderParameters lwirReaderParameters, // null is OK
 					distortionParameters, //
 					patternDetectParameters,
+//					patternDetectParameters.minGridPeriod/2,
+//					patternDetectParameters.maxGridPeriod/2,
 					simulParameters,
 					equalizeGreens,
 					imp_eq,
@@ -201,7 +207,7 @@ public class LensAdjustment {
 		return numAbsolutePoints;
 
 	}
-	
+
     public static class FocusMeasurementParameters {
     	public String gridGeometryFile="";
     	public String initialCalibrationFile="";
@@ -216,15 +222,15 @@ public class LensAdjustment {
     	public String serialNumber=""; // camera serial number string
     	public double sensorTemperature=Double.NaN; // last measured sensor temperature
 //other summary results to be saved with parameters
-    	public double result_lastKT=Double.NaN;   // focal distance temperature coefficient (um/C), measured from last run 
-    	public double result_lastFD20=Double.NaN; // focal distance for 20C, measured from last run 
-    	public double result_allHistoryKT=Double.NaN;   // focal distance temperature coefficient (um/C), measured from all the measurement histgory 
+    	public double result_lastKT=Double.NaN;   // focal distance temperature coefficient (um/C), measured from last run
+    	public double result_lastFD20=Double.NaN; // focal distance for 20C, measured from last run
+    	public double result_allHistoryKT=Double.NaN;   // focal distance temperature coefficient (um/C), measured from all the measurement histgory
     	public double result_allHistoryFD20=Double.NaN; // focal distance for 20C, measured from  all the measurement histgory
     	public double result_fDistance=Double.NaN; // last measured focal distance
     	public double result_tiltX=Double.NaN; // last measured tilt X
     	public double result_tiltY=Double.NaN; // last measured tilt Y
     	public double result_R50=Double.NaN;   // last measured R50 (average PSF 50% level radius, pixels - somewhat larged than actual because of measurement settings)
-    	public double result_A50=Double.NaN;   // last measured A50 (simailar, but R^2 are averaged) 
+    	public double result_A50=Double.NaN;   // last measured A50 (simailar, but R^2 are averaged)
     	public double result_B50=Double.NaN;   // last measured B50 (simailar, but R^4 are averaged)
     	public double result_RC50=Double.NaN;  // last measured RC50(R50 calculated only for the 2 center samples)
     	public double result_PX0=Double.NaN; // lens center shift, X
@@ -237,10 +243,10 @@ public class LensAdjustment {
     	public int lensSerialLength=4;
     	public String lensSerial=""; // Lens serial number
     	public boolean askLensSerial=true; // Ask lens serial on camera power cycle
-    	public double reportTemperature=50;      // temperature to report focal length  
+    	public double reportTemperature=50;      // temperature to report focal length
     	public boolean showLegacy=false; // Show old focusing parameters (most are not supported anyway)
     	public boolean includeLensSerial=true; // add lens serial to config filename
-    	public double centerDeltaX=0.0; // required X-difference between lens center and sensor center 
+    	public double centerDeltaX=0.0; // required X-difference between lens center and sensor center
     	public double centerDeltaY=0.0; // required Y-difference between lens center and sensor center
     	// with the seam in the middle - make even # of samples horizontally
     	// to be made private or removed
@@ -258,34 +264,34 @@ public class LensAdjustment {
         public boolean showAcquiredImages=false;
         public boolean showROI=true;
         public boolean showSamples=true;
-        
+
         public boolean showFittedParameters=true;
         public boolean useHeadLasers=true;
-        
+
         // when approximating PSF with a second degree polynomial:
         public double psf_cutoffEnergy=0.98; //0.5; // disregard pixels outside of this fraction of the total energy
         public double psf_cutoffLevel= 0.2; // disregard pixels below this fraction of the maximal value
         public int    psf_minArea    = 10;  // continue increasing the selected area, even if beyond psf_cutoffEnergy and psf_cutoffLevel,
                                              // if the selected area is smaller than this (so approximation would work)
         public double psf_blurSigma  = 0.0; // optionally blur the calculated mask
-        
+
         public double weightRatioRedToGreen=0.7;  // Use this data when combining defocusing data from different color PSF
         public double weightRatioBlueToGreen=0.2;
         public double targetFarNear=0.0;         // OBSOLETE target logarithm of average tangential-to-radial resolution
-        public boolean useRadialTangential=false; // Use targetFarNear (radial/tangential resolution)  as a proxy for the distance  
+        public boolean useRadialTangential=false; // Use targetFarNear (radial/tangential resolution)  as a proxy for the distance
         public double targetMicrons=0.0;          // target lens center distance (away from "best focus"
         public double toleranceMicrons=0.5; // microns
-        public double toleranceTilt=0.02; // 
+        public double toleranceTilt=0.02; //
         public double toleranceThreshold=3.0; // When each error is under scaled threshold, reduce correction step twice
-//        public boolean parallelAdjust=true;   // move 3 motors parallel after each 3-motor focus/tilt adjustment   
-        public double  parallelAdjustThreshold=4.0;   // adjust 3 motors parallel if focal distance error in the center exceeds this    
-        
-        
+//        public boolean parallelAdjust=true;   // move 3 motors parallel after each 3-motor focus/tilt adjustment
+        public double  parallelAdjustThreshold=4.0;   // adjust 3 motors parallel if focal distance error in the center exceeds this
+
+
         public double motorsSigma=896.0;   // when fitting planes for far/near, tiltX and tiltY the weights of the samples decay with this sigma 1/4 turn
         public double motorsSigma3=896.0;  // all 3 motors together (focusing center)
-        public double motorsMinSigma=200.0;// sigma will not drop below this value when fitting walk is getting smaller 
+        public double motorsMinSigma=200.0;// sigma will not drop below this value when fitting walk is getting smaller
         public double motorsVarSigmaToTravel=2.0;  // when walk is getting smaller, sigma will keep going down proportionally
-        public double motorsFadeSigma=0.3;         // after each step new sigma will have this part of the calculated from the travel 
+        public double motorsFadeSigma=0.3;         // after each step new sigma will have this part of the calculated from the travel
         public double motorsOverShootToBalance=0.9; //For quadratic maximum the correction will be increased by 1+motorsOverShootToBalance if there are less samples on teh other side
         public boolean filterGoodDistance=true; // when measuring tilt, use those with good center with higher weight
         public double goodDistanceSigma=5.0;    // sigma for the weight function of tilt measurements, depending on the center distance error
@@ -295,15 +301,15 @@ public class LensAdjustment {
         public double probe_M1M2M3= 448.0;    // how far to move average of the 3 motors: (M1+M2+M3)/3
         public double probe_M3_M1M2=3584.0;  // how far to move M3 opposite to M1 and M2: M3-(M1+M2)/2
         public double probe_M2_M1=  3584.0;  // how far to move M2 opposite to M1:    M2-M1
-        public double sigmaToProbe=1.0;      // data from far samples decay proportionally to the probe distances 
-        public boolean useTheBest=true;      // adjust from the best known position (false - from the last)  
-        
-        
-        public boolean probeSymmetrical=false; // if true, probe 6 measurements), if false - only 4  (tetrahedron)  
-        public boolean parallelBeforeProbing=true; // move 3 motors before probing around  
+        public double sigmaToProbe=1.0;      // data from far samples decay proportionally to the probe distances
+        public boolean useTheBest=true;      // adjust from the best known position (false - from the last)
+
+
+        public boolean probeSymmetrical=false; // if true, probe 6 measurements), if false - only 4  (tetrahedron)
+        public boolean parallelBeforeProbing=true; // move 3 motors before probing around
         public double reProbeDistance=4000.0; // re-run probing around in orthoganal directions, if the current position move farther from the last probing one
     	public double believeLast=0.0;       // coefficient 0.. 1.0. When each ot the 3 parameters is linearized, add shift, so 1.0 the planes will go throug the last sample
-    	
+
     	public boolean compensateHysteresis=true; // move motors in the same direction to compensate for hysteresis
     	public double minCorr=100.0;              // minimal correction movement to initiate final numFinalCorr moves
     	public int    numFinalCorr=5;             // exit if this number of last corrections where below  minCorr
@@ -312,16 +318,16 @@ public class LensAdjustment {
     	public int    maxAutoIterations=25;      // exit if history grows above this
     	public double maxAutoDistance=  10000;     // Maximal allowed automatic correction, motor steps
     	public boolean confirmFirstAuto=true;     // ask confirmation after first automatic adjustment step (before moving)
-    	
+
         public double motorsPreSigma=3584.0; // when fitting parabola for focusing sharpness in the center, far measurements decay with this sigma
         public double maxLinearStep= 3584.0; // If there are insufficient measurements to fit parabola - make this step
-        
+
         public int scanStep=320; // 200;             // motor step (all 3 motors) in scan focus mode (signed value)
         public int scanNumber=50;            // number of scanStep steps to run
-        public int scanNumberNegative=20; // 15;    // number of scanStep steps negative from the start 
+        public int scanNumberNegative=20; // 15;    // number of scanStep steps negative from the start
         public boolean scanHysteresis=false; // true;  // scan both ways
         public int scanHysteresisNumber=5;   // number of test points for the Hysteresis measurement
-        
+
         public boolean scanTiltEnable=false; //true;  // enable scanning tilt
         public boolean scanTiltReverse=false;  // enable scanning tilt in both directions
         public boolean scanMeasureLast=false;  // Calculate PSF after last move (to original position)
@@ -330,45 +336,45 @@ public class LensAdjustment {
         public int scanTiltRangeY=14336;    // 4 periods
         public int scanTiltStepsX=24;
         public int scanTiltStepsY=24;
-        
-        
+
+
         public int motorHysteresis=300;
         public double measuredHysteresis=0; // actually measured (will be saved/restored)
-        public double motorCalm=2; // wait (seconds) after motors reached final position (for the first time) before acquiring image   
+        public double motorCalm=2; // wait (seconds) after motors reached final position (for the first time) before acquiring image
         public double linearReductionRatio=4.0/38.0; // sensor travel to motors travel (all 3 together), By design it is 4/38~=0.105
         public int motorDebug=0; // 1 show  motor moves, 2 - show hysteresis back-ups too
-        
+
         // parameters for appoximating sensor center position
-        public int    lensDistanceNumPoints=1000; // number of points to tabulate center focus parameters vs. focal distance 
-        public int    lensDistancePolynomialDegree=8; // polynomial degree to approximate center focus parameters vs. focal distance 
-        public double lensDistanceWeightY=0.5;     // normalize overall sharpness (that depends on the lens quality and/or PSF parameters) to differential ones 
+        public int    lensDistanceNumPoints=1000; // number of points to tabulate center focus parameters vs. focal distance
+        public int    lensDistancePolynomialDegree=8; // polynomial degree to approximate center focus parameters vs. focal distance
+        public double lensDistanceWeightY=0.5;     // normalize overall sharpness (that depends on the lens quality and/or PSF parameters) to differential ones
         public double lensDistanceWeightK=0.0;     // 0.0 use 3 distances (to frac-R, frac-B and Y) with teh same weight when fitting, 1.0 - proportional to squared derivatives
         public boolean lensDistanceInteractive=true; // Open dialog when calibrating focal distance
         public boolean lensDistanceShowResults=true; // show results window from foca
         public boolean lensDistanceMoveToGoal=true;  // Move to targetMicrons
-        
+
         public boolean powerControlEnable=true;
         public double powerControlMaximalTemperature=60.0;
         public double powerControlHeaterOnMinutes=10.0;
         public double powerControlNeitherOnMinutes=5.0;
         public double powerControlFanOnMinutes=15.0;
-        
+
         public String uvLasersIP="192.168.0.236"; // IP address of the camera with UV LEDs and aiming lasers are connected
         public int    uvLasersBus=0;              // 0 if 103641 board is connected to the sensor port (through 10-359), 1 - to 10369
         public double [] uvLasersCurrents={40.0,40.0,40.0,40.0}; // default LED on currents (mA)
-        
+
     	// the following 3 overwrite SimulParameters members
     	public double smallestSubPix=0.3; // subdivide pixels down to that fraction when simulating
     	public double bitmapNonuniforityThreshold=0.1	; // subdivide pixels until difference between the corners is below this value
-    	public int    subdiv=4; 
+    	public int    subdiv=4;
     	// overwrites  	public static class MultiFilePSF.overexposedMaxFraction
-    	public double overexposedMaxFraction=0.1; // allowed fraction of the overexposed pixels in the PSF kernel measurement area 
+    	public double overexposedMaxFraction=0.1; // allowed fraction of the overexposed pixels in the PSF kernel measurement area
     	// overwrites	public static class PSFParameters.minDefinedArea
     	public double minDefinedArea=0.75;    // minimal (weighted) fraction of the defined patter pixels in the FFT area
         public int PSFKernelSize=32;          // size of the detected PSF kernel
-		public boolean approximateGrid=true; // approximate grid with polynomial 
+		public boolean approximateGrid=true; // approximate grid with polynomial
 		public boolean centerPSF=true;       // Center PSF by modifying phase
-		
+
 		public double mask1_sigma=    1.0;
 		public double mask1_threshold=0.25;
 		public double gaps_sigma=     1.0;
@@ -384,24 +390,24 @@ public class LensAdjustment {
 		public double correlationMinInitialContrast=1.5;   // minimal contrast for the pattern of the center (initial point)
 		public double correlationMinAbsoluteContrast=0.5;   // minimal contrast for the pattern to pass, does not compensate for low ligt
 		public double correlationMinAbsoluteInitialContrast=0.5;   // minimal contrast for the pattern of the center (initial point)
-        
+
 		public double [] postUVscrewSensitivity={-300,-300,-120}; //{-2.908571735,-3.8198374024,-2.4491867448};
-        
+
         public boolean flatFieldCorrection=true;
         public double flatFieldExpand=4.0;
-        
-        public double thresholdFinish=0.001; // Stop iterations if 2 last steps had less improvement (but not worsening ) 
+
+        public double thresholdFinish=0.001; // Stop iterations if 2 last steps had less improvement (but not worsening )
         public int    numIterations=  100; // maximal number of iterations
-        
+
         public boolean cameraIsConfigured=false;
         public boolean useExtraSensor = true;
-        public boolean enRoundOff = true; // create round mask to refine lens center position (second LMA run) 
+        public boolean enRoundOff = true; // create round mask to refine lens center position (second LMA run)
         public boolean keepCircularMask=false; // keep sensor 0 round mask after running LMA, false - recalculate actual mask
         public boolean configureCamera=false; // only valid after dialog
         public int [] motorPos=null; // will point to
     	public double [] ampsSeconds={0.0,0.0,0.0,0.0}; // cumulative Amps*seconds (read only, but will be saved/restored)
     	public int manufacturingState=0;
-    	
+
     	// temporary - will re-calculate according to required lens center
     	public Rectangle getMargins(){
     		int iXC = (int) Math.round(centerDeltaX);
@@ -416,10 +422,10 @@ public class LensAdjustment {
     			hh += (iYC < 0)?iYC:(-iYC);
     			margins=new Rectangle(ix0+iXC-hw,iy0+iYC-hh,2*hw,2*hh);
     		}
-    		
+
     		return margins;
     	}
-    	
+
     	public String [] manufacturingStateNames={
     			"New SFE",
     			"UV cured (not released)",
@@ -431,7 +437,7 @@ public class LensAdjustment {
     			"Epoxy, cured at room temperature",
     			"Epoxy cured, re-testing later"
     			};
-    			
+
     	public int [] manufacturingStateValues={
     			00, // "New SFE",
     			10, //"UV cured (not released)",
@@ -443,7 +449,7 @@ public class LensAdjustment {
     			70, //"Epoxy, cured at room temperature",
     			80  //"Epoxy cured, re-testing later"
     	};
-    	
+
     	public int [] getManufacturingIndexMod(int value){
     		if (value<this.manufacturingStateValues[0]) value= this.manufacturingStateValues[0];
     		for (int i=this.manufacturingStateValues.length-1;i>=0;i--){
@@ -454,21 +460,21 @@ public class LensAdjustment {
     		}
     		return null; // should not get here
     	}
-    	
-    	
+
+
     	public FocusMeasurementParameters(int []motorPos){
             this.motorPos=motorPos;
     	}
     	public void resetResults(){
-	    	this.result_lastKT=Double.NaN;   // focal distance temperature coefficient (um/C), measured from last run 
-	    	this.result_lastFD20=Double.NaN; // focal distance for 20C, measured from last run 
-	    	this.result_allHistoryKT=Double.NaN;   // focal distance temperature coefficient (um/C), measured from all the measurement histgory 
+	    	this.result_lastKT=Double.NaN;   // focal distance temperature coefficient (um/C), measured from last run
+	    	this.result_lastFD20=Double.NaN; // focal distance for 20C, measured from last run
+	    	this.result_allHistoryKT=Double.NaN;   // focal distance temperature coefficient (um/C), measured from all the measurement histgory
 	    	this.result_allHistoryFD20=Double.NaN; // focal distance for 20C, measured from  all the measurement histgory
 	    	this.result_fDistance=Double.NaN; // last measured focal distance
 	    	this.result_tiltX=Double.NaN; // last measured tilt X
 	    	this.result_tiltY=Double.NaN; // last measured tilt Y
 	    	this.result_R50=Double.NaN;   // last measured R50 (average PSF 50% level radius, pixels - somewhat larged than actual because of measurement settings)
-	    	this.result_A50=Double.NaN;   // last measured A50 (simailar, but R^2 are averaged) 
+	    	this.result_A50=Double.NaN;   // last measured A50 (simailar, but R^2 are averaged)
 	    	this.result_B50=Double.NaN;   // last measured B50 (similar, but R^4 are averaged)
 	    	this.result_RC50=Double.NaN;  // last measured RC50(R50 calculated only for the 2 center samples)
 	    	this.result_PX0=Double.NaN; // lens center shift, X
@@ -490,15 +496,15 @@ public class LensAdjustment {
     	    	String serialNumber, // camera serial number string
     	    	double sensorTemperature, // last measured sensor temperature
     	    	// other summary results to be saved with parameters
-    	    	double result_lastKT,   // focal distance temperature coefficient (um/C), measured from last run 
-    	    	double result_lastFD20, // focal distance for 20C, measured from last run 
-    	    	double result_allHistoryKT,   // focal distance temperature coefficient (um/C), measured from all the measurement histgory 
+    	    	double result_lastKT,   // focal distance temperature coefficient (um/C), measured from last run
+    	    	double result_lastFD20, // focal distance for 20C, measured from last run
+    	    	double result_allHistoryKT,   // focal distance temperature coefficient (um/C), measured from all the measurement histgory
     	    	double result_allHistoryFD20, // focal distance for 20C, measured from  all the measurement histgory
     	    	double result_fDistance, // last measured focal distance
     	    	double result_tiltX, // last measured tilt X
     	    	double result_tiltY, // last measured tilt Y
     	    	double result_R50,   // last measured R50 (average PSF 50% level radius, pixels - somewhat larged than actual because of measurement settings)
-    	    	double result_A50,   // last measured A50 (simailar, but R^2 are averaged) 
+    	    	double result_A50,   // last measured A50 (simailar, but R^2 are averaged)
     	    	double result_B50,   // last measured B50 (simailar, but R^4 are averaged)
     	    	double result_RC50,  // last measured RC50(R50 calculated only for the 2 center samples)
     	    	double result_PX0, // lens center shift, X
@@ -511,7 +517,7 @@ public class LensAdjustment {
     	    	int manufacturingState, // SFE manufacturing state
     	    	boolean askLensSerial,
     	    	boolean includeLensSerial, // add lens serial to config filename
-    	    	double centerDeltaX, // required X-difference between lens center and sensor center 
+    	    	double centerDeltaX, // required X-difference between lens center and sensor center
     	    	double centerDeltaY, // required Y-difference between lens center and sensor center
     	    	Rectangle margins,
     			int [] numSamples,
@@ -525,7 +531,7 @@ public class LensAdjustment {
     	    	boolean showAcquiredImages,
     	        boolean showROI,
     	        boolean showSamples,
-    	    	
+
     	    	boolean showFittedParameters,
     	        boolean useHeadLasers,
                 double psf_cutoffEnergy, // disregard pixels outside of this fraction of the total energy
@@ -533,21 +539,21 @@ public class LensAdjustment {
                 int    psf_minArea,      // continue increasing the selected area, even if beyound psf_cutoffEnergy and psf_cutoffLevel,
                                          // if the selected area is smaller than this (so approximation wpuld work)
                 double psf_blurSigma,    // optionally blur the calculated mask
-                
+
                 double weightRatioRedToGreen,  // Use this data when combining defocusing data from different color PSF
                 double weightRatioBlueToGreen,
                 double targetFarNear,         // target logariphm of average tangential-to-radial resolution
-                boolean useRadialTangential, // Use targetFarNear (radial/tangential resolution)  as a proxy for the distance  
+                boolean useRadialTangential, // Use targetFarNear (radial/tangential resolution)  as a proxy for the distance
                 double targetMicrons,          // target lens center distance (away from "best focus"
                 double toleranceMicrons, // microns
-                double toleranceTilt, // 
+                double toleranceTilt, //
                 double toleranceThreshold, // When each error is under swcaled thereshold, reduce correxction step twice
-                double  parallelAdjustThreshold,   // adjust 3 motors parallel if focal distance error in the center exceeds this    
+                double  parallelAdjustThreshold,   // adjust 3 motors parallel if focal distance error in the center exceeds this
                 double motorsSigma,   // when fitting planes for far/near, tiltX and tiltY the weights of the samples decay with this sigma
                 double motorsSigma3,  // all 3 motors together (focusing center)
-                double motorsMinSigma,// sigma will not drop below this value when fitting walk is getting smaller 
+                double motorsMinSigma,// sigma will not drop below this value when fitting walk is getting smaller
                 double motorsVarSigmaToTravel,  // when walk is getting smaller, sigma will keep going down proportionally
-                double motorsFadeSigma,       // after each step new sigma will have this part of the calculated from the travel 
+                double motorsFadeSigma,       // after each step new sigma will have this part of the calculated from the travel
                 double motorsOverShootToBalance, //For quadratic maximum the correction will be increased by 1+motorsOverShootToBalance if there are less samples on teh other side
                 boolean filterGoodDistance, // when measuring tilt, use those with good center with higher weight
                 double goodDistanceSigma,    // sigma for the weight function of tilt measurements, depending on the center distance error
@@ -557,8 +563,8 @@ public class LensAdjustment {
                 double probe_M1M2M3,     // how far to move average of the 3 motors: (M1+M2+M3)/3
                 double probe_M3_M1M2,    // how far to move M3 opposite to M1 and M2: M3-(M1+M2)/2
                 double probe_M2_M1,      // how far to move M2 opposite to M1:    M2-M1
-                double sigmaToProbe,     // data from far samples decay proportionally to the probe distances 
-                boolean useTheBest,      // adjust from the best known position (false - from the last)  	                
+                double sigmaToProbe,     // data from far samples decay proportionally to the probe distances
+                boolean useTheBest,      // adjust from the best known position (false - from the last)
                 boolean probeSymmetrical, // if true, probe 6 measurements), if false - only 4  (tetrahedron)
                 boolean parallelBeforeProbing, // move 3 motors before probing around
                 double reProbeDistance,   // re-run probing around in orthoganal directions, if the current position move farther from the last probing one
@@ -578,7 +584,7 @@ public class LensAdjustment {
                 int scanNumberNegative,    // of them negative
                 boolean scanHysteresis,  // scan both ways
                 int scanHysteresisNumber,   // number of test points for the Hysteresis measurement
-                
+
                 boolean scanTiltEnable, //=true;  // enable scanning tilt
                 boolean scanTiltReverse,
                 boolean scanMeasureLast,
@@ -588,15 +594,15 @@ public class LensAdjustment {
                 int scanTiltStepsX, //=24;
                 int scanTiltStepsY, //=24;
 
-                
+
                 int motorHysteresis,
                 double measuredHysteresis, // actually measured (will be saved/restored)
-                double motorCalm, // wait (seconds) after motors reached final position (for the first time) before acquiring image   
+                double motorCalm, // wait (seconds) after motors reached final position (for the first time) before acquiring image
                 double linearReductionRatio, // sensor travel to motors travel (all 3 together), By design it is 4/38~=0.105
                 int motorDebug,// 1 show  motor moves, 2 - show hysteresis back-ups too
-                int    lensDistanceNumPoints, // number of points to tabulate center focus parameters vs. focal distance 
-                int    lensDistancePolynomialDegree, // polynomial degree to approximate center focus parameters vs. focal distance 
-                double lensDistanceWeightY,     // normalize overall sharpness (that depends on the lens quality and/or PSF parameters) to differential ones 
+                int    lensDistanceNumPoints, // number of points to tabulate center focus parameters vs. focal distance
+                int    lensDistancePolynomialDegree, // polynomial degree to approximate center focus parameters vs. focal distance
+                double lensDistanceWeightY,     // normalize overall sharpness (that depends on the lens quality and/or PSF parameters) to differential ones
                 double lensDistanceWeightK,     // 0.0 use 3 distances (to frac-R, frac-B and Y) with teh same weight when fitting, 1.0 - proportional to squared derivatives
                 boolean lensDistanceInteractive, // Open dialog when calibrating focal distance
                 boolean lensDistanceShowResults, // show results window from foca
@@ -612,8 +618,8 @@ public class LensAdjustment {
 
     	    	double smallestSubPix, // subdivide pixels down to that fraction when simulating
     	    	double bitmapNonuniforityThreshold, // subdivide pixels until difference between the corners is below this value
-    	    	int    subdiv, 
-    	    	double overexposedMaxFraction, // allowed fraction of the overexposed pixels in the PSF kernel measurement area 
+    	    	int    subdiv,
+    	    	double overexposedMaxFraction, // allowed fraction of the overexposed pixels in the PSF kernel measurement area
     	    	double minDefinedArea, // minimal (weighted) fraction of the defined patter pixels in the FFT area
     	    	int PSFKernelSize,
 				boolean approximateGrid, // approximate grid with polynomial
@@ -633,7 +639,7 @@ public class LensAdjustment {
         		double [] postUVscrewSensitivity, // microns/turn for 3 post-UV fixture adjustment screws
                 boolean flatFieldCorrection,
                 double flatFieldExpand,
-                double thresholdFinish,// (copied from series) stop iterations if 2 last steps had less improvement (but not worsening ) 
+                double thresholdFinish,// (copied from series) stop iterations if 2 last steps had less improvement (but not worsening )
                 int    numIterations, // maximal number of iterations
 				boolean cameraIsConfigured,
 				boolean useExtraSensor,
@@ -655,15 +661,15 @@ public class LensAdjustment {
     		this.showResults=showResults; // show focusing (includingh intermediate) results
     		this.serialNumber=serialNumber; // camera serial number string
     		this.sensorTemperature=sensorTemperature; // last measured sensor temperature
-    		this.result_lastKT=result_lastKT;   // focal distance temperature coefficient (um/C), measured from last run 
-    		this.result_lastFD20=result_lastFD20; // focal distance for 20C, measured from last run 
-    		this.result_allHistoryKT=result_allHistoryKT;   // focal distance temperature coefficient (um/C), measured from all the measurement histgory 
+    		this.result_lastKT=result_lastKT;   // focal distance temperature coefficient (um/C), measured from last run
+    		this.result_lastFD20=result_lastFD20; // focal distance for 20C, measured from last run
+    		this.result_allHistoryKT=result_allHistoryKT;   // focal distance temperature coefficient (um/C), measured from all the measurement histgory
     		this.result_allHistoryFD20=result_allHistoryFD20; // focal distance for 20C, measured from  all the measurement histgory
     		this.result_fDistance=result_fDistance; // last measured focal distance
     		this.result_tiltX=result_tiltX; // last measured tilt X
     		this.result_tiltY=result_tiltY; // last measured tilt Y
     		this.result_R50=result_R50;   // last measured R50 (average PSF 50% level radius, pixels - somewhat larged than actual because of measurement settings)
-    		this.result_A50=result_A50;   // last measured A50 (simailar, but R^2 are averaged) 
+    		this.result_A50=result_A50;   // last measured A50 (simailar, but R^2 are averaged)
     		this.result_B50=result_B50;   // last measured B50 (simailar, but R^4 are averaged)
     		this.result_RC50=result_RC50;  // last measured RC50(R50 calculated only for the 2 center samples)
     		this.result_PX0=result_PX0; // lens center shift, X
@@ -676,7 +682,7 @@ public class LensAdjustment {
     		this.manufacturingState=manufacturingState;
     		this.askLensSerial=askLensSerial;
     		this.includeLensSerial=includeLensSerial; // add lens serial to config filename
-        	this.centerDeltaX=centerDeltaX; // required X-difference between lens center and sensor center 
+        	this.centerDeltaX=centerDeltaX; // required X-difference between lens center and sensor center
         	this.centerDeltaY=centerDeltaY; // required Y-difference between lens center and sensor center
     		this.margins=(Rectangle) margins.clone();
 //			this.origin=origin.clone(); // top left corner
@@ -701,17 +707,17 @@ public class LensAdjustment {
 			this.weightRatioRedToGreen=weightRatioRedToGreen;  // Use this data when combining defocusing data from different color PSF
 			this.weightRatioBlueToGreen=weightRatioBlueToGreen;
 			this.targetFarNear=targetFarNear;                  // target logariphm of average tangential-to-radial resolution
-			this.useRadialTangential=useRadialTangential;      // Use targetFarNear (radial/tangential resolution)  as a proxy for the distance  
+			this.useRadialTangential=useRadialTangential;      // Use targetFarNear (radial/tangential resolution)  as a proxy for the distance
 			this.targetMicrons=targetMicrons;                  // target lens center distance (away from "best focus"
 			this.toleranceMicrons=toleranceMicrons; // microns
-			this.toleranceTilt=toleranceTilt; // 
+			this.toleranceTilt=toleranceTilt; //
 			this.toleranceThreshold=toleranceThreshold; // When each error is under swcaled thereshold, reduce correxction step twice
-			this.parallelAdjustThreshold=parallelAdjustThreshold; // adjust 3 motors parallel if focal distance error in the center exceeds this    
+			this.parallelAdjustThreshold=parallelAdjustThreshold; // adjust 3 motors parallel if focal distance error in the center exceeds this
 			this.motorsSigma=motorsSigma;                      // when fitting planes for far/near, tiltX and tiltY the weights of the samples decay with this sigma
 			this.motorsSigma3=motorsSigma3;                    // same when 3 motors move together
-			this.motorsMinSigma=motorsMinSigma;                // sigma will not drop below this value when fitting walk is getting smaller 
+			this.motorsMinSigma=motorsMinSigma;                // sigma will not drop below this value when fitting walk is getting smaller
 			this.motorsVarSigmaToTravel=motorsVarSigmaToTravel;// when walk is getting smaller, sigma will keep going down proportionally
-			this.motorsFadeSigma=motorsFadeSigma;              // after each step new sigma will have this part of the calculated from the travel 
+			this.motorsFadeSigma=motorsFadeSigma;              // after each step new sigma will have this part of the calculated from the travel
 			this.motorsOverShootToBalance=motorsOverShootToBalance;//For quadratic maximum the correction will be increased by 1+motorsOverShootToBalance if there are less samples on teh other side
 			this.filterGoodDistance=filterGoodDistance; // when measuring tilt, use those with good center with higher weight
 			this.goodDistanceSigma=goodDistanceSigma;    // sigma for the weight function of tilt measurements, depending on the center distance error
@@ -722,7 +728,7 @@ public class LensAdjustment {
 			this.probe_M3_M1M2=probe_M3_M1M2;    // how far to move M3 opposite to M1 and M2: M3-(M1+M2)/2
 			this.probe_M2_M1=probe_M2_M1;      // how far to move M2 opposite to M1:    M2-M1
 			this.sigmaToProbe=sigmaToProbe;     // data from far samples decay proportionally to the probe distances
-			this.useTheBest=useTheBest;      // adjust from the best known position (false - from the last)  	                
+			this.useTheBest=useTheBest;      // adjust from the best known position (false - from the last)
 			this.probeSymmetrical=probeSymmetrical; // if true, probe 6 measurements), if false - only 4  (tetrahedron)
 			this.parallelBeforeProbing=parallelBeforeProbing; // move 3 motors before probing around
 			this.reProbeDistance=reProbeDistance;   // re-run probing around in orthoganal directions, if the current position move farther from the last probing one
@@ -742,7 +748,7 @@ public class LensAdjustment {
             this.scanNumberNegative=scanNumberNegative;    // of them negative
 			this.scanHysteresis=scanHysteresis;       // scan both ways
 			this.scanHysteresisNumber=scanHysteresisNumber; // number of test points for the Hysteresis measurement
-			
+
 			this.scanTiltEnable=scanTiltEnable; //=true;  // enable scanning tilt
 			this.scanTiltReverse=scanTiltReverse;
 			this.scanMeasureLast=scanMeasureLast;
@@ -751,15 +757,15 @@ public class LensAdjustment {
 			this.scanTiltRangeY=scanTiltRangeY; //, //=14336;    // 4 periods
 			this.scanTiltStepsX=scanTiltStepsX; //=24;
 			this.scanTiltStepsY=scanTiltStepsY; //=24;
-			
+
 			this.motorHysteresis=motorHysteresis;
 			this.measuredHysteresis=measuredHysteresis; // actually measured (will be saved/restored)
-			this.motorCalm=motorCalm; // wait (seconds) after motors reached final position (for the first time) before acquiring image   
+			this.motorCalm=motorCalm; // wait (seconds) after motors reached final position (for the first time) before acquiring image
 			this.linearReductionRatio=linearReductionRatio; // sensor travel to motors travel (all 3 together), By design it is 4/38~=0.105
 			this.motorDebug=motorDebug;// 1 show  motor moves, 2 - show hysteresis back-ups too
-			this.lensDistanceNumPoints=lensDistanceNumPoints; // number of points to tabulate center focus parameters vs. focal distance 
-			this.lensDistancePolynomialDegree=lensDistancePolynomialDegree; // polynomial degree to approximate center focus parameters vs. focal distance 
-			this.lensDistanceWeightY=lensDistanceWeightY;     // normalize overall sharpness (that depends on the lens quality and/or PSF parameters) to differential ones 
+			this.lensDistanceNumPoints=lensDistanceNumPoints; // number of points to tabulate center focus parameters vs. focal distance
+			this.lensDistancePolynomialDegree=lensDistancePolynomialDegree; // polynomial degree to approximate center focus parameters vs. focal distance
+			this.lensDistanceWeightY=lensDistanceWeightY;     // normalize overall sharpness (that depends on the lens quality and/or PSF parameters) to differential ones
 			this.lensDistanceWeightK=lensDistanceWeightK;     // 0.0 use 3 distances (to frac-R, frac-B and Y) with teh same weight when fitting, 1.0 - proportional to squared derivatives
 			this.lensDistanceInteractive=lensDistanceInteractive; // Open dialog when calibrating focal distance
 			this.lensDistanceShowResults=lensDistanceShowResults; // show results window from foca
@@ -774,12 +780,12 @@ public class LensAdjustment {
             this.uvLasersCurrents=uvLasersCurrents.clone(); // default LED on currents (mA)
 			this.smallestSubPix=smallestSubPix;
 			this.bitmapNonuniforityThreshold=bitmapNonuniforityThreshold;
-			this.subdiv=subdiv; 
-			this.overexposedMaxFraction=overexposedMaxFraction; 
+			this.subdiv=subdiv;
+			this.overexposedMaxFraction=overexposedMaxFraction;
 			this.minDefinedArea=minDefinedArea;
 			this.PSFKernelSize=PSFKernelSize;
 			this.approximateGrid = approximateGrid; // approximate grid with polynomial
-			this.centerPSF = centerPSF; // approximate grid with polynomial 
+			this.centerPSF = centerPSF; // approximate grid with polynomial
 			this.mask1_sigma = mask1_sigma;
 			this.mask1_threshold = mask1_threshold;
 			this.gaps_sigma=gaps_sigma;
@@ -795,7 +801,7 @@ public class LensAdjustment {
 			this.postUVscrewSensitivity=postUVscrewSensitivity.clone(); // microns/turn for 3 post-UV fixture adjustment screws
 			this.flatFieldCorrection=flatFieldCorrection;
 			this.flatFieldExpand=flatFieldExpand;
-			this.thresholdFinish=thresholdFinish;// (copied from series) stop iterations if 2 last steps had less improvement (but not worsening ) 
+			this.thresholdFinish=thresholdFinish;// (copied from series) stop iterations if 2 last steps had less improvement (but not worsening )
 			this.numIterations=numIterations; // maximal number of iterations
             this.cameraIsConfigured=cameraIsConfigured;
             this.useExtraSensor=useExtraSensor;
@@ -806,7 +812,8 @@ public class LensAdjustment {
         	this.reportTemperature=reportTemperature;
         	this.showLegacy=showLegacy;
     	}
-    	public FocusMeasurementParameters clone(){
+    	@Override
+		public FocusMeasurementParameters clone(){
     		return new FocusMeasurementParameters(
     	    		this.gridGeometryFile,
     	    		this.initialCalibrationFile,
@@ -819,15 +826,15 @@ public class LensAdjustment {
     	    		this.showResults, // show focusing (includingh intermediate) results
     	    		this.serialNumber, // camera serial number string
     	    		this.sensorTemperature, // last measured sensor temperature
-    	    		this.result_lastKT,   // focal distance temperature coefficient (um/C), measured from last run 
-    	    		this.result_lastFD20, // focal distance for 20C, measured from last run 
-    	    		this.result_allHistoryKT,   // focal distance temperature coefficient (um/C), measured from all the measurement histgory 
+    	    		this.result_lastKT,   // focal distance temperature coefficient (um/C), measured from last run
+    	    		this.result_lastFD20, // focal distance for 20C, measured from last run
+    	    		this.result_allHistoryKT,   // focal distance temperature coefficient (um/C), measured from all the measurement histgory
     	    		this.result_allHistoryFD20, // focal distance for 20C, measured from  all the measurement histgory
     	    		this.result_fDistance, // last measured focal distance
     	    		this.result_tiltX, // last measured tilt X
     	    		this.result_tiltY, // last measured tilt Y
     	    		this.result_R50,   // last measured R50 (average PSF 50% level radius, pixels - somewhat larged than actual because of measurement settings)
-    	    		this.result_A50,   // last measured A50 (simailar, but R^2 are averaged) 
+    	    		this.result_A50,   // last measured A50 (simailar, but R^2 are averaged)
     	    		this.result_B50,   // last measured B50 (simailar, but R^4 are averaged)
     	    		this.result_RC50,  // last measured RC50(R50 calculated only for the 2 center samples)
     	    		this.result_PX0, // lens center shift, X
@@ -840,7 +847,7 @@ public class LensAdjustment {
     	    		this.manufacturingState,
     	    		this.askLensSerial,
     	    		this.includeLensSerial, // add lens serial to config filename
-    	        	this.centerDeltaX, // required X-difference between lens center and sensor center 
+    	        	this.centerDeltaX, // required X-difference between lens center and sensor center
     	        	this.centerDeltaY, // required Y-difference between lens center and sensor center
     	    		this.margins,
         			this.numSamples,
@@ -863,18 +870,18 @@ public class LensAdjustment {
     				this.weightRatioRedToGreen,  // Use this data when combining defocusing data from different color PSF
     				this.weightRatioBlueToGreen,
     				this.targetFarNear,          // target logariphm of average tangential-to-radial resolution
-    				this.useRadialTangential,      // Use targetFarNear (radial/tangential resolution)  as a proxy for the distance  
+    				this.useRadialTangential,      // Use targetFarNear (radial/tangential resolution)  as a proxy for the distance
     				this.targetMicrons,          // target lens center distance (away from "best focus"
     				this.toleranceMicrons, // microns
-    				this.toleranceTilt, // 
+    				this.toleranceTilt, //
     				this.toleranceThreshold, // When each error is under swcaled thereshold, reduce correxction step twice
-    				this.parallelAdjustThreshold, // adjust 3 motors parallel if focal distance error in the center exceeds this    
-    				
+    				this.parallelAdjustThreshold, // adjust 3 motors parallel if focal distance error in the center exceeds this
+
     				this.motorsSigma,            // when fitting planes for far/near, tiltX and tiltY the weights of the samples decay with this sigma
     				this.motorsSigma3,           // same when 3 motors move together
-    				this.motorsMinSigma,           // sigma will not drop below this value when fitting walk is getting smaller 
+    				this.motorsMinSigma,           // sigma will not drop below this value when fitting walk is getting smaller
     				this.motorsVarSigmaToTravel,   // when walk is getting smaller, sigma will keep going down proportionally
-    				this.motorsFadeSigma,          // after each step new sigma will have this part of the calculated from the travel 
+    				this.motorsFadeSigma,          // after each step new sigma will have this part of the calculated from the travel
     				this.motorsOverShootToBalance, //For quadratic maximum the correction will be increased by 1+motorsOverShootToBalance if there are less samples on teh other side
     				this.filterGoodDistance,     // when measuring tilt, use those with good center with higher weight
     				this.goodDistanceSigma,      // sigma for the weight function of tilt measurements, depending on the center distance error
@@ -884,8 +891,8 @@ public class LensAdjustment {
     				this.probe_M1M2M3,     // how far to move average of the 3 motors: (M1+M2+M3)/3
     				this.probe_M3_M1M2,    // how far to move M3 opposite to M1 and M2: M3-(M1+M2)/2
     				this.probe_M2_M1,      // how far to move M2 opposite to M1:    M2-M1
-    				this.sigmaToProbe,     // data from far samples decay proportionally to the probe distances 
-    				this.useTheBest,      // adjust from the best known position (false - from the last)  	                
+    				this.sigmaToProbe,     // data from far samples decay proportionally to the probe distances
+    				this.useTheBest,      // adjust from the best known position (false - from the last)
     				this.probeSymmetrical,       // if true, probe 6 measurements), if false - only 4  (tetrahedron)
     				this.parallelBeforeProbing, // move 3 motors before probing around
     				this.reProbeDistance,        // re-run probing around in orthoganal directions, if the current position move farther from the last probing one
@@ -905,7 +912,7 @@ public class LensAdjustment {
     	            this.scanNumberNegative,    // of them negative
     				this.scanHysteresis,         // scan both ways
     				this.scanHysteresisNumber,   // number of test points for the Hysteresis measurement
-    				
+
     				this.scanTiltEnable,  // enable scanning tilt
     				this.scanTiltReverse,
     				this.scanMeasureLast,
@@ -915,14 +922,14 @@ public class LensAdjustment {
     	    		this.scanTiltStepsX,
     	    		this.scanTiltStepsY,
     				this.motorHysteresis,
-    				
+
     				this.measuredHysteresis,     // actually measured (will be saved/restored)
-    				this.motorCalm,              // wait (seconds) after motors reached final position (for the first time) before acquiring image   
+    				this.motorCalm,              // wait (seconds) after motors reached final position (for the first time) before acquiring image
     				this.linearReductionRatio,   // sensor travel to motors travel (all 3 together), By design it is 4/38~=0.105
     				this.motorDebug,             // 1 show  motor moves, 2 - show hysteresis back-ups too
-    				this.lensDistanceNumPoints,  // number of points to tabulate center focus parameters vs. focal distance 
-    				this.lensDistancePolynomialDegree, // polynomial degree to approximate center focus parameters vs. focal distance 
-    				this.lensDistanceWeightY,    // normalize overall sharpness (that depends on the lens quality and/or PSF parameters) to differential ones 
+    				this.lensDistanceNumPoints,  // number of points to tabulate center focus parameters vs. focal distance
+    				this.lensDistancePolynomialDegree, // polynomial degree to approximate center focus parameters vs. focal distance
+    				this.lensDistanceWeightY,    // normalize overall sharpness (that depends on the lens quality and/or PSF parameters) to differential ones
     				this.lensDistanceWeightK,    // 0.0 use 3 distances (to frac-R, frac-B and Y) with teh same weight when fitting, 1.0 - proportional to squared derivatives
     				this.lensDistanceInteractive, // Open dialog when calibrating focal distance
     				this.lensDistanceShowResults, // show results window from foca
@@ -938,8 +945,8 @@ public class LensAdjustment {
 
     				this.smallestSubPix,
     				this.bitmapNonuniforityThreshold,
-    				this.subdiv, 
-    				this.overexposedMaxFraction, 
+    				this.subdiv,
+    				this.overexposedMaxFraction,
     				this.minDefinedArea,
     				this.PSFKernelSize,
     				this.approximateGrid,
@@ -959,7 +966,7 @@ public class LensAdjustment {
     				this.postUVscrewSensitivity,
     				this.flatFieldCorrection,
     				this.flatFieldExpand,
-    				this.thresholdFinish, 
+    				this.thresholdFinish,
     				this.numIterations,
     				this.cameraIsConfigured,
     				this.useExtraSensor,
@@ -991,7 +998,7 @@ public class LensAdjustment {
 			if (!Double.isNaN(this.result_A50))properties.setProperty(prefix+"result_A50",this.result_A50+"");
 			if (!Double.isNaN(this.result_B50))properties.setProperty(prefix+"result_B50",this.result_B50+"");
 			if (!Double.isNaN(this.result_RC50))properties.setProperty(prefix+"result_RC50",this.result_RC50+"");
-			
+
 			if (!Double.isNaN(this.result_PX0))properties.setProperty(prefix+"result_PX0",this.result_PX0+"");
 			if (!Double.isNaN(this.result_PY0))properties.setProperty(prefix+"result_PY0",this.result_PY0+"");
 			if (!Double.isNaN(this.result_PSI))properties.setProperty(prefix+"result_PSI",this.result_PSI+"");
@@ -1019,7 +1026,7 @@ public class LensAdjustment {
 			properties.setProperty(prefix+"maxCorr",this.maxCorr+"");
 			properties.setProperty(prefix+"showHistoryDetails",this.showHistoryDetails+"");
 			properties.setProperty(prefix+"showHistorySamples",this.showHistorySamples+"");
-			
+
 			properties.setProperty(prefix+"showHistorySingleLine",this.showHistorySingleLine+"");
 			properties.setProperty(prefix+"showAcquiredImages",this.showAcquiredImages+"");
 			properties.setProperty(prefix+"showROI",this.showROI+"");
@@ -1048,13 +1055,13 @@ public class LensAdjustment {
 			properties.setProperty(prefix+"motorsVarSigmaToTravel",this.motorsVarSigmaToTravel+"");
 			properties.setProperty(prefix+"motorsFadeSigma",this.motorsFadeSigma+"");
 			properties.setProperty(prefix+"motorsOverShootToBalance",this.motorsOverShootToBalance+"");
-			
+
 			properties.setProperty(prefix+"filterGoodDistance",this.filterGoodDistance+"");
 			properties.setProperty(prefix+"goodDistanceSigma",this.goodDistanceSigma+"");
 			properties.setProperty(prefix+"goodTiltSigma",this.goodTiltSigma+"");
 			properties.setProperty(prefix+"maxStep",this.maxStep+"");
 			properties.setProperty(prefix+"probeStep",this.probeStep+"");
-			
+
 			properties.setProperty(prefix+"probe_M1M2M3",this.probe_M1M2M3+"");
 			properties.setProperty(prefix+"probe_M3_M1M2",this.probe_M3_M1M2+"");
 			properties.setProperty(prefix+"probe_M2_M1",this.probe_M2_M1+"");
@@ -1099,20 +1106,20 @@ public class LensAdjustment {
 			properties.setProperty(prefix+"lensDistanceInteractive",this.lensDistanceInteractive+"");
 			properties.setProperty(prefix+"lensDistanceShowResults",this.lensDistanceShowResults+"");
 			properties.setProperty(prefix+"lensDistanceMoveToGoal",this.lensDistanceMoveToGoal+"");
-			
+
 			properties.setProperty(prefix+"powerControlEnable",this.powerControlEnable+"");
 			properties.setProperty(prefix+"powerControlMaximalTemperature",this.powerControlMaximalTemperature+"");
 			properties.setProperty(prefix+"powerControlHeaterOnMinutes",this.powerControlHeaterOnMinutes+"");
 			properties.setProperty(prefix+"powerControlNeitherOnMinutes",this.powerControlNeitherOnMinutes+"");
 			properties.setProperty(prefix+"powerControlFanOnMinutes",this.powerControlFanOnMinutes+"");
-			
+
 			properties.setProperty(prefix+"uvLasersIP",this.uvLasersIP);
 			properties.setProperty(prefix+"uvLasersBus",this.uvLasersBus+"");
 			properties.setProperty(prefix+"uvLasersCurrents_0",this.uvLasersCurrents[0]+"");
 			properties.setProperty(prefix+"uvLasersCurrents_1",this.uvLasersCurrents[1]+"");
 			properties.setProperty(prefix+"uvLasersCurrents_2",this.uvLasersCurrents[2]+"");
 			properties.setProperty(prefix+"uvLasersCurrents_3",this.uvLasersCurrents[3]+"");
-			
+
 			properties.setProperty(prefix+"smallestSubPix",this.smallestSubPix+"");
 			properties.setProperty(prefix+"bitmapNonuniforityThreshold",this.bitmapNonuniforityThreshold+"");
 			properties.setProperty(prefix+"subdiv",this.subdiv+"");
@@ -1129,7 +1136,7 @@ public class LensAdjustment {
 			properties.setProperty(prefix+"correlationSize",this.correlationSize+"");
 			properties.setProperty(prefix+"correlationGaussWidth",this.correlationGaussWidth+"");
 			properties.setProperty(prefix+"minUVSpan",this.minUVSpan+"");
-			
+
 			properties.setProperty(prefix+"correlationMinContrast",this.correlationMinContrast+"");
 			properties.setProperty(prefix+"correlationMinInitialContrast",this.correlationMinInitialContrast+"");
 			properties.setProperty(prefix+"correlationMinAbsoluteContrast",this.correlationMinAbsoluteContrast+"");
@@ -1141,11 +1148,11 @@ public class LensAdjustment {
 			properties.setProperty(prefix+"flatFieldExpand",this.flatFieldExpand+"");
 			properties.setProperty(prefix+"thresholdFinish",this.thresholdFinish+"");
 			properties.setProperty(prefix+"numIterations",this.numIterations+"");
-			for (int i=0;i<this.ampsSeconds.length;i++) 
+			for (int i=0;i<this.ampsSeconds.length;i++)
 				properties.setProperty(prefix+"ampsSeconds_"+i,this.ampsSeconds[i]+"");
 			properties.setProperty(prefix+"reportTemperature",this.reportTemperature+"");
 			properties.setProperty(prefix+"showLegacy",this.showLegacy+"");
-		}    	
+		}
 		public void getProperties(String prefix,Properties properties){
 			if (properties.getProperty(prefix+"gridGeometryFile")!=null)
 				this.gridGeometryFile=properties.getProperty(prefix+"gridGeometryFile");
@@ -1160,11 +1167,11 @@ public class LensAdjustment {
 
 			if (properties.getProperty(prefix+"useLMAMetrics")!=null)
 				this.useLMAMetrics=Boolean.parseBoolean(properties.getProperty(prefix+"useLMAMetrics"));
-			
+
 			if (properties.getProperty(prefix+"serialNumber")!=null)
 				this.serialNumber=properties.getProperty(prefix+"serialNumber");
 			//	this.serialNumber is only written, but never read from the configuration file (only from devivce)
-			
+
 			if (properties.getProperty(prefix+"sensorTemperature")!=null) this.sensorTemperature=Double.parseDouble(properties.getProperty(prefix+"sensorTemperature"));
 			else this.sensorTemperature=Double.NaN;
 			if (properties.getProperty(prefix+"result_lastKT")!=null) this.result_lastKT=Double.parseDouble(properties.getProperty(prefix+"result_lastKT"));
@@ -1260,7 +1267,7 @@ public class LensAdjustment {
 				this.useExtraSensor=Boolean.parseBoolean(properties.getProperty(prefix+"useExtraSensor"));
 			if (properties.getProperty(prefix+"enRoundOff")!=null)
 				this.enRoundOff = Boolean.parseBoolean(properties.getProperty(prefix+"enRoundOff"));
-			
+
 			if (properties.getProperty(prefix+"keepCircularMask")!=null)
 				this.keepCircularMask=Boolean.parseBoolean(properties.getProperty(prefix+"keepCircularMask"));
 			if (properties.getProperty(prefix+"psf_cutoffEnergy")!=null)
@@ -1301,20 +1308,20 @@ public class LensAdjustment {
 				this.motorsFadeSigma=Double.parseDouble(properties.getProperty(prefix+"motorsFadeSigma"));
 			if (properties.getProperty(prefix+"motorsOverShootToBalance")!=null)
 				this.motorsOverShootToBalance=Double.parseDouble(properties.getProperty(prefix+"motorsOverShootToBalance"));
-			
+
 			if (properties.getProperty(prefix+"filterGoodDistance")!=null)
 				this.filterGoodDistance=Boolean.parseBoolean(properties.getProperty(prefix+"filterGoodDistance"));
 			if (properties.getProperty(prefix+"goodDistanceSigma")!=null)
 				this.goodDistanceSigma=Double.parseDouble(properties.getProperty(prefix+"goodDistanceSigma"));
-			
+
 			if (properties.getProperty(prefix+"goodTiltSigma")!=null)
 				this.goodTiltSigma=Double.parseDouble(properties.getProperty(prefix+"goodTiltSigma"));
-			
+
 			if (properties.getProperty(prefix+"maxStep")!=null)
 				this.maxStep=Double.parseDouble(properties.getProperty(prefix+"maxStep"));
 			if (properties.getProperty(prefix+"probeStep")!=null)
 				this.probeStep=Double.parseDouble(properties.getProperty(prefix+"probeStep"));
-			
+
 			if (properties.getProperty(prefix+"probe_M1M2M3")!=null)
 				this.probe_M1M2M3=Double.parseDouble(properties.getProperty(prefix+"probe_M1M2M3"));
 			if (properties.getProperty(prefix+"probe_M3_M1M2")!=null)
@@ -1368,14 +1375,14 @@ public class LensAdjustment {
 				this.scanTiltEnable=Boolean.parseBoolean(properties.getProperty(prefix+"scanTiltEnable"));
 			if (properties.getProperty(prefix+"scanTiltReverse")!=null)
 				this.scanTiltReverse=Boolean.parseBoolean(properties.getProperty(prefix+"scanTiltReverse"));
-			
-			
+
+
 			if (properties.getProperty(prefix+"scanMeasureLast")!=null)
 				this.scanMeasureLast=Boolean.parseBoolean(properties.getProperty(prefix+"scanMeasureLast"));
 
 			if (properties.getProperty(prefix+"scanRunLMA")!=null)
 				this.scanRunLMA=Boolean.parseBoolean(properties.getProperty(prefix+"scanRunLMA"));
-			
+
 			if (properties.getProperty(prefix+"scanTiltRangeX")!=null)
 				this.scanTiltRangeX=Integer.parseInt(properties.getProperty(prefix+"scanTiltRangeX"));
 			if (properties.getProperty(prefix+"scanTiltRangeY")!=null)
@@ -1384,7 +1391,7 @@ public class LensAdjustment {
 				this.scanTiltStepsX=Integer.parseInt(properties.getProperty(prefix+"scanTiltStepsX"));
 			if (properties.getProperty(prefix+"scanTiltStepsY")!=null)
 				this.scanTiltStepsY=Integer.parseInt(properties.getProperty(prefix+"scanTiltStepsY"));
-			
+
 			if (properties.getProperty(prefix+"motorHysteresis")!=null)
 				this.motorHysteresis=Integer.parseInt(properties.getProperty(prefix+"motorHysteresis"));
 			if (properties.getProperty(prefix+"measuredHysteresis")!=null)
@@ -1410,7 +1417,7 @@ public class LensAdjustment {
 			if (properties.getProperty(prefix+"lensDistanceMoveToGoal")!=null)
 				this.lensDistanceMoveToGoal=Boolean.parseBoolean(properties.getProperty(prefix+"lensDistanceMoveToGoal"));
 
-			
+
 			if (properties.getProperty(prefix+"powerControlEnable")!=null)
 				this.powerControlEnable=Boolean.parseBoolean(properties.getProperty(prefix+"powerControlEnable"));
 			if (properties.getProperty(prefix+"powerControlMaximalTemperature")!=null)
@@ -1421,7 +1428,7 @@ public class LensAdjustment {
 				this.powerControlNeitherOnMinutes=Double.parseDouble(properties.getProperty(prefix+"powerControlNeitherOnMinutes"));
 			if (properties.getProperty(prefix+"powerControlFanOnMinutes")!=null)
 				this.powerControlFanOnMinutes=Double.parseDouble(properties.getProperty(prefix+"powerControlFanOnMinutes"));
-			
+
 			if (properties.getProperty(prefix+"uvLasersIP")!=null)
 				this.uvLasersIP=properties.getProperty(prefix+"uvLasersIP");
 			if (properties.getProperty(prefix+"uvLasersBus")!=null)
@@ -1434,7 +1441,7 @@ public class LensAdjustment {
 				this.uvLasersCurrents[2]=Double.parseDouble(properties.getProperty(prefix+"uvLasersCurrents_2"));
 			if (properties.getProperty(prefix+"uvLasersCurrents_3")!=null)
 				this.uvLasersCurrents[3]=Double.parseDouble(properties.getProperty(prefix+"uvLasersCurrents_3"));
-			
+
 			if (properties.getProperty(prefix+"smallestSubPix")!=null)
 				this.smallestSubPix=Double.parseDouble(properties.getProperty(prefix+"smallestSubPix"));
 			if (properties.getProperty(prefix+"bitmapNonuniforityThreshold")!=null)
@@ -1522,7 +1529,7 @@ public class LensAdjustment {
 				int manIndex=                    gd.getNextChoiceIndex();
 				int manMod=                (int) gd.getNextNumber();
 				this.askLensSerial=              gd.getNextBoolean();
-	    		this.centerDeltaX=               gd.getNextNumber(); 
+	    		this.centerDeltaX=               gd.getNextNumber();
 		    	this.centerDeltaY=               gd.getNextNumber();
 				if (manMod<0)           manMod=0;
 				else if (manMod>maxMod) manMod=maxMod;
@@ -1542,7 +1549,7 @@ public class LensAdjustment {
 				}
 			}
 		}
-// subset of showDialog() - only set parameters realated to scanning		
+// subset of showDialog() - only set parameters realated to scanning
 	   	public boolean showScanningSetup(String title) {
     		GenericDialog gd = new GenericDialog(title);
     		gd.addNumericField("Motor single movement (all 3 motors) in scan focus mode (signed value)",         this.scanStep, 0,7,"motors steps");
@@ -1556,8 +1563,8 @@ public class LensAdjustment {
     		gd.addCheckbox    ("Scan for tilt measurement in both directions",                                   this.scanTiltReverse);
     		gd.addCheckbox    ("Calculate PSF after returning to the initial position",                          this.scanMeasureLast);
     		gd.addCheckbox    ("Calculate model parameters after scanning",                                      this.scanRunLMA);
-    		
-    		
+
+
     		gd.addNumericField("Full range of scanning motors tilting in X-direction",                           this.scanTiltRangeX, 0,7,"motors steps");
     		gd.addNumericField("Full range of scanning motors tilting in Y-direction",                           this.scanTiltRangeY, 0,7,"motors steps");
     		gd.addNumericField("Number of stops measurements when tilting in X-deirection",                      this.scanTiltStepsX, 0);
@@ -1580,23 +1587,23 @@ public class LensAdjustment {
     		this.scanTiltReverse=            gd.getNextBoolean();
             this.scanMeasureLast=            gd.getNextBoolean();
             this.scanRunLMA=                 gd.getNextBoolean();
-    		
+
     		this.scanTiltRangeX=       (int) gd.getNextNumber();
     		this.scanTiltRangeY=       (int) gd.getNextNumber();
     		this.scanTiltStepsX=       (int) gd.getNextNumber();
     		this.scanTiltStepsY=       (int) gd.getNextNumber();
     		this.motorHysteresis=      (int) gd.getNextNumber();
-    		return true;  
+    		return true;
     	}
 
-		
-    	public boolean showDialog(String title) { 
+
+    	public boolean showDialog(String title) {
     		GenericDialog gd = new GenericDialog(title);
     		//	    		this.serialNumber, // camera serial number string
     		gd.addMessage("Sensor board serial number is "+(((this.serialNumber==null)||(this.serialNumber==""))?"not specified":this.serialNumber));
 			gd.addStringField  ("Comment to add to the result files",                 this.comment,80);
     		gd.addStringField  ("Lens serial number",this.lensSerial);
-    		
+
 			int [] manufacturingIndexMod=getManufacturingIndexMod(this.manufacturingState);
 			gd. addChoice("Manufacturing state", this.manufacturingStateNames, this.manufacturingStateNames[manufacturingIndexMod[0]]);
 			int maxMod=9;
@@ -1605,7 +1612,7 @@ public class LensAdjustment {
 			}
 			gd.addNumericField("Optional manufacturing state modifier (0.."+maxMod+")",      manufacturingIndexMod[1], 0,1,"");
 
-    		
+
     		gd.addCheckbox     ("Ask lens serial number on each camera power cycle",this.askLensSerial);
     		gd.addCheckbox     ("Add lens serial number to filenames",this.includeLensSerial);
 			gd.addNumericField("Required X-shift between the lens axis and the sensor center",      this.centerDeltaX, 0,4,"pix (180 for tilted)");
@@ -1669,8 +1676,8 @@ public class LensAdjustment {
 
     		gd.addNumericField("Maximal allowed single-step focusing adjustment",                                   this.maxStep,      1,7,"motors steps");
     		gd.addNumericField("How far to go to probe around the current point to measure derivatives",            this.probeStep,      1,7,"motors steps");
-    		
-			
+
+
     		gd.addNumericField("How far too move average of the 3 motors: (M1+M2+M3)/3 during probing",             this.probe_M1M2M3,      1,7,"motors steps");
     		gd.addNumericField("How far to move M3 opposite to M1 and M2: M3-(M1+M2)/2 during probing",             this.probe_M3_M1M2,      1,7,"motors steps");
     		gd.addNumericField("How far to move M2 opposite to M1: M2-M1 during probing",                           this.probe_M2_M1,      1,7,"motors steps");
@@ -1693,20 +1700,20 @@ public class LensAdjustment {
     		gd.addCheckbox    ("Open dialog when calibrating focal distance",                                    this.lensDistanceInteractive);
     		gd.addCheckbox    ("Show results window from focal distance calibration",                            this.lensDistanceShowResults);
     		gd.addCheckbox    ("Move motors together to the requested microns from the \"best focus\"",          this.lensDistanceMoveToGoal);
-    		
+
     		gd.addCheckbox    ("Enable power control for heater and fan",                                        this.powerControlEnable);
     		gd.addNumericField("Maximal allowed temperature",                                                    this.powerControlMaximalTemperature,  3,5,"C");
     		gd.addNumericField("Heater ON time",                                                                 this.powerControlHeaterOnMinutes,  1,5,"min");
     		gd.addNumericField("Both heater and fan OFF time",                                                   this.powerControlNeitherOnMinutes,  1,5,"min");
     		gd.addNumericField("Fan ON time",                                                                    this.powerControlFanOnMinutes,  1,5,"min");
-    		
+
 			gd.addStringField  ("IP address of the camera with 103641 board (UV LEDs and lasers) are attached",  this.uvLasersIP,40);
     		gd.addNumericField("I2C bus where LED/laser board is attached (0 - through 10359, 1 - through 10369)",this.uvLasersBus,        0);
     		gd.addNumericField("UV LED1 \"on\" current (left/near  when looking from the target)",               this.uvLasersCurrents[0],  3,5,"mA");
     		gd.addNumericField("UV LED2 \"on\" current (right/near when looking from the target)",               this.uvLasersCurrents[0],  3,5,"mA");
     		gd.addNumericField("UV LED3 \"on\" current (right/far  when looking from the target)",               this.uvLasersCurrents[0],  3,5,"mA");
     		gd.addNumericField("UV LED4 \"on\" current (left/far   when looking from the target)",               this.uvLasersCurrents[0],  3,5,"mA");
-			
+
     		gd.addMessage("");
     		gd.addNumericField("Minimal correction movement to initiate final series of corrections - focus/tilt mode",            this.minCorr,        1,5,"motors steps");
     		gd.addNumericField("Finish if this number of last corrections where below  minimum (previous input) - focus/tilt mode",this.numFinalCorr,     0);
@@ -1720,25 +1727,25 @@ public class LensAdjustment {
     		gd.addNumericField("Motor single movement (all 3 motors) in scan focus mode (signed value)",         this.scanStep, 0,7,"motors steps");
     		gd.addNumericField("Number of scan steps during (center) focus scanning",                            this.scanNumber,        0);
     		gd.addNumericField("... of them - in the negative direction (closer lens to sensor)",                this.scanNumberNegative,        0);
-   		
+
     		gd.addCheckbox    ("Scan focus in 2 directions, after the calibration estimate hysteresis (play)",   this.scanHysteresis);
     		gd.addNumericField("Number of scan steps during hysteresis (play) measurement",                      this.scanHysteresisNumber, 0);
 
     		gd.addCheckbox    ("Scan for tilt measurement (approximately preserving center)",                    this.scanTiltEnable);
     		gd.addCheckbox    ("Scan for tilt measurement in both directions",                                   this.scanTiltReverse);
     		gd.addCheckbox    ("Calculate PSF after returning to the initial position",                          this.scanMeasureLast);
-    		
-    		
+
+
     		gd.addNumericField("Full range of scanning motors tilting in X-direction",                           this.scanTiltRangeX, 0,7,"motors steps");
     		gd.addNumericField("Full range of scanning motors tilting in Y-direction",                           this.scanTiltRangeY, 0,7,"motors steps");
     		gd.addNumericField("Number of stops measurements when tilting in X-deirection",                      this.scanTiltStepsX, 0);
     		gd.addNumericField("Number of stops measurements when tilting in Y-deirection",                      this.scanTiltStepsY, 0);
-    		
+
     		gd.addMessage     ("The following parameters overwrite some defined for aberration measurements in other dialogs");
     		gd.addNumericField("Smallest fraction to subdivide pixels at simulation", this.smallestSubPix, 3,5,"sensor pix");
     		gd.addNumericField("Maximal difference of the pattern value in the corners that triggers subdivision", this.bitmapNonuniforityThreshold, 3);
     		gd.addNumericField("Subdivide simulated pattern by:",         this.subdiv, 0);
-    		gd.addNumericField("Allowed overexposed pixels (fraction of the area) ",this.overexposedMaxFraction,3); //  0.005; // allowed fraction of the overexposed pixels in the PSF kernel measurement area 
+    		gd.addNumericField("Allowed overexposed pixels (fraction of the area) ",this.overexposedMaxFraction,3); //  0.005; // allowed fraction of the overexposed pixels in the PSF kernel measurement area
     		gd.addNumericField("Min fraction of the FFT square (weighted) to have defined pattern",  this.minDefinedArea, 3);
     		gd.addNumericField ("PSF kernel size",                        this.PSFKernelSize, 0);
     		gd.addCheckbox    ("Approximate pattern grid with a polynomial",this.approximateGrid); // true; // ignore lateral chromatic aberration (center OTF to 0,0)
@@ -1764,24 +1771,24 @@ public class LensAdjustment {
 			for (int i=0;i<this.postUVscrewSensitivity.length;i++){
 				gd.addNumericField("Screw "+i+" sensitivity",              this.postUVscrewSensitivity[i], 4,6,"um/turn CW");
 			}
-    		
+
     		gd.addMessage("-----");
     		gd.addNumericField("Report focal length at this temperature", this.reportTemperature, 1,5,"C");
 			gd.addCheckbox    ("Show legacy focusing parameters (most are already not supported anyway)",      this.showLegacy);
-			
+
     		if (!Double.isNaN(this.sensorTemperature)) gd.addMessage("Last measured sensor temperature is "+this.sensorTemperature+" C");
 
     		if (!Double.isNaN(this.result_lastKT)) gd.addMessage("Temperature focal distance coefficient measured in last run is "+this.result_lastKT+"microns/C");
     		if (!Double.isNaN(this.result_lastFD20)) gd.addMessage("Focal distance @20C measured at last run is "+this.result_lastFD20+" microns");
     		if (!Double.isNaN(this.result_lastKT) && !Double.isNaN(this.result_lastFD20)){
     			gd.addMessage("Focal distance @"+this.reportTemperature+"C measured at last run is "+
-    					(this.result_lastFD20+(this.reportTemperature-20.0)*this.result_lastKT)+" microns");	
+    					(this.result_lastFD20+(this.reportTemperature-20.0)*this.result_lastKT)+" microns");
     		}
     		if (!Double.isNaN(this.result_allHistoryKT)) gd.addMessage("Temperature focal distance coefficient calculated from all measurements is "+this.result_allHistoryKT+" microns");
     		if (!Double.isNaN(this.result_allHistoryFD20)) gd.addMessage("Focal distance @20C calculated from all measurements is "+this.result_allHistoryFD20+" microns");
     		if (!Double.isNaN(this.result_allHistoryKT) && !Double.isNaN(this.result_allHistoryFD20)){
     			gd.addMessage("Focal distance @"+this.reportTemperature+"C calculated from all measurements is "+
-    					(this.result_allHistoryFD20+(this.reportTemperature-20.0)*this.result_allHistoryKT)+" microns");	
+    					(this.result_allHistoryFD20+(this.reportTemperature-20.0)*this.result_allHistoryKT)+" microns");
     		}
     		if (!Double.isNaN(this.result_fDistance)) gd.addMessage("Focal distance is "+this.result_fDistance+" microns");
     		if (!Double.isNaN(this.result_tiltX)) gd.addMessage("Horizontal angular/tangential asymmetry "+this.result_tiltX);
@@ -1790,7 +1797,7 @@ public class LensAdjustment {
     		if (!Double.isNaN(this.result_A50)) gd.addMessage("Same, but with averaged r^2: "+this.result_A50+" C");
     		if (!Double.isNaN(this.result_B50)) gd.addMessage("Same, but with averaged r^4: "+this.result_B50+" C");
     		if (!Double.isNaN(this.result_RC50)) gd.addMessage("Average PSF 50% radius for center samples "+this.result_RC50+" pixels");
-    		
+
     		if (!Double.isNaN(this.result_PX0)) gd.addMessage("Lens center X-coordinate on the sensor "+this.result_PX0+" pixels");
     		if (!Double.isNaN(this.result_PY0)) gd.addMessage("Lens center Y-coordinate on the sensor  "+this.result_PY0+" pixels");
     		if (!Double.isNaN(this.result_PSI)) gd.addMessage("SFE rotation relative to target (clockwise - positive) "+this.result_PSI+" degrees");
@@ -1798,7 +1805,7 @@ public class LensAdjustment {
     		if (!Double.isNaN(this.result_FocalLength)) gd.addMessage("Lens focal length "+this.result_FocalLength+" mm");
 			gd.addMessage("Cumulative currents that ran through UV LEDs:");
 			for (int i=0;i<this.ampsSeconds.length;i++) gd.addMessage("UV LED "+(i+1)+":"+IJ.d2s(this.ampsSeconds[i],3)+" coulombs  (amp-seconds)");
-			
+
     		WindowTools.addScrollBars(gd);
     		gd.showDialog();
     		if (gd.wasCanceled()) return false;
@@ -1807,17 +1814,17 @@ public class LensAdjustment {
     		if (this.lensSerial.length()>0){
     			while (this.lensSerial.length()<lensSerialLength) this.lensSerial="0"+this.lensSerial;
     		}
-    		
+
 			int manIndex=                    gd.getNextChoiceIndex();
 			int manMod=                (int) gd.getNextNumber();
 			if (manMod<0)           manMod=0;
 			else if (manMod>maxMod) manMod=maxMod;
 			this.manufacturingState=this.manufacturingStateValues[manIndex]+manMod; // here no restriction on the order - can go backwards
-			
+
     		this.askLensSerial=              gd.getNextBoolean();
     		this.includeLensSerial=          gd.getNextBoolean();
 
-    		this.centerDeltaX=               gd.getNextNumber(); 
+    		this.centerDeltaX=               gd.getNextNumber();
 	    	this.centerDeltaY=               gd.getNextNumber();
 
 			this.gridGeometryFile=           gd.getNextString();
@@ -1861,7 +1868,7 @@ public class LensAdjustment {
 			this.weightRatioRedToGreen=      gd.getNextNumber();
 			this.weightRatioBlueToGreen=     gd.getNextNumber();
 			this.targetFarNear=              gd.getNextNumber();
-			this.useRadialTangential=        gd.getNextBoolean();  
+			this.useRadialTangential=        gd.getNextBoolean();
     		this.targetMicrons=              gd.getNextNumber();
     		this.toleranceMicrons=           gd.getNextNumber();
     		this.toleranceTilt=              gd.getNextNumber();
@@ -1869,9 +1876,9 @@ public class LensAdjustment {
     		this.parallelAdjustThreshold=    gd.getNextNumber();
 			this.motorsSigma=                gd.getNextNumber();
 			this.motorsSigma3=               gd.getNextNumber();
-			this.motorsMinSigma=             gd.getNextNumber(); 
+			this.motorsMinSigma=             gd.getNextNumber();
 			this.motorsVarSigmaToTravel=     gd.getNextNumber();
-			this.motorsFadeSigma=            gd.getNextNumber(); 
+			this.motorsFadeSigma=            gd.getNextNumber();
 			this.motorsOverShootToBalance=   gd.getNextNumber();
 			this.filterGoodDistance=         gd.getNextBoolean();
 			this.goodDistanceSigma=          gd.getNextNumber();
@@ -1881,8 +1888,8 @@ public class LensAdjustment {
 			this.probe_M1M2M3=               gd.getNextNumber();
 			this.probe_M3_M1M2=              gd.getNextNumber();
 			this.probe_M2_M1=                gd.getNextNumber();
-			this.sigmaToProbe=               gd.getNextNumber(); 
-			this.useTheBest=                 gd.getNextBoolean();  	                
+			this.sigmaToProbe=               gd.getNextNumber();
+			this.useTheBest=                 gd.getNextBoolean();
 			this.probeSymmetrical=           gd.getNextBoolean();
 			this.parallelBeforeProbing=      gd.getNextBoolean();
 			this.reProbeDistance=            gd.getNextNumber();
@@ -1905,14 +1912,14 @@ public class LensAdjustment {
 			this.powerControlHeaterOnMinutes=   gd.getNextNumber();
 			this.powerControlNeitherOnMinutes=  gd.getNextNumber();
 			this.powerControlFanOnMinutes=      gd.getNextNumber();
-			
+
 			this.uvLasersIP=                 gd.getNextString();
 			this.uvLasersBus=          (int) gd.getNextNumber();
 			this.uvLasersCurrents[0]=        gd.getNextNumber();
 			this.uvLasersCurrents[1]=        gd.getNextNumber();
 			this.uvLasersCurrents[2]=        gd.getNextNumber();
 			this.uvLasersCurrents[3]=        gd.getNextNumber();
-			
+
 			this.minCorr=                    gd.getNextNumber();
 			this.numFinalCorr=         (int) gd.getNextNumber();
 			this.minCorrPre=                 gd.getNextNumber();
@@ -1927,7 +1934,7 @@ public class LensAdjustment {
             this.scanNumberNegative=   (int) gd.getNextNumber();
 			this.scanHysteresis=             gd.getNextBoolean();
 			this.scanHysteresisNumber= (int) gd.getNextNumber();
-			
+
     		this.scanTiltEnable=             gd.getNextBoolean();
     		this.scanTiltReverse=            gd.getNextBoolean();
     		this.scanMeasureLast=            gd.getNextBoolean();
@@ -1935,12 +1942,12 @@ public class LensAdjustment {
     		this.scanTiltRangeY=       (int) gd.getNextNumber();
     		this.scanTiltStepsX=       (int) gd.getNextNumber();
     		this.scanTiltStepsY=       (int) gd.getNextNumber();
-			
-			
+
+
     		this.smallestSubPix=             gd.getNextNumber();
     		this.bitmapNonuniforityThreshold=gd.getNextNumber();
     		this.subdiv=               (int) gd.getNextNumber();
-    		this.overexposedMaxFraction=     gd.getNextNumber(); 
+    		this.overexposedMaxFraction=     gd.getNextNumber();
     		this.minDefinedArea=             gd.getNextNumber();
     		this.PSFKernelSize=        (int) gd.getNextNumber();
     		this.approximateGrid=            gd.getNextBoolean();
@@ -1969,13 +1976,13 @@ public class LensAdjustment {
     		return true;
     	}
 /* ======================================================================== */
-    	//returns triads - x,y,distance from the lens center 
+    	//returns triads - x,y,distance from the lens center
     	public double [][][] sampleCoordinates(
     			double x0,   // lens center on the sensor
     			double y0){  // lens center on the sensor
     		int ix0=(int) Math.round(x0);
     		int iy0=(int) Math.round(y0);
-    		
+
 //    		Rectangle woi=new Rectangle(this.margins);
     		Rectangle woi=this.getMargins();
 //    		System.out.println("Selection Rectangle("+woi.x+", "+woi.y+", "+woi.width+", "+woi.height+ ")");
@@ -2007,7 +2014,7 @@ public class LensAdjustment {
     		woi.width-=this.sampleSize;
     		woi.height-=this.sampleSize;
 //    		System.out.println("Selection - sample centers: Rectangle("+woi.x+", "+woi.y+", "+woi.width+", "+woi.height+ ")");
-    		
+
     		double [][][] sampleCoord=new double[this.numSamples[1]][this.numSamples[0]][3];
     		int y,x;
     		for (int i=0;i<this.numSamples[1];i++){
@@ -2027,7 +2034,7 @@ public class LensAdjustment {
     				sampleCoord[i][j][2]=Math.sqrt((x-x0)*(x-x0)+(y-y0)*(y-y0)); // distance from tyhe center
     			}
     		}
-/*	    		
+/*
     		for (int i=0;i<this.numSamples[1];i++){
     			for (int j=0;j<this.numSamples[0];j++){
     				System.out.println ("i="+i+" j="+j+" sampleCoord[i][j][0]="+sampleCoord[i][j][0]+" sampleCoord[i][j][1]="+sampleCoord[i][j][1]);
@@ -2079,12 +2086,12 @@ public class LensAdjustment {
 //			System.out.println(s);
 //   			System.out.println(sb.toString());
 			return sb.toString();
-			
+
 		}
 
     }
 
-	
-	
-	
+
+
+
 }

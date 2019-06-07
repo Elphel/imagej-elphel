@@ -55,6 +55,8 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
+import com.elphel.imagej.readers.ImagejJp4Tiff;
+
 import ij.IJ;
 import ij.ImageJ;
 import ij.ImagePlus;
@@ -69,6 +71,7 @@ import ij.plugin.frame.PlugInFrame;
 import ij.process.ImageConverter;
 import ij.process.ImageProcessor;
 import ij.text.TextWindow;
+import loci.formats.FormatException;
 
 
 
@@ -86,6 +89,8 @@ public class JP46_Reader_camera0 extends PlugInFrame implements ActionListener {
 	String arg;
 
 	static File dir;
+
+	ImagejJp4Tiff imagejJp4Tiff = new ImagejJp4Tiff();
 
 	public String camera_url = "http://192.168.0.236:8081/";
 	public String camera_img = "bimg";
@@ -109,8 +114,9 @@ public class JP46_Reader_camera0 extends PlugInFrame implements ActionListener {
 
 		panel1 = new Panel();
 
-		panel1.setLayout(new GridLayout(6, 1, 50, 5));
+		panel1.setLayout(new GridLayout(8, 1, 50, 5));
 
+		addButton("Open JP4/Tiff...",panel1);
 		addButton("Open JP4/JP46...",panel1);
 		addButton("Open JP4/JP46 from camera",panel1);
 		addButton("Configure...",panel1);
@@ -137,8 +143,8 @@ public class JP46_Reader_camera0 extends PlugInFrame implements ActionListener {
 
 		panel1 = new Panel();
 
-		panel1.setLayout(new GridLayout(6, 1, 50, 5));
-
+		panel1.setLayout(new GridLayout(8, 1, 50, 5));
+		addButton("Open JP4/Tiff...",panel1);
 		addButton("Open JP4/JP46...",panel1);
 		addButton("Open JP4/JP46 from camera",panel1);
 		addButton("Configure...",panel1);
@@ -169,7 +175,11 @@ public class JP46_Reader_camera0 extends PlugInFrame implements ActionListener {
 		if (label==null) return;
 
 		/* button */
-		if (label.equals("Open JP4/JP46...")) {
+		if (label.equals("Open JP4/Tiff...")) {
+			read_jp4Tiff(arg,true);
+		}else if (label.equals("Open JP4/Tiff (no scale)...")) {
+			read_jp4Tiff(arg,false);
+		}else if (label.equals("Open JP4/JP46...")) {
 			read_jp46(arg,true);
 		}else if (label.equals("Open JP4/JP46 (no scale)...")) {
 			read_jp46(arg,false);
@@ -227,7 +237,54 @@ public class JP46_Reader_camera0 extends PlugInFrame implements ActionListener {
         imp_stack.getProcessor().resetMinAndMax();
         imp_stack.show();
     }
+	public void read_jp4Tiff(String arg, // not used?
+			boolean scale) {
 
+		String LOG_LEVEL = ABSOLUTELY_SILENT? "OFF" : (IS_SILENT?"ERROR":"INFO");
+    	boolean LOG_LEVEL_SET = loci.common.DebugTools.enableLogging(LOG_LEVEL);
+    	if (!LOG_LEVEL_SET) { // only first time true
+    		loci.common.DebugTools.setRootLevel(LOG_LEVEL);
+    	}
+
+		JFileChooser fc=null;
+		//try {fc = new JFileChooser();}
+
+		fc = new JFileChooser();
+
+		//catch (Throwable e) {IJ.error("This plugin requires Java 2 or Swing."); return;}
+		fc.setMultiSelectionEnabled(true);
+
+		if (dir==null) {
+			String sdir = OpenDialog.getDefaultDirectory();
+			if (sdir!=null)
+				dir = new File(sdir);
+		}
+		if (dir!=null)
+			fc.setCurrentDirectory(dir);
+
+		int returnVal = fc.showOpenDialog(IJ.getInstance());
+		if (returnVal!=JFileChooser.APPROVE_OPTION)
+			return;
+		File[] files = fc.getSelectedFiles();
+		if (files.length==0) { // getSelectedFiles does not work on some JVMs
+			files = new File[1];
+			files[0] = fc.getSelectedFile();
+		}
+		String path = fc.getCurrentDirectory().getPath()+Prefs.getFileSeparator();
+		dir = fc.getCurrentDirectory();
+		for (int i=0; i<files.length; i++) {
+			try {
+				ImagePlus imp = 	imagejJp4Tiff.readTiffJp4(path + files[i].getName(), scale);
+//				imp.updateAndDraw();
+				imp.show();
+			} catch (IOException | FormatException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} // throws IOException, FormatException { // std - include non-elphel properties with prefix std
+//			open(path, files[i].getName(), arg, scale);
+		}
+
+	}
 	public void read_jp46(String arg, boolean scale) {
 		JFileChooser fc=null;
 		//try {fc = new JFileChooser();}
@@ -274,6 +331,7 @@ public class JP46_Reader_camera0 extends PlugInFrame implements ActionListener {
 
 		confpanel = new Panel();
 		gd.addPanel(confpanel);
+		addButton("Open JP4/Tiff (no scale)...", confpanel);
 		addButton("Open JP4/JP46 (no scale)...", confpanel);
 		addButton("Open JP4/JP46 from camera (no scale)", confpanel);
 
@@ -1413,9 +1471,13 @@ Exception in thread "Thread-3564" java.lang.ArrayIndexOutOfBoundsException: 8970
 	    NodeList allNodes=doc.getDocumentElement().getElementsByTagName("*");
 	    for (int i=0;i<allNodes.getLength();i++) {
 	        String name= allNodes.item(i).getNodeName();
-            String value=allNodes.item(i).getFirstChild().getNodeValue();
-    		imp.setProperty(name, value);
+	        String value="";
+	        try {
+	        	value=allNodes.item(i).getFirstChild().getNodeValue();
+	        } catch(Exception e) {
 
+	        }
+    		imp.setProperty(name, value);
 	    }
 
 		return true;

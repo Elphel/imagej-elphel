@@ -70,6 +70,7 @@ import com.elphel.imagej.common.WindowTools;
 import com.elphel.imagej.jp4.JP46_Reader_camera;
 import com.elphel.imagej.lwir.LwirReader;
 import com.elphel.imagej.lwir.LwirReaderParameters;
+import com.elphel.imagej.readers.EyesisTiff;
 
 import Jama.Matrix;  // Download here: http://math.nist.gov/javanumerics/jama/
 import ij.IJ;
@@ -222,10 +223,20 @@ public class Aberration_Calibration extends PlugInFrame implements ActionListene
 			0.4, // corrRingWidth - ring (around r=0.5 dist to opposite corr) width , center circle r=0.5*PATTERN_DETECT.corrRingWidth
 			5.0, // minCorrContrast -  discrimination threshold between good and bad pattern correlation
 			0.0, // minGridPeriod
-			0.0,  // maxGridPeriod
+			0.0, // maxGridPeriod
+			0.0, // minGridPeriodLwir
+			0.0, // maxGridPeriodLwir
 			0.0, // debugX+"");
 		    0.0, //	debugY+"");
-			-1.0 // this.debugRadius+"");
+			-1.0, // this.debugRadius+"");
+			false, // public boolean use_large_cells = false; // new method based on phase correlation should work with large cells,
+            // so only first negative correlation (1/2 period) fits in window
+			0.5,  // public double phaseCoeff =      0.5; // "phasiness" of correlation
+			0.3,  // public double lowpass_sigma =   0.3;  // for phase correlation - frequency fraction of maximal
+			0.03, // public double min_frac =        0.03; // do not use higher order autocorrelation if min/max
+          // is weaker than this fraction of the zero maximum
+			0.5,  //public double  min_sin =  0.5;  // minimal sine for the angle between two pattern vectors
+			true  //public boolean no_crazy = true; // fail if quadratic approximation fails or returns outside of +/- 1.5
 	);
 
 
@@ -350,12 +361,15 @@ public class Aberration_Calibration extends PlugInFrame implements ActionListene
 
 public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSimulatedPattern.DistortionParameters(
 		  64, //32, // use 64 for less artifacts, // correlationSize
-		  64, // Maximal correlation size
+		  16, // int correlationSizeLwir,
+		  128, // 64, // Maximal correlation size
+		  16, // int maximalCorrelationSizeLwir,
 		  0.75,// reduce to 0.5 when correlationSize==64 // correlationGaussWidth
 		  false, // boolean absoluteCorrelationGaussWidth=false; // do not scale correlationGaussWidth when the FFT size is increased
 		  0, //zeros - // leave this number of zeros on the margins of the window (toatal from both sides). If correlationGaussWidth>0 will
 	        // additionally multiply by Hamming
-		  128, // FFT size
+		  256, // FFTSize (was 128)
+		  32,  // FFTSize_lwir
 		  0.5, //fftGaussWidth
 		  0.0, //phaseCorrelationFraction
 		  1.5, // 2.5, //6.0, // 2.0, // 0.0, // correlationHighPassSigma, - pixels in frequency domain
@@ -364,15 +378,18 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 		  8.0, // 3.0, //  correlationMaxOffset,     // maximal distance between predicted and actual pattern node
 		  3.0, // 2.0, // increase back to .5? was needed with fisheye. 5.0, //	double correlationMinContrast,   // minimal contrast for the pattern to pass
 		  3.5, // 2.5, // correlationMinInitialContrast,   // minimal contrast for the pattern of the center (initial point)
-		  1.0, //this.correlationMinAbsoluteContrast,   // minimal contrast for the pattern to pass, does not compensate for low ligt
+		  // Absolute contrast is broken (05.29.2019), disabling it
+		  0.0, // 1.0, //this.correlationMinAbsoluteContrast,   // minimal contrast for the pattern to pass, does not compensate for low ligt
 		  // TODO: adjust to a reasonable number
-		  1.0, //this.correlationMinAbsoluteInitialContrast,   // minimal contrast for the pattern of the center (initial point)
+		  0.0, // 1.0, //this.correlationMinAbsoluteInitialContrast,   // minimal contrast for the pattern of the center (initial point)
 
 		  0.8, //	scaleFirstPassContrast, // Decrease contrast of cells that are too close to the border to be processed in refinement pass
+		  2.0, // public double contrastSelectSigmaCenter; // Gaussian sigma to select correlation centers (fraction of UV period), 0.02 (center spot)
 		  0.1, // contrastSelectSigma, // Gaussian sigma to select correlation centers (fraction of UV period), 0.1
 		  0.5, //contrastAverageSigma, // Gaussian sigma to average correlation variations (as contrast reference) 0.5
 
-		  150,  // minimalPatternCluster minimal pattern cluster size (0 - disable retries)
+		  40, // 150,  // minimalPatternCluster minimal pattern cluster size (0 - disable retries)
+		  10, // 150,  // minimalPatternClusterLwir minimal pattern cluster size (0 - disable retries)
 		  2.0, // scaleMinimalInitialContrast increase/decrease minimal contrast if initial cluster is >0 but less than minimalPatternCluster
 		  0.5, //  when searching for grid, step this amount of the FFTSize
           4, // public int    patternSubdiv;
@@ -674,11 +691,11 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 
 		panelConf1 = new Panel();
 		panelConf1.setLayout(new GridLayout(1, 0, 5, 5));
-		addButton("Configure Globals",panelConf1);
-		addButton("Conf. Components",panelConf1);
-		addButton("Conf. Multifile",panelConf1,color_configure);
-		addButton("Conf. Simulation",panelConf1);
-		addButton("Conf. Pattern Detection",panelConf1);
+		addButton("Configure Globals",     panelConf1,color_configure);
+		addButton("Conf. Components",      panelConf1,color_configure);
+		addButton("Conf. Multifile",       panelConf1,color_configure);
+		addButton("Conf. Simulation",       panelConf1,color_configure);
+		addButton("Conf. Pattern Detection",panelConf1,color_configure);
 		addButton("Waves",panelConf1);
 		//WavePatternGenerator
 		add(panelConf1);
@@ -994,6 +1011,8 @@ if (MORE_BUTTONS) {
 		addButton("Configure Goniometer",       panelLWIR,color_configure);
 		addButton("Goniometer Move",            panelLWIR,color_debug);
 		addButton("LWIR Goniometer",            panelLWIR,color_conf_process);
+		addButton("LWIR grids",                 panelLWIR,color_process);
+
 
 		add(panelLWIR);
 		pack();
@@ -1141,7 +1160,7 @@ if (MORE_BUTTONS) {
 			return;
 /* ======================================================================== */
 		} else if (label.equals("Conf. Pattern Detection")) {
-			showPatternDetectParametersDialog(PATTERN_DETECT);
+			showPatternDetectParametersDialog(PATTERN_DETECT, (LWIR_READER != null));
 			return;
 /* ======================================================================== */
 		} else if (label.equals("Waves")) {
@@ -1402,6 +1421,7 @@ if (MORE_BUTTONS) {
 //				   matchSimulatedPattern.invalidateFlatFieldForGrid(); //It is already reset, no need to do it again
 //				   matchSimulatedPattern.invalidateFocusMask();
 				matchSimulatedPattern.calculateDistortions(
+						null, // LwirReaderParameters lwirReaderParameters,
 						DISTORTION, //
 						PATTERN_DETECT,
 						SIMUL,
@@ -1798,6 +1818,7 @@ if (MORE_BUTTONS) {
 //			   matchSimulatedPattern.invalidateFlatFieldForGrid(); //It is already reset, no need to do it again
 //			   matchSimulatedPattern.invalidateFocusMask();
 			int numAbsolutePoints=matchSimulatedPattern.calculateDistortions(
+					null, // LwirReaderParameters lwirReaderParameters,
 					DISTORTION, //
 					PATTERN_DETECT,
 					SIMUL,
@@ -2567,113 +2588,7 @@ if (MORE_BUTTONS) {
 		    	IJ.showMessage("Laser pointer data needed for this function is not provided");
 		    	return;
 		    }
-			long 	  startTime=System.nanoTime();
-		    boolean noMessageBoxes=true;
-		    String prefix="grid-";
-			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-			DISTORTION_PROCESS_CONFIGURATION.debugLevel=MASTER_DEBUG_LEVEL;
-            if (matchSimulatedPattern==null) matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize);
-            matchSimulatedPattern.debugLevel=MASTER_DEBUG_LEVEL;
-            String [] sourceFilesList=DISTORTION_PROCESS_CONFIGURATION.selectSourceFiles(); // select files - with/without dialog
-            boolean saveGrids=DISTORTION_PROCESS_CONFIGURATION.saveGridImages;
-            boolean overwriteGrids=DISTORTION_PROCESS_CONFIGURATION.overwriteResultFiles;
-            if (sourceFilesList==null) return;
-            showPatternMinMaxPeriodDialog(PATTERN_DETECT);
-            for (int numFile=0;numFile<sourceFilesList.length;numFile++){
-    			long 	  startFileTime=System.nanoTime();
-            	if (DEBUG_LEVEL>0){
-            		System.out.println(IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+"s: Processing file # "+(numFile+1)+ " (of "+ sourceFilesList.length+"): "+sourceFilesList[numFile]);
-            	}
-            	if (saveGrids && !overwriteGrids){ // check if result already exists
-            		int i = sourceFilesList[numFile].lastIndexOf('/');
-            		if (i>0){
-            			String path=prefix+sourceFilesList[numFile].substring(i+1);
-            			String srcDir=DISTORTION_PROCESS_CONFIGURATION.selectGridFileDirectory(true,DISTORTION_PROCESS_CONFIGURATION.gridDirectory,true);
-            			if (srcDir==null){
-            				saveGrids=false; // do not ask about the next ones too
-            			} else {
-            				path=DISTORTION_PROCESS_CONFIGURATION.gridDirectory+Prefs.getFileSeparator()+path;
-//        	    			File rsltFile=new File(path);
-            				if ((new File(path)).exists()){
-                				if (DEBUG_LEVEL>0) System.out.println("-->>> Skipping existing "+path+" (as requested in \"Configure Process Distortions\")");
-                				continue;
-            				}
-            			}
-            		}
-            	}
-            	imp_sel=new ImagePlus(sourceFilesList[numFile]); // read source file
-            	JP4_INSTANCE.decodeProperiesFromInfo(imp_sel);
-            	matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize); // TODO: is it needed each time?
-            	if (!DISTORTION_PROCESS_CONFIGURATION.useNoPonters && (matchSimulatedPattern.getPointersXY(imp_sel,LASER_POINTERS.laserUVMap.length)==null)) {
-    				if (this.SYNC_COMMAND.stopRequested.get()>0) {
-    					System.out.println("User requested stop");
-    					break;
-    				}
-            		continue; // no pointers in this image
-            	}
-            	// /getPointersXY(ImagePlus imp, int numPointers){               if
-            	// calculate distortion grid for it
-
-            	matchSimulatedPattern.invalidateFlatFieldForGrid(); //Reset Flat Field calibration - different image.
-            	matchSimulatedPattern.invalidateFocusMask();
-            	int numAbsolutePoints=matchSimulatedPattern.calculateDistortions(
-            			DISTORTION, //
-            			PATTERN_DETECT,
-            			SIMUL,
-            			COMPONENTS.equalizeGreens,
-            			imp_sel,
-            			LASER_POINTERS, // LaserPointer laserPointer, // LaserPointer object or null
-            			DISTORTION_PROCESS_CONFIGURATION.removeOutOfGridPointers, //
-            			null, //   double [][][] hintGrid, // predicted grid array (or null)
-            			0,    //   double  hintGridTolerance, // allowed mismatch (fraction of period) or 0 - orientation only
-            			THREADS_MAX,
-            			UPDATE_STATUS,
-            			DEBUG_LEVEL,
-            			DISTORTION.loop_debug_level, // debug level
-            			noMessageBoxes);
-            	if (DEBUG_LEVEL>1) System.out.println("numAbsolutePoints="+numAbsolutePoints);
-            	if ((numAbsolutePoints==DISTORTION.errPatternNotFound) || (numAbsolutePoints==DISTORTION.errTooFewCells)) {
-    				if (DEBUG_LEVEL>0) System.out.println("Grid "+(numFile+1)+" not found or too small ("+numAbsolutePoints+"), wasted "+
-    						IJ.d2s(0.000000001*(System.nanoTime()-startFileTime),3)+" seconds )\n");
-    				if (this.SYNC_COMMAND.stopRequested.get()>0) {
-    					System.out.println("User requested stop");
-    					break;
-    				}
-            		continue; // too few cells detected
-            	}
-            	if (DISTORTION_PROCESS_CONFIGURATION.useNoPonters || (numAbsolutePoints>0)){
-        			//Calculate grid contrast and brightness for each color component
-        			matchSimulatedPattern.calcGridIntensities (
-        					DISTORTION, //final DistortionParameters distortionParameters, //
-        					COMPONENTS.equalizeGreens,
-        					imp_sel, // image to process
-        					THREADS_MAX);
-            		ImagePlus imp_calibrated=matchSimulatedPattern.getCalibratedPatternAsImage(imp_sel,prefix, numAbsolutePoints);
-            		if (DISTORTION_PROCESS_CONFIGURATION.showGridImages) imp_calibrated.show();
-            		if (saveGrids){
-            			FileSaver fs=new FileSaver(imp_calibrated);
-            			String srcDir=DISTORTION_PROCESS_CONFIGURATION.selectGridFileDirectory(true,DISTORTION_PROCESS_CONFIGURATION.gridDirectory,true);
-            			if (srcDir==null){
-            				saveGrids=false; // do not ask about the next ones too
-            			} else {
-            				String path=DISTORTION_PROCESS_CONFIGURATION.gridDirectory+Prefs.getFileSeparator()+imp_calibrated.getTitle();
-            				if (UPDATE_STATUS) IJ.showStatus("Saving "+path);
-            				if (DEBUG_LEVEL>0) System.out.println("-->>> Saving "+path+" - using "+numAbsolutePoints+" laser pointer references");
-            				fs.saveAsTiffStack(path);
-            			}
-            		}
-            	}
-				if (DEBUG_LEVEL>0) System.out.println("Grid "+(numFile+1)+" calculation done at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" (in "+
-						IJ.d2s(0.000000001*(System.nanoTime()-startFileTime),3)+"s )\n");
-
-//
-				if (this.SYNC_COMMAND.stopRequested.get()>0) {
-					System.out.println("User requested stop");
-					break;
-				}
-
-            }
-			if (DEBUG_LEVEL>0) System.out.println(((this.SYNC_COMMAND.stopRequested.get()>0)?"Partial (interrupted by user) set of grids":"All")+ " grids calculation done at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+		    calculateGrids();
             return;
 		}
 /* ======================================================================== */
@@ -9501,6 +9416,11 @@ if (MORE_BUTTONS) {
 ///		POWER_CONTROL.lightsOff();
 		return;
 	}
+	/* ======================================================================== */
+	if       (label.equals("LWIR grids")) {
+	    calculateLwirGrids();
+        return;
+	}
 
 
 
@@ -9517,7 +9437,254 @@ if (MORE_BUTTONS) {
 
 /* ======================================================================== */
 /* ======================================================================== */
+	public void calculateLwirGrids() {
+		long 	  startTime=System.nanoTime();
+	    boolean noMessageBoxes=true;
+	    String prefix="grid-";
+		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+		DISTORTION_PROCESS_CONFIGURATION.debugLevel=MASTER_DEBUG_LEVEL;
+        if (matchSimulatedPattern==null) matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize);
+        matchSimulatedPattern.debugLevel=MASTER_DEBUG_LEVEL;
+        String [] sourceSetList = DISTORTION_PROCESS_CONFIGURATION.selectSourceSets();
+        LWIR_PARAMETERS.selectSourceChannels();
+//        boolean [] sel_chn = LWIR_PARAMETERS.getSelectedVnir(); // start with regular cameras only
+        boolean [] sel_chn = LWIR_PARAMETERS.getSelected();
+        int numFiles = LWIR_PARAMETERS.getSourceFilesFlat(sourceSetList, sel_chn).length; // just the number
+        String [][] sourceFilesList=LWIR_PARAMETERS.getSourceFiles(sourceSetList, sel_chn);
+        boolean saveGrids=DISTORTION_PROCESS_CONFIGURATION.saveGridImages;
+        boolean overwriteGrids=DISTORTION_PROCESS_CONFIGURATION.overwriteResultFiles;
+        if (sourceSetList==null) return;
+        showPatternMinMaxPeriodDialog(PATTERN_DETECT, true);
+        int saved_file = 0;
+        int in_file = 0;
+		String gridDir=DISTORTION_PROCESS_CONFIGURATION.selectGridFileDirectory(
+				true,DISTORTION_PROCESS_CONFIGURATION.gridDirectory,true);
+		if (gridDir == null) saveGrids=false; // do not ask about the next ones too
+
+        for (int nset = 0; nset < sourceFilesList.length; nset++){
+        	String set_name = sourceSetList[nset];
+        	int i = set_name.lastIndexOf(Prefs.getFileSeparator());
+        	if (i >=0) set_name = set_name.substring (set_name.lastIndexOf(Prefs.getFileSeparator())+1);
+        	// create directory if it does not exist yet
+        	String gridSetPath = null;
+        	if (saveGrids) {
+        		gridSetPath = gridDir + Prefs.getFileSeparator() + set_name;
+        		File  set_dir = new File(gridSetPath);
+        		if (!set_dir.exists()) {
+        			set_dir.mkdirs(); // including parent
+        		}
+        	}
+
+        	for (int nfile = 0; nfile < sourceFilesList[nset].length; nfile++) if (sourceFilesList[nset][nfile] != null){
+        		in_file++;
+        		long 	  startFileTime=System.nanoTime();
+        		if (DEBUG_LEVEL>0){
+        			System.out.println(IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+"s: Processing set "+(nset+1) +" (of "+
+        					sourceFilesList.length+"), channel # "+(nfile + 1)+
+        					" (of "+ sourceFilesList[nset].length+"), file "+in_file+" (of "+ numFiles+ ") success in "+saved_file+" - "+sourceFilesList[nset][nfile]);
+        		}
+        		String grid_path = null;
+        		if (saveGrids && !overwriteGrids){ // check if result already exists
+        			i = sourceFilesList[nset][nfile].lastIndexOf('/');
+        			if (i>0){
+        				String grid_name = prefix+sourceFilesList[nset][nfile].substring(i+1);
+        				grid_path = gridSetPath + Prefs.getFileSeparator() + grid_name;
+    					if ((new File(grid_path)).exists()){
+    						if (DEBUG_LEVEL>0) System.out.println("-->>> Skipping existing "+grid_path+" (as requested in \"Configure Process Distortions\")");
+    						continue;
+    					}
+        			}
+        		}
+        		imp_sel=new ImagePlus(sourceFilesList[nset][nfile]); // read source file
+        		EyesisTiff.decodeProperiesFromInfo(imp_sel);
+
+        		matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize); // TODO: is it needed each time?
+
+        		matchSimulatedPattern.invalidateFlatFieldForGrid(); //Reset Flat Field calibration - different image.
+        		matchSimulatedPattern.invalidateFocusMask();
+        		boolean is_lwir = LWIR_PARAMETERS.is_LWIR(imp_sel);
+        		int numAbsolutePoints=matchSimulatedPattern.calculateDistortions(
+        				LWIR_PARAMETERS, // LwirReaderParameters lwirReaderParameters,
+        				DISTORTION, //
+        				PATTERN_DETECT,
+        				SIMUL,
+        				COMPONENTS.equalizeGreens,
+        				imp_sel,
+        				null, // LASER_POINTERS, // LaserPointer laserPointer, // LaserPointer object or null
+        				DISTORTION_PROCESS_CONFIGURATION.removeOutOfGridPointers, //
+        				null, //   double [][][] hintGrid, // predicted grid array (or null)
+        				0,    //   double  hintGridTolerance, // allowed mismatch (fraction of period) or 0 - orientation only
+        				THREADS_MAX,
+        				UPDATE_STATUS,
+        				DEBUG_LEVEL,
+        				DISTORTION.loop_debug_level, // debug level
+        				noMessageBoxes);
+
+        		if (DEBUG_LEVEL>1) System.out.println("numAbsolutePoints="+numAbsolutePoints);
+        		if ((numAbsolutePoints==DISTORTION.errPatternNotFound) || (numAbsolutePoints==DISTORTION.errTooFewCells)) {
+        			if (DEBUG_LEVEL>0) System.out.println("Grid "+(in_file)+" not found or too small ("+numAbsolutePoints+"), wasted "+
+        					IJ.d2s(0.000000001*(System.nanoTime()-startFileTime),3)+" seconds )\n");
+        			if (this.SYNC_COMMAND.stopRequested.get()>0) {
+        				System.out.println("User requested stop");
+        				break;
+        			}
+        			continue; // too few cells detected
+        		}
+        		if (DISTORTION_PROCESS_CONFIGURATION.useNoPonters || (numAbsolutePoints>0)){
+        			//Calculate grid contrast and brightness for each color component
+        			matchSimulatedPattern.calcGridIntensities (
+        					DISTORTION, //final DistortionParameters distortionParameters, //
+        					COMPONENTS.equalizeGreens,
+        					imp_sel, // image to process
+        					THREADS_MAX);
+        			ImagePlus imp_calibrated=matchSimulatedPattern.getCalibratedPatternAsImage(imp_sel,prefix, numAbsolutePoints);
+        			if (imp_calibrated == null) {
+        				if (DEBUG_LEVEL> -1) System.out.println("Grid is empty !");
+        				continue;
+        			}
+        			if (DISTORTION_PROCESS_CONFIGURATION.showGridImages) imp_calibrated.show();
+        			if (saveGrids){
+        				FileSaver fs=new FileSaver(imp_calibrated);
+        				String srcDir=DISTORTION_PROCESS_CONFIGURATION.selectGridFileDirectory(true,DISTORTION_PROCESS_CONFIGURATION.gridDirectory,true);
+        				if (srcDir==null){
+        					saveGrids=false; // do not ask about the next ones too
+        				} else {
+//        					String path=DISTORTION_PROCESS_CONFIGURATION.gridDirectory+Prefs.getFileSeparator()+imp_calibrated.getTitle();
+//        					String path = gridDir + Prefs.getFileSeparator() + set_name+Prefs.getFileSeparator()+imp_calibrated.getTitle();
+        					if (UPDATE_STATUS) IJ.showStatus("Saving "+grid_path);
+        					if (DEBUG_LEVEL>0) System.out.println("-->>> Saving "+grid_path+" - using "+numAbsolutePoints+" laser pointer references");
+        					fs.saveAsTiffStack(grid_path);
+        				}
+        			}
+        		}
+        		if (DEBUG_LEVEL>0) System.out.println("Grid "+(saved_file+1)+" calculation done at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" (in "+
+        				IJ.d2s(0.000000001*(System.nanoTime()-startFileTime),3)+"s )\n");
+
+        		//
+        		if (this.SYNC_COMMAND.stopRequested.get()>0) {
+        			System.out.println("User requested stop");
+        			break;
+        		}
+        		saved_file++;
+        	}
+        }
+        if (DEBUG_LEVEL>0) System.out.println(((this.SYNC_COMMAND.stopRequested.get()>0)?"Partial (interrupted by user) set of grids":"All")+ " grids calculation done at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+        return;
+	}
+
 /* ======================================================================== */
+	public void calculateGrids() {
+			long 	  startTime=System.nanoTime();
+		    boolean noMessageBoxes=true;
+		    String prefix="grid-";
+			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+			DISTORTION_PROCESS_CONFIGURATION.debugLevel=MASTER_DEBUG_LEVEL;
+            if (matchSimulatedPattern==null) matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize);
+            matchSimulatedPattern.debugLevel=MASTER_DEBUG_LEVEL;
+            String [] sourceFilesList=DISTORTION_PROCESS_CONFIGURATION.selectSourceFiles(); // select files - with/without dialog
+            boolean saveGrids=DISTORTION_PROCESS_CONFIGURATION.saveGridImages;
+            boolean overwriteGrids=DISTORTION_PROCESS_CONFIGURATION.overwriteResultFiles;
+            if (sourceFilesList==null) return;
+            showPatternMinMaxPeriodDialog(PATTERN_DETECT,false);
+            for (int numFile=0;numFile<sourceFilesList.length;numFile++){
+    			long 	  startFileTime=System.nanoTime();
+            	if (DEBUG_LEVEL>0){
+            		System.out.println(IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+"s: Processing file # "+(numFile+1)+ " (of "+ sourceFilesList.length+"): "+sourceFilesList[numFile]);
+            	}
+            	if (saveGrids && !overwriteGrids){ // check if result already exists
+            		int i = sourceFilesList[numFile].lastIndexOf('/');
+            		if (i>0){
+            			String path=prefix+sourceFilesList[numFile].substring(i+1);
+            			String srcDir=DISTORTION_PROCESS_CONFIGURATION.selectGridFileDirectory(true,DISTORTION_PROCESS_CONFIGURATION.gridDirectory,true);
+            			if (srcDir==null){
+            				saveGrids=false; // do not ask about the next ones too
+            			} else {
+            				path=DISTORTION_PROCESS_CONFIGURATION.gridDirectory+Prefs.getFileSeparator()+path;
+//        	    			File rsltFile=new File(path);
+            				if ((new File(path)).exists()){
+                				if (DEBUG_LEVEL>0) System.out.println("-->>> Skipping existing "+path+" (as requested in \"Configure Process Distortions\")");
+                				continue;
+            				}
+            			}
+            		}
+            	}
+            	imp_sel=new ImagePlus(sourceFilesList[numFile]); // read source file
+            	JP4_INSTANCE.decodeProperiesFromInfo(imp_sel);
+            	matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize); // TODO: is it needed each time?
+            	if (!DISTORTION_PROCESS_CONFIGURATION.useNoPonters && (matchSimulatedPattern.getPointersXY(imp_sel,LASER_POINTERS.laserUVMap.length)==null)) {
+    				if (this.SYNC_COMMAND.stopRequested.get()>0) {
+    					System.out.println("User requested stop");
+    					break;
+    				}
+            		continue; // no pointers in this image
+            	}
+            	// /getPointersXY(ImagePlus imp, int numPointers){               if
+            	// calculate distortion grid for it
+
+            	matchSimulatedPattern.invalidateFlatFieldForGrid(); //Reset Flat Field calibration - different image.
+            	matchSimulatedPattern.invalidateFocusMask();
+            	int numAbsolutePoints=matchSimulatedPattern.calculateDistortions(
+            			LWIR_PARAMETERS, // LwirReaderParameters lwirReaderParameters,,
+            			DISTORTION, //
+            			PATTERN_DETECT,
+            			SIMUL,
+            			COMPONENTS.equalizeGreens,
+            			imp_sel,
+            			LASER_POINTERS, // LaserPointer laserPointer, // LaserPointer object or null
+            			DISTORTION_PROCESS_CONFIGURATION.removeOutOfGridPointers, //
+            			null, //   double [][][] hintGrid, // predicted grid array (or null)
+            			0,    //   double  hintGridTolerance, // allowed mismatch (fraction of period) or 0 - orientation only
+            			THREADS_MAX,
+            			UPDATE_STATUS,
+            			DEBUG_LEVEL,
+            			DISTORTION.loop_debug_level, // debug level
+            			noMessageBoxes);
+            	if (DEBUG_LEVEL>1) System.out.println("numAbsolutePoints="+numAbsolutePoints);
+            	if ((numAbsolutePoints==DISTORTION.errPatternNotFound) || (numAbsolutePoints==DISTORTION.errTooFewCells)) {
+    				if (DEBUG_LEVEL>0) System.out.println("Grid "+(numFile+1)+" not found or too small ("+numAbsolutePoints+"), wasted "+
+    						IJ.d2s(0.000000001*(System.nanoTime()-startFileTime),3)+" seconds )\n");
+    				if (this.SYNC_COMMAND.stopRequested.get()>0) {
+    					System.out.println("User requested stop");
+    					break;
+    				}
+            		continue; // too few cells detected
+            	}
+            	if (DISTORTION_PROCESS_CONFIGURATION.useNoPonters || (numAbsolutePoints>0)){
+        			//Calculate grid contrast and brightness for each color component
+        			matchSimulatedPattern.calcGridIntensities (
+        					DISTORTION, //final DistortionParameters distortionParameters, //
+        					COMPONENTS.equalizeGreens,
+        					imp_sel, // image to process
+        					THREADS_MAX);
+            		ImagePlus imp_calibrated=matchSimulatedPattern.getCalibratedPatternAsImage(imp_sel,prefix, numAbsolutePoints); //----
+            		if (DISTORTION_PROCESS_CONFIGURATION.showGridImages) imp_calibrated.show();
+            		if (saveGrids){
+            			FileSaver fs=new FileSaver(imp_calibrated);
+            			String srcDir=DISTORTION_PROCESS_CONFIGURATION.selectGridFileDirectory(true,DISTORTION_PROCESS_CONFIGURATION.gridDirectory,true);
+            			if (srcDir==null){
+            				saveGrids=false; // do not ask about the next ones too
+            			} else {
+            				String path=DISTORTION_PROCESS_CONFIGURATION.gridDirectory+Prefs.getFileSeparator()+imp_calibrated.getTitle();
+            				if (UPDATE_STATUS) IJ.showStatus("Saving "+path);
+            				if (DEBUG_LEVEL>0) System.out.println("-->>> Saving "+path+" - using "+numAbsolutePoints+" laser pointer references");
+            				fs.saveAsTiffStack(path);
+            			}
+            		}
+            	}
+				if (DEBUG_LEVEL>0) System.out.println("Grid "+(numFile+1)+" calculation done at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3)+" (in "+
+						IJ.d2s(0.000000001*(System.nanoTime()-startFileTime),3)+"s )\n");
+
+//
+				if (this.SYNC_COMMAND.stopRequested.get()>0) {
+					System.out.println("User requested stop");
+					break;
+				}
+
+            }
+			if (DEBUG_LEVEL>0) System.out.println(((this.SYNC_COMMAND.stopRequested.get()>0)?"Partial (interrupted by user) set of grids":"All")+ " grids calculation done at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
+            return;
+		}
+
 /* ======================================================================== */
 	public void processCalibrationFiles() {
 		if (!showProcessCalibrationFilesDialog(PROCESS_PARAMETERS)) return;
@@ -9561,10 +9728,10 @@ if (MORE_BUTTONS) {
 								imp_sel); // reuse the same image window
 //Remove for old method?
 						matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize);
-
 						matchSimulatedPattern.calculateDistortions(
-								DISTORTION, //
-								PATTERN_DETECT,
+								LWIR_PARAMETERS,
+		            			DISTORTION, //
+		            			PATTERN_DETECT,
 								SIMUL,
 								COMPONENTS.equalizeGreens,
 								imp_sel,
@@ -12470,7 +12637,7 @@ if (MORE_BUTTONS) {
 			throw new IllegalArgumentException (msg);
 		}
 		matchSimulatedPattern.debugLevel=debugLevel;
-
+/*
 		double sharpnessOld=matchSimulatedPattern.focusQualityOld(
 				imp,
 				focusMeasurementParameters.sampleSize, // will be twice the regualr FFT size
@@ -12487,6 +12654,7 @@ if (MORE_BUTTONS) {
 				lensDistortionParameters.py0,
 				debugLevel);
 		if (debugLevel>0) System.out.println("Focus qualityOld1="+sharpnessOld1);
+*/
 		double sharpness=matchSimulatedPattern.focusQuality(
 				imp,
 				focusMeasurementParameters.sampleSize, // will be twice the regualr FFT size
@@ -17012,9 +17180,13 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
 				mapCell.x=nTileX*size;
 				pixels=splitBayer(imp, mapCell,COMPONENTS.equalizeGreens);
 				pixels[4]= normalizeAndWindow (pixels[4], hamming);
-				patternMap[nTileY][nTileX]=matchSimulatedPattern.findPattern(pixels[4],
+				patternMap[nTileY][nTileX]=matchSimulatedPattern.findPattern(
+						null,
+						pixels[4],
 						size,
 						patternDetectParameters,
+						patternDetectParameters.minGridPeriod/2,
+			            patternDetectParameters.maxGridPeriod/2,
 						true,
 						title); // title - will not be used
 /* Now verify by correlating with the actual pattern */
@@ -17029,7 +17201,8 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
 							null, // no mesh distortion here
 							thisSimulParameters.subdiv,// SIMUL.subdiv, - do not need high quality here
 							size,
-							true); // center for greens
+							true, // center for greens
+							false);//boolean mono
 					sim_pix= simulationPattern.extractSimulPatterns (
 							thisSimulParameters,
 							1,
@@ -17049,8 +17222,10 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
 							pixels[4],
 							WVgreens,    // wave vectors (same units as the pixels array)
 //							patternDetectParameters.corrRingWidth,   // ring (around r=0.5 dist to opposite corr) width
-							0.1, // contrastSelectSigma
-							0.5, // contrastAverageSigma
+							2.0, // distortionParameters.contrastSelectSigmaCenter, // Gaussian sigma to select correlation centers (fraction of UV period), 0.1
+							0.1, // distortionParameters.contrastSelectSigma, // Gaussian sigma to select correlation centers (fraction of UV period), 0.1
+//							0.1, // contrastSelectSigma
+//							0.5, // contrastAverageSigma
 							0.0,    //  x0,              // center coordinates
 							0.0,    //y0,
 							title)[0];   // title base for optional plots names
@@ -17576,6 +17751,8 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
 			if (matchSimulatedPattern.PATTERN_GRID==null) {
 				double[][] distortedPattern= matchSimulatedPattern.findPatternDistorted(input_bayer, // pixel array to process (no windowing!)
 						patternDetectParameters,
+						patternDetectParameters.minGridPeriod/2,
+			            patternDetectParameters.maxGridPeriod/2,
 						true, //(greensToProcess==4), // boolean greens, // this is a pattern for combined greens (diagonal), adjust results accordingly
 						title); // title prefix to use for debug  images
 
@@ -17600,7 +17777,8 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
 						distortedPattern[2], //
 						simulParameters.subdiv,
 						fft_size,
-						simulParameters.center_for_g2);
+						simulParameters.center_for_g2,
+						false);//boolean mono
 				wVectors[0][0]=2.0*distortedPattern[0][0]/subpixel;
 				wVectors[0][1]=2.0*distortedPattern[0][1]/subpixel;
 				wVectors[1][0]=2.0*distortedPattern[1][0]/subpixel;
@@ -17652,7 +17830,8 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
 						simCorr, //
 						simulParameters.subdiv,
 						fft_size,
-						simulParameters.center_for_g2);
+						simulParameters.center_for_g2,
+						false);//boolean mono
 			}
 			simul_pixels= simulationPattern.extractSimulPatterns (
 					simulParameters,
@@ -19828,7 +20007,7 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 		return true;
 	}
 /* ======================================================================== */
-	public boolean showPatternDetectParametersDialog(MatchSimulatedPattern.PatternDetectParameters patternDetectParameters) {
+	public boolean showPatternDetectParametersDialog(MatchSimulatedPattern.PatternDetectParameters patternDetectParameters, boolean use_lwir) {
 ///gaussWidth
 		GenericDialog gd = new GenericDialog("Parameters");
 		gd.addNumericField("Gaussian width for the window function (<=0 - use Hamming):", patternDetectParameters.gaussWidth, 3);
@@ -19844,16 +20023,30 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 		gd.addNumericField("Minimal pattern correlation contrast" ,                       patternDetectParameters.minCorrContrast, 3);   //5.0; // Discrimination threshold between good and bad pattern correleation
 		gd.addNumericField("Minimal pattern grid period (<=0.0 - do not check)" ,         patternDetectParameters.minGridPeriod, 2,5,"pix");
 		gd.addNumericField("Maximal pattern grid period (<=0.0 - do not check)" ,         patternDetectParameters.maxGridPeriod, 2,5,"pix");
+		if (use_lwir) {
+			gd.addNumericField("Minimal pattern grid period for LWIR sensors (<=0.0 - do not check)" ,         patternDetectParameters.minGridPeriodLwir, 2,5,"pix");
+			gd.addNumericField("Maximal pattern grid period for LWIR sensors (<=0.0 - do not check)" ,         patternDetectParameters.maxGridPeriodLwir, 2,5,"pix");
+		}
 		gd.addMessage("----- debug -----");
 		gd.addNumericField("Debug grid near pixel X" ,                                    patternDetectParameters.debugX, 1,6,"pix");
 		gd.addNumericField("Debug grid near pixel X" ,                                    patternDetectParameters.debugY, 1,6,"pix");
 		gd.addNumericField("Debug grid nodes at this distance of (x,Y) - <0 - no debug",  patternDetectParameters.debugRadius, 1,5,"pix");
+		gd.addMessage("----- New method that should work with large cells (only half-period negative correlations fit in window) -----");
+		gd.addCheckbox     ("Use large cell method (with phase correlation)",             patternDetectParameters.use_large_cells); //  true;
+		gd.addNumericField("\"phasiness\" of correlation" ,                               patternDetectParameters.phaseCoeff, 2,5,"");
+		gd.addNumericField("Low-pass sigma for phase correlation - frequency fraction of maximal", patternDetectParameters.lowpass_sigma, 2,5,"");
+		gd.addNumericField("Minimal min/max amplitude fraction of the zero one" ,         patternDetectParameters.min_frac, 2,5,"");
+
+
+		gd.addNumericField("Minimal absolute value of sine of the patern vectors angle" , patternDetectParameters.min_sin, 2,5,"");
+		gd.addCheckbox    ("Fail if quadratic approximation fails or returns outside of +/- 1.5",  patternDetectParameters.no_crazy); //  true;
+
 
 		gd.showDialog();
 		if (gd.wasCanceled()) return false;
 		patternDetectParameters.gaussWidth=               gd.getNextNumber();  //0.4
-		patternDetectParameters.corrGamma=               gd.getNextNumber();  //0.2; lower the value - higher harmonics will participate in pattern frequency measurements
-		patternDetectParameters.corrSigma=               gd.getNextNumber();  // 1.5; // pattern detection: high-pass filter (0.0 - none) gamma(PS)
+		patternDetectParameters.corrGamma=                gd.getNextNumber();  //0.2; lower the value - higher harmonics will participate in pattern frequency measurements
+		patternDetectParameters.corrSigma=                gd.getNextNumber();  // 1.5; // pattern detection: high-pass filter (0.0 - none) gamma(PS)
 		patternDetectParameters.diffSpectrCorr=     (int) gd.getNextNumber();
 		patternDetectParameters.shrinkClusters=           gd.getNextNumber(); // 0.5; //  Shrink clusters by this ratio (remove lowest) after initial separation
 		patternDetectParameters.multiplesToTry=     (int) gd.getNextNumber();
@@ -19864,23 +20057,44 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 		patternDetectParameters.minCorrContrast=          gd.getNextNumber();
 		patternDetectParameters.minGridPeriod=            gd.getNextNumber();
 		patternDetectParameters.maxGridPeriod=            gd.getNextNumber();
+		if (use_lwir) {
+			patternDetectParameters.minGridPeriodLwir=    gd.getNextNumber();
+			patternDetectParameters.maxGridPeriodLwir=    gd.getNextNumber();
+		}
 		patternDetectParameters.debugX=                   gd.getNextNumber();
 		patternDetectParameters.debugY=                   gd.getNextNumber();
 		patternDetectParameters.debugRadius=              gd.getNextNumber();
+
+		patternDetectParameters.use_large_cells=          gd.getNextBoolean();
+		patternDetectParameters.phaseCoeff=               gd.getNextNumber();
+		patternDetectParameters.lowpass_sigma=            gd.getNextNumber();
+		patternDetectParameters.min_frac=                 gd.getNextNumber();
+		patternDetectParameters.min_sin=                  gd.getNextNumber();
+		patternDetectParameters.no_crazy=                 gd.getNextBoolean();
+
+
 		return true;
 	}
-	public boolean showPatternMinMaxPeriodDialog(MatchSimulatedPattern.PatternDetectParameters patternDetectParameters) {
+	public boolean showPatternMinMaxPeriodDialog(MatchSimulatedPattern.PatternDetectParameters patternDetectParameters, boolean use_lwir) {
 		///gaussWidth
-				GenericDialog gd = new GenericDialog("Min/Max opattern grid period");
-				gd.addNumericField("Minimal pattern grid period (<=0.0 - do not check)" ,         patternDetectParameters.minGridPeriod, 2,5,"pix");
-				gd.addNumericField("Maximal pattern grid period (<=0.0 - do not check)" ,         patternDetectParameters.maxGridPeriod, 2,5,"pix");
-				gd.addMessage ("TODO: Calculate min/max from pattern data and distance");
-				gd.showDialog();
-				if (gd.wasCanceled()) return false;
-				patternDetectParameters.minGridPeriod=            gd.getNextNumber();
-				patternDetectParameters.maxGridPeriod=            gd.getNextNumber();
-				return true;
-			}
+		GenericDialog gd = new GenericDialog("Min/Max opattern grid period");
+		gd.addNumericField("Minimal pattern grid period (<=0.0 - do not check)" ,         patternDetectParameters.minGridPeriod, 2,5,"pix");
+		gd.addNumericField("Maximal pattern grid period (<=0.0 - do not check)" ,         patternDetectParameters.maxGridPeriod, 2,5,"pix");
+		gd.addMessage ("TODO: Calculate min/max from pattern data and distance");
+		if (use_lwir) {
+			gd.addNumericField("Minimal pattern grid period for LWIR sensors (<=0.0 - do not check)" ,         patternDetectParameters.minGridPeriodLwir, 2,5,"pix");
+			gd.addNumericField("Maximal pattern grid period for LWIR sensors (<=0.0 - do not check)" ,         patternDetectParameters.maxGridPeriodLwir, 2,5,"pix");
+		}
+		gd.showDialog();
+		if (gd.wasCanceled()) return false;
+		patternDetectParameters.minGridPeriod=            gd.getNextNumber();
+		patternDetectParameters.maxGridPeriod=            gd.getNextNumber();
+		if (use_lwir) {
+			patternDetectParameters.minGridPeriodLwir=            gd.getNextNumber();
+			patternDetectParameters.maxGridPeriodLwir=            gd.getNextNumber();
+		}
+		return true;
+	}
 
 
 /* ======================================================================== */
@@ -20084,10 +20298,13 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 		public boolean showDistortionDialog(MatchSimulatedPattern.DistortionParameters distortionParameters) {
 			int i;
 			GenericDialog gd = new GenericDialog("Distrortion parameters");
-			gd.addNumericField("FFTSize (Initial pattern detection only):",        distortionParameters.FFTSize, 0); // 128
+			gd.addNumericField("FFTSize (Initial pattern detection only):",        distortionParameters.FFTSize, 0);      // 256
+			gd.addNumericField("FFTSize for LWIR sensors):",                       distortionParameters.FFTSize_lwir, 0); // 32
 			gd.addNumericField("FFT Gaussian width (relative):",                   distortionParameters.fftGaussWidth, 3);
 			gd.addNumericField("Correlation size:",                                distortionParameters.correlationSize, 0); // 64
-			gd.addNumericField("Maximal correlation size:",                        distortionParameters.maximalCorrelationSize, 0); // 64
+			gd.addNumericField("Correlation size LWIR:",                           distortionParameters.correlationSizeLwir, 0); // 16
+			gd.addNumericField("Maximal correlation size:",                        distortionParameters.maximalCorrelationSize, 0); // 128
+			gd.addNumericField("Maximal correlation size LWIR:",                   distortionParameters.maximalCorrelationSizeLwir, 0); // 16
 
 			gd.addNumericField("Correlation Gauss width (relative):",              distortionParameters.correlationGaussWidth, 3);
 			gd.addCheckbox("Keep Gaussian width absolute when increasing FFT size",distortionParameters.absoluteCorrelationGaussWidth);
@@ -20108,23 +20325,25 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 			gd.addNumericField("Correlation minimal contrast for initial search (absolute)", distortionParameters.correlationMinAbsoluteInitialContrast, 3);
 
 			gd.addNumericField("Decrease contrast of cells that are too close to the border to be processed in refinement pass", distortionParameters.scaleFirstPassContrast, 3);
-			gd.addNumericField("Gaussian sigma to select correlation centers (fraction of UV period), 0.1", distortionParameters.contrastSelectSigma, 3);
+			gd.addNumericField("Gaussian sigma to select correlation center in pixels, 2.0", distortionParameters.contrastSelectSigmaCenter, 3);
+			gd.addNumericField("Gaussian sigma to select correlation off-centers (fraction of UV period), 0.1", distortionParameters.contrastSelectSigma, 3);
 			gd.addNumericField("Gaussian sigma to average correlation variations (as contrast reference), 0.5", distortionParameters.contrastAverageSigma, 3);
 
-			gd.addNumericField("Minimal initial pattern cluster size (0 - disable retries)", distortionParameters.minimalPatternCluster, 0);
+			gd.addNumericField("Minimal initial pattern cluster size (0 - disable retries)", distortionParameters.minimalPatternCluster, 0); // 40
+			gd.addNumericField("Minimal initial LWIR pattern cluster size (0 - disable retries)", distortionParameters.minimalPatternClusterLwir, 0); // 10
 			gd.addNumericField("Scale minimal contrast if the initial cluster is nonzero but smaller", distortionParameters.scaleMinimalInitialContrast, 3);
 			gd.addNumericField("Overlap of FFT areas when searching for pattern", distortionParameters.searchOverlap, 3);
 
-			gd.addNumericField("Pattern subdivision:",                  distortionParameters.patternSubdiv, 0);
-			gd.addNumericField("Blur pattern bitmap (sigma):       ",   distortionParameters.bPatternSigma, 3,5,"pattern cell");
-			gd.addNumericField("Blur pattern (sigma):                ", distortionParameters.barraySigma, 3,5,"sensor pix");
-			gd.addNumericField("Correlation weights (around maximum):", distortionParameters.correlationWeightSigma, 3,5,"nodes");
-			gd.addNumericField("Correlation radius scale (0 - sharp sigma)", distortionParameters.correlationRadiusScale, 1,3,"sigmas");
+			gd.addNumericField("Pattern subdivision:",                  distortionParameters.patternSubdiv, 0); // 4
+			gd.addNumericField("Blur pattern bitmap (sigma):       ",   distortionParameters.bPatternSigma, 3,5,"pattern cell"); // 0.02
+			gd.addNumericField("Blur pattern (sigma):                ", distortionParameters.barraySigma, 3,5,"sensor pix");     // 0.5
+			gd.addNumericField("Correlation weights (around maximum):", distortionParameters.correlationWeightSigma, 3,5,"nodes"); // 2.5
+			gd.addNumericField("Correlation radius scale (0 - sharp sigma)", distortionParameters.correlationRadiusScale, 1,3,"sigmas"); //2.0
 
-			gd.addNumericField("Correlation maximal radius to use",      distortionParameters.correlationRadius, 0,1,"pix");
-			gd.addNumericField("Correlation maximum calculation threshold", distortionParameters.correlationThreshold*100, 2,5,"%");
-			gd.addNumericField("Interpolate correlation (FFT*linear)",  distortionParameters.correlationSubdiv, 0,1,"x");
-			gd.addNumericField("Interpolate correlation with FFT",      distortionParameters.correlationFFTSubdiv, 0,1,"x");
+			gd.addNumericField("Correlation maximal radius to use",      distortionParameters.correlationRadius, 0,1,"pix"); // 2.0
+			gd.addNumericField("Correlation maximum calculation threshold", distortionParameters.correlationThreshold*100, 2,5,"%"); // .8
+			gd.addNumericField("Interpolate correlation (FFT*linear)",  distortionParameters.correlationSubdiv, 0,3,"x"); // 16
+			gd.addNumericField("Interpolate correlation with FFT",      distortionParameters.correlationFFTSubdiv, 0,3,"x"); // 4
 
 			gd.addNumericField("Correlation dx (debug)",                distortionParameters.correlationDx, 3);
 			gd.addNumericField("Correlation dy (debug)",                distortionParameters.correlationDy, 3);
@@ -20167,35 +20386,37 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 		    WindowTools.addScrollBars(gd);
 			gd.showDialog();
 			if (gd.wasCanceled()) return false;
-
-			distortionParameters.FFTSize=1;
-			for (i=(int) gd.getNextNumber(); i >1; i>>=1) distortionParameters.FFTSize <<=1; /* make it to be power of 2 */
-			distortionParameters.fftGaussWidth=           gd.getNextNumber();
-			distortionParameters.correlationSize=1;
-			for (i=(int) gd.getNextNumber(); i >1; i>>=1) distortionParameters.correlationSize <<=1; /* make it to be power of 2 */
-			distortionParameters.maximalCorrelationSize=1;
-			for (i=(int) gd.getNextNumber(); i >1; i>>=1) distortionParameters.maximalCorrelationSize <<=1; /* make it to be power of 2 */
-			distortionParameters.correlationGaussWidth=   gd.getNextNumber();
+			distortionParameters.FFTSize =                     makePowerOfTwo((int) gd.getNextNumber());
+			distortionParameters.FFTSize_lwir =                makePowerOfTwo((int) gd.getNextNumber());
+			distortionParameters.fftGaussWidth=                gd.getNextNumber();
+			distortionParameters.correlationSize =             makePowerOfTwo((int) gd.getNextNumber());
+			distortionParameters.correlationSizeLwir =         makePowerOfTwo((int) gd.getNextNumber());
+			distortionParameters.maximalCorrelationSize =      makePowerOfTwo((int) gd.getNextNumber());
+			distortionParameters.maximalCorrelationSizeLwir =  makePowerOfTwo((int) gd.getNextNumber());
+			distortionParameters.correlationGaussWidth=        gd.getNextNumber();
 			distortionParameters.absoluteCorrelationGaussWidth=gd.getNextBoolean();
-			distortionParameters.zeros=             (int) gd.getNextNumber();
-			distortionParameters.phaseCorrelationFraction=gd.getNextNumber();
-			distortionParameters.correlationHighPassSigma=gd.getNextNumber();
-			distortionParameters.correlationLowPassSigma= gd.getNextNumber();
-			distortionParameters.correlationMaxOffset=    gd.getNextNumber();
-			distortionParameters.correlationRingWidth=    gd.getNextNumber();
-			distortionParameters.correlationMinContrast=  gd.getNextNumber();
+			distortionParameters.zeros=                  (int) gd.getNextNumber();
+			distortionParameters.phaseCorrelationFraction=     gd.getNextNumber();
+			distortionParameters.correlationHighPassSigma=     gd.getNextNumber();
+			distortionParameters.correlationLowPassSigma=      gd.getNextNumber();
+			distortionParameters.correlationMaxOffset=         gd.getNextNumber();
+			distortionParameters.correlationRingWidth=         gd.getNextNumber();
+			distortionParameters.correlationMinContrast=       gd.getNextNumber();
 			distortionParameters.correlationMinInitialContrast=  gd.getNextNumber();
 
 			distortionParameters.correlationMinAbsoluteContrast=  gd.getNextNumber();
 			distortionParameters.correlationMinAbsoluteInitialContrast=  gd.getNextNumber();
 
-			distortionParameters.scaleFirstPassContrast=  gd.getNextNumber();
-			distortionParameters.contrastSelectSigma=  gd.getNextNumber();
-			distortionParameters.contrastAverageSigma=  gd.getNextNumber();
+			distortionParameters.scaleFirstPassContrast=     gd.getNextNumber();
+			distortionParameters.contrastSelectSigmaCenter=  gd.getNextNumber();
+			distortionParameters.contrastSelectSigma=        gd.getNextNumber();
+			distortionParameters.contrastAverageSigma=       gd.getNextNumber();
 
 			distortionParameters.minimalPatternCluster=(int) gd.getNextNumber();
+			distortionParameters.minimalPatternClusterLwir=(int) gd.getNextNumber();
+
 			distortionParameters.scaleMinimalInitialContrast=gd.getNextNumber();
-			distortionParameters.searchOverlap=           gd.getNextNumber();
+			distortionParameters.searchOverlap=              gd.getNextNumber();
 
 			distortionParameters.patternSubdiv=     (int) gd.getNextNumber();
 			distortionParameters.bPatternSigma=           gd.getNextNumber();
@@ -20239,6 +20460,12 @@ use the result to create a rejectiobn mask - if the energy was high, (multiplica
 			distortionParameters.loop_debug_level=  (int) gd.getNextNumber();
 			MASTER_DEBUG_LEVEL=                     (int) gd.getNextNumber();
 			return true;
+		}
+		private int makePowerOfTwo(int v) {
+			int v2 = 1;
+			for (int i=v; i > 1; i>>=1 ) v2 <<=1; /* make it to be power of 2 */
+			return v2;
+
 		}
 /* ======================================================================== */
 /* ======================================================================== */
