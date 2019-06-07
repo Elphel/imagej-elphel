@@ -76,6 +76,8 @@ public class LwirReader {
 	public static final int FRAMES_SKIP = 4;
 	public static final int MAX_THREADS = 100; // combine from all classes?
 
+	public static final int FRAMES_AHEAD = 5;
+	
 	/** Logger for this class. */
 	private static final Logger LOGGER =
 			LoggerFactory.getLogger(LwirReader.class);
@@ -400,7 +402,7 @@ public class LwirReader {
 		String hex_chan = String.format("0x%x", channels);
 
 		String url = "http://"+lrp.lwir_ip+"/parsedit.php?immediate&sensor_port="+chn+
-				"&SENSOR_REGS67=0!"+hex_chan;
+				"&SENSOR_REGS67=0*"+FRAMES_AHEAD+"!"+hex_chan;
 //		String url = "http://"+lrp.lwir_ip+"/parsedit.php?immediate&sensor_port="+chn+
 //				"&SENSOR_REGS67=0&*SENSOR_REGS67="+hex_chan;
 		Document dom=null;
@@ -427,7 +429,7 @@ public class LwirReader {
 			LOGGER.error("programLWIRCamera() in " + url+ " - SAX error: " + se.toString());
 			return false;
 		}
-		for (int i = 0; i < FRAMES_SKIP; i++) {
+		for (int i = 0; i < (FRAMES_SKIP+FRAMES_AHEAD); i++) {
 			if (!skipFrame(lrp)) {
 				LOGGER.error("programLWIRCamera():Failed to skip frame");
 			}
