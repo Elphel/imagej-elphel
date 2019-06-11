@@ -4562,6 +4562,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
     	public String partialKernelDirectory="";
     	public String psfKernelDirectory="";
     	public String aberrationsKernelDirectory="";
+    	public String calibrationDirectory="";
     	public boolean autoRestore;
     	public String calibrationPath="";
     	public String strategyPath="";
@@ -4598,6 +4599,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			properties.setProperty(prefix+"partialKernelDirectory",this.partialKernelDirectory);
 			properties.setProperty(prefix+"psfKernelDirectory",this.psfKernelDirectory);
 			properties.setProperty(prefix+"aberrationsKernelDirectory",this.aberrationsKernelDirectory);
+			properties.setProperty(prefix+"calibrationDirectory",this.calibrationDirectory);
 
 			properties.setProperty(prefix+"autoRestore",this.autoRestore+"");
 			properties.setProperty(prefix+"calibrationPath",this.calibrationPath);
@@ -4642,6 +4644,7 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
 			if (properties.getProperty(prefix+"partialKernelDirectory")!=null)     this.partialKernelDirectory=properties.getProperty(prefix+"partialKernelDirectory");
 			if (properties.getProperty(prefix+"psfKernelDirectory")!=null)         this.psfKernelDirectory=properties.getProperty(prefix+"psfKernelDirectory");
 			if (properties.getProperty(prefix+"aberrationsKernelDirectory")!=null) this.aberrationsKernelDirectory=properties.getProperty(prefix+"aberrationsKernelDirectory");
+			if (properties.getProperty(prefix+"calibrationDirectory")!=null)       this.calibrationDirectory=properties.getProperty(prefix+"calibrationDirectory");
 
 			if (properties.getProperty(prefix+"autoRestore")!=null)                this.autoRestore=Boolean.parseBoolean(properties.getProperty(prefix+"autoRestore"));
 			if (properties.getProperty(prefix+"calibrationPath")!=null)            this.calibrationPath=properties.getProperty(prefix+"calibrationPath");
@@ -4792,6 +4795,8 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
     		gd.addCheckbox("Select combined kernsls directory", false);
     		gd.addStringField("Aberrations kernels directory", this.aberrationsKernelDirectory, 60);
     		gd.addCheckbox("Select aberrations kernels directory", false);
+    		gd.addStringField("Calibration directory (sensor, grid, strategy...)", this.calibrationDirectory, 60);
+    		gd.addCheckbox("Select calibration directory", false);
     		gd.addCheckbox("Supress non-essential message boxes", this.noMessageBoxes);
     		gd.addCheckbox("Overwrite result files if they exist", this.overwriteResultFiles);
     		gd.addCheckbox("Use reprojected grids for partial kernel calculation (false - extracted grids)", this.partialToReprojected);
@@ -4843,6 +4848,8 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
     		if (gd.getNextBoolean()) selectPSFKernelDirectory(false, this.psfKernelDirectory, false);
     		this.aberrationsKernelDirectory=gd.getNextString();
     		if (gd.getNextBoolean()) selectAberrationsKernelDirectory(false, this.aberrationsKernelDirectory, false);
+    		this.calibrationDirectory=gd.getNextString();
+    		if (gd.getNextBoolean()) selectCalibrationDirectory(false, this.calibrationDirectory, false);
     		this.noMessageBoxes=        gd.getNextBoolean();
     		this.overwriteResultFiles=  gd.getNextBoolean();
     		this.partialToReprojected=  gd.getNextBoolean();
@@ -4921,7 +4928,18 @@ if (globalDebugLevel>2)globalDebugLevel=0; //***********************************
     		if (dir!=null) this.aberrationsKernelDirectory=dir;
     		return dir;
     	}
-
+    	public String selectCalibrationDirectory(boolean smart, String defaultPath, boolean newAllowed) {
+    		String dir= CalibrationFileManagement.selectDirectory(
+    				smart,
+    				newAllowed, // save
+    				"Calibration directory", // title
+    				"Select calibration directory", // button
+    				null, // filter
+    				defaultPath); //this.sourceDirectory);
+    		if (dir!=null) this.calibrationDirectory=dir;
+    		return dir;
+    	}
+//
 
     }
 

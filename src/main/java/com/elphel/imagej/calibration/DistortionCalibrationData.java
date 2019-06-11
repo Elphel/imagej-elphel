@@ -29,6 +29,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 import org.apache.commons.configuration.ConfigurationException;
@@ -54,31 +56,26 @@ import ij.process.FloatProcessor;
 import ij.process.ImageProcessor;
 import ij.text.TextWindow;
 
-//import EyesisCameraParameters;
-//import Distortions.EyesisSubCameraParameters;
-//import LensDistortionParameters;
-//import PatternParameters;
-//import DistortionCalibrationData.GridImageParameters;
-//import DistortionCalibrationData.GridImageSet;
 // stores per pattern image camera/subcamera parameters, filenames, ...
 // saves / restores them from a disk file
     public class DistortionCalibrationData{
+    	public static final int INDEX_PX =       0;
+    	public static final int INDEX_PY =       1;
+    	public static final int INDEX_U =        2;
+    	public static final int INDEX_V =        3;
+    	public static final int INDEX_CONTRAST = 4;
+    	public static final int INDEX_R =        5;
+    	public static final int INDEX_G =        6;
+    	public static final int INDEX_B =        7;
     	public String pathName=null;
     	public EyesisCameraParameters eyesisCameraParameters; // has "cartesian"
-//        public int       numStations=1;    // number of differnt camera tripod/goniometer stations (locations)
         public int       numSubCameras=1;
         public int       numPointers=4;    // maximal number of pointers to look for
         public int       numMotors  =3;    // maximal number of motors to look for
         public GridImageParameters [] gIP= null; // per-grid image parameters
         public GridImageSet []        gIS= null; // sets of images with the same timestamp
-//    	public String [] paths=null;
-//    	private ImagePlus []     gridImages=null; // array of grid images (to be used instead of files)
-//    	public double [] timestamps=null;
-//    	public int    [] channels=null;
         // keep for now?
     	public double [][] pars=null; // for each defined image: set of (22) parameters
-//    	public double [][][] pixelsXY=null; // for each image, each grid node - a pair of {px,py}
-//    	public int    [][][] pixelsUV=null; // for each image, each grid node - a pair of {gridU, gridV}
     	public double [][] sensorMasks= null; // per-channel (not image) mask
 
     	//pixelsXY, pixelsUV should match, second dimension is variable
@@ -95,7 +92,10 @@ import ij.text.TextWindow;
     		GridImageSet       gridImageSet=null;
     		public int         stationNumber=0; // changes when camera/goniometer is moved to new position
     		public String      path=null;
+    		public String      source_path = null; // Full path of the source image this grid was calculated from
     		public double [][] laserPixelCoordinates=null; // first index - absolute number of pointer. Each element may be either null or {x,y} pair
+    		// moving for new files to have laser UV contained in the file
+    		public double [][] laserUVCoordinates=null;    // first index - absolute number of pointer. Each element may be either null or {u,v} pair
     		public int         matchedPointers=0;
     		public int         hintedMatch=-1; // -1 - not tried, 0 - no real grid (i.e. double reflection), applied orientation, applied orientation and shift
     		public boolean     enabled=true; //false;  // to mask out some images from all strategy steps (i.e w/o reliable absolute calibration)
@@ -590,19 +590,22 @@ import ij.text.TextWindow;
         public DistortionCalibrationData (
         		String [] filenames,
         		PatternParameters patternParameters,
-        		EyesisCameraParameters eyesisCameraParameters
+        		EyesisCameraParameters eyesisCameraParameters,
+        		LaserPointer laserPointers
         		) {
     	    String [][] stationFilenames={filenames};
         	setupDistortionCalibrationData(
         			stationFilenames,
             		patternParameters,
-            		eyesisCameraParameters // debugLevel
+            		eyesisCameraParameters, // debugLevel
+            		laserPointers
             		);
         }
         public DistortionCalibrationData (
-        		String [] filenames,
-        		PatternParameters patternParameters,
+        		String []              filenames,
+        		PatternParameters      patternParameters,
         		EyesisCameraParameters eyesisCameraParameters,
+        		LaserPointer           laserPointers,
         		int debugLevel
         		) {
         	    this.debugLevel=debugLevel;
@@ -610,7 +613,8 @@ import ij.text.TextWindow;
         	setupDistortionCalibrationData(
         			stationFilenames,
             		patternParameters,
-            		eyesisCameraParameters // debugLevel
+            		eyesisCameraParameters, // debugLevel
+            		laserPointers
             		);
         }
 
@@ -618,20 +622,48 @@ import ij.text.TextWindow;
         		String [][] stationFilenames,
         		PatternParameters patternParameters,
         		EyesisCameraParameters eyesisCameraParameters,
+        		LaserPointer laserPointers,
         		int debugLevel
         		) {
         	    this.debugLevel=debugLevel;
         	setupDistortionCalibrationData(
         			stationFilenames,
             		patternParameters,
-            		eyesisCameraParameters // debugLevel
+            		eyesisCameraParameters, // debugLevel
+            		laserPointers
             		);
         }
 
-        public void setupDistortionCalibrationData (
+        public DistortionCalibrationData (
         		String [][] stationFilenames,
-        		PatternParameters patternParameters,
-        		EyesisCameraParameters eyesisCameraParameters
+        		String []                                              source_dirs,      // directories of the source files per station
+        		CalibrationFileManagement.MultipleExtensionsFileFilter gridFilter,
+        		CalibrationFileManagement.MultipleExtensionsFileFilter sourceFilter,
+        		PatternParameters                                      patternParameters,
+        		EyesisCameraParameters                                 eyesisCameraParameters,
+        		LaserPointer                                           laserPointers, // as a backup if data is not available in the file
+        		boolean                                                read_grids,
+        		int                                                    debugLevel
+        		) {
+        	    this.debugLevel=debugLevel;
+        	    setupDirDistortionCalibrationData(
+        			stationFilenames,
+            		source_dirs,      // directories of the source files per station
+        			gridFilter,
+        			sourceFilter,
+            		patternParameters,
+            		eyesisCameraParameters, // debugLevel
+            		laserPointers, // as a backup if data is not available in the file
+            		read_grids
+            		);
+        }
+
+
+        public void setupDistortionCalibrationData (
+        		String [][]            stationFilenames,
+        		PatternParameters      patternParameters,
+        		EyesisCameraParameters eyesisCameraParameters,
+        		LaserPointer           laserPointers // as a backup if data is not available in the file
         		) {
         	setupIndices();
         	this.eyesisCameraParameters=eyesisCameraParameters;
@@ -683,10 +715,323 @@ import ij.text.TextWindow;
         	initPars (this.gIP.length,parameterDescriptions.length);
         	if (this.debugLevel>1) System.out.println("setupDistortionCalibrationData(): Resetting this.gIS");
         	this.gIS=null; // so it will be initialized in readAllGrids()
-        	readAllGrids(patternParameters); // prepare grid parameters for LMA
+        	readAllGrids(
+        			patternParameters,
+        			laserPointers); // prepare grid parameters for LMA
         	// no orientation
+        }
+
+// from data organized as image sets
+        public void setupDirDistortionCalibrationData (
+        		String [][]                                            stationFilenames, // per-station List of image set directories
+        		String []                                              source_dirs,      // directories of the source files per station
+        		CalibrationFileManagement.MultipleExtensionsFileFilter gridFilter,
+        		CalibrationFileManagement.MultipleExtensionsFileFilter sourceFilter,
+        		PatternParameters                                      patternParameters,
+        		EyesisCameraParameters                                 eyesisCameraParameters,
+        		LaserPointer                                           laserPointers, // as a backup if data is not available in the file
+        		boolean                                                read_grids
+        		) {
+        	class DirTs{
+        		int       station;
+        		String [] paths;
+        		String [] spaths; // can be null
+//        		String    dir;
+        		double    ts;
+        		int getStation() {return station;}
+//        		String getDir() {return dir;}
+        		double getTs() {return ts;}
+        		String [] getPaths() {return paths;}
+        		String [] getSourcePaths() {return spaths;} // may not be null
+        		DirTs(int station,
+        			  String dir,  // grid image set directory that contains channel files (may be different timestamps)
+        			  String sdir, // source super directory that contains image set directories with files
+        			  int num_chn,
+        			  CalibrationFileManagement.MultipleExtensionsFileFilter gridFilter,
+        			  CalibrationFileManagement.MultipleExtensionsFileFilter sourceFilter)
+        		{
+        			this.station = station;
+//        			this.dir = dir;
+        			int dot_index = dir.lastIndexOf("_");
+        			String digits = "0123456789";
+        			int ts_start = dot_index -1;
+        			while ((ts_start >=0) && (digits.indexOf(dir.charAt(ts_start)) >= 0)) ts_start--;
+        			this.ts = Double.parseDouble(dir.substring(ts_start + 1).replace('_','.'));
+        			String [] files = (new File(dir)).list(gridFilter); // are these full files?
+        			paths = new String[num_chn];
+        			for (String path:files) {
+        				int last_dash = path.lastIndexOf('-');
+        				int last =      path.lastIndexOf('_');
+        				if (last_dash >last) last = last_dash;
+        				int last_dot = path.lastIndexOf('.');
+        				if (last_dot < 0) {
+        					last_dot = path.length();
+        				}
+        				int chn = Integer.parseInt(path.substring(last+1, last_dot));
+        				paths[chn] = (new File(dir,path)).getPath();
+        				//grid-elphelimg_1559195695_507621_4.tiff
+        			}
+    				spaths = new String[num_chn];
+        			if (sdir != null) {
+        				// consruct source image set directory name
+        				String set_name = (new File(dir)).getName();
+        				File set_dir = new File(sdir, set_name );
+        				String [] sfiles = set_dir.list(sourceFilter);
+
+        				for (String spath:sfiles) {
+        					int last_dash = spath.lastIndexOf('-');
+        					int last =      spath.lastIndexOf('_');
+        					if (last_dash >last) last = last_dash;
+        					int last_dot = spath.lastIndexOf('.');
+        					if (last_dot < 0) {
+        						last_dot = spath.length();
+        					}
+        					int chn = Integer.parseInt(spath.substring(last+1, last_dot));
+        					spaths[chn] = (new File(set_dir,spath)).getPath();
+        				}
+        			}
+        		}
+        	}
+        	setupIndices();
+        	this.eyesisCameraParameters=eyesisCameraParameters;
+        	int numSubCameras=(eyesisCameraParameters==null)?1:eyesisCameraParameters.eyesisSubCameras[0].length;
+        	this.numSubCameras=numSubCameras;
+        	this.eyesisCameraParameters.numStations=stationFilenames.length;
+//        	int numFiles=0;
+
+//        	DirTs [][] dirTs = new DirTs [stationFilenames.length][];
+    		ArrayList<DirTs> dirTsList = new ArrayList<DirTs>();
+        	for (int numStation=0;numStation<stationFilenames.length;numStation++){
+        		for (int is = 0; is < stationFilenames[numStation].length; is++) {
+        			dirTsList.add(new DirTs(
+        					numStation,
+        					stationFilenames[numStation][is], // 	String dir,
+        					source_dirs[numStation],
+        					numSubCameras, // int num_chn,
+        					gridFilter,
+        					sourceFilter));
+        		}
+        	}
+    		// sort list
+    		Collections.sort(dirTsList, new Comparator<DirTs>() {
+    		    @Override
+    		    public int compare(DirTs lhs, DirTs rhs) {
+    		        return rhs.ts > lhs.ts ? -1 : (rhs.ts < lhs.ts) ? 1 : 0;
+    		    }
+    		});
+    		int numFiles = 0;
+    		for (DirTs dt:dirTsList) {
+    			String [] paths = dt.getPaths();
+    			for (String p:paths) if (p!=null) numFiles++;
+    		}
+    		this.gIS=new GridImageSet[dirTsList.size()];
+        	this.gIP=new GridImageParameters[numFiles];
+        	int numFile=0;
+    		Opener opener=new Opener();
+    		JP46_Reader_camera jp4_reader= new JP46_Reader_camera(false);
+    		ImagePlus imp_grid=null;
+    		ImageStack stack;
+        	boolean disableNoFlatfield=false;  // true only for processing transitional images - mixture of ff/ no-ff
+    		int numOfGridNodes=        0;
+    		int numOfGridNodes_extra=  0;
+        	for (int nis = 0; nis<this.gIS.length; nis++) {
+        		DirTs dt = dirTsList.get(nis);
+        		this.gIS[nis]=new GridImageSet();
+        		this.gIS[nis].timeStamp= dt.getTs();
+        		this.gIS[nis].imageSet=new GridImageParameters [numSubCameras];
+    			this.gIS[nis].setStationNumber(dt.getStation());
+    			float [][][] set_pixels = new float [numSubCameras][][];
+    			int []       set_widths = new int [numSubCameras];
+        		String [] paths =  dt.getPaths();
+        		String [] spaths = dt.getSourcePaths();
+        		int with_pointers = -1;
+        		for (int nc = 0; nc < paths.length; nc++) {
+        			String p = paths[nc];
+        			boolean first_in_set = true;
+        			if (p != null) {
+        				this.gIP[numFile] =              new GridImageParameters(numFile);
+        				this.gIP[numFile].path =         p;
+        				this.gIP[numFile].source_path =  spaths[nc];
+        				this.gIP[numFile].setStationNumber(dt.getStation());
+        				this.gIP[numFile].timestamp =    dt.getTs();
+        				this.gIP[numFile].channel =      nc;
+        				this.gIP[numFile].setNumber =    nis;
+        				this.gIP[numFile].gridImageSet = this.gIS[nis];
+            			this.gIS[nis].imageSet[nc]=this.gIP[numFile];
+
+        				//numFile
+        				if (first_in_set || read_grids) {
+        					if (read_grids) {
+        						if (this.updateStatus) IJ.showStatus("Reading grid file "+(numFile+1)+" (of "+(numFiles)+"): "+this.gIP[numFile].path);
+        						if (this.debugLevel>-1) System.out.print(numFile+" ("+this.gIP[numFile].getStationNumber()+
+        								":"+this.gIP[numFile].setNumber+":"+this.gIP[numFile].channel+"): "+this.gIP[numFile].path);
+        					}
+                			imp_grid=opener.openImage("", this.gIP[numFile].path);  // or (path+filenames[nFile])
+                			if (imp_grid==null) {
+                				String msg="Failed to read grid file "+this.gIP[numFile].path;
+                				IJ.showMessage("Error",msg);
+                				throw new IllegalArgumentException (msg);
+                			}
+                			this.gIP[numFile].gridImage = imp_grid; // Save all images?
+        // TODO: here - need to decode properties
+                			jp4_reader.decodeProperiesFromInfo(imp_grid);
+                    		this.gIP[numFile].laserPixelCoordinates = MatchSimulatedPattern.getPointersXYUV(imp_grid, laserPointers);
+
+                    		this.gIP[numFile].motors =                getMotorPositions(imp_grid, this.numMotors);
+                    		this.gIS[nis].motors=                     this.gIP[numFile].motors.clone();
+                    		this.gIP[numFile].matchedPointers =       getUsedPonters(imp_grid);
+                    		if (this.gIP[numFile].matchedPointers > 0) {
+                    			with_pointers = numFile;
+                    		}
+                    		double [] saturations=new double [4];
+                    		for (int i=0;i<saturations.length;i++) {
+                    			saturations[i]=Double.NaN;
+                    			if (imp_grid.getProperty("saturation_" + i) !=null) saturations[i]=Double.parseDouble((String) imp_grid.getProperty("saturation_" + i));
+                    		}
+                    		if (!Double.isNaN(saturations[1])) this.gIP[numFile].saturation[0]=saturations[1];
+                    		if (!Double.isNaN(saturations[2])) this.gIP[numFile].saturation[2]=saturations[2];
+                    		if (!Double.isNaN(saturations[0]) && !Double.isNaN(saturations[3])) {
+                    			this.gIP[numFile].saturation[1]=0.5*(saturations[0]+saturations[3]);
+                    		} else {
+                        		if (!Double.isNaN(saturations[0])) this.gIP[numFile].saturation[1]=saturations[0];
+                        		if (!Double.isNaN(saturations[3])) this.gIP[numFile].saturation[1]=saturations[3];
+                    		}
+                    		if (read_grids) {
+                    			stack=imp_grid.getStack();
+                    			if ((stack==null) || (stack.getSize()<4)) {
+                    				String msg="Expected a 8-slice stack in "+this.gIP[numFile].path;
+                    				IJ.showMessage("Error",msg);
+                    				throw new IllegalArgumentException (msg);
+                    			}
+                    			float [][] pixels=new float[stack.getSize()][]; // now - 8 (x,y,u,v,contrast, vignR,vignG,vignB
+                    			set_pixels[nc] = pixels;
+                    			set_widths[nc] = imp_grid.getWidth();
+                    			for (int i=0;i<pixels.length;i++) pixels[i]= (float[]) stack.getPixels(i+1); // pixel X : negative - no grid here
+                    			int numBadNodes = 0;
+                    			if (this.eyesisCameraParameters.badNodeThreshold>0.0){
+                    				boolean thisDebug =false;
+                    				//                            		thisDebug|=        (fileNumber== 720); // chn 25
+                    				numBadNodes=fixBadGridNodes(
+                    						pixels,
+                    						stack.getWidth(),
+                    						this.eyesisCameraParameters.badNodeThreshold,
+                    						this.eyesisCameraParameters.maxBadNeighb,
+                    						this.debugLevel+(thisDebug?3:0),
+                    						thisDebug?("fixBad-"+numFile):null
+                    						);
+                    			}
+                    			this.gIP[numFile].flatFieldAvailable=pixels.length>=8;
+                            	if (disableNoFlatfield && !this.gIP[numFile].flatFieldAvailable) this.gIP[numFile].enabled=false; // just to use old mixed data
+
+                            	int [][] shiftRotMatrix= MatchSimulatedPattern.getRemapMatrix(this.gIP[numFile].getUVShiftRot());
+                            	int [] sizeSizeExtra=setGridsWithRemap(
+                            			numFile,
+                                		shiftRotMatrix, // int [][] reMap,
+                                		pixels,
+                                		patternParameters);
+                            	numOfGridNodes+=sizeSizeExtra[0];
+                            	numOfGridNodes_extra+=sizeSizeExtra[1];
+
+                				if (this.debugLevel>-1) {
+                					if (this.gIP[numFile].pixelsUV != null) {
+                						System.out.print(" ["+ this.gIP[numFile].pixelsUV.length+"]");
+                					} else {
+                						System.out.print(" [null]");
+                					}
+                					if (numBadNodes>0)
+                						System.out.print("  -- replaced "+numBadNodes+" bad grid nodes");
+                					int [] uvrot=this.gIP[numFile].getUVShiftRot();
+                					System.out.println(" shift:rot="+uvrot[0]+"/"+uvrot[1]+":"+uvrot[2]+
+                							" enabled="+this.gIP[numFile].enabled+" hintedMatch="+this.gIP[numFile].hintedMatch);
+
+                				}
+                            	calcGridPeriod(numFile); // will be used to filter out reflections
+                //System.out.println ("pixelsXY["+fileNumber+"]length="+pixelsXY[fileNumber].length);
+
+
+
+
+                    		} //if (read_grids)
+                    		// not reading the grid itself
+                    		first_in_set = false;
+        				}
+        				numFile++;
+
+        			}
+        		}
+        		if (with_pointers >= 0) { // set initial grids offset from the grid files in the same image set that do not have absolute calibration
+        			boolean [] sensor_mask = null; // later may be used to limit scope to VNIR-only
+        			int extra_search = 1;
+        			int base_channel = this.gIP[with_pointers].channel;
+        			for (int nc = 0; nc < this.gIS[nis].imageSet.length; nc++) if ((sensor_mask == null) || sensor_mask[nc]) {
+        				boolean invert_color = ((base_channel ^ nc) & 4) != 0;
+        				if (this.gIS[nis].imageSet[nc].matchedPointers <= 0) {
+        					int [] uv_shift_rot = correlateGrids(
+        							set_widths[base_channel], // int        base_width,
+        							set_pixels[base_channel], //		float [][] base_pixels,
+        							set_widths[nc], // 		int        test_width,
+        							set_pixels[nc], //		float [][] test_pixels,
+        							invert_color,
+        							extra_search);
+        					this.gIS[nis].imageSet[nc].setUVShiftRot(uv_shift_rot);
+
+                        	int [][] shiftRotMatrix= MatchSimulatedPattern.getRemapMatrix(this.gIS[nis].imageSet[nc].getUVShiftRot());
+//                        	int [] sizeSizeExtra=
+                        	int imgNum =  with_pointers - base_channel + nc;
+                        	setGridsWithRemap( // null immediately
+                        			imgNum,
+                        			shiftRotMatrix, // int [][] reMap,
+                        			set_pixels[nc],
+                        			patternParameters);
+                		}
+
+
+        			}
+//        			for (this.gIS[nis]
+
+        		}
+
+        		//
+
+        	} // for (int nis = 0; nis<this.gIS.length; nis++)
+
+
+        	initPars (this.gIP.length,parameterDescriptions.length);
+        	// readAllGrids(patternParameters); // prepare grid parameters for LMA
+
+        	// Create parameters array
+        	///        	initPars (this.gIP.length,parameterDescriptions.length);
+        	///        	if (this.debugLevel>1) System.out.println("setupDistortionCalibrationData(): Resetting this.gIS");
+        	///        	this.gIS=null; // so it will be initialized in readAllGrids()
+        	///        	readAllGrids(patternParameters); // prepare grid parameters for LMA
+        	// no orientation
+        	if (read_grids) {
+        		if (this.debugLevel>3) {
+        			System.out.println("setupDirDistortionCalibrationData(), numFiles="+numFiles);
+        			for (int n=0;n<this.gIP.length;n++) {
+        				System.out.println(n+": length="+this.gIP[n].pixelsXY.length);
+        				System.out.println("pixelsUV[][][0]/pixelsUV[][][1] pixelsXY[][][0]/pixelsXY[][][1]");
+        				for (int i=0;i<this.gIP[n].pixelsXY.length;i++){
+        					System.out.println(n+":"+i+"  "+
+        							this.gIP[n].pixelsUV[i][0]+"/"+
+        							this.gIP[n].pixelsUV[1][1]+"  "+
+        							IJ.d2s(this.gIP[n].pixelsXY[i][0], 2)+"/"+
+        							IJ.d2s(this.gIP[n].pixelsXY[i][1], 2)
+        							);
+        				}
+        			}
+        		}
+        		if (this.debugLevel>0) {
+        			System.out.println("setupDirDistortionCalibrationData(), numFiles="+numFiles+", total number of grid nodes="+numOfGridNodes+", unused nodes "+numOfGridNodes_extra);
+        		}
+        		/// buildImageSets(this.gIS!=null); // already done
+        		 // probably - do not need to verify that this.gIS is null - should do that anyway. UPDATE: no, now reading config file creates gIS
+        	}
 
         }
+
+
+
 
         public DistortionCalibrationData (
         		EyesisCameraParameters eyesisCameraParameters
@@ -700,15 +1045,19 @@ import ij.text.TextWindow;
 
 
         public DistortionCalibrationData (
-        		ImagePlus [] images, // images in the memory
-        		PatternParameters patternParameters,
-        		EyesisCameraParameters eyesisCameraParameters
+        		ImagePlus []           images, // images in the memory
+        		PatternParameters      patternParameters,
+        		EyesisCameraParameters eyesisCameraParameters,
+        		LaserPointer           laserPointers
         		) {
         	setupIndices();
         	int numSubCameras=(eyesisCameraParameters==null)?1:eyesisCameraParameters.eyesisSubCameras[0].length;
         	this.numSubCameras=numSubCameras;
         	this.eyesisCameraParameters=eyesisCameraParameters;
-        	setImages(images,patternParameters);
+        	setImages(
+        			images,
+        			patternParameters,
+        			laserPointers);
         }
 
         public int get_gIS_index(int numImg){
@@ -986,7 +1335,8 @@ import ij.text.TextWindow;
 
         public void setImages(
         		ImagePlus [] images,  // images in the memory
-        		PatternParameters patternParameters){
+        		PatternParameters patternParameters,
+        		LaserPointer laserPointers){
         	this.gIP=new GridImageParameters[images.length];
         	for (int i=0;i<images.length;i++){
         		this.gIP[i]=new GridImageParameters(i);
@@ -1000,7 +1350,9 @@ import ij.text.TextWindow;
 // Create parameters array
         	initPars (this.gIP.length,parameterDescriptions.length);
         	this.gIS=null; // so it will be created in readAllGrids()
-        	readAllGrids(patternParameters); // prepare grid parameters for LMA
+        	readAllGrids(
+        			patternParameters, // prepare grid parameters for LMA
+        			laserPointers); //
         	// no orientation
         }
 
@@ -1061,29 +1413,13 @@ import ij.text.TextWindow;
     				if (num_avg>0) dTilt = this.gIS[i].goniometerTilt - (sum_avg/num_avg);
 
     			}
-//    			double firstHorAxisErrPhi=Double.NaN;
-//    			double firstHorAxisErrPsi=Double.NaN;
-//    			double firstGXYZ0=        Double.NaN;
-//    			double firstGXYZ1=        Double.NaN;
-//    			double firstGXYZ2=        Double.NaN;
     			double firstInterAxisAngle=Double.NaN;
-//    			firstHorAxisErrPhi=this.gIS[i].horAxisErrPhi;
-//    			firstHorAxisErrPsi=this.gIS[i].horAxisErrPsi;
-//    			firstGXYZ0=this.gIS[i].GXYZ[0];
-//    			firstGXYZ1=this.gIS[i].GXYZ[1];
-//    			firstGXYZ2=this.gIS[i].GXYZ[2];
     			firstInterAxisAngle = this.gIS[i].interAxisAngle;
 
     			sb.append(i+"\t"+IJ.d2s(this.gIS[i].timeStamp,6));
     			if (this.eyesisCameraParameters.numStations>1)	sb.append(i+"\t"+ this.gIS[i].getStationNumber());
     			sb.append("\t"+(Double.isNaN(this.gIS[i].goniometerAxial)?"---":((this.gIS[i].orientationEstimated?"(":"")+IJ.d2s(axial_corr_sign,3)+(this.gIS[i].orientationEstimated?")":""))));
     			sb.append("\t"+(Double.isNaN(this.gIS[i].goniometerTilt)?"---":((this.gIS[i].orientationEstimated?"(":"")+IJ.d2s(this.gIS[i].goniometerTilt,3)+(this.gIS[i].orientationEstimated?")":""))));
-
-//    			sb.append("\t"+(Double.isNaN(firstHorAxisErrPhi)?"---":IJ.d2s(firstHorAxisErrPhi,3)));
-//    			sb.append("\t"+(Double.isNaN(firstHorAxisErrPsi)?"---":IJ.d2s(firstHorAxisErrPsi,3)));
-//    			sb.append("\t"+(Double.isNaN(firstGXYZ0)?"---":IJ.d2s(firstGXYZ0,3)));
-//    			sb.append("\t"+(Double.isNaN(firstGXYZ1)?"---":IJ.d2s(firstGXYZ1,3)));
-//    			sb.append("\t"+(Double.isNaN(firstGXYZ2)?"---":IJ.d2s(firstGXYZ2,3)));
 
     			sb.append("\t"+(Double.isNaN(dTilt)?"---":IJ.d2s(dTilt,3)));
     			sb.append("\t"+(Double.isNaN(firstInterAxisAngle)?"---":IJ.d2s(firstInterAxisAngle,3)));
@@ -1115,7 +1451,9 @@ import ij.text.TextWindow;
             		if (this.gIS[i].imageSet[n]!=null){
             			int numPointers=0; // count number of laser pointers
             			if (this.gIS[i].imageSet[n].laserPixelCoordinates!=null){
-            				for (int j=0;j<this.gIS[i].imageSet[n].laserPixelCoordinates.length;j++) if (this.gIS[i].imageSet[n].laserPixelCoordinates[j]!=null) numPointers++;
+            				for (int j=0;j<this.gIS[i].imageSet[n].laserPixelCoordinates.length;j++) {
+            					if (this.gIS[i].imageSet[n].laserPixelCoordinates[j]!=null) numPointers++;
+            				}
             			}
             			if (!this.gIS[i].imageSet[n].enabled) sb.append("(");
             			sb.append(numPointers+"("+this.gIS[i].imageSet[n].matchedPointers+"):"+this.gIS[i].imageSet[n].hintedMatch +
@@ -1129,7 +1467,7 @@ import ij.text.TextWindow;
 			new TextWindow("Image calibration state (pointers/hinted state)", header, sb.toString(), 900,1400);
         }
         /**
-         * crete list of image indices per image set
+         * create list of image indices per image set
          * @return array of image indices for each image set
          */
         public int [][] listImages(boolean enabledOnly){
@@ -1925,6 +2263,7 @@ import ij.text.TextWindow;
         		PatternParameters patternParameters,
         		EyesisCameraParameters eyesisCameraParameters,
     			EyesisAberrations.AberrationParameters aberrationParameters,
+    			LaserPointer laserPointers,
 				ImagePlus[] gridImages  ){ // null - use specified files
         	setupIndices();
 			String [] extensions={".dcal-xml","-distcal.xml"};
@@ -1969,7 +2308,9 @@ import ij.text.TextWindow;
 				}
 //				setGridImages(gridImages);
 			}
-        	readAllGrids(patternParameters); // prepare grid parameters for LMA
+        	readAllGrids(
+        			patternParameters, // prepare grid parameters for LMA
+        			laserPointers);
 			updateSetOrientation(null); // update orientation of image sets (built in readAllGrids() UPDATE - not anymore)
 
         }
@@ -2049,6 +2390,7 @@ import ij.text.TextWindow;
         		HierarchicalConfiguration sub = hConfig.configurationAt("file("+i+")");
         		this.gIP[i].imgNumber=i;
         		this.gIP[i].path=sub.getString("name");
+        		this.gIP[i].source_path=sub.getString("source_path");
         		this.gIP[i].timestamp=Double.parseDouble(sub.getString("timestamp"));
         		this.gIP[i].channel=Integer.parseInt(sub.getString("channel"));
         		if (sub.getString("stationNumber")!=null) this.gIP[i].setStationNumber(Integer.parseInt(sub.getString("stationNumber")));
@@ -2168,6 +2510,7 @@ import ij.text.TextWindow;
             	hConfig.addProperty("file","");
             	hConfig.addProperty("file.setNumber",this.gIP[i].setNumber);
             	hConfig.addProperty("file.name",this.gIP[i].path);
+            	hConfig.addProperty("file.source_path",this.gIP[i].source_path);
             	hConfig.addProperty("file.enabled",this.gIP[i].enabled);
             	hConfig.addProperty("file.hintedMatch",this.gIP[i].hintedMatch); // new
             	hConfig.addProperty("file.timestamp",IJ.d2s(this.gIP[i].timestamp,6));
@@ -2251,20 +2594,16 @@ import ij.text.TextWindow;
         		int [][] reMap,
         		float [][] pixels,
         		PatternParameters patternParameters){
-//        	boolean disableNoFlatfield=false;  // true only for processing transitional images - mixture of ff/ no-ff
     		int sensorWidth=this.eyesisCameraParameters.getSensorWidth(this.gIP[fileNumber].channel);
     		int sensorHeight=this.eyesisCameraParameters.getSensorHeight(this.gIP[fileNumber].channel);
         	int station=this.gIP[fileNumber].getStationNumber();
         	int size=0;
         	int size_extra=0;
-//    		int numOfGridNodes=0;
-//    		int numOfGridNodes_extra=0;
         	for (int i=0;i<pixels[0].length;i++) if ((pixels[0][i]>=0) && (pixels[1][i]>=0) && (pixels[0][i]<sensorWidth) && (pixels[1][i]<sensorHeight)){
         		int u=Math.round(pixels[2][i]);
         		int v=Math.round(pixels[3][i]);
     			int u1= reMap[0][0]*u + reMap[0][1]*v + reMap[0][2]; // u
     			int v1= reMap[1][0]*u + reMap[1][1]*v + reMap[1][2]; // v;
-//        		if (patternParameters.getXYZM(u,v,this.debugLevel>1)!=null) size++;
         		if (patternParameters.getXYZM(u1,v1,false,station)!=null) size++; // already assumes correct uv?
         		else size_extra++;
         	}
@@ -2276,21 +2615,13 @@ import ij.text.TextWindow;
         	this.gIP[fileNumber].pixelsXY_extra=new double [size_extra][6];
         	this.gIP[fileNumber].pixelsUV_extra=new int    [size_extra][2];
 
-//        	numOfGridNodes+=size;
-//        	numOfGridNodes_extra+=size_extra;
         	int index=0;
         	int index_extra=0;
-//        	boolean vignettingAvailable=pixels.length>=8;
-//			this.gIP[fileNumber].flatFieldAvailable=pixels.length>=8;
-//        	if (disableNoFlatfield && !this.gIP[fileNumber].flatFieldAvailable) this.gIP[fileNumber].enabled=false; // just to use old mixed data
         	for (int i=0;i<pixels[0].length;i++) if ((pixels[0][i]>=0) && (pixels[1][i]>=0) && (pixels[0][i]<sensorWidth) && (pixels[1][i]<sensorHeight)) {
         		int u=Math.round(pixels[2][i]);
         		int v=Math.round(pixels[3][i]);
     			int u1= reMap[0][0]*u + reMap[0][1]*v + reMap[0][2]; // u
     			int v1= reMap[1][0]*u + reMap[1][1]*v + reMap[1][2]; // v;
-
-
-//        		if (patternParameters.getXYZM(u,v,this.debugLevel>1)!=null) {
 
         		if (patternParameters.getXYZM(u1,v1,false,station)!=null) {
         			this.gIP[fileNumber].pixelsXY[index][0]=pixels[0][i];
@@ -2325,12 +2656,13 @@ import ij.text.TextWindow;
         }
 
 
-        public boolean readAllGrids(PatternParameters patternParameters){
+        public boolean readAllGrids(
+        		PatternParameters patternParameters,
+        		LaserPointer      laserPointers // as a backup if data is not available in the file
+            ){
         	boolean disableNoFlatfield=false;  // true only for processing transitional images - mixture of ff/ no-ff
 			System.out.println("readAllGrids(), this.debugLevel="+this.debugLevel+" this.gIS is "+((this.gIS==null)?"null":"not null"));
         	int numImages=getNumImages();
-//        	this.pixelsXY=new double[numImages][][];
-//        	this.pixelsUV=new int[numImages][][];
     		Opener opener=new Opener();
     		JP46_Reader_camera jp4_reader= new JP46_Reader_camera(false);
     		ImagePlus imp_grid=null;
@@ -2357,12 +2689,9 @@ import ij.text.TextWindow;
 // TODO: here - need to decode properties
         			jp4_reader.decodeProperiesFromInfo(imp_grid);
         		}
-        		this.gIP[fileNumber].laserPixelCoordinates=getPointersXY(imp_grid, this.numPointers);
+        		this.gIP[fileNumber].laserPixelCoordinates=MatchSimulatedPattern.getPointersXYUV(imp_grid, laserPointers);
         		this.gIP[fileNumber].motors=getMotorPositions(imp_grid, this.numMotors);
         		this.gIP[fileNumber].matchedPointers=getUsedPonters(imp_grid);
-//        		this.gIP[fileNumber].enabled=true; // will filter separately
-//        		this.gIP[fileNumber].hintedMatch=-1; // unknown yet - now read from the calibration file
-
         		double [] saturations=new double [4];
         		for (int i=0;i<saturations.length;i++) {
         			saturations[i]=Double.NaN;
@@ -2389,15 +2718,6 @@ import ij.text.TextWindow;
             	if (this.eyesisCameraParameters.badNodeThreshold>0.0){
             		boolean thisDebug =false;
 //            		thisDebug|=        (fileNumber== 720); // chn 25
-//            		thisDebug|=        (fileNumber== 793); // chn 10
-//            		thisDebug|=        (fileNumber== 895); // chn 15
-//            		thisDebug|=        (fileNumber==1359); // chn  0
-//            		thisDebug|=        (fileNumber==1029); // chn  2
-//            		thisDebug|=        (fileNumber==1081); // chn 14
-
-//            		int maxBadNeighb=1; // 7 of 8 shold be good
-
-
                  int numBadNodes=fixBadGridNodes(
                 		pixels,
                 		stack.getWidth(),
@@ -2417,13 +2737,8 @@ import ij.text.TextWindow;
 
     			this.gIP[fileNumber].flatFieldAvailable=pixels.length>=8;
             	if (disableNoFlatfield && !this.gIP[fileNumber].flatFieldAvailable) this.gIP[fileNumber].enabled=false; // just to use old mixed data
-            	// start new code:
-/*
-        		this.gIP[i].UVShiftRot[0]=sub.getInt("gridShiftX", 0);
-        		this.gIP[i].UVShiftRot[1]=sub.getInt("gridShiftY", 0);
-        		this.gIP[i].UVShiftRot[2]=sub.getInt("gridRotate", 0);
- */
-            	int [][] shiftRotMatrix= (new MatchSimulatedPattern()).getRemapMatrix(this.gIP[fileNumber].getUVShiftRot());
+
+            	int [][] shiftRotMatrix= MatchSimulatedPattern.getRemapMatrix(this.gIP[fileNumber].getUVShiftRot());
             	int [] sizeSizeExtra=setGridsWithRemap(
                 		fileNumber,
                 		shiftRotMatrix, // int [][] reMap,
@@ -2431,71 +2746,6 @@ import ij.text.TextWindow;
                 		patternParameters);
             	numOfGridNodes+=sizeSizeExtra[0];
             	numOfGridNodes_extra+=sizeSizeExtra[1];
-/*
-
-        		int sensorWidth=this.eyesisCameraParameters.getSensorWidth(this.gIP[fileNumber].channel);
-        		int sensorHeight=this.eyesisCameraParameters.getSensorHeight(this.gIP[fileNumber].channel);
-            	int station=this.gIP[fileNumber].getStationNumber();
-            	int size=0;
-            	int size_extra=0;
-            	for (int i=0;i<pixels[0].length;i++) if ((pixels[0][i]>=0) && (pixels[1][i]>=0) && (pixels[0][i]<sensorWidth) && (pixels[1][i]<sensorHeight)){
-            		int u=(int) Math.round(pixels[2][i]);
-            		int v=(int) Math.round(pixels[3][i]);
-//            		if (patternParameters.getXYZM(u,v,this.debugLevel>1)!=null) size++;
-            		if (patternParameters.getXYZM(u,v,false,station)!=null) size++; // already assumes correct uv?
-            		else size_extra++;
-            	}
-            	this.gIP[fileNumber].resetMask();
-            	this.gIP[fileNumber].pixelsXY=new double [size][6];
-            	this.gIP[fileNumber].pixelsUV=new int    [size][2];
-            	this.gIP[fileNumber].pixelsXY_extra=new double [size_extra][6];
-            	this.gIP[fileNumber].pixelsUV_extra=new int    [size_extra][2];
-
-
-            	numOfGridNodes+=size;
-            	numOfGridNodes_extra+=size_extra;
-            	int index=0;
-            	int index_extra=0;
-//            	boolean vignettingAvailable=pixels.length>=8;
-//    			this.gIP[fileNumber].flatFieldAvailable=pixels.length>=8;
-
-//            	if (disableNoFlatfield && !this.gIP[fileNumber].flatFieldAvailable) this.gIP[fileNumber].enabled=false; // just to use old mixed data
-
-
-
-            	for (int i=0;i<pixels[0].length;i++) if ((pixels[0][i]>=0) && (pixels[1][i]>=0) && (pixels[0][i]<sensorWidth) && (pixels[1][i]<sensorHeight)) {
-            		int u=(int) Math.round(pixels[2][i]);
-            		int v=(int) Math.round(pixels[3][i]);
-//            		if (patternParameters.getXYZM(u,v,this.debugLevel>1)!=null) {
-            		if (patternParameters.getXYZM(u,v,false,station)!=null) {
-            			this.gIP[fileNumber].pixelsXY[index][0]=pixels[0][i];
-            			this.gIP[fileNumber].pixelsXY[index][1]=pixels[1][i];
-            			this.gIP[fileNumber].pixelsUV[index][0]= u;
-            			this.gIP[fileNumber].pixelsUV[index][1]= v;
-            			if (this.gIP[fileNumber].flatFieldAvailable){
-            				this.gIP[fileNumber].pixelsXY[index][2]=pixels[4][i];
-            				for (int n=0;n<3;n++) this.gIP[fileNumber].pixelsXY[index][n+3]=pixels[n+5][i]/this.gIP[fileNumber].intensityRange[n];
-            			} else {
-            				for (int n=0;n<4;n++)this.gIP[fileNumber].pixelsXY[index][n+2]=1.0;
-            			}
-            			index++;
-            		} else {
-            			this.gIP[fileNumber].pixelsXY_extra[index_extra][0]=pixels[0][i];
-            			this.gIP[fileNumber].pixelsXY_extra[index_extra][1]=pixels[1][i];
-            			this.gIP[fileNumber].pixelsUV_extra[index_extra][0]= u;
-            			this.gIP[fileNumber].pixelsUV_extra[index_extra][1]= v;
-            			if (this.gIP[fileNumber].flatFieldAvailable){
-            				this.gIP[fileNumber].pixelsXY_extra[index_extra][2]=pixels[4][i];
-            				for (int n=0;n<3;n++){
-            					this.gIP[fileNumber].pixelsXY_extra[index_extra][n+3]=pixels[n+5][i]/this.gIP[fileNumber].intensityRange[n];
-            				}
-            			} else {
-            				for (int n=0;n<4;n++)this.gIP[fileNumber].pixelsXY_extra[index_extra][n+2]=1.0;
-            			}
-            			index_extra++;
-            		}
-            	}
-*/
 
             	calcGridPeriod(fileNumber); // will be used to filter out reflections
 //System.out.println ("pixelsXY["+fileNumber+"]length="+pixelsXY[fileNumber].length);
@@ -2519,23 +2769,8 @@ import ij.text.TextWindow;
     			System.out.println("readAllGrids(), numImages="+numImages+", total number of grid nodes="+numOfGridNodes+", unused nodes "+numOfGridNodes_extra);
     		}
     		 // probably - do not need to verify that this.gIS is null - should do that anyway. UPDATE: no, now reading config file creates gIS
-/*
-    		if (this.gIS!=null){
-				System.out.println("readAllGrids() 1: ");
-    			for (int is=0;is<this.gIS.length;is++){
-    				System.out.println("readAllGrids() 1: "+is+": tilt="+this.gIS[is].goniometerTilt+" axial="+this.gIS[is].goniometerAxial+" estimated="+this.gIS[is].orientationEstimated);
-    			}
-    		}
-    		*/
     		buildImageSets(this.gIS!=null);
-    		/*
-    		if (this.gIS!=null){
-				System.out.println("readAllGrids() 2: ");
-    			for (int is=0;is<this.gIS.length;is++){
-    				System.out.println("readAllGrids() 2: "+is+": tilt="+this.gIS[is].goniometerTilt+" axial="+this.gIS[is].goniometerAxial+" estimated="+this.gIS[is].orientationEstimated);
-    			}
-    		}
-    		*/
+
         	return true;
         }
         /**
@@ -2806,7 +3041,7 @@ import ij.text.TextWindow;
 
 // TODO: Move all custom image properties (including encode/decode from JP4_reader_camera) to a separate class.
 // below is a duplicatie from MatchSimulatedPattern
-
+        @Deprecated
         public double[][] getPointersXY(ImagePlus imp, int numPointers){
 			   // read image info to properties (if it was not done yet - should it?
 			   if ((imp.getProperty("timestamp")==null) || (((String) imp.getProperty("timestamp")).length()==0)) {
@@ -3117,9 +3352,11 @@ import ij.text.TextWindow;
         	return this.gIP[num].timestamp;
         }
         public int getNumImages() {
+        	if (this.gIP == null) return 0;
         	return this.gIP.length;
         }
         public int getNumParameters() {
+        	if (this.parameterDescriptions == null) return 0;
         	return this.parameterDescriptions.length;
         }
         public int getNumSubCameras() {
@@ -3634,5 +3871,84 @@ import ij.text.TextWindow;
         	return  result;
 
         }
+// Methods related to Talon (instructor/student) systems
+        // calculates UV offset (no rotations) for test grid by best contrast match to  known grid
+//        int [] correlateGrids(int base_grid_num, int test_grid_num, boolean invert_color) {
+// returns
+        int [] correlateGrids(
+        		int        base_width,
+        		float [][] base_pixels,
+        		int        test_width,
+        		float [][] test_pixels,
+        		boolean    invert_color,
+        		int        extra_search) {
+        	int base_height = base_pixels[0].length/base_width;
+        	int test_height = test_pixels[0].length/test_width;
+        	int search_rad = Math.max(
+        			(Math.max(base_width,  test_width)- Math.min(base_width,  test_width) + 1) /2,
+        			(Math.max(base_height, test_height)-Math.min(base_height, test_height) + 1) /2) + extra_search;
+        	int offs_x = base_width/2 -  test_width/2;  // subtract from test.x
+        	int offs_y = base_height/2 - test_height/2; // subtract from test.y
+        	double [] corr = new double [(2*search_rad + 1)*(2*search_rad + 1)];
+        	for (int dy = -search_rad; dy <= search_rad; dy++) {
+            	for (int dx = -search_rad; dx <= search_rad; dx++) {
+            		double sum = 0;
+            		for (int y0 = 0; y0 < base_height; y0++) {
+            			int y1 = y0 - offs_y - dy;
+            			if ((y1 >= 0) && (y1 < test_height)) {
 
+                    		for (int x0 = 0; x0 < base_width; x0++) {
+                    			int x1 = x0 - offs_x - dx;
+                    			if ((x1 >= 0) && (x1 < test_width)) {
+                    				sum+= base_pixels[INDEX_CONTRAST][y0*base_width + x0] * test_pixels[INDEX_CONTRAST][y1*test_width + x1];
+                    			}
+                    		}
+            			}
+            		}
+            		corr[(2*search_rad + 1)*(search_rad + dy) +(search_rad + dx)] = sum;
+            	}
+        	}
+        	int [] indx_max_even_odd = {0,0};
+        	for (int i = 1; i < corr.length; i++) {
+        		int parity = ((i /(2*search_rad + 1)) +  (i %(2*search_rad + 1))) & 1;
+        		if (corr[indx_max_even_odd[parity]] <corr[i]) {
+        			indx_max_even_odd[parity] = i;
+        		}
+        	}
+    		// find first non-zero matching cell
+    		int indx0=-1,indx1=-1;
+    		int [] rslt = new int[3];
+        	for (int parity = 0; parity < 2; parity++) {
+        		int dy = indx_max_even_odd[parity] / (2*search_rad + 1) - search_rad;
+        		int dx = indx_max_even_odd[parity] % (2*search_rad + 1) - search_rad;
+
+        		first_nonzero:
+
+        			for (int y0 = 0; y0 < base_height; y0++) {
+        				int y1 = y0 - offs_y - dy;
+        				if ((y1 >= 0) && (y1 < test_height)) {
+        					for (int x0 = 0; x0 < base_width; x0++) {
+        						int x1 = x0 - offs_x - dx;
+        						if ((x1 >= 0) && (x1 < test_width)) {
+        							indx0 = y0*base_width + x0;
+        							indx1 = y1*test_width + x1;
+        							if ((base_pixels[INDEX_CONTRAST][indx0] > 0 )&&
+        									(test_pixels[INDEX_CONTRAST][indx1] > 0)) {
+        								break first_nonzero;
+        							}
+        						}
+        					}
+        				}
+        			}
+            	// test grid with index indx1 matches base grid with indx0
+            	rslt[0] = Math.round(base_pixels[INDEX_U][indx0] - test_pixels[INDEX_U][indx1]);
+            	rslt[1] = Math.round(base_pixels[INDEX_V][indx0] - test_pixels[INDEX_V][indx1]);
+            	rslt[2] = 0; // rotation
+            	if (((rslt[0] + rslt[1] + (invert_color?1:0)) & 1) == 0) break;
+        	}
+        	return rslt;
+        }
+        // Set initial shifts for the grids that do not have absolute match from the one in the same set that does
+
+        // end of class DistortionCalibrationData
     }

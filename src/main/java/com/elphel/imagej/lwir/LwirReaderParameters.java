@@ -56,7 +56,6 @@ public class LwirReaderParameters {
 	protected double  vnir_gain_bg =          2.401;  // 1.476;
 	protected boolean [] selected_channels =  {true, true, true, true, true, true, true, true};
 	protected int     max_lwir_width =        1024; //
-
 /*
 	protected double [] vnir_exp_corr = {1.0, 1.0, 1.0, 1.0};
 	protected double [] vnir_gcorr_rbgb = {
@@ -64,7 +63,6 @@ public class LwirReaderParameters {
 			1.0,    1.0,    1.0,
 			1.0,    1.0,    1.0,
 			1.0,    1.0,    1.0};
-
  */
 	protected double [] vnir_exp_corr =	{
 			1.0, 1.0026, 0.9868, 1.0211};
@@ -80,7 +78,19 @@ public class LwirReaderParameters {
 	protected int     debug_level =           0;//-3: OFF, -2:Fatal, -1:ERROR, 0:WARN, 1:INFO,2:DEBUG
 	protected boolean show_images = false;
 
+	protected int     lwir_chn0 =             0; // not configurable
+	protected int     vnir_chn0 =             4; // not configurable
+
+
 	// --- interface methods
+	public int getLwirChn0 () {
+		return lwir_chn0;
+	}
+
+	public int getVnirChn0 () {
+		return vnir_chn0;
+	}
+
 	public boolean is_LWIR(int width) {
 		return width <= max_lwir_width;
 	}

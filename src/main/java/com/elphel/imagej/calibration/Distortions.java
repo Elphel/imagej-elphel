@@ -23,6 +23,7 @@ package com.elphel.imagej.calibration;
  **
  */
 
+import java.awt.Point;
 import java.awt.Rectangle;
 import java.awt.geom.Point2D;
 import java.util.ArrayList;
@@ -35,6 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.SwingUtilities;
 
+import com.elphel.imagej.calibration.hardware.CamerasInterface;
 import com.elphel.imagej.cameras.EyesisCameraParameters;
 import com.elphel.imagej.cameras.EyesisSubCameraParameters;
 import com.elphel.imagej.common.DoubleGaussianBlur;
@@ -51,6 +53,7 @@ import ij.ImageStack;
 import ij.Prefs;
 //import ij.process.*;
 import ij.gui.GenericDialog;
+import ij.gui.PointRoi;
 import ij.io.FileSaver;
 import ij.io.Opener;
 import ij.process.FloatProcessor;
@@ -2568,7 +2571,7 @@ For each point in the image
 
 //TODO: add additional parameter - process all, but with matched pointers less than 2
 	public int applyHintedGrids(
-			MatchSimulatedPattern.LaserPointer laserPointer, // LaserPointer object that specifies actual laser pointers on the target
+			LaserPointer laserPointer, // LaserPointer object that specifies actual laser pointers on the target
 			boolean removeOutOfGridPointers,
 			double  hintGridTolerance, // allowed mismatch (fraction of period) or 0 - orientation only
 			boolean processAll, // if true - process all images, false - only disabled
@@ -2671,8 +2674,6 @@ For each point in the image
 					continue;
 				}
 
-				//				   int numPointers=(laserPointer!=null)?laserPointer.laserUVMap.length:0;
-				//				   double [][] pointersXY=(numPointers>0)?getPointersXY(imp, numPointers):null;
 				double [] goniometerTiltAxial=dcd.getImagesetTiltAxial(numGridImage);
 				if ((goniometerTiltAxial==null) || Double.isNaN(goniometerTiltAxial[0])  || Double.isNaN(goniometerTiltAxial[1])){
 					if (this.debugLevel>0) {
@@ -2807,7 +2808,7 @@ For each point in the image
 						int [] fileUVShiftRot=dcd.gIP[numGridImage].getUVShiftRot();
 						int [] extraUVShiftRot=matchSimulatedPattern.getUVShiftRot(true); // last shift/rotation during matching pattern, correct for zero shift
 //						int [] extraDbg=matchSimulatedPattern.getUVShiftRot(false);
-						int [] combinedUVShiftRot=matchSimulatedPattern.combineUVShiftRot(fileUVShiftRot,extraUVShiftRot);
+						int [] combinedUVShiftRot=MatchSimulatedPattern.combineUVShiftRot(fileUVShiftRot,extraUVShiftRot);
 						dcd.gIP[numGridImage].setUVShiftRot(combinedUVShiftRot);
 						System.out.println("applyHintedGrids(): dcd.gIP["+numGridImage+"].hintedMatch="+dcd.gIP[numGridImage].hintedMatch+
 								" dcd.gIP["+numGridImage+"].matchedPointers="+dcd.gIP[numGridImage].matchedPointers+ " points:"+index+" extra points:"+index_extra);
@@ -2822,16 +2823,60 @@ For each point in the image
 			}
 		return numSuccess;
 	}
+	public void showSourceImage(int numGridImage){
+		String source_path=fittingStrategy.distortionCalibrationData.gIP[numGridImage].source_path;
+		if (source_path != null) {
+			ImagePlus imp = new ImagePlus(source_path);
+			imp.show();
+		}
+	}
+
+	public int [][] getImageMarkers(int numGridImage){
+		String source_path=fittingStrategy.distortionCalibrationData.gIP[numGridImage].source_path;
+		if (source_path != null) {
+			final ImagePlus imp = new ImagePlus(source_path);
+			imp.show();
+			/*
+			Thread msg_box_thread  = new Thread() {
+   				@Override
+				public void run() {
+   					IJ.showMessage("Please place point markers on the "+imp.getTitle());
+   				}
+   			};
+   			msg_box_thread.setPriority(Thread.MIN_PRIORITY);
+   			msg_box_thread.start();
+   			try {
+   				msg_box_thread.join();
+   			} catch (InterruptedException ie) {
+   				throw new RuntimeException(ie);
+   			}
+	*/
+
+
+//			IJ.showMessage("Please place point markers on the "+imp.getTitle());
+			System.out.println("got it");
+			PointRoi pointRoi = null;
+
+			if (imp.getRoi() instanceof PointRoi) {
+				pointRoi =  (PointRoi) imp.getRoi();
+			} else {
+				IJ.showMessage("This image does not have point marks - please mark it in "+source_path);
+				return null;
+			}
+			Point [] points = pointRoi.getContainedPoints();
+			int [][] ipoints = new int [points.length][2];
+			for (int n = 0; n < ipoints.length; n++) {
+				ipoints[n][0] = points[n].x;
+				ipoints[n][1] = points[n].y;
+			}
+			return ipoints;
+		}
+		return null;
+	}
+
 
 	public void showGridImage(int numGridImage){
 		DistortionCalibrationData.GridImageParameters grid=fittingStrategy.distortionCalibrationData.gIP[numGridImage];
-/*
-    		public double [][] pixelsXY=  null; // for each image, each grid node - a pair of {px,py}
-    		public int    [][] pixelsUV=  null; // for each image, each grid node - a pair of {gridU, gridV}
-    		public double [][] pixelsXY_extra=  null; // extra data, for nodes that are out of the physical grid (may be needed after re-calibration)
-    		public int    [][] pixelsUV_extra=  null;
-
-*/
 		boolean valid=false;
 		int minU=0,maxU=0,minV=0,maxV=0;
 		for (int i=0;i<grid.pixelsUV.length;i++){
@@ -2898,9 +2943,145 @@ For each point in the image
 		}
 		(new ShowDoubleFloatArrays()).showArrays(pixels, width, height,  true, "grid-"+numGridImage, titles);
 	}
+
+
+
+	public void manualGridHint(int imgNumber) {
+		int [][] markers = getImageMarkers(imgNumber);
+		if ((markers != null) && (markers.length > 0)) {
+			double [][] xyuv = new double [markers.length][4];
+			for (int i =0; i < markers.length; i++) {
+				xyuv[i][0]=markers[i][0];
+				xyuv[i][1]=markers[i][1];
+				xyuv[i][2]=0.5;
+				xyuv[i][3]=0.5;
+			}
+			GenericDialog gd=new GenericDialog("Specify U,V coordinates of the marker(s)");
+			gd.addMessage("Center white cell U=0.5, V=0.5");
+			for (int n = 0; n < markers.length; n++) {
+				String label = "Marker "+(n+1)+" (x="+markers[n][0]+", y="+markers[n][1];
+				gd.addNumericField(label+" U", xyuv[n][2], 1, 5, "");
+				gd.addNumericField(label+" V", xyuv[n][3], 1, 5, "");
+			}
+			gd.showDialog();
+			if (gd.wasCanceled()) return;
+			for (int i =0; i < markers.length; i++) {
+				xyuv[i][2] = gd.getNextNumber();
+				xyuv[i][3] = gd.getNextNumber();
+			}
+
+			// read grid image
+
+			String grid_path=fittingStrategy.distortionCalibrationData.gIP[imgNumber].path;
+			if (grid_path != null) {
+				ImagePlus imp = new ImagePlus(grid_path);
+				JP46_Reader_camera jp4_instance= new JP46_Reader_camera(false);
+				jp4_instance.decodeProperiesFromInfo(imp);
+				MatchSimulatedPattern.setPointersXYUV(imp, xyuv);
+				updateGridToPointer(imp, xyuv);
+				jp4_instance.encodeProperiesToInfo(imp);
+				System.out.println("Updated "+grid_path);
+				(new FileSaver(imp)).saveAsTiff(grid_path);
+//				imp.show();
+			}
+			return;
+		}
+	}
+	public void updateGridToPointer(ImagePlus imp_grid, double[][] xyuv) {
+		ImageStack stack=imp_grid.getStack();
+		if ((stack==null) || (stack.getSize()<4)) {
+			String msg="Expected a 8-slice stack in "+imp_grid.getTitle();
+			IJ.showMessage("Error",msg);
+			throw new IllegalArgumentException (msg);
+		}
+		float [][] pixels=new float[stack.getSize()][]; // now - 8 (x,y,u,v,contrast, vignR,vignG,vignB
+		for (int i=0;i<pixels.length;i++) pixels[i]= (float[]) stack.getPixels(i+1); // pixel X : negative - no grid here
+		int width = imp_grid.getWidth();
+		int height = imp_grid.getHeight();
+		// start with translation only using xyuv[0][], may use full matching - same as laser pointers later
+		int    indx_best = -1;
+		double d2_best = Double.NaN;
+		for (int indx = 0; indx < pixels[0].length; indx++) {
+			double dx = pixels[0][indx] - xyuv[0][0];
+			double dy = pixels[1][indx] - xyuv[0][1] ;
+			double d2 = dx*dx + dy*dy;
+			if (Double.isNaN(d2_best) || (d2 < d2_best)) {
+				indx_best = indx;
+				d2_best = d2;
+			}
+		}
+		int ix0 = indx_best % width;
+		int iy0 = indx_best / width;
+		PolynomialApproximation polynomialApproximation =new PolynomialApproximation(0);// no debug
+		double [][][] data = new double[9][3][];
+		int indx = 0;
+		for (int idy = -1; idy <=1; idy++) {
+			int iy = iy0+idy;
+			for (int idx = -1; idx <=1; idx++) {
+				int ix = ix0 + idx;
+				data[indx][0] = new double[2];
+				data[indx][1] = new double[2];
+				data[indx][2] = new double[1];
+				data[indx][0][0] = idx;
+				data[indx][0][1] = idy;
+				if ((ix >= 0) && (ix < width) && (iy >= 0) && (iy < height)) {
+					int offs = iy * width + ix;
+					data[indx][1][0] = pixels[0][offs] - xyuv[0][0];
+					data[indx][1][1] = pixels[1][offs] - xyuv[0][1];
+					data[indx][2][0] = 1.0;
+				} else {
+					data[indx][2][0] = 0.0;
+				}
+				indx++;
+			}
+		}
+		double [][] coeff = polynomialApproximation.quadraticApproximation(
+				data,
+				true); // force linear
+		double [][] aA = {{coeff[0][0],coeff[0][1]},{coeff[1][0],coeff[1][1]}};
+		double [][] aB = {{-coeff[0][2]},{-coeff[1][2]}};
+		Matrix A = new Matrix(aA);
+		Matrix B = new Matrix(aB);
+		Matrix V = A.solve(B);
+		double [] av = V.getColumnPackedCopy();
+		double u, v; //  = xyuv[0][2]-()
+		if (av[0] < 0) {
+			av[0] += 1.0;
+			ix0 -= 1;
+		}
+		if (av[1] < 0) {
+			av[1] += 1.0;
+			iy0 -= 1;
+		}
+		u = xyuv[0][2] - (
+				(1-av[0])*(1-av[1]) * pixels[2][(iy0 + 0) * width + ix0 + 0]+
+				(  av[0])*(1-av[1]) * pixels[2][(iy0 + 0) * width + ix0 + 1]+
+				(1-av[0])*(  av[1]) * pixels[2][(iy0 + 1) * width + ix0 + 0]+
+				(  av[0])*(  av[1]) * pixels[2][(iy0 + 1) * width + ix0 + 1]);
+		v = xyuv[0][3] - (
+				(1-av[0])*(1-av[1]) * pixels[3][(iy0 + 0) * width + ix0 + 0]+
+				(  av[0])*(1-av[1]) * pixels[3][(iy0 + 0) * width + ix0 + 1]+
+				(1-av[0])*(  av[1]) * pixels[3][(iy0 + 1) * width + ix0 + 0]+
+				(  av[0])*(  av[1]) * pixels[3][(iy0 + 1) * width + ix0 + 1]);
+		int idu = (int)Math.round(u);
+		int idv = (int)Math.round(v);
+		// Verify that idy+idv - even number
+		if (((idu + idv) & 1) != 0) {
+			String msg = "Incorrect shift - u="+u+", v="+v+", idu="+idu+", idv="+idv+", idu+idv="+(idu+idv)+" SHOULD BE EVEN!";
+			System.out.println(msg);
+			IJ.showMessage(msg);
+		}
+
+		for (int i = 0; i < pixels[2].length; i++) {
+			pixels[2][i] += idu;
+			pixels[3][i] += idv;
+		}
+	}
+
 	public void showGridAndHint(){
 		GenericDialog gd=new GenericDialog("Show selected grid and/or hint grid");
 		gd.addNumericField("Grid Image index", 0,0);
+		gd.addCheckbox("Show source image (if available)", true);
 		gd.addCheckbox("Show grid image", true);
 		gd.addCheckbox("Show hint grid", true);
 		gd.addCheckbox("Use imageSet data if available (unchecked - camera data)", true);
@@ -2909,12 +3090,15 @@ For each point in the image
 		if (gd.wasCanceled()) return;
 		int numGridImage= (int) gd.getNextNumber();
 		boolean showGrid=gd.getNextBoolean();
+		boolean showSource=gd.getNextBoolean();
 		boolean showHint=gd.getNextBoolean();
 		boolean useSetData=gd.getNextBoolean();
 		IJ.showStatus("grid: "+((fittingStrategy.distortionCalibrationData.gIP[numGridImage].path==null)?"":fittingStrategy.distortionCalibrationData.gIP[numGridImage].path));
 //		showStatus("grid: "+((fittingStrategy.distortionCalibrationData.gIP[numGridImage].path==null)?"":fittingStrategy.distortionCalibrationData.gIP[numGridImage].path),0);
 
         if (showGrid)	showGridImage(numGridImage);
+        if (showSource)	showSourceImage(numGridImage);
+//        if (showSource)	getImageMarkers(numGridImage);
         if (showHint)	calcAndShowHintGrid(numGridImage,useSetData);
 	}
 
@@ -2946,6 +3130,12 @@ For each point in the image
 				(useSetData?fittingStrategy.distortionCalibrationData.gIP[numGridImage].getSetNumber():-1),
 				true // filter border
 				);
+		if (hintGrid == null) {
+			String msg = "hintGrid is null";
+			IJ.showMessage("Error",msg);
+			System.out.println(msg);
+			return;
+		}
 		showHintGrid(hintGrid,"hint-"+numGridImage);
 
 	}
@@ -3167,12 +3357,6 @@ For each point in the image
 		int sensorWidth=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorWidth(subCamera);
 		int sensorHeight=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getSensorHeight(subCamera);
 		System.out.println("estimateGridOnSensor(): subCamera="+subCamera+", goniometerHorizontal="+goniometerHorizontal+", goniometerAxial="+goniometerAxial);
-/*		calcInterParamers(
-				this.lensDistortionParameters, // 22-long parameter vector for the image
-				null, // this.interParameterDerivatives, // [22][]
-				parVector,
-				null); // if no derivatives, null is OK
-*/
 		this.lensDistortionParameters.lensCalcInterParamers(
 				this.lensDistortionParameters, // 22-long parameter vector for the image
 				this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.isTripod,
@@ -5878,7 +6062,8 @@ List calibration
     	return null;
     }
     public void saveDistortionAsImageStack(
-    		CalibrationHardwareInterface.CamerasInterface camerasInterface, // to save channel map
+    		DistortionCalibrationData distortionCalibrationData, // null OK
+    		CamerasInterface camerasInterface, // to save channel map
     		String title,
     		String path,
     		boolean emptyOK){
@@ -5892,6 +6077,7 @@ List calibration
     		String channelPath= (hadSuffix?path.substring(0,indexSuffix):(path.substring(0,indexPeriod)+"-"))+
     		String.format("%02d",chNum)+path.substring(indexPeriod);
     		saveDistortionAsImageStack(
+    				distortionCalibrationData,
     				camerasInterface, // to save channel map
     				title,
     				channelPath,
@@ -5901,12 +6087,14 @@ List calibration
     }
 
     public ImagePlus saveDistortionAsImageStack(
-    		CalibrationHardwareInterface.CamerasInterface camerasInterface, // to save channel map
+    		DistortionCalibrationData distortionCalibrationData, // null OK
+    		CamerasInterface camerasInterface, // to save channel map
     		String title,
     		String path,
     		int numSensor,
     		boolean emptyOK){
     	ImagePlus imp=getDistortionAsImageStack(
+    			distortionCalibrationData,
     			camerasInterface, // to save channel map
     			title,
     			numSensor,
@@ -5929,10 +6117,14 @@ List calibration
 //  /    	int numChannels=this.fittingStrategy.distortionCalibrationData.getNumChannels(); // number of used channels
 // TODO: Currently saves data from Station 0
     public ImagePlus getDistortionAsImageStack(
-    		CalibrationHardwareInterface.CamerasInterface camerasInterface, // to save channel map
+    		DistortionCalibrationData distortionCalibrationData, // null OK - will use old way from fittingStrategy
+    		CamerasInterface camerasInterface, // to save channel map
     		String title,
     		int numSensor,
     		boolean emptyOK){
+    	if (distortionCalibrationData == null) {
+    		distortionCalibrationData = this.fittingStrategy.distortionCalibrationData;
+    	}
     	int stationNumber=0;
     	String [] titles={"X-corr","Y-corr","mask","R-vign","G-vign","B-vign"};
     	double [][] pixelCorr=null;
@@ -5955,10 +6147,10 @@ List calibration
     	float [][]pixels=new float [titles.length][length]; // dx, dy, sensor mask,v-r,v-g,v-b
     	// assuming all sensors have the same dimension
     	double [] mask=null;
-    	if (fittingStrategy.distortionCalibrationData.sensorMasks.length<=numSensor) return null; // no data
-    	if ((fittingStrategy.distortionCalibrationData.sensorMasks!=null) &&
-    			(fittingStrategy.distortionCalibrationData.sensorMasks[numSensor]!=null)){
-    		mask=fittingStrategy.distortionCalibrationData.sensorMasks[numSensor];
+    	if (distortionCalibrationData.sensorMasks.length<=numSensor) return null; // no data
+    	if ((distortionCalibrationData.sensorMasks!=null) &&
+    			(distortionCalibrationData.sensorMasks[numSensor]!=null)){
+    		mask=distortionCalibrationData.sensorMasks[numSensor];
     	}
 
     	for (int index=0;index<length;index++){
@@ -5981,9 +6173,9 @@ List calibration
    		imp = new ImagePlus(title, stack);
         // set properties sufficient to un-apply distortions to the image
    		// First - corrections
-    	EyesisSubCameraParameters subCam=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[stationNumber][numSensor];
+    	EyesisSubCameraParameters subCam=distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[stationNumber][numSensor];
     	subCam.updateCartesian(); // recalculate other parameters
-    	double entrancePupilForward=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.entrancePupilForward[stationNumber];
+    	double entrancePupilForward=distortionCalibrationData.eyesisCameraParameters.entrancePupilForward[stationNumber];
     	imp.setProperty("VERSION",  "1.0");
     	imp.setProperty("comment_arrays",  "Array corrections from acquired image to radially distorted, in pixels");
     	imp.setProperty("arraysSet",  ""+(pixelCorr!=null)); // per-pixel arrays are not set, using 0.0
@@ -6036,11 +6228,17 @@ List calibration
     	imp.setProperty("comment_channel", "number of the sensor (channel) in the camera");
     	imp.setProperty("channel",  ""+numSensor);
     	imp.setProperty("comment_subcamera", "number of the subcamera with individual IP, starting with 0");
-    	imp.setProperty("subcamera",  ""+camerasInterface.getSubCamera(numSensor));
-		imp.setProperty("sensor_port",""+camerasInterface.getSensorPort(numSensor));
+    	if (camerasInterface != null) {
+    		subCam.subcamera =   camerasInterface.getSubCamera(numSensor);
+    		subCam.sensor_port = camerasInterface.getSensorPort(numSensor);
+    		subCam.subchannel =  camerasInterface.getSubChannel(numSensor);
+    	}
+
+    	imp.setProperty("subcamera",  ""+subCam.subcamera);
+		imp.setProperty("sensor_port",""+subCam.sensor_port);
 
     	imp.setProperty("comment_subchannel", "number of the sensor port on a subcamera (0..2)");
-    	imp.setProperty("subchannel",  ""+camerasInterface.getSubChannel(numSensor));
+    	imp.setProperty("subchannel",  ""+subCam.subchannel);
     	imp.setProperty("comment_entrancePupilForward",  "entrance pupil distance from the azimuth/radius/height, outwards in mm");
     	imp.setProperty("entrancePupilForward",  ""+entrancePupilForward); // currently global, decoders will use per-sensor
        	imp.setProperty("comment_defects", "Sensor hot/cold pixels list as x:y:difference");
@@ -6075,15 +6273,29 @@ List calibration
 
 
     public void setDistortionFromImageStack(
+    		DistortionCalibrationData distortionCalibrationData, // null OK
+    		EyesisCameraParameters eyesisCameraParameters, // null OK
     		String path,
     		boolean overwriteExtrinsic,
     		boolean overwriteDistortion){
     	int indexPeriod=path.indexOf('.',path.lastIndexOf(Prefs.getFileSeparator()));
-    	int numSubCameras=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[0].length;
+    	if (eyesisCameraParameters == null) {
+    		eyesisCameraParameters = fittingStrategy.distortionCalibrationData.eyesisCameraParameters;
+    	}
+    	if (distortionCalibrationData == null) {
+    		distortionCalibrationData = fittingStrategy.distortionCalibrationData;
+    	}
+    	int numSubCameras=distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[0].length;
     	for (int chNum=0;chNum<numSubCameras;chNum++){
     		String channelPath=path.substring(0,indexPeriod-2)+String.format("%02d",chNum)+path.substring(indexPeriod);
     		try { // disable here for now
-    			setDistortionFromImageStack(channelPath, chNum, false, overwriteExtrinsic, overwriteDistortion);
+    			setDistortionFromImageStack(
+    					distortionCalibrationData,
+    					channelPath,
+    					chNum,
+    					false,
+    					overwriteExtrinsic,
+    					overwriteDistortion);
     		} catch (Exception e) {
     			System.out.println("setDistortionFromImageStack(): " + e.toString());
     			e.printStackTrace();
@@ -6092,13 +6304,14 @@ List calibration
     }
 
     public void setDistortionFromImageStack(
+    		DistortionCalibrationData distortionCalibrationData,
     		String path,
     		int numSensor,
     		boolean reportProblems,
     		boolean overwriteExtrinsic,
     		boolean overwriteDistortion){
-		Opener opener=new Opener();
-		ImagePlus imp=opener.openImage("", path);
+    	Opener opener=new Opener();
+    	ImagePlus imp=opener.openImage("", path);
     	if (imp==null) {
     		if (!reportProblems) return;
     		String msg="Failed to read sensor calibration data file "+path;
@@ -6106,18 +6319,26 @@ List calibration
     		System.out.println(msg);
     		throw new IllegalArgumentException (msg);
     	}
-		if (this.debugLevel>0) System.out.println("Read "+path+" as a sensor calibration data");
+    	if (this.debugLevel>0) System.out.println("Read "+path+" as a sensor calibration data");
     	(new JP46_Reader_camera(false)).decodeProperiesFromInfo(imp);
-    	setDistortionFromImageStack(imp, numSensor, overwriteExtrinsic, overwriteDistortion);
+    	setDistortionFromImageStack(distortionCalibrationData,
+    			imp,
+    			numSensor,
+    			overwriteExtrinsic,
+    			overwriteDistortion);
     	this.pathNames[numSensor]=path;
     }
 
     //TODO: look more after testing. Currently all station parameters are set from the sensor images, may be minor differences
     public void setDistortionFromImageStack(
+    		DistortionCalibrationData distortionCalibrationData,
     		ImagePlus imp,
     		int numSensor,
     		boolean overwriteExtrinsic,
     		boolean overwriteDistortion){
+    	if (distortionCalibrationData == null) {
+    		distortionCalibrationData = this.fittingStrategy.distortionCalibrationData;
+    	}
 //    	int corrX=0,corrY=1,
     	int corrMask=2;
     	if (numSensor<0) {
@@ -6163,7 +6384,7 @@ List calibration
     	for (int i=0;i<pixels.length;i++) pixels[i]= (float[]) stack.getPixels(i+1);
 
 
-        int numSubCameras=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[0].length;
+        int numSubCameras=distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[0].length;
         if (numSensor>=numSubCameras){
     		String msg="Loaded calibration channel number "+numSensor+"is higher than maximal in the system "+(numSubCameras-1);
     		IJ.showMessage("Error",msg);
@@ -6172,18 +6393,18 @@ List calibration
 //		System.out.println("setDistortionFromImageStack(): processing channel channel "+numSensor);
 
     	EyesisSubCameraParameters subCam;
-    	EyesisCameraParameters cam=     fittingStrategy.distortionCalibrationData.eyesisCameraParameters;
+    	EyesisCameraParameters cam=     distortionCalibrationData.eyesisCameraParameters;
         this.pixelCorrectionWidth=      Integer.parseInt  ((String) imp.getProperty("pixelCorrectionWidth"));
         this.pixelCorrectionHeight=     Integer.parseInt  ((String) imp.getProperty("pixelCorrectionHeight"));
         this.pixelCorrectionDecimation= Integer.parseInt  ((String) imp.getProperty("pixelCorrectionDecimation"));
 
-        if ((this.fittingStrategy!=null) && (this.fittingStrategy.distortionCalibrationData!=null) && (this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters!=null)){
-    		this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.decimateMasks=this.pixelCorrectionDecimation;
-    		this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorWidth=  this.pixelCorrectionWidth;
-    		this.fittingStrategy.distortionCalibrationData.eyesisCameraParameters.sensorHeight=this.pixelCorrectionHeight;
+        if ((distortionCalibrationData!=null) && (distortionCalibrationData.eyesisCameraParameters!=null)){
+    		distortionCalibrationData.eyesisCameraParameters.decimateMasks=this.pixelCorrectionDecimation;
+    		distortionCalibrationData.eyesisCameraParameters.sensorWidth=  this.pixelCorrectionWidth;
+    		distortionCalibrationData.eyesisCameraParameters.sensorHeight=this.pixelCorrectionHeight;
         }
-        for (int stationNumber=0;stationNumber<fittingStrategy.distortionCalibrationData.eyesisCameraParameters.numStations; stationNumber++){
-        	subCam=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[stationNumber][numSensor];
+        for (int stationNumber=0; stationNumber < distortionCalibrationData.eyesisCameraParameters.numStations; stationNumber++){
+        	subCam=distortionCalibrationData.eyesisCameraParameters.eyesisSubCameras[stationNumber][numSensor];
 
         	subCam.distortionRadius=        Double.parseDouble((String) imp.getProperty("distortionRadius"));
         	subCam.focalLength=             Double.parseDouble((String) imp.getProperty("focalLength"));
@@ -6251,15 +6472,20 @@ List calibration
 				if (imp.getProperty("r_od_"+i+"_o")  !=null) subCam.r_od[i][0]= Double.parseDouble((String) imp.getProperty("r_od_"+i+"_o"));
 				if (imp.getProperty("r_od_"+i+"_d")  !=null) subCam.r_od[i][1]= Double.parseDouble((String) imp.getProperty("r_od_"+i+"_d"));
 			}
+			if (imp.getProperty("subcamera")   !=null) subCam.subcamera=   Integer.parseInt((String) imp.getProperty("subcamera"));
+			if (imp.getProperty("sensor_port") !=null) subCam.sensor_port= Integer.parseInt((String) imp.getProperty("sensor_port"));
+			if (imp.getProperty("subchannel")  !=null) subCam.subchannel=   Integer.parseInt((String) imp.getProperty("subchannel"));
         }
-        for (int imgNum=0;imgNum<fittingStrategy.distortionCalibrationData.getNumImages();imgNum++){
-        	int imageSubCam=  fittingStrategy.distortionCalibrationData.getImageSubcamera(imgNum);
-        	int stationNumber=fittingStrategy.distortionCalibrationData.getImageStation(imgNum);
+
+
+        for (int imgNum=0;imgNum < distortionCalibrationData.getNumImages();imgNum++){
+        	int imageSubCam=  distortionCalibrationData.getImageSubcamera(imgNum);
+        	int stationNumber=distortionCalibrationData.getImageStation(imgNum);
         	if (imageSubCam==numSensor){
         		// vector from the data we just set
-        		double [] parVector=fittingStrategy.distortionCalibrationData.eyesisCameraParameters.getParametersVector(stationNumber,imageSubCam);
-        		if       (overwriteExtrinsic)  fittingStrategy.distortionCalibrationData.setSubcameraParameters(parVector,imgNum);
-        		else  if (overwriteDistortion) fittingStrategy.distortionCalibrationData.setIntrinsicParameters(parVector,imgNum);
+        		double [] parVector=           distortionCalibrationData.eyesisCameraParameters.getParametersVector(stationNumber,imageSubCam);
+        		if       (overwriteExtrinsic)  distortionCalibrationData.setSubcameraParameters(parVector,imgNum);
+        		else  if (overwriteDistortion) distortionCalibrationData.setIntrinsicParameters(parVector,imgNum);
         	}
         }
 
@@ -6306,25 +6532,25 @@ List calibration
 		}
 //    	System.out.println("setDistortionFromImageStack(): defined="+defined );
 		if (defined) {
-	        if (this.fittingStrategy.distortionCalibrationData.sensorMasks==null) {
-	        	this.fittingStrategy.distortionCalibrationData.sensorMasks=new double [numSubCameras][];
-	        	for (int i=0;i<this.fittingStrategy.distortionCalibrationData.sensorMasks.length;i++)
-	        		this.fittingStrategy.distortionCalibrationData.sensorMasks[i]=null;
-//	        	System.out.println("setDistortionFromImageStack(): created this.fittingStrategy.distortionCalibrationData.sensorMasks["+numSubCameras+"] of null-s" );
+	        if (distortionCalibrationData.sensorMasks==null) {
+	        	distortionCalibrationData.sensorMasks=new double [numSubCameras][];
+	        	for (int i=0;i<distortionCalibrationData.sensorMasks.length;i++)
+	        		distortionCalibrationData.sensorMasks[i]=null;
+//	        	System.out.println("setDistortionFromImageStack(): created distortionCalibrationData.sensorMasks["+numSubCameras+"] of null-s" );
 	        }
-	        if (numSensor>=this.fittingStrategy.distortionCalibrationData.sensorMasks.length){ // increase number of elements
-	        	double [][] tmp=this.fittingStrategy.distortionCalibrationData.sensorMasks;
-	        	this.fittingStrategy.distortionCalibrationData.sensorMasks=new double[numSensor+1][];
-	        	for (int i=0;i<this.fittingStrategy.distortionCalibrationData.sensorMasks.length;i++)
-	        		if (i<tmp.length)this.fittingStrategy.distortionCalibrationData.sensorMasks[i]=tmp[i];
-	        		else this.fittingStrategy.distortionCalibrationData.sensorMasks[i]=null;
+	        if (numSensor>=distortionCalibrationData.sensorMasks.length){ // increase number of elements
+	        	double [][] tmp=distortionCalibrationData.sensorMasks;
+	        	distortionCalibrationData.sensorMasks=new double[numSensor+1][];
+	        	for (int i=0;i<distortionCalibrationData.sensorMasks.length;i++)
+	        		if (i<tmp.length)distortionCalibrationData.sensorMasks[i]=tmp[i];
+	        		else distortionCalibrationData.sensorMasks[i]=null;
 	        }
-	        if (this.fittingStrategy.distortionCalibrationData.sensorMasks[numSensor]==null){
-	        	this.fittingStrategy.distortionCalibrationData.sensorMasks[numSensor]=new double[pixels[corrMask].length];
-//	        	System.out.println("setDistortionFromImageStack(): created this.fittingStrategy.distortionCalibrationData.sensorMasks["+numSensor+"] of ["+pixels[corrMask].length+"]" );
+	        if (distortionCalibrationData.sensorMasks[numSensor]==null){
+	        	distortionCalibrationData.sensorMasks[numSensor]=new double[pixels[corrMask].length];
+//	        	System.out.println("setDistortionFromImageStack(): created distortionCalibrationData.sensorMasks["+numSensor+"] of ["+pixels[corrMask].length+"]" );
 	        }
-	        for (int i= 0;i<this.fittingStrategy.distortionCalibrationData.sensorMasks[numSensor].length;i++) // null pointer
-	        	this.fittingStrategy.distortionCalibrationData.sensorMasks[numSensor][i]=pixels[corrMask][i];
+	        for (int i= 0;i<distortionCalibrationData.sensorMasks[numSensor].length;i++) // null pointer
+	        	distortionCalibrationData.sensorMasks[numSensor][i]=pixels[corrMask][i];
 		}
     }
     /**

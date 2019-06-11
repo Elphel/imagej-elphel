@@ -3,8 +3,16 @@ import java.util.Properties;
 
 import org.apache.commons.configuration.XMLConfiguration;
 
+import com.elphel.imagej.calibration.CalibrationFileManagement;
+import com.elphel.imagej.calibration.DistortionCalibrationData;
+import com.elphel.imagej.calibration.Distortions;
+import com.elphel.imagej.calibration.EyesisAberrations;
+import com.elphel.imagej.calibration.LensDistortionParameters;
+import com.elphel.imagej.common.GenericJTabbedDialog;
 import com.elphel.imagej.common.WindowTools;
 
+import Jama.Matrix;
+import ij.Prefs;
 /*
  **
  ** EyesisCameraParameters.java
@@ -566,7 +574,8 @@ import ij.gui.GenericDialog;
     		else destination.eyesisSubCameras=null;
     		destination.stationWeight=new double[destination.numStations];
     		for (int numStation=0;numStation<destination.numStations;numStation++) {
-    			int srcNumStation=(numStation<source.numStations)?numStation:(source.numStations-1);
+    			int srcNumStation=(numStation<source.numStations)?numStation:(source.numStations-1); // 0-1 !
+    			if (srcNumStation < 0) break; // source does not have any stations?
     			destination.stationWeight[numStation]=source.stationWeight[srcNumStation];
     			destination.goniometerHorizontal[numStation]=source.goniometerHorizontal[srcNumStation];
     			destination.goniometerAxial[numStation]=source.goniometerAxial[srcNumStation];
@@ -707,6 +716,9 @@ import ij.gui.GenericDialog;
         				this.entrancePupilForward[numStation]=Double.parseDouble(properties.getProperty(prefix+"entrancePupilForward_"+numStation));
         			if (properties.getProperty(prefix+"centerAboveHorizontal_"+numStation)!=null)
         				this.centerAboveHorizontal[numStation]=Double.parseDouble(properties.getProperty(prefix+"centerAboveHorizontal_"+numStation));
+        			if (this.GXYZ[numStation] == null) {
+        				this.GXYZ[numStation] = new double[3];
+        			}
         			if (properties.getProperty(prefix+"GXYZ_0_"+numStation)!=null)
         				this.GXYZ[numStation][0]=Double.parseDouble(properties.getProperty(prefix+"GXYZ_0_"+numStation));
         			if (properties.getProperty(prefix+"GXYZ_1_"+numStation)!=null)
@@ -1371,6 +1383,9 @@ import ij.gui.GenericDialog;
     			int numStation,
     			int numSubCameras){
     		System.out.println("initSubCameras("+numStation+","+numSubCameras+")");
+    		if ((this.eyesisSubCameras == null) || (this.eyesisSubCameras.length != this.numStations)) {
+    			this.eyesisSubCameras = new EyesisSubCameraParameters[this.numStations][];
+    		}
     		this.eyesisSubCameras[numStation]=new EyesisSubCameraParameters[numSubCameras];
     		for (int i=0;i<numSubCameras;i++)  this.eyesisSubCameras[numStation][i]=null;
     		if (numSubCameras==3) {
@@ -1400,7 +1415,12 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
+
     			this.eyesisSubCameras[numStation][1]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					cartesian,
     					defaultLensDistortionModel,
@@ -1426,7 +1446,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][2]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					cartesian,
     					defaultLensDistortionModel,
@@ -1452,7 +1476,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     		} else if (numSubCameras==1) {
     			this.cartesian = false;
     			this.eyesisSubCameras[numStation][0]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
@@ -1480,7 +1508,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     		} else if (numSubCameras == 21) {
     			// ================
     			// PHG21 parameters
@@ -1511,7 +1543,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][1]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -1537,7 +1573,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][2]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -1563,7 +1603,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][3]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -1589,7 +1633,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][4]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -1615,7 +1663,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][5]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -1641,7 +1693,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][6]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -1667,7 +1723,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][7]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -1693,7 +1753,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][8]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -1719,7 +1783,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][9]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -1745,7 +1813,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][10]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -1771,7 +1843,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][11]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -1797,7 +1873,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][12]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -1823,7 +1903,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][13]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -1849,7 +1933,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][14]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -1875,7 +1963,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][15]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -1901,7 +1993,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][16]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -1927,7 +2023,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][17]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -1953,7 +2053,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][18]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -1979,7 +2083,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][19]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -2005,7 +2113,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			this.eyesisSubCameras[numStation][20]=new EyesisSubCameraParameters( //TODO:  modify for lens adjustment defaults?
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -2031,7 +2143,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			//
     			// end of PHG21 parameters
     			// =======================
@@ -2062,7 +2178,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			for (int i=8;i<16;i++) if (i<numSubCameras) 	this.eyesisSubCameras[numStation][i]=new EyesisSubCameraParameters( // middle 8 cameras
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -2088,7 +2208,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			for (int i=16;i<24;i++) if (i<numSubCameras) 	this.eyesisSubCameras[numStation][i]=new EyesisSubCameraParameters( // bottom eight cameras
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -2114,7 +2238,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					1.0); //channelWeightDefault
+    					1.0, //channelWeightDefault
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			if (24<numSubCameras) 	this.eyesisSubCameras[numStation][24]=new EyesisSubCameraParameters(
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -2140,7 +2268,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					8.0); //channelWeightDefault (was 4)
+    					8.0, //channelWeightDefault  (was 4)
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     			if (25<numSubCameras) 	this.eyesisSubCameras[numStation][25]=new EyesisSubCameraParameters(
     					this.cartesian,
     					defaultLensDistortionModel,
@@ -2166,7 +2298,11 @@ import ij.gui.GenericDialog;
     					968.0, // double py0=968.0;           // center of the lens on the sensor, pixels
     					null,  // eccentricity for b,a,a5,a6,a7,a8
     					null,  // elongation for c,b,a,a5,a6,a7,a8
-    					8.0); //channelWeightDefault (was 4)
+    					8.0, //channelWeightDefault  (was 4)
+    					0,   // public int subcamera
+    					0,   // public int sensor_port
+    					0);   // public int subchannel
+
     		}
     	}
     	public void recenterVertically(boolean [] subcams, boolean [] stations){
@@ -2231,6 +2367,336 @@ import ij.gui.GenericDialog;
     			}
 
     		}
+    	}
+
+    	public class SubsystemOffsets {
+    		public boolean use_first_station = true; // import data from first station, duplicate to all
+    		public int     offset_channel =    4; // 0;
+    		public int     new_subcam =        1; // new subcamera number
+    		public double  offset_height =    50.8;
+    		public double  offset_right =    -35.0; //vnir -35., lwir +35.0
+    		public double  offset_forward =   15.0; //vnir +??,  lwir -??
+    		public double  offset_heading =    0.0;
+    		public double  offset_elevation =  0.0;
+    		public double  offset_roll =       0.0;
+    		public boolean update_sensor_files = true; // Update an re-write sensor files
+    		public void dialogQuestions(GenericJTabbedDialog gd) {
+    			gd.addCheckbox    ("Use first station", this.use_first_station, "Import data for the first station only, clone for all current ones");
+    			gd.addNumericField("Channel offset",    this.offset_channel,   0,3,"","Add this to the sensor number after impofrt");
+    			gd.addNumericField("New subcamera",     this.new_subcam,        0,3,"","New subcamera number ater import");
+    			gd.addNumericField("Offset height",     this.offset_height,    3,6,"mm", "Place imported sub camera above composite camera center");
+    			gd.addNumericField("Offset right",      this.offset_right,     3,6,"mm", "Visible range camera exposure time (all channels)");
+    			gd.addNumericField("Offset forward",    this.offset_forward,   3,6,"mm", "Visible range camera exposure time (all channels)");
+    			gd.addNumericField("Offset heading",    this.offset_heading,   3,6,"°", "Visible range camera exposure time (all channels)");
+    			gd.addNumericField("Offset elevation",  this.offset_elevation, 3,6,"°", "Visible range camera exposure time (all channels)");
+    			gd.addNumericField("Offset roll",       this.offset_roll,      3,6,"°", "Visible range camera exposure time (all channels)");
+    			gd.addCheckbox    ("Transform sensor files", this.update_sensor_files, "Import sesnor files (ifavailable), re-write them for new extrinsics/channels");
+    		}
+    		public void dialogAnswers(GenericJTabbedDialog gd) {
+    			this.use_first_station =      gd.getNextBoolean();
+    			this.offset_channel =   (int) gd.getNextNumber();
+    			this.new_subcam =       (int) gd.getNextNumber();
+    			this.offset_height =          gd.getNextNumber();
+    			this.offset_right =           gd.getNextNumber();
+    			this.offset_forward =         gd.getNextNumber();
+    			this.offset_heading =         gd.getNextNumber();
+    			this.offset_elevation =       gd.getNextNumber();
+    			this.offset_roll =            gd.getNextNumber();
+    			this.update_sensor_files =    gd.getNextBoolean();
+    		}
+    		public boolean dialogOffests() {
+    				GenericJTabbedDialog gd = new GenericJTabbedDialog("Set camera subsystem offsets",250,500);
+    				dialogQuestions(gd);
+    				gd.showDialog();
+    				if (gd.wasCanceled()) return false;
+    				dialogAnswers(gd);
+    			return true;
+    		}
+
+    	}
+    	public EyesisSubCameraParameters offsetSubCamera(SubsystemOffsets offsets, EyesisSubCameraParameters sub_camera) {
+    		sub_camera.updateCartesian();
+    		EyesisSubCameraParameters new_sub = sub_camera.clone();
+        	double psi=  Math.PI/180*offsets.offset_roll;      // radians
+        	double theta=Math.PI/180*offsets.offset_elevation; // radians
+        	double phi=  Math.PI/180*offsets.offset_heading;   // radians
+
+        	double psi_s=  Math.PI/180*sub_camera.heading;      // radians
+        	double theta_s=Math.PI/180*sub_camera.theta;        // radians
+        	double phi_s=  Math.PI/180*sub_camera.psi;          // radians
+
+
+        	double [][] asub_c = {{sub_camera.right},{sub_camera.height},{sub_camera.forward}}; // subcamera center
+        	// rotate by -psi around Z
+         	double [][] aRz={
+         			{ Math.cos(psi),Math.sin(psi), 0.0},
+         			{-Math.sin(psi),Math.cos(psi), 0.0},
+         			{ 0.0,          0.0,           1.0}};
+        	// rotate by -psi around x
+         	double [][] aRx={
+         			{1.0,  0.0,            0.0},
+         			{0.0, Math.cos(theta),Math.sin(theta)},
+         			{0.0,-Math.sin(theta),Math.cos(theta)}};
+        	// rotate by -phi around y
+         	double [][] aRy={
+         			{Math.cos(phi),  0.0,  Math.sin(phi)},
+         			{0.0,1.0,0.0},
+         			{-Math.sin(phi), 0.0,  Math.cos(phi)}};
+         	double [][] aoffs = {{offsets.offset_right},{offsets.offset_height},{offsets.offset_forward}};
+
+        	// rotate by -psi around Z
+         	double [][] aRz_s={
+         			{ Math.cos(psi_s),Math.sin(psi_s), 0.0},
+         			{-Math.sin(psi_s),Math.cos(psi_s), 0.0},
+         			{ 0.0,          0.0,           1.0}};
+        	// rotate by -psi around x
+         	double [][] aRx_s={
+         			{1.0,  0.0,            0.0},
+         			{0.0, Math.cos(theta_s),Math.sin(theta_s)},
+         			{0.0,-Math.sin(theta_s),Math.cos(theta_s)}};
+        	// rotate by -phi around y
+         	double [][] aRy_s={
+         			{Math.cos(phi_s),  0.0,  Math.sin(phi_s)},
+         			{0.0,1.0,0.0},
+         			{-Math.sin(phi_s), 0.0,  Math.cos(phi_s)}};
+
+
+        	Matrix sub_c=new Matrix(asub_c);
+        	Matrix Rz=   new Matrix(aRz);
+        	Matrix Rx=   new Matrix(aRx);
+        	Matrix Ry=   new Matrix(aRy);
+        	Matrix offs= new Matrix(aoffs);
+        	Matrix R = Ry.times(Rx.times(Rz));
+        	Matrix Rz_s=   new Matrix(aRz_s);
+        	Matrix Rx_s=   new Matrix(aRx_s);
+        	Matrix Ry_s=   new Matrix(aRy_s);
+        	Matrix R_s = Ry_s.times(Rx_s.times(Rz_s));
+
+         	double [] rhf = offs.plus(R.times(sub_c)).getRowPackedCopy();
+         	/*
+         	System.out.println("R=");
+         	R.print(8, 3);
+         	System.out.println("\nR_s=");
+         	R_s.print(8, 3);
+         	*/
+         	Matrix R_t = R.times(R_s);
+         	/*
+         	System.out.println("\nR_t=");
+         	R_t.print(8, 3);
+         	*/
+
+         	new_sub.cartesian = true;
+         	new_sub.right =   rhf[0];
+         	new_sub.height =  rhf[1];
+         	new_sub.forward = rhf[2];
+
+         	// projection of camera axis (z) on XZ plane
+         	double min_cos = 0.001;
+         	double zXZ = Math.sqrt(R_t.get(0, 2)*R_t.get(0, 2) + R_t.get(2, 2)*R_t.get(2, 2));
+         	if (zXZ < min_cos) {
+         		System.out.append("zXZ = "+zXZ);
+         	}
+         	double new_phi =   Math.atan2(R_t.get(0, 2), R_t.get(2, 2));
+         	double new_theta = Math.atan2(R_t.get(1, 2), zXZ);
+
+         	double new_psi = Math.atan2(R_t.get(0, 1), R_t.get(1, 1));
+
+         	new_sub.heading = 180.0/Math.PI*new_phi;
+         	new_sub.theta =   180.0/Math.PI*new_theta;
+         	new_sub.psi =     180.0/Math.PI*new_psi;
+
+    		new_sub.updateCartesian();
+    		return new_sub;
+    	}
+
+    	public boolean importSystem(
+    			Properties properties,
+    			String prefix,
+    			SubsystemOffsets subsystemOffsets,
+    			Distortions systemDistortions,
+    			DistortionCalibrationData system_distortionCalibrationData,
+    			String calibration_directory) {
+    		EyesisCameraParameters sub_system = new EyesisCameraParameters();
+    		sub_system.getProperties(prefix, properties);
+    		if (subsystemOffsets == null) {
+    			subsystemOffsets = new SubsystemOffsets();
+    		}
+    		if (!subsystemOffsets.dialogOffests()) {
+    			return false;
+    		}
+    		System.out.println(
+    				"use_first_stationl=" + subsystemOffsets.use_first_station +
+    				"offset_channel="     + subsystemOffsets.offset_channel +
+    				"\noffset_height="    + subsystemOffsets.offset_height +
+    				"\noffset_right="     + subsystemOffsets.offset_right +
+    				"\noffset_forward="   + subsystemOffsets.offset_forward +
+    				"\noffset_heading="   + subsystemOffsets.offset_heading +
+    				"\noffset_elevation=" + subsystemOffsets.offset_elevation +
+    				"\noffset_roll="      + subsystemOffsets.offset_roll);
+
+    		// remove all but first imported station if instructed so
+    		if (subsystemOffsets.use_first_station) {
+    			sub_system.updateNumstations (1);
+    		}
+    		// Import sensor files
+    		String sensors_path = null;
+    		Distortions sub_distortions = null;
+    		DistortionCalibrationData sub_distortionCalibrationData = null;
+    		EyesisAberrations.AberrationParameters sub_aberrationParameters = null;
+    		LensDistortionParameters sub_lensDistortionParameters = null;
+//    		boolean update_sensor_files = subsystemOffsets.update_sensor_files;
+    		// TODO: check sub_distortions != null
+    		if (subsystemOffsets.update_sensor_files) {
+    			sub_aberrationParameters=new EyesisAberrations.AberrationParameters();
+    			sub_aberrationParameters.getProperties("ABERRATIONS_PARAMETERS.", properties);
+    			sub_lensDistortionParameters = new LensDistortionParameters();
+    			sub_lensDistortionParameters.getProperties("LENS_DISTORTION_PARAMETERS.", properties);
+
+    			sensors_path =  sub_aberrationParameters.sensorsPath;
+    			System.out.println("sensors_path = "+sensors_path);
+    			String [][] stationFilenames = new String[sub_system.numStations][0];
+    			sub_distortionCalibrationData = new DistortionCalibrationData(
+//    					stationFilenames, // String [][] stationFilenames,
+//    	        		null, // PatternParameters patternParameters,
+    	        		sub_system // EyesisCameraParameters eyesisCameraParameters
+//    	        		,0 // debugLevel
+    					);
+    			// now read all sensor files
+    			if ((sensors_path !=null) && (sensors_path != "")){ // load sensor
+//    				if (sub_distortions.fittingStrategy==null) return false; // Why?
+//    				if (DEBUG_LEVEL>0) System.out.println("Autoloading sensor calibration files "+configPaths[3]);
+    				sub_distortions = new Distortions(
+    						sub_lensDistortionParameters, // LensDistortionParameters lensDistortionParameters,
+    						null, // PatternParameters patternParameters,
+    						null, // RefineParameters refineParameters,
+    						null //AtomicInteger stopRequested
+    						);
+
+    				// sub_distortions.lensDistortionParameters is null!
+    				sub_distortions.setDistortionFromImageStack(
+    						sub_distortionCalibrationData,
+    						sub_system, // EYESIS_CAMERA_PARAMETERS, // use null for old version - in fitting strategy instance
+    						sensors_path,
+    						sub_aberrationParameters.autoRestoreSensorOverwriteOrientation,
+    						sub_aberrationParameters.autoRestoreSensorOverwriteDistortion
+    						);
+    			} else {
+    				System.out.println("Sensor files are not specified");
+//    				update_sensor_files = false;
+    			}
+
+
+
+    		}
+
+
+
+    		// TODO:recalculate extrinsics before import
+    		for (int ns = 0; ns < sub_system.eyesisSubCameras.length; ns++) {
+        		for (int nc = 0; nc < sub_system.eyesisSubCameras[ns].length; nc++) {
+        			sub_system.eyesisSubCameras[ns][nc] = offsetSubCamera(subsystemOffsets,sub_system.eyesisSubCameras[ns][nc]);
+        			sub_system.eyesisSubCameras[ns][nc].subcamera = subsystemOffsets.new_subcam;
+        		}
+    		}
+
+
+    		// increase number of stations if needed to match existing
+    		if (this.getNumStations() > sub_system.getNumStations()){
+    			 sub_system.updateNumstations (this.getNumStations());
+    		}
+
+    		// increase number of this stations if needed
+    		if (!subsystemOffsets.use_first_station && (this.getNumStations() < sub_system.getNumStations())){
+    			updateNumstations (sub_system.getNumStations());
+    		}
+
+    		for (int numStation = 0; numStation < this.getNumStations(); numStation++) {
+        		// increase number of cameras if needed to accommodate import
+    			if (this.getNumChannels(numStation) < (sub_system.getNumChannels(numStation) + subsystemOffsets.offset_channel)) {
+    				EyesisSubCameraParameters [] stationCameras = eyesisSubCameras[numStation];
+    				int new_channels = sub_system.getNumChannels(numStation) + subsystemOffsets.offset_channel;
+    				eyesisSubCameras[numStation] = new EyesisSubCameraParameters[new_channels];
+    				for (int nc = 0; nc <stationCameras.length; nc++) {
+    					eyesisSubCameras[numStation][nc] = stationCameras[nc];
+    				}
+    			}
+				for (int nc = 0; nc < sub_system.getNumChannels(); nc++) {
+					eyesisSubCameras[numStation][nc+subsystemOffsets.offset_channel] = sub_system.eyesisSubCameras[numStation][nc];
+				}
+    		}
+    		if (sub_distortions !=null) {
+    			boolean saveNonCalibrated= true;
+    			int new_channels = sub_system.getNumChannels() + subsystemOffsets.offset_channel;
+    			// expand arrays if needed
+    			if (systemDistortions.pathNames == null) {
+    				systemDistortions.pathNames = new String[new_channels];
+    			} else 	if (systemDistortions.pathNames.length < new_channels) {
+    				String [] tmpNames = systemDistortions.pathNames;
+    				systemDistortions.pathNames = new String[new_channels];
+    				for (int i = 0; i < tmpNames.length; i++ ) systemDistortions.pathNames[i] = tmpNames[i];
+    			}
+    			if (systemDistortions.pixelCorrection == null) {
+    				systemDistortions.pixelCorrection = new double[new_channels][][];
+    			} else	if (systemDistortions.pixelCorrection.length < new_channels) {
+    				double [][][] tmpPixelCorrection = systemDistortions.pixelCorrection;
+    				systemDistortions.pixelCorrection = new double[new_channels][][];
+    				for (int i = 0; i < tmpPixelCorrection.length; i++ ) systemDistortions.pixelCorrection[i] = tmpPixelCorrection[i];
+    			}
+    			if (system_distortionCalibrationData == null) {
+    				system_distortionCalibrationData = new DistortionCalibrationData (this);
+    			}
+    			if (system_distortionCalibrationData.sensorMasks == null) {
+    				system_distortionCalibrationData.sensorMasks = new double [new_channels][];
+    			} else if (system_distortionCalibrationData.sensorMasks.length < new_channels) {
+    				double [][] tmp_masks = system_distortionCalibrationData.sensorMasks;
+    				system_distortionCalibrationData.sensorMasks = new double [new_channels][];
+    				for (int i = 0; i < tmp_masks.length; i++ ) system_distortionCalibrationData.sensorMasks[i] = tmp_masks[i];
+    			}
+    			// now copy data over, update the path names?
+    			String imported_name=sub_distortions.pathNames[0];
+    			int last_sep =  imported_name.lastIndexOf(Prefs.getFileSeparator());
+    			if (last_sep>=0) imported_name = imported_name.substring(last_sep + 1);
+    			int indexPeriod=imported_name.lastIndexOf('.');
+    			int indexSuffix=indexPeriod;
+    			String digits="0123456789";
+    	    	for (int i=1;i<=2;i++) if (digits.indexOf(imported_name.charAt(indexSuffix-1))>=0) indexSuffix--; // remove 1 or 2 digits before period
+    	    	boolean hadSuffix= (imported_name.charAt(indexSuffix-1)=='-');
+    	    	for (int nc = 0; nc < sub_system.getNumChannels(); nc++) {
+    	    		int chn = nc+subsystemOffsets.offset_channel;
+    	    		systemDistortions.pathNames[chn]=calibration_directory+Prefs.getFileSeparator()+((hadSuffix?imported_name.substring(0,indexSuffix):(imported_name.substring(0,indexPeriod)+"-"))+
+    	    	    		String.format("%02d",chn)+imported_name.substring(indexPeriod));
+    	    		systemDistortions.pixelCorrection[chn] = sub_distortions.pixelCorrection[nc];
+    	    		system_distortionCalibrationData.sensorMasks[chn] = sub_distortionCalibrationData.sensorMasks[nc];
+    	    	}
+    			// systemDistortions.pathnames
+    			// systemDistortions.pixelCorrection
+    			// sub_distortionCalibrationData.sensorMasks
+
+    	    	String [] extensions={".calib-tiff"};
+    	    	CalibrationFileManagement.MultipleExtensionsFileFilter parFilter = new CalibrationFileManagement.MultipleExtensionsFileFilter("",extensions,"distortion calibration .calib-tiff files");
+    	    	String pathname=CalibrationFileManagement.selectFile(true,
+    	    			"Save distortion calibration for sensor (will add channel number when saving all)",
+    	    			"Save",
+    	    			parFilter,
+    	    			systemDistortions.getSensorPath(-1)); //String defaultPath
+    	    	if ((pathname==null) || (pathname=="")) return true;
+    	    	for (int nc = 0; nc < sub_system.getNumChannels(); nc++) {
+    	    		int chn = nc+subsystemOffsets.offset_channel;
+    	    		systemDistortions.saveDistortionAsImageStack(
+    	    				system_distortionCalibrationData,
+    	    				null, // camerasInterface, // to save channel map
+    	    				"sensor_calibration", // title,
+    	    				systemDistortions.pathNames[chn], // channelPath,
+    	    				chn,
+    	    				saveNonCalibrated);
+
+    	    	}
+
+
+    		}
+
+
+    		return true;
     	}
     }
 

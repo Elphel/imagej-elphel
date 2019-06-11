@@ -29,6 +29,8 @@ package com.elphel.imagej.calibration;
 import java.util.Properties;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import com.elphel.imagej.calibration.hardware.CamerasInterface;
+import com.elphel.imagej.calibration.hardware.GoniometerMotors;
 import com.elphel.imagej.cameras.EyesisCameraParameters;
 import com.elphel.imagej.common.ShowDoubleFloatArrays;
 import com.elphel.imagej.common.WindowTools;
@@ -50,7 +52,7 @@ horizontal axis:
 	private ShowDoubleFloatArrays sdfaInstance = new ShowDoubleFloatArrays(); // just
 																				// for
 																				// debugging
-	public CalibrationHardwareInterface.CamerasInterface cameras = null;
+	public CamerasInterface cameras = null;
 	public LwirReader lwirReader = null;
 	// public CalibrationHardwareInterface.LaserPointers lasers = null;
 	// public static CalibrationHardwareInterface.FocusingMotors motorsS=null;
@@ -67,7 +69,7 @@ horizontal axis:
 
 	public MatchSimulatedPattern[] matchSimulatedPatterns = null; // =new
 																	// MatchSimulatedPattern();
-	public MatchSimulatedPattern.LaserPointer laserPointers = null;
+	public LaserPointer laserPointers = null;
 	MatchSimulatedPattern.PatternDetectParameters patternDetectParameters=null;
 	public SimulationPattern.SimulParameters simulParametersDefault=null;
 	public Goniometer.GoniometerParameters goniometerParameters = null;
@@ -78,11 +80,11 @@ horizontal axis:
 	public double bottomRollersClearance=36.0; // angular clearance between the two bottom rollers
 
 
-	public Goniometer(CalibrationHardwareInterface.CamerasInterface cameras,
+	public Goniometer(CamerasInterface cameras,
 			MatchSimulatedPattern.DistortionParameters distortionParametersDefault,
 			MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
 			EyesisCameraParameters eyesisCameraParameters,
-			MatchSimulatedPattern.LaserPointer laserPointers,
+			LaserPointer laserPointers,
 			SimulationPattern.SimulParameters simulParametersDefault,
 			Goniometer.GoniometerParameters goniometerParameters,
 			DistortionProcessConfiguration distortionProcessConfiguration
@@ -104,7 +106,7 @@ horizontal axis:
 			MatchSimulatedPattern.DistortionParameters distortionParametersDefault,
 			MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
 			EyesisCameraParameters eyesisCameraParameters,
-			MatchSimulatedPattern.LaserPointer laserPointers,
+			LaserPointer laserPointers,
 			SimulationPattern.SimulParameters simulParametersDefault,
 			Goniometer.GoniometerParameters goniometerParameters,
 			DistortionProcessConfiguration distortionProcessConfiguration
@@ -754,15 +756,10 @@ horizontal axis:
 	public double[] estimateOrientation(
 			ImagePlus[] images, // last acquire images with number of pointers
 								// detected>0
-//			MatchSimulatedPattern.DistortionParameters distortionParametersDefault,
-//			LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
-//			Goniometer.GoniometerParameters goniometerParameters,
-//			MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
-//			MatchSimulatedPattern.LaserPointer laserPointer, // null OK
-//			SimulationPattern.SimulParameters simulParametersDefault,
 			DistortionCalibrationData distortionCalibrationData,
 			PatternParameters patternParameters, // should not be  null
 			Distortions lensDistortions, // should not be null
+			LaserPointer laserPointers, // as a back up measure
 			boolean equalizeGreens,
 			int threadsMax,
 			boolean updateStatus,
@@ -815,8 +812,7 @@ horizontal axis:
 				// used alternatively if keeping it
 				this.matchSimulatedPatterns[numSensor].invalidateFlatFieldForGrid(); // Reset Flat Filed calibration - different image.
 				this.matchSimulatedPatterns[numSensor].invalidateFocusMask();
-				if (matchSimulatedPatterns[numSensor].getPointersXY(images[numSensor],
-								this.laserPointers.laserUVMap.length) == null) { // no pointers in this image
+				if (MatchSimulatedPattern.getPointersXYUV(images[numSensor],this.laserPointers) == null) { // no pointers in this image
 					String msg = "No laser pointers detected for "+ images[numSensor].getTitle()+ " - they are needed for absolute grid positioning";
 					if (debug_level > 0) System.out.println("Warning: " + msg);
 					IJ.showMessage("Warning", msg);
@@ -933,8 +929,9 @@ horizontal axis:
 		 * //PatternParameters patternParameters, eyesisCameraParameters
 		 * //EyesisCameraParameters eyesisCameraParameters );
 		 */
-		distortionCalibrationData.setImages(imp_calibrated, // ImagePlus [] images, // imagesin the memory
-				patternParameters); // PatternParameters patternParameters);
+		distortionCalibrationData.setImages(imp_calibrated, // ImagePlus [] images, // images in the memory
+				patternParameters, // PatternParameters patternParameters);
+				laserPointers);
 		distortionCalibrationData.initImageSet(eyesisCameraParameters);
 
 		// Set initial azimuth and elevation
@@ -1075,7 +1072,7 @@ horizontal axis:
         5682.48889 per degree
         	 */
         // motors rotate positive - look down, positive - CCW
-        CalibrationHardwareInterface.GoniometerMotors goniometerMotors=null;
+        GoniometerMotors goniometerMotors=null;
 //        public double stepsPerDegreeTilt=-5682.48889; // minus that positive steps make negative elevation
 //        public double stepsPerDegreeAxial=-36.0; // minus that positive steps make rotate CCW when looking from Eyesis top
 //        public double scanStepTilt=20.0;   // degrees (equal steps not larger than
@@ -1098,11 +1095,11 @@ horizontal axis:
 
 
 
-    	public GoniometerParameters(CalibrationHardwareInterface.GoniometerMotors goniometerMotors){
+    	public GoniometerParameters(GoniometerMotors goniometerMotors){
     		    		this.goniometerMotors=goniometerMotors;
     	}
     	public GoniometerParameters(
-    			CalibrationHardwareInterface.GoniometerMotors goniometerMotors,
+    			GoniometerMotors goniometerMotors,
     	    	String gridGeometryFile,
     	    	String initialCalibrationFile, // not needed
     	    	String strategyFile,

@@ -6,7 +6,7 @@ package com.elphel.imagej.cameras;
  ** Copyright (C) 2011-2014 Elphel, Inc.
  **
  ** -----------------------------------------------------------------------------**
- **  
+ **
  **  EyesisSubCameraParameters.java is free software: you can redistribute it and/or modify
  **  it under the terms of the GNU General Public License as published by
  **  the Free Software Foundation, either version 3 of the License, or
@@ -55,12 +55,18 @@ import java.util.Properties;
 		public double channelWeightCurrent=1.0;
 		public int [][] defectsXY=null; // pixel defects coordinates list (starting with worst)
 		public double [] defectsDiff=null; // pixel defects value (diff from average of neighbors), matching defectsXY
-		
-		final private double [][] r_xy_dflt={{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0}}; // only 6, as for the first term delta x, delta y ==0  
+
+		final private double [][] r_xy_dflt={{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0}}; // only 6, as for the first term delta x, delta y ==0
 		final private double [][] r_od_dflt=   {{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0},{0.0,0.0}}; // ortho
-		
-		public double [][] r_xy=null; // only 6, as for the first term delta x, delta y ==0  
+
+		public double [][] r_xy=null; // only 6, as for the first term delta x, delta y ==0
 		public double [][] r_od=null; // ortho
+		// was not used before LWIR and import subsystem
+		public int subcamera =   0;
+		public int sensor_port = 0;
+		public int subchannel =  0;
+
+
 		/*
 		 Modifying to accommodate for eccentricity of different terms (2 parameters per term) and elliptical shape (another 2 terms). When all are
 		 zeroes, the old parameters are in effect:
@@ -69,10 +75,10 @@ import java.util.Properties;
 				R[i] depends on px,py and r_xy[i][], r_o[i] (positive - "landscape", negative - "portrait"), r_d (positive - along y=x, negative - along y=-x)
 				R[i] = r0[i]*(1+  (r_od[i][0]*(y[i]**2-x[i]**2)+ 2*r_od[i][1]*x[i]*y[i])/r0[i]**2;
 				r0[i]=sqrt(x[i]**2+y[2]**2)
-				x[i]=pixel_x-px0-((i>0)?r_xy[i-1][0]:0) 
+				x[i]=pixel_x-px0-((i>0)?r_xy[i-1][0]:0)
 				y[i]=pixel_y-py0-((i>0)?r_xy[i-1][1]:0)
-		*/		
-		
+		*/
+
     	public EyesisSubCameraParameters(
     			boolean cartesian,
     			int lensDistortionModel,
@@ -89,10 +95,10 @@ import java.util.Properties;
     			double focalLength,
     			double pixelSize,//um
     			double distortionRadius, //mm - half width of the sensor
-    			double distortionA8, // r^8 
-    			double distortionA7, // r^7 
-    			double distortionA6, // r^5 
-    			double distortionA5, // r^5 
+    			double distortionA8, // r^8
+    			double distortionA7, // r^7
+    			double distortionA6, // r^5
+    			double distortionA5, // r^5
     			double distortionA, // r^4 (normalized to focal length or to sensor half width?)
     			double distortionB, // r^3
     			double distortionC, // r^2
@@ -100,7 +106,10 @@ import java.util.Properties;
     			double py0,           // center of the lens on the sensor, pixels
 				double [][] r_xy,     // eccentricity for b,a,a5,a6,a7,a8
 				double [][] r_od,     // elongation for c,b,a,a5,a6,a7,a8
-    			double channelWeightDefault
+    			double channelWeightDefault,
+    			int subcamera,
+    			int sensor_port,
+    			int subchannel
     	){
     		this.cartesian = cartesian;
     		this.lensDistortionModel=lensDistortionModel;
@@ -108,7 +117,7 @@ import java.util.Properties;
     		this.right =   right;
     		this.forward = forward;
     		this.heading = heading;
-    		
+
     		this.azimuth=azimuth;
     		this.radius=radius;
     		this.height=height;
@@ -137,11 +146,15 @@ import java.util.Properties;
     		this.channelWeightCurrent=this.channelWeightDefault;
     		this.defectsXY=null; // pixel defects coordinates list (starting with worst)
     		this.defectsDiff=null; // pixel defects value (diff from average of neighbors), matching defectsXY
+			this.subcamera = subcamera;
+			this.sensor_port = sensor_port;
+			this.subchannel = subchannel;
 
     		updateCartesian(); // set alternative
     	}
     	// defects are not cloned!
-    	public EyesisSubCameraParameters clone() {
+    	@Override
+		public EyesisSubCameraParameters clone() {
     		return new EyesisSubCameraParameters(
     	    		this.cartesian,
     				this.lensDistortionModel,
@@ -169,7 +182,10 @@ import java.util.Properties;
     	    		this.py0,
     				this.r_xy,
     				this.r_od,
-    	    		this.channelWeightDefault
+    	    		this.channelWeightDefault,
+    				this.subcamera,
+    				this.sensor_port,
+    				this.subchannel
     				);
     	}
     	public void setDefaultNonRadial(){
@@ -180,39 +196,44 @@ import java.util.Properties;
     	}
 // TODO: add/restore new properties
     	public void setProperties(String prefix,Properties properties){
-    		properties.setProperty(prefix+"cartesian",this.cartesian+"");
-    		properties.setProperty(prefix+"lensDistortionModel",this.lensDistortionModel+"");
-    		properties.setProperty(prefix+"enableNoLaser",this.enableNoLaser+"");
-    		properties.setProperty(prefix+"right",this.right+"");
-    		properties.setProperty(prefix+"heading",this.heading+"");
-    		properties.setProperty(prefix+"forward",this.forward+"");
-    		properties.setProperty(prefix+"azimuth",this.azimuth+"");
-    		properties.setProperty(prefix+"radius",this.radius+"");
-    		properties.setProperty(prefix+"height",this.height+"");
-    		properties.setProperty(prefix+"phi",this.phi+"");
-    		properties.setProperty(prefix+"theta",this.theta+"");
-    		properties.setProperty(prefix+"psi",this.psi+"");
-			properties.setProperty(prefix+"focalLength",this.focalLength+"");
-			properties.setProperty(prefix+"pixelSize",this.pixelSize+"");
-			properties.setProperty(prefix+"distortionRadius",this.distortionRadius+"");
-			properties.setProperty(prefix+"distortionA8",this.distortionA8+"");
-			properties.setProperty(prefix+"distortionA7",this.distortionA7+"");
-			properties.setProperty(prefix+"distortionA6",this.distortionA6+"");
-			properties.setProperty(prefix+"distortionA5",this.distortionA5+"");
-			properties.setProperty(prefix+"distortionA",this.distortionA+"");
-			properties.setProperty(prefix+"distortionB",this.distortionB+"");
-			properties.setProperty(prefix+"distortionC",this.distortionC+"");
-			properties.setProperty(prefix+"px0",this.px0+"");
-			properties.setProperty(prefix+"py0",this.py0+"");
+    		properties.setProperty(prefix+"cartesian",           this.cartesian+"");
+    		properties.setProperty(prefix+"lensDistortionModel", this.lensDistortionModel+"");
+    		properties.setProperty(prefix+"enableNoLaser",       this.enableNoLaser+"");
+    		properties.setProperty(prefix+"right",               this.right+"");
+    		properties.setProperty(prefix+"heading",             this.heading+"");
+    		properties.setProperty(prefix+"forward",             this.forward+"");
+    		properties.setProperty(prefix+"azimuth",             this.azimuth+"");
+    		properties.setProperty(prefix+"radius",              this.radius+"");
+    		properties.setProperty(prefix+"height",              this.height+"");
+    		properties.setProperty(prefix+"phi",                 this.phi+"");
+    		properties.setProperty(prefix+"theta",               this.theta+"");
+    		properties.setProperty(prefix+"psi",                 this.psi+"");
+			properties.setProperty(prefix+"focalLength",         this.focalLength+"");
+			properties.setProperty(prefix+"pixelSize",           this.pixelSize+"");
+			properties.setProperty(prefix+"distortionRadius",    this.distortionRadius+"");
+			properties.setProperty(prefix+"distortionA8",        this.distortionA8+"");
+			properties.setProperty(prefix+"distortionA7",        this.distortionA7+"");
+			properties.setProperty(prefix+"distortionA6",        this.distortionA6+"");
+			properties.setProperty(prefix+"distortionA5",        this.distortionA5+"");
+			properties.setProperty(prefix+"distortionA",         this.distortionA+"");
+			properties.setProperty(prefix+"distortionB",         this.distortionB+"");
+			properties.setProperty(prefix+"distortionC",         this.distortionC+"");
+			properties.setProperty(prefix+"px0",                 this.px0+"");
+			properties.setProperty(prefix+"py0",                 this.py0+"");
 			for (int i=0;i<this.r_xy.length;i++){
-				properties.setProperty(prefix+"r_xy_"+i+"_x",this.r_xy[i][0]+"");
-				properties.setProperty(prefix+"r_xy_"+i+"_y",this.r_xy[i][1]+"");
+				properties.setProperty(prefix+"r_xy_"+i+"_x",    this.r_xy[i][0]+"");
+				properties.setProperty(prefix+"r_xy_"+i+"_y",    this.r_xy[i][1]+"");
 			}
 			for (int i=0;i<this.r_od.length;i++){
-				properties.setProperty(prefix+"r_od_"+i+"_o",this.r_od[i][0]+"");
-				properties.setProperty(prefix+"r_od_"+i+"_d",this.r_od[i][1]+"");
+				properties.setProperty(prefix+"r_od_"+i+"_o",    this.r_od[i][0]+"");
+				properties.setProperty(prefix+"r_od_"+i+"_d",    this.r_od[i][1]+"");
 			}
 			properties.setProperty(prefix+"channelWeightDefault",this.channelWeightDefault+"");
+			properties.setProperty(prefix+"subcamera",           this.subcamera+"");
+			properties.setProperty(prefix+"sensor_port",         this.sensor_port+"");
+			properties.setProperty(prefix+"subchannel",          this.subchannel+"");
+
+
     	}
     	public void getProperties(String prefix,Properties properties){
     		getProperties(prefix,properties, -1);
@@ -285,7 +306,13 @@ import java.util.Properties;
 			} else {
 				this.enableNoLaser=(channel<24);
 			}
-			
+			if (properties.getProperty(prefix+"subcamera")!=null)
+				this.subcamera=Integer.parseInt(properties.getProperty(prefix+"subcamera"));
+			if (properties.getProperty(prefix+"sensor_port")!=null)
+				this.sensor_port=Integer.parseInt(properties.getProperty(prefix+"sensor_port"));
+			if (properties.getProperty(prefix+"subchannel")!=null)
+				this.subchannel=Integer.parseInt(properties.getProperty(prefix+"subchannel"));
+
     	}
     	public void setChannelWeightCurrent(
     			double weight){
@@ -297,15 +324,15 @@ import java.util.Properties;
     	public double getChannelWeightDefault(){
     		return this.channelWeightDefault;
     	}
-    	
+
     	public void updateCartesian(){ // set alternative parameters
     		if (cartesian) {
     			this.azimuth = Math.atan2(this.right, this.forward)*180.0/Math.PI;
     			this.radius = Math.sqrt(this.forward*this.forward + this.right*this.right);
-    			this.phi = this.heading - this.azimuth; 
+    			this.phi = this.heading - this.azimuth;
     		} else {
-    			this.forward = this.radius * Math.cos(Math.PI*this.azimuth/180.0); 
-    			this.right =   this.radius * Math.sin(Math.PI*this.azimuth/180.0); 
+    			this.forward = this.radius * Math.cos(Math.PI*this.azimuth/180.0);
+    			this.right =   this.radius * Math.sin(Math.PI*this.azimuth/180.0);
     			this.heading = this.phi +  this.azimuth;
     		}
     	}

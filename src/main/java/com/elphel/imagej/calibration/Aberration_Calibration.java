@@ -60,6 +60,11 @@ import java.util.regex.Pattern;
 // TODO: modify methods that depend on it, use class CalibrationFileManagement
 import javax.swing.JFileChooser;
 
+import com.elphel.imagej.calibration.hardware.CamerasInterface;
+import com.elphel.imagej.calibration.hardware.FocusingMotors;
+import com.elphel.imagej.calibration.hardware.GoniometerMotors;
+import com.elphel.imagej.calibration.hardware.LaserPointersHardware;
+import com.elphel.imagej.calibration.hardware.PowerControl;
 import com.elphel.imagej.cameras.EyesisCameraParameters;
 import com.elphel.imagej.cameras.SFEPhases;
 import com.elphel.imagej.common.DoubleFHT;
@@ -526,7 +531,7 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 	{-27.5,26.5},  // bottom left
 	{32.5,20.5}};  // bottom right
 
-    public static MatchSimulatedPattern.LaserPointer LASER_POINTERS= new MatchSimulatedPattern.LaserPointer (
+    public static LaserPointer LASER_POINTERS= new LaserPointer (
 	    1.06,     //	public double headLasersTilt=  1.06; // degrees, right laser lower than left laser
     	0.05,      // minimalIntensity
     	1.5,      // maximalIntensity
@@ -602,15 +607,15 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 	SyncCommand SYNC_COMMAND=new SyncCommand();
 	public float [][] SIM_ARRAY=null; // first index - 0 - main, 1 - shifted by 0.5 pixel diagonally (to extract checker greens)
 
-	public static CalibrationHardwareInterface.LaserPointers LASERS=new CalibrationHardwareInterface.LaserPointers(LASER_POINTERS);
-	public static CalibrationHardwareInterface.PowerControl POWER_CONTROL=new CalibrationHardwareInterface.PowerControl();
-	public static CalibrationHardwareInterface.CamerasInterface CAMERAS=new CalibrationHardwareInterface.CamerasInterface(26,LASERS);
-	public static CalibrationHardwareInterface.FocusingMotors MOTORS=new CalibrationHardwareInterface.FocusingMotors();
+	public static LaserPointersHardware LASERS=new LaserPointersHardware(LASER_POINTERS);
+	public static PowerControl POWER_CONTROL=new PowerControl();
+	public static CamerasInterface CAMERAS=new CamerasInterface(26,LASERS);
+	public static FocusingMotors MOTORS=new FocusingMotors();
 
 	public static DistortionProcessConfiguration DISTORTION_PROCESS_CONFIGURATION=new DistortionProcessConfiguration();
 
 	public static LensAdjustment.FocusMeasurementParameters FOCUS_MEASUREMENT_PARAMETERS= new LensAdjustment.FocusMeasurementParameters(MOTORS.curpos);
-	public static CalibrationHardwareInterface.GoniometerMotors GONIOMETER_MOTORS= new CalibrationHardwareInterface.GoniometerMotors();
+	public static GoniometerMotors GONIOMETER_MOTORS= new GoniometerMotors();
 	public static FocusingField FOCUSING_FIELD=null;
 //	public String FOCUSING_FIELD_HISTORY_PATH=null;
 	//GoniometerParameters
@@ -618,7 +623,7 @@ public static MatchSimulatedPattern.DistortionParameters DISTORTION =new MatchSi
 
 
 
-	public static CalibrationHardwareInterface.UVLEDandLasers UV_LED_LASERS=new CalibrationHardwareInterface.UVLEDandLasers(FOCUS_MEASUREMENT_PARAMETERS);
+	public static UVLEDandLasers UV_LED_LASERS=new UVLEDandLasers(FOCUS_MEASUREMENT_PARAMETERS);
 
 	public static LensAdjustment LENS_ADJUSTMENT = new LensAdjustment();
 
@@ -1012,7 +1017,9 @@ if (MORE_BUTTONS) {
 		addButton("Goniometer Move",            panelLWIR,color_debug);
 		addButton("LWIR Goniometer",            panelLWIR,color_conf_process);
 		addButton("LWIR grids",                 panelLWIR,color_process);
-
+		addButton("Import Subsystem",           panelLWIR,color_configure);
+		addButton("Select LWIR grids",          panelLWIR,color_configure);
+		addButton("Manual hint",                panelLWIR,color_configure);
 
 		add(panelLWIR);
 		pack();
@@ -2111,17 +2118,6 @@ if (MORE_BUTTONS) {
 	        		numStation--;
 	        	}
 		    }
-/*
-			String [] gridFiles=CalibrationFileManagement.selectFiles(false,
-					"Select Calibrated Grid Files",
-					"Select",
-					gridFilter,
-					null); // String [] defaultPaths);
-	       	if ((gridFiles==null) || (gridFiles.length==0)) {
-        		IJ.showMessage("No files selected");
-        		return;
-        	}
-*/
 			PATTERN_PARAMETERS.debugLevel=MASTER_DEBUG_LEVEL;
 			EYESIS_CAMERA_PARAMETERS.updateNumstations (numStations);
 //if (MASTER_DEBUG_LEVEL==0) return; //TODO: Remove - just debugging
@@ -2129,6 +2125,7 @@ if (MORE_BUTTONS) {
 					gridFiles,
 					PATTERN_PARAMETERS,
 					EYESIS_CAMERA_PARAMETERS,
+					LASER_POINTERS,
 					MASTER_DEBUG_LEVEL);
 			LENS_DISTORTIONS.initImageSet(
  					DISTORTION_CALIBRATION_DATA,
@@ -2140,20 +2137,6 @@ if (MORE_BUTTONS) {
 			return;
 		}
 
-/* ======================================================================== */
-/*
-  		if       (label.equals("Use Current Images")) {
-			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
-
-			LENS_DISTORTIONS=new Distortions(LENS_DISTORTION_PARAMETERS,PATTERN_PARAMETERS,REFINE_PARAMETERS);
-			DISTORTION_CALIBRATION_DATA=new DistortionCalibrationData(gridFiles,PATTERN_PARAMETERS,EYESIS_CAMERA_PARAMETERS);
-			LENS_DISTORTIONS.initImageSet(
- 					DISTORTION_CALIBRATION_DATA,
-					EYESIS_CAMERA_PARAMETERS
-					);
-			return;
-		}
-*/
 /* ======================================================================== */
 		if       (label.equals("Edit Calibration")) {
 			DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
@@ -2187,6 +2170,7 @@ if (MORE_BUTTONS) {
 					PATTERN_PARAMETERS,
 					EYESIS_CAMERA_PARAMETERS,
 					ABERRATIONS_PARAMETERS,
+					LASER_POINTERS,
 					null); // gridImages null - use specified files
 			if (DISTORTION_CALIBRATION_DATA.pathName== null){ // failed to select/open the file
 				DISTORTION_CALIBRATION_DATA=oldDISTORTION_CALIBRATION_DATA;
@@ -2844,7 +2828,7 @@ if (MORE_BUTTONS) {
 			}
 			LENS_DISTORTIONS.debugLevel=DEBUG_LEVEL;
 			LENS_DISTORTIONS.resetSensorCorrection();
-			LENS_DISTORTIONS.initSensorCorrection(); // set zero corerctions (to be able to save sensor correction files)
+			LENS_DISTORTIONS.initSensorCorrection(); // set zero corrections (to be able to save sensor correction files)
 			return;
 		}
 /* ======================================================================== */
@@ -2875,8 +2859,19 @@ if (MORE_BUTTONS) {
 		    if (allFiles) numSensor=-1;
 			boolean overwriteExtrinsic=gd.getNextBoolean();
 			boolean overwriteDistortion=gd.getNextBoolean();
-		    if (numSensor<0) LENS_DISTORTIONS.setDistortionFromImageStack(pathname,overwriteExtrinsic,overwriteDistortion); // requires fitting strategy to be set?
-		    else LENS_DISTORTIONS.setDistortionFromImageStack(pathname, numSensor,true,overwriteExtrinsic,overwriteDistortion); // report missing files
+		    if (numSensor<0) LENS_DISTORTIONS.setDistortionFromImageStack(
+		    		DISTORTION_CALIBRATION_DATA, // put null here to use FITTING_STRATEGY.distortionCalibrationData
+		    		EYESIS_CAMERA_PARAMETERS,    // use null for old version - in fitting strategy instance
+		    		pathname,
+		    		overwriteExtrinsic,
+		    		overwriteDistortion); // requires fitting strategy to be set?
+		    else LENS_DISTORTIONS.setDistortionFromImageStack(
+		    		DISTORTION_CALIBRATION_DATA, // put null here to use FITTING_STRATEGY.distortionCalibrationData
+		    		pathname,
+		    		numSensor,
+		    		true,
+		    		overwriteExtrinsic,
+		    		overwriteDistortion); // report missing files
 			return;
 		}
 /* ======================================================================== */
@@ -2980,14 +2975,16 @@ if (MORE_BUTTONS) {
 		    boolean saveNonCalibrated=gd.getNextBoolean();
 		    if (numSensor<0){
 		    	LENS_DISTORTIONS.saveDistortionAsImageStack(
+			    		DISTORTION_CALIBRATION_DATA, // put null here to use FITTING_STRATEGY.distortionCalibrationData
 		    			CAMERAS, // to save channel map
-		    			"sensor_calibratrion" , //String title,
+		    			"sensor_calibration" , //String title,
 		    			pathname,
 		    			saveNonCalibrated); // boolean emptyOK) if false will throw for non-calibrated sensors
 		    } else {
 		    	LENS_DISTORTIONS.saveDistortionAsImageStack(
+			    		DISTORTION_CALIBRATION_DATA, // put null here to use FITTING_STRATEGY.distortionCalibrationData
 		    			CAMERAS, // to save channel map
-		    			"sensor_calibratrion" , //String title,
+		    			"sensor_calibration" , //String title,
 		    			pathname,
 		    			numSensor,
 		    			saveNonCalibrated); // boolean emptyOK) if false will throw for non-calibrated sensors
@@ -3504,7 +3501,7 @@ if (MORE_BUTTONS) {
 				   matchSimulatedPatternSet[imgCounter].invalidateFocusMask();
 
 
-				if (matchSimulatedPatternSet[imgCounter].getPointersXY(imp_set[imgCounter],LASER_POINTERS.laserUVMap.length)==null) { // no pointers in this image
+				if (MatchSimulatedPattern.getPointersXYUV(imp_set[imgCounter],LASER_POINTERS)==null) { // no pointers in this image
 					IJ.showMessage("Error","No laser pointers detected for image #" + imgCounter + " - they are needed for absolute grid positioning\nProcess canceled");
 					return;
 				}
@@ -3546,6 +3543,7 @@ if (MORE_BUTTONS) {
 						PATTERN_PARAMETERS,
 						EYESIS_CAMERA_PARAMETERS, // is it null or 1?
 						ABERRATIONS_PARAMETERS,
+						LASER_POINTERS,
 						imp_calibrated); // gridImages null - use specified files - single image
 				if (DISTORTION_CALIBRATION_DATA.pathName== null){ // failed to select/open the file
 					DISTORTION_CALIBRATION_DATA=null;
@@ -5019,7 +5017,11 @@ if (MORE_BUTTONS) {
 						FOCUS_MEASUREMENT_PARAMETERS.resetResults();
 						PROPERTIES=new Properties(); // reset properties
 						FOCUS_MEASUREMENT_PARAMETERS.manufacturingState=0; // new SFE - reset for old format
-						loadProperties(path, null, true, PROPERTIES);
+//						loadProperties(path, null, true, PROPERTIES);
+						PROPERTIES = readProperties( path, true, PROPERTIES);
+						getAllProperties(PROPERTIES);
+						if (DEBUG_LEVEL>0) System.out.println("Configuration parameters are restored from "+path);
+
 						if (DEBUG_LEVEL>2) System.out.println("numSFE="+numSFE+" iLens="+iLens+" iState="+iState+" sfeParameters.length="+sfeParameters.length);
 						if (DEBUG_LEVEL>2) System.out.println("sfeParameters["+numSFE+"].length="+sfeParameters[numSFE].length);
 						if (DEBUG_LEVEL>2) System.out.println("sfeParameters["+numSFE+"]["+iLens+"].length="+sfeParameters[numSFE][iLens].length);
@@ -6260,14 +6262,10 @@ if (MORE_BUTTONS) {
 // Find curernt orientation
 			double [] currentOrientation=GONIOMETER.estimateOrientation (
 					CAMERAS.getImages(1), // last acquired images with number of pointers detected>0
-//					DISTORTION, //MatchSimulatedPattern.DistortionParameters distortionParametersDefault,
-//					GONIOMETER_PARAMETERS, //LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
-//					PATTERN_DETECT, //MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
-//					LASER_POINTERS, //MatchSimulatedPattern.LaserPointer laserPointer, // null OK
-//					SIMUL,                       //SimulationPattern.SimulParameters  simulParametersDefault,
 					DISTORTION_CALIBRATION_DATA, // DistortionCalibrationData distortionCalibrationData,
 					PATTERN_PARAMETERS,          //PatternParameters patternParameters, // should not be null
 					LENS_DISTORTIONS,            //Distortions lensDistortions, // should not be null
+					LASER_POINTERS,              // as a backup measure if data is not provided in grid files (old versions)
 					COMPONENTS.equalizeGreens,   //boolean equalizeGreens,
 					THREADS_MAX,                 // int       threadsMax,
 					UPDATE_STATUS,               //boolean   updateStatus,
@@ -9416,14 +9414,42 @@ if (MORE_BUTTONS) {
 ///		POWER_CONTROL.lightsOff();
 		return;
 	}
-	/* ======================================================================== */
+/* ======================================================================== */
 	if       (label.equals("LWIR grids")) {
 	    calculateLwirGrids();
         return;
 	}
 
+	if       (label.equals("Import Subsystem")) {
+		importSystem(null, "EYESIS_CAMERA_PARAMETERS.");
+        return;
+	}
 
+	if       (label.equals("Select LWIR grids")) {
+		selectLwirGrids(LWIR_PARAMETERS);
+        return;
+	}
+	if       (label.equals("Manual hint")) {
+		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+		if (LENS_DISTORTIONS==null) {
+			IJ.showMessage("LENS_DISTORTION is not set");
+			return;
+		}
+		if (LENS_DISTORTIONS.fittingStrategy==null) {
+			IJ.showMessage("LENS_DISTORTION.fittingStrategy is not set");
+			return;
+		}
+		LENS_DISTORTIONS.debugLevel=DEBUG_LEVEL;
+		GenericDialog gd=new GenericDialog("Select grid image to add manual hint");
+		gd.addNumericField("Grid Image index", 0,0);
 
+		gd.showDialog();
+		if (gd.wasCanceled()) return;
+		int numGridImage= (int) gd.getNextNumber();
+
+		LENS_DISTORTIONS.manualGridHint(numGridImage);
+        return;
+	}
 
 
 /* ======================================================================== */
@@ -9434,8 +9460,196 @@ if (MORE_BUTTONS) {
 	}
 
 /* ===== Other methods ==================================================== */
+	public boolean selectLwirGrids(LwirReaderParameters lwirReaderParameters) {
+		//DistortionProcessConfiguration
+		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+		LENS_DISTORTIONS=new Distortions(LENS_DISTORTION_PARAMETERS,PATTERN_PARAMETERS,REFINE_PARAMETERS,this.SYNC_COMMAND.stopRequested);
+		int min_files = 8; // use folders that have all 8 files
+		int lwir_chn0 = lwirReaderParameters.getLwirChn0();
+		int vnir_chn0 = lwirReaderParameters.getVnirChn0();
+		int numStations = 3;
+	    GenericDialog gd = new GenericDialog("Setup Goniometer/Camera Stations");
+	    gd.addMessage("Setting up calibration that includes multiple camera tripod or goniometer positions.");
+	    gd.addMessage("File selection dialog will open for each station separateley.");
+	    gd.addNumericField("Number of goniometer/camera stations", numStations,0);
+	    gd.addMessage("lwir_chn0 = "+lwir_chn0);
+	    gd.addMessage("vnir_chn0 = "+vnir_chn0);
+	    gd.addMessage("min_files = "+min_files);
+
+	    gd.showDialog();
+	    if (gd.wasCanceled()) return false;
+	    numStations= (int) gd.getNextNumber();
+		String [] grid_extensions={".tif",".tiff"};
+		String [] src_extensions={".tif",".tiff"};
+		CalibrationFileManagement.MultipleExtensionsFileFilter gridFilter =
+			new CalibrationFileManagement.MultipleExtensionsFileFilter("grid",grid_extensions,"Calibrated grid files");
+		CalibrationFileManagement.MultipleExtensionsFileFilter sourceFilter =
+				new CalibrationFileManagement.MultipleExtensionsFileFilter("",src_extensions,"Source calibration images");
+
+//		CalibrationFileManagement.DirectoryContentsFilter gridDirFilter =
+//				new CalibrationFileManagement.DirectoryContentsFilter (gridFilter, min_files, 0, null);
+
+    	String [][] gridFileDirs=       new String [numStations][];
+		String []   sourceStationDirs = new String [numStations];      // directories of the source files per station
+
+	    for (int numStation=0;numStation<numStations;numStation++){
+	    	CalibrationFileManagement.DirectoryChoser dc = new CalibrationFileManagement.DirectoryChoser(
+	    			gridFilter,
+	    			min_files,
+	    			0,
+	    			null);
+	    	dc.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+	    	dc.setMultiSelectionEnabled(true);
+	    	dc.setDialogTitle("Select Calibrated Grid File Directories for Station "+numStation+ "("+(numStation+1)+" of "+numStations+")");
+	    	dc.setApproveButtonText("Select");
+	    	File cur_dir = new File(DISTORTION_PROCESS_CONFIGURATION.gridDirectory);
+	    	if (cur_dir != null) {
+	    		cur_dir = cur_dir.getParentFile();
+	    	}
+	    	dc.setCurrentDirectory(cur_dir);
+	    	int returnVal = dc.showOpenDialog(IJ.getInstance());
+	    	if (returnVal!=JFileChooser.APPROVE_OPTION)	return false;
+	    	File [] files = dc.getSelectedFiles();
+	    	if (files.length<1) return false;
+	    	// Can not make it work correctly with multiple selection, giving up for now
+	    	ArrayList<File>  filelist = new ArrayList<File>();
+	    	for (int nFile=0;nFile<files.length;nFile++) {
+	    		int num_match = files[nFile].list(gridFilter).length;
+	    		if (num_match >= min_files) {
+	    			filelist.add(files[nFile]);
+	    		}
+	    	}
+
+	    	gridFileDirs[numStation]=new String[filelist.size()];
+	    	for (int nFile=0;nFile<gridFileDirs[numStation].length;nFile++) {
+	    		gridFileDirs[numStation][nFile]= filelist.get(nFile).getPath();
+	    	}
+	       	if ((gridFileDirs[numStation]==null) || (gridFileDirs[numStation].length==0)) {
+        		if (!IJ.showMessageWithCancel("No files selected","Retry? (Cancel will abort the command)")) return false;
+        		numStation--;
+        	}
+	    }
+//sourceDirectory
+	    for (int numStation=0;numStation<numStations;numStation++){
+	    	File cur_dir = new File(DISTORTION_PROCESS_CONFIGURATION.sourceDirectory);
+	    	if (cur_dir != null) {
+	    		cur_dir = cur_dir.getParentFile();
+	    	}
+	    	sourceStationDirs[numStation] = CalibrationFileManagement.selectDirectory(
+	    			false, // boolean save,
+	    			("Station "+numStation+ "("+(numStation+1)+" of "+numStations+"): "+"Select source directory (if available, OK to cancel)"), // String title,
+	    			("Select source directory "+ (numStation+1)), // String button,
+	    			null, // FileFilter filter,
+	    			cur_dir.getPath()); // String defaultPath);
+		  }
+
+		PATTERN_PARAMETERS.debugLevel=MASTER_DEBUG_LEVEL;
+		EYESIS_CAMERA_PARAMETERS.updateNumstations (numStations);
+		DISTORTION_CALIBRATION_DATA=new DistortionCalibrationData( // new way for LWIR - initialize form dirs
+				gridFileDirs,
+				sourceStationDirs,
+				gridFilter,
+        		sourceFilter,
+				PATTERN_PARAMETERS,
+				EYESIS_CAMERA_PARAMETERS,
+				LASER_POINTERS, //LaserPointer                                           laserPointers
+				true,                    // boolean read_grids
+				MASTER_DEBUG_LEVEL);
+
+	    if (MASTER_DEBUG_LEVEL <100) return true;
+	    // patterns are not yet read here!
+
+/*
+
+		PATTERN_PARAMETERS.debugLevel=MASTER_DEBUG_LEVEL;
+		EYESIS_CAMERA_PARAMETERS.updateNumstations (numStations);
+//if (MASTER_DEBUG_LEVEL==0) return; //TODO: Remove - just debugging
+		DISTORTION_CALIBRATION_DATA=new DistortionCalibrationData(
+				gridFileDirs,
+				PATTERN_PARAMETERS,
+				EYESIS_CAMERA_PARAMETERS,
+				MASTER_DEBUG_LEVEL);
+*/
+		LENS_DISTORTIONS.initImageSet(
+					DISTORTION_CALIBRATION_DATA,
+				EYESIS_CAMERA_PARAMETERS
+				);
+		// set initial orientation of the cameras from the sensors that see mpst of the matching pointers
+		// just for the LMA to start
+		DISTORTION_CALIBRATION_DATA.setInitialOrientation(true);
+		return true;
+
+
+	}
+	/* ======================================================================== */
+/*
+	if       (label.equals("Select Grid Files")) {
+		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+		LENS_DISTORTIONS=new Distortions(LENS_DISTORTION_PARAMETERS,PATTERN_PARAMETERS,REFINE_PARAMETERS,this.SYNC_COMMAND.stopRequested);
+		String [] extensions={".tif",".tiff"};
+		CalibrationFileManagement.MultipleExtensionsFileFilter gridFilter =
+			new CalibrationFileManagement.MultipleExtensionsFileFilter("grid",extensions,"Calibrated grid files");
+	    GenericDialog gd = new GenericDialog("Setup Goniometer/Camera Stations");
+	    gd.addMessage("Setting up calibration that includes multiple camera tripod or goniometer positions.");
+	    gd.addMessage("File selection dialog will open for each station separateley.");
+	    gd.addNumericField("Number of goniometer/camera stations", 1,0);
+	    gd.showDialog();
+	    if (gd.wasCanceled()) return;
+	    int numStations= (int) gd.getNextNumber();
+    	String [][] gridFiles= new String [numStations][];
+	    for (int numStation=0;numStation<numStations;numStation++){
+	    	gridFiles[numStation]=CalibrationFileManagement.selectFiles(false,
+					"Select Calibrated Grid Files for Station "+numStation+ "("+(numStation+1)+" of "+numStations+")",
+					"Select",
+					gridFilter,
+					null); // String [] defaultPaths);
+	       	if ((gridFiles[numStation]==null) || (gridFiles[numStation].length==0)) {
+        		if (!IJ.showMessageWithCancel("No files selected","Retry? (Cancel will abort the command)")) return;
+        		numStation--;
+        	}
+	    }
+		PATTERN_PARAMETERS.debugLevel=MASTER_DEBUG_LEVEL;
+		EYESIS_CAMERA_PARAMETERS.updateNumstations (numStations);
+//if (MASTER_DEBUG_LEVEL==0) return; //TODO: Remove - just debugging
+		DISTORTION_CALIBRATION_DATA=new DistortionCalibrationData(
+				gridFiles,
+				PATTERN_PARAMETERS,
+				EYESIS_CAMERA_PARAMETERS,
+				MASTER_DEBUG_LEVEL);
+		LENS_DISTORTIONS.initImageSet(
+					DISTORTION_CALIBRATION_DATA,
+				EYESIS_CAMERA_PARAMETERS
+				);
+		// set initial orientation of the cameras from the sensors that see mpst of the matching pointers
+		// just for the LMA to start
+		DISTORTION_CALIBRATION_DATA.setInitialOrientation(true);
+		return;
+	}
+*/
 
 /* ======================================================================== */
+	// Add subcamera to the current system as a subsystem
+	public boolean importSystem(String path, String prefix) { // use null to ask
+		path = readPropertiesPath(
+				path,
+				PROCESS_PARAMETERS.kernelsDirectory,
+				PROCESS_PARAMETERS.useXML); // PROPERTIES,
+		if (path == null) return false;
+		Properties properties = readProperties(
+				path,
+				PROCESS_PARAMETERS.useXML,
+				null); // Properties properties
+		return EYESIS_CAMERA_PARAMETERS.importSystem(
+				properties,
+				prefix,
+				null,
+				LENS_DISTORTIONS,
+				DISTORTION_CALIBRATION_DATA, // may be null, then it will not be updated, obviously (sensor masks)
+				ABERRATIONS_PARAMETERS.calibrationDirectory);//String calibration_directory
+//getProperties(String prefix,Properties properties)
+//EyesisCameraParameters
+	}
+
 /* ======================================================================== */
 	public void calculateLwirGrids() {
 		long 	  startTime=System.nanoTime();
@@ -9611,15 +9825,13 @@ if (MORE_BUTTONS) {
             	imp_sel=new ImagePlus(sourceFilesList[numFile]); // read source file
             	JP4_INSTANCE.decodeProperiesFromInfo(imp_sel);
             	matchSimulatedPattern= new MatchSimulatedPattern(DISTORTION.FFTSize); // TODO: is it needed each time?
-            	if (!DISTORTION_PROCESS_CONFIGURATION.useNoPonters && (matchSimulatedPattern.getPointersXY(imp_sel,LASER_POINTERS.laserUVMap.length)==null)) {
+            	if (!DISTORTION_PROCESS_CONFIGURATION.useNoPonters && (MatchSimulatedPattern.getPointersXYUV(imp_sel,LASER_POINTERS)==null)) {
     				if (this.SYNC_COMMAND.stopRequested.get()>0) {
     					System.out.println("User requested stop");
     					break;
     				}
             		continue; // no pointers in this image
             	}
-            	// /getPointersXY(ImagePlus imp, int numPointers){               if
-            	// calculate distortion grid for it
 
             	matchSimulatedPattern.invalidateFlatFieldForGrid(); //Reset Flat Field calibration - different image.
             	matchSimulatedPattern.invalidateFocusMask();
@@ -9943,8 +10155,13 @@ if (MORE_BUTTONS) {
 	{
 //    	boolean noAuto=label.equals("Restore no autoload");
     	ABERRATIONS_PARAMETERS.autoRestore=false;
-    	String confPath=loadProperties(null,PROCESS_PARAMETERS.kernelsDirectory,PROCESS_PARAMETERS.useXML, PROPERTIES);
+//    	String confPath=loadProperties(null,PROCESS_PARAMETERS.kernelsDirectory, PROCESS_PARAMETERS.useXML, PROPERTIES);
+    	String confPath = 	readPropertiesPath(null, PROCESS_PARAMETERS.kernelsDirectory,PROCESS_PARAMETERS.useXML);
+		PROPERTIES = readProperties( confPath, true, PROPERTIES);
+		getAllProperties(PROPERTIES);
+		if (DEBUG_LEVEL>0) System.out.println("Configuration parameters are restored from " + confPath);
 		DEBUG_LEVEL=MASTER_DEBUG_LEVEL;
+		EyesisAberrations.AberrationParameters dbg_eap = ABERRATIONS_PARAMETERS;
     	if (ABERRATIONS_PARAMETERS.autoRestore && !noAuto){
     		if (DEBUG_LEVEL>0)System.out.println("Auto-loading configuration files");
     		if (LENS_DISTORTIONS==null) {
@@ -9956,6 +10173,7 @@ if (MORE_BUTTONS) {
     				LENS_DISTORTIONS, // should be initialized, after update DISTORTION_CALIBRATION_DATA from this
     				PATTERN_PARAMETERS,
     				EYESIS_CAMERA_PARAMETERS, //EyesisCameraParameters eyesisCameraParameters,
+    				LASER_POINTERS,
     				UPDATE_STATUS,
     				DEBUG_LEVEL
     		);
@@ -10754,7 +10972,11 @@ if (MORE_BUTTONS) {
 			index=i;
 		}
 		String configPath=fileList[index].getAbsolutePath();
-    	loadProperties(configPath, null, true, PROPERTIES);
+//    	loadProperties(configPath, null, true, PROPERTIES);
+		PROPERTIES = readProperties( configPath, true, PROPERTIES);
+		getAllProperties(PROPERTIES);
+		if (DEBUG_LEVEL>0) System.out.println("Configuration parameters are restored from " + configPath);
+
     	restoreFocusingHistory(false);
     	return true;
 	}
@@ -10765,6 +10987,7 @@ if (MORE_BUTTONS) {
 			Distortions distortions, // should be initialized, after update DISTORTION_CALIBRATION_DATA from this
 			PatternParameters patternParameters,
     		EyesisCameraParameters eyesisCameraParameters,
+    		LaserPointer laserPointers,
     		boolean updateStstus,
     		int debugLevel
 			){
@@ -10776,20 +10999,24 @@ if (MORE_BUTTONS) {
 		if (configPaths[0]==null) return false;
 		System.out.println("+++++++++++ autoLoadFiles() eyesisCameraParameters.numStations="+eyesisCameraParameters.numStations+
 				" +eyesisCameraParameters.goniometerHorizontal.length="+eyesisCameraParameters.goniometerHorizontal.length);
-		DistortionCalibrationData dcd=new DistortionCalibrationData(
+		DistortionCalibrationData dcd=new DistortionCalibrationData( // reads all grids
 				true,
 				configPaths[0],
 				patternParameters,
 				eyesisCameraParameters,
 				aberrationParameters,
+				laserPointers,
 				null); // gridImages null - use specified files
 		if (distortions.fittingStrategy!=null) {
 			distortions.fittingStrategy.distortionCalibrationData=dcd;
-		} else if (configPaths[1]==null) return false; // fitting strategy was null ind is not specified
+		} else if (configPaths[1]==null) return false; // fitting strategy was null and is not specified
 
+		if ((dcd.eyesisCameraParameters == null) || (dcd.eyesisCameraParameters.goniometerHorizontal == null)) {
+			System.out.println("+++++++++++ autoLoadFiles(): got null");
+		} else {
 		System.out.println("+++++++++++ autoLoadFiles() dcd.eyesisCameraParameters.numStations="+dcd.eyesisCameraParameters.numStations+
 				" +dcd.eyesisCameraParameters.goniometerHorizontal.length="+dcd.eyesisCameraParameters.goniometerHorizontal.length);
-
+		}
 
 		if (configPaths[1]!=null) {
 			FittingStrategy fs=distortions.fittingStrategy; // save old value
@@ -10812,9 +11039,11 @@ if (MORE_BUTTONS) {
 			patternParameters.selectAndRestore(true,configPaths[2],dcd.eyesisCameraParameters.numStations); // returns path or null on failure
 		}
 		if ((configPaths[3] !=null) && (configPaths[3] != "")){ // load sensor
-			if (distortions.fittingStrategy==null) return false;
+			if (distortions.fittingStrategy==null) return false; // Why?
 			if (DEBUG_LEVEL>0) System.out.println("Autoloading sensor calibration files "+configPaths[3]);
 			distortions.setDistortionFromImageStack(
+					dcd,
+		    		EYESIS_CAMERA_PARAMETERS, // use null for old version - in fitting strategy instance
 					configPaths[3],
 					aberrationParameters.autoRestoreSensorOverwriteOrientation,
 					aberrationParameters.autoRestoreSensorOverwriteDistortion
@@ -10834,7 +11063,7 @@ if (MORE_BUTTONS) {
 	public void getAndSaveImage(
 			boolean alwaysShow, // true overwrites focusMeasurementParameters.showResults
 			boolean alwaysSave, // true overwrites focusMeasurementParameters.saveResults
-			CalibrationHardwareInterface.CamerasInterface camerasInterface,
+			CamerasInterface camerasInterface,
 			LensDistortionParameters lensDistortionParameters,
 			LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
 			boolean updateStatus,
@@ -10979,8 +11208,8 @@ if (MORE_BUTTONS) {
 	public int [] focusingCenterStepsAuto(
 			int numIterations, // maximal number of iterations (0 - suggest only, do not move). When calling from the button - first time single iteration, second time - as specified
 			double focusTolerance, // will exit after whatever comes first tolearance or number of iterations
-			CalibrationHardwareInterface.FocusingMotors focusingMotors,
-			CalibrationHardwareInterface.CamerasInterface camerasInterface,
+			FocusingMotors focusingMotors,
+			CamerasInterface camerasInterface,
 			LensDistortionParameters lensDistortionParameters,
 			MatchSimulatedPattern matchSimulatedPattern, // should not bee null
 			LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
@@ -11081,8 +11310,8 @@ if (MORE_BUTTONS) {
 	}
 	public int [] focusingStepsAuto(
 			int numIterations, // maximal number of iterations (0 - suggest only, do not move). When calling from the button - first time single iteration, second time - as specified
-			CalibrationHardwareInterface.FocusingMotors focusingMotors,
-			CalibrationHardwareInterface.CamerasInterface camerasInterface,
+			FocusingMotors focusingMotors,
+			CamerasInterface camerasInterface,
 			LensDistortionParameters lensDistortionParameters,
 			MatchSimulatedPattern matchSimulatedPattern, // should not bee null
 			LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
@@ -11271,8 +11500,8 @@ if (MORE_BUTTONS) {
 
 	public int [] focusingStepsAutoOld(
 			int numIterations, // maximal number of iterations (0 - suggest only, do not move). When calling from the button - first time single iteration, second time - as specified
-			CalibrationHardwareInterface.FocusingMotors focusingMotors,
-			CalibrationHardwareInterface.CamerasInterface camerasInterface,
+			FocusingMotors focusingMotors,
+			CamerasInterface camerasInterface,
 			LensDistortionParameters lensDistortionParameters,
 			MatchSimulatedPattern matchSimulatedPattern, // should not bee null
 			LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
@@ -11479,8 +11708,8 @@ if (MORE_BUTTONS) {
 
 	public int [] fineFocusingStepsAuto(
 			int numIterations, // maximal number of iterations (0 - suggest only, do not move). When calling from the button - first time single iteration, second time - as specified
-			CalibrationHardwareInterface.FocusingMotors focusingMotors,
-			CalibrationHardwareInterface.CamerasInterface camerasInterface,
+			FocusingMotors focusingMotors,
+			CamerasInterface camerasInterface,
 			LensDistortionParameters lensDistortionParameters,
 			MatchSimulatedPattern matchSimulatedPattern, // should not bee null
 			LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
@@ -11589,8 +11818,8 @@ if (MORE_BUTTONS) {
 
 	public int [] preFocusingStepsAuto(
 			int numIterations, // maximal number of iterations (0 - suggest only, do not move). When calling from the button - first time single iteration, second time - as specified
-			CalibrationHardwareInterface.FocusingMotors focusingMotors,
-			CalibrationHardwareInterface.CamerasInterface camerasInterface,
+			FocusingMotors focusingMotors,
+			CamerasInterface camerasInterface,
 			LensDistortionParameters lensDistortionParameters,
 			MatchSimulatedPattern matchSimulatedPattern, // should not bee null
 			LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
@@ -11662,8 +11891,8 @@ if (MORE_BUTTONS) {
 	public double[] ScanFocusTilt(
 			//			boolean scanHysteresis, // after scanning forward, go in reverse (different number of steps to measure hysteresis
 			int [] centerMotorPos, // null OK
-			CalibrationHardwareInterface.FocusingMotors focusingMotors,
-			CalibrationHardwareInterface.CamerasInterface camerasInterface,
+			FocusingMotors focusingMotors,
+			CamerasInterface camerasInterface,
 			LensDistortionParameters lensDistortionParameters,
 			MatchSimulatedPattern matchSimulatedPattern, // should not bee null
 			LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
@@ -11994,8 +12223,8 @@ if (MORE_BUTTONS) {
 	public double[] ScanFocus(
 //			boolean scanHysteresis, // after scanning forward, go in reverse (different number of steps to measure hysteresis
 			int [] centerMotorPos, // null OK
-			CalibrationHardwareInterface.FocusingMotors focusingMotors,
-			CalibrationHardwareInterface.CamerasInterface camerasInterface,
+			FocusingMotors focusingMotors,
+			CamerasInterface camerasInterface,
 		    LensDistortionParameters lensDistortionParameters,
 			MatchSimulatedPattern matchSimulatedPattern, // should not bee null
 			LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
@@ -12124,8 +12353,8 @@ if (MORE_BUTTONS) {
 	public boolean moveAndMaybeProbe(
 			boolean justMove, // just move, no probing around
 			int [] newMotorPos, // null OK
-			CalibrationHardwareInterface.FocusingMotors focusingMotors,
-			CalibrationHardwareInterface.CamerasInterface camerasInterface,
+			FocusingMotors focusingMotors,
+			CamerasInterface camerasInterface,
 		    LensDistortionParameters lensDistortionParameters,
 			MatchSimulatedPattern matchSimulatedPattern, // should not bee null
 			LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
@@ -12165,8 +12394,8 @@ if (MORE_BUTTONS) {
 			boolean noHysteresis,
 			boolean justMove, // just move, no probing around
 			int [] newMotorPos, // null OK
-			CalibrationHardwareInterface.FocusingMotors focusingMotors,
-			CalibrationHardwareInterface.CamerasInterface camerasInterface,
+			FocusingMotors focusingMotors,
+			CamerasInterface camerasInterface,
 		    LensDistortionParameters lensDistortionParameters,
 			MatchSimulatedPattern matchSimulatedPattern, // should not bee null
 			LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
@@ -12331,8 +12560,8 @@ if (MORE_BUTTONS) {
 			boolean noHysteresis,
 			boolean justMove, // just move, no probing around
 			int [] newMotorPos, // null OK
-			CalibrationHardwareInterface.FocusingMotors focusingMotors,
-			CalibrationHardwareInterface.CamerasInterface camerasInterface,
+			FocusingMotors focusingMotors,
+			CamerasInterface camerasInterface,
 		    LensDistortionParameters lensDistortionParameters,
 			MatchSimulatedPattern matchSimulatedPattern, // should not bee null
 			LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
@@ -12429,8 +12658,8 @@ if (MORE_BUTTONS) {
 	public void moveMeasureAndSave(
 			boolean noHysteresis,
 			int [] newMotorPos, // null OK
-			CalibrationHardwareInterface.FocusingMotors focusingMotors,
-			CalibrationHardwareInterface.CamerasInterface camerasInterface,
+			FocusingMotors focusingMotors,
+			CamerasInterface camerasInterface,
 		    LensDistortionParameters lensDistortionParameters,
 			MatchSimulatedPattern matchSimulatedPattern, // should not bee null
 			LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
@@ -12601,8 +12830,8 @@ if (MORE_BUTTONS) {
 
 	public boolean moveAndMeasureSharpness(
 			int [] newMotorPos, // null OK
-			CalibrationHardwareInterface.FocusingMotors focusingMotors,
-			CalibrationHardwareInterface.CamerasInterface camerasInterface,
+			FocusingMotors focusingMotors,
+			CamerasInterface camerasInterface,
 			LensDistortionParameters lensDistortionParameters,
 			MatchSimulatedPattern matchSimulatedPattern, // should not bee null
 			LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
@@ -13161,156 +13390,6 @@ Reff=sqrt(1/sqrt(Ar*Br-(Cr/2)^2))
 	}
 
 
-
-	//returns number of matched laser pointers
-/*
-	public int updateFocusGrid(
-			double x0,   // lens center on the sensor
-			double y0,  // lens center on the sensor
-			ImagePlus imp,
-			MatchSimulatedPattern matchSimulatedPattern,
-			MatchSimulatedPattern.DistortionParameters distortionParametersDefault,
-			LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
-			MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
-			MatchSimulatedPattern.LaserPointer laserPointer, // null OK
-			SimulationPattern.SimulParameters  simulParametersDefault,
-			boolean maskNonPSF, // mask out areas not needed for focusing PSF measurements
-			boolean equalizeGreens,
-			int       threadsMax,
-			boolean   updateStatus,
-			int debug_level){// debug level used inside loops
-		long 	  startTime=System.nanoTime();
-
-		SimulationPattern.SimulParameters  simulParameters=simulParametersDefault.clone();
-		simulParameters.smallestSubPix=             focusMeasurementParameters.smallestSubPix;
-		simulParameters.bitmapNonuniforityThreshold=focusMeasurementParameters.bitmapNonuniforityThreshold;
-		simulParameters.subdiv=                     focusMeasurementParameters.subdiv;
-
-		MatchSimulatedPattern.DistortionParameters distortionParameters=  distortionParametersDefault.clone();
-		distortionParameters.refineInPlace=false;
-
-		distortionParameters.correlationMaxOffset=focusMeasurementParameters.maxCorr;
-
-		distortionParameters.correlationSize=focusMeasurementParameters.correlationSize;
-		distortionParameters.correlationGaussWidth=focusMeasurementParameters.correlationGaussWidth;
-		distortionParameters.refineCorrelations=false;
-		distortionParameters.fastCorrelationOnFirstPass=true;
-		distortionParameters.fastCorrelationOnFinalPass=true;
-
-		distortionParameters.correlationAverageOnRefine=false;
-		distortionParameters.minUVSpan=focusMeasurementParameters.minUVSpan;
-		distortionParameters.flatFieldCorrection=focusMeasurementParameters.flatFieldCorrection;
-		distortionParameters.flatFieldExpand=focusMeasurementParameters.flatFieldExpand;
-
-		if (maskNonPSF) {
-			distortionParameters.numberExtrapolated=0; //1; //3; // measuring PSF - extrapolate
-		} else {
-			distortionParameters.numberExtrapolated=1; // measuring distortions - do not extrapolate
-		}
-
-
-//System.out.println("distortionParameters.correlationSize="+distortionParameters.correlationSize);
-		// add more overwrites
-		boolean updating=(matchSimulatedPattern.PATTERN_GRID!=null) &&
-		(!distortionParameters.flatFieldCorrection || (matchSimulatedPattern.flatFieldForGrid!=null));
-
-		ImagePlus imp_eq=matchSimulatedPattern.applyFlatField (imp); // will throw if image size mismatch
-		if (updating) {
-			double maxActualCorr= matchSimulatedPattern.refineDistortionCorrelation (
-					distortionParameters, //
-					patternDetectParameters,
-					simulParameters,
-					equalizeGreens,
-					imp_eq, // if grid is flat-field calibrated, apply it
-					focusMeasurementParameters.maxCorr, // maximal allowed correction, in pixels (0.0) - any
-					threadsMax,
-					updateStatus,
-					debug_level);// debug level used inside loops
-			matchSimulatedPattern.recalculateWaveVectors (
-					updateStatus,
-					debug_level);// debug level used inside loops
-
-			if (debug_level>1) System.out.println("refineDistortionCorrelation() finished at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
-
-			//Bad:	NaN (no cells),	maxActualCorr<0 -number of new empty nodes, >focusMeasurementParameters.maxCorr - also bad (no correction)
-			if (!((maxActualCorr>=0) && (maxActualCorr<=focusMeasurementParameters.maxCorr))) {
-				if (debug_level>0) System.out.println("updateFocusGrid() failed, refineDistortionCorrelation() ->"+maxActualCorr+ " (maxCorr="+focusMeasurementParameters.maxCorr+")");
-				// Do full
-
-
-				updating=false;
-			} else {
-				if (debug_level>1) System.out.println("updateFocusGrid() ->"+maxActualCorr+ " (maxCorr="+focusMeasurementParameters.maxCorr+")");
-			}
-		}
-		int numAbsolutePoints=0;
-		if (updating) {
-			// add new nodes if the appeared after shift of the pattern
-			if (debug_level>1) { // calulate/print number of defined nodes in the grid
-				System.out.println("updateFocusGrid(), number of defined grid cells (before distortions()) = "+matchSimulatedPattern.numDefinedCells());
-			}
-			matchSimulatedPattern.distortions(
-					distortionParameters, //
-					patternDetectParameters,
-					simulParameters,
-					equalizeGreens,
-					imp_eq, // image to process
-					threadsMax,
-					updateStatus,
-					debug_level);// debug level used inside loops
-			if (debug_level>1) System.out.println("distortions() finished at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
-
-			matchSimulatedPattern.recalculateWaveVectors (
-					updateStatus,
-					debug_level);// debug level used inside loops
-			if (debug_level>1) System.out.println("recalculateWaveVectors() finished at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
-			if (debug_level>1) { // calulate/print number of defined nodes ina grid
-				System.out.println("updateFocusGrid(), number of defined grid cells (after distortions()) = "+matchSimulatedPattern.numDefinedCells());
-			}
-		} else {
-//			   matchSimulatedPattern.invalidateFlatFieldForGrid(); //Keep these!
-//			   matchSimulatedPattern.invalidateFocusMask();
-			numAbsolutePoints=matchSimulatedPattern.calculateDistortions( // allow more of grid around pointers?
-					distortionParameters, //
-					patternDetectParameters,
-					simulParameters,
-					equalizeGreens,
-					imp_eq,
-					laserPointer, //null, //LASER_POINTERS, // LaserPointer laserPointer, // LaserPointer object or null
-					true, // don't care -removeOutOfGridPointers
-					threadsMax,
-					updateStatus,
-					DEBUG_LEVEL,
-					distortionParameters.loop_debug_level); // debug level
-
-		}
-		if (maskNonPSF) {
-			matchSimulatedPattern.maskFocus(
-	    			x0,   // lens center on the sensor
-	    			y0,  // lens center on the sensor
-					focusMeasurementParameters);
-			if (debug_level>1) System.out.println("maskFocus() finished at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
-			if (debug_level>1) { // calulate/print number of defined nodes ina grid
-				System.out.println("number of defined grid cells (after maskFocus()) = "+matchSimulatedPattern.numDefinedCells());
-			}
-			if(debug_level>2) {
-			       double [] test_masked=new double [matchSimulatedPattern.focusMask.length];
-			       float [] pixels_eq=(float []) imp_eq.getProcessor().getPixels();
-				   for (int i=0;i<test_masked.length;i++) test_masked[i]=matchSimulatedPattern.focusMask[i]?pixels_eq[i]:0.0;
-				   SDFA_INSTANCE.showArrays(test_masked,matchSimulatedPattern.getImageWidth(), matchSimulatedPattern.getImageHeight(), "MASKED");
-			}
-
-		}
-		if (debug_level>1) System.out.println("updateFocusGrid() finished at "+ IJ.d2s(0.000000001*(System.nanoTime()-startTime),3));
-		if (debug_level>2) {
-	       double [] test_uv=new double [matchSimulatedPattern.UV_INDEX.length];
-		   for (int i=0;i<matchSimulatedPattern.UV_INDEX.length;i++) test_uv[i]=matchSimulatedPattern.UV_INDEX[i];
-		   SDFA_INSTANCE.showArrays(test_uv,matchSimulatedPattern.getImageWidth(), matchSimulatedPattern.getImageHeight(), "UV_INDEX");
-		}
-		return numAbsolutePoints;
-
-	}
-*/
 	//====================================================
 	public double [][][] pixToAngles(
 			double [][][] pXYArray,
@@ -15039,7 +15118,77 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
 	 if (DEBUG_LEVEL>0) System.out.println("Configuration parameters are saved to "+path);
 
 	}
+
+	/* ======================================================================== */
+	public String readPropertiesPath(
+			String path,
+			String directory,
+			boolean useXML){
+   	    String [] XMLPatterns= {".conf-xml",".xml"};
+	    String [] confPatterns={".conf"};
+	    String [] patterns=useXML?XMLPatterns:confPatterns;
+	     if (path==null) {
+	 	    path= CalibrationFileManagement.selectFile(false, // save
+	 			  "Configuration file selection", // title
+	 			  "Read configuration file", // button
+	 			  new CalibrationFileManagement.MultipleExtensionsFileFilter(patterns,(useXML?"XML ":"")+"Configuration files ("+(useXML?"*.conf-xml":"*.conf")+")"), // filter
+	 			  directory); // may be ""
+	      }  else {
+	    	  // do not add extension if it already exists
+	    	  if ((path.length()<patterns[0].length()) || (!path.substring(path.length()-patterns[0].length()).equals(patterns[0]))){
+	    		  path+=patterns[0];
+	    	  }
+	      }
+	     return path;
+	}
+
+
+	/* ======================================================================== */
+	public Properties readProperties(
+			String path,
+			boolean useXML,
+			Properties properties){
+		if (properties != null) {
+			setAllProperties(properties); // Setting properties from current parameters so missing (in the file) parameters will not cause an error
+		} else {
+			properties = new Properties();
+		}
+	    InputStream is;
+		try {
+			is = new FileInputStream(path);
+		} catch (FileNotFoundException e) {
+        	 IJ.showMessage("Error","Failed to open configuration file: "+path);
+         	 return null;
+		}
+
+	     if (useXML) {
+	         try {
+	     		properties.loadFromXML(is);
+
+	     	 } catch (IOException e) {
+	         	 IJ.showMessage("Error","Failed to read XML configuration file: "+path);
+	         	 return null;
+	     	 }
+	     } else {
+	         try {
+	      		properties.load(is);
+	      	 } catch (IOException e) {
+	          	 IJ.showMessage("Error","Failed to read configuration file: "+path);
+	          	 return null;
+	      	 }
+	     }
+	     try {
+	 		is.close();
+	 	 } catch (IOException e) {
+	 		// TODO Auto-generated catch block
+	 		e.printStackTrace();
+	 	 }
+	     return properties;
+	}
+
+
 /* ======================================================================== */
+/*
 	public String loadProperties(
 			String path,
 			String directory,
@@ -15061,7 +15210,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
 	    		  path+=patterns[0];
 	    	  }
 	      }
-	     if (path==null) return path;
+	     if ((path==null) || (properties == null))return path;
 	     InputStream is;
 		try {
 			is = new FileInputStream(path);
@@ -15097,6 +15246,7 @@ private double [][] jacobianByJacobian(double [][] jacobian, boolean [] mask) {
 		 return path;
 
 	}
+*/
 /* ======================================================================== */
     public void setAllProperties(Properties properties){
     	boolean select= (properties.getProperty("selected")!=null);

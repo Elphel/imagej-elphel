@@ -45,7 +45,7 @@ public class LensAdjustment {
 			MatchSimulatedPattern.DistortionParameters distortionParametersDefault,
 			LensAdjustment.FocusMeasurementParameters focusMeasurementParameters,
 			MatchSimulatedPattern.PatternDetectParameters patternDetectParameters,
-			MatchSimulatedPattern.LaserPointer laserPointer, // null OK
+			LaserPointer laserPointer, // null OK
 			SimulationPattern.SimulParameters  simulParametersDefault,
 			boolean maskNonPSF, // mask out areas not needed for focusing PSF measurements
 			boolean equalizeGreens,
